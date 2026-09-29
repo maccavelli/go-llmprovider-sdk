@@ -1,0 +1,84 @@
+package llmprovider
+
+// Canonical provider identifiers.
+const (
+	ProviderGemini = "gemini"
+	ProviderOpenAI = "openai"
+	ProviderClaude = "claude"
+	ProviderGrok   = "grok"
+	// ProviderOpencodeZen is the OpenCode Zen gateway (pay-as-you-go).
+	ProviderOpencodeZen = "opencode-zen"
+	// ProviderOpencodeGo is the OpenCode Go gateway (subscription).
+	ProviderOpencodeGo = "opencode-go"
+	// ProviderHuggingFace is the Hugging Face Inference Providers router.
+	ProviderHuggingFace = "huggingface"
+	// ProviderKilo is the Kilo Gateway (the API behind the Kilo Code agent).
+	// models.dev registers this gateway as "kilo"; this package follows that
+	// registry key. See docs/0003-MADR-add-gateway-llm-providers.md revision 4.
+	ProviderKilo = "kilo"
+	// ProviderOllama is a local Ollama instance, reached through its
+	// OpenAI-compatible endpoint. It is the only provider needing no credential.
+	ProviderOllama = "ollama"
+)
+
+// Common LLM API JSON field names.
+const (
+	jsonKeyModel       = "model"
+	jsonKeyMessages    = "messages"
+	jsonKeyContent     = "content"
+	jsonKeyText        = "text"
+	jsonKeyTools       = "tools"
+	jsonKeyName        = "name"
+	jsonKeyDescription = "description"
+	jsonKeyFunction    = "function"
+	jsonKeyEnabled     = "enabled"
+	jsonKeyType        = "type"
+	jsonKeyRole        = "role"
+	jsonKeySystem      = "system"
+	jsonRoleUser       = "user"
+	jsonRoleAssistant  = "assistant"
+	jsonRoleSystem     = "system"
+	jsonKeyParameters  = "parameters"
+	jsonKeyInput       = "input"
+	jsonKeyOutput      = "output"
+	jsonKeyCallID      = "call_id"
+	jsonKeyArguments   = "arguments"
+
+	// Chat Completions field names, shared by every gateway provider that
+	// speaks that format (OpenCode's chat route, Hugging Face, Kilo).
+	jsonKeyMaxTokens       = "max_tokens"
+	jsonKeyToolChoice      = "tool_choice"
+	jsonKeyReasoningEffort = "reasoning_effort"
+	// jsonKeyReasoning is the Responses API reasoning block (OpenCode responses route) and Kilo's reasoning object.
+	jsonKeyReasoning = "reasoning"
+	// jsonKeyMaxOutputTokens and jsonKeyEffort are Responses API field names.
+	// They are named here so opencode.go does not push the existing literals in
+	// openai.go and grok.go over goconst's occurrence threshold; those files are
+	// deliberately not modified by this change.
+	jsonKeyMaxOutputTokens = "max_output_tokens"
+	jsonKeyEffort          = "effort"
+	jsonRoleTool           = "tool"
+	// jsonKeyToolCalls is the Chat Completions assistant message's call list.
+	jsonKeyToolCalls = "tool_calls"
+	// geminiRoleModel is Gemini's assistant role.
+	geminiRoleModel = "model"
+	// geminiSkipThoughtSignature is Gemini's documented placeholder for a
+	// replayed call it did not issue (accepted live, 2026-09-27).
+	geminiSkipThoughtSignature = "skip_thought_signature_validator"
+)
+
+// Reasoning effort level values shared across providers.
+const (
+	effortLow    = "low"
+	effortMedium = "medium"
+	effortHigh   = "high"
+	effortXHigh  = "xhigh"
+)
+
+// Item envelope types for Responses API and canonical item models.
+const (
+	itemTypeMessage            = "message"
+	itemTypeFunctionCall       = "function_call"
+	itemTypeFunctionCallOutput = "function_call_output"
+	itemTypeReasoning          = "reasoning"
+)

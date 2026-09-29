@@ -1,0 +1,216 @@
+package llmprovider
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"strings"
+)
+
+// chatCompletionsOpts carries the per-gateway variations of a Chat Completions
+// request. Zero values omit the corresponding field entirely.
+type chatCompletionsOpts struct {
+	// Tool, when non-nil, is offered to the model.
+	Tool *Tool
+	// ForceTool sends tool_choice pinning Tool. Kilo gates tool_choice on the
+	// model's supported_parameters, so it is separable from offering the tool.
+	ForceTool bool
+	// ReasoningEffort, when non-empty, is sent as reasoning_effort. OpenCode's
+	// chat route sets it only when the model's published reasoning_options
+	// list the configured effort (MADR 0010 §6).
+	ReasoningEffort string
+	// Reasoning, when non-nil, is sent as the OpenRouter-style reasoning
+	// object Kilo reads: {"effort": …} or {"enabled": true}.
+	Reasoning map[string]any
+	// ReplayReasoningField, when non-empty, replays prior reasoning on every
+	// assistant message under this field (OpenCode interleaved models).
+	ReplayReasoningField string
+}
+
+// itemsToChatMessages converts canonical items to OpenAI Chat Completions
+// messages. A function call becomes the assistant turn's tool_calls entry,
+// and its result a role:"tool" message keyed by tool_call_id, the Chat
+// Completions equivalent of the Responses API's function_call_output item.
+func itemsToChatMessages(items []Item) []map[string]any {
+	return itemsToChatMessagesReplaying(items, "")
+}
+
+// itemsToChatMessagesReplaying is itemsToChatMessages that, when field is set,
+// puts the reasoning preceding each assistant message into that field, and
+// sets it (possibly "") on every assistant message, as OpenCode's client does
+// for interleaved models (MADR 0012 §2, O5).
+func itemsToChatMessagesReplaying(items []Item, field string) []map[string]any {
+	var messages []map[string]any
+	var pending strings.Builder
+	for _, item := range items {
+		switch v := item.(type) {
+		case ReasoningItem:
+			pending.WriteString(v.Text)
+		case MessageItem:
+			role := v.Role
+			if role == "" {
+				role = jsonRoleUser
+			}
+			messages = append(messages, map[string]any{
+				jsonKeyRole:    role,
+				jsonKeyContent: v.Text,
+			})
+		case FunctionCallItem:
+			call := map[string]any{
+				"id":        v.CallID,
+				jsonKeyType: jsonKeyFunction,
+				jsonKeyFunction: map[string]any{
+					jsonKeyName:      v.Name,
+					jsonKeyArguments: v.Arguments,
+				},
+			}
+			// A call joins the assistant turn it follows (its text, or the
+			// calls before it); otherwise it opens one (MADR 0012 §2).
+			if n := len(messages); n > 0 && messages[n-1][jsonKeyRole] == jsonRoleAssistant {
+				calls, ok := messages[n-1][jsonKeyToolCalls].([]map[string]any)
+				if !ok {
+					calls = nil
+				}
+				messages[n-1][jsonKeyToolCalls] = append(calls, call)
+				continue
+			}
+			messages = append(messages, map[string]any{
+				jsonKeyRole:      jsonRoleAssistant,
+				jsonKeyContent:   "",
+				jsonKeyToolCalls: []map[string]any{call},
+			})
+		case FunctionCallOutputItem:
+			messages = append(messages, map[string]any{
+				jsonKeyRole:    jsonRoleTool,
+				"tool_call_id": v.CallID,
+				jsonKeyContent: v.Output,
+			})
+		}
+		if field == "" {
+			continue
+		}
+		// The reasoning belongs to the assistant turn it precedes.
+		if n := len(messages); n > 0 && messages[n-1][jsonKeyRole] == jsonRoleAssistant {
+			if _, isReasoning := item.(ReasoningItem); !isReasoning {
+				prior, _ := messages[n-1][field].(string) //nolint:errcheck // absent is ""
+				messages[n-1][field] = prior + pending.String()
+				pending.Reset()
+			}
+		}
+	}
+	return messages
+}
+
+// chatCompletionsBody builds an OpenAI Chat Completions request body shared by
+// every gateway in this package that speaks the format.
+func chatCompletionsBody(model string, maxTokens int, input []Item, o chatCompletionsOpts) map[string]any {
+	body := map[string]any{
+		jsonKeyModel:     model,
+		jsonKeyMessages:  itemsToChatMessagesReplaying(input, o.ReplayReasoningField),
+		jsonKeyMaxTokens: maxTokens,
+	}
+	if o.Tool != nil {
+		body[jsonKeyTools] = []map[string]any{{
+			jsonKeyType: jsonKeyFunction,
+			jsonKeyFunction: map[string]any{
+				jsonKeyName:        o.Tool.Name,
+				jsonKeyDescription: o.Tool.Description,
+				jsonKeyParameters:  o.Tool.Schema,
+			},
+		}}
+		if o.ForceTool {
+			body[jsonKeyToolChoice] = map[string]any{
+				jsonKeyType:     jsonKeyFunction,
+				jsonKeyFunction: map[string]any{jsonKeyName: o.Tool.Name},
+			}
+		}
+	}
+	if o.ReasoningEffort != "" {
+		body[jsonKeyReasoningEffort] = o.ReasoningEffort
+	}
+	if o.Reasoning != nil {
+		body[jsonKeyReasoning] = o.Reasoning
+	}
+	return body
+}
+
+// decodeChatCompletionsResponse decodes an OpenAI Chat Completions envelope into
+// a canonical Response.
+//
+// Reasoning has two competing vendor spellings, both undocumented, both measured
+// 2026-08-28/29:
+//
+//	message.reasoning_content  — OpenCode Zen (verified on big-pickle)
+//	message.reasoning          — Kilo Gateway, the OpenRouter convention
+//
+// Both are accepted; reasoning_content wins when both are present. Kilo also
+// sends message.reasoning_details[] ({type:"reasoning.text", text}), a structured
+// restatement of the same trace; it is deliberately NOT decoded, because
+// ReasoningItem carries a single Text field (item.go:44-51) and parsing both
+// would create two sources of truth for one value.
+//
+// Absent reasoning is normal, never an error.
+func decodeChatCompletionsResponse(body io.Reader) (*Response, error) {
+	var raw struct {
+		ID      string `json:"id"`
+		Choices []struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
+				Role             string `json:"role"`
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
+				Reasoning        string `json:"reasoning"`
+				ToolCalls        []struct {
+					ID       string `json:"id"`
+					Function struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					} `json:"function"`
+				} `json:"tool_calls"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.NewDecoder(body).Decode(&raw); err != nil {
+		return nil, err
+	}
+	if len(raw.Choices) == 0 {
+		return nil, fmt.Errorf("chat completions: response contained no choices")
+	}
+
+	msg := raw.Choices[0].Message
+	finish := raw.Choices[0].FinishReason
+	// A tool call cut by the token limit has unusable arguments (MADR 0012 §1.5).
+	if finish == finishReasonLength && len(msg.ToolCalls) > 0 {
+		return nil, &IncompleteError{Reason: finishReasonLength}
+	}
+	// The response id is not a resumable conversation handle on any gateway in
+	// this package, so it is carried for logging only.
+	result := &Response{ID: raw.ID, FinishReason: finish}
+
+	reasoning := msg.ReasoningContent
+	if reasoning == "" {
+		reasoning = msg.Reasoning
+	}
+	if strings.TrimSpace(reasoning) != "" {
+		result.Output = append(result.Output, ReasoningItem{Text: reasoning})
+	}
+	if msg.Content != "" {
+		role := msg.Role
+		if role == "" {
+			role = jsonRoleAssistant
+		}
+		result.Output = append(result.Output, MessageItem{Role: role, Text: msg.Content})
+	}
+	for _, tc := range msg.ToolCalls {
+		result.Output = append(result.Output, FunctionCallItem{
+			CallID:    tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: tc.Function.Arguments,
+		})
+	}
+
+	if len(result.Output) == 0 {
+		return nil, fmt.Errorf("chat completions: response contained no usable content")
+	}
+	return result, nil
+}
