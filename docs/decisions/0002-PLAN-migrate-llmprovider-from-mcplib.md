@@ -906,3 +906,57 @@ MADR, then continue.
 * **Not done in this phase:**
   * the workflow has not run; it cannot until code exists (step 7's note);
   * the script's cost over real code is timed at Phase 4, per step 12.
+
+### Phase 3: history import (2026-09-29)
+
+* **Commit.** `7dab7f6` is the merge, with parents `699e2b8` and the
+  filtered head `9ce0f8c`. The `mcplib-import` branch was deleted after the
+  merge.
+* **Inputs, checked before filtering:**
+  * **Manifest.** MADR §10 resolves at `F` to 28 record files (26 moved and
+    the two `docs/decisions/0010-*`), plus 180 code files: `llmprovider/`,
+    `wizard/`, and the four `logging` redaction files.
+  * **Renames.** No imported path was ever renamed in `mcplib`, so a path
+    filter keeps each file's whole history.
+* **Identities.**
+  * Of the 140 `mcplib` commits touching the imported paths, 136 carry the
+    owner's standard identity.
+  * `ebb93fe` is the only one with a different e-mail: the hostname-bearing
+    one. The mailmap maps it.
+  * Three more differ in the name only: `9c01081` and `6da0d10` by letter
+    case, `ba92db1` by another name. All three carry the owner's e-mail,
+    and the disclosure guard's identity rule does not match them. They were
+    left as recorded.
+
+  The PLAN's "other 88 commits" counted only the code paths.
+* **Filter (steps 1-3).**
+  * `SCRATCH/mcplib-import` was cloned with `--no-local` and reset to `F`.
+    HEAD had moved past `F` to the 0015 records commit, so the reset was
+    needed.
+  * `git filter-repo --force` was given the paths, renames and mailmap of
+    step 3. `--force` is needed because the reset means the clone is no
+    longer "fresh".
+* **Verify (step 4).**
+  * `git ls-files` shows 208 expected, 208 present, none missing, none
+    extra.
+  * Author and committer e-mails: one distinct value, the owner's. The
+    hostname-bearing e-mail is absent.
+  * **First-fail.** The same script, without the mailmap and with one
+    record left out, reported one missing file, two distinct e-mails with
+    the hostname-bearing one present, and exited 1.
+* **Addition, 2026-09-29: `--no-tags`.** Step 5's `git fetch` would
+  auto-follow the filtered clone's six rewritten `mcplib` release tags into
+  this repository. The fetch ran with `--no-tags`. `git tag` was empty
+  before and after.
+* **Verify (step 6):**
+  * `git log --oneline -- llmprovider | wc -l` → 82;
+  * `git blame llmprovider/identification.go` attributes all 108 lines to
+    `7807085` (2026-09-27, `mcplib`);
+  * `git diff --name-only 699e2b8 HEAD` lists 208 paths: all in the
+    manifest, and the manifest is complete.
+* **Disclosure.** The guard's pre-push check over all 145 outgoing commits
+  exited 0.
+* **State.** The tree does not build. There is no `go.mod` yet, and the
+  records sit in `docs/mcplib-import/`. Phases 4 and 6 fix both, as the
+  PLAN states. The merge was made by `git merge`, so the agent gate did not
+  run.
