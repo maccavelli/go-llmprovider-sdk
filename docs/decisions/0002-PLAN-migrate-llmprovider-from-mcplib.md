@@ -835,3 +835,74 @@ MADR, then continue.
   reported nothing. Both are quoted in the MADR's amendment.
 * **Status.** Phase 2 has not started. It waits for the owner's approval of
   this amendment.
+
+### Phase 2: scaffold this repository (2026-09-29)
+
+* **Approval.** The owner committed the amendment (`d8550d4`) and approved
+  execution on 2026-09-29.
+* **Copied verbatim from `mcplib` at `F`,** each checked with `cmp`:
+  `.golangci.yml`, `.markdownlint-cli2.jsonc`, `.gitignore`.
+* **Adapted:**
+  * **`Makefile`.** `mcplib`'s Makefile (lines 1-48 plus `help`), with a
+    header naming this repository and a `pre-add-check` target (steps 4 and
+    9).
+  * **`.github/workflows/ci.yml`.** `mcplib`'s lines 1-29, plus a Linux step
+    `go vet -tags live_gateways ./...` (step 5).
+  * **`AGENTS.md`.** Steps 6 and 11.
+* **New:**
+  * `scripts/go-precheck.sh`, recorded as mode `100755` (step 8);
+  * the three pointer files, `opencode.json` and `.claude/.gitignore`
+    (step 10).
+* **First-fail (step 12).** Run on `SCRATCH/sdk-precheck`, a copy of this
+  tree with a one-package module planted in it. Every case behaved as
+  expected (12 of 12):
+
+  | Case | Exit | The output line that proves it |
+  |---|---|---|
+  | baseline, clean package | 0 | `go-precheck: 2 file(s) clean (gofmt, golint, go vet, go test, govulncheck).` |
+  | unformatted file | 1 | `p/p.go` listed under `gofmt` |
+  | exported function without doc comment | 1 | `p/p.go:3:1: exported function Add should have comment or be unexported` |
+  | `fmt.Printf("%d\n", "x")` | 1 | `go vet:` |
+  | failing test | 1 | `go test:` |
+  | `language.ParseAcceptLanguage`, `golang.org/x/text` v0.3.7 | 1 | `Vulnerability #1: GO-2022-1059` |
+  | `govulncheck` shim: network words, exit 3 | 1 | `govulncheck: vulnerabilities found:` |
+  | the same shim, exit 1 | 0 | `govulncheck: could not reach the vulnerability database; skipped.` |
+  | `golint` removed from `PATH` | 2 | `go-precheck: golint not found in PATH.` |
+  | no Go file among the arguments, standard input left open | 0 | `go-precheck: no Go files to check.` |
+  | agent gate, staged unformatted file | 1 | `Go pre-commit check failed (scripts/go-precheck.sh):` |
+  | agent gate, file fixed | 0 | (no output) |
+
+  * **Comparison with `magic-cli-remote`.** Its own `scripts/go-precheck.sh`,
+    run on the same copy with the exit-3 shim, exited 0 and printed
+    `govulncheck: could not reach the vulnerability database; skipped.` That
+    confirms the MADR amendment's claim that it can skip a real finding.
+  * **Harness note.** On the first run the three `PATH` cases did not fail.
+    `BASH_ENV` points at a profile loader that rebuilds `PATH` in every
+    non-interactive bash, so the script never saw the changed `PATH`. The
+    cases were re-run with `BASH_ENV` removed from their environment. The
+    script did not change between the runs.
+* **In this repository:**
+  * `git ls-files -s scripts/go-precheck.sh` shows `100755`;
+  * `make pre-add-check` exits 0 (`go-precheck: no Go files to check.`);
+  * `make help` lists nine targets, including `pre-add-check`;
+  * the local `user.name` and `user.email` match the author identity of
+    `1fe7bac` and the local identity of `mcplib`;
+  * the disclosure guard's deny list finds nothing in the 12 new files.
+* **Deviation, 2026-09-29: two pointer files are outside the repository
+  lint.**
+  * **Found.** The verbatim `.markdownlint-cli2.jsonc` excludes any file
+    whose name contains `madr` or `plan`. That covers
+    `.claude/rules/madr-and-plan-skill.md` and
+    `.grok/rules/madr-plan-before-mutating-work.md`, so step 12's
+    `markdownlint-cli2` run over the four files linted only `AGENTS.md` and
+    `.opencode/rules.md`. A planted `*` bullet in each file was reported in
+    those two only.
+  * **Resolution.** The two excluded files were linted from a scratch
+    directory holding the same `config` with no `globs`. A planted `*`
+    bullet failed there first (MD004); the real files were then clean.
+  * **Not done.** Neither the config nor the file names changed. The config
+    is verbatim by step 2, and the names are fixed by the MADR's amendment.
+    The repository's own lint will keep skipping these two files.
+* **Not done in this phase:**
+  * the workflow has not run; it cannot until code exists (step 7's note);
+  * the script's cost over real code is timed at Phase 4, per step 12.
