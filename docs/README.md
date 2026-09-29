@@ -15,4 +15,5 @@
 | know whether `mcplib/llmprovider` can move here, and what it would take | [0001-REPORT](reports/0001-REPORT-llmprovider-extraction-feasibility.md) |
 | see what the migration decides: identity, versions, records, open work | [0002-MADR](decisions/0002-MADR-migrate-llmprovider-from-mcplib.md) |
 | see the migration steps and which repository each happens in | [0002-PLAN](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md) |
+| know what runs before an agent commit here, and why | [0002-MADR, "Amendment 2026-09-29"](decisions/0002-MADR-migrate-llmprovider-from-mcplib.md#amendment-2026-09-29-pre-add-gate-and-agent-pointers) |
 | find where an `mcplib` record number ends up here | [0002-MADR, "Records move here and are renumbered locally"](decisions/0002-MADR-migrate-llmprovider-from-mcplib.md#10-records-move-here-and-are-renumbered-locally) |

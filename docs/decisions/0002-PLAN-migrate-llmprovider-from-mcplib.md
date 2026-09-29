@@ -55,6 +55,11 @@ execution detail.
 * `AGENTS.md`, `Makefile`, `.golangci.yml`, `.markdownlint-cli2.jsonc`,
   `.gitignore`
 * `.github/workflows/ci.yml`
+* Added 2026-09-29 by the MADR's amendment:
+  * `scripts/go-precheck.sh`;
+  * `.claude/rules/madr-and-plan-skill.md`, `.claude/.gitignore`;
+  * `.grok/rules/madr-plan-before-mutating-work.md`;
+  * `.opencode/rules.md`, `opencode.json`.
 
 ### Out of scope
 
@@ -123,6 +128,7 @@ Copy from `mcplib` at `F` and adapt; nothing is copied blind.
 4. **`Makefile`:** targets `test`, `test-sum`, `fmt`, `vet`, `lint`, `tidy`,
    `vuln` and `help`, from `mcplib` `Makefile` lines 1-48 plus `help`. Change
    the header comment to name this repository.
+   * *Amended 2026-09-29:* also `pre-add-check`, per step 9.
 5. **`.github/workflows/ci.yml`:**
    * From `mcplib` `ci.yml` lines 1-29: the same `actions/checkout` and
      `actions/setup-go` SHAs, the 3-OS matrix, `go-version-file: go.mod`,
@@ -140,12 +146,102 @@ Copy from `mcplib` at `F` and adapt; nothing is copied blind.
    * Commits: `git commit --no-edit`.
    * Pre-add: `gofmt`, `go vet`, `go test` on the touched packages;
      `make lint` before a release.
+     * *Superseded 2026-09-29 by step 11.*
    * Live tests: `go test -tags live_gateways ./llmprovider -run Live` with
      the `LLMPROVIDER_LIVE_*` switches.
 7. **Verify:** `make help` lists the targets.
 
    The workflow cannot run until code exists; its first green run is Phase
    3's verification.
+
+**Amendment 2026-09-29.** Steps 8–12 below come from the MADR's
+"Amendment 2026-09-29: pre-add gate and agent pointers". Step 12 is the
+phase's verification; it includes step 7's check.
+
+8. **`scripts/go-precheck.sh`.** Adapt `magic-cli-remote`'s
+   `scripts/go-precheck.sh`.
+   * Keep:
+     * `gofmt -l`;
+     * per-file `golint`;
+     * the missing-tool check with its install hints;
+     * exit codes 0, 1 and 2;
+     * `GO_PRECHECK_SKIP_VULN`.
+   * Add `go vet` and `go test` over the unique package directories of the
+     given files, or `./...` when the script is given no arguments.
+   * **`govulncheck`:**
+     * exit status 3 fails;
+     * any other non-zero status warns and passes only when the output
+       matches a network-failure pattern;
+     * anything else fails.
+   * **No Go file:** print that and exit 0. Never call `gofmt` with an empty
+     file list, which makes it read standard input.
+   * **Header comment:** name the caller that exists on this host, the agent
+     gate `~/.agents/hooks/lib/precommit-checks.sh` at `git commit`, not
+     `pre-add-go.sh`.
+   * Make it executable before staging, so that `git ls-files -s` records
+     mode `100755`. The agent gate only uses the script when it is
+     executable.
+9. **`Makefile`.** Add a `pre-add-check` target, with a `##` help text and
+   `FILES ?=`, that runs `./scripts/go-precheck.sh $(FILES)`.
+10. **Per-agent pointer files.**
+    * `.claude/rules/madr-and-plan-skill.md`,
+      `.grok/rules/madr-plan-before-mutating-work.md` and
+      `.opencode/rules.md` each carry the same three things:
+      * the `madr-and-plan-writing` skill name, and the command that checks
+        it against the filesystem;
+      * the read-only versus mutating gate;
+      * a pointer to AGENTS.md for everything else.
+    * `opencode.json` has `$schema` and
+      `"instructions": [".opencode/rules.md"]` and nothing else.
+    * `.claude/.gitignore` has `settings.local.json`.
+11. **`AGENTS.md`**, replacing step 6's pre-add bullet:
+    * run `make pre-add-check` (or `FILES=...`) before staging Go files;
+    * the machine-wide agent gate runs the same script at `git commit`
+      whenever Go files are staged;
+    * `make lint` and `make vuln` run before each release;
+    * describe identifier scans without quoting the identifiers;
+    * before asking the owner to push, check the outgoing commits with the
+      disclosure guard itself:
+      `python3 ~/.global-git-hooks/github-disclosure.py pre-push origin <url>`,
+      with the ref line on standard input.
+12. **Prove the checks fail first, then verify.**
+    * **First-fail.** In `SCRATCH/sdk-precheck`, a clone of this repository
+      with the step 8 script, plant a one-package module. Plant each defect
+      in turn, and record each outcome:
+
+      | Planted | Expected |
+      |---|---|
+      | an unformatted file | exit 1; the file is named under `gofmt` |
+      | an exported function with no doc comment | exit 1, from `golint` |
+      | `fmt.Printf("%d", "x")` | exit 1, from `go vet` |
+      | a failing test | exit 1, from `go test` |
+      | a call to `language.ParseAcceptLanguage` with `golang.org/x/text` v0.3.7 | exit 1, naming GO-2022-1059 |
+      | a `govulncheck` shim on `PATH` that prints `dial tcp` and `proxy` and exits 3 | exit 1: the keyword rule cannot hide a finding |
+      | the same shim, exiting 1 | exit 0, with the "could not reach" warning |
+      | `golint` removed from `PATH` | exit 2 |
+      | no Go file | exit 0, without waiting on standard input |
+
+    * **The gate end to end.** In the scratch clone:
+      * stage the unformatted file and run
+        `~/.agents/hooks/lib/precommit-checks.sh <clone>`. It exits 1, and
+        its report names `scripts/go-precheck.sh`;
+      * fix the file. It exits 0.
+    * **In this repository:**
+      * `git ls-files -s scripts/go-precheck.sh` shows `100755`;
+      * `make pre-add-check` exits 0;
+      * `make help` lists every target, including `pre-add-check`;
+      * `markdownlint-cli2` is clean for `AGENTS.md` and the three pointer
+        files;
+      * `git config --local user.name` and `user.email` equal the owner's
+        standard identity. The execution record says they match; it does
+        not quote them;
+      * the disclosure guard's pre-push check over the phase commit exits 0.
+    * **Record the cost.** Time the script over `llmprovider` and `wizard`
+      at Phase 4, once code exists.
+    * **Where the gate starts to apply.** Phase 3's `git merge` is not a
+      `git commit`, so the agent gate does not intercept it. The gate first
+      applies to Phase 4's commit, where the script runs over every staged
+      Go file.
 
 ### Phase 3: history import (this repository)
 
@@ -648,9 +744,11 @@ Acceptance criteria. Each maps to MADR §12:
 | A11 | Open work transferred with dated entries | 0008, 0009, 0010 PLANs | 6 |
 | A12 | Consumers green on `v1.0.0` | their companion PLANs | 10–12 |
 | A13 | `mcplib` MCP-only and relocation table resolves | Phase 13 step 8 | 13 |
+| A14 | The pre-add gate runs at every agent commit and fails on each planted defect | Phase 2 step 12 | 2 |
 
 Each new gate (G-dep, G-name, G-api, G-links, G-cite, the Phase 5 tests and
-the `go-precheck.py` extension) is recorded with its first-fail experiment:
+the `go-precheck.py` extension, and, since 2026-09-29, `scripts/go-precheck.sh`)
+is recorded with its first-fail experiment:
 what was broken on a scratch copy, and what the failure looked like.
 
 ## Rollout and Rollback
@@ -718,3 +816,22 @@ MADR, then continue.
     unpushed-identifier rule.
   * `git rev-parse --path-format=absolute --git-path hooks` resolved to
     the global hooks directory.
+
+### Amendment: pre-add gate and agent pointers (2026-09-29)
+
+* **What was found.** An assessment of how `mcplib` and `magic-cli-remote`
+  gate agent commits, made after the push refusal. The findings are in the
+  MADR's "Amendment 2026-09-29: pre-add gate and agent pointers".
+* **What was decided.** The owner asked that 0002 "include closing the test
+  gaps as per magic-cli-remote's setup". The MADR's amendment of the same
+  date records the decision. This PLAN gains:
+  * Phase 2 steps 8–12;
+  * acceptance criterion A14;
+  * six in-scope files.
+
+  Step 4 is annotated, and step 6's pre-add bullet is marked superseded.
+* **What was probed for it.** A scratch module showed that `govulncheck`
+  exits with status 3 on a finding. `golint` over the moved code at `F`
+  reported nothing. Both are quoted in the MADR's amendment.
+* **Status.** Phase 2 has not started. It waits for the owner's approval of
+  this amendment.

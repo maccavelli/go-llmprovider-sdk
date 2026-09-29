@@ -517,3 +517,123 @@ The chosen option, described in §1–§13 above.
 * **Revisit** if a live identity gate rejects a new value, if an unknown
   importer of `mcplib/llmprovider` surfaces before `mcplib` `v1.7.0`, or if
   the owner prefers option C over the semantic-versioning exception.
+
+## Amendment 2026-09-29: pre-add gate and agent pointers
+
+The owner asked for this on 2026-09-29, after the global disclosure guard
+refused a push of this repository. It adds to §2 and §12 and changes nothing
+above.
+
+### Observed
+
+* **What runs before an agent commit.** A machine-wide agent gate runs before
+  every agent `git commit`. For Claude Code the chain is `PreToolUse` →
+  `~/.claude/hooks/precommit-gate.sh` → `~/.agents/hooks/lib/precommit-checks.sh`.
+  When Go files are staged, it runs the first of these that exists:
+  1. the repository's executable `scripts/go-precheck.sh`, given the staged
+     files;
+  2. `make pre-add-check`;
+  3. `gofmt -l` and per-file `golint` only.
+* **`mcplib` and this repository get only the third option.**
+  * `mcplib` ships neither of the first two.
+  * `mcplib`'s AGENTS.md requires `go vet` and `go test` of the touched
+    packages to exit 0, but nothing enforces that at commit time.
+  * As planned before this amendment, this repository would have had the
+    same gap.
+* **How `magic-cli-remote` closes it:**
+  * `scripts/go-precheck.sh` runs `gofmt`, per-file `golint` and
+    `govulncheck ./...`. `GO_PRECHECK_SKIP_VULN=1` skips `govulncheck` for
+    offline work. It exits 0 when clear, 1 when a check fails, and 2 when a
+    tool is missing.
+  * `make pre-add-check` (`FILES=...`) runs that same script, so the manual
+    check and the enforced one cannot drift.
+  * Per-agent pointer files (`.claude/rules/`, `.grok/rules/`, and
+    `.opencode/rules.md`, loaded by `opencode.json`) name the skill and the
+    gate, and defer to AGENTS.md for everything else.
+  * The repository sets a local git identity.
+* **What is not true here, or not safe to copy.**
+  * **The `git add` hook.** `magic-cli-remote`'s AGENTS.md says the check
+    runs at `git add` through `~/.global-agent-hooks/pre-add-go.sh`. That
+    directory does not exist on this Mac. The record that would install it,
+    dotfiles `0008-MADR-cross-host-agent-rules-and-hooks.md`, is still
+    `proposed`. Here the check runs only at `git commit`.
+  * **Vulnerability findings can be skipped.** When `govulncheck` fails, the
+    script treats it as "database unreachable", and passes, if the output
+    contains `proxy`, `timeout`, `dial tcp`, `connection refused` or
+    `no such host`. A real finding whose trace names such a symbol (any
+    `.../proxy` package, any `...Timeout` function) would be skipped.
+  * **How `govulncheck` reports a finding.** Probe, 2026-09-29, with
+    `govulncheck` v1.7.0: a scratch module called `language.ParseAcceptLanguage`
+    from `golang.org/x/text` v0.3.7. `govulncheck` reported GO-2022-1059 and
+    exited with status 3.
+* **The moved code already passes these checks.** At `F`, `golint` reports
+  nothing for `llmprovider/...`, `wizard/...` or the four `logging` files
+  that move. `go test -count=1 ./llmprovider ./wizard` passes in about 3 s.
+* **None of these layers scans for identifiers.** The global pre-push
+  disclosure guard is the only check (dotfiles
+  `0010-MADR-github-disclosure-guard.md`). That record rejected a
+  commit-time check so that GitLab work stays outside it. This amendment
+  does not change that.
+
+### Decision
+
+1. **`scripts/go-precheck.sh`** is the single implementation of the pre-add
+   rule. It is adapted from `magic-cli-remote`'s script and committed
+   executable (mode `100755`). It checks the Go files it is given, or every
+   tracked Go file when given none:
+   * `gofmt -l`;
+   * `golint`, per file;
+   * `go vet` and `go test` of the packages those files belong to.
+     `magic-cli-remote`'s script has no such step. It is added because this
+     repository's AGENTS.md requires it, and it costs a few seconds.
+   * `govulncheck ./...`:
+     * exit status 3 is always a finding;
+     * any other non-zero status passes with a warning only when the output
+       matches a network-failure pattern;
+     * `GO_PRECHECK_SKIP_VULN=1` skips it.
+
+   When there is no Go file to check, it prints that and exits 0. That is
+   the state of the tree until Phase 3.
+2. **`make pre-add-check`** (`FILES ?=`) runs the script. `make vuln` stays.
+3. **Per-agent pointer files.** `.claude/rules/madr-and-plan-skill.md`,
+   `.grok/rules/madr-plan-before-mutating-work.md` and `.opencode/rules.md`,
+   plus an `opencode.json` whose only setting loads `.opencode/rules.md`.
+   * They name the `madr-and-plan-writing` skill and the gate, and point at
+     AGENTS.md.
+   * They carry none of `magic-cli-remote`'s history.
+   * `.claude/.gitignore` ignores `settings.local.json`.
+4. **AGENTS.md** states:
+   * the pre-add rule as `make pre-add-check`;
+   * that the agent gate enforces it at `git commit`, with no `git add` hook
+     named;
+   * that agents describe identifier scans without quoting the identifiers,
+     and check a push with the disclosure guard itself before making it.
+5. **Identity.** This repository keeps a local `user.name` and `user.email`
+   equal to the owner's standard identity. They were set on 2026-09-29.
+   `.git/config` is not committed, so the PLAN verifies them instead.
+6. **CI does not run the script.**
+   * `magic-cli-remote`'s CI does not run it either.
+   * This repository's CI already runs `gofmt`, `go vet`, `go test` and
+     `golangci-lint`.
+   * In CI, a newly published advisory against `x/term` or `x/sys` would
+     turn unrelated pushes red. `make vuln` runs before each release
+     instead.
+
+### Consequences of the amendment
+
+* Good, because an agent commit here runs formatting, lint, vet, tests and
+  a vulnerability check over what it stages.
+* Good, because the manual check and the agent gate run the same file.
+* Neutral, because each agent commit that stages Go files takes longer: the
+  touched packages' tests plus one `govulncheck` run. Phase 2 measures it.
+* Bad, because the script is a second copy of `magic-cli-remote`'s and can
+  drift from it. This record does not carry the exit-status-3 fix back to
+  `magic-cli-remote`.
+* Bad, because nothing yet catches an identifier before a push.
+
+### Confirmation of the amendment
+
+The PLAN's Phase 2 records two things:
+
+* the script failing on each planted defect in a scratch clone;
+* the agent gate denying a commit through the script.
