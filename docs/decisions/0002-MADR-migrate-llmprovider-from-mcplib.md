@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-29
 decision-makers: go-llmprovider-sdk maintainers
 consulted: mcplib maintainers; owners of mcp-server-magicdev, mcp-server-magictools, prepare-commit-msg

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-09-29
 associated-madr: "0002-MADR-migrate-llmprovider-from-mcplib.md"
 decision-makers: go-llmprovider-sdk maintainers
@@ -696,4 +696,25 @@ MADR, then continue.
 
 ## Execution Record
 
-No phase has been executed. The plan is `proposed`.
+### Phase 0: accept the records (2026-09-29)
+
+* **Approval.** The owner answered "proceed" to the pair as presented on
+  2026-09-29. That accepts the MADR and approves this PLAN's execution. The
+  MADR is now `status: accepted` and this PLAN `status: in-progress`.
+* **Step 2 was done by the owner, not by the agent.** Commit `1fe7bac`
+  ("docs(migration): document llmprovider extraction plan") added the
+  0001 REPORT, this pair and `docs/README.md`, and was pushed to
+  `origin/main` with both records still `proposed`. The commit is docs
+  only, so it stays within the bootstrap exception.
+* **What this phase itself changed.** This entry, the two status fields,
+  and the status column of `docs/README.md`.
+* **Checks run before the commit.**
+  * An identifier scan of `docs/` (the local account name, the e-mail
+    local part, the machine hostname domain, scratch and home paths): no
+    match.
+  * **Correction (2026-09-29).** The first version of the line above named
+    the account name it scanned for. The global pre-push disclosure guard
+    refused the push, so the unpushed commit was amended under the
+    unpushed-identifier rule.
+  * `git rev-parse --path-format=absolute --git-path hooks` resolved to
+    the global hooks directory.

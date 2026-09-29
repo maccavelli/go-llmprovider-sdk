@@ -5,8 +5,8 @@
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
 | 0001 | REPORT | [LLM provider extraction feasibility](reports/0001-REPORT-llmprovider-extraction-feasibility.md) | observation |
-| 0002 | MADR | [Migrate `llmprovider` and `wizard` from mcplib](decisions/0002-MADR-migrate-llmprovider-from-mcplib.md) | proposed |
-| 0002 | PLAN | [Implement the migration from mcplib](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md) | proposed |
+| 0002 | MADR | [Migrate `llmprovider` and `wizard` from mcplib](decisions/0002-MADR-migrate-llmprovider-from-mcplib.md) | accepted |
+| 0002 | PLAN | [Implement the migration from mcplib](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md) | in-progress |
 
 ## I want to…
 
