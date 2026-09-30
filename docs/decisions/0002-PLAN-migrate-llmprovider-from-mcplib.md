@@ -18,6 +18,8 @@ At the end of this plan:
    * It builds with no `mcplib` or MCP go-sdk dependency.
    * Its exported API equals `mcplib` `v1.6.0`, apart from the MADR's §4–§7
      changes.
+     * *Superseded 2026-09-29 (second amendment):* functional parity,
+       with the API of `0015-MADR-canonical-sdk-api-and-module-layout.md`, proven by its PLAN.
    * It is tagged `v1.0.0`.
 2. The 26 LLM records of `mcplib` live in `docs/decisions/` and
    `docs/reports/`, renumbered per MADR §10. The mixed `decisions/0010` pair
@@ -37,6 +39,7 @@ At the end of this plan:
 | Repository | Record that authorises the change | Phases |
 |---|---|---|
 | go-llmprovider-sdk (this) | this PLAN | 0, 2–8, 14 |
+| go-llmprovider-sdk (this) | [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) (added 2026-09-29) | between 7 and 8 |
 | mcplib | `docs/decisions/0015-{MADR,PLAN}-transfer-llmprovider-to-go-llmprovider-sdk.md` (written in Phase 1) | 1, 9, 13 |
 | prepare-commit-msg | `docs/decisions/0008-{MADR,PLAN}-adopt-go-llmprovider-sdk.md` | 10 |
 | mcp-server-magictools | `docs/decisions/0005-{MADR,PLAN}-adopt-go-llmprovider-sdk.md` | 11 |
@@ -60,6 +63,12 @@ execution detail.
   * `.claude/rules/madr-and-plan-skill.md`, `.claude/.gitignore`;
   * `.grok/rules/madr-plan-before-mutating-work.md`;
   * `.opencode/rules.md`, `opencode.json`.
+* Added 2026-09-29 by the MADR's third amendment:
+  ~~`.github/dependabot.yml`~~ *(struck 2026-09-29, no Dependabot)* and
+  `docs/architecture.md` (Phase 2b).
+* Added 2026-09-29 by the MADR's fourth amendment: no new file; Phase 2c
+  changes `scripts/go-precheck.sh`, `.golangci.yml`, `Makefile` and
+  `AGENTS.md`, all already in scope.
 
 ### Out of scope
 
@@ -243,6 +252,132 @@ phase's verification; it includes step 7's check.
       applies to Phase 4's commit, where the script runs over every staged
       Go file.
 
+**Amendment 2026-09-29 (third): Phase 2b, the documentation tree to
+standards.** From the MADR's "Amendment 2026-09-29 (third): repository
+scaffold to standards". *Approved 2026-09-29 without step 5.* It may run
+before Phase 4, because it touches no Go file.
+
+### Phase 2b: documentation tree and CI hygiene (this repository)
+
+1. **`README.md`.** Replace the one-line placeholder with:
+   * what the module is: a Go library for LLM provider access and provider
+     authentication, standard library plus `golang.org/x/term`, no binary;
+   * its status, true at the commit: the `mcplib` code is imported but not
+     yet re-homed, there is no `go.mod`, CI cannot pass until Phase 4, and
+     the v1 API is being decided by
+     `0015-MADR-canonical-sdk-api-and-module-layout.md` and
+     `0016-MADR-provider-auth-and-support-baseline.md`;
+   * `**Documentation:** [docs/](docs/README.md)`;
+   * an "I want to…" table of at most five rows, each also in
+     `docs/README.md`.
+2. **`docs/architecture.md`.** The tree as it is at the commit, with no
+   history or rationale:
+   * the tree diagram (root files, `llmprovider/`, `wizard/`,
+     `internal/redact/`, `scripts/`, `docs/` with `decisions/`, `reports/`
+     and the temporary `mcplib-import/`);
+   * what each Go directory holds today, and that it still imports `mcplib`
+     and does not build;
+   * the tooling: `make` targets, `scripts/go-precheck.sh`, CI;
+   * "What is not here": `go.mod`, `docs/guides/`, the 0015 package
+     layout. Each is named with the record that will add it.
+3. **`docs/guides/`** is **not** created. An empty directory is not tracked,
+   and a placeholder guide would tell a reader nothing. 0015-PLAN S1 creates
+   it with its first guide.
+4. **`docs/README.md`.** Add an `architecture.md` row to the "I want to…"
+   table.
+5. ~~**`.github/dependabot.yml`.** The `github-actions` ecosystem only,
+   monthly, one grouped pull request, `ci` commit prefix. It follows
+   `magic-cli-remote`'s file, with a header comment saying why:~~
+   ~~`ci.yml` pins every action to a commit SHA, so a pin goes stale
+   silently without a notifier; `gomod` is left out, because dependency
+   currency here is a recorded act and `govulncheck` runs in the pre-add
+   gate.~~
+   *Struck 2026-09-29: the owner decided "No dependabot."*
+6. **Verify.**
+   * `markdownlint-cli2 README.md docs/README.md docs/architecture.md`
+     is clean.
+   * **Link check.** A throwaway stdlib-Python resolver in `SCRATCH` over
+     `README.md`, `docs/README.md` and `docs/architecture.md` resolves every
+     relative link. **First-fail:** a scratch copy with one planted bad link
+     in each file; each is reported.
+   * Every path `docs/architecture.md` names exists (`test -e`).
+   * ~~`dependabot.yml` loads in a YAML parser available on the host; the
+     execution record names which one.~~ *(Struck with step 5.)*
+   * The identifier scan and the disclosure guard's deny list find nothing
+     in the changed files.
+7. **Commit** with `git commit --no-edit`.
+
+**Not in Phase 2b:**
+
+* `go.mod`: Phase 4. Until it exists, CI fails at `actions/setup-go` with
+  `The specified go version file at: go.mod does not exist` (run
+  36638209549 on `4ddcb54`, all three runners).
+* The records under `docs/mcplib-import/`: Phase 6.
+* A `LICENSE`: the owner has not chosen one. `mcplib` has none;
+  `magic-cli-remote` is Apache-2.0. It needs the owner's decision first.
+
+**Amendment 2026-09-29 (fourth): Phase 2c, golangci-lint in the pre-add
+gate.** From the MADR's "Amendment 2026-09-29 (fourth): golangci-lint
+replaces golint in the pre-add gate". *Approved 2026-09-29.* It may run
+before Phase 4.
+
+### Phase 2c: golangci-lint replaces golint (this repository)
+
+1. **`.golangci.yml`.** Append to `linters.settings.revive.rules`, after
+   `var-declaration`: `exported`, `package-comments`, `var-naming`. Nothing
+   else changes.
+2. **`scripts/go-precheck.sh`.** Replace step 2 (per-file `golint`) with
+   `ocp-login`'s step 2:
+   * `GOLANGCI="${GOLANGCI_LINT:-$(go env GOPATH)/bin/golangci-lint}"`, the
+     same override the `Makefile` honours;
+   * `"$GOLANGCI" run -c .golangci.yml ./...`, package-scoped whether or not
+     files are given, with the last 40 lines of output on failure;
+   * not executable: exit 2, with the install hint pinned to CI's
+     `golangci-lint@v2.13.1`.
+
+   Remove the `golint` install hint from `need()`. Update the header
+   comment (why `golangci-lint`, why `./...`, citing the fourth amendment)
+   and the final "clean" line. Steps 1, 3 and 4 do not change.
+3. **`Makefile`.** The `pre-add-check` help text names `golangci-lint`.
+4. **`AGENTS.md`.** "Pre-add checks" names `golangci-lint` with the
+   repository's `.golangci.yml`, in place of per-file `golint`.
+5. **Prove it fails first.** On a fresh scratch clone of this repository
+   with the Phase 2c changes and a planted one-package module (as in step
+   12), record each outcome:
+
+   | Planted | Expected |
+   |---|---|
+   | nothing | exit 0, the "clean" line names `golangci-lint` |
+   | an unformatted file | exit 1; the file is named under `gofmt` |
+   | an exported function with no doc comment | exit 1; `revive` `exported` |
+   | `fmt.Printf("%d\n", "x")` | exit 1, from `go vet` |
+   | a failing test | exit 1, from `go test` |
+   | `GOLANGCI_LINT` pointing at a missing path | exit 2, with the install hint |
+   | no Go file | exit 0, without waiting on standard input |
+
+   Also run the agent gate end to end, as step 12 does: an undocumented
+   exported function staged, `~/.agents/hooks/lib/precommit-checks.sh`
+   exits 1 and names `scripts/go-precheck.sh`; fixed, it exits 0.
+6. **Verify in this repository.**
+   * `git ls-files -s scripts/go-precheck.sh` still shows `100755`.
+   * ~~`make pre-add-check` exits 0 (`go-precheck: no Go files to check.`
+     until Phase 4 adds `go.mod`; the script must not reach
+     `golangci-lint` without one).~~
+     *Corrected 2026-09-29 (deviation, see the execution record):* Phase 3
+     imported tracked Go files, so the whole-tree run already failed before
+     this phase. Until Phase 4 adds `go.mod`, `make pre-add-check` exits 2,
+     and its only failures are `golangci-lint`, `go vet` and `go test`
+     reporting `directory prefix . does not contain main module`, as the
+     pre-change run's `go vet` and `go test` did. Phase 4 requires it to
+     pass.
+   * `grep -rn golint` over `scripts/`, `Makefile`, `AGENTS.md` and the
+     pointer files finds only the header comment's explanation.
+7. **Commit** with `git commit --no-edit`.
+
+**Not in Phase 2c:** `.markdownlint-cli2.jsonc`, which already equals
+`magic-cli-remote`'s (MADR fourth amendment). The imported `0011` REPORT's
+`MD004` findings are Phase 6's.
+
 ### Phase 3: history import (this repository)
 
 Work in `SCRATCH`; never filter the real `mcplib` checkout.
@@ -330,7 +465,9 @@ before its commit.
      `golang.org/x/sys/unix` (`x/sys/windows` under `GOOS=windows`).
      * Fail experiment: a scratch copy with one import reverted to
        `mcplib/logging`.
-   * **G-name:** `grep -rn --include='*.go' 'mcplib' .` is empty, except
+   * **G-name:** `grep -rn --include='*.go' 'mcplib' .` is empty
+     *(amended 2026-09-29: and so is the case-insensitive `grep -rni`)*,
+     except
      lines matched by the citation rule of Phase 7, which are allowed until
      then and listed.
      * Fail experiment: the scratch copy's unchanged `identification.go`
@@ -343,6 +480,10 @@ before its commit.
        Every changed line is listed in the execution record.
      * A changed `func`, `type`, `const`, `var` or field line fails the
        gate.
+       * *Amended 2026-09-29:* except the `var ErrOrchestrated` line,
+         whose message MADR §4 changes.
+       * G-api checks that Phases 4–5 are mechanical. It is not a release
+         criterion.
      * Fail experiment: add a parameter to a scratch copy's
        `WithSessionID`.
 9. **Verify:**
@@ -351,6 +492,9 @@ before its commit.
    * `go vet -tags live_gateways ./...`;
    * `go test -count=1 -cover ./...`. Coverage must be no lower than
      `mcplib` at `F`: `llmprovider` 88.0 %, `wizard` 82.6 %;
+     * *Amended 2026-09-29:* step 4 also adds a table test for
+       `wizard.Level.String()`, covering all four branches. See the
+       Phase 4 stop entry.
    * `test -z "$(gofmt -l .)"`, `go mod tidy -diff`, `make lint`;
    * G-dep, G-name, G-api.
 
@@ -551,6 +695,10 @@ Implements MADR §7.
 
 ### Phase 8: live identity gates and `v1.0.0` (this repository, owner-run)
 
+*Precondition, added 2026-09-29:* `0015-PLAN-canonical-sdk-api-and-module-layout.md` is `complete`. The package
+paths in the commands below are those of its layout: the live tests
+sit in the provider packages, so run them with `./llmprovider/...`.
+
 1. With the owner's credentials:
    * `go test -tags live_gateways ./llmprovider -run 'Live.*ChatGPT' -v` with
      `LLMPROVIDER_LIVE_CHATGPT=1`: generation accepted with
@@ -591,6 +739,12 @@ Implements MADR §7.
 
 ### Phase 10: `prepare-commit-msg` adopts the SDK (its 0008 companion)
 
+*Amended 2026-09-29:* the companion adopts the 0015 API, not only new
+import paths. It maps each call through
+`docs/guides/migrating-from-mcplib.md` and adds the API changes to its
+"behaviour gained" list. The companion is written after 0015-PLAN
+S11. It may trial against a `v1.0.0-rc.N` tag.
+
 The companion MADR and PLAN, in `prepare-commit-msg/docs/decisions/`, must
 include:
 
@@ -622,6 +776,12 @@ include:
    the output in this PLAN's Phase 10 entry as well.
 
 ### Phase 11: `mcp-server-magictools` adopts the SDK (its 0005 companion)
+
+*Amended 2026-09-29:* the companion adopts the 0015 API, not only new
+import paths. It maps each call through
+`docs/guides/migrating-from-mcplib.md` and adds the API changes to its
+"behaviour gained" list. The companion is written after 0015-PLAN
+S11. It may trial against a `v1.0.0-rc.N` tag.
 
 1. **Preconditions.** The tree was dirty on 2026-09-29
    (`M internal/forks/hnsw/go.mod`). That change is not the migration's.
@@ -657,6 +817,12 @@ include:
    records (0001, 0002) are not rewritten.
 
 ### Phase 12: `mcp-server-magicdev` adopts the SDK (its 0001 companion)
+
+*Amended 2026-09-29:* the companion adopts the 0015 API, not only new
+import paths. It maps each call through
+`docs/guides/migrating-from-mcplib.md` and adds the API changes to its
+"behaviour gained" list. The companion is written after 0015-PLAN
+S11. It may trial against a `v1.0.0-rc.N` tag.
 
 1. **Docs tree.** It has no `docs/` tree. The companion creates
    `docs/decisions/` and, per the documentation standard, `docs/README.md`.
@@ -733,7 +899,7 @@ Acceptance criteria. Each maps to MADR §12:
 |---|---|---|---|
 | A1 | No `mcplib` or go-sdk dependency | G-dep | 4 |
 | A2 | No `mcplib` string in Go code | G-name | 7 |
-| A3 | Exported API equals `BASE` apart from allowed doc lines | G-api | 4, 5 |
+| A3 | Exported API equals `BASE` apart from allowed doc lines *(2026-09-29: and the §4 `ErrOrchestrated` line; mechanical-move check only)* | G-api | 4, 5 |
 | A4 | Every citation resolves here or is repository-named | G-cite | 7 |
 | A5 | Every relative link resolves | G-links | 6, 13 |
 | A6 | Builds, vets (3 OS and `live_gateways`), tests, formats, tidy, lints | Phase 4 step 9 | 4–8 |
@@ -745,6 +911,9 @@ Acceptance criteria. Each maps to MADR §12:
 | A12 | Consumers green on `v1.0.0` | their companion PLANs | 10–12 |
 | A13 | `mcplib` MCP-only and relocation table resolves | Phase 13 step 8 | 13 |
 | A14 | The pre-add gate runs at every agent commit and fails on each planted defect | Phase 2 step 12 | 2 |
+| A15 | Functional parity with `mcplib` `v1.6.0` under the 0015 API | G-wire, ported tests, G-parity (`0015-PLAN-canonical-sdk-api-and-module-layout.md` S-A3–S-A5) | 0015 |
+| A16 | README and `docs/architecture.md` describe the tree as it is; every link resolves ~~; Dependabot watches the pinned actions~~ *(struck 2026-09-29)* | Phase 2b step 6 | 2b |
+| A17 | The gate runs `golangci-lint` with golint's checks, and fails on each planted defect | Phase 2c step 5 | 2c |
 
 Each new gate (G-dep, G-name, G-api, G-links, G-cite, the Phase 5 tests and
 the `go-precheck.py` extension, and, since 2026-09-29, `scripts/go-precheck.sh`)
@@ -756,6 +925,8 @@ what was broken on a scratch copy, and what the failure looked like.
 **Order.** 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → (10, 11, 12 in any
 order) → 13 → 14. Phase 5 can be dropped by the owner before it starts; the
 consumer companions then carry the TokenStore handling themselves.
+
+*Amended 2026-09-29:* 0 → … → 7 → 0015-PLAN → 8 → 9 → (10, 11, 12) → 13 → 14.
 
 **Before `v1.0.0` is tagged (Phases 0–8).** Everything is local to this
 repository and `mcplib` docs.
@@ -785,7 +956,8 @@ present evidence and resolutions, record the chosen one here and in the
 MADR, then continue.
 
 * A live identity gate rejects a value.
-* G-api shows a non-doc change.
+* G-api shows a non-doc change *(other than the allowed `ErrOrchestrated`
+  line, 2026-09-29)*.
 * Coverage drops.
 * A 0009 or 0010 citation cannot be resolved by the stated rules.
 * The `mcplib` freeze is broken.
@@ -960,3 +1132,89 @@ MADR, then continue.
   records sit in `docs/mcplib-import/`. Phases 4 and 6 fix both, as the
   PLAN states. The merge was made by `git merge`, so the agent gate did not
   run.
+
+### Phase 4 stop, and the second amendment (2026-09-29)
+
+* **What was found.** A dry run of Phase 4 on `SCRATCH/sdk-p4` (steps 1–8)
+  passed all of these:
+  * build;
+  * vet for darwin, linux, windows and `live_gateways`;
+  * tests, `gofmt`, `go mod tidy -diff` and `make lint`;
+  * G-dep: `golang.org/x/term`, plus `golang.org/x/sys/unix`, or
+    `golang.org/x/sys/windows` under `GOOS=windows`;
+  * G-name, case-insensitive: 0 lines.
+
+  The new `TestConfigureLLM_OrchestratedNilIsNotOrchestrated` failed first
+  against an env-reading `orchestrated()`, with
+  `ConfigureLLM() error = wizard: caller reports an orchestrated process; …`,
+  then passed. Three things did not pass as the PLAN is written:
+  1. **Coverage.** `wizard` measured 82.5 % against the 82.6 % floor
+     (450/545 → 448/543 statements). The two covered statements §4
+     removes from `orchestrated()` account for all of the drop.
+  2. **G-api.** The diff held only doc-comment lines, plus the
+     `var ErrOrchestrated` initialiser that §4 changes.
+  3. **G-name.** The case-sensitive grep missed `withMcplibVersion` in
+     `live_chatgpt_listing_test.go`. The first dry run's rename covered one
+     file only. `go vet -tags live_gateways` caught it
+     (`undefined: withMcplibVersion`). The rename now runs over every Go
+     file.
+* **The stop.** The work was stopped and presented. Nothing was applied to
+  this repository.
+* **The owner's answer.** It changed the frame: functional parity, and a
+  canonical, extensible API. That led to
+  [0015-REPORT-sdk-api-surface-assessment.md](../reports/0015-REPORT-sdk-api-surface-assessment.md),
+  [0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md) and [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md), and to the MADR's "Amendment 2026-09-29 (second): functional parity and the canonical API".
+* **Proposed resolutions, pending the owner's approval of that amendment:**
+  * a `Level.String()` test (Phase 4 step 9 note);
+  * the `ErrOrchestrated` allowance (step 8);
+  * the case-insensitive G-name (step 8).
+* **Status.** Phase 4 has not been applied. It resumes on approval.
+
+### Amendment (third): Phase 2b proposed (2026-09-29)
+
+* **What was found.** Measured against the repository's documentation
+  standard (a `README.md` that links `docs/README.md`, and a
+  `docs/architecture.md`), after
+  [0016-MADR-provider-auth-and-support-baseline.md](0016-MADR-provider-auth-and-support-baseline.md)
+  evaluated `mcplib` and `magic-cli-remote`:
+  * `README.md` is a one-line placeholder that links nothing;
+  * there is no `docs/architecture.md`;
+  * `ci.yml` pins actions by SHA with nothing to report a stale pin;
+  * CI on `main` has failed since Phase 2, because there is no `go.mod`.
+    That is expected until Phase 4 and is not changed here.
+* **What is proposed.** Phase 2b, criterion A16, and two in-scope files.
+* **Status.** Not started. Waits for the owner's approval.
+
+### Amendment (fourth): Phase 2c proposed (2026-09-29)
+
+* **What was asked.** Copy a known-good Markdown lint configuration, such as
+  `magic-cli-remote`'s, and use `golangci-lint` instead of `golint`.
+* **What was found.** The Markdown configuration is already byte-identical
+  to `magic-cli-remote`'s. Replacing `golint` as the configuration stands
+  would lose the undocumented-export check. Both are measured in the MADR's
+  fourth amendment. The scratch clone was `SCRATCH/lintexp`; this tree was
+  not touched.
+* **What is proposed.** Phase 2c and criterion A17.
+* **Status.** Not started. Waits for the owner's approval.
+
+### Phases 2b and 2c approved (2026-09-29)
+
+* **Approval.** The owner answered "Approve 0002 for the tooling changes.
+  Approve 2b. No dependabot." That accepts the MADR's third and fourth
+  amendments and approves Phases 2b and 2c.
+* **Deviation, 2026-09-29: Phase 2b step 5 is struck.** No
+  `.github/dependabot.yml`. Step 6's YAML check and A16's Dependabot clause
+  go with it; the MADR's third amendment records the decision.
+* **Deviation, 2026-09-29: Phase 2c step 6's expectation was false.**
+  * **Found.** Step 6 expected `make pre-add-check` to exit 0 with
+    `go-precheck: no Go files to check.` Phase 3 had already imported
+    tracked Go files. Run before any Phase 2c change, with
+    `GO_PRECHECK_SKIP_VULN=1`, it exited 2: `go vet` and `go test` failed
+    with `pattern ./...: directory prefix . does not contain main module or
+    its selected dependencies`. It is pre-existing since `7dab7f6`.
+  * **Decision.** The owner chose to correct the fact. Step 6 now expects
+    exactly the missing-module failure until Phase 4, which already
+    requires the check to pass. The gate's behaviour is proven by step 5 on
+    a scratch clone, not by the whole-tree run.
+  * **Scope.** No file added.
+* **Status.** Executing.

@@ -196,6 +196,9 @@ The decision has these parts:
 
 ### 3. API parity
 
+*Superseded 2026-09-29 by [0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md) D1: parity is functional. See
+"Amendment 2026-09-29 (second): functional parity and the canonical API" below.*
+
 The exported API of `llmprovider` and `wizard` at the first release is
 identical, identifier for identifier and signature for signature, to `mcplib`
 `v1.6.0`. The only behaviour changes are those in §4, §5, §6 and §7. Doc
@@ -263,6 +266,8 @@ change.
 The first tag is `v1.0.0`:
 
 * The API is the stable `mcplib` `v1.6.0` API.
+  * *Superseded 2026-09-29: the API is the one [0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md) defines,
+    and the tag follows its PLAN. See the second amendment below.*
 * Any `v0.x` `client_version` is below the measured `0.155.0` threshold.
 * Tags need the owner's explicit request.
 
@@ -637,3 +642,186 @@ The PLAN's Phase 2 records two things:
 
 * the script failing on each planted defect in a scratch clone;
 * the agent gate denying a commit through the script.
+
+## Amendment 2026-09-29 (second): functional parity and the canonical API
+
+Status: **proposed**, with [0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md). The owner restated the SDK's
+purpose on 2026-09-29: functional parity with `mcplib`, and an API that is
+canonical, modular, extensible and consistent as the SDK grows.
+[0015-REPORT-sdk-api-surface-assessment.md](../reports/0015-REPORT-sdk-api-surface-assessment.md)
+measured the imported API against that. 0015-MADR decides the v1 API. This
+amendment changes the migration to fit, and changes nothing else above.
+
+### What changes
+
+1. **§3, API parity.** Superseded by 0015-MADR D1. Parity is functional:
+   * every `mcplib` `v1.6.0` capability has an equivalent or a recorded
+     removal;
+   * the wire is unchanged except by a record.
+
+   §3's identity rule survives in one place only: G-api checks that PLAN
+   Phases 4–5 are a **mechanical** move. It is no longer a release
+   criterion.
+2. **§12, the API-parity gate.** G-api runs for Phases 4–5 as written, with
+   one allowance. The `var ErrOrchestrated = errors.New(…)` line may change,
+   because §4 requires its new message.
+   * The release criterion is 0015-MADR D12: G-wire, the ported tests and
+     G-parity.
+   * From `v1.0.0` on, `apidiff` guards the API (0015-MADR D13).
+3. **§12, the name gate.** G-name also runs case-insensitively
+   (`grep -rni`). The case-sensitive `mcplib` grep missed the test helper
+   `withMcplibVersion`, which only the `live_gateways` vet caught in the
+   Phase 4 dry run.
+4. **§2, layout.** At release the packages are those of 0015-MADR D2. The
+   module path, the `llmprovider` and `wizard` names, the Go version and
+   the requirements are unchanged.
+5. **§6, environment names.** The names stay. From 0015-PLAN S10 on they
+   are read only by opt-in helpers (0015-MADR D9), not by library code.
+6. **§8, version.** `v1.0.0` is tagged after 0015-PLAN is complete and
+   Phase 8's live gates pass. Release candidates `v1.0.0-rc.N` may be
+   tagged earlier, on the owner's request, for consumer trials. Their
+   `client_version` is `1.0.0`.
+7. **§13, the consumers.** Each companion adopts the 0015 API, not only new
+   import paths, using `docs/guides/migrating-from-mcplib.md`. The companions
+   are written after 0015-PLAN S11, when that guide is complete.
+
+### Phase 4 stop of 2026-09-29, and its proposed resolution
+
+The Phase 4 dry run passed every check except two literal rules of the PLAN.
+Approving this amendment approves the resolutions below.
+
+* **Coverage.** `wizard` measured 82.5 % against the 82.6 % floor
+  (A7).
+  * §4 turns `orchestrated()` from three statements into one. The two it
+    removes were covered.
+  * Before: 450/545 statements covered. After: 448/543. The uncovered count
+    is 95 both times, and no other file's numbers change.
+  * **Resolution:** add a test for the exported, fully uncovered
+    `Level.String()` in `wizard/prompter.go` (5 statements). That brings
+    `wizard` to 453/543 (83.4 %). The floor stays as written.
+* **G-api.** The only non-doc line in the diff is §4's `ErrOrchestrated`
+  initialiser. **Resolution:** the allowance in item 2.
+* **G-name.** **Resolution:** item 3.
+
+### Consequences of the amendment
+
+* Good, because the release ships the API the SDK will keep, so consumers
+  migrate once.
+* Good, because Phases 4–7 still give a mechanical, fully tested baseline.
+  Every behavioural claim of 0015 is measured against it.
+* Bad, because `v1.0.0`, the consumer companions and `mcplib` `v1.6.1` and
+  `v1.7.0` all wait for 0015-PLAN.
+* Bad, because the consumer companions become code migrations, and their
+  "behaviour gained" lists grow by the API changes.
+
+## Amendment 2026-09-29 (third): repository scaffold to standards
+
+Status: **accepted** 2026-09-29, without Dependabot (see "Owner's
+decision" below). The owner asked on 2026-09-29 for the repository to be
+scaffolded "to standards", alongside
+[0016-MADR-provider-auth-and-support-baseline.md](0016-MADR-provider-auth-and-support-baseline.md).
+§2 and the first amendment scaffolded the tooling. Measured against the
+documentation standard the fleet's newer repositories follow (a root
+`README.md` that links `docs/README.md`; a `docs/architecture.md` describing
+the tree as it is; `docs/` holding only that index, that file, and
+`decisions/`, `reports/` and `guides/`), three things are missing, and one
+CI practice is:
+
+* `README.md` is one line and links nothing.
+* There is no `docs/architecture.md`.
+* `docs/guides/` does not exist. That is correct until the first guide:
+  a placeholder would tell a reader nothing.
+* `ci.yml` pins its actions to commit SHAs, as `mcplib`'s does, with
+  nothing to report a stale pin. `magic-cli-remote` pairs the same pinning
+  with a Dependabot configuration for GitHub Actions only.
+
+### Decision
+
+* The PLAN gains Phase 2b: a real `README.md`, a `docs/architecture.md`
+  that describes the tree at its commit, the index row, and
+  ~~`.github/dependabot.yml` for the `github-actions` ecosystem only~~
+  *(struck 2026-09-29 by the owner's decision below)*.
+* `docs/guides/` is created by the first guide
+  ([0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md)
+  S1), not by the scaffold.
+* `docs/mcplib-import/` stays until Phase 6 moves its records. It is the
+  one directory under `docs/` outside the standard layout, and
+  `docs/architecture.md` says it is temporary.
+* No `LICENSE` is added. That is the owner's choice and is not decided
+  here.
+
+### Consequences of the amendment
+
+* Good, because a reader arriving at the repository learns what it is, what
+  state it is in, and where the records are.
+* ~~Good, because a stale or compromised action pin is reported monthly.~~
+  *(Struck 2026-09-29: no Dependabot.)*
+* Neutral, because CI stays red until Phase 4 adds `go.mod`; Phase 2b does
+  not touch that.
+* Bad, because `docs/architecture.md` will be rewritten at Phase 4 and again
+  by 0015-PLAN, as the tree changes under it.
+
+### Owner's decision (2026-09-29)
+
+The owner answered "Approve 2b. No dependabot." Phase 2b runs without
+`.github/dependabot.yml`. The SHA-pinned actions in `ci.yml` stay without an
+automated notifier; updating them remains a manual, recorded act.
+
+## Amendment 2026-09-29 (fourth): golangci-lint replaces golint in the pre-add gate
+
+Status: **accepted** 2026-09-29 (the owner: "Approve 0002 for the tooling
+changes"). On 2026-09-29 the owner asked for the repository to
+"copy a .markdownlint config from a known good repo, like magic-cli-remote
+and use golangci-lint not golint".
+
+### Observed
+
+* **The Markdown lint configuration is already that file.**
+  `.markdownlint-cli2.jsonc` here has the same MD5 as the file in 13 of the
+  14 other fleet repositories with a Markdown lint configuration,
+  `magic-cli-remote` and `mcplib` among them. The fourteenth,
+  `mcp-server-magictools`, has a different `.markdownlint.json`. Phase 2 of
+  the PLAN copied this file verbatim. Copying it again changes nothing. The
+  only failures `markdownlint-cli2` reports under `docs/` are 188 `MD004`
+  findings in the imported
+  `docs/mcplib-import/0011-REPORT-provider-source-compatibility-audit.md`,
+  which `magic-cli-remote`'s configuration reports identically.
+* **`golint` is archived**, and the gate runs it while CI runs
+  `golangci-lint`. `ocp-login` and `ocp-login-macos` already replaced it in
+  their `scripts/go-precheck.sh`: they run
+  `golangci-lint run -c .golangci.yml ./...`, package-scoped so that the
+  gate and `make lint` cannot disagree.
+* **This repository's `.golangci.yml` does not carry golint's checks.** Its
+  `revive` rule list omits `exported`, `package-comments` and `var-naming`.
+  Measured on a scratch clone of `mcplib` at `4e1f9a5`, with
+  `golangci-lint` 2.13.2:
+
+  | Configuration | Imported `llmprovider` and `wizard` | Planted `func PlantedUndocumented() int` |
+  |---|---|---|
+  | `.golangci.yml` as committed | exit 0, `0 issues.` | exit 0: **not reported** |
+  | the same, plus the three `revive` rules | exit 0, `0 issues.` | exit 1: `exported: exported function PlantedUndocumented should have comment or be unexported (revive)` |
+
+  Replacing `golint` without adding the rules would silently drop the
+  check that §2's first-fail table proved in its second row.
+
+### Decision
+
+* `scripts/go-precheck.sh` runs `golangci-lint run -c .golangci.yml ./...`
+  in place of per-file `golint`. Its other steps are unchanged, including
+  the stricter `govulncheck` rule of the first amendment, which
+  `ocp-login`'s script does not have.
+* `.golangci.yml` gains the `revive` rules `exported`, `package-comments`
+  and `var-naming`. It is no longer verbatim from `mcplib`.
+* `.markdownlint-cli2.jsonc` is not changed.
+
+### Consequences of the amendment
+
+* Good, because the gate and CI apply one linter and one configuration.
+* Good, because golint's documentation and naming checks survive, now
+  inside `revive`.
+* Bad, because the gate lints the whole module on every commit, which is
+  slower than per-file `golint`. The module is small; Phase 4 times it.
+* Bad, because `.golangci.yml` now differs from the fleet copy it was taken
+  from.
+* Neutral, because the imported `0011` REPORT still fails `MD004`. That is
+  Phase 6's to resolve when the record moves, and is not decided here.
