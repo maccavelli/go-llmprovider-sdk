@@ -1251,3 +1251,60 @@ Executed as the S7 prerequisites amendment of the same date decided.
   | `WithModelProbes` old-API-only, as before this commit | `ResolveOptions: llm: invalid request: option WithModelProbes belongs to the old API; openai's New does not take it` |
   | `ModelProbes()` reads the flag unnegated | `ModelProbes() = false, want true` |
   | the helper's unset case old-API-only | `… option ModelProbesFromEnv belongs to the old API …` |
+
+### Deviation 2026-09-30: llmtest finds unclassified token errors (S7, before openai)
+
+* **Found.** While the openai package was being written, its llmtest run
+  with a ChatGPT session failed:
+
+  ```text
+  R25 (errors by kind): HTTP 401 returned llmprovider: openai: acquire token: oauth: no refresh token; want an error matching ErrAuthFailure
+  ```
+
+  `OAuthSession.Token` returned a plain `oauth: no refresh token`
+  (`oauth_session.go:119`). A refresh the endpoint rejected was classified
+  only for a 401 or a terminal code. Both are older than this plan, since
+  the old `doGenerateItems` took the same path. The old retry helpers
+  retried these errors.
+* **Options put to the owner:**
+  1. classify in the session, in a commit of its own before openai;
+  2. classify in each provider;
+  3. defer, with the ChatGPT llmtest run skipping the 401 check (not
+     recommended, as it loosens a check).
+
+  The owner chose option 1.
+* **Refined before the code was written.** Option 1 as offered mapped every
+  rejected refresh to `ErrAuthFailure`. But
+  `TestOAuthRefresh_BadRequestIsNotRetried` asserts that a non-terminal 400
+  (`invalid_request`) is not one: that 400 is a malformed request, which
+  signing in again does not fix. The owner chose `ErrInvalidRequest` for
+  it, which keeps that test's meaning. The map:
+
+  | Case | Kind |
+  |---|---|
+  | lapsed, no refresh token | `ErrAuthFailure` |
+  | 401, or a terminal code | `ErrAuthFailure` (unchanged) |
+  | 429 | `ErrRateLimited` |
+  | 5xx | `ErrProviderUnavailable` |
+  | any other 4xx | `ErrInvalidRequest` |
+
+  Still unclassified, and not in this change: a transport failure after the
+  refresh's retries, which the default retry rule treats as a failure to
+  reach the service; and a 200 that cannot be decoded or has no access
+  token.
+* **Execution** (the stash of the openai work was set aside for this commit
+  and restored after it):
+  * `oauth_session.go`: `Token` and `refreshFailure` as in the map above.
+  * `oauth_refresh_kinds_test.go` adds
+    `TestOAuthToken_NoRefreshTokenIsAuthFailure` and
+    `TestOAuthRefresh_FailureKinds`. Existing tests pass unchanged.
+  * **Red first,** on the tree before the fix: the no-refresh-token case
+    and four of the six kinds failed. For example:
+    `Token = oauth: refresh failed: 503 Service Unavailable: , want an error matching llm: provider unavailable`.
+    The 401 and terminal-code cases passed, as they already did.
+  * **Breaks,** in scratch copies:
+
+    | Break | Failure |
+    |---|---|
+    | every other 4xx an auth failure, the rejected alternative | `oauth_refresh_kinds_test.go:49: Token = llm: authentication failed: … 400 Bad Request …, want an error matching llm: invalid request`, and the existing `oauth_refresh_test.go:194: … want one plain failure` |
+    | a 429 an auth failure | `Token = llm: authentication failed: … 429 Too Many Requests …, want an error matching llm: rate limited` |

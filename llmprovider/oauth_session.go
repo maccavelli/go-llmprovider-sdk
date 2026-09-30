@@ -116,7 +116,8 @@ func (s *OAuthSession) Token(ctx context.Context) (Token, error) {
 	}
 	if !current && s.Refresh == "" {
 		s.mu.Unlock()
-		return Token{}, errors.New("oauth: no refresh token")
+		// Nothing can renew it: the user must sign in again.
+		return Token{}, fmt.Errorf("oauth: no refresh token: %w", ErrAuthFailure)
 	}
 
 	future := &tokenFuture{done: make(chan struct{})}
@@ -394,9 +395,12 @@ func newRefreshRequest(ctx context.Context, state oauthSessionState) (*http.Requ
 	return req, nil
 }
 
-// refreshFailure reports a failed refresh response, closing its body. A 401
-// or a terminal error code wraps ErrAuthFailure: the refresh token is dead
-// and the user must sign in again.
+// refreshFailure reports a failed refresh response, closing its body, with
+// one kind (0015-MADR D7). A 401 or a terminal error code wraps
+// ErrAuthFailure: the refresh token is dead and the user must sign in again.
+// A 429 is ErrRateLimited and a 5xx ErrProviderUnavailable. Any other 4xx is
+// ErrInvalidRequest: the request was malformed, which signing in again does
+// not fix.
 func refreshFailure(resp *http.Response) error {
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, oauthErrorBodyLimit))
 	ignoreOAuthError(resp.Body.Close())
@@ -405,10 +409,18 @@ func refreshFailure(resp *http.Response) error {
 	if readErr != nil {
 		err = errors.Join(err, fmt.Errorf("oauth: read refresh response: %w", readErr))
 	}
-	if resp.StatusCode == http.StatusUnauthorized || slices.Contains(oauthTerminalRefreshCodes, refreshErrorCode(body)) {
+	switch status := resp.StatusCode; {
+	case status == http.StatusUnauthorized || slices.Contains(oauthTerminalRefreshCodes, refreshErrorCode(body)):
 		return fmt.Errorf("%w: %w", ErrAuthFailure, err)
+	case status == http.StatusTooManyRequests:
+		return fmt.Errorf("%w: %w", ErrRateLimited, err)
+	case status >= http.StatusInternalServerError:
+		return fmt.Errorf("%w: %w", ErrProviderUnavailable, err)
+	case status >= http.StatusBadRequest:
+		return fmt.Errorf("%w: %w", ErrInvalidRequest, err)
+	default:
+		return err
 	}
-	return err
 }
 
 // refreshErrorCode reads an OAuth error code: {"error": "code"},
