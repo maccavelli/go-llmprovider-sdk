@@ -116,13 +116,6 @@ func TestProviderClient_SharedWithListingAndRefresh(t *testing.T) {
 		wire  wireCase
 		build func(src TokenSource, baseURL string) (wireProvider, *http.Client, error)
 	}{
-		{"chatgpt", wireCaseNamed(t, "chatgpt"), func(src TokenSource, u string) (wireProvider, *http.Client, error) {
-			p, err := NewOpenAIWithSource(src, "gpt-6-astra", WithBaseURL(u))
-			if err != nil {
-				return nil, nil, err
-			}
-			return p, p.client, nil
-		}},
 		{"grok", wireCaseNamed(t, "grok"), func(src TokenSource, u string) (wireProvider, *http.Client, error) {
 			p, err := newGrokWithSource(src, "grok-4.5", WithBaseURL(u))
 			if err != nil {
@@ -177,16 +170,16 @@ func TestProviderClient_SharedWithListingAndRefresh(t *testing.T) {
 func TestShareHTTPClient_KeepsTheSessionsOwn(t *testing.T) {
 	own, provider := &http.Client{}, &http.Client{}
 	session := &OAuthSession{HTTPClient: own}
-	shareHTTPClient(session, provider)
+	ShareHTTPClient(session, provider)
 	if session.HTTPClient != own {
 		t.Error("a session's own client was replaced")
 	}
 	bare := &OAuthSession{}
-	shareHTTPClient(bare, nil)
+	ShareHTTPClient(bare, nil)
 	if bare.HTTPClient != nil {
 		t.Error("a nil client was shared")
 	}
-	shareHTTPClient(NewStaticToken("k"), provider) // must not panic
+	ShareHTTPClient(NewStaticToken("k"), provider) // must not panic
 }
 
 func wireCaseNamed(t *testing.T, name string) wireCase {

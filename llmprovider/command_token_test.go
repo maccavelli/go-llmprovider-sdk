@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -153,31 +151,6 @@ func TestCommandToken_ConcurrentCallersRunOnce(t *testing.T) {
 	}
 }
 
-// TestCommandToken_RerunAfter401: a provider that gets a 401 invalidates the
-// source and retries once, with the command's fresh output.
-func TestCommandToken_RerunAfter401(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "runs")
-	var seen []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seen = append(seen, r.Header.Get("Authorization"))
-		if r.Header.Get("Authorization") != "Bearer key-2" {
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte(`{"error":{"message":"expired key"}}`))
-			return
-		}
-		_, _ = w.Write([]byte(`{"id":"r","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`))
-	}))
-	t.Cleanup(srv.Close)
-	p, err := NewOpenAIWithSource(NewCommandToken(helperArgv(t, "count", path)...), "gpt-5.5", WithBaseURL(srv.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	out, err := p.Generate(context.Background(), "hi")
-	if err != nil || out != "hello" || runs(t, path) != 2 {
-		t.Fatalf("Generate = %q, %v after %d runs (sent %v); want one rerun after the 401", out, err, runs(t, path), seen)
-	}
-}
-
 // TestCommandToken_Redacts: formatted forms name the command only, never its
 // arguments or the token.
 func TestCommandToken_Redacts(t *testing.T) {
@@ -197,5 +170,23 @@ func TestCommandToken_Redacts(t *testing.T) {
 	}
 	if got := strconv.Quote(commandName(nil)); got != `"(no command)"` {
 		t.Errorf("commandName(nil) = %s", got)
+	}
+}
+
+// TestCommandToken_RerunsAfterInvalidate: Invalidate makes the next Token run
+// the command again, for its fresh output. It is the source half of the old
+// TestCommandToken_RerunAfter401; the openai package keeps the provider half,
+// TestOpenAI_RetriesOnceAfterInvalidate (0015-PLAN S7).
+func TestCommandToken_RerunsAfterInvalidate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "runs")
+	src := NewCommandToken(helperArgv(t, "count", path)...)
+	first, err := src.Token(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	src.Invalidate()
+	second, err := src.Token(context.Background())
+	if err != nil || first.Value != "key-1" || second.Value != "key-2" || runs(t, path) != 2 {
+		t.Fatalf("tokens %q then %q (%v) after %d runs; want key-1, then key-2 after one rerun", first.Value, second.Value, err, runs(t, path))
 	}
 }

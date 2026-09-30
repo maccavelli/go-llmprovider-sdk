@@ -196,8 +196,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.NewHuggingFace` |  |  |
 | `llmprovider.NewKilo` |  |  |
 | `llmprovider.NewOllama` |  |  |
-| `llmprovider.NewOpenAI` |  |  |
-| `llmprovider.NewOpenAIWithSource` |  |  |
+| `llmprovider.NewOpenAI` | `openai.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderOpenAI, …)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.NewOpenAIWithSource` | `openai.New(WithTokenSource(src), WithModel(model), …)` | A ChatGPT session selects the ChatGPT backend ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewOpencode` |  |  |
 | `llmprovider.NewProvider` | `providers.New(id, opts...)` | Over `providers.Default()`, a `Registry`; removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7. |
 | `llmprovider.NewProviderWithSource` | `providers.New(id, WithTokenSource(src), …)` | Removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7; a credential is an option (D5). |
@@ -234,18 +234,18 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OllamaProvider.GenerateWithTool` |  |  |
 | `llmprovider.OllamaProvider.GenerateWithToolThinking` |  |  |
 | `llmprovider.OllamaProvider.Name` |  |  |
-| `llmprovider.OpenAIProvider` |  |  |
-| `llmprovider.OpenAIProvider.Continue` |  |  |
-| `llmprovider.OpenAIProvider.DiscoverModels` |  |  |
-| `llmprovider.OpenAIProvider.Generate` |  |  |
-| `llmprovider.OpenAIProvider.GenerateItems` |  |  |
-| `llmprovider.OpenAIProvider.GenerateItemsThinking` |  |  |
-| `llmprovider.OpenAIProvider.GenerateItemsWithTool` |  |  |
-| `llmprovider.OpenAIProvider.GenerateItemsWithToolThinking` |  |  |
-| `llmprovider.OpenAIProvider.GenerateThinking` |  |  |
-| `llmprovider.OpenAIProvider.GenerateWithTool` |  |  |
-| `llmprovider.OpenAIProvider.GenerateWithToolThinking` |  |  |
-| `llmprovider.OpenAIProvider.Name` |  |  |
+| `llmprovider.OpenAIProvider` | the `llmprovider.Provider` that `openai.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.OpenAIProvider.Continue` | `Generate` with `Request.PreviousResponseID` | A ChatGPT session refuses it with `ErrUnsupported` (0015-MADR D4). |
+| `llmprovider.OpenAIProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
+| `llmprovider.OpenAIProvider.Generate` | `llmprovider.GenerateText` |  |
+| `llmprovider.OpenAIProvider.GenerateItems` | `Generate` with `Request.Input` |  |
+| `llmprovider.OpenAIProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` |  |
+| `llmprovider.OpenAIProvider.GenerateItemsWithTool` | `Generate` with `Request.Tools` and `ForceTool` |  |
+| `llmprovider.OpenAIProvider.GenerateItemsWithToolThinking` | `Generate` with `Tools`, `ForceTool` and `Reasoning` |  |
+| `llmprovider.OpenAIProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
+| `llmprovider.OpenAIProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
+| `llmprovider.OpenAIProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
+| `llmprovider.OpenAIProvider.Name` | `ID()` | It returns `ProviderOpenAI` as a `ProviderID`. |
 | `llmprovider.OpencodeProvider` |  |  |
 | `llmprovider.OpencodeProvider.DiscoverModels` |  |  |
 | `llmprovider.OpencodeProvider.Generate` |  |  |

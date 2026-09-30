@@ -49,7 +49,7 @@ const kiloDataCollectionRequired = `{"error":"Data collection is required for th
 // TestClassify_KiloDataCollectionRequired: the refusal is a terminal
 // ErrNotPermitted carrying Kilo's error_type and message.
 func TestClassify_KiloDataCollectionRequired(t *testing.T) {
-	err := classifyHTTPError(ProviderKilo, &http.Response{
+	err := ClassifyHTTPError(ProviderKilo, &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Header:     http.Header{},
 		Body:       io.NopCloser(strings.NewReader(kiloDataCollectionRequired)),

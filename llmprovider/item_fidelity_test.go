@@ -72,7 +72,7 @@ func TestItemFidelity_ChatGroupsCalls(t *testing.T) {
 }
 
 func TestItemFidelity_ResponsesToolCall(t *testing.T) {
-	mustEqualJSON(t, itemsToInput(roundTrip()), `[
+	mustEqualJSON(t, ItemsToInput(roundTrip()), `[
 		{"role":"user","content":"weather?"},
 		{"type":"function_call","call_id":"call_1","name":"get_weather","arguments":"{\"city\":\"Paris\"}"},
 		{"type":"function_call_output","call_id":"call_1","output":"{\"forecast\":\"sunny\"}"}]`)

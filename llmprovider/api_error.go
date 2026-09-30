@@ -162,11 +162,12 @@ func statusSentinel(status int) error {
 	}
 }
 
-// classifyHTTPError maps a non-200 response to a typed error; it returns nil
+// ClassifyHTTPError maps a non-200 response to a typed error; it returns nil
 // for 200. provider names the caller for the message: a multi-route gateway
 // passes "gateway/route", so a misroute is diagnosable from the error alone.
 // A plain 429 stays a *RateLimitError; every other status is an *APIError.
-func classifyHTTPError(provider string, resp *http.Response) error {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/transport.
+func ClassifyHTTPError(provider string, resp *http.Response) error {
 	if resp.StatusCode == http.StatusOK {
 		return nil
 	}

@@ -1,6 +1,6 @@
 //go:build live_gateways
 
-package llmprovider
+package llmprovider_test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // TestLive_ChatGPTBrowserLogin is the owner-run gate for the 127.0.0.1
@@ -21,7 +23,7 @@ func TestLive_ChatGPTBrowserLogin(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	session, err := LoginBrowserOAuth(ctx, ProviderOpenAI, OAuthFlowOptions{
+	session, err := llmprovider.LoginBrowserOAuth(ctx, llmprovider.ProviderOpenAI, llmprovider.OAuthFlowOptions{
 		OpenURL: func(u string) error {
 			t.Logf("open this URL and sign in: %s", u)
 			return nil
@@ -31,15 +33,11 @@ func TestLive_ChatGPTBrowserLogin(t *testing.T) {
 		t.Fatalf("LoginBrowserOAuth: %v", err)
 	}
 	defer func() {
-		if err := RevokeOAuthSession(context.Background(), session); err != nil {
+		if err := llmprovider.RevokeOAuthSession(context.Background(), session); err != nil {
 			t.Errorf("RevokeOAuthSession: %v", err)
 		}
 	}()
-	p, err := NewOpenAIWithSource(session, "gpt-6-astra")
-	if err != nil {
-		t.Fatal(err)
-	}
-	out, err := p.Generate(ctx, "Reply with only the word ALPHA")
+	out, err := llmprovider.GenerateText(ctx, liveOpenAI(t, session, "gpt-6-astra"), userText("Reply with only the word ALPHA"))
 	if err != nil || !strings.Contains(strings.ToUpper(out), "ALPHA") {
 		t.Fatalf("Generate = %q, %v", out, err)
 	}

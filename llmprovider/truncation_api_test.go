@@ -17,7 +17,7 @@ func TestDecodeChat_LengthTextKeepsText(t *testing.T) {
 }
 
 func TestIncompleteError_Reason(t *testing.T) {
-	_, err := decodeResponsesAPIOutput(strings.NewReader(
+	_, err := DecodeResponsesAPIOutput(strings.NewReader(
 		`{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}`))
 	var incomplete *IncompleteError
 	if !errors.As(err, &incomplete) || incomplete.Reason != "max_output_tokens" {

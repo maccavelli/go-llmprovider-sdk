@@ -113,5 +113,5 @@ func classifyFixture(provider string, status int, body string, header http.Heade
 	}
 	resp := &http.Response{StatusCode: status, Header: header, Body: io.NopCloser(strings.NewReader(body))}
 	defer closeResponseBody(resp)
-	return classifyHTTPError(provider, resp)
+	return ClassifyHTTPError(provider, resp)
 }

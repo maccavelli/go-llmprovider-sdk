@@ -24,9 +24,10 @@ func closeResponseBody(resp *http.Response) {
 // answer.
 const statusIncomplete = "incomplete"
 
-// decodeResponsesAPIOutput decodes a Responses API JSON body into a Response.
+// DecodeResponsesAPIOutput decodes a Responses API JSON body into a Response.
 // Shared by providers using the Responses API envelope (OpenAI, Grok).
-func decodeResponsesAPIOutput(body io.Reader) (*Response, error) {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func DecodeResponsesAPIOutput(body io.Reader) (*Response, error) {
 	var raw struct {
 		ID                string `json:"id"`
 		Status            string `json:"status"`
@@ -125,14 +126,15 @@ type responsesStreamEvent struct {
 	} `json:"response"`
 }
 
-// readResponsesStream reads a Responses API event stream into a Response, as
+// ReadResponsesStream reads a Responses API event stream into a Response, as
 // Codex does (codex-api/src/sse/responses.rs:343-450): each
 // response.output_item.done adds its item, and response.created and
 // response.completed carry the id. response.failed maps onto MADR 0012 §1.1,
 // response.incomplete onto MADR 0012 §1.5, and a stream that ends before
 // response.completed is retryable (MADR 0012 §4.1). It does not rely on
 // Content-Type, which the ChatGPT backend does not send.
-func readResponsesStream(provider string, body io.Reader) (*Response, error) {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func ReadResponsesStream(provider string, body io.Reader) (*Response, error) {
 	scanner := bufio.NewScanner(io.LimitReader(body, responsesStreamLimit))
 	scanner.Buffer(make([]byte, 0, 64<<10), responsesStreamLimit)
 	result := &Response{}

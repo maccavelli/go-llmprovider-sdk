@@ -11,7 +11,7 @@ import (
 )
 
 func classifyBody(provider string, status int, body string) error {
-	return classifyHTTPError(provider, &http.Response{StatusCode: status, Header: http.Header{},
+	return ClassifyHTTPError(provider, &http.Response{StatusCode: status, Header: http.Header{},
 		Body: io.NopCloser(strings.NewReader(body))})
 }
 

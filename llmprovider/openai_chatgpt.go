@@ -1,56 +1,27 @@
 package llmprovider
 
 import (
-	"encoding/base64"
-	"encoding/json"
-	"errors"
-	"strings"
 	"time"
 )
 
+// ChatGPT session helpers, shared by the ChatGPT listing here and the openai
+// provider package. They are exported for 0015-PLAN S7 only: S7b moves them
+// to llmprovider/auth, and removes these exports.
 const (
-	openAIAccountHeader    = "ChatGPT-Account-Id"
-	openAIResidencyHeader  = "x-openai-internal-codex-residency"
-	openAIOriginatorHeader = "originator"
-	openAIOriginatorValue  = "go-llmprovider-sdk"
-	// openAISessionHeader carries the conversation id, as Codex sends it
-	// (codex-api/src/requests/headers.rs:8).
-	openAISessionHeader = "session-id"
-	// openAIFedRAMPHeader marks a FedRAMP account's requests, as Codex's
+	// ChatGPTAccountHeader carries a ChatGPT session's account id.
+	ChatGPTAccountHeader = "ChatGPT-Account-Id"
+	// ChatGPTOriginatorHeader names the client to the ChatGPT backend.
+	ChatGPTOriginatorHeader = "originator"
+	// ChatGPTOriginatorValue is this module's originator (0002-MADR §5).
+	ChatGPTOriginatorValue = "go-llmprovider-sdk"
+	// ChatGPTFedRAMPHeader marks a FedRAMP account's requests, as Codex's
 	// bearer auth does (model-provider/src/bearer_auth_provider.rs:43-45).
-	openAIFedRAMPHeader = "X-OpenAI-Fedramp"
+	ChatGPTFedRAMPHeader = "X-OpenAI-Fedramp"
 )
 
-// NewOpenAIWithSource creates an OpenAI provider from a dynamic token source.
-func NewOpenAIWithSource(src TokenSource, model string, opts ...ProviderOption) (*OpenAIProvider, error) {
-	if src == nil {
-		return nil, errors.New("openai: TokenSource is required")
-	}
-	cfg := ApplyOptions(opts)
-	chatGPT := isChatGPTTokenSource(src)
-	baseURL := DefaultOpenAIPlatformBaseURL
-	if chatGPT {
-		baseURL = DefaultOpenAIChatGPTBaseURL
-	}
-	if cfg.BaseURL != "" {
-		baseURL = cfg.BaseURL
-	}
-	shareHTTPClient(src, cfg.HTTPClient)
-	return &OpenAIProvider{
-		src:             src,
-		chatGPT:         chatGPT,
-		model:           model,
-		baseURL:         baseURL,
-		client:          cfg.HTTPClient,
-		identity:        identityOf(cfg),
-		probeModels:     !cfg.DisableModelProbes,
-		maxTokens:       cfg.MaxTokens,
-		reasoningEffort: cfg.ReasoningEffort,
-		store:           cfg.Store,
-	}, nil
-}
-
-func isChatGPTTokenSource(src TokenSource) bool {
+// IsChatGPTSession reports whether src is a ChatGPT login: an OpenAI
+// OAuth session, or the Codex CLI's. Temporary export (0015-PLAN S7).
+func IsChatGPTSession(src TokenSource) bool {
 	if vendor, ok := src.(*VendorCLISession); ok {
 		return vendor.Provider == ProviderOpenAI
 	}
@@ -58,7 +29,9 @@ func isChatGPTTokenSource(src TokenSource) bool {
 	return ok && session.ChatGPT()
 }
 
-func openAIAccountID(src TokenSource) string {
+// ChatGPTSessionAccountID returns a ChatGPT session's account id, or "".
+// Temporary export (0015-PLAN S7).
+func ChatGPTSessionAccountID(src TokenSource) string {
 	if vendor, ok := src.(*VendorCLISession); ok {
 		accountID, _ := vendor.vendorAccount()
 		return accountID
@@ -72,8 +45,9 @@ func openAIAccountID(src TokenSource) string {
 	return session.AccountID
 }
 
-// openAIFedRAMP reports whether src is a FedRAMP ChatGPT session.
-func openAIFedRAMP(src TokenSource) bool {
+// ChatGPTSessionFedRAMP reports whether src is a FedRAMP ChatGPT session.
+// Temporary export (0015-PLAN S7).
+func ChatGPTSessionFedRAMP(src TokenSource) bool {
 	if vendor, ok := src.(*VendorCLISession); ok {
 		_, fedramp := vendor.vendorAccount()
 		return fedramp
@@ -87,7 +61,10 @@ func openAIFedRAMP(src TokenSource) bool {
 	return session.FedRAMP
 }
 
-func expireOpenAISession(src TokenSource) bool {
+// ExpireSession makes src fetch a new token on its next use, and reports
+// whether it can: an InvalidatingSource is invalidated, an OAuth session's
+// expiry is moved into the past. Temporary export (0015-PLAN S7).
+func ExpireSession(src TokenSource) bool {
 	if source, ok := src.(InvalidatingSource); ok {
 		source.Invalidate()
 		return true
@@ -100,35 +77,4 @@ func expireOpenAISession(src TokenSource) bool {
 	session.Expiry = time.Now().Add(-time.Second)
 	session.mu.Unlock()
 	return true
-}
-
-// openAIResidency reads chatgpt_compute_residency from the access token for
-// the residency header. Its source is OpenCode's Codex plugin
-// (plugin/openai/codex.ts:83, :426), not Codex (MADR 0012 §4.4).
-func openAIResidency(accessToken string) string {
-	parts := strings.Split(accessToken, ".")
-	if len(parts) != 3 {
-		return ""
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return ""
-	}
-	var claims struct {
-		Residency *string `json:"chatgpt_compute_residency"`
-		Auth      struct {
-			Residency *string `json:"chatgpt_compute_residency"`
-		} `json:"https://api.openai.com/auth"`
-	}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return ""
-	}
-	residency := claims.Auth.Residency
-	if residency == nil {
-		residency = claims.Residency
-	}
-	if residency == nil || *residency == "" || *residency == "no_constraint" {
-		return ""
-	}
-	return *residency
 }

@@ -171,7 +171,7 @@ func KiloProfile(ctx context.Context, token string, opts ...ProviderOption) (Kil
 	if err != nil {
 		return KiloAccount{}, fmt.Errorf("kilo: profile: %w", err)
 	}
-	if err := classifyHTTPError(ProviderKilo, resp); err != nil {
+	if err := ClassifyHTTPError(ProviderKilo, resp); err != nil {
 		closeResponseBody(resp)
 		return KiloAccount{}, err
 	}

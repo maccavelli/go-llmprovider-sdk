@@ -147,7 +147,7 @@ func (p *TogetherProvider) doGenerateItems(ctx context.Context, input []Item, to
 
 	// Bound the body before the status check, so error bodies are bounded too.
 	limitedBody := io.LimitReader(resp.Body, 1<<20)
-	if err := classifyHTTPError(ProviderTogether, resp); err != nil {
+	if err := ClassifyHTTPError(ProviderTogether, resp); err != nil {
 		return nil, err
 	}
 	return decodeChatCompletionsResponse(limitedBody)

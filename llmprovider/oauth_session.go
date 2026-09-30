@@ -254,10 +254,11 @@ func (s *OAuthSession) refreshState() oauthSessionState {
 	}
 }
 
-// shareHTTPClient gives an OAuth session with no HTTP client the provider's,
+// ShareHTTPClient gives an OAuth session with no HTTP client the provider's,
 // so its refreshes use the same transport as the provider's requests and
 // listing (0016-MADR D8). A session that has a client keeps it.
-func shareHTTPClient(src TokenSource, client *http.Client) {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to llmprovider/auth.
+func ShareHTTPClient(src TokenSource, client *http.Client) {
 	session, ok := src.(*OAuthSession)
 	if !ok || client == nil {
 		return

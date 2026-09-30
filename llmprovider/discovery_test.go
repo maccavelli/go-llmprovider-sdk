@@ -139,11 +139,11 @@ func TestListAvailableModelsWithSource_ChatGPTListsCodexCatalog(t *testing.T) {
 	if captured.Header.Get("Authorization") != "Bearer session-access" {
 		t.Fatalf("Authorization = %q", captured.Header.Get("Authorization"))
 	}
-	if captured.Header.Get(openAIOriginatorHeader) != openAIOriginatorValue {
-		t.Fatalf("originator = %q", captured.Header.Get(openAIOriginatorHeader))
+	if captured.Header.Get(ChatGPTOriginatorHeader) != ChatGPTOriginatorValue {
+		t.Fatalf("originator = %q", captured.Header.Get(ChatGPTOriginatorHeader))
 	}
-	if captured.Header.Get(openAIAccountHeader) != "acct_live" {
-		t.Fatalf("ChatGPT-Account-Id = %q", captured.Header.Get(openAIAccountHeader))
+	if captured.Header.Get(ChatGPTAccountHeader) != "acct_live" {
+		t.Fatalf("ChatGPT-Account-Id = %q", captured.Header.Get(ChatGPTAccountHeader))
 	}
 	models[0] = "mutated"
 	again, err := ListAvailableModelsWithSource(

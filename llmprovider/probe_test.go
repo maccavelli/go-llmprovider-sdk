@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
 )
 
 func TestProbeGenerateHealth(t *testing.T) {
 	// Empty candidates
-	if res := probeGenerateHealth(context.Background(), nil, nil); res != nil {
+	if res := ProbeGenerateHealth(context.Background(), nil, nil); res != nil {
 		t.Errorf("expected nil for empty candidates, got %v", res)
 	}
 
@@ -30,7 +28,7 @@ func TestProbeGenerateHealth(t *testing.T) {
 		return "", nil
 	}
 
-	healthy := probeGenerateHealth(context.Background(), candidates, gen)
+	healthy := ProbeGenerateHealth(context.Background(), candidates, gen)
 	if len(healthy) != 1 || healthy[0] != "m1" {
 		t.Errorf("expected only [m1], got %v", healthy)
 	}
@@ -50,29 +48,6 @@ func TestClaudeProvider_DiscoverModels(t *testing.T) {
 	defer srv.Close()
 
 	p, _ := NewClaude("k", "claude-haiku-4-5", WithBaseURL(srv.URL))
-	models, err := p.DiscoverModels(context.Background())
-	if err != nil {
-		t.Fatalf("DiscoverModels error: %v", err)
-	}
-	if len(models) == 0 {
-		t.Fatal("expected discovered models")
-	}
-}
-
-func TestOpenAIProvider_DiscoverModels(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/models":
-			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4.1-mini"}]}`))
-		case "/responses":
-			_, _ = w.Write([]byte(`{"id":"r1","output":[{"type":"message","content":[{"type":"output_text","text":"Hello"}]}]}`))
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer srv.Close()
-
-	p, _ := NewOpenAI("k", "gpt-4.1-mini", WithBaseURL(srv.URL))
 	models, err := p.DiscoverModels(context.Background())
 	if err != nil {
 		t.Fatalf("DiscoverModels error: %v", err)
@@ -124,29 +99,5 @@ func TestGrokProvider_DiscoverModels(t *testing.T) {
 	}
 	if len(models) == 0 {
 		t.Fatal("expected discovered models")
-	}
-}
-
-func TestOpenAIProvider_ChatGPTDiscoverModelsListingFailureIsError(t *testing.T) {
-	var hosts []string
-	client := &http.Client{Transport: openAITestRoundTripFunc(func(r *http.Request) (*http.Response, error) {
-		hosts = append(hosts, r.URL.Host+r.URL.Path)
-		return openAITestHTTPResponse(r, http.StatusBadGateway, ""), nil
-	})}
-	session := &OAuthSession{
-		Issuer: DefaultOpenAIIssuer,
-		Access: "session-access",
-		Expiry: time.Now().Add(time.Hour),
-	}
-	p, err := NewOpenAIWithSource(session, "chatgpt-model", WithHTTPClient(client))
-	if err != nil {
-		t.Fatalf("NewOpenAIWithSource() error = %v", err)
-	}
-	models, err := p.DiscoverModels(context.Background())
-	if err == nil || models != nil {
-		t.Fatalf("DiscoverModels() = %v/%v, want nil/listing error", models, err)
-	}
-	if len(hosts) != 1 || strings.Contains(hosts[0], "api.openai.com") || !strings.HasSuffix(hosts[0], "/models") {
-		t.Fatalf("requests = %v, want one Codex /models listing", hosts)
 	}
 }

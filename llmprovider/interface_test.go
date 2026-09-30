@@ -6,7 +6,6 @@ import "testing"
 // matrix across every concrete provider implementation in llmprovider.
 func TestProviderInterfaceSatisfaction(t *testing.T) {
 	// Base Provider interface (all 4 satisfy)
-	var _ LegacyProvider = (*OpenAIProvider)(nil)
 	var _ LegacyProvider = (*ClaudeProvider)(nil)
 	var _ LegacyProvider = (*GeminiProvider)(nil)
 	var _ LegacyProvider = (*GrokProvider)(nil)
@@ -16,7 +15,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ LegacyProvider = (*OllamaProvider)(nil)
 
 	// ToolProvider interface (all 4 satisfy)
-	var _ ToolProvider = (*OpenAIProvider)(nil)
 	var _ ToolProvider = (*ClaudeProvider)(nil)
 	var _ ToolProvider = (*GeminiProvider)(nil)
 	var _ ToolProvider = (*GrokProvider)(nil)
@@ -26,7 +24,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ToolProvider = (*OllamaProvider)(nil)
 
 	// ThinkingProvider interface (all 4 satisfy)
-	var _ ThinkingProvider = (*OpenAIProvider)(nil)
 	var _ ThinkingProvider = (*ClaudeProvider)(nil)
 	var _ ThinkingProvider = (*GeminiProvider)(nil)
 	var _ ThinkingProvider = (*GrokProvider)(nil)
@@ -36,7 +33,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ThinkingProvider = (*OllamaProvider)(nil)
 
 	// ThinkingToolProvider interface (all 4 satisfy)
-	var _ ThinkingToolProvider = (*OpenAIProvider)(nil)
 	var _ ThinkingToolProvider = (*ClaudeProvider)(nil)
 	var _ ThinkingToolProvider = (*GeminiProvider)(nil)
 	var _ ThinkingToolProvider = (*GrokProvider)(nil)
@@ -46,7 +42,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ThinkingToolProvider = (*OllamaProvider)(nil)
 
 	// ItemProvider interface (all 4 satisfy)
-	var _ ItemProvider = (*OpenAIProvider)(nil)
 	var _ ItemProvider = (*ClaudeProvider)(nil)
 	var _ ItemProvider = (*GeminiProvider)(nil)
 	var _ ItemProvider = (*GrokProvider)(nil)
@@ -56,7 +51,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ItemProvider = (*OllamaProvider)(nil)
 
 	// ItemToolProvider interface (all 4 satisfy)
-	var _ ItemToolProvider = (*OpenAIProvider)(nil)
 	var _ ItemToolProvider = (*ClaudeProvider)(nil)
 	var _ ItemToolProvider = (*GeminiProvider)(nil)
 	var _ ItemToolProvider = (*GrokProvider)(nil)
@@ -66,7 +60,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ItemToolProvider = (*OllamaProvider)(nil)
 
 	// ItemThinkingProvider interface (all 4 satisfy)
-	var _ ItemThinkingProvider = (*OpenAIProvider)(nil)
 	var _ ItemThinkingProvider = (*ClaudeProvider)(nil)
 	var _ ItemThinkingProvider = (*GeminiProvider)(nil)
 	var _ ItemThinkingProvider = (*GrokProvider)(nil)
@@ -76,7 +69,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ItemThinkingProvider = (*OllamaProvider)(nil)
 
 	// ItemThinkingToolProvider interface (all 4 satisfy)
-	var _ ItemThinkingToolProvider = (*OpenAIProvider)(nil)
 	var _ ItemThinkingToolProvider = (*ClaudeProvider)(nil)
 	var _ ItemThinkingToolProvider = (*GeminiProvider)(nil)
 	var _ ItemThinkingToolProvider = (*GrokProvider)(nil)
@@ -88,12 +80,10 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	// Continuer optional interface (OpenAI, Gemini, Grok satisfy; Claude is
 	// stateless, and the OpenCode gateway rejects previous_response_id with
 	// HTTP 400, so OpencodeProvider deliberately does not implement it)
-	var _ Continuer = (*OpenAIProvider)(nil)
 	var _ Continuer = (*GeminiProvider)(nil)
 	var _ Continuer = (*GrokProvider)(nil)
 
 	// ModelDiscoverer interface (all 4 satisfy)
-	var _ ModelDiscoverer = (*OpenAIProvider)(nil)
 	var _ ModelDiscoverer = (*ClaudeProvider)(nil)
 	var _ ModelDiscoverer = (*GeminiProvider)(nil)
 	var _ ModelDiscoverer = (*GrokProvider)(nil)

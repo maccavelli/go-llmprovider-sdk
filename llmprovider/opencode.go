@@ -155,11 +155,11 @@ func (p *OpencodeProvider) GenerateItemsWithToolThinking(ctx context.Context, to
 	return p.doGenerateItems(ctx, input, &tool, true)
 }
 
-// responsesBody builds the OpenAI Responses API shape, reusing itemsToInput.
+// responsesBody builds the OpenAI Responses API shape, reusing ItemsToInput.
 func (p *OpencodeProvider) responsesBody(input []Item, tool *Tool, thinking bool) map[string]any {
 	body := map[string]any{
 		jsonKeyModel:           p.model,
-		jsonKeyInput:           itemsToInput(input),
+		jsonKeyInput:           ItemsToInput(input),
 		jsonKeyMaxOutputTokens: p.maxTokens,
 		// OpenCode's client stores nothing for @ai-sdk/openai models
 		// (transform.ts:1235-1243, MADR 0012 §3.2); items are replayed.
@@ -367,13 +367,13 @@ func (p *OpencodeProvider) doGenerateItems(ctx context.Context, input []Item, to
 	// response bodies are also bounded.
 	limitedBody := io.LimitReader(resp.Body, 1<<20)
 
-	if err := classifyHTTPError(p.gateway+"/"+string(route), resp); err != nil {
+	if err := ClassifyHTTPError(p.gateway+"/"+string(route), resp); err != nil {
 		return nil, err
 	}
 
 	switch route {
 	case OpencodeRouteResponses:
-		return decodeResponsesAPIOutput(limitedBody)
+		return DecodeResponsesAPIOutput(limitedBody)
 	case OpencodeRouteMessages:
 		return decodeClaudeResponse(limitedBody)
 	case OpencodeRouteGoogle:

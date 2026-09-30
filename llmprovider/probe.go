@@ -7,10 +7,11 @@ import (
 	"time"
 )
 
-// probeGenerateHealth runs a tiny generate against each candidate and returns
+// ProbeGenerateHealth runs a tiny generate against each candidate and returns
 // those that respond successfully, preserving preferred order.
 // At most MaxListedModels candidates are probed. Failures are skipped.
-func probeGenerateHealth(ctx context.Context, preferred []string, generate func(ctx context.Context, modelID string) (string, error)) []string {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/transport.
+func ProbeGenerateHealth(ctx context.Context, preferred []string, generate func(ctx context.Context, modelID string) (string, error)) []string {
 	if len(preferred) == 0 {
 		return nil
 	}

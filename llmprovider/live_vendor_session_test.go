@@ -36,17 +36,17 @@ func liveVendorSession(t *testing.T, provider, optIn, homeEnv, dir string) *Vend
 	return s
 }
 
-// TestLive_VendorCLISession generates through each CLI's own login.
+// TestLive_VendorCLISession generates through the Grok CLI's own login. The
+// Codex row is TestLive_VendorCLISessionOpenAI (0015-PLAN S7).
 func TestLive_VendorCLISession(t *testing.T) {
 	for _, tc := range []struct{ provider, optIn, homeEnv, dir, model string }{
-		{ProviderOpenAI, "LLMPROVIDER_LIVE_CHATGPT", "CODEX_HOME", ".codex", "gpt-6-astra"},
 		{ProviderGrok, "LLMPROVIDER_LIVE_GROK_CLI", "GROK_HOME", ".grok", "grok-4.6"},
 	} {
 		t.Run(tc.provider, func(t *testing.T) {
 			s := liveVendorSession(t, tc.provider, tc.optIn, tc.homeEnv, tc.dir)
 			ctx, cancel := liveCtx(t)
 			defer cancel()
-			p, err := liveWithSource(tc.provider, s, tc.model)
+			p, err := newGrokWithSource(s, tc.model)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -57,12 +57,4 @@ func TestLive_VendorCLISession(t *testing.T) {
 			}
 		})
 	}
-}
-
-// liveWithSource builds the provider a live table names from a session.
-func liveWithSource(provider string, src TokenSource, model string) (LegacyProvider, error) {
-	if provider == ProviderGrok {
-		return newGrokWithSource(src, model)
-	}
-	return NewOpenAIWithSource(src, model)
 }

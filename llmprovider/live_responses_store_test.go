@@ -11,11 +11,10 @@ import (
 	"testing"
 )
 
-// TestLive_ResponsesStoreFalse: OpenAI (API key) and xAI accept store:false
-// from WithStore(false).
+// TestLive_ResponsesStoreFalse: xAI accepts store:false from WithStore(false).
+// The OpenAI row is TestLive_ResponsesStoreFalseOpenAI (0015-PLAN S7).
 func TestLive_ResponsesStoreFalse(t *testing.T) {
 	for _, tc := range []struct{ name, env, model string }{
-		{ProviderOpenAI, "OPENAI_API_KEY", "gpt-6-luna"},
 		{ProviderGrok, "XAI_API_KEY", "grok-4.6"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -37,7 +36,7 @@ func TestLive_ResponsesStoreFalse(t *testing.T) {
 			})}
 			ctx, cancel := liveCtx(t)
 			defer cancel()
-			p, err := liveWithKey(tc.name, key, tc.model, WithStore(false), WithHTTPClient(client))
+			p, err := NewGrok(key, tc.model, WithStore(false), WithHTTPClient(client))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -51,12 +50,4 @@ func TestLive_ResponsesStoreFalse(t *testing.T) {
 			}
 		})
 	}
-}
-
-// liveWithKey builds the provider a live table names from an API key.
-func liveWithKey(provider, key, model string, opts ...ProviderOption) (LegacyProvider, error) {
-	if provider == ProviderGrok {
-		return NewGrok(key, model, opts...)
-	}
-	return NewOpenAI(key, model, opts...)
 }

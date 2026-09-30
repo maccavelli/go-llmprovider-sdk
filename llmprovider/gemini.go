@@ -233,7 +233,7 @@ func (p *GeminiProvider) doGenerateItems(ctx context.Context, input []Item, tool
 	// Applied BEFORE status check so error response bodies are also bounded.
 	limitedBody := io.LimitReader(resp.Body, 1<<20)
 
-	if err := classifyHTTPError(ProviderGemini, resp); err != nil {
+	if err := ClassifyHTTPError(ProviderGemini, resp); err != nil {
 		return nil, err
 	}
 
@@ -314,7 +314,7 @@ func (p *GeminiProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 	if !p.probeModels {
 		return listed, nil
 	}
-	healthy := probeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
+	healthy := ProbeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
 		tp := &GeminiProvider{
 			apiKey: p.apiKey, model: modelID, baseURL: p.baseURL,
 			client: p.client, maxTokens: p.maxTokens, identity: p.identity,

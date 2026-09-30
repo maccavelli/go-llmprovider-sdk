@@ -47,7 +47,7 @@ func newGrokWithSource(src TokenSource, model string, opts ...ProviderOption) (*
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
-	shareHTTPClient(src, cfg.HTTPClient)
+	ShareHTTPClient(src, cfg.HTTPClient)
 	return &GrokProvider{
 		src:             src,
 		model:           model,
@@ -137,8 +137,9 @@ func (p *GrokProvider) Continue(ctx context.Context, previousResponseID string, 
 	return p.doGenerateItems(ctx, input, nil, false, previousResponseID)
 }
 
-// itemsToInput converts Item values to the xAI Responses API input format.
-func itemsToInput(items []Item) []map[string]any {
+// ItemsToInput converts Item values to the xAI Responses API input format.
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func ItemsToInput(items []Item) []map[string]any {
 	var input []map[string]any
 	for _, item := range items {
 		switch v := item.(type) {
@@ -177,7 +178,7 @@ func (p *GrokProvider) doGenerateItems(ctx context.Context, input []Item, tool *
 func (p *GrokProvider) doGenerateItemsOnce(ctx context.Context, input []Item, tool *Tool, thinking bool, prevResponseID string) (*Response, error) {
 	body := map[string]any{
 		jsonKeyModel:        p.model,
-		jsonKeyInput:        itemsToInput(input),
+		jsonKeyInput:        ItemsToInput(input),
 		"max_output_tokens": p.maxTokens,
 	}
 	if p.store != nil {
@@ -238,11 +239,11 @@ func (p *GrokProvider) doGenerateItemsOnce(ctx context.Context, input []Item, to
 	// Applied BEFORE status check so error response bodies are also bounded.
 	limitedBody := io.LimitReader(resp.Body, 1<<20)
 
-	if err := classifyHTTPError(ProviderGrok, resp); err != nil {
+	if err := ClassifyHTTPError(ProviderGrok, resp); err != nil {
 		return nil, err
 	}
 
-	return decodeResponsesAPIOutput(limitedBody)
+	return DecodeResponsesAPIOutput(limitedBody)
 }
 
 // DiscoverModels returns curated Grok text models available to this key, with an
@@ -262,7 +263,7 @@ func (p *GrokProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 	if !p.probeModels {
 		return listed, nil
 	}
-	healthy := probeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
+	healthy := ProbeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
 		tp, err := newGrokWithSource(p.src, modelID, append(p.identity.options(), WithHTTPClient(p.client), WithBaseURL(p.baseURL))...)
 		if err != nil {
 			return "", err

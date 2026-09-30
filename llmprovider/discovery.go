@@ -99,7 +99,7 @@ func ListModelCatalogWithSource(ctx context.Context, providerName string, src To
 
 	ctx, cancel := context.WithTimeout(ctx, modelListingTimeout)
 	defer cancel()
-	if strings.EqualFold(providerName, ProviderOpenAI) && isChatGPTTokenSource(src) {
+	if strings.EqualFold(providerName, ProviderOpenAI) && IsChatGPTSession(src) {
 		return listChatGPTModels(ctx, src, cfg)
 	}
 	if src == nil {
@@ -197,12 +197,12 @@ func listChatGPTModels(ctx context.Context, src TokenSource, cfg ProviderConfig)
 	}
 	identityOf(cfg).setUserAgent(req)
 	req.Header.Set(oauthAuthorizationHeader, "Bearer "+token.Value)
-	req.Header.Set(openAIOriginatorHeader, openAIOriginatorValue)
-	if accountID := openAIAccountID(src); accountID != "" {
-		req.Header.Set(openAIAccountHeader, accountID)
+	req.Header.Set(ChatGPTOriginatorHeader, ChatGPTOriginatorValue)
+	if accountID := ChatGPTSessionAccountID(src); accountID != "" {
+		req.Header.Set(ChatGPTAccountHeader, accountID)
 	}
-	if openAIFedRAMP(src) {
-		req.Header.Set(openAIFedRAMPHeader, "true")
+	if ChatGPTSessionFedRAMP(src) {
+		req.Header.Set(ChatGPTFedRAMPHeader, "true")
 	}
 
 	resp, err := cfg.HTTPClient.Do(req)

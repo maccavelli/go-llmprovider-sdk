@@ -31,6 +31,8 @@ opencode.json
 llmprovider/                providers, credentials, discovery
 llmprovider/llmtest/        the conformance suite and a fake provider
 llmprovider/providers/      the built-in providers, by id
+llmprovider/providers/openai/  OpenAI: the Responses API, and the ChatGPT backend
+llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
@@ -52,6 +54,8 @@ docs/
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider`, the standard library |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it gains each provider as 0015-PLAN S7 moves it | `llmprovider` and the provider packages |
+| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider` |
+| `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 
 ## The contract
 
@@ -100,8 +104,8 @@ the old API until 0015-PLAN S8 removes it:
   `FunctionCallOutputItem` and `ReasoningItem`; item methods return a
   `*Response`.
 - **Construction:** `providers.New(id, opts...)` for a provider that has
-  moved to its own package, or a provider's own `New…` until it moves;
-  options are `ProviderOption` functions (`WithBaseURL`,
+  moved to its own package (`openai` so far), or a provider's own `New…`
+  until it moves; options are `ProviderOption` functions (`WithBaseURL`,
   `WithHTTPClient`, `WithReasoningEffort`, …). `GenerateWithRetry` and its two
   siblings retry on typed errors.
 - **Transport:** without `WithHTTPClient`, each provider builds one client:
@@ -116,9 +120,16 @@ the old API until 0015-PLAN S8 removes it:
 ## Credentials
 
 - **`TokenSource`** returns a `Token` for each request. `StaticToken` wraps an
-  API key. `NewOpenAIWithSource` accepts a source. Grok's source
-  constructor is unexported until Grok moves in 0015-PLAN S7, whose `New`
-  takes `WithTokenSource`.
+  API key. `openai.New` takes a source with `WithTokenSource`; a ChatGPT
+  session selects the ChatGPT backend. Grok's source constructor is
+  unexported until Grok moves in 0015-PLAN S7.
+- **Temporary exports.** For 0015-PLAN S7, `llmprovider` exports helpers the
+  moved providers still share with it: the ChatGPT session helpers
+  (`IsChatGPTSession`, `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`,
+  `ExpireSession`, and four header constants), and `ClassifyHTTPError`,
+  `DecodeResponsesAPIOutput`, `ReadResponsesStream`, `ItemsToInput`,
+  `ShareHTTPClient` and `ProbeGenerateHealth`. S7b moves them to the
+  packages of 0015-MADR D2 and removes the exports.
 - **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.
   - **Creating one:**
     - `LoginBrowserOAuth` uses PKCE on a loopback redirect.
@@ -175,8 +186,9 @@ the old API until 0015-PLAN S8 removes it:
   fallback. `StaticModels(provider)` returns a copy, and `ProviderEnvVars()`
   a copy of the variable names. `RankModel(provider, model)` scores a model
   by the provider's own ranking.
-- A provider's `DiscoverModels` returns the listing. By default, OpenAI (API
-  key), Claude, Gemini, Grok and Ollama also send one billed generation to
+- A provider's `DiscoverModels`, or `ListModels` through
+  `llmprovider.ModelLister` once it has moved, returns the listing. By
+  default, OpenAI (API key), Claude, Gemini, Grok and Ollama also send one billed generation to
   each candidate, up to `MaxListedModels`, and keep those that answer.
   `WithModelProbes(false)` turns that off. `ModelProbesFromEnv()` reads
   `LLMPROVIDER_PROBES` (`true` or `false`) for a caller who passes it; the

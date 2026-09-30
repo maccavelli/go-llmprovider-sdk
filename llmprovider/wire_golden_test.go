@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/wiretest"
 )
@@ -83,24 +82,6 @@ var (
 )
 
 var wireCases = []wireCase{
-	{
-		name:    "openai",
-		listing: wireListingDataIDs("gpt-5.5", "gpt-5.4-mini", "text-embedding-3-small"),
-		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
-			return NewOpenAI("sk-wire", "gpt-5.5", wireOpts(u, extra...)...)
-		},
-	},
-	{
-		name: "chatgpt",
-		listing: `{"models":[{"slug":"gpt-6-astra","visibility":"list","priority":1,"supported_in_api":true},` +
-			`{"slug":"gpt-6-luna","visibility":"list","priority":2,"supported_in_api":true}]}`,
-		sse: true,
-		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
-			session := &OAuthSession{Issuer: DefaultOpenAIIssuer, Access: "chatgpt-access", Refresh: "chatgpt-refresh",
-				Expiry: time.Now().Add(time.Hour), AccountID: "acct-wire"}
-			return NewOpenAIWithSource(session, "gpt-6-astra", wireOpts(u, extra...)...)
-		},
-	},
 	{
 		name:    "claude",
 		listing: `{"data":[{"id":"claude-sonnet-5","type":"model"},{"id":"claude-haiku-4-5","type":"model"}],"has_more":false}`,

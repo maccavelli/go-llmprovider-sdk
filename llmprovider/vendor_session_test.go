@@ -70,24 +70,3 @@ func TestVendorCLISession_GrokExactScope(t *testing.T) {
 		}
 	}
 }
-
-// TestVendorCLISession_OpenAIIsChatGPT: a Codex CLI login puts OpenAI in
-// ChatGPT mode, with the file's account id.
-func TestVendorCLISession_OpenAIIsChatGPT(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "auth.json")
-	content, _ := codexAuthJSON(t, time.Now().Add(time.Hour), "acct_cli")
-	writeVendorFile(t, path, content)
-	client, c := chatGPTClient(t, chatGPTFixture(t, "chatgpt-text.sse"))
-	p, err := NewOpenAIWithSource(&VendorCLISession{Provider: ProviderOpenAI, Path: path}, "gpt-6-astra", WithHTTPClient(client))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.Generate(context.Background(), "hi"); err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.body["stream"] != true || c.header.Get(openAIAccountHeader) != "acct_cli" {
-		t.Fatalf("stream = %v, account = %q; want ChatGPT mode for acct_cli", c.body["stream"], c.header.Get(openAIAccountHeader))
-	}
-}

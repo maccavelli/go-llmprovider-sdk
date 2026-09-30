@@ -188,7 +188,7 @@ func (p *OllamaProvider) doGenerateItems(ctx context.Context, input []Item, tool
 	// response bodies are also bounded.
 	limitedBody := io.LimitReader(resp.Body, 1<<20)
 
-	if err := classifyHTTPError(ProviderOllama, resp); err != nil {
+	if err := ClassifyHTTPError(ProviderOllama, resp); err != nil {
 		return nil, err
 	}
 	return decodeChatCompletionsResponse(limitedBody)
@@ -210,7 +210,7 @@ func (p *OllamaProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 	if !p.probeModels {
 		return listed, nil
 	}
-	healthy := probeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
+	healthy := ProbeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
 		tp, err := NewOllama(p.apiKey, modelID, append(p.identity.options(), WithHTTPClient(p.client), WithBaseURL(p.baseURL))...)
 		if err != nil {
 			return "", err

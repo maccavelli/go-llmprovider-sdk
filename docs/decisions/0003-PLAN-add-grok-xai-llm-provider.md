@@ -54,7 +54,7 @@ Migrated from `mcplib` `docs/0001-PLAN-add-grok-xai-llm-provider.md` at `4e1f9a5
 | **Thoroughly grounded.** Every claim about the existing codebase cites exact file paths and line numbers that match the current source. | E.g., `Provider` interface at [`provider.go:18-24`](../../llmprovider/provider.go#L18-L24), `ProviderEnvVars` at [`provider.go:106-110`](../../llmprovider/provider.go#L106-L110), `NewProvider` switch at [`provider.go:163-174`](../../llmprovider/provider.go#L163-L174). All confirmed. |
 | **Cross-vendor convergence is real.** OpenAI, xAI, and Gemini have all shipped Responses/Interactions-style APIs with typed output items and server-side continuation IDs. | Primary sources cited for all four vendors. Claude's lack of a Responses analog explicitly documented as a permanent, not transitional, limitation. |
 | **Existing patterns validated.** The MADR correctly identifies that typed sentinel errors ([`provider.go:64-71`](../../llmprovider/provider.go#L64-L71)), opt-in retry as a decorator ([`provider.go:112-159`](../../llmprovider/provider.go#L112-L159)), and functional options ([`options.go:38-89`](../../llmprovider/options.go#L38-L89)) are already idiomatic and should be preserved. | Two independent OSS projects (nocturnium/llm-go-sdk, mozilla-ai/any-llm-go) corroborate this. |
-| **Sealed-interface `Item` is well-motivated.** The `go/ast` `Node`/`Expr`/`Stmt` idiom is standard Go for restricted polymorphism. The codebase already uses anonymous structs per provider to parse typed content blocks, then discards the structure — canonicalizing it is an explicit improvement. | See OpenAI's `choices[].message.content` vs `tool_calls` ([`openai.go:118-124`](../../llmprovider/openai.go#L118-L124), [`openai.go:206-216`](../../llmprovider/openai.go#L206-L216)), Claude's typed `content[]` blocks ([`claude.go:126-131`](../../llmprovider/claude.go#L126-L131)), Gemini's `parts[]` with `text`/`functionCall` ([`gemini.go:119-137`](../../llmprovider/gemini.go#L119-L137)). |
+| **Sealed-interface `Item` is well-motivated.** The `go/ast` `Node`/`Expr`/`Stmt` idiom is standard Go for restricted polymorphism. The codebase already uses anonymous structs per provider to parse typed content blocks, then discards the structure — canonicalizing it is an explicit improvement. | See OpenAI's `choices[].message.content` vs `tool_calls` ([`openai.go:118-124`](../../llmprovider/providers/openai/openai.go), [`openai.go:206-216`](../../llmprovider/providers/openai/openai.go)), Claude's typed `content[]` blocks ([`claude.go:126-131`](../../llmprovider/claude.go#L126-L131)), Gemini's `parts[]` with `text`/`functionCall` ([`gemini.go:119-137`](../../llmprovider/gemini.go#L119-L137)). |
 | **Reasoning-effort model-gating for Grok is documented per-tier.** Three tiers identified with specific model families, preventing runtime 400 errors. | Cited from docs.x.ai with secondary corroboration (grok-cli issue #198, axl-sdk). |
 
 ### Gaps This Plan Resolves
@@ -506,7 +506,7 @@ Parse `output[]` into `[]Item` using a type switch on `item["type"]`:
 - `"reasoning"` → emit `ReasoningItem{Text: summary text}`
 
 **Error handling**: Same status-code switch pattern as existing providers
-([`openai.go:105-116`](../../llmprovider/openai.go#L105-L116)):
+([`openai.go:105-116`](../../llmprovider/providers/openai/openai.go)):
 
 - `429` → `&RateLimitError{...}` (note: xAI does not document `Retry-After`)
 - `401/403` → `ErrAuthFailure`
@@ -514,7 +514,7 @@ Parse `output[]` into `[]Item` using a type switch on `item["type"]`:
 - Other `4xx` → `ErrInvalidRequest`
 
 **1MB response limit**: Applied before status check, same as all existing
-providers (e.g., [`openai.go:101-103`](../../llmprovider/openai.go#L101-L103)).
+providers (e.g., [`openai.go:101-103`](../../llmprovider/providers/openai/openai.go)).
 
 ### Step 1.7 — `grok_test.go` (New File)
 
@@ -640,7 +640,7 @@ make lint    # golangci-lint clean
 
 ### Step 2.1 — `openai.go` Internal Migration
 
-**File**: [`llmprovider/openai.go`](../../llmprovider/openai.go)
+**File**: [`llmprovider/openai.go`](../../llmprovider/providers/openai/openai.go)
 
 **Changes**:
 
@@ -671,7 +671,7 @@ make lint    # golangci-lint clean
    `GenerateWithToolThinking`.
 
 4. The `applyTokenAndReasoning` helper
-   ([`openai.go:61-72`](../../llmprovider/openai.go#L61-L72))
+   ([`openai.go:61-72`](../../llmprovider/providers/openai/openai.go))
    is updated for Responses API key names
    (`max_output_tokens` instead of `max_tokens`/`max_completion_tokens`).
 
@@ -1025,7 +1025,7 @@ These items are explicitly not part of this plan, per the MADR:
 | [`provider.go`](../../llmprovider/provider.go) | Add `ProviderEnvVars[ProviderGrok]`, `NewProvider` case, new optional interface declarations | 1 |
 | [`discovery.go`](../../llmprovider/discovery.go) | Add `listGrokModels`, `ListAvailableModels` case | 1 |
 | [`models_catalog.go`](../../llmprovider/models_catalog.go) | Add `StaticGrok`, `isUsableGrokModel`, `RankGrokModel`, `StaticModels` case | 1 |
-| [`openai.go`](../../llmprovider/openai.go) | Migrate to Responses API, add `GenerateItems`/`Continue`, existing methods become wrappers | 2 |
+| [`openai.go`](../../llmprovider/providers/openai/openai.go) | Migrate to Responses API, add `GenerateItems`/`Continue`, existing methods become wrappers | 2 |
 | [`gemini.go`](../../llmprovider/gemini.go) | Migrate to Interactions API, add `GenerateItems`/`Continue`, existing methods become wrappers | 3 |
 | [`claude.go`](../../llmprovider/claude.go) | Add `GenerateItems`, existing methods become wrappers, permanent no-`Continuer` doc | 4 |
 | [`thinking_test.go`](../../llmprovider/thinking_test.go) | Add Grok interface checks | 1 |

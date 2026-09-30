@@ -1308,3 +1308,148 @@ Executed as the S7 prerequisites amendment of the same date decided.
     |---|---|
     | every other 4xx an auth failure, the rejected alternative | `oauth_refresh_kinds_test.go:49: Token = llm: authentication failed: … 400 Bad Request …, want an error matching llm: invalid request`, and the existing `oauth_refresh_test.go:194: … want one plain failure` |
     | a 429 an auth failure | `Token = llm: authentication failed: … 429 Too Many Requests …, want an error matching llm: rate limited` |
+
+### Phase S7, commit 3: `openai` (2026-09-30)
+
+* **Step 1, moved** with `git mv`:
+  * `llmprovider/openai.go` to `llmprovider/providers/openai/openai.go`;
+  * the goldens `testdata/wire/{openai,chatgpt}`;
+  * the three `chatgpt-*.sse` fixtures.
+
+  `openai_chatgpt.go` stays in `llmprovider` with only the session helpers.
+  `discovery.go`'s ChatGPT listing uses them too, so moving them would have
+  made `llmprovider` import the provider.
+* **Step 2, the new API:**
+  * `openai.New(opts...)`, `ID`, `Capabilities`, `Generate` and
+    `ListModels` (`ModelLister`);
+  * `openai.WithStore`, a scoped option;
+  * a reasoning default from `WithReasoning`, which replaces
+    `WithReasoningEffort`.
+
+  Each old method is the `Request` it sent:
+
+  | Old | New |
+  |---|---|
+  | `GenerateItems` | `Input` |
+  | `GenerateWithTool` | one tool and `ForceTool` |
+  | `GenerateThinking` | `Reasoning`, with medium when it names no effort |
+  | `Continue` | `PreviousResponseID` |
+  | `DiscoverModels` | `ListModels` |
+
+  A listing probe sends the old probe provider's body: output limit 8192,
+  no `store`, no reasoning. The listing gets the caller's options, the
+  provider's session, client and base URL. The response body is closed
+  with the failure logged to the provider's own logger (R31), where the old
+  code used the global one.
+* **Temporary exports** from `llmprovider`, which S7b removes:
+  * the session helpers `IsChatGPTSession`, `ChatGPTSessionAccountID`,
+    `ChatGPTSessionFedRAMP` and `ExpireSession`, and the header constants
+    `ChatGPTAccountHeader`, `ChatGPTOriginatorHeader`,
+    `ChatGPTOriginatorValue` and `ChatGPTFedRAMPHeader`;
+  * `ClassifyHTTPError`, `DecodeResponsesAPIOutput`, `ReadResponsesStream`,
+    `ItemsToInput`, `ShareHTTPClient` and `ProbeGenerateHealth`.
+
+  They were renamed with `gopls rename`. Their mentions in live-tagged
+  files and comments, which gopls does not see, were renamed separately.
+  `CloseResponseBody` was exported, then made unexported again when openai
+  stopped using it. Lint's revive rejected `ChatGPTAccountID` and
+  `ChatGPTFedRAMP`, which clash with methods of `oauth_loopback.go`, so they
+  took the `Session` names.
+* **Step 3.** The package doc lists the degradations:
+  * `Reasoning.Budget` is not sent;
+  * a ChatGPT session sends no output limit and always `store: false`.
+* **Step 4, the tests ported.** Assertions keep their meaning. The call
+  syntax is the new API's.
+
+  | From `llmprovider` | To `openai` |
+  |---|---|
+  | `openai_items_test.go`, and the OpenAI parts of `thinking_test.go`, `provider_correctness_test.go`, `api_error_message_test.go`, `identification_test.go`, `responses_store_test.go` | `openai_test.go` |
+  | `openai_chatgpt_test.go`, `chatgpt_stream_test.go`, and the OpenAI parts of `chatgpt_fedramp_test.go`, `vendor_session_test.go`, `command_token_test.go` | `chatgpt_test.go` |
+  | the OpenAI parts of `probe_test.go`, `probe_scope_test.go`, `transport_defaults_test.go` | `listing_test.go` |
+  | the openai and chatgpt G-wire cases | `wire_test.go`, through `llmprovider/internal/wirecase` |
+
+  * **Interface assertions**, such as `var _ ThinkingProvider = …`, are
+    now assertions on `Capabilities()` and `ModelLister`, what those
+    interfaces declared.
+  * **Split, each half kept:**
+    * FedRAMP: the claim half stays as `TestChatGPTLogin_FedRAMPClaim`,
+      and the header half moved;
+    * the 401 rerun: the source half stays as
+      `TestCommandToken_RerunsAfterInvalidate`, and the provider half moved
+      as `TestOpenAI_RetriesOnceAfterInvalidate`.
+  * **One assertion changed kind, by 0015-MADR D4.**
+    `TestOpenAIChatGPT_ContinueIsInvalid` is now `…ContinueIsUnsupported`.
+    A ChatGPT session's continuation is still refused with no request, but
+    now with `ErrUnsupported` rather than `ErrInvalidRequest`, because
+    continuation is `Unsupported` there.
+  * **Read differently, by D7.** `TestOpenAIChatGPT_StreamFailures` reads
+    "terminal" through `Retryable()`, because `Terminal` is deprecated;
+    for these kinds the two say the same.
+  * **New tests** for fields the old methods could not express:
+    `request_test.go` (model, instructions, the tool choices, an effort per
+    request, the default reasoning, a budget alone), `TestNew_*`, and
+    `TestListModels_ProbeBodyIsTheOldProbes` and
+    `TestListModels_CarriesTheCallersIdentity`.
+  * **Live tests.** The ChatGPT ones, and the OpenAI rows of the
+    vendor-session and store tests, are external tests
+    (`package llmprovider_test`) in `llmprovider`'s directory. They need its
+    live helpers and its test-only build-version hook, which
+    `live_export_test.go` exports to them. They build through `openai.New`.
+* **G-wire, rewritten through the new API.** 13 of the 14 goldens match
+  their `P7` content byte for byte.
+  * The one difference is `chatgpt/continuation.json`, where only the
+    `error` line changed, by D4:
+
+    ```text
+    error: want "llm: invalid request: openai: a ChatGPT session cannot continue a response; replay the items", got "llmprovider: unsupported: the request needs continuation"
+    ```
+
+    It was regenerated with a scoped `-update`. Its `requests` stay `[]`.
+  * The first run also showed `result: want null, got (absent)`: the
+    harness dropped a typed nil `*Response`. That was fixed in the harness,
+    not the golden.
+  * The gate's G-wire check now runs `./llmprovider/...`, not
+    `./llmprovider`.
+* **Step 5, llmtest.** `TestConformance` runs `llmtest.Run` with an API key
+  and with a ChatGPT session. Both pass. The ChatGPT run first failed R25
+  on a 401, which led to the deviation above and its commit.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | a ChatGPT session claims continuation | `Continuation = Supported, want Unsupported`, and the continuation golden |
+  | a forced tool sends no `tool_choice` | `requests[0].body.tool_choice: want {"name":"get_weather","type":"function"}, got (absent)` |
+  | probes ignore `WithModelProbes` | `1 generation requests, want none` |
+  | a probe keeps the provider's limit and store | `probe body map[… max_output_tokens:77 … store:false]; want … max_output_tokens 8192, no store, no reasoning` |
+  | the default effort is high | `reasoning.effort = map[effort:high], want default "medium"`, and `thinking.json` |
+  | `MaxOutputTokens` ignored | `max_output_tokens = 500, want 77` |
+  | a ChatGPT session sends `max_output_tokens` | `max_output_tokens = 321, want absent` |
+  | `Generate` skips the capability check | `R23 (invalid values): an unknown tool choice returned <nil>; …` |
+  | no retry after a 401 | `… after 0 invalidations (sent [Bearer key-1]); want one retry after the 401` |
+  | the listing drops the caller's options | `listing requests ["GET go-llmprovider-sdk/(devel) …"]; want one GET naming wire-app/9.9.9` |
+  | openai registered under another id | `descriptor "openai" is offered to users but neither Default nor the old API builds it` |
+  | the harness drops a typed nil response | `result: want null, got (absent)` |
+
+  Two first attempts proved nothing and were replaced:
+  * dropping the listing's session id. No header on OpenAI's listing
+    carries it; the option is kept, as the old code passed it.
+  * removing the registration, which left an unused import and did not
+    compile.
+* **Coverage** (`go test -race -cover`):
+  * `providers/openai` 97.8 %;
+  * `providers` 80.0 %;
+  * `llmprovider` 89.8 %, against its `P7` 89.2 %. The margin narrows as
+    well-tested provider code leaves.
+  * `internal/wirecase` has no tests of its own: 82.8 % through the openai
+    tests (`-coverpkg`).
+* **`providers`.** `Default()` registers openai, with the descriptor from
+  `llmprovider.DescriptorFor` until S8. OpenAI left `notYetMoved`.
+* **Links, the rule for every provider moved in S7.** G-links found 7
+  links in `0003-PLAN-add-grok-xai-llm-provider.md` to
+  `llmprovider/openai.go`, five with line anchors.
+  * Each now points at the moved file.
+  * The anchors are dropped. They cited a version from before the
+    migration, and would point readers at the wrong lines of the new file.
+  * The link text, the original citation such as `openai.go:105-116`, is
+    kept.
+  * The rationale around the links is unchanged.

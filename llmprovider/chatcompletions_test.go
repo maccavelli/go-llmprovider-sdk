@@ -245,7 +245,7 @@ func TestClassifyHTTPStatus(t *testing.T) {
 			if tc.retryAfter != "" {
 				resp.Header.Set("Retry-After", tc.retryAfter)
 			}
-			err := classifyHTTPError("gw/route", resp)
+			err := ClassifyHTTPError("gw/route", resp)
 			if tc.wantNil {
 				if err != nil {
 					t.Fatalf("expected nil, got %v", err)

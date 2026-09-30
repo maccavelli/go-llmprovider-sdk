@@ -239,7 +239,7 @@ func (p *ClaudeProvider) doGenerateItems(ctx context.Context, input []Item, tool
 
 	limitedBody := io.LimitReader(resp.Body, 1<<20)
 
-	if err := classifyHTTPError(ProviderClaude, resp); err != nil {
+	if err := ClassifyHTTPError(ProviderClaude, resp); err != nil {
 		return nil, err
 	}
 
@@ -317,7 +317,7 @@ func (p *ClaudeProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 	if !p.probeModels {
 		return listed, nil
 	}
-	healthy := probeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
+	healthy := ProbeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
 		tp, err := NewClaude(p.apiKey, modelID, append(p.identity.options(), WithHTTPClient(p.client), WithBaseURL(p.baseURL))...)
 		if err != nil {
 			return "", err

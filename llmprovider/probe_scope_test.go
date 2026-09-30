@@ -7,7 +7,6 @@ import (
 	"os"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 // generationCounter answers every listing (GET) with an empty or minimal
@@ -46,10 +45,6 @@ func TestDiscoverModels_MeteredServicesDoNotProbe(t *testing.T) {
 		"huggingface": func(url string) (discoverer, error) {
 			return NewHuggingFace("k", "org/model", WithBaseURL(url), WithModelMetadataURL(url+"/api.json"))
 		},
-		"chatgpt": func(url string) (discoverer, error) {
-			session := &OAuthSession{Issuer: DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)}
-			return NewOpenAIWithSource(session, "gpt-6-astra", WithBaseURL(url))
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv, posts := generationCounter(t)
@@ -74,9 +69,6 @@ func TestDiscoverModels_MeteredServicesDoNotProbe(t *testing.T) {
 // explicit option passed after it wins.
 func TestDiscoverModels_ProbesFollowDefaultOptionAndEnv(t *testing.T) {
 	builders := map[string]func(url string, opts ...ProviderOption) (discoverer, error){
-		"openai": func(url string, opts ...ProviderOption) (discoverer, error) {
-			return NewOpenAI("k", "gpt-4.1-mini", append(opts, WithBaseURL(url))...)
-		},
 		"claude": func(url string, opts ...ProviderOption) (discoverer, error) {
 			return NewClaude("k", "claude-haiku-4-5", append(opts, WithBaseURL(url))...)
 		},

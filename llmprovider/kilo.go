@@ -31,7 +31,7 @@ const wireShapesProbedOnKilo = "2026-08-29"
 // unlike OpenCode where routes are per-model and a mismatch returns HTTP 500
 // (verified 2026-08-29). Those two routes are undocumented, and Kilo's
 // /responses places reasoning text in output[].content[].type=="reasoning_text"
-// with summary:[], which decodeResponsesAPIOutput does not read, so it would
+// with summary:[], which DecodeResponsesAPIOutput does not read, so it would
 // silently drop every trace. Because the gateway translates, one route reaches
 // the whole catalog; a second buys no model coverage.
 //
@@ -305,7 +305,7 @@ func (p *KiloProvider) doGenerateItems(ctx context.Context, input []Item, tool *
 	// response bodies are also bounded.
 	limitedBody := io.LimitReader(resp.Body, 1<<20)
 
-	if err := classifyHTTPError(ProviderKilo, resp); err != nil {
+	if err := ClassifyHTTPError(ProviderKilo, resp); err != nil {
 		return nil, err
 	}
 	return decodeChatCompletionsResponse(limitedBody)

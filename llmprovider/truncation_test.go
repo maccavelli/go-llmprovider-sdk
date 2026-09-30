@@ -12,7 +12,7 @@ import (
 func TestDecodeResponses_IncompleteIsError(t *testing.T) {
 	body := `{"id":"r1","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},
 		"output":[{"type":"reasoning","summary":[]}]}`
-	res, err := decodeResponsesAPIOutput(strings.NewReader(body))
+	res, err := DecodeResponsesAPIOutput(strings.NewReader(body))
 	if err == nil || !errors.Is(err, ErrInvalidRequest) || !strings.Contains(err.Error(), "max_output_tokens") {
 		t.Fatalf("decode = %+v/%v, want an ErrInvalidRequest naming max_output_tokens", res, err)
 	}

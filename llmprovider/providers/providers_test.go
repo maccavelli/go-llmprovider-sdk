@@ -18,9 +18,6 @@ var notYetMoved = map[string]func(key, model string) (named, error){
 	llmprovider.ProviderGemini: func(key, model string) (named, error) {
 		return llmprovider.NewGemini(context.Background(), key, model)
 	},
-	llmprovider.ProviderOpenAI: func(key, model string) (named, error) {
-		return llmprovider.NewOpenAI(key, model)
-	},
 	llmprovider.ProviderClaude: func(key, model string) (named, error) {
 		return llmprovider.NewClaude(key, model)
 	},

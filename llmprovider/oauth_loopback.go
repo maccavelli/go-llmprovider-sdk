@@ -441,7 +441,7 @@ func buildAuthorizeURL(config oauthFlowConfig, endpoint, redirectURI, challenge,
 		query.Set("scope", openAIOAuthScopes)
 		query.Set("id_token_add_organizations", "true")
 		query.Set("codex_cli_simplified_flow", "true")
-		query.Set(openAIOriginatorHeader, openAIOriginatorValue)
+		query.Set(ChatGPTOriginatorHeader, ChatGPTOriginatorValue)
 	} else {
 		query.Set("scope", grokOAuthScopes)
 		query.Set("nonce", nonce)
