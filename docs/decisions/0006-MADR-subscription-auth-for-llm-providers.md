@@ -4,11 +4,14 @@ date: 2026-09-12
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
+migrated-from: "mcplib docs/0008-MADR-subscription-auth-for-llm-providers.md @ 4e1f9a5"
 ---
 
 # Support Browser, API-Key, and Headless Subscription Authentication for OpenAI and xAI Grok in `mcplib`
 
-> **Audit note (2026-09-26).** [0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md) bears on this record:
+Migrated from `mcplib` `docs/0008-MADR-subscription-auth-for-llm-providers.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
+> **Audit note (2026-09-26).** [0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md) bears on this record:
 >
 > * **G1 confirms §2:** Grok sessions go to `api.x.ai` without
 >   `X-XAI-Token-Auth`.
@@ -32,7 +35,7 @@ informed: all mcplib consumers
 > decisions.
 
 > **Revision notes (revision 2, 2026-09-12, applied in place to this same
-> `proposed` document — same convention as `0001-MADR` and `0004-MADR`).**
+> `proposed` document — same convention as `0003-MADR` and `0005-MADR`).**
 >
 > **Revision 1** researched four first-party providers (`openai`, `grok`,
 > `claude`, `gemini`) and recommended native OAuth only where it is both legal
@@ -55,12 +58,12 @@ informed: all mcplib consumers
 > host for `mcplib` (426 version gate on `/responses`; API keys 401).
 >
 > **Revision 4 (2026-09-12).** Maintainer **accepted** this MADR. Implementation
-> is specified in [0008-PLAN-subscription-auth-for-llm-providers.md](0008-PLAN-subscription-auth-for-llm-providers.md).
+> is specified in [0006-PLAN-subscription-auth-for-llm-providers.md](0006-PLAN-subscription-auth-for-llm-providers.md).
 > No source changes accompany this status change.
 >
 > **Revision 5 (2026-09-12).** Maintainer named **prepare-commit-msg** as the
 > first consumer to adopt this API. That does **not** unify fleet config
-> storage (MADR 0004 out of scope stands). The hook keeps its own
+> storage (MADR 0005 out of scope stands). The hook keeps its own
 > `config.json` (already mode `0600`) and a sidecar `FileTokenStore` for
 > rotating OAuth sessions. MagicDev and MagicTools remain later consumers.
 
@@ -115,7 +118,7 @@ Facts, not design intent:
 * `Descriptors()` derives `RequiresAPIKey` / `EnvVar` from that map
   (`llmprovider/descriptor.go`). A configuration UI cannot offer "Sign in with
   ChatGPT" because the descriptor has no auth-method list.
-* `wizard.ConfigureLLM` never writes config and never logs a key (MADR 0004,
+* `wizard.ConfigureLLM` never writes config and never logs a key (MADR 0005,
   accepted). Persistence of `Result` is each consumer's problem. Refreshable
   OAuth tokens **do not fit that shape**: a refresh token that is not stored
   cannot be refreshed, and a consumer that only persists `APIKey string` cannot
@@ -128,7 +131,7 @@ Facts, not design intent:
   `invopop/jsonschema`, `golang.org/x/mod`, `golang.org/x/sys`, and
   `golang.org/x/term` (`go.mod`). `llmprovider` speaks HTTP itself — "no vendor
   SDKs" is a stated design invariant (README).
-* MADR 0002 accepted shared XDG-aware user paths. This checkout has no
+* `mcplib` MADR 0002 accepted shared XDG-aware user paths. This checkout has no
   `userpath` package yet; any credential file still needs an owner and a
   location decision.
 
@@ -433,7 +436,7 @@ Console headless paths are irrelevant to this MADR after the revision-2 cut.
 * **Do not ship a ToS trap.** Revision 1 established that Claude.ai and Gemini
   Code Assist OAuth from a third-party library is such a trap; revision 2
   therefore keeps those providers off this MADR entirely.
-* **Auth method is data the descriptor must own**, the same way MADR 0004 made
+* **Auth method is data the descriptor must own**, the same way MADR 0005 made
   provider identity and catalogs data the descriptor owns. Adding a grant type
   must not require three wizard edits.
 * **A credential is not a string.** Refresh, expiry, rotation, and "this token
@@ -496,7 +499,7 @@ at all. A later MADR may consider it; this one will not.
 
 ### What "option 1" means in this codebase
 
-Three layers, same split as MADR 0004: **mcplib owns data and flow; consumers
+Three layers, same split as MADR 0005: **mcplib owns data and flow; consumers
 own rendering and app-config persistence.**
 
 #### 1. A credential is a typed source, not a string
@@ -541,14 +544,14 @@ OpenAI and Grok **must not** cache a token string across process lifetime
 without going through `TokenSource.Token`.
 
 `wizard.Result.APIKey` gains a sibling (or is replaced by) a
-`Credential` value the consumer persists in **its** schema. MADR 0004's "we do
-not unify YAML" still holds. What 0004 did not anticipate is that some
+`Credential` value the consumer persists in **its** schema. MADR 0005's "we do
+not unify YAML" still holds. What 0005 did not anticipate is that some
 credentials **rotate**. That requires a `TokenStore` **seam** in `mcplib`:
 
 * Interface: load / save / delete a named session (provider id + user-chosen
   label).
 * One shipped implementation (revision 3): a `0600` file under the
-  consumer-supplied directory (or, once MADR 0002's path helper exists, the
+  consumer-supplied directory (or, once `mcplib` MADR 0002's path helper exists, the
   XDG data directory). No OS keyring in v1.
 * Refresh writes the rotated refresh token **before** the next request uses it.
   OpenCode's xAI plugin documents the failure mode if disk update is
@@ -741,7 +744,7 @@ keyring in v1. The interface still allows a keyring implementation later.
   standalone consumers without buying a second, metered Platform key.
 * Good, because browser / device-code / key become descriptor data on `openai`
   and `grok`, so a later vendor that publishes a legal OAuth path can follow
-  the same seam without another three-wizard rewrite (MADR 0004's property).
+  the same seam without another three-wizard rewrite (MADR 0005's property).
 * Good, because API-key CI and the orchestrated backplane are unchanged, and
   `claude` / `gemini` / gateways are not part of the refactor.
 * Good, because keeping Claude.ai and Gemini Code Assist OAuth **out of this
@@ -826,7 +829,7 @@ docs already name the host).
   revision 2 removed them from the decision.
 * Wrapping `codex` or `grok` as subprocesses (option 3) — rejected in favour
   of native HTTP for those two.
-* Unifying consumer YAML/config persistence (MADR 0004 out of scope stands).
+* Unifying consumer YAML/config persistence (MADR 0005 out of scope stands).
 * Teaching MagicTools to spend an operator ChatGPT/Grok login **on the
   backplane itself**. `mcplib` only keeps orchestrated sub-servers on
   `NewBackplaneClient` and standalone processes on `TokenSource`.
@@ -851,7 +854,7 @@ Implements browser, API-key, and headless (device-code / stdin / import) for
   enforcement is lax.
 * Good, because it is the actual Codex and Grok CLI architecture, which we
   have in-tree as reference implementations.
-* Good, because MADR 0004's "add it to the descriptor, every wizard updates"
+* Good, because MADR 0005's "add it to the descriptor, every wizard updates"
   property extends to auth methods on the two providers that gain them.
 * Neutral, because Claude and Gemini stay on API keys. That is the revision-2
   scope cut, not a deferred half-implementation.
@@ -921,7 +924,7 @@ after the user uses the official CLI.
 * Bad, because it leaves the stated user need unmet for ChatGPT and Grok
   subscriptions, which *are* documented for exactly the browser / key /
   headless triad.
-* Bad, because the fleet will keep growing one-off copies (the MADR 0004
+* Bad, because the fleet will keep growing one-off copies (the MADR 0005
   failure mode) as consumers paste OpenCode plugins or shell out to `codex
   login` themselves.
 
@@ -969,8 +972,8 @@ No OpenAI/Grok questions remain open. A plan may be written once this MADR is ac
 * Wizard flow and `Result`: `wizard/configure.go`, `wizard/prompter.go`.
 * Backplane / orchestrator: `backplane.go`, `orchestrator.go`.
 * Secret handling: `logging/mask.go`, `logging/redact.go`.
-* Prior decisions: MADR 0001 (Grok provider), 0003 (gateways), 0004 (wizard
-  canonicalization; config persistence out of scope), 0002 (XDG paths,
+* Prior decisions: MADR 0003 (Grok provider), 0004 (gateways), 0005 (wizard
+  canonicalization; config persistence out of scope), `mcplib` 0002 (XDG paths,
   accepted; helper not present in this checkout).
 
 ### Local CLI sources inspected (2026-09-12)
@@ -1051,7 +1054,7 @@ Responses path this library already speaks.
 
 `status: accepted` (revision 5, 2026-09-12). No source, test, or dependency
 changes accompany this status change. Execution is specified by
-[0008-PLAN-subscription-auth-for-llm-providers.md](0008-PLAN-subscription-auth-for-llm-providers.md)
+[0006-PLAN-subscription-auth-for-llm-providers.md](0006-PLAN-subscription-auth-for-llm-providers.md)
 (`status: proposed` until the maintainer approves that plan). The plan covers
 **OpenAI and Grok in mcplib**, then **prepare-commit-msg as the first
 consumer**.

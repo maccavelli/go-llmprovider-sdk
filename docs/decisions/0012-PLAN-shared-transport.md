@@ -3,9 +3,12 @@ status: complete
 date: 2026-09-27
 associated-madr: "0012-MADR-conform-providers-to-reference-clients.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0012-PLAN-shared-transport.md @ 4e1f9a5"
 ---
 
 # Implement 0012 §1 — Shared Transport
+
+Migrated from `mcplib` `docs/0012-PLAN-shared-transport.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 Associated MADR: [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
 (accepted 2026-09-27, revision 2). This is the first of that MADR's six

@@ -4,12 +4,15 @@ date: 2026-08-29
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
+migrated-from: "mcplib docs/0004-MADR-canonicalize-llm-provider-configuration.md @ 4e1f9a5"
 ---
 
 # Canonicalize LLM Provider Configuration — Descriptors, Flow and Prompting — in `mcplib`, Renderer-Agnostic
 
+Migrated from `mcplib` `docs/0004-MADR-canonicalize-llm-provider-configuration.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
 > **Revision notes (revision 2, 2026-08-29, applied in place to this `proposed` document —
-> same convention as `0001-MADR` and `0003-MADR`).** Revision 1 shipped with five open
+> same convention as `0003-MADR` and `0004-MADR`).** Revision 1 shipped with five open
 > questions. All are now answered by the maintainer, plus a sixth raised by the Ollama
 > answer. Two answers went **against** this document's recommendation and are recorded as
 > such below, with the trade-off each accepts stated rather than quietly dropped. One answer
@@ -51,7 +54,7 @@ independently — and **they have measurably drifted apart**.
 | `mcp-server-magicdev` `providerEnvVars` (`configure.go:27-31`) | `gemini`, `openai`, `claude` — **no Grok** |
 | `mcp-server-magictools` `internal/provider/catalog.go` | `gemini`, `claude`, `openai`, `voyage`, `ollama` — a **different** set, with its own `ProviderSpec` type |
 
-Grok was added to `mcplib` by MADR 0001 and shipped. **Zero of the three wizards offer
+Grok was added to `mcplib` by MADR 0003 and shipped. **Zero of the three wizards offer
 it.** A capability the library has had through a full release is unreachable from every
 user-facing configuration path.
 
@@ -88,7 +91,7 @@ The two `maskKey` implementations are byte-identical duplicates, and both slice 
 for Git Bash / mintty where hidden reads fail (`setup.go:158-163`) and an empty-entry retry
 — which the other two lack.
 
-**5. The cost is about to triple.** MADR 0003 (`proposed`) adds four gateway providers:
+**5. The cost is about to triple.** MADR 0004 (`proposed`) adds four gateway providers:
 `opencode-zen`, `opencode-go`, `huggingface`, `kilo`. Under the status quo that is
 4 providers × 3 wizards = **12 independent edits**, in three repos, with three different UI
 stacks, to expose one library change. The Grok precedent says they will not all happen.
@@ -298,12 +301,12 @@ the one app that offers it today), `llmprovider` gains a real `OllamaProvider`.
 | `message` keys returned | `content`, `role` — no reasoning field on the probed model |
 
 So `OllamaProvider` is **a struct and a constructor, with no new wire logic**: it posts to
-`{baseURL}/v1/chat/completions` and reuses MADR 0003's shared `chatCompletionsBody` and
+`{baseURL}/v1/chat/completions` and reuses MADR 0004's shared `chatCompletionsBody` and
 `decodeChatCompletionsResponse`. Three details fall out of the published compatibility
 notes (`https://docs.ollama.com/api/openai-compatibility`) and fit seams that already exist:
 
 * **`tool_choice` is not supported.** This maps exactly onto the
-  `chatCompletionsOpts.ForceTool` flag MADR 0003 introduced for Kilo — Ollama sets
+  `chatCompletionsOpts.ForceTool` flag MADR 0004 introduced for Kilo — Ollama sets
   `ForceTool: false`, offering `tools` without forcing. No new mechanism.
 * **`reasoning_effort` is supported**, with values `none|low|medium|high|max`. Note `max`,
   not the `xhigh` this package models (`constants.go:34-39`); the provider clamps `xhigh` to
@@ -317,13 +320,13 @@ stable native API; `/v1/models` is a compatibility shim. Migrating them for cosm
 symmetry would change working code for no functional gain. Ollama is therefore the one
 provider whose lister does not look like the others, and that is deliberate.
 
-**This section depends on MADR 0003 landing first** — see the sequencing decision below.
+**This section depends on MADR 0004 landing first** — see the sequencing decision below.
 
 ### Consequences
 
 * Good, because adding a provider to `mcplib` makes it appear in every wizard with **no
   downstream edit** — the acceptance test for this MADR. Grok appears in all three
-  immediately; MADR 0003's four gateways arrive for free instead of costing 12 edits.
+  immediately; MADR 0004's four gateways arrive for free instead of costing 12 edits.
 * Good, because the four drift classes collapse to one source each: one provider list, one
   env-var map, one model catalog, one masking function.
 * Good, because `magictools`'s `gemini-2.0-flash` recommendation disappears — the catalog
@@ -350,7 +353,7 @@ provider whose lister does not look like the others, and that is deliberate.
   **embedding providers** (`voyage`) have no `mcplib` equivalent. See "Scope boundaries".
 * Good, because `OllamaProvider` closes the descriptor model's only sharp edge — every
   descriptor now maps to a constructible provider — and costs no new wire logic, since
-  Ollama's OpenAI-compatible endpoint rides MADR 0003's shared primitive.
+  Ollama's OpenAI-compatible endpoint rides MADR 0004's shared primitive.
 * Good, because Ollama's unsupported `tool_choice` needed no new mechanism: the
   `ForceTool` seam added for Kilo already covers it. Two independent providers now justify
   that flag.
@@ -360,8 +363,8 @@ provider whose lister does not look like the others, and that is deliberate.
   screen shares, recordings and to anyone nearby, where an on-submit reveal would expose it
   only after the fact. Accepted deliberately for stronger paste feedback; mitigated by
   revealing nothing below 8 runes.
-* **Bad, because this MADR now depends on MADR 0003.** `OllamaProvider` reuses
-  `chatcompletions.go`, which 0003 introduces. 0004 cannot be executed first without either
+* **Bad, because this MADR now depends on MADR 0004.** `OllamaProvider` reuses
+  `chatcompletions.go`, which 0004 introduces. 0005 cannot be executed first without either
   writing a throwaway chat decoder or dropping §6. The sequencing decision below accepts
   this.
 * Bad, because a masked raw-mode reader is fiddly — bracketed paste, `\r` vs `\n`,
@@ -471,10 +474,10 @@ three wizards.
 ### 5. Status quo — fix the drift three times
 
 * Good, because it needs no coordination and no new API.
-* Bad, because it has already been tried implicitly and failed: Grok shipped in MADR 0001
+* Bad, because it has already been tried implicitly and failed: Grok shipped in MADR 0003
   and reached none of the three wizards; `magictools` still recommends a shut-down Gemini
   model; two byte-identical `maskKey` copies exist.
-* Bad, because MADR 0003's four gateways would make the next divergence 12 edits wide.
+* Bad, because MADR 0004's four gateways would make the next divergence 12 edits wide.
 
 ## Decisions Resolved (2026-08-29)
 
@@ -489,12 +492,12 @@ trade-off they accept.
 | 3 | Reveal the key tail live, or on submit? | **Live while typing.** | **Against recommendation.** Accepts 4 characters on screen for the whole entry in exchange for instant paste confirmation. Mitigated by a minimum-length guard; reversible in one line. |
 | 4 | `Prompter` — add `MultiSelect`, or loop `Select`? | **Add `MultiSelect`; six methods.** | **Against recommendation.** Accepts a larger permanent public interface for better fallback-selection UX. `pterm` supplies it natively. |
 | 5 | Which Ollama API surface? | **OpenAI-compatible `/v1/chat/completions` for generation; keep the native `/api/tags` for listing.** | As recommended. Zero new wire logic; leaves working, tested listing code alone. |
-| 6 | Order relative to MADR 0003? | **0003 first, then 0004.** | As recommended, and now effectively required: `OllamaProvider` consumes 0003's `chatcompletions.go`. |
+| 6 | Order relative to MADR 0004? | **0004 first, then 0005.** | As recommended, and now effectively required: `OllamaProvider` consumes 0004's `chatcompletions.go`. |
 
-**Consequent dependency:** this MADR is **blocked on MADR 0003 being accepted and executed**.
+**Consequent dependency:** this MADR is **blocked on MADR 0004 being accepted and executed**.
 Both edit `constants.go`, `provider.go`, `models_catalog.go` and `discovery.go`, and §6
-consumes 0003's shared Chat Completions primitive. 0004's descriptor table will therefore
-open with **nine** providers — the four existing, 0003's four gateways, and Ollama.
+consumes 0004's shared Chat Completions primitive. 0005's descriptor table will therefore
+open with **nine** providers — the four existing, 0004's four gateways, and Ollama.
 
 ## More Information
 
@@ -524,15 +527,22 @@ open with **nine** providers — the four existing, 0003's four gateways, and Ol
   supported**; reasoning values `none|low|medium|high|max`. Local probes ✓ — `/api/version`
   `200`, `/v1/models` in OpenAI list shape, and `/v1/chat/completions` returning `200` with
   a valid completion and **no** `Authorization` header.
-* **Prior MADRs:** `0001` (Grok — the provider whose absence from all three wizards is this
-  MADR's motivating evidence), `0002` (XDG paths — precedent for a shared `mcplib` package
-  replacing per-repo copies), `0003` (four gateway providers — the change that makes this
+* **Prior MADRs:** `0003` (Grok — the provider whose absence from all three wizards is this
+  MADR's motivating evidence), `mcplib` `0002` (XDG paths — precedent for a shared `mcplib` package
+  replacing per-repo copies), `0004` (four gateway providers — the change that makes this
   drift three times more expensive).
-* **Sequencing.** This MADR is blocked on `0003-MADR-add-gateway-llm-providers.md` being
-  accepted and executed; §6 consumes the `chatcompletions.go` primitive 0003 introduces.
+* **Sequencing.** This MADR is blocked on `0004-MADR-add-gateway-llm-providers.md` being
+  accepted and executed; §6 consumes the `chatcompletions.go` primitive 0004 introduces.
 * **Implementation plan** — to be written as
-  `0004-PLAN-canonicalize-llm-provider-configuration.md` and approved before any source
+  `0005-PLAN-canonicalize-llm-provider-configuration.md` and approved before any source
   edits, per the repository workflow. It must phase the work additively: `mcplib` ships
   descriptors, `MaskSecret`, `Prompter`, `TextPrompter` and `ConfigureLLM` **without
   breaking any existing export**, then each consumer migrates in its own commit and release,
   in an order that lets the four-repo coordination fail safely at any point.
+
+## Amendment 2026-09-29: `MaskSecret` exists in two places
+
+`MaskSecret` (§4, PLAN Phase 1) exists in both `mcplib` `logging/mask.go` and
+this repository's `internal/redact/mask.go`, where it is `redact.MaskSecret`.
+The two copies are not kept in step (`mcplib`
+`docs/decisions/0015-MADR-transfer-llmprovider-to-go-llmprovider-sdk.md` §1).

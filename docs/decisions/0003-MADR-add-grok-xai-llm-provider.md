@@ -1,14 +1,17 @@
 ---
-status: proposed
+status: accepted
 date: 2026-08-17
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev consumers
 informed: mcplib contributors
+migrated-from: "mcplib docs/0001-MADR-add-grok-xai-llm-provider.md @ 4e1f9a5"
 ---
 
 # Adopt a Responses-API-Shaped Canonical Contract Across All `llmprovider` Providers, Including a New Grok Provider
 
-> **Audit note (2026-09-26).** [0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md) finding G2: the Grok CLI's model
+Migrated from `mcplib` `docs/0001-MADR-add-grok-xai-llm-provider.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
+> **Audit note (2026-09-26).** [0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md) finding G2: the Grok CLI's model
 > catalog offers `grok-4.5` only `high`/`medium`/`low`, not `xhigh`, which
 > contradicts the statement at lines 151-152 (as of `55e4b31`). Finding X1 also affects the
 > canonical item contract: three converters drop `FunctionCallItem` input.
@@ -610,7 +613,7 @@ This decision will be considered correctly implemented when:
   `github.com/nocturnium/llm-go-sdk`, `blog.mozilla.ai` (`any-llm-go` release post),
   `github.com/flexigpt/inference-go`, `github.com/tmc/langchaingo` (discussion #1282).
 * This MADR intentionally stops short of a full implementation plan. Per this
-  repository's workflow, a paired `0001-PLAN-add-grok-xai-llm-provider.md` should be
+  repository's workflow, a paired `0003-PLAN-add-grok-xai-llm-provider.md` should be
   written and approved separately before any source changes are made. That plan must, at
   minimum: (1) define the exact Go item/`Response` types and optional-interface
   signatures sketched under "Decision Outcome" above, including the sealed-interface
@@ -624,3 +627,8 @@ This decision will be considered correctly implemented when:
   consequence; and (6) confirm whether/when an `iter.Seq[Item]`-returning accessor is
   added to `Response` alongside the plain slice field, per the forward-compatibility
   recommendation above.
+
+## Amendment 2026-09-29: status corrected at migration
+
+Grok shipped in `mcplib`, but this record kept `status: proposed`. It is set to
+`accepted` here, and its PLAN to `complete`, under `0002-MADR-migrate-llmprovider-from-mcplib.md` §10–§11.

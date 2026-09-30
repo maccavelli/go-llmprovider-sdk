@@ -1,39 +1,42 @@
 ---
 status: complete
 date: 2026-09-26
-associated-madr: "0009-MADR-live-catalog-model-search.md"
+associated-madr: "0007-MADR-live-catalog-model-search.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0009-PLAN-live-catalog-model-search.md @ 4e1f9a5"
 ---
 
 # Implement Search Live Provider Catalogs for Primary and Fallback Model Selection
 
-Associated MADR: [0009-MADR-live-catalog-model-search.md](0009-MADR-live-catalog-model-search.md)
+Migrated from `mcplib` `docs/0009-PLAN-live-catalog-model-search.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
+Associated MADR: [0007-MADR-live-catalog-model-search.md](0007-MADR-live-catalog-model-search.md)
 (proposed, revision 3, 2026-09-25).
 
 > **Plan revision 2026-09-25 (MADR revision 3).** The maintainer folded the
-> Kilo and Hugging Face input-modality fix into 0009. Changes: new Phase 1b;
-> Phase 0 annotates MADR 0003; Phase 1's filter test no longer asserts on
+> Kilo and Hugging Face input-modality fix into 0007. Changes: new Phase 1b;
+> Phase 0 annotates MADR 0004; Phase 1's filter test no longer asserts on
 > `org/vlm`, because Phase 1b changes that rule; A1 names the two rewritten
 > tests; A16 is added; §8 and §9 are updated. Default-model ranking for commit
-> messages is a separate, proposed decision ([0010-MADR-use-case-aware-default-model-ranking.md](0010-MADR-use-case-aware-default-model-ranking.md))
+> messages is a separate, proposed decision ([0009-MADR-use-case-aware-default-model-ranking.md](0009-MADR-use-case-aware-default-model-ranking.md))
 > and is not in this plan.
 >
 > **Plan revision 2026-09-26 (MADR revision 5).** The maintainer folded the
-> Zen/Go per-route key-header fix into 0009 (MADR §1c). Changes:
+> Zen/Go per-route key-header fix into 0007 (MADR §1c). Changes:
 >
 > * new Phase 0b, run immediately after Phase 0;
-> * Phase 0's MADR 0003 note also cites §1c;
+> * Phase 0's MADR 0004 note also cites §1c;
 > * A17 is added;
 > * Appendix B gains an optional `tags` field for build-tagged live tests,
 >   re-proven.
 >
 > **Plan note 2026-09-26.**
-> [0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md)
+> [0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md)
 > adds MADR related findings 5-8. No step here changes:
 >
 > * the wizard tests use `httptest` fixtures, which the Zen key-header defect
 >   (report O1) does not affect;
-> * Phase 0's pointer note on MADR 0003 goes directly under the title, above
+> * Phase 0's pointer note on MADR 0004 goes directly under the title, above
 >   the audit note the report added;
 > * line citations into other `docs/` records refer to their text at
 >   `55e4b31`.
@@ -68,7 +71,7 @@ model and for fallbacks, through the existing six-method `Prompter`. Specificall
 double `wizard/fake_prompter_test.go`, two existing wizard tests whose scripts
 the new prompt changes, the two existing curation tests and fixtures that pin
 the old input rule (`llmprovider/discovery_test.go`), `README.md`, a forward
-pointer in MADR 0003, and this plan and its MADR.
+pointer in MADR 0004, and this plan and its MADR.
 
 **Out of scope:** everything in the MADR's *Out of scope* and *Related findings*
 lists. That includes default-model ranking, the network call in `TestConfigureLLM_EmptyDiscoveryFallsBackToStatic`, proxy support in
@@ -249,7 +252,7 @@ returns a fresh copy (`models_catalog.go:169-195`).
 * **Unknown provider:** `fmt.Errorf("unsupported provider for model listing: %s", providerName)`,
   today's text.
 * If `nilerr` reports `return catalogFrom(usable, err, …), nil`, annotate that
-  line with `//nolint:nilerr // degrade-to-static contract (MADR 0009 §1)`,
+  line with `//nolint:nilerr // degrade-to-static contract (MADR 0007 §1)`,
   following the precedent at `discovery.go:574`. This is pre-approved and is
   not a deviation.
 
@@ -478,14 +481,14 @@ slice held by the catalog.
 
 | Phase | Deliverable | New files | Modified files |
 |---|---|---|---|
-| 0 | MADR accepted, plan in progress, MADR 0003 annotated | — | `docs/0009-MADR-live-catalog-model-search.md`, `docs/0009-PLAN-live-catalog-model-search.md`, `docs/0003-MADR-add-gateway-llm-providers.md` |
+| 0 | MADR accepted, plan in progress, MADR 0004 annotated | — | `docs/decisions/0007-MADR-live-catalog-model-search.md`, `docs/decisions/0007-PLAN-live-catalog-model-search.md`, `docs/decisions/0004-MADR-add-gateway-llm-providers.md` |
 | 0b | Zen/Go key header per route | — | `llmprovider/opencode.go`, `llmprovider/opencode_test.go`, `llmprovider/live_gateways_test.go` |
 | 1 | `ModelCatalog`, `ListModelCatalog*`, lister split | `llmprovider/discovery_catalog_test.go` | `llmprovider/discovery.go` |
 | 1b | Kilo/Hugging Face input contains text | — | `llmprovider/discovery.go`, `llmprovider/discovery_test.go`, `llmprovider/discovery_catalog_test.go` |
 | 2 | Gemini and Anthropic pagination | `llmprovider/discovery_pagination_test.go` | `llmprovider/discovery.go` |
 | 3 | `SearchModels` | `llmprovider/model_matcher.go`, `llmprovider/model_matcher_test.go` | — |
 | 4 | Wizard search-then-select | `wizard/model_select.go`, `wizard/model_select_test.go` | `wizard/configure.go`, `wizard/configure_test.go`, `wizard/fake_prompter_test.go` |
-| 5 | README and close-out | — | `README.md`, `docs/0009-PLAN-live-catalog-model-search.md` |
+| 5 | README and close-out | — | `README.md`, `docs/decisions/0007-PLAN-live-catalog-model-search.md` |
 
 Dependencies: 1→1b→2; 3 is independent of 1–2; 4 needs 1, 1b and 3; 5 needs 4.
 Phase 0b is independent of Phases 1–5. Execute in the order 0, 0b, 1, 1b, 2,
@@ -495,11 +498,11 @@ Phase 0b is independent of Phases 1–5. Execute in the order 0, 0b, 1, 1b, 2,
 
 1. Set the MADR frontmatter to `status: accepted` and `date:` the execution
    date. Set this plan to `status: in-progress` with the same date.
-2. In `docs/0003-MADR-add-gateway-llm-providers.md`, insert after the title
+2. In `docs/decisions/0004-MADR-add-gateway-llm-providers.md`, insert after the title
    line a blockquote:
-   `> **Partially superseded (<execution date>) by [0009-MADR-live-catalog-model-search.md](0009-MADR-live-catalog-model-search.md) §1b and §1c:** the Hugging Face and Kilo filter `input_modalities == ["text"]` is replaced by "input contains `text`", and the Zen/Go "Bearer on every route" rule is replaced by a per-route key header. The output filter, tools rule, training policy and ranking below stand.`
-   Change nothing else in 0003. Its status stays `accepted`.
-3. ~~`git add docs/0009-MADR-live-catalog-model-search.md docs/0009-PLAN-live-catalog-model-search.md docs/0003-MADR-add-gateway-llm-providers.md`,
+   `> **Partially superseded (<execution date>) by [0007-MADR-live-catalog-model-search.md](0007-MADR-live-catalog-model-search.md) §1b and §1c:** the Hugging Face and Kilo filter `input_modalities == ["text"]` is replaced by "input contains `text`", and the Zen/Go "Bearer on every route" rule is replaced by a per-route key header. The output filter, tools rule, training policy and ranking below stand.`
+   Change nothing else in 0004. Its status stays `accepted`.
+3. ~~`git add docs/decisions/0007-MADR-live-catalog-model-search.md docs/decisions/0007-PLAN-live-catalog-model-search.md docs/decisions/0004-MADR-add-gateway-llm-providers.md`,
    then `git commit --no-edit`.~~ **Widened by the 2026-09-26 deviation (§10):**
    stage every pending `docs/` change, then `git commit --no-edit`. The files
    are Markdown only, so the phase gate does not apply.
@@ -527,7 +530,7 @@ that Phases 1–5 change.
      absent;
    * `r.URL.RawQuery == ""`.
 
-   Replace the doc comment with: "TestOpencode_KeyInHeader pins MADR 0009 §1c:
+   Replace the doc comment with: "TestOpencode_KeyInHeader pins MADR 0007 §1c:
    each Zen/Go route reads the key from its vendor's header, and no route
    reads the others." Then run
    `go test -count=1 -run '^TestOpencode_KeyInHeader$' ./llmprovider > "$SCRATCH/p0b-red.log" 2>&1`.
@@ -553,7 +556,7 @@ that Phases 1–5 change.
 3. **Implement.** In `llmprovider/opencode.go`, add
    ```go
    // opencodeKeyHeader returns the header the Zen/Go server reads the key from
-   // on route r. Each route parses only its vendor's header (MADR 0009 §1c).
+   // on route r. Each route parses only its vendor's header (MADR 0007 §1c).
    func opencodeKeyHeader(r OpencodeRoute, key string) (name, value string) {
    	switch r {
    	case OpencodeRouteMessages:
@@ -568,7 +571,7 @@ that Phases 1–5 change.
    Replace `opencode.go:259-262` (the comment and the `Authorization` `Set`)
    with:
    ```go
-   	// Each route reads the key from its vendor's header (MADR 0009 §1c); the
+   	// Each route reads the key from its vendor's header (MADR 0007 §1c); the
    	// key stays in a header, never the URL.
    	name, value := opencodeKeyHeader(p.route, p.apiKey)
    	req.Header.Set(name, value)
@@ -596,7 +599,7 @@ that Phases 1–5 change.
 | `p0b-bearer-messages` | `llmprovider/opencode.go` | `return "x-api-key", key` → `return oauthAuthorizationHeader, "Bearer " + key` | `^TestOpencode_KeyInHeader$` | — | fail |
 | `p0b-bearer-google` | same | `return "x-goog-api-key", key` → `return oauthAuthorizationHeader, "Bearer " + key` | `^TestOpencode_KeyInHeader$` | — | fail |
 | `p0b-live-wrong-right` | `llmprovider/live_gateways_test.go` | `` `{"contents":[{"parts":[{"text":"hi"}]}]}`, "x-goog-api-key"}, `` → `` `{"contents":[{"parts":[{"text":"hi"}]}]}`, "x-api-key"}, `` | `^TestLive_OpencodeKeyHeaderPerRoute$` | `live_gateways` | fail |
-| `p0b-control` | `llmprovider/opencode.go` | `// on route r. Each route parses only its vendor's header (MADR 0009 §1c).` → the same + ` (control)` | `^TestOpencode_KeyInHeader$` | — | pass |
+| `p0b-control` | `llmprovider/opencode.go` | `// on route r. Each route parses only its vendor's header (MADR 0007 §1c).` → the same + ` (control)` | `^TestOpencode_KeyInHeader$` | — | pass |
 
 `pkg` is `./llmprovider` for all rows.
 * `p0b-live-wrong-right` needs network access. If it reports SKIP instead of
@@ -694,7 +697,7 @@ fixtures `opencodeListingFixture`, `hfListingFixture` and `kiloListingFixture`
 3. **Implement.** In `llmprovider/discovery.go`, add beside `onlyText`:
    ```go
    // hasText reports whether a modality list includes "text". A model that also
-   // accepts images or files still serves a text prompt (MADR 0009 §1b).
+   // accepts images or files still serves a text prompt (MADR 0007 §1b).
    func hasText(mods []string) bool { return slices.Contains(mods, jsonKeyText) }
    ```
    In the Hugging Face and Kilo fetch-and-filter steps, change the input half of
@@ -780,7 +783,7 @@ differently, record the exact anchor used in §11; that is not a deviation.
    -count=1 -run TestSearchModels ./llmprovider` must fail to compile
    (`undefined: SearchModels`). Record the line in §11.
 2. Implement §1.4 in `llmprovider/model_matcher.go`. Its package doc is
-   unchanged; the file starts with a short comment naming MADR 0009 §3.
+   unchanged; the file starts with a short comment naming MADR 0007 §3.
 3. Re-run until it passes, then `go test -count=1 ./llmprovider`.
 4. Mutation proofs, then the phase gate on
    `llmprovider/model_matcher.go llmprovider/model_matcher_test.go`.
@@ -1039,12 +1042,12 @@ its pin.
 `llmprovider/live_gateways_test.go` (Phase 0b), `llmprovider/discovery.go`,
 `llmprovider/discovery_test.go`
 (Phase 1b fixtures and the two curation tests only),
-`docs/0003-MADR-add-gateway-llm-providers.md` (forward pointer only),
+`docs/decisions/0004-MADR-add-gateway-llm-providers.md` (forward pointer only),
 `wizard/configure.go`,
 `wizard/configure_test.go` (the two scripts in Phase 4 step 2 only),
 `wizard/fake_prompter_test.go` (two recording fields), `README.md`,
-`docs/0009-MADR-live-catalog-model-search.md` (status only),
-`docs/0009-PLAN-live-catalog-model-search.md`.
+`docs/decisions/0007-MADR-live-catalog-model-search.md` (status only),
+`docs/decisions/0007-PLAN-live-catalog-model-search.md`.
 
 **Must stay untouched** (checked in Phase 5 step 3): `go.mod`, `go.sum`,
 `llmprovider/models_catalog.go`, `llmprovider/probe.go`, `wizard/prompter.go`,
@@ -1054,10 +1057,10 @@ its pin.
 
 | Date | Phase | Finding | Decision | Files added to phase |
 |---|---|---|---|---|
-| 2026-09-26 | 0 | The 0009 MADR and PLAN link to records that are not committed: `0010-MADR-use-case-aware-default-model-ranking.md`, `0011-REPORT-provider-source-compatibility-audit.md` and `0012-MADR-conform-providers-to-reference-clients.md`. MADR 0003 already carries the 0011 audit note. Committing only the three planned files would leave broken links and pull the 0003 audit note into the commit anyway. | Maintainer chose "Commit all docs". Phase 0 commits every pending docs change. Only 0009 changes status (accepted); 0010 and 0012 stay `proposed` and nothing of them is implemented. No MADR amendment: no decision or asserted fact changes. | `docs/0001-MADR-add-grok-xai-llm-provider.md`, `docs/0008-MADR-subscription-auth-for-llm-providers.md` (audit notes only), `docs/0010-MADR-use-case-aware-default-model-ranking.md`, `docs/0011-REPORT-provider-source-compatibility-audit.md`, `docs/0012-MADR-conform-providers-to-reference-clients.md` |
+| 2026-09-26 | 0 | The 0007 MADR and PLAN link to records that are not committed: `0009-MADR-use-case-aware-default-model-ranking.md`, `0011-REPORT-provider-source-compatibility-audit.md` and `0012-MADR-conform-providers-to-reference-clients.md`. MADR 0004 already carries the 0011 audit note. Committing only the three planned files would leave broken links and pull the 0004 audit note into the commit anyway. | Maintainer chose "Commit all docs". Phase 0 commits every pending docs change. Only 0007 changes status (accepted); 0009 and 0012 stay `proposed` and nothing of them is implemented. No MADR amendment: no decision or asserted fact changes. | `docs/decisions/0003-MADR-add-grok-xai-llm-provider.md`, `docs/decisions/0006-MADR-subscription-auth-for-llm-providers.md` (audit notes only), `docs/decisions/0009-MADR-use-case-aware-default-model-ranking.md`, `docs/reports/0011-REPORT-provider-source-compatibility-audit.md`, `docs/decisions/0012-MADR-conform-providers-to-reference-clients.md` |
 | 2026-09-26 | 0b | `llmprovider/opencode_route.go:8-10` says both gateways use "one auth scheme (Authorization: Bearer)". §1c makes that false, and the file is not in Phase 0b's list. | Maintainer chose "Add file to phase": a comment-only edit pointing to `opencodeKeyHeader` and §1c, gated with the phase. No behaviour change and no MADR amendment. | `llmprovider/opencode_route.go` |
 | 2026-09-26 | 1 | `make lint` failed: `func listOpenAIModels is unused` and `func listGrokModels is unused` (`discovery.go`). The plan said every `list*Models` wrapper stays, but its own caller list names no OpenAI or Grok caller. Those two were reached only through the old dispatch switch, which `modelCatalogFor` replaces. `openai.go:204` and `grok.go:239` call `ListAvailableModelsWithSource`. | Maintainer chose "Delete the two wrappers". Their logic lives in `fetchOpenAIUsable`/`curateOpenAI` and `fetchGrokUsable`/`curateGrok`, reached through `modelCatalogFor`. No behaviour change and no MADR amendment. | none (same file) |
-| 2026-09-26 | 2 | Mutation `p2-unbounded` (`maxListingPages` 10 → 1000) reported NOT OK. `TestListModelCatalog_PaginationIsBounded` compared the request count against the production constant, so moving the bound moved the expectation (1000 == 1000). | Maintainer chose "Assert the literal bound": the test compares against `const wantPages = 10`, per MADR 0009 §2, independent of the production constant, and `p2-unbounded` is re-run. No MADR amendment. | none (same file) |
+| 2026-09-26 | 2 | Mutation `p2-unbounded` (`maxListingPages` 10 → 1000) reported NOT OK. `TestListModelCatalog_PaginationIsBounded` compared the request count against the production constant, so moving the bound moved the expectation (1000 == 1000). | Maintainer chose "Assert the literal bound": the test compares against `const wantPages = 10`, per MADR 0007 §2, independent of the production constant, and `p2-unbounded` is re-run. No MADR amendment. | none (same file) |
 
 ## 11. Execution record
 
@@ -1066,8 +1069,8 @@ the gate summary line, and the commit SHA.
 
 ### Phase 0 — complete (2026-09-26)
 
-* MADR 0009 set to `accepted`, and this plan to `in-progress`.
-* MADR 0003 annotated with the §1b/§1c pointer, directly under its title.
+* MADR 0007 set to `accepted`, and this plan to `in-progress`.
+* MADR 0004 annotated with the §1b/§1c pointer, directly under its title.
 * The commit scope was widened by the deviation above.
 * Markdown only, so no phase gate applies.
 * Commit: `754f1e4`.
@@ -1192,7 +1195,7 @@ both `ok`.
 * Hugging Face: `live=true usable=131`. `zai-org/GLM-5.3-Flash` is in `Usable`
   and in `Recommended`.
 
-This matches MADR 0009 Context §5 exactly, so there is no deviation.
+This matches MADR 0007 Context §5 exactly, so there is no deviation.
 
 **Mutation proofs:** `mut=0`.
 
@@ -1401,7 +1404,7 @@ but printed the path, `golint` exited 1, and `make lint` exited 2.
 
 ```python
 #!/usr/bin/env python3
-"""Phase gate for 0009-PLAN: every check runs separately, logs in full, and decides alone.
+"""Phase gate for 0007-PLAN: every check runs separately, logs in full, and decides alone.
 
 Usage:
     phase_gate.py --repo PATH --logdir DIR --packages ./llmprovider ./wizard --files F1.go F2.go ...

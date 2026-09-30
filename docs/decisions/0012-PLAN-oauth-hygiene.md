@@ -3,9 +3,12 @@ status: complete
 date: 2026-09-28
 associated-madr: "0012-MADR-conform-providers-to-reference-clients.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0012-PLAN-oauth-hygiene.md @ 4e1f9a5"
 ---
 
 # Implement 0012 §5 — OAuth Session Hygiene
+
+Migrated from `mcplib` `docs/0012-PLAN-oauth-hygiene.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 Associated MADR: [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
 (accepted 2026-09-27, revision 3). This is the fifth of that MADR's six plans
@@ -421,7 +424,7 @@ returns that path unchanged.
 
 ## 10. Execution record
 
-Executed on `main`, 2026-09-27, after `0012-PLAN-circuit-breaker-test.md`
+Executed on `main`, 2026-09-27, after `mcplib` `docs/0012-PLAN-circuit-breaker-test.md`
 (`05a1fcf`). Each phase applied Appendix B with `git apply`, taken from this
 document, and checked equal to the proven diff.
 
@@ -1271,7 +1274,7 @@ diff --git a/wizard/configure.go b/wizard/configure.go
  ) llmprovider.ModelCatalog {
 -	chatGPT := res.Kind == CredOAuth && d.ID == llmprovider.ProviderOpenAI
 +	chatGPT := (res.Kind == CredOAuth || res.Kind == CredVendorCLI) && d.ID == llmprovider.ProviderOpenAI
- 	// A ChatGPT session lists only from the Codex backend (MADR 0009 D11):
+ 	// A ChatGPT session lists only from the Codex backend (MADR 0008 D11):
  	// the Platform catalog is not available to it, so there is no fallback.
  	static := d.StaticModels
 diff --git a/wizard/import.go b/wizard/import.go
@@ -1393,7 +1396,7 @@ diff --git a/wizard/import.go b/wizard/import.go
 -	}, nil
 -}
 -
--// jwtExpiry reads a JWT access token's numeric exp claim (MADR 0009 F11). A
+-// jwtExpiry reads a JWT access token's numeric exp claim (MADR 0008 F11). A
 -// token that is not a JWT, or has no exp, gives the zero time; the session then
 -// refreshes on its first rejection instead.
 -func jwtExpiry(token string) time.Time {
@@ -1908,7 +1911,7 @@ diff --git a/llmprovider/oauth_session.go b/llmprovider/oauth_session.go
 +	oauthRefreshSkew         = 5 * time.Minute
  	oauthAuthorizationHeader = "Authorization"
  	// oauthErrorBodyLimit caps how much of a failed token response an error
- 	// carries (MADR 0009 D8).
+ 	// carries (MADR 0008 D8).
  	oauthErrorBodyLimit = 2048
 +	// oauthRefreshAttempts and oauthRefreshBackoff retry a refresh that
 +	// failed in transport, with 429 or with 5xx, as the Grok CLI does
@@ -1926,7 +1929,7 @@ diff --git a/llmprovider/oauth_session.go b/llmprovider/oauth_session.go
 +}
  
  // chatGPTAccessFixture is the stub access token a consumer test once wrote into
- // a live token store (MADR 0009 F3, F8).
+ // a live token store (MADR 0008 F3, F8).
 @@ -98,10 +116,7 @@
  	state := s.refreshState()
  	s.mu.Unlock()
@@ -2910,7 +2913,7 @@ diff --git a/llmprovider/oauth_session.go b/llmprovider/oauth_session.go
 @@ -48,7 +48,7 @@
  
  // ValidateOAuthSession reports whether a session can be used for generation
- // (MADR 0009 D7). It must be refreshable, or the explicit access-only ChatGPT
+ // (MADR 0008 D7). It must be refreshable, or the explicit access-only ChatGPT
 -// token that token_stdin and CODEX_ACCESS_TOKEN produce, and never a stub. A
 +// token that token_stdin produces, and never a stub. A
  // refreshable session needs a client id. Its token URL may be empty, because

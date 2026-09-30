@@ -3,9 +3,12 @@ status: complete
 date: 2026-09-27
 associated-madr: "0014-MADR-gemini-wire-fidelity.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/decisions/0014-PLAN-gemini-wire-fidelity.md @ 4e1f9a5"
 ---
 
 # Implement 0014 — Gemini on the Interactions API, and the `generateContent` Fixes
+
+Migrated from `mcplib` `docs/decisions/0014-PLAN-gemini-wire-fidelity.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 Associated MADR: [0014-MADR-gemini-wire-fidelity.md](0014-MADR-gemini-wire-fidelity.md)
 (`status: accepted`). The owner approved the MADR and this plan together on

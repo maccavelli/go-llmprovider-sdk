@@ -4,15 +4,18 @@ date: 2026-09-27
 decision-makers: mcplib maintainers
 consulted: prepare-commit-msg, mcp-server-magictools, mcp-server-magicdev
 informed: all mcplib consumers
+migrated-from: "mcplib docs/0013-MADR-remediate-debugging-pass-findings.md @ 4e1f9a5"
 ---
 # Remediate the Defects Found by the Post-0010 Debugging Pass
+
+Migrated from `mcplib` `docs/0013-MADR-remediate-debugging-pass-findings.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 > **Revision 3 (2026-09-27): accepted and rebased.**
 > * **Accepted.** The owner accepted the recommended answer to each of the
 >   four questions: Q1 (c), Q2 (a), Q3 (b) and Q4 (b).
 > * **Rebased.** `ba92db1` left `main` unbuildable. It was repaired as
 >   `e219e11` under
->   [decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md](decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md)
+>   [0008-MADR-repair-oauth-loopback-and-session-wiring.md](0008-MADR-repair-oauth-loopback-and-session-wiring.md)
 >   (its PLAN's phase R1). The plan now starts from `e219e11`, and every red
 >   test, gate, mutant and live run was repeated there.
 > * **Citations re-pinned.** Line numbers are now at `e219e11`. Fifteen
@@ -44,9 +47,9 @@ informed: all mcplib consumers
 
 ## Context and Problem Statement
 
-[0009-MADR-live-catalog-model-search.md](0009-MADR-live-catalog-model-search.md)
+[0007-MADR-live-catalog-model-search.md](0007-MADR-live-catalog-model-search.md)
 (live catalog search) and
-[0010-MADR-use-case-aware-default-model-ranking.md](0010-MADR-use-case-aware-default-model-ranking.md)
+[0009-MADR-use-case-aware-default-model-ranking.md](0009-MADR-use-case-aware-default-model-ranking.md)
 (use-case ranking, metadata, request-side reasoning) have landed on `main`. So
 have part of
 [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
@@ -82,36 +85,36 @@ Severity: **bug** is wrong behaviour; **gap** is behaviour missing or differing
 from a MADR; **wiring** is an option or path that does not reach the code
 meant to honour it; **nit** is low-impact.
 
-### A. Ranking and metadata (0010)
+### A. Ranking and metadata (0009)
 
 A1–A3 are **latent**. The 2026-09-26 captures hold 394 Kilo, 82 Zen, 43 Go and
 139 Hugging Face entries. None repeats an id, and no Kilo entry has a blank,
-absent or non-finite price. The fixes therefore leave MADR 0010 §7's sixes
+absent or non-finite price. The fixes therefore leave MADR 0009 §7's sixes
 unchanged; the golden test passes after them.
 
 | # | Severity | Where | Finding | Evidence | Status |
 |---|---|---|---|---|---|
 | A1 | bug (latent) | `llmprovider/model_ranking.go:203-237`, `discovery.go:827` | A listing that repeats an id recommends it twice. `kiloUsable` does not dedupe, and `rankRecommended` lets two copies through the per-group cap. The old `curateFromCatalog` deduped. `Usable` repeats it too. | `Recommended lists a/pro 2 times: [a/pro a/pro b/pro]`; `Usable lists a/pro 2 times` | confirmed |
-| A2 | gap (latent) | `model_ranking.go:305-311` | `kiloPrice("")` is a *known* price of 0, so a Kilo entry with no `pricing` block is excluded as free. MADR 0010 §3 says an absent field never excludes. `model_ranking_test.go:320` pins the blank-is-0 rule. | `no pricing block: costKnown=true eligible=false` | confirmed |
+| A2 | gap (latent) | `model_ranking.go:305-311` | `kiloPrice("")` is a *known* price of 0, so a Kilo entry with no `pricing` block is excluded as free. MADR 0009 §3 says an absent field never excludes. `model_ranking_test.go:320` pins the blank-is-0 rule. | `no pricing block: costKnown=true eligible=false` | confirmed |
 | A3 | bug (latent) | `model_ranking.go:310-311`, blend at `:153-155` | A price of `"Infinity"` parses as known. `maxCost` becomes +Inf, that model's blend becomes `Inf/Inf = NaN`, and `cmp.Compare` orders NaN first, so the costliest model ranks cheapest. | `ranked = [z/infinite a/cheap b/mid]` | confirmed |
 | A4 | wiring | `opencode.go:353-357`, `huggingface.go:173-177`, `kilo.go:217-221`; `options.go:45-48`, `:121-123` | Each open catalog's `DiscoverModels` lists with `ProviderConfig{HTTPClient, BaseURL}` only. `WithModelMetadataURL` given to `NewOpencode` is ignored there, `NewHuggingFace` keeps no metadata URL, and no provider keeps `ModelProfile`. Discovery therefore always ranks for utility, against whatever document the environment names. The profile half is the documented contract ("Ignored by provider constructors"), so fixing it changes that contract. | Kilo capable: `ranked = [b/flash d/mid c/pro …]` (utility order); HF and Zen: fallback order, `fetched the environment's metadata URL 1 times` | confirmed |
-| A5 | wiring | `discovery.go:214-216`, `:72`; `model_metadata.go:229` | Only `ListModelCatalogWithSource` bounds listing to 10 s. The `DiscoverModels` listings of Claude, Gemini, Ollama, OpenCode, Hugging Face and Kilo run without a deadline. OpenAI and Grok list through `ListAvailableModelsWithSource` and are bounded (`openai.go:204-210`, `grok.go:239-245`). On the unbounded path `metadataCurate` waits on `<-meta` for as long as the HTTP client allows, against MADR 0010 §2's "under the same 10 s listing context". | 6 of 6: `GET … ran without a deadline` | confirmed |
-| A6 | bug (perf) | `model_metadata.go:120-141`, `opencode.go:239-248` | Metadata failures are not cached (0010 PLAN §1.11 item 3). `chatReasoningEffort` looks the document up inside every chat-route thinking call, under the caller's context, so with the metadata host down every call and every retry waits on a fresh fetch. Reasoning is then silently dropped. When a cached document expires and the refetch fails, the stale copy is discarded too. | `3 thinking calls made 3 metadata fetches`; `metadata lookup ran without a deadline`; stale: `refresh failed: … HTTP 500` | confirmed |
+| A5 | wiring | `discovery.go:214-216`, `:72`; `model_metadata.go:229` | Only `ListModelCatalogWithSource` bounds listing to 10 s. The `DiscoverModels` listings of Claude, Gemini, Ollama, OpenCode, Hugging Face and Kilo run without a deadline. OpenAI and Grok list through `ListAvailableModelsWithSource` and are bounded (`openai.go:204-210`, `grok.go:239-245`). On the unbounded path `metadataCurate` waits on `<-meta` for as long as the HTTP client allows, against MADR 0009 §2's "under the same 10 s listing context". | 6 of 6: `GET … ran without a deadline` | confirmed |
+| A6 | bug (perf) | `model_metadata.go:120-141`, `opencode.go:239-248` | Metadata failures are not cached (0009 PLAN §1.11 item 3). `chatReasoningEffort` looks the document up inside every chat-route thinking call, under the caller's context, so with the metadata host down every call and every retry waits on a fresh fetch. Reasoning is then silently dropped. When a cached document expires and the refetch fails, the stale copy is discarded too. | `3 thinking calls made 3 metadata fetches`; `metadata lookup ran without a deadline`; stale: `refresh failed: … HTTP 500` | confirmed |
 | A7 | nit | `model_metadata.go:227-229` | The curate closure reads a one-shot channel, so a second call would block forever. `catalogFrom` calls it at most once today. | reading | confirmed (latent) |
 | A8 | nit | `model_metadata.go:122-139` | No single-flight: concurrent cold-cache listings each fetch the 4.9 MB document. | reading | confirmed |
 | A9 | nit | `discovery.go:896` | `KiloModelCapabilities` sets no timeout of its own. It relies on the caller's context or the client's 60 s. | reading | confirmed |
-| A10 | nit | `model_ranking.go:37` | `alpha` matches anywhere in an id (for example `alphacode`). This follows MADR 0010 §3 item 6 literally. | reading | confirmed |
+| A10 | nit | `model_ranking.go:37` | `alpha` matches anywhere in an id (for example `alphacode`). This follows MADR 0009 §3 item 6 literally. | reading | confirmed |
 
-### B. Provider request paths (0010 §1, §6; 0012 §1.4)
+### B. Provider request paths (0009 §1, §6; 0012 §1.4)
 
 | # | Severity | Where | Finding | Evidence | Status |
 |---|---|---|---|---|---|
-| B1 | gap | `claude.go:124-136`, `:177-181`; `opencode.go:178-187`, `:208-214`; `gemini.go:45-55` | MADR 0010 §6's utility recipe, `WithReasoningEffort("low")` + `GenerateThinkingWithRetry`, gives **low** reasoning only on effort-based wires. See "Where the recipe gives low" below. `options.go:33-35` still documents the effort as "OpenAI" only. | wire bodies below | confirmed |
-| B2 | gap | `openai.go:25`, `huggingface.go:134`, `ollama.go:150`, `opencode.go:164`, `grok_reasoning.go:59` | MADR 0010 §1 says `ProfileCapable.ReasoningEffort() == ""` means "the model's own default". On the wire, `""` becomes `"medium"` on OpenAI, Hugging Face, Ollama and OpenCode responses, and `"high"` on Grok 4.5. Only Kilo sends the model-default `{"enabled": true}`. | probe: `openai {"reasoning":{"effort":"medium"}}`, `grok(grok-4.5) {"reasoning":{"effort":"high"}}` | confirmed |
+| B1 | gap | `claude.go:124-136`, `:177-181`; `opencode.go:178-187`, `:208-214`; `gemini.go:45-55` | MADR 0009 §6's utility recipe, `WithReasoningEffort("low")` + `GenerateThinkingWithRetry`, gives **low** reasoning only on effort-based wires. See "Where the recipe gives low" below. `options.go:33-35` still documents the effort as "OpenAI" only. | wire bodies below | confirmed |
+| B2 | gap | `openai.go:25`, `huggingface.go:134`, `ollama.go:150`, `opencode.go:164`, `grok_reasoning.go:59` | MADR 0009 §1 says `ProfileCapable.ReasoningEffort() == ""` means "the model's own default". On the wire, `""` becomes `"medium"` on OpenAI, Hugging Face, Ollama and OpenCode responses, and `"high"` on Grok 4.5. Only Kilo sends the model-default `{"enabled": true}`. | probe: `openai {"reasoning":{"effort":"medium"}}`, `grok(grok-4.5) {"reasoning":{"effort":"high"}}` | confirmed |
 | B3 | gap | `http_helpers.go:106` | Every 4xx other than 401, 403 and 429 becomes `ErrInvalidRequest`, and the body is discarded. The live gateways' explanations are lost: 402 "Insufficient account funds", 400 `MissingSessionID`, 400 "Model is unavailable", and the 400 of B9. A 403 `FreeTierError` is reported as `ErrAuthFailure`. | `HTTP 402: attempts=1 invalid=true`; live B9: `llm: invalid request: claude HTTP 400` | confirmed; owned by 0012 §1.1 |
 | B4 | gap | `http_helpers.go:106` | HTTP 408 (request timeout) is terminal, so it is never retried. | `HTTP 408: attempts=1 invalid=true` | confirmed; owned by 0012 §1.2 |
 | B5 | nit | `provider.go:191` | A negative `retries` makes no call and returns `failed after 0 attempts: %!w(<nil>)`. `GenerateItemsWithRetry` has the same flaw. | probe output | confirmed |
-| B6 | nit | `provider.go:196` | `GenerateItemsWithRetry` keeps its own copy of the loop (0010 PLAN §1.11 item 5). 0012 §1.2 must edit both. | reading | confirmed; owned by 0012 §1.2 |
+| B6 | nit | `provider.go:196` | `GenerateItemsWithRetry` keeps its own copy of the loop (0009 PLAN §1.11 item 5). 0012 §1.2 must edit both. | reading | confirmed; owned by 0012 §1.2 |
 | B7 | gap | `discovery.go:607`; each `DiscoverModels` probe | The `GET /models` listing sends no `x-opencode-session`, and each health-probe provider draws a new session id. 0012 §1.4 says "every request"; only generation requests were in scope for the pull-forward. The listing works without the header today. | `ListAvailableModels last=GET /models x-opencode-session=""` | confirmed absent; impact suspected |
 | B8 | gap | `gemini.go:23`, `:45-55` | Gemini counts thinking tokens against `maxOutputTokens` (8192). With the dynamic budget, a long task could end truncated. | Not reproduced: `gemini-3.7-flash`, dynamic budget, 8192 cap, commit-message prompt: 3 of 3 runs `STOP`, 333–415 thought tokens (2026-09-27) | suspected (long inputs only) |
 | **B9** | **bug** | `claude.go:177-181`, `opencode.go:178-187`; `models_catalog.go:47-55` | **Claude `GenerateThinking` fails on current models.** Anthropic answers today's `thinking: {type: "enabled", budget_tokens: 4096}` on `claude-sonnet-5` and `claude-opus-4-8` with HTTP 400. These are two of `StaticClaude`'s six. The same request goes to Zen's messages route for Claude ids of 4.7 and later; that route could not be checked live (D2). | live, 2026-09-27: `"thinking.type.enabled" is not supported for this model. Use "thinking.type.adaptive" and "output_config.effort" to control thinking behavior.`; mcplib at `ca29b81`: `GenerateThinking: llm: invalid request: claude HTTP 400` on both models, both efforts | confirmed |
@@ -158,14 +161,14 @@ effort as `thinkingConfig.thinkingLevel`
   4096, budget 1024, adaptive with effort, effort alone, and none. Thinking
   length does not track the setting (143–520 characters between runs).
 
-### C. Wizard and matcher (0009, 0010 §1)
+### C. Wizard and matcher (0007, 0009 §1)
 
 | # | Severity | Where | Finding | Evidence | Status |
 |---|---|---|---|---|---|
 | C1 | bug | `wizard/text_prompter.go:171-204`, `wizard/model_select.go:182-192` | Repeating an index in a fallback MultiSelect duplicates the fallback. The parser keeps repeats, and `appendPicks` does not check what was already chosen. | `MultiSelect(1,1,2) = [0 0 1]`; `Fallbacks = ["claude-sonnet-5" "claude-sonnet-5" "claude-sonnet-4-6"]` | confirmed |
 | C2 | wiring | `wizard/configure.go:14-16`, `:52-53`, `:286-290`; `discovery.go:72` | `Options.DiscoverLimit` can't raise the listing budget above the lister's hard 10 s, so the wizard's own 20 s default never applies. When the lister fails, the cause is swallowed: `ListModelCatalogWithSource` degrades with a nil error, and the user sees only the static-catalog notice. Surfacing the cause needs a new exported field, `ModelCatalog.Err`. | DiscoverLimit 30 s, server delay 12 s → `elapsed=10s`; notice without cause | confirmed |
-| C3 | gap | `wizard/model_select.go:109-157` | `Existing.Fallbacks` is never preselected, so reconfiguring forgets them. Already recorded as 0009 "Related findings" item 4 and kept as is. | `Existing.Fallbacks=["claude-sonnet-5"] … Fallbacks=[]` | confirmed (known) |
-| C4 | bug | `wizard/model_select.go:98-107`, `wizard/configure.go:146` | The Other prompt and the "No models found" prompt both default to `Existing.Model` whatever the saved provider was, so Enter saves another provider's model. MADR 0009 §4.3 limits "current" to the same provider. | `Enter at Other saved provider=gemini model="claude-opus-5"`; `… provider=ollama model="claude-opus-5"` | confirmed |
+| C3 | gap | `wizard/model_select.go:109-157` | `Existing.Fallbacks` is never preselected, so reconfiguring forgets them. Already recorded as 0007 "Related findings" item 4 and kept as is. | `Existing.Fallbacks=["claude-sonnet-5"] … Fallbacks=[]` | confirmed (known) |
+| C4 | bug | `wizard/model_select.go:98-107`, `wizard/configure.go:146` | The Other prompt and the "No models found" prompt both default to `Existing.Model` whatever the saved provider was, so Enter saves another provider's model. MADR 0007 §4.3 limits "current" to the same provider. | `Enter at Other saved provider=gemini model="claude-opus-5"`; `… provider=ollama model="claude-opus-5"` | confirmed |
 | C5 | nit | `wizard/model_select.go:71-75` | The default row matches `Existing.Model` in the recommended list without checking `Existing.Provider`. | reading | confirmed |
 | C6 | nit | `wizard/model_select.go:159-178` | Excluding the primary is case-sensitive, while `SearchModels` dedupes case-insensitively. A primary typed as `Claude-Haiku-4-5` via Other is offered back as the fallback `claude-haiku-4-5`. | `fallback menu has 6 rows, want 5` | confirmed |
 | C7 | nit | `wizard/model_select.go:103`, `wizard/configure.go:150` | Both manual prompts accept a whitespace-only id from any `Prompter` that doesn't trim. `TextPrompter` trims. | `Other with "   ": model="   "`; `No models found with blanks: model="   "` | confirmed |
@@ -178,8 +181,8 @@ effort as `thinkingConfig.thinkingLevel`
 | # | Severity | Where | Finding | Evidence | Status |
 |---|---|---|---|---|---|
 | D1 | gap | Zen free models; `live_gateways_test.go:107-179` | OpenCode Zen's free tier refuses most third-party use, and mcplib reports the 403 as `ErrAuthFailure`, which points users at their key. `TestLive_OpencodeResponses` and `TestLive_OpencodeRouteStillEnforced` fail on it; `TestLive_OpencodeChatCompletions` skips (its `hy3-free` is no longer listed). **Not every free id is refused**, so a suffix rule cannot tell them apart. | Live, 2026-09-27, the 10 usable `-free` ids of the 2026-09-26 Zen listing: 8 answer `403 FreeTierError "OpenCode's free tier can only be used from within OpenCode"`; `space-bunny-free` answers 200 on Zen and on Go; `deepseek-v4-flash-free` answers `400 "Upstream request failed: Model is unavailable."` | confirmed |
-| D2 | open | Zen paid models | Every paid Zen model and route answers `402 "Upstream request failed: Insufficient account funds"`. OpenCode's gateway source reports an empty workspace balance as a 401 `CreditsError` with a different message. It uses the "Upstream request failed:" prefix for provider-side errors (see D1). The failure is therefore likely on OpenCode's upstream side, not the account. Until it clears, the DeepSeek family's live reasoning check (0010 PLAN Phase 6) stays outstanding: it is region-gated on Go. | 2026-09-26: five models across four upstreams; 2026-09-27: `gemini-3.8-flash` (google) still 402 | unresolved |
-| D3 | gap | `README.md` | The README documents none of 0010's API: profiles, `WithModelProfile`, `WithModelMetadataURL`, the `MCPLIB_*` variables, `GenerateThinkingWithRetry`, the `kilo-auto` exclusion, or the session header. This is 0010 PLAN Phase 7, still open. | a search finds none of these names | confirmed |
+| D2 | open | Zen paid models | Every paid Zen model and route answers `402 "Upstream request failed: Insufficient account funds"`. OpenCode's gateway source reports an empty workspace balance as a 401 `CreditsError` with a different message. It uses the "Upstream request failed:" prefix for provider-side errors (see D1). The failure is therefore likely on OpenCode's upstream side, not the account. Until it clears, the DeepSeek family's live reasoning check (0009 PLAN Phase 6) stays outstanding: it is region-gated on Go. | 2026-09-26: five models across four upstreams; 2026-09-27: `gemini-3.8-flash` (google) still 402 | unresolved |
+| D3 | gap | `README.md` | The README documents none of 0009's API: profiles, `WithModelProfile`, `WithModelMetadataURL`, the `MCPLIB_*` variables, `GenerateThinkingWithRetry`, the `kilo-auto` exclusion, or the session header. This is 0009 PLAN Phase 7, still open. | a search finds none of these names | confirmed |
 | D4 | nit | Kilo free-model live tests | `kilo-auto/free` now routes to `poolside/laguna-s-2.1:free` and is often rate-limited (429 skips in both live runs). | live runs | confirmed |
 | **D5** | **gap** | `live_gateways_test.go:42-52` | `skipIfTransient` skips on every `ErrInvalidRequest`. A wire regression that the gateway answers with 400 therefore skips instead of failing, in every live test that uses it. Kilo's reasoning gate treats 400 as DRIFT separately. Telling "model unavailable" from "bad request" needs B3's typed errors. | reading; `hy3-free`'s 400 skipped on 2026-09-26 | confirmed; owned by 0012 §1.1 |
 | **D6** | **nit** | `options.go:11-21`; live suite | One full live run failed `TestLive_OpencodeChatReasoningEffort/glm-5.3-flash` with `http2: timeout awaiting response headers`, the shared client's 30 s header limit. | 2 of 2 re-runs passed on the fix tree, and 2 of 2 on `ca29b81` | confirmed (transient); owned by 0012 §1.3 |
@@ -242,7 +245,7 @@ The profile was repeated at `e219e11`, where the lines are as cited:
   timeouts and identification (B3, B4, B6, B7, D5, D6). Duplicating them here
   would split one decision across two records.
 * **No unproven fixes.** Every fix lands with a test that has been seen to
-  fail, as in 0009 and 0010.
+  fail, as in 0007 and 0009.
 * **Follow the reference client where the wire is vendor-specific.** OpenCode's
   `transform.ts` already maps efforts per model family for Anthropic and
   Gemini.
@@ -283,7 +286,7 @@ Q2 (a), Q3 (b) and Q4 (b). It names the phases each answer governs.
   * A failed fetch is remembered for one minute (`modelMetadataRetryAfter`).
   * A stale document is kept when a refresh fails.
   * The chat route's lookup waits at most 5 s (`metadataLookupTimeout`).
-  * This supersedes 0010 PLAN §1.11 item 3.
+  * This supersedes 0009 PLAN §1.11 item 3.
 * **Thinking shapes (B9, and B1 under Q1 (c); B2 under Q2 (a)).**
   * B9 needs no answer: Claude 4.7 and later get `thinking: {type:
     "adaptive"}`, plus `output_config.effort` when an effort is set.
@@ -307,7 +310,7 @@ Q2 (a), Q3 (b) and Q4 (b). It names the phases each answer governs.
   listing-error branch and the static notice with no cause. Each new guard
   test that passes on the base (`e219e11`) is proven by a named mutant.
 * **Documentation.** The README gains two paragraphs for this record's
-  behaviour. The README section for 0010's API (D3) stays with 0010 PLAN
+  behaviour. The README section for 0009's API (D3) stays with 0009 PLAN
   Phase 7.
 
 ### 2. Routed to 0012
@@ -353,7 +356,7 @@ under its question, and the options are kept as they were weighed.
 
 **Q2 — B2: what `""` means for the capable profile.**
 * **Options:**
-  * (a) Amend MADR 0010 §1: `""` means *each provider's documented default*.
+  * (a) Amend MADR 0009 §1: `""` means *each provider's documented default*.
     That is `medium` on effort APIs, `high` on Grok 4.5, `{"enabled": true}`
     on Kilo, adaptive with no effort on Claude 4.7 and later, a 4,096 budget
     on older Claude, and dynamic on Gemini.
@@ -368,7 +371,7 @@ under its question, and the options are kept as they were weighed.
 * **Options:**
   * (a) Exclude Zen `-free` ids from the usable list. *Evidence against:*
     `space-bunny-free` works (200) on Zen and Go, so a suffix rule hides a
-    working model. Free ids are already never recommended, because §3 of 0010
+    working model. Free ids are already never recommended, because §3 of 0009
     excludes a known zero cost.
   * (b) Keep them searchable, and classify `FreeTierError` distinctly under
     0012 §1.1, so the error says why.
@@ -392,7 +395,7 @@ under its question, and the options are kept as they were weighed.
 * B5: the documented contract is `retries ≥ 0`. The message is fixed with B6
   in 0012.
 * B8: not reproduced on short inputs; stays *suspected* for long ones.
-* C3: kept by 0009's decision.
+* C3: kept by 0007's decision.
 * C5, C8, C9: behaviour as designed. C9 is noted for a future matcher
   revision.
 * C10: stays *suspected*. It needs consumer-persisted state with an empty
@@ -400,7 +403,7 @@ under its question, and the options are kept as they were weighed.
   reproduced.
 * `configure.go:309-311`: kept. It is reachable, and the plan tests that it
   runs, but it is observably equivalent (coverage gaps).
-* D2: external. The DeepSeek live check stays outstanding in 0010 PLAN
+* D2: external. The DeepSeek live check stays outstanding in 0009 PLAN
   Phase 6.
 * D4: external.
 
@@ -433,7 +436,7 @@ under its question, and the options are kept as they were weighed.
   `-tags live_gateways`.
 * The live suite has no FAIL. It may skip only on 429 or an unset credential.
   A transport timeout is re-run once, and both runs are recorded (D6).
-* 0012 carries the pointer bullet, and 0010's §1 and PLAN §1.11 item 3 carry
+* 0012 carries the pointer bullet, and 0009's §1 and PLAN §1.11 item 3 carry
   amendment notes.
 
 ## Pros and Cons of the Options
@@ -472,9 +475,9 @@ under its question, and the options are kept as they were weighed.
 
 ### Relationship to other records
 
-* **0009:** C1, C2, C4–C9 are defects or gaps in its wizard and matcher. C3
+* **0007:** C1, C2, C4–C9 are defects or gaps in its wizard and matcher. C3
   is its "Related findings" item 4, left as it decided.
-* **0010:** A1–A10, B1, B2 and B5 are in its ranking, metadata and
+* **0009:** A1–A10, B1, B2 and B5 are in its ranking, metadata and
   request-side reasoning. A6's fix supersedes its PLAN §1.11 item 3, and Q2
   (a) amends its §1. Its PLAN stays `in-progress`: Phase 6's DeepSeek live
   check (D2) and Phase 7 (D3) are open.
@@ -482,8 +485,8 @@ under its question, and the options are kept as they were weighed.
   Its §1.4 session header was partly implemented early. B7 records what
   remains. Its §1.6 would stop `DiscoverModels` probing the open catalogs;
   A4 and A5 change the listing that path keeps.
-* **[decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md](decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md)
-  (the OAuth repair; its number duplicates this directory's 0009):** its
+* **[0008-MADR-repair-oauth-loopback-and-session-wiring.md](0008-MADR-repair-oauth-loopback-and-session-wiring.md)
+  (the OAuth repair; in `mcplib` its number duplicated `docs/0009`, the live-catalog record):** its
   phase R1 produced this plan's base, `e219e11`. Its D11 gives a ChatGPT
   session no static catalog. No 0013 fix changes that path; C10 describes the
   one edge that would breach it.

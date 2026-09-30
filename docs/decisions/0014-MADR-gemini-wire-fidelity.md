@@ -4,8 +4,11 @@ date: 2026-09-27
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
+migrated-from: "mcplib docs/decisions/0014-MADR-gemini-wire-fidelity.md @ 4e1f9a5"
 ---
 # Complete Gemini's Move to the Interactions API, and Fix the `generateContent` Wire That Stays
+
+Migrated from `mcplib` `docs/decisions/0014-MADR-gemini-wire-fidelity.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 ## Context and Problem Statement
 
@@ -16,10 +19,10 @@ recorded two of them as out of scope. Investigating them for this record
 found the third, and the cause common to all three.
 
 **Where it came from.**
-[0001-MADR-add-grok-xai-llm-provider.md](../0001-MADR-add-grok-xai-llm-provider.md)
+[0003-MADR-add-grok-xai-llm-provider.md](0003-MADR-add-grok-xai-llm-provider.md)
 decided to move Gemini onto the **Interactions API**: typed `steps[]`,
 server-side state, and `previous_interaction_id`
-([0001-PLAN-add-grok-xai-llm-provider.md](../0001-PLAN-add-grok-xai-llm-provider.md),
+([0003-PLAN-add-grok-xai-llm-provider.md](0003-PLAN-add-grok-xai-llm-provider.md),
 Phase 3). Commit `0578a6c` implemented that phase only in part:
 * The endpoint stayed `generateContent`.
 * `Continue` sends `previous_interaction_id`, an Interactions field
@@ -77,7 +80,7 @@ becomes of the `generateContent` code that OpenCode's route still needs.
   field the endpoint rejects, and a response it returns must never fail to
   decode.
 * **Server-side continuation works where it is offered.** `Continuer` is
-  part of `GeminiProvider`'s API today (`interface_test.go:92`), and 0001
+  part of `GeminiProvider`'s API today (`interface_test.go:92`), and 0003
   intended it to work.
 * **Parity of thinking output.** Every other thinking path returns a
   `ReasoningItem`.
@@ -91,7 +94,7 @@ becomes of the `generateContent` code that OpenCode's route still needs.
 
 ## Considered Options
 
-* Complete 0001's migration of `GeminiProvider` to the Interactions API, and fix the `generateContent` wire OpenCode keeps
+* Complete 0003's migration of `GeminiProvider` to the Interactions API, and fix the `generateContent` wire OpenCode keeps
 * Conform `GeminiProvider` to `generateContent`: fix all three defects and withdraw `Continue`
 * Keep `generateContent` for generation and use the Interactions API for `Continue` only
 * Fix only the decoder's `thought` type
@@ -99,9 +102,9 @@ becomes of the `generateContent` code that OpenCode's route still needs.
 ## Decision Outcome
 
 Chosen option (**accepted** 2026-09-27: the owner chose the option, then
-approved the design below with its plan): **"Complete 0001's migration
+approved the design below with its plan): **"Complete 0003's migration
 of `GeminiProvider` to the Interactions API, and fix the `generateContent`
-wire OpenCode keeps"**. It makes `Continue` work, as 0001 intended. It
+wire OpenCode keeps"**. It makes `Continue` work, as 0003 intended. It
 finishes a migration left half done. It fixes every defect on both Gemini
 wires.
 
@@ -203,7 +206,7 @@ fixes:
   `ReasoningItem`, on both wires.
 * Good, because system prompts reach Gemini through the fields built for
   them, on both wires.
-* Good, because the half-finished migration of 0001 is completed rather than
+* Good, because the half-finished migration of 0003 is completed rather than
   left misleading.
 * Neutral, because `store: false` by default keeps retention as today. A
   caller who wants `Continue` accepts Google's retention by choosing
@@ -254,10 +257,10 @@ named mutant:
 
 ## Pros and Cons of the Options
 
-### Complete 0001's migration of `GeminiProvider` to the Interactions API, and fix the `generateContent` wire OpenCode keeps
+### Complete 0003's migration of `GeminiProvider` to the Interactions API, and fix the `generateContent` wire OpenCode keeps
 
 * Good, because `Continue` works.
-* Good, because it finishes what 0001 decided.
+* Good, because it finishes what 0003 decided.
 * Good, because both wires lose all three defects.
 * Bad, because it needs a second encoder and decoder, and re-proof of the
   item-fidelity behaviour.
@@ -268,7 +271,7 @@ named mutant:
 * Good, because it is the smallest change, with one encoder for both wires.
 * Good, because it matches the reference client's use of `generateContent`.
 * Bad, because Gemini would have no server-side continuation, contrary to
-  0001.
+  0003.
 
 ### Keep `generateContent` for generation and use the Interactions API for `Continue` only
 
@@ -286,11 +289,11 @@ named mutant:
 
 **Relationship to earlier records.**
 * **Completes**
-  [0001-MADR-add-grok-xai-llm-provider.md](../0001-MADR-add-grok-xai-llm-provider.md)'s
-  Gemini migration. It adds what 0001 did not decide: `store: false` by
+  [0003-MADR-add-grok-xai-llm-provider.md](0003-MADR-add-grok-xai-llm-provider.md)'s
+  Gemini migration. It adds what 0003 did not decide: `store: false` by
   default, and `Continue` requiring `WithStore(true)`.
 * **Completes**
-  [0012-MADR-conform-providers-to-reference-clients.md](../0012-MADR-conform-providers-to-reference-clients.md)
+  [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
   revision 3's two "out of scope" Gemini notes, and adds the third defect.
 * **Extends** `WithStore`, from `0012-PLAN-grok.md` K3, to Gemini.
 

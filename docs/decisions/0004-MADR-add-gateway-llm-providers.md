@@ -4,15 +4,18 @@ date: 2026-08-28
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev consumers
 informed: mcplib contributors
+migrated-from: "mcplib docs/0003-MADR-add-gateway-llm-providers.md @ 4e1f9a5"
 ---
 
 # Add OpenCode Zen/Go, Hugging Face and Kilo Gateway Providers on a Shared Chat Completions Primitive
 
-> **Partially superseded (2026-09-26) by [0009-MADR-live-catalog-model-search.md](0009-MADR-live-catalog-model-search.md) §1b and §1c:** the Hugging Face and Kilo filter `input_modalities == ["text"]` is replaced by "input contains `text`", and the Zen/Go "Bearer on every route" rule is replaced by a per-route key header. The output filter, tools rule, training policy and ranking below stand.
+Migrated from `mcplib` `docs/0003-MADR-add-gateway-llm-providers.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
-> **Partially superseded (2026-09-26) by [0010-MADR-use-case-aware-default-model-ranking.md](0010-MADR-use-case-aware-default-model-ranking.md) §4–§5:** Kilo's price-ascending and Hugging Face's throughput-descending orders no longer choose the recommended six; they remain the fallback order when ranking cannot run and the fill order when fewer than six models are eligible. The static catalogs chosen here are replaced. The filters, training policy and tools rule below stand.
+> **Partially superseded (2026-09-26) by [0007-MADR-live-catalog-model-search.md](0007-MADR-live-catalog-model-search.md) §1b and §1c:** the Hugging Face and Kilo filter `input_modalities == ["text"]` is replaced by "input contains `text`", and the Zen/Go "Bearer on every route" rule is replaced by a per-route key header. The output filter, tools rule, training policy and ranking below stand.
 
-> **Audit note (2026-09-26).** [0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md) contradicts four statements here (line
+> **Partially superseded (2026-09-26) by [0009-MADR-use-case-aware-default-model-ranking.md](0009-MADR-use-case-aware-default-model-ranking.md) §4–§5:** Kilo's price-ascending and Hugging Face's throughput-descending orders no longer choose the recommended six; they remain the fallback order when ranking cannot run and the fill order when fewer than six models are eligible. The static catalogs chosen here are replaced. The filters, training policy and tools rule below stand.
+
+> **Audit note (2026-09-26).** [0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md) contradicts four statements here (line
 > numbers as of `55e4b31`, before this note was added):
 >
 > * **O1:** Zen/Go auth is Bearer-only (lines 126-137). The Zen server reads
@@ -27,12 +30,12 @@ informed: mcplib contributors
 >   is the Kilo CLI's primary chat and catalog path.
 >
 > The input-modality filter is also partially superseded by
-> [0009-MADR-live-catalog-model-search.md](0009-MADR-live-catalog-model-search.md)
+> [0007-MADR-live-catalog-model-search.md](0007-MADR-live-catalog-model-search.md)
 > §1b once that record is accepted. This record's text is unchanged.
 
 > **Revision notes (revision 4, applied in place to this same `proposed` document,
 > not a superseding MADR, since it has not been accepted — same convention as
-> `0001-MADR`):**
+> `0003-MADR`):**
 >
 > Revision 1 of this MADR chose a *delegating* provider that would construct and call
 > the existing `OpenAIProvider` / `ClaudeProvider` / `GeminiProvider` structs with a
@@ -1506,11 +1509,11 @@ deferred):
   `models_catalog.go:182` `curateFromCatalog`; `probe.go:13` `probeGenerateHealth`;
   hardcoded auth headers at `openai.go:164`, `grok.go:183`, `claude.go:212-213`,
   `gemini.go:211`.
-* **Prior MADRs:** `docs/0001-MADR-add-grok-xai-llm-provider.md` (canonical item/state
+* **Prior MADRs:** `docs/decisions/0003-MADR-add-grok-xai-llm-provider.md` (canonical item/state
   scope, Grok reasoning gating, in-place revision convention) and its
-  `0001-PLAN` (registration touch points); `docs/0002-MADR-xdg-compliant-user-paths.md`
+  `0003-PLAN` (registration touch points); `mcplib` `docs/0002-MADR-xdg-compliant-user-paths.md`
   (shared `mcplib` package precedent).
-* **Implementation plan** — written as `0003-PLAN-add-gateway-llm-providers.md`
+* **Implementation plan** — written as `0004-PLAN-add-gateway-llm-providers.md`
   (revision 2, dated 2026-08-29) and **not yet approved**. No source edits may begin until
   it is. It enumerates: the exact `OpencodeRoute` values and the full per-gateway route
   table with its docs provenance; the `WithOpencodeRoute` option signature; the

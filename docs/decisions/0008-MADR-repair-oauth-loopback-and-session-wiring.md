@@ -4,15 +4,18 @@ date: 2026-09-16
 decision-makers: mcplib maintainers
 consulted: prepare-commit-msg
 informed: none
+migrated-from: "mcplib docs/decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md @ 4e1f9a5"
 ---
 
 <!-- markdownlint-disable MD013 MD024 MD033 MD036 MD060 -->
 
 # Repair OAuth loopback, paste-code fallback, and Windows session wiring so ChatGPT and xAI browser login actually persist
 
+Migrated from `mcplib` `docs/decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
 ## Context and Problem Statement
 
-MADR 0008 shipped native browser / device-code / API-key authentication for
+MADR 0006 shipped native browser / device-code / API-key authentication for
 `openai` and `grok`. On this Windows laptop the shipped path does not do what
 the user sees in the browser.
 
@@ -29,10 +32,10 @@ this host, live binary `~/.global-git-hooks/prepare-commit-msg.exe` version
   authenticates successfully, and the token is not returned, stored, or used.
   This host is not headless.
 
-0008's architecture (typed `TokenSource`, Codex host branch, Grok on
+0006's architecture (typed `TokenSource`, Codex host branch, Grok on
 `api.x.ai`, `FileTokenStore` beside the consumer config) is not being reopened.
 This record is the post-implementation debug pass: what the running code
-actually does on Windows, where 0008's required wiring was never connected,
+actually does on Windows, where 0006's required wiring was never connected,
 and what must change so browser login persists a session that generation can
 spend.
 
@@ -96,7 +99,7 @@ refresh 211, `account_id` 36). The import method would have produced a usable
 mcplib Grok loopback uses the same `127.0.0.1` redirect URI but has **no CORS
 headers, no OPTIONS handler, and no paste fallback**. `OAuthFlowOptions.InputCode`
 exists (`oauth_loopback.go`) and is never set (`wizard/auth.go`
-`oauthFlowOptions`). MADR 0008 required a `Prompter.Input` paste-code fallback.
+`oauthFlowOptions`). MADR 0006 required a `Prompter.Input` paste-code fallback.
 
 **OpenURL wait.** `prepare-commit-msg/internal/ui/open.go` uses
 `exec.Command(...).CombinedOutput()` including Windows
@@ -138,7 +141,7 @@ accident the tests missed.
    configure can mark `auth_kind=oauth` and generation sends a 14-character
    stub at `chatgpt.com`, then cannot refresh (`oauth: no refresh token`).
 
-4. **F4 — Paste-code fallback is specified and unimplemented.** MADR 0008
+4. **F4 — Paste-code fallback is specified and unimplemented.** MADR 0006
    required `Prompter.Input` paste-code when loopback is unreachable. The
    library has `InputCode` and `parseOAuthInput`; the wizard never passes
    them. Grok CLI always races stdin paste. Consequence: a Windows IPv6 miss
@@ -206,8 +209,8 @@ accident the tests missed.
 * Grok redirect URI remain `http://127.0.0.1:{ephemeral}/callback` (RFC 8252).
 * Tests that touch `UserConfigDir` / `OAuthDir` must not be able to write the
   live Windows profile. A fixture string in `%APPDATA%` is a product defect.
-* Paste-code is part of 0008, not a new feature. Wire it.
-* Do not weaken 0008's host-lock tests (ChatGPT must not hit
+* Paste-code is part of 0006, not a new feature. Wire it.
+* Do not weaken 0006's host-lock tests (ChatGPT must not hit
   `api.openai.com`; Grok must not hit `cli-chat-proxy`).
 * No new Go module. No OS keyring. No Claude/Gemini OAuth.
 
@@ -222,9 +225,9 @@ accident the tests missed.
 
 ## Decision Outcome
 
-Chosen option: **A**. 0008 already committed to native browser PKCE. The
+Chosen option: **A**. 0006 already committed to native browser PKCE. The
 failures are implementation and test-isolation defects on Windows (and
-missing 0008 wiring), not a reason to abandon the grant. Device-code stays
+missing 0006 wiring), not a reason to abandon the grant. Device-code stays
 as the headless path, not as a Windows consolation prize.
 
 ### The decisions
@@ -355,7 +358,7 @@ implementation, plus one host probe:
   and a nil slice, not `StaticOpenAI`.
 * `StaticOpenAIChatGPT` does not compile. Wizard ChatGPT OAuth with a failed
   listing prompts for a model id and does not offer `gpt-5.4` or `gpt-4.1-mini`.
-* Existing 0008 host-lock tests still pass (A1–A5, A11, A16, A17).
+* Existing 0006 host-lock tests still pass (A1–A5, A11, A16, A17).
 * `go test ./llmprovider ./wizard` and `prepare-commit-msg` `go test ./...`
   exit 0. No new `go.mod` require.
 
@@ -368,7 +371,7 @@ A live OpenAI browser login on this Windows laptop after D1–D7, producing
 ### A — Repair loopback, paste-code, isolation, validation (chosen)
 
 * Good, because it attacks the measured Windows callback miss (F1) and the
-  measured store pollution (F3), and it finishes 0008's paste-code (F4)
+  measured store pollution (F3), and it finishes 0006's paste-code (F4)
   and Grok's known CORS requirement (F5).
 * Good, because device-code and API keys stay.
 * Bad, because CORS and dual-stack are easy to implement incompletely;
@@ -378,21 +381,21 @@ A live OpenAI browser login on this Windows laptop after D1–D7, producing
 
 * Good, because device-code already works here.
 * Bad, because the user is on a laptop with a browser, selected browser
-  login, and 0008 promised that path as the default. Documenting around a
+  login, and 0006 promised that path as the default. Documenting around a
   `localhost`/`::1` bug leaves OpenAI broken for every Windows consumer.
 
 ### C — Import-only vendor CLI files
 
 * Good, because `~/.codex/auth.json` on this host is already a complete
   ChatGPT session.
-* Bad, because 0008 rejected import-as-the-whole-design: MagicDev and
+* Bad, because 0006 rejected import-as-the-whole-design: MagicDev and
   prepare-commit-msg would still send people to another product's wizard.
   Import stays as one method.
 
 ### D — Shell out to official CLIs
 
 * Good, because those CLIs already handle CORS, paste, and IPv6.
-* Bad, because 0008 rejected wrapping `codex`/`grok` (PATH, version skew,
+* Bad, because 0006 rejected wrapping `codex`/`grok` (PATH, version skew,
   nine headless servers). This debug pass does not reverse that.
 
 ## More Information
@@ -428,9 +431,9 @@ A live OpenAI browser login on this Windows laptop after D1–D7, producing
 
 ### Related records
 
-* [0008-MADR-subscription-auth-for-llm-providers.md](../0008-MADR-subscription-auth-for-llm-providers.md)
+* [0006-MADR-subscription-auth-for-llm-providers.md](0006-MADR-subscription-auth-for-llm-providers.md)
   (accepted) — the architecture this repair implements correctly.
-* [0008-PLAN-subscription-auth-for-llm-providers.md](../0008-PLAN-subscription-auth-for-llm-providers.md)
+* [0006-PLAN-subscription-auth-for-llm-providers.md](0006-PLAN-subscription-auth-for-llm-providers.md)
   (complete) — Phase 5 loopback ports, Phase 8 paste-code, Phase 10
   `rundll32` OpenURL and `FileTokenStore`. Leftover: paste-code never
   wired; Windows `APPDATA` isolation missing from `main_oauth_test.go`;
@@ -475,7 +478,7 @@ Shipped in this amendment's implementation:
 
 ## Amendment — 2026-09-14: live ChatGPT model catalog after OAuth
 
-0008 listed ChatGPT models from a static `gpt-5.4` / `gpt-5.4-mini` /
+0006 listed ChatGPT models from a static `gpt-5.4` / `gpt-5.4-mini` /
 `gpt-5.3-codex` slice and forbade HTTP. A live generate on this host
 (2026-09-14) returned HTTP 400 "model is not supported when using Codex
 with a ChatGPT account" for all three. `GET
@@ -603,7 +606,7 @@ D3 now also requires the wizard to drain that prompt:
 ## Amendment — 2026-09-27: D1's premise and D7's `CODEX_ACCESS_TOKEN`
 
 Both are decided in
-[0012-MADR-conform-providers-to-reference-clients.md](../0012-MADR-conform-providers-to-reference-clients.md)
+[0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
 revision 2. The owner decided them on 2026-09-27.
 
 * **D1.** The premise that Hydra requires a `localhost` redirect no longer
@@ -613,3 +616,11 @@ revision 2. The owner decided them on 2026-09-27.
 * **D7.** `CODEX_ACCESS_TOKEN` is withdrawn, because Codex treats it as a
   personal access token or an agent JWT. The access-only ChatGPT path stays
   for a token pasted on stdin only.
+
+## Amendment 2026-09-29: the OpenAI redirect is 127.0.0.1
+
+Since `mcplib` `a5f2460`, the OpenAI loopback redirect is
+`http://127.0.0.1:{port}/auth/callback` (`llmprovider/oauth_loopback.go:252`
+at `mcplib` `4e1f9a5`), as Codex redirects with the same client id. This
+supersedes the `localhost` redirect in the PLAN's Goal 1, criterion C3 and D1
+here. The measured `localhost` facts above stay as they were observed.

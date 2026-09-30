@@ -4,15 +4,18 @@ date: 2026-09-26
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
+migrated-from: "mcplib docs/0010-MADR-use-case-aware-default-model-ranking.md @ 4e1f9a5"
 ---
 # Rank Recommended Models by Use Case from Live Catalog Metadata
 
+Migrated from `mcplib` `docs/0010-MADR-use-case-aware-default-model-ranking.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
 > **Revision 3 (2026-09-26).** Applied in place to this `proposed` record, and
-> grounded again after `0009-MADR-live-catalog-model-search.md` shipped
+> grounded again after `0007-MADR-live-catalog-model-search.md` shipped
 > (`mcplib` `5a1fc70`).
 >
 > **Code facts.** All `mcplib` citations are re-pinned to `5a1fc70`:
-> * the 0009 refactor moved the Kilo price sort, the Hugging Face throughput
+> * the 0007 refactor moved the Kilo price sort, the Hugging Face throughput
 >   sort and `kiloCatalogEntry`;
 > * the ranking now has a concrete hook: the per-provider `curate` argument of
 >   `catalogFrom` (§2).
@@ -71,13 +74,13 @@ informed: all mcplib consumers
 >   than taking them from the caller.
 > * **§7's tables become a committed golden test.**
 >
-> **Revision 2 (2026-09-26), from [0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md).**
+> **Revision 2 (2026-09-26), from [0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md).**
 >
 > * **O3:** OpenCode Go returns `RegionError` for four DeepSeek models outside
 >   China, and `DataPolicyError` for `-contributor` models without training
 >   consent. Both became eligibility rules (§3).
 > * **O1:** Zen's Anthropic- and Google-shaped routes need vendor key headers.
->   That precondition is now met: 0009 §1c shipped in `90554f9`.
+>   That precondition is now met: 0007 §1c shipped in `90554f9`.
 > * **O5:** OpenCode's chat route can send `reasoning_effort` (§6, corrected in
 >   revision 3).
 > * **K1:** Kilo's variant path sends `reasoning: { effort }` (§6).
@@ -86,7 +89,7 @@ informed: all mcplib consumers
 
 ## Context and Problem Statement
 
-`0009-MADR-live-catalog-model-search.md`, now shipped, gives every configure
+`0007-MADR-live-catalog-model-search.md`, now shipped, gives every configure
 flow a search over the provider's full usable catalog. The six **recommended**
 models are still what a user gets by pressing Enter. They are also what
 prepare-commit-msg's non-interactive path installs without asking, as the
@@ -100,7 +103,7 @@ limit, with use-case-specific heuristics and algorithms that improve the
 default selection.
 
 All facts below were verified on 2026-09-26 against:
-* `mcplib` at `5a1fc70` (0009 complete);
+* `mcplib` at `5a1fc70` (0007 complete);
 * the live public catalogs;
 * `kilocode` at `c267794785`, `opencode` at `696f41bc8e`, `grok-build` at
   `f0e3be11` and `codex` at `25270df261`.
@@ -167,7 +170,7 @@ reasoning support, nothing the service refuses", three sixes fail:
   `llmprovider.ListAvailableModels` in `internal/integration/llm/client.go:77-79`.
 
 The consumers pin `mcplib` v1.5.0 (prepare-commit-msg), v1.4.1 (magictools) and
-v1.2.0 (magicdev). They adopt 0009 and this record on their next bump.
+v1.2.0 (magicdev). They adopt 0007 and this record on their next bump.
 
 ### 4. What the reference tools do for short text tasks
 
@@ -348,7 +351,7 @@ strength.
   * `kilo-auto/efficient` carries Kilo's quality signal (`preferredIndex` 0)
     but has unknown cost, so it ranks last among signal models.
   * `kilo-auto/small` has no signal.
-  * Both remain one search away (0009).
+  * Both remain one search away (0007).
   * §3 item 9 (maintainer decision, 2026-09-26) now excludes them from the
     utility profile outright. Re-running the simulation with that rule gives
     the same two Kilo sixes.
@@ -373,7 +376,7 @@ strength.
   it is not OpenCode's runtime behaviour.
 * **Never fail configuration for want of metadata.** A missing, slow or changed
   metadata source degrades to today's ordering, silently and deterministically.
-* **Keep MADR 0009's contracts.** `ModelCatalog`, `ListModelCatalog*` and
+* **Keep MADR 0007's contracts.** `ModelCatalog`, `ListModelCatalog*` and
   `ListAvailableModels*` keep their signatures and `≤ MaxListedModels` bound.
   Search still covers the whole usable list. `Prompter` is untouched.
 * **Private diffs stay private.** The training-policy exclusion stands
@@ -472,7 +475,7 @@ func (p ModelProfile) ReasoningEffort() string
 * **Failure of the metadata source** (transport, non-200, decode, timeout,
   disabled, or a document without the provider's key) means that provider's
   candidates are ranked by today's curation (Context §1). No error or notice
-  reaches the caller: the listing itself succeeded, and 0009's `Live` flag
+  reaches the caller: the listing itself succeeded, and 0007's `Live` flag
   still describes the listing.
 * **An id the metadata does not cover** is still a candidate, with every field
   unknown (§3). It is not a failure of the source: on 2026-09-26 the document
@@ -483,7 +486,7 @@ func (p ModelProfile) ReasoningEffort() string
 
 ### 3. Eligibility for the recommended six
 
-Search (0009) still covers every usable id. For the **recommended** six, a
+Search (0007) still covers every usable id. For the **recommended** six, a
 candidate is excluded when a known field says:
 
 1. it is not reasoning-capable (Kilo `supported_parameters` lacks `reasoning`;
@@ -641,12 +644,12 @@ which is the documented degradation (`models_catalog.go:638-640`).
 
 ### 7. What does not change
 
-* `Prompter`, `Result`, `TextPrompter`, and 0009's search, `ModelCatalog`,
+* `Prompter`, `Result`, `TextPrompter`, and 0007's search, `ModelCatalog`,
   `catalogFrom` and pagination.
 * `ListAvailableModels*` and `ListModelCatalog*` signatures and the
   `≤ MaxListedModels` bound. Their *content* for Kilo, Zen, Go and Hugging Face
   changes, which is the purpose of this decision.
-* The usability filters, 0009 §1b, the id deny lists and the training policy.
+* The usability filters, 0007 §1b, the id deny lists and the training policy.
 * First-party provider curation and `StaticGemini`, `StaticOpenAI`,
   `StaticClaude`, `StaticGrok` and `StaticOpenAIChatGPT`. Refreshing
   `StaticOpenAIChatGPT` belongs to 0012 §4.3.
@@ -810,7 +813,7 @@ Each gate must first be seen to fail against a planted defect:
 
 ### Relationship to earlier decisions
 
-* **0009-MADR-live-catalog-model-search.md** (complete) provides
+* **0007-MADR-live-catalog-model-search.md** (complete) provides
   `ModelCatalog.Usable`, the search, §1b's input rule and §1c's key headers.
   This decision changes only how `Recommended` is chosen for four providers,
   and adds the reasoning helper.
@@ -819,18 +822,18 @@ Each gate must first be seen to fail against a planted defect:
     `GenerateThinkingWithRetry` (its §1.2);
   * its §1.3 timeouts relieve the latency consequence above;
   * its §1.1 typed errors carry the Go region and data-policy refusals.
-* **0003-MADR-add-gateway-llm-providers.md** chose price-ascending (Kilo) and
+* **0004-MADR-add-gateway-llm-providers.md** chose price-ascending (Kilo) and
   throughput-descending (Hugging Face) ordering ("Kilo publishes price, not
   throughput, so cost is the available objective signal",
-  `0003-MADR-add-gateway-llm-providers.md:887-889` at `55e4b31`). This decision
+  `0004-MADR-add-gateway-llm-providers.md:887-889` at `55e4b31`). This decision
   supersedes those two orderings for the recommended six, while keeping them as
-  the fallback order. 0003 is annotated when this MADR is accepted.
-* **0004-MADR-canonicalize-llm-provider-configuration.md**: `wizard.Options`
+  the fallback order. 0004 is annotated when this MADR is accepted.
+* **0005-MADR-canonicalize-llm-provider-configuration.md**: `wizard.Options`
   gains one additive field. `Prompter` is unchanged.
 
 ### Preconditions
 
-* **Zen per-route key headers** (0011-REPORT O1). **Met:** 0009 §1c shipped in
+* **Zen per-route key headers** (0011-REPORT O1). **Met:** 0007 §1c shipped in
   `90554f9`, confirmed live by `TestLive_OpencodeKeyHeaderPerRoute`. Three of
   the Zen utility six use those routes: `qwen3.8-flash` via `@ai-sdk/anthropic`,
   and `gemini-3.5-flash-lite` and `gemini-3.8-flash` via `@ai-sdk/google`.
@@ -849,7 +852,7 @@ Each gate must first be seen to fail against a planted defect:
 * Consumer changes: prepare-commit-msg adopting `GenerateThinkingWithRetry`,
   and magictools setting `ProfileCapable` for its Thinking tier.
 * Revising the id deny lists, which still exclude ten `-vl`/`omni` Kilo models
-  (0009 Context §5).
+  (0007 Context §5).
 * A disk cache, or an embedded snapshot, for metadata.
 
 ### Evidence
@@ -895,7 +898,7 @@ Each gate must first be seen to fail against a planted defect:
 ### Implementation notes (not a plan)
 
 The plan is
-[0010-PLAN-use-case-aware-default-model-ranking.md](0010-PLAN-use-case-aware-default-model-ranking.md).
+[0009-PLAN-use-case-aware-default-model-ranking.md](0009-PLAN-use-case-aware-default-model-ranking.md).
 It should, at minimum:
 
 * add the profile to `ProviderConfig`, and a pure ranking function with the
@@ -908,7 +911,7 @@ It should, at minimum:
 * replace the four static catalogs;
 * add `GenerateThinkingWithRetry` and both Kilo reasoning shapes, behind the
   live gate;
-* annotate 0003;
+* annotate 0004;
 * prove every new check fails on a planted defect.
 
 No source changes accompany this proposed MADR.

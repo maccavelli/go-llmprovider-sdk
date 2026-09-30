@@ -3,9 +3,12 @@ status: complete
 date: 2026-09-27
 associated-madr: "0012-MADR-conform-providers-to-reference-clients.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0012-PLAN-chatgpt-backend.md @ 4e1f9a5"
 ---
 
 # Implement 0012 §4 — The ChatGPT Backend
+
+Migrated from `mcplib` `docs/0012-PLAN-chatgpt-backend.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 Associated MADR: [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
 (accepted 2026-09-27, revision 3). This is the fourth of that MADR's six
@@ -230,7 +233,7 @@ None yet.
 
 ## 10. Execution record
 
-Executed on `main`, 2026-09-27, after `0012-PLAN-circuit-breaker-test.md`
+Executed on `main`, 2026-09-27, after `mcplib` `docs/0012-PLAN-circuit-breaker-test.md`
 (`05a1fcf`). Each phase applied Appendix B with `git apply`, taken from this
 document, and checked equal to the proven diff.
 
@@ -1172,10 +1175,10 @@ diff --git a/llmprovider/openai_chatgpt_test.go b/llmprovider/openai_chatgpt_tes
  }
  
 -// TestOpenAI_ChatGPTSendsMaxOutputTokens pins today's ChatGPT request body:
--// max_output_tokens is still sent (MADR 0009 open question 1 decides later
+-// max_output_tokens is still sent (MADR 0007 open question 1 decides later
 -// whether the Codex backend wants it).
 -func TestOpenAI_ChatGPTSendsMaxOutputTokens(t *testing.T) {
-+// TestOpenAI_ChatGPTOmitsMaxOutputTokens answers MADR 0009 open question 1:
++// TestOpenAI_ChatGPTOmitsMaxOutputTokens answers MADR 0007 open question 1:
 +// the ChatGPT backend rejects max_output_tokens (400 "Unsupported parameter",
 +// gate G-C 2026-09-27), so a ChatGPT session never sends it.
 +func TestOpenAI_ChatGPTOmitsMaxOutputTokens(t *testing.T) {
@@ -1413,7 +1416,7 @@ diff --git a/llmprovider/discovery.go b/llmprovider/discovery.go
 +	return chatgptModelsClientVersion
 +}
  
- // Listing pagination (MADR 0009 §2): Gemini and Anthropic page their model
+ // Listing pagination (MADR 0007 §2): Gemini and Anthropic page their model
  // lists, so each fetch requests the maximum page size and follows at most
 @@ -168,7 +186,8 @@
  		return ModelCatalog{}, fmt.Errorf("model listing: parse chatgpt models URL: %w", err)

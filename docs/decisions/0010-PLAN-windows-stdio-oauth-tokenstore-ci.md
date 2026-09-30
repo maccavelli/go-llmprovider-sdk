@@ -3,11 +3,16 @@ status: proposed
 date: 2026-09-20
 associated-madr: 0010-MADR-windows-stdio-oauth-tokenstore-ci.md
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/decisions/0010-PLAN-windows-stdio-oauth-tokenstore-ci.md @ 4e1f9a5"
 ---
 
 <!-- markdownlint-disable MD013 MD024 MD033 MD036 MD060 -->
 
-# PLAN 0010 — Windows stdio shutdown, 0009 mcplib remainder, FileTokenStore, CI parity
+# PLAN 0010 — Windows stdio shutdown, 0008 mcplib remainder, FileTokenStore, CI parity
+
+> **Status in go-llmprovider-sdk (2026-09-29):** in scope here: D3–D13 and P2–P7. D1–D2, D14–D18, P1 and P8 remain in `mcplib` `docs/decisions/0010-*`, which carries the reverse amendment.
+
+Migrated from `mcplib` `docs/decisions/0010-PLAN-windows-stdio-oauth-tokenstore-ci.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 Implements [0010-MADR-windows-stdio-oauth-tokenstore-ci.md](0010-MADR-windows-stdio-oauth-tokenstore-ci.md)
 decisions D1–D18, closing findings F1–F18.
@@ -54,7 +59,7 @@ When this plan is complete, all of the following are true in this repository
    `./selfupdate` and `./llmprovider`.
 
 `go test ./...` and `go vet ./...` exit 0 on the execution host. `make lint`
-is clean after the last Go phase. 0008 host-lock tests still pass. No new
+is clean after the last Go phase. 0006 host-lock tests still pass. No new
 `go.mod` require.
 
 ## Scope
@@ -132,19 +137,19 @@ disabling a linter.
 
 ### Out of scope
 
-* `prepare-commit-msg` (0009 D6 / P8: APPDATA isolation, consumer
+* `prepare-commit-msg` (0008 D6 / P8: APPDATA isolation, consumer
   `ValidateOAuth`).
-* `paths/` (0002).
+* `paths/` (`mcplib` 0002).
 * TextPrompter raw-mode CR/LF, HFSC abort-on-log-failure, diagnostic
   `Contains` isolation, self-update junction vs `ModeSymlink`.
 * Extracting `restrictToCurrentUser` into a shared package.
 * Widening `grokOAuthScopes` with Grok's `conversations:*` /
   `workspaces:*` (MADR open question 7).
-* Reverting 0009 D1 dual-stack OpenAI loopback to Codex's IPv4-only bind.
+* Reverting 0008 D1 dual-stack OpenAI loopback to Codex's IPv4-only bind.
 * Changing advertised OpenAI redirect host away from `localhost`, or Grok
   away from `127.0.0.1` ephemeral. Binding OpenAI `:0`.
 * Adding `context` to `Prompter`. OS keyring. Claude/Gemini OAuth.
-* New `go.mod` require. `git push`. Tags. Live browser login (0009 product
+* New `go.mod` require. `git push`. Tags. Live browser login (0008 product
   confirmation). Deleting the operator's live `openai.json`.
 
 ## Stability rule
@@ -206,7 +211,7 @@ log; do not pipe the gate into `tail`.
    `TestListAvailableModelsWithSource_ChatGPTListsCodexCatalog` and
    `TestListAvailableModelsWithSource_ChatGPTListingFailureIsError` stay.
    This is the contract most at risk: a "cleanup" of wizard fallbacks would
-   look green and violate 0009 D11 / 0010 D8.
+   look green and violate 0008 D11 / 0010 D8.
 
 2. **C2 — Red tests first.** A phase without a recorded FAIL line for each
    new gate has not executed.
@@ -214,13 +219,13 @@ log; do not pipe the gate into `tail`.
 3. **C3 — Hydra and RFC 8252 URIs stay frozen.** OpenAI
    `http://localhost:{1455|1457}/auth/callback`. Grok
    `http://127.0.0.1:{ephemeral}/callback`. Dual-stack OpenAI listen stays
-   (0009 D1, Codex still IPv4-only). Do not bind OpenAI `:0`.
+   (0008 D1, Codex still IPv4-only). Do not bind OpenAI `:0`.
 
 4. **C4 — Device-code tests still pass.** `TestGrokDevice_*`,
    `TestOpenAIDevice_*`, wizard device subtest. `InputCode` may be non-nil;
    `LoginDeviceOAuth` must not require it.
 
-5. **C5 — 0008 host-lock tests are not weakened.** ChatGPT generate/listing
+5. **C5 — 0006 host-lock tests are not weakened.** ChatGPT generate/listing
    must not hit `api.openai.com`. Grok must not hit `cli-chat-proxy`.
 
 6. **C6 — `Prompter` is unchanged.** No `context` on `Input`. Cancellation
@@ -590,7 +595,7 @@ Vendor pin: grok-build `secure_file.rs:86–172`; in-tree
 
 1. `TestFileTokenStore_OverwriteExisting` — Save A, Save B, Load == B.
    Against HEAD this likely **PASSes** (os.Rename replaces). Still commit
-   it; it was the 0009 throwaway that never landed. A pass on HEAD is
+   it; it was the 0008 throwaway that never landed. A pass on HEAD is
    allowed for this one case because it locks existing behaviour; say so
    in the phase log.
 
@@ -733,7 +738,7 @@ New job `vuln`, `runs-on: ubuntu-24.04`:
 - run: "$(go env GOPATH)/bin/govulncheck" ./...
 ```
 
-Pin `v1.7.0` (MADR 0006). If that version refuses to run on Go 1.26.6,
+Pin `v1.7.0` (`mcplib` MADR 0006). If that version refuses to run on Go 1.26.6,
 stop, record the installer error, and amend the PLAN with the version
 that runs; do not silently `@latest`.
 
@@ -799,7 +804,7 @@ go test . -count=1 -run 'TestIsExpectedShutdownErr_'
 go test ./llmprovider -count=1 -run 'TestFileTokenStore_'
 ```
 
-0008 host-lock tests in `./llmprovider` still pass (ChatGPT host, Grok
+0006 host-lock tests in `./llmprovider` still pass (ChatGPT host, Grok
 host). `StaticOpenAIChatGPT` still does not compile.
 
 ### Acceptance criteria (mapped to MADR Confirmation)
@@ -816,7 +821,7 @@ host). `StaticOpenAIChatGPT` still does not compile.
 | A8 | Save-failure after refresh adopts new tokens; this `Token()` errors; next `Token()` does not hit HTTP. Existing persist test still asserts Save saw new tokens. | D9 |
 | A9 | Overwrite test exists. Reserved names rejected. Windows DACL test PASSes on Windows GOOS. Unix 0600 test still unix-tagged and green. Save calls `Sync`. | D10–D13 |
 | A10 | CI: vet every OS; `-race` every OS; govulncheck pinned Linux job; `shell: bash` on release-guard; 6-way `go build` plus Windows `go test -c`. | D14–D18 |
-| A11 | `go test ./...` and `go vet ./...` exit 0. `make lint` clean after P7. No new `go.mod` require. 0008 host locks intact. | Confirmation whole-tree |
+| A11 | `go test ./...` and `go vet ./...` exit 0. `make lint` clean after P7. No new `go.mod` require. 0006 host locks intact. | Confirmation whole-tree |
 
 The criterion most likely to be quietly dropped is **A1's recorded FAIL
 line** (shipping the Windows test only after the classifier, so it never
@@ -828,32 +833,57 @@ that races only on Linux, is an incomplete phase.
 
 Rollout is merge of the eight phase commits (P0–P8) to `main` via the
 normal PR path. This PLAN does not `git push` and does not tag. A
-consumer bump (prepare-commit-msg 0009 P8) is a later record.
+consumer bump (prepare-commit-msg 0008 P8) is a later record.
 
 Rollback is `git revert` of the phase commit that misbehaved. P1–P7 are
 library-compatible (additive classifier, additive CORS headers, stricter
 Save validation). P5 can break a consumer that saved `chatgpt-access` on
-purpose in tests — that is the point; those tests belong in 0009 P8.
+purpose in tests — that is the point; those tests belong in 0008 P8.
 P8 rollback is YAML-only.
 
 ## Deferred (named, so they are not mistaken for oversights)
 
-* **0009 P8 / D6 consumer isolation** — lives in `prepare-commit-msg`
+* **0008 P8 / D6 consumer isolation** — lives in `prepare-commit-msg`
   (`APPDATA`, `ValidateOAuth`). This PLAN cannot close store pollution
   in a sibling module.
-* **0002 `paths` package** — accepted, unimplemented; fleet adoption.
+* **`mcplib` 0002 `paths` package** — accepted, unimplemented; fleet adoption.
 * **Grok extra OAuth2 scopes** (`conversations:*`, `workspaces:*`) —
-  MADR open question 7; 0008 froze `grokOAuthScopes`.
+  MADR open question 7; 0006 froze `grokOAuthScopes`.
 * **Shared ACL helper** for `selfupdate` + `llmprovider` — two copies
   are the cost of not growing a package in this record.
 * **TextPrompter CR/LF leftover, HFSC missing abort, diagnostic
   substring leak, self-update junction vs `ModeSymlink`** — adjacent
   Windows/hardening bugs from the 2026-09-20 pass; new numbers if
   pursued.
-* **Live OpenAI/Grok browser login on the Windows laptop** — 0009
+* **Live OpenAI/Grok browser login on the Windows laptop** — 0008
   product confirmation, not a unit test in this PLAN.
 * **`git push` and tags** — explicit ask in the same turn, never this
   PLAN.
 * **Windows `-race` wall-clock** — if `windows-2025` cannot finish
   `-race` inside a reasonable job budget, stop and amend D15; do not
   silently drop Windows from the race matrix.
+
+## Amendment 2026-09-29: scope in go-llmprovider-sdk
+
+This plan is a copy, made under `0002-MADR-migrate-llmprovider-from-mcplib.md` §10–§11. Here it covers P2–P7 only (MADR
+D3–D13). P1 and P8 remain in `mcplib`
+`docs/decisions/0010-PLAN-windows-stdio-oauth-tokenstore-ci.md`. Nothing above
+this section is rewritten.
+
+### Deviation 2026-09-29: transferred to go-llmprovider-sdk
+
+* Transferred under `0002-MADR-migrate-llmprovider-from-mcplib.md` §10–§11; open work here is executable but not executed.
+* **Already delivered.** P2, P4, P5 and P3's D5 were delivered by
+  [0008-PLAN-repair-oauth-loopback-and-session-wiring.md](0008-PLAN-repair-oauth-loopback-and-session-wiring.md)
+  P2–P6, in `mcplib` commits `381ae8a` (Grok CORS preflight), `ed25c94`
+  (paste-code input), `1245496` (session validation) and `694aff7` (token
+  error bodies).
+* **Conflicts recorded, not resolved here.**
+  * The paste prompt shipped as `pasteCodePrompt` at `wizard/auth.go:244`
+    (`mcplib` `4e1f9a5`), not in this plan's wording.
+  * 0008's relaxed `TokenURL` rule differs from this plan's.
+* **Remaining here:** P3's D9 (adopt a rotated session even when saving it
+  fails), P6 (`FileTokenStore` sync, reserved names, Windows ACL), and P7's
+  `TestListChatGPTModels_DefaultHostIsCodexNotPlatform`.
+* Paths now name this module; the environment names are the `LLMPROVIDER_*`
+  ones.

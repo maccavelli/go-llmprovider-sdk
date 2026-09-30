@@ -3,9 +3,12 @@ status: complete
 date: 2026-09-27
 associated-madr: "0012-MADR-conform-providers-to-reference-clients.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0012-PLAN-grok.md @ 4e1f9a5"
 ---
 
 # Implement 0012 §6 — Grok
+
+Migrated from `mcplib` `docs/0012-PLAN-grok.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 Associated MADR: [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
 (accepted 2026-09-27, revision 3). This is the last of that MADR's six plans
@@ -178,7 +181,7 @@ None yet.
 
 ## 10. Execution record
 
-Executed on `main`, 2026-09-27, after `0012-PLAN-circuit-breaker-test.md`
+Executed on `main`, 2026-09-27, after `mcplib` `docs/0012-PLAN-circuit-breaker-test.md`
 (`05a1fcf`). Each phase applied Appendix B with `git apply`, taken from this
 document, and checked equal to the proven diff.
 
@@ -1067,7 +1070,7 @@ diff --git a/llmprovider/options.go b/llmprovider/options.go
 +}
 +
  // WithModelProfile selects how ListAvailableModels, ListModelCatalog and the
- // open catalogs' DiscoverModels rank the recommended models (MADR 0010 §1,
+ // open catalogs' DiscoverModels rank the recommended models (MADR 0009 §1,
  // MADR 0013 A4).
 diff --git a/llmprovider/responses_store_test.go b/llmprovider/responses_store_test.go
 new file mode 100644

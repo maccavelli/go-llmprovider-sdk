@@ -1729,3 +1729,131 @@ MADR, then continue.
   only consumer that passes a `TokenStore`, is unaffected, as MADR §7
   says; its companion runs the flow against this code in Phase 10.
 * **Status.** Phase 5 done. Phase 6 (move the records) is next.
+
+### Phase 6 stop: one anchor was already broken in mcplib (2026-09-29)
+
+* **Found.** A dry run of Phase 6 on a scratch clone passed every check but
+  G-links, which reported one link:
+  `docs/decisions/0005-PLAN-canonicalize-llm-provider-configuration.md:865:
+  missing anchor: #step-42--wizardtext_prompterrgo-new`. The heading is
+  "Step 4.2 — `wizard/text_prompter.go` (new)", whose anchor is
+  `#step-42--wizardtext_promptergo-new`.
+  * Pre-existing: yes. The typo ("prompter**r**") is in `mcplib`
+    `docs/0004-PLAN-canonicalize-llm-provider-configuration.md` at
+    `4e1f9a5`, and G-links reports it on the unmigrated import too.
+  * Doing nothing fails step 10 ("G-links is clean").
+* **Decision.** The owner chose "Fix the typo": the link target is corrected
+  as part of step 4's link repair. It is a one-character change to a link
+  target, not to rationale.
+* **Scope.** No file added.
+
+### Phase 6: move the records (2026-09-29)
+
+* **Approval.** The owner answered "Push then proceed", after the next steps
+  were set out as Phases 6 and 7.
+* **How.** Stdlib-Python scripts in `SCRATCH`:
+  * a citation resolver (`p6_cite.py`);
+  * the migration (`p6_migrate.py`, steps 1–4);
+  * the annotations (`p6_annotate.py`, steps 5–6);
+  * the index and architecture page (`p6_docs.py`, steps 7–8);
+  * the checks (`p6_verify.py` with `g_links.py`, steps 9–10).
+
+  All of it ran on fresh scratch clones twice before it ran on this tree.
+* **Step 1.** 28 `git mv`; `docs/mcplib-import/` is gone. `git status` shows
+  28 renames (`R`), so `git log --follow` resolves.
+* **Step 2.** Each of the 28 records has `migrated-from: "mcplib <old path> @
+  4e1f9a5"` and the provenance sentence under its title. The 0011 REPORT had
+  frontmatter (date, subject, examines), so the key joined it.
+* **Step 3, citations.** A report-only pass classified 885 citations before
+  anything changed:
+  * by the fixed map, 444;
+  * by the filename slug, 183;
+  * 0009/0010 by numbering style (§ or "Phase N" for the `docs/` records;
+    D#, P# or F# for the `docs/decisions/` records, measured per record),
+    150;
+  * by this step's per-file rules, 48;
+  * by self-reference, 11;
+  * `mcplib`-only (0002, 0005–0007), 20;
+  * refused, 29.
+* **The 29 refusals, resolved from context.** All mean the `docs/` records:
+  0009 → 0007 (live catalog) and 0010 → 0009 (ranking).
+  * `0013-MADR` lines 85, 167, 182, 245, 310, 371, 395, 403, 475 and 477:
+    its section "C. Wizard and matcher (0009, 0010 §1)" and its
+    "Relationship to other records" say so. It names the `docs/decisions/`
+    0009 separately, by path.
+  * `0013-PLAN` lines 70, 82, 507, 562, 563 and 597: "0010 PLAN's open
+    items: Phase 6's DeepSeek…" is the ranking plan.
+  * `0012-MADR`:
+    * 339 ("0009's `Recommended`");
+    * 462 ("0009's ChatGPT short-circuit": the live-catalog MADR's lines 361,
+      540, 1043 and 1074);
+    * 579 and 588 ("reuse 0010 §2's metadata client").
+  * The ranking PLAN, lines 71, 1212 and 2030: its MADR says "`mcplib` at
+    `5a1fc70` (0009 complete)", and "the 0009 pointer (line 11)" is the
+    live-catalog pointer in 0003-MADR.
+  * The live-catalog PLAN, line 1057: the same row names
+    `docs/0010-MADR-use-case-aware-default-model-ranking.md`.
+* **Hand replacements**, made before the pass on original line numbers:
+  * the 20 `mcplib`-only citations became repository-named, for example
+    "`mcplib` MADR 0006";
+  * seven mentions of `0012-PLAN-circuit-breaker-test.md` became
+    "`mcplib` `docs/0012-PLAN-circuit-breaker-test.md`";
+  * `0013-MADR:486` "its number duplicates this directory's 0009" became
+    "in `mcplib` its number duplicated `docs/0009`, the live-catalog
+    record", because the renumbering removes the duplicate it described.
+* **Found in the dry run and fixed before this tree was touched.** The
+  pattern skipped a number after "/", so the second half of a pair stayed
+  old: "0003/0004" once and "0008/0009" three times. It now matches after
+  "/" only when a digit precedes the slash, and they read "0004/0005" and
+  "0006/0008".
+* **Step 4, links.**
+  * 51 code links now resolve from `docs/decisions/`.
+  * 78 record links point at the new filenames.
+  * The four links to `mcplib`-only records in the 0010 MADR, and the
+    circuit-breaker link in 0012-MADR, became repository-named text.
+  * Two link-shaped strings are regular expressions inside 0013-PLAN's code,
+    and were left alone.
+  * The typo anchor was fixed (the deviation above).
+* **Step 5.**
+  * The 0010 MADR and PLAN carry the scope note under their titles and a
+    dated scope amendment.
+  * 0012-MADR records that revision 4 was executed by `mcplib`'s
+    circuit-breaker plan.
+  * The 0005 MADR and PLAN record `MaskSecret` in both repositories.
+* **Step 6.** Dated transfer entries in the 0009 (ranking), 0008 (OAuth) and
+  0010 (token store) PLANs. 0008-MADR gains the `127.0.0.1` redirect
+  amendment. The 0003 MADR is `accepted` and its PLAN `complete`, each with a
+  dated note.
+  * **Checked first.** Every cited `mcplib` commit exists with the subject
+    the entries give: `6f06349`, `381ae8a`, `ed25c94`, `1245496`, `694aff7`,
+    `a5f2460`, `5a1fc70`, `a26ac36`.
+  * `wizard/auth.go:244` at `4e1f9a5` is `pasteCodePrompt`, and
+    `oauth_loopback.go:252` there is `http://127.0.0.1:%d/auth/callback`.
+* **Step 7.** `docs/README.md` is regenerated from the records' own titles
+  and statuses. It has 36 records, not the 31 the step expected: the 0015
+  REPORT and pair and the 0016 pair were written after this plan. It has 16
+  "I want to…" rows, including adding a provider, OAuth, discovery and
+  ranking, the wizard and the live tests, and the 28-row relocation table.
+* **Step 8.** `docs/architecture.md` describes the system as it is. Its
+  identifiers were checked against `go doc` of both packages.
+* **Steps 9–10, on this tree.**
+  * G-links: 0 problems over `docs/**` and `README.md`. **First-fail**, on a
+    copy: `docs/README.md:109: missing file: decisions/9999-MADR-nope.md` and
+    `docs/decisions/0003-PLAN-add-grok-xai-llm-provider.md:1042: missing file:
+    ../llmprovider/grok.go`, the pre-move path.
+  * `docs/` holds only `README.md`, `architecture.md`, `decisions/` and
+    `reports/`. No record sits directly in `docs/`, and every PLAN's
+    `associated-madr` names a file in its own directory.
+  * **Number/slug check.** Every record filename in the 28 records carries
+    the number its slug maps to, unless it is cited as `mcplib`'s. 0
+    problems. **First-fail:** a planted
+    `0009-MADR-live-catalog-model-search.md` gave "should be 0007".
+  * `markdownlint-cli2` on `README.md`, `docs/README.md`,
+    `docs/architecture.md` and `AGENTS.md`: no finding.
+  * The disclosure guard's deny list finds nothing in the 31 changed files.
+* **Not done.**
+  * The imported 0011 REPORT still fails the repository's Markdown lint
+    (188 `MD004` findings, `*` bullets). It is a record, outside step 9's
+    non-record lint, and its content moves unchanged.
+  * `mcplib`'s relocation table is its own 0015 PLAN R2, which is deferred.
+* **Status.** Phase 6 done. Phase 7 (in-code citations) is next.

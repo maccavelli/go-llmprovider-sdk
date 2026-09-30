@@ -4,8 +4,11 @@ date: 2026-09-27
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
+migrated-from: "mcplib docs/0012-MADR-conform-providers-to-reference-clients.md @ 4e1f9a5"
 ---
 # Conform `llmprovider` to the Reference Clients of Kilo, OpenCode, Grok and Codex
+
+Migrated from `mcplib` `docs/0012-MADR-conform-providers-to-reference-clients.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 > **Revision 2 (2026-09-27): reconciled with work shipped since `55e4b31`.**
 > The amendment at the end of this record lists what has already shipped
@@ -19,7 +22,7 @@ informed: all mcplib consumers
 >
 > **Revision 4 (2026-09-27): the circuit-breaker test race.** The third
 > amendment brings the hang revision 3 recorded into scope, gives its root
-> cause, and adds `0012-PLAN-circuit-breaker-test.md`.
+> cause, and adds `mcplib` `docs/0012-PLAN-circuit-breaker-test.md`.
 >
 > **Revision 3 (2026-09-27): gate results and the five plans.** The second
 > amendment records gates G-C, G-O and G-K, the owner's decisions on §3.3,
@@ -35,7 +38,7 @@ informed: all mcplib consumers
 * the xAI API (`grok-build`, the Grok CLI);
 * the ChatGPT Codex backend (`codex`, the Codex CLI).
 
-[0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md)
+[0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md)
 compared `mcplib` at `55e4b31` with those clients, pinned at `c267794785`,
 `696f41bc8e`, `f0e3be11` and `25270df261`. It found that `mcplib` diverges
 from what the services expect in ways that break requests, waste quota, or
@@ -43,7 +46,7 @@ risk logging users out.
 
 The maintainer directed that every candidate decision in that report become
 one MADR. The exception is O1, the Zen/Go key header, which was folded into
-`0009-MADR-live-catalog-model-search.md` §1c. This is that MADR.
+`0007-MADR-live-catalog-model-search.md` §1c. This is that MADR.
 
 Finding identifiers below (X1, O2, K1, G2, C1, …) refer to the report, which
 holds the evidence and marks each item **L** (live-confirmed), **V**
@@ -112,14 +115,14 @@ V).
   `systemone`.
 * **OpenCode Go gates.** Region- and consent-gated models (O3, V) are handled
   for defaults by
-  `0010-MADR-use-case-aware-default-model-ranking.md` §3. At request time they
+  `0009-MADR-use-case-aware-default-model-ranking.md` §3. At request time they
   surface only as an untyped 403 (X2).
 * **Keyless use.** The server treats the key `"public"` as anonymous (O4, R).
   Kilo's client uses `"anonymous"` (K7, V). Both `NewOpencode` and `NewKilo`
   reject an empty key.
 * **Kilo request conventions:**
   * Kilo's runtime sends `reasoning: { effort }` (K1, V). `mcplib` sends
-    `reasoning_effort`; 0010 §6 already decides the change.
+    `reasoning_effort`; 0009 §6 already decides the change.
   * `provider.data_collection: "deny"` is Kilo's opt-out from providers that
     train on prompts (K2, V). `mcplib` never sends it, although its policy
     excludes such models at listing time.
@@ -138,7 +141,7 @@ V).
   (`llmprovider/openai.go:118-123`, `:198`) (C1).
 * **No live check has run.** No live ChatGPT request has ever been made from
   `mcplib`
-  (`0008-MADR-subscription-auth-for-llm-providers.md:780-783`, at `55e4b31`).
+  (`0006-MADR-subscription-auth-for-llm-providers.md:780-783`, at `55e4b31`).
 * **Catalog.** `StaticOpenAIChatGPT` (`gpt-5.4`, `gpt-5.4-mini`,
   `gpt-5.3-codex`) is absent from Codex's catalog, which now offers the
   `gpt-6-*` and `gpt-5.6-*` families and `gpt-5.5` (C2, V). The backend
@@ -282,7 +285,7 @@ now with the message attached.
 `classifyHTTPError(provider, resp)`.
 
 **1.2 Retry policy.** `GenerateWithRetry`, `GenerateItemsWithRetry` and the
-new `GenerateThinkingWithRetry` (0010 §6) stop immediately in three cases:
+new `GenerateThinkingWithRetry` (0009 §6) stop immediately in three cases:
 * on any `APIError` with `Terminal`;
 * on a response header `x-should-retry: false`;
 * when `RetryAfter` exceeds the 30 s backoff cap.
@@ -308,7 +311,7 @@ overrides everything.
   * **OpenCode:** `x-opencode-session: <id>`.
 
     > **Amendment (2026-09-26).** Part of this item shipped early, in
-    > [0010-PLAN-use-case-aware-default-model-ranking.md](0010-PLAN-use-case-aware-default-model-ranking.md)
+    > [0009-PLAN-use-case-aware-default-model-ranking.md](0009-PLAN-use-case-aware-default-model-ranking.md)
     > Phase 6. OpenCode Go began rejecting every request without the header:
     > `400 MissingSessionID`, measured 2026-09-26. The pulled-forward part:
     > every OpenCode generation request sends `x-opencode-session`, a random
@@ -336,7 +339,7 @@ reason through the new field `Response.FinishReason`.
 
 **1.6 Probes spend no generations on metered or quota-limited services.**
 `DiscoverModels` for Kilo, OpenCode Zen/Go, Hugging Face and ChatGPT returns
-the curated listing (0009's `Recommended`) without `probeGenerateHealth`.
+the curated listing (0007's `Recommended`) without `probeGenerateHealth`.
 Other providers keep today's behaviour. For Grok, key validation uses
 `GET {base}/api-key` instead of a generation (`grok-build:…/xai-grok-login/src/api_key_probe.rs:82-84`,
 R).
@@ -370,7 +373,7 @@ Zen/Go. Paid models then fail with the typed error of §1.1. Descriptors keep
 
 **3.1 OpenCode routes from metadata.**
 * The route for a Zen/Go model is derived from the per-model `provider.npm` in
-  the metadata that 0010 §2 fetches:
+  the metadata that 0009 §2 fetches:
 
   | `provider.npm` | Route |
   |---|---|
@@ -393,7 +396,7 @@ Zen/Go. Paid models then fail with the typed error of §1.1. Descriptors keep
 * **Responses route:** sends `store: false` (OpenCode's client does:
   `opencode:packages/opencode/src/provider/transform.ts:1235-1243`, R).
 * **Chat route:** sends `reasoning_effort` when the metadata advertises an
-  effort option (0010 §6).
+  effort option (0009 §6).
 * **Messages route:** selects adaptive thinking for Claude 4.7+ and MiniMax-M3,
   as `transform.ts:657-684` and `:1293-1296` do (R), each under a live check.
 
@@ -402,10 +405,10 @@ Zen/Go. Paid models then fail with the typed error of §1.1. Descriptors keep
   `WithKiloDataCollection(true)` opts out. **Gate G-K** first establishes what
   the gateway does with `deny` on a free model that requires collection. If it
   rejects, the error surfaces through §1.1 and the default stands.
-* **Reasoning:** the `reasoning: { effort }` object per 0010 §6.
+* **Reasoning:** the `reasoning: { effort }` object per 0009 §6.
 * **`max_tokens`:** clamped to the listing's `top_provider.max_completion_tokens`,
   else `max_completion_tokens`, when the listing is at hand (it is decoded by
-  0010 §2).
+  0009 §2).
 * **URL-prefixed tokens:** a token matching
   `^(https?://[^:]+(?::\d+)?(?:/[^:]*)?):`
   (`kilocode:packages/kilo-gateway/src/auth/token.ts:9`) selects the base URL
@@ -423,7 +426,7 @@ time, with the current ids as a skip-if-absent fallback.
 
 ### 4. ChatGPT backend
 
-This section supersedes MADR 0008's ChatGPT transport and catalog.
+This section supersedes MADR 0006's ChatGPT transport and catalog.
 
 **Gate G-C (first, before any change here).** A maintainer-run, opt-in live
 characterization with a real ChatGPT login. It records, for the current
@@ -459,7 +462,7 @@ this decision.
   gate G-C confirms are served, highest priority first. At `25270df261` those
   are `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`,
   `gpt-5.6-luna` and `gpt-5.5`, capped at `MaxListedModels`.
-* If G-C item 7 succeeds with `mcplib`'s own version, 0009's ChatGPT
+* If G-C item 7 succeeds with `mcplib`'s own version, 0007's ChatGPT
   short-circuit becomes that live listing: `visibility == "list"`, sorted by
   `priority`. `mcplib` never sends a Codex version string.
 
@@ -474,7 +477,7 @@ this decision.
 
 ### 5. OAuth session hygiene
 
-This section supersedes MADR 0008's vendor-session import and refresh
+This section supersedes MADR 0006's vendor-session import and refresh
 behaviour.
 
 **5.1 Imported sessions are read-through, never refreshed by `mcplib`.**
@@ -564,9 +567,9 @@ support is out of scope.
   `Result` field.
 * Every existing sentinel still matches the conditions it matched before, so
   `errors.Is(err, ErrRateLimited)` still holds for every 429.
-* Grok sessions to `api.x.ai` without `X-XAI-Token-Auth` (0008 §2, confirmed
+* Grok sessions to `api.x.ai` without `X-XAI-Token-Auth` (0006 §2, confirmed
   by the report's G1). The OpenAI OAuth constants and device flows, which match.
-* The Zen/Go key header, which is decided in 0009 §1c.
+* The Zen/Go key header, which is decided in 0007 §1c.
 
 ### 8. Plans
 
@@ -576,7 +579,7 @@ This MADR carries several PLANs, one per independent unit of work:
 |---|---|
 | `0012-PLAN-shared-transport.md` | §1 (complete, 2026-09-27) |
 | `0012-PLAN-item-fidelity.md` | §2 |
-| `0012-PLAN-gateway-conventions.md` | §3 (after 0009 and 0010) |
+| `0012-PLAN-gateway-conventions.md` | §3 (after 0007 and 0009) |
 | `0012-PLAN-chatgpt-backend.md` | §4, opening with gate G-C |
 | `0012-PLAN-oauth-hygiene.md` | §5 |
 | `0012-PLAN-grok.md` | §6 |
@@ -585,14 +588,14 @@ This MADR carries several PLANs, one per independent unit of work:
 
 * `0012-PLAN-shared-transport.md` first: §1.1's typed errors are the carrier
   for §3–§5's terminal conditions.
-* §3.1 and §3.3 reuse 0010 §2's metadata client, so they follow 0010.
+* §3.1 and §3.3 reuse 0009 §2's metadata client, so they follow 0009.
 * §4 follows gate G-C.
 * §2, §5 and §6 are independent of each other.
 
 ### Consequences
 
 * Good, because every verified class-A item in the report gets a fix, except
-  O1, which 0009 §1c fixes. That covers dropped tool calls, retired ChatGPT
+  O1, which 0007 §1c fixes. That covers dropped tool calls, retired ChatGPT
   slugs, shared refresh tokens, grok-4.5 `xhigh`, futile retries, timeouts and
   silent truncation.
 * Good, because quota, entitlement and policy failures become typed and
@@ -627,7 +630,7 @@ This MADR carries several PLANs, one per independent unit of work:
 ### Confirmation
 
 Each check below must first be seen to fail against a planted defect (the
-method of `0009-PLAN-live-catalog-model-search.md` Appendix B):
+method of `0007-PLAN-live-catalog-model-search.md` Appendix B):
 
 * **Errors (§1.1–§1.2):**
   * one fixture per row of the §1.1 table asserts the sentinel, `Terminal`,
@@ -702,25 +705,25 @@ method of `0009-PLAN-live-catalog-model-search.md` Appendix B):
 
 ### Relationship to earlier decisions
 
-* **`0001-MADR-add-grok-xai-llm-provider.md`:** §2 completes its canonical item
+* **`0003-MADR-add-grok-xai-llm-provider.md`:** §2 completes its canonical item
   contract. §6 corrects its grok-4.5 effort statement (lines 151-152 at
   `55e4b31`).
-* **`0003-MADR-add-gateway-llm-providers.md`:**
+* **`0004-MADR-add-gateway-llm-providers.md`:**
   * §1.1 replaces its status-only error mapping for the gateways;
   * §3.1 replaces its route table as the primary source;
   * the report's pointer note lists the statements it contradicts.
-* **`0008-MADR-subscription-auth-for-llm-providers.md`:**
+* **`0006-MADR-subscription-auth-for-llm-providers.md`:**
   * §4 supersedes its ChatGPT transport and catalog;
   * §5 supersedes its vendor-session import and refresh behaviour;
   * §5.4 withdraws its `CODEX_ACCESS_TOKEN` path.
 
   Its authentication-method set, OAuth constants, device flows and Grok routing
-  stand. 0008 is annotated with a pointer to this record when it is accepted.
-* **`0009-MADR-live-catalog-model-search.md`:**
+  stand. 0006 is annotated with a pointer to this record when it is accepted.
+* **`0007-MADR-live-catalog-model-search.md`:**
   * §1c already decides O1;
   * §4.3 can turn its ChatGPT short-circuit into a live listing;
   * §3.3's anonymous `/models` retry fits its fetch step.
-* **`0010-MADR-use-case-aware-default-model-ranking.md`:**
+* **`0009-MADR-use-case-aware-default-model-ranking.md`:**
   * §3 reuses its metadata client;
   * its §6 request-side reasoning is referenced, not repeated;
   * its Go gates handle defaults, and §1.1's `ErrNotPermitted` handles
@@ -753,7 +756,7 @@ method of `0009-PLAN-live-catalog-model-search.md` Appendix B):
 ### Evidence
 
 * **Findings and verification levels:**
-  [0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md).
+  [0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md).
 * **Confirmed for this record:**
   * the four converters and the Claude `system` mapping (`llmprovider/grok.go:132-150`,
     `claude.go:138-166`, `gemini.go:133-167`, `chatcompletions.go:27-49`);
@@ -776,11 +779,11 @@ them differently. The plans cite current code, not these line numbers.
 
 | Item here | Shipped by | State |
 |---|---|---|
-| §1.4 OpenCode `x-opencode-session` on generation | 0010 PLAN Phase 6 (`a6bf24f`) | done; listings and probes remain (0013 B7) |
-| §3.2 chat `reasoning_effort` from metadata | 0010 §6 (`446d17a`) | done |
+| §1.4 OpenCode `x-opencode-session` on generation | 0009 PLAN Phase 6 (`a6bf24f`) | done; listings and probes remain (0013 B7) |
+| §3.2 chat `reasoning_effort` from metadata | 0009 §6 (`446d17a`) | done |
 | §3.2 messages adaptive thinking, Claude 4.7+ | 0013 Phase 5 (`a47c53c`) | done; MiniMax-M3 remains |
-| §3.3 Kilo `reasoning: { effort }` | 0010 §6 (`c4dda15`) | done |
-| §4.3 ChatGPT catalog | [decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md](decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md) D11 (`ba92db1`, `e219e11`) | superseded (see below) |
+| §3.3 Kilo `reasoning: { effort }` | 0009 §6 (`c4dda15`) | done |
+| §4.3 ChatGPT catalog | [0008-MADR-repair-oauth-loopback-and-session-wiring.md](0008-MADR-repair-oauth-loopback-and-session-wiring.md) D11 (`ba92db1`, `e219e11`) | superseded (see below) |
 | §4.4 `originator` on ChatGPT generation | the OAuth MADR's D9 (`ba92db1`) | shipped as `originator: mcplib`; gate G-C item 4 remains its live confirmation |
 | §5.3 loopback reachability | the OAuth MADR's D1 (`ba92db1`, `a879807`) | dual-stack `localhost`; see the decision below |
 | §5.3 authorize error surfaced | the OAuth MADR's D5 | the IdP `error` completes the waiter; `error_description` and the Codex entitlement message remain |
@@ -920,7 +923,7 @@ access token was read and never refreshed.
 * The table was regenerated from that document: every non-deprecated Zen and
   Go model.
 * Removing `jev-*` changes the Zen usable count in
-  [0010-MADR-use-case-aware-default-model-ranking.md](0010-MADR-use-case-aware-default-model-ranking.md)
+  [0009-MADR-use-case-aware-default-model-ranking.md](0009-MADR-use-case-aware-default-model-ranking.md)
   §7's 2026-09-26 snapshot from 80 to 78. Its recommended sixes are
   unchanged.
 
@@ -1157,7 +1160,7 @@ No other test in the repository has a handler that blocks without bound.
 
 | Plan | Covers |
 |---|---|
-| [0012-PLAN-circuit-breaker-test.md](0012-PLAN-circuit-breaker-test.md) | this revision; runs before the five plans |
+| `mcplib` `docs/0012-PLAN-circuit-breaker-test.md` | this revision; runs before the five plans |
 
 ## Amendment — 2026-09-27 (revision 5): the `127.0.0.1` redirect has moved
 
@@ -1171,3 +1174,10 @@ owner-run live ChatGPT browser login from `mcplib`. That login ran on
 Phase O6 landed as `a5f2460`, and
 [0012-PLAN-oauth-hygiene.md](0012-PLAN-oauth-hygiene.md) is complete. The
 dual-stack `localhost` listener stays, as revision 2 decided.
+
+## Amendment 2026-09-29: revision 4 was executed in mcplib
+
+Revision 4 (the circuit-breaker test race) was executed by `mcplib`
+`docs/0012-PLAN-circuit-breaker-test.md`, which remains in `mcplib` with the
+test it changed (`backplane_test.go`). The other six plans moved here under
+`0002-MADR-migrate-llmprovider-from-mcplib.md` §10–§11.

@@ -1,15 +1,18 @@
 ---
 status: in-progress
 date: 2026-09-27
-associated-madr: 0009-MADR-repair-oauth-loopback-and-session-wiring.md
+associated-madr: 0008-MADR-repair-oauth-loopback-and-session-wiring.md
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/decisions/0009-PLAN-repair-oauth-loopback-and-session-wiring.md @ 4e1f9a5"
 ---
 
 <!-- markdownlint-disable MD013 MD024 MD033 MD036 MD060 -->
 
-# PLAN 0009 — Repair OAuth loopback, paste-code, and Windows session wiring
+# PLAN 0008 — Repair OAuth loopback, paste-code, and Windows session wiring
 
-Implements [0009-MADR-repair-oauth-loopback-and-session-wiring.md](0009-MADR-repair-oauth-loopback-and-session-wiring.md)
+Migrated from `mcplib` `docs/decisions/0009-PLAN-repair-oauth-loopback-and-session-wiring.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
+Implements [0008-MADR-repair-oauth-loopback-and-session-wiring.md](0008-MADR-repair-oauth-loopback-and-session-wiring.md)
 decisions D1–D11, closing findings F1–F12.
 
 If execution discovers a fact that contradicts the MADR, **stop and amend the
@@ -79,7 +82,7 @@ mcplib tag gate:
 * `go.mod`
 * `go.sum`
 
-P0 may also touch `docs/decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md`
+P0 may also touch `docs/decisions/0008-MADR-repair-oauth-loopback-and-session-wiring.md`
 and this file, and nothing else.
 
 ### Out of scope
@@ -199,7 +202,7 @@ No new `go.mod` require in either repository.
    device token HTTP path can share it without protocol changes.** Existing
    device-code tests must still pass.
 
-5. **C5 — 0008 host-lock tests are not weakened.** ChatGPT must not hit
+5. **C5 — 0006 host-lock tests are not weakened.** ChatGPT must not hit
    `api.openai.com`. Grok must not hit `cli-chat-proxy`. Do not use
    `WithBaseURL` to hide a default-host branch in those tests.
 
@@ -250,8 +253,8 @@ HEAD). P6 does not need P7. P8 needs the tag gate because
 
 Stage only:
 
-* `docs/decisions/0009-MADR-repair-oauth-loopback-and-session-wiring.md`
-* `docs/decisions/0009-PLAN-repair-oauth-loopback-and-session-wiring.md`
+* `docs/decisions/0008-MADR-repair-oauth-loopback-and-session-wiring.md`
+* `docs/decisions/0008-PLAN-repair-oauth-loopback-and-session-wiring.md`
 
 `git commit --no-edit`. No Go files.
 
@@ -285,7 +288,7 @@ Stage only:
 
 5. `TestLoginBrowserOAuth_OpenAICompletesCallbackAndExchange` — httptest IdP
    token endpoint; override `openaiLoopbackPorts` with two ephemeral ports
-   (same injection 0008 used); `OpenURL` GETs `{redirect_uri}?code=&state=`.
+   (same injection 0006 used); `OpenURL` GETs `{redirect_uri}?code=&state=`.
    Session Access/Refresh set. `redirect_uri` form field has prefix
    `http://localhost:` and suffix `/auth/callback`. Against HEAD this fails
    on this host when `http.Get` uses `localhost` → `::1`.
@@ -882,7 +885,7 @@ No `.go` file may hold a conflict marker, and no file may reference
 | A8 | Token 400 error contains redacted body, not the raw JWT | D8, F7 |
 | A9 | ChatGPT generate capturing transport asserts `originator=mcplib`; `max_output_tokens` still present | D9, F9 |
 | A10 | ChatGPT `/models` capturing transport: path, `client_version=0.0.0`, not `api.openai.com`; 502 → error nil slice; `StaticOpenAIChatGPT` gone | D11, F12 |
-| A11 | 0008 host-lock tests still pass (ChatGPT ↛ `api.openai.com`; Grok ↛ `cli-chat-proxy`) | Decision Drivers |
+| A11 | 0006 host-lock tests still pass (ChatGPT ↛ `api.openai.com`; Grok ↛ `cli-chat-proxy`) | Decision Drivers |
 | A12 | `go test ./llmprovider ./wizard` exit 0; prepare-commit-msg `go test ./...` exit 0; no new `go.mod` require | Confirmation |
 | A13 | Device-code tests still pass | Decision Drivers |
 
@@ -911,7 +914,7 @@ confirmation. It is not a unit test and does not block merging P1–P8.
    ChatGPT.
 
 **Rollback.** Revert the mcplib commits (or unpin prepare-commit-msg to
-`v1.5.0`). Device-code and API keys remain the 0008 paths. Dual-stack /
+`v1.5.0`). Device-code and API keys remain the 0006 paths. Dual-stack /
 CORS / paste-code / validation all revert together; do not leave P6
 validation in the consumer against a library that lacks
 `ValidateOAuthSession`.
@@ -1058,3 +1061,13 @@ Mutants (a mutant counts as killed only by a runtime `--- FAIL`):
 | State mismatch does not complete the waiter (D5) | `TestOAuthCallback_RejectsStateMismatch` | killed: `mismatched state did not complete the waiter` |
 | No originator on generate (D9) | `TestOpenAI_ChatGPTSetsOriginatorHeader` | killed: `originator = "", want "mcplib"` |
 | IPv4-only loopback bind (D1) | `TestListenLoopbackBothFamilies_LocalhostDials` | survived, as expected on macOS: A1's negative case needs the Windows host (P1) |
+
+### Deviation 2026-09-29: transferred to go-llmprovider-sdk
+
+* Transferred under `0002-MADR-migrate-llmprovider-from-mcplib.md` §10–§11.
+* **P8** is re-targeted from `mcplib` `v1.5.1`, which was never tagged, to
+  this module's `v1.0.0`. It is executed by `prepare-commit-msg`'s migration
+  record (`0002-PLAN-migrate-llmprovider-from-mcplib.md` Phase 10).
+* **A9/A10:** the `originator` value is now `go-llmprovider-sdk`.
+* The OpenAI redirect is `127.0.0.1`, not `localhost`: see the MADR's
+  amendment of the same date.

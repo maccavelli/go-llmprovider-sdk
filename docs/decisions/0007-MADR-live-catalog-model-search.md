@@ -4,12 +4,15 @@ date: 2026-09-26
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
+migrated-from: "mcplib docs/0009-MADR-live-catalog-model-search.md @ 4e1f9a5"
 ---
 # Search Live Provider Catalogs for Primary and Fallback Model Selection
 
+Migrated from `mcplib` `docs/0009-MADR-live-catalog-model-search.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
 > **Revision notes (revision 2, 2026-09-25, applied in place to this same
-> `proposed` document — same convention as `0001-MADR`, `0004-MADR` and
-> `0008-MADR`).** Revision 1 (2026-09-24) was re-verified line by line against
+> `proposed` document — same convention as `0003-MADR`, `0005-MADR` and
+> `0006-MADR`).** Revision 1 (2026-09-24) was re-verified line by line against
 > the tree at commit `55e4b31`, the live public catalogs, the provider API
 > references, and the three consumer wizards. Every claim below now carries its
 > evidence; the method is recorded under *More Information → Evidence*.
@@ -74,7 +77,7 @@ informed: all mcplib consumers
 > * **Pagination failure semantics and page bounds** are specified (§2).
 >
 > **Addendum (2026-09-25, found while writing
-> `0009-PLAN-live-catalog-model-search.md`).** A reference implementation of §3,
+> `0007-PLAN-live-catalog-model-search.md`).** A reference implementation of §3,
 > run against every Confirmation case, showed that the revision-2 case
 > "`recommended` does not match via subsequence on a label" was wrong: the
 > query is a plain *substring* of curated labels, so it matches by predicate 1.
@@ -88,8 +91,8 @@ informed: all mcplib consumers
 > **Revision 3 (2026-09-25, maintainer direction: "fold in Kilo", and include
 > Hugging Face).** The exact-`["text"]` input-modality rule, revision 2's
 > related finding 1, is now part of this decision (§1b). It partially
-> supersedes MADR 0003, which chose that rule for both gateways
-> (`0003-MADR-add-gateway-llm-providers.md:806-807`, `:885-887`). The evidence,
+> supersedes MADR 0004, which chose that rule for both gateways
+> (`0004-MADR-add-gateway-llm-providers.md:806-807`, `:885-887`). The evidence,
 > in Context §5, comes from Kilo's own client source and today's live catalogs.
 > Kilo's client treats image input as an attachment capability, not an
 > exclusion. Relaxing the rule to "input contains text" raises usable Kilo
@@ -98,25 +101,25 @@ informed: all mcplib consumers
 > The maintainer also asked for an assessment of use-case-specific default
 > ranking for commit-message generation. That is a separate decision about how
 > the recommended six are chosen. It is recorded as out of scope here and
-> proposed as [0010-MADR-use-case-aware-default-model-ranking.md](0010-MADR-use-case-aware-default-model-ranking.md). The training policy, the id deny lists, the output
+> proposed as [0009-MADR-use-case-aware-default-model-ranking.md](0009-MADR-use-case-aware-default-model-ranking.md). The training policy, the id deny lists, the output
 > rule and the static catalogs are unchanged by this revision.
 >
-> **Revision 4 (2026-09-26), from [0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md).** This
+> **Revision 4 (2026-09-26), from [0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md).** This
 > revision records four findings that bear on search. It changes no decision.
 > They are *Related findings* 5-8: the retired ChatGPT catalog behind the
 > ChatGPT short-circuit; the Zen per-route key headers, which search makes
 > easier to reach; the OpenCode route table's gaps, which search exposes; and
 > Kilo's anonymous `/models` retry, which §1's fetch step could adopt.
 >
-> **Revision 5 (2026-09-26, maintainer direction: "Fold into 0009").** The
+> **Revision 5 (2026-09-26, maintainer direction: "Fold into 0007").** The
 > Zen/Go per-route key-header fix, related finding 6, becomes decision §1c.
 > The evidence is Context §14: the server source, plus a live check with a
-> bogus key. This partially supersedes MADR 0003's Bearer-only statement.
+> bogus key. This partially supersedes MADR 0004's Bearer-only statement.
 
 ## Context and Problem Statement
 
 `wizard.ConfigureLLM` (`wizard/configure.go:89-159`) is the canonical
-configuration flow introduced by MADR 0004. After the user picks a provider and
+configuration flow introduced by MADR 0005. After the user picks a provider and
 a credential, it offers a **short, numbered menu** of models and, when
 `Options.NeedFallbacks` is set, a **multi-select of the remainder**. Both menus
 are drawn from the same list, and that list is deliberately capped at six.
@@ -231,8 +234,8 @@ flag (`:587`). So every managed tier is excluded, and the in-tree
 openai/gpt-oss-20b, amazon/nova-micro-v1, mistralai/mistral-nemo,
 openai/gpt-oss-120b, inclusionai/ling-3.0-flash-fin`: none of `StaticKilo`'s
 tiers. Hugging Face applies the same exact-`["text"]` input rule (`:444`).
-MADR 0003 chose that rule deliberately, "dropping the 40 vision-language
-models" (`0003-MADR-add-gateway-llm-providers.md:806-807`, `:885-887`,
+MADR 0004 chose that rule deliberately, "dropping the 40 vision-language
+models" (`0004-MADR-add-gateway-llm-providers.md:806-807`, `:885-887`,
 `:1286-1289`).
 
 Kilo's own client, at `kilocode` v7.7.12
@@ -382,7 +385,7 @@ dump.
 
 Direct requirements in `go.mod:5-11` are `invopop/jsonschema`,
 `modelcontextprotocol/go-sdk`, `golang.org/x/mod`, `golang.org/x/sys` and
-`golang.org/x/term`. MADR 0004 rejected moving `pterm` into `mcplib` and made
+`golang.org/x/term`. MADR 0005 rejected moving `pterm` into `mcplib` and made
 "`mcplib` must stay dependency-light" a decision driver. The usable corpora in
 §4 are about one hundred short strings; the longest live id is 56 characters.
 No live id in the four public catalogs contains `*` or `?`. Their punctuation
@@ -431,8 +434,8 @@ The inference proxy picks the header the same way
 "The gateway accepts only Authorization: Bearer on every route — it ignores
 x-api-key and x-goog-api-key" (`llmprovider/opencode.go:258-262`).
 `TestOpencode_KeyInHeader` forbids the vendor headers
-(`llmprovider/opencode_test.go:107-140`). MADR 0003's evidence for this was a
-probe of `POST /zen/v1/responses` only (`0003-MADR-add-gateway-llm-providers.md:126-137`,
+(`llmprovider/opencode_test.go:107-140`). MADR 0004's evidence for this was a
+probe of `POST /zen/v1/responses` only (`0004-MADR-add-gateway-llm-providers.md:126-137`,
 at `55e4b31`).
 
 A live check on 2026-09-26, with the bogus key `sk-bogus-000` and no other
@@ -450,7 +453,7 @@ key.", including three `StaticOpencodeZen` defaults: `claude-haiku-4-5`,
 `gemini-3.7-flash` and `gemini-3.5-flash-lite`. A free model on those routes
 would run anonymously (`handler.ts:103-104`). Search (§3–§5) makes every such
 model selectable, so the defect's reach grows with this decision
-([0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md) O1).
+([0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md) O1).
 
 ### The requirement, restated against that evidence
 
@@ -510,7 +513,7 @@ Chosen option: **"Model catalog listing in `llmprovider` plus a
 search-then-select flow in `wizard`, `Prompter` unchanged"**. It is the only
 option that puts the live usable catalog behind a query, fetches it once,
 numbers the hits with the renderer each consumer already has, covers primary
-and fallbacks, and leaves MADR 0004's seams and `ListAvailableModels`'s
+and fallbacks, and leaves MADR 0005's seams and `ListAvailableModels`'s
 contract intact.
 
 ### 1. One listing, two views: `ListModelCatalog`
@@ -574,7 +577,7 @@ the curated list, so `probeGenerateHealth`'s input is unchanged.
 In the Kilo and Hugging Face fetch-and-filter steps, a model qualifies on
 modality when its `architecture.input_modalities` **contains** `"text"` and its
 `architecture.output_modalities` is **exactly** `["text"]`. This replaces the
-exact-`["text"]` input rule that MADR 0003 chose, for these two providers only.
+exact-`["text"]` input rule that MADR 0004 chose, for these two providers only.
 
 Unchanged:
 
@@ -613,8 +616,8 @@ added later must choose its header explicitly. The `/models` listing keeps
 `Authorization: Bearer`, which that endpoint reads. `TestOpencode_KeyInHeader`
 is reversed to assert the per-route header and the absence of the other two.
 
-This partially supersedes MADR 0003's "Bearer on every route" statement
-(`0003-MADR-add-gateway-llm-providers.md:126-137`, at `55e4b31`).
+This partially supersedes MADR 0004's "Bearer on every route" statement
+(`0004-MADR-add-gateway-llm-providers.md:126-137`, at `55e4b31`).
 
 ### 2. Pagination for Gemini and Anthropic
 
@@ -853,7 +856,7 @@ before the fallback selection.
   `meta-llama/llama-3.1-8b-instruct`, an 8B model without reasoning, because
   Kilo's backfill ranks by lowest price. Ranking for the commit-message use
   case is the proposed default-ranking decision.
-* Bad, because §1b partially supersedes an accepted decision (MADR 0003's
+* Bad, because §1b partially supersedes an accepted decision (MADR 0004's
   input filter). The two existing curation tests that pin the old rule must be
   rewritten, not merely extended.
 
@@ -972,13 +975,13 @@ the wizard owns the loop, and numbering stays in the renderer.
 Each consumer would implement a filter-as-you-type widget.
 
 * Good, because pterm already ships type-to-filter selects (Context §8).
-* Bad, because MADR 0004 made `Prompter` a deliberately small interface. A new
+* Bad, because MADR 0005 made `Prompter` a deliberately small interface. A new
   method is a coordinated change in both pterm consumers before the feature
   exists anywhere, and `TextPrompter` would still need a query-then-list loop.
 * Bad, because a widget does not fix the corpus. Without the uncapped listing,
   typeahead still filters six ids.
 * Bad, because `TextPrompter` cannot do true typeahead without raw mode, and
-  MADR 0004 records raw-mode failures on Git Bash / mintty.
+  MADR 0005 records raw-mode failures on Git Bash / mintty.
 
 ### Raise `MaxListedModels` or pass the full usable list into the existing `Select`
 
@@ -995,7 +998,7 @@ Each consumer would implement a filter-as-you-type widget.
 ### Add a third-party fuzzy library
 
 * Good, because a known scorer is less code to maintain.
-* Bad, because MADR 0004's dependency-light driver still applies, and N is
+* Bad, because MADR 0005's dependency-light driver still applies, and N is
   about a hundred short strings.
 * Bad, because common Go fuzzy packages do not implement the glob path or a
   `*` that crosses `/`; that code is ours either way.
@@ -1016,9 +1019,9 @@ Each consumer would implement a filter-as-you-type widget.
 ### Leave search to each consumer wizard
 
 * Good, because `mcplib` would not change.
-* Bad, because it recreates the drift MADR 0004 removed: three matchers, three
+* Bad, because it recreates the drift MADR 0005 removed: three matchers, three
   corpus policies, and a new provider in `mcplib` not searchable until three
-  downstream edits land. The Grok gap recorded in MADR 0004 shows those edits do
+  downstream edits land. The Grok gap recorded in MADR 0005 shows those edits do
   not all happen.
 * Bad, because no consumer can see the uncapped usable list; the listers
   discard it inside `mcplib`.
@@ -1027,19 +1030,19 @@ Each consumer would implement a filter-as-you-type widget.
 
 ### Relationship to earlier decisions
 
-* **MADR 0004** owns the descriptor / flow / renderer split and the six-method
+* **MADR 0005** owns the descriptor / flow / renderer split and the six-method
   `Prompter`. This MADR extends that flow and does not change the prompting
   architecture.
-* **MADR 0003** introduced the open catalogs (OpenCode, Hugging Face, Kilo) and
+* **MADR 0004** introduced the open catalogs (OpenCode, Hugging Face, Kilo) and
   their metadata-driven ranking, which `Usable` preserves. A blank search
-  still shows the 0003/0004 curated order. **§1b partially supersedes 0003**:
+  still shows the 0004/0005 curated order. **§1b partially supersedes 0004**:
   its `input_modalities == ["text"]` filter for Hugging Face and Kilo
-  (`0003-MADR-add-gateway-llm-providers.md:806-807`, `:885-887`) becomes "contains
-  `text`". 0003's output filter, tools rule, training policy and ranking stand.
-  0003 is annotated with a forward pointer when this MADR is accepted; its text
-  is not rewritten. **§1c partially supersedes 0003's "Bearer on every route"**
-  statement (`0003-MADR-add-gateway-llm-providers.md:126-137`, at `55e4b31`).
-* **MADR 0008** added ChatGPT and Grok OAuth. ChatGPT remains the three-id
+  (`0004-MADR-add-gateway-llm-providers.md:806-807`, `:885-887`) becomes "contains
+  `text`". 0004's output filter, tools rule, training policy and ranking stand.
+  0004 is annotated with a forward pointer when this MADR is accepted; its text
+  is not rewritten. **§1c partially supersedes 0004's "Bearer on every route"**
+  statement (`0004-MADR-add-gateway-llm-providers.md:126-137`, at `55e4b31`).
+* **MADR 0006** added ChatGPT and Grok OAuth. ChatGPT remains the three-id
   `StaticOpenAIChatGPT` short-circuit; search over three ids is correct, just
   small. Grok OAuth lists from the same `api.x.ai/v1/models` endpoint as an API key.
 
@@ -1068,7 +1071,7 @@ unchanged by it. Each needs its own decision or fix.
 4. **`Existing.Fallbacks` is never pre-selected** (`selectFallbacks` passes
    `nil`, `configure.go:347`), so reconfiguration forgets fallbacks unless they
    are re-picked. This MADR keeps that behaviour.
-5. **The ChatGPT catalog is retired** ([0011-REPORT-provider-source-compatibility-audit.md](0011-REPORT-provider-source-compatibility-audit.md) C2).
+5. **The ChatGPT catalog is retired** ([0011-REPORT-provider-source-compatibility-audit.md](../reports/0011-REPORT-provider-source-compatibility-audit.md) C2).
    * `StaticOpenAIChatGPT`'s `gpt-5.4`, `gpt-5.4-mini` and `gpt-5.3-codex`
      are no longer in the Codex CLI's catalog. Under §1 they are both views
      of the ChatGPT short-circuit, so ChatGPT users would search only retired
@@ -1106,7 +1109,7 @@ unchanged by it. Each needs its own decision or fix.
 * Searching models the usability filters reject.
 * Expanding `modelLabels` to cover open catalogs.
 * A fallback count limit or a free-text fallback hatch in `mcplib`.
-* Unifying how consumers persist `Result` (MADR 0004's out-of-scope item
+* Unifying how consumers persist `Result` (MADR 0005's out-of-scope item
   stands).
 * Health-probing search hits. Probes stay on the recommended six.
 * A public interactive TUI in `mcplib`.
@@ -1122,7 +1125,7 @@ unchanged by it. Each needs its own decision or fix.
     training-flagged entries and the 8B entries.
 
   The maintainer asked for this assessment. It is a separate decision,
-  proposed as [0010-MADR-use-case-aware-default-model-ranking.md](0010-MADR-use-case-aware-default-model-ranking.md), and builds on this one's `ModelCatalog.Usable`.
+  proposed as [0009-MADR-use-case-aware-default-model-ranking.md](0009-MADR-use-case-aware-default-model-ranking.md), and builds on this one's `ModelCatalog.Usable`.
 
 ### Evidence
 
@@ -1178,13 +1181,13 @@ while gathering it (`git status --porcelain` empty before and after).
 
 ### Implementation notes (not a plan)
 
-A PLAN sharing this number (`0009-PLAN-live-catalog-model-search.md`) should,
+A PLAN sharing this number (`0007-PLAN-live-catalog-model-search.md`) should,
 at minimum, sequence:
 
 1. The fetch/curate split per lister, `ModelCatalog` and `ListModelCatalog*`,
    with `ListAvailableModels*` rewritten on top, plus equivalence tests.
 1b. The §1b input-modality rule for Kilo and Hugging Face, with the two
-   existing curation tests rewritten and MADR 0003 annotated.
+   existing curation tests rewritten and MADR 0004 annotated.
 1c. The §1c per-route key header, with `TestOpencode_KeyInHeader` reversed
    and an opt-in live drift test.
 2. Gemini and Anthropic pagination with the §2 bound and failure rules.

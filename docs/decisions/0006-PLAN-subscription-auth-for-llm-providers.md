@@ -1,13 +1,16 @@
 ---
 status: complete
 date: 2026-09-13
-associated-madr: "0008-MADR-subscription-auth-for-llm-providers.md"
+associated-madr: "0006-MADR-subscription-auth-for-llm-providers.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0008-PLAN-subscription-auth-for-llm-providers.md @ 4e1f9a5"
 ---
 
 # Implement Browser, API-Key, and Headless Subscription Authentication for OpenAI and xAI Grok
 
-Associated MADR: [0008-MADR-subscription-auth-for-llm-providers.md](0008-MADR-subscription-auth-for-llm-providers.md)
+Migrated from `mcplib` `docs/0008-PLAN-subscription-auth-for-llm-providers.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
+Associated MADR: [0006-MADR-subscription-auth-for-llm-providers.md](0006-MADR-subscription-auth-for-llm-providers.md)
 (accepted, revision 5, 2026-09-12).
 
 This plan executes that MADR and nothing else. If execution discovers a fact that
@@ -51,12 +54,12 @@ then `prepare-commit-msg` config, wizard wiring, and `NewProvider` construction
 changes, wrapping `codex`/`grok` binaries, OS keyring, Grok customer-IdP OIDC,
 Grok `ExternalHelper` command, MagicTools backplane login, MagicDev,
 `golang.org/x/oauth2`, vendor SDKs, `git push`. Unifying config schemas across
-the fleet remains out (MADR 0004).
+the fleet remains out (MADR 0005).
 
 ## 0. Notation and conventions
 
 * File references are against `mcplib` at `69271af` plus the accepted MADR
-  (`docs/0008-MADR-subscription-auth-for-llm-providers.md`). Do not treat
+  (`docs/decisions/0006-MADR-subscription-auth-for-llm-providers.md`). Do not treat
   uncommitted `README.md` edits as this plan's baseline.
 * **Phase green** (this repo has no `make pre-add-check`): for every file the
   phase stages, `gofmt -l` prints nothing; `go vet` on the touched packages
@@ -485,7 +488,7 @@ not change the MADR's architecture.
 7. Run the corrected per-command phase gate plus per-file `golint`. Record the
    full output and commit only when every check is green.
 
-Corrective scope: `docs/0008-PLAN-subscription-auth-for-llm-providers.md`,
+Corrective scope: `docs/decisions/0006-PLAN-subscription-auth-for-llm-providers.md`,
 `llmprovider/token.go`, `llmprovider/token_test.go`,
 `llmprovider/tokenstore.go`, `llmprovider/tokenstore_file.go`,
 `llmprovider/tokenstore_file_unix.go`,
@@ -1389,7 +1392,7 @@ that already call `NewBackplaneClient` keep doing so.
 |---|---|---|---|---|
 | 2026-09-12 | (plan) | Maintainer named prepare-commit-msg as first consumer | Add Phase 10; MagicDev/MagicTools stay out | Phase 10 in this plan |
 | 2026-09-13 | (plan sweep) | Orchestrated-nil was specified backwards; OpenAI setup script would break; host tests used WithBaseURL; loopback tests would fight port 1455; AuthKind "api_key" would churn configs; token_stdin heuristic was fuzzy | Corrections in §0.1, applied in place | none (plan only) |
-| 2026-09-13 | 1–2 audit | Phase 2 commit `9836e94` landed with a red format/lint log; the shared verification block masked intermediate failures; Unix mode test was platform-neutral; `..` validation lacked an isolated case; Phase 3-only scaffold made Phase 2 lint-red; Phase 1 and 2 exported APIs failed per-file `golint` | Stop before Phase 3. Run the approved Phase 2 corrective pass, replace the verification recipe, defer the unused scaffold to Phase 3, prove the adjusted gates in a scratch clone, and record exact results | `docs/0008-PLAN-subscription-auth-for-llm-providers.md`, `llmprovider/token.go`, `token_test.go`, `tokenstore.go`, `tokenstore_file.go`, `tokenstore_file_unix.go`, `tokenstore_file_windows.go`, `tokenstore_test.go`, new `tokenstore_file_unix_test.go`; Phase 3 adds `tokenstore.go` |
+| 2026-09-13 | 1–2 audit | Phase 2 commit `9836e94` landed with a red format/lint log; the shared verification block masked intermediate failures; Unix mode test was platform-neutral; `..` validation lacked an isolated case; Phase 3-only scaffold made Phase 2 lint-red; Phase 1 and 2 exported APIs failed per-file `golint` | Stop before Phase 3. Run the approved Phase 2 corrective pass, replace the verification recipe, defer the unused scaffold to Phase 3, prove the adjusted gates in a scratch clone, and record exact results | `docs/decisions/0006-PLAN-subscription-auth-for-llm-providers.md`, `llmprovider/token.go`, `token_test.go`, `tokenstore.go`, `tokenstore_file.go`, `tokenstore_file_unix.go`, `tokenstore_file_windows.go`, `tokenstore_test.go`, new `tokenstore_file_unix_test.go`; Phase 3 adds `tokenstore.go` |
 | 2026-09-13 | 3 | `ChatGPT()` requires exported `DefaultOpenAIIssuer`, but the phase table deferred its required `oauth_constants.go` file to Phase 5 | Create `oauth_constants.go` in Phase 3 with `DefaultOpenAIIssuer`; Phase 5 extends it with the remaining locked constants. No MADR amendment: the constant value, API, and file-placement decision are unchanged | new `llmprovider/oauth_constants.go` |
 | 2026-09-13 | 3 | The first constant-placement correction omitted §0.1.11's xAI token URL fallback, which Phase 3 also needs and §0.1.8 requires in `oauth_constants.go` | Add private `defaultGrokOAuthTokenURL` beside `DefaultOpenAIIssuer` in Phase 3; Phase 5 still adds all other OAuth constants. No MADR amendment | no additional file |
 | 2026-09-13 | 3 | `make lint` classified the approved private name `defaultGrokOAuthTokenURL` as a G101 hardcoded-credential finding because it contains `Token`; repeated `Authorization` literals also tripped `goconst` | Rename the private endpoint to `defaultGrokOAuthRefreshURL` and deduplicate the header with a private Phase 3 constant; do not suppress either lint rule. No MADR amendment | no additional file |

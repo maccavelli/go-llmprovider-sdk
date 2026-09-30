@@ -1,9 +1,12 @@
 ---
 date: 2026-09-26
 subject: llmprovider compatibility with the Kilo, OpenCode, Grok and Codex reference sources
-examines: 0001-MADR-add-grok-xai-llm-provider.md, 0003-MADR-add-gateway-llm-providers.md, 0008-MADR-subscription-auth-for-llm-providers.md, 0009-MADR-live-catalog-model-search.md, 0010-MADR-use-case-aware-default-model-ranking.md
+examines: 0003-MADR-add-grok-xai-llm-provider.md, 0004-MADR-add-gateway-llm-providers.md, 0006-MADR-subscription-auth-for-llm-providers.md, 0007-MADR-live-catalog-model-search.md, 0009-MADR-use-case-aware-default-model-ranking.md
+migrated-from: "mcplib docs/0011-REPORT-provider-source-compatibility-audit.md @ 4e1f9a5"
 ---
 # Provider Source Compatibility Audit: Kilo, OpenCode, Grok and Codex
+
+Migrated from `mcplib` `docs/0011-REPORT-provider-source-compatibility-audit.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 This report records findings. It decides nothing. Each finding names the
 record it bears on and the kind of decision it needs. Accepted records it
@@ -85,7 +88,7 @@ most severe first:
    response headers and 60 s in total.
 
 One decision is confirmed by the Grok source: sending Grok OAuth sessions to
-`api.x.ai` without `X-XAI-Token-Auth` (MADR 0008 §2). The OpenAI OAuth
+`api.x.ai` without `X-XAI-Token-Auth` (MADR 0006 §2). The OpenAI OAuth
 constants and both device-code flows match their references.
 
 ## Findings
@@ -225,8 +228,8 @@ V). No reference probes this way:
 | `POST /zen/v1/models/gemini-3.7-flash:generateContent`, `Authorization: Bearer …` | `… "Missing API key."` |
 | same, `x-goog-api-key: …` | `… "Invalid API key."` |
 
-MADR 0003's evidence for the Bearer-only rule was a probe of `/responses` only
-(`0003-MADR-add-gateway-llm-providers.md:126-137`). That probe is correct for
+MADR 0004's evidence for the Bearer-only rule was a probe of `/responses` only
+(`0004-MADR-add-gateway-llm-providers.md:126-137`). That probe is correct for
 that route and does not generalise.
 
 Affected models:
@@ -247,8 +250,8 @@ Affected models:
 * Against the current `api.json`, the Zen table has no disagreements for
   listed models. It is missing 18 active models, and its heuristic misroutes
   `qwen3.8-max` to messages (R).
-* MADR 0003's statement that the models.dev npm field "does **not** describe
-  gateway dispatch" (`0003-MADR…:188-191`) overlooks the per-model override
+* MADR 0004's statement that the models.dev npm field "does **not** describe
+  gateway dispatch" (`0004-MADR…:188-191`) overlooks the per-model override
   (V: `api.json` gives `gemini-3.7-flash` → `@ai-sdk/google`,
   `qwen3.8-flash` → `@ai-sdk/anthropic`).
 * `jev-*` models use a fifth route, `systemone`, which `api.json` does not
@@ -299,7 +302,7 @@ models. `mcplib` rejects an empty key (`llmprovider/opencode.go:45-47`, V).
   (`kilocode:packages/opencode/src/provider/transform.ts:1398-1399`, V).
   For small tasks it sends `reasoning: { enabled: true }` (`:1678-1681`, R).
 * `reasoning_effort` appears in the gateway's parameter list for only 137 of
-  its 273 reasoning models (0010 Context §5).
+  its 273 reasoning models (0009 Context §5).
 * The gateway docs document neither field (R).
 
 **K2. Data-collection opt-out not sent (B, policy gap).**
@@ -329,7 +332,7 @@ models. `mcplib` rejects an empty key (`llmprovider/opencode.go:45-47`, V).
 * Kilo retries `/models` anonymously on a 401 when not organization-scoped
   (`kilocode:packages/kilo-gateway/src/api/models.ts:242-245`, V).
 * Kilo treats a missing `supported_parameters` as tool-capable
-  (`api/models.ts:101-105`, V). No live model omits it today (0009 Context §5).
+  (`api/models.ts:101-105`, V). No live model omits it today (0007 Context §5).
 * `kilo-auto/balanced`, in `StaticKilo`, is not in the gateway docs' tier list
   (R).
 
@@ -337,8 +340,8 @@ models. `mcplib` rejects an empty key (`llmprovider/opencode.go:45-47`, V).
 * Kilo's own client sends chat and catalog requests to
   `api.kilo.ai/api/openrouter` (`kilocode:packages/kilo-gateway/src/api/constants.ts:25`,
   V).
-* MADR 0003 calls that path "an alias retained for the editor extension"
-  (`0003-MADR…:402-407`). It is the Kilo CLI's primary path.
+* MADR 0004 calls that path "an alias retained for the editor extension"
+  (`0004-MADR…:402-407`). It is the Kilo CLI's primary path.
 * `mcplib` uses the documented `api.kilo.ai/api/gateway`, which is also
   correct, so no code change is needed.
 
@@ -354,16 +357,16 @@ rejects an empty key (`llmprovider/kilo.go:55-57`, R).
   V).
 * It sends session bearers to `api.x.ai` for image and voice calls without
   that header (R).
-* This supports MADR 0008 §2. The CLI's own model turns for sessions use the
-  proxy, so `mcplib`'s `api.x.ai` model route still rests on 0008's live probe.
+* This supports MADR 0006 §2. The CLI's own model turns for sessions use the
+  proxy, so `mcplib`'s `api.x.ai` model route still rests on 0006's live probe.
 
 **G2. grok-4.5 does not offer `xhigh` (A, V).**
 * The CLI's `default_models.json` lists efforts
   `[xhigh, high, medium, low]` for grok-4.6 but `[high, medium, low]` for
   grok-4.5 (`grok-build:crates/codegen/xai-grok-models/default_models.json`).
 * `mcplib` allows `xhigh` for any `grok-4.5*` prefix
-  (`llmprovider/grok_reasoning.go:25-62`, V). MADR 0001 states the same
-  (`0001-MADR-add-grok-xai-llm-provider.md:151-152`).
+  (`llmprovider/grok_reasoning.go:25-62`, V). MADR 0003 states the same
+  (`0003-MADR-add-grok-xai-llm-provider.md:151-152`).
 * The CLI sends an effort only if the model's menu offers it (R).
 
 **G3. Refresh-token reuse after import (A, V).**
@@ -412,8 +415,8 @@ rejects an empty key (`llmprovider/kilo.go:55-57`, R).
 * `mcplib` sends `max_output_tokens`, sets no `stream` or `store`, and decodes
   one JSON body (`llmprovider/openai.go:119-123`, V).
 * Whether the backend rejects non-streaming requests is not in the sources.
-  MADR 0008 records that no live ChatGPT probe has been run
-  (`0008-MADR-subscription-auth-for-llm-providers.md:780-783`, R).
+  MADR 0006 records that no live ChatGPT probe has been run
+  (`0006-MADR-subscription-auth-for-llm-providers.md:780-783`, R).
 * `Continue` (`previous_response_id`) is sent by Codex only over WebSocket.
   With `store: false` it has nothing to chain from over HTTP (R).
 
@@ -460,8 +463,8 @@ reports a plan without Codex access as "rate limited" and retries it.
 either a personal access token (`at-` prefix), hydrated through a `whoami`
 call for the account id, or an agent-identity JWT sent with a different
 scheme. `mcplib` treats it as a ChatGPT OAuth bearer with no account id
-(`wizard/auth.go`). MADR 0008 names it as a headless source
-(`0008-MADR…:145-146`, `:564`).
+(`wizard/auth.go`). MADR 0006 names it as a headless source
+(`0006-MADR…:145-146`, `:564`).
 
 **C7. Residency header provenance (C, R).** `mcplib`'s
 `x-openai-internal-codex-residency` logic comes from OpenCode's Codex plugin.
@@ -471,16 +474,16 @@ Codex does not read the `chatgpt_compute_residency` claim at all.
 
 | Record | Status | Statement | Finding | Action taken |
 |---|---|---|---|---|
-| `0003-MADR-add-gateway-llm-providers.md` | accepted | Zen/Go auth is Bearer "on any route" (`:126-137`) | O1 (L): wrong for `/messages` and Google | Pointer note added |
+| `0004-MADR-add-gateway-llm-providers.md` | accepted | Zen/Go auth is Bearer "on any route" (`:126-137`) | O1 (L): wrong for `/messages` and Google | Pointer note added |
 | same | accepted | models.dev npm "does not describe gateway dispatch" (`:188-191`) | O2: the per-model `provider.npm` does | Pointer note added |
 | same | accepted | `/api/openrouter` is an editor alias (`:402-407`) | K6: it is Kilo's primary path | Pointer note added |
 | same | accepted | Zen 429 carries no `Retry-After` (`:212`) | X3: the server sets it for gateway-generated limits and strips it from upstream 429s; re-measure | Pointer note added |
-| `0008-MADR-subscription-auth-for-llm-providers.md` | accepted | `CODEX_ACCESS_TOKEN` as a ChatGPT bearer (`:145-146`, `:564`) | C6 | Pointer note added |
+| `0006-MADR-subscription-auth-for-llm-providers.md` | accepted | `CODEX_ACCESS_TOKEN` as a ChatGPT bearer (`:145-146`, `:564`) | C6 | Pointer note added |
 | same | accepted | ChatGPT transport and catalog | C1, C2, C3, C5 | Pointer note added |
 | same | accepted | Vendor-session import | G3, G5, C4 | Pointer note added |
-| `0001-MADR-add-grok-xai-llm-provider.md` | proposed | grok-4.5 accepts `xhigh` (`:151-152`) | G2 | Pointer note added |
-| `0009-MADR-live-catalog-model-search.md` | proposed | ChatGPT short-circuit catalog; Kilo listing fallbacks; Zen key headers | C2, K5, O1 | Amended (revision 4); O1 decided as §1c (revision 5) |
-| `0010-MADR-use-case-aware-default-model-ranking.md` | proposed | Go defaults; Zen defaults; request-side reasoning | O1, O3, O5, K1, K2, X5 | Amended (revision 2) |
+| `0003-MADR-add-grok-xai-llm-provider.md` | proposed | grok-4.5 accepts `xhigh` (`:151-152`) | G2 | Pointer note added |
+| `0007-MADR-live-catalog-model-search.md` | proposed | ChatGPT short-circuit catalog; Kilo listing fallbacks; Zen key headers | C2, K5, O1 | Amended (revision 4); O1 decided as §1c (revision 5) |
+| `0009-MADR-use-case-aware-default-model-ranking.md` | proposed | Go defaults; Zen defaults; request-side reasoning | O1, O3, O5, K1, K2, X5 | Amended (revision 2) |
 
 ## Candidate decisions
 
@@ -488,7 +491,7 @@ These groupings are suggestions for the maintainer. None is decided here.
 
 1. **Gateway transport conformance (new MADR).**
    * ~~O1: per-route key headers. This is the most urgent item: three Zen
-     defaults are broken today.~~ Decided in 0009 §1c on 2026-09-26, by
+     defaults are broken today.~~ Decided in 0007 §1c on 2026-09-26, by
      maintainer direction.
    * O2: routes from `api.json`, with the table as fallback.
    * X2 and X3: typed error bodies and terminal quota errors.
@@ -497,26 +500,26 @@ These groupings are suggestions for the maintainer. None is decided here.
    * X6: client identification.
    * O4 and K7: public and anonymous keys.
    * X8: probe replacement.
-2. **ChatGPT backend conformance (supersedes parts of 0008).**
+2. **ChatGPT backend conformance (supersedes parts of 0006).**
    * C1: streaming, `store`, `max_output_tokens` and `Continue`.
    * C2: the catalog and live listing.
    * C3: usage-limit errors.
    * X6: `originator`, `User-Agent` and `session-id`.
-   * **Precondition:** a live ChatGPT probe, which 0008 deferred.
-3. **OAuth session hygiene (supersedes parts of 0008).**
+   * **Precondition:** a live ChatGPT probe, which 0006 deferred.
+3. **OAuth session hygiene (supersedes parts of 0006).**
    * G3, G5 and C4: import must not share a refresh token, for example by
      reading through the vendor file or by requiring a fresh login.
    * G4: the refresh principal.
    * C4: typed permanent refresh failures.
    * C5: the redirect host, revocation and JWT expiry.
    * C6: `CODEX_ACCESS_TOKEN`.
-4. **Tool round-trip fidelity (bug-fix PLAN under 0001's canonical item
+4. **Tool round-trip fidelity (bug-fix PLAN under 0003's canonical item
    contract).** X1: serialise `FunctionCallItem` in the Chat Completions,
    Grok and Claude converters.
-5. **Grok reasoning and catalog (small PLAN under 0001).**
+5. **Grok reasoning and catalog (small PLAN under 0003).**
    * G2: per-model effort menus.
    * G6: the model filter and `StaticGrok` order.
-6. **Kilo request conventions.** K1, K2 and K3 overlap 0010 §6. K4 is new
+6. **Kilo request conventions.** K1, K2 and K3 overlap 0009 §6. K4 is new
    surface. It is a new MADR, or part of candidate 1.
 
 ## Not verified
@@ -534,11 +537,11 @@ These need live probes or sources outside the four repositories:
 * how the Kilo gateway treats `reasoning_effort` versus `reasoning`, an
   over-limit `max_tokens`, and `data_collection: "deny"` on free models;
 * whether the Zen `FreeUsageLimitError` 429 carries `Retry-After` in practice
-  (MADR 0003 measured none).
+  (MADR 0004 measured none).
 
 ## Maintainer disposition (2026-09-26)
 
-* **O1** is folded into `0009-MADR-live-catalog-model-search.md` as §1c.
+* **O1** is folded into `0007-MADR-live-catalog-model-search.md` as §1c.
 * **Candidate decisions 1–6**, O1 excepted, are combined in one MADR:
   `0012-MADR-conform-providers-to-reference-clients.md`.
 

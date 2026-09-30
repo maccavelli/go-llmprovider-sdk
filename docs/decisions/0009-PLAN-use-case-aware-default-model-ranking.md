@@ -1,13 +1,16 @@
 ---
 status: in-progress
 date: 2026-09-26
-associated-madr: "0010-MADR-use-case-aware-default-model-ranking.md"
+associated-madr: "0009-MADR-use-case-aware-default-model-ranking.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0010-PLAN-use-case-aware-default-model-ranking.md @ 4e1f9a5"
 ---
 
 # Implement Rank Recommended Models by Use Case from Live Catalog Metadata
 
-Associated MADR: [0010-MADR-use-case-aware-default-model-ranking.md](0010-MADR-use-case-aware-default-model-ranking.md)
+Migrated from `mcplib` `docs/0010-PLAN-use-case-aware-default-model-ranking.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
+Associated MADR: [0009-MADR-use-case-aware-default-model-ranking.md](0009-MADR-use-case-aware-default-model-ranking.md)
 (proposed, revision 3, 2026-09-26).
 
 This plan executes that MADR and nothing else. If execution finds a fact that
@@ -52,7 +55,7 @@ Specifically:
 
 **In scope.** The `llmprovider` and `wizard` files listed in §9; five trimmed
 snapshot files under `llmprovider/testdata/ranking-2026-09-26/`; `README.md`;
-a forward pointer in MADR 0003; this plan and its MADR.
+a forward pointer in MADR 0004; this plan and its MADR.
 
 **Out of scope.** Everything in the MADR's *Out of scope*, and §8 below.
 
@@ -68,12 +71,12 @@ a forward pointer in MADR 0003; this plan and its MADR.
 * **Git hooks** resolve to the global hooks directory, so
   `git commit --no-edit` takes its message from the `prepare-commit-msg` hook.
 * **Branch state:** `main` is level with `origin/main`. The last tag is
-  `v1.5.0`; 0009 is not yet tagged.
+  `v1.5.0`; 0007 is not yet tagged.
 
 ### 0.2 Tool behaviour this plan relies on
 
 All four facts are proven in
-[0009-PLAN-live-catalog-model-search.md](0009-PLAN-live-catalog-model-search.md)
+[0007-PLAN-live-catalog-model-search.md](0007-PLAN-live-catalog-model-search.md)
 §0.2 and still hold:
 
 1. `golint` needs `-set_exit_status`, one file per call.
@@ -105,7 +108,7 @@ Two more facts matter here:
 * **`$SCRATCH`** is the executing session's scratchpad directory. No Python
   artefact is ever created inside the repository.
 * **Phase gate** is Appendix A of
-  [0009-PLAN-live-catalog-model-search.md](0009-PLAN-live-catalog-model-search.md)
+  [0007-PLAN-live-catalog-model-search.md](0007-PLAN-live-catalog-model-search.md)
   (`phase_gate.py`), copied to `$SCRATCH` unchanged. Run it with the phase's
   exact Go file list and `--packages ./llmprovider ./wizard`. Never pipe a gate
   into `tail` or `head`.
@@ -122,7 +125,7 @@ Two more facts matter here:
 * **Clock.** Ranking tests pin `rankingNow` to `2026-09-26T00:00:00Z`, the
   reference simulation's `NOW`.
 * **Literals.** Tests assert literal thresholds and lists, never the
-  production constant they guard. This is the lesson of 0009's Phase 2
+  production constant they guard. This is the lesson of 0007's Phase 2
   deviation.
 * **Commits.** One `git commit --no-edit` per phase after the gate passes,
   staging only that phase's files. No `-m`, no `--amend`, no `git push`, no
@@ -156,7 +159,7 @@ Nothing else is exported. Every addition is additive; no signature changes.
 package llmprovider
 
 // ModelProfile selects how the open catalogs rank their recommended models
-// (MADR 0010 §1).
+// (MADR 0009 §1).
 type ModelProfile int
 
 const (
@@ -190,7 +193,7 @@ func (p ModelProfile) ReasoningEffort() string {
 * This function goes after `WithKiloCapabilities`:
   ```go
   // WithModelProfile selects how ListAvailableModels and ListModelCatalog rank
-  // the recommended models of the open catalogs (MADR 0010 §1). Ignored by
+  // the recommended models of the open catalogs (MADR 0009 §1). Ignored by
   // provider constructors.
   func WithModelProfile(p ModelProfile) ProviderOption {
   	return func(cfg *ProviderConfig) {
@@ -215,7 +218,7 @@ func GenerateWithRetry(ctx context.Context, p Provider, prompt string, retries i
 
 // GenerateThinkingWithRetry is GenerateWithRetry for the extended-thinking
 // path: the same backoff, jitter and error classification around
-// GenerateThinking (MADR 0010 §6).
+// GenerateThinking (MADR 0009 §6).
 func GenerateThinkingWithRetry(ctx context.Context, p ThinkingProvider, prompt string, retries int, delay time.Duration) (string, error) {
 	return retryWithBackoff(ctx, retries, delay, "llm: retrying thinking after failure", func() (string, error) {
 		return p.GenerateThinking(ctx, prompt)
@@ -267,14 +270,14 @@ import (
 	"time"
 )
 
-// Use-case ranking of the recommended models (MADR 0010 §3–§4). Ranking is a
+// Use-case ranking of the recommended models (MADR 0009 §3–§4). Ranking is a
 // pure function of the profile, the candidates and the clock; each lister
 // builds candidates from the metadata its catalog publishes.
 
 // rankingNow is the ranking clock. Tests pin it.
 var rankingNow = time.Now
 
-// Eligibility thresholds (MADR 0010 §3) and ordering weights (§4).
+// Eligibility thresholds (MADR 0009 §3) and ordering weights (§4).
 const (
 	maxRankAgeDays    = 540   // 18 months of 30 days
 	minRankContext    = 32768 // tokens
@@ -290,16 +293,16 @@ const (
 var (
 	// smallModelRE is OpenCode's SMALL_MODEL_RE (packages/core/src/catalog.ts).
 	smallModelRE = regexp.MustCompile(`\b(nano|flash|lite|mini|haiku|small|fast)\b`)
-	// unstableModelRE marks preview and experimental ids (MADR 0010 §3 item 6).
+	// unstableModelRE marks preview and experimental ids (MADR 0009 §3 item 6).
 	unstableModelRE = regexp.MustCompile(`(?i)preview|-exp\b|experimental|alpha`)
 	// opencodeGoRegionGated lists the OpenCode Go models served only when the
-	// workspace allows region cn (MADR 0010 §3 item 8). They stay searchable.
+	// workspace allows region cn (MADR 0009 §3 item 8). They stay searchable.
 	opencodeGoRegionGated = []string{"deepseek-v4.1-flash", "deepseek-flash", "deepseek-v4-flash", "deepseek-v4-pro"}
 )
 
 // rankCandidate is one usable model with the metadata its catalog publishes.
 // Each *Known flag separates "absent" from a zero value; unknown values never
-// exclude (MADR 0010 §3).
+// exclude (MADR 0009 §3).
 type rankCandidate struct {
 	id    string
 	group string
@@ -320,7 +323,7 @@ type rankCandidate struct {
 	preferredKnown            bool
 }
 
-// signal reports a provider quality signal (MADR 0010 §4).
+// signal reports a provider quality signal (MADR 0009 §4).
 func (c rankCandidate) signal() bool { return c.benchKnown || c.preferredKnown }
 
 func (c rankCandidate) ageMonths() float64 { return float64(c.ageDays) / rankDaysPerMonth }
@@ -346,7 +349,7 @@ func (c rankCandidate) costOrZero() float64 {
 	return 0
 }
 
-// eligible applies MADR 0010 §3 for one provider.
+// eligible applies MADR 0009 §3 for one provider.
 func (c rankCandidate) eligible(provider string) bool {
 	switch {
 	case c.reasoningKnown && !c.reasoning,
@@ -364,7 +367,7 @@ func (c rankCandidate) eligible(provider string) bool {
 
 // rankNorm holds the blend normalisers over the eligible set: the largest
 // known cost and age, never below rankNormFloor. An unknown cost or age counts
-// as the maximum (MADR 0010 §4).
+// as the maximum (MADR 0009 §4).
 type rankNorm struct{ maxCost, maxAge float64 }
 
 func newRankNorm(cands []rankCandidate) rankNorm {
@@ -437,7 +440,7 @@ func boolFirst(a, b bool) int {
 }
 
 // utilityExcluded reports ids the utility profile never recommends, ranked or
-// filled: Kilo's kilo-auto/* managed tiers (MADR 0010 §3 item 9, a maintainer
+// filled: Kilo's kilo-auto/* managed tiers (MADR 0009 §3 item 9, a maintainer
 // decision). They stay searchable and eligible under ProfileCapable.
 func utilityExcluded(profile ModelProfile, provider, id string) bool {
 	return profile != ProfileCapable && provider == ProviderKilo && strings.HasPrefix(id, "kilo-auto/")
@@ -445,7 +448,7 @@ func utilityExcluded(profile ModelProfile, provider, id string) bool {
 
 // rankRecommended returns at most MaxListedModels ids: the eligible
 // candidates in profile order, at most maxPerRankGroup per group, then fill in
-// order, skipping ids already chosen or excluded (MADR 0010 §4).
+// order, skipping ids already chosen or excluded (MADR 0009 §4).
 func rankRecommended(profile ModelProfile, provider string, cands []rankCandidate, fill []string) []string {
 	var eligible []rankCandidate
 	for _, c := range cands {
@@ -515,7 +518,7 @@ func parseRankDate(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// kiloCandidate reads one Kilo listing entry (MADR 0010 §2). A created of 0
+// kiloCandidate reads one Kilo listing entry (MADR 0009 §2). A created of 0
 // or less is unknown: Kilo reports 0 for every kilo-auto tier.
 func kiloCandidate(e kiloCatalogEntry, now time.Time) rankCandidate {
 	c := rankCandidate{
@@ -589,7 +592,7 @@ snapshot day.
 
 `kiloCatalogEntry` (`discovery.go:628-641`) becomes the following. Its comment
 now reads "Shared by listKiloModels, KiloModelCapabilities and the ranker
-(MADR 0010 §2)."
+(MADR 0009 §2)."
 
 ```go
 type kiloCatalogEntry struct {
@@ -622,7 +625,7 @@ After `curateKilo` (`discovery.go:744-747`), add:
 
 ```go
 // kiloCurate ranks Kilo's usable models from the listing's own metadata
-// (MADR 0010 §2). When fewer than MaxListedModels are eligible, the rest come
+// (MADR 0009 §2). When fewer than MaxListedModels are eligible, the rest come
 // from curateKilo's order, then the usable list.
 func kiloCurate(entries []kiloCatalogEntry, profile ModelProfile) func([]string) []string {
 	return func(usable []string) []string {
@@ -667,7 +670,7 @@ import (
 	"time"
 )
 
-// Model metadata for the open catalogs (MADR 0010 §2): a models.dev-format
+// Model metadata for the open catalogs (MADR 0009 §2): a models.dev-format
 // document, by default OpenCode's, fetched concurrently with a listing and
 // cached in-process.
 const (
@@ -793,7 +796,7 @@ func fetchModelMetadata(ctx context.Context, url string, client *http.Client) (m
 	return decodeModelMetadata(resp.Body)
 }
 
-// decodeModelMetadata keeps the three sections MADR 0010 reads. A section
+// decodeModelMetadata keeps the three sections MADR 0009 reads. A section
 // without models is treated as absent.
 func decodeModelMetadata(r io.Reader) (modelMetadataDoc, error) {
 	var raw struct {
@@ -822,7 +825,7 @@ type modelMetadataResult struct {
 }
 
 // startModelMetadata fetches the document concurrently with a listing, under
-// the listing's context (MADR 0010 §2). The channel receives exactly one value.
+// the listing's context (MADR 0009 §2). The channel receives exactly one value.
 func startModelMetadata(ctx context.Context, cfg ProviderConfig) <-chan modelMetadataResult {
 	ch := make(chan modelMetadataResult, 1)
 	go func() {
@@ -832,7 +835,7 @@ func startModelMetadata(ctx context.Context, cfg ProviderConfig) <-chan modelMet
 	return ch
 }
 
-// metadataCandidate reads one models.dev entry (MADR 0010 §2). An id the
+// metadataCandidate reads one models.dev entry (MADR 0009 §2). An id the
 // document does not cover is a candidate with every field unknown.
 func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) rankCandidate {
 	if !covered {
@@ -858,7 +861,7 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 }
 
 // metadataCurate ranks a provider's usable models with the metadata document
-// (MADR 0010 §2). A failed or disabled fetch, or a document without the
+// (MADR 0009 §2). A failed or disabled fetch, or a document without the
 // provider's key, returns fallback's curation unchanged.
 func metadataCurate(provider string, profile ModelProfile, meta <-chan modelMetadataResult, fallback func([]string) []string) func([]string) []string {
 	return func(usable []string) []string {
@@ -890,7 +893,7 @@ func metadataCurate(provider string, profile ModelProfile, meta <-chan modelMeta
   ```
 * This function goes after `WithModelProfile`:
   ```go
-  // WithModelMetadataURL overrides the model metadata document (MADR 0010 §2).
+  // WithModelMetadataURL overrides the model metadata document (MADR 0009 §2).
   // MCPLIB_DISABLE_MODELS_METADATA=1 turns the fetch off whatever the URL.
   func WithModelMetadataURL(url string) ProviderOption {
   	return func(cfg *ProviderConfig) {
@@ -928,7 +931,7 @@ Phase 3 by `modelMetadataURL`.
 Replace the four lists and their comments. Leave the other lists untouched.
 
 ```go
-	// StaticOpencodeZen: MADR 0010 §7's utility six, ranked from the
+	// StaticOpencodeZen: MADR 0009 §7's utility six, ranked from the
 	// 2026-09-26 Zen listing and models.opencode.ai metadata. Routes verified
 	// against api.json's npm packages on 2026-09-26.
 	StaticOpencodeZen = []string{
@@ -940,7 +943,7 @@ Replace the four lists and their comments. Leave the other lists untouched.
 		"gemini-3.8-flash",      // google
 	}
 
-	// StaticOpencodeGo: MADR 0010 §7's utility six (2026-09-26). It excludes
+	// StaticOpencodeGo: MADR 0009 §7's utility six (2026-09-26). It excludes
 	// the region-gated DeepSeek models and the -contributor models.
 	StaticOpencodeGo = []string{
 		"mimo-v2.6-flash", // chat_completions
@@ -952,7 +955,7 @@ Replace the four lists and their comments. Leave the other lists untouched.
 	}
 
 	// StaticHuggingFace: fallback only — discovery is metadata-driven. MADR
-	// 0010 §7's utility six, from the 2026-09-26 router listing and
+	// 0009 §7's utility six, from the 2026-09-26 router listing and
 	// models.opencode.ai metadata: reasoning-capable, paid, recent.
 	StaticHuggingFace = []string{
 		"deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -963,7 +966,7 @@ Replace the four lists and their comments. Leave the other lists untouched.
 		"stepfun-ai/Step-3.5-Flash",
 	}
 
-	// StaticKilo: fallback only — discovery is metadata-driven. MADR 0010 §7's
+	// StaticKilo: fallback only — discovery is metadata-driven. MADR 0009 §7's
 	// utility six, from the 2026-09-26 listing: reasoning-capable, paid,
 	// recent, at most two per vendor, none training on prompts.
 	StaticKilo = []string{
@@ -1015,7 +1018,7 @@ unchanged; the new ids display as bare ids (`models_catalog.go:638-640`).
 **`llmprovider/kilo.go`:**
 * **Method.** Add:
   ```go
-  // thinkingFields returns the reasoning fields for one call (MADR 0010 §6).
+  // thinkingFields returns the reasoning fields for one call (MADR 0009 §6).
   // When the model accepts "reasoning" (or its capabilities are unknown), Kilo's
   // reasoning object is sent: {effort} when an effort is configured, else
   // {enabled: true} for the model's default effort. reasoning_effort is sent
@@ -1087,7 +1090,7 @@ type modelReasoningOption struct {
   ```go
   // chatReasoningEffort returns the reasoning_effort for the chat route: the
   // configured effort, when this is a thinking call and the model's published
-  // reasoning_options list it (MADR 0010 §6); otherwise "". Metadata that is
+  // reasoning_options list it (MADR 0009 §6); otherwise "". Metadata that is
   // unavailable, disabled or silent on the model sends nothing.
   func (p *OpencodeProvider) chatReasoningEffort(ctx context.Context, thinking bool) string {
   	if !thinking || p.reasoningEffort == "" {
@@ -1103,7 +1106,7 @@ type modelReasoningOption struct {
 * **`chatBody`** (`:222-231`) becomes:
   ```go
   // chatBody delegates to the shared primitive. The chat route carries
-  // reasoning_effort only when chatReasoningEffort resolves one (MADR 0010 §6);
+  // reasoning_effort only when chatReasoningEffort resolves one (MADR 0009 §6);
   // the DeepSeek/GLM/Kimi/MiniMax families routed there share no other
   // portable reasoning parameter. Asserted by TestOpencode_Thinking_PerRoute
   // and TestOpencode_ChatReasoningEffort.
@@ -1120,7 +1123,7 @@ type modelReasoningOption struct {
 
 **`chatcompletions.go:18-19`.** The `ReasoningEffort` comment's second sentence
 becomes: "OpenCode's chat route sets it only when the model's published
-reasoning_options list the configured effort (MADR 0010 §6)."
+reasoning_options list the configured effort (MADR 0009 §6)."
 
 ### 1.11 Choices this plan makes where the MADR is silent
 
@@ -1181,7 +1184,7 @@ deviation.
 
 | Phase | Deliverable | New files | Modified files |
 |---|---|---|---|
-| 0 | MADR accepted, plan in progress, MADR 0003 annotated | — | `docs/0010-MADR-…`, `docs/0010-PLAN-…`, `docs/0003-MADR-add-gateway-llm-providers.md` |
+| 0 | MADR accepted, plan in progress, MADR 0004 annotated | — | `docs/0010-MADR-…`, `docs/0010-PLAN-…`, `docs/decisions/0004-MADR-add-gateway-llm-providers.md` |
 | 1 | Profiles and `GenerateThinkingWithRetry` | `llmprovider/model_profile.go`, `llmprovider/model_profile_test.go`, `llmprovider/retry_thinking_test.go` | `llmprovider/options.go`, `llmprovider/provider.go` |
 | 2 | Ranker and Kilo ranking | `llmprovider/model_ranking.go`, `llmprovider/model_ranking_test.go`, `llmprovider/discovery_ranking_test.go` | `llmprovider/discovery.go` |
 | 3 | Metadata client; Zen, Go and HF ranking; isolation; golden snapshot | `llmprovider/model_metadata.go`, `llmprovider/model_metadata_test.go`, `llmprovider/main_test.go`, `wizard/main_test.go`, `llmprovider/testdata/ranking-2026-09-26/{kilo,zen,go,hf,metadata}.json` | `llmprovider/discovery.go`, `llmprovider/options.go`, `llmprovider/discovery_ranking_test.go`, `llmprovider/live_gateways_test.go` |
@@ -1208,10 +1211,10 @@ deviation.
 
 1. Set the MADR frontmatter to `status: accepted` and `date:` the execution
    date. Set this plan to `status: in-progress` with the same date.
-2. In `docs/0003-MADR-add-gateway-llm-providers.md`, insert this blockquote
-   after the 0009 pointer (line 11), separated by a blank line:
-   `> **Partially superseded (<execution date>) by [0010-MADR-use-case-aware-default-model-ranking.md](0010-MADR-use-case-aware-default-model-ranking.md) §4–§5:** Kilo's price-ascending and Hugging Face's throughput-descending orders no longer choose the recommended six; they remain the fallback order when ranking cannot run and the fill order when fewer than six models are eligible. The static catalogs chosen here are replaced. The filters, training policy and tools rule below stand.`
-   Change nothing else in 0003.
+2. In `docs/decisions/0004-MADR-add-gateway-llm-providers.md`, insert this blockquote
+   after the 0007 pointer (line 11), separated by a blank line:
+   `> **Partially superseded (<execution date>) by [0009-MADR-use-case-aware-default-model-ranking.md](0009-MADR-use-case-aware-default-model-ranking.md) §4–§5:** Kilo's price-ascending and Hugging Face's throughput-descending orders no longer choose the recommended six; they remain the fallback order when ranking cannot run and the fill order when fewer than six models are eligible. The static catalogs chosen here are replaced. The filters, training policy and tools rule below stand.`
+   Change nothing else in 0004.
 3. Stage the three files, then `git commit --no-edit`. The files are Markdown,
    so the phase gate does not apply.
 
@@ -1493,7 +1496,7 @@ reports 0 occurrences, take the formatted text, re-run, and record it.
    `MCPLIB_DISABLE_MODELS_METADATA=1` with `os.Setenv`, panics on error, and
    exits with `m.Run()`. The llmprovider file uses `envDisableModelMetadata`;
    the wizard file uses the literal. Doc comment: "TestMain keeps unit tests
-   off the network: the models metadata fetch (MADR 0010 §2) is off unless a
+   off the network: the models metadata fetch (MADR 0009 §2) is off unless a
    test re-enables it with t.Setenv and a fixture URL."
 3. **Red tests.** Create `llmprovider/model_metadata_test.go` and append to
    `llmprovider/discovery_ranking_test.go` the tests below. Run
@@ -1642,7 +1645,7 @@ listing file as that provider's base URL. For both profiles,
 | opencode-go | `go.json` | 38 |
 | huggingface | `hf.json` | 131 |
 
-Its doc comment names MADR 0010 §7 and states that a rule change must update
+Its doc comment names MADR 0009 §7 and states that a rule change must update
 §7 and this test together.
 
 **`TestLive_ModelMetadataDocument`** (in `live_gateways_test.go`) enables
@@ -1861,7 +1864,7 @@ cannot prove that `{effort:"low"}` changes the effort.
 | `p5-non-thinking` | same | `case !thinking:` → `case false:` | `^TestKilo_ReasoningEffortConfigured$` | — | fail |
 | `p5-body-dropped` | `llmprovider/chatcompletions.go` | `body[jsonKeyReasoning] = o.Reasoning` → `body["x-reasoning"] = o.Reasoning` | `^TestKilo_SupportedParameterGating$` | — | fail |
 | `p5-live-shape` | `llmprovider/kilo.go` | `return "", map[string]any{jsonKeyEnabled: true}` → `return "", map[string]any{jsonKeyEnabled: "yes"}` | `^TestLive_KiloReasoningShapes$` | `live_gateways` | fail |
-| `p5-control` | same | `// thinkingFields returns the reasoning fields for one call (MADR 0010 §6).` → the same + ` (control)` | `^TestKilo_SupportedParameterGating$` | — | pass |
+| `p5-control` | same | `// thinkingFields returns the reasoning fields for one call (MADR 0009 §6).` → the same + ` (control)` | `^TestKilo_SupportedParameterGating$` | — | pass |
 
 `p5-live-shape` depends on the gateway validating the field. If it reports
 PASS or SKIP, record that the live gate could not be shown to fail. The
@@ -2027,7 +2030,7 @@ echo "mut=$MUT gate=$GATE"
 ## 6. Rollout and rollback
 
 **Rollout.** The maintainer tags the next minor release after the one that
-carries 0009. This plan does not tag or push. The release note must state:
+carries 0007. This plan does not tag or push. The release note must state:
 
 1. **The recommended six change** for Kilo, OpenCode Zen and Go, and Hugging
    Face. prepare-commit-msg's `--yes` path and magicdev's listing install
@@ -2113,7 +2116,7 @@ changes.
   `llmprovider/opencode_test.go` (one new test),
   `llmprovider/live_gateways_test.go` (three new tests);
 * `wizard/configure.go`, `wizard/model_select_test.go`;
-* `README.md`, `docs/0003-MADR-add-gateway-llm-providers.md` (pointer only),
+* `README.md`, `docs/decisions/0004-MADR-add-gateway-llm-providers.md` (pointer only),
   `docs/0010-MADR-…` (status only), and this plan.
 
 **Must stay untouched** (checked in Phase 7 step 4): `go.mod`, `go.sum`,
@@ -2139,7 +2142,7 @@ is unchanged.
 | 2026-09-26 | 5 | Pre-existing, reproduced on an unmodified `git archive 60dae10` export: `TestLive_KiloChatCompletions` and `TestLive_KiloToolCall` fail with `authentication failed: kilo HTTP 401`. Kilo now rejects the placeholder bearer (`"unused-free-model"`), contradicting the live file's header ("Kilo ignores a bogus bearer for free models (measured 200)"). `TestLive_KiloReasoningSpelling`, which sends no Authorization header, passes. | Maintainer chose "Fix now". A `kiloKey(t)` helper (`KILO_API_KEY`, skip if unset, like `opencodeKey`) serves those two tests and the new gate, and the file header is corrected. No MADR change beyond the §6 amendment above. | none (`live_gateways_test.go` is already in Phase 5) |
 | 2026-09-26 | 6 | The live gate failed with `opencode-zen/chat_completions HTTP 402` on both models. With and without `reasoning_effort` (plain `Generate` too), Zen answers `{"message":"Upstream request failed: Insufficient account funds"}`: an account balance problem, not this change. OpenCode Go is no alternative. Every mcplib request there gets `HTTP 400 MissingSessionID: Request is missing x-opencode-session`, a pre-existing defect already recorded in `0011-REPORT-provider-source-compatibility-audit.md` and scheduled in `0012-MADR-conform-providers-to-reference-clients.md` §1. | Maintainer chose "Top up Zen, re-run". Phase 6 waits, uncommitted, until the maintainer confirms funds, then re-runs the gate on `deepseek-v4.1-flash` and `glm-5.3-flash`. The Go header stays with 0012. No MADR change. | none |
 | 2026-09-26 | 6 | The maintainer directed "stage all, commit and push" while the Phase 6 live gate was still unmet (Zen funds). Offline evidence at that point: `TestOpencode_ChatReasoningEffort` green; mutations 5/5 caught (`p6-unlisted-sent`, `p6-non-thinking`, `p6-chat-ignores`, `p6-wrong-option-type`, control passes); phase gate 9/9. `p6-live-value` and the live gate have **not** run. A gocritic `typeDefFirst` finding was fixed by moving `reasoningEfforts` below `modelMetadataDoc` in the same file. | Phase 6 is committed and pushed **with its live gate outstanding**. The gate and `p6-live-value` must run once the Zen balance is restored, before Phase 7 closes the plan. A gate failure reopens Phase 6 (§10). The plan stays `in-progress`. | none |
-| 2026-09-26 | 6 | The maintainer reports the key is funded for both gateways. Re-probing Zen with plain requests on five models, spanning DeepSeek, Zhipu, Moonshot and OpenAI upstreams and the chat and responses routes, gave the same `402 server_error "Upstream request failed: Insufficient account funds"` on all five. OpenCode's pinned gateway source bills the Go subscription only on the Go endpoint (`handler.ts:895-964`); Zen uses the pay-as-you-go balance (`:972-1009`), and it reports an empty balance as a 401 `CreditsError` (`:974`, `:490-502`), not this 402. The cause is unresolved. A Go probe then showed that `x-opencode-session` alone turns Go's `MissingSessionID` 400 into HTTP 200, with Go's default User-Agent. | Maintainer chose "Fix the go headers and use it to test". Pulled forward from `0012-MADR-conform-providers-to-reference-clients.md` §1.4, OpenCode only: every OpenCode generation request sends `x-opencode-session`, a random id fixed per provider instance. `WithSessionID`, `WithClientInfo` and the User-Agent format stay in 0012. The Phase 6 gate runs on **OpenCode Go** against `glm-5.3-flash` and `hy3`, the two chat-routed Go utility models whose `reasoning_options` list `low`. The DeepSeek family is region-gated on Go, so its live check on Zen stays outstanding until Zen answers. **MADR 0010 §6 and MADR 0012 §1.4 amended.** | none (`opencode.go`, `opencode_test.go`, `live_gateways_test.go` are already Phase 6 files) |
+| 2026-09-26 | 6 | The maintainer reports the key is funded for both gateways. Re-probing Zen with plain requests on five models, spanning DeepSeek, Zhipu, Moonshot and OpenAI upstreams and the chat and responses routes, gave the same `402 server_error "Upstream request failed: Insufficient account funds"` on all five. OpenCode's pinned gateway source bills the Go subscription only on the Go endpoint (`handler.ts:895-964`); Zen uses the pay-as-you-go balance (`:972-1009`), and it reports an empty balance as a 401 `CreditsError` (`:974`, `:490-502`), not this 402. The cause is unresolved. A Go probe then showed that `x-opencode-session` alone turns Go's `MissingSessionID` 400 into HTTP 200, with Go's default User-Agent. | Maintainer chose "Fix the go headers and use it to test". Pulled forward from `0012-MADR-conform-providers-to-reference-clients.md` §1.4, OpenCode only: every OpenCode generation request sends `x-opencode-session`, a random id fixed per provider instance. `WithSessionID`, `WithClientInfo` and the User-Agent format stay in 0012. The Phase 6 gate runs on **OpenCode Go** against `glm-5.3-flash` and `hy3`, the two chat-routed Go utility models whose `reasoning_options` list `low`. The DeepSeek family is region-gated on Go, so its live check on Zen stays outstanding until Zen answers. **MADR 0009 §6 and MADR 0012 §1.4 amended.** | none (`opencode.go`, `opencode_test.go`, `live_gateways_test.go` are already Phase 6 files) |
 | 2026-09-26 | between 6 and 7 | The maintainer ran `go fix ./...` (Go 1.26.6). It modernised two files outside this plan. `selfupdate/updater_test.go`: `containsKind`'s loop becomes `slices.Contains`. `wizard/text_prompter.go:188`: `strings.Split` becomes `strings.SplitSeq` in a range loop. Neither changes behaviour. Gate on both files: 6/6 (gofmt, golint, vet, lint, tests of `./selfupdate ./wizard`). `wizard/text_prompter.go` is on §9's "must stay untouched" list, so Phase 7 step 4's diff check would fail. | Maintainer chose "Commit and amend" (option 1). The `go fix` change is committed. `wizard/text_prompter.go` leaves the untouched list and Phase 7 step 4's diff: the list protected the `Prompter`/`TextPrompter` contract, and this change leaves the contract, the signatures and the behaviour unchanged. No MADR change. | `selfupdate/updater_test.go`, `wizard/text_prompter.go` |
 
 ## 11. Execution record
@@ -2222,3 +2225,21 @@ and writes JSON with sorted keys and no whitespace. It keeps:
   For each model it keeps `id`, `name`, `family`, `reasoning`,
   `reasoning_options`, `release_date`, `status`, `cost.{input,output}` and
   `limit.context`.
+
+### Deviation 2026-09-29: transferred to go-llmprovider-sdk
+
+* Transferred at `mcplib` `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md` §10–§11.
+* **Phase 7's README target** is now this repository's `README.md`. Its
+  `README.md:128-136` and `:138` anchors refer to `mcplib`'s README at
+  `4e1f9a5`.
+* **The phase gate** (`phase_gate.py`) and the mutation runner
+  (`mutate_and_test.py`) are Appendices A and B of
+  [0007-PLAN-live-catalog-model-search.md](0007-PLAN-live-catalog-model-search.md).
+* **A14** is re-based on this repository's import (`7dab7f6`) instead of
+  `mcplib` `5a1fc70`.
+* **Unlogged change.** `mcplib` `6f06349` ("prefer model metadata
+  provider.npm for OpenCode routes") changed `opencode_route.go` under this
+  plan without a deviation entry. It is recorded here.
+* The environment names are now `LLMPROVIDER_MODELS_METADATA_URL` and
+  `LLMPROVIDER_DISABLE_MODELS_METADATA`.
+* The Zen DeepSeek live check stays blocked on HTTP 402.

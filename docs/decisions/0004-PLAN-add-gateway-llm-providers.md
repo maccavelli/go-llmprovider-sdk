@@ -1,13 +1,16 @@
 ---
 status: accepted
 date: 2026-08-29
-parent-madr: 0003-MADR-add-gateway-llm-providers.md
+parent-madr: 0004-MADR-add-gateway-llm-providers.md
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0003-PLAN-add-gateway-llm-providers.md @ 4e1f9a5"
 ---
 
 # Implementation Plan: Gateway LLM Providers on a Shared Chat Completions Primitive
 
-> Paired with [0003-MADR-add-gateway-llm-providers.md](0003-MADR-add-gateway-llm-providers.md)
+Migrated from `mcplib` `docs/0003-PLAN-add-gateway-llm-providers.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
+> Paired with [0004-MADR-add-gateway-llm-providers.md](0004-MADR-add-gateway-llm-providers.md)
 > (revision 4). Implements four new provider identifiers across three gateway families —
 > OpenCode Zen, OpenCode Go, Hugging Face Inference Providers, and Kilo Gateway — on one
 > shared Chat Completions primitive.
@@ -56,9 +59,9 @@ decision-makers: mcplib maintainers
 
 - **File references** use `llmprovider/file.go:L<start>-L<end>` against the checkout
   snapshot of **2026-08-29** (`git log -1` → `86679bf ci: pin golangci-lint to v2.13.1`).
-- `make test` = `go test ./...` ([Makefile:16-17](../Makefile#L16-L17)).
-- `make vet` = `go vet ./...` ([Makefile:29-30](../Makefile#L29-L30)).
-- `make lint` = `golangci-lint run -c .golangci.yml ./...` ([Makefile:32-38](../Makefile#L32-L38)).
+- `make test` = `go test ./...` ([Makefile:16-17](../../Makefile#L16-L17)).
+- `make vet` = `go vet ./...` ([Makefile:29-30](../../Makefile#L29-L30)).
+- `make lint` = `golangci-lint run -c .golangci.yml ./...` ([Makefile:32-38](../../Makefile#L32-L38)).
 - **"Phase green"** means, for the files that phase touches: `gofmt -l` prints nothing, and
   `make vet`, `make lint`, `make test` all exit 0.
 - Each phase ends with **one commit**, made only after that phase is green, per the

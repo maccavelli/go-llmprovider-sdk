@@ -3,9 +3,12 @@ status: complete
 date: 2026-09-27
 associated-madr: "0012-MADR-conform-providers-to-reference-clients.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0012-PLAN-item-fidelity.md @ 4e1f9a5"
 ---
 
 # Implement 0012 §2 — Canonical Item Fidelity
+
+Migrated from `mcplib` `docs/0012-PLAN-item-fidelity.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 Associated MADR: [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
 (accepted 2026-09-27, revision 3). This is the second of that MADR's six
@@ -215,7 +218,7 @@ None yet.
 
 ## 10. Execution record
 
-Executed on `main`, 2026-09-27, after `0012-PLAN-circuit-breaker-test.md`
+Executed on `main`, 2026-09-27, after `mcplib` `docs/0012-PLAN-circuit-breaker-test.md`
 (`05a1fcf`). Each phase applied Appendix B with `git apply`, taken from this
 document, and checked equal to the proven diff.
 

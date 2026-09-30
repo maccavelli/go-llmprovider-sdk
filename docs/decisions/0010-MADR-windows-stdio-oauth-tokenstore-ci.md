@@ -4,19 +4,24 @@ date: 2026-09-20
 decision-makers: mcplib maintainers
 consulted: prepare-commit-msg
 informed: all mcplib consumers
+migrated-from: "mcplib docs/decisions/0010-MADR-windows-stdio-oauth-tokenstore-ci.md @ 4e1f9a5"
 ---
 
 <!-- markdownlint-disable MD013 MD024 MD033 MD036 MD060 -->
 
-# Close Windows stdio shutdown misclassification, finish the mcplib remainder of 0009, harden FileTokenStore, and make CI prove it on macOS, Linux, and Windows
+# Close Windows stdio shutdown misclassification, finish the mcplib remainder of 0008, harden FileTokenStore, and make CI prove it on macOS, Linux, and Windows
+
+> **Status in go-llmprovider-sdk (2026-09-29):** in scope here: D3–D13 and P2–P7. D1–D2, D14–D18, P1 and P8 remain in `mcplib` `docs/decisions/0010-*`, which carries the reverse amendment.
+
+Migrated from `mcplib` `docs/decisions/0010-MADR-windows-stdio-oauth-tokenstore-ci.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 ## Context and Problem Statement
 
 mcplib already runs `go test ./...` on `ubuntu-24.04`, `macos-15`, and
 `windows-2025`. That matrix compiles the Windows-tagged self-update and token-store
-files, and it is how 0005's native replace path was proven. It does not prove
+files, and it is how `mcplib` 0005's native replace path was proven. It does not prove
 that the library behaves correctly on Windows in production, and it does not
-prove the remaining 0009 OAuth wiring.
+prove the remaining 0008 OAuth wiring.
 
 A 2026-09-20 debugging pass on this tree, against the live sources cited in
 the Evidence index, found four defects that share a host (Windows) and a
@@ -31,12 +36,12 @@ verification hole (CI that treats a green `go test` as platform parity):
    never meet. A normal stdio shutdown on Windows is reported as an unexpected
    write failure.
 
-2. **MADR 0009 is half in the tree.** Dual-stack OpenAI loopback (0009 D1),
+2. **MADR 0008 is half in the tree.** Dual-stack OpenAI loopback (0008 D1),
    background `OpenURL` (D4), waiter completion (D5), ChatGPT `originator` on
    generate (D9), and the Codex `/models` listing (D11) are at HEAD.
    Grok CORS (D2), wizard paste-code (D3), token-endpoint error bodies (D8),
    and session validation plus import `exp` (D7, F11) are not. Browser login
-   on this Windows host is still the 0009 problem statement.
+   on this Windows host is still the 0008 problem statement.
 
 3. **OAuth session files on Windows have no confidentiality control.**
    `chmod0600` is a no-op. `MkdirAll(..., 0o700)` is ignored. `selfupdate`
@@ -51,17 +56,17 @@ verification hole (CI that treats a green `go test` as platform parity):
    `go test` and never `go vet`'d. Several tests comment "run under -race"
    and CI never does.
 
-0002's `paths` package, 0009 P8 (`prepare-commit-msg` APPDATA isolation and
+`mcplib` 0002's `paths` package, 0008 P8 (`prepare-commit-msg` APPDATA isolation and
 consumer `ValidateOAuth`), TextPrompter raw-mode CR/LF, HFSC abort-on-log-
 failure, diagnostic substring isolation, and self-update junction handling
 are adjacent and **out of this decision**. This record is the four slices
 above, in this repository.
 
-0009 remains the OAuth-loopback decision record. This record does not
+0008 remains the OAuth-loopback decision record. This record does not
 supersede it and does not edit it. It absorbs the unexecuted *mcplib*
-remainder (0009 D2, D3, D7, D8, and confirmation of D11) so `oauth_loopback.go`
+remainder (0008 D2, D3, D7, D8, and confirmation of D11) so `oauth_loopback.go`
 has one owner for the next commits, and it adds the shutdown, token-store,
-and CI commitments 0009 never made. 0009 D6 / P8 stay in 0009; they live in
+and CI commitments 0008 never made. 0008 D6 / P8 stay in 0008; they live in
 a sibling repository.
 
 ### What was measured, not assumed
@@ -111,9 +116,9 @@ FAIL line]** — the typed analysis plus the documented strings are the
 evidence; the PLAN's first shutdown phase must capture the FAIL against
 HEAD before changing `stdio.go`.
 
-**0009 remainder, file by file, 2026-09-20 HEAD.**
+**0008 remainder, file by file, 2026-09-20 HEAD.**
 
-| 0009 decision | HEAD |
+| 0008 decision | HEAD |
 | --- | --- |
 | D1 dual-stack OpenAI loopback | Present. `listenLoopbackBothFamilies` in `oauth_loopback.go:274–300`; `browserListener` advertises `http://localhost:%d/auth/callback`; `TestListenLoopbackBothFamilies_LocalhostDials` exists. |
 | D4 background `OpenURL` | Present. `oauth_loopback.go:109–113` launches `openURL` in a goroutine. |
@@ -138,7 +143,7 @@ HEAD before changing `stdio.go`.
   an extension (`NUL.txt`), as reserved device names.
 * Unix 0600 is tested in `tokenstore_file_unix_test.go` (`//go:build unix`).
   There is no Windows ACL test, no reserved-name test, no overwrite test
-  in tree (0009 cited a throwaway `TestFileTokenStore_OverwriteExisting`
+  in tree (0008 cited a throwaway `TestFileTokenStore_OverwriteExisting`
   that was not committed).
 * `selfupdate/cleanup_windows.go:122–170` `restrictToCurrentUser` already
   implements the DACL this store needs: current-user `GENERIC_ALL`,
@@ -172,7 +177,7 @@ fail-fast: false
 ```
 
 There is no `-race`, no `govulncheck`, no `GOOS`/`GOARCH` matrix.
-`make vuln` exists in the Makefile and is opt-in. MADR 0006 raised the
+`make vuln` exists in the Makefile and is opt-in. `mcplib` MADR 0006 raised the
 toolchain to 1.26.6 *because* govulncheck reported reachable stdlib
 advisories, and then left `make vuln` off CI.
 
@@ -185,7 +190,7 @@ Native GOOS/GOARCH the matrix actually executes:
 | windows-2025 | windows/amd64 |
 
 `linux/arm64`, `darwin/amd64`, and `windows/arm64` are in the self-update
-asset contract (0005) and are never compiled here.
+asset contract (`mcplib` 0005) and are never compiled here.
 
 GitHub-hosted Windows runners default `run:` to PowerShell.
 `verify-selfupdate-release_test.sh` is already gated `if: runner.os == 'Linux'`.
@@ -208,9 +213,9 @@ Pinned so this record does not float against `main`:
 | `grok-build` | `4247f661` | 2026-09-19 |
 | `codex` | `ac192cd79` | 2026-09-06 |
 
-These are the first-party CLIs 0008/0009 treated as the loopback and
+These are the first-party CLIs 0006/0008 treated as the loopback and
 session contracts. They confirm which 0010 decisions copy a vendor
-behaviour, and which 0009 decisions are a measured Windows delta *from*
+behaviour, and which 0008 decisions are a measured Windows delta *from*
 the vendor.
 
 *Grok (`crates/codegen/xai-grok-login`, plus `xai-grok-shell-base`).*
@@ -255,13 +260,13 @@ the vendor.
   inherited ACEs. Same recipe as `selfupdate.restrictToCurrentUser`
   (Grok does not also `SetOwner`; selfupdate does). Grounds D10 and D11.
   Grok's comment: "The data is stored in plaintext; OS file permissions
-  are the only protection" — no keyring, matching 0008/0009.
+  are the only protection" — no keyring, matching 0006/0008.
 * `webbrowser::open` failure is logged and the flow continues
-  (`oidc/login.rs:408–423`). Matches 0009 D4 / D3 `OpenURL` non-fatal.
+  (`oidc/login.rs:408–423`). Matches 0008 D4 / D3 `OpenURL` non-fatal.
 * OAuth2 default scopes at this SHA include
   `conversations:read|write` and `workspaces:read|write` on top of
   mcplib's `grokOAuthScopes` (`config.rs:14–26` vs
-  `llmprovider/oauth_loopback.go:25`). **Out of this record.** 0008
+  `llmprovider/oauth_loopback.go:25`). **Out of this record.** 0006
   froze the six-scope string; widening it is a separate decision.
 
 *Codex (`codex-rs/login`, `codex-rs/codex-api`).*
@@ -275,14 +280,14 @@ the vendor.
   same on 1457 (`server.rs:637–694`). E2E hits
   `http://127.0.0.1:{port}/auth/callback` while the advertised host is
   `localhost` (`login/tests/suite/login_server_e2e.rs:25–26`, `:155–161`).
-  This is 0009 F1's vendor shape. Dual-stack (already at mcplib HEAD,
-  0009 D1) is a Windows-measured delta from Codex, not a Codex copy.
+  This is 0008 F1's vendor shape. Dual-stack (already at mcplib HEAD,
+  0008 D1) is a Windows-measured delta from Codex, not a Codex copy.
   0010 does not revert it.
 * Every default Codex HTTP client inserts `originator` (`DEFAULT_ORIGINATOR
   = "codex_cli_rs"`) plus optional
   `x-openai-internal-codex-residency` (`auth/default_client.rs:40–42`,
   `:335–350`). Authorize URL also sets `originator` (`server.rs:601`).
-  Grounds 0009 D9 / 0010 D8. mcplib's value remains `mcplib`.
+  Grounds 0008 D9 / 0010 D8. mcplib's value remains `mcplib`.
 * ChatGPT models listing is `GET {chatgpt backend}/models` with
   `client_version=` (`codex-api/src/endpoint/models.rs:31–43`; tests
   pin `https://chatgpt.com/backend-api/codex/models`). Grounds D8.
@@ -291,7 +296,7 @@ the vendor.
   follows Grok, not Codex.
 * `FileAuthStorage::save` sets unix `0o600` and `flush`s; there is no
   Windows ACL and no `sync_all` (`login/src/auth/storage.rs:206–222`).
-  Codex offers a keyring backend; 0008/0009 already rejected a keyring
+  Codex offers a keyring backend; 0006/0008 already rejected a keyring
   in mcplib. D10/D11 follow Grok's file ACL + fsync, which is also what
   mcplib `selfupdate` already does.
 
@@ -309,7 +314,7 @@ the vendor.
    that is wrong in production. A new check is not trusted until it has
    been seen to fail against `windows.ERROR_BROKEN_PIPE` on HEAD.
 
-3. **F3 — 0009 D1, D4, D5, D9, and D11 are already in this tree.**
+3. **F3 — 0008 D1, D4, D5, D9, and D11 are already in this tree.**
    Consequence: this record must not rewrite loopback, `OpenURL`, waiter
    completion, generate `originator`, or the ChatGPT catalog. It confirms
    D11 with tests and implements the remainder.
@@ -323,12 +328,12 @@ the vendor.
 
 5. **F5 — Wizard never sets `InputCode`.**
    Library support exists; `oauthFlowOptions` does not use it. Consequence:
-   a missed loopback is a 10-minute timeout. This is 0008's specified
+   a missed loopback is a 10-minute timeout. This is 0006's specified
    paste-code path, still unwired.
 
 6. **F6 — Token-endpoint and refresh errors are status-only.**
    `400 Bad Request` with no IdP body. Consequence: a rejected exchange is
-   undiagnosable, which is 0009 F7 still open.
+   undiagnosable, which is 0008 F7 still open.
 
 7. **F7 — `saveOAuthCredential` accepts the `chatgpt-access` fixture.**
    Empty refresh, empty client id, 14-character access all save. The
@@ -356,7 +361,7 @@ the vendor.
 
 12. **F12 — Windows token-store behaviour has no test in tree.**
     Unix 0600 is locked. Overwrite, ACL, reserved names, and `Sync` are
-    not. 0009's throwaway overwrite test was not committed.
+    not. 0008's throwaway overwrite test was not committed.
 
 13. **F13 — `go vet` (and lint/gofmt/tidy) run only on Linux.**
     `lock_windows.go`, `replace_windows.go`, `cleanup_windows.go`,
@@ -368,7 +373,7 @@ the vendor.
     detector supports every OS in the matrix.
 
 15. **F15 — `govulncheck` is Makefile-only.**
-    MADR 0006's reason for the 1.26.6 floor is not a CI gate.
+    `mcplib` MADR 0006's reason for the 1.26.6 floor is not a CI gate.
 
 16. **F16 — The release-guard shell tests run on Windows without `shell: bash`.**
     The sibling `verify-selfupdate-release_test.sh` step is already
@@ -388,10 +393,10 @@ the vendor.
 * A classifier that is green on `windows-2025` and wrong on a real pipe
   close is worse than no classifier: consumers trust it to keep shutdown
   quiet.
-* 0009 already decided CORS, paste-code, error bodies, and stub rejection.
+* 0008 already decided CORS, paste-code, error bodies, and stub rejection.
   Re-litigating those in a third OAuth MADR would split `oauth_loopback.go`
   across two proposed records. Absorbing the mcplib remainder here keeps
-  one commit series and leaves 0009's P8 in the sibling repo.
+  one commit series and leaves 0008's P8 in the sibling repo.
 * Refresh tokens on disk are as sensitive as API keys. Unix 0600 is the
   existing contract; Windows must have an equivalent, and the equivalent
   already exists in-tree as `restrictToCurrentUser`.
@@ -402,18 +407,18 @@ the vendor.
   stayed green. The matrix OS list is the right skeleton; the gates on
   each OS are the missing half.
 * No new Go module. `golang.org/x/sys` is already required. No OS keyring
-  (0008 / 0009). No Claude/Gemini OAuth. No 0002 `paths` package.
+  (0006 / 0008). No Claude/Gemini OAuth. No `mcplib` 0002 `paths` package.
 
 ## Considered Options
 
-* **A — One mcplib MADR covering shutdown classification, the 0009 mcplib
+* **A — One mcplib MADR covering shutdown classification, the 0008 mcplib
   remainder, FileTokenStore Windows confidentiality, and CI parity**
   (chosen)
 * **B — Four separate MADRs, one per slice**
-* **C — Amend 0009 to add shutdown, token ACL, and CI**
-* **D — CI-only until 0009 is fully executed, then a follow-up Windows MADR**
+* **C — Amend 0008 to add shutdown, token ACL, and CI**
+* **D — CI-only until 0008 is fully executed, then a follow-up Windows MADR**
 * **E — Document "Windows shutdown errors are noisy" and "use device-code
-  on Windows"; leave the classifier and 0009 remainder**
+  on Windows"; leave the classifier and 0008 remainder**
 
 ## Decision Outcome
 
@@ -422,15 +427,15 @@ Chosen option: **A**.
 The four slices share the Windows production path and the CI that has to
 prove it. Splitting them (B) interleaves `oauth_loopback.go`,
 `oauth_session.go`, `tokenstore_file.go`, and `.github/workflows/ci.yml`
-across four numbers. Amending 0009 (C) would silently widen a record whose
+across four numbers. Amending 0008 (C) would silently widen a record whose
 problem statement is ChatGPT/Grok browser login. CI-only (D) would merge
 gates that cannot yet fail on F1/F4/F5/F9. Documenting around the defects
 (E) leaves every Windows consumer with a noisy detach and a hanging
 browser login.
 
-0009 is not superseded. After this record is executed, 0009's remaining
-work in *this* repository is done; 0009 P8 (`prepare-commit-msg`) is still
-0009's to run.
+0008 is not superseded. After this record is executed, 0008's remaining
+work in *this* repository is done; 0008 P8 (`prepare-commit-msg`) is still
+0008's to run.
 
 ### The decisions
 
@@ -470,9 +475,9 @@ work in *this* repository is done; 0009 P8 (`prepare-commit-msg`) is still
    PASS line after D1. `TestIsExpectedShutdownErr_Typed` stays; it remains
    the POSIX-constant test.
 
-3. **D3 — Implement 0009 D2 in this tree: Grok CORS and private-network
+3. **D3 — Implement 0008 D2 in this tree: Grok CORS and private-network
    preflight.**
-   Restate, do not change, 0009 D2:
+   Restate, do not change, 0008 D2:
    * Constant origin `https://accounts.x.ai` (no trailing slash, no
      wildcard, no `auth.x.ai`).
    * OPTIONS and GET on `/callback` send
@@ -488,7 +493,7 @@ work in *this* repository is done; 0009 P8 (`prepare-commit-msg`) is still
    The handler signature gains an explicit CORS origin argument so OPTIONS
    cannot fall into the GET callback logic (closes F4's waiter abort).
 
-4. **D4 — Implement 0009 D3 in this tree: wizard always races paste-code.**
+4. **D4 — Implement 0008 D3 in this tree: wizard always races paste-code.**
    `oauthFlowOptions` sets `InputCode` to `Prompter.Input` with a prompt
    that tells the user to paste the redirected URL or authorization code
    if the browser does not return. `parseOAuthInput` stays the parser.
@@ -500,7 +505,7 @@ work in *this* repository is done; 0009 P8 (`prepare-commit-msg`) is still
    Device-code may see a non-nil `InputCode` and must ignore it
    (`LoginDeviceOAuth` already does).
 
-5. **D5 — Implement 0009 D8 in this tree: token-endpoint and refresh
+5. **D5 — Implement 0008 D8 in this tree: token-endpoint and refresh
    errors include a truncated, redacted body.**
    Shared unexported helper, cap **2048** bytes, `logging.RedactString`,
    format `oauth: %s failed: %s: %s` (operation, status, redacted body).
@@ -509,7 +514,7 @@ work in *this* repository is done; 0009 P8 (`prepare-commit-msg`) is still
    JWT; a JWT-shaped fixture in the body must appear as `[REDACTED]` in
    the error.
 
-6. **D6 — Implement 0009 D7 in this tree (mcplib half): a saved session
+6. **D6 — Implement 0008 D7 in this tree (mcplib half): a saved session
    used for generation is refreshable, or an explicit ChatGPT access-only
    token, never a stub.**
    Exported `ValidateOAuthSession(*OAuthSession) error` in `llmprovider`:
@@ -528,9 +533,9 @@ work in *this* repository is done; 0009 P8 (`prepare-commit-msg`) is still
    currently succeeds with `chatgpt-access` is rewritten to expect error
    and zero saves; a JWT-shaped access-only case replaces it as the
    success path. Consumer `ValidateOAuth` in `prepare-commit-msg` remains
-   0009 P8.
+   0008 P8.
 
-7. **D7 — Implement 0009 F11: OpenAI vendor import sets `Expiry` from JWT
+7. **D7 — Implement 0008 F11: OpenAI vendor import sets `Expiry` from JWT
    `exp` when present.**
    `importOpenAIAuth` continues to require access and refresh. When the
    access token is a JWT with a numeric `exp` claim, `Expiry` is that
@@ -538,7 +543,7 @@ work in *this* repository is done; 0009 P8 (`prepare-commit-msg`) is still
    (refreshable session; `Token()` will refresh on 401). Grok import's
    `expires_at` parser stays.
 
-8. **D8 — Confirm 0009 D11 at HEAD; do not re-implement the catalog.**
+8. **D8 — Confirm 0008 D11 at HEAD; do not re-implement the catalog.**
    `StaticOpenAIChatGPT` remains deleted. ChatGPT listing remains
    `listChatGPTModels` against `DefaultOpenAIChatGPTBaseURL` with
    `originator=mcplib` and `client_version=0.0.0`, and never
@@ -620,7 +625,7 @@ work in *this* repository is done; 0009 P8 (`prepare-commit-msg`) is still
 16. **D16 — CI grows a Linux `govulncheck ./...` job.**
     The version is pinned in `ci.yml` (same style as golangci-lint
     `v2.13.1`) and recorded in the PLAN. Non-zero exit fails the job.
-    This is the 0006 gate that `make vuln` already describes and CI
+    This is the `mcplib` 0006 gate that `make vuln` already describes and CI
     omitted.
 
 17. **D17 — The release-guard script step sets `shell: bash`.**
@@ -640,7 +645,7 @@ work in *this* repository is done; 0009 P8 (`prepare-commit-msg`) is still
     `go test -c` of `./selfupdate` and `./llmprovider` (output discarded)
     so Windows-tagged *tests* compile too. No execution of those binaries.
 
-Host-lock tests from 0008 (ChatGPT must not hit `api.openai.com`; Grok
+Host-lock tests from 0006 (ChatGPT must not hit `api.openai.com`; Grok
 must not hit `cli-chat-proxy`) stay. No new `go.mod` require. No
 `--clobber`. No `git push` or tag as part of this record.
 
@@ -662,7 +667,7 @@ must not hit `cli-chat-proxy`) stay. No new `go.mod` require. No
 * Good, because `go vet` and `-race` run where the code runs, govulncheck
   is a merge gate, bash scripts have a bash shell, and the six published
   GOOS/GOARCH pairs compile.
-* Neutral, because 0009 D1/D4/D5/D9/D11 are left in place; this record
+* Neutral, because 0008 D1/D4/D5/D9/D11 are left in place; this record
   spends its OAuth budget on the remainder.
 * Neutral, because unix 0600 and the existing POSIX shutdown phrases
   remain; Windows is additive.
@@ -676,7 +681,7 @@ must not hit `cli-chat-proxy`) stay. No new `go.mod` require. No
   remaining hole; an OS keyring is out of scope.
 * Bad, because `-race` on three OS will lengthen CI. Distinguishing it
   as its own step (D15) keeps the signal.
-* Bad, because 0009 P8 is still required before `prepare-commit-msg`
+* Bad, because 0008 P8 is still required before `prepare-commit-msg`
   tests stop writing `%APPDATA%\<product>\oauth\`. This record cannot
   close that from mcplib.
 
@@ -744,8 +749,8 @@ go vet ./...
 # Linux: gofmt -l empty, go mod tidy -diff, make lint
 ```
 
-0008 host-lock tests still pass. No new `go.mod` require. A live OpenAI
-and Grok browser login on the Windows laptop remains 0009's product
+0006 host-lock tests still pass. No new `go.mod` require. A live OpenAI
+and Grok browser login on the Windows laptop remains 0008's product
 confirmation; this record's unit tests make that login *possible*.
 
 ## Pros and Cons of the Options
@@ -756,8 +761,8 @@ confirmation; this record's unit tests make that login *possible*.
   (Windows production behaviour unproven by CI) and the file overlap is
   real (`oauth_session.go` is D5 and D9; `tokenstore_file.go` is D10–D13;
   `ci.yml` is the confirmation of all of it).
-* Good, because 0009's unexecuted mcplib decisions keep their meaning
-  (D3–D8 restate 0009 D2, D3, D7, D8, D11) without a second competing
+* Good, because 0008's unexecuted mcplib decisions keep their meaning
+  (D3–D8 restate 0008 D2, D3, D7, D8, D11) without a second competing
   OAuth architecture.
 * Bad, because the PLAN will be long. That is acceptable: the alternative
   is four interleaved plans touching the same files.
@@ -770,19 +775,19 @@ confirmation; this record's unit tests make that login *possible*.
   claims to prove CORS tests that do not exist yet, and because shutdown
   tests on `windows-2025` are the CI story as much as the stdio story.
   Four numbers for one commit series is how remainder work gets stranded
-  (see 0009 itself).
+  (see 0008 itself).
 
-### C — Amend 0009
+### C — Amend 0008
 
-* Good, because D3–D8 *are* 0009.
-* Bad, because 0009's problem statement is ChatGPT/Grok browser login on
+* Good, because D3–D8 *are* 0008.
+* Bad, because 0008's problem statement is ChatGPT/Grok browser login on
   one laptop. Shutdown classification, FileTokenStore DACLs, govulncheck,
-  and a GOARCH matrix are not that statement. Amending 0009 to include
+  and a GOARCH matrix are not that statement. Amending 0008 to include
   them would rewrite its rationale to look as if it had always been a
-  Windows-hardening record. 0009 P8 also lives in another repository;
-  widening 0009 here still would not close P8.
+  Windows-hardening record. 0008 P8 also lives in another repository;
+  widening 0008 here still would not close P8.
 
-### D — CI first, 0009 later
+### D — CI first, 0008 later
 
 * Good, because `-race` and `go vet` on Windows would start failing on
   whatever is already broken.
@@ -794,7 +799,7 @@ confirmation; this record's unit tests make that login *possible*.
 
 * Good, because device-code already works on this host and Windows
   shutdown noise is "only" logs.
-* Bad, because 0008 promised browser PKCE as the default, 0009 already
+* Bad, because 0006 promised browser PKCE as the default, 0008 already
   rejected "Windows users must use device-code", and a classifier that
   lies is a fleet-wide behaviour change for every stdio server.
 
@@ -832,12 +837,12 @@ confirmation; this record's unit tests make that login *possible*.
 | Release-guard scripts unguarded by OS / `shell` | `.github/workflows/ci.yml:34–37` |
 | `verify-selfupdate-release_test.sh` is Linux-only | `.github/workflows/ci.yml:30–32` |
 | `make vuln` is opt-in, not CI | `Makefile` `vuln` target; README "Opt-in: `make vuln`" |
-| 0006 raised Go to 1.26.6 because govulncheck reported reachable stdlib vulns | `docs/0006-MADR-raise-go-toolchain-floor-to-1-26-6.md` |
+| `mcplib` 0006 raised Go to 1.26.6 because govulncheck reported reachable stdlib vulns | `mcplib` `docs/0006-MADR-raise-go-toolchain-floor-to-1-26-6.md` |
 | Race detector supports this matrix's triples | Go race detector article: linux/amd64, darwin/arm64, windows/amd64 |
-| Self-update asset contract includes windows/arm64, linux/arm64 | 0005 MADR/PLAN platform tables; `selfupdate/assets.go` `exactAssetName` |
+| Self-update asset contract includes windows/arm64, linux/arm64 | `mcplib` 0005 MADR/PLAN platform tables; `selfupdate/assets.go` `exactAssetName` |
 | `x/sys` already required | `go.mod` `golang.org/x/sys v0.47.0` |
 | GitHub Actions Windows default shell is PowerShell; bash is opt-in | GitHub Actions workflow syntax `jobs.<job_id>.steps[*].shell` |
-| 0009 still `proposed`; P2–P7 unexecuted as a PLAN | `docs/decisions/0009-MADR-*.md` frontmatter; 0009 PLAN delivery order P2–P7 still listed as future work; HEAD sources above |
+| 0008 still `proposed`; P2–P7 unexecuted as a PLAN | `docs/decisions/0009-MADR-*.md` frontmatter; 0008 PLAN delivery order P2–P7 still listed as future work; HEAD sources above |
 | HEAD `LoginBrowserOAuth` already races `InputCode` when set | `oauth_loopback.go:116–129` |
 | grok-build HEAD used for vendor cites | `4247f661` (2026-09-19) |
 | Codex HEAD used for vendor cites | `ac192cd79` (2026-09-06) |
@@ -858,22 +863,22 @@ confirmation; this record's unit tests make that login *possible*.
 
 ### Related records
 
-* [0009-MADR-repair-oauth-loopback-and-session-wiring.md](0009-MADR-repair-oauth-loopback-and-session-wiring.md)
+* [0008-MADR-repair-oauth-loopback-and-session-wiring.md](0008-MADR-repair-oauth-loopback-and-session-wiring.md)
   — source of D1–D11 for OAuth. This record implements the unexecuted
-  mcplib subset (0009 D2, D3, D7, D8) and confirms D11. It does not
-  supersede 0009. 0009 D6 / P8 remain in `prepare-commit-msg`.
-* [0008-MADR-subscription-auth-for-llm-providers.md](../0008-MADR-subscription-auth-for-llm-providers.md)
+  mcplib subset (0008 D2, D3, D7, D8) and confirms D11. It does not
+  supersede 0008. 0008 D6 / P8 remain in `prepare-commit-msg`.
+* [0006-MADR-subscription-auth-for-llm-providers.md](0006-MADR-subscription-auth-for-llm-providers.md)
   — native PKCE, `FileTokenStore`, host locks. Not reopened. Host-lock
   tests stay.
-* [0005-MADR-canonicalize-cli-self-update-in-mcplib.md](../0005-MADR-canonicalize-cli-self-update-in-mcplib.md)
+* `mcplib` `docs/0005-MADR-canonicalize-cli-self-update-in-mcplib.md`
   — three-OS `go test` matrix, `restrictToCurrentUser`, asset GOOS/GOARCH
   set. This record extends that matrix's *gates* and reuses the ACL
   recipe without moving it.
-* [0006-MADR-raise-go-toolchain-floor-to-1-26-6.md](../0006-MADR-raise-go-toolchain-floor-to-1-26-6.md)
+* `mcplib` `docs/0006-MADR-raise-go-toolchain-floor-to-1-26-6.md`
   — govulncheck as the reason for the floor. This record puts it in CI.
-* [0002-MADR-xdg-compliant-user-paths.md](../0002-MADR-xdg-compliant-user-paths.md)
+* `mcplib` `docs/0002-MADR-xdg-compliant-user-paths.md`
   — accepted, unimplemented `paths` package. Out of scope here.
-* [0007-MADR-restore-repository-context-in-the-reusable-release-workflow.md](../0007-MADR-restore-repository-context-in-the-reusable-release-workflow.md)
+* `mcplib` `docs/0007-MADR-restore-repository-context-in-the-reusable-release-workflow.md`
   — origin of `refuse-existing-release_test.sh` / `check-workflow-gh-repo.sh`.
   D17 gives those scripts a bash shell on Windows; it does not change
   their contract.
@@ -883,7 +888,7 @@ Vendor checkouts (sibling `gitrepos/`, not in this module):
 * `grok-build` @ `4247f661` — CORS, paste race, token-error body, Windows
   ACL + `fsync` for session files.
 * `codex` @ `ac192cd79` — Hydra `localhost:{1455\|1457}` URI, IPv4-only
-  bind (0009 D1 is the Windows delta), `originator` on every default
+  bind (0008 D1 is the Windows delta), `originator` on every default
   client, Codex `/models?client_version=`.
 
 ### Open questions for the plan
@@ -905,7 +910,7 @@ Vendor checkouts (sibling `gitrepos/`, not in this module):
 4. `go test -c` output path on the Linux cross-compile job (`-o /dev/null`
    vs a temp file). Windows `GOOS` on Linux produces an `.exe`; the PLAN
    discards it and must not upload it as an artifact.
-5. 0009 D11 confirmation: if a capturing test for `listChatGPTModels`
+5. 0008 D11 confirmation: if a capturing test for `listChatGPTModels`
    already covers originator + host lock (`discovery_test.go:135`), the
    PLAN cites it rather than duplicating. If the wizard ChatGPT-OAuth
    "no StaticOpenAI on listing failure" case is missing, add it in the
@@ -915,10 +920,18 @@ Vendor checkouts (sibling `gitrepos/`, not in this module):
    not English phrases, so a non-en-US runner cannot false-pass D2.
 7. Grok OAuth2 at `4247f661` requests four extra scopes
    (`conversations:read|write`, `workspaces:read|write`) that
-   `grokOAuthScopes` omits. 0008 froze the six-scope string. This record
+   `grokOAuthScopes` omits. 0006 froze the six-scope string. This record
    does not widen it. A later MADR may, if generation or refresh starts
    failing for missing scope.
 
 The PLAN is a separate file. It is not written until this MADR has been
 reviewed. No source, test, or CI file is changed in the same commit as
 this record.
+
+## Amendment 2026-09-29: scope in go-llmprovider-sdk
+
+This record is a copy, made under `0002-MADR-migrate-llmprovider-from-mcplib.md` §10–§11. The copy here is authoritative for
+D3–D13 only, and its PLAN for P2–P7. D1–D2 (Windows stdio shutdown), D14–D18
+(CI) and their phases P1 and P8 remain in `mcplib`
+`docs/decisions/0010-MADR-windows-stdio-oauth-tokenstore-ci.md`, which carries
+the reverse amendment. Nothing above this section is rewritten.

@@ -3,9 +3,12 @@ status: complete
 date: 2026-09-27
 associated-madr: "0013-MADR-remediate-debugging-pass-findings.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0013-PLAN-remediate-debugging-pass-findings.md @ 4e1f9a5"
 ---
 
 # Implement Remediation of the Post-0010 Debugging-Pass Defects
+
+Migrated from `mcplib` `docs/0013-PLAN-remediate-debugging-pass-findings.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 Associated MADR: [0013-MADR-remediate-debugging-pass-findings.md](0013-MADR-remediate-debugging-pass-findings.md)
 (accepted, revision 3, 2026-09-27).
@@ -67,7 +70,7 @@ that has been seen to fail. Specifically:
   * no blank ids.
 * **Live suite (D1):** no FAIL. The OpenCode generation tests run on paid
   OpenCode Go models.
-* **Records:** 0010 and 0012 carry pointers; the README describes the
+* **Records:** 0009 and 0012 carry pointers; the README describes the
   changes.
 
 ## Scope
@@ -79,7 +82,7 @@ that has been seen to fail. Specifically:
 * everything MADR §2 routes to 0012: B3, B4, B6, B7, D5, D6, and the typed
   `FreeTierError`;
 * everything MADR §4 accepts: A7–A10, B5, B8, C3, C5, C8, C9, C10, and D2, D4;
-* 0010 PLAN's open items: Phase 6's DeepSeek live check (D2) and Phase 7's
+* 0009 PLAN's open items: Phase 6's DeepSeek live check (D2) and Phase 7's
   README section for 0010's API (D3);
 * re-verifying `StaticOpenAI`, `StaticGrok` or `StaticGemini` beyond what B10's
   evidence covers.
@@ -95,7 +98,7 @@ amending this plan, and having it re-approved.
 | Question | Answer | Governs |
 |---|---|---|
 | Q1 | (c) per-model wire shapes | Phase 5, the `low` mappings. B9's adaptive shape is needed under every answer. |
-| Q2 | (a) `""` is each provider's documented default | Phase 5 (doc comments), Phase 7 (0010 §1 note) |
+| Q2 | (a) `""` is each provider's documented default | Phase 5 (doc comments), Phase 7 (0009 §1 note) |
 | Q3 | (b) keep free Zen ids; 0012 types `FreeTierError` | Phase 7 (0012 pointer). Phase 6 moves the live tests under either answer. |
 | Q4 | (b) 10 s fixed; surface the cause | Phase 4 (`ModelCatalog.Err`, `defaultDiscoverLimit`, `DiscoverLimit` doc), Phase 7 (README) |
 
@@ -232,7 +235,7 @@ The MADR already records the answers and `status: accepted` (revision 3).
 * **`chatReasoningEffort`** bounds its lookup with `metadataLookupTimeout`
   (5 s).
 * **Test replacements.** Removed: `TestLoadModelMetadata_FailureNotCached`,
-  which pinned 0010 PLAN §1.11 item 3, the rule A6 supersedes. Added in its
+  which pinned 0009 PLAN §1.11 item 3, the rule A6 supersedes. Added in its
   place:
   * `TestLoadModelMetadata_FailureCachedBriefly` (red);
   * `TestLoadModelMetadata_FailureRetriedAfterBackoff` (new API, proven by a
@@ -391,7 +394,7 @@ upstream APIs (Anthropic, Gemini) and on Go's messages route.
    occurs exactly once; this was checked against the current files on
    2026-09-27.
 
-   * **`docs/0010-MADR-use-case-aware-default-model-ranking.md`.** After:
+   * **`docs/decisions/0009-MADR-use-case-aware-default-model-ranking.md`.** After:
 
      ```text
        fixed value would override vendor intent. Revision 2's `"medium"` is
@@ -408,7 +411,7 @@ upstream APIs (Anthropic, Gemini) and on Go's messages route.
        and dynamic thinking on Gemini.
      ```
 
-   * **`docs/0010-PLAN-use-case-aware-default-model-ranking.md`.** After:
+   * **`docs/decisions/0009-PLAN-use-case-aware-default-model-ranking.md`.** After:
 
      ```text
      3. **Metadata failures are not cached.** A later listing in the same process
@@ -423,7 +426,7 @@ upstream APIs (Anthropic, Gemini) and on Go's messages route.
         inside a request waits at most 5 seconds.
      ```
 
-   * **`docs/0012-MADR-conform-providers-to-reference-clients.md`.** After:
+   * **`docs/decisions/0012-MADR-conform-providers-to-reference-clients.md`.** After:
 
      ```text
        * its Go gates handle defaults, and §1.1's `ErrNotPermitted` handles
@@ -501,10 +504,10 @@ upstream APIs (Anthropic, Gemini) and on Go's messages route.
    recorded in §10. Every mutant listed was killed at run time, and the one
    equivalence mutant survived.
 2. The gate (§0.3) passes after every phase.
-3. `TestListModelCatalog_Snapshot20260926` passes unchanged. MADR 0010 §7's
+3. `TestListModelCatalog_Snapshot20260926` passes unchanged. MADR 0009 §7's
    sixes do not move.
 4. The full live suite has no FAIL (Phase 7, step 2).
-5. The 0010 MADR, the 0010 PLAN, 0012 and the README carry Phase 7's text.
+5. The 0009 MADR, the 0009 PLAN, 0012 and the README carry Phase 7's text.
 
 ## 8. Rollout and rollback
 
@@ -559,8 +562,8 @@ the working tree, never on the tree itself. Nothing was pushed.
 | 7 | the commit that adds this record | n/a | Final gate PASS (below) | n/a | Full suite: 50 PASS, 0 FAIL, 2 SKIP |
 
 **Phase 7.**
-* The five insertions landed once each, after their anchors: 0010 MADR,
-  0010 PLAN, 0012 MADR, and two in the README.
+* The five insertions landed once each, after their anchors: 0009 MADR,
+  0009 PLAN, 0012 MADR, and two in the README.
 * Full live suite (`-run Live`): 50 PASS, 0 FAIL, 2 SKIP. Both skips are
   Kilo 429s: `TestLive_KiloChatCompletions` and
   `TestLive_KiloReasoningSpelling` (MADR D4, allowed by step 2). No transport
@@ -574,7 +577,7 @@ the working tree, never on the tree itself. Nothing was pushed.
     ./wizard` all exited 0.
 
 **Later change (2026-09-27).** The OAuth plan's P6
-([decisions/0009-PLAN-repair-oauth-loopback-and-session-wiring.md](decisions/0009-PLAN-repair-oauth-loopback-and-session-wiring.md))
+([0008-PLAN-repair-oauth-loopback-and-session-wiring.md](0008-PLAN-repair-oauth-loopback-and-session-wiring.md))
 refuses to keep a session with no refresh token. Phase 4's
 `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog` therefore now keeps a
 refreshable Grok session with `DiscoverLimit: time.Nanosecond`. It still covers
@@ -594,7 +597,7 @@ per-file gate, and it was left as found.
 3. `TestListModelCatalog_Snapshot20260926` passed unchanged in every
    `go test ./...`.
 4. The full live suite had no FAIL.
-5. The 0010 MADR, the 0010 PLAN, 0012 and the README carry Phase 7's text.
+5. The 0009 MADR, the 0009 PLAN, 0012 and the README carry Phase 7's text.
 
 ## Appendix A — Proof record (2026-09-27, scratch copies of `e219e11`)
 
@@ -796,7 +799,7 @@ new file mode 100644
 +		`"supported_parameters":["tools","reasoning"]%s}`, id, id, refNow.AddDate(0, 0, -10).Unix(), pricing))
 +}
 +
-+// TestKiloCandidate_AbsentPriceIsUnknown pins MADR 0013 A2 (MADR 0010 §3: an
++// TestKiloCandidate_AbsentPriceIsUnknown pins MADR 0013 A2 (MADR 0009 §3: an
 +// absent field never excludes). An explicit "0" is still free and excluded.
 +func TestKiloCandidate_AbsentPriceIsUnknown(t *testing.T) {
 +	absent := kiloCandidate(kiloPricedEntry(t, "x/y", ""), refNow)
@@ -894,8 +897,8 @@ diff --git a/llmprovider/model_ranking.go b/llmprovider/model_ranking.go
 -// rankRecommended returns at most MaxListedModels ids: the eligible
 +// rankRecommended returns at most MaxListedModels distinct ids: the eligible
  // candidates in profile order, at most maxPerRankGroup per group, then fill in
--// order, skipping ids already chosen or excluded (MADR 0010 §4).
-+// order, skipping ids already chosen or excluded (MADR 0010 §4, MADR 0013 A1).
+-// order, skipping ids already chosen or excluded (MADR 0009 §4).
++// order, skipping ids already chosen or excluded (MADR 0009 §4, MADR 0013 A1).
  func rankRecommended(profile ModelProfile, provider string, cands []rankCandidate, fill []string) []string {
  	var eligible []rankCandidate
  	for _, c := range cands {
@@ -916,7 +919,7 @@ diff --git a/llmprovider/model_ranking.go b/llmprovider/model_ranking.go
 -// ("-1", the variable-priced kilo-auto tiers) or unparseable one is unknown.
 +// kiloPrice parses one Kilo per-token price. A blank, negative ("-1", the
 +// variable-priced kilo-auto tiers), non-finite or unparseable price is unknown
-+// (MADR 0010 §3; MADR 0013 A2–A3).
++// (MADR 0009 §3; MADR 0013 A2–A3).
  func kiloPrice(s string) (float64, bool) {
 -	s = strings.TrimSpace(s)
 -	if s == "" {
@@ -1129,7 +1132,7 @@ diff --git a/llmprovider/discovery.go b/llmprovider/discovery.go
  )
  
 +// modelListingTimeout bounds one model listing, its metadata fetch included
-+// (MADR 0010 §2). ListModelCatalogWithSource and every DiscoverModels listing
++// (MADR 0009 §2). ListModelCatalogWithSource and every DiscoverModels listing
 +// apply it (MADR 0013 A5).
 +const modelListingTimeout = 10 * time.Second
 +
@@ -1300,7 +1303,7 @@ diff --git a/llmprovider/opencode.go b/llmprovider/opencode.go
  	metadataURL     string
 +	modelProfile    ModelProfile
  	// sessionID is sent as x-opencode-session on every request, fixed for the
- 	// provider's lifetime (MADR 0012 §1.4, pulled forward by 0010 Phase 6).
+ 	// provider's lifetime (MADR 0012 §1.4, pulled forward by 0009 Phase 6).
  	sessionID string
 @@ -76,6 +77,7 @@
  		reasoningEffort: cfg.ReasoningEffort,
@@ -1340,10 +1343,10 @@ diff --git a/llmprovider/options.go b/llmprovider/options.go
  }
  
 -// WithModelProfile selects how ListAvailableModels and ListModelCatalog rank
--// the recommended models of the open catalogs (MADR 0010 §1). Ignored by
+-// the recommended models of the open catalogs (MADR 0009 §1). Ignored by
 -// provider constructors.
 +// WithModelProfile selects how ListAvailableModels, ListModelCatalog and the
-+// open catalogs' DiscoverModels rank the recommended models (MADR 0010 §1,
++// open catalogs' DiscoverModels rank the recommended models (MADR 0009 §1,
 +// MADR 0013 A4).
  func WithModelProfile(p ModelProfile) ProviderOption {
  	return func(cfg *ProviderConfig) {
@@ -1567,7 +1570,7 @@ diff --git a/llmprovider/model_metadata_test.go b/llmprovider/model_metadata_tes
 -func TestLoadModelMetadata_FailureNotCached(t *testing.T) {
 +// TestLoadModelMetadata_FailureRetriedAfterBackoff pins MADR 0013 A6: once
 +// modelMetadataRetryAfter has passed since a failure, the next load fetches.
-+// It replaces TestLoadModelMetadata_FailureNotCached (0010 PLAN §1.11 item 3).
++// It replaces TestLoadModelMetadata_FailureNotCached (0009 PLAN §1.11 item 3).
 +func TestLoadModelMetadata_FailureRetriedAfterBackoff(t *testing.T) {
  	enableModelMetadata(t)
  	var hits atomic.Int32
@@ -1598,7 +1601,7 @@ diff --git a/llmprovider/opencode.go b/llmprovider/opencode.go
 @@ -237,11 +237,15 @@
  // chatReasoningEffort returns the reasoning_effort for the chat route: the
  // configured effort, when this is a thinking call and the model's published
- // reasoning_options list it (MADR 0010 §6); otherwise "". Metadata that is
+ // reasoning_options list it (MADR 0009 §6); otherwise "". Metadata that is
 -// unavailable, disabled or silent on the model sends nothing.
 +// unavailable, disabled or silent on the model sends nothing. The lookup waits
 +// at most metadataLookupTimeout, and a failed fetch is not retried for
@@ -1694,7 +1697,7 @@ new file mode 100644
 +}
 +
 +// TestConfigureLLM_OtherDefaultsOnlyToSameProvider pins MADR 0013 C4 (MADR
-+// 0009 §4.3): the Other and "No models found" prompts default to the saved
++// 0007 §4.3): the Other and "No models found" prompts default to the saved
 +// model only when it belongs to the chosen provider.
 +func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 +	withEnv(t, nil)
@@ -2089,7 +2092,7 @@ diff --git a/wizard/model_select.go b/wizard/model_select.go
 +}
 +
 +// enterModelID is the Other escape hatch: the user types a model id. The
-+// saved model is the default only for its own provider (MADR 0009 §4.3), and a
++// saved model is the default only for its own provider (MADR 0007 §4.3), and a
 +// blank id is refused (MADR 0013 C4, C7).
 +func enterModelID(p Prompter, provider string, o Options) (string, error) {
 +	manual, err := p.Input("Model id", existingModel(o, provider))
@@ -2902,7 +2905,7 @@ diff --git a/llmprovider/models_catalog.go b/llmprovider/models_catalog.go
 -		"claude-sonnet-4-20250514",
  	}
  
- 	// StaticOpencodeZen: MADR 0010 §7's utility six, ranked from the
+ 	// StaticOpencodeZen: MADR 0009 §7's utility six, ranked from the
 diff --git a/wizard/model_select_test.go b/wizard/model_select_test.go
 --- a/wizard/model_select_test.go
 +++ b/wizard/model_select_test.go

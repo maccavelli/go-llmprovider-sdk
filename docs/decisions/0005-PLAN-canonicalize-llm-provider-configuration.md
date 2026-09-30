@@ -1,21 +1,24 @@
 ---
 status: accepted
 date: 2026-08-29
-parent-madr: 0004-MADR-canonicalize-llm-provider-configuration.md
+parent-madr: 0005-MADR-canonicalize-llm-provider-configuration.md
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0004-PLAN-canonicalize-llm-provider-configuration.md @ 4e1f9a5"
 ---
 
 # Implementation Plan: Canonicalize LLM Provider Configuration in `mcplib`
 
-> Paired with [0004-MADR-canonicalize-llm-provider-configuration.md](0004-MADR-canonicalize-llm-provider-configuration.md)
+Migrated from `mcplib` `docs/0004-PLAN-canonicalize-llm-provider-configuration.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
+
+> Paired with [0005-MADR-canonicalize-llm-provider-configuration.md](0005-MADR-canonicalize-llm-provider-configuration.md)
 > (revision 2). Moves provider descriptors, the configuration flow, and secret
 > prompting into `mcplib` behind a renderer-agnostic `Prompter` interface, and adds an
 > `OllamaProvider` so every descriptor maps to a constructible provider.
 
-> **Prerequisite satisfied.** MADR 0004 was blocked on MADR/PLAN 0003. That work is
+> **Prerequisite satisfied.** MADR 0005 was blocked on MADR/PLAN 0004. That work is
 > **merged to `main`** (`50ac165`, 25 files, +3,813 lines, `make lint` 0 issues). This plan
 > therefore opens with **eight** registered providers and can build `OllamaProvider` on the
-> `chatcompletions.go` primitive 0003 introduced.
+> `chatcompletions.go` primitive 0004 introduced.
 
 ## Table of Contents
 
@@ -48,8 +51,8 @@ decision-makers: mcplib maintainers
 - **File references** use `path/file.go:L<start>` against the checkout snapshot of
   **2026-08-29**, post-0003-merge (`git log -1` → `50ac165`).
 - `make test` / `make vet` / `make lint` are `mcplib`'s Makefile targets
-  ([Makefile:16-17](../Makefile#L16-L17), [29-30](../Makefile#L29-L30),
-  [32-38](../Makefile#L32-L38)). Consumer repos have their own; each phase names which.
+  ([Makefile:16-17](../../Makefile#L16-L17), [29-30](../../Makefile#L29-L30),
+  [32-38](../../Makefile#L32-L38)). Consumer repos have their own; each phase names which.
 - **"Phase green"** means, in the repo that phase touches: `gofmt -l` prints nothing, and
   `vet`, `lint` and `test` all exit 0.
 - Each phase ends with **one commit in the repo it touches**. **No `git push`.**
@@ -84,7 +87,7 @@ decision-makers: mcplib maintainers
 **The drift these anchors encode** (MADR §"Measured drift"): three provider lists, three
 env-var sources, two byte-identical `maskKey` copies, a 17-entry shadow model catalog, and
 `gemini-2.0-flash` recommended by `magictools` while `models_catalog.go:26` documents it as
-shut down. Grok has been in `mcplib` since MADR 0001 and appears in **none** of the three.
+shut down. Grok has been in `mcplib` since MADR 0003 and appears in **none** of the three.
 
 ---
 
@@ -138,7 +141,7 @@ menu is identically ordered without each wizard choosing.
 | Probe | Result |
 |---|---|
 | `GET /api/version` | `200 {"version":"0.31.1"}` |
-| `GET /v1/models` | `200`, OpenAI list shape — same as the 0003 gateways |
+| `GET /v1/models` | `200`, OpenAI list shape — same as the 0004 gateways |
 | `POST /v1/chat/completions`, **no auth header** | `200`, standard envelope, `content:"ALPHA"` |
 | `message` keys returned | `content`, `role` |
 
@@ -148,7 +151,7 @@ From `https://docs.ollama.com/api/openai-compatibility`:
 * an API key is **"required but ignored"** → `RequiresAPIKey: false`, `NewOllama` accepts an
   empty key and sends no `Authorization` header;
 * **`tool_choice` is NOT supported** → maps exactly onto `chatCompletionsOpts.ForceTool`,
-  the flag 0003 added for Kilo. Ollama sets `ForceTool: false`;
+  the flag 0004 added for Kilo. Ollama sets `ForceTool: false`;
 * `reasoning_effort` **is** supported, values `none|low|medium|high|**max**`. Note `max`,
   not this package's `xhigh` (`constants.go:63`) — the provider clamps `xhigh` → `max`.
 
@@ -413,7 +416,7 @@ string literal at `discovery.go:42`.
 ```go
 const ollamaBaseURL = "http://localhost:11434"
 
-// wireShapesProbedOnOllama — probe-pin, same pattern as the 0003 gateways.
+// wireShapesProbedOnOllama — probe-pin, same pattern as the 0004 gateways.
 // Measured against a running v0.31.1: GET /v1/models returns the OpenAI list
 // shape and POST /v1/chat/completions answers 200 with NO Authorization header.
 const wireShapesProbedOnOllama = "2026-08-29"
@@ -859,10 +862,10 @@ grep -rn 'gemini-2.0-flash' ~/gitrepos/go/mcp-server-magictools       # must be 
 |---|---|
 | 1 — wrap `magictools`'s `ProviderSpec` | [Step 8.1](#step-81--internalprovidercataloggo--wrap-do-not-replace) |
 | 2 — Ollama gets a real `Provider` | [Phase 3](#phase-3--ollamaprovider) |
-| 3 — key tail revealed **live** | [Step 4.2](#step-42--wizardtext_prompterrgo-new), tests 1–2 in [4.3](#step-43--wizardtext_prompter_testgo-new) |
+| 3 — key tail revealed **live** | [Step 4.2](#step-42--wizardtext_promptergo-new), tests 1–2 in [4.3](#step-43--wizardtext_prompter_testgo-new) |
 | 4 — `MultiSelect`, six methods | [§4.3](#43-mcplibwizard-phases-45), Step 4.3 test 6 |
 | 5 — Ollama OpenAI-compatible, `/api/tags` listing | [§3.2](#32-ollama-facts-verified-live-2026-08-29-against-a-running-v0311), [Step 3.2](#step-32--llmproviderollamago-new) |
-| 6 — 0003 before 0004 | Prerequisite; 0003 merged at `50ac165` |
+| 6 — 0004 before 0005 | Prerequisite; 0004 merged at `50ac165` |
 
 Additional decisions this plan makes:
 
@@ -967,7 +970,7 @@ execution is recorded here — dated, naming what was found, the resolution chos
 files added to a phase's scope — **before** the fix is executed. The original step is struck
 through or annotated rather than rewritten.
 
-Plan 0003 recorded four deviations (D1–D4) against a plan of comparable size; expect
+Plan 0004 recorded four deviations (D1–D4) against a plan of comparable size; expect
 similar here, particularly around raw-mode terminal handling in Phase 4.
 
 | Date | Phase/Step | Finding | Resolution | Files added to scope |
@@ -979,3 +982,8 @@ similar here, particularly around raw-mode terminal handling in Phase 4.
 | 2026-08-29 | **D5** — Phase 7, Step 7.2 | Phase 7 migrates the wizard but not the runtime that consumes its output. `internal/integration/llm_client.go:47-56` switches on the configured id and returns `unsupported llm provider: %s` for anything outside `gemini|openai|claude`, so six of the nine providers the migrated wizard offers would write a configuration the server rejects at start. There is also no `llm.base_url` key in `internal/config/registry.go`, so the `Result.BaseURL` that `ConfigureLLM` collects for Ollama and all four gateways has nowhere to be stored. Confirmed pre-existing: both files were unmodified when this was found. | Delete the switch. `llmprovider.NewProvider` is already the authority on valid ids, and `DescriptorFor` gives a clear up-front error, so a tenth provider added to `mcplib` works here with no edit — the drift this MADR exists to remove. Add `llm.base_url` to the registry and thread it through `llmprovider.WithBaseURL`. | `mcp-server-magicdev/internal/integration/llm_client.go`, `internal/config/registry.go`, `internal/handler/tools.go` |
 | 2026-08-29 | **D6** — Phase 8, Step 8.3 | `internal/llm/pool.go:105` and `:113` construct both tiers with `WithHTTPClient` alone and never pass `WithBaseURL`. `Intelligence.APIURL` is written by the wizard (`config.go:141-143`) and persisted (`config.go:744`) but never read — a dead write that is currently harmless only because Ollama's spec sets `Fast: false`, making the fast-tier `promptOllamaURL` branch unreachable. Step 8.1 makes it reachable. `IntelligenceEngine` also has no `ThinkingAPIURL` field at all, so the thinking tier cannot store an endpoint. Confirmed pre-existing: `pool.go` and `config.go` were unmodified when this was found. | Add `ThinkingAPIURL` with its YAML and patch plumbing, and pass `llmprovider.WithBaseURL` for both tiers when set. This repairs the dead `APIURL` write rather than leaving it dormant behind a newly-reachable path. | `mcp-server-magictools/internal/config/config.go`, `internal/config/patch_yaml.go`, the tier patch structs, `internal/llm/pool.go` |
 | 2026-08-29 | **D7** — Phase 8, Steps 8.1 and 8.3 | Step 8.3 states "`ConfigureLLM` is called **once per tier**", but the MADR's scope boundaries put embedding-model selection outside `mcplib`: "Embedding providers (`voyage`) and embedding-model selection. `llmprovider` has no embedding abstraction; adding one is its own MADR." The embedding flow selects dimension-annotated models (`"text-embedding-3-large (1024 dims)"`) and maps them through `Dimensions` to `EmbeddingDimensionality`, none of which `ConfigureLLM` models, and Voyage has no descriptor to offer. Separately, `internal/provider/catalog_test.go:7-24` pins `fast == 3`, `thinking == 3` and asserts Ollama is absent from both — which the MADR's "every wizard offers all providers in `Descriptors()`" and mcplib v1.2.0's promotion of Ollama to a real generative provider both contradict. | The MADR wins. `ConfigureLLM` drives the fast and thinking tiers; the embedding tier keeps its own model and dimensionality flow, with only its credential and endpoint prompts moved onto the `Prompter`. Every Step 8.4 acceptance grep still passes. `catalog_test.go` is updated to the new contract — the same call already made for `contract_test.go` when Ollama was promoted. | `mcp-server-magictools/internal/provider/catalog_test.go` |
+
+## Amendment 2026-09-29: `MaskSecret` exists in two places
+
+See the MADR's amendment of the same date: `MaskSecret` is in `mcplib`
+`logging/mask.go` and in this repository's `internal/redact/mask.go`.

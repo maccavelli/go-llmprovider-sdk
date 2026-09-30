@@ -3,9 +3,12 @@ status: complete
 date: 2026-09-27
 associated-madr: "0012-MADR-conform-providers-to-reference-clients.md"
 decision-makers: mcplib maintainers
+migrated-from: "mcplib docs/0012-PLAN-gateway-conventions.md @ 4e1f9a5"
 ---
 
 # Implement 0012 §3 — Gateway Conventions (OpenCode and Kilo)
+
+Migrated from `mcplib` `docs/0012-PLAN-gateway-conventions.md` at `4e1f9a5` under `0002-MADR-migrate-llmprovider-from-mcplib.md`; record citations renumbered, links repaired, content otherwise unchanged.
 
 Associated MADR: [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
 (accepted 2026-09-27, revision 3). This is the third of that MADR's six plans
@@ -65,7 +68,7 @@ repository:
   revision 3.
 * §3.2's chat `reasoning_effort`, and adaptive thinking for Claude 4.7+:
   already shipped (MADR revision 2).
-* §3.3's Kilo `reasoning` object: already shipped (0010 §6).
+* §3.3's Kilo `reasoning` object: already shipped (0009 §6).
 
 ## 0. Preconditions and conventions
 
@@ -140,7 +143,7 @@ One `git commit --no-edit` per phase, after the gate. No push and no tag.
   * `TestOpencodeRoute_Heuristic` swaps `claude-sonnet-4` for an untabled
     id, because `claude-sonnet-4` is now tabled;
   * the 2026-09-26 ranking snapshot's Zen usable count goes from 80 to 78,
-    because of `jev-*` (MADR revision 3 notes the change to 0010 §7).
+    because of `jev-*` (MADR revision 3 notes the change to 0009 §7).
 
 **Verification.**
 * Red:
@@ -330,7 +333,7 @@ None yet.
 
 ## 10. Execution record
 
-Executed on `main`, 2026-09-27, after `0012-PLAN-circuit-breaker-test.md`
+Executed on `main`, 2026-09-27, after `mcplib` `docs/0012-PLAN-circuit-breaker-test.md`
 (`05a1fcf`). Each phase applied Appendix B with `git apply`, taken from this
 document, and checked equal to the proven diff.
 
@@ -1042,7 +1045,7 @@ diff --git a/llmprovider/opencode.go b/llmprovider/opencode.go
  		return nil, err
 @@ -318,7 +346,7 @@
  	p.identity.setUserAgent(req)
- 	// Each route reads the key from its vendor's header (MADR 0009 §1c); the
+ 	// Each route reads the key from its vendor's header (MADR 0007 §1c); the
  	// key stays in a header, never the URL.
 -	name, value := opencodeKeyHeader(p.route, p.apiKey)
 +	name, value := opencodeKeyHeader(route, p.apiKey)
@@ -1813,7 +1816,7 @@ diff --git a/llmprovider/options.go b/llmprovider/options.go
 +}
 +
  // WithModelProfile selects how ListAvailableModels, ListModelCatalog and the
- // open catalogs' DiscoverModels rank the recommended models (MADR 0010 §1,
+ // open catalogs' DiscoverModels rank the recommended models (MADR 0009 §1,
  // MADR 0013 A4).
 ```
 
@@ -2170,7 +2173,7 @@ diff --git a/llmprovider/options.go b/llmprovider/options.go
 +}
 +
  // WithModelProfile selects how ListAvailableModels, ListModelCatalog and the
- // open catalogs' DiscoverModels rank the recommended models (MADR 0010 §1,
+ // open catalogs' DiscoverModels rank the recommended models (MADR 0009 §1,
  // MADR 0013 A4).
 ```
 
