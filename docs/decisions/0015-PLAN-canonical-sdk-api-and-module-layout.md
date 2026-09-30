@@ -1453,3 +1453,14 @@ Executed as the S7 prerequisites amendment of the same date decided.
   * The link text, the original citation such as `openai.go:105-116`, is
     kept.
   * The rationale around the links is unchanged.
+* **History, observed after the commit (`00fe139`).**
+  * The fixtures and the 13 unchanged goldens are recorded as renames
+    (R100).
+  * `openai.go` is not: the rewrite onto the new API changed more than git's
+    rename threshold allows. `git log --follow` finds only the new commit,
+    at `-M50%` and at `-M20%`. Its history stays at the old path:
+    `git log -- llmprovider/openai.go`.
+  * §0 asks for a move in its own commit "where practical". It was not
+    practical here: moved unchanged, the file does not compile in its new
+    package, and §0 allows no failing build between commits.
+  * The same is expected for each provider S7 moves.
