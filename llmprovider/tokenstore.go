@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -25,8 +26,15 @@ type OAuthSession struct {
 	TokenURL   string
 	Store      TokenStore
 	HTTPClient *http.Client
-	mu         sync.Mutex
-	inflight   *tokenFuture
+	// Logger receives a failure to save a rotated session, which the session
+	// keeps and retries (0016-MADR D4). Nil logs nothing; the process-global
+	// logger is never used (0015-MADR D9).
+	Logger   *slog.Logger
+	mu       sync.Mutex
+	inflight *tokenFuture
+	// spentRefresh is the refresh token the last refresh spent, while its
+	// rotated session is not yet saved; "" once saved.
+	spentRefresh string
 }
 
 type tokenFuture struct {

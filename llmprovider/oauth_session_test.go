@@ -1,11 +1,15 @@
 package llmprovider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -111,6 +115,7 @@ func assertRedactedTokenError(t *testing.T, err error) {
 
 type failingTokenStore struct {
 	err          error
+	saves        int
 	savedAccess  string
 	savedRefresh string
 }
@@ -120,6 +125,7 @@ func (s *failingTokenStore) Load(context.Context, string) (*OAuthSession, error)
 }
 
 func (s *failingTokenStore) Save(_ context.Context, _ string, session *OAuthSession) error {
+	s.saves++
 	s.savedAccess = session.Access
 	s.savedRefresh = session.Refresh
 	return s.err
@@ -129,7 +135,13 @@ func (s *failingTokenStore) Delete(context.Context, string) error {
 	return nil
 }
 
-func TestOAuthSession_RefreshPersistsBeforeReturn(t *testing.T) {
+// TestOAuthSession_SaveFailureKeepsRotation (0016-MADR D4, replacing the
+// test that pinned finding M4): when saving a rotated session fails, the
+// session still adopts it and returns the fresh token, logs the failure,
+// sends the rotated refresh token on the next refresh, and retries the save
+// on the next call.
+func TestOAuthSession_SaveFailureKeepsRotation(t *testing.T) {
+	var sent []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Content-Type"); got != "application/x-www-form-urlencoded" {
 			t.Errorf("Content-Type = %q, want application/x-www-form-urlencoded", got)
@@ -140,15 +152,14 @@ func TestOAuthSession_RefreshPersistsBeforeReturn(t *testing.T) {
 		if got := r.Form.Get("grant_type"); got != "refresh_token" {
 			t.Errorf("grant_type = %q, want refresh_token", got)
 		}
-		if got := r.Form.Get("refresh_token"); got != "old-refresh" {
-			t.Errorf("refresh_token = %q, want old-refresh", got)
-		}
 		if got := r.Form.Get("client_id"); got != "client-test" {
 			t.Errorf("client_id = %q, want client-test", got)
 		}
+		sent = append(sent, r.Form.Get("refresh_token"))
+		n := len(sent)
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"access_token":  "new-access",
-			"refresh_token": "new-refresh",
+			"access_token":  fmt.Sprintf("access-%d", n),
+			"refresh_token": fmt.Sprintf("refresh-%d", n),
 			"expires_in":    1800,
 		})
 	}))
@@ -156,6 +167,7 @@ func TestOAuthSession_RefreshPersistsBeforeReturn(t *testing.T) {
 
 	saveErr := errors.New("save failed")
 	store := &failingTokenStore{err: saveErr}
+	var logged bytes.Buffer
 	session := &OAuthSession{
 		Provider:   "openai",
 		Access:     "old-access",
@@ -165,20 +177,39 @@ func TestOAuthSession_RefreshPersistsBeforeReturn(t *testing.T) {
 		TokenURL:   srv.URL,
 		Store:      store,
 		HTTPClient: srv.Client(),
+		Logger:     slog.New(slog.NewTextHandler(&logged, nil)),
 	}
 
-	_, err := session.Token(context.Background())
-	if !errors.Is(err, saveErr) {
-		t.Fatalf("Token error = %v, want %v", err, saveErr)
+	tok, err := session.Token(context.Background())
+	if err != nil || tok.Value != "access-1" {
+		t.Fatalf("Token = %q, %v; want the fresh access-1 despite the failed save", tok.Value, err)
 	}
-	if session.Access != "old-access" {
-		t.Errorf("session.Access = %q, want old-access", session.Access)
+	if session.Refresh != "refresh-1" || store.savedRefresh != "refresh-1" {
+		t.Errorf("session refresh %q, save attempted with %q; want refresh-1 adopted and offered to the store",
+			session.Refresh, store.savedRefresh)
 	}
-	if session.Refresh != "old-refresh" {
-		t.Errorf("session.Refresh = %q, want old-refresh", session.Refresh)
+	if !strings.Contains(logged.String(), "rotated session not saved") || !strings.Contains(logged.String(), "save failed") {
+		t.Errorf("log = %q, want the unsaved rotation reported", logged.String())
 	}
-	if store.savedAccess != "new-access" || store.savedRefresh != "new-refresh" {
-		t.Errorf("saved token = (%q, %q), want (new-access, new-refresh)", store.savedAccess, store.savedRefresh)
+
+	session.Expiry = time.Now().Add(-time.Minute) // force the next refresh
+	if _, err := session.Token(context.Background()); err != nil {
+		t.Fatalf("second Token: %v", err)
+	}
+	if want := []string{"old-refresh", "refresh-1"}; !slices.Equal(sent, want) {
+		t.Errorf("refresh tokens sent = %v, want %v: the rotated token, never the spent one", sent, want)
+	}
+
+	store.err = nil
+	saves := store.saves
+	if _, err := session.Token(context.Background()); err != nil {
+		t.Fatalf("third Token: %v", err)
+	}
+	if store.saves != saves+1 || store.savedRefresh != "refresh-2" {
+		t.Errorf("retry saved %q after %d saves; want refresh-2 saved once more", store.savedRefresh, store.saves-saves)
+	}
+	if _, err := session.Token(context.Background()); err != nil || store.saves != saves+1 {
+		t.Errorf("a saved session was saved again (%d saves), err %v", store.saves-saves, err)
 	}
 }
 

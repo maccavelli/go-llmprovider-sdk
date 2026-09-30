@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -92,10 +93,15 @@ type oauthRefreshResponse struct {
 }
 
 // Token returns the current bearer token, refreshing and persisting it when
-// it is expired or within the refresh skew.
+// it is expired or within the refresh skew. A refreshed session is adopted
+// before it is saved: if the save fails, the fresh token is still returned,
+// the failure goes to Logger, and the save is retried on the next call, so a
+// rotated refresh token is never discarded (0016-MADR D4).
 func (s *OAuthSession) Token(ctx context.Context) (Token, error) {
 	s.mu.Lock()
-	if token, ok := s.currentToken(); ok {
+	token, current := s.currentToken()
+	retrySave := current && s.spentRefresh != "" && s.Store != nil
+	if current && !retrySave {
 		s.mu.Unlock()
 		return token, nil
 	}
@@ -108,7 +114,7 @@ func (s *OAuthSession) Token(ctx context.Context) (Token, error) {
 			return Token{}, ctx.Err()
 		}
 	}
-	if s.Refresh == "" {
+	if !current && s.Refresh == "" {
 		s.mu.Unlock()
 		return Token{}, errors.New("oauth: no refresh token")
 	}
@@ -116,13 +122,38 @@ func (s *OAuthSession) Token(ctx context.Context) (Token, error) {
 	future := &tokenFuture{done: make(chan struct{})}
 	s.inflight = future
 	state := s.refreshState()
+	logger, spent := s.Logger, s.spentRefresh
+	var unsaved *OAuthSession
+	if retrySave {
+		unsaved = s.persistable()
+	}
 	s.mu.Unlock()
 
-	next, token, err := reloadOrRefresh(ctx, state)
-
-	s.mu.Lock()
-	if err == nil {
-		s.adopt(next)
+	var err error
+	if retrySave {
+		saveErr := persistRotation(ctx, state, unsaved, spent)
+		s.mu.Lock()
+		if saveErr == nil || errors.Is(saveErr, errStoreMovedOn) {
+			s.spentRefresh = ""
+		}
+		if saveErr != nil {
+			logUnsavedRotation(logger, state.provider, saveErr)
+		}
+	} else {
+		var out refreshed
+		out, err = reloadOrRefresh(ctx, state)
+		s.mu.Lock()
+		if err == nil {
+			s.adopt(out.next)
+			token = out.token
+			s.spentRefresh = ""
+			if out.saveErr != nil {
+				s.spentRefresh = out.spent
+				logUnsavedRotation(logger, state.provider, out.saveErr)
+			}
+		} else {
+			token = Token{}
+		}
 	}
 	future.tok = token
 	future.err = err
@@ -131,6 +162,47 @@ func (s *OAuthSession) Token(ctx context.Context) (Token, error) {
 	s.mu.Unlock()
 
 	return token, err
+}
+
+// persistable copies the session's stored fields, without its lock.
+func (s *OAuthSession) persistable() *OAuthSession {
+	return &OAuthSession{
+		Provider: s.Provider, Access: s.Access, Refresh: s.Refresh, Expiry: s.Expiry,
+		Issuer: s.Issuer, ClientID: s.ClientID, AccountID: s.AccountID, FedRAMP: s.FedRAMP,
+		TokenURL: s.TokenURL, Store: s.Store, HTTPClient: s.HTTPClient,
+	}
+}
+
+// errStoreMovedOn reports that the store no longer holds the refresh token an
+// unsaved rotation spent: another process saved a newer session, which must
+// not be overwritten.
+var errStoreMovedOn = errors.New("oauth: the store holds a newer session; the unsaved rotation is not written")
+
+// persistRotation retries saving a rotated session, under the store's
+// refresh lock, and only while the store still holds the refresh token that
+// rotation spent (or nothing).
+func persistRotation(ctx context.Context, state oauthSessionState, next *OAuthSession, spent string) error {
+	if locker, ok := state.store.(RefreshLocker); ok {
+		unlock, err := locker.LockRefresh(ctx, state.provider)
+		if err != nil {
+			return err
+		}
+		defer unlock()
+	}
+	stored, err := state.store.Load(ctx, state.provider)
+	if err == nil && stored != nil && stored.Refresh != spent && stored.Refresh != next.Refresh {
+		return errStoreMovedOn
+	}
+	return state.store.Save(ctx, state.provider, next)
+}
+
+// logUnsavedRotation reports a rotated session that could not be saved.
+func logUnsavedRotation(logger *slog.Logger, provider string, err error) {
+	if logger == nil {
+		return
+	}
+	logger.Warn("oauth: rotated session not saved; it is kept in memory and the save is retried",
+		"provider", provider, "error", err)
 }
 
 // ChatGPT reports whether the session was issued by the default OpenAI issuer.
@@ -378,31 +450,70 @@ func tokenExpiry(access string, expiresIn int64, now time.Time) time.Time {
 // token, and sending the old one again trips the issuer's reuse detection.
 // A stored session with a different refresh token is adopted, and refreshed
 // only if its own access token is due (MADR 0012 §5.2).
-func reloadOrRefresh(ctx context.Context, state oauthSessionState) (*OAuthSession, Token, error) {
+// refreshed is what reloadOrRefresh produced.
+type refreshed struct {
+	next  *OAuthSession
+	token Token
+	// saveErr is a failure to save next; next is still the session to use
+	// (0016-MADR D4).
+	saveErr error
+	// spent is the refresh token the refresh consumed; "" when next came
+	// from the store.
+	spent string
+}
+
+// reloadOrRefresh adopts a session another process rotated, else refreshes
+// and saves. It holds the store's refresh lock throughout (0016-MADR
+// amendment A2). After a permanent refresh failure it re-reads the store
+// once, and adopts a rotation a sibling saved meanwhile (amendment A1).
+func reloadOrRefresh(ctx context.Context, state oauthSessionState) (refreshed, error) {
 	// Lock first, so the reload below sees any rotation another process
-	// saved while this one waited (0016-MADR amendment A2).
+	// saved while this one waited.
 	if locker, ok := state.store.(RefreshLocker); ok {
 		unlock, err := locker.LockRefresh(ctx, state.provider)
 		if err != nil {
-			return nil, Token{}, err
+			return refreshed{}, err
 		}
 		defer unlock()
 	}
-	if state.store != nil {
-		stored, err := state.store.Load(ctx, state.provider)
-		if err == nil && stored != nil && stored.Refresh != "" && stored.Refresh != state.refresh {
-			stored.Store, stored.HTTPClient = state.store, state.httpClient
-			if token, ok := stored.currentToken(); ok {
-				return stored, token, nil
-			}
-			state = stored.refreshState()
+	if stored := loadRotated(ctx, state); stored != nil {
+		if token, ok := stored.currentToken(); ok {
+			return refreshed{next: stored, token: token}, nil
 		}
+		state = stored.refreshState()
 	}
 	next, token, err := refreshOAuthSession(ctx, state)
-	if err == nil && state.store != nil {
-		err = state.store.Save(ctx, state.provider, next)
+	if errors.Is(err, ErrAuthFailure) {
+		if stored := loadRotated(ctx, state); stored != nil {
+			if token, ok := stored.currentToken(); ok {
+				return refreshed{next: stored, token: token}, nil
+			}
+			state = stored.refreshState()
+			next, token, err = refreshOAuthSession(ctx, state)
+		}
 	}
-	return next, token, err
+	if err != nil {
+		return refreshed{}, err
+	}
+	out := refreshed{next: next, token: token, spent: state.refresh}
+	if state.store != nil {
+		out.saveErr = state.store.Save(ctx, state.provider, next)
+	}
+	return out, nil
+}
+
+// loadRotated returns the stored session when the store holds a refresh token
+// other than state's, else nil.
+func loadRotated(ctx context.Context, state oauthSessionState) *OAuthSession {
+	if state.store == nil {
+		return nil
+	}
+	stored, err := state.store.Load(ctx, state.provider)
+	if err != nil || stored == nil || stored.Refresh == "" || stored.Refresh == state.refresh {
+		return nil
+	}
+	stored.Store, stored.HTTPClient = state.store, state.httpClient
+	return stored
 }
 
 func refreshTokenURL(state oauthSessionState) string {

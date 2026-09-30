@@ -445,3 +445,76 @@ run in T2 (0015-PLAN S4).
   * G-wire three times over, unchanged;
   * G-links;
   * the deny list.
+
+### T2 step 2 and A1: the rotation is kept, and a sibling's is adopted (2026-09-30, in 0015-PLAN S4)
+
+* **D4.** `OAuthSession.Token` adopts a refreshed session before it is
+  saved.
+  * If `Save` fails, `Token` still returns the fresh token, and reports the
+    failure to the session's new `Logger` field (nil logs nothing; never the
+    global logger).
+  * It remembers the refresh token the refresh spent, and retries the save
+    on the next call.
+  * The retry runs under the store's refresh lock, and writes only while
+    the store still holds that spent token, or nothing. When another process
+    has saved since, the retry is dropped (`errStoreMovedOn`), logged, and
+    not repeated. So a stale rotation never overwrites a newer one.
+* **`Logger` is a new field, ahead of 0015's `WithLogger`.** D4 names "the
+  logger passed with `WithLogger`", which does not exist until 0015-PLAN
+  S6. An `OAuthSession` field is its place until then. S6 wires the option
+  to it.
+* **A1.** `reloadOrRefresh` returns a `refreshed` value, carrying the save
+  error separately. After a permanent refresh failure (one matching
+  `ErrAuthFailure`) it re-reads the store once. If the store holds a
+  different refresh token, it adopts that session: its token when current,
+  otherwise one refresh with the stored token.
+* **An existing test pinned the defect D4 fixes.**
+  `TestOAuthSession_RefreshPersistsBeforeReturn` asserted MADR finding M4's
+  behaviour:
+  * the save error returned;
+  * the session keeping its old tokens.
+
+  D4, which the owner accepted, reverses exactly that. T2 step 2 requires
+  the replacement test. It is replaced by
+  `TestOAuthSession_SaveFailureKeepsRotation`, which keeps the old test's
+  checks on the request's encoding. No other assertion changed meaning.
+* **Tests:**
+  * `TestOAuthSession_SaveFailureKeepsRotation`: the fresh token despite the
+    failed save; the rotation adopted and logged; the next forced refresh
+    sending the rotated token; the save retried once on the next call, and
+    not again after it succeeds;
+  * `TestOAuthRefresh_RejectedAdoptsSiblingRotation`;
+  * `TestOAuthRefresh_RejectedRefreshesWithSiblingToken`;
+  * `TestOAuthRefresh_UnsavedRotationNeverOverwritesNewer`.
+* **A test that reached a real service, found and fixed before commit.**
+  The first version of the sibling-refresh test saved a sibling session with
+  no `TokenURL`, so its second refresh went to
+  `https://auth.openai.com/oauth/token`. That endpoint answered 401
+  `invalid_client`: it was sent only the test's dummy refresh token and
+  client id. The test now gives the sibling the test server's URL.
+* **Red first,** against a clean clone of `0cd659d` (step 1 committed, this
+  step not), with tests using that API. Exit 1:
+  * `Token = "access-1", save failed; want the fresh access-1 despite the
+    failed save`;
+  * `refresh tokens sent = [old-refresh old-refresh], want [old-refresh
+    refresh-1]`. That is M4's spent-token reuse, observed.
+  * `Token = "", llm: authentication failed: oauth: refresh failed: 400 Bad
+    Request: {"error":"refresh_token_reused"}; want the sibling's session
+    adopted`.
+* **Seen to fail on deliberate breaks,** each in its own scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | save never retried | `retry saved "refresh-2" after 0 saves; want refresh-2 saved once more` |
+  | retry overwrites a newer session | `store holds &{… Refresh:rt-new …}, <nil>; the newer session must not be overwritten` |
+  | rotation not logged | `log = "", want the unsaved rotation reported` |
+  | no re-read after a rejection | both A1 tests: `refresh failed: 400 Bad Request: {"error":"refresh_token_reused"}` |
+  | save error returned | `Token = "access-1", save failed; want the fresh access-1 despite the failed save` |
+
+  The overwrite failure printed a whole session, secrets included, with
+  `%+v`: the leak step 3 (D5) closes.
+* **Gate,** every step exit 0:
+  * `go test -race -count=1 -cover ./...`: `llmprovider` 90.3 %;
+  * `make lint` (`0 issues.`);
+  * G-wire, unchanged;
+  * the rest of the 0015-PLAN §0 gate.
