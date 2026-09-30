@@ -51,7 +51,7 @@ vuln: ## Runs govulncheck (opt-in; requires govulncheck on PATH/GOBIN)
 # implementation; the agent gate at `git commit` runs the same file.
 # Pass FILES=... to check specific files instead of every tracked Go file.
 FILES ?=
-pre-add-check: ## Runs the pre-add checks (gofmt, golint, vet, test, govulncheck)
+pre-add-check: ## Runs the pre-add checks (gofmt, golangci-lint, vet, test, govulncheck)
 	@./scripts/go-precheck.sh $(FILES)
 
 help: ## Displays this help message

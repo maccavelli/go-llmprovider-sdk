@@ -1217,4 +1217,64 @@ MADR, then continue.
     requires the check to pass. The gate's behaviour is proven by step 5 on
     a scratch clone, not by the whole-tree run.
   * **Scope.** No file added.
-* **Status.** Executing.
+* **Records committed first.** `b0bcba2` (docs only) holds the 0015 and
+  0016 records as `proposed`, this PLAN's amendments and the approvals. It
+  approves neither 0015 nor 0016.
+
+### Phase 2c: golangci-lint replaces golint (2026-09-29)
+
+* **Steps 1–4, as written.**
+  * `.golangci.yml`: `revive` gains `exported`, `package-comments` and
+    `var-naming`, after `var-declaration`.
+  * `scripts/go-precheck.sh`: step 2 runs
+    `"$GOLANGCI" run -c .golangci.yml ./...`, with `GOLANGCI_LINT` as the
+    override and an install hint pinned to `v2.13.1`. The `golint` hint is
+    gone, and the header explains the change. The file mode stays `100755`.
+  * `Makefile`: the `pre-add-check` help text names `golangci-lint`.
+  * `AGENTS.md`: "Pre-add checks" names the `golangci-lint` command and
+    where golint's checks went.
+* **Step 5, first-fail.** Run on `SCRATCH/sdk-2c`: a fresh clone at
+  `b0bcba2` with the four changed files, the imported code removed and a
+  one-package module planted. `golangci-lint` was 2.13.2, with
+  `GO_PRECHECK_SKIP_VULN=1` and `BASH_ENV` unset. Every case behaved as
+  expected (7 of 7, and the gate 2 of 2):
+
+  | Case | Exit | The output line that proves it |
+  |---|---|---|
+  | baseline, clean package | 0 | `go-precheck: 2 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck).` |
+  | unformatted file | 1 | `p/extra.go` listed under `gofmt`; `golangci-lint` also reports `File is not properly formatted (gofmt)` |
+  | exported function without doc comment | 1 | `exported: exported function PlantedUndocumented should have comment or be unexported (revive)` |
+  | `fmt.Printf("%d\n", "x")` | 1 | `go vet:` `fmt.Printf format %d has arg "x" of wrong type string`; `golangci-lint` (`govet`) as well |
+  | failing test | 1 | `go test:` `--- FAIL: TestAdd` |
+  | `GOLANGCI_LINT=/nonexistent/golangci-lint` | 2 | `go-precheck: golangci-lint not found at /nonexistent/golangci-lint.` |
+  | no Go file, standard input held open | 0 | `go-precheck: no Go files to check.`, after 0 s |
+  | agent gate, undocumented export staged | 1 | `Go pre-commit check failed (scripts/go-precheck.sh):`, then the `revive` line above |
+  | agent gate, fixed | 0 | (no output) |
+
+  * **Harness note.** The first timing of the no-Go-file case read 20 s,
+    because the command substitution waited for the `sleep` feeding the
+    pipe. Re-timed with standard input from a process substitution, the
+    script returned at once. The script did not change between the runs.
+* **Step 6, in this repository.**
+  * `git ls-files -s scripts/go-precheck.sh` shows `100755`.
+  * `make help` lists `pre-add-check` as
+    `Runs the pre-add checks (gofmt, golangci-lint, vet, test, govulncheck)`.
+  * `GO_PRECHECK_SKIP_VULN=1 make pre-add-check` exits 2. Its failures are
+    `golangci-lint`
+    (`typechecking error: pattern ./...: directory prefix . does not contain main module`),
+    `go vet` and `go test` with the same message: the corrected expectation
+    (deviation above).
+  * `grep -rn golint` over `scripts/`, `Makefile`, `AGENTS.md` and the
+    pointer files finds the script's header comment (2 lines) and one
+    sentence in `AGENTS.md` saying that `golint` is not used and where its
+    checks went. The step expected the header only; the `AGENTS.md`
+    sentence is explanatory and was kept.
+  * The disclosure guard's deny list (17 rules, loaded through the guard's
+    own `load_rules`) finds nothing in the four files. It was first seen to
+    report a planted home path in a scratch copy.
+* **Also measured, before the change.** On a scratch clone of `mcplib` at
+  `4e1f9a5`, `golangci-lint` 2.13.2 over `llmprovider` and `wizard` gave
+  `0 issues.` with both the committed and the extended `.golangci.yml`. A
+  planted undocumented function passed the committed configuration (exit
+  0) and failed the extended one.
+* **Status.** Phase 2c done.

@@ -106,10 +106,12 @@ make pre-add-check                 # every tracked Go file
 make pre-add-check FILES="a.go b.go"
 ```
 
-It runs `scripts/go-precheck.sh`: `gofmt`, per-file `golint`, `go vet` and
-`go test` on the packages the files belong to, and `govulncheck ./...`
-(`GO_PRECHECK_SKIP_VULN=1` skips it offline). A file that fails is not
-committed.
+It runs `scripts/go-precheck.sh`: `gofmt` on the files;
+`golangci-lint run -c .golangci.yml ./...`, the same command as `make lint`
+and CI; `go vet` and `go test` on the packages the files belong to; and
+`govulncheck ./...` (`GO_PRECHECK_SKIP_VULN=1` skips it offline). `golint` is
+not used: its checks are `revive`'s `exported`, `package-comments` and
+`var-naming` rules in `.golangci.yml`. A file that fails is not committed.
 
 The machine-wide agent gate runs the same script before every agent
 `git commit` that stages Go files, and denies the commit when it fails. There
