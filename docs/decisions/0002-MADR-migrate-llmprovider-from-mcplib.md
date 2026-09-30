@@ -188,7 +188,8 @@ The decision has these parts:
 * Packages: `.../llmprovider`, `.../wizard`, `.../internal/redact`.
 * The package names are unchanged, so consumer code changes only in import
   paths. Moved records' `llmprovider/x.go` references keep their meaning.
-* `go 1.26.6`, the fleet floor (`mcplib` `0006-MADR-raise-go-toolchain-floor-to-1-26-6.md`).
+* ~~`go 1.26.6`, the fleet floor (`mcplib` `0006-MADR-raise-go-toolchain-floor-to-1-26-6.md`).~~
+  *Superseded 2026-09-29 by the fifth amendment: `go 1.27.1`.*
 * Requirements are pinned to what `mcplib` `v1.6.0` resolves:
   `golang.org/x/term v0.43.0` and indirect `golang.org/x/sys v0.47.0`. No
   dependency moves during the migration.
@@ -825,3 +826,108 @@ and use golangci-lint not golint".
   from.
 * Neutral, because the imported `0011` REPORT still fails `MD004`. That is
   Phase 6's to resolve when the record moves, and is not decided here.
+
+## Amendment 2026-09-29 (fifth): `go.mod` is part of the scaffold, at Go 1.27.1
+
+Status: **accepted** 2026-09-29 (the owner: "proceed"). On 2026-09-29 the
+owner said the scaffold "should
+include creating and updating go.mod as requirements are assessed,
+identified, and fulfilled". Until now, `go.mod` was created only by the
+PLAN's Phase 4, together with the re-home.
+
+### Observed
+
+Measured on scratch clones of this repository at `21f01c3`, with Go 1.27.1:
+
+* **The tree's non-standard imports** are `golang.org/x/term` (in
+  `wizard`) and three `mcplib` paths: `mcplib`, `mcplib/llmprovider` and
+  `mcplib/logging`. §2 pins the first. The dependency rule forbids the
+  others, which Phase 4's re-home removes.
+* **`go mod tidy` cannot be run before the re-home:** it adds
+  `github.com/maccavelli/mcplib v1.6.0`.
+* **`go get golang.org/x/term@v0.43.0` alone is not the §2 result.** It
+  resolves `golang.org/x/sys v0.44.0` (x/term's minimum) and marks x/term
+  `// indirect`, because it cannot see `wizard`'s import through an
+  unbuildable graph.
+* **The §2 pins, written in `go mod tidy`'s layout, are exactly the Phase 4
+  result,** under either `go` directive (measured at 1.26.6, and again at
+  1.27.1, because Go 1.27's `go mod tidy` rewrites require blocks). That layout is one `require` for `golang.org/x/term v0.43.0`,
+  then one for `golang.org/x/sys v0.47.0 // indirect`, and it passes
+  `go mod verify`. Its four `go.sum` lines are identical to `mcplib`
+  `4e1f9a5`'s lines for those modules. After a scratch simulation of Phase
+  4's import rewrite and §4's orchestration change, `go build ./...`
+  passed and `go mod tidy -diff` exited 0: nothing to change. At 1.27.1,
+  `go test ./...` over the re-homed scratch tree also passed. The same
+  requirements in one `require` block make `go mod tidy -diff` exit 1.
+* **With that `go.mod`,** `internal/redact` builds and its tests pass.
+  `go build ./...` fails only on the three `mcplib` paths
+  (`no required module provides package …`).
+
+### Observed: the `go` directive
+
+On 2026-09-29 the owner asked: "we updated all go and go tooling to
+1.27.1, why would we want to scaffold this go 1.26.6?"
+
+* **§2's `go 1.26.6` was carried from `mcplib`** and was not re-checked.
+  The installed toolchain is `go1.27.1`.
+* **The fleet's toolchain rule** is `magic-cli-remote`
+  `docs/decisions/0169-MADR-standardize-toolchains-on-current-supported-advisory-free-releases.md`
+  (proposed; its PLAN is in progress). Its D2: Go 1.27.1 on every host and
+  in CI, and each module's `go` directive moved to 1.27 once that
+  repository passes its own gates. Until then the floor is 1.26.8, so
+  1.26.6 is below it. `magic-cli-remote`'s `go.mod` says `go 1.27.1`. Every
+  other fleet module, `mcplib` and the three consumers included, still says
+  `go 1.26.6`.
+* **The directive changes behaviour, not only the minimum.** For
+  `llmprovider`'s test binary, `go 1.26.6` sets
+  `tracebacklabels=0,x509sslcertoverrideplatform=0` by default, and
+  `go 1.27.1` sets nothing: full Go 1.27 semantics. 0169 records four Go
+  1.27 changes a module may depend on, one of them `encoding/json`'s v2
+  implementation, which hung a `magic-cli-remote` test.
+* **The imported code passes 0169's per-repository gate at 1.27.1.** In a
+  scratch clone of `mcplib` `4e1f9a5` with its directive set to
+  `go 1.27.1`:
+  * `go test -count=1 -race -cover` passes, and coverage is unchanged:
+    `llmprovider` 89.2 %, `wizard` 82.5 %, `logging` 85.7 %;
+  * `go vet` and `go vet -tags live_gateways` are clean;
+  * `govulncheck` finds no vulnerabilities, with `golang.org/x/sys v0.47.0`
+    and `golang.org/x/term v0.43.0`.
+
+### Decision
+
+* **The `go` directive is `go 1.27.1`,** superseding §2's `go 1.26.6`.
+  The requirements stay §2's pins, which are advisory-free at 1.27.1.
+  Moving them is not part of this amendment.
+* **The scaffold creates `go.mod` and `go.sum` now,** with exactly the §2
+  pins in `go mod tidy`'s layout. No `mcplib` requirement is ever added:
+  the imports that would need it are removed by the re-home, not
+  fulfilled.
+* **From then on, `go.mod` changes with the code that needs it.** A
+  requirement is added in the commit that adds its first import, and
+  removed in the commit that removes its last. A module outside §2 needs a
+  MADR first (unchanged). From Phase 4 on, `go mod tidy -diff` must be
+  clean at every commit.
+* **Phase 4 step 1 no longer creates `go.mod`.** It asserts that the re-home
+  leaves `go.mod` and `go.sum` unchanged and tidy-clean.
+
+### Consequences of the amendment
+
+* Good, because the module exists from the scaffold, so `internal/redact`
+  and every later package can be built and tested as soon as it is
+  self-contained.
+* Good, because CI stops failing at `setup-go` for a missing file. It fails
+  at `go test ./...` on the three unresolved `mcplib` imports, which names
+  the work Phase 4 has left.
+* Neutral, because the requirements are the ones Phase 4 would have
+  written; the scratch tidy proves the two are the same.
+* Good, because the module is on the fleet's current Go, with its gate run
+  before the directive is set.
+* Bad, because a module requiring the SDK must itself be at `go 1.27.1` or
+  later: `go get` raises the consumer's directive. `prepare-commit-msg`,
+  `mcp-server-magictools` and `mcp-server-magicdev` are at `go 1.26.6`, so
+  each companion record under §13 must include its own move to 1.27.1 and
+  0169's per-repository gate. Under 0169 D2 each would make that move
+  anyway.
+* Bad, because until Phase 4 the module has imports it cannot resolve.
+  `go mod tidy` must not be run, and `make tidy` would add `mcplib`.
+  AGENTS.md says so until Phase 4.

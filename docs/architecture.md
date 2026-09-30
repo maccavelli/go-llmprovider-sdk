@@ -11,14 +11,18 @@ a library for LLM provider access and provider authentication. It has no
 binary.
 
 The Go code in the tree is `mcplib` `v1.6.0`'s `llmprovider` and `wizard`
-packages and its redaction files, byte for byte. It still imports `mcplib`,
-and the repository has no `go.mod`, so none of it builds or tests here yet.
+packages and its redaction files, byte for byte. The module requires Go
+1.27.1, `golang.org/x/term` and, indirectly, `golang.org/x/sys`. The code
+still imports three `mcplib` packages that the module does not require, so
+`llmprovider` and `wizard` do not build; `internal/redact` builds and passes
+its tests.
 
 ## Tree
 
 ```text
 README.md                   repository entry; links here
 AGENTS.md                   rules for agents: records, checks, commits
+go.mod, go.sum              the module and its two requirements
 Makefile                    development targets (below)
 .golangci.yml               golangci-lint configuration
 .markdownlint-cli2.jsonc    Markdown lint configuration
@@ -64,15 +68,20 @@ docs/
   `golangci-lint run -c .golangci.yml ./...`, `go vet` and `go test` on their
   packages, and `govulncheck ./...`. `make pre-add-check` runs it, and so
   does the machine-wide agent gate before an agent `git commit` that stages
-  Go files. With no `go.mod`, it fails on every Go file.
-- **CI** (`.github/workflows/ci.yml`) runs on Linux, macOS and Windows:
-  `go test`; on Linux also `go vet`, `gofmt`, `go mod tidy -diff`,
-  `make lint` and `go vet -tags live_gateways`. It fails at `setup-go`,
-  which reads the Go version from the missing `go.mod`.
+  Go files. Its `golangci-lint`, `go vet` and `go test` steps fail with
+  `no required module provides package github.com/maccavelli/mcplib…`.
+- **`make tidy`** must not be run yet: `go mod tidy` would add `mcplib` as a
+  requirement.
+- **CI** (`.github/workflows/ci.yml`) runs on Linux, macOS and Windows, with
+  the Go version read from `go.mod`: `go test`; on Linux also `go vet`,
+  `gofmt`, `go mod tidy -diff`, `make lint` and
+  `go vet -tags live_gateways`. It fails at `go test` on the `mcplib`
+  imports.
 
 ## What is not here
 
-- **`go.mod`**, and the re-homing of imports and identity:
+- **The re-homing of imports and identity**, after which every package
+  builds and `go mod tidy -diff` is clean:
   [0002-PLAN](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md)
   Phase 4.
 - **The records in `mcplib-import/`** in their final numbered places:

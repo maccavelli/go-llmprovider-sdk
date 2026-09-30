@@ -197,7 +197,9 @@ Evidence is marked **(M)** measured, or **(R)** read in the source.
   `google/uuid` and, in `providerauth`, `fsnotify`. Their transitive
   production code is 23,000–31,000 lines each, much of it phone-UI shaped
   (`event.Event`, `picker.Catalog`, 52 optional interfaces in the root
-  package). The module requires Go 1.27.1. `credstore` (562 lines) and
+  package). ~~The module requires Go 1.27.1.~~ *(Struck 2026-09-29: 1.27.1
+  is the fleet's standard, not a cost; see 0002-MADR's fifth amendment.)*
+  `credstore` (562 lines) and
   `providerauth/classify.go` (143 lines) import only the standard library.
 * **R8 — Tested heavily, against pinned CLI versions (M).** 1,568 test
   functions, 121 of them live-tagged, with recorded wire fixtures per CLI
@@ -429,8 +431,8 @@ second keeps today's behaviour.
   handling is the more careful (R3–R6).
 * Bad, because it makes no LLM API request and performs no OAuth or
   refresh itself (R1, R2), so the SDK's purpose would be unmet.
-* Bad, because it needs `acp-go-sdk`, `websocket`, `uuid` and `fsnotify`,
-  and Go 1.27.1 (R7).
+* Bad, because it needs `acp-go-sdk`, `websocket`, `uuid` and `fsnotify`
+  (R7). ~~and Go 1.27.1~~ *(struck 2026-09-29, as in R7)*
 * Bad, because its types are shaped by a phone UI, not by a library
   caller.
 

@@ -66,6 +66,8 @@ execution detail.
 * Added 2026-09-29 by the MADR's third amendment:
   ~~`.github/dependabot.yml`~~ *(struck 2026-09-29, no Dependabot)* and
   `docs/architecture.md` (Phase 2b).
+* Added 2026-09-29 by the MADR's fifth amendment: `go.mod` and `go.sum`
+  move from Phase 4 to Phase 2d (already in scope).
 * Added 2026-09-29 by the MADR's fourth amendment: no new file; Phase 2c
   changes `scripts/go-precheck.sh`, `.golangci.yml`, `Makefile` and
   `AGENTS.md`, all already in scope.
@@ -378,6 +380,55 @@ before Phase 4.
 `magic-cli-remote`'s (MADR fourth amendment). The imported `0011` REPORT's
 `MD004` findings are Phase 6's.
 
+**Amendment 2026-09-29 (fifth): Phase 2d, `go.mod` in the scaffold.**
+From the MADR's "Amendment 2026-09-29 (fifth): `go.mod` is part of the
+scaffold". *Approved 2026-09-29.* It runs before Phase 4.
+
+### Phase 2d: create `go.mod` and `go.sum` (this repository)
+
+1. **`go.mod`,** exactly:
+
+   ```text
+   module github.com/maccavelli/go-llmprovider-sdk
+
+   go 1.27.1
+
+   require golang.org/x/term v0.43.0
+
+   require golang.org/x/sys v0.47.0 // indirect
+   ```
+
+   No `toolchain` line. `go mod tidy` is **not** run.
+2. **`go.sum`:** run
+   `go get golang.org/x/term@v0.43.0 golang.org/x/sys@v0.47.0`, then restore
+   step 1's `go.mod` bytes. Assert that `go.sum` has exactly four lines,
+   equal to `mcplib` `4e1f9a5`'s `go.sum` lines for those two versions.
+3. **`AGENTS.md`:** the purpose paragraph says "Requires Go 1.27.1."
+   **"Dependencies":** add the rule from the MADR's fifth amendment: `go.mod` changes with the import that needs it; from Phase 4
+   on, `go mod tidy -diff` is clean at every commit. Until Phase 4, do not
+   run `go mod tidy` or `make tidy`, which would add `mcplib`.
+4. **`README.md` and `docs/architecture.md`:** replace "no `go.mod`" with
+   the state after this phase. The module exists; `internal/redact` builds
+   and tests; `llmprovider` and `wizard` do not build until Phase 4 removes
+   their `mcplib` imports. CI and `make pre-add-check` fail on those imports.
+5. **Verify.**
+   * `go mod verify` prints `all modules verified`.
+   * `go list -m all` prints the module, `golang.org/x/sys v0.47.0` and
+     `golang.org/x/term v0.43.0`, and nothing else.
+   * `go test -count=1 -race ./internal/redact/` passes.
+   * `go build ./...` fails, and every error names one of
+     `github.com/maccavelli/mcplib`, `…/mcplib/llmprovider` or
+     `…/mcplib/logging`. The distinct messages are listed in the execution
+     record.
+   * **Re-home proof, in `SCRATCH`:** a clone at the Phase 2d commit gets
+     the Phase 4 import rewrite and the §4 orchestration change by `sed`.
+     Then `go build ./...` and `go test ./...` pass, and
+     `go mod tidy -diff` exits 0.
+     **First-fail:** the same clone with the requirements in one `require`
+     block makes `go mod tidy -diff` exit 1.
+   * The disclosure guard's deny list finds nothing in the changed files.
+6. **Commit** with `git commit --no-edit`.
+
 ### Phase 3: history import (this repository)
 
 Work in `SCRATCH`; never filter the real `mcplib` checkout.
@@ -414,10 +465,14 @@ before its commit.
 
 ### Phase 4: re-home the code (this repository)
 
-1. **`go.mod`:** `module github.com/maccavelli/go-llmprovider-sdk` and
+1. ~~**`go.mod`:** `module github.com/maccavelli/go-llmprovider-sdk` and
    `go 1.26.6`. Then run `go get golang.org/x/term@v0.43.0 golang.org/x/sys@v0.47.0`
    and `go mod tidy`. Assert the result names exactly those two modules,
-   with `x/sys` `// indirect`.
+   with `x/sys` `// indirect`.~~
+   *Amended 2026-09-29 (fifth amendment):* Phase 2d creates `go.mod` and
+   `go.sum`. Here, after steps 2–7, `go mod tidy -diff` exits 0 and
+   `git diff --exit-code go.mod go.sum` shows no change. Any change stops
+   the phase.
 2. **Import rewrite, one pass, Python in `SCRATCH`:**
    * `github.com/maccavelli/mcplib/llmprovider` → `github.com/maccavelli/go-llmprovider-sdk/llmprovider`
    * `github.com/maccavelli/mcplib/logging` → `github.com/maccavelli/go-llmprovider-sdk/internal/redact`
@@ -914,6 +969,7 @@ Acceptance criteria. Each maps to MADR §12:
 | A15 | Functional parity with `mcplib` `v1.6.0` under the 0015 API | G-wire, ported tests, G-parity (`0015-PLAN-canonical-sdk-api-and-module-layout.md` S-A3–S-A5) | 0015 |
 | A16 | README and `docs/architecture.md` describe the tree as it is; every link resolves ~~; Dependabot watches the pinned actions~~ *(struck 2026-09-29)* | Phase 2b step 6 | 2b |
 | A17 | The gate runs `golangci-lint` with golint's checks, and fails on each planted defect | Phase 2c step 5 | 2c |
+| A18 | `go.mod` and `go.sum` hold exactly the MADR §2 pins, and equal Phase 4's `go mod tidy` result | Phase 2d step 5; Phase 4 step 1 | 2d, 4 |
 
 Each new gate (G-dep, G-name, G-api, G-links, G-cite, the Phase 5 tests and
 the `go-precheck.py` extension, and, since 2026-09-29, `scripts/go-precheck.sh`)
@@ -1316,3 +1372,86 @@ MADR, then continue.
   * **Identifiers.** The disclosure guard's deny list finds nothing in the
     three files.
 * **Status.** Phase 2b done.
+
+### Amendment (fifth): Phase 2d proposed (2026-09-29)
+
+* **What was said.** The owner: the scaffold "should include creating and
+  updating go.mod as requirements are assessed, identified, and
+  fulfilled".
+* **What was measured.** In the MADR's fifth amendment. In scratch clones:
+  the §2 pins in `go mod tidy`'s layout equal the tidy result after a
+  simulated re-home, and `go.sum` equals `mcplib`'s four lines.
+* **What is proposed.** Phase 2d, criterion A18, and an amended Phase 4
+  step 1.
+* **Revised 2026-09-29, before approval: `go 1.27.1`.** The owner asked why
+  the scaffold would use `go 1.26.6` when the fleet's Go and tooling are at
+  1.27.1. The MADR's fifth amendment now also supersedes §2's directive,
+  with the gate evidence. Step 1 says `go 1.27.1`, and step 3 updates
+  AGENTS.md's "Requires Go".
+* **Effect on Phase 2c step 6.** After Phase 2d, `make pre-add-check` still
+  exits 2 until Phase 4. The message changes from `does not contain main
+  module` to `no required module provides package
+  github.com/maccavelli/mcplib…`. Phase 2d's execution record will quote
+  it.
+* **Status.** Approved 2026-09-29: the owner answered "proceed" to the
+  revised proposal (`go 1.27.1`). That accepts the MADR's fifth amendment.
+
+### Phase 2d: `go.mod` and `go.sum` (2026-09-29)
+
+* **Step 1.** `go.mod` was written with exactly the five lines of step 1,
+  `go 1.27.1`, and no `toolchain` line.
+* **Step 2.** `go get golang.org/x/term@v0.43.0 golang.org/x/sys@v0.47.0`
+  exited 0 and left `go.mod` byte-identical to step 1 (`cmp`), so there was
+  nothing to restore. `go.sum` has 4 lines, identical to `mcplib`
+  `4e1f9a5`'s lines for `golang.org/x/term v0.43.0` and
+  `golang.org/x/sys v0.47.0` (`diff`, no output).
+* **Step 3.** `AGENTS.md`: "Requires Go 1.27.1."; "Dependencies" gains the
+  rule that `go.mod` changes with the import that needs it, that
+  `go mod tidy -diff` is clean at every commit from Phase 4, and that
+  `go mod tidy` and `make tidy` are not run before Phase 4.
+* **Step 4.** `README.md` and `docs/architecture.md` state the module, its
+  Go version and requirements, that `internal/redact` builds and tests, and
+  that `llmprovider`, `wizard`, the pre-add check and CI fail on the
+  `mcplib` imports. The tree lists `go.mod, go.sum`; "What is not here" now
+  names the re-home instead of `go.mod`.
+* **Step 5, verification.**
+  * `go mod verify`: `all modules verified`.
+  * `go list -m all`: `github.com/maccavelli/go-llmprovider-sdk`,
+    `golang.org/x/sys v0.47.0`, `golang.org/x/term v0.43.0`, and nothing
+    else.
+  * `go test -count=1 -race ./internal/redact/`: `ok`.
+  * `go build ./...` exits 1. Every error line is one of three:
+    `no required module provides package github.com/maccavelli/mcplib`,
+    `…/mcplib/llmprovider` and `…/mcplib/logging`. No other error line.
+  * `go mod download` exits 0, so CI now passes `setup-go` and
+    `go mod download` and fails at `go test`.
+  * **The pre-add check** (`GO_PRECHECK_SKIP_VULN=1`): the script exits 1
+    and `make pre-add-check` exits 2 (make's own status for a failed
+    recipe). The `golangci-lint`, `go vet` and `go test` sections all
+    report `no required module provides package
+    github.com/maccavelli/mcplib…` (10 lines), and nothing else. This
+    replaces the `does not contain main module` expectation of Phase 2c
+    step 6, as the fifth amendment's PLAN entry said.
+  * **Re-home proof.** In `SCRATCH/rehome2d`, a clone at `21f01c3` with
+    this `go.mod` and `go.sum` copied in (`cmp`-equal), the Phase 4 import
+    rewrite and the §4 orchestration change were applied by `sed`. Then
+    `go build ./...` and `go test -count=1 ./...` exited 0, and
+    `go mod tidy -diff` exited 0.
+  * **First-fail.** In the same clone, the requirements in one `require`
+    block made `go mod tidy -diff` exit 1.
+  * **What tidy does not check.** `x/sys v0.44.0` in `go.mod` also made
+    `go mod tidy -diff` exit 1, but only because `go.sum` held the
+    `v0.47.0` hashes. A `go.mod` and `go.sum` that agreed on `v0.44.0` would
+    pass it. The pinned versions are therefore guarded by the
+    `go list -m all` check above and by §2, not by tidy.
+  * The disclosure guard's deny list finds nothing in `go.mod`, `go.sum`,
+    `AGENTS.md`, `README.md`, `docs/architecture.md` and the changed
+    records. The link resolver finds 0 bad links in `README.md`,
+    `docs/README.md`, `docs/architecture.md` and `AGENTS.md`, and
+    `markdownlint-cli2` reports nothing in them.
+* **Also in this commit.**
+  `0016-MADR-provider-auth-and-support-baseline.md` R7 and option B strike
+  "requires Go 1.27.1" as a cost of `magic-cli-remote`, with a dated note.
+  That is the correction the fifth amendment made necessary.
+* **Status.** Phase 2d done. The next phase of this PLAN is Phase 4, which
+  waits for the owner's decision on the MADR's second amendment.

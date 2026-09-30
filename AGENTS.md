@@ -8,7 +8,7 @@ this file. A repository-local `CLAUDE.md` / `.claude/rules/` / `.grok/rules/` /
 (`github.com/maccavelli/go-llmprovider-sdk`). It is a library only: no packaged
 binary. LLM providers live in `llmprovider/`; the configuration wizard lives in
 `wizard/`; secret redaction for both lives in `internal/redact/`. Requires Go
-1.26.6.
+1.27.1.
 
 ## Dependencies
 
@@ -16,6 +16,14 @@ The standard library and `golang.org/x/term` (with its indirect
 `golang.org/x/sys`) only. Any other module needs a MADR in this repository
 first. Never import `github.com/maccavelli/mcplib` or the MCP go-sdk: this
 module exists so that callers can use the providers without either.
+
+`go.mod` and `go.sum` change with the code that needs them: a requirement is
+added in the commit that adds its first import, and removed in the commit that
+removes its last. From Phase 4 of
+`docs/decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md` on,
+`go mod tidy -diff` is clean at every commit. **Until Phase 4, do not run
+`go mod tidy` or `make tidy`:** the imported code still imports `mcplib`, and
+tidy would add it as a requirement.
 
 ## MADR and PLAN before mutating work
 
