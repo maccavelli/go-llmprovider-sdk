@@ -206,7 +206,7 @@ func WithModelProfile(p ModelProfile) ProviderOption {
 // MaxListedModels, and keeps those that answer. Every probe is a billed
 // request. Other providers never probe (0016-MADR A5).
 func WithModelProbes(enabled bool) ProviderOption {
-	return legacyOption("WithModelProbes", func(cfg *ProviderConfig) {
+	return commonOption("WithModelProbes", func(cfg *ProviderConfig) {
 		cfg.DisableModelProbes = !enabled
 	})
 }
@@ -223,11 +223,11 @@ const envModelProbes = "LLMPROVIDER_PROBES"
 func ModelProbesFromEnv() ProviderOption {
 	value, ok := os.LookupEnv(envModelProbes)
 	if !ok {
-		return legacyOption("ModelProbesFromEnv", nil)
+		return Option{name: "ModelProbesFromEnv"}
 	}
 	enabled, err := strconv.ParseBool(strings.TrimSpace(value))
 	if err != nil {
-		return legacyOption("ModelProbesFromEnv", nil)
+		return Option{name: "ModelProbesFromEnv"}
 	}
 	return WithModelProbes(enabled)
 }

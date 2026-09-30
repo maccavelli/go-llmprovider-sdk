@@ -20,6 +20,14 @@ type Provider interface {
 	Generate(ctx context.Context, req *Request) (*Response, error)
 }
 
+// ModelLister is implemented by a provider that can list the models it
+// serves (0015-MADR D3, amendment of 2026-09-30). ListModels returns the
+// curated listing, probed where 0016-MADR A5 says; a caller type-asserts to
+// it, as to Streamer.
+type ModelLister interface {
+	ListModels(ctx context.Context) ([]string, error)
+}
+
 // ProviderID is a provider's canonical identifier: the models.dev registry
 // key (0015-MADR D6). The ProviderGemini family of constants keeps its
 // untyped form until the old API is removed (0015-PLAN S8).

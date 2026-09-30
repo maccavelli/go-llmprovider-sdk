@@ -37,14 +37,9 @@ func commonOption(name string, set func(*ProviderConfig)) Option {
 	return Option{name: name, apply: func(s *settings) { set(&s.cfg) }}
 }
 
-// legacyOption is an option only the old API takes. A nil set changes
-// nothing.
+// legacyOption is an option only the old API takes.
 func legacyOption(name string, set func(*ProviderConfig)) Option {
-	opt := Option{name: name, legacy: true}
-	if set != nil {
-		opt.apply = func(s *settings) { set(&s.cfg) }
-	}
-	return opt
+	return Option{name: name, legacy: true, apply: func(s *settings) { set(&s.cfg) }}
 }
 
 // newOption is an option only the new API takes; the old constructors ignore
@@ -164,6 +159,11 @@ func (st *Settings) UserAgent() string { return st.identity.userAgent() }
 // SessionID is the id from WithSessionID, or a random one fixed for these
 // Settings.
 func (st *Settings) SessionID() string { return st.identity.session }
+
+// ModelProbes reports whether ListModels probes each listed model, as
+// WithModelProbes and ModelProbesFromEnv set it; true by default
+// (0016-MADR A5).
+func (st *Settings) ModelProbes() bool { return !st.s.cfg.DisableModelProbes }
 
 // Values returns the values of the provider-specific options, in order.
 func (st *Settings) Values() []any { return append([]any(nil), st.s.values...) }

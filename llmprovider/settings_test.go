@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 )
@@ -17,7 +18,7 @@ func TestResolveOptions_RefusesAForeignOption(t *testing.T) {
 }
 
 func TestResolveOptions_RefusesAnOldAPIOnlyOption(t *testing.T) {
-	for _, opt := range []Option{WithStore(false), WithKiloOrganization("o"), WithModelProbes(false), WithThinkingBudget(1), ModelProbesFromEnv()} {
+	for _, opt := range []Option{WithStore(false), WithKiloOrganization("o"), WithThinkingBudget(1)} {
 		_, err := ResolveOptions(ProviderOpenAI, []Option{opt})
 		if !errors.Is(err, ErrInvalidRequest) || !strings.Contains(err.Error(), "belongs to the old API") {
 			t.Errorf("%s: err = %v, want it refused", opt.name, err)
@@ -120,5 +121,39 @@ func TestApplyOptions_TakesOnlyWhatTheOldConfigHolds(t *testing.T) {
 	})
 	if cfg.KiloOrganization != "org" || cfg.BaseURL != "http://base" || cfg.MaxTokens != 8192 || cfg.HTTPClient == nil {
 		t.Fatalf("ApplyOptions = %+v", cfg)
+	}
+}
+
+// TestResolveOptions_ModelProbesAreCommon: A5's probe options reach the new
+// API as common options (0015-MADR amendment of 2026-09-30, D5 step 1).
+func TestResolveOptions_ModelProbesAreCommon(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		env  string // "" leaves LLMPROVIDER_PROBES unset
+		opts func() []Option
+		want bool
+	}{
+		{"default", "", func() []Option { return nil }, true},
+		{"option off", "", func() []Option { return []Option{WithModelProbes(false)} }, false},
+		{"option on after off", "", func() []Option { return []Option{WithModelProbes(false), WithModelProbes(true)} }, true},
+		{"env false through the helper", "false", func() []Option { return []Option{ModelProbesFromEnv()} }, false},
+		{"env not a boolean", "sometimes", func() []Option { return []Option{ModelProbesFromEnv()} }, true},
+		{"env unset through the helper", "", func() []Option { return []Option{ModelProbesFromEnv()} }, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(envModelProbes, c.env)
+			if c.env == "" {
+				if err := os.Unsetenv(envModelProbes); err != nil {
+					t.Fatal(err)
+				}
+			}
+			st, err := ResolveOptions(ProviderOpenAI, c.opts())
+			if err != nil {
+				t.Fatalf("ResolveOptions: %v", err)
+			}
+			if got := st.ModelProbes(); got != c.want {
+				t.Fatalf("ModelProbes() = %v, want %v", got, c.want)
+			}
+		})
 	}
 }

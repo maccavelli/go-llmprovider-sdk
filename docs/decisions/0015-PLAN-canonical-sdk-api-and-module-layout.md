@@ -1226,3 +1226,28 @@ Executed as the S7 prerequisites amendment of the same date decided.
     `TestResolveOptions_RefusesAnOldAPIOnlyOption` drops them from its list
     in that commit, which is a change to its data made by this decision.
     Its meaning, that old-API-only options are refused, is unchanged.
+
+### Phase S7, commit 2: `ModelLister`, and the probe options made common (2026-09-30)
+
+* **`llmprovider.ModelLister`** (`contract.go`), as the 0015-MADR amendment
+  of the same date decided. Each provider that moves and lists implements
+  it.
+* **`WithModelProbes` and `ModelProbesFromEnv` are common options.** When
+  the variable is unset or not a boolean, the helper returns an option that
+  changes nothing. `Settings.ModelProbes()` reports the setting, true by
+  default. The old constructors are unaffected: they read the same
+  `ProviderConfig` field.
+* **Tests.**
+  * `TestResolveOptions_RefusesAnOldAPIOnlyOption` drops the two options
+    from its list, as the PLAN amendment of the same date recorded.
+  * `TestResolveOptions_ModelProbesAreCommon` is new.
+  * Its first draft built its options in the table literal, which reads
+    `LLMPROVIDER_PROBES` before `t.Setenv` runs. The env case failed as a
+    result. The options are now built inside each subtest.
+* **Red first and breaks**, in scratch copies:
+
+  | Break | Failure |
+  |---|---|
+  | `WithModelProbes` old-API-only, as before this commit | `ResolveOptions: llm: invalid request: option WithModelProbes belongs to the old API; openai's New does not take it` |
+  | `ModelProbes()` reads the flag unnegated | `ModelProbes() = false, want true` |
+  | the helper's unset case old-API-only | `… option ModelProbesFromEnv belongs to the old API …` |
