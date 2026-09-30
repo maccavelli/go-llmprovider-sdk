@@ -409,6 +409,12 @@ deliberately broken scratch input before it is trusted:
   `mcplib` until the owner moves the orchestrator code out of `mcplib`.
   No consumer sets `Options.Orchestrated`, which no longer exists.
 
+  *Amended 2026-09-29 ([0016-MADR-provider-auth-and-support-baseline.md](0016-MADR-provider-auth-and-support-baseline.md) D9, D11, D12):*
+  `prepare-commit-msg`'s companion must also read the refresh token from
+  its `TokenStore`, not from `wizard.Result`; read `claude` keys from
+  `ANTHROPIC_API_KEY`, not `CLAUDE_API_KEY`; and opt in to listing
+  probes if it wants them.
+
 ### Consequences
 
 * Good, because this repository depends on nothing but the standard library

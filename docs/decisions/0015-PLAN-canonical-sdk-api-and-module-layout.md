@@ -260,6 +260,9 @@ For each provider:
 3. **A test that fails on a new ambient read.** Add
    `internal/ambientcheck`, which walks the non-test sources and fails on
    `os.Getenv`, `os.LookupEnv` or a package-level `slog.` call.
+   *Amended 2026-09-29 ([0016-MADR-provider-auth-and-support-baseline.md](0016-MADR-provider-auth-and-support-baseline.md) D8):* it allows exactly one
+   standard-library read, `http.ProxyFromEnvironment` on the default
+   transport.
    * **First-fail:** a planted `os.Getenv` in a scratch copy.
 4. Gate.
 
@@ -349,3 +352,18 @@ For each provider:
   (`llmprovider/opencode_route.go:50-51`). The row is corrected in place,
   with the old word struck.
 * **Next.** S1 starts when 0002-PLAN Phase 7 is committed (§0).
+
+### 0016 steps in these phases (2026-09-29)
+
+[0016-PLAN-provider-auth-and-support-baseline.md](0016-PLAN-provider-auth-and-support-baseline.md) has no phases of its own; its steps land in these phases'
+commits:
+
+| 0015 phase | 0016 step |
+|---|---|
+| S3 (`internal/transport`) | T1: proxy and one client per provider (D8) |
+| S4 (`auth`) | T2: durable writes, rotation kept, redaction, device handle, OAuth checks with `id_token` signature verification (D3–D7) |
+| S5 (`catalog`) | T3 step 2: no billed probe by default (D9) |
+| S7 (providers) | T3 step 1: every provider takes a `TokenSource` (D2) |
+| S8 (`wizard`) | T4: one refresh-token copy, logout, `Result` redaction (D11, D5) |
+| S10 (ambient state) | T5: `ANTHROPIC_API_KEY` only (D12) |
+| S11, S13 | T6: guides and close-out |

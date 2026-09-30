@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-09-29
 associated-madr: "0016-MADR-provider-auth-and-support-baseline.md"
 decision-makers: go-llmprovider-sdk maintainers
@@ -266,3 +266,13 @@ None.
 * **Status.** This PLAN stays `proposed` until the owner approves
   execution. Its steps land inside 0015-PLAN's phases, so T0 runs when
   0015-PLAN S0 is approved.
+
+### T0: cross-references (2026-09-29)
+
+* The owner answered "Proceed" after the MADR's decisions were recorded, so
+  this PLAN is `in-progress`.
+* 0015-MADR gains the proxy exemption (T0 step 2), and 0015-PLAN gains its S10
+  annotation and a table of which 0016 step lands in which phase (T0 step 3).
+* 0002-MADR §13 names `prepare-commit-msg`'s new obligations (T0 step 4).
+* `docs/README.md` shows this PLAN `in-progress` (T0 step 5).
+* The commit holds records only (bootstrap exception).

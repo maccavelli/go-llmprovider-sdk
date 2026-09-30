@@ -431,3 +431,10 @@ phases for consumers to trial. The ChatGPT `client_version` they send is
 * **Revisit** if G-wire cannot be made to pass for a provider without a
   behaviour change. That is a stop condition in the PLAN, not something the
   implementation decides.
+
+## Amendment 2026-09-29: the proxy exemption, from 0016
+
+[0016-MADR-provider-auth-and-support-baseline.md](0016-MADR-provider-auth-and-support-baseline.md) D8 sets `Proxy: http.ProxyFromEnvironment` on the default
+transport. That is the standard library reading the proxy variables, not this
+module. D9's rule stands for library code: it reads no environment variable
+itself. D9's ambient check (PLAN S10) allows exactly this one call.

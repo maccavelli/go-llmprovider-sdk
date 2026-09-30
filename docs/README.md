@@ -44,7 +44,7 @@ below hold the decisions and their history.
 | 0015 | MADR | [Define a Canonical, Modular v1 API for go-llmprovider-sdk Before the First Release](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) | accepted |
 | 0015 | PLAN | [Implement the Canonical, Modular v1 API for go-llmprovider-sdk](decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) | in-progress |
 | 0016 | MADR | [Build Provider Support and Authentication from mcplib's `llmprovider`, and Adopt magic-cli-remote's Credential Hygiene](decisions/0016-MADR-provider-auth-and-support-baseline.md) | accepted |
-| 0016 | PLAN | [Implement the Provider Auth and Support Baseline](decisions/0016-PLAN-provider-auth-and-support-baseline.md) | proposed |
+| 0016 | PLAN | [Implement the Provider Auth and Support Baseline](decisions/0016-PLAN-provider-auth-and-support-baseline.md) | in-progress |
 
 ## I want to…
 
