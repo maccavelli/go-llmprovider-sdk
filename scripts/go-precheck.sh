@@ -77,7 +77,7 @@ need gofmt || exit 2
 unformatted="$(gofmt -l "${files[@]}")"
 if [ -n "$unformatted" ]; then
   echo "gofmt: these files are not formatted (run 'gofmt -w <file>'):" >&2
-  echo "$unformatted" | sed 's/^/  /' >&2
+  printf '%s\n' "$unformatted" | sed 's/^/  /' >&2
   fail 1
 fi
 
