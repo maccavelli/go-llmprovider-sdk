@@ -17,6 +17,8 @@
 
 | I want to… | Start here |
 | :--- | :--- |
+| see what is in this repository today | [architecture.md](architecture.md) |
+| contribute: checks, records and commit rules | [AGENTS.md](../AGENTS.md) |
 | know whether `mcplib/llmprovider` can move here, and what it would take | [0001-REPORT](reports/0001-REPORT-llmprovider-extraction-feasibility.md) |
 | see what the migration decides: identity, versions, records, open work | [0002-MADR](decisions/0002-MADR-migrate-llmprovider-from-mcplib.md) |
 | see the migration steps and which repository each happens in | [0002-PLAN](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md) |

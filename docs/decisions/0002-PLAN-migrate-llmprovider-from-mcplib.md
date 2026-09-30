@@ -1277,4 +1277,42 @@ MADR, then continue.
   `0 issues.` with both the committed and the extended `.golangci.yml`. A
   planted undocumented function passed the committed configuration (exit
   0) and failed the extended one.
-* **Status.** Phase 2c done.
+* **Status.** Phase 2c done: `3e764d7`.
+
+### Phase 2b: documentation tree to standards (2026-09-29)
+
+* **Steps 1, 2 and 4, as written.**
+  * `README.md`: what the module is, its status (imported, not re-homed,
+    no `go.mod`, CI failing until Phase 4, v1 decided by 0015 and 0016), the
+    `docs/` link, and a five-row "I want to…" table.
+  * `docs/architecture.md`: the tree, the three Go directories with their
+    file counts and remaining `mcplib` imports, the tooling as it now
+    stands (with Phase 2c's `golangci-lint`), and "What is not here".
+  * `docs/README.md`: two rows, `architecture.md` and `AGENTS.md`, so every
+    README row is also in the index.
+* **Step 3.** `docs/guides/` was not created.
+* **Step 5.** Struck (no Dependabot).
+* **Found while writing, and corrected before any commit.**
+  `llmprovider` has **five** wire formats, not four: OpenCode's Google route
+  uses Gemini `generateContent` (`llmprovider/opencode_route.go:50-51`),
+  while the `gemini` provider uses Interactions. `docs/architecture.md` says
+  five. `0016-MADR-provider-auth-and-support-baseline.md` M1 was corrected
+  before it was first committed. `0015-MADR-canonical-sdk-api-and-module-layout.md`
+  D2 still says "The four wire formats"; it is not this plan's record, and
+  it is reported to the owner for its S0.
+* **Step 6, verification.**
+  * **Link check.** A stdlib-Python resolver over `README.md`,
+    `docs/README.md` and `docs/architecture.md`: 0 bad links. **First-fail:**
+    a scratch copy with one planted link in each file reported all three
+    (`missing file: nope/missing.md`).
+  * **Markdown lint.** `markdownlint-cli2` with the repository's
+    configuration reports no finding in `README.md`, `docs/README.md`,
+    `docs/architecture.md` or `AGENTS.md`. The run exits 1 on 188 `MD004`
+    findings, all in `docs/mcplib-import/0011-REPORT-provider-source-compatibility-audit.md`
+    (Phase 6). A planted `*` bullet in each of the four files, in a scratch
+    copy, was reported in each, so the configuration does cover them.
+  * **Paths.** Every path in the `architecture.md` tree exists (`test -e`);
+    `docs/guides` does not.
+  * **Identifiers.** The disclosure guard's deny list finds nothing in the
+    three files.
+* **Status.** Phase 2b done.
