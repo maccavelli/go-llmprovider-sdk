@@ -40,13 +40,30 @@ type resolvedCredential struct {
 	vendorPath string
 }
 
+// offeredAuthMethods returns the methods the caller can keep. Every method
+// needs somewhere to store its session except the API key, so without a
+// TokenStore only the API key is offered.
+func offeredAuthMethods(all []llmprovider.AuthMethod, haveStore bool) []llmprovider.AuthMethod {
+	if haveStore {
+		return all
+	}
+	var keep []llmprovider.AuthMethod
+	for _, m := range all {
+		if m.ID == llmprovider.AuthAPIKey {
+			keep = append(keep, m)
+		}
+	}
+	return keep
+}
+
 func resolveCredential(
 	ctx context.Context,
 	p Prompter,
 	d llmprovider.ProviderDescriptor,
 	o Options,
 ) (resolvedCredential, error) {
-	if len(d.AuthMethods) == 0 {
+	methods := offeredAuthMethods(d.AuthMethods, o.TokenStore != nil)
+	if len(methods) == 0 || (len(methods) == 1 && methods[0].ID == llmprovider.AuthAPIKey) {
 		key, err := resolveAPIKey(p, d, o)
 		if err != nil {
 			return resolvedCredential{}, err
@@ -58,15 +75,15 @@ func resolveCredential(
 		return staticCredential(kind, key), nil
 	}
 
-	choices := make([]Choice, 0, len(d.AuthMethods))
-	for _, method := range d.AuthMethods {
+	choices := make([]Choice, 0, len(methods))
+	for _, method := range methods {
 		choices = append(choices, Choice{Label: method.Label, Detail: method.Detail})
 	}
 	idx, err := p.Select(fmt.Sprintf("Choose how to authenticate with %s:", d.Label), choices, 0)
 	if err != nil {
 		return resolvedCredential{}, fmt.Errorf("select authentication method: %w", err)
 	}
-	method := d.AuthMethods[idx].ID
+	method := methods[idx].ID
 	if method == llmprovider.AuthAPIKey {
 		key, keyErr := resolveAPIKey(p, d, o)
 		if keyErr != nil {
@@ -80,10 +97,6 @@ func resolveCredential(
 	if method == llmprovider.AuthImportVendorCLI {
 		return resolveVendorCLI(ctx, p, d, o)
 	}
-	if o.TokenStore == nil {
-		return resolvedCredential{}, errors.New("wizard: TokenStore is required for OAuth")
-	}
-
 	switch method {
 	case llmprovider.AuthBrowserOAuth:
 		if session, keep, keepErr := keepExistingOAuth(p, d, o); keepErr != nil {
@@ -202,9 +215,6 @@ func resolveTokenStdin(
 }
 
 func saveAccessOnlyOpenAI(ctx context.Context, o Options, access string) (resolvedCredential, error) {
-	if o.TokenStore == nil {
-		return resolvedCredential{}, errors.New("wizard: TokenStore is required for OAuth")
-	}
 	return saveOAuthCredential(
 		ctx,
 		o.TokenStore,

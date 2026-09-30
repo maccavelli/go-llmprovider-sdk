@@ -69,7 +69,9 @@ type Options struct {
 	// LookupEnv reads an environment variable. Nil uses os.Getenv. Consumers
 	// inject this to drive the flow deterministically in their own tests.
 	LookupEnv func(string) string
-	// TokenStore persists sessions created by browser, device-code, and import flows.
+	// TokenStore persists sessions created by the browser, device-code,
+	// token-paste and import flows. Supplying it opts in to every non-API-key
+	// credential kind; when it is nil, only the API key is offered.
 	TokenStore llmprovider.TokenStore
 	// HTTPClient is used for live model listing. Nil uses the package default.
 	HTTPClient *http.Client

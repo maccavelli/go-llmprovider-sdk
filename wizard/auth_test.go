@@ -104,19 +104,6 @@ func TestConfigureLLM_DoesNotOfferClaudeOAuth(t *testing.T) {
 	}
 }
 
-func TestConfigureLLM_OAuthMethodsRequireTokenStore(t *testing.T) {
-	for _, authIdx := range []int{1, 2} {
-		f := &fakePrompter{
-			t:       t,
-			selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), authIdx},
-		}
-		_, err := ConfigureLLM(context.Background(), f, Options{})
-		if err == nil || err.Error() != "wizard: TokenStore is required for OAuth" {
-			t.Fatalf("auth index %d error = %v", authIdx, err)
-		}
-	}
-}
-
 func TestConfigureLLM_TokenStdinClassification(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -188,18 +175,6 @@ func TestConfigureLLM_TokenStdinClassification(t *testing.T) {
 				t.Fatalf("TokenStore saves = %d, want %d", store.saves, test.wantSaves)
 			}
 		})
-	}
-}
-
-func TestConfigureLLM_TokenStdinOAuthRequiresTokenStore(t *testing.T) {
-	f := &fakePrompter{
-		t:       t,
-		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 3},
-		secrets: []string{"chatgpt-access"},
-	}
-	_, err := ConfigureLLM(context.Background(), f, Options{})
-	if err == nil || err.Error() != "wizard: TokenStore is required for OAuth" {
-		t.Fatalf("ConfigureLLM() error = %v", err)
 	}
 }
 
@@ -515,4 +490,55 @@ func stubBrowserLogin(t *testing.T, login func(context.Context, string, llmprovi
 	original := loginBrowserOAuth
 	t.Cleanup(func() { loginBrowserOAuth = original })
 	loginBrowserOAuth = login
+}
+
+// TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly: without a TokenStore the
+// caller cannot keep a session, so openai and grok show no method menu and go
+// straight to the API-key prompt.
+func TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly(t *testing.T) {
+	for _, provider := range []string{llmprovider.ProviderOpenAI, llmprovider.ProviderGrok} {
+		t.Run(provider, func(t *testing.T) {
+			f := &fakePrompter{
+				t:       t,
+				selects: []int{providerIdx(t, provider)},
+				secrets: []string{"sk-test-0123456789"},
+			}
+			_, _ = ConfigureLLM(context.Background(), f, Options{})
+			for _, title := range f.seenSelect {
+				if strings.Contains(title, "authenticate") {
+					t.Fatalf("method menu %q shown without a TokenStore", title)
+				}
+			}
+			if len(f.seenSecret) != 1 {
+				t.Fatalf("Secret prompts = %d, want the API-key prompt", len(f.seenSecret))
+			}
+		})
+	}
+}
+
+// TestConfigureLLM_TokenStoreOffersAllMethods: with a TokenStore the menu lists
+// every descriptor method, in descriptor order.
+func TestConfigureLLM_TokenStoreOffersAllMethods(t *testing.T) {
+	for _, provider := range []string{llmprovider.ProviderOpenAI, llmprovider.ProviderGrok} {
+		t.Run(provider, func(t *testing.T) {
+			d, ok := llmprovider.DescriptorFor(provider)
+			if !ok {
+				t.Fatalf("no descriptor for %s", provider)
+			}
+			f := &fakePrompter{t: t, selects: []int{providerIdx(t, provider)}}
+			_, _ = ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore()})
+			if len(f.seenSelect) < 2 || !strings.Contains(f.seenSelect[1], "authenticate") {
+				t.Fatalf("Select titles = %q, want the method menu second", f.seenSelect)
+			}
+			got := f.seenSelectItems[1]
+			if len(got) != len(d.AuthMethods) {
+				t.Fatalf("menu has %d methods, want %d", len(got), len(d.AuthMethods))
+			}
+			for i, m := range d.AuthMethods {
+				if got[i].Label != m.Label {
+					t.Errorf("menu[%d] = %q, want %q", i, got[i].Label, m.Label)
+				}
+			}
+		})
+	}
 }

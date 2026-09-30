@@ -597,6 +597,11 @@ Implements MADR §7.
    the filtered list holds only `AuthAPIKey`, take the existing no-menu
    path.
 3. Update the `Options.TokenStore` doc comment as MADR §7 states.
+   *Deviation 2026-09-29 (see the execution record):* the change also
+   deletes `TestConfigureLLM_OAuthMethodsRequireTokenStore` and
+   `TestConfigureLLM_TokenStdinOAuthRequiresTokenStore`, and the two
+   "TokenStore is required for OAuth" guards they reached, which the filter
+   makes unreachable.
 4. **Verify:** Phase 4 step 9. G-api's allowed diff grows by the
    `TokenStore` doc-comment lines only.
 
@@ -1653,3 +1658,74 @@ MADR, then continue.
     owner's request.
   * The wire identity is not yet confirmed live: Phase 8.
 * **Status.** Phase 4 done. Phase 5 is next.
+
+### Phase 5 stop: two tests assert the behaviour §7 removes (2026-09-29)
+
+* **Found.** A dry run on a scratch clone at `6105dfb`:
+  * `TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly` failed first on Phase
+    4's tree (`method menu "Choose how to authenticate with OpenAI:" shown
+    without a TokenStore`, and the same for Grok), then passed after the
+    change.
+  * `TestConfigureLLM_TokenStoreOffersAllMethods` passed on Phase 4's tree,
+    as the step says it should: the case is unchanged. Against a scratch
+    filter that ignores the `TokenStore`, it failed:
+    `Select titles = ["Choose an LLM provider:"], want the method menu
+    second`.
+  * With the change, two existing tests failed:
+    * `TestConfigureLLM_OAuthMethodsRequireTokenStore` (`wizard/auth_test.go:107-118`):
+      `auth index 1 error = enter API key: fakePrompter: unexpected
+      Secret("Enter your OpenAI API key")`;
+    * `TestConfigureLLM_TokenStdinOAuthRequiresTokenStore` (`:194-204`):
+      `ConfigureLLM() error = <nil>`.
+
+    Both choose an OAuth or token-paste method with no `TokenStore` and
+    expect "wizard: TokenStore is required for OAuth". §7 stops offering
+    those methods, so the flow never reaches that error. The guards at
+    `wizard/auth.go:83-85` and `:205-207` become unreachable from
+    `ConfigureLLM`.
+* **Decision.** The owner chose "Replace, drop guards": delete both tests and
+  both guards. `TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly` states the
+  guarantee in its new form: without a store, no session is started or
+  saved, because no such method is offered. Measured on the scratch clone:
+  `go vet` clean, the `wizard` suite passes, coverage 466/559 = 83.36 %
+  (floor 82.6 %).
+* **Scope.** No file added: `wizard/auth.go`, `wizard/auth_test.go` and
+  `wizard/configure.go`, as the phase already names.
+
+### Phase 5: offer only credentials the caller can keep (2026-09-29)
+
+* **Approval.** The owner: "Push then proceed to p5".
+* **The push.** The owner asked for `6105dfb` (Phase 4) to be pushed. The
+  agent's session permission policy refused `git push`, so it has not
+  happened, and CI has not run on Phases 4 and 5. The owner pushes.
+* **Step 1, tests first.** Both tests were added to `wizard/auth_test.go`.
+  Their red-first and first-fail outputs are in the stop entry above.
+* **Step 2.** `resolveCredential` now asks the new `offeredAuthMethods`
+  helper for the descriptor's methods, filtered to `AuthAPIKey` when
+  `o.TokenStore` is nil. When nothing, or only `AuthAPIKey`, remains, it
+  takes the existing no-menu path; otherwise the menu lists the filtered
+  methods and the choice indexes them.
+* **Step 3.** The `Options.TokenStore` doc comment: "Supplying it opts in to
+  every non-API-key credential kind; when it is nil, only the API key is
+  offered."
+* **The deviation.** The two obsolete tests and the two guards were
+  removed, as the owner chose.
+* **Step 4, verification on this tree** (Phase 4 step 9). Every command
+  exited 0:
+  * build; `go vet` for darwin, windows and `CGO_ENABLED=0` linux, and with
+    `-tags live_gateways`;
+  * `gofmt -l .` (empty), `go mod tidy -diff`,
+    `git diff --exit-code go.mod go.sum`;
+  * `make lint`: `0 issues.`;
+  * coverage from the profiles: `llmprovider` 3152/3533 = 89.22 %, `wizard`
+    466/559 = 83.36 % (floor 82.6 %), `internal/redact` 18/18 = 100 %;
+  * `make pre-add-check FILES="wizard/auth.go wizard/auth_test.go
+    wizard/configure.go"`: `go-precheck: 3 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck).`
+  * **Gates.** G-dep and G-name pass as in Phase 4. G-api: 49 doc-line
+    changes, 45 from Phase 4 and the 4 `TokenStore` doc lines, with 0
+    code-line violations. That is exactly the growth step 4 allows.
+* **Not done.** CI has not run (see "The push"). `prepare-commit-msg`, the
+  only consumer that passes a `TokenStore`, is unaffected, as MADR §7
+  says; its companion runs the flow against this code in Phase 10.
+* **Status.** Phase 5 done. Phase 6 (move the records) is next.
