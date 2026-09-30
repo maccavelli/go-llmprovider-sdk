@@ -87,6 +87,10 @@ func openAIFedRAMP(src TokenSource) bool {
 }
 
 func expireOpenAISession(src TokenSource) bool {
+	if source, ok := src.(InvalidatingSource); ok {
+		source.Invalidate()
+		return true
+	}
 	session, ok := src.(*OAuthSession)
 	if !ok {
 		return false

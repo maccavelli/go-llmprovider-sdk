@@ -352,3 +352,61 @@ Associated MADR: [0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-
 * **Gate,** every step exit 0: `llmprovider` 90.0 %, `wizard` 83.4 % (both
   above their `P7` floors), `make lint` `0 issues.`, G-wire unchanged, and
   the deny list at 0 hits.
+
+### Phase U3: keys from a command (2026-09-30)
+
+* **Step 1.** `command_token.go`: `CommandToken` (`NewCommandToken(argv...)`).
+  * **Running:** argv only, never a shell. `Timeout` defaults to 10 s, and a
+    one-second `WaitDelay` reaps pipes. Output is capped at 8 KiB, trimmed,
+    and cached for `TTL`, 5 minutes by default. Callers arriving together
+    share one run.
+  * **Errors:** empty output, a timeout, too much output or a non-zero exit
+    is `ErrAuthFailure`, naming the command's base name. The output, and
+    stderr, which is never read, never appear. An empty argv is
+    `ErrInvalidRequest`.
+  * **Formatting:** `String`, `GoString`, `LogValue` and `MarshalJSON` show
+    the command's base name and the header only. Not the arguments, which
+    may carry secrets, and not the token.
+* **The 401 re-run.** A new exported interface, `InvalidatingSource`
+  (`TokenSource` plus `Invalidate()`). `CommandToken` implements it by
+  dropping its cache. `expireOpenAISession` and `expireGrokSession`, the two
+  providers' existing 401-then-retry-once paths, now invalidate any such
+  source, as they already expired an `OAuthSession`.
+* **Step 2.** Today `NewProviderWithSource` takes a source for `openai` and
+  `grok` only. The other providers get one with 0016 T3, in 0015-PLAN S7.
+  Until then, a `CommandToken` serves those two, and listing for every
+  provider (`ListModelCatalogWithSource`).
+* **Step 3, tests** (`command_token_test.go`). The test binary acts as the
+  key command (`TestHelperKeyCommand`, gated by an environment variable the
+  tests set). The tests cover:
+  * trimming, TTL reuse, and a rerun after the TTL;
+  * a timeout, oversized output, a non-zero exit, empty output and a missing
+    command, each an auth failure without the output;
+  * eight concurrent callers, one run;
+  * an OpenAI request refused with 401, then retried after one rerun;
+  * redaction of the arguments and the token in every form.
+* **A bug the tests found before commit.** `cappedBuffer` first embedded
+  `bytes.Buffer`. `io.Copy`, which `exec` uses for the command's output,
+  prefers the destination's `ReadFrom`, which bypassed the capping `Write`.
+  The oversized test got `Token = <nil>`. The buffer is now a field, with
+  the reason in a comment.
+* **Red first** is by absence: `CommandToken` and `InvalidatingSource` are
+  new. Seen to fail on deliberate breaks:
+
+  | Break | Failure |
+  |---|---|
+  | a 401 does not invalidate | `Generate = "", llm: authentication failed: openai HTTP 401: expired key after 1 runs (sent [Bearer key-1]); want one rerun after the 401` |
+  | the TTL ignored | `Token = "key-2", <nil>; want the cached key-1` |
+  | no shared run | `Token = "key-2"`, `"key-3"`, `"key-4"`, … |
+  | the cap raised to 8 MiB | `… wrote more than 8388608 bytes, want … "more than 8192 bytes"` |
+  | a failure carrying the output | `the error carries the command's output: … OUTPUT-PLANTED-SECRET-7f3a` |
+  | `String` showing the arguments | `%v = CommandToken{Command:/usr/local/bin/vault-key --secret=PLANTED-SECRET-7f3a …}` |
+
+  The helper's output grows with the constant, so the cap break shows the
+  cap's value, not an accepted overflow. The overflow path itself is the
+  bug above, which the same test caught.
+* **Lint.** Two findings were fixed: an error that is now wrapped with
+  `%w`, and a private `token` method renamed `cachedToken` so it no longer
+  differs from `Token` only by case.
+* **Gate,** every step exit 0: `llmprovider` 90.1 %, `wizard` 83.4 %,
+  `make lint` `0 issues.`, G-wire unchanged, and the deny list at 0 hits.

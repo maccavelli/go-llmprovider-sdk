@@ -116,6 +116,15 @@ docs/
   device flow on the same handle. The approved token never refreshes. It is
   stored as a session with no refresh token and no expiry, and used as the
   Kilo API key. `KiloProfile` lists the account's organizations.
+- **`CommandToken`** takes the token from a command the caller names, like
+  Claude Code's `apiKeyHelper`:
+  - the command runs without a shell, with a 10 s timeout;
+  - its output is trimmed, capped at 8 KiB and cached for 5 minutes;
+  - concurrent callers share one run;
+  - a failure names the command, never its output.
+
+  It is an `InvalidatingSource`: a provider that gets a 401 invalidates the
+  source and retries once.
 - **`VendorCLISession`** reads the Codex or Grok CLI's own login on every
   request and never refreshes it.
 - **`ProviderDescriptor`** lists each provider's `AuthMethod`s; `Descriptors()`

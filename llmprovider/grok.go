@@ -270,6 +270,10 @@ func (p *GrokProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 }
 
 func expireGrokSession(src TokenSource) bool {
+	if source, ok := src.(InvalidatingSource); ok {
+		source.Invalidate()
+		return true
+	}
 	session, ok := src.(*OAuthSession)
 	if !ok {
 		return false
