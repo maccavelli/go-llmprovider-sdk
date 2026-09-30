@@ -112,6 +112,10 @@ docs/
     refresh, so a refresh token is never spent twice.
 - **Formatting never shows a secret.** `Token`, `StaticToken` and
   `*OAuthSession` print `[redacted]` for every secret, under `fmt` and `slog`.
+- **Kilo device login.** `StartDeviceOAuth(ctx, "kilo", …)` runs Kilo's
+  device flow on the same handle. The approved token never refreshes. It is
+  stored as a session with no refresh token and no expiry, and used as the
+  Kilo API key. `KiloProfile` lists the account's organizations.
 - **`VendorCLISession`** reads the Codex or Grok CLI's own login on every
   request and never refreshes it.
 - **`ProviderDescriptor`** lists each provider's `AuthMethod`s; `Descriptors()`
@@ -136,7 +140,9 @@ fallbacks and returns a `Result`; it writes no configuration. It renders
 nothing itself: everything goes through the `Prompter` interface (`Select`,
 `MultiSelect`, `Confirm`, `Input`, `Secret`, `Notify`). `TextPrompter`
 implements it over a terminal with `golang.org/x/term`. OAuth and other
-non-API-key methods are offered only when `Options.TokenStore` is set.
+non-API-key methods are offered only when `Options.TokenStore` is set. A Kilo
+device login saves its token, offers the account's organizations, and returns
+the token as the API key, with the choice in `Result.Organization`.
 
 ## Identity
 

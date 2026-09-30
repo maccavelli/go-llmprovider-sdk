@@ -37,6 +37,10 @@ type Result struct {
 	// VendorAuthPath is the vendor CLI auth file a CredVendorCLI result reads
 	// through; consumers persist it and build llmprovider.VendorCLISession.
 	VendorAuthPath string
+	// Organization is the Kilo organization chosen after a Kilo device login;
+	// pass it with llmprovider.WithKiloOrganization. Empty is the personal
+	// account (0017-MADR D2).
+	Organization string
 }
 
 // Options controls the flow. The zero value runs a full interactive
@@ -134,6 +138,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	res.Kind = credential.kind
 	res.APIKey = credential.apiKey
 	res.VendorAuthPath = credential.vendorPath
+	res.Organization = credential.organization
 	if credential.session != nil {
 		res.AccessToken = credential.session.Access
 		res.RefreshToken = credential.session.Refresh
@@ -303,6 +308,9 @@ func discoverModels(
 	}
 	if o.HTTPClient != nil {
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
+	}
+	if res.Organization != "" {
+		opts = append(opts, llmprovider.WithKiloOrganization(res.Organization))
 	}
 	cat, err := llmprovider.ListModelCatalogWithSource(dCtx, d.ID, source, opts...)
 	if err != nil {

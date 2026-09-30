@@ -30,14 +30,16 @@ const (
 var (
 	loginBrowserOAuth = llmprovider.LoginBrowserOAuth
 	loginDeviceOAuth  = llmprovider.LoginDeviceOAuth
+	kiloProfile       = llmprovider.KiloProfile
 )
 
 type resolvedCredential struct {
-	kind       CredentialKind
-	apiKey     string
-	session    *llmprovider.OAuthSession
-	source     llmprovider.TokenSource
-	vendorPath string
+	kind         CredentialKind
+	apiKey       string
+	session      *llmprovider.OAuthSession
+	source       llmprovider.TokenSource
+	vendorPath   string
+	organization string
 }
 
 // offeredAuthMethods returns the methods the caller can keep. Every method
@@ -112,6 +114,9 @@ func resolveCredential(
 		}
 		return saveOAuthCredential(ctx, o.TokenStore, d.ID, session)
 	case llmprovider.AuthDeviceCode:
+		if d.ID == llmprovider.ProviderKilo {
+			return resolveKiloDevice(ctx, p, d, o)
+		}
 		session, loginErr := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p))
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
@@ -149,6 +154,60 @@ func resolveVendorCLI(
 		return resolvedCredential{}, errors.New("wizard: vendor CLI login declined")
 	}
 	return resolvedCredential{kind: CredVendorCLI, source: session, vendorPath: path}, nil
+}
+
+// resolveKiloDevice runs Kilo's device login (0017-MADR D2). The token has no
+// refresh and no expiry: it is saved to the TokenStore and applied as the
+// Kilo API key. When the account belongs to organizations, the user chooses
+// one, or the personal account.
+func resolveKiloDevice(
+	ctx context.Context,
+	p Prompter,
+	d llmprovider.ProviderDescriptor,
+	o Options,
+) (resolvedCredential, error) {
+	session, err := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p))
+	if err != nil {
+		return resolvedCredential{}, err
+	}
+	if session == nil || session.Access == "" {
+		return resolvedCredential{}, errors.New("wizard: Kilo login returned no token")
+	}
+	session.Provider, session.Store = d.ID, o.TokenStore
+	if err := o.TokenStore.Save(ctx, d.ID, session); err != nil {
+		return resolvedCredential{}, fmt.Errorf("wizard: save Kilo login: %w", err)
+	}
+	cred := staticCredential(CredAPIKey, session.Access)
+	var opts []llmprovider.ProviderOption
+	if o.HTTPClient != nil {
+		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
+	}
+	account, err := kiloProfile(ctx, session.Access, opts...)
+	if err != nil {
+		p.Notify(LevelWarn, "could not read the Kilo account's organizations (%v); using the personal account", err)
+		return cred, nil
+	}
+	if len(account.Organizations) == 0 {
+		return cred, nil
+	}
+	var choices []Choice
+	var ids []string
+	if account.HasPersonalAccount {
+		choices, ids = append(choices, Choice{Label: "Personal account"}), append(ids, "")
+	}
+	defaultIdx := 0
+	for _, org := range account.Organizations {
+		if org.ID == account.SelectedOrganizationID {
+			defaultIdx = len(ids)
+		}
+		choices, ids = append(choices, Choice{Label: org.Name, Detail: org.Role}), append(ids, org.ID)
+	}
+	idx, err := p.Select("Use Kilo as:", choices, defaultIdx)
+	if err != nil {
+		return resolvedCredential{}, fmt.Errorf("select Kilo organization: %w", err)
+	}
+	cred.organization = ids[idx]
+	return cred, nil
 }
 
 func staticCredential(kind CredentialKind, key string) resolvedCredential {

@@ -161,6 +161,21 @@ var descriptorSpecs = []struct {
 		id: ProviderKilo, label: "Kilo Gateway",
 		defaultBaseURL: kiloBaseURL, supportsBaseURL: true, requiresAPIKey: true,
 		notes: "free models available",
+		authMethods: []AuthMethod{
+			{
+				ID:          AuthAPIKey,
+				Label:       "Kilo API key",
+				Interactive: true,
+				HeadlessOK:  true,
+			},
+			{
+				// 0017-MADR D2: the token never refreshes and is used as the key.
+				ID:          AuthDeviceCode,
+				Label:       "Sign in with Kilo (device code)",
+				Interactive: true,
+				HeadlessOK:  true,
+			},
+		},
 	},
 	{
 		id: ProviderTogether, label: "Together AI",

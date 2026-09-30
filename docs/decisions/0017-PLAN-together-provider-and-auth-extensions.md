@@ -276,3 +276,79 @@ Associated MADR: [0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-
   * G-wire three times over;
   * G-links;
   * the deny list over every changed file: 0 hits.
+
+### Phase U2: Kilo device login (2026-09-30)
+
+* **Step 1.** `kilo_device.go`: `StartDeviceOAuth(ctx, ProviderKilo, opts)`
+  runs Kilo's flow on the 0016 D6 handle.
+  * **Start:** `POST {origin}/api/device-auth/codes`, where the origin is
+    `https://api.kilo.ai`, or `opts.Issuer`. A 429 is `ErrRateLimited`. An
+    unsafe verification URL, or a code with a control character or `/`, is
+    refused.
+  * **Poll:** `GET …/codes/{code}` (path-escaped) every 3 s, until:
+    * 202, pending;
+    * 403, denied;
+    * 410, expired;
+    * 200, approved, with a token of more than 10 characters.
+
+  The expiry is `expiresIn`, else 10 minutes. `Cancel` works as for the
+  other device flows. Kilo is kept out of the OAuth flow configuration, so
+  `LoginBrowserOAuth` still refuses it.
+* **Step 2.** The approved token becomes an `OAuthSession` with no refresh
+  token and no expiry, so `Token` returns it and never refreshes. The wizard
+  saves it to the `TokenStore`.
+  * **Choice recorded: the `Result` kind.** The wizard returns it as
+    `CredAPIKey`, the token in `APIKey`. That is D2's "applied like an API
+    key", and every consumer's existing Kilo path works unchanged. 0016 T4
+    (D11) will revisit what a `Result` carries for a stored credential.
+  * **A later 401** is Kilo's existing `ErrAuthFailure`. The provider takes
+    the token as a key, so its message cannot say "log in again". A
+    source-aware message belongs with 0016 T3, which gives every provider a
+    `TokenSource`.
+* **Step 3.** `KiloProfile(ctx, token, opts...)` reads
+  `{origin}{prefix}/api/profile`, routed as the gateway's endpoints are.
+  It returns the email, the organizations, the selected organization and
+  whether a personal account exists. When the account has organizations,
+  the wizard offers them (and "Personal account" when there is one), with
+  the account's selected organization as the default. The choice goes to
+  the new `Result.Organization`, and into the wizard's listing through
+  `WithKiloOrganization`. An unreadable profile warns, and keeps the
+  personal account.
+* **Step 4.** Kilo's descriptor gains two methods: "Kilo API key" and "Sign
+  in with Kilo (device code)". As before, only the key is offered without a
+  `TokenStore`.
+  * `TestDescriptors_NoOAuthOnOtherProviders` pinned "only OpenAI and Grok
+    offer a device code". It now also allows Kilo's device code, the one
+    addition D2 makes, and still fails any other provider offering OAuth.
+* **Step 5, tests:**
+  * `llmprovider/kilo_device_test.go`:
+    * approved after two pending polls, with three 3 s waits, a session with
+      no refresh and no expiry, and the token hidden when formatted;
+    * denied, expired, an unexpected poll status, a 429 start, and an unsafe
+      verification URL;
+    * `Cancel` within one interval;
+    * a stored login making no request when its token is read;
+    * `KiloProfile`.
+  * `wizard/kilo_device_test.go`: a personal-only account; choosing an
+    organization; choosing the personal account; and an unreadable profile.
+* **Red first,** against a clean clone of `86817bb`, with the flow tests,
+  which use only the old API. Exit 1: `oauth: provider "kilo" is not
+  supported` for the approval, each outcome, and the 429 start. The profile,
+  cancel and stored-login tests name identifiers the old code lacks, and are
+  proven by deliberate breaks.
+* **Seen to fail on deliberate breaks:**
+
+  | Break | Failure |
+  |---|---|
+  | polls every 1 s | `sleeps [1s 1s 1s] over 3 polls, want three 3 s waits` |
+  | a denial read as pending | `Wait = oauth: device code expired, want an error naming "denied"` |
+  | the verification URL not checked | `start accepted a plain-http, non-loopback verification URL` |
+  | the session given an expiry | `session = OAuthSession{… Expiry:2024-11-13T22:13:29Z …}` |
+  | the chosen organization dropped | `Result kind "api_key" key-set true organization ""; want … "org-1"` |
+  | the login not saved | `stored session OAuthSession(nil), want the token with no refresh` |
+
+  The first denial break did not compile, a duplicate `case`. The break
+  runner reported it as invalid, and it was rewritten.
+* **Gate,** every step exit 0: `llmprovider` 90.0 %, `wizard` 83.4 % (both
+  above their `P7` floors), `make lint` `0 issues.`, G-wire unchanged, and
+  the deny list at 0 hits.

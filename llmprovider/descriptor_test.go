@@ -6,12 +6,18 @@ import (
 	"testing"
 )
 
+// TestDescriptors_NoOAuthOnOtherProviders: only OpenAI and Grok offer OAuth,
+// and Kilo only its device login (0017-MADR D2), which is not OAuth: its
+// token never refreshes.
 func TestDescriptors_NoOAuthOnOtherProviders(t *testing.T) {
 	for _, descriptor := range Descriptors() {
 		if descriptor.ID == ProviderOpenAI || descriptor.ID == ProviderGrok {
 			continue
 		}
 		for _, method := range descriptor.AuthMethods {
+			if descriptor.ID == ProviderKilo && method.ID == AuthDeviceCode {
+				continue
+			}
 			if method.ID == AuthBrowserOAuth || method.ID == AuthDeviceCode {
 				t.Errorf("provider %q unexpectedly offers OAuth method %q", descriptor.ID, method.ID)
 			}
