@@ -9,7 +9,7 @@ GOVULNCHECK   ?= $(or $(wildcard $(GOBIN)/govulncheck),$(GOPATH_BIN)/govulncheck
 GOTESTSUM     ?= $(or $(wildcard $(GOBIN)/gotestsum),$(GOPATH_BIN)/gotestsum,$(shell command -v gotestsum 2>/dev/null))
 FLEET_LINT_CFG := .golangci.yml
 
-.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check
+.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check parity-check
 
 all: help
 
@@ -53,6 +53,11 @@ vuln: ## Runs govulncheck (opt-in; requires govulncheck on PATH/GOBIN)
 FILES ?=
 pre-add-check: ## Runs the pre-add checks (gofmt, golangci-lint, vet, test, govulncheck)
 	@./scripts/go-precheck.sh $(FILES)
+
+# G-parity (0015-MADR D12): every mcplib v1.6.0 identifier has a row in
+# docs/guides/migrating-from-mcplib.md.
+parity-check: ## Checks the mcplib migration map covers every identifier (G-parity)
+	python3 -B scripts/check_parity_map.py
 
 help: ## Displays this help message
 	@echo "Usage: make [target]"

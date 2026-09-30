@@ -14,3 +14,5 @@ coverage_summary.txt
 .worktrees/
 tmp/
 temp/
+__pycache__/
+*.py[cod]

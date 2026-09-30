@@ -25,6 +25,7 @@ Makefile                    development targets (below)
 .markdownlint-cli2.jsonc    Markdown lint configuration
 .github/workflows/ci.yml    CI
 scripts/go-precheck.sh      the pre-add check
+scripts/check_parity_map.py G-parity: the mcplib migration map is complete
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
 llmprovider/                providers, credentials, discovery
@@ -35,6 +36,7 @@ docs/
   architecture.md           this file
   decisions/                MADR and PLAN records
   reports/                  numbered observations
+  guides/                   API standards; migrating from mcplib
 ```
 
 ## Packages
@@ -121,7 +123,12 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 ## Tooling
 
 - **`make` targets:** `test`, `test-sum`, `fmt`, `vet`, `lint`, `tidy`,
-  `vuln`, `pre-add-check`, `help`.
+  `vuln`, `pre-add-check`, `parity-check`, `help`.
+- **`scripts/check_parity_map.py`** (G-parity) fails when an identifier in
+  `docs/guides/migrating-from-mcplib.ids`, the exported identifiers of
+  `mcplib` `v1.6.0` `llmprovider` and `wizard`, has no row in
+  `docs/guides/migrating-from-mcplib.md`, or a row names one that is not in
+  the list. `make parity-check` runs it.
 - **`scripts/go-precheck.sh`** runs `gofmt` on the given Go files,
   `golangci-lint run -c .golangci.yml ./...`, `go vet` and `go test` on their
   packages, and `govulncheck ./...`. `make pre-add-check` runs it, and so does
@@ -133,9 +140,11 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 ## What is not here
 
-- **`guides/`:** created with its first guide by
+- **Code that meets [guides/api-standards.md](guides/api-standards.md).**
+  The guide states the target; the code still has `mcplib`'s API until
   [0015-PLAN](decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
-  Phase S1.
+  lands.
+- **`guides/adding-a-provider.md`:** written in 0015-PLAN Phase S11.
 - **The v1 package layout** (`llmprovider/auth`, `llmprovider/catalog`,
   `llmprovider/providers/…`, `llmprovider/llmtest`):
   [0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md),

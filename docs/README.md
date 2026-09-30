@@ -1,7 +1,8 @@
 # go-llmprovider-sdk documentation
 
 [architecture.md](architecture.md) describes the system as it is. The records
-below hold the decisions and their history.
+below hold the decisions and their history. [guides/](guides/) holds the
+documents a reader follows to do something.
 
 ## Records
 
@@ -63,6 +64,8 @@ below hold the decisions and their history.
 | see the migration steps and which repository each happens in | [0002-PLAN](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md) |
 | know what runs before an agent commit here, and why | [0002-MADR, "Amendment 2026-09-29"](decisions/0002-MADR-migrate-llmprovider-from-mcplib.md#amendment-2026-09-29-pre-add-gate-and-agent-pointers) |
 | know why the SDK's API differs from `mcplib`'s, and what it will be | [0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) |
+| know the rules a new or changed API must follow | [guides/api-standards.md](guides/api-standards.md) |
+| move code that used `mcplib`'s `llmprovider` or `wizard` to this module | [guides/migrating-from-mcplib.md](guides/migrating-from-mcplib.md) |
 | see how the imported API measured against the SDK requirements | [0015-REPORT](reports/0015-REPORT-sdk-api-surface-assessment.md) |
 | know why provider auth builds on `mcplib` and not `magic-cli-remote`, and what it takes from each | [0016-MADR](decisions/0016-MADR-provider-auth-and-support-baseline.md) |
 | find where an `mcplib` record number ends up here | [the table below](#migrated-from-mcplib) |

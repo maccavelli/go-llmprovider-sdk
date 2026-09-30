@@ -367,3 +367,80 @@ commits:
 | S8 (`wizard`) | T4: one refresh-token copy, logout, `Result` redaction (D11, D5) |
 | S10 (ambient state) | T5: `ANTHROPIC_API_KEY` only (D12) |
 | S11, S13 | T6: guides and close-out |
+
+### Phase S1: standards and the parity map (2026-09-29)
+
+* **Start.** `P7` is `cc81adf`, the 0002-PLAN Phase 7 commit. S1 began on
+  `cbb0c7a` (0016-PLAN T0), which changed records only.
+* **Step 1, `docs/guides/api-standards.md`.** 48 rules, R1–R48, grouped by
+  D2–D13, each citing its decision. Three things beyond a transcription:
+  * **Rules from 0016-MADR.** R15–R16 (D2, token sources), R30 (the D8 proxy
+    exemption), R32 (D8, one client per provider) and R33–R34 (D5,
+    self-redaction) cite 0016-MADR, because they are conventions every later
+    phase is built to. The guide says it changes only by amending the decision
+    a rule cites, whichever record that is.
+  * **R8 names the convenience helpers** `GenerateText` and
+    `GenerateToolCall`, as D3 delegates to this guide. S11 may rename them
+    against the built tree, as step 1 of that phase allows.
+  * **A "Checks" table** names the tool or test that holds each checkable
+    rule and the phase that brings it. The rest are held by review.
+  * The rules are dash items labelled `R<n>`, not one ordered list, because
+    markdownlint MD029 rejects numbering that runs across headings.
+* **Step 2, `docs/guides/migrating-from-mcplib.md`.** The baseline is
+  generated from `mcplib` at `4e1f9a5` (`v1.6.0`) with
+  `scripts/check_parity_map.py generate`. It has 409 identifiers: 162
+  top-level and 247 members; 349 in `llmprovider` and 60 in `wizard`. It is
+  committed as `docs/guides/migrating-from-mcplib.ids`. A sample of 25
+  expected identifiers (for example `llmprovider.Provider.Generate`,
+  `llmprovider.ModelCatalog.Err`, `wizard.Result.RefreshToken`) were all
+  present, and no line fell outside `(llmprovider|wizard).Name[.Member]`.
+  The guide has one row per identifier, plus the import paths and the
+  behaviour 0002-MADR has already changed. Two rows are filled, both
+  "removed" by 0002-MADR's sixth amendment: `wizard.ErrOrchestrated` and
+  `wizard.Options.Orchestrated`.
+* **Step 3, `scripts/check_parity_map.py` (G-parity).** Stdlib Python.
+  Two choices the step did not spell out:
+  * it also fails on a row whose identifier is not in the baseline, so a
+    typo in the guide cannot hide a missing row;
+  * it reads rows only under `## Identifier map`. Its first run read the
+    import-path table as two identifier rows and failed, which this
+    corrected before any commit.
+
+  The empty-cell check is `--require-equivalents`, off until S11.
+  `.gitignore` gains `__pycache__/` and `*.py[cod]`.
+* **First-fail,** on scratch copies of the script and `docs/guides/`, never
+  the tree:
+
+  | Case | Exit | First line |
+  |---|---|---|
+  | clean copy | 0 | `G-parity: 409 identifiers, 409 rows, 2 with an SDK equivalent, 0 problem(s)` |
+  | the `llmprovider.Provider.Generate` row deleted | 1 | `G-parity: no row: llmprovider.Provider.Generate` |
+  | that row moved above `## Identifier map` | 1 | `G-parity: no row: llmprovider.Provider.Generate` |
+  | a row for `llmprovider.NotThere` added | 1 | `G-parity: row for an identifier not in the baseline: llmprovider.NotThere` |
+  | `--require-equivalents` on today's guide | 1 | `G-parity: empty SDK equivalent: llmprovider.APIError` (407 problems) |
+  | an unknown argument | 2 | the usage text |
+* **Step 4, `make parity-check`,** with `##` help. It prints
+  `G-parity: 409 identifiers, 409 rows, 2 with an SDK equivalent, 0 problem(s)`.
+* **Index and architecture.** `docs/README.md` gains two "I want to…" rows
+  and a pointer to `guides/`. `docs/architecture.md` lists the guides, the
+  script and the target, and "What is not here" now names the code that does
+  not yet meet the standards, and `adding-a-provider.md` (S11).
+* **Gate,** every step exit 0:
+  * `make pre-add-check`;
+  * `go vet ./...` with `GOOS` darwin, linux and windows (`CGO_ENABLED=0`:
+    with cgo on, the linux cross-vet fails in `runtime/cgo` on the macOS C
+    compiler, before any package here);
+  * `go vet -tags live_gateways ./...`;
+  * `go test -race -count=1 -cover ./...`: `internal/redact` 100.0 %,
+    `llmprovider` 89.2 %, `wizard` 83.4 %, unchanged from `P7`;
+  * `go mod tidy -diff`, empty;
+  * `make lint`, `0 issues.`;
+  * `make parity-check`;
+  * `markdownlint-cli2` on the two guides, `docs/README.md` and
+    `docs/architecture.md`: 0 issues;
+  * G-links over `docs/**` and `README.md`: 0 problems;
+  * the disclosure guard's deny list over every changed file: 0 hits.
+* **Not done.** `docs/reports/0011-REPORT-provider-source-compatibility-audit.md`
+  has markdownlint findings (list style, line length) that predate this phase.
+  CI does not run markdownlint, and the file is outside S1, so it is left as
+  it is.
