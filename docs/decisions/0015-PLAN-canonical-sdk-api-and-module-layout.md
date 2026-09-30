@@ -251,6 +251,12 @@ through identifiers that `llmprovider` exports for the duration of S7 only.
 Each commit's execution record lists the temporary exports it adds, and S7b
 removes them all.
 
+*Amended 2026-09-30 (0015-MADR, amendment "listing, and options scoped per
+provider"):* before the openai commit, one commit adds `llmprovider.ModelLister`,
+makes `WithModelProbes` and `ModelProbesFromEnv` common options, and gives
+`Settings` a `ModelProbes()` accessor. Every moved provider that lists
+implements `ModelLister`.
+
 *Proposed 2026-09-30 ([0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-together-provider-and-auth-extensions.md) D1):* accepted by the
 owner. `together` joins the order after `ollama`. It lands in `llmprovider` first,
 under 0017-PLAN U1.
@@ -358,6 +364,17 @@ in `llmprovider` refers to `ModelProfile`.
 2. Point the provider packages and `wizard` at `catalog`. `wizard`'s
    `ModelProfile` references change a second time, having changed in S8.
 3. Gate, including G-wire unchanged.
+4. *(Added 2026-09-30, 0015-MADR amendment "listing, and options scoped
+   per provider", D5 steps 2–4.)* `For(id, opts...)`:
+   * its options apply only when building `id`, after the baseline;
+   * it is skipped for other ids;
+   * a provider-specific option inside it is legal in a shared list;
+   * it refuses an old-API-only option, and a nested `For` of another id.
+
+   Red-first tests, and breaks for each rule. The standards guide's R18
+   gains the `For` exception. `wizard` passes one option list through the
+   `Registry`.
+5. Gate.
 
 ### Phase S9: usage
 
@@ -1189,3 +1206,23 @@ Executed as the S7 prerequisites amendment of the same date decided.
 * **Coverage:** `providers` 100 %; `llmprovider` 90.8 %.
 * **Docs:** the migration guide maps `NewProvider*`; `architecture.md`
   gains the package, and says how to construct a provider during S7.
+
+### Amendment 2026-09-30: listing and option scoping decided
+
+* **Found.** Before the openai commit, two questions no record answered:
+  * how a caller reaches `ListModels` when `New` returns `Provider`;
+  * where A5's probe options live in the new API. S6 had classed them as
+    old-API-only; `settings.go` refuses them, and
+    `TestResolveOptions_RefusesAnOldAPIOnlyOption` pins that for
+    `WithModelProbes` and `ModelProbesFromEnv`.
+* **Decided by the owner,** recorded in the 0015-MADR amendment of the same
+  date:
+  * `ModelLister`;
+  * a common baseline now, with the `For(id, …)` overlay built in S8b.
+* **Changed:**
+  * S7 gains a commit before openai (see S7's note).
+  * S8b gains steps 4 and 5.
+  * S6's classification of the two probe options is corrected.
+    `TestResolveOptions_RefusesAnOldAPIOnlyOption` drops them from its list
+    in that commit, which is a change to its data made by this decision.
+    Its meaning, that old-API-only options are refused, is unchanged.

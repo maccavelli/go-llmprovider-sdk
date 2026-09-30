@@ -462,3 +462,60 @@ Status: **accepted** 2026-09-30 ("3. add it"). S6 builds it. Evidence: [0017-REP
     seen.
 
   It is never retryable. The standards guide's R25 gains it on acceptance.
+
+## Amendment 2026-09-30: listing, and options scoped per provider
+
+Status: **accepted** 2026-09-30 by the owner, before the first provider moved
+in 0015-PLAN S7.
+
+### D3: `ModelLister`
+
+* **Gap.** S7 step 2 names `ListModels`, but `Provider` has no listing
+  method. `New` returns `Provider`, so a caller had no way to reach a
+  provider's listing.
+* **Decision.** An optional interface in `llmprovider`, which a caller
+  type-asserts, as with `Streamer`:
+
+  ```go
+  type ModelLister interface {
+  	ListModels(ctx context.Context) ([]string, error)
+  }
+  ```
+
+  `ListModels` keeps the old `DiscoverModels` behaviour: the curated
+  listing, probed where [0016-MADR-provider-auth-and-support-baseline.md](0016-MADR-provider-auth-and-support-baseline.md) A5 says.
+  `ModelDiscoverer` is removed with the old API in S8.
+* **Rejected:**
+  * keeping `ModelDiscoverer` in the new API, which carries an old-API
+    name;
+  * exported concrete types without a shared interface, which a caller
+    holding several providers cannot list generically.
+
+### D5: a common baseline, with overlays per provider
+
+* **Question.** A5's probe options are common to five providers, and S6
+  had classed them as old-API-only. The owner asked instead for "a common
+  options baseline with provider scoping as extended schema attributes",
+  for extensibility.
+* **Decision.**
+  1. **Baseline.** A common option applies to every provider.
+     `WithModelProbes` and `ModelProbesFromEnv` are common options.
+  2. **Overlay.** `For(id, opts...)` applies its options only when building
+     `id`, after the baseline, so the more specific wins wherever it sits
+     in the list. For any other id it is skipped. It is not a silent
+     ignore, because the caller named the target.
+  3. **Strict.** A provider-specific option given bare, such as
+     `kilo.WithOrganization`, is still an error from another provider's
+     `New`. Inside `For(kilo, …)` it may sit in a list shared by several
+     providers.
+  4. **Refused.** An old-API-only option inside `For`, and a `For` nested
+     under a different id.
+* **Schedule.** Step 1 is built now. Steps 2–4 are built in 0015-PLAN
+  Phase S8b, once `wizard` builds through the `Registry`. The standards
+  guide's R18 changes then, to read "a foreign option is an error from
+  `New`, unless the caller scoped it with `For`".
+* **Rejected:**
+  * a scoped `WithModelProbes` in each provider package, with which
+    `ModelProbesFromEnv` could not stay one function, contrary to A5;
+  * an overlay decided by list order alone, with which a baseline option
+    placed after an overlay would beat it.
