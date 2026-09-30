@@ -81,9 +81,9 @@ func TestCurateFromCatalog_Gemini(t *testing.T) {
 			filtered = append(filtered, a)
 		}
 	}
-	out := curateFromCatalog(StaticGemini, filtered, func(s string) bool {
+	out := curateFromCatalog(staticGemini, filtered, func(s string) bool {
 		return isUsableGeminiTextModel(s, []string{methodGenerateContent})
-	}, RankGeminiModel)
+	}, rankGeminiModel)
 
 	if len(out) == 0 {
 		t.Fatal("expected curated models")
@@ -112,23 +112,23 @@ func indexOf(ss []string, want string) int {
 }
 
 func TestCurateFromCatalog_EmptyAvailableUsesNothingThenFallback(t *testing.T) {
-	out := curateFromCatalog(StaticGemini, nil, nil, RankGeminiModel)
+	out := curateFromCatalog(staticGemini, nil, nil, rankGeminiModel)
 	if len(out) != 0 {
 		// no available, no fallback path without available items
 		t.Fatalf("expected empty, got %v", out)
 	}
 	// With only unusable available, usable filter empties map → empty
-	out = curateFromCatalog(StaticOpenAI, []string{"dall-e-3"}, isUsableOpenAIChatModel, RankOpenAIModel)
+	out = curateFromCatalog(staticOpenAI, []string{"dall-e-3"}, isUsableOpenAIChatModel, rankOpenAIModel)
 	if len(out) != 0 {
 		t.Fatalf("expected empty when only junk available: %v", out)
 	}
 }
 
 func TestStaticModels_NoShutDownGemini20(t *testing.T) {
-	if len(StaticGemini) > MaxListedModels {
-		t.Errorf("StaticGemini should not exceed MaxListedModels (%d), got %d", MaxListedModels, len(StaticGemini))
+	if len(staticGemini) > MaxListedModels {
+		t.Errorf("staticGemini should not exceed MaxListedModels (%d), got %d", MaxListedModels, len(staticGemini))
 	}
-	for _, m := range StaticGemini {
+	for _, m := range staticGemini {
 		if strings.Contains(m, "2.0") {
 			t.Errorf("static catalog should not recommend shut-down 2.0 models: %s", m)
 		}
@@ -145,13 +145,13 @@ func TestStaticModels_NoShutDownGemini20(t *testing.T) {
 }
 
 func TestRankGeminiModel_PrefersFlashLite(t *testing.T) {
-	if RankGeminiModel("gemini-3.7-flash") <= RankGeminiModel("gemini-2.5-pro") {
+	if rankGeminiModel("gemini-3.7-flash") <= rankGeminiModel("gemini-2.5-pro") {
 		t.Error("3.7 flash should rank above pro for hook latency")
 	}
-	if RankGeminiModel("gemini-3.7-flash") <= RankGeminiModel("gemini-2.5-flash") {
+	if rankGeminiModel("gemini-3.7-flash") <= rankGeminiModel("gemini-2.5-flash") {
 		t.Error("newer 3.7 generation should rank above 2.5")
 	}
-	if RankGeminiModel("gemini-2.5-flash-preview-09-2025") >= RankGeminiModel("gemini-2.5-flash") {
+	if rankGeminiModel("gemini-2.5-flash-preview-09-2025") >= rankGeminiModel("gemini-2.5-flash") {
 		t.Error("preview should rank far below stable flash")
 	}
 }
@@ -180,17 +180,17 @@ func TestIsUsableGrokModel(t *testing.T) {
 }
 
 func TestRankGrokModel(t *testing.T) {
-	if RankGrokModel("grok-3-mini-fast") <= RankGrokModel("grok-3-mini") {
+	if rankGrokModel("grok-3-mini-fast") <= rankGrokModel("grok-3-mini") {
 		t.Error("mini-fast should rank above mini")
 	}
-	if RankGrokModel("grok-3-mini") <= RankGrokModel("grok-4") {
+	if rankGrokModel("grok-3-mini") <= rankGrokModel("grok-4") {
 		t.Error("mini should rank above grok-4 for cost preference")
 	}
 }
 
 func TestStaticGrok_Count(t *testing.T) {
-	if len(StaticGrok) > MaxListedModels {
-		t.Errorf("StaticGrok has %d entries, max is %d", len(StaticGrok), MaxListedModels)
+	if len(staticGrok) > MaxListedModels {
+		t.Errorf("staticGrok has %d entries, max is %d", len(staticGrok), MaxListedModels)
 	}
 }
 
@@ -233,41 +233,41 @@ func TestIsUsableClaudeTextModel(t *testing.T) {
 }
 
 func TestRankOpenAIModel(t *testing.T) {
-	if RankOpenAIModel("gpt-4.1-nano") <= RankOpenAIModel("gpt-4.1-mini") {
+	if rankOpenAIModel("gpt-4.1-nano") <= rankOpenAIModel("gpt-4.1-mini") {
 		t.Error("nano should rank above mini for cost preference")
 	}
-	if RankOpenAIModel("gpt-4.1-mini") <= RankOpenAIModel("gpt-4.1") {
+	if rankOpenAIModel("gpt-4.1-mini") <= rankOpenAIModel("gpt-4.1") {
 		t.Error("mini should rank above standard 4.1")
 	}
-	if RankOpenAIModel("o4") <= RankOpenAIModel("o3") {
+	if rankOpenAIModel("o4") <= rankOpenAIModel("o3") {
 		t.Error("o4 should rank above o3")
 	}
-	if RankOpenAIModel("gpt-4o-realtime") >= 0 {
+	if rankOpenAIModel("gpt-4o-realtime") >= 0 {
 		t.Error("realtime models should be penalized")
 	}
-	if RankOpenAIModel("unknown-model") != 0 {
+	if rankOpenAIModel("unknown-model") != 0 {
 		t.Error("unknown model should have score 0")
 	}
 }
 
 func TestRankClaudeModel(t *testing.T) {
-	if RankClaudeModel("claude-haiku-4-5") <= RankClaudeModel("claude-sonnet-5") {
+	if rankClaudeModel("claude-haiku-4-5") <= rankClaudeModel("claude-sonnet-5") {
 		t.Error("haiku should rank above sonnet for speed")
 	}
-	if RankClaudeModel("claude-sonnet-5") <= RankClaudeModel("claude-opus-4-8") {
+	if rankClaudeModel("claude-sonnet-5") <= rankClaudeModel("claude-opus-4-8") {
 		t.Error("sonnet should rank above opus")
 	}
-	if RankClaudeModel("claude-fable-4") <= 0 {
+	if rankClaudeModel("claude-fable-4") <= 0 {
 		t.Error("fable should have positive score")
 	}
-	if RankClaudeModel("unknown-model") != 0 {
+	if rankClaudeModel("unknown-model") != 0 {
 		t.Error("unknown model should have score 0")
 	}
 }
 
 func TestSortByRankDesc(t *testing.T) {
 	models := []string{"gemini-2.5-flash", "gemini-3.7-flash", "gemini-2.5-pro"}
-	sortByRankDesc(models, RankGeminiModel)
+	sortByRankDesc(models, rankGeminiModel)
 	if models[0] != "gemini-3.7-flash" {
 		t.Errorf("expected highest rank first, got %v", models)
 	}
@@ -277,7 +277,7 @@ func TestCurateFromCatalog_Backfill(t *testing.T) {
 	// Catalog has only 1 matching model, available has more usable models
 	catalog := []string{"gpt-4.1-mini"}
 	available := []string{"gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-5"}
-	out := curateFromCatalog(catalog, available, isUsableOpenAIChatModel, RankOpenAIModel)
+	out := curateFromCatalog(catalog, available, isUsableOpenAIChatModel, rankOpenAIModel)
 	if len(out) != 4 {
 		t.Fatalf("expected 4 backfilled models, got %d (%v)", len(out), out)
 	}
@@ -308,27 +308,27 @@ func TestIsUsableOpencodeModel(t *testing.T) {
 }
 
 func TestRankOpencodeModel(t *testing.T) {
-	if RankOpencodeModel("gpt-5.4-nano") <= RankOpencodeModel("gpt-5.4-mini") {
+	if rankOpencodeModel("gpt-5.4-nano") <= rankOpencodeModel("gpt-5.4-mini") {
 		t.Error("nano should rank above mini for hook latency")
 	}
-	if RankOpencodeModel("gemini-3.5-flash-lite") <= RankOpencodeModel("gemini-3.7-flash") {
+	if rankOpencodeModel("gemini-3.5-flash-lite") <= rankOpencodeModel("gemini-3.7-flash") {
 		t.Error("lite should rank above flash")
 	}
-	if RankOpencodeModel("claude-haiku-4-5") <= RankOpencodeModel("claude-sonnet-5") {
+	if rankOpencodeModel("claude-haiku-4-5") <= rankOpencodeModel("claude-sonnet-5") {
 		t.Error("haiku should rank above sonnet")
 	}
-	if RankOpencodeModel("qwen3.8-flash") <= RankOpencodeModel("qwen3.8-max") {
+	if rankOpencodeModel("qwen3.8-flash") <= rankOpencodeModel("qwen3.8-max") {
 		t.Error("flash should rank above max")
 	}
-	if RankOpencodeModel("hy3-free") >= RankOpencodeModel("hy3") {
+	if rankOpencodeModel("hy3-free") >= rankOpencodeModel("hy3") {
 		t.Error("free tier is rate-limited and must rank below its paid sibling")
 	}
 }
 
 func TestStaticOpencode_Count(t *testing.T) {
 	for name, cat := range map[string][]string{
-		"StaticOpencodeZen": StaticOpencodeZen,
-		"StaticOpencodeGo":  StaticOpencodeGo,
+		"staticOpencodeZen": staticOpencodeZen,
+		"staticOpencodeGo":  staticOpencodeGo,
 	} {
 		if len(cat) == 0 || len(cat) > MaxListedModels {
 			t.Errorf("%s has %d entries, want 1..%d", name, len(cat), MaxListedModels)
@@ -348,7 +348,7 @@ func TestStaticOpencode_Count(t *testing.T) {
 // TestStaticModels_OpenAIIsPlatformCatalog: the only OpenAI static catalog is
 // the Platform one; ChatGPT sessions have none (MADR 0008 D11).
 func TestStaticModels_OpenAIIsPlatformCatalog(t *testing.T) {
-	if got := StaticModels(ProviderOpenAI); !slices.Equal(got, StaticOpenAI) {
-		t.Fatalf("StaticModels(openai) = %v, want StaticOpenAI %v", got, StaticOpenAI)
+	if got := StaticModels(ProviderOpenAI); !slices.Equal(got, staticOpenAI) {
+		t.Fatalf("StaticModels(openai) = %v, want staticOpenAI %v", got, staticOpenAI)
 	}
 }

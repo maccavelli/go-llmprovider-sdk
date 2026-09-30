@@ -191,7 +191,7 @@ func TestListModelCatalog_MetadataFallbackZen(t *testing.T) {
 	listing := serveBody(t, opencodeListingFixture)
 	meta, _ := metadataServer(t, http.StatusInternalServerError, "")
 	cat := listCatalog(context.Background(), t, ProviderOpencodeZen, WithBaseURL(listing.URL), WithModelMetadataURL(meta.URL))
-	want := curateFromCatalog(staticOpencodeCatalog(ProviderOpencodeZen), cat.Usable, isUsableOpencodeModel, RankOpencodeModel)
+	want := curateFromCatalog(staticOpencodeCatalog(ProviderOpencodeZen), cat.Usable, isUsableOpencodeModel, rankOpencodeModel)
 	assertRanked(t, cat.Recommended, want)
 }
 

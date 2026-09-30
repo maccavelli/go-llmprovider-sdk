@@ -31,7 +31,7 @@ func TestIsUsableGrokModel_KeepsTextModels(t *testing.T) {
 // grok-4.6, then grok-4.5 (grok-build f0e3be11:
 // xai-grok-models/default_models.json).
 func TestStaticGrok_LeadsWithCLIDefaults(t *testing.T) {
-	if len(StaticGrok) < 2 || !slices.Equal(StaticGrok[:2], []string{"grok-4.6", "grok-4.5"}) {
-		t.Fatalf("StaticGrok = %v, want it to lead with grok-4.6, grok-4.5", StaticGrok)
+	if len(staticGrok) < 2 || !slices.Equal(staticGrok[:2], []string{"grok-4.6", "grok-4.5"}) {
+		t.Fatalf("staticGrok = %v, want it to lead with grok-4.6, grok-4.5", staticGrok)
 	}
 }

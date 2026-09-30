@@ -17,6 +17,7 @@ type OpenAIProvider struct {
 	model           string
 	baseURL         string // For testing
 	client          *http.Client
+	probeModels     bool
 	maxTokens       int
 	reasoningEffort string // reasoning effort for the GenerateThinking path
 	// identity names the client on every request (MADR 0012 §1.4).
@@ -244,6 +245,10 @@ func (p *OpenAIProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 		return listed, nil
 	}
 
+	// Probes are billed requests: only on request (0016-MADR D9).
+	if !p.probeModels {
+		return listed, nil
+	}
 	healthy := probeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
 		tp, err := NewOpenAIWithSource(p.src, modelID, append(p.identity.options(), WithHTTPClient(p.client), WithBaseURL(p.baseURL))...)
 		if err != nil {

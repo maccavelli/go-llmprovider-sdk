@@ -165,10 +165,10 @@ func TestSplitHuggingFaceModelPolicy(t *testing.T) {
 }
 
 func TestStaticHuggingFace_Count(t *testing.T) {
-	if len(StaticHuggingFace) == 0 || len(StaticHuggingFace) > MaxListedModels {
-		t.Errorf("StaticHuggingFace has %d entries, want 1..%d", len(StaticHuggingFace), MaxListedModels)
+	if len(staticHuggingFace) == 0 || len(staticHuggingFace) > MaxListedModels {
+		t.Errorf("staticHuggingFace has %d entries, want 1..%d", len(staticHuggingFace), MaxListedModels)
 	}
-	for _, m := range StaticHuggingFace {
+	for _, m := range staticHuggingFace {
 		if !isUsableHuggingFaceModel(m) {
 			t.Errorf("%q fails its own usability filter", m)
 		}

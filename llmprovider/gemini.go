@@ -17,6 +17,7 @@ type GeminiProvider struct {
 	model           string
 	baseURL         string // For testing
 	client          *http.Client
+	probeModels     bool
 	maxTokens       int
 	reasoningEffort string // effort for the GenerateThinking path (see geminiThinkingLevel)
 	store           bool   // WithStore(true): interactions are stored and Continue works
@@ -41,6 +42,7 @@ func NewGemini(ctx context.Context, apiKey, model string, opts ...ProviderOption
 		baseURL:         baseURL,
 		client:          cfg.HTTPClient,
 		identity:        identityOf(cfg),
+		probeModels:     cfg.ProbeModels,
 		maxTokens:       cfg.MaxTokens,
 		reasoningEffort: cfg.ReasoningEffort,
 		store:           cfg.Store != nil && *cfg.Store,
@@ -308,6 +310,10 @@ func (p *GeminiProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 		listed = StaticModels(ProviderGemini)
 	}
 
+	// Probes are billed requests: only on request (0016-MADR D9).
+	if !p.probeModels {
+		return listed, nil
+	}
 	healthy := probeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
 		tp := &GeminiProvider{
 			apiKey: p.apiKey, model: modelID, baseURL: p.baseURL,

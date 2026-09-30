@@ -50,6 +50,7 @@ type OllamaProvider struct {
 	model           string
 	baseURL         string
 	client          *http.Client
+	probeModels     bool
 	maxTokens       int
 	reasoningEffort string
 	// identity names the client on every request (MADR 0012 §1.4).
@@ -71,6 +72,7 @@ func NewOllama(apiKey, model string, opts ...ProviderOption) (*OllamaProvider, e
 		baseURL:         baseURL,
 		client:          cfg.HTTPClient,
 		identity:        identityOf(cfg),
+		probeModels:     cfg.ProbeModels,
 		maxTokens:       cfg.MaxTokens,
 		reasoningEffort: cfg.ReasoningEffort,
 	}, nil
@@ -204,6 +206,10 @@ func (p *OllamaProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
+	// Probes are billed requests: only on request (0016-MADR D9).
+	if !p.probeModels {
+		return listed, nil
+	}
 	healthy := probeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
 		tp, err := NewOllama(p.apiKey, modelID, append(p.identity.options(), WithHTTPClient(p.client), WithBaseURL(p.baseURL))...)
 		if err != nil {

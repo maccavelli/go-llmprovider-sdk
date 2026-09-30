@@ -116,9 +116,9 @@ func TestDescriptors_CoverEveryRegisteredProvider(t *testing.T) {
 		described[d.ID] = d
 	}
 
-	for id := range ProviderEnvVars {
+	for id := range providerEnvVars {
 		if _, ok := described[id]; !ok {
-			t.Errorf("provider %q is in ProviderEnvVars but has no descriptor: "+
+			t.Errorf("provider %q is in providerEnvVars but has no descriptor: "+
 				"no wizard can offer it", id)
 		}
 	}
@@ -126,8 +126,8 @@ func TestDescriptors_CoverEveryRegisteredProvider(t *testing.T) {
 		if !d.RequiresAPIKey {
 			continue
 		}
-		if _, ok := ProviderEnvVars[id]; !ok {
-			t.Errorf("descriptor %q requires an API key but has no ProviderEnvVars entry", id)
+		if _, ok := providerEnvVars[id]; !ok {
+			t.Errorf("descriptor %q requires an API key but has no providerEnvVars entry", id)
 		}
 	}
 	for _, id := range []string{ProviderOpenAI, ProviderGrok} {
@@ -151,9 +151,9 @@ func descriptorHasAuthMethod(descriptor ProviderDescriptor, id AuthMethodID) boo
 
 func TestDescriptors_DerivedFieldsMatchSource(t *testing.T) {
 	for _, d := range Descriptors() {
-		if d.RequiresAPIKey && d.EnvVar != ProviderEnvVars[d.ID] {
-			t.Errorf("%s: EnvVar = %q, want %q from ProviderEnvVars",
-				d.ID, d.EnvVar, ProviderEnvVars[d.ID])
+		if d.RequiresAPIKey && d.EnvVar != providerEnvVars[d.ID] {
+			t.Errorf("%s: EnvVar = %q, want %q from providerEnvVars",
+				d.ID, d.EnvVar, providerEnvVars[d.ID])
 		}
 		want := StaticModels(d.ID)
 		if len(d.StaticModels) != len(want) {

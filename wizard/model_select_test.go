@@ -77,13 +77,13 @@ func TestConfigureLLM_BlankSearchShowsRecommended(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
-	if res.Model != llmprovider.StaticClaude[1] {
-		t.Errorf("Model = %q, want %q", res.Model, llmprovider.StaticClaude[1])
+	if res.Model != llmprovider.StaticModels(llmprovider.ProviderClaude)[1] {
+		t.Errorf("Model = %q, want %q", res.Model, llmprovider.StaticModels(llmprovider.ProviderClaude)[1])
 	}
 	if !slices.Contains(f.seenInput, searchModelsPrompt) {
 		t.Errorf("inputs = %v, want the search prompt", f.seenInput)
 	}
-	menu, n := f.seenSelectItems[1], len(llmprovider.StaticClaude)
+	menu, n := f.seenSelectItems[1], len(llmprovider.StaticModels(llmprovider.ProviderClaude))
 	if len(menu) != n+1 || menu[n].Label != otherModelLabel {
 		t.Errorf("model menu = %v, want %d recommended rows then Other", labels(menu), n)
 	}
@@ -119,8 +119,8 @@ func TestConfigureLLM_SearchNoMatchReturnsToSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
-	if res.Model != llmprovider.StaticClaude[0] {
-		t.Errorf("Model = %q, want %q", res.Model, llmprovider.StaticClaude[0])
+	if res.Model != llmprovider.StaticModels(llmprovider.ProviderClaude)[0] {
+		t.Errorf("Model = %q, want %q", res.Model, llmprovider.StaticModels(llmprovider.ProviderClaude)[0])
 	}
 	if !slices.Contains(f.seenNotify, `no Claude (Anthropic) models match "zzzz"`) {
 		t.Errorf("notices = %v, want the no-match notice", f.seenNotify)
@@ -188,7 +188,7 @@ func TestConfigureLLM_SearchResultsCapped(t *testing.T) {
 
 func TestConfigureLLM_CurrentModelListed(t *testing.T) {
 	withEnv(t, nil)
-	n := len(llmprovider.StaticClaude)
+	n := len(llmprovider.StaticModels(llmprovider.ProviderClaude))
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), n}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderClaude, Model: "claude-opus-5"},
@@ -217,7 +217,7 @@ func TestConfigureLLM_CurrentModelOnlyForSameProvider(t *testing.T) {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
 	menu := f.seenSelectItems[1]
-	if n := len(llmprovider.StaticClaude) + 1; len(menu) != n {
+	if n := len(llmprovider.StaticModels(llmprovider.ProviderClaude)) + 1; len(menu) != n {
 		t.Errorf("menu = %+v, want %d rows (no current row for another provider)", menu, n)
 	}
 	for _, c := range menu {
@@ -246,8 +246,8 @@ func TestConfigureLLM_StaticCatalogNotice(t *testing.T) {
 	if n := countContaining(f.seenNotify, notice); n != 1 {
 		t.Errorf("static notice seen %d times, want 1: %v", n, f.seenNotify)
 	}
-	if res.Model != llmprovider.StaticOpencodeZen[0] {
-		t.Errorf("Model = %q, want %q", res.Model, llmprovider.StaticOpencodeZen[0])
+	if res.Model != llmprovider.StaticModels(llmprovider.ProviderOpencodeZen)[0] {
+		t.Errorf("Model = %q, want %q", res.Model, llmprovider.StaticModels(llmprovider.ProviderOpencodeZen)[0])
 	}
 }
 

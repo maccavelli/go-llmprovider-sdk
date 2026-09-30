@@ -106,7 +106,7 @@ func TestListModelCatalog_GeminiSecondPageFailureDegrades(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a failed page must degrade, not error: %v", err)
 	}
-	if cat.Live || !slices.Equal(cat.Usable, StaticGemini) {
+	if cat.Live || !slices.Equal(cat.Usable, staticGemini) {
 		t.Errorf("catalog = %+v, want static (Live false)", cat)
 	}
 }
@@ -122,7 +122,7 @@ func TestListModelCatalog_ClaudeSecondPageFailureDegrades(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a failed page must degrade, not error: %v", err)
 	}
-	if cat.Live || !slices.Equal(cat.Usable, StaticClaude) {
+	if cat.Live || !slices.Equal(cat.Usable, staticClaude) {
 		t.Errorf("catalog = %+v, want static (Live false)", cat)
 	}
 }
@@ -135,8 +135,8 @@ func TestListModelCatalog_PaginationIsBounded(t *testing.T) {
 		provider, body string
 		static         []string
 	}{
-		{ProviderGemini, `{"models":[{"name":"models/gemini-3.7-flash","supportedGenerationMethods":["generateContent"]}],"nextPageToken":"again"}`, StaticGemini},
-		{ProviderClaude, `{"data":[{"id":"claude-sonnet-5"}],"has_more":true,"last_id":"x"}`, StaticClaude},
+		{ProviderGemini, `{"models":[{"name":"models/gemini-3.7-flash","supportedGenerationMethods":["generateContent"]}],"nextPageToken":"again"}`, staticGemini},
+		{ProviderClaude, `{"data":[{"id":"claude-sonnet-5"}],"has_more":true,"last_id":"x"}`, staticClaude},
 	} {
 		t.Run(tc.provider, func(t *testing.T) {
 			ps := newPagingServer(t, func(url.Values) (int, string) { return http.StatusOK, tc.body })
@@ -165,7 +165,7 @@ func TestListModelCatalog_ClaudeHasMoreWithoutLastIDDegrades(t *testing.T) {
 	if n := len(ps.seen()); n != 1 {
 		t.Errorf("requests = %d, want 1", n)
 	}
-	if cat.Live || !slices.Equal(cat.Usable, StaticClaude) {
+	if cat.Live || !slices.Equal(cat.Usable, staticClaude) {
 		t.Errorf("catalog = %+v, want static (Live false)", cat)
 	}
 }

@@ -143,7 +143,7 @@ func TestTogether_Listing(t *testing.T) {
 				t.Fatal(err)
 			}
 			got, err := p.DiscoverModels(context.Background())
-			if err != nil || !slices.Equal(got, StaticTogether) {
+			if err != nil || !slices.Equal(got, staticTogether) {
 				t.Errorf("DiscoverModels = %v, %v; want the static catalog", got, err)
 			}
 		})

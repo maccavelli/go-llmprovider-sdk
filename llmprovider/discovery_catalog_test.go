@@ -117,8 +117,8 @@ func TestListModelCatalog_OpenAIRecommendedIsCurated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}
-	if !slices.Equal(cat.Recommended, StaticOpenAI) {
-		t.Errorf("Recommended = %v, want StaticOpenAI %v in catalog order", cat.Recommended, StaticOpenAI)
+	if !slices.Equal(cat.Recommended, staticOpenAI) {
+		t.Errorf("Recommended = %v, want staticOpenAI %v in catalog order", cat.Recommended, staticOpenAI)
 	}
 	if !slices.Equal(cat.Usable, order) {
 		t.Errorf("Usable = %v, want listing order %v", cat.Usable, order)

@@ -384,9 +384,9 @@ func fetchGeminiPage(ctx context.Context, endpoint, apiKey string, cfg ProviderC
 }
 
 func curateGemini(usable []string) []string {
-	return curateFromCatalog(StaticGemini, usable, func(s string) bool {
+	return curateFromCatalog(staticGemini, usable, func(s string) bool {
 		return isUsableGeminiTextModel(s, []string{methodGenerateContent})
-	}, RankGeminiModel)
+	}, rankGeminiModel)
 }
 
 // fetchOpenAIUsable returns the usable OpenAI chat models in listing order.
@@ -403,7 +403,7 @@ func fetchOpenAIUsable(ctx context.Context, apiKey string, cfg ProviderConfig) (
 }
 
 func curateOpenAI(usable []string) []string {
-	return curateFromCatalog(StaticOpenAI, usable, isUsableOpenAIChatModel, RankOpenAIModel)
+	return curateFromCatalog(staticOpenAI, usable, isUsableOpenAIChatModel, rankOpenAIModel)
 }
 
 // listClaudeModels uses Anthropic's Models API when available; otherwise returns
@@ -485,7 +485,7 @@ func fetchClaudePage(ctx context.Context, endpoint, apiKey string, cfg ProviderC
 }
 
 func curateClaude(usable []string) []string {
-	return curateFromCatalog(StaticClaude, usable, isUsableClaudeTextModel, RankClaudeModel)
+	return curateFromCatalog(staticClaude, usable, isUsableClaudeTextModel, rankClaudeModel)
 }
 
 // listOllamaModels fetches installed models from a local Ollama instance.
@@ -587,7 +587,7 @@ func fetchGrokUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]
 }
 
 func curateGrok(usable []string) []string {
-	return curateFromCatalog(StaticGrok, usable, isUsableGrokModel, RankGrokModel)
+	return curateFromCatalog(staticGrok, usable, isUsableGrokModel, rankGrokModel)
 }
 
 // fetchDataIDs performs GET endpoint and decodes a {"data":[{"id":…}]} body.
@@ -665,7 +665,7 @@ func opencodeCatalog(ctx context.Context, gateway, apiKey string, cfg ProviderCo
 	meta := startModelMetadata(ctx, cfg)
 	usable, fetchErr := fetchOpencodeUsable(ctx, gateway, apiKey, cfg)
 	curate := func(usable []string) []string {
-		return curateFromCatalog(staticOpencodeCatalog(gateway), usable, isUsableOpencodeModel, RankOpencodeModel)
+		return curateFromCatalog(staticOpencodeCatalog(gateway), usable, isUsableOpencodeModel, rankOpencodeModel)
 	}
 	return catalogFrom(usable, fetchErr, StaticModels(gateway), metadataCurate(gateway, cfg.ModelProfile, meta, curate)), nil
 }
@@ -865,12 +865,12 @@ func fetchTogetherUsable(ctx context.Context, apiKey string, cfg ProviderConfig)
 // curateTogether is the fallback curation when the metadata document is
 // unavailable: the static catalog's order, then the listing's.
 func curateTogether(usable []string) []string {
-	return curateFromCatalog(StaticTogether, usable, nil, nil)
+	return curateFromCatalog(staticTogether, usable, nil, nil)
 }
 
 // curateHuggingFace passes a nil rankFn, which preserves the metadata order.
 func curateHuggingFace(usable []string) []string {
-	return curateFromCatalog(StaticHuggingFace, usable, isUsableHuggingFaceModel, nil)
+	return curateFromCatalog(staticHuggingFace, usable, isUsableHuggingFaceModel, nil)
 }
 
 // kiloCatalogEntry is the subset of Kilo's OpenRouter-shaped catalog entry this
@@ -1008,7 +1008,7 @@ func kiloUsable(entries []kiloCatalogEntry) []string {
 
 // curateKilo passes a nil rankFn, which preserves the price ordering.
 func curateKilo(usable []string) []string {
-	return curateFromCatalog(StaticKilo, usable, isUsableKiloModel, nil)
+	return curateFromCatalog(staticKilo, usable, isUsableKiloModel, nil)
 }
 
 // kiloCurate ranks Kilo's usable models from the listing's own metadata

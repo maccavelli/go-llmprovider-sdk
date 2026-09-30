@@ -135,8 +135,14 @@ docs/
 - `ListAvailableModels` and `ListModelCatalog` (and their `…WithSource` forms)
   list a provider's models within a 10 s bound; a `ModelCatalog` carries the
   recommended six, the full usable list and, on failure, `Err`.
-- `SearchModels` matches a query against a list. The static catalogs
-  (`StaticModels`) are the fallback.
+- `SearchModels` matches a query against a list. The static catalogs are the
+  fallback. `StaticModels(provider)` returns a copy, and `ProviderEnvVars()`
+  a copy of the variable names. `RankModel(provider, model)` scores a model
+  by the provider's own ranking.
+- A provider's `DiscoverModels` returns the listing. With
+  `WithModelProbes(true)`, OpenAI (API key), Claude, Gemini, Grok and Ollama
+  also send one billed generation to each candidate, and keep those that
+  answer.
 - `ModelProfile` (`ProfileUtility`, `ProfileCapable`) ranks the open catalogs,
   using models.dev-format metadata from `https://models.opencode.ai/api.json`
   (`LLMPROVIDER_MODELS_METADATA_URL` overrides it;

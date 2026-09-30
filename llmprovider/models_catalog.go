@@ -23,9 +23,9 @@ const methodGenerateContent = "generateContent"
 //
 //nolint:goconst // catalog IDs are intentionally repeated in tests and filters
 var (
-	// StaticGemini: stable fast text models only. gemini-2.0-* and 1.5-* are shut down.
+	// staticGemini: stable fast text models only. gemini-2.0-* and 1.5-* are shut down.
 	// Prioritizes low-latency Flash and Flash-Lite models for fast Git hook execution.
-	StaticGemini = []string{
+	staticGemini = []string{
 		"gemini-3.7-flash",
 		"gemini-3.6-flash",
 		"gemini-3.5-flash",
@@ -34,8 +34,8 @@ var (
 		"gemini-2.5-flash-lite",
 	}
 
-	// StaticOpenAI: chat-capable defaults; mini/nano first for cost.
-	StaticOpenAI = []string{
+	// staticOpenAI: chat-capable defaults; mini/nano first for cost.
+	staticOpenAI = []string{
 		"gpt-4.1-mini",
 		"gpt-4.1-nano",
 		"gpt-4o-mini",
@@ -44,19 +44,19 @@ var (
 		"o4-mini",
 	}
 
-	// StaticClaude: current aliases, each answering on the Messages API
+	// staticClaude: current aliases, each answering on the Messages API
 	// (verified 2026-09-27, MADR 0013 B10).
-	StaticClaude = []string{
+	staticClaude = []string{
 		"claude-haiku-4-5",
 		"claude-sonnet-5",
 		"claude-sonnet-4-6",
 		"claude-opus-4-8",
 	}
 
-	// StaticOpencodeZen: MADR 0009 Context §7's utility six, ranked from the
+	// staticOpencodeZen: MADR 0009 Context §7's utility six, ranked from the
 	// 2026-09-26 Zen listing and models.opencode.ai metadata. Routes verified
 	// against api.json's npm packages on 2026-09-26.
-	StaticOpencodeZen = []string{
+	staticOpencodeZen = []string{
 		"deepseek-v4.1-flash",   // chat_completions
 		"qwen3.8-flash",         // messages
 		"glm-5.3-flash",         // chat_completions
@@ -65,9 +65,9 @@ var (
 		"gemini-3.8-flash",      // google
 	}
 
-	// StaticOpencodeGo: MADR 0009 Context §7's utility six (2026-09-26). It excludes
+	// staticOpencodeGo: MADR 0009 Context §7's utility six (2026-09-26). It excludes
 	// the region-gated DeepSeek models and the -contributor models.
-	StaticOpencodeGo = []string{
+	staticOpencodeGo = []string{
 		"mimo-v2.6-flash", // chat_completions
 		"qwen3.8-flash",   // messages
 		"glm-5.3-flash",   // chat_completions
@@ -76,10 +76,10 @@ var (
 		"hy3",             // chat_completions
 	}
 
-	// StaticHuggingFace: fallback only — discovery is metadata-driven. MADR
+	// staticHuggingFace: fallback only — discovery is metadata-driven. MADR
 	// 0009 Context §7's utility six, from the 2026-09-26 router listing and
 	// models.opencode.ai metadata: reasoning-capable, paid, recent.
-	StaticHuggingFace = []string{
+	staticHuggingFace = []string{
 		"deepseek-ai/DeepSeek-V4-Flash-0731",
 		"zai-org/GLM-5.3-Flash",
 		"deepseek-ai/DeepSeek-V4.1-Flash",
@@ -88,11 +88,11 @@ var (
 		"stepfun-ai/Step-3.5-Flash",
 	}
 
-	// StaticTogether: fallback only — discovery is metadata-driven. From
+	// staticTogether: fallback only — discovery is metadata-driven. From
 	// models.dev's togetherai entry on 2026-09-30: tool-calling chat models,
 	// not deprecated, text out, one per vendor, newest first
 	// (docs/decisions/0017-MADR-together-provider-and-auth-extensions.md D1).
-	StaticTogether = []string{
+	staticTogether = []string{
 		"deepseek-ai/DeepSeek-V4.1-Flash",
 		"zai-org/GLM-5.3",
 		"moonshotai/Kimi-K3",
@@ -101,10 +101,10 @@ var (
 		"openai/gpt-oss-120b",
 	}
 
-	// StaticKilo: fallback only — discovery is metadata-driven. MADR 0009 Context §7's
+	// staticKilo: fallback only — discovery is metadata-driven. MADR 0009 Context §7's
 	// utility six, from the 2026-09-26 listing: reasoning-capable, paid,
 	// recent, at most two per vendor, none training on prompts.
-	StaticKilo = []string{
+	staticKilo = []string{
 		"deepseek/deepseek-v4.1-flash",
 		"z-ai/glm-5.3-flash",
 		"google/gemini-3.8-flash",
@@ -113,9 +113,9 @@ var (
 		"thinkingmachines/inkling",
 	}
 
-	// StaticGrok leads with the Grok CLI's defaults, grok-4.6 then grok-4.5
+	// staticGrok leads with the Grok CLI's defaults, grok-4.6 then grok-4.5
 	// (MADR 0012 §6), then the fast models.
-	StaticGrok = []string{
+	staticGrok = []string{
 		grokModel46,
 		grokModel45,
 		"grok-3-mini-fast",
@@ -167,27 +167,51 @@ var openaiAllowPrefixes = []string{
 // not surface when a stable short alias exists (e.g. gemini-2.5-flash-001).
 var datedOrSnapshotGemini = regexp.MustCompile(`(?i)(-\d{2}-\d{4}|-\d{4}-\d{2}-\d{2}|-preview-|-\d{3}$|-exp)`)
 
+// RankModel scores a model id for sorting by preference within provider's
+// catalog: higher is better. It replaces the per-provider Rank*Model functions
+// (0015-PLAN S5 step 3), and becomes catalog.Rank(ProviderID, model) in S7b.
+// A provider with no ranking scores every model 0.
+func RankModel(provider, model string) int {
+	switch provider {
+	case ProviderGemini:
+		return rankGeminiModel(model)
+	case ProviderOpenAI:
+		return rankOpenAIModel(model)
+	case ProviderClaude:
+		return rankClaudeModel(model)
+	case ProviderGrok:
+		return rankGrokModel(model)
+	case ProviderOpencodeZen, ProviderOpencodeGo:
+		return rankOpencodeModel(model)
+	case ProviderHuggingFace:
+		return rankHuggingFaceModel(model)
+	case ProviderKilo:
+		return rankKiloModel(model)
+	}
+	return 0
+}
+
 // StaticModels returns a copy of the curated catalog for provider.
 func StaticModels(provider string) []string {
 	switch strings.ToLower(provider) {
 	case ProviderGemini:
-		return append([]string(nil), StaticGemini...)
+		return append([]string(nil), staticGemini...)
 	case ProviderOpenAI:
-		return append([]string(nil), StaticOpenAI...)
+		return append([]string(nil), staticOpenAI...)
 	case ProviderClaude:
-		return append([]string(nil), StaticClaude...)
+		return append([]string(nil), staticClaude...)
 	case ProviderGrok:
-		return append([]string(nil), StaticGrok...)
+		return append([]string(nil), staticGrok...)
 	case ProviderOpencodeZen:
-		return append([]string(nil), StaticOpencodeZen...)
+		return append([]string(nil), staticOpencodeZen...)
 	case ProviderOpencodeGo:
-		return append([]string(nil), StaticOpencodeGo...)
+		return append([]string(nil), staticOpencodeGo...)
 	case ProviderHuggingFace:
-		return append([]string(nil), StaticHuggingFace...)
+		return append([]string(nil), staticHuggingFace...)
 	case ProviderKilo:
-		return append([]string(nil), StaticKilo...)
+		return append([]string(nil), staticKilo...)
 	case ProviderTogether:
-		return append([]string(nil), StaticTogether...)
+		return append([]string(nil), staticTogether...)
 	case ProviderOllama:
 		// Installed models are machine-specific, so there is no meaningful
 		// static catalog. listOllamaModels is the only sensible source, and
@@ -202,9 +226,9 @@ func StaticModels(provider string) []string {
 // callers must not mutate).
 func staticOpencodeCatalog(gateway string) []string {
 	if gateway == ProviderOpencodeGo {
-		return StaticOpencodeGo
+		return staticOpencodeGo
 	}
-	return StaticOpencodeZen
+	return staticOpencodeZen
 }
 
 // opencodeDenySubstrings reject non-text / non-production entries that appear in
@@ -232,11 +256,11 @@ func isUsableOpencodeModel(id string) bool {
 	return true
 }
 
-// RankOpencodeModel scores a gateway model for menu ordering. Higher is better.
+// rankOpencodeModel scores a gateway model for menu ordering. Higher is better.
 // Prefers low-latency tiers for fast Git hook execution, penalizes heavy
 // reasoning tiers, and demotes free models because the gateway rate-limits them
 // aggressively (HTTP 429 FreeUsageLimitError).
-func RankOpencodeModel(m string) int {
+func rankOpencodeModel(m string) int {
 	sm := strings.ToLower(m)
 	score := 0
 	switch {
@@ -407,10 +431,10 @@ func sortByRankDesc(ids []string, rankFn func(string) int) {
 	}
 }
 
-// RankGeminiModel scores a Gemini model name for sorting by preference.
+// rankGeminiModel scores a Gemini model name for sorting by preference.
 // Higher is better. Prioritizes low-latency Flash and Flash-Lite models for fast Git hook execution,
 // while penalizing heavy reasoning (Pro) models and deprecated generations.
-func RankGeminiModel(m string) int {
+func rankGeminiModel(m string) int {
 	score := 0
 	sm := strings.ToLower(m)
 
@@ -448,8 +472,8 @@ func RankGeminiModel(m string) int {
 	return score
 }
 
-// RankOpenAIModel prefers mini/nano for cost, then flagship chat.
-func RankOpenAIModel(m string) int {
+// rankOpenAIModel prefers mini/nano for cost, then flagship chat.
+func rankOpenAIModel(m string) int {
 	sm := strings.ToLower(m)
 	score := 0
 	switch {
@@ -474,8 +498,8 @@ func RankOpenAIModel(m string) int {
 	return score
 }
 
-// RankClaudeModel prefers Haiku/Sonnet for speed, then newer gens.
-func RankClaudeModel(m string) int {
+// rankClaudeModel prefers Haiku/Sonnet for speed, then newer gens.
+func rankClaudeModel(m string) int {
 	sm := strings.ToLower(m)
 	score := 0
 	if strings.Contains(sm, "haiku") {
@@ -516,8 +540,8 @@ func isUsableGrokModel(id string) bool {
 	return true
 }
 
-// RankGrokModel prefers mini-fast for cost/speed, then by generation.
-func RankGrokModel(m string) int {
+// rankGrokModel prefers mini-fast for cost/speed, then by generation.
+func rankGrokModel(m string) int {
 	sm := strings.ToLower(m)
 	score := 0
 	switch {
@@ -576,10 +600,10 @@ func isUsableHuggingFaceModel(id string) bool {
 	return true
 }
 
-// RankHuggingFaceModel is a weak, name-based fallback used only when the live
+// rankHuggingFaceModel is a weak, name-based fallback used only when the live
 // listing is unavailable and the static catalog is in play. The primary ranking
 // path uses published throughput and latency; see listHuggingFaceModels.
-func RankHuggingFaceModel(m string) int {
+func rankHuggingFaceModel(m string) int {
 	sm := strings.ToLower(m)
 	score := 0
 	switch {
@@ -617,10 +641,10 @@ func isUsableKiloModel(id string) bool {
 	return true
 }
 
-// RankKiloModel is a weak, name-based fallback used only when the live listing
+// rankKiloModel is a weak, name-based fallback used only when the live listing
 // is unavailable. The primary ranking path uses published pricing; see
 // listKiloModels.
-func RankKiloModel(m string) int {
+func rankKiloModel(m string) int {
 	sm := strings.ToLower(m)
 	score := 0
 	if strings.HasPrefix(sm, "kilo-auto/") {

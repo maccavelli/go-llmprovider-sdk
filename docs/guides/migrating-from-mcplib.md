@@ -296,7 +296,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ProviderDescriptor.RequiresAPIKey` |  |  |
 | `llmprovider.ProviderDescriptor.StaticModels` |  |  |
 | `llmprovider.ProviderDescriptor.SupportsBaseURL` |  |  |
-| `llmprovider.ProviderEnvVars` |  |  |
+| `llmprovider.ProviderEnvVars` | `ProviderEnvVars()` | A function returning a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.ProviderGemini` |  |  |
 | `llmprovider.ProviderGrok` |  |  |
 | `llmprovider.ProviderHuggingFace` |  |  |
@@ -306,13 +306,13 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ProviderOpencodeGo` |  |  |
 | `llmprovider.ProviderOpencodeZen` |  |  |
 | `llmprovider.ProviderOption` |  |  |
-| `llmprovider.RankClaudeModel` |  |  |
-| `llmprovider.RankGeminiModel` |  |  |
-| `llmprovider.RankGrokModel` |  |  |
-| `llmprovider.RankHuggingFaceModel` |  |  |
-| `llmprovider.RankKiloModel` |  |  |
-| `llmprovider.RankOpenAIModel` |  |  |
-| `llmprovider.RankOpencodeModel` |  |  |
+| `llmprovider.RankClaudeModel` | `RankModel(ProviderClaude, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
+| `llmprovider.RankGeminiModel` | `RankModel(ProviderGemini, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
+| `llmprovider.RankGrokModel` | `RankModel(ProviderGrok, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
+| `llmprovider.RankHuggingFaceModel` | `RankModel(ProviderHuggingFace, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
+| `llmprovider.RankKiloModel` | `RankModel(ProviderKilo, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
+| `llmprovider.RankOpenAIModel` | `RankModel(ProviderOpenAI, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
+| `llmprovider.RankOpencodeModel` | `RankModel(ProviderOpencodeZen` or `ProviderOpencodeGo, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
 | `llmprovider.RateLimitError` |  |  |
 | `llmprovider.RateLimitError.Error` |  |  |
 | `llmprovider.RateLimitError.Message` |  |  |
@@ -330,15 +330,15 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.Response.OutputText` |  |  |
 | `llmprovider.RevokeOAuthSession` |  |  |
 | `llmprovider.SearchModels` |  |  |
-| `llmprovider.StaticClaude` |  |  |
-| `llmprovider.StaticGemini` |  |  |
-| `llmprovider.StaticGrok` |  |  |
-| `llmprovider.StaticHuggingFace` |  |  |
-| `llmprovider.StaticKilo` |  |  |
+| `llmprovider.StaticClaude` | `StaticModels(ProviderClaude)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticGemini` | `StaticModels(ProviderGemini)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticGrok` | `StaticModels(ProviderGrok)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticHuggingFace` | `StaticModels(ProviderHuggingFace)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticKilo` | `StaticModels(ProviderKilo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticModels` |  |  |
-| `llmprovider.StaticOpenAI` |  |  |
-| `llmprovider.StaticOpencodeGo` |  |  |
-| `llmprovider.StaticOpencodeZen` |  |  |
+| `llmprovider.StaticOpenAI` | `StaticModels(ProviderOpenAI)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticOpencodeGo` | `StaticModels(ProviderOpencodeGo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticOpencodeZen` | `StaticModels(ProviderOpencodeZen)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticToken` |  |  |
 | `llmprovider.StaticToken.Header` |  |  |
 | `llmprovider.StaticToken.Token` |  |  |

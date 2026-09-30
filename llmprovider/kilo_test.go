@@ -283,19 +283,19 @@ func TestIsUsableKiloModel_ColonFree(t *testing.T) {
 }
 
 func TestRankKiloModel(t *testing.T) {
-	if RankKiloModel("kilo-auto/small") <= RankKiloModel("meta-llama/llama-3.1-8b-instruct") {
+	if rankKiloModel("kilo-auto/small") <= rankKiloModel("meta-llama/llama-3.1-8b-instruct") {
 		t.Error("kilo-auto managed tiers should rank above concrete ids")
 	}
-	if RankKiloModel("kilo-auto/small") <= RankKiloModel("kilo-auto/frontier") {
+	if rankKiloModel("kilo-auto/small") <= rankKiloModel("kilo-auto/frontier") {
 		t.Error("small should rank above frontier for hook latency")
 	}
 }
 
 func TestStaticKilo_Count(t *testing.T) {
-	if len(StaticKilo) == 0 || len(StaticKilo) > MaxListedModels {
-		t.Errorf("StaticKilo has %d entries, want 1..%d", len(StaticKilo), MaxListedModels)
+	if len(staticKilo) == 0 || len(staticKilo) > MaxListedModels {
+		t.Errorf("staticKilo has %d entries, want 1..%d", len(staticKilo), MaxListedModels)
 	}
-	for _, m := range StaticKilo {
+	for _, m := range staticKilo {
 		if !isUsableKiloModel(m) {
 			t.Errorf("%q fails its own usability filter", m)
 		}

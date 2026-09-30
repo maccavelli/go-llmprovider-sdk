@@ -159,8 +159,19 @@ func serverRetryAfter(err error) time.Duration {
 	return 0
 }
 
-// ProviderEnvVars maps canonical provider names to their standard environment variable.
-var ProviderEnvVars = map[string]string{
+// ProviderEnvVars returns a copy of the map from each provider id to its
+// standard environment variable. The package reads none of them itself
+// (0015-MADR D9).
+func ProviderEnvVars() map[string]string {
+	out := make(map[string]string, len(providerEnvVars))
+	for id, name := range providerEnvVars {
+		out[id] = name
+	}
+	return out
+}
+
+// providerEnvVars maps canonical provider names to their standard environment variable.
+var providerEnvVars = map[string]string{
 	ProviderGemini: "GEMINI_API_KEY",
 	ProviderClaude: "CLAUDE_API_KEY",
 	ProviderOpenAI: "OPENAI_API_KEY",

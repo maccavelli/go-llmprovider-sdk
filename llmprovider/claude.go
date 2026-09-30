@@ -20,6 +20,7 @@ type ClaudeProvider struct {
 	model           string
 	baseURL         string // For testing
 	client          *http.Client
+	probeModels     bool
 	maxTokens       int
 	thinkingBudget  int    // extended-thinking token budget for the GenerateThinking path
 	reasoningEffort string // effort for the GenerateThinking path (see addMessagesThinking)
@@ -47,6 +48,7 @@ func NewClaude(apiKey, model string, opts ...ProviderOption) (*ClaudeProvider, e
 		baseURL:         baseURL,
 		client:          cfg.HTTPClient,
 		identity:        identityOf(cfg),
+		probeModels:     cfg.ProbeModels,
 		maxTokens:       cfg.MaxTokens,
 		thinkingBudget:  cfg.ThinkingBudget,
 		reasoningEffort: cfg.ReasoningEffort,
@@ -311,6 +313,10 @@ func (p *ClaudeProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 		listed = StaticModels(ProviderClaude)
 	}
 
+	// Probes are billed requests: only on request (0016-MADR D9).
+	if !p.probeModels {
+		return listed, nil
+	}
 	healthy := probeGenerateHealth(ctx, listed, func(tCtx context.Context, modelID string) (string, error) {
 		tp, err := NewClaude(p.apiKey, modelID, append(p.identity.options(), WithHTTPClient(p.client), WithBaseURL(p.baseURL))...)
 		if err != nil {

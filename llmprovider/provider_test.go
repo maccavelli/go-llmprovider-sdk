@@ -164,13 +164,13 @@ func TestGenerateItemsWithRetry_ContextCancelled(t *testing.T) {
 // docs page names any other variable).
 func TestProviderEnvVars_Opencode(t *testing.T) {
 	for _, gw := range []string{ProviderOpencodeZen, ProviderOpencodeGo} {
-		got, ok := ProviderEnvVars[gw]
+		got, ok := providerEnvVars[gw]
 		if !ok {
-			t.Errorf("ProviderEnvVars missing %q", gw)
+			t.Errorf("providerEnvVars missing %q", gw)
 			continue
 		}
 		if got != "OPENCODE_API_KEY" {
-			t.Errorf("ProviderEnvVars[%q] = %q, want OPENCODE_API_KEY", gw, got)
+			t.Errorf("providerEnvVars[%q] = %q, want OPENCODE_API_KEY", gw, got)
 		}
 	}
 }

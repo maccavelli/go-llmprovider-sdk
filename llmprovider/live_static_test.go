@@ -7,13 +7,13 @@ import (
 	"testing"
 )
 
-// TestLive_StaticClaudeServed pins MADR 0013 B10: every StaticClaude id
+// TestLive_StaticClaudeServed pins MADR 0013 B10: every staticClaude id
 // answers on the Messages API. The static catalog is what the wizard offers
 // when the listing fails, so a retired id there is a dead end. It REQUIRES
 // ANTHROPIC_API_KEY and skips without it.
 func TestLive_StaticClaudeServed(t *testing.T) {
 	key := liveEnvKey(t, "ANTHROPIC_API_KEY")
-	for _, model := range StaticClaude {
+	for _, model := range staticClaude {
 		t.Run(model, func(t *testing.T) {
 			ctx, cancel := liveCtx(t)
 			defer cancel()

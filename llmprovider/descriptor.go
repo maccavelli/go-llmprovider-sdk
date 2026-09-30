@@ -31,7 +31,7 @@ type AuthMethod struct {
 // which models to offer before a live listing is available.
 //
 // Fields that already exist elsewhere in this package — EnvVar from
-// ProviderEnvVars, StaticModels from StaticModels() — are DERIVED here, not
+// providerEnvVars, StaticModels from StaticModels() — are DERIVED here, not
 // duplicated, so a change there cannot drift from what a wizard shows. That
 // drift is the reason this type exists: three wizards previously kept their own
 // provider lists, and none of them offered Grok.
@@ -213,7 +213,7 @@ func Descriptors() []ProviderDescriptor {
 			AuthMethods:     append([]AuthMethod(nil), s.authMethods...),
 		}
 		if s.requiresAPIKey {
-			d.EnvVar = ProviderEnvVars[s.id]
+			d.EnvVar = providerEnvVars[s.id]
 		}
 		out = append(out, d)
 	}

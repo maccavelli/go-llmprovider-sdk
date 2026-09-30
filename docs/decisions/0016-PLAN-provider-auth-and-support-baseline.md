@@ -750,3 +750,11 @@ run in T2 (0015-PLAN S4).
   * `Token.MarshalJSON` encoding its value: `Token via json.Marshal shows the secret`, and `struct holding a Token via slog JSON shows the secret`;
   * `OAuthSession.MarshalJSON` encoding the refresh token: `*OAuthSession via json.Marshal shows the secret`.
 * **V4 is met for T2's types.** `wizard.Result` remains T4's.
+
+### T3 step 2: listing sends no billed probe by default (2026-09-30, in 0015-PLAN S5)
+
+* **D9.** `WithModelProbes(true)` turns the listing probe on. Without it,
+  `DiscoverModels` returns the listing and sends no generation. The five
+  G-wire listing goldens lost 9 probe `POST`s and nothing else. The test is
+  `TestDiscoverModels_ProbesOnlyWhenEnabled`. Details, and the breaks that
+  prove it, are in 0015-PLAN's S5 record. **V8 is met.**

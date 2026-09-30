@@ -236,8 +236,8 @@ func TestStaticOpenCatalogs_UtilityCriteria(t *testing.T) {
 	moe := regexp.MustCompile(`(?i)-a\d+(?:\.\d+)?b\b`)
 	gated := []string{opencodeDeepSeekV41Flash, opencodeDeepSeekFlash, opencodeDeepSeekV4Flash, opencodeDeepSeekV4Pro}
 	for name, list := range map[string][]string{
-		"StaticKilo": StaticKilo, "StaticOpencodeZen": StaticOpencodeZen,
-		"StaticOpencodeGo": StaticOpencodeGo, "StaticHuggingFace": StaticHuggingFace,
+		"staticKilo": staticKilo, "staticOpencodeZen": staticOpencodeZen,
+		"staticOpencodeGo": staticOpencodeGo, "staticHuggingFace": staticHuggingFace,
 	} {
 		if len(list) != 6 {
 			t.Errorf("%s has %d entries, want 6", name, len(list))
@@ -255,7 +255,7 @@ func TestStaticOpenCatalogs_UtilityCriteria(t *testing.T) {
 					t.Errorf("%s: %q is a dense model of %gB", name, id, size)
 				}
 			}
-			if name == "StaticOpencodeGo" && slices.Contains(gated, id) {
+			if name == "staticOpencodeGo" && slices.Contains(gated, id) {
 				t.Errorf("%s: %q is region-gated on OpenCode Go", name, id)
 			}
 		}

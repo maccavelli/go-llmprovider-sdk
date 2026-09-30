@@ -66,14 +66,14 @@ func TestLive_GeminiInteractions(t *testing.T) {
 	}
 }
 
-// TestLive_StaticGeminiServed: every StaticGemini id answers on the
+// TestLive_StaticGeminiServed: every staticGemini id answers on the
 // Interactions API (measured 2026-09-27).
 func TestLive_StaticGeminiServed(t *testing.T) {
 	key := os.Getenv("GEMINI_API_KEY")
 	if key == "" {
 		t.Skip("GEMINI_API_KEY unset")
 	}
-	for _, model := range StaticGemini {
+	for _, model := range staticGemini {
 		t.Run(model, func(t *testing.T) {
 			ctx, cancel := liveCtx(t)
 			defer cancel()

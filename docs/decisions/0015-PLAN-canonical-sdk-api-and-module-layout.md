@@ -798,3 +798,53 @@ No phase has changed yet.
   * G-links;
   * the deny list: 0 hits.
 * `docs/architecture.md`'s Credentials section describes the result.
+
+### Phase S5: `catalog` work, in place (2026-09-30)
+
+* **Step 1** (the move) is struck, and moved to S7b.
+* **Step 2 (D9).** The nine static catalogs, `Static*` (the eight from
+  `mcplib`, and `StaticTogether`), and `ProviderEnvVars` are unexported.
+  * `StaticModels(provider)` already returned a copy.
+  * `ProviderEnvVars()` is now a function returning a copy.
+  * The migration guide's 16 rows for these, and for the `Rank*Model`
+    functions, now name their equivalents. G-parity: `18 with an SDK
+    equivalent, 0 problem(s)`.
+* **Step 3.** The seven `Rank*Model` functions are unexported behind
+  `RankModel(provider, model)`. Both OpenCode gateways share one ranking;
+  Together, Ollama and unknown providers score 0. It takes a string until
+  S6's `ProviderID`, and becomes `catalog.Rank` in S7b.
+* **Step 4, 0016 T3 step 2 (0016-MADR D9).** Listing no longer probes by
+  default. `WithModelProbes(true)` (option, `ProviderConfig.ProbeModels`)
+  turns the probe back on for OpenAI with an API key, Claude, Gemini, Grok
+  and Ollama. Its doc says each probe is a billed request.
+* **G-wire difference, caused by 0016-MADR D9** (S2 step 5's rule). Five
+  listing goldens were regenerated with a scoped `-update`:
+  * `openai`, `claude`, `grok` and `ollama` each lose 2 probe `POST`s, and
+    `gemini` loses 1: 9 requests in all;
+  * 188 lines were removed and none added, so every listing `GET` and every
+    decoded result is unchanged. `git diff` shows only `"method": "POST"`
+    requests removed.
+
+  No other golden changed.
+* **Replaced test.** `TestDiscoverModels_APIKeyOpenAIStillProbes` pinned
+  probing by default, which D9 reverses. It is replaced by
+  `TestDiscoverModels_ProbesOnlyWhenEnabled`: for OpenAI, Claude, Gemini and
+  Grok, no generation by default, and between one and `MaxListedModels`
+  with the option. Ollama's listing needs a different fake; its regenerated
+  golden pins its default.
+* **Tests:** `catalog_state_test.go` covers `ProviderEnvVars()` and
+  `StaticModels` returning copies, and `RankModel` dispatching to each
+  provider's ranking.
+* **Red first** is by absence for the new API. The old default is seen in
+  the five goldens' diff above. Seen to fail on deliberate breaks:
+
+  | Break | Failure |
+  |---|---|
+  | Claude probes by default | `by default: 4 generation requests, want none` |
+  | OpenAI ignores the option | `with WithModelProbes(true): 0 generation requests, want one per candidate` |
+  | `ProviderEnvVars` returns the package's map | `a caller's change reached the package: map[… openai:CHANGED …]` |
+  | `RankModel` sends Gemini to OpenAI's ranking | `RankModel(gemini, gemini-3.7-flash) = 180, want 280` |
+  | `StaticModels` returns the catalog itself | `a caller's change reached the static catalog` |
+* **Gate,** every step exit 0: `llmprovider` 90.1 %, `wizard` 83.4 %,
+  `make lint` `0 issues.`, G-wire three times over (with the five listing
+  goldens as recorded), G-parity, G-links, and the deny list at 0 hits.

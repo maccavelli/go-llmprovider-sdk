@@ -79,6 +79,9 @@ type ProviderConfig struct {
 	// SessionID is the conversation id OpenCode and Kilo receive; see
 	// WithSessionID.
 	SessionID string
+	// ProbeModels makes DiscoverModels probe each listed model; see
+	// WithModelProbes.
+	ProbeModels bool
 }
 
 // ProviderOption is a functional option for provider constructors.
@@ -190,6 +193,17 @@ func WithStore(store bool) ProviderOption {
 func WithModelProfile(p ModelProfile) ProviderOption {
 	return func(cfg *ProviderConfig) {
 		cfg.ModelProfile = p
+	}
+}
+
+// WithModelProbes makes DiscoverModels on OpenAI (API key), Claude, Gemini,
+// Grok and Ollama send one short generation to each listed model, up to
+// MaxListedModels, and keep those that answer. Every probe is a billed
+// request, so listing sends none unless enabled (0016-MADR D9). Other
+// providers never probe.
+func WithModelProbes(enabled bool) ProviderOption {
+	return func(cfg *ProviderConfig) {
+		cfg.ProbeModels = enabled
 	}
 }
 
