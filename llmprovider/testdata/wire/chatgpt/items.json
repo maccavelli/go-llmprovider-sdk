@@ -1,0 +1,84 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept": "text/event-stream",
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer chatgpt-access",
+        "Chatgpt-Account-Id": "acct-wire",
+        "Content-Type": "application/json",
+        "Originator": "go-llmprovider-sdk",
+        "Session-Id": "wire-session",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": "Be brief.",
+            "role": "system"
+          },
+          {
+            "content": "What is the weather in Paris?",
+            "role": "user"
+          },
+          {
+            "arguments": "{\"city\":\"Paris\"}",
+            "call_id": "call_1",
+            "name": "get_weather",
+            "type": "function_call"
+          },
+          {
+            "call_id": "call_1",
+            "output": "{\"sky\":\"sunny\"}",
+            "type": "function_call_output"
+          },
+          {
+            "content": "It is sunny.",
+            "role": "assistant"
+          },
+          {
+            "content": "And tomorrow?",
+            "role": "user"
+          }
+        ],
+        "model": "gpt-6-astra",
+        "prompt_cache_key": "wire-session",
+        "store": false,
+        "stream": true
+      }
+    }
+  ],
+  "result": {
+    "finish_reason": "",
+    "id": "resp_wire",
+    "output": [
+      {
+        "item": {
+          "Text": "thinking"
+        },
+        "type": "ReasoningItem"
+      },
+      {
+        "item": {
+          "Role": "assistant",
+          "Text": "hello"
+        },
+        "type": "MessageItem"
+      },
+      {
+        "item": {
+          "CallID": "call_wire",
+          "Name": "get_weather",
+          "Arguments": "{\"city\":\"Paris\"}",
+          "Signature": ""
+        },
+        "type": "FunctionCallItem"
+      }
+    ]
+  }
+}

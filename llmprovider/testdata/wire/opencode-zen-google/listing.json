@@ -1,0 +1,20 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/models",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer opencode-wire-key",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Opencode-Session": "wire-session"
+      }
+    }
+  ],
+  "result": [
+    "gemini-3.8-flash",
+    "claude-sonnet-5",
+    "gpt-5.5",
+    "glm-5.3"
+  ]
+}

@@ -217,7 +217,7 @@ exists now, read [architecture.md](../architecture.md).
 | R41 | `make lint` | now |
 | R43 | `make parity-check` | now; empty cells fail from S11 |
 | R44 | `llmtest.Run` per provider | S7 |
-| R45 | G-wire | S2 |
+| R45 | G-wire (`TestWireGoldens`) | now |
 | R47 | `make coverage-check` | S12 |
 | R48 | `make api-check` | S12 |
 

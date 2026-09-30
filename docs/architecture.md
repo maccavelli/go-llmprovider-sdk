@@ -31,6 +31,7 @@ opencode.json
 llmprovider/                providers, credentials, discovery
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
+internal/wiretest/          G-wire's request recorder, for tests only
 docs/
   README.md                 record index, "I want to…", migration table
   architecture.md           this file
@@ -46,6 +47,7 @@ docs/
 | `llmprovider` | provider adapters, request and response types, credentials, OAuth, token storage, model discovery and ranking | the standard library, `internal/redact` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely) and `MaskSecret` (show a suffix for identification) | the standard library |
+| `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 
 ## Providers and items
 
@@ -129,6 +131,14 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   `mcplib` `v1.6.0` `llmprovider` and `wizard`, has no row in
   `docs/guides/migrating-from-mcplib.md`, or a row names one that is not in
   the list. `make parity-check` runs it.
+- **G-wire** is `TestWireGoldens` in `llmprovider`, part of `go test`. It
+  drives 15 provider and gateway-route cases through seven scenarios (text,
+  forced tool, thinking, thinking tool, items, continuation where the
+  provider has `Continue`, listing): 94 golden files. It runs them against
+  `internal/wiretest`, and compares each recording with
+  `llmprovider/testdata/wire/<case>/<scenario>.json`. The files were
+  recorded at the end of 0002-PLAN Phase 7. `-update` rewrites them, and is
+  used only for a difference a record explains.
 - **`scripts/go-precheck.sh`** runs `gofmt` on the given Go files,
   `golangci-lint run -c .golangci.yml ./...`, `go vet` and `go test` on their
   packages, and `govulncheck ./...`. `make pre-add-check` runs it, and so does

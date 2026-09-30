@@ -1,0 +1,16 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/models",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer hf_wire",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      }
+    }
+  ],
+  "result": [
+    "openai/gpt-oss-120b"
+  ]
+}

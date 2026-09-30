@@ -1,0 +1,53 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/chat/completions",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer kilo-wire-key",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Kilocode-Editorname": "go-llmprovider-sdk",
+        "X-Kilocode-Taskid": "wire-session"
+      },
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": "What is the weather in Paris?",
+            "role": "user"
+          }
+        ],
+        "model": "anthropic/claude-sonnet-5",
+        "provider": {
+          "data_collection": "deny"
+        },
+        "tool_choice": {
+          "function": {
+            "name": "get_weather"
+          },
+          "type": "function"
+        },
+        "tools": [
+          {
+            "function": {
+              "description": "Weather for a city",
+              "name": "get_weather",
+              "parameters": {
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "function"
+          }
+        ]
+      }
+    }
+  ],
+  "result": "{\"city\":\"Paris\"}"
+}

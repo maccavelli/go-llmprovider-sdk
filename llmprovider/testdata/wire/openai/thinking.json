@@ -1,0 +1,28 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer sk-wire",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "input": [
+          {
+            "content": "What is the weather in Paris?",
+            "role": "user"
+          }
+        ],
+        "max_output_tokens": 8192,
+        "model": "gpt-5.5",
+        "reasoning": {
+          "effort": "medium"
+        }
+      }
+    }
+  ],
+  "result": "hello"
+}

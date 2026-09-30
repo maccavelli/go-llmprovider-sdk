@@ -1,0 +1,49 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/models",
+      "query": {
+        "pageSize": [
+          "1000"
+        ]
+      },
+      "header": {
+        "Accept-Encoding": "gzip",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Goog-Api-Key": "gemini-wire-key"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/interactions",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Goog-Api-Key": "gemini-wire-key"
+      },
+      "body": {
+        "generation_config": {
+          "max_output_tokens": 8192
+        },
+        "input": [
+          {
+            "content": [
+              {
+                "text": "Respond with ONLY the word Hello",
+                "type": "text"
+              }
+            ],
+            "type": "user_input"
+          }
+        ],
+        "model": "gemini-3.7-flash",
+        "store": false
+      }
+    }
+  ],
+  "result": [
+    "gemini-3.7-flash"
+  ]
+}

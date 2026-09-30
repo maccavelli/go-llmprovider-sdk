@@ -1,0 +1,108 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/models/gemini-3.8-flash:generateContent",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Goog-Api-Key": "opencode-wire-key",
+        "X-Opencode-Session": "wire-session"
+      },
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "What is the weather in Paris?"
+              }
+            ],
+            "role": "user"
+          },
+          {
+            "parts": [
+              {
+                "functionCall": {
+                  "args": {
+                    "city": "Paris"
+                  },
+                  "name": "get_weather"
+                },
+                "thoughtSignature": "sig-1"
+              }
+            ],
+            "role": "model"
+          },
+          {
+            "parts": [
+              {
+                "functionResponse": {
+                  "name": "get_weather",
+                  "response": {
+                    "output": "{\"sky\":\"sunny\"}"
+                  }
+                }
+              }
+            ],
+            "role": "user"
+          },
+          {
+            "parts": [
+              {
+                "text": "It is sunny."
+              }
+            ],
+            "role": "model"
+          },
+          {
+            "parts": [
+              {
+                "text": "And tomorrow?"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 8192
+        },
+        "systemInstruction": {
+          "parts": [
+            {
+              "text": "Be brief."
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "result": {
+    "finish_reason": "",
+    "id": "",
+    "output": [
+      {
+        "item": {
+          "Text": "thinking"
+        },
+        "type": "ReasoningItem"
+      },
+      {
+        "item": {
+          "Role": "assistant",
+          "Text": "hello"
+        },
+        "type": "MessageItem"
+      },
+      {
+        "item": {
+          "CallID": "get_weather",
+          "Name": "get_weather",
+          "Arguments": "{\"city\":\"Paris\"}",
+          "Signature": "sig_wire"
+        },
+        "type": "FunctionCallItem"
+      }
+    ]
+  }
+}

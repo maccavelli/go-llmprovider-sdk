@@ -1,0 +1,19 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/models",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer opencode-wire-key",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Opencode-Session": "wire-session"
+      }
+    }
+  ],
+  "result": [
+    "qwen3.8-flash",
+    "grok-4.7",
+    "kimi-k3"
+  ]
+}

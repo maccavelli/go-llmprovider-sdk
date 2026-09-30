@@ -444,3 +444,97 @@ commits:
   has markdownlint findings (list style, line length) that predate this phase.
   CI does not run markdownlint, and the file is outside S1, so it is left as
   it is.
+
+### Phase S2: wire goldens at `P7` (2026-09-29)
+
+* **Baseline.** `git diff cc81adf HEAD` shows no change to any `.go` file,
+  `go.mod` or `go.sum`. Only records and guides changed since `P7`, so the
+  goldens recorded on this tree are `P7`'s.
+* **Step 1, `internal/wiretest`.** An `httptest` server that records each
+  request as method, path, query, headers and body, and serves a canned
+  `Reply` chosen by a function of the request. `Compare` and `Check` handle
+  the golden files, and `Diff` names each differing field by its path. The
+  package's own tests cover it to 95.2 %.
+  * **Normalisation.** `Content-Length` is dropped. The body is decoded JSON
+    with keys sorted and numbers exact. `User-Agent` keeps its structure with
+    placeholders, `app/<version> (<os>; <arch>) go-llmprovider-sdk/<version>`.
+    The step named only the version text, but the platform had to go too:
+    CI runs the same goldens on Linux, macOS and Windows.
+  * **Session ids are pinned, not stripped.** Every scenario passes
+    `WithSessionID("wire-session")`, so the goldens show every place the
+    session is sent: `prompt_cache_key`, `session-id`, `x-opencode-session`
+    and Kilo's `X-Kilocode-Taskid`. Nothing else on the wire was random
+    (a scan of the request-building code for `rand.`, `time.Now` and
+    header writes).
+  * **Order.** Requests are sorted by their encoding, because the listing
+    probes run concurrently.
+  * **Line endings.** `Compare` accepts a CRLF golden, which a Windows
+    checkout can produce. First-fail on a scratch copy without that line:
+    `CRLF golden: [(root): same value, different text; the golden file was
+    edited by hand]`.
+  * **Limit.** Go's server canonicalises header names
+    (`ChatGPT-Account-Id` is recorded as `Chatgpt-Account-Id`), so a change
+    in only a header name's case is not caught.
+* **Step 2, the scenarios.** `TestWireGoldens` (`llmprovider/wire_golden_test.go`)
+  runs 15 cases:
+  * `openai` (API key) and `chatgpt` (an `OAuthSession` on the backend's event
+    stream);
+  * `claude`, `gemini` and `grok`;
+  * OpenCode Zen's four routes, and Go's three: responses, messages, google
+    and chat;
+  * `kilo`, `huggingface` and `ollama`.
+
+  Each case runs text, forced tool, thinking, thinking tool, items (a
+  conversation using every `Item` type and a replayed signature),
+  continuation and listing. That is 94 files, because only `openai`,
+  `chatgpt`, `gemini` and `grok` have `Continue`. Two choices:
+  * **Continuation.** Gemini's is recorded with `WithStore(true)`, because
+    without it `Continue` refuses before the network. ChatGPT's golden
+    records its refusal before the network, and no request.
+  * **Results.** Each golden also holds the decoded result, with `Response`
+    items tagged by type, for D12's "response fixtures must decode to
+    equivalent `Output`" in S7.
+* **What the goldens show at `P7`,** worth knowing before S5:
+  * the listing health-probes each model on `openai`, `claude`, `gemini`,
+    `grok` and `ollama`, one billed request per model;
+  * `kilo`, `huggingface`, OpenCode and `chatgpt` do not probe.
+
+  [0016-MADR-provider-auth-and-support-baseline.md](0016-MADR-provider-auth-and-support-baseline.md)
+  D9 turns the probes off by default. That is a recorded difference for S5,
+  where it lands (T3 step 2).
+* **Step 3.** The goldens are committed with this phase. `go test -count=3`
+  and a `-race` run reproduce them byte for byte. None contains the test
+  server's address, a platform name or a home path.
+* **Step 4, first-fail,** on a scratch copy of the tree:
+  `body["store"] = false` in `llmprovider/openai.go` (the ChatGPT branch) was
+  changed to `true`. The run exited 1. Exactly the five ChatGPT generation
+  scenarios failed, each with
+  `requests[0].body.store: want false, got true`. The listing and the
+  continuation refusal send no such body and passed. Re-run after the lint
+  fixes, with the same result.
+* **Lint.** The first `make lint` found seven issues in the new code:
+  * two unchecked errors;
+  * an `==` comparison on an error;
+  * one gofmt alignment;
+  * three gosec findings: golden files and directories are now written
+    `0600` and `0750`, and read through `filepath.Clean`.
+
+  All were fixed at the cause, without suppressions.
+* **Gate,** every step exit 0:
+  * `make pre-add-check`;
+  * `go vet` for darwin, linux and windows (`CGO_ENABLED=0`), and with
+    `-tags live_gateways`;
+  * `go test -race -count=1 -cover ./...`: `internal/redact` 100.0 %,
+    `internal/wiretest` 95.2 %, `llmprovider` 90.2 % (89.2 % at `P7`; the
+    scenarios reach more code), `wizard` 83.4 %;
+  * `go mod tidy -diff`, empty;
+  * `make lint`, `0 issues.`;
+  * `make parity-check`;
+  * `markdownlint-cli2` on the guides, `docs/README.md` and
+    `docs/architecture.md`;
+  * G-wire three times over;
+  * G-links;
+  * the disclosure guard's deny list over every changed and new file,
+    including the 94 goldens: 0 hits.
+* **Docs.** `docs/architecture.md` lists `internal/wiretest` and describes
+  G-wire. `docs/guides/api-standards.md` marks R45 as checked now.

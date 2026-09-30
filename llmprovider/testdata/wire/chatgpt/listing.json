@@ -1,0 +1,24 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/models",
+      "query": {
+        "client_version": [
+          "0.0.0"
+        ]
+      },
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer chatgpt-access",
+        "Chatgpt-Account-Id": "acct-wire",
+        "Originator": "go-llmprovider-sdk",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      }
+    }
+  ],
+  "result": [
+    "gpt-6-astra",
+    "gpt-6-luna"
+  ]
+}

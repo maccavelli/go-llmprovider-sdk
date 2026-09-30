@@ -1,0 +1,16 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/models",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer kilo-wire-key",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      }
+    }
+  ],
+  "result": [
+    "anthropic/claude-sonnet-5"
+  ]
+}

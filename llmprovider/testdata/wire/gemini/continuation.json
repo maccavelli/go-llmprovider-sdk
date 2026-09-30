@@ -1,0 +1,61 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/interactions",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Goog-Api-Key": "gemini-wire-key"
+      },
+      "body": {
+        "generation_config": {
+          "max_output_tokens": 8192
+        },
+        "input": [
+          {
+            "content": [
+              {
+                "text": "And tomorrow?",
+                "type": "text"
+              }
+            ],
+            "type": "user_input"
+          }
+        ],
+        "model": "gemini-3.7-flash",
+        "previous_interaction_id": "resp_previous",
+        "store": true
+      }
+    }
+  ],
+  "result": {
+    "finish_reason": "",
+    "id": "v1_int_wire",
+    "output": [
+      {
+        "item": {
+          "Text": "thinking"
+        },
+        "type": "ReasoningItem"
+      },
+      {
+        "item": {
+          "Role": "assistant",
+          "Text": "hello"
+        },
+        "type": "MessageItem"
+      },
+      {
+        "item": {
+          "CallID": "call_wire",
+          "Name": "get_weather",
+          "Arguments": "{\"city\":\"Paris\"}",
+          "Signature": "sig_wire"
+        },
+        "type": "FunctionCallItem"
+      }
+    ]
+  }
+}

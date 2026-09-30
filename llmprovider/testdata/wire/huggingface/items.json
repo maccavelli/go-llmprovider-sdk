@@ -1,0 +1,83 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/chat/completions",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer hf_wire",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": "Be brief.",
+            "role": "system"
+          },
+          {
+            "content": "What is the weather in Paris?",
+            "role": "user"
+          },
+          {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "function": {
+                  "arguments": "{\"city\":\"Paris\"}",
+                  "name": "get_weather"
+                },
+                "id": "call_1",
+                "type": "function"
+              }
+            ]
+          },
+          {
+            "content": "{\"sky\":\"sunny\"}",
+            "role": "tool",
+            "tool_call_id": "call_1"
+          },
+          {
+            "content": "It is sunny.",
+            "role": "assistant"
+          },
+          {
+            "content": "And tomorrow?",
+            "role": "user"
+          }
+        ],
+        "model": "openai/gpt-oss-120b"
+      }
+    }
+  ],
+  "result": {
+    "finish_reason": "tool_calls",
+    "id": "chat_wire",
+    "output": [
+      {
+        "item": {
+          "Text": "thinking"
+        },
+        "type": "ReasoningItem"
+      },
+      {
+        "item": {
+          "Role": "assistant",
+          "Text": "hello"
+        },
+        "type": "MessageItem"
+      },
+      {
+        "item": {
+          "CallID": "call_wire",
+          "Name": "get_weather",
+          "Arguments": "{\"city\":\"Paris\"}",
+          "Signature": ""
+        },
+        "type": "FunctionCallItem"
+      }
+    ]
+  }
+}

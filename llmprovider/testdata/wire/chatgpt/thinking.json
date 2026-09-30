@@ -1,0 +1,37 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept": "text/event-stream",
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer chatgpt-access",
+        "Chatgpt-Account-Id": "acct-wire",
+        "Content-Type": "application/json",
+        "Originator": "go-llmprovider-sdk",
+        "Session-Id": "wire-session",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": "What is the weather in Paris?",
+            "role": "user"
+          }
+        ],
+        "model": "gpt-6-astra",
+        "prompt_cache_key": "wire-session",
+        "reasoning": {
+          "effort": "medium"
+        },
+        "store": false,
+        "stream": true
+      }
+    }
+  ],
+  "result": "hello"
+}

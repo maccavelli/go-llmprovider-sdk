@@ -1,0 +1,5 @@
+{
+  "requests": [],
+  "result": null,
+  "error": "llm: invalid request: openai: a ChatGPT session cannot continue a response; replay the items"
+}
