@@ -124,7 +124,7 @@ func (c *CommandToken) ttl() time.Duration {
 
 // cachedToken is the cached output as a Token; the lock is held.
 func (c *CommandToken) cachedToken() Token {
-	return Token{Value: c.value, Type: TokenBearer, Header: c.Header, Expiry: c.fetched.Add(c.ttl())}
+	return Token{Value: c.value, Type: TokenAPIKey, Header: c.Header, Expiry: c.fetched.Add(c.ttl())}
 }
 
 // commandName is the command's base name: what formatted forms and errors show.

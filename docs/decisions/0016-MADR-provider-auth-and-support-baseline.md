@@ -668,3 +668,38 @@ The owner wrote on 2026-09-30: "Actually re-enable probes by default. Add an env
     passes the helper first.
 * **Effect on the record.** D9 as first decided is struck. The G-wire
   listing goldens return to their `P7` form, with the probe requests.
+
+### A6. A token names only the header its caller set (clarifies D2; the owner's decision, 2026-09-30)
+
+* **Found** in 0015-PLAN S7, before the gemini commit. The sources
+  contradicted D2:
+  * `StaticToken` filled in `Header: "Authorization"` when its caller set
+    none (`token.go:103-111`). `OAuthSession` and `VendorCLISession`
+    returned `Authorization` too (`oauth_session.go:225-227`, `:360-362`;
+    `vendor_session.go:72`).
+  * Every source reported `Type: bearer`, a kind of token rather than a
+    scheme.
+
+  Applied as written, D2 would have sent `Authorization: bearer <key>` to
+  Claude and Gemini in place of their own headers. An override could never
+  carry a bare key: `CommandToken{Header: "x-api-key"}` would have sent
+  `x-api-key: bearer <key>`.
+* **Decided.** Asked on 2026-09-30, the owner chose "sources say only
+  what's set":
+  * **Header.** A source returns only the `Header` its caller set.
+    `StaticToken` and `CommandToken` return their `Header` field, empty by
+    default. `OAuthSession` and `VendorCLISession` return none.
+  * **Type.** `StaticToken` and `CommandToken` report `TokenAPIKey`.
+    `OAuthSession` and `VendorCLISession` report `TokenBearer`.
+  * **Prefix.** With an override, `TokenBearer` is sent as `Bearer <value>`;
+    `TokenAPIKey`, or no `Type`, is sent as the bare value. With no
+    `Header`, the provider sends its own header and scheme, and `Type` is
+    not read.
+* **Cost:**
+  * A gateway that wants `Authorization: Bearer <key>` in place of Claude's
+    `x-api-key` needs a `TokenSource` that reports `TokenBearer`.
+    `StaticToken{Header: "Authorization"}` sends the bare key.
+  * The `Header` and `Type` a source reports change. A caller that reads
+    them sees the change; nothing in this module read either.
+* **Effect.** D2's wire is unchanged: G-wire shows no difference. R16 in
+  `docs/guides/api-standards.md` states the prefix rule.

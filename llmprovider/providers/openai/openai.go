@@ -256,7 +256,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 	if err != nil {
 		return nil, fmt.Errorf("llmprovider: openai: acquire token: %w", err)
 	}
-	httpReq.Header.Set(headerAuthorization, "Bearer "+token.Value)
+	llmprovider.SetTokenHeader(httpReq, token, headerAuthorization, "Bearer")
 	if p.chatGPT {
 		httpReq.Header.Set("Accept", "text/event-stream")
 		httpReq.Header.Set(headerSession, p.session)

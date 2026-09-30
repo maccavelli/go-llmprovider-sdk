@@ -91,9 +91,11 @@ exists now, read [architecture.md](../architecture.md).
   as shorthand for a `StaticToken`. There are no `*WithSource` twins.
   (0015 D5, 0016 D2)
 - **R16. A provider applies the token as `Token` describes it.** An empty
-  `Header` means the service's own header. A non-empty one overrides it,
-  with `Type` as the scheme prefix. `New` refuses a source whose kind the
-  service does not accept. (0016 D2)
+  `Header` means the service's own header and scheme. A non-empty one
+  overrides it: a `TokenBearer` is sent as `Bearer <value>`, a `TokenAPIKey`
+  or an untyped token bare. A source names a `Header` only when its caller
+  set one. `New` refuses a source whose kind the service does not accept.
+  (0016 D2, A6)
 - **R17. Options live where they apply.** The common ones (model, HTTP client,
   base URL, logger, client identity, session id, max tokens, default
   reasoning) are in `llmprovider`. A provider-specific one is in its

@@ -69,7 +69,7 @@ func (s *VendorCLISession) Token(ctx context.Context) (Token, error) {
 	s.mu.Lock()
 	s.accountID, s.fedramp = cred.accountID, cred.fedramp
 	s.mu.Unlock()
-	return Token{Value: cred.access, Type: TokenBearer, Expiry: cred.expiry, Header: oauthAuthorizationHeader}, nil
+	return Token{Value: cred.access, Type: TokenBearer, Expiry: cred.expiry}, nil
 }
 
 // vendorCLI names a provider's CLI, the advice for a stale login, and its

@@ -1546,3 +1546,99 @@ Built on the openai commit's pattern; only what differs is recorded here.
 * **Links.** Six links in `0003-PLAN-add-grok-xai-llm-provider.md` to
   `llmprovider/claude.go` now point at the moved file, under the openai
   commit's rule.
+
+### Deviation 2026-09-30: T3 step 1's header override was not built (S7, before gemini)
+
+* **Found.** 0016-PLAN T3 step 1 lands in S7, per provider (the table in
+  "0016 steps in these phases"). It asks that a non-empty `Token.Header`
+  override the provider's header, and for a test that `Header: "X-Custom"`
+  reaches the server. The openai and claude commits built neither:
+  * `providers/openai/openai.go:259` always sent `Authorization: Bearer`;
+  * `providers/claude/claude.go:141` always sent `x-api-key`;
+  * `discovery.go` passed the listing only `token.Value`.
+
+  Nothing in the module read `Token.Header`. The gap dates from `00fe139`
+  (pushed) and `da4425a`.
+* **Options put to the owner:**
+  1. a commit of its own before gemini: a shared helper for openai and
+     claude, for generation and listing, with the `X-Custom` test seen to
+     fail first;
+  2. the same, with listing moved to S8b;
+  3. the override deferred to S7b.
+
+  The owner chose option 1.
+* **Found while building it.** The sources contradicted D2's rule:
+  `StaticToken` filled in `Header: "Authorization"`, and every source
+  reported `Type: bearer`. Applied as written, the rule would have sent
+  `Authorization: bearer <key>` to Claude, and an override could never
+  carry a bare key. The owner chose "sources say only what's set",
+  recorded as 0016-MADR A6.
+* **Scope.**
+  * One commit: the helper, and the two sources' `Header` and `Type`.
+  * openai and claude generation, and their listings, the ChatGPT listing
+    included.
+  * The tests, and the records.
+
+  The providers still in `llmprovider` keep their headers. Each later S7
+  commit builds the override for the provider it moves, as T3 step 1 asks.
+
+### Phase S7, commit 5: the token header override (2026-09-30)
+
+The deviation above, executed. 0016-PLAN T3 step 1 for openai and claude.
+
+* **The sources** (0016-MADR A6):
+
+  | Source | `Type` | `Header` |
+  |---|---|---|
+  | `StaticToken` | `TokenAPIKey` (was `TokenBearer`) | its field, empty by default (was `Authorization`) |
+  | `CommandToken` | `TokenAPIKey` (was `TokenBearer`) | its field, unchanged |
+  | `OAuthSession`, both paths | `TokenBearer` | none (was `Authorization`) |
+  | `VendorCLISession` | `TokenBearer` | none (was `Authorization`) |
+
+* **The rule, `token_header.go`.**
+  * `tokenHeader` gives the header name and value for a token and the
+    service's header and scheme.
+  * `SetTokenHeader` sets them on a request. It is a temporary export, for
+    S7b to move to `internal/transport`.
+* **Generation.** `openai.go` sends `Authorization` with `Bearer`, and
+  `claude.go` sends `x-api-key` bare, each through `SetTokenHeader`.
+* **Listing.** `modelCatalogFor` takes the `Token`, not its value.
+  * The OpenAI, ChatGPT and Claude listings apply the rule.
+  * `fetchDataIDs` takes a header name and value in place of an
+    `Authorization` value. Grok and OpenCode pass `Authorization` as
+    before.
+  * The other providers get the token's value, as before. Each S7 commit
+    that moves one of them applies the rule to it.
+* **One assertion changed meaning, by A6.** `TestStaticToken_ReturnsBearer`
+  is `TestStaticToken_ReturnsAPIKey`. It expects `TokenAPIKey` and no
+  `Header`, where it expected `TokenBearer` and `Authorization`. No other
+  existing test changed.
+* **New tests:**
+  * `TestTokenHeader`, the rule's five cases;
+  * `TestTokenSources_ReportOnlyWhatIsSet`, seven sources;
+  * `TestOpenAI_TokenHeaderOverride` and `TestClaude_TokenHeaderOverride`.
+    Each checks no header, an overriding bearer and an overriding key, in
+    generation and in listing, and that the service's own header is absent
+    beside an override.
+* **Red first,** on a clone of `da4425a`. `TestTokenHeader` needs the new
+  helper, so it was left out.
+  * Both provider tests failed their four override checks. For example:
+    `token_header_test.go:63: GET: X-Custom = "", want "v"`.
+  * `TestTokenSources_ReportOnlyWhatIsSet` failed all seven cases. For
+    example: `Type "bearer", Header "Authorization"; want "api_key", ""`.
+* **G-wire.** No golden changed.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | the override ignored | `X-Custom = "", want "Bearer v"` |
+  | an API-key override `Bearer`-prefixed | `X-Custom = "Bearer v", want "v"` |
+  | the override keeps the service's header too | `headers map[X-Api-Key:[Bearer v] X-Custom:[Bearer v]], want only X-Custom` |
+  | openai generation ignores the token's header | `POST: X-Custom = "", want "Bearer v"` |
+  | openai listing ignores the token's header | `GET: X-Custom = "", want "Bearer v"` |
+  | claude listing ignores the token's header | `GET: X-Custom = "", want "Bearer v"` |
+  | a static key defaults to `Authorization` again | `Header = "Authorization", want none`. G-wire fails 13 cases, for example `claude/text`: `requests[0].header.Authorization: want (absent), got "sk-ant-wire"` |
+  | an OAuth session names `Authorization` again | `Type "bearer", Header "Authorization"; want "bearer", ""` |
+
+* **Coverage:** `llmprovider` 89.7 %, against its `P7` 89.2 %;
+  `providers/claude` 95.4 %; `providers/openai` 97.2 %.

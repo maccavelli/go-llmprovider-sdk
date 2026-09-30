@@ -331,6 +331,16 @@ run in T2 (0015-PLAN S4).
   They are proposed as the MADR's A1–A3, and as "T2 additions from the
   survey". Nothing changes until the owner decides.
 
+* **2026-09-30, T3 step 1's header override.** 0015-PLAN maps T3 step 1 to S7, per
+  provider. The openai and claude commits (`00fe139`, `da4425a`) did not
+  build the override or its `X-Custom` test: no code read `Token.Header`.
+  Found before the gemini commit. The owner chose a commit of its own
+  first, for openai and claude, generation and listing. Each later S7
+  commit builds it for its own provider. Building it showed that the
+  sources contradicted D2; the owner's decision is 0016-MADR A6. Recorded
+  in full in 0015-PLAN, "Deviation 2026-09-30: T3 step 1's header override
+  was not built".
+
 ## Execution Record
 
 ### The owner's decisions (2026-09-29)
@@ -779,3 +789,18 @@ run in T2 (0015-PLAN S4).
   test is `TestDiscoverModels_ProbesFollowDefaultOptionAndEnv`. Details,
   and the breaks that prove it, are in 0015-PLAN's record of the same date.
   **A5 is met.**
+
+### T3 step 1: the header override, openai and claude (2026-09-30, in 0015-PLAN S7)
+
+* **D2, A6.** A token names a `Header` only when its caller set one. An
+  overriding `Header` carries a `TokenBearer` as `Bearer <value>`, and
+  anything else bare.
+  * openai and claude apply the rule in generation and in their listings.
+  * The table's headers for them are unchanged, as re-read from the moved
+    sources: `Authorization: Bearer` and `x-api-key`.
+  * G-wire shows no difference.
+* **Tests:** `TestOpenAI_TokenHeaderOverride` and
+  `TestClaude_TokenHeaderOverride` are the step's `X-Custom` test, each red
+  first. The refusal of OAuth sources for claude landed in its S7 commit.
+* **Still to do.** Each later S7 commit applies the rule to the provider it
+  moves. Details are in 0015-PLAN, "Phase S7, commit 5".

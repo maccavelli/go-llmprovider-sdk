@@ -340,8 +340,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.StaticOpencodeGo` | `StaticModels(ProviderOpencodeGo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticOpencodeZen` | `StaticModels(ProviderOpencodeZen)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticToken` |  |  |
-| `llmprovider.StaticToken.Header` |  |  |
-| `llmprovider.StaticToken.Token` |  |  |
+| `llmprovider.StaticToken.Header` | `llmprovider.StaticToken.Header` | Empty now means the service's own header; it no longer defaults to `Authorization` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
+| `llmprovider.StaticToken.Token` | `llmprovider.StaticToken.Token` | Returns a `TokenAPIKey`, with the `Header` set, if any; it returned `TokenBearer` and `Authorization` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
 | `llmprovider.StaticToken.Value` |  |  |
 | `llmprovider.ThinkingProvider` |  |  |
 | `llmprovider.ThinkingProvider.GenerateThinking` |  |  |
@@ -349,8 +349,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ThinkingToolProvider.GenerateWithToolThinking` |  |  |
 | `llmprovider.Token` |  |  |
 | `llmprovider.Token.Expiry` |  |  |
-| `llmprovider.Token.Header` |  |  |
-| `llmprovider.Token.Type` |  |  |
+| `llmprovider.Token.Header` | `llmprovider.Token.Header` | A non-empty `Header` overrides the service's header (R16, [0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
+| `llmprovider.Token.Type` | `llmprovider.Token.Type` | With an overriding `Header`, `TokenBearer` is sent `Bearer`-prefixed and anything else bare ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
 | `llmprovider.Token.Value` |  |  |
 | `llmprovider.TokenAPIKey` |  |  |
 | `llmprovider.TokenBearer` |  |  |

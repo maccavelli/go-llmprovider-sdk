@@ -5,16 +5,19 @@ import (
 	"testing"
 )
 
-func TestStaticToken_ReturnsBearer(t *testing.T) {
+// TestStaticToken_ReturnsAPIKey: a static key is a TokenAPIKey with no Header
+// of its own, so it goes in the service's own header (0016-MADR A6). Before
+// A6 it reported TokenBearer and Authorization.
+func TestStaticToken_ReturnsAPIKey(t *testing.T) {
 	tok, err := NewStaticToken("sk-test").Token(context.Background())
 	if err != nil {
 		t.Fatalf("Token: %v", err)
 	}
-	if tok.Type != TokenBearer {
-		t.Errorf("Type = %q, want %q", tok.Type, TokenBearer)
+	if tok.Type != TokenAPIKey {
+		t.Errorf("Type = %q, want %q", tok.Type, TokenAPIKey)
 	}
-	if tok.Header != "Authorization" {
-		t.Errorf("Header = %q, want %q", tok.Header, "Authorization")
+	if tok.Header != "" {
+		t.Errorf("Header = %q, want none", tok.Header)
 	}
 	if tok.Value != "sk-test" {
 		t.Errorf("Value = %q, want %q", tok.Value, "sk-test")

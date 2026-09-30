@@ -224,7 +224,6 @@ func (s *OAuthSession) currentToken() (Token, bool) {
 		Value:  s.Access,
 		Type:   TokenBearer,
 		Expiry: s.Expiry,
-		Header: oauthAuthorizationHeader,
 	}, true
 }
 
@@ -359,7 +358,6 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 		Value:  next.Access,
 		Type:   TokenBearer,
 		Expiry: next.Expiry,
-		Header: oauthAuthorizationHeader,
 	}, false, nil
 }
 

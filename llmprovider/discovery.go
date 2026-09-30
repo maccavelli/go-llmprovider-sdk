@@ -109,7 +109,7 @@ func ListModelCatalogWithSource(ctx context.Context, providerName string, src To
 	if err != nil {
 		return ModelCatalog{}, fmt.Errorf("model listing: acquire token: %w", err)
 	}
-	return modelCatalogFor(ctx, providerName, token.Value, cfg)
+	return modelCatalogFor(ctx, providerName, token, cfg)
 }
 
 // boundedListing runs one DiscoverModels listing under modelListingTimeout
@@ -196,7 +196,7 @@ func listChatGPTModels(ctx context.Context, src TokenSource, cfg ProviderConfig)
 		return ModelCatalog{}, fmt.Errorf("model listing: create chatgpt models request: %w", err)
 	}
 	identityOf(cfg).setUserAgent(req)
-	req.Header.Set(oauthAuthorizationHeader, "Bearer "+token.Value)
+	SetTokenHeader(req, token, oauthAuthorizationHeader, bearerScheme)
 	req.Header.Set(ChatGPTOriginatorHeader, ChatGPTOriginatorValue)
 	if accountID := ChatGPTSessionAccountID(src); accountID != "" {
 		req.Header.Set(ChatGPTAccountHeader, accountID)
@@ -269,17 +269,20 @@ func chatGPTCatalogModelListed(model chatGPTCatalogModel) bool {
 }
 
 // modelCatalogFor dispatches one provider's fetch and curation. The caller
-// owns the timeout.
-func modelCatalogFor(ctx context.Context, providerName, apiKey string, cfg ProviderConfig) (ModelCatalog, error) {
+// owns the timeout. OpenAI and Claude send token as it describes itself
+// (0016-MADR A6); the providers still on the old API send its value in their
+// own header until 0015-PLAN S7 moves them.
+func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg ProviderConfig) (ModelCatalog, error) {
+	apiKey := token.Value
 	switch p := strings.ToLower(providerName); p {
 	case ProviderGemini:
 		usable, err := fetchGeminiUsable(ctx, apiKey, cfg)
 		return catalogFrom(usable, err, StaticModels(ProviderGemini), curateGemini), nil
 	case ProviderOpenAI:
-		usable, err := fetchOpenAIUsable(ctx, apiKey, cfg)
+		usable, err := fetchOpenAIUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, StaticModels(ProviderOpenAI), curateOpenAI), nil
 	case ProviderClaude:
-		usable, err := fetchClaudeUsable(ctx, apiKey, cfg)
+		usable, err := fetchClaudeUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, StaticModels(ProviderClaude), curateClaude), nil
 	case ProviderGrok:
 		usable, err := fetchGrokUsable(ctx, apiKey, cfg)
@@ -311,7 +314,7 @@ func modelCatalogFor(ctx context.Context, providerName, apiKey string, cfg Provi
 // listGeminiModels lists Gemini models and returns a short curated production set.
 func listGeminiModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
 	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return modelCatalogFor(ctx, ProviderGemini, apiKey, cfg)
+		return modelCatalogFor(ctx, ProviderGemini, Token{Value: apiKey}, cfg)
 	})
 }
 
@@ -390,12 +393,13 @@ func curateGemini(usable []string) []string {
 }
 
 // fetchOpenAIUsable returns the usable OpenAI chat models in listing order.
-func fetchOpenAIUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
+func fetchOpenAIUsable(ctx context.Context, token Token, cfg ProviderConfig) ([]string, error) {
 	baseURL := "https://api.openai.com/v1"
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
-	ids, err := fetchDataIDs(ctx, baseURL+"/models", "Bearer "+apiKey, cfg, ProviderOpenAI)
+	header, value := tokenHeader(token, oauthAuthorizationHeader, bearerScheme)
+	ids, err := fetchDataIDs(ctx, baseURL+"/models", header, value, cfg, ProviderOpenAI)
 	if err != nil {
 		return nil, err
 	}
@@ -418,7 +422,7 @@ type claudeModelsPage struct {
 // fetchClaudeUsable returns the usable Claude text models in listing order,
 // following has_more/last_id for at most maxListingPages pages (MADR 0007 §2).
 // Any page failure, or running out of pages, fails the whole listing.
-func fetchClaudeUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
+func fetchClaudeUsable(ctx context.Context, token Token, cfg ProviderConfig) ([]string, error) {
 	baseURL := "https://api.anthropic.com"
 	if cfg.BaseURL != "" {
 		baseURL = strings.TrimRight(cfg.BaseURL, "/")
@@ -431,7 +435,7 @@ func fetchClaudeUsable(ctx context.Context, apiKey string, cfg ProviderConfig) (
 		if afterID != "" {
 			query.Set("after_id", afterID)
 		}
-		result, err := fetchClaudePage(ctx, baseURL+"/v1/models?"+query.Encode(), apiKey, cfg)
+		result, err := fetchClaudePage(ctx, baseURL+"/v1/models?"+query.Encode(), token, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -452,14 +456,14 @@ func fetchClaudeUsable(ctx context.Context, apiKey string, cfg ProviderConfig) (
 }
 
 // fetchClaudePage performs one listing request.
-func fetchClaudePage(ctx context.Context, endpoint, apiKey string, cfg ProviderConfig) (claudeModelsPage, error) {
+func fetchClaudePage(ctx context.Context, endpoint string, token Token, cfg ProviderConfig) (claudeModelsPage, error) {
 	var result claudeModelsPage
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, http.NoBody)
 	if err != nil {
 		return result, err
 	}
 	identityOf(cfg).setUserAgent(req)
-	req.Header.Set("x-api-key", apiKey)
+	SetTokenHeader(req, token, "x-api-key", "")
 	req.Header.Set("anthropic-version", "2023-06-01")
 
 	resp, err := cfg.HTTPClient.Do(req)
@@ -571,7 +575,7 @@ func fetchGrokUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
-	ids, err := fetchDataIDs(ctx, baseURL+"/models", "Bearer "+apiKey, cfg, ProviderGrok)
+	ids, err := fetchDataIDs(ctx, baseURL+"/models", oauthAuthorizationHeader, "Bearer "+apiKey, cfg, ProviderGrok)
 	if err != nil {
 		return nil, err
 	}
@@ -583,8 +587,8 @@ func curateGrok(usable []string) []string {
 }
 
 // fetchDataIDs performs GET endpoint and decodes a {"data":[{"id":…}]} body.
-// authorization is sent as the Authorization header when non-empty.
-func fetchDataIDs(ctx context.Context, endpoint, authorization string, cfg ProviderConfig, provider string) ([]string, error) {
+// The credential is sent as header: value when value is non-empty.
+func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg ProviderConfig, provider string) ([]string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, http.NoBody)
 	if err != nil {
 		return nil, err
@@ -594,8 +598,8 @@ func fetchDataIDs(ctx context.Context, endpoint, authorization string, cfg Provi
 	if provider == serviceOpencode {
 		req.Header.Set(opencodeSessionHeader, id.session) // 0013 B7
 	}
-	if authorization != "" {
-		req.Header.Set("Authorization", authorization)
+	if value != "" {
+		req.Header.Set(header, value)
 	}
 
 	resp, err := cfg.HTTPClient.Do(req)
@@ -675,7 +679,7 @@ func fetchOpencodeUsable(ctx context.Context, gateway, apiKey string, cfg Provid
 	if apiKey != "" {
 		authorization = "Bearer " + apiKey
 	}
-	ids, err := fetchDataIDs(ctx, baseURL+"/models", authorization, cfg, "opencode")
+	ids, err := fetchDataIDs(ctx, baseURL+"/models", oauthAuthorizationHeader, authorization, cfg, "opencode")
 	if err != nil {
 		return nil, err
 	}
@@ -699,7 +703,7 @@ func hasText(mods []string) bool { return slices.Contains(mods, jsonKeyText) }
 // order is handed to curateFromCatalog with a nil rankFn, which preserves it.
 func listHuggingFaceModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
 	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return modelCatalogFor(ctx, ProviderHuggingFace, apiKey, cfg)
+		return modelCatalogFor(ctx, ProviderHuggingFace, Token{Value: apiKey}, cfg)
 	})
 }
 
@@ -809,7 +813,7 @@ const togetherListingLimit = 8 << 20
 // listTogetherModels lists Together AI's chat models, curated.
 func listTogetherModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
 	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return modelCatalogFor(ctx, ProviderTogether, apiKey, cfg)
+		return modelCatalogFor(ctx, ProviderTogether, Token{Value: apiKey}, cfg)
 	})
 }
 
@@ -953,7 +957,7 @@ func fetchKiloCatalog(ctx context.Context, apiKey string, cfg ProviderConfig) ([
 // not a capability filter — see isUsableKiloModel's comment.
 func listKiloModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
 	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return modelCatalogFor(ctx, ProviderKilo, apiKey, cfg)
+		return modelCatalogFor(ctx, ProviderKilo, Token{Value: apiKey}, cfg)
 	})
 }
 

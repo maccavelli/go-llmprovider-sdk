@@ -125,6 +125,14 @@ the old API until 0015-PLAN S8 removes it:
   API key. `openai.New` takes a source with `WithTokenSource`; a ChatGPT
   session selects the ChatGPT backend. Grok's source constructor is
   unexported until Grok moves in 0015-PLAN S7.
+- **Where a token goes.** A token with no `Header` goes in the service's own
+  header: `Authorization: Bearer` for OpenAI, `x-api-key` for Claude. One
+  naming a `Header` goes there instead, prefixed `Bearer` only for a
+  `TokenBearer`. Key sources (`StaticToken`, `CommandToken`) are
+  `TokenAPIKey`; sessions are `TokenBearer` and name no `Header`. The moved
+  providers apply this to generation and listing through `SetTokenHeader`;
+  the providers still in `llmprovider` send their own header until they
+  move.
 - **Temporary exports.** For 0015-PLAN S7, `llmprovider` exports helpers the
   moved providers still share with it: the ChatGPT session helpers
   (`IsChatGPTSession`, `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`,
@@ -132,8 +140,8 @@ the old API until 0015-PLAN S8 removes it:
   (`DecodeResponsesAPIOutput`, `ReadResponsesStream`, `ItemsToInput`), the
   Messages wire, which OpenCode's messages route shares
   (`MessagesFromItems`, `DecodeMessagesResponse`, `AddMessagesThinking`,
-  `SystemPrompt`), and `ClassifyHTTPError`, `ShareHTTPClient` and
-  `ProbeGenerateHealth`. S7b moves them to the
+  `SystemPrompt`), and `ClassifyHTTPError`, `ShareHTTPClient`,
+  `ProbeGenerateHealth` and `SetTokenHeader`. S7b moves them to the
   packages of 0015-MADR D2 and removes the exports.
 - **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.
   - **Creating one:**

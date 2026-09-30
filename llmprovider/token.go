@@ -12,9 +12,11 @@ import (
 type TokenType string
 
 const (
-	// TokenAPIKey identifies a provider API key.
+	// TokenAPIKey identifies a provider API key. In an overriding Header it
+	// is sent bare (0016-MADR A6).
 	TokenAPIKey TokenType = "api_key"
-	// TokenBearer identifies a bearer token.
+	// TokenBearer identifies a bearer token. In an overriding Header it is
+	// sent as "Bearer <value>" (0016-MADR A6).
 	TokenBearer TokenType = "bearer"
 )
 
@@ -43,10 +45,15 @@ func expiryText(t time.Time) string {
 
 // Token is an authentication value returned by a TokenSource. Its String,
 // GoString and LogValue never show Value.
+//
+// A provider sends it as Token describes it (0016-MADR D2, A6): with no
+// Header, in the service's own header and scheme; with a Header, in that
+// header instead, prefixed as Type says.
 type Token struct {
 	Value  string
 	Type   TokenType
 	Expiry time.Time
+	// Header overrides the service's own header; empty keeps it.
 	Header string
 }
 
@@ -86,28 +93,27 @@ type TokenSource interface {
 	Token(ctx context.Context) (Token, error)
 }
 
-// StaticToken returns one fixed bearer token without expiry. Its String,
+// StaticToken returns one fixed API key without expiry. Its String,
 // GoString and LogValue never show Value.
 type StaticToken struct {
-	Value  string
+	Value string
+	// Header is the request header the key goes in; empty is the service's
+	// own (see Token).
 	Header string
 }
 
-// NewStaticToken constructs a static bearer-token source.
+// NewStaticToken constructs a static API-key source.
 func NewStaticToken(value string) *StaticToken {
 	return &StaticToken{Value: value}
 }
 
-// Token returns the static value and its configured authorization header.
+// Token returns the static value as a TokenAPIKey, with the Header the caller
+// set, if any (0016-MADR A6).
 func (s *StaticToken) Token(ctx context.Context) (Token, error) {
-	header := s.Header
-	if header == "" {
-		header = "Authorization"
-	}
 	return Token{
 		Value:  s.Value,
-		Type:   TokenBearer,
-		Header: header,
+		Type:   TokenAPIKey,
+		Header: s.Header,
 	}, nil
 }
 

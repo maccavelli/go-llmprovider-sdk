@@ -138,7 +138,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("User-Agent", p.userAgent)
-	httpReq.Header.Set("x-api-key", token.Value)
+	llmprovider.SetTokenHeader(httpReq, token, "x-api-key", "")
 	httpReq.Header.Set("anthropic-version", anthropicVersion)
 
 	resp, err := p.client.Do(httpReq)
