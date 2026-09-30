@@ -33,7 +33,7 @@ func kiloRankEntry(id, name, prompt, completion string, ageDays int, reasoning b
 		`"mayTrainOnYourPrompts":false%s}`, id, name, created, prompt, completion, params, extra)
 }
 
-// TestListModelCatalog_KiloRanksByProfile pins MADR 0010 §2 for Kilo: the
+// TestListModelCatalog_KiloRanksByProfile pins MADR 0009 §2 for Kilo: the
 // listing's own metadata ranks the recommended six per profile, the 8B
 // non-reasoning model that today's cheapest-first order puts first leaves the
 // six, and kilo-auto/* is excluded under the utility profile only (§3 item 9).
@@ -121,7 +121,7 @@ func listCatalog(ctx context.Context, t *testing.T, provider string, opts ...Pro
 	return cat
 }
 
-// TestListModelCatalog_HuggingFaceRanksWithMetadata pins MADR 0010 §2: the
+// TestListModelCatalog_HuggingFaceRanksWithMetadata pins MADR 0009 §2: the
 // router listing is ranked with models.dev metadata, and an id the metadata
 // does not cover is ranked with every field unknown, ahead of the fill.
 func TestListModelCatalog_HuggingFaceRanksWithMetadata(t *testing.T) {
@@ -142,7 +142,7 @@ func TestListModelCatalog_HuggingFaceRanksWithMetadata(t *testing.T) {
 	}
 }
 
-// TestListModelCatalog_MetadataFallback pins MADR 0010 §2's degradation: any
+// TestListModelCatalog_MetadataFallback pins MADR 0009 §2's degradation: any
 // failure of the metadata source leaves today's curation in place.
 func TestListModelCatalog_MetadataFallback(t *testing.T) {
 	blocking := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
@@ -213,7 +213,7 @@ func TestListModelCatalog_MetadataIsolation(t *testing.T) {
 	}
 }
 
-// TestListModelCatalog_OpencodeGoGates pins MADR 0010 §3 items 7–8: the
+// TestListModelCatalog_OpencodeGoGates pins MADR 0009 §3 items 7–8: the
 // region-gated and -contributor models leave Go's six but stay searchable,
 // and the region gate is Go-only.
 func TestListModelCatalog_OpencodeGoGates(t *testing.T) {
@@ -267,7 +267,7 @@ func serveTestdata(t *testing.T, name string) *httptest.Server {
 }
 
 // TestListModelCatalog_Snapshot20260926 replays the 2026-09-26 catalogs
-// (testdata/ranking-2026-09-26) and requires MADR 0010 §7's sixes exactly. A
+// (testdata/ranking-2026-09-26) and requires MADR 0009 Context §7's sixes exactly. A
 // rule change must update §7 and this test together.
 func TestListModelCatalog_Snapshot20260926(t *testing.T) {
 	pinRankingNow(t, refNow)

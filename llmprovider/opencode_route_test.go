@@ -47,7 +47,7 @@ func TestOpencodeRoute_Table(t *testing.T) {
 }
 
 // TestOpencodeRoute_Heuristic covers the ten model ids that are live on the
-// gateways but absent from the published tables (plan §3.3). This is the
+// gateways but absent from the published tables (0004-PLAN §3.3). This is the
 // regression guard for catalog drift: every one must still resolve correctly
 // through the prefix heuristic.
 func TestOpencodeRoute_Heuristic(t *testing.T) {
@@ -172,7 +172,7 @@ func TestProviderConstants_Distinct(t *testing.T) {
 // TestWireShapesProbedOn validates every gateway probe-date pin. Its second job
 // is to give those constants a real, untagged use: golangci-lint analyses test
 // files (run: tests: true) but not //go:build live_gateways files, so a
-// reference from the live suite would not satisfy `unused`. See plan deviation
+// reference from the live suite would not satisfy `unused`. See 0004-PLAN deviation
 // D2. Phases 5 and 6 add their constants to this table.
 func TestWireShapesProbedOn(t *testing.T) {
 	pins := map[string]string{

@@ -412,7 +412,7 @@ func TestListAvailableModels_OpencodeFallback(t *testing.T) {
 }
 
 // hfListingFixture mirrors the real /v1/models shape. It deliberately contains
-// a vision-language model (text+image in, text out: admitted since MADR 0009
+// a vision-language model (text+image in, text out: admitted since MADR 0007
 // §1b), a model whose only provider is not live, an image-generating model and
 // an audio-only-input model (both rejected), and three text models with
 // differing throughput so ordering can be asserted.
@@ -434,7 +434,7 @@ const hfListingFixture = `{"object":"list","data":[
 
 // TestListHuggingFaceModels_MetadataCuration proves the curation is driven by
 // published metadata rather than name heuristics: input must contain text and
-// output must be exactly text (MADR 0009 §1b), non-live models are dropped, and
+// output must be exactly text (MADR 0007 §1b), non-live models are dropped, and
 // survivors come back fastest-first. The ordering assertion also proves the
 // nil rankFn preserves the caller's order.
 func TestListHuggingFaceModels_MetadataCuration(t *testing.T) {
@@ -448,7 +448,7 @@ func TestListHuggingFaceModels_MetadataCuration(t *testing.T) {
 		t.Fatalf("ListAvailableModels: %v", err)
 	}
 	if !slices.Contains(models, "org/vlm") {
-		t.Error("text+image-input, text-output model must be admitted (MADR 0009 §1b)")
+		t.Error("text+image-input, text-output model must be admitted (MADR 0007 §1b)")
 	}
 	for _, m := range models {
 		switch m {
@@ -508,7 +508,7 @@ func TestListAvailableModels_HuggingFaceFallback(t *testing.T) {
 
 // kiloListingFixture mirrors the real Kilo catalog: OpenRouter shape plus Kilo's
 // extensions. It contains a vision model (text+image in, text out: admitted
-// since MADR 0009 §1b), a training-on-prompts model, a non-tool model, an
+// since MADR 0007 §1b), a training-on-prompts model, a non-tool model, an
 // image-generating model and an audio-only-input model (both rejected), and
 // three priced text models including the "-1" variable price.
 const kiloListingFixture = `{"data":[
@@ -531,10 +531,10 @@ const kiloListingFixture = `{"data":[
 
 // TestListKiloModels_MetadataCuration asserts both documented traps and the
 // policy exclusion: training-on-prompts and non-tool models are dropped, input
-// must contain text and output must be exactly text (MADR 0009 §1b), usable
+// must contain text and output must be exactly text (MADR 0007 §1b), usable
 // models are cheapest-first, and "-1" variable pricing sorts LAST. Nothing in
 // the fixture advertises reasoning, so the recommended list is the fill, which
-// skips kilo-auto/* under the utility profile (MADR 0010 §3 item 9).
+// skips kilo-auto/* under the utility profile (MADR 0009 §3 item 9).
 func TestListKiloModels_MetadataCuration(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(kiloListingFixture))
@@ -552,7 +552,7 @@ func TestListKiloModels_MetadataCuration(t *testing.T) {
 	models := cat.Recommended
 	for _, m := range models {
 		if strings.HasPrefix(m, "kilo-auto/") {
-			t.Errorf("utility Recommended must not contain %q (MADR 0010 §3 item 9)", m)
+			t.Errorf("utility Recommended must not contain %q (MADR 0009 §3 item 9)", m)
 		}
 		switch m {
 		case "org/painter":

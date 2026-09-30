@@ -53,7 +53,7 @@ func TestKilo_RequestShape(t *testing.T) {
 // configured, the thinking path sends Kilo's reasoning object
 // {"enabled": true} when "reasoning" is accepted (or capabilities are
 // unknown), and reasoning_effort only when the model lists it and not
-// "reasoning" (MADR 0010 §6).
+// "reasoning" (MADR 0009 §6).
 func TestKilo_SupportedParameterGating(t *testing.T) {
 	tool := Tool{Name: "get_weather", Schema: map[string]any{"type": "object"}}
 	enabled := map[string]any{"enabled": true}
@@ -123,7 +123,7 @@ func assertKiloReasoning(t *testing.T, body map[string]any, wantEffort string, w
 	}
 }
 
-// TestKilo_ReasoningEffortConfigured pins MADR 0010 §6 with an effort set:
+// TestKilo_ReasoningEffortConfigured pins MADR 0009 §6 with an effort set:
 // {"effort": …} in the reasoning object, reasoning_effort only for models that
 // list it and not "reasoning", and nothing on a plain call.
 func TestKilo_ReasoningEffortConfigured(t *testing.T) {

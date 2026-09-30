@@ -128,7 +128,7 @@ func TestListModelCatalog_ClaudeSecondPageFailureDegrades(t *testing.T) {
 }
 
 func TestListModelCatalog_PaginationIsBounded(t *testing.T) {
-	// The bound is policy (MADR 0009 §2), so it is asserted as a literal: a
+	// The bound is policy (MADR 0007 §2), so it is asserted as a literal: a
 	// comparison against maxListingPages could not detect the bound changing.
 	const wantPages = 10
 	for _, tc := range []struct {

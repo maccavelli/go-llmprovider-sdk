@@ -46,7 +46,7 @@ const (
 // APIError is a non-2xx response with the service's own error classification
 // (MADR 0012 §1.1). It unwraps to the classified sentinel and, when that
 // differs, to the sentinel the status alone mapped to before, so every
-// existing errors.Is check still matches (§7).
+// existing errors.Is check still matches (MADR 0012 §7).
 type APIError struct {
 	Provider   string
 	Status     int           // 0 for a failure reported inside a 200 event stream
@@ -127,7 +127,7 @@ func classifyHTTPError(provider string, resp *http.Response) error {
 			e.RetryAfter = d
 		}
 	}
-	// x-should-retry: false is the service saying no retry can succeed (§1.2).
+	// x-should-retry: false is the service saying no retry can succeed (MADR 0012 §1.2).
 	if strings.EqualFold(strings.TrimSpace(resp.Header.Get("X-Should-Retry")), "false") {
 		e.Terminal = true
 	}
@@ -140,7 +140,7 @@ func classifyHTTPError(provider string, resp *http.Response) error {
 // streamFailure classifies a response.failed event, which arrives inside a 200
 // stream, as Codex's parse_failed_response does
 // (codex-api/src/sse/responses_error.rs): quota and entitlement codes are
-// terminal (§1.1), context_length_exceeded and invalid_prompt are invalid
+// terminal (MADR 0012 §1.1), context_length_exceeded and invalid_prompt are invalid
 // requests, rate_limit_exceeded and slow_down are rate limits, and anything
 // else is retryable. The APIError's Status is 0: there is no HTTP status.
 func streamFailure(provider, code, errType, message string) error {

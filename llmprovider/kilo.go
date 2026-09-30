@@ -238,7 +238,7 @@ func (p *KiloProvider) GenerateItemsWithToolThinking(ctx context.Context, tool T
 	return p.doGenerateItems(ctx, input, &tool, true)
 }
 
-// thinkingFields returns the reasoning fields for one call (MADR 0010 §6).
+// thinkingFields returns the reasoning fields for one call (MADR 0009 §6).
 // When the model accepts "reasoning" (or its capabilities are unknown), Kilo's
 // reasoning object is sent: {effort} when an effort is configured, else
 // {enabled: true} for the model's default effort. reasoning_effort is sent

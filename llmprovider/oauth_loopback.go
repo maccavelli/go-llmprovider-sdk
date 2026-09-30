@@ -393,7 +393,7 @@ func buildAuthorizeURL(config oauthFlowConfig, endpoint, redirectURI, challenge,
 // grokAccountsAppOrigin is the only browser origin allowed to call the Grok
 // loopback callback. accounts.x.ai delivers the code with a cross-origin,
 // private-network request, as the official CLI's callback router allows
-// (MADR 0009 D2).
+// (MADR 0008 D2).
 const grokAccountsAppOrigin = "https://accounts.x.ai"
 
 // callbackCORSOrigin names the origin a provider's callback allows; "" allows

@@ -1,7 +1,7 @@
 package llmprovider
 
 // ModelProfile selects how the open catalogs rank their recommended models
-// (MADR 0010 §1).
+// (MADR 0009 §1).
 type ModelProfile int
 
 const (

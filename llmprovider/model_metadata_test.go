@@ -97,7 +97,7 @@ func TestLoadModelMetadata_CachesSuccess(t *testing.T) {
 
 // TestLoadModelMetadata_FailureRetriedAfterBackoff pins MADR 0013 A6: once
 // modelMetadataRetryAfter has passed since a failure, the next load fetches.
-// It replaces TestLoadModelMetadata_FailureNotCached (0010 PLAN §1.11 item 3).
+// It replaces TestLoadModelMetadata_FailureNotCached (0009 PLAN §1.11 item 3).
 func TestLoadModelMetadata_FailureRetriedAfterBackoff(t *testing.T) {
 	enableModelMetadata(t)
 	var hits atomic.Int32

@@ -101,7 +101,7 @@ func TestDescriptors_OpenAIAndGrokOfferOAuth(t *testing.T) {
 
 // TestDescriptors_CoverEveryRegisteredProvider is the load-bearing test of this
 // whole design. If a provider can be constructed but has no descriptor, no
-// wizard can offer it — which is exactly how Grok shipped in MADR 0001 and
+// wizard can offer it — which is exactly how Grok shipped in MADR 0003 and
 // reached none of the three configuration wizards. Making that a build failure
 // is the point.
 func TestDescriptors_CoverEveryRegisteredProvider(t *testing.T) {
@@ -230,7 +230,7 @@ func TestModelLabel(t *testing.T) {
 }
 
 // TestDescriptors_NoStaleModels is the direct regression for the bug that
-// motivated this MADR: mcp-server-magictools recommended gemini-2.0-flash while
+// motivated 0005-MADR: mcp-server-magictools recommended gemini-2.0-flash while
 // models_catalog.go documents the 2.0 and 1.5 families as shut down.
 func TestDescriptors_NoStaleModels(t *testing.T) {
 	for _, d := range Descriptors() {

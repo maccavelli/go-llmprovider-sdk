@@ -281,7 +281,7 @@ func assertTextMasksSecret(t *testing.T, displayed []string, secret string) {
 
 // TestConfigureLLM_ChatGPTListingFailurePromptsForModel: after ChatGPT sign-in
 // a failed Codex listing asks for a model id; it never offers the Platform
-// catalog or a frozen ChatGPT list (MADR 0009 D11).
+// catalog or a frozen ChatGPT list (MADR 0008 D11).
 func TestConfigureLLM_ChatGPTListingFailurePromptsForModel(t *testing.T) {
 	var requests []string
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -384,7 +384,7 @@ func TestConfigureLLM_KeepRefusesStubSession(t *testing.T) {
 
 // TestConfigureLLM_BrowserOAuthSetsInputCode: browser sign-in races a paste
 // prompt, and the authorize URL and paste instruction are shown even when the
-// consumer opens the browser itself (MADR 0009 D3).
+// consumer opens the browser itself (MADR 0008 D3).
 func TestConfigureLLM_BrowserOAuthSetsInputCode(t *testing.T) {
 	stubBrowserLogin(t, func(_ context.Context, provider string, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
 		if opts.InputCode == nil {

@@ -67,7 +67,7 @@ func TestDiscoverModels_MeteredServicesDoNotProbe(t *testing.T) {
 	}
 }
 
-// TestDiscoverModels_APIKeyOpenAIStillProbes keeps §1.6 scoped: the providers
+// TestDiscoverModels_APIKeyOpenAIStillProbes keeps MADR 0012 §1.6 scoped: the providers
 // it does not name still probe.
 func TestDiscoverModels_APIKeyOpenAIStillProbes(t *testing.T) {
 	srv, posts := generationCounter(t)

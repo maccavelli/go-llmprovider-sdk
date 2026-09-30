@@ -23,7 +23,7 @@ const (
 	oauthRefreshSkew         = 5 * time.Minute
 	oauthAuthorizationHeader = "Authorization"
 	// oauthErrorBodyLimit caps how much of a failed token response an error
-	// carries (MADR 0009 D8).
+	// carries (MADR 0008 D8).
 	oauthErrorBodyLimit = 2048
 	// oauthRefreshAttempts and oauthRefreshBackoff retry a refresh that
 	// failed in transport, with 429 or with 5xx, as the Grok CLI does
@@ -43,11 +43,11 @@ var oauthTerminalRefreshCodes = []string{
 }
 
 // chatGPTAccessFixture is the stub access token a consumer test once wrote into
-// a live token store (MADR 0009 F3, F8).
+// a live token store (MADR 0008 F3, F8).
 const chatGPTAccessFixture = "chatgpt-access"
 
 // ValidateOAuthSession reports whether a session can be used for generation
-// (MADR 0009 D7). It must be refreshable, or the explicit access-only ChatGPT
+// (MADR 0008 D7). It must be refreshable, or the explicit access-only ChatGPT
 // token that token_stdin produces, and never a stub. A
 // refreshable session needs a client id. Its token URL may be empty, because
 // the refresh derives it from the issuer.

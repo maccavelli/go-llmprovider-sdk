@@ -183,7 +183,7 @@ func GenerateWithRetry(ctx context.Context, p Provider, prompt string, retries i
 
 // GenerateThinkingWithRetry is GenerateWithRetry for the extended-thinking
 // path: the same backoff, jitter and error classification around
-// GenerateThinking (MADR 0010 §6).
+// GenerateThinking (MADR 0009 §6).
 func GenerateThinkingWithRetry(ctx context.Context, p ThinkingProvider, prompt string, retries int, delay time.Duration) (string, error) {
 	return retryWithBackoff(ctx, retries, delay, "llm: retrying thinking after failure", func() (string, error) {
 		return p.GenerateThinking(ctx, prompt)

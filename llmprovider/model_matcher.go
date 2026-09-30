@@ -8,7 +8,7 @@ import (
 	"unicode"
 )
 
-// Model search (MADR 0009 §3). A query containing * or ? takes the glob path;
+// Model search (MADR 0007 §3). A query containing * or ? takes the glob path;
 // any other query is scored by a tiered fuzzy match. SearchModels ranks; it
 // does not filter for usability, which is the listing's job.
 

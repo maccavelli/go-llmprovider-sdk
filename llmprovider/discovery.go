@@ -37,7 +37,7 @@ func chatgptClientVersion(v string) string {
 	return chatgptModelsClientVersion
 }
 
-// Listing pagination (MADR 0009 §2): Gemini and Anthropic page their model
+// Listing pagination (MADR 0007 §2): Gemini and Anthropic page their model
 // lists, so each fetch requests the maximum page size and follows at most
 // maxListingPages pages.
 const (
@@ -47,7 +47,7 @@ const (
 )
 
 // modelListingTimeout bounds one model listing, its metadata fetch included
-// (MADR 0010 §2). ListModelCatalogWithSource and every DiscoverModels listing
+// (MADR 0009 §2). ListModelCatalogWithSource and every DiscoverModels listing
 // apply it (MADR 0013 A5).
 const modelListingTimeout = 10 * time.Second
 
@@ -84,7 +84,7 @@ func ListAvailableModelsWithSource(ctx context.Context, providerName string, src
 }
 
 // ListModelCatalog performs one model listing and returns both the curated
-// recommendation and every usable id (MADR 0009 §1).
+// recommendation and every usable id (MADR 0007 §1).
 func ListModelCatalog(ctx context.Context, providerName, apiKey string, opts ...ProviderOption) (ModelCatalog, error) {
 	return ListModelCatalogWithSource(ctx, providerName, NewStaticToken(apiKey), opts...)
 }
@@ -319,7 +319,7 @@ type geminiModelsPage struct {
 }
 
 // fetchGeminiUsable returns the usable Gemini text models in listing order,
-// following nextPageToken for at most maxListingPages pages (MADR 0009 §2).
+// following nextPageToken for at most maxListingPages pages (MADR 0007 §2).
 // Any page failure, or running out of pages, fails the whole listing.
 func fetchGeminiUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
 	baseURL := "https://generativelanguage.googleapis.com/v1beta"
@@ -418,7 +418,7 @@ type claudeModelsPage struct {
 }
 
 // fetchClaudeUsable returns the usable Claude text models in listing order,
-// following has_more/last_id for at most maxListingPages pages (MADR 0009 §2).
+// following has_more/last_id for at most maxListingPages pages (MADR 0007 §2).
 // Any page failure, or running out of pages, fails the whole listing.
 func fetchClaudeUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
 	baseURL := "https://api.anthropic.com"
@@ -688,7 +688,7 @@ func fetchOpencodeUsable(ctx context.Context, gateway, apiKey string, cfg Provid
 func onlyText(mods []string) bool { return len(mods) == 1 && mods[0] == jsonKeyText }
 
 // hasText reports whether a modality list includes "text". A model that also
-// accepts images or files still serves a text prompt (MADR 0009 §1b).
+// accepts images or files still serves a text prompt (MADR 0007 §1b).
 func hasText(mods []string) bool { return slices.Contains(mods, jsonKeyText) }
 
 // listHuggingFaceModels fetches the router catalog and curates it using the
@@ -706,7 +706,7 @@ func listHuggingFaceModels(ctx context.Context, apiKey string, cfg ProviderConfi
 }
 
 // fetchHuggingFaceUsable returns the usable router models, fastest first: input
-// must include text and output must be exactly text (MADR 0009 §1b), and at
+// must include text and output must be exactly text (MADR 0007 §1b), and at
 // least one provider offering must be live.
 func fetchHuggingFaceUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
 	baseURL := huggingFaceBaseURL
@@ -811,7 +811,7 @@ func curateHuggingFace(usable []string) []string {
 
 // kiloCatalogEntry is the subset of Kilo's OpenRouter-shaped catalog entry this
 // package reads. Shared by listKiloModels, KiloModelCapabilities and the
-// ranker (MADR 0010 §2).
+// ranker (MADR 0009 §2).
 type kiloCatalogEntry struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
@@ -902,7 +902,7 @@ func listKiloModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]s
 }
 
 // kiloUsable returns the usable Kilo models, cheapest first: input must include
-// text and output must be exactly text (MADR 0009 §1b), tools must be supported,
+// text and output must be exactly text (MADR 0007 §1b), tools must be supported,
 // and the training policy applies.
 func kiloUsable(entries []kiloCatalogEntry) []string {
 	type priced struct {
@@ -948,7 +948,7 @@ func curateKilo(usable []string) []string {
 }
 
 // kiloCurate ranks Kilo's usable models from the listing's own metadata
-// (MADR 0010 §2). When fewer than MaxListedModels are eligible, the rest come
+// (MADR 0009 §2). When fewer than MaxListedModels are eligible, the rest come
 // from curateKilo's order, then the usable list.
 func kiloCurate(entries []kiloCatalogEntry, profile ModelProfile) func([]string) []string {
 	return func(usable []string) []string {

@@ -1175,10 +1175,10 @@ diff --git a/llmprovider/openai_chatgpt_test.go b/llmprovider/openai_chatgpt_tes
  }
  
 -// TestOpenAI_ChatGPTSendsMaxOutputTokens pins today's ChatGPT request body:
--// max_output_tokens is still sent (MADR 0007 open question 1 decides later
+-// max_output_tokens is still sent (MADR 0008 open question 1 decides later
 -// whether the Codex backend wants it).
 -func TestOpenAI_ChatGPTSendsMaxOutputTokens(t *testing.T) {
-+// TestOpenAI_ChatGPTOmitsMaxOutputTokens answers MADR 0007 open question 1:
++// TestOpenAI_ChatGPTOmitsMaxOutputTokens answers MADR 0008 open question 1:
 +// the ChatGPT backend rejects max_output_tokens (400 "Unsupported parameter",
 +// gate G-C 2026-09-27), so a ChatGPT session never sends it.
 +func TestOpenAI_ChatGPTOmitsMaxOutputTokens(t *testing.T) {

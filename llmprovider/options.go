@@ -183,7 +183,7 @@ func WithStore(store bool) ProviderOption {
 }
 
 // WithModelProfile selects how ListAvailableModels, ListModelCatalog and the
-// open catalogs' DiscoverModels rank the recommended models (MADR 0010 §1,
+// open catalogs' DiscoverModels rank the recommended models (MADR 0009 §1,
 // MADR 0013 A4).
 func WithModelProfile(p ModelProfile) ProviderOption {
 	return func(cfg *ProviderConfig) {
@@ -191,7 +191,7 @@ func WithModelProfile(p ModelProfile) ProviderOption {
 	}
 }
 
-// WithModelMetadataURL overrides the model metadata document (MADR 0010 §2).
+// WithModelMetadataURL overrides the model metadata document (MADR 0009 §2).
 // LLMPROVIDER_DISABLE_MODELS_METADATA=1 turns the fetch off whatever the URL.
 func WithModelMetadataURL(url string) ProviderOption {
 	return func(cfg *ProviderConfig) {

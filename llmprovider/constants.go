@@ -14,7 +14,7 @@ const (
 	ProviderHuggingFace = "huggingface"
 	// ProviderKilo is the Kilo Gateway (the API behind the Kilo Code agent).
 	// models.dev registers this gateway as "kilo"; this package follows that
-	// registry key. See docs/0003-MADR-add-gateway-llm-providers.md revision 4.
+	// registry key. See docs/decisions/0004-MADR-add-gateway-llm-providers.md revision 4.
 	ProviderKilo = "kilo"
 	// ProviderOllama is a local Ollama instance, reached through its
 	// OpenAI-compatible endpoint. It is the only provider needing no credential.

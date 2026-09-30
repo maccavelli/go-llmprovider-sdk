@@ -5,15 +5,15 @@
 //	go test -tags live_gateways ./llmprovider/ -run Live -v
 //
 // Kilo tests REQUIRE KILO_API_KEY: since 2026-09-26 Kilo answers a placeholder
-// bearer with 401, even on free models (0010 PLAN deviation). The free-model
+// bearer with 401, even on free models (0009 PLAN deviation). The free-model
 // tests are rate-limited upstream, so rate limits, outages, quota and
 // not-permitted refusals SKIP rather than fail; a 400 FAILS, since a wire
 // regression answers with one (skipIfTransient; 0013 D5, MADR 0012 §1.1). These
-// assert wire-format correctness, not gateway availability. The 0010 reasoning
+// assert wire-format correctness, not gateway availability. The 0009 reasoning
 // gate (TestLive_KiloReasoningShapes) uses a paid model and treats a 400 as
 // DRIFT.
 //
-// OpenCode tests REQUIRE OPENCODE_API_KEY (plan deviation D3): a bogus key is
+// OpenCode tests REQUIRE OPENCODE_API_KEY (0004-PLAN deviation D3): a bogus key is
 // answered 401. Without a key, NewOpencode sends the gateway's "public" token
 // (MADR 0012 §1.7). The generation tests use paid OpenCode Go models: Zen's
 // free tier refuses clients other than OpenCode (403 FreeTierError, typed as
@@ -45,7 +45,7 @@ import (
 // skipIfTransient converts upstream rate limiting, outages and account-state
 // refusals into a skip: these assert wire shapes, not uptime or quota. A 400
 // (ErrInvalidRequest) is a failure, since a wire regression answers with one
-// (MADR 0012 amendment, 0013 D5).
+// (MADR 0012 revision 2, 0013 D5).
 func skipIfTransient(t *testing.T, err error) {
 	t.Helper()
 	if liveTransient(err) {
@@ -60,7 +60,7 @@ func liveTransient(err error) bool {
 }
 
 // kiloKey returns a real Kilo credential or skips: Kilo rejects a placeholder
-// bearer with 401 (0010 PLAN deviation, 2026-09-26).
+// bearer with 401 (0009 PLAN deviation, 2026-09-26).
 func kiloKey(t *testing.T) string {
 	t.Helper()
 	key := os.Getenv("KILO_API_KEY")
@@ -70,14 +70,14 @@ func kiloKey(t *testing.T) string {
 	return key
 }
 
-// opencodeKey returns a real OpenCode credential or skips. See deviation D3:
+// opencodeKey returns a real OpenCode credential or skips. See 0004-PLAN deviation D3:
 // OpenCode rejects a bogus bearer even for models that are free without one.
 func opencodeKey(t *testing.T) string {
 	t.Helper()
 	key := os.Getenv("OPENCODE_API_KEY")
 	if key == "" {
 		t.Skip("OPENCODE_API_KEY unset: OpenCode returns 401 for a bogus key even on " +
-			"free models, and NewOpencode always sends the key it is given (deviation D3)")
+			"free models, and NewOpencode always sends the key it is given (0004-PLAN deviation D3)")
 	}
 	return key
 }
@@ -274,12 +274,12 @@ func TestLive_KiloReasoningSpelling(t *testing.T) {
 	}
 	msg := decoded.Choices[0].Message
 	if _, hasReasoning := msg[jsonKeyReasoning]; !hasReasoning {
-		// Literal, not a constant: jsonKeyReasoningContent was dropped in plan
+		// Literal, not a constant: jsonKeyReasoningContent was dropped in 0004-PLAN
 		// deviation D1 as unused, and reintroducing it for a build-tagged file
 		// only would re-create the D2 `unused` problem.
 		if _, hasContent := msg["reasoning_content"]; hasContent {
 			t.Errorf("DRIFT (probed %s): Kilo now emits %q, not %q. The decoder handles "+
-				"both, but the MADR's field-name table is stale",
+				"both, but 0004-MADR's field-name table is stale",
 				wireShapesProbedOnKilo, "reasoning_content", jsonKeyReasoning)
 		}
 		// Neither present is acceptable: not every model reasons.
@@ -411,7 +411,7 @@ func TestLive_ListingsNeedNoCredential(t *testing.T) {
 	}
 }
 
-// TestLive_OpencodeKeyHeaderPerRoute pins MADR 0009 §1c against the live Zen
+// TestLive_OpencodeKeyHeaderPerRoute pins MADR 0007 §1c against the live Zen
 // server with a bogus key, which spends nothing: a route that does not read the
 // header answers "Missing API key.", and the route's own header reaches key
 // validation ("Invalid API key."). Measured 2026-09-26.
@@ -463,7 +463,7 @@ func postLive(t *testing.T, url, body, header, value string) (int, string) {
 	return resp.StatusCode, string(raw)
 }
 
-// TestLive_ModelMetadataDocument checks the shape MADR 0010 §2 depends on:
+// TestLive_ModelMetadataDocument checks the shape MADR 0009 §2 depends on:
 // models.opencode.ai still publishes the three sections, and a known Zen
 // model still carries its reasoning flag.
 func TestLive_ModelMetadataDocument(t *testing.T) {
@@ -485,7 +485,7 @@ func TestLive_ModelMetadataDocument(t *testing.T) {
 	}
 }
 
-// TestLive_OpencodeChatReasoningEffort is MADR 0010 §6's OpenCode gate (as
+// TestLive_OpencodeChatReasoningEffort is MADR 0009 §6's OpenCode gate (as
 // amended 2026-09-26): on OpenCode Go, for each chat-routed utility model whose
 // reasoning_options list "low" (glm-flash and Hy families), the gateway accepts
 // reasoning_effort "low". It also proves the x-opencode-session header: Go
@@ -526,7 +526,7 @@ func TestLive_OpencodeChatReasoningEffort(t *testing.T) {
 	}
 }
 
-// TestLive_KiloReasoningShapes is MADR 0010 §6's gate (as amended 2026-09-26):
+// TestLive_KiloReasoningShapes is MADR 0009 §6's gate (as amended 2026-09-26):
 // on deepseek/deepseek-v4.1-flash, Kilo's first utility default, the gateway
 // must accept both reasoning shapes and return reasoning. A 400 is a DRIFT
 // failure here, not a skip, so skipIfTransient is deliberately not used. The

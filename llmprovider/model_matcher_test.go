@@ -7,8 +7,8 @@ import (
 )
 
 // matcherFixture is the shared SearchModels corpus. Expected results below were
-// derived from a reference implementation of MADR 0009 §3 before this code was
-// written (0009-PLAN Appendix C).
+// derived from a reference implementation of MADR 0007 §3 before this code was
+// written (0007-PLAN Appendix C).
 var matcherFixture = []string{
 	"gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-pro",
 	"claude-sonnet-5", "claude-haiku-4-5",

@@ -245,7 +245,7 @@ func (p *OpencodeProvider) googleBody(input []Item, tool *Tool, thinking bool) m
 
 // chatReasoningEffort returns the reasoning_effort for the chat route: the
 // configured effort, when this is a thinking call and the model's published
-// reasoning_options list it (MADR 0010 §6); otherwise "". Metadata that is
+// reasoning_options list it (MADR 0009 §6); otherwise "". Metadata that is
 // unavailable, disabled or silent on the model sends nothing. The lookup waits
 // at most metadataLookupTimeout, and a failed fetch is not retried for
 // modelMetadataRetryAfter (MADR 0013 A6).
@@ -263,7 +263,7 @@ func (p *OpencodeProvider) chatReasoningEffort(ctx context.Context, thinking boo
 }
 
 // chatBody delegates to the shared primitive. The chat route carries
-// reasoning_effort only when chatReasoningEffort resolves one (MADR 0010 §6);
+// reasoning_effort only when chatReasoningEffort resolves one (MADR 0009 §6);
 // the DeepSeek/GLM/Kimi/MiniMax families routed there share no other
 // portable reasoning parameter. Asserted by TestOpencode_Thinking_PerRoute
 // and TestOpencode_ChatReasoningEffort.
@@ -350,7 +350,7 @@ func (p *OpencodeProvider) doGenerateItems(ctx context.Context, input []Item, to
 	}
 	req.Header.Set("Content-Type", "application/json")
 	p.identity.setUserAgent(req)
-	// Each route reads the key from its vendor's header (MADR 0009 §1c); the
+	// Each route reads the key from its vendor's header (MADR 0007 §1c); the
 	// key stays in a header, never the URL.
 	name, value := opencodeKeyHeader(route, p.apiKey)
 	req.Header.Set(name, value)
@@ -386,7 +386,7 @@ func (p *OpencodeProvider) doGenerateItems(ctx context.Context, input []Item, to
 }
 
 // opencodeKeyHeader returns the header the Zen/Go server reads the key from
-// on route r. Each route parses only its vendor's header (MADR 0009 §1c).
+// on route r. Each route parses only its vendor's header (MADR 0007 §1c).
 func opencodeKeyHeader(r OpencodeRoute, key string) (name, value string) {
 	switch r {
 	case OpencodeRouteMessages:

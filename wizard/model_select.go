@@ -8,7 +8,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// Search-then-select model flow (MADR 0009 §4–§5). Every interaction uses the
+// Search-then-select model flow (MADR 0007 §4–§5). Every interaction uses the
 // existing Prompter methods; Prompter itself does not change.
 //
 // otherModelLabel is the trailing escape hatch on the model menu. A live
@@ -96,7 +96,7 @@ func selectRecommended(p Prompter, d llmprovider.ProviderDescriptor, models []st
 }
 
 // enterModelID is the Other escape hatch: the user types a model id. The
-// saved model is the default only for its own provider (MADR 0009 §4.3), and a
+// saved model is the default only for its own provider (MADR 0007 §4.3), and a
 // blank id is refused (MADR 0013 C4, C7).
 func enterModelID(p Prompter, provider string, o Options) (string, error) {
 	manual, err := p.Input("Model id", existingModel(o, provider))

@@ -19,7 +19,7 @@ const defaultDiscoverLimit = 10 * time.Second
 
 // Result is what ConfigureLLM produces. It is deliberately data, not config:
 // each consumer persists it in its own schema. Unifying configuration storage
-// across the three wizards is a separate decision (MADR 0004, Out of scope).
+// across the three wizards is a separate decision (MADR 0005, Out of scope).
 type Result struct {
 	Provider     string
 	Kind         CredentialKind
@@ -270,7 +270,7 @@ func resolveAPIKey(p Prompter, d llmprovider.ProviderDescriptor, o Options) (str
 
 // discoverModels returns the catalog to offer: the live listing when requested
 // and available, otherwise the descriptor's static catalog in both views
-// (MADR 0009 §4).
+// (MADR 0007 §4).
 func discoverModels(
 	ctx context.Context,
 	p Prompter,
@@ -280,7 +280,7 @@ func discoverModels(
 	o Options,
 ) llmprovider.ModelCatalog {
 	chatGPT := (res.Kind == CredOAuth || res.Kind == CredVendorCLI) && d.ID == llmprovider.ProviderOpenAI
-	// A ChatGPT session lists only from the Codex backend (MADR 0009 D11):
+	// A ChatGPT session lists only from the Codex backend (MADR 0008 D11):
 	// the Platform catalog is not available to it, so there is no fallback.
 	static := d.StaticModels
 	if chatGPT {

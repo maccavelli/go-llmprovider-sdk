@@ -6,7 +6,7 @@ import (
 )
 
 // Default gateway base URLs. Both gateways share one credential, sent in the
-// header each route reads (see opencodeKeyHeader, MADR 0009 §1c); they differ
+// header each route reads (see opencodeKeyHeader, MADR 0007 §1c); they differ
 // only in base URL, catalog, and per-model routing.
 const (
 	opencodeZenBaseURL = "https://opencode.ai/zen/v1"

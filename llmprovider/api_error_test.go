@@ -11,7 +11,7 @@ import (
 
 // TestClassifyHTTPError_Table pins MADR 0012 §1.1's classification, with the
 // rows its 2026-09-27 amendment added: sentinel, Terminal, Type, a bounded
-// Message, and the pre-0012 status sentinel still matching (§7).
+// Message, and the pre-0012 status sentinel still matching (MADR 0012 §7).
 func TestClassifyHTTPError_Table(t *testing.T) {
 	opencode := func(errType, msg string) string {
 		return `{"type":"error","error":{"type":"` + errType + `","message":"` + msg + `"}}`

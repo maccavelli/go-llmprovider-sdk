@@ -44,7 +44,7 @@ func TestMultiSelect_RepeatedIndexCountsOnce(t *testing.T) {
 }
 
 // TestConfigureLLM_OtherDefaultsOnlyToSameProvider pins MADR 0013 C4 (MADR
-// 0009 §4.3): the Other and "No models found" prompts default to the saved
+// 0007 §4.3): the Other and "No models found" prompts default to the saved
 // model only when it belongs to the chosen provider.
 func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 	withEnv(t, nil)

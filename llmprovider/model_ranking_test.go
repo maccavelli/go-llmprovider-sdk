@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// refNow is the reference simulation's clock (MADR 0010 §7).
+// refNow is the reference simulation's clock (MADR 0009 Context §7).
 var refNow = time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
 
 // pinRankingNow fixes the ranking clock for one test.
@@ -56,7 +56,7 @@ func assertRanked(t *testing.T, got, want []string) {
 }
 
 // Expected lists in this file were computed by the reference simulation that
-// produced MADR 0010 §7.
+// produced MADR 0009 Context §7.
 
 func TestRankRecommended_UtilityOrder(t *testing.T) {
 	cands := []rankCandidate{
@@ -136,7 +136,7 @@ func TestRankRecommended_Fill(t *testing.T) {
 		[]string{"m/flash", "n/pro", "o/old", "p/x", "q/y", "r/z"})
 }
 
-// TestRankRecommended_Eligibility pins MADR 0010 §3 one rule at a time. The
+// TestRankRecommended_Eligibility pins MADR 0009 §3 one rule at a time. The
 // tested candidate ranks first whenever it is eligible.
 func TestRankRecommended_Eligibility(t *testing.T) {
 	tests := []struct {
@@ -187,7 +187,7 @@ func TestRankRecommended_Eligibility(t *testing.T) {
 	}
 }
 
-// TestRankRecommended_KiloAutoUtility pins MADR 0010 §3 item 9: Kilo's
+// TestRankRecommended_KiloAutoUtility pins MADR 0009 §3 item 9: Kilo's
 // kilo-auto/* tiers are never recommended under the utility profile, ranked
 // or filled, and the rule touches nothing else.
 func TestRankRecommended_KiloAutoUtility(t *testing.T) {
@@ -227,7 +227,7 @@ func TestRankGroup(t *testing.T) {
 	}
 }
 
-// TestStaticOpenCatalogs_UtilityCriteria pins MADR 0010 §5: the static
+// TestStaticOpenCatalogs_UtilityCriteria pins MADR 0009 §5: the static
 // fallbacks of the open catalogs meet the utility criteria of §3 — six ids,
 // none free, no dense model of 14B or less, no -contributor, and no
 // region-gated id on Go.
@@ -272,7 +272,7 @@ func decodeKiloEntry(t *testing.T, js string) kiloCatalogEntry {
 }
 
 // TestKiloCandidate_Fields pins how a Kilo listing entry becomes a candidate,
-// including MADR 0010 §3's epoch rule: created 0 is unknown, not 1970.
+// including MADR 0009 §3's epoch rule: created 0 is unknown, not 1970.
 func TestKiloCandidate_Fields(t *testing.T) {
 	auto := kiloCandidate(decodeKiloEntry(t, `{"id":"kilo-auto/efficient","name":"Auto Efficient","created":0,
 		"context_length":1000000,"pricing":{"prompt":"-1","completion":"-1"},"preferredIndex":0,

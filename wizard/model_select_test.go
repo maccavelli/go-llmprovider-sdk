@@ -402,7 +402,7 @@ func kiloProfileEntry(id, prompt, completion string, bench float64, ageDays int)
 		id, id, created, prompt, completion, bench)
 }
 
-// TestConfigureLLM_ProfileReachesListing pins MADR 0010 §1: Options.Profile
+// TestConfigureLLM_ProfileReachesListing pins MADR 0009 §1: Options.Profile
 // reaches the listing, so a blank search offers each profile's first choice.
 func TestConfigureLLM_ProfileReachesListing(t *testing.T) {
 	listing := `{"data":[` + kiloProfileEntry("a/flash", "0.0000001", "0.0000004", 0.5, 10) + "," +

@@ -104,7 +104,7 @@ func TestOpencode_Generate_PerRoute(t *testing.T) {
 	}
 }
 
-// TestOpencode_KeyInHeader pins MADR 0009 §1c: each Zen/Go route reads the key
+// TestOpencode_KeyInHeader pins MADR 0007 §1c: each Zen/Go route reads the key
 // from its vendor's header, and no route reads the others.
 func TestOpencode_KeyInHeader(t *testing.T) {
 	keyHeaders := []string{"Authorization", "x-api-key", "x-goog-api-key"}
@@ -237,7 +237,7 @@ func TestOpencode_Thinking_PerRoute(t *testing.T) {
 	})
 }
 
-// TestOpencode_ChatReasoningEffort pins MADR 0010 §6 for the chat route:
+// TestOpencode_ChatReasoningEffort pins MADR 0009 §6 for the chat route:
 // reasoning_effort is sent only on a thinking call with an effort configured
 // that the model's published reasoning_options list.
 func TestOpencode_ChatReasoningEffort(t *testing.T) {

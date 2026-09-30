@@ -302,7 +302,7 @@ func TestListModelCatalog_Errors(t *testing.T) {
 	}
 }
 
-// TestListModelCatalog_InputModalityContainsText pins MADR 0009 §1b for both
+// TestListModelCatalog_InputModalityContainsText pins MADR 0007 §1b for both
 // metadata-driven gateways: input containing text is admitted, output must be
 // exactly text, and input without text is rejected.
 func TestListModelCatalog_InputModalityContainsText(t *testing.T) {

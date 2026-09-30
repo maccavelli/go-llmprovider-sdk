@@ -139,9 +139,9 @@ func sseFailed(code string) string {
 		`","message":"` + code + ` happened"}}}`
 }
 
-// TestOpenAIChatGPT_StreamFailures: response.failed codes map onto §1.1 as
+// TestOpenAIChatGPT_StreamFailures: response.failed codes map onto MADR 0012 §1.1 as
 // Codex's parse_failed_response classifies them, response.incomplete onto
-// §1.5, and a stream that ends before response.completed is retryable.
+// MADR 0012 §1.5, and a stream that ends before response.completed is retryable.
 func TestOpenAIChatGPT_StreamFailures(t *testing.T) {
 	for _, tc := range []struct {
 		name, stream string

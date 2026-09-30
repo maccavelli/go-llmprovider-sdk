@@ -233,7 +233,7 @@ func (p *OpenAIProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 		append(p.identity.options(), WithHTTPClient(p.client), WithBaseURL(p.baseURL))...,
 	)
 	if err != nil || len(listed) == 0 {
-		// A ChatGPT session has no static catalog (MADR 0009 D11).
+		// A ChatGPT session has no static catalog (MADR 0008 D11).
 		if p.chatGPT {
 			return nil, err
 		}

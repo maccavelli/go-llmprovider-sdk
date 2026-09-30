@@ -346,7 +346,7 @@ func TestStaticOpencode_Count(t *testing.T) {
 }
 
 // TestStaticModels_OpenAIIsPlatformCatalog: the only OpenAI static catalog is
-// the Platform one; ChatGPT sessions have none (MADR 0009 D11).
+// the Platform one; ChatGPT sessions have none (MADR 0008 D11).
 func TestStaticModels_OpenAIIsPlatformCatalog(t *testing.T) {
 	if got := StaticModels(ProviderOpenAI); !slices.Equal(got, StaticOpenAI) {
 		t.Fatalf("StaticModels(openai) = %v, want StaticOpenAI %v", got, StaticOpenAI)

@@ -53,7 +53,7 @@ var (
 		"claude-opus-4-8",
 	}
 
-	// StaticOpencodeZen: MADR 0010 §7's utility six, ranked from the
+	// StaticOpencodeZen: MADR 0009 Context §7's utility six, ranked from the
 	// 2026-09-26 Zen listing and models.opencode.ai metadata. Routes verified
 	// against api.json's npm packages on 2026-09-26.
 	StaticOpencodeZen = []string{
@@ -65,7 +65,7 @@ var (
 		"gemini-3.8-flash",      // google
 	}
 
-	// StaticOpencodeGo: MADR 0010 §7's utility six (2026-09-26). It excludes
+	// StaticOpencodeGo: MADR 0009 Context §7's utility six (2026-09-26). It excludes
 	// the region-gated DeepSeek models and the -contributor models.
 	StaticOpencodeGo = []string{
 		"mimo-v2.6-flash", // chat_completions
@@ -77,7 +77,7 @@ var (
 	}
 
 	// StaticHuggingFace: fallback only — discovery is metadata-driven. MADR
-	// 0010 §7's utility six, from the 2026-09-26 router listing and
+	// 0009 Context §7's utility six, from the 2026-09-26 router listing and
 	// models.opencode.ai metadata: reasoning-capable, paid, recent.
 	StaticHuggingFace = []string{
 		"deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -88,7 +88,7 @@ var (
 		"stepfun-ai/Step-3.5-Flash",
 	}
 
-	// StaticKilo: fallback only — discovery is metadata-driven. MADR 0010 §7's
+	// StaticKilo: fallback only — discovery is metadata-driven. MADR 0009 Context §7's
 	// utility six, from the 2026-09-26 listing: reasoning-capable, paid,
 	// recent, at most two per vendor, none training on prompts.
 	StaticKilo = []string{

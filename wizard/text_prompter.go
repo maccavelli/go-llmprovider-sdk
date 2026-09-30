@@ -275,7 +275,7 @@ func renderSecret(entered []rune) string {
 // shared baseline.
 //
 // The live tail is a deliberate exposure: four characters are on screen for the
-// whole entry, visible in screen shares and recordings. See MADR 0004
+// whole entry, visible in screen shares and recordings. See MADR 0005
 // revision 2, "Accepted trade-off".
 func (p *TextPrompter) Secret(prompt string) (string, error) {
 	for {

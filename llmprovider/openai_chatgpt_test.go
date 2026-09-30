@@ -117,7 +117,7 @@ func TestOpenAI_ChatGPTSetsOriginatorHeader(t *testing.T) {
 	}
 }
 
-// TestOpenAI_ChatGPTOmitsMaxOutputTokens answers MADR 0009 open question 1:
+// TestOpenAI_ChatGPTOmitsMaxOutputTokens answers MADR 0008 open question 1:
 // the ChatGPT backend rejects max_output_tokens (400 "Unsupported parameter",
 // gate G-C 2026-09-27), so a ChatGPT session never sends it.
 func TestOpenAI_ChatGPTOmitsMaxOutputTokens(t *testing.T) {

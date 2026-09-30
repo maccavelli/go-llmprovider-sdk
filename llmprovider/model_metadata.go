@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// Model metadata for the open catalogs (MADR 0010 §2): a models.dev-format
+// Model metadata for the open catalogs (MADR 0009 §2): a models.dev-format
 // document, by default OpenCode's, fetched concurrently with a listing and
 // cached in-process.
 const (
@@ -216,7 +216,7 @@ func fetchModelMetadata(ctx context.Context, url string, client *http.Client) (m
 	return decodeModelMetadata(resp.Body)
 }
 
-// decodeModelMetadata keeps the three sections MADR 0010 reads. A section
+// decodeModelMetadata keeps the three sections MADR 0009 reads. A section
 // without models is treated as absent.
 func decodeModelMetadata(r io.Reader) (modelMetadataDoc, error) {
 	var raw struct {
@@ -245,7 +245,7 @@ type modelMetadataResult struct {
 }
 
 // startModelMetadata fetches the document concurrently with a listing, under
-// the listing's context (MADR 0010 §2). The channel receives exactly one value.
+// the listing's context (MADR 0009 §2). The channel receives exactly one value.
 func startModelMetadata(ctx context.Context, cfg ProviderConfig) <-chan modelMetadataResult {
 	ch := make(chan modelMetadataResult, 1)
 	go func() {
@@ -255,7 +255,7 @@ func startModelMetadata(ctx context.Context, cfg ProviderConfig) <-chan modelMet
 	return ch
 }
 
-// metadataCandidate reads one models.dev entry (MADR 0010 §2). An id the
+// metadataCandidate reads one models.dev entry (MADR 0009 §2). An id the
 // document does not cover is a candidate with every field unknown.
 func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) rankCandidate {
 	if !covered {
@@ -281,7 +281,7 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 }
 
 // metadataCurate ranks a provider's usable models with the metadata document
-// (MADR 0010 §2). A failed or disabled fetch, or a document without the
+// (MADR 0009 §2). A failed or disabled fetch, or a document without the
 // provider's key, returns fallback's curation unchanged.
 func metadataCurate(provider string, profile ModelProfile, meta <-chan modelMetadataResult, fallback func([]string) []string) func([]string) []string {
 	return func(usable []string) []string {

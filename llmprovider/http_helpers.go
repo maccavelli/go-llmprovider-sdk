@@ -50,7 +50,7 @@ func decodeResponsesAPIOutput(body io.Reader) (*Response, error) {
 	return result, nil
 }
 
-// incompleteResponse is the §1.5 error for an incomplete Responses answer.
+// incompleteResponse is the MADR 0012 §1.5 error for an incomplete Responses answer.
 func incompleteResponse(reason string) error {
 	if reason == "" {
 		reason = "unspecified"
@@ -128,8 +128,8 @@ type responsesStreamEvent struct {
 // readResponsesStream reads a Responses API event stream into a Response, as
 // Codex does (codex-api/src/sse/responses.rs:343-450): each
 // response.output_item.done adds its item, and response.created and
-// response.completed carry the id. response.failed maps onto §1.1,
-// response.incomplete onto §1.5, and a stream that ends before
+// response.completed carry the id. response.failed maps onto MADR 0012 §1.1,
+// response.incomplete onto MADR 0012 §1.5, and a stream that ends before
 // response.completed is retryable (MADR 0012 §4.1). It does not rely on
 // Content-Type, which the ChatGPT backend does not send.
 func readResponsesStream(provider string, body io.Reader) (*Response, error) {

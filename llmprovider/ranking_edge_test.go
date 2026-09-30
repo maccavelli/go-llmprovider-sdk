@@ -50,7 +50,7 @@ func kiloPricedEntry(t *testing.T, id, pricing string) kiloCatalogEntry {
 		`"supported_parameters":["tools","reasoning"]%s}`, id, id, refNow.AddDate(0, 0, -10).Unix(), pricing))
 }
 
-// TestKiloCandidate_AbsentPriceIsUnknown pins MADR 0013 A2 (MADR 0010 §3: an
+// TestKiloCandidate_AbsentPriceIsUnknown pins MADR 0013 A2 (MADR 0009 §3: an
 // absent field never excludes). An explicit "0" is still free and excluded.
 func TestKiloCandidate_AbsentPriceIsUnknown(t *testing.T) {
 	absent := kiloCandidate(kiloPricedEntry(t, "x/y", ""), refNow)

@@ -267,7 +267,7 @@ func TestConfigureLLM_OtherModelEscapeHatch(t *testing.T) {
 		// provider, then the trailing "Other" entry
 		selects: []int{providerIdx(t, llmprovider.ProviderClaude), len(static)},
 		secrets: []string{testKey},
-		// a blank search (MADR 0009 §4), then the manual model id
+		// a blank search (MADR 0007 §4), then the manual model id
 		inputs: []string{"", "my-custom-model"},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{})

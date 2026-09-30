@@ -242,7 +242,7 @@ func oauthFlowOptions(p Prompter) llmprovider.OAuthFlowOptions {
 
 const pasteCodePrompt = "Paste the redirected URL or authorization code if the browser does not return"
 
-// browserFlowOptions adds MADR 0009 D3's paste-code race to oauthFlowOptions.
+// browserFlowOptions adds MADR 0008 D3's paste-code race to oauthFlowOptions.
 // The authorize URL and the paste instruction are shown even when the consumer
 // opens the browser itself. The returned drain must run once the login
 // returns: it finishes a paste prompt the loopback overtook, so no later

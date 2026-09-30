@@ -2,7 +2,7 @@ package llmprovider
 
 import "testing"
 
-// TestModelProfile_ReasoningEffort pins MADR 0010 §1: utility recommends
+// TestModelProfile_ReasoningEffort pins MADR 0009 §1: utility recommends
 // "low", capable defers to the model's default, and any other value is
 // treated as utility.
 func TestModelProfile_ReasoningEffort(t *testing.T) {

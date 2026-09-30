@@ -10,14 +10,14 @@ import (
 	"time"
 )
 
-// Use-case ranking of the recommended models (MADR 0010 §3–§4). Ranking is a
+// Use-case ranking of the recommended models (MADR 0009 §3–§4). Ranking is a
 // pure function of the profile, the candidates and the clock; each lister
 // builds candidates from the metadata its catalog publishes.
 
 // rankingNow is the ranking clock. Tests pin it.
 var rankingNow = time.Now
 
-// Eligibility thresholds (MADR 0010 §3) and ordering weights (§4).
+// Eligibility thresholds (MADR 0009 §3) and ordering weights (§4).
 const (
 	maxRankAgeDays    = 540   // 18 months of 30 days
 	minRankContext    = 32768 // tokens
@@ -33,10 +33,10 @@ const (
 var (
 	// smallModelRE is OpenCode's SMALL_MODEL_RE (packages/core/src/catalog.ts).
 	smallModelRE = regexp.MustCompile(`\b(nano|flash|lite|mini|haiku|small|fast)\b`)
-	// unstableModelRE marks preview and experimental ids (MADR 0010 §3 item 6).
+	// unstableModelRE marks preview and experimental ids (MADR 0009 §3 item 6).
 	unstableModelRE = regexp.MustCompile(`(?i)preview|-exp\b|experimental|alpha`)
 	// opencodeGoRegionGated lists the OpenCode Go models served only when the
-	// workspace allows region cn (MADR 0010 §3 item 8). They stay searchable.
+	// workspace allows region cn (MADR 0009 §3 item 8). They stay searchable.
 	opencodeGoRegionGated = []string{
 		opencodeDeepSeekV41Flash, opencodeDeepSeekFlash, opencodeDeepSeekV4Flash, opencodeDeepSeekV4Pro,
 	}
@@ -53,7 +53,7 @@ const (
 
 // rankCandidate is one usable model with the metadata its catalog publishes.
 // Each *Known flag separates "absent" from a zero value; unknown values never
-// exclude (MADR 0010 §3).
+// exclude (MADR 0009 §3).
 type rankCandidate struct {
 	id    string
 	group string
@@ -74,7 +74,7 @@ type rankCandidate struct {
 	preferredKnown            bool
 }
 
-// signal reports a provider quality signal (MADR 0010 §4).
+// signal reports a provider quality signal (MADR 0009 §4).
 func (c rankCandidate) signal() bool { return c.benchKnown || c.preferredKnown }
 
 func (c rankCandidate) ageMonths() float64 { return float64(c.ageDays) / rankDaysPerMonth }
@@ -100,7 +100,7 @@ func (c rankCandidate) costOrZero() float64 {
 	return 0
 }
 
-// eligible applies MADR 0010 §3 for one provider.
+// eligible applies MADR 0009 §3 for one provider.
 func (c rankCandidate) eligible(provider string) bool {
 	switch {
 	case c.reasoningKnown && !c.reasoning,
@@ -118,7 +118,7 @@ func (c rankCandidate) eligible(provider string) bool {
 
 // rankNorm holds the blend normalisers over the eligible set: the largest
 // known cost and age, never below rankNormFloor. An unknown cost or age counts
-// as the maximum (MADR 0010 §4).
+// as the maximum (MADR 0009 §4).
 type rankNorm struct{ maxCost, maxAge float64 }
 
 func newRankNorm(cands []rankCandidate) rankNorm {
@@ -191,7 +191,7 @@ func boolFirst(a, b bool) int {
 }
 
 // utilityExcluded reports ids the utility profile never recommends, ranked or
-// filled: Kilo's kilo-auto/* managed tiers (MADR 0010 §3 item 9, a maintainer
+// filled: Kilo's kilo-auto/* managed tiers (MADR 0009 §3 item 9, a maintainer
 // decision). They stay searchable and eligible under ProfileCapable.
 func utilityExcluded(profile ModelProfile, provider, id string) bool {
 	return profile != ProfileCapable && provider == ProviderKilo && strings.HasPrefix(id, "kilo-auto/")
@@ -199,7 +199,7 @@ func utilityExcluded(profile ModelProfile, provider, id string) bool {
 
 // rankRecommended returns at most MaxListedModels distinct ids: the eligible
 // candidates in profile order, at most maxPerRankGroup per group, then fill in
-// order, skipping ids already chosen or excluded (MADR 0010 §4, MADR 0013 A1).
+// order, skipping ids already chosen or excluded (MADR 0009 §4, MADR 0013 A1).
 func rankRecommended(profile ModelProfile, provider string, cands []rankCandidate, fill []string) []string {
 	var eligible []rankCandidate
 	for _, c := range cands {
@@ -269,7 +269,7 @@ func parseRankDate(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// kiloCandidate reads one Kilo listing entry (MADR 0010 §2). A created of 0
+// kiloCandidate reads one Kilo listing entry (MADR 0009 §2). A created of 0
 // or less is unknown: Kilo reports 0 for every kilo-auto tier.
 func kiloCandidate(e kiloCatalogEntry, now time.Time) rankCandidate {
 	c := rankCandidate{
@@ -302,7 +302,7 @@ func kiloCandidate(e kiloCatalogEntry, now time.Time) rankCandidate {
 
 // kiloPrice parses one Kilo per-token price. A blank, negative ("-1", the
 // variable-priced kilo-auto tiers), non-finite or unparseable price is unknown
-// (MADR 0010 §3; MADR 0013 A2–A3).
+// (MADR 0009 §3; MADR 0013 A2–A3).
 func kiloPrice(s string) (float64, bool) {
 	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return v, err == nil && v >= 0 && !math.IsInf(v, 1)

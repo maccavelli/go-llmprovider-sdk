@@ -766,6 +766,11 @@ Implements MADR §7.
 
    It fails if a number has no record here, or if a known `mcplib`-only
    number (0002, 0005–0007) appears without the word `mcplib`.
+   *Amended 2026-09-29 (deviation, see the execution record):* the
+   `mcplib`-only test runs on the text before the rewrite, where those
+   numbers still mean `mcplib`'s records. After the rewrite 0005–0007 are
+   this repository's records, so the check there is that each cited number
+   has a record here and matches its topic markers.
    * Fail experiment: a scratch copy with one citation reverted to
      `MADR 0010 §2`, which now names the wrong record (the token store). The
      checker must flag it via a per-number topic list:
@@ -1857,3 +1862,213 @@ MADR, then continue.
     non-record lint, and its content moves unchanged.
   * `mcplib`'s relocation table is its own 0015 PLAN R2, which is deferred.
 * **Status.** Phase 6 done. Phase 7 (in-code citations) is next.
+
+### Phase 7 stop: two plan defects (2026-09-29)
+
+* **Found, in a report-only survey of the 286 in-code citations.**
+  1. **Phase 6 mis-resolved two record citations.**
+     * `docs/decisions/0012-PLAN-chatgpt-backend.md:1178` and `:1181` quote
+       the code comment "MADR 0009 open question 1". Phase 6 step 3's rule
+       sent every bare 0009 in that plan to the live-catalog record, so they
+       now read 0007.
+     * "Open question 1" (does a ChatGPT session send `max_output_tokens`)
+       is in the OAuth-repair record,
+       `0008-MADR-repair-oauth-loopback-and-session-wiring.md:442-445`, and
+       `0012-MADR` line 905 calls it "the OAuth MADR's open question 1".
+     * Phase 7's own rule ("open question" → 0008) is right. The Phase 6 dry
+       run did not catch it: its numbering-style rule knew D#, P# and F#,
+       not "open question".
+  2. **G-cite's `mcplib`-only test cannot run after the rewrite.**
+     * Step 3 fails on 0002 or 0005–0007 without the word `mcplib`. After
+       renumbering, 0005–0007 are this repository's records, so the literal
+       test would fail on the 26 correct live-catalog (0007) citations.
+     * Before the rewrite, no Go file cites an `mcplib`-only record. The
+       one 0002 hit is `wizard/auth_test.go:18`, Phase 4's comment citing
+       this repository's `0002-MADR`.
+* **Decision.** The owner chose "Correct both":
+  1. The two chatgpt-backend citations become 0008, in Phase 7's commit.
+  2. The `mcplib`-only test runs on the pre-rewrite text. After the rewrite,
+     G-cite checks that every cited number has a record here and matches its
+     topic markers.
+  Step 3 is annotated.
+* **Scope.** `docs/decisions/0012-PLAN-chatgpt-backend.md` joins Phase 7 for
+  those two lines only.
+
+### Phase 7: rewrite in-code citations (2026-09-29)
+
+* **Approval.** Part of "Push then proceed"; the two defects found at the
+  start were decided by the owner ("Correct both", the stop entry above).
+* **How.** Stdlib Python in `SCRATCH`: `p7_cite.py` (the resolver),
+  `p7_rewrite.py` (the pass, the hand pass and G-cite), `p7_pipeline.py`
+  (everything below, on a tree) and `p7_spotcheck.py`. It ran on a fresh
+  scratch clone, and then on this tree with identical results.
+* **Survey first (report only).** 286 citations in Go files:
+  * 0010 → 0009, 60;
+  * 0009 → 0007 by § or "Appendix", 26;
+  * 0009 → 0008 by D#, F# or "open question", 11;
+  * the fixed map (0001, 0004, 0012–0014), 187;
+  * refused, 1: the split `discovery_test.go:415-416`, resolved to 0007;
+  * `mcplib`-only, 1: Phase 4's `0002-MADR` citation of this repository.
+* **Step 1.** The pass changed 101 lines. The list is below.
+* **Step 2, the hand pass (21 replacements).**
+  * **The ten bare § citations** now carry "MADR 0012".
+  * **The unnamed-plan references** name 0004-PLAN (the OpenCode route and
+    live gateway tests: §3.3 and deviations D1–D3) and 0005-MADR (the
+    descriptor test).
+  * **"MADR 0010 §7"** became "MADR 0009 Context §7" inside the single
+    pass. There are seven of these in the Go files, not the eight the step
+    counts, including comment line breaks.
+  * **`live_gateways_test.go:48`:** "MADR 0012 amendment" became "MADR
+    0012 revision 2", the amendment of 2026-09-27 that holds D5.
+  * **`constants.go:17`:** the path is
+    `docs/decisions/0004-MADR-add-gateway-llm-providers.md`.
+  * **The split-line citations** resolved in the pass.
+  * **The Phase 6 correction:** `0012-PLAN-chatgpt-backend.md` "MADR 0007
+    open question 1" → "MADR 0008 open question 1" (2 lines).
+* **Step 3, G-cite.**
+  * **Pre-check** on the text before the rewrite: one `mcplib`-only number,
+    `wizard/auth_test.go:18`, which is this repository's `0002-MADR`.
+  * **After the rewrite:** 293 citations of the forms `MADR NNNN`,
+    `NNNN-(MADR|PLAN|REPORT)`, `NNNN §`, `NNNN Q#` and `NNNN PLAN`, with 0
+    problems. Every number has a record here.
+  * **Topic list.** 0010 (token store) is cited only by D, F or P items;
+    0007 and 0009 never are; 0008 never by §.
+  * **Deviation in the checker.** The first version required a § after
+    every 0009. It flagged three correct ranking citations ("0009 PLAN
+    deviation" twice, "the three sections MADR 0009 reads"), so the topic
+    test was restated as above, from the records' numbering.
+  * **First-fail**, on a copy with one citation reverted to "MADR 0010
+    §2": `topic mismatch for 0010: llmprovider/main_test.go: …(MADR 0010
+    §2)…`, and nothing else.
+* **Step 4, verification on this tree.**
+  * G-cite: clean. G-name: 0 lines, case-insensitive, so no `mcplib`
+    remains in any Go file.
+  * **Phase 4 step 9.** Every command exited 0:
+    * build, and vet for darwin, windows, `CGO_ENABLED=0` linux and
+      `live_gateways`;
+    * `gofmt`, `go mod tidy -diff`, and no change to `go.mod` or `go.sum`;
+    * `make lint`: `0 issues.`;
+    * coverage `llmprovider` 89.22 %, `wizard` 83.36 %, `internal/redact`
+      100 %.
+  * G-dep passes. G-api: 77 doc-line changes and 0 code-line violations.
+  * `make pre-add-check`: `go-precheck: 172 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck).`
+  * **Spot-read, widened to all of them.** Every rewritten citation that
+    names a part was checked against its target record: 105 parts, all
+    found. Twenty were sampled across the list; they cover these distinct
+    citations:
+    * "MADR 0009 §6" (reasoning effort), "MADR 0007 §2" (pagination), "MADR
+      0009 §2" (metadata fallback), "MADR 0007 §1b" (input modality);
+    * "MADR 0009 §1" (profiles), "MADR 0009 §3" (eligibility), "MADR 0009
+      §4" (fill order), "MADR 0009 Context §7" (the utility sixes);
+    * "MADR 0008 D8", "MADR 0008 D11", "MADR 0007 §1c" (key headers), "0007
+      §4.3" (same-provider default), "MADR 0012 §7".
+  * G-links: clean after the chatgpt-backend correction.
+* **Status.** Phase 7 done. Next, per the order: 0015-PLAN (S1 onward),
+  then Phase 8.
+
+Rewrites made by the pass (file:line: before -> after):
+
+```text
+llmprovider/chatcompletions.go:20: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/descriptor_test.go:104: MADR 0001 -> MADR 0003
+llmprovider/discovery.go:40: MADR 0009 §2 -> MADR 0007 §2
+llmprovider/discovery.go:50: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/discovery.go:87: MADR 0009 §1 -> MADR 0007 §1
+llmprovider/discovery.go:322: MADR 0009 §2 -> MADR 0007 §2
+llmprovider/discovery.go:421: MADR 0009 §2 -> MADR 0007 §2
+llmprovider/discovery.go:691: MADR 0009 §1b -> MADR 0007 §1b
+llmprovider/discovery.go:709: MADR 0009 §1b -> MADR 0007 §1b
+llmprovider/discovery.go:814: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/discovery.go:905: MADR 0009 §1b -> MADR 0007 §1b
+llmprovider/discovery.go:951: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/discovery_catalog_test.go:305: MADR 0009 §1b -> MADR 0007 §1b
+llmprovider/discovery_pagination_test.go:131: MADR 0009 §2 -> MADR 0007 §2
+llmprovider/discovery_ranking_test.go:36: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/discovery_ranking_test.go:124: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/discovery_ranking_test.go:145: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/discovery_ranking_test.go:216: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/discovery_ranking_test.go:270: MADR 0010 §7 -> MADR 0009 Context §7
+llmprovider/discovery_test.go:415: MADR 0009 -> MADR 0007
+llmprovider/discovery_test.go:437: MADR 0009 §1b -> MADR 0007 §1b
+llmprovider/discovery_test.go:451: MADR 0009 §1b -> MADR 0007 §1b
+llmprovider/discovery_test.go:511: MADR 0009 §1b -> MADR 0007 §1b
+llmprovider/discovery_test.go:534: MADR 0009 §1b -> MADR 0007 §1b
+llmprovider/discovery_test.go:537: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/discovery_test.go:555: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/kilo.go:241: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/kilo_test.go:56: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/kilo_test.go:126: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/live_gateways_test.go:8: 0010 -> 0009
+llmprovider/live_gateways_test.go:12: 0010 -> 0009
+llmprovider/live_gateways_test.go:63: 0010 -> 0009
+llmprovider/live_gateways_test.go:414: MADR 0009 §1c -> MADR 0007 §1c
+llmprovider/live_gateways_test.go:466: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/live_gateways_test.go:488: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/live_gateways_test.go:529: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/main_test.go:9: 0010 §2 -> 0009 §2
+llmprovider/model_matcher.go:11: MADR 0009 §3 -> MADR 0007 §3
+llmprovider/model_matcher_test.go:10: MADR 0009 §3 -> MADR 0007 §3
+llmprovider/model_matcher_test.go:11: 0009-PLAN Appendix C -> 0007-PLAN Appendix C
+llmprovider/model_metadata.go:16: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/model_metadata.go:219: MADR 0010 -> MADR 0009
+llmprovider/model_metadata.go:248: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/model_metadata.go:258: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/model_metadata.go:284: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/model_metadata_test.go:100: 0010 -> 0009
+llmprovider/model_profile.go:4: MADR 0010 §1 -> MADR 0009 §1
+llmprovider/model_profile_test.go:5: MADR 0010 §1 -> MADR 0009 §1
+llmprovider/model_ranking.go:13: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking.go:20: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking.go:36: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking.go:39: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking.go:56: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking.go:77: MADR 0010 §4 -> MADR 0009 §4
+llmprovider/model_ranking.go:103: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking.go:121: MADR 0010 §4 -> MADR 0009 §4
+llmprovider/model_ranking.go:194: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking.go:202: MADR 0010 §4 -> MADR 0009 §4
+llmprovider/model_ranking.go:272: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/model_ranking.go:305: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking_test.go:14: MADR 0010 §7 -> MADR 0009 Context §7
+llmprovider/model_ranking_test.go:59: MADR 0010 §7. -> MADR 0009 Context §7.
+llmprovider/model_ranking_test.go:139: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking_test.go:190: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/model_ranking_test.go:230: MADR 0010 §5 -> MADR 0009 §5
+llmprovider/model_ranking_test.go:275: MADR 0010 §3 -> MADR 0009 §3
+llmprovider/models_catalog.go:56: MADR 0010 §7 -> MADR 0009 Context §7
+llmprovider/models_catalog.go:68: MADR 0010 §7 -> MADR 0009 Context §7
+llmprovider/models_catalog.go:80: 0010 §7 -> 0009 Context §7
+llmprovider/models_catalog.go:91: MADR 0010 §7 -> MADR 0009 Context §7
+llmprovider/models_catalog_test.go:349: MADR 0009 D11 -> MADR 0008 D11
+llmprovider/oauth_loopback.go:396: MADR 0009 D2 -> MADR 0008 D2
+llmprovider/oauth_session.go:26: MADR 0009 D8 -> MADR 0008 D8
+llmprovider/oauth_session.go:46: MADR 0009 F3 -> MADR 0008 F3
+llmprovider/oauth_session.go:50: MADR 0009 D7 -> MADR 0008 D7
+llmprovider/openai.go:236: MADR 0009 D11 -> MADR 0008 D11
+llmprovider/openai_chatgpt_test.go:120: MADR 0009 open question 1 -> MADR 0008 open question 1
+llmprovider/opencode.go:248: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/opencode.go:266: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/opencode.go:353: MADR 0009 §1c -> MADR 0007 §1c
+llmprovider/opencode.go:389: MADR 0009 §1c -> MADR 0007 §1c
+llmprovider/opencode_route.go:9: MADR 0009 §1c -> MADR 0007 §1c
+llmprovider/opencode_test.go:107: MADR 0009 §1c -> MADR 0007 §1c
+llmprovider/opencode_test.go:240: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/options.go:186: MADR 0010 §1 -> MADR 0009 §1
+llmprovider/options.go:194: MADR 0010 §2 -> MADR 0009 §2
+llmprovider/provider.go:186: MADR 0010 §6 -> MADR 0009 §6
+llmprovider/ranking_edge_test.go:53: MADR 0010 §3 -> MADR 0009 §3
+wizard/auth.go:245: MADR 0009 D3 -> MADR 0008 D3
+wizard/auth_test.go:284: MADR 0009 D11 -> MADR 0008 D11
+wizard/auth_test.go:387: MADR 0009 D3 -> MADR 0008 D3
+wizard/configure.go:22: MADR 0004 -> MADR 0005
+wizard/configure.go:273: MADR 0009 §4 -> MADR 0007 §4
+wizard/configure.go:283: MADR 0009 D11 -> MADR 0008 D11
+wizard/configure_test.go:270: MADR 0009 §4 -> MADR 0007 §4
+wizard/main_test.go:9: 0010 §2 -> 0009 §2
+wizard/model_select.go:11: MADR 0009 §4 -> MADR 0007 §4
+wizard/model_select.go:99: MADR 0009 §4.3 -> MADR 0007 §4.3
+wizard/model_select_edge_test.go:47: 0009 §4.3 -> 0007 §4.3
+wizard/model_select_test.go:405: MADR 0010 §1 -> MADR 0009 §1
+wizard/text_prompter.go:278: MADR 0004 -> MADR 0005
+```
