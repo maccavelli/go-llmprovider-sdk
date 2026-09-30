@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-29
 decision-makers: go-llmprovider-sdk maintainers
 consulted: owners of mcplib and magic-cli-remote
@@ -93,7 +93,7 @@ Evidence is marked **(M)** measured, or **(R)** read in the source.
   with no `fsync` and no inter-process lock (`tokenstore_file.go:88-117`).
   On Windows the chmod is a no-op and no DACL is set
   (`tokenstore_file_windows.go:5-7`). The imported
-  `docs/mcplib-import/decisions/0010-MADR-windows-stdio-oauth-tokenstore-ci.md`
+  [0010-MADR-windows-stdio-oauth-tokenstore-ci.md](0010-MADR-windows-stdio-oauth-tokenstore-ci.md)
   (proposed, not executed) already covers the DACL, reserved names and
   `fsync`. 0002-MADR §11 transfers it here.
 * **M6 — OAuth claims are unverified and one check is missing (R).**
@@ -325,10 +325,12 @@ lost rotation is observed across processes.
 
 * The Grok `nonce` is compared with the `id_token`'s `nonce` claim, and a
   mismatch fails the login.
-* `id_token` claims stay **unverified hints**: they are used only to
+* ~~`id_token` claims stay **unverified hints**: they are used only to
   address the issuer that issued them. The `auth` package doc says so.
   Signature verification is not added (revisit if a claim ever gates a
-  local decision).
+  local decision).~~
+  *Replaced by the owner's decision of 2026-09-29 ("Owner's decisions" below):* the `id_token` signature is verified against the issuer's
+  published keys before any claim is used, and any failure fails the login.
 * OIDC discovery falls back to the built-in endpoints only for the
   built-in issuer. An issuer passed by the caller whose discovery fails is
   an error.
@@ -364,7 +366,7 @@ lost rotation is observed across processes.
   credentials stay read-through (M2), so no coordinator like R6 is needed.
 * **It adds no Anthropic or Gemini subscription OAuth.** That stays out of
   scope, as the imported
-  `docs/mcplib-import/0008-MADR-subscription-auth-for-llm-providers.md`
+  [0006-MADR-subscription-auth-for-llm-providers.md](0006-MADR-subscription-auth-for-llm-providers.md)
   decided.
 
 ### D11. The wizard keeps one copy of a refresh token, and can log out
@@ -378,9 +380,10 @@ lost rotation is observed across processes.
 
 ### D12. Anthropic's key variable
 
-The opt-in environment helper of 0015-MADR D9 reads `ANTHROPIC_API_KEY`
+~~The opt-in environment helper of 0015-MADR D9 reads `ANTHROPIC_API_KEY`
 for `claude`, then `CLAUDE_API_KEY`. The first is the vendor's name; the
-second keeps today's behaviour.
+second keeps today's behaviour.~~
+*Replaced by the owner's decision of 2026-09-29 ("Owner's decisions" below):* `ANTHROPIC_API_KEY` only. `CLAUDE_API_KEY` is no longer read.
 
 ### Consequences
 
@@ -401,8 +404,8 @@ second keeps today's behaviour.
   record under 0002-MADR §13 must list this.
 * Bad, because the borrowed client ids (D7) remain a policy and breakage
   risk: a vendor can revoke or restrict them without notice.
-* Bad, because there is still no cross-process lock, and no signature
-  verification of `id_token`.
+* Bad, because there is still no cross-process lock. ~~and no signature
+  verification of `id_token`~~ *(struck 2026-09-29: verified, D7)*
 * Bad, because agent-CLI support, which a consumer such as `pi-go` may
   want, needs a further module and record.
 
@@ -466,7 +469,7 @@ second keeps today's behaviour.
     consumer companions.
   * [0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md):
     the API that D2, D6 and D8 are expressed in.
-  * `docs/mcplib-import/decisions/0010-MADR-windows-stdio-oauth-tokenstore-ci.md`:
+  * [0010-MADR-windows-stdio-oauth-tokenstore-ci.md](0010-MADR-windows-stdio-oauth-tokenstore-ci.md):
     the Windows token-store work D3 leaves to it.
 * **Cross-repository, cited by name:**
   * `mcplib` `docs/decisions/0015-MADR-transfer-llmprovider-to-go-llmprovider-sdk.md`;
@@ -477,3 +480,61 @@ second keeps today's behaviour.
 * **Revisit** if a lost refresh-token rotation is seen across processes
   (D3), if an `id_token` claim comes to gate a local decision (D7), or when
   a consumer asks for agent-CLI support (D10).
+
+## Owner's decisions (2026-09-29)
+
+Status: **accepted**. The owner was asked about each open choice and
+answered:
+
+| Decision | Answer |
+|---|---|
+| D9, listing probes | Off by default, as proposed |
+| D11, tokens in `Result` | The store only, plus logout, as proposed |
+| D7, `id_token` | **Verify signatures** (changed), and fail the login on any failure, including keys that cannot be fetched |
+| D12, the Claude key variable | **`ANTHROPIC_API_KEY` only** (changed) |
+| D4, a failed save after refresh | Keep the rotation, log, retry, as proposed |
+| D3, cross-process lock | None for now, as proposed |
+| D10, agent CLIs | Out of scope, revisit on demand, as proposed |
+
+The other decisions (D1, D2, D5, D6, D8) stand as proposed.
+
+### D7 as decided
+
+* Before any claim is used, `auth` verifies the `id_token`:
+  * the keys come from the `jwks_uri` of the issuer's discovery document,
+    and are cached;
+  * the algorithm must be one the SDK supports, and `none` and HMAC are
+    refused;
+  * `iss`, `aud` (the client id) and `exp` are checked, and for Grok the
+    `nonce`.
+* A bad signature, a key that cannot be found, or keys that cannot be
+  fetched fails the login, and nothing is saved.
+* The nonce check and fail-closed discovery for a caller's issuer stand, as
+  D7 first decided.
+* **The two built-in issuers, probed read-only on 2026-09-30T03:58Z (UTC).**
+  Both are verifiable with the standard library alone (`crypto/rsa`,
+  `crypto/ecdsa`), so the dependency rule is unchanged.
+
+  | Issuer | `jwks_uri` | Advertised | Keys published |
+  |---|---|---|---|
+  | `https://auth.openai.com` | `https://auth.openai.com/.well-known/jwks.json` | RS256 | 4 RSA, RS256 |
+  | `https://auth.x.ai` | `https://auth.x.ai/.well-known/jwks.json` | ES256 | 2 EC P-256, ES256 |
+
+  A live-tagged test pins this, so a change of algorithm on either side
+  fails loudly.
+
+### D12 as decided
+
+`ANTHROPIC_API_KEY` is the only variable read for `claude`: by the opt-in
+environment helper (0015-MADR D9), and as the `claude` descriptor's variable
+that the wizard's `AllowEnv` reads.
+
+### Consequences of the decisions
+
+* Good, because no claim from an `id_token` is trusted unverified.
+* Bad, because a subscription login now depends on fetching the issuer's
+  keys. An outage of the key endpoint blocks new logins, though refresh of
+  an existing session does not need it.
+* Bad, because a setup that sets only `CLAUDE_API_KEY` stops finding its
+  key, and must rename it. `prepare-commit-msg`'s companion record must say
+  so.

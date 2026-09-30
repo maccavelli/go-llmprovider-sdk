@@ -41,8 +41,9 @@ At the end of this plan, before `v1.0.0`:
 * Everything the MADR's D10 excludes: agent-CLI drivers, writes into vendor
   CLI stores, Anthropic or Gemini subscription OAuth.
 * The Windows DACL and reserved names for `FileTokenStore`: the transferred
-  `docs/mcplib-import/decisions/0010-PLAN-windows-stdio-oauth-tokenstore-ci.md`.
-* A cross-process lock and `id_token` signature verification (MADR D3, D7).
+  [0010-PLAN-windows-stdio-oauth-tokenstore-ci.md](0010-PLAN-windows-stdio-oauth-tokenstore-ci.md).
+* A cross-process lock (MADR D3). ~~and `id_token` signature verification
+  (MADR D3, D7)~~ *(verification moved into scope 2026-09-29, T2 step 5)*
 * Any file in `magic-cli-remote` or `mcplib`.
 
 ## 0. Preconditions and conventions
@@ -128,8 +129,31 @@ At the end of this plan, before `v1.0.0`:
    * Discovery falls back to built-in endpoints only for the built-in
      issuer. **Test:** a caller-supplied issuer whose discovery returns 500
      fails the login. Red first against `oauth_loopback.go:201-242`.
-   * The `auth` package doc states that `id_token` claims are unverified
-     hints, and that the default client ids are the vendor CLIs'.
+   * **Signature verification (the owner's decision of 2026-09-29).** `auth`
+     verifies each `id_token` before using any claim:
+     * keys from the `jwks_uri` of the issuer's discovery document, cached,
+       and refetched once for an unknown `kid`;
+     * RS256 (`crypto/rsa`, OpenAI) and ES256 on P-256 (`crypto/ecdsa`,
+       xAI), the algorithms both issuers advertise (MADR, "Owner's
+       decisions"). Any other `alg`, including `none` and HS256, is refused;
+     * `iss` equals the issuer, `aud` contains the client id, `exp` is in the
+       future, and for Grok the `nonce` matches;
+     * any failure (bad signature, a key still unknown after the refetch, or
+       keys that cannot be fetched) fails the login and saves nothing.
+   * **Tests** against an `httptest` issuer serving discovery and a JWKS, with
+     keys generated in the test:
+     * valid RS256 and ES256 tokens pass;
+     * a tampered payload, a wrong `aud`, an expired token, `alg: none` and
+       an HS256 token each fail;
+     * an unknown `kid` triggers exactly one refetch, then fails;
+     * an unreachable JWKS fails the login.
+
+     Red first: today's code accepts the tampered token.
+   * **Live pin.** A `live_gateways` test fetches both built-in issuers'
+     discovery documents and asserts their advertised algorithms are among
+     RS256 and ES256.
+   * The `auth` package doc states that the default client ids are the
+     vendor CLIs'.
 
 ### T3: providers and catalog (inside 0015-PLAN S5 and S7)
 
@@ -184,10 +208,12 @@ At the end of this plan, before `v1.0.0`:
 
 ### T5: environment helper (inside 0015-PLAN S10)
 
-1. **D12.** The opt-in helper reads `ANTHROPIC_API_KEY` for `claude`, then
-   `CLAUDE_API_KEY`.
-   * **Test:** with both set, the first wins; with only the second, it is
-     used. Red first against `provider.go:165`.
+1. **D12 (the owner's decision of 2026-09-29).** `ANTHROPIC_API_KEY` only:
+   for the opt-in helper, and as the `claude` descriptor's variable that the
+   wizard's `AllowEnv` reads. `CLAUDE_API_KEY` is not read.
+   * **Test:** with only `CLAUDE_API_KEY` set, no key is found; with
+     `ANTHROPIC_API_KEY` set, it is used. Red first against
+     `provider.go:165`.
 
 ### T6: close-out
 
@@ -207,11 +233,11 @@ At the end of this plan, before `v1.0.0`:
 | V3 | A failed save keeps the rotation | T2.2 test | T2 |
 | V4 | No secret in any formatted value | T2.3 table, with T4.3 | T2, T4 |
 | V5 | Device handle waits and cancels | T2.4 tests | T2 |
-| V6 | Nonce checked; caller issuer fails closed | T2.5 tests | T2 |
+| V6 | Nonce checked; caller issuer fails closed; `id_token` signatures verified, failures fail the login | T2.5 tests; live pin | T2 |
 | V7 | Proxy honoured; one client per provider | T1 tests | T1 |
 | V8 | No billed probe by default | T3.2 test | T3 |
 | V9 | One refresh-token copy; logout works | T4 tests | T4 |
-| V10 | `ANTHROPIC_API_KEY` first | T5 test | T5 |
+| V10 | `ANTHROPIC_API_KEY` only | T5 test | T5 |
 | V11 | No new module | `make dep-check` (0015-PLAN S12) | T6 |
 
 ## Rollout and Rollback
@@ -229,5 +255,14 @@ None.
 
 ## Execution Record
 
-Not started. T0 waits for the owner's decisions on this MADR and on
-0015-MADR.
+### The owner's decisions (2026-09-29)
+
+* The MADR is `accepted`, with the owner's answers to each open choice
+  (MADR, "Owner's decisions"). 0015-MADR was accepted earlier the same day.
+* **Changed here:** T2 step 5 (signature verification, with its tests and a
+  live pin), T5 (`ANTHROPIC_API_KEY` only), V6 and V10, and the out-of-scope
+  list. The transferred token-store record's path is corrected after
+  0002-PLAN Phase 6 moved it.
+* **Status.** This PLAN stays `proposed` until the owner approves
+  execution. Its steps land inside 0015-PLAN's phases, so T0 runs when
+  0015-PLAN S0 is approved.
