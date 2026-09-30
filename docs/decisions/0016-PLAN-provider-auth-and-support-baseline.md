@@ -303,6 +303,17 @@ run in T2 (0015-PLAN S4).
   exposure. The test stays as a regression guard, proven by a deliberate
   break instead. D3's other defects were real: no `fsync`, and no size cap
   on `Load`.
+* **2026-09-30, T2 step 3's masking.** The step says to mask with
+  `internal/redact`'s `MaskSecret`.
+  * `MaskSecret` reveals the last four runes on purpose, and its own
+    documentation says never to use it on a value written to a log
+    (`internal/redact/mask.go:22-26`).
+  * `String`, `GoString` and `LogValue` exist for logs.
+  * **The owner chose to hide secrets fully** (asked 2026-09-30, answered
+    "Hide fully"): every secret field prints `[redacted]`, or nothing when
+    empty. `MaskSecret` stays for the wizard's on-screen prompts.
+
+  D5's "a masked form" is met, and no MADR text changes.
 * **2026-09-30, the survey.** [0017-REPORT-reference-client-auth-survey.md](../reports/0017-REPORT-reference-client-auth-survey.md) found three points for T2.
   They are proposed as the MADR's A1–A3, and as "T2 additions from the
   survey". Nothing changes until the owner decides.
@@ -518,3 +529,39 @@ run in T2 (0015-PLAN S4).
   * `make lint` (`0 issues.`);
   * G-wire, unchanged;
   * the rest of the 0015-PLAN §0 gate.
+
+### T2 step 3: secret-bearing values redact themselves (2026-09-30, in 0015-PLAN S4)
+
+* **D5.** These types implement `String`, `GoString` and `slog.LogValuer`:
+  * `Token` and `StaticToken`, on value receivers;
+  * `*OAuthSession`, which takes the session lock to read consistently.
+
+  Each keeps its non-secret fields (type, header, expiry, provider, issuer,
+  client id, account id) and prints `[redacted]` for a secret, per the
+  Deviation Log's entry for this step. `wizard.Result` is T4's.
+* **Tests** (`redaction_test.go`): a table over `Token`, `*Token`,
+  `StaticToken`, `*StaticToken`, `*OAuthSession` and a struct holding a
+  `Token`.
+  * Each is formatted with `%v`, `%+v`, `%#v` and `%s`, and through slog's
+    JSON and text handlers.
+  * The test fails if a planted secret appears, or a non-secret field is
+    lost.
+  * Also covered: an empty secret, a nil session, and a zero expiry.
+* **Open item, for the owner (not in T2 as planned).** slog's JSON handler
+  encodes a struct that *holds* a `Token` with `encoding/json`, which never
+  calls the nested `LogValue`, so the secret shows.
+  * Only a redacting `MarshalJSON` on the three types would close it. That
+    would also change any caller's deliberate JSON encoding of a token.
+  * The test names this one form as a known gap instead of passing silently.
+  * Every form the step lists is covered, and so is the nested struct
+    through `fmt` and the text handler.
+* **Red first,** against a clean clone of `3a627d6`. Exit 1: every type
+  leaked in every form. For example:
+  * `Token via %v shows the secret: {tok-PLANTED-SECRET-7f3a bearer … Authorization}`;
+  * `*OAuthSession via %+v shows the secret: &{Provider:grok Access:at-PLANTED-SECRET-7f3a Refresh:rt-PLANTED-SECRET-7f3a …}`.
+* **Seen to fail on deliberate breaks:**
+  * `Token.String` printing its value: `Token via %v shows the secret: Token{… Value:tok-PLANTED-SECRET-7f3a}`;
+  * `OAuthSession.LogValue` printing the access token: `*OAuthSession via slog JSON shows the secret`;
+  * `StaticToken.String` dropping its header: `StaticToken via %v lost the non-secret "x-api-key"`.
+* **Gate,** every step exit 0: `llmprovider` 90.3 %, `make lint`
+  `0 issues.`, and G-wire unchanged.

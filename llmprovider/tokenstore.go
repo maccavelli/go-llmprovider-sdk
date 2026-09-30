@@ -37,6 +37,42 @@ type OAuthSession struct {
 	spentRefresh string
 }
 
+// String renders the session without its access or refresh token
+// (0016-MADR D5). It takes the session's lock, so it must not be called while
+// the lock is held. Format a *OAuthSession: copying the struct is a vet error,
+// and a copy has no String method.
+func (s *OAuthSession) String() string {
+	if s == nil {
+		return "OAuthSession(nil)"
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return fmt.Sprintf("OAuthSession{Provider:%s Issuer:%s ClientID:%s AccountID:%s FedRAMP:%t TokenURL:%s Expiry:%s Access:%s Refresh:%s}",
+		s.Provider, s.Issuer, s.ClientID, s.AccountID, s.FedRAMP, s.TokenURL, expiryText(s.Expiry),
+		secretText(s.Access), secretText(s.Refresh))
+}
+
+// GoString renders the session for %#v, without its tokens.
+func (s *OAuthSession) GoString() string { return "&llmprovider." + s.String() }
+
+// LogValue renders the session for slog, without its tokens.
+func (s *OAuthSession) LogValue() slog.Value {
+	if s == nil {
+		return slog.StringValue("OAuthSession(nil)")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slog.GroupValue(
+		slog.String("provider", s.Provider),
+		slog.String("issuer", s.Issuer),
+		slog.String("client_id", s.ClientID),
+		slog.String("account_id", s.AccountID),
+		slog.String("expiry", expiryText(s.Expiry)),
+		slog.String("access", secretText(s.Access)),
+		slog.String("refresh", secretText(s.Refresh)),
+	)
+}
+
 type tokenFuture struct {
 	done chan struct{}
 	tok  Token
