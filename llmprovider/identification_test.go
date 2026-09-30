@@ -56,17 +56,17 @@ var userAgentPattern = regexp.MustCompile(`^go-llmprovider-sdk/\S+ \(\w+; \w+\) 
 func TestIdentification_UserAgent(t *testing.T) {
 	rec := newHeaderRecorder(t)
 	base := WithBaseURL(rec.srv.URL)
-	build := map[string]func() (Provider, error){
-		"openai": func() (Provider, error) { return NewOpenAI("k", "gpt-4.1-mini", base) },
-		"claude": func() (Provider, error) { return NewClaude("k", "claude-haiku-4-5", base) },
-		"gemini": func() (Provider, error) {
+	build := map[string]func() (LegacyProvider, error){
+		"openai": func() (LegacyProvider, error) { return NewOpenAI("k", "gpt-4.1-mini", base) },
+		"claude": func() (LegacyProvider, error) { return NewClaude("k", "claude-haiku-4-5", base) },
+		"gemini": func() (LegacyProvider, error) {
 			return NewGemini(context.Background(), "k", "gemini-3.7-flash", base)
 		},
-		"grok":        func() (Provider, error) { return NewGrok("k", "grok-4.5", base) },
-		"kilo":        func() (Provider, error) { return NewKilo("k", "some/model", base) },
-		"huggingface": func() (Provider, error) { return NewHuggingFace("k", "org/model", base) },
-		"ollama":      func() (Provider, error) { return NewOllama("", "llama3", base) },
-		"opencode":    func() (Provider, error) { return NewOpencode(ProviderOpencodeGo, "k", "glm-5.3-flash", base) },
+		"grok":        func() (LegacyProvider, error) { return NewGrok("k", "grok-4.5", base) },
+		"kilo":        func() (LegacyProvider, error) { return NewKilo("k", "some/model", base) },
+		"huggingface": func() (LegacyProvider, error) { return NewHuggingFace("k", "org/model", base) },
+		"ollama":      func() (LegacyProvider, error) { return NewOllama("", "llama3", base) },
+		"opencode":    func() (LegacyProvider, error) { return NewOpencode(ProviderOpencodeGo, "k", "glm-5.3-flash", base) },
 	}
 	for name, newProvider := range build {
 		p, err := newProvider()
@@ -144,9 +144,9 @@ func TestIdentification_NoForbiddenHeaders(t *testing.T) {
 		}
 		_, _ = p.Generate(context.Background(), "hello")
 	}
-	for _, build := range []func() (Provider, error){
-		func() (Provider, error) { return NewGrok("k", "grok-4.5", base) },
-		func() (Provider, error) { return NewKilo("k", "some/model", base) },
+	for _, build := range []func() (LegacyProvider, error){
+		func() (LegacyProvider, error) { return NewGrok("k", "grok-4.5", base) },
+		func() (LegacyProvider, error) { return NewKilo("k", "some/model", base) },
 	} {
 		p, err := build()
 		if err != nil {

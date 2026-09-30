@@ -16,8 +16,12 @@ import (
 	"time"
 )
 
-// Provider defines the interface for LLM backends.
-type Provider interface {
+// LegacyProvider is the text-generation interface of the old API, which every
+// built-in provider still implements until it moves onto Provider.
+//
+// Deprecated: Use Provider. LegacyProvider is removed with the rest of the
+// old API (0015-PLAN S8).
+type LegacyProvider interface {
 	// Name returns the canonical identifier (e.g., "openai", "gemini", "claude").
 	Name() string
 	// Generate sends a prompt to the LLM and returns the generated text.
@@ -33,7 +37,7 @@ type Tool struct {
 
 // ToolProvider is an optional interface for providers that support tool/function execution
 type ToolProvider interface {
-	Provider
+	LegacyProvider
 	GenerateWithTool(ctx context.Context, prompt string, tool Tool) (string, error)
 }
 
@@ -49,7 +53,7 @@ type ModelDiscoverer interface {
 // OpenAI reasoning_effort, Gemini thinkingConfig). Callers that hold a Provider can
 // type-assert to this interface to request the higher-reasoning path for heavy tasks.
 type ThinkingProvider interface {
-	Provider
+	LegacyProvider
 	GenerateThinking(ctx context.Context, prompt string) (string, error)
 }
 
@@ -187,7 +191,7 @@ var providerEnvVars = map[string]string{
 
 // GenerateWithRetry executes a Generate call with the specified number of retries
 // and jittered delay. It will stop retrying if the context is cancelled.
-func GenerateWithRetry(ctx context.Context, p Provider, prompt string, retries int, delay time.Duration) (string, error) {
+func GenerateWithRetry(ctx context.Context, p LegacyProvider, prompt string, retries int, delay time.Duration) (string, error) {
 	return retryWithBackoff(ctx, retries, delay, "llm: retrying after failure", func() (string, error) {
 		return p.Generate(ctx, prompt)
 	})
@@ -262,7 +266,7 @@ func GenerateItemsWithRetry(ctx context.Context, p ItemProvider, input []Item, r
 
 // NewProvider creates a Provider by canonical name. Accepts variadic ProviderOption
 // for shared http.Client injection and configuration.
-func NewProvider(name, apiKey, model string, opts ...ProviderOption) (Provider, error) {
+func NewProvider(name, apiKey, model string, opts ...ProviderOption) (LegacyProvider, error) {
 	switch name {
 	case ProviderGemini:
 		return NewGemini(context.Background(), apiKey, model, opts...)
@@ -288,7 +292,7 @@ func NewProvider(name, apiKey, model string, opts ...ProviderOption) (Provider, 
 }
 
 // NewProviderWithSource creates a provider that accepts a dynamic token source.
-func NewProviderWithSource(name string, src TokenSource, model string, opts ...ProviderOption) (Provider, error) {
+func NewProviderWithSource(name string, src TokenSource, model string, opts ...ProviderOption) (LegacyProvider, error) {
 	switch name {
 	case ProviderOpenAI:
 		return NewOpenAIWithSource(src, model, opts...)

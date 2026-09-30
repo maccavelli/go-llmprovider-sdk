@@ -54,7 +54,7 @@ type ReasoningItem struct {
 
 func (ReasoningItem) itemKind() string { return itemTypeReasoning }
 
-// Response is the canonical result of an item-based generation call.
+// Response is the result of a generation (0015-MADR D3).
 type Response struct {
 	// ID is the provider-issued response identifier, used for server-side
 	// conversation chaining (OpenAI/xAI: response ID, Gemini: interaction ID,
@@ -62,13 +62,21 @@ type Response struct {
 	// Empty for providers that do not support server-side state (Claude).
 	ID string
 
+	// Model is the model that answered, as the service names it. Empty where
+	// the service does not say.
+	Model string
+
 	// Output contains the typed items returned by the model.
 	Output []Item
 
 	// FinishReason is the Chat Completions finish_reason, e.g. "stop" or
 	// "length"; a length-truncated text answer keeps its text and reports
 	// it here (MADR 0012 §1.5). Empty where the service does not report one.
-	FinishReason string
+	FinishReason FinishReason
+
+	// Usage counts the response's tokens; zero where the service reports
+	// none.
+	Usage Usage
 }
 
 // OutputText returns the concatenation of all MessageItem texts in Output,
@@ -98,7 +106,7 @@ func (r *Response) Items() iter.Seq[Item] {
 // ItemProvider is an optional interface for providers that support the
 // canonical item-based generation contract.
 type ItemProvider interface {
-	Provider
+	LegacyProvider
 	GenerateItems(ctx context.Context, input ...Item) (*Response, error)
 }
 

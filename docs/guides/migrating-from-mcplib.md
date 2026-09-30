@@ -38,7 +38,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 
 | `mcplib` identifier | SDK equivalent | Notes |
 | :--- | :--- | :--- |
-| `llmprovider.APIError` |  |  |
+| `llmprovider.APIError` | `APIError` | Adds `Kind`, `Code`, `Reason` and `Retryable()`. `Type` (now `Code`) and `Terminal` go in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.APIError.Error` |  |  |
 | `llmprovider.APIError.Message` |  |  |
 | `llmprovider.APIError.Provider` |  |  |
@@ -114,9 +114,9 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.GeminiProvider.GenerateWithTool` |  |  |
 | `llmprovider.GeminiProvider.GenerateWithToolThinking` |  |  |
 | `llmprovider.GeminiProvider.Name` |  |  |
-| `llmprovider.GenerateItemsWithRetry` |  |  |
-| `llmprovider.GenerateThinkingWithRetry` |  |  |
-| `llmprovider.GenerateWithRetry` |  |  |
+| `llmprovider.GenerateItemsWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`; the function goes in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.GenerateThinkingWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`; the function goes in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.GenerateWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`; the function goes in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.GrokProvider` |  |  |
 | `llmprovider.GrokProvider.Continue` |  |  |
 | `llmprovider.GrokProvider.DiscoverModels` |  |  |
@@ -265,7 +265,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OpencodeRouteResponses` |  |  |
 | `llmprovider.ProfileCapable` |  |  |
 | `llmprovider.ProfileUtility` |  |  |
-| `llmprovider.Provider` |  |  |
+| `llmprovider.Provider` | `Provider` | `ID`, `Capabilities` and `Generate(ctx, *Request)`. The old interface is `LegacyProvider` until [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.Provider.Generate` |  |  |
 | `llmprovider.Provider.Name` |  |  |
 | `llmprovider.ProviderClaude` |  |  |
@@ -305,7 +305,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ProviderOpenAI` |  |  |
 | `llmprovider.ProviderOpencodeGo` |  |  |
 | `llmprovider.ProviderOpencodeZen` |  |  |
-| `llmprovider.ProviderOption` |  |  |
+| `llmprovider.ProviderOption` | `Option` | `ProviderOption` is an alias of it until [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.RankClaudeModel` | `RankModel(ProviderClaude, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
 | `llmprovider.RankGeminiModel` | `RankModel(ProviderGemini, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
 | `llmprovider.RankGrokModel` | `RankModel(ProviderGrok, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
@@ -322,7 +322,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.RateLimitError.Unwrap` |  |  |
 | `llmprovider.ReasoningItem` |  |  |
 | `llmprovider.ReasoningItem.Text` |  |  |
-| `llmprovider.Response` |  |  |
+| `llmprovider.Response` | `Response` | Adds `Model` and `Usage`; `FinishReason` is the named type `FinishReason`. |
 | `llmprovider.Response.FinishReason` |  |  |
 | `llmprovider.Response.ID` |  |  |
 | `llmprovider.Response.Items` |  |  |

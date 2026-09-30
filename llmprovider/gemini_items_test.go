@@ -128,7 +128,7 @@ func TestGemini_Continue(t *testing.T) {
 
 // TestGeminiInterfaceSatisfaction verifies Gemini satisfies all expected interfaces.
 func TestGeminiInterfaceSatisfaction(t *testing.T) {
-	var _ Provider = (*GeminiProvider)(nil)
+	var _ LegacyProvider = (*GeminiProvider)(nil)
 	var _ ToolProvider = (*GeminiProvider)(nil)
 	var _ ThinkingProvider = (*GeminiProvider)(nil)
 	var _ ThinkingToolProvider = (*GeminiProvider)(nil)

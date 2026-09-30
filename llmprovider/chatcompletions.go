@@ -185,7 +185,7 @@ func decodeChatCompletionsResponse(body io.Reader) (*Response, error) {
 	}
 	// The response id is not a resumable conversation handle on any gateway in
 	// this package, so it is carried for logging only.
-	result := &Response{ID: raw.ID, FinishReason: finish}
+	result := &Response{ID: raw.ID, FinishReason: FinishReason(finish)}
 
 	reasoning := msg.ReasoningContent
 	if reasoning == "" {

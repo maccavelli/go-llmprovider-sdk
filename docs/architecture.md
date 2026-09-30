@@ -29,6 +29,7 @@ scripts/check_parity_map.py G-parity: the mcplib migration map is complete
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
 llmprovider/                providers, credentials, discovery
+llmprovider/llmtest/        the conformance suite and a fake provider
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
@@ -48,6 +49,36 @@ docs/
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely) and `MaskSecret` (show a suffix for identification) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
+| `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider`, the standard library |
+
+## The contract
+
+`llmprovider` holds one generation contract (0015-MADR D3–D10), built beside
+the old API until 0015-PLAN S8 removes it:
+
+- `Provider` is `ID`, `Capabilities` and `Generate(ctx, *Request)
+  (*Response, error)`. `GenerateText` and `GenerateToolCall` are functions
+  over any `Provider`.
+- `Capabilities` gives each of `Tools`, `ForcedToolChoice`, `Reasoning`,
+  `Continuation` and `NativeStreaming` as `Unsupported`, `BestEffort` or
+  `Supported`. `Capabilities.Check(req)` validates a request and refuses an
+  unsupported need before any network call, with `ErrUnsupported`.
+- `Stream(ctx, p, req)` streams from every provider: a provider's own
+  `Streamer`, or `Generate`'s result as events.
+- `Option` configures construction. A provider package's `New` resolves its
+  options with `ResolveOptions(id, opts)`, which refuses an option scoped to
+  another provider (`ScopedOption`) and one only the old API takes. The
+  resolved `Settings` are read-only.
+- `APIError` carries a `Kind`, one of the sentinels. `ErrContextOverflow`
+  sits beneath `ErrInvalidRequest`; it is classified from the service's
+  error type, or from a message table taken from pi's `overflow.ts`
+  (`context_overflow.go`).
+- `WithRetry(p, RetryPolicy{…})` retries what `Retryable` allows, waiting as
+  long as the service asks, up to a cap.
+- `Registry` holds `Descriptor` and `Factory` pairs and refuses a duplicate
+  id. There is no global registry.
+- `llmprovider/llmtest` has `Run`, the conformance suite each provider will
+  pass, and `Fake`, a scriptable provider for tests.
 
 ## Providers and items
 

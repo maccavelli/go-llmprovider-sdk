@@ -87,28 +87,29 @@ type ProviderConfig struct {
 	DisableModelProbes bool
 }
 
-// ProviderOption is a functional option for provider constructors.
-type ProviderOption func(*ProviderConfig)
+// ProviderOption is Option, under the old API's name. The old constructors
+// take it; it is removed with the old API (0015-PLAN S8).
+type ProviderOption = Option
 
 // WithHTTPClient sets a custom HTTP client for connection pooling.
 func WithHTTPClient(c *http.Client) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return commonOption("WithHTTPClient", func(cfg *ProviderConfig) {
 		cfg.HTTPClient = c
-	}
+	})
 }
 
 // WithMaxTokens sets the maximum response tokens for the provider.
 func WithMaxTokens(n int) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return commonOption("WithMaxTokens", func(cfg *ProviderConfig) {
 		cfg.MaxTokens = n
-	}
+	})
 }
 
 // WithBaseURL sets a custom base URL for the provider (e.g., Ollama endpoint or test URL).
 func WithBaseURL(url string) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return commonOption("WithBaseURL", func(cfg *ProviderConfig) {
 		cfg.BaseURL = url
-	}
+	})
 }
 
 // WithThinkingBudget sets the extended-thinking/reasoning token budget used by the
@@ -117,18 +118,18 @@ func WithBaseURL(url string) ProviderOption {
 // WithReasoningEffort (MADR 0014). A non-positive value leaves the per-provider
 // default in effect.
 func WithThinkingBudget(n int) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithThinkingBudget", func(cfg *ProviderConfig) {
 		cfg.ThinkingBudget = n
-	}
+	})
 }
 
 // WithReasoningEffort sets the reasoning effort ("low"|"medium"|"high") used by the
 // provider's GenerateThinking path; see ProviderConfig.ReasoningEffort. An empty value
 // leaves each provider's default in effect.
 func WithReasoningEffort(s string) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithReasoningEffort", func(cfg *ProviderConfig) {
 		cfg.ReasoningEffort = s
-	}
+	})
 }
 
 // WithOpencodeRoute pins the wire format used by the OpenCode Zen/Go providers,
@@ -136,9 +137,9 @@ func WithReasoningEffort(s string) ProviderOption {
 // before this package's table is updated; sending a model to the wrong route
 // fails with an opaque HTTP 500. Ignored by all other providers.
 func WithOpencodeRoute(route OpencodeRoute) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithOpencodeRoute", func(cfg *ProviderConfig) {
 		cfg.OpencodeRoute = route
-	}
+	})
 }
 
 // WithKiloCapabilities declares the request parameters the configured Kilo model
@@ -150,9 +151,9 @@ func WithOpencodeRoute(route OpencodeRoute) ProviderOption {
 // withholding a parameter we merely cannot confirm would silently degrade
 // requests. Ignored by all other providers.
 func WithKiloCapabilities(params ...string) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithKiloCapabilities", func(cfg *ProviderConfig) {
 		cfg.KiloCapabilities = params
-	}
+	})
 }
 
 // WithKiloDataCollection lets Kilo route to upstreams that may train on
@@ -162,9 +163,9 @@ func WithKiloCapabilities(params ...string) ProviderOption {
 // with ErrNotPermitted: kilo-auto/free was, and on 2026-09-27 every free text
 // model in Kilo's listing was flagged mayTrainOnYourPrompts.
 func WithKiloDataCollection(allow bool) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithKiloDataCollection", func(cfg *ProviderConfig) {
 		cfg.KiloDataCollection = allow
-	}
+	})
 }
 
 // WithKiloOrganization scopes Kilo generation and listing to an organization:
@@ -173,9 +174,9 @@ func WithKiloDataCollection(allow bool) ProviderOption {
 // (MADR 0012 §3.3). A URL-prefixed token whose path is
 // .../api/organizations/{id} names the organization without this option.
 func WithKiloOrganization(id string) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithKiloOrganization", func(cfg *ProviderConfig) {
 		cfg.KiloOrganization = id
-	}
+	})
 }
 
 // WithStore sets whether OpenAI (API-key mode), Grok and Gemini store
@@ -185,18 +186,18 @@ func WithKiloOrganization(id string) ProviderOption {
 // from. Gemini stores nothing unless given true, and its Continue needs
 // true. A ChatGPT session always sends false. Ignored by all other providers.
 func WithStore(store bool) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithStore", func(cfg *ProviderConfig) {
 		cfg.Store = &store
-	}
+	})
 }
 
 // WithModelProfile selects how ListAvailableModels, ListModelCatalog and the
 // open catalogs' DiscoverModels rank the recommended models (MADR 0009 §1,
 // MADR 0013 A4).
 func WithModelProfile(p ModelProfile) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithModelProfile", func(cfg *ProviderConfig) {
 		cfg.ModelProfile = p
-	}
+	})
 }
 
 // WithModelProbes enables or disables listing probes. With probes, which is
@@ -205,9 +206,9 @@ func WithModelProfile(p ModelProfile) ProviderOption {
 // MaxListedModels, and keeps those that answer. Every probe is a billed
 // request. Other providers never probe (0016-MADR A5).
 func WithModelProbes(enabled bool) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithModelProbes", func(cfg *ProviderConfig) {
 		cfg.DisableModelProbes = !enabled
-	}
+	})
 }
 
 // envModelProbes names the variable ModelProbesFromEnv reads.
@@ -222,11 +223,11 @@ const envModelProbes = "LLMPROVIDER_PROBES"
 func ModelProbesFromEnv() ProviderOption {
 	value, ok := os.LookupEnv(envModelProbes)
 	if !ok {
-		return func(*ProviderConfig) {}
+		return legacyOption("ModelProbesFromEnv", nil)
 	}
 	enabled, err := strconv.ParseBool(strings.TrimSpace(value))
 	if err != nil {
-		return func(*ProviderConfig) {}
+		return legacyOption("ModelProbesFromEnv", nil)
 	}
 	return WithModelProbes(enabled)
 }
@@ -234,19 +235,21 @@ func ModelProbesFromEnv() ProviderOption {
 // WithModelMetadataURL overrides the model metadata document (MADR 0009 §2).
 // LLMPROVIDER_DISABLE_MODELS_METADATA=1 turns the fetch off whatever the URL.
 func WithModelMetadataURL(url string) ProviderOption {
-	return func(cfg *ProviderConfig) {
+	return legacyOption("WithModelMetadataURL", func(cfg *ProviderConfig) {
 		cfg.ModelMetadataURL = url
-	}
+	})
 }
 
-// ApplyOptions processes variadic ProviderOptions into a ProviderConfig.
+// ApplyOptions processes variadic ProviderOptions into a ProviderConfig, for
+// the old constructors. It applies every option, and ignores what a
+// ProviderConfig cannot hold: the new API's model, credential, logger,
+// reasoning and provider-specific options.
 func ApplyOptions(opts []ProviderOption) ProviderConfig {
-	cfg := ProviderConfig{
-		HTTPClient: defaultHTTPClient(),
-		MaxTokens:  8192,
-	}
+	s := newSettings()
 	for _, opt := range opts {
-		opt(&cfg)
+		if opt.apply != nil {
+			opt.apply(&s)
+		}
 	}
-	return cfg
+	return s.cfg
 }

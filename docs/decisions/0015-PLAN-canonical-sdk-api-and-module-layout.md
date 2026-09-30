@@ -220,7 +220,8 @@ message table and a red-first test for each entry.
    * `WithRetry` and `RetryPolicy`;
    * `Registry`, `Descriptor` and `Factory`.
 
-   The old types stay alongside until S8.
+   The old types stay alongside until S8. *(2026-09-30: where a new name
+   is already taken, the deviation of that date applies.)*
 2. **`llmtest`:**
    * `Run(t, Harness)` with the D11 checks;
    * `Fake`, a scriptable provider.
@@ -326,8 +327,13 @@ commit, in this order: wire, transport, `auth`, `catalog`.
    * the `Generate*WithRetry` functions;
    * the eight generation interfaces and `Continuer`;
    * `ProviderConfig` and `ApplyOptions`;
-   * `RateLimitError` and `IncompleteError`.
-4. Gate, with G-parity's empty-cell check still off.
+   * `RateLimitError` and `IncompleteError`;
+   * *(added 2026-09-30, S6's deviation)* `LegacyProvider`, the
+     `ProviderOption` alias, and `APIError`'s `Type` and `Terminal`.
+4. *(Added 2026-09-30, S6's deviation.)* Retype the provider-id constants as
+   `ProviderID` and `MessageItem.Role` as `Role`, and give the sentinels that
+   still read `llm:` the `llmprovider:` prefix (R27).
+5. Gate, with G-parity's empty-cell check still off.
 
 ### Phase S9: usage
 
@@ -900,3 +906,173 @@ No phase has changed yet.
   | The helper ignores the variable | `claude: 4 generation requests, want none` |
   | A non-boolean value disables probes | `openai: 0 generation requests, want one per candidate` |
   | `ApplyOptions` reads the variable itself | `openai: 0 generation requests, want one per candidate` |
+
+### Deviation 2026-09-30: S6's new names are already taken
+
+* **Found.** Before any change, a read-only scan showed that S6 step 1
+  cannot keep "the old types alongside": Go allows one declaration per name
+  in a package, and these names are already declared.
+
+  | New name | Existing declaration | Absorbs the new shape |
+  |---|---|---|
+  | `Provider` | `llmprovider/provider.go:20`, `{Name() string; Generate(ctx, string) (string, error)}` | no: same name, different `Generate` |
+  | `WithHTTPClient`, `WithMaxTokens`, `WithBaseURL`, `WithClientInfo`, `WithSessionID` | `options.go:94-108`, `identification.go:27,36`, each returning `ProviderOption` | only if one option type serves both |
+  | `Response` | `item.go:58` (`ID`, `Output`, `FinishReason string`) | yes, by adding fields |
+  | `APIError` | `api_error.go:50` (`Type`, `Terminal`) | yes, by adding fields |
+
+  Typing the provider-id constants as `ProviderID` breaks each of their 677
+  references that is a `string` parameter, map key or switch.
+* **Options put to the owner:**
+  1. converge in place, and rename only the incompatible `Provider`;
+  2. temporary names for the new contract, renamed in S8;
+  3. the contract in a separate package until S8, which needs a D2
+     amendment.
+
+  For the constants: add the type now and retype in S8, or retype in S6.
+* **Decision.** The owner chose option 1, and the type now with the
+  constants retyped in S8.
+* **Changed, for S6:**
+  * `Response` gains `Model` and `Usage`, and its `FinishReason` becomes the
+    named type. That field has one assignment site.
+  * `APIError` gains `Kind` (the kind sentinel, until now the unexported
+    `sentinel`), `Code`, `Reason` and `Retryable()`. `Type` duplicates
+    `Code`, and with `Terminal` is marked `Deprecated:` until S8.
+  * The old `Provider` interface is renamed `LegacyProvider`, marked
+    `Deprecated:`, and removed in S8.
+  * `Option` is the one option type. Until S8, `ProviderOption` is an alias
+    of it, so the old constructors, `ApplyOptions` and `wizard` take the
+    same values. An option that exists only in the old API is refused by
+    the new `New`, as a foreign option is.
+  * `ProviderID` is declared and used by the new contract. The constants
+    stay untyped until S8.
+* **Applied on the same principle, for the owner to see:**
+  * `MessageItem.Role` keeps `string` until S8, for the same reason as
+    the constants: 56 non-test references. `Role` and its constants are
+    declared now.
+  * The existing sentinels keep their `llm:` text until S8. While
+    `RateLimitError` exists, its doc promises the original message
+    verbatim, and `provider_test.go:208` pins that. The new sentinels start
+    `llmprovider:`, as R27 requires.
+* **S8** gains these removals and the retyping, as its steps 3 and 4.
+
+### Phase S6: the contract, and `llmtest` (2026-09-30)
+
+Executed under the deviation of the same date: the new names converge on the
+old ones in place.
+
+* **Step 1, the contract, in `llmprovider`:**
+  * `contract.go`: `Provider`; `Request`; `Reasoning`; `Usage`; the typed
+    `ProviderID`, `Role`, `Effort`, `ToolChoice` (with `ForceTool`) and
+    `FinishReason`; `Capabilities.Check`, which validates a request (R23)
+    and refuses an Unsupported need before the network (R11).
+  * `capabilities.go`: `Capabilities` and `Support` (`Unsupported`,
+    `BestEffort`, `Supported`).
+  * `stream.go`: `Event`, `EventType`, `Streamer` and `Stream`, with the
+    fallback over `Generate`.
+  * `settings.go`: `Option`; the new common options `WithModel`,
+    `WithAPIKey`, `WithTokenSource`, `WithLogger` and `WithReasoning`;
+    `ScopedOption` for a provider package's own options; and
+    `ResolveOptions`, which returns read-only `Settings` and refuses a
+    foreign option or one only the old API takes. The five existing common
+    options, and the ten old-API-only ones, are now `Option` values.
+  * `api_error.go`: `APIError.Kind`, `Code`, `Reason` and `Retryable()`;
+    `ErrContextOverflow`, `ErrIncomplete` and `ErrUnsupported`.
+    `IncompleteError` also matches `ErrIncomplete`.
+  * `context_overflow.go`: the three service error types and the 21 message
+    forms, each citing pi `packages/ai/src/utils/overflow.ts` at `0e283203c`
+    by line. It also has pi's rate-limit exclusion. A 4xx the status alone
+    maps to `ErrInvalidRequest` is checked, and so is a
+    `context_length_exceeded` stream failure.
+  * `retry.go`: `WithRetry` and `RetryPolicy`.
+  * `registry.go`: `Registry`, `Descriptor` and `Factory`.
+  * `convenience.go`: `GenerateText` and `GenerateToolCall` (R8). They are
+    part of D3's contract, although step 1's list does not name them.
+  * `Response` gains `Model` and `Usage`. Its `FinishReason` is typed, and
+    `chatcompletions.go` converts at its one assignment.
+  * `Provider` was renamed `LegacyProvider` with `gopls rename`, across 9
+    files.
+* **Step 2, `llmprovider/llmtest`:**
+  * `Run(t, Harness)` runs seven subtests, each named after its rules:
+    `R10-R11-capabilities`, `R23-invalid-values`, `R40-cancellation`,
+    `R25-R26-classification`, `R44-identity`, `R7-R9-response` and
+    `R20-concurrency`.
+  * It runs over a small `reporter` interface, so the package's own tests
+    record what a flawed provider reports.
+  * A panic in `Generate` is reported as an R7 failure instead of ending
+    the run.
+  * The classification check reads `APIError.Kind` itself. `Unwrap` also
+    returns the status's own sentinel (MADR 0012 §7), which would hide a
+    misclassified 429.
+  * `Fake` is scriptable (`Reply`, `ReplyText`, `Fail`, `Handle`). It
+    refuses what its capabilities lack, records copies of the requests, and
+    is safe for concurrent use.
+* **Step 3, first-fail.** A conformant reference provider (in
+  `llmtest_test.go`) passes `Run`. In a scratch copy, it was switched to
+  each flaw, and `Run` was run on the real `*testing.T`:
+
+  | Flaw | Failure |
+  |---|---|
+  | ignores cancellation | `R40-cancellation`: `R40 (cancellation): Generate did not return within 2s of its context being cancelled` |
+  | sends a request with an unsupported capability | `R10-R11-capabilities`: `R11 (refusal before the network): a request needing continuation, which is Unsupported, returned <nil>` … `sent 1 request(s); want none` |
+  | misclassifies a 429 | `R25-R26-classification`: `R25 (errors by kind): HTTP 429 returned an APIError of kind llm: provider unavailable; want ErrRateLimited` |
+  | mutates shared state without a lock (`-race`) | `R20-concurrency`: `race detected during execution of test` |
+
+  The first three are also in-tree tests (`TestRun_NamesTheBrokenRule`),
+  through the reporter.
+* **Step 4, the contract's tests.** Breaks, each in a scratch copy, and the
+  test each one failed:
+
+  | Break | Failure |
+  |---|---|
+  | `Stream`'s fallback drops text deltas | `5 events …, want 6` |
+  | `Stream` ignores a native `Streamer` | `Stream called Generate on a native streamer` |
+  | `WithRetry` ignores `RetryAfter` | `waited 1.554291ms, want at least the 40ms the service asked for` |
+  | `WithRetry` retries every kind | `2 calls, want 1` |
+  | `Retryable` ignores exhausted quota | `Retryable() = true, want false` |
+  | `Registry` accepts a duplicate | `a duplicate: err = <nil>, want ErrInvalidProvider` |
+  | `New` accepts a foreign option | `err = <nil>, want the foreign option named` |
+  | `New` accepts an old-API-only option | `WithStore: err = <nil>, want it refused` |
+  | `Check` ignores continuation | `Check = <nil>, want an error matching ErrUnsupported …` |
+  | validation accepts an unknown tool choice | `Check = <nil>, want an error matching ErrInvalidRequest` |
+  | `GenerateToolCall` does not force the tool | `sent ToolChoice "", want ForceTool(lookup)` |
+  | `WithReasoning` keeps the caller's pointer | `a caller's change to the reasoning reached the Settings` |
+  | overflow without the rate-limit exclusion | `… context window exceeded: grok HTTP 400: Too many tokens, rate limit reached …; want llm: invalid request and not ErrContextOverflow` |
+  | classification never checks overflow | `llm: invalid request: together HTTP 400: context length exceeded; want ErrContextOverflow, beneath ErrInvalidRequest`, for every sample |
+  | `IncompleteError` loses `ErrIncomplete` | `IncompleteError must match ErrIncomplete and ErrInvalidRequest` |
+  | an `APIError` without `Kind` has no kind | `"<nil>: p HTTP 401 bad_key"` |
+* **`ErrContextOverflow`, a red test for each entry.** In a scratch copy,
+  each of the 24 entries (3 types, 21 message forms) was deleted in turn.
+  Each deletion failed exactly its own case of
+  `TestContextOverflow_Types` or `TestContextOverflow_Messages`, and no
+  other: `24 entries, 0 unexpected`.
+  `TestContextOverflow_EveryFormHasASample` keeps the table and its
+  samples in step.
+* **Lint** (`make lint`) first found 12 issues. Each was fixed, none
+  suppressed:
+  * unclosed bodies in the new tests, which now use the existing
+    `classifyBody` helper;
+  * `==` on errors: `errors.Is` in `classifyAPIError`, and in the tests
+    `sameError`, which keeps "returned unwrapped";
+  * a `%v` for an error;
+  * `llmtest`'s `run` beside `Run`, renamed `runChecks`.
+
+  The breaks above were re-run after these fixes, and each failed again as
+  shown.
+* **Existing tests.** They pass unchanged, including G-wire
+  (`TestWireGoldens`, no `-update`): no request changed. No assertion
+  changed.
+* **Coverage** (`go test -race -cover`): `llmprovider` 90.9 % (90.3 %
+  before); `llmtest` 94.7 %, new.
+* **Docs.**
+  * The migration guide fills seven rows: `Provider`, `APIError`,
+    `Response`, `ProviderOption`, and the three `Generate*WithRetry`.
+  * `docs/architecture.md` gains "The contract", and `llmtest` in the tree
+    and the package table.
+  * The standards guide is unchanged: R8's names were kept, and R25 already
+    named `ErrContextOverflow`.
+* **Not done, by the deviation:**
+  * the constants and `MessageItem.Role` stay untyped;
+  * the old sentinels keep `llm:`;
+  * `RateLimitError` and `IncompleteError` stay.
+
+  S8 does these.

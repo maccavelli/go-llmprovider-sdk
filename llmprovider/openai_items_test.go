@@ -141,7 +141,7 @@ func TestOpenAI_ResponseID(t *testing.T) {
 
 // TestOpenAIInterfaceSatisfaction verifies OpenAI satisfies all expected interfaces.
 func TestOpenAIInterfaceSatisfaction(t *testing.T) {
-	var _ Provider = (*OpenAIProvider)(nil)
+	var _ LegacyProvider = (*OpenAIProvider)(nil)
 	var _ ToolProvider = (*OpenAIProvider)(nil)
 	var _ ThinkingProvider = (*OpenAIProvider)(nil)
 	var _ ThinkingToolProvider = (*OpenAIProvider)(nil)

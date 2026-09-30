@@ -34,6 +34,17 @@ var (
 	// ErrNotPermitted marks a request the account may not make: a region,
 	// data-policy, entitlement or free-tier restriction (MADR 0012 §1.1).
 	ErrNotPermitted = errors.New("llm: not permitted")
+	// ErrContextOverflow marks input longer than the model's context window.
+	// Shortening the input can succeed; retrying it unchanged cannot. It also
+	// matches ErrInvalidRequest (0015-MADR D7, amendment of 2026-09-30).
+	ErrContextOverflow error = &sentinelError{msg: "llmprovider: context window exceeded", parent: ErrInvalidRequest}
+	// ErrIncomplete marks a response the service cut short, or one without
+	// the tool call the request forced (0015-MADR D7).
+	ErrIncomplete = errors.New("llmprovider: incomplete response")
+	// ErrUnsupported marks a request needing a capability the provider does
+	// not have. It fails before any network call, and also matches
+	// errors.ErrUnsupported (0015-MADR D4, D7).
+	ErrUnsupported error = &sentinelError{msg: "llmprovider: unsupported", parent: errors.ErrUnsupported}
 )
 
 const (
@@ -43,29 +54,48 @@ const (
 	apiErrorMessageLimit = 512
 )
 
-// APIError is a non-2xx response with the service's own error classification
-// (MADR 0012 §1.1). It unwraps to the classified sentinel and, when that
+// APIError is a failure the service reported, with its own classification
+// (MADR 0012 §1.1, 0015-MADR D7). It unwraps to its Kind and, when that
 // differs, to the sentinel the status alone mapped to before, so every
 // existing errors.Is check still matches (MADR 0012 §7).
 type APIError struct {
-	Provider   string
-	Status     int           // 0 for a failure reported inside a 200 event stream
-	Type       string        // the service's error type or code, e.g. "FreeUsageLimitError"
-	Message    string        // the service's message, redacted and bounded to 512 bytes
-	RetryAfter time.Duration // from Retry-After, when present
-	Terminal   bool          // retrying cannot succeed
-	sentinel   error
+	// Provider names the provider, or "gateway/route" for a gateway.
+	Provider string
+	// Status is the HTTP status: 0 for a failure inside a 200 event stream.
+	Status int
+	// Kind is the kind sentinel, such as ErrRateLimited. Nil means the one
+	// Status maps to.
+	Kind error
+	// Code is the service's error type or code, e.g. "FreeUsageLimitError".
+	Code string
+	// Message is the service's message, redacted and bounded to 512 bytes.
+	Message string
+	// RetryAfter is the delay the service asked for, when it asked.
+	RetryAfter time.Duration
+	// Reason is the service's reason for a response it cut short, such as
+	// "max_output_tokens".
+	Reason string
+
+	// Type is Code.
+	//
+	// Deprecated: Use Code. Type is removed with the old API (0015-PLAN S8).
+	Type string
+	// Terminal reports that retrying cannot succeed.
+	//
+	// Deprecated: Use Retryable. Terminal is removed with the old API
+	// (0015-PLAN S8).
+	Terminal bool
 }
 
 func (e *APIError) Error() string {
 	var b strings.Builder
 	if e.Status == 0 {
-		fmt.Fprintf(&b, "%v: %s stream", e.sentinel, e.Provider)
+		fmt.Fprintf(&b, "%v: %s stream", e.kind(), e.Provider)
 	} else {
-		fmt.Fprintf(&b, "%v: %s HTTP %d", e.sentinel, e.Provider, e.Status)
+		fmt.Fprintf(&b, "%v: %s HTTP %d", e.kind(), e.Provider, e.Status)
 	}
-	if e.Type != "" {
-		fmt.Fprintf(&b, " %s", e.Type)
+	if code := e.code(); code != "" {
+		fmt.Fprintf(&b, " %s", code)
 	}
 	if e.Message != "" {
 		fmt.Fprintf(&b, ": %s", e.Message)
@@ -73,13 +103,48 @@ func (e *APIError) Error() string {
 	return b.String()
 }
 
-// Unwrap returns the classified sentinel and the pre-0012 status sentinel.
-// A stream failure (Status 0) has no status sentinel.
+// Unwrap returns the kind and the pre-0012 status sentinel. A stream failure
+// (Status 0) has no status sentinel.
 func (e *APIError) Unwrap() []error {
-	if legacy := statusSentinel(e.Status); e.Status != 0 && !errors.Is(e.sentinel, legacy) {
-		return []error{e.sentinel, legacy}
+	kind := e.kind()
+	if legacy := statusSentinel(e.Status); e.Status != 0 && !errors.Is(kind, legacy) {
+		return []error{kind, legacy}
 	}
-	return []error{e.sentinel}
+	return []error{kind}
+}
+
+// Retryable reports whether the same request can succeed later: a rate limit
+// other than exhausted quota, or an unavailable service, that the service did
+// not mark final (0015-MADR D7).
+func (e *APIError) Retryable() bool {
+	if e.Terminal {
+		return false
+	}
+	kind := e.kind()
+	if errors.Is(kind, ErrQuotaExhausted) {
+		return false
+	}
+	return errors.Is(kind, ErrRateLimited) || errors.Is(kind, ErrProviderUnavailable)
+}
+
+// kind is Kind, or the sentinel Status maps to when Kind is nil.
+func (e *APIError) kind() error {
+	switch {
+	case e.Kind != nil:
+		return e.Kind
+	case e.Status == 0:
+		return ErrProviderUnavailable
+	default:
+		return statusSentinel(e.Status)
+	}
+}
+
+// code is Code, or the deprecated Type a caller may still set.
+func (e *APIError) code() string {
+	if e.Code != "" {
+		return e.Code
+	}
+	return e.Type
 }
 
 // statusSentinel is the status-only mapping every provider used before MADR
@@ -116,11 +181,12 @@ func classifyHTTPError(provider string, resp *http.Response) error {
 	e := &APIError{
 		Provider:   provider,
 		Status:     resp.StatusCode,
+		Code:       envelope.errType(),
 		Type:       envelope.errType(),
 		Message:    boundMessage(redact.String(envelope.message())),
 		RetryAfter: retryAfterFrom(resp.Header),
 	}
-	e.Terminal, e.sentinel = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
+	e.Terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
 	// A usage limit says when it resets, as Codex reads it (MADR 0012 §4.4).
 	if e.RetryAfter == 0 && envelope.resetsAt > 0 {
 		if d := time.Until(time.Unix(envelope.resetsAt, 0)); d > 0 {
@@ -131,7 +197,7 @@ func classifyHTTPError(provider string, resp *http.Response) error {
 	if strings.EqualFold(strings.TrimSpace(resp.Header.Get("X-Should-Retry")), "false") {
 		e.Terminal = true
 	}
-	if errors.Is(e.sentinel, ErrRateLimited) && !e.Terminal {
+	if errors.Is(e.Kind, ErrRateLimited) && !e.Terminal {
 		return &RateLimitError{RetryAfter: e.RetryAfter, Status: e.Status, Provider: provider, Message: e.Message}
 	}
 	return e
@@ -140,9 +206,10 @@ func classifyHTTPError(provider string, resp *http.Response) error {
 // streamFailure classifies a response.failed event, which arrives inside a 200
 // stream, as Codex's parse_failed_response does
 // (codex-api/src/sse/responses_error.rs): quota and entitlement codes are
-// terminal (MADR 0012 §1.1), context_length_exceeded and invalid_prompt are invalid
-// requests, rate_limit_exceeded and slow_down are rate limits, and anything
-// else is retryable. The APIError's Status is 0: there is no HTTP status.
+// terminal (MADR 0012 §1.1), context_length_exceeded is a context overflow,
+// invalid_prompt is an invalid request, rate_limit_exceeded and slow_down are
+// rate limits, and anything else is retryable. The APIError's Status is 0:
+// there is no HTTP status.
 func streamFailure(provider, code, errType, message string) error {
 	env := apiErrorEnvelope{msg: message}
 	for _, t := range []string{code, errType} {
@@ -150,15 +217,17 @@ func streamFailure(provider, code, errType, message string) error {
 			env.types = append(env.types, t)
 		}
 	}
-	e := &APIError{Provider: provider, Type: env.errType(), Message: boundMessage(redact.String(message))}
+	e := &APIError{Provider: provider, Code: env.errType(), Type: env.errType(), Message: boundMessage(redact.String(message))}
 	switch {
 	case env.hasType("rate_limit_exceeded") || env.hasType("slow_down"):
 		return &RateLimitError{Provider: provider, Message: e.Message}
-	case env.hasType("context_length_exceeded") || env.hasType("invalid_prompt"):
-		e.Terminal, e.sentinel = true, ErrInvalidRequest
+	case env.hasType("context_length_exceeded"):
+		e.Terminal, e.Kind = true, ErrContextOverflow
+	case env.hasType("invalid_prompt"):
+		e.Terminal, e.Kind = true, ErrInvalidRequest
 	default:
 		// 500 stands in for "no status": the table's codes win, else retryable.
-		e.Terminal, e.sentinel = classifyAPIError(serviceOf(provider), http.StatusInternalServerError, env, nil)
+		e.Terminal, e.Kind = classifyAPIError(serviceOf(provider), http.StatusInternalServerError, env, nil)
 	}
 	return e
 }
@@ -209,6 +278,8 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 		return true, ErrProviderUnavailable
 	case status >= http.StatusInternalServerError:
 		return false, ErrProviderUnavailable
+	case errors.Is(statusSentinel(status), ErrInvalidRequest) && contextOverflow(env):
+		return true, ErrContextOverflow
 	default:
 		return true, statusSentinel(status)
 	}

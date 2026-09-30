@@ -119,7 +119,7 @@ func TestClaude_ResponseID_AlwaysEmpty(t *testing.T) {
 
 // TestClaudeInterfaceSatisfaction verifies Claude satisfies all expected interfaces.
 func TestClaudeInterfaceSatisfaction(t *testing.T) {
-	var _ Provider = (*ClaudeProvider)(nil)
+	var _ LegacyProvider = (*ClaudeProvider)(nil)
 	var _ ToolProvider = (*ClaudeProvider)(nil)
 	var _ ThinkingProvider = (*ClaudeProvider)(nil)
 	var _ ThinkingToolProvider = (*ClaudeProvider)(nil)

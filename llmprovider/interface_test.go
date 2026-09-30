@@ -6,14 +6,14 @@ import "testing"
 // matrix across every concrete provider implementation in llmprovider.
 func TestProviderInterfaceSatisfaction(t *testing.T) {
 	// Base Provider interface (all 4 satisfy)
-	var _ Provider = (*OpenAIProvider)(nil)
-	var _ Provider = (*ClaudeProvider)(nil)
-	var _ Provider = (*GeminiProvider)(nil)
-	var _ Provider = (*GrokProvider)(nil)
-	var _ Provider = (*OpencodeProvider)(nil)
-	var _ Provider = (*HuggingFaceProvider)(nil)
-	var _ Provider = (*KiloProvider)(nil)
-	var _ Provider = (*OllamaProvider)(nil)
+	var _ LegacyProvider = (*OpenAIProvider)(nil)
+	var _ LegacyProvider = (*ClaudeProvider)(nil)
+	var _ LegacyProvider = (*GeminiProvider)(nil)
+	var _ LegacyProvider = (*GrokProvider)(nil)
+	var _ LegacyProvider = (*OpencodeProvider)(nil)
+	var _ LegacyProvider = (*HuggingFaceProvider)(nil)
+	var _ LegacyProvider = (*KiloProvider)(nil)
+	var _ LegacyProvider = (*OllamaProvider)(nil)
 
 	// ToolProvider interface (all 4 satisfy)
 	var _ ToolProvider = (*OpenAIProvider)(nil)

@@ -21,20 +21,20 @@ func TestProviders_ErrorCarriesServiceMessage(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base := WithBaseURL(srv.URL)
 
-	build := map[string]func() (Provider, error){
-		"openai": func() (Provider, error) { return NewOpenAI("k", "gpt-4.1-mini", base) },
-		"claude": func() (Provider, error) { return NewClaude("k", "claude-haiku-4-5", base) },
-		"gemini": func() (Provider, error) {
+	build := map[string]func() (LegacyProvider, error){
+		"openai": func() (LegacyProvider, error) { return NewOpenAI("k", "gpt-4.1-mini", base) },
+		"claude": func() (LegacyProvider, error) { return NewClaude("k", "claude-haiku-4-5", base) },
+		"gemini": func() (LegacyProvider, error) {
 			return NewGemini(context.Background(), "k", "gemini-3.7-flash", base)
 		},
-		"grok":        func() (Provider, error) { return NewGrok("k", "grok-4.5", base) },
-		"kilo":        func() (Provider, error) { return NewKilo("k", "some/model", base) },
-		"huggingface": func() (Provider, error) { return NewHuggingFace("k", "org/model", base) },
-		"ollama":      func() (Provider, error) { return NewOllama("", "llama3", base) },
+		"grok":        func() (LegacyProvider, error) { return NewGrok("k", "grok-4.5", base) },
+		"kilo":        func() (LegacyProvider, error) { return NewKilo("k", "some/model", base) },
+		"huggingface": func() (LegacyProvider, error) { return NewHuggingFace("k", "org/model", base) },
+		"ollama":      func() (LegacyProvider, error) { return NewOllama("", "llama3", base) },
 	}
 	for _, route := range []OpencodeRoute{OpencodeRouteResponses, OpencodeRouteMessages,
 		OpencodeRouteChatCompletions, OpencodeRouteGoogle} {
-		build["opencode/"+string(route)] = func() (Provider, error) {
+		build["opencode/"+string(route)] = func() (LegacyProvider, error) {
 			return NewOpencode(ProviderOpencodeGo, "k", "some-model", base, WithOpencodeRoute(route))
 		}
 	}
