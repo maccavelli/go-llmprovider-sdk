@@ -255,9 +255,16 @@ removes them all.
 owner. `together` joins the order after `ollama`. It lands in `llmprovider` first,
 under 0017-PLAN U1.
 
+*Amended 2026-09-30 (decision 1 of that date's S7 prerequisites):* S7's
+first commit removes `NewProvider` and `NewProviderWithSource`, and creates
+`llmprovider/providers` with `Default()` and `New(id, opts...)`, empty.
+Every later S7 commit registers its provider there. The tests that build a
+provider by name move to `providers.New` with their provider.
+
 For each provider:
 
 1. `git mv` its files and tests into `llmprovider/providers/<id>`.
+   *(Amended 2026-09-30:)* register it in `providers.Default()`.
 2. Implement `New`, `ID`, `Capabilities`, `Generate`, and `ListModels`
    where it has a listing. Move its provider-specific options into the
    package.
@@ -273,7 +280,9 @@ For each provider:
 ### Phase S7b: extract `internal/wire`, `internal/transport`, `auth` and `catalog`
 
 *Added 2026-09-30, from the original S3, S4 step 1 and S5 step 1.* It runs
-once no provider is left in `llmprovider`. The four packages can then import
+once no provider is left in `llmprovider`. *(Amended 2026-09-30, decision 2
+of that date's S7 prerequisites: step 4, the `catalog` extraction, moves to
+Phase S8b, after S8. S7b extracts three packages: wire, transport, `auth`.)* The four packages can then import
 `llmprovider`, as D2 allows, without a cycle. Each package moves in its own
 commit, in this order: wire, transport, `auth`, `catalog`.
 
@@ -299,7 +308,7 @@ commit, in this order: wire, transport, `auth`, `catalog`.
 
    `Token`, `TokenType` and `TokenSource` stay in `llmprovider`. The S4
    doc text that describes `auth` becomes its package doc.
-4. `git mv` into `llmprovider/catalog`:
+4. ~~`git mv` into `llmprovider/catalog`:~~ *Moved to Phase S8b.*
    * `models_catalog.go`, `model_ranking.go`, `model_matcher.go`,
      `model_metadata.go`, `model_profile.go`;
    * the curation half of `discovery.go`;
@@ -316,8 +325,9 @@ commit, in this order: wire, transport, `auth`, `catalog`.
 
 ### Phase S8: registry, `wizard`, and removal of the old API
 
-1. **`providers.Default()` and `providers.New`.** Descriptors move to their
-   provider packages. `TestDescriptors_CoverEveryRegisteredProvider` becomes
+1. **`providers.Default()` and `providers.New`.** *(Amended 2026-09-30: S7
+   creates them and fills `Default()`; this step keeps the rest.)*
+   Descriptors move to their provider packages. `TestDescriptors_CoverEveryRegisteredProvider` becomes
    a test that every provider package is in `Default()`.
 2. **`wizard`** takes `Options.Registry`, uses typed ids, and keeps the
    0002-MADR ~~§4 and~~ §7 behaviour. *(2026-09-29: §4 is superseded by
@@ -334,6 +344,20 @@ commit, in this order: wire, transport, `auth`, `catalog`.
    `ProviderID` and `MessageItem.Role` as `Role`, and give the sentinels that
    still read `llm:` the `llmprovider:` prefix (R27).
 5. Gate, with G-parity's empty-cell check still off.
+
+### Phase S8b: extract `catalog`
+
+*Added 2026-09-30, decision 2 of that date's S7 prerequisites.* It runs
+after S8, once `ProviderConfig` and `WithModelProfile` are gone and nothing
+in `llmprovider` refers to `ModelProfile`.
+
+1. S7b's original step 4: `git mv` into `llmprovider/catalog` the files it
+   lists, with their tests. S5's ranking function becomes
+   `catalog.Rank(ProviderID, model)`, and `ModelProfile` becomes the
+   catalog's.
+2. Point the provider packages and `wizard` at `catalog`. `wizard`'s
+   `ModelProfile` references change a second time, having changed in S8.
+3. Gate, including G-wire unchanged.
 
 ### Phase S9: usage
 
@@ -713,6 +737,8 @@ commits:
   The phase numbers are unchanged.
 * **Open, to be settled by amendment before S7 starts.** The same scans
   found two more ordering conflicts in S7 and S8. Neither affects S3–S6.
+  *(Settled 2026-09-30: see "Amendment 2026-09-30: the S7 prerequisites
+  settled".)*
   1. `NewProvider` and `NewProviderWithSource`
      (`llmprovider/provider.go:253`, `:277`) call every provider's
      constructor. S8 removes them. But the first S7 commit that moves a
@@ -1076,3 +1102,39 @@ old ones in place.
   * `RateLimitError` and `IncompleteError` stay.
 
   S8 does these.
+
+### Amendment 2026-09-30: the S7 prerequisites settled
+
+The deviation "the extractions of S3, S4 and S5 move after S7" left two
+ordering conflicts open until S7. A read-only count on 2026-09-30 found:
+
+* only tests call `NewProvider*`: 24 call sites in 6 files, 2 of them
+  live-tagged. `wizard` calls neither.
+* `ModelProfile` is used by `options.go`, `discovery.go`, the open-catalog
+  providers (Kilo, OpenCode, Hugging Face, Together) and `wizard/configure.go`.
+
+The owner decided:
+
+1. **`NewProvider` and `NewProviderWithSource`.** Chosen: start
+   `llmprovider/providers` in S7.
+   * S7's first commit removes both, and creates `providers` with
+     `Default()` and `New`.
+   * Each later S7 commit registers its provider.
+   * S8 step 1 keeps the descriptors' move and the coverage test.
+
+   Rejected:
+   * shrinking `NewProvider` by one case per commit, which left no by-name
+     constructor for every provider during S7;
+   * removing both with nothing until S8.
+2. **`ModelProfile`.** Chosen: the `catalog` extraction moves from S7b to a
+   new Phase S8b, after S8 removes `ProviderConfig`.
+   * S7b extracts three packages.
+   * `wizard`'s `ModelProfile` references change twice.
+
+   Rejected:
+   * a scoped profile option per provider in S7, which touched `wizard`
+     before its S8 port;
+   * keeping `ModelProfile` in `llmprovider`, which contradicts 0015-MADR
+     D2 and needed a MADR amendment.
+
+No MADR decision changes: the end state is D2's layout.
