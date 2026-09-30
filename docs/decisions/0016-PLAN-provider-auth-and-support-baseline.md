@@ -565,3 +565,48 @@ run in T2 (0015-PLAN S4).
   * `StaticToken.String` dropping its header: `StaticToken via %v lost the non-secret "x-api-key"`.
 * **Gate,** every step exit 0: `llmprovider` 90.3 %, `make lint`
   `0 issues.`, and G-wire unchanged.
+
+### T2 step 4: device login returns a handle (2026-09-30, in 0015-PLAN S4)
+
+* **D6.** `StartDeviceOAuth(ctx, provider, opts)` requests the code and
+  returns a `*DeviceLogin` with `UserCode`, `VerificationURI` and `Expiry`,
+  before any polling.
+  * **`Wait(ctx)`** polls. It returns the session, the flow's error, or,
+    after `Cancel`, an error matching `context.Canceled`.
+  * **Concurrent or later `Wait`s** share the first one's result.
+  * **`Cancel()`** stops a running `Wait` through its context, and makes a
+    later `Wait` return at once without polling.
+  * The OpenAI and Grok flows are split into a start, which requests the
+    code, and a poll closure. The wire requests are unchanged.
+* **`LoginDeviceOAuth` keeps its signature and callback,** now as start,
+  `NotifyDevice`, then `Wait`. So `wizard`, and every existing device test,
+  run unchanged through the handle. Moving `wizard` onto the handle itself
+  is T4's (D6: "`wizard` uses the handle; its prompts are unchanged").
+* **Tests** (`device_login_test.go`):
+  * the Grok handle's fields before polling, then `Wait`'s session;
+  * `Cancel` during real polling (1 s interval) returning within one
+    interval, with `context.Canceled` and no approval;
+  * `Cancel` before `Wait` returning at once with no poll;
+  * three concurrent `Wait`s sharing one approval;
+  * the OpenAI handle's device page and 15-minute window.
+
+  The existing `slow_down`, expiry and validation tests pass unchanged in
+  meaning.
+* **Red first** is by absence: the old code has no handle. Seen to fail on
+  deliberate breaks instead:
+
+  | Break | Failure |
+  |---|---|
+  | `Cancel` does not stop a running `Wait` | `Wait did not return after Cancel` |
+  | `Cancel` before `Wait` ignored | `Wait after Cancel = oauth: device login canceled: context canceled after 3.002177625s and 2 polls; want context.Canceled at once, without polling` |
+  | a later waiter polls again | `3 approvals, sessions … ; want one poll shared` |
+
+  **Two first attempts proved too little, and were corrected:**
+  * The first `Cancel`-before-`Wait` test passed on its break. The broken
+    `Wait` polled to expiry and still ended in `context.Canceled`. The test
+    now also requires a prompt return and zero polls.
+  * The first shared-waiter break panicked (`close of closed channel`)
+    instead of reaching the assertion. It was replaced by one that re-polls
+    for a later waiter.
+* **Gate,** every step exit 0: `llmprovider` 90.5 %, `wizard` 83.4 %,
+  `make lint` `0 issues.`, and G-wire unchanged.
