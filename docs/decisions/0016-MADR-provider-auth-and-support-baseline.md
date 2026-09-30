@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-09-29
+date: 2026-09-30
 decision-makers: go-llmprovider-sdk maintainers
 consulted: owners of mcplib and magic-cli-remote
 informed: every consumer of github.com/maccavelli/go-llmprovider-sdk; mcp-server-magicdev, mcp-server-magictools, prepare-commit-msg, pi-go
@@ -290,9 +290,11 @@ behaviour and M12's tests.
 * a size cap on read.
 
 The Windows DACL and reserved-name checks (M5) are executed under the
-transferred `0010` record, not here. A cross-process lock is not added:
+transferred `0010` record, not here. ~~A cross-process lock is not added:
 the reload-before-refresh (M2) and D4 cover the known failure. Revisit if a
-lost rotation is observed across processes.
+lost rotation is observed across processes.~~ *Replaced 2026-09-30 by the
+amendment's A2 (accepted): `FileTokenStore` locks a refresh across
+processes.*
 
 ### D4. A rotated token is never discarded
 
@@ -538,3 +540,93 @@ that the wizard's `AllowEnv` reads.
 * Bad, because a setup that sets only `CLAUDE_API_KEY` stops finding its
   key, and must rename it. `prepare-commit-msg`'s companion record must say
   so.
+
+## Amendment 2026-09-30: findings of the reference-client survey (proposed)
+
+Status: **accepted** 2026-09-30. The owner answered on 2026-09-30: "1. accept d1, proceed with d1-d5. 2. both as recommended. 3. add it." A1 and A3 are accepted as
+written, and A2 as option (b) with A1. Evidence:
+[0017-REPORT-reference-client-auth-survey.md](../reports/0017-REPORT-reference-client-auth-survey.md).
+
+### A1. Re-read the store after a rejected refresh (extends D4)
+
+* **Gap.** `reloadOrRefresh` re-reads the store *before* refreshing, and
+  never after a refresh fails (`llmprovider/oauth_session.go`).
+* **The race.** Two processes that load the same refresh token both
+  refresh. The second is told `invalid_grant` or `refresh_token_reused`,
+  and returns a permanent error, although the first has already saved a
+  rotated session in the store.
+* **What Grok does** (0017-REPORT G3). It re-reads its file on a rejected
+  refresh token. When a sibling has rotated the token, it demotes the
+  failure to transient and uses the sibling's token
+  (`grok-build: crates/codegen/xai-grok-login/src/manager.rs:1344-1373`).
+* **Proposed.** On a permanent refresh failure, re-read the store once:
+  * if it holds a different refresh token, adopt that session: use its
+    access token if current, else refresh with it once;
+  * otherwise return the permanent error.
+* **Test:** two sessions share one store, and the second's refresh is
+  rejected after the first has saved. It must adopt, not fail.
+
+### A2. Reopen D3: a cross-process refresh lock
+
+* **Why D3 is worth revisiting.** D3 decided no lock, "revisit if a lost
+  rotation is observed across processes". Two facts bear on it:
+  * **The cost of a race is not one lost token.** This module's own source
+    records that both vendors revoke the **whole refresh-token family** when
+    one refresh token is used twice (`llmprovider/vendor_session.go:21-24`,
+    citing `grok-build` `xai-grok-login/src/oidc/refresh.rs` and `codex`
+    `login/src/auth/manager.rs:1657-1690`). Grok's source, at `036a5d8`, says
+    that re-sending a rotated refresh token "trips the IdP's reuse detection
+    and revokes a successor a sibling may hold". Its only allowance is a
+    60-second client-side grace (`ROTATION_GRACE_MS`). A1 cannot help once
+    the issuer has revoked the family.
+  * **Most of the surveyed clients lock** (0017-REPORT G3, P5, A2):
+    * Grok takes a `flock` on `auth.json.lock`, re-reads after acquiring,
+      and re-checks the inode;
+    * pi uses `proper-lockfile`, stale after 30 s;
+    * Claude Code's changelog describes a cross-process refresh lock.
+
+    Codex alone does not (C2).
+* **Options:**
+  * (a) keep D3, with A1: the window stays open;
+  * (b) `FileTokenStore` takes a lock file beside the store for a refresh.
+* **How (b) would work:**
+  * exclusive create (`O_CREATE|O_EXCL`), holding the pid and the time;
+  * stale after 30 s;
+  * a jittered retry to a deadline;
+  * a re-read after acquiring;
+  * never refreshing unlocked, so a timeout is a retryable error, as Grok
+    and Claude Code do.
+
+  It is standard-library only. Other `TokenStore` implementations may offer
+  their own lock through an optional interface.
+* **Recommended: (b) with A1.**
+
+### A3. `id_token` checking: implementation details for D7 as decided
+
+These refine D7 as the owner decided it, from Grok's implementation
+(0017-REPORT G2):
+
+* **A `kid` is required.**
+* **Algorithms:** the algorithm must be one the standard library verifies
+  (RS256/384/512, PS256/384/512, ES256/384, EdDSA). It must also be in the
+  discovery document's `id_token_signing_alg_values_supported` when that is
+  present.
+* **An unknown `kid`** refetches the keys once (already T2 step 5).
+* **Scope of the check:** it applies to every login that returns an
+  `id_token`, the device flows included. Grok's own device flow does not
+  verify; this module is deliberately stricter.
+* **A missing `id_token`** fails the login when `openid` was requested.
+  Grok's team logins legitimately return none, but this module never
+  requests team scopes. If it ever does, that takes an amendment.
+* Codex verifies no `id_token` signature (0017-REPORT C1). D7 is therefore
+  stricter than the vendor's own client; that is the owner's choice, and it
+  stands.
+
+### Notes, no change proposed
+
+* **D10.** The survey found the Anthropic and Copilot subscription logins
+  only in forms that present as the vendor's own client (0017-REPORT P4).
+  That supports D10 as decided.
+* **D12.** Claude Code and pi also read `ANTHROPIC_AUTH_TOKEN`, a bearer for
+  gateways. D12 stands. A caller with such a token passes it through
+  `WithTokenSource`, with D2's `Header` override.

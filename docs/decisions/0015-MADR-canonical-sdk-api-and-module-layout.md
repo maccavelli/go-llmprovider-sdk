@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-09-29
+date: 2026-09-30
 decision-makers: go-llmprovider-sdk maintainers
 consulted: owners of mcp-server-magicdev, mcp-server-magictools, prepare-commit-msg, pi-go
 informed: every consumer of github.com/maccavelli/go-llmprovider-sdk
@@ -218,7 +218,8 @@ Invalid values are rejected by `New` or `Generate` with `ErrInvalidRequest`.
   kind sentinel each: `ErrRateLimited` (with `ErrQuotaExhausted` beneath
   it), `ErrAuthFailure`, `ErrNotPermitted`, `ErrInvalidRequest`,
   `ErrProviderUnavailable`, `ErrIncomplete`, `ErrUnsupported` and
-  `ErrInvalidProvider`.
+  `ErrInvalidProvider`. *Amended 2026-09-30 (accepted):* also
+  `ErrContextOverflow`, beneath `ErrInvalidRequest`.
 * **Retryability is a method.** `Retryable()` replaces `Terminal`.
 * **Every message starts `llmprovider:`.**
 
@@ -438,3 +439,26 @@ phases for consumers to trial. The ChatGPT `client_version` they send is
 transport. That is the standard library reading the proxy variables, not this
 module. D9's rule stands for library code: it reads no environment variable
 itself. D9's ambient check (PLAN S10) allows exactly this one call.
+
+## Amendment 2026-09-30: a context-overflow kind, from the reference-client survey (proposed)
+
+Status: **accepted** 2026-09-30 ("3. add it"). S6 builds it. Evidence: [0017-REPORT-reference-client-auth-survey.md](../reports/0017-REPORT-reference-client-auth-survey.md).
+
+* **Gap.** Only OpenAI's `context_length_exceeded` type is recognised
+  (`llmprovider/api_error.go:157`). Every other vendor's overflow is a
+  plain `ErrInvalidRequest`, which a caller cannot tell from a malformed
+  request. Examples:
+  * Together: "The input (X tokens) is longer than the model's context
+    length (Y tokens)";
+  * xAI, Google and OpenRouter each word it differently.
+* **What pi does.** It recognises about 24 vendor forms
+  (0017-REPORT P7), because a caller's right response to overflow is to
+  shorten the input and retry.
+* **Proposed for D7.** A kind sentinel `ErrContextOverflow` beneath
+  `ErrInvalidRequest`, as `ErrQuotaExhausted` sits beneath
+  `ErrRateLimited`. It is classified from:
+  * the service's error type, where there is one;
+  * otherwise a per-vendor message table, each entry citing where it was
+    seen.
+
+  It is never retryable. The standards guide's R25 gains it on acceptance.

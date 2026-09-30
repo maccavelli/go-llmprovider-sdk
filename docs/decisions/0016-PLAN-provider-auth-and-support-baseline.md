@@ -157,6 +157,31 @@ At the end of this plan, before `v1.0.0`:
    * The `auth` package doc states that the default client ids are the
      vendor CLIs'.
 
+#### T2 additions from the survey (2026-09-30, accepted; see the MADR's amendment)
+
+The owner accepted the MADR's A1–A3 on 2026-09-30, A2 as option (b). They
+run in T2 (0015-PLAN S4).
+
+* **A1, step 2b.** On a permanent refresh failure, re-read the store once
+  and adopt a sibling-rotated session. Red first: two sessions share a
+  `FileTokenStore`, and the second's refresh is rejected after the first
+  saved. Today it fails; it must adopt.
+* **A2, step 1b (if option (b) is chosen).** `FileTokenStore` locks a
+  refresh:
+  * exclusive-create lock file, pid and time, stale after 30 s;
+  * a jittered retry to a deadline, and a re-read after acquiring;
+  * a timeout is a retryable error.
+
+  Tests:
+  * two goroutines standing in for processes, on one store, refresh once in
+    total;
+  * a stale lock is taken over;
+  * a held lock times out as retryable.
+* **A3, step 5.** Require `kid`, and apply the algorithm allowlist
+  intersected with discovery's list. Verify on the device flows too, and
+  fail a login that lacks an `id_token` when `openid` was requested. Each
+  case gets a red-first test.
+
 ### T3: providers and catalog (inside 0015-PLAN S5 and S7)
 
 1. **D2, per provider in S7.** Each provider takes its credential only as a
@@ -269,6 +294,9 @@ At the end of this plan, before `v1.0.0`:
     becomes the package doc in S7b.
 
   What the steps do, and their tests, are unchanged.
+* **2026-09-30, the survey.** [0017-REPORT-reference-client-auth-survey.md](../reports/0017-REPORT-reference-client-auth-survey.md) found three points for T2.
+  They are proposed as the MADR's A1–A3, and as "T2 additions from the
+  survey". Nothing changes until the owner decides.
 
 ## Execution Record
 

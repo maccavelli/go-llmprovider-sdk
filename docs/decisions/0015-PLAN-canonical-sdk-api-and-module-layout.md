@@ -203,6 +203,11 @@ no move.
 
 ### Phase S6: the contract, and `llmtest`
 
+*Accepted 2026-09-30 (the MADR's amendment of that date):* S6 also adds
+`ErrContextOverflow` beneath `ErrInvalidRequest`, with its vendor
+message table and a red-first test for each entry.
+
+
 1. **In `llmprovider`, the D3–D8 contract:**
    * `Provider`, `Request`, `Response`, `Usage`, `Capabilities` and
      `Support`;
@@ -244,6 +249,10 @@ Order: `openai` (with the ChatGPT backend), `claude`, `gemini`, `grok`,
 through identifiers that `llmprovider` exports for the duration of S7 only.
 Each commit's execution record lists the temporary exports it adds, and S7b
 removes them all.
+
+*Proposed 2026-09-30 ([0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-together-provider-and-auth-extensions.md) D1):* accepted by the
+owner. `together` joins the order after `ollama`. It lands in `llmprovider` first,
+under 0017-PLAN U1.
 
 For each provider:
 
@@ -321,6 +330,21 @@ commit, in this order: wire, transport, `auth`, `catalog`.
 4. Gate, with G-parity's empty-cell check still off.
 
 ### Phase S9: usage
+
+*Facts from the survey, 2026-09-30 ([0017-REPORT-reference-client-auth-survey.md](../reports/0017-REPORT-reference-client-auth-survey.md), P7 and K2).*
+
+* **Chat Completions cached tokens** come as
+  `prompt_tokens_details.cached_tokens`, `prompt_cache_hit_tokens` or
+  `cached_tokens`. Reasoning tokens come as
+  `completion_tokens_details.reasoning_tokens`.
+* **Together** reports `prompt_tokens`, `completion_tokens` and
+  `total_tokens`.
+* **Kilo's own client always sends `usage: {"include": true}`.**
+  * S9 first measures, live, whether Kilo reports usage without it.
+  * If it does not, sending it is a request change. That conflicts with
+    step 2's "Request goldens do not change", and is put to the owner as a
+    deviation before any golden changes.
+
 
 1. Decode `Usage` in each wire format that reports it. Where one does not,
    write a test that asserts zero.
@@ -728,3 +752,14 @@ commits:
   `llmprovider/testdata/wire` changed. No test sets a proxy variable for
   the goldens, and loopback is never proxied.
 * **Docs.** `docs/architecture.md` describes the provider's one client.
+
+### Survey findings for this plan (2026-09-30, accepted)
+
+[0017-REPORT-reference-client-auth-survey.md](../reports/0017-REPORT-reference-client-auth-survey.md) proposed three changes to this plan. The owner accepted
+all three on 2026-09-30:
+* **S6:** `ErrContextOverflow`, from the MADR's amendment of that date;
+* **S7:** `together` in the order, from [0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-together-provider-and-auth-extensions.md) D1;
+* **S9:** the usage facts, including the Kilo `usage.include` measurement
+  that may become a deviation.
+
+No phase has changed yet.

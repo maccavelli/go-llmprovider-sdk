@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-36 records. Cite them by full filename.
+39 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -46,6 +46,9 @@ documents a reader follows to do something.
 | 0015 | PLAN | [Implement the Canonical, Modular v1 API for go-llmprovider-sdk](decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) | in-progress |
 | 0016 | MADR | [Build Provider Support and Authentication from mcplib's `llmprovider`, and Adopt magic-cli-remote's Credential Hygiene](decisions/0016-MADR-provider-auth-and-support-baseline.md) | accepted |
 | 0016 | PLAN | [Implement the Provider Auth and Support Baseline](decisions/0016-PLAN-provider-auth-and-support-baseline.md) | in-progress |
+| 0017 | REPORT | [Reference-Client Survey: How Six Coding Agents Authenticate, Compared with `llmprovider`](reports/0017-REPORT-reference-client-auth-survey.md) | observation |
+| 0017 | MADR | [Add Together AI, Kilo Device Login and Command-Sourced Keys, from the Reference-Client Survey](decisions/0017-MADR-together-provider-and-auth-extensions.md) | accepted |
+| 0017 | PLAN | [Implement Together AI, Kilo Device Login and Command-Sourced Keys](decisions/0017-PLAN-together-provider-and-auth-extensions.md) | in-progress |
 
 ## I want to…
 
@@ -68,6 +71,8 @@ documents a reader follows to do something.
 | move code that used `mcplib`'s `llmprovider` or `wizard` to this module | [guides/migrating-from-mcplib.md](guides/migrating-from-mcplib.md) |
 | see how the imported API measured against the SDK requirements | [0015-REPORT](reports/0015-REPORT-sdk-api-surface-assessment.md) |
 | know why provider auth builds on `mcplib` and not `magic-cli-remote`, and what it takes from each | [0016-MADR](decisions/0016-MADR-provider-auth-and-support-baseline.md) |
+| compare this module's auth with Codex, Grok, Kilo, OpenCode, pi, agy and Claude Code | [0017-REPORT](reports/0017-REPORT-reference-client-auth-survey.md) |
+| know how Together AI, Kilo device login and command-sourced keys are being added | [0017-MADR](decisions/0017-MADR-together-provider-and-auth-extensions.md) |
 | find where an `mcplib` record number ends up here | [the table below](#migrated-from-mcplib) |
 
 ## Migrated from mcplib
