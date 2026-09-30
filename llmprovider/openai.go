@@ -245,7 +245,7 @@ func (p *OpenAIProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 		return listed, nil
 	}
 
-	// Probes are billed requests: only on request (0016-MADR D9).
+	// Probes are billed; they are on by default, and callers can turn them off (0016-MADR A5).
 	if !p.probeModels {
 		return listed, nil
 	}

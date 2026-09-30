@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -67,12 +68,12 @@ func TestDiscoverModels_MeteredServicesDoNotProbe(t *testing.T) {
 	}
 }
 
-// TestDiscoverModels_ProbesOnlyWhenEnabled (0016-MADR D9, 0016-PLAN T3 step 2,
-// replacing the test that pinned probing by default): the providers that can
-// probe send no generation while listing unless WithModelProbes(true), and
-// then one per candidate, at most MaxListedModels.
-func TestDiscoverModels_ProbesOnlyWhenEnabled(t *testing.T) {
-	for name, build := range map[string]func(url string, opts ...ProviderOption) (discoverer, error){
+// TestDiscoverModels_ProbesFollowDefaultOptionAndEnv (0016-MADR A5): the
+// providers that can probe do so by default; WithModelProbes turns them off or
+// on; LLMPROVIDER_PROBES takes effect only through ModelProbesFromEnv, and an
+// explicit option passed after it wins.
+func TestDiscoverModels_ProbesFollowDefaultOptionAndEnv(t *testing.T) {
+	builders := map[string]func(url string, opts ...ProviderOption) (discoverer, error){
 		"openai": func(url string, opts ...ProviderOption) (discoverer, error) {
 			return NewOpenAI("k", "gpt-4.1-mini", append(opts, WithBaseURL(url))...)
 		},
@@ -85,22 +86,46 @@ func TestDiscoverModels_ProbesOnlyWhenEnabled(t *testing.T) {
 		"grok": func(url string, opts ...ProviderOption) (discoverer, error) {
 			return NewGrok("k", "grok-4.5", append(opts, WithBaseURL(url))...)
 		},
+	}
+	for _, tc := range []struct {
+		name  string
+		env   string // "" leaves LLMPROVIDER_PROBES unset
+		opts  func() []ProviderOption
+		probe bool
+	}{
+		{"default", "", func() []ProviderOption { return nil }, true},
+		{"option off", "", func() []ProviderOption { return []ProviderOption{WithModelProbes(false)} }, false},
+		{"option on", "", func() []ProviderOption { return []ProviderOption{WithModelProbes(true)} }, true},
+		{"env false without the helper", "false", func() []ProviderOption { return nil }, true},
+		{"env false through the helper", "false", func() []ProviderOption { return []ProviderOption{ModelProbesFromEnv()} }, false},
+		{"env true through the helper", "true", func() []ProviderOption { return []ProviderOption{ModelProbesFromEnv()} }, true},
+		{"env not a boolean", "sometimes", func() []ProviderOption { return []ProviderOption{ModelProbesFromEnv()} }, true},
+		{"explicit option after the helper wins", "false",
+			func() []ProviderOption { return []ProviderOption{ModelProbesFromEnv(), WithModelProbes(true)} }, true},
 	} {
-		t.Run(name, func(t *testing.T) {
-			for _, probe := range []bool{false, true} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.env != "" {
+				t.Setenv(envModelProbes, tc.env)
+			} else {
+				t.Setenv(envModelProbes, "")
+				if err := os.Unsetenv(envModelProbes); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for name, build := range builders {
 				srv, posts := generationCounter(t)
-				p, err := build(srv.URL, WithModelProbes(probe))
+				p, err := build(srv.URL, tc.opts()...)
 				if err != nil {
-					t.Fatalf("construct: %v", err)
+					t.Fatalf("%s: construct: %v", name, err)
 				}
 				if _, err := p.DiscoverModels(context.Background()); err != nil {
-					t.Fatalf("DiscoverModels: %v", err)
+					t.Fatalf("%s: DiscoverModels: %v", name, err)
 				}
 				switch n := posts.Load(); {
-				case !probe && n != 0:
-					t.Errorf("by default: %d generation requests, want none", n)
-				case probe && (n == 0 || n > MaxListedModels):
-					t.Errorf("with WithModelProbes(true): %d generation requests, want one per candidate", n)
+				case !tc.probe && n != 0:
+					t.Errorf("%s: %d generation requests, want none", name, n)
+				case tc.probe && (n == 0 || n > MaxListedModels):
+					t.Errorf("%s: %d generation requests, want one per candidate", name, n)
 				}
 			}
 		})

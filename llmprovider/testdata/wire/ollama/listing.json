@@ -7,6 +7,44 @@
         "Accept-Encoding": "gzip",
         "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
       }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": "Respond with ONLY the word Hello",
+            "role": "user"
+          }
+        ],
+        "model": "llama3.3:latest"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": "Respond with ONLY the word Hello",
+            "role": "user"
+          }
+        ],
+        "model": "qwen3:8b"
+      }
     }
   ],
   "result": [

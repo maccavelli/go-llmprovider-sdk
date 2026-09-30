@@ -48,7 +48,7 @@ func NewClaude(apiKey, model string, opts ...ProviderOption) (*ClaudeProvider, e
 		baseURL:         baseURL,
 		client:          cfg.HTTPClient,
 		identity:        identityOf(cfg),
-		probeModels:     cfg.ProbeModels,
+		probeModels:     !cfg.DisableModelProbes,
 		maxTokens:       cfg.MaxTokens,
 		thinkingBudget:  cfg.ThinkingBudget,
 		reasoningEffort: cfg.ReasoningEffort,
@@ -313,7 +313,7 @@ func (p *ClaudeProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 		listed = StaticModels(ProviderClaude)
 	}
 
-	// Probes are billed requests: only on request (0016-MADR D9).
+	// Probes are billed; they are on by default, and callers can turn them off (0016-MADR A5).
 	if !p.probeModels {
 		return listed, nil
 	}

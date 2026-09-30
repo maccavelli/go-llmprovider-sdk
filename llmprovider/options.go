@@ -2,6 +2,9 @@ package llmprovider
 
 import (
 	"net/http"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -79,9 +82,9 @@ type ProviderConfig struct {
 	// SessionID is the conversation id OpenCode and Kilo receive; see
 	// WithSessionID.
 	SessionID string
-	// ProbeModels makes DiscoverModels probe each listed model; see
-	// WithModelProbes.
-	ProbeModels bool
+	// DisableModelProbes stops DiscoverModels probing each listed model; the
+	// zero value probes. See WithModelProbes and ModelProbesFromEnv.
+	DisableModelProbes bool
 }
 
 // ProviderOption is a functional option for provider constructors.
@@ -196,15 +199,36 @@ func WithModelProfile(p ModelProfile) ProviderOption {
 	}
 }
 
-// WithModelProbes makes DiscoverModels on OpenAI (API key), Claude, Gemini,
-// Grok and Ollama send one short generation to each listed model, up to
-// MaxListedModels, and keep those that answer. Every probe is a billed
-// request, so listing sends none unless enabled (0016-MADR D9). Other
-// providers never probe.
+// WithModelProbes enables or disables listing probes. With probes, which is
+// the default, DiscoverModels on OpenAI (API key), Claude, Gemini, Grok and
+// Ollama sends one short generation to each listed model, up to
+// MaxListedModels, and keeps those that answer. Every probe is a billed
+// request. Other providers never probe (0016-MADR A5).
 func WithModelProbes(enabled bool) ProviderOption {
 	return func(cfg *ProviderConfig) {
-		cfg.ProbeModels = enabled
+		cfg.DisableModelProbes = !enabled
 	}
+}
+
+// envModelProbes names the variable ModelProbesFromEnv reads.
+const envModelProbes = "LLMPROVIDER_PROBES"
+
+// ModelProbesFromEnv returns WithModelProbes set from LLMPROVIDER_PROBES
+// ("true" or "false", as strconv.ParseBool reads them), or an option that
+// changes nothing when the variable is unset or not a boolean. It is the only
+// way the variable takes effect: the package reads no environment variable
+// unless a caller asks (0015-MADR D9). Options apply in order, so pass it
+// before any explicit WithModelProbes that should win.
+func ModelProbesFromEnv() ProviderOption {
+	value, ok := os.LookupEnv(envModelProbes)
+	if !ok {
+		return func(*ProviderConfig) {}
+	}
+	enabled, err := strconv.ParseBool(strings.TrimSpace(value))
+	if err != nil {
+		return func(*ProviderConfig) {}
+	}
+	return WithModelProbes(enabled)
 }
 
 // WithModelMetadataURL overrides the model metadata document (MADR 0009 §2).

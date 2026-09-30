@@ -139,10 +139,12 @@ docs/
   fallback. `StaticModels(provider)` returns a copy, and `ProviderEnvVars()`
   a copy of the variable names. `RankModel(provider, model)` scores a model
   by the provider's own ranking.
-- A provider's `DiscoverModels` returns the listing. With
-  `WithModelProbes(true)`, OpenAI (API key), Claude, Gemini, Grok and Ollama
-  also send one billed generation to each candidate, and keep those that
-  answer.
+- A provider's `DiscoverModels` returns the listing. By default, OpenAI (API
+  key), Claude, Gemini, Grok and Ollama also send one billed generation to
+  each candidate, up to `MaxListedModels`, and keep those that answer.
+  `WithModelProbes(false)` turns that off. `ModelProbesFromEnv()` reads
+  `LLMPROVIDER_PROBES` (`true` or `false`) for a caller who passes it; the
+  package reads the variable nowhere else.
 - `ModelProfile` (`ProfileUtility`, `ProfileCapable`) ranks the open catalogs,
   using models.dev-format metadata from `https://models.opencode.ai/api.json`
   (`LLMPROVIDER_MODELS_METADATA_URL` overrides it;

@@ -8,6 +8,46 @@
         "Authorization": "Bearer xai-wire",
         "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
       }
+    },
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer xai-wire",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "input": [
+          {
+            "content": "Respond with ONLY the word Hello",
+            "role": "user"
+          }
+        ],
+        "max_output_tokens": 8192,
+        "model": "grok-4.5"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer xai-wire",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "input": [
+          {
+            "content": "Respond with ONLY the word Hello",
+            "role": "user"
+          }
+        ],
+        "max_output_tokens": 8192,
+        "model": "grok-4.7"
+      }
     }
   ],
   "result": [

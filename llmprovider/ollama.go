@@ -72,7 +72,7 @@ func NewOllama(apiKey, model string, opts ...ProviderOption) (*OllamaProvider, e
 		baseURL:         baseURL,
 		client:          cfg.HTTPClient,
 		identity:        identityOf(cfg),
-		probeModels:     cfg.ProbeModels,
+		probeModels:     !cfg.DisableModelProbes,
 		maxTokens:       cfg.MaxTokens,
 		reasoningEffort: cfg.ReasoningEffort,
 	}, nil
@@ -206,7 +206,7 @@ func (p *OllamaProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	// Probes are billed requests: only on request (0016-MADR D9).
+	// Probes are billed; they are on by default, and callers can turn them off (0016-MADR A5).
 	if !p.probeModels {
 		return listed, nil
 	}

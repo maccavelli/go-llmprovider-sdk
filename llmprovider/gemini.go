@@ -42,7 +42,7 @@ func NewGemini(ctx context.Context, apiKey, model string, opts ...ProviderOption
 		baseURL:         baseURL,
 		client:          cfg.HTTPClient,
 		identity:        identityOf(cfg),
-		probeModels:     cfg.ProbeModels,
+		probeModels:     !cfg.DisableModelProbes,
 		maxTokens:       cfg.MaxTokens,
 		reasoningEffort: cfg.ReasoningEffort,
 		store:           cfg.Store != nil && *cfg.Store,
@@ -310,7 +310,7 @@ func (p *GeminiProvider) DiscoverModels(ctx context.Context) ([]string, error) {
 		listed = StaticModels(ProviderGemini)
 	}
 
-	// Probes are billed requests: only on request (0016-MADR D9).
+	// Probes are billed; they are on by default, and callers can turn them off (0016-MADR A5).
 	if !p.probeModels {
 		return listed, nil
 	}

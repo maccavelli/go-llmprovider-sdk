@@ -43,7 +43,7 @@ func NewOpenAIWithSource(src TokenSource, model string, opts ...ProviderOption) 
 		baseURL:         baseURL,
 		client:          cfg.HTTPClient,
 		identity:        identityOf(cfg),
-		probeModels:     cfg.ProbeModels,
+		probeModels:     !cfg.DisableModelProbes,
 		maxTokens:       cfg.MaxTokens,
 		reasoningEffort: cfg.ReasoningEffort,
 		store:           cfg.Store,

@@ -758,3 +758,24 @@ run in T2 (0015-PLAN S4).
   G-wire listing goldens lost 9 probe `POST`s and nothing else. The test is
   `TestDiscoverModels_ProbesOnlyWhenEnabled`. Details, and the breaks that
   prove it, are in 0015-PLAN's S5 record. **V8 is met.**
+
+### Amendment 2026-09-30: T3 step 2 reversed (0016-MADR A5)
+
+* T3 step 2 as executed turned probes off by default. The owner reversed
+  that the same day (0016-MADR A5):
+  * probes are on by default;
+  * `WithModelProbes(bool)` enables or disables them;
+  * `ModelProbesFromEnv()` reads `LLMPROVIDER_PROBES` for callers who opt
+    in.
+* V8 ("no billed probe by default") is withdrawn. Its successor: probes
+  follow the default, the option and the helper, as A5 states.
+* Executed in 0015-PLAN S5's amendment of the same date.
+
+### Execution 2026-09-30: T3 step 2 reversed (0016-MADR A5)
+
+* Probes are on by default. `WithModelProbes(bool)` sets them, and
+  `ModelProbesFromEnv()` reads `LLMPROVIDER_PROBES` for a caller who opts
+  in. The five listing goldens are back to their content before S5. The
+  test is `TestDiscoverModels_ProbesFollowDefaultOptionAndEnv`. Details,
+  and the breaks that prove it, are in 0015-PLAN's record of the same date.
+  **A5 is met.**

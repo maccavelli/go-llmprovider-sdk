@@ -353,11 +353,13 @@ processes.*
 
 ### D9. Listing does not spend usage by default
 
-* Listing returns the service's model list without generation probes.
-* Probing is an explicit option on the listing call, documented as
-  sending one billed request per model.
-* This is a recorded behaviour change under 0015-MADR D1: the capability
-  stays, its default changes.
+*Replaced 2026-09-30 by amendment A5: probes are on by default again.*
+
+* ~~Listing returns the service's model list without generation probes.~~
+* ~~Probing is an explicit option on the listing call, documented as
+  sending one billed request per model.~~
+* ~~This is a recorded behaviour change under 0015-MADR D1: the capability
+  stays, its default changes.~~
 
 ### D10. What the SDK does not do
 
@@ -642,3 +644,27 @@ These refine D7 as the owner decided it, from Grok's implementation
 * **Cost.** The encoding does not round-trip: code that needs a secret reads
   the field. Nothing in this module JSON-encodes these types to store or
   send them. `FileTokenStore` writes its own record type.
+
+### A5. Listing probes are on by default, with a caller option and an opt-in variable (the owner's decision, 2026-09-30)
+
+The owner wrote on 2026-09-30: "Actually re-enable probes by default. Add an env var LLM_PROVIDER_PROBES=true/false defaulting to true. Add args to the api that can be configured by callers to enable or disable." Asked about two conflicts, the owner chose "Opt-in helper only" and "LLMPROVIDER_PROBES".
+
+* **Default.** Listing probes, as `mcplib` `v1.6.0` did: for OpenAI (API
+  key), Claude, Gemini, Grok and Ollama, `DiscoverModels` sends one short
+  generation to each candidate, up to `MaxListedModels`, and keeps those
+  that answer. Every probe is billed; the default accepts that cost, which
+  finding M8 described.
+* **Caller option.** `WithModelProbes(bool)` enables or disables the probe
+  for one provider. A ChatGPT session, Kilo, OpenCode, Hugging Face and
+  Together never probe (0012-MADR §1.6), whatever the option says.
+* **Variable.** `LLMPROVIDER_PROBES` (`true` or `false`, as
+  `strconv.ParseBool` reads them) is read only by the opt-in helper
+  `ModelProbesFromEnv()`. It returns the matching `WithModelProbes`, or an
+  option that does nothing when the variable is unset or not a boolean. So
+  0015-MADR D9 ("library code reads no environment variable") holds.
+  * The name follows the module's `LLMPROVIDER_` prefix (0002-MADR §6). The
+    owner first wrote `LLM_PROVIDER_PROBES`.
+  * Options apply in order: a caller wanting an explicit option to win
+    passes the helper first.
+* **Effect on the record.** D9 as first decided is struck. The G-wire
+  listing goldens return to their `P7` form, with the probe requests.

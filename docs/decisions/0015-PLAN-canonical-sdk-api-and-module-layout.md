@@ -848,3 +848,55 @@ No phase has changed yet.
 * **Gate,** every step exit 0: `llmprovider` 90.1 %, `wizard` 83.4 %,
   `make lint` `0 issues.`, G-wire three times over (with the five listing
   goldens as recorded), G-parity, G-links, and the deny list at 0 hits.
+
+### Amendment 2026-09-30: S5 step 4 reversed (0016-MADR A5)
+
+* **Decision.** The owner reversed 0016-MADR D9's default after S5 landed:
+  * probes are on by default again;
+  * `WithModelProbes(bool)` sets them per provider, either way;
+  * the opt-in helper `ModelProbesFromEnv()` reads `LLMPROVIDER_PROBES`.
+* **The five G-wire listing goldens** return to their `P7` content, with the
+  9 probe requests. That is S5's recorded difference undone, again by a
+  record.
+* **For S10.** `ModelProbesFromEnv` is an opt-in helper under D9, like the
+  planned `catalog.OptionsFromEnv`. S10's ambient check must allow reads
+  inside the named helpers, and nowhere else.
+
+### Execution 2026-09-30: S5 step 4 reversal (0016-MADR A5)
+
+* **Code.** `ProviderConfig.ProbeModels` is replaced by
+  `DisableModelProbes`, so the zero value probes.
+  * `WithModelProbes(enabled)` sets it either way.
+  * `ModelProbesFromEnv()` is in `options.go`, and reads
+    `LLMPROVIDER_PROBES` with `os.LookupEnv`. An unset or non-boolean value
+    gives an option that changes nothing.
+  * The OpenAI (API key), Claude, Gemini, Grok and Ollama constructors set
+    `probeModels: !cfg.DisableModelProbes`. The ChatGPT constructor does too,
+    and its session still never probes.
+* **G-wire.** The five listing goldens were restored from `5b8c2fe`, their
+  content before S5. `TestWireGoldens` passes against them unchanged, with
+  no `-update`.
+* **Replaced test.** `TestDiscoverModels_ProbesOnlyWhenEnabled` pinned S5's
+  default, which A5 reverses. It is replaced by
+  `TestDiscoverModels_ProbesFollowDefaultOptionAndEnv`, which covers OpenAI,
+  Claude, Gemini and Grok in eight cases:
+  * probes by default, and with `WithModelProbes(true)`;
+  * none with `WithModelProbes(false)`;
+  * `LLMPROVIDER_PROBES=false` changes nothing without the helper;
+  * with the helper, `false` stops probes, `true` keeps them, and a
+    non-boolean value changes nothing;
+  * an explicit option after the helper wins.
+* **Red first.** In a scratch copy of this change carrying S5's five
+  listing goldens (from `a448143`), `TestWireGoldens` fails exactly the five
+  `*/listing` cases, each with `N difference(s) from the golden file`: the
+  missing probe requests. The helper is new API, so its red is by absence.
+  Seen to fail on deliberate breaks, each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | Claude off by default | `claude: 0 generation requests, want one per candidate` |
+  | Grok ignores `WithModelProbes(false)` | `grok: 6 generation requests, want none` |
+  | `WithModelProbes` stores the value unnegated | `claude: 4 generation requests, want none` |
+  | The helper ignores the variable | `claude: 4 generation requests, want none` |
+  | A non-boolean value disables probes | `openai: 0 generation requests, want one per candidate` |
+  | `ApplyOptions` reads the variable itself | `openai: 0 generation requests, want one per candidate` |

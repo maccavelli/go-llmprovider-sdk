@@ -14,6 +14,48 @@
         "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
         "X-Api-Key": "sk-ant-wire"
       }
+    },
+    {
+      "method": "POST",
+      "path": "/messages",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Anthropic-Version": "2023-06-01",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Api-Key": "sk-ant-wire"
+      },
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": "Respond with ONLY the word Hello",
+            "role": "user"
+          }
+        ],
+        "model": "claude-haiku-4-5"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/messages",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Anthropic-Version": "2023-06-01",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Api-Key": "sk-ant-wire"
+      },
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": "Respond with ONLY the word Hello",
+            "role": "user"
+          }
+        ],
+        "model": "claude-sonnet-5"
+      }
     }
   ],
   "result": [
