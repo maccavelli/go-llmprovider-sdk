@@ -24,7 +24,6 @@ func TestLive_ToolRoundTrip(t *testing.T) {
 		name, env string
 		build     func(t *testing.T, key string) (ItemProvider, error)
 	}{
-		{"claude", "ANTHROPIC_API_KEY", func(_ *testing.T, k string) (ItemProvider, error) { return NewClaude(k, "claude-haiku-4-5") }},
 		{"gemini", "GEMINI_API_KEY", func(_ *testing.T, k string) (ItemProvider, error) {
 			return NewGemini(context.Background(), k, "gemini-3.7-flash")
 		}},

@@ -184,18 +184,18 @@ func (p *OpencodeProvider) responsesBody(input []Item, tool *Tool, thinking bool
 	return body
 }
 
-// messagesBody builds the Anthropic Messages shape, reusing claudeItemsToMessages.
+// messagesBody builds the Anthropic Messages shape, reusing MessagesFromItems.
 func (p *OpencodeProvider) messagesBody(input []Item, tool *Tool, thinking bool) map[string]any {
 	maxTokens := p.maxTokens
 	body := map[string]any{
 		jsonKeyModel:    p.model,
-		jsonKeyMessages: claudeItemsToMessages(input),
+		jsonKeyMessages: MessagesFromItems(input),
 	}
-	if system := systemPrompt(input); system != "" {
+	if system := SystemPrompt(input); system != "" {
 		body[jsonKeySystem] = system
 	}
 	if thinking {
-		maxTokens = addMessagesThinking(body, p.model, p.reasoningEffort, p.thinkingBudget, maxTokens)
+		maxTokens = AddMessagesThinking(body, p.model, p.reasoningEffort, p.thinkingBudget, maxTokens)
 	}
 	body[jsonKeyMaxTokens] = maxTokens
 	if tool != nil {
@@ -375,7 +375,7 @@ func (p *OpencodeProvider) doGenerateItems(ctx context.Context, input []Item, to
 	case OpencodeRouteResponses:
 		return DecodeResponsesAPIOutput(limitedBody)
 	case OpencodeRouteMessages:
-		return decodeClaudeResponse(limitedBody)
+		return DecodeMessagesResponse(limitedBody)
 	case OpencodeRouteGoogle:
 		// decodeGeminiResponse's error text names the Google wire format, which
 		// is accurate here even though the gateway is OpenCode.

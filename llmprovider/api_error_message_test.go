@@ -22,7 +22,6 @@ func TestProviders_ErrorCarriesServiceMessage(t *testing.T) {
 	base := WithBaseURL(srv.URL)
 
 	build := map[string]func() (LegacyProvider, error){
-		"claude": func() (LegacyProvider, error) { return NewClaude("k", "claude-haiku-4-5", base) },
 		"gemini": func() (LegacyProvider, error) {
 			return NewGemini(context.Background(), "k", "gemini-3.7-flash", base)
 		},

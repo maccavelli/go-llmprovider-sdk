@@ -32,6 +32,7 @@ llmprovider/                providers, credentials, discovery
 llmprovider/llmtest/        the conformance suite and a fake provider
 llmprovider/providers/      the built-in providers, by id
 llmprovider/providers/openai/  OpenAI: the Responses API, and the ChatGPT backend
+llmprovider/providers/claude/  Claude: the Anthropic Messages API
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
@@ -55,6 +56,7 @@ docs/
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider`, the standard library |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it gains each provider as 0015-PLAN S7 moves it | `llmprovider` and the provider packages |
 | `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider` |
+| `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider` |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 
 ## The contract
@@ -104,7 +106,7 @@ the old API until 0015-PLAN S8 removes it:
   `FunctionCallOutputItem` and `ReasoningItem`; item methods return a
   `*Response`.
 - **Construction:** `providers.New(id, opts...)` for a provider that has
-  moved to its own package (`openai` so far), or a provider's own `New…`
+  moved to its own package (`openai` and `claude` so far), or a provider's own `New…`
   until it moves; options are `ProviderOption` functions (`WithBaseURL`,
   `WithHTTPClient`, `WithReasoningEffort`, …). `GenerateWithRetry` and its two
   siblings retry on typed errors.
@@ -126,9 +128,12 @@ the old API until 0015-PLAN S8 removes it:
 - **Temporary exports.** For 0015-PLAN S7, `llmprovider` exports helpers the
   moved providers still share with it: the ChatGPT session helpers
   (`IsChatGPTSession`, `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`,
-  `ExpireSession`, and four header constants), and `ClassifyHTTPError`,
-  `DecodeResponsesAPIOutput`, `ReadResponsesStream`, `ItemsToInput`,
-  `ShareHTTPClient` and `ProbeGenerateHealth`. S7b moves them to the
+  `ExpireSession`, and four header constants), the Responses wire
+  (`DecodeResponsesAPIOutput`, `ReadResponsesStream`, `ItemsToInput`), the
+  Messages wire, which OpenCode's messages route shares
+  (`MessagesFromItems`, `DecodeMessagesResponse`, `AddMessagesThinking`,
+  `SystemPrompt`), and `ClassifyHTTPError`, `ShareHTTPClient` and
+  `ProbeGenerateHealth`. S7b moves them to the
   packages of 0015-MADR D2 and removes the exports.
 - **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.
   - **Creating one:**

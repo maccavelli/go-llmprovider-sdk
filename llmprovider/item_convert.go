@@ -20,10 +20,11 @@ func toolArguments(arguments string) map[string]any {
 	return map[string]any{jsonKeyArguments: arguments}
 }
 
-// systemPrompt joins the system items, in order, for a wire's dedicated
+// SystemPrompt joins the system items, in order, for a wire's dedicated
 // system field: the Messages API's system (MADR 0012 §2) and Gemini's
 // system instruction (MADR 0014). The converters leave system items out.
-func systemPrompt(items []Item) string {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func SystemPrompt(items []Item) string {
 	var parts []string
 	for _, item := range items {
 		if m, ok := item.(MessageItem); ok && m.Role == jsonRoleSystem && m.Text != "" {

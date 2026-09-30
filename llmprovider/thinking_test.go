@@ -25,67 +25,6 @@ func captureServer(t *testing.T, lastBody *map[string]any, respBody string) *htt
 	return srv
 }
 
-// TestClaudeThinking_RequestBody verifies the thinking path emits a thinking block and
-// raises max_tokens above the budget (Anthropic requires max_tokens > budget_tokens).
-func TestClaudeThinking_RequestBody(t *testing.T) {
-	var body map[string]any
-	srv := captureServer(t, &body, `{"content":[{"type":"text","text":"ok"}]}`)
-
-	// maxTokens (4096) <= budget (8000) must force the ceiling above the budget.
-	p, err := NewClaude("k", "claude-haiku-4-5", WithBaseURL(srv.URL), WithMaxTokens(4096), WithThinkingBudget(8000))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.GenerateThinking(context.Background(), "hi"); err != nil {
-		t.Fatalf("GenerateThinking: %v", err)
-	}
-
-	think, ok := body["thinking"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected thinking block, body=%v", body)
-	}
-	if think["type"] != "enabled" {
-		t.Errorf("thinking.type = %v, want enabled", think["type"])
-	}
-	if budget := think["budget_tokens"].(float64); int(budget) != 8000 {
-		t.Errorf("budget_tokens = %v, want 8000", budget)
-	}
-	if mt := body["max_tokens"].(float64); !(int(mt) > 8000) {
-		t.Errorf("max_tokens = %v, must exceed budget 8000", mt)
-	}
-}
-
-// TestClaudeNonThinking_NoThinkingBlock verifies the default path is unchanged.
-func TestClaudeNonThinking_NoThinkingBlock(t *testing.T) {
-	var body map[string]any
-	srv := captureServer(t, &body, `{"content":[{"type":"text","text":"ok"}]}`)
-
-	p, _ := NewClaude("k", "claude-x", WithBaseURL(srv.URL))
-	if _, err := p.Generate(context.Background(), "hi"); err != nil {
-		t.Fatal(err)
-	}
-	if _, present := body["thinking"]; present {
-		t.Errorf("non-thinking request must not contain a thinking block: %v", body)
-	}
-}
-
-// TestClaudeThinkingTool_AutoChoice verifies extended thinking drops the forced
-// tool_choice (Anthropic forbids forcing a tool while thinking is enabled).
-func TestClaudeThinkingTool_AutoChoice(t *testing.T) {
-	var body map[string]any
-	srv := captureServer(t, &body, `{"content":[{"type":"tool_use","input":{"x":1}}]}`)
-
-	p, _ := NewClaude("k", "claude-x", WithBaseURL(srv.URL), WithThinkingBudget(2048))
-	tool := Tool{Name: "emit", Description: "d", Schema: map[string]any{"type": "object"}}
-	if _, err := p.GenerateWithToolThinking(context.Background(), "hi", tool); err != nil {
-		t.Fatal(err)
-	}
-	tc, ok := body["tool_choice"].(map[string]any)
-	if !ok || tc["type"] != "auto" {
-		t.Errorf("thinking tool_choice = %v, want type=auto", body["tool_choice"])
-	}
-}
-
 // TestGoogleRouteThinking_RequestBody verifies a thinkingConfig is nested in
 // generationConfig with the configured budget on OpenCode's google route, and
 // that the default path omits it. GeminiProvider has no budget (MADR 0014).
@@ -173,14 +112,6 @@ func TestGrokThinkingTool(t *testing.T) {
 }
 
 func TestProviderNamesAndConstructors(t *testing.T) {
-	cp, err := NewClaude("key", "claude-x")
-	if err != nil || cp.Name() != ProviderClaude {
-		t.Errorf("Claude name = %v, err = %v", cp.Name(), err)
-	}
-	if _, err := NewClaude("", "claude-x"); err == nil {
-		t.Error("expected error for empty Claude API key")
-	}
-
 	gp, err := NewGemini(context.Background(), "key", "gemini-x")
 	if err != nil || gp.Name() != ProviderGemini {
 		t.Errorf("Gemini name = %v, err = %v", gp.Name(), err)
@@ -198,10 +129,8 @@ func TestProviderNamesAndConstructors(t *testing.T) {
 // TestProvidersImplementThinkingInterfaces is a compile-time guarantee that all
 // providers satisfy the optional thinking interfaces.
 func TestProvidersImplementThinkingInterfaces(t *testing.T) {
-	var _ ThinkingProvider = (*ClaudeProvider)(nil)
 	var _ ThinkingProvider = (*GeminiProvider)(nil)
 	var _ ThinkingProvider = (*GrokProvider)(nil)
-	var _ ThinkingToolProvider = (*ClaudeProvider)(nil)
 	var _ ThinkingToolProvider = (*GeminiProvider)(nil)
 	var _ ThinkingToolProvider = (*GrokProvider)(nil)
 	var _ ItemProvider = (*GrokProvider)(nil)

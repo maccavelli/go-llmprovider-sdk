@@ -27,42 +27,6 @@ func assertThinkingFields(t *testing.T, body map[string]any, want map[string]any
 	}
 }
 
-// TestThinkingWire_Claude pins MADR 0013 Q1 and B9 on the Anthropic wire:
-// Claude 4.7 and later take adaptive thinking with output_config.effort
-// (thinking.type "enabled" is HTTP 400 there); older models take a budget,
-// 1024 for "low". An explicit budget wins where a budget is accepted.
-func TestThinkingWire_Claude(t *testing.T) {
-	adaptive := map[string]any{"type": "adaptive"}
-	for _, tc := range []thinkingCase{
-		{"claude-sonnet-5", effortLow, 0, map[string]any{"thinking": adaptive,
-			"output_config": map[string]any{"effort": "low"}}},
-		{"claude-opus-4-8", "", 0, map[string]any{"thinking": adaptive, "output_config": nil}},
-		{"claude-sonnet-5", "", 9000, map[string]any{"thinking": adaptive, "max_tokens": float64(8192)}},
-		{"claude-haiku-4-5", effortLow, 0, map[string]any{"output_config": nil,
-			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(1024)}}},
-		{"claude-haiku-4-5", "", 0, map[string]any{
-			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(4096)}}},
-		{"claude-haiku-4-5", effortLow, 2000, map[string]any{
-			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(2000)}}},
-		{"claude-sonnet-4-20250514", effortLow, 0, map[string]any{
-			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(1024)}}},
-	} {
-		t.Run(tc.model+"/"+tc.effort, func(t *testing.T) {
-			var body map[string]any
-			srv := captureServer(t, &body, `{"content":[{"type":"text","text":"ok"}]}`)
-			p, err := NewClaude("k", tc.model, WithBaseURL(srv.URL),
-				WithReasoningEffort(tc.effort), WithThinkingBudget(tc.budget))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := p.GenerateThinking(context.Background(), "hi"); err != nil {
-				t.Fatalf("GenerateThinking: %v", err)
-			}
-			assertThinkingFields(t, body, tc.want)
-		})
-	}
-}
-
 // TestThinkingWire_Gemini pins MADR 0013 Q1 on the generateContent wire, which
 // only OpenCode's google route speaks since MADR 0014: "low" is thinkingLevel
 // on Gemini 3 and later and a 1024 budget on 2.x (thinkingLevel is HTTP 400

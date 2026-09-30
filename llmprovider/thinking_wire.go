@@ -69,14 +69,15 @@ func minimaxAdaptiveThinking(model string) bool {
 	return strings.Contains(strings.ToLower(model), "minimax-m3")
 }
 
-// addMessagesThinking adds the thinking fields of an Anthropic Messages
+// AddMessagesThinking adds the thinking fields of an Anthropic Messages
 // request to body and returns its max_tokens. Adaptive-only models get
 // thinking.type "adaptive", plus output_config.effort when an effort is set; a
 // budget does not apply to them. Other models get an enabled budget: the
 // configured one, else lowEffortThinkingBudget for "low", else
 // defaultClaudeThinkingBudget, with max_tokens raised above it when needed
 // (Anthropic requires max_tokens > budget_tokens).
-func addMessagesThinking(body map[string]any, model, effort string, budget, maxTokens int) int {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func AddMessagesThinking(body map[string]any, model, effort string, budget, maxTokens int) int {
 	if minimaxAdaptiveThinking(model) {
 		body[jsonKeyThinking] = map[string]any{jsonKeyType: "adaptive"}
 		return maxTokens

@@ -28,7 +28,7 @@ func interactionTextStep(stepType, text string) map[string]any {
 }
 
 // interactionsInput converts items to Interactions steps. System items go to
-// system_instruction instead (systemPrompt). A function call is preceded by
+// system_instruction instead (SystemPrompt). A function call is preceded by
 // the thought step whose signature Gemini requires to replay it (a replayed
 // call without one is refused with 400), carrying the item's Signature or,
 // for a call Gemini did not issue, the placeholder it accepts. A result is
@@ -109,7 +109,7 @@ func (p *GeminiProvider) interactionsBody(input []Item, tool *Tool, thinking boo
 		"store":             p.store,
 		"generation_config": gen,
 	}
-	if system := systemPrompt(input); system != "" {
+	if system := SystemPrompt(input); system != "" {
 		body["system_instruction"] = system
 	}
 	if tool != nil {

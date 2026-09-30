@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/claude"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
 )
 
@@ -20,6 +21,7 @@ var builtins = []struct {
 	new llmprovider.Factory
 }{
 	{llmprovider.ProviderOpenAI, openai.New},
+	{llmprovider.ProviderClaude, claude.New},
 }
 
 // Default returns a new Registry holding the built-in providers.

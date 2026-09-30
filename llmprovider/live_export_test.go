@@ -11,4 +11,5 @@ var (
 	LiveCtx            = liveCtx
 	SkipIfTransient    = skipIfTransient
 	WithSDKVersion     = withSDKVersion
+	LiveEnvKey         = liveEnvKey
 )

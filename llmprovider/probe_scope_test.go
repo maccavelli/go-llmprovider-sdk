@@ -69,9 +69,6 @@ func TestDiscoverModels_MeteredServicesDoNotProbe(t *testing.T) {
 // explicit option passed after it wins.
 func TestDiscoverModels_ProbesFollowDefaultOptionAndEnv(t *testing.T) {
 	builders := map[string]func(url string, opts ...ProviderOption) (discoverer, error){
-		"claude": func(url string, opts ...ProviderOption) (discoverer, error) {
-			return NewClaude("k", "claude-haiku-4-5", append(opts, WithBaseURL(url))...)
-		},
 		"gemini": func(url string, opts ...ProviderOption) (discoverer, error) {
 			return NewGemini(context.Background(), "k", "gemini-3.7-flash", append(opts, WithBaseURL(url))...)
 		},

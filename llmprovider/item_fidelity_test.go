@@ -79,14 +79,14 @@ func TestItemFidelity_ResponsesToolCall(t *testing.T) {
 }
 
 func TestItemFidelity_AnthropicToolCall(t *testing.T) {
-	mustEqualJSON(t, claudeItemsToMessages(roundTrip()), `[
+	mustEqualJSON(t, MessagesFromItems(roundTrip()), `[
 		{"role":"user","content":"weather?"},
 		{"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"get_weather","input":{"city":"Paris"}}]},
 		{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"{\"forecast\":\"sunny\"}"}]}]`)
 }
 
 func TestItemFidelity_AnthropicGroupsCallsAndResults(t *testing.T) {
-	mustEqualJSON(t, claudeItemsToMessages(twoCalls()), `[
+	mustEqualJSON(t, MessagesFromItems(twoCalls()), `[
 		{"role":"user","content":"weather in two cities?"},
 		{"role":"assistant","content":[
 			{"type":"text","text":"Checking both."},

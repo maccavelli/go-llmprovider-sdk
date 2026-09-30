@@ -1464,3 +1464,85 @@ Executed as the S7 prerequisites amendment of the same date decided.
     practical here: moved unchanged, the file does not compile in its new
     package, and §0 allows no failing build between commits.
   * The same is expected for each provider S7 moves.
+
+### Phase S7, commit 4: `claude` (2026-09-30)
+
+Built on the openai commit's pattern; only what differs is recorded here.
+
+* **Step 1, moved.** `llmprovider/claude.go` went to
+  `providers/claude/claude.go`, and `testdata/wire/claude` with it, by
+  `git mv`.
+  * OpenCode's messages route shares the Messages wire, so it stays in
+    `llmprovider`, in a new `messages_wire.go`:
+    `claudeItemsToMessages`, `decodeClaudeResponse` and
+    `defaultClaudeThinkingBudget`.
+  * Temporary exports, for S7b to remove: `MessagesFromItems`,
+    `DecodeMessagesResponse`, `AddMessagesThinking` and `SystemPrompt`.
+    They were made with a reusable `gopls rename` script. Its
+    word-boundary pass touched only comments beyond gopls's renames.
+* **Step 2, the new API:**
+  * `claude.New`, `ListModels` (through `ListAvailableModelsWithSource`,
+    which runs the old listing with the same 10 s bound), and the key read
+    from the source on each request.
+  * `WithThinkingBudget` and `WithReasoningEffort` are `Reasoning`'s
+    `Budget` and `Effort`. A request's `Reasoning` falls back to
+    `WithReasoning`'s, field by field.
+  * `Instructions` go before the system items in the system field.
+  * `ToolChoiceRequired` is `any` and `ToolChoiceNone` is `none`. Auto sends
+    no `tool_choice`.
+* **Carried test.** `TestNewProviderWithSource_RejectsClaude` is
+  `TestNew_RefusesAnOAuthSession`. `New` refuses an `OAuthSession` or a
+  `VendorCLISession` with `ErrUnsupported` (R16, 0016-MADR D10). An empty
+  static key is still refused, as `NewClaude("")` was, now with
+  `ErrInvalidRequest`.
+* **Step 3.** The package doc lists the degradations:
+  * a forced or required tool is sent as `auto` while thinking;
+  * a budget is not sent to an adaptive-only model.
+* **Step 4, the tests ported.** Assertions keep their meaning.
+
+  | From `llmprovider` | To `claude` |
+  |---|---|
+  | `claude_items_test.go`, and the Claude parts of `claude_system_test.go`, `thinking_test.go`, `thinking_wire_test.go`, `provider_correctness_test.go`, `api_error_message_test.go`, `identification_test.go` | `claude_test.go` |
+  | the Claude parts of `probe_test.go`, `probe_scope_test.go`, `discovery_wiring_test.go` | `listing_test.go` |
+  | the claude G-wire case | `wire_test.go` |
+
+  * `TestThinkingWire_Claude` runs each case twice: with the reasoning set
+    at construction, as the old options did, and on the request.
+  * New: `request_test.go` (refusals, the key read per request, request
+    fields); `TestListModels_ProbeBodyIsTheOldProbes`;
+    `TestListModels_CarriesTheCallersIdentity`.
+  * Live: `live_static_test.go` and `TestLive_ClaudeThinkingShapes` moved,
+    and the Claude rows of the tool round trip and the system message went
+    to `live_claude_test.go`. It is external, with `LiveEnvKey` added to
+    `live_export_test.go`.
+* **G-wire.** All six claude goldens match their `P7` content unchanged
+  through the new API, with no `-update`. There is no continuation golden:
+  the `P7` type had no `Continue` (`NoContinuation`).
+* **Step 5, llmtest.** `TestConformance` passes.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | an OAuth session accepted | `oauth: err = <nil>, want ErrUnsupported` |
+  | an empty key accepted | `an empty key: err = <nil>, want ErrInvalidRequest` |
+  | thinking keeps a forced tool | `thinking tool_choice = map[name:emit type:tool], want type=auto`, and `thinking-tool.json` |
+  | the construction budget ignored | `budget_tokens = 4096, want 8000` |
+  | instructions after the system items | `system = "Answer in French.\n\nBe brief."` |
+  | the key read once | `x-api-key sent [key-1 key-1], want [key-1 key-2]` |
+  | a probe keeps the provider's limit and reasoning | `probe body map[max_tokens:6144 … thinking:map[budget_tokens:2048 …]]; want … no thinking` |
+  | probes ignore `WithModelProbes` | `1 generation requests, want none` |
+  | `Generate` skips the capability check | `R11 (refusal before the network): a request needing continuation, which is Unsupported, returned <nil> …` |
+  | claude registered under another id | `descriptor "claude" is offered to users but neither Default nor the old API builds it` |
+
+  A first "forced tool" break deleted a `switch` case, which left a
+  variable unused, so it did not compile. It was replaced.
+* **Coverage:**
+  * `providers/claude` 95.4 %;
+  * `llmprovider` 89.7 %, against its `P7` 89.2 %;
+  * `internal/wirecase` 74.1 % through claude's tests alone, and 82.8 %
+    through openai's (no continuation scenario for claude).
+* **Removed:** `listClaudeModels` in `discovery.go`. Only the old
+  `DiscoverModels` called it, so lint found it unused once that was gone.
+* **Links.** Six links in `0003-PLAN-add-grok-xai-llm-provider.md` to
+  `llmprovider/claude.go` now point at the moved file, under the openai
+  commit's rule.

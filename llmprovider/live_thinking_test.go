@@ -1,8 +1,8 @@
 //go:build live_gateways
 
 // Live checks of the thinking shapes on the budget-based wires (MADR 0013 Q1,
-// B9). They REQUIRE ANTHROPIC_API_KEY and GEMINI_API_KEY (and OPENCODE_API_KEY
-// for the Go route) and skip without them. Only rate limiting skips: a 400
+// B9). They REQUIRE GEMINI_API_KEY (and OPENCODE_API_KEY for the Go route)
+// and skip without them. Claude's are in live_claude_test.go. Only rate limiting skips: a 400
 // here is the regression these tests exist to catch.
 package llmprovider
 
@@ -34,26 +34,6 @@ func assertAlpha(t *testing.T, out string, err error) {
 	}
 	if !strings.Contains(strings.ToUpper(out), "ALPHA") {
 		t.Errorf("output %q does not contain ALPHA", out)
-	}
-}
-
-// TestLive_ClaudeThinkingShapes: a budget-only model (Haiku 4.5) and two
-// adaptive-only models accept the utility and capable efforts.
-func TestLive_ClaudeThinkingShapes(t *testing.T) {
-	key := liveEnvKey(t, "ANTHROPIC_API_KEY")
-	for _, model := range []string{"claude-haiku-4-5", "claude-sonnet-5", "claude-opus-4-8"} {
-		for _, effort := range []string{effortLow, ""} {
-			t.Run(model+"/"+effort, func(t *testing.T) {
-				ctx, cancel := liveCtx(t)
-				defer cancel()
-				p, err := NewClaude(key, model, WithReasoningEffort(effort), WithMaxTokens(2048))
-				if err != nil {
-					t.Fatal(err)
-				}
-				out, err := p.GenerateThinking(ctx, "Reply with only the word ALPHA")
-				assertAlpha(t, out, err)
-			})
-		}
 	}
 }
 

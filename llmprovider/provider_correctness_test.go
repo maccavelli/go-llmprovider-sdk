@@ -11,24 +11,6 @@ import (
 	"time"
 )
 
-// TestClaude_MultiBlockContent is the regression for the Content[0] bug: a
-// leading non-text (thinking) block must not cause an empty result.
-func TestClaude_MultiBlockContent(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"content":[{"type":"thinking","text":""},{"type":"text","text":"the answer"}]}`))
-	}))
-	defer srv.Close()
-
-	p, _ := NewClaude("k", "claude-x", WithBaseURL(srv.URL))
-	out, err := p.Generate(context.Background(), "hi")
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	if out != "the answer" {
-		t.Errorf("expected concatenated text block, got %q", out)
-	}
-}
-
 // bodyField spins up a server that records one top-level JSON field from the
 // request body, then returns the supplied response.
 func bodyCapture(t *testing.T, resp string) (*httptest.Server, *map[string]any) {

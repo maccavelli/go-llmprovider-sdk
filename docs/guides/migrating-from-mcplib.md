@@ -60,17 +60,17 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.AuthMethod.Label` |  |  |
 | `llmprovider.AuthMethodID` |  |  |
 | `llmprovider.AuthTokenStdin` |  |  |
-| `llmprovider.ClaudeProvider` |  |  |
-| `llmprovider.ClaudeProvider.DiscoverModels` |  |  |
-| `llmprovider.ClaudeProvider.Generate` |  |  |
-| `llmprovider.ClaudeProvider.GenerateItems` |  |  |
-| `llmprovider.ClaudeProvider.GenerateItemsThinking` |  |  |
-| `llmprovider.ClaudeProvider.GenerateItemsWithTool` |  |  |
-| `llmprovider.ClaudeProvider.GenerateItemsWithToolThinking` |  |  |
-| `llmprovider.ClaudeProvider.GenerateThinking` |  |  |
-| `llmprovider.ClaudeProvider.GenerateWithTool` |  |  |
-| `llmprovider.ClaudeProvider.GenerateWithToolThinking` |  |  |
-| `llmprovider.ClaudeProvider.Name` |  |  |
+| `llmprovider.ClaudeProvider` | the `llmprovider.Provider` that `claude.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.ClaudeProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
+| `llmprovider.ClaudeProvider.Generate` | `llmprovider.GenerateText` |  |
+| `llmprovider.ClaudeProvider.GenerateItems` | `Generate` with `Request.Input` |  |
+| `llmprovider.ClaudeProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` | `WithThinkingBudget` and `WithReasoningEffort` are `Reasoning`'s `Budget` and `Effort`. |
+| `llmprovider.ClaudeProvider.GenerateItemsWithTool` | `Generate` with `Request.Tools` and `ForceTool` |  |
+| `llmprovider.ClaudeProvider.GenerateItemsWithToolThinking` | `Generate` with `Tools`, `ForceTool` and `Reasoning` | The forced tool is sent as `auto` while thinking, as before. |
+| `llmprovider.ClaudeProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
+| `llmprovider.ClaudeProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
+| `llmprovider.ClaudeProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
+| `llmprovider.ClaudeProvider.Name` | `ID()` | It returns `ProviderClaude` as a `ProviderID`. |
 | `llmprovider.Continuer` |  |  |
 | `llmprovider.Continuer.Continue` |  |  |
 | `llmprovider.DefaultGrokBaseURL` |  |  |
@@ -189,7 +189,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ModelMatch.Score` |  |  |
 | `llmprovider.ModelProfile` |  |  |
 | `llmprovider.ModelProfile.ReasoningEffort` |  |  |
-| `llmprovider.NewClaude` |  |  |
+| `llmprovider.NewClaude` | `claude.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderClaude, …)`; an OAuth session is refused with `ErrUnsupported` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewFileTokenStore` |  |  |
 | `llmprovider.NewGemini` |  |  |
 | `llmprovider.NewGrok` |  |  |

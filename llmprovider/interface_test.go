@@ -6,7 +6,6 @@ import "testing"
 // matrix across every concrete provider implementation in llmprovider.
 func TestProviderInterfaceSatisfaction(t *testing.T) {
 	// Base Provider interface (all 4 satisfy)
-	var _ LegacyProvider = (*ClaudeProvider)(nil)
 	var _ LegacyProvider = (*GeminiProvider)(nil)
 	var _ LegacyProvider = (*GrokProvider)(nil)
 	var _ LegacyProvider = (*OpencodeProvider)(nil)
@@ -15,7 +14,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ LegacyProvider = (*OllamaProvider)(nil)
 
 	// ToolProvider interface (all 4 satisfy)
-	var _ ToolProvider = (*ClaudeProvider)(nil)
 	var _ ToolProvider = (*GeminiProvider)(nil)
 	var _ ToolProvider = (*GrokProvider)(nil)
 	var _ ToolProvider = (*OpencodeProvider)(nil)
@@ -24,7 +22,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ToolProvider = (*OllamaProvider)(nil)
 
 	// ThinkingProvider interface (all 4 satisfy)
-	var _ ThinkingProvider = (*ClaudeProvider)(nil)
 	var _ ThinkingProvider = (*GeminiProvider)(nil)
 	var _ ThinkingProvider = (*GrokProvider)(nil)
 	var _ ThinkingProvider = (*OpencodeProvider)(nil)
@@ -33,7 +30,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ThinkingProvider = (*OllamaProvider)(nil)
 
 	// ThinkingToolProvider interface (all 4 satisfy)
-	var _ ThinkingToolProvider = (*ClaudeProvider)(nil)
 	var _ ThinkingToolProvider = (*GeminiProvider)(nil)
 	var _ ThinkingToolProvider = (*GrokProvider)(nil)
 	var _ ThinkingToolProvider = (*OpencodeProvider)(nil)
@@ -42,7 +38,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ThinkingToolProvider = (*OllamaProvider)(nil)
 
 	// ItemProvider interface (all 4 satisfy)
-	var _ ItemProvider = (*ClaudeProvider)(nil)
 	var _ ItemProvider = (*GeminiProvider)(nil)
 	var _ ItemProvider = (*GrokProvider)(nil)
 	var _ ItemProvider = (*OpencodeProvider)(nil)
@@ -51,7 +46,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ItemProvider = (*OllamaProvider)(nil)
 
 	// ItemToolProvider interface (all 4 satisfy)
-	var _ ItemToolProvider = (*ClaudeProvider)(nil)
 	var _ ItemToolProvider = (*GeminiProvider)(nil)
 	var _ ItemToolProvider = (*GrokProvider)(nil)
 	var _ ItemToolProvider = (*OpencodeProvider)(nil)
@@ -60,7 +54,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ItemToolProvider = (*OllamaProvider)(nil)
 
 	// ItemThinkingProvider interface (all 4 satisfy)
-	var _ ItemThinkingProvider = (*ClaudeProvider)(nil)
 	var _ ItemThinkingProvider = (*GeminiProvider)(nil)
 	var _ ItemThinkingProvider = (*GrokProvider)(nil)
 	var _ ItemThinkingProvider = (*OpencodeProvider)(nil)
@@ -69,7 +62,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ ItemThinkingProvider = (*OllamaProvider)(nil)
 
 	// ItemThinkingToolProvider interface (all 4 satisfy)
-	var _ ItemThinkingToolProvider = (*ClaudeProvider)(nil)
 	var _ ItemThinkingToolProvider = (*GeminiProvider)(nil)
 	var _ ItemThinkingToolProvider = (*GrokProvider)(nil)
 	var _ ItemThinkingToolProvider = (*OpencodeProvider)(nil)
@@ -84,7 +76,6 @@ func TestProviderInterfaceSatisfaction(t *testing.T) {
 	var _ Continuer = (*GrokProvider)(nil)
 
 	// ModelDiscoverer interface (all 4 satisfy)
-	var _ ModelDiscoverer = (*ClaudeProvider)(nil)
 	var _ ModelDiscoverer = (*GeminiProvider)(nil)
 	var _ ModelDiscoverer = (*GrokProvider)(nil)
 	var _ ModelDiscoverer = (*OpencodeProvider)(nil)

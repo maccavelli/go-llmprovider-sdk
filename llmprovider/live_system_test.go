@@ -21,7 +21,6 @@ func TestLive_SystemMessage(t *testing.T) {
 		name, env string
 		build     func(t *testing.T, key string) (ItemProvider, error)
 	}{
-		{"claude", "ANTHROPIC_API_KEY", func(_ *testing.T, k string) (ItemProvider, error) { return NewClaude(k, "claude-haiku-4-5") }},
 		{"go-messages", "OPENCODE_API_KEY", func(t *testing.T, k string) (ItemProvider, error) {
 			return NewOpencode(ProviderOpencodeGo, k, liveModel(t, ProviderOpencodeGo, "qwen3.8-flash", "minimax-m3"))
 		}},

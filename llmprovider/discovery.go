@@ -406,14 +406,6 @@ func curateOpenAI(usable []string) []string {
 	return curateFromCatalog(staticOpenAI, usable, isUsableOpenAIChatModel, rankOpenAIModel)
 }
 
-// listClaudeModels uses Anthropic's Models API when available; otherwise returns
-// the curated static catalog (Anthropic historically lacked a public list endpoint).
-func listClaudeModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
-	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return modelCatalogFor(ctx, ProviderClaude, apiKey, cfg)
-	})
-}
-
 // claudeModelsPage is one page of Anthropic's GET /v1/models.
 type claudeModelsPage struct {
 	Data []struct {

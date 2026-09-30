@@ -34,29 +34,6 @@ func TestProbeGenerateHealth(t *testing.T) {
 	}
 }
 
-func TestClaudeProvider_DiscoverModels(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v1/models":
-			_, _ = w.Write([]byte(`{"data":[{"id":"claude-haiku-4-5"}]}`))
-		case "/v1/messages", "/messages":
-			_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"Hello"}]}`))
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer srv.Close()
-
-	p, _ := NewClaude("k", "claude-haiku-4-5", WithBaseURL(srv.URL))
-	models, err := p.DiscoverModels(context.Background())
-	if err != nil {
-		t.Fatalf("DiscoverModels error: %v", err)
-	}
-	if len(models) == 0 {
-		t.Fatal("expected discovered models")
-	}
-}
-
 func TestGeminiProvider_DiscoverModels(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

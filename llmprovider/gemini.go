@@ -134,7 +134,7 @@ func (p *GeminiProvider) Continue(ctx context.Context, previousInteractionID str
 // geminiSystemInstruction is generateContent's systemInstruction for the
 // system items, or nil when there are none (MADR 0014 §3).
 func geminiSystemInstruction(items []Item) map[string]any {
-	system := systemPrompt(items)
+	system := SystemPrompt(items)
 	if system == "" {
 		return nil
 	}

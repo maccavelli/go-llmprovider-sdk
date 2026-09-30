@@ -83,13 +83,6 @@ var (
 
 var wireCases = []wireCase{
 	{
-		name:    "claude",
-		listing: `{"data":[{"id":"claude-sonnet-5","type":"model"},{"id":"claude-haiku-4-5","type":"model"}],"has_more":false}`,
-		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
-			return NewClaude("sk-ant-wire", "claude-sonnet-5", wireOpts(u, extra...)...)
-		},
-	},
-	{
 		name: "gemini",
 		listing: `{"models":[{"name":"models/gemini-3.7-flash","supportedGenerationMethods":["generateContent"]},` +
 			`{"name":"models/text-embedding-005","supportedGenerationMethods":["embedContent"]}]}`,
