@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-09-29
+date: 2026-09-30
 associated-madr: "0016-MADR-provider-auth-and-support-baseline.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -83,7 +83,9 @@ At the end of this plan, before `v1.0.0`:
 
 1. **D8.** The default client in `internal/transport` sets
    `Proxy: http.ProxyFromEnvironment` and keeps today's timeouts and
-   connection limits. A provider builds one client in `New` and passes it
+   connection limits. *Amended 2026-09-30:* it lands in `llmprovider`
+   (`options.go`) in 0015-PLAN S3, and moves to `internal/transport` with the
+   rest of the transport code in 0015-PLAN S7b. A provider builds one client in `New` and passes it
    to listing and to its OAuth session when that has none.
 2. **Test.** A provider whose base URL is an `httptest` server, with the
    proxy variables pointing at a second `httptest` server acting as the
@@ -251,7 +253,22 @@ At the end of this plan, before `v1.0.0`:
 
 ## Deviation Log
 
-None.
+* **2026-09-30, T1's location.** 0015-PLAN S3 could not extract
+  `internal/transport` before the providers leave `llmprovider` (an import
+  cycle). The owner chose to move the extraction to a new 0015-PLAN S7b. T1
+  therefore lands in `llmprovider/options.go` in S3 and moves in S7b. What T1
+  does, and its tests, are unchanged. Recorded in full in 0015-PLAN,
+  "Deviation 2026-09-30".
+* **2026-09-30, T2's and T3's locations.** The same cycle holds for
+  0015-PLAN S4 (`auth`) and S5 (`catalog`), and the owner extended the same
+  resolution to them:
+  * T2 lands in S4 and T3 step 2 in S5, inside `llmprovider`;
+  * both move with their files in 0015-PLAN S7b;
+  * where T2 step 5 names the `auth` package doc (the note on the default
+    client ids), the text goes in the doc comment of the file that moves, and
+    becomes the package doc in S7b.
+
+  What the steps do, and their tests, are unchanged.
 
 ## Execution Record
 

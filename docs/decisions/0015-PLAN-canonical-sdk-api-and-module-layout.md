@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-09-29
+date: 2026-09-30
 associated-madr: "0015-MADR-canonical-sdk-api-and-module-layout.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -134,46 +134,72 @@ Also out of scope:
    except for a difference listed in the execution record with the record
    that causes it.
 
-### Phase S3: extract `internal/wire` and `internal/transport`
+### Phase S3: transport defaults (0016 T1), in place
 
-1. `git mv` the four wire-format files and their tests into
+*Amended 2026-09-30 (see "Deviation 2026-09-30" in the execution record).
+The extraction that was this phase created an import cycle, and moves to
+Phase S7b.*
+
+1. Land [0016-PLAN-provider-auth-and-support-baseline.md](0016-PLAN-provider-auth-and-support-baseline.md) T1 inside `llmprovider`:
+   * the default client in `options.go` sets
+     `Proxy: http.ProxyFromEnvironment`, and keeps today's timeouts and
+     connection limits;
+   * each provider builds one client at construction, and passes it to its
+     listing and to its OAuth session when that has none.
+
+   The client moves to `llmprovider/internal/transport` in S7b.
+2. Gate, including G-wire unchanged.
+
+The steps as first written, superseded by S7b:
+
+1. ~~`git mv` the four wire-format files and their tests into
    `internal/wire/{responses,chatcompletions,messages,interactions}`:
    `chatcompletions.go`, the Responses encode/decode, the Messages encoding,
-   and `gemini_interactions.go`.
-2. `git mv` the transport files and their tests into `internal/transport`:
+   and `gemini_interactions.go`.~~
+2. ~~`git mv` the transport files and their tests into `internal/transport`:
    `http_helpers.go`, `identification.go`, the classification part of
-   `api_error.go`, and `probe.go`.
-3. Export within `internal` only what the providers need. `llmprovider`
-   keeps calling them.
-4. Gate, including G-wire unchanged.
+   `api_error.go`, and `probe.go`.~~
+3. ~~Export within `internal` only what the providers need. `llmprovider`
+   keeps calling them.~~
+4. ~~Gate, including G-wire unchanged.~~
 
-### Phase S4: extract `auth`
+### Phase S4: `auth` work, in place
 
-1. `git mv` these into `llmprovider/auth`:
-   * `oauth_*.go`;
-   * `tokenstore*.go`;
-   * `vendor_session.go`;
-   * the session part of `token.go`;
-   * their tests.
+*Amended 2026-09-30 (see "Deviation 2026-09-30").* The providers use the
+session types, so the move into `llmprovider/auth` would create the same
+cycle as S3. It moves to S7b. What lands here is the work that needs no move.
+
+1. ~~`git mv` these into `llmprovider/auth`:
+   `oauth_*.go`; `tokenstore*.go`; `vendor_session.go`; the session part of
+   `token.go`; their tests.~~ *Moved to S7b.*
 2. `Token`, `TokenType` and `TokenSource` stay in `llmprovider`, as D2
    says.
 3. Fix the stale "Phase 2 / Phase 3" doc comments (0015-REPORT F7).
-4. Gate.
+4. Land 0016-PLAN T2 in place.
+5. Gate.
 
-### Phase S5: extract `catalog`
+### Phase S5: `catalog` work, in place
 
-1. `git mv` these into `llmprovider/catalog`:
-   * `models_catalog.go`, `model_ranking.go`, `model_matcher.go`,
-     `model_metadata.go`, `model_profile.go`;
-   * the curation half of `discovery.go`;
-   * their tests.
+*Amended 2026-09-30 (see "Deviation 2026-09-30").* Every provider lists
+models through this code, so the move into `llmprovider/catalog` would create
+the same cycle as S3. It moves to S7b. What lands here is the work that needs
+no move.
+
+1. ~~`git mv` these into `llmprovider/catalog`:
+   `models_catalog.go`, `model_ranking.go`, `model_matcher.go`,
+   `model_metadata.go`, `model_profile.go`; the curation half of
+   `discovery.go`; their tests.~~ *Moved to S7b.*
 2. Replace the exported mutable variables with functions returning copies
    (D9):
    * the seven `Static*` catalogs;
    * `ProviderEnvVars`.
-3. Collapse the seven `Rank*Model` functions behind one
-   `catalog.Rank(ProviderID, model)`.
-4. Gate.
+3. Collapse the seven `Rank*Model` functions behind one function taking the
+   provider id. It takes `ProviderID` once S6 defines that type, and becomes
+   `catalog.Rank(ProviderID, model)` in S7b.
+4. Land 0016-PLAN T3 step 2 in place: no billed probe by default. The G-wire
+   listing goldens change here. Each difference is listed in the execution
+   record, with 0016-MADR D9 as its record.
+5. Gate.
 
 ### Phase S6: the contract, and `llmtest`
 
@@ -213,6 +239,12 @@ Also out of scope:
 Order: `openai` (with the ChatGPT backend), `claude`, `gemini`, `grok`,
 `opencode` (Zen and Go), `kilo`, `huggingface`, `ollama`.
 
+*Amended 2026-09-30:* until S7b, the shared wire, transport, `auth` and
+`catalog` code stays in `llmprovider`. A moved provider package reaches it
+through identifiers that `llmprovider` exports for the duration of S7 only.
+Each commit's execution record lists the temporary exports it adds, and S7b
+removes them all.
+
 For each provider:
 
 1. `git mv` its files and tests into `llmprovider/providers/<id>`.
@@ -227,6 +259,50 @@ For each provider:
 6. Remove its old type and methods from `llmprovider`.
 7. Gate. Record G-wire and `llmtest` output, and coverage against the `P7`
    baseline.
+
+### Phase S7b: extract `internal/wire`, `internal/transport`, `auth` and `catalog`
+
+*Added 2026-09-30, from the original S3, S4 step 1 and S5 step 1.* It runs
+once no provider is left in `llmprovider`. The four packages can then import
+`llmprovider`, as D2 allows, without a cycle. Each package moves in its own
+commit, in this order: wire, transport, `auth`, `catalog`.
+
+1. `git mv` the wire-format code and its tests into
+   `llmprovider/internal/wire/`, one package per format: Responses (the
+   encode and decode in `http_helpers.go` and `item_convert.go`), Chat
+   Completions (`chatcompletions.go`), Messages, Interactions
+   (`gemini_interactions.go`), and OpenCode's `generateContent`. That is the
+   five formats of D2.
+2. `git mv` the transport code and its tests into
+   `llmprovider/internal/transport`:
+   * the transport half of `http_helpers.go`;
+   * `identification.go`;
+   * the classification part of `api_error.go`;
+   * `probe.go`;
+   * S3's default client.
+3. `git mv` into `llmprovider/auth`:
+   * `oauth_*.go`;
+   * `tokenstore*.go`;
+   * `vendor_session.go`;
+   * the session part of `token.go`;
+   * their tests.
+
+   `Token`, `TokenType` and `TokenSource` stay in `llmprovider`. The S4
+   doc text that describes `auth` becomes its package doc.
+4. `git mv` into `llmprovider/catalog`:
+   * `models_catalog.go`, `model_ranking.go`, `model_matcher.go`,
+     `model_metadata.go`, `model_profile.go`;
+   * the curation half of `discovery.go`;
+   * their tests.
+
+   S5's ranking function becomes `catalog.Rank(ProviderID, model)`.
+5. The two methods the moving code declares on types that stay become
+   functions: `Response.appendOutput` and `GeminiProvider.interactionsBody`.
+6. Point the provider packages at the four packages instead of S7's
+   temporary exports, and remove every temporary export.
+   **Check:** `go doc -all ./llmprovider` names none of the identifiers the S7
+   records list.
+7. Gate after each of the four commits, including G-wire unchanged.
 
 ### Phase S8: registry, `wizard`, and removal of the old API
 
@@ -316,7 +392,7 @@ For each provider:
 
 | # | Criterion | Check | Phase |
 |---|---|---|---|
-| S-A1 | Package layout and allowed imports as D2 | `make dep-check`; package list | S3–S8, S12 |
+| S-A1 | Package layout and allowed imports as D2 | `make dep-check`; package list | S4–S8 (with S7b), S12 |
 | S-A2 | Every provider implements the contract and passes `llmtest` | `llmtest.Run` per provider | S7 |
 | S-A3 | Requests on the wire unchanged from `P7`, except recorded differences | G-wire | S2–S10 |
 | S-A4 | Every `mcplib` `v1.6.0` identifier mapped | G-parity | S1, S11 |
@@ -360,9 +436,9 @@ commits:
 
 | 0015 phase | 0016 step |
 |---|---|
-| S3 (`internal/transport`) | T1: proxy and one client per provider (D8) |
-| S4 (`auth`) | T2: durable writes, rotation kept, redaction, device handle, OAuth checks with `id_token` signature verification (D3–D7) |
-| S5 (`catalog`) | T3 step 2: no billed probe by default (D9) |
+| S3 (in `llmprovider`; moves to `internal/transport` in S7b, amended 2026-09-30) | T1: proxy and one client per provider (D8) |
+| S4 (in place; moves to `auth` in S7b) | T2: durable writes, rotation kept, redaction, device handle, OAuth checks with `id_token` signature verification (D3–D7) |
+| S5 (in place; moves to `catalog` in S7b) | T3 step 2: no billed probe by default (D9) |
 | S7 (providers) | T3 step 1: every provider takes a `TokenSource` (D2) |
 | S8 (`wizard`) | T4: one refresh-token copy, logout, `Result` redaction (D11, D5) |
 | S10 (ambient state) | T5: `ANTHROPIC_API_KEY` only (D12) |
@@ -538,3 +614,82 @@ commits:
     including the 94 goldens: 0 hits.
 * **Docs.** `docs/architecture.md` lists `internal/wiretest` and describes
   G-wire. `docs/guides/api-standards.md` marks R45 as checked now.
+
+### Deviation 2026-09-30: the extractions of S3, S4 and S5 move after S7
+
+* **Found.** Before any change, a read-only scan of the files S3 moves out of
+  package `llmprovider` showed that each uses declarations that stay there:
+  * `chatcompletions.go` uses the item types, `Response`, `Tool`,
+    `IncompleteError` and 19 JSON key and role constants;
+  * `gemini_interactions.go` uses the same, plus `ErrProviderUnavailable`,
+    and declares the method `GeminiProvider.interactionsBody`;
+  * `http_helpers.go` uses the item types, `ErrProviderUnavailable` and
+    `IncompleteError`, and declares the method `Response.appendOutput`;
+  * the classification in `api_error.go` uses the four error sentinels,
+    `RateLimitError`, `retryAfterFrom` and provider ids;
+  * `identification.go` uses `ProviderConfig` and `ProviderOption`;
+  * `probe.go` uses `MaxListedModels`.
+
+  The providers, which call all of these (for example
+  `llmprovider/openai.go:215-222`), stay in `llmprovider` until S7. The moved
+  packages would import `llmprovider`, which imports them: a cycle Go
+  rejects. Go also allows no method declarations on another package's types.
+  D2's end state has no cycle, because by then the providers have left
+  `llmprovider`; only this PLAN's order was wrong.
+* **Options put to the owner:**
+  1. extract after S7, with temporary exports during S7;
+  2. wire-local types in `internal/wire`, converted in `llmprovider`;
+  3. an internal `core` package holding the contract, re-exported from
+     `llmprovider` as type aliases.
+* **Decision.** The owner chose option 1. It ends exactly at D2's layout with
+  one declaration per identifier, and changes no decision in the MADR.
+  Options 2 and 3 each needed a MADR amendment. Option 3 also puts the
+  contract's definitions, and every method on them, behind aliases for the
+  life of v1.
+* **Changed:**
+  * S3 now lands only 0016 T1, in place;
+  * S7 gains the temporary-export rule;
+  * a new Phase S7b does the extraction, with a check that the temporary
+    exports are gone;
+  * S-A1 and the 0016 table follow.
+
+  The original S3 steps are struck through, not deleted.
+* **Cost accepted.** For the length of S7, `llmprovider` exports shared
+  helpers it will not keep. Their call sites are edited twice: to
+  `llmprovider.X` in S7, then to `wire.X` or `transport.X` in S7b.
+* **Extended the same day to S4 and S5.** While writing this amendment, a
+  second read-only scan found the same cycle for `auth` and `catalog`.
+  Moving them before S7 would make `llmprovider` import packages that
+  import it:
+  * `openai_chatgpt.go` uses `OAuthSession`, `VendorCLISession` and the
+    default base URLs of `oauth_constants.go`;
+  * `grok.go` uses `OAuthSession`, `DefaultGrokBaseURL` and
+    `oauthAuthorizationHeader`;
+  * `openai.go` and `opencode.go` use `oauthAuthorizationHeader`;
+  * every provider except `ollama` uses `StaticModels`;
+  * each provider calls its own listing function in `discovery.go`, or
+    `ListAvailableModelsWithSource`;
+  * `opencode.go` uses `loadModelMetadata`;
+  * `kilo.go`, `huggingface.go`, `opencode.go` and `options.go`'s
+    `ProviderConfig` use `ModelProfile`.
+
+  The owner chose to extend option 1:
+  * S4 and S5 keep their in-place work, including 0016 T2 and T3 step 2;
+  * their `git mv` steps join S7b, which extracts four packages in four
+    commits;
+  * S5's `Rank` lands under a provider-id parameter first, and becomes
+    `catalog.Rank(ProviderID, model)` in S7b.
+
+  The phase numbers are unchanged.
+* **Open, to be settled by amendment before S7 starts.** The same scans
+  found two more ordering conflicts in S7 and S8. Neither affects S3–S6.
+  1. `NewProvider` and `NewProviderWithSource`
+     (`llmprovider/provider.go:253`, `:277`) call every provider's
+     constructor. S8 removes them. But the first S7 commit that moves a
+     provider out would make `llmprovider` import that provider's package.
+     `wizard` does not call either.
+  2. `ProviderConfig.ModelProfile` and `WithModelProfile`
+     (`llmprovider/options.go:67`, `:188`), used by
+     `wizard/configure.go:68`, `:300`, keep `ModelProfile` inside
+     `llmprovider` until S8 removes the old API. So S7b's `catalog` commit
+     would cycle unless it follows that removal.
