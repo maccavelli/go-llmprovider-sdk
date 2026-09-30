@@ -51,13 +51,14 @@ docs/
 
 ## Providers and items
 
-- **Nine provider ids,** constants in `llmprovider`: `openai` (API key, or a
+- **Ten provider ids,** constants in `llmprovider`: `openai` (API key, or a
   ChatGPT subscription through the Codex backend), `claude`, `gemini`, `grok`,
-  `opencode-zen`, `opencode-go`, `huggingface`, `kilo` and `ollama`.
+  `opencode-zen`, `opencode-go`, `huggingface`, `kilo`, `together` and
+  `ollama`.
 - **Five wire formats:** OpenAI Responses (`openai`, `grok`), Anthropic Messages
   (`claude`), Gemini Interactions (`gemini`), Chat Completions (`huggingface`,
-  `kilo`, `ollama`), and, per model, all of those plus Gemini `generateContent`
-  for the two OpenCode gateways.
+  `kilo`, `together`, `ollama`), and, per model, all of those plus Gemini
+  `generateContent` for the two OpenCode gateways.
 - **`Provider`** is `Name()` and `Generate(ctx, prompt)`. Further abilities are
   optional interfaces a caller checks for: `ThinkingProvider`, `ToolProvider`,
   `ThinkingToolProvider`, the four `Item*Provider` variants, `Continuer`, and
@@ -137,13 +138,14 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   `docs/guides/migrating-from-mcplib.md`, or a row names one that is not in
   the list. `make parity-check` runs it.
 - **G-wire** is `TestWireGoldens` in `llmprovider`, part of `go test`. It
-  drives 15 provider and gateway-route cases through seven scenarios (text,
+  drives 16 provider and gateway-route cases through seven scenarios (text,
   forced tool, thinking, thinking tool, items, continuation where the
-  provider has `Continue`, listing): 94 golden files. It runs them against
+  provider has `Continue`, listing): 100 golden files. It runs them against
   `internal/wiretest`, and compares each recording with
   `llmprovider/testdata/wire/<case>/<scenario>.json`. The files were
-  recorded at the end of 0002-PLAN Phase 7. `-update` rewrites them, and is
-  used only for a difference a record explains.
+  recorded at the end of 0002-PLAN Phase 7, except `together`'s, added with
+  the provider (0017-PLAN U1). `-update` rewrites them, and is used only for
+  a difference a record explains.
 - **`scripts/go-precheck.sh`** runs `gofmt` on the given Go files,
   `golangci-lint run -c .golangci.yml ./...`, `go vet` and `go test` on their
   packages, and `govulncheck ./...`. `make pre-add-check` runs it, and so does

@@ -150,6 +150,17 @@ var wireCases = []wireCase{
 		},
 	},
 	{
+		// Added by 0017-PLAN U1 after the P7 recording: its goldens are new
+		// files, never a change to another case's.
+		name: "together",
+		listing: `[{"id":"openai/gpt-oss-120b","object":"model","type":"chat","context_length":131072},` +
+			`{"id":"BAAI/bge-large-en-v1.5","object":"model","type":"embedding"},` +
+			`{"id":"zai-org/GLM-5.3","object":"model","type":"chat","context_length":202752}]`,
+		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
+			return NewTogether("together-wire-key", "openai/gpt-oss-120b", wireOpts(u, extra...)...)
+		},
+	},
+	{
 		name:    "ollama",
 		listing: `{"models":[{"name":"llama3.3:latest"},{"name":"qwen3:8b"}]}`,
 		build: func(u string, extra ...ProviderOption) (wireProvider, error) {

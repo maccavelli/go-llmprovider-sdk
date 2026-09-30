@@ -31,6 +31,9 @@ const (
 	metadataKeyZen = "opencode"
 	metadataKeyGo  = "opencode-go"
 	metadataKeyHF  = "huggingface"
+	// metadataKeyTogether is models.dev's key for Together AI (measured
+	// 2026-09-30; 0017-REPORT).
+	metadataKeyTogether = "togetherai"
 )
 
 // errModelMetadataDisabled reports that the environment turned the fetch off.
@@ -122,6 +125,8 @@ func modelMetadataKey(provider string) string {
 		return metadataKeyGo
 	case ProviderHuggingFace:
 		return metadataKeyHF
+	case ProviderTogether:
+		return metadataKeyTogether
 	}
 	return ""
 }

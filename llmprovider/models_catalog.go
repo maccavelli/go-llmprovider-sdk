@@ -88,6 +88,19 @@ var (
 		"stepfun-ai/Step-3.5-Flash",
 	}
 
+	// StaticTogether: fallback only — discovery is metadata-driven. From
+	// models.dev's togetherai entry on 2026-09-30: tool-calling chat models,
+	// not deprecated, text out, one per vendor, newest first
+	// (docs/decisions/0017-MADR-together-provider-and-auth-extensions.md D1).
+	StaticTogether = []string{
+		"deepseek-ai/DeepSeek-V4.1-Flash",
+		"zai-org/GLM-5.3",
+		"moonshotai/Kimi-K3",
+		"MiniMaxAI/MiniMax-M3",
+		"Qwen/Qwen3.6-Plus",
+		"openai/gpt-oss-120b",
+	}
+
 	// StaticKilo: fallback only — discovery is metadata-driven. MADR 0009 Context §7's
 	// utility six, from the 2026-09-26 listing: reasoning-capable, paid,
 	// recent, at most two per vendor, none training on prompts.
@@ -173,6 +186,8 @@ func StaticModels(provider string) []string {
 		return append([]string(nil), StaticHuggingFace...)
 	case ProviderKilo:
 		return append([]string(nil), StaticKilo...)
+	case ProviderTogether:
+		return append([]string(nil), StaticTogether...)
 	case ProviderOllama:
 		// Installed models are machine-specific, so there is no meaningful
 		// static catalog. listOllamaModels is the only sensible source, and

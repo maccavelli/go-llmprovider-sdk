@@ -171,6 +171,7 @@ var ProviderEnvVars = map[string]string{
 	ProviderOpencodeGo:  "OPENCODE_API_KEY",
 	ProviderHuggingFace: "HF_TOKEN",
 	ProviderKilo:        "KILO_API_KEY",
+	ProviderTogether:    "TOGETHER_API_KEY",
 }
 
 // GenerateWithRetry executes a Generate call with the specified number of retries
@@ -266,6 +267,8 @@ func NewProvider(name, apiKey, model string, opts ...ProviderOption) (Provider, 
 		return NewHuggingFace(apiKey, model, opts...)
 	case ProviderKilo:
 		return NewKilo(apiKey, model, opts...)
+	case ProviderTogether:
+		return NewTogether(apiKey, model, opts...)
 	case ProviderOllama:
 		return NewOllama(apiKey, model, opts...)
 	default:

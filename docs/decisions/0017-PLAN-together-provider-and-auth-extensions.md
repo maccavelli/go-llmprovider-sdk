@@ -183,7 +183,13 @@ Associated MADR: [0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-
 
 ## Deviation Log
 
-None.
+* **2026-09-30, U1 step 4.** The step says the listing "bounds the body as
+  the other listings do". They do not: `fetchDataIDs`,
+  `fetchHuggingFaceUsable` and the other listers decode the body unbounded.
+  Together's listing is bounded at 8 MiB (`togetherListingLimit`), because
+  it also lists image, audio and embedding models. That is a
+  correction of the step's premise, not of what it asks for. The other
+  listers are unchanged; bounding them is outside this plan.
 
 ## Execution Record
 
@@ -199,3 +205,74 @@ None.
   * 0015-MADR's `ErrContextOverflow`.
 * The standards guide's R25 names the new kind.
 * The commit holds records and the guide only.
+
+### Phase U1: Together AI, in place (2026-09-30)
+
+* **Steps 1–5.**
+  * `ProviderTogether = "together"` and `TOGETHER_API_KEY` in
+    `ProviderEnvVars`.
+  * `together.go`, on the shared Chat Completions code.
+  * `NewProvider`.
+  * `StaticTogether`: six models from models.dev's `togetherai` entry on
+    2026-09-30 (tool-calling, not deprecated, one per vendor).
+  * The metadata key `togetherai`.
+  * `fetchTogetherUsable`: a bare-array decoder keeping `type: "chat"`,
+    curated by the open-catalog ranking, with no probe.
+  * An API-key descriptor.
+* **The thinking path** sets the shared builder's existing `Reasoning`
+  option to `{"enabled": true}`, and `ReasoningEffort` only from
+  `WithReasoningEffort`. The plain path sets neither.
+* **Step 6, tests** (`together_test.go`):
+  * request shapes for six combinations of effort, thinking and tool;
+  * `eos` as a normal stop;
+  * the listing's filter and order, no generation from it, and the static
+    fallback for a non-array body and for a listing with no chat model;
+  * a key is required;
+  * `together` added to `TestNewProvider` and `TestStaticModels`.
+* **Seen to fail,** each break in its own scratch copy, never this tree:
+
+  | Break | Failure |
+  |---|---|
+  | The plain path sends reasoning | `reasoning = map[enabled:true], want it absent` |
+  | An effort sent unasked | `reasoning_effort = medium, want it absent` |
+  | The listing keeps non-chat models | `DiscoverModels = [zai-org/GLM-5.3 openai/gpt-oss-120b BAAI/bge-large-en-v1.5 black-forest-labs/FLUX.2 new/Chat-Model], want [...]`, and `DiscoverModels = [x], <nil>; want the static catalog` |
+  | `eos` treated as truncation | `GenerateItems = <nil>, llm: invalid request: response incomplete: length; want text "done", finish "eos", no error` |
+  | An empty key accepted | `NewTogether with no key: want an error` |
+  | The listing sends a probe | `listing sent a generation to "/chat/completions"` |
+  | The key under another scheme | `path "/chat/completions", Authorization "Token tg-key"` |
+
+* **Step 7, G-wire.** A `together` case, with its six goldens recorded by
+  `go test -run 'TestWireGoldens/together/' -update`. G-wire now has 100
+  files. `git status` showed only the new `testdata/wire/together/`
+  directory; no existing golden changed. The goldens show:
+  * the thinking body with `reasoning: {"enabled": true}` and no
+    `reasoning_effort`;
+  * the plain body with neither.
+
+  The proxy test of 0016 T1 covers `together` too, since it walks the wire
+  cases.
+* **Step 8, live.** `live_together_test.go` (`live_gateways`,
+  `LLMPROVIDER_LIVE_TOGETHER=1` with `TOGETHER_API_KEY`) covers text, a
+  forced tool, the toggle model's thinking, `gpt-oss-120b` with effort
+  `high`, and the listing. It vets clean.
+  * **Not run.** It needs the owner's key and request, and it is billed.
+    Until it runs, D1's reasoning shapes rest on Together's reference and
+    pi's source, as the MADR's Consequences say.
+* **Step 9, docs.** `docs/architecture.md` has ten provider ids and the G-wire
+  counts, and `AGENTS.md` names the live variable.
+* **Step 10.** 0015-PLAN S7's order already names `together`, from the
+  accepted amendment. S10's environment helper will read `TOGETHER_API_KEY`
+  from `ProviderEnvVars`, which already has it.
+* **Gate,** every step exit 0:
+  * `make pre-add-check`;
+  * `go vet` for darwin, linux and windows (`CGO_ENABLED=0`), and with
+    `-tags live_gateways`;
+  * `go test -race -count=1 -cover ./...`: `internal/redact` 100.0 %,
+    `internal/wiretest` 95.2 %, `llmprovider` 90.2 %, `wizard` 83.4 %;
+  * `go mod tidy -diff`, empty;
+  * `make lint`, `0 issues.`;
+  * `make parity-check`;
+  * markdownlint;
+  * G-wire three times over;
+  * G-links;
+  * the deny list over every changed file: 0 hits.

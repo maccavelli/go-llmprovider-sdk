@@ -16,6 +16,9 @@ const (
 	// models.dev registers this gateway as "kilo"; this package follows that
 	// registry key. See docs/decisions/0004-MADR-add-gateway-llm-providers.md revision 4.
 	ProviderKilo = "kilo"
+	// ProviderTogether is Together AI, an OpenAI Chat Completions service
+	// (docs/decisions/0017-MADR-together-provider-and-auth-extensions.md D1).
+	ProviderTogether = "together"
 	// ProviderOllama is a local Ollama instance, reached through its
 	// OpenAI-compatible endpoint. It is the only provider needing no credential.
 	ProviderOllama = "ollama"

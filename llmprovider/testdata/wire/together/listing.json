@@ -1,0 +1,17 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/models",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer together-wire-key",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      }
+    }
+  ],
+  "result": [
+    "zai-org/GLM-5.3",
+    "openai/gpt-oss-120b"
+  ]
+}

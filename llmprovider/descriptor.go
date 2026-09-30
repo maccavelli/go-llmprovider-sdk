@@ -163,6 +163,11 @@ var descriptorSpecs = []struct {
 		notes: "free models available",
 	},
 	{
+		id: ProviderTogether, label: "Together AI",
+		defaultBaseURL: togetherBaseURL, supportsBaseURL: true, requiresAPIKey: true,
+		notes: "pay-as-you-go",
+	},
+	{
 		id: ProviderOllama, label: "Ollama (local)",
 		defaultBaseURL: ollamaBaseURL, supportsBaseURL: true, isLocal: true,
 		requiresAPIKey: false,

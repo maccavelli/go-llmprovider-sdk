@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -295,6 +296,11 @@ func modelCatalogFor(ctx context.Context, providerName, apiKey string, cfg Provi
 		// Deliberate: a failed Kilo fetch degrades to the static catalog rather
 		// than failing, like every other lister here. See catalogFrom.
 		return catalogFrom(kiloUsable(entries), err, StaticModels(ProviderKilo), kiloCurate(entries, cfg.ModelProfile)), nil
+	case ProviderTogether:
+		meta := startModelMetadata(ctx, cfg)
+		usable, err := fetchTogetherUsable(ctx, apiKey, cfg)
+		return catalogFrom(usable, err, StaticModels(ProviderTogether),
+			metadataCurate(ProviderTogether, cfg.ModelProfile, meta, curateTogether)), nil
 	case ProviderOllama:
 		return ollamaCatalog(ctx, cfg)
 	default:
@@ -802,6 +808,64 @@ func fetchHuggingFaceUsable(ctx context.Context, apiKey string, cfg ProviderConf
 		available = append(available, r.id)
 	}
 	return available, nil
+}
+
+// togetherListingLimit bounds Together's model listing, which also lists
+// image, audio and embedding models.
+const togetherListingLimit = 8 << 20
+
+// listTogetherModels lists Together AI's chat models, curated.
+func listTogetherModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
+	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
+		return modelCatalogFor(ctx, ProviderTogether, apiKey, cfg)
+	})
+}
+
+// fetchTogetherUsable returns Together's chat models in listing order.
+// GET {base}/models answers with a bare JSON array, not an OpenAI
+// {"data": [...]} envelope, and lists every model type; only "chat" models
+// can serve a Chat Completions request (0017-REPORT, Together section).
+func fetchTogetherUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
+	baseURL := togetherBaseURL
+	if cfg.BaseURL != "" {
+		baseURL = strings.TrimRight(cfg.BaseURL, "/")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/models", http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	identityOf(cfg).setUserAgent(req)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := cfg.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer closeResponseBody(resp)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("together: models endpoint returned HTTP %d", resp.StatusCode)
+	}
+
+	var models []struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, togetherListingLimit)).Decode(&models); err != nil {
+		return nil, fmt.Errorf("together: decode models: %w", err)
+	}
+	usable := make([]string, 0, len(models))
+	for _, m := range models {
+		if m.Type == "chat" && m.ID != "" {
+			usable = append(usable, m.ID)
+		}
+	}
+	return usable, nil
+}
+
+// curateTogether is the fallback curation when the metadata document is
+// unavailable: the static catalog's order, then the listing's.
+func curateTogether(usable []string) []string {
+	return curateFromCatalog(StaticTogether, usable, nil, nil)
 }
 
 // curateHuggingFace passes a nil rankFn, which preserves the metadata order.
