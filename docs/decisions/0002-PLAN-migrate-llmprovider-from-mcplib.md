@@ -29,8 +29,10 @@ At the end of this plan:
    0010, executable but not executed.
 4. `prepare-commit-msg`, `mcp-server-magictools` and `mcp-server-magicdev`
    import this module, each under its own approved record.
+   *Amended 2026-09-29 (sixth amendment): `prepare-commit-msg` only, for now.*
 5. `mcplib` `v1.7.0` no longer contains `llmprovider/`, `wizard/` or the
    moved records. A relocation table points readers here.
+   *Deferred 2026-09-29 (sixth amendment).*
 
 ## Scope
 
@@ -40,10 +42,10 @@ At the end of this plan:
 |---|---|---|
 | go-llmprovider-sdk (this) | this PLAN | 0, 2–8, 14 |
 | go-llmprovider-sdk (this) | [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) (added 2026-09-29) | between 7 and 8 |
-| mcplib | `docs/decisions/0015-{MADR,PLAN}-transfer-llmprovider-to-go-llmprovider-sdk.md` (written in Phase 1) | 1, 9, 13 |
+| mcplib | `docs/decisions/0015-{MADR,PLAN}-transfer-llmprovider-to-go-llmprovider-sdk.md` (written in Phase 1) | 1, 9, 13 *(2026-09-29: 9 open, 13 deferred)* |
 | prepare-commit-msg | `docs/decisions/0008-{MADR,PLAN}-adopt-go-llmprovider-sdk.md` | 10 |
-| mcp-server-magictools | `docs/decisions/0005-{MADR,PLAN}-adopt-go-llmprovider-sdk.md` | 11 |
-| mcp-server-magicdev | `docs/decisions/0001-{MADR,PLAN}-adopt-go-llmprovider-sdk.md` | 12 |
+| mcp-server-magictools | `docs/decisions/0005-{MADR,PLAN}-adopt-go-llmprovider-sdk.md` | 11 *(deferred 2026-09-29)* |
+| mcp-server-magicdev | `docs/decisions/0001-{MADR,PLAN}-adopt-go-llmprovider-sdk.md` | 12 *(deferred 2026-09-29)* |
 
 Phases 1 and 10–13 each begin by authoring that repository's companion pair
 (bootstrap exception: docs only), presenting it, and waiting for approval.
@@ -483,15 +485,28 @@ before its commit.
      comment (`redact.go` lines 14-16) to describe this package's narrower
      role.
    * Keep only `Redact`, `RedactString` and `MaskSecret` with their tests.
-4. **Orchestration (MADR §4):**
-   * In `wizard/auth.go`, remove the `mcplib` import and make `orchestrated`
-     return `o.Orchestrated != nil && *o.Orchestrated`.
-   * Change the `ErrOrchestrated` message.
-   * Update the `Options.Orchestrated` doc comment: nil means not
-     orchestrated.
-   * Tests: add `TestConfigureLLM_OrchestratedNilIsNotOrchestrated` (with
-     `MCP_ORCHESTRATOR_OWNED=true` set, a nil option does not refuse). Keep
-     the existing explicit-true refusal test.
+4. **Orchestration.** *Replaced 2026-09-29 by the MADR's sixth amendment; the §4
+   version is kept below, struck.* Delete the orchestrator surface:
+   * `wizard/configure.go`: the `Orchestrated` field of `Options` with its
+     comment, and the `orchestrated(o)` check at the top of `ConfigureLLM`;
+   * `wizard/auth.go`: `ErrOrchestrated` with its comment, `orchestrated()`,
+     and the `mcplib` root import;
+   * `wizard/auth_test.go`: `TestConfigureLLM_OrchestratedReturnsErr`, and
+     any import only it used;
+   * **test:** add `TestConfigureLLM_IgnoresOrchestratorEnv`. With
+     `MCP_ORCHESTRATOR_OWNED=true` set, `ConfigureLLM` reaches provider
+     selection. It must fail first against the imported code, which
+     refuses;
+   * **assert:** no Go file under `wizard/` mentions `orchestrat`,
+     `backplane` or `MCP_ORCHESTRATOR_OWNED`, except the new test.
+
+   ~~In `wizard/auth.go`, remove the `mcplib` import and make `orchestrated`
+   return `o.Orchestrated != nil && *o.Orchestrated`. Change the
+   `ErrOrchestrated` message. Update the `Options.Orchestrated` doc comment:
+   nil means not orchestrated. Tests: add
+   `TestConfigureLLM_OrchestratedNilIsNotOrchestrated` (with
+   `MCP_ORCHESTRATOR_OWNED=true` set, a nil option does not refuse). Keep the
+   existing explicit-true refusal test.~~
 5. **Identity (MADR §5):**
    * `identification.go`: rename `defaultClientName` and `mcplibModulePath`
      to `go-llmprovider-sdk` / `sdkModulePath`, and rename the local `mcplib`
@@ -537,6 +552,9 @@ before its commit.
        gate.
        * *Amended 2026-09-29:* except the `var ErrOrchestrated` line,
          whose message MADR §4 changes.
+       * *Amended again 2026-09-29 (sixth amendment):* instead, the removed
+         `var ErrOrchestrated` and `Options.Orchestrated` lines and their
+         doc comments.
        * G-api checks that Phases 4–5 are mechanical. It is not a release
          criterion.
      * Fail experiment: add a parameter to a scratch copy's
@@ -550,6 +568,10 @@ before its commit.
      * *Amended 2026-09-29:* step 4 also adds a table test for
        `wizard.Level.String()`, covering all four branches. See the
        Phase 4 stop entry.
+     * *Re-measured 2026-09-29 (sixth amendment), Go 1.27.1:* `wizard` 462/560
+       (82.50 %) as imported; 457/555 (82.34 %) with the orchestrator
+       code removed; 462/555 (83.24 %) with the `Level.String()` test.
+       The floor stays 82.6 %.
    * `test -z "$(gofmt -l .)"`, `go mod tidy -diff`, `make lint`;
    * G-dep, G-name, G-api.
 
@@ -783,6 +805,10 @@ sit in the provider packages, so run them with `./llmprovider/...`.
 
 ### Phase 9: `mcplib` `v1.6.1` deprecation (`mcplib`, under its 0015 PLAN)
 
+*Open 2026-09-29 (sixth amendment):* `mcp-server-magictools` and
+`mcp-server-magicdev` keep importing these packages. Whether the
+deprecation is tagged before they can migrate is the owner's decision.
+
 1. Add a `// Deprecated: use github.com/maccavelli/go-llmprovider-sdk/<pkg>.`
    paragraph to the package doc of `llmprovider` and `wizard`. Change
    nothing else; the freeze allows this one change under 0015.
@@ -825,12 +851,21 @@ include:
 5. **Docs.** Update `README.md:66` and any record text that states the
    current dependency. Historical records stay as written.
 6. **Reconcile.** Reconcile with its proposed `0007` dependency refresh.
-7. **Orchestration.** It already passes `Orchestrated: &false`. No change.
+7. **Orchestration.** ~~It already passes `Orchestrated: &false`. No change.~~
+   *Amended 2026-09-29 (sixth amendment):* the field no longer exists. Delete
+   `orchestrated := false` and `Orchestrated: &orchestrated`
+   (`internal/ui/setup.go:221,232`). Its behaviour does not change: it
+   never wanted the refusal.
 8. **Live check.** This is MADR §12's `client_version` gate. Built from the
    `v1.0.0` tag, a ChatGPT-session model listing shows `gpt-6-sol`. Record
    the output in this PLAN's Phase 10 entry as well.
 
 ### Phase 11: `mcp-server-magictools` adopts the SDK (its 0005 companion)
+
+*Deferred 2026-09-29 (sixth amendment):* until the owner has moved the
+orchestrator code out of `mcplib`. A later amendment re-scopes this phase
+then. The text below is not executable as written: `Options.Orchestrated`
+no longer exists.
 
 *Amended 2026-09-29:* the companion adopts the 0015 API, not only new
 import paths. It maps each call through
@@ -873,6 +908,11 @@ S11. It may trial against a `v1.0.0-rc.N` tag.
 
 ### Phase 12: `mcp-server-magicdev` adopts the SDK (its 0001 companion)
 
+*Deferred 2026-09-29 (sixth amendment):* until the owner has moved the
+orchestrator code out of `mcplib`. A later amendment re-scopes this phase
+then. The text below is not executable as written: `Options.Orchestrated`
+no longer exists.
+
 *Amended 2026-09-29:* the companion adopts the 0015 API, not only new
 import paths. It maps each call through
 `docs/guides/migrating-from-mcplib.md` and adds the API changes to its
@@ -900,6 +940,8 @@ S11. It may trial against a `v1.0.0-rc.N` tag.
    * `ListAvailableModels` returns at most `MaxListedModels` ranked ids.
 
 ### Phase 13: `mcplib` `v1.7.0` removal (`mcplib`, under its 0015 PLAN)
+
+*Deferred 2026-09-29 (sixth amendment),* with Phases 11 and 12.
 
 1. **Preconditions:**
    * Phases 10–12 are `complete` in their repositories;
@@ -954,7 +996,7 @@ Acceptance criteria. Each maps to MADR §12:
 |---|---|---|---|
 | A1 | No `mcplib` or go-sdk dependency | G-dep | 4 |
 | A2 | No `mcplib` string in Go code | G-name | 7 |
-| A3 | Exported API equals `BASE` apart from allowed doc lines *(2026-09-29: and the §4 `ErrOrchestrated` line; mechanical-move check only)* | G-api | 4, 5 |
+| A3 | Exported API equals `BASE` apart from allowed doc lines *(2026-09-29: and the §4 `ErrOrchestrated` line; mechanical-move check only. Sixth amendment: the removed `ErrOrchestrated` and `Options.Orchestrated` instead)* | G-api | 4, 5 |
 | A4 | Every citation resolves here or is repository-named | G-cite | 7 |
 | A5 | Every relative link resolves | G-links | 6, 13 |
 | A6 | Builds, vets (3 OS and `live_gateways`), tests, formats, tidy, lints | Phase 4 step 9 | 4–8 |
@@ -963,8 +1005,8 @@ Acceptance criteria. Each maps to MADR §12:
 | A9 | Wire identity accepted live | Phase 8 step 1 | 8 |
 | A10 | `client_version` shows `gpt-6-sol` from a `v1.0.0` build | Phase 10 step 8 | 10 |
 | A11 | Open work transferred with dated entries | 0008, 0009, 0010 PLANs | 6 |
-| A12 | Consumers green on `v1.0.0` | their companion PLANs | 10–12 |
-| A13 | `mcplib` MCP-only and relocation table resolves | Phase 13 step 8 | 13 |
+| A12 | Consumers green on `v1.0.0` *(2026-09-29: `prepare-commit-msg` only; 11–12 deferred)* | their companion PLANs | 10–12 |
+| A13 | `mcplib` MCP-only and relocation table resolves *(deferred 2026-09-29)* | Phase 13 step 8 | 13 |
 | A14 | The pre-add gate runs at every agent commit and fails on each planted defect | Phase 2 step 12 | 2 |
 | A15 | Functional parity with `mcplib` `v1.6.0` under the 0015 API | G-wire, ported tests, G-parity (`0015-PLAN-canonical-sdk-api-and-module-layout.md` S-A3–S-A5) | 0015 |
 | A16 | README and `docs/architecture.md` describe the tree as it is; every link resolves ~~; Dependabot watches the pinned actions~~ *(struck 2026-09-29)* | Phase 2b step 6 | 2b |
@@ -983,6 +1025,10 @@ order) → 13 → 14. Phase 5 can be dropped by the owner before it starts; the
 consumer companions then carry the TokenStore handling themselves.
 
 *Amended 2026-09-29:* 0 → … → 7 → 0015-PLAN → 8 → 9 → (10, 11, 12) → 13 → 14.
+
+*Amended 2026-09-29 (sixth amendment):* 0 → … → 7 → 0015-PLAN → 8 → 10 → 14.
+Phase 9 is open. Phases 11, 12 and 13 are deferred; Phase 14 closes what
+ran and records the deferral.
 
 **Before `v1.0.0` is tagged (Phases 0–8).** Everything is local to this
 repository and `mcplib` docs.
@@ -1013,7 +1059,8 @@ MADR, then continue.
 
 * A live identity gate rejects a value.
 * G-api shows a non-doc change *(other than the allowed `ErrOrchestrated`
-  line, 2026-09-29)*.
+  line, 2026-09-29; since the sixth amendment, the removed `ErrOrchestrated`
+  and `Options.Orchestrated`)*.
 * Coverage drops.
 * A 0009 or 0010 citation cannot be resolved by the stated rules.
 * The `mcplib` freeze is broken.
@@ -1220,11 +1267,13 @@ MADR, then continue.
   canonical, extensible API. That led to
   [0015-REPORT-sdk-api-surface-assessment.md](../reports/0015-REPORT-sdk-api-surface-assessment.md),
   [0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md) and [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md), and to the MADR's "Amendment 2026-09-29 (second): functional parity and the canonical API".
-* **Proposed resolutions, pending the owner's approval of that amendment:**
+* **Resolutions, approved 2026-09-29 with the second amendment and
+  modified by the sixth amendment:**
   * a `Level.String()` test (Phase 4 step 9 note);
-  * the `ErrOrchestrated` allowance (step 8);
+  * ~~the `ErrOrchestrated` allowance~~ the removal allowance (step 8);
   * the case-insensitive G-name (step 8).
-* **Status.** Phase 4 has not been applied. It resumes on approval.
+* **Status.** ~~Phase 4 has not been applied. It resumes on approval.~~
+  See "Second and sixth amendments accepted" below.
 
 ### Amendment (third): Phase 2b proposed (2026-09-29)
 
@@ -1455,3 +1504,34 @@ MADR, then continue.
   That is the correction the fifth amendment made necessary.
 * **Status.** Phase 2d done. The next phase of this PLAN is Phase 4, which
   waits for the owner's decision on the MADR's second amendment.
+
+### Second and sixth amendments accepted (2026-09-29)
+
+* **Decisions.** The owner answered "accept all" to the second amendment,
+  with 0015-MADR, and asked for its orchestration code to be explained.
+  Then: "I do not want to bring over the orchestrator code. that is specific
+  to mcplib and will remain in mcplib. we will only be migrating
+  prepare-commit-msg to this new sdk initially until i can clean up the
+  orchestrator stuff and move it out of mcplib." The MADR records both: the
+  second amendment is accepted as modified by the sixth, and the sixth
+  amendment is accepted.
+* **What changed in this PLAN.**
+  * Phase 4 step 4 is replaced: delete the orchestrator surface, with a new
+    first-fail test. Step 8's G-api allowance and A3 follow it. Step 9
+    carries the re-measured coverage.
+  * Phase 9 is open for the owner. Phases 11, 12 and 13 are deferred. Phase
+    10 step 7 deletes `prepare-commit-msg`'s `Orchestrated` lines.
+  * Goals 4 and 5, the scope table, A12, A13 and the order are annotated.
+* **Measured for the amendment.** A stdlib-Python script in `SCRATCH` cloned
+  `mcplib` at `4e1f9a5`, set `go 1.27.1`, and measured `wizard` as
+  imported, with the five items removed, and with a `Level.String()` table
+  test added. Every `go vet`, `gofmt -l` and `go test` exited 0. Coverage was
+  counted from the profiles: 462/560 (82.50 %), 457/555 (82.34 %), and
+  462/555 (83.24 %). No orchestration, backplane or `mcplib`-root line
+  remained in `wizard`.
+* **Correction.** Before this measurement, the owner was told the baseline
+  was 82.6 %. That figure came from a `go tool cover -func` total read
+  through a pipeline. The profile count is 82.50 %, which agrees with
+  `go test`'s own line.
+* **Status.** Phase 4 may resume under the amended step 4. It has not
+  started.

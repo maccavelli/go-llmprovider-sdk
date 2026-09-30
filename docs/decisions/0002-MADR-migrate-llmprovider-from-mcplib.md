@@ -208,6 +208,10 @@ number.
 
 ### 4. Orchestration is the caller's to say
 
+*Superseded 2026-09-29 by the sixth amendment: `wizard` has no orchestration
+concept. `Options.Orchestrated`, `ErrOrchestrated` and `orchestrated()`
+are removed, not kept as below.*
+
 `wizard` no longer reads `MCP_ORCHESTRATOR_OWNED`.
 
 * A nil `Options.Orchestrated` now means "not orchestrated".
@@ -397,6 +401,11 @@ deliberately broken scratch input before it is trusted:
   Each consumer rewrites imports, requires `v1.0.0`, sets
   `Options.Orchestrated` explicitly, and assesses the behaviour it gains
   relative to its pinned `mcplib`. The PLAN lists those changes.
+
+  *Amended 2026-09-29 by the sixth amendment:* only `prepare-commit-msg`
+  migrates now. `mcp-server-magictools` and `mcp-server-magicdev` stay on
+  `mcplib` until the owner moves the orchestrator code out of `mcplib`.
+  No consumer sets `Options.Orchestrated`, which no longer exists.
 
 ### Consequences
 
@@ -646,7 +655,8 @@ The PLAN's Phase 2 records two things:
 
 ## Amendment 2026-09-29 (second): functional parity and the canonical API
 
-Status: **proposed**, with [0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md). The owner restated the SDK's
+Status: **accepted** 2026-09-29, with [0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md),
+as modified by the sixth amendment (the owner: "accept all"). The owner restated the SDK's
 purpose on 2026-09-29: functional parity with `mcplib`, and an API that is
 canonical, modular, extensible and consistent as the SDK grows.
 [0015-REPORT-sdk-api-surface-assessment.md](../reports/0015-REPORT-sdk-api-surface-assessment.md)
@@ -666,6 +676,9 @@ amendment changes the migration to fit, and changes nothing else above.
 2. **§12, the API-parity gate.** G-api runs for Phases 4–5 as written, with
    one allowance. The `var ErrOrchestrated = errors.New(…)` line may change,
    because §4 requires its new message.
+   *Amended 2026-09-29 (sixth amendment):* the allowance is instead the removal
+   of `ErrOrchestrated` and of the `Options.Orchestrated` field, with
+   their doc comments.
    * The release criterion is 0015-MADR D12: G-wire, the ported tests and
      G-parity.
    * From `v1.0.0` on, `apidiff` guards the API (0015-MADR D13).
@@ -685,6 +698,7 @@ amendment changes the migration to fit, and changes nothing else above.
 7. **§13, the consumers.** Each companion adopts the 0015 API, not only new
    import paths, using `docs/guides/migrating-from-mcplib.md`. The companions
    are written after 0015-PLAN S11, when that guide is complete.
+   *Amended 2026-09-29 (sixth amendment):* only `prepare-commit-msg`'s, for now.
 
 ### Phase 4 stop of 2026-09-29, and its proposed resolution
 
@@ -700,8 +714,11 @@ Approving this amendment approves the resolutions below.
   * **Resolution:** add a test for the exported, fully uncovered
     `Level.String()` in `wizard/prompter.go` (5 statements). That brings
     `wizard` to 453/543 (83.4 %). The floor stays as written.
+  * *Re-measured 2026-09-29 (sixth amendment), at Go 1.27.1 with the orchestrator
+    code removed:* 462/555 (83.24 %) with the test. The resolution stands.
 * **G-api.** The only non-doc line in the diff is §4's `ErrOrchestrated`
   initialiser. **Resolution:** the allowance in item 2.
+  *As amended by the sixth amendment: the removals.*
 * **G-name.** **Resolution:** item 3.
 
 ### Consequences of the amendment
@@ -931,3 +948,111 @@ On 2026-09-29 the owner asked: "we updated all go and go tooling to
 * Bad, because until Phase 4 the module has imports it cannot resolve.
   `go mod tidy` must not be run, and `make tidy` would add `mcplib`.
   AGENTS.md says so until Phase 4.
+
+## Amendment 2026-09-29 (sixth): orchestration stays in `mcplib`; `prepare-commit-msg` migrates first
+
+Status: **accepted** 2026-09-29. The owner:
+
+> I do not want to bring over the orchestrator code. that is specific to
+> mcplib and will remain in mcplib. we will only be migrating
+> prepare-commit-msg to this new sdk initially until i can clean up the
+> orchestrator stuff and move it out of mcplib.
+
+The same day the owner accepted the second amendment and
+[0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md)
+("accept all"). This amendment modifies the second amendment's G-api
+allowance and item 7, and supersedes §4 and part of §13.
+
+### Observed
+
+* **The orchestrator surface is five items, all in `wizard`** (this
+  repository at `08de832`, byte-identical to `mcplib` `4e1f9a5`):
+  * the `Options.Orchestrated *bool` field (`wizard/configure.go:78-79`);
+  * `ErrOrchestrated` (`wizard/auth.go:31-32`), whose message names "the
+    LLM backplane";
+  * `orchestrated()` (`wizard/auth.go:47-52`). With a nil option it calls
+    `mcplib.IsOrchestratorOwned()`, which reads `MCP_ORCHESTRATOR_OWNED`.
+    It is `wizard`'s only use of the `mcplib` root package;
+  * the early return at the top of `ConfigureLLM`
+    (`wizard/configure.go:106-108`);
+  * `TestConfigureLLM_OrchestratedReturnsErr` (`wizard/auth_test.go:18`).
+
+  `llmprovider` and `internal/redact` have none.
+* **Who depends on it.**
+  * `prepare-commit-msg` passes `Orchestrated: &orchestrated` with
+    `orchestrated := false` (`internal/ui/setup.go:221,232`). It never
+    wants the refusal.
+  * `mcp-server-magictools` (`cmd/mcp-server-magictools/config.go:497-504`)
+    and `mcp-server-magicdev` (`cmd/mcp-server-magicdev/configure.go:274-286`)
+    do not set the option, so they rely on the environment fallback.
+    `mcp-server-magicdev` also calls `mcplib.IsOrchestratorOwned()`
+    directly (`cmd/mcp-server-magicdev/serve.go:51,119,344`,
+    `internal/sync/standards_watcher.go:33`).
+* **Coverage of `wizard`.** Measured on a scratch clone of `mcplib`
+  `4e1f9a5` with its directive set to `go 1.27.1`, toolchain `go1.27.1`.
+  Statements were counted from each coverage profile. Every `go vet`,
+  `gofmt -l` and `go test` run exited 0.
+
+  | State | Covered/total | Coverage |
+  |---|---|---|
+  | as imported | 462/560 | 82.50 % |
+  | the five items removed | 457/555 | 82.34 % |
+  | removed, plus a `Level.String()` table test | 462/555 | 83.24 % |
+
+  The removal takes five covered statements and leaves the 98 uncovered
+  ones. The Phase 4 dry run counted 450/545 for the same source, before its
+  change. The totals differ between the two runs, and the cause was not
+  established; each comparison above is within one run.
+* **After the removal** no line in `wizard` mentions `orchestrat`,
+  `backplane` or the `mcplib` root import.
+
+### Decision
+
+* **`wizard` has no orchestration concept.** Phase 4 deletes the five
+  items instead of §4's rewrite. `ConfigureLLM` never refuses on
+  orchestration grounds and reads no orchestration variable. A caller that
+  must not configure credentials while orchestrated checks that itself,
+  before calling `ConfigureLLM`.
+  * Under 0015-MADR D1 this is a recorded removal:
+    `docs/guides/migrating-from-mcplib.md` lists `Options.Orchestrated` and
+    `ErrOrchestrated` as removed, with this reason.
+  * A new test sets `MCP_ORCHESTRATOR_OWNED=true` and asserts that
+    `ConfigureLLM` reaches provider selection. It is seen to fail first
+    against the imported code.
+* **G-api's allowance** (second amendment, item 2) becomes the removed
+  `var ErrOrchestrated` and `Options.Orchestrated` lines, with their doc
+  comments, in place of a changed message.
+* **Coverage.** The second amendment's resolution stands: a `Level.String()`
+  test, and the floor unchanged.
+* **Only `prepare-commit-msg` migrates now** (PLAN Phase 10). Its companion
+  deletes its `Orchestrated` lines; its behaviour does not change.
+  * PLAN Phases 11 (`mcp-server-magictools`) and 12 (`mcp-server-magicdev`)
+    are deferred. They are re-scoped by a later amendment once the owner has
+    moved the orchestrator code out of `mcplib`, under that repository's own
+    record.
+  * PLAN Phase 13 (`mcplib` `v1.7.0`) is deferred with them: its
+    precondition is that no fleet repository imports `mcplib/llmprovider` or
+    `mcplib/wizard`.
+  * `mcplib` `docs/decisions/0015-MADR-transfer-llmprovider-to-go-llmprovider-sdk.md`
+    names all three consumers in its `v1.7.0` preconditions. It needs its own
+    amendment, in `mcplib`; this record does not make it.
+  * **PLAN Phase 9 (`mcplib` `v1.6.1` deprecation) is left open.** Tagging
+    it would mark deprecated two packages that two fleet repositories must
+    keep using. They see `SA1019` only if they move to `v1.6.1` or later.
+    The owner decides whether it waits.
+
+### Consequences of the amendment
+
+* Good, because the SDK carries no MCP concept, and `wizard` loses its only
+  import of the `mcplib` root package.
+* Good, because the first migration touches one consumer, which never used
+  the refusal.
+* Neutral, because `mcp-server-magictools` and `mcp-server-magicdev` do not
+  change. They keep `mcplib`'s packages at their current pins.
+* Bad, because a caller that relied on the automatic refusal must now check
+  for itself. No consumer migrating now does.
+* Bad, because `mcplib` keeps `llmprovider` and `wizard` longer, under its
+  freeze. A fix made here reaches the other two servers only when they
+  migrate.
+* Bad, because 0002's goals of three migrated consumers and an MCP-only
+  `mcplib` `v1.7.0` are postponed without a date.

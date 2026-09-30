@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-29
 decision-makers: go-llmprovider-sdk maintainers
 consulted: owners of mcp-server-magicdev, mcp-server-magictools, prepare-commit-msg, pi-go
@@ -115,7 +115,7 @@ with these packages:
 | `llmprovider/providers/<id>` | One package per provider or gateway family: `openai`, `claude`, `gemini`, `grok`, `opencode`, `kilo`, `huggingface`, `ollama`. Each has its `New`, its own options and its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
 | `llmprovider/providers` | `Default()`, a fresh `Registry` holding every built-in provider, and `New(id, opts...)` over it | the provider packages |
 | `llmprovider/llmtest` | The conformance suite and a scriptable fake provider for consumers' tests | `llmprovider` |
-| `llmprovider/internal/wire/...` | The four wire formats (Responses, Chat Completions, Messages, Gemini Interactions), shared by the providers and gateways | `llmprovider` |
+| `llmprovider/internal/wire/...` | The ~~four~~ five wire formats (Responses, Chat Completions, Messages, Gemini Interactions, and Gemini `generateContent` for OpenCode's Google route; *count corrected 2026-09-29*), shared by the providers and gateways | `llmprovider` |
 | `llmprovider/internal/transport` | HTTP helpers, identity headers, `Retry-After` parsing, error-body classification | `llmprovider`, `internal/redact` |
 | `wizard` | The configuration flow, over a `Registry` | the above, and `golang.org/x/term` |
 | `internal/redact` | Redaction | the standard library |
@@ -334,6 +334,8 @@ Invalid values are rejected by `New` or `Generate` with `ErrInvalidRequest`.
 3. **Then 0002-PLAN Phase 8:** live identity gates and `v1.0.0`.
 4. **Then the consumer companions,** which adopt this API rather than only
    rewriting import paths.
+   *Amended 2026-09-29 (0002-MADR sixth amendment):* `prepare-commit-msg`'s
+   only, for now.
 
 Release candidates (`v1.0.0-rc.N`) may be tagged from this PLAN's later
 phases for consumers to trial. The ChatGPT `client_version` they send is

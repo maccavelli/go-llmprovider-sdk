@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-09-29
 associated-madr: "0015-MADR-canonical-sdk-api-and-module-layout.md"
 decision-makers: go-llmprovider-sdk maintainers
@@ -234,7 +234,8 @@ For each provider:
    provider packages. `TestDescriptors_CoverEveryRegisteredProvider` becomes
    a test that every provider package is in `Default()`.
 2. **`wizard`** takes `Options.Registry`, uses typed ids, and keeps the
-   0002-MADR §4 and §7 behaviour.
+   0002-MADR ~~§4 and~~ §7 behaviour. *(2026-09-29: §4 is superseded by
+   0002-MADR's sixth amendment; `wizard` has no orchestration option.)*
 3. **Remove what remains of the old API:**
    * `NewProvider*`;
    * the `Generate*WithRetry` functions;
@@ -336,4 +337,15 @@ For each provider:
 
 ## Execution Record
 
-Not started. S0 waits for the owner's decision on the MADR.
+### Phase S0: accept (2026-09-29)
+
+* **Decision.** The owner answered "accept all" to 0002-MADR's second
+  amendment together with this MADR. The MADR is `accepted`, this PLAN
+  `in-progress`, and the 0002 second amendment `accepted`, as modified by
+  0002-MADR's sixth amendment (no orchestration in `wizard`;
+  `prepare-commit-msg` is the only consumer for now).
+* **Correction at acceptance.** D2 said "four wire formats". There are
+  five: OpenCode's Google route uses Gemini `generateContent`
+  (`llmprovider/opencode_route.go:50-51`). The row is corrected in place,
+  with the old word struck.
+* **Next.** S1 starts when 0002-PLAN Phase 7 is committed (§0).

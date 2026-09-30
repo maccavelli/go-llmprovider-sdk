@@ -8,8 +8,8 @@
 | 0002 | MADR | [Migrate `llmprovider` and `wizard` from mcplib](decisions/0002-MADR-migrate-llmprovider-from-mcplib.md) | accepted |
 | 0002 | PLAN | [Implement the migration from mcplib](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md) | in-progress |
 | 0015 | REPORT | [SDK API surface assessment](reports/0015-REPORT-sdk-api-surface-assessment.md) | observation |
-| 0015 | MADR | [Canonical, modular v1 API](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) | proposed |
-| 0015 | PLAN | [Implement the canonical v1 API](decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) | proposed |
+| 0015 | MADR | [Canonical, modular v1 API](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) | accepted |
+| 0015 | PLAN | [Implement the canonical v1 API](decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) | in-progress |
 | 0016 | MADR | [Provider auth and support baseline: `mcplib` code, `magic-cli-remote` credential hygiene](decisions/0016-MADR-provider-auth-and-support-baseline.md) | proposed |
 | 0016 | PLAN | [Implement the provider auth and support baseline](decisions/0016-PLAN-provider-auth-and-support-baseline.md) | proposed |
 
