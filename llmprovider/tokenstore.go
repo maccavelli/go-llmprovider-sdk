@@ -2,6 +2,7 @@ package llmprovider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -56,6 +57,28 @@ func (s *OAuthSession) String() string {
 
 // GoString renders the session for %#v, without its tokens.
 func (s *OAuthSession) GoString() string { return "&llmprovider." + s.String() }
+
+// MarshalJSON encodes the session without its tokens; see Token.MarshalJSON.
+// FileTokenStore persists sessions through its own record type, unaffected.
+func (s *OAuthSession) MarshalJSON() ([]byte, error) {
+	if s == nil {
+		return []byte("null"), nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return json.Marshal(struct {
+		Provider  string `json:"provider"`
+		Issuer    string `json:"issuer"`
+		ClientID  string `json:"client_id"`
+		AccountID string `json:"account_id"`
+		FedRAMP   bool   `json:"fedramp"`
+		TokenURL  string `json:"token_url"`
+		Expiry    string `json:"expiry"`
+		Access    string `json:"access"`
+		Refresh   string `json:"refresh"`
+	}{s.Provider, s.Issuer, s.ClientID, s.AccountID, s.FedRAMP, s.TokenURL, expiryText(s.Expiry),
+		secretText(s.Access), secretText(s.Refresh)})
+}
 
 // LogValue renders the session for slog, without its tokens.
 func (s *OAuthSession) LogValue() slog.Value {

@@ -785,8 +785,9 @@ No phase has changed yet.
   discovery-fallback test. No other assertion changed meaning. The login
   tests' fixtures now sign `id_token`s.
 * **Open items for the owner, from this phase:**
-  * slog's JSON handler shows the secret of a *struct holding* a `Token`
-    (step 3's record);
+  * ~~slog's JSON handler shows the secret of a *struct holding* a `Token`
+    (step 3's record);~~ *Closed 2026-09-30: the owner chose a redacting
+    `MarshalJSON` (0016-MADR A4; 0016-PLAN, "T2 step 3, addition").*
   * the S7 ordering items of the 2026-09-30 deviation (`NewProvider`, and
     `ProviderConfig.ModelProfile`).
 * **Gate,** every step exit 0, at each commit. At this commit:

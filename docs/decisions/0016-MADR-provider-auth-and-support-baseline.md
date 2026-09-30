@@ -630,3 +630,15 @@ These refine D7 as the owner decided it, from Grok's implementation
 * **D12.** Claude Code and pi also read `ANTHROPIC_AUTH_TOKEN`, a bearer for
   gateways. D12 stands. A caller with such a token passes it through
   `WithTokenSource`, with D2's `Header` override.
+
+### A4. `MarshalJSON` redaction (extends D5; the owner's decision, 2026-09-30)
+
+* **Found in T2 step 3.** slog's JSON handler encodes a struct *holding* a
+  `Token` with `encoding/json`, which never calls the nested `LogValue`, so
+  the secret showed. `json.Marshal` of any of the types did the same.
+* **Decided.** The owner answered "add the MarshalJSON redaction". `Token`,
+  `StaticToken` and `*OAuthSession` also implement `MarshalJSON`, with the
+  same redacted fields as their other forms.
+* **Cost.** The encoding does not round-trip: code that needs a secret reads
+  the field. Nothing in this module JSON-encodes these types to store or
+  send them. `FileTokenStore` writes its own record type.

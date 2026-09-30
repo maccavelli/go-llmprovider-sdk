@@ -724,3 +724,29 @@ run in T2 (0015-PLAN S4).
   * V6, the OAuth checks.
 
   V4's nested-JSON case is an open item, in step 3's record.
+
+### T2 step 3, addition: `MarshalJSON` redaction (2026-09-30, the owner's decision)
+
+* **Closes step 3's open item.** The owner answered "add the MarshalJSON
+  redaction" (0016-MADR, amendment A4).
+* **The methods.** `Token` and `StaticToken` (value receivers) and
+  `*OAuthSession` (under its lock; `null` for nil) implement `MarshalJSON`,
+  with the same fields as `LogValue` and `[redacted]` for each secret.
+* **Checked first:** no non-test code in the module JSON-encodes these
+  types. The encoders are request bodies, and `FileTokenStore`'s
+  `fileRecord`.
+* **The test.** `TestSecretBearingTypesRedact` gains a `json.Marshal` form
+  for every row. It loses its known-gap skip, and its exemption of the
+  nested struct from the non-secret check. `TestSecretText` covers a nil
+  session's JSON.
+* **Red first,** against a clean clone of `9a264db`. Exit 1, with seven
+  leaks:
+  * `json.Marshal` of `Token`, `*Token`, `StaticToken`, `*StaticToken`,
+    `*OAuthSession` and the struct;
+  * the struct through slog's JSON handler.
+
+  For example: `*OAuthSession via json.Marshal shows the secret: {"Provider":"grok","Access":"at-PLANTED-SECRE…`.
+* **Seen to fail on deliberate breaks:**
+  * `Token.MarshalJSON` encoding its value: `Token via json.Marshal shows the secret`, and `struct holding a Token via slog JSON shows the secret`;
+  * `OAuthSession.MarshalJSON` encoding the refresh token: `*OAuthSession via json.Marshal shows the secret`.
+* **V4 is met for T2's types.** `wizard.Result` remains T4's.

@@ -2,6 +2,7 @@ package llmprovider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -57,6 +58,19 @@ func (t Token) String() string {
 // GoString renders the token for %#v, without its value.
 func (t Token) GoString() string { return "llmprovider." + t.String() }
 
+// MarshalJSON encodes the token without its value, so a struct holding a
+// Token, logged through slog's JSON handler or encoded by a caller, never
+// carries the secret (0016-MADR D5 and its amendment of 2026-09-30). The
+// encoding does not round-trip: code that needs the value reads the field.
+func (t Token) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   TokenType `json:"type"`
+		Header string    `json:"header"`
+		Expiry string    `json:"expiry"`
+		Value  string    `json:"value"`
+	}{t.Type, t.Header, expiryText(t.Expiry), secretText(t.Value)})
+}
+
 // LogValue renders the token for slog, without its value.
 func (t Token) LogValue() slog.Value {
 	return slog.GroupValue(
@@ -104,6 +118,14 @@ func (s StaticToken) String() string {
 
 // GoString renders the source for %#v, without its value.
 func (s StaticToken) GoString() string { return "llmprovider." + s.String() }
+
+// MarshalJSON encodes the source without its value; see Token.MarshalJSON.
+func (s StaticToken) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Header string `json:"header"`
+		Value  string `json:"value"`
+	}{s.Header, secretText(s.Value)})
+}
 
 // LogValue renders the source for slog, without its value.
 func (s StaticToken) LogValue() slog.Value {

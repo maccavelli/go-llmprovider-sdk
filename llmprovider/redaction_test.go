@@ -2,6 +2,7 @@ package llmprovider
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -42,22 +43,18 @@ func TestSecretBearingTypesRedact(t *testing.T) {
 		slog.New(slog.NewJSONHandler(&jsonOut, nil)).Info("m", "v", tc.value)
 		slog.New(slog.NewTextHandler(&textOut, nil)).Info("m", "v", tc.value)
 		forms["slog JSON"], forms["slog text"] = jsonOut.String(), textOut.String()
+		raw, err := json.Marshal(tc.value)
+		if err != nil {
+			t.Fatalf("%s: json.Marshal: %v", tc.name, err)
+		}
+		forms["json.Marshal"] = string(raw)
 
 		for form, out := range forms {
-			// Known gap, recorded as an open item in 0016-PLAN's T2 step 3
-			// record: slog's JSON handler encodes a struct *holding* a Token
-			// with encoding/json, which never calls the nested LogValue. Only
-			// a redacting MarshalJSON would close it, which T2 does not plan.
-			if tc.name == "struct holding a Token" && form == "slog JSON" {
-				continue
-			}
 			if strings.Contains(out, plantedSecret) {
 				t.Errorf("%s via %s shows the secret: %s", tc.name, form, out)
 			}
-			if tc.name != "struct holding a Token" || !strings.HasPrefix(form, "slog") {
-				if !strings.Contains(out, tc.shown) {
-					t.Errorf("%s via %s lost the non-secret %q: %s", tc.name, form, tc.shown, out)
-				}
+			if !strings.Contains(out, tc.shown) {
+				t.Errorf("%s via %s lost the non-secret %q: %s", tc.name, form, tc.shown, out)
 			}
 		}
 	}
@@ -76,6 +73,9 @@ func TestSecretText(t *testing.T) {
 	}
 	if got := (*OAuthSession)(nil).LogValue().String(); got != "OAuthSession(nil)" {
 		t.Errorf("nil session LogValue = %q", got)
+	}
+	if raw, err := json.Marshal((*OAuthSession)(nil)); err != nil || string(raw) != "null" {
+		t.Errorf("nil session JSON = %s, %v; want null", raw, err)
 	}
 	if got := expiryText(time.Time{}); got != "none" {
 		t.Errorf("expiryText(zero) = %q, want none", got)
