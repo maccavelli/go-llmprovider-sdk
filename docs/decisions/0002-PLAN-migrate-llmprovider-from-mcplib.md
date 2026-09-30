@@ -809,6 +809,9 @@ sit in the provider packages, so run them with `./llmprovider/...`.
 `mcp-server-magicdev` keep importing these packages. Whether the
 deprecation is tagged before they can migrate is the owner's decision.
 
+*Decided 2026-09-29: it waits* until `mcp-server-magictools` and
+`mcp-server-magicdev` can migrate.
+
 1. Add a `// Deprecated: use github.com/maccavelli/go-llmprovider-sdk/<pkg>.`
    paragraph to the package doc of `llmprovider` and `wizard`. Change
    nothing else; the freeze allows this one change under 0015.
@@ -832,8 +835,12 @@ include:
 1. **Import rewrite.** Replace both imports in `main.go`,
    `internal/ui/setup.go`, `internal/config/config.go` and their tests.
 2. **Module requirements.** `go get github.com/maccavelli/go-llmprovider-sdk@v1.0.0`.
-   Keep `mcplib` for `selfupdate` (bump to `v1.6.1` or later only if the
-   companion chooses). Run `go mod tidy`.
+   ~~Keep `mcplib` for `selfupdate` (bump to `v1.6.1` or later only if the
+   companion chooses).~~ *Amended 2026-09-29 (the MADR's sixth amendment,
+   further decisions):* `prepare-commit-msg` drops `mcplib` entirely.
+   `selfupdate` comes from `go-core-lib` (`github.com/maccavelli/go-core-lib`); this phase cannot complete before
+   that release exists. Assert that `go list -m all` names no
+   `github.com/maccavelli/mcplib`. Run `go mod tidy`.
 3. **Folded-in 0008 P8.** This is this repository's `0008-PLAN` P8, which
    was re-targeted:
    * live-token-store isolation in `main_oauth_test.go`;
@@ -842,6 +849,8 @@ include:
    Transfer its acceptance criteria.
 4. **`scripts/go-precheck.py`.** Extend the `mcplib` supply-chain check
    (lines 121-175) to this module:
+   *Amended 2026-09-29:* and to `go-core-lib`; the `mcplib` entry goes with
+   the requirement.
    * it must be required at a release version, not a pseudo-version;
    * no `replace`;
    * no GOPRIVATE / GONOSUMDB / GONOSUMCHECK / GOINSECURE exemption;
@@ -1535,3 +1544,13 @@ MADR, then continue.
   `go test`'s own line.
 * **Status.** Phase 4 may resume under the amended step 4. It has not
   started.
+
+### Phase 9 and `prepare-commit-msg` decided (2026-09-29)
+
+* **Decisions.** Phase 9 waits. `prepare-commit-msg` drops `mcplib`
+  entirely, taking `selfupdate` from the owner's `go-core-lib`. Recorded in
+  the MADR's sixth amendment, "The owner's further decisions".
+* **What changed in this PLAN.** Phase 9 is marked as waiting. Phase 10
+  step 2 strikes "keep `mcplib` for `selfupdate`" and adds the no-`mcplib`
+  assertion; step 4 extends the supply-chain check to `go-core-lib`.
+* **In `mcplib`.** Its 0015 pair was amended to match, uncommitted there.

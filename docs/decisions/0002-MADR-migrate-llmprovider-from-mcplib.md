@@ -1056,3 +1056,27 @@ allowance and item 7, and supersedes §4 and part of §13.
   migrate.
 * Bad, because 0002's goals of three migrated consumers and an MCP-only
   `mcplib` `v1.7.0` are postponed without a date.
+
+### The owner's further decisions (2026-09-29)
+
+Asked about PLAN Phase 9 and about `mcplib`'s own record, the owner answered:
+"1. wait, 2. drop prepare-commit-msg as a mcplib consumer", and confirmed
+that this means removing `mcplib` from `prepare-commit-msg` entirely. On
+self-update: "i am going to extract it into a new additional go shared
+library package i already have the repo for as a separate project named
+go-core-lib on my github".
+
+* **PLAN Phase 9 waits,** until `mcp-server-magictools` and
+  `mcp-server-magicdev` can migrate.
+* **`prepare-commit-msg` drops `mcplib` entirely.** `llmprovider` and
+  `wizard` come from this module. `selfupdate`, its only other `mcplib`
+  import (`main.go:23`, `update.go:12`), comes from the owner's
+  `go-core-lib` (`github.com/maccavelli/go-core-lib`), extracted under that repository's own records. PLAN Phase 10
+  cannot complete before that release exists.
+* **Not decided here:** how `mcplib`'s `selfupdate` is extracted, and when
+  `magic-cli-remote` (`cmd/mcremote`, `cmd/mcrelay`,
+  `internal/updateclient`) moves to it.
+* **`mcplib`'s side** is recorded in `mcplib`
+  `docs/decisions/0015-MADR-transfer-llmprovider-to-go-llmprovider-sdk.md`,
+  "Amendment 2026-09-29 (second)".
+* Bad, because Phase 10 now depends on a release in a third repository.
