@@ -693,3 +693,38 @@ commits:
      `wizard/configure.go:68`, `:300`, keep `ModelProfile` inside
      `llmprovider` until S8 removes the old API. So S7b's `catalog` commit
      would cycle unless it follows that removal.
+
+### Phase S3: transport defaults, in place (2026-09-30)
+
+* **Amendment first.** Records-only commit `51ebc85` holds the deviation
+  above and the reordered phases, after the owner chose option 1 and its
+  extension to S4 and S5.
+* **Step 1, [0016-PLAN-provider-auth-and-support-baseline.md](0016-PLAN-provider-auth-and-support-baseline.md) T1, in `llmprovider`:**
+  * `defaultHTTPClient` (`options.go`) sets
+    `Proxy: http.ProxyFromEnvironment`. Timeouts and connection limits are
+    unchanged.
+  * `shareHTTPClient` (`oauth_session.go`) gives an `OAuthSession` with no
+    client the provider's. `NewOpenAIWithSource` and `newGrokWithSource`
+    call it. A session that has a client keeps it.
+  * Listing and probes already used each provider's client. Every
+    `DiscoverModels` passes `p.client`. Only the refresh did not: it built a
+    fresh `defaultHTTPClient()` (`oauth_session.go`, `refreshOAuthSessionOnce`).
+  * Recorded in 0016-PLAN T1 with the tests and their red-first output.
+* **Step 2, gate,** every step exit 0:
+  * `make pre-add-check`;
+  * `go vet` for darwin, linux and windows (`CGO_ENABLED=0`), and with
+    `-tags live_gateways`;
+  * `go test -race -count=1 -cover ./...`: `internal/redact` 100.0 %,
+    `internal/wiretest` 95.2 %, `llmprovider` 90.2 %, `wizard` 83.4 %, the
+    same as S2;
+  * `go mod tidy -diff`, empty;
+  * `make lint`, `0 issues.`;
+  * `make parity-check`;
+  * markdownlint on the guides, the index and architecture;
+  * G-links;
+  * the deny list over the changed files: 0 hits.
+
+  **G-wire unchanged.** It passed three times over, and no file under
+  `llmprovider/testdata/wire` changed. No test sets a proxy variable for
+  the goldens, and loopback is never proxied.
+* **Docs.** `docs/architecture.md` describes the provider's one client.

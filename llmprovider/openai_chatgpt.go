@@ -35,6 +35,7 @@ func NewOpenAIWithSource(src TokenSource, model string, opts ...ProviderOption) 
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
+	shareHTTPClient(src, cfg.HTTPClient)
 	return &OpenAIProvider{
 		src:             src,
 		chatGPT:         chatGPT,

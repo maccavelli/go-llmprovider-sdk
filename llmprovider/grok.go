@@ -46,6 +46,7 @@ func newGrokWithSource(src TokenSource, model string, opts ...ProviderOption) (*
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
+	shareHTTPClient(src, cfg.HTTPClient)
 	return &GrokProvider{
 		src:             src,
 		model:           model,

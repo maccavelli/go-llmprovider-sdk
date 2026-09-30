@@ -69,6 +69,11 @@ docs/
   provider's own `New…`; options are `ProviderOption` functions (`WithBaseURL`,
   `WithHTTPClient`, `WithReasoningEffort`, …). `GenerateWithRetry` and its two
   siblings retry on typed errors.
+- **Transport:** without `WithHTTPClient`, each provider builds one client:
+  330 s overall, 300 s to the first byte, and `HTTP_PROXY`, `HTTPS_PROXY`
+  and `NO_PROXY` honoured. It carries the provider's requests, its listing
+  and probes, and its OAuth session's refreshes when the session has no
+  client of its own.
 - **Errors:** `*APIError` with sentinels such as `ErrRateLimited`,
   `ErrQuotaExhausted` and `ErrAuthFailure`, plus `RateLimitError` and
   `IncompleteError`. Error bodies pass through `redact.String`.

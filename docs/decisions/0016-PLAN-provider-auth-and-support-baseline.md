@@ -293,3 +293,50 @@ At the end of this plan, before `v1.0.0`:
 * 0002-MADR §13 names `prepare-commit-msg`'s new obligations (T0 step 4).
 * `docs/README.md` shows this PLAN `in-progress` (T0 step 5).
 * The commit holds records only (bootstrap exception).
+
+### T1: transport (2026-09-30, in 0015-PLAN S3)
+
+* **Where.** In `llmprovider`, as the Deviation Log's first entry says:
+  `options.go` and `oauth_session.go`, called from `openai_chatgpt.go` and
+  `grok.go`.
+* **Step 1.** `defaultHTTPClient` sets `Proxy: http.ProxyFromEnvironment`.
+  Each provider already built one client in its constructor
+  (`ApplyOptions`) and used it for listing and probes. Its OAuth session now
+  receives it too, when it has none (`shareHTTPClient`).
+* **Step 2, test `TestDefaultClient_HonoursProxy`**
+  (`llmprovider/transport_defaults_test.go`).
+  * Each of the 15 G-wire cases is built without `WithHTTPClient`, aimed at
+    `http://<case>.invalid`, and must generate "hello" through
+    `HTTP_PROXY`, an `httptest` server that answers with that case's canned
+    reply.
+  * The parent checks that every case's host reached the proxy.
+  * **A child process.** `net/http` reads the proxy variables once per
+    process, so the providers run in a child of the test binary that starts
+    with only the test's proxy set. The host's own proxy variables are
+    removed.
+  * **Why `.invalid`.** Loopback is never proxied, so the base URL is a
+    non-loopback host that cannot resolve: only a proxied request can
+    succeed.
+* **Step 3, test `TestProviderClient_SharedWithListingAndRefresh`,** for
+  `chatgpt` and `grok`. An expired session with no client is given to a
+  provider built without `WithHTTPClient`. The provider's client is wrapped
+  in a path recorder. `Generate` and `DiscoverModels` must send
+  `POST /oauth/token`, `POST /responses` and `GET /models` through it.
+  `TestShareHTTPClient_KeepsTheSessionsOwn` covers a session's own client, a
+  nil client and a non-session source.
+* **Red first,** against a clean clone of `51ebc85` in scratch, with the two
+  tests copied in (the helper's own test names the new function and cannot
+  compile there). Exit 1:
+  * `openai: Generate = "", Post "http://openai.invalid/responses": dial tcp:
+    lookup openai.invalid: no such host; want "hello" through the proxy`, and
+    the same for all 15 cases;
+  * `chatgpt`: `POST /oauth/token did not go through the provider's client
+    (it carried [POST /responses GET /models])`, and the same for `grok`.
+* **Seen to fail on deliberate breaks,** in scratch copies, for the two
+  assertions the pre-change code already met:
+  * the ChatGPT listing given its own `defaultHTTPClient()`:
+    `GET /models did not go through the provider's client (it carried
+    [POST /oauth/token POST /responses])`;
+  * the guard in `shareHTTPClient` removed:
+    `a session's own client was replaced`.
+* **V7** (proxy honoured; one client per provider) is met.

@@ -10,11 +10,13 @@ import (
 // http.DefaultClient has no timeout and must not be used here. A generation may
 // take 300 s to its first byte, as the reference clients allow (MADR 0012
 // §1.3); callers wanting less set a context deadline. Listings keep their own
-// 10 s bound.
+// 10 s bound. It honours HTTP_PROXY, HTTPS_PROXY and NO_PROXY, as net/http's
+// own default transport does (0016-MADR D8).
 func defaultHTTPClient() *http.Client {
 	return &http.Client{
 		Timeout: 330 * time.Second,
 		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ResponseHeaderTimeout: 300 * time.Second,
 			IdleConnTimeout:       90 * time.Second,
