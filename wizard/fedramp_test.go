@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/maccavelli/mcplib/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // TestConfigureLLM_KeepsFedRAMP: a kept ChatGPT session keeps its FedRAMP

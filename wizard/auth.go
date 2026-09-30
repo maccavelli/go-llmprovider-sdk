@@ -7,9 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	mcplib "github.com/maccavelli/mcplib"
-	"github.com/maccavelli/mcplib/llmprovider"
-	"github.com/maccavelli/mcplib/logging"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // CredentialKind identifies the credential represented by a Result.
@@ -24,12 +23,9 @@ const (
 	CredOAuth CredentialKind = "oauth"
 	// CredVendorCLI means VendorAuthPath names a vendor CLI's auth file, read on
 	// every request through llmprovider.VendorCLISession; the CLI keeps it
-	// fresh and mcplib holds no token (MADR 0012 §5.1).
+	// fresh and this module holds no token (MADR 0012 §5.1).
 	CredVendorCLI CredentialKind = "vendor_cli"
 )
-
-// ErrOrchestrated reports that an orchestrator-owned process must use the LLM backplane.
-var ErrOrchestrated = errors.New("wizard: orchestrated process uses the LLM backplane, not provider OAuth")
 
 var (
 	loginBrowserOAuth = llmprovider.LoginBrowserOAuth
@@ -42,13 +38,6 @@ type resolvedCredential struct {
 	session    *llmprovider.OAuthSession
 	source     llmprovider.TokenSource
 	vendorPath string
-}
-
-func orchestrated(o Options) bool {
-	if o.Orchestrated != nil {
-		return *o.Orchestrated
-	}
-	return mcplib.IsOrchestratorOwned()
 }
 
 func resolveCredential(
@@ -139,7 +128,7 @@ func resolveVendorCLI(
 		return resolvedCredential{}, err
 	}
 	use, err := p.Confirm(fmt.Sprintf("Use the %s CLI login in %s (%s)?", d.Label, path,
-		logging.MaskSecret(token.Value)), true)
+		redact.MaskSecret(token.Value)), true)
 	if err != nil {
 		return resolvedCredential{}, err
 	}
@@ -170,7 +159,7 @@ func keepExistingOAuth(
 		return nil, false, nil
 	}
 	keep, err := p.Confirm(
-		fmt.Sprintf("Keep the existing session (%s)?", logging.MaskSecret(o.Existing.AccessToken)), true)
+		fmt.Sprintf("Keep the existing session (%s)?", redact.MaskSecret(o.Existing.AccessToken)), true)
 	if err != nil {
 		return nil, false, err
 	}

@@ -1,4 +1,4 @@
-package logging
+package redact
 
 import (
 	"strings"
@@ -72,14 +72,14 @@ func TestMaskSecret_FixedWidth(t *testing.T) {
 func TestMaskSecret_IsNotRedact(t *testing.T) {
 	const key = "sk_live_abcdefghijklmnop1234"
 	masked := MaskSecret(key)
-	redacted := RedactString(key)
+	redacted := String(key)
 	if !strings.HasSuffix(masked, "1234") {
 		t.Errorf("MaskSecret must reveal the tail: %q", masked)
 	}
 	if strings.Contains(redacted, "1234") {
-		t.Errorf("RedactString must not reveal the tail: %q", redacted)
+		t.Errorf("String must not reveal the tail: %q", redacted)
 	}
 	if masked == redacted {
-		t.Error("MaskSecret and RedactString must differ: they have opposite intent")
+		t.Error("MaskSecret and String must differ: they have opposite intent")
 	}
 }

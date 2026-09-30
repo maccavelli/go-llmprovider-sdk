@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/maccavelli/mcplib/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // vendorAuthPath resolves a vendor CLI's auth file as the CLI does (MADR 0012

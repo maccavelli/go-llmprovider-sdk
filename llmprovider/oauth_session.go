@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/maccavelli/mcplib/logging"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 )
 
 const (
@@ -75,7 +75,7 @@ func oauthHTTPStatusError(op string, resp *http.Response) error {
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, oauthErrorBodyLimit))
 	closeErr := resp.Body.Close()
 	err := fmt.Errorf("oauth: %s failed: %s: %s", op, resp.Status,
-		logging.RedactString(strings.TrimSpace(string(body))))
+		redact.String(strings.TrimSpace(string(body))))
 	if readErr != nil {
 		err = errors.Join(err, fmt.Errorf("oauth: read %s response: %w", op, readErr))
 	}

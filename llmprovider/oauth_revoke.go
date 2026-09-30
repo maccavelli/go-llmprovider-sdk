@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// RevokeOAuthSession revokes an mcplib-owned session at its issuer, so a
+// RevokeOAuthSession revokes an SDK-owned session at its issuer, so a
 // logout ends the refresh-token family rather than only forgetting it (MADR
 // 0012 §5.3). It revokes the refresh token when there is one, else the access
 // token. It does not touch any TokenStore: the caller deletes its copy

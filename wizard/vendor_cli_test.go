@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/maccavelli/mcplib/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 const grokCLILogin = `{

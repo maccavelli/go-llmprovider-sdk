@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// TestLive_ChatGPTListingVersion is gate G-C item 7 through mcplib: a v1.5.0
+// TestLive_ChatGPTListingVersion is gate G-C item 7 through this module: a v1.5.0
 // build lists with client_version 1.5.0, and that listing holds every model
 // the 0.0.0 fallback lists (on 2026-09-27 it added gpt-6-sol and gpt-6-luna,
 // whose minimal_client_version is 0.155.0), and each added model generates.
@@ -23,7 +23,7 @@ func TestLive_ChatGPTListingVersion(t *testing.T) {
 		return http.DefaultTransport.RoundTrip(r)
 	})}
 	list := func(build string) []string {
-		withMcplibVersion(t, build)
+		withSDKVersion(t, build)
 		models, err := ListAvailableModelsWithSource(ctx, ProviderOpenAI, session, WithHTTPClient(client))
 		skipIfTransient(t, err)
 		if err != nil {

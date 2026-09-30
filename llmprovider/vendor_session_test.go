@@ -24,7 +24,7 @@ func codexAuthJSON(t *testing.T, exp time.Time, accountID string) (string, strin
 }
 
 // TestVendorCLISession_ReadsThrough: each Token call re-reads the file, so a
-// refresh the CLI writes is picked up with no request from mcplib.
+// refresh the CLI writes is picked up with no request from this module.
 func TestVendorCLISession_ReadsThrough(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "auth.json")
 	s := &VendorCLISession{Provider: ProviderOpenAI, Path: path}

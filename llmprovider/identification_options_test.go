@@ -27,8 +27,8 @@ func TestIdentification_ClientInfoAndSessionOptions(t *testing.T) {
 		t.Fatalf("requests = %d, want 2", len(reqs))
 	}
 	for _, r := range reqs {
-		if ua := r.header.Get("User-Agent"); !strings.HasPrefix(ua, "pcm/1.2.3 (") || !strings.Contains(ua, ") mcplib/") {
-			t.Errorf("%s: User-Agent = %q, want pcm/1.2.3 (…) mcplib/…", r.path, ua)
+		if ua := r.header.Get("User-Agent"); !strings.HasPrefix(ua, "pcm/1.2.3 (") || !strings.Contains(ua, ") go-llmprovider-sdk/") {
+			t.Errorf("%s: User-Agent = %q, want pcm/1.2.3 (…) go-llmprovider-sdk/…", r.path, ua)
 		}
 	}
 	if h := reqs[0].header; h.Get(kiloEditorHeader) != "pcm" || h.Get(kiloTaskHeader) != "s-1" {

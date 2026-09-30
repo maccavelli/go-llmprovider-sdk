@@ -67,7 +67,7 @@ type ProviderConfig struct {
 	ModelProfile ModelProfile
 	// ModelMetadataURL overrides the models.dev-format document the open
 	// catalogs are ranked with, and OpenCode's chat route reads
-	// reasoning_options from. Empty uses MCPLIB_MODELS_METADATA_URL, then
+	// reasoning_options from. Empty uses LLMPROVIDER_MODELS_METADATA_URL, then
 	// https://models.opencode.ai/api.json.
 	ModelMetadataURL string
 	// ClientName and ClientVersion name the consuming application in
@@ -192,7 +192,7 @@ func WithModelProfile(p ModelProfile) ProviderOption {
 }
 
 // WithModelMetadataURL overrides the model metadata document (MADR 0010 §2).
-// MCPLIB_DISABLE_MODELS_METADATA=1 turns the fetch off whatever the URL.
+// LLMPROVIDER_DISABLE_MODELS_METADATA=1 turns the fetch off whatever the URL.
 func WithModelMetadataURL(url string) ProviderOption {
 	return func(cfg *ProviderConfig) {
 		cfg.ModelMetadataURL = url

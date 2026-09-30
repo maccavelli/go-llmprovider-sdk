@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/maccavelli/mcplib/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // TestConfigureLLM_FallbackPicksDeduped pins MADR 0013 C1: a repeated index

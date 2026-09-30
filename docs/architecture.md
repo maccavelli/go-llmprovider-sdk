@@ -10,12 +10,12 @@ A Git repository for the Go module `github.com/maccavelli/go-llmprovider-sdk`:
 a library for LLM provider access and provider authentication. It has no
 binary.
 
-The Go code in the tree is `mcplib` `v1.6.0`'s `llmprovider` and `wizard`
-packages and its redaction files, byte for byte. The module requires Go
-1.27.1, `golang.org/x/term` and, indirectly, `golang.org/x/sys`. The code
-still imports three `mcplib` packages that the module does not require, so
-`llmprovider` and `wizard` do not build; `internal/redact` builds and passes
-its tests.
+The Go code came from `mcplib` `v1.6.0`'s `llmprovider` and `wizard`
+packages and its redaction files, with their history. It imports nothing
+from `mcplib`, names this module on the wire, and reads `LLMPROVIDER_*`
+environment variables. The module requires Go 1.27.1, `golang.org/x/term`
+and, indirectly, `golang.org/x/sys`. Its exported API is still `mcplib`'s,
+apart from the removed orchestration option.
 
 ## Tree
 
@@ -43,11 +43,11 @@ docs/
 
 ## Go code
 
-| Directory | Package | Non-test files | Test files | Imports from `mcplib` |
-| :--- | :--- | :--- | :--- | :--- |
-| `llmprovider/` | `llmprovider` | 43 | 107, of which 23 are `live_gateways` only | `logging` |
-| `wizard/` | `wizard` | 6 | 11 | the root package, `llmprovider`, `logging` |
-| `internal/redact/` | `logging` | 2 | 2 | none |
+| Directory | Package | Non-test files | Test files |
+| :--- | :--- | :--- | :--- |
+| `llmprovider/` | `llmprovider` | 43 | 107, of which 23 are `live_gateways` only |
+| `wizard/` | `wizard` | 6 | 12 |
+| `internal/redact/` | `redact` | 2 | 2 |
 
 - `llmprovider` holds nine providers over five wire formats (OpenAI
   Responses, Anthropic Messages, Gemini Interactions, Chat Completions, and
@@ -57,8 +57,8 @@ docs/
   ranking.
 - `wizard` runs the configuration flow through a `Prompter` and returns a
   `Result`; it does not write configuration.
-- `internal/redact` is a copy of `mcplib`'s `logging` redaction and still
-  declares `package logging`.
+- `internal/redact` hides secrets in error text (`Redact`, `String`) and
+  masks credentials for display (`MaskSecret`).
 
 ## Tooling
 
@@ -68,29 +68,21 @@ docs/
   `golangci-lint run -c .golangci.yml ./...`, `go vet` and `go test` on their
   packages, and `govulncheck ./...`. `make pre-add-check` runs it, and so
   does the machine-wide agent gate before an agent `git commit` that stages
-  Go files. Its `golangci-lint`, `go vet` and `go test` steps fail with
-  `no required module provides package github.com/maccavelli/mcplib…`.
-- **`make tidy`** must not be run yet: `go mod tidy` would add `mcplib` as a
-  requirement.
+  Go files.
 - **CI** (`.github/workflows/ci.yml`) runs on Linux, macOS and Windows, with
   the Go version read from `go.mod`: `go test`; on Linux also `go vet`,
   `gofmt`, `go mod tidy -diff`, `make lint` and
-  `go vet -tags live_gateways`. It fails at `go test` on the `mcplib`
-  imports.
+  `go vet -tags live_gateways`.
 
 ## What is not here
 
-- **The re-homing of imports and identity**, after which every package
-  builds and `go mod tidy -diff` is clean:
-  [0002-PLAN](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md)
-  Phase 4.
 - **The records in `mcplib-import/`** in their final numbered places:
-  0002-PLAN Phase 6.
+  [0002-PLAN](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md) Phase 6.
 - **`guides/`:** created with its first guide by
   [0015-PLAN](decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
   Phase S1.
 - **The v1 package layout** (`llmprovider/auth`, `llmprovider/catalog`,
   `llmprovider/providers/…`, `llmprovider/llmtest`):
   [0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md),
-  proposed.
+  accepted.
 - **A licence file.**

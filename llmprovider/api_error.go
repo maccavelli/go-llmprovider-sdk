@@ -13,7 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/maccavelli/mcplib/logging"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 )
 
 // sentinelError is a sentinel that also matches a broader one, so a new class
@@ -117,7 +117,7 @@ func classifyHTTPError(provider string, resp *http.Response) error {
 		Provider:   provider,
 		Status:     resp.StatusCode,
 		Type:       envelope.errType(),
-		Message:    boundMessage(logging.RedactString(envelope.message())),
+		Message:    boundMessage(redact.String(envelope.message())),
 		RetryAfter: retryAfterFrom(resp.Header),
 	}
 	e.Terminal, e.sentinel = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
@@ -150,7 +150,7 @@ func streamFailure(provider, code, errType, message string) error {
 			env.types = append(env.types, t)
 		}
 	}
-	e := &APIError{Provider: provider, Type: env.errType(), Message: boundMessage(logging.RedactString(message))}
+	e := &APIError{Provider: provider, Type: env.errType(), Message: boundMessage(redact.String(message))}
 	switch {
 	case env.hasType("rate_limit_exceeded") || env.hasType("slow_down"):
 		return &RateLimitError{Provider: provider, Message: e.Message}

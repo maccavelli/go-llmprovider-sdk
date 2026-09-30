@@ -175,6 +175,8 @@ The decision has these parts:
 * `mcplib` `logging/redact.go`, `logging/mask.go` and their tests move to
   `internal/redact/`. It is an unexported package, not a shared API:
   * It carries only `Redact`, `RedactString` and `MaskSecret`.
+    *Amended 2026-09-29 (seventh amendment): `RedactString` is named
+    `String`, and the package has a doc comment.*
   * `mcplib/logging` keeps its own copy for `LogBuffer`, `SanitizingWriter`
     and the MCP log path.
   * The two pattern sets may drift. That is accepted, because the SDK's use
@@ -1080,3 +1082,24 @@ go-core-lib on my github".
   `docs/decisions/0015-MADR-transfer-llmprovider-to-go-llmprovider-sdk.md`,
   "Amendment 2026-09-29 (second)".
 * Bad, because Phase 10 now depends on a release in a third repository.
+
+## Amendment 2026-09-29 (seventh): `redact.String`
+
+Status: **accepted** 2026-09-29, by the owner's choice at a Phase 4 stop.
+
+The Phase 4 dry run renamed the package `logging` to `redact` (PLAN step 3),
+which Phase 2c's `revive` rules had not seen before. `make lint` (golangci-lint 2.13.2, the Phase 2c configuration) reported
+  two `revive` findings, and nothing else:
+  * `internal/redact/mask.go:1:1: package-comments: should have a package
+    comment` — `mcplib`'s package doc for `logging` is in a file that was not
+    imported;
+  * `internal/redact/redact.go:81:6: exported: func name will be used as
+    redact.RedactString by other packages, and that stutters; consider
+    calling this String`.
+
+The owner chose "Doc + rename to String": `internal/redact` gains a
+`// Package redact …` doc comment, and `RedactString` becomes `String`, so a
+caller writes `redact.String(s)`. The package is internal; nothing outside
+this module sees the change. §1's "carries only" list is annotated. The rejected
+alternative kept `RedactString` under a different package name, which would
+have changed §1's `internal/redact` path.

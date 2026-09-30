@@ -1,12 +1,10 @@
-// Package wizard provides the canonical LLM provider configuration flow shared
-// by every mcplib consumer that has a setup UI.
+// Package wizard provides the canonical LLM provider configuration flow for
+// applications that have a setup UI.
 //
 // It owns the DATA and the FLOW; consumers own the RENDERING. That split is
-// deliberate: mcplib is consumed by twelve repositories, only three of which
-// have a configuration wizard, and those three disagree about UI toolkits — two
-// use pterm, one is deliberately plain. Moving pterm into mcplib would impose an
-// interactive-terminal dependency on nine headless MCP servers that will never
-// draw a menu.
+// deliberate: consumers disagree about UI toolkits, and a library that imported
+// one would impose an interactive-terminal dependency on every importer,
+// including headless ones that never draw a menu.
 //
 // Consumers implement Prompter over whatever they already use. TextPrompter is
 // provided for those with no toolkit at all.
@@ -46,7 +44,7 @@ type Choice struct {
 }
 
 // Prompter is the rendering seam. A consumer implements it over its own UI
-// toolkit; mcplib never imports one.
+// toolkit; this package never imports one.
 //
 // The interface is deliberately small and stable: every method mirrors
 // something all three existing wizards already do. It is public API in a

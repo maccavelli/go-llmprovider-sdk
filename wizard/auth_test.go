@@ -2,7 +2,6 @@ package wizard
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,18 +11,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/maccavelli/mcplib/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-func TestConfigureLLM_OrchestratedReturnsErr(t *testing.T) {
+// TestConfigureLLM_IgnoresOrchestratorEnv: the wizard has no orchestration
+// concept (0002-MADR, sixth amendment), so MCP_ORCHESTRATOR_OWNED does not stop
+// the flow before provider selection.
+func TestConfigureLLM_IgnoresOrchestratorEnv(t *testing.T) {
+	t.Setenv("MCP_ORCHESTRATOR_OWNED", "true")
 	f := &fakePrompter{t: t}
-	orchestrated := true
-	_, err := ConfigureLLM(context.Background(), f, Options{Orchestrated: &orchestrated})
-	if !errors.Is(err, ErrOrchestrated) {
-		t.Fatalf("ConfigureLLM() error = %v, want ErrOrchestrated", err)
-	}
-	if len(f.seenSelect) != 0 {
-		t.Fatalf("Select calls = %d, want 0", len(f.seenSelect))
+	_, _ = ConfigureLLM(context.Background(), f, Options{})
+	if len(f.seenSelect) != 1 {
+		t.Fatalf("Select calls = %d, want 1: the flow must reach provider selection", len(f.seenSelect))
 	}
 }
 

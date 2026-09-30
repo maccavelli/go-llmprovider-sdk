@@ -19,11 +19,7 @@ module exists so that callers can use the providers without either.
 
 `go.mod` and `go.sum` change with the code that needs them: a requirement is
 added in the commit that adds its first import, and removed in the commit that
-removes its last. From Phase 4 of
-`docs/decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md` on,
-`go mod tidy -diff` is clean at every commit. **Until Phase 4, do not run
-`go mod tidy` or `make tidy`:** the imported code still imports `mcplib`, and
-tidy would add it as a requirement.
+removes its last. `go mod tidy -diff` is clean at every commit.
 
 ## MADR and PLAN before mutating work
 

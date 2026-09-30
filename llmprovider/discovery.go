@@ -16,7 +16,7 @@ import (
 )
 
 // chatgptModelsClientVersion is the client_version GET .../codex/models is
-// sent when mcplib's build has no release version. The backend requires the
+// sent when this module's build has no release version. The backend requires the
 // parameter; 0.0.0 is accepted but hides models whose minimal_client_version
 // is higher (gpt-6-sol and gpt-6-luna on 2026-09-27).
 const chatgptModelsClientVersion = "0.0.0"
@@ -27,7 +27,7 @@ const chatgptModelsClientVersion = "0.0.0"
 // release it precedes.
 var chatgptVersionRE = regexp.MustCompile(`^v?(\d{1,9}\.\d{1,9}\.\d{1,9})(?:[-+].*)?$`)
 
-// chatgptClientVersion is the client_version for mcplib at version v: its
+// chatgptClientVersion is the client_version for this module at version v: its
 // own release, never a Codex version string (MADR 0012 §4.3), else
 // chatgptModelsClientVersion.
 func chatgptClientVersion(v string) string {
@@ -186,8 +186,8 @@ func listChatGPTModels(ctx context.Context, src TokenSource, cfg ProviderConfig)
 		return ModelCatalog{}, fmt.Errorf("model listing: parse chatgpt models URL: %w", err)
 	}
 	query := endpoint.Query()
-	mcplib, _ := buildVersions()
-	query.Set("client_version", chatgptClientVersion(mcplib))
+	sdk, _ := buildVersions()
+	query.Set("client_version", chatgptClientVersion(sdk))
 	endpoint.RawQuery = query.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), http.NoBody)

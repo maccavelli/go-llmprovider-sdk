@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/maccavelli/mcplib/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // TestConfigureLLM_IgnoresCodexAccessTokenEnv: with CODEX_ACCESS_TOKEN set

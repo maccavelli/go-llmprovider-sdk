@@ -384,7 +384,7 @@ func buildAuthorizeURL(config oauthFlowConfig, endpoint, redirectURI, challenge,
 		}
 		query.Set("scope", grokOAuthScopes)
 		query.Set("nonce", nonce)
-		query.Set("referrer", "mcplib")
+		query.Set("referrer", "go-llmprovider-sdk")
 	}
 	authorizeURL.RawQuery = query.Encode()
 	return authorizeURL.String(), nil

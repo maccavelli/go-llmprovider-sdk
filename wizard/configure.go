@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/maccavelli/mcplib/llmprovider"
-	"github.com/maccavelli/mcplib/logging"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // defaultDiscoverLimit bounds a live model listing so a slow or unreachable
@@ -44,7 +44,7 @@ type Result struct {
 type Options struct {
 	// Providers restricts the menu to these ids. Empty offers every
 	// descriptor, which is the behaviour that keeps a wizard current when
-	// mcplib adds a provider.
+	// this module adds a provider.
 	Providers []string
 	// Existing pre-fills the flow, enabling "keep existing key?" and
 	// defaulting the model selection.
@@ -75,8 +75,6 @@ type Options struct {
 	HTTPClient *http.Client
 	// OpenURL opens an OAuth authorization URL. Nil reports the URL through Prompter.
 	OpenURL func(string) error
-	// Orchestrated overrides process ownership detection when non-nil.
-	Orchestrated *bool
 }
 
 // getenv is indirected for this package's own tests.
@@ -101,11 +99,8 @@ func (o Options) lookupEnv() func(string) string {
 //
 // It never writes configuration and never logs a credential: the key appears
 // only in the returned Result, and anything shown to the user is masked with
-// logging.MaskSecret.
+// redact.MaskSecret.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
-	if orchestrated(o) {
-		return Result{}, ErrOrchestrated
-	}
 	descriptors, err := selectableDescriptors(o.Providers)
 	if err != nil {
 		return Result{}, err
@@ -243,7 +238,7 @@ func resolveAPIKey(p Prompter, d llmprovider.ProviderDescriptor, o Options) (str
 	if o.AllowEnv && d.EnvVar != "" {
 		if envVal := o.lookupEnv()(d.EnvVar); envVal != "" {
 			use, err := p.Confirm(
-				fmt.Sprintf("Use %s from the environment (%s)?", d.EnvVar, logging.MaskSecret(envVal)), true)
+				fmt.Sprintf("Use %s from the environment (%s)?", d.EnvVar, redact.MaskSecret(envVal)), true)
 			if err != nil {
 				return "", err
 			}
@@ -255,7 +250,7 @@ func resolveAPIKey(p Prompter, d llmprovider.ProviderDescriptor, o Options) (str
 
 	if o.Existing.Provider == d.ID && o.Existing.APIKey != "" {
 		keep, err := p.Confirm(
-			fmt.Sprintf("Keep the existing key (%s)?", logging.MaskSecret(o.Existing.APIKey)), true)
+			fmt.Sprintf("Keep the existing key (%s)?", redact.MaskSecret(o.Existing.APIKey)), true)
 		if err != nil {
 			return "", err
 		}

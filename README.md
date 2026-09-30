@@ -12,17 +12,16 @@ Module: `github.com/maccavelli/go-llmprovider-sdk`
 
 ## Status
 
-Not usable yet. There is no release. The module requires Go 1.27.1.
+There is no release yet. The module requires Go 1.27.1.
 
 - The provider and wizard code was imported, with its history, from
-  `mcplib` `v1.6.0`. It still imports `mcplib`, so `llmprovider` and
-  `wizard` do not build here until they are re-homed
+  `mcplib` `v1.6.0` and re-homed here
   ([0002-PLAN](docs/decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md),
-  Phase 4). CI fails on those imports until then. `internal/redact` builds
-  and passes its tests.
-- The v1 API and the provider-auth baseline are proposed in
+  Phase 4). It builds and its tests pass. Its API is still `mcplib`'s,
+  apart from the removed orchestration option, until the v1 API lands.
+- The v1 API is decided by
   [0015-MADR](docs/decisions/0015-MADR-canonical-sdk-api-and-module-layout.md)
-  and
+  (accepted). The provider-auth baseline is proposed in
   [0016-MADR](docs/decisions/0016-MADR-provider-auth-and-support-baseline.md).
   The first release, `v1.0.0`, follows them.
 

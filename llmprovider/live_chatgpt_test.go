@@ -13,15 +13,15 @@ import (
 )
 
 // liveChatGPTSession borrows the Codex CLI's ChatGPT login read-only. It
-// REQUIRES MCPLIB_LIVE_CHATGPT=1 (every call spends the subscription) and
+// REQUIRES LLMPROVIDER_LIVE_CHATGPT=1 (every call spends the subscription) and
 // $CODEX_HOME/auth.json (default ~/.codex). The session can never refresh:
 // its refresh token is empty and its token URL unroutable, so the CLI's
 // refresh token is never used or rotated (MADR 0012 §5). It skips when the
 // access token has under ten minutes left.
 func liveChatGPTSession(t *testing.T) *OAuthSession {
 	t.Helper()
-	if os.Getenv("MCPLIB_LIVE_CHATGPT") != "1" {
-		t.Skip("MCPLIB_LIVE_CHATGPT unset: live ChatGPT calls spend the subscription")
+	if os.Getenv("LLMPROVIDER_LIVE_CHATGPT") != "1" {
+		t.Skip("LLMPROVIDER_LIVE_CHATGPT unset: live ChatGPT calls spend the subscription")
 	}
 	home := os.Getenv("CODEX_HOME")
 	if home == "" {
@@ -70,7 +70,7 @@ func liveChatGPTSession(t *testing.T) *OAuthSession {
 	}
 }
 
-// TestLive_ChatGPTGenerate is gate G-C's end-to-end check through mcplib: a
+// TestLive_ChatGPTGenerate is gate G-C's end-to-end check through this module: a
 // text call, a forced tool call, and a tool round trip replayed with
 // store:false, on the backend's current default model.
 func TestLive_ChatGPTGenerate(t *testing.T) {

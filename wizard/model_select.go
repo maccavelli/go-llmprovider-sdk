@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/maccavelli/mcplib/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // Search-then-select model flow (MADR 0009 §4–§5). Every interaction uses the

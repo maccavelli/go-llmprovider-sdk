@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-// withMcplibVersion makes buildVersions report v as mcplib's version for one
+// withSDKVersion makes buildVersions report v as this module's version for one
 // (non-parallel) test.
-func withMcplibVersion(t *testing.T, v string) {
+func withSDKVersion(t *testing.T, v string) {
 	t.Helper()
 	saved := buildVersions
 	buildVersions = func() (string, string) { return v, v }
@@ -34,17 +34,17 @@ func chatGPTListingVersion(t *testing.T) string {
 	return got
 }
 
-// TestChatGPTListing_SendsMcplibVersion: a release, a pseudo-version and an
+// TestChatGPTListing_SendsSDKVersion: a release, a pseudo-version and an
 // +incompatible build send X.Y.Z (the backend answers 400 to "v1.5.0",
 // "1.5", "(devel)" and anything over 32 characters; measured 2026-09-27).
-func TestChatGPTListing_SendsMcplibVersion(t *testing.T) {
+func TestChatGPTListing_SendsSDKVersion(t *testing.T) {
 	for _, tc := range []struct{ build, want string }{
 		{"v1.5.0", "1.5.0"},
 		{"v1.5.1-0.20260927120000-7ea0ad4abcde", "1.5.1"},
 		{"v2.0.0+incompatible", "2.0.0"},
 	} {
 		t.Run(tc.build, func(t *testing.T) {
-			withMcplibVersion(t, tc.build)
+			withSDKVersion(t, tc.build)
 			if got := chatGPTListingVersion(t); got != tc.want {
 				t.Errorf("client_version = %q, want %q", got, tc.want)
 			}
@@ -57,7 +57,7 @@ func TestChatGPTListing_SendsMcplibVersion(t *testing.T) {
 func TestChatGPTListing_DevelBuildSendsFallback(t *testing.T) {
 	for _, build := range []string{"(devel)", "", "1.5"} {
 		t.Run(build, func(t *testing.T) {
-			withMcplibVersion(t, build)
+			withSDKVersion(t, build)
 			if got := chatGPTListingVersion(t); got != "0.0.0" {
 				t.Errorf("client_version = %q, want 0.0.0", got)
 			}

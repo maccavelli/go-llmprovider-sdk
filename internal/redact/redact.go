@@ -1,4 +1,7 @@
-package logging
+// Package redact removes and masks secrets. Redact and String hide a secret
+// completely, so text is safe to log or to return in an error; MaskSecret shows
+// a short suffix on purpose, so a person can tell which credential is meant.
+package redact
 
 import (
 	"fmt"
@@ -11,9 +14,9 @@ import (
 // is truncated with a marker before the regex passes run.
 const maxRedactBytes = 256 * 1024
 
-// This file is the single source of truth for secret redaction in mcplib.
-// LogBuffer.Write, SanitizingWriter.Write, and the MCP log-notification path
-// all funnel through Redact so the patterns can never drift apart.
+// This file is the single source of truth for secret redaction in this module.
+// Provider error bodies and OAuth error responses funnel through String, so the
+// patterns can never drift apart.
 //
 // Patterns are split into three precompiled regexes by replacement style:
 //   - reAuth / reKV preserve a human-readable label (capture group 1) and
@@ -77,7 +80,7 @@ func Redact(p []byte) []byte {
 // (scheme://user:pass@host); the scheme is preserved, the user:pass redacted.
 var reDSN = regexp.MustCompile(`(?i)\b([a-z][a-z0-9+.-]*://)[^:@/\s]*:[^@/\s]+@`)
 
-// RedactString is the string convenience wrapper around Redact.
-func RedactString(s string) string {
+// String is the string convenience wrapper around Redact.
+func String(s string) string {
 	return string(Redact([]byte(s)))
 }

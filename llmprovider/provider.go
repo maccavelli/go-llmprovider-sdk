@@ -1,5 +1,5 @@
-// Package llmprovider provides a shared, SDK-free LLM provider abstraction
-// used by both mcp-server-magictools and mcp-server-magicdev. All providers
+// Package llmprovider provides an SDK-free LLM provider abstraction: provider
+// adapters, OAuth sessions, token storage and model discovery. All providers
 // use raw net/http for maximum control over connection pooling and timeouts.
 package llmprovider
 

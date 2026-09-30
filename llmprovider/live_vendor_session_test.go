@@ -39,8 +39,8 @@ func liveVendorSession(t *testing.T, provider, optIn, homeEnv, dir string) *Vend
 // TestLive_VendorCLISession generates through each CLI's own login.
 func TestLive_VendorCLISession(t *testing.T) {
 	for _, tc := range []struct{ provider, optIn, homeEnv, dir, model string }{
-		{ProviderOpenAI, "MCPLIB_LIVE_CHATGPT", "CODEX_HOME", ".codex", "gpt-6-astra"},
-		{ProviderGrok, "MCPLIB_LIVE_GROK_CLI", "GROK_HOME", ".grok", "grok-4.6"},
+		{ProviderOpenAI, "LLMPROVIDER_LIVE_CHATGPT", "CODEX_HOME", ".codex", "gpt-6-astra"},
+		{ProviderGrok, "LLMPROVIDER_LIVE_GROK_CLI", "GROK_HOME", ".grok", "grok-4.6"},
 	} {
 		t.Run(tc.provider, func(t *testing.T) {
 			s := liveVendorSession(t, tc.provider, tc.optIn, tc.homeEnv, tc.dir)

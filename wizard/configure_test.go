@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/maccavelli/mcplib/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // claudeIdx returns the index of a provider in the canonical descriptor order,
@@ -213,7 +213,7 @@ func TestConfigureLLM_MaskedKeyNeverPrintsSecret(t *testing.T) {
 
 // TestConfigureLLM_OffersEveryDescriptor: with no filter, the provider menu is
 // exactly the canonical descriptor list. This is the property that keeps every
-// wizard current when mcplib adds a provider.
+// wizard current when this module adds a provider.
 func TestConfigureLLM_OffersEveryDescriptor(t *testing.T) {
 	withEnv(t, nil)
 	f := &fakePrompter{

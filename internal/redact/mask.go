@@ -1,4 +1,4 @@
-package logging
+package redact
 
 import "strings"
 

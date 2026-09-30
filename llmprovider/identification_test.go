@@ -49,10 +49,10 @@ func (r *headerRecorder) requests() []recordedRequest {
 	return append([]recordedRequest(nil), r.seen...)
 }
 
-var userAgentPattern = regexp.MustCompile(`^mcplib/\S+ \(\w+; \w+\) mcplib/\S+$`)
+var userAgentPattern = regexp.MustCompile(`^go-llmprovider-sdk/\S+ \(\w+; \w+\) go-llmprovider-sdk/\S+$`)
 
 // TestIdentification_UserAgent: every generation and listing request names
-// mcplib honestly (MADR 0012 §1.4), never Go's default agent.
+// this module honestly (MADR 0012 §1.4), never Go's default agent.
 func TestIdentification_UserAgent(t *testing.T) {
 	rec := newHeaderRecorder(t)
 	base := WithBaseURL(rec.srv.URL)
@@ -80,7 +80,7 @@ func TestIdentification_UserAgent(t *testing.T) {
 	}
 	for _, r := range rec.requests() {
 		if ua := r.header.Get("User-Agent"); !userAgentPattern.MatchString(ua) {
-			t.Errorf("%s: User-Agent = %q, want mcplib/<version> (<os>; <arch>) mcplib/<version>", r.path, ua)
+			t.Errorf("%s: User-Agent = %q, want go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>", r.path, ua)
 		}
 	}
 }
@@ -126,8 +126,8 @@ func TestIdentification_KiloHeaders(t *testing.T) {
 	if len(reqs) != 1 {
 		t.Fatalf("requests = %d, want 1", len(reqs))
 	}
-	if h := reqs[0].header; h.Get("X-KILOCODE-EDITORNAME") != "mcplib" || h.Get("X-KiloCode-TaskId") == "" {
-		t.Fatalf("editor/task = %q/%q, want mcplib and a task id", h.Get("X-KILOCODE-EDITORNAME"), h.Get("X-KiloCode-TaskId"))
+	if h := reqs[0].header; h.Get("X-KILOCODE-EDITORNAME") != "go-llmprovider-sdk" || h.Get("X-KiloCode-TaskId") == "" {
+		t.Fatalf("editor/task = %q/%q, want go-llmprovider-sdk and a task id", h.Get("X-KILOCODE-EDITORNAME"), h.Get("X-KiloCode-TaskId"))
 	}
 }
 

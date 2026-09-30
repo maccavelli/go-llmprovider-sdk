@@ -18,8 +18,8 @@ import (
 // cached in-process.
 const (
 	defaultModelMetadataURL = "https://models.opencode.ai/api.json"
-	envModelMetadataURL     = "MCPLIB_MODELS_METADATA_URL"
-	envDisableModelMetadata = "MCPLIB_DISABLE_MODELS_METADATA"
+	envModelMetadataURL     = "LLMPROVIDER_MODELS_METADATA_URL"
+	envDisableModelMetadata = "LLMPROVIDER_DISABLE_MODELS_METADATA"
 	modelMetadataTTL        = 10 * time.Minute
 	// modelMetadataRetryAfter is how long a failed fetch is remembered before
 	// the next load tries again (MADR 0013 A6).
@@ -151,7 +151,7 @@ func modelMetadataURL(cfg ProviderConfig) string {
 	return defaultModelMetadataURL
 }
 
-// modelMetadataDisabled reports whether MCPLIB_DISABLE_MODELS_METADATA holds
+// modelMetadataDisabled reports whether LLMPROVIDER_DISABLE_MODELS_METADATA holds
 // a true boolean ("1", "true", …).
 func modelMetadataDisabled() bool {
 	v, err := strconv.ParseBool(os.Getenv(envDisableModelMetadata))

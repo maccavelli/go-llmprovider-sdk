@@ -154,7 +154,7 @@ func loginGrokDevice(ctx context.Context, config oauthFlowConfig) (*OAuthSession
 	form := url.Values{
 		oauthParamClientID: {config.clientID},
 		"scope":            {grokOAuthScopes},
-		"referrer":         {"mcplib"},
+		"referrer":         {"go-llmprovider-sdk"},
 	}
 	resp, err := postOAuthForm(ctx, config.httpClient, endpoints.Device, form)
 	if err != nil {

@@ -82,7 +82,7 @@ func TestBuildAuthorizeURL_OpenAIContract(t *testing.T) {
 		"code_challenge_method":      {"S256"},
 		"codex_cli_simplified_flow":  {"true"},
 		"id_token_add_organizations": {"true"},
-		"originator":                 {"mcplib"},
+		"originator":                 {"go-llmprovider-sdk"},
 		"redirect_uri":               {"http://localhost:1455/auth/callback"},
 		"response_type":              {"code"},
 		"scope":                      {openAIOAuthScopes},

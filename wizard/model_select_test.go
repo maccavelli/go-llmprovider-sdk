@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/maccavelli/mcplib/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // zenSearchIDs is an OpenCode Zen listing: the six StaticOpencodeZen ids (so

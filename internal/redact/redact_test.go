@@ -1,4 +1,4 @@
-package logging
+package redact
 
 import (
 	"strings"
@@ -31,7 +31,7 @@ func TestRedact_SecretClasses(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := RedactString(tc.in)
+			out := String(tc.in)
 			if strings.Contains(out, tc.secret) {
 				t.Errorf("secret %q not redacted: %q", tc.secret, out)
 			}
@@ -58,7 +58,7 @@ func TestRedact_Refinements(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := RedactString(tc.in)
+			out := String(tc.in)
 			if strings.Contains(out, tc.secret) {
 				t.Errorf("secret %q not redacted: %q", tc.secret, out)
 			}
@@ -96,7 +96,7 @@ func TestRedact_SizeCap(t *testing.T) {
 // no longer clobbers short benign identifiers.
 func TestRedact_NoOverRedaction(t *testing.T) {
 	for _, benign := range []string{"secret_id", "token_v2", "next_secret_in_line", "key_map"} {
-		if out := RedactString("value " + benign + " here"); !strings.Contains(out, benign) {
+		if out := String("value " + benign + " here"); !strings.Contains(out, benign) {
 			t.Errorf("benign identifier %q was over-redacted: %q", benign, out)
 		}
 	}
@@ -106,7 +106,7 @@ func TestRedact_NoOverRedaction(t *testing.T) {
 // emitted in cleartext because leftmost-match consumed only "Bearer".
 func TestRedact_BearerLeak(t *testing.T) {
 	in := "Authorization: Bearer eyJhbGciOi.eyJzdWIi.sigABC123 done"
-	out := RedactString(in)
+	out := String(in)
 	for _, leak := range []string{"eyJhbGciOi", "eyJzdWIi", "sigABC123"} {
 		if strings.Contains(out, leak) {
 			t.Errorf("JWT segment %q leaked: %q", leak, out)

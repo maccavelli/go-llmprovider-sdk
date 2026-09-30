@@ -479,12 +479,16 @@ before its commit.
    * `github.com/maccavelli/mcplib/llmprovider` → `github.com/maccavelli/go-llmprovider-sdk/llmprovider`
    * `github.com/maccavelli/mcplib/logging` → `github.com/maccavelli/go-llmprovider-sdk/internal/redact`
    * selectors `logging.RedactString` and `logging.MaskSecret` → `redact.…`
+     *(Deviation 2026-09-29: `logging.RedactString` → `redact.String`.)*
 3. **`internal/redact`:**
    * Rename the package clause to `redact`.
    * Rewrite the "single source of truth for secret redaction in mcplib"
      comment (`redact.go` lines 14-16) to describe this package's narrower
      role.
    * Keep only `Redact`, `RedactString` and `MaskSecret` with their tests.
+     *Deviation 2026-09-29 (see the execution record):* rename
+     `RedactString` to `String`, and add a `// Package redact …` doc
+     comment.
 4. **Orchestration.** *Replaced 2026-09-29 by the MADR's sixth amendment; the §4
    version is kept below, struck.* Delete the orchestrator surface:
    * `wizard/configure.go`: the `Orchestrated` field of `Options` with its
@@ -1554,3 +1558,98 @@ MADR, then continue.
   step 2 strikes "keep `mcplib` for `selfupdate`" and adds the no-`mcplib`
   assertion; step 4 extends the supply-chain check to `go-core-lib`.
 * **In `mcplib`.** Its 0015 pair was amended to match, uncommitted there.
+
+### Phase 4 stop: `internal/redact` lint findings (2026-09-29)
+
+* **Found.** A dry run of Phase 4 on a scratch clone (the phase's
+  transformation, then step 9's checks and the three gates) passed every
+  check except `make lint`. `make lint` (golangci-lint 2.13.2, the Phase 2c configuration) reported
+  two `revive` findings, and nothing else:
+  * `internal/redact/mask.go:1:1: package-comments: should have a package
+    comment` — `mcplib`'s package doc for `logging` is in a file that was not
+    imported;
+  * `internal/redact/redact.go:81:6: exported: func name will be used as
+    redact.RedactString by other packages, and that stutters; consider
+    calling this String`.
+  * Pre-existing? No: the package rename is this phase's step 3, and the
+    `revive` rules are Phase 2c's. The two had not met before.
+  * Doing nothing fails step 9, and the commit gate (`golangci-lint`) refuses
+    the Go files.
+* **Decision.** The owner chose to add the package doc comment and rename
+  `RedactString` to `String` (3 call sites and the package's tests). Steps 2
+  and 3 are annotated; the MADR's seventh amendment records it.
+* **Scope.** No file added beyond Phase 4's.
+
+### Phase 4: re-home the code (2026-09-29)
+
+* **Approval.** The owner: "3. begin the code re-home", after the second
+  and sixth amendments were accepted.
+* **How.** One stdlib-Python script in `SCRATCH` (`rehome.py`) applies
+  steps 2–7 to a tree and runs `gofmt -w` on what it changed; every rewrite
+  asserts its match count. It ran first on a scratch clone, where step 9 and
+  the gates were run and the lint stop above was found. After the owner's
+  decision it ran on the scratch clone again, all green, and then on this
+  tree. It changed 41 files and created one.
+* **Steps, as done.**
+  * **2.** 16 import paths rewritten; 7 selectors, `logging.RedactString` →
+    `redact.String` and `logging.MaskSecret` → `redact.MaskSecret`.
+  * **3.** `package redact` in the four files; a package doc; the
+    single-source comment rewritten; `RedactString` → `String` (deviation
+    above), with its 5 test call sites and 2 test messages.
+  * **4.** The five orchestration items deleted; the unused `errors` import
+    left `wizard/auth_test.go`. `TestConfigureLLM_IgnoresOrchestratorEnv`
+    replaces `TestConfigureLLM_OrchestratedReturnsErr`. `wizard/prompter_test.go`
+    adds `TestLevel_String` (four branches).
+  * **5.** `go-llmprovider-sdk` as client name, `User-Agent` trailer, ChatGPT
+    `originator` and Grok `referrer` (loopback and device); `sdkModulePath`;
+    the local `mcplib` variables are `sdk`; the tests asserting these strings,
+    and `withMcplibVersion` → `withSDKVersion`,
+    `TestChatGPTListing_SendsMcplibVersion` → `…SendsSDKVersion`.
+  * **6.** The five `MCPLIB_*` names → `LLMPROVIDER_*`: 14 occurrences.
+  * **7.** The doc comments step 7 names, and every other comment naming
+    `mcplib`, since none is a record citation under Phase 7's rule:
+    `wizard/prompter.go` (package doc and one line), `text_prompter.go`,
+    `configure_test.go`, `live_chatgpt_test.go`, `live_chatgpt_listing_test.go`,
+    `live_oauth_login_test.go`, `model_picker_test.go`, `vendor_session_test.go`.
+* **Red first.** `TestConfigureLLM_IgnoresOrchestratorEnv`, appended to a
+  scratch clone of `mcplib` `4e1f9a5`, failed: `auth_test.go:529: Select
+  calls = 0, want 1: the flow must reach provider selection`.
+* **Step 1 and step 9, on this tree.** Every command exited 0:
+  * `go build ./...`; `go vet ./...` with `GOOS=darwin`, `GOOS=windows`,
+    and `CGO_ENABLED=0 GOOS=linux`; `go vet -tags live_gateways ./...`;
+  * `gofmt -l .` (empty); `go mod tidy -diff`;
+    `git diff --exit-code go.mod go.sum`;
+  * `make lint`: `0 issues.`;
+  * `go test -count=1 -cover`, statements counted from the profiles:
+    `llmprovider` 3152/3533 = 89.22 % (floor 88.0 %), `wizard` 463/555 =
+    83.42 % (floor 82.6 %), `internal/redact` 18/18 = 100 %;
+  * `make pre-add-check`: `go-precheck: 171 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck).`
+* **Gates, on this tree** (`gates.py`, stdlib Python).
+  * **G-dep: pass.** Non-standard dependencies outside this module:
+    `golang.org/x/sys/unix` and `golang.org/x/term` for darwin and linux;
+    `golang.org/x/sys/windows` and `golang.org/x/term` for windows.
+  * **G-name: pass.** 0 lines, case-insensitive.
+  * **G-api: pass.** `go doc -all` of `llmprovider` and `wizard`, module
+    paths normalised, against `mcplib` `4e1f9a5`: 45 doc-line changes, all
+    from steps 4–7, and 0 code-line violations. The two code lines removed
+    are the allowed ones: `var ErrOrchestrated = errors.New(…)` and
+    `Orchestrated *bool`.
+* **First-fail, on scratch copies of the re-homed tree.**
+  * **G-dep:** `api_error.go`'s import reverted to `mcplib/logging` →
+    `go list failed (1)`: `no required module provides package
+    github.com/maccavelli/mcplib/logging`.
+  * **G-name:** `identification.go` restored from `mcplib` → 17 lines
+    reported, from `identification.go:12`.
+  * **G-api:** `WithSessionID` given a second parameter → 2 code-line
+    violations: `- func WithSessionID(id string) ProviderOption` and
+    `+ func WithSessionID(id string, extra int) ProviderOption`.
+* **Documents made true.** `AGENTS.md` no longer forbids `go mod tidy`
+  "until Phase 4". `README.md` and `docs/architecture.md` describe the
+  re-homed tree: no `mcplib` imports, `package redact`, 12 `wizard` test
+  files, and 0015 accepted. Their lint and links are clean.
+* **Not done.**
+  * CI has not run on this commit; that needs a push, which needs the
+    owner's request.
+  * The wire identity is not yet confirmed live: Phase 8.
+* **Status.** Phase 4 done. Phase 5 is next.

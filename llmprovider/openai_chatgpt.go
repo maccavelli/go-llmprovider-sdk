@@ -12,7 +12,7 @@ const (
 	openAIAccountHeader    = "ChatGPT-Account-Id"
 	openAIResidencyHeader  = "x-openai-internal-codex-residency"
 	openAIOriginatorHeader = "originator"
-	openAIOriginatorValue  = "mcplib"
+	openAIOriginatorValue  = "go-llmprovider-sdk"
 	// openAISessionHeader carries the conversation id, as Codex sends it
 	// (codex-api/src/requests/headers.rs:8).
 	openAISessionHeader = "session-id"

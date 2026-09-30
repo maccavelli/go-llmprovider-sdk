@@ -25,7 +25,7 @@ const revealTail = 4
 const maskGlyphs = 8
 
 // TextPrompter is the zero-toolkit Prompter: stdlib plus golang.org/x/term,
-// which every mcplib consumer with a wizard already depends on. Consumers with
+// which this module already requires. Consumers with
 // a UI toolkit implement Prompter over it instead.
 type TextPrompter struct {
 	// In is the input source. When it is an *os.File attached to a terminal,

@@ -9,7 +9,7 @@ import (
 )
 
 // pickerSections maps models.opencode.ai's sections to the providers the live
-// suite picks models for (MADR 0012 §3.4). mcplib's own decoder keeps only
+// suite picks models for (MADR 0012 §3.4). This module's own decoder keeps only
 // the sections it ranks with, so the picker reads the document itself.
 var pickerSections = map[string]string{
 	metadataKeyZen: ProviderOpencodeZen,
