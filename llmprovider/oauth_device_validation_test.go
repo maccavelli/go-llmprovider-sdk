@@ -3,7 +3,6 @@ package llmprovider
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,15 +18,16 @@ func grokDeviceLogin(t *testing.T, device map[string]any) (notified bool, err er
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		writeTestJSON(t, w, fmt.Sprintf(`{"device_authorization_endpoint":%q,"token_endpoint":%q}`, srv.URL+"/device", srv.URL+"/token"))
+		writeTestJSON(t, w, ti.discovery(t, map[string]string{"device_authorization_endpoint": srv.URL + "/device", "token_endpoint": srv.URL + "/token"}))
 	})
 	mux.HandleFunc("/device", func(w http.ResponseWriter, _ *http.Request) {
 		raw, _ := json.Marshal(device)
 		writeTestJSON(t, w, string(raw))
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
-		writeTestJSON(t, w, `{"access_token":"grok-access","refresh_token":"grok-refresh","expires_in":3600}`)
+		writeTestJSON(t, w, ti.tokenResponse(t, "ES256", "test-client", "grok-access", "grok-refresh"))
 	})
 	_, err = LoginDeviceOAuth(context.Background(), ProviderGrok, OAuthFlowOptions{
 		HTTPClient:   srv.Client(),

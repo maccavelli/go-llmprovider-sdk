@@ -3,7 +3,6 @@ package llmprovider
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -23,8 +22,9 @@ func grokDeviceServer(t *testing.T, approve <-chan struct{}) (*httptest.Server, 
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		writeTestJSON(t, w, fmt.Sprintf(`{"device_authorization_endpoint":%q,"token_endpoint":%q}`, srv.URL+"/device", srv.URL+"/token"))
+		writeTestJSON(t, w, ti.discovery(t, map[string]string{"device_authorization_endpoint": srv.URL + "/device", "token_endpoint": srv.URL + "/token"}))
 	})
 	mux.HandleFunc("/device", func(w http.ResponseWriter, _ *http.Request) {
 		writeTestJSON(t, w, `{"device_code":"device-secret","user_code":"ABCD-EFGH","verification_uri":"https://example.test/activate","expires_in":60,"interval":1}`)
@@ -34,7 +34,7 @@ func grokDeviceServer(t *testing.T, approve <-chan struct{}) (*httptest.Server, 
 		select {
 		case <-approve:
 			counts.approvals.Add(1)
-			writeTestJSON(t, w, `{"access_token":"grok-access","refresh_token":"grok-refresh","expires_in":3600}`)
+			writeTestJSON(t, w, ti.tokenResponse(t, "ES256", "test-client", "grok-access", "grok-refresh"))
 		default:
 			w.WriteHeader(http.StatusBadRequest)
 			writeTestJSON(t, w, `{"error":"authorization_pending"}`)
@@ -158,6 +158,10 @@ func TestDeviceLogin_OpenAIHandle(t *testing.T) {
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(t, w, ti.discovery(t, nil))
+	})
 	mux.HandleFunc("/api/accounts/deviceauth/usercode", func(w http.ResponseWriter, _ *http.Request) {
 		writeTestJSON(t, w, `{"device_auth_id":"dev-1","user_code":"WXYZ-1234","interval":"5"}`)
 	})

@@ -68,6 +68,7 @@ func TestBuildAuthorizeURL_OpenAIContract(t *testing.T) {
 		"http://localhost:1455/auth/callback",
 		"challenge",
 		"state",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("buildAuthorizeURL() error = %v", err)
@@ -185,29 +186,6 @@ func TestResolveOAuthFlowConfig_GrokEnvironmentOverrides(t *testing.T) {
 	}
 }
 
-func TestOAuthEndpointsFor_GrokFallsBackAfterDiscoveryFailure(t *testing.T) {
-	t.Parallel()
-
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusServiceUnavailable,
-			Status:     "503 Service Unavailable",
-			Body:       io.NopCloser(strings.NewReader("unavailable")),
-			Header:     make(http.Header),
-			Request:    request,
-		}, nil
-	})}
-	config := oauthFlowConfig{provider: ProviderGrok, issuer: "https://issuer.example", httpClient: client}
-	endpoints, err := oauthEndpointsFor(context.Background(), config)
-	if err != nil {
-		t.Fatalf("oauthEndpointsFor() error = %v", err)
-	}
-	if endpoints.Authorization != "https://issuer.example/oauth2/authorize" ||
-		endpoints.Token != defaultGrokOAuthRefreshURL || endpoints.Device != defaultGrokOAuthDeviceURL {
-		t.Fatalf("fallback endpoints = %#v", endpoints)
-	}
-}
-
 func TestLoginBrowserOAuth_OpenAICompletesCallbackAndExchange(t *testing.T) {
 	first, firstPort := listenOnFreePort(t)
 	second, secondPort := listenOnFreePort(t)
@@ -221,6 +199,10 @@ func TestLoginBrowserOAuth_OpenAICompletesCallbackAndExchange(t *testing.T) {
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(t, w, ti.discovery(t, nil))
+	})
 
 	mux.HandleFunc("/oauth/token", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
@@ -230,7 +212,7 @@ func TestLoginBrowserOAuth_OpenAICompletesCallbackAndExchange(t *testing.T) {
 		for key, values := range r.PostForm {
 			tokenForm[key] = append([]string(nil), values...)
 		}
-		writeTestJSON(t, w, `{"access_token":"access","refresh_token":"refresh","expires_in":3600}`)
+		writeTestJSON(t, w, ti.tokenResponse(t, "RS256", "test-client", "access", "refresh"))
 	})
 
 	openURL := func(rawURL string) error {
@@ -294,9 +276,10 @@ func TestLoginBrowserOAuth_GrokCompletesCallbackAndExchange(t *testing.T) {
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		writeTestJSON(t, w, `{"authorization_endpoint":`+strconv.Quote(srv.URL+"/authorize")+`,"token_endpoint":`+strconv.Quote(srv.URL+"/token")+`}`)
+		writeTestJSON(t, w, ti.discovery(t, map[string]string{"authorization_endpoint": srv.URL + "/authorize", "token_endpoint": srv.URL + "/token"}))
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
@@ -306,10 +289,11 @@ func TestLoginBrowserOAuth_GrokCompletesCallbackAndExchange(t *testing.T) {
 		for key, values := range r.PostForm {
 			tokenForm[key] = append([]string(nil), values...)
 		}
-		writeTestJSON(t, w, `{"access_token":"access","refresh_token":"refresh","expires_in":3600}`)
+		writeTestJSON(t, w, ti.tokenResponse(t, "ES256", "test-client", "access", "refresh"))
 	})
 
 	openURL := func(rawURL string) error {
+		ti.captureNonce(rawURL)
 		authURL, err := url.Parse(rawURL)
 		if err != nil {
 			return err
@@ -439,16 +423,18 @@ func TestLoginBrowserOAuth_OpenURLDoesNotBlockWait(t *testing.T) {
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		writeTestJSON(t, w, `{"authorization_endpoint":`+strconv.Quote(srv.URL+"/authorize")+`,"token_endpoint":`+strconv.Quote(srv.URL+"/token")+`}`)
+		writeTestJSON(t, w, ti.discovery(t, map[string]string{"authorization_endpoint": srv.URL + "/authorize", "token_endpoint": srv.URL + "/token"}))
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
-		writeTestJSON(t, w, `{"access_token":"access","refresh_token":"refresh","expires_in":3600}`)
+		writeTestJSON(t, w, ti.tokenResponse(t, "ES256", "test-client", "access", "refresh"))
 	})
 
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
 	openURL := func(rawURL string) error {
+		ti.captureNonce(rawURL)
 		authURL, err := url.Parse(rawURL)
 		if err != nil {
 			return err
@@ -584,15 +570,16 @@ func TestLoginBrowserOAuth_InputCodeWinsBeforeLoopback(t *testing.T) {
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		writeTestJSON(t, w, `{"authorization_endpoint":`+strconv.Quote(srv.URL+"/authorize")+`,"token_endpoint":`+strconv.Quote(srv.URL+"/token")+`}`)
+		writeTestJSON(t, w, ti.discovery(t, map[string]string{"authorization_endpoint": srv.URL + "/authorize", "token_endpoint": srv.URL + "/token"}))
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Errorf("parse token form: %v", err)
 		}
 		exchanged = r.PostForm.Get("code")
-		writeTestJSON(t, w, `{"access_token":"access","refresh_token":"refresh","expires_in":3600}`)
+		writeTestJSON(t, w, ti.tokenResponse(t, "ES256", "test-client", "access", "refresh"))
 	})
 
 	authorizeURLs := make(chan string, 1)
@@ -603,6 +590,7 @@ func TestLoginBrowserOAuth_InputCodeWinsBeforeLoopback(t *testing.T) {
 		ClientID:   "test-client",
 		Issuer:     srv.URL,
 		OpenURL: func(rawURL string) error {
+			ti.captureNonce(rawURL)
 			authorizeURLs <- rawURL // the browser never reaches the loopback
 			return nil
 		},

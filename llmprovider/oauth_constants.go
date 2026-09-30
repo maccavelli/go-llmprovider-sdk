@@ -1,5 +1,11 @@
 package llmprovider
 
+// The default OAuth client ids are the vendor CLIs' own public clients:
+// Codex's for OpenAI and the Grok CLI's for xAI. Subscription OAuth works only
+// with them, so they are borrowed, and a vendor may restrict them at any time
+// (0016-MADR D7 and Consequences). OAuthFlowOptions.ClientID overrides them.
+// This note becomes the auth package's doc when this file moves there
+// (0015-PLAN S7b).
 const (
 	// DefaultOpenAIIssuer is the issuer used for ChatGPT OAuth sessions.
 	DefaultOpenAIIssuer = "https://auth.openai.com"
@@ -18,4 +24,10 @@ const (
 
 	defaultGrokOAuthRefreshURL = "https://auth.x.ai/oauth2/token"
 	defaultGrokOAuthDeviceURL  = "https://auth.x.ai/oauth2/device/code"
+
+	// The built-in issuers' published keys, from their discovery documents
+	// (probed 2026-09-30; 0016-MADR, "D7 as decided"). They are the fallback
+	// when discovery of the built-in issuer fails.
+	defaultOpenAIJWKSURL = "https://auth.openai.com/.well-known/jwks.json"
+	defaultGrokJWKSURL   = "https://auth.x.ai/.well-known/jwks.json"
 )

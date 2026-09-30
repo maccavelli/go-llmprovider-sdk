@@ -61,7 +61,7 @@ func TestExchangeOAuthCode_IncludesRedactedBody(t *testing.T) {
 	srv := tokenErrorServer(t, `{"error":"invalid_grant","error_description":"`+jwtShapedDescription+`"}`)
 	_, err := exchangeOAuthCode(context.Background(),
 		oauthFlowConfig{provider: ProviderGrok, clientID: "test-client", httpClient: srv.Client()},
-		srv.URL, "code", "http://127.0.0.1/callback", "verifier")
+		oauthEndpoints{Token: srv.URL}, "code", "http://127.0.0.1/callback", "verifier", "")
 	assertRedactedTokenError(t, err)
 }
 
@@ -79,7 +79,7 @@ func TestOAuthTokenError_CapsBody(t *testing.T) {
 	srv := tokenErrorServer(t, strings.Repeat("A", 4096))
 	_, err := exchangeOAuthCode(context.Background(),
 		oauthFlowConfig{provider: ProviderGrok, clientID: "test-client", httpClient: srv.Client()},
-		srv.URL, "code", "http://127.0.0.1/callback", "verifier")
+		oauthEndpoints{Token: srv.URL}, "code", "http://127.0.0.1/callback", "verifier", "")
 	if err == nil {
 		t.Fatal("exchangeOAuthCode() error = nil, want the 400")
 	}

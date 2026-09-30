@@ -175,6 +175,10 @@ func LoginDeviceOAuth(ctx context.Context, provider string, opts OAuthFlowOption
 }
 
 func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin, error) {
+	endpoints, err := oauthEndpointsFor(ctx, config)
+	if err != nil {
+		return nil, err
+	}
 	userCodeURL := config.issuer + "/api/accounts/deviceauth/usercode"
 	resp, err := postOAuthJSON(ctx, config.httpClient, userCodeURL, map[string]string{oauthParamClientID: config.clientID})
 	if err != nil {
@@ -216,10 +220,11 @@ func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogi
 				return exchangeOAuthCode(
 					ctx,
 					config,
-					config.issuer+"/oauth/token",
+					endpoints,
 					code.AuthorizationCode,
 					config.issuer+"/deviceauth/callback",
 					code.CodeVerifier,
+					"",
 				)
 			}
 			status := pollResponse.StatusCode
@@ -241,6 +246,9 @@ func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogi
 func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin, error) {
 	endpoints, err := oauthEndpointsFor(ctx, config)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireEndpoints(config.issuer, endpoints.Device, endpoints.Token); err != nil {
 		return nil, err
 	}
 	form := url.Values{
@@ -291,7 +299,7 @@ func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin,
 				if decodeErr := decodeOAuthResponse(tokenResponse, &payload); decodeErr != nil {
 					return nil, fmt.Errorf("oauth: decode Grok device token: %w", decodeErr)
 				}
-				return oauthSessionFromResponse(config, endpoints.Token, payload)
+				return verifiedSession(ctx, config, endpoints, payload, "")
 			}
 			var deviceErr oauthDeviceError
 			if decodeErr := decodeOAuthResponse(tokenResponse, &deviceErr); decodeErr != nil {

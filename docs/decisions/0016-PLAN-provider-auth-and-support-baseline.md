@@ -314,6 +314,19 @@ run in T2 (0015-PLAN S4).
     empty. `MaskSecret` stays for the wizard's on-screen prompts.
 
   D5's "a masked form" is met, and no MADR text changes.
+* **2026-09-30, T2 step 5's discovery test.**
+  `TestOAuthEndpointsFor_GrokFallsBackAfterDiscoveryFailure` asserted MADR
+  finding M6's behaviour: a *caller's* issuer (`https://issuer.example`)
+  whose discovery fails silently gets xAI's built-in endpoints. D7 reverses
+  that. The test is replaced by two:
+  * `TestOAuthEndpointsFor_BuiltinIssuerFallsBack`, for both built-in
+    issuers;
+  * `TestOAuthEndpointsFor_CallerIssuerDiscoveryFailureFails`.
+
+  This is the same kind of replacement as step 2's M4 test. Separately, ten
+  login tests gained a signing issuer (discovery with `jwks_uri`, `/jwks`,
+  signed `id_token`s, the Grok nonce echoed). Their fixtures grew; no
+  assertion changed.
 * **2026-09-30, the survey.** [0017-REPORT-reference-client-auth-survey.md](../reports/0017-REPORT-reference-client-auth-survey.md) found three points for T2.
   They are proposed as the MADR's A1–A3, and as "T2 additions from the
   survey". Nothing changes until the owner decides.
@@ -610,3 +623,104 @@ run in T2 (0015-PLAN S4).
     for a later waiter.
 * **Gate,** every step exit 0: `llmprovider` 90.5 %, `wizard` 83.4 %,
   `make lint` `0 issues.`, and G-wire unchanged.
+
+### T2 step 5 and A3: `id_token` verification and fail-closed discovery (2026-09-30, in 0015-PLAN S4)
+
+* **D7 as decided, with A3.** `oauth_idtoken.go` verifies every login's
+  `id_token` before any claim is used.
+  * **Keys:**
+    * a `kid` is required;
+    * keys come from discovery's `jwks_uri`, cached for 1 h, and refetched
+      exactly once for an unknown `kid`;
+    * keys that cannot be fetched fail.
+  * **Algorithms:** RS256/384/512, PS256/384/512, ES256/384 and EdDSA, all
+    through the standard library. They are intersected with the issuer's
+    `id_token_signing_alg_values_supported` when it lists them. `none` and
+    HMAC are refused.
+  * **Claims:** `iss` equals the issuer, `aud` names the client, `exp` is in
+    the future (60 s leeway), and for a Grok browser login the `nonce`
+    matches the one sent.
+  * **Where it applies:** the browser login and both device flows.
+    `verifiedSession` fails a response without an `id_token`, since every
+    login requests `openid`. RSA keys under 2048 bits are refused, and EC
+    points are validated on their curve.
+* **Nonce plumbing.** `LoginBrowserOAuth` generates the Grok nonce and passes
+  it both to `buildAuthorizeURL` and to verification. Before, the nonce was
+  generated inside `buildAuthorizeURL` and discarded.
+* **Discovery fails closed.** `oauthEndpointsFor` falls back to built-in
+  endpoints and keys only for `https://auth.openai.com` and
+  `https://auth.x.ai`. A caller's issuer whose discovery fails is an error.
+  * The OpenAI flows now fetch discovery for their keys. Their authorize and
+    token endpoints stay Codex's fixed ones, so no request changes.
+  * The built-in fallback keys are `defaultOpenAIJWKSURL` and
+    `defaultGrokJWKSURL`.
+  * Each login checks the endpoints it needs (`requireEndpoints`).
+    Revocation, which shares discovery, needs no keys, so the check lives
+    in the flows, not in discovery.
+* **Client ids.** `oauth_constants.go`'s doc says the default client ids are
+  the vendor CLIs' own, borrowed, and overridable. It becomes `auth`'s
+  package doc in S7b.
+* **Tests:**
+  * `oauth_idtoken_test.go`: every accepted algorithm; 16 rejections
+    (tampered, audience, issuer, expiry, no `exp`, `none`, HS256, no `kid`,
+    an algorithm the issuer does not advertise, a key of the wrong type, a
+    nonce mismatch or absence, no `jwks_uri`, unreachable keys, not a JWT);
+    the unknown-`kid` refetch counted exactly; a missing `id_token`; and
+    the built-in-only fallback.
+  * `oauth_login_verify_test.go`: a Grok browser login that fails on a nonce
+    mismatch, a tampered payload, `alg: none` and a missing `id_token`, and
+    passes with a valid token; and a caller-issuer device login failing on
+    discovery.
+  * The shared signing issuer is `oauth_testissuer_test.go`.
+* **No test reaches the network.** The discovery-failure test uses a
+  transport that answers everything itself, including the requests a
+  regression would send to `https://auth.x.ai`.
+* **Red first,** against a clean clone of `fbe8bcf`, with the login-level
+  tests, which use only APIs that exist there. Exit 1:
+  * `login error = <nil>, want error true`, four times (nonce mismatch,
+    tampered, `alg: none`, no `id_token`). The old code accepted each.
+  * `StartDeviceOAuth succeeded against an issuer whose discovery fails
+    (requests: [https://issuer.example/.well-known/openid-configuration
+    https://auth.x.ai/oauth2/device/code])`: the silent fallback of M6,
+    intercepted by the test's transport.
+* **Seen to fail on deliberate breaks,** each check alone:
+
+  | Break | Failure |
+  |---|---|
+  | signature not checked | `verifyIDToken = <nil>, want … "bad signature"` |
+  | nonce not compared | `… naming "nonce"`, and the login test's `login error = <nil>` |
+  | audience not checked | `… naming "audience"` |
+  | no `kid` accepted | `… naming "no key id"` |
+  | advertised algorithms ignored | `… naming "\"RS256\" is not allowed"` |
+  | unknown `kid` not refetched | `no key "ec-1" after 1 fetches; want a rejection after exactly one refetch` |
+  | expiry not checked | `… naming "expired"` |
+  | any Grok issuer gets the fallback | `grok: oauthEndpointsFor = <nil>, want the discovery failure` |
+  | a missing `id_token` not refused | `verifiedSession = … not a signed JWT, want a missing-id_token rejection` |
+
+* **Live pin,** `live_oauth_issuers_test.go` (`live_gateways`). It reads
+  public discovery only, so it has no variable. Run on 2026-09-30, it
+  passed:
+  * `https://auth.openai.com`: `jwks_uri https://auth.openai.com/.well-known/jwks.json`, algorithms `[RS256]`;
+  * `https://auth.x.ai`: `jwks_uri https://auth.x.ai/.well-known/jwks.json`, algorithms `[ES256]`.
+
+  With the Grok fallback URL changed in a scratch copy, it failed:
+  `issuer "https://auth.x.ai" jwks_uri "https://auth.x.ai/.well-known/jwks.json"; want … "https://auth.x.ai/keys"`.
+* **Lint.** Four findings in the new code were fixed:
+  * three `goconst`, for the algorithm names;
+  * a `staticcheck` SA1019, on building an `ecdsa.PublicKey` from
+    coordinates. It now uses `ecdsa.ParseUncompressedPublicKey`, which also
+    validates the point.
+* **Gate,** every step exit 0:
+  * `go test -race -count=1 -cover ./...`: `llmprovider` 90.1 %,
+    `wizard` 83.4 %;
+  * `make lint` `0 issues.`;
+  * G-wire, unchanged;
+  * the rest of 0015-PLAN §0.
+* **V2–V6 are met for T2:**
+  * V2, durable writes;
+  * V3, rotation kept;
+  * V4, in part: no secret formatted, with `wizard.Result` in T4;
+  * V5, the device handle;
+  * V6, the OAuth checks.
+
+  V4's nested-JSON case is an open item, in step 3's record.

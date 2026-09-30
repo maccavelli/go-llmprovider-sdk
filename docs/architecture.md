@@ -83,12 +83,35 @@ docs/
 
 - **`TokenSource`** returns a `Token` for each request. `StaticToken` wraps an
   API key. `NewProviderWithSource` accepts a source for `openai` and `grok`.
-- **`OAuthSession`** is a refreshable `TokenSource`: `LoginBrowserOAuth` (PKCE
-  on a loopback redirect) and `LoginDeviceOAuth` create one for ChatGPT and
-  Grok; it refreshes before expiry and once after a 401, and
-  `RevokeOAuthSession` ends it.
-- **`TokenStore`** persists sessions; `FileTokenStore` keeps one `0600` JSON
-  file per provider.
+- **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.
+  - **Creating one:**
+    - `LoginBrowserOAuth` uses PKCE on a loopback redirect.
+    - `StartDeviceOAuth` returns a `DeviceLogin` handle: the user code, the
+      verification URI and the expiry, then `Wait` and `Cancel`.
+    - `LoginDeviceOAuth` is the same flow in one call.
+  - **Checked before use.** Every login verifies its `id_token` before any
+    claim is used:
+    - the signature against the issuer's published keys, fetched from
+      discovery's `jwks_uri`, cached, and refetched once for an unknown `kid`;
+    - the issuer, the audience and the expiry, and the Grok nonce.
+
+    A missing or failing `id_token` fails the login. A caller's issuer whose
+    discovery fails is an error; only the built-in issuers fall back to
+    built-in endpoints and keys.
+  - **Refresh.** The session refreshes before expiry and once after a 401. A
+    rotation is kept even when saving it fails: the failure goes to the
+    session's `Logger`, and the save is retried. After a rejected refresh the
+    session re-reads the store, and adopts a rotation another process saved.
+  - `RevokeOAuthSession` ends it.
+- **`TokenStore`** persists sessions. `FileTokenStore` keeps one `0600` JSON
+  file per provider:
+  - it writes through a temp file, with `fsync`, rename and a directory
+    `fsync`;
+  - it refuses a file over 64 KiB;
+  - as a `RefreshLocker`, it holds a lock file across processes for each
+    refresh, so a refresh token is never spent twice.
+- **Formatting never shows a secret.** `Token`, `StaticToken` and
+  `*OAuthSession` print `[redacted]` for every secret, under `fmt` and `slog`.
 - **`VendorCLISession`** reads the Codex or Grok CLI's own login on every
   request and never refreshes it.
 - **`ProviderDescriptor`** lists each provider's `AuthMethod`s; `Descriptors()`

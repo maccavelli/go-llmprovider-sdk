@@ -763,3 +763,37 @@ all three on 2026-09-30:
   that may become a deviation.
 
 No phase has changed yet.
+
+### Phase S4: `auth` work, in place (2026-09-30)
+
+* **Step 1** (the move) is struck, and moved to S7b.
+* **Step 2** holds: `Token`, `TokenType` and `TokenSource` stay in
+  `llmprovider`.
+* **Step 3.** The stale "Phase 2 / Phase 3" doc comments on `OAuthSession`
+  and `TokenStore` (0015-REPORT F7) are replaced with what the types are and
+  do.
+* **Step 4, 0016-PLAN T2, with the survey's A1–A3.** Five commits, each
+  through the gate, each recorded in 0016-PLAN's execution record:
+  * `0cd659d`: durable writes and the cross-process refresh lock;
+  * `3a627d6`: rotation kept on a failed save, and a sibling's rotation
+    adopted;
+  * `b63f41a`: secrets redact themselves, fully (the owner's choice);
+  * `fbe8bcf`: the device-login handle;
+  * this commit: `id_token` verification, and fail-closed discovery.
+* **Two existing tests pinned defects the accepted MADR fixes,** and were
+  replaced by the tests D4 and D7 require: M4's save-failure test, and M6's
+  discovery-fallback test. No other assertion changed meaning. The login
+  tests' fixtures now sign `id_token`s.
+* **Open items for the owner, from this phase:**
+  * slog's JSON handler shows the secret of a *struct holding* a `Token`
+    (step 3's record);
+  * the S7 ordering items of the 2026-09-30 deviation (`NewProvider`, and
+    `ProviderConfig.ModelProfile`).
+* **Gate,** every step exit 0, at each commit. At this commit:
+  * `internal/redact` 100.0 %, `internal/wiretest` 95.2 %, `llmprovider`
+    90.1 % (89.2 % at `P7`), `wizard` 83.4 %;
+  * `make lint` `0 issues.`;
+  * G-wire three times over, unchanged;
+  * G-links;
+  * the deny list: 0 hits.
+* `docs/architecture.md`'s Credentials section describes the result.

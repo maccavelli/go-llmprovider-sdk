@@ -22,9 +22,10 @@ func TestGrokDevice_SlowDownIncreasesInterval(t *testing.T) {
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
-		writeTestJSON(t, w, fmt.Sprintf(`{"device_authorization_endpoint":%q,"token_endpoint":%q}`, srv.URL+"/device", srv.URL+"/token"))
+		writeTestJSON(t, w, ti.discovery(t, map[string]string{"device_authorization_endpoint": srv.URL + "/device", "token_endpoint": srv.URL + "/token"}))
 	})
 	mux.HandleFunc("/device", func(w http.ResponseWriter, _ *http.Request) {
 		writeTestJSON(t, w, `{"device_code":"device-secret","user_code":"ABCD-EFGH","verification_uri":"https://example.test/activate","expires_in":60,"interval":1}`)
@@ -42,7 +43,7 @@ func TestGrokDevice_SlowDownIncreasesInterval(t *testing.T) {
 			writeTestJSON(t, w, `{"error":"slow_down"}`)
 			return
 		}
-		writeTestJSON(t, w, `{"access_token":"grok-access","refresh_token":"grok-refresh","expires_in":3600}`)
+		writeTestJSON(t, w, ti.tokenResponse(t, "ES256", "test-client", "grok-access", "grok-refresh"))
 	})
 
 	var notifiedURL, notifiedCode string
@@ -114,6 +115,10 @@ func TestOpenAIDevice_UsesCodexProtocol(t *testing.T) {
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(t, w, ti.discovery(t, nil))
+	})
 
 	mux.HandleFunc("/api/accounts/deviceauth/usercode", func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]string
@@ -154,7 +159,7 @@ func TestOpenAIDevice_UsesCodexProtocol(t *testing.T) {
 		if !reflect.DeepEqual(r.PostForm, want) {
 			t.Errorf("exchange form = %v, want %v", r.PostForm, want)
 		}
-		writeTestJSON(t, w, `{"access_token":"openai-access","refresh_token":"openai-refresh","expires_in":3600}`)
+		writeTestJSON(t, w, ti.tokenResponse(t, "RS256", "test-client", "openai-access", "openai-refresh"))
 	})
 
 	var notification [2]string

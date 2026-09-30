@@ -11,9 +11,11 @@ import (
 	"time"
 )
 
-// OAuthSession is declared here as a minimal stub so Phase 2's FileTokenStore
-// can be tested in isolation. Phase 3 will extend this type with the full
-// refresh + persist-before-use behaviour and the locked method set.
+// OAuthSession is a subscription login: a TokenSource that refreshes its access
+// token before expiry, and after a 401, and saves each rotation to Store. It is
+// safe for concurrent use, and one refresh runs at a time, across processes
+// when Store is a RefreshLocker. Format a *OAuthSession: its String, GoString
+// and LogValue never show the tokens.
 type OAuthSession struct {
 	Provider   string
 	Access     string
@@ -79,8 +81,8 @@ type tokenFuture struct {
 	err  error
 }
 
-// TokenStore interface (Phase 2 introduces this; Phase 3 adds methods that
-// depend on it).
+// TokenStore persists OAuth sessions, one per provider. Load returns nil and no
+// error when the provider has none. FileTokenStore is the built-in one.
 type TokenStore interface {
 	Load(ctx context.Context, provider string) (*OAuthSession, error)
 	Save(ctx context.Context, provider string, s *OAuthSession) error

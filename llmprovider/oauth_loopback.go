@@ -58,6 +58,9 @@ type oauthEndpoints struct {
 	Token         string `json:"token_endpoint"`
 	Device        string `json:"device_authorization_endpoint"`
 	Revocation    string `json:"revocation_endpoint"`
+	JWKS          string `json:"jwks_uri"`
+	// SigningAlgs is id_token_signing_alg_values_supported (0016-MADR A3).
+	SigningAlgs []string `json:"id_token_signing_alg_values_supported"`
 }
 
 type oauthTokenResponse struct {
@@ -83,6 +86,9 @@ func LoginBrowserOAuth(ctx context.Context, provider string, opts OAuthFlowOptio
 	if err != nil {
 		return nil, err
 	}
+	if err := requireEndpoints(config.issuer, endpoints.Authorization, endpoints.Token); err != nil {
+		return nil, err
+	}
 	pkce, err := newPKCE()
 	if err != nil {
 		return nil, err
@@ -104,7 +110,13 @@ func LoginBrowserOAuth(ctx context.Context, provider string, opts OAuthFlowOptio
 	shutdown := serveCallbackListeners(handler, listeners, serveErrors)
 	defer shutdown()
 
-	authorizeURL, err := buildAuthorizeURL(config, endpoints.Authorization, redirectURI, pkce.challenge, state)
+	nonce := ""
+	if config.provider == ProviderGrok {
+		if nonce, err = randomBase64URL(32); err != nil {
+			return nil, fmt.Errorf("oauth: generate nonce: %w", err)
+		}
+	}
+	authorizeURL, err := buildAuthorizeURL(config, endpoints.Authorization, redirectURI, pkce.challenge, state, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +154,7 @@ func LoginBrowserOAuth(ctx context.Context, provider string, opts OAuthFlowOptio
 	if callback.err != nil {
 		return nil, callback.err
 	}
-	return exchangeOAuthCode(flowCtx, config, endpoints.Token, callback.code, redirectURI, pkce.verifier)
+	return exchangeOAuthCode(flowCtx, config, endpoints, callback.code, redirectURI, pkce.verifier, nonce)
 }
 
 func resolveOAuthFlowConfig(provider string, opts OAuthFlowOptions) (oauthFlowConfig, error) {
@@ -198,19 +210,82 @@ func resolveOAuthFlowConfig(provider string, opts OAuthFlowOptions) (oauthFlowCo
 	}, nil
 }
 
+// oauthEndpointsFor returns the flow's endpoints and the issuer's keys, from
+// OIDC discovery. OpenAI's authorize and token endpoints stay the fixed ones
+// Codex uses; only its keys come from discovery. When discovery fails, or
+// leaves a field out, the built-in values fill in for the built-in issuer
+// only: a caller's issuer whose discovery fails is an error (0016-MADR D7).
 func oauthEndpointsFor(ctx context.Context, config oauthFlowConfig) (oauthEndpoints, error) {
+	builtin := builtinOAuthEndpoints(config)
+	discovered, err := discoverOAuthEndpoints(ctx, config)
+	if err != nil {
+		if builtin == nil {
+			return oauthEndpoints{}, err
+		}
+		return *builtin, nil
+	}
 	if config.provider == ProviderOpenAI {
-		return oauthEndpoints{
-			Authorization: config.issuer + "/oauth/authorize",
-			Token:         config.issuer + "/oauth/token",
-		}, nil
+		discovered.Authorization = config.issuer + "/oauth/authorize"
+		discovered.Token = config.issuer + "/oauth/token"
 	}
+	if builtin != nil {
+		fillOAuthEndpoints(&discovered, *builtin)
+	}
+	return discovered, nil
+}
 
-	fallback := oauthEndpoints{
-		Authorization: config.issuer + "/oauth2/authorize",
-		Token:         defaultGrokOAuthRefreshURL,
-		Device:        defaultGrokOAuthDeviceURL,
+// requireEndpoints fails when a flow's endpoint is missing from discovery.
+// A missing jwks_uri fails later, in verifyIDToken.
+func requireEndpoints(issuer string, endpoints ...string) error {
+	for _, e := range endpoints {
+		if e == "" {
+			return fmt.Errorf("oauth: discovery for %s lacks an endpoint this login needs", issuer)
+		}
 	}
+	return nil
+}
+
+// builtinOAuthEndpoints returns the built-in issuer's endpoints and keys, or
+// nil for any other issuer.
+func builtinOAuthEndpoints(config oauthFlowConfig) *oauthEndpoints {
+	issuer := strings.TrimRight(config.issuer, "/")
+	switch {
+	case config.provider == ProviderOpenAI && issuer == DefaultOpenAIIssuer:
+		return &oauthEndpoints{
+			Authorization: issuer + "/oauth/authorize",
+			Token:         issuer + "/oauth/token",
+			JWKS:          defaultOpenAIJWKSURL,
+			SigningAlgs:   []string{algRS256},
+		}
+	case config.provider == ProviderGrok && issuer == DefaultGrokOAuthIssuer:
+		return &oauthEndpoints{
+			Authorization: issuer + "/oauth2/authorize",
+			Token:         defaultGrokOAuthRefreshURL,
+			Device:        defaultGrokOAuthDeviceURL,
+			JWKS:          defaultGrokJWKSURL,
+			SigningAlgs:   []string{algES256},
+		}
+	}
+	return nil
+}
+
+func fillOAuthEndpoints(e *oauthEndpoints, from oauthEndpoints) {
+	for _, pair := range []struct {
+		dst *string
+		src string
+	}{
+		{&e.Authorization, from.Authorization}, {&e.Token, from.Token}, {&e.Device, from.Device}, {&e.JWKS, from.JWKS},
+	} {
+		if *pair.dst == "" {
+			*pair.dst = pair.src
+		}
+	}
+	if len(e.SigningAlgs) == 0 {
+		e.SigningAlgs = from.SigningAlgs
+	}
+}
+
+func discoverOAuthEndpoints(ctx context.Context, config oauthFlowConfig) (oauthEndpoints, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, config.issuer+"/.well-known/openid-configuration", http.NoBody)
 	if err != nil {
 		return oauthEndpoints{}, fmt.Errorf("oauth: create discovery request: %w", err)
@@ -218,25 +293,15 @@ func oauthEndpointsFor(ctx context.Context, config oauthFlowConfig) (oauthEndpoi
 	identityOf(ProviderConfig{}).setUserAgent(req)
 	resp, err := config.httpClient.Do(req)
 	if err != nil {
-		return oauthDiscoveryFallback(fallback)
+		return oauthEndpoints{}, fmt.Errorf("oauth: discovery for %s: %w", config.issuer, err)
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		ignoreOAuthError(resp.Body.Close())
-		return oauthDiscoveryFallback(fallback)
+		return oauthEndpoints{}, fmt.Errorf("oauth: discovery for %s: %s", config.issuer, resp.Status)
 	}
 	var discovered oauthEndpoints
-	decodeErr := decodeOAuthResponse(resp, &discovered)
-	if decodeErr != nil {
-		return oauthDiscoveryFallback(fallback)
-	}
-	if discovered.Authorization == "" {
-		discovered.Authorization = fallback.Authorization
-	}
-	if discovered.Token == "" {
-		discovered.Token = fallback.Token
-	}
-	if discovered.Device == "" {
-		discovered.Device = fallback.Device
+	if err := decodeOAuthResponse(resp, &discovered); err != nil {
+		return oauthEndpoints{}, fmt.Errorf("oauth: decode discovery for %s: %w", config.issuer, err)
 	}
 	return discovered, nil
 }
@@ -360,7 +425,7 @@ func isAddrInUse(err error) bool {
 		strings.Contains(msg, "only one usage of each socket address")
 }
 
-func buildAuthorizeURL(config oauthFlowConfig, endpoint, redirectURI, challenge, state string) (string, error) {
+func buildAuthorizeURL(config oauthFlowConfig, endpoint, redirectURI, challenge, state, nonce string) (string, error) {
 	authorizeURL, err := url.Parse(endpoint)
 	if err != nil {
 		return "", fmt.Errorf("oauth: parse authorization endpoint: %w", err)
@@ -378,10 +443,6 @@ func buildAuthorizeURL(config oauthFlowConfig, endpoint, redirectURI, challenge,
 		query.Set("codex_cli_simplified_flow", "true")
 		query.Set(openAIOriginatorHeader, openAIOriginatorValue)
 	} else {
-		nonce, nonceErr := randomBase64URL(32)
-		if nonceErr != nil {
-			return "", fmt.Errorf("oauth: generate nonce: %w", nonceErr)
-		}
 		query.Set("scope", grokOAuthScopes)
 		query.Set("nonce", nonce)
 		query.Set("referrer", "go-llmprovider-sdk")
@@ -532,8 +593,10 @@ func parseOAuthInput(input, expectedState string) (string, error) {
 func exchangeOAuthCode(
 	ctx context.Context,
 	config oauthFlowConfig,
-	tokenURL, code, redirectURI, verifier string,
+	endpoints oauthEndpoints,
+	code, redirectURI, verifier, nonce string,
 ) (*OAuthSession, error) {
+	tokenURL := endpoints.Token
 	form := url.Values{
 		oauthParamGrantType: {oauthGrantAuthorizationCode},
 		"code":              {code},
@@ -558,7 +621,23 @@ func exchangeOAuthCode(
 	if err := decodeOAuthResponse(resp, &payload); err != nil {
 		return nil, fmt.Errorf("oauth: decode token response: %w", err)
 	}
-	return oauthSessionFromResponse(config, tokenURL, payload)
+	return verifiedSession(ctx, config, endpoints, payload, nonce)
+}
+
+// verifiedSession verifies the token response's id_token, then builds the
+// session from its claims (0016-MADR D7, A3). Every login requests openid, so
+// a response without an id_token fails, and so does any verification failure:
+// nothing is returned to save.
+func verifiedSession(ctx context.Context, config oauthFlowConfig, endpoints oauthEndpoints, payload oauthTokenResponse, nonce string) (*OAuthSession, error) {
+	if payload.IDToken == "" {
+		return nil, fmt.Errorf("%w: the token response has none, although openid was requested", errIDToken)
+	}
+	check := idTokenCheck{issuer: config.issuer, clientID: config.clientID, nonce: nonce,
+		jwksURL: endpoints.JWKS, advertised: endpoints.SigningAlgs}
+	if err := verifyIDToken(ctx, config.httpClient, payload.IDToken, check, config.now()); err != nil {
+		return nil, err
+	}
+	return oauthSessionFromResponse(config, endpoints.Token, payload)
 }
 
 func oauthSessionFromResponse(config oauthFlowConfig, tokenURL string, payload oauthTokenResponse) (*OAuthSession, error) {
@@ -648,10 +727,6 @@ func sleepWithContext(ctx context.Context, duration time.Duration) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-}
-
-func oauthDiscoveryFallback(fallback oauthEndpoints) (oauthEndpoints, error) {
-	return fallback, nil
 }
 
 func ignoreOAuthError(_ error) {}
