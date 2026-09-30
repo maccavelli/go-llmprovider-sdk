@@ -379,6 +379,15 @@ func tokenExpiry(access string, expiresIn int64, now time.Time) time.Time {
 // A stored session with a different refresh token is adopted, and refreshed
 // only if its own access token is due (MADR 0012 §5.2).
 func reloadOrRefresh(ctx context.Context, state oauthSessionState) (*OAuthSession, Token, error) {
+	// Lock first, so the reload below sees any rotation another process
+	// saved while this one waited (0016-MADR amendment A2).
+	if locker, ok := state.store.(RefreshLocker); ok {
+		unlock, err := locker.LockRefresh(ctx, state.provider)
+		if err != nil {
+			return nil, Token{}, err
+		}
+		defer unlock()
+	}
 	if state.store != nil {
 		stored, err := state.store.Load(ctx, state.provider)
 		if err == nil && stored != nil && stored.Refresh != "" && stored.Refresh != state.refresh {

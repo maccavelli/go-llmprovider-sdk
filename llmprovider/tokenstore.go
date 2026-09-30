@@ -43,6 +43,15 @@ type TokenStore interface {
 	Delete(ctx context.Context, provider string) error
 }
 
+// RefreshLocker is implemented by a TokenStore that can serialise refreshes
+// across processes; FileTokenStore does. An OAuthSession takes the lock
+// around a refresh and re-reads the store once it holds it, so a refresh
+// token is never spent twice: both vendors revoke the whole token family on
+// reuse (0016-MADR amendment A2). The returned func releases the lock.
+type RefreshLocker interface {
+	LockRefresh(ctx context.Context, provider string) (unlock func(), err error)
+}
+
 // fileRecord is the on-disk JSON shape.
 type fileRecord struct {
 	Provider  string    `json:"provider"`

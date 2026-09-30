@@ -294,6 +294,15 @@ run in T2 (0015-PLAN S4).
     becomes the package doc in S7b.
 
   What the steps do, and their tests, are unchanged.
+* **2026-09-30, T2 step 1's red-first premise.** The step expected the
+  "temp file is `0600` before any byte is written" test to fail against the
+  old code. It cannot: `os.CreateTemp` creates its file `0600` (measured in a
+  clone of `fe625b8`: `os.CreateTemp mode: 600`). The old code's `chmod`
+  after the rename was redundant, not late, and MADR finding M5's "chmod
+  0600 after the rename" was literally true but was never a window of
+  exposure. The test stays as a regression guard, proven by a deliberate
+  break instead. D3's other defects were real: no `fsync`, and no size cap
+  on `Load`.
 * **2026-09-30, the survey.** [0017-REPORT-reference-client-auth-survey.md](../reports/0017-REPORT-reference-client-auth-survey.md) found three points for T2.
   They are proposed as the MADR's A1–A3, and as "T2 additions from the
   survey". Nothing changes until the owner decides.
@@ -368,3 +377,71 @@ run in T2 (0015-PLAN S4).
   * the guard in `shareHTTPClient` removed:
     `a session's own client was replaced`.
 * **V7** (proxy honoured; one client per provider) is met.
+
+### T2 step 1 and A2: durable writes and the refresh lock (2026-09-30, in 0015-PLAN S4)
+
+* **Durable writes (D3).** `FileTokenStore.Save` now:
+  * creates a temp file in the store directory and sets `0600` before any
+    byte is written;
+  * writes, `Sync`s, closes and renames;
+  * then `fsync`s the directory (`syncDir`, a no-op on Windows).
+
+  On any failure the temp file is removed and the previous file is intact.
+  `Load` refuses a file over 64 KiB (`readBounded`). The old post-rename
+  `chmod0600` helper is gone; `tmp.Chmod(0o600)` replaces it on every
+  platform.
+* **The refresh lock (A2, option (b)).**
+  * `RefreshLocker` is an optional `TokenStore` interface, and
+    `FileTokenStore.LockRefresh` implements it:
+    * `{provider}.lock` is created exclusively, holding the pid and the time;
+    * it is touched every 5 s while held;
+    * it is taken over when untouched for 30 s;
+    * a waiter gives up after 25 s with an error matching
+      `ErrProviderUnavailable`, and never refreshes unlocked.
+  * `reloadOrRefresh` takes the lock before its store re-read, so a session
+    adopts what another process saved while it waited.
+* **Tests** (`tokenstore_durable_test.go`, and `tokenstore_file_unix_test.go`
+  for the mode):
+  * a rename failure keeps the previous session and leaves no temp file;
+  * the temp file is `0600` and empty before its first write;
+  * an oversized file is refused;
+  * two sessions on one store refresh once in total, and both get the
+    refreshed token;
+  * a stale lock is taken over;
+  * a held lock times out as retryable, and the heartbeat keeps it from
+    being taken over.
+
+  All pass under `-race`.
+* **Red first,** against a clean clone of `fe625b8`, with tests using the
+  old API only. Exit 1:
+  * `Load of a 65569-byte file succeeded, want a size refusal`;
+  * `2 refresh requests, want 1: the same refresh token was spent twice`.
+    That is the A2 race, observed.
+  * The premise check passed: `os.CreateTemp mode: 600` (see the Deviation
+    Log).
+* **Seen to fail on deliberate breaks,** each in its own scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | temp chmod `0644` | `before the first write: mode 644, size 0; want 0600 and empty` |
+  | temp file not removed | `temp file .tok-3449366731.json left behind` |
+  | no size cap | `Load = FileTokenStore decode: unexpected end of JSON input, want a size refusal` |
+  | stale window ×1000 | `Token = "", llm: provider unavailable: oauth: another process is refreshing the openai session after 0 refreshes; want the stale lock taken over` |
+  | refresh unlocked after the wait | `Token = <nil>, want a retryable ErrProviderUnavailable while the lock is held` |
+  | no heartbeat | `Token = <nil>, want a retryable ErrProviderUnavailable while the lock is held` |
+  | no lock around the refresh | `2 refresh requests, want 1: the same refresh token was spent twice` |
+
+  A first attempt at the stale-window break did not compile, and so proved
+  nothing. It was rewritten, and the break runner now reports a break that
+  does not compile as invalid.
+* **Gate,** every step exit 0:
+  * `make pre-add-check`;
+  * `go vet` for three GOOS and `live_gateways`;
+  * `go test -race -count=1 -cover ./...` (`llmprovider` 90.2 %);
+  * `go mod tidy -diff`;
+  * `make lint` (`0 issues.`);
+  * `make parity-check`;
+  * markdownlint;
+  * G-wire three times over, unchanged;
+  * G-links;
+  * the deny list.
