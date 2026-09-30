@@ -30,6 +30,7 @@ scripts/check_parity_map.py G-parity: the mcplib migration map is complete
 opencode.json
 llmprovider/                providers, credentials, discovery
 llmprovider/llmtest/        the conformance suite and a fake provider
+llmprovider/providers/      the built-in providers, by id
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
@@ -50,6 +51,7 @@ docs/
 | `internal/redact` | `Redact` and `String` (hide a secret completely) and `MaskSecret` (show a suffix for identification) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider`, the standard library |
+| `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it gains each provider as 0015-PLAN S7 moves it | `llmprovider` and the provider packages |
 
 ## The contract
 
@@ -97,8 +99,9 @@ the old API until 0015-PLAN S8 removes it:
 - **`Item`** is sealed. Its types are `MessageItem`, `FunctionCallItem`,
   `FunctionCallOutputItem` and `ReasoningItem`; item methods return a
   `*Response`.
-- **Construction:** `NewProvider(name, apiKey, model, opts...)`, or a
-  provider's own `New…`; options are `ProviderOption` functions (`WithBaseURL`,
+- **Construction:** `providers.New(id, opts...)` for a provider that has
+  moved to its own package, or a provider's own `New…` until it moves;
+  options are `ProviderOption` functions (`WithBaseURL`,
   `WithHTTPClient`, `WithReasoningEffort`, …). `GenerateWithRetry` and its two
   siblings retry on typed errors.
 - **Transport:** without `WithHTTPClient`, each provider builds one client:
@@ -113,7 +116,9 @@ the old API until 0015-PLAN S8 removes it:
 ## Credentials
 
 - **`TokenSource`** returns a `Token` for each request. `StaticToken` wraps an
-  API key. `NewProviderWithSource` accepts a source for `openai` and `grok`.
+  API key. `NewOpenAIWithSource` accepts a source. Grok's source
+  constructor is unexported until Grok moves in 0015-PLAN S7, whose `New`
+  takes `WithTokenSource`.
 - **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.
   - **Creating one:**
     - `LoginBrowserOAuth` uses PKCE on a loopback redirect.

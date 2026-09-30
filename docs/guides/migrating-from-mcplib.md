@@ -199,8 +199,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.NewOpenAI` |  |  |
 | `llmprovider.NewOpenAIWithSource` |  |  |
 | `llmprovider.NewOpencode` |  |  |
-| `llmprovider.NewProvider` |  |  |
-| `llmprovider.NewProviderWithSource` |  |  |
+| `llmprovider.NewProvider` | `providers.New(id, opts...)` | Over `providers.Default()`, a `Registry`; removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7. |
+| `llmprovider.NewProviderWithSource` | `providers.New(id, WithTokenSource(src), …)` | Removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7; a credential is an option (D5). |
 | `llmprovider.NewStaticToken` |  |  |
 | `llmprovider.OAuthFlowOptions` |  |  |
 | `llmprovider.OAuthFlowOptions.ClientID` |  |  |

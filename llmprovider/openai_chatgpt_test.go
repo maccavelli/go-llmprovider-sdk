@@ -264,15 +264,7 @@ func TestOpenAI_OAuth401RetriesOnceAfterRefresh(t *testing.T) {
 	}
 }
 
-func TestNewProviderWithSource_RejectsClaude(t *testing.T) {
-	t.Parallel()
-
-	if _, err := NewProviderWithSource(ProviderClaude, NewStaticToken("x"), "x"); err == nil {
-		t.Fatal("NewProviderWithSource() error = nil, want unsupported-provider error")
-	}
-}
-
-func TestNewProvider_APIKeyStillPlatform(t *testing.T) {
+func TestNewOpenAI_APIKeyStillPlatform(t *testing.T) {
 	t.Parallel()
 
 	var captured *http.Request
@@ -280,9 +272,9 @@ func TestNewProvider_APIKeyStillPlatform(t *testing.T) {
 		captured = request
 		return openAITestHTTPResponse(request, http.StatusOK, openAITestResponse), nil
 	})}
-	provider, err := NewProvider(ProviderOpenAI, "sk-test", "gpt-4.1-mini", WithHTTPClient(client))
+	provider, err := NewOpenAI("sk-test", "gpt-4.1-mini", WithHTTPClient(client))
 	if err != nil {
-		t.Fatalf("NewProvider() error = %v", err)
+		t.Fatalf("NewOpenAI() error = %v", err)
 	}
 	if _, err := provider.Generate(context.Background(), "hello"); err != nil {
 		t.Fatalf("Generate() error = %v", err)

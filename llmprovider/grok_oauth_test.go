@@ -29,9 +29,9 @@ func TestGrok_SessionUsesAPIXAIHost(t *testing.T) {
 		Refresh:  "session-refresh",
 		Expiry:   time.Now().Add(time.Hour),
 	}
-	provider, err := NewProviderWithSource(ProviderGrok, session, "grok-4.6", WithHTTPClient(client))
+	provider, err := newGrokWithSource(session, "grok-4.6", WithHTTPClient(client))
 	if err != nil {
-		t.Fatalf("NewProviderWithSource() error = %v", err)
+		t.Fatalf("newGrokWithSource() error = %v", err)
 	}
 	if _, err := provider.Generate(context.Background(), "hello"); err != nil {
 		t.Fatalf("Generate() error = %v", err)
@@ -63,9 +63,9 @@ func TestGrok_SessionOmitsCLITokenAuthHeader(t *testing.T) {
 		Refresh:  "session-refresh",
 		Expiry:   time.Now().Add(time.Hour),
 	}
-	provider, err := NewProviderWithSource(ProviderGrok, session, "grok-4.6", WithHTTPClient(client))
+	provider, err := newGrokWithSource(session, "grok-4.6", WithHTTPClient(client))
 	if err != nil {
-		t.Fatalf("NewProviderWithSource() error = %v", err)
+		t.Fatalf("newGrokWithSource() error = %v", err)
 	}
 	if _, err := provider.Generate(context.Background(), "hello"); err != nil {
 		t.Fatalf("Generate() error = %v", err)
@@ -78,8 +78,8 @@ func TestGrok_EmptyStaticKeyStillRejected(t *testing.T) {
 	if _, err := NewGrok("", "grok-4.6"); err == nil {
 		t.Fatal("NewGrok() error = nil, want empty-key error")
 	}
-	if _, err := NewProviderWithSource(ProviderGrok, NewStaticToken(""), "grok-4.6"); err == nil {
-		t.Fatal("NewProviderWithSource() error = nil, want empty-static-key error")
+	if _, err := newGrokWithSource(NewStaticToken(""), "grok-4.6"); err == nil {
+		t.Fatal("newGrokWithSource() error = nil, want empty-static-key error")
 	}
 }
 
@@ -92,9 +92,9 @@ func TestGrok_TokenSourceCalledPerRequest(t *testing.T) {
 		authorizations = append(authorizations, request.Header.Get("Authorization"))
 		return grokTestHTTPResponse(request, http.StatusOK, grokTestResponse), nil
 	})}
-	provider, err := NewProviderWithSource(ProviderGrok, source, "grok-4.6", WithHTTPClient(client))
+	provider, err := newGrokWithSource(source, "grok-4.6", WithHTTPClient(client))
 	if err != nil {
-		t.Fatalf("NewProviderWithSource() error = %v", err)
+		t.Fatalf("newGrokWithSource() error = %v", err)
 	}
 	for range 2 {
 		if _, err := provider.Generate(context.Background(), "hello"); err != nil {
@@ -154,9 +154,9 @@ func TestGrok_OAuth401RetriesOnceAfterRefresh(t *testing.T) {
 		TokenURL:   "https://auth.test/oauth/token",
 		HTTPClient: client,
 	}
-	provider, err := NewProviderWithSource(ProviderGrok, session, "grok-4.6", WithHTTPClient(client))
+	provider, err := newGrokWithSource(session, "grok-4.6", WithHTTPClient(client))
 	if err != nil {
-		t.Fatalf("NewProviderWithSource() error = %v", err)
+		t.Fatalf("newGrokWithSource() error = %v", err)
 	}
 	if _, err := provider.Generate(context.Background(), "hello"); err != nil {
 		t.Fatalf("Generate() error = %v", err)

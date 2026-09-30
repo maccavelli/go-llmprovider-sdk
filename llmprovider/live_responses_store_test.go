@@ -37,7 +37,7 @@ func TestLive_ResponsesStoreFalse(t *testing.T) {
 			})}
 			ctx, cancel := liveCtx(t)
 			defer cancel()
-			p, err := NewProvider(tc.name, key, tc.model, WithStore(false), WithHTTPClient(client))
+			p, err := liveWithKey(tc.name, key, tc.model, WithStore(false), WithHTTPClient(client))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -51,4 +51,12 @@ func TestLive_ResponsesStoreFalse(t *testing.T) {
 			}
 		})
 	}
+}
+
+// liveWithKey builds the provider a live table names from an API key.
+func liveWithKey(provider, key, model string, opts ...ProviderOption) (LegacyProvider, error) {
+	if provider == ProviderGrok {
+		return NewGrok(key, model, opts...)
+	}
+	return NewOpenAI(key, model, opts...)
 }

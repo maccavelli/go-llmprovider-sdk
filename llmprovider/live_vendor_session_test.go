@@ -46,7 +46,7 @@ func TestLive_VendorCLISession(t *testing.T) {
 			s := liveVendorSession(t, tc.provider, tc.optIn, tc.homeEnv, tc.dir)
 			ctx, cancel := liveCtx(t)
 			defer cancel()
-			p, err := NewProviderWithSource(tc.provider, s, tc.model)
+			p, err := liveWithSource(tc.provider, s, tc.model)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -57,4 +57,12 @@ func TestLive_VendorCLISession(t *testing.T) {
 			}
 		})
 	}
+}
+
+// liveWithSource builds the provider a live table names from a session.
+func liveWithSource(provider string, src TokenSource, model string) (LegacyProvider, error) {
+	if provider == ProviderGrok {
+		return newGrokWithSource(src, model)
+	}
+	return NewOpenAIWithSource(src, model)
 }

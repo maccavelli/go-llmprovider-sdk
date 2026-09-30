@@ -36,7 +36,7 @@ type AuthMethod struct {
 // drift is the reason this type exists: three wizards previously kept their own
 // provider lists, and none of them offered Grok.
 type ProviderDescriptor struct {
-	// ID is the canonical identifier accepted by NewProvider.
+	// ID is the canonical identifier: the id providers.New builds.
 	ID string
 	// Label is the human-readable name for a menu.
 	Label string

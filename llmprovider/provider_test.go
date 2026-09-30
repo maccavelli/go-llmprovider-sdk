@@ -92,27 +92,6 @@ func TestGenerateItemsWithRetry_NonRetryable(t *testing.T) {
 	}
 }
 
-func TestNewProvider(t *testing.T) {
-	providers := []string{
-		ProviderGemini, ProviderClaude, ProviderOpenAI, ProviderGrok,
-		ProviderOpencodeZen, ProviderOpencodeGo, ProviderHuggingFace, ProviderKilo, ProviderTogether,
-	}
-	for _, p := range providers {
-		prov, err := NewProvider(p, "test-key", "model-x")
-		if err != nil {
-			t.Errorf("NewProvider(%q) error: %v", p, err)
-		}
-		if prov.Name() != p {
-			t.Errorf("NewProvider(%q).Name() = %q", p, prov.Name())
-		}
-	}
-
-	_, err := NewProvider("unsupported-p", "k", "m")
-	if err == nil {
-		t.Error("expected error for unsupported provider")
-	}
-}
-
 func TestRateLimitError_ErrorString(t *testing.T) {
 	rl := &RateLimitError{RetryAfter: 5 * time.Second, Status: 429}
 	s := rl.Error()
@@ -175,16 +154,12 @@ func TestProviderEnvVars_Opencode(t *testing.T) {
 	}
 }
 
-// TestNewProvider_OpencodeRoutesResolved verifies NewProvider resolves the wire
+// TestNewOpencode_RoutesResolved verifies the constructor resolves the wire
 // format at construction, so a misroute is visible before any request is made.
-func TestNewProvider_OpencodeRoutesResolved(t *testing.T) {
-	prov, err := NewProvider(ProviderOpencodeZen, "k", "claude-sonnet-5")
+func TestNewOpencode_RoutesResolved(t *testing.T) {
+	op, err := NewOpencode(ProviderOpencodeZen, "k", "claude-sonnet-5")
 	if err != nil {
-		t.Fatalf("NewProvider: %v", err)
-	}
-	op, ok := prov.(*OpencodeProvider)
-	if !ok {
-		t.Fatalf("NewProvider returned %T, want *OpencodeProvider", prov)
+		t.Fatalf("NewOpencode: %v", err)
 	}
 	if op.Route() != OpencodeRouteMessages {
 		t.Errorf("Route() = %q, want %q", op.Route(), OpencodeRouteMessages)

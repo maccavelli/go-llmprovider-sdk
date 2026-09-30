@@ -1138,3 +1138,54 @@ The owner decided:
      D2 and needed a MADR amendment.
 
 No MADR decision changes: the end state is D2's layout.
+
+### Phase S7, commit 1: `providers`, and `NewProvider*` removed (2026-09-30)
+
+Executed as the S7 prerequisites amendment of the same date decided.
+
+* **Removed:** `NewProvider` and `NewProviderWithSource`
+  (`llmprovider/provider.go`).
+* **Added:** `llmprovider/providers`, with `Default()` (a new, empty
+  `Registry` each call) and `New(id, opts...)`.
+* **Tests that used them.** Each moved without changing what it asserts:
+  * `grok_oauth_test.go` (5 calls): `newGrokWithSource`, which
+    `NewProviderWithSource` called.
+  * `TestNewOpencode_RoutesResolved` (renamed from `TestNewProvider_…`) and
+    `TestNewOpenAI_APIKeyStillPlatform` call their constructors.
+  * The two live tests build the provider their table names through a local
+    helper, `liveWithKey` or `liveWithSource`.
+  * `TestNewProvider`'s dispatch loop, `ollama_test.go`'s by-name empty-key
+    check and `TestDescriptors_EveryDescriptorIsConstructible` became one
+    test in `providers`. While S7 runs, it builds a provider through
+    `Default()` once it has moved, and through the old constructor in a
+    table, `notYetMoved`, until then. It fails if a descriptor is in
+    neither, or in both. The table is empty when S7 ends.
+  * The unknown-name half of `TestNewProvider` is
+    `TestNew_RefusesAnUnknownProvider`, with `ErrInvalidProvider`.
+  * **Carried:** `TestNewProviderWithSource_RejectsClaude` asserted that
+    Claude takes no token source. With no by-name source constructor left,
+    the same property is R16's refusal of an unaccepted source kind. It
+    becomes a test in Claude's S7 commit.
+* **Interim gap.** Grok with a token source, such as an OAuth session, had
+  one public path, `NewProviderWithSource`. Grok's own source constructor,
+  `newGrokWithSource`, is unexported. So until Grok's S7 commit gives it
+  `New` with `WithTokenSource`, no exported function builds Grok from a
+  session.
+  * §0 allows an API break between phases, because nothing imports this
+    module before `v1.0.0-rc.1`.
+  * `wizard` does not build Grok from a session.
+  * The Grok commit closes the gap.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | Together dropped from `notYetMoved` | `descriptor "together" is offered to users but neither Default nor the old API builds it` |
+  | a constructor that fails | `descriptor "claude" is offered to users but its constructor fails: claude api key is required` |
+  | OpenAI registered in `Default` while still in the table | `"openai" is in Default and still in notYetMoved; remove it from the table` |
+  | `Default` shares one registry | `Default returned the same Registry twice; there is no global registry (0015-MADR D10)` |
+
+  A first "failing constructor" break used Gemini. `NewGemini` accepts an
+  empty key, so it failed nothing and was replaced.
+* **Coverage:** `providers` 100 %; `llmprovider` 90.8 %.
+* **Docs:** the migration guide maps `NewProvider*`; `architecture.md`
+  gains the package, and says how to construct a provider during S7.

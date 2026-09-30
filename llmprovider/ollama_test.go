@@ -113,9 +113,6 @@ func TestOllama_EmptyKeyAccepted(t *testing.T) {
 	if _, err := NewOllama("", "llama3.2:latest"); err != nil {
 		t.Errorf("NewOllama with an empty key must succeed: %v", err)
 	}
-	if _, err := NewProvider(ProviderOllama, "", "llama3.2:latest"); err != nil {
-		t.Errorf("NewProvider(ollama, \"\") must succeed: %v", err)
-	}
 }
 
 func TestOllama_ErrorClassification(t *testing.T) {
@@ -149,31 +146,5 @@ func TestOllama_NoContinuer(t *testing.T) {
 	var i any = (*OllamaProvider)(nil)
 	if _, ok := i.(Continuer); ok {
 		t.Error("OllamaProvider must not implement Continuer: Chat Completions is stateless")
-	}
-}
-
-// TestDescriptors_EveryDescriptorIsConstructible is the payoff for adding a real
-// OllamaProvider: no descriptor exists that a wizard can offer but NewProvider
-// cannot build. Before this phase, "ollama" was listing-only and would have
-// failed here.
-func TestDescriptors_EveryDescriptorIsConstructible(t *testing.T) {
-	for _, d := range Descriptors() {
-		t.Run(d.ID, func(t *testing.T) {
-			key := "test-key"
-			if !d.RequiresAPIKey {
-				key = ""
-			}
-			model := "test-model"
-			if len(d.StaticModels) > 0 {
-				model = d.StaticModels[0]
-			}
-			prov, err := NewProvider(d.ID, key, model)
-			if err != nil {
-				t.Fatalf("descriptor %q is offered to users but NewProvider fails: %v", d.ID, err)
-			}
-			if prov.Name() != d.ID {
-				t.Errorf("Name() = %q, want %q", prov.Name(), d.ID)
-			}
-		})
 	}
 }
