@@ -416,7 +416,80 @@ whole; a file split between packages is recorded with where each part went.
    still read `llm:` the `llmprovider:` prefix (R27).
 5. Gate, with G-parity's empty-cell check still off.
 
+#### S8 as amended (2026-10-01, 0015-MADR, amendment "`catalog` before the old API's removal", proposed)
+
+Steps 1–5 above are carried out as six commits, each gated and staged for
+the owner. `catalog`, which S8b was to extract after S8, is commit 2.
+
+1. **Descriptors and the wizard menu.**
+   * Each provider package declares its own `Descriptor`, and
+     `providers.Default()` registers it.
+   * `ProviderDescriptor`, `Descriptors()` and `DescriptorFor` are removed.
+   * `wizard.Options` gains `Registry`; a nil one is `providers.Default()`.
+     The menu comes from `Registry.Descriptors()`.
+   * The coverage test becomes "every descriptor is in `Default()`", which
+     S7 already holds.
+2. **`catalog`** (S8b's steps 1–3, moved here). With plain `mv` into
+   `llmprovider/catalog`, and their tests:
+   * `models_catalog.go`, `model_ranking.go`, `model_matcher.go`,
+     `model_metadata.go`, `model_profile.go`;
+   * the listing, `discovery.go`;
+   * the gateway URL files `huggingface_gateway.go`, `ollama_endpoint.go`,
+     `together_endpoint.go` and `opencode_gateway.go`.
+
+   `kilo_endpoints.go` goes to `llmprovider/internal/kiloendpoint`. The
+   listing resolves its options with `ResolveOptions`. `catalog.WithProfile`
+   and `catalog.WithKiloOrganization` replace `WithModelProfile` and
+   `WithKiloOrganization`, which are removed. The provider packages and
+   `wizard` point at `catalog`. Names lose the prefix the package gives
+   (proposed):
+
+   | Was | Is |
+   |---|---|
+   | `ModelCatalog` | `catalog.Catalog` |
+   | `ListModelCatalog`, `ListModelCatalogWithSource`, `ListAvailableModels`, `ListAvailableModelsWithSource` | `catalog.List(ctx, id, src, opts...)`; a key is `NewStaticToken(key)`, and the recommendation is `Catalog.Recommended` |
+   | `StaticModels`, `RankModel`, `SearchModels` | `catalog.Static`, `catalog.Rank`, `catalog.Search` |
+   | `ModelMatch`, `ModelLabel` | `catalog.Match`, `catalog.Label` |
+   | `ModelProfile`, `ProfileUtility`, `ProfileCapable` | `catalog.Profile`, `catalog.ProfileUtility`, `catalog.ProfileCapable` |
+   | `MaxListedModels` | `catalog.MaxListed` |
+   | `ModelMetadata`, `LookupModelMetadata` | `catalog.Metadata`, `catalog.LookupMetadata` |
+   | `KiloModelCapabilities`, `ValidateOllamaURL` | `catalog.KiloModelCapabilities`, `catalog.ValidateOllamaURL` |
+   | `KiloGatewayFor` | `kiloendpoint` (internal) |
+
+   `catalog` holds 80 % from its own tests. G-wire is unchanged.
+3. **Errors, D7 and R27.**
+   * A 429 is an `*APIError` of kind `ErrRateLimited`, with its
+     `RetryAfter`.
+   * A truncated answer is an `*APIError` of kind `ErrIncomplete`, with its
+     `Reason`.
+   * `RateLimitError` and `IncompleteError` are removed.
+   * `Terminal` becomes unexported behind `Retryable()`, and `Type` is
+     removed (`Code` carries it).
+   * Every sentinel reads `llmprovider:`, `ErrInvalidProvider` included.
+
+   The tests that pin "a 429 stays a `*RateLimitError`" are rewritten to
+   D7's rule, each named in the record.
+4. **The old generation API**:
+   * `LegacyProvider`, the eight generation interfaces, `Continuer` and
+     `ModelDiscoverer`;
+   * the three `Generate*WithRetry` functions and their retry loop;
+   * the `ProviderOption` alias;
+   * the old-API-only options left, which nothing reads;
+   * `ProviderConfig` and `ApplyOptions`, made unexported.
+5. **Typed ids.** The provider-id constants are `ProviderID`, and so is
+   every parameter or field that holds one. A label that may carry a route,
+   such as `"opencode-go/messages"`, stays a `string`. `MessageItem.Role` is
+   `Role`.
+6. **0016-PLAN T4 in `wizard`.**
+   * D11: no token in `Result` when the session is saved to
+     `Options.TokenStore`, and a stored session is reloaded from it.
+   * D11: logout, which revokes and then deletes.
+   * D5: `Result` redacts itself.
+
 ### Phase S8b: extract `catalog`
+
+*Amended 2026-10-01 (0015-MADR, amendment "`catalog` before the old API's removal", proposed):* steps 1–3 are done in S8, commit 2.
+Only step 4, `For(id, opts...)`, remains here, after S8.
 
 *Added 2026-09-30, decision 2 of that date's S7 prerequisites.* It runs
 after S8, once `ProviderConfig` and `WithModelProfile` are gone and nothing
@@ -3043,3 +3116,31 @@ Under "S7b as amended". Staged for the owner to commit.
 * **Coverage.** `llmprovider` 88.0 % from its own tests and 90.5 % over
   `./llmprovider/...`, against its `P7` 89.2 %.
 * **S7b is complete.** The `auth` extraction is Phase S8c, after S8 and S8b.
+
+### Amendment 2026-10-01: S8, and `catalog` before the removals (proposed)
+
+* **Found** in S8's read-only survey at `2939d48`, before any change. The
+  facts are in 0015-MADR, amendment "`catalog` before the old API's removal", and:
+  * `wizard` uses `ProviderDescriptor`, `Descriptors()` and `DescriptorFor`
+    for its menu, and `providers.go` builds every `Descriptor` from
+    `DescriptorFor`.
+  * Retry reads `RateLimitError` and `Terminal` today. Three wire paths build
+    `IncompleteError`. Tests pin "a 429 stays a `*RateLimitError`".
+  * Six sentinels read `llm:`, and `ErrInvalidProvider` has no prefix. No
+    G-wire golden contains `llm:`.
+  * Nothing outside tests uses the old generation API now.
+  * About 750 uses of the id constants; several functions take a provider as
+    a `string`.
+  * 0016 T4 has not started: `Result` copies the session's tokens
+    (`wizard/configure.go:142-150`), `keepExistingOAuth` rebuilds a session
+    from them, there is no logout, and `Result` has no redaction.
+* **Decided.** Asked on 2026-10-01, the owner chose:
+  * "do S8b's catalog first";
+  * "5 commits as proposed", with `catalog` added as commit 2;
+  * "`providers.Default()`" for a nil `Registry`.
+* **Written from those choices,** for the owner to check:
+  * `catalog`'s two scoped options;
+  * `internal/kiloendpoint`;
+  * the names table in "S8 as amended".
+* **Changed.** S8's steps are carried out as "S8 as amended", and S8b keeps
+  step 4. Nothing is implemented until the owner approves.

@@ -721,3 +721,71 @@ The end state is D2's layout, with the import edges above:
 `llmprovider` keeps three exported helpers it did not plan to keep:
 `ClassifyHTTPError`, `ClassifyStreamFailure` and `Token.Apply`. No other
 decision changes.
+
+## Amendment 2026-10-01: `catalog` before the old API's removal (proposed)
+
+Status: **proposed** 2026-10-01. The owner chose "do S8b's catalog first" on
+2026-10-01. The design below follows from that choice, and awaits approval
+before any change.
+
+### Fact found
+
+The listing in `llmprovider` (`discovery.go`) still reads two old-API-only
+options:
+* `WithModelProfile`, at `discovery.go:288`, `:293`, `:298` and `:640`;
+* `WithKiloOrganization`, at `discovery.go:874`.
+
+`wizard` passes both to `ListModelCatalogWithSource` (`wizard/configure.go:305`,
+`:313`). 0015-PLAN S8 step 3 removes `ProviderConfig`, and S8b runs "once
+`ProviderConfig` and `WithModelProfile` are gone". But `catalog`'s profile
+was to replace `WithModelProfile`, so as ordered, the profile and the
+organization had no way to reach the listing between S8 and S8b.
+
+### Decided (proposed)
+
+* **Order.** `catalog` is extracted inside S8, after the descriptors and
+  before the old API is removed. S8b keeps only its `For(id, opts...)` step,
+  after S8.
+* **The listing takes the common options.** `catalog`'s listing resolves its
+  options with `llmprovider.ResolveOptions` for the id it lists, and reads
+  them through `Settings`: the HTTP client, the base URL, the metadata URL
+  and the client identity. An old-API-only option is refused there, as at a
+  provider's `New`.
+* **`catalog`'s own options.** Two values the listing needs have no common
+  option, so `catalog` defines them as scoped options (D5's mechanism), read
+  back through `Settings.Values()`:
+  * `catalog.WithProfile(p)` ranks the open catalogs. It is scoped to every
+    built-in id, so a shared option list may carry it: each provider's
+    `New` accepts it. The open-catalog providers (`kilo`, both `opencode`
+    gateways, `huggingface`, `together`) pass it to their listing, which
+    closes the "no profile on the new API until S8b" gap. Every other
+    provider ignores it.
+  * `catalog.WithKiloOrganization(org)` scopes Kilo's listing. It is scoped
+    to `kilo`. `kilo.WithOrganization` stays the generation option, and
+    `kilo`'s `ListModels` passes its organization on.
+* **`ModelProfile` is `catalog`'s,** as D2 says. `WithModelProfile`,
+  `WithKiloOrganization` and their `ProviderConfig` fields are removed with
+  the move. `wizard.Options.Profile` takes `catalog`'s type.
+* **Kilo's endpoint resolver** uses only the standard library, and the Kilo
+  device login in `llmprovider` needs it until 0015-PLAN S8c. So it moves to
+  a new internal package, `llmprovider/internal/kiloendpoint`. `llmprovider`,
+  `catalog` and `providers/kilo` import it. `KiloGatewayFor`, a temporary
+  export, is removed.
+* **D2's `catalog` row** may import `llmprovider`, `internal/transport` and
+  `internal/kiloendpoint`.
+
+### Rejected
+
+* **Keeping both as listing options until S8b**, which was offered first.
+  It leaves old-API options in `llmprovider` across S8.
+* **Dropping them, with a gap.** `wizard` would rank with the default
+  profile, and list Kilo with no organization, from S8 to S8b.
+* **`catalog.WithProfile` scoped to the open catalogs only.** A shared list
+  holding it would then be refused by every other provider's `New`. Scoping
+  it to every id, ignored where unused, keeps one list usable everywhere.
+
+### Effect
+
+D2's layout is unchanged, apart from the new internal package and
+`catalog`'s import row. The accepted gap of 2026-09-30, "no profile on the
+new API until S8b", ends when `catalog` lands.
