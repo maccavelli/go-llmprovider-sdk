@@ -15,6 +15,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/grok"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/huggingface"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/kilo"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/ollama"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/opencode"
 )
@@ -33,6 +34,7 @@ var builtins = []struct {
 	{llmprovider.ProviderOpencodeGo, opencode.NewGo},
 	{llmprovider.ProviderKilo, kilo.New},
 	{llmprovider.ProviderHuggingFace, huggingface.New},
+	{llmprovider.ProviderOllama, ollama.New},
 }
 
 // Default returns a new Registry holding the built-in providers.

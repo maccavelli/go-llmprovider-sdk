@@ -51,21 +51,12 @@ func (r *headerRecorder) requests() []recordedRequest {
 
 var userAgentPattern = regexp.MustCompile(`^go-llmprovider-sdk/\S+ \(\w+; \w+\) go-llmprovider-sdk/\S+$`)
 
-// TestIdentification_UserAgent: every generation and listing request names
-// this module honestly (MADR 0012 §1.4), never Go's default agent.
+// TestIdentification_UserAgent: every listing request names this module
+// honestly (MADR 0012 §1.4), never Go's default agent. Generation's are
+// tested in each provider's package (0015-PLAN S7).
 func TestIdentification_UserAgent(t *testing.T) {
 	rec := newHeaderRecorder(t)
 	base := WithBaseURL(rec.srv.URL)
-	build := map[string]func() (LegacyProvider, error){
-		"ollama": func() (LegacyProvider, error) { return NewOllama("", "llama3", base) },
-	}
-	for name, newProvider := range build {
-		p, err := newProvider()
-		if err != nil {
-			t.Fatalf("%s: construct: %v", name, err)
-		}
-		_, _ = p.Generate(context.Background(), "hello")
-	}
 	if _, err := ListModelCatalog(context.Background(), ProviderKilo, "k", base); err != nil {
 		t.Fatalf("listing: %v", err)
 	}

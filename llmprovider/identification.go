@@ -97,11 +97,6 @@ func (id clientIdentity) apply(cfg ProviderConfig) ProviderConfig {
 	return cfg
 }
 
-// options carries this identity to a provider built for a probe.
-func (id clientIdentity) options() []ProviderOption {
-	return []ProviderOption{WithClientInfo(id.name, id.version), WithSessionID(id.session)}
-}
-
 // setUserAgent names the client on req.
 func (id clientIdentity) setUserAgent(req *http.Request) {
 	req.Header.Set(headerUserAgent, id.userAgent())

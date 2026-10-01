@@ -39,6 +39,7 @@ llmprovider/providers/grok/    Grok: the xAI Responses API
 llmprovider/providers/opencode/ OpenCode Zen and Go: four wire formats, routed per model
 llmprovider/providers/kilo/    Kilo Gateway: Chat Completions
 llmprovider/providers/huggingface/ Hugging Face Inference Providers: Chat Completions
+llmprovider/providers/ollama/  a local Ollama: Chat Completions
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
@@ -68,6 +69,7 @@ docs/
 | `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider` |
 | `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider` |
 | `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider` |
+| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider` |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 
 ## The contract
@@ -117,7 +119,7 @@ the old API until 0015-PLAN S8 removes it:
   `FunctionCallOutputItem` and `ReasoningItem`; item methods return a
   `*Response`.
 - **Construction:** `providers.New(id, opts...)` for a provider that has
-  moved to its own package (`openai`, `claude`, `gemini`, `grok`, `opencode`, `kilo` and `huggingface` so far), or a provider's own `New…`
+  moved to its own package (`openai`, `claude`, `gemini`, `grok`, `opencode`, `kilo`, `huggingface` and `ollama` so far), or a provider's own `New…`
   until it moves; options are `ProviderOption` functions (`WithBaseURL`,
   `WithHTTPClient`, `WithReasoningEffort`, …). `GenerateWithRetry` and its two
   siblings retry on typed errors.
@@ -139,7 +141,8 @@ the old API until 0015-PLAN S8 removes it:
 - **Where a token goes.** A token with no `Header` goes in the service's own
   header: `Authorization: Bearer` for OpenAI, Grok, Kilo and Hugging Face, `x-api-key` for
   Claude, `x-goog-api-key` for Gemini, and on OpenCode the header of the
-  request's route. One
+  request's route. Ollama has no header of its own, so it sends only a
+  token that names one. One
   naming a `Header` goes there instead, prefixed `Bearer` only for a
   `TokenBearer`. Key sources (`StaticToken`, `CommandToken`) are
   `TokenAPIKey`; sessions are `TokenBearer` and name no `Header`. The moved

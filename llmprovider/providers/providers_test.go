@@ -17,9 +17,6 @@ var notYetMoved = map[string]func(key, model string) (named, error){
 	llmprovider.ProviderTogether: func(key, model string) (named, error) {
 		return llmprovider.NewTogether(key, model)
 	},
-	llmprovider.ProviderOllama: func(key, model string) (named, error) {
-		return llmprovider.NewOllama(key, model)
-	},
 }
 
 // TestDescriptors_EveryDescriptorIsConstructible: no descriptor exists that a

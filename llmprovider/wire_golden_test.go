@@ -76,13 +76,6 @@ var wireCases = []wireCase{
 			return NewTogether("together-wire-key", "openai/gpt-oss-120b", wireOpts(u, extra...)...)
 		},
 	},
-	{
-		name:    "ollama",
-		listing: `{"models":[{"name":"llama3.3:latest"},{"name":"qwen3:8b"}]}`,
-		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
-			return NewOllama("", "llama3.3", wireOpts(u, extra...)...)
-		},
-	},
 }
 
 // Canned replies. Each carries reasoning, text ("hello", which the listing

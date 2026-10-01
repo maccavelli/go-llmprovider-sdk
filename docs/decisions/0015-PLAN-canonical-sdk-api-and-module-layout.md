@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-09-30
+date: 2026-10-01
 associated-madr: "0015-MADR-canonical-sdk-api-and-module-layout.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -2319,7 +2319,8 @@ before it. *Annotated 2026-10-01:* the owner committed both together, as
 ### Phase S7, commit 11: `huggingface` (2026-10-01)
 
 Built on the earlier commits' pattern; only what differs is recorded here.
-Staged for the owner to commit.
+Staged for the owner to commit. *Annotated 2026-10-01:* committed as
+`bea2baa`.
 
 * **Step 1, moved** (plain `mv`): `huggingface.go` to `providers/huggingface/`,
   its tests ported there, and `testdata/wire/huggingface`.
@@ -2410,3 +2411,132 @@ Staged for the owner to commit.
   * `llmprovider` 85.9 % from its own tests and 90.8 % over
     `./llmprovider/...`, against its `P7` 89.2 %.
 * **Links.** G-links found no link to the moved files.
+
+### Phase S7, commit 12: `ollama` (2026-10-01)
+
+Built on the earlier commits' pattern; only what differs is recorded here.
+Staged for the owner to commit.
+
+* **Step 1, moved** (plain `mv`): `ollama.go` and `ollama_test.go` to
+  `providers/ollama/`, and `testdata/wire/ollama`.
+
+  **Kept in `llmprovider`**, in a new `ollama_endpoint.go`:
+  * `ollamaBaseURL`, which the descriptor uses;
+  * `wireShapesProbedOnOllama`, which `TestWireShapesProbedOn` checks.
+
+  **The listing** stays in `llmprovider` until S8b:
+  * `ollamaCatalog` and `fetchOllamaNames` now take the `Token`.
+  * `listOllamaModels` is removed: only the old type called it.
+
+  No temporary export is added.
+* **Step 2, the new API:**
+  * `ollama.New` and `ListModels`.
+  * **No credential is needed, as before.** No source, or an empty key, is
+    accepted. No `Authorization` header is sent, with or without a key.
+  * **R16.** Ollama has no header of its own. A token naming a `Header` is
+    sent there, by `SetTokenHeader`, in generation and in the listing. An
+    OAuth session or a CLI login is refused with `ErrUnsupported`.
+  * **Capabilities.**
+    * Forced tool choice is `BestEffort` (0015-MADR D4's own example):
+      Ollama does not support `tool_choice`. Every tool is offered, and no
+      tool choice is sent for any `ToolChoice`, as Kilo does for models
+      without `tool_choice`.
+    * Reasoning is `BestEffort`: only thinking models reason.
+    * Continuation is `Unsupported`.
+  * **Reasoning** sends `reasoning_effort`, medium with no effort, as before.
+    `EffortXHigh` is still sent as `max`. A budget is not sent.
+  * `Instructions` go in a leading system message.
+  * **Listing.**
+    * The listing gets the caller's options.
+    * Probes are on by default (0016-MADR A5). Each probe is the old probe
+      provider's request: `max_tokens` 8192, no reasoning.
+    * A failed listing still returns its error, as there is no static
+      catalog.
+* **Step 4, the tests ported.**
+
+  | From `llmprovider` | To `ollama` |
+  |---|---|
+  | `ollama_test.go`, and the Ollama parts of `api_error_message_test.go`, `identification_test.go`, `interface_test.go` | `ollama_test.go` |
+  | the Ollama row of `discovery_wiring_test.go` | `listing_test.go` |
+  | the ollama G-wire case | `wire_test.go` |
+
+  * **Emptied, so removed.** Each had only Ollama left:
+    * `interface_test.go`;
+    * `api_error_message_test.go`;
+    * `discovery_wiring_test.go`.
+  * **Narrowed.** `TestIdentification_UserAgent` keeps its listing check;
+    generation's is in each provider's package.
+  * **Renamed:**
+    * `TestOllama_EmptyKeyAccepted` is `TestNew_NeedsNoKey`, which covers
+      no key as well;
+    * `TestOllama_NoContinuer` is `TestOllama_NoContinuation`.
+  * **Run both ways.** The effort clamp runs at construction and on the
+    request.
+  * **New tests:**
+    * `request_test.go`: the refusals, the request fields, each tool choice
+      with two tools, reasoning's fallbacks;
+    * `TestOllama_TokenHeaderOverride`;
+    * in `listing_test.go`: probes and the option, the probe's request, a
+      probe failure, the listing's error and an empty install, the
+      caller's identity.
+  * **Live.** No Ollama live test exists, and none is added: nothing this
+    commit sends is unmeasured. `wireShapesProbedOnOllama` records the
+    measurement.
+* **G-wire.** The six ollama goldens are byte-identical to `HEAD`'s, with
+  no `-update`.
+* **Step 5, llmtest.** `TestConformance` passes.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | a token with no `Header` sent as a bearer | `Authorization must never be sent to Ollama, got "Bearer ignored-by-ollama"` |
+  | generation ignores the token's header | `POST: X-Custom = "", want "Bearer v"` |
+  | the listing ignores the token's header | `GET: X-Custom = "", want "Bearer v"` |
+  | no key refused | `none: New must succeed: llm: invalid request` |
+  | an OAuth session accepted | `oauth: err = <nil>, want ErrUnsupported` |
+  | a forced tool sends `tool_choice` | `tool_choice must NEVER be sent`, and `tool.json` |
+  | only the first tool offered | `"auto": 1 tools sent, want 2` |
+  | `xhigh` not clamped | `configured "xhigh" -> reasoning_effort xhigh, want "max"` |
+  | no default effort | `budget alone: reasoning_effort = <nil>, want medium` |
+  | the construction effort ignored | `at construction: configured "low" -> reasoning_effort medium, want "low"` |
+  | instructions dropped | `messages = [… Be brief. …], want the instructions as a leading system message` |
+  | `MaxOutputTokens` ignored | `max_tokens 500; want other-model, 77` |
+  | listing never probes | `0 generation requests, want 2` |
+  | probes ignore `WithModelProbes(false)` | `2 generation requests, want 0` |
+  | a probe keeps the caller's limit and reasoning | `probes sent [… "max_tokens":500 … "reasoning_effort":"high"], want one …8192…` |
+  | a failed listing swallowed | `404: ListModels = []/<nil>, want an error` |
+  | the listing drops the caller's options | `want one GET /api/tags naming wire-app/9.9.9` |
+  | `Generate` skips the capability check | `R11 (refusal before the network): … returned <nil>` |
+  | ollama registered under another id | `descriptor "ollama" is offered to users but neither Default nor the old API builds it` |
+
+  The "generation ignores the token's header" break did not compile as
+  first written (`declared and not used: token`). It was rewritten to
+  discard the token, and ran again.
+* **Lint** found two helpers unused once the old type had gone:
+  * `clientIdentity.options`, which only the old probe called;
+  * `captureServer` in `thinking_test.go`, which only `ollama_test.go`
+    called.
+
+  Both were removed. `thinking_test.go` held nothing else, so it went too.
+* **Pre-add.** `make pre-add-check` lists every tracked Go file, so it
+  failed on the removed files until their removal was staged.
+* **Coverage:**
+  * `providers/ollama` 95.3 %;
+  * `llmprovider` 85.8 % from its own tests and 90.8 % over
+    `./llmprovider/...`, against its `P7` 89.2 %.
+* **Links.** G-links found no link to the moved files.
+* **Deviation, 2026-10-01: links to a removed file.**
+  * **Found.** With `thinking_test.go` removed, G-links found 3 broken
+    links in `0003-PLAN-add-grok-xai-llm-provider.md`, at lines 525, 685
+    and 1031, two with line anchors. The openai commit's link rule repoints
+    a moved file; a removed one has no new path.
+  * **Decided.** The owner chose "unlink, keep the citation". Each link is
+    now plain code text, such as `thinking_test.go:14-26`, with a note that
+    this plan removed the file. `0004-PLAN-add-gateway-llm-providers.md`
+    already cites the same lines that way. The rationale around them is
+    unchanged.
+  * **Rule.** This applies to every file S7 removes, as the openai rule
+    applies to every file it moves.
+  * **Scope.** `0003-PLAN-add-grok-xai-llm-provider.md` joins this commit.
+    G-links then found 0 problems.
+* **Next.** `notYetMoved` holds only `together`.

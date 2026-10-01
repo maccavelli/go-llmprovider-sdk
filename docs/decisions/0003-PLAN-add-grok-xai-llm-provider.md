@@ -522,8 +522,8 @@ providers (e.g., [`openai.go:101-103`](../../llmprovider/providers/openai/openai
 
 **Test pattern**: White-box, `httptest.NewServer`, canned JSON fixtures — same
 pattern as all existing tests (see
-[`thinking_test.go:14-26`](../../llmprovider/thinking_test.go#L14-L26)
-`captureServer` helper).
+`thinking_test.go:14-26`
+`captureServer` helper, in a file since removed by [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) S7).
 
 **Tests**:
 
@@ -682,7 +682,7 @@ make lint    # golangci-lint clean
 1. **Existing tests unchanged in behavior** — `TestOpenAI_WithMaxTokens`
    ([`provider_correctness_test.go:48-58`](../../llmprovider/provider_correctness_test.go#L48-L58)),
    `TestOpenAIThinking_RequestBody`
-   ([`thinking_test.go:91-108`](../../llmprovider/thinking_test.go#L91-L108)),
+   (`thinking_test.go:91-108`, a file since removed by [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) S7),
    etc. — updated to serve Responses-API-shaped fixtures instead of Chat
    Completions fixtures, but **same assertions on return values**.
 
@@ -1028,7 +1028,7 @@ These items are explicitly not part of this plan, per the MADR:
 | [`openai.go`](../../llmprovider/providers/openai/openai.go) | Migrate to Responses API, add `GenerateItems`/`Continue`, existing methods become wrappers | 2 |
 | [`gemini.go`](../../llmprovider/providers/gemini/gemini.go) | Migrate to Interactions API, add `GenerateItems`/`Continue`, existing methods become wrappers | 3 |
 | [`claude.go`](../../llmprovider/providers/claude/claude.go) | Add `GenerateItems`, existing methods become wrappers, permanent no-`Continuer` doc | 4 |
-| [`thinking_test.go`](../../llmprovider/thinking_test.go) | Add Grok interface checks | 1 |
+| `thinking_test.go` (removed by [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) S7) | Add Grok interface checks | 1 |
 | [`models_catalog_test.go`](../../llmprovider/models_catalog_test.go) | Add Grok catalog/ranking tests | 1 |
 | [`provider_correctness_test.go`](../../llmprovider/provider_correctness_test.go) | Update OpenAI/Gemini fixtures to Responses/Interactions shape | 2, 3 |
 

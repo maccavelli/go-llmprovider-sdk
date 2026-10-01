@@ -1,0 +1,248 @@
+// Package ollama is the provider for a local Ollama instance (0015-MADR D2),
+// through its OpenAI-compatible Chat Completions endpoint.
+//
+// Build it with New, or providers.New(llmprovider.ProviderOllama, …). It needs
+// no credential: Ollama's API key is "required but ignored", so no
+// Authorization header is sent, with or without WithAPIKey. A token naming its
+// own Header is sent there, for an instance behind a proxy that wants one
+// (R16). An OAuth session is refused. The base URL defaults to
+// http://localhost:11434; llmprovider.WithBaseURL names another instance.
+//
+// Generation uses POST {base}/v1/chat/completions. Listing stays on the native
+// GET {base}/api/tags, which is stable; /v1/models is a compatibility shim.
+//
+// Capabilities: tools are Supported. Forced tool choice is BestEffort: Ollama
+// does not support tool_choice, so tools are offered, never forced. Reasoning
+// is BestEffort: only thinking models reason. Continuation is Unsupported:
+// Chat Completions is stateless. There is no native streaming;
+// llmprovider.Stream emits Generate's result.
+//
+// Degradations:
+//   - No tool choice is sent: a named tool, ToolChoiceRequired and
+//     ToolChoiceNone all offer the tools unforced.
+//   - Reasoning takes an effort, sent as reasoning_effort (medium with none).
+//     Ollama's levels top out at "max", so EffortXHigh is sent as "max". A
+//     Budget is not sent.
+//   - Instructions are sent as a leading system message.
+//
+// ListModels returns the installed models, probing each listed model with one
+// short generation unless llmprovider.WithModelProbes(false) says otherwise
+// (0016-MADR A5). There is no static catalog: installed models are
+// machine-specific, so a failed listing returns its error.
+//
+// The wire shapes were measured against a running v0.31.1 on the date
+// llmprovider's wireShapesProbedOnOllama holds.
+package ollama
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"strings"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+)
+
+const (
+	// defaultBaseURL is a local instance (llmprovider's ollamaBaseURL).
+	defaultBaseURL = "http://localhost:11434"
+
+	// maxEffort is Ollama's highest reasoning level, which EffortXHigh becomes.
+	maxEffort = "max"
+
+	// probeMaxOutputTokens is the output limit a listing probe sends: the
+	// default of the old API's probe provider, kept so the probe's request
+	// is unchanged (0015-MADR D1).
+	probeMaxOutputTokens = 8192
+	probePrompt          = "Respond with ONLY the word Hello"
+
+	jsonKeyType     = "type"
+	jsonKeyFunction = "function"
+)
+
+type provider struct {
+	src       llmprovider.TokenSource
+	model     string
+	baseURL   string
+	client    *http.Client
+	caps      llmprovider.Capabilities
+	maxTokens int
+	reasoning *llmprovider.Reasoning // WithReasoning's default, or nil
+	probe     bool
+	userAgent string
+	logger    *slog.Logger
+	// listing carries the caller's options, the session and the transport to
+	// the listing, which lives in llmprovider until 0015-PLAN S8b.
+	listing []llmprovider.Option
+}
+
+// New builds the Ollama provider. It needs no credential.
+func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
+	st, err := llmprovider.ResolveOptions(llmprovider.ProviderOllama, opts)
+	if err != nil {
+		return nil, err
+	}
+	src := st.TokenSource()
+	switch src.(type) {
+	case nil:
+		src = llmprovider.NewStaticToken("")
+	case *llmprovider.OAuthSession, *llmprovider.VendorCLISession:
+		// R16: a source of a kind the service does not accept is refused.
+		return nil, fmt.Errorf("%w: ollama takes no OAuth session (0016-MADR D10)", llmprovider.ErrUnsupported)
+	}
+	p := &provider{
+		src:       src,
+		model:     st.Model(),
+		baseURL:   defaultBaseURL,
+		client:    st.HTTPClient(),
+		maxTokens: st.MaxTokens(),
+		reasoning: st.Reasoning(),
+		probe:     st.ModelProbes(),
+		userAgent: st.UserAgent(),
+		logger:    st.Logger(),
+		caps: llmprovider.Capabilities{
+			Tools:            llmprovider.Supported,
+			ForcedToolChoice: llmprovider.BestEffort,
+			Reasoning:        llmprovider.BestEffort,
+			Continuation:     llmprovider.Unsupported,
+			NativeStreaming:  llmprovider.Unsupported,
+		},
+	}
+	if b := st.BaseURL(); b != "" {
+		p.baseURL = strings.TrimRight(b, "/")
+	}
+	p.listing = append(append([]llmprovider.Option(nil), opts...),
+		llmprovider.WithSessionID(st.SessionID()), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
+	return p, nil
+}
+
+func (p *provider) ID() llmprovider.ProviderID { return llmprovider.ProviderOllama }
+
+func (p *provider) Capabilities() llmprovider.Capabilities { return p.caps }
+
+// Generate sends req to the instance's chat completions.
+func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
+	if err := p.caps.Check(req); err != nil {
+		return nil, err
+	}
+	reqBody, err := json.Marshal(p.body(req))
+	if err != nil {
+		return nil, fmt.Errorf("llmprovider: ollama: marshal request: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/v1/chat/completions", bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	token, err := p.src.Token(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("llmprovider: ollama: acquire token: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("User-Agent", p.userAgent)
+	// Ollama takes no credential: a token is sent only where it names its own
+	// Header.
+	if token.Header != "" {
+		llmprovider.SetTokenHeader(httpReq, token, "", "")
+	}
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			p.logger.Debug("llmprovider: ollama: close response body", "error", err)
+		}
+	}()
+	if err := llmprovider.ClassifyHTTPError(llmprovider.ProviderOllama, resp); err != nil {
+		return nil, err
+	}
+	// 1 MiB bounds a runaway reply.
+	return llmprovider.DecodeChatCompletionsResponse(io.LimitReader(resp.Body, 1<<20))
+}
+
+// body is the Chat Completions request for req.
+func (p *provider) body(req *llmprovider.Request) map[string]any {
+	model := req.Model
+	if model == "" {
+		model = p.model
+	}
+	maxTokens := p.maxTokens
+	if req.MaxOutputTokens > 0 {
+		maxTokens = req.MaxOutputTokens
+	}
+	input := req.Input
+	if req.Instructions != "" {
+		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: req.Instructions}}, input...)
+	}
+	body := llmprovider.ChatCompletionsBody(model, maxTokens, input, llmprovider.ChatCompletionsOpts{ReasoningEffort: p.effort(req)})
+	if len(req.Tools) > 0 {
+		// Every tool is offered and none forced: Ollama does not support
+		// tool_choice.
+		tools := make([]map[string]any, len(req.Tools))
+		for i, tool := range req.Tools {
+			tools[i] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{
+				"name": tool.Name, "description": tool.Description, "parameters": tool.Schema}}
+		}
+		body["tools"] = tools
+	}
+	return body
+}
+
+// effort is reasoning_effort for req: the request's Reasoning, else
+// WithReasoning's, an empty effort taken from WithReasoning, else medium; ""
+// for no reasoning. EffortXHigh becomes Ollama's "max".
+func (p *provider) effort(req *llmprovider.Request) string {
+	r := req.Reasoning
+	if r == nil {
+		r = p.reasoning
+	}
+	if r == nil {
+		return ""
+	}
+	effort := llmprovider.EffortMedium
+	switch {
+	case r.Effort != "":
+		effort = r.Effort
+	case p.reasoning != nil && p.reasoning.Effort != "":
+		effort = p.reasoning.Effort
+	}
+	if effort == llmprovider.EffortXHigh {
+		return maxEffort
+	}
+	return string(effort)
+}
+
+// ListModels returns the installed models, probed unless
+// WithModelProbes(false). A failed listing returns its error: there is no
+// static catalog to fall back on.
+func (p *provider) ListModels(ctx context.Context) ([]string, error) {
+	listed, err := llmprovider.ListAvailableModelsWithSource(ctx, llmprovider.ProviderOllama, p.src, p.listing...)
+	if err != nil || len(listed) == 0 {
+		return nil, err
+	}
+	// Probes are on by default, and callers can turn them off (0016-MADR A5).
+	if !p.probe {
+		return listed, nil
+	}
+	healthy := llmprovider.ProbeGenerateHealth(ctx, listed, func(ctx context.Context, model string) (string, error) {
+		// The old API's probe provider: the default output limit, no
+		// reasoning (0015-MADR D1).
+		probe := *p
+		probe.model, probe.maxTokens, probe.reasoning = model, probeMaxOutputTokens, nil
+		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
+			llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: probePrompt}}})
+		if err != nil {
+			return "", err
+		}
+		return resp.OutputText(), nil
+	})
+	if len(healthy) > 0 {
+		return healthy, nil
+	}
+	return listed, nil
+}

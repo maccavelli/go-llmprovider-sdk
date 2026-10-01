@@ -306,7 +306,7 @@ func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg 
 		return catalogFrom(usable, err, StaticModels(ProviderTogether),
 			metadataCurate(ProviderTogether, cfg.ModelProfile, meta, curateTogether)), nil
 	case ProviderOllama:
-		return ollamaCatalog(ctx, cfg)
+		return ollamaCatalog(ctx, token, cfg)
 	default:
 		return ModelCatalog{}, fmt.Errorf("unsupported provider for model listing: %s", providerName)
 	}
@@ -478,18 +478,11 @@ func curateClaude(usable []string) []string {
 	return curateFromCatalog(staticClaude, usable, isUsableClaudeTextModel, rankClaudeModel)
 }
 
-// listOllamaModels fetches installed models from a local Ollama instance.
-func listOllamaModels(ctx context.Context, cfg ProviderConfig) ([]string, error) {
-	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return ollamaCatalog(ctx, cfg)
-	})
-}
-
 // ollamaCatalog lists every installed model. Ollama has no static catalog, so
 // its errors are returned rather than degraded, and an empty install is a
 // successful (Live) listing.
-func ollamaCatalog(ctx context.Context, cfg ProviderConfig) (ModelCatalog, error) {
-	names, err := fetchOllamaNames(ctx, cfg)
+func ollamaCatalog(ctx context.Context, token Token, cfg ProviderConfig) (ModelCatalog, error) {
+	names, err := fetchOllamaNames(ctx, token, cfg)
 	if err != nil {
 		return ModelCatalog{}, err
 	}
@@ -501,7 +494,9 @@ func ollamaCatalog(ctx context.Context, cfg ProviderConfig) (ModelCatalog, error
 }
 
 // fetchOllamaNames returns every installed model name in /api/tags order.
-func fetchOllamaNames(ctx context.Context, cfg ProviderConfig) ([]string, error) {
+// Ollama takes no credential, so a token is sent only where it names its own
+// Header (R16; 0016-MADR D2, A6).
+func fetchOllamaNames(ctx context.Context, token Token, cfg ProviderConfig) ([]string, error) {
 	baseURL := "http://localhost:11434"
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
@@ -512,6 +507,9 @@ func fetchOllamaNames(ctx context.Context, cfg ProviderConfig) ([]string, error)
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	identityOf(cfg).setUserAgent(req)
+	if token.Header != "" {
+		SetTokenHeader(req, token, "", "")
+	}
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {

@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-09-30
+date: 2026-10-01
 associated-madr: "0016-MADR-provider-auth-and-support-baseline.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -850,3 +850,14 @@ run in T2 (0015-PLAN S4).
   the listing fails it.
 * An OAuth or CLI source is refused. Details are in 0015-PLAN, "Phase S7,
   commit 11".
+
+### T3 step 1: the header override, ollama (2026-10-01, in 0015-PLAN S7)
+
+* Re-read: Ollama sends no credential header (`ollama.go:176` at `4ddcb54`,
+  `providers/ollama/ollama.go` now). The row is unchanged.
+* With no `Header`, nothing is sent, so G-wire shows no difference. A token
+  naming a `Header` is sent there, in generation and in the listing.
+* **Test:** `TestOllama_TokenHeaderOverride`. Breaking generation or the
+  listing fails it.
+* An OAuth or CLI source is refused. Details are in 0015-PLAN, "Phase S7,
+  commit 12".

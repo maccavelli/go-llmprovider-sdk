@@ -195,7 +195,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.NewGrok` | `grok.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGrok, …)`. A session, which only `NewProvider` took, is `WithTokenSource(src)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewHuggingFace` | `huggingface.New(WithAPIKey(token), WithModel(model), …)` | Or `providers.New(ProviderHuggingFace, …)`; an empty token is refused with `ErrInvalidRequest` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewKilo` | `kilo.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderKilo, …)`. No key sends the anonymous token, as before ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
-| `llmprovider.NewOllama` |  |  |
+| `llmprovider.NewOllama` | `ollama.New(WithModel(model), …)` | Or `providers.New(ProviderOllama, …)`. It needs no key, as before; `WithBaseURL` names the instance ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewOpenAI` | `openai.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderOpenAI, …)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewOpenAIWithSource` | `openai.New(WithTokenSource(src), WithModel(model), …)` | A ChatGPT session selects the ChatGPT backend ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewOpencode` | `opencode.NewZen(…)` or `opencode.NewGo(…)`, with `WithAPIKey(key)` and `WithModel(model)` | Or `providers.New(ProviderOpencodeZen` or `ProviderOpencodeGo, …)`; one constructor per gateway ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). No key sends the public token, as before. |
@@ -223,17 +223,17 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OAuthSession.Store` |  |  |
 | `llmprovider.OAuthSession.Token` |  |  |
 | `llmprovider.OAuthSession.TokenURL` |  |  |
-| `llmprovider.OllamaProvider` |  |  |
-| `llmprovider.OllamaProvider.DiscoverModels` |  |  |
-| `llmprovider.OllamaProvider.Generate` |  |  |
-| `llmprovider.OllamaProvider.GenerateItems` |  |  |
-| `llmprovider.OllamaProvider.GenerateItemsThinking` |  |  |
-| `llmprovider.OllamaProvider.GenerateItemsWithTool` |  |  |
-| `llmprovider.OllamaProvider.GenerateItemsWithToolThinking` |  |  |
-| `llmprovider.OllamaProvider.GenerateThinking` |  |  |
-| `llmprovider.OllamaProvider.GenerateWithTool` |  |  |
-| `llmprovider.OllamaProvider.GenerateWithToolThinking` |  |  |
-| `llmprovider.OllamaProvider.Name` |  |  |
+| `llmprovider.OllamaProvider` | the `llmprovider.Provider` that `ollama.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.OllamaProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` | It still probes by default; `WithModelProbes(false)` turns that off. |
+| `llmprovider.OllamaProvider.Generate` | `llmprovider.GenerateText` |  |
+| `llmprovider.OllamaProvider.GenerateItems` | `Generate` with `Request.Input` |  |
+| `llmprovider.OllamaProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` | `WithReasoningEffort` is `Reasoning.Effort`; `EffortXHigh` is still sent as `max`. |
+| `llmprovider.OllamaProvider.GenerateItemsWithTool` | `Generate` with `Request.Tools` | The tools are offered, never forced, as before. |
+| `llmprovider.OllamaProvider.GenerateItemsWithToolThinking` | `Generate` with `Tools` and `Reasoning` |  |
+| `llmprovider.OllamaProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
+| `llmprovider.OllamaProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. The tool is still offered, not forced. |
+| `llmprovider.OllamaProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
+| `llmprovider.OllamaProvider.Name` | `ID()` | It returns `ProviderOllama` as a `ProviderID`. |
 | `llmprovider.OpenAIProvider` | the `llmprovider.Provider` that `openai.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.OpenAIProvider.Continue` | `Generate` with `Request.PreviousResponseID` | A ChatGPT session refuses it with `ErrUnsupported` (0015-MADR D4). |
 | `llmprovider.OpenAIProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
