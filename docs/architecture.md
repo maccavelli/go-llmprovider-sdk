@@ -144,9 +144,12 @@ the old API until 0015-PLAN S8 removes it:
   and `NO_PROXY` honoured. It carries the provider's requests, its listing
   and probes, and its OAuth session's refreshes when the session has no
   client of its own.
-- **Errors:** `*APIError` with sentinels such as `ErrRateLimited`,
-  `ErrQuotaExhausted` and `ErrAuthFailure`, plus `RateLimitError` and
-  `IncompleteError`. Error bodies pass through `redact.String`.
+- **Errors:** one structured error, `*APIError`, whose `Kind` is a sentinel
+  such as `ErrRateLimited`, `ErrQuotaExhausted`, `ErrAuthFailure` or
+  `ErrIncomplete`; a rate limit carries its `RetryAfter`, and a cut-short
+  response its `Reason`. `Retryable()` says whether to try again. Every
+  sentinel's message starts `llmprovider:`. Error bodies pass through
+  `redact.String`.
 
 ## Credentials
 

@@ -133,10 +133,10 @@ exists now, read [architecture.md](../architecture.md).
   and `Reason`. (0015 D7)
 - **R25. Test errors by kind with `errors.Is`.** Each error unwraps to one of
   `ErrRateLimited` (with `ErrQuotaExhausted` beneath it), `ErrAuthFailure`,
-  `ErrNotPermitted`, `ErrInvalidRequest` (with `ErrContextOverflow` beneath
-  it), `ErrProviderUnavailable`, `ErrIncomplete`, `ErrUnsupported` or
+  `ErrNotPermitted`, `ErrInvalidRequest` (with `ErrContextOverflow` and
+  `ErrIncomplete` beneath it), `ErrProviderUnavailable`, `ErrUnsupported` or
   `ErrInvalidProvider`. A new failure mode maps to an existing kind before it
-  earns a new one. (0015 D7 and its amendment of 2026-09-30)
+  earns a new one. (0015 D7 and its amendments of 2026-09-30 and 2026-10-01)
 - **R26. Retryability is `Retryable()`.** (0015 D7)
 - **R27. Every error message starts `llmprovider:`.** (0015 D7)
 

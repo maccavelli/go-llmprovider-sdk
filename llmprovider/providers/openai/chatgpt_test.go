@@ -391,7 +391,12 @@ func TestOpenAIChatGPT_StreamFailures(t *testing.T) {
 				t.Errorf("err = %v also matches ErrInvalidRequest", err)
 			}
 			var apiErr *llmprovider.APIError
-			if errors.As(err, &apiErr) && apiErr.Retryable() == tc.terminal {
+			isAPI := errors.As(err, &apiErr)
+			if tc.name == "rate_limit_exceeded" && !isAPI {
+				// A stream rate limit is an *APIError too (0015-MADR D7).
+				t.Fatalf("err = %#v, want an *APIError", err)
+			}
+			if isAPI && apiErr.Retryable() == tc.terminal {
 				t.Errorf("Retryable() = %t, want %t", apiErr.Retryable(), !tc.terminal)
 			}
 		})
@@ -401,9 +406,9 @@ func TestOpenAIChatGPT_StreamFailures(t *testing.T) {
 			`{"type":"response.incomplete","response":{"id":"resp_1","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}`))
 		p := sessionProvider(t, chatGPTSession(), "gpt-6-astra", llmprovider.WithHTTPClient(client))
 		_, err := llmprovider.GenerateText(context.Background(), p, text("hi"))
-		var inc *llmprovider.IncompleteError
-		if !errors.As(err, &inc) || inc.Reason != "max_output_tokens" {
-			t.Fatalf("err = %v, want *IncompleteError max_output_tokens", err)
+		var inc *llmprovider.APIError
+		if !errors.As(err, &inc) || !errors.Is(inc.Kind, llmprovider.ErrIncomplete) || inc.Reason != "max_output_tokens" {
+			t.Fatalf("err = %v, want an *APIError of kind ErrIncomplete, reason max_output_tokens", err)
 		}
 	})
 }

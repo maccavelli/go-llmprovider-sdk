@@ -7,15 +7,15 @@ import (
 	"time"
 )
 
-// TestRateLimitError_Classification: RateLimitError unwraps to ErrRateLimited
-// (retryable) and is honored by the retry layer.
-func TestRateLimitError_Classification(t *testing.T) {
-	rl := &RateLimitError{RetryAfter: time.Millisecond, Status: 429}
+// TestRateLimit_Classification: a rate-limit APIError unwraps to
+// ErrRateLimited (retryable) and is honored by the retry layer.
+func TestRateLimit_Classification(t *testing.T) {
+	rl := &APIError{RetryAfter: time.Millisecond, Status: 429, Kind: ErrRateLimited}
 	if !errors.Is(rl, ErrRateLimited) {
-		t.Error("RateLimitError must unwrap to ErrRateLimited")
+		t.Error("a rate-limit APIError must unwrap to ErrRateLimited")
 	}
 
-	f := &fakeProvider{errs: []error{rl}} // fail once with RateLimitError, then succeed
+	f := &fakeProvider{errs: []error{rl}} // fail once rate-limited, then succeed
 	out, err := GenerateWithRetry(context.Background(), f, "p", 3, time.Nanosecond)
 	if err != nil || out != "ok" {
 		t.Fatalf("expected retry+success, got %q err=%v", out, err)

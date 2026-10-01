@@ -59,8 +59,9 @@ func TestDecode(t *testing.T) {
 	if _, err := Decode(strings.NewReader("not json")); err == nil {
 		t.Error("a bad body decoded")
 	}
-	var incompleteErr *llmprovider.IncompleteError
-	if _, err := Decode(strings.NewReader(`{"status":"incomplete"}`)); !errors.As(err, &incompleteErr) || incompleteErr.Reason != "unspecified" {
+	var incompleteErr *llmprovider.APIError
+	if _, err := Decode(strings.NewReader(`{"status":"incomplete"}`)); !errors.As(err, &incompleteErr) ||
+		!errors.Is(incompleteErr.Kind, llmprovider.ErrIncomplete) || incompleteErr.Reason != "unspecified" {
 		t.Errorf("incomplete with no reason: %v, want reason unspecified", err)
 	}
 }

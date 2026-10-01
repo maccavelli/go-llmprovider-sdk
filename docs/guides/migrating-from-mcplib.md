@@ -38,14 +38,14 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 
 | `mcplib` identifier | SDK equivalent | Notes |
 | :--- | :--- | :--- |
-| `llmprovider.APIError` | `APIError` | Adds `Kind`, `Code`, `Reason` and `Retryable()`. `Type` (now `Code`) and `Terminal` go in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.APIError` | `APIError` | The only structured error: it absorbs `RateLimitError` and `IncompleteError`, and adds `Kind`, `Code`, `Reason` and `Retryable()` ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D7). |
 | `llmprovider.APIError.Error` |  |  |
 | `llmprovider.APIError.Message` |  |  |
 | `llmprovider.APIError.Provider` |  |  |
 | `llmprovider.APIError.RetryAfter` |  |  |
 | `llmprovider.APIError.Status` |  |  |
-| `llmprovider.APIError.Terminal` |  |  |
-| `llmprovider.APIError.Type` |  |  |
+| `llmprovider.APIError.Terminal` | `APIError.Retryable()` | Unexported in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8; `Retryable()` reads it. |
+| `llmprovider.APIError.Type` | `APIError.Code` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8; `Code` carries the same value. |
 | `llmprovider.APIError.Unwrap` |  |  |
 | `llmprovider.ApplyOptions` |  |  |
 | `llmprovider.AuthAPIKey` |  |  |
@@ -82,13 +82,13 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.DefaultOpenAIPlatformBaseURL` |  |  |
 | `llmprovider.DescriptorFor` | `Registry.Descriptor(id)` | On `providers.Default()`, or the caller's `Registry` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.Descriptors` | `Registry.Descriptors()` | In menu order; each provider package declares its own descriptor ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
-| `llmprovider.ErrAuthFailure` |  |  |
-| `llmprovider.ErrInvalidProvider` |  |  |
-| `llmprovider.ErrInvalidRequest` |  |  |
-| `llmprovider.ErrNotPermitted` |  |  |
-| `llmprovider.ErrProviderUnavailable` |  |  |
-| `llmprovider.ErrQuotaExhausted` |  |  |
-| `llmprovider.ErrRateLimited` |  |  |
+| `llmprovider.ErrAuthFailure` | `ErrAuthFailure` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
+| `llmprovider.ErrInvalidProvider` | `ErrInvalidProvider` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
+| `llmprovider.ErrInvalidRequest` | `ErrInvalidRequest` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
+| `llmprovider.ErrNotPermitted` | `ErrNotPermitted` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
+| `llmprovider.ErrProviderUnavailable` | `ErrProviderUnavailable` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
+| `llmprovider.ErrQuotaExhausted` | `ErrQuotaExhausted` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
+| `llmprovider.ErrRateLimited` | `ErrRateLimited` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.FileTokenStore` |  |  |
 | `llmprovider.FileTokenStore.Delete` |  |  |
 | `llmprovider.FileTokenStore.Dir` |  |  |
@@ -140,10 +140,10 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.HuggingFaceProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.HuggingFaceProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
 | `llmprovider.HuggingFaceProvider.Name` | `ID()` | It returns `ProviderHuggingFace` as a `ProviderID`. |
-| `llmprovider.IncompleteError` |  |  |
-| `llmprovider.IncompleteError.Error` |  |  |
-| `llmprovider.IncompleteError.Reason` |  |  |
-| `llmprovider.IncompleteError.Unwrap` |  |  |
+| `llmprovider.IncompleteError` | `*APIError` of kind `ErrIncomplete` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D7). It still matches `ErrInvalidRequest`. |
+| `llmprovider.IncompleteError.Error` | `APIError.Error` | Reads `llmprovider: incomplete response: <reason>`. |
+| `llmprovider.IncompleteError.Reason` | `APIError.Reason` | As `IncompleteError`. |
+| `llmprovider.IncompleteError.Unwrap` | `APIError.Unwrap` | `ErrIncomplete` and `ErrInvalidRequest`, as before. |
 | `llmprovider.Item` |  |  |
 | `llmprovider.ItemProvider` |  |  |
 | `llmprovider.ItemProvider.GenerateItems` |  |  |
@@ -313,13 +313,13 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.RankKiloModel` | `RankModel(ProviderKilo, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
 | `llmprovider.RankOpenAIModel` | `RankModel(ProviderOpenAI, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
 | `llmprovider.RankOpencodeModel` | `RankModel(ProviderOpencodeZen` or `ProviderOpencodeGo, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
-| `llmprovider.RateLimitError` |  |  |
-| `llmprovider.RateLimitError.Error` |  |  |
-| `llmprovider.RateLimitError.Message` |  |  |
-| `llmprovider.RateLimitError.Provider` |  |  |
-| `llmprovider.RateLimitError.RetryAfter` |  |  |
-| `llmprovider.RateLimitError.Status` |  |  |
-| `llmprovider.RateLimitError.Unwrap` |  |  |
+| `llmprovider.RateLimitError` | `*APIError` of kind `ErrRateLimited` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D7). A 429 and a stream rate limit are both an `*APIError`. |
+| `llmprovider.RateLimitError.Error` | `APIError.Error` | Reads `llmprovider: rate limited: <provider> HTTP 429 (retry-after <d>): <message>`. |
+| `llmprovider.RateLimitError.Message` | `APIError.Message` | As `RateLimitError`. |
+| `llmprovider.RateLimitError.Provider` | `APIError.Provider` | As `RateLimitError`. |
+| `llmprovider.RateLimitError.RetryAfter` | `APIError.RetryAfter` | As `RateLimitError`. |
+| `llmprovider.RateLimitError.Status` | `APIError.Status` | 0 for a stream rate limit. |
+| `llmprovider.RateLimitError.Unwrap` | `APIError.Unwrap` | Matches `ErrRateLimited`, as before. |
 | `llmprovider.ReasoningItem` |  |  |
 | `llmprovider.ReasoningItem.Text` |  |  |
 | `llmprovider.Response` | `Response` | Adds `Model` and `Usage`; `FinishReason` is the named type `FinishReason`. |

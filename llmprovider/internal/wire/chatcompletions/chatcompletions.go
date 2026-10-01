@@ -202,7 +202,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	finish := llmprovider.FinishReason(raw.Choices[0].FinishReason)
 	// A tool call cut by the token limit has unusable arguments (MADR 0012 §1.5).
 	if finish == llmprovider.FinishLength && len(msg.ToolCalls) > 0 {
-		return nil, &llmprovider.IncompleteError{Reason: string(llmprovider.FinishLength)}
+		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
 	}
 	// The response id is not a resumable conversation handle on any gateway
 	// that speaks this format, so it is carried for logging only.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 )
@@ -91,17 +90,6 @@ func TestGenerateItemsWithRetry_NonRetryable(t *testing.T) {
 	}
 }
 
-func TestRateLimitError_ErrorString(t *testing.T) {
-	rl := &RateLimitError{RetryAfter: 5 * time.Second, Status: 429}
-	s := rl.Error()
-	if !errors.Is(rl, ErrRateLimited) {
-		t.Error("must unwrap to ErrRateLimited")
-	}
-	if s == "" || fmt.Sprintf("%v", rl) == "" {
-		t.Error("error string must not be empty")
-	}
-}
-
 func TestGenerateWithRetry_ContextCancelled(t *testing.T) {
 	f := &fakeProvider{errs: []error{ErrRateLimited}}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -142,26 +130,5 @@ func TestProviderEnvVars_Opencode(t *testing.T) {
 		if got != "OPENCODE_API_KEY" {
 			t.Errorf("providerEnvVars[%q] = %q, want OPENCODE_API_KEY", gw, got)
 		}
-	}
-}
-
-// TestRateLimitError_ProviderAttribution covers the field added so a 429 is
-// attributable when a caller holds several providers. An empty Provider
-// reproduces the original message verbatim, so existing callers matching on it
-// are unaffected.
-func TestRateLimitError_ProviderAttribution(t *testing.T) {
-	withName := &RateLimitError{RetryAfter: 5 * time.Second, Status: 429, Provider: ProviderKilo}
-	if !strings.Contains(withName.Error(), ProviderKilo) {
-		t.Errorf("Error() must name the provider: %v", withName)
-	}
-	if !errors.Is(withName, ErrRateLimited) {
-		t.Error("must still unwrap to ErrRateLimited")
-	}
-
-	anonymous := &RateLimitError{RetryAfter: 5 * time.Second, Status: 429}
-	want := "llm: rate limited: HTTP 429 (retry-after 5s)"
-	if anonymous.Error() != want {
-		t.Errorf("empty Provider must reproduce the original message.\n got: %s\nwant: %s",
-			anonymous.Error(), want)
 	}
 }

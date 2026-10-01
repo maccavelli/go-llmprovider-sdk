@@ -23,12 +23,13 @@ func TestDecodeResponses_IncompleteIsError(t *testing.T) {
 	}
 }
 
-// TestIncompleteError_Reason: the error carries the service's reason.
-func TestIncompleteError_Reason(t *testing.T) {
+// TestIncomplete_Reason: the error is an *APIError of kind ErrIncomplete,
+// carrying the service's reason (0015-MADR D7).
+func TestIncomplete_Reason(t *testing.T) {
 	_, err := Decode(strings.NewReader(
 		`{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}`))
-	var incomplete *llmprovider.IncompleteError
-	if !errors.As(err, &incomplete) || incomplete.Reason != "max_output_tokens" {
-		t.Fatalf("error = %#v, want *IncompleteError with reason max_output_tokens", err)
+	var incomplete *llmprovider.APIError
+	if !errors.As(err, &incomplete) || !errors.Is(incomplete.Kind, llmprovider.ErrIncomplete) || incomplete.Reason != "max_output_tokens" {
+		t.Fatalf("error = %#v, want an *APIError of kind ErrIncomplete with reason max_output_tokens", err)
 	}
 }

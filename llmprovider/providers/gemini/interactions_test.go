@@ -150,15 +150,15 @@ func TestGeminiInteractions_PlainCallSendsNoExtras(t *testing.T) {
 	}
 }
 
-// TestGeminiInteractions_Status: incomplete is an *IncompleteError (as at
-// max_output_tokens), failed is retryable.
+// TestGeminiInteractions_Status: incomplete is an *APIError of kind
+// ErrIncomplete (as at max_output_tokens), failed is retryable.
 func TestGeminiInteractions_Status(t *testing.T) {
 	srv, _ := interactionServer(t, `{"id":"v1_x","status":"incomplete","steps":[{"type":"model_output","content":[{"type":"text","text":"1, 2, "}]}]}`)
 	p := build(t, apiKey(srv.URL, "gemini-3.7-flash")...)
 	_, err := p.Generate(context.Background(), text("count"))
-	var inc *llmprovider.IncompleteError
-	if !errors.As(err, &inc) {
-		t.Errorf("incomplete: err = %v, want *IncompleteError", err)
+	var inc *llmprovider.APIError
+	if !errors.As(err, &inc) || !errors.Is(inc.Kind, llmprovider.ErrIncomplete) || inc.Reason != "incomplete" {
+		t.Errorf("incomplete: err = %v, want an *APIError of kind ErrIncomplete", err)
 	}
 	srv2, _ := interactionServer(t, `{"id":"v1_y","status":"failed","steps":[]}`)
 	p2 := build(t, apiKey(srv2.URL, "gemini-3.7-flash")...)

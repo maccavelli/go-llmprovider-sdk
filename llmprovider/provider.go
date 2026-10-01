@@ -63,58 +63,27 @@ type ThinkingToolProvider interface {
 
 // Typed errors for programmatic classification (go.dev/doc/effective-go).
 var (
-	ErrRateLimited         = errors.New("llm: rate limited")
-	ErrProviderUnavailable = errors.New("llm: provider unavailable")
-	ErrAuthFailure         = errors.New("llm: authentication failed")
+	ErrRateLimited         = errors.New("llmprovider: rate limited")
+	ErrProviderUnavailable = errors.New("llmprovider: provider unavailable")
+	ErrAuthFailure         = errors.New("llmprovider: authentication failed")
 	// ErrInvalidRequest marks a non-retryable client error (4xx other than 429
 	// and 401/403). Retrying it can never succeed.
-	ErrInvalidRequest = errors.New("llm: invalid request")
+	ErrInvalidRequest = errors.New("llmprovider: invalid request")
 )
-
-// RateLimitError carries a server-directed Retry-After hint for a 429 response.
-// It unwraps to ErrRateLimited so existing errors.Is(err, ErrRateLimited) checks
-// continue to classify it as retryable.
-type RateLimitError struct {
-	RetryAfter time.Duration
-	Status     int
-	// Provider names the source of the limit, so a 429 is attributable when a
-	// caller holds several providers. Empty is valid and reproduces the
-	// original message verbatim.
-	Provider string
-	// Message is the service's own explanation, redacted and bounded (MADR
-	// 0012 §1.1). Empty reproduces the original message verbatim.
-	Message string
-}
-
-func (e *RateLimitError) Error() string {
-	msg := fmt.Sprintf("%v: HTTP %d (retry-after %s)", ErrRateLimited, e.Status, e.RetryAfter)
-	if e.Provider != "" {
-		msg = fmt.Sprintf("%v: %s HTTP %d (retry-after %s)", ErrRateLimited, e.Provider, e.Status, e.RetryAfter)
-	}
-	if e.Message != "" {
-		msg += ": " + e.Message
-	}
-	return msg
-}
-
-func (e *RateLimitError) Unwrap() error { return ErrRateLimited }
 
 // retryBackoffCap bounds every retry delay. A server asking for longer gets its
 // error back instead, so the caller can reschedule (MADR 0012 §1.2).
 const retryBackoffCap = 30 * time.Second
 
 // retryStops reports whether a failed attempt must not be retried: a terminal
-// APIError, a server delay beyond retryBackoffCap, or an error whose sentinel
-// is never retryable. An APIError's Terminal flag decides even when it also
-// matches ErrInvalidRequest for compatibility (a 408 is retried, 0013 B4).
+// or cut-short APIError, a server delay beyond retryBackoffCap, or an error
+// whose sentinel is never retryable. An APIError's own classification decides
+// even when it also matches ErrInvalidRequest for compatibility (a 408 is
+// retried, 0013 B4).
 func retryStops(err error) bool {
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {
-		return apiErr.Terminal || apiErr.RetryAfter > retryBackoffCap
-	}
-	var rl *RateLimitError
-	if errors.As(err, &rl) && rl.RetryAfter > retryBackoffCap {
-		return true
+		return apiErr.terminal || errors.Is(apiErr.Kind, ErrIncomplete) || apiErr.RetryAfter > retryBackoffCap
 	}
 	return errors.Is(err, ErrAuthFailure) || errors.Is(err, ErrInvalidRequest)
 }
@@ -124,10 +93,6 @@ func serverRetryAfter(err error) time.Duration {
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {
 		return apiErr.RetryAfter
-	}
-	var rl *RateLimitError
-	if errors.As(err, &rl) {
-		return rl.RetryAfter
 	}
 	return 0
 }
@@ -161,7 +126,7 @@ var providerEnvVars = map[string]string{
 // GenerateWithRetry executes a Generate call with the specified number of retries
 // and jittered delay. It will stop retrying if the context is cancelled.
 func GenerateWithRetry(ctx context.Context, p LegacyProvider, prompt string, retries int, delay time.Duration) (string, error) {
-	return retryWithBackoff(ctx, retries, delay, "llm: retrying after failure", func() (string, error) {
+	return retryWithBackoff(ctx, retries, delay, "llmprovider: retrying after failure", func() (string, error) {
 		return p.Generate(ctx, prompt)
 	})
 }
@@ -170,7 +135,7 @@ func GenerateWithRetry(ctx context.Context, p LegacyProvider, prompt string, ret
 // path: the same backoff, jitter and error classification around
 // GenerateThinking (MADR 0009 §6).
 func GenerateThinkingWithRetry(ctx context.Context, p ThinkingProvider, prompt string, retries int, delay time.Duration) (string, error) {
-	return retryWithBackoff(ctx, retries, delay, "llm: retrying thinking after failure", func() (string, error) {
+	return retryWithBackoff(ctx, retries, delay, "llmprovider: retrying thinking after failure", func() (string, error) {
 		return p.GenerateThinking(ctx, prompt)
 	})
 }
@@ -228,7 +193,7 @@ func retryWithBackoff[T any](ctx context.Context, retries int, delay time.Durati
 // and jittered delay, under the same policy as GenerateWithRetry. It will stop
 // retrying if the context is cancelled.
 func GenerateItemsWithRetry(ctx context.Context, p ItemProvider, input []Item, retries int, delay time.Duration) (*Response, error) {
-	return retryWithBackoff(ctx, retries, delay, "llm: retrying items after failure", func() (*Response, error) {
+	return retryWithBackoff(ctx, retries, delay, "llmprovider: retrying items after failure", func() (*Response, error) {
 		return p.GenerateItems(ctx, input...)
 	})
 }

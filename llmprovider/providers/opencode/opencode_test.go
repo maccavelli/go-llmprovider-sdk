@@ -344,10 +344,10 @@ func TestOpencode_ErrorClassification(t *testing.T) {
 				t.Fatalf("err = %v, want wrapping %v", err, tc.wantErr)
 			}
 			if tc.status == http.StatusTooManyRequests {
-				var rl *llmprovider.RateLimitError
-				if !errors.As(err, &rl) || rl.RetryAfter != 0 {
+				var rl *llmprovider.APIError
+				if !errors.As(err, &rl) || !errors.Is(rl.Kind, llmprovider.ErrRateLimited) || rl.RetryAfter != 0 {
 					// The gateway sends no Retry-After (measured 2026-08-28).
-					t.Errorf("RetryAfter = %v, want 0", rl.RetryAfter)
+					t.Errorf("err = %#v, want an *APIError of kind ErrRateLimited, RetryAfter 0", err)
 				}
 			}
 			// Every classification names gateway/route, 429 included.

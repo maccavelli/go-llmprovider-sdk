@@ -117,7 +117,8 @@ func thinkingLevel(model string, effort llmprovider.Effort) string {
 // decodeInteraction maps an Interaction to a Response: a thought step's
 // summary becomes a ReasoningItem and its signature the Signature of the
 // calls after it; model_output text becomes a MessageItem; function_call a
-// FunctionCallItem. incomplete is an *IncompleteError (MADR 0012 §1.5);
+// FunctionCallItem. incomplete is an *APIError of kind ErrIncomplete (MADR
+// 0012 §1.5, 0015-MADR D7);
 // failed and cancelled are retryable failures.
 func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 	var raw struct {
@@ -146,7 +147,7 @@ func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 	case "completed", "requires_action":
 	case statusIncomplete:
 		// An Interaction gives no reason (measured at max_output_tokens).
-		return nil, &llmprovider.IncompleteError{Reason: statusIncomplete}
+		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: statusIncomplete}
 	default:
 		return nil, fmt.Errorf("%w: gemini interaction %s", llmprovider.ErrProviderUnavailable, raw.Status)
 	}

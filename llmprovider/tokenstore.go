@@ -135,7 +135,7 @@ type fileRecord struct {
 }
 
 // ErrInvalidProvider is returned when a provider id is empty or path-traverses.
-var ErrInvalidProvider = errors.New("invalid provider id")
+var ErrInvalidProvider = errors.New("llmprovider: invalid provider id")
 
 func validateProviderID(p string) error {
 	if p == "" {

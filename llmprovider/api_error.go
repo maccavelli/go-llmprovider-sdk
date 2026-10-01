@@ -31,17 +31,19 @@ var (
 	// ErrQuotaExhausted marks exhausted quota, credit or balance. Retrying
 	// cannot succeed before the quota resets, so the APIError carrying it is
 	// terminal. It also matches ErrRateLimited (MADR 0012 §1.1).
-	ErrQuotaExhausted error = &sentinelError{msg: "llm: quota exhausted", parent: ErrRateLimited}
+	ErrQuotaExhausted error = &sentinelError{msg: "llmprovider: quota exhausted", parent: ErrRateLimited}
 	// ErrNotPermitted marks a request the account may not make: a region,
 	// data-policy, entitlement or free-tier restriction (MADR 0012 §1.1).
-	ErrNotPermitted = errors.New("llm: not permitted")
+	ErrNotPermitted = errors.New("llmprovider: not permitted")
 	// ErrContextOverflow marks input longer than the model's context window.
 	// Shortening the input can succeed; retrying it unchanged cannot. It also
 	// matches ErrInvalidRequest (0015-MADR D7, amendment of 2026-09-30).
 	ErrContextOverflow error = &sentinelError{msg: "llmprovider: context window exceeded", parent: ErrInvalidRequest}
 	// ErrIncomplete marks a response the service cut short, or one without
-	// the tool call the request forced (0015-MADR D7).
-	ErrIncomplete = errors.New("llmprovider: incomplete response")
+	// the tool call the request forced (0015-MADR D7). Retrying it unchanged
+	// cannot help, so it also matches ErrInvalidRequest (MADR 0012 §1.5;
+	// 0015-MADR D7, amendment of 2026-10-01).
+	ErrIncomplete error = &sentinelError{msg: "llmprovider: incomplete response", parent: ErrInvalidRequest}
 	// ErrUnsupported marks a request needing a capability the provider does
 	// not have. It fails before any network call, and also matches
 	// errors.ErrUnsupported (0015-MADR D4, D7).
@@ -56,9 +58,11 @@ const (
 )
 
 // APIError is a failure the service reported, with its own classification
-// (MADR 0012 §1.1, 0015-MADR D7). It unwraps to its Kind and, when that
-// differs, to the sentinel the status alone mapped to before, so every
-// existing errors.Is check still matches (MADR 0012 §7).
+// (MADR 0012 §1.1, 0015-MADR D7). It is the only structured error: a rate
+// limit is one of kind ErrRateLimited with its RetryAfter, and a response the
+// service cut short one of kind ErrIncomplete with its Reason. It unwraps to
+// its Kind and, when that differs, to the sentinel the status alone mapped to
+// before, so every existing errors.Is check still matches (MADR 0012 §7).
 type APIError struct {
 	// Provider names the provider, or "gateway/route" for a gateway.
 	Provider string
@@ -77,31 +81,40 @@ type APIError struct {
 	// "max_output_tokens".
 	Reason string
 
-	// Type is Code.
-	//
-	// Deprecated: Use Code. Type is removed with the old API (0015-PLAN S8).
-	Type string
-	// Terminal reports that retrying cannot succeed.
-	//
-	// Deprecated: Use Retryable. Terminal is removed with the old API
-	// (0015-PLAN S8).
-	Terminal bool
+	// terminal reports that retrying cannot succeed; Retryable reads it.
+	terminal bool
 }
 
+// Error reads "<kind>: <provider> HTTP <status> <code> (retry-after <d>):
+// <reason>: <message>", leaving out what is unset. A failure with no status
+// and no reason came from a stream.
 func (e *APIError) Error() string {
-	var b strings.Builder
-	if e.Status == 0 {
-		fmt.Fprintf(&b, "%v: %s stream", e.kind(), e.Provider)
-	} else {
-		fmt.Fprintf(&b, "%v: %s HTTP %d", e.kind(), e.Provider, e.Status)
+	var where []string
+	if e.Provider != "" {
+		where = append(where, e.Provider)
 	}
-	if code := e.code(); code != "" {
-		fmt.Fprintf(&b, " %s", code)
+	switch {
+	case e.Status != 0:
+		where = append(where, fmt.Sprintf("HTTP %d", e.Status))
+	case e.Provider != "" && e.Reason == "":
+		where = append(where, "stream")
 	}
-	if e.Message != "" {
-		fmt.Fprintf(&b, ": %s", e.Message)
+	if e.Code != "" {
+		where = append(where, e.Code)
 	}
-	return b.String()
+	if e.RetryAfter > 0 {
+		where = append(where, fmt.Sprintf("(retry-after %s)", e.RetryAfter))
+	}
+	parts := []string{e.kind().Error()}
+	if len(where) > 0 {
+		parts = append(parts, strings.Join(where, " "))
+	}
+	for _, s := range []string{e.Reason, e.Message} {
+		if s != "" {
+			parts = append(parts, s)
+		}
+	}
+	return strings.Join(parts, ": ")
 }
 
 // Unwrap returns the kind and the pre-0012 status sentinel. A stream failure
@@ -118,7 +131,7 @@ func (e *APIError) Unwrap() []error {
 // other than exhausted quota, or an unavailable service, that the service did
 // not mark final (0015-MADR D7).
 func (e *APIError) Retryable() bool {
-	if e.Terminal {
+	if e.terminal {
 		return false
 	}
 	kind := e.kind()
@@ -140,14 +153,6 @@ func (e *APIError) kind() error {
 	}
 }
 
-// code is Code, or the deprecated Type a caller may still set.
-func (e *APIError) code() string {
-	if e.Code != "" {
-		return e.Code
-	}
-	return e.Type
-}
-
 // statusSentinel is the status-only mapping every provider used before MADR
 // 0012.
 func statusSentinel(status int) error {
@@ -166,7 +171,8 @@ func statusSentinel(status int) error {
 // ClassifyHTTPError maps a non-200 response to a typed error; it returns nil
 // for 200. provider names the caller for the message: a multi-route gateway
 // passes "gateway/route", so a misroute is diagnosable from the error alone.
-// A plain 429 stays a *RateLimitError; every other status is an *APIError.
+// A 429 is an *APIError of kind ErrRateLimited, with the delay the service
+// asked for in RetryAfter.
 // It is part of the error model, for any provider (0015-MADR, amendment
 // "S7b's import graph").
 func ClassifyHTTPError(provider string, resp *http.Response) error {
@@ -185,11 +191,10 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 		Provider:   provider,
 		Status:     resp.StatusCode,
 		Code:       envelope.errType(),
-		Type:       envelope.errType(),
 		Message:    boundMessage(redact.String(envelope.message())),
 		RetryAfter: transport.RetryAfter(resp.Header),
 	}
-	e.Terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
+	e.terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
 	// A usage limit says when it resets, as Codex reads it (MADR 0012 §4.4).
 	if e.RetryAfter == 0 && envelope.resetsAt > 0 {
 		if d := time.Until(time.Unix(envelope.resetsAt, 0)); d > 0 {
@@ -198,10 +203,7 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 	}
 	// x-should-retry: false is the service saying no retry can succeed (MADR 0012 §1.2).
 	if strings.EqualFold(strings.TrimSpace(resp.Header.Get("X-Should-Retry")), "false") {
-		e.Terminal = true
-	}
-	if errors.Is(e.Kind, ErrRateLimited) && !e.Terminal {
-		return &RateLimitError{RetryAfter: e.RetryAfter, Status: e.Status, Provider: provider, Message: e.Message}
+		e.terminal = true
 	}
 	return e
 }
@@ -222,17 +224,17 @@ func ClassifyStreamFailure(provider, code, errType, message string) error {
 			env.types = append(env.types, t)
 		}
 	}
-	e := &APIError{Provider: provider, Code: env.errType(), Type: env.errType(), Message: boundMessage(redact.String(message))}
+	e := &APIError{Provider: provider, Code: env.errType(), Message: boundMessage(redact.String(message))}
 	switch {
 	case env.hasType("rate_limit_exceeded") || env.hasType("slow_down"):
-		return &RateLimitError{Provider: provider, Message: e.Message}
+		e.Kind = ErrRateLimited
 	case env.hasType("context_length_exceeded"):
-		e.Terminal, e.Kind = true, ErrContextOverflow
+		e.terminal, e.Kind = true, ErrContextOverflow
 	case env.hasType("invalid_prompt"):
-		e.Terminal, e.Kind = true, ErrInvalidRequest
+		e.terminal, e.Kind = true, ErrInvalidRequest
 	default:
 		// 500 stands in for "no status": the table's codes win, else retryable.
-		e.Terminal, e.Kind = classifyAPIError(serviceOf(provider), http.StatusInternalServerError, env, nil)
+		e.terminal, e.Kind = classifyAPIError(serviceOf(provider), http.StatusInternalServerError, env, nil)
 	}
 	return e
 }

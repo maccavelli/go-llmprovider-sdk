@@ -3230,6 +3230,7 @@ acceptance (its status, and the PLAN's "Approved" line).
 ### Phase S8, commit 2: `catalog` (2026-10-01)
 
 Under "S8 as amended". Staged for the owner to commit.
+*Annotated 2026-10-01:* committed as `f44ebc7`.
 
 * **Moved** with `git mv` into `llmprovider/catalog`, then rewritten for the
   package:
@@ -3368,3 +3369,112 @@ Under "S8 as amended". Staged for the owner to commit.
   * `catalog` 88.1 %, and `internal/kiloendpoint` 100.0 %;
   * `llmprovider` 87.8 % from its own tests and 89.3 % over
     `./llmprovider/...`, against its `P7` 89.2 %.
+
+### Phase S8, commit 3: errors, D7 and R27 (2026-10-01)
+
+Under "S8 as amended". Staged for the owner to commit, with the amendment of
+0015-MADR "`ErrIncomplete` beneath `ErrInvalidRequest`".
+
+* **One structured error.**
+  * A 429 that is not exhausted quota is an `*APIError` of kind
+    `ErrRateLimited`, with its `RetryAfter`. So is a stream's
+    `rate_limit_exceeded` or `slow_down`, with `Status` 0.
+  * A cut-short answer is an `*APIError` of kind `ErrIncomplete`, with its
+    `Reason`. That covers Responses' `incomplete`
+    (`internal/wire/responses`), Chat's `length` with a tool call
+    (`internal/wire/chatcompletions`) and Gemini's Interaction `incomplete`.
+  * `RateLimitError` and `IncompleteError` are removed, and `truncation.go`
+    keeps only `finishReasonLength`.
+* **`APIError`.**
+  * `Type` is removed; `Code` carries the same value.
+  * `Terminal` is the unexported `terminal`, read by `Retryable()`.
+  * `Error()` names the retry-after and the reason, which the two removed
+    types carried. It reads `<kind>: <provider> HTTP <status> <code>
+    (retry-after <d>): <reason>: <message>`, leaving out what is unset.
+  * `ClassifyHTTPError`'s doc no longer says a 429 stays a
+    `*RateLimitError`.
+* **R27.** `ErrRateLimited`, `ErrProviderUnavailable`, `ErrAuthFailure`,
+  `ErrInvalidRequest`, `ErrQuotaExhausted`, `ErrNotPermitted` and
+  `ErrInvalidProvider` now read `llmprovider:`. So do the three log messages
+  of the old retry loop, which commit 4 removes.
+  * This ends 0004-PLAN's promise (its D4) that an `Error()` with no provider
+    reproduces the original message verbatim. That message read `llm:`.
+  * R27 is applied here to the sentinels, as the amended step says. Errors
+    wrapped with a provider prefix, such as `gemini: decode interaction:`,
+    still start with it. Rate limits from token refresh and the Kilo device
+    login stay wrapped sentinels; they move with the auth code in S8c.
+* **The old retry loop.** `retryStops` read only `Terminal` for an
+  `*APIError`, so as first written it would have retried a cut-short one;
+  `IncompleteError` was not an `*APIError`. It now also stops on kind
+  `ErrIncomplete`. `serverRetryAfter` reads only `*APIError`.
+* **Deviation, 2026-10-01: `ErrIncomplete` and `ErrInvalidRequest`.**
+  * **Found.** `IncompleteError` matched both. D7 says `errors.Is` reaches
+    one kind sentinel each, and the step named only the kind. The first
+    version kept the match with a case in `APIError.Unwrap`.
+  * **Decided.** The owner chose "put it beneath": `ErrIncomplete` is a
+    child of `ErrInvalidRequest`, as `ErrContextOverflow` is. The other
+    options were to keep the `Unwrap` case, or to drop the match, a
+    breaking change.
+  * **Recorded** in 0015-MADR, amendment "`ErrIncomplete` beneath
+    `ErrInvalidRequest`", in D7's list, and in the standards guide's R25.
+  * **Effect.** The bare "returned no response" and "returned no call to
+    tool" errors now also match `ErrInvalidRequest`. `WithRetry` already
+    treated them as final.
+* **Tests rewritten to D7's rule:**
+
+  | Test | Was | Now |
+  |---|---|---|
+  | `TestClassifyHTTPError_PlainRateLimit` | a 429 stays a `*RateLimitError`, not an `*APIError` | an `*APIError` of kind `ErrRateLimited`, retryable, with retry-after, status and message |
+  | `TestClassifyHTTPStatus` | a 429 is a `*RateLimitError` | an `*APIError` of kind `ErrRateLimited` |
+  | `TestParseRetryAfter_MillisAndFractional` | reads `RateLimitError.RetryAfter` | reads `APIError.RetryAfter` |
+  | `TestRetry_RetryAfterAboveCapReturns` | a `*RateLimitError` | an `*APIError` |
+  | `TestRateLimitError_Classification` | `RateLimitError` | renamed `TestRateLimit_Classification`, an `*APIError` |
+  | `TestRateLimitError_ErrorString`, `TestRateLimitError_ProviderAttribution` | `RateLimitError`'s message | removed; `TestAPIError_ErrorText` pins the message, with and without a provider |
+  | `TestWithRetry_RetriesByKind` | rows for `RateLimitError` and `IncompleteError` | a stream rate limit, and a cut-short `*APIError` |
+  | `TestIncompleteError_Reason` (`internal/wire/responses`) | `*IncompleteError` | renamed `TestIncomplete_Reason`, an `*APIError` of kind `ErrIncomplete` |
+  | `TestDecode` (`internal/wire/responses`), `TestGeminiInteractions_Status`, `TestOpenAIChatGPT_StreamFailures/incomplete` | `*IncompleteError` | an `*APIError` of kind `ErrIncomplete`, with its reason |
+  | `TestOpenCode…` 429 row (`opencode_test.go`) | `RateLimitError.RetryAfter` 0 | an `*APIError` of kind `ErrRateLimited`, `RetryAfter` 0 |
+  | `TestAPIError_KindAndCodeFromClassification`, `TestClassifyHTTPError` table, `TestClassify_UsageLimitResetsAt` | `Type`, `Terminal` | `Code`, `terminal` (same package) |
+  | `TestAPIError_WithoutKind` | `Code` wins over `Type`; `llm:` | no `Type`; `llmprovider:` |
+  | `TestSentinels_Beneath` | `IncompleteError` matches both; three sentinels start `llmprovider:` | a cut-short `*APIError` matches both and is not retryable; a stream rate limit matches `ErrRateLimited` alone; `ErrIncomplete` is beneath `ErrInvalidRequest`; all ten sentinels start `llmprovider:` |
+
+* **Tightened,** because neither caught a wrong kind:
+  * `TestDecodeChat_LengthToolCallIsError` checked only `ErrInvalidRequest`.
+    It now wants an `*APIError` of kind `ErrIncomplete` with reason `length`.
+  * `TestOpenAIChatGPT_StreamFailures` read `Retryable()` only if the error
+    was an `*APIError`. Its `rate_limit_exceeded` row now requires one.
+* **New tests:**
+  * `TestAPIError_ErrorText` covers the five shapes: a 429 with provider,
+    retry-after and message; one with neither; a stream rate limit; and a
+    cut-short response, with and without a provider.
+  * `TestRetry_IncompleteMakesOneCall` covers the old loop, until commit 4.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | ErrIncomplete is not beneath ErrInvalidRequest | `ErrIncomplete must match ErrInvalidRequest` |
+  | the old retry loop retries a cut-short response | `calls = 3, err = <nil>; want 1 call and the incomplete error` |
+  | Retryable ignores terminal | `Retryable() = true, want false` |
+  | a plain 429 is classified terminal | `error = &llmprovider.APIError{…terminal:true}, want a retryable *APIError of kind ErrRateLimited, with retry-after 7s and the message` |
+  | a 429 loses its retry-after | `RetryAfter = 0s, want 7s` (`TestClassifyHTTPStatus`); `TestClassifyHTTPError_PlainRateLimit` and `TestParseRetryAfter_MillisAndFractional` fail too |
+  | a stream rate limit is not an APIError | `err = &fmt.wrapError{…}, want an *APIError` |
+  | Error drops the retry-after | `Error() = "llmprovider: rate limited: HTTP 429", want "llmprovider: rate limited: HTTP 429 (retry-after 5s)"` |
+  | Error drops the provider | `Error() = "llmprovider: rate limited: stream slow_down: wait", want "llmprovider: rate limited: openai stream slow_down: wait"` |
+  | Error drops the reason | `Error() = "llmprovider: incomplete response", want "llmprovider: incomplete response: length"` |
+  | a cut-short response reads as a stream | `Error() = "llmprovider: incomplete response: gemini stream: incomplete", want "llmprovider: incomplete response: gemini: incomplete"` |
+  | a sentinel keeps llm: | `"invalid provider id" does not start llmprovider: (R27)` |
+  | Responses' incomplete has the wrong kind | `incomplete with no reason: llmprovider: invalid request: unspecified, want reason unspecified` |
+  | Chat's truncation has the wrong kind | `decode = <nil>/llmprovider: invalid request: length, want an *APIError of kind ErrIncomplete, reason length` |
+  | Gemini's incomplete drops its reason | `incomplete: err = llmprovider: incomplete response, want an *APIError of kind ErrIncomplete` |
+
+* **Docs.**
+  * `architecture.md`'s error line describes the one type.
+  * The migration guide fills 21 rows: `APIError` and its `Terminal` and
+    `Type`; the four `IncompleteError` and seven `RateLimitError` rows; and
+    the seven sentinels whose message changed. G-parity: `409 identifiers,
+    409 rows, 201 with an SDK equivalent, 0 problem(s)`.
+* **Lint.** Clean, with no change of configuration.
+* **G-wire.** All goldens unchanged, with no `-update`.
+* **Coverage:** `llmprovider` 87.8 % from its own tests, and 89.2 % over
+  `./llmprovider/...` (1752 of 1964 statements, 89.21 %) against its `P7`
+  89.2 %. The removed types took covered statements with them.

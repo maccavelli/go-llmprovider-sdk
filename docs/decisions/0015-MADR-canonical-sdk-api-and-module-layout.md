@@ -220,6 +220,8 @@ Invalid values are rejected by `New` or `Generate` with `ErrInvalidRequest`.
   `ErrProviderUnavailable`, `ErrIncomplete`, `ErrUnsupported` and
   `ErrInvalidProvider`. *Amended 2026-09-30 (accepted):* also
   `ErrContextOverflow`, beneath `ErrInvalidRequest`.
+  *Amended 2026-10-01 (accepted):* `ErrIncomplete` also sits beneath
+  `ErrInvalidRequest`.
 * **Retryability is a method.** `Retryable()` replaces `Terminal`.
 * **Every message starts `llmprovider:`.**
 
@@ -789,3 +791,43 @@ organization had no way to reach the listing between S8 and S8b.
 D2's layout is unchanged, apart from the new internal package and
 `catalog`'s import row. The accepted gap of 2026-09-30, "no profile on the
 new API until S8b", ends when `catalog` lands.
+
+## Amendment 2026-10-01: `ErrIncomplete` beneath `ErrInvalidRequest`
+
+Status: **accepted** 2026-10-01. The owner chose "put it beneath" during
+0015-PLAN S8, commit 3.
+
+### Fact found
+
+`IncompleteError` matched both `ErrIncomplete` and `ErrInvalidRequest`, so
+that no retry repeated a request the service had cut short (MADR 0012 §1.5).
+D7 folds it into `*APIError`, and says that `errors.Is` reaches "one kind
+sentinel each". The PLAN said only that a truncated answer is an `*APIError`
+of kind `ErrIncomplete`. As first written, `APIError.Unwrap` added
+`ErrInvalidRequest` beside that kind, which is a second sentinel D7 does not
+name.
+
+### Decided
+
+* `ErrIncomplete` sits beneath `ErrInvalidRequest`, as `ErrContextOverflow`
+  does since the amendment of 2026-09-30.
+* `APIError.Unwrap` has no case for it.
+* The standards guide's R25 lists it there.
+
+Two errors that wrap the bare sentinel now also match `ErrInvalidRequest`:
+"returned no response" (`convenience.go`, `stream.go`) and "returned no call
+to tool" (`convenience.go`). `WithRetry` already treated both as final.
+
+### Rejected
+
+* **Keeping the case in `Unwrap`.** Only an `*APIError` of that kind would
+  match both, as before. That keeps a match that the sentinel tree does not
+  show.
+* **Matching `ErrIncomplete` alone.** A caller that stopped retrying on
+  `ErrInvalidRequest` would retry a truncated answer: a breaking change for
+  no gain.
+
+### Effect
+
+D7's list of kinds is unchanged: `ErrIncomplete` is still a kind, now with
+a parent.

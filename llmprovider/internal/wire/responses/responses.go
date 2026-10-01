@@ -83,7 +83,7 @@ func incomplete(reason string) error {
 	if reason == "" {
 		reason = "unspecified"
 	}
-	return &llmprovider.IncompleteError{Reason: reason}
+	return &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: reason}
 }
 
 // outputItem is one Responses API output entry.

@@ -35,7 +35,7 @@ func TestClassify_UsageLimitResetsAt(t *testing.T) {
 		`{"error":{"type":"usage_limit_reached","message":"The usage limit has been reached","plan_type":"plus","resets_at":`+
 			strconv.FormatInt(reset, 10)+`}}`)
 	var apiErr *APIError
-	if !errors.As(err, &apiErr) || !errors.Is(err, ErrQuotaExhausted) || !apiErr.Terminal {
+	if !errors.As(err, &apiErr) || !errors.Is(err, ErrQuotaExhausted) || !apiErr.terminal {
 		t.Fatalf("err = %v, want a terminal ErrQuotaExhausted", err)
 	}
 	if apiErr.RetryAfter < 59*time.Minute || apiErr.RetryAfter > time.Hour {

@@ -65,9 +65,9 @@ func TestClassifyHTTPError_Table(t *testing.T) {
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("error %T is not an *APIError", err)
 			}
-			if apiErr.Terminal != test.terminal || apiErr.Type != test.errType || apiErr.Status != test.status {
-				t.Errorf("Terminal/Type/Status = %t/%q/%d, want %t/%q/%d",
-					apiErr.Terminal, apiErr.Type, apiErr.Status, test.terminal, test.errType, test.status)
+			if apiErr.terminal != test.terminal || apiErr.Code != test.errType || apiErr.Status != test.status {
+				t.Errorf("terminal/Code/Status = %t/%q/%d, want %t/%q/%d",
+					apiErr.terminal, apiErr.Code, apiErr.Status, test.terminal, test.errType, test.status)
 			}
 			if !strings.Contains(apiErr.Message, test.message) || !strings.Contains(err.Error(), test.provider) {
 				t.Errorf("error = %q, want the provider and the message %q", err, test.message)
@@ -76,17 +76,15 @@ func TestClassifyHTTPError_Table(t *testing.T) {
 	}
 }
 
-// TestClassifyHTTPError_PlainRateLimit: a 429 with no quota classification
-// stays a retryable *RateLimitError, now carrying the service's message.
+// TestClassifyHTTPError_PlainRateLimit: a 429 with no quota classification is
+// a retryable *APIError of kind ErrRateLimited, with its retry-after and the
+// service's message (0015-MADR D7).
 func TestClassifyHTTPError_PlainRateLimit(t *testing.T) {
 	err := classifyFixture("kilo", 429, `{"error":{"message":"slow down"}}`, http.Header{"Retry-After": {"7"}})
-	var rl *RateLimitError
-	if !errors.As(err, &rl) || rl.RetryAfter != 7*time.Second || rl.Message != "slow down" {
-		t.Fatalf("error = %#v, want a *RateLimitError with retry-after 7s and the message", err)
-	}
 	var apiErr *APIError
-	if errors.As(err, &apiErr) {
-		t.Fatal("a plain 429 must stay a *RateLimitError, not an *APIError")
+	if !errors.As(err, &apiErr) || !errors.Is(apiErr.Kind, ErrRateLimited) || errors.Is(err, ErrQuotaExhausted) ||
+		!apiErr.Retryable() || apiErr.Status != 429 || apiErr.RetryAfter != 7*time.Second || apiErr.Message != "slow down" {
+		t.Fatalf("error = %#v, want a retryable *APIError of kind ErrRateLimited, with retry-after 7s and the message", err)
 	}
 }
 
@@ -154,15 +152,14 @@ func TestClassifyHTTPStatus(t *testing.T) {
 				t.Fatalf("err = %v, want wrapping %v", err, tc.wantErr)
 			}
 			// Every branch names the provider/route so a failure is
-			// attributable from the error alone, including 429 since
-			// RateLimitError gained a Provider field.
+			// attributable from the error alone, 429 included.
 			if !strings.Contains(err.Error(), "gw/route") {
 				t.Errorf("error must name the provider/route: %v", err)
 			}
 			if tc.status == http.StatusTooManyRequests {
-				var rl *RateLimitError
-				if !errors.As(err, &rl) {
-					t.Fatalf("429 must yield *RateLimitError, got %T", err)
+				var rl *APIError
+				if !errors.As(err, &rl) || !errors.Is(rl.Kind, ErrRateLimited) {
+					t.Fatalf("429 must yield an *APIError of kind ErrRateLimited, got %#v", err)
 				}
 				want := time.Duration(0)
 				if tc.retryAfter == "7" {

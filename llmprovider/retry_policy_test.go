@@ -26,16 +26,27 @@ func TestRetry_TerminalMakesOneCall(t *testing.T) {
 	}
 }
 
+// TestRetry_IncompleteMakesOneCall: a cut-short response is not retried,
+// though its APIError is not terminal (0015-MADR D7).
+func TestRetry_IncompleteMakesOneCall(t *testing.T) {
+	cut := &APIError{Kind: ErrIncomplete, Reason: "length"}
+	f := &fakeProvider{errs: []error{cut, cut}}
+	_, err := GenerateWithRetry(context.Background(), f, "p", 2, time.Millisecond)
+	if f.calls != 1 || !errors.Is(err, ErrIncomplete) {
+		t.Fatalf("calls = %d, err = %v; want 1 call and the incomplete error", f.calls, err)
+	}
+}
+
 // TestRetry_RetryAfterAboveCapReturns: a server delay beyond the 30 s cap is
 // returned to the caller, with its RetryAfter, instead of being slept on.
 func TestRetry_RetryAfterAboveCapReturns(t *testing.T) {
-	limited := &RateLimitError{RetryAfter: 120 * time.Second, Status: http.StatusTooManyRequests, Provider: "fake"}
+	limited := &APIError{RetryAfter: 120 * time.Second, Status: http.StatusTooManyRequests, Kind: ErrRateLimited, Provider: "fake"}
 	f := &fakeProvider{errs: []error{limited, limited}}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	start := time.Now()
 	_, err := GenerateWithRetry(ctx, f, "p", 2, time.Millisecond)
-	var rl *RateLimitError
+	var rl *APIError
 	if f.calls != 1 || !errors.As(err, &rl) || rl.RetryAfter != 120*time.Second || time.Since(start) > time.Second {
 		t.Fatalf("calls = %d, err = %v after %s; want 1 call returning the 120s retry-after at once",
 			f.calls, err, time.Since(start))
@@ -47,7 +58,7 @@ func TestParseRetryAfter_MillisAndFractional(t *testing.T) {
 		{"Retry-After-Ms": {"1500"}},
 		{"Retry-After": {"1.5"}},
 	} {
-		var rl *RateLimitError
+		var rl *APIError
 		err := classifyFixture("kilo", http.StatusTooManyRequests, `{}`, header)
 		if !errors.As(err, &rl) || rl.RetryAfter != 1500*time.Millisecond {
 			t.Errorf("header %v: err = %v, want retry-after 1.5s", header, err)

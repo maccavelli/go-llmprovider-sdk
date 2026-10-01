@@ -220,13 +220,16 @@ func TestChatCompletionsBody(t *testing.T) {
 }
 
 // TestDecodeChat_LengthToolCallIsError: a tool call cut off by the token limit
-// has unusable arguments, so it is an error.
+// has unusable arguments, so it is an error: an *APIError of kind
+// ErrIncomplete, which also matches ErrInvalidRequest (0015-MADR D7).
 func TestDecodeChat_LengthToolCallIsError(t *testing.T) {
 	body := `{"id":"c1","choices":[{"finish_reason":"length","message":{"role":"assistant",
 		"tool_calls":[{"id":"t1","function":{"name":"commit","arguments":"{\"subject\":\"fix: tru"}}]}}]}`
 	res, err := Decode(strings.NewReader(body))
-	if err == nil || !errors.Is(err, llmprovider.ErrInvalidRequest) || !strings.Contains(err.Error(), "length") {
-		t.Fatalf("decode = %+v/%v, want an ErrInvalidRequest naming length", res, err)
+	var apiErr *llmprovider.APIError
+	if !errors.As(err, &apiErr) || !errors.Is(apiErr.Kind, llmprovider.ErrIncomplete) || apiErr.Reason != "length" ||
+		!errors.Is(err, llmprovider.ErrInvalidRequest) {
+		t.Fatalf("decode = %+v/%v, want an *APIError of kind ErrIncomplete, reason length", res, err)
 	}
 }
 
