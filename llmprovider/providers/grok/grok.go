@@ -42,6 +42,7 @@ import (
 	"net/http"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
 
 const (
@@ -171,7 +172,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	}
 	body := map[string]any{
 		"model":             model,
-		"input":             llmprovider.ItemsToInput(input),
+		"input":             responses.Input(input),
 		"max_output_tokens": maxTokens,
 	}
 	if p.store != nil {
@@ -252,7 +253,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 		return nil, err
 	}
 	// 1 MiB bounds a runaway reply.
-	return llmprovider.DecodeResponsesAPIOutput(io.LimitReader(resp.Body, 1<<20))
+	return responses.Decode(io.LimitReader(resp.Body, 1<<20))
 }
 
 // ListModels returns curated Grok text models available to this credential,

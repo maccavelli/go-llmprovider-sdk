@@ -115,3 +115,63 @@ func classifyFixture(provider string, status int, body string, header http.Heade
 	defer closeResponseBody(resp)
 	return ClassifyHTTPError(provider, resp)
 }
+
+// TestClassifyHTTPStatus pins the status -> sentinel mapping shared by every
+// gateway provider, including Kilo's documented 402.
+func TestClassifyHTTPStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     int
+		retryAfter string
+		wantErr    error
+		wantNil    bool
+	}{
+		{"200 is success", http.StatusOK, "", nil, true},
+		{"429 without Retry-After", http.StatusTooManyRequests, "", ErrRateLimited, false},
+		{"429 with Retry-After", http.StatusTooManyRequests, "7", ErrRateLimited, false},
+		{"401", http.StatusUnauthorized, "", ErrAuthFailure, false},
+		{"403", http.StatusForbidden, "", ErrAuthFailure, false},
+		{"402 insufficient balance is non-retryable", http.StatusPaymentRequired, "", ErrInvalidRequest, false},
+		{"400", http.StatusBadRequest, "", ErrInvalidRequest, false},
+		{"404", http.StatusNotFound, "", ErrInvalidRequest, false},
+		{"500", http.StatusInternalServerError, "", ErrProviderUnavailable, false},
+		{"503", http.StatusServiceUnavailable, "", ErrProviderUnavailable, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := &http.Response{StatusCode: tc.status, Header: http.Header{}}
+			if tc.retryAfter != "" {
+				resp.Header.Set("Retry-After", tc.retryAfter)
+			}
+			err := ClassifyHTTPError("gw/route", resp)
+			if tc.wantNil {
+				if err != nil {
+					t.Fatalf("expected nil, got %v", err)
+				}
+				return
+			}
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want wrapping %v", err, tc.wantErr)
+			}
+			// Every branch names the provider/route so a failure is
+			// attributable from the error alone, including 429 since
+			// RateLimitError gained a Provider field.
+			if !strings.Contains(err.Error(), "gw/route") {
+				t.Errorf("error must name the provider/route: %v", err)
+			}
+			if tc.status == http.StatusTooManyRequests {
+				var rl *RateLimitError
+				if !errors.As(err, &rl) {
+					t.Fatalf("429 must yield *RateLimitError, got %T", err)
+				}
+				want := time.Duration(0)
+				if tc.retryAfter == "7" {
+					want = 7 * time.Second
+				}
+				if rl.RetryAfter != want {
+					t.Errorf("RetryAfter = %v, want %v", rl.RetryAfter, want)
+				}
+			}
+		})
+	}
+}

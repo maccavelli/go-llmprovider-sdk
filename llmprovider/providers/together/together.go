@@ -43,6 +43,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 )
 
 const (
@@ -152,7 +153,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// 1 MiB bounds a runaway reply.
-	return llmprovider.DecodeChatCompletionsResponse(io.LimitReader(resp.Body, 1<<20))
+	return chatcompletions.Decode(io.LimitReader(resp.Body, 1<<20))
 }
 
 // body is the Chat Completions request for req.
@@ -169,12 +170,12 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: req.Instructions}}, input...)
 	}
-	var o llmprovider.ChatCompletionsOpts
+	var o chatcompletions.Opts
 	if r := p.reasoningFor(req); r != nil {
 		o.Reasoning = map[string]any{"enabled": true}
 		o.ReasoningEffort = p.effort(r)
 	}
-	body := llmprovider.ChatCompletionsBody(model, maxTokens, input, o)
+	body := chatcompletions.Body(model, maxTokens, input, o)
 	if len(req.Tools) > 0 {
 		tools := make([]map[string]any, len(req.Tools))
 		for i, tool := range req.Tools {

@@ -39,6 +39,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
 
 const (
@@ -172,7 +173,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	}
 	body := map[string]any{
 		jsonKeyModel: model,
-		jsonKeyInput: llmprovider.ItemsToInput(req.Input),
+		jsonKeyInput: responses.Input(req.Input),
 	}
 	if req.Instructions != "" {
 		body["instructions"] = req.Instructions
@@ -285,9 +286,9 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 		return nil, err
 	}
 	if p.chatGPT {
-		return llmprovider.ReadResponsesStream(llmprovider.ProviderOpenAI, resp.Body)
+		return responses.ReadStream(llmprovider.ProviderOpenAI, resp.Body)
 	}
-	return llmprovider.DecodeResponsesAPIOutput(io.LimitReader(resp.Body, 1<<20))
+	return responses.Decode(io.LimitReader(resp.Body, 1<<20))
 }
 
 // ListModels returns the curated chat models this credential can use, never

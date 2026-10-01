@@ -45,6 +45,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 )
 
 const (
@@ -162,7 +163,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// 1 MiB bounds a runaway reply.
-	return llmprovider.DecodeChatCompletionsResponse(io.LimitReader(resp.Body, 1<<20))
+	return chatcompletions.Decode(io.LimitReader(resp.Body, 1<<20))
 }
 
 // body is the Chat Completions request for req.
@@ -179,7 +180,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: req.Instructions}}, input...)
 	}
-	body := llmprovider.ChatCompletionsBody(model, maxTokens, input, llmprovider.ChatCompletionsOpts{ReasoningEffort: p.effort(req)})
+	body := chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req)})
 	if len(req.Tools) > 0 {
 		// Every tool is offered and none forced: Ollama does not support
 		// tool_choice.

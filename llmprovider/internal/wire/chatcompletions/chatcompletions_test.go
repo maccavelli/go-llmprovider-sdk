@@ -1,11 +1,12 @@
-package llmprovider
+package chatcompletions
 
 import (
 	"errors"
-	"net/http"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
 // Fixtures below are real bodies measured against the live gateways on
@@ -27,7 +28,7 @@ const fixtureKiloReasoning = `{"id":"gen_01M16Q","object":"chat.completion","cre
 
 func TestDecodeChatCompletions_Message(t *testing.T) {
 	body := `{"id":"cmpl-1","choices":[{"message":{"role":"assistant","content":"hello world"}}]}`
-	resp, err := DecodeChatCompletionsResponse(strings.NewReader(body))
+	resp, err := Decode(strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -37,7 +38,7 @@ func TestDecodeChatCompletions_Message(t *testing.T) {
 	if len(resp.Output) != 1 {
 		t.Fatalf("expected 1 item, got %d", len(resp.Output))
 	}
-	if _, ok := resp.Output[0].(MessageItem); !ok {
+	if _, ok := resp.Output[0].(llmprovider.MessageItem); !ok {
 		t.Errorf("output[0] = %T, want MessageItem", resp.Output[0])
 	}
 	if got := resp.OutputText(); got != "hello world" {
@@ -72,13 +73,13 @@ func TestDecodeChatCompletions_ReasoningFieldNames(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, err := DecodeChatCompletionsResponse(strings.NewReader(tc.body))
+			resp, err := Decode(strings.NewReader(tc.body))
 			if err != nil {
 				t.Fatalf("decode: %v", err)
 			}
-			var reasoning []ReasoningItem
+			var reasoning []llmprovider.ReasoningItem
 			for _, it := range resp.Output {
-				if r, ok := it.(ReasoningItem); ok {
+				if r, ok := it.(llmprovider.ReasoningItem); ok {
 					reasoning = append(reasoning, r)
 				}
 			}
@@ -94,7 +95,7 @@ func TestDecodeChatCompletions_ReasoningFieldNames(t *testing.T) {
 					t.Errorf("reasoning = %q, want %q", reasoning[0].Text, tc.wantReasoning)
 				}
 				// Reasoning precedes the message, matching the Responses API order.
-				if _, ok := resp.Output[0].(ReasoningItem); !ok {
+				if _, ok := resp.Output[0].(llmprovider.ReasoningItem); !ok {
 					t.Errorf("output[0] = %T, want ReasoningItem first", resp.Output[0])
 				}
 			}
@@ -109,14 +110,14 @@ func TestDecodeChatCompletions_ReasoningFieldNames(t *testing.T) {
 func TestDecodeChatCompletions_ToolCalls(t *testing.T) {
 	body := `{"choices":[{"message":{"role":"assistant","content":"","tool_calls":[
 	{"id":"chatcmpl-tool-8c37b719","type":"function","function":{"name":"get_weather","arguments":"{\"city\": \"Paris\"}"}}]}}]}`
-	resp, err := DecodeChatCompletionsResponse(strings.NewReader(body))
+	resp, err := Decode(strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(resp.Output) != 1 {
 		t.Fatalf("expected 1 item, got %d", len(resp.Output))
 	}
-	fc, ok := resp.Output[0].(FunctionCallItem)
+	fc, ok := resp.Output[0].(llmprovider.FunctionCallItem)
 	if !ok {
 		t.Fatalf("output[0] = %T, want FunctionCallItem", resp.Output[0])
 	}
@@ -129,151 +130,112 @@ func TestDecodeChatCompletions_ToolCalls(t *testing.T) {
 }
 
 func TestDecodeChatCompletions_Empty(t *testing.T) {
-	if _, err := DecodeChatCompletionsResponse(strings.NewReader(`{"choices":[]}`)); err == nil {
+	if _, err := Decode(strings.NewReader(`{"choices":[]}`)); err == nil {
 		t.Error("expected error for no choices")
 	}
 	empty := `{"choices":[{"message":{"role":"assistant","content":"","tool_calls":null}}]}`
-	if _, err := DecodeChatCompletionsResponse(strings.NewReader(empty)); err == nil {
+	if _, err := Decode(strings.NewReader(empty)); err == nil {
 		t.Error("expected error when content, reasoning and tool_calls are all empty")
 	}
-	if _, err := DecodeChatCompletionsResponse(strings.NewReader(`not json`)); err == nil {
+	if _, err := Decode(strings.NewReader(`not json`)); err == nil {
 		t.Error("expected error for malformed json")
 	}
 }
 
 func TestItemsToChatMessages(t *testing.T) {
-	msgs := itemsToChatMessages([]Item{
-		MessageItem{Text: "no role"},
-		MessageItem{Role: jsonRoleAssistant, Text: "assistant text"},
-		FunctionCallOutputItem{CallID: "call_1", Output: `{"ok":true}`},
-		FunctionCallItem{CallID: "c", Name: "n", Arguments: "{}"}, // its own assistant turn (MADR 0012 §2)
+	msgs := itemsToChatMessages([]llmprovider.Item{
+		llmprovider.MessageItem{Text: "no role"},
+		llmprovider.MessageItem{Role: wire.RoleAssistant, Text: "assistant text"},
+		llmprovider.FunctionCallOutputItem{CallID: "call_1", Output: `{"ok":true}`},
+		llmprovider.FunctionCallItem{CallID: "c", Name: "n", Arguments: "{}"}, // its own assistant turn (MADR 0012 §2)
 	})
 	if len(msgs) != 4 {
 		t.Fatalf("expected 4 messages, got %d", len(msgs))
 	}
-	if calls, ok := msgs[3][jsonKeyToolCalls].([]map[string]any); !ok || len(calls) != 1 || msgs[3][jsonKeyRole] != jsonRoleAssistant {
+	if calls, ok := msgs[3][keyToolCalls].([]map[string]any); !ok || len(calls) != 1 || msgs[3][wire.KeyRole] != wire.RoleAssistant {
 		t.Errorf("function call message = %v, want an assistant turn with one tool call", msgs[3])
 	}
-	if msgs[0][jsonKeyRole] != jsonRoleUser {
-		t.Errorf("empty role should default to user, got %v", msgs[0][jsonKeyRole])
+	if msgs[0][wire.KeyRole] != wire.RoleUser {
+		t.Errorf("empty role should default to user, got %v", msgs[0][wire.KeyRole])
 	}
-	if msgs[1][jsonKeyRole] != jsonRoleAssistant {
-		t.Errorf("assistant role not preserved: %v", msgs[1][jsonKeyRole])
+	if msgs[1][wire.KeyRole] != wire.RoleAssistant {
+		t.Errorf("assistant role not preserved: %v", msgs[1][wire.KeyRole])
 	}
-	if msgs[2][jsonKeyRole] != jsonRoleTool || msgs[2]["tool_call_id"] != "call_1" {
+	if msgs[2][wire.KeyRole] != roleTool || msgs[2]["tool_call_id"] != "call_1" {
 		t.Errorf("tool result message = %v", msgs[2])
 	}
 }
 
 func TestChatCompletionsBody(t *testing.T) {
-	tool := &Tool{Name: "get_weather", Description: "Get weather", Schema: map[string]any{"type": "object"}}
-	input := []Item{MessageItem{Role: jsonRoleUser, Text: "hi"}}
+	tool := &llmprovider.Tool{Name: "get_weather", Description: "Get weather", Schema: map[string]any{"type": "object"}}
+	input := []llmprovider.Item{llmprovider.MessageItem{Role: wire.RoleUser, Text: "hi"}}
 
 	t.Run("no tool, no reasoning", func(t *testing.T) {
-		b := ChatCompletionsBody("big-pickle", 128, input, ChatCompletionsOpts{})
-		if _, ok := b[jsonKeyTools]; ok {
+		b := Body("big-pickle", 128, input, Opts{})
+		if _, ok := b[keyTools]; ok {
 			t.Error("tools must be absent")
 		}
-		if _, ok := b[jsonKeyToolChoice]; ok {
+		if _, ok := b[keyToolChoice]; ok {
 			t.Error("tool_choice must be absent")
 		}
-		if _, ok := b[jsonKeyReasoningEffort]; ok {
+		if _, ok := b[keyReasoningEffort]; ok {
 			t.Error("reasoning_effort must be absent")
 		}
-		if b[jsonKeyMaxTokens] != 128 || b[jsonKeyModel] != "big-pickle" {
+		if b[keyMaxTokens] != 128 || b[keyModel] != "big-pickle" {
 			t.Errorf("body = %v", b)
 		}
 	})
 
 	t.Run("tool without ForceTool omits tool_choice", func(t *testing.T) {
-		b := ChatCompletionsBody("kilo-auto/free", 1, input, ChatCompletionsOpts{Tool: tool})
-		if _, ok := b[jsonKeyTools]; !ok {
+		b := Body("kilo-auto/free", 1, input, Opts{Tool: tool})
+		if _, ok := b[keyTools]; !ok {
 			t.Error("tools must be present")
 		}
-		if _, ok := b[jsonKeyToolChoice]; ok {
+		if _, ok := b[keyToolChoice]; ok {
 			t.Error("tool_choice must be absent when ForceTool is false")
 		}
 	})
 
 	t.Run("tool with ForceTool sends both", func(t *testing.T) {
-		b := ChatCompletionsBody("openai/gpt-oss-20b", 1, input, ChatCompletionsOpts{Tool: tool, ForceTool: true})
-		if _, ok := b[jsonKeyTools]; !ok {
+		b := Body("openai/gpt-oss-20b", 1, input, Opts{Tool: tool, ForceTool: true})
+		if _, ok := b[keyTools]; !ok {
 			t.Error("tools must be present")
 		}
-		tc, ok := b[jsonKeyToolChoice].(map[string]any)
+		tc, ok := b[keyToolChoice].(map[string]any)
 		if !ok {
-			t.Fatalf("tool_choice = %v", b[jsonKeyToolChoice])
+			t.Fatalf("tool_choice = %v", b[keyToolChoice])
 		}
-		fn, ok := tc[jsonKeyFunction].(map[string]any)
-		if !ok || fn[jsonKeyName] != "get_weather" {
-			t.Errorf("tool_choice.function = %v", tc[jsonKeyFunction])
+		fn, ok := tc[keyFunction].(map[string]any)
+		if !ok || fn[wire.KeyName] != "get_weather" {
+			t.Errorf("tool_choice.function = %v", tc[keyFunction])
 		}
 	})
 
 	t.Run("reasoning effort passthrough", func(t *testing.T) {
-		b := ChatCompletionsBody("deepseek-v4-pro", 1, input, ChatCompletionsOpts{ReasoningEffort: effortXHigh})
-		if b[jsonKeyReasoningEffort] != effortXHigh {
-			t.Errorf("reasoning_effort = %v, want %q", b[jsonKeyReasoningEffort], effortXHigh)
+		b := Body("deepseek-v4-pro", 1, input, Opts{ReasoningEffort: string(llmprovider.EffortXHigh)})
+		if b[keyReasoningEffort] != string(llmprovider.EffortXHigh) {
+			t.Errorf("reasoning_effort = %v, want %q", b[keyReasoningEffort], string(llmprovider.EffortXHigh))
 		}
 	})
 }
 
-// TestClassifyHTTPStatus pins the status -> sentinel mapping shared by every
-// gateway provider, including Kilo's documented 402.
-func TestClassifyHTTPStatus(t *testing.T) {
-	tests := []struct {
-		name       string
-		status     int
-		retryAfter string
-		wantErr    error
-		wantNil    bool
-	}{
-		{"200 is success", http.StatusOK, "", nil, true},
-		{"429 without Retry-After", http.StatusTooManyRequests, "", ErrRateLimited, false},
-		{"429 with Retry-After", http.StatusTooManyRequests, "7", ErrRateLimited, false},
-		{"401", http.StatusUnauthorized, "", ErrAuthFailure, false},
-		{"403", http.StatusForbidden, "", ErrAuthFailure, false},
-		{"402 insufficient balance is non-retryable", http.StatusPaymentRequired, "", ErrInvalidRequest, false},
-		{"400", http.StatusBadRequest, "", ErrInvalidRequest, false},
-		{"404", http.StatusNotFound, "", ErrInvalidRequest, false},
-		{"500", http.StatusInternalServerError, "", ErrProviderUnavailable, false},
-		{"503", http.StatusServiceUnavailable, "", ErrProviderUnavailable, false},
+// TestDecodeChat_LengthToolCallIsError: a tool call cut off by the token limit
+// has unusable arguments, so it is an error.
+func TestDecodeChat_LengthToolCallIsError(t *testing.T) {
+	body := `{"id":"c1","choices":[{"finish_reason":"length","message":{"role":"assistant",
+		"tool_calls":[{"id":"t1","function":{"name":"commit","arguments":"{\"subject\":\"fix: tru"}}]}}]}`
+	res, err := Decode(strings.NewReader(body))
+	if err == nil || !errors.Is(err, llmprovider.ErrInvalidRequest) || !strings.Contains(err.Error(), "length") {
+		t.Fatalf("decode = %+v/%v, want an ErrInvalidRequest naming length", res, err)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			resp := &http.Response{StatusCode: tc.status, Header: http.Header{}}
-			if tc.retryAfter != "" {
-				resp.Header.Set("Retry-After", tc.retryAfter)
-			}
-			err := ClassifyHTTPError("gw/route", resp)
-			if tc.wantNil {
-				if err != nil {
-					t.Fatalf("expected nil, got %v", err)
-				}
-				return
-			}
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("err = %v, want wrapping %v", err, tc.wantErr)
-			}
-			// Every branch names the provider/route so a failure is
-			// attributable from the error alone, including 429 since
-			// RateLimitError gained a Provider field.
-			if !strings.Contains(err.Error(), "gw/route") {
-				t.Errorf("error must name the provider/route: %v", err)
-			}
-			if tc.status == http.StatusTooManyRequests {
-				var rl *RateLimitError
-				if !errors.As(err, &rl) {
-					t.Fatalf("429 must yield *RateLimitError, got %T", err)
-				}
-				want := time.Duration(0)
-				if tc.retryAfter == "7" {
-					want = 7 * time.Second
-				}
-				if rl.RetryAfter != want {
-					t.Errorf("RetryAfter = %v, want %v", rl.RetryAfter, want)
-				}
-			}
-		})
+}
+
+// TestDecodeChat_LengthTextKeepsText: a text answer cut by the token limit is
+// still returned, and says so in FinishReason.
+func TestDecodeChat_LengthTextKeepsText(t *testing.T) {
+	body := `{"id":"c1","choices":[{"finish_reason":"length","message":{"role":"assistant","content":"partial ans"}}]}`
+	res, err := Decode(strings.NewReader(body))
+	if err != nil || res.OutputText() != "partial ans" || res.FinishReason != llmprovider.FinishLength {
+		t.Fatalf("decode = %+v/%v, want the text and FinishReason length", res, err)
 	}
 }

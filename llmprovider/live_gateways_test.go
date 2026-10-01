@@ -116,8 +116,13 @@ func getJSON(t *testing.T, url string, into any) int {
 func TestLive_KiloReasoningSpelling(t *testing.T) {
 	ctx, cancel := liveCtx(t)
 	defer cancel()
-	body := ChatCompletionsBody(liveModel(t, ProviderKilo, kiloFreeCollecting...), 400,
-		[]Item{MessageItem{Role: jsonRoleUser, Text: "Say ALPHA only"}}, ChatCompletionsOpts{})
+	// The request is written out, as the other raw probes here are: the Chat
+	// Completions encoder is in internal/wire, which imports this package.
+	body := map[string]any{
+		"model":      liveModel(t, ProviderKilo, kiloFreeCollecting...),
+		"messages":   []map[string]any{{"role": "user", "content": "Say ALPHA only"}},
+		"max_tokens": 400,
+	}
 	raw, err := json.Marshal(body)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

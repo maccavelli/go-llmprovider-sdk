@@ -38,6 +38,8 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
 )
 
 const (
@@ -153,7 +155,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err := llmprovider.ClassifyHTTPError(llmprovider.ProviderClaude, resp); err != nil {
 		return nil, err
 	}
-	return llmprovider.DecodeMessagesResponse(io.LimitReader(resp.Body, 1<<20))
+	return messages.Decode(io.LimitReader(resp.Body, 1<<20))
 }
 
 // body is the Messages request for req.
@@ -169,10 +171,10 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	body := map[string]any{
 		"model":      model,
 		"max_tokens": maxTokens,
-		"messages":   llmprovider.MessagesFromItems(req.Input),
+		"messages":   messages.FromItems(req.Input),
 	}
 	var system []string
-	for _, part := range []string{req.Instructions, llmprovider.SystemPrompt(req.Input)} {
+	for _, part := range []string{req.Instructions, wire.SystemPrompt(req.Input)} {
 		if part != "" {
 			system = append(system, part)
 		}
@@ -214,7 +216,7 @@ func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, m
 			budget = p.reasoning.Budget
 		}
 	}
-	body["max_tokens"] = llmprovider.AddMessagesThinking(body, model, string(effort), budget, maxTokens)
+	body["max_tokens"] = messages.AddThinking(body, model, string(effort), budget, maxTokens)
 	return true
 }
 

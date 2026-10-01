@@ -38,6 +38,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
 const (
@@ -189,7 +190,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		"generation_config": gen,
 	}
 	var system []string
-	for _, part := range []string{req.Instructions, llmprovider.SystemPrompt(req.Input)} {
+	for _, part := range []string{req.Instructions, wire.SystemPrompt(req.Input)} {
 		if part != "" {
 			system = append(system, part)
 		}

@@ -41,6 +41,8 @@ llmprovider/providers/kilo/    Kilo Gateway: Chat Completions
 llmprovider/providers/huggingface/ Hugging Face Inference Providers: Chat Completions
 llmprovider/providers/together/ Together AI: Chat Completions
 llmprovider/providers/ollama/  a local Ollama: Chat Completions
+llmprovider/internal/wire/     what the shared wire formats have in common
+llmprovider/internal/wire/*/   one shared wire format each: responses, chatcompletions, messages, generatecontent
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
@@ -63,15 +65,20 @@ docs/
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider`, the standard library |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
-| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider` |
-| `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider` |
-| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider` |
-| `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider` |
-| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider` |
-| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider` |
-| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider` |
-| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider` |
-| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider` |
+| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `internal/wire/responses` |
+| `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider`, `internal/wire`, `internal/wire/messages` |
+| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `internal/wire` |
+| `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `internal/wire/responses` |
+| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider`, `internal/wire` and its four format packages |
+| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `internal/wire/chatcompletions` |
+| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use | `llmprovider` |
+| `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `ReadStream` | `llmprovider`, `internal/wire` |
+| `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode` | `llmprovider`, `internal/wire` |
+| `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `AddThinking` | `llmprovider`, `internal/wire` |
+| `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 
 ## The contract
@@ -149,21 +156,17 @@ the old API until 0015-PLAN S8 removes it:
   `TokenBearer`. Key sources (`StaticToken`, `CommandToken`) are
   `TokenAPIKey`; sessions are `TokenBearer` and name no `Header`. Every
   provider applies this to generation and listing through `SetTokenHeader`.
-- **Temporary exports.** For 0015-PLAN S7, `llmprovider` exports helpers the
-  moved providers still share with it: the ChatGPT session helpers
+- **The shared wire formats** are in `internal/wire`, one package per format
+  that more than one provider speaks; the Interactions wire is Gemini's
+  alone. A Responses stream's failure is classified by
+  `ClassifyStreamFailure`, beside `ClassifyHTTPError`: both are part of
+  `llmprovider`'s error model.
+- **Temporary exports.** `llmprovider` still exports helpers the provider
+  packages share with it: the ChatGPT session helpers
   (`IsChatGPTSession`, `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`,
-  `ExpireSession`, and four header constants), the Responses wire
-  (`DecodeResponsesAPIOutput`, `ReadResponsesStream`, `ItemsToInput`), the
-  Messages wire, which OpenCode's messages route shares
-  (`MessagesFromItems`, `DecodeMessagesResponse`, `AddMessagesThinking`,
-  `SystemPrompt`), `ToolArguments`, which the Messages, `generateContent`
-  and Interactions wires share, the Chat Completions wire
-  (`ChatCompletionsBody`, `ChatCompletionsOpts`,
-  `DecodeChatCompletionsResponse`), the `generateContent` wire of OpenCode's
-  google route (`GeminiItemsToContents`, `GeminiSystemInstruction`,
-  `GeminiThinkingConfig`, `DecodeGeminiResponse`), and `ClassifyHTTPError`,
-  `ShareHTTPClient`, `ProbeGenerateHealth` and `SetTokenHeader`. S7b moves
-  them to the packages of 0015-MADR D2 and removes the exports. The model
+  `ExpireSession`, and four header constants) and `ShareHTTPClient`, which
+  move in 0015-PLAN S8c, and `ProbeGenerateHealth` and `SetTokenHeader`,
+  which S7b's transport commit moves. The model
   metadata's per-request view, `ModelMetadata` and `LookupModelMetadata`,
   and Kilo's endpoint resolver, `KiloGatewayFor`, move to `catalog` in S8b.
 - **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.

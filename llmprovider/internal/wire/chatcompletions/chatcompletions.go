@@ -1,17 +1,39 @@
-package llmprovider
+// Package chatcompletions is the OpenAI Chat Completions wire, shared by
+// Hugging Face, Kilo, Together, Ollama and OpenCode's chat route (0015-MADR
+// D2).
+package chatcompletions
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
-// ChatCompletionsOpts carries the per-gateway variations of a Chat Completions
-// request. Zero values omit the corresponding field entirely.
-type ChatCompletionsOpts struct {
+// Chat Completions field names only this format uses.
+const (
+	keyModel           = "model"
+	keyMessages        = "messages"
+	keyMaxTokens       = "max_tokens"
+	keyTools           = "tools"
+	keyToolChoice      = "tool_choice"
+	keyToolCalls       = "tool_calls"
+	keyFunction        = "function"
+	keyDescription     = "description"
+	keyParameters      = "parameters"
+	keyReasoningEffort = "reasoning_effort"
+	keyReasoning       = "reasoning"
+	roleTool           = "tool"
+)
+
+// Opts carries the per-gateway variations of a Chat Completions request. Zero
+// values omit the corresponding field entirely.
+type Opts struct {
 	// Tool, when non-nil, is offered to the model.
-	Tool *Tool
+	Tool *llmprovider.Tool
 	// ForceTool sends tool_choice pinning Tool. Kilo gates tool_choice on the
 	// model's supported_parameters, so it is separable from offering the tool.
 	ForceTool bool
@@ -31,7 +53,7 @@ type ChatCompletionsOpts struct {
 // messages. A function call becomes the assistant turn's tool_calls entry,
 // and its result a role:"tool" message keyed by tool_call_id, the Chat
 // Completions equivalent of the Responses API's function_call_output item.
-func itemsToChatMessages(items []Item) []map[string]any {
+func itemsToChatMessages(items []llmprovider.Item) []map[string]any {
 	return itemsToChatMessagesReplaying(items, "")
 }
 
@@ -39,59 +61,59 @@ func itemsToChatMessages(items []Item) []map[string]any {
 // puts the reasoning preceding each assistant message into that field, and
 // sets it (possibly "") on every assistant message, as OpenCode's client does
 // for interleaved models (MADR 0012 §2, O5).
-func itemsToChatMessagesReplaying(items []Item, field string) []map[string]any {
+func itemsToChatMessagesReplaying(items []llmprovider.Item, field string) []map[string]any {
 	var messages []map[string]any
 	var pending strings.Builder
 	for _, item := range items {
 		switch v := item.(type) {
-		case ReasoningItem:
+		case llmprovider.ReasoningItem:
 			pending.WriteString(v.Text)
-		case MessageItem:
+		case llmprovider.MessageItem:
 			role := v.Role
 			if role == "" {
-				role = jsonRoleUser
+				role = wire.RoleUser
 			}
 			messages = append(messages, map[string]any{
-				jsonKeyRole:    role,
-				jsonKeyContent: v.Text,
+				wire.KeyRole:    role,
+				wire.KeyContent: v.Text,
 			})
-		case FunctionCallItem:
+		case llmprovider.FunctionCallItem:
 			call := map[string]any{
-				"id":        v.CallID,
-				jsonKeyType: jsonKeyFunction,
-				jsonKeyFunction: map[string]any{
-					jsonKeyName:      v.Name,
-					jsonKeyArguments: v.Arguments,
+				"id":         v.CallID,
+				wire.KeyType: keyFunction,
+				keyFunction: map[string]any{
+					wire.KeyName:      v.Name,
+					wire.KeyArguments: v.Arguments,
 				},
 			}
 			// A call joins the assistant turn it follows (its text, or the
 			// calls before it); otherwise it opens one (MADR 0012 §2).
-			if n := len(messages); n > 0 && messages[n-1][jsonKeyRole] == jsonRoleAssistant {
-				calls, ok := messages[n-1][jsonKeyToolCalls].([]map[string]any)
+			if n := len(messages); n > 0 && messages[n-1][wire.KeyRole] == wire.RoleAssistant {
+				calls, ok := messages[n-1][keyToolCalls].([]map[string]any)
 				if !ok {
 					calls = nil
 				}
-				messages[n-1][jsonKeyToolCalls] = append(calls, call)
+				messages[n-1][keyToolCalls] = append(calls, call)
 				continue
 			}
 			messages = append(messages, map[string]any{
-				jsonKeyRole:      jsonRoleAssistant,
-				jsonKeyContent:   "",
-				jsonKeyToolCalls: []map[string]any{call},
+				wire.KeyRole:    wire.RoleAssistant,
+				wire.KeyContent: "",
+				keyToolCalls:    []map[string]any{call},
 			})
-		case FunctionCallOutputItem:
+		case llmprovider.FunctionCallOutputItem:
 			messages = append(messages, map[string]any{
-				jsonKeyRole:    jsonRoleTool,
-				"tool_call_id": v.CallID,
-				jsonKeyContent: v.Output,
+				wire.KeyRole:    roleTool,
+				"tool_call_id":  v.CallID,
+				wire.KeyContent: v.Output,
 			})
 		}
 		if field == "" {
 			continue
 		}
 		// The reasoning belongs to the assistant turn it precedes.
-		if n := len(messages); n > 0 && messages[n-1][jsonKeyRole] == jsonRoleAssistant {
-			if _, isReasoning := item.(ReasoningItem); !isReasoning {
+		if n := len(messages); n > 0 && messages[n-1][wire.KeyRole] == wire.RoleAssistant {
+			if _, isReasoning := item.(llmprovider.ReasoningItem); !isReasoning {
 				prior, _ := messages[n-1][field].(string) //nolint:errcheck // absent is ""
 				messages[n-1][field] = prior + pending.String()
 				pending.Reset()
@@ -101,42 +123,40 @@ func itemsToChatMessagesReplaying(items []Item, field string) []map[string]any {
 	return messages
 }
 
-// ChatCompletionsBody builds an OpenAI Chat Completions request body shared by
-// every gateway in this package that speaks the format.
-// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
-func ChatCompletionsBody(model string, maxTokens int, input []Item, o ChatCompletionsOpts) map[string]any {
+// Body builds an OpenAI Chat Completions request body.
+func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[string]any {
 	body := map[string]any{
-		jsonKeyModel:     model,
-		jsonKeyMessages:  itemsToChatMessagesReplaying(input, o.ReplayReasoningField),
-		jsonKeyMaxTokens: maxTokens,
+		keyModel:     model,
+		keyMessages:  itemsToChatMessagesReplaying(input, o.ReplayReasoningField),
+		keyMaxTokens: maxTokens,
 	}
 	if o.Tool != nil {
-		body[jsonKeyTools] = []map[string]any{{
-			jsonKeyType: jsonKeyFunction,
-			jsonKeyFunction: map[string]any{
-				jsonKeyName:        o.Tool.Name,
-				jsonKeyDescription: o.Tool.Description,
-				jsonKeyParameters:  o.Tool.Schema,
+		body[keyTools] = []map[string]any{{
+			wire.KeyType: keyFunction,
+			keyFunction: map[string]any{
+				wire.KeyName:   o.Tool.Name,
+				keyDescription: o.Tool.Description,
+				keyParameters:  o.Tool.Schema,
 			},
 		}}
 		if o.ForceTool {
-			body[jsonKeyToolChoice] = map[string]any{
-				jsonKeyType:     jsonKeyFunction,
-				jsonKeyFunction: map[string]any{jsonKeyName: o.Tool.Name},
+			body[keyToolChoice] = map[string]any{
+				wire.KeyType: keyFunction,
+				keyFunction:  map[string]any{wire.KeyName: o.Tool.Name},
 			}
 		}
 	}
 	if o.ReasoningEffort != "" {
-		body[jsonKeyReasoningEffort] = o.ReasoningEffort
+		body[keyReasoningEffort] = o.ReasoningEffort
 	}
 	if o.Reasoning != nil {
-		body[jsonKeyReasoning] = o.Reasoning
+		body[keyReasoning] = o.Reasoning
 	}
 	return body
 }
 
-// DecodeChatCompletionsResponse decodes an OpenAI Chat Completions envelope into
-// a canonical Response.
+// Decode decodes an OpenAI Chat Completions envelope into a canonical
+// Response.
 //
 // Reasoning has two competing vendor spellings, both undocumented, both measured
 // 2026-08-28/29:
@@ -147,12 +167,11 @@ func ChatCompletionsBody(model string, maxTokens int, input []Item, o ChatComple
 // Both are accepted; reasoning_content wins when both are present. Kilo also
 // sends message.reasoning_details[] ({type:"reasoning.text", text}), a structured
 // restatement of the same trace; it is deliberately NOT decoded, because
-// ReasoningItem carries a single Text field (item.go:44-51) and parsing both
-// would create two sources of truth for one value.
+// ReasoningItem carries a single Text field and parsing both would create two
+// sources of truth for one value.
 //
 // Absent reasoning is normal, never an error.
-// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
-func DecodeChatCompletionsResponse(body io.Reader) (*Response, error) {
+func Decode(body io.Reader) (*llmprovider.Response, error) {
 	var raw struct {
 		ID      string `json:"id"`
 		Choices []struct {
@@ -180,31 +199,31 @@ func DecodeChatCompletionsResponse(body io.Reader) (*Response, error) {
 	}
 
 	msg := raw.Choices[0].Message
-	finish := raw.Choices[0].FinishReason
+	finish := llmprovider.FinishReason(raw.Choices[0].FinishReason)
 	// A tool call cut by the token limit has unusable arguments (MADR 0012 §1.5).
-	if finish == finishReasonLength && len(msg.ToolCalls) > 0 {
-		return nil, &IncompleteError{Reason: finishReasonLength}
+	if finish == llmprovider.FinishLength && len(msg.ToolCalls) > 0 {
+		return nil, &llmprovider.IncompleteError{Reason: string(llmprovider.FinishLength)}
 	}
-	// The response id is not a resumable conversation handle on any gateway in
-	// this package, so it is carried for logging only.
-	result := &Response{ID: raw.ID, FinishReason: FinishReason(finish)}
+	// The response id is not a resumable conversation handle on any gateway
+	// that speaks this format, so it is carried for logging only.
+	result := &llmprovider.Response{ID: raw.ID, FinishReason: finish}
 
 	reasoning := msg.ReasoningContent
 	if reasoning == "" {
 		reasoning = msg.Reasoning
 	}
 	if strings.TrimSpace(reasoning) != "" {
-		result.Output = append(result.Output, ReasoningItem{Text: reasoning})
+		result.Output = append(result.Output, llmprovider.ReasoningItem{Text: reasoning})
 	}
 	if msg.Content != "" {
 		role := msg.Role
 		if role == "" {
-			role = jsonRoleAssistant
+			role = wire.RoleAssistant
 		}
-		result.Output = append(result.Output, MessageItem{Role: role, Text: msg.Content})
+		result.Output = append(result.Output, llmprovider.MessageItem{Role: role, Text: msg.Content})
 	}
 	for _, tc := range msg.ToolCalls {
-		result.Output = append(result.Output, FunctionCallItem{
+		result.Output = append(result.Output, llmprovider.FunctionCallItem{
 			CallID:    tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: tc.Function.Arguments,

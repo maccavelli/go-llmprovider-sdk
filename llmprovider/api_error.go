@@ -204,14 +204,16 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 	return e
 }
 
-// streamFailure classifies a response.failed event, which arrives inside a 200
-// stream, as Codex's parse_failed_response does
-// (codex-api/src/sse/responses_error.rs): quota and entitlement codes are
-// terminal (MADR 0012 §1.1), context_length_exceeded is a context overflow,
-// invalid_prompt is an invalid request, rate_limit_exceeded and slow_down are
-// rate limits, and anything else is retryable. The APIError's Status is 0:
-// there is no HTTP status.
-func streamFailure(provider, code, errType, message string) error {
+// ClassifyStreamFailure classifies a failure reported inside a 200 event
+// stream, such as the Responses API's response.failed, as Codex's
+// parse_failed_response does (codex-api/src/sse/responses_error.rs): quota and
+// entitlement codes are terminal (MADR 0012 §1.1), context_length_exceeded is a
+// context overflow, invalid_prompt is an invalid request, rate_limit_exceeded
+// and slow_down are rate limits, and anything else is retryable. The
+// APIError's Status is 0: there is no HTTP status. It is part of the error
+// model, for any provider's stream reader (0015-MADR, amendment "S7b's import
+// graph").
+func ClassifyStreamFailure(provider, code, errType, message string) error {
 	env := apiErrorEnvelope{msg: message}
 	for _, t := range []string{code, errType} {
 		if t != "" && !env.hasType(t) {

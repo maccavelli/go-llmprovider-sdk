@@ -286,6 +286,12 @@ For each provider:
 
 ### Phase S7b: extract `internal/wire`, `internal/transport`, `auth` and `catalog`
 
+*Amended 2026-10-01 (0015-MADR, amendment "S7b's import graph", proposed):* steps 1–7 below, as written, do not
+compile: `llmprovider`'s remaining code uses the transport helpers and the
+session types. They are superseded by "S7b as amended", after step 7. S7b is
+two commits, wire then transport; `auth` moves in the new Phase S8c, after
+S8b. The original steps are kept for the record.
+
 *Added 2026-09-30, from the original S3, S4 step 1 and S5 step 1.* It runs
 once no provider is left in `llmprovider`. *(Amended 2026-09-30, decision 2
 of that date's S7 prerequisites: step 4, the `catalog` extraction, moves to
@@ -329,6 +335,64 @@ commit, in this order: wire, transport, `auth`, `catalog`.
    **Check:** `go doc -all ./llmprovider` names none of the identifiers the S7
    records list.
 7. Gate after each of the four commits, including G-wire unchanged.
+
+#### S7b as amended (2026-10-01, 0015-MADR, amendment "S7b's import graph", proposed)
+
+**Commit 1, wire.** Each moved file goes with plain `mv` where it moves
+whole; a file split between packages is recorded with where each part went.
+
+1. **`internal/wire`** (package `wire`) holds what the formats share: the
+   JSON keys they use, `ToolArguments` and `SystemPrompt`
+   (`item_convert.go`).
+2. **One package per shared format**, each importing `internal/wire` and
+   `llmprovider`. Names lose the format prefix the package now carries, so
+   that none stutters under `revive`:
+
+   | Package | From | Exported |
+   |---|---|---|
+   | `internal/wire/responses` | the Responses half of `http_helpers.go` | `Input` (`ItemsToInput`), `Decode` (`DecodeResponsesAPIOutput`), `ReadStream` (`ReadResponsesStream`) |
+   | `internal/wire/chatcompletions` | `chatcompletions.go` | `Opts`, `Body`, `Decode` |
+   | `internal/wire/messages` | `messages_wire.go`, and the Anthropic half of `thinking_wire.go` | `FromItems`, `Decode`, `AddThinking` |
+   | `internal/wire/generatecontent` | `generatecontent_wire.go`, and the Gemini half of `thinking_wire.go` | `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` |
+
+   `Response.appendOutput` becomes a function in `responses` (original
+   step 5). `GeminiProvider.interactionsBody` no longer exists: the
+   Interactions wire stays in `providers/gemini`.
+3. **`llmprovider` exports `ClassifyStreamFailure`**, which was
+   `streamFailure`, for good. `ReadStream` calls it.
+4. **Tests move with the code they test.** A test of more than one format,
+   such as `item_fidelity_test.go`, goes to `internal/wire` as an external
+   test package. Each test's destination is recorded.
+5. **The provider packages import the new packages**, and the wire's
+   temporary exports are removed.
+6. **Coverage.** Each new package holds D13's 80 % from its own tests. A
+   package below it stops the commit, as a deviation.
+7. **Gate**, with G-wire unchanged and no `-update`.
+
+**Commit 2, transport.**
+
+1. **`internal/transport`** imports only the standard library and
+   `internal/redact`. It holds:
+   * `DefaultClient` (`defaultHTTPClient`);
+   * `Identity`, with `UserAgent` and `SetUserAgent` (`clientIdentity`), and
+     the build versions it reads;
+   * `CloseBody` (`closeResponseBody`);
+   * `ParseRetryAfter` (`parseRetryAfter`);
+   * `ProbeGenerateHealth`, with its limit passed in (`probe.go`).
+2. **`llmprovider` imports it.** `identityOf` stays in `llmprovider`, to
+   build an `Identity` from `ProviderConfig`.
+3. **R16's helper** becomes `Token.Apply(req, header, scheme)`, replacing
+   `SetTokenHeader`. `ClassifyHTTPError` loses its temporary label.
+4. **Tests move with the code**, as in commit 1.
+5. **The provider packages** use `transport.ProbeGenerateHealth` and
+   `Token.Apply`, and the transport temporary exports are removed.
+6. **Check.** `go doc -all ./llmprovider` names none of the wire or
+   transport temporary exports the S7 records list. The ones left are
+   listed in the record: the session exports, for S8c, and the catalog's,
+   for S8b.
+7. **Coverage** as in commit 1, for `internal/transport`; gate.
+
+`llmprovider` stays measured with `-coverpkg=./llmprovider` until S8c.
 
 ### Phase S8: registry, `wizard`, and removal of the old API
 
@@ -376,6 +440,28 @@ in `llmprovider` refers to `ModelProfile`.
    gains the `For` exception. `wizard` passes one option list through the
    `Registry`.
 5. Gate.
+
+### Phase S8c: extract `auth`
+
+*Added 2026-10-01 (0015-MADR, amendment "S7b's import graph", proposed).* It runs after S8b, once
+`discovery.go` has left `llmprovider`.
+
+1. **The ChatGPT listing** (`listChatGPTModels`) and the ChatGPT session
+   helpers move to `providers/openai`. These are `IsChatGPTSession`,
+   `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`, `ExpireSession` and
+   the four header constants. The catalog's listing stops special-casing a
+   ChatGPT session; `openai`'s `ListModels` lists one itself.
+2. **S7b's original step 3:** `git mv` into `llmprovider/auth` the files it
+   lists, with their tests. `auth` imports `llmprovider` and
+   `internal/transport`.
+3. **The provider packages and `wizard` import `auth`**, and the remaining
+   session temporary exports are removed.
+   **Check:** `go doc -all ./llmprovider` names none of the identifiers the
+   S7 records list.
+4. **Coverage.** The `-coverpkg` measurement of `llmprovider` ends.
+   `llmprovider` is measured by its own tests against its `P7` 89.2 %, and
+   `auth` holds 80 %. A shortfall stops the phase, as a deviation.
+5. Gate, including G-wire unchanged.
 
 ### Phase S9: usage
 
@@ -510,8 +596,8 @@ commits:
 
 | 0015 phase | 0016 step |
 |---|---|
-| S3 (in `llmprovider`; moves to `internal/transport` in S7b, amended 2026-09-30) | T1: proxy and one client per provider (D8) |
-| S4 (in place; moves to `auth` in S7b) | T2: durable writes, rotation kept, redaction, device handle, OAuth checks with `id_token` signature verification (D3–D7) |
+| S3 (in `llmprovider`; moves to `internal/transport` in S7b, amended 2026-09-30; only what needs no `llmprovider` type, amended 2026-10-01) | T1: proxy and one client per provider (D8) |
+| S4 (in place; moves to `auth` in ~~S7b~~ S8c, amended 2026-10-01) | T2: durable writes, rotation kept, redaction, device handle, OAuth checks with `id_token` signature verification (D3–D7) |
 | S5 (in place; moves to `catalog` in S7b) | T3 step 2: no billed probe by default (D9) |
 | S7 (providers) | T3 step 1: every provider takes a `TokenSource` (D2) |
 | S8 (`wizard`) | T4: one refresh-token copy, logout, `Result` redaction (D11, D5) |
@@ -2719,3 +2805,130 @@ Staged for the owner to commit.
 * **S7's provider moves are complete.** Every provider is in its own package
   and in `Default()`. The old API's types remain until S8. S7b, which
   removes the temporary exports, is next.
+
+### Amendment 2026-10-01: S7b's import graph (proposed)
+
+* **Found** in S7b's read-only survey, at `d8c6eb1`, before any change.
+  The facts, with their file and line, are in 0015-MADR, amendment "S7b's import graph":
+  * steps 2 and 3, transport and `auth`, would make `llmprovider` and the
+    new package import each other;
+  * step 1's `gemini_interactions.go` and step 5's
+    `GeminiProvider.interactionsBody` moved with Gemini in S7;
+  * the formats share code the step's "one package per format" leaves
+    without a home.
+* **Decided.** Asked on 2026-10-01, the owner chose:
+  * "stdlib-only transport";
+  * "after S8b, ChatGPT bits to openai";
+  * "stay in `providers/gemini`" for Interactions;
+  * "shared root + per format" for the wire.
+* **Written from those choices,** for the owner to check:
+  * `SetTokenHeader` becomes `Token.Apply`;
+  * the format packages' names lose their prefix;
+  * the coverage rule now runs until S8c.
+* **Changed.** S7b's steps are amended, a new Phase S8c holds `auth`, and the
+  0016 table's S3 and S4 rows are annotated. The MADR amendment is
+  `proposed`; nothing is implemented until the owner approves it.
+* **Approved** 2026-10-01: the owner answered "proceed", including the three
+  points written from the choices. The MADR amendment is `accepted`.
+
+### Phase S7b, commit 1: `internal/wire` (2026-10-01)
+
+Under "S7b as amended". Staged for the owner to commit.
+
+* **Moved** with plain `mv`, then rewritten in place:
+
+  | From `llmprovider` | To |
+  |---|---|
+  | `item_convert.go` | `internal/wire/wire.go`, with the shared JSON keys and `LowEffortThinkingBudget` |
+  | `chatcompletions.go` | `internal/wire/chatcompletions/chatcompletions.go` |
+  | `messages_wire.go`, and the Anthropic half of `thinking_wire.go` | `internal/wire/messages/messages.go` |
+  | `generatecontent_wire.go`, and the Gemini half of `thinking_wire.go` | `internal/wire/generatecontent/generatecontent.go` |
+  | the Responses half of `http_helpers.go` | `internal/wire/responses/responses.go` (new) |
+
+  * `http_helpers.go` keeps `closeResponseBody`, for the transport commit.
+  * `thinking_wire.go` is removed, as both halves moved.
+  * `Response.appendOutput` is the function `appendOutput` in `responses`.
+  * The keys only one format uses are that package's own constants.
+* **Renamed,** as the amended step's table says. The provider packages call
+  the new names: `opencode` imports all five packages, and each other
+  provider the ones it speaks.
+* **`ClassifyStreamFailure`** is the exported `streamFailure`, for good;
+  `responses.ReadStream` calls it.
+* **Tests moved:**
+
+  | From `llmprovider` | To |
+  |---|---|
+  | `chatcompletions_test.go`, less `TestClassifyHTTPStatus` | `chatcompletions/chatcompletions_test.go` |
+  | `TestClassifyHTTPStatus` | `api_error_test.go`, as it tests `ClassifyHTTPError` |
+  | `truncation_test.go`, `truncation_api_test.go` | `chatcompletions` (the two Chat Completions tests) and `responses/responses_test.go` (the two Responses tests); both files removed |
+  | `generatecontent_wire_test.go` | `generatecontent/generatecontent_test.go` |
+  | `item_signature_test.go` | `generatecontent/signature_test.go`, with its own JSON comparison |
+  | `item_fidelity_test.go` | `internal/wire/fidelity_test.go`, package `wire_test`, reading Chat Completions' messages through `chatcompletions.Body` |
+
+  `live_gateways_test.go`'s Kilo probe writes its request body out, as the
+  other raw probes do. An in-package test cannot import `chatcompletions`,
+  which imports `llmprovider`.
+* **Deviation, 2026-10-01: the new packages' own coverage.**
+  * **Found.** From their own tests, after the move:
+    * `internal/wire` 36.4 %;
+    * `chatcompletions` 82.9 %;
+    * `generatecontent` 66.7 %;
+    * `messages` 0.0 %;
+    * `responses` 11.3 %.
+
+    Counting every test under `./llmprovider/...`, they were 81.8 %,
+    98.7 %, 95.7 %, 93.9 % and 90.1 %. The provider packages test the wire
+    through `Generate`, and none called a wire function directly.
+  * **Decided.** The owner chose "write wire unit tests". The other option
+    was to count every test, as `llmprovider` does until S8c.
+  * **Added:**
+    * `wire/wire_test.go`: `ToolArguments`, `SystemPrompt`;
+    * `responses/wire_test.go`: `Input`, `Decode`, and `ReadStream`'s
+      events, early end and read error;
+    * `messages/messages_test.go`: `FromItems`, `Decode`,
+      `claudeAdaptiveOnly`, `AddThinking`;
+    * `generatecontent/wire_test.go`: `SystemInstruction`, `Contents` for a
+      result without its call, `Decode`'s errors, `ThinkingConfig`.
+  * **After:** `internal/wire` 100.0 %, `chatcompletions` 82.9 %,
+    `generatecontent` 91.3 %, `messages` 96.3 %, `responses` 100.0 %.
+* **Breaks** for the new tests, each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | `ToolArguments` drops a non-object | `ToolArguments("[\"not\",\"an\",\"object\"]") = map[], want map[arguments:…]` |
+  | `SystemPrompt` keeps empty system text | `SystemPrompt = "Be brief.\n\n\n\nAnswer in French."` |
+  | `Input` drops the call id | `Input = [… {"arguments":…,"name":"get_weather","type":"function_call"} …]` |
+  | `Decode` keeps an empty message | `Decode = &{ID:r1 … {Role:assistant Text:} …}` |
+  | `Decode` ignores text-typed content | `output[1] = … Text:"hel"}, want … Text:"hello"}` |
+  | no default reason for an incomplete answer | `incomplete with no reason: … response incomplete: , want reason unspecified` |
+  | the stream ignores `response.created` | `ReadStream = &{ID: …}, <nil>; want r0` |
+  | the stream ignores `response.failed` | `err = … stream ended before response.completed, want llmprovider: context window exceeded` |
+  | an early end is a success | `err = <nil>, want the early-end error` |
+  | results do not share a user turn | `FromItems = [… {"content":[{"content":"sunny",…}],"role":"user"},{"content":[{"content":"noon",…` |
+  | thinking's text fallback dropped | `Decode = [{Text:plan} {Text:} …], want [{plan} {fallback} …]` |
+  | Claude 4.7 takes a budget | `claudeAdaptiveOnly("claude-4.7-opus") = false, want true` |
+  | low effort keeps the default budget | `low effort: body {"thinking":{"budget_tokens":4096,…}}` |
+  | `max_tokens` not raised | `max_tokens raised: … max_tokens 4096; want …, 8192` |
+  | `SystemInstruction` never nil | `no system items: map[parts:[map[text:]]], want nil` |
+  | a result without its call has no name | `…"functionResponse":{"name":"",…` |
+  | legacy Gemini takes a level | `got {"includeThoughts":true,"thinkingLevel":"low"}` |
+  | an empty thought kept | `an empty thought: &{… Output:[{Text:} {Role:assistant Text:ok}] …}; want only the text` |
+  | a stream overflow is not an overflow | `err = llm: provider unavailable: p stream context_length_exceeded: too long, want llmprovider: context window exceeded`, and `TestContextOverflow_StreamFailure` |
+
+  "Results do not share a user turn" did not compile as first written. It was
+  rewritten to stop the user-turn merge, and ran again.
+* **Lint** found three constants in `llmprovider/constants.go` unused once
+  the wire had moved: `jsonKeyToolCalls`, `geminiRoleModel` and
+  `geminiSkipThoughtSignature`. All three were removed.
+* **Check.** `go doc -all ./llmprovider` names none of the 15 wire
+  identifiers S7 exported. It names `ClassifyStreamFailure`, which shows the
+  search finds a name that is there.
+* **G-wire.** All 100 goldens unchanged, with no `-update`.
+* **Coverage.** `llmprovider` 88.0 % from its own tests and 90.6 % over
+  `./llmprovider/...`, against its `P7` 89.2 %.
+* **Links.** G-links found one link to a moved file, in
+  `0003-PLAN-add-grok-xai-llm-provider.md` (line 57, to
+  `generatecontent_wire.go`). It points at the moved file under the openai
+  commit's rule; its text is kept.
+* **Docs.** `architecture.md` lists the five packages and what each provider
+  imports. Its temporary-export paragraph names only what is left.

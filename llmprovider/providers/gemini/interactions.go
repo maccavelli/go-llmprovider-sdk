@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
 // The provider's wire is the Interactions API, POST {base}/interactions
@@ -81,7 +82,7 @@ func interactionsInput(items []llmprovider.Item) []map[string]any {
 			steps = append(steps,
 				map[string]any{jsonKeyType: interactionStepThought, "signature": signature},
 				map[string]any{jsonKeyType: interactionStepFunctionCall, "id": v.CallID, jsonKeyName: v.Name,
-					jsonKeyArguments: llmprovider.ToolArguments(v.Arguments)})
+					jsonKeyArguments: wire.ToolArguments(v.Arguments)})
 		case llmprovider.FunctionCallOutputItem:
 			name := names[v.CallID]
 			if name == "" {

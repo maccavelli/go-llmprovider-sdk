@@ -45,6 +45,7 @@ import (
 	"net/http"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 )
 
 // The wire shapes here were measured against the live gateway on the date
@@ -236,7 +237,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// 1 MiB bounds a runaway reply.
-	return llmprovider.DecodeChatCompletionsResponse(io.LimitReader(resp.Body, 1<<20))
+	return chatcompletions.Decode(io.LimitReader(resp.Body, 1<<20))
 }
 
 // body is the Chat Completions request for req.
@@ -254,7 +255,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: req.Instructions}}, input...)
 	}
 	effort, reasoning := p.reasoningFields(req)
-	body := llmprovider.ChatCompletionsBody(model, maxTokens, input, llmprovider.ChatCompletionsOpts{
+	body := chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{
 		ReasoningEffort: effort,
 		Reasoning:       reasoning,
 	})

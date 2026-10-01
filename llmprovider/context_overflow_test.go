@@ -75,9 +75,9 @@ func TestContextOverflow_Types(t *testing.T) {
 }
 
 func TestContextOverflow_StreamFailure(t *testing.T) {
-	err := streamFailure(ProviderOpenAI, "context_length_exceeded", "invalid_request_error", "Your input exceeds the context window of this model.")
+	err := ClassifyStreamFailure(ProviderOpenAI, "context_length_exceeded", "invalid_request_error", "Your input exceeds the context window of this model.")
 	assertOverflow(t, err)
-	if err := streamFailure(ProviderOpenAI, "invalid_prompt", "", "bad"); errors.Is(err, ErrContextOverflow) || !errors.Is(err, ErrInvalidRequest) {
+	if err := ClassifyStreamFailure(ProviderOpenAI, "invalid_prompt", "", "bad"); errors.Is(err, ErrContextOverflow) || !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("invalid_prompt: %v; want ErrInvalidRequest only", err)
 	}
 }

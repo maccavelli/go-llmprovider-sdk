@@ -597,3 +597,122 @@ Status: **accepted** 2026-10-01 by the owner.
   packages already test. They would duplicate those tests, grow with every
   later move, and move again in S7b. A lower floor was not offered, as it
   loosens the check.
+
+## Amendment 2026-10-01: S7b's import graph (proposed)
+
+Status: **accepted** 2026-10-01. The owner chose each resolution below when
+asked on 2026-10-01, and approved the amendment as written ("proceed")
+before 0015-PLAN S7b started.
+
+### Fact found
+
+0015-PLAN S7b was to run "once no provider is left in `llmprovider`", on
+the reading that the extracted packages could then import `llmprovider`
+without a cycle. A read-only survey at `d8c6eb1`, after S7's last move,
+found that `llmprovider`'s own remaining code uses what S7b moves:
+
+* **Transport.** `settings.go:35` and `:143` build the default client and
+  the client identity; `settings.go` stays in `llmprovider` for good.
+  `discovery.go` and `model_metadata.go` (`:251`, `:256`) set the
+  User-Agent and close response bodies until 0015-PLAN S8b moves them. D2
+  lets `internal/transport` import `llmprovider`, for error
+  classification, so `llmprovider` could not import it back.
+* **Auth.** `discovery.go:102` sends a ChatGPT login to its own listing.
+  The ChatGPT session helpers in `openai_chatgpt.go:25-35` type-switch on
+  `*OAuthSession` and `*VendorCLISession`. The OAuth code uses the transport
+  helpers too (`oauth_session.go:312`, `:392`), but D2 lets `auth` import
+  only `llmprovider`.
+* **Wire.** Nothing outside the wire files calls the wire code, so it can
+  move. But:
+  * the Interactions wire moved to `providers/gemini` with Gemini in S7,
+    its only user;
+  * the formats share JSON keys, `ToolArguments` and `SystemPrompt`;
+  * the Responses stream reader (`http_helpers.go:190-192`) calls
+    `streamFailure`, part of the error classification.
+
+As written, S7b's transport and `auth` steps do not compile.
+
+### Decided (proposed)
+
+* **D2, `internal/transport`.** It holds what needs only the standard
+  library and `internal/redact`:
+  * the default client;
+  * the client identity and its User-Agent;
+  * closing a response body;
+  * `Retry-After` parsing;
+  * the listing probe, with its limit passed in.
+
+  It imports nothing else in this module. `llmprovider`, `auth`, `catalog`
+  and the provider packages import it.
+* **D2 and D7, classification stays in `llmprovider`.** Turning an HTTP
+  response or a stream failure into an `*APIError` is part of the error
+  model, so it stays in `llmprovider`, exported for good:
+  * `ClassifyHTTPError`;
+  * `streamFailure`, exported as `ClassifyStreamFailure`.
+
+  A provider outside this module, registered through D10's `Registry`,
+  needs both.
+* **R16's helper is a method on `Token`.** `SetTokenHeader` needs
+  `llmprovider.Token`, so it cannot be in a transport package that imports
+  only the standard library. It becomes `Token.Apply(req, header, scheme)`:
+  R16's own words, "a provider applies the token", and as usable by an
+  outside provider as the classifiers are.
+* **D2, `internal/wire/...`.**
+  * `internal/wire` holds what the formats share: the JSON keys,
+    `ToolArguments` and `SystemPrompt`.
+  * One package per shared format, each importing `internal/wire` and
+    `llmprovider`:
+    * `internal/wire/responses`;
+    * `internal/wire/chatcompletions`;
+    * `internal/wire/messages`, with Anthropic thinking;
+    * `internal/wire/generatecontent`, with Gemini thinking.
+  * Interactions stays in `providers/gemini`, its only user. D2's "five
+    formats" reads "the four formats more than one provider shares".
+* **D2, `auth` and `catalog` may import `internal/transport`.**
+* **D2, `llmprovider` may import `internal/redact`**, which it already
+  does, and `internal/transport`.
+* **`auth` moves after `catalog`.**
+  * 0015-PLAN S8b moves `discovery.go` out of `llmprovider`.
+  * Then the ChatGPT listing and the ChatGPT session helpers move to
+    `providers/openai`, their only user once the listing has moved. These
+    are `IsChatGPTSession`, `ChatGPTSessionAccountID`,
+    `ChatGPTSessionFedRAMP`, `ExpireSession` and the header constants.
+  * Then `auth` is extracted.
+
+  The session exports stay in `llmprovider` until then.
+* **Coverage.** The 2026-10-01 coverage amendment measures `llmprovider`
+  with `-coverpkg=./llmprovider` until "S7b has moved the shared wire,
+  transport and `auth` code out". It now holds until `auth` has moved.
+  Each new `internal/wire` package and `internal/transport` holds D13's
+  80 % from its own tests.
+
+### Rejected
+
+* **For transport:**
+  * keeping all of it in `llmprovider`, which leaves HTTP plumbing in the
+    contract package's public API;
+  * a second internal package for classification, which D2 does not have,
+    and which would widen what `auth` may import.
+* **For auth:**
+  * keeping the sessions in `llmprovider` for v1, which contradicts D2's
+    intent for the contract package;
+  * moving `auth` within S7b, which touches the wizard's ChatGPT listing
+    before its S8 port.
+* **For wire:**
+  * moving Interactions into `internal/wire`, a package with one user;
+  * a single `internal/wire` package, which drops the plan's "one package
+    per format".
+
+### Effect
+
+The end state is D2's layout, with the import edges above:
+
+| From | To |
+|---|---|
+| `llmprovider` | `internal/redact`, `internal/transport` |
+| `internal/wire/<format>` | `internal/wire`, `llmprovider` |
+| `auth`, `catalog` | `llmprovider`, `internal/transport` |
+
+`llmprovider` keeps three exported helpers it did not plan to keep:
+`ClassifyHTTPError`, `ClassifyStreamFailure` and `Token.Apply`. No other
+decision changes.

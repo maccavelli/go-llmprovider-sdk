@@ -53,6 +53,11 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/generatecontent"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
 
 const (
@@ -255,13 +260,13 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	limited := io.LimitReader(resp.Body, 1<<20)
 	switch c.route {
 	case RouteResponses:
-		return llmprovider.DecodeResponsesAPIOutput(limited)
+		return responses.Decode(limited)
 	case RouteMessages:
-		return llmprovider.DecodeMessagesResponse(limited)
+		return messages.Decode(limited)
 	case RouteGoogle:
-		return llmprovider.DecodeGeminiResponse(limited)
+		return generatecontent.Decode(limited)
 	default:
-		return llmprovider.DecodeChatCompletionsResponse(limited)
+		return chatcompletions.Decode(limited)
 	}
 }
 
@@ -323,7 +328,7 @@ func (p *provider) requestRoute(ctx context.Context, model string) Route {
 func (p *provider) responsesBody(c call) map[string]any {
 	body := map[string]any{
 		"model":             c.model,
-		"input":             llmprovider.ItemsToInput(c.input),
+		"input":             responses.Input(c.input),
 		"max_output_tokens": c.maxTokens,
 		// OpenCode's client stores nothing for @ai-sdk/openai models
 		// (transform.ts:1235-1243, MADR 0012 §3.2); items are replayed.
@@ -357,14 +362,14 @@ func (p *provider) messagesBody(c call) map[string]any {
 	maxTokens := c.maxTokens
 	body := map[string]any{
 		"model":    c.model,
-		"messages": llmprovider.MessagesFromItems(c.input),
+		"messages": messages.FromItems(c.input),
 	}
-	if system := llmprovider.SystemPrompt(c.input); system != "" {
+	if system := wire.SystemPrompt(c.input); system != "" {
 		body["system"] = system
 	}
 	thinking := c.reasoning != nil
 	if thinking {
-		maxTokens = llmprovider.AddMessagesThinking(body, c.model, string(c.reasoning.Effort), c.reasoning.Budget, maxTokens)
+		maxTokens = messages.AddThinking(body, c.model, string(c.reasoning.Effort), c.reasoning.Budget, maxTokens)
 	}
 	body[jsonKeyMaxTokens] = maxTokens
 	if tools := c.req.Tools; len(tools) > 0 {
@@ -404,13 +409,13 @@ func messagesToolChoice(choice llmprovider.ToolChoice, thinking bool) map[string
 func (p *provider) googleBody(c call) map[string]any {
 	genCfg := map[string]any{"maxOutputTokens": c.maxTokens}
 	if c.reasoning != nil {
-		genCfg["thinkingConfig"] = llmprovider.GeminiThinkingConfig(c.model, string(c.reasoning.Effort), c.reasoning.Budget)
+		genCfg["thinkingConfig"] = generatecontent.ThinkingConfig(c.model, string(c.reasoning.Effort), c.reasoning.Budget)
 	}
 	body := map[string]any{
-		"contents":         llmprovider.GeminiItemsToContents(c.input),
+		"contents":         generatecontent.Contents(c.input),
 		"generationConfig": genCfg,
 	}
-	if system := llmprovider.GeminiSystemInstruction(c.input); system != nil {
+	if system := generatecontent.SystemInstruction(c.input); system != nil {
 		body["systemInstruction"] = system
 	}
 	if tools := c.req.Tools; len(tools) > 0 {
@@ -446,7 +451,7 @@ func googleToolConfig(choice llmprovider.ToolChoice) map[string]any {
 // when chatReasoningEffort resolves one (MADR 0009 §6), and replays prior
 // reasoning under the field the model's metadata declares.
 func (p *provider) chatBody(ctx context.Context, c call) map[string]any {
-	body := llmprovider.ChatCompletionsBody(c.model, c.maxTokens, c.input, llmprovider.ChatCompletionsOpts{
+	body := chatcompletions.Body(c.model, c.maxTokens, c.input, chatcompletions.Opts{
 		ReasoningEffort:      p.chatReasoningEffort(ctx, c),
 		ReplayReasoningField: p.chatReplayField(ctx, c),
 	})
