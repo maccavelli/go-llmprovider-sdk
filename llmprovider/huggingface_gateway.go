@@ -1,6 +1,6 @@
 package llmprovider
 
-// What the listing, the descriptors and the raw live probes need of Hugging
+// What the listing and the raw live probes need of Hugging
 // Face Inference Providers. The provider is providers/huggingface (0015-PLAN
 // S7), which keeps its own copy of the base URL.
 

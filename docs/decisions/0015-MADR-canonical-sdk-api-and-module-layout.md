@@ -724,9 +724,9 @@ decision changes.
 
 ## Amendment 2026-10-01: `catalog` before the old API's removal (proposed)
 
-Status: **proposed** 2026-10-01. The owner chose "do S8b's catalog first" on
-2026-10-01. The design below follows from that choice, and awaits approval
-before any change.
+Status: **accepted** 2026-10-01. The owner chose "do S8b's catalog first" on
+2026-10-01, and approved the design below ("proceed") after the proposed
+records were committed as `9259bd9`.
 
 ### Fact found
 

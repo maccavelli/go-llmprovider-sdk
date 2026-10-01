@@ -61,7 +61,7 @@ func offeredAuthMethods(all []llmprovider.AuthMethod, haveStore bool) []llmprovi
 func resolveCredential(
 	ctx context.Context,
 	p Prompter,
-	d llmprovider.ProviderDescriptor,
+	d llmprovider.Descriptor,
 	o Options,
 ) (resolvedCredential, error) {
 	methods := offeredAuthMethods(d.AuthMethods, o.TokenStore != nil)
@@ -107,21 +107,21 @@ func resolveCredential(
 			return oauthCredential(session), nil
 		}
 		flow, drain := browserFlowOptions(p, o)
-		session, loginErr := loginBrowserOAuth(ctx, d.ID, flow)
+		session, loginErr := loginBrowserOAuth(ctx, string(d.ID), flow)
 		drain()
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
 		}
-		return saveOAuthCredential(ctx, o.TokenStore, d.ID, session)
+		return saveOAuthCredential(ctx, o.TokenStore, string(d.ID), session)
 	case llmprovider.AuthDeviceCode:
-		if d.ID == llmprovider.ProviderKilo {
+		if string(d.ID) == llmprovider.ProviderKilo {
 			return resolveKiloDevice(ctx, p, d, o)
 		}
-		session, loginErr := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p))
+		session, loginErr := loginDeviceOAuth(ctx, string(d.ID), oauthFlowOptions(p))
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
 		}
-		return saveOAuthCredential(ctx, o.TokenStore, d.ID, session)
+		return saveOAuthCredential(ctx, o.TokenStore, string(d.ID), session)
 	default:
 		return resolvedCredential{}, fmt.Errorf("wizard: unsupported authentication method %q", method)
 	}
@@ -133,14 +133,14 @@ func resolveCredential(
 func resolveVendorCLI(
 	ctx context.Context,
 	p Prompter,
-	d llmprovider.ProviderDescriptor,
+	d llmprovider.Descriptor,
 	o Options,
 ) (resolvedCredential, error) {
-	path, err := vendorAuthPath(d.ID, o)
+	path, err := vendorAuthPath(string(d.ID), o)
 	if err != nil {
 		return resolvedCredential{}, err
 	}
-	session := &llmprovider.VendorCLISession{Provider: d.ID, Path: path}
+	session := &llmprovider.VendorCLISession{Provider: string(d.ID), Path: path}
 	token, err := session.Token(ctx)
 	if err != nil {
 		return resolvedCredential{}, err
@@ -163,18 +163,18 @@ func resolveVendorCLI(
 func resolveKiloDevice(
 	ctx context.Context,
 	p Prompter,
-	d llmprovider.ProviderDescriptor,
+	d llmprovider.Descriptor,
 	o Options,
 ) (resolvedCredential, error) {
-	session, err := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p))
+	session, err := loginDeviceOAuth(ctx, string(d.ID), oauthFlowOptions(p))
 	if err != nil {
 		return resolvedCredential{}, err
 	}
 	if session == nil || session.Access == "" {
 		return resolvedCredential{}, errors.New("wizard: Kilo login returned no token")
 	}
-	session.Provider, session.Store = d.ID, o.TokenStore
-	if err := o.TokenStore.Save(ctx, d.ID, session); err != nil {
+	session.Provider, session.Store = string(d.ID), o.TokenStore
+	if err := o.TokenStore.Save(ctx, string(d.ID), session); err != nil {
 		return resolvedCredential{}, fmt.Errorf("wizard: save Kilo login: %w", err)
 	}
 	cred := staticCredential(CredAPIKey, session.Access)
@@ -224,10 +224,10 @@ func oauthCredential(session *llmprovider.OAuthSession) resolvedCredential {
 
 func keepExistingOAuth(
 	p Prompter,
-	d llmprovider.ProviderDescriptor,
+	d llmprovider.Descriptor,
 	o Options,
 ) (*llmprovider.OAuthSession, bool, error) {
-	if o.Existing.Kind != CredOAuth || o.Existing.Provider != d.ID || o.Existing.AccessToken == "" {
+	if o.Existing.Kind != CredOAuth || o.Existing.Provider != string(d.ID) || o.Existing.AccessToken == "" {
 		return nil, false, nil
 	}
 	keep, err := p.Confirm(
@@ -239,7 +239,7 @@ func keepExistingOAuth(
 		return nil, false, nil
 	}
 	session := &llmprovider.OAuthSession{
-		Provider:  d.ID,
+		Provider:  string(d.ID),
 		Access:    o.Existing.AccessToken,
 		Refresh:   o.Existing.RefreshToken,
 		Expiry:    o.Existing.TokenExpiry,
@@ -258,7 +258,7 @@ func keepExistingOAuth(
 func resolveTokenStdin(
 	ctx context.Context,
 	p Prompter,
-	d llmprovider.ProviderDescriptor,
+	d llmprovider.Descriptor,
 	o Options,
 ) (resolvedCredential, error) {
 	// CODEX_ACCESS_TOKEN is not offered: in Codex it holds a personal access
@@ -267,7 +267,7 @@ func resolveTokenStdin(
 	if err != nil {
 		return resolvedCredential{}, fmt.Errorf("enter credential: %w", err)
 	}
-	if d.ID == llmprovider.ProviderOpenAI && !strings.HasPrefix(value, "sk-") {
+	if string(d.ID) == llmprovider.ProviderOpenAI && !strings.HasPrefix(value, "sk-") {
 		return saveAccessOnlyOpenAI(ctx, o, value)
 	}
 	return staticCredential(CredAPIKey, value), nil

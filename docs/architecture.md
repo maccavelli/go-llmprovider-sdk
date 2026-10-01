@@ -215,8 +215,11 @@ the old API until 0015-PLAN S8 removes it:
   source and retries once.
 - **`VendorCLISession`** reads the Codex or Grok CLI's own login on every
   request and never refreshes it.
-- **`ProviderDescriptor`** lists each provider's `AuthMethod`s; `Descriptors()`
-  is the canonical menu.
+- **A `Descriptor`** lists a provider's `AuthMethod`s, among what a menu
+  shows. Each provider package declares its own (`Descriptor()`, or
+  `DescriptorZen()` and `DescriptorGo()`), and `providers.Default()`
+  registers them in menu order. `wizard` builds its menu from
+  `Options.Registry`, `providers.Default()` when nil.
 
 ## Discovery and ranking
 

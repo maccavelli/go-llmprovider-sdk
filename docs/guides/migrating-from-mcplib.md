@@ -80,8 +80,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.DefaultOpenAIClientID` |  |  |
 | `llmprovider.DefaultOpenAIIssuer` |  |  |
 | `llmprovider.DefaultOpenAIPlatformBaseURL` |  |  |
-| `llmprovider.DescriptorFor` |  |  |
-| `llmprovider.Descriptors` |  |  |
+| `llmprovider.DescriptorFor` | `Registry.Descriptor(id)` | On `providers.Default()`, or the caller's `Registry` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
+| `llmprovider.Descriptors` | `Registry.Descriptors()` | In menu order; each provider package declares its own descriptor ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.ErrAuthFailure` |  |  |
 | `llmprovider.ErrInvalidProvider` |  |  |
 | `llmprovider.ErrInvalidRequest` |  |  |
@@ -285,17 +285,17 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ProviderConfig.SessionID` |  |  |
 | `llmprovider.ProviderConfig.Store` |  |  |
 | `llmprovider.ProviderConfig.ThinkingBudget` |  |  |
-| `llmprovider.ProviderDescriptor` |  |  |
-| `llmprovider.ProviderDescriptor.AuthMethods` |  |  |
-| `llmprovider.ProviderDescriptor.DefaultBaseURL` |  |  |
-| `llmprovider.ProviderDescriptor.EnvVar` |  |  |
-| `llmprovider.ProviderDescriptor.ID` |  |  |
-| `llmprovider.ProviderDescriptor.IsLocal` |  |  |
-| `llmprovider.ProviderDescriptor.Label` |  |  |
-| `llmprovider.ProviderDescriptor.Notes` |  |  |
-| `llmprovider.ProviderDescriptor.RequiresAPIKey` |  |  |
-| `llmprovider.ProviderDescriptor.StaticModels` |  |  |
-| `llmprovider.ProviderDescriptor.SupportsBaseURL` |  |  |
+| `llmprovider.ProviderDescriptor` | `llmprovider.Descriptor` | The same fields; `ID` is a `ProviderID`. |
+| `llmprovider.ProviderDescriptor.AuthMethods` | `Descriptor.AuthMethods` |  |
+| `llmprovider.ProviderDescriptor.DefaultBaseURL` | `Descriptor.DefaultBaseURL` |  |
+| `llmprovider.ProviderDescriptor.EnvVar` | `Descriptor.EnvVar` |  |
+| `llmprovider.ProviderDescriptor.ID` | `Descriptor.ID` | A `ProviderID`. |
+| `llmprovider.ProviderDescriptor.IsLocal` | `Descriptor.IsLocal` |  |
+| `llmprovider.ProviderDescriptor.Label` | `Descriptor.Label` |  |
+| `llmprovider.ProviderDescriptor.Notes` | `Descriptor.Notes` |  |
+| `llmprovider.ProviderDescriptor.RequiresAPIKey` | `Descriptor.RequiresAPIKey` |  |
+| `llmprovider.ProviderDescriptor.StaticModels` | `Descriptor.StaticModels` |  |
+| `llmprovider.ProviderDescriptor.SupportsBaseURL` | `Descriptor.SupportsBaseURL` |  |
 | `llmprovider.ProviderEnvVars` | `ProviderEnvVars()` | A function returning a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.ProviderGemini` |  |  |
 | `llmprovider.ProviderGrok` |  |  |

@@ -1,10 +1,7 @@
 package llmprovider
 
 // What stays in llmprovider of the Ollama provider, which moved to
-// providers/ollama (0015-PLAN S7): the descriptor and the listing use the
-// base URL.
-
-const ollamaBaseURL = "http://localhost:11434"
+// providers/ollama (0015-PLAN S7): the date its wire shapes were measured.
 
 // wireShapesProbedOnOllama is the date the Ollama wire shapes were measured
 // against a running instance (v0.31.1): GET /v1/models returns the OpenAI list

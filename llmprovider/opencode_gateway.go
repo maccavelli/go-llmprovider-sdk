@@ -2,7 +2,7 @@ package llmprovider
 
 import "fmt"
 
-// What the gateway listing and the descriptors need of OpenCode Zen and Go.
+// What the gateway listing needs of OpenCode Zen and Go.
 // The provider is providers/opencode (0015-PLAN S7), which keeps its own
 // copies of these values.
 

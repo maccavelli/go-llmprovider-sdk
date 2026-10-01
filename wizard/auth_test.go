@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 )
 
 // TestConfigureLLM_IgnoresOrchestratorEnv: the wizard has no orchestration
@@ -521,7 +522,7 @@ func TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly(t *testing.T) {
 func TestConfigureLLM_TokenStoreOffersAllMethods(t *testing.T) {
 	for _, provider := range []string{llmprovider.ProviderOpenAI, llmprovider.ProviderGrok} {
 		t.Run(provider, func(t *testing.T) {
-			d, ok := llmprovider.DescriptorFor(provider)
+			d, ok := providers.Default().Descriptor(llmprovider.ProviderID(provider))
 			if !ok {
 				t.Fatalf("no descriptor for %s", provider)
 			}

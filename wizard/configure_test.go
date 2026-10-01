@@ -7,18 +7,20 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/claude"
 )
 
-// claudeIdx returns the index of a provider in the canonical descriptor order,
-// so tests script menu positions without hard-coding them.
+// providerIdx returns the index of a provider in the default registry's menu
+// order, so tests script menu positions without hard-coding them.
 func providerIdx(t *testing.T, id string) int {
 	t.Helper()
-	for i, d := range llmprovider.Descriptors() {
-		if d.ID == id {
+	for i, d := range providers.Default().Descriptors() {
+		if string(d.ID) == id {
 			return i
 		}
 	}
-	t.Fatalf("provider %q not in Descriptors()", id)
+	t.Fatalf("provider %q not in providers.Default()", id)
 	return -1
 }
 
@@ -228,9 +230,30 @@ func TestConfigureLLM_OffersEveryDescriptor(t *testing.T) {
 		t.Fatal("no Select was made")
 	}
 	got := len(f.seenSelectItems[0])
-	want := len(llmprovider.Descriptors())
+	want := len(providers.Default().Descriptors())
 	if got != want {
 		t.Errorf("provider menu offered %d choices, want all %d descriptors", got, want)
+	}
+}
+
+// TestConfigureLLM_UsesTheRegistry: a caller's Registry is the menu, in its own
+// order; nil is every built-in provider (0015-PLAN S8).
+func TestConfigureLLM_UsesTheRegistry(t *testing.T) {
+	withEnv(t, nil)
+	reg := llmprovider.NewRegistry()
+	if err := reg.Register(claude.Descriptor(), claude.New); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakePrompter{t: t, selects: []int{0, 0}, secrets: []string{testKey}}
+	res, err := ConfigureLLM(context.Background(), f, Options{Registry: reg})
+	if err != nil {
+		t.Fatalf("ConfigureLLM: %v", err)
+	}
+	if len(f.seenSelectItems) == 0 || len(f.seenSelectItems[0]) != 1 {
+		t.Fatalf("provider menu = %v, want the registry's one provider", f.seenSelectItems)
+	}
+	if res.Provider != llmprovider.ProviderClaude {
+		t.Errorf("Provider = %q, want claude", res.Provider)
 	}
 }
 

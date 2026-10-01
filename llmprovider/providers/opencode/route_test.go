@@ -125,13 +125,11 @@ func TestOpencodeRoute_Path(t *testing.T) {
 }
 
 // TestOpencodeBaseURLs_MatchTheDescriptors: the provider's own copies of the
-// default base URLs are the descriptors', which llmprovider's listing uses.
+// default base URLs. The descriptors are built from these constants since
+// 0015-PLAN S8, commit 1, so only the values are pinned here.
 func TestOpencodeBaseURLs_MatchTheDescriptors(t *testing.T) {
-	for gateway, want := range map[string]string{llmprovider.ProviderOpencodeZen: zenBaseURL, llmprovider.ProviderOpencodeGo: goBaseURL} {
-		d, ok := llmprovider.DescriptorFor(gateway)
-		if !ok || d.DefaultBaseURL != want {
-			t.Errorf("%s: descriptor base URL %q (found %t), want %q", gateway, d.DefaultBaseURL, ok, want)
-		}
+	if DescriptorZen().DefaultBaseURL != zenBaseURL || DescriptorGo().DefaultBaseURL != goBaseURL {
+		t.Errorf("descriptor base URLs %q, %q", DescriptorZen().DefaultBaseURL, DescriptorGo().DefaultBaseURL)
 	}
 	if zenBaseURL != "https://opencode.ai/zen/v1" || goBaseURL != "https://opencode.ai/zen/go/v1" {
 		t.Errorf("base URLs = %q, %q", zenBaseURL, goBaseURL)

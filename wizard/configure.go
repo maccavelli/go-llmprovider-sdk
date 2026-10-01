@@ -10,6 +10,7 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 )
 
 // defaultDiscoverLimit bounds a live model listing so a slow or unreachable
@@ -46,6 +47,9 @@ type Result struct {
 // Options controls the flow. The zero value runs a full interactive
 // configuration over every known provider with no discovery.
 type Options struct {
+	// Registry is where the menu's providers come from. Nil uses
+	// providers.Default(), every built-in provider (0015-PLAN S8).
+	Registry *llmprovider.Registry
 	// Providers restricts the menu to these ids. Empty offers every
 	// descriptor, which is the behaviour that keeps a wizard current when
 	// this module adds a provider.
@@ -107,7 +111,7 @@ func (o Options) lookupEnv() func(string) string {
 // only in the returned Result, and anything shown to the user is masked with
 // redact.MaskSecret.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
-	descriptors, err := selectableDescriptors(o.Providers)
+	descriptors, err := selectableDescriptors(o.registry(), o.Providers)
 	if err != nil {
 		return Result{}, err
 	}
@@ -116,7 +120,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	defaultIdx := 0
 	for i, d := range descriptors {
 		choices = append(choices, Choice{Label: d.Label, Detail: d.Notes})
-		if d.ID == o.Existing.Provider {
+		if string(d.ID) == o.Existing.Provider {
 			defaultIdx = i
 		}
 	}
@@ -126,7 +130,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		return Result{}, fmt.Errorf("select provider: %w", err)
 	}
 	d := descriptors[idx]
-	res := Result{Provider: d.ID}
+	res := Result{Provider: string(d.ID)}
 
 	if res.BaseURL, err = resolveBaseURL(ctx, p, d, o); err != nil {
 		return Result{}, err
@@ -154,7 +158,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		// Ollama with nothing installed, or a provider whose listing failed
 		// and which has no static catalog. Let the user type an id rather
 		// than dead-ending the wizard.
-		manual, inputErr := p.Input("No models found; enter a model id", existingModel(o, d.ID))
+		manual, inputErr := p.Input("No models found; enter a model id", existingModel(o, string(d.ID)))
 		if inputErr != nil {
 			return Result{}, fmt.Errorf("enter model: %w", inputErr)
 		}
@@ -179,10 +183,18 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	return res, nil
 }
 
+// registry is the run's Registry: the caller's, else every built-in provider.
+func (o Options) registry() *llmprovider.Registry {
+	if o.Registry != nil {
+		return o.Registry
+	}
+	return providers.Default()
+}
+
 // selectableDescriptors returns the descriptors a run may offer, preserving
-// canonical menu order.
-func selectableDescriptors(allow []string) ([]llmprovider.ProviderDescriptor, error) {
-	all := llmprovider.Descriptors()
+// the registry's menu order.
+func selectableDescriptors(reg *llmprovider.Registry, allow []string) ([]llmprovider.Descriptor, error) {
+	all := reg.Descriptors()
 	if len(allow) == 0 {
 		return all, nil
 	}
@@ -190,9 +202,9 @@ func selectableDescriptors(allow []string) ([]llmprovider.ProviderDescriptor, er
 	for _, id := range allow {
 		wanted[id] = struct{}{}
 	}
-	var out []llmprovider.ProviderDescriptor
+	var out []llmprovider.Descriptor
 	for _, d := range all {
-		if _, ok := wanted[d.ID]; ok {
+		if _, ok := wanted[string(d.ID)]; ok {
 			out = append(out, d)
 		}
 	}
@@ -204,12 +216,12 @@ func selectableDescriptors(allow []string) ([]llmprovider.ProviderDescriptor, er
 
 // resolveBaseURL prompts for an endpoint when the provider supports one. A
 // local provider is validated for reachability and re-prompted on failure.
-func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.ProviderDescriptor, o Options) (string, error) {
+func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (string, error) {
 	if !d.SupportsBaseURL {
 		return "", nil
 	}
 	def := d.DefaultBaseURL
-	if o.Existing.Provider == d.ID && o.Existing.BaseURL != "" {
+	if o.Existing.Provider == string(d.ID) && o.Existing.BaseURL != "" {
 		def = o.Existing.BaseURL
 	}
 	for {
@@ -237,7 +249,7 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.ProviderDescr
 
 // resolveAPIKey applies the precedence environment → existing → prompt. Any
 // key shown to the user is masked; the raw value only ever reaches Result.
-func resolveAPIKey(p Prompter, d llmprovider.ProviderDescriptor, o Options) (string, error) {
+func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, error) {
 	if !d.RequiresAPIKey {
 		return "", nil
 	}
@@ -255,7 +267,7 @@ func resolveAPIKey(p Prompter, d llmprovider.ProviderDescriptor, o Options) (str
 		}
 	}
 
-	if o.Existing.Provider == d.ID && o.Existing.APIKey != "" {
+	if o.Existing.Provider == string(d.ID) && o.Existing.APIKey != "" {
 		keep, err := p.Confirm(
 			fmt.Sprintf("Keep the existing key (%s)?", redact.MaskSecret(o.Existing.APIKey)), true)
 		if err != nil {
@@ -279,12 +291,12 @@ func resolveAPIKey(p Prompter, d llmprovider.ProviderDescriptor, o Options) (str
 func discoverModels(
 	ctx context.Context,
 	p Prompter,
-	d llmprovider.ProviderDescriptor,
+	d llmprovider.Descriptor,
 	res Result,
 	source llmprovider.TokenSource,
 	o Options,
 ) llmprovider.ModelCatalog {
-	chatGPT := (res.Kind == CredOAuth || res.Kind == CredVendorCLI) && d.ID == llmprovider.ProviderOpenAI
+	chatGPT := (res.Kind == CredOAuth || res.Kind == CredVendorCLI) && string(d.ID) == llmprovider.ProviderOpenAI
 	// A ChatGPT session lists only from the Codex backend (MADR 0008 D11):
 	// the Platform catalog is not available to it, so there is no fallback.
 	static := d.StaticModels
@@ -312,7 +324,7 @@ func discoverModels(
 	if res.Organization != "" {
 		opts = append(opts, llmprovider.WithKiloOrganization(res.Organization))
 	}
-	cat, err := llmprovider.ListModelCatalogWithSource(dCtx, d.ID, source, opts...)
+	cat, err := llmprovider.ListModelCatalogWithSource(dCtx, string(d.ID), source, opts...)
 	if err != nil {
 		if len(static) == 0 {
 			p.Notify(LevelWarn, "could not list models for %s (%v)", d.Label, err)

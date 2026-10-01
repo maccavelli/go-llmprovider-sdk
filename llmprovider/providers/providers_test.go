@@ -14,9 +14,9 @@ import (
 // in Default.
 func TestDescriptors_EveryDescriptorIsConstructible(t *testing.T) {
 	registry := Default()
-	for _, d := range llmprovider.Descriptors() {
-		t.Run(d.ID, func(t *testing.T) {
-			id := llmprovider.ProviderID(d.ID)
+	for _, d := range registry.Descriptors() {
+		t.Run(string(d.ID), func(t *testing.T) {
+			id := d.ID
 			if _, registered := registry.Descriptor(id); !registered {
 				t.Fatalf("descriptor %q is offered to users but Default does not build it", d.ID)
 			}

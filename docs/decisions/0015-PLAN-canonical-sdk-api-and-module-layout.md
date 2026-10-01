@@ -3144,3 +3144,84 @@ Under "S7b as amended". Staged for the owner to commit.
   * the names table in "S8 as amended".
 * **Changed.** S8's steps are carried out as "S8 as amended", and S8b keeps
   step 4. Nothing is implemented until the owner approves.
+* **Approved** 2026-10-01: the owner answered "proceed" after committing the
+  proposed records as `9259bd9`, including the three points written from the
+  choices. The MADR amendment is `accepted`.
+
+### Phase S8, commit 1: descriptors, and the wizard menu (2026-10-01)
+
+Under "S8 as amended". Staged for the owner to commit, with the amendment's
+acceptance (its status, and the PLAN's "Approved" line).
+
+* **Descriptors.** Each provider package has a `descriptor.go`, with
+  `Descriptor()`, or `DescriptorZen()` and `DescriptorGo()` in `opencode`. It
+  holds the values of `llmprovider`'s table at `9259bd9`, built from the
+  package's own base URL with `ProviderEnvVars()` and `StaticModels()`.
+  `kilo` gains a `defaultBaseURL` for it.
+  * **Seen equal.** A scratch-only test compared all ten with the old
+    `Descriptors()` through `providers.descriptor`, with `reflect.DeepEqual`,
+    and passed. A Kilo note changed in the copy failed it.
+* **`providers.Default()`** registers each package's descriptor.
+  `providers.descriptor` is removed.
+  * **Menu order kept.** `builtins` listed `openai` first, while the wizard's
+    menu came from the old `Descriptors()`, which listed `gemini` first.
+    `builtins` now follows the old order, so the menu does not change.
+    `TestDescriptors_MenuOrder` pins it.
+* **`llmprovider`** keeps `AuthMethodID` and `AuthMethod`, which `Descriptor`
+  uses, in `descriptor.go`. `ProviderDescriptor`, `descriptorSpecs`,
+  `Descriptors()` and `DescriptorFor` are removed.
+* **`wizard`:**
+  * `Options.Registry` is new; nil is `providers.Default()`, and
+    `selectableDescriptors` reads it.
+  * `ProviderDescriptor` is `Descriptor` throughout.
+  * A descriptor's `ID` is converted with `string(...)` where the wizard
+    still holds ids as strings. Commit 5 types them.
+* **Tests:**
+  * `llmprovider/descriptor_test.go` is removed, its tests ported to
+    `providers/descriptors_test.go` over `Default()`.
+  * `TestDescriptors_OpenAIAndGrokOfferOAuth` keeps its full `AuthMethod`
+    comparison.
+  * `DerivedFieldsMatchSource` joins `CoverEveryRegisteredProvider`.
+  * `StableOrderAndDefensiveCopy` is `MenuOrder` and `DefensiveCopy`.
+  * `TestDescriptorFor` is `TestDescriptor_Lookup`.
+  * `TestModelLabel` stays in `llmprovider`, in `model_label_test.go`, until
+    commit 2.
+  * `TestDescriptors_EveryDescriptorIsConstructible` iterates `Default()`.
+  * `opencode`'s `TestOpencodeBaseURLs_MatchTheDescriptors` pins the values
+    only, as the descriptors are now built from the same constants.
+  * In `wizard`, `providerIdx` and the other three call sites read
+    `providers.Default()`.
+  * **New:** `TestConfigureLLM_UsesTheRegistry`, a one-provider registry
+    as the menu.
+* **Lint** found `ollamaBaseURL` unused, as only the old table read it. It
+  was removed. The comments of `together_endpoint.go`,
+  `huggingface_gateway.go` and `opencode_gateway.go` no longer name the
+  descriptors.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | the menu order changes | `menu order = [openai gemini claude …], want [gemini openai claude …]` |
+  | two providers leave `Default()` | `provider "together" has a credential variable but no descriptor in Default` |
+  | an auth method's detail changes | `openai AuthMethods = … want …` |
+  | a descriptor names the wrong variable | `claude: EnvVar = "WRONG_API_KEY", want "CLAUDE_API_KEY"` |
+  | a descriptor offers another provider's models | `gemini: StaticModels = [claude-haiku-4-5 …], want StaticModels()'s` |
+  | Grok loses browser sign-in | `descriptor "grok" does not offer required auth method "browser_oauth"`, and the `AuthMethods` comparison |
+  | the registry shares `AuthMethods` | `a caller's change reached the registry` |
+  | the wizard ignores `Options.Registry` | `provider menu = [[{Gemini (Google) } …]], want the registry's one provider` |
+  | the provider filter matches nothing | `wizard: none of the requested providers exist: [grok]` |
+
+  Two were invalid as first written, and ran again:
+  * removing `together`'s entry did not compile, its import then unused; the
+    loop now skips the last two entries.
+  * `"CLAUDE_API_KEY"` is Claude's variable today, so it failed no test; it
+    is now `"WRONG_API_KEY"`.
+* **G-parity** fills the 13 rows of `ProviderDescriptor`, its fields,
+  `Descriptors` and `DescriptorFor`: `409 identifiers, … 0 problem(s)`.
+* **Coverage:**
+  * `llmprovider/providers` 85.7 %;
+  * `wizard` 83.5 %;
+  * `llmprovider` 87.9 % from its own tests and 90.4 % over
+    `./llmprovider/...`, against its `P7` 89.2 %.
+* **G-wire** unchanged. `architecture.md` describes the descriptors and the
+  wizard's `Registry`.

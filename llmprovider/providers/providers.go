@@ -20,29 +20,32 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/together"
 )
 
-// builtins are the built-in providers, in menu order.
+// builtins are the built-in providers, each with its package's descriptor, in
+// menu order: remote providers first, local last, as llmprovider's old
+// Descriptors() listed them for the wizard (0015-PLAN S8, commit 1).
 var builtins = []struct {
-	id  string
-	new llmprovider.Factory
+	descriptor func() llmprovider.Descriptor
+	new        llmprovider.Factory
 }{
-	{llmprovider.ProviderOpenAI, openai.New},
-	{llmprovider.ProviderClaude, claude.New},
-	{llmprovider.ProviderGemini, gemini.New},
-	{llmprovider.ProviderGrok, grok.New},
-	{llmprovider.ProviderOpencodeZen, opencode.NewZen},
-	{llmprovider.ProviderOpencodeGo, opencode.NewGo},
-	{llmprovider.ProviderKilo, kilo.New},
-	{llmprovider.ProviderHuggingFace, huggingface.New},
-	{llmprovider.ProviderTogether, together.New},
-	{llmprovider.ProviderOllama, ollama.New},
+	{gemini.Descriptor, gemini.New},
+	{openai.Descriptor, openai.New},
+	{claude.Descriptor, claude.New},
+	{grok.Descriptor, grok.New},
+	{opencode.DescriptorZen, opencode.NewZen},
+	{opencode.DescriptorGo, opencode.NewGo},
+	{huggingface.Descriptor, huggingface.New},
+	{kilo.Descriptor, kilo.New},
+	{together.Descriptor, together.New},
+	{ollama.Descriptor, ollama.New},
 }
 
 // Default returns a new Registry holding the built-in providers.
 func Default() *llmprovider.Registry {
 	r := llmprovider.NewRegistry()
 	for _, b := range builtins {
-		if err := r.Register(descriptor(b.id), b.new); err != nil {
-			panic(fmt.Sprintf("providers: built-in %q: %v", b.id, err))
+		d := b.descriptor()
+		if err := r.Register(d, b.new); err != nil {
+			panic(fmt.Sprintf("providers: built-in %q: %v", d.ID, err))
 		}
 	}
 	return r
@@ -52,25 +55,4 @@ func Default() *llmprovider.Registry {
 // matching llmprovider.ErrInvalidProvider.
 func New(id llmprovider.ProviderID, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	return Default().New(id, opts...)
-}
-
-// descriptor is the built-in id's descriptor, from llmprovider's until
-// 0015-PLAN S8 moves each into its provider's package.
-func descriptor(id string) llmprovider.Descriptor {
-	d, ok := llmprovider.DescriptorFor(id)
-	if !ok {
-		return llmprovider.Descriptor{ID: llmprovider.ProviderID(id)}
-	}
-	return llmprovider.Descriptor{
-		ID:              llmprovider.ProviderID(d.ID),
-		Label:           d.Label,
-		EnvVar:          d.EnvVar,
-		DefaultBaseURL:  d.DefaultBaseURL,
-		SupportsBaseURL: d.SupportsBaseURL,
-		IsLocal:         d.IsLocal,
-		RequiresAPIKey:  d.RequiresAPIKey,
-		AuthMethods:     d.AuthMethods,
-		StaticModels:    d.StaticModels,
-		Notes:           d.Notes,
-	}
 }

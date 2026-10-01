@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 )
 
 // zenSearchIDs is an OpenCode Zen listing: the six StaticOpencodeZen ids (so
@@ -370,7 +371,7 @@ func TestConfigureLLM_FallbackSearchLoops(t *testing.T) {
 }
 
 func TestSelectFallbacks_ReturnShape(t *testing.T) {
-	d := llmprovider.Descriptors()[0]
+	d := providers.Default().Descriptors()[0]
 
 	nothingLeft := &fakePrompter{t: t}
 	got, err := selectFallbacks(nothingLeft, d, llmprovider.ModelCatalog{Recommended: []string{"a"}, Usable: []string{"a"}}, "a")
