@@ -24,6 +24,36 @@ func closeResponseBody(resp *http.Response) {
 // answer.
 const statusIncomplete = "incomplete"
 
+// ItemsToInput converts Item values to the Responses API input format, for
+// OpenAI, Grok and OpenCode's responses route.
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func ItemsToInput(items []Item) []map[string]any {
+	var input []map[string]any
+	for _, item := range items {
+		switch v := item.(type) {
+		case MessageItem:
+			input = append(input, map[string]any{
+				jsonKeyRole:    v.Role,
+				jsonKeyContent: v.Text,
+			})
+		case FunctionCallItem:
+			input = append(input, map[string]any{
+				jsonKeyType:      itemTypeFunctionCall,
+				jsonKeyCallID:    v.CallID,
+				jsonKeyName:      v.Name,
+				jsonKeyArguments: v.Arguments,
+			})
+		case FunctionCallOutputItem:
+			input = append(input, map[string]any{
+				jsonKeyType:   itemTypeFunctionCallOutput,
+				jsonKeyCallID: v.CallID,
+				jsonKeyOutput: v.Output,
+			})
+		}
+	}
+	return input
+}
+
 // DecodeResponsesAPIOutput decodes a Responses API JSON body into a Response.
 // Shared by providers using the Responses API envelope (OpenAI, Grok).
 // Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.

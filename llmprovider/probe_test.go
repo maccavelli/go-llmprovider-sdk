@@ -3,8 +3,6 @@ package llmprovider
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 )
 
@@ -31,50 +29,5 @@ func TestProbeGenerateHealth(t *testing.T) {
 	healthy := ProbeGenerateHealth(context.Background(), candidates, gen)
 	if len(healthy) != 1 || healthy[0] != "m1" {
 		t.Errorf("expected only [m1], got %v", healthy)
-	}
-}
-
-func TestGeminiProvider_DiscoverModels(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/models":
-			_, _ = w.Write([]byte(`{"models":[{"name":"models/gemini-3.7-flash","supportedGenerationMethods":["generateContent"]}]}`))
-		default:
-			// generateContent
-			_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"Hello"}]}}]}`))
-		}
-	}))
-	defer srv.Close()
-
-	p, _ := NewGemini(context.Background(), "k", "gemini-3.7-flash", WithBaseURL(srv.URL))
-	models, err := p.DiscoverModels(context.Background())
-	if err != nil {
-		t.Fatalf("DiscoverModels error: %v", err)
-	}
-	if len(models) == 0 {
-		t.Fatal("expected discovered models")
-	}
-}
-
-func TestGrokProvider_DiscoverModels(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/models":
-			_, _ = w.Write([]byte(`{"data":[{"id":"grok-3-mini-fast"}]}`))
-		case "/responses":
-			_, _ = w.Write([]byte(`{"id":"r1","output":[{"type":"message","content":[{"type":"output_text","text":"Hello"}]}]}`))
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer srv.Close()
-
-	p, _ := NewGrok("k", "grok-3-mini-fast", WithBaseURL(srv.URL))
-	models, err := p.DiscoverModels(context.Background())
-	if err != nil {
-		t.Fatalf("DiscoverModels error: %v", err)
-	}
-	if len(models) == 0 {
-		t.Fatal("expected discovered models")
 	}
 }

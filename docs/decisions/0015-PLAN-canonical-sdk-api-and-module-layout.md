@@ -1642,3 +1642,250 @@ The deviation above, executed. 0016-PLAN T3 step 1 for openai and claude.
 
 * **Coverage:** `llmprovider` 89.7 %, against its `P7` 89.2 %;
   `providers/claude` 95.4 %; `providers/openai` 97.2 %.
+
+### Phase S7, commit 6: `gemini` (2026-09-30)
+
+Built on the openai and claude commits' pattern; only what differs is
+recorded here.
+
+* **Staged, not committed.** Asked on 2026-09-30 about 0011's rule against
+  agent commits on `main`, the owner declined a `feature/` branch and
+  answered "i will commit an push. you only stage." This move is staged for
+  the owner to commit. The two commits before it, `da4425a` and `9487fde`,
+  were made by the agent on `main` before that was settled.
+* **Step 1, moved** with `git mv`:
+  * `gemini.go` and `gemini_interactions.go` to `providers/gemini/`
+    (`gemini.go`, `interactions.go`);
+  * the three Gemini test files;
+  * `testdata/wire/gemini`;
+  * `live_gemini_interactions_test.go`, as `live_gemini_test.go`.
+    `live_gemini_wire_test.go` is folded into it.
+
+  OpenCode's google route shares Gemini's `generateContent` wire, but the
+  gemini provider does not use it. So it stays in `llmprovider`, unexported,
+  in a new `generatecontent_wire.go`: `geminiSystemInstruction`,
+  `geminiItemsToContents`, `decodeGeminiResponse` and
+  `dynamicGeminiThinkingBudget`. Its tests, `gemini_generatecontent_test.go`,
+  are renamed `generatecontent_wire_test.go`.
+* **Temporary export,** for S7b to remove: `ToolArguments`, which the
+  Messages, `generateContent` and Interactions wires share.
+  * It was renamed in `llmprovider`'s own files only: `wirecase` has an
+    unrelated `toolArguments`, which the export script's word-boundary pass
+    would have renamed too.
+  * The placeholder signature `skip_thought_signature_validator` is a
+    constant in each package, since both wires send it.
+* **Step 2, the new API:**
+  * `gemini.New`, `ID`, `Capabilities`, `Generate` and `ListModels`.
+  * `gemini.WithStore`, a scoped option. `store` is `false` unless it is
+    `true`, as before. Continuation is `Supported` only with it.
+  * `WithReasoningEffort` is `Reasoning.Effort`. A request's `Reasoning`
+    falls back to `WithReasoning`'s effort. Any `Reasoning` asks for thought
+    summaries.
+  * `Instructions` go before the system items in `system_instruction`.
+  * Tool choice goes in `generation_config.tool_choice`: a named tool as
+    `allowed_tools` (measured), required as `"any"` (measured), none as
+    `"none"` (the API reference; the owner's decision), auto as nothing.
+    Every tool in `Request.Tools` is sent.
+  * The key is read from the source on each request, and sent by
+    `SetTokenHeader` (0016-PLAN T3 step 1). The listing applies the same
+    rule. `listGeminiModels`, which only the old type called, is removed.
+  * **An empty key is still accepted.** `NewGemini` never refused one, and
+    the service refuses it. An OAuth session or a CLI login is refused with
+    `ErrUnsupported` (R16, 0016-MADR D10); `NewGemini` took only a key
+    string.
+  * **The probe** copies the old probe provider: the provider's own output
+    limit (unlike claude and openai, whose probe providers used 8192),
+    `store: false`, and no reasoning.
+* **Step 3.** The package doc lists the degradations:
+  * no budget;
+  * the effort menu of `gemini-2.5-flash-lite`;
+  * the unmeasured `"none"`.
+* **Step 4, the tests ported.** Assertions keep their meaning.
+
+  | From `llmprovider` | To `gemini` |
+  |---|---|
+  | `gemini_interactions_test.go` | `interactions_test.go` |
+  | `gemini_items_test.go` | `items_test.go` |
+  | `gemini_test.go`, and the Gemini parts of `provider_correctness_test.go`, `thinking_test.go`, `api_error_message_test.go`, `identification_test.go` | `gemini_test.go` |
+  | the Gemini parts of `probe_test.go`, `probe_scope_test.go`, `discovery_wiring_test.go` | `listing_test.go` |
+  | the gemini G-wire case | `wire_test.go` |
+  | the Gemini assertions of `interface_test.go` | `TestGemini_Capabilities`, on `Capabilities()` and `ModelLister` |
+
+  * **One assertion changed kind, by 0015-MADR D4.**
+    `TestGemini_ContinueNeedsStore` still refuses a continuation without
+    `WithStore(true)` before any request, now with `ErrUnsupported` rather
+    than `ErrInvalidRequest`, since continuation is `Unsupported` there.
+  * `TestGeminiInteractions_Thinking` runs each case twice: with the effort
+    set at construction, as `WithReasoningEffort` did, and on the request.
+  * `weatherTool`, which `together_test.go` and `wire_golden_test.go` also
+    use, stays in `llmprovider`, in `wire_golden_test.go`.
+  * `bodyCapture` in `provider_correctness_test.go` had no caller left and
+    is removed.
+  * **New tests:**
+    * `request_test.go`: refusals, the empty key, the key read per request,
+      the request fields, each tool choice, and reasoning's fallbacks;
+    * `TestGemini_TokenHeaderOverride`;
+    * `TestListModels_ProbeBodyIsTheOldProbes` and
+      `TestListModels_CarriesTheCallersIdentity`.
+  * **Live.** The Gemini live tests are external, in `live_gemini_test.go`.
+    The Gemini rows of the tool round trip and the thinking shapes moved
+    there. `TestLive_GeminiToolChoiceNone` is new, to measure `"none"` on
+    the next live run. It has not been run.
+* **G-wire.** All seven gemini goldens match their `P7` content unchanged
+  through the new API, with no `-update`. Continuation is among them:
+  `WithStore(true)` as the case's continuation option, as at `P7`.
+* **Step 5, llmtest.** `TestConformance` passes, stored and unstored.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | an OAuth session accepted | `oauth: err = <nil>, want ErrUnsupported` |
+  | `WithStore` does not enable continuation | `Continuation = Unsupported, want Supported`, and `continuation.json`: 3 differences |
+  | continuation claimed without a store | `Continuation = Supported, want Unsupported`; `err = <nil> after request "/interactions", want ErrUnsupported and none` |
+  | a named tool sent as `"any"` | `tool_choice = any, want map[allowed_tools:…]`, and `tool.json` |
+  | `ToolChoiceNone` omitted | `"none": tool_choice = <nil>, want none` |
+  | the construction effort ignored | `gemini-3.7-flash/low at construction: generation_config = map[max_output_tokens:8192 thinking_summaries:auto], want … level low` |
+  | instructions after the system items | `system_instruction = "Be brief.\n\nAnswer in French.", want the instructions, then the system items` |
+  | `MaxOutputTokens` ignored | `max_output_tokens 500; want gemini-other, 77` |
+  | the key read once | `x-goog-api-key sent [key-1 key-1], want [key-1 key-2]` |
+  | generation ignores the token's header | `POST: X-Custom = "", want "Bearer v"` |
+  | the listing ignores the token's header | `GET: X-Custom = "", want "Bearer v"` |
+  | a probe keeps the provider's store and reasoning | `probe body map[generation_config:map[max_output_tokens:77 thinking_level:high thinking_summaries:auto] … store:true]; want … store false, no thinking` |
+  | probes ignore `WithModelProbes` | `1 generation requests, want none` |
+  | `Generate` skips the capability check | `R11 (refusal before the network): a request needing continuation, which is Unsupported, returned <nil> …` |
+  | gemini registered under another id | `descriptor "gemini" is offered to users but neither Default nor the old API builds it` |
+
+  After the breaks, lint's gosec (G101) took the header-name constant
+  `headerAPIKey` for a credential. It was renamed `googleKeyHeader`, which
+  changes no behaviour.
+* **Coverage:**
+  * `providers/gemini` 95.6 %;
+  * `llmprovider` 89.6 %, against its `P7` 89.2 %;
+  * `providers` 80.0 %.
+* **Links.** Four links in `0003-PLAN-add-grok-xai-llm-provider.md` to
+  `llmprovider/gemini.go` were repointed under the openai commit's rule.
+  One cites `gemini.go:119-137`, the `parts[]` decoding. That is the
+  `generateContent` decoder, now in `llmprovider/generatecontent_wire.go`,
+  so it points there. The other three name the provider's migration, and
+  point at `providers/gemini/gemini.go`.
+
+### Phase S7, commit 7: `grok` (2026-09-30)
+
+Built on the earlier commits' pattern; only what differs is recorded here.
+
+* **Not staged.** The gemini move was still staged, and uncommitted, when
+  this one was done. So this move was left in the working tree, unstaged,
+  for the owner to commit gemini's index first. It is staged once gemini is
+  committed.
+* **Step 1, moved** (plain `mv`, since staging waits; git pairs the renames
+  when it is staged):
+  * `grok.go` and `grok_reasoning.go` to `providers/grok/` (`grok.go`,
+    `reasoning.go`);
+  * `grok_test.go`, `grok_oauth_test.go` (as `session_test.go`), and
+    `grok_effort_menu_test.go` (as `reasoning_test.go`), into which
+    `grok_reasoning_test.go` is folded;
+  * `grok_tool_description_test.go`, folded into `grok_test.go`;
+  * `testdata/wire/grok`;
+  * `live_grok_effort_test.go`, as `live_grok_test.go`, into which
+    `live_grok_tool_test.go` and `live_responses_store_test.go` are folded.
+    `responses_store_test.go` is folded into `grok_test.go`.
+
+  Kept in `llmprovider`:
+  * `ItemsToInput`, the Responses wire that openai and OpenCode's responses
+    route use. It moved from `grok.go` to `http_helpers.go`, beside
+    `DecodeResponsesAPIOutput`.
+  * `grokModel46` and `grokModel45`, which the static catalog uses. They
+    moved to `models_catalog.go`. The grok package has its own copies.
+  * `grok_catalog_test.go` and `live_grok_catalog_test.go`, which test the
+    catalog.
+* **No new temporary export.** `expireGrokSession` was `ExpireSession`
+  word for word, so grok uses the export openai added.
+* **Step 2, the new API:**
+  * `grok.New`, `ID`, `Capabilities`, `Generate` and `ListModels`, and
+    `grok.WithStore`, a scoped option.
+  * `New` takes any source: a key, a command, an xAI `OAuthSession` or the
+    Grok CLI's `VendorCLISession`. It shares its client with an OAuth
+    session, as `newGrokWithSource` did. **This closes the interim gap
+    recorded in "Phase S7, commit 1".**
+  * An empty static key is refused with `ErrInvalidRequest`, as `NewGrok`
+    refused it with a plain error.
+  * A 401 from a source that can refresh is retried once, as before.
+  * `WithReasoningEffort` is `Reasoning.Effort`, falling back to
+    `WithReasoning`'s, then clamped to the CLI menu as before.
+  * The token goes through `SetTokenHeader` in generation and listing
+    (0016-PLAN T3 step 1).
+  * **Two shapes the old methods never sent, chosen without a
+    measurement.** Both have a live test that has not been run:
+    * `Instructions` go in a leading system message, the shape the old API
+      sent for a system item, not the Responses `instructions` field.
+      `TestLive_GrokInstructions`.
+    * `ToolChoiceRequired` and `ToolChoiceNone` are `"required"` and
+      `"none"`, as openai sends them. `TestLive_GrokToolChoices`.
+
+    The same rule as gemini's `"none"`: the documented form, pinned live.
+  * **The probe** copies the old probe provider: the default output limit
+    8192, no `store`, no reasoning.
+  * `llmprovider.WithStore` now has no reader. Its doc says so; S8 removes
+    it with the old API.
+* **Step 3.** The package doc lists the degradations: the effort menu, no
+  budget, and the two unmeasured shapes.
+* **Step 4, the tests ported.** Assertions keep their meaning.
+
+  | From `llmprovider` | To `grok` |
+  |---|---|
+  | `grok_test.go`, `grok_tool_description_test.go`, `responses_store_test.go`, and the Grok parts of `thinking_test.go`, `api_error_message_test.go`, `identification_test.go` (both tests), `interface_test.go` | `grok_test.go` |
+  | `grok_oauth_test.go` | `session_test.go` |
+  | `grok_effort_menu_test.go`, `grok_reasoning_test.go` | `reasoning_test.go` |
+  | the Grok parts of `probe_test.go`, `probe_scope_test.go`, `transport_defaults_test.go` | `listing_test.go` |
+  | the grok G-wire case | `wire_test.go` |
+
+  * Tests that only Grok's rows kept alive left `llmprovider`:
+    `TestDiscoverModels_ProbesFollowDefaultOptionAndEnv`,
+    `TestProviderClient_SharedWithListingAndRefresh` with `pathRecorder`
+    and `wireCaseNamed`, `TestProviderNamesAndConstructors`,
+    `TestProvidersImplementThinkingInterfaces`, and
+    `TestLive_VendorCLISession`. Its `liveVendorSession` stays, exported
+    as `LiveVendorSession`.
+  * `TestGrok_EmptyStaticKeyStillRejected` now also expects
+    `ErrInvalidRequest`, and refuses a missing source. The old test asked
+    only for an error.
+  * **New tests:** `request_test.go` (the request fields, each tool choice,
+    reasoning's fallbacks and clamping, every source kind accepted),
+    `TestGrok_TokenHeaderOverride`, `TestListModels_ListingBounded` (Grok
+    had no row in the old test), `TestListModels_ProbeBodyIsTheOldProbes`
+    and `TestListModels_CarriesTheCallersIdentity`.
+  * **Live.** `live_grok_test.go` is external. The Grok rows of the tool
+    round trip and the CLI-login test moved there, as did the store and
+    tool-description tests.
+* **G-wire.** All seven grok goldens are byte-identical to `HEAD`'s,
+  continuation included, with no `-update`.
+* **Step 5, llmtest.** `TestConformance` passes with an API key and with an
+  OAuth session.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | an empty key accepted | `New(WithAPIKey("")) error = <nil>, want ErrInvalidRequest` |
+  | no retry after a 401 | `Generate() error = llm: authentication failed: grok HTTP 401` |
+  | the key read once | `authorizations/calls = [Bearer first-token Bearer first-token]/2` |
+  | `WithStore` ignored | `store = <nil> (present false), want false (present true)` |
+  | a forced tool sends no `tool_choice` | `tool_choice = <nil>, want map[name:get_weather type:function]`, and `tool.json` |
+  | `ToolChoiceNone` omitted | `"none": tool_choice = <nil>, want none` |
+  | instructions dropped | `input = [map[content:Be brief. role:system] …], want the instructions as a leading system message` |
+  | `MaxOutputTokens` ignored | `max_output_tokens 500; want grok-other, 77` |
+  | the construction effort ignored | `empty request effort takes the default: reasoning.effort = high, want medium` |
+  | the effort not clamped | `reasoning must be omitted for grok-4`, and `reasoning.effort = medium, want low (clamped from medium)` |
+  | grok-4.5 offered xhigh | `clampReasoningEffort("grok-4.5", "xhigh") = "xhigh", want "high"` |
+  | generation ignores the token's header | `POST: X-Custom = "", want "Bearer v"` |
+  | the listing ignores the token's header | `GET: X-Custom = "", want "Bearer v"` |
+  | the client not shared with the session | `POST /oauth/token did not go through the provider's client` |
+  | a probe keeps the provider's limit, store and reasoning | `probe body map[… max_output_tokens:77 … reasoning:map[effort:high] store:false]; want … 8192, no store, no reasoning` |
+  | probes ignore `WithModelProbes` | `1 generation requests, want none` |
+  | `Generate` skips the capability check | `R23 (invalid values): an unknown tool choice returned <nil>` |
+  | grok registered under another id | `descriptor "grok" is offered to users but neither Default nor the old API builds it` |
+
+* **Coverage:**
+  * `providers/grok` 96.1 %;
+  * `llmprovider` 89.6 %, against its `P7` 89.2 %;
+  * `providers` 80.0 %.
+* **Links.** G-links found no link to the moved files.

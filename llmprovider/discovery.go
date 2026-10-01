@@ -269,14 +269,14 @@ func chatGPTCatalogModelListed(model chatGPTCatalogModel) bool {
 }
 
 // modelCatalogFor dispatches one provider's fetch and curation. The caller
-// owns the timeout. OpenAI and Claude send token as it describes itself
-// (0016-MADR A6); the providers still on the old API send its value in their
-// own header until 0015-PLAN S7 moves them.
+// owns the timeout. OpenAI, Claude, Gemini and Grok send token as it
+// describes itself (0016-MADR A6); the providers still on the old API send its
+// value in their own header until 0015-PLAN S7 moves them.
 func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg ProviderConfig) (ModelCatalog, error) {
 	apiKey := token.Value
 	switch p := strings.ToLower(providerName); p {
 	case ProviderGemini:
-		usable, err := fetchGeminiUsable(ctx, apiKey, cfg)
+		usable, err := fetchGeminiUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, StaticModels(ProviderGemini), curateGemini), nil
 	case ProviderOpenAI:
 		usable, err := fetchOpenAIUsable(ctx, token, cfg)
@@ -285,7 +285,7 @@ func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg 
 		usable, err := fetchClaudeUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, StaticModels(ProviderClaude), curateClaude), nil
 	case ProviderGrok:
-		usable, err := fetchGrokUsable(ctx, apiKey, cfg)
+		usable, err := fetchGrokUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, StaticModels(ProviderGrok), curateGrok), nil
 	case ProviderOpencodeZen, ProviderOpencodeGo:
 		return opencodeCatalog(ctx, p, apiKey, cfg)
@@ -311,13 +311,6 @@ func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg 
 	}
 }
 
-// listGeminiModels lists Gemini models and returns a short curated production set.
-func listGeminiModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
-	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return modelCatalogFor(ctx, ProviderGemini, Token{Value: apiKey}, cfg)
-	})
-}
-
 // geminiModelsPage is one page of Gemini's GET {base}/models.
 type geminiModelsPage struct {
 	Models []struct {
@@ -330,7 +323,7 @@ type geminiModelsPage struct {
 // fetchGeminiUsable returns the usable Gemini text models in listing order,
 // following nextPageToken for at most maxListingPages pages (MADR 0007 §2).
 // Any page failure, or running out of pages, fails the whole listing.
-func fetchGeminiUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
+func fetchGeminiUsable(ctx context.Context, token Token, cfg ProviderConfig) ([]string, error) {
 	baseURL := "https://generativelanguage.googleapis.com/v1beta"
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
@@ -344,7 +337,7 @@ func fetchGeminiUsable(ctx context.Context, apiKey string, cfg ProviderConfig) (
 			query.Set("pageToken", pageToken)
 		}
 		endpoint := baseURL + "/models?" + query.Encode()
-		result, err := fetchGeminiPage(ctx, endpoint, apiKey, cfg)
+		result, err := fetchGeminiPage(ctx, endpoint, token, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -363,15 +356,15 @@ func fetchGeminiUsable(ctx context.Context, apiKey string, cfg ProviderConfig) (
 }
 
 // fetchGeminiPage performs one listing request. The key travels in the
-// x-goog-api-key header, never the query string.
-func fetchGeminiPage(ctx context.Context, endpoint, apiKey string, cfg ProviderConfig) (geminiModelsPage, error) {
+// x-goog-api-key header, or the token's own, never the query string.
+func fetchGeminiPage(ctx context.Context, endpoint string, token Token, cfg ProviderConfig) (geminiModelsPage, error) {
 	var result geminiModelsPage
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, http.NoBody)
 	if err != nil {
 		return result, err
 	}
 	identityOf(cfg).setUserAgent(req)
-	req.Header.Set("x-goog-api-key", apiKey)
+	SetTokenHeader(req, token, "x-goog-api-key", "")
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
@@ -570,12 +563,13 @@ func ValidateOllamaURL(ctx context.Context, baseURL string) error {
 }
 
 // fetchGrokUsable returns the usable Grok models in listing order.
-func fetchGrokUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
+func fetchGrokUsable(ctx context.Context, token Token, cfg ProviderConfig) ([]string, error) {
 	baseURL := "https://api.x.ai/v1"
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
-	ids, err := fetchDataIDs(ctx, baseURL+"/models", oauthAuthorizationHeader, "Bearer "+apiKey, cfg, ProviderGrok)
+	header, value := tokenHeader(token, oauthAuthorizationHeader, bearerScheme)
+	ids, err := fetchDataIDs(ctx, baseURL+"/models", header, value, cfg, ProviderGrok)
 	if err != nil {
 		return nil, err
 	}

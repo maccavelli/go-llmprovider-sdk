@@ -63,8 +63,8 @@ type ProviderConfig struct {
 	// KiloOrganization scopes Kilo requests to an organization; see
 	// WithKiloOrganization. Ignored by all other providers.
 	KiloOrganization string
-	// Store sets whether OpenAI API-key mode, Grok and Gemini store responses;
-	// nil leaves each provider's default. See WithStore.
+	// Store is WithStore's value, which no provider reads any more. See
+	// WithStore.
 	Store *bool
 	// ModelProfile selects how the recommended models of the open catalogs
 	// (Kilo, OpenCode Zen and Go, Hugging Face) are ranked. The zero value is
@@ -179,12 +179,10 @@ func WithKiloOrganization(id string) ProviderOption {
 	})
 }
 
-// WithStore sets whether OpenAI (API-key mode), Grok and Gemini store
-// responses (MADR 0012 §6, MADR 0014 §2). For OpenAI and Grok, without it
-// the service default applies, which keeps Continue working; callers under
-// zero-data-retention pass false, after which Continue has nothing to chain
-// from. Gemini stores nothing unless given true, and its Continue needs
-// true. A ChatGPT session always sends false. Ignored by all other providers.
+// WithStore sets the old API's Store, which no provider reads any more: OpenAI,
+// Gemini and Grok moved to the new API, and take openai.WithStore,
+// gemini.WithStore and grok.WithStore (0015-PLAN S7). The new API's New
+// refuses it; 0015-PLAN S8 removes it with the old API.
 func WithStore(store bool) ProviderOption {
 	return legacyOption("WithStore", func(cfg *ProviderConfig) {
 		cfg.Store = &store

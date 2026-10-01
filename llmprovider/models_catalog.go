@@ -6,6 +6,12 @@ import (
 	"strings"
 )
 
+// The Grok CLI catalog's models (MADR 0012 §6).
+const (
+	grokModel46 = "grok-4.6"
+	grokModel45 = "grok-4.5"
+)
+
 // MaxListedModels is the hard cap for configure-time model menus.
 // Keeps wizards short and avoids dumping dozens of unusable API IDs.
 const MaxListedModels = 6

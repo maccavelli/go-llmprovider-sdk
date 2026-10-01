@@ -59,9 +59,6 @@ func TestDiscoverModels_ListingBounded(t *testing.T) {
 		name, listing string
 		build         func(opts ...ProviderOption) (discoverer, error)
 	}{
-		{"gemini", "GET /models", func(o ...ProviderOption) (discoverer, error) {
-			return NewGemini(context.Background(), "k", "m", o...)
-		}},
 		{"ollama", "GET /api/tags", func(o ...ProviderOption) (discoverer, error) { return NewOllama("", "m", o...) }},
 		{"opencode", "GET /models", func(o ...ProviderOption) (discoverer, error) {
 			return NewOpencode(ProviderOpencodeZen, "k", "glm-5.3-flash", o...)

@@ -8,8 +8,8 @@ import (
 )
 
 // Thinking request shapes for the budget-based wires, the Anthropic Messages
-// API and Gemini's generateContent, shared by ClaudeProvider, GeminiProvider
-// and OpenCode's messages and google routes (MADR 0013 Q1, B9). The model id
+// API and Gemini's generateContent, shared by the claude provider and
+// OpenCode's messages and google routes (MADR 0013 Q1, B9). The model id
 // selects the shape, as in OpenCode's own client
 // (packages/opencode/src/provider/transform.ts).
 

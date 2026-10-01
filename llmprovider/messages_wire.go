@@ -58,7 +58,7 @@ func MessagesFromItems(items []Item) []map[string]any {
 				jsonKeyType:  "tool_use",
 				"id":         v.CallID,
 				jsonKeyName:  v.Name,
-				jsonKeyInput: toolArguments(v.Arguments),
+				jsonKeyInput: ToolArguments(v.Arguments),
 			})
 		case FunctionCallOutputItem:
 			appendBlock(jsonRoleUser, map[string]any{

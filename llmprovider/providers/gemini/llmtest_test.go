@@ -1,0 +1,40 @@
+package gemini
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"testing"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/llmtest"
+)
+
+// TestConformance runs llmtest (0015-MADR D11) against Gemini, with and
+// without stored interactions.
+func TestConformance(t *testing.T) {
+	for name, extra := range map[string][]llmprovider.Option{"unstored": nil, "stored": {WithStore(true)}} {
+		t.Run(name, func(t *testing.T) {
+			llmtest.Run(t, llmtest.Harness{
+				New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
+					base := []llmprovider.Option{llmprovider.WithAPIKey("gemini-llmtest"),
+						llmprovider.WithModel("gemini-3.7-flash"), llmprovider.WithBaseURL(baseURL)}
+					return New(append(append(base, extra...), opts...)...)
+				},
+				Text: func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = io.WriteString(w, `{"id":"v1_llmtest","status":"completed","steps":[`+
+						`{"type":"model_output","content":[{"type":"text","text":"hello"}]}]}`)
+				},
+				ToolCall: func(w http.ResponseWriter, _ *http.Request, tool string) {
+					_ = json.NewEncoder(w).Encode(map[string]any{"id": "v1_llmtest", "status": "requires_action",
+						"steps": []any{map[string]any{"type": "function_call", "id": "call_llmtest", "name": tool,
+							"arguments": map[string]any{}}}})
+				},
+				Error: func(w http.ResponseWriter, _ *http.Request, status int) {
+					w.WriteHeader(status)
+					_, _ = io.WriteString(w, `{"error":{"code":"llmtest","message":"llmtest"}}`)
+				},
+			})
+		})
+	}
+}

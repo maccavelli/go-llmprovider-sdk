@@ -11,6 +11,8 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/claude"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/gemini"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/grok"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
 )
 
@@ -22,6 +24,8 @@ var builtins = []struct {
 }{
 	{llmprovider.ProviderOpenAI, openai.New},
 	{llmprovider.ProviderClaude, claude.New},
+	{llmprovider.ProviderGemini, gemini.New},
+	{llmprovider.ProviderGrok, grok.New},
 }
 
 // Default returns a new Registry holding the built-in providers.

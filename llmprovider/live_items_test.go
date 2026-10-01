@@ -24,10 +24,6 @@ func TestLive_ToolRoundTrip(t *testing.T) {
 		name, env string
 		build     func(t *testing.T, key string) (ItemProvider, error)
 	}{
-		{"gemini", "GEMINI_API_KEY", func(_ *testing.T, k string) (ItemProvider, error) {
-			return NewGemini(context.Background(), k, "gemini-3.7-flash")
-		}},
-		{"grok", "XAI_API_KEY", func(_ *testing.T, k string) (ItemProvider, error) { return NewGrok(k, "grok-4.5") }},
 		{"kilo", "KILO_API_KEY", func(t *testing.T, k string) (ItemProvider, error) {
 			return NewKilo(k, liveModel(t, ProviderKilo, kiloNonTraining...))
 		}},
@@ -61,46 +57,5 @@ func TestLive_ToolRoundTrip(t *testing.T) {
 				t.Fatalf("reply %q does not use the tool result", res.OutputText())
 			}
 		})
-	}
-}
-
-// TestLive_GeminiReplaysRealCall: a call Gemini issued goes back with the
-// thoughtSignature it came with, and Gemini answers from the result.
-func TestLive_GeminiReplaysRealCall(t *testing.T) {
-	key := os.Getenv("GEMINI_API_KEY")
-	if key == "" {
-		t.Skip("GEMINI_API_KEY unset")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	p, err := NewGemini(ctx, key, "gemini-3.7-flash")
-	if err != nil {
-		t.Fatalf("NewGemini: %v", err)
-	}
-	ask := MessageItem{Role: jsonRoleUser, Text: "What is the weather in Paris? Use the tool."}
-	tool := Tool{Name: "get_weather", Description: "Current weather for a city",
-		Schema: map[string]any{"type": "object", "properties": map[string]any{"city": map[string]any{"type": "string"}},
-			"required": []string{"city"}}}
-	first, err := p.GenerateItemsWithTool(ctx, tool, ask)
-	skipIfTransient(t, err)
-	if err != nil {
-		t.Fatalf("GenerateItemsWithTool: %v", err)
-	}
-	var call FunctionCallItem
-	for _, item := range first.Output {
-		if c, ok := item.(FunctionCallItem); ok {
-			call = c
-		}
-	}
-	if call.Name != "get_weather" {
-		t.Fatalf("no get_weather call in %+v", first.Output)
-	}
-	res, err := p.GenerateItems(ctx, ask, call, FunctionCallOutputItem{CallID: call.CallID, Output: `{"forecast":"sunny, 21C"}`})
-	skipIfTransient(t, err)
-	if err != nil {
-		t.Fatalf("replay: %v", err)
-	}
-	if text := strings.ToLower(res.OutputText()); !strings.Contains(text, "sunny") && !strings.Contains(text, "21") {
-		t.Fatalf("reply %q does not use the tool result", res.OutputText())
 	}
 }

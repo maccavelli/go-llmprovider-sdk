@@ -102,33 +102,33 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.FunctionCallOutputItem` |  |  |
 | `llmprovider.FunctionCallOutputItem.CallID` |  |  |
 | `llmprovider.FunctionCallOutputItem.Output` |  |  |
-| `llmprovider.GeminiProvider` |  |  |
-| `llmprovider.GeminiProvider.Continue` |  |  |
-| `llmprovider.GeminiProvider.DiscoverModels` |  |  |
-| `llmprovider.GeminiProvider.Generate` |  |  |
-| `llmprovider.GeminiProvider.GenerateItems` |  |  |
-| `llmprovider.GeminiProvider.GenerateItemsThinking` |  |  |
-| `llmprovider.GeminiProvider.GenerateItemsWithTool` |  |  |
-| `llmprovider.GeminiProvider.GenerateItemsWithToolThinking` |  |  |
-| `llmprovider.GeminiProvider.GenerateThinking` |  |  |
-| `llmprovider.GeminiProvider.GenerateWithTool` |  |  |
-| `llmprovider.GeminiProvider.GenerateWithToolThinking` |  |  |
-| `llmprovider.GeminiProvider.Name` |  |  |
+| `llmprovider.GeminiProvider` | the `llmprovider.Provider` that `gemini.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.GeminiProvider.Continue` | `Generate` with `Request.PreviousResponseID` | Needs `gemini.WithStore(true)`; without it continuation is `Unsupported`, and refused with `ErrUnsupported` where it was `ErrInvalidRequest` (0015-MADR D4). |
+| `llmprovider.GeminiProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
+| `llmprovider.GeminiProvider.Generate` | `llmprovider.GenerateText` |  |
+| `llmprovider.GeminiProvider.GenerateItems` | `Generate` with `Request.Input` |  |
+| `llmprovider.GeminiProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` | `WithReasoningEffort` is `Reasoning.Effort`; the Interactions API has no budget. |
+| `llmprovider.GeminiProvider.GenerateItemsWithTool` | `Generate` with `Request.Tools` and `ForceTool` |  |
+| `llmprovider.GeminiProvider.GenerateItemsWithToolThinking` | `Generate` with `Tools`, `ForceTool` and `Reasoning` |  |
+| `llmprovider.GeminiProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
+| `llmprovider.GeminiProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
+| `llmprovider.GeminiProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
+| `llmprovider.GeminiProvider.Name` | `ID()` | It returns `ProviderGemini` as a `ProviderID`. |
 | `llmprovider.GenerateItemsWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`; the function goes in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.GenerateThinkingWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`; the function goes in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.GenerateWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`; the function goes in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
-| `llmprovider.GrokProvider` |  |  |
-| `llmprovider.GrokProvider.Continue` |  |  |
-| `llmprovider.GrokProvider.DiscoverModels` |  |  |
-| `llmprovider.GrokProvider.Generate` |  |  |
-| `llmprovider.GrokProvider.GenerateItems` |  |  |
-| `llmprovider.GrokProvider.GenerateItemsThinking` |  |  |
-| `llmprovider.GrokProvider.GenerateItemsWithTool` |  |  |
-| `llmprovider.GrokProvider.GenerateItemsWithToolThinking` |  |  |
-| `llmprovider.GrokProvider.GenerateThinking` |  |  |
-| `llmprovider.GrokProvider.GenerateWithTool` |  |  |
-| `llmprovider.GrokProvider.GenerateWithToolThinking` |  |  |
-| `llmprovider.GrokProvider.Name` |  |  |
+| `llmprovider.GrokProvider` | the `llmprovider.Provider` that `grok.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.GrokProvider.Continue` | `Generate` with `Request.PreviousResponseID` |  |
+| `llmprovider.GrokProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
+| `llmprovider.GrokProvider.Generate` | `llmprovider.GenerateText` |  |
+| `llmprovider.GrokProvider.GenerateItems` | `Generate` with `Request.Input` |  |
+| `llmprovider.GrokProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` | `WithReasoningEffort` is `Reasoning.Effort`, clamped to the model's menu as before. |
+| `llmprovider.GrokProvider.GenerateItemsWithTool` | `Generate` with `Request.Tools` and `ForceTool` |  |
+| `llmprovider.GrokProvider.GenerateItemsWithToolThinking` | `Generate` with `Tools`, `ForceTool` and `Reasoning` |  |
+| `llmprovider.GrokProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
+| `llmprovider.GrokProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
+| `llmprovider.GrokProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
+| `llmprovider.GrokProvider.Name` | `ID()` | It returns `ProviderGrok` as a `ProviderID`. |
 | `llmprovider.HuggingFaceProvider` |  |  |
 | `llmprovider.HuggingFaceProvider.DiscoverModels` |  |  |
 | `llmprovider.HuggingFaceProvider.Generate` |  |  |
@@ -191,8 +191,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ModelProfile.ReasoningEffort` |  |  |
 | `llmprovider.NewClaude` | `claude.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderClaude, …)`; an OAuth session is refused with `ErrUnsupported` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewFileTokenStore` |  |  |
-| `llmprovider.NewGemini` |  |  |
-| `llmprovider.NewGrok` |  |  |
+| `llmprovider.NewGemini` | `gemini.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGemini, …)`. It takes no context; an OAuth session is refused with `ErrUnsupported` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.NewGrok` | `grok.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGrok, …)`. A session, which only `NewProvider` took, is `WithTokenSource(src)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewHuggingFace` |  |  |
 | `llmprovider.NewKilo` |  |  |
 | `llmprovider.NewOllama` |  |  |
@@ -385,7 +385,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.WithOpencodeRoute` |  |  |
 | `llmprovider.WithReasoningEffort` |  |  |
 | `llmprovider.WithSessionID` |  |  |
-| `llmprovider.WithStore` |  |  |
+| `llmprovider.WithStore` | `openai.WithStore`, `gemini.WithStore` or `grok.WithStore` | Scoped to its provider; the old option is removed in S8 ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.WithThinkingBudget` |  |  |
 
 ### `wizard`

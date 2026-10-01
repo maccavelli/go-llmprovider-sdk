@@ -54,7 +54,7 @@ Migrated from `mcplib` `docs/0001-PLAN-add-grok-xai-llm-provider.md` at `4e1f9a5
 | **Thoroughly grounded.** Every claim about the existing codebase cites exact file paths and line numbers that match the current source. | E.g., `Provider` interface at [`provider.go:18-24`](../../llmprovider/provider.go#L18-L24), `ProviderEnvVars` at [`provider.go:106-110`](../../llmprovider/provider.go#L106-L110), `NewProvider` switch at [`provider.go:163-174`](../../llmprovider/provider.go#L163-L174). All confirmed. |
 | **Cross-vendor convergence is real.** OpenAI, xAI, and Gemini have all shipped Responses/Interactions-style APIs with typed output items and server-side continuation IDs. | Primary sources cited for all four vendors. Claude's lack of a Responses analog explicitly documented as a permanent, not transitional, limitation. |
 | **Existing patterns validated.** The MADR correctly identifies that typed sentinel errors ([`provider.go:64-71`](../../llmprovider/provider.go#L64-L71)), opt-in retry as a decorator ([`provider.go:112-159`](../../llmprovider/provider.go#L112-L159)), and functional options ([`options.go:38-89`](../../llmprovider/options.go#L38-L89)) are already idiomatic and should be preserved. | Two independent OSS projects (nocturnium/llm-go-sdk, mozilla-ai/any-llm-go) corroborate this. |
-| **Sealed-interface `Item` is well-motivated.** The `go/ast` `Node`/`Expr`/`Stmt` idiom is standard Go for restricted polymorphism. The codebase already uses anonymous structs per provider to parse typed content blocks, then discards the structure — canonicalizing it is an explicit improvement. | See OpenAI's `choices[].message.content` vs `tool_calls` ([`openai.go:118-124`](../../llmprovider/providers/openai/openai.go), [`openai.go:206-216`](../../llmprovider/providers/openai/openai.go)), Claude's typed `content[]` blocks ([`claude.go:126-131`](../../llmprovider/providers/claude/claude.go)), Gemini's `parts[]` with `text`/`functionCall` ([`gemini.go:119-137`](../../llmprovider/gemini.go#L119-L137)). |
+| **Sealed-interface `Item` is well-motivated.** The `go/ast` `Node`/`Expr`/`Stmt` idiom is standard Go for restricted polymorphism. The codebase already uses anonymous structs per provider to parse typed content blocks, then discards the structure — canonicalizing it is an explicit improvement. | See OpenAI's `choices[].message.content` vs `tool_calls` ([`openai.go:118-124`](../../llmprovider/providers/openai/openai.go), [`openai.go:206-216`](../../llmprovider/providers/openai/openai.go)), Claude's typed `content[]` blocks ([`claude.go:126-131`](../../llmprovider/providers/claude/claude.go)), Gemini's `parts[]` with `text`/`functionCall` ([`gemini.go:119-137`](../../llmprovider/generatecontent_wire.go)). |
 | **Reasoning-effort model-gating for Grok is documented per-tier.** Three tiers identified with specific model families, preventing runtime 400 errors. | Cited from docs.x.ai with secondary corroboration (grok-cli issue #198, axl-sdk). |
 
 ### Gaps This Plan Resolves
@@ -716,7 +716,7 @@ make lint
 
 ### Step 3.1 — `gemini.go` Internal Migration
 
-**File**: [`llmprovider/gemini.go`](../../llmprovider/gemini.go)
+**File**: [`llmprovider/gemini.go`](../../llmprovider/providers/gemini/gemini.go)
 
 **Changes**:
 
@@ -732,7 +732,7 @@ make lint
 3. **Rewrite existing methods as wrappers** (same delegation pattern as Phase 2).
 
 4. `genConfig` helper
-   ([`gemini.go:45-55`](../../llmprovider/gemini.go#L45-L55))
+   ([`gemini.go:45-55`](../../llmprovider/providers/gemini/gemini.go))
    adapted for Interactions API configuration shape if needed.
 
 ### Step 3.2 — Test Updates
@@ -1026,7 +1026,7 @@ These items are explicitly not part of this plan, per the MADR:
 | [`discovery.go`](../../llmprovider/discovery.go) | Add `listGrokModels`, `ListAvailableModels` case | 1 |
 | [`models_catalog.go`](../../llmprovider/models_catalog.go) | Add `StaticGrok`, `isUsableGrokModel`, `RankGrokModel`, `StaticModels` case | 1 |
 | [`openai.go`](../../llmprovider/providers/openai/openai.go) | Migrate to Responses API, add `GenerateItems`/`Continue`, existing methods become wrappers | 2 |
-| [`gemini.go`](../../llmprovider/gemini.go) | Migrate to Interactions API, add `GenerateItems`/`Continue`, existing methods become wrappers | 3 |
+| [`gemini.go`](../../llmprovider/providers/gemini/gemini.go) | Migrate to Interactions API, add `GenerateItems`/`Continue`, existing methods become wrappers | 3 |
 | [`claude.go`](../../llmprovider/providers/claude/claude.go) | Add `GenerateItems`, existing methods become wrappers, permanent no-`Continuer` doc | 4 |
 | [`thinking_test.go`](../../llmprovider/thinking_test.go) | Add Grok interface checks | 1 |
 | [`models_catalog_test.go`](../../llmprovider/models_catalog_test.go) | Add Grok catalog/ranking tests | 1 |

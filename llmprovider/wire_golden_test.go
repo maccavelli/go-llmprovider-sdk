@@ -24,6 +24,10 @@ const wireSession = "wire-session"
 
 const wirePrompt = "What is the weather in Paris?"
 
+// weatherTool is the tool the tool scenarios, and Together's tests, offer.
+var weatherTool = Tool{Name: "get_weather", Description: "Weather for a city",
+	Schema: map[string]any{"type": "object", "properties": map[string]any{"city": map[string]any{"type": "string"}}}}
+
 // wireItems is a conversation using every Item type, a system message and a
 // replayed call signature.
 var wireItems = []Item{
@@ -82,22 +86,6 @@ var (
 )
 
 var wireCases = []wireCase{
-	{
-		name: "gemini",
-		listing: `{"models":[{"name":"models/gemini-3.7-flash","supportedGenerationMethods":["generateContent"]},` +
-			`{"name":"models/text-embedding-005","supportedGenerationMethods":["embedContent"]}]}`,
-		continueOpts: []ProviderOption{WithStore(true)},
-		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
-			return NewGemini(context.Background(), "gemini-wire-key", "gemini-3.7-flash", wireOpts(u, extra...)...)
-		},
-	},
-	{
-		name:    "grok",
-		listing: wireListingDataIDs("grok-4.5", "grok-4.7"),
-		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
-			return NewGrok("xai-wire", "grok-4.5", wireOpts(u, extra...)...)
-		},
-	},
 	opencodeWireCase(ProviderOpencodeZen, "responses", "gpt-5.5", wireOpencodeListing),
 	opencodeWireCase(ProviderOpencodeZen, "messages", "claude-sonnet-5", wireOpencodeListing),
 	opencodeWireCase(ProviderOpencodeZen, "google", "gemini-3.8-flash", wireOpencodeListing),

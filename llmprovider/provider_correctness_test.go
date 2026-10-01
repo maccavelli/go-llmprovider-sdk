@@ -2,46 +2,10 @@ package llmprovider
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 )
-
-// bodyField spins up a server that records one top-level JSON field from the
-// request body, then returns the supplied response.
-func bodyCapture(t *testing.T, resp string) (*httptest.Server, *map[string]any) {
-	t.Helper()
-	captured := &map[string]any{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b, _ := io.ReadAll(r.Body)
-		var m map[string]any
-		_ = json.Unmarshal(b, &m)
-		*captured = m
-		_, _ = w.Write([]byte(resp))
-	}))
-	return srv, captured
-}
-
-// TestGemini_WithMaxTokens is the regression for Gemini's generationConfig.
-func TestGemini_WithMaxTokens(t *testing.T) {
-	srv, body := bodyCapture(t, interactionText)
-	defer srv.Close()
-	p, _ := NewGemini(context.Background(), "k", "gemini-x", WithBaseURL(srv.URL), WithMaxTokens(123))
-	if _, err := p.Generate(context.Background(), "hi"); err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	gc, ok := (*body)["generation_config"].(map[string]any)
-	if !ok {
-		t.Fatalf("generation_config missing: %v", *body)
-	}
-	if mt, ok := gc["max_output_tokens"].(float64); !ok || int(mt) != 123 {
-		t.Errorf("max_output_tokens not sent: %v", gc["max_output_tokens"])
-	}
-}
 
 func TestParseRetryAfter(t *testing.T) {
 	if got := parseRetryAfter("120"); got != 120*time.Second {

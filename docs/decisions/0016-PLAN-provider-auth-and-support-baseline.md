@@ -804,3 +804,19 @@ run in T2 (0015-PLAN S4).
   first. The refusal of OAuth sources for claude landed in its S7 commit.
 * **Still to do.** Each later S7 commit applies the rule to the provider it
   moves. Details are in 0015-PLAN, "Phase S7, commit 5".
+
+### T3 step 1: the header override, gemini (2026-09-30, in 0015-PLAN S7)
+
+* gemini applies the rule in generation and in its listing. Its header is
+  unchanged: `x-goog-api-key`, as the table says, re-read from the moved
+  source. G-wire shows no difference.
+* **Test:** `TestGemini_TokenHeaderOverride`. Breaking generation or the
+  listing fails it. Details are in 0015-PLAN, "Phase S7, commit 6".
+
+### T3 step 1: the header override, grok (2026-09-30, in 0015-PLAN S7)
+
+* grok applies the rule in generation and in its listing. Its header is
+  unchanged: `Authorization: Bearer`, as the table says, re-read from the
+  moved source. G-wire shows no difference.
+* **Test:** `TestGrok_TokenHeaderOverride`. Breaking generation or the
+  listing fails it. Details are in 0015-PLAN, "Phase S7, commit 7".

@@ -93,78 +93,6 @@ func withoutProxyVariables(env []string) []string {
 	return out
 }
 
-// pathRecorder records the path of every request made through it.
-type pathRecorder struct {
-	base  http.RoundTripper
-	mu    sync.Mutex
-	paths []string
-}
-
-func (r *pathRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
-	r.mu.Lock()
-	r.paths = append(r.paths, req.Method+" "+req.URL.Path)
-	r.mu.Unlock()
-	return r.base.RoundTrip(req)
-}
-
-// TestProviderClient_SharedWithListingAndRefresh (0016-PLAN T1 step 3): a
-// provider built without WithHTTPClient sends its generation, its listing and
-// its OAuth session's refresh through one *http.Client.
-func TestProviderClient_SharedWithListingAndRefresh(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		wire  wireCase
-		build func(src TokenSource, baseURL string) (wireProvider, *http.Client, error)
-	}{
-		{"grok", wireCaseNamed(t, "grok"), func(src TokenSource, u string) (wireProvider, *http.Client, error) {
-			p, err := newGrokWithSource(src, "grok-4.5", WithBaseURL(u))
-			if err != nil {
-				return nil, nil, err
-			}
-			return p, p.client, nil
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/oauth/token" {
-					refreshOK(w, "a-refreshed")
-					return
-				}
-				reply := tc.wire.reply(r)
-				w.WriteHeader(max(reply.Status, http.StatusOK))
-				_, _ = w.Write([]byte(reply.Body))
-			}))
-			t.Cleanup(srv.Close)
-			session := &OAuthSession{Provider: ProviderOpenAI, Issuer: DefaultOpenAIIssuer, Access: "a-old",
-				Refresh: "rt-old", Expiry: time.Now().Add(-time.Minute), ClientID: "client-test",
-				TokenURL: srv.URL + "/oauth/token", AccountID: "acct-test"}
-			if tc.name == "grok" {
-				session.Provider, session.Issuer = ProviderGrok, ""
-			}
-			p, client, err := tc.build(session, srv.URL)
-			if err != nil {
-				t.Fatal(err)
-			}
-			recorder := &pathRecorder{base: client.Transport}
-			client.Transport = recorder
-
-			if _, err := p.Generate(context.Background(), wirePrompt); err != nil {
-				t.Fatalf("Generate: %v", err)
-			}
-			if _, err := p.DiscoverModels(context.Background()); err != nil {
-				t.Fatalf("DiscoverModels: %v", err)
-			}
-			recorder.mu.Lock()
-			defer recorder.mu.Unlock()
-			for _, want := range []string{"POST /oauth/token", "POST /responses", "GET /models"} {
-				if !slices.Contains(recorder.paths, want) {
-					t.Errorf("%s did not go through the provider's client (it carried %v)", want, recorder.paths)
-				}
-			}
-		})
-	}
-}
-
 // TestShareHTTPClient_KeepsTheSessionsOwn: a session that already has a
 // client keeps it; anything but an OAuth session is left alone.
 func TestShareHTTPClient_KeepsTheSessionsOwn(t *testing.T) {
@@ -180,15 +108,4 @@ func TestShareHTTPClient_KeepsTheSessionsOwn(t *testing.T) {
 		t.Error("a nil client was shared")
 	}
 	ShareHTTPClient(NewStaticToken("k"), provider) // must not panic
-}
-
-func wireCaseNamed(t *testing.T, name string) wireCase {
-	t.Helper()
-	for _, c := range wireCases {
-		if c.name == name {
-			return c
-		}
-	}
-	t.Fatalf("no wire case %q", name)
-	return wireCase{}
 }

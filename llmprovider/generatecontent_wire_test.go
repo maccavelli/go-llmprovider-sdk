@@ -32,7 +32,7 @@ func TestGeminiDecode_ThoughtSummaryPart(t *testing.T) {
 }
 
 // geminiWireBodies returns the request body OpenCode's google route sends for
-// one call; GeminiProvider speaks the Interactions API (MADR 0014 §1).
+// one call; the gemini provider speaks the Interactions API (MADR 0014 §1).
 func geminiWireBodies(t *testing.T, thinking bool, items ...Item) map[string]map[string]any {
 	t.Helper()
 	out := map[string]map[string]any{}

@@ -5,11 +5,12 @@ import (
 	"strings"
 )
 
-// toolArguments decodes a call's JSON arguments into the object Anthropic's
+// ToolArguments decodes a call's JSON arguments into the object Anthropic's
 // tool_use.input and Gemini's functionCall.args require. Empty arguments are
 // an empty object; arguments that are not a JSON object are kept under
 // "arguments" rather than dropped.
-func toolArguments(arguments string) map[string]any {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func ToolArguments(arguments string) map[string]any {
 	if strings.TrimSpace(arguments) == "" {
 		return map[string]any{}
 	}
