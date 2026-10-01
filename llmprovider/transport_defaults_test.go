@@ -21,7 +21,10 @@ const proxyChildEnv = "LLMPROVIDER_TEST_PROXY_CHILD"
 var proxyVariables = []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "REQUEST_METHOD"}
 
 // TestDefaultClient_HonoursProxy (0016-PLAN T1 step 2): every provider built
-// without WithHTTPClient reaches its service through HTTP_PROXY. net/http reads
+// without WithHTTPClient reaches its service through HTTP_PROXY. It covers the
+// providers still in this package's G-wire cases; the providers package's
+// test of the same name covers every provider in Default (0015-PLAN S7,
+// commit 13). net/http reads
 // the proxy variables once per process, so the providers run in a child
 // process that starts with them set. Each provider's base URL is a
 // non-loopback host that does not resolve, because loopback is never proxied:

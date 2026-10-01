@@ -411,6 +411,10 @@ run in T2 (0015-PLAN S4).
   * the guard in `shareHTTPClient` removed:
     `a session's own client was replaced`.
 * **V7** (proxy honoured; one client per provider) is met.
+  *Annotated 2026-10-01:* from `00fe139` on, the proxy test lost each
+  provider that 0015-PLAN S7 moved, with no replacement. At `20b6b9e` it
+  covered only `together`. 0015-PLAN, "Phase S7, commit 13", moved the test
+  over `providers.Default()`, which covers every built-in provider again.
 
 ### T2 step 1 and A2: durable writes and the refresh lock (2026-09-30, in 0015-PLAN S4)
 

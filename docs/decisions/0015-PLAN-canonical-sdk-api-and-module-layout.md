@@ -2415,7 +2415,8 @@ Staged for the owner to commit. *Annotated 2026-10-01:* committed as
 ### Phase S7, commit 12: `ollama` (2026-10-01)
 
 Built on the earlier commits' pattern; only what differs is recorded here.
-Staged for the owner to commit.
+Staged for the owner to commit. *Annotated 2026-10-01:* committed as
+`20b6b9e`.
 
 * **Step 1, moved** (plain `mv`): `ollama.go` and `ollama_test.go` to
   `providers/ollama/`, and `testdata/wire/ollama`.
@@ -2540,3 +2541,51 @@ Staged for the owner to commit.
   * **Scope.** `0003-PLAN-add-grok-xai-llm-provider.md` joins this commit.
     G-links then found 0 problems.
 * **Next.** `notYetMoved` holds only `together`.
+
+### Phase S7, commit 13: the proxy test over `Default()` (2026-10-01)
+
+Staged for the owner to commit, before the together commit.
+
+* **Deviation, 2026-10-01: the proxy test lost every moved provider.**
+  * **Found** in the together commit's survey, before any change.
+    `TestDefaultClient_HonoursProxy` (0016-PLAN T1 step 2) iterated
+    `llmprovider`'s G-wire cases only
+    (`llmprovider/transport_defaults_test.go:29-66` at `20b6b9e`).
+  * Each S7 commit moved its provider's case to the provider's package and
+    gave the proxy test no replacement. From `00fe139` (openai) on, the test
+    covered fewer providers, and none of the S7 records say so. At
+    `20b6b9e` it covered only `together`. After the together commit it
+    would have covered nothing, and passed.
+  * 0016-PLAN records V7, proxy honoured, as met on that test.
+  * **Decided.** The owner chose "one test over `Default()`", in its own
+    commit before the together commit.
+* **The test.** `llmprovider/providers/proxy_test.go` has
+  `TestDefaultClient_HonoursProxy`:
+  * every provider in `Default()` is built with `providers.New`, a key, its
+    first static model and `http://<id>.invalid`, and must generate "hello"
+    through `HTTP_PROXY`;
+  * the proxy answers with `wirecase`'s canned reply for the request's path,
+    which serves every wire format;
+  * the parent checks that every id's host reached the proxy, and fails if
+    `Default()` is empty;
+  * the child process and the cleared proxy variables are as before.
+
+  It covers the nine ids registered at `20b6b9e`, and each provider
+  registered later with no further change.
+* **The old test stays** in `llmprovider` for `together`, its last case. Its
+  doc comment names the new one. The together commit removes it with its
+  last case.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | the default client ignores `HTTP_PROXY` | `openai: GenerateText = "", Post "http://openai.invalid/responses": dial tcp: lookup openai.invalid: no such host; want "hello" through the proxy`, and every other id |
+  | ollama builds a client without a proxy | `ollama: GenerateText = "", Post "http://ollama.invalid/v1/chat/completions": … no such host` |
+  | kilo builds a client without a proxy | `kilo: GenerateText = "", Post "http://kilo.invalid/chat/completions": … no such host` |
+  | the child skips the first provider | `openai: no request reached the proxy (saw [claude.invalid … ollama.invalid])` |
+  | `Default()` holds no provider | `Default holds no provider` |
+
+  The fourth shows the other eight hosts reached the proxy.
+* **Scope.** `llmprovider/providers/proxy_test.go` (new),
+  `llmprovider/transport_defaults_test.go` (a comment), and these records.
+  No library code changes.
