@@ -112,14 +112,6 @@ func ListModelCatalogWithSource(ctx context.Context, providerName string, src To
 	return modelCatalogFor(ctx, providerName, token, cfg)
 }
 
-// boundedListing runs one DiscoverModels listing under modelListingTimeout
-// and returns its recommendation (MADR 0013 A5).
-func boundedListing(ctx context.Context, list func(context.Context) (ModelCatalog, error)) ([]string, error) {
-	ctx, cancel := context.WithTimeout(ctx, modelListingTimeout)
-	defer cancel()
-	return recommendedOf(list(ctx))
-}
-
 // recommendedOf adapts a catalog result to the ListAvailableModels contract.
 func recommendedOf(cat ModelCatalog, err error) ([]string, error) {
 	if err != nil {
@@ -269,12 +261,9 @@ func chatGPTCatalogModelListed(model chatGPTCatalogModel) bool {
 }
 
 // modelCatalogFor dispatches one provider's fetch and curation. The caller
-// owns the timeout. OpenAI, Claude, Gemini, Grok, the OpenCode gateways, Kilo
-// and Hugging Face send token as it describes itself (0016-MADR A6); the
-// providers still on the old API send its value in their own header until
-// 0015-PLAN S7 moves them.
+// owns the timeout. Every lister sends token as it describes itself
+// (0016-MADR A6).
 func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg ProviderConfig) (ModelCatalog, error) {
-	apiKey := token.Value
 	switch p := strings.ToLower(providerName); p {
 	case ProviderGemini:
 		usable, err := fetchGeminiUsable(ctx, token, cfg)
@@ -302,7 +291,7 @@ func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg 
 		return catalogFrom(kiloUsable(entries), err, StaticModels(ProviderKilo), kiloCurate(entries, cfg.ModelProfile)), nil
 	case ProviderTogether:
 		meta := startModelMetadata(ctx, cfg)
-		usable, err := fetchTogetherUsable(ctx, apiKey, cfg)
+		usable, err := fetchTogetherUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, StaticModels(ProviderTogether),
 			metadataCurate(ProviderTogether, cfg.ModelProfile, meta, curateTogether)), nil
 	case ProviderOllama:
@@ -785,18 +774,11 @@ func fetchHuggingFaceUsable(ctx context.Context, token Token, cfg ProviderConfig
 // image, audio and embedding models.
 const togetherListingLimit = 8 << 20
 
-// listTogetherModels lists Together AI's chat models, curated.
-func listTogetherModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
-	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return modelCatalogFor(ctx, ProviderTogether, Token{Value: apiKey}, cfg)
-	})
-}
-
 // fetchTogetherUsable returns Together's chat models in listing order.
 // GET {base}/models answers with a bare JSON array, not an OpenAI
 // {"data": [...]} envelope, and lists every model type; only "chat" models
 // can serve a Chat Completions request (0017-REPORT, Together section).
-func fetchTogetherUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
+func fetchTogetherUsable(ctx context.Context, token Token, cfg ProviderConfig) ([]string, error) {
 	baseURL := togetherBaseURL
 	if cfg.BaseURL != "" {
 		baseURL = strings.TrimRight(cfg.BaseURL, "/")
@@ -806,7 +788,7 @@ func fetchTogetherUsable(ctx context.Context, apiKey string, cfg ProviderConfig)
 		return nil, err
 	}
 	identityOf(cfg).setUserAgent(req)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	SetTokenHeader(req, token, oauthAuthorizationHeader, bearerScheme)
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {

@@ -1,9 +1,8 @@
 // Package providers builds the built-in providers by id (0015-MADR D10).
 //
 // Default returns a new Registry holding every built-in provider; there is no
-// global registry and no init-time registration. During 0015-PLAN S7 the
-// built-in providers move here one by one, and Default gains each as it
-// arrives.
+// global registry and no init-time registration. Each built-in provider is in
+// its own package, as 0015-PLAN S7 moved it.
 package providers
 
 import (
@@ -18,10 +17,10 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/ollama"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/opencode"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/together"
 )
 
-// builtins are the providers that have moved to their own packages, in menu
-// order.
+// builtins are the built-in providers, in menu order.
 var builtins = []struct {
 	id  string
 	new llmprovider.Factory
@@ -34,6 +33,7 @@ var builtins = []struct {
 	{llmprovider.ProviderOpencodeGo, opencode.NewGo},
 	{llmprovider.ProviderKilo, kilo.New},
 	{llmprovider.ProviderHuggingFace, huggingface.New},
+	{llmprovider.ProviderTogether, together.New},
 	{llmprovider.ProviderOllama, ollama.New},
 }
 

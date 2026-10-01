@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-09-30
+date: 2026-10-01
 associated-madr: "0017-MADR-together-provider-and-auth-extensions.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -263,6 +263,8 @@ Associated MADR: [0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-
 * **Step 10.** 0015-PLAN S7's order already names `together`, from the
   accepted amendment. S10's environment helper will read `TOGETHER_API_KEY`
   from `ProviderEnvVars`, which already has it.
+  *Annotated 2026-10-01:* 0015-PLAN, "Phase S7, commit 14", moved it to
+  `providers/together`.
 * **Gate,** every step exit 0:
   * `make pre-add-check`;
   * `go vet` for darwin, linux and windows (`CGO_ENABLED=0`), and with

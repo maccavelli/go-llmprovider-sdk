@@ -17,4 +17,5 @@ var (
 	LiveKiloKey            = kiloKey
 	LiveKiloFreeCollecting = kiloFreeCollecting
 	LiveKiloNonTraining    = kiloNonTraining
+	LiveTogetherKey        = togetherLiveKey
 )

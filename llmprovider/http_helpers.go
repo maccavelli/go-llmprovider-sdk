@@ -222,14 +222,3 @@ func ReadResponsesStream(provider string, body io.Reader) (*Response, error) {
 	}
 	return nil, fmt.Errorf("%w: %s: stream ended before response.completed", ErrProviderUnavailable, provider)
 }
-
-// firstFunctionCallArgs returns the arguments of the first FunctionCallItem in
-// resp, or an error naming the provider when the model returned none.
-func firstFunctionCallArgs(resp *Response, provider string) (string, error) {
-	for _, item := range resp.Output {
-		if fc, ok := item.(FunctionCallItem); ok {
-			return fc.Arguments, nil
-		}
-	}
-	return "", fmt.Errorf("%s: no function call in response", provider)
-}

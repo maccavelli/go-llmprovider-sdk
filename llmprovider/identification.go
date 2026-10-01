@@ -91,12 +91,6 @@ func (id clientIdentity) userAgent() string {
 	return fmt.Sprintf("%s/%s (%s; %s) go-llmprovider-sdk/%s", id.name, id.version, runtime.GOOS, runtime.GOARCH, sdk)
 }
 
-// apply returns cfg carrying this identity, for a listing the provider makes.
-func (id clientIdentity) apply(cfg ProviderConfig) ProviderConfig {
-	cfg.ClientName, cfg.ClientVersion, cfg.SessionID = id.name, id.version, id.session
-	return cfg
-}
-
 // setUserAgent names the client on req.
 func (id clientIdentity) setUserAgent(req *http.Request) {
 	req.Header.Set(headerUserAgent, id.userAgent())

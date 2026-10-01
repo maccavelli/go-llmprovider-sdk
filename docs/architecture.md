@@ -39,6 +39,7 @@ llmprovider/providers/grok/    Grok: the xAI Responses API
 llmprovider/providers/opencode/ OpenCode Zen and Go: four wire formats, routed per model
 llmprovider/providers/kilo/    Kilo Gateway: Chat Completions
 llmprovider/providers/huggingface/ Hugging Face Inference Providers: Chat Completions
+llmprovider/providers/together/ Together AI: Chat Completions
 llmprovider/providers/ollama/  a local Ollama: Chat Completions
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
@@ -61,7 +62,7 @@ docs/
 | `internal/redact` | `Redact` and `String` (hide a secret completely) and `MaskSecret` (show a suffix for identification) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider`, the standard library |
-| `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it gains each provider as 0015-PLAN S7 moves it | `llmprovider` and the provider packages |
+| `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
 | `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider` |
 | `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider` |
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider` |
@@ -69,6 +70,7 @@ docs/
 | `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider` |
 | `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider` |
 | `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider` |
+| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider` |
 | `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider` |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 
@@ -118,9 +120,9 @@ the old API until 0015-PLAN S8 removes it:
 - **`Item`** is sealed. Its types are `MessageItem`, `FunctionCallItem`,
   `FunctionCallOutputItem` and `ReasoningItem`; item methods return a
   `*Response`.
-- **Construction:** `providers.New(id, opts...)` for a provider that has
-  moved to its own package (`openai`, `claude`, `gemini`, `grok`, `opencode`, `kilo`, `huggingface` and `ollama` so far), or a provider's own `New…`
-  until it moves; options are `ProviderOption` functions (`WithBaseURL`,
+- **Construction:** `providers.New(id, opts...)`, or the provider package's
+  own `New` (`opencode.NewZen` and `NewGo`); every provider is in its own
+  package. Options are `ProviderOption` functions (`WithBaseURL`,
   `WithHTTPClient`, `WithReasoningEffort`, …). `GenerateWithRetry` and its two
   siblings retry on typed errors.
 - **Transport:** without `WithHTTPClient`, each provider builds one client:
@@ -139,16 +141,14 @@ the old API until 0015-PLAN S8 removes it:
   session selects the ChatGPT backend. `grok.New` takes any source: a key,
   an xAI OAuth session or the Grok CLI's login.
 - **Where a token goes.** A token with no `Header` goes in the service's own
-  header: `Authorization: Bearer` for OpenAI, Grok, Kilo and Hugging Face, `x-api-key` for
+  header: `Authorization: Bearer` for OpenAI, Grok, Kilo, Hugging Face and Together, `x-api-key` for
   Claude, `x-goog-api-key` for Gemini, and on OpenCode the header of the
   request's route. Ollama has no header of its own, so it sends only a
   token that names one. One
   naming a `Header` goes there instead, prefixed `Bearer` only for a
   `TokenBearer`. Key sources (`StaticToken`, `CommandToken`) are
-  `TokenAPIKey`; sessions are `TokenBearer` and name no `Header`. The moved
-  providers apply this to generation and listing through `SetTokenHeader`;
-  the providers still in `llmprovider` send their own header until they
-  move.
+  `TokenAPIKey`; sessions are `TokenBearer` and name no `Header`. Every
+  provider applies this to generation and listing through `SetTokenHeader`.
 - **Temporary exports.** For 0015-PLAN S7, `llmprovider` exports helpers the
   moved providers still share with it: the ChatGPT session helpers
   (`IsChatGPTSession`, `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`,
@@ -267,12 +267,13 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   `mcplib` `v1.6.0` `llmprovider` and `wizard`, has no row in
   `docs/guides/migrating-from-mcplib.md`, or a row names one that is not in
   the list. `make parity-check` runs it.
-- **G-wire** is `TestWireGoldens` in `llmprovider`, part of `go test`. It
-  drives 16 provider and gateway-route cases through seven scenarios (text,
-  forced tool, thinking, thinking tool, items, continuation where the
-  provider has `Continue`, listing): 100 golden files. It runs them against
-  `internal/wiretest`, and compares each recording with
-  `llmprovider/testdata/wire/<case>/<scenario>.json`. The files were
+- **G-wire** is `TestWireGoldens` in each provider package, part of
+  `go test`. Through `llmprovider/internal/wirecase` it drives 16 provider
+  and gateway-route cases through seven scenarios (text, forced tool,
+  thinking, thinking tool, items, continuation where the provider continues,
+  listing): 100 golden files. It runs them against `internal/wiretest`, and
+  compares each recording with
+  `llmprovider/providers/<id>/testdata/wire/<case>/<scenario>.json`. The files were
   recorded at the end of 0002-PLAN Phase 7, except `together`'s, added with
   the provider (0017-PLAN U1). `-update` rewrites them, and is used only for
   a difference a record explains.

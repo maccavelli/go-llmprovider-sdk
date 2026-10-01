@@ -1,55 +1,66 @@
 //go:build live_gateways
 
-package llmprovider
+package llmprovider_test
 
 import (
 	"errors"
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/together"
 )
 
-// togetherLiveKey skips unless LLMPROVIDER_LIVE_TOGETHER=1 and TOGETHER_API_KEY
-// are set: every call is billed.
-func togetherLiveKey(t *testing.T) string {
+// Together's live generation tests, through its own package (0015-PLAN S7).
+// They need LLMPROVIDER_LIVE_TOGETHER=1 and TOGETHER_API_KEY: every call is
+// billed. The listing test, which reads the listing directly, is in
+// live_together_listing_test.go.
+
+var togetherWeatherTool = llmprovider.Tool{Name: "get_weather", Description: "Weather for a city",
+	Schema: map[string]any{"type": "object", "properties": map[string]any{"city": map[string]any{"type": "string"}}}}
+
+func liveTogether(t *testing.T, model string, opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
-	if os.Getenv("LLMPROVIDER_LIVE_TOGETHER") != "1" {
-		t.Skip("LLMPROVIDER_LIVE_TOGETHER unset: live Together calls are billed")
+	p, err := together.New(append([]llmprovider.Option{llmprovider.WithAPIKey(llmprovider.LiveTogetherKey(t)),
+		llmprovider.WithModel(model), llmprovider.WithMaxTokens(512)}, opts...)...)
+	if err != nil {
+		t.Fatalf("together.New: %v", err)
 	}
-	return liveEnvKey(t, "TOGETHER_API_KEY")
+	return p
 }
 
 // TestLive_TogetherWire confirms MADR 0017 D1's wire shapes against the
-// service: text and a forced tool, the thinking path's reasoning {"enabled":
-// true} on a toggleable model, and reasoning_effort on gpt-oss.
+// service: text and a forced tool, reasoning {"enabled": true} on a
+// toggleable model, and reasoning_effort on gpt-oss.
 func TestLive_TogetherWire(t *testing.T) {
-	key := togetherLiveKey(t)
 	for _, tc := range []struct {
-		name, model, effort string
-		thinking, tool      bool
+		name, model string
+		reasoning   *llmprovider.Reasoning
+		tool        bool
 	}{
 		{name: "text", model: "openai/gpt-oss-120b"},
 		{name: "forced tool", model: "openai/gpt-oss-120b", tool: true},
-		{name: "thinking toggle", model: "deepseek-ai/DeepSeek-V4.1-Flash", thinking: true},
-		{name: "thinking with effort", model: "openai/gpt-oss-120b", effort: "high", thinking: true},
+		{name: "thinking toggle", model: "deepseek-ai/DeepSeek-V4.1-Flash", reasoning: &llmprovider.Reasoning{}},
+		{name: "thinking with effort", model: "openai/gpt-oss-120b", reasoning: &llmprovider.Reasoning{Effort: llmprovider.EffortHigh}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := liveCtx(t)
+			ctx, cancel := llmprovider.LiveCtx(t)
 			defer cancel()
-			p, err := NewTogether(key, tc.model, WithMaxTokens(512), WithReasoningEffort(tc.effort))
-			if err != nil {
-				t.Fatal(err)
-			}
+			p := liveTogether(t, tc.model)
 			var out string
-			switch {
-			case tc.tool:
-				out, err = p.GenerateWithTool(ctx, "What is the weather in Paris? Use the tool.", weatherTool)
-			case tc.thinking:
-				out, err = p.GenerateThinking(ctx, "Reply with only the word ALPHA")
-			default:
-				out, err = p.Generate(ctx, "Reply with only the word ALPHA")
+			var err error
+			if tc.tool {
+				var call llmprovider.FunctionCallItem
+				call, err = llmprovider.GenerateToolCall(ctx, p, &llmprovider.Request{Input: []llmprovider.Item{
+					llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "What is the weather in Paris? Use the tool."}},
+					Tools: []llmprovider.Tool{togetherWeatherTool}})
+				out = call.Arguments
+			} else {
+				req := userText("Reply with only the word ALPHA")
+				req.Reasoning = tc.reasoning
+				out, err = llmprovider.GenerateText(ctx, p, req)
 			}
-			if errors.Is(err, ErrRateLimited) {
+			if errors.Is(err, llmprovider.ErrRateLimited) {
 				t.Skipf("rate limited: %v", err)
 			}
 			if err != nil {
@@ -65,18 +76,34 @@ func TestLive_TogetherWire(t *testing.T) {
 	}
 }
 
-// TestLive_TogetherListing confirms the bare-array listing: chat models come
-// back, curated, and no generation is sent.
-func TestLive_TogetherListing(t *testing.T) {
-	key := togetherLiveKey(t)
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-	usable, err := fetchTogetherUsable(ctx, key, ApplyOptions(nil))
-	if err != nil {
-		t.Fatalf("listing: %v", err)
+// TestLive_TogetherToolChoices pins the unmeasured tool choices: "required"
+// makes a call, and "none" makes none (0015-PLAN S7).
+func TestLive_TogetherToolChoices(t *testing.T) {
+	for _, tc := range []struct {
+		choice   llmprovider.ToolChoice
+		wantCall bool
+	}{{llmprovider.ToolChoiceRequired, true}, {llmprovider.ToolChoiceNone, false}} {
+		t.Run(string(tc.choice), func(t *testing.T) {
+			ctx, cancel := llmprovider.LiveCtx(t)
+			defer cancel()
+			req := userText("What is the weather in Paris?")
+			req.Tools, req.ToolChoice = []llmprovider.Tool{togetherWeatherTool}, tc.choice
+			res, err := liveTogether(t, "openai/gpt-oss-120b").Generate(ctx, req)
+			if errors.Is(err, llmprovider.ErrRateLimited) {
+				t.Skipf("rate limited: %v", err)
+			}
+			if err != nil {
+				t.Fatalf("Generate: %v", err)
+			}
+			called := false
+			for _, item := range res.Output {
+				if _, ok := item.(llmprovider.FunctionCallItem); ok {
+					called = true
+				}
+			}
+			if called != tc.wantCall {
+				t.Fatalf("a call came back: %t, want %t (%+v)", called, tc.wantCall, res.Output)
+			}
+		})
 	}
-	if len(usable) == 0 {
-		t.Fatal("no chat models listed")
-	}
-	t.Logf("%d chat models; first %v", len(usable), usable[:min(len(usable), 5)])
 }

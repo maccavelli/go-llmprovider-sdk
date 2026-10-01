@@ -2544,7 +2544,8 @@ Staged for the owner to commit. *Annotated 2026-10-01:* committed as
 
 ### Phase S7, commit 13: the proxy test over `Default()` (2026-10-01)
 
-Staged for the owner to commit, before the together commit.
+Staged for the owner to commit, before the together commit. *Annotated
+2026-10-01:* committed as `98a3f9d`.
 
 * **Deviation, 2026-10-01: the proxy test lost every moved provider.**
   * **Found** in the together commit's survey, before any change.
@@ -2589,3 +2590,132 @@ Staged for the owner to commit, before the together commit.
 * **Scope.** `llmprovider/providers/proxy_test.go` (new),
   `llmprovider/transport_defaults_test.go` (a comment), and these records.
   No library code changes.
+
+### Phase S7, commit 14: `together`, the last provider moved (2026-10-01)
+
+Built on the earlier commits' pattern; only what differs is recorded here.
+Staged for the owner to commit.
+
+* **Step 1, moved** (plain `mv`): `together.go` and `together_test.go` to
+  `providers/together/`, and `testdata/wire/together`.
+
+  **Kept in `llmprovider`:**
+  * `togetherBaseURL`, in a new `together_endpoint.go`, which the
+    descriptor and the listing use.
+  * **The listing,** until S8b. `fetchTogetherUsable` now takes the `Token`
+    and sends it by `SetTokenHeader`. `listTogetherModels` is removed: only
+    the old type called it. `modelCatalogFor` no longer reads the token's
+    value for the old providers, as there are none.
+
+  No temporary export is added.
+* **Step 2, the new API (0017-MADR D1 as decided):**
+  * `together.New` and `ListModels`.
+  * No credential, or an empty one, is refused with `ErrInvalidRequest`. The
+    old code refused an empty key with a plain error. An OAuth session or a
+    CLI login is refused with `ErrUnsupported`.
+  * The key is read on each request.
+  * **Capabilities,** as D1 says: tools, forced tool choice and reasoning are
+    `BestEffort`, continuation `Unsupported`.
+  * **Reasoning.** A request with reasoning, or a provider built with
+    `WithReasoning`, sends `reasoning {"enabled": true}`, and
+    `reasoning_effort` only when an effort is set. With none, neither is sent,
+    as before. A budget is not sent.
+  * **Tools.** Every tool is offered, and a named tool is forced, as before.
+    `required` and `none` are sent as strings, not measured
+    (`TestLive_TogetherToolChoices`, not run).
+  * `Instructions` go in a leading system message.
+  * **Listing.** The listing gets the caller's options, so
+    `WithModelMetadataURL` reaches its ranking. It never probes. A failure the
+    shared listing returns, a token failure, falls back to the static catalog,
+    as `DiscoverModels` never failed.
+* **Step 4, the tests ported.**
+
+  | From `llmprovider` | To `together` |
+  |---|---|
+  | `together_test.go` | `together_test.go` |
+  | `assertThinkingFields`, from `thinking_wire_test.go` | `together_test.go` |
+  | the together G-wire case | `wire_test.go` |
+
+  * **Run both ways.** `TestTogether_RequestShapes` runs each row with the
+    effort at construction and on the request. Its row "effort set, plain
+    path" is kept: an effort is part of `Reasoning` now, so a request with no
+    `Reasoning` carries none.
+  * **Renamed.** `TestTogether_RequiresKey` is `TestNew_NeedsAKey`, which
+    covers no key as well.
+  * **New tests:**
+    * in `together_test.go`: continuation refused, the service's message,
+      the User-Agent, the capabilities;
+    * `request_test.go`: the refusals, the key per request, the request
+      fields, each tool choice with two tools, reasoning's fallbacks;
+    * `TestTogether_TokenHeaderOverride`;
+    * `listing_test.go`: no probe, the 10 s bound, the metadata URL option
+      (less a profile, under the accepted gap), the caller's identity, and
+      the fallback on a token failure.
+  * **Live.** The generation tests are external, in
+    `live_together_test.go`, through `together.New`, with the new
+    `TestLive_TogetherToolChoices`. `TestLive_TogetherListing` reads the
+    listing directly and stays internal, in a new
+    `live_together_listing_test.go`, with `togetherLiveKey`, which
+    `live_export_test.go` exports as `LiveTogetherKey`. None has run.
+* **Emptied, so removed:**
+  * `wire_golden_test.go`, `llmprovider`'s own G-wire harness, whose last
+    case this was. Every case now runs through `internal/wirecase` in its
+    provider's package. `llmprovider/testdata/wire` is gone with it.
+  * `TestDefaultClient_HonoursProxy` in `transport_defaults_test.go`, whose
+    last case this was. The test over `Default()` (commit 13) covers
+    `together` now. `transport_defaults_test.go` keeps
+    `TestShareHTTPClient_KeepsTheSessionsOwn`.
+  * `thinking_wire_test.go`, which held only `assertThinkingFields`.
+* **`notYetMoved` is empty, and removed** (the plan's "The table is empty
+  when S7 ends"). `TestDescriptors_EveryDescriptorIsConstructible` now
+  requires every descriptor in `Default()`, and builds each through
+  `providers.New`. All ten pass.
+* **G-wire.** The six together goldens are byte-identical to `HEAD`'s, with
+  no `-update`. G-wire still has 16 cases and 100 goldens, all in provider
+  packages.
+* **Step 5, llmtest.** `TestConformance` passes.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | an empty key accepted | `empty: err = <nil>, want ErrInvalidRequest` |
+  | an OAuth session accepted | `oauth: err = <nil>, want ErrUnsupported` |
+  | reasoning sends no toggle | `request wins: reasoning = <nil>, want {enabled: true}` |
+  | an effort sent unasked | `budget alone: reasoning_effort = medium (sent true), want <nil>`, and `reasoning_effort = medium, want it absent` |
+  | the plain path reasons | `reasoning = map[enabled:true], want it absent` |
+  | the construction effort ignored | `empty takes the default: reasoning_effort = <nil> (sent false), want low` |
+  | a forced tool sends no `tool_choice` | `tool_choice present = false, want true` |
+  | `ToolChoiceNone` omitted | `"none": tool_choice = <nil>, want none` |
+  | only the first tool offered | `"auto": 1 tools sent, want 2` |
+  | instructions dropped | `messages = [… Be brief. …], want the instructions as a leading system message` |
+  | `MaxOutputTokens` ignored | `max_tokens 500; want other/model, 77` |
+  | the key read once | `Authorization sent [Bearer key-1 Bearer key-1], want [Bearer key-1 Bearer key-2]` |
+  | generation ignores the token's header | `POST: X-Custom = "", want "Bearer v"` |
+  | the listing ignores the token's header | `GET: X-Custom = "", want "Bearer v"` |
+  | the listing keeps non-chat models | `ListModels = [… BAAI/bge-large-en-v1.5 black-forest-labs/FLUX.2 …]`, and `ListModels = [x], <nil>; want the static catalog` |
+  | no static fallback | `ListModels = [], <nil>; want the static catalog […]` |
+  | the listing drops the caller's options | `the environment's metadata URL was fetched 1 times, want 0` |
+  | `Generate` skips the capability check | `R11 (refusal before the network): … returned <nil>` |
+  | together registered under another id | `descriptor "together" is offered to users but Default does not build it` |
+  | together builds a client without a proxy | `together: GenerateText = "", Post "http://together.invalid/chat/completions": … no such host` |
+
+  "No static fallback" first reached no assertion: the shared listing
+  already falls back for a bad body, so the fallback runs only on a token
+  failure. `TestListModels_FallsBackWhenTheKeyFails` was added, and the break
+  ran again.
+* **Lint** found three helpers that only the old providers called, unused
+  once the last had gone: `boundedListing`, `firstFunctionCallArgs` and
+  `clientIdentity.apply`. All three were removed.
+* **Docs.** `architecture.md`: the tree and the package table list
+  `together`; construction, the token rule and `providers` no longer
+  describe providers still to move; G-wire is described in the provider
+  packages. `providers.go`'s package doc says the same. No guide row
+  changes: `mcplib` `v1.6.0` had no Together.
+* **Coverage:**
+  * `providers/together` 95.1 %;
+  * `llmprovider` 84.9 % from its own tests and 90.9 % over
+    `./llmprovider/...`, against its `P7` 89.2 %.
+* **Links.** G-links found no link to a moved or removed file.
+* **S7's provider moves are complete.** Every provider is in its own package
+  and in `Default()`. The old API's types remain until S8. S7b, which
+  removes the temporary exports, is next.

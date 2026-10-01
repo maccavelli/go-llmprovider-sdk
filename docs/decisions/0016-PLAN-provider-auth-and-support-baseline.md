@@ -865,3 +865,16 @@ run in T2 (0015-PLAN S4).
   listing fails it.
 * An OAuth or CLI source is refused. Details are in 0015-PLAN, "Phase S7,
   commit 12".
+
+### T3 step 1: the header override, together (2026-10-01, in 0015-PLAN S7)
+
+* Together was added after `4ddcb54` (0017-PLAN U1), so the table has no
+  row for it. Read from the source before the change: `Authorization:
+  Bearer`, in generation (`together.go:140` at `98a3f9d`) and in the listing
+  (`discovery.go`).
+* Both now apply the rule. G-wire shows no difference.
+* **Test:** `TestTogether_TokenHeaderOverride`. Breaking generation or the
+  listing fails it.
+* An OAuth or CLI source is refused. Details are in 0015-PLAN, "Phase S7,
+  commit 14".
+* Every provider now applies the rule; V1's T3.1 tests are complete.
