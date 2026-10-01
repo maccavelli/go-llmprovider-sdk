@@ -519,3 +519,61 @@ in 0015-PLAN S7.
     `ModelProbesFromEnv` could not stay one function, contrary to A5;
   * an overlay decided by list order alone, with which a baseline option
     placed after an overlay would beat it.
+
+## Amendment 2026-09-30: the OpenCode family, scoped options and the metadata URL
+
+Status: **accepted** 2026-09-30 by the owner, before the opencode commit of
+0015-PLAN S7.
+
+The `opencode` package serves two ids, `opencode-zen` and `opencode-go`
+(D2). Moving it raised three questions D5 had not settled, and one gap.
+
+### D5: one constructor per id in a family package
+
+* **Gap.** R14 gives each provider package one `New(opts...)`. A family
+  package serves several ids, and the `Registry` needs one constructor per
+  id.
+* **Decision.** A package for a family of gateways has one constructor per
+  id it serves, named for that id: `opencode.NewZen` and `opencode.NewGo`,
+  each `func(opts ...llmprovider.Option) (llmprovider.Provider, error)`.
+  R14 reads so.
+* **Rejected:** a single `New` that builds Zen unless an
+  `opencode.WithGateway` option says otherwise. It keeps R14's wording, but
+  the `Registry`'s Go entry has to wrap it, and a forgotten option builds
+  the wrong gateway silently.
+
+### D5: an option scoped to several ids
+
+* **Gap.** `ScopedOption` scopes an option to one id, and `New` refuses it
+  for any other. `opencode.WithRoute` (named in D5) must reach both
+  gateways.
+* **Decision.** `llmprovider.ScopedOptionFor(ids []ProviderID, name,
+  value)`: accepted by each id in the list, refused by every other.
+  `ScopedOption(id, …)` is `ScopedOptionFor([]ProviderID{id}, …)`. The
+  `For(id, …)` overlay of S8b is unchanged by it.
+* **Rejected:** one option per gateway (`WithZenRoute`, `WithGoRoute`),
+  which duplicates the API.
+
+### D5: the metadata URL is a common option
+
+* **Gap.** `WithModelMetadataURL` was old-API only. The open-catalog
+  providers (OpenCode, Hugging Face, Kilo, Together) read the metadata
+  document. OpenCode reads it on every request, for the route and the
+  reasoning fields. Without the option, a new-API caller could reach the
+  document only through `LLMPROVIDER_MODELS_METADATA_URL`, which D9 removes.
+* **Decision.** `WithModelMetadataURL` joins the common baseline, as
+  `WithModelProbes` did. A provider that reads no metadata ignores it.
+  `Settings.ModelMetadataURL()` reads it.
+* **Rejected:**
+  * a scoped copy in each of the four packages;
+  * no option until S8b, which leaves tests and callers on the environment
+    variable.
+
+### A known gap: no profile on the new API until S8b
+
+The S7 prerequisites (0015-PLAN, amendment of 2026-09-30, decision 2) moved
+the catalog extraction to S8b and rejected a scoped profile option in S7.
+So from the opencode commit until S8b, a new-API open-catalog provider
+lists with the default profile: `WithModelProfile` is old-API only.
+`wizard` is not affected, as it lists through the old catalog functions
+until its port in S8. The owner accepted the gap.

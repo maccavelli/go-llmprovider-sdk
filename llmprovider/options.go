@@ -47,11 +47,6 @@ type ProviderConfig struct {
 	// Grok 4.5, the model's own on Kilo and Claude 4.7+, a 4096 budget on older
 	// Claude, and dynamic thinking on Gemini (MADR 0013 Q2).
 	ReasoningEffort string
-	// OpencodeRoute overrides the wire format the OpenCode gateway providers use
-	// for the configured model. Empty means "resolve from the built-in route
-	// table, then the per-gateway prefix heuristic". Set this when a model is
-	// newer than the table. Ignored by all other providers.
-	OpencodeRoute OpencodeRoute
 	// KiloCapabilities lists the request parameters the configured Kilo model
 	// accepts (its supported_parameters). Empty means "unknown — send
 	// everything". Ignored by all other providers.
@@ -129,16 +124,6 @@ func WithThinkingBudget(n int) ProviderOption {
 func WithReasoningEffort(s string) ProviderOption {
 	return legacyOption("WithReasoningEffort", func(cfg *ProviderConfig) {
 		cfg.ReasoningEffort = s
-	})
-}
-
-// WithOpencodeRoute pins the wire format used by the OpenCode Zen/Go providers,
-// overriding the built-in route table. Use it when the gateway adds a model
-// before this package's table is updated; sending a model to the wrong route
-// fails with an opaque HTTP 500. Ignored by all other providers.
-func WithOpencodeRoute(route OpencodeRoute) ProviderOption {
-	return legacyOption("WithOpencodeRoute", func(cfg *ProviderConfig) {
-		cfg.OpencodeRoute = route
 	})
 }
 
@@ -230,10 +215,13 @@ func ModelProbesFromEnv() ProviderOption {
 	return WithModelProbes(enabled)
 }
 
-// WithModelMetadataURL overrides the model metadata document (MADR 0009 §2).
+// WithModelMetadataURL overrides the model metadata document (MADR 0009 §2)
+// that the open-catalog providers read: OpenCode, Hugging Face, Kilo and
+// Together. It is common to both APIs; a provider that reads no metadata
+// ignores it (0015-MADR, amendment "the OpenCode family").
 // LLMPROVIDER_DISABLE_MODELS_METADATA=1 turns the fetch off whatever the URL.
 func WithModelMetadataURL(url string) ProviderOption {
-	return legacyOption("WithModelMetadataURL", func(cfg *ProviderConfig) {
+	return commonOption("WithModelMetadataURL", func(cfg *ProviderConfig) {
 		cfg.ModelMetadataURL = url
 	})
 }

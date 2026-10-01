@@ -154,18 +154,6 @@ func TestProviderEnvVars_Opencode(t *testing.T) {
 	}
 }
 
-// TestNewOpencode_RoutesResolved verifies the constructor resolves the wire
-// format at construction, so a misroute is visible before any request is made.
-func TestNewOpencode_RoutesResolved(t *testing.T) {
-	op, err := NewOpencode(ProviderOpencodeZen, "k", "claude-sonnet-5")
-	if err != nil {
-		t.Fatalf("NewOpencode: %v", err)
-	}
-	if op.Route() != OpencodeRouteMessages {
-		t.Errorf("Route() = %q, want %q", op.Route(), OpencodeRouteMessages)
-	}
-}
-
 // TestRateLimitError_ProviderAttribution covers the field added so a 429 is
 // attributable when a caller holds several providers. An empty Provider
 // reproduces the original message verbatim, so existing callers matching on it

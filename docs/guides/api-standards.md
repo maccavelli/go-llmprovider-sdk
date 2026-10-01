@@ -85,8 +85,11 @@ exists now, read [architecture.md](../architecture.md).
 ## Construction and options
 
 - **R14. One constructor shape.** Each provider package has
-  `New(opts ...llmprovider.Option) (llmprovider.Provider, error)`. `New`
-  takes no context and makes no network call. (0015 D5)
+  `New(opts ...llmprovider.Option) (llmprovider.Provider, error)`. A
+  package for a family of gateways has one such constructor per id it
+  serves, named for it, such as `opencode.NewZen` and `opencode.NewGo`. A
+  constructor takes no context and makes no network call. (0015 D5, and its
+  amendment "the OpenCode family")
 - **R15. Credentials are a `TokenSource`.** `WithTokenSource`, or `WithAPIKey`
   as shorthand for a `StaticToken`. There are no `*WithSource` twins.
   (0015 D5, 0016 D2)
@@ -98,8 +101,11 @@ exists now, read [architecture.md](../architecture.md).
   (0016 D2, A6)
 - **R17. Options live where they apply.** The common ones (model, HTTP client,
   base URL, logger, client identity, session id, max tokens, default
-  reasoning) are in `llmprovider`. A provider-specific one is in its
-  provider's package, for example `kilo.WithOrganization`. (0015 D5)
+  reasoning, listing probes, the model metadata URL) are in `llmprovider`. A
+  provider-specific one is in its provider's package, for example
+  `kilo.WithOrganization`; one that several ids of a family take is scoped
+  to all of them, as `opencode.WithRoute` is to both gateways. (0015 D5, and
+  its amendment "the OpenCode family")
 - **R18. A foreign option is an error from `New`,** never ignored. (0015 D5)
 - **R19. Configuration structs are unexported.** No exported `ProviderConfig` or
   `ApplyOptions`. (0015 D5)

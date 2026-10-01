@@ -12,4 +12,6 @@ var (
 	SkipIfTransient    = skipIfTransient
 	WithSDKVersion     = withSDKVersion
 	LiveEnvKey         = liveEnvKey
+	LiveModel          = liveModel
+	LiveOpencodeKey    = opencodeKey
 )

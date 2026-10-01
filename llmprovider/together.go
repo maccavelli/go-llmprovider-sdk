@@ -121,12 +121,12 @@ func (p *TogetherProvider) GenerateItemsWithToolThinking(ctx context.Context, to
 }
 
 func (p *TogetherProvider) doGenerateItems(ctx context.Context, input []Item, tool *Tool, thinking bool) (*Response, error) {
-	opts := chatCompletionsOpts{Tool: tool, ForceTool: tool != nil}
+	opts := ChatCompletionsOpts{Tool: tool, ForceTool: tool != nil}
 	if thinking {
 		opts.Reasoning = map[string]any{jsonKeyEnabled: true}
 		opts.ReasoningEffort = p.reasoningEffort
 	}
-	reqBody, err := json.Marshal(chatCompletionsBody(p.model, p.maxTokens, input, opts))
+	reqBody, err := json.Marshal(ChatCompletionsBody(p.model, p.maxTokens, input, opts))
 	if err != nil {
 		return nil, fmt.Errorf("together: marshal request: %w", err)
 	}
@@ -150,7 +150,7 @@ func (p *TogetherProvider) doGenerateItems(ctx context.Context, input []Item, to
 	if err := ClassifyHTTPError(ProviderTogether, resp); err != nil {
 		return nil, err
 	}
-	return decodeChatCompletionsResponse(limitedBody)
+	return DecodeChatCompletionsResponse(limitedBody)
 }
 
 // DiscoverModels returns the curated chat models, falling back to the static

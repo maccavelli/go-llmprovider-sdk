@@ -141,7 +141,7 @@ func (p *HuggingFaceProvider) doGenerateItems(ctx context.Context, input []Item,
 			effort = effortMedium
 		}
 	}
-	body := chatCompletionsBody(p.model, p.maxTokens, input, chatCompletionsOpts{
+	body := ChatCompletionsBody(p.model, p.maxTokens, input, ChatCompletionsOpts{
 		Tool:            tool,
 		ForceTool:       tool != nil,
 		ReasoningEffort: effort,
@@ -173,7 +173,7 @@ func (p *HuggingFaceProvider) doGenerateItems(ctx context.Context, input []Item,
 	if err := ClassifyHTTPError(ProviderHuggingFace, resp); err != nil {
 		return nil, err
 	}
-	return decodeChatCompletionsResponse(limitedBody)
+	return DecodeChatCompletionsResponse(limitedBody)
 }
 
 // DiscoverModels returns the curated router listing, falling back to the

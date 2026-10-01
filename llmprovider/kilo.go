@@ -263,7 +263,7 @@ func (p *KiloProvider) thinkingFields(thinking bool) (effort string, reasoning m
 
 func (p *KiloProvider) doGenerateItems(ctx context.Context, input []Item, tool *Tool, thinking bool) (*Response, error) {
 	effort, reasoning := p.thinkingFields(thinking)
-	body := chatCompletionsBody(p.model, p.maxTokens, input, chatCompletionsOpts{
+	body := ChatCompletionsBody(p.model, p.maxTokens, input, ChatCompletionsOpts{
 		Tool: tool,
 		// 301 of 366 models accept "tools" but only 279 accept "tool_choice";
 		// offering the tool unforced is strictly better than a 400.
@@ -308,7 +308,7 @@ func (p *KiloProvider) doGenerateItems(ctx context.Context, input []Item, tool *
 	if err := ClassifyHTTPError(ProviderKilo, resp); err != nil {
 		return nil, err
 	}
-	return decodeChatCompletionsResponse(limitedBody)
+	return DecodeChatCompletionsResponse(limitedBody)
 }
 
 // DiscoverModels returns the curated gateway listing, falling back to the

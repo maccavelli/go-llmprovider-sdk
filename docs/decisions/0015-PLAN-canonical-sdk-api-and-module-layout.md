@@ -1653,6 +1653,8 @@ recorded here.
   answered "i will commit an push. you only stage." This move is staged for
   the owner to commit. The two commits before it, `da4425a` and `9487fde`,
   were made by the agent on `main` before that was settled.
+  *Annotated 2026-09-30:* the owner committed it together with the grok
+  move, as `3d4aff5`.
 * **Step 1, moved** with `git mv`:
   * `gemini.go` and `gemini_interactions.go` to `providers/gemini/`
     (`gemini.go`, `interactions.go`);
@@ -1777,6 +1779,8 @@ Built on the earlier commits' pattern; only what differs is recorded here.
   this one was done. So this move was left in the working tree, unstaged,
   for the owner to commit gemini's index first. It is staged once gemini is
   committed.
+  *Annotated 2026-09-30:* the owner committed both moves together, as
+  `3d4aff5`, so this one was never staged on its own.
 * **Step 1, moved** (plain `mv`, since staging waits; git pairs the renames
   when it is staged):
   * `grok.go` and `grok_reasoning.go` to `providers/grok/` (`grok.go`,
@@ -1889,3 +1893,67 @@ Built on the earlier commits' pattern; only what differs is recorded here.
   * `llmprovider` 89.6 %, against its `P7` 89.2 %;
   * `providers` 80.0 %.
 * **Links.** G-links found no link to the moved files.
+
+### Amendment 2026-09-30: the OpenCode family (S7, before opencode)
+
+* **Found** while preparing the opencode commit, before any write:
+  * the package serves two ids, and R14 gives a package one `New`;
+  * `ScopedOption` scopes to one id, so `opencode.WithRoute` could reach
+    only one gateway;
+  * `WithModelMetadataURL` was old-API only, and OpenCode reads the
+    metadata on every request;
+  * `WithModelProfile` is old-API only until S8b.
+* **The owner decided,** as recorded in 0015-MADR, amendment "the OpenCode
+  family, scoped options and the metadata URL":
+  * `opencode.NewZen` and `opencode.NewGo`, with R14 amended;
+  * `llmprovider.ScopedOptionFor`, for an option several ids take;
+  * `WithModelMetadataURL` made common, with `Settings.ModelMetadataURL()`;
+  * the profile gap accepted until S8b.
+* **Scope.** One change before opencode adds `ScopedOptionFor` and the
+  common `WithModelMetadataURL`, with their tests and R14. The opencode
+  commit follows.
+* **Annotated, the gemini and grok records.** Both say their move was left
+  for the owner to commit separately. The owner committed them together, as
+  `3d4aff5`.
+
+### Phase S7, commit 8: `ScopedOptionFor`, and the metadata URL made common (2026-09-30)
+
+The amendment above, executed. Staged for the owner to commit before the
+opencode move, which waits unstaged.
+
+* **`settings.go`.**
+  * `Option` holds `scoped` and a list of ids in place of one `provider`.
+  * `ScopedOptionFor(ids, name, value)` copies the list.
+    `ScopedOption(id, …)` calls it with one id.
+  * `ResolveOptions` takes a scoped option for any listed id and refuses it
+    for any other. An empty list is refused by every `New`, never made
+    common.
+  * The refusal names one id as before (`is for provider "kilo"`), and
+    several as `is for providers "opencode-zen", "opencode-go"`.
+  * `Settings.ModelMetadataURL()` is new.
+* **`options.go`.** `WithModelMetadataURL` is a common option. The old API
+  takes it as before.
+* **R14 and R17** in `docs/guides/api-standards.md` read as the amendment
+  says.
+* **Tests,** in `settings_family_test.go`:
+  * `TestScopedOptionFor_EachListedProviderTakesIt`;
+  * `TestScopedOptionFor_EmptyListIsRefusedEverywhere`;
+  * `TestScopedOptionFor_CopiesTheList`;
+  * `TestResolveOptions_ModelMetadataURLIsCommon`.
+
+  `TestResolveOptions_RefusesAForeignOption` passes unchanged.
+* **Red first,** on a clone of `3d4aff5`: `ResolveOptions` with
+  `WithModelMetadataURL` failed with
+  `option WithModelMetadataURL belongs to the old API; opencode-go's New does not take it`.
+  `ScopedOptionFor` did not exist there, so its tests are proven by breaks.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | a scoped option taken by any id | `kilo: err = <nil>, want the option refused and its ids named`, and the existing `TestResolveOptions_RefusesAForeignOption` |
+  | only the first listed id takes it | `opencode-go: … is for providers "opencode-zen", "opencode-go", not "opencode-go"` |
+  | an empty list made common | `openai: err = <nil>, want ErrInvalidRequest` |
+  | the caller's slice kept | `opencode-zen after the caller's slice changed: … is for provider "kilo"` |
+  | the error names one id only | `is for provider "opencode-zen", not "kilo", want … its ids named` |
+  | the metadata URL old-API only again | `option WithModelMetadataURL belongs to the old API` |
+  | `ModelMetadataURL()` reads nothing | `ModelMetadataURL() = "", want the option's URL` |

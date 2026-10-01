@@ -14,6 +14,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/gemini"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/grok"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/opencode"
 )
 
 // builtins are the providers that have moved to their own packages, in menu
@@ -26,6 +27,8 @@ var builtins = []struct {
 	{llmprovider.ProviderClaude, claude.New},
 	{llmprovider.ProviderGemini, gemini.New},
 	{llmprovider.ProviderGrok, grok.New},
+	{llmprovider.ProviderOpencodeZen, opencode.NewZen},
+	{llmprovider.ProviderOpencodeGo, opencode.NewGo},
 }
 
 // Default returns a new Registry holding the built-in providers.

@@ -60,9 +60,6 @@ func TestDiscoverModels_ListingBounded(t *testing.T) {
 		build         func(opts ...ProviderOption) (discoverer, error)
 	}{
 		{"ollama", "GET /api/tags", func(o ...ProviderOption) (discoverer, error) { return NewOllama("", "m", o...) }},
-		{"opencode", "GET /models", func(o ...ProviderOption) (discoverer, error) {
-			return NewOpencode(ProviderOpencodeZen, "k", "glm-5.3-flash", o...)
-		}},
 		{"huggingface", "GET /models", func(o ...ProviderOption) (discoverer, error) { return NewHuggingFace("k", "m", o...) }},
 		{"kilo", "GET /models", func(o ...ProviderOption) (discoverer, error) { return NewKilo("k", "m", o...) }},
 	} {
@@ -120,16 +117,6 @@ func TestDiscoverModels_HonoursRankingOptions(t *testing.T) {
 		kiloRankEntry("f/large", "F Large", "0.000002", "0.000008", 30, true, ""),
 		kiloRankEntry("kilo-auto/efficient", "Auto Efficient", "-1", "-1", -1, true, `"preferredIndex":0`),
 	}, ",") + `]}`
-	zenIDs := []string{"glm-5.3-flash", "qwen3.8-flash", "kimi-k2.6", "gpt-6-luna", "hy3", "mimo-v2.6-flash", "deepseek-v4-pro"}
-	zenMeta := `{` + mdSection("opencode",
-		mdModel("glm-5.3-flash", "glm-flash", true, 0.15, 0.5, "2026-08-26"),
-		mdModel("qwen3.8-flash", "qwen-flash", true, 0.2, 0.8, "2026-08-20"),
-		mdModel("kimi-k2.6", "kimi", true, 0.6, 2.5, "2026-07-01"),
-		mdModel("gpt-6-luna", "gpt-luna", true, 0.1, 0.5, "2026-09-22"),
-		mdModel("hy3", "hy", true, 0.3, 1.2, "2026-08-01"),
-		mdModel("mimo-v2.6-flash", "mimo", true, 0.14, 0.28, "2026-09-22"),
-		mdModel("deepseek-v4-pro", "deepseek-pro", true, 2, 8, "2026-09-10"),
-	) + `}`
 
 	for _, tc := range []struct {
 		provider, listing, meta string
@@ -138,9 +125,6 @@ func TestDiscoverModels_HonoursRankingOptions(t *testing.T) {
 		{ProviderKilo, kiloListing, "", func(o ...ProviderOption) (discoverer, error) { return NewKilo("k", "m", o...) }},
 		{ProviderHuggingFace, hfRankListing, hfRankMetadata, func(o ...ProviderOption) (discoverer, error) {
 			return NewHuggingFace("k", "m", o...)
-		}},
-		{ProviderOpencodeZen, zenStyleListing(zenIDs...), zenMeta, func(o ...ProviderOption) (discoverer, error) {
-			return NewOpencode(ProviderOpencodeZen, "k", "glm-5.3-flash", o...)
 		}},
 	} {
 		t.Run(tc.provider, func(t *testing.T) {

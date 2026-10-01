@@ -10,7 +10,7 @@ import (
 // still returned, and says so in FinishReason.
 func TestDecodeChat_LengthTextKeepsText(t *testing.T) {
 	body := `{"id":"c1","choices":[{"finish_reason":"length","message":{"role":"assistant","content":"partial ans"}}]}`
-	res, err := decodeChatCompletionsResponse(strings.NewReader(body))
+	res, err := DecodeChatCompletionsResponse(strings.NewReader(body))
 	if err != nil || res.OutputText() != "partial ans" || res.FinishReason != finishReasonLength {
 		t.Fatalf("decode = %+v/%v, want the text and FinishReason length", res, err)
 	}

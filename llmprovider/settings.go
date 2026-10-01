@@ -4,18 +4,21 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
+	"strings"
 )
 
 // Option configures a provider when it is built (0015-MADR D5). The common
 // options are in this package. A provider package defines its own with
-// ScopedOption, and its New refuses one meant for another provider. Options
-// apply in order, so a later one wins.
+// ScopedOption or ScopedOptionFor, and New refuses one meant for another
+// provider. Options apply in order, so a later one wins.
 type Option struct {
-	name     string     // the constructor's name, for errors
-	provider ProviderID // set for a provider-specific option
-	legacy   bool       // an option of the old API only
-	apply    func(*settings)
-	value    any // a provider-specific option's value
+	name      string       // the constructor's name, for errors
+	scoped    bool         // a provider-specific option
+	providers []ProviderID // the ids a provider-specific option is for
+	legacy    bool         // an option of the old API only
+	apply     func(*settings)
+	value     any // a provider-specific option's value
 }
 
 // settings is what the options build.
@@ -88,7 +91,28 @@ func WithReasoning(r *Reasoning) Option {
 // constructor's name. The provider's New reads value from Settings.Values;
 // every other provider's New refuses the option (0015-MADR D5).
 func ScopedOption(provider ProviderID, name string, value any) Option {
-	return Option{name: name, provider: provider, value: value}
+	return ScopedOptionFor([]ProviderID{provider}, name, value)
+}
+
+// ScopedOptionFor is ScopedOption for an option that several providers of
+// one family take, such as opencode.WithRoute for both OpenCode gateways.
+// Each listed provider's New reads value from Settings.Values; every other
+// provider's New refuses the option, as does every New when the list is
+// empty (0015-MADR, amendment "the OpenCode family").
+func ScopedOptionFor(providers []ProviderID, name string, value any) Option {
+	return Option{name: name, scoped: true, providers: slices.Clone(providers), value: value}
+}
+
+// scopeText names the providers a scoped option is for, for errors.
+func scopeText(providers []ProviderID) string {
+	if len(providers) == 1 {
+		return fmt.Sprintf("provider %q", providers[0])
+	}
+	quoted := make([]string, len(providers))
+	for i, p := range providers {
+		quoted[i] = fmt.Sprintf("%q", p)
+	}
+	return "providers " + strings.Join(quoted, ", ")
 }
 
 // Settings is the configuration a provider's New resolved from its options.
@@ -107,9 +131,9 @@ func ResolveOptions(id ProviderID, opts []Option) (*Settings, error) {
 		switch {
 		case opt.legacy:
 			return nil, fmt.Errorf("%w: option %s belongs to the old API; %s's New does not take it", ErrInvalidRequest, opt.name, id)
-		case opt.provider != "" && opt.provider != id:
-			return nil, fmt.Errorf("%w: option %s is for provider %q, not %q", ErrInvalidRequest, opt.name, opt.provider, id)
-		case opt.provider != "":
+		case opt.scoped && !slices.Contains(opt.providers, id):
+			return nil, fmt.Errorf("%w: option %s is for %s, not %q", ErrInvalidRequest, opt.name, scopeText(opt.providers), id)
+		case opt.scoped:
 			s.values = append(s.values, opt.value)
 		}
 		if opt.apply != nil {
@@ -164,6 +188,10 @@ func (st *Settings) SessionID() string { return st.identity.session }
 // WithModelProbes and ModelProbesFromEnv set it; true by default
 // (0016-MADR A5).
 func (st *Settings) ModelProbes() bool { return !st.s.cfg.DisableModelProbes }
+
+// ModelMetadataURL is the metadata document from WithModelMetadataURL, or
+// empty for the default.
+func (st *Settings) ModelMetadataURL() string { return st.s.cfg.ModelMetadataURL }
 
 // Values returns the values of the provider-specific options, in order.
 func (st *Settings) Values() []any { return append([]any(nil), st.s.values...) }

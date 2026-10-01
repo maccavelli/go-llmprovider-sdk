@@ -14,12 +14,6 @@ type named interface{ Name() string }
 // into its own package yet (0015-PLAN S7). A provider leaves this table in the
 // commit that registers it in Default; the table is empty when S7 ends.
 var notYetMoved = map[string]func(key, model string) (named, error){
-	llmprovider.ProviderOpencodeZen: func(key, model string) (named, error) {
-		return llmprovider.NewOpencode(llmprovider.ProviderOpencodeZen, key, model)
-	},
-	llmprovider.ProviderOpencodeGo: func(key, model string) (named, error) {
-		return llmprovider.NewOpencode(llmprovider.ProviderOpencodeGo, key, model)
-	},
 	llmprovider.ProviderHuggingFace: func(key, model string) (named, error) {
 		return llmprovider.NewHuggingFace(key, model)
 	},

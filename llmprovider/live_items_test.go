@@ -27,15 +27,6 @@ func TestLive_ToolRoundTrip(t *testing.T) {
 		{"kilo", "KILO_API_KEY", func(t *testing.T, k string) (ItemProvider, error) {
 			return NewKilo(k, liveModel(t, ProviderKilo, kiloNonTraining...))
 		}},
-		{"go-chat", "OPENCODE_API_KEY", func(t *testing.T, k string) (ItemProvider, error) {
-			return NewOpencode(ProviderOpencodeGo, k, liveModel(t, ProviderOpencodeGo, "glm-5.3-flash", "glm-5.3", "kimi-k2.6"))
-		}},
-		{"go-messages", "OPENCODE_API_KEY", func(t *testing.T, k string) (ItemProvider, error) {
-			return NewOpencode(ProviderOpencodeGo, k, liveModel(t, ProviderOpencodeGo, "qwen3.8-flash", "minimax-m3"))
-		}},
-		{"go-responses", "OPENCODE_API_KEY", func(t *testing.T, k string) (ItemProvider, error) {
-			return NewOpencode(ProviderOpencodeGo, k, liveModel(t, ProviderOpencodeGo, "gpt-6-luna", "grok-4.6"))
-		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			key := os.Getenv(c.env)

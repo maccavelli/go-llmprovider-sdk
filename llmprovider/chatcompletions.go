@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// chatCompletionsOpts carries the per-gateway variations of a Chat Completions
+// ChatCompletionsOpts carries the per-gateway variations of a Chat Completions
 // request. Zero values omit the corresponding field entirely.
-type chatCompletionsOpts struct {
+type ChatCompletionsOpts struct {
 	// Tool, when non-nil, is offered to the model.
 	Tool *Tool
 	// ForceTool sends tool_choice pinning Tool. Kilo gates tool_choice on the
@@ -101,9 +101,10 @@ func itemsToChatMessagesReplaying(items []Item, field string) []map[string]any {
 	return messages
 }
 
-// chatCompletionsBody builds an OpenAI Chat Completions request body shared by
+// ChatCompletionsBody builds an OpenAI Chat Completions request body shared by
 // every gateway in this package that speaks the format.
-func chatCompletionsBody(model string, maxTokens int, input []Item, o chatCompletionsOpts) map[string]any {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func ChatCompletionsBody(model string, maxTokens int, input []Item, o ChatCompletionsOpts) map[string]any {
 	body := map[string]any{
 		jsonKeyModel:     model,
 		jsonKeyMessages:  itemsToChatMessagesReplaying(input, o.ReplayReasoningField),
@@ -134,7 +135,7 @@ func chatCompletionsBody(model string, maxTokens int, input []Item, o chatComple
 	return body
 }
 
-// decodeChatCompletionsResponse decodes an OpenAI Chat Completions envelope into
+// DecodeChatCompletionsResponse decodes an OpenAI Chat Completions envelope into
 // a canonical Response.
 //
 // Reasoning has two competing vendor spellings, both undocumented, both measured
@@ -150,7 +151,8 @@ func chatCompletionsBody(model string, maxTokens int, input []Item, o chatComple
 // would create two sources of truth for one value.
 //
 // Absent reasoning is normal, never an error.
-func decodeChatCompletionsResponse(body io.Reader) (*Response, error) {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func DecodeChatCompletionsResponse(body io.Reader) (*Response, error) {
 	var raw struct {
 		ID      string `json:"id"`
 		Choices []struct {

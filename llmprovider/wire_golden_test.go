@@ -64,35 +64,7 @@ func wireOpts(baseURL string, extra ...ProviderOption) []ProviderOption {
 	return append([]ProviderOption{WithBaseURL(baseURL), WithSessionID(wireSession)}, extra...)
 }
 
-func opencodeWireCase(gateway, route, model, listing string) wireCase {
-	return wireCase{
-		name:    gateway + "-" + route,
-		listing: listing,
-		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
-			return NewOpencode(gateway, "opencode-wire-key", model, wireOpts(u, extra...)...)
-		},
-	}
-}
-
-var (
-	wireListingDataIDs = func(ids ...string) string {
-		entries := make([]string, len(ids))
-		for i, id := range ids {
-			entries[i] = fmt.Sprintf(`{"id":%q,"object":"model"}`, id)
-		}
-		return `{"object":"list","data":[` + strings.Join(entries, ",") + `]}`
-	}
-	wireOpencodeListing = wireListingDataIDs("gpt-5.5", "claude-sonnet-5", "gemini-3.8-flash", "glm-5.3")
-)
-
 var wireCases = []wireCase{
-	opencodeWireCase(ProviderOpencodeZen, "responses", "gpt-5.5", wireOpencodeListing),
-	opencodeWireCase(ProviderOpencodeZen, "messages", "claude-sonnet-5", wireOpencodeListing),
-	opencodeWireCase(ProviderOpencodeZen, "google", "gemini-3.8-flash", wireOpencodeListing),
-	opencodeWireCase(ProviderOpencodeZen, "chat", "glm-5.3", wireOpencodeListing),
-	opencodeWireCase(ProviderOpencodeGo, "responses", "grok-4.7", wireListingDataIDs("grok-4.7", "qwen3.8-flash", "kimi-k3")),
-	opencodeWireCase(ProviderOpencodeGo, "messages", "qwen3.8-flash", wireListingDataIDs("grok-4.7", "qwen3.8-flash", "kimi-k3")),
-	opencodeWireCase(ProviderOpencodeGo, "chat", "kimi-k3", wireListingDataIDs("grok-4.7", "qwen3.8-flash", "kimi-k3")),
 	{
 		name: "kilo",
 		listing: `{"data":[{"id":"anthropic/claude-sonnet-5","name":"Claude Sonnet 5","created":1780000000,` +

@@ -1,4 +1,4 @@
-package llmprovider
+package opencode
 
 import (
 	"context"
@@ -9,15 +9,28 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
+
+// Ported from llmprovider's opencode_metadata_route_test.go (0015-PLAN S7).
+// TestIsUsableOpencodeModel_DeniesSystemone stays there, with the catalog.
+
+// metadataKey is the document's key for a gateway.
+func metadataKey(gateway llmprovider.ProviderID) string {
+	if gateway == llmprovider.ProviderOpencodeGo {
+		return "opencode-go"
+	}
+	return "opencode"
+}
 
 // routeServer serves a metadata document listing model under gateway's
 // section, with provider.npm set when npm is not empty (listed=false serves a
 // document without the model), and answers every generation route with "ok",
 // recording the request paths.
-func routeServer(t *testing.T, gateway, model, npm string, listed bool) (*httptest.Server, func() []string) {
+func routeServer(t *testing.T, gateway llmprovider.ProviderID, model, npm string, listed bool) (*httptest.Server, func() []string) {
 	t.Helper()
-	t.Setenv(envDisableModelMetadata, "0") // TestMain turns the fetch off
+	enableMetadata(t)
 	var (
 		mu    sync.Mutex
 		paths []string
@@ -32,7 +45,7 @@ func routeServer(t *testing.T, gateway, model, npm string, listed bool) (*httpte
 				}
 				entry += "}"
 			}
-			_, _ = w.Write([]byte(`{"` + modelMetadataKey(gateway) + `":{"models":{` + entry + `}}}`))
+			_, _ = w.Write([]byte(`{"` + metadataKey(gateway) + `":{"models":{` + entry + `}}}`))
 			return
 		}
 		mu.Lock()
@@ -58,14 +71,10 @@ func routeServer(t *testing.T, gateway, model, npm string, listed bool) (*httpte
 }
 
 // generatePath runs one Generate and returns the single request path it sent.
-func generatePath(t *testing.T, srv *httptest.Server, paths func() []string, gateway, model string, opts ...ProviderOption) string {
+func generatePath(t *testing.T, srv *httptest.Server, paths func() []string, gateway llmprovider.ProviderID, model string, opts ...llmprovider.Option) string {
 	t.Helper()
-	opts = append([]ProviderOption{WithBaseURL(srv.URL), WithModelMetadataURL(srv.URL + "/api.json")}, opts...)
-	p, err := NewOpencode(gateway, "k", model, opts...)
-	if err != nil {
-		t.Fatalf("NewOpencode: %v", err)
-	}
-	if _, err := p.Generate(context.Background(), "hi"); err != nil {
+	opts = append([]llmprovider.Option{llmprovider.WithModelMetadataURL(srv.URL + "/api.json")}, opts...)
+	if _, err := build(t, gateway, apiKey(srv.URL, model, opts...)...).Generate(context.Background(), text("hi")); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 	got := paths()
@@ -79,16 +88,21 @@ func generatePath(t *testing.T, srv *httptest.Server, paths func() []string, gat
 // route, as OpenCode's client does (provider.ts:1274-1278), for a model the
 // table does not know and for one it routes differently.
 func TestOpencode_RoutesFromMetadata(t *testing.T) {
+	zen, goGW := llmprovider.ProviderID(llmprovider.ProviderOpencodeZen), llmprovider.ProviderID(llmprovider.ProviderOpencodeGo)
 	tests := []struct {
-		name, gateway, model, npm, want string
+		name    string
+		gateway llmprovider.ProviderID
+		model   string
+		npm     string
+		want    string
 	}{
-		{"anthropic", ProviderOpencodeGo, "brand-new-model", "@ai-sdk/anthropic", "/messages"},
-		{"openai", ProviderOpencodeGo, "brand-new-model", "@ai-sdk/openai", "/responses"},
-		{"google", ProviderOpencodeZen, "brand-new-model", "@ai-sdk/google", "/models/brand-new-model:generateContent"},
-		{"compatible", ProviderOpencodeGo, "brand-new-model", "@ai-sdk/openai-compatible", "/chat/completions"},
-		{"unset", ProviderOpencodeGo, "brand-new-model", "", "/chat/completions"},
+		{"anthropic", goGW, "brand-new-model", "@ai-sdk/anthropic", "/messages"},
+		{"openai", goGW, "brand-new-model", "@ai-sdk/openai", "/responses"},
+		{"google", zen, "brand-new-model", "@ai-sdk/google", "/models/brand-new-model:generateContent"},
+		{"compatible", goGW, "brand-new-model", "@ai-sdk/openai-compatible", "/chat/completions"},
+		{"unset", goGW, "brand-new-model", "", "/chat/completions"},
 		// The table says messages; the metadata wins.
-		{"over table", ProviderOpencodeGo, "minimax-m3", "@ai-sdk/openai-compatible", "/chat/completions"},
+		{"over table", goGW, "minimax-m3", "@ai-sdk/openai-compatible", "/chat/completions"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -100,12 +114,10 @@ func TestOpencode_RoutesFromMetadata(t *testing.T) {
 	}
 }
 
-// TestOpencode_RouteOverrideBeatsMetadata: WithOpencodeRoute wins over the
-// metadata.
+// TestOpencode_RouteOverrideBeatsMetadata: WithRoute wins over the metadata.
 func TestOpencode_RouteOverrideBeatsMetadata(t *testing.T) {
-	srv, paths := routeServer(t, ProviderOpencodeGo, "brand-new-model", "@ai-sdk/anthropic", true)
-	got := generatePath(t, srv, paths, ProviderOpencodeGo, "brand-new-model",
-		WithOpencodeRoute(OpencodeRouteChatCompletions))
+	srv, paths := routeServer(t, llmprovider.ProviderOpencodeGo, "brand-new-model", "@ai-sdk/anthropic", true)
+	got := generatePath(t, srv, paths, llmprovider.ProviderOpencodeGo, "brand-new-model", WithRoute(RouteChatCompletions))
 	if got != "/chat/completions" {
 		t.Errorf("path = %q, want the override's /chat/completions", got)
 	}
@@ -115,15 +127,15 @@ func TestOpencode_RouteOverrideBeatsMetadata(t *testing.T) {
 // that does not list the model, leaves the table's route.
 func TestOpencode_RouteWithoutMetadataUsesTable(t *testing.T) {
 	t.Run("absent from document", func(t *testing.T) {
-		srv, paths := routeServer(t, ProviderOpencodeGo, "minimax-m3", "", false)
-		if got := generatePath(t, srv, paths, ProviderOpencodeGo, "minimax-m3"); got != "/messages" {
+		srv, paths := routeServer(t, llmprovider.ProviderOpencodeGo, "minimax-m3", "", false)
+		if got := generatePath(t, srv, paths, llmprovider.ProviderOpencodeGo, "minimax-m3"); got != "/messages" {
 			t.Errorf("path = %q, want the table's /messages", got)
 		}
 	})
 	t.Run("disabled", func(t *testing.T) {
-		srv, paths := routeServer(t, ProviderOpencodeGo, "minimax-m3", "@ai-sdk/openai-compatible", true)
-		t.Setenv(envDisableModelMetadata, "1")
-		if got := generatePath(t, srv, paths, ProviderOpencodeGo, "minimax-m3"); got != "/messages" {
+		srv, paths := routeServer(t, llmprovider.ProviderOpencodeGo, "minimax-m3", "@ai-sdk/openai-compatible", true)
+		t.Setenv(envDisableMetadata, "1")
+		if got := generatePath(t, srv, paths, llmprovider.ProviderOpencodeGo, "minimax-m3"); got != "/messages" {
 			t.Errorf("path = %q, want the table's /messages", got)
 		}
 	})
@@ -143,12 +155,12 @@ func TestOpencodeRouteTable_MatchesMetadataSnapshot(t *testing.T) {
 	if err := json.Unmarshal(raw, &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	oracle := map[string]OpencodeRoute{
-		"@ai-sdk/openai":    OpencodeRouteResponses,
-		"@ai-sdk/anthropic": OpencodeRouteMessages,
-		"@ai-sdk/google":    OpencodeRouteGoogle,
+	oracle := map[string]Route{
+		"@ai-sdk/openai":    RouteResponses,
+		"@ai-sdk/anthropic": RouteMessages,
+		"@ai-sdk/google":    RouteGoogle,
 	}
-	gateways := map[string]string{"opencode": ProviderOpencodeZen, "opencode-go": ProviderOpencodeGo}
+	gateways := map[string]llmprovider.ProviderID{"opencode": llmprovider.ProviderOpencodeZen, "opencode-go": llmprovider.ProviderOpencodeGo}
 	for section, models := range snapshot {
 		gateway, ok := gateways[section]
 		if !ok || len(models) == 0 {
@@ -157,25 +169,12 @@ func TestOpencodeRouteTable_MatchesMetadataSnapshot(t *testing.T) {
 		for model, npm := range models {
 			want, ok := oracle[npm]
 			if !ok {
-				want = OpencodeRouteChatCompletions
+				want = RouteChatCompletions
 			}
-			got, err := resolveOpencodeRoute(gateway, model, "")
+			got, err := resolveRoute(gateway, model, "")
 			if err != nil || got != want {
 				t.Errorf("%s %s (npm %q): route = %q, %v; want %q", gateway, model, npm, got, err, want)
 			}
 		}
-	}
-}
-
-// TestIsUsableOpencodeModel_DeniesSystemone: jev-* models use OpenCode's
-// "systemone" route, which has no encoder here (MADR 0012 §3.1).
-func TestIsUsableOpencodeModel_DeniesSystemone(t *testing.T) {
-	for _, id := range []string{"jev-1.13", "jev-1.13-free", "JEV-2"} {
-		if isUsableOpencodeModel(id) {
-			t.Errorf("isUsableOpencodeModel(%q) = true, want false", id)
-		}
-	}
-	if !isUsableOpencodeModel("kimi-k2.6") {
-		t.Error("isUsableOpencodeModel(kimi-k2.6) = false, want true")
 	}
 }

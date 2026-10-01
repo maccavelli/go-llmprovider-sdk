@@ -98,7 +98,7 @@ func TestItemFidelity_AnthropicGroupsCallsAndResults(t *testing.T) {
 }
 
 func TestItemFidelity_GeminiToolCall(t *testing.T) {
-	mustEqualJSON(t, geminiItemsToContents(roundTrip()), `[
+	mustEqualJSON(t, GeminiItemsToContents(roundTrip()), `[
 		{"role":"user","parts":[{"text":"weather?"}]},
 		{"role":"model","parts":[{"functionCall":{"name":"get_weather","args":{"city":"Paris"}},"thoughtSignature":"skip_thought_signature_validator"}]},
 		{"role":"user","parts":[{"functionResponse":{"name":"get_weather","response":{"output":"{\"forecast\":\"sunny\"}"}}}]}]`)
@@ -107,7 +107,7 @@ func TestItemFidelity_GeminiToolCall(t *testing.T) {
 // TestItemFidelity_GeminiDecodesCallWithoutArgs: a call to a tool with no
 // parameters has no args; it is still a call.
 func TestItemFidelity_GeminiDecodesCallWithoutArgs(t *testing.T) {
-	res, err := decodeGeminiResponse(strings.NewReader(
+	res, err := DecodeGeminiResponse(strings.NewReader(
 		`{"candidates":[{"content":{"parts":[{"functionCall":{"name":"now"}}]}}]}`))
 	if err != nil || len(res.Output) != 1 {
 		t.Fatalf("decode = %+v/%v, want one function call", res, err)
@@ -118,7 +118,7 @@ func TestItemFidelity_GeminiDecodesCallWithoutArgs(t *testing.T) {
 }
 
 func TestItemFidelity_GeminiGroupsCallsAndResults(t *testing.T) {
-	mustEqualJSON(t, geminiItemsToContents(twoCalls()), `[
+	mustEqualJSON(t, GeminiItemsToContents(twoCalls()), `[
 		{"role":"user","parts":[{"text":"weather in two cities?"}]},
 		{"role":"model","parts":[
 			{"text":"Checking both."},

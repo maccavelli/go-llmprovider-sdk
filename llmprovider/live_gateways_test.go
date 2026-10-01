@@ -14,7 +14,7 @@
 // DRIFT.
 //
 // OpenCode tests REQUIRE OPENCODE_API_KEY (0004-PLAN deviation D3): a bogus key is
-// answered 401. Without a key, NewOpencode sends the gateway's "public" token
+// answered 401. Without a key, the opencode provider sends the gateway's "public" token
 // (MADR 0012 §1.7). The generation tests use paid OpenCode Go models: Zen's
 // free tier refuses clients other than OpenCode (403 FreeTierError, typed as
 // ErrNotPermitted; measured 2026-09-26/27; MADR 0013 D1).
@@ -36,7 +36,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -77,7 +76,7 @@ func opencodeKey(t *testing.T) string {
 	key := os.Getenv("OPENCODE_API_KEY")
 	if key == "" {
 		t.Skip("OPENCODE_API_KEY unset: OpenCode returns 401 for a bogus key even on " +
-			"free models, and NewOpencode always sends the key it is given (0004-PLAN deviation D3)")
+			"free models, and the opencode provider always sends the key it is given (0004-PLAN deviation D3)")
 	}
 	return key
 }
@@ -110,82 +109,6 @@ func getJSON(t *testing.T, url string, into any) int {
 		}
 	}
 	return resp.StatusCode
-}
-
-func TestLive_OpencodeChatCompletions(t *testing.T) {
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-	p, err := NewOpencode(ProviderOpencodeGo, opencodeKey(t),
-		liveModel(t, ProviderOpencodeGo, "hy3", "glm-5.3-flash", "kimi-k2.6"))
-	if err != nil {
-		t.Fatalf("NewOpencode: %v", err)
-	}
-	out, err := p.Generate(ctx, "Reply with only the word ALPHA")
-	skipIfTransient(t, err)
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	if strings.TrimSpace(out) == "" {
-		t.Errorf("empty output (probed %s)", wireShapesProbedOnOpencode)
-	}
-}
-
-func TestLive_OpencodeResponses(t *testing.T) {
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-	p, err := NewOpencode(ProviderOpencodeGo, opencodeKey(t),
-		liveModel(t, ProviderOpencodeGo, "gpt-6-luna", "grok-4.6"))
-	if err != nil {
-		t.Fatalf("NewOpencode: %v", err)
-	}
-	if p.Route() != OpencodeRouteResponses {
-		t.Fatalf("Route() = %q, want responses", p.Route())
-	}
-	resp, err := p.GenerateItems(ctx, MessageItem{Role: jsonRoleUser, Text: "Reply with only the word ALPHA"})
-	skipIfTransient(t, err)
-	if err != nil {
-		t.Fatalf("GenerateItems: %v", err)
-	}
-	var sawMessage bool
-	for _, it := range resp.Output {
-		if _, ok := it.(MessageItem); ok {
-			sawMessage = true
-		}
-	}
-	if !sawMessage {
-		t.Errorf("no MessageItem in responses output (probed %s)", wireShapesProbedOnOpencode)
-	}
-}
-
-// TestLive_OpencodeRouteStillEnforced is the measurement the entire 63+26-row
-// route table rests on: routes are NOT interchangeable. If this fails, OpenCode
-// has become a translating gateway and the table is no longer necessary.
-func TestLive_OpencodeRouteStillEnforced(t *testing.T) {
-	model := liveModel(t, ProviderOpencodeGo, "gpt-6-luna", "grok-4.6")
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-
-	key := opencodeKey(t)
-	onResponses, err := NewOpencode(ProviderOpencodeGo, key, model)
-	if err != nil {
-		t.Fatalf("NewOpencode: %v", err)
-	}
-	_, err = onResponses.GenerateItems(ctx, MessageItem{Role: jsonRoleUser, Text: "hi"})
-	skipIfTransient(t, err)
-	if err != nil {
-		t.Fatalf("%s must still succeed on its documented /responses route: %v", model, err)
-	}
-
-	onChat, err := NewOpencode(ProviderOpencodeGo, key, model,
-		WithOpencodeRoute(OpencodeRouteChatCompletions))
-	if err != nil {
-		t.Fatalf("NewOpencode: %v", err)
-	}
-	if _, err := onChat.GenerateItems(ctx, MessageItem{Role: jsonRoleUser, Text: "hi"}); err == nil {
-		t.Errorf("DRIFT (probed %s): %s now succeeds on /chat/completions. Routes were "+
-			"measured as non-interchangeable; if that changed, the route table may no "+
-			"longer be needed", wireShapesProbedOnOpencode, model)
-	}
 }
 
 func TestLive_KiloChatCompletions(t *testing.T) {
@@ -242,8 +165,8 @@ func TestLive_KiloToolCall(t *testing.T) {
 func TestLive_KiloReasoningSpelling(t *testing.T) {
 	ctx, cancel := liveCtx(t)
 	defer cancel()
-	body := chatCompletionsBody(liveModel(t, ProviderKilo, kiloFreeCollecting...), 400,
-		[]Item{MessageItem{Role: jsonRoleUser, Text: "Say ALPHA only"}}, chatCompletionsOpts{})
+	body := ChatCompletionsBody(liveModel(t, ProviderKilo, kiloFreeCollecting...), 400,
+		[]Item{MessageItem{Role: jsonRoleUser, Text: "Say ALPHA only"}}, ChatCompletionsOpts{})
 	raw, err := json.Marshal(body)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -482,47 +405,6 @@ func TestLive_ModelMetadataDocument(t *testing.T) {
 	m, ok := doc[metadataKeyZen]["glm-5.3-flash"]
 	if !ok || m.Reasoning == nil || !*m.Reasoning {
 		t.Errorf("DRIFT: %s/glm-5.3-flash reasoning = %v (present %v), want true", metadataKeyZen, m.Reasoning, ok)
-	}
-}
-
-// TestLive_OpencodeChatReasoningEffort is MADR 0009 §6's OpenCode gate (as
-// amended 2026-09-26): on OpenCode Go, for each chat-routed utility model whose
-// reasoning_options list "low" (glm-flash and Hy families), the gateway accepts
-// reasoning_effort "low". It also proves the x-opencode-session header: Go
-// answers 400 MissingSessionID without it.
-func TestLive_OpencodeChatReasoningEffort(t *testing.T) {
-	key := opencodeKey(t)
-	enableModelMetadata(t)
-	for _, candidate := range []string{"glm-5.3-flash", "hy3"} {
-		t.Run(candidate, func(t *testing.T) {
-			model := liveModel(t, ProviderOpencodeGo, candidate)
-			ctx, cancel := liveCtx(t)
-			defer cancel()
-			doc, err := loadModelMetadata(ctx, ApplyOptions(nil))
-			if err != nil {
-				t.Skipf("metadata unreachable: %v", err)
-			}
-			if !slices.Contains(doc.reasoningEfforts(ProviderOpencodeGo, model), effortLow) {
-				t.Fatalf("DRIFT: %s reasoning_options no longer list %q", model, effortLow)
-			}
-			p, err := NewOpencode(ProviderOpencodeGo, key, model, WithReasoningEffort(effortLow), WithMaxTokens(400))
-			if err != nil {
-				t.Fatalf("NewOpencode: %v", err)
-			}
-			if p.Route() != OpencodeRouteChatCompletions {
-				t.Fatalf("DRIFT: %s no longer routes to chat_completions (%s)", model, p.Route())
-			}
-			out, err := p.GenerateThinking(ctx, "Reply with only the word ALPHA")
-			if errors.Is(err, ErrRateLimited) {
-				t.Skipf("gateway transient: %v", err)
-			}
-			if err != nil {
-				t.Fatalf("DRIFT (probed %s): gateway rejected reasoning_effort on %s: %v", wireShapesProbedOnOpencode, model, err)
-			}
-			if strings.TrimSpace(out) == "" {
-				t.Errorf("empty output from %s", model)
-			}
-		})
 	}
 }
 

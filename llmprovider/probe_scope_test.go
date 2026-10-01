@@ -33,14 +33,11 @@ func generationCounter(t *testing.T) (*httptest.Server, *atomic.Int32) {
 }
 
 // TestDiscoverModels_MeteredServicesDoNotProbe: DiscoverModels spends no
-// generation on Kilo, OpenCode, Hugging Face or a ChatGPT session (MADR 0012
-// §1.6); it returns the curated listing.
+// generation on Kilo or Hugging Face (MADR 0012 §1.6); it returns the curated
+// listing. OpenCode's row moved to providers/opencode (0015-PLAN S7).
 func TestDiscoverModels_MeteredServicesDoNotProbe(t *testing.T) {
 	for name, build := range map[string]func(url string) (discoverer, error){
 		"kilo": func(url string) (discoverer, error) { return NewKilo("k", "some/model", WithBaseURL(url)) },
-		"opencode": func(url string) (discoverer, error) {
-			return NewOpencode(ProviderOpencodeGo, "k", "glm-5.3-flash", WithBaseURL(url), WithModelMetadataURL(url+"/api.json"))
-		},
 		"huggingface": func(url string) (discoverer, error) {
 			return NewHuggingFace("k", "org/model", WithBaseURL(url), WithModelMetadataURL(url+"/api.json"))
 		},

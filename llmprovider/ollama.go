@@ -156,7 +156,7 @@ func (p *OllamaProvider) doGenerateItems(ctx context.Context, input []Item, tool
 		}
 		effort = clampOllamaEffort(effort)
 	}
-	body := chatCompletionsBody(p.model, p.maxTokens, input, chatCompletionsOpts{
+	body := ChatCompletionsBody(p.model, p.maxTokens, input, ChatCompletionsOpts{
 		Tool: tool,
 		// Ollama does not support tool_choice; offering the tool unforced is
 		// the only option it accepts.
@@ -191,7 +191,7 @@ func (p *OllamaProvider) doGenerateItems(ctx context.Context, input []Item, tool
 	if err := ClassifyHTTPError(ProviderOllama, resp); err != nil {
 		return nil, err
 	}
-	return decodeChatCompletionsResponse(limitedBody)
+	return DecodeChatCompletionsResponse(limitedBody)
 }
 
 // DiscoverModels returns the models installed on the local instance, with a

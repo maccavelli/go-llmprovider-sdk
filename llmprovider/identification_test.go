@@ -60,7 +60,6 @@ func TestIdentification_UserAgent(t *testing.T) {
 		"kilo":        func() (LegacyProvider, error) { return NewKilo("k", "some/model", base) },
 		"huggingface": func() (LegacyProvider, error) { return NewHuggingFace("k", "org/model", base) },
 		"ollama":      func() (LegacyProvider, error) { return NewOllama("", "llama3", base) },
-		"opencode":    func() (LegacyProvider, error) { return NewOpencode(ProviderOpencodeGo, "k", "glm-5.3-flash", base) },
 	}
 	for name, newProvider := range build {
 		p, err := newProvider()
@@ -76,35 +75,6 @@ func TestIdentification_UserAgent(t *testing.T) {
 		if ua := r.header.Get("User-Agent"); !userAgentPattern.MatchString(ua) {
 			t.Errorf("%s: User-Agent = %q, want go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>", r.path, ua)
 		}
-	}
-}
-
-// TestIdentification_OpencodeListingCarriesSession: a gateway listing sends
-// x-opencode-session, and a provider's DiscoverModels uses one session id for
-// every request it makes (0013 B7).
-func TestIdentification_OpencodeListingCarriesSession(t *testing.T) {
-	rec := newHeaderRecorder(t)
-	p, err := NewOpencode(ProviderOpencodeGo, "k", "glm-5.3-flash",
-		WithBaseURL(rec.srv.URL), WithModelMetadataURL(rec.srv.URL+"/api.json"))
-	if err != nil {
-		t.Fatalf("NewOpencode: %v", err)
-	}
-	if _, err := p.DiscoverModels(context.Background()); err != nil {
-		t.Fatalf("DiscoverModels: %v", err)
-	}
-	sessions := map[string]bool{}
-	for _, r := range rec.requests() {
-		if strings.HasSuffix(r.path, "/api.json") {
-			continue
-		}
-		s := r.header.Get(opencodeSessionHeader)
-		if s == "" {
-			t.Errorf("%s: no %s", r.path, opencodeSessionHeader)
-		}
-		sessions[s] = true
-	}
-	if len(sessions) != 1 {
-		t.Errorf("DiscoverModels used %d session ids, want one: %v", len(sessions), sessions)
 	}
 }
 
@@ -130,14 +100,6 @@ func TestIdentification_KiloHeaders(t *testing.T) {
 func TestIdentification_NoForbiddenHeaders(t *testing.T) {
 	rec := newHeaderRecorder(t)
 	base := WithBaseURL(rec.srv.URL)
-	for _, route := range []OpencodeRoute{OpencodeRouteResponses, OpencodeRouteMessages,
-		OpencodeRouteChatCompletions, OpencodeRouteGoogle} {
-		p, err := NewOpencode(ProviderOpencodeZen, "k", "some-model", base, WithOpencodeRoute(route))
-		if err != nil {
-			t.Fatalf("NewOpencode: %v", err)
-		}
-		_, _ = p.Generate(context.Background(), "hello")
-	}
 	for _, build := range []func() (LegacyProvider, error){
 		func() (LegacyProvider, error) { return NewKilo("k", "some/model", base) },
 	} {

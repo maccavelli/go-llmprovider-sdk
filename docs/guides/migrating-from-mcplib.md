@@ -198,7 +198,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.NewOllama` |  |  |
 | `llmprovider.NewOpenAI` | `openai.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderOpenAI, …)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewOpenAIWithSource` | `openai.New(WithTokenSource(src), WithModel(model), …)` | A ChatGPT session selects the ChatGPT backend ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
-| `llmprovider.NewOpencode` |  |  |
+| `llmprovider.NewOpencode` | `opencode.NewZen(…)` or `opencode.NewGo(…)`, with `WithAPIKey(key)` and `WithModel(model)` | Or `providers.New(ProviderOpencodeZen` or `ProviderOpencodeGo, …)`; one constructor per gateway ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). No key sends the public token, as before. |
 | `llmprovider.NewProvider` | `providers.New(id, opts...)` | Over `providers.Default()`, a `Registry`; removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7. |
 | `llmprovider.NewProviderWithSource` | `providers.New(id, WithTokenSource(src), …)` | Removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7; a credential is an option (D5). |
 | `llmprovider.NewStaticToken` |  |  |
@@ -246,23 +246,23 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OpenAIProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.OpenAIProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
 | `llmprovider.OpenAIProvider.Name` | `ID()` | It returns `ProviderOpenAI` as a `ProviderID`. |
-| `llmprovider.OpencodeProvider` |  |  |
-| `llmprovider.OpencodeProvider.DiscoverModels` |  |  |
-| `llmprovider.OpencodeProvider.Generate` |  |  |
-| `llmprovider.OpencodeProvider.GenerateItems` |  |  |
-| `llmprovider.OpencodeProvider.GenerateItemsThinking` |  |  |
-| `llmprovider.OpencodeProvider.GenerateItemsWithTool` |  |  |
-| `llmprovider.OpencodeProvider.GenerateItemsWithToolThinking` |  |  |
-| `llmprovider.OpencodeProvider.GenerateThinking` |  |  |
-| `llmprovider.OpencodeProvider.GenerateWithTool` |  |  |
-| `llmprovider.OpencodeProvider.GenerateWithToolThinking` |  |  |
-| `llmprovider.OpencodeProvider.Name` |  |  |
-| `llmprovider.OpencodeProvider.Route` |  |  |
-| `llmprovider.OpencodeRoute` |  |  |
-| `llmprovider.OpencodeRouteChatCompletions` |  |  |
-| `llmprovider.OpencodeRouteGoogle` |  |  |
-| `llmprovider.OpencodeRouteMessages` |  |  |
-| `llmprovider.OpencodeRouteResponses` |  |  |
+| `llmprovider.OpencodeProvider` | the `llmprovider.Provider` that `opencode.NewZen` or `NewGo` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.OpencodeProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` | No profile can be chosen on the new API until S8b; the wizard is unaffected. |
+| `llmprovider.OpencodeProvider.Generate` | `llmprovider.GenerateText` |  |
+| `llmprovider.OpencodeProvider.GenerateItems` | `Generate` with `Request.Input` |  |
+| `llmprovider.OpencodeProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` | `WithReasoningEffort` and `WithThinkingBudget` are `Reasoning`'s `Effort` and `Budget`. |
+| `llmprovider.OpencodeProvider.GenerateItemsWithTool` | `Generate` with `Request.Tools` and `ForceTool` |  |
+| `llmprovider.OpencodeProvider.GenerateItemsWithToolThinking` | `Generate` with `Tools`, `ForceTool` and `Reasoning` |  |
+| `llmprovider.OpencodeProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
+| `llmprovider.OpencodeProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
+| `llmprovider.OpencodeProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
+| `llmprovider.OpencodeProvider.Name` | `ID()` | It returns the gateway's `ProviderID`. |
+| `llmprovider.OpencodeProvider.Route` | none | The route is chosen per request, by model; `opencode.WithRoute` pins one ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.OpencodeRoute` | `opencode.Route` |  |
+| `llmprovider.OpencodeRouteChatCompletions` | `opencode.RouteChatCompletions` |  |
+| `llmprovider.OpencodeRouteGoogle` | `opencode.RouteGoogle` |  |
+| `llmprovider.OpencodeRouteMessages` | `opencode.RouteMessages` |  |
+| `llmprovider.OpencodeRouteResponses` | `opencode.RouteResponses` |  |
 | `llmprovider.ProfileCapable` |  |  |
 | `llmprovider.ProfileUtility` |  |  |
 | `llmprovider.Provider` | `Provider` | `ID`, `Capabilities` and `Generate(ctx, *Request)`. The old interface is `LegacyProvider` until [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
@@ -280,7 +280,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ProviderConfig.MaxTokens` |  |  |
 | `llmprovider.ProviderConfig.ModelMetadataURL` |  |  |
 | `llmprovider.ProviderConfig.ModelProfile` |  |  |
-| `llmprovider.ProviderConfig.OpencodeRoute` |  |  |
+| `llmprovider.ProviderConfig.OpencodeRoute` | `opencode.WithRoute` | Removed with the old provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.ProviderConfig.ReasoningEffort` |  |  |
 | `llmprovider.ProviderConfig.SessionID` |  |  |
 | `llmprovider.ProviderConfig.Store` |  |  |
@@ -380,9 +380,9 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.WithKiloDataCollection` |  |  |
 | `llmprovider.WithKiloOrganization` |  |  |
 | `llmprovider.WithMaxTokens` |  |  |
-| `llmprovider.WithModelMetadataURL` |  |  |
+| `llmprovider.WithModelMetadataURL` | `llmprovider.WithModelMetadataURL` | A common option now: the new API takes it too ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
 | `llmprovider.WithModelProfile` |  |  |
-| `llmprovider.WithOpencodeRoute` |  |  |
+| `llmprovider.WithOpencodeRoute` | `opencode.WithRoute` | Scoped to both gateways ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
 | `llmprovider.WithReasoningEffort` |  |  |
 | `llmprovider.WithSessionID` |  |  |
 | `llmprovider.WithStore` | `openai.WithStore`, `gemini.WithStore` or `grok.WithStore` | Scoped to its provider; the old option is removed in S8 ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |

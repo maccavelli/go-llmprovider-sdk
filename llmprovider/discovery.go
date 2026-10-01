@@ -269,9 +269,9 @@ func chatGPTCatalogModelListed(model chatGPTCatalogModel) bool {
 }
 
 // modelCatalogFor dispatches one provider's fetch and curation. The caller
-// owns the timeout. OpenAI, Claude, Gemini and Grok send token as it
-// describes itself (0016-MADR A6); the providers still on the old API send its
-// value in their own header until 0015-PLAN S7 moves them.
+// owns the timeout. OpenAI, Claude, Gemini, Grok and the OpenCode gateways
+// send token as it describes itself (0016-MADR A6); the providers still on the
+// old API send its value in their own header until 0015-PLAN S7 moves them.
 func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg ProviderConfig) (ModelCatalog, error) {
 	apiKey := token.Value
 	switch p := strings.ToLower(providerName); p {
@@ -288,7 +288,7 @@ func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg 
 		usable, err := fetchGrokUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, StaticModels(ProviderGrok), curateGrok), nil
 	case ProviderOpencodeZen, ProviderOpencodeGo:
-		return opencodeCatalog(ctx, p, apiKey, cfg)
+		return opencodeCatalog(ctx, p, token, cfg)
 	case ProviderHuggingFace:
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := fetchHuggingFaceUsable(ctx, apiKey, cfg)
@@ -632,28 +632,18 @@ func filterIDs(ids []string, usable func(string) bool) []string {
 	return out
 }
 
-// listOpencodeModels fetches the gateway catalog and curates it. The OpenCode
-// /models endpoint is PUBLIC — it answers 200 with no credentials (verified
-// 2026-08-28) — so the Authorization header is sent only when a key is
-// available, and an empty key is not an error.
-//
-// The listing carries no routing or capability metadata (every entry reports
-// owned_by "opencode"), so route selection cannot be derived from it; see
-// opencode_route.go.
-func listOpencodeModels(ctx context.Context, gateway, apiKey string, cfg ProviderConfig) ([]string, error) {
-	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return opencodeCatalog(ctx, gateway, apiKey, cfg)
-	})
-}
-
 // opencodeCatalog lists one OpenCode gateway. An unknown gateway is an error,
-// not a degradation.
-func opencodeCatalog(ctx context.Context, gateway, apiKey string, cfg ProviderConfig) (ModelCatalog, error) {
+// not a degradation. The OpenCode /models endpoint is PUBLIC — it answers 200
+// with no credentials (verified 2026-08-28) — so the credential is sent only
+// when there is one, and an empty key is not an error. The listing carries no
+// routing or capability metadata (every entry reports owned_by "opencode"), so
+// route selection cannot be derived from it; see providers/opencode.
+func opencodeCatalog(ctx context.Context, gateway string, token Token, cfg ProviderConfig) (ModelCatalog, error) {
 	if _, err := opencodeBaseURL(gateway); err != nil {
 		return ModelCatalog{}, err
 	}
 	meta := startModelMetadata(ctx, cfg)
-	usable, fetchErr := fetchOpencodeUsable(ctx, gateway, apiKey, cfg)
+	usable, fetchErr := fetchOpencodeUsable(ctx, gateway, token, cfg)
 	curate := func(usable []string) []string {
 		return curateFromCatalog(staticOpencodeCatalog(gateway), usable, isUsableOpencodeModel, rankOpencodeModel)
 	}
@@ -661,7 +651,7 @@ func opencodeCatalog(ctx context.Context, gateway, apiKey string, cfg ProviderCo
 }
 
 // fetchOpencodeUsable returns the usable gateway models in listing order.
-func fetchOpencodeUsable(ctx context.Context, gateway, apiKey string, cfg ProviderConfig) ([]string, error) {
+func fetchOpencodeUsable(ctx context.Context, gateway string, token Token, cfg ProviderConfig) ([]string, error) {
 	baseURL, err := opencodeBaseURL(gateway)
 	if err != nil {
 		return nil, err
@@ -669,11 +659,11 @@ func fetchOpencodeUsable(ctx context.Context, gateway, apiKey string, cfg Provid
 	if cfg.BaseURL != "" {
 		baseURL = strings.TrimRight(cfg.BaseURL, "/")
 	}
-	authorization := ""
-	if apiKey != "" {
-		authorization = "Bearer " + apiKey
+	header, value := oauthAuthorizationHeader, ""
+	if token.Value != "" {
+		header, value = tokenHeader(token, oauthAuthorizationHeader, bearerScheme)
 	}
-	ids, err := fetchDataIDs(ctx, baseURL+"/models", oauthAuthorizationHeader, authorization, cfg, "opencode")
+	ids, err := fetchDataIDs(ctx, baseURL+"/models", header, value, cfg, "opencode")
 	if err != nil {
 		return nil, err
 	}

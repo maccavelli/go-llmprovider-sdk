@@ -27,7 +27,7 @@ const fixtureKiloReasoning = `{"id":"gen_01M16Q","object":"chat.completion","cre
 
 func TestDecodeChatCompletions_Message(t *testing.T) {
 	body := `{"id":"cmpl-1","choices":[{"message":{"role":"assistant","content":"hello world"}}]}`
-	resp, err := decodeChatCompletionsResponse(strings.NewReader(body))
+	resp, err := DecodeChatCompletionsResponse(strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestDecodeChatCompletions_ReasoningFieldNames(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, err := decodeChatCompletionsResponse(strings.NewReader(tc.body))
+			resp, err := DecodeChatCompletionsResponse(strings.NewReader(tc.body))
 			if err != nil {
 				t.Fatalf("decode: %v", err)
 			}
@@ -109,7 +109,7 @@ func TestDecodeChatCompletions_ReasoningFieldNames(t *testing.T) {
 func TestDecodeChatCompletions_ToolCalls(t *testing.T) {
 	body := `{"choices":[{"message":{"role":"assistant","content":"","tool_calls":[
 	{"id":"chatcmpl-tool-8c37b719","type":"function","function":{"name":"get_weather","arguments":"{\"city\": \"Paris\"}"}}]}}]}`
-	resp, err := decodeChatCompletionsResponse(strings.NewReader(body))
+	resp, err := DecodeChatCompletionsResponse(strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -129,14 +129,14 @@ func TestDecodeChatCompletions_ToolCalls(t *testing.T) {
 }
 
 func TestDecodeChatCompletions_Empty(t *testing.T) {
-	if _, err := decodeChatCompletionsResponse(strings.NewReader(`{"choices":[]}`)); err == nil {
+	if _, err := DecodeChatCompletionsResponse(strings.NewReader(`{"choices":[]}`)); err == nil {
 		t.Error("expected error for no choices")
 	}
 	empty := `{"choices":[{"message":{"role":"assistant","content":"","tool_calls":null}}]}`
-	if _, err := decodeChatCompletionsResponse(strings.NewReader(empty)); err == nil {
+	if _, err := DecodeChatCompletionsResponse(strings.NewReader(empty)); err == nil {
 		t.Error("expected error when content, reasoning and tool_calls are all empty")
 	}
-	if _, err := decodeChatCompletionsResponse(strings.NewReader(`not json`)); err == nil {
+	if _, err := DecodeChatCompletionsResponse(strings.NewReader(`not json`)); err == nil {
 		t.Error("expected error for malformed json")
 	}
 }
@@ -170,7 +170,7 @@ func TestChatCompletionsBody(t *testing.T) {
 	input := []Item{MessageItem{Role: jsonRoleUser, Text: "hi"}}
 
 	t.Run("no tool, no reasoning", func(t *testing.T) {
-		b := chatCompletionsBody("big-pickle", 128, input, chatCompletionsOpts{})
+		b := ChatCompletionsBody("big-pickle", 128, input, ChatCompletionsOpts{})
 		if _, ok := b[jsonKeyTools]; ok {
 			t.Error("tools must be absent")
 		}
@@ -186,7 +186,7 @@ func TestChatCompletionsBody(t *testing.T) {
 	})
 
 	t.Run("tool without ForceTool omits tool_choice", func(t *testing.T) {
-		b := chatCompletionsBody("kilo-auto/free", 1, input, chatCompletionsOpts{Tool: tool})
+		b := ChatCompletionsBody("kilo-auto/free", 1, input, ChatCompletionsOpts{Tool: tool})
 		if _, ok := b[jsonKeyTools]; !ok {
 			t.Error("tools must be present")
 		}
@@ -196,7 +196,7 @@ func TestChatCompletionsBody(t *testing.T) {
 	})
 
 	t.Run("tool with ForceTool sends both", func(t *testing.T) {
-		b := chatCompletionsBody("openai/gpt-oss-20b", 1, input, chatCompletionsOpts{Tool: tool, ForceTool: true})
+		b := ChatCompletionsBody("openai/gpt-oss-20b", 1, input, ChatCompletionsOpts{Tool: tool, ForceTool: true})
 		if _, ok := b[jsonKeyTools]; !ok {
 			t.Error("tools must be present")
 		}
@@ -211,7 +211,7 @@ func TestChatCompletionsBody(t *testing.T) {
 	})
 
 	t.Run("reasoning effort passthrough", func(t *testing.T) {
-		b := chatCompletionsBody("deepseek-v4-pro", 1, input, chatCompletionsOpts{ReasoningEffort: effortXHigh})
+		b := ChatCompletionsBody("deepseek-v4-pro", 1, input, ChatCompletionsOpts{ReasoningEffort: effortXHigh})
 		if b[jsonKeyReasoningEffort] != effortXHigh {
 			t.Errorf("reasoning_effort = %v, want %q", b[jsonKeyReasoningEffort], effortXHigh)
 		}

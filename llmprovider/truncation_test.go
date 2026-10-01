@@ -23,7 +23,7 @@ func TestDecodeResponses_IncompleteIsError(t *testing.T) {
 func TestDecodeChat_LengthToolCallIsError(t *testing.T) {
 	body := `{"id":"c1","choices":[{"finish_reason":"length","message":{"role":"assistant",
 		"tool_calls":[{"id":"t1","function":{"name":"commit","arguments":"{\"subject\":\"fix: tru"}}]}}]}`
-	res, err := decodeChatCompletionsResponse(strings.NewReader(body))
+	res, err := DecodeChatCompletionsResponse(strings.NewReader(body))
 	if err == nil || !errors.Is(err, ErrInvalidRequest) || !strings.Contains(err.Error(), "length") {
 		t.Fatalf("decode = %+v/%v, want an ErrInvalidRequest naming length", res, err)
 	}

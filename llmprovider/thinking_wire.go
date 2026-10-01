@@ -103,11 +103,12 @@ func AddMessagesThinking(body map[string]any, model, effort string, budget, maxT
 	return maxTokens
 }
 
-// geminiThinkingConfig returns a Gemini thinkingConfig. A configured budget
+// GeminiThinkingConfig returns a Gemini thinkingConfig. A configured budget
 // wins. Otherwise "low" is thinkingLevel "low" on Gemini 3 and later and a
 // lowEffortThinkingBudget budget on 1.x and 2.x, and any other effort keeps
 // the dynamic budget.
-func geminiThinkingConfig(model, effort string, budget int) map[string]any {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func GeminiThinkingConfig(model, effort string, budget int) map[string]any {
 	// Thought summaries come back only when asked for, as OpenCode's client
 	// asks (transform.ts:1280-1288, MADR 0014 §3).
 	cfg := map[string]any{"includeThoughts": true}

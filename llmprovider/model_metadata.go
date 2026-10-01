@@ -106,14 +106,53 @@ func (d modelMetadataDoc) interleavedField(provider, model string) string {
 	return declared.Field
 }
 
-// opencodeRoute returns the route a Zen or Go model's provider.npm selects,
-// and false when the document does not list the model (MADR 0012 §3.1).
-func (d modelMetadataDoc) opencodeRoute(gateway, model string) (OpencodeRoute, bool) {
-	m, ok := d[modelMetadataKey(gateway)][model]
+// npm returns a model's provider.npm, the AI SDK package OpenCode's client
+// routes it by, and false when the document does not list the model (MADR
+// 0012 §3.1).
+func (d modelMetadataDoc) npm(provider, model string) (string, bool) {
+	m, ok := d[modelMetadataKey(provider)][model]
 	if !ok {
 		return "", false
 	}
-	return opencodeRouteForNPM(m.Provider.NPM), true
+	return m.Provider.NPM, true
+}
+
+// ModelMetadata is the model metadata document as a provider reads it for one
+// request: reasoning efforts, the interleaved-reasoning field and the AI SDK
+// package, per model (MADR 0009 §2).
+//
+// Temporary export for the provider packages (0015-PLAN S7); S8b moves it to catalog.
+type ModelMetadata struct{ doc modelMetadataDoc }
+
+// LookupModelMetadata returns the document at url, or the default document when
+// url is empty, fetched through client and cached as the listing caches it.
+// The lookup waits at most 5 s, whatever ctx allows, and a failed fetch is not
+// retried for a minute (MADR 0013 A6).
+//
+// Temporary export for the provider packages (0015-PLAN S7); S8b moves it to catalog.
+func LookupModelMetadata(ctx context.Context, url string, client *http.Client) (ModelMetadata, error) {
+	ctx, cancel := context.WithTimeout(ctx, metadataLookupTimeout)
+	defer cancel()
+	doc, err := loadModelMetadata(ctx, ProviderConfig{HTTPClient: client, ModelMetadataURL: url})
+	return ModelMetadata{doc: doc}, err
+}
+
+// ReasoningEfforts returns the effort values the document lists for a
+// model's reasoning_options, or nil.
+func (m ModelMetadata) ReasoningEfforts(provider, model string) []string {
+	return m.doc.reasoningEfforts(provider, model)
+}
+
+// InterleavedField returns the message field a model expects its prior
+// reasoning replayed under, or "".
+func (m ModelMetadata) InterleavedField(provider, model string) string {
+	return m.doc.interleavedField(provider, model)
+}
+
+// NPM returns a model's provider.npm, and false when the document does not
+// list the model.
+func (m ModelMetadata) NPM(provider, model string) (string, bool) {
+	return m.doc.npm(provider, model)
 }
 
 // modelMetadataKey returns the document key for a provider, or "".

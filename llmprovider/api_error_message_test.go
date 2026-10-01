@@ -26,12 +26,6 @@ func TestProviders_ErrorCarriesServiceMessage(t *testing.T) {
 		"huggingface": func() (LegacyProvider, error) { return NewHuggingFace("k", "org/model", base) },
 		"ollama":      func() (LegacyProvider, error) { return NewOllama("", "llama3", base) },
 	}
-	for _, route := range []OpencodeRoute{OpencodeRouteResponses, OpencodeRouteMessages,
-		OpencodeRouteChatCompletions, OpencodeRouteGoogle} {
-		build["opencode/"+string(route)] = func() (LegacyProvider, error) {
-			return NewOpencode(ProviderOpencodeGo, "k", "some-model", base, WithOpencodeRoute(route))
-		}
-	}
 	for name, newProvider := range build {
 		t.Run(name, func(t *testing.T) {
 			p, err := newProvider()

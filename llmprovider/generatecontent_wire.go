@@ -14,9 +14,10 @@ import (
 // dynamicGeminiThinkingBudget (-1) lets the model size its own thinking budget.
 const dynamicGeminiThinkingBudget = -1
 
-// geminiSystemInstruction is generateContent's systemInstruction for the
+// GeminiSystemInstruction is generateContent's systemInstruction for the
 // system items, or nil when there are none (MADR 0014 §3).
-func geminiSystemInstruction(items []Item) map[string]any {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func GeminiSystemInstruction(items []Item) map[string]any {
 	system := SystemPrompt(items)
 	if system == "" {
 		return nil
@@ -24,9 +25,10 @@ func geminiSystemInstruction(items []Item) map[string]any {
 	return map[string]any{"parts": []map[string]any{{jsonKeyText: system}}}
 }
 
-// geminiItemsToContents is generateContent's contents, for OpenCode's google
+// GeminiItemsToContents is generateContent's contents, for OpenCode's google
 // route.
-func geminiItemsToContents(items []Item) []map[string]any {
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func GeminiItemsToContents(items []Item) []map[string]any {
 	// Gemini pairs a functionResponse with its functionCall by name, so a
 	// result takes the name of the call it answers (MADR 0012 §2).
 	names := map[string]string{}
@@ -50,7 +52,7 @@ func geminiItemsToContents(items []Item) []map[string]any {
 		switch v := item.(type) {
 		case MessageItem:
 			if v.Role == jsonRoleSystem {
-				continue // systemInstruction; see geminiSystemInstruction
+				continue // systemInstruction; see GeminiSystemInstruction
 			}
 			role := v.Role
 			if role == "" || role == jsonRoleUser {
@@ -91,8 +93,9 @@ func geminiItemsToContents(items []Item) []map[string]any {
 	return contents
 }
 
-// decodeGeminiResponse decodes a generateContent response.
-func decodeGeminiResponse(body io.Reader) (*Response, error) {
+// DecodeGeminiResponse decodes a generateContent response.
+// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/wire.
+func DecodeGeminiResponse(body io.Reader) (*Response, error) {
 	var raw struct {
 		Candidates []struct {
 			Content struct {
