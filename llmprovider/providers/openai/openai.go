@@ -39,6 +39,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
 
@@ -257,7 +258,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 	if err != nil {
 		return nil, fmt.Errorf("llmprovider: openai: acquire token: %w", err)
 	}
-	llmprovider.SetTokenHeader(httpReq, token, headerAuthorization, "Bearer")
+	token.Apply(httpReq, headerAuthorization, "Bearer")
 	if p.chatGPT {
 		httpReq.Header.Set("Accept", "text/event-stream")
 		httpReq.Header.Set(headerSession, p.session)
@@ -307,7 +308,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if p.chatGPT || !p.probe {
 		return listed, nil
 	}
-	healthy := llmprovider.ProbeGenerateHealth(ctx, listed, func(ctx context.Context, model string) (string, error) {
+	healthy := transport.ProbeGenerateHealth(ctx, listed, llmprovider.MaxListedModels, func(ctx context.Context, model string) (string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.store, probe.reasoning = model, probeMaxOutputTokens, nil, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{

@@ -22,11 +22,12 @@ func tokenHeader(tok Token, header, scheme string) (name, value string) {
 	return header, scheme + " " + tok.Value
 }
 
-// SetTokenHeader sets tok on req as Token describes it: in header, after
-// scheme, unless tok names a Header of its own (R16; 0016-MADR D2, A6).
-//
-// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/transport.
-func SetTokenHeader(req *http.Request, tok Token, header, scheme string) {
-	name, value := tokenHeader(tok, header, scheme)
+// Apply sets t on req as the Token describes it (R16; 0016-MADR D2, A6): in
+// header, after scheme, which are the service's own; or, when t names a Header
+// of its own, there instead, "Bearer "-prefixed only for a TokenBearer. A
+// provider calls it on every request, with the service's header and scheme:
+// "Authorization" and "Bearer", or "x-api-key" and "".
+func (t Token) Apply(req *http.Request, header, scheme string) {
+	name, value := tokenHeader(t, header, scheme)
 	req.Header.Set(name, value)
 }

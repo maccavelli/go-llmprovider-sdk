@@ -7,18 +7,6 @@ import (
 	"time"
 )
 
-func TestParseRetryAfter(t *testing.T) {
-	if got := parseRetryAfter("120"); got != 120*time.Second {
-		t.Errorf("seconds: got %v", got)
-	}
-	if got := parseRetryAfter(""); got != 0 {
-		t.Errorf("empty: got %v", got)
-	}
-	if got := parseRetryAfter("not-a-number"); got != 0 {
-		t.Errorf("garbage: got %v", got)
-	}
-}
-
 // TestRateLimitError_Classification: RateLimitError unwraps to ErrRateLimited
 // (retryable) and is honored by the retry layer.
 func TestRateLimitError_Classification(t *testing.T) {

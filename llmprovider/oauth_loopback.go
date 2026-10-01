@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 const (
@@ -187,7 +189,7 @@ func resolveOAuthFlowConfig(provider string, opts OAuthFlowOptions) (oauthFlowCo
 
 	client := opts.HTTPClient
 	if client == nil {
-		client = defaultHTTPClient()
+		client = transport.DefaultClient()
 	}
 	now := opts.now
 	if now == nil {
@@ -290,7 +292,7 @@ func discoverOAuthEndpoints(ctx context.Context, config oauthFlowConfig) (oauthE
 	if err != nil {
 		return oauthEndpoints{}, fmt.Errorf("oauth: create discovery request: %w", err)
 	}
-	identityOf(ProviderConfig{}).setUserAgent(req)
+	identityOf(ProviderConfig{}).SetUserAgent(req)
 	resp, err := config.httpClient.Do(req)
 	if err != nil {
 		return oauthEndpoints{}, fmt.Errorf("oauth: discovery for %s: %w", config.issuer, err)
@@ -608,7 +610,7 @@ func exchangeOAuthCode(
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create token request: %w", err)
 	}
-	identityOf(ProviderConfig{}).setUserAgent(req)
+	identityOf(ProviderConfig{}).SetUserAgent(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := config.httpClient.Do(req)
 	if err != nil {

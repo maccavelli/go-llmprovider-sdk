@@ -1,6 +1,7 @@
 package ollama
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -62,6 +63,23 @@ func TestListModels_ProbesFollowTheOption(t *testing.T) {
 				t.Errorf("%d generation requests, want %d", n, tc.posts)
 			}
 		})
+	}
+}
+
+// TestListModels_ProbesAtMostMaxListedModels: the probe's limit, which
+// internal/transport takes as an argument since 0015-PLAN S7b, is
+// llmprovider.MaxListedModels.
+func TestListModels_ProbesAtMostMaxListedModels(t *testing.T) {
+	names := make([]string, llmprovider.MaxListedModels+3)
+	for i := range names {
+		names[i] = fmt.Sprintf("model-%d:latest", i)
+	}
+	srv, posts := instance(t, ollamaTags(names...), false)
+	if _, err := list(t, build(t, local(srv.URL, "m")...)); err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+	if n := posts.Load(); n != int32(llmprovider.MaxListedModels) {
+		t.Errorf("%d probes, want %d", n, llmprovider.MaxListedModels)
 	}
 }
 

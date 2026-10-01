@@ -644,6 +644,11 @@ As written, S7b's transport and `auth` steps do not compile.
 
   It imports nothing else in this module. `llmprovider`, `auth`, `catalog`
   and the provider packages import it.
+
+  *Annotated 2026-10-01 (0015-PLAN, "Phase S7b, commit 2"; the owner's
+  choice):* closing a response body stays in each package. `bodyclose`
+  recognises only a close in the package that holds the response, so
+  `internal/transport` has no `CloseBody`.
 * **D2 and D7, classification stays in `llmprovider`.** Turning an HTTP
   response or a stream failure into an `*APIError` is part of the error
   model, so it stays in `llmprovider`, exported for good:

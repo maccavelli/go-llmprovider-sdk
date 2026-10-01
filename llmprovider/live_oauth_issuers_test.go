@@ -9,6 +9,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // TestLive_BuiltinIssuersPublishVerifiableKeys pins 0016-MADR "D7 as
@@ -28,7 +30,7 @@ func TestLive_BuiltinIssuersPublishVerifiableKeys(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			resp, err := defaultHTTPClient().Do(req)
+			resp, err := transport.DefaultClient().Do(req)
 			if err != nil {
 				t.Fatalf("discovery: %v", err)
 			}

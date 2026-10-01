@@ -43,6 +43,7 @@ llmprovider/providers/together/ Together AI: Chat Completions
 llmprovider/providers/ollama/  a local Ollama: Chat Completions
 llmprovider/internal/wire/     what the shared wire formats have in common
 llmprovider/internal/wire/*/   one shared wire format each: responses, chatcompletions, messages, generatecontent
+llmprovider/internal/transport/ the default client, the client identity, Retry-After, the listing probe
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
@@ -59,7 +60,7 @@ docs/
 
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
-| `llmprovider` | provider adapters, request and response types, credentials, OAuth, token storage, model discovery and ranking | the standard library, `internal/redact` |
+| `llmprovider` | provider adapters, request and response types, credentials, OAuth, token storage, model discovery and ranking | the standard library, `internal/redact`, `internal/transport` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely) and `MaskSecret` (show a suffix for identification) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
@@ -79,6 +80,7 @@ docs/
 | `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `AddThinking` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
+| `llmprovider/internal/transport` | `DefaultClient`, `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `ProbeGenerateHealth` | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 
 ## The contract
@@ -132,7 +134,8 @@ the old API until 0015-PLAN S8 removes it:
   package. Options are `ProviderOption` functions (`WithBaseURL`,
   `WithHTTPClient`, `WithReasoningEffort`, …). `GenerateWithRetry` and its two
   siblings retry on typed errors.
-- **Transport:** without `WithHTTPClient`, each provider builds one client:
+- **Transport:** without `WithHTTPClient`, each provider builds one client,
+  `internal/transport`'s `DefaultClient`:
   330 s overall, 300 s to the first byte, and `HTTP_PROXY`, `HTTPS_PROXY`
   and `NO_PROXY` honoured. It carries the provider's requests, its listing
   and probes, and its OAuth session's refreshes when the session has no
@@ -155,7 +158,7 @@ the old API until 0015-PLAN S8 removes it:
   naming a `Header` goes there instead, prefixed `Bearer` only for a
   `TokenBearer`. Key sources (`StaticToken`, `CommandToken`) are
   `TokenAPIKey`; sessions are `TokenBearer` and name no `Header`. Every
-  provider applies this to generation and listing through `SetTokenHeader`.
+  provider applies this to generation and listing through `Token.Apply`.
 - **The shared wire formats** are in `internal/wire`, one package per format
   that more than one provider speaks; the Interactions wire is Gemini's
   alone. A Responses stream's failure is classified by
@@ -165,8 +168,7 @@ the old API until 0015-PLAN S8 removes it:
   packages share with it: the ChatGPT session helpers
   (`IsChatGPTSession`, `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`,
   `ExpireSession`, and four header constants) and `ShareHTTPClient`, which
-  move in 0015-PLAN S8c, and `ProbeGenerateHealth` and `SetTokenHeader`,
-  which S7b's transport commit moves. The model
+  move in 0015-PLAN S8c. The model
   metadata's per-request view, `ModelMetadata` and `LookupModelMetadata`,
   and Kilo's endpoint resolver, `KiloGatewayFor`, move to `catalog` in S8b.
 - **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.

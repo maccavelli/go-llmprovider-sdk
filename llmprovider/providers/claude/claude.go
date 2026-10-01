@@ -38,6 +38,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
 )
@@ -140,7 +141,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("User-Agent", p.userAgent)
-	llmprovider.SetTokenHeader(httpReq, token, "x-api-key", "")
+	token.Apply(httpReq, "x-api-key", "")
 	httpReq.Header.Set("anthropic-version", anthropicVersion)
 
 	resp, err := p.client.Do(httpReq)
@@ -250,7 +251,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := llmprovider.ProbeGenerateHealth(ctx, listed, func(ctx context.Context, model string) (string, error) {
+	healthy := transport.ProbeGenerateHealth(ctx, listed, llmprovider.MaxListedModels, func(ctx context.Context, model string) (string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.reasoning = model, probeMaxTokens, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{

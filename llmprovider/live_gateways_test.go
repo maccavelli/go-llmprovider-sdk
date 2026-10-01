@@ -39,6 +39,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // skipIfTransient converts upstream rate limiting, outages and account-state
@@ -95,7 +97,7 @@ func getJSON(t *testing.T, url string, into any) int {
 	if err != nil {
 		t.Fatalf("request: %v", err)
 	}
-	resp, err := defaultHTTPClient().Do(req)
+	resp, err := transport.DefaultClient().Do(req)
 	if err != nil {
 		t.Skipf("gateway unreachable: %v", err)
 	}
@@ -132,7 +134,7 @@ func TestLive_KiloReasoningSpelling(t *testing.T) {
 		t.Fatalf("request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := defaultHTTPClient().Do(req)
+	resp, err := transport.DefaultClient().Do(req)
 	if err != nil {
 		t.Skipf("gateway unreachable: %v", err)
 	}
@@ -308,7 +310,7 @@ func postLive(t *testing.T, url, body, header, value string) (int, string) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(header, value)
-	resp, err := defaultHTTPClient().Do(req)
+	resp, err := transport.DefaultClient().Do(req)
 	if err != nil {
 		t.Skipf("gateway unreachable: %v", err)
 	}

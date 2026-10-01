@@ -8,11 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
 	"math/rand/v2"
-	"net/http"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -102,33 +98,6 @@ func (e *RateLimitError) Error() string {
 }
 
 func (e *RateLimitError) Unwrap() error { return ErrRateLimited }
-
-// parseRetryAfter parses an HTTP Retry-After header (delta-seconds or HTTP-date),
-// returning 0 when absent or unparseable.
-func parseRetryAfter(h string) time.Duration {
-	h = strings.TrimSpace(h)
-	if h == "" {
-		return 0
-	}
-	if secs, err := strconv.ParseFloat(h, 64); err == nil && secs >= 0 && !math.IsInf(secs, 0) {
-		return time.Duration(secs * float64(time.Second))
-	}
-	if t, err := http.ParseTime(h); err == nil {
-		if d := time.Until(t); d > 0 {
-			return d
-		}
-	}
-	return 0
-}
-
-// retryAfterFrom reads a server-directed delay from retry-after-ms (fractional
-// milliseconds), else Retry-After (MADR 0012 §1.2).
-func retryAfterFrom(h http.Header) time.Duration {
-	if ms, err := strconv.ParseFloat(strings.TrimSpace(h.Get("Retry-After-Ms")), 64); err == nil && ms >= 0 && !math.IsInf(ms, 0) {
-		return time.Duration(ms * float64(time.Millisecond))
-	}
-	return parseRetryAfter(h.Get("Retry-After"))
-}
 
 // retryBackoffCap bounds every retry delay. A server asking for longer gets its
 // error back instead, so the caller can reschedule (MADR 0012 §1.2).

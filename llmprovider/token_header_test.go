@@ -29,7 +29,7 @@ func TestTokenHeader(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "http://example.invalid/", http.NoBody)
-			SetTokenHeader(req, tc.tok, tc.header, tc.scheme)
+			tc.tok.Apply(req, tc.header, tc.scheme)
 			if got := req.Header.Get(tc.wantName); got != tc.wantValue {
 				t.Errorf("%s = %q, want %q", tc.wantName, got, tc.wantValue)
 			}

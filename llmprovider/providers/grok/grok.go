@@ -42,6 +42,7 @@ import (
 	"net/http"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
 
@@ -238,7 +239,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("User-Agent", p.userAgent)
-	llmprovider.SetTokenHeader(httpReq, token, headerAuthorization, "Bearer")
+	token.Apply(httpReq, headerAuthorization, "Bearer")
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
@@ -267,7 +268,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := llmprovider.ProbeGenerateHealth(ctx, listed, func(ctx context.Context, model string) (string, error) {
+	healthy := transport.ProbeGenerateHealth(ctx, listed, llmprovider.MaxListedModels, func(ctx context.Context, model string) (string, error) {
 		// The old API's probe provider: the default output limit, no store,
 		// no reasoning (0015-MADR D1).
 		probe := *p

@@ -38,6 +38,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
@@ -147,7 +148,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("User-Agent", p.userAgent)
 	// In a header, not the URL, so it cannot leak through a *url.Error.
-	llmprovider.SetTokenHeader(httpReq, token, googleKeyHeader, "")
+	token.Apply(httpReq, googleKeyHeader, "")
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
@@ -265,7 +266,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := llmprovider.ProbeGenerateHealth(ctx, listed, func(ctx context.Context, model string) (string, error) {
+	healthy := transport.ProbeGenerateHealth(ctx, listed, llmprovider.MaxListedModels, func(ctx context.Context, model string) (string, error) {
 		// The old API's probe: the provider's output limit, nothing stored, no
 		// reasoning (0015-MADR D1).
 		probe := *p

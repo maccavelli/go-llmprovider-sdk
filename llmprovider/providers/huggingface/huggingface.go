@@ -138,7 +138,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("User-Agent", p.userAgent)
-	llmprovider.SetTokenHeader(httpReq, token, headerAuthorization, "Bearer")
+	token.Apply(httpReq, headerAuthorization, "Bearer")
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {

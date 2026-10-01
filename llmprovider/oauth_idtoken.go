@@ -202,7 +202,7 @@ func fetchJWKS(ctx context.Context, client *http.Client, jwksURL string) (map[st
 	if err != nil {
 		return nil, fmt.Errorf("keys request: %w", err)
 	}
-	identityOf(ProviderConfig{}).setUserAgent(req)
+	identityOf(ProviderConfig{}).SetUserAgent(req)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch the issuer's keys: %w", err)

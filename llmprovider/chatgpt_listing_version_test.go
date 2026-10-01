@@ -6,15 +6,17 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
-// withSDKVersion makes buildVersions report v as this module's version for one
+// withSDKVersion makes transport.BuildVersions report v as this module's version for one
 // (non-parallel) test.
 func withSDKVersion(t *testing.T, v string) {
 	t.Helper()
-	saved := buildVersions
-	buildVersions = func() (string, string) { return v, v }
-	t.Cleanup(func() { buildVersions = saved })
+	saved := transport.BuildVersions
+	transport.BuildVersions = func() (string, string) { return v, v }
+	t.Cleanup(func() { transport.BuildVersions = saved })
 }
 
 // chatGPTListingVersion returns the client_version one ChatGPT listing sent.

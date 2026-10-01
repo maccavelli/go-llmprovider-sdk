@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 const (
@@ -256,7 +257,7 @@ func (s *OAuthSession) refreshState() oauthSessionState {
 // ShareHTTPClient gives an OAuth session with no HTTP client the provider's,
 // so its refreshes use the same transport as the provider's requests and
 // listing (0016-MADR D8). A session that has a client keeps it.
-// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to llmprovider/auth.
+// Temporary export for the provider packages (0015-PLAN S7); S8c moves it to llmprovider/auth.
 func ShareHTTPClient(src TokenSource, client *http.Client) {
 	session, ok := src.(*OAuthSession)
 	if !ok || client == nil {
@@ -309,7 +310,7 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 	}
 	client := state.httpClient
 	if client == nil {
-		client = defaultHTTPClient()
+		client = transport.DefaultClient()
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -389,7 +390,7 @@ func newRefreshRequest(ctx context.Context, state oauthSessionState) (*http.Requ
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create refresh request: %w", err)
 	}
-	identityOf(ProviderConfig{}).setUserAgent(req)
+	identityOf(ProviderConfig{}).SetUserAgent(req)
 	req.Header.Set("Content-Type", contentType)
 	return req, nil
 }

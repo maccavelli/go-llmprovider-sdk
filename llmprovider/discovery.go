@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // chatgptModelsClientVersion is the client_version GET .../codex/models is
@@ -179,7 +181,7 @@ func listChatGPTModels(ctx context.Context, src TokenSource, cfg ProviderConfig)
 		return ModelCatalog{}, fmt.Errorf("model listing: parse chatgpt models URL: %w", err)
 	}
 	query := endpoint.Query()
-	sdk, _ := buildVersions()
+	sdk, _ := transport.BuildVersions()
 	query.Set("client_version", chatgptClientVersion(sdk))
 	endpoint.RawQuery = query.Encode()
 
@@ -187,8 +189,8 @@ func listChatGPTModels(ctx context.Context, src TokenSource, cfg ProviderConfig)
 	if err != nil {
 		return ModelCatalog{}, fmt.Errorf("model listing: create chatgpt models request: %w", err)
 	}
-	identityOf(cfg).setUserAgent(req)
-	SetTokenHeader(req, token, oauthAuthorizationHeader, bearerScheme)
+	identityOf(cfg).SetUserAgent(req)
+	token.Apply(req, oauthAuthorizationHeader, bearerScheme)
 	req.Header.Set(ChatGPTOriginatorHeader, ChatGPTOriginatorValue)
 	if accountID := ChatGPTSessionAccountID(src); accountID != "" {
 		req.Header.Set(ChatGPTAccountHeader, accountID)
@@ -353,8 +355,8 @@ func fetchGeminiPage(ctx context.Context, endpoint string, token Token, cfg Prov
 	if err != nil {
 		return result, err
 	}
-	identityOf(cfg).setUserAgent(req)
-	SetTokenHeader(req, token, "x-goog-api-key", "")
+	identityOf(cfg).SetUserAgent(req)
+	token.Apply(req, "x-goog-api-key", "")
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
@@ -445,8 +447,8 @@ func fetchClaudePage(ctx context.Context, endpoint string, token Token, cfg Prov
 	if err != nil {
 		return result, err
 	}
-	identityOf(cfg).setUserAgent(req)
-	SetTokenHeader(req, token, "x-api-key", "")
+	identityOf(cfg).SetUserAgent(req)
+	token.Apply(req, "x-api-key", "")
 	req.Header.Set("anthropic-version", "2023-06-01")
 
 	resp, err := cfg.HTTPClient.Do(req)
@@ -495,9 +497,9 @@ func fetchOllamaNames(ctx context.Context, token Token, cfg ProviderConfig) ([]s
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	identityOf(cfg).setUserAgent(req)
+	identityOf(cfg).SetUserAgent(req)
 	if token.Header != "" {
-		SetTokenHeader(req, token, "", "")
+		token.Apply(req, "", "")
 	}
 
 	resp, err := cfg.HTTPClient.Do(req)
@@ -536,7 +538,7 @@ func ValidateOllamaURL(ctx context.Context, baseURL string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	identityOf(ProviderConfig{}).setUserAgent(req)
+	identityOf(ProviderConfig{}).SetUserAgent(req)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -576,9 +578,9 @@ func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg Provi
 		return nil, err
 	}
 	id := identityOf(cfg)
-	id.setUserAgent(req)
+	id.SetUserAgent(req)
 	if provider == serviceOpencode {
-		req.Header.Set(opencodeSessionHeader, id.session) // 0013 B7
+		req.Header.Set(opencodeSessionHeader, id.Session) // 0013 B7
 	}
 	if value != "" {
 		req.Header.Set(header, value)
@@ -684,9 +686,9 @@ func fetchHuggingFaceUsable(ctx context.Context, token Token, cfg ProviderConfig
 	if err != nil {
 		return nil, err
 	}
-	identityOf(cfg).setUserAgent(req)
+	identityOf(cfg).SetUserAgent(req)
 	if token.Value != "" {
-		SetTokenHeader(req, token, oauthAuthorizationHeader, bearerScheme)
+		token.Apply(req, oauthAuthorizationHeader, bearerScheme)
 	}
 
 	resp, err := cfg.HTTPClient.Do(req)
@@ -787,8 +789,8 @@ func fetchTogetherUsable(ctx context.Context, token Token, cfg ProviderConfig) (
 	if err != nil {
 		return nil, err
 	}
-	identityOf(cfg).setUserAgent(req)
-	SetTokenHeader(req, token, oauthAuthorizationHeader, bearerScheme)
+	identityOf(cfg).SetUserAgent(req)
+	token.Apply(req, oauthAuthorizationHeader, bearerScheme)
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
@@ -874,9 +876,9 @@ func fetchKiloCatalog(ctx context.Context, token Token, cfg ProviderConfig) ([]k
 	if err != nil {
 		return nil, err
 	}
-	identityOf(cfg).setUserAgent(req)
+	identityOf(cfg).SetUserAgent(req)
 	if token.Value != "" {
-		SetTokenHeader(req, token, oauthAuthorizationHeader, bearerScheme)
+		token.Apply(req, oauthAuthorizationHeader, bearerScheme)
 	}
 	if endpoints.org != "" {
 		req.Header.Set(kiloOrganizationHeader, endpoints.org)

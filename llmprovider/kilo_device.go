@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // Kilo device login (docs/decisions/0017-MADR-together-provider-and-auth-extensions.md
@@ -35,7 +37,7 @@ func startKiloDevice(ctx context.Context, opts OAuthFlowOptions) (*DeviceLogin, 
 		config.issuer = kiloAPIOrigin
 	}
 	if config.httpClient == nil {
-		config.httpClient = defaultHTTPClient()
+		config.httpClient = transport.DefaultClient()
 	}
 	if config.now == nil {
 		config.now = time.Now
@@ -119,7 +121,7 @@ func kiloDeviceRequest(ctx context.Context, config oauthFlowConfig, method, targ
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create Kilo request: %w", err)
 	}
-	identityOf(ProviderConfig{}).setUserAgent(req)
+	identityOf(ProviderConfig{}).SetUserAgent(req)
 	if method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -165,7 +167,7 @@ func KiloProfile(ctx context.Context, token string, opts ...ProviderOption) (Kil
 	if err != nil {
 		return KiloAccount{}, err
 	}
-	identityOf(cfg).setUserAgent(req)
+	identityOf(cfg).SetUserAgent(req)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {

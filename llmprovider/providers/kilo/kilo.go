@@ -219,7 +219,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	httpReq.Header.Set("User-Agent", p.userAgent)
 	httpReq.Header.Set(headerEditor, p.editor)
 	httpReq.Header.Set(headerTask, p.session)
-	llmprovider.SetTokenHeader(httpReq, token, headerAuthorization, "Bearer")
+	token.Apply(httpReq, headerAuthorization, "Bearer")
 	if org != "" {
 		httpReq.Header.Set(headerOrganization, org)
 	}

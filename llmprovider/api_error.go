@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // sentinelError is a sentinel that also matches a broader one, so a new class
@@ -166,7 +167,8 @@ func statusSentinel(status int) error {
 // for 200. provider names the caller for the message: a multi-route gateway
 // passes "gateway/route", so a misroute is diagnosable from the error alone.
 // A plain 429 stays a *RateLimitError; every other status is an *APIError.
-// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/transport.
+// It is part of the error model, for any provider (0015-MADR, amendment
+// "S7b's import graph").
 func ClassifyHTTPError(provider string, resp *http.Response) error {
 	if resp.StatusCode == http.StatusOK {
 		return nil
@@ -185,7 +187,7 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 		Code:       envelope.errType(),
 		Type:       envelope.errType(),
 		Message:    boundMessage(redact.String(envelope.message())),
-		RetryAfter: retryAfterFrom(resp.Header),
+		RetryAfter: transport.RetryAfter(resp.Header),
 	}
 	e.Terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
 	// A usage limit says when it resets, as Codex reads it (MADR 0012 §4.4).

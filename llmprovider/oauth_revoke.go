@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // RevokeOAuthSession revokes an SDK-owned session at its issuer, so a
@@ -40,7 +42,7 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 	}
 	client := state.httpClient
 	if client == nil {
-		client = defaultHTTPClient()
+		client = transport.DefaultClient()
 	}
 
 	var req *http.Request
@@ -53,7 +55,7 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 	if err != nil {
 		return err
 	}
-	identityOf(ProviderConfig{}).setUserAgent(req)
+	identityOf(ProviderConfig{}).SetUserAgent(req)
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("oauth: revoke request: %w", err)

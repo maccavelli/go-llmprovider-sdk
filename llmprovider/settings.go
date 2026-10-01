@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // Option configures a provider when it is built (0015-MADR D5). The common
@@ -32,7 +34,7 @@ type settings struct {
 }
 
 func newSettings() settings {
-	return settings{cfg: ProviderConfig{HTTPClient: defaultHTTPClient(), MaxTokens: 8192}}
+	return settings{cfg: ProviderConfig{HTTPClient: transport.DefaultClient(), MaxTokens: 8192}}
 }
 
 // commonOption is an option both APIs take.
@@ -119,7 +121,7 @@ func scopeText(providers []ProviderID) string {
 // It cannot be changed after ResolveOptions returns it.
 type Settings struct {
 	s        settings
-	identity clientIdentity
+	identity transport.Identity
 }
 
 // ResolveOptions applies opts for the provider id, for that provider's New.
@@ -178,15 +180,15 @@ func (st *Settings) Reasoning() *Reasoning {
 
 // UserAgent is the User-Agent every request sends: the application from
 // WithClientInfo, then this module (MADR 0012 §1.4).
-func (st *Settings) UserAgent() string { return st.identity.userAgent() }
+func (st *Settings) UserAgent() string { return st.identity.UserAgent() }
 
 // SessionID is the id from WithSessionID, or a random one fixed for these
 // Settings.
-func (st *Settings) SessionID() string { return st.identity.session }
+func (st *Settings) SessionID() string { return st.identity.Session }
 
 // ClientName is the application WithClientInfo named, or "go-llmprovider-sdk":
 // what User-Agent leads with, and Kilo's editor name (MADR 0012 §1.4).
-func (st *Settings) ClientName() string { return st.identity.name }
+func (st *Settings) ClientName() string { return st.identity.Name }
 
 // ModelProbes reports whether ListModels probes each listed model, as
 // WithModelProbes and ModelProbesFromEnv set it; true by default

@@ -2833,7 +2833,8 @@ Staged for the owner to commit.
 
 ### Phase S7b, commit 1: `internal/wire` (2026-10-01)
 
-Under "S7b as amended". Staged for the owner to commit.
+Under "S7b as amended". Staged for the owner to commit. *Annotated
+2026-10-01:* committed with the amendment's records, as `940fee0`.
 
 * **Moved** with plain `mv`, then rewritten in place:
 
@@ -2932,3 +2933,113 @@ Under "S7b as amended". Staged for the owner to commit.
   commit's rule; its text is kept.
 * **Docs.** `architecture.md` lists the five packages and what each provider
   imports. Its temporary-export paragraph names only what is left.
+
+### Phase S7b, commit 2: `internal/transport` (2026-10-01)
+
+Under "S7b as amended". Staged for the owner to commit.
+
+* **Moved** with plain `mv`, then rewritten in place:
+  * `probe.go` to `internal/transport/probe.go`;
+  * `probe_test.go` and `timeouts_test.go` to `probe_test.go` and
+    `client_test.go` there;
+  * `internal/transport/transport.go` is new. It holds `DefaultClient`, the
+    identity, `BuildVersions` and the Retry-After parsing. It was first
+    `http_helpers.go`, moved, until the body-close deviation below restored
+    that file.
+* **From other files:**
+  * `defaultHTTPClient` (`options.go`) is `DefaultClient`;
+  * `clientIdentity`, `buildVersions` and the identity constants
+    (`identification.go`) are `Identity`, `BuildVersions`,
+    `DefaultClientName` and `DevelVersion`;
+  * `parseRetryAfter` and `retryAfterFrom` (`provider.go`) are
+    `ParseRetryAfter` and `RetryAfter`.
+
+  `RetryAfter` goes with `ParseRetryAfter`, as both are the step's
+  "Retry-After parsing". `BuildVersions` reads through a new `versionsOf`, so
+  that a test can give it any build info.
+* **Kept in `llmprovider`:** `identityOf`, which builds a
+  `transport.Identity` from `ProviderConfig`, and `WithClientInfo` and
+  `WithSessionID`.
+* **`Token.Apply`** replaces `SetTokenHeader`. `tokenHeader` stays, as
+  `discovery.go` builds header pairs with it. `ClassifyHTTPError` loses its
+  temporary label. `ShareHTTPClient`'s label now names S8c.
+* **`ProbeGenerateHealth` takes its limit.** All five probing providers pass
+  `llmprovider.MaxListedModels`: `openai`, `claude`, `gemini`, `grok` and
+  `ollama`.
+* **Call sites** in `llmprovider` and the provider packages were rewritten
+  by script. The test hook `withSDKVersion` swaps
+  `transport.BuildVersions`.
+* **Tests moved:**
+  * `TestParseRetryAfter` (`provider_correctness_test.go`) and
+    `TestParseRetryAfter_HTTPDate` (`provider_test.go`) to
+    `transport_test.go`;
+  * `TestDefaultHTTPClient_Timeouts` as `TestDefaultClient_Timeouts`, which
+    also checks the proxy;
+  * `TestProbeGenerateHealth`, with a limit.
+
+  `TestParseRetryAfter_MillisAndFractional` stays, as it goes through the
+  classifier.
+* **New tests:**
+  * in `transport`: `TestRetryAfter`, `TestIdentity_UserAgent`,
+    `TestVersionsOf`, `TestProbeGenerateHealth_Limit`;
+  * in `ollama`: `TestListModels_ProbesAtMostMaxListedModels`.
+
+  `internal/transport` holds 100.0 % from its own tests.
+* **Deviation, 2026-10-01: closing a response body.**
+  * **Found.** With `closeResponseBody` moved to `transport.CloseBody`,
+    golangci-lint's `bodyclose` flagged its 12 call sites in `llmprovider`
+    (`discovery.go`, `kilo_device.go`, `model_metadata.go`,
+    `oauth_idtoken.go`). It recognises a `Body.Close()` only in the package
+    that holds the response. The provider packages already close inline.
+  * **Decided.** The owner chose "keep the helper in `llmprovider`". The
+    other option was to inline the close at all 12 sites. Suppressing the
+    linter was not offered.
+  * **Changed.** `llmprovider/http_helpers.go` is restored as it was at
+    `940fee0`, and `transport` has no `CloseBody`. The amended step's list
+    loses one item. The MADR amendment is annotated: it said `transport`
+    would hold "closing a response body".
+* **Gap named.** No provider test pinned the probe's limit before this
+  commit: the old function read `MaxListedModels` itself. Breaking `grok`'s
+  limit to 1 failed no test, as its fake lists one model.
+  `TestListModels_ProbesAtMostMaxListedModels` pins `ollama`'s, whose fake is
+  the cheapest. The other four pass the same constant, read from the source
+  above; no test pins them.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | the default client drops the proxy | `Proxy is nil, want http.ProxyFromEnvironment (0016-MADR D8)` |
+  | `retry-after-ms` ignored | `retry-after-ms: 7s, want 1.5005s` |
+  | a past date is a negative delay | `a date in the past: got -1h0m0.690362s` |
+  | the User-Agent drops this module's name | `UserAgent = "app/1.2.3 (darwin; arm64) llmprovider/(devel)"` |
+  | `SetUserAgent` sets another header | `User-Agent header = "", want "app/1.2.3 (darwin; arm64) go-llmprovider-sdk/(devel)"` |
+  | this module as the main module reads `(devel)` | `the main module: versionsOf = "(devel)", "v1.5.0"; want "v1.5.0", "v1.5.0"` |
+  | a dependency's version ignored | `a dependency: versionsOf = "(devel)", "v2.0.0"; want "v1.4.0", "v2.0.0"` |
+  | the probe ignores its limit | `ProbeGenerateHealth = [a b c], want [a b]` |
+  | `Token.Apply` ignores the token's header | `X-Custom = "", want "Bearer v"` |
+  | `ollama`'s probe passes a smaller limit | `1 probes, want 6` |
+
+  Two breaks were invalid as first written, and ran again:
+  * a User-Agent format without the platform did not compile, as `runtime`
+    was then unused. It now drops this module's name.
+  * `grok`'s limit set to 1 failed no test (the gap above). It ran again on
+    `ollama`.
+* **Lint** found `kiloEditorHeader` and `kiloTaskHeader` unused. They had
+  been unused since Kilo moved, but shared a const group with constants still
+  in use, which hid them. Both were removed.
+* **Check.** `go doc -all ./llmprovider` names neither `SetTokenHeader` nor
+  `ProbeGenerateHealth`, and names `Token.Apply`. No wire or transport
+  temporary export is left. The ones left:
+  * for S8c, `IsChatGPTSession`, `ChatGPTSessionAccountID`,
+    `ChatGPTSessionFedRAMP`, `ExpireSession`, the four ChatGPT header
+    constants, and `ShareHTTPClient`;
+  * for S8b, `ModelMetadata`, `LookupModelMetadata` and `KiloGatewayFor`.
+* **Docs.**
+  * `architecture.md` lists `internal/transport`, the token rule names
+    `Token.Apply`, and the temporary exports are the ones above.
+  * The standards guide's R2 table follows the amendment's import edges, and
+    its `internal/wire` and `internal/transport` rows.
+* **G-wire.** All 100 goldens unchanged, with no `-update`.
+* **Coverage.** `llmprovider` 88.0 % from its own tests and 90.5 % over
+  `./llmprovider/...`, against its `P7` 89.2 %.
+* **S7b is complete.** The `auth` extraction is Phase S8c, after S8 and S8b.

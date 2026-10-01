@@ -240,7 +240,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// Each route reads the key from its vendor's header (MADR 0007 §1c); the
 	// key stays in a header, never the URL.
 	header, scheme := keyHeader(c.route)
-	llmprovider.SetTokenHeader(httpReq, token, header, scheme)
+	token.Apply(httpReq, header, scheme)
 	// x-opencode-session is fixed for the provider's lifetime (MADR 0012 §1.4).
 	httpReq.Header.Set(sessionHeader, p.session)
 

@@ -27,14 +27,15 @@ exists now, read [architecture.md](../architecture.md).
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
-  | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token` | the standard library |
-  | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `StaticToken`, `VendorCLISession` | `llmprovider` |
-  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` | `llmprovider` |
+  | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token` | the standard library, `internal/redact`, `internal/transport` |
+  | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `StaticToken`, `VendorCLISession` | `llmprovider`, `internal/transport` |
+  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` | `llmprovider`, `internal/transport` |
   | `llmprovider/providers/<id>` | one provider or gateway family: `New`, its options, its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
   | `llmprovider/providers` | `Default()` and `New(id, opts...)` | the provider packages |
   | `llmprovider/llmtest` | the conformance suite and `Fake` | `llmprovider` |
-  | `llmprovider/internal/wire/...` | the wire formats | `llmprovider` |
-  | `llmprovider/internal/transport` | HTTP helpers, identity headers, `Retry-After`, error classification | `llmprovider`, `internal/redact` |
+  | `llmprovider/internal/wire` | what the shared wire formats have in common | `llmprovider` |
+  | `llmprovider/internal/wire/<format>` | one wire format that more than one provider speaks | `llmprovider`, `internal/wire` |
+  | `llmprovider/internal/transport` | the default client, identity headers, `Retry-After`, the listing probe | the standard library |
   | `wizard` | the configuration flow, over a `Registry` | the above, `golang.org/x/term` |
   | `internal/redact` | redaction | the standard library |
 

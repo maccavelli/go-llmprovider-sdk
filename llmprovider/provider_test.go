@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -100,14 +99,6 @@ func TestRateLimitError_ErrorString(t *testing.T) {
 	}
 	if s == "" || fmt.Sprintf("%v", rl) == "" {
 		t.Error("error string must not be empty")
-	}
-}
-
-func TestParseRetryAfter_HTTPDate(t *testing.T) {
-	future := time.Now().Add(30 * time.Second).UTC().Format(http.TimeFormat)
-	d := parseRetryAfter(future)
-	if d <= 0 || d > 35*time.Second {
-		t.Errorf("parseRetryAfter(%q) = %v, expected ~30s", future, d)
 	}
 }
 

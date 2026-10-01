@@ -1,4 +1,4 @@
-package llmprovider
+package transport
 
 import (
 	"context"
@@ -8,16 +8,16 @@ import (
 )
 
 // ProbeGenerateHealth runs a tiny generate against each candidate and returns
-// those that respond successfully, preserving preferred order.
-// At most MaxListedModels candidates are probed. Failures are skipped.
-// Temporary export for the provider packages (0015-PLAN S7); S7b moves it to internal/transport.
-func ProbeGenerateHealth(ctx context.Context, preferred []string, generate func(ctx context.Context, modelID string) (string, error)) []string {
+// those that respond successfully, preserving preferred order. At most limit
+// candidates are probed; the providers pass llmprovider.MaxListedModels.
+// Failures are skipped.
+func ProbeGenerateHealth(ctx context.Context, preferred []string, limit int, generate func(ctx context.Context, modelID string) (string, error)) []string {
 	if len(preferred) == 0 {
 		return nil
 	}
 	candidates := preferred
-	if len(candidates) > MaxListedModels {
-		candidates = candidates[:MaxListedModels]
+	if len(candidates) > limit {
+		candidates = candidates[:limit]
 	}
 
 	type result struct {
