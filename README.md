@@ -34,3 +34,7 @@ There is no release yet. The module requires Go 1.27.1.
 | know what the v1 API will look like | [0015-MADR](docs/decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) |
 | know how provider auth is built, and what it takes from `magic-cli-remote` | [0016-MADR](docs/decisions/0016-MADR-provider-auth-and-support-baseline.md) |
 | contribute: checks, records and commit rules | [AGENTS.md](AGENTS.md) |
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).

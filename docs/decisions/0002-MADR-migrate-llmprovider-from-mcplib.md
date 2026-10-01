@@ -1109,3 +1109,15 @@ caller writes `redact.String(s)`. The package is internal; nothing outside
 this module sees the change. §1's "carries only" list is annotated. The rejected
 alternative kept `RedactString` under a different package name, which would
 have changed §1's `internal/redact` path.
+
+## Amendment 2026-10-01: Apache License 2.0
+
+Status: **accepted** 2026-10-01 (the owner: "make the license apache-2.0
+for this repo, the go-llmprovider-sdk, and the go-core-lib repos").
+
+The Phase 2b deferral ("No `LICENSE` is added. That is the owner's
+choice and is not decided here.") is closed. The licence is decided by
+[0018-MADR-apache-2-license.md](0018-MADR-apache-2-license.md): Apache
+License 2.0, the fleet `LICENSE` copy with the appendix unfilled. This
+amendment does not rewrite the Phase 2b text; it records that the
+choice 0002 left open has been made.

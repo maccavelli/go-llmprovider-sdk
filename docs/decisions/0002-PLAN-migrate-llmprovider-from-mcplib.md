@@ -317,8 +317,11 @@ before Phase 4, because it touches no Go file.
   `The specified go version file at: go.mod does not exist` (run
   36638209549 on `4ddcb54`, all three runners).
 * The records under `docs/mcplib-import/`: Phase 6.
-* A `LICENSE`: the owner has not chosen one. `mcplib` has none;
-  `magic-cli-remote` is Apache-2.0. It needs the owner's decision first.
+* ~~A `LICENSE`: the owner has not chosen one. `mcplib` has none;
+  `magic-cli-remote` is Apache-2.0. It needs the owner's decision first.~~
+  *(Struck 2026-10-01: the owner chose Apache-2.0.
+  [0018-MADR-apache-2-license.md](0018-MADR-apache-2-license.md) /
+  [0018-PLAN-apache-2-license.md](0018-PLAN-apache-2-license.md).)*
 
 **Amendment 2026-09-29 (fourth): Phase 2c, golangci-lint in the pre-add
 gate.** From the MADR's "Amendment 2026-09-29 (fourth): golangci-lint

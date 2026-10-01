@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-39 records. Cite them by full filename.
+41 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -49,6 +49,8 @@ documents a reader follows to do something.
 | 0017 | REPORT | [Reference-Client Survey: How Six Coding Agents Authenticate, Compared with `llmprovider`](reports/0017-REPORT-reference-client-auth-survey.md) | observation |
 | 0017 | MADR | [Add Together AI, Kilo Device Login and Command-Sourced Keys, from the Reference-Client Survey](decisions/0017-MADR-together-provider-and-auth-extensions.md) | accepted |
 | 0017 | PLAN | [Implement Together AI, Kilo Device Login and Command-Sourced Keys](decisions/0017-PLAN-together-provider-and-auth-extensions.md) | in-progress |
+| 0018 | MADR | [The module is released under the Apache License 2.0](decisions/0018-MADR-apache-2-license.md) | accepted |
+| 0018 | PLAN | [Implement the Apache License 2.0 for go-llmprovider-sdk](decisions/0018-PLAN-apache-2-license.md) | complete |
 
 ## I want to…
 
@@ -56,6 +58,7 @@ documents a reader follows to do something.
 | :--- | :--- |
 | see what is in this repository today | [architecture.md](architecture.md) |
 | contribute: checks, records and commit rules | [AGENTS.md](../AGENTS.md) |
+| know the licence | [0018-MADR](decisions/0018-MADR-apache-2-license.md), [LICENSE](../LICENSE) |
 | run the live tests against real services | [AGENTS.md, "Live tests"](../AGENTS.md#live-tests) |
 | add a provider or a gateway | [0004-MADR](decisions/0004-MADR-add-gateway-llm-providers.md) (gateways), [0003-MADR](decisions/0003-MADR-add-grok-xai-llm-provider.md) (a direct provider) |
 | know how each provider matches its vendor's reference client | [0012-MADR](decisions/0012-MADR-conform-providers-to-reference-clients.md) |

@@ -18,6 +18,7 @@ The code came from `mcplib` `v1.6.0` with its history. Its exported API is still
 
 ```text
 README.md                   repository entry; links here
+LICENSE                     Apache License 2.0
 AGENTS.md                   rules for agents: records, checks, commits
 go.mod, go.sum              the module and its two requirements
 Makefile                    development targets (below)
@@ -288,4 +289,3 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   `llmprovider/providers/…`, `llmprovider/llmtest`):
   [0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md),
   accepted.
-- **A licence file.**
