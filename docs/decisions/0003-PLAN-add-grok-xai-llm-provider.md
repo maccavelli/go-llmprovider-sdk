@@ -576,7 +576,7 @@ pattern as all existing tests (see
     default:
    ```
 
-4. **`discovery.go`** ([L24-35](../../llmprovider/discovery.go#L24-L35)):
+4. **`discovery.go`** ([L24-35](../../llmprovider/catalog/discovery.go)):
    Add `ListAvailableModels` switch case:
    ```diff
     case ProviderClaude:
@@ -589,7 +589,7 @@ pattern as all existing tests (see
    `data[].id`, filter via `isUsableGrokModel`, curate via
    `curateFromCatalog(StaticGrok, ...)`.
 
-5. **`models_catalog.go`** ([L87-98](../../llmprovider/models_catalog.go#L87-L98)):
+5. **`models_catalog.go`** ([L87-98](../../llmprovider/catalog/models_catalog.go)):
    Add `StaticModels` case + catalog:
    ```go
    // StaticGrok: fast/flagship models first.
@@ -1023,13 +1023,13 @@ These items are explicitly not part of this plan, per the MADR:
 |---|---|---|
 | [`constants.go`](../../llmprovider/constants.go) | Add `ProviderGrok`, Responses-API JSON keys | 1 |
 | [`provider.go`](../../llmprovider/provider.go) | Add `ProviderEnvVars[ProviderGrok]`, `NewProvider` case, new optional interface declarations | 1 |
-| [`discovery.go`](../../llmprovider/discovery.go) | Add `listGrokModels`, `ListAvailableModels` case | 1 |
-| [`models_catalog.go`](../../llmprovider/models_catalog.go) | Add `StaticGrok`, `isUsableGrokModel`, `RankGrokModel`, `StaticModels` case | 1 |
+| [`discovery.go`](../../llmprovider/catalog/discovery.go) | Add `listGrokModels`, `ListAvailableModels` case | 1 |
+| [`models_catalog.go`](../../llmprovider/catalog/models_catalog.go) | Add `StaticGrok`, `isUsableGrokModel`, `RankGrokModel`, `StaticModels` case | 1 |
 | [`openai.go`](../../llmprovider/providers/openai/openai.go) | Migrate to Responses API, add `GenerateItems`/`Continue`, existing methods become wrappers | 2 |
 | [`gemini.go`](../../llmprovider/providers/gemini/gemini.go) | Migrate to Interactions API, add `GenerateItems`/`Continue`, existing methods become wrappers | 3 |
 | [`claude.go`](../../llmprovider/providers/claude/claude.go) | Add `GenerateItems`, existing methods become wrappers, permanent no-`Continuer` doc | 4 |
 | `thinking_test.go` (removed by [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) S7) | Add Grok interface checks | 1 |
-| [`models_catalog_test.go`](../../llmprovider/models_catalog_test.go) | Add Grok catalog/ranking tests | 1 |
+| [`models_catalog_test.go`](../../llmprovider/catalog/models_catalog_test.go) | Add Grok catalog/ranking tests | 1 |
 | [`provider_correctness_test.go`](../../llmprovider/provider_correctness_test.go) | Update OpenAI/Gemini fixtures to Responses/Interactions shape | 2, 3 |
 
 ## Amendment 2026-09-29: status corrected at migration

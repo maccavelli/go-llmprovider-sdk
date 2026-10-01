@@ -27,7 +27,7 @@ var (
 var liveMetadata = sync.OnceValues(func() (pickerDoc, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, defaultModelMetadataURL, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pickerMetadataURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ var liveMetadata = sync.OnceValues(func() (pickerDoc, error) {
 	}
 	defer closeResponseBody(resp)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("model picker: %s returned HTTP %d", defaultModelMetadataURL, resp.StatusCode)
+		return nil, fmt.Errorf("model picker: %s returned HTTP %d", pickerMetadataURL, resp.StatusCode)
 	}
 	return decodePickerDoc(resp.Body)
 })

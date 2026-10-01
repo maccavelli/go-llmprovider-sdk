@@ -3152,6 +3152,7 @@ Under "S7b as amended". Staged for the owner to commit.
 
 Under "S8 as amended". Staged for the owner to commit, with the amendment's
 acceptance (its status, and the PLAN's "Approved" line).
+*Annotated 2026-10-01:* committed as `5784238`.
 
 * **Descriptors.** Each provider package has a `descriptor.go`, with
   `Descriptor()`, or `DescriptorZen()` and `DescriptorGo()` in `opencode`. It
@@ -3225,3 +3226,145 @@ acceptance (its status, and the PLAN's "Approved" line).
     `./llmprovider/...`, against its `P7` 89.2 %.
 * **G-wire** unchanged. `architecture.md` describes the descriptors and the
   wizard's `Registry`.
+
+### Phase S8, commit 2: `catalog` (2026-10-01)
+
+Under "S8 as amended". Staged for the owner to commit.
+
+* **Moved** with `git mv` into `llmprovider/catalog`, then rewritten for the
+  package:
+  * `models_catalog.go`, `model_ranking.go`, `model_matcher.go`,
+    `model_metadata.go`, `model_profile.go` and `discovery.go`;
+  * `opencode_gateway.go`, as `gateways.go`, which also takes the Hugging Face
+    and Together base URLs of `huggingface_gateway.go` and
+    `together_endpoint.go` (both removed).
+* **`kilo_endpoints.go`** is `internal/kiloendpoint`: `Resolve`, `Route`,
+  `BaseURL`, `OrganizationHeader`. `KiloGatewayFor` is removed; `kilo` and the
+  Kilo device login use `Resolve`.
+* **The probe dates** of Kilo, Hugging Face and Ollama stay in `llmprovider`,
+  in a new `wire_probes.go`; `ollama_endpoint.go` is removed. The raw live
+  probes and `TestWireShapesProbedOn` read them.
+* **The listing's options** (`catalog/config.go`):
+  * `List` resolves its options with `ResolveOptions` for the id it lists,
+    and reads them through `Settings`. A `config` holds what one listing
+    reads.
+  * `WithProfile` is scoped to every built-in id, and `WithKiloOrganization`
+    to `kilo`. Both are read back through `Settings.Values()`.
+  * `catalog` keeps its own `closeResponseBody`, as commit 2 of S7b decided,
+    and builds `tokenHeader` on `Token.Apply`.
+* **Renamed** as the amended step's table says. `List` replaces the four
+  listing functions and takes a `ProviderID`.
+* **Removed from `llmprovider`:**
+  * `WithModelProfile`, `WithKiloOrganization`, and their `ProviderConfig`
+    fields;
+  * the 27 JSON-key constants, unused once the listing had moved.
+* **Callers.** The provider packages call `catalog.List`, `catalog.Static`
+  and `catalog.MaxListed`.
+  * `kilo` passes its organization with `catalog.WithKiloOrganization`.
+  * `opencode` uses `catalog.LookupMetadata`.
+  * `wizard` lists with `catalog.List`, `catalog.WithProfile` and
+    `catalog.WithKiloOrganization`, and `Options.Profile` is a
+    `catalog.Profile`.
+* **Tests moved** to `catalog`: 21 files whole, and two split.
+  * From `opencode_gateway_test.go`, now `llmprovider/wire_probes_test.go`,
+    the two OpenCode tests went to `catalog/gateways_test.go`.
+  * From `catalog_state_test.go`, the static-copy and `Rank` tests went;
+    `ProviderEnvVars`' stays.
+  * The ranking fixtures `testdata/ranking-2026-09-26` moved with their test.
+  * The listing calls became `List`, or the helper `listRecommended` for what
+    `ListAvailableModels` returned.
+  * `ApplyOptions` became `testConfig`.
+  * `TestKiloGatewayFor` is `kiloendpoint`'s `TestResolve`, with the listing
+    URLs, and a new `TestRoute`.
+  * **Moved back.** `model_picker_test.go` is the live suite's model picker,
+    which reads the metadata document itself. It stays in `llmprovider`,
+    with its own copies of the two section keys and the URL.
+  * **Live.** `TestLive_ModelMetadataDocument`, `TestLive_GrokListingTextOnly`
+    and `TestLive_TogetherListing` moved to `catalog/live_listing_test.go`.
+    The other raw probes stay, with literal base URLs and
+    `kiloendpoint.BaseURL`. `withSDKVersion` moved to `live_export_test.go`.
+    The external live tests call `catalog`.
+* **Two rewriter faults,** found and fixed during the move, in a scratch
+  tool, never committed: `...` was read as a selector, and a `case` label as
+  a composite-literal key. The compiler caught both.
+* **New tests:**
+  * `TestListModels_HonoursRankingOptions` in `catalog`'s external test
+    package is `TestDiscoverModels_HonoursRankingOptions` with its profile
+    halves back: the original fixtures, pinned clock and rows (`kilo`,
+    `huggingface`, `opencode-zen`), through `providers.New`. The deferral
+    of 2026-09-30 ("no profile on the new API until S8b") ends here.
+    `export_test.go` exposes the fixtures to it.
+  * `TestWithProfile_EveryProviderTakesIt`: every built-in `New` takes
+    `WithProfile`, and only `kilo`'s takes `WithKiloOrganization`.
+  * `TestListModels_ListsTheOrganization` in `kilo`.
+* **Changed assertion.** `kilo_catalog_test.go` read the deprecated
+  `APIError.Terminal` and `Type`, which lint flags across packages. They are
+  now `!Retryable()` and `Code`: `Code` holds the same value, and
+  `!Retryable()` is weaker for this error kind. It is what commit 3 leaves,
+  when `Terminal` becomes unexported.
+* **Stale comments.** Nine provider structs and three listing tests no
+  longer say the listing waits for S8b.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | the listing ignores `WithProfile` | `fixture does not separate the profiles: both [b/flash d/mid …]`, for each row |
+  | `WithProfile` leaves out `ollama` | `ollama: New with catalog.WithProfile: … is for providers "gemini", …` |
+  | `WithKiloOrganization` scoped to every id | `gemini: New with catalog.WithKiloOrganization: err = <nil>` |
+  | the listing ignores the Kilo organization | `listing requests = ["/models org="], want the organization's catalog with its header` |
+  | `kilo` does not pass its organization on | the same |
+  | the listing ignores the base URL | `unexpected models: …`, `expected error for non-200 ollama response` |
+  | the listing sends no User-Agent | `/models: User-Agent = "Go-http-client/1.1"` |
+  | `tokenHeader` drops the value | `GET: Authorization = "", want "Bearer v"` (grok) |
+  | an organization lists the gateway's models | `Resolve(…, "org-1") = {… Models:http://127.0.0.1:9/models …}` |
+  | a token's organization is not read | `Resolve("", "https://kilo.example.test/api/organizations/org-9:secret", "") = …` |
+  | `Route` keeps the path after `api` | `Gateway:https://kilo.example.test/api/organizations/org-9/api/gateway` |
+  | the wizard drops the profile | `Model = "a/flash", want "b/pro"` |
+
+  Three did not compile as first written, each leaving a variable unused,
+  and were rewritten. `tokenHeader`'s break first ran against Hugging Face,
+  whose listing calls `Token.Apply` directly, so it failed nothing; it ran
+  again against `grok`, whose listing goes through `tokenHeader`.
+* **Lint.** `golangci-lint fmt` put the moved files' imports in `goimports`
+  order, and the doc comments name the new identifiers.
+* **G-parity** fills the 25 rows of the moved identifiers, and the
+  `WithKiloOrganization` row names both options: `409 identifiers, 409 rows,
+  181 with an SDK equivalent, 0 problem(s)`.
+* **G-links** found five links in `0003-PLAN-add-grok-xai-llm-provider.md`
+  to the moved files. They point at the moved files, their text kept and
+  their line anchors dropped, under the openai commit's rule.
+* **Docs.**
+  * `architecture.md` lists `catalog` and `internal/kiloendpoint`, and its
+    discovery section names `catalog`.
+  * The standards guide's R2 table gains `internal/kiloendpoint`.
+* **Deviation, 2026-10-01: `llmprovider`'s floor.**
+  * **Found.** The first gate failed `cover-floor-llmprovider`: 88.5 % over
+    `./llmprovider/...`, against `P7`'s 89.2 %. It was 14 statements short,
+    with 1749 of 1976 covered. Moving the listing's well-tested code out left
+    the less-tested OAuth and token-store code as the bulk of `llmprovider`.
+    No statement lost coverage.
+  * **Decided.** The owner chose "test untested code". The other option was
+    to fold commit 4's removal of the unread options into this commit too,
+    which alone was 5 statements, not 14.
+  * **Added**, for behaviour no test had:
+    * `TestFileTokenStore_Delete` (`Delete` was at 0 %);
+    * `TestFillOAuthEndpoints` (`fillOAuthEndpoints`, 0 %);
+    * `TestRefreshTokenURL` (`refreshTokenURL`, 33 %).
+
+    These move with that code to `auth` in S8c.
+  * **After:** 1764 of 1976, 89.27 %.
+  * **Breaks,** each in a scratch copy:
+
+    | Break | Failure |
+    |---|---|
+    | `Delete` removes nothing | `Load after Delete = OAuthSession{Provider:openai …}` |
+    | `Delete` hides a removal failure | `Delete that cannot remove: err = <nil>, want it returned` |
+    | discovery's endpoints overwritten | `filled = {Authorization:b-auth Token:b-token …}, want {… Token:d-token …}` |
+    | discovery's algorithms overwritten | `SigningAlgs = [RS256], want discovery's [ES256] kept` |
+    | a session's own token URL ignored | `own token URL: refreshTokenURL = "https://auth.openai.com/oauth/token"` |
+    | OpenAI's issuer not trimmed | `OpenAI: refreshTokenURL = "https://auth.x.ai/oauth2/token"` |
+* **G-wire.** All 100 goldens unchanged, with no `-update`.
+* **Coverage:**
+  * `catalog` 88.1 %, and `internal/kiloendpoint` 100.0 %;
+  * `llmprovider` 87.8 % from its own tests and 89.3 % over
+    `./llmprovider/...`, against its `P7` 89.2 %.

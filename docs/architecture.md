@@ -43,7 +43,9 @@ llmprovider/providers/together/ Together AI: Chat Completions
 llmprovider/providers/ollama/  a local Ollama: Chat Completions
 llmprovider/internal/wire/     what the shared wire formats have in common
 llmprovider/internal/wire/*/   one shared wire format each: responses, chatcompletions, messages, generatecontent
+llmprovider/catalog/          model listing, static catalogs, ranking, metadata, search, profiles
 llmprovider/internal/transport/ the default client, the client identity, Retry-After, the listing probe
+llmprovider/internal/kiloendpoint/ Kilo's endpoints, derived from a credential
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
@@ -80,6 +82,8 @@ docs/
 | `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `AddThinking` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
+| `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/transport`, `internal/kiloendpoint` |
+| `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/transport` | `DefaultClient`, `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `ProbeGenerateHealth` | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 
@@ -168,9 +172,7 @@ the old API until 0015-PLAN S8 removes it:
   packages share with it: the ChatGPT session helpers
   (`IsChatGPTSession`, `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`,
   `ExpireSession`, and four header constants) and `ShareHTTPClient`, which
-  move in 0015-PLAN S8c. The model
-  metadata's per-request view, `ModelMetadata` and `LookupModelMetadata`,
-  and Kilo's endpoint resolver, `KiloGatewayFor`, move to `catalog` in S8b.
+  move in 0015-PLAN S8c.
 - **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.
   - **Creating one:**
     - `LoginBrowserOAuth` uses PKCE on a loopback redirect.
@@ -223,21 +225,24 @@ the old API until 0015-PLAN S8 removes it:
 
 ## Discovery and ranking
 
-- `ListAvailableModels` and `ListModelCatalog` (and their `…WithSource` forms)
-  list a provider's models within a 10 s bound; a `ModelCatalog` carries the
-  recommended six, the full usable list and, on failure, `Err`.
-- `SearchModels` matches a query against a list. The static catalogs are the
-  fallback. `StaticModels(provider)` returns a copy, and `ProviderEnvVars()`
-  a copy of the variable names. `RankModel(provider, model)` scores a model
-  by the provider's own ranking.
-- A provider's `DiscoverModels`, or `ListModels` through
-  `llmprovider.ModelLister` once it has moved, returns the listing. By
-  default, OpenAI (API key), Claude, Gemini, Grok and Ollama also send one billed generation to
-  each candidate, up to `MaxListedModels`, and keep those that answer.
+- `catalog.List(ctx, id, src, opts...)` lists a provider's models within a
+  10 s bound; a `Catalog` carries the recommended six, the full usable list
+  and, on failure, `Err`. Its options are `llmprovider`'s common ones, with
+  `catalog.WithProfile` and `catalog.WithKiloOrganization`.
+- `catalog.Search` matches a query against a list. The static catalogs are
+  the fallback. `catalog.Static(provider)` returns a copy, and
+  `llmprovider.ProviderEnvVars()` a copy of the variable names.
+  `catalog.Rank(provider, model)` scores a model by the provider's own
+  ranking.
+- A provider's `ListModels`, through `llmprovider.ModelLister`, returns the
+  listing. By default, OpenAI (API key), Claude, Gemini, Grok and Ollama also
+  send one billed generation to each candidate, up to `catalog.MaxListed`,
+  and keep those that answer.
   `WithModelProbes(false)` turns that off. `ModelProbesFromEnv()` reads
   `LLMPROVIDER_PROBES` (`true` or `false`) for a caller who passes it; the
   package reads the variable nowhere else.
-- `ModelProfile` (`ProfileUtility`, `ProfileCapable`) ranks the open catalogs,
+- `catalog.Profile` (`ProfileUtility`, `ProfileCapable`), passed with
+  `catalog.WithProfile`, ranks the open catalogs,
   using models.dev-format metadata from `https://models.opencode.ai/api.json`
   (`LLMPROVIDER_MODELS_METADATA_URL` overrides it;
   `LLMPROVIDER_DISABLE_MODELS_METADATA` turns it off).

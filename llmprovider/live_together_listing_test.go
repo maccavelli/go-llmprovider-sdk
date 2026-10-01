@@ -20,19 +20,3 @@ func togetherLiveKey(t *testing.T) string {
 	}
 	return liveEnvKey(t, "TOGETHER_API_KEY")
 }
-
-// TestLive_TogetherListing confirms the bare-array listing: chat models come
-// back, curated, and no generation is sent.
-func TestLive_TogetherListing(t *testing.T) {
-	key := togetherLiveKey(t)
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-	usable, err := fetchTogetherUsable(ctx, Token{Value: key}, ApplyOptions(nil))
-	if err != nil {
-		t.Fatalf("listing: %v", err)
-	}
-	if len(usable) == 0 {
-		t.Fatal("no chat models listed")
-	}
-	t.Logf("%d chat models; first %v", len(usable), usable[:min(len(usable), 5)])
-}

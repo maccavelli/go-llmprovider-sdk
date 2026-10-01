@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/gemini"
 )
 
@@ -88,7 +89,7 @@ func TestLive_GeminiInteractions(t *testing.T) {
 // Interactions API (measured 2026-09-27).
 func TestLive_StaticGeminiServed(t *testing.T) {
 	key := llmprovider.LiveEnvKey(t, "GEMINI_API_KEY")
-	for _, model := range llmprovider.StaticModels(llmprovider.ProviderGemini) {
+	for _, model := range catalog.Static(llmprovider.ProviderGemini) {
 		t.Run(model, func(t *testing.T) {
 			ctx, cancel := llmprovider.LiveCtx(t)
 			defer cancel()

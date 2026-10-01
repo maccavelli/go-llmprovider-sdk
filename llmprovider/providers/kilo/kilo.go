@@ -45,6 +45,8 @@ import (
 	"net/http"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 )
 
@@ -90,7 +92,7 @@ func WithOrganization(id string) llmprovider.Option {
 }
 
 // WithCapabilities declares the request parameters the model accepts, as
-// published in its supported_parameters (llmprovider.KiloModelCapabilities).
+// published in its supported_parameters (catalog.KiloModelCapabilities).
 // Without it every parameter is sent: the gateway is the authority, and not
 // sending one only because it cannot be confirmed would degrade requests.
 func WithCapabilities(params ...string) llmprovider.Option {
@@ -122,7 +124,7 @@ type provider struct {
 	session   string
 	logger    *slog.Logger
 	// listing carries the caller's options, the session and the transport to
-	// the listing, which lives in llmprovider until 0015-PLAN S8b.
+	// catalog's listing.
 	listing []llmprovider.Option
 }
 
@@ -173,8 +175,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(p.session), llmprovider.WithHTTPClient(p.client))
 	if p.org != "" {
-		// The listing is the old API's until S8b, and reads the old option.
-		p.listing = append(p.listing, llmprovider.WithKiloOrganization(p.org))
+		p.listing = append(p.listing, catalog.WithKiloOrganization(p.org))
 	}
 	return p, nil
 }
@@ -206,7 +207,8 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err != nil {
 		return nil, fmt.Errorf("llmprovider: kilo: acquire token: %w", err)
 	}
-	gateway, org := llmprovider.KiloGatewayFor(p.baseURL, token.Value, p.org)
+	endpoints := kiloendpoint.Resolve(p.baseURL, token.Value, p.org)
+	gateway, org := endpoints.Gateway, endpoints.Org
 	reqBody, err := json.Marshal(p.body(req))
 	if err != nil {
 		return nil, fmt.Errorf("llmprovider: kilo: marshal request: %w", err)
@@ -322,9 +324,10 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if p.baseURL != "" {
 		opts = append(append([]llmprovider.Option(nil), opts...), llmprovider.WithBaseURL(p.baseURL))
 	}
-	listed, err := llmprovider.ListAvailableModelsWithSource(ctx, llmprovider.ProviderKilo, p.src, opts...)
+	cat, err := catalog.List(ctx, llmprovider.ProviderKilo, p.src, opts...)
+	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
-		listed = llmprovider.StaticModels(llmprovider.ProviderKilo)
+		listed = catalog.Static(llmprovider.ProviderKilo)
 	}
 	return listed, nil
 }

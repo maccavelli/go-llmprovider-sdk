@@ -1,6 +1,9 @@
 package grok
 
-import "github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+import (
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+)
 
 // The descriptor moved here from llmprovider's table (0015-PLAN S8, commit 1).
 
@@ -44,6 +47,6 @@ func Descriptor() llmprovider.Descriptor {
 				HeadlessOK:  true,
 			},
 		},
-		StaticModels: llmprovider.StaticModels(llmprovider.ProviderGrok),
+		StaticModels: catalog.Static(llmprovider.ProviderGrok),
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 )
 
@@ -78,13 +79,13 @@ func TestConfigureLLM_BlankSearchShowsRecommended(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
-	if res.Model != llmprovider.StaticModels(llmprovider.ProviderClaude)[1] {
-		t.Errorf("Model = %q, want %q", res.Model, llmprovider.StaticModels(llmprovider.ProviderClaude)[1])
+	if res.Model != catalog.Static(llmprovider.ProviderClaude)[1] {
+		t.Errorf("Model = %q, want %q", res.Model, catalog.Static(llmprovider.ProviderClaude)[1])
 	}
 	if !slices.Contains(f.seenInput, searchModelsPrompt) {
 		t.Errorf("inputs = %v, want the search prompt", f.seenInput)
 	}
-	menu, n := f.seenSelectItems[1], len(llmprovider.StaticModels(llmprovider.ProviderClaude))
+	menu, n := f.seenSelectItems[1], len(catalog.Static(llmprovider.ProviderClaude))
 	if len(menu) != n+1 || menu[n].Label != otherModelLabel {
 		t.Errorf("model menu = %v, want %d recommended rows then Other", labels(menu), n)
 	}
@@ -104,7 +105,7 @@ func TestConfigureLLM_SearchUsesLiveCorpus(t *testing.T) {
 	if res.Model != "claude-sonnet-5" {
 		t.Errorf("Model = %q, want claude-sonnet-5 (only in the live listing)", res.Model)
 	}
-	want := []string{llmprovider.ModelLabel(llmprovider.ProviderOpencodeZen, "claude-sonnet-5"), searchAgainLabel, otherModelLabel}
+	want := []string{catalog.Label(llmprovider.ProviderOpencodeZen, "claude-sonnet-5"), searchAgainLabel, otherModelLabel}
 	if got := labels(f.seenSelectItems[1]); !slices.Equal(got, want) {
 		t.Errorf("menu = %v, want %v", got, want)
 	}
@@ -120,8 +121,8 @@ func TestConfigureLLM_SearchNoMatchReturnsToSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
-	if res.Model != llmprovider.StaticModels(llmprovider.ProviderClaude)[0] {
-		t.Errorf("Model = %q, want %q", res.Model, llmprovider.StaticModels(llmprovider.ProviderClaude)[0])
+	if res.Model != catalog.Static(llmprovider.ProviderClaude)[0] {
+		t.Errorf("Model = %q, want %q", res.Model, catalog.Static(llmprovider.ProviderClaude)[0])
 	}
 	if !slices.Contains(f.seenNotify, `no Claude (Anthropic) models match "zzzz"`) {
 		t.Errorf("notices = %v, want the no-match notice", f.seenNotify)
@@ -139,7 +140,7 @@ func TestConfigureLLM_SearchAgain(t *testing.T) {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
 	want := []string{
-		llmprovider.ModelLabel(llmprovider.ProviderClaude, "claude-haiku-4-5"),
+		catalog.Label(llmprovider.ProviderClaude, "claude-haiku-4-5"),
 		searchAgainLabel, otherModelLabel,
 	}
 	if got := labels(f.seenSelectItems[1]); !slices.Equal(got, want) {
@@ -189,7 +190,7 @@ func TestConfigureLLM_SearchResultsCapped(t *testing.T) {
 
 func TestConfigureLLM_CurrentModelListed(t *testing.T) {
 	withEnv(t, nil)
-	n := len(llmprovider.StaticModels(llmprovider.ProviderClaude))
+	n := len(catalog.Static(llmprovider.ProviderClaude))
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), n}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderClaude, Model: "claude-opus-5"},
@@ -218,7 +219,7 @@ func TestConfigureLLM_CurrentModelOnlyForSameProvider(t *testing.T) {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
 	menu := f.seenSelectItems[1]
-	if n := len(llmprovider.StaticModels(llmprovider.ProviderClaude)) + 1; len(menu) != n {
+	if n := len(catalog.Static(llmprovider.ProviderClaude)) + 1; len(menu) != n {
 		t.Errorf("menu = %+v, want %d rows (no current row for another provider)", menu, n)
 	}
 	for _, c := range menu {
@@ -247,8 +248,8 @@ func TestConfigureLLM_StaticCatalogNotice(t *testing.T) {
 	if n := countContaining(f.seenNotify, notice); n != 1 {
 		t.Errorf("static notice seen %d times, want 1: %v", n, f.seenNotify)
 	}
-	if res.Model != llmprovider.StaticModels(llmprovider.ProviderOpencodeZen)[0] {
-		t.Errorf("Model = %q, want %q", res.Model, llmprovider.StaticModels(llmprovider.ProviderOpencodeZen)[0])
+	if res.Model != catalog.Static(llmprovider.ProviderOpencodeZen)[0] {
+		t.Errorf("Model = %q, want %q", res.Model, catalog.Static(llmprovider.ProviderOpencodeZen)[0])
 	}
 }
 
@@ -322,8 +323,8 @@ func TestConfigureLLM_FallbackSearch(t *testing.T) {
 		t.Errorf("Model = %q, want qwen3.8-flash", res.Model)
 	}
 	wantMenu := []string{
-		llmprovider.ModelLabel(llmprovider.ProviderOpencodeZen, "claude-opus-5"),
-		llmprovider.ModelLabel(llmprovider.ProviderOpencodeZen, "claude-sonnet-5"),
+		catalog.Label(llmprovider.ProviderOpencodeZen, "claude-opus-5"),
+		catalog.Label(llmprovider.ProviderOpencodeZen, "claude-sonnet-5"),
 	}
 	if got := labels(f.seenMultiSelectItems[0]); !slices.Equal(got, wantMenu) {
 		t.Errorf("fallback menu = %v, want %v (primary excluded)", got, wantMenu)
@@ -358,8 +359,8 @@ func TestConfigureLLM_FallbackSearchLoops(t *testing.T) {
 		t.Errorf("second menu = %v, want 5 rows", second)
 	}
 	for _, excluded := range []string{
-		llmprovider.ModelLabel(llmprovider.ProviderOpencodeZen, "qwen3.8-flash"),
-		llmprovider.ModelLabel(llmprovider.ProviderOpencodeZen, "claude-opus-5"),
+		catalog.Label(llmprovider.ProviderOpencodeZen, "qwen3.8-flash"),
+		catalog.Label(llmprovider.ProviderOpencodeZen, "claude-opus-5"),
 	} {
 		if slices.Contains(second, excluded) {
 			t.Errorf("second menu %v must exclude %q", second, excluded)
@@ -374,7 +375,7 @@ func TestSelectFallbacks_ReturnShape(t *testing.T) {
 	d := providers.Default().Descriptors()[0]
 
 	nothingLeft := &fakePrompter{t: t}
-	got, err := selectFallbacks(nothingLeft, d, llmprovider.ModelCatalog{Recommended: []string{"a"}, Usable: []string{"a"}}, "a")
+	got, err := selectFallbacks(nothingLeft, d, catalog.Catalog{Recommended: []string{"a"}, Usable: []string{"a"}}, "a")
 	if err != nil {
 		t.Fatalf("selectFallbacks: %v", err)
 	}
@@ -383,7 +384,7 @@ func TestSelectFallbacks_ReturnShape(t *testing.T) {
 	}
 
 	emptyPick := &fakePrompter{t: t, multiSelects: [][]int{{}}}
-	got, err = selectFallbacks(emptyPick, d, llmprovider.ModelCatalog{Recommended: []string{"a", "b"}, Usable: []string{"a", "b"}}, "a")
+	got, err = selectFallbacks(emptyPick, d, catalog.Catalog{Recommended: []string{"a", "b"}, Usable: []string{"a", "b"}}, "a")
 	if err != nil {
 		t.Fatalf("selectFallbacks: %v", err)
 	}
@@ -410,11 +411,11 @@ func TestConfigureLLM_ProfileReachesListing(t *testing.T) {
 		kiloProfileEntry("b/pro", "0.000005", "0.000025", 0.9, 20) + `]}`
 	for _, tc := range []struct {
 		name    string
-		profile llmprovider.ModelProfile
+		profile catalog.Profile
 		want    string
 	}{
-		{"utility (zero value)", llmprovider.ProfileUtility, "a/flash"},
-		{"capable", llmprovider.ProfileCapable, "b/pro"},
+		{"utility (zero value)", catalog.ProfileUtility, "a/flash"},
+		{"capable", catalog.ProfileCapable, "b/pro"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			withEnv(t, nil)

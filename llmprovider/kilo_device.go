@@ -12,6 +12,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
+
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
@@ -154,16 +156,17 @@ type KiloAccount struct {
 }
 
 // KiloProfile reads the account behind a Kilo token, so a caller can offer
-// its organizations; pass the chosen id with WithKiloOrganization. The
+// its organizations; pass the chosen id with kilo.WithOrganization, and to
+// the listing with catalog.WithKiloOrganization. The
 // profile lives at {origin}{prefix}/api/profile, derived from the configured
 // base URL or a URL-prefixed token as the gateway's endpoints are.
 func KiloProfile(ctx context.Context, token string, opts ...ProviderOption) (KiloAccount, error) {
 	cfg := ApplyOptions(opts)
-	base, err := url.Parse(resolveKiloEndpoints(cfg.BaseURL, token, "").gateway)
+	base, err := url.Parse(kiloendpoint.Resolve(cfg.BaseURL, token, "").Gateway)
 	if err != nil {
 		return KiloAccount{}, fmt.Errorf("kilo: profile URL: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, kiloRoute(base, "profile"), http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, kiloendpoint.Route(base, "profile"), http.NoBody)
 	if err != nil {
 		return KiloAccount{}, err
 	}

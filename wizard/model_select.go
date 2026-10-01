@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // Search-then-select model flow (MADR 0007 §4–§5). Every interaction uses the
@@ -30,7 +31,7 @@ const (
 // selectModel asks for a search query. A blank query shows the recommended
 // menu; any other query searches every usable model and offers the numbered
 // matches, Search again, and Other.
-func selectModel(p Prompter, d llmprovider.Descriptor, cat llmprovider.ModelCatalog, o Options) (string, error) {
+func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Options) (string, error) {
 	title := fmt.Sprintf(chooseModelTitle, d.Label)
 	for {
 		q, err := p.Input(searchModelsPrompt, "")
@@ -41,7 +42,7 @@ func selectModel(p Prompter, d llmprovider.Descriptor, cat llmprovider.ModelCata
 		if q == "" {
 			return selectRecommended(p, d, cat.Recommended, o)
 		}
-		matches := llmprovider.SearchModels(string(d.ID), cat.Usable, q)
+		matches := catalog.Search(string(d.ID), cat.Usable, q)
 		if len(matches) == 0 {
 			p.Notify(LevelWarn, "no %s models match %q", d.Label, q)
 			continue
@@ -77,7 +78,7 @@ func selectRecommended(p Prompter, d llmprovider.Descriptor, models []string, o 
 	current := ""
 	if !listed && o.Existing.Provider == string(d.ID) && o.Existing.Model != "" {
 		current = o.Existing.Model
-		choices = append(choices, Choice{Label: llmprovider.ModelLabel(string(d.ID), current), Detail: currentModelDetail})
+		choices = append(choices, Choice{Label: catalog.Label(string(d.ID), current), Detail: currentModelDetail})
 		defaultIdx = len(models)
 	}
 	choices = append(choices, Choice{Label: otherModelLabel})
@@ -123,7 +124,7 @@ func existingModel(o Options, provider string) string {
 // loop; a search round offers the matches and asks whether to search again.
 // The result is nil when no MultiSelect was shown, and non-nil (possibly empty)
 // once one was, which is the shape this function has always returned.
-func selectFallbacks(p Prompter, d llmprovider.Descriptor, cat llmprovider.ModelCatalog, primary string) ([]string, error) {
+func selectFallbacks(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, primary string) ([]string, error) {
 	var chosen []string
 	for {
 		exclude := excludedIDs(primary, chosen)
@@ -147,7 +148,7 @@ func selectFallbacks(p Prompter, d llmprovider.Descriptor, cat llmprovider.Model
 			chosen = appendPicks(chosen, recs, idxs)
 			return chosen, nil // a blank round ends the loop
 		}
-		matches := llmprovider.SearchModels(string(d.ID), usable, q)
+		matches := catalog.Search(string(d.ID), usable, q)
 		if len(matches) == 0 {
 			p.Notify(LevelWarn, "no %s models match %q", d.Label, q)
 			continue
@@ -209,7 +210,7 @@ func appendPicks(chosen, ids []string, idxs []int) []string {
 
 // capMatches keeps the first maxSearchResults matches and says so when it
 // drops any.
-func capMatches(p Prompter, matches []llmprovider.ModelMatch) []llmprovider.ModelMatch {
+func capMatches(p Prompter, matches []catalog.Match) []catalog.Match {
 	if len(matches) <= maxSearchResults {
 		return matches
 	}
@@ -218,7 +219,7 @@ func capMatches(p Prompter, matches []llmprovider.ModelMatch) []llmprovider.Mode
 }
 
 // matchChoices renders matches as menu rows.
-func matchChoices(matches []llmprovider.ModelMatch) []Choice {
+func matchChoices(matches []catalog.Match) []Choice {
 	out := make([]Choice, 0, len(matches))
 	for _, m := range matches {
 		out = append(out, Choice{Label: m.Label})
@@ -227,7 +228,7 @@ func matchChoices(matches []llmprovider.ModelMatch) []Choice {
 }
 
 // matchIDs returns the ids of matches, in order.
-func matchIDs(matches []llmprovider.ModelMatch) []string {
+func matchIDs(matches []catalog.Match) []string {
 	out := make([]string, 0, len(matches))
 	for _, m := range matches {
 		out = append(out, m.ID)

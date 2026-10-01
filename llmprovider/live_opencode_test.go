@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/opencode"
 )
 
@@ -138,7 +139,7 @@ func TestLive_OpencodeChatReasoningEffort(t *testing.T) {
 			model := goModel(t, candidate)
 			ctx, cancel := llmprovider.LiveCtx(t)
 			defer cancel()
-			meta, err := llmprovider.LookupModelMetadata(ctx, "", nil)
+			meta, err := catalog.LookupMetadata(ctx, "", nil)
 			if err != nil {
 				t.Skipf("metadata unreachable: %v", err)
 			}

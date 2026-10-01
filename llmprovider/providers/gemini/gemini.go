@@ -38,6 +38,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
@@ -71,7 +72,7 @@ type provider struct {
 	logger    *slog.Logger
 	probe     bool
 	// listing carries the caller's options, the session and the transport to
-	// the listing, which lives in llmprovider until 0015-PLAN S8b.
+	// catalog's listing.
 	listing []llmprovider.Option
 }
 
@@ -258,15 +259,16 @@ func toolChoice(choice llmprovider.ToolChoice) any {
 // WithModelProbes(false). It falls back to the static catalog, and returns
 // the curated list when every probe fails.
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {
-	listed, err := llmprovider.ListAvailableModelsWithSource(ctx, llmprovider.ProviderGemini, p.src, p.listing...)
+	cat, err := catalog.List(ctx, llmprovider.ProviderGemini, p.src, p.listing...)
+	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
-		listed = llmprovider.StaticModels(llmprovider.ProviderGemini)
+		listed = catalog.Static(llmprovider.ProviderGemini)
 	}
 	// Probes are billed; they are on by default, and callers can turn them off (0016-MADR A5).
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := transport.ProbeGenerateHealth(ctx, listed, llmprovider.MaxListedModels, func(ctx context.Context, model string) (string, error) {
+	healthy := transport.ProbeGenerateHealth(ctx, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		// The old API's probe: the provider's output limit, nothing stored, no
 		// reasoning (0015-MADR D1).
 		probe := *p

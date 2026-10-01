@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // The listing through ListModels (0015-PLAN S7): DiscoverModels is
@@ -53,7 +54,7 @@ func (failingSource) Token(context.Context) (llmprovider.Token, error) {
 // static catalog too, as DiscoverModels never failed.
 func TestListModels_FallsBackWhenTheKeyFails(t *testing.T) {
 	got, err := list(t, build(t, llmprovider.WithTokenSource(failingSource{}), llmprovider.WithModel("m")))
-	if want := llmprovider.StaticModels(llmprovider.ProviderTogether); err != nil || strings.Join(got, ",") != strings.Join(want, ",") {
+	if want := catalog.Static(llmprovider.ProviderTogether); err != nil || strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("ListModels = %v, %v; want the static catalog %v", got, err, want)
 	}
 }
@@ -107,7 +108,8 @@ func TestListModels_ListingBounded(t *testing.T) {
 // TestListModels_HonoursTheMetadataURLOption (MADR 0013 A4), less a profile:
 // ListModels returns what the catalog recommends for the same listing and
 // metadata, and never reads the environment's metadata URL when the option
-// names one. A profile cannot be chosen on the new API until 0015-PLAN S8b.
+// names one. Its profile half is in catalog's ranking_options_test.go (0015-PLAN S8,
+// commit 2).
 func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	t.Setenv(envDisableMetadata, "0")
 	envMeta, envHits := metadataServer(t, http.StatusInternalServerError, "")
@@ -123,7 +125,8 @@ func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	meta, metaHits := metadataServer(t, http.StatusOK, `{"togetherai":{"models":{`+
 		`"a/large":{"id":"a/large","reasoning":true},"c/flash":{"id":"c/flash","reasoning":true,"tool_call":true}}}}`)
 	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL)}
-	want, err := llmprovider.ListAvailableModels(context.Background(), llmprovider.ProviderTogether, "k", opts...)
+	wantCat, err := catalog.List(context.Background(), llmprovider.ProviderTogether, llmprovider.NewStaticToken("k"), opts...)
+	want := wantCat.Recommended
 	if err != nil {
 		t.Fatalf("ListAvailableModels: %v", err)
 	}

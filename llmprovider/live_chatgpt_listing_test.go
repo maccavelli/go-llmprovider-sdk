@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // TestLive_ChatGPTListingVersion is gate G-C item 7 through this module: a v1.5.0
@@ -26,8 +27,9 @@ func TestLive_ChatGPTListingVersion(t *testing.T) {
 	})}
 	list := func(build string) []string {
 		llmprovider.WithSDKVersion(t, build)
-		models, err := llmprovider.ListAvailableModelsWithSource(ctx, llmprovider.ProviderOpenAI, session,
+		cat, err := catalog.List(ctx, llmprovider.ProviderOpenAI, session,
 			llmprovider.WithHTTPClient(client))
+		models := cat.Recommended
 		llmprovider.SkipIfTransient(t, err)
 		if err != nil {
 			t.Fatalf("listing as %s: %v", build, err)

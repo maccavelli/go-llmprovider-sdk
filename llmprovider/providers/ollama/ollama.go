@@ -45,6 +45,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 )
@@ -78,7 +79,7 @@ type provider struct {
 	userAgent string
 	logger    *slog.Logger
 	// listing carries the caller's options, the session and the transport to
-	// the listing, which lives in llmprovider until 0015-PLAN S8b.
+	// catalog's listing.
 	listing []llmprovider.Option
 }
 
@@ -223,7 +224,8 @@ func (p *provider) effort(req *llmprovider.Request) string {
 // WithModelProbes(false). A failed listing returns its error: there is no
 // static catalog to fall back on.
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {
-	listed, err := llmprovider.ListAvailableModelsWithSource(ctx, llmprovider.ProviderOllama, p.src, p.listing...)
+	cat, err := catalog.List(ctx, llmprovider.ProviderOllama, p.src, p.listing...)
+	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
 		return nil, err
 	}
@@ -231,7 +233,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := transport.ProbeGenerateHealth(ctx, listed, llmprovider.MaxListedModels, func(ctx context.Context, model string) (string, error) {
+	healthy := transport.ProbeGenerateHealth(ctx, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		// The old API's probe provider: the default output limit, no
 		// reasoning (0015-MADR D1).
 		probe := *p

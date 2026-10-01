@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/claude"
 )
 
@@ -30,7 +31,7 @@ func liveClaude(t *testing.T, key, model string, opts ...llmprovider.Option) llm
 // when the listing fails, so a retired id there is a dead end.
 func TestLive_StaticClaudeServed(t *testing.T) {
 	key := llmprovider.LiveEnvKey(t, "ANTHROPIC_API_KEY")
-	for _, model := range llmprovider.StaticModels(llmprovider.ProviderClaude) {
+	for _, model := range catalog.Static(llmprovider.ProviderClaude) {
 		t.Run(model, func(t *testing.T) {
 			ctx, cancel := llmprovider.LiveCtx(t)
 			defer cancel()

@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // TestConfigureLLM_FallbackPicksDeduped pins MADR 0013 C1: a repeated index
 // in a fallback MultiSelect adds that model once.
 func TestConfigureLLM_FallbackPicksDeduped(t *testing.T) {
 	withEnv(t, nil)
-	static := llmprovider.StaticModels(llmprovider.ProviderClaude)
+	static := catalog.Static(llmprovider.ProviderClaude)
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey},
 		inputs: []string{"", ""}, multiSelects: [][]int{{0, 0, 1}},
@@ -50,7 +51,7 @@ func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 	withEnv(t, nil)
 	saved := Result{Provider: llmprovider.ProviderClaude, Model: "claude-opus-5"}
 	t.Run("other provider, Other", func(t *testing.T) {
-		gemini := len(llmprovider.StaticModels(llmprovider.ProviderGemini))
+		gemini := len(catalog.Static(llmprovider.ProviderGemini))
 		f := &fakePrompter{
 			t: t, selects: []int{providerIdx(t, llmprovider.ProviderGemini), gemini},
 			secrets: []string{testKey}, inputs: []string{""},
@@ -72,7 +73,7 @@ func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 		}
 	})
 	t.Run("same provider keeps its model", func(t *testing.T) {
-		claude := len(llmprovider.StaticModels(llmprovider.ProviderClaude))
+		claude := len(catalog.Static(llmprovider.ProviderClaude))
 		f := &fakePrompter{
 			t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), claude + 1},
 			secrets: []string{testKey}, inputs: []string{""},
@@ -90,7 +91,7 @@ func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 // typed in another case is not offered back as a fallback.
 func TestConfigureLLM_FallbackExclusionIgnoresCase(t *testing.T) {
 	withEnv(t, nil)
-	static := llmprovider.StaticModels(llmprovider.ProviderClaude)
+	static := catalog.Static(llmprovider.ProviderClaude)
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), len(static)},
 		secrets: []string{testKey}, inputs: []string{"", "Claude-Haiku-4-5", ""}, multiSelects: [][]int{{}},
@@ -108,7 +109,7 @@ func TestConfigureLLM_FallbackExclusionIgnoresCase(t *testing.T) {
 // at Other and at "No models found".
 func TestConfigureLLM_BlankModelIDRefused(t *testing.T) {
 	withEnv(t, nil)
-	claude := len(llmprovider.StaticModels(llmprovider.ProviderClaude))
+	claude := len(catalog.Static(llmprovider.ProviderClaude))
 	for _, id := range []string{"", "   "} {
 		f := &fakePrompter{
 			t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), claude},
@@ -169,7 +170,7 @@ func TestConfigureLLM_OllamaEmptyListing(t *testing.T) {
 // row: a saved model in the recommended list is the menu default.
 func TestConfigureLLM_DefaultRowIsExistingModel(t *testing.T) {
 	withEnv(t, nil)
-	static := llmprovider.StaticModels(llmprovider.ProviderClaude)
+	static := catalog.Static(llmprovider.ProviderClaude)
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 2}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderClaude, Model: static[2]},
@@ -227,7 +228,7 @@ func TestConfigureLLM_FallbackSearchNoMatches(t *testing.T) {
 // has already passed when the refresh starts, so no request leaves the host.
 func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 	withEnv(t, nil)
-	static := llmprovider.StaticModels(llmprovider.ProviderGrok)
+	static := catalog.Static(llmprovider.ProviderGrok)
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}, confirms: []bool{true}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{

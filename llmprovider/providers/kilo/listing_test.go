@@ -15,9 +15,8 @@ import (
 
 // Ported from the Kilo rows of llmprovider's discovery_wiring_test.go and
 // probe_scope_test.go (0015-PLAN S7). DiscoverModels is ListModels. The kilo
-// row of TestDiscoverModels_HonoursRankingOptions switched profiles only; it
-// waits for S8b, with the profile (0015-MADR, amendment "the OpenCode
-// family").
+// row of TestDiscoverModels_HonoursRankingOptions is in catalog's
+// ranking_options_test.go (0015-PLAN S8, commit 2).
 
 const kiloListing = `{"data":[{"id":"deepseek/deepseek-v4.1-flash","architecture":{"input_modalities":["text"],` +
 	`"output_modalities":["text"]},"supported_parameters":["tools"],"pricing":{"completion":"0.1"}}]}`
@@ -121,5 +120,31 @@ func TestListModels_CarriesTheCallersIdentity(t *testing.T) {
 	defer mu.Unlock()
 	if len(agents) != 1 || !strings.HasPrefix(agents[0], "GET /models wire-app/9.9.9 (") {
 		t.Fatalf("listing requests %q; want one GET /models naming wire-app/9.9.9", agents)
+	}
+}
+
+// TestListModels_ListsTheOrganization: kilo.WithOrganization reaches the
+// listing through catalog.WithKiloOrganization, which asks for the
+// organization's catalog with its header (MADR 0012 §3.3; 0015-PLAN S8,
+// commit 2).
+func TestListModels_ListsTheOrganization(t *testing.T) {
+	var mu sync.Mutex
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = append(seen, r.URL.Path+" org="+r.Header.Get("X-KILOCODE-ORGANIZATIONID"))
+		mu.Unlock()
+		_, _ = w.Write([]byte(kiloListing))
+	}))
+	t.Cleanup(srv.Close)
+	p := build(t, llmprovider.WithAPIKey("k"), llmprovider.WithModel("m"), llmprovider.WithBaseURL(srv.URL),
+		WithOrganization("org-1"))
+	if _, err := list(t, p); err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seen) != 1 || seen[0] != "/api/organizations/org-1/models org=org-1" {
+		t.Fatalf("listing requests = %q, want the organization's catalog with its header", seen)
 	}
 }

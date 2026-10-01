@@ -1,6 +1,9 @@
 package opencode
 
-import "github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+import (
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+)
 
 // The descriptor moved here from llmprovider's table (0015-PLAN S8, commit 1).
 
@@ -14,7 +17,7 @@ func DescriptorZen() llmprovider.Descriptor {
 		DefaultBaseURL:  zenBaseURL,
 		SupportsBaseURL: true,
 		RequiresAPIKey:  true,
-		StaticModels:    llmprovider.StaticModels(llmprovider.ProviderOpencodeZen),
+		StaticModels:    catalog.Static(llmprovider.ProviderOpencodeZen),
 		Notes:           "pay-as-you-go; free models available",
 	}
 }
@@ -29,7 +32,7 @@ func DescriptorGo() llmprovider.Descriptor {
 		DefaultBaseURL:  goBaseURL,
 		SupportsBaseURL: true,
 		RequiresAPIKey:  true,
-		StaticModels:    llmprovider.StaticModels(llmprovider.ProviderOpencodeGo),
+		StaticModels:    catalog.Static(llmprovider.ProviderOpencodeGo),
 		Notes:           "subscription",
 	}
 }

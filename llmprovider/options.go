@@ -35,16 +35,9 @@ type ProviderConfig struct {
 	// false (the default) sends provider.data_collection "deny"; see
 	// WithKiloDataCollection. Ignored by all other providers.
 	KiloDataCollection bool
-	// KiloOrganization scopes Kilo requests to an organization; see
-	// WithKiloOrganization. Ignored by all other providers.
-	KiloOrganization string
 	// Store is WithStore's value, which no provider reads any more. See
 	// WithStore.
 	Store *bool
-	// ModelProfile selects how the recommended models of the open catalogs
-	// (Kilo, OpenCode Zen and Go, Hugging Face) are ranked. The zero value is
-	// ProfileUtility. Those providers' DiscoverModels ranks with it too.
-	ModelProfile ModelProfile
 	// ModelMetadataURL overrides the models.dev-format document the open
 	// catalogs are ranked with, and OpenCode's chat route reads
 	// reasoning_options from. Empty uses LLMPROVIDER_MODELS_METADATA_URL, then
@@ -127,17 +120,6 @@ func WithKiloDataCollection(allow bool) ProviderOption {
 	})
 }
 
-// WithKiloOrganization scopes the old API's Kilo listing (ListModelCatalog and
-// its siblings) to an organization: it lists /api/organizations/{id}/models
-// with X-KILOCODE-ORGANIZATIONID (MADR 0012 §3.3). The kilo provider, on the
-// new API, takes kilo.WithOrganization (0015-PLAN S7); the listing reads this
-// until 0015-PLAN S8b.
-func WithKiloOrganization(id string) ProviderOption {
-	return legacyOption("WithKiloOrganization", func(cfg *ProviderConfig) {
-		cfg.KiloOrganization = id
-	})
-}
-
 // WithStore sets the old API's Store, which no provider reads any more: OpenAI,
 // Gemini and Grok moved to the new API, and take openai.WithStore,
 // gemini.WithStore and grok.WithStore (0015-PLAN S7). The new API's New
@@ -145,15 +127,6 @@ func WithKiloOrganization(id string) ProviderOption {
 func WithStore(store bool) ProviderOption {
 	return legacyOption("WithStore", func(cfg *ProviderConfig) {
 		cfg.Store = &store
-	})
-}
-
-// WithModelProfile selects how ListAvailableModels, ListModelCatalog and the
-// open catalogs' DiscoverModels rank the recommended models (MADR 0009 §1,
-// MADR 0013 A4).
-func WithModelProfile(p ModelProfile) ProviderOption {
-	return legacyOption("WithModelProfile", func(cfg *ProviderConfig) {
-		cfg.ModelProfile = p
 	})
 }
 

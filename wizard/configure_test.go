@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/claude"
 )
@@ -158,7 +159,7 @@ func TestConfigureLLM_EmptyDiscoveryFallsBackToStatic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
-	static := llmprovider.StaticModels(llmprovider.ProviderClaude)
+	static := catalog.Static(llmprovider.ProviderClaude)
 	if len(static) == 0 || res.Model != static[0] {
 		t.Errorf("Model = %q, want the first static model %v", res.Model, static)
 	}
@@ -284,7 +285,7 @@ func TestConfigureLLM_ProviderFilter(t *testing.T) {
 // entry. prepare-commit-msg's wizard had this before the migration.
 func TestConfigureLLM_OtherModelEscapeHatch(t *testing.T) {
 	withEnv(t, nil)
-	static := llmprovider.StaticModels(llmprovider.ProviderClaude)
+	static := catalog.Static(llmprovider.ProviderClaude)
 	f := &fakePrompter{
 		t: t,
 		// provider, then the trailing "Other" entry

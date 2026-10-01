@@ -24,45 +24,6 @@ const (
 	ProviderOllama = "ollama"
 )
 
-// Common LLM API JSON field names.
-const (
-	jsonKeyModel       = "model"
-	jsonKeyMessages    = "messages"
-	jsonKeyContent     = "content"
-	jsonKeyText        = "text"
-	jsonKeyTools       = "tools"
-	jsonKeyName        = "name"
-	jsonKeyDescription = "description"
-	jsonKeyFunction    = "function"
-	jsonKeyEnabled     = "enabled"
-	jsonKeyType        = "type"
-	jsonKeyRole        = "role"
-	jsonKeySystem      = "system"
-	jsonRoleUser       = "user"
-	jsonRoleAssistant  = "assistant"
-	jsonRoleSystem     = "system"
-	jsonKeyParameters  = "parameters"
-	jsonKeyInput       = "input"
-	jsonKeyOutput      = "output"
-	jsonKeyCallID      = "call_id"
-	jsonKeyArguments   = "arguments"
-
-	// Chat Completions field names, shared by every gateway provider that
-	// speaks that format (OpenCode's chat route, Hugging Face, Kilo).
-	jsonKeyMaxTokens       = "max_tokens"
-	jsonKeyToolChoice      = "tool_choice"
-	jsonKeyReasoningEffort = "reasoning_effort"
-	// jsonKeyReasoning is the Responses API reasoning block (OpenCode responses route) and Kilo's reasoning object.
-	jsonKeyReasoning = "reasoning"
-	// jsonKeyMaxOutputTokens and jsonKeyEffort are Responses API field names.
-	// They are named here so opencode.go does not push the existing literals in
-	// openai.go and grok.go over goconst's occurrence threshold; those files are
-	// deliberately not modified by this change.
-	jsonKeyMaxOutputTokens = "max_output_tokens"
-	jsonKeyEffort          = "effort"
-	jsonRoleTool           = "tool"
-)
-
 // Reasoning effort level values shared across providers.
 const (
 	effortLow    = "low"

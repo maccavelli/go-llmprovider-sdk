@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // Ported from llmprovider's probe_test.go, probe_scope_test.go and
@@ -109,7 +110,7 @@ func TestListModels_ProbesFollowDefaultOptionAndEnv(t *testing.T) {
 			switch n := posts.Load(); {
 			case !tc.probe && n != 0:
 				t.Errorf("%d generation requests, want none", n)
-			case tc.probe && (n == 0 || n > llmprovider.MaxListedModels):
+			case tc.probe && (n == 0 || n > catalog.MaxListed):
 				t.Errorf("%d generation requests, want one per candidate", n)
 			}
 		})

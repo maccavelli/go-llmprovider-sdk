@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // Ported from llmprovider's together_test.go (0015-PLAN S7), with
@@ -124,7 +125,7 @@ func TestTogether_Listing(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			srv, _ := togetherServer(t, togetherText, body)
 			got, err := list(t, build(t, apiKey(srv.URL, "m")...))
-			if err != nil || !slices.Equal(got, llmprovider.StaticModels(llmprovider.ProviderTogether)) {
+			if err != nil || !slices.Equal(got, catalog.Static(llmprovider.ProviderTogether)) {
 				t.Errorf("ListModels = %v, %v; want the static catalog", got, err)
 			}
 		})

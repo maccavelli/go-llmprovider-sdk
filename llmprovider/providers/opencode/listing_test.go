@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // Ported from the OpenCode rows of llmprovider's discovery_wiring_test.go and
@@ -79,8 +80,8 @@ func TestListModels_ListingBounded(t *testing.T) {
 // TestDiscoverModels_HonoursRankingOptions (MADR 0013 A4), less its profile
 // half: ListModels returns what the catalog recommends for the same listing and
 // metadata, and never reads the environment's metadata URL when the option
-// names one. A profile cannot be chosen on the new API until 0015-PLAN S8b
-// (0015-MADR, amendment "the OpenCode family").
+// names one. Its profile half is in catalog's ranking_options_test.go (0015-PLAN S8,
+// commit 2).
 func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	enableMetadata(t)
 	envMeta, envHits := metadataServer(t, http.StatusInternalServerError, "")
@@ -96,7 +97,8 @@ func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	meta, metaHits := metadataServer(t, http.StatusOK, `{"opencode":{"models":{`+
 		`"glm-5.3-flash":{"id":"glm-5.3-flash","reasoning":true},"kimi-k2.6":{"id":"kimi-k2.6","reasoning":true}}}}`)
 	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL)}
-	want, err := llmprovider.ListAvailableModels(context.Background(), llmprovider.ProviderOpencodeZen, "k", opts...)
+	wantCat, err := catalog.List(context.Background(), llmprovider.ProviderOpencodeZen, llmprovider.NewStaticToken("k"), opts...)
+	want := wantCat.Recommended
 	if err != nil {
 		t.Fatalf("ListAvailableModels: %v", err)
 	}

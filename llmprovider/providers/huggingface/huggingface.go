@@ -43,6 +43,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 )
 
@@ -68,7 +69,7 @@ type provider struct {
 	userAgent string
 	logger    *slog.Logger
 	// listing carries the caller's options, the session and the transport to
-	// the listing, which lives in llmprovider until 0015-PLAN S8b.
+	// catalog's listing.
 	listing []llmprovider.Option
 }
 
@@ -211,9 +212,10 @@ func (p *provider) effort(req *llmprovider.Request) string {
 // ListModels returns the curated router listing, falling back to the static
 // catalog. It spends no generation on probes (MADR 0012 §1.6).
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {
-	listed, err := llmprovider.ListAvailableModelsWithSource(ctx, llmprovider.ProviderHuggingFace, p.src, p.listing...)
+	cat, err := catalog.List(ctx, llmprovider.ProviderHuggingFace, p.src, p.listing...)
+	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
-		listed = llmprovider.StaticModels(llmprovider.ProviderHuggingFace)
+		listed = catalog.Static(llmprovider.ProviderHuggingFace)
 	}
 	return listed, nil
 }

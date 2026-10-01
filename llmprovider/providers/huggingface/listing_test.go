@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // Ported from the Hugging Face rows of llmprovider's discovery_wiring_test.go
@@ -91,7 +92,8 @@ func TestListModels_ListingBounded(t *testing.T) {
 // TestDiscoverModels_HonoursRankingOptions (MADR 0013 A4), less its profile
 // half: ListModels returns what the catalog recommends for the same listing and
 // metadata, and never reads the environment's metadata URL when the option
-// names one. A profile cannot be chosen on the new API until 0015-PLAN S8b.
+// names one. Its profile half is in catalog's ranking_options_test.go (0015-PLAN S8,
+// commit 2).
 func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	t.Setenv(envDisableMetadata, "0")
 	envMeta, envHits := metadataServer(t, http.StatusInternalServerError, "")
@@ -110,7 +112,8 @@ func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	meta, metaHits := metadataServer(t, http.StatusOK, `{"huggingface":{"models":{`+
 		`"a/large":{"id":"a/large","reasoning":true},"c/flash":{"id":"c/flash","reasoning":true}}}}`)
 	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL)}
-	want, err := llmprovider.ListAvailableModels(context.Background(), llmprovider.ProviderHuggingFace, "k", opts...)
+	wantCat, err := catalog.List(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken("k"), opts...)
+	want := wantCat.Recommended
 	if err != nil {
 		t.Fatalf("ListAvailableModels: %v", err)
 	}

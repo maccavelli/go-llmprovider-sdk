@@ -33,6 +33,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"io"
 	"net/http"
 	"os"
@@ -83,6 +84,14 @@ func opencodeKey(t *testing.T) string {
 	return key
 }
 
+// The gateways' public listing bases, as catalog's listing uses them. These
+// raw probes keep their own copies (0015-PLAN S8, commit 2).
+const (
+	liveOpencodeZenBaseURL = "https://opencode.ai/zen/v1"
+	liveOpencodeGoBaseURL  = "https://opencode.ai/zen/go/v1"
+	liveHuggingFaceBaseURL = "https://router.huggingface.co/v1"
+)
+
 func liveCtx(t *testing.T) (context.Context, context.CancelFunc) {
 	t.Helper()
 	return context.WithTimeout(context.Background(), 90*time.Second)
@@ -129,7 +138,7 @@ func TestLive_KiloReasoningSpelling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", kiloBaseURL+"/chat/completions", strings.NewReader(string(raw)))
+	req, err := http.NewRequestWithContext(ctx, "POST", kiloendpoint.BaseURL+"/chat/completions", strings.NewReader(string(raw)))
 	if err != nil {
 		t.Fatalf("request: %v", err)
 	}
@@ -154,14 +163,14 @@ func TestLive_KiloReasoningSpelling(t *testing.T) {
 		t.Skip("no choices returned")
 	}
 	msg := decoded.Choices[0].Message
-	if _, hasReasoning := msg[jsonKeyReasoning]; !hasReasoning {
+	if _, hasReasoning := msg["reasoning"]; !hasReasoning {
 		// Literal, not a constant: jsonKeyReasoningContent was dropped in 0004-PLAN
 		// deviation D1 as unused, and reintroducing it for a build-tagged file
 		// only would re-create the D2 `unused` problem.
 		if _, hasContent := msg["reasoning_content"]; hasContent {
 			t.Errorf("DRIFT (probed %s): Kilo now emits %q, not %q. The decoder handles "+
 				"both, but 0004-MADR's field-name table is stale",
-				wireShapesProbedOnKilo, "reasoning_content", jsonKeyReasoning)
+				wireShapesProbedOnKilo, "reasoning_content", "reasoning")
 		}
 		// Neither present is acceptable: not every model reasons.
 	}
@@ -170,9 +179,11 @@ func TestLive_KiloReasoningSpelling(t *testing.T) {
 // TestLive_KiloSupportedParameters pins the metadata capability gating relies on.
 func TestLive_KiloSupportedParameters(t *testing.T) {
 	var listing struct {
-		Data []kiloCatalogEntry `json:"data"`
+		Data []struct {
+			SupportedParameters []string `json:"supported_parameters"`
+		} `json:"data"`
 	}
-	if code := getJSON(t, kiloBaseURL+"/models", &listing); code != http.StatusOK {
+	if code := getJSON(t, kiloendpoint.BaseURL+"/models", &listing); code != http.StatusOK {
 		t.Skipf("models endpoint returned HTTP %d", code)
 	}
 	if len(listing.Data) == 0 {
@@ -183,7 +194,7 @@ func TestLive_KiloSupportedParameters(t *testing.T) {
 		if len(m.SupportedParameters) > 0 {
 			withParams++
 		}
-		if contains(m.SupportedParameters, jsonKeyTools) {
+		if contains(m.SupportedParameters, "tools") {
 			withTools++
 		}
 	}
@@ -193,7 +204,7 @@ func TestLive_KiloSupportedParameters(t *testing.T) {
 	}
 	if withTools == 0 {
 		t.Errorf("DRIFT (probed %s): no model lists %q in supported_parameters",
-			wireShapesProbedOnKilo, jsonKeyTools)
+			wireShapesProbedOnKilo, "tools")
 	}
 }
 
@@ -220,7 +231,7 @@ func TestLive_HuggingFaceMetadataFields(t *testing.T) {
 			Providers []map[string]json.RawMessage `json:"providers"`
 		} `json:"data"`
 	}
-	if code := getJSON(t, huggingFaceBaseURL+"/models", &listing); code != http.StatusOK {
+	if code := getJSON(t, liveHuggingFaceBaseURL+"/models", &listing); code != http.StatusOK {
 		t.Skipf("models endpoint returned HTTP %d", code)
 	}
 	if len(listing.Data) == 0 {
@@ -256,10 +267,10 @@ func TestLive_HuggingFaceMetadataFields(t *testing.T) {
 // Discovery works before a key is configured, which the wizards rely on.
 func TestLive_ListingsNeedNoCredential(t *testing.T) {
 	for name, url := range map[string]string{
-		ProviderOpencodeZen: opencodeZenBaseURL + "/models",
-		ProviderOpencodeGo:  opencodeGoBaseURL + "/models",
-		ProviderHuggingFace: huggingFaceBaseURL + "/models",
-		ProviderKilo:        kiloBaseURL + "/models",
+		ProviderOpencodeZen: liveOpencodeZenBaseURL + "/models",
+		ProviderOpencodeGo:  liveOpencodeGoBaseURL + "/models",
+		ProviderHuggingFace: liveHuggingFaceBaseURL + "/models",
+		ProviderKilo:        kiloendpoint.BaseURL + "/models",
 	} {
 		t.Run(name, func(t *testing.T) {
 			if code := getJSON(t, url, nil); code != http.StatusOK {
@@ -286,7 +297,7 @@ func TestLive_OpencodeKeyHeaderPerRoute(t *testing.T) {
 				{"Authorization", "Bearer " + bogus, "Missing API key."},
 				{rt.right, bogus, "Invalid API key."},
 			} {
-				status, body := postLive(t, opencodeZenBaseURL+rt.path, rt.body, tc.header, tc.value)
+				status, body := postLive(t, liveOpencodeZenBaseURL+rt.path, rt.body, tc.header, tc.value)
 				if status != http.StatusUnauthorized {
 					t.Skipf("%s via %s returned HTTP %d, not 401", rt.name, tc.header, status)
 				}
@@ -320,26 +331,4 @@ func postLive(t *testing.T, url, body, header, value string) (int, string) {
 		t.Fatalf("read body: %v", err)
 	}
 	return resp.StatusCode, string(raw)
-}
-
-// TestLive_ModelMetadataDocument checks the shape MADR 0009 §2 depends on:
-// models.opencode.ai still publishes the three sections, and a known Zen
-// model still carries its reasoning flag.
-func TestLive_ModelMetadataDocument(t *testing.T) {
-	enableModelMetadata(t)
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-	doc, err := loadModelMetadata(ctx, ApplyOptions(nil))
-	if err != nil {
-		t.Skipf("metadata unreachable: %v", err)
-	}
-	for _, key := range []string{metadataKeyZen, metadataKeyGo, metadataKeyHF} {
-		if len(doc[key]) == 0 {
-			t.Errorf("DRIFT: %s no longer publishes section %q", defaultModelMetadataURL, key)
-		}
-	}
-	m, ok := doc[metadataKeyZen]["glm-5.3-flash"]
-	if !ok || m.Reasoning == nil || !*m.Reasoning {
-		t.Errorf("DRIFT: %s/glm-5.3-flash reasoning = %v (present %v), want true", metadataKeyZen, m.Reasoning, ok)
-	}
 }

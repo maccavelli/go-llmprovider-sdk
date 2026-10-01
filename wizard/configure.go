@@ -10,6 +10,7 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 )
 
@@ -39,8 +40,9 @@ type Result struct {
 	// through; consumers persist it and build llmprovider.VendorCLISession.
 	VendorAuthPath string
 	// Organization is the Kilo organization chosen after a Kilo device login;
-	// pass it with llmprovider.WithKiloOrganization. Empty is the personal
-	// account (0017-MADR D2).
+	// pass it to the provider with kilo.WithOrganization, and to a listing
+	// with catalog.WithKiloOrganization. Empty is the personal account
+	// (0017-MADR D2).
 	Organization string
 }
 
@@ -71,9 +73,9 @@ type Options struct {
 	NeedFallbacks bool
 	// Profile selects how the open catalogs (Kilo, OpenCode Zen and Go,
 	// Hugging Face) rank the recommended models. The zero value,
-	// llmprovider.ProfileUtility, suits short frequent tasks such as commit
-	// messages; llmprovider.ProfileCapable suits reasoning-heavy tiers.
-	Profile llmprovider.ModelProfile
+	// catalog.ProfileUtility, suits short frequent tasks such as commit
+	// messages; catalog.ProfileCapable suits reasoning-heavy tiers.
+	Profile catalog.Profile
 	// LookupEnv reads an environment variable. Nil uses os.Getenv. Consumers
 	// inject this to drive the flow deterministically in their own tests.
 	LookupEnv func(string) string
@@ -232,7 +234,7 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		if !d.IsLocal {
 			return url, nil
 		}
-		vErr := llmprovider.ValidateOllamaURL(ctx, url)
+		vErr := catalog.ValidateOllamaURL(ctx, url)
 		if vErr == nil {
 			return url, nil
 		}
@@ -295,7 +297,7 @@ func discoverModels(
 	res Result,
 	source llmprovider.TokenSource,
 	o Options,
-) llmprovider.ModelCatalog {
+) catalog.Catalog {
 	chatGPT := (res.Kind == CredOAuth || res.Kind == CredVendorCLI) && string(d.ID) == llmprovider.ProviderOpenAI
 	// A ChatGPT session lists only from the Codex backend (MADR 0008 D11):
 	// the Platform catalog is not available to it, so there is no fallback.
@@ -303,7 +305,7 @@ func discoverModels(
 	if chatGPT {
 		static = nil
 	}
-	fallback := llmprovider.ModelCatalog{Recommended: static, Usable: static}
+	fallback := catalog.Catalog{Recommended: static, Usable: static}
 	if !o.Discover {
 		return fallback
 	}
@@ -314,7 +316,7 @@ func discoverModels(
 	dCtx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 
-	opts := []llmprovider.ProviderOption{llmprovider.WithModelProfile(o.Profile)}
+	opts := []llmprovider.Option{catalog.WithProfile(o.Profile)}
 	if res.BaseURL != "" {
 		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
 	}
@@ -322,9 +324,9 @@ func discoverModels(
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
 	}
 	if res.Organization != "" {
-		opts = append(opts, llmprovider.WithKiloOrganization(res.Organization))
+		opts = append(opts, catalog.WithKiloOrganization(res.Organization))
 	}
-	cat, err := llmprovider.ListModelCatalogWithSource(dCtx, string(d.ID), source, opts...)
+	cat, err := catalog.List(dCtx, d.ID, source, opts...)
 	if err != nil {
 		if len(static) == 0 {
 			p.Notify(LevelWarn, "could not list models for %s (%v)", d.Label, err)
@@ -350,7 +352,7 @@ func discoverModels(
 func modelChoices(provider string, models []string) []Choice {
 	out := make([]Choice, 0, len(models))
 	for _, m := range models {
-		label := llmprovider.ModelLabel(provider, m)
+		label := catalog.Label(provider, m)
 		if label == m {
 			out = append(out, Choice{Label: m})
 			continue

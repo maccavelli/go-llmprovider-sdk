@@ -11,10 +11,19 @@ import (
 // pickerSections maps models.opencode.ai's sections to the providers the live
 // suite picks models for (MADR 0012 §3.4). This module's own decoder keeps only
 // the sections it ranks with, so the picker reads the document itself.
+// The document's sections and URL, as catalog's metadata reads them; the
+// picker reads the document itself, so it keeps its own copies (0015-PLAN S8,
+// commit 2).
+const (
+	pickerKeyZen      = "opencode"
+	pickerKeyGo       = "opencode-go"
+	pickerMetadataURL = "https://models.opencode.ai/api.json"
+)
+
 var pickerSections = map[string]string{
-	metadataKeyZen: ProviderOpencodeZen,
-	metadataKeyGo:  ProviderOpencodeGo,
-	"kilo":         ProviderKilo,
+	pickerKeyZen: ProviderOpencodeZen,
+	pickerKeyGo:  ProviderOpencodeGo,
+	"kilo":       ProviderKilo,
 }
 
 // pickerDoc is provider -> model id -> status, from the document.

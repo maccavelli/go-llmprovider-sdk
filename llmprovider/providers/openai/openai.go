@@ -39,6 +39,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
@@ -94,7 +95,7 @@ type provider struct {
 	logger    *slog.Logger
 	probe     bool
 	// listing carries the caller's options, the session and the transport to
-	// the listing, which lives in llmprovider until 0015-PLAN S8b.
+	// catalog's listing.
 	listing []llmprovider.Option
 }
 
@@ -296,19 +297,20 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 // the raw /v1/models dump. An API key's models are probed unless
 // WithModelProbes(false); a ChatGPT session's are not (MADR 0012 §1.6).
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {
-	listed, err := llmprovider.ListAvailableModelsWithSource(ctx, llmprovider.ProviderOpenAI, p.src, p.listing...)
+	cat, err := catalog.List(ctx, llmprovider.ProviderOpenAI, p.src, p.listing...)
+	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
 		// A ChatGPT session has no static catalog (MADR 0008 D11).
 		if p.chatGPT {
 			return nil, err
 		}
-		listed = llmprovider.StaticModels(llmprovider.ProviderOpenAI)
+		listed = catalog.Static(llmprovider.ProviderOpenAI)
 	}
 	// A ChatGPT subscription meters every call: no generation probe (MADR 0012 §1.6).
 	if p.chatGPT || !p.probe {
 		return listed, nil
 	}
-	healthy := transport.ProbeGenerateHealth(ctx, listed, llmprovider.MaxListedModels, func(ctx context.Context, model string) (string, error) {
+	healthy := transport.ProbeGenerateHealth(ctx, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.store, probe.reasoning = model, probeMaxOutputTokens, nil, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{

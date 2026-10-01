@@ -29,7 +29,8 @@ exists now, read [architecture.md](../architecture.md).
   | :--- | :--- | :--- |
   | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token` | the standard library, `internal/redact`, `internal/transport` |
   | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `StaticToken`, `VendorCLISession` | `llmprovider`, `internal/transport` |
-  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` | `llmprovider`, `internal/transport` |
+  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` | `llmprovider`, `internal/transport`, `internal/kiloendpoint` |
+  | `llmprovider/internal/kiloendpoint` | Kilo's endpoints, derived from a credential | the standard library |
   | `llmprovider/providers/<id>` | one provider or gateway family: `New`, its options, its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
   | `llmprovider/providers` | `Default()` and `New(id, opts...)` | the provider packages |
   | `llmprovider/llmtest` | the conformance suite and `Fake` | `llmprovider` |

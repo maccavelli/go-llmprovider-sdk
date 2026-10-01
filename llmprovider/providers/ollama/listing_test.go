@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // Ported from the Ollama row of llmprovider's discovery_wiring_test.go
@@ -68,9 +69,9 @@ func TestListModels_ProbesFollowTheOption(t *testing.T) {
 
 // TestListModels_ProbesAtMostMaxListedModels: the probe's limit, which
 // internal/transport takes as an argument since 0015-PLAN S7b, is
-// llmprovider.MaxListedModels.
+// catalog.MaxListed.
 func TestListModels_ProbesAtMostMaxListedModels(t *testing.T) {
-	names := make([]string, llmprovider.MaxListedModels+3)
+	names := make([]string, catalog.MaxListed+3)
 	for i := range names {
 		names[i] = fmt.Sprintf("model-%d:latest", i)
 	}
@@ -78,8 +79,8 @@ func TestListModels_ProbesAtMostMaxListedModels(t *testing.T) {
 	if _, err := list(t, build(t, local(srv.URL, "m")...)); err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}
-	if n := posts.Load(); n != int32(llmprovider.MaxListedModels) {
-		t.Errorf("%d probes, want %d", n, llmprovider.MaxListedModels)
+	if n := posts.Load(); n != int32(catalog.MaxListed) {
+		t.Errorf("%d probes, want %d", n, catalog.MaxListed)
 	}
 }
 

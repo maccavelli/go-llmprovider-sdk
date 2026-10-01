@@ -53,6 +53,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/generatecontent"
@@ -113,7 +114,7 @@ type provider struct {
 	session     string
 	logger      *slog.Logger
 	// listing carries the caller's options, the session and the transport to
-	// the listing, which lives in llmprovider until 0015-PLAN S8b.
+	// catalog's listing.
 	listing []llmprovider.Option
 }
 
@@ -313,7 +314,7 @@ func (p *provider) requestRoute(ctx context.Context, model string) Route {
 	if p.routePinned {
 		return p.route
 	}
-	if meta, err := llmprovider.LookupModelMetadata(ctx, p.metadataURL, p.client); err == nil {
+	if meta, err := catalog.LookupMetadata(ctx, p.metadataURL, p.client); err == nil {
 		if npm, ok := meta.NPM(string(p.gateway), model); ok {
 			return routeForNPM(npm)
 		}
@@ -479,7 +480,7 @@ func (p *provider) chatReasoningEffort(ctx context.Context, c call) string {
 	if c.reasoning == nil || c.reasoning.Effort == "" {
 		return ""
 	}
-	meta, err := llmprovider.LookupModelMetadata(ctx, p.metadataURL, p.client)
+	meta, err := catalog.LookupMetadata(ctx, p.metadataURL, p.client)
 	if err != nil || !slices.Contains(meta.ReasoningEfforts(string(p.gateway), c.model), string(c.reasoning.Effort)) {
 		return ""
 	}
@@ -493,7 +494,7 @@ func (p *provider) chatReplayField(ctx context.Context, c call) string {
 	if !slices.ContainsFunc(c.input, isAssistantTurn) {
 		return ""
 	}
-	meta, err := llmprovider.LookupModelMetadata(ctx, p.metadataURL, p.client)
+	meta, err := catalog.LookupMetadata(ctx, p.metadataURL, p.client)
 	if err != nil {
 		return ""
 	}
@@ -514,9 +515,10 @@ func isAssistantTurn(item llmprovider.Item) bool {
 // ListModels returns the curated gateway listing, falling back to the static
 // catalog. It spends no generation on probes (MADR 0012 §1.6).
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {
-	listed, err := llmprovider.ListAvailableModelsWithSource(ctx, string(p.gateway), p.src, p.listing...)
+	cat, err := catalog.List(ctx, p.gateway, p.src, p.listing...)
+	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
-		listed = llmprovider.StaticModels(string(p.gateway))
+		listed = catalog.Static(string(p.gateway))
 	}
 	return listed, nil
 }

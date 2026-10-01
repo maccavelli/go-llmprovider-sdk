@@ -153,7 +153,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ItemThinkingToolProvider.GenerateItemsWithToolThinking` |  |  |
 | `llmprovider.ItemToolProvider` |  |  |
 | `llmprovider.ItemToolProvider.GenerateItemsWithTool` |  |  |
-| `llmprovider.KiloModelCapabilities` |  |  |
+| `llmprovider.KiloModelCapabilities` | `catalog.KiloModelCapabilities` |  |
 | `llmprovider.KiloProvider` | the `llmprovider.Provider` that `kilo.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.KiloProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` | No profile can be chosen on the new API until S8b; the wizard is unaffected. |
 | `llmprovider.KiloProvider.Generate` | `llmprovider.GenerateText` |  |
@@ -165,30 +165,30 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.KiloProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.KiloProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
 | `llmprovider.KiloProvider.Name` | `ID()` | It returns `ProviderKilo` as a `ProviderID`. |
-| `llmprovider.ListAvailableModels` |  |  |
-| `llmprovider.ListAvailableModelsWithSource` |  |  |
-| `llmprovider.ListModelCatalog` |  |  |
-| `llmprovider.ListModelCatalogWithSource` |  |  |
+| `llmprovider.ListAvailableModels` | `catalog.List(ctx, id, NewStaticToken(key), opts...)` | Its `Recommended`; an error gives none ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
+| `llmprovider.ListAvailableModelsWithSource` | `catalog.List(ctx, id, src, opts...)` | Its `Recommended`; an error gives none. |
+| `llmprovider.ListModelCatalog` | `catalog.List` | With `NewStaticToken(key)` for a key ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
+| `llmprovider.ListModelCatalogWithSource` | `catalog.List` |  |
 | `llmprovider.LoginBrowserOAuth` |  |  |
 | `llmprovider.LoginDeviceOAuth` |  |  |
-| `llmprovider.MaxListedModels` |  |  |
+| `llmprovider.MaxListedModels` | `catalog.MaxListed` |  |
 | `llmprovider.MessageItem` |  |  |
 | `llmprovider.MessageItem.Role` |  |  |
 | `llmprovider.MessageItem.Text` |  |  |
-| `llmprovider.ModelCatalog` |  |  |
-| `llmprovider.ModelCatalog.Err` |  |  |
-| `llmprovider.ModelCatalog.Live` |  |  |
-| `llmprovider.ModelCatalog.Recommended` |  |  |
-| `llmprovider.ModelCatalog.Usable` |  |  |
+| `llmprovider.ModelCatalog` | `catalog.Catalog` |  |
+| `llmprovider.ModelCatalog.Err` | `Catalog.Err` |  |
+| `llmprovider.ModelCatalog.Live` | `Catalog.Live` |  |
+| `llmprovider.ModelCatalog.Recommended` | `Catalog.Recommended` |  |
+| `llmprovider.ModelCatalog.Usable` | `Catalog.Usable` |  |
 | `llmprovider.ModelDiscoverer` |  |  |
 | `llmprovider.ModelDiscoverer.DiscoverModels` |  |  |
-| `llmprovider.ModelLabel` |  |  |
-| `llmprovider.ModelMatch` |  |  |
-| `llmprovider.ModelMatch.ID` |  |  |
-| `llmprovider.ModelMatch.Label` |  |  |
-| `llmprovider.ModelMatch.Score` |  |  |
-| `llmprovider.ModelProfile` |  |  |
-| `llmprovider.ModelProfile.ReasoningEffort` |  |  |
+| `llmprovider.ModelLabel` | `catalog.Label` |  |
+| `llmprovider.ModelMatch` | `catalog.Match` |  |
+| `llmprovider.ModelMatch.ID` | `Match.ID` |  |
+| `llmprovider.ModelMatch.Label` | `Match.Label` |  |
+| `llmprovider.ModelMatch.Score` | `Match.Score` |  |
+| `llmprovider.ModelProfile` | `catalog.Profile` | Passed to a listing or a provider with `catalog.WithProfile`. |
+| `llmprovider.ModelProfile.ReasoningEffort` | `Profile.ReasoningEffort` |  |
 | `llmprovider.NewClaude` | `claude.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderClaude, …)`; an OAuth session is refused with `ErrUnsupported` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewFileTokenStore` |  |  |
 | `llmprovider.NewGemini` | `gemini.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGemini, …)`. It takes no context; an OAuth session is refused with `ErrUnsupported` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
@@ -263,8 +263,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OpencodeRouteGoogle` | `opencode.RouteGoogle` |  |
 | `llmprovider.OpencodeRouteMessages` | `opencode.RouteMessages` |  |
 | `llmprovider.OpencodeRouteResponses` | `opencode.RouteResponses` |  |
-| `llmprovider.ProfileCapable` |  |  |
-| `llmprovider.ProfileUtility` |  |  |
+| `llmprovider.ProfileCapable` | `catalog.ProfileCapable` |  |
+| `llmprovider.ProfileUtility` | `catalog.ProfileUtility` |  |
 | `llmprovider.Provider` | `Provider` | `ID`, `Capabilities` and `Generate(ctx, *Request)`. The old interface is `LegacyProvider` until [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.Provider.Generate` |  |  |
 | `llmprovider.Provider.Name` |  |  |
@@ -329,13 +329,13 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.Response.Output` |  |  |
 | `llmprovider.Response.OutputText` |  |  |
 | `llmprovider.RevokeOAuthSession` |  |  |
-| `llmprovider.SearchModels` |  |  |
+| `llmprovider.SearchModels` | `catalog.Search` |  |
 | `llmprovider.StaticClaude` | `StaticModels(ProviderClaude)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticGemini` | `StaticModels(ProviderGemini)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticGrok` | `StaticModels(ProviderGrok)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticHuggingFace` | `StaticModels(ProviderHuggingFace)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticKilo` | `StaticModels(ProviderKilo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.StaticModels` |  |  |
+| `llmprovider.StaticModels` | `catalog.Static` |  |
 | `llmprovider.StaticOpenAI` | `StaticModels(ProviderOpenAI)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticOpencodeGo` | `StaticModels(ProviderOpencodeGo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticOpencodeZen` | `StaticModels(ProviderOpencodeZen)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
@@ -368,7 +368,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ToolProvider` |  |  |
 | `llmprovider.ToolProvider.GenerateWithTool` |  |  |
 | `llmprovider.ValidateOAuthSession` |  |  |
-| `llmprovider.ValidateOllamaURL` |  |  |
+| `llmprovider.ValidateOllamaURL` | `catalog.ValidateOllamaURL` |  |
 | `llmprovider.VendorCLISession` |  |  |
 | `llmprovider.VendorCLISession.Path` |  |  |
 | `llmprovider.VendorCLISession.Provider` |  |  |
@@ -378,10 +378,10 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.WithHTTPClient` |  |  |
 | `llmprovider.WithKiloCapabilities` | `kilo.WithCapabilities` | The old option is removed in S8 ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.WithKiloDataCollection` | `kilo.WithDataCollection` | The old option is removed in S8 ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
-| `llmprovider.WithKiloOrganization` | `kilo.WithOrganization` | The old option still scopes the old catalog functions' Kilo listing until S8b ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.WithKiloOrganization` | `kilo.WithOrganization`, and `catalog.WithKiloOrganization` for a listing | `kilo`'s `ListModels` passes its organization on ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.WithMaxTokens` |  |  |
 | `llmprovider.WithModelMetadataURL` | `llmprovider.WithModelMetadataURL` | A common option now: the new API takes it too ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
-| `llmprovider.WithModelProfile` |  |  |
+| `llmprovider.WithModelProfile` | `catalog.WithProfile` | Every built-in provider's `New` takes it; the open catalogs rank with it. |
 | `llmprovider.WithOpencodeRoute` | `opencode.WithRoute` | Scoped to both gateways ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
 | `llmprovider.WithReasoningEffort` |  |  |
 | `llmprovider.WithSessionID` |  |  |

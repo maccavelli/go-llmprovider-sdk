@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // Ported from llmprovider's descriptor_test.go (0015-PLAN S8, commit 1): the
@@ -130,7 +131,7 @@ func TestDescriptors_CoverEveryRegisteredProvider(t *testing.T) {
 		if d.RequiresAPIKey && d.EnvVar != envVars[string(d.ID)] {
 			t.Errorf("%s: EnvVar = %q, want %q", d.ID, d.EnvVar, envVars[string(d.ID)])
 		}
-		if !reflect.DeepEqual(d.StaticModels, llmprovider.StaticModels(string(d.ID))) {
+		if !reflect.DeepEqual(d.StaticModels, catalog.Static(string(d.ID))) {
 			t.Errorf("%s: StaticModels = %v, want StaticModels()'s", d.ID, d.StaticModels)
 		}
 	}

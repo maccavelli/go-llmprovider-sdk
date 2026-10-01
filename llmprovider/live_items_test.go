@@ -16,7 +16,7 @@ import (
 // route answered 400, and the chat routes answered without the tool.
 func TestLive_ToolRoundTrip(t *testing.T) {
 	convo := []Item{
-		MessageItem{Role: jsonRoleUser, Text: "What is the weather in Paris? Use the tool."},
+		MessageItem{Role: string(RoleUser), Text: "What is the weather in Paris? Use the tool."},
 		FunctionCallItem{CallID: "call_rt_1", Name: "get_weather", Arguments: `{"city":"Paris"}`},
 		FunctionCallOutputItem{CallID: "call_rt_1", Output: `{"forecast":"sunny, 21C"}`},
 	}

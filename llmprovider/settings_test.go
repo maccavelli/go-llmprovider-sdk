@@ -18,7 +18,7 @@ func TestResolveOptions_RefusesAForeignOption(t *testing.T) {
 }
 
 func TestResolveOptions_RefusesAnOldAPIOnlyOption(t *testing.T) {
-	for _, opt := range []Option{WithStore(false), WithKiloOrganization("o"), WithThinkingBudget(1)} {
+	for _, opt := range []Option{WithStore(false), WithKiloDataCollection(true), WithThinkingBudget(1)} {
 		_, err := ResolveOptions(ProviderOpenAI, []Option{opt})
 		if !errors.Is(err, ErrInvalidRequest) || !strings.Contains(err.Error(), "belongs to the old API") {
 			t.Errorf("%s: err = %v, want it refused", opt.name, err)
@@ -115,11 +115,11 @@ func TestApplyOptions_TakesOnlyWhatTheOldConfigHolds(t *testing.T) {
 		WithModel("ignored"),
 		WithAPIKey("ignored"),
 		ScopedOption(ProviderKilo, "kilo.WithThing", 1),
-		WithKiloOrganization("org"),
+		WithReasoningEffort("high"),
 		WithBaseURL("http://base"),
 		{},
 	})
-	if cfg.KiloOrganization != "org" || cfg.BaseURL != "http://base" || cfg.MaxTokens != 8192 || cfg.HTTPClient == nil {
+	if cfg.ReasoningEffort != "high" || cfg.BaseURL != "http://base" || cfg.MaxTokens != 8192 || cfg.HTTPClient == nil {
 		t.Fatalf("ApplyOptions = %+v", cfg)
 	}
 }
