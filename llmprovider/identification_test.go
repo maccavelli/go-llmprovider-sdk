@@ -57,8 +57,7 @@ func TestIdentification_UserAgent(t *testing.T) {
 	rec := newHeaderRecorder(t)
 	base := WithBaseURL(rec.srv.URL)
 	build := map[string]func() (LegacyProvider, error){
-		"huggingface": func() (LegacyProvider, error) { return NewHuggingFace("k", "org/model", base) },
-		"ollama":      func() (LegacyProvider, error) { return NewOllama("", "llama3", base) },
+		"ollama": func() (LegacyProvider, error) { return NewOllama("", "llama3", base) },
 	}
 	for name, newProvider := range build {
 		p, err := newProvider()

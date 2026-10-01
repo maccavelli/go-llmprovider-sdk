@@ -66,14 +66,6 @@ func wireOpts(baseURL string, extra ...ProviderOption) []ProviderOption {
 
 var wireCases = []wireCase{
 	{
-		name: "huggingface",
-		listing: `{"data":[{"id":"openai/gpt-oss-120b","architecture":{"input_modalities":["text"],"output_modalities":["text"]},` +
-			`"providers":[{"status":"live","supports_tools":true,"throughput":100,"first_token_latency_ms":300}]}]}`,
-		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
-			return NewHuggingFace("hf_wire", "openai/gpt-oss-120b", wireOpts(u, extra...)...)
-		},
-	},
-	{
 		// Added by 0017-PLAN U1 after the P7 recording: its goldens are new
 		// files, never a change to another case's.
 		name: "together",

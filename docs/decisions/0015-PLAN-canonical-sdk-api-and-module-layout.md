@@ -2179,7 +2179,8 @@ follows the amendment "the OpenCode family".
 
 Built on the earlier commits' pattern; only what differs is recorded here. It
 is left unstaged, for the owner to commit after the record changes staged
-before it.
+before it. *Annotated 2026-10-01:* the owner committed both together, as
+`c7decee`.
 
 * **Rebuilt tools.** The session's scratchpad had been cleared, and with it
   the gate and its helpers. The gate, the link check, the identifier scan,
@@ -2313,4 +2314,99 @@ before it.
   * `llmprovider` 86.0 % from its own tests and 90.8 % over
     `./llmprovider/...`, the measure the 2026-10-01 amendment sets, against
     its `P7` 89.2 %.
+* **Links.** G-links found no link to the moved files.
+
+### Phase S7, commit 11: `huggingface` (2026-10-01)
+
+Built on the earlier commits' pattern; only what differs is recorded here.
+Staged for the owner to commit.
+
+* **Step 1, moved** (plain `mv`): `huggingface.go` to `providers/huggingface/`,
+  its tests ported there, and `testdata/wire/huggingface`.
+
+  **Kept in `llmprovider`:**
+  * In a new `huggingface_gateway.go`: `huggingFaceBaseURL`, which the
+    descriptors and the listing use, and `wireShapesProbedOnHuggingFace`,
+    which the raw-HTTP live probes check.
+  * The catalog tests, `TestSplitHuggingFaceModelPolicy` and
+    `TestStaticHuggingFace_Count`, in a new `huggingface_catalog_test.go`.
+  * `listHuggingFaceModels`, which only the old type called, is removed. Its
+    documentation of the measured ranking moved onto
+    `fetchHuggingFaceUsable`.
+
+  No temporary export is added.
+* **Step 2, the new API:**
+  * `huggingface.New` and `ListModels`.
+  * No credential, or an empty one, is refused with `ErrInvalidRequest`. The
+    old code refused an empty key with a plain error. An OAuth session or a
+    CLI login is refused with `ErrUnsupported` (R16).
+  * The key is read on each request, and sent by `SetTokenHeader`, as the
+    listing's is (`fetchHuggingFaceUsable` takes the `Token`).
+  * Reasoning sends `reasoning_effort`, medium with no effort, as before;
+    reasoning is `BestEffort`, since the router documents it as
+    model-dependent. A budget is not sent.
+  * Every tool is offered. A named tool is forced as before. `required` and
+    `none` are sent as strings, not measured
+    (`TestLive_HuggingFaceToolChoices`, not run).
+  * `Instructions` go in a leading system message.
+  * The listing gets the caller's options, so `WithModelMetadataURL`
+    reaches its ranking.
+* **Step 4, the tests ported.**
+
+  | From `llmprovider` | To `huggingface` |
+  |---|---|
+  | `huggingface_test.go`, less its catalog tests, and the Hugging Face parts of `api_error_message_test.go`, `identification_test.go`, `interface_test.go` | `huggingface_test.go` |
+  | the Hugging Face rows of `discovery_wiring_test.go` and `probe_scope_test.go` | `listing_test.go` |
+  | the huggingface G-wire case | `wire_test.go` |
+
+  * **Emptied, so removed:**
+    * `probe_scope_test.go`, whose metered-services test had only this
+      row left;
+    * `TestDiscoverModels_HonoursRankingOptions`, whose last row this was,
+      with its helper `getOnly`.
+  * **Half ported.** That row's metadata-URL half is
+    `TestListModels_HonoursTheMetadataURLOption`. Its profile half waits for
+    S8b, under the accepted gap.
+  * **Changed kind.** `TestHuggingFace_NoContinuer` is
+    `TestHuggingFace_NoContinuation`.
+  * **Run both ways.** The effort test runs at construction and on the
+    request.
+  * **New tests:**
+    * `request_test.go`: the refusals, the key per request, the request
+      fields, each tool choice with two tools, reasoning's fallbacks;
+    * `TestHuggingFace_TokenHeaderOverride`;
+    * `TestListModels_NeverProbes` and
+      `TestListModels_CarriesTheCallersIdentity`.
+  * **`TestMain`.** The package has its own, turning the metadata fetch off.
+  * **Live.** The external `live_huggingface_test.go` has
+    `TestLive_HuggingFaceChatCompletions` and the new
+    `TestLive_HuggingFaceToolChoices`. The raw router probes stay in
+    `live_gateways_test.go`.
+* **G-wire.** The six huggingface goldens are byte-identical to `HEAD`'s,
+  with no `-update`.
+* **Step 5, llmtest.** `TestConformance` passes.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | an empty key accepted | `empty: err = <nil>, want ErrInvalidRequest` |
+  | an OAuth session accepted | `oauth: err = <nil>, want ErrUnsupported` |
+  | no default effort | `reasoning_effort = <nil>, want medium`, and `thinking.json` |
+  | the construction effort ignored | `reasoning_effort = medium, want xhigh` |
+  | a forced tool sends no `tool_choice` | `tool_choice missing`, and `tool.json` |
+  | `ToolChoiceNone` omitted | `"none": tool_choice = <nil>, want none` |
+  | only the first tool offered | `"auto": 1 tools sent, want 2` |
+  | instructions dropped | `messages = [… Be brief. …], want the instructions as a leading system message` |
+  | `MaxOutputTokens` ignored | `max_tokens 500; want other/model, 77` |
+  | generation ignores the token's header | `POST: X-Custom = "", want "Bearer v"` |
+  | the listing ignores the token's header | `GET: X-Custom = "", want "Bearer v"` |
+  | the listing drops the caller's options | `ListModels = [a/large c/flash], want the catalog's [c/flash a/large]`, and `the environment's metadata URL was fetched 1 times, want 0` |
+  | `Generate` skips the capability check | `R11 (refusal before the network): … returned <nil>` |
+  | huggingface registered under another id | `descriptor "huggingface" is offered to users but neither Default nor the old API builds it` |
+
+* **Lint** found `getOnly` unused once its test had gone. It was removed.
+* **Coverage:**
+  * `providers/huggingface` 93.7 %;
+  * `llmprovider` 85.9 % from its own tests and 90.8 % over
+    `./llmprovider/...`, against its `P7` 89.2 %.
 * **Links.** G-links found no link to the moved files.

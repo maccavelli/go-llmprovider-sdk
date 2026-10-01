@@ -245,28 +245,6 @@ func TestLive_HuggingFaceMetadataFields(t *testing.T) {
 	}
 }
 
-func TestLive_HuggingFaceChatCompletions(t *testing.T) {
-	token := os.Getenv("HF_TOKEN")
-	if token == "" {
-		t.Skip("HF_TOKEN unset: Hugging Face reports is_free:false for all offerings, " +
-			"so there is no credential-free path")
-	}
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-	p, err := NewHuggingFace(token, "openai/gpt-oss-20b")
-	if err != nil {
-		t.Fatalf("NewHuggingFace: %v", err)
-	}
-	out, err := p.Generate(ctx, "Reply with only the word ALPHA")
-	skipIfTransient(t, err)
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	if strings.TrimSpace(out) == "" {
-		t.Errorf("empty output (probed %s)", wireShapesProbedOnHuggingFace)
-	}
-}
-
 // TestLive_ListingsNeedNoCredential pins that all four catalogs are public.
 // Discovery works before a key is configured, which the wizards rely on.
 func TestLive_ListingsNeedNoCredential(t *testing.T) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -59,7 +58,6 @@ func TestDiscoverModels_ListingBounded(t *testing.T) {
 		build         func(opts ...ProviderOption) (discoverer, error)
 	}{
 		{"ollama", "GET /api/tags", func(o ...ProviderOption) (discoverer, error) { return NewOllama("", "m", o...) }},
-		{"huggingface", "GET /models", func(o ...ProviderOption) (discoverer, error) { return NewHuggingFace("k", "m", o...) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := &deadlineTransport{}
@@ -77,68 +75,6 @@ func TestDiscoverModels_ListingBounded(t *testing.T) {
 				t.Errorf("%s ran without a deadline, want one within 10s", tc.listing)
 			case left > 10*time.Second:
 				t.Errorf("%s ran with %v left, want at most 10s", tc.listing, left.Round(time.Second))
-			}
-		})
-	}
-}
-
-// getOnly answers GET with body and anything else (the health probes) with 500.
-func getOnly(t *testing.T, body string) *httptest.Server {
-	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		_, _ = w.Write([]byte(body))
-	}))
-	t.Cleanup(srv.Close)
-	return srv
-}
-
-// TestDiscoverModels_HonoursRankingOptions pins MADR 0013 A4: with every
-// probe failing, DiscoverModels returns exactly what ListModelCatalog
-// recommends for the same profile and metadata URL, and never reads the
-// environment's metadata URL when an option names one.
-func TestDiscoverModels_HonoursRankingOptions(t *testing.T) {
-	pinRankingNow(t, refNow)
-	enableModelMetadata(t)
-	envMeta, envHits := metadataServer(t, http.StatusInternalServerError, "")
-	t.Setenv(envModelMetadataURL, envMeta.URL)
-
-	for _, tc := range []struct {
-		provider, listing, meta string
-		build                   func(opts ...ProviderOption) (discoverer, error)
-	}{
-		{ProviderHuggingFace, hfRankListing, hfRankMetadata, func(o ...ProviderOption) (discoverer, error) {
-			return NewHuggingFace("k", "m", o...)
-		}},
-	} {
-		t.Run(tc.provider, func(t *testing.T) {
-			listing := getOnly(t, tc.listing)
-			opts := []ProviderOption{WithBaseURL(listing.URL)}
-			if tc.meta != "" {
-				meta, _ := metadataServer(t, http.StatusOK, tc.meta)
-				opts = append(opts, WithModelMetadataURL(meta.URL))
-			}
-			utility := listCatalog(context.Background(), t, tc.provider, opts...).Recommended
-			opts = append(opts, WithModelProfile(ProfileCapable))
-			want := listCatalog(context.Background(), t, tc.provider, opts...).Recommended
-			if slices.Equal(want, utility) {
-				t.Fatalf("fixture does not separate the profiles: both %v", want)
-			}
-			resetModelMetadataCache()
-			p, err := tc.build(opts...)
-			if err != nil {
-				t.Fatalf("construct: %v", err)
-			}
-			got, err := p.DiscoverModels(context.Background())
-			if err != nil {
-				t.Fatalf("DiscoverModels: %v", err)
-			}
-			assertRanked(t, got, want)
-			if n := envHits.Load(); n != 0 {
-				t.Errorf("DiscoverModels fetched the environment's metadata URL %d times, want 0", n)
 			}
 		})
 	}

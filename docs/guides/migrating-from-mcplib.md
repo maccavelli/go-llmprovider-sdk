@@ -129,17 +129,17 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.GrokProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.GrokProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
 | `llmprovider.GrokProvider.Name` | `ID()` | It returns `ProviderGrok` as a `ProviderID`. |
-| `llmprovider.HuggingFaceProvider` |  |  |
-| `llmprovider.HuggingFaceProvider.DiscoverModels` |  |  |
-| `llmprovider.HuggingFaceProvider.Generate` |  |  |
-| `llmprovider.HuggingFaceProvider.GenerateItems` |  |  |
-| `llmprovider.HuggingFaceProvider.GenerateItemsThinking` |  |  |
-| `llmprovider.HuggingFaceProvider.GenerateItemsWithTool` |  |  |
-| `llmprovider.HuggingFaceProvider.GenerateItemsWithToolThinking` |  |  |
-| `llmprovider.HuggingFaceProvider.GenerateThinking` |  |  |
-| `llmprovider.HuggingFaceProvider.GenerateWithTool` |  |  |
-| `llmprovider.HuggingFaceProvider.GenerateWithToolThinking` |  |  |
-| `llmprovider.HuggingFaceProvider.Name` |  |  |
+| `llmprovider.HuggingFaceProvider` | the `llmprovider.Provider` that `huggingface.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.HuggingFaceProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` | No profile can be chosen on the new API until S8b; the wizard is unaffected. |
+| `llmprovider.HuggingFaceProvider.Generate` | `llmprovider.GenerateText` |  |
+| `llmprovider.HuggingFaceProvider.GenerateItems` | `Generate` with `Request.Input` |  |
+| `llmprovider.HuggingFaceProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` | `WithReasoningEffort` is `Reasoning.Effort`. |
+| `llmprovider.HuggingFaceProvider.GenerateItemsWithTool` | `Generate` with `Request.Tools` and `ForceTool` |  |
+| `llmprovider.HuggingFaceProvider.GenerateItemsWithToolThinking` | `Generate` with `Tools`, `ForceTool` and `Reasoning` |  |
+| `llmprovider.HuggingFaceProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
+| `llmprovider.HuggingFaceProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
+| `llmprovider.HuggingFaceProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
+| `llmprovider.HuggingFaceProvider.Name` | `ID()` | It returns `ProviderHuggingFace` as a `ProviderID`. |
 | `llmprovider.IncompleteError` |  |  |
 | `llmprovider.IncompleteError.Error` |  |  |
 | `llmprovider.IncompleteError.Reason` |  |  |
@@ -193,7 +193,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.NewFileTokenStore` |  |  |
 | `llmprovider.NewGemini` | `gemini.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGemini, …)`. It takes no context; an OAuth session is refused with `ErrUnsupported` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewGrok` | `grok.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGrok, …)`. A session, which only `NewProvider` took, is `WithTokenSource(src)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
-| `llmprovider.NewHuggingFace` |  |  |
+| `llmprovider.NewHuggingFace` | `huggingface.New(WithAPIKey(token), WithModel(model), …)` | Or `providers.New(ProviderHuggingFace, …)`; an empty token is refused with `ErrInvalidRequest` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewKilo` | `kilo.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderKilo, …)`. No key sends the anonymous token, as before ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewOllama` |  |  |
 | `llmprovider.NewOpenAI` | `openai.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderOpenAI, …)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |

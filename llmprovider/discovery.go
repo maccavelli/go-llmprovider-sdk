@@ -269,10 +269,10 @@ func chatGPTCatalogModelListed(model chatGPTCatalogModel) bool {
 }
 
 // modelCatalogFor dispatches one provider's fetch and curation. The caller
-// owns the timeout. OpenAI, Claude, Gemini, Grok, the OpenCode gateways and
-// Kilo send token as it describes itself (0016-MADR A6); the providers still
-// on the old API send its value in their own header until 0015-PLAN S7 moves
-// them.
+// owns the timeout. OpenAI, Claude, Gemini, Grok, the OpenCode gateways, Kilo
+// and Hugging Face send token as it describes itself (0016-MADR A6); the
+// providers still on the old API send its value in their own header until
+// 0015-PLAN S7 moves them.
 func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg ProviderConfig) (ModelCatalog, error) {
 	apiKey := token.Value
 	switch p := strings.ToLower(providerName); p {
@@ -292,7 +292,7 @@ func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg 
 		return opencodeCatalog(ctx, p, token, cfg)
 	case ProviderHuggingFace:
 		meta := startModelMetadata(ctx, cfg)
-		usable, err := fetchHuggingFaceUsable(ctx, apiKey, cfg)
+		usable, err := fetchHuggingFaceUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, StaticModels(ProviderHuggingFace),
 			metadataCurate(ProviderHuggingFace, cfg.ModelProfile, meta, curateHuggingFace)), nil
 	case ProviderKilo:
@@ -678,24 +678,16 @@ func onlyText(mods []string) bool { return len(mods) == 1 && mods[0] == jsonKeyT
 // accepts images or files still serves a text prompt (MADR 0007 §1b).
 func hasText(mods []string) bool { return slices.Contains(mods, jsonKeyText) }
 
-// listHuggingFaceModels fetches the router catalog and curates it using the
-// metadata Hugging Face publishes. The endpoint is PUBLIC (200 with no
-// credential, verified 2026-08-29), so the Authorization header is optional.
-//
-// Unlike every other provider in this package, ranking here uses measured
-// figures rather than name heuristics: the listing reports throughput
-// (tokens/sec) and first_token_latency_ms per provider offering. The sorted
-// order is handed to curateFromCatalog with a nil rankFn, which preserves it.
-func listHuggingFaceModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
-	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return modelCatalogFor(ctx, ProviderHuggingFace, Token{Value: apiKey}, cfg)
-	})
-}
-
 // fetchHuggingFaceUsable returns the usable router models, fastest first: input
 // must include text and output must be exactly text (MADR 0007 §1b), and at
-// least one provider offering must be live.
-func fetchHuggingFaceUsable(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
+// least one provider offering must be live. The endpoint is PUBLIC (200 with
+// no credential, verified 2026-08-29), so the credential is optional.
+//
+// Unlike the other providers, ranking here uses measured figures rather than
+// name heuristics: the listing reports throughput (tokens/sec) and
+// first_token_latency_ms per provider offering. The sorted order is handed to
+// curateFromCatalog with a nil rankFn, which preserves it.
+func fetchHuggingFaceUsable(ctx context.Context, token Token, cfg ProviderConfig) ([]string, error) {
 	baseURL := huggingFaceBaseURL
 	if cfg.BaseURL != "" {
 		baseURL = strings.TrimRight(cfg.BaseURL, "/")
@@ -706,8 +698,8 @@ func fetchHuggingFaceUsable(ctx context.Context, apiKey string, cfg ProviderConf
 		return nil, err
 	}
 	identityOf(cfg).setUserAgent(req)
-	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+	if token.Value != "" {
+		SetTokenHeader(req, token, oauthAuthorizationHeader, bearerScheme)
 	}
 
 	resp, err := cfg.HTTPClient.Do(req)

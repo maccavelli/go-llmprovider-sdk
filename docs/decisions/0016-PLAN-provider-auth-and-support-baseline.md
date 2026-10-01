@@ -841,3 +841,12 @@ run in T2 (0015-PLAN S4).
   listing fails it.
 * An OAuth or CLI source is refused. Details are in 0015-PLAN, "Phase S7,
   commit 10".
+
+### T3 step 1: the header override, huggingface (2026-10-01, in 0015-PLAN S7)
+
+* huggingface applies the rule in generation and in its listing. Its header
+  is unchanged: `Authorization: Bearer`. G-wire shows no difference.
+* **Test:** `TestHuggingFace_TokenHeaderOverride`. Breaking generation or
+  the listing fails it.
+* An OAuth or CLI source is refused. Details are in 0015-PLAN, "Phase S7,
+  commit 11".
