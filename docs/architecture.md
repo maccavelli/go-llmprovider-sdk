@@ -37,6 +37,7 @@ llmprovider/providers/claude/  Claude: the Anthropic Messages API
 llmprovider/providers/gemini/  Gemini: the Interactions API
 llmprovider/providers/grok/    Grok: the xAI Responses API
 llmprovider/providers/opencode/ OpenCode Zen and Go: four wire formats, routed per model
+llmprovider/providers/kilo/    Kilo Gateway: Chat Completions
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
@@ -64,6 +65,7 @@ docs/
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider` |
 | `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider` |
+| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider` |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 
 ## The contract
@@ -113,7 +115,7 @@ the old API until 0015-PLAN S8 removes it:
   `FunctionCallOutputItem` and `ReasoningItem`; item methods return a
   `*Response`.
 - **Construction:** `providers.New(id, opts...)` for a provider that has
-  moved to its own package (`openai`, `claude`, `gemini`, `grok` and `opencode` so far), or a provider's own `New…`
+  moved to its own package (`openai`, `claude`, `gemini`, `grok`, `opencode` and `kilo` so far), or a provider's own `New…`
   until it moves; options are `ProviderOption` functions (`WithBaseURL`,
   `WithHTTPClient`, `WithReasoningEffort`, …). `GenerateWithRetry` and its two
   siblings retry on typed errors.
@@ -133,7 +135,7 @@ the old API until 0015-PLAN S8 removes it:
   session selects the ChatGPT backend. `grok.New` takes any source: a key,
   an xAI OAuth session or the Grok CLI's login.
 - **Where a token goes.** A token with no `Header` goes in the service's own
-  header: `Authorization: Bearer` for OpenAI and Grok, `x-api-key` for
+  header: `Authorization: Bearer` for OpenAI, Grok and Kilo, `x-api-key` for
   Claude, `x-goog-api-key` for Gemini, and on OpenCode the header of the
   request's route. One
   naming a `Header` goes there instead, prefixed `Bearer` only for a
@@ -158,7 +160,7 @@ the old API until 0015-PLAN S8 removes it:
   `ShareHTTPClient`, `ProbeGenerateHealth` and `SetTokenHeader`. S7b moves
   them to the packages of 0015-MADR D2 and removes the exports. The model
   metadata's per-request view, `ModelMetadata` and `LookupModelMetadata`,
-  moves to `catalog` in S8b.
+  and Kilo's endpoint resolver, `KiloGatewayFor`, move to `catalog` in S8b.
 - **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.
   - **Creating one:**
     - `LoginBrowserOAuth` uses PKCE on a loopback redirect.

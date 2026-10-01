@@ -154,17 +154,17 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ItemToolProvider` |  |  |
 | `llmprovider.ItemToolProvider.GenerateItemsWithTool` |  |  |
 | `llmprovider.KiloModelCapabilities` |  |  |
-| `llmprovider.KiloProvider` |  |  |
-| `llmprovider.KiloProvider.DiscoverModels` |  |  |
-| `llmprovider.KiloProvider.Generate` |  |  |
-| `llmprovider.KiloProvider.GenerateItems` |  |  |
-| `llmprovider.KiloProvider.GenerateItemsThinking` |  |  |
-| `llmprovider.KiloProvider.GenerateItemsWithTool` |  |  |
-| `llmprovider.KiloProvider.GenerateItemsWithToolThinking` |  |  |
-| `llmprovider.KiloProvider.GenerateThinking` |  |  |
-| `llmprovider.KiloProvider.GenerateWithTool` |  |  |
-| `llmprovider.KiloProvider.GenerateWithToolThinking` |  |  |
-| `llmprovider.KiloProvider.Name` |  |  |
+| `llmprovider.KiloProvider` | the `llmprovider.Provider` that `kilo.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.KiloProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` | No profile can be chosen on the new API until S8b; the wizard is unaffected. |
+| `llmprovider.KiloProvider.Generate` | `llmprovider.GenerateText` |  |
+| `llmprovider.KiloProvider.GenerateItems` | `Generate` with `Request.Input` |  |
+| `llmprovider.KiloProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` | `WithReasoningEffort` is `Reasoning.Effort`. |
+| `llmprovider.KiloProvider.GenerateItemsWithTool` | `Generate` with `Request.Tools` and `ForceTool` | The choice is sent only when the model accepts `tool_choice`, as before. |
+| `llmprovider.KiloProvider.GenerateItemsWithToolThinking` | `Generate` with `Tools`, `ForceTool` and `Reasoning` |  |
+| `llmprovider.KiloProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
+| `llmprovider.KiloProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
+| `llmprovider.KiloProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
+| `llmprovider.KiloProvider.Name` | `ID()` | It returns `ProviderKilo` as a `ProviderID`. |
 | `llmprovider.ListAvailableModels` |  |  |
 | `llmprovider.ListAvailableModelsWithSource` |  |  |
 | `llmprovider.ListModelCatalog` |  |  |
@@ -194,7 +194,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.NewGemini` | `gemini.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGemini, …)`. It takes no context; an OAuth session is refused with `ErrUnsupported` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewGrok` | `grok.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGrok, …)`. A session, which only `NewProvider` took, is `WithTokenSource(src)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewHuggingFace` |  |  |
-| `llmprovider.NewKilo` |  |  |
+| `llmprovider.NewKilo` | `kilo.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderKilo, …)`. No key sends the anonymous token, as before ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewOllama` |  |  |
 | `llmprovider.NewOpenAI` | `openai.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderOpenAI, …)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewOpenAIWithSource` | `openai.New(WithTokenSource(src), WithModel(model), …)` | A ChatGPT session selects the ChatGPT backend ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
@@ -376,9 +376,9 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.WithBaseURL` |  |  |
 | `llmprovider.WithClientInfo` |  |  |
 | `llmprovider.WithHTTPClient` |  |  |
-| `llmprovider.WithKiloCapabilities` |  |  |
-| `llmprovider.WithKiloDataCollection` |  |  |
-| `llmprovider.WithKiloOrganization` |  |  |
+| `llmprovider.WithKiloCapabilities` | `kilo.WithCapabilities` | The old option is removed in S8 ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.WithKiloDataCollection` | `kilo.WithDataCollection` | The old option is removed in S8 ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.WithKiloOrganization` | `kilo.WithOrganization` | The old option still scopes the old catalog functions' Kilo listing until S8b ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.WithMaxTokens` |  |  |
 | `llmprovider.WithModelMetadataURL` | `llmprovider.WithModelMetadataURL` | A common option now: the new API takes it too ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
 | `llmprovider.WithModelProfile` |  |  |

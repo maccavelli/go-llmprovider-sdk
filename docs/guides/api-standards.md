@@ -210,8 +210,11 @@ exists now, read [architecture.md](../architecture.md).
 - **R46. A moved or ported test keeps its meaning.** Its call syntax may change;
   what it asserts may not. (0015 D12)
 - **R47. Coverage does not fall.** No package drops below its baseline at the
-  end of 0002-PLAN Phase 7, and a new package holds at least 80 %.
-  (0015 D13)
+  end of 0002-PLAN Phase 7, and a new package holds at least 80 %. Until
+  0015-PLAN S7b, `llmprovider` is measured over every test under
+  `./llmprovider/...` (`-coverpkg=./llmprovider`), because the code it shares
+  with the moved providers is tested from their packages. (0015 D13, and its
+  amendment of 2026-10-01)
 - **R48. From `v1.0.0`, every non-internal package outside `llmprovider/x/` is
   under the compatibility promise,** and `apidiff` against the latest `v1.*`
   tag fails an incompatible change. (0015 D13)

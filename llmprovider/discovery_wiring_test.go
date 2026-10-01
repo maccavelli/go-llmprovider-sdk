@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -61,7 +60,6 @@ func TestDiscoverModels_ListingBounded(t *testing.T) {
 	}{
 		{"ollama", "GET /api/tags", func(o ...ProviderOption) (discoverer, error) { return NewOllama("", "m", o...) }},
 		{"huggingface", "GET /models", func(o ...ProviderOption) (discoverer, error) { return NewHuggingFace("k", "m", o...) }},
-		{"kilo", "GET /models", func(o ...ProviderOption) (discoverer, error) { return NewKilo("k", "m", o...) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := &deadlineTransport{}
@@ -108,21 +106,10 @@ func TestDiscoverModels_HonoursRankingOptions(t *testing.T) {
 	envMeta, envHits := metadataServer(t, http.StatusInternalServerError, "")
 	t.Setenv(envModelMetadataURL, envMeta.URL)
 
-	kiloListing := `{"data":[` + strings.Join([]string{
-		kiloRankEntry("a/flash-lite", "A Flash Lite", "0.0000001", "0.0000004", 20, true, ""),
-		kiloRankEntry("b/flash", "B Flash", "0.0000003", "0.0000012", 10, true, `"terminalBench":{"overallScore":0.75}`),
-		kiloRankEntry("c/pro", "C Pro", "0.000005", "0.000025", 40, true, `"terminalBench":{"overallScore":0.80}`),
-		kiloRankEntry("d/mid", "D Mid", "0.000001", "0.000004", 60, true, `"preferredIndex":2`),
-		kiloRankEntry("e/mini", "E Mini", "0.0000002", "0.0000008", 90, true, ""),
-		kiloRankEntry("f/large", "F Large", "0.000002", "0.000008", 30, true, ""),
-		kiloRankEntry("kilo-auto/efficient", "Auto Efficient", "-1", "-1", -1, true, `"preferredIndex":0`),
-	}, ",") + `]}`
-
 	for _, tc := range []struct {
 		provider, listing, meta string
 		build                   func(opts ...ProviderOption) (discoverer, error)
 	}{
-		{ProviderKilo, kiloListing, "", func(o ...ProviderOption) (discoverer, error) { return NewKilo("k", "m", o...) }},
 		{ProviderHuggingFace, hfRankListing, hfRankMetadata, func(o ...ProviderOption) (discoverer, error) {
 			return NewHuggingFace("k", "m", o...)
 		}},

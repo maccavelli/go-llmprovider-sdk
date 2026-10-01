@@ -184,6 +184,10 @@ func (st *Settings) UserAgent() string { return st.identity.userAgent() }
 // Settings.
 func (st *Settings) SessionID() string { return st.identity.session }
 
+// ClientName is the application WithClientInfo named, or "go-llmprovider-sdk":
+// what User-Agent leads with, and Kilo's editor name (MADR 0012 §1.4).
+func (st *Settings) ClientName() string { return st.identity.name }
+
 // ModelProbes reports whether ListModels probes each listed model, as
 // WithModelProbes and ModelProbesFromEnv set it; true by default
 // (0016-MADR A5).

@@ -17,9 +17,6 @@ var notYetMoved = map[string]func(key, model string) (named, error){
 	llmprovider.ProviderHuggingFace: func(key, model string) (named, error) {
 		return llmprovider.NewHuggingFace(key, model)
 	},
-	llmprovider.ProviderKilo: func(key, model string) (named, error) {
-		return llmprovider.NewKilo(key, model)
-	},
 	llmprovider.ProviderTogether: func(key, model string) (named, error) {
 		return llmprovider.NewTogether(key, model)
 	},

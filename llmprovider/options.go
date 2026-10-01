@@ -47,7 +47,8 @@ type ProviderConfig struct {
 	// Grok 4.5, the model's own on Kilo and Claude 4.7+, a 4096 budget on older
 	// Claude, and dynamic thinking on Gemini (MADR 0013 Q2).
 	ReasoningEffort string
-	// KiloCapabilities lists the request parameters the configured Kilo model
+	// KiloCapabilities is WithKiloCapabilities's value, which no provider reads
+	// any more (0015-PLAN S7). It lists the request parameters a Kilo model
 	// accepts (its supported_parameters). Empty means "unknown — send
 	// everything". Ignored by all other providers.
 	KiloCapabilities []string
@@ -127,37 +128,31 @@ func WithReasoningEffort(s string) ProviderOption {
 	})
 }
 
-// WithKiloCapabilities declares the request parameters the configured Kilo model
-// accepts, as published in that model's supported_parameters (GET {base}/models).
-// It gates optional fields the model may reject: "tool_choice" for forced tool
-// calls and "reasoning" and "reasoning_effort" for the thinking path.
-//
-// Omit it and every parameter is sent — the gateway is the authority, and
-// withholding a parameter we merely cannot confirm would silently degrade
-// requests. Ignored by all other providers.
+// WithKiloCapabilities sets the old API's KiloCapabilities, which no provider
+// reads any more: Kilo moved to the new API and takes kilo.WithCapabilities
+// (0015-PLAN S7). The new API's New refuses it; 0015-PLAN S8 removes it with
+// the old API.
 func WithKiloCapabilities(params ...string) ProviderOption {
 	return legacyOption("WithKiloCapabilities", func(cfg *ProviderConfig) {
 		cfg.KiloCapabilities = params
 	})
 }
 
-// WithKiloDataCollection lets Kilo route to upstreams that may train on
-// prompts when allow is true. By default every Kilo request sends
-// provider.data_collection "deny", matching the listing's exclusion of such
-// models (MADR 0012 §3.3). A model that requires collection is then refused
-// with ErrNotPermitted: kilo-auto/free was, and on 2026-09-27 every free text
-// model in Kilo's listing was flagged mayTrainOnYourPrompts.
+// WithKiloDataCollection sets the old API's KiloDataCollection, which no
+// provider reads any more: Kilo moved to the new API and takes
+// kilo.WithDataCollection (0015-PLAN S7). The new API's New refuses it;
+// 0015-PLAN S8 removes it with the old API.
 func WithKiloDataCollection(allow bool) ProviderOption {
 	return legacyOption("WithKiloDataCollection", func(cfg *ProviderConfig) {
 		cfg.KiloDataCollection = allow
 	})
 }
 
-// WithKiloOrganization scopes Kilo generation and listing to an organization:
-// requests carry X-KILOCODE-ORGANIZATIONID and the listing is the
-// organization's /api/organizations/{id}/models, as Kilo's client does
-// (MADR 0012 §3.3). A URL-prefixed token whose path is
-// .../api/organizations/{id} names the organization without this option.
+// WithKiloOrganization scopes the old API's Kilo listing (ListModelCatalog and
+// its siblings) to an organization: it lists /api/organizations/{id}/models
+// with X-KILOCODE-ORGANIZATIONID (MADR 0012 §3.3). The kilo provider, on the
+// new API, takes kilo.WithOrganization (0015-PLAN S7); the listing reads this
+// until 0015-PLAN S8b.
 func WithKiloOrganization(id string) ProviderOption {
 	return legacyOption("WithKiloOrganization", func(cfg *ProviderConfig) {
 		cfg.KiloOrganization = id

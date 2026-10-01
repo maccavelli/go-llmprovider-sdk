@@ -57,7 +57,6 @@ func TestIdentification_UserAgent(t *testing.T) {
 	rec := newHeaderRecorder(t)
 	base := WithBaseURL(rec.srv.URL)
 	build := map[string]func() (LegacyProvider, error){
-		"kilo":        func() (LegacyProvider, error) { return NewKilo("k", "some/model", base) },
 		"huggingface": func() (LegacyProvider, error) { return NewHuggingFace("k", "org/model", base) },
 		"ollama":      func() (LegacyProvider, error) { return NewOllama("", "llama3", base) },
 	}
@@ -74,51 +73,6 @@ func TestIdentification_UserAgent(t *testing.T) {
 	for _, r := range rec.requests() {
 		if ua := r.header.Get("User-Agent"); !userAgentPattern.MatchString(ua) {
 			t.Errorf("%s: User-Agent = %q, want go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>", r.path, ua)
-		}
-	}
-}
-
-// TestIdentification_KiloHeaders: Kilo generation names the client and the task.
-func TestIdentification_KiloHeaders(t *testing.T) {
-	rec := newHeaderRecorder(t)
-	p, err := NewKilo("k", "some/model", WithBaseURL(rec.srv.URL))
-	if err != nil {
-		t.Fatalf("NewKilo: %v", err)
-	}
-	_, _ = p.Generate(context.Background(), "hello")
-	reqs := rec.requests()
-	if len(reqs) != 1 {
-		t.Fatalf("requests = %d, want 1", len(reqs))
-	}
-	if h := reqs[0].header; h.Get("X-KILOCODE-EDITORNAME") != "go-llmprovider-sdk" || h.Get("X-KiloCode-TaskId") == "" {
-		t.Fatalf("editor/task = %q/%q, want go-llmprovider-sdk and a task id", h.Get("X-KILOCODE-EDITORNAME"), h.Get("X-KiloCode-TaskId"))
-	}
-}
-
-// TestIdentification_NoForbiddenHeaders: no request vouches for another
-// client (MADR 0012 §1.4).
-func TestIdentification_NoForbiddenHeaders(t *testing.T) {
-	rec := newHeaderRecorder(t)
-	base := WithBaseURL(rec.srv.URL)
-	for _, build := range []func() (LegacyProvider, error){
-		func() (LegacyProvider, error) { return NewKilo("k", "some/model", base) },
-	} {
-		p, err := build()
-		if err != nil {
-			t.Fatalf("construct: %v", err)
-		}
-		_, _ = p.Generate(context.Background(), "hello")
-	}
-	for _, r := range rec.requests() {
-		for name := range r.header {
-			lower := strings.ToLower(name)
-			if lower == "x-opencode-client" || lower == "x-xai-token-auth" || strings.HasPrefix(lower, "x-grok-") {
-				t.Errorf("%s: forbidden header %s", r.path, name)
-			}
-		}
-		if ua := strings.ToLower(r.header.Get("User-Agent")); strings.Contains(ua, "codex") ||
-			strings.Contains(ua, "kilo-code") || strings.Contains(ua, "opencode/") {
-			t.Errorf("%s: User-Agent %q impersonates a reference client", r.path, ua)
 		}
 	}
 }

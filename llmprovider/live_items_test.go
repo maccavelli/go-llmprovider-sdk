@@ -23,11 +23,7 @@ func TestLive_ToolRoundTrip(t *testing.T) {
 	for _, c := range []struct {
 		name, env string
 		build     func(t *testing.T, key string) (ItemProvider, error)
-	}{
-		{"kilo", "KILO_API_KEY", func(t *testing.T, k string) (ItemProvider, error) {
-			return NewKilo(k, liveModel(t, ProviderKilo, kiloNonTraining...))
-		}},
-	} {
+	}{} {
 		t.Run(c.name, func(t *testing.T) {
 			key := os.Getenv(c.env)
 			if key == "" {

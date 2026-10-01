@@ -820,3 +820,24 @@ run in T2 (0015-PLAN S4).
   moved source. G-wire shows no difference.
 * **Test:** `TestGrok_TokenHeaderOverride`. Breaking generation or the
   listing fails it. Details are in 0015-PLAN, "Phase S7, commit 7".
+
+### T3 step 1: the header override, opencode (2026-09-30, in 0015-PLAN S7)
+
+* Both gateways apply the rule in generation and in their listing.
+* The table's per-route headers are unchanged: `x-api-key` on messages,
+  `x-goog-api-key` on google, else `Authorization: Bearer`, re-read from
+  the moved source. G-wire shows no difference.
+* **Test:** `TestOpencode_TokenHeaderOverride`, on all four routes.
+  Breaking generation or the listing fails it.
+* An OAuth or CLI source is refused, as the step asks. Details are in
+  0015-PLAN, "Phase S7, commit 9".
+
+### T3 step 1: the header override, kilo (2026-10-01, in 0015-PLAN S7)
+
+* kilo applies the rule in generation and in its listing. Its header is
+  unchanged: `Authorization: Bearer`, re-read from the moved source. G-wire
+  shows no difference.
+* **Test:** `TestKilo_TokenHeaderOverride`. Breaking generation or the
+  listing fails it.
+* An OAuth or CLI source is refused. Details are in 0015-PLAN, "Phase S7,
+  commit 10".

@@ -77,7 +77,8 @@ Also out of scope:
 * **Stop conditions.** Stop, present evidence and resolutions, and record the
   chosen one here and in the MADR, when any of these happens:
   * a G-wire difference that no record explains;
-  * a coverage floor broken;
+  * a coverage floor broken (*amended 2026-10-01:* `llmprovider`'s is measured over
+    `./llmprovider/...` until S7b; see that date's deviation);
   * a test assertion that would have to change its meaning;
   * a dependency outside the allowed set.
 
@@ -441,6 +442,8 @@ in `llmprovider` refers to `ModelProfile`.
 2. **`make coverage-check`.** Fails when a package drops below its `P7`
    baseline or a new package is below 80 %. The baselines are committed as
    `scripts/coverage-floors.txt`.
+   *Amended 2026-10-01:* if it runs before S7b has finished, it measures
+   `llmprovider` with `-coverpkg=./llmprovider` over `./llmprovider/...`.
    * **First-fail:** a scratch copy with one test removed.
 3. **`make api-check`.** `go run golang.org/x/exp/cmd/apidiff@<pinned>`
    against the latest `v1.*` release tag. Before the first tag it reports
@@ -1957,3 +1960,357 @@ opencode move, which waits unstaged.
   | the error names one id only | `is for provider "opencode-zen", not "kilo", want … its ids named` |
   | the metadata URL old-API only again | `option WithModelMetadataURL belongs to the old API` |
   | `ModelMetadataURL()` reads nothing | `ModelMetadataURL() = "", want the option's URL` |
+
+### Phase S7, commit 9: `opencode` (2026-09-30; committed as `4adecf3`)
+
+The owner committed this move together with commit 8, as `4adecf3`. It
+follows the amendment "the OpenCode family".
+
+* **Step 1, moved** (plain `mv`; git pairs the renames):
+  * `opencode.go` and `opencode_route.go` to `providers/opencode/`
+    (`opencode.go`, `route.go`);
+  * `opencode_test.go`, `opencode_route_test.go` (as `route_test.go`),
+    `opencode_conventions_test.go` (as `conventions_test.go`) and
+    `opencode_metadata_route_test.go` (as `metadata_route_test.go`);
+  * `testdata/opencode-routes.json`, and the seven `testdata/wire/opencode-*`
+    golden directories.
+
+  **Kept in `llmprovider`:**
+  * In a new `opencode_gateway.go`, what the listing and the descriptors
+    use: the two base URLs, `opencodeBaseURL` and the session header. The
+    provider keeps its own copies, and `TestOpencodeBaseURLs_MatchTheDescriptors`
+    checks they agree.
+  * `firstFunctionCallArgs`, which four other providers use, moved to
+    `http_helpers.go`.
+  * The catalog filter `isUsableOpencodeModel`.
+
+  **Removed with the old provider:**
+  * `WithOpencodeRoute` and `ProviderConfig.OpencodeRoute`;
+  * the `OpencodeRoute` type and its constants, which are now
+    `opencode.Route` and its constants;
+  * `listOpencodeModels`.
+
+  The metadata's `opencodeRoute` method became `npm`. The npm-to-route map
+  moved with the provider.
+* **Temporary exports** from `llmprovider`:
+  * for S7b to move to `internal/wire`:
+    * the Chat Completions wire: `ChatCompletionsBody`,
+      `ChatCompletionsOpts` and `DecodeChatCompletionsResponse`;
+    * the `generateContent` wire: `GeminiItemsToContents`,
+      `GeminiSystemInstruction`, `GeminiThinkingConfig` and
+      `DecodeGeminiResponse`;
+  * for S8b to move to `catalog`: `ModelMetadata` and
+    `LookupModelMetadata`, the metadata as one request reads it.
+
+  The functions were renamed with the export script. `ChatCompletionsOpts`
+  was renamed with `gopls rename` under the live tag.
+
+  `LookupModelMetadata` was first `LoadModelMetadata`. Lint's revive
+  (confusing-naming) rejected that name, which differs only in case from
+  the unexported loader.
+* **Step 2, the new API:**
+  * `opencode.NewZen` and `opencode.NewGo`, and `ListModels`;
+  * `opencode.WithRoute`, scoped to both ids with `ScopedOptionFor`.
+
+  **Credentials.**
+  * With no credential, or an empty key, the gateway's `public` token is
+    sent, as `NewOpencode("")` did.
+  * An OAuth session or a CLI login is refused with `ErrUnsupported` (R16).
+    `NewOpencode` took only a key string.
+  * The key is read on each request. It is sent in each route's header, or
+    in the token's own (R16), and so is the listing's (`fetchOpencodeUsable`
+    takes the `Token`).
+
+  **The route** is resolved per request:
+  1. `WithRoute`'s;
+  2. else the request model's `provider.npm` in the metadata;
+  3. else the table, or the heuristic, for that model.
+
+  A `Request.Model` therefore picks its own route. The old `Route()`
+  accessor has no successor: the route is per request.
+
+  **Request fields.**
+  * `Instructions` go in a leading system item on every route: the
+    `system` field on messages, `systemInstruction` on google, a system
+    message elsewhere. These are the shapes the old API sent for a system
+    item.
+  * `WithReasoningEffort` and `WithThinkingBudget` are `Reasoning`'s
+    `Effort` and `Budget`. A request's `Reasoning` falls back to
+    `WithReasoning`'s, field by field.
+  * Every tool in `Request.Tools` is offered. `ChatCompletionsBody` takes
+    one tool, so the chat route's tools and `tool_choice` are built in the
+    provider.
+
+  **Tool choice:**
+  * A named tool is sent as before, in each route's form.
+  * `ToolChoiceRequired` and `ToolChoiceNone` use each route's documented
+    form, and were not measured: `"required"`/`"none"` on responses and
+    chat, `any`/`none` on messages, `ANY`/`NONE` on google. The rule is
+    gemini's `"none"`'s: `TestLive_OpencodeToolChoices` pins them, and has
+    not been run.
+
+  **Capabilities.**
+  * Reasoning is `BestEffort`: the chat route sends an effort only when
+    the metadata lists it.
+  * Continuation is `Unsupported`: the gateway rejects
+    `previous_response_id`.
+  * The listing never probes, whatever `WithModelProbes` says.
+* **Step 3.** The package doc lists the degradations: reasoning per route;
+  the messages route's forced tool sent as `auto` while thinking; the
+  instructions; the unmeasured tool choices.
+* **Step 4, the tests ported.**
+
+  | From `llmprovider` | To `opencode` |
+  |---|---|
+  | `opencode_test.go` | `opencode_test.go` |
+  | `opencode_route_test.go`, less `TestOpencodeBaseURL`, `TestProviderConstants_Distinct` and the other rows of `TestWireShapesProbedOn`, which stay in a new `llmprovider/opencode_gateway_test.go` | `route_test.go` |
+  | `opencode_conventions_test.go` | `conventions_test.go` |
+  | `opencode_metadata_route_test.go`, less `TestIsUsableOpencodeModel_DeniesSystemone`, which stays | `metadata_route_test.go` |
+  | `claude_system_test.go`, `reasoning_replay_test.go`, the OpenCode parts of `thinking_test.go`, `thinking_wire_test.go`, `generatecontent_wire_test.go` (its decode test stays), `metadata_request_test.go`, `provider_test.go` | `wire_shapes_test.go` |
+  | the OpenCode parts of `identification_test.go`, `identification_options_test.go`, `keyless_test.go`, `api_error_message_test.go`, `interface_test.go` | `identification_test.go` |
+  | the OpenCode rows of `discovery_wiring_test.go`, `probe_scope_test.go` | `listing_test.go` |
+  | the seven opencode G-wire cases | `wire_test.go` |
+
+  * **Changed kind.** `TestOpencode_NoContinuer` asserted that the type
+    lacked `Continuer`. It is `TestOpencode_NoContinuation`, which asserts
+    `Continuation = Unsupported`, and a continuation refused with
+    `ErrUnsupported` before any request (0015-MADR D4).
+  * **No successor.** `TestOpencode_ConstructorErrors`'s unknown-gateway
+    case: each constructor names its gateway.
+  * **Half deferred, by the amendment's accepted gap.** The opencode row of
+    `TestDiscoverModels_HonoursRankingOptions` switched profiles. Its
+    metadata-URL half is ported as
+    `TestListModels_HonoursTheMetadataURLOption`. Its profile half waits for
+    S8b.
+  * **Moved helper.** The opencode tests have their own `TestMain`, which
+    turns the metadata fetch off, as `llmprovider`'s does.
+  * **New tests:**
+    * `request_test.go`: the refusals, the key read per request, each
+      route's form of each tool choice with two tools, the output limit per
+      route;
+    * `TestOpencode_RequestModelPicksItsRoute`;
+    * `TestGenerate_InstructionsAreALeadingSystemItem`;
+    * `TestOpencode_TokenHeaderOverride`, on every route;
+    * `TestListModels_NeverProbes`;
+    * `TestListModels_CarriesTheCallersIdentity`.
+  * **Live.** Every live test that built through `NewOpencode` is in the
+    external `live_opencode_test.go`. `live_opencode_route_test.go`,
+    `live_opencode_conventions_test.go`, `live_reasoning_replay_test.go` and
+    `live_system_test.go` were OpenCode-only and are gone.
+    `live_export_test.go` exports `LiveModel` and `LiveOpencodeKey`.
+* **G-wire.** All 42 opencode goldens (seven cases, six scenarios each) are
+  byte-identical to `3d4aff5`'s, with no `-update`, as is
+  `opencode-routes.json`. There is no continuation golden: the `P7` type had
+  no `Continue`.
+* **Step 5, llmtest.** `TestConformance` passes on Zen's chat route and Go's
+  messages route.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | `WithRoute` does not pin | `path = "/messages", want the override's /chat/completions` |
+  | the metadata route ignored | `path = "/chat/completions", want "/messages"` |
+  | the request's model does not pick the route | `path = "/responses", want claude-sonnet-5's /messages` |
+  | the messages route reads `Authorization` | `Authorization must not be sent on this route`, and `opencode-zen-messages/text.json` |
+  | generation ignores the token's header | `POST: X-Custom = "", want "Bearer v"` |
+  | the listing ignores the token's header | `GET: X-Custom = "", want "Bearer v"` |
+  | no key sends no public token | `/messages: x-api-key = "", want "public"` |
+  | an OAuth session accepted | `opencode-zen/oauth: err = <nil>, want ErrUnsupported` |
+  | continuation claimed | `Continuation = Supported, want Unsupported` |
+  | the chat effort sent without the metadata | `reasoning_effort = low, want absent` |
+  | interleaved reasoning not replayed | `assistant reasoning_content = … (nil) …, want ["Call the tool." ""]` |
+  | messages forces a tool while thinking | `thinking-tool.json`: `tool_choice.type: want "auto", got "tool"` |
+  | google drops a required choice | `"required": tool choice = <nil>, want map[functionCallingConfig:map[mode:ANY]]` |
+  | the chat route offers one tool | `tools = [… get_weather …], want both` |
+  | instructions dropped | `claude-sonnet-5: system = SECOND, want FIRST before SECOND` |
+  | the responses route sends no `store` | `store = <nil> (present false), want false`, and `requests[0].body.store: want false, got (absent)` |
+  | no session header | `sessions = ["" "" ""], want 3 non-empty`, and `header.X-Opencode-Session: want "wire-session", got (absent)` |
+  | the construction budget ignored | `thinking = map[budget_tokens:4096 type:enabled]` |
+  | `Generate` skips the capability check | `R11 (refusal before the network): a request needing continuation … returned <nil>` |
+  | `WithRoute` scoped to Zen only | `option opencode.WithRoute is for provider "opencode-zen", not "opencode-go"` |
+  | opencode-go registered under another id | `descriptor "opencode-go" is offered to users but neither Default nor the old API builds it` |
+
+* **Lint**, at the first gate, found five things, all fixed:
+  * an ignored error from `resolveRoute`: a `tableRoute` helper replaces
+    the call;
+  * a repeated `"mode"`, which became a constant;
+  * the confusing name above;
+  * an unused test helper;
+  * the old harness's listing variable, now unused.
+* **Coverage:**
+  * `providers/opencode` 97.2 %;
+  * `providers` 80.0 %;
+  * `llmprovider` 86.4 % from its own tests and 90.9 % from all of them,
+    against its `P7` 89.2 %. See the deviation of 2026-10-01 below.
+* **Links.** G-links found no link to the moved files.
+
+### Deviation 2026-10-01: `llmprovider`'s coverage after the opencode move
+
+* **Found** at the opencode commit's gate, a §0 stop condition:
+  `llmprovider` 86.4 % (`go test -cover ./llmprovider`), against its `P7`
+  89.2 %. It was 89.6 % at `3d4aff5`.
+* **Cause.** The opencode tests exercised `llmprovider` code that stays
+  there until S7b, because Kilo, Hugging Face and Together share it. They now
+  run in `providers/opencode`. Among the functions that drop from 100 % to
+  0 % on `llmprovider`'s own tests: `AddMessagesThinking`,
+  `GeminiThinkingConfig`, `GeminiSystemInstruction`, `SystemPrompt`,
+  `ExpireSession`, and the metadata view (`LookupModelMetadata`,
+  `ReasoningEfforts`, `InterleavedField`, `NPM`).
+* **Measured both ways:** 86.4 % from `llmprovider`'s tests; 90.9 % with
+  `-coverpkg=./llmprovider` over `./llmprovider/...`.
+* **Options put to the owner:**
+  1. count every package's tests, until S7b;
+  2. add tests inside `llmprovider` for the shared code.
+
+  A lower floor was not offered. The owner chose option 1, recorded as
+  0015-MADR amendment "how `llmprovider`'s coverage is measured during S7".
+* **Effect.**
+  * §0's stop condition reads the floor that way for `llmprovider`, until
+    S7b.
+  * S12 step 2's `coverage-check` measures it so, if S12 runs before S7b
+    has finished.
+  * R47 in the standards guide notes it.
+  * Each later S7 record gives both figures.
+
+*Annotated 2026-10-01, the commit-8 record above:* it says the opencode move
+"waits unstaged". The owner committed both together, as `4adecf3`.
+
+### Phase S7, commit 10: `kilo` (2026-10-01)
+
+Built on the earlier commits' pattern; only what differs is recorded here. It
+is left unstaged, for the owner to commit after the record changes staged
+before it.
+
+* **Rebuilt tools.** The session's scratchpad had been cleared, and with it
+  the gate and its helpers. The gate, the link check, the identifier scan,
+  the import dropper and the break runner were rebuilt from these records.
+  The link check and the identifier scan were each seen to fail on planted
+  input before use. The floor check (`-coverpkg=./llmprovider`, the 2026-10-01
+  amendment) failed with its floor set to 99 %.
+* **Step 1, moved** (plain `mv`):
+  * `kilo.go` to `providers/kilo/`;
+  * `kilo_test.go`, `kilo_data_collection_test.go`,
+    `kilo_data_collection_allow_test.go`, `kilo_organization_test.go` and
+    `kilo_endpoints_test.go`, ported into `providers/kilo/`;
+  * `testdata/wire/kilo`.
+
+  **Kept in `llmprovider`:**
+  * In a new `kilo_endpoints.go`, what the listing uses:
+    * `kiloBaseURL`, the URL-prefixed token pattern, the organization
+      header;
+    * `resolveKiloEndpoints` with its helpers;
+    * `wireShapesProbedOnKilo`, which the raw-HTTP live probes in
+      `live_gateways_test.go` still check.
+  * `kilo_device.go`, the device login, which `wizard` uses. It moves to
+    `auth` in S7b.
+  * The catalog's curation and its tests, the classification test, and
+    `WithKiloOrganization`, which `wizard` passes to the old catalog
+    functions. The catalog and classification tests are in a new
+    `kilo_catalog_test.go`.
+  * `listKiloModels`, which only the old type called, is removed. Its
+    documentation of the catalog's two traps stays.
+* **Temporary export,** for S8b's `catalog`: `KiloGatewayFor(baseURL, token,
+  org)`, the generation base and organization `resolveKiloEndpoints`
+  derives.
+* **New accessor:** `Settings.ClientName()`, the name `WithClientInfo` gives,
+  which Kilo sends as its editor name. `WithClientInfo` was already common.
+* **Step 2, the new API:**
+  * `kilo.New` and `ListModels`;
+  * `kilo.WithOrganization`, `kilo.WithCapabilities` and
+    `kilo.WithDataCollection`, scoped options.
+
+  The old `WithKiloCapabilities` and `WithKiloDataCollection` lose their
+  only reader. Their docs say so, as `WithStore`'s does; S8 removes them.
+
+  **Credentials.**
+  * With no credential, or an empty key, Kilo's `anonymous` token is sent,
+    as `NewKilo("")` did.
+  * An OAuth session or a CLI login is refused (R16). A Kilo device login
+    yields a token, which is a key.
+
+  **The endpoints are resolved per request,** from the token read for that
+  request. `NewKilo` resolved them once, from the key string. A source can
+  only be read at request time, since `New` makes no call. A source whose
+  URL-prefixed token changes therefore moves its requests
+  (`TestKilo_RotatingTokenPicksItsBase`).
+
+  **Request fields.**
+  * Every tool in `Request.Tools` is offered, as the old code offered its
+    one.
+  * A tool choice is sent only when the model accepts `tool_choice`, as
+    before: a named tool as before, `required` and `none` as strings (not
+    measured; `TestLive_KiloToolChoices`, not run).
+  * `Instructions` go in a leading system message.
+  * A request's `Reasoning` falls back to `WithReasoning`'s effort.
+
+  **Capabilities.** Forced tool choice and reasoning are `BestEffort`, since
+  `WithCapabilities` may withhold them. Continuation is `Unsupported`.
+* **Step 4, the tests ported.**
+
+  | From `llmprovider` | To `kilo` |
+  |---|---|
+  | `kilo_test.go`, less its catalog tests | `kilo_test.go` |
+  | `kilo_endpoints_test.go`, `kilo_organization_test.go`, `kilo_data_collection*_test.go` (less the classification test) | `endpoints_test.go` |
+  | `identification_options_test.go` and `keyless_test.go` (now Kilo's only), and the Kilo parts of `identification_test.go` (`TestIdentification_KiloHeaders`, the Kilo rows of `…_UserAgent` and of `…_NoForbiddenHeaders`, which had only that row left), `api_error_message_test.go`, `interface_test.go` | `identification_test.go` |
+  | the Kilo rows of `discovery_wiring_test.go`, `probe_scope_test.go` | `listing_test.go` |
+  | the kilo G-wire case | `wire_test.go` |
+
+  * **Changed kind.** `TestKilo_NoContinuer` is `TestKilo_NoContinuation`:
+    `Continuation = Unsupported`, refused with `ErrUnsupported` before any
+    request.
+  * **Run both ways.** `TestKilo_ReasoningEffortConfigured` runs with the
+    effort at construction and on the request.
+  * **Deferred, by the accepted profile gap.** The kilo row of
+    `TestDiscoverModels_HonoursRankingOptions` switched profiles, and only
+    that. It waits for S8b.
+  * **New tests:**
+    * `request_test.go`: the refusals, Kilo's options, the key per request,
+      the request fields, each tool choice with and without `tool_choice`,
+      reasoning's fallbacks;
+    * `TestKilo_RotatingTokenPicksItsBase`;
+    * `TestKilo_TokenHeaderOverride`;
+    * `TestListModels_NeverProbes` and
+      `TestListModels_CarriesTheCallersIdentity`;
+    * in `llmprovider`, `TestKiloGatewayFor`.
+  * **Live.** `live_kilo_test.go` is external:
+    * the Kilo tests of `live_gateways_test.go` that build a provider;
+    * `live_kilo_data_collection_test.go`, which now reads `Code`, not the
+      deprecated `Type`;
+    * the kilo row of the tool round trip;
+    * the new `TestLive_KiloToolChoices`.
+
+    `live_export_test.go` exports `LiveKiloKey`, `LiveKiloFreeCollecting`
+    and `LiveKiloNonTraining`.
+* **G-wire.** The six kilo goldens are byte-identical to `HEAD`'s, with no
+  `-update`. There is no continuation golden.
+* **Step 5, llmtest.** `TestConformance` passes.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | `WithCapabilities` ignored | `tool_choice present = true, want false`; `reasoning = map[enabled:true], want absent` |
+  | `tool_choice` sent whatever the model accepts | `tool_choice present = true, want false` |
+  | data collection always denied | `provider = map[data_collection:deny], want absent` |
+  | no key sends no anonymous token | `no credential: Authorization = "Bearer", want "Bearer anonymous"` |
+  | an OAuth session accepted | `oauth: err = <nil>, want ErrUnsupported` |
+  | generation sends no organization | `TestKilo_OrganizationOption` and `TestKilo_URLTokenOrganization`: the requests differ |
+  | the listing drops the organization | `TestKilo_OrganizationOption`: the listing URL differs |
+  | the endpoints ignore the token | `TestKilo_URLTokenSelectsBase`: the requests differ |
+  | no editor header | `editor/task = ""/"s-1", want pcm/s-1` |
+  | generation ignores the token's header | `POST: X-Custom = "", want "Bearer v"` |
+  | the listing ignores the token's header | `GET: X-Custom = "", want "Bearer v"` |
+  | instructions dropped | `messages = [… Be brief. …], want the instructions as a leading system message` |
+  | only the first tool offered | `"auto": 1 tools sent, want 2` |
+  | the construction effort ignored | `reasoning = map[enabled:true], want map[effort:low]` |
+  | `Generate` skips the capability check | `R11 (refusal before the network): … returned <nil>` |
+  | `KiloGatewayFor` drops the organization | `KiloGatewayFor(…, "org-1") = …, ""; want …, "org-1"` |
+  | kilo registered under another id | `descriptor "kilo" is offered to users but neither Default nor the old API builds it` |
+
+* **Lint** found one doc comment not of the form "WithDataCollection …",
+  which was reworded.
+* **Coverage:**
+  * `providers/kilo` 95.3 %;
+  * `llmprovider` 86.0 % from its own tests and 90.8 % over
+    `./llmprovider/...`, the measure the 2026-10-01 amendment sets, against
+    its `P7` 89.2 %.
+* **Links.** G-links found no link to the moved files.

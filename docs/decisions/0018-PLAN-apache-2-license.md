@@ -37,7 +37,7 @@ Out:
 1. Copy `LICENSE` from `go-core-lib` byte for byte. `cmp` against that
    file and against `magic-cli-remote/LICENSE`. Both exit 0.
 2. Append a License section to `README.md`: "Licensed under the Apache
-   License, Version 2.0. See [LICENSE](LICENSE)." The wording matches
+   License, Version 2.0. See `[LICENSE](LICENSE)`." The wording matches
    `go-core-lib`.
 3. In `docs/architecture.md`, add `LICENSE` to the tree listing as
    Apache License 2.0, and remove the "A licence file." bullet from

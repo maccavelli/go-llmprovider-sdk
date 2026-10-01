@@ -66,16 +66,6 @@ func wireOpts(baseURL string, extra ...ProviderOption) []ProviderOption {
 
 var wireCases = []wireCase{
 	{
-		name: "kilo",
-		listing: `{"data":[{"id":"anthropic/claude-sonnet-5","name":"Claude Sonnet 5","created":1780000000,` +
-			`"architecture":{"input_modalities":["text"],"output_modalities":["text"]},` +
-			`"pricing":{"prompt":"0.000003","completion":"0.000015"},"context_length":200000,` +
-			`"supported_parameters":["tools","tool_choice","reasoning","reasoning_effort"]}]}`,
-		build: func(u string, extra ...ProviderOption) (wireProvider, error) {
-			return NewKilo("kilo-wire-key", "anthropic/claude-sonnet-5", wireOpts(u, extra...)...)
-		},
-	},
-	{
 		name: "huggingface",
 		listing: `{"data":[{"id":"openai/gpt-oss-120b","architecture":{"input_modalities":["text"],"output_modalities":["text"]},` +
 			`"providers":[{"status":"live","supports_tools":true,"throughput":100,"first_token_latency_ms":300}]}]}`,

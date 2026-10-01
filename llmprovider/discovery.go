@@ -269,9 +269,10 @@ func chatGPTCatalogModelListed(model chatGPTCatalogModel) bool {
 }
 
 // modelCatalogFor dispatches one provider's fetch and curation. The caller
-// owns the timeout. OpenAI, Claude, Gemini, Grok and the OpenCode gateways
-// send token as it describes itself (0016-MADR A6); the providers still on the
-// old API send its value in their own header until 0015-PLAN S7 moves them.
+// owns the timeout. OpenAI, Claude, Gemini, Grok, the OpenCode gateways and
+// Kilo send token as it describes itself (0016-MADR A6); the providers still
+// on the old API send its value in their own header until 0015-PLAN S7 moves
+// them.
 func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg ProviderConfig) (ModelCatalog, error) {
 	apiKey := token.Value
 	switch p := strings.ToLower(providerName); p {
@@ -295,7 +296,7 @@ func modelCatalogFor(ctx context.Context, providerName string, token Token, cfg 
 		return catalogFrom(usable, err, StaticModels(ProviderHuggingFace),
 			metadataCurate(ProviderHuggingFace, cfg.ModelProfile, meta, curateHuggingFace)), nil
 	case ProviderKilo:
-		entries, err := fetchKiloCatalog(ctx, apiKey, cfg)
+		entries, err := fetchKiloCatalog(ctx, token, cfg)
 		// Deliberate: a failed Kilo fetch degrades to the static catalog rather
 		// than failing, like every other lister here. See catalogFrom.
 		return catalogFrom(kiloUsable(entries), err, StaticModels(ProviderKilo), kiloCurate(entries, cfg.ModelProfile)), nil
@@ -894,16 +895,16 @@ func kiloPriceRank(s string) float64 {
 
 // fetchKiloCatalog performs the shared GET {base}/models, or an organization's
 // listing (resolveKiloEndpoints). The public endpoint answers with no
-// credential (verified 2026-08-29), so apiKey may be empty.
-func fetchKiloCatalog(ctx context.Context, apiKey string, cfg ProviderConfig) ([]kiloCatalogEntry, error) {
-	endpoints := resolveKiloEndpoints(cfg.BaseURL, apiKey, cfg.KiloOrganization)
+// credential (verified 2026-08-29), so the token may be empty.
+func fetchKiloCatalog(ctx context.Context, token Token, cfg ProviderConfig) ([]kiloCatalogEntry, error) {
+	endpoints := resolveKiloEndpoints(cfg.BaseURL, token.Value, cfg.KiloOrganization)
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoints.models, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
 	identityOf(cfg).setUserAgent(req)
-	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+	if token.Value != "" {
+		SetTokenHeader(req, token, oauthAuthorizationHeader, bearerScheme)
 	}
 	if endpoints.org != "" {
 		req.Header.Set(kiloOrganizationHeader, endpoints.org)
@@ -925,9 +926,7 @@ func fetchKiloCatalog(ctx context.Context, apiKey string, cfg ProviderConfig) ([
 	return result.Data, nil
 }
 
-// listKiloModels fetches the Kilo catalog and curates it.
-//
-// Two documented traps are handled in kiloUsable:
+// The Kilo catalog's curation. Two documented traps are handled in kiloUsable:
 //
 //  1. pricing.completion is a STRING and is "-1" for the variable-priced
 //     kilo-auto/{frontier,balanced,efficient} tiers. A naive ascending sort would
@@ -939,11 +938,6 @@ func fetchKiloCatalog(ctx context.Context, apiKey string, cfg ProviderConfig) ([
 //
 // Models flagged mayTrainOnYourPrompts are excluded. That is a POLICY decision,
 // not a capability filter — see isUsableKiloModel's comment.
-func listKiloModels(ctx context.Context, apiKey string, cfg ProviderConfig) ([]string, error) {
-	return boundedListing(ctx, func(ctx context.Context) (ModelCatalog, error) {
-		return modelCatalogFor(ctx, ProviderKilo, Token{Value: apiKey}, cfg)
-	})
-}
 
 // kiloUsable returns the usable Kilo models, cheapest first: input must include
 // text and output must be exactly text (MADR 0007 §1b), tools must be supported,
@@ -1014,12 +1008,12 @@ func kiloCurate(entries []kiloCatalogEntry, profile ModelProfile) func([]string)
 }
 
 // KiloModelCapabilities returns the supported_parameters published for one Kilo
-// model, for use with WithKiloCapabilities. The catalog endpoint is public, so
+// model, for use with kilo.WithCapabilities. The catalog endpoint is public, so
 // apiKey may be empty. An empty list is a valid answer; an error means the
 // catalog was unreachable or the model is absent from it.
 func KiloModelCapabilities(ctx context.Context, apiKey, model string, opts ...ProviderOption) ([]string, error) {
 	cfg := ApplyOptions(opts)
-	entries, err := fetchKiloCatalog(ctx, apiKey, cfg)
+	entries, err := fetchKiloCatalog(ctx, Token{Value: apiKey}, cfg)
 	if err != nil {
 		return nil, err
 	}

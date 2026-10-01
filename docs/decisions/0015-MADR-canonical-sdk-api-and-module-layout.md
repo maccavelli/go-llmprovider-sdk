@@ -577,3 +577,23 @@ So from the opencode commit until S8b, a new-API open-catalog provider
 lists with the default profile: `WithModelProfile` is old-API only.
 `wizard` is not affected, as it lists through the old catalog functions
 until its port in S8. The owner accepted the gap.
+
+## Amendment 2026-10-01: how `llmprovider`'s coverage is measured during S7
+
+Status: **accepted** 2026-10-01 by the owner.
+
+* **Fact found.** D13 says no package's statement coverage may fall below
+  its baseline. It does not say which tests count. During 0015-PLAN S7, the
+  wire code the moved providers share stays in `llmprovider` until S7b,
+  and the tests that exercise it move with the providers. After the
+  opencode commit (`4adecf3`), `llmprovider` measured 86.4 % from its own
+  tests, against its `P7` 89.2 %. With every test under `./llmprovider/...`
+  counted (`-coverpkg=./llmprovider`), it measured 90.9 %.
+* **Decided.** Until 0015-PLAN S7b has moved the shared wire, transport and
+  `auth` code out of `llmprovider`, its floor is measured with
+  `-coverpkg=./llmprovider` over `./llmprovider/...`. Every other package,
+  and `llmprovider` after S7b, is measured by its own tests, as before.
+* **Rejected:** adding tests inside `llmprovider` for code the provider
+  packages already test. They would duplicate those tests, grow with every
+  later move, and move again in S7b. A lower floor was not offered, as it
+  loosens the check.

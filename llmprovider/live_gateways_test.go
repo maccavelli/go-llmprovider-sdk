@@ -111,55 +111,6 @@ func getJSON(t *testing.T, url string, into any) int {
 	return resp.StatusCode
 }
 
-func TestLive_KiloChatCompletions(t *testing.T) {
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-	p, err := NewKilo(kiloKey(t), liveModel(t, ProviderKilo, kiloFreeCollecting...), WithKiloDataCollection(true))
-	if err != nil {
-		t.Fatalf("NewKilo: %v", err)
-	}
-	out, err := p.Generate(ctx, "Reply with only the word ALPHA")
-	skipIfTransient(t, err)
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	if strings.TrimSpace(out) == "" {
-		t.Errorf("empty output (probed %s)", wireShapesProbedOnKilo)
-	}
-}
-
-// TestLive_KiloToolCall is the only end-to-end tool-calling coverage in this
-// change: OpenCode's free models refuse tool requests and Hugging Face has no
-// free tier.
-func TestLive_KiloToolCall(t *testing.T) {
-	ctx, cancel := liveCtx(t)
-	defer cancel()
-	p, err := NewKilo(kiloKey(t), liveModel(t, ProviderKilo, kiloFreeCollecting...), WithMaxTokens(400),
-		WithKiloDataCollection(true))
-	if err != nil {
-		t.Fatalf("NewKilo: %v", err)
-	}
-	tool := Tool{
-		Name:        "get_weather",
-		Description: "Get the weather for a city",
-		Schema: map[string]any{
-			"type":       "object",
-			"properties": map[string]any{"city": map[string]any{"type": "string"}},
-			"required":   []string{"city"},
-		},
-	}
-	args, err := p.GenerateWithTool(ctx, "What is the weather in Paris? Use the tool.", tool)
-	skipIfTransient(t, err)
-	if err != nil {
-		t.Fatalf("GenerateWithTool: %v", err)
-	}
-	var parsed map[string]any
-	if err := json.Unmarshal([]byte(args), &parsed); err != nil {
-		t.Fatalf("tool arguments %q are not valid JSON (probed %s): %v",
-			args, wireShapesProbedOnKilo, err)
-	}
-}
-
 // TestLive_KiloReasoningSpelling pins the dual-name decoder: Kilo emits
 // message.reasoning, OpenCode emits message.reasoning_content.
 func TestLive_KiloReasoningSpelling(t *testing.T) {
@@ -405,42 +356,5 @@ func TestLive_ModelMetadataDocument(t *testing.T) {
 	m, ok := doc[metadataKeyZen]["glm-5.3-flash"]
 	if !ok || m.Reasoning == nil || !*m.Reasoning {
 		t.Errorf("DRIFT: %s/glm-5.3-flash reasoning = %v (present %v), want true", metadataKeyZen, m.Reasoning, ok)
-	}
-}
-
-// TestLive_KiloReasoningShapes is MADR 0009 §6's gate (as amended 2026-09-26):
-// on deepseek/deepseek-v4.1-flash, Kilo's first utility default, the gateway
-// must accept both reasoning shapes and return reasoning. A 400 is a DRIFT
-// failure here, not a skip, so skipIfTransient is deliberately not used. The
-// gateway does not validate effort values, so this proves acceptance and that
-// reasoning is on, not that {"effort":"low"} changes the effort.
-func TestLive_KiloReasoningShapes(t *testing.T) {
-	key := kiloKey(t)
-	for _, tc := range []struct{ name, effort string }{{"enabled", ""}, {"effort low", effortLow}} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := liveCtx(t)
-			defer cancel()
-			p, err := NewKilo(key, liveModel(t, ProviderKilo, kiloNonTraining...), WithMaxTokens(400),
-				WithReasoningEffort(tc.effort))
-			if err != nil {
-				t.Fatalf("NewKilo: %v", err)
-			}
-			resp, err := p.GenerateItemsThinking(ctx, MessageItem{Role: jsonRoleUser, Text: "Reply with only the word ALPHA"})
-			if errors.Is(err, ErrRateLimited) || errors.Is(err, ErrProviderUnavailable) {
-				t.Skipf("gateway transient: %v", err)
-			}
-			if err != nil {
-				t.Fatalf("DRIFT (probed %s): gateway rejected reasoning shape %q: %v", wireShapesProbedOnKilo, tc.name, err)
-			}
-			sawReasoning := false
-			for _, item := range resp.Output {
-				if _, ok := item.(ReasoningItem); ok {
-					sawReasoning = true
-				}
-			}
-			if !sawReasoning {
-				t.Errorf("DRIFT (probed %s): no reasoning returned for shape %q", wireShapesProbedOnKilo, tc.name)
-			}
-		})
 	}
 }
