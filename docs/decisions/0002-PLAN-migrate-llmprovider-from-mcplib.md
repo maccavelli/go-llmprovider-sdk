@@ -798,7 +798,9 @@ packages~~: they stayed in `./llmprovider`, which is what the commands below
 use.
 
 0. **The login tests step 1 needs** *(proposed 2026-10-02, from the
-   0015-PLAN handover; runs only on the owner's approval)*. All in
+   0015-PLAN handover; runs only on the owner's approval)*.
+   *Annotated 2026-10-02:* approved by the owner ("finish phase 8 with step 0
+   work. proceed"). All in
    `llmprovider/live_oauth_login_test.go`, under `live_gateways`:
    * **`TestLive_ChatGPTBrowserLogin`** gains the URL check. Its `OpenURL`
      fails the test, and returns an error that ends the login, when the
@@ -866,7 +868,10 @@ use.
    * a pointer to `docs/README.md`.
 
    Phase 7 of 0009 (ranking) is **not** executed here.
-4. **Verify:** Phase 4 step 9 and G-links. Then, only when the owner asks,
+4. **Verify:** Phase 4 step 9 and G-links. *Amended 2026-10-02 (the owner's
+   decision, "re-baseline at f82d79b"):* G-api compares against `f82d79b`,
+   the API 0015-PLAN completed, not against `BASE`. See the deviation entry
+   of that date. Then, only when the owner asks,
    push and tag `v1.0.0`, and confirm
    `go list -m github.com/maccavelli/go-llmprovider-sdk@v1.0.0` resolves
    through the proxy.
@@ -2157,3 +2162,114 @@ Its
 other finding is already met: the precondition about where the live tests
 are was annotated at the handover. Nothing is changed until the owner
 approves step 0.
+
+### Phase 8 deviation, 2026-10-02: G-api's baseline
+
+* **Found.** Step 4 verifies "Phase 4 step 9", which includes G-api: the
+  exported API equals `BASE` (`mcplib` `v1.6.0`) apart from doc-comment
+  lines. After 0015-PLAN it differs in 552 declaration lines, 513 in
+  `llmprovider` and 39 in `wizard`, all from 0015-MADR's redesign. That
+  redesign was the purpose, and its migration map (G-parity, 409/409)
+  accounts for every identifier.
+  * A3 scopes G-api to Phases 4 and 5 ("mechanical-move check only"), where
+    it passed. Step 4 picked it up only through the reference to step 9.
+  * Every other part of step 9 passes (Phase 8's record, below).
+* **Decided.** The owner chose "re-baseline at f82d79b". For Phase 8,
+  G-api compares `go doc -all` of every public package with `f82d79b`, the
+  commit that completed 0015-PLAN. So it shows Phase 8 changed no exported
+  API.
+  * A3 and its `BASE` baseline stand for Phases 4 and 5.
+  * From `v1.0.0` on, `make api-check` holds the API against the latest
+    release.
+* **Rejected:** dropping G-api from step 4. Nothing would then show that
+  Phase 8 left the API alone.
+
+### Phase 8: steps 0, 3 and 4 (2026-10-02)
+
+The owner approved step 0 and asked to finish Phase 8 ("finish phase 8 with
+step 0 work. proceed"). Steps 1 and 2 need the owner's credentials and a
+person to sign in, so they wait. So does the tag, which needs the owner's
+request. This phase is therefore not complete, and this PLAN stays
+`in-progress`.
+
+* **Step 0, the login tests.**
+  * **Offline,** in `llmprovider/auth/grok_referrer_test.go`, part of every
+    `go test`:
+    * `TestGrokAuthorizeURL_CarriesTheReferrer`;
+    * `TestGrokDeviceRequest_CarriesTheReferrer`, against an `httptest`
+      issuer.
+
+    They pass. The behaviour already existed, so neither could fail first.
+  * **First-fails, offline,** each on a scratch copy:
+
+    | Break | Failure |
+    |---|---|
+    | the browser login's `referrer` changed to another value | `grok_referrer_test.go:34: referrer = ["…"], want ["go-llmprovider-sdk"]` |
+    | the device request's `referrer` dropped | `grok_referrer_test.go:66: device form referrer = [], want ["go-llmprovider-sdk"]` |
+
+  * **Live,** in `llmprovider/live_oauth_login_test.go`:
+    * `TestLive_ChatGPTBrowserLogin` now checks `originator` in its
+      `OpenURL`. A wrong value fails the test and ends the login before
+      anyone signs in.
+    * `TestLive_GrokBrowserLogin` is new, with the same check for
+      `referrer`.
+    * `TestLive_GrokDeviceLogin` is new, behind `LLMPROVIDER_LIVE_DEVICE_LOGIN`.
+    * All three revoke their session when the test ends.
+    * `go vet -tags live_gateways ./...` is clean, and unset, all three
+      skip.
+  * **Not run:** the first-fail of the live URL checks. It reaches the real
+    issuers' discovery, so it waits for the owner's approval in the turn
+    that runs it.
+  * `AGENTS.md`'s "Live tests" names `LLMPROVIDER_LIVE_DEVICE_LOGIN`.
+* **Step 3, `README.md`.**
+  * **Added:** the install line, the package table, a quick start, "LLM
+    providers", and "The configuration wizard".
+  * **Adapted from** `mcplib`'s README at `F` (`4e1f9a5`), lines 98–174, to
+    this module's v1 API, identity and environment:
+    * `NewProvider` and `NewProviderWithSource` became `providers.New`
+      with `WithAPIKey` or `WithTokenSource`;
+    * `Descriptors()` became the `Registry`;
+    * the `Generate*WithRetry` helpers became `WithRetry`;
+    * `*RateLimitError` and `*IncompleteError` became `*APIError` kinds;
+    * the `User-Agent` names `go-llmprovider-sdk`.
+  * **Not carried:**
+    * `NewBackplaneClient` and orchestration, which stay in `mcplib`
+      (0002-MADR, sixth amendment);
+    * the per-model reasoning-effort mappings, which the provider packages'
+      docs hold.
+  * **Checked:** every claim kept was checked against the code. The quick
+    start compiles: it was built in a scratch module importing this one.
+* **Step 4, verification.**
+  * **Phase 4 step 9:**
+    * `go build ./...`;
+    * `go vet` for darwin, linux (`CGO_ENABLED=0`) and windows, and with
+      `-tags live_gateways`;
+    * `go test -cover`: `llmprovider` 98.2 % and `wizard` 84.7 %, against
+      step 9's 88.0 % and 82.6 % and `make coverage-check`'s floors;
+    * `gofmt`, `go mod tidy -diff` and `make lint`, all clean.
+  * **G-dep:** `golang.org/x/term` and `golang.org/x/sys/unix`
+    (`golang.org/x/sys/windows` under `GOOS=windows`), beside this module's
+    own packages.
+  * **G-name:** `grep -rni --include='*.go' mcplib .` finds nothing.
+  * **G-api, re-baselined at `f82d79b`** (the deviation above): all 15
+    public packages are identical, so Phase 8 changed no exported API.
+    **First-fail:** a scratch copy with a parameter added to
+    `WithSessionID`, the experiment Phase 4 named, reports
+    `./llmprovider differs from f82d79b`.
+  * **G-links:** clean.
+  * **The scratch gate:** all 17 checks pass.
+* **Waiting for the owner:**
+  * **Step 1,** with the owner's credentials and a person to sign in:
+
+    ```bash
+    LLMPROVIDER_LIVE_CHATGPT=1 go test -tags live_gateways ./llmprovider -run 'TestLive_ChatGPT' -v
+    LLMPROVIDER_LIVE_BROWSER_LOGIN=1 go test -tags live_gateways ./llmprovider -run 'TestLive_(ChatGPT|Grok)BrowserLogin' -v
+    LLMPROVIDER_LIVE_DEVICE_LOGIN=1 go test -tags live_gateways ./llmprovider -run 'TestLive_GrokDeviceLogin' -v
+    go test -tags live_gateways ./llmprovider -run 'TestLive_(KiloReasoningShapes|Opencode)' -v
+    ```
+
+    The last needs `KILO_API_KEY` and `OPENCODE_API_KEY`.
+  * **Step 2:** a rejection stops the plan.
+  * **Step 4's tag:** push and tag `v1.0.0`, then check that
+    `go list -m github.com/maccavelli/go-llmprovider-sdk@v1.0.0` resolves.
+    Only on the owner's request.

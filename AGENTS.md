@@ -148,8 +148,10 @@ go test -tags live_gateways ./llmprovider -run Live
 ```
 
 Each suite is switched on by its own variable: `LLMPROVIDER_LIVE_CHATGPT`,
-`LLMPROVIDER_LIVE_BROWSER_LOGIN`, `LLMPROVIDER_LIVE_GROK_CLI`,
-`LLMPROVIDER_LIVE_TOGETHER` (with `TOGETHER_API_KEY`). CI only vets
+`LLMPROVIDER_LIVE_BROWSER_LOGIN` (the ChatGPT and Grok browser logins),
+`LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok device-code login),
+`LLMPROVIDER_LIVE_GROK_CLI`, `LLMPROVIDER_LIVE_TOGETHER` (with
+`TOGETHER_API_KEY`). The login tests need a person to sign in. CI only vets
 the live-tagged files (`go vet -tags live_gateways ./...`); it never runs them.
 
 ## Identifiers
