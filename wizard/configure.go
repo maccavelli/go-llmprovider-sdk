@@ -319,15 +319,17 @@ func discoverModels(
 	dCtx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 
-	opts := []llmprovider.Option{catalog.WithProfile(o.Profile)}
+	// One list whichever provider was chosen: Kilo's organization is in its
+	// overlay (0015-MADR D5; an empty one is the personal account).
+	opts := []llmprovider.Option{
+		catalog.WithProfile(o.Profile),
+		llmprovider.For(llmprovider.ProviderKilo, catalog.WithKiloOrganization(res.Organization)),
+	}
 	if res.BaseURL != "" {
 		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
 	}
 	if o.HTTPClient != nil {
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
-	}
-	if res.Organization != "" {
-		opts = append(opts, catalog.WithKiloOrganization(res.Organization))
 	}
 	cat, err := catalog.List(dCtx, d.ID, source, opts...)
 	if err != nil {

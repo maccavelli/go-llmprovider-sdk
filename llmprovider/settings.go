@@ -13,13 +13,55 @@ import (
 // Option configures a provider when it is built (0015-MADR D5). The common
 // options are in this package. A provider package defines its own with
 // ScopedOption or ScopedOptionFor, and New refuses one meant for another
-// provider. Options apply in order, so a later one wins.
+// provider unless For scopes it. Options apply in order, so a later one wins;
+// a For's options apply after all the others.
 type Option struct {
 	name      string       // the constructor's name, for errors
 	scoped    bool         // a provider-specific option
 	providers []ProviderID // the ids a provider-specific option is for
 	apply     func(*settings)
 	value     any // a provider-specific option's value
+
+	overlay bool       // a For
+	target  ProviderID // the id a For is for
+	inner   []Option   // a For's options
+}
+
+// For scopes opts to the provider id (0015-MADR D5): they apply only when
+// building id, after every option given outside a For, so the more specific
+// wins wherever it sits in the list. For any other id they are skipped. A
+// provider-specific option inside For(id, …) may therefore sit in a list
+// shared by several providers; given bare, it is still refused by another
+// provider's New.
+//
+// Every New refuses a For with no id, and a For nested inside a For of
+// another id, with an error matching ErrInvalidRequest.
+func For(id ProviderID, opts ...Option) Option {
+	return Option{name: fmt.Sprintf("For(%q, …)", id), overlay: true, target: id, inner: slices.Clone(opts)}
+}
+
+// overlayOptions is a For's options, with any For of the same id nested in
+// it flattened in place.
+func overlayOptions(o Option) ([]Option, error) {
+	if o.target == "" {
+		return nil, fmt.Errorf("%w: For needs a provider id", ErrInvalidRequest)
+	}
+	var out []Option
+	for _, inner := range o.inner {
+		if !inner.overlay {
+			out = append(out, inner)
+			continue
+		}
+		if inner.target != o.target {
+			return nil, fmt.Errorf("%w: %s inside %s; a For applies to one provider", ErrInvalidRequest, inner.name, o.name)
+		}
+		nested, err := overlayOptions(inner)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, nested...)
+	}
+	return out, nil
 }
 
 // settings is what the options build.
@@ -117,23 +159,49 @@ type Settings struct {
 	identity transport.Identity
 }
 
-// ResolveOptions applies opts for the provider id, for that provider's New.
-// It refuses, with an error matching ErrInvalidRequest, an option scoped to
-// another provider.
+// ResolveOptions applies opts for the provider id, for that provider's New:
+// the options outside any For in order, then those of each For(id, …) in
+// order. It refuses, with an error matching ErrInvalidRequest, an option
+// scoped to another provider that no For scopes away, and a malformed For.
 func ResolveOptions(id ProviderID, opts []Option) (*Settings, error) {
 	s := newSettings()
+	var overlays []Option
 	for _, opt := range opts {
-		switch {
-		case opt.scoped && !slices.Contains(opt.providers, id):
-			return nil, fmt.Errorf("%w: option %s is for %s, not %q", ErrInvalidRequest, opt.name, scopeText(opt.providers), id)
-		case opt.scoped:
-			s.values = append(s.values, opt.value)
+		if !opt.overlay {
+			if err := s.take(id, opt); err != nil {
+				return nil, err
+			}
+			continue
 		}
-		if opt.apply != nil {
-			opt.apply(&s)
+		inner, err := overlayOptions(opt)
+		if err != nil {
+			return nil, err
+		}
+		if opt.target == id {
+			overlays = append(overlays, inner...)
+		}
+	}
+	for _, opt := range overlays {
+		if err := s.take(id, opt); err != nil {
+			return nil, err
 		}
 	}
 	return &Settings{s: s, identity: identityOf(s.cfg)}, nil
+}
+
+// take applies one option that is not a For, refusing one scoped to another
+// provider.
+func (s *settings) take(id ProviderID, opt Option) error {
+	switch {
+	case opt.scoped && !slices.Contains(opt.providers, id):
+		return fmt.Errorf("%w: option %s is for %s, not %q", ErrInvalidRequest, opt.name, scopeText(opt.providers), id)
+	case opt.scoped:
+		s.values = append(s.values, opt.value)
+	}
+	if opt.apply != nil {
+		opt.apply(s)
+	}
+	return nil
 }
 
 // Model is the model from WithModel, or empty.

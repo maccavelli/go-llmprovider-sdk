@@ -108,7 +108,9 @@ exists now, read [architecture.md](../architecture.md).
   `kilo.WithOrganization`; one that several ids of a family take is scoped
   to all of them, as `opencode.WithRoute` is to both gateways. (0015 D5, and
   its amendment "the OpenCode family")
-- **R18. A foreign option is an error from `New`,** never ignored. (0015 D5)
+- **R18. A foreign option is an error from `New`,** never ignored, unless
+  the caller scoped it with `For(id, …)`: an overlay for another id is
+  skipped. (0015 D5 and its amendment of 2026-09-30)
 - **R19. Configuration structs are unexported.** No exported `ProviderConfig` or
   `ApplyOptions`. (0015 D5)
 - **R20. After `New`, a provider is immutable and safe for concurrent use.**

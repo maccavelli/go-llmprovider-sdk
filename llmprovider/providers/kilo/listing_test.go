@@ -137,14 +137,24 @@ func TestListModels_ListsTheOrganization(t *testing.T) {
 		_, _ = w.Write([]byte(kiloListing))
 	}))
 	t.Cleanup(srv.Close)
-	p := build(t, llmprovider.WithAPIKey("k"), llmprovider.WithModel("m"), llmprovider.WithBaseURL(srv.URL),
-		WithOrganization("org-1"))
-	if _, err := list(t, p); err != nil {
-		t.Fatalf("ListModels: %v", err)
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	if len(seen) != 1 || seen[0] != "/api/organizations/org-1/models org=org-1" {
-		t.Fatalf("listing requests = %q, want the organization's catalog with its header", seen)
+	for _, org := range []llmprovider.Option{
+		WithOrganization("org-1"),
+		// The same, through an overlay in a list other providers share
+		// (0015-MADR D5 step 3).
+		llmprovider.For(llmprovider.ProviderKilo, WithOrganization("org-1")),
+	} {
+		mu.Lock()
+		seen = nil
+		mu.Unlock()
+		p := build(t, llmprovider.WithAPIKey("k"), llmprovider.WithModel("m"), llmprovider.WithBaseURL(srv.URL), org)
+		if _, err := list(t, p); err != nil {
+			t.Fatalf("ListModels: %v", err)
+		}
+		mu.Lock()
+		got := append([]string(nil), seen...)
+		mu.Unlock()
+		if len(got) != 1 || got[0] != "/api/organizations/org-1/models org=org-1" {
+			t.Fatalf("listing requests = %q, want the organization's catalog with its header", got)
+		}
 	}
 }

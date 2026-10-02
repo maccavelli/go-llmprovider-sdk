@@ -102,7 +102,10 @@ docs/
   `Streamer`, or `Generate`'s result as events.
 - `Option` configures construction. A provider package's `New` resolves its
   options with `ResolveOptions(id, opts)`, which refuses an option scoped to
-  another provider (`ScopedOption`). The resolved `Settings` are read-only.
+  another provider (`ScopedOption`). `For(id, opts...)` scopes options to
+  one provider: they apply after the rest when building `id`, and are
+  skipped for any other, so one list can build every provider. The resolved
+  `Settings` are read-only.
 - `APIError` carries a `Kind`, one of the sentinels. `ErrContextOverflow`
   sits beneath `ErrInvalidRequest`; it is classified from the service's
   error type, or from a message table taken from pi's `overflow.ts`

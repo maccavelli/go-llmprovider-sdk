@@ -514,7 +514,13 @@ in `llmprovider` refers to `ModelProfile`.
 
    Red-first tests, and breaks for each rule. The standards guide's R18
    gains the `For` exception. `wizard` passes one option list through the
-   `Registry`.
+   ~~`Registry`~~ `catalog.List`.
+
+   *Deviation, 2026-10-01:* `wizard` builds no provider: it takes
+   descriptors from the `Registry` and lists with `catalog.List`
+   (`wizard/configure.go:322-332`). The owner chose "overlay in the listing
+   list": the Kilo organization goes in `For(kilo, …)`, so the list is the
+   same whichever provider was chosen.
 5. Gate.
 
 ### Phase S8c: extract `auth`
@@ -3677,6 +3683,7 @@ Under "S8 as amended". Staged for the owner to commit.
 Under "S8 as amended". Staged for the owner to commit, with 0016-MADR's
 amendment "D11 and D5 in `wizard`" (A7-A10) and 0016-PLAN's deviation entry
 of the same date.
+*Annotated 2026-10-01:* committed as `aa30c71`. S8 as amended is complete.
 
 * **Deviation, 2026-10-01: T4's open points.**
   * **Found,** in the survey, before any code. D11 and D5 left four points
@@ -3773,3 +3780,79 @@ of the same date.
 * **G-wire.** All goldens unchanged, with no `-update`.
 * **Coverage:** `wizard` 84.0 % (it was 83.5 %), `Logout` 91.7 %;
   `llmprovider` 89.3 % over `./llmprovider/...`, against its `P7` 89.2 %.
+
+### Phase S8b, step 4: `For(id, opts...)` (2026-10-01)
+
+Staged for the owner to commit. Steps 1-3 were done in S8, commit 2.
+
+* **`llmprovider.For(id, opts...)`** (`settings.go`) is an `Option` holding
+  its id and options (0015-MADR D5 steps 2-4).
+  * `ResolveOptions` applies every option outside a `For` in order, then
+    the options of each `For(id, …)` for the id being built, in order. The
+    more specific wins wherever it sits in the list. A `For` of another id
+    is skipped.
+  * Inside an overlay an option is checked as if it were bare. A
+    provider-specific option inside `For(kilo, …)` is legal in a shared
+    list, and one kilo does not take is still refused when building kilo.
+  * **Refused by every `New`, whichever id it builds:** a `For` with no
+    id, and a `For` nested inside a `For` of another id. A `For` of the
+    same id nested inside one is flattened, being only redundant.
+  * Step 4's old-API-only refusal has nothing left to refuse (S8,
+    commit 4).
+* **`wizard`.** Its listing list puts the Kilo organization in
+  `For(kilo, catalog.WithKiloOrganization(org))` unconditionally. An empty
+  organization is the personal account, so the list is the same whichever
+  provider was chosen.
+  * **Deviation, 2026-10-01.** The step said `wizard` passes one list
+    "through the `Registry`". `wizard` builds no provider: it lists with
+    `catalog.List`. The owner chose "overlay in the listing list". The
+    step's text is annotated.
+  * The change keeps behaviour, so it cannot be shown red first. The new
+    `TestConfigureLLM_KiloListsTheChosenOrganization` passed before it and
+    after it. The breaks below show the test and the existing listing
+    tests catch a wrong or missing overlay.
+* **Red first.** `settings_for_test.go` first did not compile, `undefined:
+  For`. Then it ran against a stub `For`, which ignored its options, in a
+  scratch copy. Each rule failed on its assertion:
+  * `kilo MaxTokens = 100, want For's 5`;
+  * `MaxTokens = 100, want For's 5 over the later baseline`;
+  * `kilo: err <nil>, values []; want [org-1]`;
+  * `err = <nil>, want the foreign option inside For refused`;
+  * `nested under a different id, building kilo: err = <nil>, …` and `no
+    id, building kilo: err = <nil>, …`, for each of three ids;
+  * `same id nested: MaxTokens = 8192, want 3`.
+* **Tests:**
+  * `llmprovider`: `TestFor_AppliesOnlyToItsID`,
+    `TestFor_WinsOverTheBaselineWhereverItSits`,
+    `TestFor_ScopedOptionInASharedList`, `TestFor_StaysStrictForItsOwnID`
+    and `TestFor_Refusals`.
+  * `providers`: `TestFor_OneListBuildsEveryProvider`. One list, with
+    `kilo`, both `opencode` gateways, `openai`, `gemini` and `grok`
+    overlays, builds all ten built-in providers. The same Kilo option given
+    bare is refused by the other nine.
+  * `kilo`: `TestListModels_ListsTheOrganization` gains a row with the
+    organization inside `For`.
+  * `wizard`: `TestConfigureLLM_KiloListsTheChosenOrganization`.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | an overlay applies to every id | `openai MaxTokens = 5, want the baseline's 100` |
+  | an overlay applies to no id | `listing requests = ["/models org="], want the organization's catalog with its header` |
+  | an overlay applies where it sits | `MaxTokens = 100, want For's 5 over the later baseline` |
+  | an overlay skips the scope check | `err = <nil>, want the foreign option inside For refused` |
+  | a For of another id nests | `nested under a different id, building kilo: err = <nil>, want "For(\"openai\", …) inside For(\"kilo\", …)"` |
+  | a For with no id is taken | `no id, building kilo: err = <nil>, want "For needs a provider id"` |
+  | only the target checks a For | `nested under a different id, building openai: err = <nil>, want "For(\"openai\", …) inside For(\"kilo\", …)"` |
+  | a same-id nested For is dropped | `same id nested: MaxTokens = 8192, want 3` |
+  | wizard's overlay names another id | `organization "org-1", listings ["/api/gateway/models org="]; want org-1's catalog with its header` |
+  | wizard passes the organization bare | `listing requests = [], want one Codex /models call` |
+
+* **Docs.**
+  * The standards guide's R18 reads "unless the caller scoped it with
+    `For(id, …)`".
+  * `architecture.md`'s contract section describes `For`.
+  * `For` is new, so the migration guide gains no row.
+* **Lint.** Clean, with no change of configuration.
+* **G-wire.** All goldens unchanged, with no `-update`.
+* **Coverage:** `llmprovider` 88.0 % from its own tests and 89.4 % over `./llmprovider/...`, against its `P7` 89.2 %; `wizard` 84.3 %.

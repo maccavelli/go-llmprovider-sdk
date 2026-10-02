@@ -3,10 +3,44 @@ package wizard
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
+
+// TestConfigureLLM_KiloListsTheChosenOrganization (0015-PLAN S8b): the
+// organization chosen after a Kilo device login reaches the listing through
+// the wizard's one option list, in For(kilo, …).
+func TestConfigureLLM_KiloListsTheChosenOrganization(t *testing.T) {
+	stubKilo(t, llmprovider.KiloAccount{HasPersonalAccount: true,
+		Organizations: []llmprovider.KiloOrganization{{ID: "org-1", Name: "Acme"}}}, nil)
+	var mu sync.Mutex
+	var listings []string
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		status, body := http.StatusNotFound, ""
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			mu.Lock()
+			listings = append(listings, r.URL.Path+" org="+r.Header.Get("X-KILOCODE-ORGANIZATIONID"))
+			mu.Unlock()
+			status, body = http.StatusOK, `{"data":[]}`
+		}
+		return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})}
+	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderKilo), 1, 1, 0}}
+	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore(), Discover: true, HTTPClient: client})
+	if err != nil {
+		t.Fatalf("ConfigureLLM() error = %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if res.Organization != "org-1" || len(listings) != 1 || listings[0] != "/api/organizations/org-1/models org=org-1" {
+		t.Fatalf("organization %q, listings %q; want org-1's catalog with its header", res.Organization, listings)
+	}
+}
 
 const kiloWizardToken = "kilo-device-token-0123456789"
 
