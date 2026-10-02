@@ -130,7 +130,7 @@ key.
 
 ## Status
 
-There is no release yet. The module requires Go 1.27.1.
+The current release is `v1.0.0`. The module requires Go 1.27.1.
 
 - The provider and wizard code was imported, with its history, from
   `mcplib` `v1.6.0` and re-homed here
@@ -141,10 +141,10 @@ There is no release yet. The module requires Go 1.27.1.
   decides, on the provider-auth baseline of
   [0016-MADR](docs/decisions/0016-MADR-provider-auth-and-support-baseline.md).
   [0015-PLAN](docs/decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
-  has built it, and CI enforces its standards. The first release, `v1.0.0`,
-  follows the live identity gates of
+  has built it, and CI enforces its standards. `v1.0.0` was released after
+  the live identity gates of
   [0002-PLAN](docs/decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md)
-  Phase 8.
+  Phase 8. From it on, `make api-check` fails on an incompatible change.
 
 ## I want to…
 

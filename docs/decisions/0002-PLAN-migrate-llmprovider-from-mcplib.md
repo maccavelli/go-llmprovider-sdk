@@ -2394,3 +2394,31 @@ checked for presence only.
     identical" held before this change.
   * The `ForcedToolChoice` value is set at run time, not declared, so
     `apidiff` would not report it either.
+
+### Phase 8 step 4: `v1.0.0` (2026-10-02)
+
+The owner tagged and pushed `v1.0.0` and asked for it to be verified ("tag
+pushed, verify it").
+
+* **The tag.** An annotated tag on `b8ccb39`, which is `origin/main`, both
+  locally and on `origin`.
+* **CI.** Run `37059350877`, for the tag push, passed on Linux, macOS and
+  Windows. So did run `37046592893`, for `main` at the same commit.
+* **Through the proxy.** It was checked with an empty module cache and
+  `GOPROXY=https://proxy.golang.org` alone.
+  * `go list -m github.com/maccavelli/go-llmprovider-sdk@v1.0.0` resolves:
+    Go 1.27.1, `refs/tags/v1.0.0`, hash `b8ccb39`.
+  * A scratch module ran `go get …@v1.0.0` against the checksum database,
+    then built and ran a program importing `providers` and `wizard`. It
+    printed 10 providers.
+  * `go mod verify` says `all modules verified`.
+  * The `go.sum` lines are
+    `h1:0Dimz27zBlg0Yk/zUaWWS51GYuZ4fNHihIghlaSijdk=` and, for `go.mod`,
+    `h1:WaQHHp2FPkKTvt05wUktcBbKk172rE/OSBhklOug51c=`.
+* **`make api-check`** now has a tag to compare against: `against v1.0.0, 0
+  incompatible change(s) outside llmprovider/x/`.
+* **Phase 8 is complete.** This PLAN stays `in-progress` for Phase 9, the
+  `mcplib` deprecation, which waits for `mcp-server-magictools` and
+  `mcp-server-magicdev` to migrate (its "Decided 2026-09-29: it waits").
+* **Docs.** `README.md`'s status names the release.
+  `architecture.md` no longer lists a release among what is not here.

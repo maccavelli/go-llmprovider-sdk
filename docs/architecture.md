@@ -436,5 +436,3 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 - **Native streaming.** Every provider's `NativeStreaming` is `Unsupported`,
   so `Stream` uses the `Generate` fallback.
 - **`llmprovider/x/`.** No experimental API exists.
-- **A release.** There is no tag; `v1.0.0-rc.1` waits for the owner's
-  request.
