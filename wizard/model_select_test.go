@@ -280,16 +280,14 @@ func TestConfigureLLM_ChatGPTNoStaticNotice(t *testing.T) {
 		confirms: []bool{true},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{
-		Existing: Result{
-			Provider:     llmprovider.ProviderOpenAI,
-			Kind:         CredOAuth,
-			AccessToken:  "existing-access-abcd",
-			RefreshToken: "existing-refresh",
-			TokenExpiry:  time.Now().Add(time.Hour),
-			Issuer:       llmprovider.DefaultOpenAIIssuer,
-			ClientID:     llmprovider.DefaultOpenAIClientID,
-			AccountID:    "acct_test",
-		},
+		Existing: storedExisting(t, store, Result{
+			Provider:    llmprovider.ProviderOpenAI,
+			Kind:        CredOAuth,
+			TokenExpiry: time.Now().Add(time.Hour),
+			Issuer:      llmprovider.DefaultOpenAIIssuer,
+			ClientID:    llmprovider.DefaultOpenAIClientID,
+			AccountID:   "acct_test",
+		}, "existing-access-abcd", "existing-refresh"),
 		TokenStore: store,
 		Discover:   true,
 		HTTPClient: client,

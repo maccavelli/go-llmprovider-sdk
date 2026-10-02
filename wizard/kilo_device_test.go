@@ -30,9 +30,10 @@ func stubKilo(t *testing.T, account llmprovider.KiloAccount, profileErr error) {
 	}
 }
 
-// TestConfigureLLM_KiloDeviceLogin (0017-MADR D2): the device login's token
-// is saved to the store and returned as the Kilo API key; an account with
-// organizations chooses one, or the personal account.
+// TestConfigureLLM_KiloDeviceLogin (0017-MADR D2; 0016-MADR D11, A7): the
+// device login's token is saved to the store, its only copy, and Result is an
+// oauth credential with no token; an account with organizations chooses one,
+// or the personal account.
 func TestConfigureLLM_KiloDeviceLogin(t *testing.T) {
 	orgs := llmprovider.KiloAccount{HasPersonalAccount: true, SelectedOrganizationID: "org-2",
 		Organizations: []llmprovider.KiloOrganization{{ID: "org-1", Name: "Acme"}, {ID: "org-2", Name: "Beta"}}}
@@ -57,9 +58,11 @@ func TestConfigureLLM_KiloDeviceLogin(t *testing.T) {
 				t.Fatal(err)
 			}
 			saved := store.sessions[llmprovider.ProviderKilo]
-			if res.Kind != CredAPIKey || res.APIKey != kiloWizardToken || res.Organization != tc.wantOrg {
-				t.Errorf("Result kind %q key-set %v organization %q; want api_key, the token, %q",
-					res.Kind, res.APIKey == kiloWizardToken, res.Organization, tc.wantOrg)
+			if res.Kind != CredOAuth || res.Organization != tc.wantOrg {
+				t.Errorf("Result kind %q organization %q; want oauth, %q", res.Kind, res.Organization, tc.wantOrg)
+			}
+			if fields := resultFieldsHolding(res, kiloWizardToken); len(fields) != 0 {
+				t.Errorf("Result fields %v hold the token; the store is the only copy", fields)
 			}
 			if saved == nil || saved.Access != kiloWizardToken || saved.Refresh != "" {
 				t.Errorf("stored session %v, want the token with no refresh", saved)

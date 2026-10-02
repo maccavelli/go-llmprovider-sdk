@@ -49,7 +49,11 @@ func TestConfigureLLM_TokenStdinStillAcceptsChatGPTToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureLLM() error = %v", err)
 	}
-	if res.Kind != CredOAuth || res.AccessToken != "pasted-chatgpt-access" || store.saves != 1 {
-		t.Fatalf("credential %q/%q, saves %d; want an access-only session", res.Kind, res.AccessToken, store.saves)
+	saved := store.sessions[llmprovider.ProviderOpenAI]
+	if res.Kind != CredOAuth || saved == nil || saved.Access != "pasted-chatgpt-access" || saved.Refresh != "" || store.saves != 1 {
+		t.Fatalf("credential %q, stored %v, saves %d; want an access-only session in the store", res.Kind, saved, store.saves)
+	}
+	if fields := resultFieldsHolding(res, "pasted-chatgpt-access"); len(fields) != 0 {
+		t.Fatalf("Result fields %v hold the token", fields)
 	}
 }

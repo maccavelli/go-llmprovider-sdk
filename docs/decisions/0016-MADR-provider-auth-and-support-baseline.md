@@ -314,6 +314,7 @@ processes.*
 * Descriptor and status values never carry key material (R4).
 * A test formats each type with `%v`, `%+v`, `%#v` and `slog`, and fails if
   a planted secret appears.
+* *Amended 2026-10-01 (A9):* `wizard.Result`'s JSON is not redacted.
 
 ### D6. Device login returns a handle
 
@@ -381,6 +382,7 @@ processes.*
 * `wizard` offers "log out" for a stored session: `RevokeOAuthSession`,
   then `TokenStore.Delete`. A revocation failure is reported and the local
   copy is still deleted.
+* *Amended 2026-10-01 (A7, A8, A10):* how `wizard` meets this.
 
 ### D12. Anthropic's key variable
 
@@ -703,3 +705,72 @@ The owner wrote on 2026-09-30: "Actually re-enable probes by default. Add an env
     them sees the change; nothing in this module read either.
 * **Effect.** D2's wire is unchanged: G-wire shows no difference. R16 in
   `docs/guides/api-standards.md` states the prefix rule.
+
+## Amendment 2026-10-01: D11 and D5 in `wizard` (the owner's decisions)
+
+Status: **accepted** 2026-10-01. Asked during 0015-PLAN S8, commit 6, which
+carries 0016-PLAN T4. Each point is one that D11 or D5 left open.
+
+### A7. A stored session leaves no token in `Result` (D11)
+
+* **Fact found.**
+  * Every sign-in that saves to `Options.TokenStore` (browser, device,
+    pasted ChatGPT token) set `Result.AccessToken` and `RefreshToken`
+    (`wizard/configure.go:137-145`).
+  * Kilo's device login saved its token to the store and also returned it
+    as `Result.APIKey` (`wizard/auth.go:176-180`).
+* **Decided.** The owner chose "store only, Kind oauth" for Kilo.
+  * Every stored session gives `Kind` `CredOAuth` and no token, Kilo's
+    included. The consumer loads the session from the store and passes it
+    as the provider's `TokenSource`. Kilo's requests are unchanged: an
+    `OAuthSession` with no `Header` and a static key both send
+    `Authorization: Bearer <token>`.
+  * The OAuth methods are offered only with a store, so no path sets
+    `Result.AccessToken` or `RefreshToken` any more. Both fields are
+    removed, rather than left as fields that are always empty.
+  * The non-secret fields stay: `TokenExpiry`, `Issuer`, `ClientID`,
+    `AccountID`, `FedRAMP`.
+* **Rejected.** Keeping Kilo's token as `APIKey`: two copies, which D11
+  exists to prevent.
+
+### A8. Logout is a function (D11)
+
+* **Decided.** The owner chose "a `Logout` function".
+  `wizard.Logout(ctx, p, o, id)`:
+  * confirms through the `Prompter`;
+  * loads the stored session;
+  * revokes it with `RevokeOAuthSession`, reporting a failure as a warning;
+  * then deletes it from `Options.TokenStore`.
+  * `ConfigureLLM`'s prompts are unchanged; a consumer wires `Logout` to
+    its own command.
+* **Following from `RevokeOAuthSession`'s scope.** That function revokes
+  OpenAI and Grok sessions only. For another provider's session (Kilo's),
+  `Logout` says the service offers no revocation, and deletes.
+* **Rejected.**
+  * A third choice inside `ConfigureLLM`: it changes the flow's prompts.
+  * Both: the cost of each.
+
+### A9. `Result`'s JSON is the consumer's (D5)
+
+* **Fact found.** 0016-PLAN T4.3 says `Result` "joins T2 step 3's table",
+  which also checks `json.Marshal`. But `Result` is the consumer's data to
+  persist (its doc says so), and it holds `APIKey`.
+* **Decided.** The owner chose "fmt and slog only".
+  * `String`, `GoString` and `LogValue` mask `APIKey`.
+  * `json.Marshal` keeps it, and a test pins that it does.
+* **Rejected.** Redacting the JSON as well, as A4 does for `OAuthSession`.
+  A consumer persisting `Result` with `encoding/json` would lose its key.
+
+### A10. Keeping a session reads the store (D11)
+
+* **Decided.** The owner chose "store only". When `Options.Existing` names
+  the provider with `Kind` `CredOAuth`, the wizard loads that provider's
+  session from `Options.TokenStore` and offers to keep it. If the store has
+  none, the user signs in again.
+* **Rejected.** Also rebuilding the session from an old `Result`'s tokens
+  and saving it, to migrate one. That path would have to stay until a
+  later removal.
+
+### Effect
+
+D11 and D5 stand. These points say how `wizard` meets them.

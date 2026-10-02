@@ -101,7 +101,7 @@ func resolveCredential(
 	}
 	switch method {
 	case llmprovider.AuthBrowserOAuth:
-		if session, keep, keepErr := keepExistingOAuth(p, d, o); keepErr != nil {
+		if session, keep, keepErr := keepExistingOAuth(ctx, p, d, o); keepErr != nil {
 			return resolvedCredential{}, keepErr
 		} else if keep {
 			return oauthCredential(session), nil
@@ -157,9 +157,9 @@ func resolveVendorCLI(
 }
 
 // resolveKiloDevice runs Kilo's device login (0017-MADR D2). The token has no
-// refresh and no expiry: it is saved to the TokenStore and applied as the
-// Kilo API key. When the account belongs to organizations, the user chooses
-// one, or the personal account.
+// refresh and no expiry: it is saved to the TokenStore, its only copy, and the
+// session is the Kilo credential (0016-MADR D11, A7). When the account
+// belongs to organizations, the user chooses one, or the personal account.
 func resolveKiloDevice(
 	ctx context.Context,
 	p Prompter,
@@ -177,7 +177,7 @@ func resolveKiloDevice(
 	if err := o.TokenStore.Save(ctx, d.ID, session); err != nil {
 		return resolvedCredential{}, fmt.Errorf("wizard: save Kilo login: %w", err)
 	}
-	cred := staticCredential(CredAPIKey, session.Access)
+	cred := oauthCredential(session)
 	var opts []llmprovider.Option
 	if o.HTTPClient != nil {
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
@@ -222,33 +222,34 @@ func oauthCredential(session *llmprovider.OAuthSession) resolvedCredential {
 	return resolvedCredential{kind: CredOAuth, session: session, source: session}
 }
 
+// keepExistingOAuth offers the session the store holds for d when Existing
+// names d as an OAuth credential. The store is the session's only copy
+// (0016-MADR A10); with none there, the user signs in again.
 func keepExistingOAuth(
+	ctx context.Context,
 	p Prompter,
 	d llmprovider.Descriptor,
 	o Options,
 ) (*llmprovider.OAuthSession, bool, error) {
-	if o.Existing.Kind != CredOAuth || o.Existing.Provider != d.ID || o.Existing.AccessToken == "" {
+	if o.Existing.Kind != CredOAuth || o.Existing.Provider != d.ID || o.TokenStore == nil {
+		return nil, false, nil
+	}
+	session, err := o.TokenStore.Load(ctx, d.ID)
+	if err != nil {
+		return nil, false, fmt.Errorf("wizard: load the saved %s session: %w", d.Label, err)
+	}
+	if session == nil || session.Access == "" {
 		return nil, false, nil
 	}
 	keep, err := p.Confirm(
-		fmt.Sprintf("Keep the existing session (%s)?", redact.MaskSecret(o.Existing.AccessToken)), true)
+		fmt.Sprintf("Keep the existing session (%s)?", redact.MaskSecret(session.Access)), true)
 	if err != nil {
 		return nil, false, err
 	}
 	if !keep {
 		return nil, false, nil
 	}
-	session := &llmprovider.OAuthSession{
-		Provider:  d.ID,
-		Access:    o.Existing.AccessToken,
-		Refresh:   o.Existing.RefreshToken,
-		Expiry:    o.Existing.TokenExpiry,
-		Issuer:    o.Existing.Issuer,
-		ClientID:  o.Existing.ClientID,
-		AccountID: o.Existing.AccountID,
-		FedRAMP:   o.Existing.FedRAMP,
-		Store:     o.TokenStore,
-	}
+	session.Store = o.TokenStore
 	if err := llmprovider.ValidateOAuthSession(session); err != nil {
 		return nil, false, fmt.Errorf("wizard: the saved %s session cannot be kept (%w); sign in again", d.Label, err)
 	}

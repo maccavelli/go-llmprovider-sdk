@@ -227,20 +227,19 @@ func TestConfigureLLM_FallbackSearchNoMatches(t *testing.T) {
 // listing, so the wizard warns and offers the built-in catalog. The 1 ns limit
 // has already passed when the refresh starts, so no request leaves the host.
 func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
+	store := newMemoryTokenStore()
 	withEnv(t, nil)
 	static := catalog.Static(llmprovider.ProviderGrok)
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}, confirms: []bool{true}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
-		Existing: Result{
-			Provider:     llmprovider.ProviderGrok,
-			Kind:         CredOAuth,
-			AccessToken:  "expired-access-abcd",
-			RefreshToken: "refresh",
-			TokenExpiry:  time.Now().Add(-time.Hour),
-			Issuer:       llmprovider.DefaultGrokOAuthIssuer,
-			ClientID:     llmprovider.DefaultGrokOAuthClientID,
-		},
-		TokenStore:    newMemoryTokenStore(),
+		Existing: storedExisting(t, store, Result{
+			Provider:    llmprovider.ProviderGrok,
+			Kind:        CredOAuth,
+			TokenExpiry: time.Now().Add(-time.Hour),
+			Issuer:      llmprovider.DefaultGrokOAuthIssuer,
+			ClientID:    llmprovider.DefaultGrokOAuthClientID,
+		}, "expired-access-abcd", "refresh"),
+		TokenStore:    store,
 		Discover:      true,
 		DiscoverLimit: time.Nanosecond,
 	})

@@ -50,9 +50,9 @@ func TestConfigureLLM_VendorLoginReadsThrough(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureLLM() error = %v", err)
 	}
-	if string(res.Kind) != "vendor_cli" || res.AccessToken != "" || res.RefreshToken != "" || store.saves != 0 {
-		t.Fatalf("Kind/access/refresh/saves = %q/%q/%q/%d, want vendor_cli, no tokens, no save",
-			res.Kind, res.AccessToken, res.RefreshToken, store.saves)
+	if string(res.Kind) != "vendor_cli" || len(resultFieldsHolding(res, "sess-grok-cli")) != 0 || store.saves != 0 {
+		t.Fatalf("Kind/token fields/saves = %q/%v/%d, want vendor_cli, no tokens, no save",
+			res.Kind, resultFieldsHolding(res, "sess-grok-cli"), store.saves)
 	}
 	assertTextMasksSecret(t, f.allText, "sess-grok-cli")
 }

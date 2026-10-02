@@ -35,17 +35,15 @@ func TestConfigureLLM_ChatGPTResultDoesNotPopulateAPIKey(t *testing.T) {
 		confirms: []bool{true},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{
-		Existing: Result{
-			Provider:     llmprovider.ProviderOpenAI,
-			Kind:         CredOAuth,
-			AccessToken:  "existing-access-abcd",
-			RefreshToken: "existing-refresh",
-			TokenExpiry:  time.Now().Add(time.Hour),
-			Issuer:       llmprovider.DefaultOpenAIIssuer,
-			ClientID:     llmprovider.DefaultOpenAIClientID,
-			AccountID:    "acct_test",
-			Model:        "kept-chatgpt-model",
-		},
+		Existing: storedExisting(t, store, Result{
+			Provider:    llmprovider.ProviderOpenAI,
+			Kind:        CredOAuth,
+			TokenExpiry: time.Now().Add(time.Hour),
+			Issuer:      llmprovider.DefaultOpenAIIssuer,
+			ClientID:    llmprovider.DefaultOpenAIClientID,
+			AccountID:   "acct_test",
+			Model:       "kept-chatgpt-model",
+		}, "existing-access-abcd", "existing-refresh"),
 		TokenStore: store,
 	})
 	if err != nil {
@@ -54,8 +52,8 @@ func TestConfigureLLM_ChatGPTResultDoesNotPopulateAPIKey(t *testing.T) {
 	if res.APIKey != "" || res.Kind != CredOAuth {
 		t.Fatalf("APIKey/Kind = %q/%q, want empty/%q", res.APIKey, res.Kind, CredOAuth)
 	}
-	if res.AccessToken != "existing-access-abcd" || res.Model != "kept-chatgpt-model" {
-		t.Fatalf("access/model = %q/%q", res.AccessToken, res.Model)
+	if fields := resultFieldsHolding(res, "existing-access-abcd"); len(fields) != 0 || res.Model != "kept-chatgpt-model" {
+		t.Fatalf("token in %v, model %q; want no token and the kept model", fields, res.Model)
 	}
 	assertTextMasksSecret(t, f.allText, "existing-access-abcd")
 }
@@ -166,8 +164,11 @@ func TestConfigureLLM_TokenStdinClassification(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ConfigureLLM() error = %v", err)
 			}
-			if res.Kind != test.wantKind || res.APIKey != test.wantAPIKey || res.AccessToken != test.wantAccess {
-				t.Fatalf("result credential = %q/%q/%q", res.Kind, res.APIKey, res.AccessToken)
+			if res.Kind != test.wantKind || res.APIKey != test.wantAPIKey {
+				t.Fatalf("result credential = %q/%q", res.Kind, res.APIKey)
+			}
+			if saved := store.sessions[test.provider]; test.wantAccess != "" && (saved == nil || saved.Access != test.wantAccess) {
+				t.Fatalf("stored session %v, want access %q", saved, test.wantAccess)
 			}
 			if test.wantKind == CredOAuth && res.Model != "chatgpt-model" {
 				t.Fatalf("oauth model = %q, want chatgpt-model", res.Model)
@@ -284,6 +285,7 @@ func assertTextMasksSecret(t *testing.T, displayed []string, secret string) {
 // a failed Codex listing asks for a model id; it never offers the Platform
 // catalog or a frozen ChatGPT list (MADR 0008 D11).
 func TestConfigureLLM_ChatGPTListingFailurePromptsForModel(t *testing.T) {
+	store := newMemoryTokenStore()
 	var requests []string
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		requests = append(requests, r.URL.Host+r.URL.Path)
@@ -301,17 +303,15 @@ func TestConfigureLLM_ChatGPTListingFailurePromptsForModel(t *testing.T) {
 		inputs:   []string{"manual-chatgpt"},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{
-		Existing: Result{
-			Provider:     llmprovider.ProviderOpenAI,
-			Kind:         CredOAuth,
-			AccessToken:  "existing-access-abcd",
-			RefreshToken: "existing-refresh",
-			TokenExpiry:  time.Now().Add(time.Hour),
-			Issuer:       llmprovider.DefaultOpenAIIssuer,
-			ClientID:     llmprovider.DefaultOpenAIClientID,
-			AccountID:    "acct_test",
-		},
-		TokenStore: newMemoryTokenStore(),
+		Existing: storedExisting(t, store, Result{
+			Provider:    llmprovider.ProviderOpenAI,
+			Kind:        CredOAuth,
+			TokenExpiry: time.Now().Add(time.Hour),
+			Issuer:      llmprovider.DefaultOpenAIIssuer,
+			ClientID:    llmprovider.DefaultOpenAIClientID,
+			AccountID:   "acct_test",
+		}, "existing-access-abcd", "existing-refresh"),
+		TokenStore: store,
 		Discover:   true,
 		HTTPClient: client,
 	})
@@ -369,17 +369,16 @@ func TestConfigureLLM_KeepRefusesStubSession(t *testing.T) {
 		inputs: []string{"chatgpt-model"},
 	}
 	_, err := ConfigureLLM(context.Background(), f, Options{
-		Existing: Result{
-			Provider:    llmprovider.ProviderOpenAI,
-			Kind:        CredOAuth,
-			AccessToken: "chatgpt-access",
-			Issuer:      llmprovider.DefaultOpenAIIssuer,
-			ClientID:    llmprovider.DefaultOpenAIClientID,
-		},
+		Existing: storedExisting(t, store, Result{
+			Provider: llmprovider.ProviderOpenAI,
+			Kind:     CredOAuth,
+			Issuer:   llmprovider.DefaultOpenAIIssuer,
+			ClientID: llmprovider.DefaultOpenAIClientID,
+		}, "chatgpt-access", ""),
 		TokenStore: store,
 	})
-	if err == nil || !strings.Contains(err.Error(), "sign in again") || store.saves != 0 {
-		t.Fatalf("ConfigureLLM() error = %v with %d saves, want the stub refused", err, store.saves)
+	if err == nil || !strings.Contains(err.Error(), "sign in again") || store.saves != 1 {
+		t.Fatalf("ConfigureLLM() error = %v with %d saves, want the stub refused and no save after the setup's", err, store.saves)
 	}
 }
 

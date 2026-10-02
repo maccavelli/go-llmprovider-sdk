@@ -3584,6 +3584,7 @@ Under "S8 as amended". Staged for the owner to commit.
 ### Phase S8, commit 5: typed ids (2026-10-01)
 
 Under "S8 as amended". Staged for the owner to commit.
+*Annotated 2026-10-01:* committed as `7220fdb`.
 
 * **The constants.** The ten `Provider…` constants are `ProviderID`, and
   `MessageItem.Role` is `Role`.
@@ -3670,3 +3671,105 @@ Under "S8 as amended". Staged for the owner to commit.
 * **Coverage:** `llmprovider` 87.8 % from its own tests, and 89.2 % over
   `./llmprovider/...` (1716 of 1922 statements, 89.28 %) against its `P7`
   89.2 %; `catalog` 88.1 %, `wizard` 83.5 %.
+
+### Phase S8, commit 6: 0016-PLAN T4 in `wizard` (2026-10-01)
+
+Under "S8 as amended". Staged for the owner to commit, with 0016-MADR's
+amendment "D11 and D5 in `wizard`" (A7-A10) and 0016-PLAN's deviation entry
+of the same date.
+
+* **Deviation, 2026-10-01: T4's open points.**
+  * **Found,** in the survey, before any code. D11 and D5 left four points
+    open:
+    * Kilo's device token was stored and also returned as `Result.APIKey`
+      (`wizard/auth.go:176-180`);
+    * D11 does not say where `wizard` offers logout;
+    * T4.3's table checks `json.Marshal`, but the consumer persists
+      `Result`, `APIKey` included;
+    * keeping a session rebuilt it from `Existing`'s tokens
+      (`wizard/auth.go:225-256`).
+  * **Decided.** The owner chose:
+    * Kilo stored only, as `CredOAuth`;
+    * a `Logout` function;
+    * fmt and slog redaction only;
+    * keeping a session reads the store only.
+  * **Recorded** as 0016-MADR A7-A10, before the code.
+* **`Result`.**
+  * `AccessToken` and `RefreshToken` are removed, because no path sets them
+    (A7).
+  * `TokenExpiry`, `Issuer`, `ClientID`, `AccountID` and `FedRAMP` stay.
+  * New `result_format.go` holds `String`, `GoString` and `LogValue`. Each
+    prints the set fields, and `[redacted]` for `APIKey`.
+* **Sign-in.**
+  * `ConfigureLLM` no longer copies a session's tokens.
+  * `resolveKiloDevice` returns the stored session as a `CredOAuth`
+    credential. The listing and the provider send `Authorization: Bearer
+    <token>` as before: an `OAuthSession` with no `Header` and a static key
+    apply the same way.
+  * `keepExistingOAuth` loads the session from `Options.TokenStore` when
+    `Existing` names the provider as `CredOAuth`. With none stored, it
+    signs in again; a failed load is returned.
+* **`Logout`** (new `logout.go`) does, in order:
+  * refuses to run without a store;
+  * says so when no session is stored;
+  * confirms, showing the access token masked;
+  * revokes OpenAI and Grok sessions, with `Options.HTTPClient` when the
+    session has none, and reports a failure as a warning;
+  * says Kilo and any other provider offer no revocation;
+  * deletes, returning a failed delete;
+  * reports "Logged out of <label>".
+* **Tests.**
+  * **New** (`stored_session_test.go`, `logout_test.go`):
+    * `TestConfigureLLM_StoredSessionLeavesNoTokenInResult`,
+      `TestConfigureLLM_KeepsTheStoredSession` and
+      `TestConfigureLLM_NoStoredSessionSignsIn`;
+    * `TestResult_Redacts`;
+    * the four `TestLogout_…`.
+
+    The helper `resultFieldsHolding` walks every string field of `Result`,
+    so re-adding a token field fails the tests.
+  * **Rewritten to the store-only rule:**
+    * `TestConfigureLLM_KiloDeviceLogin` (red first);
+    * six tests that kept a session from `Existing`'s tokens, which now
+      save it to the store through `storedExisting`:
+      `TestConfigureLLM_ChatGPTResultDoesNotPopulateAPIKey`,
+      `TestConfigureLLM_KeepsFedRAMP`,
+      `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog`,
+      `TestConfigureLLM_KeepRefusesStubSession`,
+      `TestConfigureLLM_ChatGPTListingFailurePromptsForModel` and
+      `TestConfigureLLM_ChatGPTNoStaticNotice`;
+    * the assertions that read `Result.AccessToken`
+      (`TestConfigureLLM_TokenStdinClassification`,
+      `TestConfigureLLM_TokenStdinStillAcceptsChatGPTToken`,
+      `TestConfigureLLM_VendorLoginReadsThrough`), which now read the store and check
+      that no field of `Result` holds the token.
+  * **One changed number:** `TestConfigureLLM_KeepRefusesStubSession`'s
+    "no save" is now "no save after the setup's" (`saves == 1`), because
+    its setup saves the stub to the store.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | an OAuth Result carries the access token | `Result fields [APIKey] hold a token; the store is the only copy` |
+  | Kilo's token is the API key again | `Result kind "api_key" organization ""; want oauth, ""` |
+  | keeping ignores the store | `signed in again; want the stored session kept` |
+  | logout does not revoke | `revoked [], want the refresh token once` |
+  | a failed revocation stops the delete | `the session is still stored` |
+  | logout does not ask | `declined: revoked ["rt-logout"], stored map[]; want nothing changed` |
+  | logout hides a failed delete | `failed delete: Logout() error = <nil>, want it returned` |
+  | logout revokes every provider | `notices ["could not revoke the Kilo Gateway session (oauth: discovery for : Get \"/.well-known/openid-confi…` |
+  | String shows the API key | `Result via %+v shows the key: Result{Provider:claude Kind:api_key APIKey:key-PLANTED-TOKEN-5c1e Model:model…` |
+  | GoString is the default | `Result via %#v shows the key: wizard.Result{Provider:"claude", Kind:"api_key", APIKey:"key-PLANTED-TOKEN-5c…` |
+  | LogValue is the default | `Result via slog JSON shows the key: {"time":"2026-10-01T20:37:04.230205-05:00","level":"INFO","msg":"m","v"…` |
+  | the JSON is redacted | `json.Marshal = {}, <nil>; want the key kept for the consumer to persist` |
+
+* **Docs.**
+  * `architecture.md`'s wizard section covers the one copy, Kilo, `Logout`
+    and `Result`'s redaction, and its auth section no longer says Kilo's
+    token is the API key.
+  * The migration guide fills seven `wizard` rows, `AccessToken` and
+    `RefreshToken` as removed. G-parity: `409 identifiers, 409 rows, 268 with an SDK equivalent, 0 problem(s)`.
+* **Lint.** Clean, with no change of configuration.
+* **G-wire.** All goldens unchanged, with no `-update`.
+* **Coverage:** `wizard` 84.0 % (it was 83.5 %), `Logout` 91.7 %;
+  `llmprovider` 89.3 % over `./llmprovider/...`, against its `P7` 89.2 %.

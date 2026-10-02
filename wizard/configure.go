@@ -22,20 +22,25 @@ const defaultDiscoverLimit = 10 * time.Second
 // Result is what ConfigureLLM produces. It is deliberately data, not config:
 // each consumer persists it in its own schema. Unifying configuration storage
 // across the three wizards is a separate decision (MADR 0005, Out of scope).
+//
+// A CredOAuth Result holds no token: the session is in Options.TokenStore,
+// its only copy, and the consumer loads it from there (0016-MADR D11, A7).
+// Its String, GoString and LogValue never show APIKey; json.Marshal keeps it,
+// for the consumer to persist (0016-MADR D5, A9).
 type Result struct {
-	Provider     llmprovider.ProviderID
-	Kind         CredentialKind
-	APIKey       string
-	AccessToken  string
-	RefreshToken string
-	TokenExpiry  time.Time
-	Issuer       string
-	ClientID     string
-	AccountID    string
-	FedRAMP      bool
-	Model        string
-	BaseURL      string
-	Fallbacks    []string
+	Provider llmprovider.ProviderID
+	Kind     CredentialKind
+	APIKey   string
+	// TokenExpiry, Issuer, ClientID, AccountID and FedRAMP describe a
+	// CredOAuth session without its tokens.
+	TokenExpiry time.Time
+	Issuer      string
+	ClientID    string
+	AccountID   string
+	FedRAMP     bool
+	Model       string
+	BaseURL     string
+	Fallbacks   []string
 	// VendorAuthPath is the vendor CLI auth file a CredVendorCLI result reads
 	// through; consumers persist it and build llmprovider.VendorCLISession.
 	VendorAuthPath string
@@ -109,9 +114,9 @@ func (o Options) lookupEnv() func(string) string {
 // keeps its own look and feel, and the flow is testable with a scripted
 // Prompter and no TTY.
 //
-// It never writes configuration and never logs a credential: the key appears
-// only in the returned Result, and anything shown to the user is masked with
-// redact.MaskSecret.
+// It never writes configuration and never logs a credential: an API key
+// appears only in the returned Result, a session only in Options.TokenStore,
+// and anything shown to the user is masked with redact.MaskSecret.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	descriptors, err := selectableDescriptors(o.registry(), o.Providers)
 	if err != nil {
@@ -146,8 +151,6 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	res.VendorAuthPath = credential.vendorPath
 	res.Organization = credential.organization
 	if credential.session != nil {
-		res.AccessToken = credential.session.Access
-		res.RefreshToken = credential.session.Refresh
 		res.TokenExpiry = credential.session.Expiry
 		res.Issuer = credential.session.Issuer
 		res.ClientID = credential.session.ClientID

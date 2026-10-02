@@ -398,7 +398,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `wizard.ConfigureLLM` |  |  |
 | `wizard.CredAPIKey` |  |  |
 | `wizard.CredNone` |  |  |
-| `wizard.CredOAuth` |  |  |
+| `wizard.CredOAuth` | `CredOAuth` | The `Result` holds no token; load the session from `Options.TokenStore`. A Kilo device login is one (A7). |
 | `wizard.CredVendorCLI` |  |  |
 | `wizard.CredentialKind` |  |  |
 | `wizard.ErrOrchestrated` | removed | Orchestration stays in `mcplib`; a caller checks its own state before calling `ConfigureLLM` ([0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.md), sixth amendment). |
@@ -412,7 +412,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `wizard.Options.AllowEnv` |  |  |
 | `wizard.Options.Discover` |  |  |
 | `wizard.Options.DiscoverLimit` |  |  |
-| `wizard.Options.Existing` | `Options.Existing` | A `Result`; its `Provider` is a `ProviderID`. |
+| `wizard.Options.Existing` | `Options.Existing` | A `Result`; its `Provider` is a `ProviderID`. A kept `CredOAuth` session is read from `Options.TokenStore` (A10). |
 | `wizard.Options.HTTPClient` |  |  |
 | `wizard.Options.LookupEnv` |  |  |
 | `wizard.Options.NeedFallbacks` |  |  |
@@ -420,7 +420,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `wizard.Options.Orchestrated` | removed | As `ErrOrchestrated` ([0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.md), sixth amendment). |
 | `wizard.Options.Profile` |  |  |
 | `wizard.Options.Providers` | `Options.Providers` | A `[]llmprovider.ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
-| `wizard.Options.TokenStore` |  |  |
+| `wizard.Options.TokenStore` | `Options.TokenStore` | Holds every session the wizard signs in, and is read when one is kept (A10). |
 | `wizard.Prompter` |  |  |
 | `wizard.Prompter.Confirm` |  |  |
 | `wizard.Prompter.Input` |  |  |
@@ -428,9 +428,9 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `wizard.Prompter.Notify` |  |  |
 | `wizard.Prompter.Secret` |  |  |
 | `wizard.Prompter.Select` |  |  |
-| `wizard.Result` |  |  |
-| `wizard.Result.APIKey` |  |  |
-| `wizard.Result.AccessToken` |  |  |
+| `wizard.Result` | `Result` | `String`, `GoString` and `LogValue` redact `APIKey`; JSON keeps it ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) D5, A9). |
+| `wizard.Result.APIKey` | `Result.APIKey` | Set for `CredAPIKey` only; a Kilo device login no longer sets it (A7). |
+| `wizard.Result.AccessToken` | removed | The session is in `Options.TokenStore`, its only copy ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) D11, A7; [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `wizard.Result.AccountID` |  |  |
 | `wizard.Result.BaseURL` |  |  |
 | `wizard.Result.ClientID` |  |  |
@@ -440,7 +440,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `wizard.Result.Kind` |  |  |
 | `wizard.Result.Model` |  |  |
 | `wizard.Result.Provider` | `Result.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). |
-| `wizard.Result.RefreshToken` |  |  |
+| `wizard.Result.RefreshToken` | removed | As `AccessToken`. |
 | `wizard.Result.TokenExpiry` |  |  |
 | `wizard.Result.VendorAuthPath` |  |  |
 | `wizard.TextPrompter` |  |  |

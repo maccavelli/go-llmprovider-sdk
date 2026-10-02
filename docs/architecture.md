@@ -206,8 +206,8 @@ docs/
   `*OAuthSession` print `[redacted]` for every secret, under `fmt` and `slog`.
 - **Kilo device login.** `StartDeviceOAuth(ctx, "kilo", …)` runs Kilo's
   device flow on the same handle. The approved token never refreshes. It is
-  stored as a session with no refresh token and no expiry, and used as the
-  Kilo API key. `KiloProfile` lists the account's organizations.
+  stored as a session with no refresh token and no expiry, and the session
+  is the Kilo credential. `KiloProfile` lists the account's organizations.
 - **`CommandToken`** takes the token from a command the caller names, like
   Claude Code's `apiKeyHelper`:
   - the command runs without a shell, with a 10 s timeout;
@@ -256,9 +256,18 @@ fallbacks and returns a `Result`; it writes no configuration. It renders
 nothing itself: everything goes through the `Prompter` interface (`Select`,
 `MultiSelect`, `Confirm`, `Input`, `Secret`, `Notify`). `TextPrompter`
 implements it over a terminal with `golang.org/x/term`. OAuth and other
-non-API-key methods are offered only when `Options.TokenStore` is set. A Kilo
-device login saves its token, offers the account's organizations, and returns
-the token as the API key, with the choice in `Result.Organization`.
+non-API-key methods are offered only when `Options.TokenStore` is set.
+
+- **One copy of a session.** A sign-in saves its session to
+  `Options.TokenStore` and returns a `CredOAuth` `Result` with no token; the
+  consumer loads the session from the store. Keeping an existing session
+  reads it there too (0016-MADR D11, A7, A10).
+- **Kilo.** A Kilo device login saves its token the same way, offers the
+  account's organizations, and puts the choice in `Result.Organization`.
+- **`Logout(ctx, p, opts, id)`** revokes the stored session (OpenAI and
+  Grok), reports a failure, and deletes it.
+- **`Result`** prints `[redacted]` for its API key under `fmt` and `slog`.
+  Its JSON keeps the key, for the consumer to persist (0016-MADR A9).
 
 ## Identity
 

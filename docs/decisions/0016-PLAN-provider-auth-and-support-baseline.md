@@ -341,6 +341,18 @@ run in T2 (0015-PLAN S4).
   in full in 0015-PLAN, "Deviation 2026-09-30: T3 step 1's header override
   was not built".
 
+* **2026-10-01, T4's open points.** Four choices that D11 and D5 left open
+  were put to the owner during 0015-PLAN S8, commit 6, before any code:
+  * Kilo's device token is stored only, with `Kind` `CredOAuth`;
+  * logout is a function, `wizard.Logout`;
+  * `Result`'s JSON is not redacted (T4.3 joins T2 step 3's table for fmt
+    and slog only);
+  * keeping a session reads the store only.
+
+  Recorded as 0016-MADR A7-A10. Also, per A7, `Result.AccessToken` and
+  `RefreshToken` are removed, because no path sets them. T4's steps are
+  otherwise unchanged.
+
 ## Execution Record
 
 ### The owner's decisions (2026-09-29)
@@ -878,3 +890,39 @@ run in T2 (0015-PLAN S4).
 * An OAuth or CLI source is refused. Details are in 0015-PLAN, "Phase S7,
   commit 14".
 * Every provider now applies the rule; V1's T3.1 tests are complete.
+
+### T4: wizard (2026-10-01, in 0015-PLAN S8, commit 6)
+
+Under 0016-MADR A7-A10, the owner's decisions of the same day, recorded
+before the code. Details are in 0015-PLAN, "Phase S8, commit 6".
+
+* **Step 1, D11 (A7).** A stored session leaves no token in `Result`: every
+  sign-in returns `CredOAuth` with the non-secret fields only, and Kilo's
+  device login is one. `Result.AccessToken` and `RefreshToken` are removed.
+  * **Red first,** against `wizard/configure.go:137-145` and
+    `wizard/auth.go:176-180`:
+    * `TestConfigureLLM_StoredSessionLeavesNoTokenInResult`: `Result fields
+      [AccessToken RefreshToken] hold a token; the store is the only copy`;
+    * `TestConfigureLLM_KiloDeviceLogin`: `Result kind "api_key" …; want
+      oauth` and `Result fields [APIKey] hold the token`.
+* **A10.** Keeping a session reads the store.
+  * **Red first:** `TestConfigureLLM_KeepsTheStoredSession`, `signed in
+    again; want the stored session kept`.
+  * `TestConfigureLLM_NoStoredSessionSignsIn` guards the empty store; it
+    passed before the change too, as it should.
+* **Step 2, D11 (A8).** `wizard.Logout` confirms, revokes (OpenAI and
+  Grok), reports a failed revocation, and deletes.
+  * **Red first:** the tests did not compile, `undefined: Logout`.
+  * **Tests:** `TestLogout_RevokesThenDeletes`, a revoke server that
+    answers 200 and one that answers 500, both ending with the store empty;
+    `TestLogout_NoRevocationForKilo`; `TestLogout_LeavesTheStoreAlone`; and
+    `TestLogout_Errors`.
+* **Step 3, D5 (A9).** `Result` has `String`, `GoString` and `LogValue`,
+  which print `[redacted]` for `APIKey`.
+  * **Red first:** `TestResult_Redacts`, with `Result via %v shows the key`
+    and the same for every verb and both slog handlers.
+  * `json.Marshal` keeps the key, and the test pins it.
+  * One form can still show the key: slog's JSON handler, given a struct
+    *holding* a `Result`, encodes it with `encoding/json`. The test exempts
+    that form, citing A9.
+* **V9 is met.** **V4 is met,** with A9's exception for JSON.
