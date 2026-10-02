@@ -259,9 +259,11 @@ func Run(t *testing.T, cases []Case, update bool) {
 		for _, s := range scenarios {
 			t.Run(c.Name+"/"+s.name, func(t *testing.T) {
 				srv := wiretest.NewServer(t, c.Reply)
-				var extra []llmprovider.Option
+				// The goldens were recorded with the metadata fetch off; no
+				// scenario reaches models.opencode.ai (0015-PLAN S10).
+				extra := []llmprovider.Option{llmprovider.WithoutModelMetadata()}
 				if s.name == "continuation" {
-					extra = c.ContinueOpts
+					extra = append(extra, c.ContinueOpts...)
 				}
 				p, err := c.Build(srv.URL, extra...)
 				if err != nil {

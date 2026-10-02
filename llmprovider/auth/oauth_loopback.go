@@ -164,6 +164,18 @@ func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opt
 	return exchangeOAuthCode(flowCtx, config, endpoints, callback.code, redirectURI, pkce.verifier, nonce)
 }
 
+// GrokFlowFromEnv returns the Grok sign-in's issuer and client id from
+// GROK_OAUTH2_ISSUER and GROK_OAUTH2_CLIENT_ID, for a caller to set on its
+// OAuthFlowOptions. It is the only way either variable takes effect: the
+// library reads no environment variable unless a caller asks (0015-MADR D9).
+// An unset variable leaves its field empty, which is the default.
+func GrokFlowFromEnv() OAuthFlowOptions {
+	return OAuthFlowOptions{
+		Issuer:   os.Getenv("GROK_OAUTH2_ISSUER"),
+		ClientID: os.Getenv("GROK_OAUTH2_CLIENT_ID"),
+	}
+}
+
 func resolveOAuthFlowConfig(provider llmprovider.ProviderID, opts OAuthFlowOptions) (oauthFlowConfig, error) {
 	issuer := strings.TrimRight(opts.Issuer, "/")
 	clientID := opts.ClientID
@@ -177,16 +189,10 @@ func resolveOAuthFlowConfig(provider llmprovider.ProviderID, opts OAuthFlowOptio
 		}
 	case llmprovider.ProviderGrok:
 		if issuer == "" {
-			issuer = strings.TrimRight(os.Getenv("GROK_OAUTH2_ISSUER"), "/")
-			if issuer == "" {
-				issuer = DefaultGrokOAuthIssuer
-			}
+			issuer = DefaultGrokOAuthIssuer
 		}
 		if clientID == "" {
-			clientID = os.Getenv("GROK_OAUTH2_CLIENT_ID")
-			if clientID == "" {
-				clientID = DefaultGrokOAuthClientID
-			}
+			clientID = DefaultGrokOAuthClientID
 		}
 	default:
 		return oauthFlowConfig{}, fmt.Errorf("oauth: provider %q is not supported", provider)

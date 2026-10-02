@@ -45,6 +45,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -111,6 +112,7 @@ type provider struct {
 	route       Route                  // WithRoute's, or the table's for model
 	routePinned bool
 	metadataURL string
+	metadataOff bool // WithoutModelMetadata
 	userAgent   string
 	session     string
 	logger      *slog.Logger
@@ -155,6 +157,7 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 		maxTokens:   st.MaxTokens(),
 		reasoning:   st.Reasoning(),
 		metadataURL: st.ModelMetadataURL(),
+		metadataOff: st.ModelMetadataDisabled(),
 		userAgent:   st.UserAgent(),
 		session:     st.SessionID(),
 		logger:      st.Logger(),
@@ -315,7 +318,7 @@ func (p *provider) requestRoute(ctx context.Context, model string) Route {
 	if p.routePinned {
 		return p.route
 	}
-	if meta, err := catalog.LookupMetadata(ctx, p.metadataURL, p.client); err == nil {
+	if meta, err := p.metadata(ctx); err == nil {
 		if npm, ok := meta.NPM(p.gateway, model); ok {
 			return routeForNPM(npm)
 		}
@@ -481,7 +484,7 @@ func (p *provider) chatReasoningEffort(ctx context.Context, c call) string {
 	if c.reasoning == nil || c.reasoning.Effort == "" {
 		return ""
 	}
-	meta, err := catalog.LookupMetadata(ctx, p.metadataURL, p.client)
+	meta, err := p.metadata(ctx)
 	if err != nil || !slices.Contains(meta.ReasoningEfforts(p.gateway, c.model), string(c.reasoning.Effort)) {
 		return ""
 	}
@@ -495,7 +498,7 @@ func (p *provider) chatReplayField(ctx context.Context, c call) string {
 	if !slices.ContainsFunc(c.input, isAssistantTurn) {
 		return ""
 	}
-	meta, err := catalog.LookupMetadata(ctx, p.metadataURL, p.client)
+	meta, err := p.metadata(ctx)
 	if err != nil {
 		return ""
 	}
@@ -522,4 +525,17 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 		listed = catalog.Static(p.gateway)
 	}
 	return listed, nil
+}
+
+// errMetadataOff is a lookup WithoutModelMetadata turned off; the provider
+// treats it as a failed fetch and routes by its table.
+var errMetadataOff = errors.New("opencode: model metadata turned off by WithoutModelMetadata")
+
+// metadata is the model metadata document, unless WithoutModelMetadata turned
+// the fetch off.
+func (p *provider) metadata(ctx context.Context) (catalog.Metadata, error) {
+	if p.metadataOff {
+		return catalog.Metadata{}, errMetadataOff
+	}
+	return catalog.LookupMetadata(ctx, p.metadataURL, p.client)
 }

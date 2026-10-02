@@ -23,13 +23,31 @@ func resetModelMetadataCache() {
 	clear(modelMetadataCache)
 }
 
-// enableModelMetadata turns the metadata fetch on for one test (TestMain
-// turns it off) and empties the cache on both sides of the test.
+// enableModelMetadata empties the metadata cache on both sides of a test that
+// fetches a fixture document. The fetch is on unless WithoutModelMetadata
+// turns it off (0015-PLAN S10).
 func enableModelMetadata(t *testing.T) {
 	t.Helper()
-	t.Setenv(envDisableModelMetadata, "0")
+	metadataOn = true
 	resetModelMetadataCache()
-	t.Cleanup(resetModelMetadataCache)
+	t.Cleanup(func() {
+		metadataOn = false
+		resetModelMetadataCache()
+	})
+}
+
+// metadataOn is set by enableModelMetadata for one test, which serves its own
+// metadata document. Otherwise listT turns the fetch off, so no test reaches
+// models.opencode.ai (0015-PLAN S10). No test here runs in parallel.
+var metadataOn bool
+
+// listT is List, with the metadata fetch off unless enableModelMetadata
+// turned it on.
+func listT(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, opts ...llmprovider.Option) (Catalog, error) {
+	if !metadataOn {
+		opts = append(opts, llmprovider.WithoutModelMetadata())
+	}
+	return List(ctx, id, src, opts...)
 }
 
 // metadataServer answers every request with status and body, and counts
@@ -48,32 +66,59 @@ func metadataServer(t *testing.T, status int, body string) (*httptest.Server, *a
 
 const smallMetadataDoc = `{"opencode":{"models":{"glm-5.3-flash":{"id":"glm-5.3-flash","reasoning":true}}}}`
 
+// TestModelMetadataURL_Precedence: the option, else OpenCode's document. The
+// environment is not read (0015-PLAN S10).
 func TestModelMetadataURL_Precedence(t *testing.T) {
 	t.Setenv(envModelMetadataURL, "http://env")
 	if got := modelMetadataURL(config{ModelMetadataURL: "http://opt"}); got != "http://opt" {
 		t.Errorf("option: got %q, want http://opt", got)
 	}
-	if got := modelMetadataURL(config{}); got != "http://env" {
-		t.Errorf("environment: got %q, want http://env", got)
-	}
-	t.Setenv(envModelMetadataURL, "")
 	if got := modelMetadataURL(config{}); got != "https://models.opencode.ai/api.json" {
-		t.Errorf("default: got %q", got)
+		t.Errorf("default: got %q, want OpenCode's document, never the environment's", got)
 	}
 }
 
+// TestLoadModelMetadata_Disabled: WithoutModelMetadata turns the fetch off
+// whatever the URL, and the environment variable does not, by itself.
 func TestLoadModelMetadata_Disabled(t *testing.T) {
 	srv, hits := metadataServer(t, http.StatusOK, smallMetadataDoc)
-	for _, v := range []string{"1", "true"} {
-		t.Setenv(envDisableModelMetadata, v)
-		resetModelMetadataCache()
-		_, err := loadModelMetadata(context.Background(), testConfig(t, llmprovider.WithModelMetadataURL(srv.URL)))
-		if !errors.Is(err, errModelMetadataDisabled) {
-			t.Errorf("%s=%q: err = %v, want errModelMetadataDisabled", envDisableModelMetadata, v, err)
-		}
+	resetModelMetadataCache()
+	_, err := loadModelMetadata(context.Background(),
+		testConfig(t, llmprovider.WithModelMetadataURL(srv.URL), llmprovider.WithoutModelMetadata()))
+	if !errors.Is(err, errModelMetadataDisabled) {
+		t.Errorf("WithoutModelMetadata: err = %v, want errModelMetadataDisabled", err)
 	}
 	if n := hits.Load(); n != 0 {
 		t.Errorf("disabled fetch made %d requests, want 0", n)
+	}
+	t.Setenv(envDisableModelMetadata, "1")
+	resetModelMetadataCache()
+	if _, err := loadModelMetadata(context.Background(), testConfig(t, llmprovider.WithModelMetadataURL(srv.URL))); err != nil {
+		t.Errorf("with only the variable set: err = %v, want the fetch to run", err)
+	}
+}
+
+// TestOptionsFromEnv: the helper a caller opts into turns each variable into
+// its option, and adds none for an unset or non-boolean one.
+func TestOptionsFromEnv(t *testing.T) {
+	srv, hits := metadataServer(t, http.StatusOK, smallMetadataDoc)
+	t.Setenv(envModelMetadataURL, srv.URL)
+	t.Setenv(envDisableModelMetadata, "")
+	resetModelMetadataCache()
+	if _, err := loadModelMetadata(context.Background(), testConfig(t, OptionsFromEnv()...)); err != nil || hits.Load() != 1 {
+		t.Errorf("URL from the environment: err = %v, %d requests; want one fetch of it", err, hits.Load())
+	}
+	for _, v := range []string{"1", "true"} {
+		t.Setenv(envDisableModelMetadata, v)
+		resetModelMetadataCache()
+		if _, err := loadModelMetadata(context.Background(), testConfig(t, OptionsFromEnv()...)); !errors.Is(err, errModelMetadataDisabled) {
+			t.Errorf("%s=%q: err = %v, want errModelMetadataDisabled", envDisableModelMetadata, v, err)
+		}
+	}
+	t.Setenv(envModelMetadataURL, "")
+	t.Setenv(envDisableModelMetadata, "sometimes")
+	if got := OptionsFromEnv(); len(got) != 0 {
+		t.Errorf("OptionsFromEnv() = %d options, want none", len(got))
 	}
 }
 

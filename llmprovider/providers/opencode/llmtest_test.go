@@ -26,8 +26,8 @@ func TestConformance(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			llmtest.Run(t, llmtest.Harness{
 				New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
-					return newFor(tc.gateway)(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-llmtest"),
-						llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(baseURL), WithRoute(tc.route)}, opts...)...)
+					return newFor(tc.gateway)(append(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-llmtest"),
+						llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(baseURL), WithRoute(tc.route)}, opts...), metadataOff()...)...)
 				},
 				Text: func(w http.ResponseWriter, _ *http.Request) {
 					if tc.route == RouteMessages {

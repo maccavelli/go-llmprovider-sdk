@@ -67,7 +67,7 @@ func TestListModelCatalog_KiloRanksByProfile(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			opts := append([]llmprovider.Option{llmprovider.WithBaseURL(srv.URL)}, tc.opts...)
-			cat, err := List(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), opts...)
+			cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), opts...)
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
@@ -116,7 +116,7 @@ var hfFallbackOrder = []string{"v/no-reason", "a/large", "b/mid", "c/flash", "d/
 
 func listCatalog(ctx context.Context, t *testing.T, provider llmprovider.ProviderID, opts ...llmprovider.Option) Catalog {
 	t.Helper()
-	cat, err := List(ctx, provider, llmprovider.NewStaticToken(""), opts...)
+	cat, err := listT(ctx, provider, llmprovider.NewStaticToken(""), opts...)
 	if err != nil {
 		t.Fatalf("ListModelCatalog(%s): %v", provider, err)
 	}
@@ -181,7 +181,11 @@ func TestListModelCatalog_MetadataFallback(t *testing.T) {
 				defer cancel()
 			}
 			listing := serveBody(t, hfRankListing)
-			cat := listCatalog(ctx, t, llmprovider.ProviderHuggingFace, llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(metaURL))
+			opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(metaURL)}
+			if !tc.enable {
+				opts = append(opts, llmprovider.WithoutModelMetadata())
+			}
+			cat := listCatalog(ctx, t, llmprovider.ProviderHuggingFace, opts...)
 			assertRanked(t, cat.Recommended, hfFallbackOrder)
 			assertRanked(t, cat.Recommended, curateHuggingFace(cat.Usable))
 		})
@@ -197,14 +201,15 @@ func TestListModelCatalog_MetadataFallbackZen(t *testing.T) {
 	assertRanked(t, cat.Recommended, want)
 }
 
-// TestListModelCatalog_MetadataIsolation proves TestMain's switch works: with
-// the fetch disabled no request reaches the metadata URL, and enabling it
-// makes exactly one.
+// TestListModelCatalog_MetadataIsolation proves WithoutModelMetadata works:
+// with the fetch off no request reaches the metadata URL, and without the
+// option it makes exactly one. It proved TestMain's environment switch until
+// 0015-PLAN S10.
 func TestListModelCatalog_MetadataIsolation(t *testing.T) {
 	listing := serveBody(t, opencodeListingFixture)
 	meta, hits := metadataServer(t, http.StatusOK, smallMetadataDoc)
 	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL)}
-	listCatalog(context.Background(), t, llmprovider.ProviderOpencodeZen, opts...)
+	listCatalog(context.Background(), t, llmprovider.ProviderOpencodeZen, append(opts, llmprovider.WithoutModelMetadata())...)
 	if n := hits.Load(); n != 0 {
 		t.Fatalf("disabled: metadata requests = %d, want 0", n)
 	}

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -183,18 +182,22 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 		return nil
 	}
 	var body []byte
+	var readErr error
 	if resp.Body != nil {
-		var readErr error
-		if body, readErr = io.ReadAll(io.LimitReader(resp.Body, apiErrorBodyLimit)); readErr != nil {
-			slog.Debug("llmprovider: read error body", "provider", provider, "error", readErr)
-		}
+		body, readErr = io.ReadAll(io.LimitReader(resp.Body, apiErrorBodyLimit))
 	}
 	envelope := parseAPIErrorBody(body)
+	message := envelope.message()
+	// A body that cannot be read is said in the message, not logged
+	// (0015-MADR D9).
+	if readErr != nil {
+		message = strings.TrimSpace(message + " (error body unreadable: " + readErr.Error() + ")")
+	}
 	e := &APIError{
 		Provider:   provider,
 		Status:     resp.StatusCode,
 		Code:       envelope.errType(),
-		Message:    boundMessage(redact.String(envelope.message())),
+		Message:    boundMessage(redact.String(message)),
 		RetryAfter: transport.RetryAfter(resp.Header),
 	}
 	e.terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)

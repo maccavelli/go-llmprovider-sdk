@@ -41,7 +41,7 @@ func TestLive_GrokListingTextOnly(t *testing.T) {
 	key := liveEnvKey(t, "XAI_API_KEY")
 	ctx, cancel := liveCtx(t)
 	defer cancel()
-	cat, err := List(ctx, llmprovider.ProviderGrok, llmprovider.NewStaticToken(key))
+	cat, err := listT(ctx, llmprovider.ProviderGrok, llmprovider.NewStaticToken(key))
 	if err != nil || !cat.Live {
 		t.Skipf("listing unavailable: live=%t err=%v", cat.Live, err)
 	}

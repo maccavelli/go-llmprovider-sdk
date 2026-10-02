@@ -14,8 +14,8 @@ import (
 func TestConformance(t *testing.T) {
 	llmtest.Run(t, llmtest.Harness{
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
-			return New(append([]llmprovider.Option{llmprovider.WithAPIKey("tg_llmtest"),
-				llmprovider.WithModel("openai/gpt-oss-120b"), llmprovider.WithBaseURL(baseURL)}, opts...)...)
+			return New(append(append([]llmprovider.Option{llmprovider.WithAPIKey("tg_llmtest"),
+				llmprovider.WithModel("openai/gpt-oss-120b"), llmprovider.WithBaseURL(baseURL)}, opts...), metadataOff()...)...)
 		},
 		Text: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, togetherText)

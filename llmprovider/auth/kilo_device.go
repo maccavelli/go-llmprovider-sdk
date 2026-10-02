@@ -53,8 +53,8 @@ func startKiloDevice(ctx context.Context, opts OAuthFlowOptions) (*DeviceLogin, 
 		return nil, err
 	}
 	if resp.StatusCode == http.StatusTooManyRequests {
-		closeResponseBody(resp)
-		return nil, fmt.Errorf("%w: kilo: too many pending device authorizations; try again later", llmprovider.ErrRateLimited)
+		return nil, errors.Join(fmt.Errorf("%w: kilo: too many pending device authorizations; try again later",
+			llmprovider.ErrRateLimited), closeResponseBody(resp))
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, closeOAuthStatusError(resp, "Kilo device-code request")
@@ -88,14 +88,14 @@ func startKiloDevice(ctx context.Context, opts OAuthFlowOptions) (*DeviceLogin, 
 			}
 			switch resp.StatusCode {
 			case http.StatusAccepted:
-				closeResponseBody(resp)
+				if err := closeResponseBody(resp); err != nil {
+					return nil, fmt.Errorf("oauth: Kilo device poll: %w", err)
+				}
 				continue
 			case http.StatusForbidden:
-				closeResponseBody(resp)
-				return nil, errors.New("oauth: Kilo device authorization denied")
+				return nil, errors.Join(errors.New("oauth: Kilo device authorization denied"), closeResponseBody(resp))
 			case http.StatusGone:
-				closeResponseBody(resp)
-				return nil, errors.New("oauth: Kilo device code expired")
+				return nil, errors.Join(errors.New("oauth: Kilo device code expired"), closeResponseBody(resp))
 			case http.StatusOK:
 				var approved struct {
 					Token string `json:"token"`
@@ -135,8 +135,8 @@ func kiloDeviceRequest(ctx context.Context, config oauthFlowConfig, method, targ
 }
 
 func decodeKiloResponse(resp *http.Response, into any) error {
-	defer closeResponseBody(resp)
-	return json.NewDecoder(io.LimitReader(resp.Body, kiloResponseLimit)).Decode(into)
+	err := json.NewDecoder(io.LimitReader(resp.Body, kiloResponseLimit)).Decode(into)
+	return errors.Join(err, closeResponseBody(resp))
 }
 
 // KiloOrganization is one organization a Kilo account belongs to.
@@ -183,8 +183,7 @@ func KiloProfile(ctx context.Context, token string, opts ...llmprovider.Option) 
 		return KiloAccount{}, fmt.Errorf("kilo: profile: %w", err)
 	}
 	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderKilo), resp); err != nil {
-		closeResponseBody(resp)
-		return KiloAccount{}, err
+		return KiloAccount{}, errors.Join(err, closeResponseBody(resp))
 	}
 	var raw struct {
 		User struct {

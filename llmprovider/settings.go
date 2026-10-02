@@ -258,5 +258,9 @@ func (st *Settings) ModelProbes() bool { return !st.s.cfg.DisableModelProbes }
 // empty for the default.
 func (st *Settings) ModelMetadataURL() string { return st.s.cfg.ModelMetadataURL }
 
+// ModelMetadataDisabled reports whether WithoutModelMetadata turned the
+// metadata fetch off.
+func (st *Settings) ModelMetadataDisabled() bool { return st.s.cfg.DisableModelMetadata }
+
 // Values returns the values of the provider-specific options, in order.
 func (st *Settings) Values() []any { return append([]any(nil), st.s.values...) }

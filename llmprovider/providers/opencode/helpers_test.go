@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,25 +14,6 @@ import (
 )
 
 // Test helpers, as the other provider packages' (0015-PLAN S7).
-
-// envDisableMetadata turns the metadata fetch off; llmprovider reads it.
-const envDisableMetadata = "LLMPROVIDER_DISABLE_MODELS_METADATA"
-
-// TestMain turns the metadata fetch off unless a test turns it on, as
-// llmprovider's tests do, so no test reaches models.opencode.ai.
-func TestMain(m *testing.M) {
-	if err := os.Setenv(envDisableMetadata, "1"); err != nil {
-		panic(err)
-	}
-	os.Exit(m.Run())
-}
-
-// enableMetadata turns the metadata fetch on for one test. The document is
-// cached by URL, so each test serves its own.
-func enableMetadata(t *testing.T) {
-	t.Helper()
-	t.Setenv(envDisableMetadata, "0")
-}
 
 // Per-route response fixtures. The responses one is the shape measured on Zen:
 // summary is empty and the trace lives in encrypted_content, so the shared
@@ -102,7 +82,7 @@ func newFor(gateway llmprovider.ProviderID) llmprovider.Factory {
 // build is gateway's constructor, failing the test on an error.
 func build(t *testing.T, gateway llmprovider.ProviderID, opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
-	p, err := newFor(gateway)(opts...)
+	p, err := newFor(gateway)(append(metadataOff(), opts...)...)
 	if err != nil {
 		t.Fatalf("New %s: %v", gateway, err)
 	}
@@ -111,8 +91,8 @@ func build(t *testing.T, gateway llmprovider.ProviderID, opts ...llmprovider.Opt
 
 // apiKey is the options for a key "k" against url, with the given model.
 func apiKey(url, model string, opts ...llmprovider.Option) []llmprovider.Option {
-	return append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
-		llmprovider.WithBaseURL(url)}, opts...)
+	return append(append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
+		llmprovider.WithBaseURL(url)}, metadataOff()...), opts...)
 }
 
 // effort is WithReasoning with an effort, as the old WithReasoningEffort.
@@ -207,4 +187,25 @@ func (r *headerRecorder) requests() []recorded {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]recorded(nil), r.seen...)
+}
+
+// metadataOn is set by enableMetadata for one test, which serves its own
+// metadata document. Otherwise the helpers turn the fetch off, so no test
+// reaches models.opencode.ai (0015-PLAN S10). No test here runs in parallel.
+var metadataOn bool
+
+// enableMetadata leaves the metadata fetch on for one test.
+func enableMetadata(t *testing.T) {
+	t.Helper()
+	metadataOn = true
+	t.Cleanup(func() { metadataOn = false })
+}
+
+// metadataOff is WithoutModelMetadata, unless enableMetadata turned the fetch
+// on.
+func metadataOff() []llmprovider.Option {
+	if metadataOn {
+		return nil
+	}
+	return []llmprovider.Option{llmprovider.WithoutModelMetadata()}
 }

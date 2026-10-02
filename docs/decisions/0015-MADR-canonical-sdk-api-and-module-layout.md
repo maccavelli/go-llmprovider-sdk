@@ -1022,3 +1022,84 @@ S9 also has to measure whether Kilo reports usage without the
   `TestLive_GeminiInteractionsThoughtTokens` got 17 input, 3 output and 114
   thought tokens, with a total of 134 = 17 + 3 + 114. The decoder's reading
   holds.
+
+## Amendment 2026-10-02: no ambient state, in detail
+
+Status: **accepted** 2026-10-02. The owner's decisions, asked during
+0015-PLAN S10, before any code.
+
+### Fact found
+
+* **The tests stay offline through an environment variable.**
+  `LLMPROVIDER_DISABLE_MODELS_METADATA` is set by `TestMain` in `wizard` and
+  in three provider packages, and toggled by `catalog`'s tests. No option can
+  switch the metadata fetch off.
+* **The check needs an exemption.** S10's opt-in helpers read the
+  environment by design: `catalog.OptionsFromEnv`, `auth.GrokFlowFromEnv`,
+  and the existing `ModelProbesFromEnv`.
+* **`wizard` falls back to `os.Getenv`** when `Options.LookupEnv` is nil
+  (`wizard/configure.go:100`). The fallback serves `AllowEnv` and the vendor
+  CLI home directories.
+* **Four global-`slog` calls remain, not three:**
+  * `ClassifyHTTPError` logs a failed error-body read;
+  * `llmprovider`'s `closeResponseBody`, which no library code calls any
+    more;
+  * `auth`'s copy, which has no logger in reach;
+  * `catalog`'s copy, which can use the `Settings` logger.
+
+### Decided
+
+* **Metadata.** The owner chose "a common option".
+  * `llmprovider.WithoutModelMetadata()` turns the fetch off, for every
+    provider and listing.
+  * `catalog.OptionsFromEnv()` maps `LLMPROVIDER_MODELS_METADATA_URL` and
+    `LLMPROVIDER_DISABLE_MODELS_METADATA` to `WithModelMetadataURL` and
+    `WithoutModelMetadata`.
+  * Every test package passes the option, not the environment.
+  * A caller's default is unchanged: the fetch is on.
+* **The check.** The owner chose "named `FromEnv` helpers". `os.Getenv` and
+  `os.LookupEnv` are allowed only inside an exported function whose name
+  ends in `FromEnv`. `http.ProxyFromEnvironment` on the default transport
+  (0016-MADR D8) is allowed too.
+* **`wizard`.** The owner chose "only through `LookupEnv`".
+  * `wizard` reads the environment only through `Options.LookupEnv`. A nil
+    one reads nothing: `AllowEnv` finds no key, and the vendor CLI homes
+    take their defaults.
+  * A caller passes `os.Getenv` to keep the old behaviour.
+* **`wizard`'s options.** The owner chose `Options.ProviderOptions`: options
+  added, after the wizard's own, to every listing and to the provider the
+  wizard builds for a ChatGPT session.
+* **Logging.** The owner chose "a logger where one is in reach":
+  * `ClassifyHTTPError` puts a failed body read into the `APIError`'s
+    message;
+  * `llmprovider`'s unused `closeResponseBody` moves to its tests;
+  * `catalog`'s logs to the `Settings` logger;
+  * `auth`'s drops the log.
+
+### Rejected
+
+* Metadata off unless a URL is given: callers would lose the default
+  ranking.
+* A list of allowed `file:function` pairs: each helper would need an edit
+  to the list.
+* `wizard` keeping its `os.Getenv` fallback, exempted by name.
+* A wizard-only boolean for the metadata switch.
+* A logger for `auth`'s flows, for close errors only.
+
+### Decided during the work: `auth`'s close error
+
+* **Fact found.** `errcheck` refuses `_ =` on a close error, and `unparam`
+  refuses a result nobody reads. So "`auth`'s drops the log" could not be
+  written without silencing a linter.
+* **Decided.** The owner chose "return it to the caller".
+  * Where `auth` reads a body (the `id_token` key fetch, the Kilo login and
+    profile), a close failure is returned with the call's result.
+  * On an error path, it is joined to the call's own error.
+* **Rejected.** A logger for the flows, as before.
+
+### Effect
+
+D9 holds as written. The visible changes are `WithoutModelMetadata`,
+`catalog.OptionsFromEnv`, `auth.GrokFlowFromEnv`,
+`wizard.Options.ProviderOptions`, and `wizard`'s nil `LookupEnv` reading
+nothing. A failed close in `auth` is now returned as an error.

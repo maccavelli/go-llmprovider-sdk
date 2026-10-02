@@ -17,6 +17,3 @@ var (
 	HFRankListing           = hfRankListing
 	HFRankMetadata          = hfRankMetadata
 )
-
-// EnvModelMetadataURL is the variable the default metadata URL is read from.
-const EnvModelMetadataURL = envModelMetadataURL

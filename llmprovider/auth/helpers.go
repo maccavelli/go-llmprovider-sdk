@@ -2,7 +2,7 @@ package auth
 
 import (
 	"encoding/json"
-	"log/slog"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -32,14 +32,17 @@ func expiryText(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-// closeResponseBody closes resp's body, logging a failure at debug level.
-func closeResponseBody(resp *http.Response) {
+// closeResponseBody closes resp's body and returns a close failure, which the
+// caller returns with its own result: the flows hold no logger to report it
+// to (0015-MADR D9, amendment "no ambient state, in detail").
+func closeResponseBody(resp *http.Response) error {
 	if resp == nil || resp.Body == nil {
-		return
+		return nil
 	}
 	if err := resp.Body.Close(); err != nil {
-		slog.Debug("auth: close response body", "error", err)
+		return fmt.Errorf("close response body: %w", err)
 	}
+	return nil
 }
 
 // jsonString is raw as a JSON string, or "" when it is not one.

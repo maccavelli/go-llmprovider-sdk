@@ -93,7 +93,7 @@ func TestListModelCatalog_RecommendedMatchesListAvailable(t *testing.T) {
 	for _, tc := range goodCatalogCases() {
 		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := listT(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
@@ -114,7 +114,7 @@ func TestListModelCatalog_RecommendedMatchesListAvailable(t *testing.T) {
 func TestListModelCatalog_OpenAIRecommendedIsCurated(t *testing.T) {
 	order := []string{"gpt-5.1", "o3", "gpt-4o", "o4-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4.1-nano", "gpt-4.1-mini"}
 	srv := serveBody(t, openAIStyleListing(order...))
-	cat, err := List(context.Background(), llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestListModelCatalog_UsableIsUncapped(t *testing.T) {
 	} {
 		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := listT(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
@@ -159,7 +159,7 @@ func TestListModelCatalog_RecommendedSubsetOfUsable(t *testing.T) {
 	for _, tc := range goodCatalogCases() {
 		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := listT(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
@@ -184,7 +184,7 @@ func TestListModelCatalog_FiltersStillApply(t *testing.T) {
 	} {
 		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := listT(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
@@ -203,7 +203,7 @@ func TestListModelCatalog_FiltersStillApply(t *testing.T) {
 func TestListModelCatalog_OllamaSplit(t *testing.T) {
 	names := []string{"m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"}
 	srv := serveBody(t, ollamaTags(names...))
-	cat, err := List(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestListModelCatalog_OllamaSplit(t *testing.T) {
 
 func TestListModelCatalog_OllamaEmptyIsLive(t *testing.T) {
 	srv := serveBody(t, `{"models":[]}`)
-	cat, err := List(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestListModelCatalog_LiveFlag(t *testing.T) {
 				w.WriteHeader(http.StatusInternalServerError)
 			}))
 			defer srv.Close()
-			cat, err := List(context.Background(), p, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
+			cat, err := listT(context.Background(), p, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("a failed listing must degrade, not error: %v", err)
 			}
@@ -257,17 +257,17 @@ func TestListModelCatalog_LiveFlag(t *testing.T) {
 }
 
 func TestListModelCatalog_Errors(t *testing.T) {
-	if _, err := List(context.Background(), "unsupported", llmprovider.NewStaticToken("k")); err == nil {
+	if _, err := listT(context.Background(), "unsupported", llmprovider.NewStaticToken("k")); err == nil {
 		t.Error("unsupported provider: want an error")
 	}
 	notFound := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer notFound.Close()
-	if _, err := List(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(notFound.URL)); err == nil {
+	if _, err := listT(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(notFound.URL)); err == nil {
 		t.Error("ollama 404: want an error")
 	}
-	if _, err := List(context.Background(), llmprovider.ProviderGemini, nil); err == nil {
+	if _, err := listT(context.Background(), llmprovider.ProviderGemini, nil); err == nil {
 		t.Error("nil TokenSource: want an error")
 	}
 }
@@ -282,7 +282,7 @@ func TestListModelCatalog_InputModalityContainsText(t *testing.T) {
 	} {
 		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := listT(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}

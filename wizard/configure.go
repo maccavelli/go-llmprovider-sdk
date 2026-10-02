@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -83,9 +82,15 @@ type Options struct {
 	// catalog.ProfileUtility, suits short frequent tasks such as commit
 	// messages; catalog.ProfileCapable suits reasoning-heavy tiers.
 	Profile catalog.Profile
-	// LookupEnv reads an environment variable. Nil uses os.Getenv. Consumers
-	// inject this to drive the flow deterministically in their own tests.
+	// LookupEnv reads an environment variable, for AllowEnv and the vendor
+	// CLI homes. Nil reads nothing: pass os.Getenv for the process
+	// environment, or a map for a deterministic test (0015-MADR D9).
 	LookupEnv func(string) string
+	// ProviderOptions are added, after the wizard's own, to every model
+	// listing and to the provider it builds for a ChatGPT session. Pass
+	// catalog.OptionsFromEnv() here, or llmprovider.WithoutModelMetadata()
+	// to keep a listing off the network.
+	ProviderOptions []llmprovider.Option
 	// TokenStore persists sessions created by the browser, device-code,
 	// token-paste and import flows. Supplying it opts in to every non-API-key
 	// credential kind; when it is nil, only the API key is offered.
@@ -96,16 +101,14 @@ type Options struct {
 	OpenURL func(string) error
 }
 
-// getenv is indirected for this package's own tests.
-var getenv = os.Getenv
-
-// lookupEnv resolves the environment reader for a run: the caller's when
-// supplied, this package's otherwise.
+// lookupEnv is the run's environment reader: the caller's, else one that
+// finds nothing. The wizard reads no environment variable unless the caller
+// passes one (0015-MADR D9, amendment "no ambient state, in detail").
 func (o Options) lookupEnv() func(string) string {
 	if o.LookupEnv != nil {
 		return o.LookupEnv
 	}
-	return getenv
+	return func(string) string { return "" }
 }
 
 // ConfigureLLM runs the canonical provider configuration flow: choose a
@@ -333,6 +336,7 @@ func discoverModels(
 	if o.HTTPClient != nil {
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
 	}
+	opts = append(opts, o.ProviderOptions...)
 	var cat catalog.Catalog
 	var err error
 	if chatGPT {
@@ -380,6 +384,7 @@ func chatGPTCatalog(
 	if o.HTTPClient != nil {
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
 	}
+	opts = append(opts, o.ProviderOptions...)
 	built, err := o.registry().New(d.ID, opts...)
 	if err != nil {
 		return catalog.Catalog{}, err

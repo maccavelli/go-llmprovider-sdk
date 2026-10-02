@@ -165,26 +165,33 @@ func TestListenLoopbackBothFamilies_SkipsPortWhenIPv4Busy(t *testing.T) {
 	}
 }
 
-func TestResolveOAuthFlowConfig_GrokEnvironmentOverrides(t *testing.T) {
-	t.Setenv("GROK_OAUTH2_ISSUER", "")
-	t.Setenv("GROK_OAUTH2_CLIENT_ID", "")
+// TestGrokFlowFromEnv was TestResolveOAuthFlowConfig_GrokEnvironmentOverrides
+// (0015-PLAN S10): the sign-in reads no environment variable, and
+// GrokFlowFromEnv, which a caller opts into, carries the two variables onto
+// the flow's options.
+func TestGrokFlowFromEnv(t *testing.T) {
+	t.Setenv("GROK_OAUTH2_ISSUER", "https://issuer.example/")
+	t.Setenv("GROK_OAUTH2_CLIENT_ID", "environment-client")
 	defaults, err := resolveOAuthFlowConfig(llmprovider.ProviderGrok, OAuthFlowOptions{})
 	if err != nil {
 		t.Fatalf("resolve default OAuth flow config: %v", err)
 	}
 	if defaults.issuer != DefaultGrokOAuthIssuer || defaults.clientID != DefaultGrokOAuthClientID {
-		t.Fatalf("default issuer/client = (%q, %q)", defaults.issuer, defaults.clientID)
+		t.Fatalf("issuer/client without the helper = (%q, %q), want the defaults", defaults.issuer, defaults.clientID)
 	}
 
-	t.Setenv("GROK_OAUTH2_ISSUER", "https://issuer.example/")
-	t.Setenv("GROK_OAUTH2_CLIENT_ID", "environment-client")
-
-	config, err := resolveOAuthFlowConfig(llmprovider.ProviderGrok, OAuthFlowOptions{})
+	config, err := resolveOAuthFlowConfig(llmprovider.ProviderGrok, GrokFlowFromEnv())
 	if err != nil {
 		t.Fatalf("resolveOAuthFlowConfig() error = %v", err)
 	}
 	if config.issuer != "https://issuer.example" || config.clientID != "environment-client" {
-		t.Fatalf("resolved issuer/client = (%q, %q)", config.issuer, config.clientID)
+		t.Fatalf("issuer/client through GrokFlowFromEnv = (%q, %q)", config.issuer, config.clientID)
+	}
+
+	t.Setenv("GROK_OAUTH2_ISSUER", "")
+	t.Setenv("GROK_OAUTH2_CLIENT_ID", "")
+	if got := GrokFlowFromEnv(); got.Issuer != "" || got.ClientID != "" {
+		t.Fatalf("GrokFlowFromEnv() with nothing set = %+v, want empty fields", got)
 	}
 }
 

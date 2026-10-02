@@ -91,13 +91,11 @@ func TestListModels_ListingBounded(t *testing.T) {
 // TestListModels_HonoursTheMetadataURLOption is the huggingface row of
 // TestDiscoverModels_HonoursRankingOptions (MADR 0013 A4), less its profile
 // half: ListModels returns what the catalog recommends for the same listing and
-// metadata, and never reads the environment's metadata URL when the option
-// names one. Its profile half is in catalog's ranking_options_test.go (0015-PLAN S8,
+// metadata. The environment's URL is never read: internal/ambientcheck
+// holds that (0015-PLAN S10). Its profile half is in catalog's ranking_options_test.go (0015-PLAN S8,
 // commit 2).
 func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
-	t.Setenv(envDisableMetadata, "0")
-	envMeta, envHits := metadataServer(t, http.StatusInternalServerError, "")
-	t.Setenv("LLMPROVIDER_MODELS_METADATA_URL", envMeta.URL)
+	enableMetadata(t)
 	listing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -123,9 +121,6 @@ func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("ListModels = %v, want the catalog's %v", got, want)
-	}
-	if n := envHits.Load(); n != 0 {
-		t.Errorf("the environment's metadata URL was fetched %d times, want 0", n)
 	}
 	if metaHits.Load() == 0 {
 		t.Error("the option's metadata URL was never fetched")

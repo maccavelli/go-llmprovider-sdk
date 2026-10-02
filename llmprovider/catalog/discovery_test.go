@@ -351,7 +351,8 @@ func TestListHuggingFaceModels_MetadataCuration(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL),
+		llmprovider.WithoutModelMetadata())
 	if err != nil {
 		t.Fatalf("ListAvailableModels: %v", err)
 	}
@@ -449,7 +450,7 @@ func TestListKiloModels_MetadataCuration(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cat, err := List(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}

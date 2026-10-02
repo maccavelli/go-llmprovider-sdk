@@ -51,8 +51,11 @@ func zenServer(t *testing.T, status int, body string) *httptest.Server {
 	return srv
 }
 
+// zenOptions lists through a local server, with the metadata fetch off so no
+// listing reaches models.opencode.ai.
 func zenOptions() Options {
-	return Options{Discover: true, DiscoverLimit: 5 * time.Second}
+	return Options{Discover: true, DiscoverLimit: 5 * time.Second,
+		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata()}}
 }
 
 func labels(choices []Choice) []string {
@@ -74,7 +77,6 @@ func countContaining(msgs []string, sub string) int {
 }
 
 func TestConfigureLLM_BlankSearchShowsRecommended(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 1}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{})
 	if err != nil {
@@ -93,7 +95,6 @@ func TestConfigureLLM_BlankSearchShowsRecommended(t *testing.T) {
 }
 
 func TestConfigureLLM_SearchUsesLiveCorpus(t *testing.T) {
-	withEnv(t, nil)
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
@@ -113,7 +114,6 @@ func TestConfigureLLM_SearchUsesLiveCorpus(t *testing.T) {
 }
 
 func TestConfigureLLM_SearchNoMatchReturnsToSearch(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		inputs: []string{"zzzz", ""}, secrets: []string{testKey},
@@ -131,7 +131,6 @@ func TestConfigureLLM_SearchNoMatchReturnsToSearch(t *testing.T) {
 }
 
 func TestConfigureLLM_SearchAgain(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 1, 1},
 		inputs: []string{"haiku", ""}, secrets: []string{testKey},
@@ -153,7 +152,6 @@ func TestConfigureLLM_SearchAgain(t *testing.T) {
 }
 
 func TestConfigureLLM_OtherFromSearchResults(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 2},
 		inputs: []string{"haiku", "my-id"}, secrets: []string{testKey},
@@ -168,7 +166,6 @@ func TestConfigureLLM_OtherFromSearchResults(t *testing.T) {
 }
 
 func TestConfigureLLM_SearchResultsCapped(t *testing.T) {
-	withEnv(t, nil)
 	many := zenManyIDs()
 	srv := zenServer(t, http.StatusOK, zenListing(many))
 	f := &fakePrompter{
@@ -190,7 +187,6 @@ func TestConfigureLLM_SearchResultsCapped(t *testing.T) {
 }
 
 func TestConfigureLLM_CurrentModelListed(t *testing.T) {
-	withEnv(t, nil)
 	n := len(catalog.Static(llmprovider.ProviderClaude))
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), n}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
@@ -212,7 +208,6 @@ func TestConfigureLLM_CurrentModelListed(t *testing.T) {
 }
 
 func TestConfigureLLM_CurrentModelOnlyForSameProvider(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}}
 	if _, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderGemini, Model: "claude-opus-5"},
@@ -234,7 +229,6 @@ func TestConfigureLLM_CurrentModelOnlyForSameProvider(t *testing.T) {
 }
 
 func TestConfigureLLM_StaticCatalogNotice(t *testing.T) {
-	withEnv(t, nil)
 	srv := zenServer(t, http.StatusInternalServerError, "")
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
@@ -255,7 +249,6 @@ func TestConfigureLLM_StaticCatalogNotice(t *testing.T) {
 }
 
 func TestConfigureLLM_NoStaticNoticeWithoutDiscover(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}}
 	if _, err := ConfigureLLM(context.Background(), f, Options{}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -305,7 +298,6 @@ func TestConfigureLLM_ChatGPTNoStaticNotice(t *testing.T) {
 }
 
 func TestConfigureLLM_FallbackSearch(t *testing.T) {
-	withEnv(t, nil)
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
@@ -337,7 +329,6 @@ func TestConfigureLLM_FallbackSearch(t *testing.T) {
 }
 
 func TestConfigureLLM_FallbackSearchLoops(t *testing.T) {
-	withEnv(t, nil)
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
@@ -417,7 +408,6 @@ func TestConfigureLLM_ProfileReachesListing(t *testing.T) {
 		{"capable", catalog.ProfileCapable, "b/pro"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			withEnv(t, nil)
 			srv := zenServer(t, http.StatusOK, listing)
 			f := &fakePrompter{
 				t: t, selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},

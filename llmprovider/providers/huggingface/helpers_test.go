@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,18 +13,6 @@ import (
 )
 
 // Test helpers, as the other provider packages' (0015-PLAN S7).
-
-// envDisableMetadata turns the metadata fetch off; llmprovider reads it.
-const envDisableMetadata = "LLMPROVIDER_DISABLE_MODELS_METADATA"
-
-// TestMain turns the metadata fetch off unless a test turns it on, as
-// llmprovider's tests do, so no listing reaches models.opencode.ai.
-func TestMain(m *testing.M) {
-	if err := os.Setenv(envDisableMetadata, "1"); err != nil {
-		panic(err)
-	}
-	os.Exit(m.Run())
-}
 
 const fxHFChat = `{"id":"cmpl-hf","choices":[{"message":{"role":"assistant","content":"hello"}}]}`
 
@@ -66,14 +53,14 @@ func metadataServer(t *testing.T, status int, body string) (*httptest.Server, *a
 
 // apiKey is the options for a key "k" against url, with the given model.
 func apiKey(url, model string, opts ...llmprovider.Option) []llmprovider.Option {
-	return append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
-		llmprovider.WithBaseURL(url)}, opts...)
+	return append(append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(model),
+		llmprovider.WithBaseURL(url)}, metadataOff()...), opts...)
 }
 
 // build is New, failing the test on an error.
 func build(t *testing.T, opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
-	p, err := New(opts...)
+	p, err := New(append(metadataOff(), opts...)...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -103,4 +90,25 @@ func list(t *testing.T, p llmprovider.Provider) ([]string, error) {
 		t.Fatal("the provider is not a ModelLister")
 	}
 	return lister.ListModels(t.Context())
+}
+
+// metadataOn is set by enableMetadata for one test, which serves its own
+// metadata document. Otherwise the helpers turn the fetch off, so no test
+// reaches models.opencode.ai (0015-PLAN S10). No test here runs in parallel.
+var metadataOn bool
+
+// enableMetadata leaves the metadata fetch on for one test.
+func enableMetadata(t *testing.T) {
+	t.Helper()
+	metadataOn = true
+	t.Cleanup(func() { metadataOn = false })
+}
+
+// metadataOff is WithoutModelMetadata, unless enableMetadata turned the fetch
+// on.
+func metadataOff() []llmprovider.Option {
+	if metadataOn {
+		return nil
+	}
+	return []llmprovider.Option{llmprovider.WithoutModelMetadata()}
 }

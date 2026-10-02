@@ -16,14 +16,12 @@ import (
 // TestDiscoverModels_HonoursRankingOptions (MADR 0013 A4), with its profile
 // halves back (0015-PLAN S8, commit 2): each open-catalog provider's ListModels
 // returns exactly what the catalog recommends for the same profile and
-// metadata URL, the fixture separates the profiles, and the environment's
-// metadata URL is never read when an option names one. Its fixtures and clock
-// are the original's.
+// metadata URL, and the fixture separates the profiles. The environment's
+// URL is never read: internal/ambientcheck holds that (0015-PLAN S10). Its
+// fixtures and clock are the original's.
 func TestListModels_HonoursRankingOptions(t *testing.T) {
 	catalog.PinRankingNow(t, catalog.RefNow)
 	catalog.EnableModelMetadata(t)
-	envMeta, envHits := catalog.MetadataServer(t, http.StatusInternalServerError, "")
-	t.Setenv(catalog.EnvModelMetadataURL, envMeta.URL)
 
 	kiloListing := `{"data":[` + strings.Join([]string{
 		catalog.KiloRankEntry("a/flash-lite", "A Flash Lite", "0.0000001", "0.0000004", 20, true, ""),
@@ -86,9 +84,6 @@ func TestListModels_HonoursRankingOptions(t *testing.T) {
 			}
 			if !slices.Equal(got, want.Recommended) {
 				t.Errorf("ListModels = %v, want the catalog's %v", got, want.Recommended)
-			}
-			if n := envHits.Load(); n != 0 {
-				t.Errorf("ListModels fetched the environment's metadata URL %d times, want 0", n)
 			}
 		})
 	}

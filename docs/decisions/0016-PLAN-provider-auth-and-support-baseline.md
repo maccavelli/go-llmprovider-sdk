@@ -926,3 +926,18 @@ before the code. Details are in 0015-PLAN, "Phase S8, commit 6".
     *holding* a `Result`, encodes it with `encoding/json`. The test exempts
     that form, citing A9.
 * **V9 is met.** **V4 is met,** with A9's exception for JSON.
+
+### T5: environment helper (2026-10-02, in 0015-PLAN S10)
+
+* `ANTHROPIC_API_KEY` only (D12, the owner's decision of 2026-09-29).
+  `ProviderEnvVars()` and the Claude descriptor's `EnvVar` name it, which is
+  the variable `wizard`'s `AllowEnv` reads, through `Options.LookupEnv`.
+  `CLAUDE_API_KEY` is not read.
+* **Red first,** against `llmprovider/provider.go:60`:
+  `TestConfigureLLM_AnthropicKeyOnly` failed with `ProviderEnvVars()[claude] =
+  "CLAUDE_API_KEY"`; a `CLAUDE_API_KEY` key was offered; an
+  `ANTHROPIC_API_KEY` key was not found.
+* The step's "opt-in helper" for the key has no function of its own. The
+  key is read only where a caller passes a reader: `wizard`'s
+  `Options.LookupEnv`. Details are in 0015-PLAN, "Phase S10".
+* **V10 is met.**

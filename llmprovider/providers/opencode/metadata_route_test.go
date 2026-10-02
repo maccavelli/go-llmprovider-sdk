@@ -134,8 +134,8 @@ func TestOpencode_RouteWithoutMetadataUsesTable(t *testing.T) {
 	})
 	t.Run("disabled", func(t *testing.T) {
 		srv, paths := routeServer(t, llmprovider.ProviderOpencodeGo, "minimax-m3", "@ai-sdk/openai-compatible", true)
-		t.Setenv(envDisableMetadata, "1")
-		if got := generatePath(t, srv, paths, llmprovider.ProviderOpencodeGo, "minimax-m3"); got != "/messages" {
+		if got := generatePath(t, srv, paths, llmprovider.ProviderOpencodeGo, "minimax-m3",
+			llmprovider.WithoutModelMetadata()); got != "/messages" {
 			t.Errorf("path = %q, want the table's /messages", got)
 		}
 	})

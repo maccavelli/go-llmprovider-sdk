@@ -605,6 +605,18 @@ These are recorded as 0015-MADR amendment "what `Usage` counts".
    * **First-fail:** a planted `os.Getenv` in a scratch copy.
 4. Gate.
 
+*Deviation, 2026-10-02:* the survey found four points the steps did not
+settle. They were put to the owner before any code, and decided as
+0015-MADR amendment "no ambient state, in detail":
+* a `WithoutModelMetadata` option, which the tests pass;
+* the check allows only `FromEnv` helpers;
+* `wizard` reads the environment only through `LookupEnv`, and gains
+  `ProviderOptions`;
+* a logger where one is in reach.
+
+0016-PLAN T5, `ANTHROPIC_API_KEY` only, is done in this phase as that PLAN
+says.
+
 ### Phase S11: documentation, and the third-party proof
 
 1. **`api-standards.md`.** Finalise it against the built tree.
@@ -4114,6 +4126,7 @@ counts", written before the code. ~~**S9 stays open** until the owner runs the
 two live measurements below.~~ *Annotated 2026-10-02:* both were run with the
 owner's approval; S9 is complete (the measurements are recorded at the end of
 this entry).
+*Annotated 2026-10-02:* committed as `60ba0c6`.
 
 * **Deviation, 2026-10-02.** What `Usage` counts was stated nowhere, and the
   services disagree. It was put to the owner before any code, with the Kilo
@@ -4211,3 +4224,149 @@ this entry).
     route was unstable that hour. The two "no choices" bodies were not
     captured. If they recur, whether a choiceless body is transient
     (retryable) is a decision for a later record.
+
+### Phase S10: ambient state (2026-10-02)
+
+Staged for the owner to commit, with 0015-MADR amendment "no ambient state,
+in detail", written before the code, and 0016-PLAN T5.
+
+* **Deviation, 2026-10-02.**
+  * **Before the code,** the survey found four points the steps did not
+    settle:
+    * the tests stay offline through an environment variable;
+    * the check needs an exemption for the `FromEnv` helpers;
+    * `wizard` falls back to `os.Getenv`;
+    * four global-`slog` calls remain, not three.
+
+    The owner's decisions, and `wizard.Options.ProviderOptions`, are the
+    amendment's.
+  * **During the work,** the lint rules forbade dropping `auth`'s close
+    error. The owner chose "return it to the caller"; the amendment records
+    it.
+  * **After the audit, 2026-10-02: the Claude listing test.**
+    * **Found.** `wizard`'s `TestConfigureLLM_EmptyDiscoveryFallsBackToStatic`
+      (`wizard/configure_test.go`) has sent `testKey` to `api.anthropic.com`
+      since it was written in `d7daec7`. Its comment claims "an unreachable
+      base URL", but it set none. It passed because any failed fetch
+      degrades to the static catalog with a nil error, so it showed neither
+      that the listing was tried nor that the failure was reported.
+    * **Decided.** The owner chose to fix it in S10, and added
+      `wizard/configure_test.go` to the phase. The test now passes an
+      `Options.HTTPClient` that counts its calls and refuses each one. It
+      asserts the client was used, the first static model chosen, and the
+      failure reported once.
+    * **No decision changes,** so the MADR is not amended.
+* **Step 1, environment.**
+  * `catalog`'s metadata URL and switch no longer read the environment.
+    `catalog.OptionsFromEnv()` maps the two `LLMPROVIDER_` variables to
+    `WithModelMetadataURL` and the new common option
+    `llmprovider.WithoutModelMetadata()` (`Settings.ModelMetadataDisabled`).
+  * `opencode` honours the option, and routes by its table, as for a failed
+    fetch.
+  * The Grok sign-in no longer reads `GROK_OAUTH2_ISSUER` or
+    `GROK_OAUTH2_CLIENT_ID`. `auth.GrokFlowFromEnv()` returns them as
+    `OAuthFlowOptions`.
+  * `wizard` reads the environment only through `Options.LookupEnv`; a nil
+    one finds nothing. `Options.ProviderOptions` reach every listing and the
+    ChatGPT provider the wizard builds.
+* **Step 2, logging:**
+  * `ClassifyHTTPError` puts an unreadable body into the message;
+  * `llmprovider`'s `http_helpers.go` is removed, and its `closeResponseBody`
+    is a test helper;
+  * `catalog`'s close logs to the listing's `Settings` logger;
+  * `auth`'s returns the close error, joined to the call's.
+* **Step 3, the check.** `internal/ambientcheck` parses every non-test source
+  in the module. It fails on:
+  * `os.Getenv`, `os.LookupEnv` or `os.Environ` outside an exported `…FromEnv`
+    function;
+  * `http.ProxyFromEnvironment` outside `internal/transport`;
+  * any call to `slog`'s global functions.
+
+  **Red first:** against the tree before the fixes it listed exactly the nine
+  sites the survey found, and passed `ModelProbesFromEnv`.
+  **First-fail, as the step asks:** a planted `os.Getenv` in a scratch copy
+  fails it (breaks below).
+* **0016-PLAN T5.** `ProviderEnvVars()` maps `claude` to `ANTHROPIC_API_KEY`,
+  and the Claude descriptor's `EnvVar` with it.
+  **Red first:** `TestConfigureLLM_AnthropicKeyOnly` failed three ways: the
+  map, a `CLAUDE_API_KEY` offered, and an `ANTHROPIC_API_KEY` not found.
+* **The tests set options, not the environment.**
+  * The `TestMain`s of `wizard`, `catalog`, `huggingface`, `together` and
+    `opencode` are removed.
+  * Each package's helpers pass `WithoutModelMetadata()` unless a test turns
+    metadata on: `enableMetadata` in the three provider packages, and
+    `enableModelMetadata` in `catalog`, whose direct `List` calls go
+    through `listT`.
+  * `wirecase.Run` builds every provider with the option, as its goldens
+    were recorded.
+  * `wizard`'s `withEnv` is gone. Its 34 `withEnv(t, nil)` calls are
+    removed, and the two Claude key tests pass `LookupEnv` with
+    `ANTHROPIC_API_KEY`.
+  * The tests of the environment reading itself became tests of the
+    helpers: `TestGrokFlowFromEnv` and `TestOptionsFromEnv`, with
+    `TestModelMetadataURL_Precedence` and `TestLoadModelMetadata_Disabled`
+    rewritten.
+  * The `envHits` checks of four tests (`huggingface`, `together`,
+    `opencode`, `catalog`'s ranking options) asserted that an option's URL
+    beat the environment's. The environment can no longer be read, so they
+    are removed; `internal/ambientcheck` holds the property now.
+* **Hermeticity audit.** A recording proxy (`HTTP_PROXY`/`HTTPS_PROXY` on
+  the test process, which the default transport reads) logged every host a
+  test tried to reach, and refused it. A test that reaches the network
+  passes quietly, because a failed metadata fetch falls back, so a green run
+  proves nothing here.
+  * **Before S10:** one host, `api.anthropic.com`.
+  * **After the first pass:** 50 tests in `catalog`, `huggingface`,
+    `opencode` and `together` reached `models.opencode.ai`. This was found
+    test by test, and the helpers above are the fix.
+  * **Final:** the same single host as before.
+  * ~~**Found, not fixed:** that host is `wizard`'s
+    `TestConfigureLLM_EmptyDiscoveryFallsBackToStatic`, which lists Claude
+    against the real API with a dummy key. It predates S10 and has nothing
+    to do with metadata.~~ *Annotated 2026-10-02:* fixed in S10 by the
+    owner's decision (the deviation entry "the Claude listing test"). After
+    the fix the audit finds no host.
+* **Faults in my own work, caught and fixed:**
+  * a script quit at an ambiguous match, so a `go test` chained to it with
+    `&&` did not run, and its stale output was read once;
+  * a rewrite of three conformance harnesses broke a composite literal; the
+    compiler caught it;
+  * the first Grok break tested a trim `resolveOAuthFlowConfig` already
+    does. The redundant trim in `GrokFlowFromEnv` was removed, and the break
+    rewritten.
+* **New tests:**
+  * `TestConfigureLLM_ProviderOptionsReachTheListing` and
+    `…ReachTheChatGPTProvider`;
+  * `TestClassifyHTTPError_SaysTheBodyWasUnreadable`;
+  * `TestCloseBody_LogsToTheListingsLogger`;
+  * `TestFetchJWKS_ReturnsACloseFailure`;
+  * and those above.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | a planted os.Getenv in library code | `llmprovider/options.go:67: os.Getenv outside an exported ...FromEnv function` |
+  | a planted global slog call | `llmprovider/catalog/config.go:136: slog.Info uses the global logger` |
+  | a planted proxy read outside the transport | `llmprovider/catalog/config.go:129: http.ProxyFromEnvironment outside llmprovider/internal/transport` |
+  | WithoutModelMetadata is ignored | `disabled: metadata requests = 1, want 0` |
+  | OptionsFromEnv ignores the disable variable | `LLMPROVIDER_DISABLE_MODELS_METADATA="1": err = <nil>, want errModelMetadataDisabled` |
+  | opencode ignores WithoutModelMetadata | `path = "/chat/completions", want the table's /messages` |
+  | wizard drops ProviderOptions from the listing | `the listing never fetched the metadata URL ProviderOptions named` |
+  | wizard drops ProviderOptions from the ChatGPT provider | `listing User-Agents = ["go-llmprovider-sdk/(devel) (darwin; arm64) go-llmprovider-sdk/(devel)"], want one naming my-app` |
+  | ClassifyHTTPError hides an unreadable body | `err = llmprovider: provider unavailable: kilo HTTP 502: {"error":{"message":"quota, want the unreadable body in the m…` |
+  | catalog drops a close failure | `log = "", want the close failure` |
+  | auth drops a close failure | `err = <nil>, want the close failure returned` |
+  | Claude's key is CLAUDE_API_KEY again | `ProviderEnvVars()[claude] = "CLAUDE_API_KEY", want ANTHROPIC_API_KEY` |
+  | GrokFlowFromEnv ignores the client id | `issuer/client through GrokFlowFromEnv = ("https://issuer.example", "b1a00492-073a-47ea-816f-4c329264a828")` |
+
+* **Docs.**
+  * `architecture.md` describes the metadata options and the no-ambient-state
+    rule.
+  * The standards guide's R30 names the `FromEnv` rule and the check.
+  * The migration guide's "behaviour that has already changed" lists the
+    helpers and the Claude key, and fills `wizard.Options.LookupEnv` and
+    `AllowEnv`.
+* **Lint.** Clean, with no change of configuration.
+* **G-wire.** All goldens unchanged, with no `-update`.
+* **Coverage:** `llmprovider` 98.2 % and `auth` 85.3 % from their own tests,
+  against 89.2 % and 80 %; `catalog` 88.4 %, `wizard` 84.4 %.

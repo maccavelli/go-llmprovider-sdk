@@ -2,7 +2,10 @@ package wizard
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,23 +28,22 @@ func providerIdx(t *testing.T, id llmprovider.ProviderID) int {
 	return -1
 }
 
-func withEnv(t *testing.T, vals map[string]string) {
-	t.Helper()
-	orig := getenv
-	getenv = func(k string) string { return vals[k] }
-	t.Cleanup(func() { getenv = orig })
+// envOf is a LookupEnv over vals, so a test never reads the process
+// environment (0015-MADR D9).
+func envOf(vals map[string]string) func(string) string {
+	return func(k string) string { return vals[k] }
 }
 
 const testKey = "sk-super-secret-key-1234"
 
 func TestConfigureLLM_EnvKeyPrecedence(t *testing.T) {
-	withEnv(t, map[string]string{"CLAUDE_API_KEY": testKey})
 	f := &fakePrompter{
 		t:        t,
 		selects:  []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		confirms: []bool{true}, // yes, use the env key
 	}
-	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true})
+	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true,
+		LookupEnv: envOf(map[string]string{"ANTHROPIC_API_KEY": testKey})})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -54,7 +56,6 @@ func TestConfigureLLM_EnvKeyPrecedence(t *testing.T) {
 }
 
 func TestConfigureLLM_KeepExisting(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t:        t,
 		selects:  []int{providerIdx(t, llmprovider.ProviderClaude), 0},
@@ -75,7 +76,6 @@ func TestConfigureLLM_KeepExisting(t *testing.T) {
 }
 
 func TestConfigureLLM_PromptsWhenNothingAvailable(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t:       t,
 		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
@@ -96,7 +96,6 @@ func TestConfigureLLM_PromptsWhenNothingAvailable(t *testing.T) {
 // TestConfigureLLM_LocalProviderSkipsKey: Ollama needs no credential, which is
 // why ProviderDescriptor has RequiresAPIKey.
 func TestConfigureLLM_LocalProviderSkipsKey(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t:       t,
 		selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
@@ -131,7 +130,6 @@ func TestConfigureLLM_LocalProviderSkipsKey(t *testing.T) {
 // TestConfigureLLM_NoModelsAndNoneEnteredErrors: a Result with an empty Model
 // cannot generate anything, so the flow must fail rather than return it.
 func TestConfigureLLM_NoModelsAndNoneEnteredErrors(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t:        t,
 		selects:  []int{providerIdx(t, llmprovider.ProviderOllama)},
@@ -144,29 +142,40 @@ func TestConfigureLLM_NoModelsAndNoneEnteredErrors(t *testing.T) {
 }
 
 func TestConfigureLLM_EmptyDiscoveryFallsBackToStatic(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t:       t,
 		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		secrets: []string{testKey},
 	}
-	// Discover against an unreachable base URL: the listing fails, so the
-	// static catalog must be offered instead of the wizard dead-ending.
+	// The listing's client refuses every request, so the listing fails
+	// without reaching the network, and the static catalog must be offered
+	// instead of the wizard dead-ending.
+	var listed atomic.Int32
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		listed.Add(1)
+		return nil, errors.New("refused by the test")
+	})}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Discover:      true,
 		DiscoverLimit: 2 * time.Second,
+		HTTPClient:    client,
 	})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
+	}
+	if listed.Load() == 0 {
+		t.Fatal("the listing never used Options.HTTPClient")
 	}
 	static := catalog.Static(llmprovider.ProviderClaude)
 	if len(static) == 0 || res.Model != static[0] {
 		t.Errorf("Model = %q, want the first static model %v", res.Model, static)
 	}
+	if countContaining(f.seenNotify, "refused by the test") != 1 {
+		t.Errorf("notices = %v, want the listing failure reported once", f.seenNotify)
+	}
 }
 
 func TestConfigureLLM_Fallbacks(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t:            t,
 		selects:      []int{providerIdx(t, llmprovider.ProviderClaude), 0},
@@ -191,13 +200,13 @@ func TestConfigureLLM_Fallbacks(t *testing.T) {
 // credential cannot leak through a prompt. Every string the user could have
 // seen is checked against the raw key.
 func TestConfigureLLM_MaskedKeyNeverPrintsSecret(t *testing.T) {
-	withEnv(t, map[string]string{"CLAUDE_API_KEY": testKey})
 	f := &fakePrompter{
 		t:        t,
 		selects:  []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		confirms: []bool{true},
 	}
-	if _, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true}); err != nil {
+	if _, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true,
+		LookupEnv: envOf(map[string]string{"ANTHROPIC_API_KEY": testKey})}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
 	var sawMask bool
@@ -218,7 +227,6 @@ func TestConfigureLLM_MaskedKeyNeverPrintsSecret(t *testing.T) {
 // exactly the canonical descriptor list. This is the property that keeps every
 // wizard current when this module adds a provider.
 func TestConfigureLLM_OffersEveryDescriptor(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t:       t,
 		selects: []int{0, 0},
@@ -240,7 +248,6 @@ func TestConfigureLLM_OffersEveryDescriptor(t *testing.T) {
 // TestConfigureLLM_UsesTheRegistry: a caller's Registry is the menu, in its own
 // order; nil is every built-in provider (0015-PLAN S8).
 func TestConfigureLLM_UsesTheRegistry(t *testing.T) {
-	withEnv(t, nil)
 	reg := llmprovider.NewRegistry()
 	if err := reg.Register(claude.Descriptor(), claude.New); err != nil {
 		t.Fatal(err)
@@ -259,7 +266,6 @@ func TestConfigureLLM_UsesTheRegistry(t *testing.T) {
 }
 
 func TestConfigureLLM_ProviderFilter(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{t: t, selects: []int{0, 0, 0}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Providers: []llmprovider.ProviderID{llmprovider.ProviderGrok},
@@ -284,7 +290,6 @@ func TestConfigureLLM_ProviderFilter(t *testing.T) {
 // can both lag a newly released model, so the menu always ends with a manual
 // entry. prepare-commit-msg's wizard had this before the migration.
 func TestConfigureLLM_OtherModelEscapeHatch(t *testing.T) {
-	withEnv(t, nil)
 	static := catalog.Static(llmprovider.ProviderClaude)
 	f := &fakePrompter{
 		t: t,
@@ -310,7 +315,6 @@ func TestConfigureLLM_OtherModelEscapeHatch(t *testing.T) {
 // TestConfigureLLM_InjectedLookupEnv: consumers drive the env-key branch
 // deterministically in their own tests without touching the real environment.
 func TestConfigureLLM_InjectedLookupEnv(t *testing.T) {
-	withEnv(t, nil) // the package-level reader returns nothing
 	f := &fakePrompter{
 		t:        t,
 		selects:  []int{providerIdx(t, llmprovider.ProviderGemini), 0},

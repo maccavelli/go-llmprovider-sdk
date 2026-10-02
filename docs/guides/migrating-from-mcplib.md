@@ -26,6 +26,13 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 - **Identity (§5).** Requests name `go-llmprovider-sdk` in `User-Agent`, the
   ChatGPT `originator` header and the Grok `referrer`.
 - **Environment (§6).** `MCPLIB_*` variables are now `LLMPROVIDER_*`.
+  Since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S10 the library reads none of them by itself:
+  - pass `catalog.OptionsFromEnv()` for the metadata variables;
+  - pass `auth.GrokFlowFromEnv()` for `GROK_OAUTH2_ISSUER` and
+    `GROK_OAUTH2_CLIENT_ID`;
+  - pass `os.Getenv` as the wizard's `Options.LookupEnv`.
+- **Claude's key (0016-MADR D12).** It is read from `ANTHROPIC_API_KEY`
+  only, no longer from `CLAUDE_API_KEY`.
 - **Orchestration (sixth amendment).** The wizard has no orchestration option,
   and does not read `MCP_ORCHESTRATOR_OWNED`.
 - **Credentials (§7).** Without `Options.TokenStore`, the wizard offers only
@@ -409,12 +416,12 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `wizard.LevelWarn` |  |  |
 | `wizard.NewTextPrompter` |  |  |
 | `wizard.Options` |  |  |
-| `wizard.Options.AllowEnv` |  |  |
+| `wizard.Options.AllowEnv` | `Options.AllowEnv` | Reads through `Options.LookupEnv` only. |
 | `wizard.Options.Discover` |  |  |
 | `wizard.Options.DiscoverLimit` |  |  |
 | `wizard.Options.Existing` | `Options.Existing` | A `Result`; its `Provider` is a `ProviderID`. A kept `CredOAuth` session is read from `Options.TokenStore` (A10). |
 | `wizard.Options.HTTPClient` |  |  |
-| `wizard.Options.LookupEnv` |  |  |
+| `wizard.Options.LookupEnv` | `Options.LookupEnv` | Nil reads nothing; pass `os.Getenv` for the process environment ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "no ambient state, in detail"). |
 | `wizard.Options.NeedFallbacks` |  |  |
 | `wizard.Options.OpenURL` |  |  |
 | `wizard.Options.Orchestrated` | removed | As `ErrOrchestrated` ([0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.md), sixth amendment). |

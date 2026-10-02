@@ -18,7 +18,6 @@ import (
 // TestConfigureLLM_FallbackPicksDeduped pins MADR 0013 C1: a repeated index
 // in a fallback MultiSelect adds that model once.
 func TestConfigureLLM_FallbackPicksDeduped(t *testing.T) {
-	withEnv(t, nil)
 	static := catalog.Static(llmprovider.ProviderClaude)
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey},
@@ -49,7 +48,6 @@ func TestMultiSelect_RepeatedIndexCountsOnce(t *testing.T) {
 // 0007 §4.3): the Other and "No models found" prompts default to the saved
 // model only when it belongs to the chosen provider.
 func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
-	withEnv(t, nil)
 	saved := Result{Provider: llmprovider.ProviderClaude, Model: "claude-opus-5"}
 	t.Run("other provider, Other", func(t *testing.T) {
 		gemini := len(catalog.Static(llmprovider.ProviderGemini))
@@ -91,7 +89,6 @@ func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 // TestConfigureLLM_FallbackExclusionIgnoresCase pins MADR 0013 C6: a primary
 // typed in another case is not offered back as a fallback.
 func TestConfigureLLM_FallbackExclusionIgnoresCase(t *testing.T) {
-	withEnv(t, nil)
 	static := catalog.Static(llmprovider.ProviderClaude)
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), len(static)},
@@ -109,7 +106,6 @@ func TestConfigureLLM_FallbackExclusionIgnoresCase(t *testing.T) {
 // model_select.go's empty-id branch: a blank or whitespace-only id is refused
 // at Other and at "No models found".
 func TestConfigureLLM_BlankModelIDRefused(t *testing.T) {
-	withEnv(t, nil)
 	claude := len(catalog.Static(llmprovider.ProviderClaude))
 	for _, id := range []string{"", "   "} {
 		f := &fakePrompter{
@@ -132,7 +128,6 @@ func TestConfigureLLM_BlankModelIDRefused(t *testing.T) {
 // TestConfigureLLM_ListingErrorWarns covers configure.go's listing-error
 // warning: Ollama unreachable with Discover set.
 func TestConfigureLLM_ListingErrorWarns(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
 		inputs: []string{"http://127.0.0.1:1", "llama3"}, confirms: []bool{false},
@@ -150,7 +145,6 @@ func TestConfigureLLM_ListingErrorWarns(t *testing.T) {
 // listing: a reachable Ollama with nothing installed falls through to manual
 // entry without a warning.
 func TestConfigureLLM_OllamaEmptyListing(t *testing.T) {
-	withEnv(t, nil)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/tags" {
 			_, _ = w.Write([]byte(`{"models":[]}`))
@@ -170,7 +164,6 @@ func TestConfigureLLM_OllamaEmptyListing(t *testing.T) {
 // TestConfigureLLM_DefaultRowIsExistingModel covers model_select.go's default
 // row: a saved model in the recommended list is the menu default.
 func TestConfigureLLM_DefaultRowIsExistingModel(t *testing.T) {
-	withEnv(t, nil)
 	static := catalog.Static(llmprovider.ProviderClaude)
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 2}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
@@ -188,7 +181,6 @@ func TestConfigureLLM_DefaultRowIsExistingModel(t *testing.T) {
 // blank round after search has taken every recommended model: it ends the
 // loop without an empty MultiSelect.
 func TestConfigureLLM_BlankFallbackRoundWithNothingLeft(t *testing.T) {
-	withEnv(t, nil)
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0}, secrets: []string{testKey},
@@ -209,7 +201,6 @@ func TestConfigureLLM_BlankFallbackRoundWithNothingLeft(t *testing.T) {
 // TestConfigureLLM_FallbackSearchNoMatches covers model_select.go's no-match
 // fallback search: it warns and asks again.
 func TestConfigureLLM_FallbackSearchNoMatches(t *testing.T) {
-	withEnv(t, nil)
 	f := &fakePrompter{
 		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey},
 		inputs: []string{"", "zzz-no-match", ""}, multiSelects: [][]int{{}},
@@ -229,7 +220,6 @@ func TestConfigureLLM_FallbackSearchNoMatches(t *testing.T) {
 // has already passed when the refresh starts, so no request leaves the host.
 func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 	store := newMemoryTokenStore()
-	withEnv(t, nil)
 	static := catalog.Static(llmprovider.ProviderGrok)
 	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}, confirms: []bool{true}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
@@ -259,7 +249,6 @@ func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 // no cause: a listing that succeeds but offers no usable model degrades
 // without a ModelCatalog.Err.
 func TestConfigureLLM_UnusableListingNotice(t *testing.T) {
-	withEnv(t, nil)
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,

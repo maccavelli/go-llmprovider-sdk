@@ -24,7 +24,7 @@ func testConfig(t *testing.T, opts ...llmprovider.Option) config {
 // listRecommended is List's recommendation, as llmprovider's
 // ListAvailableModels returned it: nil on an error.
 func listRecommended(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, opts ...llmprovider.Option) ([]string, error) {
-	cat, err := List(ctx, id, src, opts...)
+	cat, err := listT(ctx, id, src, opts...)
 	if err != nil {
 		return nil, err
 	}

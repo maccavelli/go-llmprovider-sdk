@@ -39,6 +39,8 @@ type config struct {
 	KiloOrganization string
 	userAgent        string
 	session          string
+	metadataOff      bool         // WithoutModelMetadata
+	logger           *slog.Logger // Settings.Logger
 }
 
 // profileOption is WithProfile's value; kiloOrganizationOption is
@@ -84,6 +86,8 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 		ModelMetadataURL: st.ModelMetadataURL(),
 		userAgent:        st.UserAgent(),
 		session:          st.SessionID(),
+		metadataOff:      st.ModelMetadataDisabled(),
+		logger:           st.Logger(),
 	}
 	for _, v := range st.Values() {
 		switch v := v.(type) {
@@ -122,13 +126,14 @@ func tokenHeader(tok llmprovider.Token, header, scheme string) (name, value stri
 	return header, ""
 }
 
-// closeResponseBody closes an HTTP response body, logging close failures at
-// debug level. Each package keeps its own, so that bodyclose sees the close.
-func closeResponseBody(resp *http.Response) {
+// closeBody closes an HTTP response body, logging a close failure at debug
+// level to the listing's logger (0015-MADR D9). Each package keeps its own,
+// so that bodyclose sees the close.
+func (c config) closeBody(resp *http.Response) {
 	if resp == nil || resp.Body == nil {
 		return
 	}
-	if err := resp.Body.Close(); err != nil {
-		slog.Debug("llmprovider: close response body", "error", err)
+	if err := resp.Body.Close(); err != nil && c.logger != nil {
+		c.logger.Debug("catalog: close response body", "error", err)
 	}
 }

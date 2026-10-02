@@ -59,7 +59,7 @@ var userAgentPattern = regexp.MustCompile(`^go-llmprovider-sdk/\S+ \(\w+; \w+\) 
 func TestIdentification_UserAgent(t *testing.T) {
 	rec := newHeaderRecorder(t)
 	base := llmprovider.WithBaseURL(rec.srv.URL)
-	if _, err := List(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken("k"), base); err != nil {
+	if _, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken("k"), base); err != nil {
 		t.Fatalf("listing: %v", err)
 	}
 	for _, r := range rec.requests() {

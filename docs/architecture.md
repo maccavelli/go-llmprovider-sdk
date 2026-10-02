@@ -259,9 +259,16 @@ docs/
   package reads the variable nowhere else.
 - `catalog.Profile` (`ProfileUtility`, `ProfileCapable`), passed with
   `catalog.WithProfile`, ranks the open catalogs,
-  using models.dev-format metadata from `https://models.opencode.ai/api.json`
-  (`LLMPROVIDER_MODELS_METADATA_URL` overrides it;
-  `LLMPROVIDER_DISABLE_MODELS_METADATA` turns it off).
+  using models.dev-format metadata from `https://models.opencode.ai/api.json`.
+  `WithModelMetadataURL` names another document, and `WithoutModelMetadata`
+  turns the fetch off. `catalog.OptionsFromEnv()` sets either from
+  `LLMPROVIDER_MODELS_METADATA_URL` and `LLMPROVIDER_DISABLE_MODELS_METADATA`
+  for a caller who passes its result.
+- **No ambient state.** Library code reads the environment only in
+  exported `…FromEnv` helpers a caller opts into (`ModelProbesFromEnv`,
+  `catalog.OptionsFromEnv`, `auth.GrokFlowFromEnv`). The default transport
+  also reads the proxy settings. Nothing logs to the global logger. The test
+  in `internal/ambientcheck` fails on any other read.
 
 ## The wizard
 

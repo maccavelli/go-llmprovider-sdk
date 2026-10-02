@@ -27,6 +27,9 @@ type providerConfig struct {
 	// DisableModelProbes stops ListModels probing each listed model; the
 	// zero value probes. See WithModelProbes and ModelProbesFromEnv.
 	DisableModelProbes bool
+	// DisableModelMetadata stops the metadata fetch; see
+	// WithoutModelMetadata.
+	DisableModelMetadata bool
 }
 
 // WithHTTPClient sets a custom HTTP client for connection pooling.
@@ -85,10 +88,21 @@ func ModelProbesFromEnv() Option {
 // WithModelMetadataURL overrides the model metadata document (MADR 0009 §2)
 // that the open-catalog providers read: OpenCode, Hugging Face, Kilo and
 // Together. Every provider takes it; one that reads no metadata ignores it
-// (0015-MADR, amendment "the OpenCode family").
-// LLMPROVIDER_DISABLE_MODELS_METADATA=1 turns the fetch off whatever the URL.
+// (0015-MADR, amendment "the OpenCode family"). WithoutModelMetadata turns
+// the fetch off whatever the URL.
 func WithModelMetadataURL(url string) Option {
 	return commonOption("WithModelMetadataURL", func(cfg *providerConfig) {
 		cfg.ModelMetadataURL = url
+	})
+}
+
+// WithoutModelMetadata turns the model metadata fetch off, for every provider
+// and listing: the open catalogs rank without it, and OpenCode routes by its
+// table. It is how a caller, or a test, keeps a listing off the network
+// (0015-MADR amendment "no ambient state, in detail"); catalog.OptionsFromEnv
+// sets it from LLMPROVIDER_DISABLE_MODELS_METADATA.
+func WithoutModelMetadata() Option {
+	return commonOption("WithoutModelMetadata", func(cfg *providerConfig) {
+		cfg.DisableModelMetadata = true
 	})
 }

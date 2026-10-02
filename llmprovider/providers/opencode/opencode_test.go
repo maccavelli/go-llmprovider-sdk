@@ -250,12 +250,13 @@ func TestOpencode_ChatReasoningEffort(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.disabled {
-				t.Setenv(envDisableMetadata, "1")
-			}
 			var body map[string]any
 			srv := captureServer(t, &body, fxChat)
-			p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, tc.model, llmprovider.WithModelMetadataURL(meta.URL))...)
+			opts := []llmprovider.Option{llmprovider.WithModelMetadataURL(meta.URL)}
+			if tc.disabled {
+				opts = append(opts, llmprovider.WithoutModelMetadata())
+			}
+			p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, tc.model, opts...)...)
 			req := text("hi")
 			if !tc.plain {
 				req.Reasoning = &llmprovider.Reasoning{Effort: tc.effort}

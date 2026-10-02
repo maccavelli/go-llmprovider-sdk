@@ -39,7 +39,7 @@ const (
 )
 
 // errModelMetadataDisabled reports that the environment turned the fetch off.
-var errModelMetadataDisabled = errors.New("model metadata: disabled by " + envDisableModelMetadata)
+var errModelMetadataDisabled = errors.New("model metadata: disabled by WithoutModelMetadata")
 
 // modelCost is a models.dev price, USD per million tokens.
 type modelCost struct {
@@ -187,23 +187,28 @@ var (
 	modelMetadataCache = map[string]modelMetadataCacheEntry{}
 )
 
-// modelMetadataURL resolves the document URL: the option, then the
-// environment, then OpenCode's.
+// modelMetadataURL resolves the document URL: the option, else OpenCode's.
 func modelMetadataURL(cfg config) string {
 	if cfg.ModelMetadataURL != "" {
 		return cfg.ModelMetadataURL
 	}
-	if v := os.Getenv(envModelMetadataURL); v != "" {
-		return v
-	}
 	return defaultModelMetadataURL
 }
 
-// modelMetadataDisabled reports whether LLMPROVIDER_DISABLE_MODELS_METADATA holds
-// a true boolean ("1", "true", …).
-func modelMetadataDisabled() bool {
-	v, err := strconv.ParseBool(os.Getenv(envDisableModelMetadata))
-	return err == nil && v
+// OptionsFromEnv returns the options LLMPROVIDER_MODELS_METADATA_URL and
+// LLMPROVIDER_DISABLE_MODELS_METADATA set: WithModelMetadataURL for a URL, and
+// WithoutModelMetadata for a true boolean ("1", "true", …). It is the only way
+// either variable takes effect: the library reads no environment variable
+// unless a caller asks (0015-MADR D9). An unset variable adds no option.
+func OptionsFromEnv() []llmprovider.Option {
+	var opts []llmprovider.Option
+	if v := os.Getenv(envModelMetadataURL); v != "" {
+		opts = append(opts, llmprovider.WithModelMetadataURL(v))
+	}
+	if v, err := strconv.ParseBool(os.Getenv(envDisableModelMetadata)); err == nil && v {
+		opts = append(opts, llmprovider.WithoutModelMetadata())
+	}
+	return opts
 }
 
 // loadModelMetadata returns the document, from the in-process cache while it
@@ -212,7 +217,7 @@ func modelMetadataDisabled() bool {
 // without fetching: the stale document when there is one, else the failure
 // (MADR 0013 A6).
 func loadModelMetadata(ctx context.Context, cfg config) (modelMetadataDoc, error) {
-	if modelMetadataDisabled() {
+	if cfg.metadataOff {
 		return nil, errModelMetadataDisabled
 	}
 	url := modelMetadataURL(cfg)
@@ -225,7 +230,7 @@ func loadModelMetadata(ctx context.Context, cfg config) (modelMetadataDoc, error
 	case !e.failed.IsZero() && time.Since(e.failed) < modelMetadataRetryAfter:
 		return e.cached()
 	}
-	doc, err := fetchModelMetadata(ctx, url, cfg.HTTPClient)
+	doc, err := fetchModelMetadata(ctx, url, cfg)
 	modelMetadataMu.Lock()
 	defer modelMetadataMu.Unlock()
 	if err != nil {
@@ -247,17 +252,17 @@ func (e modelMetadataCacheEntry) cached() (modelMetadataDoc, error) {
 }
 
 // fetchModelMetadata performs one GET. Go's transport requests gzip itself.
-func fetchModelMetadata(ctx context.Context, url string, client *http.Client) (modelMetadataDoc, error) {
+func fetchModelMetadata(ctx context.Context, url string, cfg config) (modelMetadataDoc, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("model metadata: %w", err)
 	}
 	defaultConfig().setUserAgent(req)
-	resp, err := client.Do(req)
+	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("model metadata: %w", err)
 	}
-	defer closeResponseBody(resp)
+	defer cfg.closeBody(resp)
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("model metadata: %s returned HTTP %d", url, resp.StatusCode)
 	}

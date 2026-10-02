@@ -199,7 +199,7 @@ func issuerKey(ctx context.Context, client *http.Client, jwksURL, kid string) (j
 	return key, nil
 }
 
-func fetchJWKS(ctx context.Context, client *http.Client, jwksURL string) (map[string]jwk, error) {
+func fetchJWKS(ctx context.Context, client *http.Client, jwksURL string) (_ map[string]jwk, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("keys request: %w", err)
@@ -209,7 +209,7 @@ func fetchJWKS(ctx context.Context, client *http.Client, jwksURL string) (map[st
 	if err != nil {
 		return nil, fmt.Errorf("fetch the issuer's keys: %w", err)
 	}
-	defer closeResponseBody(resp)
+	defer func() { err = errors.Join(err, closeResponseBody(resp)) }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetch the issuer's keys: HTTP %d", resp.StatusCode)
 	}

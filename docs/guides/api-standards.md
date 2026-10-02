@@ -158,9 +158,10 @@ exists now, read [architecture.md](../architecture.md).
   the only exported package-level variables. (0015 D9)
 - **R30. Library code reads no environment variable.** A caller that wants the
   environment calls an opt-in helper, such as `catalog.OptionsFromEnv()` or
-  `auth.GrokFlowFromEnv()`. The one exemption is `http.ProxyFromEnvironment`
-  on the default transport, which is the standard library's read.
-  (0015 D9 and its amendment, 0016 D8)
+  `auth.GrokFlowFromEnv()`: an exported function whose name ends `FromEnv`.
+  The one other exemption is `http.ProxyFromEnvironment` on the default
+  transport, which is the standard library's read. `internal/ambientcheck`
+  fails on anything else. (0015 D9 and its amendments, 0016 D8)
 - **R31. Logging goes only to the `*slog.Logger` given with `WithLogger`.**
   Without one, nothing is logged. The process-global logger is never used.
   (0015 D9)

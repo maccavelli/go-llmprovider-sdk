@@ -213,7 +213,7 @@ func fetchGeminiPage(ctx context.Context, endpoint string, token llmprovider.Tok
 	if err != nil {
 		return result, err
 	}
-	defer closeResponseBody(resp)
+	defer cfg.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return result, fmt.Errorf("gemini: models endpoint returned HTTP %d", resp.StatusCode)
@@ -306,7 +306,7 @@ func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Tok
 	if err != nil {
 		return result, err
 	}
-	defer closeResponseBody(resp)
+	defer cfg.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		// Older keys / regional proxies may not support Models API.
@@ -357,7 +357,7 @@ func fetchOllamaNames(ctx context.Context, token llmprovider.Token, cfg config) 
 	if err != nil {
 		return nil, fmt.Errorf("could not reach Ollama at %s: %w", baseURL, err)
 	}
-	defer closeResponseBody(resp)
+	defer cfg.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ollama returned HTTP %d", resp.StatusCode)
@@ -395,7 +395,7 @@ func ValidateOllamaURL(ctx context.Context, baseURL string) error {
 	if err != nil {
 		return fmt.Errorf("could not reach Ollama at %s: %w", baseURL, err)
 	}
-	defer closeResponseBody(resp)
+	defer config{}.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("ollama returned HTTP %d", resp.StatusCode)
@@ -440,7 +440,7 @@ func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg confi
 	if err != nil {
 		return nil, err
 	}
-	defer closeResponseBody(resp)
+	defer cfg.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%s: models endpoint returned HTTP %d", provider, resp.StatusCode)
@@ -545,7 +545,7 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 	if err != nil {
 		return nil, err
 	}
-	defer closeResponseBody(resp)
+	defer cfg.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("huggingface: models endpoint returned HTTP %d", resp.StatusCode)
@@ -646,7 +646,7 @@ func fetchTogetherUsable(ctx context.Context, token llmprovider.Token, cfg confi
 	if err != nil {
 		return nil, err
 	}
-	defer closeResponseBody(resp)
+	defer cfg.closeBody(resp)
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("together: models endpoint returned HTTP %d", resp.StatusCode)
 	}
@@ -737,7 +737,7 @@ func fetchKiloCatalog(ctx context.Context, token llmprovider.Token, cfg config) 
 	if err != nil {
 		return nil, err
 	}
-	defer closeResponseBody(resp)
+	defer cfg.closeBody(resp)
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("kilo: models endpoint returned HTTP %d", resp.StatusCode)
 	}

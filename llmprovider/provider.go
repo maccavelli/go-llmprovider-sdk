@@ -57,7 +57,7 @@ func ProviderEnvVars() map[ProviderID]string {
 // providerEnvVars maps canonical provider names to their standard environment variable.
 var providerEnvVars = map[ProviderID]string{
 	ProviderGemini: "GEMINI_API_KEY",
-	ProviderClaude: "CLAUDE_API_KEY",
+	ProviderClaude: "ANTHROPIC_API_KEY",
 	ProviderOpenAI: "OPENAI_API_KEY",
 	ProviderGrok:   "XAI_API_KEY",
 	// One credential serves both OpenCode gateways; models.dev declares
