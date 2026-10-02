@@ -20,8 +20,6 @@ func TestSecretBearingTypesRedact(t *testing.T) {
 	expiry := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
 	token := Token{Value: "tok-" + plantedSecret, Type: TokenBearer, Expiry: expiry, Header: "Authorization"}
 	static := StaticToken{Value: "key-" + plantedSecret, Header: "x-api-key"}
-	session := &OAuthSession{Provider: ProviderGrok, Access: "at-" + plantedSecret, Refresh: "rt-" + plantedSecret,
-		Expiry: expiry, Issuer: DefaultGrokOAuthIssuer, ClientID: "client-visible", AccountID: "acct-visible"}
 
 	for _, tc := range []struct {
 		name  string
@@ -32,7 +30,6 @@ func TestSecretBearingTypesRedact(t *testing.T) {
 		{"*Token", &token, "Authorization"},
 		{"StaticToken", static, "x-api-key"},
 		{"*StaticToken", &static, "x-api-key"},
-		{"*OAuthSession", session, "client-visible"},
 		{"struct holding a Token", struct{ Tok Token }{token}, "Authorization"},
 	} {
 		forms := map[string]string{}
@@ -67,15 +64,6 @@ func TestSecretText(t *testing.T) {
 		if got := secretText(in); got != want {
 			t.Errorf("secretText(%d runes) = %q, want %q", len(in), got, want)
 		}
-	}
-	if got := (*OAuthSession)(nil).String(); got != "OAuthSession(nil)" {
-		t.Errorf("nil session String = %q", got)
-	}
-	if got := (*OAuthSession)(nil).LogValue().String(); got != "OAuthSession(nil)" {
-		t.Errorf("nil session LogValue = %q", got)
-	}
-	if raw, err := json.Marshal((*OAuthSession)(nil)); err != nil || string(raw) != "null" {
-		t.Errorf("nil session JSON = %s, %v; want null", raw, err)
 	}
 	if got := expiryText(time.Time{}); got != "none" {
 		t.Errorf("expiryText(zero) = %q, want none", got)

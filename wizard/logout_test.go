@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // revokeServer answers OpenAI's revocation endpoint with status, and counts
@@ -81,7 +82,7 @@ func TestLogout_RevokesThenDeletes(t *testing.T) {
 func TestLogout_NoRevocationForKilo(t *testing.T) {
 	store := newMemoryTokenStore()
 	if err := store.Save(context.Background(), llmprovider.ProviderKilo,
-		&llmprovider.OAuthSession{Provider: llmprovider.ProviderKilo, Access: kiloWizardToken}); err != nil {
+		&auth.OAuthSession{Provider: llmprovider.ProviderKilo, Access: kiloWizardToken}); err != nil {
 		t.Fatal(err)
 	}
 	f := &fakePrompter{t: t, confirms: []bool{true}}

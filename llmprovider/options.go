@@ -92,17 +92,3 @@ func WithModelMetadataURL(url string) Option {
 		cfg.ModelMetadataURL = url
 	})
 }
-
-// applyOptions applies every option and returns the providerConfig, for
-// KiloProfile, which needs no provider. It ignores what a providerConfig
-// cannot hold: the model, credential, logger, reasoning and provider-specific
-// options.
-func applyOptions(opts []Option) providerConfig {
-	s := newSettings()
-	for _, opt := range opts {
-		if opt.apply != nil {
-			opt.apply(&s)
-		}
-	}
-	return s.cfg
-}

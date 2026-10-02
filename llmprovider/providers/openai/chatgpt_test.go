@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // Ported from llmprovider's openai_chatgpt_test.go, chatgpt_stream_test.go,
@@ -35,7 +36,7 @@ func TestOpenAI_ChatGPTSessionDoesNotHitPlatformHost(t *testing.T) {
 		captured = request
 		return httpResponse(request, http.StatusOK, okResponse), nil
 	})}
-	session := &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "sess", Refresh: "refresh",
+	session := &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "sess", Refresh: "refresh",
 		Expiry: time.Now().Add(time.Hour)}
 	p := sessionProvider(t, session, "gpt-5.4-mini", llmprovider.WithHTTPClient(client))
 	if _, err := llmprovider.GenerateText(context.Background(), p, text("hello")); err != nil {
@@ -90,7 +91,7 @@ func TestOpenAI_ChatGPTSetsAccountHeader(t *testing.T) {
 		accountHeader = request.Header.Get("ChatGPT-Account-Id")
 		return httpResponse(request, http.StatusOK, okResponse), nil
 	})}
-	session := &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "sess", Refresh: "refresh",
+	session := &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "sess", Refresh: "refresh",
 		Expiry: time.Now().Add(time.Hour), AccountID: "acct_1"}
 	p := sessionProvider(t, session, "gpt-5.4-mini", llmprovider.WithHTTPClient(client))
 	if _, err := llmprovider.GenerateText(context.Background(), p, text("hello")); err != nil {
@@ -161,7 +162,7 @@ func TestOpenAI_ChatGPTSetsResidencyHeader(t *testing.T) {
 				residencyHeader = request.Header.Get("x-openai-internal-codex-residency")
 				return httpResponse(request, http.StatusOK, okResponse), nil
 			})}
-			session := &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: testJWT(t, test.claims),
+			session := &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: testJWT(t, test.claims),
 				Refresh: "refresh", Expiry: time.Now().Add(time.Hour)}
 			p := sessionProvider(t, session, "gpt-5.4-mini", llmprovider.WithHTTPClient(client))
 			if _, err := llmprovider.GenerateText(context.Background(), p, text("hello")); err != nil {
@@ -207,7 +208,7 @@ func TestOpenAI_OAuth401RetriesOnceAfterRefresh(t *testing.T) {
 				t.Errorf("decode refresh body: %v", err)
 			}
 			want := map[string]string{
-				"client_id":     llmprovider.DefaultOpenAIClientID,
+				"client_id":     auth.DefaultOpenAIClientID,
 				"grant_type":    "refresh_token",
 				"refresh_token": "old-refresh",
 			}
@@ -219,10 +220,10 @@ func TestOpenAI_OAuth401RetriesOnceAfterRefresh(t *testing.T) {
 			return nil, errors.New("unexpected request host")
 		}
 	})
-	session := &llmprovider.OAuthSession{
+	session := &auth.OAuthSession{
 		Provider:   llmprovider.ProviderOpenAI,
-		Issuer:     llmprovider.DefaultOpenAIIssuer,
-		ClientID:   llmprovider.DefaultOpenAIClientID,
+		Issuer:     auth.DefaultOpenAIIssuer,
+		ClientID:   auth.DefaultOpenAIClientID,
 		Access:     "old-access",
 		Refresh:    "old-refresh",
 		Expiry:     time.Now().Add(time.Hour),
@@ -457,7 +458,7 @@ func TestOpenAIPlatform_KeepsJSONRequest(t *testing.T) {
 }
 
 // fedrampHeader returns X-OpenAI-Fedramp as one ChatGPT call sent it.
-func fedrampHeader(t *testing.T, session *llmprovider.OAuthSession) (string, bool) {
+func fedrampHeader(t *testing.T, session *auth.OAuthSession) (string, bool) {
 	t.Helper()
 	client, c := chatGPTClient(t, fixture(t, "chatgpt-text.sse"))
 	p := sessionProvider(t, session, "gpt-6-astra", llmprovider.WithHTTPClient(client))
@@ -505,7 +506,7 @@ func TestVendorCLISession_OpenAIIsChatGPT(t *testing.T) {
 		t.Fatal(err)
 	}
 	client, c := chatGPTClient(t, fixture(t, "chatgpt-text.sse"))
-	p := sessionProvider(t, &llmprovider.VendorCLISession{Provider: llmprovider.ProviderOpenAI, Path: path}, "gpt-6-astra",
+	p := sessionProvider(t, &auth.VendorCLISession{Provider: llmprovider.ProviderOpenAI, Path: path}, "gpt-6-astra",
 		llmprovider.WithHTTPClient(client))
 	if _, err := llmprovider.GenerateText(context.Background(), p, text("hi")); err != nil {
 		t.Fatalf("Generate: %v", err)

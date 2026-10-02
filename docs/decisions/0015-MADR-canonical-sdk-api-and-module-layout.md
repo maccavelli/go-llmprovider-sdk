@@ -110,7 +110,7 @@ with these packages:
 | Package | Holds | May import |
 |---|---|---|
 | `llmprovider` | The contract: `Provider`, `Request`, `Response`, `Item` types, `Tool`, `Capabilities`, streaming `Event`s, `Usage`, typed identifiers, options, the error model, `Registry` and `Descriptor`, retry middleware, and the `TokenSource` / `Token` interfaces | the standard library |
-| `llmprovider/auth` | OAuth sessions, refresh and revocation, the browser and device login flows, `TokenStore` and `FileTokenStore`, `StaticToken`, `VendorCLISession` | `llmprovider` |
+| `llmprovider/auth` | OAuth sessions, refresh and revocation, the browser and device login flows, `TokenStore` and `FileTokenStore`, `VendorCLISession`. *Amended 2026-10-01 ("what `auth` holds"):* not `StaticToken`, which stays in `llmprovider` | `llmprovider` |
 | `llmprovider/catalog` | Static catalogs, model metadata, ranking, search, labels, profiles and the curated `Catalog` result | `llmprovider` |
 | `llmprovider/providers/<id>` | One package per provider or gateway family: `openai`, `claude`, `gemini`, `grok`, `opencode`, `kilo`, `huggingface`, `ollama`. Each has its `New`, its own options and its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
 | `llmprovider/providers` | `Default()`, a fresh `Registry` holding every built-in provider, and `New(id, opts...)` over it | the provider packages |
@@ -889,3 +889,61 @@ S8c step 1 moves the ChatGPT listing and session helpers to
 * `catalog.List` no longer special-cases a ChatGPT session.
 * `wizard` builds a provider in this one case. 0015-PLAN S8b's record says
   `wizard` builds none; that stays true of every other path.
+
+## Amendment 2026-10-01: what `auth` holds
+
+Status: **accepted** 2026-10-01. The owner's decisions, asked during
+0015-PLAN S8c step 2, before any code.
+
+### Fact found
+
+The step was tried first in a scratch copy: the candidate files were moved
+into `llmprovider/auth`, and the compiler listed every reference across the
+new boundary. It found three things D2 and the step do not settle:
+
+* **`StaticToken` cannot move.** D2's table puts it in `auth`. But
+  `llmprovider.WithAPIKey` builds one, and `auth` imports `llmprovider`, so
+  it would be an import cycle. `token.go` has no session part left: it holds
+  `Token`, `TokenSource` and `StaticToken`. `CommandToken` is in no row.
+* **`ShareHTTPClient`.** Step 3 removes the session temporary exports, but
+  `openai` and `grok` still give their HTTP client to a session that has
+  none.
+* **The base URL constants.** `oauth_constants.go` holds the OpenAI
+  Platform and ChatGPT base URLs and xAI's API URL, besides the issuers and
+  client ids. Only `openai` and `grok` use the base URLs; `wizard` uses the
+  OpenAI issuer and client id.
+
+### Decided
+
+* **Tokens.** The owner chose "both stay in `llmprovider`". `llmprovider`
+  keeps `Token`, `TokenSource`, `StaticToken`, `CommandToken` and
+  `InvalidatingSource`. `auth` holds the sessions (`OAuthSession`,
+  `VendorCLISession`), the login flows (browser, device, Kilo's), the
+  stores (`TokenStore`, `RefreshLocker`, `FileTokenStore`), revocation and
+  `id_token` checking, and the issuers and client ids. D2's `auth` row is
+  corrected to read so.
+* **HTTP client.** The owner chose "a session method".
+  `(*auth.OAuthSession).UseHTTPClient(c)` sets the client the session
+  refreshes with, when it has none. `openai` and `grok` match it through an
+  unexported interface.
+* **Base URLs.** The owner chose "their provider packages":
+  `openai.PlatformBaseURL`, `openai.ChatGPTBaseURL` and `grok.BaseURL`. The
+  issuers and client ids move to `auth` with their names.
+
+### Rejected
+
+* `CommandToken` in `auth`: `InvalidatingSource`, which its file declares
+  and the providers assert, would have to be split from it.
+* `auth.ShareHTTPClient`: a free function exported for one use.
+* Every constant to `auth`: `openai` and `grok` would import `auth` for
+  their own endpoints.
+
+### Effect
+
+* `auth` imports `llmprovider` and `internal/transport`, as D2 says. It
+  also imports `internal/redact`, as `llmprovider` does, and
+  `internal/kiloendpoint` for the Kilo device login, as the amendment
+  "`catalog` before the old API's removal" foresaw. *Corrected 2026-10-01,
+  before commit: this bullet first said "only".*
+* `ErrInvalidProvider` stays in `llmprovider`, as D7's kind sentinel.
+  `auth`'s stores return it.

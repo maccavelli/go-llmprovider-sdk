@@ -544,6 +544,13 @@ in `llmprovider` refers to `ModelProfile`.
 2. **S7b's original step 3:** `git mv` into `llmprovider/auth` the files it
    lists, with their tests. `auth` imports `llmprovider` and
    `internal/transport`.
+
+   *Deviation, 2026-10-01:* a trial move in a scratch copy found three
+   points the step did not settle. They were decided as 0015-MADR amendment
+   "what `auth` holds":
+   * `StaticToken` and `CommandToken` stay in `llmprovider`;
+   * `OAuthSession.UseHTTPClient` replaces `ShareHTTPClient`;
+   * the base URLs go to `openai` and `grok`.
 3. **The provider packages and `wizard` import `auth`**, and the remaining
    session temporary exports are removed.
    **Check:** `go doc -all ./llmprovider` names none of the identifiers the
@@ -3870,6 +3877,7 @@ Staged for the owner to commit. Steps 1-3 were done in S8, commit 2.
 
 Staged for the owner to commit, with 0015-MADR amendment "the ChatGPT
 helpers leave `llmprovider`", written before the code.
+*Annotated 2026-10-01:* committed and pushed as `fdd3e17`.
 
 * **Deviation, 2026-10-01.** The survey found three facts the step did not
   cover:
@@ -3968,3 +3976,124 @@ helpers leave `llmprovider`", written before the code.
     over `./llmprovider/...` (1720 of 1925 statements), against its `P7`
     89.2 %;
   * `openai` 92.6 %, `catalog` 88.3 %, `wizard` 84.3 %.
+
+### Phase S8c, steps 2-5: `auth` (2026-10-01)
+
+Staged for the owner to commit, with 0015-MADR amendment "what `auth`
+holds", written before the code. With it S8c is complete.
+
+* **Deviation, 2026-10-01: what `auth` holds.**
+  * **Found.** A trial move in a scratch copy, which the compiler checked,
+    found three points the step did not settle:
+    * `StaticToken` cannot leave `llmprovider` (`WithAPIKey` builds one);
+    * `ShareHTTPClient` had no successor;
+    * the base URL constants are the providers'.
+
+    It also showed what crosses the new boundary: only `tokenFuture` and
+    `ErrInvalidProvider` from the staying code; five unexported helpers
+    from the moving code.
+  * **Decided** by the owner, as the amendment says:
+    * `StaticToken` and `CommandToken` stay;
+    * `OAuthSession.UseHTTPClient`;
+    * `openai.PlatformBaseURL`, `openai.ChatGPTBaseURL` and `grok.BaseURL`.
+  * **Corrected before commit.** The amendment's first draft said `auth`
+    imports only `llmprovider` and `internal/transport`. The moved code also
+    imports `internal/redact` and `internal/kiloendpoint`, and the bullet
+    now says so.
+* **Before the move,** in `llmprovider`:
+  * `transport.NewIdentity` holds the identity defaults; `identityOf` and
+    `auth` both call it.
+  * `ErrInvalidProvider` joins D7's sentinels in `api_error.go`.
+  * `CommandToken` has its own `tokenFuture`.
+  * `KiloProfile` resolves its options with `ResolveOptions(kilo, …)`, so
+    `applyOptions` and its test are removed. **Changed behaviour:** an
+    option for another provider is now refused, where `applyOptions`
+    ignored it. The User-Agent is the same, read from `Settings`.
+  * `ShareHTTPClient` is `OAuthSession.UseHTTPClient`. `openai` and `grok`
+    call it through an unexported `clientUser` interface.
+* **Moved with `git mv`** into `llmprovider/auth`:
+  * the sources: `oauth_constants.go`, `oauth_device.go`,
+    `oauth_idtoken.go`, `oauth_loopback.go`, `oauth_pkce.go`,
+    `oauth_revoke.go`, `oauth_session.go`, `tokenstore.go`,
+    `tokenstore_file.go` (and its `_unix` and `_windows` halves),
+    `vendor_session.go` and `kilo_device.go`;
+  * 29 test files, and `jwt_helper_test.go`.
+
+  The package is renamed, and every staying `llmprovider` identifier is
+  qualified.
+  * The rewriter qualified struct field names that match a staying type,
+    such as `Provider`. The compiler found the seven, and they were
+    unqualified.
+  * The rewriter now leaves a method's own name alone: `) Name(`.
+* **New in `auth`:**
+  * `doc.go`, the package doc: the note that stood above the client ids,
+    as the step says;
+  * `helpers.go`, with `auth`'s copies of `secretText`, `expiryText`,
+    `closeResponseBody`, `jsonString` and `tokenFuture`. Each package closes
+    its own bodies, for bodyclose.
+* **Split** between the two packages:
+  * `TestTokenSources_ReportOnlyWhatIsSet` keeps the key and command rows.
+    The session rows are `auth`'s `TestSessions_ReportOnlyWhatIsSet`.
+  * `TestSecretBearingTypesRedact` keeps `Token` and `StaticToken`. The
+    session row is `auth`'s `TestSessionRedacts`, and `TestSecretText` has a
+    copy in `auth` for its helpers.
+  * The live session helpers, `liveChatGPTSession` and `liveVendorSession`,
+    use only exported API. They are functions of the external
+    `llmprovider_test` package, which imports `auth`, and leave
+    `live_export_test.go`.
+  * `live_oauth_issuers_test.go` and `live_oauth_revoke_test.go` moved to
+    `auth`, with a `liveCtx` of their own.
+    `live_oauth_login_test.go` moved, then moved back: it generates through
+    `openai` with `llmprovider_test`'s helpers.
+* **Callers:**
+  * `llmprovider.X` is `auth.X` in nine provider packages, `wizard` and
+    their tests, for the 20 names `auth` exports.
+  * Imports were then grouped as the codebase does: the standard library,
+    then this module.
+* **Step 3's check.** `go doc -all ./llmprovider` names none of the session
+  types, flows, stores, ChatGPT helpers, `ShareHTTPClient` or issuers. The
+  package doc no longer says it holds OAuth sessions.
+* **Step 4, coverage.** The `-coverpkg` measurement of `llmprovider` ends.
+  The gate's floor check now measures each package from its own tests:
+  * `llmprovider` 98.2 %, against its `P7` 89.2 %;
+  * `auth` 85.3 %, against 80 %.
+
+  Run with raised floors, the check failed: with 99 % for `llmprovider`,
+  and with 90 % for `auth`.
+* **New test:** `TestKiloProfile_ResolvesKilosOptions`, the caller's
+  application in User-Agent, and the foreign option refused before any
+  request.
+* **Fault in my own check, found by the gate.** A filter on the live vet's
+  output hid lines that start `vet: `, which is how vet reports a type
+  error. So `liveOpenAI`, undefined in `auth`, was missed until the gate ran
+  the command unfiltered. The fix is the move back above.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | UseHTTPClient replaces the session's own client | `a session's own client was replaced` |
+  | openai does not share its client | `POST /oauth/token did not go through the provider's client (it carried [POST /responses GET /models])` |
+  | grok does not share its client | `POST /oauth/token did not go through the provider's client (it carried [POST /responses GET /models POST /r…` |
+  | KiloProfile ignores the caller's identity | `User-Agent = "go-llmprovider-sdk", want the caller's application first` |
+  | NewIdentity drops the default name | `UserAgent() = "/(devel) (darwin; arm64) go-llmprovider-sdk/(devel)"; want this module by default` |
+  | the ChatGPT base URL is the Platform's | `request URL = https://api.openai.com/v1/responses, want chatgpt.com/backend-api/codex/responses` |
+  | a session's redaction shows the access token | `*OAuthSession via json.Marshal shows the secret: {"provider":"","issuer":"https://auth.x.ai","client_id":"c…` |
+  | KiloProfile resolves as another provider | `foreign option: err = <nil>, request sent true; want ErrInvalidRequest before any request` |
+  | a store accepts a traversing id | `Save("open..ai") returned nil error; want error` |
+
+  Two were invalid as first written, and were rewritten and run again:
+  * one kept the foreign option (`opts[:3]` of three options);
+  * one did not compile.
+* **Docs.**
+  * `architecture.md`: the `auth` package's row and directory line;
+    `llmprovider`'s new description; `auth` among the dependencies of the
+    eight providers that import it, and of `wizard`; and the session text.
+  * The standards guide's package table: `StaticToken` and `CommandToken`
+    in `llmprovider`, and `auth`'s imports.
+  * The migration guide maps 46 rows to `auth`, `openai` or `grok`.
+    G-parity: `409 identifiers, 409 rows, 304 with an SDK equivalent, 0
+    problem(s)`.
+* **Lint.** Clean, with no change of configuration.
+* **G-wire.** All goldens unchanged, with no `-update`.
+* **Coverage:** `llmprovider` 98.2 %, `auth` 85.3 %, `openai` 92.7 %, `grok`
+  95.6 %, `wizard` 84.3 %.

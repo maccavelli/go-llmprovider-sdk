@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // Ported from llmprovider's grok_oauth_test.go (0015-PLAN S7).
@@ -18,10 +19,10 @@ import (
 
 const sessionResponse = `{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}`
 
-func grokSession() *llmprovider.OAuthSession {
-	return &llmprovider.OAuthSession{
+func grokSession() *auth.OAuthSession {
+	return &auth.OAuthSession{
 		Provider: llmprovider.ProviderGrok,
-		Issuer:   llmprovider.DefaultGrokOAuthIssuer,
+		Issuer:   auth.DefaultGrokOAuthIssuer,
 		Access:   "session-access",
 		Refresh:  "session-refresh",
 		Expiry:   time.Now().Add(time.Hour),
@@ -128,7 +129,7 @@ func TestGrok_OAuth401RetriesOnceAfterRefresh(t *testing.T) {
 				t.Errorf("parse refresh form: %v", err)
 			}
 			want := url.Values{
-				"client_id":     {llmprovider.DefaultGrokOAuthClientID},
+				"client_id":     {auth.DefaultGrokOAuthClientID},
 				"grant_type":    {"refresh_token"},
 				"refresh_token": {"old-refresh"},
 			}
@@ -140,10 +141,10 @@ func TestGrok_OAuth401RetriesOnceAfterRefresh(t *testing.T) {
 			return nil, errors.New("unexpected request host")
 		}
 	})
-	session := &llmprovider.OAuthSession{
+	session := &auth.OAuthSession{
 		Provider:   llmprovider.ProviderGrok,
-		Issuer:     llmprovider.DefaultGrokOAuthIssuer,
-		ClientID:   llmprovider.DefaultGrokOAuthClientID,
+		Issuer:     auth.DefaultGrokOAuthIssuer,
+		ClientID:   auth.DefaultGrokOAuthClientID,
 		Access:     "old-access",
 		Refresh:    "old-refresh",
 		Expiry:     time.Now().Add(time.Hour),

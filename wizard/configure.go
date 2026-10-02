@@ -11,6 +11,7 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 )
@@ -43,7 +44,7 @@ type Result struct {
 	BaseURL     string
 	Fallbacks   []string
 	// VendorAuthPath is the vendor CLI auth file a CredVendorCLI result reads
-	// through; consumers persist it and build llmprovider.VendorCLISession.
+	// through; consumers persist it and build auth.VendorCLISession.
 	VendorAuthPath string
 	// Organization is the Kilo organization chosen after a Kilo device login;
 	// pass it to the provider with kilo.WithOrganization, and to a listing
@@ -88,7 +89,7 @@ type Options struct {
 	// TokenStore persists sessions created by the browser, device-code,
 	// token-paste and import flows. Supplying it opts in to every non-API-key
 	// credential kind; when it is nil, only the API key is offered.
-	TokenStore llmprovider.TokenStore
+	TokenStore auth.TokenStore
 	// HTTPClient is used for live model listing. Nil uses the package default.
 	HTTPClient *http.Client
 	// OpenURL opens an OAuth authorization URL. Nil reports the URL through Prompter.

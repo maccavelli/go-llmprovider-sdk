@@ -1,6 +1,10 @@
-// Package llmprovider provides an SDK-free LLM provider abstraction: provider
-// adapters, OAuth sessions, token storage and model discovery. All providers
-// use raw net/http for maximum control over connection pooling and timeouts.
+// Package llmprovider is the generation contract every provider implements:
+// Provider, Request, Response and Item, Capabilities, the errors and their
+// kinds, the options and Settings, the Registry, retry middleware, and the
+// credential sources a provider reads (Token, TokenSource, StaticToken,
+// CommandToken). The providers are in llmprovider/providers/..., the OAuth
+// sessions and stores in llmprovider/auth, and model listing in
+// llmprovider/catalog. All providers use raw net/http.
 package llmprovider
 
 import (

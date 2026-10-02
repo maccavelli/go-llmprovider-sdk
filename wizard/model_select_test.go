@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 )
@@ -284,8 +285,8 @@ func TestConfigureLLM_ChatGPTNoStaticNotice(t *testing.T) {
 			Provider:    llmprovider.ProviderOpenAI,
 			Kind:        CredOAuth,
 			TokenExpiry: time.Now().Add(time.Hour),
-			Issuer:      llmprovider.DefaultOpenAIIssuer,
-			ClientID:    llmprovider.DefaultOpenAIClientID,
+			Issuer:      auth.DefaultOpenAIIssuer,
+			ClientID:    auth.DefaultOpenAIClientID,
 			AccountID:   "acct_test",
 		}, "existing-access-abcd", "existing-refresh"),
 		TokenStore: store,

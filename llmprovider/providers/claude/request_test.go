@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // New in the new API: credentials, and the Request fields the old methods
@@ -19,8 +20,8 @@ import (
 // source of a kind the service does not accept is refused by New (R16).
 func TestNew_RefusesAnOAuthSession(t *testing.T) {
 	for name, src := range map[string]llmprovider.TokenSource{
-		"oauth": &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)},
-		"cli":   &llmprovider.VendorCLISession{Provider: llmprovider.ProviderOpenAI, Path: "/nonexistent"},
+		"oauth": &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)},
+		"cli":   &auth.VendorCLISession{Provider: llmprovider.ProviderOpenAI, Path: "/nonexistent"},
 	} {
 		if _, err := New(llmprovider.WithTokenSource(src)); !errors.Is(err, llmprovider.ErrUnsupported) {
 			t.Errorf("%s: err = %v, want ErrUnsupported", name, err)

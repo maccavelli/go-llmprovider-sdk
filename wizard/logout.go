@@ -7,6 +7,7 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // Logout signs the user out of the session Options.TokenStore holds for id
@@ -43,7 +44,7 @@ func Logout(ctx context.Context, p Prompter, o Options, id llmprovider.ProviderI
 		if session.HTTPClient == nil {
 			session.HTTPClient = o.HTTPClient
 		}
-		if err := llmprovider.RevokeOAuthSession(ctx, session); err != nil {
+		if err := auth.RevokeOAuthSession(ctx, session); err != nil {
 			p.Notify(LevelWarn, "could not revoke the %s session (%v); deleting the local copy", label, err)
 		}
 	default:

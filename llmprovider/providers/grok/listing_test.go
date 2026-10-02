@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
@@ -254,7 +255,7 @@ func TestProviderClient_SharedWithListingAndRefresh(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	session := &llmprovider.OAuthSession{Provider: llmprovider.ProviderGrok, Access: "a-old", Refresh: "rt-old",
+	session := &auth.OAuthSession{Provider: llmprovider.ProviderGrok, Access: "a-old", Refresh: "rt-old",
 		Expiry: time.Now().Add(-time.Minute), ClientID: "client-test", TokenURL: srv.URL + "/oauth/token"}
 	p := build(t, llmprovider.WithTokenSource(session), llmprovider.WithModel("grok-4.5"), llmprovider.WithBaseURL(srv.URL))
 	client := p.(*provider).client

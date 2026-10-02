@@ -32,6 +32,13 @@ type InvalidatingSource interface {
 	Invalidate()
 }
 
+// tokenFuture is one in-flight fetch that concurrent callers share.
+type tokenFuture struct {
+	done chan struct{}
+	tok  Token
+	err  error
+}
+
 // CommandToken is a TokenSource whose token is the standard output of a
 // command the caller names. The command runs directly, never through a shell,
 // with the process's environment; its output is trimmed, capped at 8 KiB and

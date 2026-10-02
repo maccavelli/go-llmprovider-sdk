@@ -73,13 +73,13 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ClaudeProvider.Name` | `ID()` | It returns `ProviderClaude` as a `ProviderID`. |
 | `llmprovider.Continuer` | `Request.PreviousResponseID` | `Capabilities.Continuation` says whether a provider supports it. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.Continuer.Continue` | `Provider.Generate` with `Request.PreviousResponseID` | As `Continuer`. |
-| `llmprovider.DefaultGrokBaseURL` |  |  |
-| `llmprovider.DefaultGrokOAuthClientID` |  |  |
-| `llmprovider.DefaultGrokOAuthIssuer` |  |  |
-| `llmprovider.DefaultOpenAIChatGPTBaseURL` |  |  |
-| `llmprovider.DefaultOpenAIClientID` |  |  |
-| `llmprovider.DefaultOpenAIIssuer` |  |  |
-| `llmprovider.DefaultOpenAIPlatformBaseURL` |  |  |
+| `llmprovider.DefaultGrokBaseURL` | `grok.BaseURL` | In `providers/grok` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.DefaultGrokOAuthClientID` | `auth.DefaultGrokOAuthClientID` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.DefaultGrokOAuthIssuer` | `auth.DefaultGrokOAuthIssuer` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.DefaultOpenAIChatGPTBaseURL` | `openai.ChatGPTBaseURL` | In `providers/openai` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.DefaultOpenAIClientID` | `auth.DefaultOpenAIClientID` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.DefaultOpenAIIssuer` | `auth.DefaultOpenAIIssuer` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.DefaultOpenAIPlatformBaseURL` | `openai.PlatformBaseURL` | In `providers/openai` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.DescriptorFor` | `Registry.Descriptor(id)` | On `providers.Default()`, or the caller's `Registry` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.Descriptors` | `Registry.Descriptors()` | In menu order; each provider package declares its own descriptor ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.ErrAuthFailure` | `ErrAuthFailure` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
@@ -89,11 +89,11 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ErrProviderUnavailable` | `ErrProviderUnavailable` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.ErrQuotaExhausted` | `ErrQuotaExhausted` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.ErrRateLimited` | `ErrRateLimited` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
-| `llmprovider.FileTokenStore` |  |  |
-| `llmprovider.FileTokenStore.Delete` | `FileTokenStore.Delete` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
-| `llmprovider.FileTokenStore.Dir` |  |  |
-| `llmprovider.FileTokenStore.Load` | `FileTokenStore.Load` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
-| `llmprovider.FileTokenStore.Save` | `FileTokenStore.Save` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
+| `llmprovider.FileTokenStore` | `auth.FileTokenStore` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.FileTokenStore.Delete` | `auth.FileTokenStore.Delete` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.FileTokenStore.Dir` | `auth.FileTokenStore.Dir` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.FileTokenStore.Load` | `auth.FileTokenStore.Load` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.FileTokenStore.Save` | `auth.FileTokenStore.Save` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.FunctionCallItem` |  |  |
 | `llmprovider.FunctionCallItem.Arguments` |  |  |
 | `llmprovider.FunctionCallItem.CallID` |  |  |
@@ -169,8 +169,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ListAvailableModelsWithSource` | `catalog.List(ctx, id, src, opts...)` | Its `Recommended`; an error gives none. |
 | `llmprovider.ListModelCatalog` | `catalog.List` | With `NewStaticToken(key)` for a key ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.ListModelCatalogWithSource` | `catalog.List` |  |
-| `llmprovider.LoginBrowserOAuth` | `LoginBrowserOAuth` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
-| `llmprovider.LoginDeviceOAuth` | `LoginDeviceOAuth` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
+| `llmprovider.LoginBrowserOAuth` | `auth.LoginBrowserOAuth` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.LoginDeviceOAuth` | `auth.LoginDeviceOAuth` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.MaxListedModels` | `catalog.MaxListed` |  |
 | `llmprovider.MessageItem` |  |  |
 | `llmprovider.MessageItem.Role` | `MessageItem.Role` | A `Role` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). A role other than `RoleUser`, `RoleAssistant`, `RoleSystem` or empty is refused with `ErrInvalidRequest`. |
@@ -190,7 +190,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ModelProfile` | `catalog.Profile` | Passed to a listing or a provider with `catalog.WithProfile`. |
 | `llmprovider.ModelProfile.ReasoningEffort` | `Profile.ReasoningEffort` |  |
 | `llmprovider.NewClaude` | `claude.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderClaude, …)`; an OAuth session is refused with `ErrUnsupported` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
-| `llmprovider.NewFileTokenStore` |  |  |
+| `llmprovider.NewFileTokenStore` | `auth.NewFileTokenStore` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.NewGemini` | `gemini.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGemini, …)`. It takes no context; an OAuth session is refused with `ErrUnsupported` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewGrok` | `grok.New(WithAPIKey(key), WithModel(model), …)` | Or `providers.New(ProviderGrok, …)`. A session, which only `NewProvider` took, is `WithTokenSource(src)` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.NewHuggingFace` | `huggingface.New(WithAPIKey(token), WithModel(model), …)` | Or `providers.New(ProviderHuggingFace, …)`; an empty token is refused with `ErrInvalidRequest` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
@@ -202,27 +202,27 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.NewProvider` | `providers.New(id, opts...)` | Over `providers.Default()`, a `Registry`; removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7. |
 | `llmprovider.NewProviderWithSource` | `providers.New(id, WithTokenSource(src), …)` | Removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7; a credential is an option (D5). |
 | `llmprovider.NewStaticToken` |  |  |
-| `llmprovider.OAuthFlowOptions` |  |  |
-| `llmprovider.OAuthFlowOptions.ClientID` |  |  |
-| `llmprovider.OAuthFlowOptions.HTTPClient` |  |  |
-| `llmprovider.OAuthFlowOptions.InputCode` |  |  |
-| `llmprovider.OAuthFlowOptions.Issuer` |  |  |
-| `llmprovider.OAuthFlowOptions.NotifyDevice` |  |  |
-| `llmprovider.OAuthFlowOptions.OpenURL` |  |  |
-| `llmprovider.OAuthSession` |  |  |
-| `llmprovider.OAuthSession.Access` |  |  |
-| `llmprovider.OAuthSession.AccountID` |  |  |
-| `llmprovider.OAuthSession.ChatGPT` |  |  |
-| `llmprovider.OAuthSession.ClientID` |  |  |
-| `llmprovider.OAuthSession.Expiry` |  |  |
-| `llmprovider.OAuthSession.FedRAMP` |  |  |
-| `llmprovider.OAuthSession.HTTPClient` |  |  |
-| `llmprovider.OAuthSession.Issuer` |  |  |
-| `llmprovider.OAuthSession.Provider` | `OAuthSession.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). Its JSON is unchanged. |
-| `llmprovider.OAuthSession.Refresh` |  |  |
-| `llmprovider.OAuthSession.Store` |  |  |
-| `llmprovider.OAuthSession.Token` |  |  |
-| `llmprovider.OAuthSession.TokenURL` |  |  |
+| `llmprovider.OAuthFlowOptions` | `auth.OAuthFlowOptions` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthFlowOptions.ClientID` | `auth.OAuthFlowOptions.ClientID` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthFlowOptions.HTTPClient` | `auth.OAuthFlowOptions.HTTPClient` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthFlowOptions.InputCode` | `auth.OAuthFlowOptions.InputCode` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthFlowOptions.Issuer` | `auth.OAuthFlowOptions.Issuer` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthFlowOptions.NotifyDevice` | `auth.OAuthFlowOptions.NotifyDevice` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthFlowOptions.OpenURL` | `auth.OAuthFlowOptions.OpenURL` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession` | `auth.OAuthSession` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.Access` | `auth.OAuthSession.Access` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.AccountID` | `auth.OAuthSession.AccountID` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.ChatGPT` | `auth.OAuthSession.ChatGPT` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.ClientID` | `auth.OAuthSession.ClientID` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.Expiry` | `auth.OAuthSession.Expiry` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.FedRAMP` | `auth.OAuthSession.FedRAMP` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.HTTPClient` | `auth.OAuthSession.HTTPClient` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.Issuer` | `auth.OAuthSession.Issuer` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.Provider` | `auth.OAuthSession.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). Its JSON is unchanged. In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.Refresh` | `auth.OAuthSession.Refresh` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.Store` | `auth.OAuthSession.Store` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.Token` | `auth.OAuthSession.Token` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.OAuthSession.TokenURL` | `auth.OAuthSession.TokenURL` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.OllamaProvider` | the `llmprovider.Provider` that `ollama.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.OllamaProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` | It still probes by default; `WithModelProbes(false)` turns that off. |
 | `llmprovider.OllamaProvider.Generate` | `llmprovider.GenerateText` |  |
@@ -328,7 +328,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.Response.Items` |  |  |
 | `llmprovider.Response.Output` |  |  |
 | `llmprovider.Response.OutputText` |  |  |
-| `llmprovider.RevokeOAuthSession` |  |  |
+| `llmprovider.RevokeOAuthSession` | `auth.RevokeOAuthSession` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.SearchModels` | `catalog.Search` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `llmprovider.StaticClaude` | `StaticModels(ProviderClaude)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticGemini` | `StaticModels(ProviderGemini)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
@@ -356,10 +356,10 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.TokenBearer` |  |  |
 | `llmprovider.TokenSource` |  |  |
 | `llmprovider.TokenSource.Token` |  |  |
-| `llmprovider.TokenStore` |  |  |
-| `llmprovider.TokenStore.Delete` | `TokenStore.Delete` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. |
-| `llmprovider.TokenStore.Load` | `TokenStore.Load` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. |
-| `llmprovider.TokenStore.Save` | `TokenStore.Save` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. |
+| `llmprovider.TokenStore` | `auth.TokenStore` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.TokenStore.Delete` | `auth.TokenStore.Delete` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.TokenStore.Load` | `auth.TokenStore.Load` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.TokenStore.Save` | `auth.TokenStore.Save` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.TokenType` |  |  |
 | `llmprovider.Tool` |  |  |
 | `llmprovider.Tool.Description` |  |  |
@@ -367,12 +367,12 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.Tool.Schema` |  |  |
 | `llmprovider.ToolProvider` | `Provider` | Tools are `Request.Tools` and `ToolChoice`, or `GenerateToolCall`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.ToolProvider.GenerateWithTool` | `GenerateToolCall(ctx, p, req)` | As `ToolProvider`. |
-| `llmprovider.ValidateOAuthSession` |  |  |
+| `llmprovider.ValidateOAuthSession` | `auth.ValidateOAuthSession` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.ValidateOllamaURL` | `catalog.ValidateOllamaURL` |  |
-| `llmprovider.VendorCLISession` |  |  |
-| `llmprovider.VendorCLISession.Path` |  |  |
-| `llmprovider.VendorCLISession.Provider` | `VendorCLISession.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). |
-| `llmprovider.VendorCLISession.Token` |  |  |
+| `llmprovider.VendorCLISession` | `auth.VendorCLISession` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.VendorCLISession.Path` | `auth.VendorCLISession.Path` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.VendorCLISession.Provider` | `auth.VendorCLISession.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
+| `llmprovider.VendorCLISession.Token` | `auth.VendorCLISession.Token` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.WithBaseURL` |  |  |
 | `llmprovider.WithClientInfo` |  |  |
 | `llmprovider.WithHTTPClient` |  |  |

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // Request fields the old methods could not express, and the constructors'
@@ -20,8 +21,8 @@ import (
 func TestNew_RefusesAnOAuthSession(t *testing.T) {
 	for _, gateway := range family {
 		for name, src := range map[string]llmprovider.TokenSource{
-			"oauth":  &llmprovider.OAuthSession{Provider: llmprovider.ProviderOpenAI, Access: "a"},
-			"vendor": &llmprovider.VendorCLISession{Provider: llmprovider.ProviderOpenAI, Path: "unused"},
+			"oauth":  &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Access: "a"},
+			"vendor": &auth.VendorCLISession{Provider: llmprovider.ProviderOpenAI, Path: "unused"},
 		} {
 			if _, err := newFor(gateway)(llmprovider.WithTokenSource(src)); !errors.Is(err, llmprovider.ErrUnsupported) {
 				t.Errorf("%s/%s: err = %v, want ErrUnsupported", gateway, name, err)

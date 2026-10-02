@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/llmtest"
 )
 
@@ -52,7 +53,7 @@ func TestConformance(t *testing.T) {
 	})
 	t.Run("chatgpt", func(t *testing.T) {
 		llmtest.Run(t, harness(func() llmprovider.Option {
-			return llmprovider.WithTokenSource(&llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer,
+			return llmprovider.WithTokenSource(&auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer,
 				Access: "chatgpt-access", Expiry: time.Now().Add(time.Hour), TokenURL: "http://127.0.0.1:1/never-refresh"})
 		}, true))
 	})

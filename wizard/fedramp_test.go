@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // TestConfigureLLM_KeepsFedRAMP: a kept ChatGPT session keeps its FedRAMP
@@ -22,8 +23,8 @@ func TestConfigureLLM_KeepsFedRAMP(t *testing.T) {
 			Provider:    llmprovider.ProviderOpenAI,
 			Kind:        CredOAuth,
 			TokenExpiry: time.Now().Add(time.Hour),
-			Issuer:      llmprovider.DefaultOpenAIIssuer,
-			ClientID:    llmprovider.DefaultOpenAIClientID,
+			Issuer:      auth.DefaultOpenAIIssuer,
+			ClientID:    auth.DefaultOpenAIClientID,
 			AccountID:   "acct_test",
 			FedRAMP:     true,
 			Model:       "kept-chatgpt-model",

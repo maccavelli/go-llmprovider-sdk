@@ -38,6 +38,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
@@ -89,7 +90,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		if s.Value == "" {
 			return nil, fmt.Errorf("%w: claude api key is required", llmprovider.ErrInvalidRequest)
 		}
-	case *llmprovider.OAuthSession, *llmprovider.VendorCLISession:
+	case *auth.OAuthSession, *auth.VendorCLISession:
 		// R16: a source of a kind the service does not accept is refused.
 		return nil, fmt.Errorf("%w: claude takes an API key, not an OAuth session (0016-MADR D10)", llmprovider.ErrUnsupported)
 	}

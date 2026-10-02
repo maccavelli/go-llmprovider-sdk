@@ -68,6 +68,14 @@ const (
 	probePrompt          = "Respond with ONLY the word Hello"
 )
 
+// The OpenAI endpoints.
+const (
+	// PlatformBaseURL is the API-key endpoint.
+	PlatformBaseURL = "https://api.openai.com/v1"
+	// ChatGPTBaseURL is the ChatGPT subscription endpoint, the Codex backend.
+	ChatGPTBaseURL = "https://chatgpt.com/backend-api/codex"
+)
+
 // storeOption is WithStore's value.
 type storeOption bool
 
@@ -135,15 +143,15 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			p.store = &s
 		}
 	}
-	p.baseURL = llmprovider.DefaultOpenAIPlatformBaseURL
+	p.baseURL = PlatformBaseURL
 	if p.chatGPT {
-		p.baseURL = llmprovider.DefaultOpenAIChatGPTBaseURL
+		p.baseURL = ChatGPTBaseURL
 		p.caps.Continuation = llmprovider.Unsupported
 	}
 	if base := st.BaseURL(); base != "" {
 		p.baseURL = base
 	}
-	llmprovider.ShareHTTPClient(src, p.client)
+	shareHTTPClient(src, p.client)
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(p.session), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil
@@ -350,4 +358,18 @@ func residency(accessToken string) string {
 		return ""
 	}
 	return *value
+}
+
+// clientUser is a session that refreshes with a client of its own, such as
+// *auth.OAuthSession.
+type clientUser interface {
+	UseHTTPClient(*http.Client)
+}
+
+// shareHTTPClient gives src the provider's client, when src takes one and has
+// none (0016-MADR D8).
+func shareHTTPClient(src llmprovider.TokenSource, client *http.Client) {
+	if user, ok := src.(clientUser); ok {
+		user.UseHTTPClient(client)
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
@@ -30,7 +31,7 @@ func chatGPTListingVersion(t *testing.T) string {
 		_, _ = w.Write([]byte(`{"models":[{"slug":"gpt-6-astra","visibility":"list","priority":1}]}`))
 	}))
 	t.Cleanup(srv.Close)
-	session := &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)}
+	session := &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)}
 	p := sessionProvider(t, session, "gpt-6-astra", llmprovider.WithHTTPClient(srv.Client()), llmprovider.WithBaseURL(srv.URL))
 	if _, err := list(t, p); err != nil {
 		t.Fatalf("listing: %v", err)

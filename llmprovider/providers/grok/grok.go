@@ -63,6 +63,9 @@ const (
 	probePrompt          = "Respond with ONLY the word Hello"
 )
 
+// BaseURL is the xAI API endpoint, for API keys and OAuth sessions alike.
+const BaseURL = "https://api.x.ai/v1"
+
 // storeOption is WithStore's value.
 type storeOption bool
 
@@ -110,7 +113,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	p := &provider{
 		src:       src,
 		model:     st.Model(),
-		baseURL:   llmprovider.DefaultGrokBaseURL,
+		baseURL:   BaseURL,
 		client:    st.HTTPClient(),
 		maxTokens: st.MaxTokens(),
 		reasoning: st.Reasoning(),
@@ -134,7 +137,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if base := st.BaseURL(); base != "" {
 		p.baseURL = base
 	}
-	llmprovider.ShareHTTPClient(src, p.client)
+	shareHTTPClient(src, p.client)
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(st.SessionID()), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil
@@ -296,4 +299,18 @@ func invalidate(src llmprovider.TokenSource) bool {
 		source.Invalidate()
 	}
 	return ok
+}
+
+// clientUser is a session that refreshes with a client of its own, such as
+// *auth.OAuthSession.
+type clientUser interface {
+	UseHTTPClient(*http.Client)
+}
+
+// shareHTTPClient gives src the provider's client, when src takes one and has
+// none (0016-MADR D8).
+func shareHTTPClient(src llmprovider.TokenSource, client *http.Client) {
+	if user, ok := src.(clientUser); ok {
+		user.UseHTTPClient(client)
+	}
 }

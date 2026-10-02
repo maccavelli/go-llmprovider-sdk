@@ -13,7 +13,7 @@ import (
 // TestLive_ChatGPTErrorDetail: the backend refuses a model outside the Codex
 // catalog with 400 {"detail": ...}; the error carries that text.
 func TestLive_ChatGPTErrorDetail(t *testing.T) {
-	session := llmprovider.LiveChatGPTSession(t)
+	session := liveChatGPTSession(t)
 	ctx, cancel := llmprovider.LiveCtx(t)
 	defer cancel()
 	_, err := liveOpenAI(t, session, "gpt-4.1-mini").Generate(ctx, userText("hi"))

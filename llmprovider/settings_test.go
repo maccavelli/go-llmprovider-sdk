@@ -101,22 +101,6 @@ func TestResolveOptions_Defaults(t *testing.T) {
 	}
 }
 
-// TestApplyOptions_TakesOnlyTheConfig: KiloProfile's applyOptions keeps what
-// a providerConfig holds, and ignores the rest without refusing it.
-func TestApplyOptions_TakesOnlyTheConfig(t *testing.T) {
-	cfg := applyOptions([]Option{
-		WithModel("ignored"),
-		WithAPIKey("ignored"),
-		ScopedOption(ProviderKilo, "kilo.WithThing", 1),
-		WithMaxTokens(5),
-		WithBaseURL("http://base"),
-		{},
-	})
-	if cfg.MaxTokens != 5 || cfg.BaseURL != "http://base" || cfg.HTTPClient == nil {
-		t.Fatalf("applyOptions = %+v", cfg)
-	}
-}
-
 // TestResolveOptions_ModelProbesAreCommon: A5's probe options reach the new
 // API as common options (0015-MADR amendment of 2026-09-30, D5 step 1).
 func TestResolveOptions_ModelProbesAreCommon(t *testing.T) {

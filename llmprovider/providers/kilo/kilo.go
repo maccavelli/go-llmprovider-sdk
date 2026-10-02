@@ -45,6 +45,7 @@ import (
 	"net/http"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
@@ -142,7 +143,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		if s.Value == "" {
 			src = &llmprovider.StaticToken{Value: anonymousToken, Header: s.Header}
 		}
-	case *llmprovider.OAuthSession, *llmprovider.VendorCLISession:
+	case *auth.OAuthSession, *auth.VendorCLISession:
 		// R16: a source of a kind the service does not accept is refused.
 		return nil, fmt.Errorf("%w: kilo takes an API key or a Kilo device-login token, not an OAuth session (0016-MADR D10)",
 			llmprovider.ErrUnsupported)

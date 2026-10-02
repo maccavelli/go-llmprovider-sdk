@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // ChatGPT session headers, as Codex sends them.
@@ -20,7 +21,7 @@ const (
 )
 
 // accountSource is a session that knows its ChatGPT account:
-// *llmprovider.OAuthSession and *llmprovider.VendorCLISession.
+// *auth.OAuthSession and *auth.VendorCLISession.
 type accountSource interface {
 	Account() (id string, fedRAMP bool)
 }
@@ -28,10 +29,10 @@ type accountSource interface {
 // isChatGPTSession reports whether src is a ChatGPT login: an OpenAI OAuth
 // session, or the Codex CLI's.
 func isChatGPTSession(src llmprovider.TokenSource) bool {
-	if vendor, ok := src.(*llmprovider.VendorCLISession); ok {
+	if vendor, ok := src.(*auth.VendorCLISession); ok {
 		return vendor.Provider == llmprovider.ProviderOpenAI
 	}
-	session, ok := src.(*llmprovider.OAuthSession)
+	session, ok := src.(*auth.OAuthSession)
 	return ok && session.ChatGPT()
 }
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 )
 
@@ -39,8 +40,8 @@ func TestConfigureLLM_ChatGPTResultDoesNotPopulateAPIKey(t *testing.T) {
 			Provider:    llmprovider.ProviderOpenAI,
 			Kind:        CredOAuth,
 			TokenExpiry: time.Now().Add(time.Hour),
-			Issuer:      llmprovider.DefaultOpenAIIssuer,
-			ClientID:    llmprovider.DefaultOpenAIClientID,
+			Issuer:      auth.DefaultOpenAIIssuer,
+			ClientID:    auth.DefaultOpenAIClientID,
 			AccountID:   "acct_test",
 			Model:       "kept-chatgpt-model",
 		}, "existing-access-abcd", "existing-refresh"),
@@ -188,7 +189,7 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 		loginDeviceOAuth = originalDevice
 	})
 
-	loginBrowserOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	loginBrowserOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
 		if opts.OpenURL == nil {
 			t.Fatal("browser OpenURL hook is nil")
 		}
@@ -197,7 +198,7 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 		}
 		return testOAuthSession(provider), nil
 	}
-	loginDeviceOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	loginDeviceOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
 		if opts.NotifyDevice == nil {
 			t.Fatal("device NotifyDevice hook is nil")
 		}
@@ -229,14 +230,14 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 	}
 }
 
-func testOAuthSession(provider llmprovider.ProviderID) *llmprovider.OAuthSession {
-	issuer := llmprovider.DefaultGrokOAuthIssuer
-	clientID := llmprovider.DefaultGrokOAuthClientID
+func testOAuthSession(provider llmprovider.ProviderID) *auth.OAuthSession {
+	issuer := auth.DefaultGrokOAuthIssuer
+	clientID := auth.DefaultGrokOAuthClientID
 	if provider == llmprovider.ProviderOpenAI {
-		issuer = llmprovider.DefaultOpenAIIssuer
-		clientID = llmprovider.DefaultOpenAIClientID
+		issuer = auth.DefaultOpenAIIssuer
+		clientID = auth.DefaultOpenAIClientID
 	}
-	return &llmprovider.OAuthSession{
+	return &auth.OAuthSession{
 		Provider: provider,
 		Access:   "oauth-access",
 		Refresh:  "oauth-refresh",
@@ -247,19 +248,19 @@ func testOAuthSession(provider llmprovider.ProviderID) *llmprovider.OAuthSession
 }
 
 type memoryTokenStore struct {
-	sessions map[llmprovider.ProviderID]*llmprovider.OAuthSession
+	sessions map[llmprovider.ProviderID]*auth.OAuthSession
 	saves    int
 }
 
 func newMemoryTokenStore() *memoryTokenStore {
-	return &memoryTokenStore{sessions: make(map[llmprovider.ProviderID]*llmprovider.OAuthSession)}
+	return &memoryTokenStore{sessions: make(map[llmprovider.ProviderID]*auth.OAuthSession)}
 }
 
-func (store *memoryTokenStore) Load(_ context.Context, provider llmprovider.ProviderID) (*llmprovider.OAuthSession, error) {
+func (store *memoryTokenStore) Load(_ context.Context, provider llmprovider.ProviderID) (*auth.OAuthSession, error) {
 	return store.sessions[provider], nil
 }
 
-func (store *memoryTokenStore) Save(_ context.Context, provider llmprovider.ProviderID, session *llmprovider.OAuthSession) error {
+func (store *memoryTokenStore) Save(_ context.Context, provider llmprovider.ProviderID, session *auth.OAuthSession) error {
 	store.sessions[provider] = session
 	store.saves++
 	return nil
@@ -307,8 +308,8 @@ func TestConfigureLLM_ChatGPTListingFailurePromptsForModel(t *testing.T) {
 			Provider:    llmprovider.ProviderOpenAI,
 			Kind:        CredOAuth,
 			TokenExpiry: time.Now().Add(time.Hour),
-			Issuer:      llmprovider.DefaultOpenAIIssuer,
-			ClientID:    llmprovider.DefaultOpenAIClientID,
+			Issuer:      auth.DefaultOpenAIIssuer,
+			ClientID:    auth.DefaultOpenAIClientID,
 			AccountID:   "acct_test",
 		}, "existing-access-abcd", "existing-refresh"),
 		TokenStore: store,
@@ -347,9 +348,9 @@ const jwtShapedAccess = "eyJhbGciOiJub25lIn0.e30.x"
 
 func TestSaveOAuthCredential_RejectsFixture(t *testing.T) {
 	store := newMemoryTokenStore()
-	_, err := saveOAuthCredential(context.Background(), store, llmprovider.ProviderOpenAI, &llmprovider.OAuthSession{
+	_, err := saveOAuthCredential(context.Background(), store, llmprovider.ProviderOpenAI, &auth.OAuthSession{
 		Access: "chatgpt-access",
-		Issuer: llmprovider.DefaultOpenAIIssuer,
+		Issuer: auth.DefaultOpenAIIssuer,
 	})
 	if err == nil || store.saves != 0 {
 		t.Fatalf("saveOAuthCredential() error = %v with %d saves, want an error and no save", err, store.saves)
@@ -372,8 +373,8 @@ func TestConfigureLLM_KeepRefusesStubSession(t *testing.T) {
 		Existing: storedExisting(t, store, Result{
 			Provider: llmprovider.ProviderOpenAI,
 			Kind:     CredOAuth,
-			Issuer:   llmprovider.DefaultOpenAIIssuer,
-			ClientID: llmprovider.DefaultOpenAIClientID,
+			Issuer:   auth.DefaultOpenAIIssuer,
+			ClientID: auth.DefaultOpenAIClientID,
 		}, "chatgpt-access", ""),
 		TokenStore: store,
 	})
@@ -386,7 +387,7 @@ func TestConfigureLLM_KeepRefusesStubSession(t *testing.T) {
 // prompt, and the authorize URL and paste instruction are shown even when the
 // consumer opens the browser itself (MADR 0008 D3).
 func TestConfigureLLM_BrowserOAuthSetsInputCode(t *testing.T) {
-	stubBrowserLogin(t, func(_ context.Context, provider llmprovider.ProviderID, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	stubBrowserLogin(t, func(_ context.Context, provider llmprovider.ProviderID, opts auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
 		if opts.InputCode == nil {
 			t.Fatal("browser OAuth has no paste-code InputCode")
 		}
@@ -428,7 +429,7 @@ func TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt(t *testing.T) {
 		inputStarted: make(chan struct{}),
 		release:      make(chan struct{}),
 	}
-	stubBrowserLogin(t, func(ctx context.Context, provider llmprovider.ProviderID, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	stubBrowserLogin(t, func(ctx context.Context, provider llmprovider.ProviderID, opts auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
 		if opts.InputCode == nil {
 			t.Fatal("browser OAuth has no paste-code InputCode")
 		}
@@ -485,7 +486,7 @@ func (d *drainPrompter) Select(title string, choices []Choice, defaultIdx int) (
 	return d.fakePrompter.Select(title, choices, defaultIdx)
 }
 
-func stubBrowserLogin(t *testing.T, login func(context.Context, llmprovider.ProviderID, llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error)) {
+func stubBrowserLogin(t *testing.T, login func(context.Context, llmprovider.ProviderID, auth.OAuthFlowOptions) (*auth.OAuthSession, error)) {
 	t.Helper()
 	original := loginBrowserOAuth
 	t.Cleanup(func() { loginBrowserOAuth = original })

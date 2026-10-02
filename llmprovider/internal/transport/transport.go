@@ -8,6 +8,7 @@
 package transport
 
 import (
+	"crypto/rand"
 	"fmt"
 	"math"
 	"net/http"
@@ -80,6 +81,27 @@ func versionsOf(info *debug.BuildInfo, ok bool) (sdk, main string) {
 // Identity is who a client says it is, and the session it speaks in.
 type Identity struct {
 	Name, Version, Session string
+}
+
+// NewIdentity resolves an identity: an empty name is this module at its own
+// version; a named application defaults to the main module's version; an
+// empty session is a fresh random id.
+func NewIdentity(name, version, session string) Identity {
+	sdk, main := BuildVersions()
+	id := Identity{Name: name, Version: version, Session: session}
+	if id.Name == "" {
+		id.Name = DefaultClientName
+	}
+	if id.Version == "" {
+		id.Version = main
+		if id.Name == DefaultClientName {
+			id.Version = sdk
+		}
+	}
+	if id.Session == "" {
+		id.Session = rand.Text()
+	}
+	return id
 }
 
 // UserAgent is the identity's User-Agent: the application, the platform, and

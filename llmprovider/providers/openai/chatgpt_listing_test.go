@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // TestListModels_ChatGPTListsCodexCatalog was catalog's
@@ -31,8 +32,8 @@ func TestListModels_ChatGPTListsCodexCatalog(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	session := &llmprovider.OAuthSession{
-		Issuer:    llmprovider.DefaultOpenAIIssuer,
+	session := &auth.OAuthSession{
+		Issuer:    auth.DefaultOpenAIIssuer,
 		Access:    "session-access",
 		Expiry:    time.Now().Add(time.Hour),
 		AccountID: "acct_live",
@@ -84,7 +85,7 @@ func TestListModels_ChatGPTListingBounded(t *testing.T) {
 		}
 		return httpResponse(r, http.StatusOK, `{"models":[{"slug":"gpt-6-astra","visibility":"list"}]}`), nil
 	})}
-	session := &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)}
+	session := &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)}
 	if _, err := list(t, sessionProvider(t, session, "gpt-6-astra", llmprovider.WithHTTPClient(client))); err != nil {
 		t.Fatalf("ListModels() error = %v", err)
 	}

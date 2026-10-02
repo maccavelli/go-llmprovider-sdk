@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
 )
@@ -59,7 +60,7 @@ func TestListModels_ChatGPTListingFailureIsError(t *testing.T) {
 		hosts = append(hosts, r.URL.Host+r.URL.Path)
 		return httpResponse(r, http.StatusBadGateway, ""), nil
 	})}
-	session := &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "session-access",
+	session := &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "session-access",
 		Expiry: time.Now().Add(time.Hour)}
 	p := sessionProvider(t, session, "chatgpt-model", llmprovider.WithHTTPClient(client))
 	models, err := list(t, p)
@@ -96,7 +97,7 @@ func generationCounter(t *testing.T) (*httptest.Server, *atomic.Int32) {
 // generation (MADR 0012 §1.6); it returns the curated listing.
 func TestListModels_ChatGPTDoesNotProbe(t *testing.T) {
 	srv, posts := generationCounter(t)
-	session := &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)}
+	session := &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)}
 	p := sessionProvider(t, session, "gpt-6-astra", llmprovider.WithBaseURL(srv.URL))
 	models, err := list(t, p)
 	if err != nil || len(models) == 0 {
@@ -188,7 +189,7 @@ func TestProviderClient_SharedWithListingAndRefresh(t *testing.T) {
 		_, _ = w.Write([]byte(reply.Body))
 	}))
 	t.Cleanup(srv.Close)
-	session := &llmprovider.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: llmprovider.DefaultOpenAIIssuer,
+	session := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: auth.DefaultOpenAIIssuer,
 		Access: "a-old", Refresh: "rt-old", Expiry: time.Now().Add(-time.Minute), ClientID: "client-test",
 		TokenURL: srv.URL + "/oauth/token", AccountID: "acct-test"}
 	p := sessionProvider(t, session, "gpt-6-astra", llmprovider.WithBaseURL(srv.URL))

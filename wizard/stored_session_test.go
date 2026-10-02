@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // plantedToken is in every secret below; no Result field, and no formatted
@@ -47,7 +48,7 @@ func resultFieldsHolding(res Result, secret string) []string {
 // non-secret fields.
 func TestConfigureLLM_StoredSessionLeavesNoTokenInResult(t *testing.T) {
 	expiry := time.Now().Add(time.Hour).Truncate(time.Second)
-	stubBrowserLogin(t, func(_ context.Context, provider llmprovider.ProviderID, _ llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	stubBrowserLogin(t, func(_ context.Context, provider llmprovider.ProviderID, _ auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
 		s := testOAuthSession(provider)
 		s.Access, s.Refresh, s.Expiry, s.AccountID = "at-"+plantedToken, "rt-"+plantedToken, expiry, "acct-visible"
 		return s, nil
@@ -65,7 +66,7 @@ func TestConfigureLLM_StoredSessionLeavesNoTokenInResult(t *testing.T) {
 	if saved == nil || saved.Access != "at-"+plantedToken || saved.Refresh != "rt-"+plantedToken {
 		t.Errorf("stored session %v, want both tokens", saved)
 	}
-	if res.Kind != CredOAuth || res.Issuer != llmprovider.DefaultGrokOAuthIssuer || res.AccountID != "acct-visible" ||
+	if res.Kind != CredOAuth || res.Issuer != auth.DefaultGrokOAuthIssuer || res.AccountID != "acct-visible" ||
 		!res.TokenExpiry.Equal(expiry) {
 		t.Errorf("Result %v, want kind oauth with the issuer, account and expiry", res)
 	}
@@ -74,7 +75,7 @@ func TestConfigureLLM_StoredSessionLeavesNoTokenInResult(t *testing.T) {
 // TestConfigureLLM_KeepsTheStoredSession (0016-MADR A10): keeping a session
 // reads it from the store; Existing carries no token.
 func TestConfigureLLM_KeepsTheStoredSession(t *testing.T) {
-	stubBrowserLogin(t, func(context.Context, llmprovider.ProviderID, llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	stubBrowserLogin(t, func(context.Context, llmprovider.ProviderID, auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
 		t.Error("signed in again; want the stored session kept")
 		return nil, fmt.Errorf("no sign-in expected")
 	})
@@ -105,7 +106,7 @@ func TestConfigureLLM_KeepsTheStoredSession(t *testing.T) {
 // Existing oauth Result does not offer to keep anything.
 func TestConfigureLLM_NoStoredSessionSignsIn(t *testing.T) {
 	signedIn := false
-	stubBrowserLogin(t, func(_ context.Context, provider llmprovider.ProviderID, _ llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	stubBrowserLogin(t, func(_ context.Context, provider llmprovider.ProviderID, _ auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
 		signedIn = true
 		return testOAuthSession(provider), nil
 	})
@@ -169,7 +170,7 @@ func TestResult_Redacts(t *testing.T) {
 // are only in the store (0016-MADR A10).
 func storedExisting(t *testing.T, store *memoryTokenStore, existing Result, access, refresh string) Result {
 	t.Helper()
-	s := &llmprovider.OAuthSession{Provider: existing.Provider, Access: access, Refresh: refresh,
+	s := &auth.OAuthSession{Provider: existing.Provider, Access: access, Refresh: refresh,
 		Expiry: existing.TokenExpiry, Issuer: existing.Issuer, ClientID: existing.ClientID,
 		AccountID: existing.AccountID, FedRAMP: existing.FedRAMP}
 	if err := store.Save(context.Background(), existing.Provider, s); err != nil {

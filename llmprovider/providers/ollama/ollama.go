@@ -45,6 +45,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
@@ -93,7 +94,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	switch src.(type) {
 	case nil:
 		src = llmprovider.NewStaticToken("")
-	case *llmprovider.OAuthSession, *llmprovider.VendorCLISession:
+	case *auth.OAuthSession, *auth.VendorCLISession:
 		// R16: a source of a kind the service does not accept is refused.
 		return nil, fmt.Errorf("%w: ollama takes no OAuth session (0016-MADR D10)", llmprovider.ErrUnsupported)
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
 )
 
@@ -30,7 +31,7 @@ var wireCases = []wirecase.Case{
 			`{"slug":"gpt-6-luna","visibility":"list","priority":2,"supported_in_api":true}]}`,
 		SSE: true,
 		Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
-			session := &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "chatgpt-access",
+			session := &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "chatgpt-access",
 				Refresh: "chatgpt-refresh", Expiry: time.Now().Add(time.Hour), AccountID: "acct-wire"}
 			return New(append([]llmprovider.Option{llmprovider.WithTokenSource(session), llmprovider.WithModel("gpt-6-astra")},
 				wirecase.Opts(u, extra...)...)...)

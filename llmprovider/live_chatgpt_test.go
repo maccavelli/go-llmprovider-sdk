@@ -34,7 +34,7 @@ func userText(text string) *llmprovider.Request {
 // text call, a forced tool call, and a tool round trip replayed with
 // store:false, on the backend's current default model.
 func TestLive_ChatGPTGenerate(t *testing.T) {
-	session := llmprovider.LiveChatGPTSession(t)
+	session := liveChatGPTSession(t)
 	ctx, cancel := llmprovider.LiveCtx(t)
 	defer cancel()
 	p := liveOpenAI(t, session, "gpt-6-astra")

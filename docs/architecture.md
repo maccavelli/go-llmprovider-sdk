@@ -29,7 +29,8 @@ scripts/go-precheck.sh      the pre-add check
 scripts/check_parity_map.py G-parity: the mcplib migration map is complete
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
-llmprovider/                providers, credentials, discovery
+llmprovider/                the contract, errors, options and credential sources
+llmprovider/auth/           OAuth sessions and logins, vendor CLI sessions, token stores
 llmprovider/llmtest/        the conformance suite and a fake provider
 llmprovider/providers/      the built-in providers, by id
 llmprovider/providers/openai/  OpenAI: the Responses API, and the ChatGPT backend
@@ -62,21 +63,22 @@ docs/
 
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
-| `llmprovider` | provider adapters, request and response types, credentials, OAuth, token storage, model discovery and ranking | the standard library, `internal/redact`, `internal/transport` |
-| `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `internal/redact`, `golang.org/x/term` |
+| `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | the standard library, `internal/redact`, `internal/transport` |
+| `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint` |
+| `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely) and `MaskSecret` (show a suffix for identification) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider`, the standard library |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
-| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `internal/wire/responses` |
-| `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider`, `internal/wire`, `internal/wire/messages` |
-| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `internal/wire` |
+| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `internal/wire/responses` |
+| `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `internal/wire`, `internal/wire/messages` |
+| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `internal/wire` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `internal/wire/responses` |
-| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider`, `internal/wire` and its four format packages |
-| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider`, `internal/wire/chatcompletions` |
-| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `internal/wire/chatcompletions` |
-| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `internal/wire/chatcompletions` |
-| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider`, `auth`, `internal/wire` and its four format packages |
+| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider`, `auth`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `internal/wire/chatcompletions` |
 | `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use | `llmprovider` |
 | `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `ReadStream` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode` | `llmprovider`, `internal/wire` |
@@ -179,9 +181,11 @@ docs/
   only the other providers' catalogs.
 - **After a 401** a provider invalidates any `InvalidatingSource` and retries
   once: a `CommandToken` reruns its command, and an `OAuthSession` refreshes.
-- **Temporary export.** `llmprovider` still exports `ShareHTTPClient` for the
-  provider packages; it moves in 0015-PLAN S8c.
-- **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.
+- **Sessions are `auth`'s.** A provider gives a session with no HTTP client
+  its own through `OAuthSession.UseHTTPClient`, so refreshes share the
+  provider's transport.
+- **`OAuthSession`** (`auth`) is a refreshable `TokenSource` for ChatGPT and
+  Grok.
   - **Creating one:**
     - `LoginBrowserOAuth` uses PKCE on a loopback redirect.
     - `StartDeviceOAuth` returns a `DeviceLogin` handle: the user code, the

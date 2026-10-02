@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // Test helpers, moved from llmprovider's tests with the provider (0015-PLAN
@@ -114,8 +115,8 @@ func chatGPTClient(t *testing.T, reply string) (*http.Client, *capture) {
 	})}, c
 }
 
-func chatGPTSession() *llmprovider.OAuthSession {
-	return &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "sess", Refresh: "refresh",
+func chatGPTSession() *auth.OAuthSession {
+	return &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "sess", Refresh: "refresh",
 		Expiry: time.Now().Add(time.Hour)}
 }
 

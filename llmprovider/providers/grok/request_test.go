@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // Request fields the old methods could not express, and New's options
@@ -26,7 +27,7 @@ func TestNew_AcceptsEverySourceKind(t *testing.T) {
 		"static":  llmprovider.NewStaticToken("k"),
 		"command": llmprovider.NewCommandToken("true"),
 		"oauth":   grokSession(),
-		"vendor":  &llmprovider.VendorCLISession{Provider: llmprovider.ProviderGrok, Path: "unused"},
+		"vendor":  &auth.VendorCLISession{Provider: llmprovider.ProviderGrok, Path: "unused"},
 	} {
 		if _, err := New(llmprovider.WithTokenSource(src)); err != nil {
 			t.Errorf("%s: New: %v", name, err)

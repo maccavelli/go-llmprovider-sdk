@@ -48,6 +48,9 @@ var (
 	// not have. It fails before any network call, and also matches
 	// errors.ErrUnsupported (0015-MADR D4, D7).
 	ErrUnsupported error = &sentinelError{msg: "llmprovider: unsupported", parent: errors.ErrUnsupported}
+	// ErrInvalidProvider marks a provider id that is unknown, empty or not a
+	// safe file name (0015-MADR D7).
+	ErrInvalidProvider = errors.New("llmprovider: invalid provider id")
 )
 
 const (

@@ -1,6 +1,6 @@
 //go:build live_gateways
 
-package llmprovider
+package llmprovider_test
 
 import (
 	"encoding/base64"
@@ -10,6 +10,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // liveChatGPTSession borrows the Codex CLI's ChatGPT login read-only. It
@@ -18,7 +21,7 @@ import (
 // its refresh token is empty and its token URL unroutable, so the CLI's
 // refresh token is never used or rotated (MADR 0012 §5). It skips when the
 // access token has under ten minutes left.
-func liveChatGPTSession(t *testing.T) *OAuthSession {
+func liveChatGPTSession(t *testing.T) *auth.OAuthSession {
 	t.Helper()
 	if os.Getenv("LLMPROVIDER_LIVE_CHATGPT") != "1" {
 		t.Skip("LLMPROVIDER_LIVE_CHATGPT unset: live ChatGPT calls spend the subscription")
@@ -59,12 +62,12 @@ func liveChatGPTSession(t *testing.T) *OAuthSession {
 	if time.Until(expiry) < 10*time.Minute {
 		t.Skip("Codex CLI access token expires within ten minutes; run codex to refresh it")
 	}
-	return &OAuthSession{
-		Provider:  ProviderOpenAI,
+	return &auth.OAuthSession{
+		Provider:  llmprovider.ProviderOpenAI,
 		Access:    file.Tokens.Access,
 		Expiry:    expiry,
-		Issuer:    DefaultOpenAIIssuer,
-		ClientID:  DefaultOpenAIClientID,
+		Issuer:    auth.DefaultOpenAIIssuer,
+		ClientID:  auth.DefaultOpenAIClientID,
 		AccountID: file.Tokens.AccountID,
 		TokenURL:  "http://127.0.0.1:1/never-refresh",
 	}

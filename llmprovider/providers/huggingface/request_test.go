@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // Request fields the old methods could not express, and New's refusals
@@ -31,8 +32,8 @@ func TestNew_NeedsAToken(t *testing.T) {
 // accept (0016-MADR D10).
 func TestNew_RefusesAnOAuthSession(t *testing.T) {
 	for name, src := range map[string]llmprovider.TokenSource{
-		"oauth":  &llmprovider.OAuthSession{Provider: llmprovider.ProviderOpenAI, Access: "a"},
-		"vendor": &llmprovider.VendorCLISession{Provider: llmprovider.ProviderOpenAI, Path: "unused"},
+		"oauth":  &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Access: "a"},
+		"vendor": &auth.VendorCLISession{Provider: llmprovider.ProviderOpenAI, Path: "unused"},
 	} {
 		if _, err := New(llmprovider.WithTokenSource(src)); !errors.Is(err, llmprovider.ErrUnsupported) {
 			t.Errorf("%s: err = %v, want ErrUnsupported", name, err)

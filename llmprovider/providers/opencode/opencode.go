@@ -53,6 +53,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
@@ -141,7 +142,7 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 		if s.Value == "" {
 			src = &llmprovider.StaticToken{Value: publicToken, Header: s.Header}
 		}
-	case *llmprovider.OAuthSession, *llmprovider.VendorCLISession:
+	case *auth.OAuthSession, *auth.VendorCLISession:
 		// R16: a source of a kind the service does not accept is refused.
 		return nil, fmt.Errorf("%w: %s takes an API key, not an OAuth session (0016-MADR D10)", llmprovider.ErrUnsupported, gateway)
 	}

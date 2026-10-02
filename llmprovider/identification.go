@@ -1,8 +1,6 @@
 package llmprovider
 
 import (
-	"crypto/rand"
-
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
@@ -29,23 +27,7 @@ func WithSessionID(id string) Option {
 	})
 }
 
-// identityOf resolves cfg's identity: the default name is this module at its own
-// version; a named application defaults to the main module's version; a missing
-// session is a fresh random id.
+// identityOf resolves cfg's identity with transport.NewIdentity.
 func identityOf(cfg providerConfig) transport.Identity {
-	sdk, main := transport.BuildVersions()
-	id := transport.Identity{Name: cfg.ClientName, Version: cfg.ClientVersion, Session: cfg.SessionID}
-	if id.Name == "" {
-		id.Name = transport.DefaultClientName
-	}
-	if id.Version == "" {
-		id.Version = main
-		if id.Name == transport.DefaultClientName {
-			id.Version = sdk
-		}
-	}
-	if id.Session == "" {
-		id.Session = rand.Text()
-	}
-	return id
+	return transport.NewIdentity(cfg.ClientName, cfg.ClientVersion, cfg.SessionID)
 }

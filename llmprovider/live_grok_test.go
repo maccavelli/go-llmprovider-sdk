@@ -178,7 +178,7 @@ func TestLive_GrokToolChoices(t *testing.T) {
 // TestLive_GrokVendorCLISession generates through the Grok CLI's own login.
 // It was the grok row of TestLive_VendorCLISession.
 func TestLive_GrokVendorCLISession(t *testing.T) {
-	s := llmprovider.LiveVendorSession(t, llmprovider.ProviderGrok, "LLMPROVIDER_LIVE_GROK_CLI", "GROK_HOME", ".grok")
+	s := liveVendorSession(t, llmprovider.ProviderGrok, "LLMPROVIDER_LIVE_GROK_CLI", "GROK_HOME", ".grok")
 	ctx, cancel := llmprovider.LiveCtx(t)
 	defer cancel()
 	out, err := llmprovider.GenerateText(ctx, liveGrok(t, s, "grok-4.6"), userText("Reply with only the word ALPHA"))

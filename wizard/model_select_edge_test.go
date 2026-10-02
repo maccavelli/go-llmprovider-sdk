@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
@@ -236,8 +237,8 @@ func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 			Provider:    llmprovider.ProviderGrok,
 			Kind:        CredOAuth,
 			TokenExpiry: time.Now().Add(-time.Hour),
-			Issuer:      llmprovider.DefaultGrokOAuthIssuer,
-			ClientID:    llmprovider.DefaultGrokOAuthClientID,
+			Issuer:      auth.DefaultGrokOAuthIssuer,
+			ClientID:    auth.DefaultGrokOAuthClientID,
 		}, "expired-access-abcd", "refresh"),
 		TokenStore:    store,
 		Discover:      true,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 )
 
 // CredentialKind identifies the credential represented by a Result.
@@ -22,21 +23,21 @@ const (
 	// CredOAuth means the OAuth fields contain a refreshable or access-only session.
 	CredOAuth CredentialKind = "oauth"
 	// CredVendorCLI means VendorAuthPath names a vendor CLI's auth file, read on
-	// every request through llmprovider.VendorCLISession; the CLI keeps it
+	// every request through auth.VendorCLISession; the CLI keeps it
 	// fresh and this module holds no token (MADR 0012 §5.1).
 	CredVendorCLI CredentialKind = "vendor_cli"
 )
 
 var (
-	loginBrowserOAuth = llmprovider.LoginBrowserOAuth
-	loginDeviceOAuth  = llmprovider.LoginDeviceOAuth
-	kiloProfile       = llmprovider.KiloProfile
+	loginBrowserOAuth = auth.LoginBrowserOAuth
+	loginDeviceOAuth  = auth.LoginDeviceOAuth
+	kiloProfile       = auth.KiloProfile
 )
 
 type resolvedCredential struct {
 	kind         CredentialKind
 	apiKey       string
-	session      *llmprovider.OAuthSession
+	session      *auth.OAuthSession
 	source       llmprovider.TokenSource
 	vendorPath   string
 	organization string
@@ -140,7 +141,7 @@ func resolveVendorCLI(
 	if err != nil {
 		return resolvedCredential{}, err
 	}
-	session := &llmprovider.VendorCLISession{Provider: d.ID, Path: path}
+	session := &auth.VendorCLISession{Provider: d.ID, Path: path}
 	token, err := session.Token(ctx)
 	if err != nil {
 		return resolvedCredential{}, err
@@ -218,7 +219,7 @@ func staticCredential(kind CredentialKind, key string) resolvedCredential {
 	}
 }
 
-func oauthCredential(session *llmprovider.OAuthSession) resolvedCredential {
+func oauthCredential(session *auth.OAuthSession) resolvedCredential {
 	return resolvedCredential{kind: CredOAuth, session: session, source: session}
 }
 
@@ -230,7 +231,7 @@ func keepExistingOAuth(
 	p Prompter,
 	d llmprovider.Descriptor,
 	o Options,
-) (*llmprovider.OAuthSession, bool, error) {
+) (*auth.OAuthSession, bool, error) {
 	if o.Existing.Kind != CredOAuth || o.Existing.Provider != d.ID || o.TokenStore == nil {
 		return nil, false, nil
 	}
@@ -250,7 +251,7 @@ func keepExistingOAuth(
 		return nil, false, nil
 	}
 	session.Store = o.TokenStore
-	if err := llmprovider.ValidateOAuthSession(session); err != nil {
+	if err := auth.ValidateOAuthSession(session); err != nil {
 		return nil, false, fmt.Errorf("wizard: the saved %s session cannot be kept (%w); sign in again", d.Label, err)
 	}
 	return session, true, nil
@@ -283,17 +284,17 @@ func saveAccessOnlyOpenAI(ctx context.Context, o Options, access string) (resolv
 	)
 }
 
-func accessOnlyOpenAISession(access string) *llmprovider.OAuthSession {
-	return &llmprovider.OAuthSession{
+func accessOnlyOpenAISession(access string) *auth.OAuthSession {
+	return &auth.OAuthSession{
 		Provider: llmprovider.ProviderOpenAI,
 		Access:   access,
-		Issuer:   llmprovider.DefaultOpenAIIssuer,
-		ClientID: llmprovider.DefaultOpenAIClientID,
+		Issuer:   auth.DefaultOpenAIIssuer,
+		ClientID: auth.DefaultOpenAIClientID,
 	}
 }
 
-func oauthFlowOptions(p Prompter) llmprovider.OAuthFlowOptions {
-	return llmprovider.OAuthFlowOptions{
+func oauthFlowOptions(p Prompter) auth.OAuthFlowOptions {
+	return auth.OAuthFlowOptions{
 		NotifyDevice: func(verificationURL, userCode string) {
 			p.Notify(LevelInfo, "Open %s and enter code %s", verificationURL, userCode)
 		},
@@ -307,7 +308,7 @@ const pasteCodePrompt = "Paste the redirected URL or authorization code if the b
 // opens the browser itself. The returned drain must run once the login
 // returns: it finishes a paste prompt the loopback overtook, so no later
 // prompt reads alongside it.
-func browserFlowOptions(p Prompter, o Options) (llmprovider.OAuthFlowOptions, func()) {
+func browserFlowOptions(p Prompter, o Options) (auth.OAuthFlowOptions, func()) {
 	paste := &pastePrompt{p: p, shown: make(chan struct{})}
 	flow := oauthFlowOptions(p)
 	flow.OpenURL = func(authorizeURL string) error {
@@ -381,14 +382,14 @@ func (s *pastePrompt) drain() {
 
 func saveOAuthCredential(
 	ctx context.Context,
-	store llmprovider.TokenStore,
+	store auth.TokenStore,
 	provider llmprovider.ProviderID,
-	session *llmprovider.OAuthSession,
+	session *auth.OAuthSession,
 ) (resolvedCredential, error) {
 	if session == nil {
 		return resolvedCredential{}, errors.New("wizard: OAuth login returned no session")
 	}
-	if err := llmprovider.ValidateOAuthSession(session); err != nil {
+	if err := auth.ValidateOAuthSession(session); err != nil {
 		return resolvedCredential{}, fmt.Errorf("wizard: refusing to save the OAuth session: %w", err)
 	}
 	session.Provider = provider

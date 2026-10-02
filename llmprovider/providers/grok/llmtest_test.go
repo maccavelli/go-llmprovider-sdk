@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/llmtest"
 )
 
@@ -17,7 +18,7 @@ func TestConformance(t *testing.T) {
 	for name, src := range map[string]func() llmprovider.TokenSource{
 		"api key": func() llmprovider.TokenSource { return llmprovider.NewStaticToken("xai-llmtest") },
 		"session": func() llmprovider.TokenSource {
-			return &llmprovider.OAuthSession{Provider: llmprovider.ProviderGrok, Access: "a", Expiry: time.Now().Add(time.Hour)}
+			return &auth.OAuthSession{Provider: llmprovider.ProviderGrok, Access: "a", Expiry: time.Now().Add(time.Hour)}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

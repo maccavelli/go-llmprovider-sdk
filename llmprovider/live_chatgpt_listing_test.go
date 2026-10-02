@@ -17,7 +17,7 @@ import (
 // the 0.0.0 fallback lists (on 2026-09-27 it added gpt-6-sol and gpt-6-luna,
 // whose minimal_client_version is 0.155.0), and each added model generates.
 func TestLive_ChatGPTListingVersion(t *testing.T) {
-	session := llmprovider.LiveChatGPTSession(t)
+	session := liveChatGPTSession(t)
 	ctx, cancel := llmprovider.LiveCtx(t)
 	defer cancel()
 	var sent []string
