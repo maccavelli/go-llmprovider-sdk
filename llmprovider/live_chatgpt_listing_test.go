@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // TestLive_ChatGPTListingVersion is gate G-C item 7 through this module: a v1.5.0
@@ -25,11 +24,15 @@ func TestLive_ChatGPTListingVersion(t *testing.T) {
 		sent = append(sent, r.URL.Query().Get("client_version"))
 		return http.DefaultTransport.RoundTrip(r)
 	})}
+	// A ChatGPT session is listed by openai's ListModels, not catalog
+	// (0015-MADR, amendment "the ChatGPT helpers leave llmprovider").
 	list := func(build string) []string {
 		llmprovider.WithSDKVersion(t, build)
-		cat, err := catalog.List(ctx, llmprovider.ProviderOpenAI, session,
-			llmprovider.WithHTTPClient(client))
-		models := cat.Recommended
+		lister, ok := liveOpenAI(t, session, "", llmprovider.WithHTTPClient(client)).(llmprovider.ModelLister)
+		if !ok {
+			t.Fatal("the openai provider is not a ModelLister")
+		}
+		models, err := lister.ListModels(ctx)
 		llmprovider.SkipIfTransient(t, err)
 		if err != nil {
 			t.Fatalf("listing as %s: %v", build, err)

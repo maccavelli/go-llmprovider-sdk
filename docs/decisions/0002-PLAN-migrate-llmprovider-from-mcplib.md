@@ -2273,3 +2273,38 @@ request. This phase is therefore not complete, and this PLAN stays
   * **Step 4's tag:** push and tag `v1.0.0`, then check that
     `go list -m github.com/maccavelli/go-llmprovider-sdk@v1.0.0` resolves.
     Only on the owner's request.
+
+### Phase 8 step 1: the live gates (2026-10-02)
+
+Run by the agent, with the owner signing in at the browser ("fix it and i am
+at a browser"). Each login test revoked its session at the end.
+
+* **`LLMPROVIDER_LIVE_CHATGPT=1`, `-run 'TestLive_ChatGPT'`:**
+  * `TestLive_ChatGPTGenerate` passes: generation is accepted with
+    `originator: go-llmprovider-sdk`.
+  * `TestLive_ChatGPTErrorDetail` passes.
+  * `TestLive_ChatGPTListingVersion` failed at first with `client_version
+    sent = [ ], want [0.0.0 1.5.0]`. The test was stale since 0015-PLAN S8c:
+    it listed a ChatGPT session through `catalog`. The owner chose "fix
+    it". 0015-PLAN, "Deviation 2026-10-02, after close-out", records the
+    fix and its first-fails. On rerun, all three pass.
+* **`LLMPROVIDER_LIVE_BROWSER_LOGIN=1`:**
+  * `TestLive_ChatGPTBrowserLogin` passes in 88 s. Its authorize URL
+    carried `originator=go-llmprovider-sdk`, the redirect to `127.0.0.1`
+    completed, and the new session generated.
+  * `TestLive_GrokBrowserLogin` passes in 15 s. Its authorize URL carried
+    `referrer=go-llmprovider-sdk`; the loopback redirect completed, and the
+    session generated with `grok-4.6`.
+* **`LLMPROVIDER_LIVE_DEVICE_LOGIN=1`:** `TestLive_GrokDeviceLogin` passes in
+  39 s. The device request, with its `referrer`, was accepted; the owner
+  approved the code, and the session generated.
+* **Step 2.** No service rejected the new identity. The one failure was the
+  stale test, which is not a rejection.
+* **Not run:** the last command, `TestLive_KiloReasoningShapes` and the
+  OpenCode tests, which need `KILO_API_KEY` and `OPENCODE_API_KEY`. The
+  owner set it aside ("other than the last one"). Phase 8 stays open until
+  it runs.
+* **Still not run: the live URL checks' first-fail,** which step 0 left
+  waiting. The checks passed on the real authorize URLs, but their failure
+  path has not been exercised against an issuer. The offline tests have seen
+  a wrong value fail.

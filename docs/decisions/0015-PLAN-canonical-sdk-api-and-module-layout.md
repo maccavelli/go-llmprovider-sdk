@@ -4033,6 +4033,10 @@ helpers leave `llmprovider`", written before the code.
     89.2 %;
   * `openai` 92.6 %, `catalog` 88.3 %, `wizard` 84.3 %.
 
+*Annotated 2026-10-02:* step 1 left `TestLive_ChatGPTListingVersion` listing
+through `catalog`; see "Deviation 2026-10-02, after close-out" at the end of
+this record.
+
 ### Phase S8c, steps 2-5: `auth` (2026-10-01)
 
 Staged for the owner to commit, with 0015-MADR amendment "what `auth`
@@ -4798,3 +4802,48 @@ wizard lists a provider through its own `ListModels`", accepted.
     device-code login". No live test signs in to Grok. The only login test
     is `TestLive_ChatGPTBrowserLogin`, and none calls `LoginDeviceOAuth` or
     `StartDeviceOAuth`.
+
+### Deviation 2026-10-02, after close-out: a live test S8c left stale
+
+* **Found** in 0002-PLAN Phase 8 step 1's live run, with the owner's
+  approval (`LLMPROVIDER_LIVE_CHATGPT=1`):
+  `TestLive_ChatGPTListingVersion` failed with `client_version sent = [ ],
+  want [0.0.0 1.5.0]`. The other ChatGPT live tests passed.
+* **Cause.** The test lists the ChatGPT session with `catalog.List`
+  (`llmprovider/live_chatgpt_listing_test.go`, written so in S8 commit 2,
+  `f44ebc7`). S8c step 1 moved the ChatGPT listing to `openai`'s
+  `ListModels`, and `catalog` lists only the other catalogs. So the test
+  listed the API-key catalog, which sends no `client_version`, and the
+  failed listing fell back to the static catalog without an error.
+  * CI only vets the live files and runs none of them, so nothing caught
+    it.
+  * S8c's own record did not list this test among those it changed.
+  * It is the only live test that lists through `catalog`.
+* **Decided.** The owner chose "fix it": the test lists through the
+  `openai` provider built with the session (`openai.New` with
+  `WithTokenSource` and its `WithHTTPClient`), as the wizard does since
+  S8c.
+  * What it asserts is unchanged (R46): the build sends `client_version`
+    `0.0.0`, then `1.5.0`; the release listing holds every fallback model;
+    and each model the release adds generates.
+  * **First-fail:** the fixed test is first run against a scratch copy
+    where `openai` sends no `client_version`, and must fail.
+* **Done.**
+  * `llmprovider/live_chatgpt_listing_test.go` lists through
+    `liveOpenAI(t, session, "", WithHTTPClient(client))`, as a
+    `ModelLister`, and no longer imports `catalog`.
+  * **First-fails,** live, on scratch copies of `openai`:
+
+    | Break | Failure |
+    |---|---|
+    | no `client_version` sent | `listing as (devel): model listing: chatgpt HTTP 400`: the service refuses the listing, so the test stops before its version check |
+    | `client_version` fixed at `0.0.0` | `client_version sent = [0.0.0 0.0.0], want [0.0.0 1.5.0]` |
+
+    The second break first replaced the call outright. That left
+    `chatgptClientVersion` and `sdk` unused, so the copy did not build: not
+    a valid break, and it was rewritten.
+  * **Live, on the tree:** `TestLive_ChatGPTListingVersion` passes.
+    * The 0.0.0 listing is `gpt-6-astra gpt-5.6-sol gpt-5.6-terra
+      gpt-5.6-luna gpt-5.5`.
+    * The 1.5.0 listing adds `gpt-6.1-sol`, `gpt-6-sol` and `gpt-6-luna`,
+      and each of them generates.
