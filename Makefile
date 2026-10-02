@@ -9,7 +9,7 @@ GOVULNCHECK   ?= $(or $(wildcard $(GOBIN)/govulncheck),$(GOPATH_BIN)/govulncheck
 GOTESTSUM     ?= $(or $(wildcard $(GOBIN)/gotestsum),$(GOPATH_BIN)/gotestsum,$(shell command -v gotestsum 2>/dev/null))
 FLEET_LINT_CFG := .golangci.yml
 
-.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check parity-check
+.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check parity-check dep-check coverage-check api-check
 
 all: help
 
@@ -55,9 +55,20 @@ pre-add-check: ## Runs the pre-add checks (gofmt, golangci-lint, vet, test, govu
 	@./scripts/go-precheck.sh $(FILES)
 
 # G-parity (0015-MADR D12): every mcplib v1.6.0 identifier has a row in
-# docs/guides/migrating-from-mcplib.md.
-parity-check: ## Checks the mcplib migration map covers every identifier (G-parity)
-	python3 -B scripts/check_parity_map.py
+# docs/guides/migrating-from-mcplib.md, with its SDK equivalent filled in
+# (0015-PLAN S11).
+parity-check: ## Checks the mcplib migration map maps every identifier (G-parity)
+	python3 -B scripts/check_parity_map.py --require-equivalents
+
+# 0015-PLAN S12: the checks of 0015-MADR D13, run in CI.
+dep-check: ## Checks that only wizard leaves the standard library (R2)
+	python3 -B scripts/check_deps.py
+
+coverage-check: ## Checks every package against its coverage floor (R47)
+	python3 -B scripts/check_coverage.py
+
+api-check: ## Checks for incompatible API changes against the latest v1 tag (R48)
+	python3 -B scripts/check_api.py
 
 help: ## Displays this help message
 	@echo "Usage: make [target]"

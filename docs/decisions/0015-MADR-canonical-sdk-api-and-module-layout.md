@@ -223,7 +223,9 @@ Invalid values are rejected by `New` or `Generate` with `ErrInvalidRequest`.
   *Amended 2026-10-01 (accepted):* `ErrIncomplete` also sits beneath
   `ErrInvalidRequest`.
 * **Retryability is a method.** `Retryable()` replaces `Terminal`.
-* **Every message starts `llmprovider:`.**
+* **Every message starts `llmprovider:`.** *Amended 2026-10-02 (accepted):*
+  every sentinel's message does, and a wrapped error keeps its package's or
+  provider's prefix (amendment "which messages start `llmprovider:`").
 
 ### D8. Retry and cross-cutting behaviour are middleware
 
@@ -1103,3 +1105,172 @@ D9 holds as written. The visible changes are `WithoutModelMetadata`,
 `catalog.OptionsFromEnv`, `auth.GrokFlowFromEnv`,
 `wizard.Options.ProviderOptions`, and `wizard`'s nil `LookupEnv` reading
 nothing. A failed close in `auth` is now returned as an error.
+
+## Amendment 2026-10-02: which messages start `llmprovider:`
+
+Status: **accepted** 2026-10-02. The owner chose "amend D7 to as built"
+during 0015-PLAN S11.
+
+### Fact found
+
+* D7 says "every message starts `llmprovider:`", and the standards guide's
+  R27 repeats it.
+* 0015-PLAN S8, commit 3 applied it to the sentinels, as its amended step
+  says ("every sentinel reads `llmprovider:`"). Its record says that errors
+  wrapped with a provider prefix, such as `gemini: decode interaction:`,
+  still start with it.
+* S11's audit of the tree counted the `errors.New` and `fmt.Errorf` call
+  sites whose message does not start `llmprovider:`, in the non-test
+  sources:
+  * 93 start `oauth:`, 23 `wizard:` and 12 `model listing:`;
+  * others start `model metadata:`, `kilo:`, `gemini:`, `together:`,
+    `FileTokenStore …`, or name the step that failed.
+* A caller tells errors apart by kind, with `errors.Is` (R25), and by
+  `*APIError`'s fields. Neither reads the prefix.
+
+### Decided
+
+* **Every sentinel's message starts `llmprovider:`**, so every error that
+  wraps a kind ends with a `llmprovider:` sentinel's text.
+* **A wrapped error keeps the prefix of the package or provider that
+  wrapped it,** such as `oauth:`, `wizard:` or `gemini:`. `*APIError`'s own
+  message starts with its kind's sentinel text.
+* The standards guide's R27 says so, and `architecture.md` already does.
+
+### Rejected
+
+* **Prefixing every message.** About 200 messages across `auth`,
+  `catalog`, `wizard` and the providers would change, with the tests that
+  assert their text. That changes text a caller can see, for no gain in
+  telling errors apart, and it is code work that S11, a documentation
+  phase, does not hold.
+
+### Effect
+
+D7's kinds, sentinels and `*APIError` are unchanged. No code changes.
+
+## Amendment 2026-10-02: the coverage of a test-support package
+
+Status: **accepted** 2026-10-02. The owner chose "measure via its
+importers" during 0015-PLAN S12.
+
+### Fact found
+
+* D13 asks every new package to hold 80 %. The amendment of 2026-10-01 ("how
+  `llmprovider`'s coverage is measured during S7") and the standards guide's
+  R47 measure each package by its own tests.
+* `llmprovider/internal/wirecase` holds G-wire's scenarios. It has no test
+  files, and only the provider packages' tests import it. From its own
+  tests it measures 0.0 %. From the tests that import it
+  (`-coverpkg=./llmprovider/internal/wirecase` over
+  `./llmprovider/providers/...`) it measures 91.5 %.
+* Every other package meets its floor, measured on 2026-10-02:
+  * the `P7` baselines (`cc81adf`): `llmprovider` 89.2 %, now 98.2 %;
+    `wizard` 83.4 %, now 84.4 %; `internal/redact` 100.0 %, now 100.0 %;
+  * every new package is at least 84.1 %.
+
+### Decided
+
+* **A test-support package is measured by the tests that import it.** That
+  is a package with no test files, imported only from test files. Its floor
+  is still 80 %.
+* `scripts/coverage-floors.txt` names each such package and the packages
+  whose tests measure it. `make coverage-check` measures it with
+  `-coverpkg`.
+* Every other package is still measured by its own tests.
+
+### Rejected
+
+* **Tests of its own.** They would run G-wire's scenarios against a fake
+  provider to reach 80 %, repeating what the provider packages' G-wire
+  tests already do.
+* **An exemption.** The package's coverage would then go unchecked.
+
+### Effect
+
+D13's floors are unchanged. R47 names the exception. Removing a provider's
+G-wire test now lowers `wirecase`'s measured coverage.
+
+## Amendment 2026-10-02: the wizard lists a provider through its own `ListModels` (proposed)
+
+Status: **proposed** 2026-10-02, after 0015-PLAN S11's third-party proof.
+The owner asked for it to be addressed.
+*Annotated 2026-10-02:* **accepted**. The owner approved option A ("approve
+12b execute").
+
+### Fact found
+
+* D10 has `wizard` offer what its `Options.Registry` holds, a third
+  party's providers included.
+* `wizard` lists models through `catalog.List`, which knows only the
+  built-in ids. For any other id it returns `unsupported provider for model
+  listing: <id>`, an error that matches no kind
+  (`llmprovider/catalog/discovery.go`).
+  *Corrected 2026-10-02, during S12b:* through the wizard, `List` never
+  reaches that error. It resolves its options first, and the wizard always
+  passes `catalog.WithProfile`, an option scoped to the built-in ids, so a
+  third-party id is refused with `ErrInvalidRequest` (`option
+  catalog.WithProfile is for providers …`). That was the warning S11's proof
+  saw. The owner chose "check the id first": `List` checks whether it lists
+  the id before it resolves the options, so the decision below holds as
+  written.
+* So for a third-party provider, with `Options.Discover` on, the wizard
+  warns that it could not list the models and offers the descriptor's
+  `StaticModels`. It never calls the provider's own `ListModels`, although
+  the contract has `llmprovider.ModelLister` for it (D3, amendment of
+  2026-09-30). S11's toy provider showed it.
+* The wizard already lists one case through a provider's `ListModels`: a
+  ChatGPT session. It builds the `openai` provider from the registry
+  (`chatGPTCatalog`, amendment "the ChatGPT helpers leave `llmprovider`").
+
+### Considered options
+
+* **A. The wizard falls back to the provider's `ModelLister`** for an id
+  `catalog.List` does not list. `catalog.List`'s error for such an id
+  matches `ErrUnsupported`. On that error, the wizard builds the provider
+  from `Options.Registry`, as for a ChatGPT session, and calls
+  `ListModels`.
+* **B. `catalog.List` takes the registry,** through a new option such as
+  `catalog.WithRegistry(reg)`, and lists an unknown id through the
+  provider's `ListModels`. Every caller of `catalog.List` gains it, at the
+  cost of a new exported option, and `catalog` then builds providers.
+* **C. `Descriptor` carries a listing function.** A `Descriptor` is data
+  for a menu (D10), copied and compared; a function field breaks that.
+* **D. Keep it.** The wizard offers `StaticModels`, and the guide says so.
+
+### Decided (proposed)
+
+Option A:
+
+* **`catalog.List`** returns, for an id it does not list, an error matching
+  `llmprovider.ErrUnsupported`: `model listing: unsupported provider
+  "<id>": llmprovider: unsupported` (R25, R27). ~~Its message is the only
+  change in `catalog`.~~ *Amended 2026-10-02 (accepted), during S12b:* it
+  checks the id before it resolves the options, so an unknown id gives that
+  error whatever the options are. That is the other change in `catalog`.
+* **`wizard`**, with `Options.Discover`, lists such a provider through its
+  `ListModels`:
+  * it builds the provider from `Options.Registry` with the credential, the
+    base URL, `Options.HTTPClient` and `Options.ProviderOptions`, as the
+    ChatGPT session's listing does;
+  * `Recommended` is the first `catalog.MaxListed` ids, in the provider's
+    order, and `Usable` is the whole listing, for search;
+  * a provider that is not a `ModelLister`, a `ListModels` that fails, or
+    an empty listing gives the `StaticModels`, with the warning it has
+    today.
+* The built-in providers are listed through `catalog.List`, as now. The
+  ChatGPT session is unchanged.
+
+### Rejected (proposed)
+
+* **B.** A new exported option, and `catalog` building providers, for a
+  need only the wizard has today. A later caller can still ask for it.
+* **C.** As above.
+* **D.** A provider that can list its models is offered a static list
+  instead.
+
+### Effect (proposed)
+
+No new exported identifier. A third-party provider's `ListModels` runs in
+the wizard, where it may make the calls its author chose, probes included:
+the cost of a listing is the provider's, as for the built-ins.

@@ -9,12 +9,12 @@ decision, in
 [0016-MADR-provider-auth-and-support-baseline.md](../decisions/0016-MADR-provider-auth-and-support-baseline.md)
 ("0016 D*n*").
 
-**This is the target, not a description of today's tree.** The code still has
-the API it was imported with from `mcplib`. It is brought to these rules phase
-by phase by
-[0015-PLAN-canonical-sdk-api-and-module-layout.md](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md),
-which finalises this guide against the built tree in its phase S11. For what
-exists now, read [architecture.md](../architecture.md).
+**The tree meets these rules.** Phase S11 of
+[0015-PLAN-canonical-sdk-api-and-module-layout.md](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
+checked each one against the built code. The [Checks](#checks) table names the
+tool that holds a rule, where one does. For how the code is laid out, read
+[architecture.md](../architecture.md); to add a provider, read
+[adding-a-provider.md](adding-a-provider.md).
 
 ## Packages
 
@@ -32,13 +32,16 @@ exists now, read [architecture.md](../architecture.md).
   | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` | `llmprovider`, `internal/transport`, `internal/kiloendpoint` |
   | `llmprovider/internal/kiloendpoint` | Kilo's endpoints, derived from a credential | the standard library |
   | `llmprovider/providers/<id>` | one provider or gateway family: `New`, its options, its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
-  | `llmprovider/providers` | `Default()` and `New(id, opts...)` | the provider packages |
+  | `llmprovider/providers` | `Default()` and `New(id, opts...)` | `llmprovider` and the provider packages |
   | `llmprovider/llmtest` | the conformance suite and `Fake` | `llmprovider` |
   | `llmprovider/internal/wire` | what the shared wire formats have in common | `llmprovider` |
   | `llmprovider/internal/wire/<format>` | one wire format that more than one provider speaks | `llmprovider`, `internal/wire` |
   | `llmprovider/internal/transport` | the default client, identity headers, `Retry-After`, the listing probe | the standard library |
   | `wizard` | the configuration flow, over a `Registry` | the above, `golang.org/x/term` |
   | `internal/redact` | redaction | the standard library |
+  | `llmprovider/internal/wirecase` | G-wire's scenarios, for the provider packages' tests only | `llmprovider`, `internal/wiretest` |
+  | `internal/wiretest` | G-wire's request recorder, for tests only | the standard library |
+  | `internal/ambientcheck` | the R30–R31 check, a test with no package API | the standard library |
 
 - **R3. Wire knowledge stays internal.** A wire format shared by more than one
   provider lives under `internal/wire`, never in an exported package.
@@ -105,7 +108,8 @@ exists now, read [architecture.md](../architecture.md).
   (0016 D2, A6)
 - **R17. Options live where they apply.** The common ones (model, HTTP client,
   base URL, logger, client identity, session id, max tokens, default
-  reasoning, listing probes, the model metadata URL) are in `llmprovider`. A
+  reasoning, listing probes, the model metadata URL and turning its fetch
+  off) are in `llmprovider`. A
   provider-specific one is in its provider's package, for example
   `kilo.WithOrganization`; one that several ids of a family take is scoped
   to all of them, as `opencode.WithRoute` is to both gateways. (0015 D5, and
@@ -142,7 +146,10 @@ exists now, read [architecture.md](../architecture.md).
   `ErrInvalidProvider`. A new failure mode maps to an existing kind before it
   earns a new one. (0015 D7 and its amendments of 2026-09-30 and 2026-10-01)
 - **R26. Retryability is `Retryable()`.** (0015 D7)
-- **R27. Every error message starts `llmprovider:`.** (0015 D7)
+- **R27. Every sentinel's message starts `llmprovider:`,** and so does an
+  `*APIError`'s, with its kind's text. A wrapped error keeps the prefix of
+  the package or provider that wrapped it, such as `oauth:` or `gemini:`.
+  (0015 D7 and its amendment of 2026-10-02)
 
 ## Middleware
 
@@ -170,10 +177,10 @@ exists now, read [architecture.md](../architecture.md).
 
 ## Secrets
 
-- **R33. A secret-bearing value redacts itself.** `Token`, `StaticToken`, an
-  OAuth session and `wizard.Result` implement `String`, `GoString` and
-  `slog.LogValuer` with a masked form. Code that needs the secret reads the
-  field. (0016 D5)
+- **R33. A secret-bearing value redacts itself.** `Token`, `StaticToken`,
+  `CommandToken`, an OAuth session and `wizard.Result` implement `String`,
+  `GoString` and `slog.LogValuer` with a masked form. Code that needs the
+  secret reads the field. (0016 D5)
 - **R34. Descriptors and status values carry no key material.** (0016 D5)
 - **R35. An error message is redacted and bounded** before it is returned.
   (0015 D7)
@@ -184,8 +191,10 @@ exists now, read [architecture.md](../architecture.md).
   `Factory` pairs. `Register` refuses a duplicate id. (0015 D10)
 - **R37. No global registry and no `init` side effects.**
   `providers.Default()` returns a new `Registry` each call. (0015 D10)
-- **R38. Adding a provider is one package, one line in `providers.Default()`,
-  and a passing `llmtest` run.** (0015 D10)
+- **R38. Adding a provider is one package, one entry in `providers.Default()`'s
+  list, and a passing `llmtest` run.** A provider outside this module needs
+  no change here: its caller registers it in a `Registry`
+  ([adding-a-provider.md](adding-a-provider.md)). (0015 D10)
 - **R39. `wizard` offers what its `Options.Registry` holds,** or
   `providers.Default()` when nil. (0015 D10)
 
@@ -217,11 +226,13 @@ exists now, read [architecture.md](../architecture.md).
 - **R46. A moved or ported test keeps its meaning.** Its call syntax may change;
   what it asserts may not. (0015 D12)
 - **R47. Coverage does not fall.** No package drops below its baseline at the
-  end of 0002-PLAN Phase 7, and a new package holds at least 80 %. Until
-  0015-PLAN S7b, `llmprovider` is measured over every test under
-  `./llmprovider/...` (`-coverpkg=./llmprovider`), because the code it shares
-  with the moved providers is tested from their packages. (0015 D13, and its
-  amendment of 2026-10-01)
+  end of 0002-PLAN Phase 7, and a new package holds at least 80 %. Each
+  package is measured by its own tests, except a test-support package: one
+  with no test files, imported only from tests, such as
+  `llmprovider/internal/wirecase`. The tests that import it measure it.
+  `scripts/coverage-floors.txt` holds the baselines and names the exceptions.
+  (0015 D13, its amendment of 2026-10-01, whose `-coverpkg` measurement ended
+  with S7b, and its amendment "the coverage of a test-support package")
 - **R48. From `v1.0.0`, every non-internal package outside `llmprovider/x/` is
   under the compatibility promise,** and `apidiff` against the latest `v1.*`
   tag fails an incompatible change. (0015 D13)
@@ -234,7 +245,7 @@ exists now, read [architecture.md](../architecture.md).
 | R30–R31 | `internal/ambientcheck` | S10 |
 | R33 | a test formatting each secret-bearing type with a planted secret | S4, S8 |
 | R41 | `make lint` | now |
-| R43 | `make parity-check` | now; empty cells fail from S11 |
+| R43 | `make parity-check` | S1; an empty cell fails from S11 |
 | R44 | `llmtest.Run` per provider | S7 |
 | R45 | G-wire (`TestWireGoldens`) | now |
 | R47 | `make coverage-check` | S12 |

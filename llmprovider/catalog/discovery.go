@@ -61,6 +61,11 @@ type Catalog struct {
 // nil error and Live false; only Ollama, an unknown provider, a missing
 // source, a token failure or a refused option return an error.
 func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, opts ...llmprovider.Option) (Catalog, error) {
+	// The id first: an option scoped to the built-in ids would otherwise
+	// refuse an unknown one with ErrInvalidRequest (0015-PLAN S12b).
+	if !listed[llmprovider.ProviderID(strings.ToLower(string(id)))] {
+		return Catalog{}, unlistedProvider(id)
+	}
 	cfg, err := configFor(id, opts)
 	if err != nil {
 		return Catalog{}, err
@@ -150,8 +155,24 @@ func modelCatalogFor(ctx context.Context, id llmprovider.ProviderID, token llmpr
 	case llmprovider.ProviderOllama:
 		return ollamaCatalog(ctx, token, cfg)
 	default:
-		return Catalog{}, fmt.Errorf("unsupported provider for model listing: %s", id)
+		return Catalog{}, unlistedProvider(id)
 	}
+}
+
+// listed holds the ids modelCatalogFor lists.
+var listed = map[llmprovider.ProviderID]bool{
+	llmprovider.ProviderGemini: true, llmprovider.ProviderOpenAI: true, llmprovider.ProviderClaude: true,
+	llmprovider.ProviderGrok: true, llmprovider.ProviderOpencodeZen: true, llmprovider.ProviderOpencodeGo: true,
+	llmprovider.ProviderHuggingFace: true, llmprovider.ProviderKilo: true, llmprovider.ProviderTogether: true,
+	llmprovider.ProviderOllama: true,
+}
+
+// unlistedProvider is List's error for an id it does not list. It matches
+// ErrUnsupported, so a caller such as wizard can list the provider another
+// way (0015-MADR, amendment "the wizard lists a provider through its own
+// ListModels").
+func unlistedProvider(id llmprovider.ProviderID) error {
+	return fmt.Errorf("model listing: unsupported provider %q: %w", id, llmprovider.ErrUnsupported)
 }
 
 // geminiModelsPage is one page of Gemini's GET {base}/models.

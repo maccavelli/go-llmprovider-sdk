@@ -17,13 +17,14 @@ There is no release yet. The module requires Go 1.27.1.
 - The provider and wizard code was imported, with its history, from
   `mcplib` `v1.6.0` and re-homed here
   ([0002-PLAN](docs/decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md),
-  Phase 4). It builds and its tests pass. Its API is still `mcplib`'s,
-  apart from the removed orchestration option, until the v1 API lands.
-- The v1 API is decided by
+  Phase 4).
+- Its API is the v1 API that
   [0015-MADR](docs/decisions/0015-MADR-canonical-sdk-api-and-module-layout.md)
-  (accepted). The provider-auth baseline is proposed in
+  decides, on the provider-auth baseline of
   [0016-MADR](docs/decisions/0016-MADR-provider-auth-and-support-baseline.md).
-  The first release, `v1.0.0`, follows them.
+  [0015-PLAN](docs/decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
+  has built it; its CI enforcement and close-out remain. The first release,
+  `v1.0.0`, follows.
 
 ## I want to…
 
@@ -31,7 +32,10 @@ There is no release yet. The module requires Go 1.27.1.
 | :--- | :--- |
 | see what is in this repository today | [architecture.md](docs/architecture.md) |
 | know why the code is moving here from `mcplib`, and how | [0002-MADR](docs/decisions/0002-MADR-migrate-llmprovider-from-mcplib.md) |
-| know what the v1 API will look like | [0015-MADR](docs/decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) |
+| know why the v1 API is shaped as it is | [0015-MADR](docs/decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) |
+| change or add an exported API | [api-standards.md](docs/guides/api-standards.md) |
+| add a provider, in this module or my own | [adding-a-provider.md](docs/guides/adding-a-provider.md) |
+| move code from `mcplib`'s `llmprovider` or `wizard` | [migrating-from-mcplib.md](docs/guides/migrating-from-mcplib.md) |
 | know how provider auth is built, and what it takes from `magic-cli-remote` | [0016-MADR](docs/decisions/0016-MADR-provider-auth-and-support-baseline.md) |
 | contribute: checks, records and commit rules | [AGENTS.md](AGENTS.md) |
 

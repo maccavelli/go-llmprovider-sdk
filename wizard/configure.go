@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -343,6 +344,12 @@ func discoverModels(
 		cat, err = chatGPTCatalog(dCtx, o, d, res, source)
 	} else {
 		cat, err = catalog.List(dCtx, d.ID, source, opts...)
+		if errors.Is(err, llmprovider.ErrUnsupported) {
+			// An id catalog does not list, such as a third party's: ask
+			// the provider (0015-MADR, amendment "the wizard lists a
+			// provider through its own ListModels").
+			cat, err = providerCatalog(dCtx, o, d, res, source)
+		}
 	}
 	if err != nil {
 		if len(static) == 0 {
@@ -377,6 +384,53 @@ func chatGPTCatalog(
 	res Result,
 	source llmprovider.TokenSource,
 ) (catalog.Catalog, error) {
+	lister, err := listerFor(o, d, res, source)
+	if err != nil {
+		return catalog.Catalog{}, err
+	}
+	models, err := lister.ListModels(ctx)
+	if err != nil {
+		return catalog.Catalog{}, err
+	}
+	return catalog.Catalog{Recommended: models, Usable: slices.Clone(models), Live: true}, nil
+}
+
+// providerCatalog lists a provider catalog does not know, such as a third
+// party's, through its own ListModels (0015-MADR, amendment "the wizard lists
+// a provider through its own ListModels"). The first catalog.MaxListed ids
+// are recommended, in the provider's order, and search covers them all. A
+// provider that cannot list, or lists nothing, is an error, so the caller
+// warns and offers the static catalog.
+func providerCatalog(
+	ctx context.Context,
+	o Options,
+	d llmprovider.Descriptor,
+	res Result,
+	source llmprovider.TokenSource,
+) (catalog.Catalog, error) {
+	lister, err := listerFor(o, d, res, source)
+	if err != nil {
+		return catalog.Catalog{}, err
+	}
+	models, err := lister.ListModels(ctx)
+	if err != nil {
+		return catalog.Catalog{}, err
+	}
+	if len(models) == 0 {
+		return catalog.Catalog{}, fmt.Errorf("wizard: %s listed no models", d.Label)
+	}
+	recommended := slices.Clone(models[:min(len(models), catalog.MaxListed)])
+	return catalog.Catalog{Recommended: recommended, Usable: slices.Clone(models), Live: true}, nil
+}
+
+// listerFor builds d's provider from the run's Registry, with the run's
+// credential, base URL, HTTP client and ProviderOptions, for its own listing.
+func listerFor(
+	o Options,
+	d llmprovider.Descriptor,
+	res Result,
+	source llmprovider.TokenSource,
+) (llmprovider.ModelLister, error) {
 	opts := []llmprovider.Option{llmprovider.WithTokenSource(source)}
 	if res.BaseURL != "" {
 		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
@@ -387,17 +441,13 @@ func chatGPTCatalog(
 	opts = append(opts, o.ProviderOptions...)
 	built, err := o.registry().New(d.ID, opts...)
 	if err != nil {
-		return catalog.Catalog{}, err
+		return nil, err
 	}
 	lister, ok := built.(llmprovider.ModelLister)
 	if !ok {
-		return catalog.Catalog{}, fmt.Errorf("wizard: %s cannot list models", d.Label)
+		return nil, fmt.Errorf("wizard: %s cannot list models", d.Label)
 	}
-	models, err := lister.ListModels(ctx)
-	if err != nil {
-		return catalog.Catalog{}, err
-	}
-	return catalog.Catalog{Recommended: models, Usable: slices.Clone(models), Live: true}, nil
+	return lister, nil
 }
 
 func modelChoices(provider llmprovider.ProviderID, models []string) []Choice {

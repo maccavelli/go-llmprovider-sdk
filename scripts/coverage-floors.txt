@@ -1,0 +1,15 @@
+# Coverage floors for scripts/check_coverage.py (make coverage-check).
+#
+# 0015-MADR D13: no package falls below its baseline at the end of 0002-PLAN
+# Phase 7 (P7, cc81adf), and every other package holds at least 80 %. A
+# package not listed here has the 80 % floor, from its own tests.
+#
+# A test-support package (no test files, imported only from tests) is measured
+# by the tests that import it, named after its floor (0015-MADR, amendment
+# "the coverage of a test-support package").
+#
+# package                          floor  measured by
+llmprovider                        89.2
+wizard                             83.4
+internal/redact                    100.0
+llmprovider/internal/wirecase      80.0   ./llmprovider/providers/...

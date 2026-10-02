@@ -14,6 +14,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every tag, for api-check's comparison with the latest v1 release.
+          fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
@@ -30,3 +33,6 @@ jobs:
       - name: vet live-tagged tests
         if: runner.os == 'Linux'
         run: go vet -tags live_gateways ./...
+      - name: parity, dependencies, coverage, API (0015-MADR D12, D13)
+        if: runner.os == 'Linux'
+        run: make parity-check dep-check coverage-check api-check

@@ -657,6 +657,42 @@ says.
    `api-check`.
 5. Gate.
 
+### Phase S12b: the wizard lists a provider through its own `ListModels` (proposed)
+
+*Added 2026-10-02, after S11's third-party proof found the gap; the owner
+asked for it to be addressed. Proposed: it runs only on the owner's
+approval. 0015-MADR amendment "the wizard lists a provider through its own
+`ListModels`", proposed, holds the decision.*
+*Annotated 2026-10-02:* approved by the owner ("approve 12b execute"), and the
+amendment accepted.
+
+1. **Red first.** In `wizard`, with a registry holding a fake provider whose
+   id `catalog` does not know, and `Options.Discover` on:
+   * a provider that is a `ModelLister` has its listing offered: the model
+     chosen is a listed id that is not in its `StaticModels`, and there is
+     no "could not list" warning;
+   * the listing's first `catalog.MaxListed` ids are recommended, and a
+     later id is found by search;
+   * a `ListModels` that fails, an empty listing, and a provider that is
+     not a `ModelLister` each give `StaticModels`, with the warning.
+
+   In `catalog`: `List` for an unknown id gives an error matching
+   `ErrUnsupported`. Each test is seen to fail before the change.
+2. **`catalog`.** The unknown-id error wraps `llmprovider.ErrUnsupported`.
+3. **`wizard`.** `discoverModels` takes the lister path on that error. The
+   provider is built by the code `chatGPTCatalog` uses, shared rather than
+   copied. The ChatGPT path is unchanged.
+4. **The third-party proof again.** The toy `acme` provider gains
+   `ListModels`. Its `TestWizard` with `Discover` then offers the listed
+   models, and offers `StaticModels` again when `ListModels` fails.
+   **First-fails:** a scratch copy where the wizard ignores the lister, and
+   one where `catalog` does not wrap `ErrUnsupported`.
+5. **Docs:**
+   * `adding-a-provider.md`'s descriptor and wizard sections;
+   * `architecture.md`'s wizard and listing passages;
+   * this phase's record.
+6. Gate, with the hermeticity audit: the new tests reach no host.
+
 ### Phase S13: close-out
 
 1. Fill the execution record.
@@ -4229,6 +4265,8 @@ this entry).
 
 Staged for the owner to commit, with 0015-MADR amendment "no ambient state,
 in detail", written before the code, and 0016-PLAN T5.
+*Annotated 2026-10-02:* committed as `67fc56e`, and the Claude listing
+test's evidence as `d4ca925`.
 
 * **Deviation, 2026-10-02.**
   * **Before the code,** the survey found four points the steps did not
@@ -4376,3 +4414,335 @@ in detail", written before the code, and 0016-PLAN T5.
 * **G-wire.** All goldens unchanged, with no `-update`.
 * **Coverage:** `llmprovider` 98.2 % and `auth` 85.3 % from their own tests,
   against 89.2 % and 80 %; `catalog` 88.4 %, `wizard` 84.4 %.
+
+### Phase S11: documentation, and the third-party proof (2026-10-02)
+
+* **Deviation, 2026-10-02: R27.** The audit of the standards guide against
+  the tree found that R27 ("every error message starts `llmprovider:`")
+  holds only for the sentinels, as S8 commit 3 built and recorded it. The
+  owner chose "amend D7 to as built". 0015-MADR amendment "which messages
+  start `llmprovider:`" records it, written before the guide was changed.
+  No code is changed.
+* **Step 1, `api-standards.md`.** Every rule was checked against the tree.
+  * **Held, by tool:**
+    * R5–R10, R13 and R14 by `go doc` of the contract and of the nine
+      provider packages;
+    * R12: each provider with a `BestEffort` capability lists it under
+      "Degradations";
+    * R15 and R19: `go doc -all ./llmprovider` has no `…WithSource`,
+      `ProviderConfig` or `ApplyOptions`;
+    * R29: the only exported package-level variables in the non-internal
+      packages are `llmprovider`'s ten sentinels;
+    * R37: no non-test file has an `init` function;
+    * R2: every package's imports (`go list`) are within its row.
+  * **Corrected in the guide:**
+    * the opening, which called the guide a target;
+    * R2's table, which lacked the test-only `llmprovider/internal/wirecase`,
+      `internal/wiretest` and `internal/ambientcheck`, and `providers`'
+      import of `llmprovider`;
+    * R17, which lacked `WithoutModelMetadata`;
+    * R27, by the deviation above;
+    * R33, which lacked `CommandToken`;
+    * R38, whose "one line" is one entry in the `builtins` list;
+    * R47, which still described the `-coverpkg` measurement that ended
+      with S7b;
+    * R43's row of the Checks table.
+  * **Corrected in the code:** a stale comment on `providerConfig`'s
+    `ModelMetadataURL` in `llmprovider/options.go`, which said an empty URL
+    reads `LLMPROVIDER_MODELS_METADATA_URL`. That stopped in S10. The comment
+    is the only source change in S11.
+* **Step 2, `adding-a-provider.md`.** New. It covers both cases:
+  * a provider in another module: the id, `New`, scoped options,
+    capabilities, `Generate` step by step, the descriptor, the registry,
+    the wizard and `llmtest`;
+  * a built-in: the record, the id, the package, the shared wire, the
+    `builtins` entry, the catalog, the tests and the docs.
+* **Step 3, the migration map.**
+  * **Filled:** 103 empty cells, all with the same name in the same
+    package. Each value was checked three ways against `mcplib` `v1.6.0`,
+    exported read-only with `git archive` into the scratchpad:
+    * the declarations: 93 identical, 10 different;
+    * the members added or removed per type;
+    * the `go doc` text.
+  * **What the check found.** Of the 10 differences:
+    * 3 move a trailing comment;
+    * 5 return `Option` for `ProviderOption`;
+    * `FinishReason` and `Options.Profile` change type.
+
+    The doc text showed what the declarations do not:
+    * `StaticToken` now yields a `TokenAPIKey`;
+    * `Token` and `StaticToken` gained redaction;
+    * `Options` gained `Registry` and `ProviderOptions`;
+    * `APIError.Error` has a new format.
+
+    The notes say so; "Unchanged" means the same name, type and behaviour.
+  * **On:** `make parity-check` now passes `--require-equivalents`.
+  * **First-fail:** a scratch copy with `wizard.Level.String`'s cell
+    emptied fails with `G-parity: empty SDK equivalent:
+    wizard.Level.String` and exit 2 from `make`.
+  * **Result:** 409 identifiers, 409 rows, 409 with an SDK equivalent.
+* **Step 4, `architecture.md`.**
+  * **The package graph:** seven rows, each package importing only from
+    lower rows.
+    * A scratch check (`s11_layers.py`) reads `go list` and finds 0
+      problems.
+    * **First-fail:** with `internal/wire` moved onto `llmprovider`'s row,
+      it reports `llmprovider/internal/wire (row 5) imports llmprovider
+      (row 5)`.
+  * **The data flow:** a generation, a listing and the wizard. Each claim
+    was checked in the code:
+    * every provider calls `ClassifyHTTPError`;
+    * `catalog` resolves options with `ResolveOptions`.
+  * **The package table's "Depends on" column is now `go list`'s.** 13
+    rows were wrong. Most providers lacked `catalog` and
+    `internal/transport`, and `catalog` named `internal/transport`, which it
+    does not import.
+  * **Stale passages:**
+    * "its exported API is still `mcplib`'s";
+    * `llmtest` "will" pass;
+    * "item methods return a `*Response`";
+    * the parity check's description;
+    * "what is not here", now the S12 checks, native streaming,
+      `llmprovider/x/` and a release.
+* **Step 5, pointers:**
+  * `AGENTS.md` has a section "API work" pointing at the standards guide,
+    R43 and the provider guide;
+  * `README.md`'s status no longer says the API is `mcplib`'s, and calls
+    0016-MADR accepted, as it is;
+  * the "I want to…" tables of `README.md` and `docs/README.md` point at
+    the three guides.
+* **Step 6, the third-party proof.**
+  * **The module:** `example.com/thirdparty` in the scratchpad, importing
+    this module through a `replace`. Its package `acme` is a toy provider
+    written from the guide: `New`, a scoped `WithRegion`, `Generate` over a
+    JSON wire, the retry after a 401, and `Descriptor`.
+  * **The tests, with `go test -race`, all pass:**
+    * `TestConformance`: `llmtest.Run`, all seven checks;
+    * `TestRegistry`:
+      * registered in `providers.Default()` beside the built-ins;
+      * a second `Register` refused;
+      * a generation through the registry's `New`, with the region sent;
+      * `acme.WithRegion` refused bare by `together` and skipped under
+        `For`;
+    * `TestWizard`, with `Discover` off and on: offered by `wizard` from
+      that registry and driven by a scripted `Prompter`. The `Result` names
+      Acme, the key and the chosen static model, and a provider is built
+      from it. With `Discover`, the wizard warns that it could not list
+      Acme's models and offers the static ones.
+
+    Run with every proxy connection refused, they still pass, so none
+    reaches the network.
+  * **Breaks,** each in a fresh copy of the module:
+
+    | Break | Failure |
+    |---|---|
+    | `Generate` skips `Capabilities.Check` | `R11 (refusal before the network): a request needing reasoning, which is Unsupported, returned <nil>` |
+    | no `User-Agent` | `R44 (identity, 0012-MADR §1.4): User-Agent "Go-http-client/1.1"` |
+    | the request ignores the context | `R40 (cancellation): Generate did not return within 2s of its context being cancelled` |
+    | a failure status is not classified | `R25 (errors by kind): HTTP 401 returned acme: no output: llmprovider: incomplete response; want an error matching ErrAuthFailure` |
+    | the scoped option is not read | `GenerateText = "", llmprovider: authentication failed: acme HTTP 401; want hello` |
+    | the descriptor offers no static models | `ConfigureLLM: wizard: no model available for Acme and none entered` |
+
+  * **Where the guide was insufficient, and is fixed:**
+    * **G1.** No import paths. It now has a table of the five packages.
+    * **G2.** It named a scripted `Prompter` but not its methods. It now
+      lists them and points at `go doc`.
+    * **G3.** No field types: `Tool.Schema` is an `any`, not a map, and the
+      first draft of the toy did not compile against it. It now points at
+      `go doc`, with that example.
+    * **G4.** It did not say what the wizard asks. The first run failed on
+      an unexpected `Input "Search models (blank for recommended)"`. It now
+      lists the prompts in order, as `wizard/configure.go` and
+      `wizard/model_select.go` ask them.
+    * **G5.** The retry after a 401 did not say the request must be built
+      again: the first send has read its body. It now says so.
+  * **Found, not changed:** `wizard` lists models through `catalog.List`
+    only, which knows the built-in ids. So it does not call a third-party
+    provider's own `ListModels`, and offers its `StaticModels`. The guide
+    says so. Changing it would be an API decision, outside S11.
+* **Step 7, the gate.** All 14 checks pass, with G-parity fully on.
+  * The scratch gate's markdownlint list now includes `adding-a-provider.md`,
+    `README.md` and `AGENTS.md`.
+  * It first failed on MD010, hard tabs in the guide's Go examples. They are
+    indented with spaces now; the linter's configuration is unchanged.
+* **Not changed:** no test, no wire, and no G-wire golden. Coverage is as
+  at S10.
+
+### Phase S12: enforcement in CI (2026-10-02)
+
+* **Deviation, 2026-10-02: `wirecase`'s coverage.**
+  * **Found,** measuring the floors before writing `coverage-check`:
+    `llmprovider/internal/wirecase` is 0.0 % from its own tests, because it
+    has no test files. It is 91.5 % from the provider packages' tests,
+    which import it. Every other package meets its floor.
+  * **Decided.** The owner chose "measure via its importers". 0015-MADR
+    amendment "the coverage of a test-support package" records it, written
+    before the check.
+  * **Also in scope:** R47 in `docs/guides/api-standards.md`, for the
+    exception.
+* **Order.** S11 was staged, not committed, when S12 began. S12's changes
+  are kept out of the index until S11 is committed, so that commit holds
+  S11 alone.
+* **Step 1, `make dep-check`** (`scripts/check_deps.py`).
+  * **How it works.** One `go list -deps` gives the standard packages, and
+    one `go list` each package's dependencies. A dependency outside the
+    standard library and this module fails, unless the package is `wizard`
+    and the dependency is `golang.org/x/term` or the `golang.org/x/sys` it
+    needs.
+  * **Result:** 26 packages, 0 problems.
+  * **First-fail:** a scratch copy where `catalog` imports
+    `golang.org/x/term`. It fails with `llmprovider/catalog depends on
+    golang.org/x/term`, and the same for `providers`, which imports
+    `catalog`.
+* **Step 2, `make coverage-check`** (`scripts/check_coverage.py`,
+  `scripts/coverage-floors.txt`).
+  * **The baselines** were measured at `P7` itself: `cc81adf`, exported
+    with `git archive` into the scratchpad and run with `go test -cover`.
+    They are `llmprovider` 89.2 %, `wizard` 83.4 % and `internal/redact`
+    100.0 %, which match the S1 record.
+  * **The rules:**
+    * any other package has the 80 % floor;
+    * `wirecase` is measured by `./llmprovider/providers/...`, per the
+      deviation;
+    * a package with no statements (`internal/ambientcheck`) has no
+      floor;
+    * the importers rule is refused for a package that has test files, and
+      a floors entry that names no package fails.
+  * **Result:** 26 packages, 0 problems. The lowest margins are `wizard`'s
+    84.4 % against 83.4 % and `chatcompletions`' 84.1 % against 80 %.
+  * **First-fails,** each on a scratch copy:
+
+    | Break | Failure |
+    |---|---|
+    | `internal/redact` loses `TestRedact_SizeCap` | `internal/redact: 88.9% against 100.0% BELOW` |
+    | the floors file measures `internal/redact` by `./wizard` | `internal/redact has test files, so it is measured by its own tests, not by its importers` |
+    | the floors file names `llmprovider/gone` | `coverage-floors.txt names llmprovider/gone, which is not a package` |
+
+    My first choice of test, `TestRedact_SecretClasses`, left the
+    coverage at 100 %, because other tests reach the same lines. It was not
+    a valid break, and was replaced.
+* **Step 3, `make api-check`** (`scripts/check_api.py`).
+  * **How it works.** It runs `apidiff` from
+    `golang.org/x/exp/cmd/apidiff@v0.0.0-20260908205506-85c1c2202aba`, the
+    latest `golang.org/x/exp` on 2026-10-02, with `go run`. It is a tool,
+    not a module requirement, as D13 says. `go.mod` is unchanged.
+    * It writes the module's export data at the latest `v1.X.Y` tag, from
+      a `git archive` of it, and at the working tree.
+    * It fails on an `-incompatible` line outside `./llmprovider/x/`.
+      `apidiff` skips internal packages itself.
+    * Release candidates do not count.
+    * `apidiff` exits 0 even when it finds a change, so the script reads
+      its `- <package>.<name>: <change>` lines.
+  * **Result:** no tag yet, so it reports that there is nothing to compare,
+    and passes.
+  * **First-fails,** on a scratch clone holding the working tree plus a
+    scratch `llmprovider.ScratchOnly` and an `llmprovider/x/demo.Gone`,
+    committed and tagged there:
+
+    | State | Result |
+    |---|---|
+    | only `v1.0.0-rc.1` | exit 0, nothing to compare |
+    | `v1.0.0`, unchanged | exit 0, 0 incompatible changes |
+    | `demo.Gone` removed | exit 0; reported as experimental, allowed |
+    | `ScratchOnly` removed too | exit 2 from `make`; `incompatible: ./llmprovider.ScratchOnly: removed` |
+
+    The first run of the clone used `HEAD`, which does not hold the S12
+    scripts, and `make` had no target. The clone now gets the working
+    tree's files before its scratch commit.
+* **Step 4, CI.** The Linux job runs `make parity-check dep-check
+  coverage-check api-check`. The checkout takes `fetch-depth: 0`, so that
+  `api-check` sees the tags: a shallow checkout has none, and the check
+  would pass for want of one.
+* **Docs:**
+  * R47 names the test-support exception;
+  * `architecture.md` describes the three checks and CI, and no longer lists
+    them as missing;
+  * `AGENTS.md` names the checks CI runs, and says a floor changes only by a
+    record.
+* **Step 5, the gate.** All 17 checks pass. The scratch gate now also runs
+  `dep-check`, `coverage-check` and `api-check`.
+* **Not changed:** no Go source, no test, and no golden.
+
+### Phase S12b: the wizard lists a provider through its own `ListModels` (2026-10-02)
+
+Approved by the owner ("approve 12b execute"), with 0015-MADR amendment "the
+wizard lists a provider through its own `ListModels`", accepted.
+
+* **Deviation, 2026-10-02: the id is checked before the options.**
+  * **Found,** in step 1's red run: `TestConfigureLLM_ThirdPartyListsThroughItsLister`
+    showed `could not list models for Acme (llmprovider: invalid request:
+    option catalog.WithProfile is for providers "gemini", "openai", …)`.
+    `List` resolves its options (`configFor`) before it looks at the id, and
+    the wizard always passes `catalog.WithProfile`, an option scoped to the
+    built-in ids. So wrapping the unknown-id error, as step 2 says, would
+    not be enough. The amendment's "fact found" was wrong on this point.
+  * **Decided.** The owner chose "check the id first". `List` checks
+    whether it lists the id before it resolves the options. The amendment
+    has a correction note and an annotated decision, written before the
+    code.
+  * **Rejected:** the wizard passing `catalog.WithProfile` only for the ids
+    `catalog` lists. It cannot know which those are without a new exported
+    function, which the amendment chose to avoid.
+* **Step 1's fallback cases passed before the change.** The three cases of
+  `TestConfigureLLM_ThirdPartyFallsBackToStatic` pin what the wizard already
+  does: no lister, a failing one, an empty listing. They could not fail
+  first. Their first-fail is a break of the new path, below.
+* **Step 1, red first.**
+  * `TestList_UnknownProviderIsUnsupported` (`catalog`) failed with `err =
+    unsupported provider for model listing: acme-test, want one matching
+    ErrUnsupported`.
+  * `TestConfigureLLM_ThirdPartyListsThroughItsLister` failed. The model
+    was `static-b`, the menu held only the static models, the notice was the
+    `WithProfile` refusal above, and no provider was built.
+  * `TestConfigureLLM_ThirdPartySearchCoversTheWholeListing` failed:
+    `static-a`, not the listing's last id.
+  * The fallback cases passed, as said above.
+* **Step 2, `catalog`** (`llmprovider/catalog/discovery.go`).
+  * `List` first checks the id against `listed`, the ten ids
+    `modelCatalogFor` lists.
+  * For any other id it returns `model listing: unsupported provider
+    "<id>": llmprovider: unsupported`, matching `ErrUnsupported`.
+    `modelCatalogFor`'s `default` case returns the same error.
+* **Step 3, `wizard`** (`wizard/configure.go`).
+  * When `catalog.List` gives an error matching `ErrUnsupported`,
+    `discoverModels` calls `providerCatalog`.
+  * `listerFor` is `chatGPTCatalog`'s former build of the provider, now
+    shared by both. It uses the credential, the base URL, `HTTPClient` and
+    `ProviderOptions`, and refuses a provider that is not a `ModelLister`.
+  * `providerCatalog` recommends the first `catalog.MaxListed` ids and
+    keeps the whole listing for search. An empty listing is an error, so it
+    warns.
+  * The ChatGPT path is unchanged.
+* **Step 4, the third-party proof again.**
+  * The toy `acme` provider gained `ListModels` (`GET {base}/models`).
+  * Its `TestWizard` now has three cases, all passing under `-race`:
+    * `Discover` off offers the static models;
+    * `Discover` on offers Acme's listing: `acme-medium`, with no warning,
+      and `ListModels` called once;
+    * `Discover` on with a failing listing offers the static models, with
+      the warning.
+* **Breaks,** each in a scratch copy of the tree:
+
+  | Break | Failure |
+  |---|---|
+  | the wizard ignores the lister (its guard made `false &&`) | `lister_test.go:100: Model = "static-b", want the second listed id "acme-model-2"`; the proof: `Acme's ListModels ran 0 time(s) with discover=true` |
+  | `catalog` does not wrap `ErrUnsupported` | `unknown_provider_test.go:19: … want one matching ErrUnsupported`, and the wizard test as above |
+  | `catalog` reads the options before the id | `lister_test.go:100: Model = "static-b" …` |
+  | the whole listing is recommended | `lister_test.go:109: … "acme-model-7" shown = true, want the first 6 listed ids only` |
+  | an empty listing is not an error | `lister_test.go:174: notices = [], want the listing warning` |
+  | the lister is built without `Options.HTTPClient` | `lister_test.go:123: the provider was not built with Options.HTTPClient` |
+
+  My first form of the first break deleted the guard. That left `errors`
+  unused, so the copy did not compile: not a valid break. It was replaced
+  by the `false &&` form.
+* **Step 5, docs:**
+  * `adding-a-provider.md` says the wizard lists a provider through its own
+    `ListModels` and falls back to `StaticModels`;
+  * `architecture.md` says so in the wizard's data flow, and that
+    `catalog.List` refuses an id it does not list with `ErrUnsupported`.
+* **Step 6, the gate.** All 17 checks pass. Coverage: `wizard` 84.7 %
+  (floor 83.4 %), `catalog` 88.4 %.
+  * **Hermeticity:** every test of `wizard` and `catalog`, run alone
+    through the recording proxy, reached no host.
+* **Not changed:** no wire, no golden, and no exported identifier.
+  `apidiff` has no tag to compare against yet.

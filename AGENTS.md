@@ -10,6 +10,19 @@ binary. LLM providers live in `llmprovider/`; the configuration wizard lives in
 `wizard/`; secret redaction for both lives in `internal/redact/`. Requires Go
 1.27.1.
 
+## API work
+
+Every change to an exported API follows
+[`docs/guides/api-standards.md`](docs/guides/api-standards.md). The guide is
+normative: a change that breaks a rule is wrong, and the rule changes only by
+amending the decision it cites. In the same change, update
+[`docs/guides/migrating-from-mcplib.md`](docs/guides/migrating-from-mcplib.md)
+for anything that replaces an `mcplib` identifier, and
+[`docs/architecture.md`](docs/architecture.md) for the layout (R43). A new
+provider follows
+[`docs/guides/adding-a-provider.md`](docs/guides/adding-a-provider.md), after
+its MADR.
+
 ## Dependencies
 
 The standard library and `golang.org/x/term` (with its indirect
@@ -122,6 +135,9 @@ The machine-wide agent gate runs the same script before every agent
 is no `git add` hook on every host; do not rely on one.
 
 `make lint` and `make vuln` must be clean before a release-shaped change.
+CI also runs `make parity-check dep-check coverage-check api-check`; run them
+before asking for a push. A coverage floor is changed only in
+`scripts/coverage-floors.txt`, by a record.
 
 ## Live tests
 

@@ -4,12 +4,10 @@ How code that used `mcplib`'s `llmprovider` and `wizard` packages moves to this
 module. The table maps every exported identifier of `mcplib` `v1.6.0` to its
 equivalent here, or records its removal and why.
 
-The table is being filled in: the "SDK equivalent" column gains a value as each
-phase of
-[0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) lands.
-An empty cell means "not mapped yet", not "unchanged". `make parity-check`
-fails if an identifier has no row; from 0015-PLAN S11 it also fails on an empty
-cell.
+Every row has an "SDK equivalent": the identifier here, `removed`, or what
+replaces it. "Unchanged" in the notes means the same name, type and behaviour.
+`make parity-check` fails if an identifier has no row, if a row names one that
+`mcplib` `v1.6.0` did not export, or if a cell is empty.
 
 ## Import paths
 
@@ -46,27 +44,27 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `mcplib` identifier | SDK equivalent | Notes |
 | :--- | :--- | :--- |
 | `llmprovider.APIError` | `APIError` | The only structured error: it absorbs `RateLimitError` and `IncompleteError`, and adds `Kind`, `Code`, `Reason` and `Retryable()` ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D7). |
-| `llmprovider.APIError.Error` |  |  |
-| `llmprovider.APIError.Message` |  |  |
-| `llmprovider.APIError.Provider` |  |  |
-| `llmprovider.APIError.RetryAfter` |  |  |
-| `llmprovider.APIError.Status` |  |  |
+| `llmprovider.APIError.Error` | `APIError.Error` | Reads `<kind>: <provider> HTTP <status> <code> (retry-after <d>): <reason>: <message>`, leaving out what is unset. The kind's text starts `llmprovider:` ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D7). |
+| `llmprovider.APIError.Message` | `APIError.Message` | Unchanged: redacted and bounded to 512 bytes. An error body that cannot be read is named in it ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S10). |
+| `llmprovider.APIError.Provider` | `APIError.Provider` | Unchanged: the provider, or `gateway/route` for a gateway. A `string`, not a `ProviderID`. |
+| `llmprovider.APIError.RetryAfter` | `APIError.RetryAfter` | Unchanged. |
+| `llmprovider.APIError.Status` | `APIError.Status` | Unchanged: 0 for a failure inside a 200 event stream. |
 | `llmprovider.APIError.Terminal` | `APIError.Retryable()` | Unexported in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8; `Retryable()` reads it. |
 | `llmprovider.APIError.Type` | `APIError.Code` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8; `Code` carries the same value. |
-| `llmprovider.APIError.Unwrap` |  |  |
+| `llmprovider.APIError.Unwrap` | `APIError.Unwrap` | Returns the `Kind` and the pre-0012 status sentinel, as before. `ErrIncomplete` and `ErrContextOverflow` sit beneath `ErrInvalidRequest` ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D7 and its amendments). |
 | `llmprovider.ApplyOptions` | `ResolveOptions(id, opts)` | A provider's `New` resolves its options to read-only `Settings`. Unexported in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 (R19). |
-| `llmprovider.AuthAPIKey` |  |  |
-| `llmprovider.AuthBrowserOAuth` |  |  |
-| `llmprovider.AuthDeviceCode` |  |  |
-| `llmprovider.AuthImportVendorCLI` |  |  |
-| `llmprovider.AuthMethod` |  |  |
-| `llmprovider.AuthMethod.Detail` |  |  |
-| `llmprovider.AuthMethod.HeadlessOK` |  |  |
-| `llmprovider.AuthMethod.ID` |  |  |
-| `llmprovider.AuthMethod.Interactive` |  |  |
-| `llmprovider.AuthMethod.Label` |  |  |
-| `llmprovider.AuthMethodID` |  |  |
-| `llmprovider.AuthTokenStdin` |  |  |
+| `llmprovider.AuthAPIKey` | `AuthAPIKey` | Unchanged, with its value. |
+| `llmprovider.AuthBrowserOAuth` | `AuthBrowserOAuth` | Unchanged, with its value. |
+| `llmprovider.AuthDeviceCode` | `AuthDeviceCode` | Unchanged, with its value. |
+| `llmprovider.AuthImportVendorCLI` | `AuthImportVendorCLI` | Unchanged, with its value. |
+| `llmprovider.AuthMethod` | `AuthMethod` | Unchanged. A `Descriptor`'s `AuthMethods` list them; each provider package declares its own descriptor. |
+| `llmprovider.AuthMethod.Detail` | `AuthMethod.Detail` | Unchanged. |
+| `llmprovider.AuthMethod.HeadlessOK` | `AuthMethod.HeadlessOK` | Unchanged. |
+| `llmprovider.AuthMethod.ID` | `AuthMethod.ID` | Unchanged. |
+| `llmprovider.AuthMethod.Interactive` | `AuthMethod.Interactive` | Unchanged. |
+| `llmprovider.AuthMethod.Label` | `AuthMethod.Label` | Unchanged. |
+| `llmprovider.AuthMethodID` | `AuthMethodID` | Unchanged. |
+| `llmprovider.AuthTokenStdin` | `AuthTokenStdin` | Unchanged, with its value. |
 | `llmprovider.ClaudeProvider` | the `llmprovider.Provider` that `claude.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.ClaudeProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
 | `llmprovider.ClaudeProvider.Generate` | `llmprovider.GenerateText` |  |
@@ -101,14 +99,14 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.FileTokenStore.Dir` | `auth.FileTokenStore.Dir` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.FileTokenStore.Load` | `auth.FileTokenStore.Load` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.FileTokenStore.Save` | `auth.FileTokenStore.Save` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
-| `llmprovider.FunctionCallItem` |  |  |
-| `llmprovider.FunctionCallItem.Arguments` |  |  |
-| `llmprovider.FunctionCallItem.CallID` |  |  |
-| `llmprovider.FunctionCallItem.Name` |  |  |
-| `llmprovider.FunctionCallItem.Signature` |  |  |
-| `llmprovider.FunctionCallOutputItem` |  |  |
-| `llmprovider.FunctionCallOutputItem.CallID` |  |  |
-| `llmprovider.FunctionCallOutputItem.Output` |  |  |
+| `llmprovider.FunctionCallItem` | `FunctionCallItem` | Unchanged. `GenerateToolCall` returns one. |
+| `llmprovider.FunctionCallItem.Arguments` | `FunctionCallItem.Arguments` | Unchanged. |
+| `llmprovider.FunctionCallItem.CallID` | `FunctionCallItem.CallID` | Unchanged. |
+| `llmprovider.FunctionCallItem.Name` | `FunctionCallItem.Name` | Unchanged. |
+| `llmprovider.FunctionCallItem.Signature` | `FunctionCallItem.Signature` | Unchanged. |
+| `llmprovider.FunctionCallOutputItem` | `FunctionCallOutputItem` | Unchanged. |
+| `llmprovider.FunctionCallOutputItem.CallID` | `FunctionCallOutputItem.CallID` | Unchanged. |
+| `llmprovider.FunctionCallOutputItem.Output` | `FunctionCallOutputItem.Output` | Unchanged. |
 | `llmprovider.GeminiProvider` | the `llmprovider.Provider` that `gemini.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.GeminiProvider.Continue` | `Generate` with `Request.PreviousResponseID` | Needs `gemini.WithStore(true)`; without it continuation is `Unsupported`, and refused with `ErrUnsupported` where it was `ErrInvalidRequest` (0015-MADR D4). |
 | `llmprovider.GeminiProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
@@ -151,7 +149,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.IncompleteError.Error` | `APIError.Error` | Reads `llmprovider: incomplete response: <reason>`. |
 | `llmprovider.IncompleteError.Reason` | `APIError.Reason` | As `IncompleteError`. |
 | `llmprovider.IncompleteError.Unwrap` | `APIError.Unwrap` | `ErrIncomplete` and `ErrInvalidRequest`, as before. |
-| `llmprovider.Item` |  |  |
+| `llmprovider.Item` | `Item` | Still sealed. Code that switches on it has a `default` case (R9). |
 | `llmprovider.ItemProvider` | `Provider` | Every provider takes items. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.ItemProvider.GenerateItems` | `Provider.Generate` with `Request.Input` | As `ItemProvider`. |
 | `llmprovider.ItemThinkingProvider` | `Provider` | Reasoning is `Request.Reasoning`, or `WithReasoning` at construction; `Capabilities.Reasoning` says whether it is supported. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
@@ -179,9 +177,9 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.LoginBrowserOAuth` | `auth.LoginBrowserOAuth` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.LoginDeviceOAuth` | `auth.LoginDeviceOAuth` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.MaxListedModels` | `catalog.MaxListed` |  |
-| `llmprovider.MessageItem` |  |  |
+| `llmprovider.MessageItem` | `MessageItem` | Its `Role` is the named type `Role` ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). |
 | `llmprovider.MessageItem.Role` | `MessageItem.Role` | A `Role` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). A role other than `RoleUser`, `RoleAssistant`, `RoleSystem` or empty is refused with `ErrInvalidRequest`. |
-| `llmprovider.MessageItem.Text` |  |  |
+| `llmprovider.MessageItem.Text` | `MessageItem.Text` | Unchanged. |
 | `llmprovider.ModelCatalog` | `catalog.Catalog` |  |
 | `llmprovider.ModelCatalog.Err` | `Catalog.Err` |  |
 | `llmprovider.ModelCatalog.Live` | `Catalog.Live` |  |
@@ -208,7 +206,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.NewOpencode` | `opencode.NewZen(…)` or `opencode.NewGo(…)`, with `WithAPIKey(key)` and `WithModel(model)` | Or `providers.New(ProviderOpencodeZen` or `ProviderOpencodeGo, …)`; one constructor per gateway ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). No key sends the public token, as before. |
 | `llmprovider.NewProvider` | `providers.New(id, opts...)` | Over `providers.Default()`, a `Registry`; removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7. |
 | `llmprovider.NewProviderWithSource` | `providers.New(id, WithTokenSource(src), …)` | Removed at the start of [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7; a credential is an option (D5). |
-| `llmprovider.NewStaticToken` |  |  |
+| `llmprovider.NewStaticToken` | `NewStaticToken` | Its token is a `TokenAPIKey`, sent in the service's own header unless `Header` names another ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6); see `StaticToken.Token`. |
 | `llmprovider.OAuthFlowOptions` | `auth.OAuthFlowOptions` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.OAuthFlowOptions.ClientID` | `auth.OAuthFlowOptions.ClientID` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.OAuthFlowOptions.HTTPClient` | `auth.OAuthFlowOptions.HTTPClient` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
@@ -327,14 +325,14 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.RateLimitError.RetryAfter` | `APIError.RetryAfter` | As `RateLimitError`. |
 | `llmprovider.RateLimitError.Status` | `APIError.Status` | 0 for a stream rate limit. |
 | `llmprovider.RateLimitError.Unwrap` | `APIError.Unwrap` | Matches `ErrRateLimited`, as before. |
-| `llmprovider.ReasoningItem` |  |  |
-| `llmprovider.ReasoningItem.Text` |  |  |
+| `llmprovider.ReasoningItem` | `ReasoningItem` | Unchanged. |
+| `llmprovider.ReasoningItem.Text` | `ReasoningItem.Text` | Unchanged. |
 | `llmprovider.Response` | `Response` | Adds `Model` and `Usage`; `FinishReason` is the named type `FinishReason`. |
-| `llmprovider.Response.FinishReason` |  |  |
-| `llmprovider.Response.ID` |  |  |
-| `llmprovider.Response.Items` |  |  |
-| `llmprovider.Response.Output` |  |  |
-| `llmprovider.Response.OutputText` |  |  |
+| `llmprovider.Response.FinishReason` | `Response.FinishReason` | The named type `FinishReason` ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The Chat Completions providers set it from the service's `finish_reason`, as before; compare it with `FinishStop`, `FinishLength`, `FinishToolCalls` or `FinishContentFilter`. |
+| `llmprovider.Response.ID` | `Response.ID` | Unchanged. Continue from it with `Request.PreviousResponseID`. |
+| `llmprovider.Response.Items` | `Response.Items` | Unchanged. |
+| `llmprovider.Response.Output` | `Response.Output` | Unchanged. |
+| `llmprovider.Response.OutputText` | `Response.OutputText` | Unchanged. `GenerateText` returns it. |
 | `llmprovider.RevokeOAuthSession` | `auth.RevokeOAuthSession` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.SearchModels` | `catalog.Search` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `llmprovider.StaticClaude` | `StaticModels(ProviderClaude)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
@@ -346,32 +344,32 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.StaticOpenAI` | `StaticModels(ProviderOpenAI)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticOpencodeGo` | `StaticModels(ProviderOpencodeGo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticOpencodeZen` | `StaticModels(ProviderOpencodeZen)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.StaticToken` |  |  |
+| `llmprovider.StaticToken` | `StaticToken` | `String`, `GoString`, `LogValue` and `MarshalJSON` never show `Value` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) D5). |
 | `llmprovider.StaticToken.Header` | `llmprovider.StaticToken.Header` | Empty now means the service's own header; it no longer defaults to `Authorization` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
 | `llmprovider.StaticToken.Token` | `llmprovider.StaticToken.Token` | Returns a `TokenAPIKey`, with the `Header` set, if any; it returned `TokenBearer` and `Authorization` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
-| `llmprovider.StaticToken.Value` |  |  |
+| `llmprovider.StaticToken.Value` | `StaticToken.Value` | Unchanged. |
 | `llmprovider.ThinkingProvider` | `Provider` | Reasoning is `Request.Reasoning`, or `WithReasoning` at construction. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.ThinkingProvider.GenerateThinking` | `GenerateText` with `Request.Reasoning` | As `ThinkingProvider`. |
 | `llmprovider.ThinkingToolProvider` | `Provider` | As `ThinkingProvider` and `ToolProvider`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.ThinkingToolProvider.GenerateWithToolThinking` | `GenerateToolCall` with `Request.Reasoning` | As `ThinkingToolProvider`. |
-| `llmprovider.Token` |  |  |
-| `llmprovider.Token.Expiry` |  |  |
+| `llmprovider.Token` | `Token` | Adds `Apply`, which a provider calls to send it (R16), and `String`, `GoString`, `LogValue` and `MarshalJSON`, which never show `Value` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) D2, D5, A6). |
+| `llmprovider.Token.Expiry` | `Token.Expiry` | Unchanged. |
 | `llmprovider.Token.Header` | `llmprovider.Token.Header` | A non-empty `Header` overrides the service's header (R16, [0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
 | `llmprovider.Token.Type` | `llmprovider.Token.Type` | With an overriding `Header`, `TokenBearer` is sent `Bearer`-prefixed and anything else bare ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
-| `llmprovider.Token.Value` |  |  |
-| `llmprovider.TokenAPIKey` |  |  |
-| `llmprovider.TokenBearer` |  |  |
-| `llmprovider.TokenSource` |  |  |
-| `llmprovider.TokenSource.Token` |  |  |
+| `llmprovider.Token.Value` | `Token.Value` | Unchanged. |
+| `llmprovider.TokenAPIKey` | `TokenAPIKey` | Key sources return it. In an overriding `Header` it is sent bare ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
+| `llmprovider.TokenBearer` | `TokenBearer` | Sessions return it. In an overriding `Header` it is sent as `Bearer <value>` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
+| `llmprovider.TokenSource` | `TokenSource` | Unchanged. |
+| `llmprovider.TokenSource.Token` | `TokenSource.Token` | Unchanged. |
 | `llmprovider.TokenStore` | `auth.TokenStore` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.TokenStore.Delete` | `auth.TokenStore.Delete` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.TokenStore.Load` | `auth.TokenStore.Load` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.TokenStore.Save` | `auth.TokenStore.Save` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
-| `llmprovider.TokenType` |  |  |
-| `llmprovider.Tool` |  |  |
-| `llmprovider.Tool.Description` |  |  |
-| `llmprovider.Tool.Name` |  |  |
-| `llmprovider.Tool.Schema` |  |  |
+| `llmprovider.TokenType` | `TokenType` | Unchanged. |
+| `llmprovider.Tool` | `Tool` | Unchanged. It goes in `Request.Tools`. |
+| `llmprovider.Tool.Description` | `Tool.Description` | Unchanged. |
+| `llmprovider.Tool.Name` | `Tool.Name` | Unchanged. |
+| `llmprovider.Tool.Schema` | `Tool.Schema` | Unchanged. |
 | `llmprovider.ToolProvider` | `Provider` | Tools are `Request.Tools` and `ToolChoice`, or `GenerateToolCall`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.ToolProvider.GenerateWithTool` | `GenerateToolCall(ctx, p, req)` | As `ToolProvider`. |
 | `llmprovider.ValidateOAuthSession` | `auth.ValidateOAuthSession` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
@@ -380,18 +378,18 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.VendorCLISession.Path` | `auth.VendorCLISession.Path` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.VendorCLISession.Provider` | `auth.VendorCLISession.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.VendorCLISession.Token` | `auth.VendorCLISession.Token` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
-| `llmprovider.WithBaseURL` |  |  |
-| `llmprovider.WithClientInfo` |  |  |
-| `llmprovider.WithHTTPClient` |  |  |
+| `llmprovider.WithBaseURL` | `WithBaseURL` | Returns an `Option`, common to every provider ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D5); `For(id, …)` scopes it to one. |
+| `llmprovider.WithClientInfo` | `WithClientInfo` | Returns an `Option`, common to every provider ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D5); `For(id, …)` scopes it to one. An empty name keeps `go-llmprovider-sdk` ([0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.md) §5). |
+| `llmprovider.WithHTTPClient` | `WithHTTPClient` | Returns an `Option`, common to every provider ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D5); `For(id, …)` scopes it to one. |
 | `llmprovider.WithKiloCapabilities` | `kilo.WithCapabilities` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.WithKiloDataCollection` | `kilo.WithDataCollection` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.WithKiloOrganization` | `kilo.WithOrganization`, and `catalog.WithKiloOrganization` for a listing | `kilo`'s `ListModels` passes its organization on ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
-| `llmprovider.WithMaxTokens` |  |  |
+| `llmprovider.WithMaxTokens` | `WithMaxTokens` | Returns an `Option`, common to every provider ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D5); `For(id, …)` scopes it to one. |
 | `llmprovider.WithModelMetadataURL` | `llmprovider.WithModelMetadataURL` | A common option now: the new API takes it too ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
 | `llmprovider.WithModelProfile` | `catalog.WithProfile` | Every built-in provider's `New` takes it; the open catalogs rank with it. |
 | `llmprovider.WithOpencodeRoute` | `opencode.WithRoute` | Scoped to both gateways ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
 | `llmprovider.WithReasoningEffort` | `WithReasoning(&Reasoning{Effort: …})` | Or `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
-| `llmprovider.WithSessionID` |  |  |
+| `llmprovider.WithSessionID` | `WithSessionID` | Returns an `Option`, common to every provider ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D5); `For(id, …)` scopes it to one. |
 | `llmprovider.WithStore` | `openai.WithStore`, `gemini.WithStore` or `grok.WithStore` | Scoped to its provider. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.WithThinkingBudget` | `WithReasoning(&Reasoning{Budget: …})` | Or `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 
@@ -399,63 +397,63 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 
 | `mcplib` identifier | SDK equivalent | Notes |
 | :--- | :--- | :--- |
-| `wizard.Choice` |  |  |
-| `wizard.Choice.Detail` |  |  |
-| `wizard.Choice.Label` |  |  |
-| `wizard.ConfigureLLM` |  |  |
-| `wizard.CredAPIKey` |  |  |
-| `wizard.CredNone` |  |  |
+| `wizard.Choice` | `Choice` | Unchanged. |
+| `wizard.Choice.Detail` | `Choice.Detail` | Unchanged. |
+| `wizard.Choice.Label` | `Choice.Label` | Unchanged. |
+| `wizard.ConfigureLLM` | `ConfigureLLM` | The same flow. A session goes to `Options.TokenStore` and never into the `Result` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) D11, A7). The menu comes from `Options.Registry`, and the environment is read only through `Options.LookupEnv` ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D9). |
+| `wizard.CredAPIKey` | `CredAPIKey` | Unchanged, with its value. |
+| `wizard.CredNone` | `CredNone` | Unchanged, with its value. |
 | `wizard.CredOAuth` | `CredOAuth` | The `Result` holds no token; load the session from `Options.TokenStore`. A Kilo device login is one (A7). |
-| `wizard.CredVendorCLI` |  |  |
-| `wizard.CredentialKind` |  |  |
+| `wizard.CredVendorCLI` | `CredVendorCLI` | Unchanged, with its value. Build `auth.VendorCLISession` from `Result.VendorAuthPath`. |
+| `wizard.CredentialKind` | `CredentialKind` | Unchanged. |
 | `wizard.ErrOrchestrated` | removed | Orchestration stays in `mcplib`; a caller checks its own state before calling `ConfigureLLM` ([0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.md), sixth amendment). |
-| `wizard.Level` |  |  |
-| `wizard.Level.String` |  |  |
-| `wizard.LevelError` |  |  |
-| `wizard.LevelInfo` |  |  |
-| `wizard.LevelWarn` |  |  |
-| `wizard.NewTextPrompter` |  |  |
-| `wizard.Options` |  |  |
+| `wizard.Level` | `Level` | Unchanged. |
+| `wizard.Level.String` | `Level.String` | Unchanged. |
+| `wizard.LevelError` | `LevelError` | Unchanged. |
+| `wizard.LevelInfo` | `LevelInfo` | Unchanged. |
+| `wizard.LevelWarn` | `LevelWarn` | Unchanged. |
+| `wizard.NewTextPrompter` | `NewTextPrompter` | Unchanged. |
+| `wizard.Options` | `Options` | Adds `Registry` and `ProviderOptions` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, S10); `Orchestrated` is removed. A nil `LookupEnv` reads nothing. |
 | `wizard.Options.AllowEnv` | `Options.AllowEnv` | Reads through `Options.LookupEnv` only. |
-| `wizard.Options.Discover` |  |  |
-| `wizard.Options.DiscoverLimit` |  |  |
+| `wizard.Options.Discover` | `Options.Discover` | Unchanged. |
+| `wizard.Options.DiscoverLimit` | `Options.DiscoverLimit` | Unchanged. |
 | `wizard.Options.Existing` | `Options.Existing` | A `Result`; its `Provider` is a `ProviderID`. A kept `CredOAuth` session is read from `Options.TokenStore` (A10). |
-| `wizard.Options.HTTPClient` |  |  |
+| `wizard.Options.HTTPClient` | `Options.HTTPClient` | Unchanged. It carries the sign-ins, every listing, and `Logout`'s revocation. |
 | `wizard.Options.LookupEnv` | `Options.LookupEnv` | Nil reads nothing; pass `os.Getenv` for the process environment ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "no ambient state, in detail"). |
-| `wizard.Options.NeedFallbacks` |  |  |
-| `wizard.Options.OpenURL` |  |  |
+| `wizard.Options.NeedFallbacks` | `Options.NeedFallbacks` | Unchanged. |
+| `wizard.Options.OpenURL` | `Options.OpenURL` | Unchanged. |
 | `wizard.Options.Orchestrated` | removed | As `ErrOrchestrated` ([0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.md), sixth amendment). |
-| `wizard.Options.Profile` |  |  |
+| `wizard.Options.Profile` | `Options.Profile` | A `catalog.Profile` (`catalog.ProfileUtility`, `catalog.ProfileCapable`); it was an `llmprovider.ModelProfile`. |
 | `wizard.Options.Providers` | `Options.Providers` | A `[]llmprovider.ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `wizard.Options.TokenStore` | `Options.TokenStore` | Holds every session the wizard signs in, and is read when one is kept (A10). |
-| `wizard.Prompter` |  |  |
-| `wizard.Prompter.Confirm` |  |  |
-| `wizard.Prompter.Input` |  |  |
-| `wizard.Prompter.MultiSelect` |  |  |
-| `wizard.Prompter.Notify` |  |  |
-| `wizard.Prompter.Secret` |  |  |
-| `wizard.Prompter.Select` |  |  |
+| `wizard.Prompter` | `Prompter` | Unchanged. |
+| `wizard.Prompter.Confirm` | `Prompter.Confirm` | Unchanged. |
+| `wizard.Prompter.Input` | `Prompter.Input` | Unchanged. |
+| `wizard.Prompter.MultiSelect` | `Prompter.MultiSelect` | Unchanged. |
+| `wizard.Prompter.Notify` | `Prompter.Notify` | Unchanged. |
+| `wizard.Prompter.Secret` | `Prompter.Secret` | Unchanged. |
+| `wizard.Prompter.Select` | `Prompter.Select` | Unchanged. |
 | `wizard.Result` | `Result` | `String`, `GoString` and `LogValue` redact `APIKey`; JSON keeps it ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) D5, A9). |
 | `wizard.Result.APIKey` | `Result.APIKey` | Set for `CredAPIKey` only; a Kilo device login no longer sets it (A7). |
 | `wizard.Result.AccessToken` | removed | The session is in `Options.TokenStore`, its only copy ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) D11, A7; [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
-| `wizard.Result.AccountID` |  |  |
-| `wizard.Result.BaseURL` |  |  |
-| `wizard.Result.ClientID` |  |  |
-| `wizard.Result.Fallbacks` |  |  |
-| `wizard.Result.FedRAMP` |  |  |
-| `wizard.Result.Issuer` |  |  |
-| `wizard.Result.Kind` |  |  |
-| `wizard.Result.Model` |  |  |
+| `wizard.Result.AccountID` | `Result.AccountID` | Unchanged. It describes the `CredOAuth` session whose tokens are in `Options.TokenStore` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A7). |
+| `wizard.Result.BaseURL` | `Result.BaseURL` | Unchanged. |
+| `wizard.Result.ClientID` | `Result.ClientID` | Unchanged. It describes the `CredOAuth` session whose tokens are in `Options.TokenStore` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A7). |
+| `wizard.Result.Fallbacks` | `Result.Fallbacks` | Unchanged. |
+| `wizard.Result.FedRAMP` | `Result.FedRAMP` | Unchanged. It describes the `CredOAuth` session whose tokens are in `Options.TokenStore` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A7). |
+| `wizard.Result.Issuer` | `Result.Issuer` | Unchanged. It describes the `CredOAuth` session whose tokens are in `Options.TokenStore` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A7). |
+| `wizard.Result.Kind` | `Result.Kind` | Unchanged. A Kilo device login is `CredOAuth` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A7). |
+| `wizard.Result.Model` | `Result.Model` | Unchanged. |
 | `wizard.Result.Provider` | `Result.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). |
 | `wizard.Result.RefreshToken` | removed | As `AccessToken`. |
-| `wizard.Result.TokenExpiry` |  |  |
-| `wizard.Result.VendorAuthPath` |  |  |
-| `wizard.TextPrompter` |  |  |
-| `wizard.TextPrompter.Confirm` |  |  |
-| `wizard.TextPrompter.In` |  |  |
-| `wizard.TextPrompter.Input` |  |  |
-| `wizard.TextPrompter.MultiSelect` |  |  |
-| `wizard.TextPrompter.Notify` |  |  |
-| `wizard.TextPrompter.Out` |  |  |
-| `wizard.TextPrompter.Secret` |  |  |
-| `wizard.TextPrompter.Select` |  |  |
+| `wizard.Result.TokenExpiry` | `Result.TokenExpiry` | Unchanged. It describes the `CredOAuth` session whose tokens are in `Options.TokenStore` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A7). |
+| `wizard.Result.VendorAuthPath` | `Result.VendorAuthPath` | Unchanged. Build `auth.VendorCLISession` from it ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c). |
+| `wizard.TextPrompter` | `TextPrompter` | Unchanged. |
+| `wizard.TextPrompter.Confirm` | `TextPrompter.Confirm` | Unchanged. |
+| `wizard.TextPrompter.In` | `TextPrompter.In` | Unchanged. |
+| `wizard.TextPrompter.Input` | `TextPrompter.Input` | Unchanged. |
+| `wizard.TextPrompter.MultiSelect` | `TextPrompter.MultiSelect` | Unchanged. |
+| `wizard.TextPrompter.Notify` | `TextPrompter.Notify` | Unchanged. |
+| `wizard.TextPrompter.Out` | `TextPrompter.Out` | Unchanged. |
+| `wizard.TextPrompter.Secret` | `TextPrompter.Secret` | Unchanged. |
+| `wizard.TextPrompter.Select` | `TextPrompter.Select` | Unchanged. |

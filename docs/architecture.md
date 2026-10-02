@@ -10,9 +10,11 @@ The Go module `github.com/maccavelli/go-llmprovider-sdk`: a library for calling
 LLM providers and authenticating to them. It has no binary. It requires Go
 1.27.1, `golang.org/x/term` and, indirectly, `golang.org/x/sys`.
 
-The code came from `mcplib` `v1.6.0` with its history. Its exported API is still
-`mcplib`'s, apart from the removed orchestration option; the v1 API is decided by
-[0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md).
+The code came from `mcplib` `v1.6.0` with its history. Its API is the v1 API
+that [0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md)
+decides, and
+[guides/migrating-from-mcplib.md](guides/migrating-from-mcplib.md) maps every
+`mcplib` identifier to it.
 
 ## Tree
 
@@ -27,6 +29,9 @@ Makefile                    development targets (below)
 .github/workflows/ci.yml    CI
 scripts/go-precheck.sh      the pre-add check
 scripts/check_parity_map.py G-parity: the mcplib migration map is complete
+scripts/check_deps.py       dep-check: only wizard leaves the standard library
+scripts/check_coverage.py   coverage-check, with scripts/coverage-floors.txt
+scripts/check_api.py        api-check: apidiff against the latest v1 tag
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
 llmprovider/                the contract, errors, options and credential sources
@@ -51,43 +56,111 @@ llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
+internal/ambientcheck/      the no-ambient-state check, a test only
 docs/
   README.md                 record index, "I want to…", migration table
   architecture.md           this file
   decisions/                MADR and PLAN records
   reports/                  numbered observations
-  guides/                   API standards; migrating from mcplib
+  guides/                   API standards; adding a provider; migrating from mcplib
 ```
 
 ## Packages
 
+The last column lists the module's own packages and `golang.org/x/term`; the
+standard library is left out.
+
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
-| `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | the standard library, `internal/redact`, `internal/transport` |
-| `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint` |
+| `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact` |
+| `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely) and `MaskSecret` (show a suffix for identification) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
-| `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider`, the standard library |
+| `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
-| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `internal/wire/responses` |
-| `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `internal/wire`, `internal/wire/messages` |
-| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `internal/wire` |
-| `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `internal/wire/responses` |
-| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider`, `auth`, `internal/wire` and its four format packages |
-| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider`, `auth`, `internal/wire/chatcompletions` |
-| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `internal/wire/chatcompletions` |
-| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `internal/wire/chatcompletions` |
-| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/responses`, `internal/transport` |
+| `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/messages`, `internal/transport` |
+| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/transport` |
+| `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `catalog`, `internal/wire/responses`, `internal/transport` |
+| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent` |
+| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/kiloendpoint` |
+| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
+| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/transport` |
 | `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use | `llmprovider` |
 | `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `ReadStream` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `AddThinking` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
-| `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/transport`, `internal/kiloendpoint` |
+| `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/kiloendpoint` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/transport` | `DefaultClient`, `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `ProbeGenerateHealth` | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
+| `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
+
+## Package graph
+
+Each package imports only packages on a lower row. Every package may also use
+the standard library; only `wizard` uses anything else, `golang.org/x/term`.
+
+```text
+wizard
+providers                     Default(), New(id, …)
+providers/<id>                one package per provider or gateway family
+auth   catalog   internal/wire/<format>   llmtest
+internal/wire
+llmprovider                   the contract
+internal/transport   internal/redact   internal/kiloendpoint
+```
+
+`internal/wiretest`, `llmprovider/internal/wirecase` and
+`internal/ambientcheck` serve tests only, and nothing else imports them.
+
+## Data flow
+
+### A generation
+
+1. **Construction.** The caller builds a provider with `providers.New(id,
+   opts...)`, a `Registry`'s `New`, or the provider package's own `New`. It
+   resolves its options with `ResolveOptions(id, opts)` into read-only
+   `Settings`, and refuses a foreign or malformed option with
+   `ErrInvalidRequest`. Construction makes no network call.
+2. **Checks.** `Generate(ctx, req)` first runs `Capabilities.Check(req)`. An
+   unsupported need fails with `ErrUnsupported`, and an invalid value with
+   `ErrInvalidRequest`, before anything is sent.
+3. **The request.** The provider encodes `req` in its wire format, from
+   `internal/wire/<format>` or its own package. It asks its `TokenSource` for
+   a `Token`, sets it with `Token.Apply`, and sends the request with the
+   `Settings` client and `User-Agent`.
+4. **The reply.** A failure status becomes an `*APIError` through
+   `ClassifyHTTPError`. After a 401, an `InvalidatingSource` is invalidated
+   and the request sent once more. A success is decoded into a `Response`:
+   `Output`, `FinishReason` and `Usage`.
+5. **Around it.** `WithRetry` wraps a provider and retries by the error's
+   kind. `Stream` runs `Generate` and emits its result as events, since no
+   built-in provider streams natively yet.
+
+### A listing
+
+`catalog.List(ctx, id, src, opts...)` resolves the same options, fetches the
+provider's model list, and curates it into a `Catalog`. For the open catalogs
+it ranks by `Profile`, with the model metadata unless `WithoutModelMetadata`
+is set. A failed fetch gives the static catalog, with the failure in `Err`. A
+provider's own `ListModels` (`ModelLister`) returns its listing, probed by
+default where the provider probes.
+
+### The wizard
+
+`ConfigureLLM` reads the menu from `Options.Registry`'s descriptors. It takes
+the credential from the `Prompter`, from `Options.LookupEnv`, or from a
+sign-in that saves the session to `Options.TokenStore`. It lists the models
+with `catalog.List`, adding `Options.ProviderOptions`. Two cases go through
+a provider's own `ListModels` instead, built from the registry: a ChatGPT
+session, through `openai`, and an id that `catalog` does not list, such as a
+third party's. It then asks for the model and fallbacks, and
+returns a `Result`. The caller builds its provider from that `Result` and,
+for a session, from the store.
 
 ## The contract
 
@@ -120,8 +193,8 @@ docs/
   long as the service asks, up to a cap.
 - `Registry` holds `Descriptor` and `Factory` pairs and refuses a duplicate
   id. There is no global registry.
-- `llmprovider/llmtest` has `Run`, the conformance suite each provider will
-  pass, and `Fake`, a scriptable provider for tests.
+- `llmprovider/llmtest` has `Run`, the conformance suite every built-in
+  provider passes, and `Fake`, a scriptable provider for tests.
 
 ## Providers and items
 
@@ -139,8 +212,8 @@ docs/
   Listing (`ModelLister`) and native streaming (`Streamer`) are the only
   optional interfaces.
 - **`Item`** is sealed. Its types are `MessageItem`, `FunctionCallItem`,
-  `FunctionCallOutputItem` and `ReasoningItem`; item methods return a
-  `*Response`.
+  `FunctionCallOutputItem` and `ReasoningItem`, and `Response.Output` holds
+  them.
 - **Construction:** `providers.New(id, opts...)`, or the provider package's
   own `New` (`opencode.NewZen` and `NewGo`); every provider is in its own
   package. Options are `Option` values: the common ones in `llmprovider`
@@ -156,7 +229,8 @@ docs/
   such as `ErrRateLimited`, `ErrQuotaExhausted`, `ErrAuthFailure` or
   `ErrIncomplete`; a rate limit carries its `RetryAfter`, and a cut-short
   response its `Reason`. `Retryable()` says whether to try again. Every
-  sentinel's message starts `llmprovider:`. Error bodies pass through
+  sentinel's message starts `llmprovider:`; a wrapped error keeps its
+  package's or provider's prefix, such as `oauth:`. Error bodies pass through
   `redact.String`.
 
 ## Credentials
@@ -244,7 +318,9 @@ docs/
 - `catalog.List(ctx, id, src, opts...)` lists a provider's models within a
   10 s bound; a `Catalog` carries the recommended six, the full usable list
   and, on failure, `Err`. Its options are `llmprovider`'s common ones, with
-  `catalog.WithProfile` and `catalog.WithKiloOrganization`.
+  `catalog.WithProfile` and `catalog.WithKiloOrganization`. It lists the ten
+  built-in ids. For any other id it returns an error matching
+  `ErrUnsupported`, before it reads the options.
 - `catalog.Search` matches a query against a list. The static catalogs are
   the fallback. `catalog.Static(provider)` returns a copy, and
   `llmprovider.ProviderEnvVars()` a copy of the variable names.
@@ -306,12 +382,32 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 ## Tooling
 
 - **`make` targets:** `test`, `test-sum`, `fmt`, `vet`, `lint`, `tidy`,
-  `vuln`, `pre-add-check`, `parity-check`, `help`.
+  `vuln`, `pre-add-check`, `parity-check`, `dep-check`, `coverage-check`,
+  `api-check`, `help`.
+- **`dep-check`** (`scripts/check_deps.py`) reads every package's
+  dependencies with `go list -deps`. It fails when a package other than
+  `wizard` reaches beyond the standard library and this module, or `wizard`
+  beyond `golang.org/x/term` and the `golang.org/x/sys` it needs.
+- **`coverage-check`** (`scripts/check_coverage.py`) measures each package
+  with `go test -cover` against its floor in `scripts/coverage-floors.txt`:
+  - the `P7` baseline for `llmprovider` (89.2 %), `wizard` (83.4 %) and
+    `internal/redact` (100.0 %);
+  - 80 % for every other package.
+
+  `llmprovider/internal/wirecase`, which has no tests of its own, is
+  measured by the provider packages' tests, with `-coverpkg`. A package
+  with no statements has no floor.
+- **`api-check`** (`scripts/check_api.py`) runs `apidiff`, at the version
+  pinned in the script, with `go run`, against the latest `v1.X.Y` tag. It
+  fails on an incompatible change outside `llmprovider/x/` and the internal
+  packages. Before the first such tag it reports that there is nothing to
+  compare, and passes.
 - **`scripts/check_parity_map.py`** (G-parity) fails when an identifier in
   `docs/guides/migrating-from-mcplib.ids`, the exported identifiers of
   `mcplib` `v1.6.0` `llmprovider` and `wizard`, has no row in
-  `docs/guides/migrating-from-mcplib.md`, or a row names one that is not in
-  the list. `make parity-check` runs it.
+  `docs/guides/migrating-from-mcplib.md`, a row names one that is not in
+  the list, or a row's "SDK equivalent" is empty. `make parity-check` runs
+  it.
 - **G-wire** is `TestWireGoldens` in each provider package, part of
   `go test`. Through `llmprovider/internal/wirecase` it drives 16 provider
   and gateway-route cases through seven scenarios (text, forced tool,
@@ -328,17 +424,17 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   the machine-wide agent gate before an agent `git commit` that stages Go
   files.
 - **CI** (`.github/workflows/ci.yml`) runs on Linux, macOS and Windows, with
-  the Go version read from `go.mod`: `go test`; on Linux also `go vet`,
-  `gofmt`, `go mod tidy -diff`, `make lint` and `go vet -tags live_gateways`.
+  the Go version read from `go.mod`: `go test`. On Linux it also runs:
+  - `go vet`, `gofmt`, `go mod tidy -diff` and `make lint`;
+  - `go vet -tags live_gateways`;
+  - `make parity-check dep-check coverage-check api-check`.
+
+  It checks out the full history, so that `api-check` sees the tags.
 
 ## What is not here
 
-- **Code that meets [guides/api-standards.md](guides/api-standards.md).**
-  The guide states the target; the code still has `mcplib`'s API until
-  [0015-PLAN](decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
-  lands.
-- **`guides/adding-a-provider.md`:** written in 0015-PLAN Phase S11.
-- **The v1 package layout** (`llmprovider/auth`, `llmprovider/catalog`,
-  `llmprovider/providers/…`, `llmprovider/llmtest`):
-  [0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md),
-  accepted.
+- **Native streaming.** Every provider's `NativeStreaming` is `Unsupported`,
+  so `Stream` uses the `Generate` fallback.
+- **`llmprovider/x/`.** No experimental API exists.
+- **A release.** There is no tag; `v1.0.0-rc.1` waits for the owner's
+  request.

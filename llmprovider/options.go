@@ -14,8 +14,8 @@ type providerConfig struct {
 	BaseURL    string // For Ollama URL and test injection
 	// ModelMetadataURL overrides the models.dev-format document the open
 	// catalogs are ranked with, and OpenCode's chat route reads
-	// reasoning_options from. Empty uses LLMPROVIDER_MODELS_METADATA_URL, then
-	// https://models.opencode.ai/api.json.
+	// reasoning_options from. Empty uses https://models.opencode.ai/api.json;
+	// catalog.OptionsFromEnv sets it from LLMPROVIDER_MODELS_METADATA_URL.
 	ModelMetadataURL string
 	// ClientName and ClientVersion name the consuming application in
 	// User-Agent (MADR 0012 §1.4); see WithClientInfo.
