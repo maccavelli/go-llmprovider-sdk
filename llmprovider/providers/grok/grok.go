@@ -152,7 +152,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	resp, err := p.generateOnce(ctx, req)
 	var apiErr *llmprovider.APIError
-	if err == nil || !errors.As(err, &apiErr) || apiErr.Status != http.StatusUnauthorized || !llmprovider.ExpireSession(p.src) {
+	if err == nil || !errors.As(err, &apiErr) || apiErr.Status != http.StatusUnauthorized || !invalidate(p.src) {
 		return resp, err
 	}
 	return p.generateOnce(ctx, req)
@@ -286,4 +286,14 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 		return healthy, nil
 	}
 	return listed, nil
+}
+
+// invalidate makes src fetch a new token on its next use, and reports whether
+// it can.
+func invalidate(src llmprovider.TokenSource) bool {
+	source, ok := src.(llmprovider.InvalidatingSource)
+	if ok {
+		source.Invalidate()
+	}
+	return ok
 }

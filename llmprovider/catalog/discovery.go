@@ -9,7 +9,6 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,31 +16,7 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
-
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
-
-// chatgptModelsClientVersion is the client_version GET .../codex/models is
-// sent when this module's build has no release version. The backend requires the
-// parameter; 0.0.0 is accepted but hides models whose minimal_client_version
-// is higher (gpt-6-sol and gpt-6-luna on 2026-09-27).
-const chatgptModelsClientVersion = "0.0.0"
-
-// chatgptVersionRE reads X.Y.Z from a module version: the only form the
-// backend accepts ("v1.5.0", "1.5" and "(devel)" answer 400, as does anything
-// over 32 characters; measured 2026-09-27). A pseudo-version names the
-// release it precedes.
-var chatgptVersionRE = regexp.MustCompile(`^v?(\d{1,9}\.\d{1,9}\.\d{1,9})(?:[-+].*)?$`)
-
-// chatgptClientVersion is the client_version for this module at version v: its
-// own release, never a Codex version string (MADR 0012 §4.3), else
-// chatgptModelsClientVersion.
-func chatgptClientVersion(v string) string {
-	if m := chatgptVersionRE.FindStringSubmatch(v); m != nil {
-		return m[1]
-	}
-	return chatgptModelsClientVersion
-}
 
 // Listing pagination (MADR 0007 §2): Gemini and Anthropic page their model
 // lists, so each fetch requests the maximum page size and follows at most
@@ -93,9 +68,6 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 
 	ctx, cancel := context.WithTimeout(ctx, modelListingTimeout)
 	defer cancel()
-	if strings.EqualFold(string(id), string(llmprovider.ProviderOpenAI)) && llmprovider.IsChatGPTSession(src) {
-		return listChatGPTModels(ctx, src, cfg)
-	}
 	if src == nil {
 		return Catalog{}, errors.New("model listing: TokenSource is required")
 	}
@@ -139,111 +111,6 @@ func uniqueIDs(ids []string) []string {
 // staticCatalog wraps a caller-owned copy of a static catalog.
 func staticCatalog(static []string) Catalog {
 	return Catalog{Recommended: static, Usable: slices.Clone(static), Live: false}
-}
-
-type chatGPTCatalogModel struct {
-	Slug       string `json:"slug"`
-	Visibility string `json:"visibility"`
-	Priority   int    `json:"priority"`
-	Supported  *bool  `json:"supported_in_api"`
-}
-
-// listChatGPTModels returns the live Codex catalog for a ChatGPT OAuth
-// session. Unlike API-key providers, failure is not replaced by a static
-// OpenAI catalog because those models may not be available to the account.
-func listChatGPTModels(ctx context.Context, src llmprovider.TokenSource, cfg config) (Catalog, error) {
-	token, err := src.Token(ctx)
-	if err != nil {
-		return Catalog{}, fmt.Errorf("model listing: acquire token: %w", err)
-	}
-	baseURL := llmprovider.DefaultOpenAIChatGPTBaseURL
-	if cfg.BaseURL != "" {
-		baseURL = strings.TrimRight(cfg.BaseURL, "/")
-	}
-	endpoint, err := url.Parse(baseURL + "/models")
-	if err != nil {
-		return Catalog{}, fmt.Errorf("model listing: parse chatgpt models URL: %w", err)
-	}
-	query := endpoint.Query()
-	sdk, _ := transport.BuildVersions()
-	query.Set("client_version", chatgptClientVersion(sdk))
-	endpoint.RawQuery = query.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), http.NoBody)
-	if err != nil {
-		return Catalog{}, fmt.Errorf("model listing: create chatgpt models request: %w", err)
-	}
-	cfg.setUserAgent(req)
-	token.Apply(req, headerAuthorization, bearerScheme)
-	req.Header.Set(llmprovider.ChatGPTOriginatorHeader, llmprovider.ChatGPTOriginatorValue)
-	if accountID := llmprovider.ChatGPTSessionAccountID(src); accountID != "" {
-		req.Header.Set(llmprovider.ChatGPTAccountHeader, accountID)
-	}
-	if llmprovider.ChatGPTSessionFedRAMP(src) {
-		req.Header.Set(llmprovider.ChatGPTFedRAMPHeader, "true")
-	}
-
-	resp, err := cfg.HTTPClient.Do(req)
-	if err != nil {
-		return Catalog{}, fmt.Errorf("model listing: chatgpt models: %w", err)
-	}
-	defer closeResponseBody(resp)
-	if resp.StatusCode != http.StatusOK {
-		return Catalog{}, fmt.Errorf("model listing: chatgpt HTTP %d", resp.StatusCode)
-	}
-
-	var payload struct {
-		Models []chatGPTCatalogModel `json:"models"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return Catalog{}, fmt.Errorf("model listing: decode chatgpt catalog: %w", err)
-	}
-
-	type ranked struct {
-		slug     string
-		priority int
-		order    int
-	}
-	var listed []ranked
-	for i, model := range payload.Models {
-		if chatGPTCatalogModelListed(model) {
-			listed = append(listed, ranked{slug: model.Slug, priority: model.Priority, order: i})
-		}
-	}
-	slices.SortStableFunc(listed, func(a, b ranked) int {
-		if a.priority != b.priority {
-			return a.priority - b.priority
-		}
-		return a.order - b.order
-	})
-	out := make([]string, 0, len(listed))
-	seen := make(map[string]struct{}, len(listed))
-	for _, model := range listed {
-		if _, duplicate := seen[model.slug]; duplicate {
-			continue
-		}
-		seen[model.slug] = struct{}{}
-		out = append(out, model.slug)
-	}
-	if len(out) == 0 {
-		return Catalog{}, errors.New("model listing: chatgpt catalog listed no models")
-	}
-	return Catalog{Recommended: out, Usable: slices.Clone(out), Live: true}, nil
-}
-
-func chatGPTCatalogModelListed(model chatGPTCatalogModel) bool {
-	if strings.TrimSpace(model.Slug) == "" {
-		return false
-	}
-	if model.Supported != nil && !*model.Supported {
-		return false
-	}
-	switch strings.ToLower(strings.TrimSpace(model.Visibility)) {
-	case "", "list":
-		return true
-	default:
-		return false
-	}
 }
 
 // modelCatalogFor dispatches one provider's fetch and curation. The caller

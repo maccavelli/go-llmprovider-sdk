@@ -5,11 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
@@ -94,80 +92,6 @@ func TestListAvailableModels_OpenAI(t *testing.T) {
 	}
 	if len(fallbackModels) == 0 {
 		t.Fatal("expected static catalog fallback")
-	}
-}
-
-func TestListAvailableModelsWithSource_ChatGPTListsCodexCatalog(t *testing.T) {
-	var captured *http.Request
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		captured = r
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"models":[
-			{"slug":"gpt-5.6-sol","visibility":"list","priority":4,"supported_in_api":true},
-			{"slug":"gpt-reserve","visibility":"hide","priority":3,"supported_in_api":true},
-			{"slug":"gpt-5.6-luna","visibility":"list","priority":8,"supported_in_api":true},
-			{"slug":"gpt-6-astra","visibility":"list","priority":1,"supported_in_api":true},
-			{"slug":"hidden-review","visibility":"hide","priority":43,"supported_in_api":true}
-		]}`))
-	}))
-	t.Cleanup(srv.Close)
-
-	session := &llmprovider.OAuthSession{
-		Issuer:    llmprovider.DefaultOpenAIIssuer,
-		Access:    "session-access",
-		Expiry:    time.Now().Add(time.Hour),
-		AccountID: "acct_live",
-	}
-	models, err := listRecommended(context.Background(), llmprovider.ProviderOpenAI, session, llmprovider.WithHTTPClient(srv.Client()), llmprovider.WithBaseURL(srv.URL))
-	if err != nil {
-		t.Fatalf("ListAvailableModelsWithSource() error = %v", err)
-	}
-	want := []string{"gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna"}
-	if !reflect.DeepEqual(models, want) {
-		t.Fatalf("models = %v, want %v", models, want)
-	}
-	if captured == nil {
-		t.Fatal("ChatGPT listing made no HTTP request")
-	}
-	if captured.URL.Path != "/models" || captured.URL.Query().Get("client_version") != chatgptModelsClientVersion {
-		t.Fatalf("request URL = %s", captured.URL.Redacted())
-	}
-	if captured.Header.Get("Authorization") != "Bearer session-access" {
-		t.Fatalf("Authorization = %q", captured.Header.Get("Authorization"))
-	}
-	if captured.Header.Get(llmprovider.ChatGPTOriginatorHeader) != llmprovider.ChatGPTOriginatorValue {
-		t.Fatalf("originator = %q", captured.Header.Get(llmprovider.ChatGPTOriginatorHeader))
-	}
-	if captured.Header.Get(llmprovider.ChatGPTAccountHeader) != "acct_live" {
-		t.Fatalf("ChatGPT-Account-Id = %q", captured.Header.Get(llmprovider.ChatGPTAccountHeader))
-	}
-	models[0] = "mutated"
-	again, err := listRecommended(context.Background(), llmprovider.ProviderOpenAI, session, llmprovider.WithHTTPClient(srv.Client()), llmprovider.WithBaseURL(srv.URL))
-	if err != nil {
-		t.Fatalf("second ListAvailableModelsWithSource() error = %v", err)
-	}
-	if again[0] == "mutated" {
-		t.Fatal("ListAvailableModelsWithSource returned a live slice")
-	}
-}
-
-func TestListAvailableModelsWithSource_ChatGPTListingFailureIsError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadGateway)
-	}))
-	t.Cleanup(srv.Close)
-
-	session := &llmprovider.OAuthSession{
-		Issuer: llmprovider.DefaultOpenAIIssuer,
-		Access: "session-access",
-		Expiry: time.Now().Add(time.Hour),
-	}
-	models, err := listRecommended(context.Background(), llmprovider.ProviderOpenAI, session, llmprovider.WithHTTPClient(srv.Client()), llmprovider.WithBaseURL(srv.URL))
-	if err == nil {
-		t.Fatal("ListAvailableModelsWithSource() error = nil, want listing failure")
-	}
-	if models != nil {
-		t.Fatalf("models = %v, want nil on listing failure", models)
 	}
 }
 

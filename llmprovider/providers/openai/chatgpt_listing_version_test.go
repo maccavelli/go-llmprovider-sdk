@@ -1,16 +1,16 @@
-package catalog
+package openai
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
+
+// Moved from catalog (0015-PLAN S8c step 1): the ChatGPT listing is openai's.
 
 // withSDKVersion makes transport.BuildVersions report v as this module's version for one
 // (non-parallel) test.
@@ -31,7 +31,8 @@ func chatGPTListingVersion(t *testing.T) string {
 	}))
 	t.Cleanup(srv.Close)
 	session := &llmprovider.OAuthSession{Issuer: llmprovider.DefaultOpenAIIssuer, Access: "a", Expiry: time.Now().Add(time.Hour)}
-	if _, err := listRecommended(context.Background(), llmprovider.ProviderOpenAI, session, llmprovider.WithHTTPClient(srv.Client()), llmprovider.WithBaseURL(srv.URL)); err != nil {
+	p := sessionProvider(t, session, "gpt-6-astra", llmprovider.WithHTTPClient(srv.Client()), llmprovider.WithBaseURL(srv.URL))
+	if _, err := list(t, p); err != nil {
 		t.Fatalf("listing: %v", err)
 	}
 	return got

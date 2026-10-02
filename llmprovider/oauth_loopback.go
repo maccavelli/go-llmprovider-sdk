@@ -26,6 +26,10 @@ const (
 	oauthGrantAuthorizationCode = "authorization_code"
 	openAIOAuthScopes           = "openid profile email offline_access api.connectors.read api.connectors.invoke"
 	grokOAuthScopes             = "openid profile email offline_access grok-cli:access api:access"
+	// oauthParamOriginator names this module to OpenAI's authorize endpoint,
+	// as the ChatGPT backend's originator header does (0002-MADR §5).
+	oauthParamOriginator = "originator"
+	originatorValue      = "go-llmprovider-sdk"
 )
 
 var openaiLoopbackPorts = []int{1455, 1457}
@@ -443,7 +447,7 @@ func buildAuthorizeURL(config oauthFlowConfig, endpoint, redirectURI, challenge,
 		query.Set("scope", openAIOAuthScopes)
 		query.Set("id_token_add_organizations", "true")
 		query.Set("codex_cli_simplified_flow", "true")
-		query.Set(ChatGPTOriginatorHeader, ChatGPTOriginatorValue)
+		query.Set(oauthParamOriginator, originatorValue)
 	} else {
 		query.Set("scope", grokOAuthScopes)
 		query.Set("nonce", nonce)

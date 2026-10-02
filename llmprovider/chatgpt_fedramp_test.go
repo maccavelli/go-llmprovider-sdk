@@ -26,11 +26,11 @@ func chatGPTLoginSession(t *testing.T, auth map[string]any) *OAuthSession {
 // half (0015-PLAN S7).
 func TestChatGPTLogin_FedRAMPClaim(t *testing.T) {
 	fedramp := chatGPTLoginSession(t, map[string]any{"chatgpt_account_id": "acct", "chatgpt_account_is_fedramp": true})
-	if !fedramp.FedRAMP || !ChatGPTSessionFedRAMP(fedramp) {
-		t.Fatalf("FedRAMP = %t, ChatGPTSessionFedRAMP = %t; want both true", fedramp.FedRAMP, ChatGPTSessionFedRAMP(fedramp))
+	if _, flag := fedramp.Account(); !fedramp.FedRAMP || !flag {
+		t.Fatalf("FedRAMP = %t, Account's flag = %t; want both true", fedramp.FedRAMP, flag)
 	}
 	plain := chatGPTLoginSession(t, map[string]any{"chatgpt_account_id": "acct"})
-	if plain.FedRAMP || ChatGPTSessionFedRAMP(plain) {
-		t.Fatalf("FedRAMP = %t, ChatGPTSessionFedRAMP = %t; want both false", plain.FedRAMP, ChatGPTSessionFedRAMP(plain))
+	if _, flag := plain.Account(); plain.FedRAMP || flag {
+		t.Fatalf("FedRAMP = %t, Account's flag = %t; want both false", plain.FedRAMP, flag)
 	}
 }

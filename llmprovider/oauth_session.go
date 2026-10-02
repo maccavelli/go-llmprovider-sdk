@@ -214,6 +214,24 @@ func (s *OAuthSession) ChatGPT() bool {
 	return strings.TrimRight(s.Issuer, "/") == DefaultOpenAIIssuer
 }
 
+// Account returns the session's ChatGPT account id and FedRAMP flag, under
+// its lock: what the openai provider sends with a ChatGPT session (0015-MADR
+// amendment "the ChatGPT helpers leave llmprovider").
+func (s *OAuthSession) Account() (id string, fedRAMP bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.AccountID, s.FedRAMP
+}
+
+// Invalidate moves the session's expiry into the past, so its next Token
+// refreshes. With it, an *OAuthSession is an InvalidatingSource: a provider
+// that gets a 401 invalidates the session and retries once.
+func (s *OAuthSession) Invalidate() {
+	s.mu.Lock()
+	s.Expiry = time.Now().Add(-time.Second)
+	s.mu.Unlock()
+}
+
 func (s *OAuthSession) currentToken() (Token, bool) {
 	if s.Access == "" {
 		return Token{}, false

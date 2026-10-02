@@ -173,11 +173,14 @@ docs/
   alone. A Responses stream's failure is classified by
   `ClassifyStreamFailure`, beside `ClassifyHTTPError`: both are part of
   `llmprovider`'s error model.
-- **Temporary exports.** `llmprovider` still exports helpers the provider
-  packages share with it: the ChatGPT session helpers
-  (`IsChatGPTSession`, `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`,
-  `ExpireSession`, and four header constants) and `ShareHTTPClient`, which
-  move in 0015-PLAN S8c.
+- **The ChatGPT session** is `openai`'s concern. It lists the Codex
+  catalog, and sets the originator, account and FedRAMP headers, reading
+  `Account()` on an `OAuthSession` or `VendorCLISession`. `catalog` lists
+  only the other providers' catalogs.
+- **After a 401** a provider invalidates any `InvalidatingSource` and retries
+  once: a `CommandToken` reruns its command, and an `OAuthSession` refreshes.
+- **Temporary export.** `llmprovider` still exports `ShareHTTPClient` for the
+  provider packages; it moves in 0015-PLAN S8c.
 - **`OAuthSession`** is a refreshable `TokenSource` for ChatGPT and Grok.
   - **Creating one:**
     - `LoginBrowserOAuth` uses PKCE on a loopback redirect.

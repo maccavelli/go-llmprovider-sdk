@@ -175,9 +175,9 @@ func jwtExpiry(token string) time.Time {
 	return time.Unix(int64(*claims.Exp), 0).UTC()
 }
 
-// vendorAccount returns the ChatGPT account id and FedRAMP flag a Codex CLI
+// Account returns the ChatGPT account id and FedRAMP flag a Codex CLI
 // session last read.
-func (s *VendorCLISession) vendorAccount() (accountID string, fedramp bool) {
+func (s *VendorCLISession) Account() (id string, fedRAMP bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.accountID, s.fedramp

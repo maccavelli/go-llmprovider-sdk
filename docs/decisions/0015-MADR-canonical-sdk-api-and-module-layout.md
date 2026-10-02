@@ -831,3 +831,61 @@ to tool" (`convenience.go`). `WithRetry` already treated both as final.
 
 D7's list of kinds is unchanged: `ErrIncomplete` is still a kind, now with
 a parent.
+
+## Amendment 2026-10-01: the ChatGPT helpers leave `llmprovider`
+
+Status: **accepted** 2026-10-01. The owner's decisions, asked during
+0015-PLAN S8c step 1, before any code.
+
+### Fact found
+
+S8c step 1 moves the ChatGPT listing and session helpers to
+`providers/openai`. Three facts stood in the way:
+
+* `ChatGPTSessionAccountID` and `ChatGPTSessionFedRAMP` take
+  `OAuthSession`'s lock and call `VendorCLISession`'s unexported
+  `vendorAccount` (`llmprovider/openai_chatgpt.go:34-62`). Another package
+  can reach neither.
+* `ExpireSession` is not ChatGPT's alone: `grok` calls it to retry after a
+  401 (`providers/grok/grok.go:155`).
+* `wizard` lists a ChatGPT session through `catalog.List`
+  (`wizard/configure.go:301-332`). Once the catalog stops listing ChatGPT
+  sessions, that listing has no home.
+
+### Decided
+
+* **Accessors.** The owner chose "`Account()` on both types".
+  * `(*OAuthSession).Account()` and `(*VendorCLISession).Account()` return
+    the account id and the FedRAMP flag, under the type's lock.
+  * `openai` matches them through an unexported interface.
+  * `IsChatGPTSession`, the two account helpers and the four header
+    constants become unexported in `openai`.
+* **Expiry.** The owner chose "`OAuthSession` invalidates".
+  * `*OAuthSession` implements `InvalidatingSource`: `Invalidate` moves its
+    expiry into the past, so the next `Token` refreshes.
+  * `openai` and `grok` type-assert `InvalidatingSource` after a 401, as
+    they already do for `CommandToken`.
+  * `ExpireSession` is removed.
+* **`wizard`.** The owner chose "build `openai`, `ListModels`".
+  * For a ChatGPT credential only, `wizard` builds the `openai` provider
+    from its `Registry`, with the session, its HTTP client and base URL. It
+    then calls `ModelLister.ListModels`.
+  * The result is live, with no static fallback, as before.
+  * Every other provider still lists through `catalog.List`.
+
+### Rejected
+
+* Exported ChatGPT helpers in `auth`: `auth` would carry one vendor's
+  account rules.
+* `auth.Expire(src)`: a free function for what an interface method says.
+* An exported `openai.ListChatGPTModels`: a second listing entry point
+  beside `ModelLister`.
+
+### Effect
+
+* `llmprovider`, and `auth` after step 2, export `Account` and
+  `OAuthSession.Invalidate`. They no longer export the ChatGPT helpers,
+  `ExpireSession` or the ChatGPT header constants.
+* `catalog.List` no longer special-cases a ChatGPT session.
+* `wizard` builds a provider in this one case. 0015-PLAN S8b's record says
+  `wizard` builds none; that stays true of every other path.

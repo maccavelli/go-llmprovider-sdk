@@ -112,7 +112,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	}
 	p := &provider{
 		src:       src,
-		chatGPT:   llmprovider.IsChatGPTSession(src),
+		chatGPT:   isChatGPTSession(src),
 		model:     st.Model(),
 		client:    st.HTTPClient(),
 		maxTokens: st.MaxTokens(),
@@ -161,7 +161,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	resp, err := p.generateOnce(ctx, req)
 	var apiErr *llmprovider.APIError
-	if err == nil || !errors.As(err, &apiErr) || apiErr.Status != http.StatusUnauthorized || !llmprovider.ExpireSession(p.src) {
+	if err == nil || !errors.As(err, &apiErr) || apiErr.Status != http.StatusUnauthorized || !invalidate(p.src) {
 		return resp, err
 	}
 	return p.generateOnce(ctx, req)
@@ -263,13 +263,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 	if p.chatGPT {
 		httpReq.Header.Set("Accept", "text/event-stream")
 		httpReq.Header.Set(headerSession, p.session)
-		httpReq.Header.Set(llmprovider.ChatGPTOriginatorHeader, llmprovider.ChatGPTOriginatorValue)
-		if accountID := llmprovider.ChatGPTSessionAccountID(p.src); accountID != "" {
-			httpReq.Header.Set(llmprovider.ChatGPTAccountHeader, accountID)
-		}
-		if llmprovider.ChatGPTSessionFedRAMP(p.src) {
-			httpReq.Header.Set(llmprovider.ChatGPTFedRAMPHeader, "true")
-		}
+		setChatGPTHeaders(httpReq, p.src)
 		if residency := residency(token.Value); residency != "" {
 			httpReq.Header.Set(headerResidency, residency)
 		}
@@ -297,17 +291,18 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 // the raw /v1/models dump. An API key's models are probed unless
 // WithModelProbes(false); a ChatGPT session's are not (MADR 0012 §1.6).
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {
+	// A ChatGPT session lists from the Codex backend, with no static catalog
+	// (MADR 0008 D11), and its subscription meters every call: no generation
+	// probe (MADR 0012 §1.6).
+	if p.chatGPT {
+		return p.listChatGPT(ctx)
+	}
 	cat, err := catalog.List(ctx, llmprovider.ProviderOpenAI, p.src, p.listing...)
 	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
-		// A ChatGPT session has no static catalog (MADR 0008 D11).
-		if p.chatGPT {
-			return nil, err
-		}
 		listed = catalog.Static(llmprovider.ProviderOpenAI)
 	}
-	// A ChatGPT subscription meters every call: no generation probe (MADR 0012 §1.6).
-	if p.chatGPT || !p.probe {
+	if !p.probe {
 		return listed, nil
 	}
 	healthy := transport.ProbeGenerateHealth(ctx, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {

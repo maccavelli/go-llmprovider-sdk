@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
@@ -255,36 +253,6 @@ func TestListModelCatalog_LiveFlag(t *testing.T) {
 				t.Errorf("catalog = %+v, want both views = %v", cat, static)
 			}
 		})
-	}
-}
-
-func TestListModelCatalogWithSource_ChatGPTListsCodexCatalog(t *testing.T) {
-	var paths []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		paths = append(paths, r.URL.Path)
-		_, _ = w.Write([]byte(`{"models":[{"slug":"gpt-6-astra","visibility":"list","priority":1}]}`))
-	}))
-	defer srv.Close()
-
-	session := &llmprovider.OAuthSession{
-		Issuer: llmprovider.DefaultOpenAIIssuer,
-		Access: "session-access",
-		Expiry: time.Now().Add(time.Hour),
-	}
-	cat, err := List(context.Background(), llmprovider.ProviderOpenAI, session, llmprovider.WithHTTPClient(srv.Client()), llmprovider.WithBaseURL(srv.URL))
-	if err != nil {
-		t.Fatalf("ListModelCatalogWithSource() error = %v", err)
-	}
-	want := []string{"gpt-6-astra"}
-	if !reflect.DeepEqual(cat.Recommended, want) || !reflect.DeepEqual(cat.Usable, want) || !cat.Live {
-		t.Fatalf("catalog = %+v, want a live catalog with both views = %v", cat, want)
-	}
-	if !reflect.DeepEqual(paths, []string{"/models"}) {
-		t.Fatalf("requests = %v, want one Codex /models listing", paths)
-	}
-	cat.Recommended[0] = "mutated"
-	if cat.Usable[0] == "mutated" {
-		t.Fatal("Recommended and Usable share a backing array")
 	}
 }
 

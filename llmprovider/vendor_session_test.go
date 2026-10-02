@@ -35,7 +35,7 @@ func TestVendorCLISession_ReadsThrough(t *testing.T) {
 		if err != nil || tok.Value != access {
 			t.Fatalf("Token = %q, %v; want the file's current token", tok.Value, err)
 		}
-		if got, _ := s.vendorAccount(); got != account {
+		if got, _ := s.Account(); got != account {
 			t.Fatalf("account = %q, want %q", got, account)
 		}
 	}

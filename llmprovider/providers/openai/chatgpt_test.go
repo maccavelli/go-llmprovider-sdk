@@ -105,15 +105,15 @@ func TestOpenAI_ChatGPTSetsOriginatorHeader(t *testing.T) {
 	t.Parallel()
 	var originator string
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		originator = request.Header.Get(llmprovider.ChatGPTOriginatorHeader)
+		originator = request.Header.Get(headerOriginator)
 		return httpResponse(request, http.StatusOK, okResponse), nil
 	})}
 	p := sessionProvider(t, chatGPTSession(), "gpt-5.4-mini", llmprovider.WithHTTPClient(client))
 	if _, err := llmprovider.GenerateText(context.Background(), p, text("hello")); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if originator != llmprovider.ChatGPTOriginatorValue {
-		t.Fatalf("originator = %q, want %q", originator, llmprovider.ChatGPTOriginatorValue)
+	if originator != originatorValue {
+		t.Fatalf("originator = %q, want %q", originator, originatorValue)
 	}
 }
 
@@ -512,8 +512,8 @@ func TestVendorCLISession_OpenAIIsChatGPT(t *testing.T) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.body["stream"] != true || c.header.Get(llmprovider.ChatGPTAccountHeader) != "acct_cli" {
-		t.Fatalf("stream = %v, account = %q; want ChatGPT mode for acct_cli", c.body["stream"], c.header.Get(llmprovider.ChatGPTAccountHeader))
+	if c.body["stream"] != true || c.header.Get(headerChatGPTAccount) != "acct_cli" {
+		t.Fatalf("stream = %v, account = %q; want ChatGPT mode for acct_cli", c.body["stream"], c.header.Get(headerChatGPTAccount))
 	}
 }
 

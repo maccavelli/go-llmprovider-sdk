@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -331,7 +332,13 @@ func discoverModels(
 	if o.HTTPClient != nil {
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
 	}
-	cat, err := catalog.List(dCtx, d.ID, source, opts...)
+	var cat catalog.Catalog
+	var err error
+	if chatGPT {
+		cat, err = chatGPTCatalog(dCtx, o, d, res, source)
+	} else {
+		cat, err = catalog.List(dCtx, d.ID, source, opts...)
+	}
 	if err != nil {
 		if len(static) == 0 {
 			p.Notify(LevelWarn, "could not list models for %s (%v)", d.Label, err)
@@ -352,6 +359,39 @@ func discoverModels(
 		p.Notify(LevelInfo, "live model listing for %s is unavailable; search covers the built-in catalog only", d.Label)
 	}
 	return cat
+}
+
+// chatGPTCatalog lists a ChatGPT session through the openai provider's
+// ListModels, built from the run's Registry: the catalog does not list ChatGPT
+// sessions (0015-MADR amendment "the ChatGPT helpers leave llmprovider"). The
+// listing is live; there is no static one to fall back to.
+func chatGPTCatalog(
+	ctx context.Context,
+	o Options,
+	d llmprovider.Descriptor,
+	res Result,
+	source llmprovider.TokenSource,
+) (catalog.Catalog, error) {
+	opts := []llmprovider.Option{llmprovider.WithTokenSource(source)}
+	if res.BaseURL != "" {
+		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
+	}
+	if o.HTTPClient != nil {
+		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
+	}
+	built, err := o.registry().New(d.ID, opts...)
+	if err != nil {
+		return catalog.Catalog{}, err
+	}
+	lister, ok := built.(llmprovider.ModelLister)
+	if !ok {
+		return catalog.Catalog{}, fmt.Errorf("wizard: %s cannot list models", d.Label)
+	}
+	models, err := lister.ListModels(ctx)
+	if err != nil {
+		return catalog.Catalog{}, err
+	}
+	return catalog.Catalog{Recommended: models, Usable: slices.Clone(models), Live: true}, nil
 }
 
 func modelChoices(provider llmprovider.ProviderID, models []string) []Choice {

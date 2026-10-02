@@ -533,6 +533,14 @@ in `llmprovider` refers to `ModelProfile`.
    `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`, `ExpireSession` and
    the four header constants. The catalog's listing stops special-casing a
    ChatGPT session; `openai`'s `ListModels` lists one itself.
+
+   *Deviation, 2026-10-01:* three facts the step did not cover were put to
+   the owner before any code, and decided as 0015-MADR amendment "the
+   ChatGPT helpers leave `llmprovider`":
+   * the session types gain `Account()`;
+   * `OAuthSession` becomes an `InvalidatingSource`, and `ExpireSession`
+     goes;
+   * `wizard` lists a ChatGPT session through `openai`'s `ListModels`.
 2. **S7b's original step 3:** `git mv` into `llmprovider/auth` the files it
    lists, with their tests. `auth` imports `llmprovider` and
    `internal/transport`.
@@ -3784,6 +3792,7 @@ of the same date.
 ### Phase S8b, step 4: `For(id, opts...)` (2026-10-01)
 
 Staged for the owner to commit. Steps 1-3 were done in S8, commit 2.
+*Annotated 2026-10-01:* committed as `79b1a64`. S8b is complete.
 
 * **`llmprovider.For(id, opts...)`** (`settings.go`) is an `Option` holding
   its id and options (0015-MADR D5 steps 2-4).
@@ -3856,3 +3865,106 @@ Staged for the owner to commit. Steps 1-3 were done in S8, commit 2.
 * **Lint.** Clean, with no change of configuration.
 * **G-wire.** All goldens unchanged, with no `-update`.
 * **Coverage:** `llmprovider` 88.0 % from its own tests and 89.4 % over `./llmprovider/...`, against its `P7` 89.2 %; `wizard` 84.3 %.
+
+### Phase S8c, step 1: the ChatGPT helpers move to `openai` (2026-10-01)
+
+Staged for the owner to commit, with 0015-MADR amendment "the ChatGPT
+helpers leave `llmprovider`", written before the code.
+
+* **Deviation, 2026-10-01.** The survey found three facts the step did not
+  cover:
+  * the helpers read unexported session state;
+  * `grok` also uses `ExpireSession`;
+  * `wizard` lists ChatGPT sessions through `catalog`.
+
+  They were put to the owner and decided as the amendment says. The step is
+  annotated.
+* **Moved to `providers/openai`:**
+  * `chatgpt_listing.go`: the Codex listing, now the method `listChatGPT`;
+    `chatgptClientVersion` and its pattern; and the listed-model filter.
+    `ListModels` lists a ChatGPT session itself, under the same 10 s bound
+    `catalog` applies (`chatGPTListingTimeout`), with no static fallback and
+    no probe.
+  * `chatgpt_session.go`: `isChatGPTSession`, `setChatGPTHeaders` (the
+    originator, account and FedRAMP headers, read through
+    `Account()`), `invalidate`, and the four header constants, unexported.
+* **`llmprovider`:**
+  * `openai_chatgpt.go` is removed: `IsChatGPTSession`,
+    `ChatGPTSessionAccountID`, `ChatGPTSessionFedRAMP`, `ExpireSession`, and
+    `ChatGPTAccountHeader`, `ChatGPTOriginatorHeader`,
+    `ChatGPTOriginatorValue` and `ChatGPTFedRAMPHeader`.
+  * `(*OAuthSession).Account()` and `Invalidate()` are new, so an
+    `*OAuthSession` is an `InvalidatingSource`.
+  * `VendorCLISession`'s `vendorAccount` is the exported `Account()`.
+  * OpenAI's authorize URL keeps its `originator` parameter, through an
+    unexported constant of the sign-in code.
+* **`catalog`** no longer special-cases a ChatGPT session. The listing, its
+  type, filter, client-version helpers and their two imports are removed. A
+  caller that passes a ChatGPT session to `catalog.List` now gets the
+  Platform listing, which degrades to the static catalog. `openai`'s
+  `ListModels`, and `wizard`, no longer call it for one.
+* **`grok`** invalidates through `InvalidatingSource` after a 401, with its
+  own `invalidate`.
+* **`wizard`.** For a ChatGPT credential, `chatGPTCatalog` builds the
+  `openai` provider from the run's `Registry` with the session, the HTTP
+  client and the base URL. It calls `ListModels`, and returns a live
+  catalog. Every other provider lists through `catalog.List`.
+* **Tests.**
+  * **Moved:** `catalog`'s `chatgpt_listing_version_test.go` to `openai`
+    (`git mv`), with its helper building the provider.
+  * **Ported** to `openai`'s `chatgpt_listing_test.go`, as
+    `TestListModels_ChatGPTListsCodexCatalog`:
+    * `TestListAvailableModelsWithSource_ChatGPTListsCodexCatalog`;
+    * the live, one-request half of
+      `TestListModelCatalogWithSource_ChatGPTListsCodexCatalog`;
+    * the FedRAMP header, which the listing had no test of.
+
+    The catalog's other half, `Recommended` and `Usable` not sharing an
+    array, has no counterpart: `ListModels` returns one slice, and the
+    ported test checks it is fresh on each call.
+  * **Removed:** `TestListAvailableModelsWithSource_ChatGPTListingFailureIsError`,
+    which `openai`'s `TestListModels_ChatGPTListingFailureIsError` already
+    covers.
+  * **New:**
+    * `TestListModels_ChatGPTListingBounded`;
+    * `TestOAuthSession_Invalidate`, and a compile-time check that
+      `*OAuthSession` is an `InvalidatingSource`;
+    * `TestOAuthSession_Account`.
+  * **Renamed in assertions:** `TestChatGPTLogin_FedRAMPClaim` reads
+    `Account()`, and `openai`'s tests use the unexported header constants.
+  * `wizard`'s `TestConfigureLLM_ChatGPTNoStaticNotice` and
+    `TestConfigureLLM_ChatGPTListingFailurePromptsForModel` now run through
+    `chatGPTCatalog`.
+* **Fault found and fixed during the move.** The script's first pass at
+  removing the catalog tests used a pattern whose comment prefix could span
+  lines. In `discovery_catalog_test.go` it removed 13 unrelated functions,
+  among them `serveBody` and `catalogCase`. The compiler caught it. The file
+  was rebuilt from `HEAD` with only the ChatGPT test removed, by a pattern
+  that checks its match spans one function: 32 lines, the test and two
+  imports only it used.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | a ChatGPT session lists through catalog | `models = [gpt-4.1-mini gpt-4.1-nano gpt-4o-mini gpt-4.1 gpt-4o o4-mini], want [gpt-6-astra gpt-5.6-sol gpt-…` |
+  | the listing drops the account header | `ChatGPT-Account-Id = "", want "acct_live"` |
+  | the listing drops the FedRAMP header | `X-OpenAI-Fedramp = "", want "true"` |
+  | the listing has no bound | `the listing ran with -1ns left, want a deadline within 10s` |
+  | the listing sends a fixed client_version | `client_version = "0.0.0", want "1.5.0"` |
+  | Invalidate leaves the expiry | `after Invalidate: Token() = <nil>, want ErrAuthFailure: no refresh token` |
+  | openai does not invalidate after a 401 | `Generate() error = llmprovider: authentication failed: openai HTTP 401` |
+  | grok does not invalidate after a 401 | `Generate() error = llmprovider: authentication failed: grok HTTP 401` |
+  | Account drops the FedRAMP flag | `FedRAMP = true, Account's flag = false; want both true` |
+  | wizard lists ChatGPT through catalog | `ConfigureLLM() error = select model: fakePrompter: unexpected Select("Choose a OpenAI model:")` |
+
+* **Docs.** `architecture.md` says the ChatGPT session is `openai`'s, and
+  describes the 401 rule for any `InvalidatingSource`. Only
+  `ShareHTTPClient` remains as a temporary export. The removed helpers were
+  never in `mcplib`, so the migration guide gains no row.
+* **Lint.** Clean, with no change of configuration.
+* **G-wire.** All goldens unchanged, with no `-update`.
+* **Coverage:**
+  * `llmprovider` 89.1 % from its own tests (88.0 % before), and 89.35 %
+    over `./llmprovider/...` (1720 of 1925 statements), against its `P7`
+    89.2 %;
+  * `openai` 92.6 %, `catalog` 88.3 %, `wizard` 84.3 %.
