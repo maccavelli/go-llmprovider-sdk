@@ -76,22 +76,59 @@ const (
 	ResponsesReply = `{"id":"resp_wire","status":"completed","output":[` +
 		`{"type":"reasoning","summary":[{"type":"summary_text","text":"thinking"}]},` +
 		`{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]},` +
-		`{"type":"function_call","call_id":"call_wire","name":"get_weather","arguments":"{\"city\":\"Paris\"}"}]}`
+		`{"type":"function_call","call_id":"call_wire","name":"get_weather","arguments":"{\"city\":\"Paris\"}"}],` +
+		`"usage":` + responsesUsage + `}`
 	MessagesReply = `{"id":"msg_wire","type":"message","role":"assistant","stop_reason":"tool_use","content":[` +
 		`{"type":"thinking","thinking":"thinking","signature":"sig_wire"},` +
 		`{"type":"text","text":"hello"},` +
-		`{"type":"tool_use","id":"toolu_wire","name":"get_weather","input":{"city":"Paris"}}]}`
+		`{"type":"tool_use","id":"toolu_wire","name":"get_weather","input":{"city":"Paris"}}],` +
+		`"usage":{"input_tokens":15,"cache_creation_input_tokens":5,"cache_read_input_tokens":100,"output_tokens":40}}`
 	InteractionsReply = `{"id":"v1_int_wire","status":"completed","steps":[` +
 		`{"type":"thought","signature":"sig_wire","summary":[{"type":"text","text":"thinking"}]},` +
 		`{"type":"model_output","content":[{"type":"text","text":"hello"}]},` +
-		`{"type":"function_call","id":"call_wire","name":"get_weather","arguments":{"city":"Paris"}}]}`
+		`{"type":"function_call","id":"call_wire","name":"get_weather","arguments":{"city":"Paris"}}],` +
+		`"usage":{"total_input_tokens":120,"total_cached_tokens":100,"total_output_tokens":10,"total_thought_tokens":30,"total_tokens":160}}`
 	GoogleReply = `{"candidates":[{"finishReason":"STOP","content":{"role":"model","parts":[` +
 		`{"text":"thinking","thought":true},{"text":"hello"},` +
-		`{"functionCall":{"name":"get_weather","args":{"city":"Paris"}},"thoughtSignature":"sig_wire"}]}}]}`
+		`{"functionCall":{"name":"get_weather","args":{"city":"Paris"}},"thoughtSignature":"sig_wire"}]}}],` +
+		`"usageMetadata":{"promptTokenCount":120,"cachedContentTokenCount":100,"candidatesTokenCount":10,"thoughtsTokenCount":30,"totalTokenCount":160}}`
 	ChatReply = `{"id":"chat_wire","choices":[{"index":0,"finish_reason":"tool_calls","message":{` +
 		`"role":"assistant","content":"hello","reasoning_content":"thinking",` +
-		`"tool_calls":[{"id":"call_wire","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]}}]}`
+		`"tool_calls":[{"id":"call_wire","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]}}],` +
+		`"usage":{"prompt_tokens":120,"completion_tokens":40,"total_tokens":160,"prompt_tokens_details":{"cached_tokens":100},` +
+		`"completion_tokens_details":{"reasoning_tokens":30}}}`
 )
+
+// responsesUsage is the Responses API's usage for the canned counts.
+const responsesUsage = `{"input_tokens":120,"input_tokens_details":{"cached_tokens":100},"output_tokens":40,` +
+	`"output_tokens_details":{"reasoning_tokens":30},"total_tokens":160}`
+
+// Every canned reply reports the same counts in its own wire's spelling: 120
+// input, 100 of them cached, and 40 output, 30 of them reasoning. Messages
+// reports no reasoning count (0015-MADR amendment "what `Usage` counts").
+var (
+	replyUsage    = llmprovider.Usage{InputTokens: 120, OutputTokens: 40, ReasoningTokens: 30, CachedTokens: 100}
+	messagesUsage = llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100}
+)
+
+// lastGeneration is the path of a generation request: every one is a POST, and
+// one scenario's POSTs all go to the same wire.
+func lastGeneration(reqs []wiretest.Request) string {
+	for _, r := range reqs {
+		if r.Method == http.MethodPost {
+			return r.Path
+		}
+	}
+	return ""
+}
+
+// usageFor is the Usage the canned reply for a generation at path reports.
+func usageFor(path string) llmprovider.Usage {
+	if strings.HasSuffix(path, "/messages") {
+		return messagesUsage
+	}
+	return replyUsage
+}
 
 // SSEReply is ResponsesReply as the ChatGPT backend streams it.
 var SSEReply = strings.Join([]string{
@@ -108,7 +145,7 @@ var SSEReply = strings.Join([]string{
 	`data: {"type":"response.output_item.done","item":{"type":"function_call","call_id":"call_wire","name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}`,
 	``,
 	`event: response.completed`,
-	`data: {"type":"response.completed","response":{"id":"resp_wire"}}`,
+	`data: {"type":"response.completed","response":{"id":"resp_wire","usage":` + responsesUsage + `}}`,
 	``, ``,
 }, "\n")
 
@@ -233,6 +270,11 @@ func Run(t *testing.T, cases []Case, update bool) {
 				got, err := s.run(context.Background(), c, p)
 				if errors.Is(err, errSkip) {
 					t.Skip("no golden for this scenario")
+				}
+				if resp, ok := got.(*llmprovider.Response); ok && resp != nil && err == nil {
+					if want := usageFor(lastGeneration(srv.Requests())); resp.Usage != want {
+						t.Errorf("Usage = %+v, want the canned reply's %+v", resp.Usage, want)
+					}
 				}
 				rec := wiretest.Record{Requests: srv.Requests(), Result: result(got)}
 				if err != nil {

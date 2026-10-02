@@ -102,6 +102,10 @@ docs/
   unsupported need before any network call, with `ErrUnsupported`.
 - `Stream(ctx, p, req)` streams from every provider: a provider's own
   `Streamer`, or `Generate`'s result as events.
+- `Response.Usage` is decoded from every wire format that reports it. A
+  total holds its part: `InputTokens` includes `CachedTokens`, and
+  `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and
+  writes are added to the input, and Gemini's thoughts to the output.
 - `Option` configures construction. A provider package's `New` resolves its
   options with `ResolveOptions(id, opts)`, which refuses an option scoped to
   another provider (`ScopedOption`). `For(id, opts...)` scopes options to

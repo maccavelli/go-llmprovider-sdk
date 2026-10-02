@@ -59,7 +59,9 @@ exists now, read [architecture.md](../architecture.md).
   or "not requested". (0015 D3)
 - **R7. `Response` fields.** `ID`, `Model`, `Output []Item`, a typed
   `FinishReason`, and `Usage`, which is zero when the service reports none.
-  (0015 D3, D4)
+  In `Usage` a total holds its part: `InputTokens` includes `CachedTokens`,
+  and `OutputTokens` includes `ReasoningTokens`, whatever the service's own
+  convention. (0015 D3, D4, and its amendment "what `Usage` counts")
 - **R8. Convenience is a package function over any `Provider`,** never a method
   on one. The two that replace `mcplib`'s convenience methods are
   `llmprovider.GenerateText(ctx, p, req) (string, error)`, which returns the

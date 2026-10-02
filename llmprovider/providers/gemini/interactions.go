@@ -139,6 +139,7 @@ func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 			Name      string          `json:"name"`
 			Arguments json.RawMessage `json:"arguments"`
 		} `json:"steps"`
+		Usage interactionUsage `json:"usage"`
 	}
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, fmt.Errorf("gemini: decode interaction: %w", err)
@@ -151,7 +152,7 @@ func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 	default:
 		return nil, fmt.Errorf("%w: gemini interaction %s", llmprovider.ErrProviderUnavailable, raw.Status)
 	}
-	result := &llmprovider.Response{ID: raw.ID}
+	result := &llmprovider.Response{ID: raw.ID, Usage: raw.Usage.counts()}
 	signature := ""
 	for _, step := range raw.Steps {
 		switch step.Type {
@@ -193,4 +194,23 @@ func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 		return nil, errors.New("gemini returned no content")
 	}
 	return result, nil
+}
+
+// interactionUsage is an Interaction's token counts (ai.google.dev/api/
+// interactions-api, read 2026-10-01). total_input_tokens holds the cached
+// tokens. total_thought_tokens is outside total_output_tokens, as in
+// generateContent: measured 2026-10-02 by
+// TestLive_GeminiInteractionsThoughtTokens, where 17 input, 3 output and 114
+// thought tokens made a total of 134 (0015-MADR amendment "what `Usage`
+// counts"). total_tool_use_tokens is not counted.
+type interactionUsage struct {
+	Input    int `json:"total_input_tokens"`
+	Output   int `json:"total_output_tokens"`
+	Cached   int `json:"total_cached_tokens"`
+	Thoughts int `json:"total_thought_tokens"`
+}
+
+func (u interactionUsage) counts() llmprovider.Usage {
+	return llmprovider.Usage{InputTokens: u.Input, OutputTokens: u.Output + u.Thoughts,
+		ReasoningTokens: u.Thoughts, CachedTokens: u.Cached}
 }

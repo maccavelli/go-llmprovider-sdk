@@ -95,6 +95,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 			Name     string         `json:"name"`
 			Input    map[string]any `json:"input"`
 		} `json:"content"`
+		Usage usage `json:"usage"`
 	}
 	if err := json.NewDecoder(body).Decode(&result); err != nil {
 		return nil, err
@@ -104,7 +105,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		return nil, fmt.Errorf("claude returned empty content")
 	}
 
-	res := &llmprovider.Response{ID: ""} // Claude Messages API is stateless
+	res := &llmprovider.Response{ID: "", Usage: result.Usage.counts()} // Claude Messages API is stateless
 	for _, b := range result.Content {
 		switch b.Type {
 		case keyThinking:
@@ -216,4 +217,19 @@ func AddThinking(body map[string]any, model, effort string, budget, maxTokens in
 	}
 	body[keyThinking] = map[string]any{wire.KeyType: keyEnabled, "budget_tokens": budget}
 	return maxTokens
+}
+
+// usage is the Messages API's token counts. input_tokens leaves out the cache
+// reads and writes, so the input count adds them; the API reports no
+// reasoning count.
+type usage struct {
+	Input      int `json:"input_tokens"`
+	Output     int `json:"output_tokens"`
+	CacheRead  int `json:"cache_read_input_tokens"`
+	CacheWrite int `json:"cache_creation_input_tokens"`
+}
+
+func (u usage) counts() llmprovider.Usage {
+	return llmprovider.Usage{InputTokens: u.Input + u.CacheRead + u.CacheWrite, OutputTokens: u.Output,
+		CachedTokens: u.CacheRead}
 }

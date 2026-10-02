@@ -947,3 +947,78 @@ new boundary. It found three things D2 and the step do not settle:
   before commit: this bullet first said "only".*
 * `ErrInvalidProvider` stays in `llmprovider`, as D7's kind sentinel.
   `auth`'s stores return it.
+
+## Amendment 2026-10-02: what `Usage` counts
+
+Status: **accepted** 2026-10-02. The owner's decisions, asked during
+0015-PLAN S9, before any code.
+
+### Fact found
+
+D3 names `Usage`'s four counts but not what each includes, and the services
+count differently:
+
+* OpenAI's Responses and Chat Completions count cached tokens inside the
+  input count, and reasoning tokens inside the output count.
+* Anthropic's Messages counts `cache_read_input_tokens` and
+  `cache_creation_input_tokens` outside `input_tokens`.
+* Gemini's `generateContent` counts `cachedContentTokenCount` inside
+  `promptTokenCount`, and `thoughtsTokenCount` outside
+  `candidatesTokenCount`.
+* Gemini's Interactions reports `total_input_tokens`,
+  `total_output_tokens`, `total_cached_tokens`, `total_thought_tokens`,
+  `total_tool_use_tokens` and `total_tokens` (the API reference,
+  `ai.google.dev/api/interactions-api`, read 2026-10-01). It does not say
+  whether `total_output_tokens` includes the thoughts.
+* pi normalises to uncached input, with cache reads beside it, and output
+  that includes reasoning (`pi: packages/ai/src/api/openai-completions.ts`,
+  `google-generative-ai.ts`, `anthropic-messages.ts`).
+
+S9 also has to measure whether Kilo reports usage without the
+`usage: {include: true}` its own client sends (0017-REPORT K2).
+
+### Decided
+
+* **Totals hold their parts.** The owner chose "totals hold their parts":
+  * `InputTokens` is every input token, and `CachedTokens` the cached part
+    of it.
+  * `OutputTokens` is every output token, and `ReasoningTokens` the
+    reasoning part of it.
+  * `InputTokens + OutputTokens` is the response's whole count.
+  * Each wire maps to this:
+    * Anthropic's input adds cache reads and writes.
+    * `generateContent`'s output adds thoughts.
+    * Interactions' output adds thoughts until measured (below).
+* **Kilo.** The owner chose "a live test you run". An opt-in live test
+  generates without `usage.include` and reports whether usage came back.
+  Until the owner's run, Chat Completions' decoder reads usage when present,
+  and no request changes. If Kilo needs `include`, that request change goes
+  to the owner as a deviation.
+* **Interactions' thoughts.** The owner chose "measure it live". An opt-in
+  live test compares `total_tokens` with the parts. Until then the decoder
+  takes thoughts as outside `total_output_tokens`, as in `generateContent`,
+  and the record says it is unmeasured.
+
+### Rejected
+
+* pi's convention, in which `InputTokens` excludes the cached tokens: the
+  four fields would no longer add up to the count a caller is billed for.
+* Decoding Kilo's usage with no measurement: its `Usage` might always be
+  zero, unnoticed.
+* Assuming Interactions' thoughts are separate, with no measurement.
+
+### Effect
+
+`Usage`'s doc states the rule, and a conformance check pins
+`CachedTokens <= InputTokens` and `ReasoningTokens <= OutputTokens`.
+
+### Measured (2026-10-02, the owner's approval to run the live tests)
+
+* **Kilo reports usage without `usage.include`.**
+  `TestLive_KiloReportsUsage` got `prompt_tokens` 163, `completion_tokens`
+  12, and `prompt_tokens_details.cached_tokens` 149, decoded as 163 input
+  (149 cached) and 12 output. No request change is needed.
+* **Interactions' thoughts are outside `total_output_tokens`.**
+  `TestLive_GeminiInteractionsThoughtTokens` got 17 input, 3 output and 114
+  thought tokens, with a total of 134 = 17 + 3 + 114. The decoder's reading
+  holds.

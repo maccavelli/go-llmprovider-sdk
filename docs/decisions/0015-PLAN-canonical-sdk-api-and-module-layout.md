@@ -582,6 +582,14 @@ in `llmprovider` refers to `ModelProfile`.
 2. Extend the response fixtures. Request goldens do not change.
 3. Gate.
 
+*Deviation, 2026-10-02:* what `Usage` counts was not stated anywhere, so it
+was put to the owner before any code. The owner chose:
+* totals that hold their parts;
+* a live Kilo test for the owner to run;
+* a live measurement of Interactions' thoughts.
+
+These are recorded as 0015-MADR amendment "what `Usage` counts".
+
 ### Phase S10: ambient state
 
 1. Remove every `os.Getenv` from library code. Add the opt-in helpers
@@ -3981,6 +3989,7 @@ helpers leave `llmprovider`", written before the code.
 
 Staged for the owner to commit, with 0015-MADR amendment "what `auth`
 holds", written before the code. With it S8c is complete.
+*Annotated 2026-10-02:* committed as `c941bff`.
 
 * **Deviation, 2026-10-01: what `auth` holds.**
   * **Found.** A trial move in a scratch copy, which the compiler checked,
@@ -4097,3 +4106,108 @@ holds", written before the code. With it S8c is complete.
 * **G-wire.** All goldens unchanged, with no `-update`.
 * **Coverage:** `llmprovider` 98.2 %, `auth` 85.3 %, `openai` 92.7 %, `grok`
   95.6 %, `wizard` 84.3 %.
+
+### Phase S9: usage (2026-10-02)
+
+Staged for the owner to commit, with 0015-MADR amendment "what `Usage`
+counts", written before the code. ~~**S9 stays open** until the owner runs the
+two live measurements below.~~ *Annotated 2026-10-02:* both were run with the
+owner's approval; S9 is complete (the measurements are recorded at the end of
+this entry).
+
+* **Deviation, 2026-10-02.** What `Usage` counts was stated nowhere, and the
+  services disagree. It was put to the owner before any code, with the Kilo
+  and Interactions measurements. The decisions are the amendment's.
+* **Decoded:**
+  * **Responses** (`internal/wire/responses`): the body's `usage`, and on a
+    stream `response.completed`'s. `input_tokens` holds
+    `input_tokens_details.cached_tokens`; `output_tokens` holds
+    `output_tokens_details.reasoning_tokens`.
+  * **Chat Completions:** `prompt_tokens` and `completion_tokens`, with
+    `completion_tokens_details.reasoning_tokens`. The cached count is read
+    from the first spelling present, in pi's order:
+    `prompt_tokens_details.cached_tokens`, `prompt_cache_hit_tokens`, then
+    `cached_tokens`. Together's plain counts decode with no cached count.
+  * **Messages:** `InputTokens` is `input_tokens` plus
+    `cache_read_input_tokens` and `cache_creation_input_tokens`, and
+    `CachedTokens` the cache reads. Anthropic reports no reasoning count, so
+    `ReasoningTokens` is zero, and a test asserts it.
+  * **generateContent:** `usageMetadata`. `OutputTokens` is
+    `candidatesTokenCount` plus `thoughtsTokenCount`.
+  * **Interactions** (`providers/gemini`): `OutputTokens` is
+    `total_output_tokens` plus `total_thought_tokens`, unmeasured (below).
+    `total_tool_use_tokens` is not counted.
+* **`Usage`'s doc** states the rule, field by field.
+* **`llmtest`'s R7** check refuses a part larger than its total. Its own test
+  gains a row for each.
+* **Step 2, the response fixtures.**
+  * Every canned reply in `internal/wirecase` reports usage in its wire's
+    spelling: 120 input with 100 cached, 40 output with 30 reasoning. Messages
+    reports no reasoning count.
+  * `wirecase.Run` checks each decoded `Response`'s `Usage` against its
+    reply, for every provider and route.
+  * The goldens keep only the result's id, finish reason and output. All of
+    them are unchanged, requests included, with no `-update`.
+* **Red first.** Before the decoders, the five wire tests and `wirecase`'s
+  check failed, for every provider and route, with `Usage =
+  {InputTokens:0 OutputTokens:0 ReasoningTokens:0 CachedTokens:0}`.
+* **Live, for the owner to run** (`live_usage_test.go`):
+  * `TestLive_KiloReportsUsage`, with `KILO_API_KEY`. It generates without
+    `usage.include` and fails if Kilo reports no usage. A failure is the
+    finding that Kilo needs `include`; that request change goes to the owner
+    as a deviation.
+  * `TestLive_GeminiInteractionsThoughtTokens`, with `GEMINI_API_KEY`. It
+    compares `total_tokens` with the parts. It fails if the thoughts are
+    inside `total_output_tokens`, which would mean the decoder counts them
+    twice.
+
+  Both record the raw response body. They compile (`go vet -tags
+  live_gateways`); they have not been run, as they spend the owner's quota.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | Responses drops the body's usage | `reported: Usage = {InputTokens:0 OutputTokens:0 ReasoningTokens:0 CachedTokens:0} (err <nil>), want {InputTokens:120 …` |
+  | a stream drops response.completed's usage | `Usage = {InputTokens:0 OutputTokens:0 ReasoningTokens:0 CachedTokens:0} (err <nil>), want {InputTokens:12 OutputToken…` |
+  | Responses swaps cached and reasoning | `reported: Usage = {InputTokens:120 OutputTokens:40 ReasoningTokens:100 CachedTokens:30} (err <nil>), want {InputToken…` |
+  | Chat reads the spellings in the wrong order | `details first, as pi reads them: Usage = {InputTokens:120 OutputTokens:40 ReasoningTokens:0 CachedTokens:80} (err <ni…` |
+  | Chat ignores prompt_cache_hit_tokens | `prompt_cache_hit_tokens: Usage = {InputTokens:120 OutputTokens:40 ReasoningTokens:0 CachedTokens:0} (err <nil>), want…` |
+  | Messages leaves the cache out of the input | `Usage = {InputTokens:15 OutputTokens:40 ReasoningTokens:0 CachedTokens:100} (err <nil>), want {InputTokens:120 Output…` |
+  | generateContent leaves the thoughts out of the output | `Usage = {InputTokens:120 OutputTokens:10 ReasoningTokens:30 CachedTokens:100} (err <nil>), want {InputTokens:120 Outp…` |
+  | Interactions leaves the thoughts out of the output | `Usage = {InputTokens:120 OutputTokens:10 ReasoningTokens:30 CachedTokens:100} (err <nil>), want {InputTokens:120 Outp…` |
+  | Chat Completions drops usage, for every provider using it | `Usage = {InputTokens:0 OutputTokens:0 ReasoningTokens:0 CachedTokens:0}, want the canned reply's {InputTokens:120 Out…` |
+  | llmtest takes a part larger than its total | `failures […]; want a response failure containing "a part larger than its total"` |
+
+* **Docs.**
+  * The standards guide's R7 states the rule.
+  * `architecture.md`'s contract section describes the decoding.
+  * The migration guide gains no row: `Usage` is new.
+* **Lint.** Clean, with no change of configuration.
+* **Coverage:**
+  * `responses` 100.0 %, `chatcompletions` 84.1 %, `messages` 96.4 %,
+    `generatecontent` 91.4 %, `gemini` 95.1 %, `llmtest` 94.7 %;
+  * `llmprovider` 98.2 % and `auth` 85.3 % from their own tests.
+* **The live measurements, run 2026-10-02** with the owner's approval and
+  the owner's keys, set in the environment (only whether each was set was
+  checked):
+  * **`TestLive_GeminiInteractionsThoughtTokens`, passed.** Raw usage
+    `{Input:17 Output:3 Thoughts:114 ToolUse:0 Total:134}`, decoded as
+    `{InputTokens:17 OutputTokens:117 ReasoningTokens:114 CachedTokens:0}`.
+    Thoughts are outside `total_output_tokens`, as the decoder reads them.
+  * **`TestLive_KiloReportsUsage`, passed on the second run.**
+    * The first run failed before reading usage: `Generate: chat
+      completions: response contained no choices`, on `kilo-auto/free`.
+    * The existing `TestLive_KiloChatCompletions` failed the same way, so
+      the fault was not usage's. The measurement test now logs the response
+      bodies when generation fails.
+    * Run again, it passed. Raw usage `{"prompt_tokens":163,
+      "completion_tokens":12, "total_tokens":175,
+      "prompt_tokens_details":{"cached_tokens":149,"cache_write_tokens":0},
+      "completion_tokens_details":{"reasoning_tokens":0}, …}`, decoded as
+      `{InputTokens:163 OutputTokens:12 ReasoningTokens:0 CachedTokens:149}`.
+    * Kilo reports usage without `usage.include`, so no request changes.
+  * **A Kilo fault outside S9, recorded and not fixed here.**
+    `TestLive_KiloChatCompletions`, run again, skipped on a 429, so the free
+    route was unstable that hour. The two "no choices" bodies were not
+    captured. If they recur, whether a choiceless body is transient
+    (retryable) is a decision for a later record.

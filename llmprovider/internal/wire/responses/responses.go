@@ -62,6 +62,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
 		Output []outputItem `json:"output"`
+		Usage  usage        `json:"usage"`
 	}
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, err
@@ -71,7 +72,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		return nil, incomplete(raw.IncompleteDetails.Reason)
 	}
 
-	result := &llmprovider.Response{ID: raw.ID}
+	result := &llmprovider.Response{ID: raw.ID, Usage: raw.Usage.counts()}
 	for _, out := range raw.Output {
 		appendOutput(result, out)
 	}
@@ -151,6 +152,7 @@ type streamEvent struct {
 		IncompleteDetails struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
+		Usage usage `json:"usage"`
 	} `json:"response"`
 }
 
@@ -193,6 +195,7 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 			if event.Response.ID != "" {
 				result.ID = event.Response.ID
 			}
+			result.Usage = event.Response.Usage.counts()
 			return true, nil
 		}
 		return false, nil
@@ -218,4 +221,22 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 		return result, err
 	}
 	return nil, fmt.Errorf("%w: %s: stream ended before response.completed", llmprovider.ErrProviderUnavailable, provider)
+}
+
+// usage is the Responses API's token counts. Its input count holds the cached
+// tokens, and its output count the reasoning tokens, as Usage's do.
+type usage struct {
+	Input        int `json:"input_tokens"`
+	Output       int `json:"output_tokens"`
+	InputDetails struct {
+		Cached int `json:"cached_tokens"`
+	} `json:"input_tokens_details"`
+	OutputDetails struct {
+		Reasoning int `json:"reasoning_tokens"`
+	} `json:"output_tokens_details"`
+}
+
+func (u usage) counts() llmprovider.Usage {
+	return llmprovider.Usage{InputTokens: u.Input, OutputTokens: u.Output,
+		ReasoningTokens: u.OutputDetails.Reasoning, CachedTokens: u.InputDetails.Cached}
 }

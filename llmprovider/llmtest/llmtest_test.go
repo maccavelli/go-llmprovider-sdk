@@ -285,6 +285,14 @@ func TestRun_ChecksTheResponse(t *testing.T) {
 		{"negative usage", func() (*llmprovider.Response, error) {
 			return &llmprovider.Response{Output: []llmprovider.Item{llmprovider.MessageItem{Text: "x"}}, Usage: llmprovider.Usage{InputTokens: -1}}, nil
 		}, "negative usage"},
+		{"cached beyond input", func() (*llmprovider.Response, error) {
+			return &llmprovider.Response{Output: []llmprovider.Item{llmprovider.MessageItem{Text: "x"}},
+				Usage: llmprovider.Usage{InputTokens: 5, CachedTokens: 6}}, nil
+		}, "a part larger than its total"},
+		{"reasoning beyond output", func() (*llmprovider.Response, error) {
+			return &llmprovider.Response{Output: []llmprovider.Item{llmprovider.MessageItem{Text: "x"}},
+				Usage: llmprovider.Usage{OutputTokens: 5, ReasoningTokens: 6}}, nil
+		}, "a part larger than its total"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			h := refHarness(flaws{})

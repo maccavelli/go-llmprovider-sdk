@@ -138,12 +138,18 @@ const (
 )
 
 // Usage counts a response's tokens. Each is zero when the service reports
-// none (0015-MADR D3, D4).
+// none (0015-MADR D3, D4). A total holds its part, whatever the service's
+// own convention, so InputTokens + OutputTokens is the response's whole count
+// (0015-MADR amendment "what `Usage` counts").
 type Usage struct {
-	InputTokens     int
-	OutputTokens    int
+	// InputTokens is every input token, CachedTokens included.
+	InputTokens int
+	// OutputTokens is every output token, ReasoningTokens included.
+	OutputTokens int
+	// ReasoningTokens is the part of OutputTokens spent reasoning.
 	ReasoningTokens int
-	CachedTokens    int
+	// CachedTokens is the part of InputTokens read from the service's cache.
+	CachedTokens int
 }
 
 // Request is everything one generation needs (0015-MADR D3). A field's zero

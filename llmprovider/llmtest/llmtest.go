@@ -431,6 +431,10 @@ func checkResponse(r reporter, h Harness) {
 	if u.InputTokens < 0 || u.OutputTokens < 0 || u.ReasoningTokens < 0 || u.CachedTokens < 0 {
 		r.Errorf("R7 (Response invariants): negative usage %+v", u)
 	}
+	// A total holds its part (0015-MADR amendment "what `Usage` counts").
+	if u.CachedTokens > u.InputTokens || u.ReasoningTokens > u.OutputTokens {
+		r.Errorf("R7 (Response invariants): usage %+v has a part larger than its total", u)
+	}
 }
 
 func checkConcurrency(r reporter, h Harness) {

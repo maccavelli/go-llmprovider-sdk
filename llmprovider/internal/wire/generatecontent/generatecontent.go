@@ -119,6 +119,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 				} `json:"parts"`
 			} `json:"content"`
 		} `json:"candidates"`
+		Usage usage `json:"usageMetadata"`
 	}
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, err
@@ -128,7 +129,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		return nil, fmt.Errorf("gemini returned no content")
 	}
 
-	result := &llmprovider.Response{}
+	result := &llmprovider.Response{Usage: raw.Usage.counts()}
 	for _, part := range raw.Candidates[0].Content.Parts {
 		// A thought summary is flagged thought: true, with its text in text.
 		if part.Thought {
@@ -186,4 +187,19 @@ func ThinkingConfig(model, effort string, budget int) map[string]any {
 		cfg["thinkingLevel"] = low
 	}
 	return cfg
+}
+
+// usage is generateContent's usageMetadata. promptTokenCount holds the cached
+// tokens; candidatesTokenCount leaves out the thoughts, so the output count
+// adds them.
+type usage struct {
+	Prompt     int `json:"promptTokenCount"`
+	Candidates int `json:"candidatesTokenCount"`
+	Thoughts   int `json:"thoughtsTokenCount"`
+	Cached     int `json:"cachedContentTokenCount"`
+}
+
+func (u usage) counts() llmprovider.Usage {
+	return llmprovider.Usage{InputTokens: u.Prompt, OutputTokens: u.Candidates + u.Thoughts,
+		ReasoningTokens: u.Thoughts, CachedTokens: u.Cached}
 }

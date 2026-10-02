@@ -190,6 +190,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 				} `json:"tool_calls"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage usage `json:"usage"`
 	}
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, err
@@ -206,7 +207,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	}
 	// The response id is not a resumable conversation handle on any gateway
 	// that speaks this format, so it is carried for logging only.
-	result := &llmprovider.Response{ID: raw.ID, FinishReason: finish}
+	result := &llmprovider.Response{ID: raw.ID, FinishReason: finish, Usage: raw.Usage.counts()}
 
 	reasoning := msg.ReasoningContent
 	if reasoning == "" {
@@ -234,4 +235,34 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		return nil, fmt.Errorf("chat completions: response contained no usable content")
 	}
 	return result, nil
+}
+
+// usage is Chat Completions' token counts. prompt_tokens holds the cached
+// tokens and completion_tokens the reasoning tokens, as Usage's do. The
+// cached count has three spellings, read in pi's order: OpenAI's
+// prompt_tokens_details.cached_tokens, DeepSeek's prompt_cache_hit_tokens,
+// and a top-level cached_tokens (0017-REPORT P7).
+type usage struct {
+	Prompt        int  `json:"prompt_tokens"`
+	Completion    int  `json:"completion_tokens"`
+	CacheHit      *int `json:"prompt_cache_hit_tokens"`
+	Cached        *int `json:"cached_tokens"`
+	PromptDetails struct {
+		Cached *int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
+	CompletionDetails struct {
+		Reasoning int `json:"reasoning_tokens"`
+	} `json:"completion_tokens_details"`
+}
+
+func (u usage) counts() llmprovider.Usage {
+	cached := 0
+	for _, c := range []*int{u.PromptDetails.Cached, u.CacheHit, u.Cached} {
+		if c != nil {
+			cached = *c
+			break
+		}
+	}
+	return llmprovider.Usage{InputTokens: u.Prompt, OutputTokens: u.Completion,
+		ReasoningTokens: u.CompletionDetails.Reasoning, CachedTokens: cached}
 }
