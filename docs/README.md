@@ -51,8 +51,8 @@ documents a reader follows to do something.
 | 0017 | PLAN | [Implement Together AI, Kilo Device Login and Command-Sourced Keys](decisions/0017-PLAN-together-provider-and-auth-extensions.md) | in-progress |
 | 0018 | MADR | [The module is released under the Apache License 2.0](decisions/0018-MADR-apache-2-license.md) | accepted |
 | 0018 | PLAN | [Implement the Apache License 2.0 for go-llmprovider-sdk](decisions/0018-PLAN-apache-2-license.md) | complete |
-| 0019 | MADR | [Adopt `go fix`'s modernizations, except one that changes behaviour](decisions/0019-MADR-go-fix-modernizations.md) | proposed |
-| 0019 | PLAN | [Implement `go fix`'s modernizations, except one that changes behaviour](decisions/0019-PLAN-go-fix-modernizations.md) | proposed |
+| 0019 | MADR | [Adopt `go fix`'s modernizations, except one that changes behaviour](decisions/0019-MADR-go-fix-modernizations.md) | accepted |
+| 0019 | PLAN | [Implement `go fix`'s modernizations, except one that changes behaviour](decisions/0019-PLAN-go-fix-modernizations.md) | complete |
 
 ## I want to…
 

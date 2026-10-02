@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: complete
 date: 2026-10-02
 associated-madr: "0019-MADR-go-fix-modernizations.md"
 ---
@@ -61,4 +61,34 @@ modernizer's rewrite upstream.
 
 ## Execution Record
 
-Not started. It runs on the owner's approval.
+### 2026-10-02
+
+Approved by the owner ("proceed"). Staged for the owner to commit.
+
+* **Step 1, `pathSegments`.**
+  * It now sets `api = -1`, then `api = i` for each `"api"` segment, with a
+    comment naming this record.
+  * `kiloendpoint` and `providers/kilo` pass with no test changed.
+  * `go fix -diff ./llmprovider/internal/kiloendpoint/` prints nothing.
+* **Step 2, `go fix ./...`.** The whole diff was read. It changes four
+  files, with only the four rewrites the MADR lists:
+  * `requireEndpoints` uses `slices.Contains`;
+  * `runTokenCommand`, `serverRetryAfter` and `retryable` use
+    `errors.AsType`;
+  * `ProviderEnvVars` uses `maps.Copy`;
+  * the `maps` and `slices` imports they need.
+
+  No test file changed.
+* **Step 3, first-fail,** on a scratch copy with the original backward loop
+  restored:
+  * `go fix` rewrote it to `slices.Backward` again;
+  * `TestResolve`, `TestRoute` and `TestKilo_URLTokenSelectsBase` failed.
+* **Step 4:**
+  * `go fix -diff ./...` prints nothing;
+  * `make api-check`: `against v1.0.0, 0 incompatible change(s) outside
+    llmprovider/x/`;
+  * the gate passes, all 17 checks, G-wire unchanged;
+  * coverage is `kiloendpoint` 100.0 %, `llmprovider` 98.2 % and `auth`
+    85.3 %, as before.
+* **Not done, as scoped:** no tag, and no report of the modernizer's
+  rewrite upstream.

@@ -167,8 +167,7 @@ func runTokenCommand(ctx context.Context, argv []string, timeout time.Duration) 
 	case out.over:
 		return "", fmt.Errorf("%w: key command %q wrote more than %d bytes", ErrAuthFailure, name, commandTokenLimit)
 	case err != nil:
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			return "", fmt.Errorf("%w: key command %q exited with status %d", ErrAuthFailure, name, exitErr.ExitCode())
 		}
 		return "", fmt.Errorf("%w: key command %q: %w", ErrAuthFailure, name, err)

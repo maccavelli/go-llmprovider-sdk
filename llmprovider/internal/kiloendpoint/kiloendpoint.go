@@ -58,9 +58,12 @@ func Resolve(baseURL, token, org string) Endpoints {
 // with the index of the last "api" segment, or -1.
 func pathSegments(u *url.URL) (parts []string, api int) {
 	parts = strings.FieldsFunc(u.Path, func(r rune) bool { return r == '/' })
-	for api = len(parts) - 1; api >= 0; api-- {
-		if parts[api] == "api" {
-			break
+	// A forward scan that keeps the last match: go fix's slices.Backward
+	// rewrite of a backward loop drops the index this returns (0019-MADR).
+	api = -1
+	for i, part := range parts {
+		if part == "api" {
+			api = i
 		}
 	}
 	return parts, api

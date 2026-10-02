@@ -9,6 +9,7 @@ package llmprovider
 
 import (
 	"errors"
+	"maps"
 	"time"
 )
 
@@ -36,8 +37,7 @@ const retryBackoffCap = 30 * time.Second
 
 // serverRetryAfter is the delay a failed attempt asked for, or 0.
 func serverRetryAfter(err error) time.Duration {
-	var apiErr *APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		return apiErr.RetryAfter
 	}
 	return 0
@@ -48,9 +48,7 @@ func serverRetryAfter(err error) time.Duration {
 // (0015-MADR D9).
 func ProviderEnvVars() map[ProviderID]string {
 	out := make(map[ProviderID]string, len(providerEnvVars))
-	for id, name := range providerEnvVars {
-		out[id] = name
-	}
+	maps.Copy(out, providerEnvVars)
 	return out
 }
 

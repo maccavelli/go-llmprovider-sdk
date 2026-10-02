@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -250,10 +251,8 @@ func oauthEndpointsFor(ctx context.Context, config oauthFlowConfig) (oauthEndpoi
 // requireEndpoints fails when a flow's endpoint is missing from discovery.
 // A missing jwks_uri fails later, in verifyIDToken.
 func requireEndpoints(issuer string, endpoints ...string) error {
-	for _, e := range endpoints {
-		if e == "" {
-			return fmt.Errorf("oauth: discovery for %s lacks an endpoint this login needs", issuer)
-		}
+	if slices.Contains(endpoints, "") {
+		return fmt.Errorf("oauth: discovery for %s lacks an endpoint this login needs", issuer)
 	}
 	return nil
 }

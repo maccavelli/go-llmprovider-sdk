@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-02
 decision-makers: repository owner
 consulted: 0015-MADR-canonical-sdk-api-and-module-layout.md (R2, R48)
@@ -83,6 +83,8 @@ because it takes the modernizations that keep behaviour, and leaves
 * `go fix -diff ./...` prints nothing afterwards.
 * `make api-check` against `v1.0.0` reports no incompatible change.
 * The gate passes.
+
+*Annotated 2026-10-02:* all four are met; see the PLAN's execution record.
 
 ## Pros and Cons of the Options
 

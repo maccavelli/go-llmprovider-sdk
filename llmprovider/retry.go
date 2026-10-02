@@ -100,8 +100,7 @@ func (p RetryPolicy) wait(attempt int, err error) (time.Duration, bool) {
 // retryable reports whether the same request can succeed later. A failure
 // without a kind is a failure to reach the service, which can.
 func retryable(err error) bool {
-	var apiErr *APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		return apiErr.Retryable()
 	}
 	switch {
