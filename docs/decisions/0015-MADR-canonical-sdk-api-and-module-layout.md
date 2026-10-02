@@ -381,6 +381,17 @@ phases for consumers to trial. The ChatGPT `client_version` they send is
 * A third-party provider written only from `adding-a-provider.md`, in a
   scratch module, registers, is offered by `wizard` and passes `llmtest`.
 
+*Annotated 2026-10-02, at 0015-PLAN S13: all three are met.*
+
+* **The checks pass,** in CI run `37023265913` on `efd9c61`. `llmtest` runs in all
+  nine built-in provider packages, which serve ten ids; "eight" predates
+  Together AI ([0017-MADR](0017-MADR-together-provider-and-auth-extensions.md)).
+  The output and the first-fails are in the PLAN's records of S2, S7, S11
+  and S12.
+* **The four documents describe the built tree:** S11 audited them against
+  it, and S12 and S12b kept them current.
+* **The third-party provider:** S11's scratch module, rerun in S12b.
+
 ## Pros and Cons of the Options
 
 ### A. Ship the `mcplib` API as `v1.0.0`; redesign later as `/v2`

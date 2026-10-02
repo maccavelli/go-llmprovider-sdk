@@ -43,7 +43,7 @@ documents a reader follows to do something.
 | 0014 | PLAN | [Implement 0014 — Gemini on the Interactions API, and the `generateContent` Fixes](decisions/0014-PLAN-gemini-wire-fidelity.md) | complete |
 | 0015 | REPORT | [SDK API Surface Assessment: The Imported `mcplib` API Against the SDK Requirements](reports/0015-REPORT-sdk-api-surface-assessment.md) | observation |
 | 0015 | MADR | [Define a Canonical, Modular v1 API for go-llmprovider-sdk Before the First Release](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) | accepted |
-| 0015 | PLAN | [Implement the Canonical, Modular v1 API for go-llmprovider-sdk](decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) | in-progress |
+| 0015 | PLAN | [Implement the Canonical, Modular v1 API for go-llmprovider-sdk](decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) | complete |
 | 0016 | MADR | [Build Provider Support and Authentication from mcplib's `llmprovider`, and Adopt magic-cli-remote's Credential Hygiene](decisions/0016-MADR-provider-auth-and-support-baseline.md) | accepted |
 | 0016 | PLAN | [Implement the Provider Auth and Support Baseline](decisions/0016-PLAN-provider-auth-and-support-baseline.md) | in-progress |
 | 0017 | REPORT | [Reference-Client Survey: How Six Coding Agents Authenticate, Compared with `llmprovider`](reports/0017-REPORT-reference-client-auth-survey.md) | observation |

@@ -23,8 +23,10 @@ There is no release yet. The module requires Go 1.27.1.
   decides, on the provider-auth baseline of
   [0016-MADR](docs/decisions/0016-MADR-provider-auth-and-support-baseline.md).
   [0015-PLAN](docs/decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
-  has built it; its CI enforcement and close-out remain. The first release,
-  `v1.0.0`, follows.
+  has built it, and CI enforces its standards. The first release, `v1.0.0`,
+  follows the live identity gates of
+  [0002-PLAN](docs/decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md)
+  Phase 8.
 
 ## I want to…
 

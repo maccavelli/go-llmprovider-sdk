@@ -792,6 +792,53 @@ Implements MADR §7.
 *Precondition, added 2026-09-29:* `0015-PLAN-canonical-sdk-api-and-module-layout.md` is `complete`. The package
 paths in the commands below are those of its layout: the live tests
 sit in the provider packages, so run them with `./llmprovider/...`.
+*Annotated 2026-10-02:* the precondition is met; see "Handover from
+0015-PLAN" in the execution record. ~~The live tests sit in the provider
+packages~~: they stayed in `./llmprovider`, which is what the commands below
+use.
+
+0. **The login tests step 1 needs** *(proposed 2026-10-02, from the
+   0015-PLAN handover; runs only on the owner's approval)*. All in
+   `llmprovider/live_oauth_login_test.go`, under `live_gateways`:
+   * **`TestLive_ChatGPTBrowserLogin`** gains the URL check. Its `OpenURL`
+     fails the test, and returns an error that ends the login, when the
+     authorize URL lacks `originator=go-llmprovider-sdk`. So a wrong value
+     fails before anyone signs in.
+   * **`TestLive_GrokBrowserLogin`**, new, behind
+     `LLMPROVIDER_LIVE_BROWSER_LOGIN=1`, like the ChatGPT one:
+     * `auth.LoginBrowserOAuth(ctx, llmprovider.ProviderGrok, …)`, with the
+       same URL check for `referrer=go-llmprovider-sdk`;
+     * once signed in, one generation through `grok.New` with the session
+       (`grok-4.6`, the model the other Grok live tests use);
+     * then `auth.RevokeOAuthSession`, so no session outlives the test.
+   * **`TestLive_GrokDeviceLogin`**, new, behind a new switch,
+     `LLMPROVIDER_LIVE_DEVICE_LOGIN=1`:
+     * `auth.LoginDeviceOAuth(ctx, llmprovider.ProviderGrok, …)`, with
+       `NotifyDevice` logging the verification URL and the code for the
+       person to approve;
+     * one generation, and the revocation, as above.
+
+     The device request's `referrer` is a form field, not a URL, so this
+     test checks it only by the service accepting the login.
+   * **Offline, in `llmprovider/auth`.** No test pins Grok's `referrer`
+     today; the only offline identity check is OpenAI's `originator`
+     (`oauth_loopback_test.go`). Two tests, against `httptest` issuers, run
+     in every `go test`:
+     * `TestGrokAuthorizeURL_CarriesTheReferrer`: the browser login's
+       authorize URL has `referrer=go-llmprovider-sdk`;
+     * `TestGrokDeviceRequest_CarriesTheReferrer`: the device-code request's
+       form has `referrer=go-llmprovider-sdk`.
+   * **`AGENTS.md`'s "Live tests"** names the new switch.
+   * **Checks:**
+     * `go vet -tags live_gateways ./...` and the gate pass. CI vets the
+       live files and runs none of them.
+     * **First-fail, offline:** on a scratch copy whose Grok `referrer`
+       value is changed, in each flow, its offline test fails.
+     * **First-fail of the live URL checks,** only with the owner's
+       approval to reach the issuers: on a scratch copy with the `referrer`
+       or `originator` changed, the matching live login test fails at the
+       URL check, before anyone signs in. That needs only the issuer's
+       discovery request: no sign-in and no generation.
 
 1. With the owner's credentials:
    * `go test -tags live_gateways ./llmprovider -run 'Live.*ChatGPT' -v` with
@@ -802,6 +849,10 @@ sit in the provider packages, so run them with `./llmprovider/...`.
      `originator`.
    * The same for Grok browser (loopback) and device-code login, with the new
      `referrer`.
+
+   *Annotated 2026-10-02 (proposed, step 0 below):* neither bullet can run as
+   written. `TestLive_ChatGPTBrowserLogin` does not check the authorize URL,
+   and no live test signs in to Grok. Step 0 adds them.
    * `TestLive_KiloReasoningShapes` and the OpenCode route and conventions
      tests, to confirm the `User-Agent` and Kilo editor-name change is
      accepted.
@@ -2075,3 +2126,34 @@ wizard/model_select_edge_test.go:47: 0009 §4.3 -> 0007 §4.3
 wizard/model_select_test.go:405: MADR 0010 §1 -> MADR 0009 §1
 wizard/text_prompter.go:278: MADR 0004 -> MADR 0005
 ```
+
+### Handover from 0015-PLAN (2026-10-02)
+
+* **Phase 8's precondition is met.**
+  `0015-PLAN-canonical-sdk-api-and-module-layout.md` is `complete`, at
+  `efd9c61` and its close-out. CI run `37023265913` passed on Linux, macOS and
+  Windows.
+* **Phase 8 starts on the owner's run.** Two findings from the handover:
+  * **Where the live tests are.** All 22 `live_*_test.go` files are in
+    `./llmprovider`, not in the provider packages, as the precondition said.
+    The step 1 commands use `./llmprovider` already. The precondition is
+    annotated.
+  * **No Grok login test.** Step 1's third bullet asks for Grok's browser
+    (loopback) and device-code logins. No live test signs in to Grok: the
+    only login test is `TestLive_ChatGPTBrowserLogin`. Phase 8 must add the
+    tests, or the owner must amend the step, before it can run.
+* **Also open for Phase 8:** step 3's `README.md` work. 0015-PLAN S11
+  rewrote only its status and its "I want to…" rows. The install line, the
+  package table and the "LLM providers" section are not written.
+
+### Proposed 2026-10-02: Phase 8 step 0, the login tests
+
+The 0015-PLAN handover found that Phase 8 step 1's login gates could not run:
+no live test signs in to Grok, and `TestLive_ChatGPTBrowserLogin` does not
+check the `originator` its bullet names. No offline test pins Grok's
+`referrer` either. The owner asked for the findings to be addressed. Step 0,
+proposed, adds the URL checks, the two Grok live tests and two offline tests.
+Its
+other finding is already met: the precondition about where the live tests
+are was annotated at the handover. Nothing is changed until the owner
+approves step 0.

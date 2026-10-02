@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-01
+status: complete
+date: 2026-10-02
 associated-madr: "0015-MADR-canonical-sdk-api-and-module-layout.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -4417,6 +4417,8 @@ test's evidence as `d4ca925`.
 
 ### Phase S11: documentation, and the third-party proof (2026-10-02)
 
+*Annotated 2026-10-02:* committed as `efd9c61`, with S11, S12 and S12b together.
+
 * **Deviation, 2026-10-02: R27.** The audit of the standards guide against
   the tree found that R27 ("every error message starts `llmprovider:`")
   holds only for the sentinels, as S8 commit 3 built and recorded it. The
@@ -4570,6 +4572,8 @@ test's evidence as `d4ca925`.
 
 ### Phase S12: enforcement in CI (2026-10-02)
 
+*Annotated 2026-10-02:* committed as `efd9c61`, with S11, S12 and S12b together.
+
 * **Deviation, 2026-10-02: `wirecase`'s coverage.**
   * **Found,** measuring the floors before writing `coverage-check`:
     `llmprovider/internal/wirecase` is 0.0 % from its own tests, because it
@@ -4665,6 +4669,8 @@ test's evidence as `d4ca925`.
 
 ### Phase S12b: the wizard lists a provider through its own `ListModels` (2026-10-02)
 
+*Annotated 2026-10-02:* committed as `efd9c61`, with S11, S12 and S12b together.
+
 Approved by the owner ("approve 12b execute"), with 0015-MADR amendment "the
 wizard lists a provider through its own `ListModels`", accepted.
 
@@ -4746,3 +4752,49 @@ wizard lists a provider through its own `ListModels`", accepted.
     through the recording proxy, reached no host.
 * **Not changed:** no wire, no golden, and no exported identifier.
   `apidiff` has no tag to compare against yet.
+
+### Phase S13: close-out (2026-10-02)
+
+* **Commits.** S11, S12 and S12b were committed together as `efd9c61` and
+  pushed. CI run `37023265913` on that commit passed on Linux, macOS and Windows.
+  It was the first run of the four checks CI now runs, and on Linux they
+  printed:
+  * `G-parity: 409 identifiers, 409 rows, 409 with an SDK equivalent, 0 problem(s)`
+  * `dep-check: 26 packages, 0 problem(s)`
+  * `coverage-check: 26 packages, 0 problem(s)`
+  * `api-check: no v1 release tag yet, so nothing to compare; …`
+* **Verification,** each criterion against its evidence:
+
+  | # | Met | Evidence |
+  |---|---|---|
+  | S-A1 | yes | `make dep-check` in CI (above); the package table and graph in `architecture.md` are generated from and checked against `go list` (S11) |
+  | S-A2 | yes | `llmtest.Run` in each of the nine provider packages, both OpenCode gateways in `opencode`'s; and the S11 third-party provider |
+  | S-A3 | yes | G-wire unchanged through S10–S12b with no `-update`; every recorded difference is in its phase's record |
+  | S-A4 | yes | G-parity with empty cells failing, 409/409, in CI |
+  | S-A5 | yes | each provider commit of S7 records its ported tests under "Step 4", and commit 5 records the one assertion A6 changed |
+  | S-A6 | yes | `internal/ambientcheck` (S10); S11's audit found only `llmprovider`'s sentinels as exported package-level variables |
+  | S-A7 | yes | `make coverage-check` in CI, with the `wirecase` exception (0015-MADR amendment "the coverage of a test-support package") |
+  | S-A8 | yes | the guides `api-standards.md`, `adding-a-provider.md` and `migrating-from-mcplib.md`, and `architecture.md`; CI runs the four checks |
+  | S-A9 | yes | the S11 scratch module, rerun in S12b with the wizard's listing |
+  | S-A10 | yes | `Stream`'s fallback (`llmprovider/stream_test.go`) for every provider, since none streams natively; usage decoded from every wire (S9) |
+
+* **0015-MADR.** Its Confirmation items are annotated as met, and it
+  stays `accepted`. Every amendment is accepted.
+* **This PLAN is `complete`.**
+* **Handed over to 0002-PLAN Phase 8**, whose precondition this was. The
+  handover is recorded in that PLAN's execution record, with two findings
+  for it, below.
+* **Not done here, as the plan says:**
+  * no `v1.0.0-rc.1` tag: that needs the owner's request;
+  * no live identity gates: those are 0002-PLAN Phase 8, owner-run;
+  * native streaming, which stays out of scope: every provider's
+    `NativeStreaming` is `Unsupported`.
+* **Found for 0002-PLAN Phase 8, not changed here:**
+  * Its precondition says the live tests "sit in the provider packages, so
+    run them with `./llmprovider/...`". They do not. All 22 `live_*_test.go`
+    files are in `./llmprovider`, which is what its step 1 commands already
+    use.
+  * Its step 1 asks for "the same for Grok browser (loopback) and
+    device-code login". No live test signs in to Grok. The only login test
+    is `TestLive_ChatGPTBrowserLogin`, and none calls `LoginDeviceOAuth` or
+    `StartDeviceOAuth`.
