@@ -18,7 +18,8 @@
 // fails with an opaque HTTP 500, which classifies as the retryable
 // ErrProviderUnavailable; WithRoute pins a route.
 //
-// Capabilities: tools and forced tool choice are Supported. Reasoning is
+// Capabilities: tools are Supported. Forced tool choice is BestEffort: it
+// is sent as asked, and some models refuse it (below). Reasoning is
 // BestEffort: the chat route sends reasoning_effort only when the model's
 // published reasoning_options list the effort (MADR 0009 §6). Continuation is
 // Unsupported: the gateway rejects previous_response_id with HTTP 400
@@ -34,8 +35,15 @@
 //   - Instructions are sent as a leading system item on every route: the
 //     system field on the messages route, systemInstruction on the google
 //     route, a system message elsewhere.
-//   - ToolChoiceRequired and ToolChoiceNone use each route's documented form;
-//     only a named tool was measured against the gateways.
+//   - ToolChoiceRequired and ToolChoiceNone use each route's documented form,
+//     measured on Go's chat, messages and responses routes on 2026-10-02
+//     (TestLive_OpencodeToolChoices).
+//   - A tool choice is sent as asked, and models differ in honouring it.
+//     Measured 2026-10-02 on Go's messages route: qwen3.8-flash and
+//     qwen3.7-plus refuse a forced choice (ToolChoiceRequired or a named
+//     tool) with an error matching ErrInvalidRequest; the minimax models
+//     accept every choice but may ignore it (minimax-m2.7 honours
+//     ToolChoiceRequired and ignores ToolChoiceNone).
 //
 // ListModels returns the curated gateway listing. It never probes: the
 // gateways meter every call (MADR 0012 §1.6).
@@ -163,7 +171,7 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 		logger:      st.Logger(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
-			ForcedToolChoice: llmprovider.Supported,
+			ForcedToolChoice: llmprovider.BestEffort,
 			Reasoning:        llmprovider.BestEffort,
 			Continuation:     llmprovider.Unsupported,
 			NativeStreaming:  llmprovider.Unsupported,

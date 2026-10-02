@@ -152,7 +152,9 @@ func TestOpencode_ErrorCarriesServiceMessage(t *testing.T) {
 }
 
 // TestOpencode_Capabilities is what the interface assertions declared: text,
-// tools, reasoning, items and listing, and no continuation.
+// tools, reasoning, items and listing, and no continuation. Forced tool choice
+// is BestEffort: some models refuse it (0015-PLAN, deviation of 2026-10-02
+// after close-out).
 func TestOpencode_Capabilities(t *testing.T) {
 	for _, gateway := range family {
 		p := build(t, gateway, llmprovider.WithModel("m"))
@@ -160,7 +162,7 @@ func TestOpencode_Capabilities(t *testing.T) {
 			t.Errorf("ID = %q, want %q", p.ID(), gateway)
 		}
 		caps := p.Capabilities()
-		if caps.Tools != llmprovider.Supported || caps.ForcedToolChoice != llmprovider.Supported ||
+		if caps.Tools != llmprovider.Supported || caps.ForcedToolChoice != llmprovider.BestEffort ||
 			caps.Reasoning != llmprovider.BestEffort || caps.Continuation != llmprovider.Unsupported ||
 			caps.NativeStreaming != llmprovider.Unsupported {
 			t.Errorf("%s: Capabilities = %+v", gateway, caps)

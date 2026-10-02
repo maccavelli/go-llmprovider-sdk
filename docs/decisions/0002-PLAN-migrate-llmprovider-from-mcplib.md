@@ -2300,11 +2300,97 @@ at a browser"). Each login test revoked its session at the end.
   approved the code, and the session generated.
 * **Step 2.** No service rejected the new identity. The one failure was the
   stale test, which is not a rejection.
-* **Not run:** the last command, `TestLive_KiloReasoningShapes` and the
+* ~~**Not run:** the last command, `TestLive_KiloReasoningShapes` and the
   OpenCode tests, which need `KILO_API_KEY` and `OPENCODE_API_KEY`. The
   owner set it aside ("other than the last one"). Phase 8 stays open until
-  it runs.
-* **Still not run: the live URL checks' first-fail,** which step 0 left
+  it runs.~~ *Annotated 2026-10-02:* run; see "Phase 8 step 1: Kilo and
+  OpenCode" below.
+* ~~**Still not run: the live URL checks' first-fail,** which step 0 left
   waiting. The checks passed on the real authorize URLs, but their failure
   path has not been exercised against an issuer. The offline tests have seen
-  a wrong value fail.
+  a wrong value fail.~~ *Annotated 2026-10-02:* run; see below.
+
+### Phase 8 step 1: Kilo and OpenCode, and the live URL checks (2026-10-02)
+
+The owner asked for both ("kilo and opencode api keys are already in my env.
+run the tests. validate the live url checks failure path"). The two keys were
+checked for presence only.
+
+* **The live URL checks' failure path,** against the real issuers, on
+  scratch copies:
+
+  | Break | Failure |
+  |---|---|
+  | Grok `referrer` changed to `wrong-referrer` | `authorize URL referrer = ["wrong-referrer"], want ["go-llmprovider-sdk"]` |
+  | ChatGPT `originator` changed to `wrong-originator` | `authorize URL originator = ["wrong-originator"], want ["go-llmprovider-sdk"]` |
+
+  * **Found in the first run:** each failure then waited the full 300 s.
+    `LoginBrowserOAuth` runs `OpenURL` in a goroutine and ignores its error
+    (`llmprovider/auth/oauth_loopback.go`). So step 0's "ends the login
+    before anyone signs in" was not true of the test as written.
+  * **Fixed, within step 0:** `openAuthorizeURL` now also cancels the
+    login's context on a mismatch.
+  * **Rerun:** both fail in under a second, with the same messages, and
+    `context canceled`. The passing path is unchanged; that is the path the
+    three logins passed.
+* **`go test -tags live_gateways ./llmprovider -run
+  'TestLive_(KiloReasoningShapes|Opencode)' -v`:** 15 tests.
+  * **Passed:**
+    * `TestLive_KiloReasoningShapes`, both shapes;
+    * every OpenCode test but one, `KeyHeaderPerRoute`, `RouteStillEnforced`,
+      `ToolRoundTrip` on all three routes and `RoutesFromMetadata` among
+      them.
+
+    So the new `User-Agent` and Kilo editor name are accepted.
+  * **Skipped:** `TestLive_OpencodeInterleavedReasoningReplay`, by its own
+    guard.
+  * **Failed:** `TestLive_OpencodeToolChoices/go-messages/required`, with
+    `invalid request: opencode-go/messages HTTP 400`.
+* **The failure, probed** in a scratch test that logged request and reply
+  bodies, never headers:
+  * `qwen3.8-flash`, the test's first candidate, refuses a forced choice on
+    Go's messages route. Both `{"type":"any"}` and a named tool fail with
+    HTTP 400, and the body is only `{"model":"qwen3.8-flash"}`. `auto` is
+    accepted.
+  * `minimax-m3`, on the same route, accepts all three, from the same
+    request body.
+  * So the wire form is right. The model refuses forcing.
+  * `TestLive_OpencodeToolChoices` was written in 0015-PLAN S7 (`4adecf3`).
+    Its record says it "has not been run", so this is its first run.
+  * `opencode` declares `ForcedToolChoice: Supported`, and its package doc
+    says only a named tool was measured.
+* **Stopped,** under step 2, for the owner's decision. This is not a
+  rejection of the identity, but a declared capability that one model does
+  not honour. The tag waits.
+  *Annotated 2026-10-02:* the owner chose "BestEffort and documented".
+  0015-PLAN, "Deviation 2026-10-02, after close-out: OpenCode's forced tool
+  choice", records the change.
+* **Step 1, finished.** After the OpenCode change, the full command,
+  `go test -tags live_gateways ./llmprovider -run
+  'TestLive_(KiloReasoningShapes|Opencode)' -v`, passes 14 tests and skips
+  one.
+  * **The skip, found and not changed:**
+    `TestLive_OpencodeInterleavedReasoningReplay` skips with `no active
+    opencode-go model among [kimi-k2.6]`. The metadata no longer lists its
+    only candidate, so the test cannot run. This predates Phase 8.
+  * **Every live gate of step 1 has now run.** No service rejected the new
+    identity.
+  * **The defects found are fixed:** the stale listing test, the URL check
+    that did not end the login, and OpenCode's forced tool choice.
+* **Step 4.** Only the push and the `v1.0.0` tag remain, on the owner's
+  request. The owner has said they will push and tag.
+* **G-api, rerun after the OpenCode change.** Against `f82d79b`, one public
+  package differs: `llmprovider/providers/opencode`.
+  * **Declaration lines changed: 0.** Only its package doc changed: the
+    "Capabilities:" paragraph, the "ToolChoiceRequired and ToolChoiceNone"
+    degradation, and the new "A tool choice is sent as asked" degradation.
+    0015-PLAN, "Deviation 2026-10-02, after close-out: OpenCode's forced tool
+    choice", quotes them in substance.
+  * **So it passes by G-api's rule** (Phase 4 step 8): changed doc-comment
+    lines are allowed and listed here, and only a `func`, `type`, `const`,
+    `var` or field line fails.
+  * The scratch script compares whole `go doc` output, which is stricter, so
+    it reports the package. Step 4's earlier "all 15 public packages are
+    identical" held before this change.
+  * The `ForcedToolChoice` value is set at run time, not declared, so
+    `apidiff` would not report it either.

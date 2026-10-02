@@ -4847,3 +4847,85 @@ wizard lists a provider through its own `ListModels`", accepted.
       gpt-5.6-luna gpt-5.5`.
     * The 1.5.0 listing adds `gpt-6.1-sol`, `gpt-6-sol` and `gpt-6-luna`,
       and each of them generates.
+
+### Deviation 2026-10-02, after close-out: OpenCode's forced tool choice
+
+* **Found** in 0002-PLAN Phase 8 step 1's live run, on the first run of
+  `TestLive_OpencodeToolChoices`, which S7 commit 9 wrote and did not run.
+  * On OpenCode Go's messages route, `qwen3.8-flash` refuses a forced tool
+    choice with HTTP 400 (`ErrInvalidRequest`). That holds for both
+    `{"type":"any"}` and a named tool, and it accepts `auto`.
+  * `minimax-m3` accepts all three from the same request body. So the wire
+    form S7 chose is right, and a model refuses forcing.
+  * S7 commit 9 declared `ForcedToolChoice: Supported` for both gateways,
+    with "only a named tool was measured" in the package doc.
+* **Decided.** The owner chose "BestEffort and documented":
+  * both gateways declare `ForcedToolChoice: BestEffort`;
+  * the package doc's degradations name the measured refusal;
+  * the request on the wire is unchanged. `Capabilities.Check` refuses only
+    `Unsupported`, so a forced request is still sent.
+* **Changed tests:**
+  * `TestOpencode_Capabilities` now asserts `BestEffort` for
+    `ForcedToolChoice`. Its meaning is unchanged: it pins what the provider
+    declares, and the declaration changed by this decision.
+  * `TestLive_OpencodeToolChoices` checks the wire forms on a model that
+    accepts forcing, with `minimax-m3` first on the messages route. It gains
+    a subtest that pins `qwen3.8-flash`'s refusal as `ErrInvalidRequest`, so
+    a change in the service shows up.
+* **First-fail:**
+  * the capability test against a scratch copy still declaring `Supported`;
+  * the refusal subtest, live, against a scratch copy that sends `auto` for
+    a forced choice.
+* **Corrected while doing it, 2026-10-02.** "`minimax-m3` accepts all
+  three" was measured by HTTP status only. Accepted is not honoured.
+  * With `minimax-m3` first, `go-messages/required` answered in text and
+    `go-messages/none` called the tool. Over three more runs, `none`
+    passed one.
+  * Each listed and unlisted messages-route model, five runs each with
+    `WithRoute(RouteMessages)`, honoured as follows:
+
+    | Model | `required` honoured | `none` honoured |
+    |---|---|---|
+    | `minimax-m3` | 4/5 | 2/5 |
+    | `minimax-m2.7` | 5/5, and 5/5 again | 0/5, and 0/5 again |
+    | `minimax-m2.5` | 5/5 | 0/5 |
+    | `qwen3.8-max` | 5/5 | 4/5, one timeout |
+    | `qwen3.7-max` | 5/5 | 5/5 |
+    | `qwen3.7-plus` | refused, HTTP 400, 5/5 | 5/5 |
+    | `qwen3.6-plus` | 5/5 | 5/5 |
+    | `qwen3.8-flash` | refused, HTTP 400, 5/5 | 5/5 |
+
+  * The gateway's metadata lists only `minimax-m2.7`, `minimax-m3` and
+    `qwen3.8-flash` for the messages route, and the live picker skips
+    unlisted models. So no model it would pick honours both choices.
+  * **The owner's decision,** asked again: "one listed model per choice".
+    `required` runs on `minimax-m2.7` and `none` on `qwen3.8-flash`, and the
+    assertions are unchanged.
+* **Done:**
+  * **`opencode`:** `ForcedToolChoice: BestEffort` for both gateways. The
+    package doc's degradations say tool choices are sent as asked and that
+    models differ in honouring them, with the measurements above. The
+    bullet that said only a named tool was measured now names this
+    measurement.
+  * **`TestOpencode_Capabilities`:** red first. Against `Supported` it
+    failed with `Capabilities = {… ForcedToolChoice:Supported …}` for both
+    gateways, then passed.
+  * **`TestLive_OpencodeToolChoices`:** candidates per route and choice.
+  * **`TestLive_OpencodeForcedChoiceRefused`:** new. `qwen3.8-flash` refuses
+    `required` and a named tool with `ErrInvalidRequest`.
+* **Live:**
+  * Three runs of both tests: everything passed, except one
+    `go-responses/required` failure, on `gpt-6-luna`.
+  * That subtest then passed 5 and 10 more times, so 23 of 24 overall.
+  * The failing run's message was not kept: my output filter dropped it. So
+    its cause is unknown. It is on the responses route, which this change
+    does not touch.
+* **First-fails, live,** each on a scratch copy of `messagesToolChoice`:
+
+  | Break | Failure |
+  |---|---|
+  | a forced choice sent as `auto` | `Generate = <nil>, want the refusal, an error matching ErrInvalidRequest` |
+  | `none` sent as `{"type":"any"}` | `go-messages/none`: `Generate: llmprovider: invalid request: opencode-go/messages HTTP 400` |
+
+  The first break, as first written, left `name` unused and did not
+  compile: not a valid break, and it was rewritten.

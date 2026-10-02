@@ -338,20 +338,27 @@ func TestLive_OpencodeToolRoundTrip(t *testing.T) {
 	}
 }
 
-// TestLive_OpencodeToolChoices pins the unmeasured tool choices on each Go
-// route: "required" makes a call, and "none" makes none (0015-PLAN S7).
+// TestLive_OpencodeToolChoices pins the tool choices on each Go route:
+// "required" makes a call, and "none" makes none (0015-PLAN S7). Forced tool
+// choice is BestEffort on OpenCode, and on the messages route no listed model
+// honours both choices, so each choice there has its own model, measured on
+// 2026-10-02: minimax-m2.7 honours required (10/10) and ignores none;
+// qwen3.8-flash honours none (5/5) and refuses required
+// (TestLive_OpencodeForcedChoiceRefused).
 func TestLive_OpencodeToolChoices(t *testing.T) {
 	tool := llmprovider.Tool{Name: "get_weather", Description: "Get the weather for a city", Schema: map[string]any{
 		"type": "object", "properties": map[string]any{"city": map[string]any{"type": "string"}}, "required": []string{"city"}}}
-	for name, candidates := range map[string][]string{
-		"go-chat":      {"glm-5.3-flash", "glm-5.3", "kimi-k2.6"},
-		"go-messages":  {"qwen3.8-flash", "minimax-m3"},
-		"go-responses": {"gpt-6-luna", "grok-4.6"},
+	chat, responses := []string{"glm-5.3-flash", "glm-5.3", "kimi-k2.6"}, []string{"gpt-6-luna", "grok-4.6"}
+	for name, perChoice := range map[string]map[llmprovider.ToolChoice][]string{
+		"go-chat":      {llmprovider.ToolChoiceRequired: chat, llmprovider.ToolChoiceNone: chat},
+		"go-messages":  {llmprovider.ToolChoiceRequired: {"minimax-m2.7"}, llmprovider.ToolChoiceNone: {"qwen3.8-flash"}},
+		"go-responses": {llmprovider.ToolChoiceRequired: responses, llmprovider.ToolChoiceNone: responses},
 	} {
 		for _, tc := range []struct {
 			choice   llmprovider.ToolChoice
 			wantCall bool
 		}{{llmprovider.ToolChoiceRequired, true}, {llmprovider.ToolChoiceNone, false}} {
+			candidates := perChoice[tc.choice]
 			t.Run(name+"/"+string(tc.choice), func(t *testing.T) {
 				ctx, cancel := llmprovider.LiveCtx(t)
 				defer cancel()
@@ -373,5 +380,29 @@ func TestLive_OpencodeToolChoices(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestLive_OpencodeForcedChoiceRefused pins a measured refusal (2026-10-02):
+// qwen3.8-flash on Go's messages route answers a forced tool choice with HTTP
+// 400, which is why forced tool choice is BestEffort on OpenCode (0015-PLAN,
+// deviation "OpenCode's forced tool choice"). It fails if the service starts
+// accepting it, so the degradation can be removed.
+func TestLive_OpencodeForcedChoiceRefused(t *testing.T) {
+	tool := llmprovider.Tool{Name: "get_weather", Description: "Get the weather for a city", Schema: map[string]any{
+		"type": "object", "properties": map[string]any{"city": map[string]any{"type": "string"}}, "required": []string{"city"}}}
+	model := goModel(t, "qwen3.8-flash")
+	for _, choice := range []llmprovider.ToolChoice{llmprovider.ToolChoiceRequired, llmprovider.ForceTool(tool.Name)} {
+		t.Run(string(choice), func(t *testing.T) {
+			ctx, cancel := llmprovider.LiveCtx(t)
+			defer cancel()
+			req := userText("What is the weather in Paris?")
+			req.Tools, req.ToolChoice = []llmprovider.Tool{tool}, choice
+			_, err := liveGo(t, model).Generate(ctx, req)
+			llmprovider.SkipIfTransient(t, err)
+			if !errors.Is(err, llmprovider.ErrInvalidRequest) {
+				t.Fatalf("Generate = %v, want the refusal, an error matching ErrInvalidRequest", err)
+			}
+		})
 	}
 }

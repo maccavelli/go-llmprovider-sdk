@@ -21,17 +21,20 @@ const identityValue = "go-llmprovider-sdk"
 
 // openAuthorizeURL is an OpenURL that checks the authorize URL names this
 // module in param before printing it for a person to open. A wrong or
-// missing value fails the test and ends the login, before anyone signs in
-// (0002-PLAN Phase 8 step 0).
-func openAuthorizeURL(t *testing.T, param string) func(string) error {
+// missing value fails the test and ends the login through cancel, before
+// anyone signs in (0002-PLAN Phase 8 step 0): LoginBrowserOAuth ignores an
+// error OpenURL returns, so the error alone would leave it waiting.
+func openAuthorizeURL(t *testing.T, param string, cancel context.CancelFunc) func(string) error {
 	return func(raw string) error {
 		u, err := url.Parse(raw)
 		if err != nil {
 			t.Errorf("authorize URL: %v", err)
+			cancel()
 			return err
 		}
 		if got := u.Query()[param]; len(got) != 1 || got[0] != identityValue {
 			t.Errorf("authorize URL %s = %q, want [%q]", param, got, identityValue)
+			cancel()
 			return fmt.Errorf("authorize URL %s = %q", param, got)
 		}
 		t.Logf("open this URL and sign in: %s", raw)
@@ -61,7 +64,7 @@ func TestLive_ChatGPTBrowserLogin(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	session, err := auth.LoginBrowserOAuth(ctx, llmprovider.ProviderOpenAI, auth.OAuthFlowOptions{
-		OpenURL: openAuthorizeURL(t, "originator"),
+		OpenURL: openAuthorizeURL(t, "originator", cancel),
 	})
 	if err != nil {
 		t.Fatalf("LoginBrowserOAuth: %v", err)
@@ -84,7 +87,7 @@ func TestLive_GrokBrowserLogin(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	session, err := auth.LoginBrowserOAuth(ctx, llmprovider.ProviderGrok, auth.OAuthFlowOptions{
-		OpenURL: openAuthorizeURL(t, "referrer"),
+		OpenURL: openAuthorizeURL(t, "referrer", cancel),
 	})
 	if err != nil {
 		t.Fatalf("LoginBrowserOAuth: %v", err)
