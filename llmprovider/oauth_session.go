@@ -390,7 +390,7 @@ func newRefreshRequest(ctx context.Context, state oauthSessionState) (*http.Requ
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create refresh request: %w", err)
 	}
-	identityOf(ProviderConfig{}).SetUserAgent(req)
+	identityOf(providerConfig{}).SetUserAgent(req)
 	req.Header.Set("Content-Type", contentType)
 	return req, nil
 }

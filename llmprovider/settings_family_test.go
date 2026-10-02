@@ -50,9 +50,8 @@ func TestScopedOptionFor_CopiesTheList(t *testing.T) {
 	}
 }
 
-// TestResolveOptions_ModelMetadataURLIsCommon: the metadata URL reaches the
-// new API, and the old one still takes it (0015-MADR amendment "the OpenCode
-// family").
+// TestResolveOptions_ModelMetadataURLIsCommon: the metadata URL reaches
+// every provider (0015-MADR amendment "the OpenCode family").
 func TestResolveOptions_ModelMetadataURLIsCommon(t *testing.T) {
 	st, err := ResolveOptions(ProviderOpencodeGo, []Option{WithModelMetadataURL("http://meta.invalid/api.json")})
 	if err != nil {
@@ -60,9 +59,6 @@ func TestResolveOptions_ModelMetadataURLIsCommon(t *testing.T) {
 	}
 	if got := st.ModelMetadataURL(); got != "http://meta.invalid/api.json" {
 		t.Errorf("ModelMetadataURL() = %q, want the option's URL", got)
-	}
-	if got := ApplyOptions([]ProviderOption{WithModelMetadataURL("http://old.invalid")}).ModelMetadataURL; got != "http://old.invalid" {
-		t.Errorf("ApplyOptions ModelMetadataURL = %q, want the option's URL", got)
 	}
 	if st, _ := ResolveOptions(ProviderOpenAI, nil); st.ModelMetadataURL() != "" {
 		t.Errorf("default ModelMetadataURL() = %q, want empty", st.ModelMetadataURL())

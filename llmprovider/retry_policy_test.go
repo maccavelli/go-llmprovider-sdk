@@ -4,54 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 )
-
-// quotaError is a terminal OpenCode free-usage limit: a 429 that only the
-// classified sentinel, not the status, marks as unretryable.
-func quotaError() error {
-	return classifyFixture("opencode-zen/responses", http.StatusTooManyRequests,
-		`{"type":"error","error":{"type":"FreeUsageLimitError","message":"limit"}}`, nil)
-}
-
-// TestRetry_TerminalMakesOneCall: a terminal APIError stops the retry loop at
-// once (MADR 0012 §1.2).
-func TestRetry_TerminalMakesOneCall(t *testing.T) {
-	f := &fakeProvider{errs: []error{quotaError(), quotaError(), quotaError()}}
-	_, err := GenerateWithRetry(context.Background(), f, "p", 2, time.Millisecond)
-	if f.calls != 1 || !errors.Is(err, ErrQuotaExhausted) {
-		t.Fatalf("calls = %d, err = %v; want 1 call and the quota error", f.calls, err)
-	}
-}
-
-// TestRetry_IncompleteMakesOneCall: a cut-short response is not retried,
-// though its APIError is not terminal (0015-MADR D7).
-func TestRetry_IncompleteMakesOneCall(t *testing.T) {
-	cut := &APIError{Kind: ErrIncomplete, Reason: "length"}
-	f := &fakeProvider{errs: []error{cut, cut}}
-	_, err := GenerateWithRetry(context.Background(), f, "p", 2, time.Millisecond)
-	if f.calls != 1 || !errors.Is(err, ErrIncomplete) {
-		t.Fatalf("calls = %d, err = %v; want 1 call and the incomplete error", f.calls, err)
-	}
-}
-
-// TestRetry_RetryAfterAboveCapReturns: a server delay beyond the 30 s cap is
-// returned to the caller, with its RetryAfter, instead of being slept on.
-func TestRetry_RetryAfterAboveCapReturns(t *testing.T) {
-	limited := &APIError{RetryAfter: 120 * time.Second, Status: http.StatusTooManyRequests, Kind: ErrRateLimited, Provider: "fake"}
-	f := &fakeProvider{errs: []error{limited, limited}}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	start := time.Now()
-	_, err := GenerateWithRetry(ctx, f, "p", 2, time.Millisecond)
-	var rl *APIError
-	if f.calls != 1 || !errors.As(err, &rl) || rl.RetryAfter != 120*time.Second || time.Since(start) > time.Second {
-		t.Fatalf("calls = %d, err = %v after %s; want 1 call returning the 120s retry-after at once",
-			f.calls, err, time.Since(start))
-	}
-}
 
 func TestParseRetryAfter_MillisAndFractional(t *testing.T) {
 	for _, header := range []http.Header{
@@ -66,43 +21,43 @@ func TestParseRetryAfter_MillisAndFractional(t *testing.T) {
 	}
 }
 
-// TestRetry_408IsRetried: a request timeout is transient (0013 B4).
-func TestRetry_408IsRetried(t *testing.T) {
+// TestWithRetry_Retries408 was TestRetry_408IsRetried: a classified request
+// timeout is transient (0013 B4), though it matches ErrInvalidRequest.
+func TestWithRetry_Retries408(t *testing.T) {
 	timeout := classifyFixture("huggingface", http.StatusRequestTimeout, `{"error":"timeout"}`, nil)
-	f := &fakeProvider{errs: []error{timeout}}
-	out, err := GenerateWithRetry(context.Background(), f, "p", 2, time.Millisecond)
-	if err != nil || out != "ok" || f.calls != 2 {
-		t.Fatalf("calls = %d, out = %q, err = %v; want a retry that succeeds", f.calls, out, err)
+	p, calls := failing(timeout)
+	resp, err := WithRetry(p, fastRetry).Generate(context.Background(), &Request{})
+	if err != nil || resp.ID != "ok" || calls.Load() != 2 {
+		t.Fatalf("calls = %d, resp = %+v, err = %v; want a retry that succeeds", calls.Load(), resp, err)
 	}
 }
 
+// TestWithRetry_ShouldRetryFalseIsFinal was
 // TestRetry_ShouldRetryFalseIsTerminal: x-should-retry: false makes an
-// otherwise retryable error terminal.
-func TestRetry_ShouldRetryFalseIsTerminal(t *testing.T) {
+// otherwise retryable error final.
+func TestWithRetry_ShouldRetryFalseIsFinal(t *testing.T) {
 	unavailable := classifyFixture("openai", http.StatusServiceUnavailable, `{}`, http.Header{"X-Should-Retry": {"false"}})
-	f := &fakeProvider{errs: []error{unavailable, unavailable}}
-	_, err := GenerateWithRetry(context.Background(), f, "p", 2, time.Millisecond)
-	if f.calls != 1 || !errors.Is(err, ErrProviderUnavailable) {
-		t.Fatalf("calls = %d, err = %v; want 1 call", f.calls, err)
+	p, calls := failing(unavailable, unavailable)
+	_, err := WithRetry(p, fastRetry).Generate(context.Background(), &Request{})
+	if calls.Load() != 1 || !errors.Is(err, ErrProviderUnavailable) {
+		t.Fatalf("calls = %d, err = %v; want 1 call", calls.Load(), err)
 	}
 }
 
-// TestGenerateItemsWithRetry_UsesSharedLoop: the items helper follows the same
-// policy as GenerateWithRetry (0013 B6).
-func TestGenerateItemsWithRetry_UsesSharedLoop(t *testing.T) {
-	f := &fakeProvider{errs: []error{quotaError(), quotaError()}}
-	_, err := GenerateItemsWithRetry(context.Background(), f, nil, 2, time.Millisecond)
-	if f.calls != 1 || !errors.Is(err, ErrQuotaExhausted) {
-		t.Fatalf("calls = %d, err = %v; want 1 call", f.calls, err)
+// TestRetryPolicy_SubNanosNoPanic was TestGenerateWithRetry_SubNanosNoPanic:
+// a delay too small to take a quarter of guards rand.N(0).
+func TestRetryPolicy_SubNanosNoPanic(t *testing.T) {
+	p := RetryPolicy{MaxAttempts: 2, BaseDelay: time.Nanosecond, MaxDelay: time.Second}
+	if got, ok := p.wait(1, errors.New("dial")); !ok || got != time.Nanosecond {
+		t.Fatalf("wait(1) = %v, %v; want 1ns", got, ok)
 	}
 }
 
-// TestRetry_NegativeRetriesMakesOneCall: retries below zero means one attempt,
-// never zero attempts and a nil-wrapped error (0013 B5).
-func TestRetry_NegativeRetriesMakesOneCall(t *testing.T) {
-	f := &fakeProvider{errs: []error{ErrProviderUnavailable}}
-	_, err := GenerateWithRetry(context.Background(), f, "p", -1, time.Millisecond)
-	if f.calls != 1 || err == nil || strings.Contains(err.Error(), "%!w") {
-		t.Fatalf("calls = %d, err = %v; want one attempt and its error", f.calls, err)
+// TestRetryPolicy_NegativeIsDefault was TestRetry_NegativeRetriesMakesOneCall
+// (0013 B5): a negative value takes the default, never zero attempts.
+func TestRetryPolicy_NegativeIsDefault(t *testing.T) {
+	got := RetryPolicy{MaxAttempts: -1, BaseDelay: -1, MaxDelay: -1}.withDefaults()
+	if got != (RetryPolicy{}).withDefaults() {
+		t.Fatalf("withDefaults = %+v, want the defaults", got)
 	}
 }

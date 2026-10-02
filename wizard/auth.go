@@ -178,7 +178,7 @@ func resolveKiloDevice(
 		return resolvedCredential{}, fmt.Errorf("wizard: save Kilo login: %w", err)
 	}
 	cred := staticCredential(CredAPIKey, session.Access)
-	var opts []llmprovider.ProviderOption
+	var opts []llmprovider.Option
 	if o.HTTPClient != nil {
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
 	}

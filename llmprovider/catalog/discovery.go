@@ -53,8 +53,8 @@ const (
 )
 
 // modelListingTimeout bounds one model listing, its metadata fetch included
-// (MADR 0009 §2). List and every DiscoverModels listing
-// apply it (MADR 0013 A5).
+// (MADR 0009 §2). List, and so every provider's ListModels, applies it
+// (MADR 0013 A5).
 const modelListingTimeout = 10 * time.Second
 
 // Catalog is the result of one model listing, viewed two ways.

@@ -509,6 +509,9 @@ in `llmprovider` refers to `ModelProfile`.
    * a provider-specific option inside it is legal in a shared list;
    * it refuses an old-API-only option, and a nested `For` of another id.
 
+     *Annotated 2026-10-01:* S8, commit 4 removed the last old-API-only
+     option, so only the nested `For` is left to refuse.
+
    Red-first tests, and breaks for each rule. The standards guide's R18
    gains the `For` exception. `wizard` passes one option list through the
    `Registry`.
@@ -3374,6 +3377,7 @@ Under "S8 as amended". Staged for the owner to commit.
 
 Under "S8 as amended". Staged for the owner to commit, with the amendment of
 0015-MADR "`ErrIncomplete` beneath `ErrInvalidRequest`".
+*Annotated 2026-10-01:* committed as `61ac6e1`.
 
 * **One structured error.**
   * A 429 that is not exhausted quota is an `*APIError` of kind
@@ -3478,3 +3482,100 @@ Under "S8 as amended". Staged for the owner to commit, with the amendment of
 * **Coverage:** `llmprovider` 87.8 % from its own tests, and 89.2 % over
   `./llmprovider/...` (1752 of 1964 statements, 89.21 %) against its `P7`
   89.2 %. The removed types took covered statements with them.
+
+### Phase S8, commit 4: the old generation API (2026-10-01)
+
+Under "S8 as amended". Staged for the owner to commit.
+
+* **Removed from `llmprovider`:**
+  * `LegacyProvider` and the seven optional interfaces built on it:
+    `ToolProvider`, `ThinkingProvider`, `ThinkingToolProvider`,
+    `ItemProvider`, `ItemToolProvider`, `ItemThinkingProvider` and
+    `ItemThinkingToolProvider`. These are the step's "eight generation
+    interfaces", counting `LegacyProvider`; no other remained;
+  * `Continuer` and `ModelDiscoverer`;
+  * `GenerateWithRetry`, `GenerateThinkingWithRetry` and
+    `GenerateItemsWithRetry`, with their loop `retryWithBackoff` and
+    `retryStops`. `serverRetryAfter` and `retryBackoffCap` stay, for
+    `WithRetry`;
+  * the `ProviderOption` alias;
+  * the old-API-only options `WithThinkingBudget`, `WithReasoningEffort`,
+    `WithKiloCapabilities`, `WithKiloDataCollection` and `WithStore`, their
+    `ProviderConfig` fields, `legacyOption`, `Option.legacy` and
+    `ResolveOptions`' refusal of them.
+* **Unexported:**
+  * `ProviderConfig` is `providerConfig`, holding what the common options
+    set.
+  * `ApplyOptions` is `applyOptions`, read only by `KiloProfile`, which takes
+    `...Option` and builds no provider. It moves with the auth code in S8c.
+* **Callers.**
+  * `wizard/auth.go` and its Kilo test build `[]llmprovider.Option`.
+  * Nothing else outside `llmprovider` used the old API.
+* **Comments.**
+  * The doc comments of `commonOption`, `newOption`, `ResolveOptions`,
+    `WithModelProbes`, `WithModelMetadataURL`, `retryBackoffCap`, `Tool`,
+    `Response.ID` and `catalog`'s `modelListingTimeout` no longer name the
+    old API.
+  * `contract.go` says the ids and `MessageItem.Role` are typed in commit 5.
+  * Test comments that say what a test "was" keep the old names, as history.
+* **Tests removed.** Each removed test's behaviour is covered by a
+  `WithRetry` or `ResolveOptions` test, or was about the removed code alone:
+
+  | Removed | Now covered by |
+  |---|---|
+  | `TestGenerateWithRetry_NonRetryable`, `TestGenerateItemsWithRetry_NonRetryable`, `TestGenerateThinkingWithRetry_NonRetryable` | `TestWithRetry_RetriesByKind` (authentication, invalid request) |
+  | `TestGenerateWithRetry_RetriesThenSucceeds`, `TestGenerateItemsWithRetry_RetriesThenSucceeds`, `TestGenerateThinkingWithRetry_RetriesThenSucceeds` | `TestWithRetry_RetriesByKind` and `TestWithRetry_HonoursRetryAfter` |
+  | the three `…_ContextCancelled` | `TestWithRetry_StopsWhenTheContextEnds` |
+  | `TestGenerateThinkingWithRetry_Exhausted` | `TestWithRetry_StopsAfterMaxAttempts` |
+  | `TestRetry_TerminalMakesOneCall`, `TestRetry_IncompleteMakesOneCall` | `TestWithRetry_RetriesByKind` (exhausted quota, a cut-short response) |
+  | `TestRetry_RetryAfterAboveCapReturns` | `TestWithRetry_ReturnsAtOnceWhenTheServiceAsksTooMuch` |
+  | `TestRateLimit_Classification` (`provider_correctness_test.go`, removed) | `TestSentinels_Beneath` and `TestWithRetry_RetriesByKind` |
+  | `TestGenerateItemsWithRetry_UsesSharedLoop` | the removed helpers alone |
+  | `TestResolveOptions_RefusesAnOldAPIOnlyOption` | the removed options alone |
+  | `TestLive_ToolRoundTrip` (`live_items_test.go`, removed) | its table was empty: every row had moved to a provider's own live test in S7 |
+
+* **Tests ported,** because `WithRetry` had no test of the behaviour:
+
+  | Was | Now |
+  |---|---|
+  | `TestRetry_408IsRetried` | `TestWithRetry_Retries408` |
+  | `TestRetry_ShouldRetryFalseIsTerminal` | `TestWithRetry_ShouldRetryFalseIsFinal` |
+  | `TestGenerateWithRetry_SubNanosNoPanic` | `TestRetryPolicy_SubNanosNoPanic` |
+  | `TestRetry_NegativeRetriesMakesOneCall` | `TestRetryPolicy_NegativeIsDefault` |
+  | `TestApplyOptions_DefaultTimeout`, `TestApplyOptions_WithHTTPClient` | `TestResolveOptions_DefaultTimeout`, `TestResolveOptions_WithHTTPClient` |
+  | `TestApplyOptions_TakesOnlyWhatTheOldConfigHolds` | `TestApplyOptions_TakesOnlyTheConfig`, with `WithMaxTokens` for the removed `WithReasoningEffort` |
+  | `TestResolveOptions_ModelMetadataURLIsCommon` | the same, less its `ApplyOptions` half |
+
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | `WithRetry` stops on a 408's legacy `ErrInvalidRequest` | `calls = 1, resp = <nil>, err = llmprovider: provider unavailable: huggingface HTTP 408: timeout; want a retry that succeeds` |
+  | `x-should-retry: false` is ignored | `calls = 3, err = <nil>; want 1 call` |
+  | the jitter takes a quarter of a 1 ns delay | a panic in `rand.N`, from `retry_policy_test.go:51` |
+  | a negative `MaxAttempts` is kept | `withDefaults = {MaxAttempts:-1 BaseDelay:1s MaxDelay:30s}, want the defaults` |
+  | the default client has no timeout | `default timeout: got 0s want 330s` |
+  | `WithHTTPClient` is ignored | `WithHTTPClient override not honored (err <nil>)` |
+  | `applyOptions` applies nothing | `applyOptions = {… MaxTokens:8192 BaseURL: …}` |
+
+* **S8b.** Its `For` step's rule "it refuses an old-API-only option" has no
+  option left to refuse; the step is annotated.
+* **Links.** G-links found two links in
+  `0003-PLAN-add-grok-xai-llm-provider.md` to the removed
+  `provider_correctness_test.go`, one with a line anchor. Each is now plain
+  text marked "removed by" this PLAN's S8, as that record already marks
+  `thinking_test.go`, removed in S7. Its rationale is unchanged.
+* **Docs.**
+  * `architecture.md` no longer describes the old API: `Provider` is the
+    contract, its abilities are `Request` fields under `Capabilities`, and
+    `ModelLister` and `Streamer` are the only optional interfaces.
+  * The migration guide fills or rewrites 46 rows: the interfaces and their
+    methods, the retry helpers, `ApplyOptions`, `ProviderOption`, the old
+    options, `ProviderConfig` and every field of it, including the two
+    commit 2 removed, and the mcplib `Provider`'s `Generate` and `Name`.
+    G-parity: `409 identifiers, 409 rows, 239 with an SDK equivalent, 0 problem(s)`.
+* **Lint.** Clean, with no change of configuration.
+* **G-wire.** All goldens unchanged, with no `-update`.
+* **Coverage:** `llmprovider` 87.8 % from its own tests, and 89.2 % over
+  `./llmprovider/...` (1710 of 1916 statements, 89.25 %) against its `P7`
+  89.2 %.

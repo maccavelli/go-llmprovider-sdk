@@ -18,14 +18,13 @@ type Option struct {
 	name      string       // the constructor's name, for errors
 	scoped    bool         // a provider-specific option
 	providers []ProviderID // the ids a provider-specific option is for
-	legacy    bool         // an option of the old API only
 	apply     func(*settings)
 	value     any // a provider-specific option's value
 }
 
 // settings is what the options build.
 type settings struct {
-	cfg       ProviderConfig // the old API's configuration, until 0015-PLAN S8
+	cfg       providerConfig // what the common options set
 	model     string
 	tokens    TokenSource
 	logger    *slog.Logger
@@ -34,21 +33,15 @@ type settings struct {
 }
 
 func newSettings() settings {
-	return settings{cfg: ProviderConfig{HTTPClient: transport.DefaultClient(), MaxTokens: 8192}}
+	return settings{cfg: providerConfig{HTTPClient: transport.DefaultClient(), MaxTokens: 8192}}
 }
 
-// commonOption is an option both APIs take.
-func commonOption(name string, set func(*ProviderConfig)) Option {
+// commonOption is a common option that sets the providerConfig.
+func commonOption(name string, set func(*providerConfig)) Option {
 	return Option{name: name, apply: func(s *settings) { set(&s.cfg) }}
 }
 
-// legacyOption is an option only the old API takes.
-func legacyOption(name string, set func(*ProviderConfig)) Option {
-	return Option{name: name, legacy: true, apply: func(s *settings) { set(&s.cfg) }}
-}
-
-// newOption is an option only the new API takes; the old constructors ignore
-// it.
+// newOption is a common option that sets the rest of the settings.
 func newOption(name string, set func(*settings)) Option {
 	return Option{name: name, apply: set}
 }
@@ -126,13 +119,11 @@ type Settings struct {
 
 // ResolveOptions applies opts for the provider id, for that provider's New.
 // It refuses, with an error matching ErrInvalidRequest, an option scoped to
-// another provider, and an option only the old API takes.
+// another provider.
 func ResolveOptions(id ProviderID, opts []Option) (*Settings, error) {
 	s := newSettings()
 	for _, opt := range opts {
 		switch {
-		case opt.legacy:
-			return nil, fmt.Errorf("%w: option %s belongs to the old API; %s's New does not take it", ErrInvalidRequest, opt.name, id)
 		case opt.scoped && !slices.Contains(opt.providers, id):
 			return nil, fmt.Errorf("%w: option %s is for %s, not %q", ErrInvalidRequest, opt.name, scopeText(opt.providers), id)
 		case opt.scoped:

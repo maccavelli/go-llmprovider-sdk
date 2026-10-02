@@ -14,8 +14,8 @@ import (
 // WithClientInfo names the consuming application: it leads User-Agent and is
 // Kilo's editor name. An empty name keeps "go-llmprovider-sdk"; an empty version keeps the
 // build's own.
-func WithClientInfo(name, version string) ProviderOption {
-	return commonOption("WithClientInfo", func(c *ProviderConfig) {
+func WithClientInfo(name, version string) Option {
+	return commonOption("WithClientInfo", func(c *providerConfig) {
 		c.ClientName = name
 		c.ClientVersion = version
 	})
@@ -23,8 +23,8 @@ func WithClientInfo(name, version string) ProviderOption {
 
 // WithSessionID sets the conversation id sent as x-opencode-session and Kilo's
 // task id. Empty keeps a random id, fixed for the provider's lifetime.
-func WithSessionID(id string) ProviderOption {
-	return commonOption("WithSessionID", func(c *ProviderConfig) {
+func WithSessionID(id string) Option {
+	return commonOption("WithSessionID", func(c *providerConfig) {
 		c.SessionID = id
 	})
 }
@@ -32,7 +32,7 @@ func WithSessionID(id string) ProviderOption {
 // identityOf resolves cfg's identity: the default name is this module at its own
 // version; a named application defaults to the main module's version; a missing
 // session is a fresh random id.
-func identityOf(cfg ProviderConfig) transport.Identity {
+func identityOf(cfg providerConfig) transport.Identity {
 	sdk, main := transport.BuildVersions()
 	id := transport.Identity{Name: cfg.ClientName, Version: cfg.ClientVersion, Session: cfg.SessionID}
 	if id.Name == "" {

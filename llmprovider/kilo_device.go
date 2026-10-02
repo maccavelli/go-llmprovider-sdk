@@ -123,7 +123,7 @@ func kiloDeviceRequest(ctx context.Context, config oauthFlowConfig, method, targ
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create Kilo request: %w", err)
 	}
-	identityOf(ProviderConfig{}).SetUserAgent(req)
+	identityOf(providerConfig{}).SetUserAgent(req)
 	if method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -160,8 +160,8 @@ type KiloAccount struct {
 // the listing with catalog.WithKiloOrganization. The
 // profile lives at {origin}{prefix}/api/profile, derived from the configured
 // base URL or a URL-prefixed token as the gateway's endpoints are.
-func KiloProfile(ctx context.Context, token string, opts ...ProviderOption) (KiloAccount, error) {
-	cfg := ApplyOptions(opts)
+func KiloProfile(ctx context.Context, token string, opts ...Option) (KiloAccount, error) {
+	cfg := applyOptions(opts)
 	base, err := url.Parse(kiloendpoint.Resolve(cfg.BaseURL, token, "").Gateway)
 	if err != nil {
 		return KiloAccount{}, fmt.Errorf("kilo: profile URL: %w", err)

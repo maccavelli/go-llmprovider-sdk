@@ -292,7 +292,7 @@ func discoverOAuthEndpoints(ctx context.Context, config oauthFlowConfig) (oauthE
 	if err != nil {
 		return oauthEndpoints{}, fmt.Errorf("oauth: create discovery request: %w", err)
 	}
-	identityOf(ProviderConfig{}).SetUserAgent(req)
+	identityOf(providerConfig{}).SetUserAgent(req)
 	resp, err := config.httpClient.Do(req)
 	if err != nil {
 		return oauthEndpoints{}, fmt.Errorf("oauth: discovery for %s: %w", config.issuer, err)
@@ -610,7 +610,7 @@ func exchangeOAuthCode(
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create token request: %w", err)
 	}
-	identityOf(ProviderConfig{}).SetUserAgent(req)
+	identityOf(providerConfig{}).SetUserAgent(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := config.httpClient.Do(req)
 	if err != nil {

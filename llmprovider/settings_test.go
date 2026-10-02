@@ -17,15 +17,6 @@ func TestResolveOptions_RefusesAForeignOption(t *testing.T) {
 	}
 }
 
-func TestResolveOptions_RefusesAnOldAPIOnlyOption(t *testing.T) {
-	for _, opt := range []Option{WithStore(false), WithKiloDataCollection(true), WithThinkingBudget(1)} {
-		_, err := ResolveOptions(ProviderOpenAI, []Option{opt})
-		if !errors.Is(err, ErrInvalidRequest) || !strings.Contains(err.Error(), "belongs to the old API") {
-			t.Errorf("%s: err = %v, want it refused", opt.name, err)
-		}
-	}
-}
-
 func TestResolveOptions_KeepsTheProvidersOwnValuesInOrder(t *testing.T) {
 	st, err := ResolveOptions(ProviderKilo, []Option{
 		ScopedOption(ProviderKilo, "kilo.WithOrganization", "org"),
@@ -110,17 +101,19 @@ func TestResolveOptions_Defaults(t *testing.T) {
 	}
 }
 
-func TestApplyOptions_TakesOnlyWhatTheOldConfigHolds(t *testing.T) {
-	cfg := ApplyOptions([]ProviderOption{
+// TestApplyOptions_TakesOnlyTheConfig: KiloProfile's applyOptions keeps what
+// a providerConfig holds, and ignores the rest without refusing it.
+func TestApplyOptions_TakesOnlyTheConfig(t *testing.T) {
+	cfg := applyOptions([]Option{
 		WithModel("ignored"),
 		WithAPIKey("ignored"),
 		ScopedOption(ProviderKilo, "kilo.WithThing", 1),
-		WithReasoningEffort("high"),
+		WithMaxTokens(5),
 		WithBaseURL("http://base"),
 		{},
 	})
-	if cfg.ReasoningEffort != "high" || cfg.BaseURL != "http://base" || cfg.MaxTokens != 8192 || cfg.HTTPClient == nil {
-		t.Fatalf("ApplyOptions = %+v", cfg)
+	if cfg.MaxTokens != 5 || cfg.BaseURL != "http://base" || cfg.HTTPClient == nil {
+		t.Fatalf("applyOptions = %+v", cfg)
 	}
 }
 

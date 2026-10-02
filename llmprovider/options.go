@@ -7,37 +7,11 @@ import (
 	"strings"
 )
 
-// ProviderConfig holds optional configuration for provider constructors.
-type ProviderConfig struct {
+// providerConfig holds what the common options set; Settings reads it.
+type providerConfig struct {
 	HTTPClient *http.Client
 	MaxTokens  int
 	BaseURL    string // For Ollama URL and test injection
-	// ThinkingBudget is the token budget for extended thinking / reasoning, used
-	// by the GenerateThinking paths of wires that reason via a token budget
-	// (Claude "thinking", OpenCode's google route "thinkingConfig"). The Gemini
-	// provider's Interactions API has no budget (MADR 0014). Zero leaves the
-	// per-provider default in effect.
-	ThinkingBudget int
-	// ReasoningEffort selects the reasoning effort ("low"|"medium"|"high") for
-	// the GenerateThinking path of every provider. Effort APIs send it as is;
-	// Claude 4.7 and later send output_config.effort; older Claude and Gemini
-	// map "low" to a small budget or thinkingLevel (MADR 0013 Q1). Empty leaves
-	// each provider's documented default: medium on the effort APIs, high on
-	// Grok 4.5, the model's own on Kilo and Claude 4.7+, a 4096 budget on older
-	// Claude, and dynamic thinking on Gemini (MADR 0013 Q2).
-	ReasoningEffort string
-	// KiloCapabilities is WithKiloCapabilities's value, which no provider reads
-	// any more (0015-PLAN S7). It lists the request parameters a Kilo model
-	// accepts (its supported_parameters). Empty means "unknown — send
-	// everything". Ignored by all other providers.
-	KiloCapabilities []string
-	// KiloDataCollection allows Kilo upstreams that may train on prompts.
-	// false (the default) sends provider.data_collection "deny"; see
-	// WithKiloDataCollection. Ignored by all other providers.
-	KiloDataCollection bool
-	// Store is WithStore's value, which no provider reads any more. See
-	// WithStore.
-	Store *bool
 	// ModelMetadataURL overrides the models.dev-format document the open
 	// catalogs are ranked with, and OpenCode's chat route reads
 	// reasoning_options from. Empty uses LLMPROVIDER_MODELS_METADATA_URL, then
@@ -50,93 +24,39 @@ type ProviderConfig struct {
 	// SessionID is the conversation id OpenCode and Kilo receive; see
 	// WithSessionID.
 	SessionID string
-	// DisableModelProbes stops DiscoverModels probing each listed model; the
+	// DisableModelProbes stops ListModels probing each listed model; the
 	// zero value probes. See WithModelProbes and ModelProbesFromEnv.
 	DisableModelProbes bool
 }
 
-// ProviderOption is Option, under the old API's name. The old constructors
-// take it; it is removed with the old API (0015-PLAN S8).
-type ProviderOption = Option
-
 // WithHTTPClient sets a custom HTTP client for connection pooling.
-func WithHTTPClient(c *http.Client) ProviderOption {
-	return commonOption("WithHTTPClient", func(cfg *ProviderConfig) {
+func WithHTTPClient(c *http.Client) Option {
+	return commonOption("WithHTTPClient", func(cfg *providerConfig) {
 		cfg.HTTPClient = c
 	})
 }
 
 // WithMaxTokens sets the maximum response tokens for the provider.
-func WithMaxTokens(n int) ProviderOption {
-	return commonOption("WithMaxTokens", func(cfg *ProviderConfig) {
+func WithMaxTokens(n int) Option {
+	return commonOption("WithMaxTokens", func(cfg *providerConfig) {
 		cfg.MaxTokens = n
 	})
 }
 
 // WithBaseURL sets a custom base URL for the provider (e.g., Ollama endpoint or test URL).
-func WithBaseURL(url string) ProviderOption {
-	return commonOption("WithBaseURL", func(cfg *ProviderConfig) {
+func WithBaseURL(url string) Option {
+	return commonOption("WithBaseURL", func(cfg *providerConfig) {
 		cfg.BaseURL = url
 	})
 }
 
-// WithThinkingBudget sets the extended-thinking/reasoning token budget used by the
-// provider's GenerateThinking path (Claude, OpenCode's google route). The Gemini
-// provider ignores it: the Interactions API has no budget; use
-// WithReasoningEffort (MADR 0014). A non-positive value leaves the per-provider
-// default in effect.
-func WithThinkingBudget(n int) ProviderOption {
-	return legacyOption("WithThinkingBudget", func(cfg *ProviderConfig) {
-		cfg.ThinkingBudget = n
-	})
-}
-
-// WithReasoningEffort sets the reasoning effort ("low"|"medium"|"high") used by the
-// provider's GenerateThinking path; see ProviderConfig.ReasoningEffort. An empty value
-// leaves each provider's default in effect.
-func WithReasoningEffort(s string) ProviderOption {
-	return legacyOption("WithReasoningEffort", func(cfg *ProviderConfig) {
-		cfg.ReasoningEffort = s
-	})
-}
-
-// WithKiloCapabilities sets the old API's KiloCapabilities, which no provider
-// reads any more: Kilo moved to the new API and takes kilo.WithCapabilities
-// (0015-PLAN S7). The new API's New refuses it; 0015-PLAN S8 removes it with
-// the old API.
-func WithKiloCapabilities(params ...string) ProviderOption {
-	return legacyOption("WithKiloCapabilities", func(cfg *ProviderConfig) {
-		cfg.KiloCapabilities = params
-	})
-}
-
-// WithKiloDataCollection sets the old API's KiloDataCollection, which no
-// provider reads any more: Kilo moved to the new API and takes
-// kilo.WithDataCollection (0015-PLAN S7). The new API's New refuses it;
-// 0015-PLAN S8 removes it with the old API.
-func WithKiloDataCollection(allow bool) ProviderOption {
-	return legacyOption("WithKiloDataCollection", func(cfg *ProviderConfig) {
-		cfg.KiloDataCollection = allow
-	})
-}
-
-// WithStore sets the old API's Store, which no provider reads any more: OpenAI,
-// Gemini and Grok moved to the new API, and take openai.WithStore,
-// gemini.WithStore and grok.WithStore (0015-PLAN S7). The new API's New
-// refuses it; 0015-PLAN S8 removes it with the old API.
-func WithStore(store bool) ProviderOption {
-	return legacyOption("WithStore", func(cfg *ProviderConfig) {
-		cfg.Store = &store
-	})
-}
-
 // WithModelProbes enables or disables listing probes. With probes, which is
-// the default, DiscoverModels on OpenAI (API key), Claude, Gemini, Grok and
+// the default, ListModels on OpenAI (API key), Claude, Gemini, Grok and
 // Ollama sends one short generation to each listed model, up to
 // MaxListedModels, and keeps those that answer. Every probe is a billed
 // request. Other providers never probe (0016-MADR A5).
-func WithModelProbes(enabled bool) ProviderOption {
-	return commonOption("WithModelProbes", func(cfg *ProviderConfig) {
+func WithModelProbes(enabled bool) Option {
+	return commonOption("WithModelProbes", func(cfg *providerConfig) {
 		cfg.DisableModelProbes = !enabled
 	})
 }
@@ -150,7 +70,7 @@ const envModelProbes = "LLMPROVIDER_PROBES"
 // way the variable takes effect: the package reads no environment variable
 // unless a caller asks (0015-MADR D9). Options apply in order, so pass it
 // before any explicit WithModelProbes that should win.
-func ModelProbesFromEnv() ProviderOption {
+func ModelProbesFromEnv() Option {
 	value, ok := os.LookupEnv(envModelProbes)
 	if !ok {
 		return Option{name: "ModelProbesFromEnv"}
@@ -164,20 +84,20 @@ func ModelProbesFromEnv() ProviderOption {
 
 // WithModelMetadataURL overrides the model metadata document (MADR 0009 §2)
 // that the open-catalog providers read: OpenCode, Hugging Face, Kilo and
-// Together. It is common to both APIs; a provider that reads no metadata
-// ignores it (0015-MADR, amendment "the OpenCode family").
+// Together. Every provider takes it; one that reads no metadata ignores it
+// (0015-MADR, amendment "the OpenCode family").
 // LLMPROVIDER_DISABLE_MODELS_METADATA=1 turns the fetch off whatever the URL.
-func WithModelMetadataURL(url string) ProviderOption {
-	return commonOption("WithModelMetadataURL", func(cfg *ProviderConfig) {
+func WithModelMetadataURL(url string) Option {
+	return commonOption("WithModelMetadataURL", func(cfg *providerConfig) {
 		cfg.ModelMetadataURL = url
 	})
 }
 
-// ApplyOptions processes variadic ProviderOptions into a ProviderConfig, for
-// the old constructors. It applies every option, and ignores what a
-// ProviderConfig cannot hold: the new API's model, credential, logger,
-// reasoning and provider-specific options.
-func ApplyOptions(opts []ProviderOption) ProviderConfig {
+// applyOptions applies every option and returns the providerConfig, for
+// KiloProfile, which needs no provider. It ignores what a providerConfig
+// cannot hold: the model, credential, logger, reasoning and provider-specific
+// options.
+func applyOptions(opts []Option) providerConfig {
 	s := newSettings()
 	for _, opt := range opts {
 		if opt.apply != nil {

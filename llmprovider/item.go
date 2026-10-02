@@ -1,7 +1,6 @@
 package llmprovider
 
 import (
-	"context"
 	"iter"
 	"strings"
 )
@@ -58,7 +57,7 @@ func (ReasoningItem) itemKind() string { return itemTypeReasoning }
 type Response struct {
 	// ID is the provider-issued response identifier, used for server-side
 	// conversation chaining (OpenAI/xAI: response ID, Gemini: interaction ID,
-	// which can be continued only when stored; see WithStore).
+	// which can be continued only when stored; see gemini.WithStore).
 	// Empty for providers that do not support server-side state (Claude).
 	ID string
 
@@ -101,35 +100,4 @@ func (r *Response) Items() iter.Seq[Item] {
 			}
 		}
 	}
-}
-
-// ItemProvider is an optional interface for providers that support the
-// canonical item-based generation contract.
-type ItemProvider interface {
-	LegacyProvider
-	GenerateItems(ctx context.Context, input ...Item) (*Response, error)
-}
-
-// ItemToolProvider extends ItemProvider with tool-aware generation.
-type ItemToolProvider interface {
-	ItemProvider
-	GenerateItemsWithTool(ctx context.Context, tool Tool, input ...Item) (*Response, error)
-}
-
-// ItemThinkingProvider extends ItemProvider with extended thinking/reasoning.
-type ItemThinkingProvider interface {
-	ItemProvider
-	GenerateItemsThinking(ctx context.Context, input ...Item) (*Response, error)
-}
-
-// ItemThinkingToolProvider combines tool calling and extended thinking.
-type ItemThinkingToolProvider interface {
-	ItemToolProvider
-	GenerateItemsWithToolThinking(ctx context.Context, tool Tool, input ...Item) (*Response, error)
-}
-
-// Continuer is an optional interface for providers that support server-side
-// conversation chaining via a previous response ID.
-type Continuer interface {
-	Continue(ctx context.Context, previousResponseID string, input ...Item) (*Response, error)
 }

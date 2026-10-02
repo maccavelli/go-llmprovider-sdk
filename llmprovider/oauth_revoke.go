@@ -55,7 +55,7 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 	if err != nil {
 		return err
 	}
-	identityOf(ProviderConfig{}).SetUserAgent(req)
+	identityOf(providerConfig{}).SetUserAgent(req)
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("oauth: revoke request: %w", err)

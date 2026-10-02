@@ -89,8 +89,7 @@ docs/
 
 ## The contract
 
-`llmprovider` holds one generation contract (0015-MADR D3–D10), built beside
-the old API until 0015-PLAN S8 removes it:
+`llmprovider` holds the generation contract (0015-MADR D3–D10):
 
 - `Provider` is `ID`, `Capabilities` and `Generate(ctx, *Request)
   (*Response, error)`. `GenerateText` and `GenerateToolCall` are functions
@@ -103,8 +102,7 @@ the old API until 0015-PLAN S8 removes it:
   `Streamer`, or `Generate`'s result as events.
 - `Option` configures construction. A provider package's `New` resolves its
   options with `ResolveOptions(id, opts)`, which refuses an option scoped to
-  another provider (`ScopedOption`) and one only the old API takes. The
-  resolved `Settings` are read-only.
+  another provider (`ScopedOption`). The resolved `Settings` are read-only.
 - `APIError` carries a `Kind`, one of the sentinels. `ErrContextOverflow`
   sits beneath `ErrInvalidRequest`; it is classified from the service's
   error type, or from a message table taken from pi's `overflow.ts`
@@ -126,18 +124,18 @@ the old API until 0015-PLAN S8 removes it:
   (`claude`), Gemini Interactions (`gemini`), Chat Completions (`huggingface`,
   `kilo`, `together`, `ollama`), and, per model, all of those plus Gemini
   `generateContent` for the two OpenCode gateways.
-- **`Provider`** is `Name()` and `Generate(ctx, prompt)`. Further abilities are
-  optional interfaces a caller checks for: `ThinkingProvider`, `ToolProvider`,
-  `ThinkingToolProvider`, the four `Item*Provider` variants, `Continuer`, and
-  `ModelDiscoverer`.
+- **`Provider`** is the contract above. Tools, reasoning and continuation are
+  fields of `Request`, and `Capabilities` says which a provider supports.
+  Listing (`ModelLister`) and native streaming (`Streamer`) are the only
+  optional interfaces.
 - **`Item`** is sealed. Its types are `MessageItem`, `FunctionCallItem`,
   `FunctionCallOutputItem` and `ReasoningItem`; item methods return a
   `*Response`.
 - **Construction:** `providers.New(id, opts...)`, or the provider package's
   own `New` (`opencode.NewZen` and `NewGo`); every provider is in its own
-  package. Options are `ProviderOption` functions (`WithBaseURL`,
-  `WithHTTPClient`, `WithReasoningEffort`, …). `GenerateWithRetry` and its two
-  siblings retry on typed errors.
+  package. Options are `Option` values: the common ones in `llmprovider`
+  (`WithBaseURL`, `WithHTTPClient`, `WithReasoning`, …), and a provider
+  package's own, scoped to it. `WithRetry` retries by the error's kind.
 - **Transport:** without `WithHTTPClient`, each provider builds one client,
   `internal/transport`'s `DefaultClient`:
   330 s overall, 300 s to the first byte, and `HTTP_PROXY`, `HTTPS_PROXY`

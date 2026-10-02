@@ -30,11 +30,11 @@ type ModelLister interface {
 
 // ProviderID is a provider's canonical identifier: the models.dev registry
 // key (0015-MADR D6). The ProviderGemini family of constants keeps its
-// untyped form until the old API is removed (0015-PLAN S8).
+// untyped form until 0015-PLAN S8, commit 5.
 type ProviderID string
 
 // Role is the author of a MessageItem (0015-MADR D6). MessageItem.Role keeps
-// its string type until the old API is removed (0015-PLAN S8).
+// its string type until 0015-PLAN S8, commit 5.
 type Role string
 
 const (

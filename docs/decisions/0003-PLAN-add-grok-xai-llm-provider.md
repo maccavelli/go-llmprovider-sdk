@@ -680,7 +680,7 @@ make lint    # golangci-lint clean
 **File**: Existing test files + new `openai_items_test.go`.
 
 1. **Existing tests unchanged in behavior** — `TestOpenAI_WithMaxTokens`
-   ([`provider_correctness_test.go:48-58`](../../llmprovider/provider_correctness_test.go#L48-L58)),
+   (`provider_correctness_test.go:48-58`, a file since removed by [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) S8),
    `TestOpenAIThinking_RequestBody`
    (`thinking_test.go:91-108`, a file since removed by [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) S7),
    etc. — updated to serve Responses-API-shaped fixtures instead of Chat
@@ -1030,7 +1030,7 @@ These items are explicitly not part of this plan, per the MADR:
 | [`claude.go`](../../llmprovider/providers/claude/claude.go) | Add `GenerateItems`, existing methods become wrappers, permanent no-`Continuer` doc | 4 |
 | `thinking_test.go` (removed by [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) S7) | Add Grok interface checks | 1 |
 | [`models_catalog_test.go`](../../llmprovider/catalog/models_catalog_test.go) | Add Grok catalog/ranking tests | 1 |
-| [`provider_correctness_test.go`](../../llmprovider/provider_correctness_test.go) | Update OpenAI/Gemini fixtures to Responses/Interactions shape | 2, 3 |
+| `provider_correctness_test.go` (removed by [0015-PLAN-canonical-sdk-api-and-module-layout.md](0015-PLAN-canonical-sdk-api-and-module-layout.md) S8) | Update OpenAI/Gemini fixtures to Responses/Interactions shape | 2, 3 |
 
 ## Amendment 2026-09-29: status corrected at migration
 

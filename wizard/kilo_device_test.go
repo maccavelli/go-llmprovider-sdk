@@ -22,7 +22,7 @@ func stubKilo(t *testing.T, account llmprovider.KiloAccount, profileErr error) {
 		opts.NotifyDevice("https://app.kilo.ai/device", "KILO-1234")
 		return &llmprovider.OAuthSession{Provider: llmprovider.ProviderKilo, Access: kiloWizardToken}, nil
 	}
-	kiloProfile = func(_ context.Context, token string, _ ...llmprovider.ProviderOption) (llmprovider.KiloAccount, error) {
+	kiloProfile = func(_ context.Context, token string, _ ...llmprovider.Option) (llmprovider.KiloAccount, error) {
 		if token != kiloWizardToken {
 			t.Errorf("profile read with %q", token)
 		}

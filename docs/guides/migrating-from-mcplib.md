@@ -47,7 +47,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.APIError.Terminal` | `APIError.Retryable()` | Unexported in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8; `Retryable()` reads it. |
 | `llmprovider.APIError.Type` | `APIError.Code` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8; `Code` carries the same value. |
 | `llmprovider.APIError.Unwrap` |  |  |
-| `llmprovider.ApplyOptions` |  |  |
+| `llmprovider.ApplyOptions` | `ResolveOptions(id, opts)` | A provider's `New` resolves its options to read-only `Settings`. Unexported in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 (R19). |
 | `llmprovider.AuthAPIKey` |  |  |
 | `llmprovider.AuthBrowserOAuth` |  |  |
 | `llmprovider.AuthDeviceCode` |  |  |
@@ -71,8 +71,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ClaudeProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.ClaudeProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
 | `llmprovider.ClaudeProvider.Name` | `ID()` | It returns `ProviderClaude` as a `ProviderID`. |
-| `llmprovider.Continuer` |  |  |
-| `llmprovider.Continuer.Continue` |  |  |
+| `llmprovider.Continuer` | `Request.PreviousResponseID` | `Capabilities.Continuation` says whether a provider supports it. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.Continuer.Continue` | `Provider.Generate` with `Request.PreviousResponseID` | As `Continuer`. |
 | `llmprovider.DefaultGrokBaseURL` |  |  |
 | `llmprovider.DefaultGrokOAuthClientID` |  |  |
 | `llmprovider.DefaultGrokOAuthIssuer` |  |  |
@@ -114,9 +114,9 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.GeminiProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.GeminiProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
 | `llmprovider.GeminiProvider.Name` | `ID()` | It returns `ProviderGemini` as a `ProviderID`. |
-| `llmprovider.GenerateItemsWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`; the function goes in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
-| `llmprovider.GenerateThinkingWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`; the function goes in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
-| `llmprovider.GenerateWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`; the function goes in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.GenerateItemsWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.GenerateThinkingWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`, with `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.GenerateWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.GrokProvider` | the `llmprovider.Provider` that `grok.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.GrokProvider.Continue` | `Generate` with `Request.PreviousResponseID` |  |
 | `llmprovider.GrokProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
@@ -145,14 +145,14 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.IncompleteError.Reason` | `APIError.Reason` | As `IncompleteError`. |
 | `llmprovider.IncompleteError.Unwrap` | `APIError.Unwrap` | `ErrIncomplete` and `ErrInvalidRequest`, as before. |
 | `llmprovider.Item` |  |  |
-| `llmprovider.ItemProvider` |  |  |
-| `llmprovider.ItemProvider.GenerateItems` |  |  |
-| `llmprovider.ItemThinkingProvider` |  |  |
-| `llmprovider.ItemThinkingProvider.GenerateItemsThinking` |  |  |
-| `llmprovider.ItemThinkingToolProvider` |  |  |
-| `llmprovider.ItemThinkingToolProvider.GenerateItemsWithToolThinking` |  |  |
-| `llmprovider.ItemToolProvider` |  |  |
-| `llmprovider.ItemToolProvider.GenerateItemsWithTool` |  |  |
+| `llmprovider.ItemProvider` | `Provider` | Every provider takes items. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ItemProvider.GenerateItems` | `Provider.Generate` with `Request.Input` | As `ItemProvider`. |
+| `llmprovider.ItemThinkingProvider` | `Provider` | Reasoning is `Request.Reasoning`, or `WithReasoning` at construction; `Capabilities.Reasoning` says whether it is supported. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ItemThinkingProvider.GenerateItemsThinking` | `Provider.Generate` with `Request.Input` and `Request.Reasoning` | As `ItemThinkingProvider`. |
+| `llmprovider.ItemThinkingToolProvider` | `Provider` | As `ItemThinkingProvider` and `ItemToolProvider`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ItemThinkingToolProvider.GenerateItemsWithToolThinking` | `Provider.Generate` with `Request.Input`, `Request.Tools` and `Request.Reasoning` | As `ItemThinkingToolProvider`. |
+| `llmprovider.ItemToolProvider` | `Provider` | Tools are `Request.Tools` and `ToolChoice`, or `GenerateToolCall`; `Capabilities.Tools` says whether they are supported. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ItemToolProvider.GenerateItemsWithTool` | `Provider.Generate` with `Request.Input` and `Request.Tools` | As `ItemToolProvider`. |
 | `llmprovider.KiloModelCapabilities` | `catalog.KiloModelCapabilities` |  |
 | `llmprovider.KiloProvider` | the `llmprovider.Provider` that `kilo.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.KiloProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` | No profile can be chosen on the new API until S8b; the wizard is unaffected. |
@@ -180,8 +180,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ModelCatalog.Live` | `Catalog.Live` |  |
 | `llmprovider.ModelCatalog.Recommended` | `Catalog.Recommended` |  |
 | `llmprovider.ModelCatalog.Usable` | `Catalog.Usable` |  |
-| `llmprovider.ModelDiscoverer` |  |  |
-| `llmprovider.ModelDiscoverer.DiscoverModels` |  |  |
+| `llmprovider.ModelDiscoverer` | `ModelLister` | Or `catalog.List`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ModelDiscoverer.DiscoverModels` | `ModelLister.ListModels` | As `ModelDiscoverer`. |
 | `llmprovider.ModelLabel` | `catalog.Label` |  |
 | `llmprovider.ModelMatch` | `catalog.Match` |  |
 | `llmprovider.ModelMatch.ID` | `Match.ID` |  |
@@ -265,26 +265,26 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OpencodeRouteResponses` | `opencode.RouteResponses` |  |
 | `llmprovider.ProfileCapable` | `catalog.ProfileCapable` |  |
 | `llmprovider.ProfileUtility` | `catalog.ProfileUtility` |  |
-| `llmprovider.Provider` | `Provider` | `ID`, `Capabilities` and `Generate(ctx, *Request)`. The old interface is `LegacyProvider` until [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
-| `llmprovider.Provider.Generate` |  |  |
-| `llmprovider.Provider.Name` |  |  |
+| `llmprovider.Provider` | `Provider` | `ID`, `Capabilities` and `Generate(ctx, *Request)`. The old interface, `LegacyProvider` after the move, is removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.Provider.Generate` | `GenerateText(ctx, p, req)` | Or `Provider.Generate` for the whole `*Response`. |
+| `llmprovider.Provider.Name` | `Provider.ID` | A `ProviderID`. |
 | `llmprovider.ProviderClaude` |  |  |
-| `llmprovider.ProviderConfig` |  |  |
-| `llmprovider.ProviderConfig.BaseURL` |  |  |
-| `llmprovider.ProviderConfig.ClientName` |  |  |
-| `llmprovider.ProviderConfig.ClientVersion` |  |  |
-| `llmprovider.ProviderConfig.HTTPClient` |  |  |
-| `llmprovider.ProviderConfig.KiloCapabilities` |  |  |
-| `llmprovider.ProviderConfig.KiloDataCollection` |  |  |
-| `llmprovider.ProviderConfig.KiloOrganization` |  |  |
-| `llmprovider.ProviderConfig.MaxTokens` |  |  |
-| `llmprovider.ProviderConfig.ModelMetadataURL` |  |  |
-| `llmprovider.ProviderConfig.ModelProfile` |  |  |
+| `llmprovider.ProviderConfig` | `Settings` | Unexported in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 (R19); a provider reads its resolved `Settings`. |
+| `llmprovider.ProviderConfig.BaseURL` | `Settings.BaseURL` | Set with `WithBaseURL`. |
+| `llmprovider.ProviderConfig.ClientName` | `Settings.ClientName` | Set with `WithClientInfo`. |
+| `llmprovider.ProviderConfig.ClientVersion` | `Settings.UserAgent` | Set with `WithClientInfo`. |
+| `llmprovider.ProviderConfig.HTTPClient` | `Settings.HTTPClient` | Set with `WithHTTPClient`. |
+| `llmprovider.ProviderConfig.KiloCapabilities` | `kilo.WithCapabilities` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ProviderConfig.KiloDataCollection` | `kilo.WithDataCollection` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ProviderConfig.KiloOrganization` | `kilo.WithOrganization`, `catalog.WithKiloOrganization` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, commit 2. |
+| `llmprovider.ProviderConfig.MaxTokens` | `Settings.MaxTokens` | Set with `WithMaxTokens`. |
+| `llmprovider.ProviderConfig.ModelMetadataURL` | `Settings.ModelMetadataURL` | Set with `WithModelMetadataURL`. |
+| `llmprovider.ProviderConfig.ModelProfile` | `catalog.WithProfile` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, commit 2. |
 | `llmprovider.ProviderConfig.OpencodeRoute` | `opencode.WithRoute` | Removed with the old provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
-| `llmprovider.ProviderConfig.ReasoningEffort` |  |  |
-| `llmprovider.ProviderConfig.SessionID` |  |  |
-| `llmprovider.ProviderConfig.Store` |  |  |
-| `llmprovider.ProviderConfig.ThinkingBudget` |  |  |
+| `llmprovider.ProviderConfig.ReasoningEffort` | `Reasoning.Effort` | Through `WithReasoning` or `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ProviderConfig.SessionID` | `Settings.SessionID` | Set with `WithSessionID`. |
+| `llmprovider.ProviderConfig.Store` | `openai.WithStore`, `gemini.WithStore` or `grok.WithStore` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ProviderConfig.ThinkingBudget` | `Reasoning.Budget` | Through `WithReasoning` or `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.ProviderDescriptor` | `llmprovider.Descriptor` | The same fields; `ID` is a `ProviderID`. |
 | `llmprovider.ProviderDescriptor.AuthMethods` | `Descriptor.AuthMethods` |  |
 | `llmprovider.ProviderDescriptor.DefaultBaseURL` | `Descriptor.DefaultBaseURL` |  |
@@ -305,7 +305,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ProviderOpenAI` |  |  |
 | `llmprovider.ProviderOpencodeGo` |  |  |
 | `llmprovider.ProviderOpencodeZen` |  |  |
-| `llmprovider.ProviderOption` | `Option` | `ProviderOption` is an alias of it until [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ProviderOption` | `Option` | The alias is removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.RankClaudeModel` | `RankModel(ProviderClaude, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
 | `llmprovider.RankGeminiModel` | `RankModel(ProviderGemini, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
 | `llmprovider.RankGrokModel` | `RankModel(ProviderGrok, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
@@ -343,10 +343,10 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.StaticToken.Header` | `llmprovider.StaticToken.Header` | Empty now means the service's own header; it no longer defaults to `Authorization` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
 | `llmprovider.StaticToken.Token` | `llmprovider.StaticToken.Token` | Returns a `TokenAPIKey`, with the `Header` set, if any; it returned `TokenBearer` and `Authorization` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
 | `llmprovider.StaticToken.Value` |  |  |
-| `llmprovider.ThinkingProvider` |  |  |
-| `llmprovider.ThinkingProvider.GenerateThinking` |  |  |
-| `llmprovider.ThinkingToolProvider` |  |  |
-| `llmprovider.ThinkingToolProvider.GenerateWithToolThinking` |  |  |
+| `llmprovider.ThinkingProvider` | `Provider` | Reasoning is `Request.Reasoning`, or `WithReasoning` at construction. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ThinkingProvider.GenerateThinking` | `GenerateText` with `Request.Reasoning` | As `ThinkingProvider`. |
+| `llmprovider.ThinkingToolProvider` | `Provider` | As `ThinkingProvider` and `ToolProvider`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ThinkingToolProvider.GenerateWithToolThinking` | `GenerateToolCall` with `Request.Reasoning` | As `ThinkingToolProvider`. |
 | `llmprovider.Token` |  |  |
 | `llmprovider.Token.Expiry` |  |  |
 | `llmprovider.Token.Header` | `llmprovider.Token.Header` | A non-empty `Header` overrides the service's header (R16, [0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
@@ -365,8 +365,8 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.Tool.Description` |  |  |
 | `llmprovider.Tool.Name` |  |  |
 | `llmprovider.Tool.Schema` |  |  |
-| `llmprovider.ToolProvider` |  |  |
-| `llmprovider.ToolProvider.GenerateWithTool` |  |  |
+| `llmprovider.ToolProvider` | `Provider` | Tools are `Request.Tools` and `ToolChoice`, or `GenerateToolCall`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.ToolProvider.GenerateWithTool` | `GenerateToolCall(ctx, p, req)` | As `ToolProvider`. |
 | `llmprovider.ValidateOAuthSession` |  |  |
 | `llmprovider.ValidateOllamaURL` | `catalog.ValidateOllamaURL` |  |
 | `llmprovider.VendorCLISession` |  |  |
@@ -376,17 +376,17 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.WithBaseURL` |  |  |
 | `llmprovider.WithClientInfo` |  |  |
 | `llmprovider.WithHTTPClient` |  |  |
-| `llmprovider.WithKiloCapabilities` | `kilo.WithCapabilities` | The old option is removed in S8 ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
-| `llmprovider.WithKiloDataCollection` | `kilo.WithDataCollection` | The old option is removed in S8 ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
+| `llmprovider.WithKiloCapabilities` | `kilo.WithCapabilities` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.WithKiloDataCollection` | `kilo.WithDataCollection` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.WithKiloOrganization` | `kilo.WithOrganization`, and `catalog.WithKiloOrganization` for a listing | `kilo`'s `ListModels` passes its organization on ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.WithMaxTokens` |  |  |
 | `llmprovider.WithModelMetadataURL` | `llmprovider.WithModelMetadataURL` | A common option now: the new API takes it too ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
 | `llmprovider.WithModelProfile` | `catalog.WithProfile` | Every built-in provider's `New` takes it; the open catalogs rank with it. |
 | `llmprovider.WithOpencodeRoute` | `opencode.WithRoute` | Scoped to both gateways ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md), amendment "the OpenCode family"). |
-| `llmprovider.WithReasoningEffort` |  |  |
+| `llmprovider.WithReasoningEffort` | `WithReasoning(&Reasoning{Effort: …})` | Or `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.WithSessionID` |  |  |
-| `llmprovider.WithStore` | `openai.WithStore`, `gemini.WithStore` or `grok.WithStore` | Scoped to its provider; the old option is removed in S8 ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
-| `llmprovider.WithThinkingBudget` |  |  |
+| `llmprovider.WithStore` | `openai.WithStore`, `gemini.WithStore` or `grok.WithStore` | Scoped to its provider. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
+| `llmprovider.WithThinkingBudget` | `WithReasoning(&Reasoning{Budget: …})` | Or `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 
 ### `wizard`
 
