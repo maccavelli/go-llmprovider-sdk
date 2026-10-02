@@ -4255,6 +4255,12 @@ in detail", written before the code, and 0016-PLAN T5.
       `Options.HTTPClient` that counts its calls and refuses each one. It
       asserts the client was used, the first static model chosen, and the
       failure reported once.
+    * **Breaks,** each in a scratch copy of `wizard/configure.go`: ignoring
+      `Options.HTTPClient`, and dropping the failure notice. The old test passed
+      both, and the new one failed both ("the listing never used
+      Options.HTTPClient"; "notices = [], want the listing failure reported
+      once"). Offering the last static model failed both.
+    * **Audit,** every test run alone through the recording proxy: no host.
     * **No decision changes,** so the MADR is not amended.
 * **Step 1, environment.**
   * `catalog`'s metadata URL and switch no longer read the environment.
