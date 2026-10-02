@@ -123,7 +123,7 @@ func TestLive_KiloToolRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	res, err := liveKilo(t, llmprovider.LiveKiloNonTraining).Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
-		llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "What is the weather in Paris? Use the tool."},
+		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "What is the weather in Paris? Use the tool."},
 		llmprovider.FunctionCallItem{CallID: "call_rt_1", Name: "get_weather", Arguments: `{"city":"Paris"}`},
 		llmprovider.FunctionCallOutputItem{CallID: "call_rt_1", Output: `{"forecast":"sunny, 21C"}`},
 	}})

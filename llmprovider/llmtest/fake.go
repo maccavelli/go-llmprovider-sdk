@@ -44,7 +44,7 @@ func (f *Fake) Reply(resp *llmprovider.Response) *Fake {
 // ReplyText scripts the next call to answer with text.
 func (f *Fake) ReplyText(text string) *Fake {
 	return f.Reply(&llmprovider.Response{
-		Output:       []llmprovider.Item{llmprovider.MessageItem{Role: string(llmprovider.RoleAssistant), Text: text}},
+		Output:       []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: text}},
 		FinishReason: llmprovider.FinishStop,
 	})
 }

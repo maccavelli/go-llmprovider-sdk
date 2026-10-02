@@ -13,7 +13,7 @@ import (
 // non-empty $GROK_AUTH_PATH verbatim, else $GROK_HOME/auth.json, else
 // ~/.grok/auth.json (grok-build xai-grok-login/src/storage.rs:45-55,
 // xai-dirs/src/lib.rs:43-58).
-func vendorAuthPath(provider string, o Options) (string, error) {
+func vendorAuthPath(provider llmprovider.ProviderID, o Options) (string, error) {
 	env := o.lookupEnv()
 	var homeEnv, defaultDir string
 	switch provider {

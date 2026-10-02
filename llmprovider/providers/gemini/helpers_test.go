@@ -97,7 +97,7 @@ func build(t *testing.T, opts ...llmprovider.Option) llmprovider.Provider {
 
 // user is a user message.
 func user(text string) llmprovider.MessageItem {
-	return llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: text}
+	return llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: text}
 }
 
 // items is a request with input, as the old GenerateItems sent.

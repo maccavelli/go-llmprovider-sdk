@@ -32,19 +32,19 @@ const Prompt = "What is the weather in Paris?"
 
 // user is a user message.
 func user(text string) llmprovider.MessageItem {
-	return llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: text}
+	return llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: text}
 }
 
 // Items is a conversation using every Item type, a system message and a
 // replayed call signature.
 func Items() []llmprovider.Item {
 	return []llmprovider.Item{
-		llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "Be brief."},
+		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Be brief."},
 		user(Prompt),
 		llmprovider.ReasoningItem{Text: "The user wants the weather."},
 		llmprovider.FunctionCallItem{CallID: "call_1", Name: "get_weather", Arguments: `{"city":"Paris"}`, Signature: "sig-1"},
 		llmprovider.FunctionCallOutputItem{CallID: "call_1", Output: `{"sky":"sunny"}`},
-		llmprovider.MessageItem{Role: string(llmprovider.RoleAssistant), Text: "It is sunny."},
+		llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: "It is sunny."},
 		user("And tomorrow?"),
 	}
 }

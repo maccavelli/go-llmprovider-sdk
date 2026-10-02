@@ -49,13 +49,13 @@ func NewFileTokenStore(dir string) (*FileTokenStore, error) {
 	return &FileTokenStore{Dir: dir}, nil
 }
 
-func (fs *FileTokenStore) path(provider string) string {
-	return filepath.Join(fs.Dir, provider+".json")
+func (fs *FileTokenStore) path(provider ProviderID) string {
+	return filepath.Join(fs.Dir, string(provider)+".json")
 }
 
 // Load reads a provider session, returning nil when no token file exists. A
 // file larger than 64 KiB is refused.
-func (fs *FileTokenStore) Load(ctx context.Context, provider string) (*OAuthSession, error) {
+func (fs *FileTokenStore) Load(ctx context.Context, provider ProviderID) (*OAuthSession, error) {
 	if err := validateProviderID(provider); err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ var (
 // rename, and an fsync of the directory where the platform allows it
 // (0016-MADR D3). On any failure the previous file is intact and the temp
 // file is removed.
-func (fs *FileTokenStore) Save(ctx context.Context, provider string, s *OAuthSession) (err error) {
+func (fs *FileTokenStore) Save(ctx context.Context, provider ProviderID, s *OAuthSession) (err error) {
 	if err := validateProviderID(provider); err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func (fs *FileTokenStore) Save(ctx context.Context, provider string, s *OAuthSes
 }
 
 // Delete removes a provider session and succeeds when it is already absent.
-func (fs *FileTokenStore) Delete(ctx context.Context, provider string) error {
+func (fs *FileTokenStore) Delete(ctx context.Context, provider ProviderID) error {
 	if err := validateProviderID(provider); err != nil {
 		return err
 	}
@@ -197,12 +197,12 @@ func (fs *FileTokenStore) Delete(ctx context.Context, provider string) error {
 // over. A waiter gives up after 25 s with an error matching
 // ErrProviderUnavailable, which callers may retry; it never refreshes
 // unlocked (0016-MADR amendment A2). The returned func releases the lock.
-func (fs *FileTokenStore) LockRefresh(ctx context.Context, provider string) (unlock func(), err error) {
+func (fs *FileTokenStore) LockRefresh(ctx context.Context, provider ProviderID) (unlock func(), err error) {
 	if err := validateProviderID(provider); err != nil {
 		return nil, err
 	}
 	staleAfter, heartbeat, wait := fs.lockTiming()
-	path := filepath.Join(fs.Dir, provider+".lock")
+	path := filepath.Join(fs.Dir, string(provider)+".lock")
 	deadline := time.Now().Add(wait)
 	for {
 		created, err := createLockFile(path)

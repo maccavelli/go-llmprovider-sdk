@@ -23,7 +23,7 @@ const defaultDiscoverLimit = 10 * time.Second
 // each consumer persists it in its own schema. Unifying configuration storage
 // across the three wizards is a separate decision (MADR 0005, Out of scope).
 type Result struct {
-	Provider     string
+	Provider     llmprovider.ProviderID
 	Kind         CredentialKind
 	APIKey       string
 	AccessToken  string
@@ -55,7 +55,7 @@ type Options struct {
 	// Providers restricts the menu to these ids. Empty offers every
 	// descriptor, which is the behaviour that keeps a wizard current when
 	// this module adds a provider.
-	Providers []string
+	Providers []llmprovider.ProviderID
 	// Existing pre-fills the flow, enabling "keep existing key?" and
 	// defaulting the model selection.
 	Existing Result
@@ -122,7 +122,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	defaultIdx := 0
 	for i, d := range descriptors {
 		choices = append(choices, Choice{Label: d.Label, Detail: d.Notes})
-		if string(d.ID) == o.Existing.Provider {
+		if d.ID == o.Existing.Provider {
 			defaultIdx = i
 		}
 	}
@@ -132,7 +132,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		return Result{}, fmt.Errorf("select provider: %w", err)
 	}
 	d := descriptors[idx]
-	res := Result{Provider: string(d.ID)}
+	res := Result{Provider: d.ID}
 
 	if res.BaseURL, err = resolveBaseURL(ctx, p, d, o); err != nil {
 		return Result{}, err
@@ -160,7 +160,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		// Ollama with nothing installed, or a provider whose listing failed
 		// and which has no static catalog. Let the user type an id rather
 		// than dead-ending the wizard.
-		manual, inputErr := p.Input("No models found; enter a model id", existingModel(o, string(d.ID)))
+		manual, inputErr := p.Input("No models found; enter a model id", existingModel(o, d.ID))
 		if inputErr != nil {
 			return Result{}, fmt.Errorf("enter model: %w", inputErr)
 		}
@@ -195,18 +195,18 @@ func (o Options) registry() *llmprovider.Registry {
 
 // selectableDescriptors returns the descriptors a run may offer, preserving
 // the registry's menu order.
-func selectableDescriptors(reg *llmprovider.Registry, allow []string) ([]llmprovider.Descriptor, error) {
+func selectableDescriptors(reg *llmprovider.Registry, allow []llmprovider.ProviderID) ([]llmprovider.Descriptor, error) {
 	all := reg.Descriptors()
 	if len(allow) == 0 {
 		return all, nil
 	}
-	wanted := make(map[string]struct{}, len(allow))
+	wanted := make(map[llmprovider.ProviderID]struct{}, len(allow))
 	for _, id := range allow {
 		wanted[id] = struct{}{}
 	}
 	var out []llmprovider.Descriptor
 	for _, d := range all {
-		if _, ok := wanted[string(d.ID)]; ok {
+		if _, ok := wanted[d.ID]; ok {
 			out = append(out, d)
 		}
 	}
@@ -223,7 +223,7 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		return "", nil
 	}
 	def := d.DefaultBaseURL
-	if o.Existing.Provider == string(d.ID) && o.Existing.BaseURL != "" {
+	if o.Existing.Provider == d.ID && o.Existing.BaseURL != "" {
 		def = o.Existing.BaseURL
 	}
 	for {
@@ -269,7 +269,7 @@ func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, err
 		}
 	}
 
-	if o.Existing.Provider == string(d.ID) && o.Existing.APIKey != "" {
+	if o.Existing.Provider == d.ID && o.Existing.APIKey != "" {
 		keep, err := p.Confirm(
 			fmt.Sprintf("Keep the existing key (%s)?", redact.MaskSecret(o.Existing.APIKey)), true)
 		if err != nil {
@@ -298,7 +298,7 @@ func discoverModels(
 	source llmprovider.TokenSource,
 	o Options,
 ) catalog.Catalog {
-	chatGPT := (res.Kind == CredOAuth || res.Kind == CredVendorCLI) && string(d.ID) == llmprovider.ProviderOpenAI
+	chatGPT := (res.Kind == CredOAuth || res.Kind == CredVendorCLI) && d.ID == llmprovider.ProviderOpenAI
 	// A ChatGPT session lists only from the Codex backend (MADR 0008 D11):
 	// the Platform catalog is not available to it, so there is no fallback.
 	static := d.StaticModels
@@ -349,7 +349,7 @@ func discoverModels(
 	return cat
 }
 
-func modelChoices(provider string, models []string) []Choice {
+func modelChoices(provider llmprovider.ProviderID, models []string) []Choice {
 	out := make([]Choice, 0, len(models))
 	for _, m := range models {
 		label := catalog.Label(provider, m)

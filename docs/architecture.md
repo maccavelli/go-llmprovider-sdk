@@ -116,10 +116,11 @@ docs/
 
 ## Providers and items
 
-- **Ten provider ids,** constants in `llmprovider`: `openai` (API key, or a
-  ChatGPT subscription through the Codex backend), `claude`, `gemini`, `grok`,
-  `opencode-zen`, `opencode-go`, `huggingface`, `kilo`, `together` and
-  `ollama`.
+- **Ten provider ids,** `ProviderID` constants in `llmprovider`: `openai`
+  (API key, or a ChatGPT subscription through the Codex backend), `claude`,
+  `gemini`, `grok`, `opencode-zen`, `opencode-go`, `huggingface`, `kilo`,
+  `together` and `ollama`. A label that may carry a route, such as
+  `APIError.Provider`, stays a `string`.
 - **Five wire formats:** OpenAI Responses (`openai`, `grok`), Anthropic Messages
   (`claude`), Gemini Interactions (`gemini`), Chat Completions (`huggingface`,
   `kilo`, `together`, `ollama`), and, per model, all of those plus Gemini

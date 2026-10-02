@@ -150,7 +150,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 			p.logger.Debug("llmprovider: huggingface: close response body", "error", err)
 		}
 	}()
-	if err := llmprovider.ClassifyHTTPError(llmprovider.ProviderHuggingFace, resp); err != nil {
+	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderHuggingFace), resp); err != nil {
 		return nil, err
 	}
 	// 1 MiB bounds a runaway reply.
@@ -169,7 +169,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	}
 	input := req.Input
 	if req.Instructions != "" {
-		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: req.Instructions}}, input...)
+		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
 	body := chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req)})
 	if len(req.Tools) > 0 {

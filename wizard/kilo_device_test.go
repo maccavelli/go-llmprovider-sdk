@@ -15,7 +15,7 @@ func stubKilo(t *testing.T, account llmprovider.KiloAccount, profileErr error) {
 	t.Helper()
 	originalDevice, originalProfile := loginDeviceOAuth, kiloProfile
 	t.Cleanup(func() { loginDeviceOAuth, kiloProfile = originalDevice, originalProfile })
-	loginDeviceOAuth = func(_ context.Context, provider string, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	loginDeviceOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
 		if provider != llmprovider.ProviderKilo {
 			t.Errorf("device login for %q", provider)
 		}

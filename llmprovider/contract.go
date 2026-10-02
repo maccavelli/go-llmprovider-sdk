@@ -29,12 +29,13 @@ type ModelLister interface {
 }
 
 // ProviderID is a provider's canonical identifier: the models.dev registry
-// key (0015-MADR D6). The ProviderGemini family of constants keeps its
-// untyped form until 0015-PLAN S8, commit 5.
+// key (0015-MADR D6). The ProviderGemini family of constants are its
+// built-in values.
 type ProviderID string
 
-// Role is the author of a MessageItem (0015-MADR D6). MessageItem.Role keeps
-// its string type until 0015-PLAN S8, commit 5.
+// Role is the author of a MessageItem (0015-MADR D6). An empty Role is the
+// user's; any other value outside the constants is refused before any network
+// call, with ErrInvalidRequest.
 type Role string
 
 const (
@@ -45,6 +46,15 @@ const (
 	// RoleSystem carries instructions inside the input.
 	RoleSystem Role = "system"
 )
+
+func (r Role) valid() bool {
+	switch r {
+	case "", RoleUser, RoleAssistant, RoleSystem:
+		return true
+	default:
+		return false
+	}
+}
 
 // Effort is a reasoning effort level (0015-MADR D6).
 type Effort string
@@ -193,6 +203,11 @@ func (req *Request) validate() error {
 	for i, tool := range req.Tools {
 		if tool.Name == "" {
 			return fmt.Errorf("%w: tool %d has no name", ErrInvalidRequest, i)
+		}
+	}
+	for i, item := range req.Input {
+		if m, ok := item.(MessageItem); ok && !m.Role.valid() {
+			return fmt.Errorf("%w: input %d has unknown role %q", ErrInvalidRequest, i, m.Role)
 		}
 	}
 	if err := req.validateToolChoice(); err != nil {

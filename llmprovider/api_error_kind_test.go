@@ -8,7 +8,7 @@ import (
 )
 
 func TestAPIError_KindAndCodeFromClassification(t *testing.T) {
-	err := classifyBody(ProviderOpencodeZen, http.StatusForbidden, `{"type":"error","error":{"type":"RegionError","message":"not here"}}`)
+	err := classifyBody(string(ProviderOpencodeZen), http.StatusForbidden, `{"type":"error","error":{"type":"RegionError","message":"not here"}}`)
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("%v is not an APIError", err)
@@ -64,15 +64,15 @@ func TestAPIError_ErrorText(t *testing.T) {
 		err  *APIError
 		want string
 	}{
-		{&APIError{Provider: ProviderKilo, Status: 429, Kind: ErrRateLimited, RetryAfter: 5 * time.Second, Message: "slow down"},
+		{&APIError{Provider: string(ProviderKilo), Status: 429, Kind: ErrRateLimited, RetryAfter: 5 * time.Second, Message: "slow down"},
 			"llmprovider: rate limited: kilo HTTP 429 (retry-after 5s): slow down"},
 		{&APIError{Status: 429, Kind: ErrRateLimited, RetryAfter: 5 * time.Second},
 			"llmprovider: rate limited: HTTP 429 (retry-after 5s)"},
-		{&APIError{Provider: ProviderOpenAI, Kind: ErrRateLimited, Code: "slow_down", Message: "wait"},
+		{&APIError{Provider: string(ProviderOpenAI), Kind: ErrRateLimited, Code: "slow_down", Message: "wait"},
 			"llmprovider: rate limited: openai stream slow_down: wait"},
 		{&APIError{Kind: ErrIncomplete, Reason: "length"},
 			"llmprovider: incomplete response: length"},
-		{&APIError{Provider: ProviderGemini, Kind: ErrIncomplete, Reason: "incomplete"},
+		{&APIError{Provider: string(ProviderGemini), Kind: ErrIncomplete, Reason: "incomplete"},
 			"llmprovider: incomplete response: gemini: incomplete"},
 	} {
 		if got := c.err.Error(); got != c.want {

@@ -160,7 +160,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 			p.logger.Debug("llmprovider: gemini: close response body", "error", err)
 		}
 	}()
-	if err := llmprovider.ClassifyHTTPError(llmprovider.ProviderGemini, resp); err != nil {
+	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderGemini), resp); err != nil {
 		return nil, err
 	}
 	// 1 MiB bounds a runaway reply.
@@ -274,7 +274,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 		probe := *p
 		probe.model, probe.store, probe.reasoning = model, false, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
-			llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: probePrompt}}})
+			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: probePrompt}}})
 		if err != nil {
 			return "", err
 		}

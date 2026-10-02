@@ -149,7 +149,7 @@ func TestOllama_ErrorClassification(t *testing.T) {
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("err = %v, want wrapping %v", err, tc.wantErr)
 			}
-			if tc.status != http.StatusTooManyRequests && !strings.Contains(err.Error(), llmprovider.ProviderOllama) {
+			if tc.status != http.StatusTooManyRequests && !strings.Contains(err.Error(), string(llmprovider.ProviderOllama)) {
 				t.Errorf("error must name the provider: %v", err)
 			}
 		})

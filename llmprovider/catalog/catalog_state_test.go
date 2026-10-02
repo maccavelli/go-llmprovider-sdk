@@ -22,8 +22,9 @@ func TestStaticModels_ReturnsCopy(t *testing.T) {
 // without a ranking scores 0.
 func TestRankModel_Dispatches(t *testing.T) {
 	for _, tc := range []struct {
-		provider, model string
-		rank            func(string) int
+		provider llmprovider.ProviderID
+		model    string
+		rank     func(string) int
 	}{
 		{llmprovider.ProviderGemini, "gemini-3.7-flash", rankGeminiModel},
 		{llmprovider.ProviderOpenAI, "gpt-5.4-mini", rankOpenAIModel},
@@ -38,7 +39,7 @@ func TestRankModel_Dispatches(t *testing.T) {
 			t.Errorf("RankModel(%s, %s) = %d, want %d", tc.provider, tc.model, got, want)
 		}
 	}
-	for _, p := range []string{llmprovider.ProviderTogether, llmprovider.ProviderOllama, "unknown"} {
+	for _, p := range []llmprovider.ProviderID{llmprovider.ProviderTogether, llmprovider.ProviderOllama, "unknown"} {
 		if got := Rank(p, "any-model"); got != 0 {
 			t.Errorf("RankModel(%s) = %d, want 0", p, got)
 		}

@@ -170,7 +170,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	}
 	input := req.Input
 	if req.Instructions != "" {
-		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: req.Instructions}}, input...)
+		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
 	body := map[string]any{
 		"model":             model,
@@ -251,7 +251,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 			p.logger.Debug("llmprovider: grok: close response body", "error", err)
 		}
 	}()
-	if err := llmprovider.ClassifyHTTPError(llmprovider.ProviderGrok, resp); err != nil {
+	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderGrok), resp); err != nil {
 		return nil, err
 	}
 	// 1 MiB bounds a runaway reply.
@@ -276,7 +276,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.store, probe.reasoning = model, probeMaxOutputTokens, nil, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
-			llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: probePrompt}}})
+			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: probePrompt}}})
 		if err != nil {
 			return "", err
 		}

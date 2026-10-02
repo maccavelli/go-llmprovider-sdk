@@ -11,7 +11,7 @@ import (
 // it (0015-MADR D10).
 func Descriptor() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:             llmprovider.ProviderID(llmprovider.ProviderClaude),
+		ID:             llmprovider.ProviderClaude,
 		Label:          "Claude (Anthropic)",
 		EnvVar:         llmprovider.ProviderEnvVars()[llmprovider.ProviderClaude],
 		RequiresAPIKey: true,

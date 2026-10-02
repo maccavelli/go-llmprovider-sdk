@@ -63,7 +63,8 @@ const geminiCatalogFixture = `{"models":[
 
 // catalogCase is one provider with a good listing fixture.
 type catalogCase struct {
-	provider, key, body string
+	provider  llmprovider.ProviderID
+	key, body string
 }
 
 func goodCatalogCases() []catalogCase {
@@ -92,13 +93,13 @@ func serveBody(t *testing.T, body string) *httptest.Server {
 
 func TestListModelCatalog_RecommendedMatchesListAvailable(t *testing.T) {
 	for _, tc := range goodCatalogCases() {
-		t.Run(tc.provider, func(t *testing.T) {
+		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), llmprovider.ProviderID(tc.provider), llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
-			avail, err := listRecommended(context.Background(), llmprovider.ProviderID(tc.provider), llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			avail, err := listRecommended(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListAvailableModels: %v", err)
 			}
@@ -140,9 +141,9 @@ func TestListModelCatalog_UsableIsUncapped(t *testing.T) {
 		{llmprovider.ProviderKilo, "k", kiloListing(8)},
 		{llmprovider.ProviderOpencodeZen, "k", openAIStyleListing(zen...)},
 	} {
-		t.Run(tc.provider, func(t *testing.T) {
+		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), llmprovider.ProviderID(tc.provider), llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
@@ -158,9 +159,9 @@ func TestListModelCatalog_UsableIsUncapped(t *testing.T) {
 
 func TestListModelCatalog_RecommendedSubsetOfUsable(t *testing.T) {
 	for _, tc := range goodCatalogCases() {
-		t.Run(tc.provider, func(t *testing.T) {
+		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), llmprovider.ProviderID(tc.provider), llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
@@ -183,9 +184,9 @@ func TestListModelCatalog_FiltersStillApply(t *testing.T) {
 		{catalogCase{llmprovider.ProviderOpencodeZen, "k", opencodeListingFixture}, []string{"deepseek-v4-flash-vision-exp"}},
 		{catalogCase{llmprovider.ProviderGemini, "k", geminiCatalogFixture}, []string{"gemini-embedding-001", "gemini-3.5-flash-preview-09-2026"}},
 	} {
-		t.Run(tc.provider, func(t *testing.T) {
+		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), llmprovider.ProviderID(tc.provider), llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
@@ -233,16 +234,16 @@ func TestListModelCatalog_OllamaEmptyIsLive(t *testing.T) {
 }
 
 func TestListModelCatalog_LiveFlag(t *testing.T) {
-	for _, p := range []string{
+	for _, p := range []llmprovider.ProviderID{
 		llmprovider.ProviderGemini, llmprovider.ProviderOpenAI, llmprovider.ProviderClaude, llmprovider.ProviderGrok,
 		llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo, llmprovider.ProviderHuggingFace, llmprovider.ProviderKilo,
 	} {
-		t.Run(p, func(t *testing.T) {
+		t.Run(string(p), func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 			}))
 			defer srv.Close()
-			cat, err := List(context.Background(), llmprovider.ProviderID(p), llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
+			cat, err := List(context.Background(), p, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("a failed listing must degrade, not error: %v", err)
 			}
@@ -311,9 +312,9 @@ func TestListModelCatalog_InputModalityContainsText(t *testing.T) {
 		{llmprovider.ProviderHuggingFace, "k", hfListingFixture},
 		{llmprovider.ProviderKilo, "k", kiloListingFixture},
 	} {
-		t.Run(tc.provider, func(t *testing.T) {
+		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := List(context.Background(), llmprovider.ProviderID(tc.provider), llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}

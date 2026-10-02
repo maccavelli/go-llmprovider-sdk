@@ -134,15 +134,16 @@ func TestListModelCatalog_PaginationIsBounded(t *testing.T) {
 	// comparison against maxListingPages could not detect the bound changing.
 	const wantPages = 10
 	for _, tc := range []struct {
-		provider, body string
-		static         []string
+		provider llmprovider.ProviderID
+		body     string
+		static   []string
 	}{
 		{llmprovider.ProviderGemini, `{"models":[{"name":"models/gemini-3.7-flash","supportedGenerationMethods":["generateContent"]}],"nextPageToken":"again"}`, staticGemini},
 		{llmprovider.ProviderClaude, `{"data":[{"id":"claude-sonnet-5"}],"has_more":true,"last_id":"x"}`, staticClaude},
 	} {
-		t.Run(tc.provider, func(t *testing.T) {
+		t.Run(string(tc.provider), func(t *testing.T) {
 			ps := newPagingServer(t, func(url.Values) (int, string) { return http.StatusOK, tc.body })
-			cat, err := List(context.Background(), llmprovider.ProviderID(tc.provider), llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(ps.srv.URL))
+			cat, err := List(context.Background(), tc.provider, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(ps.srv.URL))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}

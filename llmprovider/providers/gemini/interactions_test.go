@@ -20,7 +20,7 @@ func TestGeminiInteractions_Request(t *testing.T) {
 	srv, c := interactionServer(t, interactionText)
 	p := build(t, apiKey(srv.URL, "gemini-3.7-flash")...)
 	_, genErr := p.Generate(context.Background(), withTool(items(
-		llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "Be brief."},
+		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Be brief."},
 		user("weather?"),
 		llmprovider.FunctionCallItem{CallID: "call_1", Name: "get_weather", Arguments: `{"city":"Paris"}`, Signature: "sig-1"},
 		llmprovider.FunctionCallOutputItem{CallID: "call_1", Output: "sunny"}), weatherTool))

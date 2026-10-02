@@ -63,7 +63,7 @@ func TestConfigureLLM_ChatGPTResultDoesNotPopulateAPIKey(t *testing.T) {
 func TestConfigureLLM_APIKeyKindUnchanged(t *testing.T) {
 	tests := []struct {
 		name       string
-		provider   string
+		provider   llmprovider.ProviderID
 		selections []int
 	}{
 		{name: "gemini", provider: llmprovider.ProviderGemini},
@@ -108,7 +108,7 @@ func TestConfigureLLM_DoesNotOfferClaudeOAuth(t *testing.T) {
 func TestConfigureLLM_TokenStdinClassification(t *testing.T) {
 	tests := []struct {
 		name       string
-		provider   string
+		provider   llmprovider.ProviderID
 		secret     string
 		wantKind   CredentialKind
 		wantAPIKey string
@@ -187,7 +187,7 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 		loginDeviceOAuth = originalDevice
 	})
 
-	loginBrowserOAuth = func(_ context.Context, provider string, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	loginBrowserOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
 		if opts.OpenURL == nil {
 			t.Fatal("browser OpenURL hook is nil")
 		}
@@ -196,7 +196,7 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 		}
 		return testOAuthSession(provider), nil
 	}
-	loginDeviceOAuth = func(_ context.Context, provider string, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	loginDeviceOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
 		if opts.NotifyDevice == nil {
 			t.Fatal("device NotifyDevice hook is nil")
 		}
@@ -228,7 +228,7 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 	}
 }
 
-func testOAuthSession(provider string) *llmprovider.OAuthSession {
+func testOAuthSession(provider llmprovider.ProviderID) *llmprovider.OAuthSession {
 	issuer := llmprovider.DefaultGrokOAuthIssuer
 	clientID := llmprovider.DefaultGrokOAuthClientID
 	if provider == llmprovider.ProviderOpenAI {
@@ -246,25 +246,25 @@ func testOAuthSession(provider string) *llmprovider.OAuthSession {
 }
 
 type memoryTokenStore struct {
-	sessions map[string]*llmprovider.OAuthSession
+	sessions map[llmprovider.ProviderID]*llmprovider.OAuthSession
 	saves    int
 }
 
 func newMemoryTokenStore() *memoryTokenStore {
-	return &memoryTokenStore{sessions: make(map[string]*llmprovider.OAuthSession)}
+	return &memoryTokenStore{sessions: make(map[llmprovider.ProviderID]*llmprovider.OAuthSession)}
 }
 
-func (store *memoryTokenStore) Load(_ context.Context, provider string) (*llmprovider.OAuthSession, error) {
+func (store *memoryTokenStore) Load(_ context.Context, provider llmprovider.ProviderID) (*llmprovider.OAuthSession, error) {
 	return store.sessions[provider], nil
 }
 
-func (store *memoryTokenStore) Save(_ context.Context, provider string, session *llmprovider.OAuthSession) error {
+func (store *memoryTokenStore) Save(_ context.Context, provider llmprovider.ProviderID, session *llmprovider.OAuthSession) error {
 	store.sessions[provider] = session
 	store.saves++
 	return nil
 }
 
-func (store *memoryTokenStore) Delete(_ context.Context, provider string) error {
+func (store *memoryTokenStore) Delete(_ context.Context, provider llmprovider.ProviderID) error {
 	delete(store.sessions, provider)
 	return nil
 }
@@ -387,7 +387,7 @@ func TestConfigureLLM_KeepRefusesStubSession(t *testing.T) {
 // prompt, and the authorize URL and paste instruction are shown even when the
 // consumer opens the browser itself (MADR 0008 D3).
 func TestConfigureLLM_BrowserOAuthSetsInputCode(t *testing.T) {
-	stubBrowserLogin(t, func(_ context.Context, provider string, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	stubBrowserLogin(t, func(_ context.Context, provider llmprovider.ProviderID, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
 		if opts.InputCode == nil {
 			t.Fatal("browser OAuth has no paste-code InputCode")
 		}
@@ -429,7 +429,7 @@ func TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt(t *testing.T) {
 		inputStarted: make(chan struct{}),
 		release:      make(chan struct{}),
 	}
-	stubBrowserLogin(t, func(ctx context.Context, provider string, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
+	stubBrowserLogin(t, func(ctx context.Context, provider llmprovider.ProviderID, opts llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error) {
 		if opts.InputCode == nil {
 			t.Fatal("browser OAuth has no paste-code InputCode")
 		}
@@ -486,7 +486,7 @@ func (d *drainPrompter) Select(title string, choices []Choice, defaultIdx int) (
 	return d.fakePrompter.Select(title, choices, defaultIdx)
 }
 
-func stubBrowserLogin(t *testing.T, login func(context.Context, string, llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error)) {
+func stubBrowserLogin(t *testing.T, login func(context.Context, llmprovider.ProviderID, llmprovider.OAuthFlowOptions) (*llmprovider.OAuthSession, error)) {
 	t.Helper()
 	original := loginBrowserOAuth
 	t.Cleanup(func() { loginBrowserOAuth = original })
@@ -497,8 +497,8 @@ func stubBrowserLogin(t *testing.T, login func(context.Context, string, llmprovi
 // caller cannot keep a session, so openai and grok show no method menu and go
 // straight to the API-key prompt.
 func TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly(t *testing.T) {
-	for _, provider := range []string{llmprovider.ProviderOpenAI, llmprovider.ProviderGrok} {
-		t.Run(provider, func(t *testing.T) {
+	for _, provider := range []llmprovider.ProviderID{llmprovider.ProviderOpenAI, llmprovider.ProviderGrok} {
+		t.Run(string(provider), func(t *testing.T) {
 			f := &fakePrompter{
 				t:       t,
 				selects: []int{providerIdx(t, provider)},
@@ -520,9 +520,9 @@ func TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly(t *testing.T) {
 // TestConfigureLLM_TokenStoreOffersAllMethods: with a TokenStore the menu lists
 // every descriptor method, in descriptor order.
 func TestConfigureLLM_TokenStoreOffersAllMethods(t *testing.T) {
-	for _, provider := range []string{llmprovider.ProviderOpenAI, llmprovider.ProviderGrok} {
-		t.Run(provider, func(t *testing.T) {
-			d, ok := providers.Default().Descriptor(llmprovider.ProviderID(provider))
+	for _, provider := range []llmprovider.ProviderID{llmprovider.ProviderOpenAI, llmprovider.ProviderGrok} {
+		t.Run(string(provider), func(t *testing.T) {
+			d, ok := providers.Default().Descriptor(provider)
 			if !ok {
 				t.Fatalf("no descriptor for %s", provider)
 			}

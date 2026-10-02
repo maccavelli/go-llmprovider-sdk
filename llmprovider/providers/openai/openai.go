@@ -284,11 +284,11 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 			p.logger.Debug("llmprovider: openai: close response body", "error", err)
 		}
 	}()
-	if err := llmprovider.ClassifyHTTPError(llmprovider.ProviderOpenAI, resp); err != nil {
+	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderOpenAI), resp); err != nil {
 		return nil, err
 	}
 	if p.chatGPT {
-		return responses.ReadStream(llmprovider.ProviderOpenAI, resp.Body)
+		return responses.ReadStream(string(llmprovider.ProviderOpenAI), resp.Body)
 	}
 	return responses.Decode(io.LimitReader(resp.Body, 1<<20))
 }
@@ -314,7 +314,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.store, probe.reasoning = model, probeMaxOutputTokens, nil, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
-			llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: probePrompt}}})
+			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: probePrompt}}})
 		if err != nil {
 			return "", err
 		}

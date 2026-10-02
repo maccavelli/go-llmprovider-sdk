@@ -65,7 +65,7 @@ func TestFileTokenStore_RejectsPathTraversal(t *testing.T) {
 		t.Fatalf("NewFileTokenStore: %v", err)
 	}
 	sess := &OAuthSession{Provider: "openai", Access: "x"}
-	cases := []string{"", "open..ai", "../openai", "sub/openai", "openai/../x", `..\openai`}
+	cases := []ProviderID{"", "open..ai", "../openai", "sub/openai", "openai/../x", `..\openai`}
 	for _, p := range cases {
 		err := fs.Save(context.Background(), p, sess)
 		if err == nil {

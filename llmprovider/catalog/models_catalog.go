@@ -177,9 +177,9 @@ var datedOrSnapshotGemini = regexp.MustCompile(`(?i)(-\d{2}-\d{4}|-\d{4}-\d{2}-\
 
 // Rank scores a model id for sorting by preference within provider's
 // catalog: higher is better. It replaces the per-provider Rank*Model functions
-// (0015-PLAN S5 step 3), and becomes catalog.Rank(ProviderID, model) in S7b.
+// (0015-PLAN S5 step 3).
 // A provider with no ranking scores every model 0.
-func Rank(provider, model string) int {
+func Rank(provider llmprovider.ProviderID, model string) int {
 	switch provider {
 	case llmprovider.ProviderGemini:
 		return rankGeminiModel(model)
@@ -200,8 +200,8 @@ func Rank(provider, model string) int {
 }
 
 // Static returns a copy of the curated catalog for provider.
-func Static(provider string) []string {
-	switch strings.ToLower(provider) {
+func Static(provider llmprovider.ProviderID) []string {
+	switch llmprovider.ProviderID(strings.ToLower(string(provider))) {
 	case llmprovider.ProviderGemini:
 		return append([]string(nil), staticGemini...)
 	case llmprovider.ProviderOpenAI:
@@ -232,7 +232,7 @@ func Static(provider string) []string {
 
 // staticOpencodeCatalog returns the curation seed for a gateway (no copy;
 // callers must not mutate).
-func staticOpencodeCatalog(gateway string) []string {
+func staticOpencodeCatalog(gateway llmprovider.ProviderID) []string {
 	if gateway == llmprovider.ProviderOpencodeGo {
 		return staticOpencodeGo
 	}
@@ -721,7 +721,7 @@ var modelLabels = map[string]string{
 // Label returns a human-readable menu label for a model, or the bare model
 // id when none is known. The provider argument is accepted for future
 // per-provider disambiguation; ids are currently unique across providers.
-func Label(provider, model string) string {
+func Label(provider llmprovider.ProviderID, model string) string {
 	_ = provider
 	if label, ok := modelLabels[model]; ok {
 		return label

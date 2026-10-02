@@ -143,7 +143,7 @@ func TestRankRecommended_Fill(t *testing.T) {
 func TestRankRecommended_Eligibility(t *testing.T) {
 	tests := []struct {
 		name     string
-		provider string
+		provider llmprovider.ProviderID
 		edit     func(*rankCandidate)
 		want     bool
 	}{
@@ -203,7 +203,7 @@ func TestRankRecommended_KiloAutoUtility(t *testing.T) {
 	fill := []string{"kilo-auto/free", "x/y"}
 	tests := []struct {
 		profile  Profile
-		provider string
+		provider llmprovider.ProviderID
 		want     []string
 	}{
 		{ProfileUtility, llmprovider.ProviderKilo, []string{"g1/pro", "g2/pro", "g3/pro", "g4/pro", "g5/pro", "x/y"}},

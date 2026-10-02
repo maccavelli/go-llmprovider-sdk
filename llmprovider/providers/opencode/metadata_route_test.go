@@ -88,7 +88,7 @@ func generatePath(t *testing.T, srv *httptest.Server, paths func() []string, gat
 // route, as OpenCode's client does (provider.ts:1274-1278), for a model the
 // table does not know and for one it routes differently.
 func TestOpencode_RoutesFromMetadata(t *testing.T) {
-	zen, goGW := llmprovider.ProviderID(llmprovider.ProviderOpencodeZen), llmprovider.ProviderID(llmprovider.ProviderOpencodeGo)
+	zen, goGW := llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo
 	tests := []struct {
 		name    string
 		gateway llmprovider.ProviderID

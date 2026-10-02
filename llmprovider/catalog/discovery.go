@@ -90,11 +90,10 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 	if err != nil {
 		return Catalog{}, err
 	}
-	providerName := string(id)
 
 	ctx, cancel := context.WithTimeout(ctx, modelListingTimeout)
 	defer cancel()
-	if strings.EqualFold(providerName, llmprovider.ProviderOpenAI) && llmprovider.IsChatGPTSession(src) {
+	if strings.EqualFold(string(id), string(llmprovider.ProviderOpenAI)) && llmprovider.IsChatGPTSession(src) {
 		return listChatGPTModels(ctx, src, cfg)
 	}
 	if src == nil {
@@ -104,7 +103,7 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 	if err != nil {
 		return Catalog{}, fmt.Errorf("model listing: acquire token: %w", err)
 	}
-	return modelCatalogFor(ctx, providerName, token, cfg)
+	return modelCatalogFor(ctx, id, token, cfg)
 }
 
 // catalogFrom applies the degrade-to-static contract every lister except
@@ -250,8 +249,8 @@ func chatGPTCatalogModelListed(model chatGPTCatalogModel) bool {
 // modelCatalogFor dispatches one provider's fetch and curation. The caller
 // owns the timeout. Every lister sends token as it describes itself
 // (0016-MADR A6).
-func modelCatalogFor(ctx context.Context, providerName string, token llmprovider.Token, cfg config) (Catalog, error) {
-	switch p := strings.ToLower(providerName); p {
+func modelCatalogFor(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (Catalog, error) {
+	switch p := llmprovider.ProviderID(strings.ToLower(string(id))); p {
 	case llmprovider.ProviderGemini:
 		usable, err := fetchGeminiUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, Static(llmprovider.ProviderGemini), curateGemini), nil
@@ -284,7 +283,7 @@ func modelCatalogFor(ctx context.Context, providerName string, token llmprovider
 	case llmprovider.ProviderOllama:
 		return ollamaCatalog(ctx, token, cfg)
 	default:
-		return Catalog{}, fmt.Errorf("unsupported provider for model listing: %s", providerName)
+		return Catalog{}, fmt.Errorf("unsupported provider for model listing: %s", id)
 	}
 }
 
@@ -557,7 +556,7 @@ func curateGrok(usable []string) []string {
 
 // fetchDataIDs performs GET endpoint and decodes a {"data":[{"id":…}]} body.
 // The credential is sent as header: value when value is non-empty.
-func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg config, provider string) ([]string, error) {
+func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg config, provider llmprovider.ProviderID) ([]string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, http.NoBody)
 	if err != nil {
 		return nil, err
@@ -612,7 +611,7 @@ func filterIDs(ids []string, usable func(string) bool) []string {
 // when there is one, and an empty key is not an error. The listing carries no
 // routing or capability metadata (every entry reports owned_by "opencode"), so
 // route selection cannot be derived from it; see providers/opencode.
-func opencodeCatalog(ctx context.Context, gateway string, token llmprovider.Token, cfg config) (Catalog, error) {
+func opencodeCatalog(ctx context.Context, gateway llmprovider.ProviderID, token llmprovider.Token, cfg config) (Catalog, error) {
 	if _, err := opencodeBaseURL(gateway); err != nil {
 		return Catalog{}, err
 	}
@@ -625,7 +624,7 @@ func opencodeCatalog(ctx context.Context, gateway string, token llmprovider.Toke
 }
 
 // fetchOpencodeUsable returns the usable gateway models in listing order.
-func fetchOpencodeUsable(ctx context.Context, gateway string, token llmprovider.Token, cfg config) ([]string, error) {
+func fetchOpencodeUsable(ctx context.Context, gateway llmprovider.ProviderID, token llmprovider.Token, cfg config) ([]string, error) {
 	baseURL, err := opencodeBaseURL(gateway)
 	if err != nil {
 		return nil, err

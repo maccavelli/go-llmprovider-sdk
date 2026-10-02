@@ -11,7 +11,7 @@ import (
 // it (0015-MADR D10).
 func Descriptor() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:             llmprovider.ProviderID(llmprovider.ProviderOpenAI),
+		ID:             llmprovider.ProviderOpenAI,
 		Label:          "OpenAI",
 		EnvVar:         llmprovider.ProviderEnvVars()[llmprovider.ProviderOpenAI],
 		RequiresAPIKey: true,

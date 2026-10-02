@@ -197,7 +197,7 @@ func TestStaticGrok_Count(t *testing.T) {
 }
 
 func TestStaticModels(t *testing.T) {
-	providers := []string{
+	providers := []llmprovider.ProviderID{
 		llmprovider.ProviderGemini, llmprovider.ProviderOpenAI, llmprovider.ProviderClaude, llmprovider.ProviderGrok,
 		llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo, llmprovider.ProviderHuggingFace, llmprovider.ProviderKilo, llmprovider.ProviderTogether,
 	}

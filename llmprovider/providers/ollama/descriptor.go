@@ -11,7 +11,7 @@ import (
 // it (0015-MADR D10).
 func Descriptor() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:              llmprovider.ProviderID(llmprovider.ProviderOllama),
+		ID:              llmprovider.ProviderOllama,
 		Label:           "Ollama (local)",
 		DefaultBaseURL:  defaultBaseURL,
 		SupportsBaseURL: true,

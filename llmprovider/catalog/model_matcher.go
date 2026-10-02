@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // Model search (MADR 0007 §3). A query containing * or ? takes the glob path;
@@ -35,7 +37,7 @@ type Match struct {
 // including "/", and ? one character) keep input order; other queries are
 // sorted by score, then shorter id, then id. An empty query returns nil.
 // Duplicate ids (compared case-insensitively) are searched once.
-func Search(provider string, models []string, query string) []Match {
+func Search(provider llmprovider.ProviderID, models []string, query string) []Match {
 	q := strings.ToLower(strings.TrimSpace(query))
 	if q == "" {
 		return nil
@@ -64,7 +66,7 @@ func Search(provider string, models []string, query string) []Match {
 }
 
 // uniqueModelMatches labels each id once, in input order.
-func uniqueModelMatches(provider string, models []string) []Match {
+func uniqueModelMatches(provider llmprovider.ProviderID, models []string) []Match {
 	seen := make(map[string]struct{}, len(models))
 	out := make([]Match, 0, len(models))
 	for _, id := range models {

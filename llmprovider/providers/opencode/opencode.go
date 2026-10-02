@@ -210,7 +210,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		c.maxTokens = req.MaxOutputTokens
 	}
 	if req.Instructions != "" {
-		c.input = append([]llmprovider.Item{llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: req.Instructions}}, c.input...)
+		c.input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, c.input...)
 	}
 	c.route = p.requestRoute(ctx, c.model)
 	var body map[string]any
@@ -315,7 +315,7 @@ func (p *provider) requestRoute(ctx context.Context, model string) Route {
 		return p.route
 	}
 	if meta, err := catalog.LookupMetadata(ctx, p.metadataURL, p.client); err == nil {
-		if npm, ok := meta.NPM(string(p.gateway), model); ok {
+		if npm, ok := meta.NPM(p.gateway, model); ok {
 			return routeForNPM(npm)
 		}
 	}
@@ -481,7 +481,7 @@ func (p *provider) chatReasoningEffort(ctx context.Context, c call) string {
 		return ""
 	}
 	meta, err := catalog.LookupMetadata(ctx, p.metadataURL, p.client)
-	if err != nil || !slices.Contains(meta.ReasoningEfforts(string(p.gateway), c.model), string(c.reasoning.Effort)) {
+	if err != nil || !slices.Contains(meta.ReasoningEfforts(p.gateway, c.model), string(c.reasoning.Effort)) {
 		return ""
 	}
 	return string(c.reasoning.Effort)
@@ -498,7 +498,7 @@ func (p *provider) chatReplayField(ctx context.Context, c call) string {
 	if err != nil {
 		return ""
 	}
-	return meta.InterleavedField(string(p.gateway), c.model)
+	return meta.InterleavedField(p.gateway, c.model)
 }
 
 // isAssistantTurn reports whether an item is part of an assistant turn.
@@ -507,7 +507,7 @@ func isAssistantTurn(item llmprovider.Item) bool {
 	case llmprovider.FunctionCallItem:
 		return true
 	case llmprovider.MessageItem:
-		return v.Role == string(llmprovider.RoleAssistant)
+		return v.Role == llmprovider.RoleAssistant
 	}
 	return false
 }
@@ -518,7 +518,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	cat, err := catalog.List(ctx, p.gateway, p.src, p.listing...)
 	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
-		listed = catalog.Static(string(p.gateway))
+		listed = catalog.Static(p.gateway)
 	}
 	return listed, nil
 }

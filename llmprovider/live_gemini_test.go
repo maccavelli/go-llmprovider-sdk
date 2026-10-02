@@ -58,8 +58,8 @@ func TestLive_GeminiInteractions(t *testing.T) {
 	defer cancel()
 	res, err := liveGemini(t, key, "gemini-3.7-flash", llmprovider.WithHTTPClient(client)).Generate(ctx, &llmprovider.Request{
 		Input: []llmprovider.Item{
-			llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "Whatever the user says, reply with only the word OMEGA."},
-			llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "Say hello."},
+			llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Whatever the user says, reply with only the word OMEGA."},
+			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello."},
 		}})
 	llmprovider.SkipIfTransient(t, err)
 	if err != nil || !strings.Contains(strings.ToUpper(res.OutputText()), "OMEGA") {
@@ -138,7 +138,7 @@ func TestLive_GeminiToolRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	res, err := liveGemini(t, key, "gemini-3.7-flash").Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
-		llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "What is the weather in Paris? Use the tool."},
+		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "What is the weather in Paris? Use the tool."},
 		llmprovider.FunctionCallItem{CallID: "call_rt_1", Name: "get_weather", Arguments: `{"city":"Paris"}`},
 		llmprovider.FunctionCallOutputItem{CallID: "call_rt_1", Output: `{"forecast":"sunny, 21C"}`},
 	}})
@@ -158,7 +158,7 @@ func TestLive_GeminiReplaysRealCall(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	p := liveGemini(t, key, "gemini-3.7-flash")
-	ask := llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "What is the weather in Paris? Use the tool."}
+	ask := llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "What is the weather in Paris? Use the tool."}
 	first, err := p.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{ask},
 		Tools: []llmprovider.Tool{liveWeatherTool}, ToolChoice: llmprovider.ForceTool(liveWeatherTool.Name)})
 	llmprovider.SkipIfTransient(t, err)

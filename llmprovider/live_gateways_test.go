@@ -266,13 +266,13 @@ func TestLive_HuggingFaceMetadataFields(t *testing.T) {
 // TestLive_ListingsNeedNoCredential pins that all four catalogs are public.
 // Discovery works before a key is configured, which the wizards rely on.
 func TestLive_ListingsNeedNoCredential(t *testing.T) {
-	for name, url := range map[string]string{
+	for name, url := range map[ProviderID]string{
 		ProviderOpencodeZen: liveOpencodeZenBaseURL + "/models",
 		ProviderOpencodeGo:  liveOpencodeGoBaseURL + "/models",
 		ProviderHuggingFace: liveHuggingFaceBaseURL + "/models",
 		ProviderKilo:        kiloendpoint.BaseURL + "/models",
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(string(name), func(t *testing.T) {
 			if code := getJSON(t, url, nil); code != http.StatusOK {
 				t.Errorf("DRIFT: %s returned HTTP %d with no credential; discovery "+
 					"before key configuration would break", url, code)

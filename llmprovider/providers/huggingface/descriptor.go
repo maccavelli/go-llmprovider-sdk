@@ -11,7 +11,7 @@ import (
 // it (0015-MADR D10).
 func Descriptor() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:              llmprovider.ProviderID(llmprovider.ProviderHuggingFace),
+		ID:              llmprovider.ProviderHuggingFace,
 		Label:           "Hugging Face",
 		EnvVar:          llmprovider.ProviderEnvVars()[llmprovider.ProviderHuggingFace],
 		DefaultBaseURL:  defaultBaseURL,

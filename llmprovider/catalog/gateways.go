@@ -25,7 +25,7 @@ const (
 const opencodeSessionHeader = "x-opencode-session"
 
 // opencodeBaseURL returns the default base URL for a gateway.
-func opencodeBaseURL(gateway string) (string, error) {
+func opencodeBaseURL(gateway llmprovider.ProviderID) (string, error) {
 	switch gateway {
 	case llmprovider.ProviderOpencodeZen:
 		return opencodeZenBaseURL, nil

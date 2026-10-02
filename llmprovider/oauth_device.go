@@ -100,7 +100,7 @@ var errDeviceLoginCanceled = fmt.Errorf("oauth: device login canceled: %w", cont
 
 // StartDeviceOAuth starts the provider's device-code login: it requests the
 // code, and returns a handle to show it and wait for approval.
-func StartDeviceOAuth(ctx context.Context, provider string, opts OAuthFlowOptions) (*DeviceLogin, error) {
+func StartDeviceOAuth(ctx context.Context, provider ProviderID, opts OAuthFlowOptions) (*DeviceLogin, error) {
 	if provider == ProviderKilo {
 		return startKiloDevice(ctx, opts)
 	}
@@ -166,7 +166,7 @@ func (d *DeviceLogin) Cancel() {
 // LoginDeviceOAuth completes the provider's headless device-code flow in one
 // call: it starts the login, reports the code through opts.NotifyDevice, and
 // waits for approval. StartDeviceOAuth gives the same flow as a handle.
-func LoginDeviceOAuth(ctx context.Context, provider string, opts OAuthFlowOptions) (*OAuthSession, error) {
+func LoginDeviceOAuth(ctx context.Context, provider ProviderID, opts OAuthFlowOptions) (*OAuthSession, error) {
 	login, err := StartDeviceOAuth(ctx, provider, opts)
 	if err != nil {
 		return nil, err

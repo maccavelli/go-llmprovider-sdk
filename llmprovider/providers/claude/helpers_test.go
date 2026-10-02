@@ -61,7 +61,7 @@ func build(t *testing.T, opts ...llmprovider.Option) llmprovider.Provider {
 // text is a request with one user message.
 func text(prompt string) *llmprovider.Request {
 	return &llmprovider.Request{Input: []llmprovider.Item{
-		llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: prompt}}}
+		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: prompt}}}
 }
 
 // withTool adds tool to req and forces it, as the old GenerateWithTool did.

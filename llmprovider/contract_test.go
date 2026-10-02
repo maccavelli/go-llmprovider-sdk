@@ -3,6 +3,7 @@ package llmprovider
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -22,7 +23,7 @@ func (s *stubProvider) Generate(ctx context.Context, req *Request) (*Response, e
 }
 
 func textInput(text string) []Item {
-	return []Item{MessageItem{Role: string(RoleUser), Text: text}}
+	return []Item{MessageItem{Role: RoleUser, Text: text}}
 }
 
 func TestCapabilitiesCheck_RefusesUnsupportedNeeds(t *testing.T) {
@@ -78,12 +79,27 @@ func TestCapabilitiesCheck_RefusesInvalidValues(t *testing.T) {
 		{"a forced tool that is not offered", &Request{Tools: []Tool{{Name: "a"}}, ToolChoice: ForceTool("b")}},
 		{"an unknown effort", &Request{Reasoning: &Reasoning{Effort: "extreme"}}},
 		{"a negative budget", &Request{Reasoning: &Reasoning{Budget: -1}}},
+		{"an unknown role", &Request{Input: []Item{MessageItem{Role: RoleUser, Text: "hi"}, MessageItem{Role: "model", Text: "x"}}}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if err := all.Check(c.req); !errors.Is(err, ErrInvalidRequest) {
 				t.Fatalf("Check = %v, want an error matching ErrInvalidRequest", err)
 			}
 		})
+	}
+}
+
+// TestCapabilitiesCheck_AcceptsTheRoles: the three roles pass, and so does an
+// empty one, which each wire sends as the user's (0015-MADR D6).
+func TestCapabilitiesCheck_AcceptsTheRoles(t *testing.T) {
+	for _, role := range []Role{"", RoleUser, RoleAssistant, RoleSystem} {
+		if err := (Capabilities{}).Check(&Request{Input: []Item{MessageItem{Role: role, Text: "hi"}}}); err != nil {
+			t.Errorf("role %q: Check = %v, want nil", role, err)
+		}
+	}
+	err := (Capabilities{}).Check(&Request{Input: []Item{MessageItem{Text: "a"}, MessageItem{Role: "developer", Text: "b"}}})
+	if err == nil || !strings.Contains(err.Error(), `input 1 has unknown role "developer"`) {
+		t.Errorf("Check = %v, want the item and its role named", err)
 	}
 }
 

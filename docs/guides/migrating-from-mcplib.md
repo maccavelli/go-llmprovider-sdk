@@ -90,10 +90,10 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ErrQuotaExhausted` | `ErrQuotaExhausted` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.ErrRateLimited` | `ErrRateLimited` | Its message reads `llmprovider:`, no longer `llm:` (R27, [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.FileTokenStore` |  |  |
-| `llmprovider.FileTokenStore.Delete` |  |  |
+| `llmprovider.FileTokenStore.Delete` | `FileTokenStore.Delete` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `llmprovider.FileTokenStore.Dir` |  |  |
-| `llmprovider.FileTokenStore.Load` |  |  |
-| `llmprovider.FileTokenStore.Save` |  |  |
+| `llmprovider.FileTokenStore.Load` | `FileTokenStore.Load` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
+| `llmprovider.FileTokenStore.Save` | `FileTokenStore.Save` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `llmprovider.FunctionCallItem` |  |  |
 | `llmprovider.FunctionCallItem.Arguments` |  |  |
 | `llmprovider.FunctionCallItem.CallID` |  |  |
@@ -169,11 +169,11 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ListAvailableModelsWithSource` | `catalog.List(ctx, id, src, opts...)` | Its `Recommended`; an error gives none. |
 | `llmprovider.ListModelCatalog` | `catalog.List` | With `NewStaticToken(key)` for a key ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.ListModelCatalogWithSource` | `catalog.List` |  |
-| `llmprovider.LoginBrowserOAuth` |  |  |
-| `llmprovider.LoginDeviceOAuth` |  |  |
+| `llmprovider.LoginBrowserOAuth` | `LoginBrowserOAuth` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
+| `llmprovider.LoginDeviceOAuth` | `LoginDeviceOAuth` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `llmprovider.MaxListedModels` | `catalog.MaxListed` |  |
 | `llmprovider.MessageItem` |  |  |
-| `llmprovider.MessageItem.Role` |  |  |
+| `llmprovider.MessageItem.Role` | `MessageItem.Role` | A `Role` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). A role other than `RoleUser`, `RoleAssistant`, `RoleSystem` or empty is refused with `ErrInvalidRequest`. |
 | `llmprovider.MessageItem.Text` |  |  |
 | `llmprovider.ModelCatalog` | `catalog.Catalog` |  |
 | `llmprovider.ModelCatalog.Err` | `Catalog.Err` |  |
@@ -182,7 +182,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ModelCatalog.Usable` | `Catalog.Usable` |  |
 | `llmprovider.ModelDiscoverer` | `ModelLister` | Or `catalog.List`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.ModelDiscoverer.DiscoverModels` | `ModelLister.ListModels` | As `ModelDiscoverer`. |
-| `llmprovider.ModelLabel` | `catalog.Label` |  |
+| `llmprovider.ModelLabel` | `catalog.Label` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `llmprovider.ModelMatch` | `catalog.Match` |  |
 | `llmprovider.ModelMatch.ID` | `Match.ID` |  |
 | `llmprovider.ModelMatch.Label` | `Match.Label` |  |
@@ -218,7 +218,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OAuthSession.FedRAMP` |  |  |
 | `llmprovider.OAuthSession.HTTPClient` |  |  |
 | `llmprovider.OAuthSession.Issuer` |  |  |
-| `llmprovider.OAuthSession.Provider` |  |  |
+| `llmprovider.OAuthSession.Provider` | `OAuthSession.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). Its JSON is unchanged. |
 | `llmprovider.OAuthSession.Refresh` |  |  |
 | `llmprovider.OAuthSession.Store` |  |  |
 | `llmprovider.OAuthSession.Token` |  |  |
@@ -268,7 +268,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.Provider` | `Provider` | `ID`, `Capabilities` and `Generate(ctx, *Request)`. The old interface, `LegacyProvider` after the move, is removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.Provider.Generate` | `GenerateText(ctx, p, req)` | Or `Provider.Generate` for the whole `*Response`. |
 | `llmprovider.Provider.Name` | `Provider.ID` | A `ProviderID`. |
-| `llmprovider.ProviderClaude` |  |  |
+| `llmprovider.ProviderClaude` | `ProviderClaude` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The value is unchanged. |
 | `llmprovider.ProviderConfig` | `Settings` | Unexported in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 (R19); a provider reads its resolved `Settings`. |
 | `llmprovider.ProviderConfig.BaseURL` | `Settings.BaseURL` | Set with `WithBaseURL`. |
 | `llmprovider.ProviderConfig.ClientName` | `Settings.ClientName` | Set with `WithClientInfo`. |
@@ -296,15 +296,15 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ProviderDescriptor.RequiresAPIKey` | `Descriptor.RequiresAPIKey` |  |
 | `llmprovider.ProviderDescriptor.StaticModels` | `Descriptor.StaticModels` |  |
 | `llmprovider.ProviderDescriptor.SupportsBaseURL` | `Descriptor.SupportsBaseURL` |  |
-| `llmprovider.ProviderEnvVars` | `ProviderEnvVars()` | A function returning a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.ProviderGemini` |  |  |
-| `llmprovider.ProviderGrok` |  |  |
-| `llmprovider.ProviderHuggingFace` |  |  |
-| `llmprovider.ProviderKilo` |  |  |
-| `llmprovider.ProviderOllama` |  |  |
-| `llmprovider.ProviderOpenAI` |  |  |
-| `llmprovider.ProviderOpencodeGo` |  |  |
-| `llmprovider.ProviderOpencodeZen` |  |  |
+| `llmprovider.ProviderEnvVars` | `ProviderEnvVars()` | A function returning a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9), keyed by `ProviderID` since S8. |
+| `llmprovider.ProviderGemini` | `ProviderGemini` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The value is unchanged. |
+| `llmprovider.ProviderGrok` | `ProviderGrok` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The value is unchanged. |
+| `llmprovider.ProviderHuggingFace` | `ProviderHuggingFace` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The value is unchanged. |
+| `llmprovider.ProviderKilo` | `ProviderKilo` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The value is unchanged. |
+| `llmprovider.ProviderOllama` | `ProviderOllama` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The value is unchanged. |
+| `llmprovider.ProviderOpenAI` | `ProviderOpenAI` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The value is unchanged. |
+| `llmprovider.ProviderOpencodeGo` | `ProviderOpencodeGo` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The value is unchanged. |
+| `llmprovider.ProviderOpencodeZen` | `ProviderOpencodeZen` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). The value is unchanged. |
 | `llmprovider.ProviderOption` | `Option` | The alias is removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.RankClaudeModel` | `RankModel(ProviderClaude, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
 | `llmprovider.RankGeminiModel` | `RankModel(ProviderGemini, model)` | One function for every provider ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5); `catalog.Rank` from S7b. |
@@ -329,13 +329,13 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.Response.Output` |  |  |
 | `llmprovider.Response.OutputText` |  |  |
 | `llmprovider.RevokeOAuthSession` |  |  |
-| `llmprovider.SearchModels` | `catalog.Search` |  |
+| `llmprovider.SearchModels` | `catalog.Search` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `llmprovider.StaticClaude` | `StaticModels(ProviderClaude)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticGemini` | `StaticModels(ProviderGemini)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticGrok` | `StaticModels(ProviderGrok)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticHuggingFace` | `StaticModels(ProviderHuggingFace)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticKilo` | `StaticModels(ProviderKilo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.StaticModels` | `catalog.Static` |  |
+| `llmprovider.StaticModels` | `catalog.Static` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `llmprovider.StaticOpenAI` | `StaticModels(ProviderOpenAI)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticOpencodeGo` | `StaticModels(ProviderOpencodeGo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticOpencodeZen` | `StaticModels(ProviderOpencodeZen)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
@@ -357,9 +357,9 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.TokenSource` |  |  |
 | `llmprovider.TokenSource.Token` |  |  |
 | `llmprovider.TokenStore` |  |  |
-| `llmprovider.TokenStore.Delete` |  |  |
-| `llmprovider.TokenStore.Load` |  |  |
-| `llmprovider.TokenStore.Save` |  |  |
+| `llmprovider.TokenStore.Delete` | `TokenStore.Delete` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. |
+| `llmprovider.TokenStore.Load` | `TokenStore.Load` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. |
+| `llmprovider.TokenStore.Save` | `TokenStore.Save` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). An implementation outside this module changes its signature. |
 | `llmprovider.TokenType` |  |  |
 | `llmprovider.Tool` |  |  |
 | `llmprovider.Tool.Description` |  |  |
@@ -371,7 +371,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ValidateOllamaURL` | `catalog.ValidateOllamaURL` |  |
 | `llmprovider.VendorCLISession` |  |  |
 | `llmprovider.VendorCLISession.Path` |  |  |
-| `llmprovider.VendorCLISession.Provider` |  |  |
+| `llmprovider.VendorCLISession.Provider` | `VendorCLISession.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). |
 | `llmprovider.VendorCLISession.Token` |  |  |
 | `llmprovider.WithBaseURL` |  |  |
 | `llmprovider.WithClientInfo` |  |  |
@@ -412,14 +412,14 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `wizard.Options.AllowEnv` |  |  |
 | `wizard.Options.Discover` |  |  |
 | `wizard.Options.DiscoverLimit` |  |  |
-| `wizard.Options.Existing` |  |  |
+| `wizard.Options.Existing` | `Options.Existing` | A `Result`; its `Provider` is a `ProviderID`. |
 | `wizard.Options.HTTPClient` |  |  |
 | `wizard.Options.LookupEnv` |  |  |
 | `wizard.Options.NeedFallbacks` |  |  |
 | `wizard.Options.OpenURL` |  |  |
 | `wizard.Options.Orchestrated` | removed | As `ErrOrchestrated` ([0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.md), sixth amendment). |
 | `wizard.Options.Profile` |  |  |
-| `wizard.Options.Providers` |  |  |
+| `wizard.Options.Providers` | `Options.Providers` | A `[]llmprovider.ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
 | `wizard.Options.TokenStore` |  |  |
 | `wizard.Prompter` |  |  |
 | `wizard.Prompter.Confirm` |  |  |
@@ -439,7 +439,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `wizard.Result.Issuer` |  |  |
 | `wizard.Result.Kind` |  |  |
 | `wizard.Result.Model` |  |  |
-| `wizard.Result.Provider` |  |  |
+| `wizard.Result.Provider` | `Result.Provider` | Typed `ProviderID` in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D6). |
 | `wizard.Result.RefreshToken` |  |  |
 | `wizard.Result.TokenExpiry` |  |  |
 | `wizard.Result.VendorAuthPath` |  |  |

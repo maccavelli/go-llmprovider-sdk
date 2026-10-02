@@ -14,7 +14,7 @@ import (
 // TestOpencodeRoute_Table pins the published endpoint tables, including the
 // per-gateway divergence that makes a model-only key wrong.
 func TestOpencodeRoute_Table(t *testing.T) {
-	zen, goGW := llmprovider.ProviderID(llmprovider.ProviderOpencodeZen), llmprovider.ProviderID(llmprovider.ProviderOpencodeGo)
+	zen, goGW := llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo
 	tests := []struct {
 		name    string
 		gateway llmprovider.ProviderID
@@ -57,7 +57,7 @@ func TestOpencodeRoute_Table(t *testing.T) {
 // regression guard for catalog drift: every one must still resolve correctly
 // through the prefix heuristic.
 func TestOpencodeRoute_Heuristic(t *testing.T) {
-	zen, goGW := llmprovider.ProviderID(llmprovider.ProviderOpencodeZen), llmprovider.ProviderID(llmprovider.ProviderOpencodeGo)
+	zen, goGW := llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo
 	tests := []struct {
 		gateway llmprovider.ProviderID
 		model   string
@@ -92,7 +92,7 @@ func TestOpencodeRoute_Heuristic(t *testing.T) {
 // TestOpencodeRoute_Override verifies an explicit route beats both the table
 // and the heuristic, and that an unknown route is rejected.
 func TestOpencodeRoute_Override(t *testing.T) {
-	zen := llmprovider.ProviderID(llmprovider.ProviderOpencodeZen)
+	zen := llmprovider.ProviderOpencodeZen
 	// gpt-5.5 is tabled as responses; the override must win.
 	got, err := resolveRoute(zen, "gpt-5.5", RouteChatCompletions)
 	if err != nil {

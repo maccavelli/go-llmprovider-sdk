@@ -103,7 +103,7 @@ func (c rankCandidate) costOrZero() float64 {
 }
 
 // eligible applies MADR 0009 §3 for one provider.
-func (c rankCandidate) eligible(provider string) bool {
+func (c rankCandidate) eligible(provider llmprovider.ProviderID) bool {
 	switch {
 	case c.reasoningKnown && !c.reasoning,
 		c.costKnown && c.cost == 0,
@@ -195,14 +195,14 @@ func boolFirst(a, b bool) int {
 // utilityExcluded reports ids the utility profile never recommends, ranked or
 // filled: Kilo's kilo-auto/* managed tiers (MADR 0009 §3 item 9, a maintainer
 // decision). They stay searchable and eligible under ProfileCapable.
-func utilityExcluded(profile Profile, provider, id string) bool {
+func utilityExcluded(profile Profile, provider llmprovider.ProviderID, id string) bool {
 	return profile != ProfileCapable && provider == llmprovider.ProviderKilo && strings.HasPrefix(id, "kilo-auto/")
 }
 
 // rankRecommended returns at most MaxListed distinct ids: the eligible
 // candidates in profile order, at most maxPerRankGroup per group, then fill in
 // order, skipping ids already chosen or excluded (MADR 0009 §4, MADR 0013 A1).
-func rankRecommended(profile Profile, provider string, cands []rankCandidate, fill []string) []string {
+func rankRecommended(profile Profile, provider llmprovider.ProviderID, cands []rankCandidate, fill []string) []string {
 	var eligible []rankCandidate
 	for _, c := range cands {
 		if c.eligible(provider) && !utilityExcluded(profile, provider, c.id) {

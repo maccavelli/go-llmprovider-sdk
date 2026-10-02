@@ -69,7 +69,7 @@ func itemsToChatMessagesReplaying(items []llmprovider.Item, field string) []map[
 		case llmprovider.ReasoningItem:
 			pending.WriteString(v.Text)
 		case llmprovider.MessageItem:
-			role := v.Role
+			role := string(v.Role)
 			if role == "" {
 				role = wire.RoleUser
 			}
@@ -220,7 +220,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		if role == "" {
 			role = wire.RoleAssistant
 		}
-		result.Output = append(result.Output, llmprovider.MessageItem{Role: role, Text: msg.Content})
+		result.Output = append(result.Output, llmprovider.MessageItem{Role: llmprovider.Role(role), Text: msg.Content})
 	}
 	for _, tc := range msg.ToolCalls {
 		result.Output = append(result.Output, llmprovider.FunctionCallItem{

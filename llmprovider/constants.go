@@ -1,27 +1,27 @@
 package llmprovider
 
-// Canonical provider identifiers.
+// Canonical provider identifiers (0015-MADR D6).
 const (
-	ProviderGemini = "gemini"
-	ProviderOpenAI = "openai"
-	ProviderClaude = "claude"
-	ProviderGrok   = "grok"
+	ProviderGemini ProviderID = "gemini"
+	ProviderOpenAI ProviderID = "openai"
+	ProviderClaude ProviderID = "claude"
+	ProviderGrok   ProviderID = "grok"
 	// ProviderOpencodeZen is the OpenCode Zen gateway (pay-as-you-go).
-	ProviderOpencodeZen = "opencode-zen"
+	ProviderOpencodeZen ProviderID = "opencode-zen"
 	// ProviderOpencodeGo is the OpenCode Go gateway (subscription).
-	ProviderOpencodeGo = "opencode-go"
+	ProviderOpencodeGo ProviderID = "opencode-go"
 	// ProviderHuggingFace is the Hugging Face Inference Providers router.
-	ProviderHuggingFace = "huggingface"
+	ProviderHuggingFace ProviderID = "huggingface"
 	// ProviderKilo is the Kilo Gateway (the API behind the Kilo Code agent).
 	// models.dev registers this gateway as "kilo"; this package follows that
 	// registry key. See docs/decisions/0004-MADR-add-gateway-llm-providers.md revision 4.
-	ProviderKilo = "kilo"
+	ProviderKilo ProviderID = "kilo"
 	// ProviderTogether is Together AI, an OpenAI Chat Completions service
 	// (docs/decisions/0017-MADR-together-provider-and-auth-extensions.md D1).
-	ProviderTogether = "together"
+	ProviderTogether ProviderID = "together"
 	// ProviderOllama is a local Ollama instance, reached through its
 	// OpenAI-compatible endpoint. It is the only provider needing no credential.
-	ProviderOllama = "ollama"
+	ProviderOllama ProviderID = "ollama"
 )
 
 // Reasoning effort level values shared across providers.

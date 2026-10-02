@@ -123,15 +123,15 @@ func TestDescriptors_CoverEveryRegisteredProvider(t *testing.T) {
 	registry := Default()
 	envVars := llmprovider.ProviderEnvVars()
 	for id := range envVars {
-		if _, ok := registry.Descriptor(llmprovider.ProviderID(id)); !ok {
+		if _, ok := registry.Descriptor(id); !ok {
 			t.Errorf("provider %q has a credential variable but no descriptor in Default: no wizard can offer it", id)
 		}
 	}
 	for _, d := range registry.Descriptors() {
-		if d.RequiresAPIKey && d.EnvVar != envVars[string(d.ID)] {
-			t.Errorf("%s: EnvVar = %q, want %q", d.ID, d.EnvVar, envVars[string(d.ID)])
+		if d.RequiresAPIKey && d.EnvVar != envVars[d.ID] {
+			t.Errorf("%s: EnvVar = %q, want %q", d.ID, d.EnvVar, envVars[d.ID])
 		}
-		if !reflect.DeepEqual(d.StaticModels, catalog.Static(string(d.ID))) {
+		if !reflect.DeepEqual(d.StaticModels, catalog.Static(d.ID)) {
 			t.Errorf("%s: StaticModels = %v, want StaticModels()'s", d.ID, d.StaticModels)
 		}
 	}

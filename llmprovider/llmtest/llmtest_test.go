@@ -103,7 +103,7 @@ func (p *refProvider) Generate(ctx context.Context, req *llmprovider.Request) (*
 		result.Output = append(result.Output, llmprovider.FunctionCallItem{CallID: "call_1", Name: out.Call.Name, Arguments: out.Call.Arguments})
 	}
 	if out.Text != "" {
-		result.Output = append(result.Output, llmprovider.MessageItem{Role: string(llmprovider.RoleAssistant), Text: out.Text})
+		result.Output = append(result.Output, llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: out.Text})
 	}
 	return result, nil
 }

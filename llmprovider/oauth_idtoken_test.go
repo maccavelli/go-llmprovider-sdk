@@ -142,8 +142,9 @@ func failingDiscovery() *http.Client {
 // built-in issuer's discovery fails, its built-in endpoints and keys apply.
 func TestOAuthEndpointsFor_BuiltinIssuerFallsBack(t *testing.T) {
 	for _, tc := range []struct {
-		provider, issuer string
-		want             oauthEndpoints
+		provider ProviderID
+		issuer   string
+		want     oauthEndpoints
 	}{
 		{ProviderGrok, DefaultGrokOAuthIssuer, oauthEndpoints{Authorization: DefaultGrokOAuthIssuer + "/oauth2/authorize",
 			Token: defaultGrokOAuthRefreshURL, Device: defaultGrokOAuthDeviceURL, JWKS: defaultGrokJWKSURL}},
@@ -162,7 +163,7 @@ func TestOAuthEndpointsFor_BuiltinIssuerFallsBack(t *testing.T) {
 // replacing the test that pinned finding M6's fallback): a caller's issuer
 // whose discovery fails is an error, never the built-in endpoints.
 func TestOAuthEndpointsFor_CallerIssuerDiscoveryFailureFails(t *testing.T) {
-	for _, provider := range []string{ProviderGrok, ProviderOpenAI} {
+	for _, provider := range []ProviderID{ProviderGrok, ProviderOpenAI} {
 		_, err := oauthEndpointsFor(context.Background(), oauthFlowConfig{provider: provider,
 			issuer: "https://issuer.example", httpClient: failingDiscovery()})
 		if err == nil || !strings.Contains(err.Error(), "503") {

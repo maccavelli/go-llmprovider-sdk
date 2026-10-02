@@ -12,11 +12,11 @@ import (
 // TestProviderConstants_Distinct guards against a copy-paste error in the
 // canonical identifier block.
 func TestProviderConstants_Distinct(t *testing.T) {
-	ids := []string{
+	ids := []ProviderID{
 		ProviderGemini, ProviderOpenAI, ProviderClaude, ProviderGrok,
 		ProviderOpencodeZen, ProviderOpencodeGo, ProviderHuggingFace, ProviderKilo,
 	}
-	seen := make(map[string]struct{}, len(ids))
+	seen := make(map[ProviderID]struct{}, len(ids))
 	for _, id := range ids {
 		if id == "" {
 			t.Error("empty provider identifier")

@@ -32,7 +32,7 @@ func Input(items []llmprovider.Item) []map[string]any {
 		switch v := item.(type) {
 		case llmprovider.MessageItem:
 			input = append(input, map[string]any{
-				wire.KeyRole:    v.Role,
+				wire.KeyRole:    string(v.Role),
 				wire.KeyContent: v.Text,
 			})
 		case llmprovider.FunctionCallItem:

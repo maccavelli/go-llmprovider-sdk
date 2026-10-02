@@ -11,7 +11,7 @@ import (
 // it (0015-MADR D10).
 func Descriptor() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:             llmprovider.ProviderID(llmprovider.ProviderGrok),
+		ID:             llmprovider.ProviderGrok,
 		Label:          "Grok (xAI)",
 		EnvVar:         llmprovider.ProviderEnvVars()[llmprovider.ProviderGrok],
 		RequiresAPIKey: true,

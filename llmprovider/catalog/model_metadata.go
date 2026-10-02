@@ -86,7 +86,7 @@ type modelMetadataDoc map[string]map[string]modelMetadata
 
 // reasoningEfforts returns the effort values the document lists for one
 // model's reasoning_options, or nil.
-func (d modelMetadataDoc) reasoningEfforts(provider, model string) []string {
+func (d modelMetadataDoc) reasoningEfforts(provider llmprovider.ProviderID, model string) []string {
 	for _, o := range d[modelMetadataKey(provider)][model].ReasoningOptions {
 		if o.Type == jsonKeyEffort {
 			return o.Values
@@ -98,7 +98,7 @@ func (d modelMetadataDoc) reasoningEfforts(provider, model string) []string {
 // interleavedField returns the message field a model expects its prior
 // reasoning replayed under ("reasoning_content"), or "" when it declares none
 // (MADR 0012 §2, O5).
-func (d modelMetadataDoc) interleavedField(provider, model string) string {
+func (d modelMetadataDoc) interleavedField(provider llmprovider.ProviderID, model string) string {
 	var declared struct {
 		Field string `json:"field"`
 	}
@@ -111,7 +111,7 @@ func (d modelMetadataDoc) interleavedField(provider, model string) string {
 // npm returns a model's provider.npm, the AI SDK package OpenCode's client
 // routes it by, and false when the document does not list the model (MADR
 // 0012 §3.1).
-func (d modelMetadataDoc) npm(provider, model string) (string, bool) {
+func (d modelMetadataDoc) npm(provider llmprovider.ProviderID, model string) (string, bool) {
 	m, ok := d[modelMetadataKey(provider)][model]
 	if !ok {
 		return "", false
@@ -143,24 +143,24 @@ func LookupMetadata(ctx context.Context, url string, client *http.Client) (Metad
 
 // ReasoningEfforts returns the effort values the document lists for a
 // model's reasoning_options, or nil.
-func (m Metadata) ReasoningEfforts(provider, model string) []string {
+func (m Metadata) ReasoningEfforts(provider llmprovider.ProviderID, model string) []string {
 	return m.doc.reasoningEfforts(provider, model)
 }
 
 // InterleavedField returns the message field a model expects its prior
 // reasoning replayed under, or "".
-func (m Metadata) InterleavedField(provider, model string) string {
+func (m Metadata) InterleavedField(provider llmprovider.ProviderID, model string) string {
 	return m.doc.interleavedField(provider, model)
 }
 
 // NPM returns a model's provider.npm, and false when the document does not
 // list the model.
-func (m Metadata) NPM(provider, model string) (string, bool) {
+func (m Metadata) NPM(provider llmprovider.ProviderID, model string) (string, bool) {
 	return m.doc.npm(provider, model)
 }
 
 // modelMetadataKey returns the document key for a provider, or "".
-func modelMetadataKey(provider string) string {
+func modelMetadataKey(provider llmprovider.ProviderID) string {
 	switch provider {
 	case llmprovider.ProviderOpencodeZen:
 		return metadataKeyZen
@@ -331,7 +331,7 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 // metadataCurate ranks a provider's usable models with the metadata document
 // (MADR 0009 §2). A failed or disabled fetch, or a document without the
 // provider's key, returns fallback's curation unchanged.
-func metadataCurate(provider string, profile Profile, meta <-chan modelMetadataResult, fallback func([]string) []string) func([]string) []string {
+func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta <-chan modelMetadataResult, fallback func([]string) []string) func([]string) []string {
 	return func(usable []string) []string {
 		res := <-meta
 		models, ok := res.doc[modelMetadataKey(provider)]

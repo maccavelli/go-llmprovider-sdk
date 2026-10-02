@@ -83,7 +83,7 @@ func proxyChild(t *testing.T) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		got, err := llmprovider.GenerateText(ctx, p, &llmprovider.Request{Input: []llmprovider.Item{
-			llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: wirecase.Prompt}}})
+			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: wirecase.Prompt}}})
 		cancel()
 		if err != nil || got != "hello" {
 			t.Errorf("%s: GenerateText = %q, %v; want \"hello\" through the proxy", d.ID, got, err)

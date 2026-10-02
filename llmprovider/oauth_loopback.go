@@ -44,7 +44,7 @@ type OAuthFlowOptions struct {
 }
 
 type oauthFlowConfig struct {
-	provider   string
+	provider   ProviderID
 	clientID   string
 	issuer     string
 	httpClient *http.Client
@@ -78,7 +78,7 @@ type oauthCallbackResult struct {
 }
 
 // LoginBrowserOAuth completes a browser authorization-code flow with PKCE.
-func LoginBrowserOAuth(ctx context.Context, provider string, opts OAuthFlowOptions) (*OAuthSession, error) {
+func LoginBrowserOAuth(ctx context.Context, provider ProviderID, opts OAuthFlowOptions) (*OAuthSession, error) {
 	config, err := resolveOAuthFlowConfig(provider, opts)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func LoginBrowserOAuth(ctx context.Context, provider string, opts OAuthFlowOptio
 	return exchangeOAuthCode(flowCtx, config, endpoints, callback.code, redirectURI, pkce.verifier, nonce)
 }
 
-func resolveOAuthFlowConfig(provider string, opts OAuthFlowOptions) (oauthFlowConfig, error) {
+func resolveOAuthFlowConfig(provider ProviderID, opts OAuthFlowOptions) (oauthFlowConfig, error) {
 	issuer := strings.TrimRight(opts.Issuer, "/")
 	clientID := opts.ClientID
 	switch provider {
@@ -308,7 +308,7 @@ func discoverOAuthEndpoints(ctx context.Context, config oauthFlowConfig) (oauthE
 	return discovered, nil
 }
 
-func browserListener(provider string) ([]net.Listener, string, string, error) {
+func browserListener(provider ProviderID) ([]net.Listener, string, string, error) {
 	if provider == ProviderOpenAI {
 		listeners, port, err := listenOpenAILoopback(openaiLoopbackPorts)
 		if err != nil {
@@ -461,7 +461,7 @@ const grokAccountsAppOrigin = "https://accounts.x.ai"
 
 // callbackCORSOrigin names the origin a provider's callback allows; "" allows
 // none.
-func callbackCORSOrigin(provider string) string {
+func callbackCORSOrigin(provider ProviderID) string {
 	if provider == ProviderGrok {
 		return grokAccountsAppOrigin
 	}

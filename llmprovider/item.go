@@ -17,7 +17,7 @@ type Item interface {
 
 // MessageItem represents a text message from a role (typically "assistant").
 type MessageItem struct {
-	Role string // "user", "assistant", "system"
+	Role Role // RoleUser, RoleAssistant or RoleSystem
 	Text string
 }
 

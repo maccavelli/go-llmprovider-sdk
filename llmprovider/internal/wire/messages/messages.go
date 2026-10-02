@@ -52,7 +52,7 @@ func FromItems(items []llmprovider.Item) []map[string]any {
 	for _, item := range items {
 		switch v := item.(type) {
 		case llmprovider.MessageItem:
-			role := v.Role
+			role := string(v.Role)
 			if role == wire.RoleSystem {
 				continue // top-level system field; see wire.SystemPrompt
 			}

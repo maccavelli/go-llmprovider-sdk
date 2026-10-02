@@ -11,7 +11,7 @@ import (
 // it (0015-MADR D10).
 func Descriptor() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:             llmprovider.ProviderID(llmprovider.ProviderGemini),
+		ID:             llmprovider.ProviderGemini,
 		Label:          "Gemini (Google)",
 		EnvVar:         llmprovider.ProviderEnvVars()[llmprovider.ProviderGemini],
 		RequiresAPIKey: true,

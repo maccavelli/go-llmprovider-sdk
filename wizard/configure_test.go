@@ -14,10 +14,10 @@ import (
 
 // providerIdx returns the index of a provider in the default registry's menu
 // order, so tests script menu positions without hard-coding them.
-func providerIdx(t *testing.T, id string) int {
+func providerIdx(t *testing.T, id llmprovider.ProviderID) int {
 	t.Helper()
 	for i, d := range providers.Default().Descriptors() {
-		if string(d.ID) == id {
+		if d.ID == id {
 			return i
 		}
 	}
@@ -262,7 +262,7 @@ func TestConfigureLLM_ProviderFilter(t *testing.T) {
 	withEnv(t, nil)
 	f := &fakePrompter{t: t, selects: []int{0, 0, 0}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
-		Providers: []string{llmprovider.ProviderGrok},
+		Providers: []llmprovider.ProviderID{llmprovider.ProviderGrok},
 	})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -275,7 +275,7 @@ func TestConfigureLLM_ProviderFilter(t *testing.T) {
 	}
 
 	if _, err := ConfigureLLM(context.Background(), &fakePrompter{t: t},
-		Options{Providers: []string{"nonexistent"}}); err == nil {
+		Options{Providers: []llmprovider.ProviderID{"nonexistent"}}); err == nil {
 		t.Error("expected an error when no requested provider exists")
 	}
 }

@@ -47,7 +47,7 @@ var liveMetadata = sync.OnceValues(func() (pickerDoc, error) {
 // Candidates share what the test needs (a route, a thinking shape, a
 // data-collection policy). An unreachable document keeps the first
 // candidate; no active candidate skips the test.
-func liveModel(t *testing.T, provider string, candidates ...string) string {
+func liveModel(t *testing.T, provider ProviderID, candidates ...string) string {
 	t.Helper()
 	doc, err := liveMetadata()
 	if err != nil {

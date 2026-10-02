@@ -120,18 +120,18 @@ type failingTokenStore struct {
 	savedRefresh string
 }
 
-func (s *failingTokenStore) Load(context.Context, string) (*OAuthSession, error) {
+func (s *failingTokenStore) Load(context.Context, ProviderID) (*OAuthSession, error) {
 	return nil, nil
 }
 
-func (s *failingTokenStore) Save(_ context.Context, _ string, session *OAuthSession) error {
+func (s *failingTokenStore) Save(_ context.Context, _ ProviderID, session *OAuthSession) error {
 	s.saves++
 	s.savedAccess = session.Access
 	s.savedRefresh = session.Refresh
 	return s.err
 }
 
-func (s *failingTokenStore) Delete(context.Context, string) error {
+func (s *failingTokenStore) Delete(context.Context, ProviderID) error {
 	return nil
 }
 

@@ -273,7 +273,7 @@ func TestLive_OpencodeInterleavedReasoningReplay(t *testing.T) {
 	defer cancel()
 	res, err := liveGo(t, goModel(t, "kimi-k2.6"), llmprovider.WithHTTPClient(&http.Client{Transport: rec})).Generate(ctx,
 		&llmprovider.Request{Input: []llmprovider.Item{
-			llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "What is the weather in Paris? Use the tool."},
+			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "What is the weather in Paris? Use the tool."},
 			llmprovider.ReasoningItem{Text: "The user wants Paris weather; call get_weather."},
 			llmprovider.FunctionCallItem{CallID: "call_rp_1", Name: "get_weather", Arguments: `{"city":"Paris"}`},
 			llmprovider.FunctionCallOutputItem{CallID: "call_rp_1", Output: `{"forecast":"sunny, 21C"}`},
@@ -297,8 +297,8 @@ func TestLive_OpencodeSystemMessage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	res, err := liveGo(t, goModel(t, "qwen3.8-flash", "minimax-m3")).Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
-		llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "You only ever reply in French."},
-		llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "Say hello in one word, nothing else."},
+		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "You only ever reply in French."},
+		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello in one word, nothing else."},
 	}})
 	llmprovider.SkipIfTransient(t, err)
 	if err != nil {
@@ -323,7 +323,7 @@ func TestLive_OpencodeToolRoundTrip(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 			res, err := liveGo(t, goModel(t, candidates...)).Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
-				llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "What is the weather in Paris? Use the tool."},
+				llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "What is the weather in Paris? Use the tool."},
 				llmprovider.FunctionCallItem{CallID: "call_rt_1", Name: "get_weather", Arguments: `{"city":"Paris"}`},
 				llmprovider.FunctionCallOutputItem{CallID: "call_rt_1", Output: `{"forecast":"sunny, 21C"}`},
 			}})

@@ -18,7 +18,7 @@ import (
 // when Store is a RefreshLocker. Format a *OAuthSession: its String, GoString
 // and LogValue never show the tokens.
 type OAuthSession struct {
-	Provider   string
+	Provider   ProviderID
 	Access     string
 	Refresh    string
 	Expiry     time.Time
@@ -67,15 +67,15 @@ func (s *OAuthSession) MarshalJSON() ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return json.Marshal(struct {
-		Provider  string `json:"provider"`
-		Issuer    string `json:"issuer"`
-		ClientID  string `json:"client_id"`
-		AccountID string `json:"account_id"`
-		FedRAMP   bool   `json:"fedramp"`
-		TokenURL  string `json:"token_url"`
-		Expiry    string `json:"expiry"`
-		Access    string `json:"access"`
-		Refresh   string `json:"refresh"`
+		Provider  ProviderID `json:"provider"`
+		Issuer    string     `json:"issuer"`
+		ClientID  string     `json:"client_id"`
+		AccountID string     `json:"account_id"`
+		FedRAMP   bool       `json:"fedramp"`
+		TokenURL  string     `json:"token_url"`
+		Expiry    string     `json:"expiry"`
+		Access    string     `json:"access"`
+		Refresh   string     `json:"refresh"`
 	}{s.Provider, s.Issuer, s.ClientID, s.AccountID, s.FedRAMP, s.TokenURL, expiryText(s.Expiry),
 		secretText(s.Access), secretText(s.Refresh)})
 }
@@ -88,7 +88,7 @@ func (s *OAuthSession) LogValue() slog.Value {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return slog.GroupValue(
-		slog.String("provider", s.Provider),
+		slog.String("provider", string(s.Provider)),
 		slog.String("issuer", s.Issuer),
 		slog.String("client_id", s.ClientID),
 		slog.String("account_id", s.AccountID),
@@ -107,9 +107,9 @@ type tokenFuture struct {
 // TokenStore persists OAuth sessions, one per provider. Load returns nil and no
 // error when the provider has none. FileTokenStore is the built-in one.
 type TokenStore interface {
-	Load(ctx context.Context, provider string) (*OAuthSession, error)
-	Save(ctx context.Context, provider string, s *OAuthSession) error
-	Delete(ctx context.Context, provider string) error
+	Load(ctx context.Context, provider ProviderID) (*OAuthSession, error)
+	Save(ctx context.Context, provider ProviderID, s *OAuthSession) error
+	Delete(ctx context.Context, provider ProviderID) error
 }
 
 // RefreshLocker is implemented by a TokenStore that can serialise refreshes
@@ -118,30 +118,30 @@ type TokenStore interface {
 // token is never spent twice: both vendors revoke the whole token family on
 // reuse (0016-MADR amendment A2). The returned func releases the lock.
 type RefreshLocker interface {
-	LockRefresh(ctx context.Context, provider string) (unlock func(), err error)
+	LockRefresh(ctx context.Context, provider ProviderID) (unlock func(), err error)
 }
 
 // fileRecord is the on-disk JSON shape.
 type fileRecord struct {
-	Provider  string    `json:"provider"`
-	Access    string    `json:"access"`
-	Refresh   string    `json:"refresh"`
-	Expiry    time.Time `json:"expiry"`
-	Issuer    string    `json:"issuer"`
-	ClientID  string    `json:"client_id"`
-	AccountID string    `json:"account_id"`
-	FedRAMP   bool      `json:"fedramp,omitempty"`
-	TokenURL  string    `json:"token_url"`
+	Provider  ProviderID `json:"provider"`
+	Access    string     `json:"access"`
+	Refresh   string     `json:"refresh"`
+	Expiry    time.Time  `json:"expiry"`
+	Issuer    string     `json:"issuer"`
+	ClientID  string     `json:"client_id"`
+	AccountID string     `json:"account_id"`
+	FedRAMP   bool       `json:"fedramp,omitempty"`
+	TokenURL  string     `json:"token_url"`
 }
 
 // ErrInvalidProvider is returned when a provider id is empty or path-traverses.
 var ErrInvalidProvider = errors.New("llmprovider: invalid provider id")
 
-func validateProviderID(p string) error {
+func validateProviderID(p ProviderID) error {
 	if p == "" {
 		return fmt.Errorf("%w: empty", ErrInvalidProvider)
 	}
-	if strings.ContainsAny(p, `/\`) || strings.Contains(p, "..") {
+	if strings.ContainsAny(string(p), `/\`) || strings.Contains(string(p), "..") {
 		return fmt.Errorf("%w: %q", ErrInvalidProvider, p)
 	}
 	return nil

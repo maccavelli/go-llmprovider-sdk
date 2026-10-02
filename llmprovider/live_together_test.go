@@ -52,7 +52,7 @@ func TestLive_TogetherWire(t *testing.T) {
 			if tc.tool {
 				var call llmprovider.FunctionCallItem
 				call, err = llmprovider.GenerateToolCall(ctx, p, &llmprovider.Request{Input: []llmprovider.Item{
-					llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "What is the weather in Paris? Use the tool."}},
+					llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "What is the weather in Paris? Use the tool."}},
 					Tools: []llmprovider.Tool{togetherWeatherTool}})
 				out = call.Arguments
 			} else {

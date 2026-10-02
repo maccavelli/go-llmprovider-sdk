@@ -67,9 +67,9 @@ func interactionsInput(items []llmprovider.Item) []map[string]any {
 		switch v := item.(type) {
 		case llmprovider.MessageItem:
 			switch v.Role {
-			case string(llmprovider.RoleSystem):
+			case llmprovider.RoleSystem:
 				continue
-			case "", string(llmprovider.RoleUser):
+			case "", llmprovider.RoleUser:
 				steps = append(steps, interactionTextStep(interactionStepUserInput, v.Text))
 			default:
 				steps = append(steps, interactionTextStep(interactionStepModelOutput, v.Text))
@@ -173,7 +173,7 @@ func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 			}
 			if sb.Len() > 0 {
 				result.Output = append(result.Output,
-					llmprovider.MessageItem{Role: string(llmprovider.RoleAssistant), Text: sb.String()})
+					llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: sb.String()})
 			}
 		case interactionStepFunctionCall:
 			// Compact, as the generateContent decoder returns arguments.

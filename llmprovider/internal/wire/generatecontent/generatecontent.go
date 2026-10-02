@@ -64,7 +64,7 @@ func Contents(items []llmprovider.Item) []map[string]any {
 			if v.Role == wire.RoleSystem {
 				continue // systemInstruction; see SystemInstruction
 			}
-			role := v.Role
+			role := string(v.Role)
 			if role == "" || role == wire.RoleUser {
 				role = wire.RoleUser
 			} else {

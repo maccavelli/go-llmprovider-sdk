@@ -26,7 +26,7 @@ const vendorAuthFileLimit = 1 << 20
 type VendorCLISession struct {
 	// Provider is ProviderOpenAI (the Codex CLI's auth.json) or ProviderGrok
 	// (the Grok CLI's auth.json).
-	Provider string
+	Provider ProviderID
 	// Path is the CLI's auth file.
 	Path string
 
@@ -74,7 +74,7 @@ func (s *VendorCLISession) Token(ctx context.Context) (Token, error) {
 
 // vendorCLI names a provider's CLI, the advice for a stale login, and its
 // auth-file parser; the parser is nil for a provider without one.
-func vendorCLI(provider string) (cli, hint string, parse func([]byte) (vendorCredential, error)) {
+func vendorCLI(provider ProviderID) (cli, hint string, parse func([]byte) (vendorCredential, error)) {
 	switch provider {
 	case ProviderOpenAI:
 		return "Codex CLI", "run codex to refresh it, or codex login", parseCodexAuth

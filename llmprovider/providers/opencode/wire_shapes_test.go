@@ -200,8 +200,8 @@ func TestGeminiThinking_NotAskedWithoutThinking(t *testing.T) {
 // never become a model turn.
 func TestGemini_SystemInstruction(t *testing.T) {
 	body := googleBody(t, false,
-		llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "Reply in French."},
-		llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "Be brief."},
+		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Reply in French."},
+		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Be brief."},
 		user("hello"))
 	si, _ := body["systemInstruction"].(map[string]any)
 	parts, _ := si["parts"].([]any)
@@ -228,8 +228,8 @@ func TestOpencodeMessages_SystemMessageIsTopLevel(t *testing.T) {
 	srv := captureServer(t, &body, fxMessages)
 	p := build(t, llmprovider.ProviderOpencodeGo, apiKey(srv.URL, "qwen3.8-flash", WithRoute(RouteMessages))...)
 	if _, err := p.Generate(context.Background(), items(
-		llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "Always answer in French."},
-		llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "Be brief."},
+		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Always answer in French."},
+		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Be brief."},
 		user("Say hello."))); err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func replayConversation() *llmprovider.Request {
 		llmprovider.ReasoningItem{Text: "Call the tool."},
 		llmprovider.FunctionCallItem{CallID: "call_1", Name: "get_weather", Arguments: `{"city":"Paris"}`},
 		llmprovider.FunctionCallOutputItem{CallID: "call_1", Output: "sunny"},
-		llmprovider.MessageItem{Role: string(llmprovider.RoleAssistant), Text: "It is sunny."},
+		llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: "It is sunny."},
 		user("thanks"),
 	)
 }
@@ -381,7 +381,7 @@ func TestGenerate_InstructionsAreALeadingSystemItem(t *testing.T) {
 	} {
 		var body map[string]any
 		srv := captureServer(t, &body, tc.fixture)
-		req := items(llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "SECOND"}, user("hi"))
+		req := items(llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "SECOND"}, user("hi"))
 		req.Instructions = "FIRST"
 		if _, err := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, tc.model)...).Generate(context.Background(), req); err != nil {
 			t.Fatalf("%s: Generate: %v", tc.model, err)

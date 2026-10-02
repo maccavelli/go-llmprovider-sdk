@@ -11,7 +11,7 @@ import (
 // it (0015-MADR D10).
 func DescriptorZen() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:              llmprovider.ProviderID(llmprovider.ProviderOpencodeZen),
+		ID:              llmprovider.ProviderOpencodeZen,
 		Label:           "OpenCode Zen",
 		EnvVar:          llmprovider.ProviderEnvVars()[llmprovider.ProviderOpencodeZen],
 		DefaultBaseURL:  zenBaseURL,
@@ -26,7 +26,7 @@ func DescriptorZen() llmprovider.Descriptor {
 // it (0015-MADR D10).
 func DescriptorGo() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:              llmprovider.ProviderID(llmprovider.ProviderOpencodeGo),
+		ID:              llmprovider.ProviderOpencodeGo,
 		Label:           "OpenCode Go",
 		EnvVar:          llmprovider.ProviderEnvVars()[llmprovider.ProviderOpencodeGo],
 		DefaultBaseURL:  goBaseURL,

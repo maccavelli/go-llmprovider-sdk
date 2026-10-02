@@ -76,7 +76,7 @@ func TestGenerate_ReadsTheKeyPerRequest(t *testing.T) {
 func TestGenerate_RequestFields(t *testing.T) {
 	srv, c := interactionServer(t, interactionText)
 	p := build(t, apiKey(srv.URL, "gemini-base", llmprovider.WithMaxTokens(500))...)
-	req := items(llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "Be brief."}, user("hi"))
+	req := items(llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Be brief."}, user("hi"))
 	req.Model, req.MaxOutputTokens, req.Instructions = "gemini-other", 77, "Answer in French."
 	if _, err := p.Generate(context.Background(), req); err != nil {
 		t.Fatalf("Generate: %v", err)

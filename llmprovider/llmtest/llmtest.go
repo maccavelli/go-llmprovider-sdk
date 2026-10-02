@@ -162,7 +162,7 @@ func generate(r reporter, p llmprovider.Provider, req *llmprovider.Request) (res
 }
 
 func textRequest() *llmprovider.Request {
-	return &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: "llmtest"}}}
+	return &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "llmtest"}}}
 }
 
 func toolRequest(choice llmprovider.ToolChoice) *llmprovider.Request {
@@ -272,12 +272,15 @@ func checkInvalidValues(r reporter, h Harness) {
 	unknownChoice.ToolChoice = "sometimes"
 	negativeLimit := textRequest()
 	negativeLimit.MaxOutputTokens = -1
+	unknownRole := textRequest()
+	unknownRole.Input = []llmprovider.Item{llmprovider.MessageItem{Role: "model", Text: "hi"}}
 	for _, c := range []struct {
 		name string
 		req  *llmprovider.Request
 	}{
 		{"an unknown tool choice", unknownChoice},
 		{"a negative MaxOutputTokens", negativeLimit},
+		{"an unknown role", unknownRole},
 		{"a nil request", nil},
 	} {
 		fs := serve(h.Text)

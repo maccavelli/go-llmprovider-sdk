@@ -52,7 +52,7 @@ func TestContextOverflow_EveryFormHasASample(t *testing.T) {
 func TestContextOverflow_Messages(t *testing.T) {
 	for seen, msg := range overflowSamples {
 		t.Run(seen, func(t *testing.T) {
-			err := classifyBody(ProviderTogether, http.StatusBadRequest, `{"error":{"message":`+quote(msg)+`}}`)
+			err := classifyBody(string(ProviderTogether), http.StatusBadRequest, `{"error":{"message":`+quote(msg)+`}}`)
 			assertOverflow(t, err)
 		})
 	}
@@ -69,15 +69,15 @@ func TestContextOverflow_Types(t *testing.T) {
 			if c.status == "413" {
 				status = http.StatusRequestEntityTooLarge
 			}
-			assertOverflow(t, classifyBody(ProviderOpenAI, status, c.body))
+			assertOverflow(t, classifyBody(string(ProviderOpenAI), status, c.body))
 		})
 	}
 }
 
 func TestContextOverflow_StreamFailure(t *testing.T) {
-	err := ClassifyStreamFailure(ProviderOpenAI, "context_length_exceeded", "invalid_request_error", "Your input exceeds the context window of this model.")
+	err := ClassifyStreamFailure(string(ProviderOpenAI), "context_length_exceeded", "invalid_request_error", "Your input exceeds the context window of this model.")
 	assertOverflow(t, err)
-	if err := ClassifyStreamFailure(ProviderOpenAI, "invalid_prompt", "", "bad"); errors.Is(err, ErrContextOverflow) || !errors.Is(err, ErrInvalidRequest) {
+	if err := ClassifyStreamFailure(string(ProviderOpenAI), "invalid_prompt", "", "bad"); errors.Is(err, ErrContextOverflow) || !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("invalid_prompt: %v; want ErrInvalidRequest only", err)
 	}
 }
@@ -97,7 +97,7 @@ func TestContextOverflow_NotEveryInvalidRequest(t *testing.T) {
 		{"an empty message", http.StatusBadRequest, "", ErrInvalidRequest},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			err := classifyBody(ProviderGrok, c.status, `{"error":{"message":`+quote(c.msg)+`}}`)
+			err := classifyBody(string(ProviderGrok), c.status, `{"error":{"message":`+quote(c.msg)+`}}`)
 			if errors.Is(err, ErrContextOverflow) || !errors.Is(err, c.want) {
 				t.Fatalf("%v; want %v and not ErrContextOverflow", err, c.want)
 			}

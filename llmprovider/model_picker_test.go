@@ -20,14 +20,14 @@ const (
 	pickerMetadataURL = "https://models.opencode.ai/api.json"
 )
 
-var pickerSections = map[string]string{
+var pickerSections = map[string]ProviderID{
 	pickerKeyZen: ProviderOpencodeZen,
 	pickerKeyGo:  ProviderOpencodeGo,
 	"kilo":       ProviderKilo,
 }
 
 // pickerDoc is provider -> model id -> status, from the document.
-type pickerDoc map[string]map[string]string
+type pickerDoc map[ProviderID]map[string]string
 
 // decodePickerDoc reads the picker's sections of a models.dev-format document.
 func decodePickerDoc(r io.Reader) (pickerDoc, error) {
@@ -55,7 +55,7 @@ func decodePickerDoc(r io.Reader) (pickerDoc, error) {
 
 // firstActiveModel returns the first candidate the document lists for
 // provider with a status other than "deprecated", and false when none is.
-func firstActiveModel(doc pickerDoc, provider string, candidates []string) (string, bool) {
+func firstActiveModel(doc pickerDoc, provider ProviderID, candidates []string) (string, bool) {
 	models := doc[provider]
 	for _, id := range candidates {
 		if status, ok := models[id]; ok && status != "deprecated" {
@@ -72,10 +72,11 @@ func TestFirstActiveModel(t *testing.T) {
 		ProviderKilo:       {"vendor/model": ""},
 	}
 	for _, tc := range []struct {
-		name, provider string
-		candidates     []string
-		want           string
-		ok             bool
+		name       string
+		provider   ProviderID
+		candidates []string
+		want       string
+		ok         bool
 	}{
 		{"skips deprecated", ProviderOpencodeGo, []string{"old", "live1"}, "live1", true},
 		{"skips absent", ProviderOpencodeGo, []string{"gone", "live2", "live1"}, "live2", true},

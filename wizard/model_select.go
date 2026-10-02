@@ -42,7 +42,7 @@ func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Op
 		if q == "" {
 			return selectRecommended(p, d, cat.Recommended, o)
 		}
-		matches := catalog.Search(string(d.ID), cat.Usable, q)
+		matches := catalog.Search(d.ID, cat.Usable, q)
 		if len(matches) == 0 {
 			p.Notify(LevelWarn, "no %s models match %q", d.Label, q)
 			continue
@@ -59,7 +59,7 @@ func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Op
 		case idx == len(shown):
 			continue
 		default:
-			return enterModelID(p, string(d.ID), o)
+			return enterModelID(p, d.ID, o)
 		}
 	}
 }
@@ -68,7 +68,7 @@ func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Op
 // the same provider that is not recommended is listed after the recommended
 // rows, marked current, and is the default, so pressing Enter keeps it.
 func selectRecommended(p Prompter, d llmprovider.Descriptor, models []string, o Options) (string, error) {
-	choices := modelChoices(string(d.ID), models)
+	choices := modelChoices(d.ID, models)
 	defaultIdx, listed := 0, false
 	for i, m := range models {
 		if m == o.Existing.Model {
@@ -76,9 +76,9 @@ func selectRecommended(p Prompter, d llmprovider.Descriptor, models []string, o 
 		}
 	}
 	current := ""
-	if !listed && o.Existing.Provider == string(d.ID) && o.Existing.Model != "" {
+	if !listed && o.Existing.Provider == d.ID && o.Existing.Model != "" {
 		current = o.Existing.Model
-		choices = append(choices, Choice{Label: catalog.Label(string(d.ID), current), Detail: currentModelDetail})
+		choices = append(choices, Choice{Label: catalog.Label(d.ID, current), Detail: currentModelDetail})
 		defaultIdx = len(models)
 	}
 	choices = append(choices, Choice{Label: otherModelLabel})
@@ -92,14 +92,14 @@ func selectRecommended(p Prompter, d llmprovider.Descriptor, models []string, o 
 	case current != "" && idx == len(models):
 		return current, nil
 	default:
-		return enterModelID(p, string(d.ID), o)
+		return enterModelID(p, d.ID, o)
 	}
 }
 
 // enterModelID is the Other escape hatch: the user types a model id. The
 // saved model is the default only for its own provider (MADR 0007 §4.3), and a
 // blank id is refused (MADR 0013 C4, C7).
-func enterModelID(p Prompter, provider string, o Options) (string, error) {
+func enterModelID(p Prompter, provider llmprovider.ProviderID, o Options) (string, error) {
 	manual, err := p.Input("Model id", existingModel(o, provider))
 	if err != nil {
 		return "", fmt.Errorf("enter model: %w", err)
@@ -112,7 +112,7 @@ func enterModelID(p Prompter, provider string, o Options) (string, error) {
 }
 
 // existingModel returns the saved model when it belongs to provider, else "".
-func existingModel(o Options, provider string) string {
+func existingModel(o Options, provider llmprovider.ProviderID) string {
 	if o.Existing.Provider == provider {
 		return o.Existing.Model
 	}
@@ -141,14 +141,14 @@ func selectFallbacks(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, 
 			if len(recs) == 0 {
 				return chosen, nil
 			}
-			idxs, err := p.MultiSelect(chooseFallbacksTitle, modelChoices(string(d.ID), recs), nil)
+			idxs, err := p.MultiSelect(chooseFallbacksTitle, modelChoices(d.ID, recs), nil)
 			if err != nil {
 				return nil, fmt.Errorf("select fallbacks: %w", err)
 			}
 			chosen = appendPicks(chosen, recs, idxs)
 			return chosen, nil // a blank round ends the loop
 		}
-		matches := catalog.Search(string(d.ID), usable, q)
+		matches := catalog.Search(d.ID, usable, q)
 		if len(matches) == 0 {
 			p.Notify(LevelWarn, "no %s models match %q", d.Label, q)
 			continue

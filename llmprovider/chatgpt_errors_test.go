@@ -19,7 +19,7 @@ func classifyBody(provider string, status int, body string) error {
 // {"detail": ...} (gate G-C, 2026-09-27); that text is the message.
 func TestClassify_DetailEnvelope(t *testing.T) {
 	const detail = "The 'gpt-4.1-mini' model is not supported when using Codex with a ChatGPT account."
-	err := classifyBody(ProviderOpenAI, http.StatusBadRequest, `{"detail":"`+detail+`"}`)
+	err := classifyBody(string(ProviderOpenAI), http.StatusBadRequest, `{"detail":"`+detail+`"}`)
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) || apiErr.Message != detail || !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("err = %v (message %q), want ErrInvalidRequest carrying the detail", err, apiErr.Message)
@@ -31,7 +31,7 @@ func TestClassify_DetailEnvelope(t *testing.T) {
 // Retry-After header it becomes RetryAfter.
 func TestClassify_UsageLimitResetsAt(t *testing.T) {
 	reset := time.Now().Add(time.Hour).Unix()
-	err := classifyBody(ProviderOpenAI, http.StatusTooManyRequests,
+	err := classifyBody(string(ProviderOpenAI), http.StatusTooManyRequests,
 		`{"error":{"type":"usage_limit_reached","message":"The usage limit has been reached","plan_type":"plus","resets_at":`+
 			strconv.FormatInt(reset, 10)+`}}`)
 	var apiErr *APIError

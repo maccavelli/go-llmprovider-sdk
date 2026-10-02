@@ -199,7 +199,7 @@ func persistRotation(ctx context.Context, state oauthSessionState, next *OAuthSe
 }
 
 // logUnsavedRotation reports a rotated session that could not be saved.
-func logUnsavedRotation(logger *slog.Logger, provider string, err error) {
+func logUnsavedRotation(logger *slog.Logger, provider ProviderID, err error) {
 	if logger == nil {
 		return
 	}
@@ -229,7 +229,7 @@ func (s *OAuthSession) currentToken() (Token, bool) {
 }
 
 type oauthSessionState struct {
-	provider   string
+	provider   ProviderID
 	refresh    string
 	issuer     string
 	clientID   string

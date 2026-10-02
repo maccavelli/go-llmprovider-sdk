@@ -266,16 +266,16 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 	}
 	switch {
 	case service == serviceOpencode && has(opencodeQuotaTypes...),
-		service == ProviderKilo && (has("PROMOTION_MODEL_LIMIT_REACHED") || bytes.Contains(body, []byte("FreeUsageLimitError"))),
-		service == ProviderOpenAI && has(openAIQuotaTypes...),
+		service == string(ProviderKilo) && (has("PROMOTION_MODEL_LIMIT_REACHED") || bytes.Contains(body, []byte("FreeUsageLimitError"))),
+		service == string(ProviderOpenAI) && has(openAIQuotaTypes...),
 		status == http.StatusPaymentRequired:
 		return true, ErrQuotaExhausted
 	case service == serviceOpencode && has(opencodeForbiddenTypes...),
-		service == ProviderOpenAI && has("usage_not_included"),
-		service == ProviderKilo && (status == http.StatusForbidden || has("data_collection_required")):
+		service == string(ProviderOpenAI) && has("usage_not_included"),
+		service == string(ProviderKilo) && (status == http.StatusForbidden || has("data_collection_required")):
 		return true, ErrNotPermitted
 	case service == serviceOpencode && has("ModelError"),
-		service == ProviderKilo && has("PAID_MODEL_AUTH_REQUIRED"):
+		service == string(ProviderKilo) && has("PAID_MODEL_AUTH_REQUIRED"):
 		return true, ErrInvalidRequest
 	case status == http.StatusTooManyRequests:
 		return false, ErrRateLimited

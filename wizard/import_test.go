@@ -15,9 +15,10 @@ func TestVendorAuthPath(t *testing.T) {
 		t.Skip(err)
 	}
 	for _, tc := range []struct {
-		name, provider string
-		env            map[string]string
-		want           string
+		name     string
+		provider llmprovider.ProviderID
+		env      map[string]string
+		want     string
 	}{
 		{"codex home", llmprovider.ProviderOpenAI, map[string]string{"CODEX_HOME": "/x/codex"}, filepath.Join("/x/codex", "auth.json")},
 		{"codex default", llmprovider.ProviderOpenAI, nil, filepath.Join(home, ".codex", "auth.json")},

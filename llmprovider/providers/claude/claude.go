@@ -154,7 +154,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 			p.logger.Debug("llmprovider: claude: close response body", "error", err)
 		}
 	}()
-	if err := llmprovider.ClassifyHTTPError(llmprovider.ProviderClaude, resp); err != nil {
+	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderClaude), resp); err != nil {
 		return nil, err
 	}
 	return messages.Decode(io.LimitReader(resp.Body, 1<<20))
@@ -257,7 +257,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.reasoning = model, probeMaxTokens, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
-			llmprovider.MessageItem{Role: string(llmprovider.RoleUser), Text: probePrompt}}})
+			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: probePrompt}}})
 		if err != nil {
 			return "", err
 		}

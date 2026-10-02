@@ -114,9 +114,9 @@ var hfRankMetadata = `{` + mdSection("huggingface",
 // hfFallbackOrder is curateHuggingFace's order for hfRankListing: fastest first.
 var hfFallbackOrder = []string{"v/no-reason", "a/large", "b/mid", "c/flash", "d/uncovered"}
 
-func listCatalog(ctx context.Context, t *testing.T, provider string, opts ...llmprovider.Option) Catalog {
+func listCatalog(ctx context.Context, t *testing.T, provider llmprovider.ProviderID, opts ...llmprovider.Option) Catalog {
 	t.Helper()
-	cat, err := List(ctx, llmprovider.ProviderID(provider), llmprovider.NewStaticToken(""), opts...)
+	cat, err := List(ctx, provider, llmprovider.NewStaticToken(""), opts...)
 	if err != nil {
 		t.Fatalf("ListModelCatalog(%s): %v", provider, err)
 	}
@@ -276,9 +276,10 @@ func TestListModelCatalog_Snapshot20260926(t *testing.T) {
 	enableModelMetadata(t)
 	meta := serveTestdata(t, "metadata.json")
 	for _, tc := range []struct {
-		provider, listing string
-		usable            int
-		utility, capable  []string
+		provider         llmprovider.ProviderID
+		listing          string
+		usable           int
+		utility, capable []string
 	}{
 		{llmprovider.ProviderKilo, "kilo.json", 284,
 			[]string{"deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3-flash", "google/gemini-3.8-flash",

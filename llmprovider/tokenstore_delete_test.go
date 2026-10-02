@@ -37,7 +37,7 @@ func TestFileTokenStore_Delete(t *testing.T) {
 	}
 	// A directory at the session's path, with something in it, cannot be
 	// removed.
-	blocker := filepath.Join(dir, ProviderGrok+".json")
+	blocker := filepath.Join(dir, string(ProviderGrok)+".json")
 	if err := os.MkdirAll(filepath.Join(blocker, "child"), 0o700); err != nil {
 		t.Fatal(err)
 	}

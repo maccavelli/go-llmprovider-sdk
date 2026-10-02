@@ -3486,6 +3486,7 @@ Under "S8 as amended". Staged for the owner to commit, with the amendment of
 ### Phase S8, commit 4: the old generation API (2026-10-01)
 
 Under "S8 as amended". Staged for the owner to commit.
+*Annotated 2026-10-01:* committed as `9dbdf16`.
 
 * **Removed from `llmprovider`:**
   * `LegacyProvider` and the seven optional interfaces built on it:
@@ -3579,3 +3580,93 @@ Under "S8 as amended". Staged for the owner to commit.
 * **Coverage:** `llmprovider` 87.8 % from its own tests, and 89.2 % over
   `./llmprovider/...` (1710 of 1916 statements, 89.25 %) against its `P7`
   89.2 %.
+
+### Phase S8, commit 5: typed ids (2026-10-01)
+
+Under "S8 as amended". Staged for the owner to commit.
+
+* **The constants.** The ten `Provider…` constants are `ProviderID`, and
+  `MessageItem.Role` is `Role`.
+* **Retyped to `ProviderID`,** as every parameter or field that holds an id:
+  * `llmprovider`:
+    * `OAuthSession.Provider` (its JSON is unchanged) and
+      `VendorCLISession.Provider`;
+    * the provider parameter of `TokenStore`'s `Load`, `Save` and `Delete`,
+      `RefreshLocker.LockRefresh`, and `FileTokenStore`'s methods;
+    * `StartDeviceOAuth`, `LoginDeviceOAuth` and `LoginBrowserOAuth`;
+    * `ProviderEnvVars()`, now keyed by `ProviderID`;
+    * the unexported OAuth state, flow configuration and helpers, and
+      `validateProviderID`.
+  * `catalog`: `Rank`, `Static`, `Search`, `Label`, and `Metadata`'s
+    `ReasoningEfforts`, `InterleavedField` and `NPM`, with the unexported
+    listers. `List`'s dispatch lower-cases the id as before.
+  * `wizard`: `Result.Provider`, `Options.Providers` and the unexported
+    helpers.
+* **Kept as `string`, as labels that may carry a route:**
+  `APIError.Provider`, `ClassifyHTTPError`'s and `ClassifyStreamFailure`'s
+  `provider`, `serviceOf`, and `responses.ReadStream`'s `provider`. Each
+  caller passing an id passes `string(id)`.
+* **Fault found by the tests, and fixed.**
+  * The Messages and Chat Completions wires put the role into a
+    `map[string]any`, then compared that entry with `wire.RoleAssistant`
+    to group a turn.
+  * Inside `any`, a `Role("assistant")` is not equal to the string, so
+    grouping stopped. The JSON looked the same, but the turns were split.
+  * `TestItemFidelity_ChatGroupsCalls`,
+    `TestItemFidelity_AnthropicGroupsCallsAndResults`, `TestFromItems`,
+    `TestItemsToChatMessages` and `TestOpencodeChat_ReplaysInterleavedReasoning`
+    failed. G-wire did not: its scenarios group no turns.
+  * Every wire now stores `string(v.Role)`, Responses and generateContent
+    included. A search for type switches and `.(string)` assertions found no
+    other place where an id or a role reaches an `any`.
+* **Deviation, 2026-10-01: an unknown role.**
+  * **Found.** D6 says an invalid value of a named type is refused by `New`
+    or `Generate` with `ErrInvalidRequest`. `Request.validate` checked
+    `Effort` and `ToolChoice` but never a `MessageItem`'s `Role`. The step
+    said only "`MessageItem.Role` is `Role`".
+  * **Decided.** The owner chose "validate in this commit". The other
+    options were to defer it, or to amend D6.
+  * **Done.**
+    * `Capabilities.Check` refuses a role other than the three constants
+      and empty, naming the input's index.
+    * An empty role is still the user's.
+    * `llmtest`'s R23 case gains "an unknown role", so every provider's
+      `Generate` is shown to refuse it before the network.
+    * Written red first: `TestCapabilitiesCheck_RefusesInvalidValues`
+      (new row) and `TestCapabilitiesCheck_AcceptsTheRoles` failed before
+      the check.
+  * **Effect.** A caller sending another role, such as `"model"`, gets
+    `ErrInvalidRequest`. Until now, each wire mapped it silently.
+  * The MADR is unchanged: this makes the code meet D6.
+* **Tests.** Typed throughout: table fields and helper parameters that hold
+  an id are `ProviderID`, slices and maps of ids are typed, and `t.Run`
+  names are `string(id)`. The test token stores take `ProviderID`. The
+  classification helpers `classifyBody` and `classifyFixture` keep `string`,
+  as their table holds labels. No assertion was weakened.
+* **Comments.** `ProviderID`'s and `Role`'s docs no longer say they wait for
+  this commit, and `catalog.Rank`'s no longer says it becomes
+  `Rank(ProviderID, model)`.
+* **Lint.** `unconvert` found 25 conversions to `ProviderID` that the typed
+  constants made redundant, in the descriptors and tests; they are removed.
+* **Breaks,** each in a scratch copy:
+
+  | Break | Failure |
+  |---|---|
+  | an unknown role is accepted | `Check = <nil>, want an error matching ErrInvalidRequest` |
+  | an empty role is refused | `role "": Check = llmprovider: invalid request: input 0 has unknown role "", want nil` |
+  | a provider takes the role "model" | `R23 (invalid values): an unknown role returned <nil>; want an error matching ErrInvalidRequest` |
+  | Messages keeps the typed role in its map | `FromItems` splits the assistant turn: `{"content":"Checking.","role":"assistant"}`, then the calls in a second assistant message |
+  | Chat keeps the typed role in its map | `empty role should default to user, got user`: the entry holds a `Role`, not the string the test compares |
+
+  The retyping itself is the compiler's to check.
+* **Docs.**
+  * `architecture.md` says the ids are `ProviderID` and the labels stay
+    strings.
+  * The migration guide fills 27 rows: the nine constants, the role, the
+    session and token-store fields and methods, the OAuth logins, the
+    catalog functions, and `wizard`'s `Result.Provider`, `Options.Providers`
+    and `Options.Existing`. G-parity: `409 identifiers, 409 rows, 262 with an SDK equivalent, 0 problem(s)`.
+* **G-wire.** All goldens unchanged, with no `-update`.
+* **Coverage:** `llmprovider` 87.8 % from its own tests, and 89.2 % over
+  `./llmprovider/...` (1716 of 1922 statements, 89.28 %) against its `P7`
+  89.2 %; `catalog` 88.1 %, `wizard` 83.5 %.

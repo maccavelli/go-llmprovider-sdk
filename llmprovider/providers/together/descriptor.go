@@ -11,7 +11,7 @@ import (
 // it (0015-MADR D10).
 func Descriptor() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:              llmprovider.ProviderID(llmprovider.ProviderTogether),
+		ID:              llmprovider.ProviderTogether,
 		Label:           "Together AI",
 		EnvVar:          llmprovider.ProviderEnvVars()[llmprovider.ProviderTogether],
 		DefaultBaseURL:  defaultBaseURL,

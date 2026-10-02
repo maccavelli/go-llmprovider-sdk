@@ -11,7 +11,7 @@ import (
 
 // liveVendorSession returns a read-through session on a real CLI login, or
 // skips. It never writes the file and never refreshes (MADR 0012 §5.1).
-func liveVendorSession(t *testing.T, provider, optIn, homeEnv, dir string) *VendorCLISession {
+func liveVendorSession(t *testing.T, provider ProviderID, optIn, homeEnv, dir string) *VendorCLISession {
 	t.Helper()
 	if os.Getenv(optIn) != "1" {
 		t.Skipf("%s unset: this spends the CLI's subscription", optIn)

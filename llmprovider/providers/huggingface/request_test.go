@@ -81,7 +81,7 @@ func TestGenerate_RequestFields(t *testing.T) {
 	srv := captureServer(t, &body, fxHFChat)
 	p := build(t, apiKey(srv.URL, "base/model", llmprovider.WithMaxTokens(500))...)
 	req := &llmprovider.Request{Input: []llmprovider.Item{
-		llmprovider.MessageItem{Role: string(llmprovider.RoleSystem), Text: "Be brief."}, user("hi")}}
+		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Be brief."}, user("hi")}}
 	req.Model, req.MaxOutputTokens, req.Instructions = "other/model", 77, "Answer in French."
 	if _, err := p.Generate(context.Background(), req); err != nil {
 		t.Fatalf("Generate: %v", err)

@@ -15,7 +15,7 @@ const defaultBaseURL = "https://api.kilo.ai/api/gateway"
 // it (0015-MADR D10).
 func Descriptor() llmprovider.Descriptor {
 	return llmprovider.Descriptor{
-		ID:              llmprovider.ProviderID(llmprovider.ProviderKilo),
+		ID:              llmprovider.ProviderKilo,
 		Label:           "Kilo Gateway",
 		EnvVar:          llmprovider.ProviderEnvVars()[llmprovider.ProviderKilo],
 		DefaultBaseURL:  defaultBaseURL,
