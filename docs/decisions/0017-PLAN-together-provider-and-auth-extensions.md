@@ -412,3 +412,35 @@ Associated MADR: [0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-
   differs from `Token` only by case.
 * **Gate,** every step exit 0: `llmprovider` 90.1 %, `wizard` 83.4 %,
   `make lint` `0 issues.`, G-wire unchanged, and the deny list at 0 hits.
+
+### Phase U4: OpenAI dynamic-registration probe (2026-10-02)
+
+Requested by the owner ("proceed", after U4 was offered as the open step).
+The probe follows 0017-REPORT P3 and pi's
+`packages/ai/src/auth/oauth/openai-chatgpt.ts` at `312184edb`, read
+locally: the public client `dynamic_agent_client`, an agent name hint, an
+`ext_agent_host_id`, `resource https://api.openai.com/v1`, and the issued
+client id in the callback. Its run waits for the owner at a browser.
+
+* **Done, 2026-10-02 and 2026-10-03.**
+  * **Step 1, the probe.** `llmprovider/live_openai_signin_probe_test.go`,
+    tagged `live_gateways`, switched on by `LLMPROVIDER_LIVE_OPENAI_SIGNIN`.
+    * It runs the flow on `127.0.0.1:1455`, trades the code with the issued
+      client id, and makes four generations through `openai.New` with
+      `WithAPIKey`: text, a tool call, `WithStore(false)`, and reasoning
+      effort low.
+    * It logs only shapes and outcomes: a length and a prefix of at most
+      four characters, never a token or the client id.
+    * `go vet -tags live_gateways` is clean, and the file passes
+      `golangci-lint` with the live tag.
+  * **Step 2.** No default changed, and no exported API was added.
+  * **The run,** on the owner's request and sign-in: the test passed in
+    47 s. Its findings:
+    * registration succeeded, and every scope was granted;
+    * every generation was refused, first for `store`, then for `stream`.
+  * **Step 3.** 0017-MADR amendment "what the OpenAI sign-in probe found",
+    proposed, holds the findings and options A–C for the owner.
+  * **Found, not changed:** linting with `--build-tags live_gateways` reports
+    a `goimports` finding in `llmprovider/live_gateways_test.go:36`, a file
+    U4 does not touch. CI lints without the tag, so it has not shown there.
+  * **V6 is met:** the probe exists, and is off by default.

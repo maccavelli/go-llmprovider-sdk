@@ -277,3 +277,61 @@ The owner answered on 2026-09-30: "1. accept d1, proceed with d1-d5. 2. both as 
 * **The survey's amendments to current work:**
   * 0016-MADR A1 and A3 are accepted, and A2 as option (b);
   * 0015-MADR's `ErrContextOverflow` is accepted.
+
+## Amendment 2026-10-03: what the OpenAI sign-in probe found (proposed)
+
+Status: **proposed** 2026-10-03, from 0017-PLAN U4. D4 said the probe's
+output decides whether this flow becomes an OpenAI auth method. That
+decision is the owner's.
+
+### Fact found
+
+`TestLive_OpenAISigninProbe` (`llmprovider/live_openai_signin_probe_test.go`)
+ran on 2026-10-02 with the owner signing in. It follows pi's flow (0017-REPORT
+P3) with agent name hint `go-llmprovider-sdk` and a per-run
+`ext_agent_host_id`.
+
+* **Registration succeeds** under this module's name. The callback carried
+  an issued client id of 31 characters, beginning `oaia`.
+* **Every scope asked for was granted:** `openid profile email
+  offline_access resource.invoke chatgpt.tokens.use.direct`.
+* **The token response** holds a 2105-character access token that is a JWT
+  (`eyJh…`), a refresh token, and an `id_token`. It expires in 3600 s.
+* **`api.openai.com/v1/responses` refuses this module's requests with the
+  token**, HTTP 400:
+
+  | Request | Refusal |
+  |---|---|
+  | text, as `openai.New` sends it | `Store must be set to false` |
+  | a tool call | `Store must be set to false` |
+  | text with `openai.WithStore(false)` | `Stream must be set to true` |
+  | text with reasoning effort low | `Store must be set to false` |
+
+  So the token is accepted only on unstored, streamed requests. pi always
+  streams, and omits the fields it refuses. This module's `openai` provider
+  has no native streaming: `NativeStreaming` is `Unsupported`, and
+  `Generate` sends a non-streamed request.
+* **Not measured:** whether a request with both `store: false` and
+  `stream: true` is then accepted, and whether tool calls work there. The
+  probe cannot send a streamed request through the provider.
+* **No revocation endpoint is known** for the issued client, so the probe's
+  session was left to expire. Each run registers another client.
+
+### Considered options
+
+* **A. Adopt it, with native streaming in `openai`.** The `openai` provider
+  streams the Responses API, sending `store: false` for this token. `auth`
+  gains the dynamic-registration flow, which refreshes with the issued
+  client id, and `wizard` offers it. This removes the borrowed Codex client
+  id, the risk 0016-MADR records, for API use. It needs native streaming
+  (0015-MADR D4 allows it with no API change), a new flow, and its own MADR
+  and PLAN.
+* **B. Not now; keep the probe.** Record the findings and leave the probe
+  off by default. Revisit when `openai` streams natively for other reasons,
+  or OpenAI accepts non-streamed requests.
+* **C. Reject it.** Remove the probe, and keep the Codex flow as the only
+  OpenAI subscription path.
+
+### Decided
+
+Pending the owner's decision.
