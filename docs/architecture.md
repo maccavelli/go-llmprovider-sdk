@@ -419,7 +419,8 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   the provider (0017-PLAN U1). `-update` rewrites them, and is used only for
   a difference a record explains.
 - **`scripts/go-precheck.sh`** runs `gofmt` on the given Go files,
-  `golangci-lint run -c .golangci.yml ./...`, `go vet` and `go test` on their
+  `golangci-lint run -c .golangci.yml --build-tags live_gateways ./...` (so
+  the live-tagged tests are linted too), `go vet` and `go test` on their
   packages, and `govulncheck ./...`. `make pre-add-check` runs it, and so does
   the machine-wide agent gate before an agent `git commit` that stages Go
   files.

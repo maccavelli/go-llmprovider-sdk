@@ -914,6 +914,9 @@ include:
    `selfupdate` comes from `go-core-lib` (`github.com/maccavelli/go-core-lib`); this phase cannot complete before
    that release exists. Assert that `go list -m all` names no
    `github.com/maccavelli/mcplib`. Run `go mod tidy`.
+   *Amended 2026-10-03 (MADR amendment of that date):* `go-core-lib` is
+   now `github.com/maccavelli/go-selfupdate-lib`, and `selfupdate` comes
+   from it at `v1.5.0` or later. That release exists.
 3. **Folded-in 0008 P8.** This is this repository's `0008-PLAN` P8, which
    was re-targeted:
    * live-token-store isolation in `main_oauth_test.go`;
@@ -923,7 +926,8 @@ include:
 4. **`scripts/go-precheck.py`.** Extend the `mcplib` supply-chain check
    (lines 121-175) to this module:
    *Amended 2026-09-29:* and to `go-core-lib`; the `mcplib` entry goes with
-   the requirement.
+   the requirement. *Amended 2026-10-03:* read `go-core-lib` as
+   `github.com/maccavelli/go-selfupdate-lib`.
    * it must be required at a release version, not a pseudo-version;
    * no `replace`;
    * no GOPRIVATE / GONOSUMDB / GONOSUMCHECK / GOINSECURE exemption;
@@ -2422,3 +2426,15 @@ pushed, verify it").
   `mcp-server-magicdev` to migrate (its "Decided 2026-09-29: it waits").
 * **Docs.** `README.md`'s status names the release.
   `architecture.md` no longer lists a release among what is not here.
+
+### Amendment: `go-core-lib` is now `go-selfupdate-lib` (2026-10-03)
+
+* **Proposed.** The MADR's amendment of this date records the rename.
+  Phase 10 steps 2 and 4 are annotated to name
+  `github.com/maccavelli/go-selfupdate-lib`, at `v1.5.0` or later.
+* **Phase 10's precondition holds.** It waited for the self-update release.
+  `go-selfupdate-lib` `v1.5.0` peels to `6deaa52`. This module's `v1.0.0`
+  is recorded above. The companion is `prepare-commit-msg`'s
+  `0008-MADR-adopt-go-llmprovider-sdk-and-go-selfupdate-lib.md` and its
+  PLAN, which are `proposed`.
+* **Not changed.** Every other Phase 10 step, and Phases 9 and 11–14.

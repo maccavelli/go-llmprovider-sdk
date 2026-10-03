@@ -76,19 +76,26 @@ func TestLive_TogetherWire(t *testing.T) {
 	}
 }
 
-// TestLive_TogetherToolChoices pins the unmeasured tool choices: "required"
-// makes a call, and "none" makes none (0015-PLAN S7).
+// TestLive_TogetherToolChoices pins the tool choices: "required" makes a call,
+// and "none" makes none (0015-PLAN S7). "required" runs on
+// DeepSeek-V4.1-Flash: gpt-oss-120b answers it with HTTP 500
+// (TestLive_TogetherRequiredFailsOnGptOss; 0017-PLAN, deviation of
+// 2026-10-03).
 func TestLive_TogetherToolChoices(t *testing.T) {
 	for _, tc := range []struct {
 		choice   llmprovider.ToolChoice
+		model    string
 		wantCall bool
-	}{{llmprovider.ToolChoiceRequired, true}, {llmprovider.ToolChoiceNone, false}} {
+	}{
+		{llmprovider.ToolChoiceRequired, "deepseek-ai/DeepSeek-V4.1-Flash", true},
+		{llmprovider.ToolChoiceNone, "openai/gpt-oss-120b", false},
+	} {
 		t.Run(string(tc.choice), func(t *testing.T) {
 			ctx, cancel := llmprovider.LiveCtx(t)
 			defer cancel()
 			req := userText("What is the weather in Paris?")
 			req.Tools, req.ToolChoice = []llmprovider.Tool{togetherWeatherTool}, tc.choice
-			res, err := liveTogether(t, "openai/gpt-oss-120b").Generate(ctx, req)
+			res, err := liveTogether(t, tc.model).Generate(ctx, req)
 			if errors.Is(err, llmprovider.ErrRateLimited) {
 				t.Skipf("rate limited: %v", err)
 			}
@@ -105,5 +112,24 @@ func TestLive_TogetherToolChoices(t *testing.T) {
 				t.Fatalf("a call came back: %t, want %t (%+v)", called, tc.wantCall, res.Output)
 			}
 		})
+	}
+}
+
+// TestLive_TogetherRequiredFailsOnGptOss pins a measured failure (2026-10-03,
+// 4 runs of 4): Together answers tool_choice "required" on openai/gpt-oss-120b
+// with HTTP 500, ErrProviderUnavailable, while it honours a named tool there
+// and "required" on other models. It fails once Together fixes it, so the
+// degradation in together's package doc can be removed.
+func TestLive_TogetherRequiredFailsOnGptOss(t *testing.T) {
+	ctx, cancel := llmprovider.LiveCtx(t)
+	defer cancel()
+	req := userText("What is the weather in Paris?")
+	req.Tools, req.ToolChoice = []llmprovider.Tool{togetherWeatherTool}, llmprovider.ToolChoiceRequired
+	_, err := liveTogether(t, "openai/gpt-oss-120b").Generate(ctx, req)
+	if errors.Is(err, llmprovider.ErrRateLimited) {
+		t.Skipf("rate limited: %v", err)
+	}
+	if !errors.Is(err, llmprovider.ErrProviderUnavailable) {
+		t.Fatalf("Generate = %v, want the HTTP 500, an error matching ErrProviderUnavailable", err)
 	}
 }

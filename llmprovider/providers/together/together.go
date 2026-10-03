@@ -23,7 +23,10 @@
 //     model's own default applies.
 //   - Instructions are sent as a leading system message.
 //   - ToolChoiceRequired and ToolChoiceNone are sent as "required" and
-//     "none", the Chat Completions values, unmeasured.
+//     "none", the Chat Completions values. Measured 2026-10-03: "required" is
+//     honoured by DeepSeek-V4.1-Flash, GLM-5.3, GLM-5.3-Flash and Kimi-K3, but
+//     openai/gpt-oss-120b answers it with HTTP 500 (ErrProviderUnavailable,
+//     which WithRetry retries in vain); a named tool works on every model.
 //
 // finish_reason "eos" is a normal stop; only "length" is truncation.
 //

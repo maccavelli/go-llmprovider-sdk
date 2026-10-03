@@ -33,7 +33,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"io"
 	"net/http"
 	"os"
@@ -41,6 +40,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 

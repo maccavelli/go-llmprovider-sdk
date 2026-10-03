@@ -2,10 +2,11 @@
 // behind the Kilo Code agent.
 //
 // Build it with New, or providers.New(llmprovider.ProviderKilo, …). The
-// credential is a Kilo API key or the token of a Kilo device login,
-// WithAPIKey or WithTokenSource; without one, Kilo's anonymous token is sent,
-// which free models accept (MADR 0012 §1.7). An OAuth session is refused. The
-// token goes in Authorization as a bearer token, or in its own Header (R16).
+// credential is a Kilo API key, WithAPIKey, or the session auth's Kilo device
+// login returns, WithTokenSource (0017-MADR D2); without one, Kilo's anonymous
+// token is sent, which free models accept (MADR 0012 §1.7). Another
+// provider's OAuth session, or a vendor CLI login, is refused. The token goes
+// in Authorization as a bearer token, or in its own Header (R16).
 // A URL-prefixed token ("https://host/prefix:secret") selects that backend,
 // and may name the organization (MADR 0012 §3.3).
 //
@@ -143,9 +144,15 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		if s.Value == "" {
 			src = &llmprovider.StaticToken{Value: anonymousToken, Header: s.Header}
 		}
-	case *auth.OAuthSession, *auth.VendorCLISession:
-		// R16: a source of a kind the service does not accept is refused.
-		return nil, fmt.Errorf("%w: kilo takes an API key or a Kilo device-login token, not an OAuth session (0016-MADR D10)",
+	case *auth.OAuthSession:
+		// The Kilo device login's session is a Kilo credential, applied like
+		// a key (0017-MADR D2). R16: another provider's session is refused.
+		if s.Provider != llmprovider.ProviderKilo {
+			return nil, fmt.Errorf("%w: kilo takes an API key or a Kilo device-login session, not a %s session (0016-MADR D10)",
+				llmprovider.ErrUnsupported, s.Provider)
+		}
+	case *auth.VendorCLISession:
+		return nil, fmt.Errorf("%w: kilo takes an API key or a Kilo device-login session, not a vendor CLI login (0016-MADR D10)",
 			llmprovider.ErrUnsupported)
 	}
 	p := &provider{

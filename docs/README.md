@@ -48,7 +48,7 @@ documents a reader follows to do something.
 | 0016 | PLAN | [Implement the Provider Auth and Support Baseline](decisions/0016-PLAN-provider-auth-and-support-baseline.md) | complete |
 | 0017 | REPORT | [Reference-Client Survey: How Six Coding Agents Authenticate, Compared with `llmprovider`](reports/0017-REPORT-reference-client-auth-survey.md) | observation |
 | 0017 | MADR | [Add Together AI, Kilo Device Login and Command-Sourced Keys, from the Reference-Client Survey](decisions/0017-MADR-together-provider-and-auth-extensions.md) | accepted |
-| 0017 | PLAN | [Implement Together AI, Kilo Device Login and Command-Sourced Keys](decisions/0017-PLAN-together-provider-and-auth-extensions.md) | in-progress |
+| 0017 | PLAN | [Implement Together AI, Kilo Device Login and Command-Sourced Keys](decisions/0017-PLAN-together-provider-and-auth-extensions.md) | complete |
 | 0018 | MADR | [The module is released under the Apache License 2.0](decisions/0018-MADR-apache-2-license.md) | accepted |
 | 0018 | PLAN | [Implement the Apache License 2.0 for go-llmprovider-sdk](decisions/0018-PLAN-apache-2-license.md) | complete |
 | 0019 | MADR | [Adopt `go fix`'s modernizations, except one that changes behaviour](decisions/0019-MADR-go-fix-modernizations.md) | accepted |

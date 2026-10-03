@@ -124,8 +124,9 @@ make pre-add-check FILES="a.go b.go"
 ```
 
 It runs `scripts/go-precheck.sh`: `gofmt` on the files;
-`golangci-lint run -c .golangci.yml ./...`, the same command as `make lint`
-and CI; `go vet` and `go test` on the packages the files belong to; and
+`golangci-lint run -c .golangci.yml --build-tags live_gateways ./...`, the same
+command as `make lint` and CI, which also lints the live-tagged tests; `go vet`
+and `go test` on the packages the files belong to; and
 `govulncheck ./...` (`GO_PRECHECK_SKIP_VULN=1` skips it offline). `golint` is
 not used: its checks are `revive`'s `exported`, `package-comments` and
 `var-naming` rules in `.golangci.yml`. A file that fails is not committed.

@@ -1121,3 +1121,27 @@ choice and is not decided here.") is closed. The licence is decided by
 License 2.0, the fleet `LICENSE` copy with the appendix unfilled. This
 amendment does not rewrite the Phase 2b text; it records that the
 choice 0002 left open has been made.
+
+## Amendment 2026-10-03: `go-core-lib` is now `go-selfupdate-lib`
+
+Status: **proposed** 2026-10-03. It corrects a name, and changes no
+decision.
+
+* **What happened.** The owner renamed `go-core-lib` to
+  `go-selfupdate-lib`, both the repository and the module path
+  (go-selfupdate-lib
+  `docs/decisions/0009-MADR-rename-to-go-selfupdate-lib.md`).
+  * `github.com/maccavelli/go-core-lib` ends at `v1.4.1`, which `go`
+    reports as deprecated.
+  * `github.com/maccavelli/go-selfupdate-lib` starts at `v1.5.0`
+    (`6deaa52`), with `v1.4.1`'s API. It holds `selfupdate`, the canonical
+    `update` command (`selfupdate/cli`) and the build stamps it reads
+    (`buildinfo`).
+* **What changes in "The owner's further decisions".** `prepare-commit-msg`
+  takes `selfupdate` from `github.com/maccavelli/go-selfupdate-lib`, at
+  `v1.5.0` or later, in place of `go-core-lib`.
+* **The release PLAN Phase 10 waited for exists.** Phase 10 could not
+  complete "before that release exists". `go-selfupdate-lib` `v1.5.0` is
+  released, and so is this module's `v1.0.0`.
+* **The text above stays as written.** Its `go-core-lib` mentions record
+  the name the library had when they were written.

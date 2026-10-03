@@ -4929,3 +4929,27 @@ wizard lists a provider through its own `ListModels`", accepted.
 
   The first break, as first written, left `name` unused and did not
   compile: not a valid break, and it was rewritten.
+
+### Deviation 2026-10-03, after close-out: lint covers the live-tagged files
+
+* **Found** twice, both times only when linting with `--build-tags
+  live_gateways`: the `goimports` finding 0017-PLAN fixed in
+  `live_gateways_test.go`, and the earlier lint pass on the live login tests.
+  `make lint`, CI and `scripts/go-precheck.sh` all run `golangci-lint run -c
+  .golangci.yml ./...` without the tag, so they never see those files.
+* **Decided.** The owner chose "CI lints with the live tag". All three run
+  `golangci-lint run -c .golangci.yml --build-tags live_gateways ./...`,
+  and `AGENTS.md` and `architecture.md` say so.
+  * No file has a `!live_gateways` constraint, so the tagged run also lints
+    every untagged file: one run covers both.
+  * The live tests are still only vetted in CI, never run.
+* **First-fail:** a scratch copy with `kiloendpoint`'s import put back in
+  the standard-library group of `live_gateways_test.go`, the finding 0017-PLAN
+  fixed. The old command passes it, `0 issues.`. The tagged `make lint` fails
+  it: `llmprovider/live_gateways_test.go:36:1: File is not properly formatted
+  (goimports)`.
+  * My first planted break imported `internal/wire` there. That is an import
+    cycle in package `llmprovider`, so it failed on `typecheck`, not
+    `goimports`: not a valid break, and it was replaced.
+* **Done.** `make lint` and the precheck run with the tag, and the tree
+  lints clean, `0 issues.`.

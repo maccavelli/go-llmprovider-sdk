@@ -233,6 +233,10 @@ what the dedicated providers give: a curated listing, a descriptor for
   command, the TTL cache, the 401 re-run and redaction. Each test is first
   seen to fail.
 
+*Annotated 2026-10-03, at 0017-PLAN's close-out: all four are met.* The
+live Together and Kilo device-login checks ran that day, with the owner's
+key and approval.
+
 ## Pros and Cons of the Options
 
 ### A. A dedicated `together` provider now
@@ -278,11 +282,11 @@ The owner answered on 2026-09-30: "1. accept d1, proceed with d1-d5. 2. both as 
   * 0016-MADR A1 and A3 are accepted, and A2 as option (b);
   * 0015-MADR's `ErrContextOverflow` is accepted.
 
-## Amendment 2026-10-03: what the OpenAI sign-in probe found (proposed)
+## Amendment 2026-10-03: what the OpenAI sign-in probe found
 
-Status: **proposed** 2026-10-03, from 0017-PLAN U4. D4 said the probe's
-output decides whether this flow becomes an OpenAI auth method. That
-decision is the owner's.
+Status: **accepted** 2026-10-03, from 0017-PLAN U4. D4 said the probe's
+output decides whether this flow becomes an OpenAI auth method. The owner
+chose option B ("adopt option b").
 
 ### Fact found
 
@@ -334,4 +338,21 @@ P3) with agent name hint `go-llmprovider-sdk` and a per-run
 
 ### Decided
 
-Pending the owner's decision.
+Option B, "Not now; keep the probe":
+
+* The flow does not become an OpenAI auth method now. The Codex flow stays
+  the only OpenAI subscription path, with 0016-MADR's recorded risk of a
+  borrowed client id.
+* `TestLive_OpenAISigninProbe` stays, off by default, as the measurement to
+  repeat.
+* **Revisit when** `openai` streams natively for another reason, or OpenAI
+  accepts a non-streamed request with this token. The probe then measures
+  `store: false` with `stream: true`, which it cannot send today.
+
+### Rejected
+
+* **A, adopt it now,** because it needs native streaming in `openai`, a new
+  sign-in flow and a wizard method, a MADR and PLAN of their own, for a path
+  no consumer has asked for.
+* **C, reject it,** because the probe costs nothing while off, and the
+  borrowed-client-id risk is still open.

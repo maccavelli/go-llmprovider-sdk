@@ -13,6 +13,7 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/kilo"
 )
 
 // identityValue is what the sign-ins send as the ChatGPT originator and the
@@ -121,6 +122,47 @@ func TestLive_GrokDeviceLogin(t *testing.T) {
 	revokeAfter(t, session)
 	out, err := llmprovider.GenerateText(ctx, liveGrok(t, session, "grok-4.6"), userText("Reply with only the word ALPHA"))
 	if err != nil || !strings.Contains(strings.ToUpper(out), "ALPHA") {
+		t.Fatalf("Generate = %q, %v", out, err)
+	}
+}
+
+// TestLive_KiloDeviceLogin is the owner-run gate for Kilo's device login
+// (0017-MADR D2; 0017-PLAN U2). It REQUIRES LLMPROVIDER_LIVE_DEVICE_LOGIN=1
+// and a person to approve the code it logs, within five minutes. The approved
+// token never refreshes, so the session holds no refresh token and no expiry.
+// It reads the account's profile, logging counts only, and generates once on
+// a free model. Kilo has no revocation, so nothing is revoked.
+func TestLive_KiloDeviceLogin(t *testing.T) {
+	if os.Getenv("LLMPROVIDER_LIVE_DEVICE_LOGIN") != "1" {
+		t.Skip("LLMPROVIDER_LIVE_DEVICE_LOGIN unset: this needs a person to approve a device code")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	session, err := auth.LoginDeviceOAuth(ctx, llmprovider.ProviderKilo, auth.OAuthFlowOptions{
+		NotifyDevice: func(verificationURL, userCode string) {
+			t.Logf("open %s and enter the code %s", verificationURL, userCode)
+		},
+	})
+	if err != nil {
+		t.Fatalf("LoginDeviceOAuth: %v", err)
+	}
+	if session.Access == "" || session.Refresh != "" || !session.Expiry.IsZero() {
+		t.Fatalf("session: access set %t, refresh set %t, expiry %v; want an access token only, with no refresh and no expiry",
+			session.Access != "", session.Refresh != "", session.Expiry)
+	}
+	account, err := auth.KiloProfile(ctx, session.Access)
+	if err != nil {
+		t.Fatalf("KiloProfile: %v", err)
+	}
+	t.Logf("profile: %d organizations, personal account %t", len(account.Organizations), account.HasPersonalAccount)
+	p, err := kilo.New(llmprovider.WithTokenSource(session), kilo.WithDataCollection(true),
+		llmprovider.WithModel(llmprovider.LiveModel(t, llmprovider.ProviderKilo, llmprovider.LiveKiloFreeCollecting...)))
+	if err != nil {
+		t.Fatalf("kilo.New: %v", err)
+	}
+	out, err := llmprovider.GenerateText(ctx, p, userText("Reply with only the word ALPHA"))
+	llmprovider.SkipIfTransient(t, err)
+	if err != nil || strings.TrimSpace(out) == "" {
 		t.Fatalf("Generate = %q, %v", out, err)
 	}
 }

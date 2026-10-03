@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-01
+status: complete
+date: 2026-10-03
 associated-madr: "0017-MADR-together-provider-and-auth-extensions.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -444,3 +444,132 @@ client id in the callback. Its run waits for the owner at a browser.
     a `goimports` finding in `llmprovider/live_gateways_test.go:36`, a file
     U4 does not touch. CI lints without the tag, so it has not shown there.
   * **V6 is met:** the probe exists, and is off by default.
+* **Deviation, 2026-10-03: the `goimports` finding.**
+  * **Found** while linting the probe with `--build-tags live_gateways`.
+    `llmprovider/live_gateways_test.go:36` puts
+    `github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint`
+    in the standard-library import group.
+    * Linting the whole module with the tag shows it is the only finding.
+    * CI's `make lint` runs without the tag, so it never showed there.
+    * The file is outside U4's scope.
+  * **Decided.** The owner chose to fix it ("fix the finding"). The import
+    moves to the module group beside `internal/transport`, and nothing else
+    changes.
+  * **Done.** The import is in the module group. `golangci-lint run -c
+    .golangci.yml --build-tags live_gateways ./...` reports `0 issues.`, and
+    `go vet -tags live_gateways` is clean. The failing run above is the
+    check's first failure.
+* **What still keeps this PLAN open** (the MADR's Confirmation):
+  * the Together live test (V2), which has not run: it is billed, and needs
+    `TOGETHER_API_KEY` and the owner's request;
+  * a live Kilo device login, "on the owner's request". No live test of it
+    exists yet; only the fake-server tests of U2 do.
+
+### Confirmation items: the live runs (2026-10-03, started)
+
+The owner asked for all three open items ("Together live test, CI lints with
+the live tag, Kilo device login live test").
+
+* **Kilo device login.** `TestLive_KiloDeviceLogin` is added to
+  `llmprovider/live_oauth_login_test.go`, behind `LLMPROVIDER_LIVE_DEVICE_LOGIN`
+  like the Grok one. It signs in with `auth.LoginDeviceOAuth(ctx,
+  ProviderKilo, …)`, checks the session holds no refresh token and no expiry
+  (U2: the approved token never refreshes), reads `auth.KiloProfile`, and
+  generates once on a free model. It logs no token and no e-mail address.
+* **Together.** `TOGETHER_API_KEY` is not set in this session, so the run
+  waits for it.
+* **Deviation, 2026-10-03: a Kilo device-login session is refused by
+  `kilo.New`.**
+  * **Found** in `TestLive_KiloDeviceLogin`, run with the owner approving the
+    code. The login succeeded: no refresh token and no expiry, and the
+    profile read back with 0 organizations and a personal account. Then
+    `kilo.New` failed: `unsupported: kilo takes an API key or a Kilo
+    device-login token, not an OAuth session (0016-MADR D10)`.
+  * **Cause.** `auth`'s Kilo device login returns an
+    `*auth.OAuthSession{Provider: kilo}` (`llmprovider/auth/kilo_device.go`),
+    and `kilo.New` refuses every `*auth.OAuthSession`.
+    * D2 says the token "is stored in the `TokenStore` and applied like an
+      API key", and the error message itself allows "a Kilo device-login
+      token".
+    * `TestNew_RefusesAnOAuthSession` checks only an OpenAI session.
+    * So a consumer following `wizard`'s `CredOAuth` result cannot build
+      Kilo.
+  * **Decided.** The owner chose "accept a Kilo session". `kilo.New` accepts
+    an `*auth.OAuthSession` whose `Provider` is `kilo`, sent in
+    `Authorization: Bearer` as a key is. It still refuses another provider's
+    session and a vendor CLI login. A 401 must stay `ErrAuthFailure` (D2:
+    log in again).
+  * **Tests:** a unit test of the accepted session, its header, and its 401,
+    seen to fail first; then the live login, rerun.
+* **Deviation, 2026-10-03: Together refuses `"required"` on
+  `gpt-oss-120b`.**
+  * **Found** on the first run of the Together live tests (V2). Text, the
+    forced tool, both thinking shapes, `none` and the listing passed, with
+    172 chat models. `TestLive_TogetherToolChoices/required` failed with
+    `HTTP 500 server_error`, 4 runs out of 4.
+  * **Measured,** with `"required"` and with a named tool:
+    * `openai/gpt-oss-120b`: `"required"` gets HTTP 500; a named tool
+      calls.
+    * `deepseek-ai/DeepSeek-V4.1-Flash`, `zai-org/GLM-5.3`,
+      `moonshotai/Kimi-K3` and `zai-org/GLM-5.3-Flash`: both call.
+  * **Decided.** The owner chose "measured model, pin the 500".
+    * `required` runs on `DeepSeek-V4.1-Flash`.
+    * A subtest pins `gpt-oss-120b`'s 500.
+    * Together's package doc names the degradation. Forced tool choice
+      was already `BestEffort`.
+  * **Recorded, not changed:** the 500 is classified
+    `ErrProviderUnavailable`, which `WithRetry` retries, though it never
+    succeeds.
+* **Done, 2026-10-03.**
+  * **Kilo:** `kilo.New` accepts an `*auth.OAuthSession` whose `Provider` is
+    `kilo`. It refuses another provider's session and a vendor CLI login,
+    each with its own message.
+    * `TestNew_AcceptsAKiloDeviceSession` (`llmprovider/providers/kilo/device_session_test.go`)
+      was red first: `New with a Kilo device-login session: llmprovider:
+      unsupported: kilo takes an API key or a Kilo device-login token, not
+      an OAuth session`. Now it passes: `Authorization: Bearer <token>`, and
+      a 401 is `ErrAuthFailure`.
+    * **First-fail of the refusal:** with the provider check disabled on a
+      scratch copy, `TestNew_RefusesAnOAuthSession` fails: `oauth: err =
+      <nil>, want ErrUnsupported`.
+    * The package doc says which sessions are accepted.
+  * **Together:**
+    * `required` runs on `deepseek-ai/DeepSeek-V4.1-Flash`.
+    * `TestLive_TogetherRequiredFailsOnGptOss` pins the 500.
+    * The package doc gives the measured models.
+    * **Live:** every Together test passes, `TestLive_TogetherWire` (4
+      subtests), `TestLive_TogetherToolChoices`,
+      `TestLive_TogetherRequiredFailsOnGptOss` and
+      `TestLive_TogetherListing` (172 chat models). The two changed tests
+      passed 3 more runs of 3. **V2 is met.**
+    * **First-fails, live,** on scratch copies:
+      * `required` sent as `auto` fails the pin: `Generate = <nil>, want
+        the HTTP 500`;
+      * `required` sent as `none` fails `ToolChoices/required`: `a call came
+        back: false, want true`.
+  * ~~**The Kilo live login after the fix:** its run timed out waiting for the
+    approval (`device-code wait: context deadline exceeded`). It waits for
+    the owner, so V4's live check is still open.~~ *Annotated 2026-10-03:*
+    rerun with the owner approving ("ready"), and it passes; see below.
+  * **The gate:** all 17 checks pass, with `make lint` now tagged.
+
+### Close-out (2026-10-03)
+
+* **`TestLive_KiloDeviceLogin` passes** (15 s), with the owner approving the
+  code.
+  * The session has an access token, no refresh token and no expiry.
+  * `KiloProfile` read 0 organizations and a personal account.
+  * The fixed `kilo.New` generated on `kilo-auto/free` with the session.
+  * Nothing is revoked: Kilo has none.
+* **The MADR's Confirmation, each item:**
+  * `together` passes G-wire and the ported tests, U1, and S7 moved it with
+    its `llmtest` harness;
+  * the live Together tests pass today: text, a forced tool, both thinking
+    shapes and the listing;
+  * Kilo device login passes the fake-server tests of U2, and today the
+    live login;
+  * the command source's tests were each seen to fail first, U3.
+* **Verification:** V1–V6 are met. V2 and V4's live check were met today;
+  V6 by U4's probe.
+* **U4's decision** is the MADR's amendment of 2026-10-03, option B.
+* This PLAN is `complete`.

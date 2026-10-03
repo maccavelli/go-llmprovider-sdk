@@ -35,7 +35,7 @@ lint: ## Runs golangci-lint with fleet config
 		echo "Install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"; \
 		exit 1; \
 	fi
-	$(GOLANGCI_LINT) run -c $(FLEET_LINT_CFG) ./...
+	$(GOLANGCI_LINT) run -c $(FLEET_LINT_CFG) --build-tags live_gateways ./...
 
 tidy: ## Runs go mod tidy
 	go mod tidy

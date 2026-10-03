@@ -86,7 +86,7 @@ fi
 need go || exit 2
 GOLANGCI="${GOLANGCI_LINT:-$(go env GOPATH)/bin/golangci-lint}"
 if [ -x "$GOLANGCI" ]; then
-  if ! lint_out="$("$GOLANGCI" run -c .golangci.yml ./... 2>&1)"; then
+  if ! lint_out="$("$GOLANGCI" run -c .golangci.yml --build-tags live_gateways ./... 2>&1)"; then
     echo "golangci-lint:" >&2
     printf '%s\n' "$lint_out" | tail -40 | sed 's/^/  /' >&2
     fail 1
