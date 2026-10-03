@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-09-16
+status: accepted
+date: 2026-10-03
 decision-makers: mcplib maintainers
 consulted: prepare-commit-msg
 informed: none
@@ -366,6 +366,10 @@ A live OpenAI browser login on this Windows laptop after D1–D7, producing
 `oauth/openai.json` with JWT access, non-empty refresh, `client_id`, and
 `account_id`, is the product confirmation. It is not a unit test.
 
+*Annotated 2026-10-03:* this section's checks are met, as replaced by later
+records. The Windows-laptop login is no longer required. See the amendment
+"2026-10-03: close-out".
+
 ## Pros and Cons of the Options
 
 ### A — Repair loopback, paste-code, isolation, validation (chosen)
@@ -624,3 +628,73 @@ Since `mcplib` `a5f2460`, the OpenAI loopback redirect is
 at `mcplib` `4e1f9a5`), as Codex redirects with the same client id. This
 supersedes the `localhost` redirect in the PLAN's Goal 1, criterion C3 and D1
 here. The measured `localhost` facts above stay as they were observed.
+
+## Amendment 2026-10-03: close-out
+
+The owner audited this record against `go-llmprovider-sdk` at `c71ffdd`
+(`v1.0.0` plus 0016–0019). Its decisions shipped. Status: `accepted`. The
+owner approved the execution, R1 and the deviations in `mcplib`, and the
+code moved here under
+[0002-MADR-migrate-llmprovider-from-mcplib.md](0002-MADR-migrate-llmprovider-from-mcplib.md).
+
+**Shipped here, each with a passing test.**
+
+* D1's dual-stack listener on 1455 then 1457
+  (`TestListenLoopbackBothFamilies_AcceptsIPv6Loopback`).
+* D2's Grok private-network CORS
+  (`TestOAuthCallback_GrokOptionsReturnsPrivateNetworkCORS`).
+* D3's paste-code race, with the drain
+  (`TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt`).
+* D4 and D5 (`TestLoginBrowserOAuth_OpenURLDoesNotBlockWait`,
+  `TestOAuthCallback_RejectsStateMismatch`).
+* D7's `ValidateOAuthSession` (`TestValidateOAuthSession_RejectsFixture`).
+* D8's redacted bodies (`TestOAuthTokenError_CapsBody`).
+* D9's `originator` (`TestOpenAI_ChatGPTSetsOriginatorHeader`).
+* D11's Codex-only ChatGPT catalog
+  (`TestListModels_ChatGPTListingFailureIsError`).
+* CI runs these on Linux, macOS and Windows (`.github/workflows/ci.yml`).
+
+**Shipped in `prepare-commit-msg`.** D6 and D7's consumer half (the PLAN's
+P8) ran under that repository's
+`docs/decisions/0008-PLAN-adopt-go-llmprovider-sdk-and-go-selfupdate-lib.md`,
+Phase 2 (commit `a45b576`):
+
+* `TestRedirectUserConfig_APPDATARequired`;
+* `TestIsolateHome_RedirectsWindowsUserConfigDir`, run by its Windows CI
+  job;
+* `TestValidateOAuth_RejectsChatGPTAccessFixture`.
+
+**Replaced by later records.** The original text above stays as written.
+
+* **The `localhost` redirect** (D1, C3, Goal 1) is `127.0.0.1`: the
+  amendment of 2026-09-29 here, and
+  [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
+  revision 5. D1's dual-stack listener stays.
+* **`client_version=0.0.0`** (D11, A10) is this module's release as `X.Y.Z`,
+  with `0.0.0` only for a build that has no release version: 0012-MADR
+  revision 3, item 7 (`TestChatGPTListing_SendsSDKVersion`).
+* **`originator=mcplib`** (D9, A9) is `originator=go-llmprovider-sdk`:
+  0002-MADR §5.
+* **`max_output_tokens`** (A9, the PLAN's P4 pin) must not be sent. 0012-MADR
+  revision 3, item 3, measured a 400, and that answers open question 1
+  (`TestOpenAI_ChatGPTOmitsMaxOutputTokens`).
+* **`CODEX_ACCESS_TOKEN`** (D7) is withdrawn: 0012-MADR §5.4
+  (`TestConfigureLLM_IgnoresCodexAccessTokenEnv`).
+* **The vendor-CLI import, F11 and open question 2.** The import is now
+  read-through (0012-MADR §5.1), and expiry still comes from the JWT `exp`
+  (`TestVendorCLISession_ReadsThrough`).
+
+**The owner's decisions, 2026-10-03, on the two operator items.**
+
+* **The polluted `%APPDATA%\prepare-commit-msg\oauth\openai.json` (open
+  question 3)** is no longer needed. `prepare-commit-msg` now validates the
+  session at config load. It refuses a stub such as `chatgpt-access` and
+  points to `configure`.
+* **The live login on the Windows laptop (Confirmation)** is no longer
+  needed.
+  * Its Windows-only failure was `localhost` resolving to `::1`, and the
+    `127.0.0.1` redirect cannot hit it.
+  * The loopback tests run on Windows in CI.
+  * The live browser logins passed on 2026-10-02:
+    [0002-PLAN-migrate-llmprovider-from-mcplib.md](0002-PLAN-migrate-llmprovider-from-mcplib.md),
+    "Phase 8 step 1: the live gates".

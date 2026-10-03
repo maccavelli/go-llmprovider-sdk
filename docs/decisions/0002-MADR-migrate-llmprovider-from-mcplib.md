@@ -1124,8 +1124,8 @@ choice 0002 left open has been made.
 
 ## Amendment 2026-10-03: `go-core-lib` is now `go-selfupdate-lib`
 
-Status: **proposed** 2026-10-03. It corrects a name, and changes no
-decision.
+Status: **accepted** 2026-10-03, with the owner's approval of the
+outstanding rename items. It corrects a name, and changes no decision.
 
 * **What happened.** The owner renamed `go-core-lib` to
   `go-selfupdate-lib`, both the repository and the module path

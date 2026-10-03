@@ -23,8 +23,8 @@ documents a reader follows to do something.
 | 0006 | PLAN | [Implement Browser, API-Key, and Headless Subscription Authentication for OpenAI and xAI Grok](decisions/0006-PLAN-subscription-auth-for-llm-providers.md) | complete |
 | 0007 | MADR | [Search Live Provider Catalogs for Primary and Fallback Model Selection](decisions/0007-MADR-live-catalog-model-search.md) | accepted |
 | 0007 | PLAN | [Implement Search Live Provider Catalogs for Primary and Fallback Model Selection](decisions/0007-PLAN-live-catalog-model-search.md) | complete |
-| 0008 | MADR | [Repair OAuth loopback, paste-code fallback, and Windows session wiring so ChatGPT and xAI browser login actually persist](decisions/0008-MADR-repair-oauth-loopback-and-session-wiring.md) | proposed |
-| 0008 | PLAN | [PLAN 0008 — Repair OAuth loopback, paste-code, and Windows session wiring](decisions/0008-PLAN-repair-oauth-loopback-and-session-wiring.md) | in-progress |
+| 0008 | MADR | [Repair OAuth loopback, paste-code fallback, and Windows session wiring so ChatGPT and xAI browser login actually persist](decisions/0008-MADR-repair-oauth-loopback-and-session-wiring.md) | accepted |
+| 0008 | PLAN | [PLAN 0008 — Repair OAuth loopback, paste-code, and Windows session wiring](decisions/0008-PLAN-repair-oauth-loopback-and-session-wiring.md) | complete |
 | 0009 | MADR | [Rank Recommended Models by Use Case from Live Catalog Metadata](decisions/0009-MADR-use-case-aware-default-model-ranking.md) | accepted |
 | 0009 | PLAN | [Implement Rank Recommended Models by Use Case from Live Catalog Metadata](decisions/0009-PLAN-use-case-aware-default-model-ranking.md) | in-progress |
 | 0010 | MADR | [Close Windows stdio shutdown misclassification, finish the mcplib remainder of 0008, harden FileTokenStore, and make CI prove it on macOS, Linux, and Windows](decisions/0010-MADR-windows-stdio-oauth-tokenstore-ci.md) | proposed |

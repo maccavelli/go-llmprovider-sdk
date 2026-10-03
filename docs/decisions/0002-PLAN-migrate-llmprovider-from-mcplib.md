@@ -2438,3 +2438,48 @@ pushed, verify it").
   `0008-MADR-adopt-go-llmprovider-sdk-and-go-selfupdate-lib.md` and its
   PLAN, which are `proposed`.
 * **Not changed.** Every other Phase 10 step, and Phases 9 and 11–14.
+
+### Phase 10: `prepare-commit-msg` adopts the SDK (2026-10-03)
+
+* **The companion** is `prepare-commit-msg`'s
+  `docs/decisions/0008-MADR-adopt-go-llmprovider-sdk-and-go-selfupdate-lib.md`
+  and its PLAN, now `complete`. The owner accepted its recommendations
+  (D1–D7) and approved the amendment of this date above.
+* **Commits there:**
+  * `e735fa3`, Go 1.27.1;
+  * `0f7fe2d`, the records;
+  * `d946753`, self-update from go-selfupdate-lib `v1.5.0`;
+  * `a45b576`, this SDK at `v1.0.0`, with the supply-chain check;
+  * `bb1d408`, the documentation;
+  * `fd81a19`, line endings for its byte-exact test fixtures on Windows.
+
+  It released `v1.5.0`.
+* **The steps of this phase:**
+  1. **Imports.** Every `mcplib/llmprovider` and `mcplib/wizard` import is
+     rewritten, and each call is mapped through
+     `docs/guides/migrating-from-mcplib.md`.
+  2. **Modules.** `go.mod` requires `go-llmprovider-sdk v1.0.0` and
+     `go-selfupdate-lib v1.5.0`. `go list -m all` names no
+     `github.com/maccavelli/mcplib`.
+  3. **The folded-in 0008 P8.**
+     * `ValidateOAuth` calls `auth.ValidateOAuthSession`.
+     * The test helpers set `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME`,
+       `APPDATA`, `AppData` and `LOCALAPPDATA`.
+     * The tests P8 names are added or updated. The Windows one passed in
+       CI.
+  4. **`scripts/go-precheck.py`** checks both modules: a release version,
+     no `replace`, no exemption, and `go.sum` matching. It refuses mcplib
+     in the module graph. Each planted breach was seen to fail.
+  5. **Docs.** `README.md` names this SDK and lists 10 providers.
+     Historical records stay as written.
+  6. **Reconcile.** Its 0007 is amended: the dependency half is
+     superseded.
+  7. **Orchestration.** `orchestrated := false` and `Orchestrated:
+     &orchestrated` are removed.
+  8. **Live check.** The owner reports that, built from `v1.5.0`, a
+     ChatGPT-session model listing shows `gpt-6-sol`: "3 passed with
+     flying colors". The output was not pasted.
+* **CI** there passed on Linux, macOS and Windows, on `main` (`37149541198`)
+  and on the tag (`37150981357`).
+* **Phase 10 is complete.** This PLAN stays `in-progress` for Phase 9 and
+  Phases 11–14.

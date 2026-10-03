@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-09-27
+status: complete
+date: 2026-10-03
 associated-madr: 0008-MADR-repair-oauth-loopback-and-session-wiring.md
 decision-makers: mcplib maintainers
 migrated-from: "mcplib docs/decisions/0009-PLAN-repair-oauth-loopback-and-session-wiring.md @ 4e1f9a5"
@@ -899,6 +899,10 @@ Live OpenAI browser login on this laptop producing `oauth/openai.json` with
 JWT access, non-empty refresh, `client_id`, and `account_id` is product
 confirmation. It is not a unit test and does not block merging P1–P8.
 
+*Annotated 2026-10-03:* no longer needed on Windows, by the owner's decision.
+A1's negative case runs as explicit `tcp6` dials, on every CI OS. See the
+close-out below.
+
 ## Rollout and Rollback
 
 **Order.**
@@ -926,8 +930,14 @@ validation in the consumer against a library that lacks
   originator, or 400s on `max_output_tokens`, waits for a real ChatGPT
   session after P1–P7. Record the HTTP status in this PLAN's execution
   record; do not change generate in that same turn.
+  *Annotated 2026-10-03:* answered by
+  [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
+  revision 3. Without `originator`, the request is accepted;
+  `max_output_tokens` gets a 400. See the close-out below.
 * **Deleting the polluted live `openai.json` (open question 3).** Operator
   step in Rollout, not code.
+  *Annotated 2026-10-03:* no longer needed, by the owner's decision. See the
+  close-out below.
 * **Fleet consumers other than prepare-commit-msg.** MagicDev / MagicTools
   wizards are out. They pick up `v1.5.1` when those repos bump, under their
   own plans.
@@ -1015,7 +1025,7 @@ what the plan predicted incorrectly.
 | P4 | done | `ba92db1` (originator), then the P4 commit (the pin) | The originator test was proven in R1 (no header gives `originator = "", want "mcplib"`). `TestOpenAI_ChatGPTSendsMaxOutputTokens` pins today's body, so it was proven by a mutant: dropping the field gives `max_output_tokens = <nil>, want 321` | All ChatGPT tests and `TestBuildAuthorizeURL_OpenAIContract` pass; the gate passes | None |
 | P7 | done by R1 | `ba92db1`, then R1 | see R1 | see R1 | The llmprovider half landed in `ba92db1`; the wizard half and C1 only in R1 |
 | R1 | done | the commit after `fc3e559` that adds this row | `6e19cdf`: `go build ./...` exit 1, `discovery.go:335:1: syntax error: unexpected <<` | Full gate PASS (below) | Added 2026-09-27. Two further stale `StaticOpenAIChatGPT` tests surfaced (`discovery_catalog_test.go`, `model_select_test.go`) and were rewritten in R1 |
-| P8 | not started | | | | Blocked on the `v1.5.1` tag |
+| P8 | ~~not started~~ done in `prepare-commit-msg` (annotated 2026-10-03) | `prepare-commit-msg` `a45b576` | see that repository's 0008-PLAN, Phase 2 | see that repository's 0008-PLAN, Phase 2 | ~~Blocked on the `v1.5.1` tag~~ Re-targeted to `v1.0.0` (deviation 2026-09-29); see the close-out below |
 
 ### R1 verification (2026-09-27)
 
@@ -1071,3 +1081,55 @@ Mutants (a mutant counts as killed only by a runtime `--- FAIL`):
 * **A9/A10:** the `originator` value is now `go-llmprovider-sdk`.
 * The OpenAI redirect is `127.0.0.1`, not `localhost`: see the MADR's
   amendment of the same date.
+
+### Close-out (2026-10-03)
+
+* **Audit.** The owner audited this PLAN read-only against
+  `go-llmprovider-sdk` at `c71ffdd`. These packages pass with
+  `go test -count=1`:
+  * `./llmprovider/auth`
+  * `./llmprovider/providers/grok`
+  * `./llmprovider/providers/openai`
+  * `./llmprovider/catalog`
+  * `./wizard`
+* **P0–P7 and R1** are as recorded above.
+  * The code moved here under
+    [0002-MADR-migrate-llmprovider-from-mcplib.md](0002-MADR-migrate-llmprovider-from-mcplib.md),
+    and its tests moved with it.
+  * P7's ChatGPT listing moved to `llmprovider/providers/openai` under
+    0015-MADR.
+* **P8 is done in `prepare-commit-msg`,** under that repository's
+  `docs/decisions/0008-PLAN-adopt-go-llmprovider-sdk-and-go-selfupdate-lib.md`,
+  Phase 2 (`a45b576`).
+  * New tests: `TestRedirectUserConfig_APPDATARequired`,
+    `TestIsolateHome_RedirectsWindowsUserConfigDir` and
+    `TestValidateOAuth_RejectsChatGPTAccessFixture`.
+  * Each was seen to fail on a planted copy there, as that record shows.
+  * CI passed on Linux, macOS and Windows: runs `37149541198` (`main`) and
+    `37150981357` (`v1.5.0`).
+  * That PLAN's own Phases 5–6 are its release checks, and they do not
+    hold P8 open.
+* **Acceptance criteria, against the MADR's amendment "2026-10-03:
+  close-out":**
+  * A2–A8, A11 and A13 are met here.
+  * A6, and A12's consumer half, are met in `prepare-commit-msg`.
+  * A9 is met with `originator: go-llmprovider-sdk`. Its
+    `max_output_tokens still present` clause is replaced: the field must not
+    be sent (`TestOpenAI_ChatGPTOmitsMaxOutputTokens`).
+  * A10 is met, with `client_version` set to the release
+    (`TestChatGPTListing_SendsSDKVersion`).
+  * A1 is met by explicit per-family dials, under the deviation of
+    2026-09-27.
+* **Not done, by the owner's decision of 2026-10-03:**
+  * **Deleting the polluted `openai.json`.** No longer needed: the consumer
+    refuses that stub at config load.
+  * **A live OpenAI browser login on the Windows laptop.** No longer needed:
+    the `127.0.0.1` redirect cannot hit the `::1` failure. The live browser
+    logins passed on 2026-10-02
+    ([0002-PLAN-migrate-llmprovider-from-mcplib.md](0002-PLAN-migrate-llmprovider-from-mcplib.md),
+    "Phase 8 step 1: the live gates").
+* **Never done, and replaced:** the `mcplib` `v1.5.1` tag in Rollout step 2.
+  The deviation of 2026-09-29 re-targeted it to this module's `v1.0.0`.
+* **The 0010 pair** still says it will implement parts of this record. That
+  is reconciled under its own number, not here.
+* This PLAN is `complete`. The MADR is `accepted`.
