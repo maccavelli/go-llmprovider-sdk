@@ -95,9 +95,10 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
     default client, which honours the proxy variables.
   - `Logger` is never nil. Without `WithLogger` it discards everything, so log
     to it freely and never to `slog`'s global functions (R31).
-- **Refuse a credential your service cannot take** (R16). For example, a
-  key-only service returns an error matching `ErrUnsupported` for a
-  `*auth.OAuthSession`.
+- **Refuse a credential your service cannot take** (R16;
+  [0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md)
+  D2). For example, a key-only service returns an error matching
+  `ErrUnsupported` for a `*auth.OAuthSession`.
 - **Keep the result immutable.** Everything `New` reads is fixed for the
   provider's life, and `Generate` may run on many goroutines at once (R20).
 
@@ -153,7 +154,8 @@ In this order:
    …)`. That is what stops it when the caller cancels (R40).
 4. **Set the credential and the identity.** Call `p.src.Token(ctx)`, then
    `token.Apply(httpReq, header, scheme)` with your service's own header and
-   scheme: `"Authorization"` and `"Bearer"`, or `"x-api-key"` and `""` (R16).
+   scheme: `"Authorization"` and `"Bearer"`, or `"x-api-key"` and `""` (R16;
+   [0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) D2, A6).
    Set `User-Agent` to the `UserAgent` from `New`. `llmtest` checks it (R44).
 5. **Send it** with the client from `New`. Close the body, and log a failed
    close to the logger from `New`.

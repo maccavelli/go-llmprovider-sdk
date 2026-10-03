@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-01
+status: complete
+date: 2026-10-02
 associated-madr: "0016-MADR-provider-auth-and-support-baseline.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -262,7 +262,7 @@ run in T2 (0015-PLAN S4).
 | V5 | Device handle waits and cancels | T2.4 tests | T2 |
 | V6 | Nonce checked; caller issuer fails closed; `id_token` signatures verified, failures fail the login | T2.5 tests; live pin | T2 |
 | V7 | Proxy honoured; one client per provider | T1 tests | T1 |
-| V8 | No billed probe by default | T3.2 test | T3 |
+| V8 | ~~No billed probe by default~~ *Superseded 2026-09-30 by A5:* probes on by default, off with `WithModelProbes(false)` | T3.2 test, as reversed | T3 |
 | V9 | One refresh-token copy; logout works | T4 tests | T4 |
 | V10 | `ANTHROPIC_API_KEY` only | T5 test | T5 |
 | V11 | No new module | `make dep-check` (0015-PLAN S12) | T6 |
@@ -941,3 +941,47 @@ before the code. Details are in 0015-PLAN, "Phase S8, commit 6".
   key is read only where a caller passes a reader: `wizard`'s
   `Options.LookupEnv`. Details are in 0015-PLAN, "Phase S10".
 * **V10 is met.**
+
+### T6: close-out (2026-10-02)
+
+The owner chose to close this PLAN out ("0016 T6 close-out"). T1–T5 ran
+inside 0015-PLAN's phases, whose records hold the detail cited here.
+
+* **Step 1, the execution record.** Each decision's first-seen failure, by
+  the step that holds it:
+
+  | Decision | Test first seen to fail | Where |
+  |---|---|---|
+  | D2 | `TestTokenHeader` and `TestTokenSources_ReportOnlyWhatIsSet`, red first on `da4425a`, and breaks | 0015-PLAN S7 commit 5; per provider, T3 step 1 above |
+  | D3 | durable writes and the refresh lock, red first on `fe625b8` | T2 step 1 |
+  | D4 | the rotation kept and a sibling's adopted, red first on `0cd659d` | T2 step 2 |
+  | D5 | every secret-bearing type formatted, red first on `3a627d6`; `MarshalJSON`, red first on `9a264db` | T2 step 3, and its addition |
+  | D6 | the device handle: red first by absence, then breaks | T2 step 4 |
+  | D7 | four login refusals and the discovery fallback, red first on `fbe8bcf`; nine breaks; the live pin | T2 step 5 |
+  | D8 | the shared client and the proxy, red first on `51ebc85` | T1 |
+  | D9, as A5 | `TestListModels_ProbesFollowDefaultOptionAndEnv` (`openai`, `claude`, `gemini`, `grok`), `TestListModels_NeverProbes` (`kilo`, `together`) | T3 step 2 and its reversal |
+  | D11 | `TestConfigureLLM_KeepsTheStoredSession` and the `Logout` tests, red first | T4 |
+  | D12 | `TestConfigureLLM_AnthropicKeyOnly`, red first | T5 |
+
+  * D1 chooses the base, and D10 says what the SDK does not do: neither
+    has a behaviour to test.
+  * **G-wire.** D2 and D8 show no request difference, in every step's
+    record. D9's listing difference, the probe `POST`s, was removed in S5
+    and restored by A5. So the goldens now match their content before S5,
+    and no D9 difference remains.
+  * **Coverage,** today, from `make coverage-check`, which passes:
+    `llmprovider` 98.2 % and `wizard` 84.7 %, against `P7`'s 89.2 % and
+    83.4 %; `auth` 85.3 %.
+  * **Verification,** each criterion:
+    * V1–V7, V9 and V10 are met, by the steps above;
+    * V8 is met as A5 reversed it: the table is annotated;
+    * V11 is met. `make dep-check` passes in CI (run `37046592893`, and on
+      the `v1.0.0` tag), and `go.mod` requires only `golang.org/x/term`.
+* **Step 2, the guides.**
+  * `api-standards.md` already carries D2, as R15 and R16, and D5, as R33
+    and R34, each citing 0016. 0015-PLAN S1 and S11 wrote them, so nothing
+    is added there.
+  * `adding-a-provider.md` stated the `TokenSource` rule but cited only R16.
+    It now cites this MADR's D2, and A6 where the token is applied.
+* **Step 3.** This PLAN is `complete`. The MADR's Confirmation items are
+  annotated as met.

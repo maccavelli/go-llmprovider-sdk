@@ -423,6 +423,10 @@ second keeps today's behaviour.~~
   listing difference is the only one, and it is listed.
 * `make dep-check` (0015-PLAN S12) shows no new module.
 
+*Annotated 2026-10-02, at 0016-PLAN T6: all three are met.* D9's listing
+difference no longer exists: A5 restored the probes, so the goldens match
+their content before 0015-PLAN S5. The PLAN's T6 record holds the evidence.
+
 ## Pros and Cons of the Options
 
 ### A. `mcplib` base, `magic-cli-remote` practices
