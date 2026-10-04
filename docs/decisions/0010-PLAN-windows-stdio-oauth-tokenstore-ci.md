@@ -1202,3 +1202,34 @@ paths are left out here.
 * **Still open:** the Windows CI job on the pushed fix. P6b.3 asks for
   the test to pass there too, so this PLAN stays `in-progress` until it
   does.
+
+### Deviation 2026-10-04: an elevated token's new file has another owner
+
+* **Found** on Windows CI after `3450b93` was pushed. Linux and macOS
+  passed, and so did the two checks fixed earlier that day. The third check
+  failed:
+  * `ownerperm_windows_test.go:111`: `SDDL "O:BAD:AI(A;ID;FA;;;LA)", want
+    owner …-500`.
+  * The runner is an elevated administrator. The default owner of what it
+    creates is the Administrators group (`BA`), not the user. So the file
+    `os.CreateTemp` makes in the restricted directory is owned by `BA`
+    until `File` runs. Its one entry, inherited, is still the user's.
+  * On the owner's machine, not elevated, that owner is the user, which is
+    why the run there passed.
+  * `File` sets the user as owner before the first byte, so no token is
+    ever written to a file the user does not own.
+* **Considered:**
+  * create the file with its owner and protected DACL already set, so the
+    window goes. The owner chose it first, then chose the check below, and
+    the uncommitted proposal for it was withdrawn;
+  * assert the owner only where `ownerperm` sets it.
+* **Resolution, the owner's choice: the original recommendation.**
+  `assertOnlyUser` checks the owner where `ownerperm` sets it: the
+  directory, and the file after `File`. For the file before `File` it
+  checks what D13 says of it: the DACL is auto-inherited, and every entry
+  grants the user full access. No code changes. The MADR records the
+  corrected assumption.
+* **Rerun on the owner's Windows machine**, as P6b.3's run of the same day:
+  the copy whose `restrict` does nothing still fails, at the directory and
+  at the file before `File`. The unchanged copy passes, with
+  `ownerperm` and `auth` `ok`. The elevated case is CI's, after the push.

@@ -64,10 +64,12 @@ func sidOf(t *testing.T, trustee string) string {
 }
 
 // assertOnlyUser checks the recipe's own invariants (0010-MADR open question
-// 3): the user owns path, and every entry grants the user full access with
-// the wanted inheritance flags. A DACL set directly is protected; one only
-// inherited ("ID") is auto-inherited instead, as no inherited DACL can be
-// protected (0010-PLAN, deviation 2026-10-04).
+// 3): every entry grants the user full access with the wanted inheritance
+// flags. Where ownerperm sets the descriptor, the user owns path and its DACL
+// is protected. A file only inheriting ("ID") has an auto-inherited DACL,
+// which cannot be protected, and the creating token's default owner, which
+// on an elevated token is the Administrators group (0010-PLAN, deviations
+// 2026-10-04).
 func assertOnlyUser(t *testing.T, path, wantFlags string) {
 	t.Helper()
 	sid, err := currentUserSID()
@@ -76,7 +78,7 @@ func assertOnlyUser(t *testing.T, path, wantFlags string) {
 	}
 	got := sddlOf(t, path)
 	owner, dacl, ok := strings.Cut(strings.TrimPrefix(got, "O:"), "D:")
-	if !ok || sidOf(t, owner) != sid {
+	if !ok || (wantFlags != "ID" && sidOf(t, owner) != sid) {
 		t.Fatalf("%s: SDDL %q, want owner %s", path, got, sid)
 	}
 	flags, aces, _ := strings.Cut(dacl, "(")

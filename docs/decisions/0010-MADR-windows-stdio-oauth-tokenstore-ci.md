@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-03
+date: 2026-10-04
 decision-makers: mcplib maintainers
 consulted: prepare-commit-msg
 informed: all mcplib consumers
@@ -1038,3 +1038,20 @@ same day.
 * **D8's test `TestListChatGPTModels_DefaultHostIsCodexNotPlatform`** is
   added: with no base URL, the listing goes to `chatgpt.com`
   `/backend-api/codex/models`.
+
+## Amendment 2026-10-04: who owns a file before `File`
+
+Found by 0010-PLAN's Windows CI run of 2026-10-04 (its deviation "an
+elevated token's new file has another owner").
+
+* **Corrected assumption.** A file created in the restricted directory is
+  owned by the creating token's default owner. That is the user, except on
+  an elevated administrator, where it is the Administrators group. Its one
+  entry is the inherited user's, as D13 says.
+* `File` makes the user the owner before the first byte, so a token file is
+  owned by the user before anything is written to it. Decisions D10 and D13
+  stand.
+* D13's test invariant "the owner is the user" applies where `ownerperm`
+  sets the owner: the directory, and a file after `File`.
+* **Considered, not chosen:** creating the file with its owner and DACL
+  already set, which would remove the window between creation and `File`.
