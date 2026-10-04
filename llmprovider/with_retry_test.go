@@ -139,18 +139,20 @@ func TestRetryPolicy_Defaults(t *testing.T) {
 	}
 }
 
+// TestRetryPolicy_WaitBackoffAndCap: backoff doubles to the cap, and the wait
+// taken is between half and all of it (0021-MADR T7, equal jitter).
 func TestRetryPolicy_WaitBackoffAndCap(t *testing.T) {
 	p := RetryPolicy{MaxAttempts: 9, BaseDelay: 100 * time.Millisecond, MaxDelay: time.Second}
 	plain := errors.New("dial")
-	for attempt, lo := range map[int]time.Duration{1: 100 * time.Millisecond, 2: 200 * time.Millisecond, 3: 400 * time.Millisecond} {
+	for attempt, hi := range map[int]time.Duration{1: 100 * time.Millisecond, 2: 200 * time.Millisecond, 3: 400 * time.Millisecond} {
 		got, ok := p.wait(attempt, plain)
-		if !ok || got < lo || got > lo+lo/4 {
-			t.Errorf("wait(%d) = %v, %v; want %v plus up to a quarter", attempt, got, ok, lo)
+		if !ok || got < hi/2 || got > hi {
+			t.Errorf("wait(%d) = %v, %v; want between %v and %v", attempt, got, ok, hi/2, hi)
 		}
 	}
 	for _, attempt := range []int{5, 64} {
-		if got, ok := p.wait(attempt, plain); !ok || got != time.Second {
-			t.Errorf("wait(%d) = %v, %v; want the 1s cap", attempt, got, ok)
+		if got, ok := p.wait(attempt, plain); !ok || got < time.Second/2 || got > time.Second {
+			t.Errorf("wait(%d) = %v, %v; want between half the 1s cap and the cap", attempt, got, ok)
 		}
 	}
 }

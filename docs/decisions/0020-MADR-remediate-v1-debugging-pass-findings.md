@@ -481,3 +481,24 @@ and two live checks open". No decision changes.
 * **A forced tool call returns no reasoning item** from the ChatGPT backend,
   on every listed model. A text turn does, with summary text and
   `encrypted_content`. That is the service's behaviour, not a defect here.
+
+## Amendment 2026-10-04: a failure after a 200 is retried once (0021 D1)
+
+Made by `0021-MADR-harden-and-tune-after-the-v1-1-review.md` (D1), and
+implemented in its PLAN's phase 1. It amends Q2 (a) for one case.
+
+* **What changes:** Q2 (a) retried a kindless failure "only when it comes
+  from the transport", and the code took any `net.Error`. So a 200 whose
+  body stalled or was cut was sent up to `MaxAttempts` times, each perhaps
+  billed (0021 T5), and a body cut short with `io.ErrUnexpectedEOF` was
+  never retried (0021 W6).
+* **Now:**
+  * a failure while reading a 200's body is `ErrProviderUnavailable`,
+    marked as after the reply, and `WithRetry` retries it at most once per
+    call;
+  * a reply over the 16 MiB limit is `ErrIncomplete`, never retried, and
+    says so;
+  * a body that arrived whole but does not decode stays `ErrIncomplete`, as
+    F9 decided;
+  * a kindless failure is retried only when it is a `*url.Error`, a failure
+    to send.

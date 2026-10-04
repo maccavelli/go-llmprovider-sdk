@@ -38,7 +38,7 @@ func TestReauth(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			sends := 0
-			_, err := Reauth(c.src, func() (int, error) {
+			_, err := Reauth(context.Background(), "p", c.src, func(llmprovider.Token) (int, error) {
 				err := c.errs[sends]
 				sends++
 				return sends, err

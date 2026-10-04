@@ -90,7 +90,7 @@ standard library is left out.
 | `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
 | `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
 | `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/transport` |
-| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use | `llmprovider` |
+| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; the shared tool lists | `llmprovider`, `internal/transport` |
 | `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `ReadStream` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `AddThinking` | `llmprovider`, `internal/wire` |
@@ -98,7 +98,7 @@ standard library is left out.
 | `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/kiloendpoint` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
-| `llmprovider/internal/transport` | `DefaultClient`, `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `ProbeGenerateHealth` | the standard library |
+| `llmprovider/internal/transport` | `DefaultClient`, `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `ProbeGenerateHealth`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 | `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
 
@@ -193,7 +193,9 @@ for a session, from the store.
   error type, or from a message table taken from pi's `overflow.ts`
   (`context_overflow.go`).
 - `WithRetry(p, RetryPolicy{…})` retries what `Retryable` allows, waiting as
-  long as the service asks, up to a cap.
+  long as the service asks with up to a tenth more, up to a cap. A failure
+  while reading a reply is retried once per call (0021-MADR D1), and a wait
+  past the context's deadline returns the error at once.
 - `Registry` holds `Descriptor` and `Factory` pairs and refuses a duplicate
   id. There is no global registry.
 - `llmprovider/llmtest` has `Run`, the conformance suite every built-in
@@ -223,9 +225,12 @@ for a session, from the store.
   (`WithBaseURL`, `WithHTTPClient`, `WithReasoning`, …), and a provider
   package's own, scoped to it. `WithRetry` retries by the error's kind.
 - **Transport:** without `WithHTTPClient`, each provider builds one client,
-  `internal/transport`'s `DefaultClient`:
-  330 s overall, 300 s to the first byte, and `HTTP_PROXY`, `HTTPS_PROXY`
-  and `NO_PROXY` honoured. It carries the provider's requests, its listing
+  `internal/transport`'s `DefaultClient`: 30 s to connect, 300 s to the
+  first byte, no total timeout, HTTP/2 kept, and `HTTP_PROXY`, `HTTPS_PROXY`
+  and `NO_PROXY` honoured. Every generation goes through `internal/wire`'s
+  `Post`, which reads the reply under a 300 s idle limit and, unless it is
+  an event stream, a 16 MiB limit, whatever client the caller gave
+  (0021-MADR D2). Auth requests carry their own 30 s bound. It carries the provider's requests, its listing
   and probes, and its OAuth session's refreshes when the session has no
   client of its own.
 - **Errors:** one structured error, `*APIError`, whose `Kind` is a sentinel

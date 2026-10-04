@@ -50,12 +50,9 @@
 package opencode
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -216,11 +213,13 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2).
-	return wire.Reauth(p.src, func() (*llmprovider.Response, error) { return p.generateOnce(ctx, req) })
+	return wire.Reauth(ctx, "opencode", p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
+		return p.generateOnce(ctx, req, token)
+	})
 }
 
-// generateOnce sends req once, with a token fetched for this send.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
+// generateOnce sends req once, with token, on the model's route.
+func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
 	c := call{model: req.Model, input: req.Input, maxTokens: p.maxTokens, reasoning: p.effectiveReasoning(req), req: req}
 	if c.model == "" {
 		c.model = p.model
@@ -233,64 +232,35 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 	}
 	c.route = p.requestRoute(ctx, c.model)
 	var body map[string]any
+	decode := chatcompletions.Decode
 	switch c.route {
 	case RouteResponses:
-		body = p.responsesBody(c)
+		body, decode = p.responsesBody(c), responses.Decode
 	case RouteMessages:
-		body = p.messagesBody(c)
+		body, decode = p.messagesBody(c), messages.Decode
 	case RouteGoogle:
-		body = p.googleBody(c)
+		body, decode = p.googleBody(c), generatecontent.Decode
 	default:
 		body = p.chatBody(ctx, c)
 	}
-	reqBody, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: opencode: marshal request: %w", err)
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+c.route.path(c.model), bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	token, err := p.src.Token(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: opencode: acquire token: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("User-Agent", p.userAgent)
-	// Each route reads the key from its vendor's header (MADR 0007 §1c); the
-	// key stays in a header, never the URL.
-	header, scheme := keyHeader(c.route)
-	token.Apply(httpReq, header, scheme)
-	// x-opencode-session is fixed for the provider's lifetime (MADR 0012 §1.4).
-	httpReq.Header.Set(sessionHeader, p.session)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			p.logger.Debug("llmprovider: opencode: close response body", "error", err)
-		}
-	}()
-	if err := llmprovider.ClassifyHTTPError(string(p.gateway)+"/"+string(c.route), resp); err != nil {
-		return nil, err
-	}
-	// The reply is bounded, and a failure to read it gets its kind and the
-	// route's name (0020-MADR F9).
-	limited := io.LimitReader(resp.Body, wire.ReplyLimit)
-	var out *llmprovider.Response
-	switch c.route {
-	case RouteResponses:
-		out, err = responses.Decode(limited)
-	case RouteMessages:
-		out, err = messages.Decode(limited)
-	case RouteGoogle:
-		out, err = generatecontent.Decode(limited)
-	default:
-		out, err = chatcompletions.Decode(limited)
-	}
-	return out, wire.DecodeError(string(p.gateway)+"/"+string(c.route), err)
+	return wire.Post(ctx, wire.Call{
+		// Errors name the gateway and the route (0020-MADR F9).
+		Provider: string(p.gateway) + "/" + string(c.route),
+		Client:   p.client,
+		Logger:   p.logger,
+		URL:      p.baseURL + c.route.path(c.model),
+		Body:     body,
+		Prepare: func(r *http.Request, token llmprovider.Token) {
+			r.Header.Set("User-Agent", p.userAgent)
+			// Each route reads the key from its vendor's header (MADR 0007
+			// §1c); the key stays in a header, never the URL.
+			header, scheme := keyHeader(c.route)
+			token.Apply(r, header, scheme)
+			// x-opencode-session is fixed for the provider's lifetime (MADR
+			// 0012 §1.4).
+			r.Header.Set(sessionHeader, p.session)
+		},
+	}, token, decode)
 }
 
 // effectiveReasoning is the request's Reasoning, else WithReasoning's, with
@@ -357,19 +327,7 @@ func (p *provider) responsesBody(c call) map[string]any {
 		// (transform.ts:1235-1243, MADR 0012 §3.2); items are replayed.
 		"store": false,
 	}
-	if tools := c.req.Tools; len(tools) > 0 {
-		list := make([]map[string]any, len(tools))
-		for i, tool := range tools {
-			list[i] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyName: tool.Name,
-				jsonKeyDescription: tool.Description, jsonKeyParameters: tool.Schema}
-		}
-		body[jsonKeyTools] = list
-		if name, forced := c.req.ToolChoice.Tool(); forced {
-			body[jsonKeyToolChoice] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyName: name}
-		} else if c.req.ToolChoice == llmprovider.ToolChoiceRequired || c.req.ToolChoice == llmprovider.ToolChoiceNone {
-			body[jsonKeyToolChoice] = string(c.req.ToolChoice)
-		}
-	}
+	wire.AddResponsesTools(body, c.req.Tools, c.req.ToolChoice)
 	if c.reasoning != nil {
 		effort := c.reasoning.Effort
 		if effort == "" {
@@ -396,11 +354,7 @@ func (p *provider) messagesBody(c call) map[string]any {
 	}
 	body[jsonKeyMaxTokens] = maxTokens
 	if tools := c.req.Tools; len(tools) > 0 {
-		list := make([]map[string]any, len(tools))
-		for i, tool := range tools {
-			list[i] = map[string]any{jsonKeyName: tool.Name, jsonKeyDescription: tool.Description, "input_schema": tool.Schema}
-		}
-		body[jsonKeyTools] = list
+		body[jsonKeyTools] = wire.MessagesTools(tools)
 		if choice := messagesToolChoice(c.req.ToolChoice, thinking); choice != nil {
 			body[jsonKeyToolChoice] = choice
 		}
@@ -444,7 +398,7 @@ func (p *provider) googleBody(c call) map[string]any {
 	if tools := c.req.Tools; len(tools) > 0 {
 		decls := make([]map[string]any, len(tools))
 		for i, tool := range tools {
-			decls[i] = map[string]any{jsonKeyName: tool.Name, jsonKeyDescription: tool.Description, jsonKeyParameters: tool.Schema}
+			decls[i] = map[string]any{jsonKeyName: tool.Name, jsonKeyDescription: tool.Description, jsonKeyParameters: wire.ToolSchema(tool.Schema)}
 		}
 		body[jsonKeyTools] = []map[string]any{{"functionDeclarations": decls}}
 		if cfg := googleToolConfig(c.req.ToolChoice); cfg != nil {

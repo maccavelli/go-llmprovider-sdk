@@ -30,11 +30,8 @@
 package claude
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -133,44 +130,25 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2).
-	return wire.Reauth(p.src, func() (*llmprovider.Response, error) { return p.generateOnce(ctx, req) })
+	return wire.Reauth(ctx, string(llmprovider.ProviderClaude), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
+		return p.generateOnce(ctx, req, token)
+	})
 }
 
-// generateOnce sends req once, with a token fetched for this send.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
-	reqBody, err := json.Marshal(p.body(req))
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: claude: marshal request: %w", err)
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/messages", bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	token, err := p.src.Token(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: claude: acquire token: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("User-Agent", p.userAgent)
-	token.Apply(httpReq, "x-api-key", "")
-	httpReq.Header.Set("anthropic-version", anthropicVersion)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			p.logger.Debug("llmprovider: claude: close response body", "error", err)
-		}
-	}()
-	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderClaude), resp); err != nil {
-		return nil, err
-	}
-	// The reply is bounded, and a failure to read it gets its kind and
-	// name (0020-MADR F9).
-	out, err := messages.Decode(io.LimitReader(resp.Body, wire.ReplyLimit))
-	return out, wire.DecodeError("claude", err)
+// generateOnce sends req once, with token.
+func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
+	return wire.Post(ctx, wire.Call{
+		Provider: string(llmprovider.ProviderClaude),
+		Client:   p.client,
+		Logger:   p.logger,
+		URL:      p.baseURL + "/messages",
+		Body:     p.body(req),
+		Prepare: func(r *http.Request, token llmprovider.Token) {
+			r.Header.Set("User-Agent", p.userAgent)
+			token.Apply(r, "x-api-key", "")
+			r.Header.Set("anthropic-version", anthropicVersion)
+		},
+	}, token, messages.Decode)
 }
 
 // body is the Messages request for req.
@@ -199,11 +177,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	}
 	thinking := p.addReasoning(body, req, model, maxTokens)
 	if len(req.Tools) > 0 {
-		tools := make([]map[string]any, len(req.Tools))
-		for i, tool := range req.Tools {
-			tools[i] = map[string]any{jsonKeyName: tool.Name, "description": tool.Description, "input_schema": tool.Schema}
-		}
-		body["tools"] = tools
+		body["tools"] = wire.MessagesTools(req.Tools)
 		if choice := toolChoice(req.ToolChoice, thinking); choice != nil {
 			body["tool_choice"] = choice
 		}

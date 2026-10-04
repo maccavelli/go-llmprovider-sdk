@@ -11,6 +11,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"runtime"
 	"runtime/debug"
@@ -20,18 +21,31 @@ import (
 	"time"
 )
 
-// DefaultClient returns an http.Client with bounded timeouts so a hung or
-// non-responsive LLM endpoint can never block a caller indefinitely. The stdlib
-// http.DefaultClient has no timeout and must not be used here. A generation may
-// take 300 s to its first byte, as the reference clients allow (MADR 0012
-// §1.3); callers wanting less set a context deadline. Listings keep their own
-// 10 s bound. It honours HTTP_PROXY, HTTPS_PROXY and NO_PROXY, as net/http's
-// own default transport does (0016-MADR D8).
+// dialer bounds a connection attempt at 30 s, net/http's own default, so a
+// blackholed host fails in 30 s rather than at the OS limit (0021-MADR T12).
+var dialer = &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+
+// DefaultClient returns an http.Client whose every phase is bounded, so a hung
+// or non-responsive LLM endpoint can never block a caller indefinitely. The
+// stdlib http.DefaultClient has no timeout and must not be used here. Its
+// bounds follow the ChatGPT client (0021-MADR D2, amending MADR 0012 §1.3):
+//
+//   - a connection is made within 30 s;
+//   - a generation may take 300 s to its first byte;
+//   - there is no total timeout: a reply's body may take as long as it keeps
+//     sending, and wire.Post ends it after 300 s with no data
+//     (StreamIdleTimeout). Callers wanting less set a context deadline.
+//
+// Listings and auth requests keep their own bounds (10 s and 30 s). It
+// honours HTTP_PROXY, HTTPS_PROXY and NO_PROXY, as net/http's own default
+// transport does (0016-MADR D8). Setting a dialer turns off net/http's
+// automatic HTTP/2, so ForceAttemptHTTP2 keeps it.
 func DefaultClient() *http.Client {
 	return &http.Client{
-		Timeout: 330 * time.Second,
 		Transport: &http.Transport{
 			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
+			ForceAttemptHTTP2:     true,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ResponseHeaderTimeout: 300 * time.Second,
 			IdleConnTimeout:       90 * time.Second,

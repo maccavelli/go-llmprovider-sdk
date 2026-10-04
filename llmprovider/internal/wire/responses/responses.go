@@ -4,12 +4,15 @@ package responses
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
@@ -166,8 +169,10 @@ func appendOutput(r *llmprovider.Response, out outputItem) {
 	}
 }
 
-// streamLimit bounds one Responses event stream.
-const streamLimit = 16 << 20
+// eventLimit bounds one Responses stream event. The stream as a whole has no
+// limit: a long answer is many events, and the idle limit bounds a stalled
+// one (0021-MADR W2, D2).
+const eventLimit = 16 << 20
 
 // streamEvent is the part of one Responses stream event the reader uses. The
 // type is read from the payload, not the SSE "event:" line.
@@ -197,21 +202,21 @@ type streamEvent struct {
 // response.output_item.done adds its item, and response.created and
 // response.completed carry the id. response.failed maps onto MADR 0012 §1.1,
 // response.incomplete onto MADR 0012 §1.5, and a stream that ends before
-// response.completed is retryable (MADR 0012 §4.1). It does not rely on
+// response.completed is retryable, once (MADR 0012 §4.1; 0021-MADR D1). Each
+// event is bounded, not the stream (0021-MADR W2). It does not rely on
 // Content-Type, which the ChatGPT backend does not send.
 func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) {
-	scanner := bufio.NewScanner(io.LimitReader(body, streamLimit))
-	scanner.Buffer(make([]byte, 0, 64<<10), streamLimit)
+	reader := bufio.NewReaderSize(body, 64<<10)
 	result := &llmprovider.Response{}
-	var data strings.Builder
+	var data []byte
 	dispatch := func() (done bool, err error) {
-		payload := data.String()
-		data.Reset()
-		if payload == "" || payload == "[DONE]" {
+		payload := data
+		data = data[:0]
+		if len(payload) == 0 || string(payload) == "[DONE]" || ignored(payload) {
 			return false, nil
 		}
 		var event streamEvent
-		if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		if err := json.Unmarshal(payload, &event); err != nil {
 			return false, fmt.Errorf("%s: decode stream event: %w", provider, err)
 		}
 		switch event.Type {
@@ -243,27 +248,100 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 		}
 		return false, nil
 	}
-	for scanner.Scan() {
-		line := scanner.Text()
+	tooLarge := fmt.Errorf("%w: %s: stream event over %d MiB", llmprovider.ErrIncomplete, provider, eventLimit>>20)
+	for {
+		line, err := readLine(reader, eventLimit)
+		if errors.Is(err, errLineTooLong) {
+			return nil, tooLarge
+		}
 		switch {
-		case line == "":
+		case len(line) == 0 && err == nil:
 			if done, err := dispatch(); done || err != nil {
 				return result, err
 			}
-		case strings.HasPrefix(line, "data:"):
-			if data.Len() > 0 {
-				data.WriteByte('\n')
+		case bytes.HasPrefix(line, dataPrefix):
+			if len(data) > 0 {
+				data = append(data, '\n')
 			}
-			data.WriteString(strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "))
+			payload := bytes.TrimPrefix(bytes.TrimPrefix(line, dataPrefix), []byte(" "))
+			if len(data)+len(payload) > eventLimit {
+				return nil, tooLarge
+			}
+			data = append(data, payload...)
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("%w: %s: read stream: %w", llmprovider.ErrProviderUnavailable, provider, err)
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				return nil, fmt.Errorf("%w: %s: read stream: %w", llmprovider.ErrProviderUnavailable, provider,
+					transport.AfterReply(err))
+			}
+			break
+		}
 	}
 	if done, err := dispatch(); done || err != nil {
 		return result, err
 	}
-	return nil, fmt.Errorf("%w: %s: stream ended before response.completed", llmprovider.ErrProviderUnavailable, provider)
+	// The service may have generated the answer, so WithRetry asks again at
+	// most once (0021-MADR D1).
+	return nil, fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, provider,
+		transport.AfterReply(errEndedEarly))
+}
+
+var (
+	dataPrefix = []byte("data:")
+	// errEndedEarly is a stream that ended before response.completed.
+	errEndedEarly = errors.New("stream ended before response.completed")
+	// errLineTooLong is a line over the event limit.
+	errLineTooLong = errors.New("stream line too long")
+)
+
+// readLine reads one line without its line ending, up to limit bytes. At the
+// end of the stream it returns the last line, which may be empty, with io.EOF.
+// A line that fits the reader's buffer is the reader's own slice, valid until
+// the next read; only a longer one is copied.
+func readLine(r *bufio.Reader, limit int) ([]byte, error) {
+	chunk, err := r.ReadSlice('\n')
+	line := chunk
+	if errors.Is(err, bufio.ErrBufferFull) {
+		line = append([]byte(nil), chunk...)
+		for errors.Is(err, bufio.ErrBufferFull) {
+			if chunk, err = r.ReadSlice('\n'); len(line)+len(chunk) > limit+2 { // +2 for the line ending
+				return nil, errLineTooLong
+			}
+			line = append(line, chunk...)
+		}
+	}
+	line = bytes.TrimSuffix(bytes.TrimSuffix(line, []byte("\n")), []byte("\r"))
+	if len(line) > limit {
+		return nil, errLineTooLong
+	}
+	return line, err
+}
+
+// handledEvents are the event types ReadStream acts on.
+var handledEvents = map[string]bool{
+	"response.created": true, "response.output_item.done": true, "response.failed": true,
+	"response.incomplete": true, "response.completed": true,
+}
+
+// ignored reports whether an event is one ReadStream does not use, such as a
+// delta or an in-progress event: the done events carry the whole items. It
+// reads the first "type" value without decoding the payload. Only a value that
+// starts "response." counts: no item or content type does, so a nested type
+// can never be mistaken for the event's own, and a payload it cannot read is
+// decoded in full (0021-MADR W2).
+func ignored(payload []byte) bool {
+	const key = `"type":"`
+	i := bytes.Index(payload, []byte(key))
+	if i < 0 {
+		return false
+	}
+	rest := payload[i+len(key):]
+	j := bytes.IndexByte(rest, '"')
+	if j < 0 {
+		return false
+	}
+	eventType := rest[:j]
+	return bytes.HasPrefix(eventType, []byte("response.")) && !handledEvents[string(eventType)]
 }
 
 // usage is the Responses API's token counts. Its input count holds the cached

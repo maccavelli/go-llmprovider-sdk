@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-09-27
+date: 2026-10-04
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
@@ -1181,3 +1181,21 @@ Revision 4 (the circuit-breaker test race) was executed by `mcplib`
 `docs/0012-PLAN-circuit-breaker-test.md`, which remains in `mcplib` with the
 test it changed (`backplane_test.go`). The other six plans moved here under
 `0002-MADR-migrate-llmprovider-from-mcplib.md` §10–§11.
+
+## Amendment 2026-10-04: generation timeouts (0021 D2)
+
+Made by `0021-MADR-harden-and-tune-after-the-v1-1-review.md` (D2, D1), and
+implemented in its PLAN's phase 1.
+
+* **§1.3's 330 s total timeout is gone.** A long reasoning answer that
+  still sends events was cut at 330 s (0021 T13). The ChatGPT client sets no
+  total, and waits up to 300 s for each event
+  (`DEFAULT_STREAM_IDLE_TIMEOUT_MS`).
+  * Every generation body, stream or JSON, is read under a 300 s idle limit
+    in the shared request path, so a caller's own client is covered too.
+  * The 300 s wait for the first byte stays.
+  * A connection is made within 30 s, with HTTP/2 kept.
+  * Listings keep their 10 s bound, and auth requests get 30 s.
+* **§4.1's retryable early end of a stream is bounded:** it is marked as a
+  failure after the reply, and `WithRetry` retries it once per call, since
+  the lost reply may have been generated and billed (0021 D1).

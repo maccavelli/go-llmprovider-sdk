@@ -127,7 +127,7 @@ func kiloDeviceRequest(ctx context.Context, config oauthFlowConfig, method, targ
 	if method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := config.httpClient.Do(req)
+	resp, err := doBounded(config.httpClient, req)
 	if err != nil {
 		return nil, fmt.Errorf("oauth: Kilo request: %w", err)
 	}
@@ -178,7 +178,7 @@ func KiloProfile(ctx context.Context, token string, opts ...llmprovider.Option) 
 	}
 	req.Header.Set("User-Agent", st.UserAgent())
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := st.HTTPClient().Do(req)
+	resp, err := doBounded(st.HTTPClient(), req)
 	if err != nil {
 		return KiloAccount{}, fmt.Errorf("kilo: profile: %w", err)
 	}

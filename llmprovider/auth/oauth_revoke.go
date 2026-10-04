@@ -62,7 +62,7 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 		return err
 	}
 	transport.NewIdentity("", "", "").SetUserAgent(req)
-	resp, err := client.Do(req)
+	resp, err := doBounded(client, req)
 	if err != nil {
 		return fmt.Errorf("oauth: revoke request: %w", err)
 	}

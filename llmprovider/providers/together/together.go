@@ -37,11 +37,8 @@
 package together
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -128,44 +125,24 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2).
-	return wire.Reauth(p.src, func() (*llmprovider.Response, error) { return p.generateOnce(ctx, req) })
+	return wire.Reauth(ctx, string(llmprovider.ProviderTogether), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
+		return p.generateOnce(ctx, req, token)
+	})
 }
 
-// generateOnce sends req once, with a token fetched for this send.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
-	reqBody, err := json.Marshal(p.body(req))
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: together: marshal request: %w", err)
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	token, err := p.src.Token(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: together: acquire token: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("User-Agent", p.userAgent)
-	token.Apply(httpReq, headerAuthorization, "Bearer")
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			p.logger.Debug("llmprovider: together: close response body", "error", err)
-		}
-	}()
-	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderTogether), resp); err != nil {
-		return nil, err
-	}
-	// 1 MiB bounds a runaway reply.
-	// The reply is bounded, and a failure to read it gets its kind and
-	// name (0020-MADR F9).
-	out, err := chatcompletions.Decode(io.LimitReader(resp.Body, wire.ReplyLimit))
-	return out, wire.DecodeError("together", err)
+// generateOnce sends req once, with token.
+func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
+	return wire.Post(ctx, wire.Call{
+		Provider: string(llmprovider.ProviderTogether),
+		Client:   p.client,
+		Logger:   p.logger,
+		URL:      p.baseURL + "/chat/completions",
+		Body:     p.body(req),
+		Prepare: func(r *http.Request, token llmprovider.Token) {
+			r.Header.Set("User-Agent", p.userAgent)
+			token.Apply(r, headerAuthorization, "Bearer")
+		},
+	}, token, chatcompletions.Decode)
 }
 
 // body is the Chat Completions request for req.

@@ -353,7 +353,7 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 	if client == nil {
 		client = transport.DefaultClient()
 	}
-	resp, err := client.Do(req)
+	resp, err := doBounded(client, req)
 	if err != nil {
 		return nil, llmprovider.Token{}, true, fmt.Errorf("oauth: refresh request: %w", err)
 	}

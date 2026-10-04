@@ -35,8 +35,8 @@ func replyProvider(t *testing.T, base string) llmprovider.Provider {
 }
 
 // TestGenerate_AnsweredOnceIsNotBoughtAgain (0020-MADR F9, Q2 a): an answer
-// that could not be used is ErrIncomplete and sent once; a valid reply over
-// 1 MiB is read; a network failure is still retried.
+// that could not be used is ErrIncomplete and sent once; a valid reply of
+// 2 MiB is read; a network failure is still retried.
 func TestGenerate_AnsweredOnceIsNotBoughtAgain(t *testing.T) {
 	req := &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}}}
 

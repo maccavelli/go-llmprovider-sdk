@@ -33,11 +33,8 @@
 package grok
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 
@@ -50,12 +47,6 @@ import (
 
 const (
 	headerAuthorization = "Authorization"
-
-	jsonKeyType        = "type"
-	jsonKeyName        = "name"
-	jsonKeyFunction    = "function"
-	jsonKeyDescription = "description"
-	jsonKeyParameters  = "parameters"
 
 	// probeMaxOutputTokens is the output limit a listing probe sends: the
 	// default of the old API's probe provider, kept so the probe's request
@@ -157,7 +148,9 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2).
-	return wire.Reauth(p.src, func() (*llmprovider.Response, error) { return p.generateOnce(ctx, req) })
+	return wire.Reauth(ctx, string(llmprovider.ProviderGrok), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
+		return p.generateOnce(ctx, req, token)
+	})
 }
 
 // body is the Responses request for req.
@@ -182,23 +175,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if p.store != nil {
 		body["store"] = *p.store
 	}
-	if len(req.Tools) > 0 {
-		tools := make([]map[string]any, len(req.Tools))
-		for i, tool := range req.Tools {
-			tools[i] = map[string]any{
-				jsonKeyType:        jsonKeyFunction,
-				jsonKeyName:        tool.Name,
-				jsonKeyDescription: tool.Description,
-				jsonKeyParameters:  tool.Schema,
-			}
-		}
-		body["tools"] = tools
-		if name, forced := req.ToolChoice.Tool(); forced {
-			body["tool_choice"] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyName: name}
-		} else if req.ToolChoice == llmprovider.ToolChoiceRequired || req.ToolChoice == llmprovider.ToolChoiceNone {
-			body["tool_choice"] = string(req.ToolChoice)
-		}
-	}
+	wire.AddResponsesTools(body, req.Tools, req.ToolChoice)
 	if effort, ok := p.effort(req, model); ok {
 		body["reasoning"] = map[string]any{"effort": effort}
 	}
@@ -227,40 +204,19 @@ func (p *provider) effort(req *llmprovider.Request, model string) (string, bool)
 	return clamped, clamped != ""
 }
 
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
-	reqBody, err := json.Marshal(p.body(req))
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: grok: marshal request: %w", err)
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/responses", bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	token, err := p.src.Token(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: grok: acquire token: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("User-Agent", p.userAgent)
-	token.Apply(httpReq, headerAuthorization, "Bearer")
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			p.logger.Debug("llmprovider: grok: close response body", "error", err)
-		}
-	}()
-	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderGrok), resp); err != nil {
-		return nil, err
-	}
-	// 1 MiB bounds a runaway reply.
-	// The reply is bounded, and a failure to read it gets its kind and
-	// name (0020-MADR F9).
-	out, err := responses.Decode(io.LimitReader(resp.Body, wire.ReplyLimit))
-	return out, wire.DecodeError("grok", err)
+// generateOnce sends req once, with token.
+func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
+	return wire.Post(ctx, wire.Call{
+		Provider: string(llmprovider.ProviderGrok),
+		Client:   p.client,
+		Logger:   p.logger,
+		URL:      p.baseURL + "/responses",
+		Body:     p.body(req),
+		Prepare: func(r *http.Request, token llmprovider.Token) {
+			r.Header.Set("User-Agent", p.userAgent)
+			token.Apply(r, headerAuthorization, "Bearer")
+		},
+	}, token, responses.Decode)
 }
 
 // ListModels returns curated Grok text models available to this credential,

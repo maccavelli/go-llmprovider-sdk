@@ -52,13 +52,9 @@ type chatGPTCatalogModel struct {
 // listChatGPT returns the live Codex catalog for a ChatGPT session, by
 // priority. A failure is an error: no static OpenAI catalog stands in, because
 // those models may not be available to the account (MADR 0008 D11).
-func (p *provider) listChatGPT(ctx context.Context) ([]string, error) {
+func (p *provider) listChatGPT(ctx context.Context, token llmprovider.Token) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, chatGPTListingTimeout)
 	defer cancel()
-	token, err := p.src.Token(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("model listing: acquire token: %w", err)
-	}
 	endpoint, err := url.Parse(strings.TrimRight(p.baseURL, "/") + "/models")
 	if err != nil {
 		return nil, fmt.Errorf("model listing: parse chatgpt models URL: %w", err)

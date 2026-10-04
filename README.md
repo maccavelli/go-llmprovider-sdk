@@ -86,10 +86,17 @@ functions over any provider, and `Stream` streams from every one.
   A truncated answer is an error of kind `ErrIncomplete`. A text answer cut
   by the token limit keeps its text and sets `Response.FinishReason`.
   `WithRetry(p, RetryPolicy{…})` retries only what can succeed later,
-  honouring `Retry-After`, and keeps `p`'s `ListModels`. After a 401, an OAuth session refreshes and a
+  honouring `Retry-After` with a little jitter, and keeps `p`'s
+  `ListModels`. A reply lost while it was being read, which may have been
+  billed, is retried once at most. A wait longer than the context's deadline
+  is not begun: the error is returned at once, so the caller can
+  reschedule. After a 401, an OAuth session refreshes and a
   `CommandToken` reruns its command, and the request is sent once more.
-- **Transport.** The default client waits up to 300 seconds for response
-  headers and 330 seconds in all; set a context deadline for less. It honours
+- **Transport.** The default client connects within 30 seconds and waits
+  up to 300 seconds for response headers. It has no total timeout: a reply
+  may take as long as it keeps sending, and is given up after 300 seconds
+  with no data, as the ChatGPT client does. Set a context deadline for
+  less. It honours
   `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`. Every request sends
   `User-Agent: <name>/<version> (<os>; <arch>) go-llmprovider-sdk/<version>`.
   `WithClientInfo(name, version)` names the application, and

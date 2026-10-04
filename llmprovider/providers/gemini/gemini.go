@@ -28,11 +28,8 @@
 package gemini
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -141,45 +138,25 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2).
-	return wire.Reauth(p.src, func() (*llmprovider.Response, error) { return p.generateOnce(ctx, req) })
+	return wire.Reauth(ctx, string(llmprovider.ProviderGemini), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
+		return p.generateOnce(ctx, req, token)
+	})
 }
 
-// generateOnce sends req once, with a token fetched for this send.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
-	reqBody, err := json.Marshal(p.body(req))
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: gemini: marshal request: %w", err)
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+interactionsPath, bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	token, err := p.src.Token(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: gemini: acquire token: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("User-Agent", p.userAgent)
-	// In a header, not the URL, so it cannot leak through a *url.Error.
-	token.Apply(httpReq, googleKeyHeader, "")
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			p.logger.Debug("llmprovider: gemini: close response body", "error", err)
-		}
-	}()
-	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderGemini), resp); err != nil {
-		return nil, err
-	}
-	// 1 MiB bounds a runaway reply.
-	// The reply is bounded, and a failure to read it gets its kind and
-	// name (0020-MADR F9).
-	out, err := decodeInteraction(io.LimitReader(resp.Body, wire.ReplyLimit))
-	return out, wire.DecodeError("gemini", err)
+// generateOnce sends req once, with token.
+func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
+	return wire.Post(ctx, wire.Call{
+		Provider: string(llmprovider.ProviderGemini),
+		Client:   p.client,
+		Logger:   p.logger,
+		URL:      p.baseURL + interactionsPath,
+		Body:     p.body(req),
+		Prepare: func(r *http.Request, token llmprovider.Token) {
+			r.Header.Set("User-Agent", p.userAgent)
+			// In a header, not the URL, so it cannot leak through a *url.Error.
+			token.Apply(r, googleKeyHeader, "")
+		},
+	}, token, decodeInteraction)
 }
 
 // body is the Interactions request for req (MADR 0014 §1).
@@ -222,7 +199,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 				jsonKeyType:        jsonKeyFunction,
 				jsonKeyName:        tool.Name,
 				jsonKeyDescription: tool.Description,
-				jsonKeyParameters:  tool.Schema,
+				jsonKeyParameters:  wire.ToolSchema(tool.Schema),
 			}
 		}
 		body[jsonKeyTools] = tools

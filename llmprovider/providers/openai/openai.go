@@ -27,7 +27,6 @@
 package openai
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -173,7 +172,9 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2).
-	return wire.Reauth(p.src, func() (*llmprovider.Response, error) { return p.generateOnce(ctx, req) })
+	return wire.Reauth(ctx, string(llmprovider.ProviderOpenAI), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
+		return p.generateOnce(ctx, req, token)
+	})
 }
 
 // body is the Responses request for req.
@@ -207,23 +208,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 			body["store"] = *p.store
 		}
 	}
-	if len(req.Tools) > 0 {
-		tools := make([]map[string]any, len(req.Tools))
-		for i, tool := range req.Tools {
-			tools[i] = map[string]any{
-				jsonKeyType:        jsonKeyFunction,
-				jsonKeyName:        tool.Name,
-				jsonKeyDescription: tool.Description,
-				jsonKeyParameters:  tool.Schema,
-			}
-		}
-		body[jsonKeyTools] = tools
-		if name, forced := req.ToolChoice.Tool(); forced {
-			body[jsonKeyToolChoice] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyName: name}
-		} else if req.ToolChoice == llmprovider.ToolChoiceRequired || req.ToolChoice == llmprovider.ToolChoiceNone {
-			body[jsonKeyToolChoice] = string(req.ToolChoice)
-		}
-	}
+	wire.AddResponsesTools(body, req.Tools, req.ToolChoice)
 	if effort, ok := p.effort(req); ok {
 		// The summary makes reasoning items carry text (0020-MADR F24).
 		body["reasoning"] = map[string]any{"effort": effort, "summary": "auto"}
@@ -254,52 +239,35 @@ func (p *provider) effort(req *llmprovider.Request) (llmprovider.Effort, bool) {
 	}
 }
 
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
-	reqBody, err := json.Marshal(p.body(req))
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: openai: marshal request: %w", err)
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/responses", bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("User-Agent", p.userAgent)
-	token, err := p.src.Token(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("llmprovider: openai: acquire token: %w", err)
-	}
-	token.Apply(httpReq, headerAuthorization, "Bearer")
+// generateOnce sends req once, with token. A ChatGPT session's reply is an
+// event stream, bounded per event rather than as a whole.
+func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
+	decode := responses.Decode
 	if p.chatGPT {
-		httpReq.Header.Set("Accept", "text/event-stream")
-		httpReq.Header.Set(headerSession, p.session)
-		setChatGPTHeaders(httpReq, p.src)
-		if residency := residency(token.Value); residency != "" {
-			httpReq.Header.Set(headerResidency, residency)
+		decode = func(r io.Reader) (*llmprovider.Response, error) {
+			return responses.ReadStream(string(llmprovider.ProviderOpenAI), r)
 		}
 	}
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			p.logger.Debug("llmprovider: openai: close response body", "error", err)
-		}
-	}()
-	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderOpenAI), resp); err != nil {
-		return nil, err
-	}
-	// The reply is bounded, and a failure to read it gets its kind and name
-	// (0020-MADR F9).
-	var out *llmprovider.Response
-	if p.chatGPT {
-		out, err = responses.ReadStream(string(llmprovider.ProviderOpenAI), resp.Body)
-	} else {
-		out, err = responses.Decode(io.LimitReader(resp.Body, wire.ReplyLimit))
-	}
-	return out, wire.DecodeError(string(llmprovider.ProviderOpenAI), err)
+	return wire.Post(ctx, wire.Call{
+		Provider: string(llmprovider.ProviderOpenAI),
+		Client:   p.client,
+		Logger:   p.logger,
+		URL:      p.baseURL + "/responses",
+		Body:     p.body(req),
+		Stream:   p.chatGPT,
+		Prepare: func(r *http.Request, token llmprovider.Token) {
+			r.Header.Set("User-Agent", p.userAgent)
+			token.Apply(r, headerAuthorization, "Bearer")
+			if p.chatGPT {
+				r.Header.Set("Accept", "text/event-stream")
+				r.Header.Set(headerSession, p.session)
+				setChatGPTHeaders(r, p.src)
+				if residency := residency(token.Value); residency != "" {
+					r.Header.Set(headerResidency, residency)
+				}
+			}
+		},
+	}, token, decode)
 }
 
 // ListModels returns the curated chat models this credential can use, never
@@ -311,7 +279,9 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	// probe (MADR 0012 §1.6). A 401 renews the session's token and lists
 	// once more, as Generate does (0020-MADR F2, F38).
 	if p.chatGPT {
-		return wire.Reauth(p.src, func() ([]string, error) { return p.listChatGPT(ctx) })
+		return wire.Reauth(ctx, string(llmprovider.ProviderOpenAI), p.src, func(token llmprovider.Token) ([]string, error) {
+			return p.listChatGPT(ctx, token)
+		})
 	}
 	cat, err := catalog.List(ctx, llmprovider.ProviderOpenAI, p.src, p.listing...)
 	listed := cat.Recommended

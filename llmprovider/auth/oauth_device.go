@@ -419,7 +419,7 @@ func postOAuthJSON(ctx context.Context, client *http.Client, endpoint string, pa
 	}
 	transport.NewIdentity("", "", "").SetUserAgent(req)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := doBounded(client, req)
 	if err != nil {
 		return nil, fmt.Errorf("oauth: request: %w", err)
 	}
@@ -433,7 +433,7 @@ func postOAuthForm(ctx context.Context, client *http.Client, endpoint string, fo
 	}
 	transport.NewIdentity("", "", "").SetUserAgent(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
+	resp, err := doBounded(client, req)
 	if err != nil {
 		return nil, fmt.Errorf("oauth: request: %w", err)
 	}

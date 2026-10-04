@@ -85,6 +85,9 @@ type APIError struct {
 
 	// terminal reports that retrying cannot succeed; Retryable reads it.
 	terminal bool
+	// shouldRetry reports that the service asked for a retry, with
+	// x-should-retry: true; Retryable reads it first (0021-MADR T14).
+	shouldRetry bool
 }
 
 // Error reads "<kind>: <provider> HTTP <status> <code> (retry-after <d>):
@@ -133,6 +136,9 @@ func (e *APIError) Unwrap() []error {
 // other than exhausted quota, or an unavailable service, that the service did
 // not mark final (0015-MADR D7).
 func (e *APIError) Retryable() bool {
+	if e.shouldRetry {
+		return true
+	}
 	if e.terminal {
 		return false
 	}
@@ -210,9 +216,14 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 			e.RetryAfter = d
 		}
 	}
-	// x-should-retry: false is the service saying no retry can succeed (MADR 0012 §1.2).
-	if strings.EqualFold(strings.TrimSpace(resp.Header.Get("X-Should-Retry")), "false") {
+	// x-should-retry is the service saying whether a retry can succeed, and
+	// is obeyed both ways, as the OpenAI and Anthropic SDKs do (MADR 0012
+	// §1.2; 0021-MADR T14).
+	switch strings.ToLower(strings.TrimSpace(resp.Header.Get("X-Should-Retry"))) {
+	case "false":
 		e.terminal = true
+	case "true":
+		e.shouldRetry = true
 	}
 	return e
 }
@@ -294,6 +305,10 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 	case status == http.StatusTooManyRequests:
 		return false, ErrRateLimited
 	case status == http.StatusRequestTimeout:
+		return false, ErrProviderUnavailable
+	// A conflict is a lock timeout to OpenAI and Anthropic, whose SDKs retry
+	// it (0021-MADR T14).
+	case status == http.StatusConflict && (service == string(ProviderOpenAI) || service == string(ProviderClaude)):
 		return false, ErrProviderUnavailable
 	case status == 525 || status == 526:
 		return true, ErrProviderUnavailable

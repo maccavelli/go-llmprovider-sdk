@@ -306,7 +306,7 @@ func discoverOAuthEndpoints(ctx context.Context, config oauthFlowConfig) (oauthE
 		return oauthEndpoints{}, fmt.Errorf("oauth: create discovery request: %w", err)
 	}
 	transport.NewIdentity("", "", "").SetUserAgent(req)
-	resp, err := config.httpClient.Do(req)
+	resp, err := doBounded(config.httpClient, req)
 	if err != nil {
 		return oauthEndpoints{}, fmt.Errorf("oauth: discovery for %s: %w", config.issuer, err)
 	}
@@ -619,7 +619,7 @@ func exchangeOAuthCode(
 	}
 	transport.NewIdentity("", "", "").SetUserAgent(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := config.httpClient.Do(req)
+	resp, err := doBounded(config.httpClient, req)
 	if err != nil {
 		return nil, fmt.Errorf("oauth: token request: %w", err)
 	}

@@ -1,21 +1,28 @@
 package wire
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// Reauth runs send, and once more after an HTTP 401 when src can be told its
-// token was refused (llmprovider.InvalidatingSource): a CommandToken reruns
-// its command and an OAuthSession refreshes. send must fetch its token from
-// src on every call, so the second send carries a fresh one. A source that
-// cannot renew, such as a Kilo device-login session, answers that second
-// fetch with ErrAuthFailure, which is returned (0020-MADR F2; 0017-MADR D2,
-// D3).
-func Reauth[T any](src llmprovider.TokenSource, send func() (T, error)) (T, error) {
-	out, err := send()
+// Reauth fetches a token from src and runs send with it, and once more with a
+// fresh token after an HTTP 401 when src can be told its token was refused
+// (llmprovider.InvalidatingSource): a CommandToken reruns its command and an
+// OAuthSession refreshes. A source that cannot renew, such as a Kilo
+// device-login session, answers the second fetch with ErrAuthFailure, which is
+// returned (0020-MADR F2; 0017-MADR D2, D3). provider labels a failure to
+// fetch the token.
+func Reauth[T any](ctx context.Context, provider string, src llmprovider.TokenSource, send func(llmprovider.Token) (T, error)) (T, error) {
+	var zero T
+	token, err := src.Token(ctx)
+	if err != nil {
+		return zero, fmt.Errorf("llmprovider: %s: acquire token: %w", provider, err)
+	}
+	out, err := send(token)
 	var apiErr *llmprovider.APIError
 	if err == nil || !errors.As(err, &apiErr) || apiErr.Status != http.StatusUnauthorized {
 		return out, err
@@ -25,5 +32,8 @@ func Reauth[T any](src llmprovider.TokenSource, send func() (T, error)) (T, erro
 		return out, err
 	}
 	source.Invalidate()
-	return send()
+	if token, err = src.Token(ctx); err != nil {
+		return zero, fmt.Errorf("llmprovider: %s: acquire token: %w", provider, err)
+	}
+	return send(token)
 }

@@ -7,8 +7,9 @@ import (
 )
 
 // TestResolveOptions_DefaultTimeout is the #5 regression: the default client
-// must have a timeout (the old http.DefaultClient had none). MADR 0012 §1.3
-// set it to 330 s.
+// must never wait forever (the old http.DefaultClient had no bound). MADR 0012
+// §1.3 set a 330 s total; 0021-MADR D2 bounds each phase instead: the
+// connection, the first byte at 300 s, and the body by wire.Post's idle limit.
 func TestResolveOptions_DefaultTimeout(t *testing.T) {
 	st, err := ResolveOptions(ProviderOpenAI, nil)
 	if err != nil {
@@ -17,8 +18,12 @@ func TestResolveOptions_DefaultTimeout(t *testing.T) {
 	if st.HTTPClient() == nil {
 		t.Fatal("default HTTPClient is nil")
 	}
-	if st.HTTPClient().Timeout != 330*time.Second {
-		t.Errorf("default timeout: got %v want 330s", st.HTTPClient().Timeout)
+	transport, ok := st.HTTPClient().Transport.(*http.Transport)
+	if !ok || transport.ResponseHeaderTimeout != 300*time.Second || transport.DialContext == nil {
+		t.Errorf("default transport %T: want a 300s first-byte bound and a bounded dialer", st.HTTPClient().Transport)
+	}
+	if st.HTTPClient().Timeout != 0 {
+		t.Errorf("default timeout: got %v want none; the idle limit bounds a body", st.HTTPClient().Timeout)
 	}
 }
 

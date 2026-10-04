@@ -55,6 +55,8 @@ documents a reader follows to do something.
 | 0019 | PLAN | [Implement `go fix`'s modernizations, except one that changes behaviour](decisions/0019-PLAN-go-fix-modernizations.md) | complete |
 | 0020 | MADR | [Remediate the Defects Found by the v1 Debugging Pass](decisions/0020-MADR-remediate-v1-debugging-pass-findings.md) | accepted |
 | 0020 | PLAN | [Implement the Remediation of the v1 Debugging Pass](decisions/0020-PLAN-remediate-v1-debugging-pass-findings.md) | complete |
+| 0021 | MADR | [Harden and Tune the SDK After the v1.1 Review](decisions/0021-MADR-harden-and-tune-after-the-v1-1-review.md) | accepted |
+| 0021 | PLAN | [Implement the Hardening and Tuning After the v1.1 Review](decisions/0021-PLAN-harden-and-tune-after-the-v1-1-review.md) | in-progress |
 
 ## I want to…
 

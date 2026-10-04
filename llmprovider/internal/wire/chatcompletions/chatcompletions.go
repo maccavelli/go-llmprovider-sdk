@@ -137,7 +137,7 @@ func toolList(tools []llmprovider.Tool) []map[string]any {
 			keyFunction: map[string]any{
 				wire.KeyName:   tool.Name,
 				keyDescription: tool.Description,
-				keyParameters:  tool.Schema,
+				keyParameters:  wire.ToolSchema(tool.Schema),
 			},
 		}
 	}
