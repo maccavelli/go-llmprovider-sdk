@@ -128,6 +128,7 @@ type Metadata struct{ doc modelMetadataDoc }
 
 // LookupMetadata returns the document at url, or the default document when
 // url is empty, fetched through client and cached as the listing caches it.
+// A nil client means the default client, as an omitted WithHTTPClient does.
 // The lookup waits at most 5 s, whatever ctx allows, and a failed fetch is not
 // retried for a minute (MADR 0013 A6).
 //
@@ -136,7 +137,10 @@ func LookupMetadata(ctx context.Context, url string, client *http.Client) (Metad
 	ctx, cancel := context.WithTimeout(ctx, metadataLookupTimeout)
 	defer cancel()
 	cfg := defaultConfig()
-	cfg.HTTPClient, cfg.ModelMetadataURL = client, url
+	cfg.ModelMetadataURL = url
+	if client != nil {
+		cfg.HTTPClient = client
+	}
 	doc, err := loadModelMetadata(ctx, cfg)
 	return Metadata{doc: doc}, err
 }

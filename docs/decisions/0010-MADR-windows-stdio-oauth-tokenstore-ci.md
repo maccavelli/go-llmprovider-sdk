@@ -935,3 +935,102 @@ D3–D13 only, and its PLAN for P2–P7. D1–D2 (Windows stdio shutdown), D14�
 (CI) and their phases P1 and P8 remain in `mcplib`
 `docs/decisions/0010-MADR-windows-stdio-oauth-tokenstore-ci.md`, which carries
 the reverse amendment. Nothing above this section is rewritten.
+
+## Amendment 2026-10-03: reconciled here; D10 on the standard library (proposed)
+
+The owner audited D3–D13 against this repository at `c71ffdd`. Status
+stays `proposed` until the owner accepts this amendment. It then becomes
+`accepted`.
+
+### Already decided elsewhere
+
+**Done here.** Each item has a passing test:
+
+* **D3:** `TestOAuthCallback_GrokOptionsReturnsPrivateNetworkCORS`.
+* **D4:** `TestConfigureLLM_BrowserOAuthSetsInputCode`. The wording is
+  0008's, as the PLAN's deviation of 2026-09-29 records.
+* **D5:** `TestOAuthTokenError_CapsBody`.
+* **D6:** `TestValidateOAuthSession_RejectsFixture`. Under 0008's rule,
+  `TokenURL` may be empty.
+* **D8:** `TestListModels_ChatGPTListingFailureIsError`. The `originator`
+  is now `go-llmprovider-sdk`, and `client_version` is the release:
+  [0012-MADR-conform-providers-to-reference-clients.md](0012-MADR-conform-providers-to-reference-clients.md)
+  revision 3, item 7.
+* **D11:** done under
+  [0016-MADR-provider-auth-and-support-baseline.md](0016-MADR-provider-auth-and-support-baseline.md)
+  D3. That decision also restricts the temp file before its first byte.
+
+**Replaced:**
+
+* **D7:** the import is read-through now (0012-MADR §5.1). Expiry still
+  comes from the JWT `exp`.
+* **D9 and C9:** replaced by 0016-MADR D4. The session keeps the rotation,
+  logs, and retries the save.
+
+### D10, revised: standard library only
+
+The owner chose this on 2026-10-03, over importing
+`golang.org/x/sys/windows`. Researched and prototyped on a scratch copy the
+same day.
+
+* **A new package, `llmprovider/internal/ownerperm`,** has two functions:
+  * **`MkdirAll(dir)`.**
+    * On Unix: `os.MkdirAll(dir, 0o700)`, as today.
+    * On Windows, it then gives `dir` a protected DACL. Its one entry
+      grants the current user full access, files and subdirectories inherit
+      it, and the user becomes the owner.
+  * **`File(f)`.**
+    * On Unix: `f.Chmod(0o600)`, as today.
+    * On Windows: the same entry, not inherited, set before the first byte.
+* **`auth.FileTokenStore` calls `MkdirAll` and `File`** and holds no Windows
+  code. Unix behaviour does not change.
+* **The Windows calls:**
+  * `ConvertStringSecurityDescriptorToSecurityDescriptorW` builds the
+    descriptor from SDDL: `O:<sid>D:P(A;OICI;FA;;;<sid>)` for the directory,
+    and the same without `OICI` for a file.
+  * `GetSecurityDescriptorOwner` and `GetSecurityDescriptorDacl` read it.
+  * `SetNamedSecurityInfoW` applies it with
+    `PROTECTED_DACL_SECURITY_INFORMATION`.
+  * `SetFileSecurityW` is not used: Microsoft documents it as obsolete,
+    and it does not pass a directory's entries on to the directory's
+    children. `SetNamedSecurityInfoW` does pass them on, so an existing token
+    directory's older session files are restricted too.
+  * The SID comes from `syscall.OpenCurrentProcessToken` and
+    `GetTokenUser`.
+* **How the bindings are made:**
+  * They are declared as `//sys` lines and generated into
+    `zsyscall_windows.go` by `mkwinsyscall -systemdll=false`, the
+    generator the standard library, `golang.org/x/sys` and go-winio use.
+  * The output imports only `syscall` and `unsafe`.
+  * `advapi32.dll` is a DLL Go itself uses, so `syscall.LoadDLL` loads it
+    from System32 only, as `syscall.LoadDLL`'s documentation says.
+  * The `//go:generate` line is in the untagged `doc.go`, so it runs on any
+    host.
+* **Lint:**
+  * The generated file is excluded as generated code (`generated: lax`, as
+    configured). That covers gosec G103's objections to `unsafe`.
+  * One `.golangci.yml` rule excludes gocritic `commentFormatting` for the
+    `//sys` directive lines only: path `_windows\.go$`, source
+    `^//sys\s`. It is the owner's choice of 2026-10-03.
+  * A prose comment beginning `//sys` without the tab is still reported:
+    probed on 2026-10-03.
+* **Windows is linted.** `make lint` runs `golangci-lint` for the host and
+  for `GOOS=windows`. The owner chose this on 2026-10-03. The current tree
+  passes Windows lint with 0 issues.
+
+### D12, D13 and D8's last test
+
+* **D12 stands.** It applies on every OS.
+* **D13 stands.**
+  * `ownerperm`'s Windows test reads the directory and a file back as SDDL.
+    It checks the recipe's invariants, as open question 3 allows:
+    * the owner is the user;
+    * the DACL is protected (`P`);
+    * every entry is `(A;<flags>;FA;;;<user>)`;
+    * a file created in the directory carries only the inherited entry
+      (`ID`), before `File` runs.
+  * The test can only fail on Windows: the owner's Windows machine, or this
+    repository's `windows-2025` CI job, shows it failing first.
+* **D8's test `TestListChatGPTModels_DefaultHostIsCodexNotPlatform`** is
+  added: with no base URL, the listing goes to `chatgpt.com`
+  `/backend-api/codex/models`.

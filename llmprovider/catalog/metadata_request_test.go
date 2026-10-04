@@ -60,3 +60,17 @@ func TestLoadModelMetadata_FailureCachedBriefly(t *testing.T) {
 		t.Errorf("requests = %d, want 1 (the failure is cached)", n)
 	}
 }
+
+// TestLookupMetadata_NilClientUsesDefault: a nil client means the default
+// client, as an omitted WithHTTPClient does. On a cold cache it used to
+// dereference the nil client (0009-PLAN, deviation of 2026-10-03).
+func TestLookupMetadata_NilClientUsesDefault(t *testing.T) {
+	enableModelMetadata(t)
+	srv, hits := metadataServer(t, http.StatusOK, smallMetadataDoc)
+	if _, err := LookupMetadata(context.Background(), srv.URL, nil); err != nil {
+		t.Fatalf("LookupMetadata with a nil client: %v", err)
+	}
+	if n := hits.Load(); n != 1 {
+		t.Errorf("requests = %d, want 1 (fetched through the default client)", n)
+	}
+}

@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-09-26
+date: 2026-10-03
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
@@ -915,3 +915,23 @@ It should, at minimum:
 * prove every new check fails on a planted defect.
 
 No source changes accompany this proposed MADR.
+
+## Amendment 2026-10-03: close-out
+
+0009-PLAN is complete. The ranking decided here stands. Later records
+replaced the API this record names, and the text above stays as written:
+
+* **`WithModelProfile` / `ProviderConfig.ModelProfile`** is now
+  `catalog.WithProfile`, and `ModelProfile` is `catalog.Profile`
+  ([0015-MADR-canonical-sdk-api-and-module-layout.md](0015-MADR-canonical-sdk-api-and-module-layout.md),
+  amendment 2026-10-01, "`catalog` before the old API's removal").
+* **`GenerateThinkingWithRetry`** (§6) is `WithRetry` with
+  `Request.Reasoning` (0015-MADR D8).
+* **The `MCPLIB_*` variables** are `LLMPROVIDER_MODELS_METADATA_URL` and
+  `LLMPROVIDER_DISABLE_MODELS_METADATA`. The library reads them only
+  through `catalog.OptionsFromEnv()` (0015-MADR, amendment 2026-10-02, "no
+  ambient state, in detail"). So the Confirmation's `TestMain` isolation is
+  `WithoutModelMetadata` per test.
+* **§6's live check of the DeepSeek family on OpenCode Zen** was not done.
+  Zen still answered HTTP 402 on 2026-10-03. The owner closed it, because
+  the Go route runs the same code and passes.

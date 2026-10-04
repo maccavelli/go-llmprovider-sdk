@@ -887,3 +887,117 @@ this section is rewritten.
   `TestListChatGPTModels_DefaultHostIsCodexNotPlatform`.
 * Paths now name this module; the environment names are the `LLMPROVIDER_*`
   ones.
+
+## Amendment 2026-10-03: what remains here (proposed)
+
+The audit and the owner's decisions are in the MADR's amendment of that
+date. This amendment replaces P6 and P7 here. The text above stays as
+written.
+
+**Rules for every phase:**
+
+* Agents stage; the owner commits.
+* Each new check or test is seen to fail first, on a scratch copy.
+* The repository gate is clean before staging: `make pre-add-check`, `make
+  lint`, `parity-check`, `dep-check`, `coverage-check`, `api-check`,
+  markdownlint and the link check.
+
+### P6a: Windows lint, and the `//sys` rule
+
+1. **`make lint`** runs `golangci-lint run -c .golangci.yml --build-tags
+   live_gateways ./...` twice: for the host, then with `GOOS=windows`.
+   * `scripts/go-precheck.sh` changes to match.
+   * CI already calls `make lint`.
+   * **First-fail:** a scratch copy with a Windows-only finding, an
+     unchecked error in a new `_windows.go` file. The old target passes it;
+     the new one fails.
+2. **`.golangci.yml`** gains one exclusion rule: `gocritic`, path
+   `_windows\.go$`, source `^//sys\s`.
+   * **Proof:** without the rule the `//sys` lines are reported; with it,
+     they are not.
+   * A planted prose comment, `//sysfoo is …`, is still reported.
+3. **`make dep-check`** also checks `GOOS=windows`. That keeps
+   `ownerperm`'s Windows files on the standard library.
+   * **First-fail:** a scratch copy whose `_windows.go` file imports
+     `golang.org/x/sys/windows`. The host-only check passes it; the new
+     check fails.
+4. **Prose:**
+   * `AGENTS.md` "Pre-add checks";
+   * `docs/architecture.md`'s checks and package list;
+   * the API guide's R2 table, which gets a row for `ownerperm` and adds it
+     to `auth`'s row, under 0015-MADR's amendment of 2026-10-03.
+
+### P6b: `llmprovider/internal/ownerperm`
+
+1. **Files:**
+   * `doc.go`, with the package documentation and the `//go:generate` line;
+   * `ownerperm_unix.go` and `ownerperm_windows.go`;
+   * `syscall_windows.go`, with the `//sys` lines and the SDK constants;
+   * `zsyscall_windows.go`, generated;
+   * `ownerperm_unix_test.go` and `ownerperm_windows_test.go`.
+
+   The scratch prototype of 2026-10-03 is the starting point.
+2. **`make generate-check`** regenerates `zsyscall_windows.go` into a
+   temporary directory and compares it with the file in the tree. CI runs
+   it.
+   * **First-fail:** a scratch copy with a hand-edited generated file.
+3. **Red:**
+   * **Unix:** `TestMkdirAllAndFile_Modes` fails on a scratch copy where
+     `File` does nothing. On the prototype it gave `file mode =
+     -rw-r--r--, want 0600`.
+   * **Windows:** the owner runs `TestMkdirAllAndFile_OnlyTheCurrentUser`
+     on their Windows machine, on a scratch copy where `restrict` does
+     nothing, or, if the owner pushes it, on a branch in the
+     `windows-2025` CI job. The FAIL line is recorded here.
+4. **Green:**
+   * `GOOS=windows go vet` and `go test -c` on this host;
+   * the Windows test on Windows, as in step 3.
+5. **Coverage:** the new package gets a floor in
+   `scripts/coverage-floors.txt`, measured on this host, as R47 requires.
+
+### P6c: `FileTokenStore` uses `ownerperm` (D10)
+
+1. **`NewFileTokenStore`** calls `ownerperm.MkdirAll` instead of
+   `os.MkdirAll`. **`Save`** calls `ownerperm.File(tmp)` instead of
+   `tmp.Chmod(0o600)`, at the same place, before the first byte.
+2. **The test,** on every OS: `auth` reaches the two functions through
+   package variables, the way `tokenStoreBeforeWrite` is reached.
+   * A test swaps them in, and asserts that `New` restricts the directory
+     and that `Save` restricts the temp file before the first byte.
+   * **Red:** a scratch copy that skips either call.
+   * The Unix test `TestFileTokenStore_TempIs0600BeforeWrite` still
+     passes.
+
+### P6d: reserved names and overwrite (D12, D13)
+
+1. **Red:** `TestFileTokenStore_RejectsReservedNames` covers `CON`, `con`,
+   `NUL`, `COM1`, `LPT9`, `CON.json`, `COM1.txt`, `aux`, `foo.` and
+   `"foo "`, each expecting `ErrInvalidProvider`. Today `Save` accepts
+   them all.
+2. **`TestFileTokenStore_OverwriteExisting`** saves A, then B, and must
+   load B.
+   * It passes today, because it pins existing behaviour; the log says so.
+   * It is shown to fail on a plant where `Save` skips the rename when the
+     file exists.
+3. **The fix:** `validateProviderID` rejects these names on every OS,
+   case-insensitively, with or without an extension, and rejects a
+   trailing dot or space.
+
+### P7': the default ChatGPT host (D8)
+
+1. **Red:** `TestListChatGPTModels_DefaultHostIsCodexNotPlatform`, in
+   `llmprovider/providers/openai`.
+   * A `RoundTripper` records the URL and refuses to dial.
+   * The listing is made with a ChatGPT session and no `WithBaseURL`.
+   * It asserts the host is `chatgpt.com` and the path ends
+     `/backend-api/codex/models`.
+   * It is shown to fail on a plant that sets `ChatGPTBaseURL`'s host to
+     `api.openai.com`.
+
+### Close-out
+
+* The MADR becomes `accepted` and the PLAN `complete`; `docs/README.md`
+  changes to match.
+* Windows CI passes on `main` after the owner's push.
+* D1–D2, D14–D18, P1 and P8 stay in `mcplib`, as the amendment of
+  2026-09-29 says.

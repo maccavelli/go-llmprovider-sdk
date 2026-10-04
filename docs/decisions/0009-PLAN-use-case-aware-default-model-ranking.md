@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-09-26
+status: complete
+date: 2026-10-03
 associated-madr: "0009-MADR-use-case-aware-default-model-ranking.md"
 decision-makers: mcplib maintainers
 migrated-from: "mcplib docs/0010-PLAN-use-case-aware-default-model-ranking.md @ 4e1f9a5"
@@ -1969,11 +1969,21 @@ fail.
    > usable model. Kilo's `kilo-auto/*` managed tiers are never recommended
    > under the default profile: search for them (`kilo-auto/*`) to use one.
 
+   *Annotated 2026-10-03:* done as a **Ranking** bullet in `README.md`'s
+   library section, with today's names: `catalog.WithProfile`,
+   `WithModelMetadataURL`, `WithoutModelMetadata` and
+   `catalog.OptionsFromEnv()`. 0015 rewrote the README, so the anchor above
+   no longer exists. See §10, 2026-10-03, "Phase 7 against today's tree".
+
 2. Replace "Retries are opt-in (`GenerateWithRetry`)." (`README.md:138`) with:
    "Retries are opt-in (`GenerateWithRetry`, and `GenerateThinkingWithRetry`
    for the reasoning path). For commit-message-sized work, construct the
    provider with `WithReasoningEffort(llmprovider.ProfileUtility.ReasoningEffort())`
    and call `GenerateThinkingWithRetry`."
+   *Superseded 2026-10-03:* `GenerateWithRetry` and
+   `GenerateThinkingWithRetry` were removed by 0015-MADR D8. The README's
+   **Ranking** bullet gives the recipe as it is now: `Request.Reasoning` with
+   the profile's effort, and `WithRetry`.
 3. Run `go test -count=1 ./... > "$SCRATCH/p7-full.log" 2>&1` and branch on
    its own exit status.
 4. ~~`git diff --stat 5a1fc70 -- go.mod go.sum llmprovider/probe.go wizard/prompter.go wizard/text_prompter.go llmprovider/opencode_route.go`
@@ -1981,11 +1991,19 @@ fail.
    (§10):** `git diff --stat 5a1fc70 -- go.mod go.sum llmprovider/probe.go wizard/prompter.go llmprovider/opencode_route.go`
    must be empty (A14). `wizard/text_prompter.go` carries only the `go fix`
    `strings.SplitSeq` change.
+   *Superseded 2026-10-03:* 0015 moved `probe.go` and `opencode_route.go`,
+   rewrote `prompter.go`, and changed `go.mod`. The diff cannot be empty, and
+   what it protected is now 0015's API. See §10.
 5. Fill in §11: each phase's red lines, mutation summaries, gate summaries and
    live results, verbatim. Set this plan to `status: complete` only if every
    §5 criterion holds.
+   *Annotated 2026-10-03:* the per-phase logs were in `mcplib`'s session
+   scratch space and are lost. §11 cites commits, §10 and later records
+   instead.
 6. Stage `README.md` and this plan, then `git commit --no-edit`. Do not push
    or tag. Report the number of commits ahead of `origin/main`.
+   *Annotated 2026-10-03:* in this repository the owner commits; the agent
+   stages.
 
 ## 4. Verification commands
 
@@ -2144,10 +2162,95 @@ is unchanged.
 | 2026-09-26 | 6 | The maintainer directed "stage all, commit and push" while the Phase 6 live gate was still unmet (Zen funds). Offline evidence at that point: `TestOpencode_ChatReasoningEffort` green; mutations 5/5 caught (`p6-unlisted-sent`, `p6-non-thinking`, `p6-chat-ignores`, `p6-wrong-option-type`, control passes); phase gate 9/9. `p6-live-value` and the live gate have **not** run. A gocritic `typeDefFirst` finding was fixed by moving `reasoningEfforts` below `modelMetadataDoc` in the same file. | Phase 6 is committed and pushed **with its live gate outstanding**. The gate and `p6-live-value` must run once the Zen balance is restored, before Phase 7 closes the plan. A gate failure reopens Phase 6 (§10). The plan stays `in-progress`. | none |
 | 2026-09-26 | 6 | The maintainer reports the key is funded for both gateways. Re-probing Zen with plain requests on five models, spanning DeepSeek, Zhipu, Moonshot and OpenAI upstreams and the chat and responses routes, gave the same `402 server_error "Upstream request failed: Insufficient account funds"` on all five. OpenCode's pinned gateway source bills the Go subscription only on the Go endpoint (`handler.ts:895-964`); Zen uses the pay-as-you-go balance (`:972-1009`), and it reports an empty balance as a 401 `CreditsError` (`:974`, `:490-502`), not this 402. The cause is unresolved. A Go probe then showed that `x-opencode-session` alone turns Go's `MissingSessionID` 400 into HTTP 200, with Go's default User-Agent. | Maintainer chose "Fix the go headers and use it to test". Pulled forward from `0012-MADR-conform-providers-to-reference-clients.md` §1.4, OpenCode only: every OpenCode generation request sends `x-opencode-session`, a random id fixed per provider instance. `WithSessionID`, `WithClientInfo` and the User-Agent format stay in 0012. The Phase 6 gate runs on **OpenCode Go** against `glm-5.3-flash` and `hy3`, the two chat-routed Go utility models whose `reasoning_options` list `low`. The DeepSeek family is region-gated on Go, so its live check on Zen stays outstanding until Zen answers. **MADR 0009 §6 and MADR 0012 §1.4 amended.** | none (`opencode.go`, `opencode_test.go`, `live_gateways_test.go` are already Phase 6 files) |
 | 2026-09-26 | between 6 and 7 | The maintainer ran `go fix ./...` (Go 1.26.6). It modernised two files outside this plan. `selfupdate/updater_test.go`: `containsKind`'s loop becomes `slices.Contains`. `wizard/text_prompter.go:188`: `strings.Split` becomes `strings.SplitSeq` in a range loop. Neither changes behaviour. Gate on both files: 6/6 (gofmt, golint, vet, lint, tests of `./selfupdate ./wizard`). `wizard/text_prompter.go` is on §9's "must stay untouched" list, so Phase 7 step 4's diff check would fail. | Maintainer chose "Commit and amend" (option 1). The `go fix` change is committed. `wizard/text_prompter.go` leaves the untouched list and Phase 7 step 4's diff: the list protected the `Prompter`/`TextPrompter` contract, and this change leaves the contract, the signatures and the behaviour unchanged. No MADR change. | `selfupdate/updater_test.go`, `wizard/text_prompter.go` |
+| 2026-10-03 | 7 (found in 6's live proof) | Running `p6-live-value` for the close-out, `TestLive_OpencodeChatReasoningEffort` panicked on the **unchanged** tree: `nil pointer dereference` in `net/http.(*Client).do`, from `catalog.fetchModelMetadata` (`llmprovider/catalog/model_metadata.go:261`). The test calls the exported `catalog.LookupMetadata(ctx, "", nil)` (`live_opencode_test.go:142`), which copies the nil client over the default one (`model_metadata.go:139`). Pre-existing since `f44ebc7` (0015-PLAN S8). It is hidden whenever the URL is already cached: the 2026-10-02 batch run passed only because earlier OpenCode tests had fetched the default URL. A scratch offline test reproduced it: a nil client panics on a cold cache and returns nil after a warm-up. The provider always passes its own client (`providers/opencode/opencode.go:548`), so generation is unaffected; any other caller of the exported function that passes nil is not. | Owner chose "option 1": a nil client means the catalog's default client (`transport.DefaultClient()`), as an omitted `WithHTTPClient` does. `LookupMetadata`'s doc says so. New test `TestLookupMetadata_NilClientUsesDefault`, seen to fail first; then `p6-live-value` is rerun, unchanged and planted. No MADR change: 0009 decides nothing about the client. | `llmprovider/catalog/model_metadata.go`, `llmprovider/catalog/metadata_request_test.go` |
+| 2026-10-03 | 7 | **Phase 7 against today's tree.** 0015 rewrote the README and replaced 0009's API, so step 1's anchor, step 2's functions and step 4's untouched files no longer exist as written. `GenerateThinkingWithRetry` is now `WithRetry` with `Request.Reasoning` (0015-MADR D8). `WithModelProfile` is `catalog.WithProfile` (0015-MADR, amendment 2026-10-01, "`catalog` before the old API's removal"). The `MCPLIB_*` variables are `LLMPROVIDER_*`, read only through `catalog.OptionsFromEnv()` (0015-MADR, amendment 2026-10-02, "no ambient state, in detail"). A7's `TestMain` isolation became `WithoutModelMetadata` per test. The Zen DeepSeek live check was probed again: still `402 Upstream request failed: Insufficient account funds`. | Owner chose (2026-10-03): run the three live mutation proofs, and "probe once, close either way" for Zen. Step 1 is written as a **Ranking** bullet with today's names; step 2 is superseded and its recipe is in that bullet; step 4 / A14's diff is superseded; the Zen DeepSeek check closes **not done**, because the Go route runs the same code and passes. See §11. No MADR decision changes; the MADR records what replaced its API. | `README.md` |
 
 ## 11. Execution record
 
-Not started.
+~~Not started.~~ *Filled 2026-10-03, at the close-out.* §4's logs were in
+`mcplib`'s session scratch space, and they are lost. This record cites
+commits, §10 and later records instead.
+
+### Phases 0–6 (2026-09-26, in `mcplib`)
+
+* **Commits,** in this repository's imported history:
+  * P0 `8fdd6cc`
+  * P1 `db3ec45`
+  * P2 `64085f8`
+  * P3 `27920bd`
+  * P4 `9fcec37`
+  * P5 `341af82`
+  * P6 `18ea943`, and `9cfe572` for the session header
+* **Offline mutations.** The results that survive are in §10: Phase 6's 5
+  of 5.
+* **Moved and amended later:**
+  * 0015-MADR moved the code into `llmprovider/catalog`,
+    `providers/kilo` and `providers/opencode`.
+  * 0013-MADR amended A1–A6 and Q2.
+* **Live gates passed:**
+  * 2026-09-27: `0012-PLAN-gateway-conventions.md`, A.L;
+  * 2026-10-02:
+    [0002-PLAN-migrate-llmprovider-from-mcplib.md](0002-PLAN-migrate-llmprovider-from-mcplib.md),
+    "Phase 8 step 1: Kilo and OpenCode";
+  * 2026-10-03: below.
+
+### Live mutation proofs (2026-10-03)
+
+Each was run on a scratch copy of the working tree, first unchanged and then
+planted:
+
+| Proof | Unchanged | Planted |
+|---|---|---|
+| `p3-live-key` (`catalog/model_metadata.go`, `opencode-go` → `opencode-goo`) | `--- PASS: TestLive_ModelMetadataDocument` | `live_listing_test.go:87: DRIFT: https://models.opencode.ai/api.json no longer publishes section "opencode-go"` |
+| `p5-live-shape` (`providers/kilo/kilo.go`, `"enabled": true` → `"yes"`) | `--- PASS: TestLive_KiloReasoningShapes`, both shapes, on `deepseek/deepseek-v4.1-flash` | `live_kilo_test.go:88: … gateway rejected reasoning shape "enabled": … kilo HTTP 400 invalid_request_error: Invalid input: expected boolean, received string` |
+| `p6-live-value` (`providers/opencode/opencode.go`, `return string(c.reasoning.Effort)` → `return "not-an-effort"`) | `--- PASS: TestLive_OpencodeChatReasoningEffort`, `glm-5.3-flash` and `hy3` | `live_opencode_test.go:158: … gateway rejected reasoning_effort on glm-5.3-flash: … opencode-go/chat_completions HTTP 400`, and the same on `hy3` |
+
+* **p5 and p6.** The PLAN expected these two to be unprovable, because the
+  gateways accepted invalid values on 2026-09-26. Both gateways now check
+  the value.
+* **p6's first run.** On the unchanged tree it panicked on a nil
+  `*http.Client` in `catalog.LookupMetadata`. That is §10's 2026-10-03
+  nil-client deviation.
+  * The fix's test is `TestLookupMetadata_NilClientUsesDefault`. Before the
+    fix: `--- FAIL … panic: runtime error: invalid memory address or nil
+    pointer dereference`, at `model_metadata.go:261`.
+  * After the fix it passes. The table's p6 row is the rerun.
+
+### Zen DeepSeek (2026-10-03)
+
+* **The probe.** One request, on a scratch copy: `opencode.NewZen`,
+  `deepseek-v4.1-flash`, effort low.
+  * It sent `reasoning_effort: "low"` to `/zen/v1/chat/completions`.
+  * The answer: `quota exhausted: opencode-zen/chat_completions HTTP 402
+    server_error: Upstream request failed: Insufficient account funds`.
+* **Closed not done,** by the owner's decision. The Go route runs the same
+  code, and it passes.
+
+### Phase 7 (2026-10-03)
+
+* **Step 1** is done as the README's **Ranking** bullet.
+* **Step 2** is superseded; its recipe is in that bullet.
+* **Step 3:** `go test -count=1 ./...` exits 0.
+* **Step 4** is superseded (§10).
+* **The repository gate,** with the README and the nil-client fix: see the
+  close-out.
+
+### Acceptance criteria
+
+* **A1–A11, A13 and A16** are met. Their named tests pass in
+  `go test ./...`. The mutation results are lost, apart from §10's.
+* **A7.** `TestMain` became `WithoutModelMetadata` per test (0015-MADR,
+  amendment 2026-10-02). `TestListModelCatalog_MetadataIsolation` passes.
+* **A12** is met in its replaced form: `WithRetry`, with the
+  `TestWithRetry_*` tests (0015-MADR D8).
+* **A14:**
+  * the live half is met on Go;
+  * the Zen DeepSeek check is closed not done, by the owner's decision;
+  * the untouched-files half is superseded (§10).
+* **A15** is met: the gates are green, the module is green, and the README
+  documents the feature.
+
+This PLAN is `complete`. The MADR stays `accepted`.
 
 ## Appendix 1 — Evidence for this plan's assertions
 

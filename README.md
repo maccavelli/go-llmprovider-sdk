@@ -104,9 +104,30 @@ functions over any provider, and `Stream` streams from every one.
   `catalog.Search` matches a query against them. A provider's own
   `ListModels` returns its listing. By default OpenAI (API key), Claude,
   Gemini, Grok and Ollama send one billed generation to each candidate and
-  keep those that answer; `WithModelProbes(false)` turns that off. The open
-  catalogs rank with `catalog.WithProfile`, from models.dev-format metadata
-  that `WithoutModelMetadata` turns off.
+  keep those that answer; `WithModelProbes(false)` turns that off.
+- **Ranking.** The recommended models of Kilo, OpenCode Zen and Go, and
+  Hugging Face are ranked by use case. The default profile,
+  `catalog.ProfileUtility`, suits short, frequent tasks such as commit
+  messages. It recommends recent, paid, reasoning-capable models. It never
+  recommends one that its catalog marks as non-reasoning, free, expiring or
+  preview, nor Kilo's `kilo-auto/*` tiers, which a search still finds.
+  `catalog.WithProfile(catalog.ProfileCapable)`, or `wizard.Options.Profile`,
+  ranks the strongest first instead. Kilo ranks from its own listing. The
+  others read `https://models.opencode.ai/api.json`, cached for ten minutes;
+  a failed fetch is not retried for a minute. `WithModelMetadataURL` points
+  elsewhere, and `WithoutModelMetadata` turns the fetch off, which restores
+  the curated order for those three. `catalog.OptionsFromEnv()` maps
+  `LLMPROVIDER_MODELS_METADATA_URL` and
+  `LLMPROVIDER_DISABLE_MODELS_METADATA=1` onto those options. Search still
+  covers every usable model. For commit-message-sized work, ask for the
+  profile's effort and retry:
+
+  ```go
+  req.Reasoning = &llmprovider.Reasoning{
+      Effort: llmprovider.Effort(catalog.ProfileUtility.ReasoningEffort()),
+  }
+  p = llmprovider.WithRetry(p, llmprovider.RetryPolicy{})
+  ```
 
 ## The configuration wizard
 
