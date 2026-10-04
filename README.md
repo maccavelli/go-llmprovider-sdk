@@ -138,7 +138,18 @@ key.
 
 - A sign-in saves its session to `Options.TokenStore` and returns a
   `CredOAuth` `Result` with no token; the caller loads it from the store.
-  Without a `TokenStore`, only the API key is offered.
+  With `Options.Existing` naming such a session, the wizard offers to keep
+  it before asking how to sign in. Without a `TokenStore`, only the methods
+  that save no session are offered: the API key, a vendor CLI's login, and
+  a pasted Grok key.
+- A vendor CLI's login is found by default under the home directory, which
+  the wizard reads only through `Options.LookupEnv` (`HOME`, or
+  `USERPROFILE` on Windows). Pass `LookupEnv: os.Getenv` to find it there.
+  With no `LookupEnv` and no `Existing.VendorAuthPath`, that sign-in fails
+  and says so.
+- `TextPrompter` answers the first prompt after its input ends with that
+  prompt's default; every later prompt fails, so a script that runs out of
+  answers ends instead of looping.
 - With `Options.Discover`, it lists the provider's models once, within
   10 seconds (`Options.DiscoverLimit` can shorten that, not extend it), and
   asks for a search before each model menu. A blank search shows the

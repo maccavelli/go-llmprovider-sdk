@@ -1,9 +1,10 @@
 package wizard
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
@@ -30,9 +31,28 @@ func vendorAuthPath(provider llmprovider.ProviderID, o Options) (string, error) 
 	if dir := env(homeEnv); dir != "" {
 		return filepath.Join(dir, "auth.json"), nil
 	}
-	home, err := os.UserHomeDir()
+	home, err := homeDir(o)
 	if err != nil {
-		return "", fmt.Errorf("wizard: resolve home directory: %w", err)
+		return "", err
 	}
 	return filepath.Join(home, defaultDir, "auth.json"), nil
+}
+
+// homeDir is the home directory from the caller's environment: USERPROFILE
+// on Windows, HOME elsewhere, as os.UserHomeDir reads it. The wizard reads no
+// ambient state (0015-MADR D9), so with no LookupEnv there is no home
+// directory, and the error says what to pass (0020-MADR F25, Q5 a).
+func homeDir(o Options) (string, error) {
+	if o.LookupEnv == nil {
+		return "", errors.New("wizard: a vendor CLI's default auth path is under the home directory; " +
+			"pass Options.LookupEnv, such as os.Getenv, to find it")
+	}
+	name := "HOME"
+	if runtime.GOOS == "windows" {
+		name = "USERPROFILE"
+	}
+	if home := o.LookupEnv(name); home != "" {
+		return home, nil
+	}
+	return "", fmt.Errorf("wizard: resolve home directory: %s is not set", name)
 }

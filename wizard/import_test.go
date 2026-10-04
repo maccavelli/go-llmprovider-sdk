@@ -1,19 +1,17 @@
 package wizard
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// TestVendorAuthPath pins each CLI's own resolution (MADR 0012 §5.1).
+// TestVendorAuthPath pins each CLI's own resolution (MADR 0012 §5.1). The
+// home directory comes from LookupEnv (0020-MADR F25).
 func TestVendorAuthPath(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Skip(err)
-	}
+	const home = "/home/user"
+	homeEnv := map[string]string{"HOME": home, "USERPROFILE": home}
 	for _, tc := range []struct {
 		name     string
 		provider llmprovider.ProviderID
@@ -21,11 +19,11 @@ func TestVendorAuthPath(t *testing.T) {
 		want     string
 	}{
 		{"codex home", llmprovider.ProviderOpenAI, map[string]string{"CODEX_HOME": "/x/codex"}, filepath.Join("/x/codex", "auth.json")},
-		{"codex default", llmprovider.ProviderOpenAI, nil, filepath.Join(home, ".codex", "auth.json")},
+		{"codex default", llmprovider.ProviderOpenAI, homeEnv, filepath.Join(home, ".codex", "auth.json")},
 		{"grok auth path", llmprovider.ProviderGrok,
 			map[string]string{"GROK_AUTH_PATH": "/y/login.json", "GROK_HOME": "/x/grok"}, "/y/login.json"},
 		{"grok home", llmprovider.ProviderGrok, map[string]string{"GROK_HOME": "/x/grok"}, filepath.Join("/x/grok", "auth.json")},
-		{"grok default", llmprovider.ProviderGrok, nil, filepath.Join(home, ".grok", "auth.json")},
+		{"grok default", llmprovider.ProviderGrok, homeEnv, filepath.Join(home, ".grok", "auth.json")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := vendorAuthPath(tc.provider, Options{LookupEnv: func(name string) string { return tc.env[name] }})

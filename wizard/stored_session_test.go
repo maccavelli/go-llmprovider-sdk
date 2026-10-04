@@ -85,7 +85,7 @@ func TestConfigureLLM_KeepsTheStoredSession(t *testing.T) {
 	if err := store.Save(context.Background(), llmprovider.ProviderGrok, stored); err != nil {
 		t.Fatal(err)
 	}
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}, confirms: []bool{true}}
+	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, confirms: []bool{true}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing:   Result{Provider: llmprovider.ProviderGrok, Kind: CredOAuth},
 		TokenStore: store,

@@ -496,3 +496,125 @@ check.
     zai-org/GLM-5.3 …]`. `PASS`.
   * `HEAD`'s `model_metadata.go`: both lists are identical, and the test
     fails with `the metadata changed nothing`.
+
+### Phase 4: wizard (2026-10-03)
+
+* **The tests.** `wizard/remediation_test.go` (new) and
+  `llmprovider/auth/session_client_test.go` (new). Six existing tests were
+  changed where F19, F25 and F51 change what they pin; see below.
+* **Red, on the unchanged code.** One scratch run (`HEAD`'s wizard and auth
+  sources, with only the behaviour-preserving extraction of the raw-mode
+  loop into `readMasked`) failed every phase 4 test:
+  * F6: `ConfigureLLM still running 5 s after stdin ended`, and `ConfigureLLM
+    ignored its cancelled context`.
+  * F16: `WARNING: DATA RACE` under `-race`, `printf` against `flushErr`.
+    The first version of the test passed, because writing through an
+    `io.Pipe` orders the two goroutines. It now runs 200 `Input` and
+    `Notify` calls concurrently over `io.Discard`.
+  * F17: an arrow key gave `"abcdefgh[Dij"`; an SS3 key gave `"abcOAdef"`;
+    UTF-8 gave `"pÃ¤sswÃ¶rd"`; Backspace after `ä` gave `"pÃ"`; and a
+    `Select` after a CRLF entry returned `0`, its default, for an input of
+    `3`.
+  * F18: `Kind "", APIKey "", saves 1`: the pasted `" sk-…"` was saved as a
+    session.
+  * F19: `unexpected Secret("Enter your OpenAI API key")` and the same for
+    Kilo, with `confirms = []`; `method menu defaults = [1 0 0]`;
+    `organization default = "Beta", want Acme`; and the vendor path came
+    from the home directory, not from `Existing`.
+  * F20: `the device login did not use Options.HTTPClient`; `profile base
+    URL = ""`; and in `auth`, `caller's client 0x0: the session holds
+    0x…`, `a Kilo login without a client: the session kept the default`.
+  * F49: `ConfigureLLM panicked: runtime error: index out of range [-1]`.
+  * F50: `preselected = [[]], want the saved fallback`.
+  * F51: the Grok menu was the model menu: no method menu was shown.
+  * F25: `vendorAuthPath` returned the real home directory for a given
+    `HOME`, and `nil` error with no `LookupEnv`.
+  * The rewritten `TestConfigureLLM_NoTokenStoreOffersStorelessMethods`
+    and `TestVendorAuthPath` failed in the same run.
+  * After the fixes, the same run passes in both packages under `-race`.
+* **The fixes:**
+  * F6: `resolveBaseURL` checks `ctx` before each attempt. `TextPrompter`
+    remembers the end of input: the first read there still answers the
+    prompt's default, and every later read is `errExhausted`, which wraps
+    `io.EOF`. The endpoint check is `ValidateOllamaURLWith`, with
+    `Options.HTTPClient` and `ProviderOptions` (Q5's amendment).
+  * F16: a mutex guards `writeErr` and the writes to `Out`.
+  * F17: `readMasked` reads runes through the prompter's one buffered
+    reader, swallows CSI and SS3 sequences, prints `\r\n`, and drops a
+    `\n` only when it was read with the `\r`; see the deviation below.
+  * F18: the entry is trimmed in `readMasked`, in `resolveTokenStdin`, and
+    in `resolveAPIKey`, for a consumer `Prompter` that does not trim.
+  * F19: the keep question comes before the method menu, for any method. A
+    kept Kilo session passes Kilo's own check (a token, for Kilo) and keeps
+    `Existing.Organization`. The method menu defaults from `Existing.Kind`;
+    the organization menu from `Existing.Organization`; the vendor path is
+    `Existing.VendorAuthPath` when it names one.
+  * F20: the sign-in flows get `Options.HTTPClient`. A login stores on the
+    session only a client its caller gave (`oauthFlowConfig.callerClient`),
+    so `UseHTTPClient` gives a fresh session the provider's. The Kilo
+    profile gets `WithBaseURL` of the entered endpoint and
+    `ProviderOptions`.
+  * F49: `choose` checks every `Select` answer; `MultiSelect` answers were
+    already filtered by `appendPicks`.
+  * F50: `selectFallbacks` preselects the saved fallbacks each round
+    offers, compared case-insensitively.
+  * F51: without a `TokenStore`, `needsStore` leaves out only the methods
+    that save a session. The API key, the vendor CLI read-through and a
+    pasted Grok key stay; a pasted OpenAI credential may be a ChatGPT
+    access token, so it needs the store.
+  * F25 (wizard half), Q5 (a): the default vendor CLI path is under
+    `HOME`, or `USERPROFILE` on Windows, read through `Options.LookupEnv`.
+    With no `LookupEnv`, the error says to pass one. `README.md` says a
+    consumer that wants the default passes `os.Getenv`.
+* **Files beyond the phase table.** `wizard/import.go`,
+  `wizard/model_select.go` and `README.md` are named by their findings.
+  Added: `llmprovider/auth/kilo_device.go`, whose Kilo login stored its
+  defaulted client the same way (F20), and `wizard/configure.go`'s
+  `resolveAPIKey` (F18's trim).
+* **Existing tests changed by the new behaviour.** No assertion was
+  loosened.
+  * F19 asks to keep a session before the method menu. Four tests scripted a
+    method answer before the keep question:
+    `TestConfigureLLM_KeepsTheStoredSession`,
+    `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog`,
+    `TestConfigureLLM_ChatGPTNoStaticNotice` and
+    `TestConfigureLLM_ProviderOptionsReachTheChatGPTProvider`. The answer
+    was removed. The first still passed with it, because the stray answer
+    picked a model it does not check.
+  * F51 reverses `TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly`. It is
+    now `TestConfigureLLM_NoTokenStoreOffersStorelessMethods` and pins
+    each menu exactly.
+  * F25: `TestVendorAuthPath`'s default cases pass `HOME` and
+    `USERPROFILE` through `LookupEnv`, and no longer read the real home
+    directory.
+  * `selectFallbacks` takes the saved fallbacks; `model_select_test.go`
+    passes `nil`.
+* **Deviation 2026-10-03: `TextPrompter` and a preselection (F50).**
+  * **Found.** `TextPrompter.MultiSelect` printed "blank for none" and
+    returned the preselection on a blank line. It marked no row, and no
+    input meant none. The wizard always passed `nil`, so this never
+    showed. With F50 it would: the prompt would be wrong, and a
+    `TextPrompter` user could not clear saved fallbacks.
+  * **Resolution, the owner's choice: "Show it, add 0 for none".** With a
+    preselection, its rows are marked `(selected)`, the prompt says `blank
+    keeps 1,3; 0 for none`, and `0` returns an empty selection. Without
+    one, nothing changes. `TestTextPrompter_MultiSelectShowsThePreselection`
+    failed first: no row was marked, the prompt said "blank for none", and
+    `0 = [0 2]`. The MADR records the decision.
+* **Deviation 2026-10-03: F17's first fix swallowed an Enter.**
+  * **Found** in review, before the gate passed. The first fix remembered
+    the `\r` that ended an entry and dropped a `\n` at the start of the
+    next read. In raw mode Enter sends only `\r`, so the user's next
+    Enter, a blank answer, would have been dropped, and the prompt would
+    have waited for another line.
+  * **Fixed within F17:** a `\n` is dropped only when it is already in the
+    buffer with the `\r`, as in a paste. `TestTextPrompter_EnterAfterMaskedEntryIsKept`
+    feeds the keystrokes in separate reads, and failed on the first fix
+    with `Select after Enter = 2, want the default 1`.
+  * A paste whose `\n` arrives in a later read still answers the next
+    prompt. Telling that apart from an Enter would need a timer.
+  * No decision changes.
+* **Gate.** The first run failed lint: `errcheck` on two reads that
+  discarded a byte. They now return their errors. The rerun passes all 17 checks, `generate-check`, and `make lint` with `GOOS=windows`. The precheck reports `357 file(s) clean`, and `coverage-check` `27 packages, 0 problem(s)`.
+* **Live.** None: phase 4 has no live check in V3. The wizard's sign-ins
+  are covered by the existing live login tests, which need a person.

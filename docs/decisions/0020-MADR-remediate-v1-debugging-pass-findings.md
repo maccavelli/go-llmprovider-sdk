@@ -433,3 +433,17 @@ Found running 0020-PLAN's phase 2 live checks.
     session. The replay sends `encrypted_content` without the item's `id`,
     which is believed to be Codex's practice with `store: false` but is
     unconfirmed, and the live check will settle it.
+
+## Amendment 2026-10-03: F50 shows the preselection in `TextPrompter`
+
+Found running 0020-PLAN's phase 4.
+
+* **Found.** F50's fix preselects the saved fallbacks. `TextPrompter`,
+  given a preselection, said "blank for none" but kept it on a blank line,
+  marked no row, and had no input for none.
+* **Decision, the owner's:** with a preselection, `TextPrompter.MultiSelect`
+  marks those rows `(selected)`, says `blank keeps …; 0 for none`, and
+  takes `0` as none. Without one it is unchanged.
+* **Consequence.** A change to what `TextPrompter` prints and accepts, and
+  only when given a preselection. The wizard passes one only from
+  `Existing.Fallbacks`. The `Prompter` interface does not change.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -493,22 +494,34 @@ func stubBrowserLogin(t *testing.T, login func(context.Context, llmprovider.Prov
 	loginBrowserOAuth = login
 }
 
-// TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly: without a TokenStore the
-// caller cannot keep a session, so openai and grok show no method menu and go
-// straight to the API-key prompt.
-func TestConfigureLLM_NoTokenStoreOffersAPIKeyOnly(t *testing.T) {
-	for _, provider := range []llmprovider.ProviderID{llmprovider.ProviderOpenAI, llmprovider.ProviderGrok} {
-		t.Run(string(provider), func(t *testing.T) {
+// TestConfigureLLM_NoTokenStoreOffersStorelessMethods (0020-MADR F51):
+// without a TokenStore the caller cannot keep a session, so the menu offers
+// only the methods that save none, in descriptor order.
+func TestConfigureLLM_NoTokenStoreOffersStorelessMethods(t *testing.T) {
+	for _, c := range []struct {
+		provider llmprovider.ProviderID
+		want     []llmprovider.AuthMethodID
+	}{
+		{llmprovider.ProviderOpenAI, []llmprovider.AuthMethodID{llmprovider.AuthAPIKey, llmprovider.AuthImportVendorCLI}},
+		{llmprovider.ProviderGrok, []llmprovider.AuthMethodID{llmprovider.AuthAPIKey, llmprovider.AuthTokenStdin,
+			llmprovider.AuthImportVendorCLI}},
+	} {
+		t.Run(string(c.provider), func(t *testing.T) {
 			f := &fakePrompter{
 				t:       t,
-				selects: []int{providerIdx(t, provider)},
+				selects: []int{providerIdx(t, c.provider), 0},
 				secrets: []string{"sk-test-0123456789"},
 			}
 			_, _ = ConfigureLLM(context.Background(), f, Options{})
-			for _, title := range f.seenSelect {
-				if strings.Contains(title, "authenticate") {
-					t.Fatalf("method menu %q shown without a TokenStore", title)
-				}
+			if len(f.seenSelect) < 2 || !strings.Contains(f.seenSelect[1], "authenticate") {
+				t.Fatalf("Select titles = %q, want the method menu second", f.seenSelect)
+			}
+			var want []string
+			for _, id := range c.want {
+				want = append(want, methodLabel(t, c.provider, id))
+			}
+			if got := labels(f.seenSelectItems[1]); !slices.Equal(got, want) {
+				t.Errorf("menu = %q, want %q", got, want)
 			}
 			if len(f.seenSecret) != 1 {
 				t.Fatalf("Secret prompts = %d, want the API-key prompt", len(f.seenSecret))

@@ -83,20 +83,26 @@ type Options struct {
 	// catalog.ProfileUtility, suits short frequent tasks such as commit
 	// messages; catalog.ProfileCapable suits reasoning-heavy tiers.
 	Profile catalog.Profile
-	// LookupEnv reads an environment variable, for AllowEnv and the vendor
-	// CLI homes. Nil reads nothing: pass os.Getenv for the process
-	// environment, or a map for a deterministic test (0015-MADR D9).
+	// LookupEnv reads an environment variable, for AllowEnv, the vendor CLI
+	// homes and the home directory under which a vendor CLI's auth file is
+	// found by default (HOME, or USERPROFILE on Windows). Nil reads nothing,
+	// so that default is not found: pass os.Getenv for the process
+	// environment, or a map for a deterministic test (0015-MADR D9;
+	// 0020-MADR F25).
 	LookupEnv func(string) string
 	// ProviderOptions are added, after the wizard's own, to every model
 	// listing and to the provider it builds for a ChatGPT session. Pass
 	// catalog.OptionsFromEnv() here, or llmprovider.WithoutModelMetadata()
 	// to keep a listing off the network.
 	ProviderOptions []llmprovider.Option
-	// TokenStore persists sessions created by the browser, device-code,
-	// token-paste and import flows. Supplying it opts in to every non-API-key
-	// credential kind; when it is nil, only the API key is offered.
+	// TokenStore persists sessions created by the browser, device-code and
+	// token-paste flows. Supplying it opts in to every sign-in method; when it
+	// is nil, only those that save no session are offered: the API key, the
+	// vendor CLI read-through, and a pasted Grok key.
 	TokenStore auth.TokenStore
-	// HTTPClient is used for live model listing. Nil uses the package default.
+	// HTTPClient is used for live model listing, the Ollama endpoint check,
+	// the sign-in flows and the Kilo profile; a session a sign-in creates
+	// keeps it. Nil uses the package default.
 	HTTPClient *http.Client
 	// OpenURL opens an OAuth authorization URL. Nil reports the URL through Prompter.
 	OpenURL func(string) error
@@ -138,7 +144,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		}
 	}
 
-	idx, err := p.Select("Choose an LLM provider:", choices, defaultIdx)
+	idx, err := choose(p, "Choose an LLM provider:", choices, defaultIdx)
 	if err != nil {
 		return Result{}, fmt.Errorf("select provider: %w", err)
 	}
@@ -148,7 +154,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	if res.BaseURL, err = resolveBaseURL(ctx, p, d, o); err != nil {
 		return Result{}, err
 	}
-	credential, err := resolveCredential(ctx, p, d, o)
+	credential, err := resolveCredential(ctx, p, d, res.BaseURL, o)
 	if err != nil {
 		return Result{}, err
 	}
@@ -187,7 +193,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		return Result{}, err
 	}
 	if o.NeedFallbacks {
-		if res.Fallbacks, err = selectFallbacks(p, d, cat, res.Model); err != nil {
+		if res.Fallbacks, err = selectFallbacks(p, d, cat, res.Model, existingFallbacks(o, d.ID)); err != nil {
 			return Result{}, err
 		}
 	}
@@ -226,7 +232,8 @@ func selectableDescriptors(reg *llmprovider.Registry, allow []llmprovider.Provid
 }
 
 // resolveBaseURL prompts for an endpoint when the provider supports one. A
-// local provider is validated for reachability and re-prompted on failure.
+// local provider is validated for reachability, with the caller's client
+// and identity, and re-prompted on failure until ctx ends (0020-MADR F6).
 func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (string, error) {
 	if !d.SupportsBaseURL {
 		return "", nil
@@ -235,7 +242,15 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 	if o.Existing.Provider == d.ID && o.Existing.BaseURL != "" {
 		def = o.Existing.BaseURL
 	}
+	var check []llmprovider.Option
+	if o.HTTPClient != nil {
+		check = append(check, llmprovider.WithHTTPClient(o.HTTPClient))
+	}
+	check = append(check, o.ProviderOptions...)
 	for {
+		if err := ctx.Err(); err != nil {
+			return "", fmt.Errorf("enter base URL: %w", err)
+		}
 		url, err := p.Input(fmt.Sprintf("%s endpoint", d.Label), def)
 		if err != nil {
 			return "", fmt.Errorf("enter base URL: %w", err)
@@ -243,7 +258,7 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		if !d.IsLocal {
 			return url, nil
 		}
-		vErr := catalog.ValidateOllamaURL(ctx, url)
+		vErr := catalog.ValidateOllamaURLWith(ctx, url, check...)
 		if vErr == nil {
 			return url, nil
 		}
@@ -293,7 +308,7 @@ func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, err
 	if err != nil {
 		return "", fmt.Errorf("enter API key: %w", err)
 	}
-	return key, nil
+	return strings.TrimSpace(key), nil // a paste's spaces (0020-MADR F18)
 }
 
 // discoverModels returns the catalog to offer: the live listing when requested
@@ -448,6 +463,19 @@ func listerFor(
 		return nil, fmt.Errorf("wizard: %s cannot list models", d.Label)
 	}
 	return lister, nil
+}
+
+// choose runs p.Select and checks its answer, so a Prompter that returns an
+// index outside the menu is an error, not a panic (0020-MADR F49).
+func choose(p Prompter, title string, choices []Choice, defaultIdx int) (int, error) {
+	idx, err := p.Select(title, choices, defaultIdx)
+	if err != nil {
+		return 0, err
+	}
+	if idx < 0 || idx >= len(choices) {
+		return 0, fmt.Errorf("wizard: %q: the prompter chose %d of %d choices", title, idx, len(choices))
+	}
+	return idx, nil
 }
 
 func modelChoices(provider llmprovider.ProviderID, models []string) []Choice {

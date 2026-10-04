@@ -54,11 +54,15 @@ type oauthFlowConfig struct {
 	clientID   string
 	issuer     string
 	httpClient *http.Client
-	openURL    func(string) error
-	inputCode  func(context.Context) (string, error)
-	notify     func(string, string)
-	now        func() time.Time
-	sleep      func(context.Context, time.Duration) error
+	// callerClient is the client the caller gave, nil when httpClient is the
+	// default. It is the only one a session keeps, so the provider's
+	// UseHTTPClient can give a session its own (0020-MADR F20).
+	callerClient *http.Client
+	openURL      func(string) error
+	inputCode    func(context.Context) (string, error)
+	notify       func(string, string)
+	now          func() time.Time
+	sleep        func(context.Context, time.Duration) error
 }
 
 type oauthEndpoints struct {
@@ -212,15 +216,16 @@ func resolveOAuthFlowConfig(provider llmprovider.ProviderID, opts OAuthFlowOptio
 		sleep = sleepWithContext
 	}
 	return oauthFlowConfig{
-		provider:   provider,
-		clientID:   clientID,
-		issuer:     issuer,
-		httpClient: client,
-		openURL:    opts.OpenURL,
-		inputCode:  opts.InputCode,
-		notify:     opts.NotifyDevice,
-		now:        now,
-		sleep:      sleep,
+		provider:     provider,
+		clientID:     clientID,
+		issuer:       issuer,
+		httpClient:   client,
+		callerClient: opts.HTTPClient,
+		openURL:      opts.OpenURL,
+		inputCode:    opts.InputCode,
+		notify:       opts.NotifyDevice,
+		now:          now,
+		sleep:        sleep,
 	}, nil
 }
 
@@ -676,7 +681,7 @@ func oauthSessionFromResponse(config oauthFlowConfig, tokenURL string, payload o
 		AccountID:  chatGPTAccountID(payload.IDToken),
 		FedRAMP:    chatGPTFedRAMP(payload.IDToken),
 		TokenURL:   tokenURL,
-		HTTPClient: config.httpClient,
+		HTTPClient: config.callerClient,
 	}, nil
 }
 

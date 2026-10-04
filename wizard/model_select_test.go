@@ -270,7 +270,7 @@ func TestConfigureLLM_ChatGPTNoStaticNotice(t *testing.T) {
 	})}
 	f := &fakePrompter{
 		t:        t,
-		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI), 1, 0},
+		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI), 0},
 		confirms: []bool{true},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{
@@ -365,7 +365,7 @@ func TestSelectFallbacks_ReturnShape(t *testing.T) {
 	d := providers.Default().Descriptors()[0]
 
 	nothingLeft := &fakePrompter{t: t}
-	got, err := selectFallbacks(nothingLeft, d, catalog.Catalog{Recommended: []string{"a"}, Usable: []string{"a"}}, "a")
+	got, err := selectFallbacks(nothingLeft, d, catalog.Catalog{Recommended: []string{"a"}, Usable: []string{"a"}}, "a", nil)
 	if err != nil {
 		t.Fatalf("selectFallbacks: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestSelectFallbacks_ReturnShape(t *testing.T) {
 	}
 
 	emptyPick := &fakePrompter{t: t, multiSelects: [][]int{{}}}
-	got, err = selectFallbacks(emptyPick, d, catalog.Catalog{Recommended: []string{"a", "b"}, Usable: []string{"a", "b"}}, "a")
+	got, err = selectFallbacks(emptyPick, d, catalog.Catalog{Recommended: []string{"a", "b"}, Usable: []string{"a", "b"}}, "a", nil)
 	if err != nil {
 		t.Fatalf("selectFallbacks: %v", err)
 	}

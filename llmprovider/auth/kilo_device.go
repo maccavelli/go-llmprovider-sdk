@@ -34,7 +34,7 @@ const (
 // origin; nothing else in opts but HTTPClient and the test clock applies.
 func startKiloDevice(ctx context.Context, opts OAuthFlowOptions) (*DeviceLogin, error) {
 	config := oauthFlowConfig{provider: llmprovider.ProviderKilo, issuer: strings.TrimRight(opts.Issuer, "/"),
-		httpClient: opts.HTTPClient, now: opts.now, sleep: opts.sleep}
+		httpClient: opts.HTTPClient, callerClient: opts.HTTPClient, now: opts.now, sleep: opts.sleep}
 	if config.issuer == "" {
 		config.issuer = kiloAPIOrigin
 	}
@@ -109,7 +109,7 @@ func startKiloDevice(ctx context.Context, opts OAuthFlowOptions) (*DeviceLogin, 
 				// No refresh token and no expiry: the session never refreshes,
 				// and the token is applied as Kilo's API key (0017-MADR D2).
 				return &OAuthSession{Provider: llmprovider.ProviderKilo, Access: approved.Token, Issuer: config.issuer,
-					HTTPClient: config.httpClient}, nil
+					HTTPClient: config.callerClient}, nil
 			default:
 				return nil, closeOAuthStatusError(resp, "Kilo device poll")
 			}

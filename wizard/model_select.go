@@ -49,7 +49,7 @@ func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Op
 		}
 		shown := capMatches(p, matches)
 		choices := append(matchChoices(shown), Choice{Label: searchAgainLabel}, Choice{Label: otherModelLabel})
-		idx, err := p.Select(title, choices, 0)
+		idx, err := choose(p, title, choices, 0)
 		if err != nil {
 			return "", fmt.Errorf("select model: %w", err)
 		}
@@ -82,7 +82,7 @@ func selectRecommended(p Prompter, d llmprovider.Descriptor, models []string, o 
 		defaultIdx = len(models)
 	}
 	choices = append(choices, Choice{Label: otherModelLabel})
-	idx, err := p.Select(fmt.Sprintf(chooseModelTitle, d.Label), choices, defaultIdx)
+	idx, err := choose(p, fmt.Sprintf(chooseModelTitle, d.Label), choices, defaultIdx)
 	if err != nil {
 		return "", fmt.Errorf("select model: %w", err)
 	}
@@ -111,6 +111,15 @@ func enterModelID(p Prompter, provider llmprovider.ProviderID, o Options) (strin
 	return manual, nil
 }
 
+// existingFallbacks returns the saved fallbacks when they belong to
+// provider, else nil.
+func existingFallbacks(o Options, provider llmprovider.ProviderID) []string {
+	if o.Existing.Provider == provider {
+		return o.Existing.Fallbacks
+	}
+	return nil
+}
+
 // existingModel returns the saved model when it belongs to provider, else "".
 func existingModel(o Options, provider llmprovider.ProviderID) string {
 	if o.Existing.Provider == provider {
@@ -123,8 +132,9 @@ func existingModel(o Options, provider llmprovider.ProviderID) string {
 // chosen. A blank query offers the remaining recommended models and ends the
 // loop; a search round offers the matches and asks whether to search again.
 // The result is nil when no MultiSelect was shown, and non-nil (possibly empty)
-// once one was, which is the shape this function has always returned.
-func selectFallbacks(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, primary string) ([]string, error) {
+// once one was, which is the shape this function has always returned. The
+// saved fallbacks a round offers are preselected (0020-MADR F50).
+func selectFallbacks(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, primary string, saved []string) ([]string, error) {
 	var chosen []string
 	for {
 		exclude := excludedIDs(primary, chosen)
@@ -141,7 +151,7 @@ func selectFallbacks(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, 
 			if len(recs) == 0 {
 				return chosen, nil
 			}
-			idxs, err := p.MultiSelect(chooseFallbacksTitle, modelChoices(d.ID, recs), nil)
+			idxs, err := p.MultiSelect(chooseFallbacksTitle, modelChoices(d.ID, recs), indicesOf(recs, saved))
 			if err != nil {
 				return nil, fmt.Errorf("select fallbacks: %w", err)
 			}
@@ -154,11 +164,12 @@ func selectFallbacks(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, 
 			continue
 		}
 		shown := capMatches(p, matches)
-		idxs, err := p.MultiSelect(searchFallbacksTitle, matchChoices(shown), nil)
+		ids := matchIDs(shown)
+		idxs, err := p.MultiSelect(searchFallbacksTitle, matchChoices(shown), indicesOf(ids, saved))
 		if err != nil {
 			return nil, fmt.Errorf("select fallbacks: %w", err)
 		}
-		chosen = appendPicks(chosen, matchIDs(shown), idxs)
+		chosen = appendPicks(chosen, ids, idxs)
 		more, err := p.Confirm(moreFallbacksPrompt, false)
 		if err != nil {
 			return nil, fmt.Errorf("confirm more fallbacks: %w", err)
@@ -206,6 +217,18 @@ func appendPicks(chosen, ids []string, idxs []int) []string {
 		}
 	}
 	return chosen
+}
+
+// indicesOf returns the positions in models of the saved ids, compared
+// case-insensitively (MADR 0013 C6); nil when none is there.
+func indicesOf(models, saved []string) []int {
+	var out []int
+	for i, m := range models {
+		if slices.ContainsFunc(saved, func(s string) bool { return strings.EqualFold(s, m) }) {
+			out = append(out, i)
+		}
+	}
+	return out
 }
 
 // capMatches keeps the first maxSearchResults matches and says so when it

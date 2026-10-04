@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"golang.org/x/term"
 )
@@ -39,11 +40,23 @@ type TextPrompter struct {
 	// discard whatever the previous call buffered, silently losing input.
 	reader *bufio.Reader
 
+	// mu guards writeErr and the writes to Out: a sign-in's Notify can run
+	// while another goroutine waits in Input (0020-MADR F16).
+	mu sync.Mutex
+
 	// writeErr records the first failed write. A prompt whose output never
 	// reached the user must not be treated as answered, so every method that
 	// can return an error surfaces this rather than continuing blind.
 	writeErr error
+
+	// eof records that the input ended. The first read at the end still
+	// answers its prompt's default, which scripts rely on; a read after it is
+	// errExhausted, so a loop that asks again ends (0020-MADR F6).
+	eof bool
 }
+
+// errExhausted is a read after the input ended. It wraps io.EOF.
+var errExhausted = fmt.Errorf("wizard: input exhausted: %w", io.EOF)
 
 // NewTextPrompter returns a TextPrompter on stdin/stdout.
 func NewTextPrompter() *TextPrompter {
@@ -62,6 +75,8 @@ func (p *TextPrompter) out() io.Writer {
 // printf writes to the output, remembering the first failure. Subsequent
 // writes are skipped: once the terminal is gone, further output is noise.
 func (p *TextPrompter) printf(format string, args ...any) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.writeErr != nil {
 		return
 	}
@@ -72,6 +87,8 @@ func (p *TextPrompter) printf(format string, args ...any) {
 
 // flushErr returns and clears any recorded write failure.
 func (p *TextPrompter) flushErr() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	err := p.writeErr
 	p.writeErr = nil
 	return err
@@ -94,23 +111,39 @@ func (p *TextPrompter) inTTY() (*os.File, bool) {
 	return f, term.IsTerminal(int(f.Fd()))
 }
 
-// readLine reads one line. It returns io.EOF alongside any final partial line
-// so callers can distinguish "the user pressed enter on an empty prompt" from
-// "there is no more input" — without that distinction, a re-prompting loop
-// never terminates.
-func (p *TextPrompter) readLine() (string, error) {
+// bufReader is the reader kept across prompts.
+func (p *TextPrompter) bufReader() *bufio.Reader {
 	if p.reader == nil {
 		p.reader = bufio.NewReader(p.in())
 	}
-	line, err := p.reader.ReadString('\n')
+	return p.reader
+}
+
+// readLine reads one line. It returns io.EOF alongside any final partial line
+// so callers can distinguish "the user pressed enter on an empty prompt" from
+// "there is no more input" — without that distinction, a re-prompting loop
+// never terminates. Every read after that returns errExhausted.
+func (p *TextPrompter) readLine() (string, error) {
+	if p.eof {
+		return "", errExhausted
+	}
+	line, err := p.bufReader().ReadString('\n')
 	trimmed := strings.TrimSpace(line)
 	if errors.Is(err, io.EOF) {
+		p.eof = true
 		return trimmed, io.EOF
 	}
 	if err != nil {
 		return "", err
 	}
 	return trimmed, nil
+}
+
+// readFailed reports whether a readLine error ends the prompt: every error
+// but the first end of input, which answers with what was read, or with the
+// default.
+func readFailed(err error) bool {
+	return errors.Is(err, errExhausted) || err != nil && !errors.Is(err, io.EOF)
 }
 
 // Notify implements Prompter.
@@ -126,13 +159,18 @@ func (p *TextPrompter) Notify(level Level, format string, args ...any) {
 	p.printf("%s%s\n", prefix, fmt.Sprintf(format, args...))
 }
 
-func (p *TextPrompter) renderChoices(title string, choices []Choice) {
+// renderChoices prints the menu, marking the selected rows.
+func (p *TextPrompter) renderChoices(title string, choices []Choice, selected []int) {
 	p.printf("\n%s\n", title)
 	for i, c := range choices {
+		mark := ""
+		if slices.Contains(selected, i) {
+			mark = " (selected)"
+		}
 		if c.Detail != "" {
-			p.printf("  %d) %s — %s\n", i+1, c.Label, c.Detail)
+			p.printf("  %d) %s — %s%s\n", i+1, c.Label, c.Detail, mark)
 		} else {
-			p.printf("  %d) %s\n", i+1, c.Label)
+			p.printf("  %d) %s%s\n", i+1, c.Label, mark)
 		}
 	}
 }
@@ -146,10 +184,10 @@ func (p *TextPrompter) Select(title string, choices []Choice, defaultIdx int) (i
 		defaultIdx = 0
 	}
 	for {
-		p.renderChoices(title, choices)
+		p.renderChoices(title, choices, nil)
 		p.printf("Select [1-%d] (default %d): ", len(choices), defaultIdx+1)
 		line, err := p.readLine()
-		if err != nil && !errors.Is(err, io.EOF) {
+		if readFailed(err) {
 			return 0, err
 		}
 		exhausted := errors.Is(err, io.EOF)
@@ -169,21 +207,32 @@ func (p *TextPrompter) Select(title string, choices []Choice, defaultIdx int) (i
 
 // MultiSelect implements Prompter. Input is a comma-separated list of indices,
 // a repeated index counting once (MADR 0013 C1); an empty line accepts the
-// preselection.
+// preselection. A preselection is marked, and 0 clears it (0020-MADR F50).
 func (p *TextPrompter) MultiSelect(title string, choices []Choice, preselected []int) ([]int, error) {
 	if len(choices) == 0 {
 		return nil, nil
 	}
+	hint := "blank for none"
+	if len(preselected) > 0 {
+		numbers := make([]string, 0, len(preselected))
+		for _, i := range preselected {
+			numbers = append(numbers, strconv.Itoa(i+1))
+		}
+		hint = "blank keeps " + strings.Join(numbers, ",") + "; 0 for none"
+	}
 	for {
-		p.renderChoices(title, choices)
-		p.printf("Select any (comma-separated, e.g. 1,3; blank for none): ")
+		p.renderChoices(title, choices, preselected)
+		p.printf("Select any (comma-separated, e.g. 1,3; %s): ", hint)
 		line, err := p.readLine()
-		if err != nil && !errors.Is(err, io.EOF) {
+		if readFailed(err) {
 			return nil, err
 		}
 		exhausted := errors.Is(err, io.EOF)
 		if line == "" {
 			return preselected, p.flushErr()
+		}
+		if line == "0" && len(preselected) > 0 {
+			return []int{}, p.flushErr()
 		}
 		var out []int
 		ok := true
@@ -215,7 +264,7 @@ func (p *TextPrompter) Confirm(question string, def bool) (bool, error) {
 	}
 	p.printf("%s %s: ", question, hint)
 	line, err := p.readLine()
-	if err != nil && !errors.Is(err, io.EOF) {
+	if readFailed(err) {
 		return false, err
 	}
 	if wErr := p.flushErr(); wErr != nil {
@@ -239,7 +288,7 @@ func (p *TextPrompter) Input(prompt, def string) (string, error) {
 		p.printf("%s: ", prompt)
 	}
 	line, err := p.readLine()
-	if err != nil && !errors.Is(err, io.EOF) {
+	if readFailed(err) {
 		return "", err
 	}
 	if wErr := p.flushErr(); wErr != nil {
@@ -319,32 +368,93 @@ func (p *TextPrompter) secretOnce(prompt string) (string, error) {
 	}()
 
 	p.printf("%s: ", prompt)
+	return p.readMasked(prompt)
+}
+
+// readMasked reads one masked entry in raw mode, rune by rune, redrawing the
+// masked view after each change. It is split from the terminal so it is
+// testable without one. Raw mode does not translate output, so a line ends
+// with \r\n. The entry is trimmed, so a paste's spaces are not part of it
+// (0020-MADR F17, F18).
+func (p *TextPrompter) readMasked(prompt string) (string, error) {
+	if p.eof {
+		return "", errExhausted
+	}
+	r := p.bufReader()
 	var entered []rune
-	buf := make([]byte, 1)
 	for {
-		n, readErr := f.Read(buf)
-		if readErr != nil || n == 0 {
-			p.printf("\n")
-			return string(entered), readErr
+		c, _, readErr := r.ReadRune()
+		if readErr != nil {
+			return p.endMasked(entered, readErr)
 		}
-		switch b := buf[0]; b {
-		case '\r', '\n':
-			p.printf("\n")
-			return string(entered), nil
-		case 3: // Ctrl-C
-			p.printf("\n")
+		switch {
+		case c == '\r' || c == '\n':
+			// Enter sends \r. A paste may follow it with a \n, read with
+			// it: drop that, or it answers the next prompt. A \n not yet
+			// read is not waited for: it is the user's next Enter.
+			if c == '\r' && r.Buffered() > 0 {
+				if next, err := r.Peek(1); err == nil && next[0] == '\n' {
+					if _, err := r.Discard(1); err != nil {
+						return p.endMasked(entered, err)
+					}
+				}
+			}
+			p.printf("\r\n")
+			return strings.TrimSpace(string(entered)), nil
+		case c == 3: // Ctrl-C
+			p.printf("\r\n")
 			return "", fmt.Errorf("wizard: cancelled")
-		case 127, 8: // DEL, Backspace — remove one RUNE, not one byte
+		case c == 127 || c == 8: // DEL, Backspace — remove one rune
 			if len(entered) > 0 {
 				entered = entered[:len(entered)-1]
 			}
-		default:
-			if b < 32 { // other control bytes, incl. escape sequences
-				continue
+		case c == 0x1b: // a cursor or function key
+			if err := skipEscape(r); err != nil {
+				return p.endMasked(entered, err)
 			}
-			entered = append(entered, rune(b))
+			continue
+		case c < 32: // other control characters
+			continue
+		default:
+			entered = append(entered, c)
 		}
 		// Redraw the whole line so the revealed tail updates as it moves.
 		p.printf("\r\033[K%s: %s", prompt, renderSecret(entered))
 	}
+}
+
+// endMasked ends a masked entry on a read error, remembering the end of
+// input.
+func (p *TextPrompter) endMasked(entered []rune, err error) (string, error) {
+	if errors.Is(err, io.EOF) {
+		p.eof = true
+	}
+	p.printf("\r\n")
+	return strings.TrimSpace(string(entered)), err
+}
+
+// skipEscape consumes the rest of an escape sequence after ESC, so a cursor
+// or function key adds nothing to the entry: a CSI (ESC [, parameters, a
+// final byte in 0x40-0x7E) or an SS3 (ESC O and one byte). Any other
+// character after ESC, such as Alt with a key, is dropped with it.
+func skipEscape(r *bufio.Reader) error {
+	c, _, err := r.ReadRune()
+	if err != nil {
+		return err
+	}
+	switch c {
+	case '[':
+		for {
+			b, err := r.ReadByte()
+			if err != nil {
+				return err
+			}
+			if b >= 0x40 && b <= 0x7e {
+				return nil
+			}
+		}
+	case 'O':
+		_, err = r.ReadByte()
+	}
+	return err
 }

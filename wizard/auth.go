@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -43,29 +44,67 @@ type resolvedCredential struct {
 	organization string
 }
 
-// offeredAuthMethods returns the methods the caller can keep. Every method
-// needs somewhere to store its session except the API key, so without a
-// TokenStore only the API key is offered.
-func offeredAuthMethods(all []llmprovider.AuthMethod, haveStore bool) []llmprovider.AuthMethod {
+// offeredAuthMethods returns the methods the caller can keep. Without a
+// TokenStore, a method that saves a session is left out (0020-MADR F51).
+func offeredAuthMethods(d llmprovider.Descriptor, haveStore bool) []llmprovider.AuthMethod {
 	if haveStore {
-		return all
+		return d.AuthMethods
 	}
 	var keep []llmprovider.AuthMethod
-	for _, m := range all {
-		if m.ID == llmprovider.AuthAPIKey {
+	for _, m := range d.AuthMethods {
+		if !needsStore(d.ID, m.ID) {
 			keep = append(keep, m)
 		}
 	}
 	return keep
 }
 
+// needsStore reports whether method saves a session to the TokenStore. The
+// API key and the vendor CLI read-through save nothing, nor does a pasted
+// Grok key; a pasted OpenAI credential may be a ChatGPT access token, which
+// is saved.
+func needsStore(provider llmprovider.ProviderID, method llmprovider.AuthMethodID) bool {
+	switch method {
+	case llmprovider.AuthAPIKey, llmprovider.AuthImportVendorCLI:
+		return false
+	case llmprovider.AuthTokenStdin:
+		return provider == llmprovider.ProviderOpenAI
+	default:
+		return true
+	}
+}
+
+// existingMethod is the method menu's default: the method that made the
+// credential Existing names for d, else the first (0020-MADR F19).
+func existingMethod(methods []llmprovider.AuthMethod, d llmprovider.Descriptor, o Options) int {
+	if o.Existing.Provider != d.ID {
+		return 0
+	}
+	var want []llmprovider.AuthMethodID
+	switch o.Existing.Kind {
+	case CredAPIKey:
+		want = []llmprovider.AuthMethodID{llmprovider.AuthAPIKey}
+	case CredVendorCLI:
+		want = []llmprovider.AuthMethodID{llmprovider.AuthImportVendorCLI}
+	case CredOAuth:
+		want = []llmprovider.AuthMethodID{llmprovider.AuthBrowserOAuth, llmprovider.AuthDeviceCode}
+	}
+	for _, id := range want {
+		if i := slices.IndexFunc(methods, func(m llmprovider.AuthMethod) bool { return m.ID == id }); i >= 0 {
+			return i
+		}
+	}
+	return 0
+}
+
 func resolveCredential(
 	ctx context.Context,
 	p Prompter,
 	d llmprovider.Descriptor,
+	baseURL string,
 	o Options,
 ) (resolvedCredential, error) {
-	methods := offeredAuthMethods(d.AuthMethods, o.TokenStore != nil)
+	methods := offeredAuthMethods(d, o.TokenStore != nil)
 	if len(methods) == 0 || (len(methods) == 1 && methods[0].ID == llmprovider.AuthAPIKey) {
 		key, err := resolveAPIKey(p, d, o)
 		if err != nil {
@@ -78,11 +117,24 @@ func resolveCredential(
 		return staticCredential(kind, key), nil
 	}
 
+	// A saved session is offered first, whatever method made it (0020-MADR
+	// F19).
+	if session, keep, keepErr := keepExistingOAuth(ctx, p, d, o); keepErr != nil {
+		return resolvedCredential{}, keepErr
+	} else if keep {
+		cred := oauthCredential(session)
+		if d.ID == llmprovider.ProviderKilo {
+			cred.organization = o.Existing.Organization
+		}
+		return cred, nil
+	}
+
 	choices := make([]Choice, 0, len(methods))
 	for _, method := range methods {
 		choices = append(choices, Choice{Label: method.Label, Detail: method.Detail})
 	}
-	idx, err := p.Select(fmt.Sprintf("Choose how to authenticate with %s:", d.Label), choices, 0)
+	idx, err := choose(p, fmt.Sprintf("Choose how to authenticate with %s:", d.Label), choices,
+		existingMethod(methods, d, o))
 	if err != nil {
 		return resolvedCredential{}, fmt.Errorf("select authentication method: %w", err)
 	}
@@ -102,11 +154,6 @@ func resolveCredential(
 	}
 	switch method {
 	case llmprovider.AuthBrowserOAuth:
-		if session, keep, keepErr := keepExistingOAuth(ctx, p, d, o); keepErr != nil {
-			return resolvedCredential{}, keepErr
-		} else if keep {
-			return oauthCredential(session), nil
-		}
 		flow, drain := browserFlowOptions(p, o)
 		session, loginErr := loginBrowserOAuth(ctx, d.ID, flow)
 		drain()
@@ -116,9 +163,9 @@ func resolveCredential(
 		return saveOAuthCredential(ctx, o.TokenStore, d.ID, session)
 	case llmprovider.AuthDeviceCode:
 		if d.ID == llmprovider.ProviderKilo {
-			return resolveKiloDevice(ctx, p, d, o)
+			return resolveKiloDevice(ctx, p, d, baseURL, o)
 		}
-		session, loginErr := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p))
+		session, loginErr := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p, o))
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
 		}
@@ -130,16 +177,23 @@ func resolveCredential(
 
 // resolveVendorCLI uses a vendor CLI's login read-through: it checks the
 // file holds a live token, asks, and returns the path, never the tokens
-// (MADR 0012 §5.1). No TokenStore is needed.
+// (MADR 0012 §5.1). No TokenStore is needed. The path Existing names for d
+// comes first (0020-MADR F19).
 func resolveVendorCLI(
 	ctx context.Context,
 	p Prompter,
 	d llmprovider.Descriptor,
 	o Options,
 ) (resolvedCredential, error) {
-	path, err := vendorAuthPath(d.ID, o)
-	if err != nil {
-		return resolvedCredential{}, err
+	path := ""
+	if o.Existing.Provider == d.ID && o.Existing.Kind == CredVendorCLI {
+		path = o.Existing.VendorAuthPath
+	}
+	if path == "" {
+		var err error
+		if path, err = vendorAuthPath(d.ID, o); err != nil {
+			return resolvedCredential{}, err
+		}
 	}
 	session := &auth.VendorCLISession{Provider: d.ID, Path: path}
 	token, err := session.Token(ctx)
@@ -160,14 +214,17 @@ func resolveVendorCLI(
 // resolveKiloDevice runs Kilo's device login (0017-MADR D2). The token has no
 // refresh and no expiry: it is saved to the TokenStore, its only copy, and the
 // session is the Kilo credential (0016-MADR D11, A7). When the account
-// belongs to organizations, the user chooses one, or the personal account.
+// belongs to organizations, the user chooses one, or the personal account;
+// the one Existing names is the default. The profile is read from the
+// endpoint the user entered, with the caller's client (0020-MADR F19, F20).
 func resolveKiloDevice(
 	ctx context.Context,
 	p Prompter,
 	d llmprovider.Descriptor,
+	baseURL string,
 	o Options,
 ) (resolvedCredential, error) {
-	session, err := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p))
+	session, err := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p, o))
 	if err != nil {
 		return resolvedCredential{}, err
 	}
@@ -180,9 +237,13 @@ func resolveKiloDevice(
 	}
 	cred := oauthCredential(session)
 	var opts []llmprovider.Option
+	if baseURL != "" {
+		opts = append(opts, llmprovider.WithBaseURL(baseURL))
+	}
 	if o.HTTPClient != nil {
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
 	}
+	opts = append(opts, o.ProviderOptions...)
 	account, err := kiloProfile(ctx, session.Access, opts...)
 	if err != nil {
 		p.Notify(LevelWarn, "could not read the Kilo account's organizations (%v); using the personal account", err)
@@ -196,14 +257,18 @@ func resolveKiloDevice(
 	if account.HasPersonalAccount {
 		choices, ids = append(choices, Choice{Label: "Personal account"}), append(ids, "")
 	}
+	want := account.SelectedOrganizationID
+	if o.Existing.Provider == d.ID && o.Existing.Organization != "" {
+		want = o.Existing.Organization
+	}
 	defaultIdx := 0
 	for _, org := range account.Organizations {
-		if org.ID == account.SelectedOrganizationID {
+		if org.ID == want {
 			defaultIdx = len(ids)
 		}
 		choices, ids = append(choices, Choice{Label: org.Name, Detail: org.Role}), append(ids, org.ID)
 	}
-	idx, err := p.Select("Use Kilo as:", choices, defaultIdx)
+	idx, err := choose(p, "Use Kilo as:", choices, defaultIdx)
 	if err != nil {
 		return resolvedCredential{}, fmt.Errorf("select Kilo organization: %w", err)
 	}
@@ -224,8 +289,9 @@ func oauthCredential(session *auth.OAuthSession) resolvedCredential {
 }
 
 // keepExistingOAuth offers the session the store holds for d when Existing
-// names d as an OAuth credential. The store is the session's only copy
-// (0016-MADR A10); with none there, the user signs in again.
+// names d as an OAuth credential, before the method menu, whatever method
+// made it. The store is the session's only copy (0016-MADR A10); with none
+// there, the user signs in again.
 func keepExistingOAuth(
 	ctx context.Context,
 	p Prompter,
@@ -251,10 +317,23 @@ func keepExistingOAuth(
 		return nil, false, nil
 	}
 	session.Store = o.TokenStore
-	if err := auth.ValidateOAuthSession(session); err != nil {
+	if err := validateKept(d.ID, session); err != nil {
 		return nil, false, fmt.Errorf("wizard: the saved %s session cannot be kept (%w); sign in again", d.Label, err)
 	}
 	return session, true, nil
+}
+
+// validateKept checks that a saved session can be used again. A Kilo session
+// has no refresh token and never expires, so Kilo's rule is a token for Kilo
+// (0020-MADR F19); every other session must be refreshable.
+func validateKept(provider llmprovider.ProviderID, session *auth.OAuthSession) error {
+	if provider != llmprovider.ProviderKilo {
+		return auth.ValidateOAuthSession(session)
+	}
+	if session.Provider != llmprovider.ProviderKilo {
+		return fmt.Errorf("it is a %q session", session.Provider)
+	}
+	return nil
 }
 
 func resolveTokenStdin(
@@ -269,6 +348,9 @@ func resolveTokenStdin(
 	if err != nil {
 		return resolvedCredential{}, fmt.Errorf("enter credential: %w", err)
 	}
+	// A paste's spaces would make an API key look like an access token
+	// (0020-MADR F18).
+	value = strings.TrimSpace(value)
 	if d.ID == llmprovider.ProviderOpenAI && !strings.HasPrefix(value, "sk-") {
 		return saveAccessOnlyOpenAI(ctx, o, value)
 	}
@@ -293,8 +375,11 @@ func accessOnlyOpenAISession(access string) *auth.OAuthSession {
 	}
 }
 
-func oauthFlowOptions(p Prompter) auth.OAuthFlowOptions {
+// oauthFlowOptions is a sign-in's options: the caller's client, and the
+// device code shown through p (0020-MADR F20).
+func oauthFlowOptions(p Prompter, o Options) auth.OAuthFlowOptions {
 	return auth.OAuthFlowOptions{
+		HTTPClient: o.HTTPClient,
 		NotifyDevice: func(verificationURL, userCode string) {
 			p.Notify(LevelInfo, "Open %s and enter code %s", verificationURL, userCode)
 		},
@@ -310,7 +395,7 @@ const pasteCodePrompt = "Paste the redirected URL or authorization code if the b
 // prompt reads alongside it.
 func browserFlowOptions(p Prompter, o Options) (auth.OAuthFlowOptions, func()) {
 	paste := &pastePrompt{p: p, shown: make(chan struct{})}
-	flow := oauthFlowOptions(p)
+	flow := oauthFlowOptions(p, o)
 	flow.OpenURL = func(authorizeURL string) error {
 		paste.show(authorizeURL)
 		if o.OpenURL == nil {

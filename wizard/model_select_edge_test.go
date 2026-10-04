@@ -221,7 +221,7 @@ func TestConfigureLLM_FallbackSearchNoMatches(t *testing.T) {
 func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 	store := newMemoryTokenStore()
 	static := catalog.Static(llmprovider.ProviderGrok)
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}, confirms: []bool{true}}
+	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, confirms: []bool{true}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{
 			Provider:    llmprovider.ProviderGrok,
