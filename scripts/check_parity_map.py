@@ -11,7 +11,8 @@ Usage:
       Check the guide against the baseline. Fails on an identifier with no
       row, on a row for an identifier not in the baseline, and, with
       --require-equivalents (on from 0015-PLAN S11), on an empty
-      "SDK equivalent" cell.
+      "SDK equivalent" cell, or a Go name in one that the SDK does not
+      export (0020-MADR F56).
   scripts/check_parity_map.py generate MCPLIB_DIR
       Print the baseline for an mcplib checkout (run `go doc -all` on its
       llmprovider and wizard packages).
@@ -40,6 +41,11 @@ BLOCK_OPEN = re.compile(r"^(const|var) \($")
 SINGLE = re.compile(r"^(?:const|var) ([A-Z]\w*(?:, [A-Z]\w*)*)\b")
 MEMBER = re.compile(r"^\t([A-Z]\w*(?:, [A-Z]\w*)*)(?:\s|$|\()")
 ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|([^|]*)\|")
+SPAN = re.compile(r"`([^`]+)`")
+# A Go name in a span: an optional package, a name and an optional member,
+# then perhaps a call or a composite literal ("catalog.List(ctx, …)",
+# "APIError.Retryable()", "*APIError"). Another span is not a name.
+GO_NAME = re.compile(r"^\*?(?:([a-z]\w*)\.)?([A-Z]\w*(?:\.[A-Z]\w*)?)(?:[({].*)?$")
 
 
 def identifiers(doc: str, package: str) -> set[str]:
@@ -110,6 +116,46 @@ def rows(guide: str) -> dict[str, str]:
     return out
 
 
+def sdk_identifiers() -> dict[str, set[str]]:
+    """Each public SDK package's exported identifiers, keyed by the name code
+    uses for it (its last path element), from `go doc -all`."""
+    listed = subprocess.run(["go", "list", "./..."], cwd=ROOT, capture_output=True, text=True, check=False)
+    if listed.returncode != 0:
+        print(f"go list ./... failed:\n{listed.stderr}", file=sys.stderr)
+        sys.exit(2)
+    out: dict[str, set[str]] = {}
+    for path in listed.stdout.split():
+        if "/internal/" in path:
+            continue
+        doc = subprocess.run(["go", "doc", "-all", path], cwd=ROOT, capture_output=True, text=True, check=False)
+        if doc.returncode != 0:
+            print(f"go doc -all {path} failed:\n{doc.stderr}", file=sys.stderr)
+            sys.exit(2)
+        alias = path.rsplit("/", 1)[-1]
+        out.setdefault(alias, set()).update(n.split(".", 1)[1] for n in identifiers(doc.stdout, alias))
+    return out
+
+
+def unresolved(cell: str, sdk: dict[str, set[str]]) -> list[str]:
+    """The Go names in cell that the SDK does not export. A qualified name
+    must be in its package; an unqualified one in some package, where a bare
+    name may also be a type's method or field ("Generate", "Request.Tools")."""
+    missing = []
+    for span in SPAN.findall(cell):
+        m = GO_NAME.match(span.strip())
+        if not m:
+            continue
+        package, name = m.groups()
+        if package:
+            found = name in sdk.get(package, set())
+        else:
+            found = any(name in names or ("." not in name and any(n.endswith("." + name) for n in names))
+                        for names in sdk.values())
+        if not found:
+            missing.append(span)
+    return missing
+
+
 def check(require_equivalents: bool) -> int:
     baseline = {l.strip() for l in BASELINE.read_text(encoding="utf-8").splitlines() if l.strip()}
     mapped = rows(GUIDE.read_text(encoding="utf-8"))
@@ -117,6 +163,9 @@ def check(require_equivalents: bool) -> int:
     problems += [f"row for an identifier not in the baseline: {i}" for i in sorted(mapped.keys() - baseline)]
     if require_equivalents:
         problems += [f"empty SDK equivalent: {i}" for i in sorted(baseline & mapped.keys()) if not mapped[i]]
+        sdk = sdk_identifiers()
+        problems += [f"SDK equivalent of {i} names `{span}`, which the SDK does not export"
+                     for i in sorted(mapped) for span in unresolved(mapped[i], sdk)]
     for p in problems:
         print(f"G-parity: {p}", file=sys.stderr)
     filled = sum(1 for i in baseline if mapped.get(i))

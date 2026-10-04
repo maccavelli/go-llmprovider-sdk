@@ -147,12 +147,15 @@ before asking for a push. A coverage floor is changed only in
 Live tests call real services and are opt-in:
 
 ```bash
-go test -tags live_gateways ./llmprovider -run Live
+go test -tags live_gateways ./llmprovider/... -run Live
 ```
 
-Each suite is switched on by its own variable: `LLMPROVIDER_LIVE_CHATGPT`,
-`LLMPROVIDER_LIVE_BROWSER_LOGIN` (the ChatGPT and Grok browser logins),
-`LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok device-code login),
+`./llmprovider/...` includes the live tests in `auth` and `catalog`. A
+provider's live tests run when its key variable is set (`ProviderEnvVars()`),
+and skip without it. These suites are switched on by their own variable:
+`LLMPROVIDER_LIVE_CHATGPT`, `LLMPROVIDER_LIVE_BROWSER_LOGIN` (the ChatGPT and
+Grok browser logins), `LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok device-code
+login), `LLMPROVIDER_LIVE_OPENAI_SIGNIN` (the OpenAI sign-in probe),
 `LLMPROVIDER_LIVE_GROK_CLI`, `LLMPROVIDER_LIVE_TOGETHER` (with
 `TOGETHER_API_KEY`). The login tests need a person to sign in. CI only vets
 the live-tagged files (`go vet -tags live_gateways ./...`); it never runs them.

@@ -15,8 +15,9 @@ func TestConfigureLLM_KeepsFedRAMP(t *testing.T) {
 	store := newMemoryTokenStore()
 	f := &fakePrompter{
 		t:        t,
-		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI), 1},
+		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI)},
 		confirms: []bool{true},
+		inputs:   []string{acceptDefault},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{

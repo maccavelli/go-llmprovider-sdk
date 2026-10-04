@@ -38,9 +38,10 @@ const testKey = "sk-super-secret-key-1234"
 
 func TestConfigureLLM_EnvKeyPrecedence(t *testing.T) {
 	f := &fakePrompter{
-		t:        t,
-		selects:  []int{providerIdx(t, llmprovider.ProviderClaude), 0},
-		confirms: []bool{true}, // yes, use the env key
+		t:             t,
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		confirms:      []bool{true}, // yes, use the env key
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true,
 		LookupEnv: envOf(map[string]string{"ANTHROPIC_API_KEY": testKey})})
@@ -57,9 +58,10 @@ func TestConfigureLLM_EnvKeyPrecedence(t *testing.T) {
 
 func TestConfigureLLM_KeepExisting(t *testing.T) {
 	f := &fakePrompter{
-		t:        t,
-		selects:  []int{providerIdx(t, llmprovider.ProviderClaude), 0},
-		confirms: []bool{true}, // keep existing
+		t:             t,
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		confirms:      []bool{true}, // keep existing
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderClaude, APIKey: "existing-key-abcd"},
@@ -77,9 +79,10 @@ func TestConfigureLLM_KeepExisting(t *testing.T) {
 
 func TestConfigureLLM_PromptsWhenNothingAvailable(t *testing.T) {
 	f := &fakePrompter{
-		t:       t,
-		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
-		secrets: []string{testKey},
+		t:             t,
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		secrets:       []string{testKey},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true})
 	if err != nil {
@@ -143,9 +146,10 @@ func TestConfigureLLM_NoModelsAndNoneEnteredErrors(t *testing.T) {
 
 func TestConfigureLLM_EmptyDiscoveryFallsBackToStatic(t *testing.T) {
 	f := &fakePrompter{
-		t:       t,
-		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
-		secrets: []string{testKey},
+		t:             t,
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		secrets:       []string{testKey},
 	}
 	// The listing's client refuses every request, so the listing fails
 	// without reaching the network, and the static catalog must be offered
@@ -177,10 +181,11 @@ func TestConfigureLLM_EmptyDiscoveryFallsBackToStatic(t *testing.T) {
 
 func TestConfigureLLM_Fallbacks(t *testing.T) {
 	f := &fakePrompter{
-		t:            t,
-		selects:      []int{providerIdx(t, llmprovider.ProviderClaude), 0},
-		secrets:      []string{testKey},
-		multiSelects: [][]int{{0, 1}},
+		t:             t,
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		secrets:       []string{testKey},
+		multiSelects:  [][]int{{0, 1}},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{NeedFallbacks: true})
 	if err != nil {
@@ -201,9 +206,10 @@ func TestConfigureLLM_Fallbacks(t *testing.T) {
 // seen is checked against the raw key.
 func TestConfigureLLM_MaskedKeyNeverPrintsSecret(t *testing.T) {
 	f := &fakePrompter{
-		t:        t,
-		selects:  []int{providerIdx(t, llmprovider.ProviderClaude), 0},
-		confirms: []bool{true},
+		t:             t,
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		confirms:      []bool{true},
 	}
 	if _, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true,
 		LookupEnv: envOf(map[string]string{"ANTHROPIC_API_KEY": testKey})}); err != nil {
@@ -228,9 +234,10 @@ func TestConfigureLLM_MaskedKeyNeverPrintsSecret(t *testing.T) {
 // wizard current when this module adds a provider.
 func TestConfigureLLM_OffersEveryDescriptor(t *testing.T) {
 	f := &fakePrompter{
-		t:       t,
-		selects: []int{0, 0},
-		secrets: []string{testKey},
+		t:             t,
+		blankSearches: true,
+		selects:       []int{0, 0},
+		secrets:       []string{testKey},
 	}
 	if _, err := ConfigureLLM(context.Background(), f, Options{}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -252,7 +259,7 @@ func TestConfigureLLM_UsesTheRegistry(t *testing.T) {
 	if err := reg.Register(claude.Descriptor(), claude.New); err != nil {
 		t.Fatal(err)
 	}
-	f := &fakePrompter{t: t, selects: []int{0, 0}, secrets: []string{testKey}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{0, 0}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{Registry: reg})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -266,7 +273,7 @@ func TestConfigureLLM_UsesTheRegistry(t *testing.T) {
 }
 
 func TestConfigureLLM_ProviderFilter(t *testing.T) {
-	f := &fakePrompter{t: t, selects: []int{0, 0, 0}, secrets: []string{testKey}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{0, 0, 0}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Providers: []llmprovider.ProviderID{llmprovider.ProviderGrok},
 	})
@@ -316,9 +323,10 @@ func TestConfigureLLM_OtherModelEscapeHatch(t *testing.T) {
 // deterministically in their own tests without touching the real environment.
 func TestConfigureLLM_InjectedLookupEnv(t *testing.T) {
 	f := &fakePrompter{
-		t:        t,
-		selects:  []int{providerIdx(t, llmprovider.ProviderGemini), 0},
-		confirms: []bool{true},
+		t:             t,
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderGemini), 0},
+		confirms:      []bool{true},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		AllowEnv:  true,

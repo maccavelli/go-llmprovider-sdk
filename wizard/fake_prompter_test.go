@@ -5,6 +5,10 @@ import (
 	"testing"
 )
 
+// acceptDefault, scripted as an Input, presses Enter: Input returns the
+// prompt's default, as a real Prompter does (0020-MADR F59).
+const acceptDefault = "\x00accept the default"
+
 // fakePrompter is a scripted Prompter: it replays queued answers and records
 // every prompt it was shown. This is what makes ConfigureLLM testable with no
 // TTY — coverage none of the three existing wizards has today.
@@ -19,6 +23,10 @@ type fakePrompter struct {
 	confirms     []bool
 	inputs       []string
 	secrets      []string
+	// blankSearches answers an unscripted model or fallback search with a
+	// blank line, the recommended menu. Any other unscripted Input is an
+	// error (0020-MADR F59).
+	blankSearches bool
 
 	// Recorded for assertions.
 	seenSelect           []string   // titles
@@ -91,10 +99,16 @@ func (f *fakePrompter) Input(prompt, def string) (string, error) {
 	f.record(prompt)
 	f.record(def)
 	if len(f.inputs) == 0 {
-		return def, nil // an un-scripted Input accepts the default
+		if f.blankSearches && (prompt == searchModelsPrompt || prompt == searchFallbackPrompt) {
+			return "", nil
+		}
+		return "", fmt.Errorf("fakePrompter: unexpected Input(%q)", prompt)
 	}
 	v := f.inputs[0]
 	f.inputs = f.inputs[1:]
+	if v == acceptDefault {
+		return def, nil
+	}
 	return v, nil
 }
 

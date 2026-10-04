@@ -12,9 +12,10 @@ import (
 // the variable is never offered (codex login/src/auth/access_token.rs:1-14).
 func TestConfigureLLM_IgnoresCodexAccessTokenEnv(t *testing.T) {
 	f := &fakePrompter{
-		t:       t,
-		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 3, 0},
-		secrets: []string{testKey},
+		t:             t,
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderOpenAI), 3, 0},
+		secrets:       []string{testKey},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		AllowEnv:   true,

@@ -53,29 +53,29 @@ func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 		gemini := len(catalog.Static(llmprovider.ProviderGemini))
 		f := &fakePrompter{
 			t: t, selects: []int{providerIdx(t, llmprovider.ProviderGemini), gemini},
-			secrets: []string{testKey}, inputs: []string{""},
+			secrets: []string{testKey}, inputs: []string{"", acceptDefault},
 		}
 		res, err := ConfigureLLM(context.Background(), f, Options{Existing: saved})
-		if err == nil {
-			t.Errorf("Enter at Other saved provider=%s model=%q, want an error (no default from another provider)",
-				res.Provider, res.Model)
+		if err == nil || !strings.Contains(err.Error(), "no model entered") {
+			t.Errorf("Enter at Other saved provider=%s model=%q err=%v, want no model entered (no default from another provider)",
+				res.Provider, res.Model, err)
 		}
 	})
 	t.Run("other provider, no models found", func(t *testing.T) {
 		f := &fakePrompter{
 			t: t, selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
-			inputs: []string{"http://127.0.0.1:1"}, confirms: []bool{false},
+			inputs: []string{"http://127.0.0.1:1", acceptDefault}, confirms: []bool{false},
 		}
 		res, err := ConfigureLLM(context.Background(), f, Options{Existing: saved})
-		if err == nil {
-			t.Errorf("Enter at No models found saved provider=%s model=%q, want an error", res.Provider, res.Model)
+		if err == nil || !strings.Contains(err.Error(), "none entered") {
+			t.Errorf("Enter at No models found saved provider=%s model=%q err=%v, want none entered", res.Provider, res.Model, err)
 		}
 	})
 	t.Run("same provider keeps its model", func(t *testing.T) {
 		claude := len(catalog.Static(llmprovider.ProviderClaude))
 		f := &fakePrompter{
 			t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), claude + 1},
-			secrets: []string{testKey}, inputs: []string{""},
+			secrets: []string{testKey}, inputs: []string{"", acceptDefault},
 		}
 		res, err := ConfigureLLM(context.Background(), f, Options{
 			Existing: Result{Provider: llmprovider.ProviderClaude, Model: "my-model"},
@@ -165,7 +165,7 @@ func TestConfigureLLM_OllamaEmptyListing(t *testing.T) {
 // row: a saved model in the recommended list is the menu default.
 func TestConfigureLLM_DefaultRowIsExistingModel(t *testing.T) {
 	static := catalog.Static(llmprovider.ProviderClaude)
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 2}, secrets: []string{testKey}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 2}, secrets: []string{testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderClaude, Model: static[2]},
 	})
@@ -221,7 +221,7 @@ func TestConfigureLLM_FallbackSearchNoMatches(t *testing.T) {
 func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 	store := newMemoryTokenStore()
 	static := catalog.Static(llmprovider.ProviderGrok)
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, confirms: []bool{true}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, confirms: []bool{true}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{
 			Provider:    llmprovider.ProviderGrok,
@@ -257,7 +257,7 @@ func TestConfigureLLM_UnusableListingNotice(t *testing.T) {
 			Request:    r,
 		}, nil
 	})}
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}}
 	if _, err := ConfigureLLM(context.Background(), f, Options{Discover: true, HTTPClient: client}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}

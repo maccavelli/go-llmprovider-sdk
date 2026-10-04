@@ -53,7 +53,7 @@ func TestConfigureLLM_ProviderOptionsReachTheChatGPTProvider(t *testing.T) {
 			Body: io.NopCloser(strings.NewReader(`{"models":[{"slug":"gpt-6-astra","visibility":"list"}]}`))}, nil
 	})}
 	store := newMemoryTokenStore()
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 0}, confirms: []bool{true}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 0}, confirms: []bool{true}}
 	if _, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{Provider: llmprovider.ProviderOpenAI, Kind: CredOAuth,
 			TokenExpiry: time.Now().Add(time.Hour), Issuer: auth.DefaultOpenAIIssuer, ClientID: auth.DefaultOpenAIClientID},

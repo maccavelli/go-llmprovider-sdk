@@ -5,6 +5,10 @@ on:
     tags: ['v*']
   pull_request:
 
+# The job reads the repository and nothing else (0020-MADR F55).
+permissions:
+  contents: read
+
 jobs:
   validate:
     strategy:
@@ -22,6 +26,9 @@ jobs:
           go-version-file: go.mod
       - run: go mod download
       - run: go test ./...
+      - name: race detector (R44; 0020-MADR F27)
+        if: runner.os == 'Linux'
+        run: go test -race ./...
       - name: vet, gofmt, tidy, lint
         if: runner.os == 'Linux'
         run: |

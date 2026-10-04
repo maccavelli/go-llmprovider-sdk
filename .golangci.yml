@@ -98,20 +98,6 @@ linters:
           - goconst
         path: _test\.go
       - linters:
-          - errcheck
-          - gocognit
-          - goconst
-          - gocritic
-          - gocyclo
-          - gosec
-          - ineffassign
-          - nilerr
-          - revive
-          - staticcheck
-          - unparam
-          - unused
-        path: (ui\.go|analyzer\.go|client\.go|tui\.go|login\.go|main\.go|search\.go|git\.go|config\.go|index\.go|internal\.go|logs\.go|kibana\.go)
-      - linters:
           - godot
         text: Comment should end in a period
     paths:

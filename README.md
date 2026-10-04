@@ -105,18 +105,20 @@ functions over any provider, and `Stream` streams from every one.
   `ListModels` returns its listing. By default OpenAI (API key), Claude,
   Gemini, Grok and Ollama send one billed generation to each candidate and
   keep those that answer; `WithModelProbes(false)` turns that off.
-- **Ranking.** The recommended models of Kilo, OpenCode Zen and Go, and
-  Hugging Face are ranked by use case. The default profile,
+- **Ranking.** The recommended models of Kilo, OpenCode Zen and Go,
+  Hugging Face and Together are ranked by use case. The default profile,
   `catalog.ProfileUtility`, suits short, frequent tasks such as commit
-  messages. It recommends recent, paid, reasoning-capable models. It never
-  recommends one that its catalog marks as non-reasoning, free, expiring or
-  preview, nor Kilo's `kilo-auto/*` tiers, which a search still finds.
+  messages. It ranks recent, paid, reasoning-capable models first, at most
+  two per vendor, and leaves out those its catalog marks as non-reasoning,
+  free, expiring or preview. When fewer than six qualify, the list is filled
+  from the curated order, which can add such a model. Kilo's `kilo-auto/*`
+  tiers are never added under it, though a search still finds them.
   `catalog.WithProfile(catalog.ProfileCapable)`, or `wizard.Options.Profile`,
   ranks the strongest first instead. Kilo ranks from its own listing. The
   others read `https://models.opencode.ai/api.json`, cached for ten minutes;
   a failed fetch is not retried for a minute. `WithModelMetadataURL` points
   elsewhere, and `WithoutModelMetadata` turns the fetch off, which restores
-  the curated order for those three. `catalog.OptionsFromEnv()` maps
+  the curated order for those four. `catalog.OptionsFromEnv()` maps
   `LLMPROVIDER_MODELS_METADATA_URL` and
   `LLMPROVIDER_DISABLE_MODELS_METADATA=1` onto those options. Search still
   covers every usable model. For commit-message-sized work, ask for the
@@ -151,11 +153,13 @@ key.
   prompt's default; every later prompt fails, so a script that runs out of
   answers ends instead of looping.
 - With `Options.Discover`, it lists the provider's models once, within
-  10 seconds (`Options.DiscoverLimit` can shorten that, not extend it), and
-  asks for a search before each model menu. A blank search shows the
-  recommendations. A glob such as `kilo-auto/*` or `*llama*` matches whole
-  ids, and other queries match loosely. Scripts that drive the wizard answer
-  one extra, blank, line before each model and fallback selection.
+  10 seconds (`Options.DiscoverLimit` can shorten that, not extend it).
+  Without it, the built-in catalog is offered.
+- Before each model menu it asks for a search, with or without discovery.
+  A blank search shows the recommendations. A glob such as `kilo-auto/*` or
+  `*llama*` matches whole ids, and other queries match loosely. Scripts that
+  drive the wizard answer one extra, blank, line before each model and
+  fallback selection.
 - The menu is `Options.Registry`, every built-in provider when nil, so a
   provider of your own is offered once it is registered
   ([adding-a-provider.md](docs/guides/adding-a-provider.md)).

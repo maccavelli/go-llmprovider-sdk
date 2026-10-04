@@ -326,8 +326,10 @@ A provider in this module is all of the above, and:
   - `llmtest.Run` in the package (R44);
   - G-wire cases through `llmprovider/internal/wirecase`, whose goldens are
     recorded once with `-update` and cite the record that adds them (R45);
-  - a live test behind the `live_gateways` tag and its own
-    `LLMPROVIDER_LIVE_<ID>` variable (`AGENTS.md`, "Live tests");
+  - a live test behind the `live_gateways` tag that skips when the
+    provider's key variable is unset; a suite that is billed per call, or
+    needs a person, also takes its own `LLMPROVIDER_LIVE_<ID>` switch, as
+    Together's does (`AGENTS.md`, "Live tests");
   - 80 % coverage from the package's own tests (R47).
 - **The docs:** `docs/architecture.md` (the tree, the package table and the
   provider list) in the same change (R43).

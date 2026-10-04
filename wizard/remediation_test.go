@@ -44,6 +44,8 @@ type yesPrompter struct{ fakePrompter }
 
 func (y *yesPrompter) Confirm(string, bool) (bool, error) { return true, nil }
 
+func (y *yesPrompter) Input(_, def string) (string, error) { return def, nil }
+
 // TestConfigureLLM_EndpointLoopHonoursContext (0020-MADR F6).
 func TestConfigureLLM_EndpointLoopHonoursContext(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
@@ -145,7 +147,7 @@ func TestTextPrompter_EnterAfterMaskedEntryIsKept(t *testing.T) {
 // with a leading space is an API key, not an access-only session.
 func TestConfigureLLM_PastedKeyIsTrimmed(t *testing.T) {
 	store := newMemoryTokenStore()
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 3, 0}, secrets: []string{" " + testKey}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 3, 0}, secrets: []string{" " + testKey}}
 	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
 	if err != nil || res.Kind != CredAPIKey || res.APIKey != testKey || store.saves != 0 {
 		t.Errorf("Kind %q, APIKey %q, saves %d, err %v; want the trimmed key as an API key", res.Kind, res.APIKey, store.saves, err)
@@ -168,7 +170,8 @@ func TestConfigureLLM_KeepsAnySavedSession(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			store := newMemoryTokenStore()
 			store.sessions[c.provider] = c.session
-			f := &fakePrompter{t: t, selects: []int{providerIdx(t, c.provider), 0}, confirms: []bool{true}}
+			f := &fakePrompter{t: t, selects: []int{providerIdx(t, c.provider), 0}, confirms: []bool{true},
+				inputs: []string{acceptDefault}, blankSearches: true}
 			res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store,
 				Existing: Result{Provider: c.provider, Kind: CredOAuth, Organization: c.org, Model: "m-1"}})
 			if err != nil || res.Kind != CredOAuth || res.Organization != c.org || store.saves != 0 {
@@ -208,7 +211,7 @@ func TestConfigureLLM_KiloOrganizationDefaultsFromExisting(t *testing.T) {
 // TestConfigureLLM_VendorPathDefaultsFromExisting (0020-MADR F19).
 func TestConfigureLLM_VendorPathDefaultsFromExisting(t *testing.T) {
 	path := writeGrokCLILogin(t, t.TempDir())
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 4, 0}, confirms: []bool{true}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 4, 0}, confirms: []bool{true}}
 	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore(),
 		Existing: Result{Provider: llmprovider.ProviderGrok, Kind: CredVendorCLI, VendorAuthPath: path}})
 	if err != nil || res.VendorAuthPath != path {

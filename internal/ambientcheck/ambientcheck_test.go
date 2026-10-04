@@ -22,14 +22,32 @@ var globalLogging = map[string]bool{
 	"Default": true, "SetDefault": true, "SetLogLoggerLevel": true,
 }
 
+// globalLog names the log package's functions that use its process-global
+// logger (0020-MADR F25).
+var globalLog = map[string]bool{
+	"Print": true, "Printf": true, "Println": true, "Fatal": true, "Fatalf": true, "Fatalln": true,
+	"Panic": true, "Panicf": true, "Panicln": true, "Output": true, "Writer": true, "Default": true,
+	"SetOutput": true, "SetFlags": true, "SetPrefix": true, "Flags": true, "Prefix": true,
+}
+
+// ambientOS names os reads of the environment that no function may make:
+// the home directory and $VAR expansion (0020-MADR F25).
+var ambientOS = map[string]bool{"UserHomeDir": true, "ExpandEnv": true}
+
+// sharedHTTP names net/http's process-wide client and transport, which a
+// provider must not use: the client has no timeout, and either shares state
+// across callers (0016-MADR D8; 0020-MADR F25).
+var sharedHTTP = map[string]bool{"DefaultClient": true, "DefaultTransport": true}
+
 // proxyHome is the one package allowed http.ProxyFromEnvironment: the default
 // transport (0016-MADR D8).
 const proxyHome = "llmprovider/internal/transport"
 
 // TestNoAmbientState (0015-MADR D9): library code reads the environment only
 // inside an exported function whose name ends in FromEnv, takes the proxy from
-// the environment only in the default transport, and never uses the global
-// logger.
+// the environment only in the default transport, never reads the home
+// directory or expands $VAR, never uses net/http's shared client or
+// transport, and never uses a global logger.
 func TestNoAmbientState(t *testing.T) {
 	findings, err := scan(moduleRoot)
 	if err != nil {
@@ -96,9 +114,19 @@ func fileFindings(fset *token.FileSet, rel string, file *ast.File) []string {
 				if (sel.Sel.Name == "Getenv" || sel.Sel.Name == "LookupEnv" || sel.Sel.Name == "Environ") && !allowedEnv {
 					findings = append(findings, at+": os."+sel.Sel.Name+" outside an exported ...FromEnv function")
 				}
+				if ambientOS[sel.Sel.Name] {
+					findings = append(findings, at+": os."+sel.Sel.Name+" reads ambient state")
+				}
 			case "net/http":
 				if sel.Sel.Name == "ProxyFromEnvironment" && !strings.HasPrefix(rel, proxyHome+"/") {
 					findings = append(findings, at+": http.ProxyFromEnvironment outside "+proxyHome)
+				}
+				if sharedHTTP[sel.Sel.Name] {
+					findings = append(findings, at+": http."+sel.Sel.Name+" is shared by the process")
+				}
+			case "log":
+				if globalLog[sel.Sel.Name] {
+					findings = append(findings, at+": log."+sel.Sel.Name+" uses the global logger")
 				}
 			case "log/slog":
 				if globalLogging[sel.Sel.Name] {

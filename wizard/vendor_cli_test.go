@@ -37,7 +37,7 @@ func TestConfigureLLM_VendorLoginReadsThrough(t *testing.T) {
 	dir := t.TempDir()
 	writeGrokCLILogin(t, dir)
 	store := newMemoryTokenStore()
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 4, 0}, confirms: []bool{true}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 4, 0}, confirms: []bool{true}}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		TokenStore: store,
 		LookupEnv: func(name string) string {
@@ -63,7 +63,7 @@ func TestConfigureLLM_VendorLoginReadsThrough(t *testing.T) {
 func TestConfigureLLM_VendorLoginHonoursGrokAuthPath(t *testing.T) {
 	path := writeGrokCLILogin(t, t.TempDir())
 	emptyHome := t.TempDir()
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 4, 0}, confirms: []bool{true}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 4, 0}, confirms: []bool{true}}
 	_, err := ConfigureLLM(context.Background(), f, Options{
 		TokenStore: newMemoryTokenStore(),
 		LookupEnv: func(name string) string {

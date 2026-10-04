@@ -7,8 +7,9 @@
 // Authorization as a bearer token, or in its own Header (R16).
 //
 // Only POST {base}/chat/completions is used. The wire shapes are from
-// Together's API reference, read 2026-09-30; llmprovider's live tests are
-// written to confirm them against the service, and have not run yet.
+// Together's API reference, read 2026-09-30, and llmprovider's live tests
+// confirmed them on 2026-10-03: text, a named tool, "none", both reasoning
+// shapes and the listing (172 chat models) pass (0017-PLAN, V2).
 //
 // Capabilities: tools, forced tool choice and reasoning are BestEffort, as
 // support is per model on Together (0017-MADR D1). Continuation is

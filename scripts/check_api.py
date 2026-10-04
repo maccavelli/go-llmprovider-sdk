@@ -30,7 +30,10 @@ ROOT = Path(__file__).resolve().parent.parent
 MODULE = "github.com/maccavelli/go-llmprovider-sdk"
 APIDIFF = "golang.org/x/exp/cmd/apidiff@v0.0.0-20260908205506-85c1c2202aba"
 RELEASE = re.compile(r"^v1\.(\d+)\.(\d+)$")
-EXPERIMENTAL = "./llmprovider/x/"
+# A change under llmprovider/x/, as apidiff -m names it: an identifier
+# ("./llmprovider/x/demo.Gone: removed") or a whole package ("package
+# <module>/llmprovider/x/demo: removed") (0020-MADR F54).
+EXPERIMENTAL = re.compile(r"^(?:\./|package " + re.escape(MODULE) + r"/)llmprovider/x[/.:]")
 
 
 def run(args: list[str], cwd: Path, binary: bool = False) -> str | bytes:
@@ -62,9 +65,9 @@ def main() -> int:
         run(["go", "run", APIDIFF, "-m", "-w", str(new), MODULE], ROOT)
         out = run(["go", "run", APIDIFF, "-m", "-incompatible", str(old), str(new)], ROOT)
     changes = [line[2:] for line in out.splitlines() if line.startswith("- ")]
-    breaking = [c for c in changes if not c.startswith(EXPERIMENTAL)]
+    breaking = [c for c in changes if not EXPERIMENTAL.match(c)]
     for c in changes:
-        print(f"api-check: incompatible{' (experimental, allowed)' if c.startswith(EXPERIMENTAL) else ''}: {c}")
+        print(f"api-check: incompatible{' (experimental, allowed)' if EXPERIMENTAL.match(c) else ''}: {c}")
     print(f"api-check: against {tag}, {len(breaking)} incompatible change(s) outside llmprovider/x/")
     return 1 if breaking else 0
 

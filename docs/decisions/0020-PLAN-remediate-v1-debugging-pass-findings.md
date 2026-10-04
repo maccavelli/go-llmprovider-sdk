@@ -735,3 +735,176 @@ check.
   removed tool blocks used. They were deleted. The rerun passes all 17 checks, `generate-check`, `make lint` with `GOOS=windows`, and the transport tests under `GOARCH=amd64`. The precheck reports `359 file(s) clean`, and `coverage-check` `27 packages, 0 problem(s)`.
 * **Live.** None run. F23's capture above is this phase's only live step;
   its region and credit bodies are open.
+
+### Phase 6: tooling and docs (2026-10-03)
+
+* **F25.**
+  * **Red:** `TestFileFindings_Planted` parses a planted file. On the old
+    check it reported only the control `os.Getenv`, and `no finding for`
+    `http.DefaultClient`, `http.DefaultTransport`, `os.UserHomeDir`,
+    `os.ExpandEnv` and `log.Printf`.
+  * **Fix:** three sets of selectors in `fileFindings`:
+    * `os.UserHomeDir` and `os.ExpandEnv`;
+    * `http.DefaultClient` and `http.DefaultTransport`;
+    * the `log` package's functions that use its global logger.
+  * **The real cases:** the new check, run on the tree before phases 3 and
+    4 (`9cb924f`, in the scratchpad), fails on exactly the two the MADR
+    names. They are `catalog/discovery.go:415: http.DefaultClient` and
+    `wizard/import.go:33: os.UserHomeDir`. The tree now passes.
+* **F26.**
+  * **Red,** on a scratch copy: an unchecked `os.Remove` planted in
+    `catalog/config.go`. With the exclusion, there was no `errcheck`
+    finding on `config.go`. Without it: `config.go:153:30: Error return
+    value of os.Remove is not checked (errcheck)`.
+  * **Fix:** the fleet-wide filename exclusion is deleted. `make lint`
+    (host and Windows) is clean without it, as the MADR measured.
+* **F27, F55.**
+  * **Before:** `ci.yml` had no `-race` and no `permissions:`.
+  * **Fix:** a Linux step runs `go test -race ./...`, and the workflow has
+    `permissions: contents: read`.
+  * **Check:** `ci.yml` parsed with PyYAML; the race step and the
+    permissions were asserted. CI itself runs at the next push.
+* **F53.** The Makefile's install hint pins `v2.13.1`, as CI and
+  `go-precheck.sh` do.
+* **F54.**
+  * **Red,** in a scratch clone. A `v1.0.1` tag on a tree object (nothing
+    committed) holds `llmprovider/x/demo`, and the working tree removes it.
+    `check_api.py` exited 1 with `incompatible: package
+    github.com/maccavelli/go-llmprovider-sdk/llmprovider/x/demo: removed`.
+  * **Fix:** one pattern covers both apidiff forms, the identifier
+    (`./llmprovider/x/…`) and the package (`package <module>/llmprovider/x/…`).
+    The same clone then exits 0, with `incompatible (experimental,
+    allowed)`. Five planted strings test the pattern, including
+    `llmprovider/xyz`, which stays breaking. `make api-check` is clean.
+* **F56.**
+  * **Fix, script first:** with `--require-equivalents`, `parity-check`
+    resolves each backticked Go name in the SDK-equivalent column. It
+    checks the name against every public package's `go doc -all`, read
+    with the script's own parser:
+    * a qualified name must be in its package;
+    * an unqualified one must be in some package;
+    * a bare name may be a type's method or field (`Generate`,
+      `ListModels`).
+  * **Red:** on the unchanged guide it found exactly the seven
+    `RankModel(…)` rows, `7 problem(s)`.
+  * **Guide:** the rows name `catalog.Rank(…)`, and the OpenCode row's
+    broken backticks are mended. The check reports `409 identifiers, 409
+    rows, 409 with an SDK equivalent, 0 problem(s)`.
+  * **Planted cells** (`catalog.NoSuch(x)`, `nosuchpkg.Rank`, `NoSuchName`)
+    are flagged; valid ones are not.
+* **F57.**
+  * `AGENTS.md`: the live command is `./llmprovider/...`, which reaches
+    `auth`'s and `catalog`'s `TestLive_*`. It says a provider's live tests
+    run when its key variable is set, and it lists
+    `LLMPROVIDER_LIVE_OPENAI_SIGNIN`.
+  * The guide no longer claims a variable per provider. Only a suite that
+    is billed per call or needs a person takes one, as Together's does.
+  * `go vet -tags live_gateways ./llmprovider/...` is clean.
+* **F58.**
+  * README's Ranking bullet names Together and states the fill rule: at
+    most two per vendor, then a fill from the curated order, which can add
+    a free or preview model. Only `kilo-auto/*` is never added under the
+    utility profile. "Those three" is now four.
+  * Together's package doc gives the live results of 0017-PLAN V2.
+  * The `kilo-auto/free` label drops "★ Recommended".
+* **F59.**
+  * **The fake:** an unscripted `Input` is an error.
+    * `blankSearches` lets a test answer the model and fallback searches
+      with a blank line.
+    * `acceptDefault`, scripted, presses Enter: it returns the prompt's
+      default, as `TextPrompter` does.
+  * **Red:** 45 tests failed on the strict fake. 43 hit a search prompt,
+    and the others an endpoint, "No models found" or "Model id" default.
+  * **Updated, each listed.** No assertion was loosened.
+    * 38 opt in to `blankSearches`:
+    * `TestConfigureLLM_APIKeyKindUnchanged`
+    * `TestConfigureLLM_AnthropicKeyOnly`
+    * `TestConfigureLLM_BlankSearchShowsRecommended`
+    * `TestConfigureLLM_BrowserAndDevicePersistSessions`
+    * `TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt`
+    * `TestConfigureLLM_BrowserOAuthSetsInputCode`
+    * `TestConfigureLLM_ChatGPTNoStaticNotice`
+    * `TestConfigureLLM_CurrentModelListed`
+    * `TestConfigureLLM_CurrentModelOnlyForSameProvider`
+    * `TestConfigureLLM_DefaultRowIsExistingModel`
+    * `TestConfigureLLM_DoesNotOfferClaudeOAuth`
+    * `TestConfigureLLM_EmptyDiscoveryFallsBackToStatic`
+    * `TestConfigureLLM_EnvKeyPrecedence`
+    * `TestConfigureLLM_Fallbacks`
+    * `TestConfigureLLM_IgnoresCodexAccessTokenEnv`
+    * `TestConfigureLLM_InjectedLookupEnv`
+    * `TestConfigureLLM_KeepExisting`
+    * `TestConfigureLLM_KeepsTheStoredSession`
+    * `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog`
+    * `TestConfigureLLM_MaskedKeyNeverPrintsSecret`
+    * `TestConfigureLLM_NoStaticNoticeWithoutDiscover`
+    * `TestConfigureLLM_NoStoredSessionSignsIn`
+    * `TestConfigureLLM_OffersEveryDescriptor`
+    * `TestConfigureLLM_PastedKeyIsTrimmed`
+    * `TestConfigureLLM_PromptsWhenNothingAvailable`
+    * `TestConfigureLLM_ProviderFilter`
+    * `TestConfigureLLM_ProviderOptionsReachTheChatGPTProvider`
+    * `TestConfigureLLM_StaticCatalogNotice`
+    * `TestConfigureLLM_StoredSessionLeavesNoTokenInResult`
+    * `TestConfigureLLM_ThirdPartyFallsBackToStatic`
+    * `TestConfigureLLM_ThirdPartyListsThroughItsLister`
+    * `TestConfigureLLM_TokenStdinClassification`
+    * `TestConfigureLLM_UnusableListingNotice`
+    * `TestConfigureLLM_UsesTheRegistry`
+    * `TestConfigureLLM_VendorLoginHonoursGrokAuthPath`
+    * `TestConfigureLLM_VendorLoginReadsThrough`
+    * `TestConfigureLLM_VendorPathDefaultsFromExisting`
+    * `TestSelectFallbacks_ReturnShape`
+    * Seven script an answer the lenient fake supplied:
+      * `TestConfigureLLM_ChatGPTResultDoesNotPopulateAPIKey` and
+        `TestConfigureLLM_KeepsFedRAMP` accept the saved model. Their
+        stray method answer, unused since F19 put the keep question first,
+        is gone.
+      * `TestConfigureLLM_KiloListsTheChosenOrganization` and
+        `TestConfigureLLM_KiloDeviceLogin` accept the endpoint default,
+        then search blank.
+      * `TestConfigureLLM_KeepsAnySavedSession` accepts the default for
+        OpenAI's model and for Kilo's endpoint.
+      * `TestConfigureLLM_OtherDefaultsOnlyToSameProvider` presses Enter
+        at Other and at "No models found". Its two error cases now assert
+        the error they expect, "no model entered" and "none entered", so
+        they cannot pass on the fake's own error.
+      * `TestConfigureLLM_EndpointLoopHonoursContext`: `yesPrompter`
+        answers every `Input` with its default, as its doc says.
+    * `TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt` scripts the
+      Enter its paste read gets.
+  * **Diagnostic,** on a scratch copy where an unexpected `Input` also
+    fails the test. Six tests still reach one. Each discards
+    `ConfigureLLM`'s result by design and asserts only on earlier prompts:
+    * `NoTokenStoreOffersStorelessMethods`;
+    * `MethodMenuDefaultsFromExisting`;
+    * `KiloOrganizationDefaultsFromExisting`;
+    * `LoginUsesTheCallersClient`;
+    * `KiloProfileGetsTheEndpoint`;
+    * `NoStoreStillOffersStorelessMethods`.
+
+    None relies on the fake's error to pass.
+  * **README:** the search sentence has its own bullet: the search runs
+    with or without `Options.Discover`.
+* **Gate.** All 17 checks pass, with `generate-check`. The precheck reports
+  `366 file(s) clean`, and `coverage-check` `27 packages, 0 problem(s)`.
+  markdownlint is clean on `README.md`, `AGENTS.md`, the guides and
+  `docs/architecture.md` (V4).
+
+### Status after phase 6 (2026-10-03)
+
+All six phases are committed. The PLAN stays `in-progress` because V3 is
+not met in full. These items are open, and each waits on something outside
+the code:
+
+* **OpenAI's live `Response.Model`** (V3, phase 2). The OpenAI key answers
+  `429 credit_balance_exhausted`; it waits for credits.
+* **The ChatGPT reasoning replay** (V3, phase 2; F24). It needs the
+  owner's ChatGPT session.
+* **F23's region and credit bodies.** Gemini's `FAILED_PRECONDITION` and
+  Anthropic's credit refusal cannot be produced on demand. They wait for a
+  capture; until then those answers keep their status-only kinds.
+
+When they are met, the PLAN is `complete`, and the release is `v1.1.0`
+(Rollout). Phase 5 changed no golden; its wire changes (F40's "none"
+without `tool_choice`) are covered by unit tests, not by G-wire.

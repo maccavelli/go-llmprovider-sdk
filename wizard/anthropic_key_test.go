@@ -17,7 +17,7 @@ func TestConfigureLLM_AnthropicKeyOnly(t *testing.T) {
 	}
 	env := func(vals map[string]string) func(string) string { return func(k string) string { return vals[k] } }
 
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{"typed-key"}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{"typed-key"}}
 	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true,
 		LookupEnv: env(map[string]string{"CLAUDE_API_KEY": testKey})})
 	if err != nil || res.APIKey != "typed-key" || len(f.seenConfirm) != 0 {
@@ -25,7 +25,7 @@ func TestConfigureLLM_AnthropicKeyOnly(t *testing.T) {
 			res.APIKey, f.seenConfirm, err)
 	}
 
-	f = &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, confirms: []bool{true}}
+	f = &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, confirms: []bool{true}}
 	res, err = ConfigureLLM(context.Background(), f, Options{AllowEnv: true,
 		LookupEnv: env(map[string]string{"ANTHROPIC_API_KEY": testKey})})
 	if err != nil || res.APIKey != testKey || len(f.seenSecret) != 0 {

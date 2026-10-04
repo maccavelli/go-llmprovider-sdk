@@ -33,8 +33,9 @@ func TestConfigureLLM_ChatGPTResultDoesNotPopulateAPIKey(t *testing.T) {
 	store := newMemoryTokenStore()
 	f := &fakePrompter{
 		t:        t,
-		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI), 1},
+		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI)},
 		confirms: []bool{true},
+		inputs:   []string{acceptDefault},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{
@@ -74,7 +75,7 @@ func TestConfigureLLM_APIKeyKindUnchanged(t *testing.T) {
 			selects := []int{providerIdx(t, test.provider)}
 			selects = append(selects, test.selections...)
 			selects = append(selects, 0)
-			f := &fakePrompter{t: t, selects: selects, secrets: []string{testKey}}
+			f := &fakePrompter{t: t, blankSearches: true, selects: selects, secrets: []string{testKey}}
 			res, err := ConfigureLLM(context.Background(), f, Options{})
 			if err != nil {
 				t.Fatalf("ConfigureLLM() error = %v", err)
@@ -88,9 +89,10 @@ func TestConfigureLLM_APIKeyKindUnchanged(t *testing.T) {
 
 func TestConfigureLLM_DoesNotOfferClaudeOAuth(t *testing.T) {
 	f := &fakePrompter{
-		t:       t,
-		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
-		secrets: []string{testKey},
+		t:             t,
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		secrets:       []string{testKey},
 	}
 	if _, err := ConfigureLLM(context.Background(), f, Options{}); err != nil {
 		t.Fatalf("ConfigureLLM() error = %v", err)
@@ -149,9 +151,10 @@ func TestConfigureLLM_TokenStdinClassification(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store := newMemoryTokenStore()
 			f := &fakePrompter{
-				t:       t,
-				selects: []int{providerIdx(t, test.provider), 3, 0},
-				secrets: []string{test.secret},
+				t:             t,
+				blankSearches: true,
+				selects:       []int{providerIdx(t, test.provider), 3, 0},
+				secrets:       []string{test.secret},
 			}
 			if test.wantKind == CredOAuth {
 				f.inputs = []string{"chatgpt-model"}
@@ -216,7 +219,7 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store := newMemoryTokenStore()
-			f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), test.authIdx, 0}}
+			f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), test.authIdx, 0}}
 			res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
 			if err != nil {
 				t.Fatalf("ConfigureLLM() error = %v", err)
@@ -398,7 +401,7 @@ func TestConfigureLLM_BrowserOAuthSetsInputCode(t *testing.T) {
 		return testOAuthSession(provider), nil
 	})
 	opened := 0
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}}
+	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}}
 	_, err := ConfigureLLM(context.Background(), f, Options{
 		TokenStore: newMemoryTokenStore(),
 		OpenURL:    func(string) error { opened++; return nil },
@@ -426,7 +429,9 @@ func TestConfigureLLM_BrowserOAuthSetsInputCode(t *testing.T) {
 // for that read before its next prompt, so two reads never share the input.
 func TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt(t *testing.T) {
 	p := &drainPrompter{
-		fakePrompter: &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}},
+		// The paste read is answered by Enter, as the notice asks.
+		fakePrompter: &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0},
+			inputs: []string{""}},
 		inputStarted: make(chan struct{}),
 		release:      make(chan struct{}),
 	}

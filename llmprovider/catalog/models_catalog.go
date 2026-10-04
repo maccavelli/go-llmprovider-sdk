@@ -705,7 +705,7 @@ var modelLabels = map[string]string{
 	"grok-4-fast-reasoning": "Grok 4 Fast Reasoning  [fast reasoning tier]",
 
 	// Gateway managed tiers
-	"kilo-auto/free":      "Kilo Auto Free         [★ Recommended: no cost, gateway-selected]",
+	"kilo-auto/free":      "Kilo Auto Free         [no cost, gateway-selected]",
 	"kilo-auto/small":     "Kilo Auto Small        [cheapest managed tier]",
 	"kilo-auto/efficient": "Kilo Auto Efficient    [cost-optimised]",
 	"kilo-auto/balanced":  "Kilo Auto Balanced     [default quality tier]",
