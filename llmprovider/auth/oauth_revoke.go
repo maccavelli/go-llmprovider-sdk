@@ -46,12 +46,17 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 		client = transport.DefaultClient()
 	}
 
+	// Revocation goes to the session's own issuer only; a provider without
+	// it sends nothing (0020-MADR F45).
 	var req *http.Request
 	var err error
-	if strings.TrimRight(state.issuer, "/") == DefaultOpenAIIssuer {
+	switch {
+	case state.provider == llmprovider.ProviderOpenAI || strings.TrimRight(state.issuer, "/") == DefaultOpenAIIssuer:
 		req, err = openAIRevokeRequest(ctx, state, token, hint)
-	} else {
+	case state.provider == llmprovider.ProviderGrok:
 		req, err = grokRevokeRequest(ctx, state, client, token, hint)
+	default:
+		return fmt.Errorf("oauth: revoke: %s sessions have no revocation: %w", state.provider, errors.ErrUnsupported)
 	}
 	if err != nil {
 		return err
@@ -72,6 +77,9 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 // URL (revoke.rs:134-150), else the issuer's.
 func openAIRevokeRequest(ctx context.Context, state oauthSessionState, token, hint string) (*http.Request, error) {
 	endpoint := DefaultOpenAIIssuer + "/oauth/revoke"
+	if issuer := strings.TrimRight(state.issuer, "/"); issuer != "" {
+		endpoint = issuer + "/oauth/revoke"
+	}
 	if state.tokenURL != "" {
 		u, err := url.Parse(state.tokenURL)
 		if err != nil {

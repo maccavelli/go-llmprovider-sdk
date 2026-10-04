@@ -35,6 +35,11 @@ type Harness struct {
 	ToolCall func(w http.ResponseWriter, r *http.Request, tool string)
 	// Error writes the service's error reply with the given status.
 	Error func(w http.ResponseWriter, r *http.Request, status int)
+	// NoReauth, when set, says why the R16 reauth check does not apply: for
+	// example, the credential New is given decides the provider's mode, so
+	// the check's own token source would build a different provider. Empty
+	// runs the check.
+	NoReauth string
 }
 
 // Run checks the provider h builds against the contract. Each check is a
@@ -46,6 +51,9 @@ type Harness struct {
 //   - cancellation (R40);
 //   - status-to-kind classification (R25, R26);
 //   - identity headers (R44; 0012-MADR §1.4);
+//   - a refused token renewed once: an HTTP 401 invalidates an
+//     llmprovider.InvalidatingSource and the request is sent once more (R16;
+//     0017-MADR D3; 0020-MADR F2);
 //   - the Response invariants (R7, R9);
 //   - concurrent use (R20), which the race detector checks.
 func Run(t *testing.T, h Harness) {
@@ -98,6 +106,7 @@ func runChecks(r reporter, h Harness) {
 	r.Run("R40-cancellation", func(r reporter) { checkCancellation(r, h) })
 	r.Run("R25-R26-classification", func(r reporter) { checkClassification(r, h) })
 	r.Run("R44-identity", func(r reporter) { checkIdentity(r, h) })
+	r.Run("R16-reauth", func(r reporter) { checkReauth(r, h) })
 	r.Run("R7-R9-response", func(r reporter) { checkResponse(r, h) })
 	r.Run("R20-concurrency", func(r reporter) { checkConcurrency(r, h) })
 }
@@ -461,5 +470,81 @@ func checkConcurrency(r reporter, h Harness) {
 		if err != nil {
 			r.Errorf("R20 (concurrent use): a concurrent Generate failed: %v", err)
 		}
+	}
+}
+
+const (
+	// reauthRefused and reauthFresh are the tokens checkReauth's source hands
+	// out before and after it is invalidated.
+	reauthRefused = "llmtest-refused-token"
+	reauthFresh   = "llmtest-fresh-token"
+	// reauthHeader is the header the source names, so every provider sends
+	// the token, even one that sends none of its own (R16).
+	reauthHeader = "X-Llmtest-Credential"
+)
+
+// renewableToken is an InvalidatingSource: it hands out reauthRefused until
+// it is invalidated, then reauthFresh.
+type renewableToken struct {
+	mu          sync.Mutex
+	invalidated int
+}
+
+func (s *renewableToken) Token(context.Context) (llmprovider.Token, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.invalidated > 0 {
+		return llmprovider.Token{Value: reauthFresh, Header: reauthHeader}, nil
+	}
+	return llmprovider.Token{Value: reauthRefused, Header: reauthHeader}, nil
+}
+
+func (s *renewableToken) Invalidate() {
+	s.mu.Lock()
+	s.invalidated++
+	s.mu.Unlock()
+}
+
+func (s *renewableToken) invalidations() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.invalidated
+}
+
+// carries reports whether any of req's headers, or its query, holds value.
+func carries(req *http.Request, value string) bool {
+	for _, values := range req.Header {
+		for _, v := range values {
+			if strings.Contains(v, value) {
+				return true
+			}
+		}
+	}
+	return strings.Contains(req.URL.RawQuery, value)
+}
+
+func checkReauth(r reporter, h Harness) {
+	r.Helper()
+	if h.NoReauth != "" {
+		return
+	}
+	src := &renewableToken{}
+	fs := serve(func(w http.ResponseWriter, req *http.Request) {
+		if carries(req, reauthRefused) {
+			h.Error(w, req, http.StatusUnauthorized)
+			return
+		}
+		h.Text(w, req)
+	})
+	defer fs.Close()
+	p := build(r, h, fs, llmprovider.WithTokenSource(src))
+	if p == nil {
+		return
+	}
+	_, err := generate(r, p, textRequest())
+	if err != nil || src.invalidations() != 1 || fs.count.Load() != 2 {
+		r.Errorf("R16 (a refused token is renewed once; 0017-MADR D3): after a 401, %d invalidation(s) and %d request(s), error %v; "+
+			"want the source invalidated once and the request sent once more, with the fresh token",
+			src.invalidations(), fs.count.Load(), err)
 	}
 }

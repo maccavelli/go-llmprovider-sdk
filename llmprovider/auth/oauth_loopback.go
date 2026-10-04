@@ -493,13 +493,17 @@ func oauthCallbackHandler(path, state string, result chan<- oauthCallbackResult,
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		if request.Method != http.MethodGet {
+			w.Header().Set("Allow", "GET, OPTIONS")
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		query := request.URL.Query()
 		if !callbackStateMatches(query.Get("state"), state) {
+			// Not this login's callback: any page the user has open can send
+			// one. It is refused, and the login keeps waiting (0020-MADR
+			// F44, Q7 a, replacing 0008-MADR D5's state-mismatch branch).
 			http.Error(w, "State mismatch", http.StatusBadRequest)
-			select {
-			case result <- oauthCallbackResult{err: errors.New("oauth: callback state mismatch")}:
-			default:
-			}
 			return
 		}
 		if authErr := callbackError(query); authErr != nil {
@@ -585,7 +589,9 @@ func parseOAuthInput(input, expectedState string) (string, error) {
 	parsed, err := url.Parse(input)
 	if err == nil && parsed.Scheme != "" {
 		query := parsed.Query()
-		if receivedState := query.Get("state"); receivedState != "" && !callbackStateMatches(receivedState, expectedState) {
+		// A pasted URL must carry this login's state; only a bare code skips
+		// the check (0020-MADR F44).
+		if !callbackStateMatches(query.Get("state"), expectedState) {
 			return "", errors.New("oauth: callback state mismatch")
 		}
 		if authErr := callbackError(query); authErr != nil {

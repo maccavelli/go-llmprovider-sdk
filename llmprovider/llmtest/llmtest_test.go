@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,12 +25,14 @@ type flaws struct {
 	skipCheck      bool // never calls Capabilities.Check
 	misclassify429 bool // reports a 429 as an unavailable service
 	racy           bool // counts calls without a lock
+	noReauth       bool // never renews a refused token
 }
 
 // refProvider is a small conformant provider over a JSON wire: it POSTs
 // {"text","tool"} and reads {"text"} or {"call":{"name","arguments"}}.
 type refProvider struct {
 	baseURL   string
+	src       llmprovider.TokenSource
 	client    *http.Client
 	userAgent string
 	flaws     flaws
@@ -50,7 +53,11 @@ func newRef(f flaws) func(string, ...llmprovider.Option) (llmprovider.Provider, 
 		if err != nil {
 			return nil, err
 		}
-		return &refProvider{baseURL: baseURL, client: st.HTTPClient(), userAgent: st.UserAgent(), flaws: f}, nil
+		src := st.TokenSource()
+		if src == nil {
+			src = llmprovider.NewStaticToken("reference-key")
+		}
+		return &refProvider{baseURL: baseURL, src: src, client: st.HTTPClient(), userAgent: st.UserAgent(), flaws: f}, nil
 	}
 }
 
@@ -70,6 +77,21 @@ func (p *refProvider) Generate(ctx context.Context, req *llmprovider.Request) (*
 	if p.flaws.ignoreCancel {
 		ctx = context.Background()
 	}
+	resp, err := p.generateOnce(ctx, req)
+	var apiErr *llmprovider.APIError
+	if p.flaws.noReauth || err == nil || !errors.As(err, &apiErr) || apiErr.Status != http.StatusUnauthorized {
+		return resp, err
+	}
+	source, ok := p.src.(llmprovider.InvalidatingSource)
+	if !ok {
+		return resp, err
+	}
+	source.Invalidate()
+	return p.generateOnce(ctx, req)
+}
+
+// generateOnce sends req once, with a token fetched for this send.
+func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	tool, _ := req.ToolChoice.Tool()
 	body, err := json.Marshal(map[string]string{"text": req.Input[0].(llmprovider.MessageItem).Text, "tool": tool})
 	if err != nil {
@@ -80,6 +102,11 @@ func (p *refProvider) Generate(ctx context.Context, req *llmprovider.Request) (*
 		return nil, err
 	}
 	httpReq.Header.Set("User-Agent", p.userAgent)
+	token, err := p.src.Token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	token.Apply(httpReq, "Authorization", "Bearer")
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
 		return nil, err
@@ -191,6 +218,7 @@ func TestRun_NamesTheBrokenRule(t *testing.T) {
 		{"sends an unsupported need", flaws{skipCheck: true}, "R10-R11-capabilities: R11 (refusal before the network): a request needing continuation"},
 		{"skips validation", flaws{skipCheck: true}, "R23-invalid-values: R23 (invalid values): a negative MaxOutputTokens"},
 		{"misclassifies a 429", flaws{misclassify429: true}, "R25-R26-classification: R25 (errors by kind): HTTP 429"},
+		{"never renews a refused token", flaws{noReauth: true}, "R16-reauth: R16 (a refused token is renewed once"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rec := newRecorder()
@@ -322,4 +350,18 @@ func (canned) Capabilities() llmprovider.Capabilities { return llmprovider.Capab
 
 func (c canned) Generate(context.Context, *llmprovider.Request) (*llmprovider.Response, error) {
 	return c.gen()
+}
+
+// TestRun_NoReauthSkipsTheCheck (0020-MADR F2): a Harness that says why the
+// reauth check does not apply is not held to it.
+func TestRun_NoReauthSkipsTheCheck(t *testing.T) {
+	h := refHarness(flaws{noReauth: true})
+	h.NoReauth = "the credential decides the mode"
+	rec := newRecorder()
+	runChecks(rec, h)
+	for _, msg := range rec.failures() {
+		if strings.HasPrefix(msg, "R16-reauth:") {
+			t.Fatalf("the skipped check still reported %q", msg)
+		}
+	}
 }

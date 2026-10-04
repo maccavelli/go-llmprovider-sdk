@@ -49,6 +49,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 )
 
@@ -211,6 +212,13 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err := p.Capabilities().Check(req); err != nil {
 		return nil, err
 	}
+	// A 401 renews an InvalidatingSource's token and sends once more
+	// (0020-MADR F2).
+	return wire.Reauth(p.src, func() (*llmprovider.Response, error) { return p.generateOnce(ctx, req) })
+}
+
+// generateOnce sends req once, with a token fetched for this send.
+func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	token, err := p.src.Token(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("llmprovider: kilo: acquire token: %w", err)

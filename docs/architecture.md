@@ -262,6 +262,8 @@ for a session, from the store.
   only the other providers' catalogs.
 - **After a 401** a provider invalidates any `InvalidatingSource` and retries
   once: a `CommandToken` reruns its command, and an `OAuthSession` refreshes.
+  Every built-in provider does it through `internal/wire`'s `Reauth`, and
+  `llmtest` checks it (0020-MADR F2).
 - **Sessions are `auth`'s.** A provider gives a session with no HTTP client
   its own through `OAuthSession.UseHTTPClient`, so refreshes share the
   provider's transport.

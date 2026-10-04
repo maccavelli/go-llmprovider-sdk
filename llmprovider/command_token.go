@@ -37,6 +37,10 @@ type tokenFuture struct {
 	done chan struct{}
 	tok  Token
 	err  error
+	// abandoned reports that the run ended because the caller that started it
+	// gave up: a waiter whose own context is live runs the command itself
+	// (0020-MADR F14).
+	abandoned bool
 }
 
 // CommandToken is a TokenSource whose token is the standard output of a
@@ -83,6 +87,9 @@ func (c *CommandToken) Token(ctx context.Context) (Token, error) {
 		c.mu.Unlock()
 		select {
 		case <-future.done:
+			if future.abandoned && ctx.Err() == nil {
+				return c.Token(ctx)
+			}
 			return future.tok, future.err
 		case <-ctx.Done():
 			return Token{}, ctx.Err()
@@ -102,6 +109,7 @@ func (c *CommandToken) Token(ctx context.Context) (Token, error) {
 		future.tok = c.cachedToken()
 	}
 	future.err = err
+	future.abandoned = err != nil && ctx.Err() != nil
 	c.inflight = nil
 	close(future.done)
 	c.mu.Unlock()

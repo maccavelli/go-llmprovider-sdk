@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // revokeCapture records the revoke request a stub issuer received.
@@ -73,7 +75,7 @@ func TestRevokeOAuthSession_OpenAIAccessOnly(t *testing.T) {
 // discovered revocation_endpoint.
 func TestRevokeOAuthSession_GrokUsesDiscovery(t *testing.T) {
 	srv, c := revokeIssuer(t, true)
-	err := RevokeOAuthSession(context.Background(), &OAuthSession{Access: "a", Refresh: "rt", Issuer: srv.URL,
+	err := RevokeOAuthSession(context.Background(), &OAuthSession{Provider: llmprovider.ProviderGrok, Access: "a", Refresh: "rt", Issuer: srv.URL,
 		ClientID: "grok-client", HTTPClient: srv.Client()})
 	if err != nil || c.path != "/oauth2/revoke" || c.form.Get("token") != "rt" ||
 		c.form.Get("token_type_hint") != "refresh_token" || c.form.Get("client_id") != "grok-client" {
@@ -85,7 +87,7 @@ func TestRevokeOAuthSession_GrokUsesDiscovery(t *testing.T) {
 // revocation_endpoint is unsupported, and nothing is sent.
 func TestRevokeOAuthSession_GrokWithoutEndpoint(t *testing.T) {
 	srv, c := revokeIssuer(t, false)
-	err := RevokeOAuthSession(context.Background(), &OAuthSession{Access: "a", Refresh: "rt", Issuer: srv.URL,
+	err := RevokeOAuthSession(context.Background(), &OAuthSession{Provider: llmprovider.ProviderGrok, Access: "a", Refresh: "rt", Issuer: srv.URL,
 		ClientID: "grok-client", HTTPClient: srv.Client()})
 	if !errors.Is(err, errors.ErrUnsupported) || c.path != "" {
 		t.Fatalf("err = %v after request %q; want ErrUnsupported and none", err, c.path)

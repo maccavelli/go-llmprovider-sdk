@@ -166,7 +166,10 @@ In this order:
 7. **After a 401,** if the source is an `llmprovider.InvalidatingSource`,
    close the reply, call `Invalidate`, and send the request once more. Build
    it again, with a new body reader and a fresh `Token`: the first send has
-   read the body.
+   read the body. A built-in provider does this with
+   `wire.Reauth(p.src, send)` from `llmprovider/internal/wire`, around a
+   `generateOnce` that fetches its token on every call. `llmtest` checks
+   it (`R16-reauth`; 0020-MADR F2).
 8. **Decode the reply** into a `*llmprovider.Response`. Bound what you read,
    with `io.LimitReader`.
    - `Output` holds `MessageItem{Role: llmprovider.RoleAssistant, Text: …}`,

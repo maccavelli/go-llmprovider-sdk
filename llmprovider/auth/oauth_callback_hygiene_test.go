@@ -33,9 +33,21 @@ func TestOAuthCallback_AcceptsLifeSciencesSuffix(t *testing.T) {
 }
 
 // TestOAuthCallback_OnlyTheExactSuffix: any other suffix is still a mismatch.
+// A mismatch is refused and the login keeps waiting (0020-MADR F44, Q7 a).
 func TestOAuthCallback_OnlyTheExactSuffix(t *testing.T) {
 	for _, state := range []string{"expected-state.onboarding_entrypoint=other", "expected-statex", "other" + lifeSciencesState[len("expected-state"):]} {
-		assertCallbackCompletesWithError(t, "code=abc&state="+state, "state mismatch")
+		result := make(chan oauthCallbackResult, 1)
+		recorder := httptest.NewRecorder()
+		oauthCallbackHandler("/callback", "expected-state", result, "").ServeHTTP(recorder, httptest.NewRequest(
+			http.MethodGet, "http://127.0.0.1/callback?code=abc&state="+state, http.NoBody))
+		if recorder.Code != http.StatusBadRequest {
+			t.Errorf("callback(state %q) = %d, want 400", state, recorder.Code)
+		}
+		select {
+		case got := <-result:
+			t.Errorf("callback(state %q) ended the login with %+v; a mismatch must not", state, got)
+		default:
+		}
 		if _, err := parseOAuthInput("http://localhost/cb?code=abc&state="+state, "expected-state"); err == nil ||
 			!strings.Contains(err.Error(), "state mismatch") {
 			t.Errorf("parseOAuthInput(state %q) = %v, want a state mismatch", state, err)

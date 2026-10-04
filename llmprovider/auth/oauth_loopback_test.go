@@ -99,30 +99,6 @@ func TestBuildAuthorizeURL_OpenAIContract(t *testing.T) {
 	}
 }
 
-func TestOAuthCallback_RejectsStateMismatch(t *testing.T) {
-	t.Parallel()
-
-	result := make(chan oauthCallbackResult, 1)
-	handler := oauthCallbackHandler("/callback", "expected-state", result, "")
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(
-		http.MethodGet,
-		"http://127.0.0.1/callback?code=secret&state=wrong-state",
-		http.NoBody,
-	))
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("callback status = %d, want 400", recorder.Code)
-	}
-	select {
-	case callback := <-result:
-		if callback.err == nil || !strings.Contains(callback.err.Error(), "state mismatch") {
-			t.Fatalf("callback result = %#v, want state-mismatch error", callback)
-		}
-	default:
-		t.Fatal("mismatched state did not complete the waiter")
-	}
-}
-
 func TestListenLoopbackBothFamilies_LocalhostDials(t *testing.T) {
 	held, port := listenOnFreePort(t)
 	closeListener(t, held)

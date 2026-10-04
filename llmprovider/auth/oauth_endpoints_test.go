@@ -26,7 +26,8 @@ func TestFillOAuthEndpoints(t *testing.T) {
 }
 
 // TestRefreshTokenURL: a session's own token URL wins; otherwise OpenAI's
-// issuer refreshes at /oauth/token, and any other issuer at Grok's endpoint.
+// issuer refreshes at /oauth/token and xAI's at Grok's endpoint. Any other
+// issuer is TestOAuthSession_UnknownIssuerNeverRefreshesAtXAI (0020-MADR F45).
 func TestRefreshTokenURL(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -38,8 +39,8 @@ func TestRefreshTokenURL(t *testing.T) {
 		{"OpenAI", oauthSessionState{issuer: DefaultOpenAIIssuer + "/"}, DefaultOpenAIIssuer + "/oauth/token"},
 		{"Grok", oauthSessionState{issuer: DefaultGrokOAuthIssuer}, defaultGrokOAuthRefreshURL},
 	} {
-		if got := refreshTokenURL(tc.state); got != tc.want {
-			t.Errorf("%s: refreshTokenURL = %q, want %q", tc.name, got, tc.want)
+		if got, err := refreshTokenURL(tc.state); err != nil || got != tc.want {
+			t.Errorf("%s: refreshTokenURL = %q, %v; want %q", tc.name, got, err, tc.want)
 		}
 	}
 }

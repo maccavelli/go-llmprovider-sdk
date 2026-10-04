@@ -59,4 +59,8 @@ type tokenFuture struct {
 	done chan struct{}
 	tok  llmprovider.Token
 	err  error
+	// abandoned reports that the refresh ended because the caller that
+	// started it gave up: a waiter whose own context is live refreshes itself
+	// (0020-MADR F14).
+	abandoned bool
 }

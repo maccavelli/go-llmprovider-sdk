@@ -29,18 +29,33 @@ var (
 	// Group 1 is the optional "Authorization:" label to preserve. The greedy
 	// credential class is what fixes the prior leftmost-match leak where the JWT
 	// following "Bearer" was emitted in cleartext.
-	reAuth = regexp.MustCompile(`(?i)((?:authorization\s*[:=]\s*)?)(?:bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{8,}`)
+	reAuth = regexp.MustCompile(`(?i)((?:authorization\s*[:=]\s*)?)(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]{4,}|((?:authorization\s*[:=]\s*)?)token\s+[A-Za-z0-9._~+/=-]{8,}`)
 
-	// reKV matches key=value / "key": "value" secret assignments. Group 1 is the
-	// key name + separator (+ optional quote) to preserve; the value is redacted.
-	reKV = regexp.MustCompile(`(?i)(\b(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?key|client[_-]?secret|token|authorization)\b["']?\s*[:=]\s*["']?)[^"'\s,}]{4,}`)
+	// reKV matches key=value / "key": "value" secret assignments, in JSON
+	// (escaped or not), form bodies and headers. Group 1 is the key name +
+	// separator (+ optional quote) to preserve; the value is redacted. Any
+	// name ending in token (refresh_token, id_token) counts (0020-MADR F8).
+	reKV = regexp.MustCompile(`(?i)(\b(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?key|client[_-]?secret|(?:[a-z]+[_-])*token|authorization|cookie|code[_-]?verifier|device[_-]?code)\b\\?["']?\s*[:=]\s*\\?["']?)[^"'\\\s,}&]{4,}`)
+
+	// reKVLong is reKV for the bare names code and key, whose values are
+	// redacted only from 8 characters, so a short diagnostic such as
+	// "error code: 1102" stays readable (0020-MADR F8).
+	reKVLong = regexp.MustCompile(`(?i)(\b(?:code|key)\b\\?["']?\s*[:=]\s*\\?["']?)[^"'\\\s,}&]{8,}`)
+
+	// reKiloToken matches Kilo's URL-prefixed token, "{backend URL}:{secret}"
+	// (internal/kiloendpoint); the URL is kept, the secret redacted.
+	reKiloToken = regexp.MustCompile(`(https?://[^\s:@/]+(?::\d+)?(?:/[^\s:@]*)?):[A-Za-z0-9._~=-]{16,}`)
 
 	// reToken matches standalone, self-identifying secrets; the whole match is
 	// redacted. Vendor prefixes stay case-sensitive (they are issued literals);
 	// the legacy keyword prefixes are matched case-insensitively to preserve the
 	// original behavior.
 	reToken = regexp.MustCompile(strings.Join([]string{
-		`eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`,                      // JWT
+		`eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`,                      // JWT, signed or not
+		`\bsk-[A-Za-z0-9_-]{16,}`,                                                // OpenAI, Anthropic (sk-ant-), OpenRouter (sk-or-)
+		`\bxai-[A-Za-z0-9_-]{16,}`,                                               // xAI
+		`\btgp_[A-Za-z0-9_-]{16,}`,                                               // Together
+		`\bhf_[A-Za-z0-9]{16,}`,                                                  // Hugging Face
 		`\b(?:AKIA|ASIA|AGPA|AIDA|AROA|ANPA|ANVA)[0-9A-Z]{16}\b`,                 // AWS access key id
 		`\bgh[posru]_[A-Za-z0-9]{20,}\b`,                                         // GitHub token
 		`\bgithub_pat_[A-Za-z0-9_]{20,}\b`,                                       // GitHub fine-grained PAT
@@ -62,10 +77,16 @@ func Redact(p []byte) []byte {
 		p = append(p[:maxRedactBytes:maxRedactBytes], marker...)
 	}
 	if reAuth.Match(p) {
-		p = reAuth.ReplaceAll(p, []byte("${1}[REDACTED]"))
+		p = reAuth.ReplaceAll(p, []byte("${1}${2}[REDACTED]"))
 	}
 	if reKV.Match(p) {
 		p = reKV.ReplaceAll(p, []byte("${1}[REDACTED]"))
+	}
+	if reKVLong.Match(p) {
+		p = reKVLong.ReplaceAll(p, []byte("${1}[REDACTED]"))
+	}
+	if reKiloToken.Match(p) {
+		p = reKiloToken.ReplaceAll(p, []byte("${1}:[REDACTED]"))
 	}
 	if reDSN.Match(p) {
 		p = reDSN.ReplaceAll(p, []byte("${1}[REDACTED]@"))

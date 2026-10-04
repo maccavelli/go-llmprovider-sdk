@@ -211,3 +211,99 @@ check.
 ## Execution record
 
 *Approved 2026-10-03 by the owner: "plan is approved, proceed."*
+
+### Phase 1: credentials (2026-10-03)
+
+* **F1.** `TestOAuthSession_FailedSaveNeverReusesSpentRefresh`.
+  * Red, on the unchanged code: `second Token = "", llmprovider: authentication failed: oauth: refresh failed: 400 Bad Request: {"error":"invalid_grant","error_description":"refresh_token_reused"}`, and `refresh tokens sent = [old-refresh old-refresh], want [old-refresh refresh-1]`.
+  * Fix: `oauthSessionState.spent` carries the session's `spentRefresh` into the refresh; `loadRotated` never adopts a stored refresh token equal to it.
+  * Green, and `go test -race ./llmprovider/auth` passes.
+* **F12.** `TestFileTokenStore_StaleLockHasOneTaker` and `TestFileTokenStore_UnlockKeepsSuccessorsLock`.
+  * A seam, `lockBeforeTakeover`, pauses a waiter between judging the lock stale and taking it.
+  * Red, on `HEAD`'s lock logic with only the seam added: `the second waiter also holds the lock: two holders`; `the stalled holder's unlock removed its successor's lock: … no such file or directory`.
+  * Fix (Q4 a):
+    * the lock file holds an owner token (pid, `crypto/rand` text, time);
+    * a stale lock is taken over through `removeLockIfHeld`, which moves the file to a unique name, removes it only if it still holds the token judged stale, and otherwise puts it back (a hard link, so it never overwrites a newer lock);
+    * the heartbeat touches only a lock it still holds;
+    * unlock uses `removeLockIfHeld` with its own token.
+  * Green, and `-race` passes.
+  * **Test correction.** The first version of the one-taker test set `staleAfter` (200 ms) below the waiter's wait (300 ms) with heartbeats off. The first holder's fresh lock then went legitimately stale during the wait, and the test failed on the fixed code. `staleAfter` is now 10 s. The red was re-run with this timing, on `HEAD`'s logic, and fails as above.
+* **F14.** `TestCommandToken_WaiterOutlivesLeaderCancel` and `TestOAuthSession_WaiterOutlivesLeaderCancel`.
+  * Red, on the unchanged code: `waiter Token = "", context canceled; want a token: only the leader was cancelled`, from both.
+  * Fix: each package's `tokenFuture` gains `abandoned`, set when the run failed and the leader's own ctx had ended. A waiter whose ctx is live runs the fetch again itself. A command that times out on its own is still shared.
+  * Green. `-race` on `./llmprovider` and `./llmprovider/auth` passes.
+  * **Test hang.** The first OAuth test's handler blocked on `r.Context().Done()`, which never fired, so cleanup hung on `srv.Close()`. The stuck test process was stopped. The handler now also waits on a `release` channel that cleanup closes first. The red was re-shown on `HEAD` with that test: `oauth_session_leader_test.go:63: waiter Token = "", context canceled`.
+* **F2.** A new `llmtest` check, `R16-reauth`.
+  * The check's token source hands out a refused token until it is invalidated. Its tokens name their own header (`X-Llmtest-Credential`), so every provider sends them, Ollama included (R16).
+  * Red, on the unchanged providers: Claude, Gemini (both variants), Hugging Face, Kilo, Ollama, OpenCode (`zen-chat`, `go-messages`) and Together each report `R16 (a refused token is renewed once; 0017-MADR D3): after a 401, 0 invalidation(s) and 1 request(s)`. Grok and OpenAI pass.
+  * **Check design, before the fix:**
+    * A first version used an untyped token, and Ollama sends no credential without a named header. Naming the header covers Ollama.
+    * OpenAI's ChatGPT variant gets its mode from the session, so the check's own source would build an API-key provider. `Harness.NoReauth`, a new field and additive, records why the check does not apply there. `TestOpenAI_OAuth401RetriesOnceAfterRefresh` already covers that session's 401.
+  * Fix: `wire.Reauth` (`llmprovider/internal/wire/reauth.go`). Every provider's `Generate` now calls `generateOnce` through it, and OpenAI's and Grok's own `invalidate` copies are gone. A Kilo device session's renewal answers `ErrAuthFailure` (0017-MADR D2), which is returned.
+  * `TestReauth` covers the helper's six paths; the package is at 100.0%.
+  * `llmtest`'s reference provider now sends its token and reruns once. A `noReauth` flaw shows the check catching it (`TestRun_NamesTheBrokenRule`), and `TestRun_NoReauthSkipsTheCheck` shows the skip.
+  * Green: every provider package passes, G-wire included. `llmtest` passes under `-race`, at 95.3%. Together's red was re-shown on `HEAD`'s `together.go`.
+* **F8.** `TestRedact_ProviderKeysAndTokenFields` (20 cases) and `TestRedact_KeepsDiagnostics`.
+  * Red, on the unchanged patterns: all 20 cases fail. The unsigned-JWT sample first began with "token", which the existing `Token` pattern caught, so it was reworded to test the JWT pattern itself, and then failed too. `KeepsDiagnostics` passes before and after.
+  * Fix:
+    * `sk-` (covering `sk-ant-` and `sk-or-`), `xai-`, `tgp_` and `hf_`;
+    * a JWT whose signature is empty;
+    * every name ending in `token`, plus `cookie`, `code_verifier` and `device_code`;
+    * escaped quotes, and `&` ends a value;
+    * the bare names `code` and `key` from 8 characters only (`reKVLong`), so `error code: 1102` stays readable;
+    * Kilo's `{url}:{secret}` (`reKiloToken`);
+    * `Bearer` and `Basic` from 4 characters.
+  * **Test catch.** The first Kilo pattern allowed `/` in the secret, and `TestRedact_KeepsDiagnostics` caught it redacting `http://localhost:11434/v1/…`. The secret's class no longer has `/`.
+  * Green: `internal/redact` at 100.0%, and `go test ./...` passes.
+* **F44.** `TestOAuthCallback_StrayRequestKeepsWaiting`, `TestOAuthCallback_RefusesOtherMethods` and `TestParseOAuthInput_PastedURLNeedsState`.
+  * Red, on the unchanged code:
+    * `GET http://127.0.0.1/callback ended the login …; a stray request must not`;
+    * `DELETE = 200, want 405` (POST and PUT the same), and `a refused method ended the login with … code:"abc"`;
+    * `a pasted URL without state = "attacker-code", <nil>`.
+  * Fix (Q7 a):
+    * a state mismatch gets 400 and the login keeps waiting;
+    * any method but GET and OPTIONS gets 405, with `Allow: GET, OPTIONS`;
+    * `parseOAuthInput` requires the matching state on a pasted URL, while a bare code still skips the check.
+  * **Tests of the replaced behaviour.** This replaces 0008-MADR D5's state-mismatch branch.
+    * `TestOAuthCallback_RejectsStateMismatch` pinned the old behaviour and is removed; `TestOAuthCallback_StrayRequestKeepsWaiting` replaces it.
+    * `TestOAuthCallback_OnlyTheExactSuffix` keeps its purpose, that another suffix is a mismatch, and now asserts 400 with the login still waiting.
+    * A first attempt to remove the old test did not land: the edit script skips a pair whose replacement is already in the file, and an empty replacement always is. The failing run showed it, and it was removed by hand.
+  * Green: `go test -race ./llmprovider/auth` passes.
+* **F45.** `TestOAuthSession_UnknownIssuerNeverRefreshesAtXAI` and `TestRevokeOAuthSession_OnlyItsOwnIssuer`.
+  * Both use a transport that records each request and dials nothing.
+  * Red, on the unchanged code. It is worse than the MADR said:
+    * an OpenAI session from a staging issuer sent its refresh token to xAI three times (`sent [POST auth.x.ai/oauth2/token ×3]`), once per refresh attempt, and a custom-issuer Grok session the same;
+    * revoking a Kilo session started xAI-style discovery (`GET /.well-known/openid-configuration`);
+    * a staging OpenAI session's revocation went to discovery, not to `/oauth/revoke`.
+  * Fix:
+    * `refreshTokenURL` returns an error. It derives a URL only for OpenAI's and xAI's issuers, or for a session with no issuer whose provider is OpenAI or Grok; anything else is `ErrAuthFailure`, sign in again, before any request.
+    * Revocation dispatches by provider: OpenAI's JSON request, to its own issuer when it has one; Grok's discovery; any other provider `errors.ErrUnsupported`, with nothing sent.
+  * **Fixtures corrected.** `TestRevokeOAuthSession_GrokUsesDiscovery` and `TestRevokeOAuthSession_GrokWithoutEndpoint` built sessions with no provider, which logins never do (`oauth_loopback.go:670`). The first then failed. The second passed through the new refusal branch rather than the path it tests. Both now set `Provider: ProviderGrok`.
+  * `TestRefreshTokenURL` follows the new signature, and its comment no longer claims any other issuer falls back to Grok.
+  * Green: `auth` under `-race`, `wizard` and every provider pass.
+* **F47.** `TestOpenAIDevice_RefusesControlCharactersInUserCode`.
+  * Red, on the unchanged code: `LoginDeviceOAuth = oauth: device-code wait: context deadline exceeded, want an invalid user_code error`, and `the user_code with a terminal escape was shown to the user`.
+  * The test bounds the login with a 3 s deadline. Its first version had none, and on the unchanged code the login showed the code and polled until `go test`'s timeout.
+  * Fix: `plainUserCode` (ASCII letters, digits, dashes) is Grok's check moved into a helper. Grok and OpenAI both use it.
+  * Green, and `auth` passes under `-race`.
+* **F48.** `TestNew_SessionLogsThroughWithLogger` in `providers/openai` and `providers/grok`, and `TestOAuthSession_UseLogger`.
+  * Red, on the unchanged providers: `the session does not log through the provider's WithLogger logger`, from both. Re-shown on `HEAD`'s `grok.go`.
+  * Fix: `(*OAuthSession).UseLogger`, which is additive and fills only a nil `Logger`. OpenAI's and Grok's `New` call it through `shareLogger`, next to `shareHTTPClient`.
+  * Green.
+
+* **Gate.** The first run failed only on `make lint` and the pre-add check, for
+  the same reason: `unparam` on `removeLockIfHeld`'s unused `bool` result
+  (F12). It now returns only an error. The rerun passes all 17 checks, `make
+  generate-check` passes, and the precheck reports `330 file(s) clean`.
+* **Live (V3).** `TestScratch_CommandTokenRerunsAfterLive401`, on a scratch
+  copy: a `CommandToken` whose first run prints a refused key and whose
+  second prints `TOGETHER_API_KEY`, which is never printed. Together answered
+  401, the command ran again, and the reply came back: `command runs: 2;
+  answer: "ALPHA"; err: <nil>`, `PASS (1.14s)`.
+* **Records.**
+  * `docs/guides/adding-a-provider.md` step 7 and `docs/architecture.md`
+    name `wire.Reauth` and the `llmtest` check.
+  * [0008-MADR-repair-oauth-loopback-and-session-wiring.md](0008-MADR-repair-oauth-loopback-and-session-wiring.md)
+    records that F44 replaces D5's state-mismatch branch.
+* **Additive API (R48).** `(*auth.OAuthSession).UseLogger` and
+  `llmtest.Harness.NoReauth`. `api-check` passes.

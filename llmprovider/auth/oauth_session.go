@@ -111,6 +111,9 @@ func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 		s.mu.Unlock()
 		select {
 		case <-future.done:
+			if future.abandoned && ctx.Err() == nil {
+				return s.Token(ctx)
+			}
 			return future.tok, future.err
 		case <-ctx.Done():
 			return llmprovider.Token{}, ctx.Err()
@@ -126,6 +129,7 @@ func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 	s.inflight = future
 	state := s.refreshState()
 	logger, spent := s.Logger, s.spentRefresh
+	state.spent = spent
 	var unsaved *OAuthSession
 	if retrySave {
 		unsaved = s.persistable()
@@ -160,6 +164,7 @@ func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 	}
 	future.tok = token
 	future.err = err
+	future.abandoned = err != nil && ctx.Err() != nil
 	s.inflight = nil
 	close(future.done)
 	s.mu.Unlock()
@@ -248,8 +253,12 @@ func (s *OAuthSession) currentToken() (llmprovider.Token, bool) {
 }
 
 type oauthSessionState struct {
-	provider   llmprovider.ProviderID
-	refresh    string
+	provider llmprovider.ProviderID
+	refresh  string
+	// spent is the refresh token an unsaved rotation used up. A store that
+	// still holds it has not moved on: it must never be adopted and sent
+	// again (0020-MADR F1).
+	spent      string
 	issuer     string
 	clientID   string
 	accountID  string
@@ -284,6 +293,21 @@ func (s *OAuthSession) UseHTTPClient(client *http.Client) {
 	defer s.mu.Unlock()
 	if s.HTTPClient == nil {
 		s.HTTPClient = client
+	}
+}
+
+// UseLogger gives the session logger, when it has none, so a rotated session
+// that could not be saved is reported through the provider's WithLogger
+// logger (0016-MADR D4; 0020-MADR F48). A session that has a logger keeps it;
+// a nil logger changes nothing.
+func (s *OAuthSession) UseLogger(logger *slog.Logger) {
+	if logger == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Logger == nil {
+		s.Logger = logger
 	}
 }
 
@@ -403,7 +427,11 @@ func newRefreshRequest(ctx context.Context, state oauthSessionState) (*http.Requ
 		}
 		body = strings.NewReader(form.Encode())
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, refreshTokenURL(state), body)
+	tokenURL, err := refreshTokenURL(state)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create refresh request: %w", err)
 	}
@@ -532,26 +560,36 @@ func reloadOrRefresh(ctx context.Context, state oauthSessionState) (refreshed, e
 }
 
 // loadRotated returns the stored session when the store holds a refresh token
-// other than state's, else nil.
+// other than state's, else nil. The token an unsaved rotation spent is not
+// another: the store holds it only because that save failed (0020-MADR F1).
 func loadRotated(ctx context.Context, state oauthSessionState) *OAuthSession {
 	if state.store == nil {
 		return nil
 	}
 	stored, err := state.store.Load(ctx, state.provider)
-	if err != nil || stored == nil || stored.Refresh == "" || stored.Refresh == state.refresh {
+	if err != nil || stored == nil || stored.Refresh == "" || stored.Refresh == state.refresh ||
+		(state.spent != "" && stored.Refresh == state.spent) {
 		return nil
 	}
 	stored.Store, stored.HTTPClient = state.store, state.httpClient
 	return stored
 }
 
-func refreshTokenURL(state oauthSessionState) string {
+func refreshTokenURL(state oauthSessionState) (string, error) {
 	if state.tokenURL != "" {
-		return state.tokenURL
+		return state.tokenURL, nil
 	}
-	issuer := strings.TrimRight(state.issuer, "/")
-	if issuer == DefaultOpenAIIssuer {
-		return issuer + "/oauth/token"
+	// Without a token URL, only OpenAI's and xAI's own issuers have a known
+	// endpoint. A session with no issuer is an older one of those two
+	// providers. Any other issuer's refresh token is never sent elsewhere
+	// (0020-MADR F45).
+	switch issuer := strings.TrimRight(state.issuer, "/"); {
+	case issuer == DefaultOpenAIIssuer, issuer == "" && state.provider == llmprovider.ProviderOpenAI:
+		return DefaultOpenAIIssuer + "/oauth/token", nil
+	case issuer == DefaultGrokOAuthIssuer, issuer == "" && state.provider == llmprovider.ProviderGrok:
+		return defaultGrokOAuthRefreshURL, nil
+	default:
+		return "", fmt.Errorf("oauth: the %s session from %q has no token URL; sign in again: %w",
+			state.provider, state.issuer, llmprovider.ErrAuthFailure)
 	}
-	return defaultGrokOAuthRefreshURL
 }

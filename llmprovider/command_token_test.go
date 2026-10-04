@@ -45,6 +45,16 @@ func TestHelperKeyCommand(t *testing.T) {
 		_ = f.Close()
 		raw, _ := os.ReadFile(args[1])
 		fmt.Printf("key-%d\n", strings.Count(string(raw), "run"))
+	case "slowcount": // slowcount PATH: count, after half a second
+		time.Sleep(500 * time.Millisecond)
+		f, err := os.OpenFile(args[1], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			os.Exit(9)
+		}
+		_, _ = f.WriteString("run\n")
+		_ = f.Close()
+		raw, _ := os.ReadFile(args[1])
+		fmt.Printf("key-%d\n", strings.Count(string(raw), "run"))
 	case "sleep":
 		time.Sleep(30 * time.Second)
 	case "big":

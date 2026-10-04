@@ -31,7 +31,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -41,6 +40,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
 
@@ -152,6 +152,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		p.baseURL = base
 	}
 	shareHTTPClient(src, p.client)
+	shareLogger(src, st.Logger())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(p.session), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil
@@ -167,12 +168,9 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err := p.caps.Check(req); err != nil {
 		return nil, err
 	}
-	resp, err := p.generateOnce(ctx, req)
-	var apiErr *llmprovider.APIError
-	if err == nil || !errors.As(err, &apiErr) || apiErr.Status != http.StatusUnauthorized || !invalidate(p.src) {
-		return resp, err
-	}
-	return p.generateOnce(ctx, req)
+	// A 401 renews an InvalidatingSource's token and sends once more
+	// (0020-MADR F2).
+	return wire.Reauth(p.src, func() (*llmprovider.Response, error) { return p.generateOnce(ctx, req) })
 }
 
 // body is the Responses request for req.
@@ -371,5 +369,19 @@ type clientUser interface {
 func shareHTTPClient(src llmprovider.TokenSource, client *http.Client) {
 	if user, ok := src.(clientUser); ok {
 		user.UseHTTPClient(client)
+	}
+}
+
+// loggerUser is a session that reports through a logger, such as
+// *auth.OAuthSession.
+type loggerUser interface {
+	UseLogger(*slog.Logger)
+}
+
+// shareLogger gives src the provider's WithLogger logger, when it takes one
+// (0020-MADR F48).
+func shareLogger(src llmprovider.TokenSource, logger *slog.Logger) {
+	if user, ok := src.(loggerUser); ok {
+		user.UseLogger(logger)
 	}
 }

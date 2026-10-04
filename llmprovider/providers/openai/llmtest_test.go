@@ -52,9 +52,14 @@ func TestConformance(t *testing.T) {
 		llmtest.Run(t, harness(func() llmprovider.Option { return llmprovider.WithAPIKey("sk-llmtest") }, false))
 	})
 	t.Run("chatgpt", func(t *testing.T) {
-		llmtest.Run(t, harness(func() llmprovider.Option {
+		h := harness(func() llmprovider.Option {
 			return llmprovider.WithTokenSource(&auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer,
 				Access: "chatgpt-access", Expiry: time.Now().Add(time.Hour), TokenURL: "http://127.0.0.1:1/never-refresh"})
-		}, true))
+		}, true)
+		// The session makes this the ChatGPT provider: the check's own
+		// source would build an API-key one. The session's 401 refresh is
+		// TestOpenAI_OAuth401RetriesOnceAfterRefresh.
+		h.NoReauth = "the ChatGPT session decides the mode"
+		llmtest.Run(t, h)
 	})
 }

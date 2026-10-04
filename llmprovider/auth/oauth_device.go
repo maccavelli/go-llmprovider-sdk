@@ -200,6 +200,9 @@ func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogi
 	if device.DeviceAuthID == "" || device.UserCode == "" {
 		return nil, errors.New("oauth: OpenAI device-code response is incomplete")
 	}
+	if !plainUserCode(device.UserCode) {
+		return nil, errors.New("oauth: OpenAI device-code response has an invalid user_code")
+	}
 	deadline := config.now().Add(openAIDeviceTimeout)
 	interval := durationFromSeconds(float64(device.Interval), defaultDevicePollInterval, false)
 	poll := func(ctx context.Context) (*OAuthSession, error) {
@@ -335,10 +338,8 @@ func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin,
 // be letters, digits and '-', and each verification URI https, or http to a
 // loopback host, with no control characters.
 func validateGrokDeviceCode(device grokDeviceCode) error {
-	for _, r := range device.UserCode {
-		if r > unicode.MaxASCII || !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '-' {
-			return errors.New("oauth: Grok device-code response has an invalid user_code")
-		}
+	if !plainUserCode(device.UserCode) {
+		return errors.New("oauth: Grok device-code response has an invalid user_code")
 	}
 	for _, uri := range []string{device.VerificationURI, device.VerificationURIComplete} {
 		if uri != "" && !safeVerificationURI(uri) {
@@ -346,6 +347,18 @@ func validateGrokDeviceCode(device grokDeviceCode) error {
 		}
 	}
 	return nil
+}
+
+// plainUserCode reports whether a device user_code holds only ASCII letters,
+// digits and dashes. It is printed to the user's terminal, so anything else,
+// such as an escape sequence, is refused (0020-MADR F47).
+func plainUserCode(code string) bool {
+	for _, r := range code {
+		if r > unicode.MaxASCII || !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func safeVerificationURI(uri string) bool {

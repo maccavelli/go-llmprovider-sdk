@@ -698,3 +698,14 @@ Phase 2 (commit `a45b576`):
   * The live browser logins passed on 2026-10-02:
     [0002-PLAN-migrate-llmprovider-from-mcplib.md](0002-PLAN-migrate-llmprovider-from-mcplib.md),
     "Phase 8 step 1: the live gates".
+
+*Annotated 2026-10-03:* D5's state-mismatch branch is replaced by
+[0020-MADR-remediate-v1-debugging-pass-findings.md](0020-MADR-remediate-v1-debugging-pass-findings.md)
+F44 (Q7 a).
+
+* A callback whose state does not match gets 400, and the login keeps
+  waiting, because any page the user has open can send one.
+* `TestOAuthCallback_RejectsStateMismatch` is replaced by
+  `TestOAuthCallback_StrayRequestKeepsWaiting`.
+* D5's other branches still complete the waiter: an IdP error, and a missing
+  code, each with the right state.

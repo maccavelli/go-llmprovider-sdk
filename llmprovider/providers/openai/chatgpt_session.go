@@ -52,13 +52,3 @@ func setChatGPTHeaders(req *http.Request, src llmprovider.TokenSource) {
 		req.Header.Set(headerFedRAMP, "true")
 	}
 }
-
-// invalidate makes src fetch a new token on its next use, and reports whether
-// it can.
-func invalidate(src llmprovider.TokenSource) bool {
-	source, ok := src.(llmprovider.InvalidatingSource)
-	if ok {
-		source.Invalidate()
-	}
-	return ok
-}
