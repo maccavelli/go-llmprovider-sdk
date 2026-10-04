@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-10-03
+date: 2026-10-04
 associated-madr: "0020-MADR-remediate-v1-debugging-pass-findings.md"
 decision-makers: repository owner
 ---
@@ -908,3 +908,23 @@ the code:
 When they are met, the PLAN is `complete`, and the release is `v1.1.0`
 (Rollout). Phase 5 changed no golden; its wire changes (F40's "none"
 without `tool_choice`) are covered by unit tests, not by G-wire.
+
+### Live 2026-10-04: OpenAI's `Response.Model`
+
+* The owner added credits to the OpenAI API key, which had answered `429
+  credit_balance_exhausted` on 2026-10-03.
+* Phase 2's scratch test `TestScratch_ModelReportedLive/openai`, run on a
+  scratch copy of `main` at `0fb3e4d` (tagged `v1.1.0`), passes:
+  `model "gpt-6-luna", finish "stop", answer "ALPHA"`. The key was read by
+  the provider only.
+* V3's phase-2 item "`Response.Model` reported live by Claude, Gemini,
+  OpenAI and one gateway" is met.
+
+### Status 2026-10-04
+
+`v1.1.0` was tagged on `0fb3e4d` at the owner's request, with this PLAN
+`in-progress`. Two items stay open, as listed after phase 6:
+
+* **The ChatGPT reasoning replay** (V3, phase 2; F24): it needs the owner's
+  ChatGPT session.
+* **F23's region and credit bodies:** they wait for a capture.
