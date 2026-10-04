@@ -389,3 +389,23 @@ the PLAN carries.
   failing-first test.
 * **No live calls were made in this pass.** F7, F21 and F23 rest on
   documented vendor behaviour, and say so.
+
+## Amendment 2026-10-03: Q5 (a) without breaking `ValidateOllamaURL`
+
+Found while writing
+[0020-PLAN-remediate-v1-debugging-pass-findings.md](0020-PLAN-remediate-v1-debugging-pass-findings.md).
+
+* **The conflict.** Q5 (a) says "`ValidateOllamaURL` takes options".
+  * Adding a parameter, even a variadic one, to an exported function is an
+    incompatible change under R48.
+  * `api-check` reports exactly that:
+    `ValidateOllamaURL: changed from func(context.Context, string) error to
+    func(context.Context, string, ...int) error` (planted, in the debugging
+    pass).
+* **As implemented:**
+  * `ValidateOllamaURL` keeps its signature, and uses the shared transport
+    client instead of `http.DefaultClient`.
+  * A new `ValidateOllamaURLWith(ctx, url, opts...)` takes options: the
+    client and `WithClientInfo`. The wizard calls it.
+  * The change is additive, so Q5's intent holds within R48.
+* Nothing else in Q5 changes.
