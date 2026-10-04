@@ -6,7 +6,9 @@
 // a CommandToken. An OAuth session is refused: this module does not sign in to
 // Anthropic subscriptions (0016-MADR D10).
 //
-// Capabilities: tools, forced tool choice and reasoning are Supported.
+// Capabilities: tools and reasoning are Supported. Forced tool choice is
+// BestEffort: with reasoning it is sent as "auto" (see Degradations,
+// 0020-MADR F43).
 // Continuation is Unsupported: the Messages API is stateless, so a caller
 // replays prior items instead. There is no native streaming;
 // llmprovider.Stream emits Generate's result.
@@ -106,7 +108,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		probe:     st.ModelProbes(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
-			ForcedToolChoice: llmprovider.Supported,
+			ForcedToolChoice: llmprovider.BestEffort,
 			Reasoning:        llmprovider.Supported,
 			Continuation:     llmprovider.Unsupported,
 			NativeStreaming:  llmprovider.Unsupported,

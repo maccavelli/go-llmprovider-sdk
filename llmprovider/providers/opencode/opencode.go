@@ -474,24 +474,12 @@ func googleToolConfig(choice llmprovider.ToolChoice) map[string]any {
 // when chatReasoningEffort resolves one (MADR 0009 §6), and replays prior
 // reasoning under the field the model's metadata declares.
 func (p *provider) chatBody(ctx context.Context, c call) map[string]any {
-	body := chatcompletions.Body(c.model, c.maxTokens, c.input, chatcompletions.Opts{
+	return chatcompletions.Body(c.model, c.maxTokens, c.input, chatcompletions.Opts{
 		ReasoningEffort:      p.chatReasoningEffort(ctx, c),
 		ReplayReasoningField: p.chatReplayField(ctx, c),
+		Tools:                c.req.Tools,
+		ToolChoice:           c.req.ToolChoice,
 	})
-	if tools := c.req.Tools; len(tools) > 0 {
-		list := make([]map[string]any, len(tools))
-		for i, tool := range tools {
-			list[i] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{
-				jsonKeyName: tool.Name, jsonKeyDescription: tool.Description, jsonKeyParameters: tool.Schema}}
-		}
-		body[jsonKeyTools] = list
-		if name, forced := c.req.ToolChoice.Tool(); forced {
-			body[jsonKeyToolChoice] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{jsonKeyName: name}}
-		} else if c.req.ToolChoice == llmprovider.ToolChoiceRequired || c.req.ToolChoice == llmprovider.ToolChoiceNone {
-			body[jsonKeyToolChoice] = string(c.req.ToolChoice)
-		}
-	}
-	return body
 }
 
 // chatReasoningEffort is the chat route's reasoning_effort: the effort, when

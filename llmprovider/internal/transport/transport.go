@@ -124,7 +124,7 @@ func ParseRetryAfter(h string) time.Duration {
 		return 0
 	}
 	if secs, err := strconv.ParseFloat(h, 64); err == nil && secs >= 0 && !math.IsInf(secs, 0) {
-		return time.Duration(secs * float64(time.Second))
+		return durationOf(secs, time.Second)
 	}
 	if t, err := http.ParseTime(h); err == nil {
 		if d := time.Until(t); d > 0 {
@@ -138,7 +138,18 @@ func ParseRetryAfter(h string) time.Duration {
 // milliseconds), else Retry-After (MADR 0012 §1.2).
 func RetryAfter(h http.Header) time.Duration {
 	if ms, err := strconv.ParseFloat(strings.TrimSpace(h.Get("Retry-After-Ms")), 64); err == nil && ms >= 0 && !math.IsInf(ms, 0) {
-		return time.Duration(ms * float64(time.Millisecond))
+		return durationOf(ms, time.Millisecond)
 	}
 	return ParseRetryAfter(h.Get("Retry-After"))
+}
+
+// durationOf is n units as a Duration, the longest one when n is too large.
+// The conversion of a float beyond int64 is not defined: on amd64 it was
+// negative, which WithRetry read as no delay (0020-MADR F31).
+func durationOf(n float64, unit time.Duration) time.Duration {
+	d := n * float64(unit)
+	if d >= math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return time.Duration(d)
 }

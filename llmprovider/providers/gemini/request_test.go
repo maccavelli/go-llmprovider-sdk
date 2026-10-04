@@ -32,11 +32,12 @@ func TestNew_RefusesAnOAuthSession(t *testing.T) {
 	}
 }
 
-// TestNew_AcceptsAnEmptyKey: NewGemini("") built a provider, which the service
-// then refused; New keeps that.
-func TestNew_AcceptsAnEmptyKey(t *testing.T) {
-	if _, err := New(llmprovider.WithAPIKey("")); err != nil {
-		t.Fatalf("New with an empty key: %v", err)
+// TestNew_RefusesAnEmptyKey was TestNew_AcceptsAnEmptyKey: NewGemini("")
+// built a provider, which the service then refused. New refuses it, as the
+// other keyed providers do (0020-MADR F52).
+func TestNew_RefusesAnEmptyKey(t *testing.T) {
+	if _, err := New(llmprovider.WithAPIKey("")); !errors.Is(err, llmprovider.ErrInvalidRequest) {
+		t.Fatalf("New with an empty key = %v, want ErrInvalidRequest", err)
 	}
 }
 

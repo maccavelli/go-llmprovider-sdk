@@ -210,7 +210,9 @@ func TestHuggingFace_UserAgent(t *testing.T) {
 func TestHuggingFace_Capabilities(t *testing.T) {
 	p := build(t, llmprovider.WithAPIKey("k"), llmprovider.WithModel("m"))
 	caps := p.Capabilities()
-	if caps.Tools != llmprovider.Supported || caps.ForcedToolChoice != llmprovider.Supported ||
+	// ForcedToolChoice is BestEffort: only a named tool was measured
+	// (0020-MADR F43).
+	if caps.Tools != llmprovider.Supported || caps.ForcedToolChoice != llmprovider.BestEffort ||
 		caps.Reasoning != llmprovider.BestEffort || caps.Continuation != llmprovider.Unsupported ||
 		caps.NativeStreaming != llmprovider.Unsupported {
 		t.Errorf("Capabilities = %+v", caps)

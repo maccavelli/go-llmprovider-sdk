@@ -56,11 +56,6 @@ const (
 	// defaultBaseURL is Together's API (llmprovider's togetherBaseURL).
 	defaultBaseURL      = "https://api.together.ai/v1"
 	headerAuthorization = "Authorization"
-
-	jsonKeyType       = "type"
-	jsonKeyFunction   = "function"
-	jsonKeyName       = "name"
-	jsonKeyToolChoice = "tool_choice"
 )
 
 type provider struct {
@@ -186,26 +181,12 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	var o chatcompletions.Opts
+	o := chatcompletions.Opts{Tools: req.Tools, ToolChoice: req.ToolChoice}
 	if r := p.reasoningFor(req); r != nil {
 		o.Reasoning = map[string]any{"enabled": true}
 		o.ReasoningEffort = p.effort(r)
 	}
-	body := chatcompletions.Body(model, maxTokens, input, o)
-	if len(req.Tools) > 0 {
-		tools := make([]map[string]any, len(req.Tools))
-		for i, tool := range req.Tools {
-			tools[i] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{
-				jsonKeyName: tool.Name, "description": tool.Description, "parameters": tool.Schema}}
-		}
-		body["tools"] = tools
-		if name, forced := req.ToolChoice.Tool(); forced {
-			body[jsonKeyToolChoice] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{jsonKeyName: name}}
-		} else if req.ToolChoice == llmprovider.ToolChoiceRequired || req.ToolChoice == llmprovider.ToolChoiceNone {
-			body[jsonKeyToolChoice] = string(req.ToolChoice)
-		}
-	}
-	return body
+	return chatcompletions.Body(model, maxTokens, input, o)
 }
 
 // reasoningFor is req's Reasoning, else WithReasoning's; nil for none.

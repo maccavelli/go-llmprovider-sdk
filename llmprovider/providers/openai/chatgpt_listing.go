@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
@@ -84,8 +85,9 @@ func (p *provider) listChatGPT(ctx context.Context) ([]string, error) {
 			p.logger.Debug("llmprovider: openai: close listing body", "error", err)
 		}
 	}()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("model listing: chatgpt HTTP %d", resp.StatusCode)
+	// Classified like any answer, so a 401 can renew the token (0020-MADR F38).
+	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderOpenAI), resp); err != nil {
+		return nil, fmt.Errorf("model listing: %w", err)
 	}
 
 	var payload struct {

@@ -32,11 +32,16 @@ const (
 // Opts carries the per-gateway variations of a Chat Completions request. Zero
 // values omit the corresponding field entirely.
 type Opts struct {
-	// Tool, when non-nil, is offered to the model.
-	Tool *llmprovider.Tool
-	// ForceTool sends tool_choice pinning Tool. Kilo gates tool_choice on the
-	// model's supported_parameters, so it is separable from offering the tool.
-	ForceTool bool
+	// Tools are offered to the model as functions.
+	Tools []llmprovider.Tool
+	// ToolChoice is sent as tool_choice: a named tool as an object,
+	// "required" and "none" as strings, and auto as nothing.
+	ToolChoice llmprovider.ToolChoice
+	// NoToolChoice is for a service or model that does not take tool_choice:
+	// none is sent, and ToolChoiceNone is kept by sending no tools, so the
+	// model cannot call one (0020-MADR F40). Ollama never takes it; Kilo
+	// gates it on the model's supported_parameters.
+	NoToolChoice bool
 	// ReasoningEffort, when non-empty, is sent as reasoning_effort. OpenCode's
 	// chat route sets it only when the model's published reasoning_options
 	// list the configured effort (MADR 0009 §6).
@@ -123,6 +128,33 @@ func itemsToChatMessagesReplaying(items []llmprovider.Item, field string) []map[
 	return messages
 }
 
+// toolList is tools as Chat Completions functions.
+func toolList(tools []llmprovider.Tool) []map[string]any {
+	list := make([]map[string]any, len(tools))
+	for i, tool := range tools {
+		list[i] = map[string]any{
+			wire.KeyType: keyFunction,
+			keyFunction: map[string]any{
+				wire.KeyName:   tool.Name,
+				keyDescription: tool.Description,
+				keyParameters:  tool.Schema,
+			},
+		}
+	}
+	return list
+}
+
+// toolChoice is choice as tool_choice, or nil for auto.
+func toolChoice(choice llmprovider.ToolChoice) any {
+	if name, forced := choice.Tool(); forced {
+		return map[string]any{wire.KeyType: keyFunction, keyFunction: map[string]any{wire.KeyName: name}}
+	}
+	if choice == llmprovider.ToolChoiceRequired || choice == llmprovider.ToolChoiceNone {
+		return string(choice)
+	}
+	return nil
+}
+
 // Body builds an OpenAI Chat Completions request body.
 func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[string]any {
 	body := map[string]any{
@@ -130,20 +162,10 @@ func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[str
 		keyMessages:  itemsToChatMessagesReplaying(input, o.ReplayReasoningField),
 		keyMaxTokens: maxTokens,
 	}
-	if o.Tool != nil {
-		body[keyTools] = []map[string]any{{
-			wire.KeyType: keyFunction,
-			keyFunction: map[string]any{
-				wire.KeyName:   o.Tool.Name,
-				keyDescription: o.Tool.Description,
-				keyParameters:  o.Tool.Schema,
-			},
-		}}
-		if o.ForceTool {
-			body[keyToolChoice] = map[string]any{
-				wire.KeyType: keyFunction,
-				keyFunction:  map[string]any{wire.KeyName: o.Tool.Name},
-			}
+	if len(o.Tools) > 0 && (!o.NoToolChoice || o.ToolChoice != llmprovider.ToolChoiceNone) {
+		body[keyTools] = toolList(o.Tools)
+		if choice := toolChoice(o.ToolChoice); choice != nil && !o.NoToolChoice {
+			body[keyToolChoice] = choice
 		}
 	}
 	if o.ReasoningEffort != "" {

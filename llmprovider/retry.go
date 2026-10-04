@@ -42,8 +42,13 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 // than exhausted quota, an unavailable service, or a failure to reach it. It
 // waits as long as the service asks, up to MaxDelay, and stops when ctx ends.
 // The result does not stream natively; Stream falls back to its Generate.
+// When p lists models, so does the result, through p (0020-MADR F32).
 func WithRetry(p Provider, policy RetryPolicy) Provider {
-	return &retrying{inner: p, policy: policy.withDefaults()}
+	r := &retrying{inner: p, policy: policy.withDefaults()}
+	if lister, ok := p.(ModelLister); ok {
+		return &retryingLister{retrying: r, lister: lister}
+	}
+	return r
 }
 
 type retrying struct {
@@ -51,9 +56,26 @@ type retrying struct {
 	policy RetryPolicy
 }
 
+// retryingLister is retrying for a provider that lists models.
+type retryingLister struct {
+	*retrying
+	lister ModelLister
+}
+
+// ListModels lists through the inner provider, once.
+func (r *retryingLister) ListModels(ctx context.Context) ([]string, error) {
+	return r.lister.ListModels(ctx)
+}
+
 func (r *retrying) ID() ProviderID { return r.inner.ID() }
 
-func (r *retrying) Capabilities() Capabilities { return r.inner.Capabilities() }
+// Capabilities is the inner provider's, without NativeStreaming: the wrapper
+// has no Stream (0020-MADR F32).
+func (r *retrying) Capabilities() Capabilities {
+	caps := r.inner.Capabilities()
+	caps.NativeStreaming = Unsupported
+	return caps
+}
 
 func (r *retrying) Generate(ctx context.Context, req *Request) (*Response, error) {
 	for attempt := 1; ; attempt++ {

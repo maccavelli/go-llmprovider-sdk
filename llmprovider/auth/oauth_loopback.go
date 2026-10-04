@@ -60,7 +60,6 @@ type oauthFlowConfig struct {
 	callerClient *http.Client
 	openURL      func(string) error
 	inputCode    func(context.Context) (string, error)
-	notify       func(string, string)
 	now          func() time.Time
 	sleep        func(context.Context, time.Duration) error
 }
@@ -223,7 +222,6 @@ func resolveOAuthFlowConfig(provider llmprovider.ProviderID, opts OAuthFlowOptio
 		callerClient: opts.HTTPClient,
 		openURL:      opts.OpenURL,
 		inputCode:    opts.InputCode,
-		notify:       opts.NotifyDevice,
 		now:          now,
 		sleep:        sleep,
 	}, nil
@@ -384,18 +382,6 @@ func listenLoopbackBothFamilies(port int) ([]net.Listener, error) {
 		return nil, errors.Join(err4, err6)
 	}
 	return listeners, nil
-}
-
-func listenFirstAvailable(host string, ports []int) (net.Listener, int, error) {
-	var failures []error
-	for _, port := range ports {
-		listener, err := net.Listen("tcp", net.JoinHostPort(host, fmt.Sprintf("%d", port)))
-		if err == nil {
-			return listener, port, nil
-		}
-		failures = append(failures, err)
-	}
-	return nil, 0, fmt.Errorf("oauth: registered callback ports unavailable; use device-code login: %w", errors.Join(failures...))
 }
 
 func serveCallbackListeners(handler http.Handler, listeners []net.Listener, serveErrors chan<- error) func() {

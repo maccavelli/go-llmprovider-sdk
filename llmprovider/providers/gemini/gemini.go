@@ -85,9 +85,13 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		return nil, err
 	}
 	src := st.TokenSource()
-	switch src.(type) {
+	switch s := src.(type) {
 	case nil:
 		return nil, fmt.Errorf("%w: gemini needs WithAPIKey or WithTokenSource", llmprovider.ErrInvalidRequest)
+	case *llmprovider.StaticToken:
+		if s.Value == "" {
+			return nil, fmt.Errorf("%w: gemini api key is required", llmprovider.ErrInvalidRequest) // 0020-MADR F52
+		}
 	case *auth.OAuthSession, *auth.VendorCLISession:
 		// R16: a source of a kind the service does not accept is refused.
 		return nil, fmt.Errorf("%w: gemini takes an API key, not an OAuth session (0016-MADR D10)", llmprovider.ErrUnsupported)

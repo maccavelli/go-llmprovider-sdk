@@ -17,7 +17,10 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-func TestListenFirstAvailable_UsesSecondPortWhenFirstBusy(t *testing.T) {
+// TestListenOpenAILoopback_UsesSecondPortWhenFirstBusy (0020-MADR F46): the
+// OpenAI callback falls back to the second registered port, as it does from
+// 1455 to 1457. Free ports stand in for those two.
+func TestListenOpenAILoopback_UsesSecondPortWhenFirstBusy(t *testing.T) {
 	t.Parallel()
 
 	first, firstPort := listenOnFreePort(t)
@@ -25,17 +28,20 @@ func TestListenFirstAvailable_UsesSecondPortWhenFirstBusy(t *testing.T) {
 	second, secondPort := listenOnFreePort(t)
 	closeListener(t, second)
 
-	listener, port, err := listenFirstAvailable("127.0.0.1", []int{firstPort, secondPort})
+	listeners, port, err := listenOpenAILoopback([]int{firstPort, secondPort})
 	if err != nil {
-		t.Fatalf("listenFirstAvailable() error = %v", err)
+		t.Fatalf("listenOpenAILoopback() error = %v", err)
 	}
-	defer closeListener(t, listener)
-	if port != secondPort {
-		t.Fatalf("port = %d, want second available port %d", port, secondPort)
+	for _, listener := range listeners {
+		t.Cleanup(func() { closeListener(t, listener) })
+	}
+	if port != secondPort || len(listeners) == 0 {
+		t.Fatalf("port = %d with %d listeners, want second available port %d", port, len(listeners), secondPort)
 	}
 }
 
-func TestListenFirstAvailable_ErrorsWhenAllBusy(t *testing.T) {
+// TestListenOpenAILoopback_ErrorsWhenAllBusy (0020-MADR F46).
+func TestListenOpenAILoopback_ErrorsWhenAllBusy(t *testing.T) {
 	t.Parallel()
 
 	first, firstPort := listenOnFreePort(t)
@@ -43,10 +49,12 @@ func TestListenFirstAvailable_ErrorsWhenAllBusy(t *testing.T) {
 	second, secondPort := listenOnFreePort(t)
 	defer closeListener(t, second)
 
-	listener, _, err := listenFirstAvailable("127.0.0.1", []int{firstPort, secondPort})
-	if listener != nil {
+	listeners, _, err := listenOpenAILoopback([]int{firstPort, secondPort})
+	for _, listener := range listeners {
 		closeListener(t, listener)
-		t.Fatal("listenFirstAvailable() returned a listener when all ports were busy")
+	}
+	if len(listeners) != 0 {
+		t.Fatal("listenOpenAILoopback() returned listeners when all ports were busy")
 	}
 	if err == nil || !strings.Contains(err.Error(), "device-code") {
 		t.Fatalf("error = %v, want device-code guidance", err)

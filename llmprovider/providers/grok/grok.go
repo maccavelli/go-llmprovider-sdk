@@ -8,9 +8,10 @@
 // the token's own Header (R16). A 401 from a source that can refresh is
 // retried once with a new token.
 //
-// Capabilities: tools, forced tool choice, reasoning and continuation are
-// Supported. There is no native streaming; llmprovider.Stream emits
-// Generate's result.
+// Capabilities: tools, forced tool choice and continuation are Supported.
+// Reasoning is BestEffort: a model off the Grok CLI's menu gets no reasoning
+// field (see Degradations, 0020-MADR F43). There is no native streaming;
+// llmprovider.Stream emits Generate's result.
 //
 // Degradations:
 //   - Reasoning takes an effort, clamped to the Grok CLI's menu for the
@@ -123,7 +124,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.Supported,
-			Reasoning:        llmprovider.Supported,
+			Reasoning:        llmprovider.BestEffort,
 			Continuation:     llmprovider.Supported,
 			NativeStreaming:  llmprovider.Unsupported,
 		},

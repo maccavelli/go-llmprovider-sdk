@@ -71,7 +71,7 @@ func TestOpencodeRoute_Heuristic(t *testing.T) {
 		{goGW, "mimo-v2-pro", RouteChatCompletions},
 		{goGW, "mimo-v2-omni", RouteChatCompletions},
 		{goGW, "hy3-preview", RouteChatCompletions},
-		{goGW, "qwen3.5-plus", RouteMessages},
+		{goGW, "qwen3.5-plus", RouteChatCompletions}, // as Go's -plus rows (0020-MADR F41)
 		{goGW, "grok-4.5", RouteResponses},
 	}
 	for _, tc := range tests {

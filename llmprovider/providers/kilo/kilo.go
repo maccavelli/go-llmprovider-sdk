@@ -73,10 +73,6 @@ const (
 	paramToolChoice      = "tool_choice"
 	paramReasoning       = "reasoning"
 	paramReasoningEffort = "reasoning_effort"
-
-	jsonKeyType     = "type"
-	jsonKeyFunction = "function"
-	jsonKeyName     = "name"
 )
 
 // Kilo's scoped options' values.
@@ -279,24 +275,13 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	body := chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{
 		ReasoningEffort: effort,
 		Reasoning:       reasoning,
+		Tools:           req.Tools,
+		ToolChoice:      req.ToolChoice,
+		// 301 of 366 models accept "tools" but only 279 accept
+		// "tool_choice"; offering the tools unforced is strictly better than
+		// a 400, and ToolChoiceNone sends none (0020-MADR F40).
+		NoToolChoice: !p.supports(paramToolChoice),
 	})
-	if len(req.Tools) > 0 {
-		tools := make([]map[string]any, len(req.Tools))
-		for i, tool := range req.Tools {
-			tools[i] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{
-				jsonKeyName: tool.Name, "description": tool.Description, "parameters": tool.Schema}}
-		}
-		body[paramTools] = tools
-		// 301 of 366 models accept "tools" but only 279 accept "tool_choice";
-		// offering the tools unforced is strictly better than a 400.
-		if p.supports(paramToolChoice) {
-			if name, forced := req.ToolChoice.Tool(); forced {
-				body[paramToolChoice] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{jsonKeyName: name}}
-			} else if req.ToolChoice == llmprovider.ToolChoiceRequired || req.ToolChoice == llmprovider.ToolChoiceNone {
-				body[paramToolChoice] = string(req.ToolChoice)
-			}
-		}
-	}
 	if !p.collect {
 		// Kilo's opt-out from upstreams that train on prompts, which its client
 		// sends with hide_prompt_training_models (MADR 0012 §3.3).

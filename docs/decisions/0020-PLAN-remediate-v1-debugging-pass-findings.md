@@ -618,3 +618,120 @@ check.
   discarded a byte. They now return their errors. The rerun passes all 17 checks, `generate-check`, and `make lint` with `GOOS=windows`. The precheck reports `357 file(s) clean`, and `coverage-check` `27 packages, 0 problem(s)`.
 * **Live.** None: phase 4 has no live check in V3. The wizard's sign-ins
   are covered by the existing live login tests, which need a person.
+
+### Phase 5: core hygiene (2026-10-03)
+
+* **The F23 capture (Q6 a), first.** On 2026-10-03, one request to each
+  vendor, with an invalid key that names no account:
+  * Gemini, `x-goog-api-key` to `generateContent`: HTTP 400, `status
+    INVALID_ARGUMENT`, and the key failure only in `details[].reason:
+    "API_KEY_INVALID"`.
+  * Anthropic, `x-api-key` to `/v1/messages`: HTTP 401,
+    `authentication_error`, which status alone already classifies as
+    `ErrAuthFailure`.
+  * The bodies are the fixtures of `TestClassifyHTTPError_CapturedInvalidKeys`.
+* **The tests.** `llmprovider/hygiene_test.go`,
+  `internal/transport/retry_after_overflow_test.go`,
+  `providers/hygiene_test.go`, `openai/chatgpt_listing_errors_test.go`,
+  `ollama/tool_choice_none_test.go`, `kilo/tool_choice_none_test.go` and
+  `opencode/route_qwen_test.go`, all new. The F46 tests moved to
+  `listenOpenAILoopback`, and `chatcompletions_test.go` moved to the new
+  `Opts` fields.
+* **Red, on the unchanged code:**
+  * F13: `WithHTTPClient(nil) left no client`, and `Generate panicked: …
+    nil pointer dereference` on all ten providers.
+  * F29: `WithMaxTokens(0) = <nil>` and `WithMaxTokens(-1) = <nil>`.
+  * F30: `BaseURL = "http://127.0.0.1:11434/"`. Across providers, eleven
+    requests with a doubled slash on five of them: Gemini, OpenAI, Claude,
+    Grok and Ollama (`//interactions`, `//models`, `//responses`,
+    `//messages`, `//api/tags`). The PLAN said seven; five is the measured
+    count, listings included.
+  * F22: `Check = <nil>` for a `*MessageItem`, a `*FunctionCallItem` and a
+    nil item.
+  * F33: `ClassifyHTTPError(p, nil) panicked`.
+  * F23: `gemini: … invalid request: gemini HTTP 400 INVALID_ARGUMENT`. The
+    Anthropic body already passed.
+  * F32: `WithRetry hid ModelLister`.
+  * F31: under `GOARCH=amd64`, `RetryAfter = -2562047h47m16.854775808s` for
+    both headers. On this arm64 host the conversion saturates, so the test
+    passed there; it is run under amd64 as the PLAN says.
+  * F52: `openai: New with an empty key = <nil>` and the same for Gemini.
+  * F43: `claude ForcedToolChoice = Supported`, `grok Reasoning =
+    Supported`, `huggingface ForcedToolChoice = Supported`.
+  * F38: `ListModels = [], model listing: chatgpt HTTP 401`, and `model
+    listing: chatgpt HTTP 403` was not an `*APIError`.
+  * F40: Ollama sent the tools under "none"; Kilo, for a model without
+    `tool_choice`, `tools present = true, want false`.
+  * F41: `heuristicRoute(opencode-zen, qwen3.8-max) = messages; the table
+    says chat_completions`, and four Go rows the same.
+  * F42: the new `Opts` fields fail to compile on the old package.
+  * F46: the moved tests pass on the code, as the PLAN expects. With the
+    fallback planted out in a scratch copy, the first fails:
+    `listenOpenAILoopback() error = oauth: registered callback ports
+    unavailable; … bind: address already in use`.
+* **The fixes:**
+  * F13, F29, F30: `ResolveOptions` ends with `finish`. A nil client is the
+    default one, the base URL loses its trailing slashes, and a
+    non-positive `WithMaxTokens` is `ErrInvalidRequest`.
+  * F22: `validate` accepts only the four item value types.
+  * F33: a nil response is `ErrProviderUnavailable`.
+  * F23: the parser reads Google's `details[].reason` as the most specific
+    type, and `API_KEY_INVALID` from Gemini is a terminal `ErrAuthFailure`.
+    The region (`FAILED_PRECONDITION`) and Anthropic credit bodies cannot be
+    produced on demand. They are **not done**, and wait for a capture.
+  * F31: `durationOf` saturates at the longest `Duration`.
+  * F32: `WithRetry` returns a `retryingLister` for a provider that lists.
+    Its capabilities never claim `NativeStreaming`.
+  * F38: the listing's answer goes through `ClassifyHTTPError`, and
+    `ListModels` runs under `wire.Reauth`, as `Generate` does.
+  * F40 and F42: `chatcompletions.Opts` takes `Tools`, `ToolChoice` and
+    `NoToolChoice`, and one `toolList` and `toolChoice` build them. The
+    dead `Tool` and `ForceTool` are gone. Five providers use it:
+    * Ollama (always `NoToolChoice`);
+    * Kilo (`NoToolChoice` when the model does not list `tool_choice`);
+    * Together, Hugging Face and OpenCode's chat route.
+
+    With `NoToolChoice`, `ToolChoiceNone` sends no tools. The JSON keys
+    only the removed code used were deleted.
+  * F41: `qwenRoute`. `-max` goes to chat and `-flash` to messages on both
+    gateways; any other qwen goes to messages on Zen and to chat on Go.
+    This is what the table's nine qwen rows say. The PLAN's shorthand,
+    "Go's to chat", would have sent Go's `-flash` the wrong way; the table
+    row wins, as the red test asks.
+  * F43: Claude's `ForcedToolChoice`, Grok's `Reasoning` and Hugging Face's
+    `ForcedToolChoice` are `BestEffort`. The package docs say why, and
+    their Degradations already listed each case.
+  * F46: `listenFirstAvailable` and `oauthFlowConfig.notify` were deleted.
+  * F52: `openai.New` and `gemini.New` refuse an empty static key.
+* **G-wire.** No golden changed. Together, Hugging Face, Kilo, OpenCode
+  and Ollama each have goldens carrying `tools`, and all but Ollama carry
+  `tool_choice`. They pass unchanged on the new helper, which is F42's
+  characterisation.
+* **Existing tests changed by the new behaviour.** No assertion was
+  loosened.
+  * `TestClaude_Capabilities`, `TestGrok_IDAndCapabilities` and
+    `TestHuggingFace_Capabilities` pin F43's new values.
+  * Ollama's `TestGenerate_RequestFields` expects no tools under "none"
+    (F40).
+  * Gemini's `TestNew_AcceptsAnEmptyKey` pinned `mcplib`'s behaviour. It
+    is now `TestNew_RefusesAnEmptyKey` (F52).
+  * `TestOpencodeRoute_Heuristic` sent an unlisted Go `qwen3.5-plus` to
+    messages; it now expects chat, as Go's `-plus` rows (F41).
+  * The two `listenFirstAvailable` tests test `listenOpenAILoopback`
+    (F46).
+* **Files beyond the phase table.** `README.md` and `docs/architecture.md`
+  say that `WithRetry` keeps `ListModels` (F32). The changed tests are
+  listed above. `providers/together`, `huggingface` and `opencode` are
+  F42's "four providers", with Ollama and Kilo for F40.
+* **Deviation 2026-10-03: F52's premise, in part.**
+  * **Found.** A test over every provider that needs a key also failed
+    for Kilo, OpenCode Zen and OpenCode Go. Their constructors send their
+    anonymous key for an empty one, by design, as their package docs say.
+    The MADR said OpenCode refuses an empty key; it does not.
+  * **Resolution, no decision changes.** The test names the six providers
+    with no anonymous access; it fails for exactly OpenAI and Gemini. The
+    MADR records the corrected fact.
+* **Gate.** The first lint run failed: `unused` on the JSON keys the
+  removed tool blocks used. They were deleted. The rerun passes all 17 checks, `generate-check`, `make lint` with `GOOS=windows`, and the transport tests under `GOARCH=amd64`. The precheck reports `359 file(s) clean`, and `coverage-check` `27 packages, 0 problem(s)`.
+* **Live.** None run. F23's capture above is this phase's only live step;
+  its region and credit bodies are open.

@@ -118,6 +118,9 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if src == nil {
 		return nil, fmt.Errorf("%w: openai needs WithAPIKey or WithTokenSource", llmprovider.ErrInvalidRequest)
 	}
+	if s, ok := src.(*llmprovider.StaticToken); ok && s.Value == "" {
+		return nil, fmt.Errorf("%w: openai api key is required", llmprovider.ErrInvalidRequest) // 0020-MADR F52
+	}
 	p := &provider{
 		src:       src,
 		chatGPT:   isChatGPTSession(src),
@@ -305,9 +308,10 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	// A ChatGPT session lists from the Codex backend, with no static catalog
 	// (MADR 0008 D11), and its subscription meters every call: no generation
-	// probe (MADR 0012 §1.6).
+	// probe (MADR 0012 §1.6). A 401 renews the session's token and lists
+	// once more, as Generate does (0020-MADR F2, F38).
 	if p.chatGPT {
-		return p.listChatGPT(ctx)
+		return wire.Reauth(p.src, func() ([]string, error) { return p.listChatGPT(ctx) })
 	}
 	cat, err := catalog.List(ctx, llmprovider.ProviderOpenAI, p.src, p.listing...)
 	listed := cat.Recommended

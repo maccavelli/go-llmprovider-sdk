@@ -186,18 +186,25 @@ func TestChatCompletionsBody(t *testing.T) {
 		}
 	})
 
-	t.Run("tool without ForceTool omits tool_choice", func(t *testing.T) {
-		b := Body("kilo-auto/free", 1, input, Opts{Tool: tool})
-		if _, ok := b[keyTools]; !ok {
-			t.Error("tools must be present")
+	tools := []llmprovider.Tool{*tool}
+
+	t.Run("tools with the auto choice omit tool_choice", func(t *testing.T) {
+		b := Body("kilo-auto/free", 1, input, Opts{Tools: tools})
+		list, ok := b[keyTools].([]map[string]any)
+		if !ok || len(list) != 1 || list[0][wire.KeyType] != keyFunction {
+			t.Fatalf("tools = %v", b[keyTools])
+		}
+		if fn, _ := list[0][keyFunction].(map[string]any); fn[wire.KeyName] != "get_weather" ||
+			fn[keyDescription] != "Get weather" || fn[keyParameters] == nil {
+			t.Errorf("tools[0].function = %v", list[0][keyFunction])
 		}
 		if _, ok := b[keyToolChoice]; ok {
-			t.Error("tool_choice must be absent when ForceTool is false")
+			t.Error("tool_choice must be absent for the auto choice")
 		}
 	})
 
-	t.Run("tool with ForceTool sends both", func(t *testing.T) {
-		b := Body("openai/gpt-oss-20b", 1, input, Opts{Tool: tool, ForceTool: true})
+	t.Run("a forced tool sends both", func(t *testing.T) {
+		b := Body("openai/gpt-oss-20b", 1, input, Opts{Tools: tools, ToolChoice: llmprovider.ForceTool("get_weather")})
 		if _, ok := b[keyTools]; !ok {
 			t.Error("tools must be present")
 		}
@@ -208,6 +215,30 @@ func TestChatCompletionsBody(t *testing.T) {
 		fn, ok := tc[keyFunction].(map[string]any)
 		if !ok || fn[wire.KeyName] != "get_weather" {
 			t.Errorf("tool_choice.function = %v", tc[keyFunction])
+		}
+	})
+
+	t.Run("required and none are sent as strings", func(t *testing.T) {
+		for _, choice := range []llmprovider.ToolChoice{llmprovider.ToolChoiceRequired, llmprovider.ToolChoiceNone} {
+			b := Body("m", 1, input, Opts{Tools: tools, ToolChoice: choice})
+			if b[keyToolChoice] != string(choice) {
+				t.Errorf("%s: tool_choice = %v", choice, b[keyToolChoice])
+			}
+		}
+	})
+
+	// 0020-MADR F40: without tool_choice, "none" is kept by sending no tools.
+	t.Run("without tool_choice, none sends no tools", func(t *testing.T) {
+		b := Body("m", 1, input, Opts{Tools: tools, ToolChoice: llmprovider.ToolChoiceNone, NoToolChoice: true})
+		if _, ok := b[keyTools]; ok {
+			t.Error("tools must be absent")
+		}
+		b = Body("m", 1, input, Opts{Tools: tools, ToolChoice: llmprovider.ToolChoiceRequired, NoToolChoice: true})
+		if _, ok := b[keyTools]; !ok {
+			t.Error("tools must be offered, unforced")
+		}
+		if _, ok := b[keyToolChoice]; ok {
+			t.Error("tool_choice must be absent")
 		}
 	})
 

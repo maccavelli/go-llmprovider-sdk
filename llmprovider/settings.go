@@ -186,7 +186,25 @@ func ResolveOptions(id ProviderID, opts []Option) (*Settings, error) {
 			return nil, err
 		}
 	}
+	if err := s.finish(); err != nil {
+		return nil, err
+	}
 	return &Settings{s: s, identity: identityOf(s.cfg)}, nil
+}
+
+// finish settles what the options leave open: a nil client is the default
+// one (0020-MADR F13), a base URL loses its trailing slashes once, here, for
+// every provider and listing (F30), and the output limit must be positive
+// (F29, R23).
+func (s *settings) finish() error {
+	if s.cfg.HTTPClient == nil {
+		s.cfg.HTTPClient = transport.DefaultClient()
+	}
+	s.cfg.BaseURL = strings.TrimRight(s.cfg.BaseURL, "/")
+	if s.cfg.MaxTokens <= 0 {
+		return fmt.Errorf("%w: WithMaxTokens(%d): the output limit must be positive", ErrInvalidRequest, s.cfg.MaxTokens)
+	}
+	return nil
 }
 
 // take applies one option that is not a For, refusing one scoped to another

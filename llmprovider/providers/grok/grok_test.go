@@ -357,8 +357,10 @@ func TestGrok_IDAndCapabilities(t *testing.T) {
 		t.Errorf("ID = %q, want %q", p.ID(), llmprovider.ProviderGrok)
 	}
 	caps := p.Capabilities()
+	// Reasoning is BestEffort: a model off the CLI's menu gets none
+	// (0020-MADR F43).
 	if caps.Tools != llmprovider.Supported || caps.ForcedToolChoice != llmprovider.Supported ||
-		caps.Reasoning != llmprovider.Supported || caps.Continuation != llmprovider.Supported ||
+		caps.Reasoning != llmprovider.BestEffort || caps.Continuation != llmprovider.Supported ||
 		caps.NativeStreaming != llmprovider.Unsupported {
 		t.Errorf("Capabilities = %+v", caps)
 	}

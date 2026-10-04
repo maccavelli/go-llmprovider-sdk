@@ -14,7 +14,8 @@
 // would decode as an empty, error-free success. Do not "fix" this omission
 // without re-measuring.
 //
-// Capabilities: tools and forced tool choice are Supported. Reasoning is
+// Capabilities: tools are Supported. Forced tool choice is BestEffort: only a
+// named tool was measured (see Degradations, 0020-MADR F43). Reasoning is
 // BestEffort: Hugging Face documents reasoning_effort as "provider and
 // model-dependent", so an ignored effort is a normal outcome. Continuation is
 // Unsupported: Chat Completions is stateless. There is no native streaming;
@@ -53,11 +54,6 @@ const (
 	// defaultBaseURL is the router's base (llmprovider's huggingFaceBaseURL).
 	defaultBaseURL      = "https://router.huggingface.co/v1"
 	headerAuthorization = "Authorization"
-
-	jsonKeyType       = "type"
-	jsonKeyFunction   = "function"
-	jsonKeyName       = "name"
-	jsonKeyToolChoice = "tool_choice"
 )
 
 type provider struct {
@@ -104,7 +100,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		logger:    st.Logger(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
-			ForcedToolChoice: llmprovider.Supported,
+			ForcedToolChoice: llmprovider.BestEffort,
 			Reasoning:        llmprovider.BestEffort,
 			Continuation:     llmprovider.Unsupported,
 			NativeStreaming:  llmprovider.Unsupported,
@@ -183,21 +179,8 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	body := chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req)})
-	if len(req.Tools) > 0 {
-		tools := make([]map[string]any, len(req.Tools))
-		for i, tool := range req.Tools {
-			tools[i] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{
-				jsonKeyName: tool.Name, "description": tool.Description, "parameters": tool.Schema}}
-		}
-		body["tools"] = tools
-		if name, forced := req.ToolChoice.Tool(); forced {
-			body[jsonKeyToolChoice] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{jsonKeyName: name}}
-		} else if req.ToolChoice == llmprovider.ToolChoiceRequired || req.ToolChoice == llmprovider.ToolChoiceNone {
-			body[jsonKeyToolChoice] = string(req.ToolChoice)
-		}
-	}
-	return body
+	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req),
+		Tools: req.Tools, ToolChoice: req.ToolChoice})
 }
 
 // effort is reasoning_effort for req: the request's Reasoning, else

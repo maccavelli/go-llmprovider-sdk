@@ -64,9 +64,6 @@ const (
 	// is unchanged (0015-MADR D1).
 	probeMaxOutputTokens = 8192
 	probePrompt          = "Respond with ONLY the word Hello"
-
-	jsonKeyType     = "type"
-	jsonKeyFunction = "function"
 )
 
 type provider struct {
@@ -194,18 +191,10 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	body := chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req)})
-	if len(req.Tools) > 0 {
-		// Every tool is offered and none forced: Ollama does not support
-		// tool_choice.
-		tools := make([]map[string]any, len(req.Tools))
-		for i, tool := range req.Tools {
-			tools[i] = map[string]any{jsonKeyType: jsonKeyFunction, jsonKeyFunction: map[string]any{
-				"name": tool.Name, "description": tool.Description, "parameters": tool.Schema}}
-		}
-		body["tools"] = tools
-	}
-	return body
+	// Ollama does not support tool_choice: every tool is offered and none
+	// forced, and ToolChoiceNone sends no tools (0020-MADR F40).
+	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req),
+		Tools: req.Tools, ToolChoice: req.ToolChoice, NoToolChoice: true})
 }
 
 // effort is reasoning_effort for req: the request's Reasoning, else

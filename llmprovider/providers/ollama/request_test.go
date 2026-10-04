@@ -64,8 +64,12 @@ func TestGenerate_RequestFields(t *testing.T) {
 		if got, ok := body["tool_choice"]; ok {
 			t.Errorf("%q: tool_choice = %v, want none sent", choice, got)
 		}
-		if tools, _ := body["tools"].([]any); len(tools) != 2 {
-			t.Errorf("%q: %d tools sent, want 2", choice, len(tools))
+		want := 2
+		if choice == llmprovider.ToolChoiceNone {
+			want = 0 // honoured by sending no tools (0020-MADR F40)
+		}
+		if tools, _ := body["tools"].([]any); len(tools) != want {
+			t.Errorf("%q: %d tools sent, want %d", choice, len(tools), want)
 		}
 	}
 }

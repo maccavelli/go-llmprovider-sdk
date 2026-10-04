@@ -141,7 +141,7 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/ownerper
    and the request sent once more. A success is decoded into a `Response`:
    `Output`, `FinishReason` and `Usage`.
 5. **Around it.** `WithRetry` wraps a provider and retries by the error's
-   kind. `Stream` runs `Generate` and emits its result as events, since no
+   kind; a provider that lists models still does, through it. `Stream` runs `Generate` and emits its result as events, since no
    built-in provider streams natively yet.
 
 ### A listing

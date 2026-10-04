@@ -203,9 +203,10 @@ var routeTable = map[llmprovider.ProviderID]map[string]Route{
 }
 
 // heuristicRoute infers a route from the model id prefix when the table
-// has no entry. Both gateways send gpt/grok/muse to responses and qwen to
-// messages; they differ on minimax (Go only) and gemini/claude (Zen only).
-// Chat Completions is the default because it is the largest bucket on both.
+// has no entry. Both gateways send gpt/grok/muse to responses. A qwen model
+// routes as the table's qwen rows do (qwenRoute). They differ on minimax (Go
+// only) and gemini/claude (Zen only). Chat Completions is the default
+// because it is the largest bucket on both.
 func heuristicRoute(gateway llmprovider.ProviderID, model string) Route {
 	m := strings.ToLower(strings.TrimSpace(model))
 
@@ -214,7 +215,7 @@ func heuristicRoute(gateway llmprovider.ProviderID, model string) Route {
 		strings.HasPrefix(m, "muse-"):
 		return RouteResponses
 	case strings.HasPrefix(m, "qwen"):
-		return RouteMessages
+		return qwenRoute(gateway, m)
 	}
 
 	if gateway == llmprovider.ProviderOpencodeZen {
@@ -230,6 +231,23 @@ func heuristicRoute(gateway llmprovider.ProviderID, model string) Route {
 	}
 
 	return RouteChatCompletions
+}
+
+// qwenRoute is the route of a qwen model the table does not list, as the
+// table's qwen rows are: -max to chat completions and -flash to messages on
+// both gateways, and any other to messages on Zen and to chat completions on
+// Go (0020-MADR F41).
+func qwenRoute(gateway llmprovider.ProviderID, model string) Route {
+	switch {
+	case strings.HasSuffix(model, "-max"):
+		return RouteChatCompletions
+	case strings.HasSuffix(model, "-flash"):
+		return RouteMessages
+	case gateway == llmprovider.ProviderOpencodeGo:
+		return RouteChatCompletions
+	default:
+		return RouteMessages
+	}
 }
 
 // routeForNPM maps a model's provider.npm to its route, as OpenCode's

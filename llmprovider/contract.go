@@ -212,8 +212,17 @@ func (req *Request) validate() error {
 		}
 	}
 	for i, item := range req.Input {
-		if m, ok := item.(MessageItem); ok && !m.Role.valid() {
-			return fmt.Errorf("%w: input %d has unknown role %q", ErrInvalidRequest, i, m.Role)
+		// Every encoder drops another type, so it is refused here
+		// (0020-MADR F22).
+		switch it := item.(type) {
+		case MessageItem:
+			if !it.Role.valid() {
+				return fmt.Errorf("%w: input %d has unknown role %q", ErrInvalidRequest, i, it.Role)
+			}
+		case FunctionCallItem, FunctionCallOutputItem, ReasoningItem:
+		default:
+			return fmt.Errorf("%w: input %d is %T; an item is a MessageItem, FunctionCallItem, "+
+				"FunctionCallOutputItem or ReasoningItem value", ErrInvalidRequest, i, item)
 		}
 	}
 	if err := req.validateToolChoice(); err != nil {

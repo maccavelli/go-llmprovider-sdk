@@ -32,21 +32,24 @@ type providerConfig struct {
 	DisableModelMetadata bool
 }
 
-// WithHTTPClient sets a custom HTTP client for connection pooling.
+// WithHTTPClient sets a custom HTTP client for connection pooling. Nil is the
+// provider's own default client.
 func WithHTTPClient(c *http.Client) Option {
 	return commonOption("WithHTTPClient", func(cfg *providerConfig) {
 		cfg.HTTPClient = c
 	})
 }
 
-// WithMaxTokens sets the maximum response tokens for the provider.
+// WithMaxTokens sets the maximum response tokens for the provider. It must be
+// positive: New refuses another value with ErrInvalidRequest (R23).
 func WithMaxTokens(n int) Option {
 	return commonOption("WithMaxTokens", func(cfg *providerConfig) {
 		cfg.MaxTokens = n
 	})
 }
 
-// WithBaseURL sets a custom base URL for the provider (e.g., Ollama endpoint or test URL).
+// WithBaseURL sets a custom base URL for the provider (e.g., Ollama endpoint or
+// test URL). A trailing slash is dropped.
 func WithBaseURL(url string) Option {
 	return commonOption("WithBaseURL", func(cfg *providerConfig) {
 		cfg.BaseURL = url

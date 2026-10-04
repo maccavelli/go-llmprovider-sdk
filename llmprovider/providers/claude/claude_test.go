@@ -100,7 +100,9 @@ func TestClaude_ToolUse(t *testing.T) {
 // interfaces and ModelDiscoverer, and deliberately not Continuer.
 func TestClaude_Capabilities(t *testing.T) {
 	p := build(t, llmprovider.WithAPIKey("k"))
-	want := llmprovider.Capabilities{Tools: llmprovider.Supported, ForcedToolChoice: llmprovider.Supported,
+	// ForcedToolChoice is BestEffort: with reasoning it is sent as "auto"
+	// (0020-MADR F43).
+	want := llmprovider.Capabilities{Tools: llmprovider.Supported, ForcedToolChoice: llmprovider.BestEffort,
 		Reasoning: llmprovider.Supported, Continuation: llmprovider.Unsupported, NativeStreaming: llmprovider.Unsupported}
 	if got := p.Capabilities(); got != want {
 		t.Fatalf("Capabilities() = %+v, want %+v", got, want)

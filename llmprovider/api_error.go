@@ -176,8 +176,11 @@ func statusSentinel(status int) error {
 // A 429 is an *APIError of kind ErrRateLimited, with the delay the service
 // asked for in RetryAfter.
 // It is part of the error model, for any provider (0015-MADR, amendment
-// "S7b's import graph").
+// "S7b's import graph"). A nil resp is ErrProviderUnavailable.
 func ClassifyHTTPError(provider string, resp *http.Response) error {
+	if resp == nil {
+		return fmt.Errorf("%w: %s: no HTTP response", ErrProviderUnavailable, provider)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return nil
 	}
@@ -262,6 +265,9 @@ var (
 	opencodeQuotaTypes     = []string{"FreeUsageLimitError", "GoUsageLimitError", "BlackUsageLimitError", "CreditsError", "MonthlyLimitError", "UserLimitError"}
 	opencodeForbiddenTypes = []string{"RegionError", "DataPolicyError", "FreeTierError"}
 	openAIQuotaTypes       = []string{"usage_limit_reached", "insufficient_quota"}
+	// geminiAuthReasons are the details reasons Gemini gives a refused key
+	// with HTTP 400, as captured live (0020-MADR F23, Q6 a).
+	geminiAuthReasons = []string{"API_KEY_INVALID"}
 )
 
 // classifyAPIError applies MADR 0012 §1.1's table (with its 2026-09-27 rows)
@@ -280,6 +286,8 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 		service == string(ProviderOpenAI) && has("usage_not_included"),
 		service == string(ProviderKilo) && (status == http.StatusForbidden || has("data_collection_required")):
 		return true, ErrNotPermitted
+	case service == string(ProviderGemini) && has(geminiAuthReasons...):
+		return true, ErrAuthFailure
 	case service == serviceOpencode && has("ModelError"),
 		service == string(ProviderKilo) && has("PAID_MODEL_AUTH_REQUIRED"):
 		return true, ErrInvalidRequest
@@ -302,7 +310,8 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 // OpenCode and Claude {type:"error",error:{type,message}}, Kilo
 // {error:{code,message}}, {code} or {error,error_type,message},
 // OpenAI/Codex {error:{type,code,message}},
-// xAI nested or flat {code,error}, Gemini {error:{code,message,status}}.
+// xAI nested or flat {code,error}, Gemini {error:{code,message,status,
+// details:[{reason}]}}.
 type apiErrorEnvelope struct {
 	types    []string // candidate classifications, most specific first
 	msg      string
@@ -346,10 +355,17 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		Status   string          `json:"status"`
 		Message  string          `json:"message"`
 		ResetsAt int64           `json:"resets_at"`
+		// Details are Google's: a reason is the most specific type.
+		Details []struct {
+			Reason string `json:"reason"`
+		} `json:"details"`
 	}
 	var text string
 	switch {
 	case json.Unmarshal(top.Error, &inner) == nil:
+		for _, d := range inner.Details {
+			add(d.Reason)
+		}
 		add(jsonString(inner.Code), inner.Type, inner.Status)
 		env.msg = inner.Message
 		env.resetsAt = inner.ResetsAt

@@ -447,3 +447,21 @@ Found running 0020-PLAN's phase 4.
 * **Consequence.** A change to what `TextPrompter` prints and accepts, and
   only when given a preselection. The wizard passes one only from
   `Existing.Fallbacks`. The `Prompter` interface does not change.
+
+## Amendment 2026-10-03: facts corrected by phase 5
+
+Found running 0020-PLAN's phase 5. No decision changes.
+
+* **F52.** OpenCode does not refuse an empty key. Kilo and the OpenCode
+  gateways send their anonymous key for one, by design. Only OpenAI and
+  Gemini accepted an empty key and sent it.
+* **F23.** The live capture, 2026-10-03:
+  * Gemini answers an invalid key with HTTP 400 `INVALID_ARGUMENT`, the
+    key failure only in `details[].reason: "API_KEY_INVALID"`. It is now
+    `ErrAuthFailure`.
+  * Anthropic answers an invalid key with HTTP 401, already
+    `ErrAuthFailure`.
+  * The region and credit bodies the finding names were not captured, and
+    stay open.
+* **F30.** A trailing slash doubled the path on five providers (Gemini,
+  OpenAI, Claude, Grok, Ollama), eleven requests in all, not seven.
