@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-04
 associated-madr: 0010-MADR-windows-stdio-oauth-tokenstore-ci.md
 decision-makers: mcplib maintainers
@@ -1233,3 +1233,18 @@ paths are left out here.
   the copy whose `restrict` does nothing still fails, at the directory and
   at the file before `File`. The unchanged copy passes, with
   `ownerperm` and `auth` `ok`. The elevated case is CI's, after the push.
+
+### Close-out 2026-10-04: complete
+
+* **P6b.3 is met.**
+  * Red and green on the owner's Windows machine: the runs recorded above.
+  * Green on CI: run 37185622499 on `95177ff` passes on `ubuntu-24.04`,
+    `macos-15` and `windows-2025`. The Windows job runs the package:
+    `ok …/llmprovider/internal/ownerperm` and `ok …/llmprovider/auth`.
+  * The Windows runner is the elevated case, where the third deviation was
+    found.
+* The close-out's conditions hold:
+  * the MADR is `accepted`;
+  * Windows CI passes on `main`;
+  * D1–D2, D14–D18, P1 and P8 stay in `mcplib`.
+* This PLAN is `complete`, and `docs/README.md` says so.
