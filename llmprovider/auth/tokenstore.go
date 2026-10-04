@@ -129,11 +129,29 @@ type fileRecord struct {
 	TokenURL  string                 `json:"token_url"`
 }
 
+// windowsDeviceNames are the names Windows opens as a device rather than a
+// file, whatever the extension (0010-MADR D12).
+var windowsDeviceNames = map[string]bool{
+	"CON": true, "PRN": true, "AUX": true, "NUL": true,
+	"COM1": true, "COM2": true, "COM3": true, "COM4": true, "COM5": true,
+	"COM6": true, "COM7": true, "COM8": true, "COM9": true,
+	"LPT1": true, "LPT2": true, "LPT3": true, "LPT4": true, "LPT5": true,
+	"LPT6": true, "LPT7": true, "LPT8": true, "LPT9": true,
+}
+
+// validateProviderID refuses an id that is not a plain file name on every OS:
+// empty, a path, a Windows device name with or without an extension, or an
+// id ending in a dot or a space, which Windows strips (0010-MADR D12). The
+// rule is the same on every OS, so a store copied onto Windows still works.
 func validateProviderID(p llmprovider.ProviderID) error {
 	if p == "" {
 		return fmt.Errorf("%w: empty", llmprovider.ErrInvalidProvider)
 	}
-	if strings.ContainsAny(string(p), `/\`) || strings.Contains(string(p), "..") {
+	id := string(p)
+	base, _, _ := strings.Cut(id, ".")
+	if strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") ||
+		strings.HasSuffix(id, ".") || strings.HasSuffix(id, " ") ||
+		windowsDeviceNames[strings.ToUpper(base)] {
 		return fmt.Errorf("%w: %q", llmprovider.ErrInvalidProvider, p)
 	}
 	return nil

@@ -124,8 +124,9 @@ make pre-add-check FILES="a.go b.go"
 ```
 
 It runs `scripts/go-precheck.sh`: `gofmt` on the files;
-`golangci-lint run -c .golangci.yml --build-tags live_gateways ./...`, the same
-command as `make lint` and CI, which also lints the live-tagged tests; `go vet`
+`golangci-lint run -c .golangci.yml --build-tags live_gateways ./...` for the
+host and again with `GOOS=windows`, the same commands as `make lint` and CI,
+which also lint the live-tagged tests and the `_windows.go` files; `go vet`
 and `go test` on the packages the files belong to; and
 `govulncheck ./...` (`GO_PRECHECK_SKIP_VULN=1` skips it offline). `golint` is
 not used: its checks are `revive`'s `exported`, `package-comments` and
@@ -136,7 +137,8 @@ The machine-wide agent gate runs the same script before every agent
 is no `git add` hook on every host; do not rely on one.
 
 `make lint` and `make vuln` must be clean before a release-shaped change.
-CI also runs `make parity-check dep-check coverage-check api-check`; run them
+CI also runs `make parity-check dep-check coverage-check api-check
+generate-check`; run them
 before asking for a push. A coverage floor is changed only in
 `scripts/coverage-floors.txt`, by a record.
 

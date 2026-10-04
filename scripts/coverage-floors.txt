@@ -12,4 +12,5 @@
 llmprovider                        89.2
 wizard                             83.4
 internal/redact                    100.0
+llmprovider/internal/ownerperm     100.0
 llmprovider/internal/wirecase      80.0   ./llmprovider/providers/...

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/ownerperm"
 )
 
 // maxTokenFileBytes bounds a session file on Load (0016-MADR D3).
@@ -40,12 +41,14 @@ type FileTokenStore struct {
 	staleAfter, heartbeat, wait time.Duration
 }
 
-// NewFileTokenStore creates the token directory when needed.
+// NewFileTokenStore creates the token directory when needed, private to the
+// current user: mode 0700 on Unix; on Windows a protected DACL whose one
+// entry, the user's, the directory's files inherit (0010-MADR D10).
 func NewFileTokenStore(dir string) (*FileTokenStore, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("FileTokenStore: empty dir")
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := tokenStoreMkdir(dir); err != nil {
 		return nil, fmt.Errorf("FileTokenStore mkdir: %w", err)
 	}
 	return &FileTokenStore{Dir: dir}, nil
@@ -110,14 +113,20 @@ func readBounded(path string, limit int64) (data []byte, err error) {
 
 // tokenStoreBeforeWrite and tokenStoreRename are seams for tests: the first
 // observes the temp file before its first byte, the second plants a rename
-// failure.
+// failure. tokenStoreMkdir and tokenStoreRestrict keep the directory and each
+// temp file private to the current user: mode 0o700 and 0o600 on Unix, a
+// protected DACL on Windows (0010-MADR D10); tests observe them.
 var (
 	tokenStoreBeforeWrite = func(string) {}
 	tokenStoreRename      = os.Rename
+	tokenStoreMkdir       = ownerperm.MkdirAll
+	tokenStoreRestrict    = ownerperm.File
 )
 
 // Save durably replaces a provider session file: a temp file in the store
-// directory, mode 0600 before any byte is written, then write, fsync, close,
+// directory, restricted to the current user before any byte is written (mode
+// 0600 on Unix, a protected DACL on Windows; 0010-MADR D10), then write,
+// fsync, close,
 // rename, and an fsync of the directory where the platform allows it
 // (0016-MADR D3). On any failure the previous file is intact and the temp
 // file is removed.
@@ -158,8 +167,8 @@ func (fs *FileTokenStore) Save(ctx context.Context, provider llmprovider.Provide
 			err = errors.Join(err, fmt.Errorf("FileTokenStore cleanup: %w", cleanupErr))
 		}
 	}()
-	if err := tmp.Chmod(0o600); err != nil {
-		return fmt.Errorf("FileTokenStore chmod: %w", err)
+	if err := tokenStoreRestrict(tmp); err != nil {
+		return fmt.Errorf("FileTokenStore restrict: %w", err)
 	}
 	tokenStoreBeforeWrite(tmpName)
 	if _, err := tmp.Write(data); err != nil {

@@ -32,6 +32,7 @@ scripts/check_parity_map.py G-parity: the mcplib migration map is complete
 scripts/check_deps.py       dep-check: only wizard leaves the standard library
 scripts/check_coverage.py   coverage-check, with scripts/coverage-floors.txt
 scripts/check_api.py        api-check: apidiff against the latest v1 tag
+scripts/check_generated.py  generate-check: go:generate outputs are current
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
 llmprovider/                the contract, errors, options and credential sources
@@ -52,6 +53,7 @@ llmprovider/internal/wire/*/   one shared wire format each: responses, chatcompl
 llmprovider/catalog/          model listing, static catalogs, ranking, metadata, search, profiles
 llmprovider/internal/transport/ the default client, the client identity, Retry-After, the listing probe
 llmprovider/internal/kiloendpoint/ Kilo's endpoints, derived from a credential
+llmprovider/internal/ownerperm/ a directory and its files private to the current user
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
@@ -73,7 +75,7 @@ standard library is left out.
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
 | `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact` |
-| `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact` |
+| `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely) and `MaskSecret` (show a suffix for identification) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
@@ -95,6 +97,7 @@ standard library is left out.
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
 | `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/kiloendpoint` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
+| `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/transport` | `DefaultClient`, `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `ProbeGenerateHealth` | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 | `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
@@ -111,7 +114,7 @@ providers/<id>                one package per provider or gateway family
 auth   catalog   internal/wire/<format>   llmtest
 internal/wire
 llmprovider                   the contract
-internal/transport   internal/redact   internal/kiloendpoint
+internal/transport   internal/redact   internal/kiloendpoint   internal/ownerperm
 ```
 
 `internal/wiretest`, `llmprovider/internal/wirecase` and
@@ -383,15 +386,20 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 - **`make` targets:** `test`, `test-sum`, `fmt`, `vet`, `lint`, `tidy`,
   `vuln`, `pre-add-check`, `parity-check`, `dep-check`, `coverage-check`,
-  `api-check`, `help`.
+  `api-check`, `generate-check`, `help`. `lint` runs golangci-lint twice: for
+  the host and with `GOOS=windows`, so the `_windows.go` files are linted.
 - **`dep-check`** (`scripts/check_deps.py`) reads every package's
-  dependencies with `go list -deps`. It fails when a package other than
+  dependencies with `go list -deps`, for the host and with `GOOS=windows`,
+  so an import in a `_windows.go` file is checked too. It fails when a
+  package other than
   `wizard` reaches beyond the standard library and this module, or `wizard`
   beyond `golang.org/x/term` and the `golang.org/x/sys` it needs.
 - **`coverage-check`** (`scripts/check_coverage.py`) measures each package
   with `go test -cover` against its floor in `scripts/coverage-floors.txt`:
   - the `P7` baseline for `llmprovider` (89.2 %), `wizard` (83.4 %) and
     `internal/redact` (100.0 %);
+  - `llmprovider/internal/ownerperm` (100.0 %, measured on Unix, 0010-PLAN
+    P6b);
   - 80 % for every other package.
 
   `llmprovider/internal/wirecase`, which has no tests of its own, is
@@ -402,6 +410,11 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   fails on an incompatible change outside `llmprovider/x/` and the internal
   packages. Before the first such tag it reports that there is nothing to
   compare, and passes.
+- **`generate-check`** (`scripts/check_generated.py`) reruns each
+  `//go:generate` line that names `-output`, into a temporary file, and fails
+  when the committed file differs. Today that is `mkwinsyscall` for
+  `llmprovider/internal/ownerperm`, pinned in its `doc.go`; the generator is
+  not a module requirement.
 - **`scripts/check_parity_map.py`** (G-parity) fails when an identifier in
   `docs/guides/migrating-from-mcplib.ids`, the exported identifiers of
   `mcplib` `v1.6.0` `llmprovider` and `wizard`, has no row in
@@ -419,8 +432,9 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   the provider (0017-PLAN U1). `-update` rewrites them, and is used only for
   a difference a record explains.
 - **`scripts/go-precheck.sh`** runs `gofmt` on the given Go files,
-  `golangci-lint run -c .golangci.yml --build-tags live_gateways ./...` (so
-  the live-tagged tests are linted too), `go vet` and `go test` on their
+  `golangci-lint run -c .golangci.yml --build-tags live_gateways ./...` for
+  the host and with `GOOS=windows` (so the live-tagged tests and the
+  `_windows.go` files are linted too), `go vet` and `go test` on their
   packages, and `govulncheck ./...`. `make pre-add-check` runs it, and so does
   the machine-wide agent gate before an agent `git commit` that stages Go
   files.
@@ -428,7 +442,7 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   the Go version read from `go.mod`: `go test`. On Linux it also runs:
   - `go vet`, `gofmt`, `go mod tidy -diff` and `make lint`;
   - `go vet -tags live_gateways`;
-  - `make parity-check dep-check coverage-check api-check`.
+  - `make parity-check dep-check coverage-check api-check generate-check`.
 
   It checks out the full history, so that `api-check` sees the tags.
 

@@ -81,16 +81,20 @@ if [ -n "$unformatted" ]; then
   fail 1
 fi
 
-# 2. golangci-lint, with this repository's configuration: the same command
-# `make lint` runs, so a commit cannot pass a weaker check than CI applies.
+# 2. golangci-lint, with this repository's configuration: the same commands
+# `make lint` runs, so a commit cannot pass a weaker check than CI applies. Like
+# `make lint`, it runs for the host and for Windows, whose _windows.go files a
+# host-only run never sees (0010-PLAN P6a).
 need go || exit 2
 GOLANGCI="${GOLANGCI_LINT:-$(go env GOPATH)/bin/golangci-lint}"
 if [ -x "$GOLANGCI" ]; then
-  if ! lint_out="$("$GOLANGCI" run -c .golangci.yml --build-tags live_gateways ./... 2>&1)"; then
-    echo "golangci-lint:" >&2
-    printf '%s\n' "$lint_out" | tail -40 | sed 's/^/  /' >&2
-    fail 1
-  fi
+  for lint_goos in "$(go env GOOS)" windows; do
+    if ! lint_out="$(GOOS="$lint_goos" "$GOLANGCI" run -c .golangci.yml --build-tags live_gateways ./... 2>&1)"; then
+      echo "golangci-lint (GOOS=$lint_goos):" >&2
+      printf '%s\n' "$lint_out" | tail -40 | sed 's/^/  /' >&2
+      fail 1
+    fi
+  done
 else
   echo "go-precheck: golangci-lint not found at $GOLANGCI." >&2
   echo "  install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1" >&2

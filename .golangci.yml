@@ -81,6 +81,14 @@ linters:
   exclusions:
     generated: lax
     rules:
+      # mkwinsyscall's //sys directives must start "//sys<tab>"; gocritic's
+      # commentFormatting allowlist (//go:generate, //export, //line) lacks
+      # them. Directive lines only; a prose comment is still checked
+      # (0010-MADR, amendment of 2026-10-03).
+      - linters:
+          - gocritic
+        path: _windows\.go$
+        source: ^//sys\s
       - linters:
           - errcheck
           - gosec

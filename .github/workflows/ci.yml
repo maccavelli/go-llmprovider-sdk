@@ -33,6 +33,6 @@ jobs:
       - name: vet live-tagged tests
         if: runner.os == 'Linux'
         run: go vet -tags live_gateways ./...
-      - name: parity, dependencies, coverage, API (0015-MADR D12, D13)
+      - name: parity, dependencies, coverage, API, generated code (0015-MADR D12, D13; 0010-PLAN P6b)
         if: runner.os == 'Linux'
-        run: make parity-check dep-check coverage-check api-check
+        run: make parity-check dep-check coverage-check api-check generate-check

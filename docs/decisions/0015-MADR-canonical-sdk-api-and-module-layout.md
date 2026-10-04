@@ -1288,6 +1288,8 @@ the cost of a listing is the provider's, as for the built-ins.
 
 ## Amendment 2026-10-03: `internal/ownerperm`, from 0010 (proposed)
 
+*Accepted 2026-10-03 with 0010's amendment (the owner: "Follow recommendations and proceed with 0010").*
+
 [0010-MADR-windows-stdio-oauth-tokenstore-ci.md](0010-MADR-windows-stdio-oauth-tokenstore-ci.md)'s
 amendment of 2026-10-03 adds the package `llmprovider/internal/ownerperm`.
 It keeps a directory, and the files written in it, private to the current

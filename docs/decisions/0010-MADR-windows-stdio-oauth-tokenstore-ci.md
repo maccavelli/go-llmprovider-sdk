@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-09-20
+status: accepted
+date: 2026-10-03
 decision-makers: mcplib maintainers
 consulted: prepare-commit-msg
 informed: all mcplib consumers
@@ -937,6 +937,10 @@ D3–D13 only, and its PLAN for P2–P7. D1–D2 (Windows stdio shutdown), D14�
 the reverse amendment. Nothing above this section is rewritten.
 
 ## Amendment 2026-10-03: reconciled here; D10 on the standard library (proposed)
+
+*Accepted 2026-10-03 by the owner: "Follow recommendations and proceed with 0010". With the owner's
+answers of the same day: the scoped `//sys` exclusion, and Windows lint in
+`make lint` and CI.*
 
 The owner audited D3–D13 against this repository at `c71ffdd`. Status
 stays `proposed` until the owner accepts this amendment. It then becomes
