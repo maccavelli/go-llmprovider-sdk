@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"cmp"
 	"regexp"
 	"slices"
 	"strings"
@@ -429,14 +430,8 @@ func curateFromCatalog(catalog, available []string, usable func(string) bool, ra
 
 // sortByRankDesc sorts ids by rankFn descending (stable enough via simple insertion).
 func sortByRankDesc(ids []string, rankFn func(string) int) {
-	// Small N (≤ dozens after filter); use simple sort.
-	for i := range ids {
-		for j := i + 1; j < len(ids); j++ {
-			if rankFn(ids[j]) > rankFn(ids[i]) {
-				ids[i], ids[j] = ids[j], ids[i]
-			}
-		}
-	}
+	// Stable: equal ranks keep the listing's order (0020-MADR F36).
+	slices.SortStableFunc(ids, func(a, b string) int { return cmp.Compare(rankFn(b), rankFn(a)) })
 }
 
 // rankGeminiModel scores a Gemini model name for sorting by preference.

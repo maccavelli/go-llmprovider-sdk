@@ -427,3 +427,72 @@ check.
     * OpenAI's model check. The API key answered `429
       credit_balance_exhausted`, and the check waits for credits.
     * The ChatGPT reasoning replay, which needs the owner's session.
+
+### Phase 3: catalog (2026-10-03)
+
+* **The tests.** `remediation_test.go`, `validate_ollama_test.go` and
+  `shared_client_test.go` in `catalog`, and `remediation_test.go` in
+  `internal/transport`.
+* **Red, on the unchanged code:**
+  * F4: `Recommended = [a/free b/paid]; want the paid model first`.
+  * F5: at first the test passed, because its lookup ran before the
+    abandoned fetch had recorded its failure. It now waits 200 ms, as any
+    later lookup would. It then fails three runs out of three with
+    `LookupMetadata after a failed listing = model metadata: … context
+    canceled`.
+  * F15: `load after the late failure = map[], … returned HTTP 500`.
+  * F34: `Usable = [changed b] after changing Recommended`.
+  * F35: `List(Kilo, WithProfile) = llmprovider: invalid request: option catalog.WithProfile is for providers … not "Kilo"`.
+  * F36: `sorted = [c b a], want [c a b]`.
+  * F37: `User-Agent = "go-llmprovider-sdk/(devel) …", want it to start wire-app/9.9.9`.
+  * `ValidateOllamaURLWith` is new, so its red is the compile failure on
+    `HEAD`.
+  * F21: `ProbeGenerateHealth = [ok], want [ok slow]`. It runs through a
+    new `probeTimeout` variable that tests shorten; the 5 s default is
+    unchanged.
+  * F28, as resolved below: `two listings without WithHTTPClient got
+    different clients`.
+  * F4 and F15 were re-shown on `HEAD`'s `model_metadata.go`.
+* **The fixes:**
+  * F4 decodes the `togetherai` section.
+  * F5: a fetch the caller cancelled is not remembered as a failure.
+  * F15: a failure re-reads the entry under the lock and keeps a document
+    fetched since it started.
+  * F21 (Q3 a): a probe that hit its own timeout keeps its model, but not
+    when the caller's context ended.
+  * F34 clones Recommended.
+  * F35 lowercases the id once, in `List`.
+  * F36 uses `slices.SortStableFunc`.
+  * F37: the metadata fetch uses the caller's identity.
+    `ValidateOllamaURL` keeps its signature and leaves `http.DefaultClient`;
+    the new `ValidateOllamaURLWith(ctx, url, opts...)` takes the client and
+    the identity (the MADR's amendment for Q5).
+* **Deviation 2026-10-03: F28 against 0016-MADR D8.**
+  * **Found.** The PLAN's F28 fix was one shared `transport.DefaultClient`.
+    The gate failed it:
+    `TestResolveOptions_Defaults: two Settings share a default client; each
+    provider gets its own (0016-MADR D8)`. D8 decides "One default client
+    per provider instance serves requests, listing and refresh."
+  * **Resolution, the owner's choice: "Share only in catalog".**
+    * `transport.DefaultClient` is unchanged, one per call, so each
+      provider instance keeps its own.
+    * `catalog` keeps one `listingClient` (`sync.OnceValue`) and puts it
+      first in `configFor`'s options. So `List`, `LookupMetadata` and
+      `ValidateOllamaURL`, called without a client, share it, while a
+      caller's `WithHTTPClient`, which every provider passes (R32), still
+      wins.
+    * The shared-`DefaultClient` change and its test were reverted.
+  * No MADR decision changes: D8 stands, and F28's symptom, a transport per
+    catalog listing, is fixed.
+* **Gate.** The first run failed on the F28 conflict above, and on lint:
+  revive's `confusing-naming` (`validateOllamaURL` beside
+  `ValidateOllamaURL`, now `checkOllamaURL`) and staticcheck `SA4000` in
+  the reverted test. The rerun passes all 17 checks. The precheck reports
+  `353 file(s) clean`, and `coverage-check` `27 packages, 0 problem(s)`.
+* **Live (V3).** `TestScratch_TogetherRankedByMetadata` lists Together live
+  with metadata and without it.
+  * The fix: with metadata `[zai-org/GLM-5.3-Flash
+    deepseek-ai/DeepSeek-V4-Flash-0731 …]`, without `[deepseek-ai/DeepSeek-V4.1-Flash
+    zai-org/GLM-5.3 …]`. `PASS`.
+  * `HEAD`'s `model_metadata.go`: both lists are identical, and the test
+    fails with `the metadata changed nothing`.

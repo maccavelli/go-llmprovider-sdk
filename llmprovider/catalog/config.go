@@ -3,8 +3,10 @@ package catalog
 import (
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // The listing's options: llmprovider's common ones, read through Settings, and
@@ -74,8 +76,16 @@ func WithKiloOrganization(org string) llmprovider.Option {
 	return llmprovider.ScopedOption(llmprovider.ProviderKilo, "catalog.WithKiloOrganization", kiloOrganizationOption(org))
 }
 
+// listingClient is the client catalog's own calls use when the caller gives
+// none: one, shared, so connections are reused across listings. A provider
+// passes its own client (R32), and keeps it: each provider instance has its
+// own (0016-MADR D8; 0020-MADR F28).
+var listingClient = sync.OnceValue(transport.DefaultClient)
+
 // configFor resolves opts for a listing of id.
 func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, error) {
+	// The shared client goes first, so a caller's WithHTTPClient wins.
+	opts = append([]llmprovider.Option{llmprovider.WithHTTPClient(listingClient())}, opts...)
 	st, err := llmprovider.ResolveOptions(id, opts)
 	if err != nil {
 		return config{}, err

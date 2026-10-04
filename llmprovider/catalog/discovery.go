@@ -66,6 +66,8 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 	if !listed[llmprovider.ProviderID(strings.ToLower(string(id)))] {
 		return Catalog{}, unlistedProvider(id)
 	}
+	// Ids are matched without case, options included (0020-MADR F35).
+	id = llmprovider.ProviderID(strings.ToLower(string(id)))
 	cfg, err := configFor(id, opts)
 	if err != nil {
 		return Catalog{}, err
@@ -349,10 +351,8 @@ func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (Ca
 	if err != nil {
 		return Catalog{}, err
 	}
-	recommended := names
-	if len(names) > MaxListed {
-		recommended = slices.Clone(names[:MaxListed])
-	}
+	// Recommended never shares Usable's array (0020-MADR F34).
+	recommended := slices.Clone(names[:min(len(names), MaxListed)])
 	return Catalog{Recommended: recommended, Usable: names, Live: true}, nil
 }
 
@@ -402,7 +402,24 @@ func fetchOllamaNames(ctx context.Context, token llmprovider.Token, cfg config) 
 
 // ValidateOllamaURL checks if an Ollama instance is reachable at the given URL
 // by calling GET /api/version. Returns nil on success, error on failure.
+// ValidateOllamaURLWith takes options, such as the HTTP client and the
+// caller's identity.
 func ValidateOllamaURL(ctx context.Context, baseURL string) error {
+	return checkOllamaURL(ctx, baseURL, defaultConfig())
+}
+
+// ValidateOllamaURLWith is ValidateOllamaURL with llmprovider's common
+// options: WithHTTPClient, WithClientInfo (0020-MADR F37, Q5 a and its
+// amendment).
+func ValidateOllamaURLWith(ctx context.Context, baseURL string, opts ...llmprovider.Option) error {
+	cfg, err := configFor(llmprovider.ProviderOllama, opts)
+	if err != nil {
+		return err
+	}
+	return checkOllamaURL(ctx, baseURL, cfg)
+}
+
+func checkOllamaURL(ctx context.Context, baseURL string, cfg config) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -410,9 +427,9 @@ func ValidateOllamaURL(ctx context.Context, baseURL string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	defaultConfig().setUserAgent(req)
+	cfg.setUserAgent(req)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("could not reach Ollama at %s: %w", baseURL, err)
 	}

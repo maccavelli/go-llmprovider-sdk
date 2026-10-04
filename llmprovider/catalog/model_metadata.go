@@ -234,10 +234,25 @@ func loadModelMetadata(ctx context.Context, cfg config) (modelMetadataDoc, error
 	case !e.failed.IsZero() && time.Since(e.failed) < modelMetadataRetryAfter:
 		return e.cached()
 	}
+	started := time.Now()
 	doc, err := fetchModelMetadata(ctx, url, cfg)
 	modelMetadataMu.Lock()
 	defer modelMetadataMu.Unlock()
 	if err != nil {
+		// Re-read the entry: another load may have cached a document
+		// meanwhile, which stands (0020-MADR F15).
+		e = modelMetadataCache[url]
+		switch {
+		case errors.Is(err, context.Canceled):
+			// The caller gave up, as a failed listing does: the host did
+			// not fail, and nothing is remembered (0020-MADR F5).
+			if e.doc != nil {
+				return e.doc, nil
+			}
+			return nil, err
+		case e.doc != nil && e.fetched.After(started):
+			return e.doc, nil
+		}
 		e.failed, e.err = time.Now(), err
 		modelMetadataCache[url] = e
 		return e.cached()
@@ -261,7 +276,7 @@ func fetchModelMetadata(ctx context.Context, url string, cfg config) (modelMetad
 	if err != nil {
 		return nil, fmt.Errorf("model metadata: %w", err)
 	}
-	defaultConfig().setUserAgent(req)
+	cfg.setUserAgent(req) // the caller's identity (0020-MADR F37)
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("model metadata: %w", err)
@@ -273,20 +288,22 @@ func fetchModelMetadata(ctx context.Context, url string, cfg config) (modelMetad
 	return decodeModelMetadata(resp.Body)
 }
 
-// decodeModelMetadata keeps the three sections MADR 0009 reads. A section
-// without models is treated as absent.
+// decodeModelMetadata keeps the sections the ranking reads: MADR 0009's
+// three and Together's (0017-MADR D1; 0020-MADR F4). A section without
+// models is treated as absent.
 func decodeModelMetadata(r io.Reader) (modelMetadataDoc, error) {
 	var raw struct {
-		Zen *modelMetadataSection `json:"opencode"`
-		Go  *modelMetadataSection `json:"opencode-go"`
-		HF  *modelMetadataSection `json:"huggingface"`
+		Zen      *modelMetadataSection `json:"opencode"`
+		Go       *modelMetadataSection `json:"opencode-go"`
+		HF       *modelMetadataSection `json:"huggingface"`
+		Together *modelMetadataSection `json:"togetherai"`
 	}
 	if err := json.NewDecoder(r).Decode(&raw); err != nil {
 		return nil, fmt.Errorf("model metadata: decode: %w", err)
 	}
 	doc := modelMetadataDoc{}
 	for key, s := range map[string]*modelMetadataSection{
-		metadataKeyZen: raw.Zen, metadataKeyGo: raw.Go, metadataKeyHF: raw.HF,
+		metadataKeyZen: raw.Zen, metadataKeyGo: raw.Go, metadataKeyHF: raw.HF, metadataKeyTogether: raw.Together,
 	} {
 		if s != nil && s.Models != nil {
 			doc[key] = s.Models
