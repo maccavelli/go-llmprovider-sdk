@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"net"
 	"time"
 )
 
@@ -98,7 +99,9 @@ func (p RetryPolicy) wait(attempt int, err error) (time.Duration, bool) {
 }
 
 // retryable reports whether the same request can succeed later. A failure
-// without a kind is a failure to reach the service, which can.
+// without a kind is retried only when it is a failure to reach the service, a
+// net.Error such as *url.Error; any other was answered and billed already
+// (0020-MADR F9, Q2 a).
 func retryable(err error) bool {
 	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		return apiErr.Retryable()
@@ -113,6 +116,7 @@ func retryable(err error) bool {
 		errors.Is(err, ErrUnsupported), errors.Is(err, ErrInvalidProvider):
 		return false
 	default:
-		return true
+		var netErr net.Error
+		return errors.As(err, &netErr)
 	}
 }

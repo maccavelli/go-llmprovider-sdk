@@ -3,7 +3,6 @@ package gemini
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -123,6 +122,7 @@ func thinkingLevel(model string, effort llmprovider.Effort) string {
 func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 	var raw struct {
 		ID     string `json:"id"`
+		Model  string `json:"model"`
 		Status string `json:"status"`
 		Steps  []struct {
 			Type      string `json:"type"`
@@ -152,7 +152,7 @@ func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 	default:
 		return nil, fmt.Errorf("%w: gemini interaction %s", llmprovider.ErrProviderUnavailable, raw.Status)
 	}
-	result := &llmprovider.Response{ID: raw.ID, Usage: raw.Usage.counts()}
+	result := &llmprovider.Response{ID: raw.ID, Model: raw.Model, Usage: raw.Usage.counts()}
 	signature := ""
 	for _, step := range raw.Steps {
 		switch step.Type {
@@ -191,7 +191,14 @@ func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 		}
 	}
 	if len(result.Output) == 0 {
-		return nil, errors.New("gemini returned no content")
+		return nil, fmt.Errorf("%w: gemini: the interaction has no content", llmprovider.ErrIncomplete)
+	}
+	// Stop, or tool_calls when the model wants a tool (0020-MADR F11).
+	result.FinishReason = llmprovider.FinishStop
+	for _, item := range result.Output {
+		if _, ok := item.(llmprovider.FunctionCallItem); ok {
+			result.FinishReason = llmprovider.FinishToolCalls
+		}
 	}
 	return result, nil
 }

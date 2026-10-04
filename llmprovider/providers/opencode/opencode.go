@@ -276,18 +276,21 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 	if err := llmprovider.ClassifyHTTPError(string(p.gateway)+"/"+string(c.route), resp); err != nil {
 		return nil, err
 	}
-	// 1 MiB bounds a runaway reply.
-	limited := io.LimitReader(resp.Body, 1<<20)
+	// The reply is bounded, and a failure to read it gets its kind and the
+	// route's name (0020-MADR F9).
+	limited := io.LimitReader(resp.Body, wire.ReplyLimit)
+	var out *llmprovider.Response
 	switch c.route {
 	case RouteResponses:
-		return responses.Decode(limited)
+		out, err = responses.Decode(limited)
 	case RouteMessages:
-		return messages.Decode(limited)
+		out, err = messages.Decode(limited)
 	case RouteGoogle:
-		return generatecontent.Decode(limited)
+		out, err = generatecontent.Decode(limited)
 	default:
-		return chatcompletions.Decode(limited)
+		out, err = chatcompletions.Decode(limited)
 	}
+	return out, wire.DecodeError(string(p.gateway)+"/"+string(c.route), err)
 }
 
 // effectiveReasoning is the request's Reasoning, else WithReasoning's, with

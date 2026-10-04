@@ -25,16 +25,17 @@ func TestConformance(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			llmtest.Run(t, llmtest.Harness{
+				Model: "llmtest-model",
 				New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 					return newFor(tc.gateway)(append(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-llmtest"),
 						llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(baseURL), WithRoute(tc.route)}, opts...), metadataOff()...)...)
 				},
 				Text: func(w http.ResponseWriter, _ *http.Request) {
 					if tc.route == RouteMessages {
-						_, _ = io.WriteString(w, `{"content":[{"type":"text","text":"hello"}]}`)
+						_, _ = io.WriteString(w, `{"model":"llmtest-model","stop_reason":"end_turn","content":[{"type":"text","text":"hello"}]}`)
 						return
 					}
-					_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"hello"}}]}`)
+					_, _ = io.WriteString(w, `{"model":"llmtest-model","choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"hello"}}]}`)
 				},
 				ToolCall: func(w http.ResponseWriter, _ *http.Request, tool string) {
 					if tc.route == RouteMessages {

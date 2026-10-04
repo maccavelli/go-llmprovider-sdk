@@ -23,12 +23,13 @@ func TestConformance(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			llmtest.Run(t, llmtest.Harness{
+				Model: "llmtest-model",
 				New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 					return New(append([]llmprovider.Option{llmprovider.WithTokenSource(src()),
 						llmprovider.WithModel("grok-4.5"), llmprovider.WithBaseURL(baseURL)}, opts...)...)
 				},
 				Text: func(w http.ResponseWriter, _ *http.Request) {
-					_, _ = io.WriteString(w, `{"id":"resp_llmtest","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`)
+					_, _ = io.WriteString(w, `{"id":"resp_llmtest","model":"llmtest-model","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`)
 				},
 				ToolCall: func(w http.ResponseWriter, _ *http.Request, tool string) {
 					_ = json.NewEncoder(w).Encode(map[string]any{"id": "resp_llmtest", "output": []any{map[string]any{

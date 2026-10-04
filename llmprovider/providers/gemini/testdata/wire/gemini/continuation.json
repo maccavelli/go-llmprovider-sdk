@@ -31,12 +31,14 @@
     }
   ],
   "result": {
-    "finish_reason": "",
+    "finish_reason": "tool_calls",
     "id": "v1_int_wire",
     "output": [
       {
         "item": {
-          "Text": "thinking"
+          "Text": "thinking",
+          "Signature": "",
+          "Encrypted": ""
         },
         "type": "ReasoningItem"
       },

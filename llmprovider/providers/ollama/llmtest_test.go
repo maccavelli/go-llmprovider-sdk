@@ -13,6 +13,7 @@ import (
 // TestConformance runs llmtest (0015-MADR D11) against Ollama.
 func TestConformance(t *testing.T) {
 	llmtest.Run(t, llmtest.Harness{
+		Model: "llama3.2:latest",
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append([]llmprovider.Option{llmprovider.WithModel("llama3.3"), llmprovider.WithBaseURL(baseURL)}, opts...)...)
 		},

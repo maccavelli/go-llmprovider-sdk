@@ -13,6 +13,7 @@ import (
 // TestConformance runs llmtest (0015-MADR D11) against Hugging Face.
 func TestConformance(t *testing.T) {
 	llmtest.Run(t, llmtest.Harness{
+		Model: "llmtest-model",
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append(append([]llmprovider.Option{llmprovider.WithAPIKey("hf_llmtest"),
 				llmprovider.WithModel("openai/gpt-oss-120b"), llmprovider.WithBaseURL(baseURL)}, opts...), metadataOff()...)...)

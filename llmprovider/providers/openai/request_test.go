@@ -106,8 +106,10 @@ func TestGenerate_RequestFields(t *testing.T) {
 			r.Reasoning = &llmprovider.Reasoning{Budget: 4096}
 			return r
 		}, nil, func(t *testing.T, body map[string]any) {
-			if r, _ := body["reasoning"].(map[string]any); r["effort"] != "medium" || len(r) != 1 {
-				t.Errorf("reasoning = %v, want only effort medium", body["reasoning"])
+			// No budget is sent; the summary is asked for, so reasoning items
+			// carry text (0020-MADR F24).
+			if r, _ := body["reasoning"].(map[string]any); r["effort"] != "medium" || r["summary"] != "auto" || len(r) != 2 {
+				t.Errorf("reasoning = %v, want effort medium and summary auto, and no budget", body["reasoning"])
 			}
 		}},
 	} {

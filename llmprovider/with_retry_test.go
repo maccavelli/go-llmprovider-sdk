@@ -3,6 +3,8 @@ package llmprovider
 import (
 	"context"
 	"errors"
+	"net"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -38,7 +40,8 @@ func TestWithRetry_RetriesByKind(t *testing.T) {
 		{"a rate limit", &APIError{Status: 429, Kind: ErrRateLimited}, 2},
 		{"an unavailable service", &APIError{Status: 503, Kind: ErrProviderUnavailable}, 2},
 		{"a stream rate limit", &APIError{Kind: ErrRateLimited}, 2},
-		{"a failure to reach the service", errors.New("dial tcp: connection refused"), 2},
+		{"a failure to reach the service", &url.Error{Op: "Post", URL: "https://api.example/v1",
+			Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}}, 2},
 		{"exhausted quota", &APIError{Status: 429, Kind: ErrQuotaExhausted, terminal: true}, 1},
 		{"exhausted quota, not terminal", &APIError{Status: 402, Kind: ErrQuotaExhausted}, 1},
 		{"a final unavailable service", &APIError{Status: 525, Kind: ErrProviderUnavailable, terminal: true}, 1},

@@ -307,3 +307,123 @@ check.
     records that F44 replaces D5's state-mismatch branch.
 * **Additive API (R48).** `(*auth.OAuthSession).UseLogger` and
   `llmtest.Harness.NoReauth`. `api-check` passes.
+
+### Phase 2: answers (2026-10-03)
+
+* **`ReasoningItem` (Q1 a).** It gains `Signature` and `Encrypted`, an
+  additive change. They were added before the tests, without behaviour, so
+  the tests fail at run time rather than at compile time.
+* **F10, F11, F24, F39, on the Responses wire.** `answer_test.go`:
+  `TestInput_EmptyRoleIsTheUsers`, `TestDecode_ReportsModelAndFinish`,
+  `TestReadStream_ErrorEventIsClassified` and
+  `TestReasoning_EncryptedIsKeptAndReplayed`.
+  * Red, on the unchanged wire:
+    * `Input = [map[content:hi role:]]`;
+    * `Model:` and `FinishReason:` empty, from `Decode` and `ReadStream`;
+    * `ReadStream = … stream ended before response.completed, want ErrQuotaExhausted`;
+    * two empty `ReasoningItem`s, and `replayed input = []`.
+  * Fix:
+    * an empty Role is `user`;
+    * `model` is decoded, from `response.created` and `response.completed`
+      too, and a completed answer is `tool_calls` or `stop`;
+    * the stream's `error` event goes to `ClassifyStreamFailure`;
+    * `encrypted_content` is decoded into `Encrypted` and replayed as a
+      reasoning input item, without its `id`, and an item with neither
+      text nor encrypted content is dropped.
+* **F3, F7, F9, F11, on the Messages wire.** `TestDecode_StopReason`,
+  `TestDecode_EmptyIsIncomplete` and `TestThinking_SignatureIsReplayed`.
+  * Red, on the unchanged wire:
+    * `FinishReason:` empty for every `stop_reason`;
+    * `a tool call cut by max_tokens = <nil>`;
+    * `claude returned empty content`, with no kind;
+    * the signature dropped.
+  * Fix: `stop_reason` maps to `FinishReason`; `max_tokens` with a
+    `tool_use` is `ErrIncomplete`; `model` is decoded; the thinking
+    `signature` and `redacted_thinking` `data` are kept; `FromItems` replays
+    them ahead of the tool call in the same assistant message. Unsigned
+    reasoning is never sent.
+* **Chat Completions (F9, F11), generateContent (F3, F9, F11) and Gemini
+  Interactions (F9, F11).** Each package's `answer_test.go`.
+  * Red, on the unchanged code:
+    * `Model:` empty;
+    * `chat completions: response contained no choices`, with no kind;
+    * generateContent's `FinishReason:` empty and `a call cut by MAX_TOKENS = <nil>`;
+    * `gemini returned no content`, with no kind.
+  * Fix: `model` or `modelVersion` is decoded. `finishReason` maps,
+    `MAX_TOKENS` with a call being `ErrIncomplete`. An interaction is `stop`
+    or `tool_calls`. Empty answers are `ErrIncomplete`.
+* **F9, kinds and retry (Q2 a).** `TestDecodeError`,
+  `TestWithRetry_KindlessRetriedOnlyFromTheNetwork` and Together's
+  `TestGenerate_AnsweredOnceIsNotBoughtAgain`.
+  * Red, on `HEAD`'s `together.go`, `retry.go` and `chatcompletions.go`:
+    * `an empty answer: 3 request(s), … chat completions: response contained no choices`;
+    * `a 2 MiB answer: 3 request(s), … unexpected EOF`;
+    * the retry test gave `2 calls, want 1` for an unreadable answer.
+  * Fix:
+    * `wire.ReplyLimit` (16 MiB) replaces every provider's 1 MiB cap;
+    * `wire.DecodeError` keeps a kinded error, keeps a `net.Error`
+      kindless, and makes any other `ErrIncomplete` naming the provider or
+      route;
+    * `WithRetry` retries a kindless error only when it is a `net.Error`.
+  * `TestWithRetry_RetriesByKind`'s "failure to reach the service" case was
+    a plain string error. It is now the `*url.Error` that `client.Do`
+    returns, so it still tests the network path.
+* **F24, the request and the stream.**
+  * OpenAI's request asks for `reasoning.summary: "auto"`.
+  * `Stream` emits no reasoning delta for a reasoning item without text,
+    which still arrives as an item.
+  * `TestResponseEvents_NoEmptyReasoningDelta` was red with `an empty
+    reasoning delta was streamed`.
+  * `TestGenerate_RequestFields`'s budget case, which pinned a one-key
+    reasoning map, now requires `effort` and `summary`, and still no budget.
+    It was red with `reasoning = map[effort:medium]`.
+* **llmtest.**
+  * `R7-R9-response` requires `FinishReason` on a text reply, and the
+    reported `Model` when the new `Harness.Model` names it.
+  * A new `R6-empty-role` check fails when any request body carries
+    `"role":""`.
+  * The reference provider gains `noFinish` and `emptyRole` flaws, both
+    caught (`TestRun_NamesTheBrokenRule`).
+  * Every provider's `Text` fixture now names `llmtest-model` (Ollama's,
+    `llama3.2:latest`) and why it stopped.
+  * OpenAI's test `stream` helper carries the model into
+    `response.completed`.
+  * Red on `HEAD`'s Responses wire: Grok fails `R7-R9-response` and
+    `R6-empty-role`.
+  * `llmtest` is at 95.4%.
+* **G-wire (R45).** 23 goldens were regenerated with `-update`. Each
+  difference was listed and attributed first:
+  * empty `Encrypted` and `Signature` fields on reasoning items: 35 (Q1);
+  * `finish_reason` becoming `tool_calls`: 13 (F11);
+  * `requests[0].body.reasoning.summary: "auto"`: 4 (F24);
+  * `Signature: "sig_wire"` kept: 3 (F7).
+
+  The files: `claude/items`; `gemini/{items,continuation}`;
+  `grok/{items,continuation}`; `huggingface/items`; `kilo/items`;
+  `ollama/items`; `chatgpt/{items,thinking,thinking-tool}`;
+  `openai/{items,continuation,thinking,thinking-tool}`;
+  `opencode-{go,zen}-{chat,messages,responses}/items`;
+  `opencode-zen-google/items`; `together/items`. `go test -count=3 -run
+  TestWireGoldens` then passes.
+* **Gate.** The first run failed only on `errcheck`, the new `R6` check's
+  unchecked `io.ReadAll`, which now records an unreadable body. The rerun
+  passes all 17 checks, `make generate-check` passes, and the precheck
+  reports `343 file(s) clean`.
+* **Live (V3).** Each check ran on scratch copies.
+  * `TestScratch_ClaudeThinkingToolRoundTrip` (`claude-haiku-4-5`, budget
+    1024).
+    * The fix: `first turn: model "claude-haiku-4-5-20251001", finish
+      "tool_calls", 1 signed reasoning item(s), call "get_weather"`; the
+      second turn replays it and answers. `PASS (1.99s)`.
+    * `HEAD`'s Messages wire also passes, with `0 signed reasoning
+      item(s)`. F7's premised HTTP 400 did not occur. Recorded in the
+      MADR's amendment of 2026-10-03, "F7 measured live".
+  * `TestScratch_ModelReportedLive`:
+    * Claude `claude-haiku-4-5-20251001` / `stop`;
+    * Gemini `gemini-3.7-flash` / `stop`;
+    * Together `openai/gpt-oss-120b` / `stop`.
+    * On `HEAD`, Claude's was `model "", finish ""`.
+  * **Not done:**
+    * OpenAI's model check. The API key answered `429
+      credit_balance_exhausted`, and the check waits for credits.
+    * The ChatGPT reasoning replay, which needs the owner's session.

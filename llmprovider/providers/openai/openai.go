@@ -222,7 +222,8 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		}
 	}
 	if effort, ok := p.effort(req); ok {
-		body["reasoning"] = map[string]any{"effort": effort}
+		// The summary makes reasoning items carry text (0020-MADR F24).
+		body["reasoning"] = map[string]any{"effort": effort, "summary": "auto"}
 	}
 	if req.PreviousResponseID != "" {
 		body["previous_response_id"] = req.PreviousResponseID
@@ -287,10 +288,15 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderOpenAI), resp); err != nil {
 		return nil, err
 	}
+	// The reply is bounded, and a failure to read it gets its kind and name
+	// (0020-MADR F9).
+	var out *llmprovider.Response
 	if p.chatGPT {
-		return responses.ReadStream(string(llmprovider.ProviderOpenAI), resp.Body)
+		out, err = responses.ReadStream(string(llmprovider.ProviderOpenAI), resp.Body)
+	} else {
+		out, err = responses.Decode(io.LimitReader(resp.Body, wire.ReplyLimit))
 	}
-	return responses.Decode(io.LimitReader(resp.Body, 1<<20))
+	return out, wire.DecodeError(string(llmprovider.ProviderOpenAI), err)
 }
 
 // ListModels returns the curated chat models this credential can use, never

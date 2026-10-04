@@ -106,8 +106,10 @@ func Contents(items []llmprovider.Item) []map[string]any {
 // Decode decodes a generateContent response.
 func Decode(body io.Reader) (*llmprovider.Response, error) {
 	var raw struct {
-		Candidates []struct {
-			Content struct {
+		ModelVersion string `json:"modelVersion"`
+		Candidates   []struct {
+			FinishReason string `json:"finishReason"`
+			Content      struct {
 				Parts []struct {
 					Text         string `json:"text"`
 					Thought      bool   `json:"thought"`
@@ -126,10 +128,19 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	}
 
 	if len(raw.Candidates) == 0 || len(raw.Candidates[0].Content.Parts) == 0 {
-		return nil, fmt.Errorf("gemini returned no content")
+		return nil, fmt.Errorf("%w: generatecontent: the answer has no content", llmprovider.ErrIncomplete)
+	}
+	finish := finishReasons[raw.Candidates[0].FinishReason]
+	if finish == llmprovider.FinishLength {
+		for _, part := range raw.Candidates[0].Content.Parts {
+			if part.FunctionCall != nil {
+				// A call cut by the token limit has unusable arguments (0020-MADR F3).
+				return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
+			}
+		}
 	}
 
-	result := &llmprovider.Response{Usage: raw.Usage.counts()}
+	result := &llmprovider.Response{Model: raw.ModelVersion, Usage: raw.Usage.counts()}
 	for _, part := range raw.Candidates[0].Content.Parts {
 		// A thought summary is flagged thought: true, with its text in text.
 		if part.Thought {
@@ -158,8 +169,31 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 			})
 		}
 	}
-
+	result.FinishReason = finish
+	if finish == llmprovider.FinishStop {
+		for _, item := range result.Output {
+			if _, ok := item.(llmprovider.FunctionCallItem); ok {
+				result.FinishReason = llmprovider.FinishToolCalls
+			}
+		}
+	}
 	return result, nil
+}
+
+// finishReasons maps generateContent's finishReason to FinishReason
+// (0020-MADR F3). A reason not listed is left empty.
+var finishReasons = map[string]llmprovider.FinishReason{
+	"STOP":                      llmprovider.FinishStop,
+	"MAX_TOKENS":                llmprovider.FinishLength,
+	"SAFETY":                    llmprovider.FinishContentFilter,
+	"RECITATION":                llmprovider.FinishContentFilter,
+	"BLOCKLIST":                 llmprovider.FinishContentFilter,
+	"PROHIBITED_CONTENT":        llmprovider.FinishContentFilter,
+	"SPII":                      llmprovider.FinishContentFilter,
+	"IMAGE_SAFETY":              llmprovider.FinishContentFilter,
+	"MALFORMED_FUNCTION_CALL":   llmprovider.FinishStop,
+	"UNEXPECTED_TOOL_CALL":      llmprovider.FinishStop,
+	"FINISH_REASON_UNSPECIFIED": "",
 }
 
 // geminiLegacyRE matches Gemini 1.x and 2.x ids, which take thinkingBudget but

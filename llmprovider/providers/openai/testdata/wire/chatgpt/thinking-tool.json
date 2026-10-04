@@ -26,7 +26,8 @@
         "model": "gpt-6-astra",
         "prompt_cache_key": "wire-session",
         "reasoning": {
-          "effort": "medium"
+          "effort": "medium",
+          "summary": "auto"
         },
         "store": false,
         "stream": true,

@@ -19,7 +19,8 @@
         "max_output_tokens": 8192,
         "model": "gpt-5.5",
         "reasoning": {
-          "effort": "medium"
+          "effort": "medium",
+          "summary": "auto"
         },
         "tool_choice": {
           "name": "get_weather",

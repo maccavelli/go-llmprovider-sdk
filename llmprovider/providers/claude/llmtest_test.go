@@ -13,12 +13,13 @@ import (
 // TestConformance runs llmtest (0015-MADR D11) against Claude.
 func TestConformance(t *testing.T) {
 	llmtest.Run(t, llmtest.Harness{
+		Model: "llmtest-model",
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append([]llmprovider.Option{llmprovider.WithAPIKey("sk-ant-llmtest"),
 				llmprovider.WithModel("claude-haiku-4-5"), llmprovider.WithBaseURL(baseURL)}, opts...)...)
 		},
 		Text: func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = io.WriteString(w, `{"content":[{"type":"text","text":"hello"}]}`)
+			_, _ = io.WriteString(w, `{"model":"llmtest-model","stop_reason":"end_turn","content":[{"type":"text","text":"hello"}]}`)
 		},
 		ToolCall: func(w http.ResponseWriter, _ *http.Request, tool string) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"content": []any{map[string]any{

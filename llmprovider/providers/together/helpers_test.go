@@ -14,7 +14,7 @@ import (
 
 // Test helpers, as the other provider packages' (0015-PLAN S7).
 
-const togetherText = `{"id":"t-1","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"hello"}}]}`
+const togetherText = `{"id":"t-1","model":"llmtest-model","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"hello"}}]}`
 
 // weatherTool is the tool the tool tests offer.
 var weatherTool = llmprovider.Tool{Name: "get_weather", Description: "Weather for a city",

@@ -409,3 +409,27 @@ Found while writing
     client and `WithClientInfo`. The wizard calls it.
   * The change is additive, so Q5's intent holds within R48.
 * Nothing else in Q5 changes.
+
+## Amendment 2026-10-03: F7 measured live, and two live checks open
+
+Found running 0020-PLAN's phase 2 live checks.
+
+* **F7's premise does not hold on `claude-haiku-4-5`.**
+  * The record said that replaying a thinking-and-tools turn without the
+    thinking block's signature is refused with HTTP 400. It said this from
+    Anthropic's documentation, unmeasured.
+  * Live, `HEAD`'s Messages wire, which drops the signature, completed the
+    round trip; the second turn answered.
+  * The fix still stands. It keeps the signed thinking and sends it back
+    ahead of the tool call, as Anthropic documents for thinking with tools,
+    and the live round trip passes with it (`1 signed reasoning item`).
+  * But F7 is not a tool loop that cannot run. Its severity was overstated:
+    it is a lost reasoning continuity, not a failure.
+* **Open live checks:**
+  * **OpenAI's `Model`.** The OpenAI API key answered `429
+    credit_balance_exhausted`, so it could not be checked. It waits for the
+    owner to add credits.
+  * **The ChatGPT reasoning replay (F24).** It needs the owner's ChatGPT
+    session. The replay sends `encrypted_content` without the item's `id`,
+    which is believed to be Codex's practice with `store: false` but is
+    unconfirmed, and the live check will settle it.

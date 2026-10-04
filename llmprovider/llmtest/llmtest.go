@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,6 +36,9 @@ type Harness struct {
 	ToolCall func(w http.ResponseWriter, r *http.Request, tool string)
 	// Error writes the service's error reply with the given status.
 	Error func(w http.ResponseWriter, r *http.Request, status int)
+	// Model, when set, is the model the Text reply names: the Response must
+	// report it (R7; 0020-MADR F11).
+	Model string
 	// NoReauth, when set, says why the R16 reauth check does not apply: for
 	// example, the credential New is given decides the provider's mode, so
 	// the check's own token source would build a different provider. Empty
@@ -54,7 +58,9 @@ type Harness struct {
 //   - a refused token renewed once: an HTTP 401 invalidates an
 //     llmprovider.InvalidatingSource and the request is sent once more (R16;
 //     0017-MADR D3; 0020-MADR F2);
-//   - the Response invariants (R7, R9);
+//   - the Response invariants (R7, R9), FinishReason and, when the Harness
+//     names it, Model (0020-MADR F11);
+//   - an empty Role, the user's, never sent as "" (R6; 0020-MADR F10);
 //   - concurrent use (R20), which the race detector checks.
 func Run(t *testing.T, h Harness) {
 	t.Helper()
@@ -108,6 +114,7 @@ func runChecks(r reporter, h Harness) {
 	r.Run("R44-identity", func(r reporter) { checkIdentity(r, h) })
 	r.Run("R16-reauth", func(r reporter) { checkReauth(r, h) })
 	r.Run("R7-R9-response", func(r reporter) { checkResponse(r, h) })
+	r.Run("R6-empty-role", func(r reporter) { checkEmptyRole(r, h) })
 	r.Run("R20-concurrency", func(r reporter) { checkConcurrency(r, h) })
 }
 
@@ -425,6 +432,12 @@ func checkResponse(r reporter, h Harness) {
 	if len(resp.Output) == 0 || resp.OutputText() == "" {
 		r.Errorf("R7 (Response invariants): a text reply has no output text")
 	}
+	if resp.FinishReason == "" {
+		r.Errorf("R7 (Response invariants, 0020-MADR F11): a text reply has no FinishReason")
+	}
+	if h.Model != "" && resp.Model != h.Model {
+		r.Errorf("R7 (Response invariants, 0020-MADR F11): Model = %q; the reply names %q", resp.Model, h.Model)
+	}
 	for i, item := range resp.Output {
 		switch it := item.(type) {
 		case llmprovider.MessageItem, llmprovider.ReasoningItem, llmprovider.FunctionCallOutputItem:
@@ -546,5 +559,40 @@ func checkReauth(r reporter, h Harness) {
 		r.Errorf("R16 (a refused token is renewed once; 0017-MADR D3): after a 401, %d invalidation(s) and %d request(s), error %v; "+
 			"want the source invalidated once and the request sent once more, with the fresh token",
 			src.invalidations(), fs.count.Load(), err)
+	}
+}
+
+// checkEmptyRole sends a message with no Role, which is the user's, and fails
+// if any request body carries it as "role":"" (R6; 0020-MADR F10).
+func checkEmptyRole(r reporter, h Harness) {
+	r.Helper()
+	var mu sync.Mutex
+	var bodies []string
+	fs := serve(func(w http.ResponseWriter, req *http.Request) {
+		body, err := io.ReadAll(io.LimitReader(req.Body, 1<<20))
+		if err != nil {
+			body = []byte("(request body unreadable: " + err.Error() + ")")
+		}
+		mu.Lock()
+		bodies = append(bodies, string(body))
+		mu.Unlock()
+		h.Text(w, req)
+	})
+	defer fs.Close()
+	p := build(r, h, fs)
+	if p == nil {
+		return
+	}
+	req := &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Text: "llmtest"}}}
+	if _, err := generate(r, p, req); err != nil {
+		r.Errorf("R6 (an empty Role is the user's): Generate failed: %v", err)
+		return
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, body := range bodies {
+		if strings.Contains(strings.ReplaceAll(body, " ", ""), `"role":""`) {
+			r.Errorf("R6 (an empty Role is the user's, 0020-MADR F10): the request carries \"role\":\"\": %.200s", body)
+		}
 	}
 }

@@ -174,7 +174,10 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 		return nil, err
 	}
 	// 1 MiB bounds a runaway reply.
-	return chatcompletions.Decode(io.LimitReader(resp.Body, 1<<20))
+	// The reply is bounded, and a failure to read it gets its kind and
+	// name (0020-MADR F9).
+	out, err := chatcompletions.Decode(io.LimitReader(resp.Body, wire.ReplyLimit))
+	return out, wire.DecodeError("ollama", err)
 }
 
 // body is the Chat Completions request for req.

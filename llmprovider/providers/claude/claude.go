@@ -165,7 +165,10 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request) (
 	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderClaude), resp); err != nil {
 		return nil, err
 	}
-	return messages.Decode(io.LimitReader(resp.Body, 1<<20))
+	// The reply is bounded, and a failure to read it gets its kind and
+	// name (0020-MADR F9).
+	out, err := messages.Decode(io.LimitReader(resp.Body, wire.ReplyLimit))
+	return out, wire.DecodeError("claude", err)
 }
 
 // body is the Messages request for req.

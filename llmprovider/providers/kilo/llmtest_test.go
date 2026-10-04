@@ -13,12 +13,13 @@ import (
 // TestConformance runs llmtest (0015-MADR D11) against Kilo.
 func TestConformance(t *testing.T) {
 	llmtest.Run(t, llmtest.Harness{
+		Model: "llmtest-model",
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append([]llmprovider.Option{llmprovider.WithAPIKey("kilo-llmtest"),
 				llmprovider.WithModel("deepseek/deepseek-v4.1-flash"), llmprovider.WithBaseURL(baseURL)}, opts...)...)
 		},
 		Text: func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"hello"}}]}`)
+			_, _ = io.WriteString(w, `{"model":"llmtest-model","choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"hello"}}]}`)
 		},
 		ToolCall: func(w http.ResponseWriter, _ *http.Request, tool string) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{

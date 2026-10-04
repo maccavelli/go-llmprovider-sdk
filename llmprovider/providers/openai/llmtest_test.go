@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	llmtestText = `{"id":"resp_llmtest","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`
+	llmtestText = `{"id":"resp_llmtest","model":"llmtest-model","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`
 )
 
 func llmtestCall(tool string) string {
@@ -32,6 +32,7 @@ func harness(credential func() llmprovider.Option, sse bool) llmtest.Harness {
 		_, _ = io.WriteString(w, body)
 	}
 	return llmtest.Harness{
+		Model: "llmtest-model",
 		New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append([]llmprovider.Option{credential(), llmprovider.WithModel("gpt-5.5"),
 				llmprovider.WithBaseURL(baseURL)}, opts...)...)

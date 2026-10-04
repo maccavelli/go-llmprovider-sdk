@@ -63,7 +63,9 @@
     "output": [
       {
         "item": {
-          "Text": "thinking"
+          "Text": "thinking",
+          "Signature": "",
+          "Encrypted": ""
         },
         "type": "ReasoningItem"
       },

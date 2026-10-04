@@ -171,11 +171,20 @@ In this order:
    `generateOnce` that fetches its token on every call. `llmtest` checks
    it (`R16-reauth`; 0020-MADR F2).
 8. **Decode the reply** into a `*llmprovider.Response`. Bound what you read,
-   with `io.LimitReader`.
+   with `io.LimitReader`. A built-in provider reads up to `wire.ReplyLimit`
+   (16 MiB) and passes a decode failure through `wire.DecodeError`: an
+   answer that cannot be read is `ErrIncomplete`, never retried, while a
+   network failure stays retryable (0020-MADR F9).
+   - Keep what the service needs back when reasoning is replayed:
+     `ReasoningItem.Signature` (Claude's thinking signature) and
+     `ReasoningItem.Encrypted` (redacted or encrypted reasoning), and send
+     them back in the next request (0020-MADR F7, F24).
    - `Output` holds `MessageItem{Role: llmprovider.RoleAssistant, Text: …}`,
      `FunctionCallItem{CallID, Name, Arguments}` and `ReasoningItem` values,
      in the order the service sent them.
    - Set `ID`, `Model` and `FinishReason` when the service reports them.
+     `llmtest` requires `FinishReason` on a text reply, and `Model` when the
+     `Harness` names it (0020-MADR F11).
    - In `Usage` a total holds its part: `InputTokens` includes
      `CachedTokens`, and `OutputTokens` includes `ReasoningTokens` (R7).
 9. **Wrap your own errors with your prefix and a kind** where one applies,

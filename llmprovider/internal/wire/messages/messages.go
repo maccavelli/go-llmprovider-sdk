@@ -17,11 +17,26 @@ import (
 )
 
 const (
-	keyInput    = "input"
-	keyEffort   = "effort"
-	keyThinking = "thinking"
-	keyEnabled  = "enabled"
+	keyInput     = "input"
+	keyEffort    = "effort"
+	keyThinking  = "thinking"
+	keyEnabled   = "enabled"
+	keySignature = "signature"
+	keyData      = "data"
+
+	blockRedactedThinking = "redacted_thinking"
+	blockToolUse          = "tool_use"
 )
+
+// stopReasons maps Anthropic's stop_reason to FinishReason (0020-MADR F3).
+var stopReasons = map[string]llmprovider.FinishReason{
+	"end_turn":      llmprovider.FinishStop,
+	"stop_sequence": llmprovider.FinishStop,
+	"pause_turn":    llmprovider.FinishStop,
+	"max_tokens":    llmprovider.FinishLength,
+	"tool_use":      llmprovider.FinishToolCalls,
+	"refusal":       llmprovider.FinishContentFilter,
+}
 
 // defaultThinkingBudget is the thinking budget when none is configured.
 const defaultThinkingBudget = 4096
@@ -65,6 +80,18 @@ func FromItems(items []llmprovider.Item) []map[string]any {
 				wire.KeyRole:    role,
 				wire.KeyContent: v.Text,
 			})
+		case llmprovider.ReasoningItem:
+			// Anthropic needs a turn's thinking back, signature included, when
+			// thinking and tools are combined. Unsigned reasoning, such as
+			// another service's, cannot be replayed (0020-MADR F7).
+			switch {
+			case v.Signature != "":
+				appendBlock(wire.RoleAssistant, map[string]any{
+					wire.KeyType: keyThinking, keyThinking: v.Text, keySignature: v.Signature,
+				})
+			case v.Encrypted != "":
+				appendBlock(wire.RoleAssistant, map[string]any{wire.KeyType: blockRedactedThinking, keyData: v.Encrypted})
+			}
 		case llmprovider.FunctionCallItem:
 			appendBlock(wire.RoleAssistant, map[string]any{
 				wire.KeyType: "tool_use",
@@ -84,16 +111,21 @@ func FromItems(items []llmprovider.Item) []map[string]any {
 }
 
 // Decode decodes a Messages API response. The API is stateless, so the
-// Response has no ID.
+// Response has no ID. stop_reason becomes FinishReason, and a tool call cut
+// by max_tokens is ErrIncomplete (0020-MADR F3; MADR 0012 §1.5).
 func Decode(body io.Reader) (*llmprovider.Response, error) {
 	var result struct {
-		Content []struct {
-			Type     string         `json:"type"`
-			Text     string         `json:"text"`
-			Thinking string         `json:"thinking"`
-			ID       string         `json:"id"`
-			Name     string         `json:"name"`
-			Input    map[string]any `json:"input"`
+		Model      string `json:"model"`
+		StopReason string `json:"stop_reason"`
+		Content    []struct {
+			Type      string         `json:"type"`
+			Text      string         `json:"text"`
+			Thinking  string         `json:"thinking"`
+			Signature string         `json:"signature"`
+			Data      string         `json:"data"`
+			ID        string         `json:"id"`
+			Name      string         `json:"name"`
+			Input     map[string]any `json:"input"`
 		} `json:"content"`
 		Usage usage `json:"usage"`
 	}
@@ -102,10 +134,19 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	}
 
 	if len(result.Content) == 0 {
-		return nil, fmt.Errorf("claude returned empty content")
+		return nil, fmt.Errorf("%w: messages: the answer has no content", llmprovider.ErrIncomplete)
+	}
+	finish := stopReasons[result.StopReason]
+	if finish == llmprovider.FinishLength {
+		for _, b := range result.Content {
+			if b.Type == blockToolUse {
+				return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
+			}
+		}
 	}
 
-	res := &llmprovider.Response{ID: "", Usage: result.Usage.counts()} // Claude Messages API is stateless
+	// The Messages API is stateless: no ID.
+	res := &llmprovider.Response{Model: result.Model, FinishReason: finish, Usage: result.Usage.counts()}
 	for _, b := range result.Content {
 		switch b.Type {
 		case keyThinking:
@@ -113,12 +154,14 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 			if text == "" {
 				text = b.Text
 			}
-			res.Output = append(res.Output, llmprovider.ReasoningItem{Text: text})
+			res.Output = append(res.Output, llmprovider.ReasoningItem{Text: text, Signature: b.Signature})
+		case blockRedactedThinking:
+			res.Output = append(res.Output, llmprovider.ReasoningItem{Encrypted: b.Data})
 		case wire.KeyText, "":
 			if b.Text != "" {
 				res.Output = append(res.Output, llmprovider.MessageItem{Role: wire.RoleAssistant, Text: b.Text})
 			}
-		case "tool_use":
+		case blockToolUse:
 			var argsStr string
 			if b.Input != nil {
 				argsBytes, err := json.Marshal(b.Input)
@@ -136,7 +179,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	}
 
 	if len(res.Output) == 0 {
-		return nil, fmt.Errorf("claude returned no usable content")
+		return nil, fmt.Errorf("%w: messages: the answer has no usable content", llmprovider.ErrIncomplete)
 	}
 
 	return res, nil

@@ -46,6 +46,7 @@ func httpResponse(request *http.Request, status int, body string) *http.Response
 func stream(body string) string {
 	var parsed struct {
 		ID     string            `json:"id"`
+		Model  string            `json:"model"`
 		Output []json.RawMessage `json:"output"`
 	}
 	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
@@ -56,7 +57,8 @@ func stream(body string) string {
 		b.WriteString(`data: {"type":"response.output_item.done","item":` + string(item) + "}\n\n")
 	}
 	id, _ := json.Marshal(parsed.ID)
-	b.WriteString(`data: {"type":"response.completed","response":{"id":` + string(id) + "}}\n\n")
+	model, _ := json.Marshal(parsed.Model)
+	b.WriteString(`data: {"type":"response.completed","response":{"id":` + string(id) + `,"model":` + string(model) + "}}\n\n")
 	return b.String()
 }
 

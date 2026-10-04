@@ -69,7 +69,11 @@ func responseEvents(resp *Response) []Event {
 		case MessageItem:
 			events = append(events, Event{Type: EventTextDelta, Text: it.Text})
 		case ReasoningItem:
-			events = append(events, Event{Type: EventReasoningDelta, Text: it.Text})
+			// Reasoning held only in encrypted form has no text to stream
+			// (0020-MADR F24); it still arrives as an item.
+			if it.Text != "" {
+				events = append(events, Event{Type: EventReasoningDelta, Text: it.Text})
+			}
 		default:
 			// Calls and call outputs arrive only as items.
 		}

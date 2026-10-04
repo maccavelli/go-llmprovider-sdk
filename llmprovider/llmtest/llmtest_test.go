@@ -26,6 +26,8 @@ type flaws struct {
 	misclassify429 bool // reports a 429 as an unavailable service
 	racy           bool // counts calls without a lock
 	noReauth       bool // never renews a refused token
+	noFinish       bool // never says why the answer ended
+	emptyRole      bool // sends an empty Role as "role":""
 }
 
 // refProvider is a small conformant provider over a JSON wire: it POSTs
@@ -93,7 +95,11 @@ func (p *refProvider) Generate(ctx context.Context, req *llmprovider.Request) (*
 // generateOnce sends req once, with a token fetched for this send.
 func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	tool, _ := req.ToolChoice.Tool()
-	body, err := json.Marshal(map[string]string{"text": req.Input[0].(llmprovider.MessageItem).Text, "tool": tool})
+	fields := map[string]string{"text": req.Input[0].(llmprovider.MessageItem).Text, "tool": tool}
+	if p.flaws.emptyRole {
+		fields["role"] = string(req.Input[0].(llmprovider.MessageItem).Role)
+	}
+	body, err := json.Marshal(fields)
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +132,9 @@ func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request
 		return nil, fmt.Errorf("%w: %w", llmprovider.ErrProviderUnavailable, err)
 	}
 	result := &llmprovider.Response{FinishReason: llmprovider.FinishStop}
+	if p.flaws.noFinish {
+		result.FinishReason = ""
+	}
 	if out.Call != nil {
 		result.Output = append(result.Output, llmprovider.FunctionCallItem{CallID: "call_1", Name: out.Call.Name, Arguments: out.Call.Arguments})
 	}
@@ -219,6 +228,8 @@ func TestRun_NamesTheBrokenRule(t *testing.T) {
 		{"skips validation", flaws{skipCheck: true}, "R23-invalid-values: R23 (invalid values): a negative MaxOutputTokens"},
 		{"misclassifies a 429", flaws{misclassify429: true}, "R25-R26-classification: R25 (errors by kind): HTTP 429"},
 		{"never renews a refused token", flaws{noReauth: true}, "R16-reauth: R16 (a refused token is renewed once"},
+		{"never says why it ended", flaws{noFinish: true}, "R7-R9-response: R7 (Response invariants, 0020-MADR F11): a text reply has no FinishReason"},
+		{"sends an empty role", flaws{emptyRole: true}, `R6-empty-role: R6 (an empty Role is the user's, 0020-MADR F10): the request carries "role":""`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rec := newRecorder()

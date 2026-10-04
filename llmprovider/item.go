@@ -49,6 +49,14 @@ func (FunctionCallOutputItem) itemKind() string { return itemTypeFunctionCallOut
 // simply contains no ReasoningItem values.
 type ReasoningItem struct {
 	Text string
+	// Signature is the service's proof that Text is its own, which it needs
+	// back when the reasoning is replayed: Claude's thinking signature
+	// (0020-MADR F7, Q1 a). Empty where the service sends none.
+	Signature string
+	// Encrypted is reasoning the service returned only in encrypted form,
+	// replayed as is: Claude's redacted_thinking data, OpenAI's
+	// encrypted_content (0020-MADR F7, F24, Q1 a). Text may then be empty.
+	Encrypted string
 }
 
 func (ReasoningItem) itemKind() string { return itemTypeReasoning }

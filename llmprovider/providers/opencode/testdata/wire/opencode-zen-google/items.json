@@ -78,12 +78,14 @@
     }
   ],
   "result": {
-    "finish_reason": "",
+    "finish_reason": "tool_calls",
     "id": "",
     "output": [
       {
         "item": {
-          "Text": "thinking"
+          "Text": "thinking",
+          "Signature": "",
+          "Encrypted": ""
         },
         "type": "ReasoningItem"
       },

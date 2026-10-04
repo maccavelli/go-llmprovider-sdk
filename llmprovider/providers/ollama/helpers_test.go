@@ -14,7 +14,7 @@ import (
 // Test helpers, as the other provider packages' (0015-PLAN S7).
 
 const fxOllamaChat = `{"id":"chatcmpl-1","object":"chat.completion","model":"llama3.2:latest",
-"choices":[{"index":0,"message":{"role":"assistant","content":"ALPHA"}}]}`
+"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"ALPHA"}}]}`
 
 // ollamaTags is a GET /api/tags body listing names.
 func ollamaTags(names ...string) string {

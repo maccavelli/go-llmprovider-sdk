@@ -174,6 +174,7 @@ func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[str
 func Decode(body io.Reader) (*llmprovider.Response, error) {
 	var raw struct {
 		ID      string `json:"id"`
+		Model   string `json:"model"`
 		Choices []struct {
 			FinishReason string `json:"finish_reason"`
 			Message      struct {
@@ -196,7 +197,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		return nil, err
 	}
 	if len(raw.Choices) == 0 {
-		return nil, fmt.Errorf("chat completions: response contained no choices")
+		return nil, fmt.Errorf("%w: chat completions: the answer has no choices", llmprovider.ErrIncomplete)
 	}
 
 	msg := raw.Choices[0].Message
@@ -207,7 +208,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	}
 	// The response id is not a resumable conversation handle on any gateway
 	// that speaks this format, so it is carried for logging only.
-	result := &llmprovider.Response{ID: raw.ID, FinishReason: finish, Usage: raw.Usage.counts()}
+	result := &llmprovider.Response{ID: raw.ID, Model: raw.Model, FinishReason: finish, Usage: raw.Usage.counts()}
 
 	reasoning := msg.ReasoningContent
 	if reasoning == "" {
@@ -232,7 +233,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	}
 
 	if len(result.Output) == 0 {
-		return nil, fmt.Errorf("chat completions: response contained no usable content")
+		return nil, fmt.Errorf("%w: chat completions: the answer has no usable content", llmprovider.ErrIncomplete)
 	}
 	return result, nil
 }

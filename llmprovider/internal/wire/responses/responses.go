@@ -31,10 +31,24 @@ func Input(items []llmprovider.Item) []map[string]any {
 	for _, item := range items {
 		switch v := item.(type) {
 		case llmprovider.MessageItem:
+			role := string(v.Role)
+			if role == "" {
+				role = wire.RoleUser // an empty Role is the user's (0020-MADR F10)
+			}
 			input = append(input, map[string]any{
-				wire.KeyRole:    string(v.Role),
+				wire.KeyRole:    role,
 				wire.KeyContent: v.Text,
 			})
+		case llmprovider.ReasoningItem:
+			// Encrypted reasoning goes back as it came (0020-MADR F24);
+			// plain text reasoning cannot be replayed.
+			if v.Encrypted != "" {
+				input = append(input, map[string]any{
+					wire.KeyType:        itemTypeReasoning,
+					"encrypted_content": v.Encrypted,
+					"summary":           []any{},
+				})
+			}
 		case llmprovider.FunctionCallItem:
 			input = append(input, map[string]any{
 				wire.KeyType:      itemTypeFunctionCall,
@@ -57,6 +71,7 @@ func Input(items []llmprovider.Item) []map[string]any {
 func Decode(body io.Reader) (*llmprovider.Response, error) {
 	var raw struct {
 		ID                string `json:"id"`
+		Model             string `json:"model"`
 		Status            string `json:"status"`
 		IncompleteDetails struct {
 			Reason string `json:"reason"`
@@ -72,11 +87,23 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		return nil, incomplete(raw.IncompleteDetails.Reason)
 	}
 
-	result := &llmprovider.Response{ID: raw.ID, Usage: raw.Usage.counts()}
+	result := &llmprovider.Response{ID: raw.ID, Model: raw.Model, Usage: raw.Usage.counts()}
 	for _, out := range raw.Output {
 		appendOutput(result, out)
 	}
+	result.FinishReason = finishReason(result)
 	return result, nil
+}
+
+// finishReason is a completed answer's: tool_calls when it calls a tool, else
+// stop (0020-MADR F11). An incomplete one is an error, never a Response.
+func finishReason(r *llmprovider.Response) llmprovider.FinishReason {
+	for _, item := range r.Output {
+		if _, ok := item.(llmprovider.FunctionCallItem); ok {
+			return llmprovider.FinishToolCalls
+		}
+	}
+	return llmprovider.FinishStop
 }
 
 // incomplete is the MADR 0012 §1.5 error for an incomplete Responses answer.
@@ -98,9 +125,10 @@ type outputItem struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"summary"`
-	CallID    string `json:"call_id"`
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
+	CallID           string `json:"call_id"`
+	Name             string `json:"name"`
+	Arguments        string `json:"arguments"`
+	EncryptedContent string `json:"encrypted_content"`
 }
 
 // appendOutput adds to r the item one Responses output entry carries, if any.
@@ -130,7 +158,11 @@ func appendOutput(r *llmprovider.Response, out outputItem) {
 				sb.WriteString(s.Text)
 			}
 		}
-		r.Output = append(r.Output, llmprovider.ReasoningItem{Text: sb.String()})
+		// An item with neither text nor encrypted content says nothing, and
+		// is not kept (0020-MADR F24).
+		if sb.Len() > 0 || out.EncryptedContent != "" {
+			r.Output = append(r.Output, llmprovider.ReasoningItem{Text: sb.String(), Encrypted: out.EncryptedContent})
+		}
 	}
 }
 
@@ -140,10 +172,14 @@ const streamLimit = 16 << 20
 // streamEvent is the part of one Responses stream event the reader uses. The
 // type is read from the payload, not the SSE "event:" line.
 type streamEvent struct {
-	Type     string     `json:"type"`
+	Type string `json:"type"`
+	// Code and Message are a top-level error event's (0020-MADR F39).
+	Code     string     `json:"code"`
+	Message  string     `json:"message"`
 	Item     outputItem `json:"item"`
 	Response struct {
 		ID    string `json:"id"`
+		Model string `json:"model"`
 		Error *struct {
 			Type    string `json:"type"`
 			Code    string `json:"code"`
@@ -180,7 +216,10 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 		}
 		switch event.Type {
 		case "response.created":
-			result.ID = event.Response.ID
+			result.ID, result.Model = event.Response.ID, event.Response.Model
+		case "error":
+			// The stream's own error event, not a response's (0020-MADR F39).
+			return false, llmprovider.ClassifyStreamFailure(provider, event.Code, "", event.Message)
 		case "response.output_item.done":
 			appendOutput(result, event.Item)
 		case "response.failed":
@@ -195,7 +234,11 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 			if event.Response.ID != "" {
 				result.ID = event.Response.ID
 			}
+			if event.Response.Model != "" {
+				result.Model = event.Response.Model
+			}
 			result.Usage = event.Response.Usage.counts()
+			result.FinishReason = finishReason(result)
 			return true, nil
 		}
 		return false, nil

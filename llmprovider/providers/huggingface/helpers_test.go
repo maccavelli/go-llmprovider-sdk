@@ -14,7 +14,7 @@ import (
 
 // Test helpers, as the other provider packages' (0015-PLAN S7).
 
-const fxHFChat = `{"id":"cmpl-hf","choices":[{"message":{"role":"assistant","content":"hello"}}]}`
+const fxHFChat = `{"id":"cmpl-hf","model":"llmtest-model","choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"hello"}}]}`
 
 // hfListing is a router listing with one live, tool-capable text model.
 const hfListing = `{"data":[{"id":"openai/gpt-oss-120b","architecture":{"input_modalities":["text"],"output_modalities":["text"]},` +
