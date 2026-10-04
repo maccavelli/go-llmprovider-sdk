@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-10-03
+date: 2026-10-04
 associated-madr: 0010-MADR-windows-stdio-oauth-tokenstore-ci.md
 decision-makers: mcplib maintainers
 migrated-from: "mcplib docs/decisions/0010-PLAN-windows-stdio-oauth-tokenstore-ci.md @ 4e1f9a5"
@@ -1133,3 +1133,30 @@ cosmetic.
   owner pushes for the `windows-2025` CI job.
 * Then it must pass, on Windows CI after the push.
 * Until both are recorded, this PLAN stays `in-progress`.
+
+### Deviation 2026-10-04: the Windows test misread an SDDL alias
+
+* **Found** on the test's first Windows run: CI `windows-2025` on
+  `1ca1e7d`, after the owner pushed `9e8230a..1ca1e7d`. Linux and macOS
+  passed.
+  * `ownerperm_windows_test.go:83`: `SDDL "O:LAD:PAI(A;OICI;FA;;;LA)",
+    want owner S-1-5-21-…-500`.
+  * SDDL writes a well-known account as a two-letter alias. The runner's
+    account is the built-in Administrator (RID 500), which SDDL writes as
+    `LA`. `assertOnlyUser` compared the SDDL text with the SID string, so
+    it failed on an owner that is the user.
+  * The descriptor itself is what P6b asks for. The user owns the
+    directory, the DACL is protected (`P`), and its one entry grants the
+    user full access, inherited by files and folders (`OICI`). The code
+    is right; the test's reading is wrong.
+* **Resolution, the owner's choice: "Option 1", compare SIDs, not text.**
+  * `assertOnlyUser` resolves the owner and each entry's trustee to a SID
+    string with `syscall.StringToSid`. It calls `ConvertStringSidToSidW`,
+    which takes an SDDL alias as well as an `S-1-…` string.
+  * The assertion is as strict as before: every trustee must be the user.
+  * Only `ownerperm_windows_test.go` changes. No decision changes.
+* **Still open: P6b.3, failing first.**
+  * This run failed for the test's own defect, not for a `restrict` that
+    does nothing, so it is not the first-fail P6b.3 asks for.
+  * That still needs the owner's Windows machine, or a branch the owner
+    pushes. Then the fixed test must pass on Windows CI.

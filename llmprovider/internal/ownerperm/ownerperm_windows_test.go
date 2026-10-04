@@ -46,6 +46,23 @@ func sddlOf(t *testing.T, path string) string {
 	return syscall.UTF16ToString(unsafe.Slice(s, n))
 }
 
+// sidOf is an SDDL trustee as a SID string. SDDL writes a well-known account
+// as a two-letter alias, such as LA for the built-in Administrator (RID 500),
+// which a CI runner's account is; ConvertStringSidToSidW takes either form
+// (0010-PLAN, deviation 2026-10-04).
+func sidOf(t *testing.T, trustee string) string {
+	t.Helper()
+	sid, err := syscall.StringToSid(trustee)
+	if err != nil {
+		t.Fatalf("SDDL trustee %q: %v", trustee, err)
+	}
+	s, err := sid.String()
+	if err != nil {
+		t.Fatalf("SDDL trustee %q: %v", trustee, err)
+	}
+	return s
+}
+
 // assertOnlyUser checks the recipe's own invariants (0010-MADR open question
 // 3): the user owns path, its DACL is protected, and every entry grants the
 // user full access with the wanted inheritance flags.
@@ -57,7 +74,7 @@ func assertOnlyUser(t *testing.T, path, wantFlags string) {
 	}
 	got := sddlOf(t, path)
 	owner, dacl, ok := strings.Cut(strings.TrimPrefix(got, "O:"), "D:")
-	if !ok || owner != sid {
+	if !ok || sidOf(t, owner) != sid {
 		t.Fatalf("%s: SDDL %q, want owner %s", path, got, sid)
 	}
 	flags, aces, _ := strings.Cut(dacl, "(")
@@ -66,7 +83,7 @@ func assertOnlyUser(t *testing.T, path, wantFlags string) {
 	}
 	for ace := range strings.SplitSeq(strings.TrimSuffix(aces, ")"), ")(") {
 		f := strings.Split(ace, ";")
-		if len(f) < 6 || f[0] != "A" || f[1] != wantFlags || (f[2] != "FA" && f[2] != "0x1f01ff") || f[5] != sid {
+		if len(f) < 6 || f[0] != "A" || f[1] != wantFlags || (f[2] != "FA" && f[2] != "0x1f01ff") || sidOf(t, f[5]) != sid {
 			t.Errorf("%s: entry (%s), want (A;%s;FA;;;%s)", path, ace, wantFlags, sid)
 		}
 	}
