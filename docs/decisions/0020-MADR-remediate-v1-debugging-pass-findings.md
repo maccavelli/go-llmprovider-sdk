@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-03
+date: 2026-10-04
 decision-makers: repository owner
 consulted: 0015-MADR-canonical-sdk-api-and-module-layout.md (R7, R10, R23, R25, R27, R30–R31, R45, R48), 0016-MADR-provider-auth-and-support-baseline.md (D3, D4, A2), 0017-MADR-together-provider-and-auth-extensions.md (D1, D3)
 informed: consumers of go-llmprovider-sdk v1
@@ -465,3 +465,19 @@ Found running 0020-PLAN's phase 5. No decision changes.
     stay open.
 * **F30.** A trailing slash doubled the path on five providers (Gemini,
   OpenAI, Claude, Grok, Ollama), eleven requests in all, not seven.
+
+## Amendment 2026-10-04: the ChatGPT reasoning replay, measured
+
+Found by 0020-PLAN's live check of 2026-10-04 ("the ChatGPT reasoning replay
+(F24)"). It settles the open question of the amendment "F7 measured live,
+and two live checks open". No decision changes.
+
+* **The replay needs no `id`.**
+  * With `store: false`, a reasoning item replayed with its
+    `encrypted_content` alone is accepted. The follow-up answered from it.
+  * Tampered content is refused with `invalid_encrypted_content`, so the
+    backend reads the item.
+  * `ReasoningItem` gains no `ID` field.
+* **A forced tool call returns no reasoning item** from the ChatGPT backend,
+  on every listed model. A text turn does, with summary text and
+  `encrypted_content`. That is the service's behaviour, not a defect here.

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-04
 associated-madr: "0020-MADR-remediate-v1-debugging-pass-findings.md"
 decision-makers: repository owner
@@ -928,3 +928,50 @@ without `tool_choice`) are covered by unit tests, not by G-wire.
 * **The ChatGPT reasoning replay** (V3, phase 2; F24): it needs the owner's
   ChatGPT session.
 * **F23's region and credit bodies:** they wait for a capture.
+
+### Live 2026-10-04: the ChatGPT reasoning replay (F24)
+
+Scratch tests on a scratch copy of `main` at `e20c8bc`, on the owner's
+ChatGPT session. The session is borrowed read-only from the Codex CLI's
+login by `liveChatGPTSession`; it cannot refresh, and no token was printed.
+
+* **The first attempt replayed a tool round trip, and could not run.** With
+  a forced tool, turn 1 returned only the call. A probe showed why:
+  * the request was right: `include: [reasoning.encrypted_content]`,
+    `reasoning: {effort: high, summary: auto}`;
+  * but the stream carried no reasoning event at all, forced or offered.
+  * Across the five listed models (`gpt-6-astra`, `gpt-5.6-sol`,
+    `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`), a forced tool call returns
+    no reasoning item. A reasoning text prompt returns one, and it decodes
+    with summary text and `encrypted_content` on every model, so F24's
+    decoding holds live.
+* **The replay, through a text turn, on `gpt-6-astra`:**
+  * turn 1: one reasoning item with `encrypted_content`, and the answer
+    `0.05`;
+  * a control: turn 2 with that content tampered gets `HTTP 400
+    invalid_encrypted_content … could not be decrypted or parsed`. So the
+    backend verifies the replayed item, and does not ignore it;
+  * turn 2, replaying turn 1's output with a follow-up: answer `0.10`,
+    finish `stop`;
+  * the turn-2 request carried one reasoning item with `encrypted_content`
+    and **no `id`**, with `store: false`.
+* **Settled:** the replay needs no `id`, so `ReasoningItem` gains no `ID`
+  field, as the F24 row foresaw. The MADR records it.
+
+### Close-out 2026-10-04: complete
+
+* **Every finding F1–F59 is fixed and proven, or recorded as not done with
+  its reason.** The one not done is F23's region (`FAILED_PRECONDITION`)
+  and Anthropic credit bodies. They cannot be produced on demand, as phase
+  5 records, and keep their status-only kinds until a capture.
+* **The Goal's conditions hold:**
+  * the gate passes, with `go test -race ./...` in CI;
+  * `api-check` reports no incompatible change against `v1.0.0`;
+  * every V3 live check has passed: phase 1's `CommandToken` rerun;
+    phase 2's Claude round trip, `Response.Model` by Claude, Gemini,
+    OpenAI and Together, and this replay; phase 3's Together ranking;
+    phase 5's invalid-key captures;
+  * the docs changed in phase 6 pass markdownlint and the link check.
+* The work shipped in `v1.1.0`; the OpenAI and replay checks ran on that
+  code.
+* This PLAN is `complete`, and `docs/README.md` says so.
