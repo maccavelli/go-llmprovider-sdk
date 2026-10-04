@@ -1160,3 +1160,45 @@ cosmetic.
     does nothing, so it is not the first-fail P6b.3 asks for.
   * That still needs the owner's Windows machine, or a branch the owner
     pushes. Then the fixed test must pass on Windows CI.
+
+### Deviation 2026-10-04: an inherited DACL cannot be protected
+
+* **Found** running P6b.3 on the owner's Windows machine, over SSH, on two
+  copies of `d3e8637` in a temporary directory, since removed. The copy
+  whose `restrict` does nothing failed, as P6b.3 asks; see the record
+  below. The unchanged copy failed too, at `ownerperm_windows_test.go:106`,
+  a check CI never reached:
+  * a file just created in the restricted directory has `D:AI(A;ID;FA;;;`
+    the user`)`: one entry, full access, the user's, inherited;
+  * `assertOnlyUser` demanded a protected DACL (`P`) there too. An
+    inherited DACL is auto-inherited (`AI`) and cannot be protected until
+    `File` sets the file's own.
+  * After `File`, the file passed: protected, one entry, the user's.
+  * The code is right; the check is wrong.
+* **Resolution, the owner's choice: "Fix the check".** `assertOnlyUser`
+  demands `P` where the entries are set directly (the directory, and the
+  file after `File`). For the inherited state it demands `AI`. Every entry
+  must still grant the user full access and name only the user. No
+  decision changes.
+
+### Execution 2026-10-04: P6b.3 on Windows
+
+Run on the owner's Windows machine (Go 1.27.1 windows/amd64), over SSH, on
+two copies of the working tree with both 2026-10-04 test fixes. The copies
+went to a temporary directory there, removed afterwards. Account IDs and
+paths are left out here.
+
+* **Red:** the copy whose `restrict` returns at once.
+  `TestMkdirAllAndFile_OnlyTheCurrentUser` fails:
+  * at the directory: `D:AI(A;OICIID;0x1301bf;;;…)…`. Its DACL is
+    inherited, not protected, and holds SYSTEM, Administrators and other
+    accounts, each reported against the one entry wanted;
+  * at the file created in it, before `File`: the same inherited entries,
+    without `OICI`.
+* **Green:** the unchanged copy.
+  * `--- PASS: TestMkdirAllAndFile_OnlyTheCurrentUser`;
+  * `go test ./llmprovider/internal/ownerperm ./llmprovider/auth`: both
+    `ok`.
+* **Still open:** the Windows CI job on the pushed fix. P6b.3 asks for
+  the test to pass there too, so this PLAN stays `in-progress` until it
+  does.

@@ -64,8 +64,10 @@ func sidOf(t *testing.T, trustee string) string {
 }
 
 // assertOnlyUser checks the recipe's own invariants (0010-MADR open question
-// 3): the user owns path, its DACL is protected, and every entry grants the
-// user full access with the wanted inheritance flags.
+// 3): the user owns path, and every entry grants the user full access with
+// the wanted inheritance flags. A DACL set directly is protected; one only
+// inherited ("ID") is auto-inherited instead, as no inherited DACL can be
+// protected (0010-PLAN, deviation 2026-10-04).
 func assertOnlyUser(t *testing.T, path, wantFlags string) {
 	t.Helper()
 	sid, err := currentUserSID()
@@ -78,7 +80,10 @@ func assertOnlyUser(t *testing.T, path, wantFlags string) {
 		t.Fatalf("%s: SDDL %q, want owner %s", path, got, sid)
 	}
 	flags, aces, _ := strings.Cut(dacl, "(")
-	if !strings.Contains(flags, "P") {
+	switch {
+	case wantFlags == "ID" && !strings.Contains(flags, "AI"):
+		t.Errorf("%s: SDDL %q, want an auto-inherited DACL (AI)", path, got)
+	case wantFlags != "ID" && !strings.Contains(flags, "P"):
 		t.Errorf("%s: SDDL %q, want a protected DACL (P)", path, got)
 	}
 	for ace := range strings.SplitSeq(strings.TrimSuffix(aces, ")"), ")(") {
