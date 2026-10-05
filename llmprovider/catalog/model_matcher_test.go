@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
 // matcherFixture is the shared Search corpus. Expected results below were
@@ -62,17 +64,20 @@ func TestSearchModels_GlobKeepsInputOrder(t *testing.T) {
 	got := Search("", matcherFixture, "*")
 	assertIDs(t, "*", got, matcherFixture)
 	for _, m := range got {
-		if m.Score != scoreGlob {
-			t.Errorf("%s score = %d, want %d", m.ID, m.Score, scoreGlob)
+		if m.Score != scoreGlobID { // every id matches "*" (0021-MADR C11)
+			t.Errorf("%s score = %d, want %d", m.ID, m.Score, scoreGlobID)
 		}
 	}
 }
 
+// TestSearchModels_SubstringOutranksSubsequence: once an id matches a
+// stronger tier, no subsequence is offered (0021-MADR C11), so
+// fireworks/llama-ash, a subsequence of flash, is not.
 func TestSearchModels_SubstringOutranksSubsequence(t *testing.T) {
 	got := Search("", matcherFixture, "flash")
-	assertIDs(t, "flash", got, []string{"gemini-3.5-flash", "gemini-3.5-flash-lite", "fireworks/llama-ash"})
-	if scores := matchScores(got); !slices.Equal(scores, []int{4000, 4000, 1020}) {
-		t.Errorf("scores = %v, want [4000 4000 1020]", scores)
+	assertIDs(t, "flash", got, []string{"gemini-3.5-flash", "gemini-3.5-flash-lite"})
+	if scores := matchScores(got); !slices.Equal(scores, []int{4000, 4000}) {
+		t.Errorf("scores = %v, want [4000 4000]", scores)
 	}
 }
 
@@ -117,10 +122,12 @@ func TestSearchModels_EmptyQuery(t *testing.T) {
 	}
 }
 
+// TestSearchModels_TieBreak: equal scores keep the input order, the
+// listing's own (0021-MADR C11).
 func TestSearchModels_TieBreak(t *testing.T) {
 	got := Search("", matcherFixture, "auto")
 	assertIDs(t, "auto", got, []string{
-		"kilo-auto/fast", "kilo-auto/free", "kilo-auto-legacy", "kilo-auto/balanced", "meta-llama/kilo-auto",
+		"meta-llama/kilo-auto", "kilo-auto/balanced", "kilo-auto/free", "kilo-auto/fast", "kilo-auto-legacy",
 	})
 }
 
@@ -147,4 +154,54 @@ func TestSearchModels_LabelFromModelLabel(t *testing.T) {
 func TestSearchModels_SeparatorOnlyQuery(t *testing.T) {
 	got := Search("", []string{"ab", "a-b"}, "-")
 	assertIDs(t, "-", got, []string{"a-b"})
+}
+
+// withLabel adds a curated label for one test.
+func withLabel(t *testing.T, id, label string) {
+	t.Helper()
+	modelLabels[id] = label
+	t.Cleanup(func() { delete(modelLabels, id) })
+}
+
+// TestSearch_AnnotationNotSearched (0021-MADR C11): "fast" is only in the
+// bracketed annotations of OpenAI's labels, so it matches no OpenAI model.
+func TestSearch_AnnotationNotSearched(t *testing.T) {
+	if got := Search(llmprovider.ProviderOpenAI, Static(llmprovider.ProviderOpenAI), "fast"); len(got) != 0 {
+		t.Errorf(`"fast" = %v, want no match: it is only in the annotations`, matchIDs(got))
+	}
+}
+
+// TestSearch_CompactQuery (0021-MADR C11): a query without separators finds
+// the id with them.
+func TestSearch_CompactQuery(t *testing.T) {
+	got := Search(llmprovider.ProviderOpenAI, Static(llmprovider.ProviderOpenAI), "gpt41")
+	i := slices.IndexFunc(got, func(m Match) bool { return m.ID == "gpt-4.1" })
+	if i < 0 || got[i].Score != scoreCompactSubstring {
+		t.Errorf(`"gpt41" = %v, want gpt-4.1 at scoreCompactSubstring`, got)
+	}
+}
+
+// TestSearch_ShortQueryNoSubsequence (0021-MADR C11): "o3" returns the ids
+// that hold it, not every id with an o and then a 3.
+func TestSearch_ShortQueryNoSubsequence(t *testing.T) {
+	got := Search("", []string{"gpt-4o-2024-08-13", "o3", "o3-mini", "gpt-4.1", "openai/o3-pro"}, "o3")
+	assertIDs(t, "o3", got, []string{"o3", "o3-mini", "openai/o3-pro"})
+}
+
+// TestSearch_TiesKeepListingOrder (0021-MADR C11): equal scores keep the
+// input order, not the shorter id first.
+func TestSearch_TiesKeepListingOrder(t *testing.T) {
+	models := []string{"zeta-flash", "alpha-flash", "mid-flash"}
+	assertIDs(t, "flash", Search("", models, "flash"), models)
+}
+
+// TestSearch_GlobIDBeforeLabel (0021-MADR C11): a glob that matches an id
+// ranks it before one that matches only a label.
+func TestSearch_GlobIDBeforeLabel(t *testing.T) {
+	withLabel(t, "vendor/mirror", "kilo-auto/mirror")
+	got := Search("", []string{"vendor/mirror", "kilo-auto/small"}, "kilo-auto/*")
+	assertIDs(t, "kilo-auto/*", got, []string{"kilo-auto/small", "vendor/mirror"})
+	if scores := matchScores(got); !slices.Equal(scores, []int{scoreGlobID, scoreGlobLabel}) {
+		t.Errorf("scores = %v, want [%d %d]", scores, scoreGlobID, scoreGlobLabel)
+	}
 }

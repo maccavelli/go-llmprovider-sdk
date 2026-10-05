@@ -332,9 +332,11 @@ func TestChatReasoningEffort_FailureBackoff(t *testing.T) {
 	}
 }
 
-// TestChatReasoningEffort_LookupHasDeadline pins MADR 0013 A6: the lookup
-// inside a request carries its own deadline of at most 5 s, whatever the
-// caller's context.
+// TestChatReasoningEffort_LookupHasDeadline pins MADR 0013 A6: the metadata
+// fetch a request starts carries its own deadline, whatever the caller's
+// context. The fetch is shared and detached, bounded by catalog's
+// metadataFetchTimeout of 10 s; the request waits for it at most 5 s
+// (0021-MADR amendment "F15 and A6 under the shared fetch").
 func TestChatReasoningEffort_LookupHasDeadline(t *testing.T) {
 	enableMetadata(t)
 	meta, _ := metadataServer(t, http.StatusOK, `{"opencode-go":{"models":{"glm-5.3-flash":{"id":"glm-5.3-flash","reasoning":true}}}}`)
@@ -351,9 +353,9 @@ func TestChatReasoningEffort_LookupHasDeadline(t *testing.T) {
 	case !ok:
 		t.Fatal("no metadata request was made")
 	case left < 0:
-		t.Error("metadata lookup ran without a deadline, want one within 5s")
-	case left > 5*time.Second:
-		t.Errorf("metadata lookup had %v left, want at most 5s", left.Round(time.Second))
+		t.Error("metadata fetch ran without a deadline, want one within 10s")
+	case left > 10*time.Second:
+		t.Errorf("metadata fetch had %v left, want at most 10s", left.Round(time.Second))
 	}
 }
 

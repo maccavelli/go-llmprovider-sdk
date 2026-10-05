@@ -85,7 +85,7 @@ standard library is left out.
 | `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/messages`, `internal/transport` |
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/transport` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `catalog`, `internal/wire/responses`, `internal/transport` |
-| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent` |
+| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table, built from the embedded `routes_snapshot.json` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent` |
 | `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/kiloendpoint` |
 | `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
 | `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
@@ -151,8 +151,17 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/ownerper
 provider's model list, and curates it into a `Catalog`. For the open catalogs
 it ranks by `Profile`, with the model metadata unless `WithoutModelMetadata`
 is set. A failed fetch gives the static catalog, with the failure in `Err`. A
-provider's own `ListModels` (`ModelLister`) returns its listing, probed by
-default where the provider probes.
+listing in which nothing meets the profile stays live, with an empty
+`Recommended` and the listing in `Usable` to search. A provider's own
+`ListModels` (`ModelLister`) returns its listing, probed by default where the
+provider probes.
+
+The metadata document is fetched once per URL at a time, detached from the
+callers that wait for it and bounded at 10 s; each lookup waits under its
+own context, a request's for at most 5 s. Past the ten-minute cache the
+cached document is served while one refresh runs in the background. A failed
+fetch is remembered for a minute; a caller's own deadline is not. Listing
+pages are read up to 8 MiB, and the document up to 32 MiB.
 
 ### The wizard
 
@@ -362,8 +371,13 @@ for a session, from the store.
   `catalog.WithProfile` and `catalog.WithKiloOrganization`. It lists the ten
   built-in ids. For any other id it returns an error matching
   `ErrUnsupported`, before it reads the options.
-- `catalog.Search` matches a query against a list. The static catalogs are
-  the fallback. `catalog.Static(provider)` returns a copy, and
+- `catalog.Search` matches a query against a list, highest tier first and
+  in the list's order within a tier: the id exactly, as a prefix or a
+  substring, then without separators (`gpt41` finds `gpt-4.1`), then a
+  label's display name, then token prefixes. A subsequence of the id is
+  tried only when nothing else matched and the query has three or more
+  characters. A glob scores an id match above a label-only one. The static
+  catalogs are the fallback. `catalog.Static(provider)` returns a copy, and
   `llmprovider.ProviderEnvVars()` a copy of the variable names.
   `catalog.Rank(provider, model)` scores a model by the provider's own
   ranking.

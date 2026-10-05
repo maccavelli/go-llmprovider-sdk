@@ -18,6 +18,8 @@ import (
 const (
 	otherModelLabel      = "Other (enter a model id)"
 	searchAgainLabel     = "Search again"
+	useQueryLabel        = "Use %s as the model id"
+	noRecommendedNotice  = "no %s model meets the profile; search the listing for one"
 	currentModelDetail   = "current"
 	chooseModelTitle     = "Choose a %s model:"
 	searchModelsPrompt   = "Search models (blank for recommended)"
@@ -30,7 +32,8 @@ const (
 
 // selectModel asks for a search query. A blank query shows the recommended
 // menu; any other query searches every usable model and offers the numbered
-// matches, Search again, and Other.
+// matches, Search again, and Other. A query with no match offers itself as
+// the model id, or Search again.
 func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Options) (string, error) {
 	title := fmt.Sprintf(chooseModelTitle, d.Label)
 	for {
@@ -39,12 +42,27 @@ func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Op
 			return "", fmt.Errorf("search models: %w", err)
 		}
 		q = strings.TrimSpace(q)
+		if q == "" && len(cat.Recommended) == 0 {
+			// A live listing in which nothing meets the profile (0021-MADR
+			// C13): search it instead.
+			p.Notify(LevelWarn, noRecommendedNotice, d.Label)
+			continue
+		}
 		if q == "" {
 			return selectRecommended(p, d, cat.Recommended, o)
 		}
 		matches := catalog.Search(d.ID, cat.Usable, q)
 		if len(matches) == 0 {
+			// A model the listing does not have may still be served: offer
+			// the query itself (0021-MADR Z11). Search again is the default.
 			p.Notify(LevelWarn, "no %s models match %q", d.Label, q)
+			idx, err := choose(p, title, []Choice{{Label: fmt.Sprintf(useQueryLabel, q)}, {Label: searchAgainLabel}}, 1)
+			if err != nil {
+				return "", fmt.Errorf("select model: %w", err)
+			}
+			if idx == 0 {
+				return q, nil
+			}
 			continue
 		}
 		shown := capMatches(p, matches)

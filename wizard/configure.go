@@ -171,7 +171,7 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	}
 
 	cat := discoverModels(ctx, p, d, res, credential.source, o)
-	if len(cat.Recommended) == 0 {
+	if len(cat.Recommended) == 0 && len(cat.Usable) == 0 {
 		// Ollama with nothing installed, or a provider whose listing failed
 		// and which has no static catalog. Let the user type an id rather
 		// than dead-ending the wizard.
@@ -374,7 +374,9 @@ func discoverModels(
 		p.Notify(LevelWarn, "could not list models for %s (%v); using the built-in catalog", d.Label, err)
 		return fallback
 	}
-	if len(cat.Recommended) == 0 {
+	// A live listing with nothing recommended is kept for search (0021-MADR
+	// C13).
+	if len(cat.Recommended) == 0 && (!cat.Live || len(cat.Usable) == 0) {
 		return fallback
 	}
 	switch {

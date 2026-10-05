@@ -138,6 +138,35 @@ func TestRankRecommended_Fill(t *testing.T) {
 		[]string{"m/flash", "n/pro", "o/old", "p/x", "q/y", "r/z"})
 }
 
+// TestRankRecommended_FillSkipsRequestFailures (0021-MADR D3, C7): on Go the
+// fill skips the -contributor and region-gated ids, which fail at request
+// time, as the ranked part does.
+func TestRankRecommended_FillSkipsRequestFailures(t *testing.T) {
+	cands := []rankCandidate{good("glm-5.3-flash", "glm", 1, 10)}
+	fill := []string{"muse-spark-1.3-contributor", opencodeDeepSeekV4Flash, "hy3", opencodeDeepSeekV4Pro, "kimi-k2.6"}
+	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderOpencodeGo, cands, fill),
+		[]string{"glm-5.3-flash", "hy3", "kimi-k2.6"})
+}
+
+// TestRankGroup_FamilyLeadingLetters (0021-MADR D3, C8): an unprefixed id
+// groups by the leading letters of its family, so the gpt-sol, gpt-luna and
+// gpt-astra families are one group; a prefixed id keeps its vendor.
+func TestRankGroup_FamilyLeadingLetters(t *testing.T) {
+	for _, c := range []struct{ id, family string }{
+		{"gpt-6-sol", "gpt-sol"}, {"gpt-6-luna", "gpt-luna"}, {"gpt-6-astra", "GPT-Astra"},
+	} {
+		if got := rankGroup(c.id, c.family); got != "gpt" {
+			t.Errorf("rankGroup(%q, %q) = %q, want gpt", c.id, c.family, got)
+		}
+	}
+	if got := rankGroup("openai/gpt-6-astra", "gpt-astra"); got != "openai" {
+		t.Errorf("rankGroup of a prefixed id = %q, want its vendor, openai", got)
+	}
+	if got := rankGroup("x-1", "4o"); got != "4o" {
+		t.Errorf("rankGroup with a family of no leading letters = %q, want the family", got)
+	}
+}
+
 // TestRankRecommended_Eligibility pins MADR 0009 §3 one rule at a time. The
 // tested candidate ranks first whenever it is eligible.
 func TestRankRecommended_Eligibility(t *testing.T) {

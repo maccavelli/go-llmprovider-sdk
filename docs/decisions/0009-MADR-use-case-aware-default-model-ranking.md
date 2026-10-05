@@ -935,3 +935,27 @@ replaced the API this record names, and the text above stays as written:
 * **§6's live check of the DeepSeek family on OpenCode Zen** was not done.
   Zen still answered HTTP 402 on 2026-10-03. The owner closed it, because
   the Go route runs the same code and passes.
+
+## Amendment 2026-10-05: the fill and the diversity group (0021 D3)
+
+Decided by `0021-MADR-harden-and-tune-after-the-v1-1-review.md` (D3, findings
+C7 and C8), and built by its PLAN's step 4.6.
+
+* **§4's fill** now skips what §3 items 7, 8 and 9 exclude, not only item 9.
+  Items 7 and 8 are models a request fails on: the `-contributor` models,
+  and on OpenCode Go the region-gated DeepSeek ids. One predicate,
+  `excludedAtRequest`, holds them for the ranking, the fill and Go's
+  metadata-failure fallback curation. The list may be shorter than six, as
+  item 9 already allowed. The ids stay in `Usable`, so a search finds them.
+* **§4's diversity group** for an unprefixed id is now the leading letters
+  of its lower-cased `family` (`^[a-z]+`), then the family, then the id. So
+  `gpt-sol`, `gpt-luna` and `gpt-astra` are one group. A prefixed id keeps
+  its vendor.
+* **§3 item 9 stays,** on the owner's condition in 0021-MADR D3: under the
+  utility profile Kilo's `kilo-auto/*` tiers are not recommended, but stay
+  in `Usable` and are found by `Search` and by the glob `kilo-auto/*`.
+* **Context §7.** On the 2026-09-26 snapshot the new group changes only the
+  OpenCode Zen capable six. It is now `claude-opus-5-5`, `gpt-6-sol`,
+  `gpt-6-luna`, `grok-4.7`, `muse-spark-1.3`, `claude-fable-5-1`, where
+  `gpt-6-astra` was. `TestListModelCatalog_Snapshot20260926` holds the new
+  six; the other sixes are unchanged.

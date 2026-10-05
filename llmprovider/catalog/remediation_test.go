@@ -59,34 +59,50 @@ func TestList_FailedListingLeavesMetadataHealthy(t *testing.T) {
 }
 
 // TestLoadModelMetadata_LateFailureKeepsNewerDocument (0020-MADR F15): a
-// fetch that fails after another fetch cached a document leaves that
-// document in place.
+// failed fetch never displaces a document already cached. With one fetch per
+// URL (0021-MADR C2, amendment "F15 and A6 under the shared fetch"), a
+// second load joins the fetch in flight rather than racing it; when that
+// fetch, a refresh, fails, the cached document is kept.
 func TestLoadModelMetadata_LateFailureKeepsNewerDocument(t *testing.T) {
 	enableModelMetadata(t)
 	release := make(chan struct{})
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if calls.Add(1) == 1 {
-			<-release
-			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(smallMetadataDoc))
 			return
 		}
-		_, _ = w.Write([]byte(smallMetadataDoc))
+		<-release
+		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(srv.Close)
 	cfg := testConfig(t, llmprovider.WithModelMetadataURL(srv.URL))
+	if _, err := loadModelMetadata(context.Background(), cfg); err != nil {
+		t.Fatalf("first load: %v", err)
+	}
+	later := time.Now().Add(modelMetadataTTL + time.Minute)
+	metadataNow = func() time.Time { return later }
+	t.Cleanup(func() { metadataNow = time.Now })
+
 	var wg sync.WaitGroup
-	wg.Go(func() { _, _ = loadModelMetadata(context.Background(), cfg) })
-	for calls.Load() == 0 {
+	for range 2 {
+		wg.Go(func() {
+			if doc, err := loadModelMetadata(context.Background(), cfg); err != nil || doc == nil {
+				t.Errorf("load during the refresh = %v, %v; want the cached document", doc, err)
+			}
+		})
+	}
+	wg.Wait()
+	for calls.Load() < 2 {
 		time.Sleep(5 * time.Millisecond)
 	}
-	if _, err := loadModelMetadata(context.Background(), cfg); err != nil {
-		t.Fatalf("second load: %v", err)
-	}
 	close(release)
-	wg.Wait()
+	waitMetadataFetches()
+	if n := calls.Load(); n != 2 {
+		t.Errorf("requests = %d, want 2: the first fetch and one shared refresh", n)
+	}
 	if doc, err := loadModelMetadata(context.Background(), cfg); err != nil || doc == nil {
-		t.Errorf("load after the late failure = %v, %v; want the document the second load cached", doc, err)
+		t.Errorf("load after the failed refresh = %v, %v; want the cached document", doc, err)
 	}
 }
 

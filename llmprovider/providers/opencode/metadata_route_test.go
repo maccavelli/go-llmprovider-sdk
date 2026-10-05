@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -141,20 +140,24 @@ func TestOpencode_RouteWithoutMetadataUsesTable(t *testing.T) {
 	})
 }
 
-// TestOpencodeRouteTable_MatchesMetadataSnapshot: every active Zen and Go
-// model in testdata/opencode-routes.json (provider.npm per model, from
-// models.opencode.ai/api.json on 2026-09-27, deprecated models omitted)
-// resolves without metadata to the route its npm selects. It pins the table's
-// refresh; the oracle below is written independently of the production map.
-func TestOpencodeRouteTable_MatchesMetadataSnapshot(t *testing.T) {
-	raw, err := os.ReadFile("testdata/opencode-routes.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+// routeSnapshot decodes the embedded routes_snapshot.json.
+func routeSnapshot(t *testing.T) map[string]map[string]string {
+	t.Helper()
 	var snapshot map[string]map[string]string
-	if err := json.Unmarshal(raw, &snapshot); err != nil {
+	if err := json.Unmarshal(routesSnapshot, &snapshot); err != nil {
 		t.Fatal(err)
 	}
+	return snapshot
+}
+
+// TestOpencodeRouteTable_MatchesMetadataSnapshot: every active Zen and Go
+// model in routes_snapshot.json (provider.npm per model, from
+// models.opencode.ai/api.json on 2026-09-27, deprecated models omitted)
+// resolves without metadata to the route its npm selects. The table is built
+// from that file (0021-MADR C10); the oracle below is written independently
+// of routeForNPM.
+func TestOpencodeRouteTable_MatchesMetadataSnapshot(t *testing.T) {
+	snapshot := routeSnapshot(t)
 	oracle := map[string]Route{
 		"@ai-sdk/openai":    RouteResponses,
 		"@ai-sdk/anthropic": RouteMessages,
@@ -176,5 +179,41 @@ func TestOpencodeRouteTable_MatchesMetadataSnapshot(t *testing.T) {
 				t.Errorf("%s %s (npm %q): route = %q, %v; want %q", gateway, model, npm, got, err, want)
 			}
 		}
+	}
+}
+
+// TestRouteHeuristic_AgreesWithEveryRow (0021-MADR C10, W13): the prefix
+// heuristic, which routes a model the table does not list, gives every
+// snapshot row the route its npm selects. A new model of a known family
+// therefore routes as its family does, and a heuristic change that would
+// misroute a family fails here.
+func TestRouteHeuristic_AgreesWithEveryRow(t *testing.T) {
+	gateways := map[string]llmprovider.ProviderID{"opencode": llmprovider.ProviderOpencodeZen, "opencode-go": llmprovider.ProviderOpencodeGo}
+	rows := 0
+	for section, models := range routeSnapshot(t) {
+		for model, npm := range models {
+			rows++
+			if got, want := heuristicRoute(gateways[section], model), routeForNPM(npm); got != want {
+				t.Errorf("%s %s (npm %q): heuristic route %q, want %q", section, model, npm, got, want)
+			}
+		}
+	}
+	if rows == 0 {
+		t.Fatal("the snapshot has no rows")
+	}
+}
+
+// TestBuildRouteTable_RefusesABadSnapshot: a malformed snapshot, or one with
+// a section for no gateway, is a build defect and panics.
+func TestBuildRouteTable_RefusesABadSnapshot(t *testing.T) {
+	for name, raw := range map[string]string{"malformed": "{", "unknown section": `{"other":{"m":""}}`} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Error("buildRouteTable accepted it")
+				}
+			}()
+			buildRouteTable([]byte(raw))
+		})
 	}
 }

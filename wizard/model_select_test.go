@@ -113,9 +113,12 @@ func TestConfigureLLM_SearchUsesLiveCorpus(t *testing.T) {
 	}
 }
 
+// TestConfigureLLM_SearchNoMatchReturnsToSearch: after a search with no
+// match, Search again (the second choice, 0021-MADR Z11) returns to the
+// search, and a blank query shows the recommended menu.
 func TestConfigureLLM_SearchNoMatchReturnsToSearch(t *testing.T) {
 	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 1, 0},
 		inputs: []string{"zzzz", ""}, secrets: []string{testKey},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{})
@@ -127,6 +130,28 @@ func TestConfigureLLM_SearchNoMatchReturnsToSearch(t *testing.T) {
 	}
 	if !slices.Contains(f.seenNotify, `no Claude (Anthropic) models match "zzzz"`) {
 		t.Errorf("notices = %v, want the no-match notice", f.seenNotify)
+	}
+}
+
+// TestConfigureLLM_SearchNoMatchUsesTheQuery (0021-MADR Z11): a search with
+// no match offers the query as the model id, and choosing it returns it.
+func TestConfigureLLM_SearchNoMatchUsesTheQuery(t *testing.T) {
+	f := &fakePrompter{
+		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		inputs: []string{"zzzz-1"}, secrets: []string{testKey},
+	}
+	res, err := ConfigureLLM(context.Background(), f, Options{})
+	if err != nil {
+		t.Fatalf("ConfigureLLM: %v", err)
+	}
+	if res.Model != "zzzz-1" {
+		t.Errorf("Model = %q, want the query, zzzz-1", res.Model)
+	}
+	offered := slices.ContainsFunc(f.seenSelectItems, func(items []Choice) bool {
+		return slices.Equal(labels(items), []string{"Use zzzz-1 as the model id", searchAgainLabel})
+	})
+	if !offered {
+		t.Errorf("menus = %v, want the query offered as the model id, then Search again", f.seenSelectItems)
 	}
 }
 
@@ -313,14 +338,15 @@ func TestConfigureLLM_FallbackSearch(t *testing.T) {
 	if res.Model != "qwen3.8-flash" {
 		t.Errorf("Model = %q, want qwen3.8-flash", res.Model)
 	}
+	// Equal scores keep the listing's order (0021-MADR C11).
 	wantMenu := []string{
-		catalog.Label(llmprovider.ProviderOpencodeZen, "claude-opus-5"),
 		catalog.Label(llmprovider.ProviderOpencodeZen, "claude-sonnet-5"),
+		catalog.Label(llmprovider.ProviderOpencodeZen, "claude-opus-5"),
 	}
 	if got := labels(f.seenMultiSelectItems[0]); !slices.Equal(got, wantMenu) {
 		t.Errorf("fallback menu = %v, want %v (primary excluded)", got, wantMenu)
 	}
-	if want := []string{"claude-opus-5", "claude-sonnet-5"}; !slices.Equal(res.Fallbacks, want) {
+	if want := []string{"claude-sonnet-5", "claude-opus-5"}; !slices.Equal(res.Fallbacks, want) {
 		t.Errorf("Fallbacks = %v, want %v", res.Fallbacks, want)
 	}
 	if !slices.Equal(f.seenConfirm, []string{moreFallbacksPrompt}) {
@@ -341,7 +367,9 @@ func TestConfigureLLM_FallbackSearchLoops(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
-	if want := []string{"claude-opus-5", "deepseek-v4.1-flash"}; !slices.Equal(res.Fallbacks, want) {
+	// The first search row is claude-sonnet-5: equal scores keep the
+	// listing's order (0021-MADR C11).
+	if want := []string{"claude-sonnet-5", "deepseek-v4.1-flash"}; !slices.Equal(res.Fallbacks, want) {
 		t.Errorf("Fallbacks = %v, want %v", res.Fallbacks, want)
 	}
 	second := labels(f.seenMultiSelectItems[1])
@@ -350,7 +378,7 @@ func TestConfigureLLM_FallbackSearchLoops(t *testing.T) {
 	}
 	for _, excluded := range []string{
 		catalog.Label(llmprovider.ProviderOpencodeZen, "qwen3.8-flash"),
-		catalog.Label(llmprovider.ProviderOpencodeZen, "claude-opus-5"),
+		catalog.Label(llmprovider.ProviderOpencodeZen, "claude-sonnet-5"),
 	} {
 		if slices.Contains(second, excluded) {
 			t.Errorf("second menu %v must exclude %q", second, excluded)

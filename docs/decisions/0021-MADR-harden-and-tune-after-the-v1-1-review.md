@@ -725,3 +725,43 @@ them to this record's scope on 2026-10-04 ("added as extra phase, proceed").
 | :--- | :--- | :--- | :--- |
 | L1 | `llmprovider/live_opencode_test.go:175` | **The metadata route test pins stale data.** It assumes OpenCode Go's `qwen3.8-max` has no `provider.npm`, so it routes to chat. The live models.opencode.ai document of 2026-10-04 gives it `@ai-sdk/anthropic`, and the provider correctly follows it to `/messages`. The provider is right; the test is stale. | reproduced live, on `HEAD` and the tree |
 | L2 | `llmprovider/live_grok_test.go:136`; `providers/grok/grok.go` `body` | **Grok ignores the instructions.** `grok-4.6` answered "Hello!" to a request whose leading system message said to reply only "OMEGA". Grok sends `Instructions` as a system message in `input`. Whether xAI now wants the top-level `instructions` field, or the model changed, is measured first. | reproduced live, twice, on `HEAD` |
+
+## Amendment 2026-10-05: F15 and A6 under the shared fetch
+
+Found while building 0021-PLAN step 4.1; resolved by the owner on
+2026-10-05.
+
+* **0020-MADR F15** guarded against a fetch failing after another fetch of
+  the same URL had cached a newer document. With C2's one fetch per URL
+  running at a time, that race cannot occur. F15's test now checks the
+  shared fetch: a second lookup joins the one in flight, and a document
+  already cached is kept when the fetch fails.
+* **0013-MADR A6** bounds the lookup a request makes at 5 s. That stands:
+  each lookup waits at most `metadataLookupTimeout`. The fetch it waits
+  for is detached and has its own `metadataFetchTimeout` of 10 s, so a slow
+  host still fills the cache for the next caller. A6's test checks the
+  fetch's bound.
+
+## Amendment 2026-10-05: the gpt-6 family on OpenAI's listing
+
+Found while building 0021-PLAN step 4.3; decided by the owner on 2026-10-05.
+
+* **New fact.** `isUsableOpenAIChatModel` allows only the prefixes in
+  `openaiAllowPrefixes` (`catalog/models_catalog.go:170-173`), which has no
+  `gpt-6`. OpenAI's live listing therefore drops the whole `gpt-6` family,
+  and `rankOpenAIModel` has no case for it.
+* **C4 is widened.** Besides the token denies, `gpt-6` joins the allow
+  list, and `rankOpenAIModel` scores it as it scores `gpt-5`.
+
+## Amendment 2026-10-05: C6's anchors are capped
+
+Found while building 0021-PLAN step 4.5; decided by the owner on 2026-10-05.
+
+* **New fact.** Claude's generation hints mix family bonuses, so as anchors
+  they do not rise with the generation: 40 at 4.0 (`haiku-4`), 35 at 4.6
+  and 4.8, 40 at 5. Taken as written, an old id such as `claude-opus-4-1`
+  would outrank `claude-opus-4-8`.
+* **C6 is refined.** An id that no hint matches takes the highest anchor at
+  or below its generation, capped at one less than the lowest anchor above
+  it, so it never outranks a newer hinted generation. The rules above every
+  anchor and below every anchor are unchanged.

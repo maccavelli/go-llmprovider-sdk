@@ -17,6 +17,19 @@ func TestStaticModels_ReturnsCopy(t *testing.T) {
 	}
 }
 
+// TestRank_ProviderCaseAndTogether (0021-MADR C12): Rank reads the provider
+// id case-insensitively, as Static does, and ranks Together by its static
+// order.
+func TestRank_ProviderCaseAndTogether(t *testing.T) {
+	if a, b := Rank("Gemini", "gemini-3.7-flash"), Rank("gemini", "gemini-3.7-flash"); a != b {
+		t.Errorf(`Rank("Gemini") = %d, Rank("gemini") = %d; want them equal`, a, b)
+	}
+	together := Static(llmprovider.ProviderTogether)
+	if a, b := Rank(llmprovider.ProviderTogether, together[0]), Rank(llmprovider.ProviderTogether, together[1]); a <= b {
+		t.Errorf("Together ranks its first static id %d, not above its second, %d", a, b)
+	}
+}
+
 // TestRankModel_Dispatches (0015-PLAN S5 step 3): Rank scores with the
 // provider's own ranking, both OpenCode gateways share one, and a provider
 // without a ranking scores 0.

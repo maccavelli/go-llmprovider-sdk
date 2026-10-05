@@ -15,9 +15,15 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// resetModelMetadataCache empties the in-process metadata cache. httptest
-// reuses ports, so a cache keyed by URL must not outlive a test.
+// waitMetadataFetches waits for every metadata fetch in flight, such as a
+// background refresh, to finish.
+func waitMetadataFetches() { metadataFetching.Wait() }
+
+// resetModelMetadataCache empties the in-process metadata cache, after any
+// fetch in flight has finished. httptest reuses ports, so a cache keyed by
+// URL must not outlive a test.
 func resetModelMetadataCache() {
+	waitMetadataFetches()
 	modelMetadataMu.Lock()
 	defer modelMetadataMu.Unlock()
 	clear(modelMetadataCache)
@@ -214,7 +220,8 @@ func TestMetadataCandidate_Fields(t *testing.T) {
 	if c.reasoningKnown || c.costKnown {
 		t.Errorf("reasoningKnown=%v costKnown=%v, want both false (fields absent)", c.reasoningKnown, c.costKnown)
 	}
-	if c.status != "deprecated" || c.group != "glm-flash" || !c.small || c.context != 131072 {
+	// The group is the family's leading letters (0021-MADR D3).
+	if c.status != "deprecated" || c.group != "glm" || !c.small || c.context != 131072 {
 		t.Errorf("status=%q group=%q small=%v context=%d", c.status, c.group, c.small, c.context)
 	}
 	u := metadataCandidate("org/flash", modelMetadata{}, false, refNow)

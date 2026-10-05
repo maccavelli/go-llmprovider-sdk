@@ -255,6 +255,20 @@ func TestListModelCatalog_OpencodeGoGates(t *testing.T) {
 		[]string{opencodeDeepSeekV4Flash, "mimo-v2.6-flash", "glm-5.3-flash", "qwen3.8-flash", "gpt-6-luna", "hy3"})
 }
 
+// TestOpencodeGoFallback_AppliesItemsSevenAndEight (0021-MADR D3, C7):
+// without metadata, Go's fallback curation also leaves out the -contributor
+// and region-gated ids, which stay searchable.
+func TestOpencodeGoFallback_AppliesItemsSevenAndEight(t *testing.T) {
+	listing := serveBody(t, zenStyleListing(opencodeDeepSeekV4Flash, "muse-spark-1.3-contributor", "glm-5.3-flash", "kimi-k2.6"))
+	cat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeGo, llmprovider.WithBaseURL(listing.URL))
+	assertRanked(t, cat.Recommended, []string{"glm-5.3-flash", "kimi-k2.6"})
+	for _, id := range []string{opencodeDeepSeekV4Flash, "muse-spark-1.3-contributor"} {
+		if !slices.Contains(cat.Usable, id) {
+			t.Errorf("Usable must keep %s searchable: %v", id, cat.Usable)
+		}
+	}
+}
+
 // zenStyleListing is an OpenCode /models body for ids.
 func zenStyleListing(ids ...string) string {
 	parts := make([]string, 0, len(ids))
@@ -295,7 +309,10 @@ func TestListModelCatalog_Snapshot20260926(t *testing.T) {
 		{llmprovider.ProviderOpencodeZen, "zen.json", 78,
 			[]string{opencodeDeepSeekV41Flash, "qwen3.8-flash", "glm-5.3-flash", opencodeDeepSeekV4Flash,
 				"gemini-3.5-flash-lite", "gemini-3.8-flash"},
-			[]string{"claude-opus-5-5", "gpt-6-sol", "gpt-6-luna", "grok-4.7", "gpt-6-astra", "muse-spark-1.3"}},
+			// The gpt families are one diversity group, so gpt-6-astra gives
+			// way to claude-fable-5-1 (0021-MADR D3; 0009-MADR amendment of
+			// 2026-10-05).
+			[]string{"claude-opus-5-5", "gpt-6-sol", "gpt-6-luna", "grok-4.7", "muse-spark-1.3", "claude-fable-5-1"}},
 		{llmprovider.ProviderOpencodeGo, "go.json", 38,
 			[]string{"mimo-v2.6-flash", "qwen3.8-flash", "glm-5.3-flash", "gpt-6-luna", "mimo-v2.6-pro", "hy3"},
 			[]string{"mimo-v2.6-pro", "gpt-6-luna", "grok-4.7", "glm-5.3", "grok-4.6", "qwen3.8-max"}},

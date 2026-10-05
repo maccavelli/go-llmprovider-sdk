@@ -16,14 +16,18 @@ import (
 
 // Fuzzy score tiers: a stronger kind of match always outranks a weaker one.
 const (
-	scoreExact          = 6000
-	scoreIDPrefix       = 5000
-	scoreIDSubstring    = 4000
-	scoreLabelSubstring = 3000
-	scoreTokenPrefix    = 2000
-	scoreSubsequence    = 1000
-	scoreGlob           = 1
-	maxSubsequenceBonus = 999
+	scoreExact            = 6000
+	scoreIDPrefix         = 5000
+	scoreIDSubstring      = 4000
+	scoreCompactSubstring = 3500
+	scoreLabelSubstring   = 3000
+	scoreTokenPrefix      = 2000
+	scoreSubsequence      = 1000
+	scoreGlobID           = 2
+	scoreGlobLabel        = 1
+	maxSubsequenceBonus   = 999
+	// minSubsequenceQuery is the shortest query the subsequence tier tries.
+	minSubsequenceQuery = 3
 )
 
 // Match is one ranked Search result.
@@ -33,10 +37,15 @@ type Match struct {
 	Score int    // higher is better; comparable only within one call
 }
 
-// Search ranks models against query. Glob queries (* matches any run,
-// including "/", and ? one character) keep input order; other queries are
-// sorted by score, then shorter id, then id. An empty query returns nil.
-// Duplicate ids (compared case-insensitively) are searched once.
+// Search ranks models against query, highest score first; equal scores
+// keep the input order, the listing's own (0021-MADR C11). Glob queries (*
+// matches any run, including "/", and ? one character) score an id match
+// above a match of the label only. Other queries match the id exactly, as a
+// prefix or substring, then with separators and spaces removed, then the
+// label's display name (the label before its first "["), then by token
+// prefix. Only when no id matches any of those, and the query has three or
+// more characters, does a subsequence of the id match. An empty query returns
+// nil. Duplicate ids (compared case-insensitively) are searched once.
 func Search(provider llmprovider.ProviderID, models []string, query string) []Match {
 	q := strings.ToLower(strings.TrimSpace(query))
 	if q == "" {
@@ -44,7 +53,7 @@ func Search(provider llmprovider.ProviderID, models []string, query string) []Ma
 	}
 	candidates := uniqueModelMatches(provider, models)
 	if strings.ContainsAny(q, "*?") {
-		return globMatches(candidates, q)
+		return sortByScore(globMatches(candidates, q))
 	}
 	var out []Match
 	for _, c := range candidates {
@@ -53,15 +62,21 @@ func Search(provider llmprovider.ProviderID, models []string, query string) []Ma
 			out = append(out, c)
 		}
 	}
-	slices.SortStableFunc(out, func(a, b Match) int {
-		if c := cmp.Compare(b.Score, a.Score); c != 0 {
-			return c
+	if len(out) == 0 && len([]rune(q)) >= minSubsequenceQuery {
+		for _, c := range candidates {
+			if bonus, ok := subsequenceBonus(strings.ToLower(c.ID), q); ok {
+				c.Score = scoreSubsequence + bonus
+				out = append(out, c)
+			}
 		}
-		if c := cmp.Compare(len(a.ID), len(b.ID)); c != 0 {
-			return c
-		}
-		return strings.Compare(a.ID, b.ID)
-	})
+	}
+	return sortByScore(out)
+}
+
+// sortByScore orders matches by score, highest first, keeping input order
+// among equal scores.
+func sortByScore(out []Match) []Match {
+	slices.SortStableFunc(out, func(a, b Match) int { return cmp.Compare(b.Score, a.Score) })
 	return out
 }
 
@@ -81,7 +96,8 @@ func uniqueModelMatches(provider llmprovider.ProviderID, models []string) []Matc
 }
 
 // globMatches keeps, in input order, each candidate whose whole id or whole
-// label matches the glob q. Unlike path.Match, * crosses "/".
+// label matches the glob q, scoring an id match above a label-only one.
+// Unlike path.Match, * crosses "/".
 func globMatches(candidates []Match, q string) []Match {
 	var b strings.Builder
 	for _, r := range q {
@@ -101,19 +117,27 @@ func globMatches(candidates []Match, q string) []Match {
 	}
 	var out []Match
 	for _, c := range candidates {
-		if re.MatchString(c.ID) || re.MatchString(c.Label) {
-			c.Score = scoreGlob
-			out = append(out, c)
+		switch {
+		case re.MatchString(c.ID):
+			c.Score = scoreGlobID
+		case re.MatchString(c.Label):
+			c.Score = scoreGlobLabel
+		default:
+			continue
 		}
+		out = append(out, c)
 	}
 	return out
 }
 
-// fuzzyModelScore returns the tier of the strongest predicate q satisfies, or
-// false when it satisfies none.
+// fuzzyModelScore returns the tier of the strongest predicate q satisfies
+// above the subsequence tier, or false when it satisfies none. The label
+// tiers read the display name only: the annotation in brackets would match
+// a short query almost always (0021-MADR C11).
 func fuzzyModelScore(id, label, q string) (int, bool) {
 	lowerID := strings.ToLower(id)
-	lowerLabel := strings.ToLower(label)
+	name := displayName(strings.ToLower(label))
+	compactQ := compactModelText(q)
 	switch {
 	case lowerID == q:
 		return scoreExact, true
@@ -121,17 +145,31 @@ func fuzzyModelScore(id, label, q string) (int, bool) {
 		return scoreIDPrefix, true
 	case strings.Contains(lowerID, q):
 		return scoreIDSubstring, true
-	case strings.Contains(lowerLabel, q):
+	case compactQ != "" && strings.Contains(compactModelText(lowerID), compactQ):
+		return scoreCompactSubstring, true
+	case strings.Contains(name, q):
 		return scoreLabelSubstring, true
-	case tokenPrefixMatch(q, lowerID, lowerLabel):
+	case tokenPrefixMatch(q, lowerID, name):
 		return scoreTokenPrefix, true
 	}
-	// Subsequence runs on the id only: curated labels carry annotation text
-	// that a short query would match almost always.
-	if bonus, ok := subsequenceBonus(lowerID, q); ok {
-		return scoreSubsequence + bonus, true
-	}
 	return 0, false
+}
+
+// displayName is a label's name, before any bracketed annotation.
+func displayName(label string) string {
+	name, _, _ := strings.Cut(label, "[")
+	return strings.TrimSpace(name)
+}
+
+// compactModelText removes the separators "-", ".", "_", "/" and spaces, so
+// "gpt41" finds gpt-4.1.
+func compactModelText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if strings.ContainsRune("-._/", r) || unicode.IsSpace(r) {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 // isModelSeparator reports whether r splits model-id tokens.

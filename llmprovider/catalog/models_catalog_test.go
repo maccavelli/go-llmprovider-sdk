@@ -63,6 +63,88 @@ func TestIsUsableOpenAIChatModel(t *testing.T) {
 	}
 }
 
+// TestIsUsableOpenAIChatModel_DeniesNonChatTokens (0021-MADR C4): speech,
+// transcription, search, deep-research and realtime ids are not chat models,
+// matched by token; the gpt-6 family is (amendment "the gpt-6 family on
+// OpenAI's listing").
+func TestIsUsableOpenAIChatModel_DeniesNonChatTokens(t *testing.T) {
+	for _, id := range []string{"gpt-4o-mini-tts", "gpt-4o-transcribe", "gpt-4o-search-preview", "o3-deep-research", "gpt-5-search-api"} {
+		if isUsableOpenAIChatModel(id) {
+			t.Errorf("%s is usable, want it denied", id)
+		}
+	}
+	for _, id := range []string{"gpt-6-sol", "gpt-4.1-mini", "o3"} {
+		if !isUsableOpenAIChatModel(id) {
+			t.Errorf("%s is not usable, want it allowed", id)
+		}
+	}
+}
+
+// TestRankNames_MatchTokens (0021-MADR C5): the name rules match whole
+// tokens, so "gemini" is not "mini" and "minimax" is not "mini".
+func TestRankNames_MatchTokens(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		rank func(string) int
+		id   string
+		want int
+	}{
+		{"opencode", rankOpencodeModel, "gemini-3.1-pro", -300},
+		{"opencode", rankOpencodeModel, "minimax-m3", 0},
+		{"kilo", rankKiloModel, "google/gemini-3.1-pro", -200},
+		{"kilo", rankKiloModel, "minimax/minimax-m3", 0},
+	} {
+		if got := c.rank(c.id); got != c.want {
+			t.Errorf("%s rank(%q) = %d, want %d", c.name, c.id, got, c.want)
+		}
+	}
+}
+
+// TestRankGenerations (0021-MADR C6): generations are parsed as numbers, so
+// a newer one ranks above an older one in each family, and a version hint
+// matches whole tokens. An id between anchors stays below the newer hinted
+// generation (amendment "C6's anchors are capped").
+func TestRankGenerations(t *testing.T) {
+	for _, c := range []struct {
+		name         string
+		rank         func(string) int
+		newer, older string
+	}{
+		{"gemini", rankGeminiModel, "gemini-3.8-flash", "gemini-2.5-flash"},
+		{"gemini", rankGeminiModel, "gemini-3.10-flash", "gemini-3.9-flash"},
+		{"gemini", rankGeminiModel, "gemini-3.9-flash", "gemini-3.1-flash"},
+		{"grok", rankGrokModel, "grok-4.7", "grok-4.6"},
+		{"grok", rankGrokModel, "grok-5", "grok-4.7"},
+		{"claude", rankClaudeModel, "claude-opus-5", "claude-opus-4-8"},
+		{"claude", rankClaudeModel, "claude-opus-4-8", "claude-opus-4-1"},
+		{"claude", rankClaudeModel, "claude-opus-4-8", "claude-opus-4-6"},
+		{"claude", rankClaudeModel, "claude-sonnet-4-6", "claude-sonnet-4-20250514"},
+	} {
+		if n, o := c.rank(c.newer), c.rank(c.older); n <= o {
+			t.Errorf("%s: %s = %d, not above %s = %d", c.name, c.newer, n, c.older, o)
+		}
+	}
+	for _, c := range []struct {
+		rank func(string) int
+		id   string
+		want int
+	}{
+		{rankGeminiModel, "gemini-3.8-flash", 180 + 111},
+		{rankGeminiModel, "gemini-3.10-flash", 180 + 113},
+		{rankGeminiModel, "gemini-3.1-flash", 180 + 40},
+		{rankGrokModel, "grok-4.7", 71},
+		{rankGrokModel, "grok-5", 90},
+		{rankGrokModel, "grok-4.1", 40},
+		{rankClaudeModel, "claude-opus-5", 140},
+		{rankClaudeModel, "claude-opus-4-1", 134},
+		{rankClaudeModel, "claude-sonnet-4-20250514", 184},
+	} {
+		if got := c.rank(c.id); got != c.want {
+			t.Errorf("rank(%q) = %d, want %d", c.id, got, c.want)
+		}
+	}
+}
+
 func TestCurateFromCatalog_Gemini(t *testing.T) {
 	// API returns noise + good models
 	available := []string{

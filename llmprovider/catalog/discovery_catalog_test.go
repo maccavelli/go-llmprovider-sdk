@@ -297,3 +297,28 @@ func TestListModelCatalog_InputModalityContainsText(t *testing.T) {
 		})
 	}
 }
+
+// kiloTierListing is a Kilo listing of only the kilo-auto tiers named.
+func kiloTierListing(tiers ...string) string {
+	entries := make([]string, 0, len(tiers))
+	for _, id := range tiers {
+		entries = append(entries, kiloRankEntry(id, id, "-1", "-1", -1, true, ""))
+	}
+	return `{"data":[` + strings.Join(entries, ",") + `]}`
+}
+
+// TestCatalogFrom_EmptyCurationKeepsLiveListing (0021-MADR C13): a live
+// listing whose curation leaves nothing stays live: Usable is the listing,
+// Recommended is empty, and there is no error. Under the utility profile a
+// Kilo listing of only kilo-auto tiers is such a listing.
+func TestCatalogFrom_EmptyCurationKeepsLiveListing(t *testing.T) {
+	srv := serveBody(t, kiloTierListing("kilo-auto/small", "kilo-auto/balanced"))
+	cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cat.Live || !slices.Equal(cat.Usable, []string{"kilo-auto/small", "kilo-auto/balanced"}) ||
+		len(cat.Recommended) != 0 || cat.Err != nil {
+		t.Errorf("catalog = %+v; want it live, Usable the listing, Recommended empty, no error", cat)
+	}
+}

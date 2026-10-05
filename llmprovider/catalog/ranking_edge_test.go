@@ -1,10 +1,13 @@
 package catalog
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
@@ -93,3 +96,92 @@ func TestRankRecommended_InfinitePriceNotCheapest(t *testing.T) {
 		[]rankCandidate{mk("a/cheap", "0.0000001"), mk("b/mid", "0.000001"), mk("z/infinite", "Infinity")}, nil)
 	assertRanked(t, got, []string{"a/cheap", "b/mid", "z/infinite"})
 }
+
+// guardCandidates are metadata candidates of each kind C9 guards: an unusable
+// cost, a future release date, and ordinary ones.
+func guardCandidates() map[string]rankCandidate {
+	reasoning := true
+	entry := func(input, output float64, date string) modelMetadata {
+		m := modelMetadata{Reasoning: &reasoning, Cost: &modelCost{Input: input, Output: output}, ReleaseDate: date}
+		m.Limit.Context = 131072
+		return m
+	}
+	future := refNow.AddDate(0, 2, 0).Format(time.DateOnly)
+	cands := map[string]rankCandidate{}
+	for id, m := range map[string]modelMetadata{
+		"negative": entry(-1, 0.5, "2026-08-01"),
+		"nan":      entry(math.NaN(), 1, "2026-08-01"),
+		"inf":      entry(math.Inf(1), 1, "2026-08-01"),
+		"overflow": entry(1e308, 1e308, "2026-08-01"),
+		"future":   entry(0.2, 0.6, future),
+		"cheap":    entry(0.1, 0.2, "2026-08-01"),
+		"dear":     entry(3, 15, "2026-06-01"),
+		"old":      entry(0.1, 0.2, "2025-01-01"),
+	} {
+		cands[id] = metadataCandidate(id, m, true, refNow)
+	}
+	return cands
+}
+
+// TestMetadataCandidate_GuardsCostAndAge (0021-MADR C9): a cost that is
+// negative, NaN, infinite, or overflows when summed is unknown, and so is the
+// age of a model released after now.
+func TestMetadataCandidate_GuardsCostAndAge(t *testing.T) {
+	cands := guardCandidates()
+	for _, id := range []string{"negative", "nan", "inf", "overflow"} {
+		if c := cands[id]; c.costKnown {
+			t.Errorf("%s: cost %v is known, want unknown", id, c.cost)
+		}
+	}
+	if c := cands["future"]; c.ageKnown {
+		t.Errorf("a future release date gives age %d days, want unknown", c.ageDays)
+	}
+	if c := cands["cheap"]; !c.costKnown || !c.ageKnown {
+		t.Errorf("an ordinary entry: cost known %v, age known %v; want both", c.costKnown, c.ageKnown)
+	}
+}
+
+// TestKiloPriceRank_NaNIsUnknown (0021-MADR C9): a NaN price ranks last, as
+// an unknown one does.
+func TestKiloPriceRank_NaNIsUnknown(t *testing.T) {
+	for _, s := range []string{"NaN", "Infinity", "-1", "x"} {
+		if got := kiloPriceRank(s); got != math.MaxFloat64 {
+			t.Errorf("kiloPriceRank(%q) = %v, want math.MaxFloat64", s, got)
+		}
+	}
+	if got := kiloPriceRank("0.000002"); got != 0.000002 {
+		t.Errorf("kiloPriceRank of a price = %v, want it", got)
+	}
+}
+
+// TestRankOrders_StrictWeakOrder (0021-MADR C9): both comparators are strict
+// weak orders over candidates of every kind, checked pairwise and over
+// triples.
+func TestRankOrders_StrictWeakOrder(t *testing.T) {
+	var cands []rankCandidate
+	for _, c := range guardCandidates() {
+		cands = append(cands, c)
+	}
+	norm := newRankNorm(cands)
+	for name, order := range map[string]func(a, b rankCandidate) int{
+		"utility": norm.utilityOrder, "capable": norm.capableOrder,
+	} {
+		for _, a := range cands {
+			if order(a, a) != 0 {
+				t.Errorf("%s: %s is not equal to itself", name, a.id)
+			}
+			for _, b := range cands {
+				if sign(order(a, b)) != -sign(order(b, a)) {
+					t.Errorf("%s: %s and %s are not antisymmetric", name, a.id, b.id)
+				}
+				for _, c := range cands {
+					if order(a, b) < 0 && order(b, c) < 0 && order(a, c) >= 0 {
+						t.Errorf("%s: %s < %s < %s, but not %s < %s", name, a.id, b.id, c.id, a.id, c.id)
+					}
+				}
+			}
+		}
+	}
+}
+
+func sign(n int) int { return cmp.Compare(n, 0) }

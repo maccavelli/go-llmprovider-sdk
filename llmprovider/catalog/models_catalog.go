@@ -2,8 +2,10 @@ package catalog
 
 import (
 	"cmp"
+	"math"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -166,10 +168,29 @@ var openaiDenyPrefixes = []string{
 	"sora-", "gpt-image", "computer-use",
 }
 
-// openaiAllowPrefixes: chat / reasoning completions.
+// openaiAllowPrefixes: chat / reasoning completions. gpt-6 joined with
+// 0021-MADR amendment "the gpt-6 family on OpenAI's listing".
 var openaiAllowPrefixes = []string{
-	"gpt-4", "gpt-5", "gpt-3.5-turbo", "o1", "o3", "o4",
+	"gpt-4", "gpt-5", "gpt-6", "gpt-3.5-turbo", "o1", "o3", "o4",
 	"chatgpt-4o",
+}
+
+// openaiDenyTokens are the token runs of OpenAI models that are not chat
+// models: speech, transcription, search, deep research and realtime
+// (0021-MADR C4).
+var openaiDenyTokens = [][]string{{denyTTS}, {"transcribe"}, {"search"}, {"deep", "research"}, {"realtime"}}
+
+// hasTokens reports whether id's tokens (modelTokens, the matcher's) hold
+// seq as a contiguous run, so a rule for "mini" matches gpt-4o-mini but not
+// gemini or minimax (0021-MADR C4, C5).
+func hasTokens(id string, seq ...string) bool {
+	tokens := modelTokens(id)
+	for i := 0; i+len(seq) <= len(tokens); i++ {
+		if slices.Equal(tokens[i:i+len(seq)], seq) {
+			return true
+		}
+	}
+	return false
 }
 
 // datedOrSnapshotGemini matches dated previews and numeric snapshots we should
@@ -178,10 +199,12 @@ var datedOrSnapshotGemini = regexp.MustCompile(`(?i)(-\d{2}-\d{4}|-\d{4}-\d{2}-\
 
 // Rank scores a model id for sorting by preference within provider's
 // catalog: higher is better. It replaces the per-provider Rank*Model functions
-// (0015-PLAN S5 step 3).
-// A provider with no ranking scores every model 0.
+// (0015-PLAN S5 step 3). The provider id is compared case-insensitively, as
+// Static compares it. Together ranks by position in its static catalog, the
+// order its fallback curation keeps (0021-MADR C12). A provider with no
+// ranking scores every model 0.
 func Rank(provider llmprovider.ProviderID, model string) int {
-	switch provider {
+	switch llmprovider.ProviderID(strings.ToLower(string(provider))) {
 	case llmprovider.ProviderGemini:
 		return rankGeminiModel(model)
 	case llmprovider.ProviderOpenAI:
@@ -196,6 +219,10 @@ func Rank(provider llmprovider.ProviderID, model string) int {
 		return rankHuggingFaceModel(model)
 	case llmprovider.ProviderKilo:
 		return rankKiloModel(model)
+	case llmprovider.ProviderTogether:
+		if i := slices.Index(staticTogether, model); i >= 0 {
+			return len(staticTogether) - i
+		}
 	}
 	return 0
 }
@@ -272,21 +299,21 @@ func isUsableOpencodeModel(id string) bool {
 func rankOpencodeModel(m string) int {
 	sm := strings.ToLower(m)
 	score := 0
+	// The name rules match whole tokens (0021-MADR C5).
 	switch {
-	case strings.Contains(sm, "nano"):
+	case hasTokens(sm, "nano"):
 		score += 200
-	case strings.Contains(sm, "lite"):
+	case hasTokens(sm, "lite"):
 		score += 190
-	case strings.Contains(sm, "flash"):
+	case hasTokens(sm, "flash"):
 		score += 180
-	case strings.Contains(sm, "mini"):
+	case hasTokens(sm, "mini"):
 		score += 170
-	case strings.Contains(sm, "haiku"):
+	case hasTokens(sm, "haiku"):
 		score += 160
-	case strings.Contains(sm, "sonnet"):
+	case hasTokens(sm, "sonnet"):
 		score += 90
-	case strings.Contains(sm, "opus"), strings.Contains(sm, "-pro"),
-		strings.Contains(sm, "-max"):
+	case hasTokens(sm, "opus"), hasTokens(sm, "pro"), hasTokens(sm, "max"):
 		score -= 300
 	}
 	if strings.HasSuffix(sm, "-free") {
@@ -340,6 +367,11 @@ func isUsableOpenAIChatModel(id string) bool {
 	// Drop instruction-only and realtime.
 	if strings.Contains(sm, "instruct") || strings.Contains(sm, "realtime") || strings.Contains(sm, "audio") {
 		return false
+	}
+	for _, seq := range openaiDenyTokens {
+		if hasTokens(sm, seq...) {
+			return false
+		}
 	}
 	for _, p := range openaiAllowPrefixes {
 		if strings.HasPrefix(sm, p) {
@@ -456,24 +488,36 @@ func rankGeminiModel(m string) int {
 		score -= 200
 	}
 
-	// Version weights (newer generations first).
+	// Version weights (newer generations first). A hint matches whole
+	// tokens; a generation no hint names is placed among the anchors
+	// (0021-MADR C6).
 	switch {
-	case strings.Contains(sm, "3.7"):
+	case hasRun(sm, "3.7"):
 		score += 100
-	case strings.Contains(sm, "3.6"):
+	case hasRun(sm, "3.6"):
 		score += 90
-	case strings.Contains(sm, "3.5"):
+	case hasRun(sm, "3.5"):
 		score += 80
-	case strings.Contains(sm, "3.1") || strings.Contains(sm, "3.0") || strings.Contains(sm, "gemini-3-"):
+	case hasRun(sm, "3.1") || hasRun(sm, "3.0"):
 		score += 40
-	case strings.Contains(sm, "2.5"):
+	case hasRun(sm, "2.5"):
 		score += 30
-	case strings.Contains(sm, "2.0") || strings.Contains(sm, "1.5"):
+	case slices.ContainsFunc(geminiShutDown, func(v string) bool { return hasRun(sm, v) }):
 		score -= 2000 // Deprecated / shut down
+	default:
+		score += generationScore(sm, geminiAnchors, 0)
 	}
 
 	return score
 }
+
+// geminiShutDown are the shut-down Gemini generations.
+var geminiShutDown = []string{"2.0", "1.5"}
+
+// geminiAnchors place a Gemini generation that no hint names. The 3.0, 3.1
+// and gemini-3- case is one anchor, at 3.0, so that the cap never puts a
+// gemini-3- id below the 40 the case gives it.
+var geminiAnchors = []generationAnchor{{205, 30}, {300, 40}, {305, 80}, {306, 90}, {307, 100}}
 
 // rankOpenAIModel prefers mini/nano for cost, then flagship chat.
 func rankOpenAIModel(m string) int {
@@ -492,7 +536,7 @@ func rankOpenAIModel(m string) int {
 		score += 160
 	case strings.Contains(sm, "4o"):
 		score += 140
-	case strings.Contains(sm, "gpt-5"):
+	case strings.Contains(sm, "gpt-5"), strings.Contains(sm, "gpt-6"):
 		score += 150
 	}
 	if strings.Contains(sm, "realtime") || strings.Contains(sm, "audio") {
@@ -514,18 +558,30 @@ func rankClaudeModel(m string) int {
 	} else if strings.Contains(sm, "fable") {
 		score += 90
 	}
-	// Generation hints.
-	if strings.Contains(sm, "4-5") || strings.Contains(sm, "4.5") || strings.Contains(sm, "sonnet-5") || strings.Contains(sm, "haiku-4") {
+	// Generation hints, matched as whole tokens; a generation no hint names
+	// is placed among the anchors (0021-MADR C6).
+	matched := false
+	if hasRun(sm, "4-5") || hasRun(sm, "sonnet-5") || hasRun(sm, "haiku-4") {
 		score += 40
+		matched = true
 	}
-	if strings.Contains(sm, "opus-4-8") || strings.Contains(sm, "sonnet-4-6") {
+	if hasRun(sm, "opus-4-8") || hasRun(sm, "sonnet-4-6") {
 		score += 35
+		matched = true
 	}
-	if strings.Contains(sm, "3-5") || strings.Contains(sm, "3.5") {
+	if hasRun(sm, "3-5") {
 		score += 10
+		matched = true
+	}
+	if !matched {
+		score += generationScore(sm, claudeAnchors, 0)
 	}
 	return score
 }
+
+// claudeAnchors place a Claude generation that no hint names. They do not
+// rise with the generation, which is why generationScore caps them.
+var claudeAnchors = []generationAnchor{{305, 10}, {400, 40}, {405, 40}, {406, 35}, {408, 35}, {500, 40}}
 
 // isUsableGrokModel filters xAI model IDs for Responses API text use.
 func isUsableGrokModel(id string) bool {
@@ -555,18 +611,93 @@ func rankGrokModel(m string) int {
 	case strings.Contains(sm, "fast-reasoning"):
 		score += 100
 	}
-	// Generation weights.
+	// Generation weights, matched as whole tokens. grok-4 and grok-3 are
+	// anchors, not hints, so a newer grok-4.x ranks above them (0021-MADR
+	// C6).
 	switch {
-	case strings.Contains(sm, "4.6"):
+	case hasRun(sm, "4.6"):
 		score += 60
-	case strings.Contains(sm, "4.5"):
+	case hasRun(sm, "4.5"):
 		score += 50
-	case strings.HasPrefix(sm, "grok-4"):
-		score += 40
-	case strings.HasPrefix(sm, "grok-3"):
-		score += 30
+	default:
+		score += generationScore(sm, grokAnchors, 0)
 	}
 	return score
+}
+
+// grokAnchors place a Grok generation that no hint names.
+var grokAnchors = []generationAnchor{{300, 30}, {400, 40}, {405, 50}, {406, 60}}
+
+// generationAnchor is a generation hint's score at its order key, ord =
+// 100·major + minor (0021-MADR C6).
+type generationAnchor struct{ ord, score int }
+
+// hasRun reports whether id holds hint's tokens as a contiguous run, so
+// "3.1" matches gemini-3.1-flash but not gemini-3.10-flash.
+func hasRun(id, hint string) bool { return hasTokens(id, modelTokens(hint)...) }
+
+// parseGeneration reads the first version after an id's family name: N,
+// N.M or N-M, where N is one digit and M one or two, so a date or a size is
+// never a version.
+func parseGeneration(id string) (major, minor int, ok bool) {
+	tokens := modelTokens(id)
+	for i := 1; i < len(tokens); i++ {
+		n, isVersion := versionNumber(tokens[i])
+		if !isVersion || len(tokens[i]) > 1 {
+			continue
+		}
+		if i+1 < len(tokens) {
+			if m, isMinor := versionNumber(tokens[i+1]); isMinor {
+				return n, m, true
+			}
+		}
+		return n, 0, true
+	}
+	return 0, 0, false
+}
+
+// versionNumber reads a token of one or two digits.
+func versionNumber(token string) (int, bool) {
+	if token == "" || len(token) > 2 || strings.Trim(token, "0123456789") != "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(token)
+	return n, err == nil
+}
+
+// generationScore places id's generation among anchors, sorted by ord
+// (0021-MADR C6; amendment "C6's anchors are capped"):
+//   - between anchors, it takes the highest anchor at or below it, capped at
+//     one less than the lowest anchor above it;
+//   - above every anchor, it takes the newest anchor's score plus 10 plus
+//     its distance in steps, at most 40: 20 a major, 1 a minor;
+//   - below every anchor, or with no version, it is below.
+func generationScore(id string, anchors []generationAnchor, below int) int {
+	major, minor, ok := parseGeneration(id)
+	if !ok {
+		return below
+	}
+	ord := 100*major + minor
+	newest := anchors[len(anchors)-1]
+	switch {
+	case ord < anchors[0].ord:
+		return below
+	case ord > newest.ord:
+		steps := minor - newest.ord%100
+		if major != newest.ord/100 {
+			steps = 20*(major-newest.ord/100) + minor
+		}
+		return newest.score + 10 + min(40, steps)
+	}
+	score, ceiling := 0, math.MaxInt
+	for _, a := range anchors {
+		if a.ord <= ord {
+			score = a.score
+		} else {
+			ceiling = min(ceiling, a.score-1)
+		}
+	}
+	return min(score, ceiling)
 }
 
 // splitHuggingFaceModelPolicy splits a router model id into its bare
@@ -653,12 +784,12 @@ func rankKiloModel(m string) int {
 	if strings.HasPrefix(sm, "kilo-auto/") {
 		score += 200 // managed tiers: stable ids, gateway-selected models
 	}
+	// The name rules match whole tokens (0021-MADR C5).
 	switch {
-	case strings.Contains(sm, "flash"), strings.Contains(sm, "lightning"),
-		strings.Contains(sm, "small"), strings.Contains(sm, "mini"):
+	case hasTokens(sm, "flash"), hasTokens(sm, "lightning"),
+		hasTokens(sm, "small"), hasTokens(sm, "mini"):
 		score += 100
-	case strings.Contains(sm, "-pro"), strings.Contains(sm, "-max"),
-		strings.Contains(sm, "frontier"):
+	case hasTokens(sm, "pro"), hasTokens(sm, "max"), hasTokens(sm, "frontier"):
 		score -= 200
 	}
 	return score
@@ -691,25 +822,20 @@ var modelLabels = map[string]string{
 	"o4-mini":      "o4-mini                [fast reasoning]",
 
 	// Claude
-	"claude-haiku-4-5":        "Claude Haiku 4.5       [★ Recommended: high speed, low latency]",
-	"claude-sonnet-5":         "Claude Sonnet 5        [balanced speed & precision]",
-	"claude-sonnet-4-6":       "Claude Sonnet 4.6      [stable high precision]",
-	"claude-opus-4-8":         "Claude Opus 4.8        [maximum capability]",
-	"claude-3-5-haiku-latest": "Claude 3.5 Haiku       [fast lightweight]",
+	"claude-haiku-4-5":  "Claude Haiku 4.5       [★ Recommended: high speed, low latency]",
+	"claude-sonnet-5":   "Claude Sonnet 5        [balanced speed & precision]",
+	"claude-sonnet-4-6": "Claude Sonnet 4.6      [stable high precision]",
+	"claude-opus-4-8":   "Claude Opus 4.8        [maximum capability]",
 
 	// Grok
 	"grok-3-mini-fast":      "Grok 3 Mini Fast       [★ Recommended: fastest tier]",
 	"grok-3-mini":           "Grok 3 Mini            [low latency]",
 	"grok-4":                "Grok 4                 [flagship]",
 	"grok-4.6":              "Grok 4.6               [current flagship]",
+	"grok-4.5":              "Grok 4.5               [previous flagship]",
 	"grok-4-fast-reasoning": "Grok 4 Fast Reasoning  [fast reasoning tier]",
 
-	// Gateway managed tiers
-	"kilo-auto/free":      "Kilo Auto Free         [no cost, gateway-selected]",
-	"kilo-auto/small":     "Kilo Auto Small        [cheapest managed tier]",
-	"kilo-auto/efficient": "Kilo Auto Efficient    [cost-optimised]",
-	"kilo-auto/balanced":  "Kilo Auto Balanced     [default quality tier]",
-	"openai/gpt-oss-20b":  "GPT-OSS 20B            [★ Recommended: fast, widely served]",
+	// Together
 	"openai/gpt-oss-120b": "GPT-OSS 120B           [highest throughput]",
 }
 

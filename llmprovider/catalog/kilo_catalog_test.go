@@ -1,10 +1,13 @@
 package catalog
 
 import (
+	"context"
 	"errors"
 	"io"
 	"math"
 	"net/http"
+	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -96,5 +99,48 @@ func TestClassify_KiloDataCollectionRequired(t *testing.T) {
 	}
 	if !errors.Is(err, llmprovider.ErrInvalidRequest) {
 		t.Errorf("err = %v, want it to still match the 400 status sentinel ErrInvalidRequest", err)
+	}
+}
+
+// TestKiloAuto_ExcludedButChoosable (0021-MADR D3's condition): under the
+// utility profile no kilo-auto tier is recommended, but every tier is usable
+// and found by its id and by the glob kilo-auto/*, in a full listing and in
+// one of the tiers alone.
+func TestKiloAuto_ExcludedButChoosable(t *testing.T) {
+	pinRankingNow(t, refNow)
+	for name, srv := range map[string]*httptest.Server{
+		"full listing": serveTestdata(t, "kilo.json"),
+		"tiers only":   serveBody(t, kiloTierListing("kilo-auto/small", "kilo-auto/balanced")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""),
+				llmprovider.WithBaseURL(srv.URL), WithProfile(ProfileUtility))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var tiers []string
+			for _, id := range cat.Usable {
+				if strings.HasPrefix(id, "kilo-auto/") {
+					tiers = append(tiers, id)
+				}
+			}
+			if len(tiers) < 2 {
+				t.Fatalf("Usable has tiers %v, want the listing's", tiers)
+			}
+			for _, id := range cat.Recommended {
+				if strings.HasPrefix(id, "kilo-auto/") {
+					t.Errorf("Recommended has %s; the utility profile excludes kilo-auto tiers", id)
+				}
+			}
+			glob := matchIDs(Search(llmprovider.ProviderKilo, cat.Usable, "kilo-auto/*"))
+			for _, id := range tiers {
+				if got := Search(llmprovider.ProviderKilo, cat.Usable, id); len(got) == 0 || got[0].ID != id {
+					t.Errorf("Search(%q) = %v, want it first", id, matchIDs(got))
+				}
+				if !slices.Contains(glob, id) {
+					t.Errorf("Search(kilo-auto/*) = %v, want %s", glob, id)
+				}
+			}
+		})
 	}
 }

@@ -118,14 +118,19 @@ functions over any provider, and `Stream` streams from every one.
   Hugging Face and Together are ranked by use case. The default profile,
   `catalog.ProfileUtility`, suits short, frequent tasks such as commit
   messages. It ranks recent, paid, reasoning-capable models first, at most
-  two per vendor, and leaves out those its catalog marks as non-reasoning,
-  free, expiring or preview. When fewer than six qualify, the list is filled
-  from the curated order, which can add such a model. Kilo's `kilo-auto/*`
-  tiers are never added under it, though a search still finds them.
+  two per vendor or model family (the `gpt-*` families count as one), and
+  leaves out those its catalog marks as non-reasoning, free, expiring or
+  preview. When fewer than six qualify, the list is filled from the curated
+  order, which can add such a model, but never one a request would fail on:
+  the `-contributor` models, and on OpenCode Go the region-gated DeepSeek
+  ones. Kilo's `kilo-auto/*` tiers are never added under it either. A search
+  still finds all of these.
   `catalog.WithProfile(catalog.ProfileCapable)`, or `wizard.Options.Profile`,
   ranks the strongest first instead. Kilo ranks from its own listing. The
-  others read `https://models.opencode.ai/api.json`, cached for ten minutes;
-  a failed fetch is not retried for a minute. `WithModelMetadataURL` points
+  others read `https://models.opencode.ai/api.json`, cached for ten minutes
+  and refreshed in the background after that; a failed fetch is not retried
+  for a minute. When nothing in a listing meets the profile, the
+  recommendations are empty and the wizard goes straight to search. `WithModelMetadataURL` points
   elsewhere, and `WithoutModelMetadata` turns the fetch off, which restores
   the curated order for those four. `catalog.OptionsFromEnv()` maps
   `LLMPROVIDER_MODELS_METADATA_URL` and
@@ -166,7 +171,9 @@ key.
   Without it, the built-in catalog is offered.
 - Before each model menu it asks for a search, with or without discovery.
   A blank search shows the recommendations. A glob such as `kilo-auto/*` or
-  `*llama*` matches whole ids, and other queries match loosely. Scripts that
+  `*llama*` matches whole ids, and other queries match loosely, in the
+  listing's order among equal matches. A search that matches nothing offers
+  the query itself as the model id. Scripts that
   drive the wizard answer one extra, blank, line before each model and
   fallback selection.
 - The menu is `Options.Registry`, every built-in provider when nil, so a

@@ -339,3 +339,27 @@ func TestConfigureLLM_InjectedLookupEnv(t *testing.T) {
 		t.Errorf("APIKey = %q, want the injected env value", res.APIKey)
 	}
 }
+
+// TestConfigure_EmptyRecommendedOpensSearch (0021-MADR C13): a live listing
+// with nothing recommended, here Kilo's tiers alone under the utility
+// profile, keeps the live listing. A blank search says no model meets the
+// profile and asks again, and a search finds a tier.
+func TestConfigure_EmptyRecommendedOpensSearch(t *testing.T) {
+	listing := `{"data":[` + kiloProfileEntry("kilo-auto/small", "-1", "-1", 0, 0) + "," +
+		kiloProfileEntry("kilo-auto/balanced", "-1", "-1", 0, 0) + `]}`
+	srv := zenServer(t, http.StatusOK, listing)
+	f := &fakePrompter{
+		t: t, selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
+		inputs: []string{srv.URL, "", "kilo-auto/small"}, secrets: []string{testKey},
+	}
+	res, err := ConfigureLLM(context.Background(), f, zenOptions())
+	if err != nil {
+		t.Fatalf("ConfigureLLM: %v", err)
+	}
+	if res.Model != "kilo-auto/small" {
+		t.Errorf("Model = %q, want kilo-auto/small, found by search", res.Model)
+	}
+	if countContaining(f.seenNotify, "meets the profile") != 1 {
+		t.Errorf("notices = %v, want one that no model meets the profile", f.seenNotify)
+	}
+}

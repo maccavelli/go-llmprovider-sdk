@@ -112,10 +112,19 @@ func (c rankCandidate) eligible(provider llmprovider.ProviderID) bool {
 		c.status == "deprecated", c.status == "alpha",
 		c.expiryKnown && c.expiryDays <= minRankExpiryDays,
 		unstableModelRE.MatchString(c.id),
-		strings.Contains(c.id, "-contributor"):
+		excludedAtRequest(provider, c.id):
 		return false
 	}
-	return provider != llmprovider.ProviderOpencodeGo || !slices.Contains(opencodeGoRegionGated, c.id)
+	return true
+}
+
+// excludedAtRequest reports the ids a request would fail on: the
+// -contributor models, and on OpenCode Go the region-gated ones (MADR 0009
+// §3 items 7 and 8). The ranking, the fill and Go's fallback curation all
+// leave them out; they stay searchable (0021-MADR D3).
+func excludedAtRequest(provider llmprovider.ProviderID, id string) bool {
+	return strings.Contains(id, "-contributor") ||
+		provider == llmprovider.ProviderOpencodeGo && slices.Contains(opencodeGoRegionGated, id)
 }
 
 // rankNorm holds the blend normalisers over the eligible set: the largest
@@ -231,7 +240,7 @@ func rankRecommended(profile Profile, provider llmprovider.ProviderID, cands []r
 		if len(out) == MaxListed {
 			break
 		}
-		if !slices.Contains(out, id) && !utilityExcluded(profile, provider, id) {
+		if !slices.Contains(out, id) && !utilityExcluded(profile, provider, id) && !excludedAtRequest(provider, id) {
 			out = append(out, id)
 		}
 	}
@@ -239,17 +248,25 @@ func rankRecommended(profile Profile, provider llmprovider.ProviderID, cands []r
 }
 
 // rankGroup is the diversity group: the vendor prefix before "/" with any
-// leading "~" removed, else the family, else the id itself.
+// leading "~" removed; else the leading letters of the lower-cased family,
+// so gpt-sol and gpt-luna are one group (0021-MADR D3); else the family;
+// else the id itself.
 func rankGroup(id, family string) string {
 	if strings.Contains(id, "/") {
 		vendor, _, _ := strings.Cut(strings.TrimLeft(id, "~"), "/")
 		return vendor
+	}
+	if letters := familyLetters.FindString(strings.ToLower(family)); letters != "" {
+		return letters
 	}
 	if family != "" {
 		return family
 	}
 	return id
 }
+
+// familyLetters is a family's leading letters.
+var familyLetters = regexp.MustCompile(`^[a-z]+`)
 
 // isSmallModel applies smallModelRE to the lower-cased, space-joined parts.
 func isSmallModel(parts ...string) bool {

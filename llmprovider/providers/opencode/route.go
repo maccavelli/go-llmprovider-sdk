@@ -1,6 +1,8 @@
 package opencode
 
 import (
+	_ "embed" // routes_snapshot.json
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -61,145 +63,51 @@ func (r Route) valid() bool {
 	}
 }
 
-// routeTable maps gateway -> model id -> wire format. It is the
-// fallback for a request whose metadata is unavailable (MADR 0012 §3.1), and
-// it is generated from the same document: every model in the "opencode" and
+// routesSnapshot is provider.npm for every model in the "opencode" and
 // "opencode-go" sections of models.opencode.ai/api.json (retrieved
-// 2026-09-27) whose status is not "deprecated", routed by its provider.npm
-// (routeForNPM). TestOpencodeRouteTable_MatchesMetadataSnapshot pins
-// it to testdata/opencode-routes.json.
+// 2026-09-27) whose status is not "deprecated".
+//
+//go:embed routes_snapshot.json
+var routesSnapshot []byte
+
+// routeSections maps the snapshot's sections to their gateways.
+var routeSections = map[string]llmprovider.ProviderID{
+	"opencode":    llmprovider.ProviderOpencodeZen,
+	"opencode-go": llmprovider.ProviderOpencodeGo,
+}
+
+// routeTable maps gateway -> model id -> wire format. It is the fallback for
+// a request whose metadata is unavailable (MADR 0012 §3.1). It is built from
+// routesSnapshot, each model routed by its provider.npm (routeForNPM), so the
+// table and the snapshot cannot drift apart (0021-MADR C10).
 //
 // Routing is per-gateway, not per-model: the minimax-* family takes
 // chat_completions on Zen and messages on Go.
-//
-//nolint:goconst // model IDs are intentionally repeated across gateways and tests
-var routeTable = map[llmprovider.ProviderID]map[string]Route{
-	llmprovider.ProviderOpencodeZen: {
-		// responses (@ai-sdk/openai)
-		"gpt-5":                           RouteResponses,
-		"gpt-5-codex":                     RouteResponses,
-		"gpt-5-nano":                      RouteResponses,
-		"gpt-5.1":                         RouteResponses,
-		"gpt-5.1-codex":                   RouteResponses,
-		"gpt-5.1-codex-max":               RouteResponses,
-		"gpt-5.1-codex-mini":              RouteResponses,
-		"gpt-5.2":                         RouteResponses,
-		"gpt-5.2-codex":                   RouteResponses,
-		"gpt-5.3-codex":                   RouteResponses,
-		"gpt-5.3-codex-spark":             RouteResponses,
-		"gpt-5.4":                         RouteResponses,
-		"gpt-5.4-mini":                    RouteResponses,
-		"gpt-5.4-nano":                    RouteResponses,
-		"gpt-5.4-pro":                     RouteResponses,
-		"gpt-5.5":                         RouteResponses,
-		"gpt-5.5-pro":                     RouteResponses,
-		"gpt-5.6-luna":                    RouteResponses,
-		"gpt-5.6-sol":                     RouteResponses,
-		"gpt-5.6-terra":                   RouteResponses,
-		"gpt-6-astra":                     RouteResponses,
-		"gpt-6-luna":                      RouteResponses,
-		"gpt-6-sol":                       RouteResponses,
-		"grok-4.5":                        RouteResponses,
-		"grok-4.6":                        RouteResponses,
-		"grok-4.7":                        RouteResponses,
-		"grok-build-0.1":                  RouteResponses,
-		"muse-spark-1.2":                  RouteResponses,
-		"muse-spark-1.3":                  RouteResponses,
-		"muse-spark-1.3-contributor-free": RouteResponses,
+var routeTable map[llmprovider.ProviderID]map[string]Route
 
-		// messages (@ai-sdk/anthropic)
-		"claude-fable-5":    RouteMessages,
-		"claude-fable-5-1":  RouteMessages,
-		"claude-haiku-4-5":  RouteMessages,
-		"claude-opus-4-5":   RouteMessages,
-		"claude-opus-4-6":   RouteMessages,
-		"claude-opus-4-7":   RouteMessages,
-		"claude-opus-4-8":   RouteMessages,
-		"claude-opus-5":     RouteMessages,
-		"claude-opus-5-5":   RouteMessages,
-		"claude-sonnet-4":   RouteMessages,
-		"claude-sonnet-4-5": RouteMessages,
-		"claude-sonnet-4-6": RouteMessages,
-		"claude-sonnet-5":   RouteMessages,
-		"qwen3.5-plus":      RouteMessages,
-		"qwen3.6-plus":      RouteMessages,
-		"qwen3.8-flash":     RouteMessages,
+func init() { routeTable = buildRouteTable(routesSnapshot) }
 
-		// google (@ai-sdk/google)
-		"gemini-3-flash":        RouteGoogle,
-		"gemini-3.1-pro":        RouteGoogle,
-		"gemini-3.5-flash":      RouteGoogle,
-		"gemini-3.5-flash-lite": RouteGoogle,
-		"gemini-3.6-flash":      RouteGoogle,
-		"gemini-3.7-flash":      RouteGoogle,
-		"gemini-3.8-flash":      RouteGoogle,
-
-		// chat_completions (any other npm, or unset)
-		"big-pickle":                   RouteChatCompletions,
-		"deepseek-v4-flash":            RouteChatCompletions,
-		"deepseek-v4-flash-vision-exp": RouteChatCompletions,
-		"deepseek-v4-pro":              RouteChatCompletions,
-		"deepseek-v4.1-flash":          RouteChatCompletions,
-		"glm-5":                        RouteChatCompletions,
-		"glm-5.1":                      RouteChatCompletions,
-		"glm-5.2":                      RouteChatCompletions,
-		"glm-5.3":                      RouteChatCompletions,
-		"glm-5.3-flash":                RouteChatCompletions,
-		"kimi-k2.5":                    RouteChatCompletions,
-		"kimi-k2.6":                    RouteChatCompletions,
-		"kimi-k2.7-code":               RouteChatCompletions,
-		"kimi-k3":                      RouteChatCompletions,
-		"ling-3.0-flash-fin-free":      RouteChatCompletions,
-		"longcat-2.5-preview-free":     RouteChatCompletions,
-		"mimo-v2.6-flash-free":         RouteChatCompletions,
-		"minimax-m2.5":                 RouteChatCompletions,
-		"minimax-m2.7":                 RouteChatCompletions,
-		"minimax-m3":                   RouteChatCompletions,
-		"nemotron-3-ultra-free":        RouteChatCompletions,
-		"nemotron-3.5-lightning-free":  RouteChatCompletions,
-		"qwen3.8-max":                  RouteChatCompletions,
-		"space-bunny-free":             RouteChatCompletions,
-	},
-	llmprovider.ProviderOpencodeGo: {
-		// responses (@ai-sdk/openai)
-		"gpt-5.6-luna":               RouteResponses,
-		"gpt-6-luna":                 RouteResponses,
-		"grok-4.6":                   RouteResponses,
-		"grok-4.7":                   RouteResponses,
-		"muse-spark-1.2-contributor": RouteResponses,
-		"muse-spark-1.3-contributor": RouteResponses,
-
-		// messages (@ai-sdk/anthropic)
-		"minimax-m2.7":  RouteMessages,
-		"minimax-m3":    RouteMessages,
-		"qwen3.8-flash": RouteMessages,
-
-		// chat_completions (any other npm, or unset)
-		"deepseek-v4-flash":            RouteChatCompletions,
-		"deepseek-v4-flash-vision-exp": RouteChatCompletions,
-		"deepseek-v4-pro":              RouteChatCompletions,
-		"deepseek-v4.1-flash":          RouteChatCompletions,
-		"glm-5.1":                      RouteChatCompletions,
-		"glm-5.2":                      RouteChatCompletions,
-		"glm-5.3":                      RouteChatCompletions,
-		"glm-5.3-flash":                RouteChatCompletions,
-		"hy3":                          RouteChatCompletions,
-		"hy4-preview":                  RouteChatCompletions,
-		"kimi-k2.6":                    RouteChatCompletions,
-		"kimi-k2.7-code":               RouteChatCompletions,
-		"kimi-k3":                      RouteChatCompletions,
-		"longcat-2.0":                  RouteChatCompletions,
-		"longcat-2.5-preview-free":     RouteChatCompletions,
-		"mimo-v2.5":                    RouteChatCompletions,
-		"mimo-v2.5-pro":                RouteChatCompletions,
-		"mimo-v2.6-flash":              RouteChatCompletions,
-		"mimo-v2.6-pro":                RouteChatCompletions,
-		"qwen3.6-plus":                 RouteChatCompletions,
-		"qwen3.7-max":                  RouteChatCompletions,
-		"qwen3.7-plus":                 RouteChatCompletions,
-		"qwen3.8-max":                  RouteChatCompletions,
-		"space-bunny-free":             RouteChatCompletions,
-	},
+// buildRouteTable routes each model of a snapshot by its provider.npm. The
+// snapshot is embedded, so a malformed one is a build defect, and panics;
+// TestOpencodeRouteTable_MatchesMetadataSnapshot pins it.
+func buildRouteTable(raw []byte) map[llmprovider.ProviderID]map[string]Route {
+	var snapshot map[string]map[string]string
+	if err := json.Unmarshal(raw, &snapshot); err != nil {
+		panic(fmt.Sprintf("opencode: routes_snapshot.json: %v", err))
+	}
+	table := make(map[llmprovider.ProviderID]map[string]Route, len(routeSections))
+	for section, models := range snapshot {
+		gateway, ok := routeSections[section]
+		if !ok {
+			panic(fmt.Sprintf("opencode: routes_snapshot.json: unknown section %q", section))
+		}
+		routes := make(map[string]Route, len(models))
+		for model, npm := range models {
+			routes[strings.ToLower(model)] = routeForNPM(npm)
+		}
+		table[gateway] = routes
+	}
+	return table
 }
 
 // heuristicRoute infers a route from the model id prefix when the table

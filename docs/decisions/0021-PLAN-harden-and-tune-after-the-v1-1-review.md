@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-10-04
+date: 2026-10-05
 associated-madr: "0021-MADR-harden-and-tune-after-the-v1-1-review.md"
 decision-makers: repository owner
 ---
@@ -793,7 +793,8 @@ V3.2 under Verification.
     metadataFetchTimeout)`, with `metadataFetchTimeout = 10 *
     time.Second`;
   * each waiter selects on `done` and on its own context, which keeps its
-    5 s `metadataLookupTimeout`;
+    5 s `metadataLookupTimeout`. *(Deviation 2026-10-05: three existing
+    tests change with this step; see the Execution record.)*
   * past the TTL, a cached document is returned at once, and a background
     fetch starts if none is in flight;
   * every failure of the detached fetch is cached for
@@ -823,7 +824,9 @@ V3.2 under Verification.
   containing the token sequences `tts`, `transcribe`, `search`,
   `deep-research` or `realtime`. Tokens are the id split on `-`, `.`,
   `_` and `/`, matched by a new `hasTokens(id string, seq ...string)
-  bool`.
+  bool`. *(Deviation 2026-10-05: `gpt-6-sol` is not
+  usable on `HEAD`, since `openaiAllowPrefixes` has no `gpt-6`. The step
+  also adds `gpt-6` to that list, ranked like `gpt-5`.)*
 
 #### 4.4 Name rules match tokens (C5)
 
@@ -868,7 +871,9 @@ V3.2 under Verification.
       at 406, `4-5` / `4.5`→40 at 405, `haiku-4`→40 at 400, `3-5`→10 at
       305.
   * An id that no hint matches takes the value of the highest anchor at
-    or below its `ord`.
+    or below its `ord`. *(Deviation 2026-10-05: capped at one less than the
+    lowest anchor above its `ord`, since Claude's anchors do not rise with
+    the generation.)*
   * An `ord` above every anchor gets `newest + 10 + min(40, steps)`:
     * `steps = 20·(major − newestMajor) + minor`, when the majors differ;
     * `steps = minor − newestMinor`, when they are equal.
@@ -2104,3 +2109,344 @@ invalidation tests passed three runs in a row.
 * G11: 0 hits in 28 files.
 
 **Live checks:** the PLAN has none for phase 3.
+
+### Deviation 2026-10-05: step 4.1 and three existing metadata tests
+
+* **Found:** with step 4.1 built, three existing tests fail. None of the
+  failures exists on `HEAD` (`6fbd2e6`).
+  * `TestLoadModelMetadata_StaleOnRefreshFailure`
+    (`catalog/metadata_request_test.go:45`): `requests = 1, want 2`. Past
+    the TTL the stale document now returns at once and the refresh runs in
+    the background, so the test counted before the refresh had finished.
+  * `TestLoadModelMetadata_LateFailureKeepsNewerDocument`
+    (`catalog/remediation_test.go:84`, 0020-MADR F15): the test hangs until
+    the package's timeout. It needs two fetches of one URL at once, the
+    first failing after the second cached a document. Under C2's one fetch
+    per URL the second lookup joins the first, so F15's race cannot occur.
+  * `TestChatReasoningEffort_LookupHasDeadline`
+    (`providers/opencode/wire_shapes_test.go:356`, 0013-MADR A6):
+    `metadata lookup had 10s left, want at most 5s`. The test reads the
+    outgoing request's deadline, which is now the detached fetch's
+    `metadataFetchTimeout` (10 s). Each lookup still waits at most 5 s.
+* **Resolutions, chosen by the owner:**
+  * the stale-refresh test waits for the background fetch before it counts
+    (`waitMetadataFetches`); its assertion is unchanged. This needed no
+    choice;
+  * **F15** ("Restate as single-flight"): the test keeps its name and
+    citation, and checks that a second lookup joins the held fetch, with 1
+    request, and that a document already cached is kept when that fetch
+    fails;
+  * **A6** ("Keep 10 s; retarget test"): the fetch keeps the PLAN's 10 s;
+    the opencode test checks that the request carries a deadline of at most
+    `metadataFetchTimeout`. `TestLookupMetadata_CallerDeadlineNotCached`
+    covers the lookup giving up at its own deadline while the fetch goes
+    on.
+* **MADR:** amended with "F15 and A6 under the shared fetch".
+* **Files added to the phase:** `catalog/remediation_test.go`,
+  `providers/opencode/wire_shapes_test.go`, and
+  `catalog/model_metadata_test.go` (the wait helper).
+
+### Deviation 2026-10-05: step 4.3 and the gpt-6 family
+
+* **Found:** step 4.3's red test expects `gpt-6-sol` to be "still" usable.
+  On `HEAD` (`6fbd2e6`) it is not: `openaiAllowPrefixes`
+  (`catalog/models_catalog.go:170-173`) is `gpt-4`, `gpt-5`,
+  `gpt-3.5-turbo`, `o1`, `o3`, `o4` and `chatgpt-4o`. So OpenAI's live
+  listing drops every `gpt-6-*` id, and `rankOpenAIModel` has no `gpt-6`
+  case. The PLAN's step was wrong about the starting state; the MADR's C4
+  did not mention it.
+* **Resolution, chosen by the owner** ("Allow gpt-6 too"):
+  * `gpt-6` joins `openaiAllowPrefixes`;
+  * `rankOpenAIModel` scores it as it scores `gpt-5` (+150);
+  * the red test stands as written. The ranking snapshot, which covers only
+    Kilo, Zen and Go, is not affected.
+* **MADR:** amended with "the gpt-6 family on OpenAI's listing".
+* **Files added to the phase:** none beyond step 4.3's.
+
+### Deviation 2026-10-05: step 4.5's anchors on Claude
+
+* **Found** while writing step 4.5, before any code: Claude's anchors do not
+  rise with the generation. They are 305→10, 400→40 (`haiku-4`), 405→40,
+  406→35 (`sonnet-4-6`), 408→35 (`opus-4-8`) and 500→40 (`sonnet-5`).
+  "The highest anchor at or below its `ord`" would therefore give:
+  * `claude-opus-4-1` (401): 100 + 40 = 140, above `claude-opus-4-8`'s 135
+    (today 100);
+  * `claude-sonnet-4-20250514` (400): 150 + 40 = 190, above
+    `claude-sonnet-4-6`'s 185 (today 150);
+  * `claude-opus-4-6` (406): 135, a tie with `claude-opus-4-8` (today
+    100).
+
+  Gemini's and Grok's anchors rise, so the rule is sound for them.
+* **Resolution, chosen by the owner** ("Cap below newer anchors"): for all
+  three providers, an id between anchors takes the highest anchor at or
+  below its `ord`, capped at one less than the lowest anchor above it. So
+  `claude-opus-4-1` is 134, `claude-sonnet-4-20250514` 184 and
+  `claude-opus-4-6` 134. The step's required scores (`gemini-3.8-flash`
+  111, `gemini-3.10-flash` 113, `grok-4.7` 71, `grok-5` 90,
+  `claude-opus-5` 140) stand.
+* **MADR:** amended with "C6's anchors are capped".
+* **Files added to the phase:** none.
+
+### Phase 4: catalog (2026-10-05)
+
+**Red runs.** The red tests ran on a scratch copy of `HEAD` (`6fbd2e6`,
+phase 3's commit) with the new tests added. Two test files were adapted for
+that run: `metadata_request_test.go` without the stale-refresh test and the
+background wait, which need `metadataNow` and `waitMetadataFetches`, and
+`model_matcher_test.go` with the new score constants as literals. The FAIL
+lines:
+
+* **4.1, C1 and C2:**
+  * `TestLookupMetadata_CallerDeadlineNotCached`: `the next lookup = map[],
+    model metadata: Get ...: context deadline exceeded; want the document,
+    not the first caller's deadline`;
+  * `TestLookupMetadata_OneFetchForConcurrentLookups`: `20 concurrent
+    lookups made 20 requests, want 1`.
+* **4.2, C3:** `TestListing_PageLimit`, all seven listers: `a 9 MiB page:
+  err = <nil>, want an error naming the 8 MiB limit` (Together's: `together:
+  decode models: unexpected EOF`); `TestModelMetadata_DocumentLimit`: `a 33
+  MiB document: err = <nil>`.
+* **4.3, C4,** `TestIsUsableOpenAIChatModel_DeniesNonChatTokens`: the five
+  ids `... is usable, want it denied`, and `gpt-6-sol is not usable, want it
+  allowed` (the deviation above).
+* **4.4, C5,** `TestRankNames_MatchTokens`: `opencode
+  rank("gemini-3.1-pro") = 170, want -300`; `opencode rank("minimax-m3") =
+  170, want 0`; the same two in `kilo`, 100 against -200 and 0.
+* **4.5, C6,** `TestRankGenerations`:
+  * `gemini-3.8-flash = 180, not above gemini-2.5-flash = 210`;
+  * `gemini-3.9-flash = 180, not above gemini-3.1-flash = 220`;
+  * `grok-4.7 = 40, not above grok-4.6 = 60`; `grok-5 = 0, not above
+    grok-4.7 = 40`;
+  * `claude-opus-5 = 100, not above claude-opus-4-8 = 135`;
+  * and seven exact values, such as `rank("gemini-3.10-flash") = 220, want
+    293` and `rank("claude-opus-4-1") = 100, want 134`.
+* **4.6, D3:**
+  * `TestRankRecommended_FillSkipsRequestFailures`: `ranked =
+    [glm-5.3-flash muse-spark-1.3-contributor deepseek-v4-flash hy3
+    deepseek-v4-pro kimi-k2.6]`;
+  * `TestOpencodeGoFallback_AppliesItemsSevenAndEight`: `ranked =
+    [glm-5.3-flash deepseek-v4-flash muse-spark-1.3-contributor kimi-k2.6]`;
+  * `TestRankGroup_FamilyLeadingLetters`: `rankGroup("gpt-6-sol",
+    "gpt-sol") = "gpt-sol", want gpt`, and the same for the other two;
+  * `TestListModelCatalog_Snapshot20260926`: `opencode-zen profile 1`, the
+    planned change.
+* **4.7, C9:**
+  * `TestMetadataCandidate_GuardsCostAndAge`: `negative: cost -0.5 is known,
+    want unknown`, the same for `nan`, `inf` and `overflow`, and `a future
+    release date gives age -61 days, want unknown`;
+  * `TestKiloPriceRank_NaNIsUnknown`: `kiloPriceRank("NaN") = NaN, want
+    math.MaxFloat64`, and `+Inf` for `"Infinity"`;
+  * `TestRankOrders_StrictWeakOrder` passes on `HEAD`, as a guard: Go's
+    `cmp.Compare` orders NaN consistently. See its plant below.
+* **4.8, C11 and Z11:**
+  * `TestSearch_AnnotationNotSearched`: `"fast" = [gpt-4.1 o4-mini
+    gpt-4o-mini gpt-4.1-mini], want no match`;
+  * `TestSearch_CompactQuery`: `"gpt41" = [... gpt-4.1 ... 1035 ...], want
+    gpt-4.1 at 3500`;
+  * `TestSearch_ShortQueryNoSubsequence`: `ids = [o3 o3-mini openai/o3-pro
+    gpt-4o-2024-08-13]`;
+  * `TestSearch_TiesKeepListingOrder`: `ids = [mid-flash zeta-flash
+    alpha-flash]`;
+  * `TestSearch_GlobIDBeforeLabel`: `ids = [vendor/mirror kilo-auto/small]`,
+    `scores = [1 1], want [2 1]`;
+  * `TestSearchModels_LabelSubstringTier`: `balanced speed = [... Score:3000],
+    want no match: it is in the annotation`;
+  * `wizard TestConfigureLLM_SearchNoMatchUsesTheQuery`: `unexpected
+    Input("Search models (blank for recommended)")`.
+* **4.9, C12:**
+  * `TestRank_ProviderCaseAndTogether`: `Rank("Gemini") = 0, Rank("gemini")
+    = 280`, and `Together ranks its first static id 0, not above its second,
+    0`;
+  * `TestStaticIDs_Labelled`: `grok: static id "grok-4.5" has no label`;
+  * `TestLabels_NoOrphans`: six orphans, `claude-3-5-haiku-latest`, the four
+    `kilo-auto/*` tiers and `openai/gpt-oss-20b`.
+* **4.10, C13:**
+  * `TestCatalogFrom_EmptyCurationKeepsLiveListing`: the static six, not the
+    live listing;
+  * `TestKiloAuto_ExcludedButChoosable/tiers_only`: `Usable has tiers [],
+    want the listing's` (the full listing passes on `HEAD`);
+  * `wizard TestConfigure_EmptyRecommendedOpensSearch`: `Model =
+    "deepseek/deepseek-v4.1-flash", want kilo-auto/small`, with the notice
+    `live model listing for Kilo Gateway is unavailable`.
+
+**Planted breaches,** on a scratch copy of the tree:
+
+* `TestLookupMetadata_StaleServedWhileRefreshing`, with the stale return
+  planted out: `10 lookups past the TTL took 302ms; want the stale document
+  at once`.
+* `TestLoadModelMetadata_LateFailureKeepsNewerDocument` (restated), with
+  single-flight planted out: `requests = 3, want 2`. Under that plant the
+  test ran 300 s before it failed; on the tree it takes milliseconds.
+* `TestChatReasoningEffort_LookupHasDeadline` (retargeted), with the fetch's
+  timeout planted out: `metadata fetch ran without a deadline`.
+* `TestRankOrders_StrictWeakOrder`, with the blend comparison planted to
+  `-1`: `utility: future is not equal to itself`, and the antisymmetry
+  failures.
+* `TestRouteHeuristic_AgreesWithEveryRow`, the new gate (4.11), with one
+  disagreeing row planted in `routes_snapshot.json`: `opencode gpt-planted
+  (npm "@ai-sdk/anthropic"): heuristic route "responses", want "messages"`.
+* `TestBuildRouteTable_RefusesABadSnapshot`, with the unknown-section panic
+  planted to `continue`: `unknown_section: buildRouteTable accepted it`.
+
+**PASS:** every test above passes on the tree, and so does the whole suite.
+The metadata, search and snapshot tests passed three runs in a row under
+`-race`.
+
+**What was built:**
+
+* **4.1:** `metadataFetch` and `modelMetadataFetches`, the clock
+  `metadataNow`, `metadataFetchTimeout` (10 s), the counter
+  `metadataFetching`, and `startMetadataFetch`. The `context.Canceled`
+  special case is gone.
+* **4.2:** `decodeLimited`, `listingPageLimit` (8 MiB, in place of
+  `togetherListingLimit`) at the seven list decodes, and `metadataLimit`
+  (32 MiB).
+* **4.3:** `hasTokens` and `openaiDenyTokens`; `gpt-6` in
+  `openaiAllowPrefixes` and in `rankOpenAIModel` (deviation).
+* **4.4:** the OpenCode and Kilo name switches use `hasTokens`.
+* **4.5:**
+  * `parseGeneration`, `versionNumber`, `hasRun`, `generationAnchor` and
+    `generationScore`;
+  * the anchor tables `geminiAnchors`, `claudeAnchors` and `grokAnchors`,
+    with the cap (deviation);
+  * `geminiShutDown`.
+* **4.6:**
+  * `excludedAtRequest`, used by `eligible`, the fill and Go's fallback
+    curation;
+  * `rankGroup` with `familyLetters`;
+  * the snapshot golden's Zen capable six;
+  * "Amendment 2026-10-05: the fill and the diversity group (0021 D3)" in
+    `0009-MADR-use-case-aware-default-model-ranking.md`;
+  * README's Ranking bullet.
+* **4.7:** `metadataCandidate`'s guards, and `kiloPriceRank` through
+  `kiloPrice`.
+* **4.8:**
+  * `scoreCompactSubstring` (3500), `scoreGlobID` (2), `scoreGlobLabel` (1),
+    `minSubsequenceQuery` (3);
+  * `displayName`, `compactModelText` and `sortByScore`;
+  * `Search`'s doc;
+  * the wizard's `useQueryLabel` menu on a search with no match.
+* **4.9:**
+  * `Rank` lower-cases the provider and ranks Together by static position;
+  * a label for `grok-4.5` ("previous flagship");
+  * the six orphan labels removed;
+  * `unlabelledStaticIDs`, with one reason for the 26 ids of the
+    metadata-ranked fallback sixes.
+* **4.10:**
+  * `catalogFrom` keeps a live listing whose curation is empty;
+  * the `Catalog` doc;
+  * `configure.go` keeps a live catalog with a non-empty `Usable` and asks
+    for a manual id only when `Usable` is empty too;
+  * `selectModel` re-prompts with `noRecommendedNotice` on a blank query.
+* **4.11:**
+  * `git mv` of `testdata/opencode-routes.json` to `routes_snapshot.json`;
+  * `//go:embed`;
+  * `buildRouteTable` in `init`, in place of the hand table and its
+    `//nolint:goconst`;
+  * `TestOpencodeRouteTable_MatchesMetadataSnapshot` reads the embedded file.
+
+**Implementation notes, within the steps:**
+
+* `hasTokens` uses the matcher's existing `modelTokens`, which also splits
+  on `:`, `~` and spaces.
+* Gemini's `3.0 || 3.1 || gemini-3-` case is one anchor, at 3.0. With 3.0
+  and 3.1 both at 40, the cap would have put a `gemini-3-` id at 39, where
+  today's table gives it 40.
+* `parseGeneration` reads a one-digit major and a one- or two-digit minor.
+  A two-digit major read the test id `claude-sonnet-45` as generation 45
+  (240).
+* The label tiers, the substring one and the token one, read the display
+  name only. With the token tier still on the whole label, `"fast"` would
+  match OpenAI's annotations.
+* The no-match menu defaults to Search again. The wizard still prints the
+  no-match notice first.
+* `metadataCandidate` compares a release date with its `now` argument, the
+  ranking clock the age is computed from, rather than `metadataNow()`.
+* A malformed or unknown-section `routes_snapshot.json` panics at `init`:
+  the file is embedded, so that is a build defect.
+* The 0009 amendment is dated 2026-10-05, the day it was written; the step
+  named it 2026-10-04.
+
+**Existing assertions changed to the decided behaviour:**
+
+* With the deviations above: `TestLoadModelMetadata_StaleOnRefreshFailure`,
+  `TestLoadModelMetadata_LateFailureKeepsNewerDocument` and
+  `TestChatReasoningEffort_LookupHasDeadline`.
+* `TestListModelCatalog_Snapshot20260926`: the Zen capable six is
+  `claude-opus-5-5, gpt-6-sol, gpt-6-luna, grok-4.7, muse-spark-1.3,
+  claude-fable-5-1`, where `gpt-6-astra` was fifth. No other six changed.
+* `TestMetadataCandidate_Fields`: the group of family `glm-flash` is `glm`.
+* The lock-step search tests:
+  * `TestSearchModels_GlobKeepsInputOrder` checks `scoreGlobID`;
+  * `TestSearchModels_SubstringOutranksSubsequence` no longer expects the
+    subsequence `fireworks/llama-ash`;
+  * `TestSearchModels_TieBreak` expects input order;
+  * `TestSearchModels_LabelSubstringTier` labels a model of its own, since
+    every curated display name restates its id.
+* `wizard`: `TestConfigureLLM_SearchNoMatchReturnsToSearch` picks Search
+  again on the new menu. `TestConfigureLLM_FallbackSearch` and
+  `TestConfigureLLM_FallbackSearchLoops` expect `claude-sonnet-5` before
+  `claude-opus-5`, their listing's order.
+
+**Generations, 4.5's guard.** Of the 99 `gemini-`, `claude-` and `grok-`
+ids in the catalog package's sources, tests and testdata, these score
+differently on the tree (before → after). The existing `TestRankGemini…`,
+`TestRankGrok…` and `TestRankClaude…` assertions are unchanged.
+
+* Claude:
+  * no hint matched before, and an anchor now applies: `claude-fable-4` 90 →
+    124; `claude-fable-5` 90 → 130; `claude-fable-5-1` and `5.1` 90 → 141;
+    `claude-opus-4-1`, `4-6`, `4-7` and the dotted forms 100 → 134;
+    `claude-opus-5` 100 → 140; `claude-opus-5-5` and `5.5` 100 → 155;
+    `claude-sonnet-4` and `claude-sonnet-4-20250514` 150 → 184;
+  * a hint now matches by token: `claude-opus-4.8` 100 → 135,
+    `claude-sonnet-4.6` 150 → 185.
+* Gemini: `gemini-3.8-flash` 180 → 291, `gemini-3.9-flash` 180 → 292,
+  `gemini-3.10-flash` 220 → 293.
+* Grok: `grok-4.7` 40 → 71, `grok-5` 0 → 90, and the five `grok-4.20…` ids
+  40 → 84.
+
+**Goldens:** no wire golden changed.
+
+**Docs:**
+
+* `docs/architecture.md`: "A listing" (empty curation, the metadata cache
+  and the read limits), the `catalog.Search` bullet, and the `opencode` row;
+* `README.md`: the Ranking bullet (D3, the background refresh, empty
+  recommendations) and the wizard's search bullet;
+* `0009-MADR-use-case-aware-default-model-ranking.md`: the amendment.
+
+**Gate,** all exit 0:
+
+* G1, G2 and G3;
+* G4: 26 packages ok; `catalog` 92.9%, `opencode` 99.1%, `wizard` 88.0%;
+* G5, and G6 with 0 issues on the host and with `GOOS=windows`, after two
+  findings in the new code (a third `"tts"` literal, and `len(token) == 0`)
+  were fixed;
+* G7:
+  * parity: 409 identifiers, 0 problems;
+  * dep-check: 27 packages, 0 problems;
+  * coverage-check: 27 packages, 0 problems;
+  * api-check: "against v1.1.0, 0 incompatible change(s)";
+  * generate-check: 0 problems;
+* G8: 0 issues in the READMEs, `architecture.md` and the guides;
+* G9: stable;
+* G10: 0 problems;
+* G11: 0 hits in 32 files.
+
+**Phase 4 check, live,** on a scratch copy of the tree, keys checked for
+presence only, counts only:
+
+* Kilo: live, 290 usable, 6 recommended under each profile, no
+  `kilo-auto/*` recommended;
+* OpenCode Zen: live, 41 usable, 6 recommended under each profile;
+* OpenCode Go: live, 33 usable, 6 recommended under each profile;
+* `TestLive_ModelMetadataDocument` passes, so the live document is under
+  the 32 MiB limit; `TestLive_GrokListingTextOnly` passes;
+  `TestLive_TogetherListing` skipped (`LLMPROVIDER_LIVE_TOGETHER` unset).
+* Observed: xAI lists `grok-4.20-0309-*` beside `grok-4.3` to `grok-4.7`.
+  Read numerically, 4.20 scores 84, above 4.7's 71, though its date suggests
+  it came before 4.3. That follows C6 as decided (minor versions are
+  integers, as `gemini-3.10` needs). Grok's static-first curation still
+  leads with `grok-4.6` and `grok-4.5`; the backfill now ends with
+  `grok-4.7` where it ended with `grok-4.3`.

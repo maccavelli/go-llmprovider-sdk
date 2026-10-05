@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +26,28 @@ const (
 	claudeListPageLimit = "1000"
 )
 
+// listingPageLimit bounds one listing page, from every lister (0021-MADR
+// C3). Together's listing, which also lists image, audio and embedding
+// models, set the figure.
+const listingPageLimit = 8 << 20
+
+// decodeLimited decodes one JSON value from r into v, reading at most limit
+// bytes. A longer body is an error naming the limit; what labels the errors
+// (0021-MADR C3).
+func decodeLimited(r io.Reader, limit int64, v any, what string) error {
+	raw, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return fmt.Errorf("%s: read: %w", what, err)
+	}
+	if int64(len(raw)) > limit {
+		return fmt.Errorf("%s: the reply is larger than %d MiB", what, limit>>20)
+	}
+	if err := json.Unmarshal(raw, v); err != nil {
+		return fmt.Errorf("%s: decode: %w", what, err)
+	}
+	return nil
+}
+
 // modelListingTimeout bounds one model listing, its metadata fetch included
 // (MADR 0009 §2). List, and so every provider's ListModels, applies it
 // (MADR 0013 A5).
@@ -35,7 +56,9 @@ const modelListingTimeout = 10 * time.Second
 // Catalog is the result of one model listing, viewed two ways.
 type Catalog struct {
 	// Recommended is what List returns: at most
-	// MaxListed ids, curated against the static catalog.
+	// MaxListed ids, curated against the static catalog. It may be empty on
+	// a live listing, when nothing in it meets the profile; Usable then holds
+	// the listing to search (0021-MADR C13).
 	Recommended []string
 	// Usable is every id the provider's usability filters admit, once each,
 	// in listing order, uncapped. It equals Recommended when Live is false.
@@ -95,11 +118,10 @@ func catalogFrom(usable []string, fetchErr error, static []string, curate func([
 		cat.Err = fetchErr
 		return cat
 	}
-	recommended := curate(usable)
-	if len(recommended) == 0 {
-		return staticCatalog(static)
-	}
-	return Catalog{Recommended: recommended, Usable: usable, Live: true}
+	// A curation that leaves nothing, such as Kilo's tiers alone under the
+	// utility profile, keeps the live listing: the user searches it
+	// (0021-MADR C13).
+	return Catalog{Recommended: curate(usable), Usable: usable, Live: true}
 }
 
 // uniqueIDs drops repeated ids, keeping the first of each (MADR 0013 A1).
@@ -241,7 +263,7 @@ func fetchGeminiPage(ctx context.Context, endpoint string, token llmprovider.Tok
 	if resp.StatusCode != http.StatusOK {
 		return result, fmt.Errorf("gemini: models endpoint returned HTTP %d", resp.StatusCode)
 	}
-	err = json.NewDecoder(resp.Body).Decode(&result)
+	err = decodeLimited(resp.Body, listingPageLimit, &result, "gemini: models")
 	return result, err
 }
 
@@ -335,7 +357,7 @@ func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Tok
 		// Older keys / regional proxies may not support Models API.
 		return result, fmt.Errorf("claude: models endpoint returned HTTP %d", resp.StatusCode)
 	}
-	err = json.NewDecoder(resp.Body).Decode(&result)
+	err = decodeLimited(resp.Body, listingPageLimit, &result, "claude: models")
 	return result, err
 }
 
@@ -389,7 +411,7 @@ func fetchOllamaNames(ctx context.Context, token llmprovider.Token, cfg config) 
 			Name string `json:"name"`
 		} `json:"models"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeLimited(resp.Body, listingPageLimit, &result, "ollama: tags"); err != nil {
 		return nil, fmt.Errorf("failed to parse Ollama response: %w", err)
 	}
 
@@ -489,7 +511,7 @@ func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg confi
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeLimited(resp.Body, listingPageLimit, &result, string(provider)+": models"); err != nil {
 		return nil, err
 	}
 	ids := make([]string, 0, len(result.Data))
@@ -523,7 +545,10 @@ func opencodeCatalog(ctx context.Context, gateway llmprovider.ProviderID, token 
 	meta := startModelMetadata(ctx, cfg)
 	usable, fetchErr := fetchOpencodeUsable(ctx, gateway, token, cfg)
 	curate := func(usable []string) []string {
-		return curateFromCatalog(staticOpencodeCatalog(gateway), usable, isUsableOpencodeModel, rankOpencodeModel)
+		// Without metadata the curation still leaves out what a request
+		// would fail on (0021-MADR D3).
+		recommendable := func(id string) bool { return isUsableOpencodeModel(id) && !excludedAtRequest(gateway, id) }
+		return curateFromCatalog(staticOpencodeCatalog(gateway), usable, recommendable, rankOpencodeModel)
 	}
 	return catalogFrom(usable, fetchErr, Static(gateway), metadataCurate(gateway, cfg.ModelProfile, meta, curate)), nil
 }
@@ -604,7 +629,7 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 			} `json:"providers"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeLimited(resp.Body, listingPageLimit, &result, "huggingface: models"); err != nil {
 		return nil, err
 	}
 
@@ -660,10 +685,6 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 	return available, nil
 }
 
-// togetherListingLimit bounds Together's model listing, which also lists
-// image, audio and embedding models.
-const togetherListingLimit = 8 << 20
-
 // fetchTogetherUsable returns Together's chat models in listing order.
 // GET {base}/models answers with a bare JSON array, not an OpenAI
 // {"data": [...]} envelope, and lists every model type; only "chat" models
@@ -693,8 +714,8 @@ func fetchTogetherUsable(ctx context.Context, token llmprovider.Token, cfg confi
 		ID   string `json:"id"`
 		Type string `json:"type"`
 	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, togetherListingLimit)).Decode(&models); err != nil {
-		return nil, fmt.Errorf("together: decode models: %w", err)
+	if err := decodeLimited(resp.Body, listingPageLimit, &models, "together: models"); err != nil {
+		return nil, err
 	}
 	usable := make([]string, 0, len(models))
 	for _, m := range models {
@@ -744,15 +765,15 @@ type kiloTerminalBench struct {
 	OverallScore *float64 `json:"overallScore"`
 }
 
-// kiloPriceRank parses Kilo's string pricing into a sortable value. A negative
-// or unparseable price means "variable" (the kilo-auto tiers report "-1") and
-// sorts last rather than first.
+// kiloPriceRank parses Kilo's string pricing into a sortable value. A price
+// kiloPrice does not know, negative, non-finite or unparseable, means
+// "variable" (the kilo-auto tiers report "-1") and sorts last rather than
+// first (0021-MADR C9).
 func kiloPriceRank(s string) float64 {
-	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
-	if err != nil || v < 0 {
-		return math.MaxFloat64
+	if v, ok := kiloPrice(s); ok {
+		return v
 	}
-	return v
+	return math.MaxFloat64
 }
 
 // fetchKiloCatalog performs the shared GET {base}/models, or an organization's
@@ -782,7 +803,7 @@ func fetchKiloCatalog(ctx context.Context, token llmprovider.Token, cfg config) 
 	var result struct {
 		Data []kiloCatalogEntry `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeLimited(resp.Body, listingPageLimit, &result, "kilo: models"); err != nil {
 		return nil, err
 	}
 	return result.Data, nil

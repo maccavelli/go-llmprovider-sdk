@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -130,7 +131,10 @@ type Metadata struct{ doc modelMetadataDoc }
 // url is empty, fetched through client and cached as the listing caches it.
 // A nil client means the default client, as an omitted WithHTTPClient does.
 // The lookup waits at most 5 s, whatever ctx allows, and a failed fetch is not
-// retried for a minute (MADR 0013 A6).
+// retried for a minute (MADR 0013 A6). Lookups share one fetch per URL, which
+// carries on, for up to 10 s, after a lookup gives up; past the cache's TTL a
+// lookup returns the cached document and the fetch refreshes it (0021-MADR
+// C1, C2).
 //
 // Moved here from llmprovider (0015-PLAN S8, commit 2).
 func LookupMetadata(ctx context.Context, url string, client *http.Client) (Metadata, error) {
@@ -186,10 +190,33 @@ type modelMetadataCacheEntry struct {
 	err     error            // that failure
 }
 
+// metadataFetch is one URL's fetch in flight, which every lookup of that URL
+// waits for (0021-MADR C2). doc and err are set before done is closed.
+type metadataFetch struct {
+	done chan struct{}
+	doc  modelMetadataDoc
+	err  error
+}
+
 var (
 	modelMetadataMu    sync.Mutex
 	modelMetadataCache = map[string]modelMetadataCacheEntry{}
+	// modelMetadataFetches holds each URL's fetch in flight, under
+	// modelMetadataMu.
+	modelMetadataFetches = map[string]*metadataFetch{}
+	// metadataFetching counts the fetches in flight, so that tests can wait
+	// for a background refresh.
+	metadataFetching sync.WaitGroup
+	// metadataNow is the cache's clock. Tests move it.
+	metadataNow = time.Now
 )
+
+// metadataLimit bounds the metadata document (0021-MADR C3).
+const metadataLimit = 32 << 20
+
+// metadataFetchTimeout bounds one fetch. The fetch is detached from the
+// lookups that wait for it, so it has its own bound (0021-MADR C1).
+const metadataFetchTimeout = 10 * time.Second
 
 // modelMetadataURL resolves the document URL: the option, else OpenCode's.
 func modelMetadataURL(cfg config) string {
@@ -220,6 +247,12 @@ func OptionsFromEnv() []llmprovider.Option {
 // modelMetadataRetryAfter, and while it is, loads answer from the cache
 // without fetching: the stale document when there is one, else the failure
 // (MADR 0013 A6).
+//
+// One fetch per URL runs at a time, detached from every caller's context
+// and bounded by metadataFetchTimeout; each load waits for it under its own
+// context. Past the TTL the stale document is returned at once and the
+// fetch refreshes it in the background. Every failure of the fetch is
+// remembered; a caller's own context ending never is (0021-MADR C1, C2).
 func loadModelMetadata(ctx context.Context, cfg config) (modelMetadataDoc, error) {
 	if cfg.metadataOff {
 		return nil, errModelMetadataDisabled
@@ -227,38 +260,56 @@ func loadModelMetadata(ctx context.Context, cfg config) (modelMetadataDoc, error
 	url := modelMetadataURL(cfg)
 	modelMetadataMu.Lock()
 	e := modelMetadataCache[url]
-	modelMetadataMu.Unlock()
+	now := metadataNow()
 	switch {
-	case e.doc != nil && time.Since(e.fetched) < modelMetadataTTL:
+	case e.doc != nil && now.Sub(e.fetched) < modelMetadataTTL:
+		modelMetadataMu.Unlock()
 		return e.doc, nil
-	case !e.failed.IsZero() && time.Since(e.failed) < modelMetadataRetryAfter:
+	case !e.failed.IsZero() && now.Sub(e.failed) < modelMetadataRetryAfter:
+		modelMetadataMu.Unlock()
 		return e.cached()
 	}
-	started := time.Now()
-	doc, err := fetchModelMetadata(ctx, url, cfg)
-	modelMetadataMu.Lock()
-	defer modelMetadataMu.Unlock()
-	if err != nil {
-		// Re-read the entry: another load may have cached a document
-		// meanwhile, which stands (0020-MADR F15).
-		e = modelMetadataCache[url]
-		switch {
-		case errors.Is(err, context.Canceled):
-			// The caller gave up, as a failed listing does: the host did
-			// not fail, and nothing is remembered (0020-MADR F5).
-			if e.doc != nil {
-				return e.doc, nil
-			}
-			return nil, err
-		case e.doc != nil && e.fetched.After(started):
-			return e.doc, nil
+	fetch := startMetadataFetch(ctx, url, cfg)
+	modelMetadataMu.Unlock()
+	if e.doc != nil {
+		return e.doc, nil
+	}
+	select {
+	case <-fetch.done:
+		return fetch.doc, fetch.err
+	case <-ctx.Done():
+		return nil, fmt.Errorf("model metadata: %w", ctx.Err())
+	}
+}
+
+// startMetadataFetch returns url's fetch in flight, starting one when there
+// is none. modelMetadataMu is held.
+func startMetadataFetch(ctx context.Context, url string, cfg config) *metadataFetch {
+	if fetch := modelMetadataFetches[url]; fetch != nil {
+		return fetch
+	}
+	fetch := &metadataFetch{done: make(chan struct{})}
+	modelMetadataFetches[url] = fetch
+	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataFetchTimeout)
+	metadataFetching.Add(1)
+	go func() {
+		defer metadataFetching.Done()
+		defer cancel()
+		doc, err := fetchModelMetadata(fetchCtx, url, cfg)
+		modelMetadataMu.Lock()
+		e := modelMetadataCache[url]
+		if err != nil {
+			e.failed, e.err = metadataNow(), err
+		} else {
+			e = modelMetadataCacheEntry{doc: doc, fetched: metadataNow()}
 		}
-		e.failed, e.err = time.Now(), err
 		modelMetadataCache[url] = e
-		return e.cached()
-	}
-	modelMetadataCache[url] = modelMetadataCacheEntry{doc: doc, fetched: time.Now()}
-	return doc, nil
+		delete(modelMetadataFetches, url)
+		fetch.doc, fetch.err = e.cached()
+		modelMetadataMu.Unlock()
+		close(fetch.done)
+	}()
+	return fetch
 }
 
 // cached answers from a cache entry after a failure: the stale document when
@@ -298,8 +349,8 @@ func decodeModelMetadata(r io.Reader) (modelMetadataDoc, error) {
 		HF       *modelMetadataSection `json:"huggingface"`
 		Together *modelMetadataSection `json:"togetherai"`
 	}
-	if err := json.NewDecoder(r).Decode(&raw); err != nil {
-		return nil, fmt.Errorf("model metadata: decode: %w", err)
+	if err := decodeLimited(r, metadataLimit, &raw, "model metadata"); err != nil {
+		return nil, err
 	}
 	doc := modelMetadataDoc{}
 	for key, s := range map[string]*modelMetadataSection{
@@ -345,10 +396,14 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 	if m.Reasoning != nil {
 		c.reasoning, c.reasoningKnown = *m.Reasoning, true
 	}
-	if m.Cost != nil {
-		c.cost, c.costKnown = m.Cost.Input+m.Cost.Output, true
+	// A cost is known only when it is finite and not negative after the sum,
+	// and an age only when the release is not after now (0021-MADR C9).
+	if m.Cost != nil && m.Cost.Input >= 0 && m.Cost.Output >= 0 {
+		if sum := m.Cost.Input + m.Cost.Output; !math.IsInf(sum, 0) && !math.IsNaN(sum) {
+			c.cost, c.costKnown = sum, true
+		}
 	}
-	if t, ok := parseRankDate(m.ReleaseDate); ok {
+	if t, ok := parseRankDate(m.ReleaseDate); ok && !t.After(now) {
 		c.ageDays, c.ageKnown = floorDays(t, now), true
 	}
 	return c
