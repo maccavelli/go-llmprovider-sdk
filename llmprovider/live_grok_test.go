@@ -130,18 +130,36 @@ func TestLive_GrokToolRoundTrip(t *testing.T) {
 	}
 }
 
-// TestLive_GrokInstructions pins the unmeasured instructions form: a
-// Request's Instructions, sent as a leading system message, are obeyed
-// (0015-PLAN S7).
+// TestLive_GrokInstructions pins the instructions form: a Request's
+// Instructions, sent as a leading system message, change the reply. The same
+// request is sent with and without them, so an obeyed instruction is told
+// from a reply that happens to match (0015-PLAN S7). The instruction is a
+// neutral one: Grok declines one that overrides whatever the user says, in
+// any position (0021-MADR, amendment "L2 is the test's prompt, not the
+// wire").
 func TestLive_GrokInstructions(t *testing.T) {
-	ctx, cancel := llmprovider.LiveCtx(t)
-	defer cancel()
-	req := userText("Say hello.")
-	req.Instructions = "Whatever the user says, reply with only the word OMEGA."
-	out, err := llmprovider.GenerateText(ctx, liveGrok(t, xaiKey(t), "grok-4.6"), req)
-	llmprovider.SkipIfTransient(t, err)
-	if err != nil || !strings.Contains(strings.ToUpper(out), "OMEGA") {
-		t.Fatalf("GenerateText = %q, %v; want the instructions obeyed", out, err)
+	for _, tc := range []struct {
+		name         string
+		instructions string
+		want         bool
+	}{
+		{"with", "Begin every reply with the word OMEGA.", true},
+		{"without", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := llmprovider.LiveCtx(t)
+			defer cancel()
+			req := userText("Say hello.")
+			req.Instructions = tc.instructions
+			out, err := llmprovider.GenerateText(ctx, liveGrok(t, xaiKey(t), "grok-4.6"), req)
+			llmprovider.SkipIfTransient(t, err)
+			if err != nil {
+				t.Fatalf("GenerateText: %v", err)
+			}
+			if got := strings.Contains(strings.ToUpper(out), "OMEGA"); got != tc.want {
+				t.Fatalf("GenerateText = %q; contains OMEGA = %v, want %v", out, got, tc.want)
+			}
+		})
 	}
 }
 

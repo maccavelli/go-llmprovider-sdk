@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-04
+date: 2026-10-05
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
@@ -1199,3 +1199,29 @@ implemented in its PLAN's phase 1.
 * **§4.1's retryable early end of a stream is bounded:** it is marked as a
   failure after the reply, and `WithRetry` retries it once per call, since
   the lost reply may have been generated and billed (0021 D1).
+
+## Amendment 2026-10-05: OpenCode's 403 (0021 L3)
+
+Made by `0021-MADR-harden-and-tune-after-the-v1-1-review.md` (L3), and
+implemented in its PLAN's step 7.3.
+
+§1.1's table gains this row, before "401 otherwise":
+
+| Condition | Sentinel | Terminal |
+|---|---|---|
+| OpenCode 403, typed or not, with any body or none | `ErrNotPermitted` | yes |
+
+* **Why:** OpenCode answers a bad key with 401. §3 already records that its
+  region- and consent-gated models "surface only as an untyped 403 (X2)". On
+  2026-10-04, OpenCode Go answered `gpt-6-luna` with `HTTP 403 "Your
+  organization does not have access to this model"`. A 403 there is a valid
+  key that is refused, as Kilo's 403 is.
+* **Unchanged:**
+  * the typed rows (`RegionError`, `DataPolicyError`, `FreeTierError`) keep
+    their `Code`;
+  * an OpenCode 401 stays `ErrAuthFailure`;
+  * a 403 on Claude, Gemini, Grok, OpenAI, Hugging Face, Ollama or Together
+    stays `ErrAuthFailure`, unless a typed row already applies.
+* **Compatibility (§7):** the error still unwraps to the 403's pre-0012
+  status sentinel, `ErrAuthFailure`, as a typed OpenCode 403 already did. A
+  caller that reads `Kind`, or tests `ErrNotPermitted`, sees the refusal.

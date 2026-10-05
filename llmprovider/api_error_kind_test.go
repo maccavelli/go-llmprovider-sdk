@@ -18,6 +18,39 @@ func TestAPIError_KindAndCodeFromClassification(t *testing.T) {
 	}
 }
 
+// TestClassifyHTTPError_OpencodeForbidden: OpenCode's 403 is a refusal of the
+// model or the route, whatever its body, not a bad key, which is its 401
+// (0012-MADR §1.1, amendment 2026-10-05; 0021-MADR L3). A typed 403 kept its
+// own row before. Kind is checked, since the error also unwraps to the 403's
+// pre-0012 sentinel, ErrAuthFailure (0012-MADR §7).
+func TestClassifyHTTPError_OpencodeForbidden(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		status int
+		body   string
+		want   error
+	}{
+		{"an untyped JSON 403", http.StatusForbidden, `{"type":"error","error":{"type":"error","message":"Your organization does not have access to this model"}}`, ErrNotPermitted},
+		{"a plain-text 403", http.StatusForbidden, "Forbidden", ErrNotPermitted},
+		{"an empty 403", http.StatusForbidden, "", ErrNotPermitted},
+		{"a typed 403", http.StatusForbidden, `{"type":"error","error":{"type":"RegionError","message":"not here"}}`, ErrNotPermitted},
+		{"a 401", http.StatusUnauthorized, `{"error":{"message":"Invalid API key."}}`, ErrAuthFailure},
+	} {
+		for _, provider := range []string{"opencode-go/responses", "opencode-zen/chat_completions"} {
+			t.Run(c.name+" on "+provider, func(t *testing.T) {
+				err := classifyBody(provider, c.status, c.body)
+				var apiErr *APIError
+				if !errors.As(err, &apiErr) {
+					t.Fatalf("%v is not an APIError", err)
+				}
+				if !errors.Is(apiErr.Kind, c.want) || !apiErr.terminal || apiErr.Retryable() {
+					t.Fatalf("%v (kind %v, terminal %v); want kind %v, terminal", err, apiErr.Kind, apiErr.terminal, c.want)
+				}
+			})
+		}
+	}
+}
+
 func TestAPIError_Retryable(t *testing.T) {
 	for _, c := range []struct {
 		name string

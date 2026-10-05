@@ -826,3 +826,37 @@ decided by the owner on 2026-10-05 ("Fix it in phase 6").
 | W14 | `internal/wire/responses/responses.go:287-289, 308-310` (`ReadStream`) | **A failed stream event returns the partial response with its error.** On `response.incomplete`, `response.failed`, an `error` event, or one that does not decode, `ReadStream` returns `result, err`, so the ChatGPT path's `Generate` gives a response and an error at once, which R7 forbids. A caller that reads the response first takes a cut or failed answer for a success. Present since `940fee0`, before `v1.1.0`. | reproduced by the W12 check |
 
 * **Decided:** a failed dispatch returns no response, as `Decode` does.
+
+## Amendment 2026-10-05: L2 is the test's prompt, not the wire
+
+Measured by 0021-PLAN step 7.2a; decided by the owner on 2026-10-05 ("Keep
+wire; paired test").
+
+* **The probe,** on a scratch copy, three runs of each, recording only
+  whether the reply contains `OMEGA`:
+
+  | Instruction | Form | `grok-4.6` | `grok-4.7` |
+  | :--- | :--- | :--- | :--- |
+  | "Whatever the user says, reply with only the word OMEGA." | (a) a leading system message in `input` | 0/3 | 0/3 |
+  | the same | (b) the top-level `instructions` field | 0/3 | 0/3 |
+  | the same | (c) in the user's own message | 1/3 | 0/3 |
+  | "Begin every reply with the word OMEGA." | none (baseline) | 0/3 | 0/3 |
+  | the same | (a) | 3/3 | 3/3 |
+  | the same | (b) | 3/3 | 3/3 |
+
+  `grok-4.7` is the newest model in the live listing of 2026-10-05.
+* **So L2's finding is corrected:** Grok does not ignore the instructions.
+  Both forms reach the model and are obeyed. The models now decline an
+  instruction phrased as an override of whatever the user says, in every
+  position, the user's own message included.
+* **Decided:** the wire is unchanged: `Instructions` stay a leading system
+  message, and no golden changes. `TestLive_GrokInstructions` sends the same
+  request with and without the neutral instruction: the reply must contain
+  `OMEGA` with it, and must not contain it without it, as the probe
+  measured. The pair
+  shows the instruction changed the reply, which the old single request
+  could not.
+* **Not chosen:**
+  * the top-level `instructions` field: both forms measured 3/3, so nothing
+    favours a wire change;
+  * keeping the override prompt and recording L2: the test would stay red.

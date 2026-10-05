@@ -1348,6 +1348,9 @@ was added on 2026-10-05 (the MADR's amendment "L3 added to phase 7").
 * **If neither form is obeyed,** the service ignores the instruction in
   both forms. Stop and prompt with the counts: changing the test's prompt
   to pass would loosen it.
+* **Run 2026-10-05:** both forms obeyed a neutral instruction, and neither
+  the override one. Resolved by the deviation "step 7.2a finds both forms
+  obeyed": 7.2b is not done, and the live test is a pair.
 
 #### 7.3 OpenCode's 403 is a refusal, not a bad key (L3)
 
@@ -2926,3 +2929,125 @@ Read-only, before the owner's decision; scratch copies only.
   * generate-check: 0 problems;
   * gate-selftest: 7 tests OK in 63 s;
 * G8: 0 issues; G9: stable; G10: 0 problems; G11: 0 hits in 53 files.
+
+### Deviation 2026-10-05: step 7.2a finds both forms obeyed
+
+* **Found:** see the MADR's amendment "L2 is the test's prompt, not the
+  wire" for the counts.
+  * The test's override instruction: 0/3 in both forms on `grok-4.6` and
+    `grok-4.7`, and 1/3 and 0/3 even in the user's message.
+  * A neutral instruction: 3/3 in both forms on both models, and 0/3
+    without it.
+  * The step's "if both forms are obeyed" branch: stop and prompt.
+* **Resolution, chosen by the owner** ("Keep wire; paired test"):
+  * 7.2b is not done: `grok.go` and the goldens are unchanged;
+  * `TestLive_GrokInstructions` is a pair: with `Instructions` "Begin every
+    reply with the word OMEGA." the reply contains `OMEGA`; the same
+    request without them has no `OMEGA`;
+  * seen to fail on a scratch copy with `body` dropping `Instructions`.
+* **Not changed:** `live_gemini_test.go:61` uses the same override wording
+  in a system message. It is outside L2 and was not measured here.
+* **Files added to the phase:** none; `llmprovider/live_grok_test.go` was
+  already 7.2's.
+
+### Phase 7: live drift (2026-10-05)
+
+**Phase 6's pending CI check.** CI run 37339373303, on `7d7ead9`: success
+on `ubuntu-24.04`, `windows-2025` and `macos-15`. Step 6.3's change is seen
+working.
+
+**7.1, OpenCode's metadata route test (L1).**
+* **Built:** `TestLive_OpencodeRoutesFromMetadata` reads
+  models.opencode.ai's `api.json` itself (`liveNPM`). It maps
+  `qwen3.8-max`'s `provider.npm` on `opencode-go` through its own table,
+  rather than the provider's: `@ai-sdk/openai` → `/responses`,
+  `@ai-sdk/anthropic` → `/messages`, `@ai-sdk/google` → `:generateContent`,
+  anything else → `/chat/completions`. It skips when the document cannot
+  be read or the model is not listed, and logs the npm. The comment says
+  what it pins.
+* **Live, on a tree copy, twice:** both pass, with `qwen3.8-max on
+  opencode-go: provider.npm "@ai-sdk/anthropic", so /messages`.
+* **Seen to fail:** on a scratch copy with the table's
+  `"@ai-sdk/anthropic"` row planted as `/chat/completions`: `request paths
+  = [/zen/go/v1/messages], want one ending /chat/completions (provider.npm
+  "@ai-sdk/anthropic")`, exit 1.
+
+**7.2, Grok's instructions (L2).**
+* **7.2a, the probe:** see the deviation "step 7.2a finds both forms
+  obeyed", and the MADR's amendment "L2 is the test's prompt, not the wire"
+  for the counts.
+  * A scratch test, never in the tree: form (b) is made by a transport that
+    moves the leading system message to `instructions`, and counts each
+    move (`moved=1` on every (b) run).
+  * `grok-4.7` was named by hand: the listing's first entry is `grok-4.6`,
+    since the listing is ordered by curated rank, not by release.
+* **7.2b, not done,** by the owner's choice. `grok.go` and the goldens are
+  unchanged.
+* **Built:** `TestLive_GrokInstructions` has two subtests, `with` and
+  `without`. Each asks `grok-4.6` to `Say hello.`; `with` carries
+  `Instructions` "Begin every reply with the word OMEGA.".
+* **Live, on a tree copy, twice:** both pass, each subtest included.
+* **Seen to fail:** on a scratch copy whose `body` drops `Instructions`
+  (`if false && req.Instructions != ""`): `with` fails with `contains OMEGA
+  = false, want true`, exit 1, and `without` passes.
+
+**7.3, OpenCode's 403 (L3).**
+* **Red,** on a scratch copy of `HEAD` (`7d7ead9`) with the new test:
+  `TestClassifyHTTPError_OpencodeForbidden` fails in 6 of its 10 subtests.
+  Those are the untyped JSON, plain-text and empty 403s, on both
+  `opencode-go/responses` and `opencode-zen/chat_completions`. Each fails
+  with `llmprovider: authentication failed: opencode-go/responses HTTP 403:
+  ... (kind llmprovider: authentication failed, terminal true); want kind
+  llmprovider: not permitted, terminal`.
+* **Guards,** passing on `HEAD` and on the tree:
+  * the typed `RegionError` 403 and the 401 `Invalid API key.` subtests;
+  * `TestClassifyHTTPError_Table`, with its `403 otherwise` row on Claude;
+  * `TestClassifyHTTPStatus`'s `403` row, on `gw/route`.
+* **Built:**
+  * `classifyAPIError`'s `ErrNotPermitted` case takes `service ==
+    serviceOpencode && (status == http.StatusForbidden || has(...))`;
+  * the test checks `Kind`, since the error also unwraps to the 403's
+    pre-0012 sentinel, `ErrAuthFailure` (0012-MADR §7), as a typed OpenCode
+    403 and Kilo's 403 already do;
+  * `wire.Reauth` retries only a 401, so a 403 never caused a re-sign-in,
+    and still does not.
+* **Green:** 62 subtests of the classification and `APIError` tests pass,
+  0 fail.
+* **Records:**
+  * `0012-MADR-conform-providers-to-reference-clients.md` gains "Amendment
+    2026-10-05: OpenCode's 403 (0021 L3)", with the row;
+  * its date is 2026-10-05.
+
+**Phase 7 live check,** on a tree copy, once: `TestLive_OpencodeResponses`,
+`TestLive_OpencodeResponsesStoreFalse`,
+`TestLive_OpencodeRouteStillEnforced`, `TestLive_OpencodeToolRoundTrip`
+(`go-chat`, `go-messages`, `go-responses`), `TestLive_OpencodeToolChoices`
+(six subtests) and `TestLive_OpencodeRoutesFromMetadata`. All pass, none
+skip. The picker chose `gpt-6-luna`.
+
+**The PLAN stays `in-progress`.** Phase 7 completes the PLAN's steps, but
+the Goal's live checks are not all run: V3.5, masked entry on Windows, is
+the owner's and pending.
+
+**Gate,** all exit 0 (G4 with `-shuffle=on`, and G7 with `gate-selftest`,
+as from phase 6):
+
+* G1, G2 and G3: `make pre-add-check`, "396 file(s) clean (gofmt,
+  golangci-lint, go vet, go test, govulncheck)"; `go vet` for darwin,
+  linux, windows and `live_gateways`;
+* G4:
+  * 26 packages ok with `-race -cover`;
+  * `go test -race -shuffle=on ./...` exit 0;
+  * `llmprovider` 97.9%, `wizard` 88.5%;
+* G5: `go mod tidy -diff` clean;
+* G6: 0 issues on both builds;
+* G7:
+  * parity: 409 identifiers, 0 problems;
+  * dep-check: go.mod and 27 packages on both builds, 0 problems;
+  * coverage-check: 27 packages, 0 problems;
+  * api-check: against `v1.1.0`, 0 incompatible changes;
+  * generate-check: 1 generated file, 0 problems;
+  * gate-selftest: 7 tests OK in 58 s;
+* G8: 0 issues on the repository's markdownlint scope, which
+  `.markdownlint-cli2.jsonc` defines without the records;
+* G9: stable; G10: 0 problems; G11: 0 hits in 7 files.

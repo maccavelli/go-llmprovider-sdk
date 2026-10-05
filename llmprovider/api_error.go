@@ -300,7 +300,9 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 		service == string(ProviderOpenAI) && has(openAIQuotaTypes...),
 		status == http.StatusPaymentRequired:
 		return true, ErrQuotaExhausted
-	case service == serviceOpencode && has(opencodeForbiddenTypes...),
+	// OpenCode refuses a model or a route with 403, typed or not; a bad
+	// key is its 401 (0012-MADR, amendment 2026-10-05; 0021-MADR L3).
+	case service == serviceOpencode && (status == http.StatusForbidden || has(opencodeForbiddenTypes...)),
 		service == string(ProviderOpenAI) && has("usage_not_included"),
 		service == string(ProviderKilo) && (status == http.StatusForbidden || has("data_collection_required")):
 		return true, ErrNotPermitted

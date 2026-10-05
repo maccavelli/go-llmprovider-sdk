@@ -5,6 +5,7 @@ package llmprovider_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -168,23 +169,71 @@ func TestLive_OpencodeChatReasoningEffort(t *testing.T) {
 	}
 }
 
-// TestLive_OpencodeRoutesFromMetadata: on OpenCode Go, qwen3.8-max follows its
-// metadata (no provider.npm, so chat_completions) where the 2026-08-28 table
-// said messages. Gate G-O (2026-09-27) measured both routes answering for every
-// Go qwen model, so the metadata route is safe to follow.
+// liveNPM reads one model's provider.npm from the live models.opencode.ai
+// document: the package OpenCode's client routes it by. ok is false when the
+// document does not list the model.
+func liveNPM(t *testing.T, section, model string) (npm string, ok bool) {
+	t.Helper()
+	ctx, cancel := llmprovider.LiveCtx(t)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://models.opencode.ai/api.json", http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Skipf("models.opencode.ai unreachable: %v", err)
+	}
+	defer resp.Body.Close()
+	var doc map[string]struct {
+		Models map[string]struct {
+			Provider struct {
+				NPM string `json:"npm"`
+			} `json:"provider"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		t.Fatalf("decode models.opencode.ai: %v", err)
+	}
+	m, ok := doc[section].Models[model]
+	return m.Provider.NPM, ok
+}
+
+// TestLive_OpencodeRoutesFromMetadata: on OpenCode Go, qwen3.8-max is sent
+// to the route its live provider.npm selects, as OpenCode's own client picks
+// it (0012-MADR §3.1). The route used to be pinned to chat_completions, from
+// the 2026-09-27 document's empty npm; the 2026-10-04 document gives
+// @ai-sdk/anthropic, so the route moved to messages, which the provider
+// followed (0021-MADR L1). The expected route is computed here, written
+// independently of routeForNPM: an npm of @ai-sdk/openai, @ai-sdk/anthropic
+// or @ai-sdk/google selects responses, messages or the Google route, and any
+// other, or none, chat_completions.
 func TestLive_OpencodeRoutesFromMetadata(t *testing.T) {
-	t.Setenv("LLMPROVIDER_DISABLE_MODELS_METADATA", "0") // the real models.opencode.ai document decides
+	const model = "qwen3.8-max"
+	npm, listed := liveNPM(t, "opencode-go", model)
+	if !listed {
+		t.Skipf("models.opencode.ai no longer lists %s on opencode-go", model)
+	}
+	want := map[string]string{
+		"@ai-sdk/openai":    "/responses",
+		"@ai-sdk/anthropic": "/messages",
+		"@ai-sdk/google":    ":generateContent",
+	}[npm]
+	if want == "" {
+		want = "/chat/completions"
+	}
+	t.Logf("%s on opencode-go: provider.npm %q, so %s", model, npm, want)
 	rec := &opencodeRecorder{}
 	ctx, cancel := llmprovider.LiveCtx(t)
 	defer cancel()
-	out, err := llmprovider.GenerateText(ctx, liveGo(t, goModel(t, "qwen3.8-max"), llmprovider.WithHTTPClient(&http.Client{Transport: rec})),
+	out, err := llmprovider.GenerateText(ctx, liveGo(t, goModel(t, model), llmprovider.WithHTTPClient(&http.Client{Transport: rec})),
 		userText("Reply with only the word ALPHA"))
 	llmprovider.SkipIfTransient(t, err)
 	if err != nil {
 		t.Fatalf("GenerateText: %v", err)
 	}
-	if paths, _ := rec.last(); len(paths) != 1 || !strings.HasSuffix(paths[0], "/chat/completions") {
-		t.Fatalf("request paths = %v, want one /chat/completions", paths)
+	if paths, _ := rec.last(); len(paths) != 1 || !strings.HasSuffix(paths[0], want) {
+		t.Fatalf("request paths = %v, want one ending %s (provider.npm %q)", paths, want, npm)
 	}
 	if strings.TrimSpace(out) == "" {
 		t.Error("empty output")
