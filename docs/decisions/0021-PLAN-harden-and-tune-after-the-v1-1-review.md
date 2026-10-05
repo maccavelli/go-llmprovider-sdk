@@ -1299,7 +1299,8 @@ and its counts are recorded.
 Added by the owner on 2026-10-04 ("added as extra phase, proceed"), after
 phase 1's live suite found two failures that also fail on `6be2d80` (the
 Execution record, phase 1, V3.3). The MADR's amendment "two live failures
-added as phase 7" records them as L1 and L2.
+added as phase 7" records them as L1 and L2. L3, from phase 2's live suite,
+was added on 2026-10-05 (the MADR's amendment "L3 added to phase 7").
 
 #### 7.1 OpenCode's metadata route test follows the live metadata (L1)
 
@@ -1344,9 +1345,40 @@ added as phase 7" records them as L1 and L2.
   both forms. Stop and prompt with the counts: changing the test's prompt
   to pass would loosen it.
 
+#### 7.3 OpenCode's 403 is a refusal, not a bad key (L3)
+
+* **Red,** on a scratch copy of `HEAD`:
+  * `TestClassifyHTTPError_OpencodeForbidden` in
+    `llmprovider/api_error_kind_test.go`. For `opencode-go/responses` and
+    `opencode-zen/chat_completions`, a 403 with each of these bodies is
+    `ErrNotPermitted`, not `ErrAuthFailure`, and terminal:
+    * `{"type":"error","error":{"type":"error","message":"Your organization does not have access to this model"}}`;
+    * a plain-text body;
+    * an empty body.
+
+    Today each is `ErrAuthFailure`.
+  * Guards, which pass today and must still pass:
+    * an OpenCode 401 `{"error":{"message":"Invalid API key."}}` is
+      `ErrAuthFailure`;
+    * an OpenCode 403 `RegionError` is `ErrNotPermitted`;
+    * `TestClassifyHTTPStatus`'s 403 row, for a provider that is not
+      OpenCode, stays `ErrAuthFailure`.
+* **Change:** in `classifyAPIError`'s `ErrNotPermitted` case
+  (`api_error.go:301-306`), the row `service == serviceOpencode && status ==
+  http.StatusForbidden`, beside Kilo's.
+* **Records:** append "Amendment 2026-10-05: OpenCode's 403 (0021 L3)" to
+  `0012-MADR-conform-providers-to-reference-clients.md`, adding the row to
+  §1.1's table.
+* **Done when** the red test passes, the guards pass, and the gate is clean.
+
 #### Phase 7 live check
 
-7.1 and 7.2 are live checks themselves.
+7.1 and 7.2 are live checks themselves. For 7.3, the five tests L3 broke
+(`TestLive_OpencodeResponses`, `TestLive_OpencodeResponsesStoreFalse`,
+`TestLive_OpencodeRouteStillEnforced`, and the go-responses rows of
+`TestLive_OpencodeToolRoundTrip` and `TestLive_OpencodeToolChoices`) run
+once more and pass. The account's access has returned, so a live 403 cannot
+be forced; the unit rows pin the classification.
 
 ## Verification
 
@@ -2612,3 +2644,18 @@ not committed, calls `TextPrompter.Secret` for the five checks: a paste of
 about 2,000 characters, Backspace, Ctrl-U, a lone ESC, and Ctrl-C. It
 prints only lengths and errors, and builds with `GOOS=windows`. The owner
 runs it in Windows Terminal and in the legacy console; the results go here.
+
+### L3 investigation (2026-10-05)
+
+Read-only, before the owner's decision; scratch copies only.
+
+* **Probe:** on OpenCode Go, `gpt-6-luna`, `gpt-5.6-luna` and `grok-4.6`
+  each answered `Reply with only OK` with no error. The 403 of 2026-10-04 has
+  cleared on OpenCode's side.
+* **The five tests,** run twice on a scratch copy of the tree: all passed
+  both times, every subtest included.
+* **The code:** see the MADR's amendment "L3 added to phase 7". The picker
+  cannot see a per-account entitlement, and an untyped OpenCode 403 is
+  `ErrAuthFailure` today.
+* **Owner's choice,** from three options: "Fix the classification", added as
+  step 7.3.

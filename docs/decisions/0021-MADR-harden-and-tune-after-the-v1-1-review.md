@@ -775,3 +775,27 @@ Found by 0021-PLAN step 5.2's property test; decided by the owner on
   misses a key whose last character is `-` or `_`: the trailing `\b` needs
   a word character on one side. Such a key leaks whole.
 * **Z2 is widened.** The rule drops the trailing `\b`.
+
+## Amendment 2026-10-05: L3 added to phase 7
+
+Found by 0021-PLAN's phase 2 live suite (V3.3); investigated and decided by
+the owner on 2026-10-05 ("Fix the classification").
+
+| ID | Location | Finding | Evidence |
+| :--- | :--- | :--- | :--- |
+| L3 | `llmprovider/api_error.go:301-306`, `statusSentinel` (`:176`) | **An OpenCode 403 that names no known type is reported as `ErrAuthFailure`.** On 2026-10-04 OpenCode Go answered `HTTP 403 "Your organization does not have access to this model"` for `gpt-6-luna`, and five live tests failed instead of skipping. OpenCode answers a bad key with `401 "Invalid API key."` (`0004-PLAN-add-gateway-llm-providers.md`, deviation D3), so a 403 there is a valid key that is refused: an entitlement, which `ErrNotPermitted` is documented for. `ErrAuthFailure` tells a caller to sign in again. | live 2026-10-04, failing on `HEAD` and the tree alike; cleared by 2026-10-05, when a probe and two runs of the five tests passed |
+
+* **Decided:** on OpenCode, a 403 is `ErrNotPermitted`, terminal, whatever
+  its body, as Kilo's 403 already is. A 401 stays `ErrAuthFailure`.
+* `0012-MADR-conform-providers-to-reference-clients.md` §1.1's table gains
+  the row, by an amendment there.
+* **Considered, not chosen:**
+  * an entitlement-aware live model picker, which probes each candidate and
+    falls through on `ErrNotPermitted`: it would keep the responses route
+    tested whatever the account may use, at a billed request per candidate
+    per run;
+  * recording L3 as resolved with no change, which leaves the
+    misclassification in place.
+* The live picker, `liveModel`, reads the public metadata document, which
+  cannot show a per-account entitlement. With the new row, such a refusal
+  skips through `SkipIfTransient`.
