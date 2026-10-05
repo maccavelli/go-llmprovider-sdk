@@ -40,7 +40,7 @@ func TestConfigureLLM_UnreachableEndpointAtEOFEnds(t *testing.T) {
 }
 
 // yesPrompter answers every prompt with its default and every question yes.
-type yesPrompter struct{ fakePrompter }
+type yesPrompter struct{ *fakePrompter }
 
 func (y *yesPrompter) Confirm(string, bool) (bool, error) { return true, nil }
 
@@ -54,7 +54,7 @@ func TestConfigureLLM_EndpointLoopHonoursContext(t *testing.T) {
 	time.AfterFunc(200*time.Millisecond, cancel)
 	done := make(chan error, 1)
 	go func() {
-		_, err := ConfigureLLM(ctx, &yesPrompter{fakePrompter{t: t, selects: []int{0}}},
+		_, err := ConfigureLLM(ctx, &yesPrompter{newFake(t, fakePrompter{selects: []int{0}})},
 			Options{Providers: []llmprovider.ProviderID{llmprovider.ProviderOllama},
 				Existing: Result{Provider: llmprovider.ProviderOllama, BaseURL: srv.URL}})
 		done <- err
@@ -147,7 +147,7 @@ func TestTextPrompter_EnterAfterMaskedEntryIsKept(t *testing.T) {
 // with a leading space is an API key, not an access-only session.
 func TestConfigureLLM_PastedKeyIsTrimmed(t *testing.T) {
 	store := newMemoryTokenStore()
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 3, 0}, secrets: []string{" " + testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 3, 0}, secrets: []string{" " + testKey}})
 	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
 	if err != nil || res.Kind != CredAPIKey || res.APIKey != testKey || store.saves != 0 {
 		t.Errorf("Kind %q, APIKey %q, saves %d, err %v; want the trimmed key as an API key", res.Kind, res.APIKey, store.saves, err)
@@ -170,8 +170,13 @@ func TestConfigureLLM_KeepsAnySavedSession(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			store := newMemoryTokenStore()
 			store.sessions[c.provider] = c.session
-			f := &fakePrompter{t: t, selects: []int{providerIdx(t, c.provider), 0}, confirms: []bool{true},
-				inputs: []string{acceptDefault}, blankSearches: true}
+			// OpenAI's kept session is ChatGPT's, whose model is typed (the
+			// accepted default); Kilo's reaches the model menu.
+			f := newFake(t, fakePrompter{selects: []int{providerIdx(t, c.provider)}, confirms: []bool{true},
+				inputs: []string{acceptDefault}, blankSearches: true})
+			if c.provider == llmprovider.ProviderKilo {
+				f.selects = append(f.selects, 0)
+			}
 			res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store,
 				Existing: Result{Provider: c.provider, Kind: CredOAuth, Organization: c.org, Model: "m-1"}})
 			if err != nil || res.Kind != CredOAuth || res.Organization != c.org || store.saves != 0 {
@@ -186,7 +191,7 @@ func TestConfigureLLM_KeepsAnySavedSession(t *testing.T) {
 
 // TestConfigureLLM_MethodMenuDefaultsFromExisting (0020-MADR F19).
 func TestConfigureLLM_MethodMenuDefaultsFromExisting(t *testing.T) {
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 0}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 0}, secrets: []string{testKey}})
 	_, _ = ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore(),
 		Existing: Result{Provider: llmprovider.ProviderOpenAI, Kind: CredVendorCLI}})
 	if len(f.seenSelectDefault) < 2 || f.seenSelectItems[1][f.seenSelectDefault[1]].Label != methodLabel(t, llmprovider.ProviderOpenAI, llmprovider.AuthImportVendorCLI) {
@@ -198,20 +203,32 @@ func TestConfigureLLM_MethodMenuDefaultsFromExisting(t *testing.T) {
 func TestConfigureLLM_KiloOrganizationDefaultsFromExisting(t *testing.T) {
 	stubKilo(t, auth.KiloAccount{HasPersonalAccount: true, SelectedOrganizationID: "org-2",
 		Organizations: []auth.KiloOrganization{{ID: "org-1", Name: "Acme"}, {ID: "org-2", Name: "Beta"}}}, nil)
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderKilo), 1, 1, 0}}
+	// The endpoint keeps its default; then the device login, the
+	// organization (Acme), and the first recommended model. Without the
+	// endpoint's answer the flow ended before the organization menu, and this
+	// test checked nothing (0021-PLAN step 6.4).
+	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderKilo), 1, 1, 0},
+		inputs: []string{acceptDefault}, blankSearches: true})
 	_, _ = ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore(),
 		Existing: Result{Provider: llmprovider.ProviderKilo, Organization: "org-1"}})
+	shown := false
 	for i, title := range f.seenSelect {
-		if title == "Use Kilo as:" && f.seenSelectItems[i][f.seenSelectDefault[i]].Label != "Acme" {
-			t.Errorf("organization default = %q, want Acme, the one the Result names", f.seenSelectItems[i][f.seenSelectDefault[i]].Label)
+		if title == "Use Kilo as:" {
+			shown = true
+			if got := f.seenSelectItems[i][f.seenSelectDefault[i]].Label; got != "Acme" {
+				t.Errorf("organization default = %q, want Acme, the one the Result names", got)
+			}
 		}
+	}
+	if !shown {
+		t.Errorf("the organization menu was never shown; menus %q", f.seenSelect)
 	}
 }
 
 // TestConfigureLLM_VendorPathDefaultsFromExisting (0020-MADR F19).
 func TestConfigureLLM_VendorPathDefaultsFromExisting(t *testing.T) {
 	path := writeGrokCLILogin(t, t.TempDir())
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 4, 0}, confirms: []bool{true}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 4, 0}, confirms: []bool{true}})
 	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore(),
 		Existing: Result{Provider: llmprovider.ProviderGrok, Kind: CredVendorCLI, VendorAuthPath: path}})
 	if err != nil || res.VendorAuthPath != path {
@@ -229,7 +246,8 @@ func TestConfigureLLM_LoginUsesTheCallersClient(t *testing.T) {
 		got = opts.HTTPClient
 		return testOAuthSession(provider), nil
 	}
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 2, 0}}
+	// A ChatGPT session has no listing, so its model is typed.
+	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 2}, inputs: []string{"chatgpt-model"}})
 	_, _ = ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore(), HTTPClient: client})
 	if got != client {
 		t.Error("the device login did not use Options.HTTPClient")
@@ -249,7 +267,8 @@ func TestConfigureLLM_KiloProfileGetsTheEndpoint(t *testing.T) {
 		base = st.BaseURL()
 		return auth.KiloAccount{HasPersonalAccount: true}, nil
 	}
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderKilo), 1, 0}, inputs: []string{"https://kilo.example/api/gateway"}}
+	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderKilo), 1, 0}, inputs: []string{"https://kilo.example/api/gateway"},
+		blankSearches: true})
 	_, _ = ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore()})
 	if base != "https://kilo.example/api/gateway" {
 		t.Errorf("profile base URL = %q, want the entered endpoint", base)
@@ -257,7 +276,7 @@ func TestConfigureLLM_KiloProfileGetsTheEndpoint(t *testing.T) {
 }
 
 // badIndex returns an index out of range for the first Select.
-type badIndex struct{ fakePrompter }
+type badIndex struct{ *fakePrompter }
 
 func (b *badIndex) Select(string, []Choice, int) (int, error) { return -1, nil }
 
@@ -268,14 +287,14 @@ func TestConfigureLLM_OutOfRangeSelectIsAnError(t *testing.T) {
 			t.Fatalf("ConfigureLLM panicked: %v", v)
 		}
 	}()
-	if _, err := ConfigureLLM(context.Background(), &badIndex{fakePrompter{t: t}}, Options{}); err == nil {
+	if _, err := ConfigureLLM(context.Background(), &badIndex{newFake(t, fakePrompter{t: t})}, Options{}); err == nil {
 		t.Error("ConfigureLLM = nil, want an error for index -1")
 	}
 }
 
 // preselectRecorder records MultiSelect's preselection.
 type preselectRecorder struct {
-	fakePrompter
+	*fakePrompter
 	preselected [][]int
 }
 
@@ -290,8 +309,8 @@ func TestConfigureLLM_PreselectsExistingFallbacks(t *testing.T) {
 	o := zenOptions()
 	o.NeedFallbacks = true
 	o.Existing = Result{Provider: llmprovider.ProviderOpencodeZen, Model: "m-one", Fallbacks: []string{"m-three"}}
-	r := &preselectRecorder{fakePrompter: fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
-		inputs: []string{srv.URL, "", ""}, secrets: []string{"zen-key"}, multiSelects: [][]int{nil}}}
+	r := &preselectRecorder{fakePrompter: newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
+		inputs: []string{srv.URL, "", ""}, secrets: []string{"zen-key"}, multiSelects: [][]int{nil}})}
 	_, _ = ConfigureLLM(context.Background(), r, o)
 	if len(r.preselected) == 0 || len(r.preselected[0]) != 1 {
 		t.Fatalf("preselected = %v, want the saved fallback", r.preselected)
@@ -300,7 +319,7 @@ func TestConfigureLLM_PreselectsExistingFallbacks(t *testing.T) {
 
 // TestConfigureLLM_NoStoreStillOffersStorelessMethods (0020-MADR F51).
 func TestConfigureLLM_NoStoreStillOffersStorelessMethods(t *testing.T) {
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, secrets: []string{"xai-key-0123456789"}}
+	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, secrets: []string{"xai-key-0123456789"}})
 	_, _ = ConfigureLLM(context.Background(), f, Options{})
 	if len(f.seenSelectItems) < 2 {
 		t.Fatalf("selects = %q, want a method menu", f.seenSelect)

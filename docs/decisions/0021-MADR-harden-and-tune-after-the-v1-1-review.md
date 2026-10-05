@@ -799,3 +799,30 @@ the owner on 2026-10-05 ("Fix the classification").
 * The live picker, `liveModel`, reads the public metadata document, which
   cannot show a per-account entitlement. With the new row, such a refusal
   skips through `SkipIfTransient`.
+
+## Amendment 2026-10-05: the empty finish reason and the cut answer's reason
+
+Found by 0021-PLAN step 6.6's conformance checks; decided by the owner on
+2026-10-05.
+
+* **W3 is widened.** A reply that carries a call and has no finish reason
+  finishes `tool_calls`, as one finishing `stop` already did. Six providers'
+  call replies with no finish field returned `FinishReason ""`.
+* **`APIError.Reason` stays the service's own reason,** as its doc says:
+  `max_output_tokens` on the Responses wire, `incomplete` on Gemini's
+  Interactions, `length` where the wire already reports that. W12's
+  `Truncated` check pins each wire's value through the harness field
+  `TruncatedReason`, rather than requiring `length` everywhere. Normalising
+  `Reason` was considered, and not chosen: a caller matching
+  `max_output_tokens` today would stop matching.
+
+## Amendment 2026-10-05: W14 found by the conformance checks
+
+Found by 0021-PLAN step 6.6's `Truncated` check on the ChatGPT stream;
+decided by the owner on 2026-10-05 ("Fix it in phase 6").
+
+| ID | Location | Finding | Evidence |
+| :--- | :--- | :--- | :--- |
+| W14 | `internal/wire/responses/responses.go:287-289, 308-310` (`ReadStream`) | **A failed stream event returns the partial response with its error.** On `response.incomplete`, `response.failed`, an `error` event, or one that does not decode, `ReadStream` returns `result, err`, so the ChatGPT path's `Generate` gives a response and an error at once, which R7 forbids. A caller that reads the response first takes a cut or failed answer for a success. Present since `940fee0`, before `v1.1.0`. | reproduced by the W12 check |
+
+* **Decided:** a failed dispatch returns no response, as `Decode` does.

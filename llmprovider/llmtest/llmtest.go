@@ -44,7 +44,38 @@ type Harness struct {
 	// the check's own token source would build a different provider. Empty
 	// runs the check.
 	NoReauth string
+
+	// The fields below each switch on one more check (0021-MADR D5, W12). A
+	// Harness that sets none passes as before.
+
+	// Fidelity checks that what a request asks for reaches the wire: a
+	// request with Model FidelityModel, Instructions FidelityInstructions
+	// and a FunctionCallOutputItem whose Output is FidelityOutput must send
+	// all three, in its path or its body.
+	Fidelity bool
+	// Garbled, when set, writes a 200 reply that cannot be decoded. Generate
+	// must fail with ErrIncomplete, and, through WithRetry, send the request
+	// once: the service answered.
+	Garbled func(w http.ResponseWriter, r *http.Request)
+	// Truncated, when set, writes a reply the service cut at its output
+	// limit, holding a partial call. Generate must fail with ErrIncomplete,
+	// and Reason TruncatedReason.
+	Truncated func(w http.ResponseWriter, r *http.Request)
+	// TruncatedReason is the Reason a cut answer reports on the provider's
+	// wire: the service's own (APIError.Reason), such as "max_output_tokens"
+	// on the Responses wire. Empty means "length".
+	TruncatedReason string
+	// StrictTools checks the ToolCall reply: FinishReason FinishToolCalls,
+	// and each call's Arguments non-empty, valid JSON.
+	StrictTools bool
 }
+
+// The values the Fidelity check sends and looks for on the wire.
+const (
+	FidelityModel        = "llmtest-model-7f3a"
+	FidelityInstructions = "llmtest-instructions-7f3a"
+	FidelityOutput       = "llmtest-output-7f3a"
+)
 
 // Run checks the provider h builds against the contract. Each check is a
 // subtest, and each failure names the standards-guide rule it breaks
@@ -61,7 +92,9 @@ type Harness struct {
 //   - the Response invariants (R7, R9), FinishReason and, when the Harness
 //     names it, Model (0020-MADR F11);
 //   - an empty Role, the user's, never sent as "" (R6; 0020-MADR F10);
-//   - concurrent use (R20), which the race detector checks.
+//   - concurrent use (R20), which the race detector checks;
+//   - when the Harness asks: request fidelity, an undecodable reply, a cut
+//     answer, and a strict tool call (0021-MADR W12).
 func Run(t *testing.T, h Harness) {
 	t.Helper()
 	runChecks(testReporter{t}, h)
@@ -116,6 +149,18 @@ func runChecks(r reporter, h Harness) {
 	r.Run("R7-R9-response", func(r reporter) { checkResponse(r, h) })
 	r.Run("R6-empty-role", func(r reporter) { checkEmptyRole(r, h) })
 	r.Run("R20-concurrency", func(r reporter) { checkConcurrency(r, h) })
+	if h.Fidelity {
+		r.Run("W12-fidelity", func(r reporter) { checkFidelity(r, h) })
+	}
+	if h.Garbled != nil {
+		r.Run("W12-garbled", func(r reporter) { checkGarbled(r, h) })
+	}
+	if h.Truncated != nil {
+		r.Run("W12-truncated", func(r reporter) { checkTruncated(r, h) })
+	}
+	if h.StrictTools {
+		r.Run("W12-strict-tools", func(r reporter) { checkStrictTools(r, h) })
+	}
 }
 
 // fakeServer counts the requests it receives and records their User-Agent.
@@ -594,5 +639,133 @@ func checkEmptyRole(r reporter, h Harness) {
 		if strings.Contains(strings.ReplaceAll(body, " ", ""), `"role":""`) {
 			r.Errorf("R6 (an empty Role is the user's, 0020-MADR F10): the request carries \"role\":\"\": %.200s", body)
 		}
+	}
+}
+
+// recordingServer serves handler and keeps each request's path and body.
+func recordingServer(handler func(http.ResponseWriter, *http.Request)) (*fakeServer, func() []string) {
+	var mu sync.Mutex
+	var seen []string
+	fs := serve(func(w http.ResponseWriter, req *http.Request) {
+		body, err := io.ReadAll(io.LimitReader(req.Body, 1<<20))
+		if err != nil {
+			body = []byte("(request body unreadable: " + err.Error() + ")")
+		}
+		mu.Lock()
+		seen = append(seen, req.URL.Path+" "+string(body))
+		mu.Unlock()
+		handler(w, req)
+	})
+	return fs, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), seen...)
+	}
+}
+
+// checkFidelity sends a request's Model, Instructions and a tool's output,
+// and requires each on the wire (0021-MADR W12).
+func checkFidelity(r reporter, h Harness) {
+	r.Helper()
+	fs, seen := recordingServer(h.Text)
+	defer fs.Close()
+	p := build(r, h, fs)
+	if p == nil {
+		return
+	}
+	req := toolRequest(llmprovider.ToolChoiceAuto)
+	req.Model, req.Instructions = FidelityModel, FidelityInstructions
+	req.Input = append(req.Input,
+		llmprovider.FunctionCallItem{CallID: "call_llmtest", Name: llmtestTool, Arguments: "{}"},
+		llmprovider.FunctionCallOutputItem{CallID: "call_llmtest", Output: FidelityOutput})
+	if _, err := generate(r, p, req); err != nil {
+		r.Errorf("W12 (fidelity): Generate failed: %v", err)
+		return
+	}
+	wire := strings.Join(seen(), "\n")
+	for _, want := range []struct{ field, value string }{
+		{"Model", FidelityModel}, {"Instructions", FidelityInstructions}, {"a tool's output", FidelityOutput},
+	} {
+		if !strings.Contains(wire, want.value) {
+			r.Errorf("W12 (fidelity, 0021-MADR D5): the request's %s, %q, never reached the wire: %.300s", want.field, want.value, wire)
+		}
+	}
+}
+
+// checkGarbled sends a request whose 200 reply cannot be decoded: it is
+// ErrIncomplete, and WithRetry does not send it again.
+func checkGarbled(r reporter, h Harness) {
+	r.Helper()
+	fs := serve(h.Garbled)
+	defer fs.Close()
+	p := build(r, h, fs)
+	if p == nil {
+		return
+	}
+	retrying := llmprovider.WithRetry(p, llmprovider.RetryPolicy{MaxAttempts: 3, BaseDelay: time.Millisecond, MaxDelay: time.Millisecond})
+	_, err := generate(r, retrying, textRequest())
+	if !errors.Is(err, llmprovider.ErrIncomplete) {
+		r.Errorf("W12 (an undecodable reply, 0021-MADR D1): Generate returned %v; want an error matching ErrIncomplete", err)
+	}
+	if n := fs.count.Load(); n != 1 {
+		r.Errorf("W12 (an undecodable reply, 0021-MADR D1): WithRetry sent %d request(s); want 1: the service answered", n)
+	}
+}
+
+// checkTruncated sends a request whose reply was cut with a partial call: it
+// is ErrIncomplete with Reason "length".
+func checkTruncated(r reporter, h Harness) {
+	r.Helper()
+	fs := serve(h.Truncated)
+	defer fs.Close()
+	p := build(r, h, fs)
+	if p == nil {
+		return
+	}
+	want := h.TruncatedReason
+	if want == "" {
+		want = string(llmprovider.FinishLength)
+	}
+	_, err := generate(r, p, toolRequest(llmprovider.ToolChoiceAuto))
+	var apiErr *llmprovider.APIError
+	if !errors.Is(err, llmprovider.ErrIncomplete) || !errors.As(err, &apiErr) || apiErr.Reason != want {
+		r.Errorf("W12 (a cut answer, 0021-MADR W3): Generate returned %v; want an APIError of kind ErrIncomplete with Reason %q",
+			err, want)
+	}
+}
+
+// checkStrictTools checks a call reply finishes tool_calls with non-empty,
+// valid JSON arguments.
+func checkStrictTools(r reporter, h Harness) {
+	r.Helper()
+	if h.ToolCall == nil {
+		r.Errorf("llmtest: StrictTools needs the Harness's ToolCall")
+		return
+	}
+	fs := serve(func(w http.ResponseWriter, req *http.Request) { h.ToolCall(w, req, llmtestTool) })
+	defer fs.Close()
+	p := build(r, h, fs)
+	if p == nil {
+		return
+	}
+	resp, err := generate(r, p, toolRequest(llmprovider.ToolChoiceAuto))
+	if err != nil || resp == nil {
+		r.Errorf("W12 (strict tools): a call reply returned %v", err)
+		return
+	}
+	if resp.FinishReason != llmprovider.FinishToolCalls {
+		r.Errorf("W12 (strict tools, 0021-MADR W3): a call reply finished %q; want %q", resp.FinishReason, llmprovider.FinishToolCalls)
+	}
+	calls := 0
+	for _, item := range resp.Output {
+		if call, ok := item.(llmprovider.FunctionCallItem); ok {
+			calls++
+			if call.Arguments == "" || !json.Valid([]byte(call.Arguments)) {
+				r.Errorf("W12 (strict tools, 0021-MADR W1): the call to %q has arguments %q; want non-empty, valid JSON", call.Name, call.Arguments)
+			}
+		}
+	}
+	if calls == 0 {
+		r.Errorf("W12 (strict tools): a call reply has no FunctionCallItem")
 	}
 }

@@ -4,6 +4,15 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  # Weekly, so a new advisory or a toolchain change shows without a push
+  # (0021-MADR Z5).
+  schedule:
+    - cron: '17 6 * * 1'
+
+# A newer push to a pull request cancels its older run; main runs each push.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The job reads the repository and nothing else (0020-MADR F55).
 permissions:
@@ -16,6 +25,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, macos-15, windows-2025]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,10 +35,15 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go mod download
-      - run: go test ./...
+      # Shuffled, so a test that depends on another's order fails (0021-MADR
+      # Z5).
+      - run: go test -shuffle=on ./...
       - name: race detector (R44; 0020-MADR F27)
         if: runner.os == 'Linux'
-        run: go test -race ./...
+        run: go test -race -shuffle=on ./...
+      - name: govulncheck (0021-MADR Z5)
+        if: runner.os == 'Linux'
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
       - name: vet, gofmt, tidy, lint
         if: runner.os == 'Linux'
         run: |
@@ -40,6 +55,6 @@ jobs:
       - name: vet live-tagged tests
         if: runner.os == 'Linux'
         run: go vet -tags live_gateways ./...
-      - name: parity, dependencies, coverage, API, generated code (0015-MADR D12, D13; 0010-PLAN P6b)
+      - name: parity, dependencies, coverage, API, generated code, the gates' self-test (0015-MADR D12, D13; 0010-PLAN P6b; 0021-MADR Z9)
         if: runner.os == 'Linux'
-        run: make parity-check dep-check coverage-check api-check generate-check
+        run: make parity-check dep-check coverage-check api-check generate-check gate-selftest

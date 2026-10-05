@@ -1251,7 +1251,9 @@ and its counts are recorded.
   * the waiter join is made observable by an unexported `onJoin func()`
     hook on `CommandToken` (`command_token.go:86-116`) and on
     `OAuthSession` (the future at `auth/helpers.go:58-66`), called when a
-    waiter joins the in-flight fetch;
+    waiter joins the in-flight fetch; *(Deviation 2026-10-05: on
+    `OAuthSession` the hook is `onJoin joinHook`, an interface, as the
+    phase 3 clock is.)*
   * `TestCommandToken_WaiterOutlivesLeaderCancel`
     (`command_token_leader_test.go:37`) and
     `TestOAuthSession_WaiterOutlivesLeaderCancel`
@@ -1275,7 +1277,9 @@ and its counts are recorded.
   * `Garbled func(w, r)`: an undecodable 200 must be `ErrIncomplete`,
     sent once through `WithRetry`;
   * `Truncated func(w, r)`: a cut answer with a partial call must be
-    `ErrIncomplete` with `Reason` `length`;
+    `ErrIncomplete` with `Reason` `length`; *(Deviation 2026-10-05: with
+    the `Reason` the harness names in `TruncatedReason`, since `Reason` is
+    the service's own.)*
   * `StrictTools bool`: a `ToolCall` reply must have `FinishToolCalls`
     and non-empty, valid JSON `Arguments`.
 
@@ -2659,3 +2663,266 @@ Read-only, before the owner's decision; scratch copies only.
   `ErrAuthFailure` today.
 * **Owner's choice,** from three options: "Fix the classification", added as
   step 7.3.
+
+### Deviation 2026-10-05: step 6.5's hook on OAuthSession
+
+* **Found** while building step 6.5: the step names the hook `onJoin
+  func()` on `OAuthSession` too. A func field makes `OAuthSession`
+  incomparable, which `api-check` reports as an incompatible change, as the
+  phase 3 deviation "step 3.2's clock field breaks `api-check`" found for
+  the clock.
+* **Resolution,** following the owner's phase 3 choice ("Comparable clock
+  field") for the same case: on `OAuthSession` the hook is `onJoin
+  joinHook`, where `joinHook` is `interface{ joined() }`. `CommandToken`,
+  already incomparable through its `now func()`, takes `onJoin func()` as
+  written. `api-check` reports 0 incompatible changes.
+* **Not asked again:** the owner decided this case in phase 3; this entry
+  records that the decision was applied.
+* **Files added to the phase:** none.
+
+### Deviation 2026-10-05: step 6.6's checks find two gaps
+
+* **Found:** with the four checks set on all nine providers' harnesses:
+  * **`StrictTools`,** on Claude, Hugging Face, Kilo, Ollama, OpenCode and
+    Together: `a call reply finished ""; want "tool_calls"`.
+    * The harnesses' `ToolCall` replies carry no finish field.
+    * `wire.Finish` (`internal/wire/finish.go:14-23`) promotes only `"stop"`
+      to `tool_calls`, so a call reply with no finish reason has
+      `FinishReason ""`, though R7 has every answer carry one.
+    * The same on `HEAD` (`267c204`).
+  * **`Truncated`,** on OpenAI, Grok and Gemini: `Reason
+    "max_output_tokens"` (Responses) and `"incomplete"` (Interactions,
+    measured at `max_output_tokens`), where Messages, Chat Completions and
+    generateContent give `"length"`.
+    * `APIError.Reason` is documented as "the service's reason for a
+      response it cut short, such as `max_output_tokens`".
+    * So the step's "`Reason` `length`" does not hold for every wire as
+      documented.
+  * **ChatGPT's stream harness** failed `Garbled` and `Truncated` because of
+    its fixtures:
+    * a body with no events is a stream that ended early, which D1 retries
+      once by design;
+    * the test helper `stream` turned the cut reply into a completed one.
+
+    The fixtures are corrected (a garbled event, and a
+    `response.incomplete` event). This needed no choice.
+* **Resolutions, chosen by the owner:**
+  * **"Fix wire.Finish":** a reply that carries a call and has no finish
+    reason finishes `tool_calls`, on every wire. The harness fixtures stay
+    as they are. Any golden that changes is listed in the record;
+  * **"Keep the contract":** `Reason` stays the service's own, with no
+    behaviour change. A new optional `Harness` field, `TruncatedReason`,
+    names the reason the harness's wire gives, and the check requires it
+    exactly (`length` when the field is empty).
+* **MADR:** amended with "the empty finish reason and the cut answer's
+  reason".
+* **Files added to the phase:** `llmprovider/internal/wire/finish.go` and
+  its test, and any golden that changes.
+
+### Deviation 2026-10-05: step 6.6 finds W14 in ReadStream
+
+* **Found:** with the ChatGPT stream harness's fixtures corrected, its
+  `Truncated` check failed with `R7 (Response invariants): Generate returned
+  both a response and the error llmprovider: incomplete response:
+  max_output_tokens`.
+  * `ReadStream` (`internal/wire/responses/responses.go:287-289` and
+    `:308-310`) returns `result, err` from a dispatch that failed. So a
+    `response.incomplete`, `response.failed` or `error` event, or one that
+    does not decode, gives the partial response with the error.
+  * The non-stream `Decode` returns `nil, err`.
+  * Present since `940fee0`, before `v1.1.0`; not from this PLAN.
+* **Resolution, chosen by the owner** ("Fix it in phase 6"):
+  * a failed dispatch returns `nil` with its error, at both call sites;
+  * a red-first test, `TestReadStream_FailureReturnsNoResponse` in
+    `internal/wire/responses`, covers each of the four failing events;
+  * the ChatGPT harness keeps its `Truncated` check.
+* **MADR:** amended with "W14 found by the conformance checks".
+* **Files added to the phase:** `llmprovider/internal/wire/responses/
+  responses.go` and the new test.
+
+### Phase 6: tooling and tests (2026-10-05)
+
+**6.1, dep-check (Z4).**
+* **The breach,** on a scratch copy: `internal/redact/zz_evil_test.go`
+  imports `example.com/evil`, and `go.mod` requires it, replaced by a local
+  module so it runs offline.
+  * `HEAD`'s `check_deps.py`: exit 0, "27 packages, 0 problem(s)" on both
+    builds.
+  * The new one: exit 1, with `go.mod requires example.com/evil` and
+    `internal/redact depends on example.com/evil` for the host and Windows.
+* **Built:**
+  * `check_requires` reads `go mod edit -json` against `REQUIRES`;
+  * `check` reads `go list` again with `-test`, and strips a test build's
+    ` [pkg.test]` and `.test`.
+  * A test build's `Deps` entries carry a space, so they are joined with
+    commas rather than spaces.
+
+**6.2, generate-check, parity-check and gate-selftest (Z9).**
+* **Built:**
+  * `check_generated.py` reads `-output X` and `-output=X` (`output_at`),
+    and fails when it checks no file;
+  * `check_parity_map.py` requires each cell to hold a span that resolves
+    (`resolves`, `sdk_packages`) or to be one of `MARKERS`. Before the
+    change, every one of the 409 cells passed the new rule (five are
+    markers: one `none`, four `removed`), so nothing in the guide changed;
+  * `scripts/test_gates.py`, and `make gate-selftest`.
+* **The self-test,** 7 tests in about 50 s. Its breaches:
+  * dep-check: the module only a test imports;
+  * generate-check: a hand edit behind `-output=X`, and a directive without
+    `-output`;
+  * parity-check: a `TBD` cell;
+  * coverage-check: wizard's floor raised to 99.9;
+  * api-check: `const MaxListed` made a `var`.
+
+  Each fails with exit 1 and its message, and every gate passes on a clean
+  copy.
+* **The self-test seen to fail:** on a scratch clone with `HEAD`'s
+  `check_deps.py`, `check_generated.py` and `check_parity_map.py` put back,
+  4 of its 7 tests fail, each `exit 0, want 1`: the dep, both generate and
+  the parity breaches.
+
+**6.3, CI, precheck, floors and nolintlint (Z5).**
+* **`ci.yml`:**
+  * `go test -shuffle=on`, and `-race -shuffle=on` on Linux;
+  * `govulncheck` pinned at `v1.8.0`, the newest release on 2026-10-05
+    (`go list -m -versions golang.org/x/vuln`);
+  * `gate-selftest` with the other gates;
+  * `timeout-minutes: 30`, the `concurrency` block, and the weekly
+    `schedule`.
+* **`go-precheck.sh`:** `go test -race`, then `go mod tidy -diff`.
+* **Floors,** with the local and CI Linux measurements (CI run 37330520202,
+  on `3f18dd7`, which the tree matches in code), equal on both:
+
+  | Package | Measured | Floor before | Floor after |
+  | :--- | :--- | :--- | :--- |
+  | `llmprovider` | 97.9 | 89.2 | 95.9 |
+  | `wizard` | 88.4 | 83.4 | 86.4 |
+  | `llmprovider/internal/wirecase` | 91.5 | 80.0 | 89.5 |
+  | `internal/redact`, `llmprovider/internal/ownerperm` | 100.0 | 100.0 | 100.0 |
+
+  `test_gates.py` finds wizard's floor by pattern, not by its value.
+* **`nolintlint`** (`require-specific`, `allow-unused: false`) reported 5
+  directives, all removed:
+  * `models_catalog.go`'s `//nolint:goconst` on `modelLabels`, as the step
+    expected (now line 806);
+  * four `//nolint:gosec` in `auth`'s tests: `oauth_login_verify_test.go:34`
+    and `oauth_loopback_test.go:224, 305, 438`.
+
+  The `:35` directive the step said to check is still used, and stays.
+* **govulncheck seen to fail,** on a scratch copy: clean, "No
+  vulnerabilities found", exit 0. With a package calling
+  `golang.org/x/text/language.Parse` at `v0.3.5`: `GO-2021-0113 ... Your
+  code is affected`, exit 1 (`go run` passes on the tool's failure as 1).
+* **Pending:** the CI change is seen working on the owner's next push.
+
+**6.4, the fake (Z8).**
+* **Built:**
+  * `newFake` and `allowLeftover` in `fake_prompter_test.go`;
+  * 94 literals in 14 files converted by `p6_fake.py` (the step counted 90,
+    before phases 4 and 5 added four), including the three wrapper
+    prompters, which now embed `*fakePrompter`;
+  * no test needed `allowLeftover`.
+* **The check found 10 tests (12 subtests) with stale scripts,** each
+  corrected:
+  * `TestConfigureLLM_TokenStdinClassification`: the model-menu answer now
+    only for the API-key rows; a ChatGPT session types its model, and the
+    fixture row stops at the refusal;
+  * `TestConfigureLLM_KeepsAnySavedSession`: the model-menu answer only for
+    Kilo; OpenAI's kept session types its model;
+  * `TestConfigureLLM_ChatGPTListingFailurePromptsForModel` and
+    `TestConfigureLLM_KeepRefusesStubSession`: a sign-in answer that keeping
+    the session skips, and the stub test's model answer, removed;
+  * `TestConfigureLLM_LoginUsesTheCallersClient`: the model is typed, not
+    picked from a menu;
+  * `TestConfigureLLM_KiloProfileGetsTheEndpoint`: `blankSearches`, so the
+    flow reaches the menu it scripts;
+  * `TestConfigureLLM_LocalProviderSkipsKey` and
+    `TestConfigureLLM_NoModelsAndNoneEnteredErrors`: the endpoint is a
+    refused loopback port (`refusedURL`), not `localhost:11434`, so the
+    endpoint's Confirm is asked on every host; on this one an Ollama
+    answered, and the Confirm was left;
+  * `TestConfigureLLM_KiloOrganizationDefaultsFromExisting` **was hollow:**
+    its flow ended at the endpoint prompt, so the organization menu it
+    checks was never shown. It now answers the endpoint, reaches the menu,
+    requires it shown, and passes: the default is Acme.
+* **Seen to fail:** an extra input planted in
+  `TestConfigureLLM_SearchNoMatchUsesTheQuery`: `fakePrompter: 1 scripted
+  inputs left unused`.
+
+**6.5, the timing tests (Z12).**
+* **Built:**
+  * `CommandToken.onJoin func()`;
+  * `OAuthSession.onJoin joinHook` (the deviation above);
+  * both called as a waiter joins;
+  * the two waiter tests wait on the join, not 50 ms;
+  * the `CommandToken` tests call `t.Parallel()`: the six in
+    `command_token_test.go` and the leader test.
+  * `TestHelperKeyCommand` recognises its run by the `--` that
+    `helperArgv` passes, so `helperArgv` no longer calls `t.Setenv`, which a
+    parallel test may not.
+* **Seen to fail:** with both hook calls removed, `the waiter never joined
+  the leader's run` and `... refresh`, each after 5 s.
+* **`-count=50 -race`:** both pass.
+
+**6.6, the harness (D5, W12).**
+* **Built:**
+  * `Harness.Fidelity`, `Garbled`, `Truncated`, `TruncatedReason` (the
+    deviation above) and `StrictTools`;
+  * the constants `FidelityModel`, `FidelityInstructions` and
+    `FidelityOutput`;
+  * four checks, run only when set;
+  * all nine providers' harnesses set all four;
+  * `llmtest`'s reference provider passes them, and has a flaw for each.
+* **What the checks found,** each a deviation above:
+  * the empty finish reason, fixed in `wire.Finish`, with `TestFinish`;
+  * the cut answer's `Reason`, pinned per wire;
+  * W14 in `ReadStream`, fixed: `finished`, with
+    `TestReadStream_FailureReturnsNoResponse`. That test failed on `HEAD` in
+    all 8 cases, each `ReadStream = &{... Output:[{... Text:partial}] ...},
+    <error>`.
+  * No golden changed.
+* **Seen to fail,** each fault planted in one provider on a scratch copy:
+  * Claude without `Instructions`: `W12 (fidelity, 0021-MADR D5): the
+    request's Instructions, "llmtest-instructions-7f3a", never reached the
+    wire`;
+  * Kilo bypassing `DecodeError`: `Generate returned ... kilo failed after
+    3 attempts ... want an error matching ErrIncomplete`, and `WithRetry
+    sent 3 request(s); want 1`;
+  * Chat Completions without the length check, on Kilo and Hugging Face:
+    `W12 (a cut answer, 0021-MADR W3): Generate returned <nil>`;
+  * Messages with `Arguments ""`, on Claude: `W12 (strict tools, 0021-MADR
+    W1): the call to "llmtest_tool" has arguments ""`.
+
+  In `llmtest`'s own tests, each of the reference provider's four flaws
+  fails its check by name, and `TestRun_W12ChecksAreOptional` shows a
+  harness that sets none passes.
+
+**6.7, close-out docs.**
+* `AGENTS.md` names `gate-selftest`.
+* `docs/architecture.md`:
+  * the script list;
+  * the `make` targets, `nolintlint`, dep-check, generate-check, G-parity,
+    `gate-selftest`, the floors, the precheck and CI;
+  * the `llmtest` passage.
+* `docs/guides/adding-a-provider.md` §8 names the four checks.
+* **The PLAN stays `in-progress`:** phase 7 is not yet run, so the Goal does
+  not yet hold.
+
+**Gate,** all exit 0 (from this phase, G4 with `-shuffle=on`, and G7 with
+`gate-selftest`):
+
+* G1, G2 and G3;
+* G4:
+  * 26 packages ok;
+  * `go test -race -shuffle=on ./...` exit 0;
+  * `llmprovider` 97.9%, `internal/wire` 94.2%, `responses` 97.7%,
+    `llmtest` 96.0%, `wizard` 88.5%;
+* G5, and G6 with 0 issues on both builds;
+* G7:
+  * parity: 409 identifiers, 0 problems;
+  * dep-check: go.mod and 27 packages, 0 problems;
+  * coverage-check: 27 packages, 0 problems;
+  * api-check: 0 incompatible changes;
+  * generate-check: 0 problems;
+  * gate-selftest: 7 tests OK in 63 s;
+* G8: 0 issues; G9: stable; G10: 0 problems; G11: 0 hits in 53 files.

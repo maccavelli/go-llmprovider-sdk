@@ -19,6 +19,7 @@ linters:
     - misspell
     - nakedret
     - nilerr
+    - nolintlint
     - revive
     - staticcheck
     - unconvert
@@ -50,6 +51,10 @@ linters:
     gosec:
       excludes:
         - G104
+    # Every //nolint names its linter and is still needed (0021-MADR Z5).
+    nolintlint:
+      require-specific: true
+      allow-unused: false
     revive:
       rules:
         - name: atomic

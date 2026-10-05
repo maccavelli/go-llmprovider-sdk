@@ -33,6 +33,7 @@ scripts/check_deps.py       dep-check: only wizard leaves the standard library
 scripts/check_coverage.py   coverage-check, with scripts/coverage-floors.txt
 scripts/check_api.py        api-check: apidiff against the latest v1 tag
 scripts/check_generated.py  generate-check: go:generate outputs are current
+scripts/test_gates.py       gate-selftest: each gate fails on a planted breach
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
 llmprovider/                the contract, errors, options and credential sources
@@ -209,7 +210,18 @@ for a session, from the store.
 - `Registry` holds `Descriptor` and `Factory` pairs and refuses a duplicate
   id. There is no global registry.
 - `llmprovider/llmtest` has `Run`, the conformance suite every built-in
-  provider passes, and `Fake`, a scriptable provider for tests.
+  provider passes, and `Fake`, a scriptable provider for tests. A `Harness`
+  may switch on four more checks, and every built-in provider's does:
+  - `Fidelity`: a request's `Model`, `Instructions` and a tool's output
+    reach the wire;
+  - `Garbled`: an undecodable 200 is `ErrIncomplete`, sent once through
+    `WithRetry`;
+  - `Truncated`, with `TruncatedReason`: a cut answer with a partial call
+    is `ErrIncomplete`, with the reason the wire reports;
+  - `StrictTools`: a call reply finishes `tool_calls`, with non-empty,
+    valid JSON arguments.
+
+  A harness that sets none passes as before.
 
 ## Providers and items
 
@@ -450,24 +462,27 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 - **`make` targets:** `test`, `test-sum`, `fmt`, `vet`, `lint`, `tidy`,
   `vuln`, `pre-add-check`, `parity-check`, `dep-check`, `coverage-check`,
-  `api-check`, `generate-check`, `help`. `lint` runs golangci-lint twice: for
-  the host and with `GOOS=windows`, so the `_windows.go` files are linted.
+  `api-check`, `generate-check`, `gate-selftest`, `help`. `lint` runs
+  golangci-lint twice: for the host and with `GOOS=windows`, so the
+  `_windows.go` files are linted. Its `nolintlint` requires every `//nolint`
+  to name its linter and still be needed.
 - **`dep-check`** (`scripts/check_deps.py`) reads every package's
-  dependencies with `go list -deps`, for the host and with `GOOS=windows`,
-  so an import in a `_windows.go` file is checked too. It fails when a
-  package other than
-  `wizard` reaches beyond the standard library and this module, or `wizard`
-  beyond `golang.org/x/term` and the `golang.org/x/sys` it needs.
+  dependencies with `go list -deps`, and again with `-test` for its tests,
+  for the host and with `GOOS=windows`, so an import in a `_windows.go` file
+  or in a test is checked too. It fails when a package other than `wizard`
+  reaches beyond the standard library and this module, or `wizard` beyond
+  `golang.org/x/term` and the `golang.org/x/sys` it needs, and when `go.mod`
+  requires any other module.
 - **`coverage-check`** (`scripts/check_coverage.py`) measures each package
   with `go test -cover` against its floor in `scripts/coverage-floors.txt`:
-  - the `P7` baseline for `llmprovider` (89.2 %), `wizard` (83.4 %) and
-    `internal/redact` (100.0 %);
-  - `llmprovider/internal/ownerperm` (100.0 %, measured on Unix, 0010-PLAN
-    P6b);
+  - `llmprovider` (95.9 %) and `wizard` (86.4 %), two points below their
+    measure on 2026-10-05 (0021-PLAN step 6.3);
+  - `internal/redact` and `llmprovider/internal/ownerperm` (100.0 %, the
+    latter measured on Unix, 0010-PLAN P6b);
   - 80 % for every other package.
 
-  `llmprovider/internal/wirecase`, which has no tests of its own, is
-  measured by the provider packages' tests, with `-coverpkg`. A package
+  `llmprovider/internal/wirecase` (89.5 %), which has no tests of its own,
+  is measured by the provider packages' tests, with `-coverpkg`. A package
   with no statements has no floor.
 - **`api-check`** (`scripts/check_api.py`) runs `apidiff`, at the version
   pinned in the script, with `go run`, against the latest `v1.X.Y` tag. It
@@ -475,16 +490,22 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   packages. Before the first such tag it reports that there is nothing to
   compare, and passes.
 - **`generate-check`** (`scripts/check_generated.py`) reruns each
-  `//go:generate` line that names `-output`, into a temporary file, and fails
-  when the committed file differs. Today that is `mkwinsyscall` for
+  `//go:generate` line that names `-output` (as `-output X` or `-output=X`),
+  into a temporary file, and fails when the committed file differs, or when
+  it checks no file at all. Today that is `mkwinsyscall` for
   `llmprovider/internal/ownerperm`, pinned in its `doc.go`; the generator is
   not a module requirement.
 - **`scripts/check_parity_map.py`** (G-parity) fails when an identifier in
   `docs/guides/migrating-from-mcplib.ids`, the exported identifiers of
   `mcplib` `v1.6.0` `llmprovider` and `wizard`, has no row in
   `docs/guides/migrating-from-mcplib.md`, a row names one that is not in
-  the list, or a row's "SDK equivalent" is empty. `make parity-check` runs
-  it.
+  the list, or a row's "SDK equivalent" is empty, names an identifier the
+  SDK does not export, or names nothing that resolves and is not one of the
+  markers `none`, `removed` or `Here`. `make parity-check` runs it.
+- **`gate-selftest`** (`scripts/test_gates.py`, standard-library
+  `unittest`) copies the tree, plants one breach per gate (dep-check,
+  generate-check, parity-check, coverage-check, api-check), and requires
+  each gate to fail, then every gate to pass on a clean copy.
 - **G-wire** is `TestWireGoldens` in each provider package, part of
   `go test`. Through `llmprovider/internal/wirecase` it drives 16 provider
   and gateway-route cases through seven scenarios (text, forced tool,
@@ -498,17 +519,23 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 - **`scripts/go-precheck.sh`** runs `gofmt` on the given Go files,
   `golangci-lint run -c .golangci.yml --build-tags live_gateways ./...` for
   the host and with `GOOS=windows` (so the live-tagged tests and the
-  `_windows.go` files are linted too), `go vet` and `go test` on their
-  packages, and `govulncheck ./...`. `make pre-add-check` runs it, and so does
+  `_windows.go` files are linted too), `go vet` and `go test -race` on their
+  packages, `go mod tidy -diff`, and `govulncheck ./...`. `make pre-add-check` runs it, and so does
   the machine-wide agent gate before an agent `git commit` that stages Go
   files.
 - **CI** (`.github/workflows/ci.yml`) runs on Linux, macOS and Windows, with
-  the Go version read from `go.mod`: `go test`. On Linux it also runs:
+  the Go version read from `go.mod`, on each push to `main`, each pull
+  request, and weekly: `go test -shuffle=on`. On Linux it also runs:
+  - `go test -race -shuffle=on`;
+  - `govulncheck`, pinned in the workflow;
   - `go vet`, `gofmt`, `go mod tidy -diff` and `make lint`;
   - `go vet -tags live_gateways`;
-  - `make parity-check dep-check coverage-check api-check generate-check`.
+  - `make parity-check dep-check coverage-check api-check generate-check
+    gate-selftest`.
 
-  It checks out the full history, so that `api-check` sees the tags.
+  It checks out the full history, so that `api-check` sees the tags. A job
+  stops after 30 minutes, and a newer push to a pull request cancels its
+  older run.
 
 ## What is not here
 

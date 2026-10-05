@@ -74,6 +74,9 @@ type CommandToken struct {
 	fetched  time.Time
 	inflight *tokenFuture
 	now      func() time.Time // tests
+	// onJoin, when set, runs as a caller joins the run in flight: tests wait
+	// on it rather than sleep (0021-MADR Z12).
+	onJoin func()
 }
 
 // NewCommandToken returns a CommandToken for argv, with the default TTL and
@@ -93,7 +96,11 @@ func (c *CommandToken) Token(ctx context.Context) (Token, error) {
 		return token, nil
 	}
 	if future := c.inflight; future != nil {
+		onJoin := c.onJoin
 		c.mu.Unlock()
+		if onJoin != nil {
+			onJoin()
+		}
 		select {
 		case <-future.done:
 			if future.abandoned && ctx.Err() == nil {

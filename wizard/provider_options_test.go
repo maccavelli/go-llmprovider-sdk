@@ -26,10 +26,10 @@ func TestConfigureLLM_ProviderOptionsReachTheListing(t *testing.T) {
 	}))
 	t.Cleanup(meta.Close)
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
-		inputs: []string{srv.URL, "sonnet"}, secrets: []string{testKey},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
+		inputs:  []string{srv.URL, "sonnet"}, secrets: []string{testKey},
+	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{Discover: true, DiscoverLimit: 5 * time.Second,
 		ProviderOptions: []llmprovider.Option{llmprovider.WithModelMetadataURL(meta.URL)}}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -53,7 +53,7 @@ func TestConfigureLLM_ProviderOptionsReachTheChatGPTProvider(t *testing.T) {
 			Body: io.NopCloser(strings.NewReader(`{"models":[{"slug":"gpt-6-astra","visibility":"list"}]}`))}, nil
 	})}
 	store := newMemoryTokenStore()
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 0}, confirms: []bool{true}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 0}, confirms: []bool{true}})
 	if _, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{Provider: llmprovider.ProviderOpenAI, Kind: CredOAuth,
 			TokenExpiry: time.Now().Add(time.Hour), Issuer: auth.DefaultOpenAIIssuer, ClientID: auth.DefaultOpenAIClientID},

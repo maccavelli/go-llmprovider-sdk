@@ -26,6 +26,12 @@ func TestConformance(t *testing.T) {
 				"role": "assistant", "tool_calls": []any{map[string]any{"id": "call_llmtest", "type": "function",
 					"function": map[string]any{"name": tool, "arguments": "{}"}}}}}}})
 		},
+		Fidelity:    true,
+		StrictTools: true,
+		Garbled:     func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
+		Truncated: func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"model":"llmtest-model","choices":[{"finish_reason":"length","message":{"role":"assistant","tool_calls":[{"id":"call_llmtest","type":"function","function":{"name":"llmtest_tool","arguments":"{\"city\":"}}]}}]}`)
+		},
 		Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 			w.WriteHeader(status)
 			_, _ = io.WriteString(w, `{"error":{"code":"llmtest","message":"llmtest"}}`)

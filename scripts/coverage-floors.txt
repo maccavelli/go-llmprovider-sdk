@@ -8,9 +8,14 @@
 # by the tests that import it, named after its floor (0015-MADR, amendment
 # "the coverage of a test-support package").
 #
+# 0021-PLAN step 6.3 (0021-MADR Z5) raised each listed floor below 100.0 to
+# the lower of the local and the CI Linux measurement on 2026-10-05, minus 2
+# points, rounded down to 0.1: llmprovider 97.9, wizard 88.4 and
+# internal/wirecase 91.5, the same on both.
+#
 # package                          floor  measured by
-llmprovider                        89.2
-wizard                             83.4
+llmprovider                        95.9
+wizard                             86.4
 internal/redact                    100.0
 llmprovider/internal/ownerperm     100.0
-llmprovider/internal/wirecase      80.0   ./llmprovider/providers/...
+llmprovider/internal/wirecase      89.5   ./llmprovider/providers/...

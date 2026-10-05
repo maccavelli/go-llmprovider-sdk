@@ -8,7 +8,9 @@ declaration changed without regenerating, must fail CI. For each .go file's
 (tracked, or new and not ignored) `//go:generate` line that names `-output <file>`, it runs the same
 command, in the same directory, with the output sent to a temporary file, and
 compares the two byte for byte. The generator's version is the one the line
-pins, so there is one place to change it.
+pins, so there is one place to change it. Both `-output X` and `-output=X`
+are read, and a run that checks no file fails: a directive that lost its
+-output would otherwise pass unchecked (0021-MADR Z9).
 
 Usage:
   scripts/check_generated.py
@@ -27,6 +29,14 @@ ROOT = Path(__file__).resolve().parent.parent
 PREFIX = "//go:generate "
 
 
+def output_at(argv: list[str]) -> int:
+    """Returns the index of argv's -output flag, in either form, or -1."""
+    for i, arg in enumerate(argv):
+        if arg == "-output" or arg.startswith("-output="):
+            return i
+    return -1
+
+
 def directives() -> list[tuple[Path, list[str]]]:
     """Returns (directory, argv) for each `//go:generate` line with -output."""
     # Tracked and new (not ignored) files, so a package not yet committed is
@@ -38,7 +48,7 @@ def directives() -> list[tuple[Path, list[str]]]:
         for line in (ROOT / rel).read_text(encoding="utf-8").splitlines():
             if line.startswith(PREFIX):
                 argv = shlex.split(line[len(PREFIX):])
-                if "-output" in argv:
+                if output_at(argv) >= 0:
                     found.append(((ROOT / rel).parent, argv))
     return found
 
@@ -47,14 +57,19 @@ def main() -> int:
     problems = []
     checked = 0
     for directory, argv in directives():
-        at = argv.index("-output")
-        if at + 1 >= len(argv):
+        at = output_at(argv)
+        joined = argv[at].startswith("-output=")
+        name = argv[at].removeprefix("-output=") if joined else (argv[at + 1] if at + 1 < len(argv) else "")
+        if not name:
             print(f"generate-check: {directory}: -output has no file", file=sys.stderr)
             return 2
-        target = directory / argv[at + 1]
+        target = directory / name
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / target.name
-            cmd = argv[:at + 1] + [str(out)] + argv[at + 2:]
+            if joined:
+                cmd = argv[:at] + [f"-output={out}"] + argv[at + 1:]
+            else:
+                cmd = argv[:at + 1] + [str(out)] + argv[at + 2:]
             proc = subprocess.run(cmd, cwd=directory, capture_output=True, text=True, check=False)
             if proc.returncode != 0:
                 print(f"generate-check: {' '.join(cmd)} failed:\n{proc.stderr}", file=sys.stderr)
@@ -68,6 +83,9 @@ def main() -> int:
     for p in problems:
         print(f"generate-check: {p}")
     print(f"generate-check: {checked} generated file(s), {len(problems)} problem(s)")
+    if checked == 0:
+        print("generate-check: 0 generated files checked; a //go:generate line lost its -output", file=sys.stderr)
+        return 1
     return 1 if problems else 0
 
 

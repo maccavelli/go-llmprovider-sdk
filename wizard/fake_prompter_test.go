@@ -27,6 +27,10 @@ type fakePrompter struct {
 	// blank line, the recommended menu. Any other unscripted Input is an
 	// error (0020-MADR F59).
 	blankSearches bool
+	// allowLeftover lets a test end with scripted answers unused. A test
+	// that sets it says why beside it; newFake fails any other that does
+	// (0021-MADR Z8).
+	allowLeftover bool
 
 	// Recorded for assertions.
 	seenSelect           []string   // titles
@@ -41,6 +45,28 @@ type fakePrompter struct {
 	// allText accumulates every string the user could have seen, for the
 	// "a credential must never be displayed" assertion.
 	allText []string
+}
+
+// newFake returns f for t, and fails t at its end if any scripted answer
+// is left unused, unless f.allowLeftover is set: a script with a stale
+// answer no longer describes the flow it drives (0021-MADR Z8).
+func newFake(t *testing.T, f fakePrompter) *fakePrompter {
+	t.Helper()
+	f.t = t
+	p := &f
+	t.Cleanup(func() {
+		if p.allowLeftover {
+			return
+		}
+		left := map[string]int{"selects": len(p.selects), "multiSelects": len(p.multiSelects),
+			"confirms": len(p.confirms), "inputs": len(p.inputs), "secrets": len(p.secrets)}
+		for _, kind := range []string{"selects", "multiSelects", "confirms", "inputs", "secrets"} {
+			if left[kind] > 0 {
+				t.Errorf("fakePrompter: %d scripted %s left unused", left[kind], kind)
+			}
+		}
+	})
+	return p
 }
 
 func (f *fakePrompter) record(s string) { f.allText = append(f.allText, s) }

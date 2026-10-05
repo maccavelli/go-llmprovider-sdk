@@ -31,8 +31,8 @@ func TestConfigureLLM_KiloListsTheChosenOrganization(t *testing.T) {
 		}
 		return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 	})}
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderKilo), 1, 1, 0},
-		inputs: []string{acceptDefault}, blankSearches: true}
+	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderKilo), 1, 1, 0},
+		inputs: []string{acceptDefault}, blankSearches: true})
 	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore(), Discover: true, HTTPClient: client})
 	if err != nil {
 		t.Fatalf("ConfigureLLM() error = %v", err)
@@ -88,8 +88,8 @@ func TestConfigureLLM_KiloDeviceLogin(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stubKilo(t, tc.account, tc.profileErr)
 			store := newMemoryTokenStore()
-			f := &fakePrompter{t: t, selects: append([]int{providerIdx(t, llmprovider.ProviderKilo)}, tc.selects...),
-				inputs: []string{acceptDefault}, blankSearches: true}
+			f := newFake(t, fakePrompter{selects: append([]int{providerIdx(t, llmprovider.ProviderKilo)}, tc.selects...),
+				inputs: []string{acceptDefault}, blankSearches: true})
 			res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
 			if err != nil {
 				t.Fatal(err)

@@ -54,7 +54,7 @@ func TestConfigureLLM_StoredSessionLeavesNoTokenInResult(t *testing.T) {
 		return s, nil
 	})
 	store := newMemoryTokenStore()
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}})
 	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
 	if err != nil {
 		t.Fatalf("ConfigureLLM() error = %v", err)
@@ -85,7 +85,7 @@ func TestConfigureLLM_KeepsTheStoredSession(t *testing.T) {
 	if err := store.Save(context.Background(), llmprovider.ProviderGrok, stored); err != nil {
 		t.Fatal(err)
 	}
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, confirms: []bool{true}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, confirms: []bool{true}})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing:   Result{Provider: llmprovider.ProviderGrok, Kind: CredOAuth},
 		TokenStore: store,
@@ -110,7 +110,7 @@ func TestConfigureLLM_NoStoredSessionSignsIn(t *testing.T) {
 		signedIn = true
 		return testOAuthSession(provider), nil
 	})
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}})
 	if _, err := ConfigureLLM(context.Background(), f, Options{
 		Existing:   Result{Provider: llmprovider.ProviderGrok, Kind: CredOAuth},
 		TokenStore: newMemoryTokenStore(),

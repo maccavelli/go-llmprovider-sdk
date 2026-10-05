@@ -37,3 +37,25 @@ func TestDecode_RefusalIsKept(t *testing.T) {
 		t.Errorf("ReadStream = %+v, %v; want the refusal's text, content_filter", res, err)
 	}
 }
+
+// TestReadStream_FailureReturnsNoResponse (0021-MADR W14): a stream event
+// that fails gives its error and no response, the partial one included,
+// whether a blank line ends the event or the stream does.
+func TestReadStream_FailureReturnsNoResponse(t *testing.T) {
+	item := `data: {"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"partial"}]}}` + "\n\n"
+	for name, event := range map[string]string{
+		"incomplete":  `data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}`,
+		"failed":      `data: {"type":"response.failed","response":{"error":{"code":"server_error","message":"boom"}}}`,
+		"error":       `data: {"type":"error","code":"server_error","message":"boom"}`,
+		"undecodable": `data: {"garbled`,
+	} {
+		for ending, tail := range map[string]string{"blank line": "\n\n", "end of stream": ""} {
+			t.Run(name+"/"+ending, func(t *testing.T) {
+				res, err := ReadStream("p", strings.NewReader(item+event+tail))
+				if err == nil || res != nil {
+					t.Errorf("ReadStream = %+v, %v; want no response and the error", res, err)
+				}
+			})
+		}
+	}
+}

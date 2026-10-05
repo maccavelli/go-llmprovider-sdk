@@ -13,12 +13,11 @@ import (
 // flag in the Result, which consumers persist and hand back as Existing.
 func TestConfigureLLM_KeepsFedRAMP(t *testing.T) {
 	store := newMemoryTokenStore()
-	f := &fakePrompter{
-		t:        t,
+	f := newFake(t, fakePrompter{
 		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI)},
 		confirms: []bool{true},
 		inputs:   []string{acceptDefault},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{
 			Provider:    llmprovider.ProviderOpenAI,

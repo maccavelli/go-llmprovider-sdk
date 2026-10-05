@@ -12,7 +12,9 @@ Usage:
       row, on a row for an identifier not in the baseline, and, with
       --require-equivalents (on from 0015-PLAN S11), on an empty
       "SDK equivalent" cell, or a Go name in one that the SDK does not
-      export (0020-MADR F56).
+      export (0020-MADR F56). Each cell must also hold a backticked span
+      that resolves, to an exported Go name or an SDK package path, or be
+      exactly one of MARKERS (0021-MADR Z9).
   scripts/check_parity_map.py generate MCPLIB_DIR
       Print the baseline for an mcplib checkout (run `go doc -all` on its
       llmprovider and wizard packages).
@@ -31,6 +33,9 @@ GUIDE = ROOT / "docs/guides/migrating-from-mcplib.md"
 BASELINE = ROOT / "docs/guides/migrating-from-mcplib.ids"
 PACKAGES = ("llmprovider", "wizard")
 MAP_HEADING = "## Identifier map"
+MODULE = "github.com/maccavelli/go-llmprovider-sdk"
+# The cells that say there is no equivalent, as the guide writes them.
+MARKERS = ("none", "removed", "Here")
 
 FUNC = re.compile(r"^func ([A-Z]\w*)[\[(]")
 METHOD = re.compile(r"^func \([^)]*?\*?([A-Z]\w*)(?:\[[^\]]*\])?\) ([A-Z]\w*)[\[(]")
@@ -156,6 +161,29 @@ def unresolved(cell: str, sdk: dict[str, set[str]]) -> list[str]:
     return missing
 
 
+def sdk_packages() -> set[str]:
+    """The module's package paths, relative to the module."""
+    listed = subprocess.run(["go", "list", "./..."], cwd=ROOT, capture_output=True, text=True, check=False)
+    if listed.returncode != 0:
+        print(f"go list ./... failed:\n{listed.stderr}", file=sys.stderr)
+        sys.exit(2)
+    return {p.removeprefix(MODULE + "/") for p in listed.stdout.split()}
+
+
+def resolves(cell: str, sdk: dict[str, set[str]], packages: set[str]) -> bool:
+    """Whether cell is a marker, or holds a span naming an exported Go name
+    or an SDK package path."""
+    if cell in MARKERS:
+        return True
+    for span in SPAN.findall(cell):
+        s = span.strip()
+        if s.removeprefix(MODULE + "/") in packages:
+            return True
+        if GO_NAME.match(s) and not unresolved(f"`{s}`", sdk):
+            return True
+    return False
+
+
 def check(require_equivalents: bool) -> int:
     baseline = {l.strip() for l in BASELINE.read_text(encoding="utf-8").splitlines() if l.strip()}
     mapped = rows(GUIDE.read_text(encoding="utf-8"))
@@ -166,6 +194,10 @@ def check(require_equivalents: bool) -> int:
         sdk = sdk_identifiers()
         problems += [f"SDK equivalent of {i} names `{span}`, which the SDK does not export"
                      for i in sorted(mapped) for span in unresolved(mapped[i], sdk)]
+        packages = sdk_packages()
+        problems += [f"SDK equivalent of {i} names nothing that resolves, and is not one of {', '.join(MARKERS)}: "
+                     f"{mapped[i][:80]}" for i in sorted(baseline & mapped.keys())
+                     if mapped[i] and not resolves(mapped[i], sdk, packages)]
     for p in problems:
         print(f"G-parity: {p}", file=sys.stderr)
     filled = sum(1 for i in baseline if mapped.get(i))

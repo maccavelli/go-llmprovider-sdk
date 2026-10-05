@@ -35,6 +35,14 @@ func TestConformance(t *testing.T) {
 					_ = json.NewEncoder(w).Encode(map[string]any{"id": "resp_llmtest", "output": []any{map[string]any{
 						"type": "function_call", "call_id": "call_llmtest", "name": tool, "arguments": "{}"}}})
 				},
+				Fidelity:    true,
+				StrictTools: true,
+				// The Responses wire reports the service's own reason.
+				TruncatedReason: "max_output_tokens",
+				Garbled:         func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
+				Truncated: func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = io.WriteString(w, `{"id":"resp_llmtest","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"function_call","call_id":"call_llmtest","name":"llmtest_tool","arguments":"{\"city\":"}]}`)
+				},
 				Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 					w.WriteHeader(status)
 					_, _ = io.WriteString(w, `{"error":{"code":"llmtest","message":"llmtest"}}`)

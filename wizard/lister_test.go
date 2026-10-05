@@ -88,7 +88,7 @@ func TestConfigureLLM_ThirdPartyListsThroughItsLister(t *testing.T) {
 	var built []*thirdParty
 	models := listedIDs(catalog.MaxListed + 2)
 	client := &http.Client{}
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{0, 1}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{0, 1}, secrets: []string{testKey}})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Registry: thirdPartyRegistry(t, thirdParty{models: models}, true, &built), Discover: true,
 		HTTPClient: client, ProviderOptions: []llmprovider.Option{llmprovider.WithModel("from-provider-options")},
@@ -133,7 +133,7 @@ func TestConfigureLLM_ThirdPartySearchCoversTheWholeListing(t *testing.T) {
 	var built []*thirdParty
 	models := listedIDs(catalog.MaxListed + 2)
 	last := models[len(models)-1]
-	f := &fakePrompter{t: t, selects: []int{0, 0}, secrets: []string{testKey}, inputs: []string{last}}
+	f := newFake(t, fakePrompter{selects: []int{0, 0}, secrets: []string{testKey}, inputs: []string{last}})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Registry: thirdPartyRegistry(t, thirdParty{models: models}, true, &built), Discover: true,
 	})
@@ -160,7 +160,7 @@ func TestConfigureLLM_ThirdPartyFallsBackToStatic(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var built []*thirdParty
-			f := &fakePrompter{t: t, blankSearches: true, selects: []int{0, 1}, secrets: []string{testKey}}
+			f := newFake(t, fakePrompter{blankSearches: true, selects: []int{0, 1}, secrets: []string{testKey}})
 			res, err := ConfigureLLM(context.Background(), f, Options{
 				Registry: thirdPartyRegistry(t, tc.base, tc.lister, &built), Discover: true,
 			})

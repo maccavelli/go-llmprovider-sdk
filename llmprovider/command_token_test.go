@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,23 +17,16 @@ import (
 	"time"
 )
 
-// keyHelperEnv makes this test binary act as a key command, for
-// TestHelperKeyCommand.
-const keyHelperEnv = "LLMPROVIDER_TEST_KEY_HELPER"
-
-// TestHelperKeyCommand is not a test: run as a child with keyHelperEnv set,
-// it behaves as the key command its arguments after "--" name, then exits.
+// TestHelperKeyCommand is not a test: run as a child by helperArgv, it
+// behaves as the key command its arguments after "--" name, then exits. A
+// plain test run has no "--", so it skips. It needs no environment variable,
+// so the tests that run it can be parallel (0021-MADR Z12).
 func TestHelperKeyCommand(t *testing.T) {
-	if os.Getenv(keyHelperEnv) != "1" {
+	at := slices.Index(os.Args, "--")
+	if at < 0 || at+1 >= len(os.Args) {
 		t.Skip("helper process only")
 	}
-	args := os.Args
-	for i, a := range args {
-		if a == "--" {
-			args = args[i+1:]
-			break
-		}
-	}
+	args := os.Args[at+1:]
 	switch args[0] {
 	case "print":
 		fmt.Println("  " + args[1] + "  ")
@@ -70,7 +64,6 @@ func TestHelperKeyCommand(t *testing.T) {
 // helperArgv is a command running this binary as the key helper in mode.
 func helperArgv(t *testing.T, mode ...string) []string {
 	t.Helper()
-	t.Setenv(keyHelperEnv, "1")
 	return append([]string{os.Args[0], "-test.run=^TestHelperKeyCommand$", "--"}, mode...)
 }
 
@@ -89,6 +82,7 @@ func runs(t *testing.T, path string) int {
 // TestCommandToken_TrimsAndCaches (0017-MADR D3): the trimmed output is the
 // token, reused for TTL, and rerun after it.
 func TestCommandToken_TrimsAndCaches(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "runs")
 	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
 	c := &CommandToken{Argv: helperArgv(t, "count", path), TTL: time.Minute, now: func() time.Time { return now }}
@@ -112,6 +106,7 @@ func TestCommandToken_TrimsAndCaches(t *testing.T) {
 // empty output and no command each fail as an auth failure that names the
 // command and never its output.
 func TestCommandToken_Failures(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		c    *CommandToken
@@ -145,6 +140,7 @@ func TestCommandToken_Failures(t *testing.T) {
 // TestCommandToken_ConcurrentCallersRunOnce: callers arriving together share
 // one run.
 func TestCommandToken_ConcurrentCallersRunOnce(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "runs")
 	c := NewCommandToken(helperArgv(t, "count", path)...)
 	var wg sync.WaitGroup
@@ -164,6 +160,7 @@ func TestCommandToken_ConcurrentCallersRunOnce(t *testing.T) {
 // TestCommandToken_Redacts: formatted forms name the command only, never its
 // arguments or the token.
 func TestCommandToken_Redacts(t *testing.T) {
+	t.Parallel()
 	c := &CommandToken{Argv: []string{"/usr/local/bin/vault-key", "--secret=" + plantedSecret}, Header: "x-api-key"}
 	c.value = "tok-" + plantedSecret
 	var logged bytes.Buffer
@@ -188,6 +185,7 @@ func TestCommandToken_Redacts(t *testing.T) {
 // TestCommandToken_RerunAfter401; the openai package keeps the provider half,
 // TestOpenAI_RetriesOnceAfterInvalidate (0015-PLAN S7).
 func TestCommandToken_RerunsAfterInvalidate(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "runs")
 	src := NewCommandToken(helperArgv(t, "count", path)...)
 	first, err := src.Token(context.Background())
@@ -208,6 +206,7 @@ var _ TokenInvalidator = (*CommandToken)(nil)
 // the current output reruns the command; a late refusal of an output already
 // replaced changes nothing.
 func TestCommandToken_InvalidateTokenIgnoresStale(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "runs")
 	src := NewCommandToken(helperArgv(t, "count", path)...)
 	ctx := context.Background()

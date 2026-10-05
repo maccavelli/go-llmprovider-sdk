@@ -19,10 +19,10 @@ import (
 // in a fallback MultiSelect adds that model once.
 func TestConfigureLLM_FallbackPicksDeduped(t *testing.T) {
 	static := catalog.Static(llmprovider.ProviderClaude)
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey},
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey},
 		inputs: []string{"", ""}, multiSelects: [][]int{{0, 0, 1}},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{NeedFallbacks: true})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -51,10 +51,10 @@ func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 	saved := Result{Provider: llmprovider.ProviderClaude, Model: "claude-opus-5"}
 	t.Run("other provider, Other", func(t *testing.T) {
 		gemini := len(catalog.Static(llmprovider.ProviderGemini))
-		f := &fakePrompter{
-			t: t, selects: []int{providerIdx(t, llmprovider.ProviderGemini), gemini},
+		f := newFake(t, fakePrompter{
+			selects: []int{providerIdx(t, llmprovider.ProviderGemini), gemini},
 			secrets: []string{testKey}, inputs: []string{"", acceptDefault},
-		}
+		})
 		res, err := ConfigureLLM(context.Background(), f, Options{Existing: saved})
 		if err == nil || !strings.Contains(err.Error(), "no model entered") {
 			t.Errorf("Enter at Other saved provider=%s model=%q err=%v, want no model entered (no default from another provider)",
@@ -62,10 +62,10 @@ func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 		}
 	})
 	t.Run("other provider, no models found", func(t *testing.T) {
-		f := &fakePrompter{
-			t: t, selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
-			inputs: []string{"http://127.0.0.1:1", acceptDefault}, confirms: []bool{false},
-		}
+		f := newFake(t, fakePrompter{
+			selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
+			inputs:  []string{"http://127.0.0.1:1", acceptDefault}, confirms: []bool{false},
+		})
 		res, err := ConfigureLLM(context.Background(), f, Options{Existing: saved})
 		if err == nil || !strings.Contains(err.Error(), "none entered") {
 			t.Errorf("Enter at No models found saved provider=%s model=%q err=%v, want none entered", res.Provider, res.Model, err)
@@ -73,10 +73,10 @@ func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 	})
 	t.Run("same provider keeps its model", func(t *testing.T) {
 		claude := len(catalog.Static(llmprovider.ProviderClaude))
-		f := &fakePrompter{
-			t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), claude + 1},
+		f := newFake(t, fakePrompter{
+			selects: []int{providerIdx(t, llmprovider.ProviderClaude), claude + 1},
 			secrets: []string{testKey}, inputs: []string{"", acceptDefault},
-		}
+		})
 		res, err := ConfigureLLM(context.Background(), f, Options{
 			Existing: Result{Provider: llmprovider.ProviderClaude, Model: "my-model"},
 		})
@@ -90,10 +90,10 @@ func TestConfigureLLM_OtherDefaultsOnlyToSameProvider(t *testing.T) {
 // typed in another case is not offered back as a fallback.
 func TestConfigureLLM_FallbackExclusionIgnoresCase(t *testing.T) {
 	static := catalog.Static(llmprovider.ProviderClaude)
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), len(static)},
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderClaude), len(static)},
 		secrets: []string{testKey}, inputs: []string{"", "Claude-Haiku-4-5", ""}, multiSelects: [][]int{{}},
-	}
+	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{NeedFallbacks: true}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -108,18 +108,18 @@ func TestConfigureLLM_FallbackExclusionIgnoresCase(t *testing.T) {
 func TestConfigureLLM_BlankModelIDRefused(t *testing.T) {
 	claude := len(catalog.Static(llmprovider.ProviderClaude))
 	for _, id := range []string{"", "   "} {
-		f := &fakePrompter{
-			t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), claude},
+		f := newFake(t, fakePrompter{
+			selects: []int{providerIdx(t, llmprovider.ProviderClaude), claude},
 			secrets: []string{testKey}, inputs: []string{"", id},
-		}
+		})
 		if res, err := ConfigureLLM(context.Background(), f, Options{}); err == nil {
 			t.Errorf("Other with %q: model=%q, want an error", id, res.Model)
 		}
 	}
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
-		inputs: []string{"http://127.0.0.1:1", "   "}, confirms: []bool{false},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
+		inputs:  []string{"http://127.0.0.1:1", "   "}, confirms: []bool{false},
+	})
 	if res, err := ConfigureLLM(context.Background(), f, Options{}); err == nil {
 		t.Errorf("No models found with blanks: model=%q, want an error", res.Model)
 	}
@@ -128,10 +128,10 @@ func TestConfigureLLM_BlankModelIDRefused(t *testing.T) {
 // TestConfigureLLM_ListingErrorWarns covers configure.go's listing-error
 // warning: Ollama unreachable with Discover set.
 func TestConfigureLLM_ListingErrorWarns(t *testing.T) {
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
-		inputs: []string{"http://127.0.0.1:1", "llama3"}, confirms: []bool{false},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
+		inputs:  []string{"http://127.0.0.1:1", "llama3"}, confirms: []bool{false},
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
 	if err != nil || res.Model != "llama3" {
 		t.Fatalf("ConfigureLLM: model=%q err=%v, want llama3", res.Model, err)
@@ -151,7 +151,7 @@ func TestConfigureLLM_OllamaEmptyListing(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	f := &fakePrompter{t: t, selects: []int{providerIdx(t, llmprovider.ProviderOllama)}, inputs: []string{srv.URL, "llama3"}}
+	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOllama)}, inputs: []string{srv.URL, "llama3"}})
 	res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
 	if err != nil || res.Model != "llama3" {
 		t.Fatalf("ConfigureLLM: model=%q err=%v, want llama3", res.Model, err)
@@ -165,7 +165,7 @@ func TestConfigureLLM_OllamaEmptyListing(t *testing.T) {
 // row: a saved model in the recommended list is the menu default.
 func TestConfigureLLM_DefaultRowIsExistingModel(t *testing.T) {
 	static := catalog.Static(llmprovider.ProviderClaude)
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 2}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 2}, secrets: []string{testKey}})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderClaude, Model: static[2]},
 	})
@@ -182,11 +182,11 @@ func TestConfigureLLM_DefaultRowIsExistingModel(t *testing.T) {
 // loop without an empty MultiSelect.
 func TestConfigureLLM_BlankFallbackRoundWithNothingLeft(t *testing.T) {
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0}, secrets: []string{testKey},
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0}, secrets: []string{testKey},
 		inputs:       []string{srv.URL, "", "flash", ""},
 		multiSelects: [][]int{{0, 1, 2, 3, 4}}, confirms: []bool{true},
-	}
+	})
 	opts := zenOptions()
 	opts.NeedFallbacks = true
 	res, err := ConfigureLLM(context.Background(), f, opts)
@@ -201,10 +201,10 @@ func TestConfigureLLM_BlankFallbackRoundWithNothingLeft(t *testing.T) {
 // TestConfigureLLM_FallbackSearchNoMatches covers model_select.go's no-match
 // fallback search: it warns and asks again.
 func TestConfigureLLM_FallbackSearchNoMatches(t *testing.T) {
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey},
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey},
 		inputs: []string{"", "zzz-no-match", ""}, multiSelects: [][]int{{}},
-	}
+	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{NeedFallbacks: true}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestConfigureLLM_FallbackSearchNoMatches(t *testing.T) {
 func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 	store := newMemoryTokenStore()
 	static := catalog.Static(llmprovider.ProviderGrok)
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, confirms: []bool{true}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 0}, confirms: []bool{true}})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{
 			Provider:    llmprovider.ProviderGrok,
@@ -257,7 +257,7 @@ func TestConfigureLLM_UnusableListingNotice(t *testing.T) {
 			Request:    r,
 		}, nil
 	})}
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}})
 	if _, err := ConfigureLLM(context.Background(), f, Options{Discover: true, HTTPClient: client}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}

@@ -59,7 +59,7 @@ func TestLogout_RevokesThenDeletes(t *testing.T) {
 			srv, revoked := revokeServer(t, tc.status)
 			store := newMemoryTokenStore()
 			storedOpenAISession(t, store, srv)
-			f := &fakePrompter{t: t, confirms: []bool{true}}
+			f := newFake(t, fakePrompter{confirms: []bool{true}})
 			if err := Logout(context.Background(), f, Options{TokenStore: store}, llmprovider.ProviderOpenAI); err != nil {
 				t.Fatalf("Logout() error = %v", err)
 			}
@@ -85,7 +85,7 @@ func TestLogout_NoRevocationForKilo(t *testing.T) {
 		&auth.OAuthSession{Provider: llmprovider.ProviderKilo, Access: kiloWizardToken}); err != nil {
 		t.Fatal(err)
 	}
-	f := &fakePrompter{t: t, confirms: []bool{true}}
+	f := newFake(t, fakePrompter{confirms: []bool{true}})
 	if err := Logout(context.Background(), f, Options{TokenStore: store}, llmprovider.ProviderKilo); err != nil {
 		t.Fatalf("Logout() error = %v", err)
 	}
@@ -103,7 +103,7 @@ func TestLogout_LeavesTheStoreAlone(t *testing.T) {
 	srv, revoked := revokeServer(t, http.StatusOK)
 	store := newMemoryTokenStore()
 	storedOpenAISession(t, store, srv)
-	f := &fakePrompter{t: t, confirms: []bool{false}}
+	f := newFake(t, fakePrompter{confirms: []bool{false}})
 	if err := Logout(context.Background(), f, Options{TokenStore: store}, llmprovider.ProviderOpenAI); err != nil {
 		t.Fatalf("declined: Logout() error = %v", err)
 	}
@@ -111,7 +111,7 @@ func TestLogout_LeavesTheStoreAlone(t *testing.T) {
 		t.Errorf("declined: revoked %q, stored %v; want nothing changed", *revoked, store.sessions)
 	}
 
-	f = &fakePrompter{t: t}
+	f = newFake(t, fakePrompter{t: t})
 	if err := Logout(context.Background(), f, Options{TokenStore: store}, llmprovider.ProviderGrok); err != nil {
 		t.Fatalf("no session: Logout() error = %v", err)
 	}
@@ -129,14 +129,14 @@ func (deleteFailingStore) Delete(context.Context, llmprovider.ProviderID) error 
 
 // TestLogout_Errors: logout needs a store, and reports a failed delete.
 func TestLogout_Errors(t *testing.T) {
-	if err := Logout(context.Background(), &fakePrompter{t: t}, Options{}, llmprovider.ProviderOpenAI); err == nil ||
+	if err := Logout(context.Background(), newFake(t, fakePrompter{t: t}), Options{}, llmprovider.ProviderOpenAI); err == nil ||
 		!strings.Contains(err.Error(), "TokenStore") {
 		t.Errorf("no store: Logout() error = %v, want it named", err)
 	}
 	srv, _ := revokeServer(t, http.StatusOK)
 	store := newMemoryTokenStore()
 	storedOpenAISession(t, store, srv)
-	err := Logout(context.Background(), &fakePrompter{t: t, confirms: []bool{true}},
+	err := Logout(context.Background(), newFake(t, fakePrompter{confirms: []bool{true}}),
 		Options{TokenStore: deleteFailingStore{store}}, llmprovider.ProviderOpenAI)
 	if err == nil || !strings.Contains(err.Error(), "disk on fire") {
 		t.Errorf("failed delete: Logout() error = %v, want it returned", err)

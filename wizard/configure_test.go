@@ -3,6 +3,7 @@ package wizard
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -37,12 +38,11 @@ func envOf(vals map[string]string) func(string) string {
 const testKey = "sk-super-secret-key-1234"
 
 func TestConfigureLLM_EnvKeyPrecedence(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		confirms:      []bool{true}, // yes, use the env key
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true,
 		LookupEnv: envOf(map[string]string{"ANTHROPIC_API_KEY": testKey})})
 	if err != nil {
@@ -57,12 +57,11 @@ func TestConfigureLLM_EnvKeyPrecedence(t *testing.T) {
 }
 
 func TestConfigureLLM_KeepExisting(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		confirms:      []bool{true}, // keep existing
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderClaude, APIKey: "existing-key-abcd"},
 	})
@@ -78,12 +77,11 @@ func TestConfigureLLM_KeepExisting(t *testing.T) {
 }
 
 func TestConfigureLLM_PromptsWhenNothingAvailable(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		secrets:       []string{testKey},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -99,17 +97,16 @@ func TestConfigureLLM_PromptsWhenNothingAvailable(t *testing.T) {
 // TestConfigureLLM_LocalProviderSkipsKey: Ollama needs no credential, which is
 // why ProviderDescriptor has RequiresAPIKey.
 func TestConfigureLLM_LocalProviderSkipsKey(t *testing.T) {
-	f := &fakePrompter{
-		t:       t,
+	f := newFake(t, fakePrompter{
 		selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
 		// Two inputs: the endpoint, then the manual model id (Ollama has no
 		// static catalog, so the flow falls through to manual entry).
-		inputs: []string{"http://localhost:11434", "llama3.2:latest"},
-		// Unreachable Ollama (CI) asks to try a different endpoint. A running
-		// local daemon never issues that Confirm; leftover scripted answers
-		// are ignored.
+		inputs: []string{refusedURL(t), "llama3.2:latest"},
+		// The endpoint refuses, so the wizard asks to try a different one;
+		// a refused port, not localhost:11434, keeps that so on a host that
+		// runs Ollama (0021-PLAN step 6.4).
 		confirms: []bool{false},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -133,24 +130,22 @@ func TestConfigureLLM_LocalProviderSkipsKey(t *testing.T) {
 // TestConfigureLLM_NoModelsAndNoneEnteredErrors: a Result with an empty Model
 // cannot generate anything, so the flow must fail rather than return it.
 func TestConfigureLLM_NoModelsAndNoneEnteredErrors(t *testing.T) {
-	f := &fakePrompter{
-		t:        t,
+	f := newFake(t, fakePrompter{
 		selects:  []int{providerIdx(t, llmprovider.ProviderOllama)},
-		inputs:   []string{"http://localhost:11434", ""},
+		inputs:   []string{refusedURL(t), ""},
 		confirms: []bool{false},
-	}
+	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{}); err == nil {
 		t.Error("expected an error when no model is available and none is entered")
 	}
 }
 
 func TestConfigureLLM_EmptyDiscoveryFallsBackToStatic(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		secrets:       []string{testKey},
-	}
+	})
 	// The listing's client refuses every request, so the listing fails
 	// without reaching the network, and the static catalog must be offered
 	// instead of the wizard dead-ending.
@@ -180,13 +175,12 @@ func TestConfigureLLM_EmptyDiscoveryFallsBackToStatic(t *testing.T) {
 }
 
 func TestConfigureLLM_Fallbacks(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		secrets:       []string{testKey},
 		multiSelects:  [][]int{{0, 1}},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{NeedFallbacks: true})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -205,12 +199,11 @@ func TestConfigureLLM_Fallbacks(t *testing.T) {
 // credential cannot leak through a prompt. Every string the user could have
 // seen is checked against the raw key.
 func TestConfigureLLM_MaskedKeyNeverPrintsSecret(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		confirms:      []bool{true},
-	}
+	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true,
 		LookupEnv: envOf(map[string]string{"ANTHROPIC_API_KEY": testKey})}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -233,12 +226,11 @@ func TestConfigureLLM_MaskedKeyNeverPrintsSecret(t *testing.T) {
 // exactly the canonical descriptor list. This is the property that keeps every
 // wizard current when this module adds a provider.
 func TestConfigureLLM_OffersEveryDescriptor(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{0, 0},
 		secrets:       []string{testKey},
-	}
+	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -259,7 +251,7 @@ func TestConfigureLLM_UsesTheRegistry(t *testing.T) {
 	if err := reg.Register(claude.Descriptor(), claude.New); err != nil {
 		t.Fatal(err)
 	}
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{0, 0}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{0, 0}, secrets: []string{testKey}})
 	res, err := ConfigureLLM(context.Background(), f, Options{Registry: reg})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -273,7 +265,7 @@ func TestConfigureLLM_UsesTheRegistry(t *testing.T) {
 }
 
 func TestConfigureLLM_ProviderFilter(t *testing.T) {
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{0, 0, 0}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{0, 0, 0}, secrets: []string{testKey}})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Providers: []llmprovider.ProviderID{llmprovider.ProviderGrok},
 	})
@@ -287,7 +279,7 @@ func TestConfigureLLM_ProviderFilter(t *testing.T) {
 		t.Errorf("filtered menu offered %d choices, want 1", n)
 	}
 
-	if _, err := ConfigureLLM(context.Background(), &fakePrompter{t: t},
+	if _, err := ConfigureLLM(context.Background(), newFake(t, fakePrompter{t: t}),
 		Options{Providers: []llmprovider.ProviderID{"nonexistent"}}); err == nil {
 		t.Error("expected an error when no requested provider exists")
 	}
@@ -298,14 +290,13 @@ func TestConfigureLLM_ProviderFilter(t *testing.T) {
 // entry. prepare-commit-msg's wizard had this before the migration.
 func TestConfigureLLM_OtherModelEscapeHatch(t *testing.T) {
 	static := catalog.Static(llmprovider.ProviderClaude)
-	f := &fakePrompter{
-		t: t,
+	f := newFake(t, fakePrompter{
 		// provider, then the trailing "Other" entry
 		selects: []int{providerIdx(t, llmprovider.ProviderClaude), len(static)},
 		secrets: []string{testKey},
 		// a blank search (MADR 0007 §4), then the manual model id
 		inputs: []string{"", "my-custom-model"},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -322,12 +313,11 @@ func TestConfigureLLM_OtherModelEscapeHatch(t *testing.T) {
 // TestConfigureLLM_InjectedLookupEnv: consumers drive the env-key branch
 // deterministically in their own tests without touching the real environment.
 func TestConfigureLLM_InjectedLookupEnv(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{providerIdx(t, llmprovider.ProviderGemini), 0},
 		confirms:      []bool{true},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		AllowEnv:  true,
 		LookupEnv: func(k string) string { return map[string]string{"GEMINI_API_KEY": testKey}[k] },
@@ -348,10 +338,10 @@ func TestConfigure_EmptyRecommendedOpensSearch(t *testing.T) {
 	listing := `{"data":[` + kiloProfileEntry("kilo-auto/small", "-1", "-1", 0, 0) + "," +
 		kiloProfileEntry("kilo-auto/balanced", "-1", "-1", 0, 0) + `]}`
 	srv := zenServer(t, http.StatusOK, listing)
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
-		inputs: []string{srv.URL, "", "kilo-auto/small"}, secrets: []string{testKey},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
+		inputs:  []string{srv.URL, "", "kilo-auto/small"}, secrets: []string{testKey},
+	})
 	res, err := ConfigureLLM(context.Background(), f, zenOptions())
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -386,7 +376,7 @@ func TestResolveBaseURL_Validates(t *testing.T) {
 		{"blank keeps the default", []string{""}, nil, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			f := &fakePrompter{t: t, inputs: c.inputs, confirms: c.confirms}
+			f := newFake(t, fakePrompter{inputs: c.inputs, confirms: c.confirms})
 			got, err := resolveBaseURL(context.Background(), f, d, Options{})
 			if err != nil || got != c.want {
 				t.Fatalf("resolveBaseURL = %q, %v; want %q", got, err, c.want)
@@ -397,4 +387,18 @@ func TestResolveBaseURL_Validates(t *testing.T) {
 			}
 		})
 	}
+}
+
+// refusedURL is an http URL on a loopback port nothing listens on.
+func refusedURL(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := l.Addr().String()
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return "http://" + addr
 }

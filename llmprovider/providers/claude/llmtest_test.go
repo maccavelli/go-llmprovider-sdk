@@ -25,6 +25,12 @@ func TestConformance(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"content": []any{map[string]any{
 				"type": "tool_use", "id": "toolu_llmtest", "name": tool, "input": map[string]any{}}}})
 		},
+		Fidelity:    true,
+		StrictTools: true,
+		Garbled:     func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
+		Truncated: func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"model":"llmtest-model","stop_reason":"max_tokens","content":[{"type":"tool_use","id":"toolu_llmtest","name":"llmtest_tool","input":{}}]}`)
+		},
 		Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 			w.WriteHeader(status)
 			_, _ = io.WriteString(w, `{"type":"error","error":{"type":"llmtest","message":"llmtest"}}`)

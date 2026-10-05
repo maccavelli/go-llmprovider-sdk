@@ -12,6 +12,11 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
+// joinSignal is a joinHook that reports each join on the channel.
+type joinSignal chan struct{}
+
+func (j joinSignal) joined() { j <- struct{}{} }
+
 // TestOAuthSession_WaiterOutlivesLeaderCancel (0020-MADR F14): the caller
 // that started the shared refresh cancels it; a caller waiting on it, whose
 // own context is live, gets a token instead of the leader's cancellation.
@@ -32,8 +37,10 @@ func TestOAuthSession_WaiterOutlivesLeaderCancel(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { close(release) }) // runs first: frees a hung handler
+	joined := make(joinSignal, 1)
 	session := &OAuthSession{Provider: "openai", Access: "old", Refresh: "refresh",
-		Expiry: time.Now().Add(-time.Minute), ClientID: "client-test", TokenURL: srv.URL, HTTPClient: srv.Client()}
+		Expiry: time.Now().Add(-time.Minute), ClientID: "client-test", TokenURL: srv.URL, HTTPClient: srv.Client(),
+		onJoin: joined}
 
 	leaderCtx, cancel := context.WithCancel(context.Background())
 	leaderDone := make(chan error, 1)
@@ -55,7 +62,11 @@ func TestOAuthSession_WaiterOutlivesLeaderCancel(t *testing.T) {
 		tok, err := session.Token(context.Background())
 		waiterDone <- result{tok, err}
 	}()
-	time.Sleep(50 * time.Millisecond) // the waiter is now waiting on the leader's refresh
+	select { // the waiter is now waiting on the leader's refresh
+	case <-joined:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the waiter never joined the leader's refresh")
+	}
 	cancel()
 	<-leaderDone
 	got := <-waiterDone

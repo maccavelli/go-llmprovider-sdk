@@ -134,7 +134,11 @@ func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 		return token, nil
 	}
 	if future := s.inflight; future != nil {
+		onJoin := s.onJoin
 		s.mu.Unlock()
+		if onJoin != nil {
+			onJoin.joined()
+		}
 		select {
 		case <-future.done:
 			if future.abandoned && ctx.Err() == nil {

@@ -116,9 +116,16 @@ if ! vet_out="$(go vet "${pkgs[@]}" 2>&1)"; then
   printf '%s\n' "$vet_out" | sed 's/^/  /' >&2
   fail 1
 fi
-if ! test_out="$(go test "${pkgs[@]}" 2>&1)"; then
-  echo "go test:" >&2
+if ! test_out="$(go test -race "${pkgs[@]}" 2>&1)"; then
+  echo "go test -race:" >&2
   printf '%s\n' "$test_out" | tail -40 | sed 's/^/  /' >&2
+  fail 1
+fi
+# go.mod and go.sum change only with the code that needs them (AGENTS.md
+# "Dependencies"; 0021-MADR Z5).
+if ! tidy_out="$(go mod tidy -diff 2>&1)"; then
+  echo "go mod tidy -diff:" >&2
+  printf '%s\n' "$tidy_out" | tail -40 | sed 's/^/  /' >&2
   fail 1
 fi
 

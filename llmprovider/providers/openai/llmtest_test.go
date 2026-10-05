@@ -37,8 +37,29 @@ func harness(credential func() llmprovider.Option, sse bool) llmtest.Harness {
 			return New(append([]llmprovider.Option{credential(), llmprovider.WithModel("gpt-5.5"),
 				llmprovider.WithBaseURL(baseURL)}, opts...)...)
 		},
-		Text:     func(w http.ResponseWriter, _ *http.Request) { write(w, llmtestText) },
-		ToolCall: func(w http.ResponseWriter, _ *http.Request, tool string) { write(w, llmtestCall(tool)) },
+		Text:        func(w http.ResponseWriter, _ *http.Request) { write(w, llmtestText) },
+		ToolCall:    func(w http.ResponseWriter, _ *http.Request, tool string) { write(w, llmtestCall(tool)) },
+		Fidelity:    true,
+		StrictTools: true,
+		// The Responses wire reports the service's own reason.
+		TruncatedReason: "max_output_tokens",
+		// A session's replies are streams: a garbled event, and the
+		// response.incomplete event a cut stream ends with.
+		Garbled: func(w http.ResponseWriter, _ *http.Request) {
+			if sse {
+				_, _ = io.WriteString(w, "data: {\"garbled\n\n")
+				return
+			}
+			_, _ = io.WriteString(w, `{"garbled`)
+		},
+		Truncated: func(w http.ResponseWriter, _ *http.Request) {
+			if sse {
+				_, _ = io.WriteString(w, `data: {"type":"response.output_item.done","item":{"type":"function_call","call_id":"call_llmtest","name":"llmtest_tool","arguments":"{\"city\":"}}`+"\n\n"+
+					`data: {"type":"response.incomplete","response":{"id":"resp_llmtest","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}`+"\n\n")
+				return
+			}
+			write(w, `{"id":"resp_llmtest","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"function_call","call_id":"call_llmtest","name":"llmtest_tool","arguments":"{\"city\":"}]}`)
+		},
 		Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 			w.WriteHeader(status)
 			_, _ = io.WriteString(w, `{"error":{"message":"llmtest"}}`)

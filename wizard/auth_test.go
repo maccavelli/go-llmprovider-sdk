@@ -23,7 +23,7 @@ import (
 // the flow before provider selection.
 func TestConfigureLLM_IgnoresOrchestratorEnv(t *testing.T) {
 	t.Setenv("MCP_ORCHESTRATOR_OWNED", "true")
-	f := &fakePrompter{t: t}
+	f := newFake(t, fakePrompter{t: t})
 	_, _ = ConfigureLLM(context.Background(), f, Options{})
 	if len(f.seenSelect) != 1 {
 		t.Fatalf("Select calls = %d, want 1: the flow must reach provider selection", len(f.seenSelect))
@@ -32,12 +32,11 @@ func TestConfigureLLM_IgnoresOrchestratorEnv(t *testing.T) {
 
 func TestConfigureLLM_ChatGPTResultDoesNotPopulateAPIKey(t *testing.T) {
 	store := newMemoryTokenStore()
-	f := &fakePrompter{
-		t:        t,
+	f := newFake(t, fakePrompter{
 		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI)},
 		confirms: []bool{true},
 		inputs:   []string{acceptDefault},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{
 			Provider:    llmprovider.ProviderOpenAI,
@@ -76,7 +75,7 @@ func TestConfigureLLM_APIKeyKindUnchanged(t *testing.T) {
 			selects := []int{providerIdx(t, test.provider)}
 			selects = append(selects, test.selections...)
 			selects = append(selects, 0)
-			f := &fakePrompter{t: t, blankSearches: true, selects: selects, secrets: []string{testKey}}
+			f := newFake(t, fakePrompter{blankSearches: true, selects: selects, secrets: []string{testKey}})
 			res, err := ConfigureLLM(context.Background(), f, Options{})
 			if err != nil {
 				t.Fatalf("ConfigureLLM() error = %v", err)
@@ -89,12 +88,11 @@ func TestConfigureLLM_APIKeyKindUnchanged(t *testing.T) {
 }
 
 func TestConfigureLLM_DoesNotOfferClaudeOAuth(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{providerIdx(t, llmprovider.ProviderClaude), 0},
 		secrets:       []string{testKey},
-	}
+	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{}); err != nil {
 		t.Fatalf("ConfigureLLM() error = %v", err)
 	}
@@ -151,13 +149,15 @@ func TestConfigureLLM_TokenStdinClassification(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			store := newMemoryTokenStore()
-			f := &fakePrompter{
-				t:             t,
+			f := newFake(t, fakePrompter{
 				blankSearches: true,
-				selects:       []int{providerIdx(t, test.provider), 3, 0},
+				selects:       []int{providerIdx(t, test.provider), 3},
 				secrets:       []string{test.secret},
-			}
-			if test.wantKind == CredOAuth {
+			})
+			switch test.wantKind {
+			case CredAPIKey: // an API key reaches the model menu
+				f.selects = append(f.selects, 0)
+			case CredOAuth: // a ChatGPT session has no listing, so its model is typed
 				f.inputs = []string{"chatgpt-model"}
 			}
 			res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
@@ -220,7 +220,7 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store := newMemoryTokenStore()
-			f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), test.authIdx, 0}}
+			f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), test.authIdx, 0}})
 			res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
 			if err != nil {
 				t.Fatalf("ConfigureLLM() error = %v", err)
@@ -302,12 +302,12 @@ func TestConfigureLLM_ChatGPTListingFailurePromptsForModel(t *testing.T) {
 			Request:    r,
 		}, nil
 	})}
-	f := &fakePrompter{
-		t:        t,
-		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI), 1},
+	// Keeping the session skips the sign-in menu.
+	f := newFake(t, fakePrompter{
+		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI)},
 		confirms: []bool{true},
 		inputs:   []string{"manual-chatgpt"},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{
 			Provider:    llmprovider.ProviderOpenAI,
@@ -370,10 +370,11 @@ func TestSaveOAuthCredential_RejectsFixture(t *testing.T) {
 // user must sign in again.
 func TestConfigureLLM_KeepRefusesStubSession(t *testing.T) {
 	store := newMemoryTokenStore()
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 1}, confirms: []bool{true},
-		inputs: []string{"chatgpt-model"},
-	}
+	f := newFake(t, fakePrompter{
+		// Keeping the stub session is refused before any sign-in menu or
+		// model prompt.
+		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI)}, confirms: []bool{true},
+	})
 	_, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{
 			Provider: llmprovider.ProviderOpenAI,
@@ -402,7 +403,7 @@ func TestConfigureLLM_BrowserOAuthSetsInputCode(t *testing.T) {
 		return testOAuthSession(provider), nil
 	})
 	opened := 0
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0}})
 	_, err := ConfigureLLM(context.Background(), f, Options{
 		TokenStore: newMemoryTokenStore(),
 		OpenURL:    func(string) error { opened++; return nil },
@@ -431,8 +432,8 @@ func TestConfigureLLM_BrowserOAuthSetsInputCode(t *testing.T) {
 func TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt(t *testing.T) {
 	p := &drainPrompter{
 		// The paste read is answered by Enter, as the notice asks.
-		fakePrompter: &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0},
-			inputs: []string{""}},
+		fakePrompter: newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderGrok), 1, 0},
+			inputs: []string{""}}),
 		inputStarted: make(chan struct{}),
 		release:      make(chan struct{}),
 	}
@@ -513,11 +514,10 @@ func TestConfigureLLM_NoTokenStoreOffersStorelessMethods(t *testing.T) {
 			llmprovider.AuthImportVendorCLI}},
 	} {
 		t.Run(string(c.provider), func(t *testing.T) {
-			f := &fakePrompter{
-				t:       t,
+			f := newFake(t, fakePrompter{
 				selects: []int{providerIdx(t, c.provider), 0},
 				secrets: []string{"sk-test-0123456789"},
-			}
+			})
 			_, _ = ConfigureLLM(context.Background(), f, Options{})
 			if len(f.seenSelect) < 2 || !strings.Contains(f.seenSelect[1], "authenticate") {
 				t.Fatalf("Select titles = %q, want the method menu second", f.seenSelect)
@@ -545,7 +545,7 @@ func TestConfigureLLM_TokenStoreOffersAllMethods(t *testing.T) {
 			if !ok {
 				t.Fatalf("no descriptor for %s", provider)
 			}
-			f := &fakePrompter{t: t, selects: []int{providerIdx(t, provider)}}
+			f := newFake(t, fakePrompter{selects: []int{providerIdx(t, provider)}})
 			_, _ = ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore()})
 			if len(f.seenSelect) < 2 || !strings.Contains(f.seenSelect[1], "authenticate") {
 				t.Fatalf("Select titles = %q, want the method menu second", f.seenSelect)
@@ -586,7 +586,7 @@ func TestResolveTokenStdin_ChecksTheCredential(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			store := newMemoryTokenStore()
-			f := &fakePrompter{t: t, secrets: []string{c.secret}}
+			f := newFake(t, fakePrompter{secrets: []string{c.secret}})
 			res, err := resolveTokenStdin(context.Background(), f, d, Options{TokenStore: store})
 			if c.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), c.wantErr) || store.saves != 0 {

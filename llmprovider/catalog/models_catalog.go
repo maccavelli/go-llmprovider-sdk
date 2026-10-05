@@ -802,8 +802,6 @@ func rankKiloModel(m string) int {
 //
 // Labels are advisory. Label falls back to the bare id, so a live listing
 // that outruns this table degrades to raw ids rather than hiding models.
-//
-//nolint:goconst // model ids are intentionally repeated across catalog and labels
 var modelLabels = map[string]string{
 	// Gemini
 	"gemini-3.7-flash":      "Gemini 3.7 Flash       [★ Recommended: frontier coding intelligence]",

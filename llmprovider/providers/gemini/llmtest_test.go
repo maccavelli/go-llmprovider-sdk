@@ -31,6 +31,15 @@ func TestConformance(t *testing.T) {
 						"steps": []any{map[string]any{"type": "function_call", "id": "call_llmtest", "name": tool,
 							"arguments": map[string]any{}}}})
 				},
+				Fidelity:    true,
+				StrictTools: true,
+				// An Interaction gives no reason; the decoder reports its
+				// status (interactions.go).
+				TruncatedReason: "incomplete",
+				Garbled:         func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
+				Truncated: func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = io.WriteString(w, `{"id":"v1_llmtest","status":"incomplete","steps":[{"type":"function_call","id":"call_llmtest","name":"llmtest_tool","arguments":{}}]}`)
+				},
 				Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 					w.WriteHeader(status)
 					_, _ = io.WriteString(w, `{"error":{"code":"llmtest","message":"llmtest"}}`)

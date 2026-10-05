@@ -31,7 +31,7 @@ func grokBrowserLogin(t *testing.T, tokenBody func(ti *testIssuer) string) error
 		if err != nil {
 			return err
 		}
-		resp, err := http.Get(u.Query().Get("redirect_uri") + "?code=c&state=" + url.QueryEscape(u.Query().Get("state"))) //nolint:gosec // local callback
+		resp, err := http.Get(u.Query().Get("redirect_uri") + "?code=c&state=" + url.QueryEscape(u.Query().Get("state")))
 		if err == nil {
 			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()

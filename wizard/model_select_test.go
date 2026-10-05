@@ -77,7 +77,7 @@ func countContaining(msgs []string, sub string) int {
 }
 
 func TestConfigureLLM_BlankSearchShowsRecommended(t *testing.T) {
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 1}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 1}, secrets: []string{testKey}})
 	res, err := ConfigureLLM(context.Background(), f, Options{})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -96,10 +96,10 @@ func TestConfigureLLM_BlankSearchShowsRecommended(t *testing.T) {
 
 func TestConfigureLLM_SearchUsesLiveCorpus(t *testing.T) {
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
-		inputs: []string{srv.URL, "sonnet"}, secrets: []string{testKey},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
+		inputs:  []string{srv.URL, "sonnet"}, secrets: []string{testKey},
+	})
 	res, err := ConfigureLLM(context.Background(), f, zenOptions())
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -117,10 +117,10 @@ func TestConfigureLLM_SearchUsesLiveCorpus(t *testing.T) {
 // match, Search again (the second choice, 0021-MADR Z11) returns to the
 // search, and a blank query shows the recommended menu.
 func TestConfigureLLM_SearchNoMatchReturnsToSearch(t *testing.T) {
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 1, 0},
-		inputs: []string{"zzzz", ""}, secrets: []string{testKey},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 1, 0},
+		inputs:  []string{"zzzz", ""}, secrets: []string{testKey},
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -136,10 +136,10 @@ func TestConfigureLLM_SearchNoMatchReturnsToSearch(t *testing.T) {
 // TestConfigureLLM_SearchNoMatchUsesTheQuery (0021-MADR Z11): a search with
 // no match offers the query as the model id, and choosing it returns it.
 func TestConfigureLLM_SearchNoMatchUsesTheQuery(t *testing.T) {
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
-		inputs: []string{"zzzz-1"}, secrets: []string{testKey},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0},
+		inputs:  []string{"zzzz-1"}, secrets: []string{testKey},
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -156,10 +156,10 @@ func TestConfigureLLM_SearchNoMatchUsesTheQuery(t *testing.T) {
 }
 
 func TestConfigureLLM_SearchAgain(t *testing.T) {
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 1, 1},
-		inputs: []string{"haiku", ""}, secrets: []string{testKey},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 1, 1},
+		inputs:  []string{"haiku", ""}, secrets: []string{testKey},
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -177,10 +177,10 @@ func TestConfigureLLM_SearchAgain(t *testing.T) {
 }
 
 func TestConfigureLLM_OtherFromSearchResults(t *testing.T) {
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 2},
-		inputs: []string{"haiku", "my-id"}, secrets: []string{testKey},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderClaude), 2},
+		inputs:  []string{"haiku", "my-id"}, secrets: []string{testKey},
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -193,10 +193,10 @@ func TestConfigureLLM_OtherFromSearchResults(t *testing.T) {
 func TestConfigureLLM_SearchResultsCapped(t *testing.T) {
 	many := zenManyIDs()
 	srv := zenServer(t, http.StatusOK, zenListing(many))
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
-		inputs: []string{srv.URL, "m-"}, secrets: []string{testKey},
-	}
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
+		inputs:  []string{srv.URL, "m-"}, secrets: []string{testKey},
+	})
 	if _, err := ConfigureLLM(context.Background(), f, zenOptions()); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestConfigureLLM_SearchResultsCapped(t *testing.T) {
 
 func TestConfigureLLM_CurrentModelListed(t *testing.T) {
 	n := len(catalog.Static(llmprovider.ProviderClaude))
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), n}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), n}, secrets: []string{testKey}})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderClaude, Model: "claude-opus-5"},
 	})
@@ -233,7 +233,7 @@ func TestConfigureLLM_CurrentModelListed(t *testing.T) {
 }
 
 func TestConfigureLLM_CurrentModelOnlyForSameProvider(t *testing.T) {
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}})
 	if _, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: Result{Provider: llmprovider.ProviderGemini, Model: "claude-opus-5"},
 	}); err != nil {
@@ -255,10 +255,10 @@ func TestConfigureLLM_CurrentModelOnlyForSameProvider(t *testing.T) {
 
 func TestConfigureLLM_StaticCatalogNotice(t *testing.T) {
 	srv := zenServer(t, http.StatusInternalServerError, "")
-	f := &fakePrompter{
-		t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
+	f := newFake(t, fakePrompter{
+		blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
 		inputs: []string{srv.URL}, secrets: []string{testKey},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, zenOptions())
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -274,7 +274,7 @@ func TestConfigureLLM_StaticCatalogNotice(t *testing.T) {
 }
 
 func TestConfigureLLM_NoStaticNoticeWithoutDiscover(t *testing.T) {
-	f := &fakePrompter{t: t, blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}}
+	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}})
 	if _, err := ConfigureLLM(context.Background(), f, Options{}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -293,11 +293,11 @@ func TestConfigureLLM_ChatGPTNoStaticNotice(t *testing.T) {
 			Request:    r,
 		}, nil
 	})}
-	f := &fakePrompter{
-		t: t, blankSearches: true,
-		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI), 0},
-		confirms: []bool{true},
-	}
+	f := newFake(t, fakePrompter{
+		blankSearches: true,
+		selects:       []int{providerIdx(t, llmprovider.ProviderOpenAI), 0},
+		confirms:      []bool{true},
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Existing: storedExisting(t, store, Result{
 			Provider:    llmprovider.ProviderOpenAI,
@@ -324,11 +324,11 @@ func TestConfigureLLM_ChatGPTNoStaticNotice(t *testing.T) {
 
 func TestConfigureLLM_FallbackSearch(t *testing.T) {
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
-		inputs: []string{srv.URL, "qwen", "claude"}, secrets: []string{testKey},
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
+		inputs:  []string{srv.URL, "qwen", "claude"}, secrets: []string{testKey},
 		multiSelects: [][]int{{0, 1}}, confirms: []bool{false},
-	}
+	})
 	opts := zenOptions()
 	opts.NeedFallbacks = true
 	res, err := ConfigureLLM(context.Background(), f, opts)
@@ -356,11 +356,11 @@ func TestConfigureLLM_FallbackSearch(t *testing.T) {
 
 func TestConfigureLLM_FallbackSearchLoops(t *testing.T) {
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
-	f := &fakePrompter{
-		t: t, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
-		inputs: []string{srv.URL, "qwen", "claude", ""}, secrets: []string{testKey},
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
+		inputs:  []string{srv.URL, "qwen", "claude", ""}, secrets: []string{testKey},
 		multiSelects: [][]int{{0}, {0}}, confirms: []bool{true},
-	}
+	})
 	opts := zenOptions()
 	opts.NeedFallbacks = true
 	res, err := ConfigureLLM(context.Background(), f, opts)
@@ -392,7 +392,7 @@ func TestConfigureLLM_FallbackSearchLoops(t *testing.T) {
 func TestSelectFallbacks_ReturnShape(t *testing.T) {
 	d := providers.Default().Descriptors()[0]
 
-	nothingLeft := &fakePrompter{t: t}
+	nothingLeft := newFake(t, fakePrompter{t: t})
 	got, err := selectFallbacks(nothingLeft, d, catalog.Catalog{Recommended: []string{"a"}, Usable: []string{"a"}}, "a", nil)
 	if err != nil {
 		t.Fatalf("selectFallbacks: %v", err)
@@ -401,7 +401,7 @@ func TestSelectFallbacks_ReturnShape(t *testing.T) {
 		t.Errorf("nothing remaining: got %#v with inputs %v, want nil and no prompt", got, nothingLeft.seenInput)
 	}
 
-	emptyPick := &fakePrompter{t: t, blankSearches: true, multiSelects: [][]int{{}}}
+	emptyPick := newFake(t, fakePrompter{blankSearches: true, multiSelects: [][]int{{}}})
 	got, err = selectFallbacks(emptyPick, d, catalog.Catalog{Recommended: []string{"a", "b"}, Usable: []string{"a", "b"}}, "a", nil)
 	if err != nil {
 		t.Fatalf("selectFallbacks: %v", err)
@@ -437,10 +437,10 @@ func TestConfigureLLM_ProfileReachesListing(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := zenServer(t, http.StatusOK, listing)
-			f := &fakePrompter{
-				t: t, selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
-				inputs: []string{srv.URL, ""}, secrets: []string{testKey},
-			}
+			f := newFake(t, fakePrompter{
+				selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
+				inputs:  []string{srv.URL, ""}, secrets: []string{testKey},
+			})
 			opts := zenOptions()
 			opts.Profile = tc.profile
 			res, err := ConfigureLLM(context.Background(), f, opts)

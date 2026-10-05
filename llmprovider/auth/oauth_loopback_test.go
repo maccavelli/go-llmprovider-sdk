@@ -221,7 +221,7 @@ func TestLoginBrowserOAuth_OpenAICompletesCallbackAndExchange(t *testing.T) {
 			return errors.New("authorization URL missing S256 PKCE")
 		}
 		callbackURL := query.Get("redirect_uri") + "?code=browser-secret&state=" + url.QueryEscape(query.Get("state"))
-		resp, err := http.Get(callbackURL) //nolint:gosec // Local callback URL created by the code under test.
+		resp, err := http.Get(callbackURL)
 		if err != nil {
 			return err
 		}
@@ -302,7 +302,7 @@ func TestLoginBrowserOAuth_GrokCompletesCallbackAndExchange(t *testing.T) {
 			t.Errorf("preflight: %v", err)
 		}
 		callbackURL := query.Get("redirect_uri") + "?code=browser-secret&state=" + url.QueryEscape(query.Get("state"))
-		resp, err := http.Get(callbackURL) //nolint:gosec // Local callback URL created by the code under test.
+		resp, err := http.Get(callbackURL)
 		if err != nil {
 			return err
 		}
@@ -435,7 +435,7 @@ func TestLoginBrowserOAuth_OpenURLDoesNotBlockWait(t *testing.T) {
 		query := authURL.Query()
 		go func() {
 			callbackURL := query.Get("redirect_uri") + "?code=browser-secret&state=" + url.QueryEscape(query.Get("state"))
-			resp, err := http.Get(callbackURL) //nolint:gosec // Local callback URL created by the code under test.
+			resp, err := http.Get(callbackURL)
 			if err == nil {
 				_ = resp.Body.Close()
 			}

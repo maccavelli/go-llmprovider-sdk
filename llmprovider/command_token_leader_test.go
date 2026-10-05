@@ -17,7 +17,10 @@ type tokenResult struct {
 // that started the shared run cancels it; a caller waiting on that run, whose
 // own context is live, gets a token instead of the leader's cancellation.
 func TestCommandToken_WaiterOutlivesLeaderCancel(t *testing.T) {
+	t.Parallel()
 	c := NewCommandToken(helperArgv(t, "slowcount", filepath.Join(t.TempDir(), "runs"))...)
+	joined := make(chan struct{}, 1)
+	c.onJoin = func() { joined <- struct{}{} }
 	leaderCtx, cancel := context.WithCancel(context.Background())
 	leaderDone := make(chan error, 1)
 	go func() {
@@ -34,7 +37,11 @@ func TestCommandToken_WaiterOutlivesLeaderCancel(t *testing.T) {
 		tok, err := c.Token(context.Background())
 		waiterDone <- tokenResult{tok, err}
 	}()
-	time.Sleep(50 * time.Millisecond) // the waiter is now waiting on the leader's run
+	select { // the waiter is now waiting on the leader's run
+	case <-joined:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the waiter never joined the leader's run")
+	}
 	cancel()
 	if err := <-leaderDone; err == nil {
 		t.Log("the leader's run finished before its cancellation; nothing to show")

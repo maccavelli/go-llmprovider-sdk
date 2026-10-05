@@ -285,7 +285,7 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 		switch {
 		case len(line) == 0 && err == nil:
 			if done, err := dispatch(); done || err != nil {
-				return result, err
+				return finished(result, err)
 			}
 		case bytes.HasPrefix(line, dataPrefix):
 			if len(data) > 0 {
@@ -306,12 +306,22 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 		}
 	}
 	if done, err := dispatch(); done || err != nil {
-		return result, err
+		return finished(result, err)
 	}
 	// The service may have generated the answer, so WithRetry asks again at
 	// most once (0021-MADR D1).
 	return nil, fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, provider,
 		transport.AfterReply(errEndedEarly))
+}
+
+// finished is a stream's outcome: the response once it completed, or the
+// error alone. A failed event never hands back the partial response with its
+// error (R7; 0021-MADR W14).
+func finished(result *llmprovider.Response, err error) (*llmprovider.Response, error) {
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 var (

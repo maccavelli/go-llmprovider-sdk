@@ -28,10 +28,16 @@ type flaws struct {
 	noReauth       bool // never renews a refused token
 	noFinish       bool // never says why the answer ended
 	emptyRole      bool // sends an empty Role as "role":""
+	// The W12 checks' faults (0021-MADR W12).
+	dropInstructions bool // never sends Request.Instructions
+	decodeBypass     bool // reports an undecodable 200 as a retryable outage
+	noLengthCheck    bool // takes a cut answer for a whole one
+	emptyArguments   bool // reports a call's arguments as ""
 }
 
 // refProvider is a small conformant provider over a JSON wire: it POSTs
-// {"text","tool"} and reads {"text"} or {"call":{"name","arguments"}}.
+// {"text","tool","model","instructions","outputs"} and reads {"text"} or
+// {"call":{"name","arguments"},"finish"}.
 type refProvider struct {
 	baseURL   string
 	src       llmprovider.TokenSource
@@ -95,7 +101,17 @@ func (p *refProvider) Generate(ctx context.Context, req *llmprovider.Request) (*
 // generateOnce sends req once, with a token fetched for this send.
 func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	tool, _ := req.ToolChoice.Tool()
-	fields := map[string]string{"text": req.Input[0].(llmprovider.MessageItem).Text, "tool": tool}
+	var outputs []string
+	for _, item := range req.Input {
+		if out, ok := item.(llmprovider.FunctionCallOutputItem); ok {
+			outputs = append(outputs, out.Output)
+		}
+	}
+	fields := map[string]string{"text": req.Input[0].(llmprovider.MessageItem).Text, "tool": tool,
+		"model": req.Model, "instructions": req.Instructions, "outputs": strings.Join(outputs, ",")}
+	if p.flaws.dropInstructions {
+		delete(fields, "instructions")
+	}
 	if p.flaws.emptyRole {
 		fields["role"] = string(req.Input[0].(llmprovider.MessageItem).Role)
 	}
@@ -127,16 +143,30 @@ func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request
 			Name      string `json:"name"`
 			Arguments string `json:"arguments"`
 		} `json:"call"`
+		Finish string `json:"finish"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
-		return nil, fmt.Errorf("%w: %w", llmprovider.ErrProviderUnavailable, err)
+		if p.flaws.decodeBypass {
+			return nil, fmt.Errorf("%w: %w", llmprovider.ErrProviderUnavailable, err)
+		}
+		return nil, fmt.Errorf("%w: %w", llmprovider.ErrIncomplete, err)
+	}
+	if out.Finish == string(llmprovider.FinishLength) && out.Call != nil && !p.flaws.noLengthCheck {
+		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
 	}
 	result := &llmprovider.Response{FinishReason: llmprovider.FinishStop}
+	if out.Call != nil {
+		result.FinishReason = llmprovider.FinishToolCalls
+	}
 	if p.flaws.noFinish {
 		result.FinishReason = ""
 	}
 	if out.Call != nil {
-		result.Output = append(result.Output, llmprovider.FunctionCallItem{CallID: "call_1", Name: out.Call.Name, Arguments: out.Call.Arguments})
+		arguments := out.Call.Arguments
+		if p.flaws.emptyArguments {
+			arguments = ""
+		}
+		result.Output = append(result.Output, llmprovider.FunctionCallItem{CallID: "call_1", Name: out.Call.Name, Arguments: arguments})
 	}
 	if out.Text != "" {
 		result.Output = append(result.Output, llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: out.Text})
@@ -169,6 +199,12 @@ func refHarness(f flaws) Harness {
 		Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 			w.WriteHeader(status)
 			_, _ = io.WriteString(w, `{"error":"llmtest"}`)
+		},
+		Fidelity:    true,
+		StrictTools: true,
+		Garbled:     func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
+		Truncated: func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"call":{"name":"llmtest_tool","arguments":"{\"city\":"},"finish":"length"}`)
 		},
 	}
 }
@@ -230,6 +266,10 @@ func TestRun_NamesTheBrokenRule(t *testing.T) {
 		{"never renews a refused token", flaws{noReauth: true}, "R16-reauth: R16 (a refused token is renewed once"},
 		{"never says why it ended", flaws{noFinish: true}, "R7-R9-response: R7 (Response invariants, 0020-MADR F11): a text reply has no FinishReason"},
 		{"sends an empty role", flaws{emptyRole: true}, `R6-empty-role: R6 (an empty Role is the user's, 0020-MADR F10): the request carries "role":""`},
+		{"drops the instructions", flaws{dropInstructions: true}, `W12-fidelity: W12 (fidelity, 0021-MADR D5): the request's Instructions`},
+		{"retries an undecodable reply", flaws{decodeBypass: true}, "W12-garbled: W12 (an undecodable reply, 0021-MADR D1): Generate returned"},
+		{"takes a cut answer for a whole one", flaws{noLengthCheck: true}, "W12-truncated: W12 (a cut answer, 0021-MADR W3)"},
+		{"drops a call's arguments", flaws{emptyArguments: true}, `W12-strict-tools: W12 (strict tools, 0021-MADR W1): the call to "llmtest_tool" has arguments ""`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rec := newRecorder()
@@ -375,4 +415,32 @@ func TestRun_NoReauthSkipsTheCheck(t *testing.T) {
 			t.Fatalf("the skipped check still reported %q", msg)
 		}
 	}
+}
+
+// TestRun_W12ChecksAreOptional (0021-MADR W12): a harness that sets none of
+// the W12 checks runs none of them, so it passes as before, even for a
+// provider that would fail them.
+func TestRun_W12ChecksAreOptional(t *testing.T) {
+	h := refHarness(flaws{dropInstructions: true, decodeBypass: true, noLengthCheck: true, emptyArguments: true})
+	h.Fidelity, h.StrictTools, h.Garbled, h.Truncated = false, false, nil, nil
+	rec := newRecorder()
+	runChecks(rec, h)
+	if got := rec.failures(); len(got) != 0 {
+		t.Fatalf("a harness without the W12 checks reported %q", got)
+	}
+}
+
+// TestRun_StrictToolsNeedsToolCall: StrictTools with no ToolCall is a
+// harness error.
+func TestRun_StrictToolsNeedsToolCall(t *testing.T) {
+	h := refHarness(flaws{})
+	h.ToolCall = nil
+	rec := newRecorder()
+	runChecks(rec, h)
+	for _, msg := range rec.failures() {
+		if strings.Contains(msg, "StrictTools needs the Harness's ToolCall") {
+			return
+		}
+	}
+	t.Fatalf("failures %q; want StrictTools to need ToolCall", rec.failures())
 }

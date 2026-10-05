@@ -9,14 +9,16 @@ import (
 
 // Finish maps a service's finish reason through table (0021-MADR W3). A value
 // the table does not name is kept as the service sent it, as Response's
-// contract says. A reply that carries a call and would finish "stop" finishes
-// "tool_calls", as every wire reports a call.
+// contract says. A reply that carries a call and would finish "stop", or
+// names no reason at all, finishes "tool_calls", as every wire reports a call
+// (0021-MADR amendment "the empty finish reason and the cut answer's
+// reason").
 func Finish(raw string, table map[string]llmprovider.FinishReason, hasCall bool) llmprovider.FinishReason {
 	finish, ok := table[raw]
 	if !ok {
 		finish = llmprovider.FinishReason(raw)
 	}
-	if hasCall && finish == llmprovider.FinishStop {
+	if hasCall && (finish == llmprovider.FinishStop || finish == "") {
 		return llmprovider.FinishToolCalls
 	}
 	return finish

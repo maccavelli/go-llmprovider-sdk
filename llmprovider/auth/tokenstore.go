@@ -50,7 +50,14 @@ type OAuthSession struct {
 	// now is the session's clock; nil is time.Now. Tests set it. It is an
 	// interface, not a func, so that OAuthSession stays comparable.
 	now sessionClock
+	// onJoin, when set, is told as a caller joins the refresh in flight:
+	// tests wait on it rather than sleep (0021-MADR Z12). An interface, as now
+	// is, so that OAuthSession stays comparable.
+	onJoin joinHook
 }
+
+// joinHook is told when a caller joins a refresh in flight.
+type joinHook interface{ joined() }
 
 // sessionClock tells an OAuthSession the time.
 type sessionClock interface{ Now() time.Time }

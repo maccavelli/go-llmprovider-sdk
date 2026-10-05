@@ -11,12 +11,11 @@ import (
 // and the environment allowed, token_stdin still asks for the credential;
 // the variable is never offered (codex login/src/auth/access_token.rs:1-14).
 func TestConfigureLLM_IgnoresCodexAccessTokenEnv(t *testing.T) {
-	f := &fakePrompter{
-		t:             t,
+	f := newFake(t, fakePrompter{
 		blankSearches: true,
 		selects:       []int{providerIdx(t, llmprovider.ProviderOpenAI), 3, 0},
 		secrets:       []string{testKey},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		AllowEnv:   true,
 		TokenStore: newMemoryTokenStore(),
@@ -42,12 +41,11 @@ func TestConfigureLLM_IgnoresCodexAccessTokenEnv(t *testing.T) {
 func TestConfigureLLM_TokenStdinStillAcceptsChatGPTToken(t *testing.T) {
 	pasted := testJWT(`{"sub":"pasted-chatgpt-access"}`)
 	store := newMemoryTokenStore()
-	f := &fakePrompter{
-		t:       t,
+	f := newFake(t, fakePrompter{
 		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 3},
 		secrets: []string{pasted},
 		inputs:  []string{"chatgpt-model"},
-	}
+	})
 	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
 	if err != nil {
 		t.Fatalf("ConfigureLLM() error = %v", err)
