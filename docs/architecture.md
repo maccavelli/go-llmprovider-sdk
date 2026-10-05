@@ -97,7 +97,7 @@ standard library is left out.
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
 | `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/kiloendpoint` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
-| `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
+| `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/transport` | `DefaultClient`, `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `ProbeGenerateHealth`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 | `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
@@ -137,8 +137,9 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/ownerper
    a `Token`, sets it with `Token.Apply`, and sends the request with the
    `Settings` client and `User-Agent`.
 4. **The reply.** A failure status becomes an `*APIError` through
-   `ClassifyHTTPError`. After a 401, an `InvalidatingSource` is invalidated
-   and the request sent once more. A success is decoded into a `Response`:
+   `ClassifyHTTPError`. After a 401, an `InvalidatingSource` is invalidated,
+   by the refused token when it is a `TokenInvalidator`, and the request sent
+   once more. A success is decoded into a `Response`:
    `Output`, `FinishReason` and `Usage`.
 5. **Around it.** `WithRetry` wraps a provider and retries by the error's
    kind; a provider that lists models still does, through it. `Stream` runs `Generate` and emits its result as events, since no
@@ -279,8 +280,11 @@ for a session, from the store.
   only the other providers' catalogs.
 - **After a 401** a provider invalidates any `InvalidatingSource` and retries
   once: a `CommandToken` reruns its command, and an `OAuthSession` refreshes.
-  Every built-in provider does it through `internal/wire`'s `Reauth`, and
-  `llmtest` checks it (0020-MADR F2).
+  A source that is also a `TokenInvalidator`, as both are, is told which
+  token was refused, and ignores a 401 on a token it has already replaced,
+  so concurrent 401s renew it once (0021-MADR D5). Every built-in provider
+  does it through `internal/wire`'s `Reauth`, and `llmtest` checks it
+  (0020-MADR F2).
 - **Sessions are `auth`'s.** A provider gives a session with no HTTP client
   its own through `OAuthSession.UseHTTPClient`, so refreshes share the
   provider's transport.
@@ -289,7 +293,9 @@ for a session, from the store.
   - **Creating one:**
     - `LoginBrowserOAuth` uses PKCE on a loopback redirect.
     - `StartDeviceOAuth` returns a `DeviceLogin` handle: the user code, the
-      verification URI and the expiry, then `Wait` and `Cancel`.
+      verification URI and the expiry, then `Wait` and `Cancel`. `Wait`
+      polls through transport errors, 429 and 5xx, backing off up to 60 s,
+      until the code expires.
     - `LoginDeviceOAuth` is the same flow in one call.
   - **Checked before use.** Every login verifies its `id_token` before any
     claim is used:
@@ -300,10 +306,20 @@ for a session, from the store.
     A missing or failing `id_token` fails the login. A caller's issuer whose
     discovery fails is an error; only the built-in issuers fall back to
     built-in endpoints and keys.
-  - **Refresh.** The session refreshes before expiry and once after a 401. A
-    rotation is kept even when saving it fails: the failure goes to the
-    session's `Logger`, and the save is retried. After a rejected refresh the
-    session re-reads the store, and adopts a rotation another process saved.
+  - **Refresh.** The session refreshes before expiry and once after a 401:
+    - a token is due five minutes before it expires, or at half its
+      lifetime when that is shorter;
+    - an early refresh that fails, other than with `ErrAuthFailure`, keeps
+      the current token while it has more than 30 s left, logs the failure,
+      and waits 10 to 30 s before the next;
+    - each attempt is bounded at 15 s, and a reply is read up to 1 MiB;
+    - a rotated refresh token is kept even when the rest of the reply cannot
+      be decoded.
+
+    A rotation is kept even when saving it fails: the failure goes to the
+    session's `Logger`, and the save is retried at most every 30 s, trying
+    the lock once without waiting. After a rejected refresh the session
+    re-reads the store, and adopts a rotation another process saved.
   - `RevokeOAuthSession` ends it.
 - **`TokenStore`** persists sessions. `FileTokenStore` keeps one `0600` JSON
   file per provider:
@@ -311,7 +327,9 @@ for a session, from the store.
     `fsync`;
   - it refuses a file over 64 KiB;
   - as a `RefreshLocker`, it holds a lock file across processes for each
-    refresh, so a refresh token is never spent twice.
+    refresh, so a refresh token is never spent twice. A holder touches the
+    lock every 5 s. A waiter takes it over when it has seen the lock's mtime
+    unchanged for 30 s by its own clock, and gives up after 40 s.
 - **Formatting never shows a secret.** `Token`, `StaticToken` and
   `*OAuthSession` print `[redacted]` for every secret, under `fmt` and `slog`.
 - **Kilo device login.** `StartDeviceOAuth(ctx, "kilo", …)` runs Kilo's
@@ -325,8 +343,9 @@ for a session, from the store.
   - concurrent callers share one run;
   - a failure names the command, never its output.
 
-  It is an `InvalidatingSource`: a provider that gets a 401 invalidates the
-  source and retries once.
+  It is an `InvalidatingSource` and a `TokenInvalidator`: a provider that
+  gets a 401 on its current output invalidates the source and retries
+  once.
 - **`VendorCLISession`** reads the Codex or Grok CLI's own login on every
   request and never refreshes it.
 - **A `Descriptor`** lists a provider's `AuthMethod`s, among what a menu

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"slices"
@@ -35,7 +36,22 @@ const (
 	oauthRefreshBackoff  = 200 * time.Millisecond
 	// oauthRefreshToken is the refresh grant type, token field and hint.
 	oauthRefreshToken = "refresh_token"
+	// oauthEarlyRefreshFloor is how much life a token must have left to be
+	// used after its early refresh failed; the next try waits
+	// oauthEarlyRefreshRetry plus up to oauthEarlyRefreshJitter (0021-MADR
+	// T2).
+	oauthEarlyRefreshFloor  = 30 * time.Second
+	oauthEarlyRefreshRetry  = 10 * time.Second
+	oauthEarlyRefreshJitter = 20 * time.Second
+	// oauthResaveInterval spaces the retries of an unsaved rotation's save
+	// (0021-MADR T10).
+	oauthResaveInterval = 30 * time.Second
 )
+
+// oauthRefreshAttemptTimeout bounds one refresh attempt, from send until its
+// body is read, so a stalled issuer cannot hold the refresh lock for long
+// (0021-MADR T8). It is a variable so that tests can shorten it.
+var oauthRefreshAttemptTimeout = 15 * time.Second
 
 // oauthTerminalRefreshCodes mean the refresh token is dead: Codex's permanent
 // failures (login/src/auth/manager.rs:1657-1690) and the Grok CLI's
@@ -89,20 +105,30 @@ func oauthHTTPStatusError(op string, resp *http.Response) error {
 }
 
 type oauthRefreshResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int64  `json:"expires_in"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
+	ExpiresIn    oauthSeconds `json:"expires_in"`
 }
 
 // Token returns the current bearer token, refreshing and persisting it when
-// it is expired or within the refresh skew. A refreshed session is adopted
-// before it is saved: if the save fails, the fresh token is still returned,
-// the failure goes to Logger, and the save is retried on the next call, so a
-// rotated refresh token is never discarded (0016-MADR D4).
+// it is expired or due: within the refresh skew, or within half its lifetime
+// when that is shorter (0021-MADR T3). A refreshed session is adopted before
+// it is saved: if the save fails, the fresh token is still returned, the
+// failure goes to Logger, and the save is retried at most every 30 s without
+// waiting for the refresh lock, so a rotated refresh token is never discarded
+// (0016-MADR D4; 0021-MADR T10).
+//
+// An early refresh that fails with anything but ErrAuthFailure, while the
+// token has more than 30 s left, returns the token: the failure goes to
+// Logger, and the next refresh waits 10 to 30 s (0021-MADR T2).
 func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 	s.mu.Lock()
+	now := s.clock()
 	token, current := s.currentToken()
-	retrySave := current && s.spentRefresh != "" && s.Store != nil
+	if !current && now.Before(s.nextRefresh) {
+		token, current = s.heldToken()
+	}
+	retrySave := current && s.spentRefresh != "" && s.Store != nil && !now.Before(s.nextResave)
 	if current && !retrySave {
 		s.mu.Unlock()
 		return token, nil
@@ -133,6 +159,7 @@ func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 	var unsaved *OAuthSession
 	if retrySave {
 		unsaved = s.persistable()
+		s.nextResave = now.Add(oauthResaveInterval)
 	}
 	s.mu.Unlock()
 
@@ -153,11 +180,16 @@ func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 		if err == nil {
 			s.adopt(out.next)
 			token = out.token
-			s.spentRefresh = ""
+			s.spentRefresh, s.nextRefresh = "", time.Time{}
 			if out.saveErr != nil {
 				s.spentRefresh = out.spent
 				logUnsavedRotation(logger, state.provider, out.saveErr)
 			}
+		} else if held, ok := s.heldToken(); ok && ctx.Err() == nil && !errors.Is(err, llmprovider.ErrAuthFailure) {
+			//nolint:gosec // G404: non-crypto jitter between refresh attempts
+			s.nextRefresh = s.clock().Add(oauthEarlyRefreshRetry + rand.N(oauthEarlyRefreshJitter))
+			logEarlyRefreshFailure(logger, state.provider, err)
+			token, err = held, nil
 		} else {
 			token = llmprovider.Token{}
 		}
@@ -188,10 +220,14 @@ var errStoreMovedOn = errors.New("oauth: the store holds a newer session; the un
 
 // persistRotation retries saving a rotated session, under the store's
 // refresh lock, and only while the store still holds the refresh token that
-// rotation spent (or nothing).
+// rotation spent (or nothing). It tries the lock once, with a context already
+// done, so a call that holds a valid token never waits for another process's
+// refresh (0021-MADR T10).
 func persistRotation(ctx context.Context, state oauthSessionState, next *OAuthSession, spent string) error {
 	if locker, ok := state.store.(RefreshLocker); ok {
-		unlock, err := locker.LockRefresh(ctx, state.provider)
+		once, cancel := context.WithCancel(ctx)
+		cancel()
+		unlock, err := locker.LockRefresh(once, state.provider)
 		if err != nil {
 			return err
 		}
@@ -210,6 +246,16 @@ func logUnsavedRotation(logger *slog.Logger, provider llmprovider.ProviderID, er
 		return
 	}
 	logger.Warn("oauth: rotated session not saved; it is kept in memory and the save is retried",
+		"provider", provider, "error", err)
+}
+
+// logEarlyRefreshFailure reports an early refresh that failed while the
+// current token still works.
+func logEarlyRefreshFailure(logger *slog.Logger, provider llmprovider.ProviderID, err error) {
+	if logger == nil {
+		return
+	}
+	logger.Warn("oauth: early refresh failed; the current token is used and the refresh is retried",
 		"provider", provider, "error", err)
 }
 
@@ -234,22 +280,68 @@ func (s *OAuthSession) Account() (id string, fedRAMP bool) {
 // that gets a 401 invalidates the session and retries once.
 func (s *OAuthSession) Invalidate() {
 	s.mu.Lock()
-	s.Expiry = time.Now().Add(-time.Second)
+	s.Expiry = s.clock().Add(-time.Second)
 	s.mu.Unlock()
 }
 
+// InvalidateToken expires the session when t is its current access token, so
+// its next Token refreshes; a token the session has already replaced is left
+// alone. With it, an *OAuthSession is a TokenInvalidator (0021-MADR D5).
+func (s *OAuthSession) InvalidateToken(t llmprovider.Token) {
+	s.mu.Lock()
+	if s.Access != "" && s.Access == t.Value {
+		s.Expiry = s.clock().Add(-time.Second)
+	}
+	s.mu.Unlock()
+}
+
+func (s *OAuthSession) clock() time.Time {
+	if s.now != nil {
+		return s.now.Now()
+	}
+	return time.Now()
+}
+
+// currentToken is the access token when it is not yet due for refresh.
 func (s *OAuthSession) currentToken() (llmprovider.Token, bool) {
 	if s.Access == "" {
 		return llmprovider.Token{}, false
 	}
-	if !s.Expiry.IsZero() && time.Until(s.Expiry) <= oauthRefreshSkew {
+	if !s.Expiry.IsZero() && s.Expiry.Sub(s.clock()) <= s.refreshMargin() {
 		return llmprovider.Token{}, false
 	}
-	return llmprovider.Token{
-		Value:  s.Access,
-		Type:   llmprovider.TokenBearer,
-		Expiry: s.Expiry,
-	}, true
+	return s.bearer(), true
+}
+
+// heldToken is the access token while it has more than
+// oauthEarlyRefreshFloor left: what Token returns after an early refresh
+// failed (0021-MADR T2).
+func (s *OAuthSession) heldToken() (llmprovider.Token, bool) {
+	if s.Access == "" || s.Expiry.IsZero() || s.Expiry.Sub(s.clock()) <= oauthEarlyRefreshFloor {
+		return llmprovider.Token{}, false
+	}
+	return s.bearer(), true
+}
+
+func (s *OAuthSession) bearer() llmprovider.Token {
+	return llmprovider.Token{Value: s.Access, Type: llmprovider.TokenBearer, Expiry: s.Expiry}
+}
+
+// refreshMargin is how long before expiry the token is due: the five-minute
+// skew, or half the token's lifetime when that is shorter, so a token that
+// lives five minutes or less is not refreshed on every call (0021-MADR T3).
+// The lifetime is exp − iat from the access JWT, else Expiry − issued.
+func (s *OAuthSession) refreshMargin() time.Duration {
+	lifetime := time.Duration(0)
+	if exp, iat := jwtTimes(s.Access); !exp.IsZero() && !iat.IsZero() {
+		lifetime = exp.Sub(iat)
+	} else if !s.issued.IsZero() && !s.Expiry.IsZero() {
+		lifetime = s.Expiry.Sub(s.issued)
+	}
+	if lifetime <= 0 {
+		return oauthRefreshSkew
+	}
+	return min(oauthRefreshSkew, lifetime/2)
 }
 
 type oauthSessionState struct {
@@ -266,6 +358,7 @@ type oauthSessionState struct {
 	tokenURL   string
 	store      TokenStore
 	httpClient *http.Client
+	now        sessionClock
 }
 
 func (s *OAuthSession) refreshState() oauthSessionState {
@@ -279,6 +372,7 @@ func (s *OAuthSession) refreshState() oauthSessionState {
 		tokenURL:   s.TokenURL,
 		store:      s.Store,
 		httpClient: s.HTTPClient,
+		now:        s.now,
 	}
 }
 
@@ -323,6 +417,7 @@ func (s *OAuthSession) adopt(next *OAuthSession) {
 	s.TokenURL = next.TokenURL
 	s.Store = next.Store
 	s.HTTPClient = next.HTTPClient
+	s.issued = next.issued
 }
 
 func refreshOAuthSession(ctx context.Context, state oauthSessionState) (*OAuthSession, llmprovider.Token, error) {
@@ -342,9 +437,11 @@ func refreshOAuthSession(ctx context.Context, state oauthSessionState) (*OAuthSe
 	return nil, llmprovider.Token{}, lastErr
 }
 
-// refreshOAuthSessionOnce makes one refresh request. retry reports a
-// transport error, 429 or 5xx.
+// refreshOAuthSessionOnce makes one refresh request, bounded by
+// oauthRefreshAttemptTimeout. retry reports a transport error, 429 or 5xx.
 func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next *OAuthSession, token llmprovider.Token, retry bool, err error) {
+	ctx, cancel := context.WithTimeout(ctx, oauthRefreshAttemptTimeout)
+	defer cancel()
 	req, err := newRefreshRequest(ctx, state)
 	if err != nil {
 		return nil, llmprovider.Token{}, false, err
@@ -353,7 +450,7 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 	if client == nil {
 		client = transport.DefaultClient()
 	}
-	resp, err := doBounded(client, req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, llmprovider.Token{}, true, fmt.Errorf("oauth: refresh request: %w", err)
 	}
@@ -362,18 +459,19 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 		return nil, llmprovider.Token{}, retry, refreshFailure(resp)
 	}
 
-	var payload oauthRefreshResponse
-	decodeErr := json.NewDecoder(resp.Body).Decode(&payload)
-	closeErr := resp.Body.Close()
-	if decodeErr != nil {
-		err := fmt.Errorf("oauth: decode refresh response: %w", decodeErr)
-		if closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("oauth: close refresh response: %w", closeErr))
-		}
-		return nil, llmprovider.Token{}, false, err
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, oauthResponseLimit+1))
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		readErr = errors.Join(readErr, closeErr)
 	}
-	if closeErr != nil {
-		return nil, llmprovider.Token{}, false, fmt.Errorf("oauth: close refresh response: %w", closeErr)
+	switch {
+	case readErr != nil:
+		return nil, llmprovider.Token{}, false, fmt.Errorf("oauth: read refresh response: %w", readErr)
+	case len(raw) > oauthResponseLimit:
+		return nil, llmprovider.Token{}, false, fmt.Errorf("oauth: refresh response is larger than %d bytes", oauthResponseLimit)
+	}
+	payload, err := decodeRefreshResponse(raw)
+	if err != nil {
+		return nil, llmprovider.Token{}, false, err
 	}
 	if payload.AccessToken == "" {
 		return nil, llmprovider.Token{}, false, errors.New("oauth: refresh response missing access token")
@@ -383,11 +481,15 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 	if refresh == "" {
 		refresh = state.refresh
 	}
+	now := time.Now()
+	if state.now != nil {
+		now = state.now.Now()
+	}
 	next = &OAuthSession{
 		Provider:   state.provider,
 		Access:     payload.AccessToken,
 		Refresh:    refresh,
-		Expiry:     tokenExpiry(payload.AccessToken, payload.ExpiresIn, time.Now()),
+		Expiry:     tokenExpiry(payload.AccessToken, payload.ExpiresIn, now),
 		Issuer:     state.issuer,
 		ClientID:   state.clientID,
 		AccountID:  state.accountID,
@@ -395,6 +497,8 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 		TokenURL:   state.tokenURL,
 		Store:      state.store,
 		HTTPClient: state.httpClient,
+		issued:     now,
+		now:        state.now,
 	}
 	return next, llmprovider.Token{
 		Value:  next.Access,
@@ -490,16 +594,34 @@ func refreshErrorCode(body []byte) string {
 	return strings.ToLower(top.Code)
 }
 
+// decodeRefreshResponse decodes a refresh reply. When the full decode fails,
+// as on an unreadable expires_in, the two tokens alone are kept if both are
+// present: the issuer has already rotated the refresh token, and losing it
+// would replay a spent one (0021-MADR T4).
+func decodeRefreshResponse(raw []byte) (oauthRefreshResponse, error) {
+	var payload oauthRefreshResponse
+	err := json.Unmarshal(raw, &payload)
+	if err == nil {
+		return payload, nil
+	}
+	var tokens struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	if json.Unmarshal(raw, &tokens) == nil && tokens.AccessToken != "" && tokens.RefreshToken != "" {
+		return oauthRefreshResponse{AccessToken: tokens.AccessToken, RefreshToken: tokens.RefreshToken}, nil
+	}
+	return oauthRefreshResponse{}, fmt.Errorf("oauth: decode refresh response: %w", err)
+}
+
 // tokenExpiry is the access token's JWT exp when it has one, else now plus
-// expires_in (3600 s when absent), as Codex reads it (MADR 0012 §5.2).
-func tokenExpiry(access string, expiresIn int64, now time.Time) time.Time {
+// expires_in (3600 s when absent or unusable), as Codex reads it (MADR 0012
+// §5.2).
+func tokenExpiry(access string, expiresIn oauthSeconds, now time.Time) time.Time {
 	if exp := jwtExpiry(access); !exp.IsZero() {
 		return exp
 	}
-	if expiresIn <= 0 {
-		expiresIn = 3600
-	}
-	return now.Add(time.Duration(expiresIn) * time.Second)
+	return now.Add(durationFromSeconds(float64(expiresIn), time.Hour, false))
 }
 
 // reloadOrRefresh re-reads the session from its store before refreshing:
@@ -571,7 +693,7 @@ func loadRotated(ctx context.Context, state oauthSessionState) *OAuthSession {
 		(state.spent != "" && stored.Refresh == state.spent) {
 		return nil
 	}
-	stored.Store, stored.HTTPClient = state.store, state.httpClient
+	stored.Store, stored.HTTPClient, stored.now = state.store, state.httpClient, state.now
 	return stored
 }
 

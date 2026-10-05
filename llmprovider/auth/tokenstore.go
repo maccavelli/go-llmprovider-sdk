@@ -39,7 +39,21 @@ type OAuthSession struct {
 	// spentRefresh is the refresh token the last refresh spent, while its
 	// rotated session is not yet saved; "" once saved.
 	spentRefresh string
+	// issued is when the last refresh or exchange succeeded, in this process;
+	// it measures the token's lifetime when the token is not a JWT with iat
+	// (0021-MADR T3).
+	issued time.Time
+	// nextRefresh is when a refresh may next be tried after an early one
+	// failed (0021-MADR T2); nextResave is when an unsaved rotation's save
+	// may next be tried (T10).
+	nextRefresh, nextResave time.Time
+	// now is the session's clock; nil is time.Now. Tests set it. It is an
+	// interface, not a func, so that OAuthSession stays comparable.
+	now sessionClock
 }
+
+// sessionClock tells an OAuthSession the time.
+type sessionClock interface{ Now() time.Time }
 
 // String renders the session without its access or refresh token
 // (0016-MADR D5). It takes the session's lock, so it must not be called while

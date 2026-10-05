@@ -31,11 +31,12 @@ func stallServer(t *testing.T) *httptest.Server {
 // TestAuthRequests_Bounded (0021-MADR D2, amendment item 6): with no total
 // timeout on the default client, every auth request still ends at
 // authRequestTimeout when the issuer stalls its body: the device poll and the
-// token exchange, the refresh, the issuer's keys, and Kilo's device login.
+// token exchange, the issuer's keys, and Kilo's device login. The refresh
+// ends at oauthRefreshAttemptTimeout, its own bound (0021-MADR T8).
 func TestAuthRequests_Bounded(t *testing.T) {
-	old := authRequestTimeout
-	authRequestTimeout = 100 * time.Millisecond
-	t.Cleanup(func() { authRequestTimeout = old })
+	old, oldAttempt := authRequestTimeout, oauthRefreshAttemptTimeout
+	authRequestTimeout, oauthRefreshAttemptTimeout = 100*time.Millisecond, 100*time.Millisecond
+	t.Cleanup(func() { authRequestTimeout, oauthRefreshAttemptTimeout = old, oldAttempt })
 	srv := stallServer(t)
 	client := &http.Client{} // no timeout of its own
 	readAll := func(resp *http.Response) error {

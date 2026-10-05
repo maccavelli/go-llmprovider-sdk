@@ -2,7 +2,8 @@
 // the user running the process (0010-MADR D10).
 //
 // On Unix the directory is created with mode 0o700 and each file is set to
-// 0o600. On Windows the directory gets a protected DACL whose one entry, full
+// 0o600. An existing directory must be the user's own, and not a symlink;
+// it loses any group or other write bit (0021-MADR T15). On Windows the directory gets a protected DACL whose one entry, full
 // access for the current user, is inherited by everything created in it, and
 // each file gets the same entry, not inherited; the user also becomes the
 // owner.

@@ -164,7 +164,9 @@ In this order:
    otherwise an error of the right kind (R24, R25), with a redacted,
    bounded message (R35).
 7. **After a 401,** if the source is an `llmprovider.InvalidatingSource`,
-   close the reply, call `Invalidate`, and send the request once more. Build
+   close the reply, call `InvalidateToken` with the refused token when the
+   source is also an `llmprovider.TokenInvalidator` and `Invalidate`
+   otherwise, and send the request once more (0021-MADR D5). Build
    it again, with a new body reader and a fresh `Token`: the first send has
    read the body. A built-in provider does this with
    `wire.Reauth(p.src, send)` from `llmprovider/internal/wire`, around a

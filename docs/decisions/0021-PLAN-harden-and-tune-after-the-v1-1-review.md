@@ -649,8 +649,11 @@ V3.2 under Verification.
     `iat = now` and `exp = now + 240s`; 10 `Token` calls make 0 refreshes.
     Today they make 10.
 * **Change** in `llmprovider/auth/oauth_session.go`:
-  * an unexported clock, `now func() time.Time` (nil means `time.Now`),
-    used everywhere the file calls `time.Now` or `time.Until`;
+  * an unexported clock, ~~`now func() time.Time`~~ (nil means `time.Now`),
+    used everywhere the file calls `time.Now` or `time.Until`. *(Deviation
+    2026-10-04: the field is `now sessionClock`, an interface with `Now()
+    time.Time`, since a func field makes `OAuthSession` incomparable and
+    fails `api-check`.)*
   * `refreshMargin()` is `min(oauthRefreshSkew, lifetime/2)`. The
     lifetime is `exp − iat` from the access JWT, or `Expiry − issued`
     when `issued` is set. `issued` is a new unexported field, set when a
@@ -1881,3 +1884,223 @@ need `ReasoningItem.Format`, which `HEAD` lacks:
       `TestLive_OpencodeSystemMessage`, where the reply "Hello" did not
       follow the system instruction. Each passed 2 of 2 on `HEAD` and 2 of
       2 on the tree.
+
+### Deviation 2026-10-04: step 3.2's clock field breaks `api-check`
+
+* **Found:** G7's `api-check` failed with `incompatible:
+  ./llmprovider/auth.OAuthSession: old is comparable, new is not` (1
+  incompatible change against `v1.1.0`).
+  * The cause is step 3.2's clock as written, the field `now func()
+    time.Time`. A field of function type makes the struct incomparable.
+  * The other new fields (`issued`, `nextRefresh`, `nextResave`) are
+    `time.Time`, which is comparable.
+  * Not pre-existing: it comes from the PLAN's wording of the step. The
+    MADR does not name the field.
+* **Resolution, chosen by the owner** ("Comparable clock field"):
+  * the clock stays a per-session unexported field, `now sessionClock`,
+    where `sessionClock` is `interface{ Now() time.Time }` and nil means
+    `time.Now`;
+  * `TestOAuthSession_RefreshesAgainAfterBackoff` sets it to a
+    `stepClock` that the test moves by hand.
+* **Files added to the phase:** none.
+
+### Phase 3: credentials (2026-10-04)
+
+**Red runs.** The red tests ran on a scratch copy of `HEAD` (`f8c36ec`,
+phase 2's commit) with the new tests added. Three test files had their
+tree-only tests cut for that run, because those need seams `HEAD` lacks;
+those tests were seen to fail under planted breaches instead (below). The
+FAIL lines:
+
+* **3.1, T1:**
+  * `TestReauth_LateRefusalKeepsFreshToken`: `refreshes = 8, want 1: a late
+    401 discarded a fresh token`;
+  * `TestClaude_ConcurrentRefusalsRunCommandOnce`: `the key command ran 5
+    times, want 2: a late 401 discarded a fresh key`.
+* **3.2, T2 and T3:**
+  * `TestOAuthSession_FailedEarlyRefreshKeepsToken`: `call 1: Token = "",
+    llmprovider: provider unavailable: oauth: refresh failed: 503 Service
+    Unavailable: ; want the current token`;
+  * `TestOAuthSession_ShortLivedTokenNotRefreshedEachCall`: `10 calls made
+    10 refreshes, want 0`;
+  * `TestOAuthSession_AuthFailureStillFails` passes on `HEAD`, as a guard
+    should; see its plant below.
+* **3.3, T4:**
+  * `TestOAuthRefresh_TolerantDecodeKeepsRotation`, all three cases. `a
+    string` and `unreadable`: `oauth: decode refresh response: json: cannot
+    unmarshal string into Go struct field oauthRefreshResponse.expires_in of
+    type int64 (refresh "rt-old")`; `a float`: `cannot unmarshal number
+    3600.0 ...`;
+  * `TestOAuthRefresh_LargeReplyIsBounded`: `Token = 2097152 bytes, <nil>;
+    want an error for the oversized reply`.
+* **3.4, T9 and T10:**
+  * `TestFileTokenStore_SkewedHeartbeatKeepsLock`: `the waiter took over a
+    lock its holder kept touching`;
+  * `TestOAuthSession_PendingResaveDoesNotBlock`: `5 calls took 1.906s with
+    5 lock attempts; want under 100 ms and at most 1`.
+* **3.5, T11:**
+  * `TestKiloDevice_TransientPollKeepsPolling`: `oauth: Kilo device poll
+    failed: 502 Bad Gateway after 1 polls; want the session after 2`;
+  * `TestKiloDevice_ExpiryWrapsLastTransientError`: `Wait = oauth: Kilo
+    device poll failed: 502 Bad Gateway, want the expiry, naming the last
+    502`;
+  * `TestOpenAIDevice_DroppedConnectionKeepsPolling`: `oauth: request: Post
+    ".../api/accounts/deviceauth/token": EOF after 1 polls`;
+  * `TestGrokDevice_ServerErrorKeepsPolling`: `oauth: decode Grok device
+    error: invalid character '<' looking for beginning of value after 1
+    polls`.
+* **3.6, T15:**
+  * `TestMkdirAll_TightensExisting`: `dir mode = -rwxrwxrwx (<nil>), want
+    0755`;
+  * `TestMkdirAll_RefusesSymlink`: `MkdirAll accepted a symlink`.
+
+**Planted breaches,** on a scratch copy of the tree:
+
+* `TestCommandToken_InvalidateTokenIgnoresStale`, with `InvalidateToken`
+  planted to clear on any token: `tokens "key-1", "key-2", "key-3" after 3
+  runs; want key-1, key-2, key-2 after 2 runs`.
+* `TestOAuthSession_InvalidateTokenIgnoresStale`, with the same plant:
+  `after a stale refusal: Token() = "", oauth: no refresh token: ...; want
+  the current token`.
+* `TestOAuthSession_RefreshesAgainAfterBackoff`, with
+  `oauthEarlyRefreshRetry` planted to 24 h: `31 s later: Token = "a-old",
+  <nil> after 3 requests; want the current token after 6`. Run again after
+  the deviation's clock change, with the same failure.
+* `TestOAuthSession_AuthFailureStillFails`, with the `ErrAuthFailure`
+  exclusion planted out: `Token = "a-old", <nil>; want no token and
+  ErrAuthFailure`.
+* `TestOAuthSession_RefreshAttemptBounded`, with the attempt timeout
+  planted to a plain cancel: `oauth: read refresh response: context deadline
+  exceeded after 5.005s and 1 attempts; want each attempt ended at 50 ms`.
+* `TestFileTokenStore_HeartbeatSurvivesReadError`, with a read error
+  planted to stop the heartbeat: `the heartbeat stopped touching the lock
+  after one failed read`.
+* `TestFileTokenStore_TakeoverRenameRetried`, with a takeover error planted
+  to return: `LockRefresh = planted rename failure, want the takeover tried
+  again`.
+* `TestMkdirAll_RefusesForeignOwner`, with the owner check planted out: `MkdirAll
+  accepted a directory the user does not own`, in both subtests.
+* `TestStatOwner`, with `statOwner` planted to add 1 to the uid: it
+  reported the uid plus one, not the user's.
+
+**PASS:** every test above passes on the tree, and so does the whole
+suite. The lock, re-save, heartbeat, takeover, bound, refresh, device and
+invalidation tests passed three runs in a row.
+
+**What was built:**
+
+* **3.1:**
+  * `llmprovider.TokenInvalidator`;
+  * `(*CommandToken).InvalidateToken` and
+    `(*auth.OAuthSession).InvalidateToken`;
+  * `wire.Reauth` calls `InvalidateToken(token)` when the source has it,
+    else `Invalidate()`.
+* **3.2:**
+  * the session clock (see the deviation);
+  * `issued`, set by a refresh and by a login exchange;
+  * `refreshMargin`, from `jwtTimes` (exp and iat; `jwtExpiry` now uses
+    it) or from `Expiry − issued`;
+  * `heldToken` and `nextRefresh`, with the constants
+    `oauthEarlyRefreshFloor` (30 s), `oauthEarlyRefreshRetry` (10 s) and
+    `oauthEarlyRefreshJitter` (20 s);
+  * the failure logged at Warn by `logEarlyRefreshFailure`.
+* **3.3:**
+  * `oauthRefreshResponse.ExpiresIn` and `oauthTokenResponse.ExpiresIn` are
+    `oauthSeconds`;
+  * the body is read through `io.LimitReader(oauthResponseLimit+1)`, and a
+    longer one is an error;
+  * `decodeRefreshResponse` falls back to the two tokens.
+* **3.4:**
+  * `oauthRefreshAttemptTimeout` (15 s) wraps each attempt, which sends with
+    `client.Do`, no longer `doBounded`;
+  * `lockWait` is 40 s;
+  * `LockRefresh` judges staleness by the mtime it has seen unchanged, on
+    its own monotonic clock;
+  * a takeover error goes back round the loop, and the deadline error names
+    the last one;
+  * a done context returns after the first failed attempt;
+  * `holdLock` skips a tick on a read error;
+  * the seams `lockRead` and `lockRename`;
+  * `persistRotation` tries the lock with a cancelled context, at most
+    every 30 s (`nextResave`, `oauthResaveInterval`).
+* **3.5:** `devicePacer`, shared by the OpenAI, Grok and Kilo loops, with
+  `transientStatus`, `deviceMaxBackoff` (60 s) and the sentinel
+  `errDeviceCodeExpired`.
+* **3.6:**
+  * `ownerperm.MkdirAll` checks `Lstat`, the owner through the seam
+    `ownerOf` (default `statOwner`), and clears group and other write;
+  * the doc comments of `MkdirAll`, the package and `NewFileTokenStore`
+    say so;
+  * `0010-MADR-windows-stdio-oauth-tokenstore-ci.md` gained "Amendment
+    2026-10-04: the token directory on Unix (0021 T15)".
+
+**Implementation notes, within the steps:**
+
+* A refresh that failed because the caller's own context ended does not
+  keep the token or set `nextRefresh`, so a caller that gives up does not
+  delay the next refresh.
+* `nextResave` is set when a retried save runs. A save that fails straight
+  after a refresh is still retried on the next call, as before;
+  `TestOAuthRefresh_UnsavedRotationNeverOverwritesNewer` relies on that.
+* `tokenExpiry` takes `oauthSeconds` and reads it through
+  `durationFromSeconds`, so NaN, infinite and non-positive values take the
+  3600 s default.
+* A failed takeover waits the usual pause before the next try, rather than
+  looping at once.
+* `ownerperm.MkdirAll` reports an `Lstat` failure as "not a directory",
+  with the cause joined, which keeps the package at its 100% floor.
+* The Claude test runs its own key command,
+  `TestHelperClaudeKeyCommand`, since the `llmprovider` package's helper is
+  in its internal tests.
+* The two concurrency tests release their 401s one at a time, so `HEAD`'s
+  counts are fixed: 8 refreshes and 5 command runs. The MADR's evidence, 4
+  of each, came from free-running requests.
+* `docs/guides/adding-a-provider.md` step 7 now names `InvalidateToken`,
+  alongside the `docs/architecture.md` rows the step named.
+
+**Existing tests changed to the decided behaviour** (T8, T9, T11):
+
+* `TestAuthRequests_Bounded`: the refresh row is bounded by
+  `oauthRefreshAttemptTimeout`, shortened to 100 ms with
+  `authRequestTimeout`, since step 3.4 replaces step 1.2's bound for the
+  refresh.
+* `lockStore`'s `staleAfter` is 100 ms instead of 10 s, and
+  `TestFileTokenStore_StaleLockHasOneTaker` gives the first waiter a 20 ms
+  heartbeat. A waiter now watches a lock for `staleAfter` before taking it
+  over, so the first change lets the takeover happen within `wait`. The
+  second keeps the second waiter from judging the first's fresh lock
+  stale. Both assertions are unchanged.
+* `TestFileTokenStore_RefreshLock_StaleTakenOver` sets `staleAfter` to 100
+  ms; with the default it would now wait 30 s.
+* `TestKiloDevice_Outcomes`, the row "unexpected poll status": 500 becomes
+  400, since a 5xx is now transient.
+
+**Goldens:** none changed; nothing on the wire changed.
+
+**Docs:**
+
+* `docs/architecture.md`: the reply step, the `ownerperm` row, "After a
+  401", device logins, refresh, the lock and `CommandToken`;
+* `docs/guides/adding-a-provider.md`, step 7.
+
+**Gate,** all exit 0, after the deviation's fix:
+
+* G1, G2 and G3;
+* G4: 26 packages ok; `auth` 87.2%, `ownerperm` 100.0%, `internal/wire`
+  93.3%;
+* G5, and G6 with 0 issues on the host and with `GOOS=windows`;
+* G7:
+  * parity: 409 identifiers, 0 problems;
+  * dep-check: 27 packages, 0 problems;
+  * coverage-check: 27 packages, 0 problems;
+  * api-check: "against v1.1.0, 0 incompatible change(s)". Before the fix
+    it reported the one in the deviation above;
+  * generate-check: 0 problems;
+* G8: 0 issues in the guides, `architecture.md` and the READMEs; the two
+  records show only MD004, their `*` markers, which the repository's
+  config excludes for records;
+* G9: stable;
+* G10: 0 problems;
+* G11: 0 hits in 28 files.
+
+**Live checks:** the PLAN has none for phase 3.

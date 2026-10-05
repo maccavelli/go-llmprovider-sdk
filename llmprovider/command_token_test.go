@@ -200,3 +200,30 @@ func TestCommandToken_RerunsAfterInvalidate(t *testing.T) {
 		t.Fatalf("tokens %q then %q (%v) after %d runs; want key-1, then key-2 after one rerun", first.Value, second.Value, err, runs(t, path))
 	}
 }
+
+// A *CommandToken is a TokenInvalidator (0021-MADR D5).
+var _ TokenInvalidator = (*CommandToken)(nil)
+
+// TestCommandToken_InvalidateTokenIgnoresStale (0021-MADR D5, T1): refusing
+// the current output reruns the command; a late refusal of an output already
+// replaced changes nothing.
+func TestCommandToken_InvalidateTokenIgnoresStale(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "runs")
+	src := NewCommandToken(helperArgv(t, "count", path)...)
+	ctx := context.Background()
+	first, err := src.Token(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src.InvalidateToken(first)
+	second, err := src.Token(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src.InvalidateToken(first)
+	third, err := src.Token(ctx)
+	if err != nil || first.Value != "key-1" || second.Value != "key-2" || third.Value != "key-2" || runs(t, path) != 2 {
+		t.Fatalf("tokens %q, %q, %q (%v) after %d runs; want key-1, key-2, key-2 after 2 runs",
+			first.Value, second.Value, third.Value, err, runs(t, path))
+	}
+}

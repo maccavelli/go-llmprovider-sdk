@@ -129,6 +129,10 @@ func TestFileTokenStore_RefreshLock_OnceAcrossSessions(t *testing.T) {
 func TestFileTokenStore_RefreshLock_StaleTakenOver(t *testing.T) {
 	srv, calls := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) { refreshOK(w, "a-refreshed") })
 	store, session, _ := sharedStoreSessions(t, srv.URL)
+	// A lock is stale once its mtime has not changed for staleAfter, as this
+	// waiter sees it (0021-MADR T9).
+	store.staleAfter = 100 * time.Millisecond
+	session.Store = store
 	lock := filepath.Join(store.Dir, string(llmprovider.ProviderOpenAI)+".lock")
 	if err := os.WriteFile(lock, []byte("999999 dead\n"), 0o600); err != nil {
 		t.Fatal(err)

@@ -78,14 +78,24 @@ func startKiloDevice(ctx context.Context, opts OAuthFlowOptions) (*DeviceLogin, 
 	deadline := config.now().Add(durationFromSeconds(float64(device.ExpiresIn), kiloDeviceDefaultLife, false))
 	pollURL := config.issuer + "/api/device-auth/codes/" + url.PathEscape(device.Code)
 	poll := func(ctx context.Context) (*OAuthSession, error) {
+		var pace devicePacer
 		for {
-			if err := sleepBeforeDeadline(ctx, config, kiloDevicePoll, deadline); err != nil {
+			if err := pace.wait(ctx, config, kiloDevicePoll, deadline); err != nil {
 				return nil, err
 			}
 			resp, err := kiloDeviceRequest(ctx, config, http.MethodGet, pollURL)
 			if err != nil {
-				return nil, err
+				if ctx.Err() != nil {
+					return nil, err
+				}
+				pace.transient(err, kiloDevicePoll)
+				continue
 			}
+			if transientStatus(resp.StatusCode) {
+				pace.transient(closeOAuthStatusError(resp, "Kilo device poll"), kiloDevicePoll)
+				continue
+			}
+			pace.answered()
 			switch resp.StatusCode {
 			case http.StatusAccepted:
 				if err := closeResponseBody(resp); err != nil {

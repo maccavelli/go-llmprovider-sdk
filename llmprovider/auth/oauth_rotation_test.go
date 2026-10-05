@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -113,4 +115,69 @@ func TestOAuthRefresh_UnsavedRotationNeverOverwritesNewer(t *testing.T) {
 	if _, err := session.Token(context.Background()); err != nil || logged.Len() != saves {
 		t.Errorf("the dropped retry was attempted again (log grew to %q), err %v", logged.String(), err)
 	}
+}
+
+// TestOAuthRefresh_TolerantDecodeKeepsRotation (0021-MADR T4): a 200 whose
+// expires_in is a string, a float or unreadable still yields the rotated
+// refresh token, adopted and saved. An unreadable one takes the 3600 s
+// default.
+func TestOAuthRefresh_TolerantDecodeKeepsRotation(t *testing.T) {
+	for _, c := range []struct{ name, expiresIn string }{
+		{"a string", `"3600"`},
+		{"a float", `3600.0`},
+		{"unreadable", `"abc"`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			srv, _ := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) {
+				_, _ = io.WriteString(w, `{"access_token":"a-new","refresh_token":"rt-new","expires_in":`+c.expiresIn+`}`)
+			})
+			store, session, _ := sharedStoreSessions(t, srv.URL)
+			before := time.Now()
+			tok, err := session.Token(context.Background())
+			if err != nil || tok.Value != "a-new" || session.Refresh != "rt-new" {
+				t.Fatalf("Token = %q, %v (refresh %q); want a-new and rt-new kept", tok.Value, err, session.Refresh)
+			}
+			if stored, err := store.Load(context.Background(), llmprovider.ProviderOpenAI); err != nil || stored.Refresh != "rt-new" {
+				t.Errorf("store holds %v, %v; want rt-new saved", stored, err)
+			}
+			if tok.Expiry.Before(before.Add(time.Hour-time.Minute)) || tok.Expiry.After(time.Now().Add(time.Hour+time.Minute)) {
+				t.Errorf("Expiry = %v, want an hour from now", tok.Expiry)
+			}
+		})
+	}
+}
+
+// TestOAuthRefresh_LargeReplyIsBounded (0021-MADR T4): a 2 MiB refresh reply
+// is an error, after reading at most oauthResponseLimit + 1 bytes of it.
+func TestOAuthRefresh_LargeReplyIsBounded(t *testing.T) {
+	srv, _ := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"access_token":"`+strings.Repeat("a", 2<<20)+`","refresh_token":"rt-new"}`)
+	})
+	session := expiredSession(srv, "")
+	var read atomic.Int64
+	session.HTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		resp, err := http.DefaultTransport.RoundTrip(r)
+		if err == nil {
+			resp.Body = &countingBody{ReadCloser: resp.Body, n: &read}
+		}
+		return resp, err
+	})}
+	if tok, err := session.Token(context.Background()); err == nil {
+		t.Fatalf("Token = %d bytes, <nil>; want an error for the oversized reply", len(tok.Value))
+	}
+	if n := read.Load(); n > oauthResponseLimit+1 {
+		t.Errorf("read %d bytes of the reply, want at most %d", n, oauthResponseLimit+1)
+	}
+}
+
+// countingBody counts the bytes read from a reply body.
+type countingBody struct {
+	io.ReadCloser
+	n *atomic.Int64
+}
+
+func (b *countingBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	b.n.Add(int64(n))
+	return n, err
 }

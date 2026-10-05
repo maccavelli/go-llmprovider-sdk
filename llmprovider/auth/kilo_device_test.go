@@ -95,7 +95,7 @@ func TestKiloDevice_Outcomes(t *testing.T) {
 	}{
 		{"denied", http.StatusOK, []int{http.StatusForbidden}, "denied"},
 		{"expired", http.StatusOK, []int{http.StatusAccepted, http.StatusGone}, "expired"},
-		{"unexpected poll status", http.StatusOK, []int{http.StatusInternalServerError}, "Kilo device poll"},
+		{"unexpected poll status", http.StatusOK, []int{http.StatusBadRequest}, "Kilo device poll"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, _ := kiloDeviceServer(t, tc.start, tc.polls...)
@@ -125,6 +125,40 @@ func TestKiloDevice_Outcomes(t *testing.T) {
 			t.Error("start accepted a plain-http, non-loopback verification URL")
 		}
 	})
+}
+
+// TestKiloDevice_TransientPollKeepsPolling (0021-MADR T11): a 502 while
+// polling is not the end of the login; the next poll signs in.
+func TestKiloDevice_TransientPollKeepsPolling(t *testing.T) {
+	srv, polled := kiloDeviceServer(t, http.StatusOK, http.StatusBadGateway, http.StatusOK)
+	login, err := StartDeviceOAuth(context.Background(), llmprovider.ProviderKilo, kiloOptions(srv, newFakeOAuthClock()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := login.Wait(context.Background())
+	if err != nil || session.Access != kiloTestToken || polled.Load() != 2 {
+		t.Fatalf("Wait = %v, %v after %d polls; want the session after 2", session, err, polled.Load())
+	}
+}
+
+// TestKiloDevice_ExpiryWrapsLastTransientError (0021-MADR T11): polls that
+// keep failing back off from the poll interval, doubling, until the code
+// expires; the expiry names the last failure.
+func TestKiloDevice_ExpiryWrapsLastTransientError(t *testing.T) {
+	srv, _ := kiloDeviceServer(t, http.StatusOK, http.StatusBadGateway)
+	clock := newFakeOAuthClock()
+	login, err := StartDeviceOAuth(context.Background(), llmprovider.ProviderKilo, kiloOptions(srv, clock))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = login.Wait(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "device code expired") || !strings.Contains(err.Error(), "502") {
+		t.Fatalf("Wait = %v, want the expiry, naming the last 502", err)
+	}
+	want := []time.Duration{3 * time.Second, 3 * time.Second, 6 * time.Second, 12 * time.Second, 24 * time.Second, 12 * time.Second}
+	if got := clock.sleeps(); !reflect.DeepEqual(got, want) {
+		t.Errorf("sleeps = %v, want %v", got, want)
+	}
 }
 
 // TestKiloDevice_Cancel: Cancel during polling returns within one interval.

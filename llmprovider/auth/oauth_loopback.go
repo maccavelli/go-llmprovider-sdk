@@ -75,10 +75,10 @@ type oauthEndpoints struct {
 }
 
 type oauthTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	IDToken      string `json:"id_token"`
-	ExpiresIn    int64  `json:"expires_in"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
+	IDToken      string       `json:"id_token"`
+	ExpiresIn    oauthSeconds `json:"expires_in"`
 }
 
 type oauthCallbackResult struct {
@@ -653,15 +653,13 @@ func oauthSessionFromResponse(config oauthFlowConfig, tokenURL string, payload o
 	if payload.AccessToken == "" {
 		return nil, errors.New("oauth: token response missing access token")
 	}
-	expiresIn := payload.ExpiresIn
-	if expiresIn <= 0 {
-		expiresIn = 3600
-	}
+	now := config.now()
 	return &OAuthSession{
 		Provider:   config.provider,
 		Access:     payload.AccessToken,
 		Refresh:    payload.RefreshToken,
-		Expiry:     tokenExpiry(payload.AccessToken, expiresIn, config.now()),
+		Expiry:     tokenExpiry(payload.AccessToken, payload.ExpiresIn, now),
+		issued:     now,
 		Issuer:     config.issuer,
 		ClientID:   config.clientID,
 		AccountID:  chatGPTAccountID(payload.IDToken),

@@ -189,6 +189,78 @@ func TestOpenAIDevice_UsesCodexProtocol(t *testing.T) {
 	}
 }
 
+// TestOpenAIDevice_DroppedConnectionKeepsPolling (0021-MADR T11): a poll
+// whose connection drops is retried, and the next poll signs in.
+func TestOpenAIDevice_DroppedConnectionKeepsPolling(t *testing.T) {
+	clock := newFakeOAuthClock()
+	var pollCalls int
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(t, w, ti.discovery(t, nil))
+	})
+	mux.HandleFunc("/api/accounts/deviceauth/usercode", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(t, w, `{"device_auth_id":"device-auth-id","user_code":"OPEN-AI","interval":"2"}`)
+	})
+	mux.HandleFunc("/api/accounts/deviceauth/token", func(w http.ResponseWriter, _ *http.Request) {
+		pollCalls++
+		if pollCalls == 1 {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				t.Errorf("hijack: %v", err)
+				return
+			}
+			_ = conn.Close()
+			return
+		}
+		writeTestJSON(t, w, `{"authorization_code":"authorization-code","code_challenge":"challenge","code_verifier":"server-verifier"}`)
+	})
+	mux.HandleFunc("/oauth/token", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(t, w, ti.tokenResponse(t, "RS256", "test-client", "openai-access", "openai-refresh"))
+	})
+	session, err := LoginDeviceOAuth(context.Background(), llmprovider.ProviderOpenAI, OAuthFlowOptions{
+		HTTPClient: srv.Client(), ClientID: "test-client", Issuer: srv.URL, now: clock.now, sleep: clock.sleep,
+	})
+	if err != nil || session.Access != "openai-access" || pollCalls != 2 {
+		t.Fatalf("LoginDeviceOAuth = %v, %v after %d polls; want the session after 2", session, err, pollCalls)
+	}
+}
+
+// TestGrokDevice_ServerErrorKeepsPolling (0021-MADR T11): a 503 with an HTML
+// body while polling is retried, and the next poll signs in.
+func TestGrokDevice_ServerErrorKeepsPolling(t *testing.T) {
+	clock := newFakeOAuthClock()
+	var tokenCalls int
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(t, w, ti.discovery(t, map[string]string{"device_authorization_endpoint": srv.URL + "/device", "token_endpoint": srv.URL + "/token"}))
+	})
+	mux.HandleFunc("/device", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(t, w, `{"device_code":"device-secret","user_code":"ABCD-EFGH","verification_uri":"https://example.test/activate","expires_in":60,"interval":1}`)
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+		tokenCalls++
+		if tokenCalls == 1 {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("<html><body>Service Unavailable</body></html>"))
+			return
+		}
+		writeTestJSON(t, w, ti.tokenResponse(t, "ES256", "test-client", "grok-access", "grok-refresh"))
+	})
+	session, err := LoginDeviceOAuth(context.Background(), llmprovider.ProviderGrok, OAuthFlowOptions{
+		HTTPClient: srv.Client(), ClientID: "test-client", Issuer: srv.URL, now: clock.now, sleep: clock.sleep,
+	})
+	if err != nil || session.Access != "grok-access" || tokenCalls != 2 {
+		t.Fatalf("LoginDeviceOAuth = %v, %v after %d polls; want the session after 2", session, err, tokenCalls)
+	}
+}
+
 type fakeOAuthClock struct {
 	mu        sync.Mutex
 	current   time.Time

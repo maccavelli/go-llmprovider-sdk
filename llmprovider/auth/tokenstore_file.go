@@ -21,14 +21,15 @@ import (
 // maxTokenFileBytes bounds a session file on Load (0016-MADR D3).
 const maxTokenFileBytes = 64 << 10
 
-// Refresh-lock timing (0016-MADR amendment A2): a lock whose file has not
-// been touched for lockStaleAfter belongs to a dead holder and is taken over;
-// a live holder touches it every lockHeartbeat; a waiter gives up after
-// lockWait with a retryable error.
+// Refresh-lock timing (0016-MADR amendment A2; 0021-MADR T9): a lock whose
+// mtime a waiter has seen unchanged for lockStaleAfter belongs to a dead
+// holder and is taken over; a live holder touches it every lockHeartbeat; a
+// waiter gives up after lockWait with a retryable error. lockWait exceeds
+// lockStaleAfter plus lockHeartbeat, so a waiter outlasts a dead holder.
 const (
 	lockStaleAfter = 30 * time.Second
 	lockHeartbeat  = 5 * time.Second
-	lockWait       = 25 * time.Second
+	lockWait       = 40 * time.Second
 )
 
 // FileTokenStore persists one OAuth session per provider in a directory.
@@ -44,7 +45,9 @@ type FileTokenStore struct {
 
 // NewFileTokenStore creates the token directory when needed, private to the
 // current user: mode 0700 on Unix; on Windows a protected DACL whose one
-// entry, the user's, the directory's files inherit (0010-MADR D10).
+// entry, the user's, the directory's files inherit (0010-MADR D10). On Unix
+// an existing directory must be the user's and not a symlink, and loses any
+// group or other write bit (0021-MADR T15).
 func NewFileTokenStore(dir string) (*FileTokenStore, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("FileTokenStore: empty dir")
@@ -125,6 +128,10 @@ var (
 	// lockBeforeTakeover runs after a lock is judged stale and before it is
 	// taken over: tests pause a waiter there (0020-MADR F12).
 	lockBeforeTakeover = func(string) {}
+	// lockRead and lockRename read a lock's owner token and move a lock file;
+	// tests plant failures in them (0021-MADR T9).
+	lockRead   = readLockToken
+	lockRename = os.Rename
 )
 
 // Save durably replaces a provider session file: a temp file in the store
@@ -208,11 +215,13 @@ func (fs *FileTokenStore) Delete(ctx context.Context, provider llmprovider.Provi
 
 // LockRefresh takes the provider's refresh lock: a file created exclusively
 // beside the session, holding an owner token (the pid, random bytes and the
-// time), and touched every heartbeat while held. A lock untouched for 30 s
-// belongs to a dead holder and is taken over. A waiter gives up after 25 s
-// with an error matching ErrProviderUnavailable, which callers may retry; it
-// never refreshes unlocked (0016-MADR amendment A2). The returned func
-// releases the lock.
+// time), and touched every heartbeat while held. A lock whose mtime this
+// waiter has seen unchanged for 30 s, by its own monotonic clock, belongs to a
+// dead holder and is taken over; the holder's clock does not matter
+// (0021-MADR T9). A failed takeover is tried again. A waiter gives up after
+// 40 s with an error matching ErrProviderUnavailable, which callers may retry;
+// it never refreshes unlocked (0016-MADR amendment A2). A context already
+// done tries once and does not wait. The returned func releases the lock.
 //
 // Takeover and release act only on the file that still holds the expected
 // token, so two waiters cannot both take a stale lock, and a holder that was
@@ -224,6 +233,8 @@ func (fs *FileTokenStore) LockRefresh(ctx context.Context, provider llmprovider.
 	staleAfter, heartbeat, wait := fs.lockTiming()
 	path := filepath.Join(fs.Dir, string(provider)+".lock")
 	deadline := time.Now().Add(wait)
+	var seen, seenAt time.Time // the lock's mtime, and when this waiter first saw it
+	var takeoverErr error
 	for {
 		token, created, err := createLockFile(path)
 		if err == nil && created {
@@ -232,20 +243,30 @@ func (fs *FileTokenStore) LockRefresh(ctx context.Context, provider llmprovider.
 		if err != nil {
 			return nil, fmt.Errorf("FileTokenStore lock: %w", err)
 		}
-		if info, statErr := os.Stat(path); statErr == nil && time.Since(info.ModTime()) > staleAfter {
-			// The holder is gone: take the lock over, but only the file that
-			// was judged stale.
-			stale, readErr := readLockToken(path)
-			if readErr == nil {
-				lockBeforeTakeover(path)
-				if rmErr := removeLockIfHeld(path, stale); rmErr != nil {
-					return nil, fmt.Errorf("FileTokenStore lock takeover: %w", rmErr)
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("%w: oauth: another process is refreshing the %s session: %w",
+				llmprovider.ErrProviderUnavailable, provider, ctx.Err())
+		}
+		if info, statErr := os.Stat(path); statErr == nil {
+			if now := time.Now(); !info.ModTime().Equal(seen) {
+				seen, seenAt = info.ModTime(), now
+			} else if now.Sub(seenAt) >= staleAfter {
+				// The holder is gone: take the lock over, but only the file
+				// that was judged stale.
+				if stale, readErr := lockRead(path); readErr == nil {
+					lockBeforeTakeover(path)
+					if takeoverErr = removeLockIfHeld(path, stale); takeoverErr == nil {
+						continue
+					}
 				}
-				continue
 			}
 		}
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("%w: oauth: another process is refreshing the %s session", llmprovider.ErrProviderUnavailable, provider)
+			err := fmt.Errorf("%w: oauth: another process is refreshing the %s session", llmprovider.ErrProviderUnavailable, provider)
+			if takeoverErr != nil {
+				err = fmt.Errorf("%w; the last takeover failed: %w", err, takeoverErr)
+			}
+			return nil, err
 		}
 		//nolint:gosec // G404: non-crypto jitter between lock attempts
 		pause := 50*time.Millisecond + rand.N(100*time.Millisecond)
@@ -303,13 +324,13 @@ func readLockToken(path string) (string, error) {
 // is put back.
 func removeLockIfHeld(path, token string) error {
 	aside := path + ".gone-" + crand.Text()
-	if err := os.Rename(path, aside); err != nil {
+	if err := lockRename(path, aside); err != nil {
 		if errors.Is(err, iofs.ErrNotExist) {
 			return nil // someone else got there first
 		}
 		return err
 	}
-	got, err := readLockToken(aside)
+	got, err := lockRead(aside)
 	if err == nil && got == token {
 		return os.Remove(aside)
 	}
@@ -317,13 +338,15 @@ func removeLockIfHeld(path, token string) error {
 	// meanwhile, which then stands.
 	if linkErr := os.Link(aside, path); linkErr != nil && !errors.Is(linkErr, iofs.ErrExist) {
 		if _, statErr := os.Stat(path); errors.Is(statErr, iofs.ErrNotExist) {
-			return os.Rename(aside, path)
+			return lockRename(aside, path)
 		}
 	}
 	return os.Remove(aside)
 }
 
 // holdLock touches path every heartbeat until the returned func removes it.
+// A failed read of the lock skips one touch; only a lock that now holds
+// another token stops the heartbeat (0021-MADR T9).
 func holdLock(path, token string, heartbeat time.Duration) func() {
 	done := make(chan struct{})
 	stopped := make(chan struct{})
@@ -337,7 +360,11 @@ func holdLock(path, token string, heartbeat time.Duration) func() {
 				return
 			case now := <-ticker.C:
 				// Touch only a lock this holder still owns.
-				if got, err := readLockToken(path); err != nil || got != token {
+				got, err := lockRead(path)
+				if err != nil {
+					continue
+				}
+				if got != token {
 					return
 				}
 				ignoreOAuthError(os.Chtimes(path, now, now))

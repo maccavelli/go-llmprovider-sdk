@@ -160,21 +160,35 @@ func parseGrokAuth(raw []byte) (vendorCredential, error) {
 // jwtExpiry reads a JWT's numeric exp claim, or returns the zero time for a
 // token that is not a JWT or has none.
 func jwtExpiry(token string) time.Time {
+	exp, _ := jwtTimes(token)
+	return exp
+}
+
+// jwtTimes reads a JWT's exp and iat claims; each is zero when absent or
+// unreadable.
+func jwtTimes(token string) (exp, iat time.Time) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return time.Time{}
+		return time.Time{}, time.Time{}
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return time.Time{}
+		return time.Time{}, time.Time{}
 	}
 	var claims struct {
 		Exp *float64 `json:"exp"`
+		Iat *float64 `json:"iat"`
 	}
-	if err := json.Unmarshal(payload, &claims); err != nil || claims.Exp == nil {
-		return time.Time{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return time.Time{}, time.Time{}
 	}
-	return time.Unix(int64(*claims.Exp), 0).UTC()
+	if claims.Exp != nil {
+		exp = time.Unix(int64(*claims.Exp), 0).UTC()
+	}
+	if claims.Iat != nil {
+		iat = time.Unix(int64(*claims.Iat), 0).UTC()
+	}
+	return exp, iat
 }
 
 // Account returns the ChatGPT account id and FedRAMP flag a Codex CLI

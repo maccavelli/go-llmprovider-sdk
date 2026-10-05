@@ -32,6 +32,15 @@ type InvalidatingSource interface {
 	Invalidate()
 }
 
+// TokenInvalidator is a source that can be told which token was refused.
+// InvalidateToken is a no-op unless the refused token is still the current
+// one, so a 401 that arrives after a renewal does not discard the fresh token
+// (0021-MADR D5). A provider calls it, when the source has it, in place of
+// Invalidate. CommandToken and auth.OAuthSession are TokenInvalidators.
+type TokenInvalidator interface {
+	InvalidateToken(Token)
+}
+
 // tokenFuture is one in-flight fetch that concurrent callers share.
 type tokenFuture struct {
 	done chan struct{}
@@ -120,6 +129,16 @@ func (c *CommandToken) Token(ctx context.Context) (Token, error) {
 func (c *CommandToken) Invalidate() {
 	c.mu.Lock()
 	c.value, c.fetched = "", time.Time{}
+	c.mu.Unlock()
+}
+
+// InvalidateToken drops the cached output when it is t, so the next Token
+// runs the command; an output already replaced is left alone.
+func (c *CommandToken) InvalidateToken(t Token) {
+	c.mu.Lock()
+	if c.value != "" && c.value == t.Value {
+		c.value, c.fetched = "", time.Time{}
+	}
 	c.mu.Unlock()
 }
 

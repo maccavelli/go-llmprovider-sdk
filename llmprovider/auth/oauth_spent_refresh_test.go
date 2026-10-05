@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -91,5 +92,47 @@ func TestOAuthSession_FailedSaveNeverReusesSpentRefresh(t *testing.T) {
 	defer mu.Unlock()
 	if want := []string{"old-refresh", "refresh-1"}; fmt.Sprint(sent) != fmt.Sprint(want) {
 		t.Errorf("refresh tokens sent = %v, want %v: the spent token must never be sent again", sent, want)
+	}
+}
+
+// countingLocker is a FileTokenStore that counts its LockRefresh calls.
+type countingLocker struct {
+	*FileTokenStore
+	attempts atomic.Int32
+}
+
+func (c *countingLocker) LockRefresh(ctx context.Context, provider llmprovider.ProviderID) (func(), error) {
+	c.attempts.Add(1)
+	return c.FileTokenStore.LockRefresh(ctx, provider)
+}
+
+// TestOAuthSession_PendingResaveDoesNotBlock (0021-MADR T10): while another
+// process holds the refresh lock, a session with a valid token and an unsaved
+// rotation does not wait for the lock on each call. Five calls take under
+// 100 ms in all, with at most one lock attempt.
+func TestOAuthSession_PendingResaveDoesNotBlock(t *testing.T) {
+	file, err := NewFileTokenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.staleAfter, file.heartbeat, file.wait = time.Second, 20*time.Millisecond, 300*time.Millisecond
+	holder := &FileTokenStore{Dir: file.Dir, staleAfter: file.staleAfter, heartbeat: file.heartbeat}
+	unlock, err := holder.LockRefresh(context.Background(), llmprovider.ProviderOpenAI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+
+	store := &countingLocker{FileTokenStore: file}
+	session := testSession("a-current", "rt-rotated", time.Now().Add(time.Hour))
+	session.Store, session.spentRefresh = store, "rt-spent"
+	start := time.Now()
+	for call := 1; call <= 5; call++ {
+		if tok, err := session.Token(context.Background()); err != nil || tok.Value != "a-current" {
+			t.Fatalf("call %d: Token = %q, %v; want the current token", call, tok.Value, err)
+		}
+	}
+	if elapsed, n := time.Since(start), store.attempts.Load(); elapsed > 100*time.Millisecond || n > 1 {
+		t.Errorf("5 calls took %v with %d lock attempts; want under 100 ms and at most 1", elapsed, n)
 	}
 }

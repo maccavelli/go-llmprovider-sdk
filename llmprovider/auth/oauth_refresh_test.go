@@ -1,12 +1,15 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -227,5 +230,117 @@ func TestOAuthRefresh_FiveMinuteWindow(t *testing.T) {
 	session.Expiry = time.Now().Add(4 * time.Minute)
 	if tok, err := session.Token(context.Background()); err != nil || tok.Value != "a-new" || calls.Load() != 1 {
 		t.Fatalf("four minutes left: Token = %q, %v after %d; want a-new after 1", tok.Value, err, calls.Load())
+	}
+}
+
+// TestOAuthSession_FailedEarlyRefreshKeepsToken (0021-MADR T2): a token with
+// four minutes left whose early refresh gets a 503 is still returned, the
+// failure is logged, and a second call within 10 s sends nothing.
+func TestOAuthSession_FailedEarlyRefreshKeepsToken(t *testing.T) {
+	srv, calls := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	session := expiredSession(srv, "")
+	session.Expiry = time.Now().Add(4 * time.Minute)
+	var logged bytes.Buffer
+	session.Logger = slog.New(slog.NewTextHandler(&logged, nil))
+	for call := 1; call <= 2; call++ {
+		if tok, err := session.Token(context.Background()); err != nil || tok.Value != "a-old" {
+			t.Fatalf("call %d: Token = %q, %v; want the current token", call, tok.Value, err)
+		}
+	}
+	if n := calls.Load(); n != 3 {
+		t.Errorf("refresh requests = %d, want 3: the first call's attempts, and none from the second", n)
+	}
+	if !strings.Contains(logged.String(), "level=WARN") {
+		t.Errorf("log = %q, want the failed early refresh at Warn", logged.String())
+	}
+}
+
+// TestOAuthSession_RefreshesAgainAfterBackoff (0021-MADR T2): once the 10-30 s
+// wait after a failed early refresh has passed, the next call refreshes
+// again.
+func TestOAuthSession_RefreshesAgainAfterBackoff(t *testing.T) {
+	srv, calls := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	clock := &stepClock{now: time.Now()}
+	session := expiredSession(srv, "")
+	session.now = clock
+	session.Expiry = clock.now.Add(4 * time.Minute)
+	if tok, err := session.Token(context.Background()); err != nil || tok.Value != "a-old" || calls.Load() != 3 {
+		t.Fatalf("Token = %q, %v after %d requests; want the current token after 3", tok.Value, err, calls.Load())
+	}
+	clock.now = clock.now.Add(31 * time.Second)
+	if tok, err := session.Token(context.Background()); err != nil || tok.Value != "a-old" || calls.Load() != 6 {
+		t.Fatalf("31 s later: Token = %q, %v after %d requests; want the current token after 6", tok.Value, err, calls.Load())
+	}
+}
+
+// stepClock is a session clock that a test moves by hand.
+type stepClock struct{ now time.Time }
+
+func (c *stepClock) Now() time.Time { return c.now }
+
+// TestOAuthSession_AuthFailureStillFails (0021-MADR T2): an early refresh the
+// issuer refuses with a 401 is still an ErrAuthFailure, with no token, though
+// the current token has minutes left.
+func TestOAuthSession_AuthFailureStillFails(t *testing.T) {
+	srv, _ := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+	})
+	session := expiredSession(srv, "")
+	session.Expiry = time.Now().Add(4 * time.Minute)
+	if tok, err := session.Token(context.Background()); !errors.Is(err, llmprovider.ErrAuthFailure) || tok.Value != "" {
+		t.Fatalf("Token = %q, %v; want no token and ErrAuthFailure", tok.Value, err)
+	}
+}
+
+// TestOAuthSession_ShortLivedTokenNotRefreshedEachCall (0021-MADR T3): a token
+// that lives 240 s is due at half its life, not five minutes before expiry:
+// ten calls on a fresh one refresh nothing.
+func TestOAuthSession_ShortLivedTokenNotRefreshedEachCall(t *testing.T) {
+	now := time.Now()
+	access := openAITestJWT(t, map[string]any{"iat": now.Unix(), "exp": now.Add(240 * time.Second).Unix()})
+	srv, calls := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) { refreshOK(w, access) })
+	session := expiredSession(srv, "")
+	session.Access, session.Expiry = access, now.Add(240*time.Second).Truncate(time.Second)
+	for range 10 {
+		if tok, err := session.Token(context.Background()); err != nil || tok.Value != access {
+			t.Fatalf("Token = %q, %v; want the current token", tok.Value, err)
+		}
+	}
+	if n := calls.Load(); n != 0 {
+		t.Errorf("10 calls made %d refreshes, want 0", n)
+	}
+}
+
+// TestOAuthSession_RefreshAttemptBounded (0021-MADR T8): an issuer that
+// stalls its reply body ends each attempt at oauthRefreshAttemptTimeout, after
+// at most 3 attempts, and the refresh lock is released.
+func TestOAuthSession_RefreshAttemptBounded(t *testing.T) {
+	old := oauthRefreshAttemptTimeout
+	oauthRefreshAttemptTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { oauthRefreshAttemptTimeout = old })
+	srv, calls := refreshServer(t, func(_ int32, w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"access_token":`)
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	})
+	store, session, _ := sharedStoreSessions(t, srv.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	_, err := session.Token(ctx)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("Token succeeded on a stalled reply")
+	}
+	if elapsed > 2*time.Second || calls.Load() > 3 {
+		t.Errorf("Token = %v after %v and %d attempts; want each attempt ended at 50 ms, at most 3", err, elapsed, calls.Load())
+	}
+	if _, statErr := os.Stat(filepath.Join(store.Dir, "openai.lock")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("the refresh lock is still held: %v", statErr)
 	}
 }

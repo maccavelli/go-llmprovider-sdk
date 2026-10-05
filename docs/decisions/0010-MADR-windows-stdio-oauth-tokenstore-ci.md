@@ -1055,3 +1055,21 @@ elevated token's new file has another owner").
   sets the owner: the directory, and a file after `File`.
 * **Considered, not chosen:** creating the file with its owner and DACL
   already set, which would remove the window between creation and `File`.
+
+## Amendment 2026-10-04: the token directory on Unix (0021 T15)
+
+Decided by `0021-MADR-harden-and-tune-after-the-v1-1-review.md` (finding
+T15), and built by its PLAN's phase 3.
+
+* **Changed fact.** "D10, revised" kept Unix as it was: `os.MkdirAll(dir,
+  0o700)`, where an existing directory keeps its mode. A directory that group
+  or others can write lets another user rename a file over
+  `<provider>.json` or `<provider>.lock`.
+* **D10 is extended on Unix.** After `MkdirAll`, `ownerperm.MkdirAll` checks
+  the directory itself:
+  * it must be a directory, not a symlink (`os.Lstat`);
+  * it must be owned by the current user; otherwise it is refused and left
+    as it is;
+  * a group or other write bit is cleared.
+* Windows is unchanged. D13 stands; the Unix checks have their own tests in
+  `ownerperm_unix_test.go`.

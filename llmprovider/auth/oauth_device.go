@@ -207,6 +207,7 @@ func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogi
 	interval := durationFromSeconds(float64(device.Interval), defaultDevicePollInterval, false)
 	poll := func(ctx context.Context) (*OAuthSession, error) {
 		pollURL := config.issuer + "/api/accounts/deviceauth/token"
+		var pace devicePacer
 		for {
 			if !config.now().Before(deadline) {
 				return nil, errors.New("oauth: OpenAI device-code login timed out after 15 minutes")
@@ -216,7 +217,14 @@ func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogi
 				"user_code":      device.UserCode,
 			})
 			if pollErr != nil {
-				return nil, pollErr
+				if ctx.Err() != nil {
+					return nil, pollErr
+				}
+				pace.transient(pollErr, interval)
+				if err := pace.wait(ctx, config, interval, deadline); err != nil {
+					return nil, err
+				}
+				continue
 			}
 			if pollResponse.StatusCode >= http.StatusOK && pollResponse.StatusCode < http.StatusMultipleChoices {
 				var code openAIDeviceToken
@@ -240,10 +248,15 @@ func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogi
 			if closeErr := pollResponse.Body.Close(); closeErr != nil {
 				return nil, fmt.Errorf("oauth: close OpenAI device poll response: %w", closeErr)
 			}
-			if status != http.StatusForbidden && status != http.StatusNotFound {
+			switch {
+			case transientStatus(status):
+				pace.transient(fmt.Errorf("oauth: OpenAI device poll failed: %s", http.StatusText(status)), interval)
+			case status == http.StatusForbidden || status == http.StatusNotFound:
+				pace.answered()
+			default:
 				return nil, fmt.Errorf("oauth: OpenAI device poll failed: %s", http.StatusText(status))
 			}
-			if err := sleepBeforeDeadline(ctx, config, interval, deadline); err != nil {
+			if err := pace.wait(ctx, config, interval, deadline); err != nil {
 				return nil, err
 			}
 		}
@@ -290,8 +303,9 @@ func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin,
 	interval := durationFromSeconds(float64(device.Interval), defaultDevicePollInterval, true)
 	deadline := config.now().Add(expires)
 	poll := func(ctx context.Context) (*OAuthSession, error) {
+		var pace devicePacer
 		for {
-			if err := sleepBeforeDeadline(ctx, config, interval, deadline); err != nil {
+			if err := pace.wait(ctx, config, interval, deadline); err != nil {
 				return nil, err
 			}
 			tokenForm := url.Values{
@@ -301,8 +315,17 @@ func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin,
 			}
 			tokenResponse, tokenErr := postOAuthForm(ctx, config.httpClient, endpoints.Token, tokenForm)
 			if tokenErr != nil {
-				return nil, tokenErr
+				if ctx.Err() != nil {
+					return nil, tokenErr
+				}
+				pace.transient(tokenErr, interval)
+				continue
 			}
+			if transientStatus(tokenResponse.StatusCode) {
+				pace.transient(closeOAuthStatusError(tokenResponse, "Grok device poll"), interval)
+				continue
+			}
+			pace.answered()
 			if tokenResponse.StatusCode >= http.StatusOK && tokenResponse.StatusCode < http.StatusMultipleChoices {
 				var payload oauthTokenResponse
 				if decodeErr := decodeOAuthResponse(tokenResponse, &payload); decodeErr != nil {
@@ -391,10 +414,13 @@ func durationFromSeconds(seconds float64, fallback time.Duration, floor bool) ti
 	return duration
 }
 
+// errDeviceCodeExpired ends a device-code poll at the code's expiry.
+var errDeviceCodeExpired = errors.New("oauth: device code expired")
+
 func sleepBeforeDeadline(ctx context.Context, config oauthFlowConfig, interval time.Duration, deadline time.Time) error {
 	remaining := deadline.Sub(config.now())
 	if remaining <= 0 {
-		return errors.New("oauth: device code expired")
+		return errDeviceCodeExpired
 	}
 	if interval > remaining {
 		interval = remaining
@@ -403,9 +429,50 @@ func sleepBeforeDeadline(ctx context.Context, config oauthFlowConfig, interval t
 		return fmt.Errorf("oauth: device-code wait: %w", err)
 	}
 	if !config.now().Before(deadline) {
-		return errors.New("oauth: device code expired")
+		return errDeviceCodeExpired
 	}
 	return nil
+}
+
+// deviceMaxBackoff caps the wait between device-code polls that keep failing.
+const deviceMaxBackoff = 60 * time.Second
+
+// devicePacer paces a device-code poll through transient failures, as RFC
+// 8628 §3.5 has a client slow down and keep polling (0021-MADR T11). After a
+// transport error, a 429 or a 5xx, the wait starts at the poll interval and
+// doubles up to 60 s; a normal answer resets it. The poll goes on until the
+// code expires, and the expiry names the last transient failure.
+type devicePacer struct {
+	backoff time.Duration
+	last    error
+}
+
+// transientStatus reports a poll status that is retried: 429 or any 5xx.
+func transientStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status >= http.StatusInternalServerError
+}
+
+// transient records a transient failure and lengthens the next wait.
+func (p *devicePacer) transient(err error, interval time.Duration) {
+	p.last = err
+	if p.backoff == 0 {
+		p.backoff = interval
+	} else {
+		p.backoff = min(2*p.backoff, deviceMaxBackoff)
+	}
+}
+
+// answered resets the wait after a normal answer.
+func (p *devicePacer) answered() { p.backoff, p.last = 0, nil }
+
+// wait sleeps for the poll interval, or the backoff when it is longer,
+// unless the code expires first.
+func (p *devicePacer) wait(ctx context.Context, config oauthFlowConfig, interval time.Duration, deadline time.Time) error {
+	err := sleepBeforeDeadline(ctx, config, max(interval, p.backoff), deadline)
+	if errors.Is(err, errDeviceCodeExpired) && p.last != nil {
+		return fmt.Errorf("%w; the last poll failed: %w", err, p.last)
+	}
+	return err
 }
 
 func postOAuthJSON(ctx context.Context, client *http.Client, endpoint string, payload any) (*http.Response, error) {
