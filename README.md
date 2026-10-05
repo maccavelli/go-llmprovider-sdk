@@ -165,7 +165,12 @@ key.
   and says so.
 - `TextPrompter` answers the first prompt after its input ends with that
   prompt's default; every later prompt fails, so a script that runs out of
-  answers ends instead of looping.
+  answers ends instead of looping. In a hidden entry, Ctrl-U clears what was
+  typed and Ctrl-C cancels.
+- A base URL needs `http://` or `https://` and a host, and no user name,
+  query or fragment. Plain `http` to a remote host asks first. A pasted
+  OpenAI credential must be an `sk-` key or an unexpired ChatGPT access
+  token; another vendor's key is refused.
 - With `Options.Discover`, it lists the provider's models once, within
   10 seconds (`Options.DiscoverLimit` can shorten that, not extend it).
   Without it, the built-in catalog is offered.

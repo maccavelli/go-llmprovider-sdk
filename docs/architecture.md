@@ -77,7 +77,7 @@ standard library is left out.
 | `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact` |
 | `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `internal/redact`, `golang.org/x/term` |
-| `internal/redact` | `Redact` and `String` (hide a secret completely) and `MaskSecret` (show a suffix for identification) | the standard library |
+| `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification) and `StripControl` (remove terminal control characters) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
@@ -261,7 +261,10 @@ for a session, from the store.
   response its `Reason`. `Retryable()` says whether to try again. Every
   sentinel's message starts `llmprovider:`; a wrapped error keeps its
   package's or provider's prefix, such as `oauth:`. Error bodies pass through
-  `redact.String`.
+  `redact.String`: the first 16 KiB of a message, control characters
+  removed, is redacted, and 512 bytes of it kept; a service's error code is
+  stripped the same way and kept to 128 bytes. Each redaction pattern runs
+  only when the text holds one of its literal anchors.
 
 ## Credentials
 
@@ -420,6 +423,15 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   Grok), reports a failure, and deletes it.
 - **`Result`** prints `[redacted]` for its API key under `fmt` and `slog`.
   Its JSON keeps the key, for the consumer to persist (0016-MADR A9).
+- **What it accepts.** A remote provider's base URL must be `http` or
+  `https` with a host, and carry no userinfo, query or fragment; plain
+  `http` to a host that is not loopback is used only once confirmed. A
+  pasted OpenAI credential that is another vendor's key, or not a JWT, or
+  an expired one, is refused before anything is saved.
+- **`TextPrompter`** strips control characters from what `Notify` writes.
+  Its masked entry redraws only when its input has caught up, pads rather
+  than erasing the line, ignores a lone Escape, clears on Ctrl-U, and
+  cancels on Ctrl-C with an error matching `context.Canceled`.
 
 ## Identity
 

@@ -37,13 +37,15 @@ func TestConfigureLLM_IgnoresCodexAccessTokenEnv(t *testing.T) {
 }
 
 // TestConfigureLLM_TokenStdinStillAcceptsChatGPTToken: a pasted ChatGPT
-// access token is still an access-only OAuth session.
+// access token is still an access-only OAuth session. It is a JWT, as the
+// paste check requires (0021-MADR Z10).
 func TestConfigureLLM_TokenStdinStillAcceptsChatGPTToken(t *testing.T) {
+	pasted := testJWT(`{"sub":"pasted-chatgpt-access"}`)
 	store := newMemoryTokenStore()
 	f := &fakePrompter{
 		t:       t,
 		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), 3},
-		secrets: []string{"pasted-chatgpt-access"},
+		secrets: []string{pasted},
 		inputs:  []string{"chatgpt-model"},
 	}
 	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store})
@@ -51,10 +53,10 @@ func TestConfigureLLM_TokenStdinStillAcceptsChatGPTToken(t *testing.T) {
 		t.Fatalf("ConfigureLLM() error = %v", err)
 	}
 	saved := store.sessions[llmprovider.ProviderOpenAI]
-	if res.Kind != CredOAuth || saved == nil || saved.Access != "pasted-chatgpt-access" || saved.Refresh != "" || store.saves != 1 {
+	if res.Kind != CredOAuth || saved == nil || saved.Access != pasted || saved.Refresh != "" || store.saves != 1 {
 		t.Fatalf("credential %q, stored %v, saves %d; want an access-only session in the store", res.Kind, saved, store.saves)
 	}
-	if fields := resultFieldsHolding(res, "pasted-chatgpt-access"); len(fields) != 0 {
+	if fields := resultFieldsHolding(res, pasted); len(fields) != 0 {
 		t.Fatalf("Result fields %v hold the token", fields)
 	}
 }

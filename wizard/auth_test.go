@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -557,6 +558,47 @@ func TestConfigureLLM_TokenStoreOffersAllMethods(t *testing.T) {
 				if got[i].Label != m.Label {
 					t.Errorf("menu[%d] = %q, want %q", i, got[i].Label, m.Label)
 				}
+			}
+		})
+	}
+}
+
+// testJWT is an unsigned-looking JWT whose payload is claims.
+func testJWT(claims string) string {
+	enc := base64.RawURLEncoding.EncodeToString
+	return enc([]byte(`{"alg":"RS256","typ":"JWT"}`)) + "." + enc([]byte(claims)) + ".c2ln"
+}
+
+// TestResolveTokenStdin_ChecksTheCredential (0021-MADR Z10): a pasted OpenAI
+// credential that is another vendor's key, not a JWT, or an expired JWT is
+// refused before anything is saved; a JWT that has not expired is saved as an
+// access-only session, as before.
+func TestResolveTokenStdin_ChecksTheCredential(t *testing.T) {
+	d := llmprovider.Descriptor{ID: llmprovider.ProviderOpenAI, Label: "OpenAI"}
+	for _, c := range []struct {
+		name, secret, wantErr string
+	}{
+		{"an xAI key", "xai-" + strings.Repeat("k", 24), "this looks like an xAI key"},
+		{"an Anthropic key", "sk-ant-api03-" + strings.Repeat("k", 24), "this looks like an Anthropic key"},
+		{"not a JWT", "pasted-chatgpt-access", "not a ChatGPT access token"},
+		{"an expired JWT", testJWT(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(-time.Hour).Unix())), "expired"},
+		{"a current JWT", testJWT(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(time.Hour).Unix())), ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			store := newMemoryTokenStore()
+			f := &fakePrompter{t: t, secrets: []string{c.secret}}
+			res, err := resolveTokenStdin(context.Background(), f, d, Options{TokenStore: store})
+			if c.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), c.wantErr) || store.saves != 0 {
+					t.Fatalf("resolveTokenStdin = %v with %d saves; want an error naming %q and no save", err, store.saves, c.wantErr)
+				}
+				return
+			}
+			if err != nil || res.kind != CredOAuth || store.saves != 1 {
+				t.Fatalf("resolveTokenStdin = %+v, %v with %d saves; want the session saved", res.kind, err, store.saves)
+			}
+			if saved := store.sessions[llmprovider.ProviderOpenAI]; saved == nil || !saved.Expiry.IsZero() {
+				t.Errorf("stored %v; want an access-only session with no Expiry", saved)
 			}
 		})
 	}

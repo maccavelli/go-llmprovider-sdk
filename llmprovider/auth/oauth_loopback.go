@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
@@ -505,7 +506,7 @@ func oauthCallbackHandler(path, state string, result chan<- oauthCallbackResult,
 			}
 			return
 		}
-		code := query.Get("code")
+		code := redact.StripControl(query.Get("code"))
 		if code == "" {
 			http.Error(w, "Missing authorization code", http.StatusBadRequest)
 			select {
@@ -548,7 +549,7 @@ const callbackErrorMessageLimit = 300
 // It carries error_description, and Codex's explanation for a workspace
 // without Codex (codex login/src/server.rs:934-956).
 func callbackError(query url.Values) error {
-	code := query.Get("error")
+	code := redact.StripControl(query.Get("error"))
 	if code == "" {
 		return nil
 	}
@@ -588,7 +589,7 @@ func parseOAuthInput(input, expectedState string) (string, error) {
 		if authErr := callbackError(query); authErr != nil {
 			return "", authErr
 		}
-		if code := query.Get("code"); code != "" {
+		if code := redact.StripControl(query.Get("code")); code != "" {
 			return code, nil
 		}
 		return "", errors.New("oauth: callback URL missing authorization code")

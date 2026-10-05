@@ -765,3 +765,13 @@ Found while building 0021-PLAN step 4.5; decided by the owner on 2026-10-05.
   or below its generation, capped at one less than the lowest anchor above
   it, so it never outranks a newer hinted generation. The rules above every
   anchor and below every anchor are unchanged.
+
+## Amendment 2026-10-05: Z2 also covers the Google key boundary
+
+Found by 0021-PLAN step 5.2's property test; decided by the owner on
+2026-10-05.
+
+* **New fact.** The Google API key rule, `\bAIza[0-9A-Za-z_-]{35}\b`,
+  misses a key whose last character is `-` or `_`: the trailing `\b` needs
+  a word character on one side. Such a key leaks whole.
+* **Z2 is widened.** The rule drops the trailing `\b`.

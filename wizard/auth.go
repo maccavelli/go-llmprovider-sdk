@@ -2,11 +2,14 @@ package wizard
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -351,10 +354,78 @@ func resolveTokenStdin(
 	// A paste's spaces would make an API key look like an access token
 	// (0020-MADR F18).
 	value = strings.TrimSpace(value)
-	if d.ID == llmprovider.ProviderOpenAI && !strings.HasPrefix(value, "sk-") {
-		return saveAccessOnlyOpenAI(ctx, o, value)
+	if d.ID == llmprovider.ProviderOpenAI {
+		if vendor := foreignKeyVendor(value); vendor != "" {
+			return resolvedCredential{}, fmt.Errorf("wizard: this looks like %s key, not an OpenAI credential", vendor)
+		}
+		if !strings.HasPrefix(value, "sk-") {
+			if err := checkAccessToken(value, time.Now()); err != nil {
+				return resolvedCredential{}, err
+			}
+			return saveAccessOnlyOpenAI(ctx, o, value)
+		}
 	}
 	return staticCredential(CredAPIKey, value), nil
+}
+
+// foreignKeyPrefixes are other vendors' key prefixes, checked in order:
+// sk-ant- before OpenAI's own sk- (0021-MADR Z10).
+var foreignKeyPrefixes = []struct{ prefix, vendor string }{
+	{"sk-ant-", "an Anthropic"}, {"xai-", "an xAI"}, {"tgp_", "a Together"},
+	{"hf_", "a Hugging Face"}, {"AIza", "a Google"},
+}
+
+// foreignKeyVendor names the vendor whose key value looks like, with its
+// article, or "".
+func foreignKeyVendor(value string) string {
+	for _, k := range foreignKeyPrefixes {
+		if strings.HasPrefix(value, k.prefix) {
+			return k.vendor
+		}
+	}
+	return ""
+}
+
+// checkAccessToken refuses a pasted value that is not a ChatGPT access token:
+// a JWT of three base64url segments whose header is JSON with an alg, and
+// whose exp, when it has one, is after now (0021-MADR Z10). The session is
+// still saved with no Expiry, so ValidateOAuthSession's rule for an
+// access-only session is unchanged.
+func checkAccessToken(value string, now time.Time) error {
+	notJWT := errors.New("wizard: this is not a ChatGPT access token (a JWT) or an OpenAI API key (sk-…)")
+	parts := strings.Split(value, ".")
+	if len(parts) != 3 {
+		return notJWT
+	}
+	segment := func(s string) ([]byte, error) { return base64.RawURLEncoding.DecodeString(strings.TrimRight(s, "=")) }
+	header, err := segment(parts[0])
+	if err != nil {
+		return notJWT
+	}
+	var h struct {
+		Alg string `json:"alg"`
+	}
+	if json.Unmarshal(header, &h) != nil || h.Alg == "" {
+		return notJWT
+	}
+	payload, err := segment(parts[1])
+	if err != nil {
+		return notJWT
+	}
+	// The signature is opaque: only its alphabet is checked.
+	if strings.Trim(parts[2], "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") != "" {
+		return notJWT
+	}
+	var claims struct {
+		Exp *float64 `json:"exp"`
+	}
+	if json.Unmarshal(payload, &claims) != nil {
+		return notJWT
+	}
+	if claims.Exp != nil && !time.Unix(int64(*claims.Exp), 0).After(now) {
+		return errors.New("wizard: this ChatGPT access token has expired; sign in again for a fresh one")
+	}
+	return nil
 }
 
 func saveAccessOnlyOpenAI(ctx context.Context, o Options, access string) (resolvedCredential, error) {

@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,8 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"golang.org/x/term"
+
+	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 )
 
 // minRevealRunes is the entry length below which Secret reveals nothing. Below
@@ -156,7 +160,9 @@ func (p *TextPrompter) Notify(level Level, format string, args ...any) {
 		prefix = "error: "
 	case LevelInfo:
 	}
-	p.printf("%s%s\n", prefix, fmt.Sprintf(format, args...))
+	// A notice can carry a server's text: no escape sequence reaches the
+	// terminal (0021-MADR Z3).
+	p.printf("%s%s\n", prefix, redact.StripControl(fmt.Sprintf(format, args...)))
 }
 
 // renderChoices prints the menu, marking the selected rows.
@@ -376,12 +382,26 @@ func (p *TextPrompter) secretOnce(prompt string) (string, error) {
 // testable without one. Raw mode does not translate output, so a line ends
 // with \r\n. The entry is trimmed, so a paste's spaces are not part of it
 // (0020-MADR F17, F18).
+//
+// The view is redrawn only when the reader has nothing buffered, so a paste
+// is drawn once, not once per character, and a shorter view is padded with
+// spaces to the previous width, not erased with \033[K, which some consoles
+// lack. Ctrl-U clears the entry, and Ctrl-C cancels it with an error that
+// matches context.Canceled (0021-MADR Z6).
 func (p *TextPrompter) readMasked(prompt string) (string, error) {
 	if p.eof {
 		return "", errExhausted
 	}
 	r := p.bufReader()
 	var entered []rune
+	width := 0 // the masked view's width on screen, in runes
+	redraw := func() {
+		view := renderSecret(entered)
+		n := utf8.RuneCountInString(view)
+		pad := max(0, width-n)
+		p.printf("\r%s: %s%s%s", prompt, view, strings.Repeat(" ", pad), strings.Repeat("\b", pad))
+		width = n
+	}
 	for {
 		c, _, readErr := r.ReadRune()
 		if readErr != nil {
@@ -403,7 +423,9 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 			return strings.TrimSpace(string(entered)), nil
 		case c == 3: // Ctrl-C
 			p.printf("\r\n")
-			return "", fmt.Errorf("wizard: cancelled")
+			return "", fmt.Errorf("wizard: cancelled: %w", context.Canceled)
+		case c == 0x15: // Ctrl-U — clear the entry
+			entered = entered[:0]
 		case c == 127 || c == 8: // DEL, Backspace — remove one rune
 			if len(entered) > 0 {
 				entered = entered[:len(entered)-1]
@@ -418,8 +440,11 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 		default:
 			entered = append(entered, c)
 		}
-		// Redraw the whole line so the revealed tail updates as it moves.
-		p.printf("\r\033[K%s: %s", prompt, renderSecret(entered))
+		// Redraw the whole line so the revealed tail updates as it moves,
+		// once the reader has caught up.
+		if r.Buffered() == 0 {
+			redraw()
+		}
 	}
 }
 
@@ -436,8 +461,13 @@ func (p *TextPrompter) endMasked(entered []rune, err error) (string, error) {
 // skipEscape consumes the rest of an escape sequence after ESC, so a cursor
 // or function key adds nothing to the entry: a CSI (ESC [, parameters, a
 // final byte in 0x40-0x7E) or an SS3 (ESC O and one byte). Any other
-// character after ESC, such as Alt with a key, is dropped with it.
+// character after ESC, such as Alt with a key, is dropped with it. A lone
+// ESC, with nothing buffered after it, is the Escape key itself: it is
+// ignored, so the next key typed is kept (0021-MADR Z6).
 func skipEscape(r *bufio.Reader) error {
+	if r.Buffered() == 0 {
+		return nil
+	}
 	c, _, err := r.ReadRune()
 	if err != nil {
 		return err

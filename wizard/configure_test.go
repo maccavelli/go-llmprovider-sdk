@@ -363,3 +363,38 @@ func TestConfigure_EmptyRecommendedOpensSearch(t *testing.T) {
 		t.Errorf("notices = %v, want one that no model meets the profile", f.seenNotify)
 	}
 }
+
+// TestResolveBaseURL_Validates (0021-MADR Z7): a remote provider's base URL
+// must be http or https with a host, and carry no userinfo, query or
+// fragment; plain http to a host that is not loopback asks first. A refused
+// URL is asked for again. Kilo's base URL is resolved here too.
+func TestResolveBaseURL_Validates(t *testing.T) {
+	d := llmprovider.Descriptor{ID: llmprovider.ProviderKilo, Label: "Kilo", SupportsBaseURL: true}
+	for _, c := range []struct {
+		name     string
+		inputs   []string
+		confirms []bool
+		want     string
+	}{
+		{"no scheme", []string{"api.example.com", "https://api.example.com"}, nil, "https://api.example.com"},
+		{"userinfo", []string{"https://u:p@host", "https://host"}, nil, "https://host"},
+		{"query", []string{"https://host/?q=1", "https://host"}, nil, "https://host"},
+		{"fragment", []string{"https://host/#f", "https://host"}, nil, "https://host"},
+		{"remote http refused", []string{"http://remote.example", "https://remote.example"}, []bool{false}, "https://remote.example"},
+		{"remote http confirmed", []string{"http://remote.example"}, []bool{true}, "http://remote.example"},
+		{"loopback http", []string{"http://localhost:11434"}, nil, "http://localhost:11434"},
+		{"blank keeps the default", []string{""}, nil, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := &fakePrompter{t: t, inputs: c.inputs, confirms: c.confirms}
+			got, err := resolveBaseURL(context.Background(), f, d, Options{})
+			if err != nil || got != c.want {
+				t.Fatalf("resolveBaseURL = %q, %v; want %q", got, err, c.want)
+			}
+			if len(f.inputs) != 0 || len(f.seenConfirm) != len(c.confirms) {
+				t.Errorf("%d answers left and %d confirmations asked; want every answer used and %d asked",
+					len(f.inputs), len(f.seenConfirm), len(c.confirms))
+			}
+		})
+	}
+}

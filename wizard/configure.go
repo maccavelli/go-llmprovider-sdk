@@ -256,7 +256,12 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 			return "", fmt.Errorf("enter base URL: %w", err)
 		}
 		if !d.IsLocal {
-			return url, nil
+			checked, vErr := validateBaseURL(p, url)
+			if errors.Is(vErr, errBaseURLRefused) {
+				p.Notify(LevelWarn, "%v", vErr)
+				continue
+			}
+			return checked, vErr
 		}
 		vErr := catalog.ValidateOllamaURLWith(ctx, url, check...)
 		if vErr == nil {

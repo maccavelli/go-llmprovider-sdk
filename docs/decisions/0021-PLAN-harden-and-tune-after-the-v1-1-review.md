@@ -1084,6 +1084,8 @@ and its counts are recorded.
   * the value runs to the closing quote when it is quoted, and the
     cookie rule repeats per pair;
   * the PEM rule spans BEGIN to END;
+  * *(Deviation 2026-10-05: the Google key rule loses its trailing `\b`, so
+    a key ending in `-` or `_` is redacted.)*
   * `reKVLong` (`:43`) and the bare `token` key skip values that are
     plain numbers or snake_case words (`^[a-z]+(_[a-z]+)+$`);
   * the package stays at 100% coverage.
@@ -2450,3 +2452,163 @@ presence only, counts only:
   integers, as `gemini-3.10` needs). Grok's static-first curation still
   leads with `grok-4.6` and `grok-4.5`; the backfill now ends with
   `grok-4.7` where it ended with `grok-4.3`.
+
+### Deviation 2026-10-05: step 5.2 and the Google key boundary
+
+* **Found:** `TestRedact_PlantedSecrets`, the step's own property test,
+  failed on 15 of its 1,000 seeded cases, every one a Google API key ending
+  in `-`, such as case 44's. The rule `\bAIza[0-9A-Za-z_-]{35}\b` ends in
+  `\b`, which needs a word character on one side, so a key whose last
+  character is `-` or `_`, followed by a space or a quote, is not matched
+  and leaks whole. It leaks on `HEAD` (`1ba08e2`) too; step 5.2's change list
+  did not name the rule. Every other planted class was redacted in all 1,000
+  cases.
+* **Resolution, chosen by the owner** ("Fix it in 5.2"):
+  * the rule becomes `\bAIza[0-9A-Za-z_-]{35}`, with no trailing `\b`;
+  * `TestRedact_Coverage0021` gains a row for a key ending in `-`;
+  * the property test stands as written.
+* **MADR:** amended with "Z2 also covers the Google key boundary".
+* **Files added to the phase:** none beyond step 5.2's.
+
+### Phase 5: wizard and redaction (2026-10-05)
+
+**Benchmarks, step 5.1** (V4), `-benchmem -count=5` on this host. Before:
+the two new benchmarks on a scratch copy of `HEAD` (`1ba08e2`, phase 4's
+commit). After: the tree at the end of the phase.
+
+| Benchmark | Before (ns/op, B/op, allocs/op) | After | Speed-up |
+| :--- | :--- | :--- | :--- |
+| `BenchmarkRedact_Clean4KiB` | 1,615,141–1,650,466, 23–167 B, 0 | 61,117–61,751, 0 B, 0 | about 26× |
+| `BenchmarkClassifyHTTPError_64KiBHTML` | 27,354,055–27,932,291, about 339 KB, 40–46 | 881,134–895,346, about 307 KB, 45 | about 31× |
+
+Both meet the 10× target. Every redact test that existed before the phase
+is unchanged and passes.
+
+**Red runs.** The red tests ran on a scratch copy of `HEAD` (`1ba08e2`) with
+the new tests added. The FAIL lines:
+
+* **5.2, Z2,** `TestRedact_Coverage0021`:
+  * `{"accessToken":"abcd1234efgh5678"}`, and the same for `refreshToken`,
+    `idToken` and `sessionToken`: `"abcd1234efgh5678" is not redacted`;
+  * the PEM block: `= "key [REDACTED]\nMIIEvQ..."`, its body kept;
+  * `Cookie: a=secret1234; b=secret5678`: `= "Cookie: [REDACTED]
+    b=secret5678"`;
+  * `password="two words here"`: unchanged;
+  * `signature=abcdef123456` and `"private_key":"..."`: unchanged;
+  * the kept rows: `{"code":"[REDACTED]"}`, `'code': '[REDACTED]'` and
+    `token: [REDACTED]`, each `a diagnostic must be kept`;
+  * `grant_type=refresh_token&refresh_token=abc%2Fdef12345` passes on
+    `HEAD`, and stays as a guard;
+  * `TestRedact_PlantedSecrets`: `case 0: "vbARC1r8DKc2SVuLJchr6NZ9"
+    survived`.
+* **5.3, Z3:**
+  * `TestClassify_StripsControlCharacters`: each of `Error()`, `Code` and
+    `Message`, from `ClassifyHTTPError` and from `ClassifyStreamFailure`,
+    `holds a control character`, and `Code is 300 bytes, want at most 128`;
+  * `TestCallback_StripsControlCharacters`: `callbackError = oauth:
+    authorization failed: access\x1b[2J_denied`, and `parseOAuthInput =
+    "ab\x1b[2Jcd"`;
+  * `TestTextPrompter_NotifyStripsControlCharacters`: `Notify wrote
+    "warning: listing failed: \x1b]0;owned\a\x1b[2Jbad\n"`.
+* **5.4, Z6:**
+  * `TestReadMasked_Paste`: `a paste drew the entry 2000 times, want at
+    most 2`, and `the redraw erases the line with \033[K`;
+  * `TestReadMasked_TypedRedrawPads`: `output
+    "\r\x1b[KKey: •\r\x1b[KKey: ••\r\x1b[KKey: •\r\n"`;
+  * `TestReadMasked_Keys`: `a lone ESC: readMasked = "x"`, `Ctrl-U:
+    readMasked = "abcdef"`, and `Ctrl-C: err = wizard: cancelled, want it to
+    match context.Canceled`.
+* **5.5, Z7,** `TestResolveBaseURL_Validates`: `resolveBaseURL =
+  "api.example.com"`, `"https://u:p@host"`, `"https://host/?q=1"`,
+  `"https://host/#f"` and `"http://remote.example"`, each taken as entered;
+  and `0 confirmations asked; want ... 1 asked`. The loopback and blank
+  rows pass on `HEAD`, as guards.
+* **5.6, Z10,** `TestResolveTokenStdin_ChecksTheCredential`: the `xai-`
+  key, a non-JWT and an expired JWT were each saved (`<nil> with 1 saves`),
+  and the `sk-ant-` key was taken as an API key (`<nil> with 0 saves`). The
+  current-JWT row passes on `HEAD`, as a guard.
+
+**PASS:** every test above passes on the tree, and so does the whole suite.
+
+**What was built:**
+
+* **5.1:**
+  * `apiErrorRedactLimit` (16 KiB) and `cutMessage`, in both classifiers;
+  * in `internal/redact`, the table `passes`, each pass gated on its
+    lower-case literal `anchors` by `containsAny`, over a copy lower-cased
+    by `asciiLower` into a 4 KiB stack buffer.
+* **5.2:**
+  * `reKV` gains the camelCase token keys, `private[_-]?key` and
+    `signature`;
+  * a quoted value runs to its closing quote;
+  * `reCookie` and `reCookiePair` redact each pair's value;
+  * the PEM rule spans BEGIN to END, or to the end of the base64 body;
+  * `reKVLong` and the bare `token` key keep values matching
+    `reDiagnostic`;
+  * the Google key rule loses its trailing `\b` (deviation above).
+* **5.3:** `internal/redact/control.go`'s `StripControl`, applied in both
+  classifiers, through `boundCode` (`apiErrorCodeLimit`, 128) for `Code`, to
+  the callback's `error` and `code`, and to `TextPrompter.Notify`.
+* **5.4:** in `readMasked`, a `redraw` that pads to the previous width; the
+  redraw runs only when nothing is buffered; Ctrl-U clears, and Ctrl-C wraps
+  `context.Canceled`. `skipEscape` ignores a lone ESC.
+* **5.5:** `wizard/base_url.go`, with `validateBaseURL`, `errBaseURLRefused`
+  and `loopbackHost`, called from `resolveBaseURL` for every remote
+  descriptor.
+* **5.6:** in `resolveTokenStdin`, for OpenAI: `foreignKeyPrefixes` and
+  `foreignKeyVendor`, then `checkAccessToken`.
+
+**Implementation notes, within the steps:**
+
+* `StripControl` turns a newline or carriage return into a space, rather
+  than removing it, so the words on either side stay apart. The step's rule
+  ("no byte below 0x20 except `\t`") holds.
+* The prefilter reads the text as it was before any pass: a replacement only
+  removes text and adds `[REDACTED]`, so it never adds an anchor.
+* The cookie value is redacted pair by pair, so `Cookie: a=[REDACTED];
+  b=[REDACTED]` keeps the names; `cookie` left `reKV`'s keys.
+* A pool for the lower-cased copy was tried first; `errcheck` rejects its
+  type assertion in every form, so a 4 KiB stack buffer serves instead.
+  Longer text allocates once.
+* `checkAccessToken` checks the signature segment's alphabet only: the
+  fixture `eyJhbGciOiJub25lIn0.e30.x` has a one-character signature, which
+  is base64url but does not decode.
+* `validateBaseURL` is called once, from `resolveBaseURL`. The Kilo path
+  receives the URL that call returned, so it needs no second call.
+* The confirmation for plain `http` to a remote host defaults to no.
+
+**Existing assertions changed to the decided behaviour** (Z10):
+`TestConfigureLLM_TokenStdinStillAcceptsChatGPTToken` pastes a JWT, built
+by the new `testJWT`, in place of `pasted-chatgpt-access`, which the paste
+check now refuses as not a JWT. Its assertions are unchanged.
+
+**Goldens:** none changed.
+
+**Docs:**
+
+* `docs/architecture.md`: the `internal/redact` row, the Errors bullet, and
+  the wizard's "What it accepts" and `TextPrompter` bullets;
+* `README.md`: the wizard's hidden-entry keys, base URLs and pasted
+  credentials.
+
+**Gate,** all exit 0, after four lint findings in the new code were fixed
+(the pool's type assertion, `\d` in `reDiagnostic`, and two misplaced
+imports):
+
+* G1, G2 and G3;
+* G4: 26 packages ok; `internal/redact` 100.0%, `llmprovider` 97.9%,
+  `auth` 87.2%, `wizard` 88.4%;
+* G5, and G6 with 0 issues on the host and with `GOOS=windows`;
+* G7:
+  * parity: 409 identifiers, 0 problems;
+  * dep-check: 27 packages, 0 problems;
+  * coverage-check: 27 packages, 0 problems;
+  * api-check: "against v1.1.0, 0 incompatible change(s)";
+  * generate-check: 0 problems;
+* G8: 0 issues; G9: stable; G10: 0 problems; G11: 0 hits in 20 files.
+
+**V3.5, masked entry on Windows: pending, the owner's.** A scratch program,
+not committed, calls `TextPrompter.Secret` for the five checks: a paste of
+about 2,000 characters, Backspace, Ctrl-U, a lone ESC, and Ctrl-C. It
+prints only lengths and errors, and builds with `GOOS=windows`. The owner
+runs it in Windows Terminal and in the legacy console; the results go here.

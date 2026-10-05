@@ -57,6 +57,12 @@ const (
 	apiErrorBodyLimit = 64 << 10
 	// apiErrorMessageLimit bounds APIError.Message.
 	apiErrorMessageLimit = 512
+	// apiErrorRedactLimit bounds how much of a message is redacted. Only the
+	// first apiErrorMessageLimit bytes are kept, so redacting a 64 KiB HTML
+	// page whole is wasted work (0021-MADR Z1).
+	apiErrorRedactLimit = 16 << 10
+	// apiErrorCodeLimit bounds APIError.Code.
+	apiErrorCodeLimit = 128
 )
 
 // APIError is a failure the service reported, with its own classification
@@ -205,8 +211,8 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 	e := &APIError{
 		Provider:   provider,
 		Status:     resp.StatusCode,
-		Code:       envelope.errType(),
-		Message:    boundMessage(redact.String(message)),
+		Code:       boundCode(envelope.errType()),
+		Message:    boundMessage(redact.String(redact.StripControl(cutMessage(message)))),
 		RetryAfter: transport.RetryAfter(resp.Header),
 	}
 	e.terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
@@ -244,7 +250,8 @@ func ClassifyStreamFailure(provider, code, errType, message string) error {
 			env.types = append(env.types, t)
 		}
 	}
-	e := &APIError{Provider: provider, Code: env.errType(), Message: boundMessage(redact.String(message))}
+	e := &APIError{Provider: provider, Code: boundCode(env.errType()),
+		Message: boundMessage(redact.String(redact.StripControl(cutMessage(message))))}
 	switch {
 	case env.hasType("rate_limit_exceeded") || env.hasType("slow_down"):
 		e.Kind = ErrRateLimited
@@ -405,6 +412,34 @@ func jsonString(raw json.RawMessage) string {
 		return ""
 	}
 	return s
+}
+
+// boundCode strips a service's error code of control characters and trims
+// it to apiErrorCodeLimit bytes on a rune boundary: the code reaches
+// Error() and so a terminal (0021-MADR Z3).
+func boundCode(s string) string {
+	s = redact.StripControl(s)
+	if len(s) <= apiErrorCodeLimit {
+		return s
+	}
+	cut := apiErrorCodeLimit
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
+}
+
+// cutMessage trims s to apiErrorRedactLimit bytes on a rune boundary, before
+// it is redacted.
+func cutMessage(s string) string {
+	if len(s) <= apiErrorRedactLimit {
+		return s
+	}
+	cut := apiErrorRedactLimit
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 // boundMessage trims s to apiErrorMessageLimit bytes on a rune boundary.

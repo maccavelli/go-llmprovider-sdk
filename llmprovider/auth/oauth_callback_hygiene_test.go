@@ -3,6 +3,7 @@ package auth
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -71,5 +72,19 @@ func TestOAuthCallback_MissingCodexEntitlement(t *testing.T) {
 	if _, err := parseOAuthInput("http://localhost/cb?state=expected-state&error=access_denied&error_description=missing_codex_entitlement",
 		"expected-state"); err == nil || !strings.Contains(err.Error(), "Codex is not enabled for your workspace") {
 		t.Fatalf("parseOAuthInput = %v, want the entitlement explanation", err)
+	}
+}
+
+// TestCallback_StripsControlCharacters (0021-MADR Z3): the IdP's error code
+// and the authorization code reach no error and no session with an escape
+// sequence in them.
+func TestCallback_StripsControlCharacters(t *testing.T) {
+	err := callbackError(url.Values{"error": {"access\x1b[2J_denied"}})
+	if err == nil || strings.ContainsRune(err.Error(), 0x1b) {
+		t.Errorf("callbackError = %v; want an error with no ESC", err)
+	}
+	code, err := parseOAuthInput("http://localhost/cb?code=ab%1B%5B2Jcd&state=s", "s")
+	if err != nil || strings.ContainsRune(code, 0x1b) || code != "ab[2Jcd" {
+		t.Errorf("parseOAuthInput = %q, %v; want the code without ESC", code, err)
 	}
 }

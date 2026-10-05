@@ -2,6 +2,8 @@ package wizard
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -201,4 +203,63 @@ func TestInput_DefaultOnEmpty(t *testing.T) {
 func TestTextPrompter_SatisfiesPrompter(t *testing.T) {
 	var _ Prompter = (*TextPrompter)(nil)
 	var _ Prompter = NewTextPrompter()
+}
+
+// TestTextPrompter_NotifyStripsControlCharacters (0021-MADR Z3): a notice
+// built from a server's text writes no escape sequence to the terminal.
+func TestTextPrompter_NotifyStripsControlCharacters(t *testing.T) {
+	p, out := pipePrompter(t, "")
+	p.Notify(LevelWarn, "listing failed: %s", "\x1b]0;owned\x07\x1b[2Jbad")
+	if strings.ContainsAny(out.String(), "\x1b\x07") || !strings.Contains(out.String(), "bad") {
+		t.Errorf("Notify wrote %q; want the text with no escape sequence", out.String())
+	}
+}
+
+// TestReadMasked_Paste (0021-MADR Z6): a 2,000-character paste is drawn at
+// most twice, not once per character, and no redraw uses the erase-line
+// sequence.
+func TestReadMasked_Paste(t *testing.T) {
+	var out bytes.Buffer
+	p := &TextPrompter{In: strings.NewReader(strings.Repeat("a", 2000) + "\r"), Out: &out}
+	got, err := p.readMasked("Key")
+	if err != nil || len(got) != 2000 {
+		t.Fatalf("readMasked = %d characters, %v; want the paste", len(got), err)
+	}
+	if n := strings.Count(out.String(), "Key: "); n > 2 {
+		t.Errorf("a paste drew the entry %d times, want at most 2", n)
+	}
+	if strings.Contains(out.String(), "\033[K") {
+		t.Error("the redraw erases the line with \\033[K")
+	}
+}
+
+// TestReadMasked_TypedRedrawPads (0021-MADR Z6): typed keys redraw, and a
+// shorter view pads the old width with spaces rather than erasing the line.
+func TestReadMasked_TypedRedrawPads(t *testing.T) {
+	var out bytes.Buffer
+	p := &TextPrompter{In: &chunkReader{chunks: []string{"a", "b", "\x7f", "\r"}}, Out: &out}
+	if got, err := p.readMasked("Key"); err != nil || got != "a" {
+		t.Fatalf("readMasked = %q, %v; want a", got, err)
+	}
+	if strings.Contains(out.String(), "\033[K") || !strings.Contains(out.String(), " \b") {
+		t.Errorf("output %q; want the shrunk view padded with a space and the cursor moved back", out.String())
+	}
+}
+
+// TestReadMasked_Keys (0021-MADR Z6): a lone ESC with nothing after it in
+// the buffer is ignored, so the next key is kept; Ctrl-U clears the entry;
+// Ctrl-C cancels with an error matching context.Canceled.
+func TestReadMasked_Keys(t *testing.T) {
+	p := &TextPrompter{In: &chunkReader{chunks: []string{"x", "\x1b", "a\r"}}, Out: &bytes.Buffer{}}
+	if got, err := p.readMasked("Key"); err != nil || got != "xa" {
+		t.Errorf("a lone ESC: readMasked = %q, %v; want xa", got, err)
+	}
+	p = &TextPrompter{In: strings.NewReader("abc\x15def\r"), Out: &bytes.Buffer{}}
+	if got, err := p.readMasked("Key"); err != nil || got != "def" {
+		t.Errorf("Ctrl-U: readMasked = %q, %v; want def", got, err)
+	}
+	p = &TextPrompter{In: strings.NewReader("ab\x03"), Out: &bytes.Buffer{}}
+	if _, err := p.readMasked("Key"); !errors.Is(err, context.Canceled) {
+		t.Errorf("Ctrl-C: err = %v, want it to match context.Canceled", err)
+	}
 }

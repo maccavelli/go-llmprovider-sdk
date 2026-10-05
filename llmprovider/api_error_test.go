@@ -172,3 +172,58 @@ func TestClassifyHTTPStatus(t *testing.T) {
 		})
 	}
 }
+
+// htmlErrorPage is a gateway's 64 KiB HTML error page, with one link.
+func htmlErrorPage() string {
+	const para = "<p>The upstream server returned an invalid response while handling this request. Please wait a moment and try again.</p>\n"
+	head := `<!DOCTYPE html><html><head><title>502 Bad Gateway</title><style>body{font-family:sans-serif}</style></head>` +
+		`<body><h1>Bad Gateway</h1><p>See <a href="https://status.example.com/incidents">the status page</a>.</p>\n`
+	body := head + strings.Repeat(para, (64<<10-len(head))/len(para)+1)
+	return body[:64<<10]
+}
+
+// BenchmarkClassifyHTTPError_64KiBHTML (0021-MADR Z1): the cost of
+// classifying a 502 whose body is a 64 KiB HTML page.
+func BenchmarkClassifyHTTPError_64KiBHTML(b *testing.B) {
+	page := htmlErrorPage()
+	b.ReportAllocs()
+	for b.Loop() {
+		resp := &http.Response{StatusCode: http.StatusBadGateway, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(page))}
+		_ = ClassifyHTTPError("p", resp)
+	}
+}
+
+// controlRune reports a rune a terminal may act on: C0 except tab, DEL, or C1.
+func controlRune(r rune) bool {
+	return r < 0x20 && r != '\t' || r == 0x7f || r >= 0x80 && r <= 0x9f
+}
+
+// TestClassify_StripsControlCharacters (0021-MADR Z3): an error body's
+// escape sequences never reach Error(), Code or Message, and Code is
+// bounded.
+func TestClassify_StripsControlCharacters(t *testing.T) {
+	body := `{"error":{"type":"x\u001b[31m","message":"\u001b]0;owned\u0007\u001b[2Jhello\u009b"}}`
+	resp := &http.Response{StatusCode: http.StatusBadRequest, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}
+	var apiErr *APIError
+	if !errors.As(ClassifyHTTPError("p", resp), &apiErr) {
+		t.Fatal("not an APIError")
+	}
+	stream := ClassifyStreamFailure("p", "c\u001b[0m", "", "\u001b[2Jbye")
+	var streamErr *APIError
+	if !errors.As(stream, &streamErr) {
+		t.Fatal("stream: not an APIError")
+	}
+	for _, s := range []string{apiErr.Error(), apiErr.Code, apiErr.Message, streamErr.Error(), streamErr.Code, streamErr.Message} {
+		if strings.ContainsFunc(s, controlRune) {
+			t.Errorf("%q holds a control character", s)
+		}
+	}
+	if !strings.Contains(apiErr.Message, "hello") {
+		t.Errorf("Message = %q, want the text kept", apiErr.Message)
+	}
+	long := `{"error":{"type":"` + strings.Repeat("a", 300) + `","message":"m"}}`
+	resp = &http.Response{StatusCode: http.StatusBadRequest, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(long))}
+	if errors.As(ClassifyHTTPError("p", resp), &apiErr) && len(apiErr.Code) > 128 {
+		t.Errorf("Code is %d bytes, want at most 128", len(apiErr.Code))
+	}
+}
