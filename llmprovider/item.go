@@ -57,6 +57,12 @@ type ReasoningItem struct {
 	// replayed as is: Claude's redacted_thinking data, OpenAI's
 	// encrypted_content (0020-MADR F7, F24, Q1 a). Text may then be empty.
 	Encrypted string
+	// Format names the wire that produced the item: "responses",
+	// "messages", "chatcompletions" or "generatecontent". Signature and
+	// Encrypted are replayed only to the wire that issued them, or when
+	// Format is empty, as on an item built before this field; another wire
+	// sees the item as text only (0021-MADR D5, W7).
+	Format string
 }
 
 func (ReasoningItem) itemKind() string { return itemTypeReasoning }

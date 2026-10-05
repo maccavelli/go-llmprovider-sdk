@@ -62,7 +62,8 @@
         "item": {
           "Text": "thinking",
           "Signature": "sig_wire",
-          "Encrypted": ""
+          "Encrypted": "",
+          "Format": "messages"
         },
         "type": "ReasoningItem"
       },

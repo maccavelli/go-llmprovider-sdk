@@ -64,9 +64,10 @@ func TestDecodeChatCompletions_ReasoningFieldNames(t *testing.T) {
 		{"both present: reasoning_content wins",
 			`{"choices":[{"message":{"role":"assistant","content":"x","reasoning_content":"RC","reasoning":"R"}}]}`,
 			"RC", "x"},
-		{"reasoning_details only, no string field: not decoded",
-			`{"choices":[{"message":{"role":"assistant","content":"x","reasoning_details":[{"type":"reasoning.text","text":"ignored"}]}}]}`,
-			"", "x"},
+		// Decoded since 0021-MADR W9: Kilo needs the entries back.
+		{"reasoning_details only, no string field: decoded",
+			`{"choices":[{"message":{"role":"assistant","content":"x","reasoning_details":[{"type":"reasoning.text","text":"kept"}]}}]}`,
+			"kept", "x"},
 		{"neither: absent reasoning is normal",
 			`{"choices":[{"message":{"role":"assistant","content":"x"}}]}`,
 			"", "x"},

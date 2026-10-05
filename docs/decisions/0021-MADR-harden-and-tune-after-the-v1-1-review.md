@@ -713,3 +713,15 @@ corrected, and the PLAN follows them:
 13. **D1's budget.** The one retry after a reply counts against
     `MaxAttempts`, and happens at most once whatever the budget. With
     `MaxAttempts: 1` nothing is retried, as before.
+
+## Amendment 2026-10-04: two live failures added as phase 7
+
+Found by 0021-PLAN's phase 1 live suite (V3.3). Both tests fail the same way
+on `6be2d80`, so neither comes from this record's changes. The owner added
+them to this record's scope on 2026-10-04 ("added as extra phase, proceed").
+0021-PLAN carries them as phase 7.
+
+| ID | Location | Finding | Evidence |
+| :--- | :--- | :--- | :--- |
+| L1 | `llmprovider/live_opencode_test.go:175` | **The metadata route test pins stale data.** It assumes OpenCode Go's `qwen3.8-max` has no `provider.npm`, so it routes to chat. The live models.opencode.ai document of 2026-10-04 gives it `@ai-sdk/anthropic`, and the provider correctly follows it to `/messages`. The provider is right; the test is stale. | reproduced live, on `HEAD` and the tree |
+| L2 | `llmprovider/live_grok_test.go:136`; `providers/grok/grok.go` `body` | **Grok ignores the instructions.** `grok-4.6` answered "Hello!" to a request whose leading system message said to reply only "OMEGA". Grok sends `Instructions` as a system message in `input`. Whether xAI now wants the top-level `instructions` field, or the model changed, is measured first. | reproduced live, twice, on `HEAD` |

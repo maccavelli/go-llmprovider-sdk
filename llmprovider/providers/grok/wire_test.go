@@ -21,6 +21,14 @@ var wireCases = []wirecase.Case{{
 		return New(append([]llmprovider.Option{llmprovider.WithAPIKey("xai-wire"), llmprovider.WithModel("grok-4.5")},
 			wirecase.Opts(u, extra...)...)...)
 	},
+}, {
+	// A stateless request asks for encrypted reasoning (0021-MADR D4).
+	Name:    "grok-stateless",
+	Listing: wirecase.ListingDataIDs("grok-4.5", "grok-4.7"),
+	Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
+		return New(append([]llmprovider.Option{llmprovider.WithAPIKey("xai-wire"), llmprovider.WithModel("grok-4.5"),
+			WithStore(false)}, wirecase.Opts(u, extra...)...)...)
+	},
 }}
 
 // TestWireGoldens is G-wire (0015-MADR D12) for Grok, through the new API.

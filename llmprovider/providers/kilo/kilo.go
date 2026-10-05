@@ -259,6 +259,8 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		// "tool_choice"; offering the tools unforced is strictly better than
 		// a 400, and ToolChoiceNone sends none (0020-MADR F40).
 		NoToolChoice: !p.supports(paramToolChoice),
+		// The gateway's reasoning_details go back as they came (0021-MADR W9).
+		ReplayReasoningDetails: true,
 	})
 	if !p.collect {
 		// Kilo's opt-out from upstreams that train on prompts, which its client

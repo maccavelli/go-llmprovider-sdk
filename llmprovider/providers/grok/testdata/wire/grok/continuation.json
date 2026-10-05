@@ -30,7 +30,8 @@
         "item": {
           "Text": "thinking",
           "Signature": "",
-          "Encrypted": ""
+          "Encrypted": "",
+          "Format": "responses"
         },
         "type": "ReasoningItem"
       },

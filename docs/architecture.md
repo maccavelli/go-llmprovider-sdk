@@ -219,6 +219,18 @@ for a session, from the store.
 - **`Item`** is sealed. Its types are `MessageItem`, `FunctionCallItem`,
   `FunctionCallOutputItem` and `ReasoningItem`, and `Response.Output` holds
   them.
+  - A call's `Arguments` are the JSON the service sent, compacted, never
+    decoded and re-encoded; no arguments are `"{}"`.
+  - A `ReasoningItem`'s `Format` names the wire that produced it. Its
+    `Signature` and `Encrypted` are replayed only to that wire, or from an
+    item with no `Format` (0021-MADR D5).
+  - A Responses request sent with `store: false` asks for encrypted
+    reasoning, so a tool loop keeps it (0021-MADR D4). Kilo's
+    `reasoning_details` are kept and replayed as they came (0021-MADR W9).
+- **Answers:** every wire maps its finish reason the same way. A value with
+  no constant is kept as sent, and a reply with a call finishes
+  `tool_calls`. An answer with nothing usable is `ErrIncomplete`, with the
+  service's reason (`content_filter`, a refusal) in `APIError.Reason`.
 - **Construction:** `providers.New(id, opts...)`, or the provider package's
   own `New` (`opencode.NewZen` and `NewGo`); every provider is in its own
   package. Options are `Option` values: the common ones in `llmprovider`

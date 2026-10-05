@@ -85,7 +85,8 @@
         "item": {
           "Text": "thinking",
           "Signature": "",
-          "Encrypted": ""
+          "Encrypted": "",
+          "Format": "generatecontent"
         },
         "type": "ReasoningItem"
       },
@@ -98,7 +99,7 @@
       },
       {
         "item": {
-          "CallID": "get_weather",
+          "CallID": "get_weather#0",
           "Name": "get_weather",
           "Arguments": "{\"city\":\"Paris\"}",
           "Signature": "sig_wire"

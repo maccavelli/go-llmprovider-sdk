@@ -1,0 +1,48 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer xai-wire",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": "What is the weather in Paris?",
+            "role": "user"
+          }
+        ],
+        "max_output_tokens": 8192,
+        "model": "grok-4.5",
+        "store": false,
+        "tool_choice": {
+          "name": "get_weather",
+          "type": "function"
+        },
+        "tools": [
+          {
+            "description": "Weather for a city",
+            "name": "get_weather",
+            "parameters": {
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "function"
+          }
+        ]
+      }
+    }
+  ],
+  "result": "{\"city\":\"Paris\"}"
+}

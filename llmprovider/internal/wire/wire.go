@@ -27,22 +27,40 @@ const (
 	RoleUser      = "user"
 )
 
+// The wire formats a ReasoningItem's Format names (0021-MADR D5).
+const (
+	FormatResponses       = "responses"
+	FormatMessages        = "messages"
+	FormatChatCompletions = "chatcompletions"
+	FormatGenerateContent = "generatecontent"
+)
+
+// Replays reports whether a reasoning item's opaque parts, its Signature and
+// Encrypted, may go to the wire named format: the wire that issued them, or
+// any wire for an item with no Format (0021-MADR D5, W7).
+func Replays(item llmprovider.ReasoningItem, format string) bool {
+	return item.Format == "" || item.Format == format
+}
+
 // LowEffortThinkingBudget is the budget "low" maps to where a model takes only
 // a budget, in the Messages and generateContent thinking shapes. It is
 // Anthropic's minimum: 1023 is refused with HTTP 400 (measured 2026-09-27).
 const LowEffortThinkingBudget = 1024
 
-// ToolArguments decodes a call's JSON arguments into the object Anthropic's
-// tool_use.input and Gemini's functionCall.args require. Empty arguments are
-// an empty object; arguments that are not a JSON object are kept under
-// "arguments" rather than dropped.
-func ToolArguments(arguments string) map[string]any {
-	if strings.TrimSpace(arguments) == "" {
+// ToolArguments is a call's JSON arguments as the object Anthropic's
+// tool_use.input and Gemini's functionCall.args require. A JSON object is
+// passed through as it is, compacted, so a large integer keeps its digits
+// (0021-MADR W1). Empty arguments are an empty object; arguments that are not
+// a JSON object are kept under "arguments" rather than dropped.
+func ToolArguments(arguments string) any {
+	trimmed := strings.TrimSpace(arguments)
+	if trimmed == "" {
 		return map[string]any{}
 	}
-	var args map[string]any
-	if err := json.Unmarshal([]byte(arguments), &args); err == nil && args != nil {
-		return args
+	if strings.HasPrefix(trimmed, "{") && json.Valid([]byte(trimmed)) {
+		if compact, err := CompactArguments(json.RawMessage(trimmed)); err == nil {
+			return json.RawMessage(compact)
+		}
 	}
 	return map[string]any{KeyArguments: arguments}
 }

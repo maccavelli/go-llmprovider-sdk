@@ -83,7 +83,7 @@ func TestGeminiInteractions_Response(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 	want := []llmprovider.Item{
-		llmprovider.ReasoningItem{Text: "Look up the weather."},
+		llmprovider.ReasoningItem{Text: "Look up the weather.", Format: "generatecontent"},
 		llmprovider.FunctionCallItem{CallID: "call_7", Name: "get_weather", Arguments: `{"city":"Paris"}`, Signature: "sig-9"},
 		llmprovider.FunctionCallItem{CallID: "call_8", Name: "get_weather", Arguments: `{"city":"Rome"}`, Signature: "sig-9"},
 	}

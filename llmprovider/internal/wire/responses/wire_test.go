@@ -44,7 +44,7 @@ func TestDecode(t *testing.T) {
 		t.Fatalf("Decode: %v", err)
 	}
 	want := []llmprovider.Item{
-		llmprovider.ReasoningItem{Text: "thinking"},
+		llmprovider.ReasoningItem{Text: "thinking", Format: "responses"},
 		llmprovider.MessageItem{Role: "assistant", Text: "hello"},
 		llmprovider.FunctionCallItem{CallID: "c1", Name: "get_weather", Arguments: "{}"},
 	}
@@ -91,13 +91,14 @@ func TestReadStream(t *testing.T) {
 	})
 	t.Run("completed with no id keeps created's", func(t *testing.T) {
 		res, err := ReadStream("p", strings.NewReader(sse(
-			`{"type":"response.created","response":{"id":"r0"}}`, `{"type":"response.completed","response":{}}`)))
+			`{"type":"response.created","response":{"id":"r0"}}`, `{"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"ok"}]}}`,
+			`{"type":"response.completed","response":{}}`)))
 		if err != nil || res.ID != "r0" {
 			t.Fatalf("ReadStream = %+v, %v; want r0", res, err)
 		}
 	})
 	t.Run("data split over lines, and a final event with no blank line", func(t *testing.T) {
-		res, err := ReadStream("p", strings.NewReader("data: {\"type\":\"response.completed\",\ndata: \"response\":{\"id\":\"r2\"}}"))
+		res, err := ReadStream("p", strings.NewReader(sse(`{"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"ok"}]}}`)+"data: {\"type\":\"response.completed\",\ndata: \"response\":{\"id\":\"r2\"}}"))
 		if err != nil || res.ID != "r2" {
 			t.Fatalf("ReadStream = %+v, %v; want r2", res, err)
 		}

@@ -178,6 +178,10 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 }
 
 // body is the Responses request for req.
+// includeEncryptedReasoning asks a stateless Responses request for its
+// reasoning, encrypted, so the next turn can replay it.
+const includeEncryptedReasoning = "reasoning.encrypted_content"
+
 func (p *provider) body(req *llmprovider.Request) map[string]any {
 	model := req.Model
 	if model == "" {
@@ -196,7 +200,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		// (gate G-C, 2026-09-27; codex core/src/client.rs:1007-1008).
 		body["stream"] = true
 		body["store"] = false
-		body["include"] = []string{"reasoning.encrypted_content"}
+		body["include"] = []string{includeEncryptedReasoning}
 		body["prompt_cache_key"] = p.session
 	} else {
 		maxTokens := p.maxTokens
@@ -206,6 +210,11 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		body["max_output_tokens"] = maxTokens
 		if p.store != nil {
 			body["store"] = *p.store
+			if !*p.store {
+				// Stateless, so reasoning comes back encrypted to be replayed,
+				// as Codex asks on every request (0021-MADR D4).
+				body["include"] = []string{includeEncryptedReasoning}
+			}
 		}
 	}
 	wire.AddResponsesTools(body, req.Tools, req.ToolChoice)

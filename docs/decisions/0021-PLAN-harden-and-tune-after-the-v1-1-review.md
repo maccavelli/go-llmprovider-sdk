@@ -31,7 +31,7 @@ When it is done:
 
 ### In scope
 
-The six phases of the MADR's §2, in order. Each phase touches one area,
+The six phases of the MADR's §2, in order, and phase 7, added on 2026-10-04. Each phase touches one area,
 ends with the gate green, and is staged as one change. Agents stage; the
 owner commits.
 
@@ -43,6 +43,7 @@ owner commits.
 | 4 | catalog | C1, C2, C3, C4, C5, C6, D3 (C7, C8), C9, C11, Z11, C12, C13, C10, W13 |
 | 5 | wizard and redaction | Z1, Z2, Z3, Z6, Z7, Z10 |
 | 6 | tooling and tests | Z4, Z9, Z5, `nolintlint`, Z8, Z12, D5 harness fields (W12) |
+| 7 | live drift (added 2026-10-04) | L1, L2 |
 
 ### Out of scope
 
@@ -513,7 +514,9 @@ V3.1 under Verification.
     reply's function calls from 0.
   * The `functionResponse` name lookup (`:89-92`) falls back to the
     CallID with any `#<digits>` suffix removed.
-  * Nothing new is sent, so the goldens stay unchanged.
+  * Nothing new is sent. ~~So the goldens stay unchanged.~~ *(Deviation
+    2026-10-04: the goldens also record the decoded result, and
+    `opencode-zen-google/items.json` changes there.)*
 
 #### 2.6 `ReasoningItem.Format` (D5, W7)
 
@@ -544,6 +547,8 @@ V3.1 under Verification.
     A foreign item is treated as text-only.
   * The existing tests that compare decoded `ReasoningItem` values gain
     the field, listed in the Execution record.
+  * *(Deviation 2026-10-04:)* every golden whose decoded result holds a
+    `ReasoningItem` gains `Format` there, each listed.
   * `docs/architecture.md` gains the field's row.
 
 #### 2.7 Encrypted reasoning when stateless (D4, W8)
@@ -1279,6 +1284,60 @@ and its counts are recorded.
 * `docs/README.md`: this PLAN becomes `complete` when every condition of
   the Goal holds.
 
+### Phase 7: live drift (added 2026-10-04)
+
+Added by the owner on 2026-10-04 ("added as extra phase, proceed"), after
+phase 1's live suite found two failures that also fail on `6be2d80` (the
+Execution record, phase 1, V3.3). The MADR's amendment "two live failures
+added as phase 7" records them as L1 and L2.
+
+#### 7.1 OpenCode's metadata route test follows the live metadata (L1)
+
+* **Red:** `TestLive_OpencodeRoutesFromMetadata`
+  (`llmprovider/live_opencode_test.go:175`) fails today. It reports
+  `request paths = [/zen/go/v1/messages], want one /chat/completions`,
+  because the live document now gives Go's `qwen3.8-max` the npm
+  `@ai-sdk/anthropic`.
+* **Change:** the test reads the live models.opencode.ai document. It
+  asserts that the request path is the route that `qwen3.8-max`'s npm on
+  `opencode-go` maps to through `routeForNPM`'s rule, and logs the npm it
+  found. The rule's mapping is `@ai-sdk/openai` → `/responses`,
+  `@ai-sdk/anthropic` → `/messages`, `@ai-sdk/google` → the Google route,
+  and anything else, or none, → `/chat/completions`. The provider's routing
+  is unchanged: it already follows the metadata.
+* **Done when:**
+  * the test passes live;
+  * a planted wrong expectation, on a scratch copy, fails it;
+  * the comment says what the test pins now.
+
+#### 7.2 Grok's instructions: measured first (L2)
+
+* **7.2a, probe.** A scratch live test runs on a scratch copy, with
+  `XAI_API_KEY` checked for presence only. It sends the test's request to
+  `grok-4.6` and to the newest Grok model in the live listing, three times
+  each, in two forms:
+  * (a) today's, the instructions as a leading system message in `input`;
+  * (b) the instructions in the top-level `instructions` field.
+
+  It records only whether each reply contains `OMEGA`.
+* **7.2b, if (b) is obeyed and (a) is not:**
+  * **Red:** `TestBody_InstructionsField` in
+    `llmprovider/providers/grok/request_test.go`. A request's
+    `Instructions` go in the top-level `instructions` field, not in
+    `input`.
+  * **Change:** `grok.go`'s `body` sends `instructions`.
+  * The `grok` goldens with instructions change, each listed.
+  * The live test passes.
+* **If both forms are obeyed, or the results disagree between runs,** stop
+  and prompt with the counts.
+* **If neither form is obeyed,** the service ignores the instruction in
+  both forms. Stop and prompt with the counts: changing the test's prompt
+  to pass would loosen it.
+
+#### Phase 7 live check
+
+7.1 and 7.2 are live checks themselves.
+
 ## Verification
 
 **V1. Red and green.** Each finding in the Execution record shows its
@@ -1564,3 +1623,261 @@ The target, a tenth of the allocations on the long-answer stream, is met.
       system message that said to reply only "OMEGA".
       * Whether xAI now wants the top-level `instructions` field, or the
         model changed, is not measured.
+
+### Deviation 2026-10-04: steps 2.5 and 2.6 change the goldens' decoded results
+
+* **Found:**
+  * A golden file records the decoded result as well as the request
+    (`internal/wirecase/wirecase.go`, `Run`).
+  * Step 2.5's red run failed G9 on `opencode-zen-google/items.json`:
+    `result.output[2].item.CallID: want "get_weather", got
+    "get_weather#0"`. That is W10's decided fix, but step 2.5 had said
+    "the goldens stay unchanged".
+  * Step 2.6's `Format` field will likewise appear in the decoded results
+    of the goldens that hold a `ReasoningItem`, about 19 files across all
+    nine provider packages.
+  * No request changes.
+* **Resolution, chosen by the owner** ("Regenerate and list them"):
+  * regenerate those goldens with `-update`;
+  * list each golden and the changed field in phase 2's record.
+* **Files added to the phase:** the regenerated golden files, listed in
+  the record.
+
+### Phase 2: answers (2026-10-04)
+
+**Red runs.** The red tests ran on a scratch copy of `HEAD` (`3a584df`,
+phase 1's commit) with the new tests added. The FAIL lines:
+
+* **2.1, W1:**
+  * `TestDecode_ToolInputKeepsPrecision`: `Arguments =
+    {"id":12345678901234567000,"z":1}, want the input exactly`;
+  * `TestDecode_ToolInputMissingIsEmptyObject`: `Arguments = "", want {}`;
+  * `TestDecode_FunctionArgsKeepPrecision`: `Arguments:{"id":12345678901234567000,"z":1}`;
+  * `TestDecode_ArgumentsAsObject`: `json: cannot unmarshal object into Go
+    struct field .choices.0.message.tool_calls.0.function.arguments of type
+    string`;
+  * `TestToolArguments_PassesValidJSONThrough`: `ToolArguments =
+    {"id":12345678901234567000,"z":1}; want {"z":1,"id":12345678901234567890}`.
+* **2.2, W3:**
+  * `TestFinish_Messages`, four failures:
+    * `model_context_window_exceeded with a call: <nil>; want ErrIncomplete,
+      reason length`;
+    * `an unknown stop_reason: ... ; want it kept`;
+    * `end_turn with a call: ... stop ...; want tool_calls`;
+    * `an empty refusal: llmprovider: incomplete response: messages: the
+      answer has no content; want ErrIncomplete, reason content_filter`;
+  * `TestFinish_GenerateContent`: `OTHER: ... ; want it kept`, and `SAFETY
+    with no parts: ...; want ErrIncomplete, reason content_filter`;
+  * `TestFinish_Chat`: `stop with a call: ... stop ...; want tool_calls`,
+    `role Assistant: [{Role:Assistant Text:hi}]; want RoleAssistant`, and
+    `an empty content_filter answer: ... no usable content; want
+    ErrIncomplete, reason content_filter`.
+* **2.3, W4:**
+  * `TestDecode_EmptyOutputIsIncomplete`: `Decode = &{... Output:[]
+    FinishReason:stop ...}, <nil>; want ErrIncomplete`, and the same from
+    `ReadStream`;
+  * `TestDecode_RefusalIsKept`: `Output:[] FinishReason:stop`, from both.
+* **2.4, W5,** `TestDecode_GatewayErrorIn200`:
+  * `top level: ... the answer has no choices; want ErrProviderUnavailable
+    with the message`;
+  * `in the choice: ... the answer has no usable content`;
+  * `finish_reason error with no envelope: ... no usable content`.
+* **2.5, W10,** `TestDecode_GeminiCallIDs`:
+  * `ids: calls = [{CallID:weather ...} {CallID:weather ...}], want ids
+    [fc_1 fc_2]`;
+  * `no ids: ... want ids [weather#0 weather#1]`;
+  * `a result for weather#1: [...{"name":"weather#1"...}]; want it sent as
+    weather`.
+* **2.7, D4:**
+  * `TestBody_StatelessAsksForEncryptedReasoning` (openai and grok):
+    `store false: include = <nil>, want [reasoning.encrypted_content]`;
+  * `TestResponsesBody_AsksForEncryptedReasoning`: `include = <nil>` for
+    both requests, and `thinking: reasoning = map[effort:medium], want
+    summary auto`.
+* **2.8b, W9,** `TestDecode_ReasoningDetailsKept`, through a scratch
+  variant without the `Format` check, since `HEAD` has no such field:
+  `reasoning = [{Text:Check the weather. Signature: Encrypted:}]; want one
+  item, the entry kept`.
+
+**Planted breaches,** on a scratch copy of the tree, for the tests that
+need `ReasoningItem.Format`, which `HEAD` lacks:
+
+* `TestInput_SkipsForeignReasoning`, with `wire.Replays` planted to `true`:
+  `Format "messages": input [map[encrypted_content:e ...]]; want sent false`.
+* `TestMessages_SkipsForeignReasoning`, with the same plant: both foreign
+  items were sent, as a `thinking` block and as `redacted_thinking`.
+* `TestBody_ReplaysReasoningDetails`, with `ReplayReasoningDetails` planted
+  out of `Body`: `assistant message = map[content: role:assistant
+  tool_calls:[...]]; want the entry replayed`.
+
+**PASS:** every test above passes on the tree, and so does the whole suite.
+
+**What was built:**
+
+* **2.1:** `wire.CompactArguments`. `ToolArguments` now returns `any`, with
+  a JSON object passed through as `json.RawMessage`. The Messages and
+  generateContent decoders read raw arguments, and Chat Completions'
+  `chatArguments` accepts a string or an object. Gemini Interactions uses
+  the shared helper.
+* **2.2:**
+  * `wire.Finish` and `wire.EmptyAnswer`;
+  * Messages maps `model_context_window_exceeded` to `length`;
+  * an unknown value is kept;
+  * a call promotes `stop` to `tool_calls` on every wire;
+  * Chat always emits `RoleAssistant`.
+* **2.3:** the Responses wire's `completed`, shared by `Decode` and
+  `ReadStream`. A `refusal` part is the answer's text, with
+  `FinishContentFilter`.
+* **2.4:** a top-level or choice-level `error`, or `finish_reason:
+  "error"`, goes to `ClassifyStreamFailure`.
+* **2.5:** `functionCall.id` is decoded, and `callID` / `callName` handle
+  `name#index`. Nothing new is sent.
+* **2.6:** `ReasoningItem.Format`, the `wire.Format*` constants, and
+  `wire.Replays`. Every decoder sets it, and the Responses and Messages
+  encoders replay opaque reasoning only from their own wire.
+* **2.7:**
+  * `include: ["reasoning.encrypted_content"]` with `WithStore(false)` on
+    `openai` and `grok`, and on every OpenCode responses-route request;
+  * `reasoning.summary: "auto"` on that route.
+* **2.8:** see 2.8a and 2.8b below.
+
+**Step 2.8a, the probe,** live on 2026-10-04, counts only:
+
+* `anthropic/claude-sonnet-5.5`: a tool call, no reasoning text, and 0
+  `reasoning_details`.
+* `google/gemini-3.8-flash`: a tool call, reasoning text, and 1
+  `reasoning_details` entry: `type=reasoning.text`,
+  `format=google-gemini-v1`, keys `format, index, text, type`. That is
+  OpenRouter's documented shape.
+
+**Step 2.8b, so done:**
+
+* each entry is a `ReasoningItem` with the entry itself, compacted, in
+  `Encrypted`, and `Format: "chatcompletions"`;
+* when entries are present, the plain `reasoning` string is not decoded as
+  well, so the trace has one source;
+* `Opts.ReplayReasoningDetails`, set by `kilo` only, puts them back on the
+  assistant message they precede.
+
+**Implementation notes, within the steps:**
+
+* An empty answer's `APIError` names its wire in `Message`, such as
+  `messages: the answer has no content`, and leaves `Provider` empty, since
+  a decoder does not know the provider.
+* A Chat Completions error in a 200 is classified under the label `chat
+  completions`.
+* The tests are in new files, `decode_0021_test.go` in each wire,
+  `format_test.go`, `reasoning_details_test.go` and `stateless_test.go`,
+  where the steps named each wire's `answer_test.go` or `request_test.go`.
+
+**Existing assertions changed to the decided behaviour** (W1, W4, D5, W9):
+
+* `TestToolArguments` compares the encoded JSON, since the result is
+  `any`. Every row keeps its meaning.
+* `messages.TestDecode`: a call with no input has `Arguments "{}"`.
+* `TestDecode_Usage`, `TestReadStream_Usage`, and two `TestReadStream`
+  subtests: their fixtures completed with no output, the empty success W4
+  forbids. Each now carries one answer item.
+* The decoded `ReasoningItem` expectations gain `Format`:
+  * `TestThinking_SignatureIsReplayed` and `messages.TestDecode`;
+  * `TestReasoning_EncryptedIsKeptAndReplayed` and `responses.TestDecode`;
+  * `TestGeminiInteractions_Response`.
+* `TestDecodeChatCompletions_ReasoningFieldNames`: the row
+  "reasoning_details only ...: not decoded" becomes "decoded". W9
+  reverses that rule after its live check.
+
+**Goldens** (G-wire, with the deviation above):
+
+* **Decoded results only**, 19 files, each gaining `"Format"` on its
+  reasoning item (6 `chatcompletions`, 3 `generatecontent`, 3 `messages`,
+  7 `responses`):
+  * `claude/items`;
+  * `gemini/items` and `gemini/continuation`;
+  * `grok/items` and `grok/continuation`;
+  * `huggingface/items`;
+  * `kilo/items`;
+  * `ollama/items`;
+  * `openai/items`, `openai/continuation` and `chatgpt/items`;
+  * `opencode-{go,zen}-{chat,messages,responses}/items` and
+    `opencode-zen-google/items`;
+  * `together/items`.
+
+  `opencode-zen-google/items` also has CallID `get_weather` →
+  `get_weather#0` (W10).
+* **Requests, D4:** `opencode-zen-responses` and `opencode-go-responses`,
+  every scenario except `listing` (10 files). Each gains `include`, and the
+  two `thinking*` scenarios of each gain `reasoning.summary`.
+* **New cases, D4:** `openai-stateless` and `grok-stateless`, 7 files each.
+  Each differs from its base case only by `"store": false` and the
+  `include`, where a request is sent.
+* G9 passed three times in a row after the update.
+
+**Docs:**
+
+* `docs/architecture.md`: the `Item` bullet (arguments, `Format`, D4, W9),
+  and a new "Answers" bullet;
+* `README.md`: an empty answer is `ErrIncomplete` with its reason.
+
+**Gate,** all exit 0:
+
+* G1, G2 and G3;
+* G4: 26 packages ok;
+* G5, and G6 with 0 issues;
+* G7:
+  * parity: 409 identifiers, 0 problems;
+  * dep-check: 0 problems;
+  * coverage-check: 27 packages, 0 problems;
+  * api-check: "against v1.1.0, 0 incompatible change(s)". The new field
+    is additive;
+  * generate-check: 0 problems;
+* G8: 0 issues;
+* G9: stable;
+* G10: 0 problems;
+* G11: 0 hits.
+
+**Live checks:**
+
+* **V3.2, D4,** on a scratch copy of the tree, keys checked for presence
+  only:
+  * **OpenAI `gpt-6-luna` with `WithStore(false)`:**
+    * the `include` was sent;
+    * 1 encrypted reasoning item came back, with `Format: responses`;
+    * tampered content was refused: `HTTP 400 invalid_encrypted_content`;
+    * the replay was accepted, with finish `stop` and the right answer.
+  * **OpenCode Go `gpt-5.6-luna` and `grok-4.6`:** the same on each: the
+    `include` sent, 1 encrypted item, tampered content refused with HTTP
+    400, the replay accepted with the right answer.
+  * **`gpt-6-luna` on Go,** the PLAN's first pick, answered `HTTP 403 ...
+    Your organization does not have access to this model`. It does so on
+    `HEAD` too, 5 of 5 tries, though it answered in phase 1's run earlier
+    the same day. So the account lost access; the `include` did not cause
+    it.
+  * **Zen** answered `HTTP 402 ... Insufficient account funds`, and was
+    skipped.
+* **V3.2, W9:** the probe above.
+* **V3.3,** the existing live suite on the tree:
+
+  * The suite: 101 passed, 19 skipped, 12 failed (subtests included), in
+    `llmprovider` only.
+  * Every failing test was then run twice on a scratch copy of `HEAD`
+    (`3a584df`) and twice on the tree. Both behaved the same, so phase 2
+    caused none of the failures:
+    * **L1 and L2** (phase 7), as in phase 1:
+      `TestLive_OpencodeRoutesFromMetadata` and `TestLive_GrokInstructions`.
+    * **New since phase 1's run, and failing on `HEAD` too:** OpenCode Go
+      now answers `HTTP 403 ... Your organization does not have access to
+      this model` for `gpt-6-luna`. That is the first pick of 5 tests:
+      * `TestLive_OpencodeResponses`;
+      * `TestLive_OpencodeResponsesStoreFalse`;
+      * `TestLive_OpencodeRouteStillEnforced`;
+      * `TestLive_OpencodeToolRoundTrip/go-responses`;
+      * `TestLive_OpencodeToolChoices/go-responses/{required,none}`.
+
+      The same account still reaches `gpt-5.6-luna` and `grok-4.6` on the
+      same route (V3.2). This is outside the PLAN, and waits for the
+      owner's decision (Rule 5).
+    * **Flaky, not reproduced:** `TestLive_GeminiReplaysRealCall`, which
+      got `HTTP 400 ... Request contains an invalid argument` once, and
+      `TestLive_OpencodeSystemMessage`, where the reply "Hello" did not
+      follow the system instruction. Each passed 2 of 2 on `HEAD` and 2 of
+      2 on the tree.

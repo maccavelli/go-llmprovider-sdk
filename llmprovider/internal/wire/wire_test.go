@@ -1,26 +1,38 @@
 package wire
 
 import (
-	"fmt"
+	"encoding/json"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// TestToolArguments: an object decodes, empty arguments are an empty object,
-// and anything else is kept under "arguments" rather than dropped.
+// TestToolArguments: an object is passed through, empty arguments are an
+// empty object, and anything else is kept under "arguments" rather than
+// dropped. Each is compared as the JSON it encodes to (0021-MADR W1).
 func TestToolArguments(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
-		{`{"city":"Paris"}`, "map[city:Paris]"},
-		{"", "map[]"},
-		{"  ", "map[]"},
-		{`["not","an","object"]`, `map[arguments:["not","an","object"]]`},
-		{`null`, "map[arguments:null]"},
-		{`{"subject":"fix: tru`, `map[arguments:{"subject":"fix: tru]`},
+		{`{"city":"Paris"}`, `{"city":"Paris"}`},
+		{"", `{}`},
+		{"  ", `{}`},
+		{`["not","an","object"]`, `{"arguments":"[\"not\",\"an\",\"object\"]"}`},
+		{`null`, `{"arguments":"null"}`},
+		{`{"subject":"fix: tru`, `{"arguments":"{\"subject\":\"fix: tru"}`},
 	} {
-		if got := fmt.Sprint(ToolArguments(tc.in)); got != tc.want {
-			t.Errorf("ToolArguments(%q) = %s, want %s", tc.in, got, tc.want)
+		got, err := json.Marshal(ToolArguments(tc.in))
+		if err != nil || string(got) != tc.want {
+			t.Errorf("ToolArguments(%q) = %s, %v; want %s", tc.in, got, err, tc.want)
 		}
+	}
+}
+
+// TestToolArguments_PassesValidJSONThrough (0021-MADR W1): a call's arguments
+// are replayed byte for byte, compacted: a large integer keeps its digits and
+// the keys their order.
+func TestToolArguments_PassesValidJSONThrough(t *testing.T) {
+	got, err := json.Marshal(ToolArguments(`{"z": 1, "id": 12345678901234567890}`))
+	if want := `{"z":1,"id":12345678901234567890}`; err != nil || string(got) != want {
+		t.Errorf("ToolArguments = %s, %v; want %s", got, err, want)
 	}
 }
 

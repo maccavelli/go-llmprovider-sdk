@@ -26,6 +26,16 @@ var wireCases = []wirecase.Case{
 		},
 	},
 	{
+		// A stateless API-key request asks for encrypted reasoning
+		// (0021-MADR D4).
+		Name:    "openai-stateless",
+		Listing: wirecase.ListingDataIDs("gpt-5.5", "gpt-5.4-mini", "text-embedding-3-small"),
+		Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
+			return New(append([]llmprovider.Option{llmprovider.WithAPIKey("sk-wire"), llmprovider.WithModel("gpt-5.5"),
+				WithStore(false)}, wirecase.Opts(u, extra...)...)...)
+		},
+	},
+	{
 		Name: "chatgpt",
 		Listing: `{"models":[{"slug":"gpt-6-astra","visibility":"list","priority":1,"supported_in_api":true},` +
 			`{"slug":"gpt-6-luna","visibility":"list","priority":2,"supported_in_api":true}]}`,

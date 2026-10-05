@@ -174,6 +174,11 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	}
 	if p.store != nil {
 		body["store"] = *p.store
+		if !*p.store {
+			// Stateless, so reasoning comes back encrypted to be replayed,
+			// as Codex asks on every request (0021-MADR D4).
+			body["include"] = []string{"reasoning.encrypted_content"}
+		}
 	}
 	wire.AddResponsesTools(body, req.Tools, req.ToolChoice)
 	if effort, ok := p.effort(req, model); ok {

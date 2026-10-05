@@ -67,11 +67,13 @@ func TestDecode(t *testing.T) {
 		t.Fatalf("Decode: %v", err)
 	}
 	want := []llmprovider.Item{
-		llmprovider.ReasoningItem{Text: "plan"},
-		llmprovider.ReasoningItem{Text: "fallback"},
+		llmprovider.ReasoningItem{Text: "plan", Format: "messages"},
+		llmprovider.ReasoningItem{Text: "fallback", Format: "messages"},
 		llmprovider.MessageItem{Role: "assistant", Text: "hello"},
 		llmprovider.FunctionCallItem{CallID: "t1", Name: "get_weather", Arguments: `{"city":"Paris"}`},
-		llmprovider.FunctionCallItem{CallID: "t2", Name: "now"},
+		// A call with no input has empty arguments, "{}", as generateContent
+		// gives them (0021-MADR W1).
+		llmprovider.FunctionCallItem{CallID: "t2", Name: "now", Arguments: "{}"},
 	}
 	if res.ID != "" || fmt.Sprint(res.Output) != fmt.Sprint(want) {
 		t.Errorf("Decode = %+v, want %v and no id", res.Output, want)

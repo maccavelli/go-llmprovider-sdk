@@ -43,9 +43,10 @@ func Input(items []llmprovider.Item) []map[string]any {
 				wire.KeyContent: v.Text,
 			})
 		case llmprovider.ReasoningItem:
-			// Encrypted reasoning goes back as it came (0020-MADR F24);
-			// plain text reasoning cannot be replayed.
-			if v.Encrypted != "" {
+			// Encrypted reasoning goes back as it came (0020-MADR F24), to
+			// this wire only (0021-MADR W7); plain text reasoning cannot be
+			// replayed.
+			if v.Encrypted != "" && wire.Replays(v, wire.FormatResponses) {
 				input = append(input, map[string]any{
 					wire.KeyType:        itemTypeReasoning,
 					"encrypted_content": v.Encrypted,
@@ -91,16 +92,31 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	}
 
 	result := &llmprovider.Response{ID: raw.ID, Model: raw.Model, Usage: raw.Usage.counts()}
+	refused := false
 	for _, out := range raw.Output {
-		appendOutput(result, out)
+		refused = appendOutput(result, out) || refused
 	}
-	result.FinishReason = finishReason(result)
-	return result, nil
+	return completed(result, refused)
 }
 
-// finishReason is a completed answer's: tool_calls when it calls a tool, else
-// stop (0020-MADR F11). An incomplete one is an error, never a Response.
-func finishReason(r *llmprovider.Response) llmprovider.FinishReason {
+// completed finishes a completed answer: an answer with nothing in it is
+// ErrIncomplete, never an empty success, as every other wire has it
+// (0021-MADR W4).
+func completed(r *llmprovider.Response, refused bool) (*llmprovider.Response, error) {
+	r.FinishReason = finishReason(r, refused)
+	if len(r.Output) == 0 {
+		return nil, wire.EmptyAnswer("responses", r.FinishReason)
+	}
+	return r, nil
+}
+
+// finishReason is a completed answer's: content_filter when it refused,
+// tool_calls when it calls a tool, else stop (0020-MADR F11; 0021-MADR W4). An
+// incomplete one is an error, never a Response.
+func finishReason(r *llmprovider.Response, refused bool) llmprovider.FinishReason {
+	if refused {
+		return llmprovider.FinishContentFilter
+	}
 	for _, item := range r.Output {
 		if _, ok := item.(llmprovider.FunctionCallItem); ok {
 			return llmprovider.FinishToolCalls
@@ -121,8 +137,9 @@ func incomplete(reason string) error {
 type outputItem struct {
 	Type    string `json:"type"`
 	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
+		Type    string `json:"type"`
+		Text    string `json:"text"`
+		Refusal string `json:"refusal"`
 	} `json:"content"`
 	Summary []struct {
 		Type string `json:"type"`
@@ -134,15 +151,21 @@ type outputItem struct {
 	EncryptedContent string `json:"encrypted_content"`
 }
 
-// appendOutput adds to r the item one Responses output entry carries, if any.
-// It was the method Response.appendOutput (0015-PLAN S7b step 5).
-func appendOutput(r *llmprovider.Response, out outputItem) {
+// appendOutput adds to r the item one Responses output entry carries, if any,
+// and reports whether it was a refusal. A refusal part's text is kept as the
+// answer's text (0021-MADR W4). It was the method Response.appendOutput
+// (0015-PLAN S7b step 5).
+func appendOutput(r *llmprovider.Response, out outputItem) (refused bool) {
 	switch out.Type {
 	case itemTypeMessage:
 		var sb strings.Builder
 		for _, c := range out.Content {
-			if c.Type == "output_text" || c.Type == wire.KeyText {
+			switch c.Type {
+			case "output_text", wire.KeyText:
 				sb.WriteString(c.Text)
+			case "refusal":
+				sb.WriteString(c.Refusal)
+				refused = true
 			}
 		}
 		if text := sb.String(); text != "" {
@@ -164,9 +187,11 @@ func appendOutput(r *llmprovider.Response, out outputItem) {
 		// An item with neither text nor encrypted content says nothing, and
 		// is not kept (0020-MADR F24).
 		if sb.Len() > 0 || out.EncryptedContent != "" {
-			r.Output = append(r.Output, llmprovider.ReasoningItem{Text: sb.String(), Encrypted: out.EncryptedContent})
+			r.Output = append(r.Output, llmprovider.ReasoningItem{Text: sb.String(), Encrypted: out.EncryptedContent,
+				Format: wire.FormatResponses})
 		}
 	}
+	return refused
 }
 
 // eventLimit bounds one Responses stream event. The stream as a whole has no
@@ -208,6 +233,7 @@ type streamEvent struct {
 func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) {
 	reader := bufio.NewReaderSize(body, 64<<10)
 	result := &llmprovider.Response{}
+	refused := false
 	var data []byte
 	dispatch := func() (done bool, err error) {
 		payload := data
@@ -226,7 +252,7 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 			// The stream's own error event, not a response's (0020-MADR F39).
 			return false, llmprovider.ClassifyStreamFailure(provider, event.Code, "", event.Message)
 		case "response.output_item.done":
-			appendOutput(result, event.Item)
+			refused = appendOutput(result, event.Item) || refused
 		case "response.failed":
 			e := event.Response.Error
 			if e == nil {
@@ -243,7 +269,9 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 				result.Model = event.Response.Model
 			}
 			result.Usage = event.Response.Usage.counts()
-			result.FinishReason = finishReason(result)
+			if _, err := completed(result, refused); err != nil {
+				return false, err
+			}
 			return true, nil
 		}
 		return false, nil

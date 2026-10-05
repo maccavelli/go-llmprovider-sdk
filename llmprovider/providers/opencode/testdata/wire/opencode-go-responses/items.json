@@ -11,6 +11,9 @@
         "X-Opencode-Session": "wire-session"
       },
       "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
         "input": [
           {
             "content": "Be brief.",
@@ -54,7 +57,8 @@
         "item": {
           "Text": "thinking",
           "Signature": "",
-          "Encrypted": ""
+          "Encrypted": "",
+          "Format": "responses"
         },
         "type": "ReasoningItem"
       },

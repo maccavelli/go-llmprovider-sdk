@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
@@ -88,7 +90,7 @@ func Contents(items []llmprovider.Item) []map[string]any {
 		case llmprovider.FunctionCallOutputItem:
 			name := names[v.CallID]
 			if name == "" {
-				name = v.CallID
+				name = callName(v.CallID)
 			}
 			// A turn's results share one user turn, as its calls share one model turn.
 			appendPart(wire.RoleUser, map[string]any{
@@ -114,8 +116,9 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 					Text         string `json:"text"`
 					Thought      bool   `json:"thought"`
 					FunctionCall *struct {
-						Name string         `json:"name"`
-						Args map[string]any `json:"args"`
+						ID   string          `json:"id"`
+						Name string          `json:"name"`
+						Args json.RawMessage `json:"args"`
 					} `json:"functionCall"`
 					ThoughtSignature string `json:"thoughtSignature"`
 				} `json:"parts"`
@@ -127,25 +130,29 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		return nil, err
 	}
 
-	if len(raw.Candidates) == 0 || len(raw.Candidates[0].Content.Parts) == 0 {
-		return nil, fmt.Errorf("%w: generatecontent: the answer has no content", llmprovider.ErrIncomplete)
+	if len(raw.Candidates) == 0 {
+		return nil, wire.EmptyAnswer("generatecontent", "")
 	}
-	finish := finishReasons[raw.Candidates[0].FinishReason]
-	if finish == llmprovider.FinishLength {
-		for _, part := range raw.Candidates[0].Content.Parts {
-			if part.FunctionCall != nil {
-				// A call cut by the token limit has unusable arguments (0020-MADR F3).
-				return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
-			}
-		}
+	hasCall := false
+	for _, part := range raw.Candidates[0].Content.Parts {
+		hasCall = hasCall || part.FunctionCall != nil
+	}
+	finish := wire.Finish(raw.Candidates[0].FinishReason, finishReasons, hasCall)
+	if len(raw.Candidates[0].Content.Parts) == 0 {
+		return nil, wire.EmptyAnswer("generatecontent", finish)
+	}
+	if finish == llmprovider.FinishLength && hasCall {
+		// A call cut by the token limit has unusable arguments (0020-MADR F3).
+		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
 	}
 
-	result := &llmprovider.Response{Model: raw.ModelVersion, Usage: raw.Usage.counts()}
+	result := &llmprovider.Response{Model: raw.ModelVersion, FinishReason: finish, Usage: raw.Usage.counts()}
+	calls := 0
 	for _, part := range raw.Candidates[0].Content.Parts {
 		// A thought summary is flagged thought: true, with its text in text.
 		if part.Thought {
 			if part.Text != "" {
-				result.Output = append(result.Output, llmprovider.ReasoningItem{Text: part.Text})
+				result.Output = append(result.Output, llmprovider.ReasoningItem{Text: part.Text, Format: wire.FormatGenerateContent})
 			}
 			continue
 		}
@@ -153,35 +160,49 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 			result.Output = append(result.Output, llmprovider.MessageItem{Role: wire.RoleAssistant, Text: part.Text})
 		}
 		if part.FunctionCall != nil {
-			args := part.FunctionCall.Args
-			if args == nil {
-				args = map[string]any{} // a tool without parameters
-			}
-			argsBytes, err := json.Marshal(args)
+			// A tool without parameters sends no args: "{}".
+			args, err := wire.CompactArguments(part.FunctionCall.Args)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal gemini function args: %w", err)
+				return nil, fmt.Errorf("generatecontent: functionCall args: %w", err)
 			}
 			result.Output = append(result.Output, llmprovider.FunctionCallItem{
-				CallID:    part.FunctionCall.Name,
+				CallID:    callID(part.FunctionCall.ID, part.FunctionCall.Name, calls),
 				Name:      part.FunctionCall.Name,
-				Arguments: string(argsBytes),
+				Arguments: args,
 				Signature: part.ThoughtSignature,
 			})
+			calls++
 		}
 	}
-	result.FinishReason = finish
-	if finish == llmprovider.FinishStop {
-		for _, item := range result.Output {
-			if _, ok := item.(llmprovider.FunctionCallItem); ok {
-				result.FinishReason = llmprovider.FinishToolCalls
-			}
-		}
+	if len(result.Output) == 0 {
+		return nil, wire.EmptyAnswer("generatecontent", finish)
 	}
 	return result, nil
 }
 
+// callID is a call's own id, or "name#index" for a service that sends none,
+// so that two calls to one function in a reply have distinct ids, as OpenCode
+// gives them (0021-MADR W10).
+func callID(id, name string, index int) string {
+	if id != "" {
+		return id
+	}
+	return name + "#" + strconv.Itoa(index)
+}
+
+// callName is the function a call id names: the id with any "#index" suffix
+// that callID added removed.
+func callName(id string) string {
+	if i := strings.LastIndexByte(id, '#'); i > 0 {
+		if _, err := strconv.Atoi(id[i+1:]); err == nil {
+			return id[:i]
+		}
+	}
+	return id
+}
+
 // finishReasons maps generateContent's finishReason to FinishReason
-// (0020-MADR F3). A reason not listed is left empty.
+// (0020-MADR F3). A reason not listed is kept as sent (0021-MADR W3).
 var finishReasons = map[string]llmprovider.FinishReason{
 	"STOP":                      llmprovider.FinishStop,
 	"MAX_TOKENS":                llmprovider.FinishLength,

@@ -324,8 +324,10 @@ func (p *provider) responsesBody(c call) map[string]any {
 		"input":             responses.Input(c.input),
 		"max_output_tokens": c.maxTokens,
 		// OpenCode's client stores nothing for @ai-sdk/openai models
-		// (transform.ts:1235-1243, MADR 0012 §3.2); items are replayed.
-		"store": false,
+		// (transform.ts:1235-1243, MADR 0012 §3.2); items are replayed, so
+		// reasoning comes back encrypted (0021-MADR D4).
+		"store":   false,
+		"include": []string{"reasoning.encrypted_content"},
 	}
 	wire.AddResponsesTools(body, c.req.Tools, c.req.ToolChoice)
 	if c.reasoning != nil {
@@ -333,7 +335,9 @@ func (p *provider) responsesBody(c call) map[string]any {
 		if effort == "" {
 			effort = llmprovider.EffortMedium
 		}
-		body["reasoning"] = map[string]any{"effort": effort}
+		// The summary makes reasoning items carry text, as for OpenAI
+		// (0020-MADR F24; 0021-MADR D4).
+		body["reasoning"] = map[string]any{"effort": effort, "summary": "auto"}
 	}
 	return body
 }

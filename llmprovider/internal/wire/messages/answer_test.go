@@ -58,8 +58,8 @@ func TestThinking_SignatureIsReplayed(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []llmprovider.Item{
-		llmprovider.ReasoningItem{Text: "plan", Signature: "SIG123"},
-		llmprovider.ReasoningItem{Encrypted: "ENCRYPTED"},
+		llmprovider.ReasoningItem{Text: "plan", Signature: "SIG123", Format: "messages"},
+		llmprovider.ReasoningItem{Encrypted: "ENCRYPTED", Format: "messages"},
 		llmprovider.FunctionCallItem{CallID: "t1", Name: "f", Arguments: `{"a":1}`},
 	}
 	if !reflect.DeepEqual(res.Output, want) {

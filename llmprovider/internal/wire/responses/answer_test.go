@@ -65,7 +65,7 @@ func TestReasoning_EncryptedIsKeptAndReplayed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []llmprovider.Item{llmprovider.ReasoningItem{Encrypted: "ENC"},
+	want := []llmprovider.Item{llmprovider.ReasoningItem{Encrypted: "ENC", Format: "responses"},
 		llmprovider.MessageItem{Role: "assistant", Text: "hi"}}
 	if !reflect.DeepEqual(res.Output, want) {
 		t.Errorf("Output = %#v, want %#v", res.Output, want)

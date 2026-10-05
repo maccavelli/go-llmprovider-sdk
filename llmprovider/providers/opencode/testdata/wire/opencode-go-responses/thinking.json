@@ -11,6 +11,9 @@
         "X-Opencode-Session": "wire-session"
       },
       "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
         "input": [
           {
             "content": "What is the weather in Paris?",
@@ -20,7 +23,8 @@
         "max_output_tokens": 8192,
         "model": "grok-4.7",
         "reasoning": {
-          "effort": "medium"
+          "effort": "medium",
+          "summary": "auto"
         },
         "store": false
       }

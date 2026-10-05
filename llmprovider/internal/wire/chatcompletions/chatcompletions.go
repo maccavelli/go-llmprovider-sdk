@@ -26,6 +26,7 @@ const (
 	keyParameters      = "parameters"
 	keyReasoningEffort = "reasoning_effort"
 	keyReasoning       = "reasoning"
+	keyReasoningDetail = "reasoning_details"
 	roleTool           = "tool"
 )
 
@@ -52,6 +53,10 @@ type Opts struct {
 	// ReplayReasoningField, when non-empty, replays prior reasoning on every
 	// assistant message under this field (OpenCode interleaved models).
 	ReplayReasoningField string
+	// ReplayReasoningDetails replays the reasoning_details entries this wire
+	// decoded, as they came, on the assistant message they precede, as
+	// OpenRouter-style gateways need them back: Kilo (0021-MADR W9).
+	ReplayReasoningDetails bool
 }
 
 // itemsToChatMessages converts canonical items to OpenAI Chat Completions
@@ -59,20 +64,27 @@ type Opts struct {
 // and its result a role:"tool" message keyed by tool_call_id, the Chat
 // Completions equivalent of the Responses API's function_call_output item.
 func itemsToChatMessages(items []llmprovider.Item) []map[string]any {
-	return itemsToChatMessagesReplaying(items, "")
+	return itemsToChatMessagesReplaying(items, "", false)
 }
 
 // itemsToChatMessagesReplaying is itemsToChatMessages that, when field is set,
 // puts the reasoning preceding each assistant message into that field, and
 // sets it (possibly "") on every assistant message, as OpenCode's client does
-// for interleaved models (MADR 0012 §2, O5).
-func itemsToChatMessagesReplaying(items []llmprovider.Item, field string) []map[string]any {
+// for interleaved models (MADR 0012 §2, O5). With details, the
+// reasoning_details entries this wire decoded go back on the assistant
+// message they precede (0021-MADR W9).
+func itemsToChatMessagesReplaying(items []llmprovider.Item, field string, details bool) []map[string]any {
 	var messages []map[string]any
 	var pending strings.Builder
+	var pendingDetails []json.RawMessage
 	for _, item := range items {
 		switch v := item.(type) {
 		case llmprovider.ReasoningItem:
 			pending.WriteString(v.Text)
+			if detail := strings.TrimSpace(v.Encrypted); details && v.Format == wire.FormatChatCompletions &&
+				strings.HasPrefix(detail, "{") && json.Valid([]byte(detail)) {
+				pendingDetails = append(pendingDetails, json.RawMessage(detail))
+			}
 		case llmprovider.MessageItem:
 			role := string(v.Role)
 			if role == "" {
@@ -113,15 +125,22 @@ func itemsToChatMessagesReplaying(items []llmprovider.Item, field string) []map[
 				wire.KeyContent: v.Output,
 			})
 		}
-		if field == "" {
+		if field == "" && !details {
 			continue
 		}
 		// The reasoning belongs to the assistant turn it precedes.
 		if n := len(messages); n > 0 && messages[n-1][wire.KeyRole] == wire.RoleAssistant {
 			if _, isReasoning := item.(llmprovider.ReasoningItem); !isReasoning {
-				prior, _ := messages[n-1][field].(string) //nolint:errcheck // absent is ""
-				messages[n-1][field] = prior + pending.String()
+				if field != "" {
+					prior, _ := messages[n-1][field].(string) //nolint:errcheck // absent is ""
+					messages[n-1][field] = prior + pending.String()
+				}
 				pending.Reset()
+				if len(pendingDetails) > 0 {
+					prior, _ := messages[n-1][keyReasoningDetail].([]json.RawMessage) //nolint:errcheck // absent is nil
+					messages[n-1][keyReasoningDetail] = append(prior, pendingDetails...)
+					pendingDetails = nil
+				}
 			}
 		}
 	}
@@ -159,7 +178,7 @@ func toolChoice(choice llmprovider.ToolChoice) any {
 func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[string]any {
 	body := map[string]any{
 		keyModel:     model,
-		keyMessages:  itemsToChatMessagesReplaying(input, o.ReplayReasoningField),
+		keyMessages:  itemsToChatMessagesReplaying(input, o.ReplayReasoningField, o.ReplayReasoningDetails),
 		keyMaxTokens: maxTokens,
 	}
 	if len(o.Tools) > 0 && (!o.NoToolChoice || o.ToolChoice != llmprovider.ToolChoiceNone) {
@@ -187,28 +206,34 @@ func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[str
 //	message.reasoning          — Kilo Gateway, the OpenRouter convention
 //
 // Both are accepted; reasoning_content wins when both are present. Kilo also
-// sends message.reasoning_details[] ({type:"reasoning.text", text}), a structured
-// restatement of the same trace; it is deliberately NOT decoded, because
-// ReasoningItem carries a single Text field and parsing both would create two
-// sources of truth for one value.
+// sends message.reasoning_details[], OpenRouter's structured form of the same
+// trace, which carries the signatures some models need back (measured on
+// google/gemini-3.8-flash, 2026-10-04: {type:"reasoning.text", format, index,
+// text}). When present, each entry is one ReasoningItem: its text, the entry
+// itself in Encrypted, compacted, to be replayed as it came, and Format
+// "chatcompletions"; the plain string is then not decoded as well, so the
+// trace has one source (0021-MADR W9).
 //
 // Absent reasoning is normal, never an error.
 func Decode(body io.Reader) (*llmprovider.Response, error) {
 	var raw struct {
-		ID      string `json:"id"`
-		Model   string `json:"model"`
+		ID      string        `json:"id"`
+		Model   string        `json:"model"`
+		Error   *gatewayError `json:"error"`
 		Choices []struct {
-			FinishReason string `json:"finish_reason"`
+			FinishReason string        `json:"finish_reason"`
+			Error        *gatewayError `json:"error"`
 			Message      struct {
-				Role             string `json:"role"`
-				Content          string `json:"content"`
-				ReasoningContent string `json:"reasoning_content"`
-				Reasoning        string `json:"reasoning"`
+				Role             string            `json:"role"`
+				Content          string            `json:"content"`
+				ReasoningContent string            `json:"reasoning_content"`
+				Reasoning        string            `json:"reasoning"`
+				ReasoningDetails []json.RawMessage `json:"reasoning_details"`
 				ToolCalls        []struct {
 					ID       string `json:"id"`
 					Function struct {
-						Name      string `json:"name"`
-						Arguments string `json:"arguments"`
+						Name      string        `json:"name"`
+						Arguments chatArguments `json:"arguments"`
 					} `json:"function"`
 				} `json:"tool_calls"`
 			} `json:"message"`
@@ -218,12 +243,23 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, err
 	}
+	// A gateway may answer 200 with an error, at the top level or in the
+	// choice, as OpenRouter does, which Kilo inherits (0021-MADR W5).
+	if raw.Error != nil {
+		return nil, raw.Error.classify()
+	}
 	if len(raw.Choices) == 0 {
-		return nil, fmt.Errorf("%w: chat completions: the answer has no choices", llmprovider.ErrIncomplete)
+		return nil, wire.EmptyAnswer("chat completions", "")
+	}
+	if e := raw.Choices[0].Error; e != nil || raw.Choices[0].FinishReason == finishError {
+		if e == nil {
+			e = &gatewayError{Message: "finish_reason error"}
+		}
+		return nil, e.classify()
 	}
 
 	msg := raw.Choices[0].Message
-	finish := llmprovider.FinishReason(raw.Choices[0].FinishReason)
+	finish := wire.Finish(raw.Choices[0].FinishReason, nil, len(msg.ToolCalls) > 0)
 	// A tool call cut by the token limit has unusable arguments (MADR 0012 §1.5).
 	if finish == llmprovider.FinishLength && len(msg.ToolCalls) > 0 {
 		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
@@ -232,32 +268,103 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	// that speaks this format, so it is carried for logging only.
 	result := &llmprovider.Response{ID: raw.ID, Model: raw.Model, FinishReason: finish, Usage: raw.Usage.counts()}
 
-	reasoning := msg.ReasoningContent
-	if reasoning == "" {
-		reasoning = msg.Reasoning
-	}
-	if strings.TrimSpace(reasoning) != "" {
-		result.Output = append(result.Output, llmprovider.ReasoningItem{Text: reasoning})
+	if len(msg.ReasoningDetails) > 0 {
+		for _, detail := range msg.ReasoningDetails {
+			item, err := reasoningDetail(detail)
+			if err != nil {
+				return nil, err
+			}
+			result.Output = append(result.Output, item)
+		}
+	} else {
+		reasoning := msg.ReasoningContent
+		if reasoning == "" {
+			reasoning = msg.Reasoning
+		}
+		if strings.TrimSpace(reasoning) != "" {
+			result.Output = append(result.Output, llmprovider.ReasoningItem{Text: reasoning, Format: wire.FormatChatCompletions})
+		}
 	}
 	if msg.Content != "" {
-		role := msg.Role
-		if role == "" {
-			role = wire.RoleAssistant
-		}
-		result.Output = append(result.Output, llmprovider.MessageItem{Role: llmprovider.Role(role), Text: msg.Content})
+		// An answer is the assistant's, whatever role a gateway spells: a
+		// verbatim "Assistant" would fail the next turn's validation.
+		result.Output = append(result.Output, llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: msg.Content})
 	}
 	for _, tc := range msg.ToolCalls {
 		result.Output = append(result.Output, llmprovider.FunctionCallItem{
 			CallID:    tc.ID,
 			Name:      tc.Function.Name,
-			Arguments: tc.Function.Arguments,
+			Arguments: string(tc.Function.Arguments),
 		})
 	}
 
 	if len(result.Output) == 0 {
-		return nil, fmt.Errorf("%w: chat completions: the answer has no usable content", llmprovider.ErrIncomplete)
+		return nil, wire.EmptyAnswer("chat completions", finish)
 	}
 	return result, nil
+}
+
+// reasoningDetail is one reasoning_details entry as a ReasoningItem: its text
+// or summary, and the entry itself, compacted, to replay as it came.
+func reasoningDetail(raw json.RawMessage) (llmprovider.ReasoningItem, error) {
+	var entry struct {
+		Text    string `json:"text"`
+		Summary string `json:"summary"`
+	}
+	if err := json.Unmarshal(raw, &entry); err != nil {
+		return llmprovider.ReasoningItem{}, fmt.Errorf("chat completions: reasoning_details: %w", err)
+	}
+	compact, err := wire.CompactArguments(raw)
+	if err != nil {
+		return llmprovider.ReasoningItem{}, fmt.Errorf("chat completions: reasoning_details: %w", err)
+	}
+	text := entry.Text
+	if text == "" {
+		text = entry.Summary
+	}
+	return llmprovider.ReasoningItem{Text: text, Encrypted: compact, Format: wire.FormatChatCompletions}, nil
+}
+
+// finishError is the finish_reason of a choice the gateway failed.
+const finishError = "error"
+
+// gatewayError is an error envelope inside a 200 reply. Its code may be a
+// string or a number (OpenRouter sends the HTTP status).
+type gatewayError struct {
+	Message string          `json:"message"`
+	Code    json.RawMessage `json:"code"`
+	Type    string          `json:"type"`
+}
+
+// classify is the error's kind, as a stream failure's is classified.
+func (e *gatewayError) classify() error {
+	code := strings.Trim(strings.TrimSpace(string(e.Code)), `"`)
+	if code == "null" {
+		code = ""
+	}
+	return llmprovider.ClassifyStreamFailure("chat completions", code, e.Type, e.Message)
+}
+
+// chatArguments is a call's arguments. The standard sends a JSON string; some
+// gateways send the object itself, which is kept compacted rather than failing
+// the whole reply (0021-MADR W1). null, or nothing, is "{}".
+type chatArguments string
+
+func (a *chatArguments) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		if strings.TrimSpace(s) == "" {
+			s = "{}"
+		}
+		*a = chatArguments(s)
+		return nil
+	}
+	compact, err := wire.CompactArguments(data)
+	if err != nil {
+		return err
+	}
+	*a = chatArguments(compact)
+	return nil
 }
 
 // usage is Chat Completions' token counts. prompt_tokens holds the cached

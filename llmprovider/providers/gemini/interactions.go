@@ -1,7 +1,6 @@
 package gemini
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -163,7 +162,7 @@ func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 				sb.WriteString(s.Text)
 			}
 			if sb.Len() > 0 {
-				result.Output = append(result.Output, llmprovider.ReasoningItem{Text: sb.String()})
+				result.Output = append(result.Output, llmprovider.ReasoningItem{Text: sb.String(), Format: wire.FormatGenerateContent})
 			}
 		case interactionStepModelOutput:
 			var sb strings.Builder
@@ -178,20 +177,16 @@ func decodeInteraction(body io.Reader) (*llmprovider.Response, error) {
 			}
 		case interactionStepFunctionCall:
 			// Compact, as the generateContent decoder returns arguments.
-			args := "{}"
-			if a := bytes.TrimSpace(step.Arguments); len(a) > 0 && string(a) != "null" {
-				var buf bytes.Buffer
-				if err := json.Compact(&buf, a); err != nil {
-					return nil, fmt.Errorf("gemini: function_call arguments: %w", err)
-				}
-				args = buf.String()
+			args, err := wire.CompactArguments(step.Arguments)
+			if err != nil {
+				return nil, fmt.Errorf("gemini: function_call arguments: %w", err)
 			}
 			result.Output = append(result.Output, llmprovider.FunctionCallItem{CallID: step.ID, Name: step.Name,
 				Arguments: args, Signature: signature})
 		}
 	}
 	if len(result.Output) == 0 {
-		return nil, fmt.Errorf("%w: gemini: the interaction has no content", llmprovider.ErrIncomplete)
+		return nil, wire.EmptyAnswer("gemini interaction", "")
 	}
 	// Stop, or tool_calls when the model wants a tool (0020-MADR F11).
 	result.FinishReason = llmprovider.FinishStop

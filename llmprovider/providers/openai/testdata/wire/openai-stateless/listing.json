@@ -1,0 +1,57 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/models",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer sk-wire",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer sk-wire",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "input": [
+          {
+            "content": "Respond with ONLY the word Hello",
+            "role": "user"
+          }
+        ],
+        "max_output_tokens": 8192,
+        "model": "gpt-5.4-mini"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer sk-wire",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "input": [
+          {
+            "content": "Respond with ONLY the word Hello",
+            "role": "user"
+          }
+        ],
+        "max_output_tokens": 8192,
+        "model": "gpt-5.5"
+      }
+    }
+  ],
+  "result": [
+    "gpt-5.4-mini",
+    "gpt-5.5"
+  ]
+}

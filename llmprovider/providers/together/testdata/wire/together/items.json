@@ -60,7 +60,8 @@
         "item": {
           "Text": "thinking",
           "Signature": "",
-          "Encrypted": ""
+          "Encrypted": "",
+          "Format": "chatcompletions"
         },
         "type": "ReasoningItem"
       },
