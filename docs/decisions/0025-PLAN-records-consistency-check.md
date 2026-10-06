@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-06
 associated-madr: "0025-MADR-records-consistency-check.md"
 decision-makers: repository owner
@@ -332,5 +332,26 @@ scripts/test_gates.py                                |  7 +++++++
 
 No Go file changed.
 
-**Pending:** the CI change is seen working on the owner's next push (Goal,
-V5). This PLAN stays `in-progress` until then.
+**Pending, then:** the CI change was to be seen working on the owner's
+next push (Goal, V5), and this PLAN stayed `in-progress` until then.
+
+### Close-out (2026-10-06)
+
+* **CI on `bc57c34`,** the owner's commit of both phases: run 37496465625,
+  success on `ubuntu-24.04`, `macos-15` and `windows-2025`. Its gate step,
+  "parity, dependencies, coverage, API, generated code, records, the gates'
+  self-test", ran on Linux, as the workflow sets, and logged:
+
+  ```text
+  python3 -B scripts/check_records.py
+  records-check: 55 records, 0 problem(s)
+  Ran 8 tests in 48.418s
+  ```
+
+* **The Goal holds:**
+  * the checker failed on the old tree and on every planted breach;
+  * `make records-check` passes, and `--next` prints the next number;
+  * `make gate-selftest` passes with the new breach;
+  * the gate was clean;
+  * the CI change is seen working.
+* **Status:** `complete`, and `docs/README.md` says so.

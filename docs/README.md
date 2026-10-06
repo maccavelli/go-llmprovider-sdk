@@ -64,7 +64,7 @@ documents a reader follows to do something.
 | 0024 | MADR | [Pair OpenCode's Live System-Message Check with a Neutral Instruction and a Baseline](decisions/0024-MADR-opencode-live-system-message-test.md) | accepted |
 | 0024 | PLAN | [Implement the Paired OpenCode Live System-Message Check](decisions/0024-PLAN-opencode-live-system-message-test.md) | complete |
 | 0025 | MADR | [Check the Decision Records Mechanically, and Correct the Two Stale PLAN Statuses](decisions/0025-MADR-records-consistency-check.md) | accepted |
-| 0025 | PLAN | [Implement the Records Consistency Check, and Correct the Two Stale PLAN Statuses](decisions/0025-PLAN-records-consistency-check.md) | in-progress |
+| 0025 | PLAN | [Implement the Records Consistency Check, and Correct the Two Stale PLAN Statuses](decisions/0025-PLAN-records-consistency-check.md) | complete |
 
 ## I want to…
 
