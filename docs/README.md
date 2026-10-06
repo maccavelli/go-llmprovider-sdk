@@ -61,8 +61,8 @@ documents a reader follows to do something.
 | 0022 | PLAN | [Implement the Paired Gemini Live Instructions Check](decisions/0022-PLAN-gemini-live-instructions-test.md) | complete |
 | 0023 | MADR | [Keep Hugging Face's `ToolChoiceNone` by Sending No Tools](decisions/0023-MADR-huggingface-tool-choice-none.md) | accepted |
 | 0023 | PLAN | [Implement Hugging Face's `ToolChoiceNone` by Sending No Tools](decisions/0023-PLAN-huggingface-tool-choice-none.md) | complete |
-| 0024 | MADR | [Pair OpenCode's Live System-Message Check with a Neutral Instruction and a Baseline](decisions/0024-MADR-opencode-live-system-message-test.md) | proposed |
-| 0024 | PLAN | [Implement the Paired OpenCode Live System-Message Check](decisions/0024-PLAN-opencode-live-system-message-test.md) | proposed |
+| 0024 | MADR | [Pair OpenCode's Live System-Message Check with a Neutral Instruction and a Baseline](decisions/0024-MADR-opencode-live-system-message-test.md) | accepted |
+| 0024 | PLAN | [Implement the Paired OpenCode Live System-Message Check](decisions/0024-PLAN-opencode-live-system-message-test.md) | complete |
 | 0025 | MADR | [Check the Decision Records Mechanically, and Correct the Two Stale PLAN Statuses](decisions/0025-MADR-records-consistency-check.md) | proposed |
 | 0025 | PLAN | [Implement the Records Consistency Check, and Correct the Two Stale PLAN Statuses](decisions/0025-PLAN-records-consistency-check.md) | proposed |
 

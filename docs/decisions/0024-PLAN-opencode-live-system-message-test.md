@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: complete
 date: 2026-10-06
 associated-madr: "0024-MADR-opencode-live-system-message-test.md"
 decision-makers: repository owner
@@ -106,4 +106,72 @@ them, with its phase 6 additions: G4 with `-shuffle=on`, and G7 with
 
 ## Execution Record
 
-Not started.
+### Phase 1: the paired check (2026-10-06)
+
+Approved by the owner on 2026-10-06 ("proceed to 0024"), after the records
+were committed as `759592c`. No deviation.
+
+**1.1, the test.**
+* **Built:** `TestLive_OpencodeSystemMessage` picks the model once, then
+  runs `with` and `without` from a table, as step 1.1's table says.
+* Each subtest has its own `opencodeRecorder`, read through its `last()`
+  accessor as the file's other tests do, and its own two-minute context.
+* It checks the reply, then the request. It reads the top-level keys by
+  decoding the body into `map[string]json.RawMessage`.
+* The doc comment cites this PLAN's MADR.
+* `gofmt` and `go vet -tags live_gateways ./llmprovider` are clean.
+
+**1.2, seen to fail,** on a scratch copy with `opencode.go`'s `if system :=
+wire.SystemPrompt(c.input); system != "" {` planted as `...; false && system
+!= "" {`, `OPENCODE_API_KEY` checked for presence only:
+
+```text
+live_opencode_test.go:349: picked qwen3.8-flash from [qwen3.8-flash minimax-m3]
+live_opencode_test.go:373: reply <elided>: contains OMEGA = false, want true
+--- FAIL: TestLive_OpencodeSystemMessage/with (1.98s)
+--- PASS: TestLive_OpencodeSystemMessage/without (1.65s)
+```
+
+Exit 1. `with` failed on the reply, before its request check, and `without`
+passed.
+
+**1.3, live,** on a tree copy, twice: exit 0 both times, with `with` and
+`without` passing on `qwen3.8-flash`. No stop condition applied.
+
+**1.4, the gate,** all exit 0:
+
+* G1: `make pre-add-check`, "396 file(s) clean (gofmt, golangci-lint, go
+  vet, go test, govulncheck)";
+* G2: `go vet` for darwin, linux and windows; G3: `go vet -tags
+  live_gateways ./...`;
+* G4: 26 packages ok with `-race -cover`, and `go test -race -shuffle=on
+  ./...` exit 0; `llmprovider` 97.9% against its 95.9% floor;
+* G5: `go mod tidy -diff` clean;
+* G6: `make lint`, 0 issues on both builds;
+* G7:
+  * parity: 409 identifiers, 0 problems;
+  * dep-check: go.mod and 27 packages on both builds, 0 problems;
+  * coverage-check: 27 packages, 0 problems;
+  * api-check: against `v1.2.1`, now the newest tag, 0 incompatible
+    changes;
+  * generate-check: 1 generated file, 0 problems;
+  * gate-selftest: 7 tests OK in 49 s;
+* G8: 0 issues on the repository's markdownlint scope;
+* G9: stable;
+* G10: 0 problems, 593 relative links in 65 files;
+* G11: 0 hits in 4 files.
+
+**V3, the diff** against `759592c`, counted before this record was written:
+
+```text
+docs/README.md                                     |  4 +-
+.../0024-MADR-opencode-live-system-message-test.md |  5 +-
+.../0024-PLAN-opencode-live-system-message-test.md |  2 +-
+llmprovider/live_opencode_test.go                  | 55 ++++++++++++++++------
+4 files changed, 47 insertions(+), 19 deletions(-)
+```
+
+The `docs/` lines are the approval's statuses.
+
+**1.5, close-out.** The Goal holds. This PLAN is `complete`, and
+`docs/README.md` says so. Staged for the owner's commit.

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-06
 decision-makers: repository owner
 consulted: 0022-MADR-gemini-live-instructions-test.md, 0012-MADR-conform-providers-to-reference-clients.md (§2), 0021-MADR-harden-and-tune-after-the-v1-1-review.md (L2)
@@ -9,6 +9,9 @@ informed: maintainers of go-llmprovider-sdk's live tests
 <!-- markdownlint-disable MD013 MD024 MD033 MD036 MD060 -->
 
 # Pair OpenCode's Live System-Message Check with a Neutral Instruction and a Baseline
+
+> **Status.** Accepted 2026-10-06 by the owner ("proceed to 0024"), with the
+> option proposed: "Pair the check: a neutral instruction, with and without".
 
 ## Context and Problem Statement
 

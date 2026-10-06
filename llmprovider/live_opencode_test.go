@@ -340,22 +340,47 @@ func TestLive_OpencodeInterleavedReasoningReplay(t *testing.T) {
 }
 
 // TestLive_OpencodeSystemMessage: a system instruction reaches the model on
-// OpenCode's messages route, and the model follows it. It was the go-messages
-// row of TestLive_SystemMessage.
+// OpenCode's messages route, as the top-level system field, and the model
+// follows it. It was the go-messages row of TestLive_SystemMessage. The check
+// is a pair, with and without a neutral instruction, so an obeyed instruction
+// is told from a reply that happens to match, and the instruction does not
+// contradict the user (0024-MADR).
 func TestLive_OpencodeSystemMessage(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	res, err := liveGo(t, goModel(t, "qwen3.8-flash", "minimax-m3")).Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
-		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "You only ever reply in French."},
-		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello in one word, nothing else."},
-	}})
-	llmprovider.SkipIfTransient(t, err)
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	if text := strings.ToLower(res.OutputText()); !strings.Contains(text, "bonjour") && !strings.Contains(text, "salut") &&
-		!strings.Contains(text, "coucou") {
-		t.Fatalf("reply %q does not follow the system instruction", res.OutputText())
+	model := goModel(t, "qwen3.8-flash", "minimax-m3")
+	for _, tc := range []struct {
+		name   string
+		system string
+		want   bool
+	}{
+		{"with", "Begin every reply with the word OMEGA.", true},
+		{"without", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			rec := &opencodeRecorder{}
+			var input []llmprovider.Item
+			if tc.system != "" {
+				input = append(input, llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: tc.system})
+			}
+			input = append(input, llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello."})
+			res, err := liveGo(t, model, llmprovider.WithHTTPClient(&http.Client{Transport: rec})).Generate(ctx, &llmprovider.Request{Input: input})
+			llmprovider.SkipIfTransient(t, err)
+			if err != nil {
+				t.Fatalf("Generate: %v", err)
+			}
+			if got := strings.Contains(strings.ToUpper(res.OutputText()), "OMEGA"); got != tc.want {
+				t.Fatalf("reply %q: contains OMEGA = %v, want %v", res.OutputText(), got, tc.want)
+			}
+			paths, sent := rec.last()
+			var body map[string]json.RawMessage
+			if err := json.Unmarshal(sent, &body); err != nil {
+				t.Fatalf("request body: %v", err)
+			}
+			if _, hasSystem := body["system"]; len(paths) != 1 || !strings.HasSuffix(paths[0], "/messages") || hasSystem != tc.want {
+				t.Fatalf("requests %v, top-level system = %v; want one /messages call, and a system field = %v", paths, hasSystem, tc.want)
+			}
+		})
 	}
 }
 
