@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-43 records. Cite them by full filename.
+49 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -57,6 +57,8 @@ documents a reader follows to do something.
 | 0020 | PLAN | [Implement the Remediation of the v1 Debugging Pass](decisions/0020-PLAN-remediate-v1-debugging-pass-findings.md) | complete |
 | 0021 | MADR | [Harden and Tune the SDK After the v1.1 Review](decisions/0021-MADR-harden-and-tune-after-the-v1-1-review.md) | accepted |
 | 0021 | PLAN | [Implement the Hardening and Tuning After the v1.1 Review](decisions/0021-PLAN-harden-and-tune-after-the-v1-1-review.md) | complete |
+| 0022 | MADR | [Pin Gemini's Live Instructions Check with a Neutral Instruction and a Baseline](decisions/0022-MADR-gemini-live-instructions-test.md) | accepted |
+| 0022 | PLAN | [Implement the Paired Gemini Live Instructions Check](decisions/0022-PLAN-gemini-live-instructions-test.md) | complete |
 
 ## I want to…
 
