@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-05
+status: complete
+date: 2026-10-06
 associated-madr: "0023-MADR-huggingface-tool-choice-none.md"
 decision-makers: repository owner
 ---
@@ -148,6 +148,11 @@ if any run of (a) or (b) answers with a 400, or with a call.
   history alone does not trigger the refusal, and keep the subtest as a
   guard.
 * It passes twice on a tree copy.
+* *Amended 2026-10-06:* both `none` subtests are pinned to Groq, and
+  `none-after-a-call` ends with a follow-up turn. See the deviation "step
+  2.4's check does not fail without the fix".
+* *Amended 2026-10-06:* `none-after-a-call` is dropped. See the deviation
+  "`none` after a call is refused with the fix".
 
 #### 2.5 Gate and close-out
 
@@ -247,3 +252,190 @@ status note, and this PLAN `in-progress`.
 
 **1.5.** Staged for the owner's commit. The PLAN stays `in-progress`: phase
 2 waits for the account's Hugging Face credits.
+
+### Deviation 2026-10-06: step 2.4's check does not fail without the fix
+
+* **Found,** running step 2.4 on a scratch copy with step 1.2's change taken
+  out: `TestLive_HuggingFaceToolChoices` passed, `required`, `none` and
+  `none-after-a-call` alike. Then, with the change still out, three runs
+  each:
+
+  | Request: tools and `"tool_choice":"none"` | Served by | Outcome |
+  | :--- | :--- | :--- |
+  | `openai/gpt-oss-120b`, the router's choice | `cerebras` | text, 3/3 |
+  | `openai/gpt-oss-120b:groq`, pinned | `groq` | `400 tool_use_failed`, 3/3 |
+
+  * Groq still refuses. The router sent the model to Groq on 2026-10-05 and
+    to Cerebras on 2026-10-06, and Cerebras honours `none`. So the unpinned
+    `none` subtest passes with or without the fix.
+  * `none-after-a-call` passed without the fix even on Groq. With the tool's
+    result in the history, the model answers rather than calling again, so
+    there is no call to refuse. Step 2.3's case (a) on Groq gave text 3/3
+    with the fix.
+* **Resolution, chosen by the owner** ("Pin to Groq; follow-up turn"):
+  * the `none` and `none-after-a-call` subtests use
+    `openai/gpt-oss-120b:groq`; `required` stays on the router's choice;
+  * `none-after-a-call`'s history ends with a follow-up user turn, "And
+    what about Lyon?", so the model has a reason to call again;
+  * measured before it is kept: with step 1.2 taken out, both `none`
+    subtests must fail with the 400; with it, both pass. If the follow-up
+    does not fail without the fix, stop and prompt again.
+* **MADR:** amended with "the router's choice of upstream".
+* **Files added to the phase:** none.
+
+### Deviation 2026-10-06: `none` after a call is refused with the fix
+
+* **Found,** with the first deviation's resolution applied: the pinned
+  `none` subtest fails without step 1.2 and passes with it, as wanted. But
+  `none-after-a-call`, with its follow-up "And what about Lyon?", fails on
+  the tree too, in both runs:
+
+  ```text
+  live_huggingface_test.go:78: Generate: llmprovider: invalid request: huggingface HTTP 400 tool_use_failed: Tool choice is none, but model called a tool
+  --- FAIL: TestLive_HuggingFaceToolChoices/none-after-a-call
+  ```
+
+  * With no tools sent, `gpt-oss-120b` on Groq still writes a call when the
+    history holds one and the user asks for more. Groq refuses that call.
+  * Without the follow-up, step 2.3's case (a) gave text 3/3: the model had
+    no reason to call again.
+  * Not a regression: before `6687ff8` the same request was refused with
+    the tools sent. But the MADR's "the model cannot call one" does not hold
+    for this case.
+* **Resolution, chosen by the owner** ("Measure flattening first"): a
+  scratch probe, before any decision changes. Under `none`, the history's
+  calls and their results are sent as plain assistant and user text, with
+  no `tool_calls` or `tool` messages. If that answers with text and no
+  call, 3 runs of 3, the MADR is amended and this PLAN gains the steps.
+  Otherwise, stop and prompt again.
+* **State, then:** the subtest edit and these entries were uncommitted;
+  nothing was staged.
+* **The probe,** on a scratch copy of the tree, with the follow-up history
+  and every `tool_calls` and `tool` message rewritten as plain assistant and
+  user text (2 messages rewritten on every run), three runs each:
+
+  | Model, pinned to Groq | Outcome |
+  | :--- | :--- |
+  | `openai/gpt-oss-120b:groq` | text 2/3; `400 tool_use_failed` 1/3 |
+  | `openai/gpt-oss-20b:groq` | `400 tool_use_failed` 2/3; `400 output_parse_failed` 1/3 |
+
+  So flattening does not hold: asked again for what a tool answered before,
+  `gpt-oss` on Groq writes a call with no tools defined, whether the earlier
+  call is structured or prose, and Groq refuses it.
+* **Resolution, chosen by the owner** ("Record the Groq limit"):
+  * `6687ff8`'s fix stays: it keeps `none` with no call history, and the
+    Groq-pinned `none` subtest fails without it and passes with it;
+  * `none-after-a-call` is dropped. The Goal's item "`none` after a tool
+    call ... pinned by a live subtest" is not done: no request form makes
+    it pass on Groq, so a subtest would assert a refusal the provider
+    cannot prevent;
+  * the package comment names the limit;
+  * the MADR is amended with "`none` after a tool turn on Groq".
+* **Files added to the phase:** none.
+
+### Phase 2: live (2026-10-06)
+
+Run after the owner's "proceed with phase 2", on scratch copies, with
+`HF_TOKEN` checked for presence only. Two deviations, above, each decided by
+the owner.
+
+**2.1, the credit check:** `TestLive_HuggingFaceChatCompletions` passed, a
+real answer, not the 402 skip.
+
+**2.2, the existing test,** on a tree copy, twice, before the deviations:
+both passed, `required` and `none` included.
+
+**2.3, the unmeasured cases,** with the fix, three runs each:
+
+| Case | Served by | Outcome |
+| :--- | :--- | :--- |
+| (a) `openai/gpt-oss-120b`, `none` after a call | `cerebras` | text 3/3 |
+| (a) pinned, `openai/gpt-oss-120b:groq` | `groq` | text 3/3 |
+| (b) `openai/gpt-oss-20b`, `none` | `groq` | text 3/3 |
+
+(a) was rerun pinned because the router had not sent it to Groq, the
+upstream that refuses. Neither case met a stop condition.
+
+**2.4, the live subtest.** Its as-written form did not fail without the fix
+(the first deviation), and its follow-up form failed with it (the second).
+As built, by the owner's choice "Record the Groq limit":
+
+* `TestLive_HuggingFaceToolChoices` has two subtests: `required` on
+  `openai/gpt-oss-120b`, and `none` pinned to `openai/gpt-oss-120b:groq`.
+  The doc comment cites the MADR and its amendment "the router's choice of
+  upstream".
+* **Seen to fail,** on a scratch copy with step 1.2 taken out:
+
+  ```text
+  live_huggingface_test.go:68: Generate: llmprovider: invalid request: huggingface HTTP 400 tool_use_failed: Tool choice is none, but model called a tool
+  --- PASS: TestLive_HuggingFaceToolChoices/required
+  --- FAIL: TestLive_HuggingFaceToolChoices/none
+  ```
+
+* **On a tree copy, twice:** exit 0; `required` and `none` passed both
+  times.
+* **Not done:** `none-after-a-call`. On Groq, `none` after a tool turn is
+  refused whatever the request holds (the amendment "`none` after a tool
+  turn on Groq"), so no subtest asserts it. The package comment names the
+  limit.
+
+**2.5, the gate,** all exit 0:
+
+* G1: `make pre-add-check`, "396 file(s) clean (gofmt, golangci-lint, go
+  vet, go test, govulncheck)";
+* G2: `go vet` for darwin, linux and windows; G3: `go vet -tags
+  live_gateways ./...`;
+* G4: 26 packages ok with `-race -cover`, and `go test -race -shuffle=on
+  ./...` exit 0; `llmprovider` 97.9% against its 95.9% floor,
+  `providers/huggingface` 96.2%;
+* G5: `go mod tidy -diff` clean;
+* G6: `make lint`, 0 issues on both builds;
+* G7:
+  * parity: 409 identifiers, 0 problems;
+  * dep-check: go.mod and 27 packages on both builds, 0 problems;
+  * coverage-check: 27 packages, 0 problems;
+  * api-check: against `v1.2.0`, 0 incompatible changes;
+  * generate-check: 1 generated file, 0 problems;
+  * gate-selftest: 7 tests OK in 49 s;
+* G8: 0 issues on the repository's markdownlint scope;
+* G9: stable;
+* G10: 0 problems, 585 relative links in 61 files;
+* G11: 0 hits in 4 files, for the local account name, the hostname and its
+  domain, and machine home paths.
+
+The scratch helpers behind G4's floor, G10 and G11 were lost when the
+session's scratch directory was pruned. They were rebuilt, and each was seen
+to fail on planted input before this run:
+* the floor: 90.0% against 95.9% gives exit 1;
+* the links: a dead link gives exit 1;
+* the scan: a planted account name, hostname and home path give 3 hits and
+  exit 1;
+* each passes its clean input.
+
+**V4, the diff** against `6687ff8`, counted before this record was written:
+
+```text
+.../0023-MADR-huggingface-tool-choice-none.md      | 50 ++++++++++++-
+.../0023-PLAN-huggingface-tool-choice-none.md      | 87 +++++++++++++++++++++-
+llmprovider/live_huggingface_test.go               | 13 +++-
+llmprovider/providers/huggingface/huggingface.go   |  5 +-
+4 files changed, 149 insertions(+), 6 deletions(-)
+```
+
+`huggingface.go`'s change is its package comment only.
+
+### Close-out (2026-10-06)
+
+* **The Goal,** item by item:
+  * the red test failed on `HEAD` and passes (phase 1);
+  * the gate was clean at the end of each phase;
+  * `TestLive_HuggingFaceToolChoices` passes live, `none` included, pinned
+    to Groq;
+  * `none` after a tool call is measured live, and **not pinned**: Groq
+    refuses it whatever the request holds. The owner chose to record the
+    limit rather than assert it (the second deviation);
+  * the execution record holds the output.
+* **Status:** `complete`, with that item recorded as not done and why;
+  `docs/README.md` says so. The MADR's two amendments carry the facts.
+* **Release:** the fix is in `6687ff8`; this phase adds a comment and a
+  live test. A patch release, `v1.2.1`, is the owner's to tag.

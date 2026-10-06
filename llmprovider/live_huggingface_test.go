@@ -42,20 +42,27 @@ func TestLive_HuggingFaceChatCompletions(t *testing.T) {
 }
 
 // TestLive_HuggingFaceToolChoices pins the unmeasured tool choices: "required"
-// makes a call, and "none" makes none (0015-PLAN S7).
+// makes a call, and "none" makes none (0015-PLAN S7). "none" is pinned to
+// Groq, which answers a call made under "none" with HTTP 400 tool_use_failed,
+// since the router does not always pick it; none sends no tools, so no call
+// is made (0023-MADR and its amendment "the router's choice of upstream").
 func TestLive_HuggingFaceToolChoices(t *testing.T) {
 	tool := llmprovider.Tool{Name: "get_weather", Description: "Get the weather for a city", Schema: map[string]any{
 		"type": "object", "properties": map[string]any{"city": map[string]any{"type": "string"}}, "required": []string{"city"}}}
 	for _, tc := range []struct {
+		model    string
 		choice   llmprovider.ToolChoice
 		wantCall bool
-	}{{llmprovider.ToolChoiceRequired, true}, {llmprovider.ToolChoiceNone, false}} {
+	}{
+		{"openai/gpt-oss-120b", llmprovider.ToolChoiceRequired, true},
+		{"openai/gpt-oss-120b:groq", llmprovider.ToolChoiceNone, false},
+	} {
 		t.Run(string(tc.choice), func(t *testing.T) {
 			ctx, cancel := llmprovider.LiveCtx(t)
 			defer cancel()
 			req := userText("What is the weather in Paris?")
 			req.Tools, req.ToolChoice = []llmprovider.Tool{tool}, tc.choice
-			res, err := liveHuggingFace(t, "openai/gpt-oss-120b").Generate(ctx, req)
+			res, err := liveHuggingFace(t, tc.model).Generate(ctx, req)
 			llmprovider.SkipIfTransient(t, err)
 			if err != nil {
 				t.Fatalf("Generate: %v", err)

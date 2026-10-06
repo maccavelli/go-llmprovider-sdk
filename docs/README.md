@@ -60,7 +60,7 @@ documents a reader follows to do something.
 | 0022 | MADR | [Pin Gemini's Live Instructions Check with a Neutral Instruction and a Baseline](decisions/0022-MADR-gemini-live-instructions-test.md) | accepted |
 | 0022 | PLAN | [Implement the Paired Gemini Live Instructions Check](decisions/0022-PLAN-gemini-live-instructions-test.md) | complete |
 | 0023 | MADR | [Keep Hugging Face's `ToolChoiceNone` by Sending No Tools](decisions/0023-MADR-huggingface-tool-choice-none.md) | accepted |
-| 0023 | PLAN | [Implement Hugging Face's `ToolChoiceNone` by Sending No Tools](decisions/0023-PLAN-huggingface-tool-choice-none.md) | in-progress |
+| 0023 | PLAN | [Implement Hugging Face's `ToolChoiceNone` by Sending No Tools](decisions/0023-PLAN-huggingface-tool-choice-none.md) | complete |
 
 ## I want to…
 

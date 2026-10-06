@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-05
+date: 2026-10-06
 decision-makers: repository owner
 consulted: 0020-MADR-remediate-v1-debugging-pass-findings.md (F40, F43), 0015-MADR-canonical-sdk-api-and-module-layout.md (R10, R48), 0012-MADR-conform-providers-to-reference-clients.md (§1.6)
 informed: consumers of go-llmprovider-sdk v1
@@ -189,3 +189,51 @@ one provider, leaving the shared wire as it is.
 * **The probe** was a scratch test on a scratch copy of `HEAD`, never in the
   tree. It logged outcomes, error kinds, the provider header, and, once the
   402 appeared, the error text. It logged no reply.
+
+## Amendment 2026-10-06: the router's choice of upstream
+
+Found by 0023-PLAN's phase 2; the owner chose the resolution on 2026-10-06
+("Pin to Groq; follow-up turn").
+
+* **Corrected fact:** the Context says the router's header names `groq` for
+  `openai/gpt-oss-120b`. That was the router's choice on 2026-10-05. On
+  2026-10-06 it sent the model to `cerebras`, which honours `none`: tools
+  and `"tool_choice":"none"` gave text 3/3. Pinned with the `:groq` suffix,
+  the same request still gave `400 tool_use_failed` 3/3.
+* **So the decision stands:** the router may send a request to Groq at any
+  time, and Groq refuses a call made under `none`.
+* **Confirmation changes:** the live check pins its `none` subtests to Groq
+  (`openai/gpt-oss-120b:groq`), so it tests the refusing upstream whatever
+  the router prefers that day.
+* **Measured with the fix,** on 2026-10-06, three runs each:
+  * case (a), `none` after a call, on Groq: text 3/3;
+  * case (b), `none` on `openai/gpt-oss-20b`, served by Groq: text 3/3.
+
+## Amendment 2026-10-06: `none` after a tool turn on Groq
+
+Found by 0023-PLAN's phase 2; the owner chose the resolution on 2026-10-06
+("Record the Groq limit").
+
+* **Corrected claim:** the Decision Outcome says that with no tools sent
+  "the model cannot call one". On Groq that does not hold after a tool
+  turn. `openai/gpt-oss-120b:groq`, with no tools, `none`, and a history of
+  a `get_weather` call, its result and the user's "And what about Lyon?",
+  got `400 tool_use_failed` in 2 runs of 2. Without the follow-up turn it
+  gave text 3/3 (0023-PLAN step 2.3).
+* **Flattening was measured, and does not hold.** With the history's call
+  and result sent as plain text, Groq still refused: 1 run of 3 on
+  `gpt-oss-120b`, and 3 of 3 on `gpt-oss-20b` (two `tool_use_failed`, one
+  `output_parse_failed`).
+* **So it is a service-side limit.** Asked again for what a tool answered,
+  `gpt-oss` on Groq writes a call whatever the request holds, and Groq
+  refuses it under `none`. No request form the provider controls avoids it.
+* **Decided:**
+  * the rule stands, for what it does fix: `none` with no call history, on
+    Groq, fails without it and passes with it;
+  * the package comment says that on Groq, `none` after a tool turn can
+    still return `ErrInvalidRequest` with `tool_use_failed`;
+  * no live subtest asserts the after-a-call case.
+* **Not chosen:**
+  * routing `none` requests away from Groq: it overrides the caller's
+    routing, and was not measured;
+  * leaving the record open.

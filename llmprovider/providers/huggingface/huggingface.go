@@ -28,7 +28,10 @@
 //   - ToolChoiceRequired is sent as "required", the Chat Completions value.
 //     ToolChoiceNone is kept by sending no tools and no tool_choice: the
 //     router's upstreams answer a call made under "none" with HTTP 400
-//     tool_use_failed (0023-MADR, measured 2026-10-05).
+//     tool_use_failed (0023-MADR, measured 2026-10-05). On Groq, a request
+//     after a tool turn can still return ErrInvalidRequest with
+//     tool_use_failed: gpt-oss writes a call from the history alone, and
+//     no request form avoids it (0023-MADR, amendment 2026-10-06).
 //
 // ListModels returns the curated router listing, ranked by the metadata the
 // router publishes (llmprovider.WithModelMetadataURL). It never probes, as the
