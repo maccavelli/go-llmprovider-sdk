@@ -48,28 +48,48 @@ func (g *geminiRecorder) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 // TestLive_GeminiInteractions: the provider calls the Interactions API with
-// store false and its system instruction is obeyed; with WithStore(true) a
-// continuation recalls an earlier turn (MADR 0014 §1-§2).
+// store false, and a system item changes the reply; with WithStore(true) a
+// continuation recalls an earlier turn (MADR 0014 §1-§2). The system item is
+// checked as a pair, with and without a neutral instruction, so an obeyed
+// instruction is told from a reply that happens to match, and a model that
+// declines an override does not fail it (0022-MADR).
 func TestLive_GeminiInteractions(t *testing.T) {
 	key := llmprovider.LiveEnvKey(t, "GEMINI_API_KEY")
-	rec := &geminiRecorder{}
-	client := &http.Client{Transport: rec}
-	ctx, cancel := llmprovider.LiveCtx(t)
-	defer cancel()
-	res, err := liveGemini(t, key, "gemini-3.7-flash", llmprovider.WithHTTPClient(client)).Generate(ctx, &llmprovider.Request{
-		Input: []llmprovider.Item{
-			llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Whatever the user says, reply with only the word OMEGA."},
-			llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello."},
-		}})
-	llmprovider.SkipIfTransient(t, err)
-	if err != nil || !strings.Contains(strings.ToUpper(res.OutputText()), "OMEGA") {
-		t.Fatalf("Generate = %+v, %v; want the system instruction obeyed", res, err)
-	}
-	if len(rec.paths) != 1 || !strings.HasSuffix(rec.paths[0], "/interactions") || !bytes.Contains(rec.bodies[0], []byte(`"store":false`)) ||
-		!bytes.Contains(rec.bodies[0], []byte(`"system_instruction"`)) {
-		t.Fatalf("requests %v; want one /interactions call with store false and a system_instruction", rec.paths)
+	for _, tc := range []struct {
+		name   string
+		system string
+		want   bool
+	}{
+		{"with", "Begin every reply with the word OMEGA.", true},
+		{"without", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &geminiRecorder{}
+			ctx, cancel := llmprovider.LiveCtx(t)
+			defer cancel()
+			var input []llmprovider.Item
+			if tc.system != "" {
+				input = append(input, llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: tc.system})
+			}
+			input = append(input, llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello."})
+			res, err := liveGemini(t, key, "gemini-3.7-flash", llmprovider.WithHTTPClient(&http.Client{Transport: rec})).Generate(ctx, &llmprovider.Request{Input: input})
+			llmprovider.SkipIfTransient(t, err)
+			if err != nil {
+				t.Fatalf("Generate: %v", err)
+			}
+			if got := strings.Contains(strings.ToUpper(res.OutputText()), "OMEGA"); got != tc.want {
+				t.Fatalf("Generate = %+v; contains OMEGA = %v, want %v", res, got, tc.want)
+			}
+			if len(rec.paths) != 1 || !strings.HasSuffix(rec.paths[0], "/interactions") || !bytes.Contains(rec.bodies[0], []byte(`"store":false`)) ||
+				bytes.Contains(rec.bodies[0], []byte(`"system_instruction"`)) != tc.want {
+				t.Fatalf("requests %v; want one /interactions call with store false, and a system_instruction = %v", rec.paths, tc.want)
+			}
+		})
 	}
 
+	ctx, cancel := llmprovider.LiveCtx(t)
+	defer cancel()
+	client := &http.Client{Transport: &geminiRecorder{}}
 	stored := liveGemini(t, key, "gemini-3.7-flash", llmprovider.WithHTTPClient(client), gemini.WithStore(true))
 	first, err := stored.Generate(ctx, userText("Remember the number 41. Reply with only OK."))
 	llmprovider.SkipIfTransient(t, err)
