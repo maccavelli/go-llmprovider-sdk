@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-49 records. Cite them by full filename.
+51 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -59,6 +59,8 @@ documents a reader follows to do something.
 | 0021 | PLAN | [Implement the Hardening and Tuning After the v1.1 Review](decisions/0021-PLAN-harden-and-tune-after-the-v1-1-review.md) | complete |
 | 0022 | MADR | [Pin Gemini's Live Instructions Check with a Neutral Instruction and a Baseline](decisions/0022-MADR-gemini-live-instructions-test.md) | accepted |
 | 0022 | PLAN | [Implement the Paired Gemini Live Instructions Check](decisions/0022-PLAN-gemini-live-instructions-test.md) | complete |
+| 0023 | MADR | [Keep Hugging Face's `ToolChoiceNone` by Sending No Tools](decisions/0023-MADR-huggingface-tool-choice-none.md) | proposed |
+| 0023 | PLAN | [Implement Hugging Face's `ToolChoiceNone` by Sending No Tools](decisions/0023-PLAN-huggingface-tool-choice-none.md) | proposed |
 
 ## I want to…
 
