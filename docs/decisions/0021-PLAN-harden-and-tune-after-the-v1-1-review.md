@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-05
 associated-madr: "0021-MADR-harden-and-tune-after-the-v1-1-review.md"
 decision-makers: repository owner
@@ -1418,6 +1418,9 @@ checked for presence only, and no token or content is printed.
   program, not committed, that calls `TextPrompter.Secret`, and checks a
   paste, Backspace, Ctrl-U, a lone ESC and Ctrl-C. The results are
   recorded.
+  **Run 2026-10-05,** through the SSH pseudo-console rather than Windows
+  Terminal or a desktop console window: see the deviation "V3.5 run over
+  SSH".
 
 **V4. Benchmarks.** The before and after numbers of steps 1.3 and 5.1
 are recorded, and meet their targets.
@@ -2651,6 +2654,8 @@ not committed, calls `TextPrompter.Secret` for the five checks: a paste of
 about 2,000 characters, Backspace, Ctrl-U, a lone ESC, and Ctrl-C. It
 prints only lengths and errors, and builds with `GOOS=windows`. The owner
 runs it in Windows Terminal and in the legacy console; the results go here.
+*Annotated 2026-10-05:* run, and recorded under "V3.5, masked entry on
+Windows (2026-10-05)".
 
 ### L3 investigation (2026-10-05)
 
@@ -3028,6 +3033,8 @@ skip. The picker chose `gpt-6-luna`.
 **The PLAN stays `in-progress`.** Phase 7 completes the PLAN's steps, but
 the Goal's live checks are not all run: V3.5, masked entry on Windows, is
 the owner's and pending.
+*Annotated 2026-10-05:* V3.5 was run that day, and the PLAN is
+`complete`; see "Close-out (2026-10-05)".
 
 **Gate,** all exit 0 (G4 with `-shuffle=on`, and G7 with `gate-selftest`,
 as from phase 6):
@@ -3051,3 +3058,59 @@ as from phase 6):
 * G8: 0 issues on the repository's markdownlint scope, which
   `.markdownlint-cli2.jsonc` defines without the records;
 * G9: stable; G10: 0 problems; G11: 0 hits in 7 files.
+
+### Deviation 2026-10-05: V3.5 run over SSH
+
+* **Found:** the owner's own run of the V3.5 program at the desktop did not
+  use a console the program could read: by the owner's account, "i ran it
+  wrong".
+* **Run instead,** by the agent, at the owner's request:
+  * on the owner's Windows machine, an interactive SSH session into its
+    default shell, MSYS2 bash. The program was built there and started with
+    `powershell.exe`, so it ran as a native console program under the
+    Windows OpenSSH pseudo-console, whose console host is `conhost.exe`;
+  * the keystrokes were sent by a script, dummy text only.
+* **The gap:** the step names Windows Terminal and the legacy console on the
+  desktop. Neither was used. The pseudo-console has the same console host as
+  the legacy console, and Windows Terminal hosts its tabs through the same
+  pseudo-console, but neither window was observed by a person.
+* **Resolution, chosen by the owner** ("Record the SSH run"): the run is
+  recorded as V3.5, with this gap named, and the PLAN closes.
+* **Files added to the phase:** none.
+
+### V3.5, masked entry on Windows (2026-10-05)
+
+* **Where:** the owner's Windows machine, Go 1.27.1 `windows/amd64`. Its
+  clone was fast-forwarded from `1ba08e2` to `e9083c3` first: it was clean
+  and on `main`, and predated phase 5.
+* **The program:** the scratch program of "V3.5, masked entry on Windows:
+  pending", copied to `v35scratch/main.go` in that clone, byte-identical,
+  and `go vet` clean. It was removed after the run.
+* **Results,** each as the program printed it:
+
+  | Step | Printed | On the screen |
+  | :--- | :--- | :--- |
+  | 1. a 2,000-character paste | `2000 characters, error <nil>` | 2 redraws, each the 8 mask glyphs and the last 4 characters |
+  | 2. `abcdef`, Backspace twice | `4 characters, error <nil>` | each Backspace pads with a space and steps back; no `\033[K` |
+  | 3. `abc`, Ctrl-U, `xyz` | `3 characters, error <nil>` | Ctrl-U blanks the line, then 3 glyphs |
+  | 4. ESC, then `a` | `1 characters, error <nil>` | the `a` is kept |
+  | 5. Ctrl-C | `0 characters, error wizard: no value entered: wizard: cancelled: context canceled` | the shell's prompt returns intact |
+
+* **First attempts, not results:**
+  * run with no terminal, every prompt ends in `wizard: no value entered:
+    EOF`, as `Secret` reports input that is exhausted;
+  * a command given on the `ssh -tt` line prints nothing on this host, so
+    the session was interactive.
+
+### Close-out (2026-10-05)
+
+* **The Goal holds:**
+  * the gate passed at the end of every phase (each phase's record);
+  * `api-check`: 0 incompatible changes against `v1.1.0`;
+  * the live checks V3.1–V3.5 ran, and are recorded;
+  * 0009, 0010, 0012 and 0020 carry their amendments.
+* **CI on the last commit:** runs 37342427537 and 37392492799 on
+  `e9083c3`, both success.
+* **Not done, each with its reason in its own entry:** step 7.2b (the
+  deviation "step 7.2a finds both forms obeyed").
+* **Status:** `complete`; `docs/README.md` says so.
