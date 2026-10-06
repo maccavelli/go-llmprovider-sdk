@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-05
 decision-makers: repository owner
 consulted: 0020-MADR-remediate-v1-debugging-pass-findings.md (F40, F43), 0015-MADR-canonical-sdk-api-and-module-layout.md (R10, R48), 0012-MADR-conform-providers-to-reference-clients.md (§1.6)
@@ -9,6 +9,10 @@ informed: consumers of go-llmprovider-sdk v1
 <!-- markdownlint-disable MD013 MD024 MD033 MD036 MD060 -->
 
 # Keep Hugging Face's `ToolChoiceNone` by Sending No Tools
+
+> **Status.** Accepted 2026-10-05 by the owner ("approved, proceed"), with
+> the option proposed: "Send no tools for `ToolChoiceNone`, in the Hugging
+> Face provider".
 
 ## Context and Problem Statement
 

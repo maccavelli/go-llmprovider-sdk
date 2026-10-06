@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-05
 associated-madr: "0023-MADR-huggingface-tool-choice-none.md"
 decision-makers: repository owner
@@ -179,4 +179,71 @@ if any run of (a) or (b) answers with a 400, or with a call.
 
 ## Execution Record
 
-Not started.
+### Phase 1: the change, offline (2026-10-05)
+
+Approved by the owner on 2026-10-05 ("approved, proceed"), after the
+records were committed as `f00f677`. No deviation.
+
+**1.1, red,** on a scratch copy of `HEAD` (`f00f677`) with the new
+`request_test.go`:
+
+```text
+request_test.go:117: "none": tool_choice = none, want <nil>
+request_test.go:120: "none": 2 tools sent, want 0
+--- FAIL: TestGenerate_RequestFields (0.00s)
+```
+
+Exit 1. Only the `none` row failed; the auto, `required` and named-tool rows
+passed.
+
+**1.2, the change.**
+* `body` passes no `Tools` and the auto choice under `ToolChoiceNone`, as
+  the step's code says, with the comment citing this PLAN's MADR.
+* **Green:** `go test ./llmprovider/providers/huggingface/` ok, the red test
+  included.
+* `go test -count=3 ./llmprovider/... -run TestWireGoldens`: ok, no golden
+  changed.
+
+**1.3, docs.** The package comment's Degradations line reads as the step
+gives it. A search of `docs/architecture.md`, `docs/guides/adding-a-provider.md`
+and `docs/guides/api-standards.md` finds no per-provider tool-choice text, so
+none changed.
+
+**1.4, the gate,** all exit 0:
+
+* G1: `make pre-add-check`, "396 file(s) clean (gofmt, golangci-lint, go
+  vet, go test, govulncheck)";
+* G2: `go vet` for darwin, linux and windows; G3: `go vet -tags
+  live_gateways ./...`;
+* G4: 26 packages ok with `-race -cover`, and `go test -race -shuffle=on
+  ./...` exit 0; `llmprovider` 97.9%, `providers/huggingface` 96.2%,
+  `wizard` 88.5%;
+* G5: `go mod tidy -diff` clean;
+* G6: `make lint`, 0 issues on both builds;
+* G7:
+  * parity: 409 identifiers, 0 problems;
+  * dep-check: go.mod and 27 packages on both builds, 0 problems;
+  * coverage-check: 27 packages, 0 problems;
+  * api-check: against `v1.2.0`, 0 incompatible changes;
+  * generate-check: 1 generated file, 0 problems;
+  * gate-selftest: 7 tests OK in 54 s;
+* G8: 0 issues on the repository's markdownlint scope, which
+  `.markdownlint-cli2.jsonc` defines without the records;
+* G9: stable; G10: 0 problems; G11: 0 hits in 5 files.
+
+**V4, the diff** against `f00f677`, counted before this record was written:
+
+```text
+docs/README.md                                           |  4 ++--
+docs/decisions/0023-MADR-huggingface-tool-choice-none.md |  6 +++++-
+docs/decisions/0023-PLAN-huggingface-tool-choice-none.md |  2 +-
+llmprovider/providers/huggingface/huggingface.go         | 14 +++++++++++---
+llmprovider/providers/huggingface/request_test.go        | 15 +++++++++------
+5 files changed, 28 insertions(+), 13 deletions(-)
+```
+
+The `docs/` lines are the approval's statuses: the MADR `accepted`, with its
+status note, and this PLAN `in-progress`.
+
+**1.5.** Staged for the owner's commit. The PLAN stays `in-progress`: phase
+2 waits for the account's Hugging Face credits.

@@ -94,14 +94,17 @@ func TestGenerate_RequestFields(t *testing.T) {
 		t.Errorf("messages = %v, want the instructions as a leading system message", body["messages"])
 	}
 
+	// ToolChoiceNone offers no tools: the router's upstreams refuse a call
+	// made under "none" with HTTP 400 tool_use_failed (0023-MADR).
 	for _, tc := range []struct {
 		choice llmprovider.ToolChoice
 		want   string
+		tools  int
 	}{
-		{llmprovider.ToolChoiceAuto, "<nil>"},
-		{llmprovider.ToolChoiceRequired, "required"},
-		{llmprovider.ToolChoiceNone, "none"},
-		{llmprovider.ForceTool("get_weather"), "map[function:map[name:get_weather] type:function]"},
+		{llmprovider.ToolChoiceAuto, "<nil>", 2},
+		{llmprovider.ToolChoiceRequired, "required", 2},
+		{llmprovider.ToolChoiceNone, "<nil>", 0},
+		{llmprovider.ForceTool("get_weather"), "map[function:map[name:get_weather] type:function]", 2},
 	} {
 		req := text("hi")
 		req.Tools = []llmprovider.Tool{{Name: "get_weather", Schema: map[string]any{"type": "object"}},
@@ -113,8 +116,8 @@ func TestGenerate_RequestFields(t *testing.T) {
 		if got := fmt.Sprint(body["tool_choice"]); got != tc.want {
 			t.Errorf("%q: tool_choice = %s, want %s", tc.choice, got, tc.want)
 		}
-		if tools, _ := body["tools"].([]any); len(tools) != 2 {
-			t.Errorf("%q: %d tools sent, want 2", tc.choice, len(tools))
+		if tools, _ := body["tools"].([]any); len(tools) != tc.tools {
+			t.Errorf("%q: %d tools sent, want %d", tc.choice, len(tools), tc.tools)
 		}
 	}
 }

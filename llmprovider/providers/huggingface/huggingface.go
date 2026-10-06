@@ -25,8 +25,10 @@
 //   - Reasoning takes an effort, sent as reasoning_effort (medium with none);
 //     a Budget is not sent.
 //   - Instructions are sent as a leading system message.
-//   - ToolChoiceRequired and ToolChoiceNone are sent as "required" and
-//     "none", the Chat Completions values; only a named tool was measured.
+//   - ToolChoiceRequired is sent as "required", the Chat Completions value.
+//     ToolChoiceNone is kept by sending no tools and no tool_choice: the
+//     router's upstreams answer a call made under "none" with HTTP 400
+//     tool_use_failed (0023-MADR, measured 2026-10-05).
 //
 // ListModels returns the curated router listing, ranked by the metadata the
 // router publishes (llmprovider.WithModelMetadataURL). It never probes, as the
@@ -156,8 +158,14 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
+	tools, choice := req.Tools, req.ToolChoice
+	if choice == llmprovider.ToolChoiceNone {
+		// The router's upstreams refuse a call made under "none" with HTTP 400
+		// tool_use_failed, so none is kept by offering no tools (0023-MADR).
+		tools, choice = nil, llmprovider.ToolChoiceAuto
+	}
 	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req),
-		Tools: req.Tools, ToolChoice: req.ToolChoice})
+		Tools: tools, ToolChoice: choice})
 }
 
 // effort is reasoning_effort for req: the request's Reasoning, else
