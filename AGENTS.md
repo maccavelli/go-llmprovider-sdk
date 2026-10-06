@@ -104,8 +104,9 @@ docs/reports/NNNN-GATES-short-slug.md
   `docs/decisions/` and `docs/reports/`. A MADR and its PLAN share the same
   number and the same slug.
 - **Next number** is the highest `NNNN` among all four kinds anywhere under
-  `docs/`, plus one. Never reuse a number, never renumber an existing record,
-  never leave a gap deliberately.
+  `docs/`, plus one: `python3 -B scripts/check_records.py --next` prints it.
+  Never reuse a number, never renumber an existing record, never leave a gap
+  deliberately.
 - Records moved here from `mcplib` were renumbered once, by
   `docs/decisions/0002-MADR-migrate-llmprovider-from-mcplib.md`; that record
   maps every old number to its new one.
@@ -113,6 +114,9 @@ docs/reports/NNNN-GATES-short-slug.md
   repository's record by repository and filename; a relative link cannot reach
   it.
 - `docs/README.md` indexes every record. Update it in the same change.
+- `make records-check` checks these rules: names and directories, statuses
+  by kind, MADR/PLAN pairs, and the index's rows, statuses and count
+  (`docs/decisions/0025-MADR-records-consistency-check.md`).
 
 ## Pre-add checks
 
@@ -138,7 +142,7 @@ is no `git add` hook on every host; do not rely on one.
 
 `make lint` and `make vuln` must be clean before a release-shaped change.
 CI also runs `make parity-check dep-check coverage-check api-check
-generate-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
+generate-check records-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
 `scripts/coverage-floors.txt`, by a record.
 
 ## Live tests

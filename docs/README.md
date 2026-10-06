@@ -16,9 +16,9 @@ documents a reader follows to do something.
 | 0003 | MADR | [Adopt a Responses-API-Shaped Canonical Contract Across All `llmprovider` Providers, Including a New Grok Provider](decisions/0003-MADR-add-grok-xai-llm-provider.md) | accepted |
 | 0003 | PLAN | [Implementation Plan: Responses-API Canonical Contract + Grok Provider](decisions/0003-PLAN-add-grok-xai-llm-provider.md) | complete |
 | 0004 | MADR | [Add OpenCode Zen/Go, Hugging Face and Kilo Gateway Providers on a Shared Chat Completions Primitive](decisions/0004-MADR-add-gateway-llm-providers.md) | accepted |
-| 0004 | PLAN | [Implementation Plan: Gateway LLM Providers on a Shared Chat Completions Primitive](decisions/0004-PLAN-add-gateway-llm-providers.md) | accepted |
+| 0004 | PLAN | [Implementation Plan: Gateway LLM Providers on a Shared Chat Completions Primitive](decisions/0004-PLAN-add-gateway-llm-providers.md) | complete |
 | 0005 | MADR | [Canonicalize LLM Provider Configuration — Descriptors, Flow and Prompting — in `mcplib`, Renderer-Agnostic](decisions/0005-MADR-canonicalize-llm-provider-configuration.md) | accepted |
-| 0005 | PLAN | [Implementation Plan: Canonicalize LLM Provider Configuration in `mcplib`](decisions/0005-PLAN-canonicalize-llm-provider-configuration.md) | accepted |
+| 0005 | PLAN | [Implementation Plan: Canonicalize LLM Provider Configuration in `mcplib`](decisions/0005-PLAN-canonicalize-llm-provider-configuration.md) | complete |
 | 0006 | MADR | [Support Browser, API-Key, and Headless Subscription Authentication for OpenAI and xAI Grok in `mcplib`](decisions/0006-MADR-subscription-auth-for-llm-providers.md) | accepted |
 | 0006 | PLAN | [Implement Browser, API-Key, and Headless Subscription Authentication for OpenAI and xAI Grok](decisions/0006-PLAN-subscription-auth-for-llm-providers.md) | complete |
 | 0007 | MADR | [Search Live Provider Catalogs for Primary and Fallback Model Selection](decisions/0007-MADR-live-catalog-model-search.md) | accepted |
@@ -63,8 +63,8 @@ documents a reader follows to do something.
 | 0023 | PLAN | [Implement Hugging Face's `ToolChoiceNone` by Sending No Tools](decisions/0023-PLAN-huggingface-tool-choice-none.md) | complete |
 | 0024 | MADR | [Pair OpenCode's Live System-Message Check with a Neutral Instruction and a Baseline](decisions/0024-MADR-opencode-live-system-message-test.md) | accepted |
 | 0024 | PLAN | [Implement the Paired OpenCode Live System-Message Check](decisions/0024-PLAN-opencode-live-system-message-test.md) | complete |
-| 0025 | MADR | [Check the Decision Records Mechanically, and Correct the Two Stale PLAN Statuses](decisions/0025-MADR-records-consistency-check.md) | proposed |
-| 0025 | PLAN | [Implement the Records Consistency Check, and Correct the Two Stale PLAN Statuses](decisions/0025-PLAN-records-consistency-check.md) | proposed |
+| 0025 | MADR | [Check the Decision Records Mechanically, and Correct the Two Stale PLAN Statuses](decisions/0025-MADR-records-consistency-check.md) | accepted |
+| 0025 | PLAN | [Implement the Records Consistency Check, and Correct the Two Stale PLAN Statuses](decisions/0025-PLAN-records-consistency-check.md) | in-progress |
 
 ## I want to…
 

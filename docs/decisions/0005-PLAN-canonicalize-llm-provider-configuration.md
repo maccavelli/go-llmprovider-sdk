@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: complete
 date: 2026-08-29
 parent-madr: 0005-MADR-canonicalize-llm-provider-configuration.md
 decision-makers: mcplib maintainers
@@ -987,3 +987,19 @@ similar here, particularly around raw-mode terminal handling in Phase 4.
 
 See the MADR's amendment of the same date: `MaskSecret` is in `mcplib`
 `logging/mask.go` and in this repository's `internal/redact/mask.go`.
+
+## Amendment 2026-10-06: status
+
+The status was `accepted` when this plan was migrated from `mcplib`, and
+`0002-MADR-migrate-llmprovider-from-mcplib.md` did not set it. It is
+`complete` (`0025-MADR-records-consistency-check.md`), on this evidence:
+
+* `mcplib` merged the work at `29ef039` ("Merge branch
+  'feat/canonicalize-llm-config'", 2026-08-29), nine commits, and the
+  records of Phases 7 and 8 at `5786e6d` ("Merge branch
+  'feat/plan-0004-phases-7-8'"), whose three commits record deviations D2–D7;
+* the Deviation Log reaches Phase 8, the last: D7 is Phase 8, Steps 8.1 and
+  8.3. Phases 6–8 changed the three consumer repositories, as D5–D7 name.
+
+The acceptance criteria describe `mcplib`'s and those repositories' trees of
+2026-08-29. They were not re-run here.

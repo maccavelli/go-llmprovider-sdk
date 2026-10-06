@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: complete
 date: 2026-08-29
 parent-madr: 0004-MADR-add-gateway-llm-providers.md
 decision-makers: mcplib maintainers
@@ -2549,3 +2549,19 @@ through or annotated rather than rewritten.
 | 2026-08-29 | **D4** — post-Phase 7, by explicit direction | `RateLimitError.Error()` carried no provider name, so a 429 from any of the eight providers read identically and was not attributable to a source. Found during Phase 2 and scoped out then, because the type is exported and shared by the four providers criterion 18 protects. | Added a `Provider` field, populated by `classifyHTTPStatus` and by each existing provider (one line each). `Error()` omits it when empty, reproducing the original message verbatim, so callers matching the old string are unaffected — asserted by `TestRateLimitError_ProviderAttribution`. Two tests that previously *exempted* 429 from the provider-name assertion were tightened into positive assertions. **Criterion 18 amended** from "not modified" to "exactly one line each". | `openai.go`, `claude.go`, `gemini.go`, `grok.go` (one line each) |
 | 2026-08-29 | **D3** — Phase 7, Step 7.1 | Step 7.1 asserted OpenCode's free models "ignore auth", so the live tests could pass a placeholder key. False: measured, OpenCode returns `200` with **no** `Authorization` header but `401 "Invalid API key."` with a bogus one. The original measurement used no header and was wrongly generalised. `NewOpencode` requires a non-empty key and always sends it, so all three OpenCode live tests failed `401`, including the route-enforcement assertion that protects the 63+26-row table. Kilo is unaffected — it genuinely ignores a bogus key (`200`). | The three OpenCode live tests skip unless `OPENCODE_API_KEY` is set, matching the Hugging Face row. Chosen over relaxing `NewOpencode`'s non-empty-key contract (a design change diverging from `NewClaude`/`NewGrok`) and over bypassing the provider with raw HTTP (which would test the gateway rather than the integration). Accepted cost: route enforcement is only verified by someone holding an OpenCode key. | none — Step 7.1 amended |
 | 2026-08-29 | **D2** — Phase 1, Step 1.0 | Step 1.0's stated fix for `unused` on `wireShapesProbedOn*` — "reference it from the `live_gateways` suite" — cannot work: `.golangci.yml` sets no `build-tags`, so `//go:build live_gateways` files are never analysed. Would have recurred in Phases 5 and 6. | Reference each constant from a new **untagged** `TestWireShapesProbedOn` (Step 1.4, test 8) that validates it parses as `YYYY-MM-DD` and is not in the future. Chosen over `//nolint` (leaves the date unverified), exporting (grows public API for 12 repos to satisfy a linter), and adding repo-wide `build-tags` (changes lint config as a side effect of this feature). | none — Steps 1.0, 1.4 amended |
+
+## Amendment 2026-10-06: status
+
+The status was `accepted` when this plan was migrated from `mcplib`, and
+`0002-MADR-migrate-llmprovider-from-mcplib.md` did not set it. It is
+`complete` (`0025-MADR-records-consistency-check.md`), on this evidence:
+
+* `mcplib` merged the work at `50ac165` ("Merge branch
+  'feat/gateway-llm-providers'", 2026-08-29), nine commits;
+* the Deviation Log reaches Phase 7, the last: D3 is Phase 7, Step 7.1, and
+  D4 is post-Phase 7;
+* `0004-MADR-add-gateway-llm-providers.md` records the "Status after
+  implementation (2026-08-29)".
+
+The acceptance criteria describe `mcplib`'s tree of 2026-08-29, whose code
+later records moved and reshaped. They were not re-run here.

@@ -33,6 +33,7 @@ GATES = {
     "parity-check": "scripts/check_parity_map.py",
     "coverage-check": "scripts/check_coverage.py",
     "api-check": "scripts/check_api.py",
+    "records-check": "scripts/check_records.py",
 }
 GENERATE_LINE = re.compile(r"^//go:generate .*$", re.M)
 
@@ -139,6 +140,12 @@ class GateSelfTest(unittest.TestCase):
         """An exported constant that becomes a variable."""
         replace_once(self.tree / "llmprovider/catalog/models_catalog.go", "const MaxListed = 6", "var MaxListed = 6")
         self.assertFails("api-check", "MaxListed")
+
+    def test_records_check_plan_status(self) -> None:
+        """A complete PLAN given a decision's status (0025-MADR)."""
+        plan = self.tree / "docs/decisions/0024-PLAN-opencode-live-system-message-test.md"
+        replace_once(plan, "status: complete\n", "status: accepted\n")
+        self.assertFails("records-check", f"{plan.name}: PLAN status 'accepted'")
 
     def test_clean_copy_passes_every_gate(self) -> None:
         for gate in GATES:

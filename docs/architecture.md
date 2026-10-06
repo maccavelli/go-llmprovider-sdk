@@ -33,6 +33,7 @@ scripts/check_deps.py       dep-check: only wizard leaves the standard library
 scripts/check_coverage.py   coverage-check, with scripts/coverage-floors.txt
 scripts/check_api.py        api-check: apidiff against the latest v1 tag
 scripts/check_generated.py  generate-check: go:generate outputs are current
+scripts/check_records.py    records-check: the decision records and their index
 scripts/test_gates.py       gate-selftest: each gate fails on a planted breach
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
@@ -462,8 +463,8 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 - **`make` targets:** `test`, `test-sum`, `fmt`, `vet`, `lint`, `tidy`,
   `vuln`, `pre-add-check`, `parity-check`, `dep-check`, `coverage-check`,
-  `api-check`, `generate-check`, `gate-selftest`, `help`. `lint` runs
-  golangci-lint twice: for the host and with `GOOS=windows`, so the
+  `api-check`, `generate-check`, `records-check`, `gate-selftest`, `help`.
+  `lint` runs golangci-lint twice: for the host and with `GOOS=windows`, so the
   `_windows.go` files are linted. Its `nolintlint` requires every `//nolint`
   to name its linter and still be needed.
 - **`dep-check`** (`scripts/check_deps.py`) reads every package's
@@ -502,10 +503,19 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   the list, or a row's "SDK equivalent" is empty, names an identifier the
   SDK does not export, or names nothing that resolves and is not one of the
   markers `none`, `removed` or `Here`. `make parity-check` runs it.
+- **`records-check`** (`scripts/check_records.py`) checks the records
+  under `docs/decisions/` and `docs/reports/`:
+  - names and directories;
+  - statuses by kind;
+  - that each PLAN has its number's MADR and names it;
+  - that `docs/README.md`'s Records table has one row per record, with the
+    file's status, and a count that matches.
+
+  `--next` prints the next record number.
 - **`gate-selftest`** (`scripts/test_gates.py`, standard-library
   `unittest`) copies the tree, plants one breach per gate (dep-check,
-  generate-check, parity-check, coverage-check, api-check), and requires
-  each gate to fail, then every gate to pass on a clean copy.
+  generate-check, parity-check, coverage-check, api-check, records-check),
+  and requires each gate to fail, then every gate to pass on a clean copy.
 - **G-wire** is `TestWireGoldens` in each provider package, part of
   `go test`. Through `llmprovider/internal/wirecase` it drives 16 provider
   and gateway-route cases through seven scenarios (text, forced tool,
@@ -531,7 +541,7 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   - `go vet`, `gofmt`, `go mod tidy -diff` and `make lint`;
   - `go vet -tags live_gateways`;
   - `make parity-check dep-check coverage-check api-check generate-check
-    gate-selftest`.
+    records-check gate-selftest`.
 
   It checks out the full history, so that `api-check` sees the tags. A job
   stops after 30 minutes, and a newer push to a pull request cancels its

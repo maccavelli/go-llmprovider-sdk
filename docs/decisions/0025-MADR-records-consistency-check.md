@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-06
 decision-makers: repository owner
 consulted: 0002-MADR-migrate-llmprovider-from-mcplib.md (§10–§11), 0021-MADR-harden-and-tune-after-the-v1-1-review.md (Z9)
@@ -9,6 +9,10 @@ informed: maintainers of go-llmprovider-sdk's records
 <!-- markdownlint-disable MD013 MD024 MD033 MD036 MD060 -->
 
 # Check the Decision Records Mechanically, and Correct the Two Stale PLAN Statuses
+
+> **Status.** Accepted 2026-10-06 by the owner ("proceed", in answer to
+> "proceed to 0025"), with the option proposed: "A checker in `scripts/`, run
+> by `make records-check` and CI, with a self-test breach".
 
 ## Context and Problem Statement
 
