@@ -267,7 +267,9 @@ func (p *provider) effort(req *llmprovider.Request) (llmprovider.Effort, bool) {
 // generateOnce sends req once, with token. A ChatGPT session's reply is an
 // event stream, bounded per event rather than as a whole.
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	decode := responses.Decode
+	// A failed reply is classified by OpenAI's vocabulary, as the stream's
+	// is (0026-MADR F28).
+	decode := responses.DecodeFor(string(llmprovider.ProviderOpenAI))
 	if p.chatGPT {
 		decode = func(r io.Reader) (*llmprovider.Response, error) {
 			return responses.ReadStream(string(llmprovider.ProviderOpenAI), r)

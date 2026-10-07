@@ -60,6 +60,14 @@ func harness(credential func() llmprovider.Option, sse bool) llmtest.Harness {
 			}
 			write(w, `{"id":"resp_llmtest","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"function_call","call_id":"call_llmtest","name":"llmtest_tool","arguments":"{\"city\":"}]}`)
 		},
+		ReasoningCut: func(w http.ResponseWriter, _ *http.Request) {
+			if sse {
+				_, _ = io.WriteString(w, `data: {"type":"response.output_item.done","item":{"type":"reasoning","summary":[{"type":"summary_text","text":"thinking about it"}]}}`+"\n\n"+
+					`data: {"type":"response.incomplete","response":{"id":"resp_llmtest","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}`+"\n\n")
+				return
+			}
+			write(w, `{"id":"resp_llmtest","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"reasoning","summary":[{"type":"summary_text","text":"thinking about it"}]}]}`)
+		},
 		Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 			w.WriteHeader(status)
 			_, _ = io.WriteString(w, `{"error":{"message":"llmtest"}}`)

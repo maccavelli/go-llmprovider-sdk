@@ -90,6 +90,12 @@ func itemsToChatMessagesReplaying(items []llmprovider.Item, field string, detail
 			if role == "" {
 				role = wire.RoleUser
 			}
+			// Reasoning no assistant message followed, such as an answer
+			// cut while reasoning, ends with its turn (0026-MADR F32).
+			if role == wire.RoleUser {
+				pending.Reset()
+				pendingDetails = nil
+			}
 			messages = append(messages, map[string]any{
 				wire.KeyRole:    role,
 				wire.KeyContent: v.Text,
@@ -237,7 +243,8 @@ func decodeAs(body io.Reader, provider string) (*llmprovider.Response, error) {
 			Error        *gatewayError `json:"error"`
 			Message      struct {
 				Role             string            `json:"role"`
-				Content          string            `json:"content"`
+				Content          chatContent       `json:"content"`
+				Refusal          string            `json:"refusal"`
 				ReasoningContent string            `json:"reasoning_content"`
 				Reasoning        string            `json:"reasoning"`
 				ReasoningDetails []json.RawMessage `json:"reasoning_details"`
@@ -276,6 +283,17 @@ func decodeAs(body io.Reader, provider string) (*llmprovider.Response, error) {
 	if finish == llmprovider.FinishLength && len(msg.ToolCalls) > 0 {
 		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
 	}
+	// A refusal is the answer's text, flagged content_filter, as on the
+	// Responses wire (0021-MADR W4; 0026-MADR F29).
+	text := string(msg.Content)
+	if text == "" && msg.Refusal != "" {
+		text, finish = msg.Refusal, llmprovider.FinishContentFilter
+	}
+	// An answer cut while it was still reasoning has nothing usable
+	// (0026-MADR F7).
+	if finish == llmprovider.FinishLength && text == "" {
+		return nil, wire.EmptyAnswer("chat completions", finish)
+	}
 	// The response id is not a resumable conversation handle on any gateway
 	// that speaks this format, so it is carried for logging only.
 	result := &llmprovider.Response{ID: raw.ID, Model: raw.Model, FinishReason: finish, Usage: raw.Usage.counts()}
@@ -297,10 +315,10 @@ func decodeAs(body io.Reader, provider string) (*llmprovider.Response, error) {
 			result.Output = append(result.Output, llmprovider.ReasoningItem{Text: reasoning, Format: wire.FormatChatCompletions})
 		}
 	}
-	if msg.Content != "" {
+	if text != "" {
 		// An answer is the assistant's, whatever role a gateway spells: a
 		// verbatim "Assistant" would fail the next turn's validation.
-		result.Output = append(result.Output, llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: msg.Content})
+		result.Output = append(result.Output, llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: text})
 	}
 	for _, tc := range msg.ToolCalls {
 		result.Output = append(result.Output, llmprovider.FunctionCallItem{
@@ -362,6 +380,35 @@ func (e *gatewayError) classify(provider string) error {
 // gateways send the object itself, which is kept compacted rather than failing
 // the whole reply (0021-MADR W1). null, or nothing, is "{}".
 type chatArguments string
+
+// chatContent is a message's content: a string, null, or an array of parts
+// whose text parts are joined (0026-MADR F30).
+type chatContent string
+
+func (c *chatContent) UnmarshalJSON(data []byte) error {
+	var s *string
+	if err := json.Unmarshal(data, &s); err == nil {
+		if s != nil {
+			*c = chatContent(*s)
+		}
+		return nil
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(data, &parts); err != nil {
+		return fmt.Errorf("chat completions: content is neither a string nor an array of parts: %w", err)
+	}
+	var sb strings.Builder
+	for _, p := range parts {
+		if p.Type == wire.KeyText {
+			sb.WriteString(p.Text)
+		}
+	}
+	*c = chatContent(sb.String())
+	return nil
+}
 
 func (a *chatArguments) UnmarshalJSON(data []byte) error {
 	var s string

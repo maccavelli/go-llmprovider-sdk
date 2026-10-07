@@ -27,6 +27,8 @@ const (
 
 	// statusIncomplete is the status of a truncated answer.
 	statusIncomplete = "incomplete"
+	// statusFailed is the status of a response the service failed.
+	statusFailed = "failed"
 )
 
 // Input converts items to the Responses API input format.
@@ -72,12 +74,25 @@ func Input(items []llmprovider.Item) []map[string]any {
 	return input
 }
 
+// DecodeFor is Decode for provider, the label the caller gives wire.Call: a
+// failed response names provider, and is classified by that service's error
+// vocabulary, as ReadStream's is (0026-MADR F28).
+func DecodeFor(provider string) func(io.Reader) (*llmprovider.Response, error) {
+	return func(body io.Reader) (*llmprovider.Response, error) { return decodeAs(body, provider) }
+}
+
 // Decode decodes a Responses API JSON body into a Response.
 func Decode(body io.Reader) (*llmprovider.Response, error) {
+	return decodeAs(body, "responses")
+}
+
+// decodeAs is Decode, with a failure labelled and classified for provider.
+func decodeAs(body io.Reader, provider string) (*llmprovider.Response, error) {
 	var raw struct {
-		ID                string `json:"id"`
-		Model             string `json:"model"`
-		Status            string `json:"status"`
+		ID                string         `json:"id"`
+		Model             string         `json:"model"`
+		Status            string         `json:"status"`
+		Error             *responseError `json:"error"`
 		IncompleteDetails struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
@@ -87,8 +102,13 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, err
 	}
-	// A truncated answer is an error, never an empty success (MADR 0012 §1.5).
-	if raw.Status == statusIncomplete {
+	switch raw.Status {
+	case statusFailed:
+		// The status is read first, as ReadStream reads response.failed.
+		return nil, failed(provider, raw.Error)
+	case statusIncomplete:
+		// A truncated answer is an error, never an empty success (MADR 0012
+		// §1.5).
 		return nil, incomplete(raw.IncompleteDetails.Reason)
 	}
 
@@ -176,10 +196,16 @@ func appendOutput(r *llmprovider.Response, out outputItem) (refused bool) {
 			r.Output = append(r.Output, llmprovider.MessageItem{Role: wire.RoleAssistant, Text: text})
 		}
 	case itemTypeFunctionCall:
+		// Empty arguments are "{}", as on every other wire (0021-MADR W1;
+		// 0026-MADR F31).
+		args := out.Arguments
+		if strings.TrimSpace(args) == "" {
+			args = "{}"
+		}
 		r.Output = append(r.Output, llmprovider.FunctionCallItem{
 			CallID:    out.CallID,
 			Name:      out.Name,
-			Arguments: out.Arguments,
+			Arguments: args,
 		})
 	case itemTypeReasoning:
 		var sb strings.Builder
@@ -212,18 +238,30 @@ type streamEvent struct {
 	Message  string     `json:"message"`
 	Item     outputItem `json:"item"`
 	Response struct {
-		ID    string `json:"id"`
-		Model string `json:"model"`
-		Error *struct {
-			Type    string `json:"type"`
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
+		ID                string         `json:"id"`
+		Model             string         `json:"model"`
+		Error             *responseError `json:"error"`
 		IncompleteDetails struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
 		Usage usage `json:"usage"`
 	} `json:"response"`
+}
+
+// responseError is a failed response's error.
+type responseError struct {
+	Type    string `json:"type"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// failed classifies a failed response, streamed or not, by its error as
+// Codex does; one with no error is retryable (0026-MADR F28).
+func failed(provider string, e *responseError) error {
+	if e == nil {
+		return llmprovider.ClassifyStreamFailure(provider, "", "", "response.failed event received")
+	}
+	return llmprovider.ClassifyStreamFailure(provider, e.Code, e.Type, e.Message)
 }
 
 // ReadStream reads a Responses API event stream into a Response, as Codex
@@ -258,11 +296,7 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 		case "response.output_item.done":
 			refused = appendOutput(result, event.Item) || refused
 		case "response.failed":
-			e := event.Response.Error
-			if e == nil {
-				return false, llmprovider.ClassifyStreamFailure(provider, "", "", "response.failed event received")
-			}
-			return false, llmprovider.ClassifyStreamFailure(provider, e.Code, e.Type, e.Message)
+			return false, failed(provider, event.Response.Error)
 		case "response.incomplete":
 			return false, incomplete(event.Response.IncompleteDetails.Reason)
 		case "response.completed":

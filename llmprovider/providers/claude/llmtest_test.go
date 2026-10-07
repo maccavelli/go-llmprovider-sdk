@@ -31,6 +31,9 @@ func TestConformance(t *testing.T) {
 		Truncated: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, `{"model":"llmtest-model","stop_reason":"max_tokens","content":[{"type":"tool_use","id":"toolu_llmtest","name":"llmtest_tool","input":{}}]}`)
 		},
+		ReasoningCut: func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"model":"llmtest-model","stop_reason":"max_tokens","content":[{"type":"thinking","thinking":"thinking about it","signature":"sig"}]}`)
+		},
 		Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 			w.WriteHeader(status)
 			_, _ = io.WriteString(w, `{"type":"error","error":{"type":"llmtest","message":"llmtest"}}`)

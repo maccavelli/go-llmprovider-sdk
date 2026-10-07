@@ -57,6 +57,13 @@ func TestConformance(t *testing.T) {
 					}
 					_, _ = io.WriteString(w, `{"model":"llmtest-model","choices":[{"finish_reason":"length","message":{"role":"assistant","tool_calls":[{"id":"call_llmtest","type":"function","function":{"name":"llmtest_tool","arguments":"{\"city\":"}}]}}]}`)
 				},
+				ReasoningCut: func(w http.ResponseWriter, _ *http.Request) {
+					if tc.route == RouteMessages {
+						_, _ = io.WriteString(w, `{"model":"llmtest-model","stop_reason":"max_tokens","content":[{"type":"thinking","thinking":"thinking about it","signature":"sig"}]}`)
+						return
+					}
+					_, _ = io.WriteString(w, `{"model":"llmtest-model","choices":[{"finish_reason":"length","message":{"role":"assistant","content":"","reasoning_content":"thinking about it"}}]}`)
+				},
 				Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 					w.WriteHeader(status)
 					_, _ = io.WriteString(w, `{"type":"error","error":{"type":"llmtest","message":"llmtest"}}`)

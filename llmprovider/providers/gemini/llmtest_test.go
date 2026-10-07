@@ -40,6 +40,9 @@ func TestConformance(t *testing.T) {
 				Truncated: func(w http.ResponseWriter, _ *http.Request) {
 					_, _ = io.WriteString(w, `{"id":"v1_llmtest","status":"incomplete","steps":[{"type":"function_call","id":"call_llmtest","name":"llmtest_tool","arguments":{}}]}`)
 				},
+				ReasoningCut: func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = io.WriteString(w, `{"id":"v1_llmtest","status":"incomplete","steps":[{"type":"thought","signature":"sig","summary":[{"type":"text","text":"thinking about it"}]}]}`)
+				},
 				Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 					w.WriteHeader(status)
 					_, _ = io.WriteString(w, `{"error":{"code":"llmtest","message":"llmtest"}}`)

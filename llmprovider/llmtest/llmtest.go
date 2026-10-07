@@ -68,6 +68,11 @@ type Harness struct {
 	// StrictTools checks the ToolCall reply: FinishReason FinishToolCalls,
 	// and each call's Arguments non-empty, valid JSON.
 	StrictTools bool
+	// ReasoningCut, when set, writes a reply the service cut at its output
+	// limit while the model was still reasoning: reasoning, and no text or
+	// call. Generate must fail with ErrIncomplete, and Reason
+	// TruncatedReason, never succeed with no text (0026-MADR F7).
+	ReasoningCut func(w http.ResponseWriter, r *http.Request)
 }
 
 // The values the Fidelity check sends and looks for on the wire.
@@ -94,7 +99,8 @@ const (
 //   - an empty Role, the user's, never sent as "" (R6; 0020-MADR F10);
 //   - concurrent use (R20), which the race detector checks;
 //   - when the Harness asks: request fidelity, an undecodable reply, a cut
-//     answer, and a strict tool call (0021-MADR W12).
+//     answer, and a strict tool call (0021-MADR W12), and an answer cut while
+//     reasoning (0026-MADR F7).
 func Run(t *testing.T, h Harness) {
 	t.Helper()
 	runChecks(testReporter{t}, h)
@@ -160,6 +166,9 @@ func runChecks(r reporter, h Harness) {
 	}
 	if h.StrictTools {
 		r.Run("W12-strict-tools", func(r reporter) { checkStrictTools(r, h) })
+	}
+	if h.ReasoningCut != nil {
+		r.Run("F7-reasoning-cut", func(r reporter) { checkReasoningCut(r, h) })
 	}
 }
 
@@ -731,6 +740,28 @@ func checkTruncated(r reporter, h Harness) {
 	if !errors.Is(err, llmprovider.ErrIncomplete) || !errors.As(err, &apiErr) || apiErr.Reason != want {
 		r.Errorf("W12 (a cut answer, 0021-MADR W3): Generate returned %v; want an APIError of kind ErrIncomplete with Reason %q",
 			err, want)
+	}
+}
+
+// checkReasoningCut checks that an answer cut while the model was still
+// reasoning is ErrIncomplete, with the wire's cut reason.
+func checkReasoningCut(r reporter, h Harness) {
+	r.Helper()
+	fs := serve(h.ReasoningCut)
+	defer fs.Close()
+	p := build(r, h, fs)
+	if p == nil {
+		return
+	}
+	want := h.TruncatedReason
+	if want == "" {
+		want = string(llmprovider.FinishLength)
+	}
+	resp, err := generate(r, p, textRequest())
+	var apiErr *llmprovider.APIError
+	if !errors.Is(err, llmprovider.ErrIncomplete) || !errors.As(err, &apiErr) || apiErr.Reason != want {
+		r.Errorf("0026-MADR F7 (an answer cut while reasoning): Generate returned %+v, %v; want an APIError of kind "+
+			"ErrIncomplete with Reason %q", resp, err, want)
 	}
 }
 

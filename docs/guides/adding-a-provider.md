@@ -302,8 +302,8 @@ func TestConformance(t *testing.T) {
   `ToolCall` is needed unless `Tools` is `Unsupported`.
 - Run it with `go test -race`. The concurrency check means something only
   under the race detector (R20).
-- Four more checks are optional, and every built-in provider sets them
-  (0021-MADR W12):
+- Five more checks are optional, and every built-in provider sets them
+  (0021-MADR W12; 0026-MADR F7):
   - `Fidelity: true` checks that a request's `Model`, `Instructions` and a
     tool's output reach the wire;
   - `Garbled` writes a 200 that cannot be decoded, which must be
@@ -312,7 +312,10 @@ func TestConformance(t *testing.T) {
     call, which must be `ErrIncomplete` with `Reason` `length`, or
     `TruncatedReason` when your wire reports its own reason;
   - `StrictTools: true` checks that a call reply finishes `tool_calls`,
-    with valid JSON arguments.
+    with valid JSON arguments;
+  - `ReasoningCut` writes an answer cut at the output limit while the model
+    was still reasoning, with no text or call, which must be
+    `ErrIncomplete` with the same `Reason` as `Truncated`.
 
 Each failure names the rule it breaks.
 

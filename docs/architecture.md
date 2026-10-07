@@ -80,7 +80,7 @@ standard library is left out.
 | `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact` |
 | `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `internal/redact`, `golang.org/x/term` |
-| `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification) and `StripControl` (remove terminal control characters) | the standard library |
+| `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
@@ -93,9 +93,9 @@ standard library is left out.
 | `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
 | `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
 | `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/transport` |
-| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; the shared tool lists | `llmprovider`, `internal/transport` |
-| `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `ReadStream` | `llmprovider`, `internal/wire` |
-| `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode` | `llmprovider`, `internal/wire` |
+| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule | `llmprovider`, `internal/transport`, `internal/redact` |
+| `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `DecodeFor`, `ReadStream` | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact` |
+| `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode`, `DecodeFor` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `AddThinking` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
 | `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/kiloendpoint` |
@@ -214,7 +214,7 @@ for a session, from the store.
   id. There is no global registry.
 - `llmprovider/llmtest` has `Run`, the conformance suite every built-in
   provider passes, and `Fake`, a scriptable provider for tests. A `Harness`
-  may switch on four more checks, and every built-in provider's does:
+  may switch on five more checks, and every built-in provider's does:
   - `Fidelity`: a request's `Model`, `Instructions` and a tool's output
     reach the wire;
   - `Garbled`: an undecodable 200 is `ErrIncomplete`, sent once through
@@ -222,7 +222,9 @@ for a session, from the store.
   - `Truncated`, with `TruncatedReason`: a cut answer with a partial call
     is `ErrIncomplete`, with the reason the wire reports;
   - `StrictTools`: a call reply finishes `tool_calls`, with non-empty,
-    valid JSON arguments.
+    valid JSON arguments;
+  - `ReasoningCut`: an answer cut while the model was still reasoning, with
+    no text or call, is `ErrIncomplete`, with the reason the wire reports.
 
   A harness that sets none passes as before.
 
@@ -255,7 +257,11 @@ for a session, from the store.
 - **Answers:** every wire maps its finish reason the same way. A value with
   no constant is kept as sent, and a reply with a call finishes
   `tool_calls`. An answer with nothing usable is `ErrIncomplete`, with the
-  service's reason (`content_filter`, a refusal) in `APIError.Reason`.
+  service's reason (`content_filter`, a refusal) in `APIError.Reason`; so
+  is an answer cut while the model was still reasoning. A call id another
+  wire made, such as Gemini's `name#index`, goes to the Messages wire in a
+  form Anthropic accepts, unique in the request, with each result paired to
+  its call.
 - **Construction:** `providers.New(id, opts...)`, or the provider package's
   own `New` (`opencode.NewZen` and `NewGo`); every provider is in its own
   package. Options are `Option` values: the common ones in `llmprovider`

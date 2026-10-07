@@ -33,6 +33,9 @@ type flaws struct {
 	decodeBypass     bool // reports an undecodable 200 as a retryable outage
 	noLengthCheck    bool // takes a cut answer for a whole one
 	emptyArguments   bool // reports a call's arguments as ""
+	// keepReasoningCut takes an answer cut while reasoning for a whole one
+	// (0026-MADR F7).
+	keepReasoningCut bool
 }
 
 // refProvider is a small conformant provider over a JSON wire: it POSTs
@@ -138,8 +141,9 @@ func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request
 		return nil, &llmprovider.APIError{Provider: string(refID), Status: resp.StatusCode, Kind: p.kindFor(resp.StatusCode)}
 	}
 	var out struct {
-		Text string `json:"text"`
-		Call *struct {
+		Text      string `json:"text"`
+		Reasoning string `json:"reasoning"`
+		Call      *struct {
 			Name      string `json:"name"`
 			Arguments string `json:"arguments"`
 		} `json:"call"`
@@ -152,6 +156,9 @@ func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request
 		return nil, fmt.Errorf("%w: %w", llmprovider.ErrIncomplete, err)
 	}
 	if out.Finish == string(llmprovider.FinishLength) && out.Call != nil && !p.flaws.noLengthCheck {
+		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
+	}
+	if out.Finish == string(llmprovider.FinishLength) && out.Call == nil && out.Text == "" && !p.flaws.keepReasoningCut {
 		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
 	}
 	result := &llmprovider.Response{FinishReason: llmprovider.FinishStop}
@@ -167,6 +174,9 @@ func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request
 			arguments = ""
 		}
 		result.Output = append(result.Output, llmprovider.FunctionCallItem{CallID: "call_1", Name: out.Call.Name, Arguments: arguments})
+	}
+	if out.Reasoning != "" {
+		result.Output = append(result.Output, llmprovider.ReasoningItem{Text: out.Reasoning})
 	}
 	if out.Text != "" {
 		result.Output = append(result.Output, llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: out.Text})
@@ -205,6 +215,9 @@ func refHarness(f flaws) Harness {
 		Garbled:     func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
 		Truncated: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, `{"call":{"name":"llmtest_tool","arguments":"{\"city\":"},"finish":"length"}`)
+		},
+		ReasoningCut: func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"reasoning":"thinking about it","finish":"length"}`)
 		},
 	}
 }
@@ -270,6 +283,7 @@ func TestRun_NamesTheBrokenRule(t *testing.T) {
 		{"retries an undecodable reply", flaws{decodeBypass: true}, "W12-garbled: W12 (an undecodable reply, 0021-MADR D1): Generate returned"},
 		{"takes a cut answer for a whole one", flaws{noLengthCheck: true}, "W12-truncated: W12 (a cut answer, 0021-MADR W3)"},
 		{"drops a call's arguments", flaws{emptyArguments: true}, `W12-strict-tools: W12 (strict tools, 0021-MADR W1): the call to "llmtest_tool" has arguments ""`},
+		{"takes a reasoning-only cut for a whole answer", flaws{keepReasoningCut: true}, "F7-reasoning-cut: 0026-MADR F7 (an answer cut while reasoning)"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rec := newRecorder()
@@ -421,8 +435,9 @@ func TestRun_NoReauthSkipsTheCheck(t *testing.T) {
 // the W12 checks runs none of them, so it passes as before, even for a
 // provider that would fail them.
 func TestRun_W12ChecksAreOptional(t *testing.T) {
-	h := refHarness(flaws{dropInstructions: true, decodeBypass: true, noLengthCheck: true, emptyArguments: true})
-	h.Fidelity, h.StrictTools, h.Garbled, h.Truncated = false, false, nil, nil
+	h := refHarness(flaws{dropInstructions: true, decodeBypass: true, noLengthCheck: true, emptyArguments: true,
+		keepReasoningCut: true})
+	h.Fidelity, h.StrictTools, h.Garbled, h.Truncated, h.ReasoningCut = false, false, nil, nil, nil
 	rec := newRecorder()
 	runChecks(rec, h)
 	if got := rec.failures(); len(got) != 0 {

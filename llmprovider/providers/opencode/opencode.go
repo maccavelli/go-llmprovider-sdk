@@ -232,12 +232,13 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 	}
 	c.route = p.requestRoute(ctx, c.model)
 	var body map[string]any
-	// The chat route's gateway errors are classified by OpenCode's own table
-	// (0026-MADR F5).
-	decode := chatcompletions.DecodeFor(string(p.gateway) + "/" + string(c.route))
+	// The chat and responses routes' failures are classified by OpenCode's
+	// own table (0026-MADR F5, F28).
+	label := string(p.gateway) + "/" + string(c.route)
+	decode := chatcompletions.DecodeFor(label)
 	switch c.route {
 	case RouteResponses:
-		body, decode = p.responsesBody(c), responses.Decode
+		body, decode = p.responsesBody(c), responses.DecodeFor(label)
 	case RouteMessages:
 		body, decode = p.messagesBody(c), messages.Decode
 	case RouteGoogle:

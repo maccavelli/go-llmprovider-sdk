@@ -124,14 +124,19 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 				} `json:"parts"`
 			} `json:"content"`
 		} `json:"candidates"`
-		Usage usage `json:"usageMetadata"`
+		Usage          usage `json:"usageMetadata"`
+		PromptFeedback struct {
+			BlockReason string `json:"blockReason"`
+		} `json:"promptFeedback"`
 	}
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, err
 	}
 
+	// A blocked prompt has no candidate; its block reason says why
+	// (0026-MADR F25).
 	if len(raw.Candidates) == 0 {
-		return nil, wire.EmptyAnswer("generatecontent", "")
+		return nil, wire.EmptyAnswer("generatecontent", llmprovider.FinishReason(raw.PromptFeedback.BlockReason))
 	}
 	hasCall := false
 	for _, part := range raw.Candidates[0].Content.Parts {
@@ -174,7 +179,9 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 			calls++
 		}
 	}
-	if len(result.Output) == 0 {
+	// An answer cut while it was still thinking has nothing usable
+	// (0026-MADR F7); a cut text answer keeps its text.
+	if len(result.Output) == 0 || finish == llmprovider.FinishLength && result.OutputText() == "" {
 		return nil, wire.EmptyAnswer("generatecontent", finish)
 	}
 	return result, nil
@@ -202,7 +209,9 @@ func callName(id string) string {
 }
 
 // finishReasons maps generateContent's finishReason to FinishReason
-// (0020-MADR F3). A reason not listed is kept as sent (0021-MADR W3).
+// (0020-MADR F3). A reason not listed is kept as sent (0021-MADR W3), as
+// are MALFORMED_FUNCTION_CALL and UNEXPECTED_TOOL_CALL, which say a tool
+// call failed, not that the answer is complete (0026-MADR F26).
 var finishReasons = map[string]llmprovider.FinishReason{
 	"STOP":                      llmprovider.FinishStop,
 	"MAX_TOKENS":                llmprovider.FinishLength,
@@ -212,8 +221,6 @@ var finishReasons = map[string]llmprovider.FinishReason{
 	"PROHIBITED_CONTENT":        llmprovider.FinishContentFilter,
 	"SPII":                      llmprovider.FinishContentFilter,
 	"IMAGE_SAFETY":              llmprovider.FinishContentFilter,
-	"MALFORMED_FUNCTION_CALL":   llmprovider.FinishStop,
-	"UNEXPECTED_TOOL_CALL":      llmprovider.FinishStop,
 	"FINISH_REASON_UNSPECIFIED": "",
 }
 

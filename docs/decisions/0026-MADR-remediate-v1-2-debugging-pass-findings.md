@@ -801,3 +801,19 @@ It reverses the answer recorded for Q6, (a), and takes (b).
 * **Risk, accepted:** the unit test's fixture is built from the documented
   shape, not captured, so a field Gemini spells differently is found only
   by that live test or by a caller.
+
+## Amendment 2026-10-07: F65 is measured on Google's generateContent
+
+Made by the 0026 PLAN's deviation D6, chosen by the owner ("D1: A").
+
+* **Changes F65's evidence.** F65 needed "a live two-call round trip on a
+  `gemini-3.x` model through OpenCode's google route". OpenCode Zen, the
+  only gateway serving Gemini on that route, refused for want of funds
+  (HTTP 402).
+* **Now:** the round trip runs the google route's own request, its encoder
+  and decoder, against Google's generateContent API with the owner's
+  Gemini key. It measures what F65 asks of the service: whether Gemini 3
+  sends `functionCall.id`, and whether it accepts two results to one
+  function paired by name and position.
+* **Not measured:** OpenCode's proxy. If a later run through Zen differs,
+  that is a new finding.

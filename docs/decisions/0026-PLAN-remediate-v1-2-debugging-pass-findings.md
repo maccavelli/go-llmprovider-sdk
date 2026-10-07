@@ -671,3 +671,126 @@ there with plumbing (`p26_gate.py`); every check rc=0:
 * **A live run of the other Phase 2 changes** was not part of this phase:
   each is covered by the unit tests above, and Phase 7's release gate runs
   the live suites.
+
+### Deviation D6 (2026-10-07): F65 is measured on Google's generateContent
+
+* **Found,** running F65's live test,
+  `TestLive_OpencodeGoogleTwoCallRoundTrip`. It picked `gemini-3.8-flash`
+  on OpenCode Zen's google route, and Zen refused the first call:
+  `quota exhausted: opencode-zen/google HTTP 402 UNKNOWN: Upstream request
+  failed: Insufficient account funds`. models.dev lists no Gemini model on
+  OpenCode Go. Zen's google route is the only way the SDK reaches the
+  generateContent wire, so the step as written could not run.
+* **Options put to the owner:**
+  1. measure on Google's generateContent API, with `GEMINI_API_KEY`, through
+     the same encoder and decoder;
+  2. fund the Zen account, and run the test as written;
+  3. record F65 as unmeasured.
+* **Decision.** The owner chose option 1 ("D1: A"). The test builds the
+  OpenCode provider with the google route pinned, Google's base URL
+  (`https://generativelanguage.googleapis.com/v1beta`) and the Gemini key.
+  The request is the route's own: `/models/{model}:generateContent`, the
+  key in `x-goog-api-key`, the body from `generatecontent.Contents`.
+  * **Not measured:** OpenCode's proxy in front of Google, and so whether
+    it passes ids through.
+  * The MADR gains an amendment, since F65's evidence names the route.
+
+### Deviation D7 (2026-10-07): F28 wires three providers to `responses.DecodeFor`
+
+* **Found** while fixing F28. A failed status is classified by the
+  provider's error vocabulary, as the stream's is: OpenAI's
+  `insufficient_quota` is `ErrQuotaExhausted` only for the service
+  `openai`. Under `Decode`'s label, "responses", it would be retryable.
+  F28's row names only `internal/wire/responses`.
+* **Options put to the owner:**
+  1. Grok, OpenAI with a key, and OpenCode's responses route decode with
+     `responses.DecodeFor(<their label>)`, as F5 did for Chat Completions;
+  2. the providers keep `Decode`, with the generic classification.
+* **Decision.** The owner chose option 1 ("D2: A"). F28's files gain
+  `providers/grok/grok.go`, `providers/openai/openai.go` and
+  `providers/opencode/opencode.go`.
+
+### Phase 3: answers on the wire (2026-10-07)
+
+* **Before it.** Phase 2 was committed as `faf06a8` and pushed on the
+  owner's word ("push to main"). Its CI run, 37637638536, passed on Ubuntu,
+  macOS and Windows.
+* **Approval.** "proceed", 2026-10-07, in the same message as the push,
+  with D6 ("D1: A") and D7 ("D2: A") chosen on the way.
+* **Red first.** Each test below was written first, and its FAIL is from
+  the unchanged code (`p26_phase3_red.out`). For F28, `DecodeFor` was first
+  added as a plain wrapper over `Decode`, so that the test compiled and
+  failed on behaviour.
+
+| ID | Test | FAIL before the fix | Fix |
+| :--- | :--- | :--- | :--- |
+| F7 | `TestDecode_ReasoningOnlyCutIsIncomplete` in `chatcompletions`, `messages` and `generatecontent`; `llmtest`'s `F7-reasoning-cut` check in every provider's harness | chat and messages: `Output:[{Text:thinking about it …}] FinishReason:length`, a success; generatecontent: `err = <nil>; want an ErrIncomplete *APIError` | With a `length` finish and no text or call, each decoder returns `wire.EmptyAnswer(where, FinishLength)`. A cut text answer keeps its text. `llmtest.Harness.ReasoningCut` switches on the check; every built-in provider sets it. |
+| F8 | `TestFromItems_CallIDsFitAnthropicRule`; `TestRemapCallIDs_Edges` | `tool_use id "get_weather#0" breaks Anthropic's rule`, `"get_weather#1"`, `"get_weather#0"` again, and the 100-character id; `want 5 distinct` | Q5 (A): `wire.RemapCallIDs` with `wire.AnthropicCallIDs`. Refused characters become `_`, the id is cut to 64, and `_2`, `_3`… tell collisions apart. Each result takes its call's new id. `messages.FromItems` applies it. The caller's items are not changed, and no golden moved. |
+| F25 | `TestGenerateContent_BlockReason` | `Reason = ""; want SAFETY` | `promptFeedback.blockReason` is the empty answer's `Reason`. |
+| F26 | `TestGenerateContent_ToolCallFailureReasons` | `Reason = "stop"; want MALFORMED_FUNCTION_CALL`, the same for `UNEXPECTED_TOOL_CALL` | Both are removed from `finishReasons`, so they are kept as sent (0021 W3). |
+| F27 | `TestToolSchema_TypedNil` | `nil map: null`; `nil RawMessage: null` | `ToolSchema` treats a typed nil, and a `RawMessage` of `null` or nothing, as no schema. |
+| F28 | `TestResponses_FailedStatusClassified`; `TestResponsesProviders_FailedStatusUsesTheirVocabulary` (D7) | Every case: `incomplete response: stop: responses: the answer has no content`. Through the providers: `openai quota: provider unavailable: responses stream insufficient_quota`, and no provider named. | `decodeAs` reads the status first. `failed` classifies a failed response, streamed or not. `responses.DecodeFor(label)`, which Grok, OpenAI with a key, and OpenCode's responses route now use (D7). |
+| F29 | `TestChatCompletions_Refusal` | `incomplete response: stop: chat completions: the answer has no content` | `message.refusal` is the answer's text, with `FinishContentFilter`, when there is no content. |
+| F30 | `TestChatCompletions_ContentParts` | `cannot unmarshal array into … content of type string` | `chatContent` takes a string, null, or an array of parts whose text parts are joined; anything else is a decode error. |
+| F31 | `TestResponses_EmptyArguments` | `Decode: arguments ""`; `ReadStream: arguments ""` | `appendOutput` gives empty arguments as `{}`, on both paths. |
+| F32 | `TestChatCompletions_ReasoningNotCarriedAcrossTurns` | `reasoning_content = "turn-1 reasoningturn-2 reasoning"`, and turn 1's `reasoning_details` on turn 2 | Pending reasoning, and its details, are dropped at a user turn. |
+| F65 | `TestLive_OpencodeGoogleTwoCallRoundTrip` (live, D6) | Not a red test: a measurement. | None needed. See below. |
+
+* **F65, measured** (`p26_f65_live.out`). Three runs of `google-direct`,
+  on `gemini-3.8-flash` through the google route's own encoder and decoder,
+  against Google's generateContent API:
+
+  | Run | Call ids Gemini sent | Turn 2's reply |
+  | :--- | :--- | :--- |
+  | 1 | `call_510369`, `call_510370` | `Oslo=OSLO-7731; Rome=ROME-4412` |
+  | 2 | `call_366915`, `call_366916` | `Oslo=OSLO-7731; Rome=ROME-4412` |
+  | 3 | `call_366514`, `call_366515` | `Oslo=OSLO-7731; Rome=ROME-4412` |
+
+  Gemini 3 sends `functionCall.id`, and accepts two results to one function
+  sent by name and position, pairing them correctly. Under the PLAN's F65
+  row, F65 is recorded as measured, and closed, with no code change. The
+  `zen` subtest skipped each time: `HTTP 402 … Insufficient account funds`.
+* **Docs.**
+  * `docs/architecture.md`: the package table gains `RemapCallIDs`,
+    `responses.DecodeFor`, `chatcompletions.DecodeFor` and `redact.Field`.
+    It also gains imports the code already had: `internal/redact` for
+    `internal/wire` and `responses` (Phase 2's F18), and
+    `internal/transport` for `responses`. `llmtest`'s list of optional
+    checks gains `ReasoningCut`, and "Answers" covers the reasoning cut and
+    call ids.
+  * `docs/guides/adding-a-provider.md`: the optional checks gain
+    `ReasoningCut`.
+  * `README.md`: an answer cut while reasoning is `ErrIncomplete`.
+
+**Proofs** (a scratch copy; `plant_f7.py`). With F7 reverted in the three
+decoders, the `F7-reasoning-cut` check failed for Claude, Hugging Face,
+Kilo, Ollama, Together and both OpenCode harnesses, and the three decoder
+tests failed. In `llmtest`'s own tests, the reference provider's
+`keepReasoningCut` flaw fails the check, as each W12 flaw fails its own.
+
+**The gate,** on a scratch copy with the phase staged and committed there
+with plumbing (`p26_gate.py`); every check rc=0:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `438 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -count=1 -cover ./...`; `go test -shuffle=on ./...` | 27 packages ok, the 28th having no tests |
+| `go mod tidy -diff` | clean |
+| `make lint` (host and Windows) | 0 issues |
+| `parity-check`, `dep-check` | 0 problems |
+| `coverage-check` | 28 packages, 0 problems; `internal/wire` 96.0 %, `chatcompletions` 93.1 %, `generatecontent` 94.2 %, `messages` 96.7 %, `responses` 97.8 %, `llmtest` 95.9 % |
+| `api-check` | `against v1.2.1, 0 incompatible change(s)`; the new exported field, `llmtest.Harness.ReasoningCut`, is compatible |
+| `generate-check` | `2 generated file(s), 0 problem(s)` |
+| `records-check` | `57 records, 0 problem(s)` |
+| `gate-selftest` | OK |
+| markdownlint (the lint scope), G-wire stable, links | 0 problems; 605 relative links in 67 files |
+| identifier scan of the changed files | 0 hits in 34 files |
+
+**Not done in this phase:**
+
+* **F65 through OpenCode's proxy.** The `zen` subtest stays; it measures
+  the route through Zen once the account is funded (D6).
+* **A live run of the other Phase 3 changes** was not part of this phase.
+  Each is covered by the unit and conformance tests above; Phase 7's
+  release gate runs the live suites.

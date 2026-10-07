@@ -234,7 +234,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")
 		},
-	}, token, responses.Decode)
+	}, token, responses.DecodeFor(string(llmprovider.ProviderGrok)))
 }
 
 // ListModels returns curated Grok text models available to this credential,

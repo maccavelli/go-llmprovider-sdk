@@ -45,8 +45,11 @@ var stopReasons = map[string]llmprovider.FinishReason{
 const defaultThinkingBudget = 4096
 
 // FromItems converts items to Anthropic messages. System items are left out:
-// they go to the top-level system field (see wire.SystemPrompt).
+// they go to the top-level system field (see wire.SystemPrompt). Call ids
+// another wire made are sent in a form Anthropic accepts, unique in the
+// request, and each result keeps its call (0026-MADR F8).
 func FromItems(items []llmprovider.Item) []map[string]any {
+	items = wire.RemapCallIDs(items, wire.AnthropicCallIDs)
 	var messages []map[string]any
 	// appendBlock adds a content block to the previous message when it has the
 	// same role and already holds blocks (or, for the assistant, text), so a
@@ -178,7 +181,9 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		}
 	}
 
-	if len(res.Output) == 0 {
+	// An answer cut while it was still thinking has nothing usable
+	// (0026-MADR F7); a cut text answer keeps its text.
+	if len(res.Output) == 0 || finish == llmprovider.FinishLength && res.OutputText() == "" {
 		return nil, wire.EmptyAnswer("messages", finish)
 	}
 

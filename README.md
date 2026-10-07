@@ -84,9 +84,10 @@ functions over any provider, and `Stream` streams from every one.
   - `ErrProviderUnavailable` and `ErrUnsupported`.
 
   A truncated answer is an error of kind `ErrIncomplete`. A text answer cut
-  by the token limit keeps its text and sets `Response.FinishReason`. An
-  empty answer is `ErrIncomplete` too, with the service's reason, such as a
-  refusal's `content_filter`, in `APIError.Reason`.
+  by the token limit keeps its text and sets `Response.FinishReason`; one
+  cut while the model was still reasoning, with no text, is `ErrIncomplete`.
+  An empty answer is `ErrIncomplete` too, with the service's reason, such
+  as a refusal's `content_filter`, in `APIError.Reason`.
   `WithRetry(p, RetryPolicy{…})` retries only what can succeed later,
   honouring `Retry-After` with a little jitter, and keeps `p`'s
   `ListModels`. A reply lost while it was being read, which may have been
