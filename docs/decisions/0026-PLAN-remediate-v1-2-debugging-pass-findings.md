@@ -1098,3 +1098,117 @@ with plumbing (`p26_gate.py`); every check rc=0:
 
 **Not done in this phase:** F63, which its row puts in Phase 7; and a live
 run, which Phase 7's release gate does.
+
+### Deviation D10 (2026-10-07): `v1.3.0` was tagged before its release notes
+
+* **Found** at Phase 7's start. The owner committed and pushed Phase 6 as
+  `c014545`, and tagged it `v1.3.0`. Step 2, the release notes in this PLAN
+  and the README, had not been written, so the tagged commit carries
+  neither, and its README still says "The current release is `v1.0.0`"
+  (F63). CI on the tag, run 37673890357, passed, and the module proxy
+  resolves `v1.3.0`.
+* **Options put to the owner:** write the notes as a follow-up commit on
+  `main`; and, if wanted, tag a patch release after it, so that a tag
+  carries its own notes.
+* **Decision.** The owner chose both ("Proceed, I will push a new tag"). The
+  release notes below and F63's README line land in a follow-up commit,
+  which the owner tags. The README names `v1.3.1`, the next patch; if the
+  tag is another, the line changes with it. `v1.3.0` stays as it is:
+  a published tag is never moved.
+
+### Phase 7: release (2026-10-07)
+
+* **Before it.** Phase 6 was committed as `c014545` and pushed by the
+  owner; CI run 37672876028 passed. The owner tagged it `v1.3.0` (D10).
+* **Approval.** "Proceed, I will push a new tag.", 2026-10-07.
+
+#### Release notes: `v1.3.0`
+
+`v1.3.0` is the remediation of
+[0026-MADR](0026-MADR-remediate-v1-2-debugging-pass-findings.md): 67
+findings, fixed in Phases 1–6. Its API against `v1.2.1` only adds (below).
+These changes can be seen by a caller:
+
+* **Credentials** (Phase 1).
+  * `grok.New` and `openai.New` refuse, with `ErrUnsupported`, an OAuth
+    session another provider owns (F2, D1).
+  * `FileTokenStore` excludes concurrent refreshes with an OS lock on
+    `<provider>.oslock`; the old `.lock` file is gone (F13, D2). A `v1.2.x`
+    process sharing the store is not excluded by it, so upgrade every
+    process that shares one.
+  * A refresh finishes, and is saved, even when the caller that started it
+    gives up (F3).
+  * On Windows a token file open for reading no longer blocks a save (F42,
+    D3).
+* **Errors and retry** (Phase 2).
+  * `New` refuses, with `ErrInvalidRequest`, a base URL without a scheme
+    and host, a control character in a key, client info or session id, and
+    an invalid `WithReasoning` (F11, F19). Such inputs used to fail, and be
+    retried, at send time.
+  * A tool schema that cannot be marshalled is `ErrInvalidRequest` before
+    any request (F20).
+  * A retryable error no longer matches `ErrInvalidRequest`: a retryable
+    408, a 409 on OpenAI and Claude, and a 400 sent with
+    `x-should-retry: true`, which is now `ErrProviderUnavailable` (F23,
+    F67; 0012-MADR amendment 2026-10-07).
+  * A Gemini 429's `RetryAfter` comes from its body's `RetryInfo`, and a
+    per-day quota is `ErrQuotaExhausted` (F12).
+  * An error a gateway reports inside a 200 is classified by its status
+    (F5); any 2xx is a success (F24); `MaxDelay` caps every wait (F22).
+  * Redaction covers prefixed secret names, and keeps ordinary words after
+    "bearer", "basic" and "token" (F17, F21).
+* **Answers** (Phase 3).
+  * An answer cut while the model was still reasoning, with no text, is
+    `ErrIncomplete` on every wire (F7).
+  * Another wire's call ids are sent to the Messages wire in a form
+    Anthropic accepts (F8).
+  * Chat Completions keeps a refusal's text and reads content given as
+    parts (F29, F30); Gemini reports its block and tool-call reasons (F25,
+    F26); a failed Responses reply is classified by the provider (F28).
+* **Providers** (Phase 4).
+  * A refused key is renewed whatever the status, so Gemini's 400
+    `API_KEY_INVALID` renews a `CommandToken` (F6); a listing renews one
+    too, and every listing failure has a kind (F36, F35).
+  * Gemini's `Reasoning` is `BestEffort`: `gemini-2.5-flash-lite` does not
+    think at low or medium effort (F38).
+  * A shared OAuth session takes a later caller's `WithHTTPClient` and
+    `WithLogger` (F37, D8).
+* **Wizard** (Phase 5): it honours `ctx` and never re-prompts without end
+  (F9); a kept session refreshes through `Options.HTTPClient` (F10); a
+  pasted ChatGPT token keeps its account (F48); `Secret` returns a write
+  error and never a partial key (F49, F50).
+* **`llmtest`** (Phase 6). Every `Run` now also checks that each HTTP
+  failure is an `*APIError`, that a 429's `Retry-After` reaches
+  `RetryAfter`, that a token naming its own `Header` is sent there, and, for
+  a `ModelLister`, the listing's identity and cancellation. A third-party
+  provider that passed `v1.2.1`'s suite may fail these. `Fake.Reply(nil)`
+  panics at the call.
+* **Tooling:** `make vuln` and the precheck run govulncheck at CI's pinned
+  version; the gate self-test and records check cover more (Phase 6).
+
+**API added since `v1.2.1`** (apidiff, `p7_apidiff.out`; 0 incompatible
+changes):
+
+* `llmprovider.(*Settings).HTTPClientGiven`, `(*Settings).LoggerGiven`;
+* `auth.(*OAuthSession).Owner`, `(*OAuthSession).UseDefaultHTTPClient`;
+* `catalog.LookupMetadataWith`;
+* `llmtest.Harness.AuthFailure`, `Harness.NotPermitted`,
+  `Harness.ReasoningCut`.
+
+#### Checks on `v1.3.0`
+
+| Check | Result |
+| :--- | :--- |
+| CI on the tag | run 37673890357, success |
+| `apidiff` `v1.2.1` → `v1.3.0` | 8 additions, `0` incompatible (`p7_apidiff.py`) |
+| the module proxy | `go list -m github.com/maccavelli/go-llmprovider-sdk@v1.3.0`: `"Version": "v1.3.0"`, `"Time": "2026-10-07T19:13:35Z"` |
+| a scratch consumer requiring `v1.3.0`, using every public package | builds with `CGO_ENABLED=0` for linux, windows and darwin, amd64 and arm64; `go run` prints `true <nil>` |
+
+* The first consumer build for linux, with cgo on, failed in the host's C
+  toolchain (`runtime/cgo: implicit declaration of function 'clearenv'`),
+  not in the module, which has no cgo. The gate's cross-platform vet runs
+  with `CGO_ENABLED=0` for the same reason.
+* **F63:** the README's Status section names the current release, and
+  summarises `v1.3`.
+* **Left to the owner:** committing this, and tagging it (D10). Once the
+  tag is pushed, its CI and the proxy are checked as `v1.3.0`'s were.

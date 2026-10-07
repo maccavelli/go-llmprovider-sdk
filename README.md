@@ -190,7 +190,17 @@ key.
 
 ## Status
 
-The current release is `v1.0.0`. The module requires Go 1.27.1.
+The current release is `v1.3.1`. The module requires Go 1.27.1.
+
+- `v1.3` remediates
+  [0026-MADR](docs/decisions/0026-MADR-remediate-v1-2-debugging-pass-findings.md)'s
+  67 findings, and only adds to the API. Some behaviour changes for callers:
+  `New` refuses inputs no request could carry, a retryable error no longer
+  matches `ErrInvalidRequest`, an answer cut while reasoning is
+  `ErrIncomplete`, `FileTokenStore` locks with the OS (upgrade every process
+  sharing a store), and `llmtest.Run` checks more. The release notes are in
+  [0026-PLAN](docs/decisions/0026-PLAN-remediate-v1-2-debugging-pass-findings.md),
+  Phase 7.
 
 - The provider and wizard code was imported, with its history, from
   `mcplib` `v1.6.0` and re-homed here
