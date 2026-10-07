@@ -36,9 +36,13 @@ type OAuthSession struct {
 	Logger   *slog.Logger
 	mu       sync.Mutex
 	inflight *tokenFuture
-	// spentRefresh is the refresh token the last refresh spent, while its
-	// rotated session is not yet saved; "" once saved.
-	spentRefresh string
+	// storedRefresh is the refresh token Store is known to hold: set by
+	// Load, by every save that succeeds, and by a session adopted from Store.
+	// While it differs from Refresh, a rotation is unsaved, and the store's
+	// token is one this session spent, never a sibling's rotation; it stays
+	// the store's token however many saves fail in a row (0026-MADR F1).
+	// "" when unknown.
+	storedRefresh string
 	// issued is when the last refresh or exchange succeeded, in this process;
 	// it measures the token's lifetime when the token is not a JWT with iat
 	// (0021-MADR T3).

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,6 +18,14 @@ import (
 
 // vendorAuthFileLimit bounds a vendor CLI auth file.
 const vendorAuthFileLimit = 1 << 20
+
+var (
+	// vendorReadFile reads a CLI's auth file; tests replace it.
+	vendorReadFile = readVendorAuthFile
+	// vendorRetryDelay is the wait before the one re-read of a file that did
+	// not parse; tests shorten it.
+	vendorRetryDelay = 50 * time.Millisecond
+)
 
 // VendorCLISession is a TokenSource that borrows a vendor CLI's login
 // read-through (MADR 0012 §5.1). Every Token call re-reads the CLI's auth
@@ -56,11 +65,25 @@ func (s *VendorCLISession) Token(ctx context.Context) (llmprovider.Token, error)
 	if parse == nil {
 		return llmprovider.Token{}, fmt.Errorf("%w: no vendor CLI session for provider %q", llmprovider.ErrInvalidRequest, s.Provider)
 	}
-	raw, err := readVendorAuthFile(s.Path)
+	raw, err := vendorReadFile(s.Path)
+	if errors.Is(err, errVendorBrokenLink) {
+		// A login cannot mend a dangling link (0026-MADR F40).
+		return llmprovider.Token{}, fmt.Errorf("%w: read the %s login: %w", llmprovider.ErrAuthFailure, cli, err)
+	}
 	if err != nil {
 		return llmprovider.Token{}, fmt.Errorf("%w: read the %s login: %w; %s", llmprovider.ErrAuthFailure, cli, err, hint)
 	}
 	cred, err := parse(raw)
+	if err != nil {
+		// The CLI rewrites its file in place, truncate then write, so a read
+		// can land between the two: read it once more (0026-MADR F41).
+		if sleepErr := sleepWithContext(ctx, vendorRetryDelay); sleepErr != nil {
+			return llmprovider.Token{}, sleepErr
+		}
+		if raw, err = vendorReadFile(s.Path); err == nil {
+			cred, err = parse(raw)
+		}
+	}
 	if err != nil {
 		return llmprovider.Token{}, fmt.Errorf("%w: the %s login in %s: %w; %s", llmprovider.ErrAuthFailure, cli, s.Path, err, hint)
 	}
@@ -87,15 +110,27 @@ func vendorCLI(provider llmprovider.ProviderID) (cli, hint string, parse func([]
 	}
 }
 
-// readVendorAuthFile reads at most vendorAuthFileLimit bytes of path, opened
-// within its directory.
+// errVendorBrokenLink marks an auth file that is a symlink to nothing.
+var errVendorBrokenLink = errors.New("the auth file is a symlink whose target cannot be read")
+
+// readVendorAuthFile reads at most vendorAuthFileLimit bytes of path. A
+// symlinked file, as the Grok CLI writes through dotfile and GROK_HOME
+// overlays, is resolved first, and the target is opened within its own
+// directory (0026-MADR F40).
 func readVendorAuthFile(path string) ([]byte, error) {
-	root, err := os.OpenRoot(filepath.Dir(path))
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		if info, lerr := os.Lstat(path); lerr == nil && info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("%s: %w: %w", path, errVendorBrokenLink, err)
+		}
+		return nil, err
+	}
+	root, err := os.OpenRoot(filepath.Dir(resolved))
 	if err != nil {
 		return nil, err
 	}
 	defer func() { ignoreOAuthError(root.Close()) }()
-	f, err := root.Open(filepath.Base(path))
+	f, err := root.Open(filepath.Base(resolved))
 	if err != nil {
 		return nil, err
 	}

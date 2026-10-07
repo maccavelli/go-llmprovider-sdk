@@ -3,8 +3,10 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,25 +20,24 @@ type joinSignal chan struct{}
 func (j joinSignal) joined() { j <- struct{}{} }
 
 // TestOAuthSession_WaiterOutlivesLeaderCancel (0020-MADR F14): the caller
-// that started the shared refresh cancels it; a caller waiting on it, whose
-// own context is live, gets a token instead of the leader's cancellation.
+// that started the shared refresh cancels; a caller waiting on it, whose own
+// context is live, gets a token instead of the leader's cancellation. Since
+// 0026-MADR F3 the refresh runs detached, so the leader's cancel no longer
+// stops it: the waiter gets that refresh's own result, from one issuer call.
 func TestOAuthSession_WaiterOutlivesLeaderCancel(t *testing.T) {
 	var calls atomic.Int32
 	release := make(chan struct{})
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if calls.Add(1) == 1 {
-			select { // the leader's request hangs until it is cancelled
-			case <-r.Context().Done():
-			case <-release:
-			}
-			return
-		}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		<-release // the refresh is held until the leader has gone
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "fresh", "refresh_token": "rotated", "expires_in": 1800,
 		})
 	}))
 	t.Cleanup(srv.Close)
-	t.Cleanup(func() { close(release) }) // runs first: frees a hung handler
+	var releaseOnce sync.Once
+	let := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(let) // runs first: frees a held handler
 	joined := make(joinSignal, 1)
 	session := &OAuthSession{Provider: "openai", Access: "old", Refresh: "refresh",
 		Expiry: time.Now().Add(-time.Minute), ClientID: "client-test", TokenURL: srv.URL, HTTPClient: srv.Client(),
@@ -68,9 +69,15 @@ func TestOAuthSession_WaiterOutlivesLeaderCancel(t *testing.T) {
 		t.Fatal("the waiter never joined the leader's refresh")
 	}
 	cancel()
-	<-leaderDone
+	if err := <-leaderDone; !errors.Is(err, context.Canceled) {
+		t.Errorf("leader Token = %v, want context.Canceled", err)
+	}
+	let()
 	got := <-waiterDone
 	if got.err != nil || got.tok.Value != "fresh" {
 		t.Errorf("waiter Token = %q, %v; want the fresh token: only the leader was cancelled", got.tok.Value, got.err)
+	}
+	if n := calls.Load(); n != 1 {
+		t.Errorf("issuer calls = %d, want 1: the waiter shares the leader's refresh", n)
 	}
 }

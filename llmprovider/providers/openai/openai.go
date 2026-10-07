@@ -37,6 +37,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
@@ -117,8 +118,23 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if src == nil {
 		return nil, fmt.Errorf("%w: openai needs WithAPIKey or WithTokenSource", llmprovider.ErrInvalidRequest)
 	}
-	if s, ok := src.(*llmprovider.StaticToken); ok && s.Value == "" {
-		return nil, fmt.Errorf("%w: openai api key is required", llmprovider.ErrInvalidRequest) // 0020-MADR F52
+	switch s := src.(type) {
+	case *llmprovider.StaticToken:
+		if s.Value == "" {
+			return nil, fmt.Errorf("%w: openai api key is required", llmprovider.ErrInvalidRequest) // 0020-MADR F52
+		}
+	case *auth.OAuthSession:
+		// R16: another provider's session is refused, so its token never
+		// reaches OpenAI (0026-MADR F2).
+		if owner := s.Owner(); owner != llmprovider.ProviderOpenAI {
+			return nil, fmt.Errorf("%w: openai takes an API key, a ChatGPT sign-in or the Codex CLI's login, not a %q session (0026-MADR F2)",
+				llmprovider.ErrUnsupported, owner)
+		}
+	case *auth.VendorCLISession:
+		if s.Provider != llmprovider.ProviderOpenAI {
+			return nil, fmt.Errorf("%w: openai takes an API key, a ChatGPT sign-in or the Codex CLI's login, not the %q CLI's login (0026-MADR F2)",
+				llmprovider.ErrUnsupported, s.Provider)
+		}
 	}
 	p := &provider{
 		src:       src,

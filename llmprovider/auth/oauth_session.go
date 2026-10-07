@@ -68,8 +68,9 @@ const chatGPTAccessFixture = "chatgpt-access"
 // ValidateOAuthSession reports whether a session can be used for generation
 // (MADR 0008 D7). It must be refreshable, or the explicit access-only ChatGPT
 // token that token_stdin produces, and never a stub. A
-// refreshable session needs a client id. Its token URL may be empty, because
-// the refresh derives it from the issuer.
+// refreshable session needs a client id, and a token URL, which may be empty
+// only for OpenAI's and xAI's own issuers, from which the refresh derives it
+// (0020-MADR F45; 0026-MADR F44).
 func ValidateOAuthSession(session *OAuthSession) error {
 	switch {
 	case session == nil || strings.TrimSpace(session.Access) == "":
@@ -83,6 +84,11 @@ func ValidateOAuthSession(session *OAuthSession) error {
 		}
 	case session.ClientID == "":
 		return errors.New("oauth: refreshable session has no client id")
+	default:
+		if _, err := refreshTokenURL(oauthSessionState{provider: session.Provider, issuer: session.Issuer,
+			tokenURL: session.TokenURL}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -121,6 +127,12 @@ type oauthRefreshResponse struct {
 // An early refresh that fails with anything but ErrAuthFailure, while the
 // token has more than 30 s left, returns the token: the failure goes to
 // Logger, and the next refresh waits 10 to 30 s (0021-MADR T2).
+//
+// The refresh runs detached from ctx, within its own per-attempt bound: the
+// issuer rotates the refresh token before it answers, so a refresh cut off by
+// a caller's deadline would lose the rotation. Each caller stops waiting when
+// its own ctx ends, and a refresh that finishes after every caller has gone
+// is still adopted and saved (0026-MADR F3).
 func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 	s.mu.Lock()
 	now := s.clock()
@@ -128,51 +140,72 @@ func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 	if !current && now.Before(s.nextRefresh) {
 		token, current = s.heldToken()
 	}
-	retrySave := current && s.spentRefresh != "" && s.Store != nil && !now.Before(s.nextResave)
+	unsaved := s.storedRefresh != "" && s.storedRefresh != s.Refresh
+	retrySave := current && unsaved && s.Store != nil && !now.Before(s.nextResave)
 	if current && !retrySave {
 		s.mu.Unlock()
 		return token, nil
 	}
-	if future := s.inflight; future != nil {
+	future := s.inflight
+	if future != nil {
 		onJoin := s.onJoin
 		s.mu.Unlock()
 		if onJoin != nil {
 			onJoin.joined()
 		}
-		select {
-		case <-future.done:
-			if future.abandoned && ctx.Err() == nil {
-				return s.Token(ctx)
-			}
-			return future.tok, future.err
-		case <-ctx.Done():
-			return llmprovider.Token{}, ctx.Err()
-		}
+		return waitToken(ctx, future)
 	}
 	if !current && s.Refresh == "" {
 		s.mu.Unlock()
 		// Nothing can renew it: the user must sign in again.
 		return llmprovider.Token{}, fmt.Errorf("oauth: no refresh token: %w", llmprovider.ErrAuthFailure)
 	}
+	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
+		return llmprovider.Token{}, err
+	}
 
-	future := &tokenFuture{done: make(chan struct{})}
+	future = &tokenFuture{done: make(chan struct{})}
 	s.inflight = future
 	state := s.refreshState()
-	logger, spent := s.Logger, s.spentRefresh
-	state.spent = spent
-	var unsaved *OAuthSession
+	state.stored = s.storedRefresh
+	var pending *OAuthSession
 	if retrySave {
-		unsaved = s.persistable()
+		pending = s.persistable()
 		s.nextResave = now.Add(oauthResaveInterval)
 	}
 	s.mu.Unlock()
 
+	go s.complete(context.WithoutCancel(ctx), future, state, token, pending)
+	return waitToken(ctx, future)
+}
+
+// waitToken waits for the refresh in flight, or for ctx.
+func waitToken(ctx context.Context, future *tokenFuture) (llmprovider.Token, error) {
+	select {
+	case <-future.done:
+		return future.tok, future.err
+	case <-ctx.Done():
+		return llmprovider.Token{}, ctx.Err()
+	}
+}
+
+// complete runs the refresh, or the save of an unsaved rotation (pending,
+// with token the current token), records the outcome on the session, and
+// releases future. It runs detached from every caller (0026-MADR F3).
+func (s *OAuthSession) complete(ctx context.Context, future *tokenFuture, state oauthSessionState, token llmprovider.Token, pending *OAuthSession) {
+	s.mu.Lock()
+	logger := s.Logger
+	s.mu.Unlock()
 	var err error
-	if retrySave {
-		saveErr := persistRotation(ctx, state, unsaved, spent)
+	if pending != nil {
+		saveErr := persistRotation(ctx, state, pending, state.stored)
 		s.mu.Lock()
-		if saveErr == nil || errors.Is(saveErr, errStoreMovedOn) {
-			s.spentRefresh = ""
+		switch {
+		case saveErr == nil:
+			s.storedRefresh = pending.Refresh
+		case errors.Is(saveErr, errStoreMovedOn):
+			s.storedRefresh = "" // another process saved a newer session
 		}
 		if saveErr != nil {
 			logUnsavedRotation(logger, state.provider, saveErr)
@@ -184,12 +217,20 @@ func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 		if err == nil {
 			s.adopt(out.next)
 			token = out.token
-			s.spentRefresh, s.nextRefresh = "", time.Time{}
+			s.nextRefresh = time.Time{}
+			switch {
+			case out.saveErr == nil:
+				// Saved, or adopted from the store: the store holds it.
+				s.storedRefresh = out.next.Refresh
+			case s.storedRefresh == "":
+				// The store still holds the token this refresh spent. After
+				// an earlier failed save, it still holds that one's.
+				s.storedRefresh = out.spent
+			}
 			if out.saveErr != nil {
-				s.spentRefresh = out.spent
 				logUnsavedRotation(logger, state.provider, out.saveErr)
 			}
-		} else if held, ok := s.heldToken(); ok && ctx.Err() == nil && !errors.Is(err, llmprovider.ErrAuthFailure) {
+		} else if held, ok := s.heldToken(); ok && !errors.Is(err, llmprovider.ErrAuthFailure) {
 			//nolint:gosec // G404: non-crypto jitter between refresh attempts
 			s.nextRefresh = s.clock().Add(oauthEarlyRefreshRetry + rand.N(oauthEarlyRefreshJitter))
 			logEarlyRefreshFailure(logger, state.provider, err)
@@ -200,12 +241,9 @@ func (s *OAuthSession) Token(ctx context.Context) (llmprovider.Token, error) {
 	}
 	future.tok = token
 	future.err = err
-	future.abandoned = err != nil && ctx.Err() != nil
 	s.inflight = nil
 	close(future.done)
 	s.mu.Unlock()
-
-	return token, err
 }
 
 // persistable copies the session's stored fields, without its lock.
@@ -223,11 +261,11 @@ func (s *OAuthSession) persistable() *OAuthSession {
 var errStoreMovedOn = errors.New("oauth: the store holds a newer session; the unsaved rotation is not written")
 
 // persistRotation retries saving a rotated session, under the store's
-// refresh lock, and only while the store still holds the refresh token that
-// rotation spent (or nothing). It tries the lock once, with a context already
-// done, so a call that holds a valid token never waits for another process's
-// refresh (0021-MADR T10).
-func persistRotation(ctx context.Context, state oauthSessionState, next *OAuthSession, spent string) error {
+// refresh lock, and only while the store still holds stored, the refresh
+// token it is known to hold (or nothing). It tries the lock once, with a
+// context already done, so a call that holds a valid token never waits for
+// another process's refresh (0021-MADR T10; 0026-MADR F1).
+func persistRotation(ctx context.Context, state oauthSessionState, next *OAuthSession, stored string) error {
 	if locker, ok := state.store.(RefreshLocker); ok {
 		once, cancel := context.WithCancel(ctx)
 		cancel()
@@ -237,8 +275,8 @@ func persistRotation(ctx context.Context, state oauthSessionState, next *OAuthSe
 		}
 		defer unlock()
 	}
-	stored, err := state.store.Load(ctx, state.provider)
-	if err == nil && stored != nil && stored.Refresh != spent && stored.Refresh != next.Refresh {
+	loaded, err := state.store.Load(ctx, state.provider)
+	if err == nil && loaded != nil && loaded.Refresh != stored && loaded.Refresh != next.Refresh {
 		return errStoreMovedOn
 	}
 	return state.store.Save(ctx, state.provider, next)
@@ -263,11 +301,35 @@ func logEarlyRefreshFailure(logger *slog.Logger, provider llmprovider.ProviderID
 		"provider", provider, "error", err)
 }
 
+// Owner returns the provider whose credential the session is: Provider when
+// it is set, else the provider whose sign-in issuer the session names
+// (OpenAI's is openai's, xAI's is grok's), else "". A provider refuses a
+// session another provider owns (R16; 0026-MADR F2 and its amendment of
+// 2026-10-06). It reads the fields under the session's lock, since a refresh
+// rewrites them.
+func (s *OAuthSession) Owner() llmprovider.ProviderID {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Provider != "" {
+		return s.Provider
+	}
+	switch strings.TrimRight(s.Issuer, "/") {
+	case DefaultOpenAIIssuer:
+		return llmprovider.ProviderOpenAI
+	case DefaultGrokOAuthIssuer:
+		return llmprovider.ProviderGrok
+	}
+	return ""
+}
+
 // ChatGPT reports whether the session was issued by the default OpenAI issuer.
 func (s *OAuthSession) ChatGPT() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return strings.TrimRight(s.Issuer, "/") == DefaultOpenAIIssuer
+	// An OpenAI session with no issuer is an older ChatGPT sign-in, as its
+	// refresh treats it (refreshTokenURL), never a platform key (0026-MADR F2).
+	issuer := strings.TrimRight(s.Issuer, "/")
+	return issuer == DefaultOpenAIIssuer || issuer == "" && s.Provider == llmprovider.ProviderOpenAI
 }
 
 // Account returns the session's ChatGPT account id and FedRAMP flag, under
@@ -351,10 +413,11 @@ func (s *OAuthSession) refreshMargin() time.Duration {
 type oauthSessionState struct {
 	provider llmprovider.ProviderID
 	refresh  string
-	// spent is the refresh token an unsaved rotation used up. A store that
-	// still holds it has not moved on: it must never be adopted and sent
-	// again (0020-MADR F1).
-	spent      string
+	// stored is the refresh token the store is known to hold. While an
+	// unsaved rotation is pending it is a token this session spent: a store
+	// that still holds it has not moved on, and it must never be adopted and
+	// sent again (0020-MADR F1; 0026-MADR F1).
+	stored     string
 	issuer     string
 	clientID   string
 	accountID  string
@@ -456,7 +519,7 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, llmprovider.Token{}, true, fmt.Errorf("oauth: refresh request: %w", err)
+		return nil, llmprovider.Token{}, true, fmt.Errorf("%w: oauth: refresh request: %w", llmprovider.ErrProviderUnavailable, err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		retry = resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= http.StatusInternalServerError
@@ -469,16 +532,16 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 	}
 	switch {
 	case readErr != nil:
-		return nil, llmprovider.Token{}, false, fmt.Errorf("oauth: read refresh response: %w", readErr)
+		return nil, llmprovider.Token{}, false, fmt.Errorf("%w: oauth: read refresh response: %w", llmprovider.ErrProviderUnavailable, readErr)
 	case len(raw) > oauthResponseLimit:
-		return nil, llmprovider.Token{}, false, fmt.Errorf("oauth: refresh response is larger than %d bytes", oauthResponseLimit)
+		return nil, llmprovider.Token{}, false, fmt.Errorf("%w: oauth: refresh response is larger than %d bytes", llmprovider.ErrIncomplete, oauthResponseLimit)
 	}
 	payload, err := decodeRefreshResponse(raw)
 	if err != nil {
-		return nil, llmprovider.Token{}, false, err
+		return nil, llmprovider.Token{}, false, fmt.Errorf("%w: %w", llmprovider.ErrIncomplete, err)
 	}
 	if payload.AccessToken == "" {
-		return nil, llmprovider.Token{}, false, errors.New("oauth: refresh response missing access token")
+		return nil, llmprovider.Token{}, false, fmt.Errorf("%w: oauth: refresh response missing access token", llmprovider.ErrIncomplete)
 	}
 
 	refresh := payload.RefreshToken
@@ -686,15 +749,16 @@ func reloadOrRefresh(ctx context.Context, state oauthSessionState) (refreshed, e
 }
 
 // loadRotated returns the stored session when the store holds a refresh token
-// other than state's, else nil. The token an unsaved rotation spent is not
-// another: the store holds it only because that save failed (0020-MADR F1).
+// other than state's, else nil. The token the store is known to hold is not
+// another: while a rotation is unsaved it is one this session spent, however
+// many saves failed (0020-MADR F1; 0026-MADR F1).
 func loadRotated(ctx context.Context, state oauthSessionState) *OAuthSession {
 	if state.store == nil {
 		return nil
 	}
 	stored, err := state.store.Load(ctx, state.provider)
 	if err != nil || stored == nil || stored.Refresh == "" || stored.Refresh == state.refresh ||
-		(state.spent != "" && stored.Refresh == state.spent) {
+		(state.stored != "" && stored.Refresh == state.stored) {
 		return nil
 	}
 	stored.Store, stored.HTTPClient, stored.now = state.store, state.httpClient, state.now

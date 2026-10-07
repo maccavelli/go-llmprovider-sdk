@@ -103,9 +103,9 @@ func startKiloDevice(ctx context.Context, opts OAuthFlowOptions) (*DeviceLogin, 
 				}
 				continue
 			case http.StatusForbidden:
-				return nil, errors.Join(errors.New("oauth: Kilo device authorization denied"), closeResponseBody(resp))
+				return nil, errors.Join(fmt.Errorf("%w: oauth: Kilo device authorization denied", llmprovider.ErrAuthFailure), closeResponseBody(resp))
 			case http.StatusGone:
-				return nil, errors.Join(errors.New("oauth: Kilo device code expired"), closeResponseBody(resp))
+				return nil, errors.Join(fmt.Errorf("%w: oauth: Kilo device code expired", llmprovider.ErrAuthFailure), closeResponseBody(resp))
 			case http.StatusOK:
 				var approved struct {
 					Token string `json:"token"`

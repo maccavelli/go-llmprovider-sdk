@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -340,7 +339,12 @@ func TestOAuthSession_RefreshAttemptBounded(t *testing.T) {
 	if elapsed > 2*time.Second || calls.Load() > 3 {
 		t.Errorf("Token = %v after %v and %d attempts; want each attempt ended at 50 ms, at most 3", err, elapsed, calls.Load())
 	}
-	if _, statErr := os.Stat(filepath.Join(store.Dir, "openai.lock")); !errors.Is(statErr, os.ErrNotExist) {
-		t.Errorf("the refresh lock is still held: %v", statErr)
+	done, cancelDone := context.WithCancel(context.Background())
+	cancelDone() // a context already done tries the lock once
+	unlock, lockErr := (&FileTokenStore{Dir: store.Dir}).LockRefresh(done, llmprovider.ProviderOpenAI)
+	if lockErr != nil {
+		t.Errorf("the refresh lock is still held: %v", lockErr)
+	} else {
+		unlock()
 	}
 }

@@ -56,6 +56,7 @@ llmprovider/catalog/          model listing, static catalogs, ranking, metadata,
 llmprovider/internal/transport/ the default client, the client identity, Retry-After, the listing probe
 llmprovider/internal/kiloendpoint/ Kilo's endpoints, derived from a credential
 llmprovider/internal/ownerperm/ a directory and its files private to the current user
+llmprovider/internal/filelock/ an exclusive OS lock on an open file, for the refresh lock
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
@@ -77,7 +78,7 @@ standard library is left out.
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
 | `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact` |
-| `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm` |
+| `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification) and `StripControl` (remove terminal control characters) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
@@ -100,6 +101,7 @@ standard library is left out.
 | `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/kiloendpoint` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
+| `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
 | `llmprovider/internal/transport` | `DefaultClient`, `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `ProbeGenerateHealth`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 | `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
@@ -116,7 +118,7 @@ providers/<id>                one package per provider or gateway family
 auth   catalog   internal/wire/<format>   llmtest
 internal/wire
 llmprovider                   the contract
-internal/transport   internal/redact   internal/kiloendpoint   internal/ownerperm
+internal/transport   internal/redact   internal/kiloendpoint   internal/ownerperm   internal/filelock
 ```
 
 `internal/wiretest`, `llmprovider/internal/wirecase` and
@@ -351,10 +353,11 @@ for a session, from the store.
   - it writes through a temp file, with `fsync`, rename and a directory
     `fsync`;
   - it refuses a file over 64 KiB;
-  - as a `RefreshLocker`, it holds a lock file across processes for each
-    refresh, so a refresh token is never spent twice. A holder touches the
-    lock every 5 s. A waiter takes it over when it has seen the lock's mtime
-    unchanged for 30 s by its own clock, and gives up after 40 s.
+  - as a `RefreshLocker`, it holds an exclusive OS file lock on
+    `<provider>.oslock` across processes for each refresh, so a refresh
+    token is never spent twice. The operating system releases the lock when
+    its holder closes it or dies, so nothing stale is left behind. A waiter
+    gives up after 40 s.
 - **Formatting never shows a secret.** `Token`, `StaticToken` and
   `*OAuthSession` print `[redacted]` for every secret, under `fmt` and `slog`.
 - **Kilo device login.** `StartDeviceOAuth(ctx, "kilo", …)` runs Kilo's
@@ -494,8 +497,8 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   `//go:generate` line that names `-output` (as `-output X` or `-output=X`),
   into a temporary file, and fails when the committed file differs, or when
   it checks no file at all. Today that is `mkwinsyscall` for
-  `llmprovider/internal/ownerperm`, pinned in its `doc.go`; the generator is
-  not a module requirement.
+  `llmprovider/internal/ownerperm` and `llmprovider/internal/filelock`, each
+  pinned in its `doc.go`; the generator is not a module requirement.
 - **`scripts/check_parity_map.py`** (G-parity) fails when an identifier in
   `docs/guides/migrating-from-mcplib.ids`, the exported identifiers of
   `mcplib` `v1.6.0` `llmprovider` and `wizard`, has no row in

@@ -28,10 +28,11 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | Package | Holds | May import |
   | :--- | :--- | :--- |
   | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport` |
-  | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint`, `internal/ownerperm` |
+  | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
   | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` | `llmprovider`, `internal/transport`, `internal/kiloendpoint` |
   | `llmprovider/internal/kiloendpoint` | Kilo's endpoints, derived from a credential | the standard library |
   | `llmprovider/internal/ownerperm` | a directory and its files private to the current user: modes on Unix, a protected DACL on Windows through generated `syscall` bindings | the standard library |
+  | `llmprovider/internal/filelock` | an exclusive OS lock on an open file: `flock` on Unix, `LockFileEx` on Windows through generated `syscall` bindings | the standard library |
   | `llmprovider/providers/<id>` | one provider or gateway family: `New`, its options, its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
   | `llmprovider/providers` | `Default()` and `New(id, opts...)` | `llmprovider` and the provider packages |
   | `llmprovider/llmtest` | the conformance suite and `Fake` | `llmprovider` |

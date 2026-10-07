@@ -31,8 +31,9 @@ func TestFileTokenStore_RenameFailureKeepsPrevious(t *testing.T) {
 		t.Fatal(err)
 	}
 	planted := errors.New("planted rename failure")
+	previousRename := tokenStoreRename
 	tokenStoreRename = func(string, string) error { return planted }
-	t.Cleanup(func() { tokenStoreRename = os.Rename })
+	t.Cleanup(func() { tokenStoreRename = previousRename })
 
 	if err := store.Save(ctx, llmprovider.ProviderOpenAI, testSession("a-2", "rt-2", time.Now().Add(time.Hour))); !errors.Is(err, planted) {
 		t.Fatalf("Save = %v, want the planted failure", err)
@@ -124,42 +125,16 @@ func TestFileTokenStore_RefreshLock_OnceAcrossSessions(t *testing.T) {
 	}
 }
 
-// TestFileTokenStore_RefreshLock_StaleTakenOver: a lock its holder abandoned
-// is taken over, and the refresh proceeds.
-func TestFileTokenStore_RefreshLock_StaleTakenOver(t *testing.T) {
-	srv, calls := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) { refreshOK(w, "a-refreshed") })
-	store, session, _ := sharedStoreSessions(t, srv.URL)
-	// A lock is stale once its mtime has not changed for staleAfter, as this
-	// waiter sees it (0021-MADR T9).
-	store.staleAfter = 100 * time.Millisecond
-	session.Store = store
-	lock := filepath.Join(store.Dir, string(llmprovider.ProviderOpenAI)+".lock")
-	if err := os.WriteFile(lock, []byte("999999 dead\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	old := time.Now().Add(-2 * lockStaleAfter)
-	if err := os.Chtimes(lock, old, old); err != nil {
-		t.Fatal(err)
-	}
-	tok, err := session.Token(context.Background())
-	if err != nil || tok.Value != "a-refreshed" || calls.Load() != 1 {
-		t.Fatalf("Token = %q, %v after %d refreshes; want the stale lock taken over", tok.Value, err, calls.Load())
-	}
-	if _, err := os.Stat(lock); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("lock file left after the refresh: %v", err)
-	}
-}
-
 // TestFileTokenStore_RefreshLock_HeldTimesOutRetryable: while another holder
-// keeps the lock, a waiter gives up with a retryable error and never
-// refreshes unlocked.
+// keeps the lock, a waiter gives up with a retryable error after its wait,
+// and never refreshes unlocked.
 func TestFileTokenStore_RefreshLock_HeldTimesOutRetryable(t *testing.T) {
 	srv, calls := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) { refreshOK(w, "a-refreshed") })
 	store, session, _ := sharedStoreSessions(t, srv.URL)
-	store.wait, store.staleAfter, store.heartbeat = 300*time.Millisecond, 200*time.Millisecond, 20*time.Millisecond
+	store.wait = 300 * time.Millisecond
 	session.Store = store
 
-	holder := &FileTokenStore{Dir: store.Dir, staleAfter: store.staleAfter, heartbeat: store.heartbeat}
+	holder := &FileTokenStore{Dir: store.Dir}
 	unlock, err := holder.LockRefresh(context.Background(), llmprovider.ProviderOpenAI)
 	if err != nil {
 		t.Fatal(err)
@@ -174,8 +149,8 @@ func TestFileTokenStore_RefreshLock_HeldTimesOutRetryable(t *testing.T) {
 	if calls.Load() != 0 {
 		t.Errorf("%d refresh requests while locked, want 0", calls.Load())
 	}
-	// The heartbeat kept the lock fresh past staleAfter, so it was not taken over.
-	if waited := time.Since(start); waited < store.staleAfter {
-		t.Errorf("gave up after %v, before the stale window %v", waited, store.staleAfter)
+	// A held OS lock is never judged stale: the waiter waits its whole wait.
+	if waited := time.Since(start); waited < store.wait {
+		t.Errorf("gave up after %v, before its wait of %v", waited, store.wait)
 	}
 }

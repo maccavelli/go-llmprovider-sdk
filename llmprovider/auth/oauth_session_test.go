@@ -43,6 +43,12 @@ func TestValidateOAuthSession_RejectsFixture(t *testing.T) {
 			ClientID: DefaultGrokOAuthClientID, Issuer: DefaultGrokOAuthIssuer}, valid: true},
 		{name: "refreshable without client id", session: &OAuthSession{Access: "access", Refresh: "refresh",
 			TokenURL: "https://issuer.test/token"}},
+		// A custom issuer has no derivable token URL, so the session could
+		// never refresh (0026-MADR F44).
+		{name: "custom issuer without token URL", session: &OAuthSession{Access: "access", Refresh: "refresh",
+			ClientID: "client", Issuer: "https://login.example"}},
+		{name: "older OpenAI session without issuer", session: &OAuthSession{Provider: llmprovider.ProviderOpenAI,
+			Access: "access", Refresh: "refresh", ClientID: DefaultOpenAIClientID}, valid: true},
 		{name: "ChatGPT access-only", session: accessOnly(time.Time{}), valid: true},
 		{name: "ChatGPT access-only with expiry", session: accessOnly(time.Now().Add(time.Hour))},
 	} {

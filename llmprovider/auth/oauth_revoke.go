@@ -107,12 +107,18 @@ func openAIRevokeRequest(ctx context.Context, state oauthSessionState, token, hi
 // grokRevokeRequest posts an RFC 7009 form to the issuer's discovered
 // revocation_endpoint (https://auth.x.ai/oauth2/revoke on 2026-09-27).
 func grokRevokeRequest(ctx context.Context, state oauthSessionState, client *http.Client, token, hint string) (*http.Request, error) {
-	endpoints, err := oauthEndpointsFor(ctx, oauthFlowConfig{provider: llmprovider.ProviderGrok, issuer: state.issuer, httpClient: client})
+	// An older Grok session with no issuer refreshes against xAI's
+	// (refreshTokenURL), and is revoked there (0026-MADR F45).
+	issuer := strings.TrimRight(state.issuer, "/")
+	if issuer == "" {
+		issuer = DefaultGrokOAuthIssuer
+	}
+	endpoints, err := oauthEndpointsFor(ctx, oauthFlowConfig{provider: llmprovider.ProviderGrok, issuer: issuer, httpClient: client})
 	if err != nil {
 		return nil, err
 	}
 	if endpoints.Revocation == "" {
-		return nil, fmt.Errorf("oauth: revoke: %s publishes no revocation_endpoint: %w", state.issuer, errors.ErrUnsupported)
+		return nil, fmt.Errorf("oauth: revoke: %s publishes no revocation_endpoint: %w", issuer, errors.ErrUnsupported)
 	}
 	form := url.Values{"token": {token}, "token_type_hint": {hint}, oauthParamClientID: {state.clientID}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoints.Revocation, strings.NewReader(form.Encode()))

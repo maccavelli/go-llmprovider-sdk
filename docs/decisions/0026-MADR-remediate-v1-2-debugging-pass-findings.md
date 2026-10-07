@@ -688,3 +688,68 @@ Phase 3:
   * F8: Anthropic's id pattern;
   * F12: Google's `RetryInfo`;
   * F38: Gemini flash-lite's default.
+
+## Amendment 2026-10-06: Q2 judges a session with no `Provider` by its issuer
+
+Made by the 0026 PLAN's deviation D1, chosen by the owner ("Option 1").
+
+* **What changes.** Q2 (a) said `New` refuses "a foreign session". The PLAN
+  read that as "a session whose `Provider` is not the provider's". That
+  also refused hand-built ChatGPT sessions that carry OpenAI's issuer and
+  no `Provider`, including 8 of this repository's own tests.
+* **Now:**
+  * a session whose `Provider` names another provider is refused;
+  * a session with no `Provider` belongs to the provider its issuer names:
+    OpenAI's issuer is openai's, and xAI's is grok's;
+  * a session with neither is refused, since nothing shows whose it is.
+* **The API.** `(*auth.OAuthSession).Owner()` returns that provider, under
+  the session's lock. It is additive under R48.
+* **Unchanged.** Every case F2's audit reproduced is still refused: a
+  ChatGPT, Kilo or Grok session, or a CLI login, given to the wrong
+  provider. Kilo's own check (0016 D10) is unchanged.
+
+## Amendment 2026-10-06: Q1's file lock is the OS lock alone
+
+Made by the 0026 PLAN's deviation D2, chosen by the owner ("Wouldn't
+option 2 be the cleanest?").
+
+* **What changes.** Q1 (a) said `flock` and `LockFileEx` on F13. The PLAN
+  added a legacy lock file kept beside the OS lock, so that a `v1.2.x`
+  process sharing the store would still wait. That needs the legacy
+  heartbeat and takeover too, which the PLAN also removed.
+* **Now:**
+  * the refresh lock is the OS lock on `<provider>.oslock` alone;
+  * the legacy `.lock` file, with its staleness, takeover and heartbeat,
+    is removed.
+* **Why.** Only prepare-commit-msg uses `FileTokenStore`, in its own
+  directory. A `v1.2.x` and a `v1.3.0` process share a store only while one
+  hook binary replaces another. The release notes say a store must not be
+  shared across that boundary.
+
+## Amendment 2026-10-07: F66, the gate self-test's copy keeps a staged deletion
+
+Found in Phase 1's gate, recorded in the PLAN's Phase 1 record, and added by
+the owner ("F66 add them"). It goes into Phase 6 with the other tooling
+findings, and the findings are now 66.
+
+| ID | Source | Where | Finding | Evidence |
+|---|---|---|---|---|
+| F66 | Phase 1's gate | `scripts/test_gates.py:41-54` (`copy_tree`) | `copy_tree` clones `HEAD` and lays the working tree over it, but drops only paths `git ls-files -d` lists: files missing from the working tree yet still in the index. A deletion already staged is not in the index, so the copy keeps `HEAD`'s file, and `make gate-selftest` fails locally whenever a staged change deletes one. CI runs on a commit and never sees it. | Phase 1's gate: with `tokenstore_lock_owner_test.go`'s deletion staged, the self-test's copies failed to build `llmprovider/auth` (`store.staleAfter undefined`). The same omission appeared in a scratch build script of this session, and was fixed there with `git diff --name-only --diff-filter=D HEAD`. |
+
+## Amendment 2026-10-07: F42's fix is two halves
+
+Made by the 0026 PLAN's deviation D3, chosen by the owner ("Option 1").
+
+* **Corrects a fact.** F42 said Go's `os.Open` lacks delete sharing, so
+  "`Save`'s rename fails while another process has the file open". The
+  PLAN's fix gave readers delete sharing. Measured on Windows, that is not
+  enough: `os.Rename` is refused ("Access is denied") while any reader holds
+  the target, even one that shares delete access.
+* **Now:**
+  * readers open token files with `FILE_SHARE_DELETE`;
+  * `Save` renames through `os.Root`, whose Windows rename uses POSIX
+    semantics and replaces a file such a reader holds.
+
+  Neither half works alone. Each failed when tested alone.
+* **Limit:** a reader outside the SDK that opens the file with plain
+  `os.Open` still blocks a save on Windows.

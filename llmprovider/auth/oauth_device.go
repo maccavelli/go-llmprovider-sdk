@@ -344,9 +344,9 @@ func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin,
 				interval += deviceSlowDownIncrement
 				continue
 			case "access_denied":
-				return nil, errors.New("oauth: Grok device authorization denied")
+				return nil, fmt.Errorf("%w: oauth: Grok device authorization denied", llmprovider.ErrAuthFailure)
 			case "expired_token":
-				return nil, errors.New("oauth: Grok device code expired")
+				return nil, fmt.Errorf("%w: oauth: Grok device code expired", llmprovider.ErrAuthFailure)
 			default:
 				return nil, fmt.Errorf("oauth: Grok device token failed: %s", deviceErr.Code)
 			}

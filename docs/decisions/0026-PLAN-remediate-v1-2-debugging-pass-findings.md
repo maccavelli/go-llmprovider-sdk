@@ -43,7 +43,7 @@ agent stages; the owner commits.
 | 3 | answers on the wire | F7, F8, F25, F26, F27, F28, F29, F30, F31, F32, F65 |
 | 4 | provider wiring | F6, F36, F37, F33, F34, F35, F38, F39 |
 | 5 | wizard and catalog | F9, F10, F46, F47, F48, F49, F50, F51, F52, F53, F54 |
-| 6 | harness, gates and docs | F14, F15, F16, F55, F56, F57, F58, F59, F60, F61, F62, F63, F64 |
+| 6 | harness, gates and docs | F14, F15, F16, F55, F56, F57, F58, F59, F60, F61, F62, F63, F64, F66 |
 | 7 | release | `v1.3.0`, the owner's tag |
 
 ### Out of scope
@@ -110,11 +110,11 @@ agent stages; the owner commits.
 | :--- | :--- | :--- | :--- |
 | F1 | `TestOAuthSession_RepeatedFailedSavesKeepRotation`, from the audit's `TestZZ_TwoFailedSavesLoseRotation`: <ul><li>a store whose `Save` fails twice, then works;</li><li>a refresh, then an `InvalidateToken`, then a second refresh, then a resave, then a third refresh, against an issuer that rejects a reused token.</li></ul> It asserts every refresh token sent is distinct and that the store ends on the newest. It fails today with `[old-refresh refresh-1 old-refresh]`. A table runs it with 1, 2 and 3 failed saves; the 1-save case is 0020 F1's own test, kept. | Q1 (a), first part: <ul><li>the session records `storedRefresh`, the refresh token the store is known to hold, set by `Load` and by every successful `Save`;</li><li>`loadRotated` adopts a stored session only when its refresh token differs from both `storedRefresh` and the session's own;</li><li>`persistRotation` writes only while the store still holds `storedRefresh`, or nothing;</li><li>`spentRefresh` is removed if nothing else reads it.</li></ul> | `auth/oauth_session.go`, its test |
 | F3 | `TestOAuthSession_CallerCancelKeepsRotation` and `TestOAuthSession_AbandonedWaiterDoesNotResendSpent`, from the audit's two tests. The caller's ctx ends after the issuer rotated, and before the reply is read. The next `Token` sends the rotated refresh token, and the store holds it. Both fail today with `sent: [old-refresh old-refresh]`. | Q1 (a), second part: <ul><li>the refresh runs under `context.WithoutCancel(ctx)`, bounded by the existing 15 s per attempt;</li><li>it runs as the in-flight future, and the leader and every waiter wait on it or on their own ctx, whichever ends first;</li><li>a refresh that completes after its callers have gone still adopts and saves its result;</li><li>0020 F14's rule, that a waiter re-runs a fetch its leader abandoned, applies to `CommandToken` only, because the session no longer abandons.</li></ul> | `auth/oauth_session.go`, its test |
-| F13 | `TestFileTokenStore_TakeoverRaceOneHolder`, from `TestZZ_TakeoverRaceTwoHolders`, driven through the same seams; `TestFileTokenStore_LockReleasedWhenHolderDies`, a child process that takes the lock and is killed. The first fails today with `W3 err=<nil> holds=true`. | Q1 (a), third part: OS file locks. <ul><li>A new `llmprovider/internal/filelock` package locks an open file exclusively:<ul><li>`syscall.Flock` with `LOCK_EX|LOCK_NB` on Unix;</li><li>`LockFileEx` with `LOCKFILE_EXCLUSIVE_LOCK|LOCKFILE_FAIL_IMMEDIATELY` on Windows, through `//sys` lines and its own `//go:generate mkwinsyscall` output, as `ownerperm` has.</li></ul></li><li>A non-blocking attempt is retried with backoff, until the ctx or `lockWait` ends.</li><li>The lock file `<provider>.oslock` is never deleted, so no process can lock an unlinked file.</li><li>The OS releases a dead holder's lock, so staleness, takeover and the heartbeat go.</li><li>**Compatibility:** while it holds the OS lock, a process also creates the legacy `O_EXCL` lock file with its owner token, and removes it on unlock. A `v1.2.x` process sharing the store then still waits, as it did before.</li></ul> | `llmprovider/internal/filelock` (new), `auth/tokenstore_file.go`, their tests; `docs/guides/api-standards.md` R2 and `docs/architecture.md` gain the package; `generate-check` covers its generated file |
+| F13 | ~~`TestFileTokenStore_TakeoverRaceOneHolder`, from `TestZZ_TakeoverRaceTwoHolders`, driven through the same seams;~~ *(Deviation D2: the seams go with the takeover; the race test is replaced by a mutual-exclusion stress test.)* `TestFileTokenStore_LockReleasedWhenHolderDies`, a child process that takes the lock and is killed. The first fails today with `W3 err=<nil> holds=true`. | Q1 (a), third part: OS file locks. <ul><li>A new `llmprovider/internal/filelock` package locks an open file exclusively:<ul><li>`syscall.Flock` with `LOCK_EX|LOCK_NB` on Unix;</li><li>`LockFileEx` with `LOCKFILE_EXCLUSIVE_LOCK|LOCKFILE_FAIL_IMMEDIATELY` on Windows, through `//sys` lines and its own `//go:generate mkwinsyscall` output, as `ownerperm` has.</li></ul></li><li>A non-blocking attempt is retried with backoff, until the ctx or `lockWait` ends.</li><li>The lock file `<provider>.oslock` is never deleted, so no process can lock an unlinked file.</li><li>The OS releases a dead holder's lock, so staleness, takeover and the heartbeat go.</li><li>~~**Compatibility:** while it holds the OS lock, a process also creates the legacy `O_EXCL` lock file with its owner token, and removes it on unlock. A `v1.2.x` process sharing the store then still waits, as it did before.~~ *(Deviation D2: no legacy file; the old lock goes entirely.)*</li></ul> | `llmprovider/internal/filelock` (new), `auth/tokenstore_file.go`, their tests; `docs/guides/api-standards.md` R2 and `docs/architecture.md` gain the package; `generate-check` covers its generated file |
 | F2 | `TestNew_RefusesForeignSession` in `grok` and `openai`: <ul><li>a ChatGPT, Kilo and Grok `OAuthSession`;</li><li>a Codex and a Grok `VendorCLISession`;</li></ul> each given to the provider that does not own it. Each must fail `New` with `ErrUnsupported`, and send nothing. They fail today with `New err=<nil>`. `TestIsChatGPTSession_NoIssuer`: an OpenAI session with no issuer is a ChatGPT session. | Q2 (a): <ul><li>`grok.New` refuses an `*auth.OAuthSession` or `*auth.VendorCLISession` whose `Provider` is not `grok`;</li><li>`openai.New` does the same for `openai`;</li><li>`OAuthSession.ChatGPT()` (or `isChatGPTSession`) counts an OpenAI session with an empty issuer, matching `refreshTokenURL`.</li></ul> The messages follow `kilo.New`'s. | `providers/grok`, `providers/openai`, `auth/oauth_session.go`, their tests |
 | F40 | `TestVendorCLISession_SymlinkedAuthFile`: a Grok `auth.json` that is a symlink to a file outside its directory is read. It fails today with `path escapes from parent`. | Resolve the path with `filepath.EvalSymlinks` first, then open the resolved file. The `os.Root` stays for the resolved directory, as gosec wants (0006-PLAN). The error for a missing target says the link is broken, not "run grok login". | `auth/vendor_session.go` |
 | F41 | `TestVendorCLISession_TornFileRetriedOnce`: a file that is truncated on the first read and whole on the second is read. It fails today with `unexpected end of JSON input … (kind auth)`. | A decode failure is retried once, after 50 ms. A second failure keeps today's error. | `auth/vendor_session.go` |
-| F42 | Windows only, in CI: `TestFileTokenStore_SaveWhileOpenForRead`. A reader holds `<provider>.json` open while `Save` runs, and the save succeeds. It is read-only today on macOS, so its first failure is recorded from CI's `windows-2025` job on a scratch branch the owner pushes, or from the owner's Windows host. | Open token files for reading with `FILE_SHARE_DELETE`, through a Windows-only open helper beside `filelock`'s bindings (`CreateFile`), so a rename can replace a file a reader has open. | `auth/tokenstore_file.go`, a `_windows.go` helper |
+| F42 | Windows only, in CI: `TestFileTokenStore_SaveWhileOpenForRead`. A reader holds `<provider>.json` open while `Save` runs, and the save succeeds. It is read-only today on macOS, so its first failure is recorded from CI's `windows-2025` job on a scratch branch the owner pushes, or from the owner's Windows host. | Open token files for reading with `FILE_SHARE_DELETE`, through a Windows-only open helper beside `filelock`'s bindings (`CreateFile`), ~~so a rename can replace a file a reader has open~~. *(Deviation D3: that alone does not let `os.Rename` replace the file; `Save` also renames through `os.Root`, a POSIX-semantics rename on Windows.)* | `auth/tokenstore_file.go`, a `_windows.go` helper |
 | F43 | `TestRefreshErrors_HaveKinds`, from `TestZZ_RefreshErrorKinds`, plus the device "denied" and "expired" cases. Each error matches an `llmprovider` kind: <ul><li>a transport failure is `ErrProviderUnavailable`;</li><li>a 200 that does not decode is `ErrIncomplete`;</li><li>a lock file that cannot be created is `ErrProviderUnavailable`;</li><li>denied is `ErrAuthFailure`;</li><li>expired is `ErrAuthFailure`.</li></ul> They fail today with `kind NONE`. | Wrap each with its kind, keeping the message. | `auth/oauth_session.go`, `tokenstore_file.go`, `oauth_device.go`, `kilo_device.go` |
 | F44 | `TestValidateOAuthSession_RefusesUnrefreshable`: a custom-issuer session with a refresh token and no token URL is refused. It passes `ValidateOAuthSession` today. | Refuse it there, with the same message `Token` gives, and correct the doc comment (0020 F45). | `auth/oauth_session.go` |
 | F45 | `TestRevoke_LegacyGrokSession`: a Grok session with no issuer revokes against `auth.x.ai`'s discovery, or returns `ErrUnsupported` if that has no endpoint. It fails today with `unsupported protocol scheme ""`. | Revocation derives the issuer as `refreshTokenURL` does. | `auth/oauth_revoke.go` |
@@ -198,6 +198,7 @@ agent stages; the owner commits.
 | F62 | none: docs. The R2 table admits `internal/transport` for `internal/wire` and `wire/responses`, and the `<format>` row drops "more than one provider". `docs/architecture.md`'s "Depends on" column is regenerated from `go list`. | Correct both, and gain `filelock` from F13. | `docs/guides/api-standards.md`, `docs/architecture.md` |
 | F63 | none: docs. README names the current release at release time, in Phase 7. | Correct it. | `README.md` |
 | F64 | none: docs. architecture.md's G-wire counts are 18 cases and 114 files, or whatever Phase 3 leaves. | Correct it. | `docs/architecture.md` |
+| F66 | `test_copy_tree_drops_staged_deletion` in `scripts/test_gates.py`. In a temporary clone with a tracked file's deletion staged, `copy_tree` makes a copy that still holds the file. It fails today: Phase 1's gate met it with `tokenstore_lock_owner_test.go`. | `copy_tree` removes every path in `git diff --name-only --diff-filter=D HEAD`, staged or not, as well as `git ls-files -d`. *(Added 2026-10-07, by the owner's "F66 add them"; MADR amendment of 2026-10-07.)* | `scripts/test_gates.py` |
 
 ### Phase 7: release (owner, then agent)
 
@@ -206,7 +207,8 @@ agent stages; the owner commits.
 2. **Release notes**, in this PLAN and the README's release paragraph:
    * the behaviour changes: F2's refusal of a foreign session, F11's
      refusal of unsendable inputs at `New`, and F7's `ErrIncomplete`;
-   * the lock change of F13: `<provider>.oslock`, and the legacy file kept
+   * the lock change of F13: `<provider>.oslock` ~~, and the legacy file kept~~
+     *(Deviation D2: no legacy file)*
      for `v1.2.x` processes.
 3. **The owner** tags `v1.3.0` on that commit and pushes it.
 4. **The agent** checks:
@@ -253,9 +255,11 @@ agent stages; the owner commits.
   * Before the tag, each phase reverts alone, newest first, with one
     exception: Phase 6's F57 checks assume Phases 3 and 4. Reverting
     either of those takes F57's matching check with it.
-  * Phase 1's lock change is safe to revert: the legacy lock file kept
+  * ~~Phase 1's lock change is safe to revert: the legacy lock file kept
     alongside the OS lock means a reverted process waits correctly on a
-    store a `v1.3.0` process holds.
+    store a `v1.3.0` process holds.~~ *(Deviation D2.)* Phase 1 reverts
+    whole: a `v1.2.x` and a `v1.3.0` process sharing one store do not
+    exclude each other, so a revert is a release, never a mix.
   * After the tag, fix forward in `v1.3.x`. A consumer that meets a
     defect pins `v1.2.1` again; nothing on disk needs changing, because the
     token file format does not change.
@@ -274,3 +278,238 @@ from them.
 * `docs/README.md` indexes both, with those statuses.
 * The records are staged for the owner's commit, alone. Phase 1's code is
   staged only after that commit (AGENTS.md, the bootstrap exception).
+
+### Deviation D1 (2026-10-06): F2 judges a session with no `Provider` by its issuer
+
+* **Found.** Phase 1's F2 step refuses a session "whose `Provider` is not"
+  the provider's.
+  * With that rule, 8 existing openai tests fail with `openai takes an API
+    key, a ChatGPT sign-in or the Codex CLI's login, not a "" session`. For
+    example: `chatgpt_test.go:292`, `chatgpt_listing_test.go:42` and
+    `chatgpt_default_host_test.go:22`.
+  * Their ChatGPT sessions carry the OpenAI issuer and no `Provider`, as do
+    `openai/helpers_test.go:121`, `wire_test.go:44`, `listing_test.go:63`
+    and the harness at `openai/llmtest_test.go:78`.
+  * Every session the SDK builds sets `Provider`:
+    * the browser login (`auth/oauth_loopback.go:658`);
+    * the device logins;
+    * the Kilo login;
+    * the token store (`tokenstore_file.go:82`);
+    * the wizard's pasted token.
+
+    Only a hand-built session omits it, and a consumer may build one.
+* **Decision.** The owner chose option 1, "identify by provider, falling
+  back to issuer":
+  * a session whose `Provider` is set, and is another provider's, is
+    refused;
+  * a session with no `Provider` is judged by its issuer: openai accepts
+    only OpenAI's issuer, and grok only xAI's;
+  * a session with neither is refused.
+
+  Every case the audit reproduced stays refused, and no existing test
+  changes. The MADR gains an amendment refining Q2.
+* **Added to the phase's scope.** `(*auth.OAuthSession).Owner()` reads
+  `Provider` and `Issuer` under the session's lock. A refresh's `adopt`
+  rewrites both, so a provider must not read the fields directly. The
+  method is additive under R48.
+
+### Deviation D2 (2026-10-06): F13 is the OS lock alone, with no legacy lock file
+
+* **Found.** F13's step said two things that cannot both hold:
+  * "staleness, takeover and the heartbeat go";
+  * "while it holds the OS lock, a process also creates the legacy `O_EXCL`
+    lock file … A `v1.2.x` process sharing the store then still waits".
+
+  A `v1.2.x` waiter judges the legacy file stale when its mtime is 30 s
+  old (`lockStaleAfter`, `tokenstore_file.go:29`). A refresh can outlast
+  that: three 15 s attempts, plus backoff. So without the heartbeat, a
+  `v1.2.x` process takes over mid-refresh. Without takeover, a `v1.2.x`
+  process that died holding the legacy file blocks every `v1.3.0` refresh
+  for 40 s.
+* **Options put to the owner:**
+  1. keep the legacy protocol on the legacy file for one release;
+  2. the OS lock alone;
+  3. the legacy file without the heartbeat or takeover.
+* **Decision.** The owner chose option 2: "This is essentially greenfield.
+  Only prepare-commit-msg uses it. Wouldn't option 2 be the cleanest?"
+  * Checked first: of the consumers on disk, only prepare-commit-msg uses
+    `FileTokenStore` (`internal/config/config.go:106`), in its own
+    directory. gobble-cli does not use it.
+  * So a `v1.2.x` and a `v1.3.0` process share a store only while one
+    hook binary replaces another, and a hook run lasts seconds.
+* **What changes.**
+  * `LockRefresh` takes the OS lock on `<provider>.oslock` alone.
+  * The legacy `.lock` file, its owner token, staleness, takeover and
+    heartbeat are removed, with their seams (`lockBeforeTakeover`,
+    `lockRead`, `lockRename`) and the timing fields `staleAfter` and
+    `heartbeat`.
+  * The tests of the removed mechanism go:
+    * `tokenstore_lock_owner_test.go`'s five tests;
+    * `TestFileTokenStore_RefreshLock_StaleTakenOver`.
+
+    `TestFileTokenStore_LockReleasedWhenHolderDies` and a mutual-exclusion
+    stress test replace them.
+  * The rollback note and the release notes are corrected above.
+  * The MADR gains an amendment refining Q1.
+
+### Phase 1: credentials (2026-10-06)
+
+* **Approval.** "Proceed", 2026-10-06, with D1 ("Option 1") and D2 ("Wouldn't
+  option 2 be the cleanest?") chosen on the way.
+* **Red first.** Each test below was written first, and its FAIL is from
+  the unchanged code, except where a plant on a scratch copy is named.
+
+| ID | Test | FAIL before the fix | Fix |
+| :--- | :--- | :--- | :--- |
+| F1 | `TestOAuthSession_RepeatedFailedSavesKeepRotation` (1, 2, 3 failed saves; 2, then a resave) | `two_failed_saves` and `three_failed_saves`: `refresh 3: … refresh_token_reused; want access-3`. The resave case, on a scratch copy with the old overwrite rule planted: `after the resave the store holds "old-refresh", want "refresh-2"`. The one-save case passes before and after: 0020 F1 holds. | The session's `storedRefresh` is the refresh token the store holds. `Load` and every successful save set it, and an adopted stored session sets it too. A failed save sets it only when nothing is pending, so it stays the store's token. `loadRotated` and `persistRotation` compare against it. `spentRefresh` and `state.spent` are gone. |
+| F3 | `TestOAuthSession_CallerCancelKeepsRotation`, `TestOAuthSession_AbandonedWaiterDoesNotResendSpent` | `Token after the cancelled one = "", … refresh_token_reused`; `refresh tokens sent = [old-refresh old-refresh]`. | `Token` starts the refresh in `complete`, a goroutine under `context.WithoutCancel(ctx)` within the 15 s attempt bound. Every caller and waiter waits on the future or on its own ctx (`waitToken`). A refresh is adopted and saved when it finishes, whoever is still waiting. `tokenFuture.abandoned` and the re-run are gone. A Token whose ctx is already done starts nothing. |
+| F13 | `TestFileTokenStore_LockReleasedWhenHolderDies` (a child process takes the lock and is killed), `TestFileTokenStore_RefreshLockExcludes`, `TestOAuthSession_SharedStoreStress` (V3), and in the new package `TestTryLock_ExcludesAnotherHandle`, `TestTryLock_ClosedFileFails`, `TestTryLock_ReleasedWhenHolderDies` | `LockRefresh after the holder died = … another process is refreshing the openai session after 2.03s`. On a scratch copy with `TryLock` planted out: `at most 16 holders at once, want 1`, and the stress test's goroutines get `refresh_token_reused`. | `llmprovider/internal/filelock`: `flock` on Unix; `LockFileEx` on Windows, through `//sys` lines generated by `mkwinsyscall` into `zsyscall_windows.go`. `LockRefresh` holds it on `<provider>.oslock`, never deleted. The legacy lock, its owner token, staleness, takeover, heartbeat, seams and timing fields are removed (D2). A failure to open or lock the file is `ErrProviderUnavailable` (F43). |
+| F2 | `TestNew_RefusesAForeignSession` (grok, openai), `TestNew_AcceptsItsOwnSessionWithoutProvider` (grok), `TestIsChatGPTSession_NoIssuer`, `TestOAuthSession_Owner`, `TestOAuthSession_ChatGPTWithoutIssuer` | grok and openai: every foreign session `New … <nil>; want ErrUnsupported`; `no issuer: isChatGPTSession = false, want true`. | D1: `(*OAuthSession).Owner()`, then `grok.New` and `openai.New` refuse a session another provider owns, and a `VendorCLISession` for another CLI, with `ErrUnsupported`. `ChatGPT()` counts an OpenAI session with no issuer. |
+| F40 | `TestVendorCLISession_SymlinkedAuthFile`, `TestVendorCLISession_BrokenSymlink` | `read the Grok CLI login: openat auth.json: path escapes from parent; run grok to refresh it, or grok login` for both. | `readVendorAuthFile` resolves symlinks, then opens the target inside its own directory with `os.Root`. A dangling link is `errVendorBrokenLink`, reported without the login advice. |
+| F41 | `TestVendorCLISession_TornFileRetriedOnce` | `decode: unexpected end of JSON input; … after 1 reads; want the whole file on the second read`. | A file that does not parse is read again once, after `vendorRetryDelay` (50 ms), through the `vendorReadFile` seam. |
+| F42 | `TestFileTokenStore_SaveWhileOpenForRead` (Windows only) | Run on the owner's Windows host (D3): before F42, `FileTokenStore rename: rename .tok-N.json openai.json: Access is denied.` | `readBounded` opens through `openShared`: `os.Open` on Unix, and `CreateFile` with `FILE_SHARE_DELETE` on Windows. `Save` renames through `renameInDir`, an `os.Root` rename: POSIX semantics on Windows, `renameat` on Unix (D3). |
+| F43 | `TestOAuthRefresh_EveryFailureHasAKind`, `TestGrokDevice_DeniedAndExpiredAreAuthFailures`, `TestKiloDevice_DeniedAndExpiredAreAuthFailures` | `oauth: refresh request: … connection refused, want ErrProviderUnavailable`; `decode refresh response: unexpected end of JSON input, want ErrIncomplete`; `refresh response missing access token, want ErrIncomplete`; Grok and Kilo `… denied` and `… expired`, `want ErrAuthFailure`. | The refresh's transport and read failures are `ErrProviderUnavailable`. An oversized, undecodable or token-less 200 is `ErrIncomplete`. Grok's `access_denied` and `expired_token`, and Kilo's 403 and 410, are `ErrAuthFailure`. The lock's failures are kinded in F13. |
+| F44 | `TestValidateOAuthSession_RejectsFixture/custom_issuer_without_token_URL` (and an older OpenAI session without an issuer, valid) | `ValidateOAuthSession() = <nil>, want valid=false`. | `ValidateOAuthSession` asks `refreshTokenURL` whether the session can refresh, and its doc comment says so. |
+| F45 | `TestRevokeOAuthSession_LegacyGrokSession` | `hosts [ 127.0.0.1:…] … want discovery at auth.x.ai`: discovery ran on an empty issuer. | `grokRevokeRequest` uses xAI's issuer for a Grok session with none, as `refreshTokenURL` does. |
+
+* **Tests changed, not new:**
+  * `TestOAuthSession_WaiterOutlivesLeaderCancel` (0020 F14) relied on the
+    leader's cancel aborting its request. Under F3 the refresh is
+    detached. The test keeps its assertion (the waiter gets the fresh
+    token) and now also requires a single issuer call.
+  * `TestOAuthSession_PendingResaveDoesNotBlock` sets `storedRefresh`, not
+    `spentRefresh`.
+  * `TestFileTokenStore_RefreshLock_HeldTimesOutRetryable` waits its whole
+    `wait`, with no stale window.
+  * The stalled-reply refresh test checks that the lock can be taken, not
+    that a `.lock` file is gone.
+* **Tests removed with the old lock (D2):**
+  * `TestFileTokenStore_RefreshLock_StaleTakenOver`;
+  * the five tests of `tokenstore_lock_owner_test.go`:
+    * `StaleLockHasOneTaker`;
+    * `UnlockKeepsSuccessorsLock`;
+    * `SkewedHeartbeatKeepsLock`;
+    * `HeartbeatSurvivesReadError`;
+    * `TakeoverRenameRetried`.
+* **The gate's self-test.** `test_generate_check_no_output` stripped
+  `-output` from `ownerperm`'s directive only. With `filelock`'s second
+  generated file, the gate counted 1, and the self-test failed with
+  `generate-check exit 0, want 1: … 1 generated file(s)`. It now strips
+  every package's directive.
+* **Docs.**
+  * `docs/architecture.md` gains `filelock`:
+    * the tree;
+    * the package table;
+    * `auth`'s imports;
+    * the layering;
+    * `generate-check`'s list.
+
+    Its `FileTokenStore` paragraph describes the OS lock.
+  * `docs/guides/api-standards.md` R2 gains the package and `auth`'s import.
+
+**Proofs** (a scratch copy; `p26_phase1_plants.py`). The control passed;
+each plant failed:
+
+| Planted | Failed |
+| :--- | :--- |
+| a failed save always overwrites `storedRefresh` (the old rule) | `RepeatedFailedSavesKeepRotation`: two and three failed saves, and the resave case |
+| the refresh runs under the caller's ctx | `CallerCancelKeepsRotation`, `AbandonedWaiterDoesNotResendSpent`: `context canceled` |
+| `LockRefresh` takes no lock | `RefreshLockExcludes`: 16 holders at once; `SharedStoreStress`: `refresh_token_reused` |
+
+**The gate,** on a scratch copy with the phase staged and committed there
+with plumbing (`p26_gate.py`); every check rc=0:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `413 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -count=1 -cover ./...`; `go test -shuffle=on ./...` | 27 packages ok, the 28th having no tests |
+| `go mod tidy -diff` | clean |
+| `make lint` (host and Windows) | 0 issues |
+| `parity-check`, `dep-check` | 0 problems |
+| `coverage-check` | 28 packages, 0 problems; `auth` 87.5 %, `filelock` 90.0 % |
+| `api-check` | `against v1.2.1, 0 incompatible change(s)`; `Owner` is the one addition |
+| `generate-check` | `2 generated file(s), 0 problem(s)` |
+| `records-check` | `57 records, 0 problem(s)` |
+| `gate-selftest` | OK |
+| markdownlint (the lint scope), G-wire stable, links | 0 problems; 602 relative links in 67 files |
+| identifier scan of the changed files | 0 hits in 39 files |
+
+**Found, and outside this phase (not done):**
+
+* **`scripts/test_gates.py`'s `copy_tree`** clones `HEAD` and lays the
+  working tree over it, but drops only files deleted from the working
+  tree, not a deletion already staged. So with a staged deletion,
+  `make gate-selftest` builds a copy that still holds the deleted file, and
+  fails. It failed here on `tokenstore_lock_owner_test.go`. CI runs on a
+  commit, so it never sees this.
+  * It is a new tooling finding.
+  * This phase's gate ran on a copy where the staged state was committed
+    with plumbing.
+  * The fix waits for an amendment adding it to Phase 6, and the owner's
+    approval.
+* ~~**F42's red** waits for a Windows run, as the PLAN's F42 row says.~~
+  *(Done 2026-10-07; deviation D3.)*
+
+### Deviation D3 (2026-10-07): F42 also needs an `os.Root` rename
+
+* **Found,** on the owner's Windows host over SSH, with test binaries built
+  here for windows/amd64. Phase 1's F42 fix was the reader alone: token
+  files opened with `FILE_SHARE_DELETE`. With it, the test still failed,
+  as before the fix: `FileTokenStore rename: rename .tok-N.json
+  openai.json: Access is denied.` The PLAN's premise was wrong:
+  `os.Rename` (`windows.Rename`) is refused while any reader holds the
+  target, even one that shares delete access.
+* **Measured,** each in its own scratch build:
+
+  | Reader | Rename | Result |
+  | :--- | :--- | :--- |
+  | `os.Open` | `os.Rename` | Access is denied |
+  | `FILE_SHARE_DELETE` | `os.Rename` | Access is denied |
+  | `FILE_SHARE_DELETE` | `os.Root.Rename` | pass |
+  | `os.Open` | `os.Root.Rename` | `renameat … Access is denied` |
+
+  * `os.Root.Rename` is Go's `Renameat`
+    (`internal/syscall/windows/at_windows.go:363-430`). It renames with
+    `FILE_RENAME_POSIX_SEMANTICS | FILE_RENAME_REPLACE_IF_EXISTS`, and falls
+    back to a plain replace on a filesystem without POSIX semantics, such
+    as FAT.
+  * Go's own toolchain retries renames on Windows for 2 s instead
+    (`cmd/internal/robustio`).
+* **Options put to the owner:**
+  1. both halves;
+  2. a 2 s rename retry;
+  3. both of those;
+  4. record F42 as not fixed.
+* **Decision.** The owner chose option 1:
+  * readers keep `FILE_SHARE_DELETE`;
+  * `Save`'s rename is `renameInDir`, an `os.Root` rename;
+  * the two tests that reset the `tokenStoreRename` seam to `os.Rename`
+    (`oauth_rotation_test.go`, `tokenstore_durable_test.go`) now restore
+    the previous value.
+* **Proved on the owner's Windows host:**
+
+  | Build | `TestFileTokenStore_SaveWhileOpenForRead` |
+  | :--- | :--- |
+  | before F42 (both reverted) | FAIL: `rename .tok-N.json openai.json: Access is denied.` |
+  | the reader reverted to `os.Open` | FAIL: `renameat .tok-N.json openai.json: Access is denied.` |
+  | the rename reverted to `os.Rename` | FAIL: `rename .tok-N.json openai.json: Access is denied.` |
+  | fixed | PASS |
+
+  * The fixed build's whole `auth` suite passes on Windows, with 0
+    failures. That covers the OS lock, the shared-store stress test and the
+    rotation tests.
+  * `filelock`'s suite passes on `LockFileEx`.
+* **Limit, recorded:** a consumer that reads the token file itself with
+  plain `os.Open` still blocks a save on Windows. The SDK cannot prevent
+  that.
+* The MADR gains an amendment, since F42's fix is a decision it describes.
+* **The gate, rerun after D3,** on a scratch copy with the phase committed
+  there with plumbing: every check rc=0.
+  * `make pre-add-check`: `413 file(s) clean`;
+  * `coverage-check`: 28 packages, 0 problems, `auth` 87.4 %;
+  * `api-check`: 0 incompatible changes;
+  * `generate-check`: 2 generated files;
+  * `gate-selftest`: OK;
+  * links: 602 in 67 files;
+  * identifier scan: 0 hits in 39 files.

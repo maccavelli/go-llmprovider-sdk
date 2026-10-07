@@ -115,8 +115,8 @@ func TestOAuthSession_PendingResaveDoesNotBlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file.staleAfter, file.heartbeat, file.wait = time.Second, 20*time.Millisecond, 300*time.Millisecond
-	holder := &FileTokenStore{Dir: file.Dir, staleAfter: file.staleAfter, heartbeat: file.heartbeat}
+	file.wait = 300 * time.Millisecond
+	holder := &FileTokenStore{Dir: file.Dir}
 	unlock, err := holder.LockRefresh(context.Background(), llmprovider.ProviderOpenAI)
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +125,7 @@ func TestOAuthSession_PendingResaveDoesNotBlock(t *testing.T) {
 
 	store := &countingLocker{FileTokenStore: file}
 	session := testSession("a-current", "rt-rotated", time.Now().Add(time.Hour))
-	session.Store, session.spentRefresh = store, "rt-spent"
+	session.Store, session.storedRefresh = store, "rt-spent" // the store holds the token the rotation spent
 	start := time.Now()
 	for call := 1; call <= 5; call++ {
 		if tok, err := session.Token(context.Background()); err != nil || tok.Value != "a-current" {

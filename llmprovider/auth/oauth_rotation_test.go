@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -90,12 +89,13 @@ func TestOAuthRefresh_UnsavedRotationNeverOverwritesNewer(t *testing.T) {
 	var logged bytes.Buffer
 	session.Logger = slog.New(slog.NewTextHandler(&logged, nil))
 
+	previousRename := tokenStoreRename
+	t.Cleanup(func() { tokenStoreRename = previousRename })
 	tokenStoreRename = func(string, string) error { return errors.New("planted rename failure") }
 	if _, err := session.Token(context.Background()); err != nil {
 		t.Fatalf("Token with a failing save: %v", err)
 	}
-	tokenStoreRename = os.Rename
-	t.Cleanup(func() { tokenStoreRename = os.Rename })
+	tokenStoreRename = previousRename
 
 	newer := testSession("a-newer", "rt-newer", time.Now().Add(time.Hour))
 	if err := store.Save(context.Background(), llmprovider.ProviderOpenAI, newer); err != nil {

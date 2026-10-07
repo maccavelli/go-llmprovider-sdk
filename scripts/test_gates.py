@@ -113,9 +113,14 @@ class GateSelfTest(unittest.TestCase):
         self.assertFails("generate-check", "differs from what its //go:generate line produces")
 
     def test_generate_check_no_output(self) -> None:
-        """A directive that lost its -output checks nothing, which fails."""
-        doc, line = self._generate_file()
-        replace_once(doc, line, line.replace(" -output zsyscall_windows.go", ""))
+        """Directives that lost their -output check nothing, which fails. Every
+        package that generates code loses it: ownerperm and, since 0026-MADR
+        F13, filelock."""
+        for pkg in ("ownerperm", "filelock"):
+            doc = self.tree / f"llmprovider/internal/{pkg}/doc.go"
+            line = GENERATE_LINE.search(doc.read_text(encoding="utf-8"))
+            self.assertIsNotNone(line, f"no //go:generate line in {pkg}/doc.go")
+            replace_once(doc, line.group(0), line.group(0).replace(" -output zsyscall_windows.go", ""))
         self.assertFails("generate-check", "0 generated files")
 
     def test_parity_check_placeholder_cell(self) -> None:
