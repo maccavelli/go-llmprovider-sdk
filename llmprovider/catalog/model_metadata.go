@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -90,7 +91,9 @@ type modelMetadataDoc map[string]map[string]modelMetadata
 func (d modelMetadataDoc) reasoningEfforts(provider llmprovider.ProviderID, model string) []string {
 	for _, o := range d[modelMetadataKey(provider)][model].ReasoningOptions {
 		if o.Type == jsonKeyEffort {
-			return o.Values
+			// The cache is the process's; the caller gets its own copy
+			// (R29; 0026-MADR F53).
+			return slices.Clone(o.Values)
 		}
 	}
 	return nil

@@ -394,7 +394,7 @@ func TestSelectFallbacks_ReturnShape(t *testing.T) {
 	d := providers.Default().Descriptors()[0]
 
 	nothingLeft := newFake(t, fakePrompter{t: t})
-	got, err := selectFallbacks(nothingLeft, d, catalog.Catalog{Recommended: []string{"a"}, Usable: []string{"a"}}, "a", nil)
+	got, err := selectFallbacks(context.Background(), nothingLeft, d, catalog.Catalog{Recommended: []string{"a"}, Usable: []string{"a"}}, "a", nil)
 	if err != nil {
 		t.Fatalf("selectFallbacks: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestSelectFallbacks_ReturnShape(t *testing.T) {
 	}
 
 	emptyPick := newFake(t, fakePrompter{blankSearches: true, multiSelects: [][]int{{}}})
-	got, err = selectFallbacks(emptyPick, d, catalog.Catalog{Recommended: []string{"a", "b"}, Usable: []string{"a", "b"}}, "a", nil)
+	got, err = selectFallbacks(context.Background(), emptyPick, d, catalog.Catalog{Recommended: []string{"a", "b"}, Usable: []string{"a", "b"}}, "a", nil)
 	if err != nil {
 		t.Fatalf("selectFallbacks: %v", err)
 	}

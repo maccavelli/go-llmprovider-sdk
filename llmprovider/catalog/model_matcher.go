@@ -38,9 +38,11 @@ type Match struct {
 }
 
 // Search ranks models against query, highest score first; equal scores
-// keep the input order, the listing's own (0021-MADR C11). Glob queries (*
-// matches any run, including "/", and ? one character) score an id match
-// above a match of the label only. Other queries match the id exactly, as a
+// keep the input order, Catalog.Usable's: the listing's own for most
+// providers, cheapest first for Kilo, fastest first for Hugging Face
+// (0021-MADR C11; 0026-MADR F54). Glob queries (* matches any run,
+// including "/", and ? one character) score an id match above a match of the
+// label only. Other queries match the id exactly, as a
 // prefix or substring, then with separators and spaces removed, then the
 // label's display name (the label before its first "["), then by token
 // prefix. Only when no id matches any of those, and the query has three or

@@ -926,3 +926,73 @@ R2's package table lists `internal/wire`'s imports as `llmprovider` alone,
 and `catalog`'s as including `internal/transport`; the code differs, as it
 did before this phase. The guide is normative and changes only through its
 decision, so it is left for Phase 6's docs work.
+
+### Phase 5: wizard and catalog (2026-10-07)
+
+* **Before it.** Phase 4 was committed as `1477638` and pushed by the
+  owner. Its CI run, 37649475401, passed.
+* **Approval.** "comitted and pushed. proceed.", 2026-10-07.
+* **Red first.** Each test below was written first, and its FAIL is from
+  the unchanged code (`p26_phase5_red.out`).
+
+| ID | Test | FAIL before the fix | Fix |
+| :--- | :--- | :--- | :--- |
+| F9 | `TestConfigure_EmptyRecommendedHonoursCtx` (defaults on an empty recommendation; a search that never matches); `TestConfigure_EmptyRecommendedSearchStillWorks` | Both cases: `ctx expired 1.7s ago; ConfigureLLM still running after 154614735` and `2056285 prompter calls` | `selectModel` and `selectFallbacks` take `ctx`, and check it each round. A blank search on an empty recommendation shows the notice, then the menu of the current model, if any, and Other. |
+| F10 | `TestConfigure_KeptSessionUsesCallersClient`; `TestList_GivesASessionItsClient` | `the kept session does not refresh through Options.HTTPClient`; `the source was not given the listing's client` | `keepExistingOAuth` calls `session.UseHTTPClient(o.HTTPClient)`. `List` gives a source that takes one its client, through `UseDefaultHTTPClient`. |
+| F46 | `TestSelectRecommended_ExistingModelOnlyForItsProvider` | `another provider's model: default index = 2; want 0` | The saved model is the default only when `Existing.Provider` is the provider. |
+| F47 | `TestChatGPTCatalog_Capped` | `Recommended has 14 models, Usable 14; want at most 6 recommended` | `chatGPTCatalog` recommends the first `MaxListed`, as `providerCatalog` does; search covers all. |
+| F48 | `TestPasteAccessToken_KeepsAccount` (nested claims; a top-level account; none) | `AccountID "", FedRAMP false; want "acct-123", true`, and `"acct-456"` | `accessTokenAccount` reads `chatgpt_account_id`, top level or under `https://api.openai.com/auth`, and `chatgpt_account_is_fedramp`, the claims a login reads in its id_token. |
+| F49 | `TestTextPrompter_SecretSurfacesWriteError` | `Secret = "sk-key-1234", <nil>; want the write error and no value` | `Secret` returns `flushErr`'s failure; a value read with a failing reader is not kept; the first end of input still answers, as `Input`'s does. |
+| F50 | `TestTextPrompter_SecretRefusesPartialEntry` (a hang-up; end of input) | `readMasked = "sk-partial-k", read: input/output error`, and `…, EOF` | `endMasked` returns no value: an entry not ended with Enter is never kept. Its unused `entered` parameter is gone. |
+| F51 | none, documentation | Read against `catalog.WithProfile` and the README. | `Options.Profile` names Together. |
+| F52 | `TestValidateOllamaURL_TrailingSlash` | `requested "//api/version"`, and `"///api/version"` | `checkOllamaURL` trims trailing slashes, as `ResolveOptions` does for the listing. |
+| F53 | `TestMetadata_ReasoningEffortsIsACopy` | `a later lookup = ["POISONED" "medium" "high"]` | `reasoningEfforts` returns a clone (R29). |
+| F54 | none, documentation | Read against `kiloCurate` (cheapest first) and `fetchHuggingFaceUsable` (fastest first). | `Catalog.Usable` and `Search` say the order each lister gives. |
+
+* **Two notes on the fixes, against the table above:**
+  * **F9.** The row's test wants a defaults-only run to end in
+    `context.DeadlineExceeded`. With the row's own menu fix, that run ends
+    first, in milliseconds, with `wizard: no model entered`. The ctx check
+    is still needed: a search that never matches, answered by its default,
+    Search again, loops without it. The test therefore has the two cases:
+    the defaults run returns promptly, with an error, and the search run
+    returns `DeadlineExceeded` promptly. 0021 C13's
+    `TestConfigure_EmptyRecommendedOpensSearch` is kept, and passes; its
+    blank first search now reaches its model through Other, so
+    `TestConfigure_EmptyRecommendedSearchStillWorks` checks that a typed
+    query still searches the listing.
+  * **F10.** The row says `List` hands its client to "a source that has
+    `UseHTTPClient`". D8, decided in Phase 4, made `UseHTTPClient` the
+    caller's and added `UseDefaultHTTPClient`. A provider calls `List` with
+    its own client, which may be its default: through `UseHTTPClient` it
+    would be marked a caller's, and a later caller's client could not
+    replace it, against F37. `List` uses `UseDefaultHTTPClient`, which
+    sets a client only on a session with none. The wizard's half,
+    `keepExistingOAuth`, passes `Options.HTTPClient` as the caller's.
+* **Docs.** The README's "goes straight to search" now says what a blank
+  search offers; `Options.Profile`, `Catalog.Usable` and `Search` are
+  corrected (F51, F54).
+
+**The gate,** on a scratch copy with the phase staged and committed there
+with plumbing (`p26_gate.py`); every check rc=0:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `456 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -count=1 -cover ./...`; `go test -shuffle=on ./...` | 27 packages ok, the 28th having no tests |
+| `go mod tidy -diff` | clean |
+| `make lint` (host and Windows) | 0 issues |
+| `parity-check`, `dep-check` | 0 problems |
+| `coverage-check` | 28 packages, 0 problems; `wizard` 89.2 %, `catalog` 92.5 % |
+| `api-check` | `against v1.2.1, 0 incompatible change(s)` |
+| `generate-check` | `2 generated file(s), 0 problem(s)` |
+| `records-check` | `57 records, 0 problem(s)` |
+| `gate-selftest` | OK |
+| markdownlint (the lint scope), G-wire stable, links | 0 problems; 605 relative links in 67 files |
+| identifier scan of the changed files | 0 hits in 19 files |
+
+**Not done in this phase:** a live run. Each change is covered by the unit
+tests above; the wizard's TTY path (`readMasked` in raw mode) is tested
+through its reader, not a terminal. Phase 7's release gate runs the live
+suites.

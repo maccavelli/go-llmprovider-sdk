@@ -335,7 +335,13 @@ func renderSecret(entered []rune) string {
 func (p *TextPrompter) Secret(prompt string) (string, error) {
 	for {
 		value, err := p.secretOnce(prompt)
-		if value != "" {
+		// A failed write is returned now, as Input returns it, not at the
+		// next prompt; a value read with a failing reader is not kept. The
+		// first end of input answers with what was read (0026-MADR F49).
+		if wErr := p.flushErr(); wErr != nil {
+			return "", wErr
+		}
+		if value != "" && !readFailed(err) {
 			return value, nil
 		}
 		if err != nil {
@@ -405,7 +411,7 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 	for {
 		c, _, readErr := r.ReadRune()
 		if readErr != nil {
-			return p.endMasked(entered, readErr)
+			return p.endMasked(readErr)
 		}
 		switch {
 		case c == '\r' || c == '\n':
@@ -415,7 +421,7 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 			if c == '\r' && r.Buffered() > 0 {
 				if next, err := r.Peek(1); err == nil && next[0] == '\n' {
 					if _, err := r.Discard(1); err != nil {
-						return p.endMasked(entered, err)
+						return p.endMasked(err)
 					}
 				}
 			}
@@ -432,7 +438,7 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 			}
 		case c == 0x1b: // a cursor or function key
 			if err := skipEscape(r); err != nil {
-				return p.endMasked(entered, err)
+				return p.endMasked(err)
 			}
 			continue
 		case c < 32: // other control characters
@@ -449,13 +455,14 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 }
 
 // endMasked ends a masked entry on a read error, remembering the end of
-// input.
-func (p *TextPrompter) endMasked(entered []rune, err error) (string, error) {
+// input. The entry was not finished with Enter, so it is not returned: a
+// hang-up mid-paste must not save a truncated key (0026-MADR F50).
+func (p *TextPrompter) endMasked(err error) (string, error) {
 	if errors.Is(err, io.EOF) {
 		p.eof = true
 	}
 	p.printf("\r\n")
-	return strings.TrimSpace(string(entered)), err
+	return "", err
 }
 
 // skipEscape consumes the rest of an escape sequence after ESC, so a cursor

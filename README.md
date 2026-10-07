@@ -131,7 +131,9 @@ functions over any provider, and `Stream` streams from every one.
   others read `https://models.opencode.ai/api.json`, cached for ten minutes
   and refreshed in the background after that; a failed fetch is not retried
   for a minute. When nothing in a listing meets the profile, the
-  recommendations are empty and the wizard goes straight to search. `WithModelMetadataURL` points
+  recommendations are empty and the wizard asks for a search; a blank search
+  then offers the saved model, if any, or a typed id, never the same prompt
+  again. `WithModelMetadataURL` points
   elsewhere, and `WithoutModelMetadata` turns the fetch off, which restores
   the curated order for those four. `catalog.OptionsFromEnv()` maps
   `LLMPROVIDER_MODELS_METADATA_URL` and

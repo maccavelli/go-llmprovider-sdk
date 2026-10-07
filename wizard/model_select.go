@@ -1,6 +1,7 @@
 package wizard
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -33,10 +34,14 @@ const (
 // selectModel asks for a search query. A blank query shows the recommended
 // menu; any other query searches every usable model and offers the numbered
 // matches, Search again, and Other. A query with no match offers itself as
-// the model id, or Search again.
-func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Options) (string, error) {
+// the model id, or Search again. Each round checks ctx, so a prompter that
+// accepts every default stops when ctx ends (R40; 0026-MADR F9).
+func selectModel(ctx context.Context, p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Options) (string, error) {
 	title := fmt.Sprintf(chooseModelTitle, d.Label)
 	for {
+		if err := ctx.Err(); err != nil {
+			return "", fmt.Errorf("select model: %w", err)
+		}
 		q, err := p.Input(searchModelsPrompt, "")
 		if err != nil {
 			return "", fmt.Errorf("search models: %w", err)
@@ -44,9 +49,11 @@ func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Op
 		q = strings.TrimSpace(q)
 		if q == "" && len(cat.Recommended) == 0 {
 			// A live listing in which nothing meets the profile (0021-MADR
-			// C13): search it instead.
+			// C13): the user searches it. A blank query offers the current
+			// model, if any, and Other, never the same prompt again, so
+			// accepting defaults ends here (0026-MADR F9).
 			p.Notify(LevelWarn, noRecommendedNotice, d.Label)
-			continue
+			return selectRecommended(p, d, nil, o)
 		}
 		if q == "" {
 			return selectRecommended(p, d, cat.Recommended, o)
@@ -87,9 +94,11 @@ func selectModel(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Op
 // rows, marked current, and is the default, so pressing Enter keeps it.
 func selectRecommended(p Prompter, d llmprovider.Descriptor, models []string, o Options) (string, error) {
 	choices := modelChoices(d.ID, models)
+	// The saved model is the default only for its own provider (MADR 0007
+	// §4.3; 0026-MADR F46).
 	defaultIdx, listed := 0, false
 	for i, m := range models {
-		if m == o.Existing.Model {
+		if o.Existing.Provider == d.ID && m == o.Existing.Model {
 			defaultIdx, listed = i, true
 		}
 	}
@@ -151,10 +160,14 @@ func existingModel(o Options, provider llmprovider.ProviderID) string {
 // loop; a search round offers the matches and asks whether to search again.
 // The result is nil when no MultiSelect was shown, and non-nil (possibly empty)
 // once one was, which is the shape this function has always returned. The
-// saved fallbacks a round offers are preselected (0020-MADR F50).
-func selectFallbacks(p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, primary string, saved []string) ([]string, error) {
+// saved fallbacks a round offers are preselected (0020-MADR F50). Each round
+// checks ctx (0026-MADR F9).
+func selectFallbacks(ctx context.Context, p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, primary string, saved []string) ([]string, error) {
 	var chosen []string
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("select fallbacks: %w", err)
+		}
 		exclude := excludedIDs(primary, chosen)
 		recs, usable := without(cat.Recommended, exclude), without(cat.Usable, exclude)
 		if len(recs) == 0 && len(usable) == 0 {

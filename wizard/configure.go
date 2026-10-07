@@ -79,7 +79,7 @@ type Options struct {
 	// NeedFallbacks collects additional models after the primary.
 	NeedFallbacks bool
 	// Profile selects how the open catalogs (Kilo, OpenCode Zen and Go,
-	// Hugging Face) rank the recommended models. The zero value,
+	// Hugging Face, Together) rank the recommended models. The zero value,
 	// catalog.ProfileUtility, suits short frequent tasks such as commit
 	// messages; catalog.ProfileCapable suits reasoning-heavy tiers.
 	Profile catalog.Profile
@@ -189,11 +189,11 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		return res, nil
 	}
 
-	if res.Model, err = selectModel(p, d, cat, o); err != nil {
+	if res.Model, err = selectModel(ctx, p, d, cat, o); err != nil {
 		return Result{}, err
 	}
 	if o.NeedFallbacks {
-		if res.Fallbacks, err = selectFallbacks(p, d, cat, res.Model, existingFallbacks(o, d.ID)); err != nil {
+		if res.Fallbacks, err = selectFallbacks(ctx, p, d, cat, res.Model, existingFallbacks(o, d.ID)); err != nil {
 			return Result{}, err
 		}
 	}
@@ -414,7 +414,10 @@ func chatGPTCatalog(
 	if err != nil {
 		return catalog.Catalog{}, err
 	}
-	return catalog.Catalog{Recommended: models, Usable: slices.Clone(models), Live: true}, nil
+	// At most MaxListed are recommended, as providerCatalog caps them; search
+	// covers them all (0026-MADR F47).
+	recommended := slices.Clone(models[:min(len(models), catalog.MaxListed)])
+	return catalog.Catalog{Recommended: recommended, Usable: slices.Clone(models), Live: true}, nil
 }
 
 // providerCatalog lists a provider catalog does not know, such as a third

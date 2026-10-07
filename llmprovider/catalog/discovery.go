@@ -62,7 +62,9 @@ type Catalog struct {
 	// the listing to search (0021-MADR C13).
 	Recommended []string
 	// Usable is every id the provider's usability filters admit, once each,
-	// in listing order, uncapped. It equals Recommended when Live is false.
+	// uncapped, in the order its lister gives: the listing's own for most,
+	// cheapest first for Kilo, and fastest first for Hugging Face (MADR 0007's
+	// table; 0026-MADR F54). It equals Recommended when Live is false.
 	Usable []string
 	// Live reports whether Usable came from the provider's listing rather
 	// than the static catalog.
@@ -105,6 +107,13 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 	if src == nil {
 		return Catalog{}, errors.New("model listing: TokenSource is required")
 	}
+	// A session with no client refreshes through the listing's, so a
+	// refresh the listing causes keeps the caller's transport (0026-MADR
+	// F10). It is given as a default: a provider passes its own client here,
+	// default or not, and a caller's client given later replaces it (F37).
+	if user, ok := src.(defaultClientUser); ok {
+		user.UseDefaultHTTPClient(cfg.HTTPClient)
+	}
 	token, err := src.Token(ctx)
 	if err != nil {
 		return Catalog{}, fmt.Errorf("model listing: acquire token: %w", err)
@@ -126,6 +135,12 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 		return Catalog{}, fmt.Errorf("model listing: acquire token: %w", err)
 	}
 	return modelCatalogFor(ctx, id, token, cfg)
+}
+
+// defaultClientUser is a source that refreshes through a client it is given,
+// such as *auth.OAuthSession.
+type defaultClientUser interface {
+	UseDefaultHTTPClient(*http.Client)
 }
 
 // credentialRefused reports whether a listing's failure says its credential
@@ -482,6 +497,9 @@ func ValidateOllamaURLWith(ctx context.Context, baseURL string, opts ...llmprovi
 func checkOllamaURL(ctx context.Context, baseURL string, cfg config) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	// Trailing slashes go, as ResolveOptions trims a base URL for the
+	// listing (0020-MADR F30; 0026-MADR F52).
+	baseURL = strings.TrimRight(baseURL, "/")
 
 	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/api/version", http.NoBody)
 	if err != nil {

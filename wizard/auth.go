@@ -1,6 +1,7 @@
 package wizard
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -320,6 +321,10 @@ func keepExistingOAuth(
 		return nil, false, nil
 	}
 	session.Store = o.TokenStore
+	// The kept session refreshes through the caller's client, as the
+	// listing and a new sign-in do (0016-MADR D8; 0026-MADR F10). A nil
+	// client changes nothing.
+	session.UseHTTPClient(o.HTTPClient)
 	if err := validateKept(d.ID, session); err != nil {
 		return nil, false, fmt.Errorf("wizard: the saved %s session cannot be kept (%w); sign in again", d.Label, err)
 	}
@@ -438,12 +443,42 @@ func saveAccessOnlyOpenAI(ctx context.Context, o Options, access string) (resolv
 }
 
 func accessOnlyOpenAISession(access string) *auth.OAuthSession {
+	account, fedramp := accessTokenAccount(access)
 	return &auth.OAuthSession{
-		Provider: llmprovider.ProviderOpenAI,
-		Access:   access,
-		Issuer:   auth.DefaultOpenAIIssuer,
-		ClientID: auth.DefaultOpenAIClientID,
+		Provider:  llmprovider.ProviderOpenAI,
+		Access:    access,
+		Issuer:    auth.DefaultOpenAIIssuer,
+		ClientID:  auth.DefaultOpenAIClientID,
+		AccountID: account,
+		FedRAMP:   fedramp,
 	}
+}
+
+// accessTokenAccount reads a ChatGPT access token's account id and FedRAMP
+// flag, from the claims a login reads in its id_token: chatgpt_account_id,
+// top level or under "https://api.openai.com/auth", and
+// chatgpt_account_is_fedramp. A token without them gives "" and false
+// (0026-MADR F48).
+func accessTokenAccount(access string) (string, bool) {
+	parts := strings.Split(access, ".")
+	if len(parts) != 3 {
+		return "", false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return "", false
+	}
+	var claims struct {
+		AccountID string `json:"chatgpt_account_id"`
+		Auth      struct {
+			AccountID string `json:"chatgpt_account_id"`
+			FedRAMP   bool   `json:"chatgpt_account_is_fedramp"`
+		} `json:"https://api.openai.com/auth"`
+	}
+	if json.Unmarshal(payload, &claims) != nil {
+		return "", false
+	}
+	return cmp.Or(claims.AccountID, claims.Auth.AccountID), claims.Auth.FedRAMP
 }
 
 // oauthFlowOptions is a sign-in's options: the caller's client, and the
