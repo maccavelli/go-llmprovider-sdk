@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-07
 associated-madr: "0026-MADR-remediate-v1-2-debugging-pass-findings.md"
 decision-makers: repository owner
@@ -1295,7 +1295,7 @@ changes):
 | CI on the tag | run 37685705461, success (macOS, Ubuntu, Windows) |
 | the tag | `v1.3.1` is annotated, on `4b9bc40` |
 | `GOPROXY=direct go list -m …@v1.3.1` | `"Version": "v1.3.1"`, `"Time": "2026-10-07T20:37:04Z"`, `"Hash": "4b9bc40…"` |
-| the module proxy | its `@v/list` names `v1.3.1`; its `v1.3.1.info` still answered 404 at 21:14 UTC, 19 minutes after the tag (see below) |
+| the module proxy | its `v1.3.1.info` answered 404 until 21:32 UTC, while its `@v/list` already named `v1.3.1`; from 21:32, `"Version":"v1.3.1"`, `"Time":"2026-10-07T20:37:04Z"`, `"Hash":"4b9bc40…"` |
 
 #### D12's fix
 
@@ -1394,5 +1394,28 @@ The gate (rule 3) on a scratch copy with these changes staged
 | identifier scan of the changed files | 0 hits in 7 files |
 
 * **Left to the owner:** committing this, pushing it, and tagging it
-  `v1.3.2`. Then its CI and the module proxy are checked, `v1.3.1`'s proxy
-  entry with them, and this PLAN is marked complete.
+  `v1.3.2`. Then its CI and the module proxy are checked, and this PLAN is
+  marked complete.
+
+#### Checks on `v1.3.2`
+
+The owner committed the fix and its records as `1cdfc06`, pushed it, and
+tagged it `v1.3.2`. The `v1.3.1` proxy row above was completed after that
+commit, with this section.
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` at `1cdfc06` | run 37688556901, success |
+| CI on the tag | run 37689116686, success |
+| `apidiff` `v1.3.1` → `v1.3.2` | no change listed, `0` incompatible (`p7_apidiff.py`) |
+| the module proxy | `v1.3.2.info`: `"Version":"v1.3.2"`, `"Time":"2026-10-07T21:19:16Z"`, `"Hash":"1cdfc06…"` |
+| the scratch consumer, moved to `v1.3.2` | builds with `CGO_ENABLED=0` for linux, windows and darwin, amd64 and arm64; `go run` prints `true <nil>` and `true` |
+
+* **The Goal, checked.** The gate passes, `gate-selftest` included;
+  `api-check` reports only additions against `v1.2.1`; the live checks
+  pass, F12's capture excepted by D4 and the subscription and sign-in
+  suites not run, as named above; the docs and the README describe the
+  released code; `v1.3.0` was tagged by the owner, and its release notes,
+  F2's and F11's refusals among them, ship in `v1.3.1` and `v1.3.2` (D10).
+* **Status:** complete. Fixes after `v1.3.2` go forward under a new
+  record.

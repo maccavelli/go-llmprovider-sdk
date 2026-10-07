@@ -66,7 +66,7 @@ documents a reader follows to do something.
 | 0025 | MADR | [Check the Decision Records Mechanically, and Correct the Two Stale PLAN Statuses](decisions/0025-MADR-records-consistency-check.md) | accepted |
 | 0025 | PLAN | [Implement the Records Consistency Check, and Correct the Two Stale PLAN Statuses](decisions/0025-PLAN-records-consistency-check.md) | complete |
 | 0026 | MADR | [Remediate the Defects Found by the v1.2 Debugging Pass](decisions/0026-MADR-remediate-v1-2-debugging-pass-findings.md) | accepted |
-| 0026 | PLAN | [Implement the Remediation of the v1.2 Debugging Pass](decisions/0026-PLAN-remediate-v1-2-debugging-pass-findings.md) | in-progress |
+| 0026 | PLAN | [Implement the Remediation of the v1.2 Debugging Pass](decisions/0026-PLAN-remediate-v1-2-debugging-pass-findings.md) | complete |
 
 ## I want to…
 
