@@ -2,6 +2,7 @@ package llmprovider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -210,6 +211,11 @@ func (req *Request) validate() error {
 		if tool.Name == "" {
 			return fmt.Errorf("%w: tool %d has no name", ErrInvalidRequest, i)
 		}
+		// Every wire sends the schema as JSON, so one that cannot be
+		// marshalled is refused here (0026-MADR F20).
+		if _, err := json.Marshal(tool.Schema); err != nil {
+			return fmt.Errorf("%w: tool %q schema: %w", ErrInvalidRequest, tool.Name, err)
+		}
 	}
 	for i, item := range req.Input {
 		// Every encoder drops another type, so it is refused here
@@ -228,13 +234,21 @@ func (req *Request) validate() error {
 	if err := req.validateToolChoice(); err != nil {
 		return err
 	}
-	if r := req.Reasoning; r != nil {
-		if r.Effort != "" && !r.Effort.valid() {
-			return fmt.Errorf("%w: unknown reasoning effort %q", ErrInvalidRequest, r.Effort)
-		}
-		if r.Budget < 0 {
-			return fmt.Errorf("%w: reasoning budget %d is negative", ErrInvalidRequest, r.Budget)
-		}
+	return req.Reasoning.check()
+}
+
+// check rejects a reasoning setting no provider can send: an unknown effort,
+// or a negative budget. Nil is none. Request validation and WithReasoning
+// both use it (0026-MADR F19).
+func (r *Reasoning) check() error {
+	if r == nil {
+		return nil
+	}
+	if r.Effort != "" && !r.Effort.valid() {
+		return fmt.Errorf("%w: unknown reasoning effort %q", ErrInvalidRequest, r.Effort)
+	}
+	if r.Budget < 0 {
+		return fmt.Errorf("%w: reasoning budget %d is negative", ErrInvalidRequest, r.Budget)
 	}
 	return nil
 }

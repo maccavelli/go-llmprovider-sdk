@@ -30,19 +30,23 @@ const maxRedactBytes = 256 * 1024
 // line contains none (0021-MADR Z1).
 var (
 	// reAuth matches "[Authorization:] (Bearer|Basic|Token) <credential>".
-	// Group 1 is the optional "Authorization:" label to preserve. The greedy
-	// credential class is what fixes the prior leftmost-match leak where the JWT
-	// following "Bearer" was emitted in cleartext.
-	reAuth = regexp.MustCompile(`(?i)((?:authorization\s*[:=]\s*)?)(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]{4,}|((?:authorization\s*[:=]\s*)?)token\s+[A-Za-z0-9._~+/=-]{8,}`)
+	// Groups 1 and 3 are the optional "Authorization:" label to preserve, and
+	// groups 2 and 4 the credential. The greedy credential class is what fixes
+	// the prior leftmost-match leak where the JWT following "Bearer" was
+	// emitted in cleartext. redactAuth keeps an ordinary word (0026-MADR F21).
+	reAuth = regexp.MustCompile(`(?i)((?:authorization\s*[:=]\s*)?)(?:bearer|basic)\s+([A-Za-z0-9._~+/=-]{4,})|((?:authorization\s*[:=]\s*)?)token\s+([A-Za-z0-9._~+/=-]{8,})`)
 
 	// reKV matches key=value / "key": "value" secret assignments, in JSON
 	// (escaped or not), form bodies and headers. Group 1 is the key name
 	// (group 2) and separator to preserve; the value is redacted. Any name
 	// ending in token counts, joined (refresh_token, id_token) or camelCase
-	// (accessToken) (0020-MADR F8; 0021-MADR Z2). A quoted value runs to its
-	// closing quote, spaces and all (groups 3-5 for ", 6-8 for '); an
-	// unquoted one to the first separator (group 9).
-	reKV = regexp.MustCompile(`(?i)(\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key|signature|(?:[a-z]+[_-]?)*token|authorization|code[_-]?verifier|device[_-]?code)\b\\?["']?\s*[:=]\s*)` +
+	// (accessToken) (0020-MADR F8; 0021-MADR Z2), and so does any other secret
+	// name with a snake_case, kebab-case or camelCase prefix (openai_api_key,
+	// apiSecret, db_password), as does any prefixed key (subscription_key)
+	// (0026-MADR F17). A quoted value runs to its closing quote, spaces and all
+	// (groups 3-5 for ", 6-8 for '); an unquoted one to the first separator
+	// (group 9).
+	reKV = regexp.MustCompile(`(?i)(\b((?:[a-z0-9]+[_-]?)*(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key|signature|token|authorization|code[_-]?verifier|device[_-]?code)|(?:[a-z0-9]+[_-])+key)\b\\?["']?\s*[:=]\s*)` +
 		`(?:(\\?")([^"\\]{4,})(\\?")?|(')([^']{4,})(')?|([^"'\\\s,}&;]{4,}))`)
 
 	// reKVLong is reKV for the bare names code and key, whose values are
@@ -128,7 +132,7 @@ type pass struct {
 // passes run in order; each one's anchors are a literal its regex cannot
 // match without.
 var passes = []pass{
-	{re: reAuth, repl: []byte("${1}${2}[REDACTED]"), anchors: []string{"bearer", "basic", "token"}},
+	{re: reAuth, replace: redactAuth, anchors: []string{"bearer", "basic", "token"}},
 	{re: reCookie, replace: redactCookie, anchors: []string{"cookie"}},
 	{re: reKV, replace: redactKV, anchors: []string{"pass", "pwd", "secret", "key", "signature", "token", "authorization", "code"}},
 	{re: reKVLong, replace: redactKVLong, anchors: []string{"code", "key"}},
@@ -143,6 +147,40 @@ var passes = []pass{
 
 // redacted is the marker a secret is replaced with.
 var redacted = []byte("[REDACTED]")
+
+// redactAuth redacts one reAuth match's scheme and credential, keeping its
+// label. After an Authorization label the value is a credential, whatever its
+// shape; without one, an ordinary word stays, so "Invalid bearer token" and
+// "Basic authentication is not supported" keep their meaning (0026-MADR F21).
+func redactAuth(m []byte) []byte {
+	sub := reAuth.FindSubmatch(m)
+	label, value := sub[1], sub[2]
+	if value == nil {
+		label, value = sub[3], sub[4]
+	}
+	if len(label) == 0 && !credentialShaped(value) {
+		return m
+	}
+	return slices.Concat(label, redacted)
+}
+
+// credentialShaped reports whether v looks like a credential rather than a
+// word: it holds a digit, token punctuation or a capital after its first
+// letter, or it is longer than an ordinary word. A full stop that ends a
+// sentence does not count.
+func credentialShaped(v []byte) bool {
+	v = bytes.TrimRight(v, ".")
+	if len(v) >= 20 {
+		return true
+	}
+	for i, c := range v {
+		switch {
+		case '0' <= c && c <= '9', strings.IndexByte("._~+/=-", c) >= 0, i > 0 && 'A' <= c && c <= 'Z':
+			return true
+		}
+	}
+	return false
+}
 
 // redactKV redacts one reKV match's value, keeping its quotes. A bare token
 // key keeps a diagnostic value, such as "token: 128000".

@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-05
+date: 2026-10-07
 decision-makers: mcplib maintainers
 consulted: mcp-server-magictools, mcp-server-magicdev, prepare-commit-msg
 informed: all mcplib consumers
@@ -1225,3 +1225,31 @@ implemented in its PLAN's step 7.3.
 * **Compatibility (§7):** the error still unwraps to the 403's pre-0012
   status sentinel, `ErrAuthFailure`, as a typed OpenCode 403 already did. A
   caller that reads `Kind`, or tests `ErrNotPermitted`, sees the refusal.
+
+## Amendment 2026-10-07: a retryable error leaves out its status sentinel (0026 F23)
+
+Made by `0026-MADR-remediate-v1-2-debugging-pass-findings.md` (F23), and
+implemented in its PLAN's phase 2.
+
+§7's rule that "every existing sentinel still matches the conditions it
+matched before" now holds for a terminal error only. `APIError.Unwrap`
+leaves out the pre-0012 status sentinel when the error is `Retryable()`.
+
+* **Why:** a 408, and a 409 on OpenAI and Claude (0021 T14), are
+  `ErrProviderUnavailable` and retryable. Their pre-0012 sentinel is
+  `ErrInvalidRequest`, whose doc says retrying "can never succeed". The
+  error matched both, so a caller testing `ErrInvalidRequest` gave up on a
+  request the module itself retries.
+* **Changed for callers:** `errors.Is(err, ErrInvalidRequest)` is false for
+  those errors. They still match their kind, `ErrProviderUnavailable`.
+* **The same for `x-should-retry: true` (0026 F67):** a reply whose kind
+  would match `ErrInvalidRequest`, such as a 400, and that the service
+  marks `x-should-retry: true`, is of kind `ErrProviderUnavailable`, and so
+  no longer matches `ErrInvalidRequest`. It was retried before and is
+  retried still. Any other kind with the header keeps its kind.
+* **Unchanged:**
+  * a terminal error unwraps to its kind and its status sentinel, as before;
+  * a retryable error whose status sentinel is its kind, such as a 429
+    (`ErrRateLimited`) or a 5xx (`ErrProviderUnavailable`), matches the same
+    sentinels as before;
+  * a stream failure (`Status` 0) has no status sentinel.

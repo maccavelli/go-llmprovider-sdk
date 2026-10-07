@@ -142,7 +142,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")
 		},
-	}, token, chatcompletions.Decode)
+	}, token, chatcompletions.DecodeFor(string(llmprovider.ProviderTogether)))
 }
 
 // body is the Chat Completions request for req.

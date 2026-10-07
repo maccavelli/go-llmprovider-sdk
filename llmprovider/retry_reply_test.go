@@ -113,13 +113,14 @@ func TestRetryPolicy_BackoffEqualJitterAfterCap(t *testing.T) {
 }
 
 // TestClassifyHTTPError_ShouldRetryTrue (0021-MADR T14): x-should-retry: true
-// makes any status retryable, as the OpenAI and Anthropic SDKs obey it; the
-// kind is unchanged.
+// makes any status retryable, as the OpenAI and Anthropic SDKs obey it. A
+// status that would be ErrInvalidRequest becomes ErrProviderUnavailable, since
+// ErrInvalidRequest says a retry cannot succeed (0026-MADR F67).
 func TestClassifyHTTPError_ShouldRetryTrue(t *testing.T) {
 	err := classifyFixture("openai", http.StatusBadRequest, `{}`, http.Header{"X-Should-Retry": {"true"}})
 	var apiErr *APIError
-	if !errors.As(err, &apiErr) || !apiErr.Retryable() || !errors.Is(err, ErrInvalidRequest) {
-		t.Fatalf("err = %v; want a retryable ErrInvalidRequest", err)
+	if !errors.As(err, &apiErr) || !apiErr.Retryable() || !errors.Is(err, ErrProviderUnavailable) {
+		t.Fatalf("err = %v; want a retryable ErrProviderUnavailable", err)
 	}
 	p, calls := failing(err)
 	if _, err := WithRetry(p, fastRetry).Generate(context.Background(), &Request{}); err != nil || calls.Load() != 2 {

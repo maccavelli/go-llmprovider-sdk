@@ -11,6 +11,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
@@ -126,7 +127,10 @@ func finishReason(r *llmprovider.Response, refused bool) llmprovider.FinishReaso
 }
 
 // incomplete is the MADR 0012 §1.5 error for an incomplete Responses answer.
+// The reason is the service's text, so it is stripped and bounded (0026-MADR
+// F18).
 func incomplete(reason string) error {
+	reason = redact.Field(reason)
 	if reason == "" {
 		reason = "unspecified"
 	}

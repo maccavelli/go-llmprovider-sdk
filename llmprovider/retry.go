@@ -136,14 +136,15 @@ const minServerJitter = 250 * time.Millisecond
 // asked for longer than MaxDelay (0021-MADR T7).
 //
 //   - A wait the service asked for gets up to a tenth more, at least 250 ms,
-//     so that callers limited together spread out.
+//     so that callers limited together spread out, and is then capped at
+//     MaxDelay (0026-MADR F22).
 //   - Backoff doubles from BaseDelay up to MaxDelay, and the wait taken is
 //     between half and all of it ("equal jitter"), chosen after the cap so
 //     that callers at the cap do not all wait exactly MaxDelay.
 func (p RetryPolicy) wait(attempt int, err error) (time.Duration, bool) {
 	if server := serverRetryAfter(err); server > 0 {
 		//nolint:gosec // G404: non-crypto jitter for retry spacing
-		return server + rand.N(max(server/10, minServerJitter)), server <= p.MaxDelay
+		return min(server+rand.N(max(server/10, minServerJitter)), p.MaxDelay), server <= p.MaxDelay
 	}
 	delay := p.BaseDelay << (attempt - 1)
 	if delay <= 0 || delay > p.MaxDelay {
@@ -175,7 +176,9 @@ func retryable(err error) bool {
 		errors.Is(err, ErrUnsupported), errors.Is(err, ErrInvalidProvider):
 		return false
 	default:
+		// A failure to send is retried, unless no retry can mend it
+		// (0026-MADR F11).
 		var urlErr *url.Error
-		return errors.As(err, &urlErr)
+		return errors.As(err, &urlErr) && !transport.Unsendable(err)
 	}
 }

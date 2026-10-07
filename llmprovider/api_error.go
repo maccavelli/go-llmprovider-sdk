@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -61,8 +63,6 @@ const (
 	// first apiErrorMessageLimit bytes are kept, so redacting a 64 KiB HTML
 	// page whole is wasted work (0021-MADR Z1).
 	apiErrorRedactLimit = 16 << 10
-	// apiErrorCodeLimit bounds APIError.Code.
-	apiErrorCodeLimit = 128
 )
 
 // APIError is a failure the service reported, with its own classification
@@ -83,7 +83,8 @@ type APIError struct {
 	Code string
 	// Message is the service's message, redacted and bounded to 512 bytes.
 	Message string
-	// RetryAfter is the delay the service asked for, when it asked.
+	// RetryAfter is the delay the service asked for, when it asked, in a
+	// header or in its error body.
 	RetryAfter time.Duration
 	// Reason is the service's reason for a response it cut short, such as
 	// "max_output_tokens".
@@ -129,9 +130,14 @@ func (e *APIError) Error() string {
 }
 
 // Unwrap returns the kind and the pre-0012 status sentinel. A stream failure
-// (Status 0) has no status sentinel.
+// (Status 0) has no status sentinel, and nor does a Retryable error, such as
+// a retryable 408 or 409: its status's sentinel may be ErrInvalidRequest,
+// which says a retry can never succeed (0026-MADR F23).
 func (e *APIError) Unwrap() []error {
 	kind := e.kind()
+	if e.Retryable() {
+		return []error{kind}
+	}
 	if legacy := statusSentinel(e.Status); e.Status != 0 && !errors.Is(kind, legacy) {
 		return []error{kind, legacy}
 	}
@@ -182,18 +188,21 @@ func statusSentinel(status int) error {
 	}
 }
 
-// ClassifyHTTPError maps a non-200 response to a typed error; it returns nil
-// for 200. provider names the caller for the message: a multi-route gateway
-// passes "gateway/route", so a misroute is diagnosable from the error alone.
-// A 429 is an *APIError of kind ErrRateLimited, with the delay the service
-// asked for in RetryAfter.
+// ClassifyHTTPError maps a non-2xx response to a typed error; it returns nil
+// for any 2xx (0026-MADR F24). provider names the caller for the message: a
+// multi-route gateway passes "gateway/route", so a misroute is diagnosable
+// from the error alone. A 429 is an *APIError of kind ErrRateLimited, with
+// the delay the service asked for in RetryAfter: from retry-after-ms or
+// Retry-After, else from the body, as a usage limit's reset time or Google's
+// RetryInfo. Gemini's 429 for a per-day quota is ErrQuotaExhausted
+// (0026-MADR F12).
 // It is part of the error model, for any provider (0015-MADR, amendment
 // "S7b's import graph"). A nil resp is ErrProviderUnavailable.
 func ClassifyHTTPError(provider string, resp *http.Response) error {
 	if resp == nil {
 		return fmt.Errorf("%w: %s: no HTTP response", ErrProviderUnavailable, provider)
 	}
-	if resp.StatusCode == http.StatusOK {
+	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
 		return nil
 	}
 	var body []byte
@@ -222,6 +231,11 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 			e.RetryAfter = d
 		}
 	}
+	// Gemini sends no Retry-After; its body's RetryInfo says how long to
+	// wait (0026-MADR F12).
+	if e.RetryAfter == 0 {
+		e.RetryAfter = envelope.retryDelay
+	}
 	// x-should-retry is the service saying whether a retry can succeed, and
 	// is obeyed both ways, as the OpenAI and Anthropic SDKs do (MADR 0012
 	// §1.2; 0021-MADR T14).
@@ -230,6 +244,12 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 		e.terminal = true
 	case "true":
 		e.shouldRetry = true
+		// ErrInvalidRequest says a retry can never succeed, so a reply
+		// the service says to retry is unavailable instead, as a
+		// retryable 408 is (0026-MADR F67).
+		if errors.Is(e.Kind, ErrInvalidRequest) {
+			e.Kind = ErrProviderUnavailable
+		}
 	}
 	return e
 }
@@ -239,7 +259,9 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 // parse_failed_response does (codex-api/src/sse/responses_error.rs): quota and
 // entitlement codes are terminal (MADR 0012 §1.1), context_length_exceeded is a
 // context overflow, invalid_prompt is an invalid request, rate_limit_exceeded
-// and slow_down are rate limits, and anything else is retryable. The
+// and slow_down are rate limits, and anything else is retryable. A code that
+// is an HTTP status from 400 to 599, as OpenRouter-style gateways send inside
+// a 200, is classified as that status (0026-MADR F5). The
 // APIError's Status is 0: there is no HTTP status. It is part of the error
 // model, for any provider's stream reader (0015-MADR, amendment "S7b's import
 // graph").
@@ -252,6 +274,13 @@ func ClassifyStreamFailure(provider, code, errType, message string) error {
 	}
 	e := &APIError{Provider: provider, Code: boundCode(env.errType()),
 		Message: boundMessage(redact.String(redact.StripControl(cutMessage(message))))}
+	// A gateway that answers 200 with an error, as OpenRouter does, puts the
+	// HTTP status in code: classify it as that status, through the service's
+	// own table and the overflow check (0026-MADR F5).
+	if status, err := strconv.Atoi(code); err == nil && status >= http.StatusBadRequest && status <= 599 {
+		e.terminal, e.Kind = classifyAPIError(serviceOf(provider), status, env, nil)
+		return e
+	}
 	switch {
 	case env.hasType("rate_limit_exceeded") || env.hasType("slow_down"):
 		e.Kind = ErrRateLimited
@@ -308,6 +337,10 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 		return true, ErrNotPermitted
 	case service == string(ProviderGemini) && has(geminiAuthReasons...):
 		return true, ErrAuthFailure
+	// A per-day quota cannot be passed by a retry within the day
+	// (0026-MADR F12).
+	case service == string(ProviderGemini) && status == http.StatusTooManyRequests && env.perDayQuota:
+		return true, ErrQuotaExhausted
 	case service == serviceOpencode && has("ModelError"),
 		service == string(ProviderKilo) && has("PAID_MODEL_AUTH_REQUIRED"):
 		return true, ErrInvalidRequest
@@ -340,6 +373,26 @@ type apiErrorEnvelope struct {
 	types    []string // candidate classifications, most specific first
 	msg      string
 	resetsAt int64 // usage_limit_reached's reset time, Unix seconds, or 0
+	// retryDelay is a google.rpc.RetryInfo's delay, or 0 (0026-MADR F12).
+	retryDelay time.Duration
+	// perDayQuota reports a google.rpc.QuotaFailure naming a per-day quota.
+	perDayQuota bool
+}
+
+// protoDuration is a protobuf Duration in its JSON form, seconds with an "s"
+// suffix such as "39s" or "1.5s", or 0 when s is not a positive one. A delay
+// too long for a Duration is the longest one.
+func protoDuration(s string) time.Duration {
+	digits, ok := strings.CutSuffix(s, "s")
+	secs, err := strconv.ParseFloat(digits, 64)
+	switch {
+	case !ok || err != nil || math.IsNaN(secs) || secs <= 0:
+		return 0
+	case secs >= float64(math.MaxInt64)/float64(time.Second):
+		return math.MaxInt64
+	default:
+		return time.Duration(secs * float64(time.Second))
+	}
 }
 
 func (e apiErrorEnvelope) errType() string {
@@ -379,9 +432,16 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		Status   string          `json:"status"`
 		Message  string          `json:"message"`
 		ResetsAt int64           `json:"resets_at"`
-		// Details are Google's: a reason is the most specific type.
+		// Details are Google's: a reason is the most specific type; a
+		// RetryInfo carries the delay and a QuotaFailure the violated
+		// quotas (google/rpc/error_details.proto; 0026-MADR F12).
 		Details []struct {
-			Reason string `json:"reason"`
+			Type       string `json:"@type"`
+			Reason     string `json:"reason"`
+			RetryDelay string `json:"retryDelay"`
+			Violations []struct {
+				QuotaID string `json:"quotaId"`
+			} `json:"violations"`
 		} `json:"details"`
 	}
 	var text string
@@ -389,6 +449,12 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 	case json.Unmarshal(top.Error, &inner) == nil:
 		for _, d := range inner.Details {
 			add(d.Reason)
+			if strings.HasSuffix(d.Type, "google.rpc.RetryInfo") {
+				env.retryDelay = protoDuration(d.RetryDelay)
+			}
+			for _, v := range d.Violations {
+				env.perDayQuota = env.perDayQuota || strings.Contains(v.QuotaID, "PerDay")
+			}
 		}
 		add(jsonString(inner.Code), inner.Type, inner.Status)
 		env.msg = inner.Message
@@ -417,19 +483,9 @@ func jsonString(raw json.RawMessage) string {
 }
 
 // boundCode strips a service's error code of control characters and trims
-// it to apiErrorCodeLimit bytes on a rune boundary: the code reaches
+// it to redact.FieldLimit bytes on a rune boundary: the code reaches
 // Error() and so a terminal (0021-MADR Z3).
-func boundCode(s string) string {
-	s = redact.StripControl(s)
-	if len(s) <= apiErrorCodeLimit {
-		return s
-	}
-	cut := apiErrorCodeLimit
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut]
-}
+func boundCode(s string) string { return redact.Field(s) }
 
 // cutMessage trims s to apiErrorRedactLimit bytes on a rune boundary, before
 // it is redacted.

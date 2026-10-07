@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-06
+date: 2026-10-07
 decision-makers: repository owner
 consulted: 0015-MADR-canonical-sdk-api-and-module-layout.md (R16, R23, R24, R25, R27, R29, R35, R40, R45, R48), 0016-MADR-provider-auth-and-support-baseline.md (D4, D8, A2), 0017-MADR-together-provider-and-auth-extensions.md (D2, D3), 0020-MADR-remediate-v1-debugging-pass-findings.md, 0021-MADR-harden-and-tune-after-the-v1-1-review.md
 informed: consumers of go-llmprovider-sdk v1, among them prepare-commit-msg (on v1.2.1) and gobble-cli (on v1.1.1)
@@ -753,3 +753,51 @@ Made by the 0026 PLAN's deviation D3, chosen by the owner ("Option 1").
   Neither half works alone. Each failed when tested alone.
 * **Limit:** a reader outside the SDK that opens the file with plain
   `os.Open` still blocks a save on Windows.
+
+## Amendment 2026-10-07: F67, a retryable 400 is still an invalid request
+
+Found while fixing F23 in Phase 2, recorded in the PLAN's deviation D5, and
+added by the owner ("Decision 2, a"). It goes into Phase 2 beside F23, and
+the findings are now 67.
+
+| ID | Source | Where | Finding | Evidence |
+|---|---|---|---|---|
+| F67 | Phase 2, F23 | `api_error.go:228-237` | A status whose kind is `ErrInvalidRequest`, such as a 400, sent with `x-should-retry: true` is `Retryable()` and still of kind `ErrInvalidRequest`, whose doc says a retry "can never succeed". F23 leaves out the legacy sentinel of a retryable error; here the kind itself contradicts it, so F23's fix does not reach it. | A probe on openai, claude and kilo: `invalid request: openai HTTP 400: m retryable=true invalid=true`, the same on each. |
+
+* **Decision.** When the service sends `x-should-retry: true` on a reply
+  whose kind matches `ErrInvalidRequest`, the kind is
+  `ErrProviderUnavailable`, as a retryable 408 or 409 already is. The
+  OpenAI and Anthropic SDKs retry on that header whatever the status
+  (0021 T14), and so does `WithRetry`; the kind now agrees with them.
+* **Not changed:** `x-should-retry: true` on any other kind, such as a 401
+  or a 429, keeps the kind, since none of those says a retry cannot
+  succeed.
+
+## Amendment 2026-10-07: Q6 is (b), F12 from Google's documented shape
+
+Made by the 0026 PLAN's deviation D4, chosen by the owner ("Option 3").
+It reverses the answer recorded for Q6, (a), and takes (b).
+
+* **Why:** the live capture could not produce a 429. The owner's key
+  answered 20 one-token requests at once to `gemini-pro-latest` with 200,
+  twice, and the model the PLAN first named, `gemini-2.5-pro`, answered 404
+  ("no longer available to new users"). Reaching the key's limit would have
+  cost a larger burst, or a second, free-tier key.
+* **Now:** F12 is implemented from Google's documented shape, with no
+  capture:
+  * `google.rpc.RetryInfo.retry_delay` is a protobuf `Duration`, written in
+    JSON as seconds with an `s` suffix, such as `"39s"`
+    (`google/rpc/error_details.proto` in `googleapis/googleapis`);
+  * `google.rpc.QuotaFailure.Violation.quota_id` names the violated limit.
+    Gemini's ids, as reported on Google's developer forum, include
+    `GenerateRequestsPerMinutePerProjectPerModel-FreeTier` and
+    `GenerateRequestsPerDayPerProjectPerModel-FreeTier`;
+  * the same reports show 429s with neither detail, which keep today's
+    classification.
+* **Kept:** `TestLive_GeminiRateLimitShape` (`live_gemini_429_test.go`)
+  stays, switched on by `LLMPROVIDER_LIVE_GEMINI_429`. Run with a key that
+  reaches its limit, it checks this decision against a real reply; a
+  difference is a DRIFT report.
+* **Risk, accepted:** the unit test's fixture is built from the documented
+  shape, not captured, so a field Gemini spells differently is found only
+  by that live test or by a caller.

@@ -94,13 +94,14 @@ func ValidateOAuthSession(session *OAuthSession) error {
 }
 
 // oauthHTTPStatusError reports a failed token-endpoint response by its status
-// and the first oauthErrorBodyLimit bytes of its body, redacted. It closes the
-// body; the raw body is never logged.
+// and the first oauthErrorBodyLimit bytes of its body, stripped of control
+// characters and redacted (0026-MADR F18). It closes the body; the raw body is
+// never logged.
 func oauthHTTPStatusError(op string, resp *http.Response) error {
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, oauthErrorBodyLimit))
 	closeErr := resp.Body.Close()
-	err := fmt.Errorf("oauth: %s failed: %s: %s", op, resp.Status,
-		redact.String(strings.TrimSpace(string(body))))
+	err := fmt.Errorf("oauth: %s failed: %s: %s", op, redact.StripControl(resp.Status),
+		redact.String(redact.StripControl(strings.TrimSpace(string(body)))))
 	if readErr != nil {
 		err = errors.Join(err, fmt.Errorf("oauth: read %s response: %w", op, readErr))
 	}

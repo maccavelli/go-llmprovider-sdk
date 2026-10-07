@@ -216,6 +216,18 @@ func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[str
 //
 // Absent reasoning is normal, never an error.
 func Decode(body io.Reader) (*llmprovider.Response, error) {
+	return decodeAs(body, "chat completions")
+}
+
+// DecodeFor is Decode for provider: an error reported inside a 200 names
+// provider, and is classified by that service's error vocabulary (0026-MADR
+// F5). provider is the label the caller gives wire.Call.
+func DecodeFor(provider string) func(io.Reader) (*llmprovider.Response, error) {
+	return func(body io.Reader) (*llmprovider.Response, error) { return decodeAs(body, provider) }
+}
+
+// decodeAs is Decode, with errors labelled and classified for provider.
+func decodeAs(body io.Reader, provider string) (*llmprovider.Response, error) {
 	var raw struct {
 		ID      string        `json:"id"`
 		Model   string        `json:"model"`
@@ -246,7 +258,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	// A gateway may answer 200 with an error, at the top level or in the
 	// choice, as OpenRouter does, which Kilo inherits (0021-MADR W5).
 	if raw.Error != nil {
-		return nil, raw.Error.classify()
+		return nil, raw.Error.classify(provider)
 	}
 	if len(raw.Choices) == 0 {
 		return nil, wire.EmptyAnswer("chat completions", "")
@@ -255,7 +267,7 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		if e == nil {
 			e = &gatewayError{Message: "finish_reason error"}
 		}
-		return nil, e.classify()
+		return nil, e.classify(provider)
 	}
 
 	msg := raw.Choices[0].Message
@@ -336,13 +348,14 @@ type gatewayError struct {
 	Type    string          `json:"type"`
 }
 
-// classify is the error's kind, as a stream failure's is classified.
-func (e *gatewayError) classify() error {
+// classify is the error's kind, as a stream failure's is classified, for
+// provider: a numeric code is the HTTP status it names (0026-MADR F5).
+func (e *gatewayError) classify(provider string) error {
 	code := strings.Trim(strings.TrimSpace(string(e.Code)), `"`)
 	if code == "null" {
 		code = ""
 	}
-	return llmprovider.ClassifyStreamFailure("chat completions", code, e.Type, e.Message)
+	return llmprovider.ClassifyStreamFailure(provider, code, e.Type, e.Message)
 }
 
 // chatArguments is a call's arguments. The standard sends a JSON string; some

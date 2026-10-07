@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-10-06
+date: 2026-10-07
 associated-madr: "0026-MADR-remediate-v1-2-debugging-pass-findings.md"
 decision-makers: repository owner
 ---
@@ -39,7 +39,7 @@ agent stages; the owner commits.
 | :--- | :--- | :--- |
 | 0 | records | the MADR accepted, this PLAN approved |
 | 1 | credentials | F1, F3, F13, F2, F40, F41, F42, F43, F44, F45 |
-| 2 | errors and retry | F4, F5, F11, F12, F17, F18, F19, F20, F21, F22, F23, F24 |
+| 2 | errors and retry | F4, F5, F11, F12, F17, F18, F19, F20, F21, F22, F23, F24, F67 |
 | 3 | answers on the wire | F7, F8, F25, F26, F27, F28, F29, F30, F31, F32, F65 |
 | 4 | provider wiring | F6, F36, F37, F33, F34, F35, F38, F39 |
 | 5 | wizard and catalog | F9, F10, F46, F47, F48, F49, F50, F51, F52, F53, F54 |
@@ -126,7 +126,7 @@ agent stages; the owner commits.
 | F4 | `TestPost_StalledErrorBodyEndsAtIdleLimit`, from `TestZZReproStalledErrorBody`: a 503 whose body stalls returns within the idle limit, with no caller deadline. It fails today, returning only at the 3 s deadline. A 200 that stalls keeps today's behaviour. | `Post` wraps `resp.Body` in the idle-limited `ReplyReader` before `ClassifyHTTPError`. `ClassifyHTTPError`'s own bound stays. | `internal/wire/post.go`, its test |
 | F5 | `TestChatCompletions_ErrorIn200Classified`, from `TestZZReproGatewayErrorIn200` and `TestReproGatewayErrorCodes`: a numeric `error.code` gives the status's kind. <ul><li>400 overflow is `ErrContextOverflow`;</li><li>401 is `ErrAuthFailure`;</li><li>402 is `ErrQuotaExhausted`;</li><li>403 is `ErrNotPermitted`;</li><li>429 is `ErrRateLimited`.</li></ul> `APIError.Provider` is the provider's label. A Kilo or OpenCode type gives its row's kind. The server is hit once for terminal kinds. These fail today. | A numeric code from 400 to 599 is classified through `classifyAPIError(serviceOf(provider), code, env, nil)`, overflow check included. A non-numeric code keeps `ClassifyStreamFailure`. The decoder receives the provider label from its caller. | `api_error.go`, `internal/wire/chatcompletions`, the providers that call it |
 | F11 | `TestResolveOptions_RefusesUnsendable` and `TestWithRetry_UnsendableIsTerminal`, from `TestZZReproDeterministicURLErrorRetried`: <ul><li>a base URL with no scheme or host, or with an invalid escape, fails `New` with `ErrInvalidRequest`;</li><li>a key, client info or session id with a control character fails `New` the same way;</li><li>a source token with a newline fails on the first attempt, with `ErrInvalidRequest`, and is not retried.</li></ul> They fail today with `attempts=4 kind=NO KIND`. | Q7 (a): <ul><li>`ResolveOptions` parses `WithBaseURL` (scheme and host required), and refuses control characters in `WithAPIKey`, `WithClientInfo` and `WithSessionID`;</li><li>`retryable` treats a `*url.Error` from parsing, an invalid header value, or an unsupported scheme as terminal, and `Post` gives it `ErrInvalidRequest`.</li></ul> 0021-PLAN kept `WithBaseURL` permissive (R48); Q7 (a) reverses that, so the release notes say so. | `settings.go`, `retry.go`, `internal/wire/post.go`, their tests |
-| F12 | *Live first* (Q6 a): capture a real Gemini 429 with the owner's key, in a live-tagged test that records the body shape and headers. Then `TestClassify_GeminiRetryInfo`: the captured body gives `RetryAfter` from `retryDelay`, and a per-day `QuotaFailure` gives `ErrQuotaExhausted`. It fails today with `RetryAfter=0s retryable=true`. | Decode `details[].retryDelay` (a protobuf Duration string) into `RetryAfter` when no header is present. Classify a `QuotaFailure` violation whose quota id names a day as `ErrQuotaExhausted`. If the capture differs from Google's documented shape, that is a deviation. | `api_error.go`, a live test |
+| F12 | *Live first* (Q6 a): capture a real Gemini 429 with the owner's key, in a live-tagged test that records the body shape and headers. Then `TestClassify_GeminiRetryInfo`: the captured body gives `RetryAfter` from `retryDelay`, and a per-day `QuotaFailure` gives `ErrQuotaExhausted`. It fails today with `RetryAfter=0s retryable=true`. | Decode `details[].retryDelay` (a protobuf Duration string) into `RetryAfter` when no header is present. Classify a `QuotaFailure` violation whose quota id names a day as `ErrQuotaExhausted`. If the capture differs from Google's documented shape, that is a deviation. *Amended by deviation D4: no capture could be made, and the owner took Q6 (b); the fixture follows Google's documented shape, and the live test stays, opt-in.* | `api_error.go`, a live test |
 | F17 | `TestRedact_PrefixedKeys`: `openai_api_key=`, `"x_api_key"`, `app_secret:`, `"apiSecret"`, `db_password=` and `"subscription_key"` are redacted. They fail today. | `reKV` matches a key name at the end of a snake_case or camelCase identifier, not only after a word boundary. | `internal/redact` |
 | F18 | `TestAPIError_ReasonIsBounded`: a `Reason` with ESC and BEL, 2 KiB long, reaches `Error()` stripped and capped. It fails today with `ESC=true BEL=true len=2093`. The token endpoint's error body is stripped too. | `StripControl` and the code bound on `Reason`, where it is set; `StripControl` on the token endpoint's message. | `api_error.go`, `internal/wire/finish.go`, `responses.go`, `auth/oauth_session.go` |
 | F19 | `TestNew_RefusesInvalidDefaultReasoning`: `WithReasoning` with an unknown effort or a negative budget fails `New`. It fails today with `New err=<nil>`. | `ResolveOptions` applies the `Request` validation to `WithReasoning`. | `settings.go` |
@@ -135,6 +135,7 @@ agent stages; the owner commits.
 | F22 | `TestRetry_ServerWaitNeverExceedsMaxDelay`, from `TestZZReproServerWaitOverMaxDelay`: over 20 runs, no wait exceeds `MaxDelay`. It fails today at 338 ms over 100 ms. | Cap the jittered wait at `MaxDelay`. | `retry.go` |
 | F23 | `TestAPIError_RetryableDoesNotMatchInvalidRequest`: a retryable 408, or 409 on openai and claude, does not match `ErrInvalidRequest`. It fails today with `isInvalidRequest=true`. | `Unwrap`'s legacy sentinel is omitted when the error is `Retryable()`. 0012 §7's compatibility rule is kept for terminal errors, and its amendment records the exception. | `api_error.go`, `0012-MADR` amendment |
 | F24 | `TestPost_Accepts2xx`: a 201 decodes as a success. It fails today with `invalid request … HTTP 201`. | `ClassifyHTTPError` passes 200–299. Its doc and `Post`'s agree. | `api_error.go` |
+| F67 | `TestAPIError_ShouldRetryIsNotInvalidRequest` (added by deviation D5): a 400 with `x-should-retry: true`, on openai, claude and kilo, is retryable, of kind `ErrProviderUnavailable`, and does not match `ErrInvalidRequest`. A 401 with the header keeps `ErrAuthFailure`; a 400 without it stays `ErrInvalidRequest`. It fails today with `invalid request … retryable=true`. | In `ClassifyHTTPError`, `x-should-retry: true` on a kind that matches `ErrInvalidRequest` sets the kind to `ErrProviderUnavailable`. 0012's amendment of 2026-10-07 and the migration guide say so. | `api_error.go`, `0012-MADR` amendment, `docs/guides/migrating-from-mcplib.md` |
 
 ### Phase 3: answers on the wire
 
@@ -513,3 +514,160 @@ with plumbing (`p26_gate.py`); every check rc=0:
   * `gate-selftest`: OK;
   * links: 602 in 67 files;
   * identifier scan: 0 hits in 39 files.
+
+### Deviation D4 (2026-10-07): F12's capture needs a free-tier key
+
+* **Found,** running F12's live capture,
+  `TestLive_GeminiRateLimitShape` (`llmprovider/live_gemini_429_test.go`).
+  It is switched on by its own variable, `LLMPROVIDER_LIVE_GEMINI_429`,
+  since it exhausts a rate limit on purpose. It sends up to 20 one-token
+  requests at once and stops at the first 429.
+  * To `gemini-2.5-pro`, every request was answered `HTTP 404`: the model
+    "is no longer available to new users".
+  * To `gemini-pro-latest`, an alias that follows the current pro model,
+    every request was answered 200. The key's limit is above the burst, as
+    a paid tier's is, so the PLAN's step could not produce a 429 cheaply.
+  * The test now fails, rather than skips, when a request is answered with
+    a status other than 200 or 429: the model is unusable, not unlimited.
+* **Options put to the owner:**
+  1. run the capture once with a free-tier key, which reaches 429 on a pro
+     model within a few requests, at no cost;
+  2. a larger burst on the paid key, up to 300 requests;
+  3. implement from Google's documented shape, which reverses Q6 (a) and
+     needs a MADR amendment.
+* **Decision.** The owner chose option 1. Q6 (a) stands: the capture is
+  still live, with a key of the owner's. The owner runs the test; the
+  fixture is taken from its logged body, with any project number replaced
+  by a placeholder. The F12 fix and `TestClassify_GeminiRetryInfo` follow
+  the capture.
+* **Revisited, the same day.** The owner's exported `GEMINI_API_KEY`, the
+  only key offered, was run through the test: 20 requests, all 200, and a
+  skip ("no 429 after 20 requests"). It is the same key as before, not a
+  free-tier one, so option 1 could not be met.
+  * **Options put to the owner again:** a free-tier key under a second
+    variable; a burst of up to 300 on this key; implement from Google's
+    documented shape.
+  * **Decision.** The owner chose the last ("Option 3"). Q6 is now (b), and
+    the MADR's amendment "Q6 is (b), F12 from Google's documented shape"
+    records it. `TestClassify_GeminiRetryInfo`'s fixture follows
+    `google/rpc/error_details.proto`; the live test stays, opt-in, to check
+    it against a real reply.
+
+### Deviation D5 (2026-10-07): F67 joins Phase 2
+
+* **Found** while fixing F23. A probe classified a 400 sent with
+  `x-should-retry: true` on openai, claude and kilo; each gave
+  `invalid request: <provider> HTTP 400: m retryable=true invalid=true`.
+  The kind itself is `ErrInvalidRequest`, so F23's fix, which leaves out a
+  retryable error's legacy sentinel, does not reach it. The probe was a
+  throwaway test file, deleted once run.
+* **Options put to the owner:**
+  1. add it to Phase 2 as F67, and make such an error
+     `ErrProviderUnavailable`, as a retryable 408 or 409 is;
+  2. ignore `x-should-retry: true` on an invalid-request status, against
+     the OpenAI and Anthropic SDKs;
+  3. record it for a later phase.
+* **Decision.** The owner chose option 1 ("Decision 2, a"). The MADR's
+  amendment of 2026-10-07 adds F67, and Phase 2's table gains its row.
+
+### Phase 2: errors and retry (2026-10-07)
+
+* **Before it.** Phase 1 was committed as `ecee48a` and pushed on the
+  owner's word ("Push to main"). Its CI run, 37578319181, passed on
+  Ubuntu, Windows and macOS.
+* **Approval.** "Proceed", 2026-10-07, with D4 ("Option a", then "Option
+  3") and D5 ("Decision 2, a") chosen on the way.
+* **Red first.** Each test below was written first, and its FAIL is from
+  the unchanged code. Test names differ from the table above where one
+  test became several.
+
+| ID | Test | FAIL before the fix | Fix |
+| :--- | :--- | :--- | :--- |
+| F4 | `TestPost_StalledErrorBodyEndsAtIdleLimit` | `a stalled 503 body took 5.002397417s; want about the idle limit, 100 ms`: it ended only at the test's own 5 s deadline. | `Post` wraps `resp.Body` in the idle-limited `ReplyReader` before `ClassifyHTTPError` reads it. |
+| F5 | `TestDecodeFor_ErrorIn200Classified` (400 overflow, 401, 402, 403 on Kilo, 429, a 503 inside a choice, OpenCode's `FreeUsageLimitError`); `TestKilo_ErrorIn200IsNotRetried` | `kilo failed after 3 attempts: llmprovider: provider unavailable: chat completions stream 400`, and each case had the wrong kind. | A numeric `error.code` from 400 to 599 is classified by `classifyAPIError` for the provider's service. `chatcompletions.DecodeFor(provider)` passes the label; Kilo, Together, Hugging Face, Ollama and OpenCode use it. |
+| F11 | `TestResolveOptions_RefusesUnsendable`, `TestRetryable_UnsendableIsTerminal`, `TestPost_UnsendableIsInvalidRequest` | All 10 refused `ResolveOptions` cases returned `<nil>`, and three unsendable failures were `retryable = true`. | `settings.sendable()`: a base URL must parse with a scheme and a host, and a static key, the client info and the session id must hold no control character. `transport.Unsendable` recognises a `*url.Error` no retry can fix; `retryable` treats it as terminal, and `Post` returns it as `ErrInvalidRequest`. |
+| F12 | `TestClassify_GeminiRetryInfo` (per minute, fractional, per day); `TestClassify_GeminiRetryInfoEdges` | `per minute: RetryAfter=0s … retryable=true`; `per day: RetryAfter=0s kind ok=false retryable=true`. The edges test passes before and after; it guards a header winning over the body, a bare 429, malformed delays, and another service. | D4, Q6 (b): the envelope reads Google's `details[]` `@type`, `retryDelay` and `violations[].quotaId`. `protoDuration` parses the delay, which sets `RetryAfter` when no header did; a Gemini 429 naming a `PerDay` quota is terminal `ErrQuotaExhausted`. `TestLive_GeminiRateLimitShape` stays, opt-in. |
+| F17 | `TestRedact_PrefixedKeys` | `openai_api_key`, `"x_api_key"`, `app_secret`, `"apiSecret"`, `db_password` and `"subscription_key"`: `the value is not redacted`. | `reKV` allows a snake, kebab or camelCase prefix before each secret name, and takes any prefixed `…_key`. `max_tokens` and `prompt_token_count` stay unredacted. |
+| F18 | `TestEmptyAnswer_ReasonIsBounded`, `TestIncomplete_ReasonIsBounded`, `TestOAuthHTTPStatusError_StripsControl`; `TestField`, added after the gate's first run (below) | `ESC=true BEL=true and is 2125 bytes`; `… 2087 bytes`; the token endpoint's error held `\x1b]0;owned\a\x1b[2J`. | `redact.Field` strips control characters and bounds to `redact.FieldLimit`, 128 bytes; `boundCode`, `wire.EmptyAnswer` and `responses.incomplete` use it. `oauthHTTPStatusError` strips the status and the body before redacting. |
+| F19 | `TestResolveOptions_RefusesUnsendable` (an unknown effort, a negative budget) | Among the 10 `<nil>` results above. | `(*Reasoning).check()`, shared by `Request.validate` and `settings.sendable`. |
+| F20 | `TestValidate_UnmarshalableSchema`, `TestPost_UnmarshalableBodyIsInvalidRequest` | `a channel`, `invalid raw JSON`, `an unsupported value`: `Check = <nil>`; `marshal request: json: unsupported type: chan int; want ErrInvalidRequest`. | `validate` marshals each tool's schema; `Post`'s marshal failure is `ErrInvalidRequest`. |
+| F21 | `TestRedact_KeepsOrdinaryWords` | `"Invalid bearer token"` became `"Invalid [REDACTED]"`, and the same for the three other sentences. | `redactAuth`: after an `Authorization` label the value is always redacted; without one, only a credential-shaped value is (a digit, token punctuation, a capital after the first letter, or 20 characters or more; a final full stop does not count). |
+| F22 | `TestRetry_ServerWaitNeverExceedsMaxDelay` | `asked 90ms: longest wait over 50 runs = 326.792386ms`; `asked 100ms: … 349.10718ms`. | The jittered server wait is capped at `MaxDelay`. |
+| F23 | `TestAPIError_RetryableDoesNotMatchInvalidRequest` | openai 408, openai 409, claude 409: `Retryable=true and matches ErrInvalidRequest`. | `Unwrap` leaves out the legacy status sentinel when the error is `Retryable()`. 0012-MADR gains its amendment of 2026-10-07. |
+| F24 | `TestPost_Accepts2xx` | `a 201: "", llmprovider: invalid request: p HTTP 201`. | `ClassifyHTTPError` returns nil for any 2xx. |
+| F67 | `TestAPIError_ShouldRetryIsNotInvalidRequest` | openai, claude, kilo: `invalid request: <provider> HTTP 400: m; want retryable ErrProviderUnavailable`. | `x-should-retry: true` on a kind that matches `ErrInvalidRequest` sets the kind to `ErrProviderUnavailable`. |
+
+* **F21, a note on the fix.** The table above says the credential is "at
+  least 8 long". Applied after an `Authorization` label, that would have
+  broken the pinned case `Authorization: Bearer abc12`
+  (`redact_providers_test.go`). The existing minimums, 4 after `bearer` or
+  `basic` and 8 after `token`, are kept, and the shape test is added. This
+  redacts more than the table's words ask, never less.
+* **Tests changed, not new:**
+  * `TestClassifyHTTPError_Table` checked that every row still matches its
+    pre-0012 sentinel. Under F23 that holds for a terminal error; a
+    retryable one must not match `ErrInvalidRequest`. Its 408 row is the
+    case.
+  * `TestClassifyHTTPError_ShouldRetryTrue` (0021 T14) wanted "a retryable
+    `ErrInvalidRequest`". Under F67 it wants a retryable
+    `ErrProviderUnavailable`, and still checks that `WithRetry` retries it.
+    0021 says only that the header makes a reply retryable.
+* **Renamed for lint:** `chatcompletions.decode` is `decodeAs`, since
+  `revive`'s `confusing-naming` refuses a name that differs from `Decode`
+  only by case.
+* **Docs.**
+  * 0012-MADR: the amendment of 2026-10-07 (F23, F67).
+  * `docs/guides/migrating-from-mcplib.md`: the `APIError.Unwrap` row (F23,
+    F67) and the `APIError.RetryAfter` row (F12).
+
+**Proofs** of the changed tests (scratch copies; `plant_f23.py`,
+`plant_f67.py`). Each plant failed, and the restored code passed:
+
+| Planted | Failed |
+| :--- | :--- |
+| `Unwrap` as before F23 | `TestClassifyHTTPError_Table`: `huggingface HTTP 408: timeout is retryable and matches llmprovider: invalid request` |
+| `Unwrap` with no legacy sentinel at all | `TestClassifyHTTPError_Table`: the OpenCode 401 rows `no longer match the pre-0012 sentinel … authentication failed` |
+| the classification before F67 | `TestClassifyHTTPError_ShouldRetryTrue` and `TestAPIError_ShouldRetryIsNotInvalidRequest` |
+| `redact.Field` cutting inside a rune (`plant_field.py`) | `TestField`: `Field across a rune: 128 bytes, valid UTF-8 false; want 127 bytes, valid` |
+| `redact.Field` not stripping control characters | `TestField`: `Field(16 bytes) = "\x1b]0;owned\aSAFETY"; want "]0;ownedSAFETY"` |
+
+**The gate's first run failed** `coverage-check` and `gate-selftest`, with
+one cause: `internal/redact is 90.3%, below its 100.0% floor`. `Field` was
+tested only from the wire and `llmprovider` packages, and a package's
+floor counts its own tests. `TestField` (`field_0026_test.go`) covers it,
+the plants above prove it, and the package is at 100.0 % again. The floor
+is unchanged.
+
+**The gate, rerun,** on a scratch copy with the phase staged and committed
+there with plumbing (`p26_gate.py`); every check rc=0:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `428 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -count=1 -cover ./...`; `go test -shuffle=on ./...` | 27 packages ok, the 28th having no tests |
+| `go mod tidy -diff` | clean |
+| `make lint` (host and Windows) | 0 issues |
+| `parity-check`, `dep-check` | 0 problems |
+| `coverage-check` | 28 packages, 0 problems; `internal/redact` 100.0 %, `llmprovider` 97.7 % |
+| `api-check` | `against v1.2.1, 0 incompatible change(s)` |
+| `generate-check` | `2 generated file(s), 0 problem(s)` |
+| `records-check` | `57 records, 0 problem(s)` |
+| `gate-selftest` | OK |
+| markdownlint (the lint scope), G-wire stable, links | 0 problems; 605 relative links in 67 files |
+| identifier scan of the changed files | 0 hits in 37 files |
+
+* After the gate, this record gained its gate results and its `TestField`
+  entries. Records, links and the identifier scan were rerun on the final
+  tree: 0 problems each. The records sit outside markdownlint's scope;
+  against `HEAD` they gain only MD004 (`*` list markers, the records'
+  style) and nothing else.
+
+**Not done in this phase:**
+
+* **F12 is checked against Google's documented shape, not a real reply**
+  (D4). `TestLive_GeminiRateLimitShape` checks it whenever it is run with a
+  key that reaches its limit.
+* **A live run of the other Phase 2 changes** was not part of this phase:
+  each is covered by the unit tests above, and Phase 7's release gate runs
+  the live suites.

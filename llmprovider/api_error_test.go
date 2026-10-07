@@ -11,7 +11,8 @@ import (
 
 // TestClassifyHTTPError_Table pins MADR 0012 §1.1's classification, with the
 // rows its 2026-09-27 amendment added: sentinel, Terminal, Type, a bounded
-// Message, and the pre-0012 status sentinel still matching (MADR 0012 §7).
+// Message, and the pre-0012 status sentinel still matching a terminal error
+// (MADR 0012 §7, and its amendment of 2026-10-07).
 func TestClassifyHTTPError_Table(t *testing.T) {
 	opencode := func(errType, msg string) string {
 		return `{"type":"error","error":{"type":"` + errType + `","message":"` + msg + `"}}`
@@ -58,12 +59,20 @@ func TestClassifyHTTPError_Table(t *testing.T) {
 			if !errors.Is(err, test.want) {
 				t.Fatalf("error = %v, want %v", err, test.want)
 			}
-			if legacy := statusSentinel(test.status); !errors.Is(err, legacy) {
-				t.Errorf("error = %v no longer matches the pre-0012 sentinel %v", err, legacy)
-			}
 			var apiErr *APIError
 			if !errors.As(err, &apiErr) {
 				t.Fatalf("error %T is not an *APIError", err)
+			}
+			// A terminal error still matches its status's pre-0012 sentinel;
+			// a retryable one leaves it out, so none of these rows' retryable
+			// errors matches ErrInvalidRequest (0012-MADR amendment
+			// 2026-10-07, 0026-MADR F23).
+			legacy := statusSentinel(test.status)
+			switch {
+			case apiErr.Retryable() && errors.Is(err, ErrInvalidRequest):
+				t.Errorf("error = %v is retryable and matches %v", err, ErrInvalidRequest)
+			case !apiErr.Retryable() && !errors.Is(err, legacy):
+				t.Errorf("error = %v no longer matches the pre-0012 sentinel %v", err, legacy)
 			}
 			if apiErr.terminal != test.terminal || apiErr.Code != test.errType || apiErr.Status != test.status {
 				t.Errorf("terminal/Code/Status = %t/%q/%d, want %t/%q/%d",

@@ -50,19 +50,27 @@ func Post[T any](ctx context.Context, c Call, token llmprovider.Token, decode fu
 	var zero T
 	body, err := json.Marshal(c.Body)
 	if err != nil {
-		return zero, fmt.Errorf("llmprovider: %s: marshal request: %w", c.Provider, err)
+		// The body is built from the caller's request, which no retry
+		// changes (0026-MADR F20).
+		return zero, fmt.Errorf("%w: %s: marshal request: %w", llmprovider.ErrInvalidRequest, c.Provider, err)
 	}
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.URL, bytes.NewReader(body))
 	if err != nil {
-		return zero, err
+		return zero, fmt.Errorf("%w: %s: %w", llmprovider.ErrInvalidRequest, c.Provider, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	c.Prepare(req, token)
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
+		// A request no retry can send, such as a token with a newline, is an
+		// invalid request; a failure to reach the service keeps its own
+		// error, which WithRetry retries (0026-MADR F11).
+		if transport.Unsendable(err) {
+			return zero, fmt.Errorf("%w: %s: %w", llmprovider.ErrInvalidRequest, c.Provider, err)
+		}
 		return zero, err
 	}
 	defer func() {
@@ -70,15 +78,22 @@ func Post[T any](ctx context.Context, c Call, token llmprovider.Token, decode fu
 			c.Logger.Debug("llmprovider: "+c.Provider+": close response body", "error", err)
 		}
 	}()
-	if err := llmprovider.ClassifyHTTPError(c.Provider, resp); err != nil {
-		return zero, err
-	}
 	var limit int64 = ReplyLimit
 	if c.Stream {
 		limit = 0
 	}
+	// The idle limit covers an error reply's body too: without a total
+	// timeout on the client, a body that stalls after its headers would
+	// otherwise hold the call until the caller's deadline (0026-MADR F4).
 	reader := transport.NewReplyReader(ctx, cancel, resp.Body, limit, idleTimeout)
 	defer reader.Stop()
+	resp.Body = struct {
+		io.Reader
+		io.Closer
+	}{reader, resp.Body}
+	if err := llmprovider.ClassifyHTTPError(c.Provider, resp); err != nil {
+		return zero, err
+	}
 	out, err := decode(reader)
 	return out, DecodeError(c.Provider, err, reader.ReadErr())
 }

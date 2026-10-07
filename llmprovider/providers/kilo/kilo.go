@@ -232,7 +232,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 				r.Header.Set(headerOrganization, org)
 			}
 		},
-	}, token, chatcompletions.Decode)
+	}, token, chatcompletions.DecodeFor(string(llmprovider.ProviderKilo)))
 }
 
 // body is the Chat Completions request for req.

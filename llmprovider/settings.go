@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -204,7 +205,47 @@ func (s *settings) finish() error {
 	if s.cfg.MaxTokens <= 0 {
 		return fmt.Errorf("%w: WithMaxTokens(%d): the output limit must be positive", ErrInvalidRequest, s.cfg.MaxTokens)
 	}
+	return s.sendable()
+}
+
+// sendable refuses a value no request could carry, so it fails here, with
+// ErrInvalidRequest (R23), rather than when it is sent (0026-MADR F11, F19):
+// a base URL without a scheme and host, or that does not parse; a control
+// character in a static key, the client info or the session id; and a
+// reasoning setting a request would refuse.
+func (s *settings) sendable() error {
+	if base := s.cfg.BaseURL; base != "" {
+		u, err := url.Parse(base)
+		switch {
+		case err != nil:
+			return fmt.Errorf("%w: WithBaseURL: %w", ErrInvalidRequest, err)
+		case u.Scheme == "" || u.Host == "":
+			return fmt.Errorf("%w: WithBaseURL(%q): a base URL needs a scheme and a host, such as http://localhost:11434",
+				ErrInvalidRequest, base)
+		}
+	}
+	if st, ok := s.tokens.(*StaticToken); ok && hasControl(st.Value) {
+		return fmt.Errorf("%w: the API key holds a control character, such as a pasted newline", ErrInvalidRequest)
+	}
+	for _, f := range [...]struct{ name, value string }{
+		{"WithClientInfo name", s.cfg.ClientName},
+		{"WithClientInfo version", s.cfg.ClientVersion},
+		{"WithSessionID", s.cfg.SessionID},
+	} {
+		if hasControl(f.value) {
+			return fmt.Errorf("%w: %s holds a control character", ErrInvalidRequest, f.name)
+		}
+	}
+	if err := s.reasoning.check(); err != nil {
+		return fmt.Errorf("WithReasoning: %w", err)
+	}
 	return nil
+}
+
+// hasControl reports whether s holds an ASCII control character, which no
+// HTTP header or URL may carry.
+func hasControl(s string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }
 
 // take applies one option that is not a For, refusing one scoped to another

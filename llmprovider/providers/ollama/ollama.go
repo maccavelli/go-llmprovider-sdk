@@ -151,7 +151,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 				token.Apply(r, "", "")
 			}
 		},
-	}, token, chatcompletions.Decode)
+	}, token, chatcompletions.DecodeFor(string(llmprovider.ProviderOllama)))
 }
 
 // body is the Chat Completions request for req.
