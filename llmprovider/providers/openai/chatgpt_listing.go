@@ -3,8 +3,8 @@ package openai
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -86,14 +86,28 @@ func (p *provider) listChatGPT(ctx context.Context, token llmprovider.Token) ([]
 		return nil, fmt.Errorf("model listing: %w", err)
 	}
 
+	// The catalog's listing cap, and a kind for a reply that cannot be used
+	// (0021-MADR C3; 0026-MADR F34).
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, chatGPTListingLimit+1))
+	if err != nil {
+		return nil, fmt.Errorf("%w: model listing: read chatgpt catalog: %w", llmprovider.ErrIncomplete, err)
+	}
+	if len(raw) > chatGPTListingLimit {
+		return nil, fmt.Errorf("%w: model listing: the chatgpt catalog is larger than %d MiB", llmprovider.ErrIncomplete,
+			chatGPTListingLimit>>20)
+	}
 	var payload struct {
 		Models []chatGPTCatalogModel `json:"models"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, fmt.Errorf("model listing: decode chatgpt catalog: %w", err)
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("%w: model listing: decode chatgpt catalog: %w", llmprovider.ErrIncomplete, err)
 	}
 	return rankChatGPTModels(payload.Models)
 }
+
+// chatGPTListingLimit bounds the ChatGPT listing, as catalog bounds one
+// listing page (0021-MADR C3).
+const chatGPTListingLimit = 8 << 20
 
 // rankChatGPTModels keeps the listed models, by priority then listing order,
 // once each.
@@ -125,7 +139,7 @@ func rankChatGPTModels(models []chatGPTCatalogModel) ([]string, error) {
 		out = append(out, model.slug)
 	}
 	if len(out) == 0 {
-		return nil, errors.New("model listing: chatgpt catalog listed no models")
+		return nil, fmt.Errorf("%w: model listing: chatgpt catalog listed no models", llmprovider.ErrIncomplete)
 	}
 	return out, nil
 }

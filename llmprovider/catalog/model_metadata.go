@@ -149,6 +149,23 @@ func LookupMetadata(ctx context.Context, url string, client *http.Client) (Metad
 	return Metadata{doc: doc}, err
 }
 
+// LookupMetadataWith is LookupMetadata for the provider id, with its options:
+// the document is WithModelMetadataURL's, fetched through WithHTTPClient's
+// client, and the request names the caller's WithClientInfo application and
+// WithSessionID session, as the provider's own requests do (0026-MADR F33).
+// An option LookupMetadata has no use for is ignored; one scoped to another
+// provider is refused, as List refuses it.
+func LookupMetadataWith(ctx context.Context, id llmprovider.ProviderID, opts ...llmprovider.Option) (Metadata, error) {
+	cfg, err := configFor(id, opts)
+	if err != nil {
+		return Metadata{}, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, metadataLookupTimeout)
+	defer cancel()
+	doc, err := loadModelMetadata(ctx, cfg)
+	return Metadata{doc: doc}, err
+}
+
 // ReasoningEfforts returns the effort values the document lists for a
 // model's reasoning_options, or nil.
 func (m Metadata) ReasoningEfforts(provider llmprovider.ProviderID, model string) []string {

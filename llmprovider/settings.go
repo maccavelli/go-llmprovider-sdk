@@ -73,10 +73,13 @@ type settings struct {
 	logger    *slog.Logger
 	reasoning *Reasoning
 	values    []any
+	// clientGiven reports that WithHTTPClient gave a client; finish sets
+	// it before it fills in the default (0026-MADR F37).
+	clientGiven bool
 }
 
 func newSettings() settings {
-	return settings{cfg: providerConfig{HTTPClient: transport.DefaultClient(), MaxTokens: 8192}}
+	return settings{cfg: providerConfig{MaxTokens: 8192}}
 }
 
 // commonOption is a common option that sets the providerConfig.
@@ -198,6 +201,7 @@ func ResolveOptions(id ProviderID, opts []Option) (*Settings, error) {
 // every provider and listing (F30), and the output limit must be positive
 // (F29, R23).
 func (s *settings) finish() error {
+	s.clientGiven = s.cfg.HTTPClient != nil
 	if s.cfg.HTTPClient == nil {
 		s.cfg.HTTPClient = transport.DefaultClient()
 	}
@@ -273,6 +277,11 @@ func (st *Settings) TokenSource() TokenSource { return st.s.tokens }
 // default client.
 func (st *Settings) HTTPClient() *http.Client { return st.s.cfg.HTTPClient }
 
+// HTTPClientGiven reports whether WithHTTPClient gave a client, rather than
+// HTTPClient being the default. A provider shares only a given client with a
+// credential that outlives it, such as an OAuth session (0026-MADR F37).
+func (st *Settings) HTTPClientGiven() bool { return st.s.clientGiven }
+
 // BaseURL is the endpoint from WithBaseURL, or empty for the provider's own.
 func (st *Settings) BaseURL() string { return st.s.cfg.BaseURL }
 
@@ -286,6 +295,10 @@ func (st *Settings) Logger() *slog.Logger {
 	}
 	return st.s.logger
 }
+
+// LoggerGiven reports whether WithLogger gave a logger, rather than Logger
+// being one that discards everything (0026-MADR F37).
+func (st *Settings) LoggerGiven() bool { return st.s.logger != nil }
 
 // Reasoning is a copy of the reasoning from WithReasoning, or nil.
 func (st *Settings) Reasoning() *Reasoning {

@@ -444,24 +444,45 @@ func (s *OAuthSession) refreshState() oauthSessionState {
 	}
 }
 
-// UseHTTPClient gives the session client, when it has none, so its refreshes
-// use the same transport as the provider's requests and listing (0016-MADR
-// D8). A session that has a client keeps it; a nil client changes nothing.
+// UseHTTPClient gives the session a caller's client, so its refreshes use the
+// same transport as the provider's requests and listing (0016-MADR D8). It
+// replaces a provider's default (UseDefaultHTTPClient), but never another
+// caller's client, nor one set on the HTTPClient field; a nil client changes
+// nothing. The built-in providers call it with a WithHTTPClient client, so a
+// session shared by several providers takes the first caller's client,
+// whichever provider was built first (0026-MADR F37).
 func (s *OAuthSession) UseHTTPClient(client *http.Client) {
 	if client == nil {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.HTTPClient == nil || s.clientDefault {
+		s.HTTPClient, s.clientDefault = client, false
+	}
+}
+
+// UseDefaultHTTPClient gives the session a provider's default client, when it
+// has none, so that a provider built without WithHTTPClient refreshes the
+// session through its own client (0016-MADR D8). The client is marked a
+// default: a caller's, given later through UseHTTPClient, replaces it
+// (0026-MADR F37). A nil client changes nothing.
+func (s *OAuthSession) UseDefaultHTTPClient(client *http.Client) {
+	if client == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.HTTPClient == nil {
-		s.HTTPClient = client
+		s.HTTPClient, s.clientDefault = client, true
 	}
 }
 
 // UseLogger gives the session logger, when it has none, so a rotated session
 // that could not be saved is reported through the provider's WithLogger
 // logger (0016-MADR D4; 0020-MADR F48). A session that has a logger keeps it;
-// a nil logger changes nothing.
+// a nil logger changes nothing. The built-in providers call it only with a
+// caller's WithLogger logger, never their discarding default (0026-MADR F37).
 func (s *OAuthSession) UseLogger(logger *slog.Logger) {
 	if logger == nil {
 		return

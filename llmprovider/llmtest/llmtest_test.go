@@ -417,6 +417,25 @@ func (c canned) Generate(context.Context, *llmprovider.Request) (*llmprovider.Re
 	return c.gen()
 }
 
+// TestRun_AuthFailureIsTheServicesRefusal (0026-MADR F6): with AuthFailure
+// set, the R16 check refuses the key with the service's own reply. The
+// reference provider renews only after a 401, so a 400 refusal fails it.
+func TestRun_AuthFailureIsTheServicesRefusal(t *testing.T) {
+	h := refHarness(flaws{})
+	h.AuthFailure = func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"error":"API_KEY_INVALID"}`)
+	}
+	rec := newRecorder()
+	runChecks(rec, h)
+	for _, msg := range rec.failures() {
+		if strings.HasPrefix(msg, "R16-reauth: R16 (a refused token is renewed once") {
+			return
+		}
+	}
+	t.Fatalf("failures %q; want R16 to fail on a 400 refusal the provider does not renew", rec.failures())
+}
+
 // TestRun_NoReauthSkipsTheCheck (0020-MADR F2): a Harness that says why the
 // reauth check does not apply is not held to it.
 func TestRun_NoReauthSkipsTheCheck(t *testing.T) {

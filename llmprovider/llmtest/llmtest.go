@@ -39,6 +39,10 @@ type Harness struct {
 	// Model, when set, is the model the Text reply names: the Response must
 	// report it (R7; 0020-MADR F11).
 	Model string
+	// AuthFailure, when set, writes the service's own refusal of a key, its
+	// status and body, for the R16 reauth check: Gemini's is HTTP 400
+	// API_KEY_INVALID. Nil is Error with status 401 (0026-MADR F6).
+	AuthFailure func(w http.ResponseWriter, r *http.Request)
 	// NoReauth, when set, says why the R16 reauth check does not apply: for
 	// example, the credential New is given decides the provider's mode, so
 	// the check's own token source would build a different provider. Empty
@@ -596,9 +600,13 @@ func checkReauth(r reporter, h Harness) {
 		return
 	}
 	src := &renewableToken{}
+	refuse := h.AuthFailure
+	if refuse == nil {
+		refuse = func(w http.ResponseWriter, req *http.Request) { h.Error(w, req, http.StatusUnauthorized) }
+	}
 	fs := serve(func(w http.ResponseWriter, req *http.Request) {
 		if carries(req, reauthRefused) {
-			h.Error(w, req, http.StatusUnauthorized)
+			refuse(w, req)
 			return
 		}
 		h.Text(w, req)
@@ -610,7 +618,8 @@ func checkReauth(r reporter, h Harness) {
 	}
 	_, err := generate(r, p, textRequest())
 	if err != nil || src.invalidations() != 1 || fs.count.Load() != 2 {
-		r.Errorf("R16 (a refused token is renewed once; 0017-MADR D3): after a 401, %d invalidation(s) and %d request(s), error %v; "+
+		r.Errorf("R16 (a refused token is renewed once; 0017-MADR D3; 0026-MADR F6): after the service refused the key, "+
+			"%d invalidation(s) and %d request(s), error %v; "+
 			"want the source invalidated once and the request sent once more, with the fresh token",
 			src.invalidations(), fs.count.Load(), err)
 	}

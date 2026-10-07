@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -81,8 +82,11 @@ type Catalog struct {
 //
 // opts are llmprovider's common options, with WithProfile and
 // WithKiloOrganization. A failed listing degrades to the static catalog with a
-// nil error and Live false; only Ollama, an unknown provider, a missing
-// source, a token failure or a refused option return an error.
+// nil error and Live false, and its classified failure in Catalog.Err; only
+// Ollama, an unknown provider, a missing source, a token failure or a refused
+// option return an error. A listing refused for its credential renews src
+// once, when src is an llmprovider.InvalidatingSource, and lists again
+// (0026-MADR F36).
 func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, opts ...llmprovider.Option) (Catalog, error) {
 	// The id first: an option scoped to the built-in ids would otherwise
 	// refuse an unknown one with ErrInvalidRequest (0015-PLAN S12b).
@@ -105,7 +109,39 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 	if err != nil {
 		return Catalog{}, fmt.Errorf("model listing: acquire token: %w", err)
 	}
+	cat, err := modelCatalogFor(ctx, id, token, cfg)
+	// A refused credential is renewed once, as Generate renews it
+	// (0026-MADR F36): a listing that still fails keeps the degrade-to-static
+	// contract.
+	source, ok := src.(llmprovider.InvalidatingSource)
+	if !ok || !credentialRefused(cmp.Or(err, cat.Err)) {
+		return cat, err
+	}
+	if invalidator, ok := src.(llmprovider.TokenInvalidator); ok {
+		invalidator.InvalidateToken(token)
+	} else {
+		source.Invalidate()
+	}
+	if token, err = src.Token(ctx); err != nil {
+		return Catalog{}, fmt.Errorf("model listing: acquire token: %w", err)
+	}
 	return modelCatalogFor(ctx, id, token, cfg)
+}
+
+// credentialRefused reports whether a listing's failure says its credential
+// was refused, by internal/wire's Reauth rule: an *APIError whose kind is
+// ErrAuthFailure, whatever its status, or a 401 with no kind (0026-MADR F6,
+// F36).
+func credentialRefused(err error) bool {
+	apiErr, ok := errors.AsType[*llmprovider.APIError](err)
+	switch {
+	case !ok:
+		return false
+	case apiErr.Kind == nil:
+		return apiErr.Status == http.StatusUnauthorized
+	default:
+		return apiErr.Kind == llmprovider.ErrAuthFailure //nolint:errorlint // the kind itself, not what it wraps
+	}
 }
 
 // catalogFrom applies the degrade-to-static contract every lister except
@@ -261,7 +297,7 @@ func fetchGeminiPage(ctx context.Context, endpoint string, token llmprovider.Tok
 	defer cfg.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
-		return result, fmt.Errorf("gemini: models endpoint returned HTTP %d", resp.StatusCode)
+		return result, llmprovider.ClassifyHTTPError(string(llmprovider.ProviderGemini), resp)
 	}
 	err = decodeLimited(resp.Body, listingPageLimit, &result, "gemini: models")
 	return result, err
@@ -355,7 +391,7 @@ func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Tok
 
 	if resp.StatusCode != http.StatusOK {
 		// Older keys / regional proxies may not support Models API.
-		return result, fmt.Errorf("claude: models endpoint returned HTTP %d", resp.StatusCode)
+		return result, llmprovider.ClassifyHTTPError(string(llmprovider.ProviderClaude), resp)
 	}
 	err = decodeLimited(resp.Body, listingPageLimit, &result, "claude: models")
 	return result, err
@@ -398,12 +434,14 @@ func fetchOllamaNames(ctx context.Context, token llmprovider.Token, cfg config) 
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("could not reach Ollama at %s: %w", baseURL, err)
+		// An unreachable server is unavailable, as any send failure is
+		// (0026-MADR F35).
+		return nil, fmt.Errorf("%w: could not reach Ollama at %s: %w", llmprovider.ErrProviderUnavailable, baseURL, err)
 	}
 	defer cfg.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ollama returned HTTP %d", resp.StatusCode)
+		return nil, llmprovider.ClassifyHTTPError(string(llmprovider.ProviderOllama), resp)
 	}
 
 	var result struct {
@@ -503,7 +541,7 @@ func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg confi
 	defer cfg.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s: models endpoint returned HTTP %d", provider, resp.StatusCode)
+		return nil, llmprovider.ClassifyHTTPError(string(provider), resp)
 	}
 
 	var result struct {
@@ -611,7 +649,7 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 	defer cfg.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("huggingface: models endpoint returned HTTP %d", resp.StatusCode)
+		return nil, llmprovider.ClassifyHTTPError(string(llmprovider.ProviderHuggingFace), resp)
 	}
 
 	var result struct {
@@ -707,7 +745,7 @@ func fetchTogetherUsable(ctx context.Context, token llmprovider.Token, cfg confi
 	}
 	defer cfg.closeBody(resp)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("together: models endpoint returned HTTP %d", resp.StatusCode)
+		return nil, llmprovider.ClassifyHTTPError(string(llmprovider.ProviderTogether), resp)
 	}
 
 	var models []struct {
@@ -798,7 +836,7 @@ func fetchKiloCatalog(ctx context.Context, token llmprovider.Token, cfg config) 
 	}
 	defer cfg.closeBody(resp)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("kilo: models endpoint returned HTTP %d", resp.StatusCode)
+		return nil, llmprovider.ClassifyHTTPError(string(llmprovider.ProviderKilo), resp)
 	}
 	var result struct {
 		Data []kiloCatalogEntry `json:"data"`

@@ -58,9 +58,17 @@ func TestListModels_ChatGPT401RefreshesOnce(t *testing.T) {
 }
 
 // TestListModels_ChatGPTFailureIsAnAPIError (0020-MADR F38): a listing that
-// is not 200 is classified like any other answer.
+// is not 200 is classified like any other answer. A 403 is ErrAuthFailure on
+// OpenAI, so the session is refreshed once and the listing sent once more
+// before the error is returned (0026-MADR F6).
 func TestListModels_ChatGPTFailureIsAnAPIError(t *testing.T) {
+	var listCalls, refreshCalls int
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host == "auth.test" {
+			refreshCalls++
+			return httpResponse(r, http.StatusOK, `{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600}`), nil
+		}
+		listCalls++
 		return httpResponse(r, http.StatusForbidden, `{"detail":"not allowed"}`), nil
 	})}
 	p := sessionProvider(t, chatGPTListingSession(client), "gpt-6-astra", llmprovider.WithHTTPClient(client))
@@ -68,5 +76,8 @@ func TestListModels_ChatGPTFailureIsAnAPIError(t *testing.T) {
 	apiErr, ok := errors.AsType[*llmprovider.APIError](err)
 	if !ok || apiErr.Status != http.StatusForbidden {
 		t.Errorf("ListModels = %v, want an *APIError with status 403", err)
+	}
+	if listCalls != 2 || refreshCalls != 1 {
+		t.Errorf("listing/refresh calls = %d/%d, want 2/1", listCalls, refreshCalls)
 	}
 }

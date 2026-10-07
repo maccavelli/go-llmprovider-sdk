@@ -263,7 +263,8 @@ func TestConfigureLLM_StaticCatalogNotice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
-	notice := "live model listing for OpenCode Zen is unavailable (opencode: models endpoint returned HTTP 500); " +
+	// The cause is the listing's classified error (0026-MADR F36).
+	notice := "live model listing for OpenCode Zen is unavailable (llmprovider: provider unavailable: opencode HTTP 500); " +
 		"search covers the built-in catalog only"
 	if n := countContaining(f.seenNotify, notice); n != 1 {
 		t.Errorf("static notice seen %d times, want 1: %v", n, f.seenNotify)

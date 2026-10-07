@@ -18,8 +18,8 @@
 // llmprovider.Stream emits Generate's result.
 //
 // Degradations:
-//   - No tool choice is sent: a named tool, ToolChoiceRequired and
-//     ToolChoiceNone all offer the tools unforced.
+//   - No tool choice is sent: a named tool and ToolChoiceRequired offer the
+//     tools unforced, and ToolChoiceNone sends no tools (0020-MADR F40).
 //   - Reasoning takes an effort, sent as reasoning_effort (medium with none).
 //     Ollama's levels top out at "max", so EffortXHigh is sent as "max". A
 //     Budget is not sent.

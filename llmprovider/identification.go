@@ -19,8 +19,9 @@ func WithClientInfo(name, version string) Option {
 	})
 }
 
-// WithSessionID sets the conversation id sent as x-opencode-session and Kilo's
-// task id. Empty keeps a random id, fixed for the provider's lifetime.
+// WithSessionID sets the conversation id sent as x-opencode-session, Kilo's
+// task id, and the ChatGPT backend's session-id. Empty keeps a random id,
+// fixed for the provider's lifetime.
 func WithSessionID(id string) Option {
 	return commonOption("WithSessionID", func(c *providerConfig) {
 		c.SessionID = id

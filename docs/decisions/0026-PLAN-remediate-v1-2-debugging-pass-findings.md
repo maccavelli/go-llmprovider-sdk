@@ -794,3 +794,135 @@ with plumbing (`p26_gate.py`); every check rc=0:
 * **A live run of the other Phase 3 changes** was not part of this phase.
   Each is covered by the unit and conformance tests above; Phase 7's
   release gate runs the live suites.
+
+### Deviation D8 (2026-10-07): F37 adds two `Settings` methods
+
+* **Found** while fixing F37. Its fix has `New` pass the client and logger
+  to a shared session "only when the caller gave them", and no provider can
+  tell. `Settings.HTTPClient()` returns `transport.DefaultClient()`'s
+  client as it returns a caller's, and that function makes a fresh client
+  on each call. `Settings.Logger()` returns a new discard logger. F37's row
+  names `providers/openai`, `providers/grok` and `auth/oauth_session.go`
+  only.
+* **Options put to the owner:**
+  1. `llmprovider.Settings` reports whether `WithHTTPClient` and
+     `WithLogger` were given;
+  2. `internal/transport` remembers the default clients it makes, and the
+     logger is compared with `slog.DiscardHandler`;
+  3. record F37 as accepted, and document that the first provider fixes a
+     session's client and logger.
+* **Decision.** The owner chose option 1 ("go with option a").
+  `(*Settings).HTTPClientGiven` and `(*Settings).LoggerGiven` are added;
+  OpenAI and Grok give a session the client and logger only when they
+  report true. F37's files gain `llmprovider/settings.go`. The MADR gains
+  an amendment, since the change adds to the exported API.
+* **Revisited, the same day.** Built that way, the pre-existing
+  `TestProviderClient_SharedWithListingAndRefresh` (0016-PLAN T1 step 3)
+  failed in OpenAI and Grok: `POST /oauth/token did not go through the
+  provider's client (it carried [POST /responses GET /models])`. 0016-MADR
+  D8 has a provider built without `WithHTTPClient` refresh its session
+  through its own default client, and a provider that passes no default
+  breaks that.
+  * **Options put to the owner:** a default client passed as a default,
+    which a caller's replaces; amend 0016 D8; record F37's client half as
+    accepted.
+  * **Decision.** The owner chose the first ("option 1"). The provider
+    gives a session its default client with a new
+    `(*auth.OAuthSession).UseDefaultHTTPClient`, which sets it only when the
+    session has none, and marks it a default. `UseHTTPClient`, called with a
+    caller's client, replaces a default, never another caller's. A client
+    set on the session's field by the caller counts as the caller's. The
+    logger keeps the rule above: a discarding default is never shared.
+    F37's files gain nothing more.
+
+### Phase 4: provider wiring (2026-10-07)
+
+* **Before it.** Phase 3 was committed as `8a428de` and pushed on the
+  owner's word ("commit it to main, then push"). Its CI run, 37642295233,
+  passed on Ubuntu, Windows and macOS.
+* **Approval.** "proceed", 2026-10-07, with D8 ("option a", then "option
+  1") chosen on the way.
+* **Red first.** Each test below was written first, and its FAIL is from
+  the unchanged code (`p26_phase4_red.out`). For `UseDefaultHTTPClient`,
+  the method was first added with `UseHTTPClient`'s behaviour, so the test
+  compiled and failed on behaviour.
+
+| ID | Test | FAIL before the fix | Fix |
+| :--- | :--- | :--- | :--- |
+| F6 | `TestReauth_RerunsOnAuthFailureKind`; `llmtest`'s R16 check with `Harness.AuthFailure`, which Gemini's harness sets to its 400 `API_KEY_INVALID`; `TestRun_AuthFailureIsTheServicesRefusal` | `gemini 400 API_KEY_INVALID` and `403 auth failure`: `sends = 1, invalidations = 0; want 2 and 1`; `401 quota exhausted`: `sends = 2, invalidations = 1; want 1 and 0` | Q3 (a): `credentialRefused` reruns on an `*APIError` whose `Kind` is `ErrAuthFailure`, compared, not matched, whatever its status; one with no kind, on a 401. A 401 of kind `ErrQuotaExhausted`, such as OpenCode's `CreditsError`, is no longer rerun: a new key does not restore credits. |
+| F36 | `TestList_RerunsCredentialOn401` (renewed; still refused; a static key) | `Live=false requests=1 invalidations=0 Err=together: models endpoint returned HTTP 401` | `List` reruns once by the same rule, when the source can be invalidated; a listing still refused degrades to the static catalog, with the refusal in `Catalog.Err`. Every lister's non-200 reply is now `ClassifyHTTPError`'s, so the rule can see it. `catalog` keeps its own copy of the rule, since it does not import `internal/wire`. |
+| F37 | `TestSession_LaterProviderOptionsApply` (OpenAI, and Grok's twin); `TestOAuthSession_CallersClientReplacesDefault` | `client is the caller's false, logger false; want both`; `a caller's client did not replace the provider's default` | D8: `Settings.HTTPClientGiven` and `LoggerGiven`. A provider gives a session a caller's client through `UseHTTPClient`, and its default through `UseDefaultHTTPClient`, which a caller's replaces; only a caller's logger is shared. 0016-PLAN T1's shared-client test passes in both providers. |
+| F33 | `TestOpencode_MetadataLookupUsesClientInfo` | `metadata User-Agent = "go-llmprovider-sdk/(devel) (darwin; arm64) go-llmprovider-sdk/(devel)"` | `catalog.LookupMetadataWith(ctx, id, opts...)`, additive; OpenCode passes its listing options, which carry the caller's. The unused `metadataURL` field is removed. |
+| F34 | `TestChatGPTListing_BoundedAndKinded` | `40 MiB: … listed no models`, a 40 MiB body decoded; `undecodable: … unexpected EOF` with no kind; `lists nothing: …` with no kind | The listing is read under `chatGPTListingLimit`, catalog's 8 MiB (0021 C3); an oversized, undecodable or empty listing is `ErrIncomplete`. |
+| F35 | `TestOllama_ListModelsKinds` | `503: ollama returned HTTP 503`; `401: ollama returned HTTP 401`; `unreachable: could not reach Ollama …`, none with a kind | Ollama's listing is classified by `ClassifyHTTPError`; an unreachable server is `ErrProviderUnavailable`. |
+| F38 | `TestLive_GeminiFlashLiteEffortThinks` (live); `TestGemini_Capabilities` | `Capabilities = {… Reasoning:Supported …}` | Measured below. Gemini's Reasoning is `BestEffort`, with the degradation in the package doc (R12). |
+| F39 | none, documentation | Read against the code and 0021 L2. | Ollama's and Kilo's `ToolChoiceNone` sends no tools (0020 F40); Grok's instructions were measured in both forms (0021 L2's amendment); `WithSessionID` names the ChatGPT backend's `session-id`. |
+
+* **F38, measured** twice, with `GEMINI_API_KEY`, through the provider:
+
+  | Run | low | medium | high |
+  | :--- | :--- | :--- | :--- |
+  | 1 | 0 reasoning tokens, no summary | 0, no summary | 1350, a summary |
+  | 2 | 0, no summary | 0, no summary | 910, a summary |
+
+  At low and medium, `thinkingLevel` sends nothing for this model (it
+  refuses medium and fails on low), and the model does not think. The
+  PLAN's second fix, a thinking budget, is not open: the Interactions API
+  has none (the package doc; MADR 0014). So Reasoning is `BestEffort`, as
+  0020 F43 made Grok's.
+* **Tests changed, not new:**
+  * `TestListModels_ChatGPTFailureIsAnAPIError`: its fixture answered every
+    request 403, the refresh included. A 403 is `ErrAuthFailure` on OpenAI,
+    so F6 refreshes once. The fixture now answers the refresh, and the test
+    also checks one refresh and two listings.
+  * `wizard`'s `TestConfigureLLM_StaticCatalogNotice`: the notice's cause
+    is the classified error, `llmprovider: provider unavailable: opencode
+    HTTP 500`. It is still shown once.
+  * `TestGemini_Capabilities` wants `BestEffort` (F38).
+* **Docs.**
+  * `docs/architecture.md`: "Sessions are `auth`'s" covers the default and
+    caller's clients; the catalog row gains `LookupMetadataWith`.
+  * Doc comments: `List`, `Reauth`, `UseHTTPClient`,
+    `UseDefaultHTTPClient`, `UseLogger`, the new `Settings` methods,
+    Gemini's package doc, and F39's four.
+
+**Proofs** (scratch copies):
+
+| Planted | Failed |
+| :--- | :--- |
+| `Reauth` back to 401 only (`plant_f6.py`) | Gemini's `R16-reauth`, stored and unstored: `0 invalidation(s) and 1 request(s)`; three `TestReauth_RerunsOnAuthFailureKind` cases |
+| `List` without its rerun (`plant_f36.py`) | `TestList_RerunsCredentialOn401`, both cases: `requests=1 invalidations=0` |
+| the default client passed as a caller's (`plant_f37.py`) | `TestSession_LaterProviderOptionsApply` in OpenAI and Grok: `client is the caller's false` |
+| the reference provider renewing only after a 401, against a 400 refusal | `TestRun_AuthFailureIsTheServicesRefusal`'s own assertion, in the tree |
+
+The first `List` plant, the 401-only rule, passed, since F36's test sends a
+401; the second removes the rerun.
+
+**The gate,** on a scratch copy with the phase staged and committed there
+with plumbing (`p26_gate.py`); every check rc=0:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `447 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -count=1 -cover ./...`; `go test -shuffle=on ./...` | 27 packages ok, the 28th having no tests |
+| `go mod tidy -diff` | clean |
+| `make lint` (host and Windows) | 0 issues |
+| `parity-check`, `dep-check` | 0 problems |
+| `coverage-check` | 28 packages, 0 problems; `llmprovider` 98.2 %, `auth` 87.4 %, `catalog` 92.1 %, `internal/wire` 96.1 %, `llmtest` 95.9 % |
+| `api-check` | `against v1.2.1, 0 incompatible change(s)`; the additions are `Settings.HTTPClientGiven`, `Settings.LoggerGiven`, `OAuthSession.UseDefaultHTTPClient`, `catalog.LookupMetadataWith` and `llmtest.Harness.AuthFailure` |
+| `generate-check` | `2 generated file(s), 0 problem(s)` |
+| `records-check` | `57 records, 0 problem(s)` |
+| `gate-selftest` | OK |
+| markdownlint (the lint scope), G-wire stable, links | 0 problems; 605 relative links in 67 files |
+| identifier scan of the changed files | 0 hits in 32 files |
+
+**Not done in this phase:** a live run of the changes other than F38's
+measurement. Each is covered by the unit and conformance tests above;
+Phase 7's release gate runs the live suites.
+
+**Found, and outside this phase (not done):** `docs/guides/api-standards.md`
+R2's package table lists `internal/wire`'s imports as `llmprovider` alone,
+and `catalog`'s as including `internal/transport`; the code differs, as it
+did before this phase. The guide is normative and changes only through its
+decision, so it is left for Phase 6's docs work.

@@ -169,8 +169,13 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if base := st.BaseURL(); base != "" {
 		p.baseURL = base
 	}
-	shareHTTPClient(src, p.client)
-	shareLogger(src, st.Logger())
+	// A session outlives this provider, and may serve another: a caller's
+	// client replaces a provider's default there, never another caller's,
+	// and the discarding default logger is not shared (0026-MADR F37).
+	shareHTTPClient(src, p.client, st.HTTPClientGiven())
+	if st.LoggerGiven() {
+		shareLogger(src, st.Logger())
+	}
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(p.session), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil
@@ -369,13 +374,21 @@ func residency(accessToken string) string {
 // *auth.OAuthSession.
 type clientUser interface {
 	UseHTTPClient(*http.Client)
+	UseDefaultHTTPClient(*http.Client)
 }
 
-// shareHTTPClient gives src the provider's client, when src takes one and has
-// none (0016-MADR D8).
-func shareHTTPClient(src llmprovider.TokenSource, client *http.Client) {
-	if user, ok := src.(clientUser); ok {
+// shareHTTPClient gives src the provider's client, when src takes one: a
+// caller's (given) through UseHTTPClient, the provider's default through
+// UseDefaultHTTPClient, so a later caller's client replaces it (0016-MADR
+// D8; 0026-MADR F37).
+func shareHTTPClient(src llmprovider.TokenSource, client *http.Client, given bool) {
+	user, ok := src.(clientUser)
+	switch {
+	case !ok:
+	case given:
 		user.UseHTTPClient(client)
+	default:
+		user.UseDefaultHTTPClient(client)
 	}
 }
 

@@ -7,7 +7,8 @@
 // Gemini subscriptions (0016-MADR D10). The key goes in x-goog-api-key, or the
 // token's own Header (R16), never in the URL.
 //
-// Capabilities: tools, forced tool choice and reasoning are Supported.
+// Capabilities: tools and forced tool choice are Supported. Reasoning is
+// BestEffort: one listed model does not think at every effort (below).
 // Continuation is Supported only with WithStore(true): Gemini chains only from
 // a stored interaction, and nothing is stored by default (MADR 0014 §2).
 // There is no native streaming; llmprovider.Stream emits Generate's result.
@@ -16,7 +17,9 @@
 //   - Reasoning takes an effort, sent as thinking_level: low, medium or high,
 //     with EffortXHigh sent as high. The Interactions API has no thinking
 //     budget, so Reasoning.Budget is not sent. gemini-2.5-flash-lite takes
-//     only high; another effort is omitted there, leaving the model's default.
+//     only high; another effort is omitted there, leaving the model's default,
+//     which is not to think: at low and medium it gave no reasoning tokens,
+//     measured on 2026-10-07 (0026-MADR F38).
 //   - ToolChoiceNone is sent as tool_choice "none", from the API reference;
 //     only "any" and allowed_tools were measured (MADR 0014).
 //
@@ -106,9 +109,11 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.Supported,
-			Reasoning:        llmprovider.Supported,
-			Continuation:     llmprovider.Unsupported,
-			NativeStreaming:  llmprovider.Unsupported,
+			// gemini-2.5-flash-lite does not think at low or medium effort,
+			// and the Interactions API takes no budget (0026-MADR F38).
+			Reasoning:       llmprovider.BestEffort,
+			Continuation:    llmprovider.Unsupported,
+			NativeStreaming: llmprovider.Unsupported,
 		},
 	}
 	for _, v := range st.Values() {

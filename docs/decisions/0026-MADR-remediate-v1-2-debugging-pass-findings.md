@@ -817,3 +817,26 @@ Made by the 0026 PLAN's deviation D6, chosen by the owner ("D1: A").
   function paired by name and position.
 * **Not measured:** OpenCode's proxy. If a later run through Zen differs,
   that is a new finding.
+
+## Amendment 2026-10-07: F37 adds `HTTPClientGiven` and `LoggerGiven`
+
+Made by the 0026 PLAN's deviation D8, chosen by the owner ("go with option
+a").
+
+* **Adds to the exported API:** `(*llmprovider.Settings).HTTPClientGiven()`
+  and `(*llmprovider.Settings).LoggerGiven()`. Each reports whether the
+  option was given, `WithHTTPClient` with a non-nil client, or `WithLogger`
+  with a non-nil logger.
+* **Why:** F37's fix gives a shared session the caller's client and
+  logger, never a provider's default. A provider could not tell the two
+  apart: `HTTPClient()` and `Logger()` return a default the same way they
+  return a caller's value.
+* **Compatibility:** additions only, which R48's `apidiff` check allows; no
+  existing method changes.
+* **Revised the same day** (the PLAN's D8, "option 1"): 0016-MADR D8 has a
+  provider without `WithHTTPClient` refresh its session through its own
+  default client, so the default is still passed, as a default.
+  `(*auth.OAuthSession).UseDefaultHTTPClient` is added: it sets the client
+  only when the session has none, and marks it a default.
+  `UseHTTPClient` now replaces a default, but never a caller's client. Both
+  0016 D8 and F37 hold.

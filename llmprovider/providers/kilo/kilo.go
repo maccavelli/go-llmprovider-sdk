@@ -28,7 +28,8 @@
 //     reasoning_effort (medium with none) when it accepts that. A Budget is
 //     not sent.
 //   - A tool choice is sent only when the model accepts tool_choice;
-//     otherwise the tools are offered unforced.
+//     otherwise the tools are offered unforced, and ToolChoiceNone sends no
+//     tools (0020-MADR F40).
 //   - Instructions are sent as a leading system message.
 //
 // Requests carry provider.data_collection "deny" unless WithDataCollection(true)

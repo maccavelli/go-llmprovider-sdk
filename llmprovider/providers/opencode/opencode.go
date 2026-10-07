@@ -116,7 +116,6 @@ type provider struct {
 	reasoning   *llmprovider.Reasoning // WithReasoning's default, or nil
 	route       Route                  // WithRoute's, or the table's for model
 	routePinned bool
-	metadataURL string
 	metadataOff bool // WithoutModelMetadata
 	userAgent   string
 	session     string
@@ -161,7 +160,6 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 		client:      st.HTTPClient(),
 		maxTokens:   st.MaxTokens(),
 		reasoning:   st.Reasoning(),
-		metadataURL: st.ModelMetadataURL(),
 		metadataOff: st.ModelMetadataDisabled(),
 		userAgent:   st.UserAgent(),
 		session:     st.SessionID(),
@@ -504,5 +502,7 @@ func (p *provider) metadata(ctx context.Context) (catalog.Metadata, error) {
 	if p.metadataOff {
 		return catalog.Metadata{}, errMetadataOff
 	}
-	return catalog.LookupMetadata(ctx, p.metadataURL, p.client)
+	// The lookup names the caller's application, as generation does
+	// (0026-MADR F33).
+	return catalog.LookupMetadataWith(ctx, p.gateway, p.listing...)
 }

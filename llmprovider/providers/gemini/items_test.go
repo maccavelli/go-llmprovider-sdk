@@ -123,12 +123,14 @@ func TestGemini_Continue(t *testing.T) {
 
 // TestGemini_Capabilities is what TestGeminiInterfaceSatisfaction asserted:
 // text, tools, thinking, items and listing are all offered, and continuation
-// with WithStore(true) (TestGemini_ContinueChainsWhenStored).
+// with WithStore(true) (TestGemini_ContinueChainsWhenStored). Reasoning is
+// BestEffort: gemini-2.5-flash-lite does not think at low or medium effort,
+// measured live (0026-MADR F38).
 func TestGemini_Capabilities(t *testing.T) {
 	p := build(t, apiKey("http://127.0.0.1:0", "gemini-3.7-flash")...)
 	caps := p.Capabilities()
 	if caps.Tools != llmprovider.Supported || caps.ForcedToolChoice != llmprovider.Supported ||
-		caps.Reasoning != llmprovider.Supported || caps.NativeStreaming != llmprovider.Unsupported {
+		caps.Reasoning != llmprovider.BestEffort || caps.NativeStreaming != llmprovider.Unsupported {
 		t.Errorf("Capabilities = %+v", caps)
 	}
 	if _, ok := p.(llmprovider.ModelLister); !ok {

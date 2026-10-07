@@ -43,6 +43,9 @@ type OAuthSession struct {
 	// the store's token however many saves fail in a row (0026-MADR F1).
 	// "" when unknown.
 	storedRefresh string
+	// clientDefault reports that HTTPClient is a provider's default, given by
+	// UseDefaultHTTPClient, which a caller's client replaces (0026-MADR F37).
+	clientDefault bool
 	// issued is when the last refresh or exchange succeeded, in this process;
 	// it measures the token's lifetime when the token is not a JWT with iat
 	// (0021-MADR T3).
