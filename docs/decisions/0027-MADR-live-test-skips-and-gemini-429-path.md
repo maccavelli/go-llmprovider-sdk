@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-07
 decision-makers: repository owner
 consulted: 0013-MADR-remediate-debugging-pass-findings.md (D5), 0026-MADR-remediate-v1-2-debugging-pass-findings.md (F12, amendments "Q6 is (b)" and "Gemini's Interactions API wraps its errors in an array")
@@ -120,11 +120,12 @@ envelope is not a check of what callers get.
    * Those checks move to a function in an untagged test file, unit-tested
      on a fixture of Google's documented 429 wrapped in the array, so CI
      runs them and they can be seen failing without a live 429.
-3. **Q1, below,** decides whether the plan attempts a live 429.
+3. **Q1, below,** decides whether the plan attempts a live 429. The owner
+   answered (a), 2026-10-07 ("Q1 a").
 
 ### Q1. How the plan attempts a live 429
 
-* **(a) A burst size the owner sets** *(recommended)*.
+* **(a) A burst size the owner sets** *(recommended; chosen)*.
   `LLMPROVIDER_LIVE_GEMINI_429_BURST` overrides the default of 20. Before
   any burst, one request is sent and its usage reported, so the owner sees
   the cost of one request and picks the burst knowing it. No 429 is a skip,

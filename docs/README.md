@@ -67,8 +67,8 @@ documents a reader follows to do something.
 | 0025 | PLAN | [Implement the Records Consistency Check, and Correct the Two Stale PLAN Statuses](decisions/0025-PLAN-records-consistency-check.md) | complete |
 | 0026 | MADR | [Remediate the Defects Found by the v1.2 Debugging Pass](decisions/0026-MADR-remediate-v1-2-debugging-pass-findings.md) | accepted |
 | 0026 | PLAN | [Implement the Remediation of the v1.2 Debugging Pass](decisions/0026-PLAN-remediate-v1-2-debugging-pass-findings.md) | complete |
-| 0027 | MADR | [Skip Live Tests by One Rule, and Measure Gemini's 429 on the Path the SDK Sends](decisions/0027-MADR-live-test-skips-and-gemini-429-path.md) | proposed |
-| 0027 | PLAN | [Implement One Skip Rule for the Live Tests, and Gemini's 429 Check on the Interactions Path](decisions/0027-PLAN-live-test-skips-and-gemini-429-path.md) | proposed |
+| 0027 | MADR | [Skip Live Tests by One Rule, and Measure Gemini's 429 on the Path the SDK Sends](decisions/0027-MADR-live-test-skips-and-gemini-429-path.md) | accepted |
+| 0027 | PLAN | [Implement One Skip Rule for the Live Tests, and Gemini's 429 Check on the Interactions Path](decisions/0027-PLAN-live-test-skips-and-gemini-429-path.md) | in-progress |
 
 ## I want to…
 

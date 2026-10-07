@@ -152,9 +152,7 @@ func TestLive_OpencodeChatReasoningEffort(t *testing.T) {
 			req.Reasoning = &llmprovider.Reasoning{Effort: llmprovider.EffortLow}
 			out, err := llmprovider.GenerateText(ctx, liveGo(t, model, llmprovider.WithMaxTokens(400),
 				llmprovider.WithHTTPClient(&http.Client{Transport: rec})), req)
-			if errors.Is(err, llmprovider.ErrRateLimited) {
-				t.Skipf("gateway transient: %v", err)
-			}
+			llmprovider.SkipIfTransient(t, err)
 			if err != nil {
 				t.Fatalf("DRIFT (probed %s): gateway rejected reasoning_effort on %s: %v", opencodeProbedOn, model, err)
 			}
@@ -300,9 +298,7 @@ func TestLive_OpencodeMessagesThinking(t *testing.T) {
 	req := userText("Reply with only the word ALPHA")
 	req.Reasoning = &llmprovider.Reasoning{Effort: llmprovider.EffortLow}
 	out, err := llmprovider.GenerateText(ctx, liveGo(t, goModel(t, "qwen3.8-flash")), req)
-	if errors.Is(err, llmprovider.ErrRateLimited) {
-		t.Skipf("rate limited: %v", err)
-	}
+	llmprovider.SkipIfTransient(t, err)
 	if err != nil {
 		t.Fatalf("GenerateText: %v", err)
 	}

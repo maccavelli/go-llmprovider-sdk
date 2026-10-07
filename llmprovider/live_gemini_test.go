@@ -5,7 +5,6 @@ package llmprovider_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -238,11 +237,8 @@ func TestLive_GeminiThinkingShapes(t *testing.T) {
 				req := userText("Reply with only the word ALPHA")
 				req.Reasoning = &llmprovider.Reasoning{Effort: effort}
 				out, err := llmprovider.GenerateText(ctx, liveGemini(t, key, model, llmprovider.WithMaxTokens(2048)), req)
+				llmprovider.SkipIfTransient(t, err)
 				switch {
-				case errors.Is(err, llmprovider.ErrProviderUnavailable):
-					t.Skipf("Gemini overloaded: %v", err)
-				case errors.Is(err, llmprovider.ErrRateLimited):
-					t.Skipf("rate limited: %v", err)
 				case err != nil:
 					t.Fatalf("GenerateText: %v", err)
 				case !strings.Contains(strings.ToUpper(out), "ALPHA"):

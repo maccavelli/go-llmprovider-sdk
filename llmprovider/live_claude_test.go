@@ -4,7 +4,6 @@ package llmprovider_test
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -37,9 +36,7 @@ func TestLive_StaticClaudeServed(t *testing.T) {
 			defer cancel()
 			_, err := llmprovider.GenerateText(ctx, liveClaude(t, key, model, llmprovider.WithMaxTokens(16)),
 				userText("Reply with only the word ALPHA"))
-			if errors.Is(err, llmprovider.ErrRateLimited) {
-				t.Skipf("rate limited: %v", err)
-			}
+			llmprovider.SkipIfTransient(t, err)
 			if err != nil {
 				t.Errorf("%s: %v", model, err)
 			}
@@ -60,9 +57,7 @@ func TestLive_ClaudeThinkingShapes(t *testing.T) {
 				req := userText("Reply with only the word ALPHA")
 				req.Reasoning = &llmprovider.Reasoning{Effort: effort}
 				out, err := llmprovider.GenerateText(ctx, p, req)
-				if errors.Is(err, llmprovider.ErrRateLimited) {
-					t.Skipf("rate limited: %v", err)
-				}
+				llmprovider.SkipIfTransient(t, err)
 				if err != nil {
 					t.Fatalf("Generate: %v", err)
 				}

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-07
 associated-madr: "0027-MADR-live-test-skips-and-gemini-429-path.md"
 decision-makers: repository owner
@@ -172,4 +172,96 @@ Rules for every phase:
 
 ## Execution Record
 
-Not started. The MADR is `proposed`, with Q1 open.
+### Phase 0: records (2026-10-07)
+
+* The pair and its index rows were committed by the owner as `1b6c4a3`;
+  `records-check`: `59 records, 0 problem(s)`.
+* **Approval.** "Q1 a, committed. proceed", 2026-10-07. The MADR is
+  accepted with Q1 (a), and this PLAN is in progress.
+
+### Phase 1: one skip rule (2026-10-07)
+
+**The check, red on today's tree.** `TestLiveTests_TransientSkipsUseTheHelper`
+(`llmprovider/live_hygiene_test.go`, package `llmprovider`, no build tag):
+
+```text
+--- FAIL: TestLiveTests_TransientSkipsUseTheHelper (0.01s)
+    live_hygiene_test.go:53: 11 transient skip(s) written by hand; call llmprovider.SkipIfTransient(t, err), the suite's one rule (0013-MADR D5), or mark a skip that is narrow on purpose with "// live-skip: <reason>" on the line before:
+        live_claude_test.go:40:4
+        live_claude_test.go:63:5
+        live_gemini_test.go:242:5
+        live_gemini_test.go:244:5
+        live_kilo_test.go:84:4
+        live_kilo_test.go:110:2
+        live_opencode_test.go:155:4
+        live_opencode_test.go:303:2
+        live_together_test.go:63:4
+        live_together_test.go:99:4
+        live_together_test.go:129:2
+```
+
+Eleven lines for the MADR's ten sites: `TestLive_GeminiThinkingShapes` skips
+in two `case` clauses. No live file under `auth/` or `catalog/` has one.
+
+**The sites.**
+
+| Site | Change |
+| :--- | :--- |
+| `TestLive_StaticClaudeServed`, `TestLive_ClaudeThinkingShapes` | `llmprovider.SkipIfTransient(t, err)`; the file's `errors` import goes |
+| `TestLive_GeminiThinkingShapes` | `SkipIfTransient` before the `switch`, whose two skip `case`s go; the file's `errors` import goes |
+| `TestLive_KiloReasoningShapes` | `SkipIfTransient` |
+| `TestLive_OpencodeChatReasoningEffort`, `TestLive_OpencodeMessagesThinking` | `SkipIfTransient` |
+| `TestLive_TogetherWire`, `TestLive_TogetherToolChoices` | `SkipIfTransient` |
+| `TestLive_TogetherRequiredFailsOnGptOss` | kept, marked: it asserts the HTTP 500, `ErrProviderUnavailable`, which `SkipIfTransient` would skip |
+| `TestLive_KiloDataCollectionDenied` | kept, marked: it asserts `ErrNotPermitted`, which `SkipIfTransient` would skip |
+
+**Green.** `--- PASS: TestLiveTests_TransientSkipsUseTheHelper (0.01s)`.
+The first green run reported the two marked sites: their reasons run over
+two comment lines, and the check had read the line of the mark, not the
+end of its comment. The check now takes the comment group's last line, as
+step 1 says ("ends on the line before it").
+
+**Plants,** each on its own scratch copy (`p27_plants.py`), each failing
+on the planted line only:
+
+| Plant | Result |
+| :--- | :--- |
+| `if errors.Is(err, llmprovider.ErrQuotaExhausted) { t.Skip() }` before `TestLive_TogetherWire`'s helper call | FAIL: `live_together_test.go:63:4` |
+| Together's mark reduced to `// live-skip:` | FAIL: `live_together_test.go:126:2` |
+| `case errors.Is(err, llmprovider.ErrRateLimited): t.Skipf(…)` back in Gemini's `switch` | FAIL: `live_gemini_test.go:242:5` |
+| a blank line between Kilo's mark and its `if` (not in the PLAN; added) | FAIL: `live_kilo_test.go:111:2` |
+
+**Live run** of the ten tests, `LLMPROVIDER_LIVE_TOGETHER=1`
+(`p27_live.out`): every one passed, no skip.
+
+| Test | Result |
+| :--- | :--- |
+| `TestLive_StaticClaudeServed` | PASS, 4 models |
+| `TestLive_ClaudeThinkingShapes` | PASS, 6 subtests |
+| `TestLive_GeminiThinkingShapes` | PASS, 4 subtests |
+| `TestLive_KiloReasoningShapes` | PASS, 2 subtests |
+| `TestLive_KiloDataCollectionDenied` | PASS |
+| `TestLive_OpencodeChatReasoningEffort` | PASS, 2 models |
+| `TestLive_OpencodeMessagesThinking` | PASS |
+| `TestLive_TogetherWire` | PASS, 4 subtests |
+| `TestLive_TogetherToolChoices` | PASS, 2 subtests |
+| `TestLive_TogetherRequiredFailsOnGptOss` | PASS |
+
+**The gate** (`p26_gate.py`):
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `461 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -cover`, `-shuffle=on`, `go mod tidy -diff`, `make lint` | 0 each |
+| `parity-check` | `409 identifiers, 409 rows, 409 with an SDK equivalent, 0 problem(s)` |
+| `dep-check`, `generate-check` | 0 each |
+| `coverage-check` | `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `59 records, 0 problem(s)` |
+| `gate-selftest` | OK |
+| markdownlint (the lint scope), G-wire stable, links | 0 problems; 612 relative links in 69 files |
+| identifier scan of the changed files | 0 hits in 9 files |
+
+**Scope (V4):** the phase changes six `_test.go` files, one of them new,
+and the records; no shipped file.

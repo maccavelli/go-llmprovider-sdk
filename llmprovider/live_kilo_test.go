@@ -81,9 +81,7 @@ func TestLive_KiloReasoningShapes(t *testing.T) {
 			req := userText("Reply with only the word ALPHA")
 			req.Reasoning = &llmprovider.Reasoning{Effort: tc.effort}
 			resp, err := liveKilo(t, llmprovider.LiveKiloNonTraining, llmprovider.WithMaxTokens(400)).Generate(ctx, req)
-			if errors.Is(err, llmprovider.ErrRateLimited) || errors.Is(err, llmprovider.ErrProviderUnavailable) {
-				t.Skipf("gateway transient: %v", err)
-			}
+			llmprovider.SkipIfTransient(t, err)
 			if err != nil {
 				t.Fatalf("DRIFT (probed %s): gateway rejected reasoning shape %q: %v", kiloProbedOn, tc.name, err)
 			}
@@ -107,6 +105,8 @@ func TestLive_KiloDataCollectionDenied(t *testing.T) {
 	ctx, cancel := llmprovider.LiveCtx(t)
 	defer cancel()
 	_, err := llmprovider.GenerateText(ctx, liveKilo(t, llmprovider.LiveKiloFreeCollecting), userText("Reply with only the word ALPHA"))
+	// live-skip: this test asserts ErrNotPermitted, which SkipIfTransient
+	// would skip; only a rate limit or an outage skips here.
 	if errors.Is(err, llmprovider.ErrRateLimited) || errors.Is(err, llmprovider.ErrProviderUnavailable) {
 		t.Skipf("transient: %v", err)
 	}

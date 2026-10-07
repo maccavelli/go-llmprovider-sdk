@@ -60,9 +60,7 @@ func TestLive_TogetherWire(t *testing.T) {
 				req.Reasoning = tc.reasoning
 				out, err = llmprovider.GenerateText(ctx, p, req)
 			}
-			if errors.Is(err, llmprovider.ErrRateLimited) {
-				t.Skipf("rate limited: %v", err)
-			}
+			llmprovider.SkipIfTransient(t, err)
 			if err != nil {
 				t.Fatalf("%s: %v", tc.model, err)
 			}
@@ -96,9 +94,7 @@ func TestLive_TogetherToolChoices(t *testing.T) {
 			req := userText("What is the weather in Paris?")
 			req.Tools, req.ToolChoice = []llmprovider.Tool{togetherWeatherTool}, tc.choice
 			res, err := liveTogether(t, tc.model).Generate(ctx, req)
-			if errors.Is(err, llmprovider.ErrRateLimited) {
-				t.Skipf("rate limited: %v", err)
-			}
+			llmprovider.SkipIfTransient(t, err)
 			if err != nil {
 				t.Fatalf("Generate: %v", err)
 			}
@@ -126,6 +122,8 @@ func TestLive_TogetherRequiredFailsOnGptOss(t *testing.T) {
 	req := userText("What is the weather in Paris?")
 	req.Tools, req.ToolChoice = []llmprovider.Tool{togetherWeatherTool}, llmprovider.ToolChoiceRequired
 	_, err := liveTogether(t, "openai/gpt-oss-120b").Generate(ctx, req)
+	// live-skip: this test asserts the HTTP 500, ErrProviderUnavailable, which
+	// SkipIfTransient would skip; only a rate limit skips here.
 	if errors.Is(err, llmprovider.ErrRateLimited) {
 		t.Skipf("rate limited: %v", err)
 	}
