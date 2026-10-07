@@ -43,8 +43,11 @@ func Reauth[T any](ctx context.Context, provider string, src llmprovider.TokenSo
 	} else {
 		source.Invalidate()
 	}
+	refused := err
 	if token, err = src.Token(ctx); err != nil {
-		return zero, fmt.Errorf("llmprovider: %s: acquire token: %w", provider, err)
+		// The refusal's *APIError stays in the error, its status and kind
+		// with it, beside the renewal's failure (R24; 0026-MADR F57, D9).
+		return zero, errors.Join(refused, fmt.Errorf("llmprovider: %s: acquire token: %w", provider, err))
 	}
 	return send(token)
 }

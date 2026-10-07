@@ -131,8 +131,9 @@ It runs `scripts/go-precheck.sh`: `gofmt` on the files;
 `golangci-lint run -c .golangci.yml --build-tags live_gateways ./...` for the
 host and again with `GOOS=windows`, the same commands as `make lint` and CI,
 which also lint the live-tagged tests and the `_windows.go` files; `go vet`
-and `go test` on the packages the files belong to; and
-`govulncheck ./...` (`GO_PRECHECK_SKIP_VULN=1` skips it offline). `golint` is
+and `go test` on the packages the files belong to, a deleted file's
+included; and `govulncheck ./...` at CI's pinned version, through `go run`,
+as `make vuln` runs it (`GO_PRECHECK_SKIP_VULN=1` skips it offline). `golint` is
 not used: its checks are `revive`'s `exported`, `package-comments` and
 `var-naming` rules in `.golangci.yml`. A file that fails is not committed.
 

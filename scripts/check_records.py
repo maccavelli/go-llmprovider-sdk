@@ -6,8 +6,8 @@ madr-and-plan-writing skill set for docs/decisions/ and docs/reports/, checked
 rather than remembered. It checks:
 
 - names: NNNN-{MADR,PLAN}-slug.md in docs/decisions/, NNNN-{REPORT,GATES}-
-  slug.md in docs/reports/, the slug lowercase kebab-case, and no other .md
-  file in either directory;
+  slug.md in docs/reports/, the slug lowercase kebab-case, no other .md
+  file in either directory, and no record anywhere else under docs/;
 - numbers: at most one MADR per number;
 - statuses: a MADR's front-matter status is proposed, accepted, rejected,
   deprecated, or begins "superseded"; a PLAN's is proposed, in-progress,
@@ -20,8 +20,8 @@ rather than remembered. It checks:
   the number of records and the number of rows.
 
 With --next it prints only the next record number, the highest across all
-four kinds plus one, and checks nothing, so a broken index does not block
-numbering.
+four kinds anywhere under docs/ plus one, and checks nothing, so a broken
+index does not block numbering.
 
 Usage:
   scripts/check_records.py
@@ -80,7 +80,18 @@ def scan(problems: list[str]) -> list[Record]:
             if m.group(2) not in kinds:
                 problems.append(f"{rel}: a {m.group(2)} belongs in {next(k for k, v in DIRS.items() if m.group(2) in v)}/")
             records.append(Record(rel, m.group(1), m.group(2), m.group(3), front_matter(p.read_text(encoding="utf-8"))))
+    # A record anywhere else under docs/ is misplaced; --next counts it all
+    # the same, as AGENTS.md numbers records found anywhere under docs/
+    # (0026-MADR F61).
+    for p in stray_records():
+        problems.append(f"{p.relative_to(ROOT).as_posix()}: a record outside {' and '.join(f'{d}/' for d in DIRS)}")
     return records
+
+
+def stray_records() -> list[Path]:
+    """Records under docs/ but outside DIRS."""
+    return [p for p in sorted((ROOT / "docs").rglob("*.md"))
+            if NAME.match(p.name) and p.parent.relative_to(ROOT).as_posix() not in DIRS]
 
 
 def check_records(records: list[Record], problems: list[str]) -> None:
@@ -155,7 +166,7 @@ def check_index(records: list[Record], problems: list[str]) -> None:
 
 
 def next_number() -> str:
-    numbers = [int(m.group(1)) for d in DIRS for p in (ROOT / d).glob("*.md") if (m := NAME.match(p.name))]
+    numbers = [int(m.group(1)) for p in (ROOT / "docs").rglob("*.md") if (m := NAME.match(p.name))]
     return f"{max(numbers, default=0) + 1:04d}"
 
 

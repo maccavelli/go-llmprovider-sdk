@@ -84,21 +84,21 @@ standard library is left out.
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
-| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/responses`, `internal/transport` |
+| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/responses`, `internal/transport`, `internal/wire` |
 | `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/messages`, `internal/transport` |
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/transport` |
-| `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `catalog`, `internal/wire/responses`, `internal/transport` |
+| `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `catalog`, `internal/wire/responses`, `internal/transport`, `auth`, `internal/wire` |
 | `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute` and `ListModels`, with the route table, built from the embedded `routes_snapshot.json` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent` |
-| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/kiloendpoint` |
-| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
-| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions` |
-| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/transport` |
+| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/kiloendpoint`, `internal/wire` |
+| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire` |
+| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire` |
+| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/transport`, `internal/wire` |
 | `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule | `llmprovider`, `internal/transport`, `internal/redact` |
 | `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `DecodeFor`, `ReadStream` | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact` |
 | `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode`, `DecodeFor` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `AddThinking` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
-| `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/kiloendpoint` |
+| `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/kiloendpoint`, `internal/transport` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
@@ -226,7 +226,14 @@ for a session, from the store.
   - `ReasoningCut`: an answer cut while the model was still reasoning, with
     no text or call, is `ErrIncomplete`, with the reason the wire reports.
 
-  A harness that sets none passes as before.
+  Two more fit a service that has the reply: `AuthFailure`, the service's
+  own refusal of a key, for the renewal check (Gemini's 400), and
+  `NotPermitted`, a refusal of a request the key may not make, which must
+  be `ErrNotPermitted` (Kilo, OpenCode, OpenAI). A harness that sets none
+  passes as before. Every harness also gets checks with no field: each HTTP
+  failure an `*APIError`, a 429's `Retry-After` in `RetryAfter`, a token
+  that names its own `Header` sent there, and, for a provider that lists,
+  the listing's identity and cancellation (0026-MADR F57).
 
 ## Providers and items
 
@@ -529,10 +536,10 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   generate-check, parity-check, coverage-check, api-check, records-check),
   and requires each gate to fail, then every gate to pass on a clean copy.
 - **G-wire** is `TestWireGoldens` in each provider package, part of
-  `go test`. Through `llmprovider/internal/wirecase` it drives 16 provider
+  `go test`. Through `llmprovider/internal/wirecase` it drives 18 provider
   and gateway-route cases through seven scenarios (text, forced tool,
   thinking, thinking tool, items, continuation where the provider continues,
-  listing): 100 golden files. It runs them against `internal/wiretest`, and
+  listing): 114 golden files. It runs them against `internal/wiretest`, and
   compares each recording with
   `llmprovider/providers/<id>/testdata/wire/<case>/<scenario>.json`. The files were
   recorded at the end of 0002-PLAN Phase 7, except `together`'s, added with

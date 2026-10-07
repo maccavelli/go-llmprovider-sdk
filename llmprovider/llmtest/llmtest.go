@@ -39,6 +39,11 @@ type Harness struct {
 	// Model, when set, is the model the Text reply names: the Response must
 	// report it (R7; 0020-MADR F11).
 	Model string
+	// NotPermitted, when set, writes the service's refusal of a request the
+	// key may not make, such as Kilo's or OpenCode's 403. Generate must fail
+	// with an APIError of kind ErrNotPermitted, not Retryable (0026-MADR
+	// F57).
+	NotPermitted func(w http.ResponseWriter, r *http.Request)
 	// AuthFailure, when set, writes the service's own refusal of a key, its
 	// status and body, for the R16 reauth check: Gemini's is HTTP 400
 	// API_KEY_INVALID. Nil is Error with status 401 (0026-MADR F6).
@@ -93,18 +98,23 @@ const (
 //     refused before the network (R10, R11);
 //   - invalid values refused before the network (R23);
 //   - cancellation (R40);
-//   - status-to-kind classification (R25, R26);
+//   - status-to-kind classification (R25, R26), each failure an *APIError,
+//     and a 429's Retry-After in RetryAfter (R24; 0026-MADR F57);
 //   - identity headers (R44; 0012-MADR §1.4);
-//   - a refused token renewed once: an HTTP 401 invalidates an
-//     llmprovider.InvalidatingSource and the request is sent once more (R16;
-//     0017-MADR D3; 0020-MADR F2);
+//   - a refused token renewed once: the service's refusal (a 401, or the
+//     Harness's AuthFailure) invalidates an llmprovider.InvalidatingSource
+//     and the request is sent once more (R16; 0017-MADR D3; 0020-MADR F2;
+//     0026-MADR F6);
+//   - a token that names its own Header sent there (R16; 0026-MADR F57);
+//   - for a provider that lists, the listing's identity and cancellation
+//     (R44, R40; 0026-MADR F57);
 //   - the Response invariants (R7, R9), FinishReason and, when the Harness
 //     names it, Model (0020-MADR F11);
 //   - an empty Role, the user's, never sent as "" (R6; 0020-MADR F10);
 //   - concurrent use (R20), which the race detector checks;
 //   - when the Harness asks: request fidelity, an undecodable reply, a cut
-//     answer, and a strict tool call (0021-MADR W12), and an answer cut while
-//     reasoning (0026-MADR F7).
+//     answer, and a strict tool call (0021-MADR W12), an answer cut while
+//     reasoning (0026-MADR F7), and a not-permitted refusal (0026-MADR F57).
 func Run(t *testing.T, h Harness) {
 	t.Helper()
 	runChecks(testReporter{t}, h)
@@ -159,6 +169,11 @@ func runChecks(r reporter, h Harness) {
 	r.Run("R7-R9-response", func(r reporter) { checkResponse(r, h) })
 	r.Run("R6-empty-role", func(r reporter) { checkEmptyRole(r, h) })
 	r.Run("R20-concurrency", func(r reporter) { checkConcurrency(r, h) })
+	r.Run("R16-token-header", func(r reporter) { checkTokenHeader(r, h) })
+	r.Run("R40-R44-listing", func(r reporter) { checkListing(r, h) })
+	if h.NotPermitted != nil {
+		r.Run("R25-not-permitted", func(r reporter) { checkNotPermitted(r, h) })
+	}
 	if h.Fidelity {
 		r.Run("W12-fidelity", func(r reporter) { checkFidelity(r, h) })
 	}
@@ -277,11 +292,11 @@ func checkCapabilities(r reporter, h Harness) {
 		{"continuation", caps.Continuation, withPrevious(textRequest()), false},
 	} {
 		handler := h.Text
-		if need.forced {
+		// R11's refusal is checked whether or not the Harness has ToolCall:
+		// a refused request reaches no handler (0026-MADR F55).
+		if need.forced && need.support != llmprovider.Unsupported {
 			if h.ToolCall == nil {
-				if need.support != llmprovider.Unsupported {
-					r.Errorf("llmtest: the Harness needs ToolCall, because ForcedToolChoice is %v", need.support)
-				}
+				r.Errorf("llmtest: the Harness needs ToolCall, because ForcedToolChoice is %v", need.support)
 				continue
 			}
 			handler = func(w http.ResponseWriter, req *http.Request) { h.ToolCall(w, req, llmtestTool) }
@@ -434,13 +449,26 @@ func checkClassification(r reporter, h Harness) {
 		{http.StatusInternalServerError, llmprovider.ErrProviderUnavailable, "ErrProviderUnavailable", true},
 		{http.StatusServiceUnavailable, llmprovider.ErrProviderUnavailable, "ErrProviderUnavailable", true},
 	} {
-		fs := serve(func(w http.ResponseWriter, req *http.Request) { h.Error(w, req, c.status) })
+		fs := serve(func(w http.ResponseWriter, req *http.Request) {
+			if c.status == http.StatusTooManyRequests {
+				w.Header().Set("Retry-After", "7")
+			}
+			h.Error(w, req, c.status)
+		})
 		if p := build(r, h, fs); p != nil {
 			_, err := generate(r, p, textRequest())
 			// An APIError also unwraps to the sentinel its status alone maps
 			// to (MADR 0012 §7), so its Kind is checked on its own.
 			var apiErr *llmprovider.APIError
 			isAPIErr := errors.As(err, &apiErr)
+			// Every HTTP failure is an *APIError, and a 429 carries the
+			// delay the service asked for (R24; 0026-MADR F57).
+			if !isAPIErr {
+				r.Errorf("R24 (*APIError is the only structured error): HTTP %d returned %T (%v); want an *APIError",
+					c.status, err, err)
+			} else if c.status == http.StatusTooManyRequests && apiErr.RetryAfter != 7*time.Second {
+				r.Errorf("R24 (RetryAfter): HTTP 429 with Retry-After: 7 gave RetryAfter %v; want 7s", apiErr.RetryAfter)
+			}
 			switch {
 			case !errors.Is(err, c.kind):
 				r.Errorf("R25 (errors by kind): HTTP %d returned %v; want an error matching %s", c.status, err, c.kindName)
@@ -749,6 +777,156 @@ func checkTruncated(r reporter, h Harness) {
 	if !errors.Is(err, llmprovider.ErrIncomplete) || !errors.As(err, &apiErr) || apiErr.Reason != want {
 		r.Errorf("W12 (a cut answer, 0021-MADR W3): Generate returned %v; want an APIError of kind ErrIncomplete with Reason %q",
 			err, want)
+	}
+}
+
+// checkNotPermitted checks the service's refusal of a request the key may
+// not make is ErrNotPermitted, and final (0026-MADR F57).
+func checkNotPermitted(r reporter, h Harness) {
+	r.Helper()
+	fs := serve(h.NotPermitted)
+	defer fs.Close()
+	p := build(r, h, fs)
+	if p == nil {
+		return
+	}
+	_, err := generate(r, p, textRequest())
+	apiErr, ok := errors.AsType[*llmprovider.APIError](err)
+	if !ok || !errors.Is(apiErr.Kind, llmprovider.ErrNotPermitted) || apiErr.Retryable() {
+		r.Errorf("R25 (errors by kind): the service's not-permitted refusal returned %v; want an APIError of kind "+
+			"ErrNotPermitted, not Retryable", err)
+	}
+}
+
+// tokenHeaderName is the header checkTokenHeader's tokens name.
+//
+//nolint:gosec // G101: a header name, not a credential
+const tokenHeaderName = "X-Llmtest-Key"
+
+// fixedToken is a TokenSource that always hands out one token.
+type fixedToken llmprovider.Token
+
+func (t fixedToken) Token(context.Context) (llmprovider.Token, error) {
+	return llmprovider.Token(t), nil
+}
+
+// checkTokenHeader checks a token that names its own Header is sent there:
+// the bare value, or "Bearer <value>" for a TokenBearer (R16). A provider
+// that refuses a bearer source at New, as R16 lets it, is not checked with
+// one. A token with no Header goes in the service's own header, which may be
+// none, as Ollama's is, so that case is not checked here (0026-MADR F57).
+// A Harness whose credential decides the provider's mode (NoReauth) is not
+// checked: the check's own source would build a different provider.
+func checkTokenHeader(r reporter, h Harness) {
+	r.Helper()
+	if h.NoReauth != "" {
+		return
+	}
+	for _, c := range []struct {
+		typ  llmprovider.TokenType
+		want string
+	}{
+		{"", "llmtest-own-header-token"},
+		{llmprovider.TokenBearer, "Bearer llmtest-own-header-token"},
+	} {
+		var mu sync.Mutex
+		var got []string
+		fs := serve(func(w http.ResponseWriter, req *http.Request) {
+			mu.Lock()
+			got = append(got, req.Header.Get(tokenHeaderName))
+			mu.Unlock()
+			h.Text(w, req)
+		})
+		src := fixedToken{Value: "llmtest-own-header-token", Type: c.typ, Header: tokenHeaderName}
+		p, err := h.New(fs.URL, llmprovider.WithTokenSource(src))
+		switch {
+		case err != nil && c.typ == llmprovider.TokenBearer && errors.Is(err, llmprovider.ErrUnsupported):
+		case err != nil || p == nil:
+			r.Errorf("llmtest: the Harness's New failed with a %q token naming its Header: %v", c.typ, err)
+		default:
+			if _, err := generate(r, p, textRequest()); err != nil {
+				r.Errorf("R16 (a token's own header): Generate failed: %v", err)
+			}
+			mu.Lock()
+			for _, v := range got {
+				if v != c.want {
+					r.Errorf("R16 (a token's own header): a %q token naming %s was sent as %q; want %q",
+						c.typ, tokenHeaderName, v, c.want)
+				}
+			}
+			mu.Unlock()
+		}
+		fs.Close()
+	}
+}
+
+// checkListing checks, for a provider that lists its models, that the listing
+// names the caller's application and ends when its context is cancelled
+// (R44, R40; 0026-MADR F57). The metadata fetch is off, so nothing leaves the
+// fake server. A provider that lists from no server is not checked.
+func checkListing(r reporter, h Harness) {
+	r.Helper()
+	probe := serve(h.Text)
+	p := build(r, h, probe)
+	probe.Close()
+	if _, ok := p.(llmprovider.ModelLister); p == nil || !ok {
+		return
+	}
+	off := []llmprovider.Option{llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false)}
+
+	fs := serve(h.Text)
+	if lister, ok := build(r, h, fs, append(off, llmprovider.WithClientInfo(clientName, clientVersion))...).(llmprovider.ModelLister); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		//nolint:errcheck // the listing may fail on Text replies; only its requests are checked
+		_, _ = lister.ListModels(ctx)
+		cancel()
+		want := clientName + "/" + clientVersion + " "
+		for _, agent := range fs.userAgents() {
+			if !strings.HasPrefix(agent, want) {
+				r.Errorf("R44 (identity): the listing sent User-Agent %q; want it to start %q", agent, want)
+			}
+		}
+	}
+	fs.Close()
+
+	arrived := make(chan struct{}, 1)
+	release := make(chan struct{})
+	held := serve(func(w http.ResponseWriter, req *http.Request) {
+		select {
+		case arrived <- struct{}{}:
+		default:
+		}
+		select {
+		case <-req.Context().Done():
+		case <-release:
+		}
+	})
+	defer held.Close()
+	defer close(release)
+	lister, ok := build(r, h, held, off...).(llmprovider.ModelLister)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		//nolint:errcheck // a cancelled listing may fail or degrade; only its return is checked
+		_, _ = lister.ListModels(ctx)
+		close(done)
+	}()
+	select {
+	case <-arrived:
+	case <-done:
+		return // it listed without asking the server
+	case <-time.After(callTimeout):
+		return
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(cancelGrace):
+		r.Errorf("R40 (cancellation): ListModels did not return within %v of its context being cancelled", cancelGrace)
 	}
 }
 

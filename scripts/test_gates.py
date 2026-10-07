@@ -18,6 +18,7 @@ minutes.
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -38,20 +39,24 @@ GATES = {
 GENERATE_LINE = re.compile(r"^//go:generate .*$", re.M)
 
 
-def copy_tree(dest: Path) -> None:
-    """A shared clone of the repository at dest, with the working tree's
+def copy_tree(dest: Path, source: Path = ROOT) -> None:
+    """A shared clone of source at dest, with source's working tree's
     tracked and untracked (not ignored) files copied over it."""
-    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(dest)], check=True)
-    listed = subprocess.run(["git", "ls-files", "-co", "--exclude-standard", "-z"], cwd=ROOT,
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(source), str(dest)], check=True)
+    listed = subprocess.run(["git", "ls-files", "-co", "--exclude-standard", "-z"], cwd=source,
                             capture_output=True, check=True).stdout
     for rel in filter(None, listed.decode().split("\0")):
-        src = ROOT / rel
+        src = source / rel
         if src.is_file():
             (dest / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest / rel)
-    deleted = subprocess.run(["git", "ls-files", "-d", "-z"], cwd=ROOT, capture_output=True, check=True).stdout
-    for rel in filter(None, deleted.decode().split("\0")):
-        (dest / rel).unlink(missing_ok=True)
+    # A deletion not yet staged is in the index and gone from the working
+    # tree (ls-files -d); one already staged is in neither, so only diff
+    # against HEAD finds it (0026-MADR F66).
+    for cmd in (["git", "ls-files", "-d", "-z"], ["git", "diff", "--name-only", "--diff-filter=D", "-z", "HEAD"]):
+        deleted = subprocess.run(cmd, cwd=source, capture_output=True, check=True).stdout
+        for rel in filter(None, deleted.decode().split("\0")):
+            (dest / rel).unlink(missing_ok=True)
 
 
 def run_gate(tree: Path, gate: str) -> subprocess.CompletedProcess[str]:
@@ -66,6 +71,42 @@ def replace_once(path: Path, old: str, new: str) -> None:
     if text.count(old) != 1:
         raise AssertionError(f"{path.name}: {old!r} found {text.count(old)} times")
     path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+class CopyTreeTest(unittest.TestCase):
+    """copy_tree copies what will be committed (0026-MADR F66)."""
+
+    def test_copy_tree_drops_staged_deletion(self) -> None:
+        """A tracked file whose deletion is staged is not in the copy: it is
+        neither in the working tree nor in the index, so `git ls-files -d`
+        does not list it, and the clone's HEAD still holds it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(source)], check=True)
+            gone = "llmprovider/catalog/model_matcher.go"
+            subprocess.run(["git", "rm", "--quiet", gone], cwd=source, check=True)
+            dest = Path(tmp) / "copy"
+            copy_tree(dest, source)
+            self.assertFalse((dest / gone).exists(), f"the copy still holds {gone}, whose deletion is staged")
+            self.assertTrue((dest / "llmprovider/catalog/discovery.go").exists(), "the copy lost a kept file")
+
+
+class PrecheckTest(unittest.TestCase):
+    """go-precheck.sh checks what a commit changes (0026-MADR F15)."""
+
+    def test_precheck_deleted_file_checks_its_package(self) -> None:
+        """Given only a deleted .go path whose deletion breaks its package,
+        the precheck fails, rather than finding no Go files to check."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = Path(tmp) / "tree"
+            copy_tree(tree)
+            gone = "llmprovider/capabilities.go"
+            (tree / gone).unlink()
+            proc = subprocess.run(["bash", "scripts/go-precheck.sh", gone], cwd=tree, capture_output=True, text=True,
+                                  check=False, env={**os.environ, "GO_PRECHECK_SKIP_VULN": "1"})
+            out = proc.stdout + proc.stderr
+            self.assertEqual(proc.returncode, 1, f"go-precheck exit {proc.returncode}, want 1:\n{out[-2000:]}")
+            self.assertIn("go vet:", out, f"go vet did not report the broken package:\n{out[-2000:]}")
 
 
 class GateSelfTest(unittest.TestCase):
@@ -97,6 +138,13 @@ class GateSelfTest(unittest.TestCase):
         with (self.tree / "go.mod").open("a") as f:
             f.write("\nrequire example.com/evil v0.0.0\n\nreplace example.com/evil => ./evil\n")
         self.assertFails("dep-check", "example.com/evil")
+
+    def test_dep_check_allowed_module_outside_wizard(self) -> None:
+        """A module go.mod allows, imported by a package that may not import
+        it: only the per-package check catches it (0026-MADR F16)."""
+        (self.tree / "llmprovider/zz_term.go").write_text(
+            'package llmprovider\n\nimport "golang.org/x/term"\n\n// zzTerm is planted.\nvar zzTerm = term.IsTerminal\n')
+        self.assertFails("dep-check", "llmprovider depends on golang.org/x/term")
 
     def _generate_file(self) -> tuple[Path, str]:
         doc = self.tree / "llmprovider/internal/ownerperm/doc.go"
@@ -132,6 +180,26 @@ class GateSelfTest(unittest.TestCase):
         guide.write_text(text.replace(row.group(0), f"{row.group(1)} TBD {row.group(3)}", 1), encoding="utf-8")
         self.assertFails("parity-check", "names nothing that resolves")
 
+    def _plant_cell(self, cell: str) -> None:
+        """Replace the guide's first identifier row's SDK cell with cell."""
+        guide = self.tree / "docs/guides/migrating-from-mcplib.md"
+        text = guide.read_text(encoding="utf-8")
+        row = re.search(r"^(\|\s*`llmprovider\.[^`]+`\s*\|)([^|]*)(\|.*)$", text, re.M)
+        self.assertIsNotNone(row, "no identifier row in the guide")
+        guide.write_text(text.replace(row.group(0), f"{row.group(1)} {cell} {row.group(3)}", 1), encoding="utf-8")
+
+    def test_parity_check_bare_missing_function(self) -> None:
+        """A bare call names a function that does not exist, only a field of
+        that name (Descriptor.StaticModels) (0026-MADR F14)."""
+        self._plant_cell("`StaticModels(ProviderClaude)`")
+        self.assertFails("parity-check", "`StaticModels(ProviderClaude)`")
+
+    def test_parity_check_unexported_name(self) -> None:
+        """A cell naming something the package does not export: only
+        unresolved() catches it (0026-MADR F16)."""
+        self._plant_cell("`catalog.SearchEverything`")
+        self.assertFails("parity-check", "`catalog.SearchEverything`")
+
     def test_coverage_check_floor_above_measure(self) -> None:
         """A floor above what the package measures."""
         floors = self.tree / "scripts/coverage-floors.txt"
@@ -151,6 +219,16 @@ class GateSelfTest(unittest.TestCase):
         plan = self.tree / "docs/decisions/0024-PLAN-opencode-live-system-message-test.md"
         replace_once(plan, "status: complete\n", "status: accepted\n")
         self.assertFails("records-check", f"{plan.name}: PLAN status 'accepted'")
+
+    def test_records_check_record_outside_its_directories(self) -> None:
+        """A record placed under docs/guides/ is reported, and its number is
+        counted by --next, since AGENTS.md numbers records found anywhere
+        under docs/ (0026-MADR F61)."""
+        (self.tree / "docs/guides/0099-MADR-stray-record.md").write_text("# Stray\n", encoding="utf-8")
+        self.assertFails("records-check", "docs/guides/0099-MADR-stray-record.md")
+        proc = subprocess.run([sys.executable, "-B", GATES["records-check"], "--next"], cwd=self.tree,
+                              capture_output=True, text=True, check=False)
+        self.assertEqual(proc.stdout.strip(), "0100", f"--next printed {proc.stdout.strip()!r}, want 0100")
 
     def test_clean_copy_passes_every_gate(self) -> None:
         for gate in GATES:

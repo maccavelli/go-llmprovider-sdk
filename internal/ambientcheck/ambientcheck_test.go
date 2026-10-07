@@ -31,8 +31,9 @@ var globalLog = map[string]bool{
 }
 
 // ambientOS names os reads of the environment that no function may make:
-// the home directory and $VAR expansion (0020-MADR F25).
-var ambientOS = map[string]bool{"UserHomeDir": true, "ExpandEnv": true}
+// the home directory and $VAR expansion (0020-MADR F25), and the user's
+// config and cache directories (0026-MADR F59).
+var ambientOS = map[string]bool{"UserHomeDir": true, "ExpandEnv": true, "UserConfigDir": true, "UserCacheDir": true}
 
 // sharedHTTP names net/http's process-wide client and transport, which a
 // provider must not use: the client has no timeout, and either shares state
@@ -45,9 +46,9 @@ const proxyHome = "llmprovider/internal/transport"
 
 // TestNoAmbientState (0015-MADR D9): library code reads the environment only
 // inside an exported function whose name ends in FromEnv, takes the proxy from
-// the environment only in the default transport, never reads the home
-// directory or expands $VAR, never uses net/http's shared client or
-// transport, and never uses a global logger.
+// the environment only in the default transport, never reads the home,
+// config or cache directory or the current user, or expands $VAR, never uses
+// net/http's shared client or transport, and never uses a global logger.
 func TestNoAmbientState(t *testing.T) {
 	findings, err := scan(moduleRoot)
 	if err != nil {
@@ -123,6 +124,17 @@ func fileFindings(fset *token.FileSet, rel string, file *ast.File) []string {
 				}
 				if sharedHTTP[sel.Sel.Name] {
 					findings = append(findings, at+": http."+sel.Sel.Name+" is shared by the process")
+				}
+			case "os/user":
+				// The current user is the process's (0026-MADR F59).
+				if sel.Sel.Name == "Current" {
+					findings = append(findings, at+": user.Current reads ambient state")
+				}
+			case "syscall":
+				// syscall's environment is os's, read another way (0026-MADR
+				// F59).
+				if sel.Sel.Name == "Getenv" && !allowedEnv {
+					findings = append(findings, at+": syscall.Getenv outside an exported ...FromEnv function")
 				}
 			case "log":
 				if globalLog[sel.Sel.Name] {

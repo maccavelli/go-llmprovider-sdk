@@ -925,7 +925,9 @@ Phase 7's release gate runs the live suites.
 R2's package table lists `internal/wire`'s imports as `llmprovider` alone,
 and `catalog`'s as including `internal/transport`; the code differs, as it
 did before this phase. The guide is normative and changes only through its
-decision, so it is left for Phase 6's docs work.
+decision, so it is left for Phase 6's docs work. *(Corrected in Phase 6:
+`catalog` does import `internal/transport`, as `go list` shows, so R2's
+`catalog` row was right. Only the `internal/wire` rows differed.)*
 
 ### Phase 5: wizard and catalog (2026-10-07)
 
@@ -996,3 +998,103 @@ with plumbing (`p26_gate.py`); every check rc=0:
 tests above; the wizard's TTY path (`readMasked` in raw mode) is tested
 through its reader, not a terminal. Phase 7's release gate runs the live
 suites.
+
+### Deviation D9 (2026-10-07): a failed renewal keeps the refusal's `*APIError`
+
+* **Found** with F57's R24 check, which wants every HTTP failure to be an
+  `*APIError`. Every built-in passes, except Grok's and OpenAI's session
+  harnesses: `HTTP 401 returned *fmt.wrapError (llmprovider: grok: acquire
+  token: oauth: no refresh token: llmprovider: authentication failed)`. A
+  401 makes `Reauth` renew the session; the harness session has no refresh
+  token, so the renewal fails, and `Reauth` returns that failure alone. The
+  401's status, kind and message are lost. A session that cannot renew,
+  such as Kilo's device login, meets the same path. F57's PLAN row says a
+  built-in that fails a new check is a deviation.
+* **Options put to the owner:** keep both errors; exempt the path from the
+  check; give the harness sessions a refresh.
+* **Decision.** The owner chose to keep both ("Keep both errors"). When the
+  renewal fails, `Reauth` returns `errors.Join` of the refusal's error and
+  the renewal's. F57's files gain `llmprovider/internal/wire/reauth.go`.
+
+### Phase 6: harness, gates and docs (2026-10-07)
+
+* **Before it.** Phase 5 was committed as `97bb439` and pushed by the
+  owner. Its CI run, 37667118751, passed.
+* **Approval.** "proceed", 2026-10-07, with D9 ("Keep both errors").
+* **Red first.** Each test below was written first, and its FAIL is from
+  the unchanged code (`p26_phase6_red.out`).
+
+| ID | Test | FAIL before the fix | Fix |
+| :--- | :--- | :--- | :--- |
+| F66 | `CopyTreeTest.test_copy_tree_drops_staged_deletion` | `the copy still holds llmprovider/catalog/model_matcher.go, whose deletion is staged` | `copy_tree` (now given its source) also removes `git diff --name-only --diff-filter=D HEAD`. |
+| F14 | `test_parity_check_bare_missing_function` | `parity-check exit 0, want 1` | `unresolved()` resolves a bare call only against package-level names. The eight `Static…` rows name `catalog.Static(llmprovider.ProviderX)`. |
+| F16 | `test_dep_check_allowed_module_outside_wizard`, `test_parity_check_unexported_name` | Not red: they pass against the real gates. Seen to fail with each gate's main check disabled (below). | Both tests. |
+| F61 | `test_records_check_record_outside_its_directories` | `records-check exit 0, want 1` | `stray_records()` reports a record under `docs/` outside `decisions/` and `reports/`; `--next` counts every record under `docs/`. |
+| F15 | `PrecheckTest.test_precheck_deleted_file_checks_its_package` | `go-precheck exit 0, want 1: go-precheck: no Go files to check.` | A deleted `.go` path adds its directory to the packages checked, or `./...` when no Go file is left there. |
+| F60 | none: drift. Seen to fail with the pin removed (below). | — | `make vuln` and the precheck run `go run golang.org/x/vuln/cmd/govulncheck@<CI's pin>`, the pin read from `.github/workflows/ci.yml`, its one place. |
+| F55 | `TestRun_ForcedChoiceRefusalWithoutToolCall` | `ToolCall set false: failures []; want R11 for the forced tool choice` | The refusal check runs whatever `ToolCall` is; only an honoured forced choice needs it. |
+| F57 | `TestRun_NamesTheBrokenRule`'s six new rows; `TestReauth_FailedRenewalKeepsTheRefusal` (D9) | Each new check fails on its flaw (below); `Reauth = llmprovider: p: acquire token: oauth: no refresh token; want the refusal's *APIError` | R24 and `RetryAfter` in the classification check; `checkNotPermitted` (`Harness.NotPermitted`, set by Kilo, OpenCode and OpenAI); `checkTokenHeader` (R16); `checkListing` (R44, R40). D9's `errors.Join` in `Reauth`. |
+| F58 | `TestFake_ReplyNilRefused`, `TestFake_RequestsCopiesSchema` | `Reply(nil) returned; want it to panic at the call`; `recorded schema = map[… type:CHANGED]` | `Reply(nil)` panics, naming itself; `cloneRequest` copies each schema through JSON. |
+| F56 | none: coverage. Seen to catch a reverted fix (below). | — | OpenCode's harness runs four routes from a per-route reply table: chat, messages, google and responses. |
+| F59 | `TestFileFindings_PlantedDirs` | `no finding for os.UserConfigDir`, `os.UserCacheDir`, `user.Current`, `syscall.Getenv` | The four selectors; `syscall.Getenv` is allowed in a `…FromEnv` function, as `os.Getenv` is. |
+| F62 | none: docs. Checked by `go list` (`p6_f62_deps.py`, rerun to 0 differences). | — | R2: `internal/wire` and `<format>` may import `internal/transport` and `internal/redact`, and `<format>` is "one wire format". `architecture.md`'s "Depends on" column is regenerated for six providers and `catalog`. |
+| F64 | none: docs. | — | 18 cases and 114 golden files, counted from `testdata/wire`. |
+| F63 | not done here | — | Its row says the README names the current release "at release time, in Phase 7". |
+
+* **Notes on the fixes:**
+  * **F14.** Under the row's rule, eight more cells fail: each
+    `ProviderX.Name` row named `ID()`, a bare method call. They now name
+    `Provider.ID()`, which resolves as a member. The gate then reports 0
+    problems over 409 rows.
+  * **F57.** A token with no `Header` goes in the service's own header,
+    which may be none: Ollama's takes no credential and sends nothing. So
+    that case is not a check every provider must pass; the named-header
+    case, bare and `TokenBearer`, is. A Harness with `NoReauth` skips it,
+    as the reauth check does, since the check's source would change the
+    provider's mode. The reference provider gained `ListModels`, `failure`
+    (an `*APIError` with `RetryAfter`, and `ErrNotPermitted` for a
+    `not_permitted` 403), and six flaws.
+  * **F60.** The row says "pin it in one place". CI already pins
+    `govulncheck@v1.8.0`; the Makefile and the precheck read that pin, so
+    the workflow is the one place. `make vuln` ran it: `No vulnerabilities
+    found.`
+  * **F62.** Phase 1 added `filelock` to R2's table with no amendment to
+    0015-MADR; this follows that, and R2's citation names 0026 F62. Phase
+    4's note that `catalog`'s row was wrong was itself wrong, and is
+    annotated there.
+* **Docs.** `architecture.md`'s and `adding-a-provider.md`'s `llmtest`
+  sections list `AuthFailure`, `NotPermitted` and the field-less checks;
+  `llmtest.Run`'s doc lists them; AGENTS.md's pre-add paragraph says what
+  the precheck now does; `check_records.py`'s docstring.
+
+**Proofs** (scratch copies):
+
+| Planted | Failed |
+| :--- | :--- |
+| `dep-check`'s per-package `check()` returning no problems (`plant_f16.py`) | `test_dep_check_allowed_module_outside_wizard`: `dep-check exit 0, want 1` |
+| parity's `unresolved()` returning nothing (`plant_f16.py`) | `test_parity_check_unexported_name`: `parity-check exit 0, want 1` |
+| CI's govulncheck pin removed (`plant_f60.py`) | `make vuln`: exit 2; the precheck: exit 2, `govulncheck: no pin in .github/workflows/ci.yml` |
+| generateContent's F7 fix reverted (`plant_f56.py`) | `TestConformance/zen-google/F7-reasoning-cut` |
+| the reference provider's flaws, in the tree | `notAPIError` → R24; `noRetryAfter` → R24 (RetryAfter); `notPermittedAsAuth` → R25-not-permitted; `ignoresTokenHeader` → R16-token-header; `listingNoIdentity` → R44; `listingIgnoresCancel` → R40 |
+
+**The gate,** on a scratch copy with the phase staged and committed there
+with plumbing (`p26_gate.py`); every check rc=0:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `459 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)`, govulncheck now through `go run …@v1.8.0` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -count=1 -cover ./...`; `go test -shuffle=on ./...` | 27 packages ok, the 28th having no tests |
+| `go mod tidy -diff` | clean |
+| `make lint` (host and Windows) | 0 issues |
+| `parity-check`, `dep-check` | 0 problems; `G-parity: 409 identifiers, 409 rows, 409 with an SDK equivalent, 0 problem(s)` |
+| `coverage-check` | 28 packages, 0 problems; `llmtest` 96.0 %, `internal/wire` 96.8 % |
+| `api-check` | `against v1.2.1, 0 incompatible change(s)` |
+| `generate-check` | `2 generated file(s), 0 problem(s)` |
+| `records-check` | `57 records, 0 problem(s)` |
+| `gate-selftest` | `Ran 14 tests`, OK |
+| markdownlint (the lint scope), G-wire stable, links | 0 problems; 605 relative links in 67 files |
+| identifier scan of the changed files | 0 hits in 22 files |
+
+**Not done in this phase:** F63, which its row puts in Phase 7; and a live
+run, which Phase 7's release gate does.

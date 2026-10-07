@@ -68,6 +68,11 @@ func harness(credential func() llmprovider.Option, sse bool) llmtest.Harness {
 			}
 			write(w, `{"id":"resp_llmtest","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"reasoning","summary":[{"type":"summary_text","text":"thinking about it"}]}]}`)
 		},
+		// Codex's plan refusal is a 403 usage_not_included (MADR 0012 §1.1).
+		NotPermitted: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `{"error":{"type":"usage_not_included","message":"plan"}}`)
+		},
 		Error: func(w http.ResponseWriter, _ *http.Request, status int) {
 			w.WriteHeader(status)
 			_, _ = io.WriteString(w, `{"error":{"message":"llmtest"}}`)

@@ -144,15 +144,20 @@ def sdk_identifiers() -> dict[str, set[str]]:
 def unresolved(cell: str, sdk: dict[str, set[str]]) -> list[str]:
     """The Go names in cell that the SDK does not export. A qualified name
     must be in its package; an unqualified one in some package, where a bare
-    name may also be a type's method or field ("Generate", "Request.Tools")."""
+    name may also be a type's method or field ("Generate", "Request.Tools").
+    A bare call ("StaticModels(…)") calls a package-level function or type,
+    so a method or field of that name does not resolve it (0026-MADR F14)."""
     missing = []
     for span in SPAN.findall(cell):
         m = GO_NAME.match(span.strip())
         if not m:
             continue
         package, name = m.groups()
+        call = span.strip().lstrip("*").removeprefix(f"{package}.").removeprefix(name).startswith("(")
         if package:
             found = name in sdk.get(package, set())
+        elif call and "." not in name:
+            found = any(name in names for names in sdk.values())
         else:
             found = any(name in names or ("." not in name and any(n.endswith("." + name) for n in names))
                         for names in sdk.values())

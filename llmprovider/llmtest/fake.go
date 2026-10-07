@@ -2,6 +2,7 @@ package llmtest
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -32,8 +33,13 @@ func (f *Fake) ID() llmprovider.ProviderID { return f.id }
 // Capabilities returns the Fake's capabilities.
 func (f *Fake) Capabilities() llmprovider.Capabilities { return f.caps }
 
-// Reply scripts the next call to return a copy of resp.
+// Reply scripts the next call to return a copy of resp. A nil resp is a
+// mistake in the script, so Reply panics, saying so; Fail scripts an error
+// (0026-MADR F58).
 func (f *Fake) Reply(resp *llmprovider.Response) *Fake {
+	if resp == nil {
+		panic("llmtest: Fake.Reply(nil): script a response, or an error with Fail")
+	}
 	return f.Handle(func(context.Context, *llmprovider.Request) (*llmprovider.Response, error) {
 		copied := *resp
 		copied.Output = append([]llmprovider.Item(nil), resp.Output...)
@@ -96,11 +102,27 @@ func (f *Fake) Requests() []*llmprovider.Request {
 	return out
 }
 
-// cloneRequest copies req and the slices and reasoning it points to.
+// cloneRequest copies req and the slices and reasoning it points to. A tool's
+// Schema is copied through JSON, as it is sent, so a schema the caller changes
+// later leaves the record as it was (0026-MADR F58); Check has already refused
+// one that does not marshal.
 func cloneRequest(req *llmprovider.Request) *llmprovider.Request {
 	copied := *req
 	copied.Input = append([]llmprovider.Item(nil), req.Input...)
 	copied.Tools = append([]llmprovider.Tool(nil), req.Tools...)
+	for i, tool := range copied.Tools {
+		if tool.Schema == nil {
+			continue
+		}
+		raw, err := json.Marshal(tool.Schema)
+		if err != nil {
+			continue
+		}
+		var schema any
+		if json.Unmarshal(raw, &schema) == nil {
+			copied.Tools[i].Schema = schema
+		}
+	}
 	if req.Reasoning != nil {
 		reasoning := *req.Reasoning
 		copied.Reasoning = &reasoning

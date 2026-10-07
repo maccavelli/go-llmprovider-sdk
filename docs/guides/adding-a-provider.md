@@ -316,6 +316,16 @@ func TestConformance(t *testing.T) {
   - `ReasoningCut` writes an answer cut at the output limit while the model
     was still reasoning, with no text or call, which must be
     `ErrIncomplete` with the same `Reason` as `Truncated`.
+- Set two more when your service has the reply (0026-MADR F6, F57):
+  - `AuthFailure` writes its refusal of a key, when that is not a 401; the
+    request must be sent once more with a renewed token;
+  - `NotPermitted` writes its refusal of a request the key may not make,
+    which must be `ErrNotPermitted`, not retryable.
+- Some checks need no field: every HTTP failure must be an `*APIError`
+  (R24), a 429's `Retry-After` must reach `RetryAfter`, a token that names
+  its own `Header` must be sent there (R16), and, if your provider is a
+  `ModelLister`, its listing must name the caller's application and end when
+  its context is cancelled.
 
 Each failure names the rule it breaks.
 

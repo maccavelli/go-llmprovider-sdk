@@ -23,7 +23,8 @@ tool that holds a rule, where one does. For how the code is laid out, read
   (0015 D2)
 - **R2. A package holds one concern**, and imports only what the table allows.
   Only `wizard` may leave the standard library, and then only for
-  `golang.org/x/term`. (0015 D2, D13)
+  `golang.org/x/term`. (0015 D2, D13; the table's `internal/wire` rows, 0026
+  F62)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
@@ -36,8 +37,8 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/providers/<id>` | one provider or gateway family: `New`, its options, its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
   | `llmprovider/providers` | `Default()` and `New(id, opts...)` | `llmprovider` and the provider packages |
   | `llmprovider/llmtest` | the conformance suite and `Fake` | `llmprovider` |
-  | `llmprovider/internal/wire` | what the shared wire formats have in common | `llmprovider` |
-  | `llmprovider/internal/wire/<format>` | one wire format that more than one provider speaks | `llmprovider`, `internal/wire` |
+  | `llmprovider/internal/wire` | what the shared wire formats have in common | `llmprovider`, `internal/transport`, `internal/redact` |
+  | `llmprovider/internal/wire/<format>` | one wire format | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact` |
   | `llmprovider/internal/transport` | the default client, identity headers, `Retry-After`, the listing probe | the standard library |
   | `wizard` | the configuration flow, over a `Registry` | the above, `golang.org/x/term` |
   | `internal/redact` | redaction | the standard library |

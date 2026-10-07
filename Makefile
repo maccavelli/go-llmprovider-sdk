@@ -5,7 +5,9 @@
 GOPATH_BIN    := $(shell go env GOPATH)/bin
 GOBIN         := $(shell go env GOBIN)
 GOLANGCI_LINT ?= $(GOPATH_BIN)/golangci-lint
-GOVULNCHECK   ?= $(or $(wildcard $(GOBIN)/govulncheck),$(GOPATH_BIN)/govulncheck,$(shell command -v govulncheck 2>/dev/null))
+# govulncheck runs at CI's pinned version, read from the workflow, so the
+# version is set in one place (0026-MADR F60).
+GOVULNCHECK_PIN := $(shell grep -oE 'golang.org/x/vuln/cmd/govulncheck@v[0-9][0-9.]*' .github/workflows/ci.yml | head -1)
 GOTESTSUM     ?= $(or $(wildcard $(GOBIN)/gotestsum),$(GOPATH_BIN)/gotestsum,$(shell command -v gotestsum 2>/dev/null))
 FLEET_LINT_CFG := .golangci.yml
 
@@ -43,12 +45,12 @@ lint: ## Runs golangci-lint with fleet config, for the host and for GOOS=windows
 tidy: ## Runs go mod tidy
 	go mod tidy
 
-vuln: ## Runs govulncheck (opt-in; requires govulncheck on PATH/GOBIN)
-	@if [ -z "$(GOVULNCHECK)" ] || [ ! -x "$(GOVULNCHECK)" ]; then \
-		echo "govulncheck not found. Install: go install golang.org/x/vuln/cmd/govulncheck@latest"; \
+vuln: ## Runs govulncheck at CI's pinned version, through go run
+	@if [ -z "$(GOVULNCHECK_PIN)" ]; then \
+		echo "no govulncheck pin in .github/workflows/ci.yml"; \
 		exit 1; \
 	fi
-	$(GOVULNCHECK) ./...
+	go run $(GOVULNCHECK_PIN) ./...
 
 # The pre-add rule (AGENTS.md). scripts/go-precheck.sh is the one
 # implementation; the agent gate at `git commit` runs the same file.

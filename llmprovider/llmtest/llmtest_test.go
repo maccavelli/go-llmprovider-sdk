@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
@@ -36,6 +38,16 @@ type flaws struct {
 	// keepReasoningCut takes an answer cut while reasoning for a whole one
 	// (0026-MADR F7).
 	keepReasoningCut bool
+	// declaresNoForce declares ForcedToolChoice Unsupported, and sends a
+	// forced choice all the same (0026-MADR F55).
+	declaresNoForce bool
+	// The 0026-MADR F57 checks' faults.
+	notAPIError          bool // reports an HTTP failure as a plain error
+	noRetryAfter         bool // drops a 429's Retry-After
+	notPermittedAsAuth   bool // reports a not-permitted 403 as a refused key
+	ignoresTokenHeader   bool // sends every token as Authorization: Bearer
+	listingNoIdentity    bool // lists without its User-Agent
+	listingIgnoresCancel bool // lists with a context of its own
 }
 
 // refProvider is a small conformant provider over a JSON wire: it POSTs
@@ -74,7 +86,13 @@ func newRef(f flaws) func(string, ...llmprovider.Option) (llmprovider.Provider, 
 
 func (p *refProvider) ID() llmprovider.ProviderID { return refID }
 
-func (p *refProvider) Capabilities() llmprovider.Capabilities { return refCaps }
+func (p *refProvider) Capabilities() llmprovider.Capabilities {
+	caps := refCaps
+	if p.flaws.declaresNoForce {
+		caps.ForcedToolChoice = llmprovider.Unsupported
+	}
+	return caps
+}
 
 func (p *refProvider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	if p.flaws.racy {
@@ -131,14 +149,18 @@ func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request
 	if err != nil {
 		return nil, err
 	}
-	token.Apply(httpReq, "Authorization", "Bearer")
+	if p.flaws.ignoresTokenHeader {
+		httpReq.Header.Set("Authorization", "Bearer "+token.Value)
+	} else {
+		token.Apply(httpReq, "Authorization", "Bearer")
+	}
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, &llmprovider.APIError{Provider: string(refID), Status: resp.StatusCode, Kind: p.kindFor(resp.StatusCode)}
+		return nil, p.failure(resp)
 	}
 	var out struct {
 		Text      string `json:"text"`
@@ -184,6 +206,45 @@ func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request
 	return result, nil
 }
 
+// failure is the reference wire's classified failure: an *APIError with the
+// delay a 429 asked for, and a 403 that says not_permitted of kind
+// ErrNotPermitted.
+func (p *refProvider) failure(resp *http.Response) error {
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	kind := p.kindFor(resp.StatusCode)
+	if resp.StatusCode == http.StatusForbidden && bytes.Contains(body, []byte("not_permitted")) && !p.flaws.notPermittedAsAuth {
+		kind = llmprovider.ErrNotPermitted
+	}
+	if p.flaws.notAPIError {
+		return fmt.Errorf("%w: HTTP %d", kind, resp.StatusCode)
+	}
+	e := &llmprovider.APIError{Provider: string(refID), Status: resp.StatusCode, Kind: kind}
+	if secs, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && !p.flaws.noRetryAfter {
+		e.RetryAfter = time.Duration(secs) * time.Second
+	}
+	return e
+}
+
+// ListModels lists the reference wire's one model.
+func (p *refProvider) ListModels(ctx context.Context) ([]string, error) {
+	if p.flaws.listingIgnoresCancel {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/models", http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	if !p.flaws.listingNoIdentity {
+		req.Header.Set("User-Agent", p.userAgent)
+	}
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return []string{"ref-model"}, nil
+}
+
 func (p *refProvider) kindFor(status int) error {
 	switch {
 	case status == http.StatusTooManyRequests && !p.flaws.misclassify429:
@@ -218,6 +279,10 @@ func refHarness(f flaws) Harness {
 		},
 		ReasoningCut: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, `{"reasoning":"thinking about it","finish":"length"}`)
+		},
+		NotPermitted: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `{"error":"not_permitted"}`)
 		},
 	}
 }
@@ -284,6 +349,12 @@ func TestRun_NamesTheBrokenRule(t *testing.T) {
 		{"takes a cut answer for a whole one", flaws{noLengthCheck: true}, "W12-truncated: W12 (a cut answer, 0021-MADR W3)"},
 		{"drops a call's arguments", flaws{emptyArguments: true}, `W12-strict-tools: W12 (strict tools, 0021-MADR W1): the call to "llmtest_tool" has arguments ""`},
 		{"takes a reasoning-only cut for a whole answer", flaws{keepReasoningCut: true}, "F7-reasoning-cut: 0026-MADR F7 (an answer cut while reasoning)"},
+		{"reports an HTTP failure as a plain error", flaws{notAPIError: true}, "R25-R26-classification: R24 (*APIError is the only structured error): HTTP 400"},
+		{"drops a 429's Retry-After", flaws{noRetryAfter: true}, "R25-R26-classification: R24 (RetryAfter): HTTP 429"},
+		{"reports not permitted as a refused key", flaws{notPermittedAsAuth: true}, "R25-not-permitted: R25 (errors by kind): the service's not-permitted refusal"},
+		{"ignores a token's own header", flaws{ignoresTokenHeader: true}, `R16-token-header: R16 (a token's own header): a "" token naming X-Llmtest-Key`},
+		{"lists without its identity", flaws{listingNoIdentity: true}, "R40-R44-listing: R44 (identity): the listing sent User-Agent"},
+		{"lists past its cancellation", flaws{listingIgnoresCancel: true}, "R40-R44-listing: R40 (cancellation): ListModels did not return"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rec := newRecorder()
@@ -466,6 +537,29 @@ func TestRun_W12ChecksAreOptional(t *testing.T) {
 
 // TestRun_StrictToolsNeedsToolCall: StrictTools with no ToolCall is a
 // harness error.
+// TestRun_ForcedChoiceRefusalWithoutToolCall (0026-MADR F55): R11's refusal
+// check needs no ToolCall handler, so a provider that declares forced choice
+// Unsupported and sends it anyway fails R11 whether or not the Harness has
+// one.
+func TestRun_ForcedChoiceRefusalWithoutToolCall(t *testing.T) {
+	for _, withToolCall := range []bool{true, false} {
+		h := refHarness(flaws{declaresNoForce: true})
+		h.StrictTools = false
+		if !withToolCall {
+			h.ToolCall = nil
+		}
+		rec := newRecorder()
+		runChecks(rec, h)
+		found := false
+		for _, msg := range rec.failures() {
+			found = found || strings.HasPrefix(msg, "R10-R11-capabilities: R11 (refusal before the network): a request needing a forced tool choice")
+		}
+		if !found {
+			t.Errorf("ToolCall set %t: failures %q; want R11 for the forced tool choice", withToolCall, rec.failures())
+		}
+	}
+}
+
 func TestRun_StrictToolsNeedsToolCall(t *testing.T) {
 	h := refHarness(flaws{})
 	h.ToolCall = nil

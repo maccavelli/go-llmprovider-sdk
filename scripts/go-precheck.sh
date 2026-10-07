@@ -36,12 +36,21 @@ set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT" || exit 1
 
-# Collect the Go files to check.
+# Collect the Go files to check. A named .go path that no longer exists is a
+# deletion: it has nothing to format, but its package must still build, so
+# its directory is checked (0026-MADR F15).
 files=()
+deleted_dirs=()
 if [ "$#" -gt 0 ]; then
   for f in "$@"; do
     case "$f" in
-    *.go) [ -f "$f" ] && files+=("$f") ;;
+    *.go)
+      if [ -f "$f" ]; then
+        files+=("$f")
+      else
+        deleted_dirs+=("$(dirname "$f")")
+      fi
+      ;;
     esac
   done
 else
@@ -52,7 +61,7 @@ fi
 
 # Nothing to check is not an error: a docs-only change, or a tree with no Go
 # code yet. Return before any tool runs — gofmt with no file reads stdin.
-if [ "${#files[@]}" -eq 0 ]; then
+if [ "${#files[@]}" -eq 0 ] && [ "${#deleted_dirs[@]}" -eq 0 ]; then
   echo "go-precheck: no Go files to check."
   exit 0
 fi
@@ -60,9 +69,6 @@ fi
 need() {
   command -v "$1" >/dev/null 2>&1 && return 0
   echo "go-precheck: $1 not found in PATH." >&2
-  case "$1" in
-  govulncheck) echo "  install: go install golang.org/x/vuln/cmd/govulncheck@latest" >&2 ;;
-  esac
   return 1
 }
 
@@ -72,9 +78,12 @@ fail() {
   [ "$failed" -lt "$1" ] && failed="$1"
 }
 
-# 1. gofmt.
+# 1. gofmt, over the files that exist.
 need gofmt || exit 2
-unformatted="$(gofmt -l "${files[@]}")"
+unformatted=""
+if [ "${#files[@]}" -gt 0 ]; then
+  unformatted="$(gofmt -l "${files[@]}")"
+fi
 if [ -n "$unformatted" ]; then
   echo "gofmt: these files are not formatted (run 'gofmt -w <file>'):" >&2
   printf '%s\n' "$unformatted" | sed 's/^/  /' >&2
@@ -101,13 +110,24 @@ else
   fail 2
 fi
 
-# 3. go vet and go test, over the packages the files belong to (./... with no
-# arguments). AGENTS.md requires both on the touched packages.
+# 3. go vet and go test, over the packages the files belong to, and those a
+# deleted file left (./... with no arguments). AGENTS.md requires both on the
+# touched packages. A directory a deletion left with no Go file has no package
+# to name, so its importers are found by checking the whole module.
 if [ "$#" -gt 0 ]; then
   pkgs=()
+  whole=0
   while IFS= read -r d; do
-    [ -n "$d" ] && pkgs+=("./$d")
-  done < <(for f in "${files[@]}"; do dirname "$f"; done | sort -u)
+    [ -n "$d" ] || continue
+    if compgen -G "$d/*.go" >/dev/null; then
+      pkgs+=("./$d")
+    else
+      whole=1
+    fi
+  done < <({ for f in "${files[@]+"${files[@]}"}"; do dirname "$f"; done; printf '%s\n' "${deleted_dirs[@]+"${deleted_dirs[@]}"}"; } | sort -u)
+  if [ "$whole" -eq 1 ]; then
+    pkgs=("./...")
+  fi
 else
   pkgs=("./...")
 fi
@@ -130,16 +150,22 @@ if ! tidy_out="$(go mod tidy -diff 2>&1)"; then
 fi
 
 # 4. govulncheck, over the module. It reports *called* vulnerabilities, so it is
-# a property of the whole build rather than of the edited files.
+# a property of the whole build rather than of the edited files. It runs at
+# CI's pinned version, read from the workflow, through `go run`, as `make vuln`
+# does, so no installed binary of another version decides (0026-MADR F60).
 #
 # Exit status 3 is govulncheck's "vulnerabilities found" and always fails. Only
 # another non-zero status whose output looks like a network failure is treated
 # as an unreachable database: matching those words on a status-3 run would let a
 # finding whose trace names a `proxy` package or a `Timeout` function through.
+vuln_pin="$(grep -oE 'golang.org/x/vuln/cmd/govulncheck@v[0-9][0-9.]*' .github/workflows/ci.yml 2>/dev/null | head -1)"
 if [ "${GO_PRECHECK_SKIP_VULN:-0}" = "1" ]; then
   echo "govulncheck: skipped (GO_PRECHECK_SKIP_VULN=1)" >&2
-elif need govulncheck; then
-  vuln_out="$(govulncheck ./... 2>&1)"
+elif [ -z "$vuln_pin" ]; then
+  echo "govulncheck: no pin in .github/workflows/ci.yml" >&2
+  fail 2
+else
+  vuln_out="$(go run "$vuln_pin" ./... 2>&1)"
   vuln_rc=$?
   if [ "$vuln_rc" -eq 3 ]; then
     echo "govulncheck: vulnerabilities found:" >&2
@@ -154,8 +180,6 @@ elif need govulncheck; then
       fail 1
     fi
   fi
-else
-  fail 2
 fi
 
 if [ "$failed" -eq 0 ]; then

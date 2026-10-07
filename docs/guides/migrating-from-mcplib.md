@@ -75,7 +75,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.ClaudeProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
 | `llmprovider.ClaudeProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.ClaudeProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
-| `llmprovider.ClaudeProvider.Name` | `ID()` | It returns `ProviderClaude` as a `ProviderID`. |
+| `llmprovider.ClaudeProvider.Name` | `Provider.ID()` | It returns `ProviderClaude` as a `ProviderID`. |
 | `llmprovider.Continuer` | `Request.PreviousResponseID` | `Capabilities.Continuation` says whether a provider supports it. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.Continuer.Continue` | `Provider.Generate` with `Request.PreviousResponseID` | As `Continuer`. |
 | `llmprovider.DefaultGrokBaseURL` | `grok.BaseURL` | In `providers/grok` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
@@ -118,7 +118,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.GeminiProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
 | `llmprovider.GeminiProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.GeminiProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
-| `llmprovider.GeminiProvider.Name` | `ID()` | It returns `ProviderGemini` as a `ProviderID`. |
+| `llmprovider.GeminiProvider.Name` | `Provider.ID()` | It returns `ProviderGemini` as a `ProviderID`. |
 | `llmprovider.GenerateItemsWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.GenerateThinkingWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`, with `Request.Reasoning`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
 | `llmprovider.GenerateWithRetry` | `WithRetry(p, RetryPolicy{…})` | Middleware over any `Provider`. Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8. |
@@ -133,7 +133,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.GrokProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
 | `llmprovider.GrokProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.GrokProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
-| `llmprovider.GrokProvider.Name` | `ID()` | It returns `ProviderGrok` as a `ProviderID`. |
+| `llmprovider.GrokProvider.Name` | `Provider.ID()` | It returns `ProviderGrok` as a `ProviderID`. |
 | `llmprovider.HuggingFaceProvider` | the `llmprovider.Provider` that `huggingface.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.HuggingFaceProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` | No profile can be chosen on the new API until S8b; the wizard is unaffected. |
 | `llmprovider.HuggingFaceProvider.Generate` | `llmprovider.GenerateText` |  |
@@ -144,7 +144,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.HuggingFaceProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
 | `llmprovider.HuggingFaceProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.HuggingFaceProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
-| `llmprovider.HuggingFaceProvider.Name` | `ID()` | It returns `ProviderHuggingFace` as a `ProviderID`. |
+| `llmprovider.HuggingFaceProvider.Name` | `Provider.ID()` | It returns `ProviderHuggingFace` as a `ProviderID`. |
 | `llmprovider.IncompleteError` | `*APIError` of kind `ErrIncomplete` | Removed in [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8 ([0015-MADR](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D7). It still matches `ErrInvalidRequest`. |
 | `llmprovider.IncompleteError.Error` | `APIError.Error` | Reads `llmprovider: incomplete response: <reason>`. |
 | `llmprovider.IncompleteError.Reason` | `APIError.Reason` | As `IncompleteError`. |
@@ -169,7 +169,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.KiloProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
 | `llmprovider.KiloProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.KiloProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
-| `llmprovider.KiloProvider.Name` | `ID()` | It returns `ProviderKilo` as a `ProviderID`. |
+| `llmprovider.KiloProvider.Name` | `Provider.ID()` | It returns `ProviderKilo` as a `ProviderID`. |
 | `llmprovider.ListAvailableModels` | `catalog.List(ctx, id, NewStaticToken(key), opts...)` | Its `Recommended`; an error gives none ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
 | `llmprovider.ListAvailableModelsWithSource` | `catalog.List(ctx, id, src, opts...)` | Its `Recommended`; an error gives none. |
 | `llmprovider.ListModelCatalog` | `catalog.List` | With `NewStaticToken(key)` for a key ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8). |
@@ -238,7 +238,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OllamaProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
 | `llmprovider.OllamaProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. The tool is still offered, not forced. |
 | `llmprovider.OllamaProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
-| `llmprovider.OllamaProvider.Name` | `ID()` | It returns `ProviderOllama` as a `ProviderID`. |
+| `llmprovider.OllamaProvider.Name` | `Provider.ID()` | It returns `ProviderOllama` as a `ProviderID`. |
 | `llmprovider.OpenAIProvider` | the `llmprovider.Provider` that `openai.New` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.OpenAIProvider.Continue` | `Generate` with `Request.PreviousResponseID` | A ChatGPT session refuses it with `ErrUnsupported` (0015-MADR D4). |
 | `llmprovider.OpenAIProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
@@ -250,7 +250,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OpenAIProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
 | `llmprovider.OpenAIProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.OpenAIProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
-| `llmprovider.OpenAIProvider.Name` | `ID()` | It returns `ProviderOpenAI` as a `ProviderID`. |
+| `llmprovider.OpenAIProvider.Name` | `Provider.ID()` | It returns `ProviderOpenAI` as a `ProviderID`. |
 | `llmprovider.OpencodeProvider` | the `llmprovider.Provider` that `opencode.NewZen` or `NewGo` returns | The type is unexported ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.OpencodeProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` | No profile can be chosen on the new API until S8b; the wizard is unaffected. |
 | `llmprovider.OpencodeProvider.Generate` | `llmprovider.GenerateText` |  |
@@ -261,7 +261,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.OpencodeProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |
 | `llmprovider.OpencodeProvider.GenerateWithTool` | `llmprovider.GenerateToolCall` | It returns the call; its `Arguments` are the old result. |
 | `llmprovider.OpencodeProvider.GenerateWithToolThinking` | `llmprovider.GenerateToolCall` with `Request.Reasoning` |  |
-| `llmprovider.OpencodeProvider.Name` | `ID()` | It returns the gateway's `ProviderID`. |
+| `llmprovider.OpencodeProvider.Name` | `Provider.ID()` | It returns the gateway's `ProviderID`. |
 | `llmprovider.OpencodeProvider.Route` | none | The route is chosen per request, by model; `opencode.WithRoute` pins one ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S7). |
 | `llmprovider.OpencodeRoute` | `opencode.Route` |  |
 | `llmprovider.OpencodeRouteChatCompletions` | `opencode.RouteChatCompletions` |  |
@@ -335,15 +335,15 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.Response.OutputText` | `Response.OutputText` | Unchanged. `GenerateText` returns it. |
 | `llmprovider.RevokeOAuthSession` | `auth.RevokeOAuthSession` | In `auth` since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8c. |
 | `llmprovider.SearchModels` | `catalog.Search` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
-| `llmprovider.StaticClaude` | `StaticModels(ProviderClaude)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.StaticGemini` | `StaticModels(ProviderGemini)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.StaticGrok` | `StaticModels(ProviderGrok)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.StaticHuggingFace` | `StaticModels(ProviderHuggingFace)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.StaticKilo` | `StaticModels(ProviderKilo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticClaude` | `catalog.Static(llmprovider.ProviderClaude)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticGemini` | `catalog.Static(llmprovider.ProviderGemini)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticGrok` | `catalog.Static(llmprovider.ProviderGrok)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticHuggingFace` | `catalog.Static(llmprovider.ProviderHuggingFace)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticKilo` | `catalog.Static(llmprovider.ProviderKilo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticModels` | `catalog.Static` | Its provider parameter is a `ProviderID` ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S8, D6). |
-| `llmprovider.StaticOpenAI` | `StaticModels(ProviderOpenAI)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.StaticOpencodeGo` | `StaticModels(ProviderOpencodeGo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
-| `llmprovider.StaticOpencodeZen` | `StaticModels(ProviderOpencodeZen)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticOpenAI` | `catalog.Static(llmprovider.ProviderOpenAI)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticOpencodeGo` | `catalog.Static(llmprovider.ProviderOpencodeGo)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
+| `llmprovider.StaticOpencodeZen` | `catalog.Static(llmprovider.ProviderOpencodeZen)` | The variable is unexported; the function returns a copy ([0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S5, D9). |
 | `llmprovider.StaticToken` | `StaticToken` | `String`, `GoString`, `LogValue` and `MarshalJSON` never show `Value` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) D5). |
 | `llmprovider.StaticToken.Header` | `llmprovider.StaticToken.Header` | Empty now means the service's own header; it no longer defaults to `Authorization` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
 | `llmprovider.StaticToken.Token` | `llmprovider.StaticToken.Token` | Returns a `TokenAPIKey`, with the `Header` set, if any; it returned `TokenBearer` and `Authorization` ([0016-MADR](../decisions/0016-MADR-provider-auth-and-support-baseline.md) A6). |
