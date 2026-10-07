@@ -48,12 +48,13 @@ func TestConformance(t *testing.T) {
 					_, _ = io.WriteString(w, `{"error":{"code":"llmtest","message":"llmtest"}}`)
 				},
 				// Gemini refuses a key with 400 API_KEY_INVALID, measured
-				// live (0020-MADR F23 amendment; 0026-MADR F6).
+				// live (0020-MADR F23 amendment; 0026-MADR F6), and the
+				// Interactions API wraps the error in an array (0026-PLAN D12).
 				AuthFailure: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusBadRequest)
-					_, _ = io.WriteString(w, `{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.",`+
+					_, _ = io.WriteString(w, `[{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.",`+
 						`"status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo",`+
-						`"reason":"API_KEY_INVALID","domain":"googleapis.com"}]}}`)
+						`"reason":"API_KEY_INVALID","domain":"googleapis.com"}]}}]`)
 				},
 			})
 		})

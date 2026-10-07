@@ -368,7 +368,8 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 // {error:{code,message}}, {code} or {error,error_type,message},
 // OpenAI/Codex {error:{type,code,message}},
 // xAI nested or flat {code,error}, Gemini {error:{code,message,status,
-// details:[{reason}]}}.
+// details:[{reason}]}}, which its Interactions API sends as a one-element
+// array, [{error:{…}}] (0026-PLAN D12).
 type apiErrorEnvelope struct {
 	types    []string // candidate classifications, most specific first
 	msg      string
@@ -406,6 +407,17 @@ func (e apiErrorEnvelope) message() string { return e.msg }
 
 func (e apiErrorEnvelope) hasType(t string) bool { return slices.Contains(e.types, t) }
 
+// soleObject returns the element of a JSON array holding one object, and any
+// other body as it is: Gemini's Interactions API wraps each error in such an
+// array (0026-PLAN D12).
+func soleObject(body []byte) []byte {
+	var elems []json.RawMessage
+	if json.Unmarshal(body, &elems) != nil || len(elems) != 1 || !bytes.HasPrefix(elems[0], []byte("{")) {
+		return body
+	}
+	return elems[0]
+}
+
 func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 	var top struct {
 		Type      string          `json:"type"`
@@ -415,7 +427,7 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		Error     json.RawMessage `json:"error"`
 		Detail    json.RawMessage `json:"detail"`
 	}
-	if json.Unmarshal(body, &top) != nil {
+	if json.Unmarshal(soleObject(body), &top) != nil {
 		return apiErrorEnvelope{msg: strings.TrimSpace(string(body))}
 	}
 	var env apiErrorEnvelope

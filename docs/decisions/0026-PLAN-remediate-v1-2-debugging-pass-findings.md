@@ -217,7 +217,9 @@ agent stages; the owner commits.
    * `api-check` against `v1.2.1`, additive only;
    * the module proxy resolves `v1.3.0`;
    * a scratch consumer that requires `v1.3.0` builds for Linux, Windows
-     and macOS.
+     and macOS;
+   * *(Deviation D11)* the live suites, on the released tag, and F6's
+     live check (V4), through a new live test.
 
 ## Verification
 
@@ -1212,3 +1214,185 @@ changes):
   summarises `v1.3`.
 * **Left to the owner:** committing this, and tagging it (D10). Once the
   tag is pushed, its CI and the proxy are checked as `v1.3.0`'s were.
+
+### Deviation D11 (2026-10-07): Phase 7 runs the live suites, and F6 gets a live test
+
+* **Found** after `v1.3.1` was tagged, before this PLAN was marked
+  complete. Its Goal requires "the live checks under Verification pass with
+  the owner's keys", and the records of Phases 2–6 each defer their live
+  run to "Phase 7's release gate". Phase 7's steps, as written, did not
+  include one, and none had been run. V4's F6 item, a `CommandToken` rerun
+  against Gemini's real invalid-key reply, had no live test: F6 was proven
+  against a fixture of that reply. The other V4 items were settled: F38
+  measured (Phase 4), F65 measured on Google's route (D6), F12 on Google's
+  documented shape (D4), and F13's two-process tests
+  (`TestFileTokenStore_LockReleasedWhenHolderDies`,
+  `TestTryLock_ReleasedWhenHolderDies`) skip on no platform and pass in
+  CI's Windows job, so its "if CI's cannot" condition does not arise.
+* **Options put to the owner:** run the live suites and add F6's live
+  test; run the suites only, and leave F6's live check not done and this
+  PLAN in progress; or leave the gate open.
+* **Decision.** The owner chose the first. Phase 7 gains step 4's last
+  item. `TestLive_GeminiCommandTokenRerunsOnInvalidKey`
+  (`llmprovider/live_gemini_reauth_test.go`, added to this phase) is seen
+  failing first on a scratch copy, with F6's rule planted out. The live
+  suites run on the tag with the keys in the environment; the suites that
+  need a person to sign in stay off. A failure is a deviation. This PLAN is
+  marked complete only when they pass.
+
+### Deviation D12 (2026-10-07): Gemini's Interactions API wraps its errors in an array
+
+* **Found** running D11's `TestLive_GeminiCommandTokenRerunsOnInvalidKey`
+  on `v1.3.1` (`p7_f6_green.out`):
+  * `refusal`: `invalid key: status 400 kind llmprovider: invalid request,
+    want 400 and ErrAuthFailure`;
+  * `rerun`: `Generate = llmprovider: invalid request: gemini HTTP 400:
+    [{ "error": { "code": 400, "message": "API key not valid. …",
+    … "reason": "API_KEY_INVALID" … after 1 command runs, want success
+    after 2`.
+* **Cause.** Gemini's non-streaming `POST /v1beta/interactions`, the only
+  endpoint `Generate` calls, sends its error in a one-element JSON array,
+  `[{"error":{…}}]`. Probed with a fake key: `/interactions?alt=sse`,
+  `models/…:generateContent` and `/models` send the bare object, and a
+  malformed body to `/interactions` is wrapped too, so the wrapper is the
+  endpoint's, not the refusal's. `parseAPIErrorBody`
+  (`llmprovider/api_error.go`) unmarshals the body into an object, fails on
+  the array, and keeps only the text, so no Gemini rule of
+  `classifyAPIError` can match: neither `API_KEY_INVALID` (F6, 0020 F23)
+  nor F12's `RetryInfo` and per-day `QuotaFailure`.
+* **Pre-existing:** since `Generate` moved to the Interactions API
+  (0014-MADR), in every release since, `v1.3.0` and `v1.3.1` among them.
+  F6's fixture, Gemini's `llmtest` harness and F12's fixture use the bare
+  object, and `TestLive_GeminiRateLimitShape` calls `generateContent`, so
+  none of them could see it. The `v1.3` release notes say F6 and F12 work;
+  on Gemini's `Generate` they did not.
+* **Options put to the owner:** unwrap the array in the shared parser and
+  release `v1.3.2`; unwrap it in the Gemini provider only, through a new
+  classification hook; or record it, fix it under a new pair, and add a
+  known issue to the notes.
+* **Decision.** The owner chose the first ("Fix forward in v1.3.2").
+  `parseAPIErrorBody` parses the element of a one-element JSON array whose
+  element is an object. A unit test with the captured body is seen failing
+  first. Gemini's `llmtest` harness refuses with the array, and F12's
+  fixture gains the array form. Then F6's live test and the live suites
+  run (D11). The release notes gain `v1.3.2`, and the README names it; the
+  owner tags it. 0026-MADR is amended.
+* **Added to this phase:** `llmprovider/api_error.go`, its tests,
+  `llmprovider/providers/gemini/llmtest_test.go`, and `README.md`.
+
+### Phase 7, continued: the live gate and `v1.3.2` (2026-10-07)
+
+* **Before it.** The owner committed the release notes as `4b9bc40`,
+  pushed it, and tagged it `v1.3.1` (D10).
+* **Approval.** D11 ("Run suites + add F6 test") and D12 ("Fix forward in
+  v1.3.2"), 2026-10-07.
+
+#### Checks on `v1.3.1`
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` at `4b9bc40` | run 37683445400, success |
+| CI on the tag | run 37685705461, success (macOS, Ubuntu, Windows) |
+| the tag | `v1.3.1` is annotated, on `4b9bc40` |
+| `GOPROXY=direct go list -m …@v1.3.1` | `"Version": "v1.3.1"`, `"Time": "2026-10-07T20:37:04Z"`, `"Hash": "4b9bc40…"` |
+| the module proxy | its `@v/list` names `v1.3.1`; its `v1.3.1.info` still answered 404 at 21:14 UTC, 19 minutes after the tag (see below) |
+
+#### D12's fix
+
+| Test | Before the fix | After |
+| :--- | :--- | :--- |
+| `TestClassify_GeminiArrayEnvelope`, with Interactions' invalid-key reply as captured (a fake key) | `Interactions' invalid-key reply: llmprovider: invalid request: gemini HTTP 400: [{ "error": …`; `a wrapped per-day 429: llmprovider: rate limited: gemini HTTP 429: [{"error":…` | PASS. A two-element array, an array of a string, `[]` and `[null]` stay `ErrInvalidRequest`, before and after. |
+| Gemini's `TestConformance`, `R16-reauth`, its `AuthFailure` now the array | `0 invalidation(s) and 1 request(s), error llmprovider: invalid request: gemini HTTP 400: [{"error":{"code":400…` (stored and unstored) | PASS |
+
+`soleObject` (`llmprovider/api_error.go`) gives `parseAPIErrorBody` the
+element of a JSON array holding one object, and any other body unchanged.
+No exported identifier changes.
+
+#### F6's live check (D11)
+
+`TestLive_GeminiCommandTokenRerunsOnInvalidKey`: its `refusal` subtest
+checks Gemini's reply to a fake key is 400 `ErrAuthFailure`; its `rerun`
+subtest has a `CommandToken` print the fake key first and
+`$GEMINI_API_KEY`, from its environment, after it. The key never appears
+in a command line or an output.
+
+| Run | Result |
+| :--- | :--- |
+| on `v1.3.1`'s code | FAIL: `refusal`: `status 400 kind llmprovider: invalid request`; `rerun`: `… after 1 command runs, want success after 2`. This is D12. |
+| on a scratch copy with F6's rule planted out (`credentialRefused` back to `Status == 401`) | `refusal` PASS; `rerun` FAIL: `Generate = llmprovider: authentication failed: gemini HTTP 400 API_KEY_INVALID: API key not valid. … after 1 command runs` |
+| on the fixed tree | PASS, both subtests |
+
+#### The live suites (D11)
+
+`LLMPROVIDER_LIVE_TOGETHER=1 go test -tags live_gateways -count=1 -v
+./llmprovider/... -run Live` on the fixed tree, with the provider keys in
+the environment (each checked for presence only), `p7_live.out`:
+
+| Result | Count |
+| :--- | :--- |
+| top-level tests passed | 62 |
+| failed | 1: `TestLive_TogetherWire`, `text` and `forced_tool`: `openai/gpt-oss-120b: llmprovider: provider unavailable: together HTTP 503 service_unavailable` |
+| skipped by their own switch | 11 (below) |
+| skipped for want of a model | 1: `TestLive_OpencodeInterleavedReasoningReplay`, `no active opencode-go model among [kimi-k2.6]` |
+
+* **The failure was the service's.** Rerun alone at 21:14 UTC,
+  `TestLive_TogetherWire` passed all four subtests
+  (`p7_live_together.out`). The 503 was classified retryable
+  `ErrProviderUnavailable`, as 0012-MADR requires.
+* **The measured items held:** F38's `TestLive_GeminiFlashLiteEffortThinks`
+  and F65's `TestLive_OpencodeGoogleTwoCallRoundTrip/google-direct` passed;
+  its `zen` subtest skipped, as D6 records.
+
+**Not run:** the suites that spend a subscription or need a person to
+sign in: `LLMPROVIDER_LIVE_CHATGPT` (four tests),
+`LLMPROVIDER_LIVE_GROK_CLI`, `LLMPROVIDER_LIVE_BROWSER_LOGIN` (two),
+`LLMPROVIDER_LIVE_DEVICE_LOGIN` (two) and `LLMPROVIDER_LIVE_OPENAI_SIGNIN`;
+and `TestLive_GeminiRateLimitShape`, which needs a key that reaches its
+limit (D4).
+
+**Found, and outside this phase (not done):** `TestLive_TogetherWire`
+skips on `ErrRateLimited` only, where the suite's `skipIfTransient`
+(`live_gateways_test.go`) also skips `ErrProviderUnavailable`, so a
+Together outage reads as a failure of the SDK.
+
+#### Release notes: `v1.3.2`
+
+`v1.3.2` fixes D12, found by D11's live check, and changes no exported
+API:
+
+* Gemini's Interactions API, which `Generate` calls, sends its errors as a
+  one-element array. They are now read as Gemini's other errors are, so
+  on `Generate`:
+  * a refused key, 400 `API_KEY_INVALID`, is `ErrAuthFailure`, and renews a
+    `CommandToken` once (F6); on `v1.3.0` and `v1.3.1` it was
+    `ErrInvalidRequest`, and was not renewed;
+  * a 429's `RetryInfo` sets `RetryAfter`, and a per-day quota is
+    `ErrQuotaExhausted` (F12);
+  * the error's text is Gemini's message, not the whole body.
+* `llmtest`: Gemini's own harness refuses a key with the array. A
+  third-party harness is unaffected.
+* Every other `v1.3.0` note above holds.
+
+#### Gate
+
+The gate (rule 3) on a scratch copy with these changes staged
+(`p26_gate.py`):
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `460 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -cover`, `-shuffle=on` | 0 each |
+| `go mod tidy -diff`, `make lint` | 0 each |
+| `parity-check` | `409 identifiers, 409 rows, 409 with an SDK equivalent, 0 problem(s)` |
+| `dep-check`, `generate-check` | 0 each |
+| `coverage-check` | `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.1, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `57 records, 0 problem(s)` |
+| `gate-selftest` | `Ran 14 tests`, OK |
+| markdownlint (the lint scope), G-wire stable, links | 0 problems; 608 relative links in 67 files |
+| identifier scan of the changed files | 0 hits in 7 files |
+
+* **Left to the owner:** committing this, pushing it, and tagging it
+  `v1.3.2`. Then its CI and the module proxy are checked, `v1.3.1`'s proxy
+  entry with them, and this PLAN is marked complete.

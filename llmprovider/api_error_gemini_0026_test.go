@@ -46,6 +46,57 @@ func TestClassify_GeminiRetryInfo(t *testing.T) {
 	}
 }
 
+// geminiInteractionsKeyInvalid is Gemini's reply to an invalid key on the
+// Interactions API, POST /v1beta/interactions, as captured live: the
+// endpoint wraps every error in a one-element array (0026-PLAN D12).
+const geminiInteractionsKeyInvalid = `[{
+  "error": {
+    "code": 400,
+    "message": "API key not valid. Please pass a valid API key.",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "API_KEY_INVALID",
+        "domain": "googleapis.com",
+        "metadata": {
+          "service": "generativelanguage.googleapis.com"
+        }
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.LocalizedMessage",
+        "locale": "en-US",
+        "message": "API key not valid. Please pass a valid API key."
+      }
+    ]
+  }
+}
+]`
+
+// TestClassify_GeminiArrayEnvelope (0026-PLAN D12): an error the Interactions
+// API wraps in a one-element array is read as the bare one: a refused key is
+// ErrAuthFailure (F6), and a 429's RetryInfo and per-day quota apply (F12).
+// Any other array keeps its text.
+func TestClassify_GeminiArrayEnvelope(t *testing.T) {
+	err := classifyFixture("gemini", 400, geminiInteractionsKeyInvalid, nil)
+	if apiErr, ok := errors.AsType[*APIError](err); !ok || apiErr.Kind != ErrAuthFailure { //nolint:errorlint // the kind itself
+		t.Errorf("Interactions' invalid-key reply: %v; want kind ErrAuthFailure", err)
+	}
+	if !strings.Contains(err.Error(), "API key not valid") {
+		t.Errorf("Interactions' invalid-key reply: %v; want its message", err)
+	}
+	day := "[" + geminiQuota429("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "52s") + "]"
+	if e, _ := errors.AsType[*APIError](classifyFixture("gemini", 429, day, nil)); e == nil || e.RetryAfter != 52*time.Second || !errors.Is(e, ErrQuotaExhausted) {
+		t.Errorf("a wrapped per-day 429: %v; want RetryAfter 52s and ErrQuotaExhausted", e)
+	}
+	bare := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(geminiInteractionsKeyInvalid), "["), "]")
+	for _, body := range []string{"[" + bare + "," + bare + "]", `["API_KEY_INVALID"]`, `[]`, `[null]`} {
+		if e, _ := errors.AsType[*APIError](classifyFixture("gemini", 400, body, nil)); e == nil || e.Kind != ErrInvalidRequest { //nolint:errorlint // the kind itself
+			t.Errorf("gemini 400 %.40q: %v; want ErrInvalidRequest from the status", body, e)
+		}
+	}
+}
+
 // TestClassify_GeminiRetryInfoEdges: a header wins over the body; a 429 with
 // neither detail, as Google's forum reports, keeps today's classification;
 // a malformed or non-positive delay is ignored; another service's body is not

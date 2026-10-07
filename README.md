@@ -190,7 +190,7 @@ key.
 
 ## Status
 
-The current release is `v1.3.1`. The module requires Go 1.27.1.
+The current release is `v1.3.2`. The module requires Go 1.27.1.
 
 - `v1.3` remediates
   [0026-MADR](docs/decisions/0026-MADR-remediate-v1-2-debugging-pass-findings.md)'s
@@ -198,7 +198,10 @@ The current release is `v1.3.1`. The module requires Go 1.27.1.
   `New` refuses inputs no request could carry, a retryable error no longer
   matches `ErrInvalidRequest`, an answer cut while reasoning is
   `ErrIncomplete`, `FileTokenStore` locks with the OS (upgrade every process
-  sharing a store), and `llmtest.Run` checks more. The release notes are in
+  sharing a store), and `llmtest.Run` checks more. `v1.3.2` reads Gemini's
+  errors in the array its Interactions API sends them in, so a refused key
+  renews a `CommandToken`, and a 429's delay and per-day quota apply; on
+  `v1.3.0` and `v1.3.1` they did not. The release notes are in
   [0026-PLAN](docs/decisions/0026-PLAN-remediate-v1-2-debugging-pass-findings.md),
   Phase 7.
 

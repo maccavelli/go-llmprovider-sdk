@@ -840,3 +840,22 @@ a").
   only when the session has none, and marks it a default.
   `UseHTTPClient` now replaces a default, but never a caller's client. Both
   0016 D8 and F37 hold.
+
+## Amendment 2026-10-07: Gemini's Interactions API wraps its errors in an array
+
+Made by the 0026 PLAN's deviation D12, chosen by the owner ("Fix forward in
+v1.3.2").
+
+* **Corrects a fact F6 asserts.** F6 says Gemini's 400 `API_KEY_INVALID`
+  "is classified `ErrAuthFailure`". Through `Generate` it was not:
+  Gemini's non-streaming `POST /v1beta/interactions` sends every error as
+  a one-element JSON array, `[{"error":{…}}]`, which the shared parser read
+  as text, so the reply was `ErrInvalidRequest`. The 0020 F23 measurement
+  holds for the endpoints that send the bare object (`generateContent`,
+  `/models`, `/interactions?alt=sse`). F12's rules were blind on `Generate`
+  for the same reason.
+* **Now:** `parseAPIErrorBody` reads the element of a one-element array
+  whose element is an object, for every service. A body of any other shape
+  keeps today's handling.
+* **Released as** `v1.3.2`, a fix forward; `v1.3.0` and `v1.3.1` carry the
+  defect. Found by the live check D11 added.
