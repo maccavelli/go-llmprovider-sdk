@@ -859,3 +859,19 @@ v1.3.2").
   keeps today's handling.
 * **Released as** `v1.3.2`, a fix forward; `v1.3.0` and `v1.3.1` carry the
   defect. Found by the live check D11 added.
+
+## Amendment 2026-10-07: Gemini's 429 on the Interactions API
+
+Made by 0027-PLAN-live-test-skips-and-gemini-429-path.md, its deviation D1.
+
+* **Corrects two facts.** F12 says "Gemini sends no `Retry-After` header",
+  from Google's documented shape (amendment "Q6 is (b)"). Measured on the
+  Interactions API, which `Generate` calls, a 429 carries `Retry-After`
+  and a bare body, `{"error":{"message":…,"code":"too_many_requests"}}`,
+  with no `RetryInfo`. And the amendment "Gemini's Interactions API wraps
+  its errors in an array" says the endpoint sends "every error" in an
+  array; that 429 is bare.
+* **No change to the code.** The header gives `RetryAfter`, so the reply
+  is classified correctly. F12's body rules stay for a reply that carries
+  Google's details. 0027-MADR records the measurement and what is still
+  unmeasured.

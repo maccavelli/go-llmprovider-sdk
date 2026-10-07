@@ -217,3 +217,25 @@ envelope is not a check of what callers get.
   `…_GROK_CLI`, `…_BROWSER_LOGIN`, `…_DEVICE_LOGIN`, `…_OPENAI_SIGNIN`)
   were not run by 0026's gate. Running them needs the owner present, and
   is not a gap in the tests.
+
+## Amendment 2026-10-07: Gemini's real 429 sends `Retry-After`, in a shape of its own
+
+Made by the 0027 PLAN's deviation D1, chosen by the owner ("Re-baseline on
+the capture").
+
+* **Measured** by `TestLive_GeminiRateLimitShape` through `Generate`, a
+  burst of 300 one-token requests to `gemini-pro-latest`, 2026-10-07: the
+  Interactions API answered 429 with a `Retry-After: 11` header and a bare
+  body, `{"error":{"message":"Rate limit exceeded for model gemini-3.1-pro
+  (limit: 25 requests per minute on Tier 1). Please retry in 11s …",
+  "code":"too_many_requests"}}`, with no `status` and no `google.rpc`
+  details.
+* **Corrects** this record's Context, which took the 429 to be Google's
+  documented body inside the Interactions API's array. The array is what
+  the endpoint sent for a refused key; its rate limit answers in neither
+  form.
+* **Now:** the 429 checker (Decision Outcome, item 2) asserts the caller's
+  contract, the kind and `RetryAfter` from the header or, with none, the
+  body's `retryDelay`, and its DRIFT check knows both shapes.
+* **Unmeasured:** a per-day limit on the Interactions API, and so whether
+  F12's per-day rule can fire on `Generate`.

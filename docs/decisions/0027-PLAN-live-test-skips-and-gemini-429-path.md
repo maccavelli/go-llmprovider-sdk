@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-07
 associated-madr: "0027-MADR-live-test-skips-and-gemini-429-path.md"
 decision-makers: repository owner
@@ -265,3 +265,137 @@ on the planted line only:
 
 **Scope (V4):** the phase changes six `_test.go` files, one of them new,
 and the records; no shipped file.
+
+### Deviation D1 (2026-10-07): Gemini's real 429 is not the shape F12 was built on
+
+* **Found** at Phase 2, step 4: the owner chose a burst of 300 (Q1 (a),
+  "300"), after one request to `gemini-pro-latest` billed 2 input tokens,
+  0 output and 0 thought tokens. The burst, at 22:22 UTC, got a 429
+  (`p27_burst.out`):
+  * a `Retry-After: 11` header;
+  * a bare body, not the one-element array the Interactions API sent a
+    refused key in:
+
+    ```json
+    {"error":{"message":"Rate limit exceeded for model gemini-3.1-pro (limit: 25 requests per minute on Tier 1). Please retry in 11s or upgrade your tier at https://ai.dev/rate-limit.","code":"too_many_requests"}}
+    ```
+
+  * `Generate` returned `llmprovider: rate limited: gemini HTTP 429
+    too_many_requests (retry-after 11s): …`: `ErrRateLimited`, retryable,
+    `RetryAfter` 11s, from the header.
+  * `checkGemini429` failed on its DRIFT checks: `the 429's envelope is
+    bare`; `DRIFT: error.status = ""; want RESOURCE_EXHAUSTED`; `DRIFT: no
+    google.rpc.RetryInfo retryDelay in the 429 body`.
+* **What it contradicts.** 0026-MADR F12 says "Gemini sends no
+  `Retry-After` header" and that its 429 body carries
+  `google.rpc.RetryInfo`; both were Google's documented shape, never
+  captured (that MADR's amendment "Q6 is (b)"). 0026-MADR's amendment of
+  2026-10-07 on D12 says the Interactions API sends "every error" in an
+  array; this 429 is bare.
+* **What it does not change.** The SDK's classification of this reply is
+  correct for callers: the header gives the delay. F12's body rules stay,
+  for a reply that carries Google's details. What a per-day limit looks
+  like on this endpoint is not measured.
+* **Options put to the owner:** re-baseline the checker on the capture,
+  with the MADR amendments; keep the checker on the documented shape and
+  record the drift, leaving the live test failing on every real 429; or
+  stop Phase 2 with the capture recorded.
+* **Decision.** The owner chose the first ("Re-baseline on the capture").
+  * `checkGemini429` asserts the caller's contract on any 429: an
+    `*APIError` of kind `ErrRateLimited`, retryable, or `ErrQuotaExhausted`
+    when a `QuotaFailure` names a per-day quota; and `RetryAfter` equal to
+    the `Retry-After` header in seconds, or to the body's `retryDelay` when
+    no header came.
+  * Its DRIFT check knows two shapes, Google's documented one and the
+    capture's, in either envelope, and reports which it saw; any other
+    shape, or a 429 that gives no delay, is DRIFT.
+  * The capture, with its header, is a fixture of `TestCheckGemini429`,
+    seen failing first against the checker as it was.
+  * The live test's log says "within a burst of N", since all N calls start
+    at once.
+  * The live test is rerun once, after the key's minute has passed.
+  * 0027-MADR and 0026-MADR are amended. A per-day limit on the Interactions
+    API stays unmeasured, and no message is parsed for one.
+
+### Phase 2: Gemini's 429 on the Interactions path (2026-10-07)
+
+* **Before it.** Phase 1 was committed by the owner as `393a5af`.
+* **Approval.** "proceed", 2026-10-07; the burst, "300" (Q1 (a)); D1,
+  "Re-baseline on the capture".
+
+**The checker, red first** (step 1). `checkGemini429` and
+`TestCheckGemini429` (`llmprovider/gemini429_check_test.go`, package
+`llmprovider_test`, no build tag). On a scratch copy with `soleObject`
+planted out (`return body`), as written in step 1:
+
+```text
+--- FAIL: TestCheckGemini429 (0.00s)
+    gemini429_check_test.go:140: an error that ignores the body: …
+```
+
+That first version's negative case was wrong, not the checker: it expected
+Kilo's classifier to ignore `retryDelay`, which the shared parser reads for
+every service. It was replaced by an error classified from an empty body.
+After D1 the checker was rewritten (below), and the plant was rerun against
+it:
+
+```text
+--- FAIL: TestCheckGemini429 (0.00s)
+    gemini429_check_test.go:174: documented, per minute: the checks failed on the SDK's own classification:
+        RetryAfter = 0s; want 39s, from the body's retryDelay
+    gemini429_check_test.go:174: documented, per day: the checks failed on the SDK's own classification:
+        RetryAfter = 0s; want 52s, from the body's retryDelay
+        a per-day quota = true, but ErrQuotaExhausted = false: llmprovider: rate limited: gemini HTTP 429: [{"error":{…
+```
+
+**The live test** (step 2). `TestLive_GeminiRateLimitShape` sends its
+requests through `gemini.New(…).Generate` with `WithMaxTokens(1)`, each
+through a provider and recording transport of its own, so a 429's body and
+`Generate`'s error are paired. `LLMPROVIDER_LIVE_GEMINI_429_BURST` sets the
+burst; 0 sends the one request only. `golangci-lint` asked for the error as
+`firstGemini429`'s last result (ST1008); it is.
+
+**One request first** (step 3), `BURST=0` (`p27_probe.out`):
+`gemini-pro-latest` on the Interactions API billed `"total_input_tokens":2`,
+`"total_output_tokens":0`, `"total_thought_tokens":0` (`"raw_prompt_token":23`,
+one candidate token). The owner set the burst to 300.
+
+**The live attempt** (step 4). The first burst found D1: the 429 was not
+the shape the checker expected (`p27_burst.out`). After D1:
+
+| Step | Result |
+| :--- | :--- |
+| `TestCheckGemini429` with the capture as a fixture, against the checker as it was | FAIL: `captured: … DRIFT: error.status = ""; want RESOURCE_EXHAUSTED`, `DRIFT: no google.rpc.RetryInfo retryDelay in the 429 body`; the four negative cases did not report what they must |
+| the same, after the rewrite | PASS: both documented 429s, in the array, and the capture, bare with `Retry-After: 11`, pass; an error that drops the delay, one that drops the quota, another shape and a 429 with no delay each fail, as asserted |
+| the live test, burst 300, 22:28 UTC (`p27_burst2.out`) | PASS: `429 within a burst of 300 sent at once; Retry-After header "38"; error llmprovider: rate limited: gemini HTTP 429 too_many_requests (retry-after 38s)`; `the 429 is the Interactions API's too_many_requests shape, bare` |
+
+**Not measured:** a per-day limit on the Interactions API (0027-MADR,
+amendment of 2026-10-07). The key's limit was 25 requests a minute
+("Tier 1"); a day's limit was not approached.
+
+**The gate** (`p26_gate.py`):
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `462 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -cover`, `-shuffle=on`, `go mod tidy -diff`, `make lint` | 0 each |
+| `parity-check` | `409 identifiers, 409 rows, 409 with an SDK equivalent, 0 problem(s)` |
+| `dep-check`, `generate-check` | 0 each |
+| `coverage-check` | `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `59 records, 0 problem(s)` |
+| `gate-selftest` | `Ran 14 tests`, OK |
+| markdownlint (the lint scope), G-wire stable, links | 0 problems; 612 relative links in 69 files |
+| identifier scan of the changed files | 0 hits in 5 files |
+
+**Scope (V4):** two `_test.go` files, one of them new, and the records
+(this PLAN, 0027-MADR and 0026-MADR's amendments, the index).
+
+### Status
+
+Complete, 2026-10-07. Every item of the Goal holds: the live tests skip by
+one rule, which CI enforces (Phase 1); the 429 test checks `Generate`'s
+error from the Interactions API, and its checks run in CI on fixtures of
+both known shapes; and the live attempt is recorded, a pass after D1. The
+module did not change, and nothing is tagged.
