@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-55 records. Cite them by full filename.
+57 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -65,6 +65,8 @@ documents a reader follows to do something.
 | 0024 | PLAN | [Implement the Paired OpenCode Live System-Message Check](decisions/0024-PLAN-opencode-live-system-message-test.md) | complete |
 | 0025 | MADR | [Check the Decision Records Mechanically, and Correct the Two Stale PLAN Statuses](decisions/0025-MADR-records-consistency-check.md) | accepted |
 | 0025 | PLAN | [Implement the Records Consistency Check, and Correct the Two Stale PLAN Statuses](decisions/0025-PLAN-records-consistency-check.md) | complete |
+| 0026 | MADR | [Remediate the Defects Found by the v1.2 Debugging Pass](decisions/0026-MADR-remediate-v1-2-debugging-pass-findings.md) | accepted |
+| 0026 | PLAN | [Implement the Remediation of the v1.2 Debugging Pass](decisions/0026-PLAN-remediate-v1-2-debugging-pass-findings.md) | in-progress |
 
 ## I want to…
 
