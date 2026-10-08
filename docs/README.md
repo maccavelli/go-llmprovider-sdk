@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-59 records. Cite them by full filename.
+61 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -69,6 +69,8 @@ documents a reader follows to do something.
 | 0026 | PLAN | [Implement the Remediation of the v1.2 Debugging Pass](decisions/0026-PLAN-remediate-v1-2-debugging-pass-findings.md) | complete |
 | 0027 | MADR | [Skip Live Tests by One Rule, and Measure Gemini's 429 on the Path the SDK Sends](decisions/0027-MADR-live-test-skips-and-gemini-429-path.md) | accepted |
 | 0027 | PLAN | [Implement One Skip Rule for the Live Tests, and Gemini's 429 Check on the Interactions Path](decisions/0027-PLAN-live-test-skips-and-gemini-429-path.md) | complete |
+| 0028 | MADR | [Correct Six Error and Retry Heuristics, and Remove Five Measured Costs](decisions/0028-MADR-heuristics-and-performance-from-the-research-pass.md) | accepted |
+| 0028 | PLAN | [Implement the Six Heuristic Corrections and the Five Measured Cost Reductions](decisions/0028-PLAN-heuristics-and-performance-from-the-research-pass.md) | in-progress |
 
 ## I want to…
 
