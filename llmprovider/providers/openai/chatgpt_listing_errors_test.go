@@ -58,9 +58,10 @@ func TestListModels_ChatGPT401RefreshesOnce(t *testing.T) {
 }
 
 // TestListModels_ChatGPTFailureIsAnAPIError (0020-MADR F38): a listing that
-// is not 200 is classified like any other answer. A 403 is ErrAuthFailure on
-// OpenAI, so the session is refreshed once and the listing sent once more
-// before the error is returned (0026-MADR F6).
+// is not 200 is classified like any other answer. A 403 refuses something the
+// session may not do, not the session, so it is neither refreshed nor sent
+// again (0028-MADR D-H2): the ChatGPT backend refuses a dead session with 401
+// (0028-PLAN D5), which TestListModels_ChatGPT401RefreshesOnce covers.
 func TestListModels_ChatGPTFailureIsAnAPIError(t *testing.T) {
 	var listCalls, refreshCalls int
 	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -77,7 +78,7 @@ func TestListModels_ChatGPTFailureIsAnAPIError(t *testing.T) {
 	if !ok || apiErr.Status != http.StatusForbidden {
 		t.Errorf("ListModels = %v, want an *APIError with status 403", err)
 	}
-	if listCalls != 2 || refreshCalls != 1 {
-		t.Errorf("listing/refresh calls = %d/%d, want 2/1", listCalls, refreshCalls)
+	if listCalls != 1 || refreshCalls != 0 {
+		t.Errorf("listing/refresh calls = %d/%d, want 1/0", listCalls, refreshCalls)
 	}
 }

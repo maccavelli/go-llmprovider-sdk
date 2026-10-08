@@ -1,8 +1,10 @@
 package llmprovider
 
 import (
+	"errors"
 	"regexp"
 	"slices"
+	"strconv"
 )
 
 // Context overflow (0015-MADR D7, amendment of 2026-09-30). A service's own
@@ -45,6 +47,39 @@ var contextOverflowMessages = []struct {
 	{regexp.MustCompile(`(?i)context[_ ]length[_ ]exceeded`), "any service, as a message (pi :59)"},
 	{regexp.MustCompile(`(?i)too many tokens`), "any service (pi :60)"},
 	{regexp.MustCompile(`(?i)token limit exceeded`), "any service (pi :61)"},
+}
+
+// The OpenAI-compatible overflow message states the context's limit and how
+// the request split between input and completion (0028-MADR D-H3).
+var (
+	contextLimitPattern = regexp.MustCompile(`(?i)maximum context length is (\d+)`)
+	contextSplitPattern = regexp.MustCompile(`(?i)(\d+) in the messages, (\d+) in the completion`)
+)
+
+// reasonCompletionFillsContext is the Reason of an invalid request whose
+// requested completion alone fills the context.
+const reasonCompletionFillsContext = "max_tokens alone fills the context window: lower it"
+
+// completionFillsContext reports whether an overflow message says the
+// requested completion is at least the context's limit, so that no
+// shortening of the input can succeed (0028-MADR D-H3).
+func completionFillsContext(msg string) bool {
+	limit := contextLimitPattern.FindStringSubmatch(msg)
+	split := contextSplitPattern.FindStringSubmatch(msg)
+	if limit == nil || split == nil {
+		return false
+	}
+	contextTokens, errLimit := strconv.Atoi(limit[1])
+	completion, errSplit := strconv.Atoi(split[2])
+	return errLimit == nil && errSplit == nil && completion >= contextTokens
+}
+
+// noteCompletionFillsContext names max_tokens on an invalid request whose
+// completion alone fills the context.
+func noteCompletionFillsContext(e *APIError, msg string) {
+	if errors.Is(e.Kind, ErrInvalidRequest) && completionFillsContext(msg) {
+		e.Reason = reasonCompletionFillsContext
+	}
 }
 
 // notContextOverflow are messages that match a form above and are rate

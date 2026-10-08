@@ -1253,3 +1253,26 @@ leaves out the pre-0012 status sentinel when the error is `Retryable()`.
     (`ErrRateLimited`) or a 5xx (`ErrProviderUnavailable`), matches the same
     sentinels as before;
   * a stream failure (`Status` 0) has no status sentinel.
+
+## Amendment 2026-10-08: 403s, Grok's refused key, and failures inside a 200 (0028)
+
+Made by [0028-MADR-heuristics-and-performance-from-the-research-pass.md](0028-MADR-heuristics-and-performance-from-the-research-pass.md)
+(D-H2, D-H3, D-H8, H11), executed in its PLAN's Phase 3. §1.1's table gains:
+
+* **403, every service:** `ErrNotPermitted`, terminal, unless the body
+  carries a code a provider was measured sending with 403 for a refused
+  credential (none was, 0028-PLAN Phase 1 T1 and D5); OpenCode's and Kilo's
+  rows (amendment 2026-10-05) are unchanged. The status sentinel still
+  matches `ErrAuthFailure`, so a 403 is not renewed, and a caller that tests
+  for either still sees it.
+* **xAI 400 `invalid-argument` whose message names an API key:**
+  `ErrAuthFailure`, terminal, renewed as a refused credential (H11).
+* **An overflow whose completion alone fills the context** (`N in the
+  messages, M in the completion`, M ≥ the stated limit): `ErrInvalidRequest`,
+  with a reason naming `max_tokens`, not `ErrContextOverflow` (D-H3).
+* **A failure inside a 200 with no code,** before the 500 stand-in, by its
+  type: `invalid_request_error` → overflow check, else `ErrInvalidRequest`;
+  no type → overflow check; `authentication_error` → `ErrAuthFailure`;
+  `permission_error` → `ErrNotPermitted`; `rate_limit_error` →
+  `ErrRateLimited`; `overloaded_error`, `api_error`, `server_error` →
+  `ErrProviderUnavailable` (D-H8). A service's own codes still win.

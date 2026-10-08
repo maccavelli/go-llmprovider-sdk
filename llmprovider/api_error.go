@@ -225,6 +225,7 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 		RetryAfter: transport.RetryAfter(resp.Header),
 	}
 	e.terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
+	noteCompletionFillsContext(e, envelope.message())
 	// A usage limit says when it resets, as Codex reads it (MADR 0012 §4.4).
 	if e.RetryAfter == 0 && envelope.resetsAt > 0 {
 		if d := time.Until(time.Unix(envelope.resetsAt, 0)); d > 0 {
@@ -285,6 +286,7 @@ func ClassifyStreamFailure(provider, code, errType, message string) error {
 	// own table and the overflow check (0026-MADR F5).
 	if status, err := strconv.Atoi(code); err == nil && status >= http.StatusBadRequest && status <= 599 {
 		e.terminal, e.Kind = classifyAPIError(serviceOf(provider), status, env, nil)
+		noteCompletionFillsContext(e, message)
 		return e
 	}
 	switch {
@@ -295,10 +297,47 @@ func ClassifyStreamFailure(provider, code, errType, message string) error {
 	case env.hasType("invalid_prompt"):
 		e.terminal, e.Kind = true, ErrInvalidRequest
 	default:
-		// 500 stands in for "no status": the table's codes win, else retryable.
+		// 500 stands in for "no status": the table's codes win; else the
+		// error's type decides (0028-MADR D-H8); else retryable.
 		e.terminal, e.Kind = classifyAPIError(serviceOf(provider), http.StatusInternalServerError, env, nil)
+		if errors.Is(e.Kind, ErrProviderUnavailable) {
+			if terminal, ok, kind := classifyStreamType(env, errType); ok {
+				e.terminal, e.Kind = terminal, kind
+			}
+		}
 	}
+	noteCompletionFillsContext(e, message)
 	return e
+}
+
+// classifyStreamType classifies a failure inside a 200 by its OpenAI- or
+// Anthropic-style type, when its code said nothing (0028-MADR D-H8). An
+// invalid request, or a failure with no type, is checked for overflow first.
+// ok is false when the type decides nothing.
+func classifyStreamType(env apiErrorEnvelope, errType string) (terminal, ok bool, kind error) {
+	overflow := contextOverflow(env) && !completionFillsContext(env.message())
+	switch errType {
+	case "invalid_request_error":
+		if overflow {
+			return true, true, ErrContextOverflow
+		}
+		return true, true, ErrInvalidRequest
+	case "":
+		if overflow {
+			return true, true, ErrContextOverflow
+		}
+		return false, false, nil
+	case "authentication_error":
+		return true, true, ErrAuthFailure
+	case "permission_error":
+		return true, true, ErrNotPermitted
+	case "rate_limit_error":
+		return false, true, ErrRateLimited
+	case "overloaded_error", "api_error", "server_error":
+		return false, true, ErrProviderUnavailable
+	default:
+		return false, false, nil
+	}
 }
 
 // serviceOf reduces a provider label ("opencode-go/messages", "kilo") to the
@@ -321,6 +360,11 @@ var (
 	// geminiAuthReasons are the details reasons Gemini gives a refused key
 	// with HTTP 400, as captured live (0020-MADR F23, Q6 a).
 	geminiAuthReasons = []string{"API_KEY_INVALID"}
+	// credential403Codes are, per service, the codes a provider was measured
+	// sending with HTTP 403 for a refused credential; any other 403 is
+	// ErrNotPermitted (0028-MADR D-H2). 0028-PLAN Phase 1's T1 found none:
+	// every provider refused a key with 401 or 400.
+	credential403Codes = map[string][]string{}
 )
 
 // classifyAPIError applies MADR 0012 §1.1's table (with its 2026-09-27 rows)
@@ -343,6 +387,18 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 		return true, ErrNotPermitted
 	case service == string(ProviderGemini) && has(geminiAuthReasons...):
 		return true, ErrAuthFailure
+	// xAI refuses a key with HTTP 400 invalid-argument, naming the key
+	// (0028-PLAN Phase 1, T1; 0028-MADR H11); an invalid argument that does
+	// not is the request's.
+	case service == string(ProviderGrok) && status == http.StatusBadRequest && has("invalid-argument") &&
+		strings.Contains(strings.ToLower(env.message()), "api key"):
+		return true, ErrAuthFailure
+	// A 403 refuses something the key may not do, not the key, unless it
+	// carries a code a provider was measured sending for a refused
+	// credential (0028-MADR D-H2). The legacy status sentinel still matches
+	// ErrAuthFailure.
+	case status == http.StatusForbidden && !has(credential403Codes[service]...):
+		return true, ErrNotPermitted
 	// A per-day quota cannot be passed by a retry within the day
 	// (0026-MADR F12).
 	case service == string(ProviderGemini) && status == http.StatusTooManyRequests && env.perDayQuota:
@@ -362,7 +418,10 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 		return true, ErrProviderUnavailable
 	case status >= http.StatusInternalServerError:
 		return false, ErrProviderUnavailable
-	case errors.Is(statusSentinel(status), ErrInvalidRequest) && contextOverflow(env):
+	// An overflow whose completion alone fills the context cannot be mended
+	// by shortening the input, so it stays an invalid request
+	// (0028-MADR D-H3).
+	case errors.Is(statusSentinel(status), ErrInvalidRequest) && contextOverflow(env) && !completionFillsContext(env.message()):
 		return true, ErrContextOverflow
 	default:
 		return true, statusSentinel(status)

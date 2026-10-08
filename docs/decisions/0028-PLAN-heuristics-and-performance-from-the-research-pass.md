@@ -923,3 +923,137 @@ updated `TestGenerate_AnsweredOnceIsNotBoughtAgain` passes.
 
 The first gate run, before D4, failed five checks on the one test D4
 records; nothing else failed.
+
+### Deviation D5 (2026-10-08): a ChatGPT session's 403 was refreshed by an existing test (pending a measurement)
+
+* **Found** in Phase 3, after D-H2's change: `go test ./llmprovider/...`
+  failed `TestListModels_ChatGPTFailureIsAnAPIError`
+  (`providers/openai/chatgpt_listing_errors_test.go:60-77`, 0020-MADR F38):
+  `listing/refresh calls = 1/0, want 2/1`. Its comment states the rule D-H2
+  replaces: "A 403 is ErrAuthFailure on OpenAI, so the session is refreshed
+  once and the listing sent once more before the error is returned
+  (0026-MADR F6)". Its own subject, F38's "a listing that is not 200 is
+  classified like any other answer", still holds: the error is an
+  `*APIError` with status 403. Session renewal on a 401 has its own test,
+  `TestListModels_ChatGPT401RefreshesOnce`, which passes.
+* **Not measured:** Phase 1's T1 sent API keys only; what the ChatGPT
+  backend answers a refused or expired session was never captured.
+* **Options put to the owner:** the test follows D-H2; the ChatGPT backend
+  is exempted, keeping its 403 a credential refusal; or measure first.
+* **Decision.** "Measure first". Phase 3 pauses, uncommitted, until the
+  measurement is recorded here and the owner decides.
+* **The measurement, in two parts:**
+  * **A refused session token** (no sign-in needed, unbilled):
+    `TestLive_0028ChatGPTRefusedSession` in `live_0028_measure_test.go`
+    sends the ChatGPT backend an `OAuthSession` whose access and refresh
+    tokens are literals that are not tokens, through `ListModels` and
+    `Generate`, and logs each reply's host, path, status and redacted body.
+  * **An expired real session** needs the owner signed in, and waits for
+    the owner.
+* **Measured (2026-10-08).** `LLMPROVIDER_LIVE_0028=1 go test -tags
+  live_gateways -run TestLive_0028ChatGPTRefusedSession ./llmprovider/`
+  (unbilled; no sign-in):
+
+  | Request | Status | Body (redacted) |
+  | :--- | ---: | :--- |
+  | `chatgpt.com/backend-api/codex/models` (the listing) | 401 | `{"detail":"Could not parse your authentication token. Please try signing in again."}` |
+  | `auth.openai.com/oauth/token` (the refresh the 401 started) | 401 | `"Could not validate your token. Please try signing in again.", "type":"invalid_request_error"` |
+  | `auth.openai.com/oauth/token` (`Generate`'s renewal) | 401 | the same |
+
+  A refused ChatGPT session is a 401, as every refused key in T1 was; it is
+  renewed under D-H2, as it was before, and as
+  `TestListModels_ChatGPT401RefreshesOnce` pins. No refused credential has
+  been seen to answer 403. **Not measured:** an expired real session, which
+  needs the owner signed in.
+* **Resolution.** "Test follows D-H2". `TestListModels_ChatGPTFailureIsAnAPIError`'s
+  403 case wants 1 listing and 0 refreshes; its F38 assertion, an
+  `*APIError` with status 403, is unchanged; its comment cites D-H2 and
+  this measurement. Phase 3 continues.
+* **Added to Phase 3:** `llmprovider/providers/openai/chatgpt_listing_errors_test.go`,
+  and the measurement in `llmprovider/live_0028_measure_test.go`.
+
+### Phase 3: classification (2026-10-08)
+
+* **Before it.** Phase 2 and D4 committed by the owner as `276496b`.
+* **Approval.** "i committed, proceed", 2026-10-08; D5 decided during the
+  phase (above).
+
+**Red first.** The package's tests named `credential403Codes`, so the
+table was added first, empty per T1 and changing nothing, to let them run:
+
+```text
+--- FAIL: TestClassify_403IsNotPermittedUnlessCredentialCode
+    api_error_0028_test.go:26: openai 403: kind llmprovider: authentication failed, retryable false, matches ErrAuthFailure true; want ErrNotPermitted, not retryable, true
+    (and the same for claude, gemini, grok, together, huggingface, ollama)
+--- FAIL: TestClassify_GrokRefusedKey
+    api_error_0028_test.go:47: Grok's refused key: llmprovider: invalid request: grok HTTP 400 invalid-argument: Incorrect API key provided. …
+--- FAIL: TestContextOverflow_CompletionAlone
+    api_error_0028_test.go:84: 10 + 8192 on 8192: overflow = true; want false …
+    api_error_0028_test.go:84: 0 + 9000 on 8192: overflow = true; want false …
+--- FAIL: TestClassifyStreamFailure_ByType
+    api_error_stream_0028_test.go:37: invalid request: kind llmprovider: provider unavailable, retryable true; want llmprovider: invalid request, false
+    (and invalid request with overflow, completion alone, no type with overflow, authentication, permission, rate limit)
+--- FAIL: TestReauth_RegionForbiddenNotRenewed
+    reauth_0028_test.go:26: sends = 2, invalidations = 1; want 1 and 0
+--- FAIL: TestList_Forbidden403NotRenewed
+    reauth_0028_test.go:33: requests=2 invalidations=1 Err=llmprovider: authentication failed: together HTTP 403 unsupported_country_region_territory: …; want 1, 0 and ErrNotPermitted
+--- FAIL: TestReauth_GrokRefusedKeyRenews
+    reauth_0028_test.go:46: err llmprovider: invalid request: grok HTTP 400 invalid-argument: … after 1 request(s) and 0 invalidation(s); want success after 2 and 1
+--- FAIL: TestTogether_TypedErrorInside200SentOnce/overflow and /invalid
+    reply_0028_test.go:35: 3 request(s), llmprovider: together failed after 3 attempts: llmprovider: provider unavailable: together stream invalid_request_error: …
+```
+
+Guards that passed on the tree: `TestClassify_GrokInvalidArgumentStaysInvalid`;
+`TestClassifyStreamFailure_ByType`'s overloaded, api, server and unknown
+rows.
+
+**The changes** (`llmprovider/api_error.go`, `llmprovider/context_overflow.go`):
+
+* **D-H2:** `credential403Codes` (empty, T1); a `classifyAPIError` row after
+  OpenCode's, Kilo's and Gemini's: a 403 without such a code is
+  `ErrNotPermitted`, terminal. `statusSentinel` is unchanged, so the legacy
+  sentinel still matches `ErrAuthFailure`.
+* **H11:** a row before it: a Grok 400 with `invalid-argument` whose message
+  holds "api key" (case folded) is `ErrAuthFailure`, terminal.
+* **D-H3:** `completionFillsContext`, from `maximum context length is (\d+)`
+  and `(\d+) in the messages, (\d+) in the completion`; the overflow row
+  requires it false; `noteCompletionFillsContext` sets `Reason` to "max_tokens
+  alone fills the context window: lower it" on such an invalid request, in
+  `ClassifyHTTPError` and `ClassifyStreamFailure`.
+* **D-H8:** `classifyStreamType`, run in `ClassifyStreamFailure`'s default
+  branch when the service's codes left the stand-in `ErrProviderUnavailable`.
+* `golangci-lint` asked for the error last in `classifyStreamType`'s results
+  (`terminal, ok bool, kind error`) and for no local named `max`; both done.
+* **Step 7:** no existing test pinned a typed failure inside a 200 as
+  retryable. D5's test is the one existing test the phase changed.
+* **Step 9:** `0012-MADR-conform-providers-to-reference-clients.md` gains
+  "Amendment 2026-10-08: 403s, Grok's refused key, and failures inside a 200
+  (0028)".
+
+**Green:** `go test ./llmprovider/... ./wizard/...`: 24 packages ok.
+
+**Proofs on scratch copies** (`p28_plants3b.py`, against the final code):
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| the 403 row off | `TestClassify_403IsNotPermittedUnlessCredentialCode`, `TestReauth_RegionForbiddenNotRenewed`, `TestList_Forbidden403NotRenewed`, `TestListModels_ChatGPTFailureIsAnAPIError` (`listing/refresh calls = 2/1, want 1/0`) |
+| `completionFillsContext` always false | `TestContextOverflow_CompletionAlone`, `TestClassifyStreamFailure_ByType` |
+| `classifyStreamType` deciding nothing | `TestClassifyStreamFailure_ByType`, `TestTogether_TypedErrorInside200SentOnce` |
+| the Grok row off | `TestClassify_GrokRefusedKey`, `TestReauth_GrokRefusedKeyRenews` |
+| the Grok row without its "api key" check | `TestClassify_GrokInvalidArgumentStaysInvalid` (`… authentication failed: grok HTTP 400 invalid-argument: Invalid request content: …`) |
+
+**The gate** (`p26_gate.py`): the first run failed `make lint` (and
+`pre-add-check`, which runs it) on the two findings above; after them:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `473 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -cover`, `-shuffle=on`, `go mod tidy -diff`, `make lint` | 0 each |
+| `parity-check`, `dep-check`, `generate-check` | 0 each |
+| `coverage-check` | `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `61 records, 0 problem(s)` |
+| `gate-selftest` | `Ran 14 tests`, OK |
+| markdownlint, G-wire stable, links | 0 problems; 617 relative links in 71 files |
+| identifier scan of the changed files | 0 hits |

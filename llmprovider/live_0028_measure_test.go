@@ -12,9 +12,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 )
@@ -35,10 +37,12 @@ var measured0028 = []llmprovider.ProviderID{
 // rateHeaderPrefixes are the lower-cased header-name prefixes T2 records.
 var rateHeaderPrefixes = []string{"x-ratelimit-", "anthropic-ratelimit-", "retry-after", "ratelimit"}
 
-// measureRecorder passes requests on and keeps each reply's status, its
-// rate-limit headers, and the first 2 KiB of its body.
+// measureRecorder passes requests on and keeps each request's host and path,
+// and each reply's status, its rate-limit headers, and the first 2 KiB of its
+// body.
 type measureRecorder struct {
 	mu      sync.Mutex
+	targets []string
 	status  []int
 	headers []map[string]string
 	bodies  [][]byte
@@ -64,6 +68,7 @@ func (r *measureRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.targets = append(r.targets, req.URL.Host+req.URL.Path)
 	r.status = append(r.status, resp.StatusCode)
 	r.headers = append(r.headers, kept)
 	r.bodies = append(r.bodies, b[:min(len(b), 2048)])
@@ -150,4 +155,39 @@ func TestLive_0028RateLimitHeaders(t *testing.T) {
 			t.Logf("T2 %s generation: status %d, headers %v (error: %v)", id, status, headers, genErr)
 		})
 	}
+}
+
+// TestLive_0028ChatGPTRefusedSession is D5's measurement: the ChatGPT
+// backend's replies to a session whose access and refresh tokens are not
+// tokens, through ListModels and Generate. Unbilled; no sign-in. Every reply,
+// a refresh attempt's included, is logged with its host and path.
+func TestLive_0028ChatGPTRefusedSession(t *testing.T) {
+	require0028(t)
+	rec := &measureRecorder{}
+	client := &http.Client{Transport: rec}
+	session := &auth.OAuthSession{
+		Provider: llmprovider.ProviderOpenAI, Issuer: auth.DefaultOpenAIIssuer, ClientID: auth.DefaultOpenAIClientID,
+		Access: "invalid-0028-not-a-token", Refresh: "invalid-0028-not-a-refresh-token",
+		AccountID: "invalid-0028-account", Expiry: time.Now().Add(time.Hour), HTTPClient: client,
+	}
+	p, err := providers.New(llmprovider.ProviderOpenAI, llmprovider.WithTokenSource(session), llmprovider.WithModel("gpt-5.4-mini"),
+		llmprovider.WithHTTPClient(client), llmprovider.WithModelProbes(false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := llmprovider.LiveCtx(t)
+	defer cancel()
+	_, listErr := p.(llmprovider.ModelLister).ListModels(ctx)
+	_, genErr := p.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
+		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}}})
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.status) == 0 {
+		t.Fatalf("no reply: list %v, generate %v", listErr, genErr)
+	}
+	for i := range rec.status {
+		t.Logf("D5 %s: status %d; body: %s", rec.targets[i], rec.status[i], redact.String(string(rec.bodies[i])))
+	}
+	t.Logf("D5 ListModels error: %v", listErr)
+	t.Logf("D5 Generate error: %v", genErr)
 }
