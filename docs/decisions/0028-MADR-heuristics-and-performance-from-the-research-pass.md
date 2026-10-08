@@ -738,3 +738,45 @@ before any phase ran.
   0026-PLAN D12's Interactions reply). A 403 code enters the table only if
   a provider sent it for a refused credential. The PLAN records what an
   expired credential returns as not measured.
+
+## Amendment 2026-10-08: H11, Grok's refused key, and A10b, diagnostic codes
+
+Made by the 0028 PLAN's deviations D1 and D2, chosen by the owner ("Add to
+0028, Phase 3"; "Phase 4, after equivalence"), from Phase 1's measurement.
+
+* **H11.** xAI answers a refused key with HTTP 400, code
+  `invalid-argument`, "Incorrect API key provided", classified today as
+  `ErrInvalidRequest`. So `Reauth` does not renew a refused Grok credential,
+  and a caller stopping on `ErrAuthFailure` tries every fallback with it,
+  as Gemini's did before 0026-MADR F6 and D12. **Decision:** a Grok 400 with
+  code `invalid-argument` whose message names an API key is
+  `ErrAuthFailure`; one whose message does not stays `ErrInvalidRequest`.
+* **A10b.** Redaction masks diagnostic code values, such as Grok's
+  `invalid-argument` and Kilo's `INVALID_TOKEN`, because 0021-MADR Z2's
+  diagnostic rule takes lower-case snake case only. **Decision:** a value
+  made of two or more letter-only words joined by `-` or `_`, at most 40
+  bytes, is a diagnostic; any value with a digit and a letter is still
+  masked. 0021-MADR Z2 is amended in Phase 4.
+* Both ship in `v1.4.0`.
+
+## Amendment 2026-10-08: A10c, key shapes in redaction, and H10b, in the wizard
+
+Made by the 0028 PLAN's deviation D3, chosen by the owner ("Phase 4 +
+Phase 5"), after a research pass on every supported provider's key and
+token formats, checked against the owner's keys by shape only.
+
+* **Found.** Today's redaction leaves a Gemini auth key (`AQ.`, the default
+  for new AI Studio keys since 2026-05-28), a Google refresh token (`1//`)
+  and a Hugging Face org token (`api_org_`) unmasked, and masks ordinary
+  text such as `sk-learn-…` and `xai-grok-…`. The wizard does not name an
+  OpenRouter, OpenCode or Gemini `AQ.` key pasted for OpenAI.
+* **A10c.** Redaction gains a sourced row per published shape, and its
+  generic `sk-` and `xai-` rows mask only a body of 32 or more characters
+  holding a letter and a digit. Nothing masked today is unmasked except by
+  a tighter row.
+* **H10b.** The wizard names the newly researched foreign keys, and warns,
+  without refusing, when a typed key does not match its provider's
+  confirmed shape.
+* The formats are the vendors' practice, not contracts: a vendor's new
+  format falls to the generic rows and the keyword rules, which stay.
+* Both ship in `v1.4.0`.

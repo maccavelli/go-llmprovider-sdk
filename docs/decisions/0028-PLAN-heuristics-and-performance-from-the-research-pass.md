@@ -554,3 +554,278 @@ and D-H5's headers.
   seven 16-token generations.
 * **Commit.** By the agent, to `main`, on that ask, with `git commit
   --no-edit`.
+
+### Phase 1: measurements (2026-10-08)
+
+* **Before it.** Phase 0 committed by the agent as `e150455`, on the
+  owner's ask.
+* **The test.** `llmprovider/live_0028_measure_test.go`
+  (`live_gateways`, switched on by `LLMPROVIDER_LIVE_0028`):
+  `TestLive_0028InvalidKeyReplies` (T1) and `TestLive_0028RateLimitHeaders`
+  (T2). Keys are read from the environment, checked for presence only; the
+  test logs statuses, codes, kinds, redacted bodies, and rate-limit header
+  names and values, never a key.
+* **Proof.** On a scratch copy whose recorder refuses every request:
+  `live_0028_measure_test.go:108: no reply: Post "https://api.openai.com/v1/responses": planted: refused`,
+  `--- FAIL`.
+* **Run:** `LLMPROVIDER_LIVE_0028=1 go test -tags live_gateways -count=1 -v
+  -run TestLive_0028 ./llmprovider/`: `ok … 18.371s`. Billed: seven
+  16-token generations, step 2's fallback, as approved.
+
+#### T1: replies to a key that is not a key (unbilled)
+
+| Provider | Status | `APIError.Code` | Kind | Body (redacted) |
+| :--- | ---: | :--- | :--- | :--- |
+| openai | 401 | `invalid_api_key` | `ErrAuthFailure` | OpenAI's error object |
+| claude | 401 | `authentication_error` | `ErrAuthFailure` | `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},…}` |
+| gemini | 400 | `API_KEY_INVALID` | `ErrAuthFailure` | the Interactions array (0026-PLAN D12) |
+| grok | 400 | `invalid-argument` | `ErrInvalidRequest` | `{"code":"[REDACTED]","error":"Incorrect API key provided. …"}` |
+| together | 401 | `invalid_api_key` | `ErrAuthFailure` | `{… "type":"invalid_request_error", "code":"invalid_api_key"}` |
+| huggingface | 401 | (none) | `ErrAuthFailure` | `{"error":"Invalid username or password."}` |
+| kilo | 401 | `INVALID_TOKEN` | `ErrAuthFailure` | `{"error":{"code":"[REDACTED]","message":"Your authentication token is invalid. …"},"error_type":"authentication_required"}` |
+| opencode-go | 401 | `AuthError` | `ErrAuthFailure` | `{"type":"error","error":{"type":"AuthError","message":"Invalid API key."}}` |
+
+**Applying step 1's rule:** no provider answered a refused credential with
+403, so D-H2's 403 credential-code table is **empty**: every 403 on the
+seven direct providers becomes `ErrNotPermitted`. An expired credential is
+not measured (MADR amendment of 2026-10-08).
+
+#### T2: rate-limit headers
+
+| Provider | On the listing (unbilled) | On one 16-token generation (billed) |
+| :--- | :--- | :--- |
+| openai | none | `x-ratelimit-limit-requests`, `-limit-tokens`, `-remaining-requests`, `-remaining-tokens`; `x-ratelimit-reset-requests: 12ms`, `x-ratelimit-reset-tokens: 0s` |
+| claude | none | `anthropic-ratelimit-{requests,tokens,input-tokens,output-tokens}-{limit,remaining}`; `anthropic-ratelimit-{requests,tokens,input-tokens,output-tokens}-reset: 2026-10-08T20:25:21Z` |
+| gemini | none | none |
+| grok | none | `x-ratelimit-limit-requests`, `-limit-tokens`, `-remaining-requests`, `-remaining-tokens`; no reset |
+| together | none | none |
+| huggingface | none | `x-ratelimit-limit-*`, `-remaining-*`; `x-ratelimit-reset-requests: 100ms`, `x-ratelimit-reset-tokens: 1ms` |
+| kilo | none | none |
+
+**Applying step 2's rule:** D-H5 reads exactly these reset headers:
+
+* `x-ratelimit-reset-requests` and `x-ratelimit-reset-tokens`, as Go
+  durations (OpenAI, Hugging Face);
+* `anthropic-ratelimit-requests-reset`, `-tokens-reset`,
+  `-input-tokens-reset` and `-output-tokens-reset`, as RFC 3339 times
+  (Claude).
+
+Both formats are the two step 2 allows, so there is no deviation. The
+MADR's D-H5 named the requests and tokens resets of Claude; T2 adds its
+input- and output-token resets, which the rule takes in. Gemini, Grok,
+Together and Kilo send no reset header on a 200; a 429's headers are not
+measured beyond Gemini's (0027-PLAN D1: `Retry-After`).
+
+**Found, outside this PLAN (not done):**
+
+* **Grok's refused key is `ErrInvalidRequest`.** xAI answers an invalid key
+  with 400 `invalid-argument`, "Incorrect API key provided", which the table
+  classifies by its status. So `Reauth` does not renew a refused Grok
+  credential, and a caller that stops on `ErrAuthFailure`, as
+  prepare-commit-msg does, tries every fallback model with the same key:
+  the defect 0026's F6 and D12 fixed for Gemini.
+* **Redaction masks a `code` value.** Grok's and Kilo's bodies show
+  `"code":"[REDACTED]"`: `reKV`'s `code` keyword takes a diagnostic code
+  for a secret. Only the logged text is affected; classification reads the
+  raw body, and `APIError.Code` keeps the value.
+
+#### Gate
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `463 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -cover`, `-shuffle=on`, `go mod tidy -diff`, `make lint` | 0 each |
+| `parity-check`, `dep-check`, `generate-check`, `gate-selftest` | 0 each |
+| `coverage-check` | `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `61 records, 0 problem(s)` |
+| markdownlint, G-wire stable, links | 0 problems; 616 relative links in 71 files |
+| identifier scan of the new file | 0 hits |
+
+### Deviation D1 (2026-10-08): Grok's refused key is classified as an invalid request (H11)
+
+* **Found** in Phase 1's T1: xAI answers a key that is not a key with HTTP
+  400, `{"code":"invalid-argument","error":"Incorrect API key provided. You
+  can obtain an API key from https://console.x.ai."}`, which the table
+  classifies by status as `ErrInvalidRequest`. `Reauth` does not renew it,
+  and a caller that stops on `ErrAuthFailure` tries every fallback with the
+  same key.
+* **Options put to the owner:** add it to 0028, in Phase 3; a later record;
+  or leave it.
+* **Decision.** "Add to 0028, Phase 3". 0028-MADR's amendment adds **H11**.
+* **Added to Phase 3,** after step 2:
+  * **Test, red first,** `TestClassify_GrokRefusedKey`
+    (`llmprovider/api_error_0028_test.go`): T1's body, as a 400 for `grok`.
+    Want `Kind` `ErrAuthFailure`, terminal. Today: `ErrInvalidRequest`.
+    And `TestClassify_GrokInvalidArgumentStaysInvalid`: a 400 with code
+    `invalid-argument` and a message that does not name an API key (`"Invalid
+    request content: max_output_tokens must be positive"`): want
+    `ErrInvalidRequest`, as today.
+  * **`TestReauth_GrokRefusedKeyRenews`:** T1's body through the Grok
+    provider with a counting `InvalidatingSource`: want 2 sends and 1
+    invalidation. Today: 1 and 0.
+  * **Change,** in `classifyAPIError`: `service == "grok" && status == 400
+    && has("invalid-argument") && message contains "API key"` (case
+    folded) → `true, ErrAuthFailure`, beside `geminiAuthReasons`'s row.
+  * **Proof on a scratch copy:** the row removed: both red tests fail.
+* **Files:** none beyond Phase 3's.
+
+### Deviation D2 (2026-10-08): redaction masks diagnostic codes (A10b)
+
+* **Found** in Phase 1's T1: Grok's `"code":"invalid-argument"` and Kilo's
+  `"code":"INVALID_TOKEN"` are logged as `"code":"[REDACTED]"`.
+  `reKVLong`'s bare `code` key keeps a value only when `reDiagnostic`
+  (`internal/redact/redact.go:66`, `^(?:\d+|[a-z]+(?:_[a-z]+)+)$`, 0021-MADR
+  Z2) matches it, and that takes lower-case snake case only.
+* **Options put to the owner:** a step in Phase 4 after the rewrite is
+  proven equivalent; a later record; or leave it.
+* **Decision.** "Phase 4, after equivalence". 0028-MADR's amendment adds
+  **A10b**.
+* **The rule, narrower than the question put it.** The question offered
+  "letters, digits, hyphens and underscores, 8–40 characters, no digit run
+  of 8 or more". Checked before recording, that would leave a 32-character
+  hexadecimal token unmasked, whose digit runs are short. The rule recorded
+  admits **letters only**: `^(?:\d+|[A-Za-z]+(?:[-_][A-Za-z]+)+)$`, at most 40
+  bytes. It keeps `invalid-argument`, `INVALID_TOKEN` and today's snake case;
+  no value with a digit and a letter is kept. It is narrower than what the
+  owner approved, never wider.
+* **Added to Phase 4,** as step 5b, after step 5's equivalence holds:
+  * **Test, red first,** `TestRedact_KeepsDiagnosticCodes`: T1's Grok and
+    Kilo bodies keep their codes; `{"code":"model-not-found"}` keeps it.
+    Today: all three masked.
+  * **`TestRedact_StillMasksSecretShapedCodes`:** `code` values of a
+    32-character hexadecimal string, `sk-proj-` plus 40 characters, a
+    base64url string of 43 characters, `abcd-1234-efgh-5678`, and a
+    41-byte letters-and-hyphens string: all masked.
+  * **Change:** `reDiagnostic` as above, with the length bound in
+    `redactKV` and `redactKVLong`. `TestRedact_MatchesReference` then
+    excludes, by name, the corpus cases this step changes, and asserts
+    exactly those differ.
+  * **Proof on a scratch copy:** `reDiagnostic` back to today's: the first
+    test fails.
+* **Files:** none beyond Phase 4's.
+
+### Deviation D3 (2026-10-08): key formats researched; redaction and the wizard code for them (A10c, H10b)
+
+* **Asked by the owner** after D2: "search the public repos for all of the
+  providers we support and get the style, format, and length of their
+  api-keys and tokens so we can actually code for them", then "do the
+  research we need to enhance this heuristic".
+* **Research, 2026-10-08,** read-only; no provider was sent a request:
+  * **Sources:** gitleaks `config/gitleaks.toml` (MIT; master 09242ce9,
+    2025-11-20; release v8.30.1); betterleaks
+    `cmd/generate/config/rules/*.go` (MIT; main 30c423ca); Nosey Parker and
+    Kingfisher rules as kept in praetorian-inc/titus (Apache-2.0;
+    ccae0195); GitHub's "Supported secret scanning patterns"; trufflehog
+    detectors (AGPL-3.0; cited, never copied); vendor code (openai/codex
+    515c291d; xai-org/grok-build 2bdd1d6a and xai-sdk-python's
+    `.gitleaks.toml`; google-gemini/gemini-cli; huggingface/huggingface_hub;
+    anthropics/claude-cookbooks; Kilo-Org/kilocode 97472345 and
+    Kilo-Org/cloud 1127c407; anomalyco/opencode `packages/console/core/src/key.ts`
+    ac2fa668); vendor documentation (Google API keys, Gemini API keys,
+    Google OAuth 2.0, Anthropic authentication and Admin API, Hugging Face
+    tokens, OpenRouter keys, xAI inference).
+  * **No vendor publishes a full format.** Prefixes are documented; lengths
+    and character sets come from scanner rules, their fixtures and vendor
+    code.
+* **Measured on the owner's keys,** shape only (`key_shapes.py` and
+  `key_match.py`, scratch; lengths, character classes and allow-listed
+  prefixes printed, never a key), each matching its researched shape:
+
+  | Variable | Shape |
+  | :--- | :--- |
+  | `OPENAI_API_KEY` | `sk-proj-` + 74 + `T3BlbkFJ` + 74, `[A-Za-z0-9_-]`, 164 in all |
+  | `ANTHROPIC_API_KEY` | `sk-ant-api03-` + 93 + `AA`, 108 in all |
+  | `GEMINI_API_KEY` | `AIzaSy` + 33, 39 in all |
+  | `XAI_API_KEY` | `xai-` + 80 `[A-Za-z0-9]`, 84 in all |
+  | `TOGETHER_API_KEY` | `tgp_v1_` + 43 `[A-Za-z0-9_-]`, 50 in all |
+  | `HF_TOKEN` | `hf_` + 34 letters, 37 in all |
+  | `KILO_API_KEY` | a JWT, three base64url segments |
+  | `OPENCODE_API_KEY` | `sk-` + 64 `[A-Za-z0-9]`, 67 in all |
+
+* **Today's redaction, measured** (a scratch test over `redact.String`):
+  * **masks ordinary text:** `sk-learn-tutorial-for-beginners`,
+    `xai-grok-login-device-code-flow-tests`,
+    `(id)hf_requiredCharacteristicTypesForDisplayMetadata`;
+  * **misses:** a Gemini auth key `AQ.Ab8RN6…` (Google: "Starting May 28,
+    2026, all new API keys created in Google AI Studio are automatically
+    created as auth keys"), a Google refresh token `1//0g…`, a Hugging Face
+    org token `api_org_…`; a Google access token `ya29.…` is masked only
+    when the word "token" precedes it (`reAuth`), not by its shape.
+* **The wizard** (`wizard/auth.go:378-380`) does not catch an OpenRouter
+  `sk-or-` key, an OpenCode `sk-` + 64 key, a Gemini `AQ.` key or a Hugging
+  Face `api_org_` token pasted for OpenAI.
+* **Options put to the owner:** Phase 4 and Phase 5; Phase 4 only; a later
+  record.
+* **Decision.** "Phase 4 + Phase 5". 0028-MADR's amendment adds **A10c**
+  and **H10b**.
+
+**Added to Phase 4, as step 5c, after step 5b (A10c).** The principle:
+shapes add precision, and nothing masked today goes unmasked unless a
+tighter rule masks it.
+
+1. **Shape rows,** each with its source in a comment, in `reToken` or, where
+   a check is needed after the match, in a new pass with a replace
+   function:
+
+   | Row | Pattern | Source |
+   | :--- | :--- | :--- |
+   | OpenAI legacy | `\bsk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}\b` | gitleaks; codex |
+   | OpenAI typed | `\bsk-(?:proj\|svcacct\|admin\|None)-[A-Za-z0-9_-]{16,}` | gitleaks; codex; OpenAI OpenAPI spec |
+   | Anthropic | `\bsk-ant-[a-z]{2,8}[0-9]{2}-[A-Za-z0-9_-]{16,}` | Anthropic docs (`api03`, `admin01`, `oat01`); gitleaks |
+   | OpenRouter | `\bsk-or-v1-[0-9a-f]{64}\b` | OpenRouter docs |
+   | OpenCode | `\bsk-[A-Za-z0-9]{64}\b` | opencode `key.ts` |
+   | `sk-` fallback | `\bsk-[A-Za-z0-9_-]{32,}`, masked only if the body holds a letter and a digit | replaces today's `\bsk-[A-Za-z0-9_-]{16,}` |
+   | Google API key | `\bAIza[0-9A-Za-z_-]{35}` (unchanged) | Google docs; gitleaks |
+   | Gemini auth key | `\bAQ\.Ab[0-9A-Za-z_-]{30,}` | Gemini docs (prefix, forum); betterleaks |
+   | Google access token | `\bya29\.[0-9A-Za-z_-]{20,}` | Google OAuth docs; Nosey Parker |
+   | Google refresh token | `\b1//0[0-9A-Za-z_-]{40,}` | Google OAuth docs (`1//`); `0` avoids Python floor division |
+   | xAI | `\bxai-[A-Za-z0-9]{80}\b` | trufflehog; measured |
+   | `xai-` fallback | `\bxai-[A-Za-z0-9_-]{32,}`, masked only if the body holds a letter and a digit | replaces today's `\bxai-[A-Za-z0-9_-]{16,}` |
+   | Together | `\btgp_v1_[A-Za-z0-9_-]{43}`; today's `\btgp_[A-Za-z0-9_-]{16,}` kept | betterleaks; measured |
+   | Hugging Face | `\bhf_[A-Za-z0-9]{34}\b`, `\bapi_org_[A-Za-z0-9]{34}\b` | gitleaks; trufflehog (digits); replaces `\bhf_[A-Za-z0-9]{16,}` |
+   | Ollama | `\b[0-9a-f]{32}\.[A-Za-z0-9_-]{24}\b`, only when the text holds `ollama` | betterleaks; Kingfisher |
+
+   The pass anchors gain `aq.ab`, `ya29.`, `1//0`, `api_org_` and `ollama`.
+2. **Tests, red first** (`internal/redact/redact_shapes_0028_test.go`):
+   * `TestRedact_KeyShapes`: for each row, a synthetic value built to its
+     published shape (never a real key), inside a sentence, in JSON and
+     after `Bearer`: masked whole. Today: the `AQ.`, `1//0`, `api_org_`,
+     bare `ya29.` and Ollama cases are not masked.
+   * `TestRedact_NotKeys`: `sk-learn-tutorial-for-beginners`,
+     `xai-grok-login-device-code-flow-tests`,
+     `(id)hf_requiredCharacteristicTypesForDisplayMetadata`, `FAQ.md`,
+     `x = a 1//long_python_variable_name_over_forty_characters`, and an MD5
+     hash, a dot and a 24-letter word without `ollama`: unchanged. Today:
+     the first three are masked.
+   * `TestRedact_MatchesReference` keeps excluding, by name, only the cases
+     A10b and A10c change, and asserts exactly those differ.
+   * `redact_test.go:234`'s `tgp_v1_` + 24 fixture stays masked through
+     the kept `tgp_` row.
+3. **Proof on a scratch copy:** each new row removed in turn: its
+   positive case fails; the letter-and-digit check removed: the
+   `sk-learn` and `xai-grok` negatives fail.
+4. The `internal/redact` floor stays 100.0.
+
+**Added to Phase 5, as step 2b (H10b).**
+
+1. **`foreignKeyPrefixes`** gains `sk-or-` ("an OpenRouter"), `AQ.`
+   ("a Google Gemini"), and `api_org_` ("a Hugging Face"); `sk-ant-` stays
+   first, `sk-or-` before any bare `sk-` rule.
+2. **An OpenCode key pasted for OpenAI:** `sk-` + 64 `[A-Za-z0-9]` with no
+   `T3BlbkFJ` is named as "an OpenCode" key.
+3. **The chosen provider's shape:** after a typed key, a key that does not
+   match the provider's confirmed shape gets a warning notice naming the
+   expected shape; the wizard continues (H10's listing check then decides).
+   Confirmed shapes: OpenAI (`T3BlbkFJ` typed or legacy), Anthropic
+   (`sk-ant-api03-` or `sk-ant-admin01-` + 93 + `AA`), Gemini (`AIza` + 35,
+   or `AQ.` prefix), Together (`tgp_v1_` + 43), Hugging Face (`hf_` + 34),
+   OpenCode (`sk-` + 64). Prefix only, where the length is unconfirmed:
+   xAI (`xai-`). Kilo (a JWT) and Ollama: no check.
+4. **Tests, red first** (`wizard/auth_shapes_0028_test.go`):
+   `TestForeignKey_Researched` (each new prefix, and the OpenCode shape for
+   OpenAI, is named; today: not); `TestProviderShapeWarning` (a malformed
+   key for each confirmed provider warns and continues; a well-shaped
+   synthetic key does not warn). Proof on a scratch copy: the new entries
+   removed: the tests fail.
