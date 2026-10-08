@@ -829,3 +829,97 @@ tighter rule masks it.
    key for each confirmed provider warns and continues; a well-shaped
    synthetic key does not warn). Proof on a scratch copy: the new entries
    removed: the tests fail.
+
+### Deviation D4 (2026-10-08): 0020's dropped-connection test meets D-H1
+
+* **Found** at Phase 2's gate, after D-H1's change: `go test -race` (and
+  `-shuffle`, `coverage-check`, `gate-selftest`, `pre-add-check`, all for
+  the same test) failed
+  `TestGenerate_AnsweredOnceIsNotBoughtAgain`
+  (`llmprovider/providers/together/reply_test.go:76-85`, 0020-MADR F9 Q2 a):
+  `reply_test.go:65: a dropped connection: 2 request(s), want 3: a network
+  failure is retried`. Its server receives the whole request, then hijacks
+  and closes the connection before any reply: a failure after the request
+  was written, which D-H1 marks and resends at most once.
+* **Pre-existing:** the test predates 0028; it encodes 0020's rule, which
+  D-H1 refines for failures after the write.
+* **Options put to the owner:** the test follows D-H1, keeping 0020's
+  retry for a failure before the write; or D-H1 narrows to header timeouts
+  alone, and the test stays.
+* **Decision.** "Test follows D-H1". The dropped-connection case wants 2
+  requests; a new case, a refused connection (the request never reached
+  the service), wants 3 attempts, so 0020 F9's "a network failure is
+  retried" keeps its coverage where it still holds. 0028-MADR names 0020-MADR
+  F9 as refined.
+* **Added to Phase 2:** `llmprovider/providers/together/reply_test.go`.
+
+### Phase 2: retry (2026-10-08)
+
+* **Before it.** Phase 1 and D1–D3 committed by the owner as `7a76323`.
+* **Approval.** "committed, proceed", 2026-10-08.
+
+**D-H1, red first:**
+
+```text
+--- FAIL: TestPost_FailureAfterWriteIsAfterReply (0.30s)
+    post_0028_test.go:32: Post = Post "http://127.0.0.1:…": net/http: timeout awaiting response headers; want a failure marked after the reply, since the request was written
+--- FAIL: TestWithRetry_HeaderTimeoutSentTwice/HTTP/1.1 (0.42s)
+    retry_0028_test.go:52: the service received 3 request(s), error llmprovider: openai failed after 3 attempts: Post "https://127.0.0.1:…/responses": net/http: timeout awaiting response headers; want 2 and an error
+--- FAIL: TestWithRetry_HeaderTimeoutSentTwice/HTTP/2 (0.17s)
+    retry_0028_test.go:52: the service received 3 request(s), error … http2: timeout awaiting response headers; want 2 and an error
+```
+
+`TestPost_FailureBeforeWriteIsNot` passed on the tree (a guard).
+
+**D-H1, the change.** `wire.Post` traces the request with
+`httptrace.ClientTrace.WroteRequest`; a `client.Do` failure after a clean
+write, not `Unsendable`, is returned as `transport.AfterReply(err)`.
+`AfterReply`'s, `retryable`'s and `WithRetry`'s comments say so.
+
+**D-H5, red first:**
+
+```text
+llmprovider/internal/transport/ratelimit_0028_test.go:46:13: undefined: RateLimitReset
+--- FAIL: TestClassifyHTTPError_429ReadsResetHeader (0.00s)
+    api_error_ratelimit_0028_test.go:24: 429 with the reset header: RetryAfter = 0s; want 20s
+    api_error_ratelimit_0028_test.go:39: Claude's 429 with its reset 30 s ahead: RetryAfter = 0s; want about 30s
+--- FAIL: TestWithRetry_ResetPastMaxDelayReturnsAtOnce (0.01s)
+    retry_0028_test.go:78: the service received 3 request(s), error llmprovider: together failed after 3 attempts: … HTTP 429 rate_limit_exceeded: Rate limit reached; want 1 and the rate limit
+```
+
+**D-H5, the change.** `transport.RateLimitReset(h, now)` reads T2's six
+headers, `X-Ratelimit-Reset-{Requests,Tokens}` as Go durations and
+`Anthropic-Ratelimit-{Requests,Tokens,Input-Tokens,Output-Tokens}-Reset` as
+RFC 3339 times, and returns the longest wait ahead. `ClassifyHTTPError`
+uses it last, for a 429 only. The comment above `RetryInfo`'s fallback no
+longer says "Gemini sends no Retry-After" (0027-MADR's capture).
+
+**Green:** the four touched packages pass in full; then D4 (above), and the
+updated `TestGenerate_AnsweredOnceIsNotBoughtAgain` passes.
+
+**Proofs on scratch copies** (`p28_plants2.py`, `p28_plant_d4.py`):
+
+| Plant | Result |
+| :--- | :--- |
+| the `AfterReply` wrap removed | `TestPost_FailureAfterWriteIsAfterReply` FAIL; `TestWithRetry_HeaderTimeoutSentTwice` FAIL, 3 requests on HTTP/1.1 and HTTP/2 |
+| every failure marked (`wrote.Load() \|\| true`) | `TestPost_FailureBeforeWriteIsNot` FAIL, `connection refused; want an unmarked *url.Error`; `TestGenerate_AnsweredOnceIsNotBoughtAgain` FAIL, `a refused connection: 2 attempt(s), want 3` |
+| `RateLimitReset` returning 0 | `TestRateLimitReset` FAIL (each duration row); `TestClassifyHTTPError_429ReadsResetHeader` FAIL; `TestWithRetry_ResetPastMaxDelayReturnsAtOnce` FAIL, 3 requests |
+
+**The gate** (`p26_gate.py`), after D4:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `467 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet` for darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -cover`, `-shuffle=on`, `go mod tidy -diff`, `make lint` | 0 each |
+| `parity-check` | `409 identifiers, 409 rows, 409 with an SDK equivalent, 0 problem(s)` |
+| `dep-check`, `generate-check` | 0 each |
+| `coverage-check` | `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `61 records, 0 problem(s)` |
+| `gate-selftest` | `Ran 14 tests`, OK |
+| markdownlint, G-wire stable, links | 0 problems; 616 relative links in 71 files |
+| identifier scan of the changed files | 0 hits in 12 files |
+
+The first gate run, before D4, failed five checks on the one test D4
+records; nothing else failed.

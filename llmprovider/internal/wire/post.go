@@ -8,6 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptrace"
+	"sync/atomic"
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -56,6 +58,16 @@ func Post[T any](ctx context.Context, c Call, token llmprovider.Token, decode fu
 	}
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
+	// wrote records that the whole request reached the connection, so a
+	// failure after it is not a failure to send (0028-MADR D-H1).
+	var wrote atomic.Bool
+	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+		WroteRequest: func(info httptrace.WroteRequestInfo) {
+			if info.Err == nil {
+				wrote.Store(true)
+			}
+		},
+	})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.URL, bytes.NewReader(body))
 	if err != nil {
 		return zero, fmt.Errorf("%w: %s: %w", llmprovider.ErrInvalidRequest, c.Provider, err)
@@ -67,9 +79,15 @@ func Post[T any](ctx context.Context, c Call, token llmprovider.Token, decode fu
 	if err != nil {
 		// A request no retry can send, such as a token with a newline, is an
 		// invalid request; a failure to reach the service keeps its own
-		// error, which WithRetry retries (0026-MADR F11).
+		// error, which WithRetry retries (0026-MADR F11). A failure after the
+		// request was written, such as a timeout awaiting the reply's
+		// headers, may come after a billed generation: it is marked so that
+		// WithRetry resends it at most once (0028-MADR D-H1).
 		if transport.Unsendable(err) {
 			return zero, fmt.Errorf("%w: %s: %w", llmprovider.ErrInvalidRequest, c.Provider, err)
+		}
+		if wrote.Load() {
+			return zero, transport.AfterReply(err)
 		}
 		return zero, err
 	}

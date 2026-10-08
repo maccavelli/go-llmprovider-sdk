@@ -47,7 +47,9 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 //   - A failure while reading a reply the service had begun to send, such as a
 //     cut connection or a stream that ended early, is retried at most once per
 //     Generate: the lost reply may have been generated and billed (0021-MADR
-//     D1). That retry counts against MaxAttempts.
+//     D1). So is a failure after the request was written, such as a timeout
+//     awaiting the reply's headers (0028-MADR D-H1). That retry counts
+//     against MaxAttempts.
 //   - It waits as long as the service asks, plus up to a tenth more (at least
 //     250 ms) so that callers limited together do not return together, and at
 //     most MaxDelay.
@@ -161,7 +163,9 @@ func (p RetryPolicy) wait(attempt int, err error) (time.Duration, bool) {
 // without a kind is retried only when it is a failure to send the request, a
 // *url.Error from the HTTP client; any other was answered and billed already
 // (0020-MADR F9, Q2 a). A failure to read a reply is ErrProviderUnavailable,
-// marked so that Generate retries it once (0021-MADR D1).
+// marked so that Generate retries it once (0021-MADR D1); so is a failure
+// after the request was written, such as a timeout awaiting the reply's
+// headers (0028-MADR D-H1).
 func retryable(err error) bool {
 	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		return apiErr.Retryable()

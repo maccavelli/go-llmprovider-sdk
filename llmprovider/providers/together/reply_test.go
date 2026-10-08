@@ -36,7 +36,10 @@ func replyProvider(t *testing.T, base string) llmprovider.Provider {
 
 // TestGenerate_AnsweredOnceIsNotBoughtAgain (0020-MADR F9, Q2 a): an answer
 // that could not be used is ErrIncomplete and sent once; a valid reply of
-// 2 MiB is read; a network failure is still retried.
+// 2 MiB is read; a network failure is still retried. One after the service
+// received the whole request is sent at most twice, since the service may
+// have been generating it; one before is retried in full (0028-MADR D-H1;
+// 0028-PLAN D4).
 func TestGenerate_AnsweredOnceIsNotBoughtAgain(t *testing.T) {
 	req := &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}}}
 
@@ -61,7 +64,35 @@ func TestGenerate_AnsweredOnceIsNotBoughtAgain(t *testing.T) {
 		}
 	})
 	_, _ = replyProvider(t, srv.URL).Generate(context.Background(), req)
-	if hits.Load() != 3 {
-		t.Errorf("a dropped connection: %d request(s), want 3: a network failure is retried", hits.Load())
+	if hits.Load() != 2 {
+		t.Errorf("a connection dropped after the request: %d request(s), want 2: resent at most once", hits.Load())
 	}
+
+	// A refused connection: the request never reached a service.
+	refused := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	refusedURL := refused.URL
+	refused.Close()
+	var attempts atomic.Int32
+	client := &http.Client{Transport: roundTripCounter{count: &attempts, next: http.DefaultTransport}}
+	p, err := New(llmprovider.WithAPIKey("tgp-test"), llmprovider.WithModel("m"), llmprovider.WithBaseURL(refusedURL),
+		llmprovider.WithHTTPClient(client))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = llmprovider.WithRetry(p, llmprovider.RetryPolicy{MaxAttempts: 3, BaseDelay: time.Millisecond}).
+		Generate(context.Background(), req)
+	if attempts.Load() != 3 {
+		t.Errorf("a refused connection: %d attempt(s), want 3: a network failure before the request is retried", attempts.Load())
+	}
+}
+
+// roundTripCounter counts the requests it passes on.
+type roundTripCounter struct {
+	count *atomic.Int32
+	next  http.RoundTripper
+}
+
+func (c roundTripCounter) RoundTrip(r *http.Request) (*http.Response, error) {
+	c.count.Add(1)
+	return c.next.RoundTrip(r)
 }

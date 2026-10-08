@@ -780,3 +780,12 @@ token formats, checked against the owner's keys by shape only.
 * The formats are the vendors' practice, not contracts: a vendor's new
   format falls to the generic rows and the keyword rules, which stay.
 * Both ship in `v1.4.0`.
+
+## Amendment 2026-10-08: D-H1 refines 0020-MADR F9
+
+Made by the 0028 PLAN's deviation D4, chosen by the owner ("Test follows
+D-H1"). 0020-MADR F9 (Q2 a) retries a kindless failure from the network on
+`WithRetry`'s backoff. D-H1 keeps that for a failure before the request was
+written (a refused connection, DNS, a TLS handshake), and resends one after
+it, such as a connection dropped after the service received the request, at
+most once. `TestGenerate_AnsweredOnceIsNotBoughtAgain` follows.

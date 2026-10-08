@@ -157,6 +157,37 @@ func RetryAfter(h http.Header) time.Duration {
 	return ParseRetryAfter(h.Get("Retry-After"))
 }
 
+// Rate-limit reset headers, as the services were measured sending them
+// (0028-PLAN Phase 1, T2): OpenAI's and Hugging Face's as Go durations,
+// Claude's as RFC 3339 times. Gemini, Grok, Together and Kilo sent none.
+var (
+	resetDurationHeaders = []string{"X-Ratelimit-Reset-Requests", "X-Ratelimit-Reset-Tokens"}
+	resetTimeHeaders     = []string{
+		"Anthropic-Ratelimit-Requests-Reset", "Anthropic-Ratelimit-Tokens-Reset",
+		"Anthropic-Ratelimit-Input-Tokens-Reset", "Anthropic-Ratelimit-Output-Tokens-Reset",
+	}
+)
+
+// RateLimitReset is the longest wait the rate-limit reset headers name,
+// measured from now, or 0 when none names a wait to come (0028-MADR D-H5). A
+// value that does not parse, or names no time ahead, is ignored.
+func RateLimitReset(h http.Header, now time.Time) time.Duration {
+	var longest time.Duration
+	for _, name := range resetDurationHeaders {
+		if d, err := time.ParseDuration(strings.TrimSpace(h.Get(name))); err == nil && d > longest {
+			longest = d
+		}
+	}
+	for _, name := range resetTimeHeaders {
+		if at, err := time.Parse(time.RFC3339, strings.TrimSpace(h.Get(name))); err == nil {
+			if d := at.Sub(now); d > longest {
+				longest = d
+			}
+		}
+	}
+	return longest
+}
+
 // durationOf is n units as a Duration, the longest one when n is too large.
 // The conversion of a float beyond int64 is not defined: on amd64 it was
 // negative, which WithRetry read as no delay (0020-MADR F31).

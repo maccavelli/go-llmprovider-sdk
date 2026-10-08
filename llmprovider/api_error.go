@@ -231,10 +231,16 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 			e.RetryAfter = d
 		}
 	}
-	// Gemini sends no Retry-After; its body's RetryInfo says how long to
-	// wait (0026-MADR F12).
+	// Google's body may carry a RetryInfo saying how long to wait, when no
+	// header did (0026-MADR F12; Gemini's Interactions API sends Retry-After,
+	// 0027-MADR amendment of 2026-10-07).
 	if e.RetryAfter == 0 {
 		e.RetryAfter = envelope.retryDelay
+	}
+	// Last, a rate limit's reset header, as OpenAI, Hugging Face and Claude
+	// send them (0028-MADR D-H5).
+	if e.RetryAfter == 0 && resp.StatusCode == http.StatusTooManyRequests {
+		e.RetryAfter = transport.RateLimitReset(resp.Header, time.Now())
 	}
 	// x-should-retry is the service saying whether a retry can succeed, and
 	// is obeyed both ways, as the OpenAI and Anthropic SDKs do (MADR 0012

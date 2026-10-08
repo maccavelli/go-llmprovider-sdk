@@ -27,15 +27,18 @@ var ErrIdleTimeout error = idleTimeout{}
 // ErrReplyTooLarge is a reply body longer than its reader's limit.
 var ErrReplyTooLarge = errors.New("reply over the size limit")
 
-// afterReply marks a failure to read a reply the service had begun to send.
+// afterReply marks a failure after the service received the whole request:
+// while reading a reply it had begun to send, or while waiting for one.
 type afterReply struct{ err error }
 
 func (e *afterReply) Error() string { return e.err.Error() }
 func (e *afterReply) Unwrap() error { return e.err }
 
-// AfterReply marks err as a failure while reading a reply the service had
-// begun to send. Such a reply may have been generated and billed, so
-// llmprovider.WithRetry retries it at most once (0021-MADR D1).
+// AfterReply marks err as a failure after the service received the whole
+// request: while reading a reply it had begun to send (0021-MADR D1), or
+// while waiting for the reply's headers (0028-MADR D-H1). Such a request may
+// have been generated and billed, so llmprovider.WithRetry retries it at most
+// once.
 func AfterReply(err error) error {
 	if err == nil {
 		return nil
