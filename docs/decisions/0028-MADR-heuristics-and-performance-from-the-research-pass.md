@@ -789,3 +789,40 @@ D-H1"). 0020-MADR F9 (Q2 a) retries a kindless failure from the network on
 written (a refused connection, DNS, a TLS handshake), and resends one after
 it, such as a connection dropped after the service received the request, at
 most once. `TestGenerate_AnsweredOnceIsNotBoughtAgain` follows.
+
+## Amendment 2026-10-08: A10c's generic rows keep today's floor
+
+Made by the 0028 PLAN's deviation D6, chosen by the owner ("Keep 16, require
+a digit"). The amendment "A10c, key shapes in redaction" says the generic
+`sk-` and `xai-` rows mask "a body of 32 or more characters holding a letter
+and a digit". That floor unmasked values masked today, against the same
+amendment's "Nothing masked today is unmasked except by a tighter row". The
+generic rows, `sk-`, `xai-` and now `hf_`, keep today's floor of 16
+characters, and mask only a body holding a letter and a digit; Hugging
+Face's letter-only tokens are masked by their exact row, `hf_` + 34.
+
+## Amendment 2026-10-08: A10c's generic rows keep only word-like bodies
+
+Made by the 0028 PLAN's deviation D7, chosen by the owner ("Keep only
+word-like"), replacing the amendment "A10c's generic rows keep today's
+floor". Its digit rule unmasked random secrets: a random 24-character body
+holds no digit about 1.5 % of the time. The generic `sk-` and `xai-` rows
+keep today's floor of 16 characters and mask every body except two or more
+lower-case-letter words joined by `-`, such as
+`sk-learn-tutorial-for-beginners`. `hf_`'s generic row is today's, so the
+`hf_requiredCharacteristic…` identifier stays masked, a known false
+positive. Everything masked before 0028 stays masked, except those
+word-like `sk-`/`xai-` values.
+
+## Amendment 2026-10-08: A10b keeps diagnostic words for `code` only
+
+Recorded by the 0028 PLAN's deviation D8, narrower than the owner's
+approval ("Phase 4, after equivalence"), never wider. The amendment "H11,
+Grok's refused key, and A10b, diagnostic codes" keeps a value of
+letter-only words joined by `-` or `_`, at most 40 bytes, under every bare
+name 0021-MADR Z2 covers: `code`, `key` and `token`. Built, the rule applies
+to a `code` value only. A random `key` or `token` value with no digit can
+take that shape, and those names hold secrets far more often than codes, so
+they keep Z2's rule alone, a number or lower-case snake case.
+`{"key":"abc-DEF-ghij"}` stays masked, and a test holds it.
+0021-MADR Z2 is amended to match.

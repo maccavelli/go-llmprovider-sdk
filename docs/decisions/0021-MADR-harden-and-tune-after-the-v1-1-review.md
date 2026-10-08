@@ -860,3 +860,25 @@ wire; paired test").
   * the top-level `instructions` field: both forms measured 3/3, so nothing
     favours a wire change;
   * keeping the override prompt and recording L2: the test would stay red.
+
+## Amendment 2026-10-08: Z1's bound is 2 KiB, and Z2 keeps a code's diagnostic words
+
+Made by 0028-PLAN-heuristics-and-performance-from-the-research-pass.md,
+Phase 4 (0028-MADR D-A10; deviation D2, A10b, chosen by the owner, "Phase 4,
+after equivalence").
+
+* **Z1 is tightened.** An error message is cut to 2 KiB before redaction,
+  not 16 KiB, and the cut goes back to the last space, tab, newline, comma,
+  semicolon or quote before the bound, then to a rune start, so a secret
+  that straddles the bound is dropped whole rather than leaving a fragment
+  that no rule recognises. The 512-byte bound on what is kept is unchanged.
+  A JSON 400 with a 16 KiB message took 12.7 ms to classify, almost all of
+  it redaction and the overflow check; the bound and a literal prefilter on
+  the overflow forms bring it under 1 ms.
+* **Z2 is widened, for `code` only.** A `code` value made of two or more
+  letter-only words joined by `-` or `_`, in any case and at most 40 bytes,
+  is a diagnostic and is kept, such as xAI's `invalid-argument` and Kilo's
+  `INVALID_TOKEN`. A bare `key` or `token` keeps only Z2's rule, a number or
+  lower-case snake case: a random value with no digit can take the
+  letter-words shape, and a key's value is a secret far more often than a
+  code's. Any value holding a digit is still masked.

@@ -61,8 +61,9 @@ const (
 	apiErrorMessageLimit = 512
 	// apiErrorRedactLimit bounds how much of a message is redacted. Only the
 	// first apiErrorMessageLimit bytes are kept, so redacting a 64 KiB HTML
-	// page whole is wasted work (0021-MADR Z1).
-	apiErrorRedactLimit = 16 << 10
+	// page whole is wasted work (0021-MADR Z1); four times the kept bytes
+	// leaves room for redaction to shorten what comes first (0028-MADR D-A10).
+	apiErrorRedactLimit = 2 << 10
 )
 
 // APIError is a failure the service reported, with its own classification
@@ -221,7 +222,7 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 		Provider:   provider,
 		Status:     resp.StatusCode,
 		Code:       boundCode(envelope.errType()),
-		Message:    boundMessage(redact.String(redact.StripControl(cutMessage(message)))),
+		Message:    boundMessage(redact.String(redact.StripControl(redactInput(message)))),
 		RetryAfter: transport.RetryAfter(resp.Header),
 	}
 	e.terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
@@ -280,7 +281,7 @@ func ClassifyStreamFailure(provider, code, errType, message string) error {
 		}
 	}
 	e := &APIError{Provider: provider, Code: boundCode(env.errType()),
-		Message: boundMessage(redact.String(redact.StripControl(cutMessage(message))))}
+		Message: boundMessage(redact.String(redact.StripControl(redactInput(message))))}
 	// A gateway that answers 200 with an error, as OpenRouter does, puts the
 	// HTTP status in code: classify it as that status, through the service's
 	// own table and the overflow check (0026-MADR F5).
@@ -564,13 +565,22 @@ func jsonString(raw json.RawMessage) string {
 // Error() and so a terminal (0021-MADR Z3).
 func boundCode(s string) string { return redact.Field(s) }
 
-// cutMessage trims s to apiErrorRedactLimit bytes on a rune boundary, before
-// it is redacted.
-func cutMessage(s string) string {
+// redactSeparators end a word: a cut made at one never splits a secret.
+const redactSeparators = " \t\r\n,;\"'"
+
+// redactInput is the part of a message that is redacted and kept: at most
+// apiErrorRedactLimit bytes, cut back to the last separator before the bound,
+// so that no secret is cut into a fragment too short to be recognised, and on
+// a rune boundary. A bound with no separator before it, one word of 2 KiB, is
+// cut at the bound (0028-MADR D-A10).
+func redactInput(s string) string {
 	if len(s) <= apiErrorRedactLimit {
 		return s
 	}
 	cut := apiErrorRedactLimit
+	if i := strings.LastIndexAny(s[:cut], redactSeparators); i > 0 {
+		cut = i
+	}
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}

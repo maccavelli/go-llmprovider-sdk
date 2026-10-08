@@ -1057,3 +1057,107 @@ rows.
 | `gate-selftest` | `Ran 14 tests`, OK |
 | markdownlint, G-wire stable, links | 0 problems; 617 relative links in 71 files |
 | identifier scan of the changed files | 0 hits |
+
+### Deviation D6 (2026-10-08): D3's generic rows unmasked what is masked today
+
+* **Found** in Phase 4, step 5c, running `internal/redact`'s tests after
+  A10c as D3 recorded it (generic `sk-`/`xai-` rows of 32 or more characters
+  holding a letter and a digit; `hf_` only at exactly 34):
+  * `TestRedact_ProviderKeysAndTokenFields`: `String("Incorrect API key
+    sk-FAKEabcdefghijklmnop0123 given")` kept the key; so did the
+    `sk-or-v1-FAKE…0123`, `xai-FAKE…0123` and `hf_FAKE…0123` cases, each a
+    24-character body;
+  * `TestRedact_PlantedSecrets`: `case 0: "sk-QsIaQ85OZwvK7de7ni5uZ3tG"
+    survived`.
+* **Cause.** D3 states a principle, "nothing masked today goes unmasked
+  unless a tighter rule masks it", and a 32-character floor, which unmasks
+  today's 16–31-character digit-bearing values. The two conflict; the
+  existing tests hold the principle.
+* **Options put to the owner:** keep today's floor of 16 and require a
+  letter and a digit, for `sk-`, `xai-` and `hf_`, with the exact `hf_` +
+  34 row for real, letter-only tokens; or keep 32 and the exact `hf_`
+  length, changing the fixtures and amending the principle.
+* **Decision.** "Keep 16, require a digit". `reTokenFallback` is
+  `\b(?:(?:sk|xai)-[A-Za-z0-9_-]{16,}|hf_[A-Za-z0-9]{16,})`, masked only
+  when its body holds a letter and a digit; `\bhf_[A-Za-z0-9]{34}\b` stays in
+  `reToken`. Every value masked today with a digit stays masked; the only
+  values newly kept are digit-free `sk-`/`xai-`/`hf_` strings, the false
+  positives D3 set out to fix. D3's table rows "`sk-` fallback", "`xai-`
+  fallback" and "Hugging Face" read accordingly; the tests stay as written.
+
+### Deviation D7 (2026-10-08): D6's digit rule unmasked random secrets
+
+* **Found** in Phase 4, step 5c, after D6: `TestRedact_PlantedSecrets`
+  (`internal/redact/redact_test.go:278`) failed, `case 46:
+  "sk-AngeaXah_PHLGPjNKveTuAuT" survived`. Its generator plants `sk-`,
+  `xai-` and `hf_` secrets with random 24-character bodies; about 1.5–1.7 %
+  of them hold no digit, and D6 kept every digit-free body. So D6 unmasked
+  random-looking secrets, not only the word-like false positives it meant.
+* **Options put to the owner:** keep only word-like bodies, returning
+  `hf_`'s generic row to today's; or keep D6 and plant realistic shapes.
+* **Decision.** "Keep only word-like". D6's digit rule is replaced:
+  * `reTokenFallback` is `\b(?:sk|xai)-[A-Za-z0-9_-]{16,}`, today's floor; a
+    body is kept only when it is two or more lower-case-letter words joined
+    by `-` (`sk-learn-tutorial-for-beginners`,
+    `xai-grok-login-device-code-flow-tests`); any other body, with a digit
+    or without, mixed case or with `_`, is masked;
+  * `hf_`'s generic row is today's, `\bhf_[A-Za-z0-9]{16,}`, in `reToken`;
+    the exact `hf_` + 34 row stays beside it, documented;
+  * `(id)hf_requiredCharacteristicTypesForDisplayMetadata` stays masked, a
+    known false positive, **not fixed**: a 45-letter mixed-case identifier
+    has the shape a Hugging Face token could take, and keeping it would
+    unmask such tokens;
+  * `TestRedact_PlantedSecrets` stays as written.
+* Everything masked before 0028 stays masked, except `sk-`/`xai-` values
+  whose body is word-like.
+
+### Deviation D8 (2026-10-08): A10b applies to `code` only
+
+* **Found** in Phase 4, step 5b. D2 changes `reDiagnostic`, which bare
+  `code`, `key` and `token` all keep, to admit letter-only words joined by
+  `-` or `_`. That would keep a `key` or `token` value such as
+  `abc-DEF-ghij`: a random value with no digit can take that shape, and those
+  names hold secrets far more often than codes.
+* **Built, narrower than approved, never wider.** `reDiagnostic` is
+  unchanged. A new `reDiagnosticCode`, `^[A-Za-z]+(?:[-_][A-Za-z]+)+$`, keeps
+  a value in `redactKVLong` only when the name is `code` (case folded) and
+  the value is at most 40 bytes (`diagnosticCodeLimit`). `key` and `token`
+  keep today's rule. `TestRedact_StillMasksSecretShapedCodes` gains
+  `{"key":"abc-DEF-ghij"}`, which must stay masked.
+* **Not put to the owner before building,** as D2's own narrowing was not:
+  it masks more than the approval allows, never less. It is recorded here,
+  in 0028-MADR's amendment "A10b keeps diagnostic words for `code` only",
+  and in 0021-MADR's Z2 amendment, and is named in the handoff for the
+  owner to confirm.
+
+### Deviation D9 (2026-10-08): A10b and A10c slowed clean-text redaction past step 7's bound
+
+* **Found** in Phase 4, step 7. HEAD and the tree, as test binaries run
+  alternately for nine rounds on a quiet host: `BenchmarkRedact_Clean4KiB`
+  61.1 µs on HEAD, 71.3 µs on the tree, 1.167 times; the bound is 1.10.
+  Before A10b and A10c it measured 64.5 µs against 64.8 µs.
+* **Cause.** The profile puts 92 % of the time in `containsAny`, which runs
+  `bytes.Contains` over the lower-cased text once per anchor of each pass.
+  On clean text every anchor is absent, so each is a full scan. HEAD scans
+  43; A10b and A10c bring it to 50 (`api_org_`, `aq.ab`, `ya29.`, `1//0`,
+  `ollama`, and the fallback's `sk-` and `xai-`), 1.16 times. Five of the 50
+  repeat an anchor another pass already scanned for (`token`, `code`,
+  `key`, `sk-`, `xai-`). `bytes.Index` steps through each occurrence of an
+  anchor's first byte, and most anchors begin with a common letter.
+* **Measured on scratch copies**, the same nine alternated rounds:
+  each distinct anchor looked up once per call, 66.4 µs (1.087); that and
+  each anchor searched by its rarest byte in prose, the whole anchor checked
+  around each hit, 26.3 µs (0.430). `internal/redact` and `llmprovider`
+  passed under both; a 20 s fuzz of the rarest-byte search against
+  `bytes.Contains`, 6.25 M executions, found no difference.
+* **Options put to the owner:** both, as measured; or the lookup once per
+  call alone, inside the bound by about 1 µs.
+* **Decision.** "Memo + rare byte". `redact.go` numbers the distinct
+  anchors of `passes` at init (`indexAnchors`, at most 64), and `Redact`
+  looks each up at most once per call, on the stack (`anchorsSeen`), by its
+  rarest byte (`anchorIn`, `rarestOffsets`). Redaction output is unchanged.
+  `FuzzAnchorIn_MatchesContains` holds the search to `bytes.Contains`;
+  `TestRedact_MatchesReference` and its companions hold the output. Not
+  offered: amending step 7's bound, or dropping A10c's rows.
+* **Files:** none beyond Phase 4's; the fuzz test goes in a new
+  `internal/redact/redact_anchor_0028_test.go`.
