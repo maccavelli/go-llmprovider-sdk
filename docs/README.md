@@ -72,7 +72,7 @@ documents a reader follows to do something.
 | 0028 | MADR | [Correct Six Error and Retry Heuristics, and Remove Five Measured Costs](decisions/0028-MADR-heuristics-and-performance-from-the-research-pass.md) | accepted |
 | 0028 | PLAN | [Implement the Six Heuristic Corrections and the Five Measured Cost Reductions](decisions/0028-PLAN-heuristics-and-performance-from-the-research-pass.md) | in-progress |
 | 0029 | MADR | [Require Go 1.27.2, for the Standard Library's Security Fixes](decisions/0029-MADR-go-1-27-2-for-standard-library-fixes.md) | accepted |
-| 0029 | PLAN | [Implement Go 1.27.2 as the Module's Requirement](decisions/0029-PLAN-go-1-27-2-for-standard-library-fixes.md) | in-progress |
+| 0029 | PLAN | [Implement Go 1.27.2 as the Module's Requirement](decisions/0029-PLAN-go-1-27-2-for-standard-library-fixes.md) | complete |
 
 ## I want to…
 

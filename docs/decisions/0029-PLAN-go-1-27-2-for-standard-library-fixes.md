@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-08
 associated-madr: "0029-MADR-go-1-27-2-for-standard-library-fixes.md"
 decision-makers: repository owner
@@ -179,3 +179,11 @@ with no exclusion.
   `make parity-check`, `make records-check` (63 records) and
   `make gate-selftest` exit 0. Staged for the owner; CI's run on the commit
   is the check that remains.
+
+### Completion (2026-10-08)
+
+* Committed and pushed at the owner's ask: `95bc356` (the directive and
+  statements), `2e5e881` (0028 Phase 4's follow-up, D2), `1f3beab` (D3).
+* CI on `1f3beab`, run 37876239511: `validate` passed on ubuntu-24.04,
+  windows-2025 and macos-15, govulncheck and lint included. Every
+  Verification item is met.
