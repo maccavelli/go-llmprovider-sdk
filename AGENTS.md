@@ -8,7 +8,7 @@ this file. A repository-local `CLAUDE.md` / `.claude/rules/` / `.grok/rules/` /
 (`github.com/maccavelli/go-llmprovider-sdk`). It is a library only: no packaged
 binary. LLM providers live in `llmprovider/`; the configuration wizard lives in
 `wizard/`; secret redaction for both lives in `internal/redact/`. Requires Go
-1.27.1.
+1.27.2.
 
 ## API work
 

@@ -1,6 +1,6 @@
 module github.com/maccavelli/go-llmprovider-sdk
 
-go 1.27.1
+go 1.27.2
 
 require golang.org/x/term v0.43.0
 

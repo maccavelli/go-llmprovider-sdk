@@ -1145,3 +1145,12 @@ outstanding rename items. It corrects a name, and changes no decision.
   released, and so is this module's `v1.0.0`.
 * **The text above stays as written.** Its `go-core-lib` mentions record
   the name the library had when they were written.
+
+## Amendment 2026-10-08: the `go` directive is `go 1.27.2`
+
+By [0029-MADR-go-1-27-2-for-standard-library-fixes.md](0029-MADR-go-1-27-2-for-standard-library-fixes.md),
+accepted 2026-10-08. The fifth amendment's `go 1.27.1` is superseded:
+govulncheck found ten called standard-library vulnerabilities at 1.27.1, all
+fixed in 1.27.2, and CI, which installs the version `go.mod` names, failed on
+them. The fifth amendment stands as the record of why the directive was set
+then.

@@ -16,7 +16,7 @@ Module: `github.com/maccavelli/go-llmprovider-sdk`
 go get github.com/maccavelli/go-llmprovider-sdk
 ```
 
-It requires Go 1.27.1.
+It requires Go 1.27.2.
 
 ## Packages
 
@@ -190,7 +190,7 @@ key.
 
 ## Status
 
-The current release is `v1.3.2`. The module requires Go 1.27.1.
+The current release is `v1.3.2`. The module requires Go 1.27.2.
 
 - `v1.3` remediates
   [0026-MADR](docs/decisions/0026-MADR-remediate-v1-2-debugging-pass-findings.md)'s

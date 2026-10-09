@@ -8,7 +8,7 @@ argument, and [README.md](README.md) indexes them.
 
 The Go module `github.com/maccavelli/go-llmprovider-sdk`: a library for calling
 LLM providers and authenticating to them. It has no binary. It requires Go
-1.27.1, `golang.org/x/term` and, indirectly, `golang.org/x/sys`.
+1.27.2, `golang.org/x/term` and, indirectly, `golang.org/x/sys`.
 
 The code came from `mcplib` `v1.6.0` with its history. Its API is the v1 API
 that [0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md)

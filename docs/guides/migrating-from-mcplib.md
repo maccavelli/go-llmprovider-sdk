@@ -35,7 +35,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
   and does not read `MCP_ORCHESTRATOR_OWNED`.
 - **Credentials (§7).** Without `Options.TokenStore`, the wizard offers only
   the API key.
-- **Go (fifth amendment).** The module requires Go 1.27.1.
+- **Go (fifth amendment; 0029-MADR).** The module requires Go 1.27.2.
 
 ## Identifier map
 
