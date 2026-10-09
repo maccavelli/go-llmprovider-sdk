@@ -153,17 +153,18 @@ func TestItemsToChatMessages(t *testing.T) {
 	if len(msgs) != 4 {
 		t.Fatalf("expected 4 messages, got %d", len(msgs))
 	}
-	if calls, ok := msgs[3][keyToolCalls].([]map[string]any); !ok || len(calls) != 1 || msgs[3][wire.KeyRole] != wire.RoleAssistant {
-		t.Errorf("function call message = %v, want an assistant turn with one tool call", msgs[3])
+	// Typed fields (0028-PLAN D14).
+	if len(msgs[3].ToolCalls) != 1 || msgs[3].Role != wire.RoleAssistant {
+		t.Errorf("function call message = %+v, want an assistant turn with one tool call", msgs[3])
 	}
-	if msgs[0][wire.KeyRole] != wire.RoleUser {
-		t.Errorf("empty role should default to user, got %v", msgs[0][wire.KeyRole])
+	if msgs[0].Role != wire.RoleUser {
+		t.Errorf("empty role should default to user, got %v", msgs[0].Role)
 	}
-	if msgs[1][wire.KeyRole] != wire.RoleAssistant {
-		t.Errorf("assistant role not preserved: %v", msgs[1][wire.KeyRole])
+	if msgs[1].Role != wire.RoleAssistant {
+		t.Errorf("assistant role not preserved: %v", msgs[1].Role)
 	}
-	if msgs[2][wire.KeyRole] != roleTool || msgs[2]["tool_call_id"] != "call_1" {
-		t.Errorf("tool result message = %v", msgs[2])
+	if msgs[2].Role != roleTool || msgs[2].ToolCallID == nil || *msgs[2].ToolCallID != "call_1" {
+		t.Errorf("tool result message = %+v", msgs[2])
 	}
 }
 
@@ -191,13 +192,12 @@ func TestChatCompletionsBody(t *testing.T) {
 
 	t.Run("tools with the auto choice omit tool_choice", func(t *testing.T) {
 		b := Body("kilo-auto/free", 1, input, Opts{Tools: tools})
-		list, ok := b[keyTools].([]map[string]any)
-		if !ok || len(list) != 1 || list[0][wire.KeyType] != keyFunction {
+		list, ok := b[keyTools].([]chatTool) // typed (0028-PLAN D14)
+		if !ok || len(list) != 1 || list[0].Type != keyFunction {
 			t.Fatalf("tools = %v", b[keyTools])
 		}
-		if fn, _ := list[0][keyFunction].(map[string]any); fn[wire.KeyName] != "get_weather" ||
-			fn[keyDescription] != "Get weather" || fn[keyParameters] == nil {
-			t.Errorf("tools[0].function = %v", list[0][keyFunction])
+		if fn := list[0].Function; fn.Name != "get_weather" || fn.Description != "Get weather" || fn.Parameters == nil {
+			t.Errorf("tools[0].function = %+v", list[0].Function)
 		}
 		if _, ok := b[keyToolChoice]; ok {
 			t.Error("tool_choice must be absent for the auto choice")

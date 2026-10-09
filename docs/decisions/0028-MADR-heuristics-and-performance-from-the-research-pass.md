@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-08
+date: 2026-10-09
 decision-makers: repository owner
 consulted: 0012-MADR-conform-providers-to-reference-clients.md (§1.1, §3.1), 0016-MADR-provider-auth-and-support-baseline.md (D8, amendment A5), 0020-MADR-remediate-v1-debugging-pass-findings.md (F9, F28), 0021-MADR-harden-and-tune-after-the-v1-1-review.md (D1, L3, T5, Z1), 0026-MADR-remediate-v1-2-debugging-pass-findings.md (F5, F6, F11, F12), 0027-MADR-live-test-skips-and-gemini-429-path.md
 informed: consumers of go-llmprovider-sdk v1, among them prepare-commit-msg (on v1.3.2) and gobble-cli (on v1.1.1)
@@ -862,3 +862,17 @@ The decode takes only the v1 behaviours it can meet: names matched without
 regard to case, duplicate names, and invalid UTF-8 taken as `json.Unmarshal`
 takes them. That is 4.71 MB, 75 % less than `HEAD`, and decodes the
 documents tested exactly as `json.Unmarshal` does.
+
+## Amendment 2026-10-09: D-A6 extends to Messages, Responses and generateContent
+
+Made by the owner's decision on the 0028 PLAN's Phase 8, step 5 ("New phase
+in 0028", "After Phase 9"). D-A6 moves the other three wires only if
+benchmarks show a gain of the same order as Chat Completions'. Measured on
+100 plain messages, each wire's map encoder against a typed prototype of the
+same JSON: Messages 54.3 µs and 1,008 allocations against 13.7 µs and 4;
+Responses 53.8 µs and 1,008 against 13.6 µs and 4; generateContent 96.4 µs
+and 1,808 against 21.4 µs and 104. Each is 4.0 to 4.5 times faster with 17 to
+252 times fewer allocations, past the PLAN's bar of 3 times and a tenth. All
+three move to typed structs, by the same method as Chat Completions (a frozen
+reference, a byte-for-byte corpus, the goldens unchanged), in the PLAN's
+Phase 9b, which runs after Phase 9.

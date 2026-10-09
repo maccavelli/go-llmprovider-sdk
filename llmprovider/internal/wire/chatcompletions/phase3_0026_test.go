@@ -1,6 +1,7 @@
 package chatcompletions
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -59,7 +60,16 @@ func TestChatCompletions_ReasoningNotCarriedAcrossTurns(t *testing.T) {
 		llmprovider.ReasoningItem{Text: "turn-2 reasoning"},
 		llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: "answer 2"},
 	}, "reasoning_content", true)
-	last := msgs[len(msgs)-1]
+	// The replay key is named by metadata: read through JSON (0028-PLAN D14).
+	raw, err := json.Marshal(chatMessagesValue(msgs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded []map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	last := decoded[len(decoded)-1]
 	if got := last["reasoning_content"]; got != "turn-2 reasoning" {
 		t.Errorf("turn 2's reasoning_content = %q; want only turn 2's reasoning", got)
 	}

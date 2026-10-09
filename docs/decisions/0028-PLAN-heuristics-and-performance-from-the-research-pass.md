@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-10-08
+date: 2026-10-09
 associated-madr: "0028-MADR-heuristics-and-performance-from-the-research-pass.md"
 decision-makers: repository owner
 ---
@@ -492,6 +492,46 @@ and D-H5's headers.
    transport each call: the first test fails (2 connections).
 4. **0016-MADR D8** gains an amendment, dated (D-A2).
 5. Gate; record; stage.
+
+### Phase 9b: typed encoding for Messages, Responses and generateContent (D-A6, amendment)
+
+*Added 2026-10-09 by the owner's decision on Phase 8, step 5 ("New phase in
+0028", "After Phase 9"). Runs after Phase 9 and before Phase 10, once
+approved.*
+
+1. **References, frozen in tests,** generated from `HEAD` as Phase 8's were
+   (`p8_ref.py`'s method), the functions renamed only:
+   `messages_ref_test.go` (`FromItems`), `responses_ref_test.go` (`Input`),
+   `generatecontent_ref_test.go` (`Contents`, `SystemInstruction`).
+2. **Tests, red first,** one per wire, `Test…_SameJSONAsReference`: the
+   wire case's inputs (`wirecase.Items()`) and 300 generated sequences
+   (PCG seed 28, 0) of every item type the encoder takes, messages of each
+   role, calls with valid, empty and invalid arguments and with and without
+   signatures, outputs, and reasoning in this wire's format and another's,
+   with and without encrypted content: `json.Marshal` of the typed result
+   equals the reference's, byte for byte. Today the typed encoder does not
+   exist, so the test does not compile; on a scratch copy whose typed
+   encoder drops one field, it fails.
+3. **The change,** per wire: typed structs whose fields are in the order
+   the maps' keys sorted, so the JSON is unchanged byte for byte; a
+   variable key, where a wire has one, kept as Phase 8 kept the replay.
+   The provider bodies stay `map[string]any`, so `messages.AddThinking`,
+   `wire.AddResponsesTools` and the providers' own keys are unchanged.
+4. **The tests that assert the maps** (`messages/answer_test.go:74`,
+   `messages/callid_0026_test.go:43`, and any the change breaks) change as
+   D14 decided: typed fields where the shape is fixed, JSON where a key is
+   variable.
+5. **Benchmarks:** Phase 8's `BenchmarkPlainMessagesMaps` stays as the
+   before; a `BenchmarkPlainMessages` over the typed encoder and, per wire,
+   a history with calls at 40, 100 and 200 items, before and after. Want at
+   least a fivefold cut in allocations for 100 plain messages, as for Chat
+   Completions; a wire that misses it is a deviation.
+6. **The tool helpers,** `wire.MessagesTools` and `wire.ResponsesTools`,
+   are measured as step 5 of Phase 8 measured the wires, and moved only on
+   the same bar; otherwise recorded as measured, not done.
+7. **Proofs on scratch copies:** per wire, a field dropped, an empty value
+   omitted, and a call joined to the wrong turn: the equivalence test fails.
+8. Gate (the goldens unchanged); record; stage.
 
 ### Phase 10: documentation and release
 
@@ -1797,3 +1837,176 @@ go vet, go test, govulncheck)`.
 
 **Not done:** two listings that start together both probe. The plan asks
 for no single-flight, and the cache keeps the first result to finish.
+
+### Deviation D14 (2026-10-09): three tests assert the old message maps
+
+* **Found** in Phase 8, before the change: `TestItemsToChatMessages`,
+  `TestChatCompletionsBody`'s "tools with the auto choice omit tool_choice",
+  and `TestChatCompletions_ReasoningNotCarriedAcrossTurns` type-assert the
+  encoder's maps (`msgs[3][keyToolCalls].([]map[string]any)`,
+  `b[keyTools].([]map[string]any)`, `last["reasoning_content"]`). Typed
+  messages and tools break them; the plan lists no change to them.
+* **Options put to the owner:** read the output through JSON; assert the
+  typed values; or both. The owner asked for the pros and cons for this
+  case: the types are unexported in an internal package, and `Body` still
+  returns `map[string]any`, so no consumer sees them; JSON checks what the
+  service receives and survives a later change of representation, while
+  typed assertions are checked by the compiler but can pass with JSON that
+  is wrong. The replay key is named by metadata, so it has no fixed field.
+* **Decision.** "Hybrid": `TestItemsToChatMessages` and the tools subtest
+  assert the typed fields; `TestChatCompletions_ReasoningNotCarriedAcrossTurns`
+  reads the messages through JSON. Each keeps what it asserts. The wire is
+  held by the new equivalence tests and the unchanged goldens.
+* **Files:** `chatcompletions_test.go` and `phase3_0026_test.go`, added to
+  the phase.
+
+**Correction to Phase 7's record (2026-10-09).** Its gate row puts
+`internal/wire` at "93.9%, 95.7 % with the unreadable-token test". The
+95.7 % came from `go test -cover` on that package alone, and
+`coverage-check` measures differently. With the test included,
+`coverage-check` reports 93.9 % (Phase 8's gate, below).
+
+### Phase 8: Chat Completions bodies (2026-10-09)
+
+* **Before it.** The owner committed and pushed Phase 7 as `211d686`.
+* **Approval.** "i committed and pushed, proceed", 2026-10-09. D14 was
+  decided during the phase.
+
+**Step 1, the references.** `chatcompletions_ref_test.go` is generated by
+`p8_ref.py` from `git show HEAD:…/chatcompletions.go`.
+`itemsToChatMessagesReplaying` and `toolList` become
+`refItemsToChatMessagesReplaying` and `refToolList`. A diff against
+`HEAD` shows them identical except for two `//nolint:errcheck` directives:
+errcheck does not run on test files, so nolintlint reported the directives
+as unused, and they were removed.
+
+**Step 2, tests, red first.** `TestChatMessages_SameJSONAsReference` and
+`TestToolList_SameJSONAsReference` did not compile
+(`undefined: chatMessagesValue`).
+
+* **The corpus:**
+  * `wirecase.Items()` under each of eight replay fields and both detail
+    settings. The fields are `""`, `reasoning_content`,
+    `reasoning_details` and `reasoning`, plus the message's own `content`,
+    `role`, `tool_call_id` and `tool_calls`, which no metadata names.
+  * 300 generated sequences (PCG seed 28, 0) of user, assistant, system,
+    roleless and `developer` messages; calls with valid, empty and invalid
+    arguments; outputs, with and without a call ID; and reasoning, with and
+    without details, in this wire's format and another, valid and invalid.
+* **The comparison** is byte for byte, which is stricter than the plan's
+  "decode to equal values".
+* **One difference found on the first green run:** a sequence of reasoning
+  alone gave `[]` where the reference sent `null`. The typed encoder now
+  returns nil when it builds no message.
+
+**Step 2, benchmarks.** `BenchmarkPlainMessages` and `BenchmarkBodyMarshal`
+(`bench_0028_test.go`), `-count=5`. Medians:
+
+| Benchmark | `HEAD` | Tree |
+| :--- | :--- | :--- |
+| `PlainMessages`, 100 | 56.1 µs, 58.7 KB, 1,022 allocations | 19.5 µs, 23.7 KB, 18 allocations |
+| `BodyMarshal`, 40 items | 39.2 µs, 38.4 KB, 540 | 18.4 µs, 20.4 KB, 38 |
+| `BodyMarshal`, 100 items | 97.3 µs, 95.9 KB, 1,322 | 41.7 µs, 49.5 KB, 68 |
+| `BodyMarshal`, 200 items | 193.3 µs, 196.6 KB, 2,624 | 82.4 µs, 99.8 KB, 118 |
+
+Allocations fall 57 times for plain messages, and 14 to 22 times with
+calls, against the fivefold the plan asks for. Time falls by 2.3 to 2.9
+times.
+
+**Step 3, the change** (`chatcompletions.go`):
+
+* **The types:** `chatMessage`, `chatToolCall`, `chatCallFunction`,
+  `chatTool`, `chatToolFunction`. Their fields are in the order the maps'
+  keys sorted, so the JSON is the same byte for byte. `tool_call_id` is a
+  `*string`, so an empty call ID is still sent, as the map sent it.
+* **The replay field** is named by metadata, so it has no fixed field. It
+  is kept in unexported `replayField`, `replay` and `replaying`.
+  `replayString`, `setReplay`, `toolCalls`, `setToolCalls`, `details` and
+  `setDetails` reproduce the map's reads and writes for any key, the
+  message's own keys included.
+* **Built differently from step 3's wording:** the plan put a `MarshalJSON`
+  on each message. Here, a message list with no replay is sent as
+  `[]chatMessage` and encoded field by field. Only a list that holds a
+  replay is sent as `chatMessages`, whose `MarshalJSON` writes a replaying
+  message's keys in sorted order. `chatMessagesValue` chooses between them.
+  A per-message `MarshalJSON` would make `encoding/json` call it, and
+  compact its output, for every message, plain ones included.
+* **`Body`** still returns `map[string]any`, with `messages` and `tools`
+  typed, so Kilo's `body["provider"]` is unchanged.
+* **Two dead branches removed.** `setReplay` cleared `ToolCalls` and
+  `ReasoningDetails` under a replay of those keys, and its plants failed no
+  test. The replay already hides them: `toolCalls`, `details` and
+  `replayJSON` read it in their place.
+* **One branch is kept but unreachable today:** the hiding in `details`.
+  The replay block runs once per assistant message, when it is created; a
+  later call joins the turn through `continue`, which skips the block. So
+  no details write can follow a replay on the same message. The branch is
+  kept so the semantics stay exact if a future item type reaches it. Its
+  plant fails no test, for that reason.
+
+**D14's tests.** `TestItemsToChatMessages` and the tools subtest assert the
+typed fields; `TestChatCompletions_ReasoningNotCarriedAcrossTurns` reads
+the messages through JSON. All three pass.
+
+**Step 4.** `ToolArguments` runs `json.Compact` once, which validates as it
+compacts, in place of `json.Valid` and then `CompactArguments`.
+`TestToolArguments` and `TestToolArguments_PassesValidJSONThrough` pass
+unchanged.
+
+**Step 5, the other wires, measured only.** Each has a benchmark of 100
+plain messages (`bench_0028_test.go`): the wire's own encoder against a
+typed prototype in the test, whose JSON the benchmark checks is the same
+first. Medians of five:
+
+| Wire | Maps | Typed prototype | Faster | Fewer allocations |
+| :--- | :--- | :--- | ---: | ---: |
+| Messages (`messages.FromItems`) | 54.3 µs, 1,008 allocations | 13.7 µs, 4 | 4.0 times | 252 times |
+| Responses (`responses.Input`) | 53.8 µs, 1,008 | 13.6 µs, 4 | 4.0 times | 252 times |
+| generateContent (`generatecontent.Contents`) | 96.4 µs, 1,808 | 21.4 µs, 104 | 4.5 times | 17 times |
+
+All three meet the plan's bar, at least 3 times faster with at least a
+tenth of the allocations. They are reported to the owner as candidates, a
+change of scope, and are not changed in this phase.
+
+**Step 5's outcome.** Put to the owner on 2026-10-09: a new phase in 0028,
+a later record, or not now; and, for a new phase, before or after Phase 9.
+**Decision:** "New phase in 0028", "After Phase 9". Phase 9b is added to
+the Implementation Steps, after Phase 9, and 0028-MADR gains "Amendment
+2026-10-09: D-A6 extends to Messages, Responses and generateContent". Phase
+9b runs when approved.
+
+**Proofs on scratch copies** (`p8_plants.py`; a build failure is reported
+as one):
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| `content` dropped when empty (the plan's) | `TestChatMessages_SameJSONAsReference` (`wirecase.Items/""/false`) |
+| an empty `tool_call_id` dropped | `TestChatMessages_SameJSONAsReference` |
+| no messages sent as `[]` | `TestChatMessages_SameJSONAsReference` |
+| the replay ignored | `TestChatMessages_SameJSONAsReference`, `TestChatCompletions_ReasoningNotCarriedAcrossTurns` |
+| the replay hiding no `tool_calls` | `TestChatMessages_SameJSONAsReference` |
+| `replayJSON` keeping calls under a `tool_calls` replay | `TestChatMessages_SameJSONAsReference` (`wirecase.Items/"tool_calls"/false`) |
+| replayed details dropped | `TestChatMessages_SameJSONAsReference` |
+| a joined call opening a turn | `TestChatMessages_SameJSONAsReference` |
+| an empty description dropped | `TestToolList_SameJSONAsReference` (`nil schema`) |
+| `ToolArguments` compacting any JSON | `TestToolArguments` (an array kept under `arguments`) |
+| the replay hiding no `reasoning_details` | none: unreachable, as above |
+
+"The replay ignored" first broke the build, by leaving a loop variable
+unused, and was rewritten to compile.
+
+**Step 6, the gate** (`p26_gate.py`, a scratch copy of the tree). The first
+run failed `make lint` on the reference's two directives (step 1), then on
+the reference's header comment, which began `// nolint`; it was reworded.
+After those, every check exits 0:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `498 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `coverage-check` | `internal/wire/chatcompletions: 94.0%`; `internal/wire: 93.9%`; `28 packages, 0 problem(s)` |
+| goldens (`g-wire-stable`, and every provider's wire test) | 0; no golden changed |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `63 records, 0 problem(s)` |
+| `gate-selftest` | OK |
+| links | `0 problem(s), 627 relative link(s) in 73 file(s)` |
+| vet, race, shuffle, tidy, parity, dep, generate, markdownlint, deny scan | 0 each |

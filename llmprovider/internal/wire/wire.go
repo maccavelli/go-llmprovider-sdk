@@ -6,6 +6,7 @@
 package wire
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 
@@ -57,10 +58,11 @@ func ToolArguments(arguments string) any {
 	if trimmed == "" {
 		return map[string]any{}
 	}
-	if strings.HasPrefix(trimmed, "{") && json.Valid([]byte(trimmed)) {
-		if compact, err := CompactArguments(json.RawMessage(trimmed)); err == nil {
-			return json.RawMessage(compact)
-		}
+	// json.Compact validates as it compacts: one pass, not json.Valid's and
+	// then Compact's (0028-MADR D-A6).
+	var compact bytes.Buffer
+	if strings.HasPrefix(trimmed, "{") && json.Compact(&compact, []byte(trimmed)) == nil {
+		return json.RawMessage(compact.Bytes())
 	}
 	return map[string]any{KeyArguments: arguments}
 }

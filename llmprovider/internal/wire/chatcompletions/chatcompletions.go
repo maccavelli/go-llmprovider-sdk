@@ -4,6 +4,7 @@
 package chatcompletions
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ const (
 	keyReasoningEffort = "reasoning_effort"
 	keyReasoning       = "reasoning"
 	keyReasoningDetail = "reasoning_details"
+	keyToolCallID      = "tool_call_id"
 	roleTool           = "tool"
 )
 
@@ -59,11 +61,185 @@ type Opts struct {
 	ReplayReasoningDetails bool
 }
 
+// chatMessage is one Chat Completions message. Its fields are in the order
+// json.Marshal wrote the map it replaces, so the JSON is the same byte for
+// byte (0028-MADR D-A6). A replayed reasoning field, named by the model's
+// metadata, is not a field: replayField and replay hold it, and
+// chatMessages.MarshalJSON writes it.
+type chatMessage struct {
+	Content          string            `json:"content"`
+	ReasoningDetails []json.RawMessage `json:"reasoning_details,omitempty"`
+	Role             string            `json:"role"`
+	ToolCallID       *string           `json:"tool_call_id,omitempty"`
+	ToolCalls        []chatToolCall    `json:"tool_calls,omitempty"`
+
+	// replayField is the key the replay is sent under, and replaying says the
+	// message carries it. When the key is reasoning_details or tool_calls, the
+	// replay stands in that field's place, as it did in the map.
+	replayField string
+	replay      string
+	replaying   bool
+}
+
+// chatToolCall is one tool_calls entry.
+type chatToolCall struct {
+	Function chatCallFunction `json:"function"`
+	ID       string           `json:"id"`
+	Type     string           `json:"type"`
+}
+
+// chatCallFunction is a tool call's function.
+type chatCallFunction struct {
+	Arguments string `json:"arguments"`
+	Name      string `json:"name"`
+}
+
+// chatTool is one tools entry.
+type chatTool struct {
+	Function chatToolFunction `json:"function"`
+	Type     string           `json:"type"`
+}
+
+// chatToolFunction is a tool's function.
+type chatToolFunction struct {
+	Description string `json:"description"`
+	Name        string `json:"name"`
+	Parameters  any    `json:"parameters"`
+}
+
+// replayString is the string the message holds under key, as the map's
+// lookup m[key].(string) read it: "" when the key is absent or holds no string.
+func (m *chatMessage) replayString(key string) string {
+	switch key {
+	case wire.KeyContent:
+		return m.Content
+	case wire.KeyRole:
+		return m.Role
+	case keyToolCallID:
+		if m.ToolCallID != nil {
+			return *m.ToolCallID
+		}
+		return ""
+	}
+	if m.replaying && m.replayField == key {
+		return m.replay
+	}
+	return ""
+}
+
+// setReplay sets the string under key, as the map's m[key] = v did.
+func (m *chatMessage) setReplay(key, v string) {
+	switch key {
+	case wire.KeyContent:
+		m.Content = v
+		return
+	case wire.KeyRole:
+		m.Role = v
+		return
+	case keyToolCallID:
+		m.ToolCallID = &v
+		return
+	}
+	// Under tool_calls or reasoning_details, the replay hides that field:
+	// toolCalls, details and replayJSON read the replay in its place.
+	m.replayField, m.replay, m.replaying = key, v, true
+}
+
+// toolCalls is the message's calls, as the map's m["tool_calls"] read them:
+// none while a replay stands in their place.
+func (m *chatMessage) toolCalls() []chatToolCall {
+	if m.replaying && m.replayField == keyToolCalls {
+		return nil
+	}
+	return m.ToolCalls
+}
+
+// setToolCalls sets the calls, replacing a replay that stood in their place.
+func (m *chatMessage) setToolCalls(calls []chatToolCall) {
+	if m.replaying && m.replayField == keyToolCalls {
+		m.replaying = false
+	}
+	m.ToolCalls = calls
+}
+
+// details is the message's reasoning_details, as the map read them.
+func (m *chatMessage) details() []json.RawMessage {
+	if m.replaying && m.replayField == keyReasoningDetail {
+		return nil
+	}
+	return m.ReasoningDetails
+}
+
+// setDetails sets reasoning_details, replacing a replay in their place.
+func (m *chatMessage) setDetails(details []json.RawMessage) {
+	if m.replaying && m.replayField == keyReasoningDetail {
+		m.replaying = false
+	}
+	m.ReasoningDetails = details
+}
+
+// chatMessages is a message list in which some message carries a replay; its
+// MarshalJSON writes each such message's keys in sorted order, as the map
+// did. A list with no replay is sent as []chatMessage, encoded field by field.
+type chatMessages []chatMessage
+
+// MarshalJSON writes the messages, a replay under its key in sorted order.
+func (ms chatMessages) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+	b.WriteByte('[')
+	for i := range ms {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		var (
+			raw []byte
+			err error
+		)
+		if ms[i].replaying {
+			raw, err = ms[i].replayJSON()
+		} else {
+			raw, err = json.Marshal(ms[i])
+		}
+		if err != nil {
+			return nil, err
+		}
+		b.Write(raw)
+	}
+	b.WriteByte(']')
+	return b.Bytes(), nil
+}
+
+// replayJSON writes one message with its replay, keys sorted.
+func (m chatMessage) replayJSON() ([]byte, error) {
+	fields := map[string]any{wire.KeyContent: m.Content, wire.KeyRole: m.Role, m.replayField: m.replay}
+	if len(m.ReasoningDetails) > 0 && m.replayField != keyReasoningDetail {
+		fields[keyReasoningDetail] = m.ReasoningDetails
+	}
+	if m.ToolCallID != nil {
+		fields[keyToolCallID] = *m.ToolCallID
+	}
+	if len(m.ToolCalls) > 0 && m.replayField != keyToolCalls {
+		fields[keyToolCalls] = m.ToolCalls
+	}
+	return json.Marshal(fields)
+}
+
+// chatMessagesValue is msgs as a body's messages: the slice itself, unless a
+// message carries a replay.
+func chatMessagesValue(msgs []chatMessage) any {
+	for i := range msgs {
+		if msgs[i].replaying {
+			return chatMessages(msgs)
+		}
+	}
+	return msgs
+}
+
 // itemsToChatMessages converts canonical items to OpenAI Chat Completions
 // messages. A function call becomes the assistant turn's tool_calls entry,
 // and its result a role:"tool" message keyed by tool_call_id, the Chat
 // Completions equivalent of the Responses API's function_call_output item.
-func itemsToChatMessages(items []llmprovider.Item) []map[string]any {
+func itemsToChatMessages(items []llmprovider.Item) []chatMessage {
 	return itemsToChatMessagesReplaying(items, "", false)
 }
 
@@ -73,8 +249,8 @@ func itemsToChatMessages(items []llmprovider.Item) []map[string]any {
 // for interleaved models (MADR 0012 §2, O5). With details, the
 // reasoning_details entries this wire decoded go back on the assistant
 // message they precede (0021-MADR W9).
-func itemsToChatMessagesReplaying(items []llmprovider.Item, field string, details bool) []map[string]any {
-	var messages []map[string]any
+func itemsToChatMessagesReplaying(items []llmprovider.Item, field string, details bool) []chatMessage {
+	messages := make([]chatMessage, 0, len(items))
 	var pending strings.Builder
 	var pendingDetails []json.RawMessage
 	for _, item := range items {
@@ -96,75 +272,52 @@ func itemsToChatMessagesReplaying(items []llmprovider.Item, field string, detail
 				pending.Reset()
 				pendingDetails = nil
 			}
-			messages = append(messages, map[string]any{
-				wire.KeyRole:    role,
-				wire.KeyContent: v.Text,
-			})
+			messages = append(messages, chatMessage{Role: role, Content: v.Text})
 		case llmprovider.FunctionCallItem:
-			call := map[string]any{
-				"id":         v.CallID,
-				wire.KeyType: keyFunction,
-				keyFunction: map[string]any{
-					wire.KeyName:      v.Name,
-					wire.KeyArguments: v.Arguments,
-				},
-			}
+			call := chatToolCall{ID: v.CallID, Type: keyFunction,
+				Function: chatCallFunction{Name: v.Name, Arguments: v.Arguments}}
 			// A call joins the assistant turn it follows (its text, or the
 			// calls before it); otherwise it opens one (MADR 0012 §2).
-			if n := len(messages); n > 0 && messages[n-1][wire.KeyRole] == wire.RoleAssistant {
-				calls, ok := messages[n-1][keyToolCalls].([]map[string]any)
-				if !ok {
-					calls = nil
-				}
-				messages[n-1][keyToolCalls] = append(calls, call)
+			if n := len(messages); n > 0 && messages[n-1].Role == wire.RoleAssistant {
+				last := &messages[n-1]
+				last.setToolCalls(append(last.toolCalls(), call))
 				continue
 			}
-			messages = append(messages, map[string]any{
-				wire.KeyRole:    wire.RoleAssistant,
-				wire.KeyContent: "",
-				keyToolCalls:    []map[string]any{call},
-			})
+			messages = append(messages, chatMessage{Role: wire.RoleAssistant, ToolCalls: []chatToolCall{call}})
 		case llmprovider.FunctionCallOutputItem:
-			messages = append(messages, map[string]any{
-				wire.KeyRole:    roleTool,
-				"tool_call_id":  v.CallID,
-				wire.KeyContent: v.Output,
-			})
+			id := v.CallID
+			messages = append(messages, chatMessage{Role: roleTool, ToolCallID: &id, Content: v.Output})
 		}
 		if field == "" && !details {
 			continue
 		}
 		// The reasoning belongs to the assistant turn it precedes.
-		if n := len(messages); n > 0 && messages[n-1][wire.KeyRole] == wire.RoleAssistant {
+		if n := len(messages); n > 0 && messages[n-1].Role == wire.RoleAssistant {
 			if _, isReasoning := item.(llmprovider.ReasoningItem); !isReasoning {
+				last := &messages[n-1]
 				if field != "" {
-					prior, _ := messages[n-1][field].(string) //nolint:errcheck // absent is ""
-					messages[n-1][field] = prior + pending.String()
+					last.setReplay(field, last.replayString(field)+pending.String())
 				}
 				pending.Reset()
 				if len(pendingDetails) > 0 {
-					prior, _ := messages[n-1][keyReasoningDetail].([]json.RawMessage) //nolint:errcheck // absent is nil
-					messages[n-1][keyReasoningDetail] = append(prior, pendingDetails...)
+					last.setDetails(append(last.details(), pendingDetails...))
 					pendingDetails = nil
 				}
 			}
 		}
 	}
+	if len(messages) == 0 {
+		return nil // sent as null, as the map encoder sent it
+	}
 	return messages
 }
 
 // toolList is tools as Chat Completions functions.
-func toolList(tools []llmprovider.Tool) []map[string]any {
-	list := make([]map[string]any, len(tools))
+func toolList(tools []llmprovider.Tool) []chatTool {
+	list := make([]chatTool, len(tools))
 	for i, tool := range tools {
-		list[i] = map[string]any{
-			wire.KeyType: keyFunction,
-			keyFunction: map[string]any{
-				wire.KeyName:   tool.Name,
-				keyDescription: tool.Description,
-				keyParameters:  wire.ToolSchema(tool.Schema),
-			},
-		}
+		list[i] = chatTool{Type: keyFunction, Function: chatToolFunction{
+			Name: tool.Name, Description: tool.Description, Parameters: wire.ToolSchema(tool.Schema)}}
 	}
 	return list
 }
@@ -184,7 +337,7 @@ func toolChoice(choice llmprovider.ToolChoice) any {
 func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[string]any {
 	body := map[string]any{
 		keyModel:     model,
-		keyMessages:  itemsToChatMessagesReplaying(input, o.ReplayReasoningField, o.ReplayReasoningDetails),
+		keyMessages:  chatMessagesValue(itemsToChatMessagesReplaying(input, o.ReplayReasoningField, o.ReplayReasoningDetails)),
 		keyMaxTokens: maxTokens,
 	}
 	if len(o.Tools) > 0 && (!o.NoToolChoice || o.ToolChoice != llmprovider.ToolChoiceNone) {
