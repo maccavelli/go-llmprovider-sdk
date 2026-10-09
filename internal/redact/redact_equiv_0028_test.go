@@ -68,7 +68,9 @@ func equivCorpus() []struct{ name, text string } {
 // changedBy0028 are the corpus cases whose redaction 0028's A10b and A10c
 // change on purpose; every other case must match the reference byte for byte.
 var changedBy0028 = map[string]bool{
-	"gen-192": true, // A10b: code INVALID_TOKEN is a diagnostic, kept
+	"gen-192":     true, // A10b: code INVALID_TOKEN is a diagnostic, kept
+	"Kelvin sign": true, // D10: folded to k, the key is masked
+	"long s":      true, // D10: folded to s, the secret is masked
 }
 
 // TestRedact_MatchesReference: Redact equals the frozen reference on the
@@ -158,7 +160,8 @@ func TestRedact_MatchesReferenceOnExistingCases(t *testing.T) {
 }
 
 // FuzzRedact_MatchesReference: the keyword-first reKV pass redacts exactly
-// what the frozen expression's own search finds, with today's replacement.
+// what the frozen expression's own search finds, with today's replacement
+// read in context (0028-PLAN D10: the reference's re-matching is a fault).
 // It isolates the rewritten pass, so A10b's and A10c's changes elsewhere do
 // not touch it.
 func FuzzRedact_MatchesReference(f *testing.F) {
@@ -169,7 +172,7 @@ func FuzzRedact_MatchesReference(f *testing.F) {
 		p := []byte(s)
 		want := s
 		if refReKV.Match(p) {
-			want = string(refReKV.ReplaceAllFunc(slices.Clone(p), redactKV))
+			want = string(replaceSubmatches(refReKV, slices.Clone(p), redactKV))
 		}
 		if got := string(redactKVPass(slices.Clone(p))); got != want {
 			t.Fatalf("redactKVPass(%q)\n  = %q\n  want %q (the expression's own search)", s, got, want)

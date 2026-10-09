@@ -23,6 +23,9 @@ var contextOverflowTypes = []string{
 	"model_context_window_exceeded", // z.ai (pi :56)
 }
 
+// anchorMaxContextLength is the anchor three forms share.
+const anchorMaxContextLength = "maximum context length"
+
 // contextOverflowMessages are the message forms, each with where it was seen
 // and a lower-case literal it cannot match without, checked first
 // (0028-MADR D-A10).
@@ -34,11 +37,11 @@ var contextOverflowMessages = []struct {
 	{regexp.MustCompile(`(?i)prompt (?:is )?too long`), "Anthropic, z.ai and Ollama (pi :11, :30, :35, :38)", "too long"},
 	{regexp.MustCompile(`(?i)input is too long for requested model`), "Amazon Bedrock (pi :40)", "too long"},
 	{regexp.MustCompile(`(?i)exceeds the context window`), "OpenAI (pi :13, :41)", "context window"},
-	{regexp.MustCompile(`(?i)exceeds (?:the )?(?:model'?s )?maximum context length(?: of [\d,]+ tokens?|\s*\([\d,]+\))`), "OpenAI-compatible proxies (pi :14-15, :42)", "maximum context length"},
+	{regexp.MustCompile(`(?i)exceeds (?:the )?(?:model'?s )?maximum context length(?: of [\d,]+ tokens?|\s*\([\d,]+\))`), "OpenAI-compatible proxies (pi :14-15, :42)", anchorMaxContextLength},
 	{regexp.MustCompile(`(?i)input token count.*exceeds the maximum`), "Google Gemini (pi :16, :43)", "exceeds the maximum"},
 	{regexp.MustCompile(`(?i)maximum prompt length is \d+`), "xAI (pi :17, :44)", "maximum prompt length"},
 	{regexp.MustCompile(`(?i)reduce the length of the messages`), "Groq (pi :18, :45)", "reduce the length"},
-	{regexp.MustCompile(`(?i)maximum context length is \d+ tokens`), "OpenRouter (pi :19, :46)", "maximum context length"},
+	{regexp.MustCompile(`(?i)maximum context length is \d+ tokens`), "OpenRouter (pi :19, :46)", anchorMaxContextLength},
 	{regexp.MustCompile(`(?i)exceeds (?:the )?maximum allowed input length of [\d,]+ tokens?`), "OpenRouter's Poolside route (pi :20, :47)", "maximum allowed input length"},
 	{regexp.MustCompile(`(?i)input \(\d+ tokens\) is longer than the model'?s context length \(\d+ tokens\)`), "Together AI (pi :21, :48)", "context length"},
 	{regexp.MustCompile(`(?i)exceeds the limit of \d+`), "GitHub Copilot (pi :24, :49)", "exceeds the limit"},
@@ -46,7 +49,7 @@ var contextOverflowMessages = []struct {
 	{regexp.MustCompile(`(?i)greater than the context length`), "LM Studio (pi :23, :51)", "context length"},
 	{regexp.MustCompile(`(?i)context window exceeds limit`), "MiniMax (pi :25, :52)", "context window"},
 	{regexp.MustCompile(`(?i)exceeded model token limit`), "Kimi (pi :26, :53)", "token limit"},
-	{regexp.MustCompile(`(?i)too large for model with \d+ maximum context length`), "Mistral (pi :29, :54)", "maximum context length"},
+	{regexp.MustCompile(`(?i)too large for model with \d+ maximum context length`), "Mistral (pi :29, :54)", anchorMaxContextLength},
 	{regexp.MustCompile(`(?i)prompt has [\d,]+ tokens?, but the configured context size is [\d,]+ tokens?`), "DS4 (pi :27, :55)", "configured context size"},
 	{regexp.MustCompile(`(?i)range of input length should be`), "DashScope and Qwen (pi :34, :58)", "range of input length"},
 	{regexp.MustCompile(`(?i)context[_ ]length[_ ]exceeded`), "any service, as a message (pi :59)", "exceeded"},

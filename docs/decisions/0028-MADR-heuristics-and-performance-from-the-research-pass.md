@@ -826,3 +826,16 @@ take that shape, and those names hold secrets far more often than codes, so
 they keep Z2's rule alone, a number or lower-case snake case.
 `{"key":"abc-DEF-ghij"}` stays masked, and a test holds it.
 0021-MADR Z2 is amended to match.
+
+## Amendment 2026-10-08: redaction reads groups in context, and folds ſ and K
+
+Made by the 0028 PLAN's deviation D10, chosen by the owner ("Fix in 0028
+Phase 4"; "Fold the text"). Found in Phase 4, and present in `v1.3.2`:
+`Redact` panics on `key api_Key=abcd1234efgh`. A replacement function
+matched its regex again on the match alone, and with `(?i)` folding the Kelvin
+sign into `k` while `\b` stays ASCII-only, the second match can fail. A
+service reply holding such text crashes `ClassifyHTTPError`'s caller. The
+same folding leaves a secret spelled with ſ (U+017F) or K unmasked.
+**Decision:** the replacement functions read their groups from the match in
+context; and a message holding either letter is redacted as a copy with them
+replaced by `s` and `k`, which its redacted text then shows.

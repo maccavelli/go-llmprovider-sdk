@@ -1161,3 +1161,245 @@ rows.
   offered: amending step 7's bound, or dropping A10c's rows.
 * **Files:** none beyond Phase 4's; the fuzz test goes in a new
   `internal/redact/redact_anchor_0028_test.go`.
+
+### Deviation D10 (2026-10-08): redaction panics on a Kelvin sign, and misses ſ and K
+
+* **Found** in Phase 4, by D9's plant "an absent anchor remembered as
+  present", which panicked rather than failing an assertion. Probed on
+  scratch copies of `HEAD` and the `v1.3.2` tag, with the same result on
+  both, so the fault was released:
+  * `String("key api_Key=abcd1234efgh")` panics, `index out of range [2]
+    with length 0`, in `redactKVLong` (`internal/redact/redact.go:363`).
+    `ReplaceAllFunc` hands it the match, and it matches `reKVLong` again on
+    the match alone. `(?i)` folds the Kelvin sign (U+212A) into `k`, and Go's
+    `\b` is ASCII-only: in context the `\b` before it holds after `_`; alone,
+    at the start of the match, it does not. `FindSubmatch` returns nil.
+    `ClassifyHTTPError` redacts service replies, so a reply holding such
+    text crashes the caller. The ASCII anchor gate hides it unless the text
+    also holds a plain `key` or `code`.
+  * `redactCookie` re-matches the same way: `x_ſet-cookie: a=b` becomes
+    `x_cookie: a=[REDACTED]`, the `ſet-` dropped.
+    `redactAuth` and `redactKV` re-match too.
+  * The gate, lower-casing ASCII only, leaves `x_ſecret=abcd1234efgh`
+    unmasked; `Key=abcd1234efgh` at the start of the text, or after a
+    space, is unmasked even with the gate open, because `\b` sees no
+    boundary before a non-ASCII letter.
+* **Options put to the owner:** fix in Phase 4, or a `v1.3.3` hotfix under a
+  new pair first; for the misses, record them, or fold. A first answer chose
+  folding the gate's lower-cased copy; a scratch prototype showed that
+  leaves `Key=…` at the start of the text unmasked, and the question was
+  put again with that corrected.
+* **Decision.** "Fix in 0028 Phase 4" and "Fold the text":
+  * the four functions read their groups from the match in context
+    (`replaceSubmatches`, over `FindAllSubmatchIndex`), never by matching
+    the match again, so they cannot miss;
+  * when a message holds ſ (U+017F) or K (U+212A), `Redact` works on a copy
+    with them replaced by `s` and `k`, the only non-ASCII letters `(?i)`
+    folds into ASCII ones; the redacted text shows `s` and `k` there. The
+    caller's buffer is never changed.
+* **Tests:** `TestRedact_FoldedLetters` (no panic; each secret masked;
+  the cookie keeps its name), `TestReplaceSubmatches_InContext` (the
+  unfolded Kelvin case through `reKVLong`, no panic), and
+  `FuzzRedact_NeverPanics`. The corpus cases "Kelvin sign" and "long s" join
+  `changedBy0028`: they are now masked. `FuzzRedact_MatchesReference`'s
+  oracle becomes the frozen `reKV` with today's in-context replacement,
+  since the reference's re-matching is the fault.
+* **Files:** `internal/redact/redact.go`, `redact_equiv_0028_test.go`, and a
+  new `internal/redact/redact_fold_0028_test.go`. Ships in `v1.4.0`;
+  `v1.3.x` keeps the fault.
+
+### Deviation D11 (2026-10-08): Phase 4's code fails `make lint`
+
+* **Found** by 0029-PLAN-go-1-27-2-for-standard-library-fixes.md's gate
+  (its deviation D2). `52709e4`, Phase 4 committed before step 9's gate ran,
+  fails `make lint` with three `goconst` findings, the same under
+  `go1.27.1` and `go1.27.2`: `token` and `code`, three occurrences each, in
+  `internal/redact/redact.go`'s anchor lists and `kvKeywords`; and
+  `maximum context length`, three anchors in
+  `llmprovider/context_overflow.go`'s `contextOverflowMessages`. CI runs
+  govulncheck first, so it did not reach lint on `52709e4`.
+* **Options put to the owner:** fix them here, in Phase 4's follow-up; or
+  in 0029's change.
+* **Decision.** "Fix under 0028 Phase 4": each literal is named once,
+  `kwToken` and `kwCode` in `redact.go`, `anchorMaxContextLength` in
+  `context_overflow.go`; behaviour unchanged. With those named, goconst
+  reported a fourth, `key` (three occurrences, `redact.go`), which it had
+  not listed before; it is `kwKey`. CI is green once 0029's
+  commit and this follow-up are both committed.
+
+### Phase 4: classification cost (2026-10-08)
+
+* **Before it.** Phase 3 committed by the owner as `ad92bf7`.
+* **Approval.** "i committed, proceed", 2026-10-08. D6 to D11 were decided
+  during the phase (above). The owner committed the phase's work in
+  progress as `52709e4`, after D9 and before step 9's gate. D10 and D11 are
+  the follow-up to that commit.
+
+**Step 1, the references.** `internal/redact/redact_ref_test.go` is
+generated from `git show HEAD:internal/redact/redact.go`, its identifiers
+renamed `ref…` and `Redact` renamed `redactReference`.
+`llmprovider/context_overflow_ref_test.go` freezes `contextOverflow` the
+same way. The first generation renamed the string `"pass"`, reKV's anchor,
+along with the type `pass`, so the reference skipped reKV on `password=`.
+It was caught because the first equivalence run differed, then regenerated
+renaming the type only. Every quoted and backtick literal of the reference
+was then checked as identical to `HEAD`'s.
+
+**Step 2, before** (`-count=5`, medians, `ad92bf7`):
+
+| Benchmark | Median |
+| :--- | ---: |
+| `Classify_16KiBTokens` | 12.67 ms |
+| `Classify_2KiBOverflow` | 718 µs |
+| `ClassifyHTTPError_64KiBHTML` | 908 µs |
+| `Redact_16KiBTokens` | 5.34 ms |
+| `Redact_Clean4KiB` | 64.8 µs |
+
+**Step 3, red first.** `TestClassify_16KiBTokensUnder1ms` did not compile
+(`undefined: redactInput`), as the step allows. The A10b and A10c tests,
+before their code:
+
+```text
+--- FAIL: TestRedact_KeepsDiagnosticCodes
+    String("{\"code\":\"invalid-argument\",…}") = "{\"code\":\"[REDACTED]\",…"
+    (and INVALID_TOKEN, model-not-found)
+--- FAIL: TestRedact_KeyShapes
+    Gemini auth key, Google refresh token, Hugging Face org, Google access token: kept, in a sentence and in JSON
+    Ollama: kept
+--- FAIL: TestRedact_NotKeys
+    "see sk-learn-tutorial-for-beginners for details" = "see [REDACTED] for details"
+    (and xai-grok-login-device-code-flow-tests)
+```
+
+`TestRedactInput_NoSecretFragmentAtTheCut` differs from the step as
+written. The key is 47 characters and starts at byte 2036, 12 bytes before
+the bound rather than 20, and twenty redacted keys come first. That puts
+the text at the cut inside the 512 bytes kept, where a fragment would be
+seen. The test asserts that neither the fragment's start, `sk-proj-Q`, nor
+`QWER` appears. Nothing after the cut reaches the message, so that is the
+whole of what could leak.
+
+**Step 4, the cut.** `redactInput` in `api_error.go` takes at most 2048
+bytes (`apiErrorRedactLimit = 2 << 10`). It cuts back to the last of
+`" \t\r\n,;\"'"` before the bound, then to a rune start, and replaces
+`cutMessage` at both of its call sites.
+
+**Measured, not planned.** After the cut, `Classify_16KiBTokens` was still
+1.54 ms. The profile put 68 % of it in `completionFillsContext`, Phase 3's
+D-H3, which ran two regexes over the whole 16 KiB message. It now reads at
+most 2 KiB, and returns false unless the lower-cased text holds "in the
+completion". That brought it to 0.319 ms.
+
+**Step 5, `reKV` keyword first.** `redactKVPass` finds each of
+`kvKeywords`. For each one it extends left over name bytes, then tries
+`reKVAnchored` at each word boundary of that run, taking the first match.
+Text with a non-ASCII byte takes `reKV`'s own search.
+
+* **`TestRedact_MatchesReference`:** 18 named edge cases and 200 generated
+  ones (PCG seed 28, 0). The cases that differ are exactly
+  `changedBy0028`: `gen-192` (A10b), and "Kelvin sign" and "long s" (D10).
+* **`TestRedact_MatchesReferenceOnExistingCases`:** this test covers the
+  step's "every case of `redact_test.go`". It parses `redact_test.go`,
+  `redact_providers_test.go` and `redact_0026_test.go`, and runs each of
+  their 353 string literals, and sums of literals, through both. No
+  difference.
+* **`FuzzRedact_MatchesReference`:** the keyword-first pass against the
+  frozen `reKV`, with today's replacement read in context (D10). 60 s,
+  670,609 executions before D10; 60 s, 211,394 after; no failure.
+* **The boundary plant.** Removing the word-boundary check from
+  `redactKVPass` failed no test at first. Three corpus cases were added,
+  each a keyword mid-word after `__` (`a__token=abcd1234efgh`,
+  `x__client_secret: s3cr3tv4lue`, `9__password=hunter2hunter2`). The plant
+  then failed `TestRedact_MatchesReference` and the fuzz seeds.
+
+**Step 5b, A10b**, as D2 and D8 record. `reDiagnosticCode` keeps a `code`
+value of letter-only words joined by `-` or `_`, at most 40 bytes. `key` and
+`token` keep `reDiagnostic`.
+
+**Step 5c, A10c**, as D3, D6 and D7 record:
+
+* `reToken` gains the researched rows;
+* `reTokenFallback` with `redactTokenFallback` (word-like bodies kept);
+* `reOllamaKey` behind the anchor "ollama".
+
+**Step 6, the overflow prefilter.** Each entry of `contextOverflowMessages`
+carries its anchor. `contextOverflow` reads at most 2 KiB and runs a form
+only when the lower-cased text holds its anchor. Text with a non-ASCII byte
+runs every form, because `(?i)` folds `ſ` and `K`.
+`TestContextOverflow_PrefilterAdmitsEveryPattern` and
+`TestContextOverflow_MatchesReference` pass.
+
+**Step 7, after.** D9 records the miss on `Redact_Clean4KiB` and its fix.
+The final measurement, `ad92bf7` against the tree with D9, D10 and D11, nine
+alternated rounds on a quiet host:
+
+| Benchmark | `ad92bf7` | Tree | Ratio |
+| :--- | ---: | ---: | ---: |
+| `Classify_16KiBTokens` | 12,688 µs | 309 µs | 0.024 |
+| `Classify_2KiBOverflow` | 724 µs | 173 µs | 0.239 |
+| `ClassifyHTTPError_64KiBHTML` | 899 µs | 119 µs | 0.133 |
+| `Redact_16KiBTokens` | 5,368 µs | 1,354 µs | 0.252 |
+| `Redact_Clean4KiB` | 61.8 µs | 26.8 µs | 0.434 |
+
+Both criteria are met: under 1 ms, and not more than 10 % slower.
+
+**Step 8.** 0021-MADR gains "Amendment 2026-10-08: Z1's bound is 2 KiB,
+and Z2 keeps a code's diagnostic words".
+
+**Proofs on scratch copies.** Every plant failed:
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| the cut with no separator rule | `TestRedactInput_NoSecretFragmentAtTheCut` |
+| the redaction bound at 16 KiB | `TestClassify_16KiBTokensUnder1ms` |
+| the keyword pass without its boundary check | `TestRedact_MatchesReference`, `FuzzRedact_MatchesReference` (after the three cases above) |
+| a wrong overflow anchor | `TestContextOverflow_PrefilterAdmitsEveryPattern`, `TestContextOverflow_MatchesReference`, the overflow message tests |
+| no code diagnostic | `TestRedact_KeepsDiagnosticCodes` |
+| the code diagnostic for any name, unbounded | `TestRedact_StillMasksSecretShapedCodes`, `TestRedact_MatchesReference` |
+| no new shape rows | `TestRedact_KeyShapes` |
+| no word-like exception | `TestRedact_NotKeys` |
+| the Google key row dropped | `TestRedact_MatchesReferenceOnExistingCases` |
+| a case file missing | `TestRedact_MatchesReferenceOnExistingCases` (`open no_such_test.go`) |
+| D9: the rare byte alone, no whole-anchor check | `TestRedact_MatchesReference` |
+| D9: the first hit only | `TestRedact_MatchesReference`, `TestRedact_PlantedSecrets`, `TestRedact_PrefixedKeys`, `TestRedact_ProviderKeysAndTokenFields` |
+| D9: the wrong offset | `TestRarestOffsets` |
+| D9: an absent anchor remembered as present | `TestRedact_MatchesReference` (a panic, which found D10) |
+| D9: anchors not shared | `TestIndexAnchors_SharedOnce` |
+| D9: no bound on the count | `TestIndexAnchors_Bound` |
+| D10: no fold | `TestRedact_FoldedLetters`, `TestRedact_MatchesReference` |
+| D10: groups read by matching the match again | `TestReplaceSubmatches_InContext` (the panic) |
+| D10: the fold done in the caller's buffer | `TestRedact_FoldLeavesTheCallersBuffer`, `FuzzRedact_NeverPanics` |
+| D10: a group that did not take part read anyway | `TestRedact_Coverage0021`, `TestRedact_KeepsOrdinaryWords`, both reference tests |
+
+D11's check is `make lint` itself. It failed on `52709e4` with the three
+findings, then a fourth, and passes after.
+
+**Fuzzing** (60 s each, after D10): `FuzzRedact_NeverPanics`, 614,820
+executions; `FuzzRedact_MatchesReference`, 211,394;
+`FuzzAnchorIn_MatchesContains`, 18,330,364. No failures.
+
+**Step 9, the gate** (`p26_gate.py`, a scratch copy of the tree,
+`GOTOOLCHAIN=go1.27.2`, with 0029's change present):
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `483 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `CGO_ENABLED=0 go vet`, darwin, linux and windows, with and without `live_gateways` | 0 each |
+| `go test -race -cover`, `-shuffle=on`, `go mod tidy -diff`, `make lint` | 0 each; `internal/redact` 100.0 %, `llmprovider` 98.2 % |
+| `parity-check`, `dep-check`, `generate-check` | 0 each |
+| `coverage-check` | `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `63 records, 0 problem(s)` |
+| `gate-selftest` | `Ran 14 tests`, OK |
+| markdownlint, G-wire stable | 0 |
+| links | `0 problem(s), 626 relative link(s) in 73 file(s)` |
+| deny scan | `0 hit(s) in 15 file(s)` |
+
+**Not done in this phase:**
+
+* The `hf_requiredCharacteristic…` identifier stays masked, a known false
+  positive (D7).
+* `v1.3.x` keeps D10's panic. The fix ships in `v1.4.0`.
+* The phase's own commit was the owner's `52709e4`, made before the gate.
+  The follow-up (D10, D11 and this record) is staged after 0029's commit,
+  so that the two stay separate.

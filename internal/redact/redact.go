@@ -131,7 +131,8 @@ var (
 )
 
 // Redact removes common secret formats from p, returning p unchanged (same
-// backing array) when nothing matches. Safe for nil/empty input.
+// backing array) when nothing matches and p holds no long s or Kelvin sign,
+// which it replaces with s and k (foldLetters). Safe for nil/empty input.
 func Redact(p []byte) []byte {
 	if len(p) > maxRedactBytes {
 		// 3-index slice caps capacity so append allocates a fresh array and never
@@ -139,6 +140,7 @@ func Redact(p []byte) []byte {
 		marker := fmt.Sprintf("…[truncated %d bytes]\n", len(p)-maxRedactBytes)
 		p = append(p[:maxRedactBytes:maxRedactBytes], marker...)
 	}
+	p = foldLetters(p)
 	// The anchors are looked up in the text as it was before any pass: a
 	// replacement only removes text and adds "[REDACTED]", so it never adds
 	// an anchor, and a pass that looks needlessly costs time, not safety.
@@ -157,33 +159,45 @@ func Redact(p []byte) []byte {
 		if !pass.re.Match(p) {
 			continue
 		}
-		if pass.replace != nil {
+		switch {
+		case pass.replaceSub != nil:
+			p = replaceSubmatches(pass.re, p, pass.replaceSub)
+		case pass.replace != nil:
 			p = pass.re.ReplaceAllFunc(p, pass.replace)
-		} else {
+		default:
 			p = pass.re.ReplaceAll(p, pass.repl)
 		}
 	}
 	return p
 }
 
-// pass is one redaction regex, its replacement (a template, or a function of
-// the match), and the lower-case literals one of which every match contains.
-// apply, when set, does the whole pass in place of the regex's own search.
+// pass is one redaction regex, its replacement (a template, a function of
+// the match, or one of the match's groups), and the lower-case literals one
+// of which every match contains. apply, when set, does the whole pass in
+// place of the regex's own search.
 type pass struct {
-	re      *regexp.Regexp
-	repl    []byte
-	replace func([]byte) []byte
-	apply   func([]byte) []byte
-	anchors []string
+	re         *regexp.Regexp
+	repl       []byte
+	replace    func([]byte) []byte
+	replaceSub func([][]byte) []byte
+	apply      func([]byte) []byte
+	anchors    []string
 }
+
+// kwToken, kwCode and kwKey are anchors and keywords several passes share.
+const (
+	kwToken = "token"
+	kwCode  = "code"
+	kwKey   = "key"
+)
 
 // passes run in order; each one's anchors are a literal its regex cannot
 // match without.
 var passes = []pass{
-	{re: reAuth, replace: redactAuth, anchors: []string{"bearer", "basic", "token"}},
-	{re: reCookie, replace: redactCookie, anchors: []string{"cookie"}},
-	{re: reKV, apply: redactKVPass, anchors: []string{"pass", "pwd", "secret", "key", "signature", "token", "authorization", "code"}},
-	{re: reKVLong, replace: redactKVLong, anchors: []string{"code", "key"}},
+	{re: reAuth, replaceSub: redactAuth, anchors: []string{"bearer", "basic", kwToken}},
+	{re: reCookie, replaceSub: redactCookie, anchors: []string{"cookie"}},
+	{re: reKV, apply: redactKVPass, anchors: []string{"pass", "pwd", "secret", kwKey, "signature", kwToken, "authorization", kwCode}},
+	{re: reKVLong, replaceSub: redactKVLong, anchors: []string{kwCode, kwKey}},
 	{re: reKiloToken, repl: []byte("${1}:[REDACTED]"), anchors: []string{"http"}},
 	{re: reDSN, repl: []byte("${1}[REDACTED]@"), anchors: []string{"://"}},
 	{re: reToken, repl: []byte("[REDACTED]"), anchors: []string{
@@ -211,8 +225,8 @@ var redacted = []byte("[REDACTED]")
 // label. After an Authorization label the value is a credential, whatever its
 // shape; without one, an ordinary word stays, so "Invalid bearer token" and
 // "Basic authentication is not supported" keep their meaning (0026-MADR F21).
-func redactAuth(m []byte) []byte {
-	sub := reAuth.FindSubmatch(m)
+func redactAuth(sub [][]byte) []byte {
+	m := sub[0]
 	label, value := sub[1], sub[2]
 	if value == nil {
 		label, value = sub[3], sub[4]
@@ -243,8 +257,8 @@ func credentialShaped(v []byte) bool {
 
 // redactKV redacts one reKV match's value, keeping its quotes. A bare token
 // key keeps a diagnostic value, such as "token: 128000".
-func redactKV(m []byte) []byte {
-	sub := reKV.FindSubmatch(m)
+func redactKV(sub [][]byte) []byte {
+	m := sub[0]
 	value := sub[4]
 	if value == nil {
 		value = sub[7]
@@ -265,7 +279,7 @@ var reKVAnchored = regexp.MustCompile(`^(?:` + reKV.String() + `)`)
 // kvKeywords are literals one of which every reKV name contains: the
 // expression's keywords, with api_key's and the other keys' "key", and
 // code_verifier's "verifier".
-var kvKeywords = []string{"password", "passwd", "pwd", "secret", "key", "signature", "token", "authorization", "verifier", "code"}
+var kvKeywords = []string{"password", "passwd", "pwd", "secret", kwKey, "signature", kwToken, "authorization", "verifier", kwCode}
 
 // redactKVPass is the reKV pass, keyword first (0028-MADR D-A10). reKV's name
 // begins with a repetition that an unanchored search tries from every word
@@ -282,7 +296,7 @@ func redactKVPass(p []byte) []byte {
 		if !reKV.Match(p) {
 			return p
 		}
-		return reKV.ReplaceAllFunc(p, redactKV)
+		return replaceSubmatches(reKV, p, redactKV)
 	}
 	var stack [4 << 10]byte
 	lower := asciiLower(stack[:0], p)
@@ -301,13 +315,13 @@ func redactKVPass(p []byte) []byte {
 			if !isWordByte(p[s]) || (s > 0 && isWordByte(p[s-1])) {
 				continue
 			}
-			loc := reKVAnchored.FindIndex(p[s:])
+			loc := reKVAnchored.FindSubmatchIndex(p[s:])
 			if loc == nil {
 				continue
 			}
 			end := s + loc[1]
 			out = append(out, p[last:s]...)
-			out = append(out, redactKV(p[s:end])...)
+			out = append(out, redactKV(submatches(p[s:], loc))...)
 			last, pos = end, end
 			break
 		}
@@ -358,23 +372,73 @@ func isASCII(p []byte) bool {
 const diagnosticCodeLimit = 40
 
 // redactKVLong redacts one reKVLong match's value, unless it is a diagnostic.
-func redactKVLong(m []byte) []byte {
-	sub := reKVLong.FindSubmatch(m)
+func redactKVLong(sub [][]byte) []byte {
 	if reDiagnostic.Match(sub[2]) {
-		return m
+		return sub[0]
 	}
 	if len(sub[1]) >= 4 && bytes.EqualFold(sub[1][:4], []byte("code")) && len(sub[2]) <= diagnosticCodeLimit &&
 		reDiagnosticCode.Match(sub[2]) {
-		return m
+		return sub[0]
 	}
 	return slices.Concat(sub[1], redacted)
 }
 
 // redactCookie redacts the value of each pair in one cookie header.
-func redactCookie(m []byte) []byte {
-	sub := reCookie.FindSubmatch(m)
+func redactCookie(sub [][]byte) []byte {
 	pairs := reCookiePair.ReplaceAll(sub[2], []byte("${1}[REDACTED]"))
 	return slices.Concat(sub[1], pairs)
+}
+
+// replaceSubmatches replaces each match of re in p with f of its groups, read
+// from the match where it stands. Matching the match again on its own, as a
+// function given to ReplaceAllFunc must, can fail: \b is ASCII-only while
+// (?i) folds non-ASCII letters into ASCII ones, so a boundary that holds in
+// context need not hold at the match's start (0028-PLAN D10).
+func replaceSubmatches(re *regexp.Regexp, p []byte, f func([][]byte) []byte) []byte {
+	locs := re.FindAllSubmatchIndex(p, -1)
+	if locs == nil {
+		return p
+	}
+	var out []byte
+	last := 0
+	for _, loc := range locs {
+		out = append(out, p[last:loc[0]]...)
+		out = append(out, f(submatches(p, loc))...)
+		last = loc[1]
+	}
+	return append(out, p[last:]...)
+}
+
+// submatches are the groups of p that loc, from FindSubmatchIndex, locates;
+// a group that did not take part is nil.
+func submatches(p []byte, loc []int) [][]byte {
+	sub := make([][]byte, len(loc)/2)
+	for i := range sub {
+		if loc[2*i] >= 0 {
+			sub[i] = p[loc[2*i]:loc[2*i+1]:loc[2*i+1]]
+		}
+	}
+	return sub
+}
+
+// The non-ASCII letters (?i) folds into ASCII ones: the long s, U+017F, into
+// s, and the Kelvin sign, U+212A, into k.
+var (
+	longS       = []byte("\u017f")
+	kelvinSign  = []byte("\u212a")
+	foldedLongS = []byte("s")
+	foldedK     = []byte("k")
+)
+
+// foldLetters returns p with the long s and the Kelvin sign replaced by s and
+// k, in a new array; p itself when it holds neither. Every regex then sees
+// those letters as the ASCII ones they match, and \b, which is ASCII-only,
+// sees the same boundaries around them (0028-PLAN D10).
+func foldLetters(p []byte) []byte {
+	if !bytes.Contains(p, longS) && !bytes.Contains(p, kelvinSign) {
+		return p
+	}
+	return bytes.ReplaceAll(bytes.ReplaceAll(p, longS, foldedLongS), kelvinSign, foldedK)
 }
 
 // asciiLower appends p to dst with ASCII letters lower-cased; other bytes are
