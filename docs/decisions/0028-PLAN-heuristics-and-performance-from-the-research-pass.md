@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-09
 associated-madr: "0028-MADR-heuristics-and-performance-from-the-research-pass.md"
 decision-makers: repository owner
@@ -2355,6 +2355,33 @@ Of the subtests, `TestLive_OpencodeGoogleTwoCallRoundTrip/zen` is skipped
 as 0026-PLAN D6 records; the other three passed in a later run. Every check
 that ran on a service passed on the release commit. The requests were not
 counted: the suites log tests, not requests.
+
+**Step 5, the release.** The owner committed this record's step 4 as
+`e5772a5`, pushed, and tagged `v1.4.0` on it, an annotated tag. From the
+tested `9e9f9f7` it changes this PLAN only.
+
+**Step 6, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on the tag (run `37969571390`, a push of `v1.4.0`) | `validate` on ubuntu-24.04, macos-15 and windows-2025: success |
+| `go list -m -json …@v1.4.0` through `proxy.golang.org` | `Version` `v1.4.0`, `GoVersion` `1.27.2`, `Origin.Hash` `e5772a5…` (`refs/tags/v1.4.0`) |
+| apidiff, `v1.3.2` to `v1.4.0` (`check_api.py`'s, without `-incompatible`, both tags archived) | `Compatible changes: ./llmprovider/catalog.CachedMetadataWith: added`; nothing else |
+| a scratch consumer using every public package, moved to `v1.4.0` | `go get` raised its `go` line from 1.27.1 to 1.27.2 (0029-MADR); builds with `CGO_ENABLED=0` for linux, windows and darwin, amd64 and arm64; `go run` prints `true <nil>`, `true`, and `false`, `CachedMetadataWith` with metadata off |
+| a scratch copy of prepare-commit-msg, moved from `v1.3.2` to `v1.4.0` | baseline tests pass; then build, vet on three platforms, `go test`, `go test -race` and golangci-lint (`0 issues.`) pass |
+
+**Step 7.** Every criterion is met, so this PLAN is `complete`:
+
+* V1 and V2, red then green and the gate, are in each phase's record;
+* V3, T1 and T2, in Phase 1's;
+* V4, the benchmarks, in Phases 4, 6, 8 and 9b's;
+* V5, on the tags, above;
+* V6, the live suites, in step 4 and D17;
+* V7: 0012-MADR's amendments of 2026-10-08 (§1.1, and §3.1 for D-A1),
+  0016-MADR's of 2026-10-09 (D8), and 0021-MADR's of 2026-10-08 (Z1, Z2).
+
+Not done, as scoped: prepare-commit-msg and gobble-cli move to `v1.4.0`
+under their own records.
 
 #### Release notes: `v1.4.0`
 
