@@ -1404,3 +1404,124 @@ executions; `FuzzRedact_MatchesReference`, 211,394;
 * The phase's own commit was the owner's `52709e4`, made before the gate.
   The follow-up (D10, D11 and this record) is staged after 0029's commit,
   so that the two stay separate.
+
+### Phase 5: the refused key in `configure` (2026-10-08)
+
+* **Before it.** Phase 4 committed as `52709e4` and `2e5e881`; 0029 and
+  its records as `95bc356`, `1f3beab`, `b2f56a2` and `5a34a72`, all pushed.
+* **Approval.** "Commit and push to main, then proceed", 2026-10-08.
+
+**Step 1, red first** (`wizard/configure_0028_test.go`):
+
+```text
+--- FAIL: TestConfigureLLM_RefusedTypedKeyIsAskedAgain
+    APIKey = "bad-1"; want the third key
+    Secret prompts = 1; want 3
+    notices = [live model listing for Claude (Anthropic) is unavailable (llmprovider: authentication failed: claude HTTP 401 authentication_error: invalid x-api-key); search covers the built-in catalog only]; want 2 saying the key was refused
+--- FAIL: TestConfigureLLM_RefusedTypedKeyThreeTimesFails
+    err = search models: fakePrompter: unexpected Input("Search models (blank for recommended)"); want ErrAuthFailure naming Claude
+--- FAIL: TestConfigureLLM_RefusedEnvKeyFails      (the same unexpected Input)
+--- FAIL: TestConfigureLLM_RefusedSavedKeyFails    (the same unexpected Input)
+--- PASS: TestConfigureLLM_EmptyDiscoveryFallsBackToStatic
+```
+
+**Found by it.** A 401 at listing is not the listing's error. `catalog.List`
+returns the built-in catalog with the failure in `Catalog.Err`, and the
+wizard warned "live model listing … is unavailable" and saved the refused
+key. Step 2's "the listing's failure" is therefore either one:
+`discoverModels` takes a refusal from `Catalog.Err` when the listing
+returned none, and reports neither notice for it.
+
+**Step 2, the change** (`wizard/configure.go`, `wizard/auth.go`):
+
+* **`resolveAPIKey`** returns the key's source: `keyTyped`,
+  `keyEnvironment` or `keySaved`. `resolvedCredential.keyFrom` carries it,
+  and anything else (a pasted credential, a session) is `keyOther`. The
+  `Secret` prompt is `promptAPIKey`.
+* **`discoverModels`** returns `(catalog.Catalog, error)`. The error is the
+  listing's failure, or `Catalog.Err`.
+* **`ConfigureLLM`:** while `refusedCredential(listErr)` holds
+  (`ErrAuthFailure` and not `ErrNotPermitted`):
+  * a typed key gets a warning, "… refused this key (…); enter another",
+    and `promptAPIKey` again, then the listing again, up to
+    `maxTypedKeys = 3` keys;
+  * on the third refusal, or for any other source, the run returns
+    `refusalError`, which wraps the refusal and names the source: the
+    number of keys tried, the environment variable, "the saved key", the
+    CLI login and its path, "the sign-in", or "the pasted credential".
+* **Not planned:**
+  * the token-paste path's key is `keyOther`, so its refusal is an error
+    naming "the pasted credential", not a new prompt;
+  * a key typed again is shape-checked too (2b), since the check is in
+    `promptAPIKey`.
+
+**Step 2b, H10b, red first** (`wizard/auth_shapes_0028_test.go`):
+
+```text
+--- FAIL: TestForeignKey_Researched
+    foreignKeyVendor(sk-or-v1-0a1…) = ""; want "an OpenRouter"
+    foreignKeyVendor(AQ.AbaB3-dE5…) = ""; want "a Google Gemini"
+    foreignKeyVendor(api_org_aB3d…) = ""; want "a Hugging Face"
+    foreignKeyVendor(sk-aB3dE5gH7…) = ""; want "an OpenCode"
+--- FAIL: TestProviderShapeWarning
+    openai, claude, gemini (twice), together, huggingface, opencode-zen, opencode-go, grok: malformed key: notices []; want one warning
+```
+
+The well-shaped keys, and Kilo and Ollama, which have no check, passed.
+
+**The change:**
+
+* **`foreignKeyPrefixes`** gains `sk-or-` (after `sk-ant-`), `api_org_` and
+  `AQ.`.
+* **`foreignKeyVendor`** names `^sk-[A-Za-z0-9]{64}$` (`reOpenCodeKey`) as
+  "an OpenCode" key.
+* **`keyShapes`** holds D3's confirmed shapes, with xAI checked by prefix
+  only.
+* **`warnKeyShape`**, called from `promptAPIKey`, warns: "this does not look
+  like a … API key (expected …); the model listing will check it". The
+  warning names the shape, never the key, and the run goes on.
+
+**Tests added beyond the plan:**
+
+* `TestRefusalError_NamesTheSource`: each of the six sources is named, and
+  stays an `ErrAuthFailure`.
+* `TestRefusedCredential_NotPermittedIsNotARefusal`.
+* In `TestConfigureLLM_RefusedTypedKeyIsAskedAgain`, no notice calls the
+  listing "unavailable". This check was added after the plant "the
+  catalog's refusal not taken" failed no test; the plant fails it now.
+
+**Green:** `go test ./wizard/` ok.
+
+**Step 3, proofs on scratch copies** (`p5_plants.py`):
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| the refusal branch removed | the four `TestConfigureLLM_Refused…` tests |
+| the catalog's refusal not taken | `TestConfigureLLM_RefusedTypedKeyIsAskedAgain` (after the check above; none before it) |
+| a refused environment or saved key asked again | `TestConfigureLLM_RefusedEnvKeyFails`, `TestConfigureLLM_RefusedSavedKeyFails` |
+| four typed keys | `TestConfigureLLM_RefusedTypedKeyThreeTimesFails` |
+| a permission counted as a refusal | `TestRefusedCredential_NotPermittedIsNotARefusal` |
+| the new prefixes removed | `TestForeignKey_Researched` |
+| no OpenCode shape | `TestForeignKey_Researched` |
+| no shape warning | `TestProviderShapeWarning` |
+| a warning for a well-shaped key | `TestProviderShapeWarning` |
+
+**Step 4, the gate** (`p26_gate.py`, a scratch copy of the tree): every
+check exits 0.
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `485 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `go test -race -cover` | `wizard` 89.5 % |
+| `coverage-check` | `wizard: 89.5% against 86.4% ok`; `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `63 records, 0 problem(s)` |
+| links | `0 problem(s), 626 relative link(s) in 73 file(s)` |
+| vet (three platforms, with and without `live_gateways`), lint, tidy, parity, dep, generate, gate self-test, markdownlint, G-wire stable, deny scan | 0 each |
+
+**Not done in this phase:**
+
+* No shape check for Kilo (a JWT) or Ollama (no published shape). xAI is
+  checked by its prefix only, since its length is not confirmed.
+* A foreign key is still named only on OpenAI's token-paste path, as
+  before. On the API-key path, the shape warning is what catches it.

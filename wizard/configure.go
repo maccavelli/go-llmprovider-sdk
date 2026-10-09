@@ -170,7 +170,21 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		res.FedRAMP = credential.session.FedRAMP
 	}
 
-	cat := discoverModels(ctx, p, d, res, credential.source, o)
+	cat, listErr := discoverModels(ctx, p, d, res, credential.source, o)
+	for keys := 1; refusedCredential(listErr); keys++ {
+		if credential.keyFrom != keyTyped || keys == maxTypedKeys {
+			return Result{}, refusalError(d, credential, keys, listErr)
+		}
+		p.Notify(LevelWarn, "%s refused this key (%v); enter another", d.Label, listErr)
+		key, keyErr := promptAPIKey(p, d)
+		if keyErr != nil {
+			return Result{}, keyErr
+		}
+		credential = staticCredential(CredAPIKey, key)
+		credential.keyFrom = keyTyped
+		res.APIKey = key
+		cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
+	}
 	if len(cat.Recommended) == 0 && len(cat.Usable) == 0 {
 		// Ollama with nothing installed, or a provider whose listing failed
 		// and which has no static catalog. Let the user type an id rather
@@ -278,11 +292,43 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 	}
 }
 
-// resolveAPIKey applies the precedence environment → existing → prompt. Any
-// key shown to the user is masked; the raw value only ever reaches Result.
-func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, error) {
+// maxTypedKeys is how many typed keys a run tries before it stops on a
+// refusal (0028-MADR D-H10).
+const maxTypedKeys = 3
+
+// refusedCredential reports whether the listing's failure is the service
+// refusing the credential: an authentication failure that is not a refusal
+// to permit something (0028-MADR D-H2).
+func refusedCredential(err error) bool {
+	return errors.Is(err, llmprovider.ErrAuthFailure) && !errors.Is(err, llmprovider.ErrNotPermitted)
+}
+
+// refusalError names the refused credential's source, so the user knows what
+// to replace; keys is how many typed keys were tried.
+func refusalError(d llmprovider.Descriptor, c resolvedCredential, keys int, err error) error {
+	switch {
+	case c.keyFrom == keyTyped:
+		return fmt.Errorf("wizard: %s refused %d keys: %w", d.Label, keys, err)
+	case c.keyFrom == keyEnvironment:
+		return fmt.Errorf("wizard: %s refused the key in %s: %w", d.Label, d.EnvVar, err)
+	case c.keyFrom == keySaved:
+		return fmt.Errorf("wizard: %s refused the saved key: %w", d.Label, err)
+	case c.kind == CredVendorCLI:
+		return fmt.Errorf("wizard: %s refused the %s CLI login in %s; sign in there again: %w",
+			d.Label, d.Label, c.vendorPath, err)
+	case c.kind == CredOAuth:
+		return fmt.Errorf("wizard: %s refused the sign-in; sign in again: %w", d.Label, err)
+	default:
+		return fmt.Errorf("wizard: %s refused the pasted credential: %w", d.Label, err)
+	}
+}
+
+// resolveAPIKey applies the precedence environment → existing → prompt, and
+// says which gave the key. Any key shown to the user is masked; the raw value
+// only ever reaches Result.
+func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, keySource, error) {
 	if !d.RequiresAPIKey {
-		return "", nil
+		return "", keyOther, nil
 	}
 
 	if o.AllowEnv && d.EnvVar != "" {
@@ -290,10 +336,10 @@ func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, err
 			use, err := p.Confirm(
 				fmt.Sprintf("Use %s from the environment (%s)?", d.EnvVar, redact.MaskSecret(envVal)), true)
 			if err != nil {
-				return "", err
+				return "", keyOther, err
 			}
 			if use {
-				return envVal, nil
+				return envVal, keyEnvironment, nil
 			}
 		}
 	}
@@ -302,23 +348,35 @@ func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, err
 		keep, err := p.Confirm(
 			fmt.Sprintf("Keep the existing key (%s)?", redact.MaskSecret(o.Existing.APIKey)), true)
 		if err != nil {
-			return "", err
+			return "", keyOther, err
 		}
 		if keep {
-			return o.Existing.APIKey, nil
+			return o.Existing.APIKey, keySaved, nil
 		}
 	}
 
+	key, err := promptAPIKey(p, d)
+	return key, keyTyped, err
+}
+
+// promptAPIKey asks for d's API key, and warns when it does not have the
+// provider's shape (0028-MADR H10b).
+func promptAPIKey(p Prompter, d llmprovider.Descriptor) (string, error) {
 	key, err := p.Secret(fmt.Sprintf("Enter your %s API key", d.Label))
 	if err != nil {
 		return "", fmt.Errorf("enter API key: %w", err)
 	}
-	return strings.TrimSpace(key), nil // a paste's spaces (0020-MADR F18)
+	key = strings.TrimSpace(key) // a paste's spaces (0020-MADR F18)
+	warnKeyShape(p, d, key)
+	return key, nil
 }
 
 // discoverModels returns the catalog to offer: the live listing when requested
 // and available, otherwise the descriptor's static catalog in both views
-// (MADR 0007 §4).
+// (MADR 0007 §4). It also returns the listing's failure, whether the listing
+// returned it or the catalog carries it, so the caller can tell a refused
+// credential, which it reports itself, from an outage, reported here
+// (0028-MADR D-H10).
 func discoverModels(
 	ctx context.Context,
 	p Prompter,
@@ -326,7 +384,7 @@ func discoverModels(
 	res Result,
 	source llmprovider.TokenSource,
 	o Options,
-) catalog.Catalog {
+) (catalog.Catalog, error) {
 	chatGPT := (res.Kind == CredOAuth || res.Kind == CredVendorCLI) && d.ID == llmprovider.ProviderOpenAI
 	// A ChatGPT session lists only from the Codex backend (MADR 0008 D11):
 	// the Platform catalog is not available to it, so there is no fallback.
@@ -336,7 +394,7 @@ func discoverModels(
 	}
 	fallback := catalog.Catalog{Recommended: static, Usable: static}
 	if !o.Discover {
-		return fallback
+		return fallback, nil
 	}
 	limit := o.DiscoverLimit
 	if limit <= 0 {
@@ -371,18 +429,24 @@ func discoverModels(
 			cat, err = providerCatalog(dCtx, o, d, res, source)
 		}
 	}
+	if err == nil && !cat.Live && refusedCredential(cat.Err) {
+		err = cat.Err
+	}
+	if refusedCredential(err) {
+		return fallback, err
+	}
 	if err != nil {
 		if len(static) == 0 {
 			p.Notify(LevelWarn, "could not list models for %s (%v)", d.Label, err)
-			return fallback
+			return fallback, err
 		}
 		p.Notify(LevelWarn, "could not list models for %s (%v); using the built-in catalog", d.Label, err)
-		return fallback
+		return fallback, err
 	}
 	// A live listing with nothing recommended is kept for search (0021-MADR
 	// C13).
 	if len(cat.Recommended) == 0 && (!cat.Live || len(cat.Usable) == 0) {
-		return fallback
+		return fallback, cat.Err
 	}
 	switch {
 	case cat.Live || chatGPT:
@@ -392,7 +456,7 @@ func discoverModels(
 	default:
 		p.Notify(LevelInfo, "live model listing for %s is unavailable; search covers the built-in catalog only", d.Label)
 	}
-	return cat
+	return cat, cat.Err
 }
 
 // chatGPTCatalog lists a ChatGPT session through the openai provider's

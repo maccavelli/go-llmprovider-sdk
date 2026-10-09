@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -42,11 +43,24 @@ var (
 type resolvedCredential struct {
 	kind         CredentialKind
 	apiKey       string
+	keyFrom      keySource
 	session      *auth.OAuthSession
 	source       llmprovider.TokenSource
 	vendorPath   string
 	organization string
 }
+
+// keySource is where resolveAPIKey found an API key: a service that refuses
+// a typed key is asked about another, and a refused key from anywhere else is
+// an error naming it (0028-MADR D-H10).
+type keySource int
+
+const (
+	keyOther       keySource = iota // not resolveAPIKey's: a pasted credential, a session
+	keyTyped                        // the Secret prompt
+	keyEnvironment                  // the descriptor's environment variable
+	keySaved                        // Options.Existing
+)
 
 // offeredAuthMethods returns the methods the caller can keep. Without a
 // TokenStore, a method that saves a session is left out (0020-MADR F51).
@@ -110,7 +124,7 @@ func resolveCredential(
 ) (resolvedCredential, error) {
 	methods := offeredAuthMethods(d, o.TokenStore != nil)
 	if len(methods) == 0 || (len(methods) == 1 && methods[0].ID == llmprovider.AuthAPIKey) {
-		key, err := resolveAPIKey(p, d, o)
+		key, from, err := resolveAPIKey(p, d, o)
 		if err != nil {
 			return resolvedCredential{}, err
 		}
@@ -118,7 +132,9 @@ func resolveCredential(
 		if d.RequiresAPIKey {
 			kind = CredAPIKey
 		}
-		return staticCredential(kind, key), nil
+		cred := staticCredential(kind, key)
+		cred.keyFrom = from
+		return cred, nil
 	}
 
 	// A saved session is offered first, whatever method made it (0020-MADR
@@ -144,11 +160,13 @@ func resolveCredential(
 	}
 	method := methods[idx].ID
 	if method == llmprovider.AuthAPIKey {
-		key, keyErr := resolveAPIKey(p, d, o)
+		key, from, keyErr := resolveAPIKey(p, d, o)
 		if keyErr != nil {
 			return resolvedCredential{}, keyErr
 		}
-		return staticCredential(CredAPIKey, key), nil
+		cred := staticCredential(CredAPIKey, key)
+		cred.keyFrom = from
+		return cred, nil
 	}
 	if method == llmprovider.AuthTokenStdin {
 		return resolveTokenStdin(ctx, p, d, o)
@@ -374,21 +392,65 @@ func resolveTokenStdin(
 }
 
 // foreignKeyPrefixes are other vendors' key prefixes, checked in order:
-// sk-ant- before OpenAI's own sk- (0021-MADR Z10).
+// sk-ant- and sk-or- before OpenAI's own sk- (0021-MADR Z10; 0028-PLAN D3).
 var foreignKeyPrefixes = []struct{ prefix, vendor string }{
-	{"sk-ant-", "an Anthropic"}, {"xai-", "an xAI"}, {"tgp_", "a Together"},
-	{"hf_", "a Hugging Face"}, {"AIza", "a Google"},
+	{"sk-ant-", "an Anthropic"}, {"sk-or-", "an OpenRouter"}, {"xai-", "an xAI"}, {"tgp_", "a Together"},
+	{"hf_", "a Hugging Face"}, {"api_org_", "a Hugging Face"}, {"AIza", "a Google"}, {"AQ.", "a Google Gemini"},
 }
 
 // foreignKeyVendor names the vendor whose key value looks like, with its
-// article, or "".
+// article, or "". An OpenCode key is sk- like OpenAI's, and is told apart by
+// its shape: 64 letters and digits, with no T3BlbkFJ.
 func foreignKeyVendor(value string) string {
 	for _, k := range foreignKeyPrefixes {
 		if strings.HasPrefix(value, k.prefix) {
 			return k.vendor
 		}
 	}
+	if reOpenCodeKey.MatchString(value) {
+		return "an OpenCode"
+	}
 	return ""
+}
+
+// reOpenCodeKey is an OpenCode key: sk- and 64 letters and digits (opencode
+// packages/console/core/src/key.ts; 0028-PLAN D3).
+var reOpenCodeKey = regexp.MustCompile(`^sk-[A-Za-z0-9]{64}$`)
+
+// keyShapes are the confirmed shapes of each provider's API key, from the
+// vendors' code and documentation and the secret scanners' rules, checked
+// against the owner's keys by shape only (0028-MADR H10b; 0028-PLAN D3).
+// xAI's length is not confirmed, so only its prefix is checked; Kilo's key is
+// a JWT and Ollama's has no published shape, so neither is checked. A key
+// without its shape is warned about, not refused: the listing decides
+// (0028-MADR D-H10).
+var keyShapes = map[llmprovider.ProviderID]struct {
+	re    *regexp.Regexp
+	shape string
+}{
+	llmprovider.ProviderOpenAI: {regexp.MustCompile(
+		`^sk-(?:(?:proj|svcacct|admin|None)-[A-Za-z0-9_-]*T3BlbkFJ[A-Za-z0-9_-]+|[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20})$`),
+		"sk-proj-, sk-svcacct- or sk-admin-, holding T3BlbkFJ"},
+	llmprovider.ProviderClaude: {regexp.MustCompile(`^sk-ant-(?:api03|admin01)-[A-Za-z0-9_-]{93}AA$`),
+		"sk-ant-api03- and 95 characters ending in AA"},
+	llmprovider.ProviderGemini: {regexp.MustCompile(`^(?:AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z_.-]+)$`),
+		"AIza and 35 characters, or an auth key beginning AQ."},
+	llmprovider.ProviderTogether:    {regexp.MustCompile(`^tgp_v1_[A-Za-z0-9_-]{43}$`), "tgp_v1_ and 43 characters"},
+	llmprovider.ProviderHuggingFace: {regexp.MustCompile(`^hf_[A-Za-z0-9]{34}$`), "hf_ and 34 letters and digits"},
+	llmprovider.ProviderOpencodeZen: {reOpenCodeKey, "sk- and 64 letters and digits"},
+	llmprovider.ProviderOpencodeGo:  {reOpenCodeKey, "sk- and 64 letters and digits"},
+	llmprovider.ProviderGrok:        {regexp.MustCompile(`^xai-`), "xai- and letters and digits"},
+}
+
+// warnKeyShape warns when a typed key does not have d's confirmed shape,
+// naming the shape, never the key; the run goes on with it.
+func warnKeyShape(p Prompter, d llmprovider.Descriptor, key string) {
+	s, ok := keyShapes[d.ID]
+	if !ok || key == "" || s.re.MatchString(key) {
+		return
+	}
+	p.Notify(LevelWarn, "this does not look like a %s API key (expected %s); the model listing will check it",
+		d.Label, s.shape)
 }
 
 // checkAccessToken refuses a pasted value that is not a ChatGPT access token:
