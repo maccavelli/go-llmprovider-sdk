@@ -31,44 +31,57 @@ const (
 	statusFailed = "failed"
 )
 
-// Input converts items to the Responses API input format.
-func Input(items []llmprovider.Item) []map[string]any {
-	var input []map[string]any
+// InputItem is every Responses input item in one struct: a message, an
+// encrypted reasoning item, a function call and its output. A field an item
+// does not have is nil, and omitted. The fields are in the order json.Marshal
+// wrote the maps they replace, so the JSON is the same byte for byte
+// (0028-MADR D-A6, amendments 2026-10-09).
+type InputItem struct {
+	Arguments        *string `json:"arguments,omitempty"`
+	CallID           *string `json:"call_id,omitempty"`
+	Content          *string `json:"content,omitempty"`
+	EncryptedContent *string `json:"encrypted_content,omitempty"`
+	Name             *string `json:"name,omitempty"`
+	Output           *string `json:"output,omitempty"`
+	Role             *string `json:"role,omitempty"`
+	Summary          *[]any  `json:"summary,omitempty"`
+	Type             *string `json:"type,omitempty"`
+}
+
+// The constant fields InputItem points to.
+var (
+	typeReasoning          = itemTypeReasoning
+	typeFunctionCall       = itemTypeFunctionCall
+	typeFunctionCallOutput = itemTypeFunctionCallOutput
+	roleUser               = wire.RoleUser
+	emptySummary           = []any{}
+)
+
+// Input converts items to the Responses API input format. The strings the
+// items carry are kept in one arena (0028-PLAN D16).
+func Input(items []llmprovider.Item) []InputItem {
+	var input []InputItem
+	arena := wire.NewArena(3 * len(items))
 	for _, item := range items {
 		switch v := item.(type) {
 		case llmprovider.MessageItem:
-			role := string(v.Role)
-			if role == "" {
-				role = wire.RoleUser // an empty Role is the user's (0020-MADR F10)
+			role := &roleUser // an empty Role is the user's (0020-MADR F10)
+			if v.Role != "" {
+				role = arena.Keep(string(v.Role))
 			}
-			input = append(input, map[string]any{
-				wire.KeyRole:    role,
-				wire.KeyContent: v.Text,
-			})
+			input = append(input, InputItem{Role: role, Content: arena.Keep(v.Text)})
 		case llmprovider.ReasoningItem:
 			// Encrypted reasoning goes back as it came (0020-MADR F24), to
 			// this wire only (0021-MADR W7); plain text reasoning cannot be
 			// replayed.
 			if v.Encrypted != "" && wire.Replays(v, wire.FormatResponses) {
-				input = append(input, map[string]any{
-					wire.KeyType:        itemTypeReasoning,
-					"encrypted_content": v.Encrypted,
-					"summary":           []any{},
-				})
+				input = append(input, InputItem{Type: &typeReasoning, EncryptedContent: arena.Keep(v.Encrypted), Summary: &emptySummary})
 			}
 		case llmprovider.FunctionCallItem:
-			input = append(input, map[string]any{
-				wire.KeyType:      itemTypeFunctionCall,
-				keyCallID:         v.CallID,
-				wire.KeyName:      v.Name,
-				wire.KeyArguments: v.Arguments,
-			})
+			input = append(input, InputItem{Type: &typeFunctionCall, CallID: arena.Keep(v.CallID),
+				Name: arena.Keep(v.Name), Arguments: arena.Keep(v.Arguments)})
 		case llmprovider.FunctionCallOutputItem:
-			input = append(input, map[string]any{
-				wire.KeyType:   itemTypeFunctionCallOutput,
-				keyCallID:      v.CallID,
-				wire.KeyOutput: v.Output,
-			})
+			input = append(input, InputItem{Type: &typeFunctionCallOutput, CallID: arena.Keep(v.CallID), Output: arena.Keep(v.Output)})
 		}
 	}
 	return input

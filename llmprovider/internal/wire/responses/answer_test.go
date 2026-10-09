@@ -13,7 +13,10 @@ import (
 // (contract.go), so it goes out as "user", never "".
 func TestInput_EmptyRoleIsTheUsers(t *testing.T) {
 	got := Input([]llmprovider.Item{llmprovider.MessageItem{Text: "hi"}})
-	if len(got) != 1 || got[0]["role"] != "user" {
+	if len(got) != 1 {
+		t.Fatalf("Input = %v, want one item", got)
+	}
+	if r := got[0].Role; r == nil || *r != "user" { // typed (0028-PLAN D14, Phase 9b; D16)
 		t.Errorf("Input = %v, want role user", got)
 	}
 }
@@ -71,7 +74,10 @@ func TestReasoning_EncryptedIsKeptAndReplayed(t *testing.T) {
 		t.Errorf("Output = %#v, want %#v", res.Output, want)
 	}
 	input := Input(res.Output[:1])
-	if len(input) != 1 || input[0]["type"] != "reasoning" || input[0]["encrypted_content"] != "ENC" {
+	if len(input) != 1 {
+		t.Fatalf("replayed input = %v, want one item", input)
+	}
+	if r := input[0]; r.Type == nil || *r.Type != "reasoning" || r.EncryptedContent == nil || *r.EncryptedContent != "ENC" { // typed (0028-PLAN D14, Phase 9b; D16)
 		t.Errorf("replayed input = %v, want the reasoning item with its encrypted_content", input)
 	}
 }

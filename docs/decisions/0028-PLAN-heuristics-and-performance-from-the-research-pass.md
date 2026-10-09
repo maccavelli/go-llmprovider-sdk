@@ -2113,3 +2113,163 @@ variables, and the second run exits 0:
   client"; it should describe the shared transports and Phase 7's probe
   cache.
 * `docs/architecture.md:96` does not list Phase 7's `wire.ProbeHealth`.
+
+### Deviation D16 (2026-10-09): Phase 9b's typed encoders miss the allocation bar
+
+* **Found** at Phase 9b, step 5. `HEAD` against the tree, test binaries
+  alternated, seven rounds on a quiet host, 100 plain messages: Messages
+  1,008 → 210 allocations (4.8 times), Responses 1,008 → 309 (3.3 times),
+  generateContent 1,808 → 411 (4.4 times), against the fivefold the phase
+  asks; times 2.5, 2.1 and 2.9 times faster. Histories with calls: 3.2 to
+  3.9 times fewer allocations, 1.6 to 1.8 times faster. Each item, block or
+  part stored in an `any`, and each `any` holding a string, allocates. The
+  prototypes of Phase 8, step 5 held plain messages only, so they did not.
+* **Measured on a scratch copy:** Responses as one union struct whose fields
+  are pointers into one per-call string arena, nil and omitted where an item
+  has no such field, in sorted key order: the JSON equals the reference on
+  the whole corpus; 100 plain messages 12 allocations (84 times fewer than
+  `HEAD`), a 200-item history 13 (181 times), in the typed build's time.
+* **Options put to the owner:** union structs and an arena, for all three
+  wires; or the map encoders kept, recorded as measured, not done. Not
+  offered: keeping the build and lowering the bar.
+* **Decision.** "Union structs + arena": each wire's item, block or part is
+  one struct with pointer fields into a per-call arena; Messages' block
+  lists and generateContent's parts share one backing array each, as only
+  the last message or content ever grows. The equivalence tests, goldens and
+  plants hold as planned; D14's typed assertions read the union fields.
+  0028-MADR is amended.
+* **Files:** none beyond Phase 9b's.
+* **Built, one finding more (2026-10-09).** With the union structs,
+  Responses and generateContent met the bar, but Messages still made 213
+  allocations for 100 plain messages. A memory profile put 94 % of them in
+  `reflect.unsafe_New`, under `encoding/json/v2.makeInterfaceArshaler`. In
+  Go 1.27, `encoding/json.Marshal` runs on `encoding/json/v2`, which copies
+  every interface value it encodes into a new addressable value, pointers
+  included. So `Message.Content any` allocated even when it held a
+  `*string`.
+  * `Content` is now a concrete type holding the text or the blocks.
+  * It implements v2's `MarshalJSONTo`, which v2 prefers, plus a
+    `MarshalJSON` fallback that `TestContent_MarshalJSONMatchesMarshalJSONTo`
+    holds to the same bytes, HTML escaping included.
+  * Messages then made 13 allocations.
+  * `Block.Input` and generateContent's `FunctionCall.Args` stay `any`:
+    they hold `wire.ToolArguments`' result, one per call, and the
+    histories meet the bar with them.
+
+### Phase 9b: typed encoding for Messages, Responses and generateContent (2026-10-09)
+
+* **Before it.** Phase 9 committed by the owner as `657d00f`.
+* **Approval.** "i committed, proceed", 2026-10-09. D16 was decided during
+  the phase.
+
+**Step 1, the references** (`p9b_ref.py`, from `HEAD` `657d00f`, functions
+renamed only): `messages_ref_test.go` (`refFromItems`),
+`responses_ref_test.go` (`refInput`), and `generatecontent_ref_test.go`
+(`refContents`, `refSystemInstruction`). Each was compared with `HEAD`'s
+function and found identical. The first comparison used `sed` with `\b`,
+which BSD sed does not support, and reported false differences; it was
+redone in Python.
+
+**Step 2, the equivalence tests** (`typed_0028_test.go` in each package):
+`wirecase.Items()`, nil and empty input, and 300 generated sequences (PCG
+seed 28, 0). The sequences cover:
+
+* messages of every role, the system role included;
+* calls with seven kinds of arguments, six call IDs including ones
+  `RemapCallIDs` rewrites, and with and without signatures;
+* outputs;
+* reasoning in four formats, with and without signature and encrypted
+  content;
+* repeated user messages.
+
+The comparison is byte for byte. The tests passed on the map encoders,
+which are their own reference; the red is the plants, below.
+
+**Step 3, the change** (D16's design):
+
+* **Messages:** `Message{Content, Role}`, where `Content` holds the text or
+  the blocks (above), and one `Block` struct for text, thinking,
+  redacted_thinking, tool_use and tool_result.
+* **Responses:** one `InputItem` struct.
+* **generateContent:** `Content{Parts, Role}`, one `Part` struct, and
+  `FunctionCall`, `FunctionResponse` and `FunctionOutput`.
+  `SystemInstruction` returns `*System`, nil for none, which OpenCode's
+  `system != nil` check reads as before.
+* **Common to all three:**
+  * fields are in sorted key order, and optional ones are pointers, nil
+    and omitted when unused;
+  * strings are kept in `wire.Arena` (`llmprovider/internal/wire/arena.go`),
+    a new file;
+  * the block and part lists share one backing array per call, since only
+    the last message or content ever grows.
+* **Unchanged:** the provider bodies stay `map[string]any`.
+
+**Step 4, the tests that asserted the maps,** under D14's rule. All have
+fixed shapes, so they assert typed fields:
+
+* `messages/answer_test.go` reads `Content.blocks`, with a `deref` helper;
+* `messages/callid_0026_test.go`;
+* `responses/answer_test.go:16` and `:74`, where the first edit indexed
+  `[0]` before checking the length, and was reordered so an empty result
+  fails rather than panics.
+
+**Step 5, benchmarks.** `BenchmarkPlainMessages` (100 plain messages) and
+`BenchmarkHistory` (40, 100 and 200 items in turns with ~1 KiB calls) per
+wire. Phase 8's `BenchmarkPlainMessagesMaps` now runs the frozen reference,
+so it still measures the maps. `HEAD` against the tree, test binaries
+alternated, seven rounds on a quiet host:
+
+| Wire | Benchmark | `HEAD` | Tree | Time | Allocations |
+| :--- | :--- | :--- | :--- | ---: | ---: |
+| Messages | plain 100 | 56.3 µs, 1,008 | 21.9 µs, 13 | 2.6× | 77.5× |
+| Messages | history 40 / 100 / 200 | 72.2 / 178.5 / 354.8 µs; 771 / 1,906 / 3,790 | 48.3 / 118.7 / 228.0 µs; 136 / 311 / 593 | 1.5–1.6× | 5.7–6.4× |
+| Responses | plain 100 | 55.4 µs, 1,008 | 26.9 µs, 12 | 2.1× | 84.0× |
+| Responses | history 40 / 100 / 200 | 35.6 / 88.2 / 175.9 µs; 477 / 1,183 / 2,359 | 20.7 / 48.9 / 96.7 µs; 11 / 12 / 13 | 1.7–1.8× | 43–182× |
+| generateContent | plain 100 | 100.8 µs, 1,808 | 28.5 µs, 15 | 3.5× | 120.5× |
+| generateContent | history 40 / 100 / 200 | 73.3 / 184.1 / 365.1 µs; 768 / 1,901 / 3,783 | 41.7 / 103.1 / 196.6 µs; 65 / 131 / 236 | 1.8–1.9× | 11.8–16.0× |
+
+Every wire meets the fivefold bar, on plain messages and on histories. The
+two runs before D16's design are in D16.
+
+**Step 6, the tool helpers.** Ten tools, against typed prototypes of the
+same JSON (`tools_bench_0028_test.go`), medians of five:
+
+| Helper | Maps | Typed | Time | Allocations |
+| :--- | :--- | :--- | ---: | ---: |
+| `MessagesTools` | 11.0 µs, 124 | 5.35 µs, 14 | 2.1× | 8.9× |
+| `ResponsesTools` | 12.4 µs, 144 | 5.8 µs, 14 | 2.1× | 10.3× |
+
+Neither is 3 times faster, so both stay maps: measured, not done. A tool
+list is short, and the caller's schema maps dominate its cost.
+
+**Step 7, proofs on scratch copies** (`p9b_plants.py`; a build failure is
+reported as one):
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| Messages: a joined block not shown | `TestFromItems`, `…_CallIDsFitAnthropicRule`, `…_SameJSONAsReference`, `TestThinking_SignatureIsReplayed` |
+| Messages: a call after text opens a turn | `TestFromItems`, `TestFromItems_SameJSONAsReference` |
+| Messages: a list's start not moved | `TestFromItems`, `…_CallIDsFitAnthropicRule`, `…_SameJSONAsReference` |
+| Messages: blocks written as the text | `TestFromItems` (a nil text, a panic) |
+| Messages: the signature dropped | `TestFromItems_SameJSONAsReference`, `TestThinking_SignatureIsReplayed` |
+| Messages: an empty result omitted | `TestFromItems_SameJSONAsReference` |
+| Responses: summary sent as null | `TestInput_SameJSONAsReference` |
+| Responses: an empty role omitted | `TestInput_EmptyRoleIsTheUsers`, `TestInput_SameJSONAsReference` |
+| Responses: the arguments dropped | `TestInput`, `TestInput_SameJSONAsReference` |
+| generateContent: parts never merged | `TestContents_SameJSONAsReference` |
+| generateContent: a merged part not shown | `TestContents_SameJSONAsReference` |
+| generateContent: no system sent as `{}` | `TestContents_SameJSONAsReference`, `TestSystemInstruction` |
+| Arena: one slot for every string | seven tests across Messages, Responses and generateContent |
+
+**Step 8, the gate** (`p26_gate.py`, a scratch copy of the tree). Every
+check exits 0 on the first run:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `507 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `coverage-check` | `wire/messages: 96.9%`; `wire/responses: 97.8%`; `wire/generatecontent: 98.9%`; `internal/wire: 94.0%`; `28 packages, 0 problem(s)` |
+| goldens (`g-wire-stable`, every provider's wire test) | 0; no golden changed |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/`; the packages are internal |
+| `records-check` | `63 records, 0 problem(s)` |
+| links | `0 problem(s), 628 relative link(s) in 73 file(s)` |
+| vet, race, shuffle, lint, tidy, parity, dep, generate, gate self-test, markdownlint, deny scan | 0 each |

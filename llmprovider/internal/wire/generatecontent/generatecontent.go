@@ -29,18 +29,63 @@ const (
 // dynamicThinkingBudget (-1) lets the model size its own thinking budget.
 const dynamicThinkingBudget = -1
 
+// Content is one generateContent content, and System a systemInstruction.
+// Part is every part in one struct: text, a function call with its thought
+// signature, and a function response; a field a part does not have is nil,
+// and omitted. The fields are in the order json.Marshal wrote the maps they
+// replace, so the JSON is the same byte for byte (0028-MADR D-A6, amendments
+// 2026-10-09).
+type Content struct {
+	Parts []Part `json:"parts"`
+	Role  string `json:"role"`
+}
+
+// System is a systemInstruction.
+type System struct {
+	Parts []Part `json:"parts"`
+}
+
+// Part is one part of a content.
+type Part struct {
+	FunctionCall     *FunctionCall     `json:"functionCall,omitempty"`
+	FunctionResponse *FunctionResponse `json:"functionResponse,omitempty"`
+	Text             *string           `json:"text,omitempty"`
+	ThoughtSignature *string           `json:"thoughtSignature,omitempty"`
+}
+
+// FunctionCall is a part's functionCall.
+type FunctionCall struct {
+	Args any    `json:"args"`
+	Name string `json:"name"`
+}
+
+// FunctionResponse is a part's functionResponse.
+type FunctionResponse struct {
+	Name     string         `json:"name"`
+	Response FunctionOutput `json:"response"`
+}
+
+// FunctionOutput is a functionResponse's response.
+type FunctionOutput struct {
+	Output string `json:"output"`
+}
+
 // SystemInstruction is generateContent's systemInstruction for the system
 // items, or nil when there are none (MADR 0014 §3).
-func SystemInstruction(items []llmprovider.Item) map[string]any {
+func SystemInstruction(items []llmprovider.Item) *System {
 	system := wire.SystemPrompt(items)
 	if system == "" {
 		return nil
 	}
-	return map[string]any{"parts": []map[string]any{{wire.KeyText: system}}}
+	return &System{Parts: []Part{{Text: &system}}}
 }
 
-// Contents is generateContent's contents, for OpenCode's google route.
-func Contents(items []llmprovider.Item) []map[string]any {
+// Contents is generateContent's contents, for OpenCode's google route. The
+// strings the parts carry are kept in one arena, the calls and responses in
+// one array each, and every content's parts in one backing array: only the
+// last content ever takes a part, so each content's parts are contiguous
+// (0028-PLAN D16).
+func Contents(items []llmprovider.Item) []Content {
 	// Gemini pairs a functionResponse with its functionCall by name, so a
 	// result takes the name of the call it answers (MADR 0012 §2).
 	names := map[string]string{}
@@ -49,16 +94,24 @@ func Contents(items []llmprovider.Item) []map[string]any {
 			names[call.CallID] = call.Name
 		}
 	}
-	var contents []map[string]any
+	var (
+		contents  []Content
+		arena     = wire.NewArena(len(items))
+		parts     = make([]Part, 0, len(items))
+		calls     = make([]FunctionCall, 0, len(items))
+		responses = make([]FunctionResponse, 0, len(items))
+		start     int // where the last content's parts begin in parts
+	)
 	lastIsResponses := false
-	appendPart := func(role string, part map[string]any, merge bool) {
-		if n := len(contents); merge && n > 0 && contents[n-1][wire.KeyRole] == role {
-			if parts, ok := contents[n-1]["parts"].([]map[string]any); ok {
-				contents[n-1]["parts"] = append(parts, part)
-				return
-			}
+	appendPart := func(role string, part Part, merge bool) {
+		if n := len(contents); merge && n > 0 && contents[n-1].Role == role {
+			parts = append(parts, part)
+			contents[n-1].Parts = parts[start:len(parts):len(parts)]
+			return
 		}
-		contents = append(contents, map[string]any{wire.KeyRole: role, "parts": []map[string]any{part}})
+		start = len(parts)
+		parts = append(parts, part)
+		contents = append(contents, Content{Role: role, Parts: parts[start:len(parts):len(parts)]})
 	}
 	for _, item := range items {
 		switch v := item.(type) {
@@ -72,7 +125,7 @@ func Contents(items []llmprovider.Item) []map[string]any {
 			} else {
 				role = roleModel
 			}
-			appendPart(role, map[string]any{wire.KeyText: v.Text}, false)
+			appendPart(role, Part{Text: arena.Keep(v.Text)}, false)
 			lastIsResponses = false
 		case llmprovider.FunctionCallItem:
 			// Gemini refuses a replayed call without its thoughtSignature. A call
@@ -82,10 +135,8 @@ func Contents(items []llmprovider.Item) []map[string]any {
 			if signature == "" {
 				signature = skipThoughtSignature
 			}
-			appendPart(roleModel, map[string]any{
-				"functionCall":     map[string]any{wire.KeyName: v.Name, "args": wire.ToolArguments(v.Arguments)},
-				"thoughtSignature": signature,
-			}, true)
+			calls = append(calls, FunctionCall{Name: v.Name, Args: wire.ToolArguments(v.Arguments)})
+			appendPart(roleModel, Part{FunctionCall: &calls[len(calls)-1], ThoughtSignature: arena.Keep(signature)}, true)
 			lastIsResponses = false
 		case llmprovider.FunctionCallOutputItem:
 			name := names[v.CallID]
@@ -93,12 +144,8 @@ func Contents(items []llmprovider.Item) []map[string]any {
 				name = callName(v.CallID)
 			}
 			// A turn's results share one user turn, as its calls share one model turn.
-			appendPart(wire.RoleUser, map[string]any{
-				"functionResponse": map[string]any{
-					wire.KeyName: name,
-					"response":   map[string]any{wire.KeyOutput: v.Output},
-				},
-			}, lastIsResponses)
+			responses = append(responses, FunctionResponse{Name: name, Response: FunctionOutput{Output: v.Output}})
+			appendPart(wire.RoleUser, Part{FunctionResponse: &responses[len(responses)-1]}, lastIsResponses)
 			lastIsResponses = true
 		}
 	}

@@ -876,3 +876,14 @@ and 1,808 against 21.4 µs and 104. Each is 4.0 to 4.5 times faster with 17 to
 three move to typed structs, by the same method as Chat Completions (a frozen
 reference, a byte-for-byte corpus, the goldens unchanged), in the PLAN's
 Phase 9b, which runs after Phase 9.
+
+## Amendment 2026-10-09: the three wires encode union structs, without boxing
+
+Made by the 0028 PLAN's deviation D16, chosen by the owner ("Union structs
++ arena"). The amendment "D-A6 extends to Messages, Responses and
+generateContent" moves them to typed structs. Built with a struct per kind
+held in `any`, they cut allocations 3.3 to 4.8 times, short of the PLAN's
+fivefold: each value boxed into an interface allocates. Each wire's items,
+blocks or parts are one struct whose optional fields point into a per-call
+arena, so nothing is boxed. Measured on Responses: the same JSON, and 12
+allocations for 100 plain messages where `HEAD` made 1,008.

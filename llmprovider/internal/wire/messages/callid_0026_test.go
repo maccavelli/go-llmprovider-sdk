@@ -40,16 +40,16 @@ func TestFromItems_CallIDsFitAnthropicRule(t *testing.T) {
 	var ids []string
 	pairs := map[string]string{} // tool_result id → its output
 	for _, m := range FromItems(items) {
-		blocks, ok := m["content"].([]map[string]any)
-		if !ok {
+		list := m.Content.blocks // typed blocks (0028-PLAN D14, Phase 9b; D16)
+		if list == nil {
 			continue
 		}
-		for _, b := range blocks {
-			switch b["type"] {
+		for _, b := range *list {
+			switch b.Type {
 			case "tool_use":
-				ids = append(ids, b["id"].(string))
+				ids = append(ids, deref(b.ID))
 			case "tool_result":
-				pairs[b["tool_use_id"].(string)] = b["content"].(string)
+				pairs[deref(b.ToolUseID)] = deref(b.Content)
 			}
 		}
 	}

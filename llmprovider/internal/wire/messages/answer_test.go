@@ -71,13 +71,26 @@ func TestThinking_SignatureIsReplayed(t *testing.T) {
 	if len(msgs) != 3 {
 		t.Fatalf("messages = %v, want user, assistant, user", msgs)
 	}
-	blocks, _ := msgs[1]["content"].([]map[string]any)
-	if len(blocks) != 3 || blocks[0]["type"] != "thinking" || blocks[0]["signature"] != "SIG123" ||
-		blocks[1]["type"] != "redacted_thinking" || blocks[1]["data"] != "ENCRYPTED" || blocks[2]["type"] != "tool_use" {
-		t.Errorf("assistant content = %v, want thinking (signed), redacted_thinking, then tool_use", blocks)
+	// Typed blocks (0028-PLAN D14, Phase 9b; D16's union).
+	list := msgs[1].Content.blocks
+	if list == nil || len(*list) != 3 {
+		t.Fatalf("assistant content = %#v, want three blocks", msgs[1].Content)
+	}
+	blocks := *list
+	if blocks[0].Type != "thinking" || deref(blocks[0].Signature) != "SIG123" ||
+		blocks[1].Type != "redacted_thinking" || deref(blocks[1].Data) != "ENCRYPTED" || blocks[2].Type != "tool_use" {
+		t.Errorf("assistant content = %#v, want thinking (signed), redacted_thinking, then tool_use", blocks)
 	}
 	// Unsigned reasoning, such as another service's, cannot be replayed.
 	if got := FromItems([]llmprovider.Item{llmprovider.ReasoningItem{Text: "unsigned"}}); len(got) != 0 {
 		t.Errorf("FromItems(unsigned reasoning) = %v, want nothing", got)
 	}
+}
+
+// deref is *p, or "" for nil.
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }

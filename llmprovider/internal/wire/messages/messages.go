@@ -5,6 +5,8 @@ package messages
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 	"fmt"
 	"io"
 	"maps"
@@ -44,31 +46,97 @@ var stopReasons = map[string]llmprovider.FinishReason{
 // defaultThinkingBudget is the thinking budget when none is configured.
 const defaultThinkingBudget = 4096
 
+// Message is one Messages API message. The fields of Message and Block are
+// in the order json.Marshal wrote the maps they replace, so the JSON is the
+// same byte for byte (0028-MADR D-A6, amendments 2026-10-09).
+type Message struct {
+	Content Content `json:"content"`
+	Role    string  `json:"role"`
+}
+
+// Content is a message's content: its text, or its blocks. It is not an
+// interface: json.Marshal, which runs on encoding/json/v2, copies every
+// interface value it encodes into a new one, an allocation apiece
+// (0028-PLAN D16).
+type Content struct {
+	text   *string
+	blocks *[]Block
+}
+
+// MarshalJSONTo writes the text as a string, or the blocks as a list.
+func (c Content) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if c.blocks != nil {
+		return jsonv2.MarshalEncode(enc, *c.blocks)
+	}
+	return enc.WriteToken(jsontext.String(*c.text))
+}
+
+// MarshalJSON is MarshalJSONTo for an encoder that does not call it; json/v2
+// prefers MarshalJSONTo.
+func (c Content) MarshalJSON() ([]byte, error) {
+	if c.blocks != nil {
+		return json.Marshal(*c.blocks)
+	}
+	return json.Marshal(*c.text)
+}
+
+// Block is every content block in one struct: text, thinking,
+// redacted_thinking, tool_use and tool_result. A field a block does not have
+// is nil, and omitted; Type is always sent.
+type Block struct {
+	Content   *string `json:"content,omitempty"`
+	Data      *string `json:"data,omitempty"`
+	ID        *string `json:"id,omitempty"`
+	Input     any     `json:"input,omitempty"`
+	Name      *string `json:"name,omitempty"`
+	Signature *string `json:"signature,omitempty"`
+	Text      *string `json:"text,omitempty"`
+	Thinking  *string `json:"thinking,omitempty"`
+	ToolUseID *string `json:"tool_use_id,omitempty"`
+	Type      string  `json:"type"`
+}
+
 // FromItems converts items to Anthropic messages. System items are left out:
 // they go to the top-level system field (see wire.SystemPrompt). Call ids
 // another wire made are sent in a form Anthropic accepts, unique in the
 // request, and each result keeps its call (0026-MADR F8).
-func FromItems(items []llmprovider.Item) []map[string]any {
+//
+// The strings the blocks carry are kept in one arena, and every message's
+// blocks in one backing array: only the last message ever takes a block, so
+// each message's blocks are contiguous (0028-PLAN D16).
+func FromItems(items []llmprovider.Item) []Message {
 	items = wire.RemapCallIDs(items, wire.AnthropicCallIDs)
-	var messages []map[string]any
+	var (
+		messages []Message
+		arena    = wire.NewArena(4 * len(items))
+		blocks   = make([]Block, 0, 2*len(items))
+		lists    = make([][]Block, 0, len(items))
+		start    int // where the last message's blocks begin in blocks
+	)
+	// openList starts a block list holding first, as a content.
+	openList := func(first ...Block) Content {
+		start = len(blocks)
+		blocks = append(blocks, first...)
+		lists = append(lists, blocks[start:len(blocks):len(blocks)])
+		return Content{blocks: &lists[len(lists)-1]}
+	}
 	// appendBlock adds a content block to the previous message when it has the
 	// same role and already holds blocks (or, for the assistant, text), so a
 	// turn's calls and a turn's results each stay in one message (MADR 0012
 	// §2); otherwise it opens a message.
-	appendBlock := func(role string, block map[string]any) {
-		if n := len(messages); n > 0 && messages[n-1][wire.KeyRole] == role {
-			switch content := messages[n-1][wire.KeyContent].(type) {
-			case []map[string]any:
-				messages[n-1][wire.KeyContent] = append(content, block)
+	appendBlock := func(role string, block Block) {
+		if n := len(messages); n > 0 && messages[n-1].Role == role {
+			switch content := messages[n-1].Content; {
+			case content.blocks != nil:
+				blocks = append(blocks, block)
+				*content.blocks = blocks[start:len(blocks):len(blocks)]
 				return
-			case string:
-				if role == wire.RoleAssistant {
-					messages[n-1][wire.KeyContent] = []map[string]any{{wire.KeyType: wire.KeyText, wire.KeyText: content}, block}
-					return
-				}
+			case role == wire.RoleAssistant:
+				messages[n-1].Content = openList(Block{Type: wire.KeyText, Text: content.text}, block)
+				return
 			}
 		}
-		messages = append(messages, map[string]any{wire.KeyRole: role, wire.KeyContent: []map[string]any{block}})
+		messages = append(messages, Message{Role: role, Content: openList(block)})
 	}
 	for _, item := range items {
 		switch v := item.(type) {
@@ -82,10 +150,7 @@ func FromItems(items []llmprovider.Item) []map[string]any {
 			} else {
 				role = wire.RoleAssistant
 			}
-			messages = append(messages, map[string]any{
-				wire.KeyRole:    role,
-				wire.KeyContent: v.Text,
-			})
+			messages = append(messages, Message{Role: role, Content: Content{text: arena.Keep(v.Text)}})
 		case llmprovider.ReasoningItem:
 			// Anthropic needs a turn's thinking back, signature included, when
 			// thinking and tools are combined. Unsigned reasoning, and another
@@ -93,25 +158,16 @@ func FromItems(items []llmprovider.Item) []map[string]any {
 			switch {
 			case !wire.Replays(v, wire.FormatMessages):
 			case v.Signature != "":
-				appendBlock(wire.RoleAssistant, map[string]any{
-					wire.KeyType: keyThinking, keyThinking: v.Text, keySignature: v.Signature,
-				})
+				appendBlock(wire.RoleAssistant, Block{Type: keyThinking, Thinking: arena.Keep(v.Text), Signature: arena.Keep(v.Signature)})
 			case v.Encrypted != "":
-				appendBlock(wire.RoleAssistant, map[string]any{wire.KeyType: blockRedactedThinking, keyData: v.Encrypted})
+				appendBlock(wire.RoleAssistant, Block{Type: blockRedactedThinking, Data: arena.Keep(v.Encrypted)})
 			}
 		case llmprovider.FunctionCallItem:
-			appendBlock(wire.RoleAssistant, map[string]any{
-				wire.KeyType: "tool_use",
-				"id":         v.CallID,
-				wire.KeyName: v.Name,
-				keyInput:     wire.ToolArguments(v.Arguments),
+			appendBlock(wire.RoleAssistant, Block{
+				Type: "tool_use", ID: arena.Keep(v.CallID), Name: arena.Keep(v.Name), Input: wire.ToolArguments(v.Arguments),
 			})
 		case llmprovider.FunctionCallOutputItem:
-			appendBlock(wire.RoleUser, map[string]any{
-				wire.KeyType:    "tool_result",
-				"tool_use_id":   v.CallID,
-				wire.KeyContent: v.Output,
-			})
+			appendBlock(wire.RoleUser, Block{Type: "tool_result", ToolUseID: arena.Keep(v.CallID), Content: arena.Keep(v.Output)})
 		}
 	}
 	return messages
