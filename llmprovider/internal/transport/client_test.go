@@ -15,10 +15,12 @@ import (
 // HTTP/2 is kept (T12).
 func TestDefaultClient_Timeouts(t *testing.T) {
 	client := DefaultClient()
-	transport, ok := client.Transport.(*http.Transport)
+	// The shared transport, behind the client's scoped view (0028-PLAN D15).
+	base, ok := client.Transport.(interface{ Base() *http.Transport })
 	if !ok {
-		t.Fatalf("transport is %T, want *http.Transport", client.Transport)
+		t.Fatalf("transport is %T, want the shared transport's scoped view", client.Transport)
 	}
+	transport := base.Base()
 	if transport.ResponseHeaderTimeout != 300*time.Second || client.Timeout != 0 {
 		t.Fatalf("ResponseHeaderTimeout/Timeout = %s/%s, want 5m0s/0s",
 			transport.ResponseHeaderTimeout, client.Timeout)

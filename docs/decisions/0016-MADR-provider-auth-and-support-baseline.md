@@ -778,3 +778,19 @@ carries 0016-PLAN T4. Each point is one that D11 or D5 left open.
 ### Effect
 
 D11 and D5 stand. These points say how `wizard` meets them.
+
+## Amendment 2026-10-09: D8's default clients share a transport (0028 D-A2)
+
+Made by [0028-MADR-heuristics-and-performance-from-the-research-pass.md](0028-MADR-heuristics-and-performance-from-the-research-pass.md)
+(D-A2, Q6), executed in its PLAN's Phase 9. D8's "one default client per
+provider instance" becomes: **one default client per provider instance, over
+the transport the process-level manager keeps for its configuration.** Each
+instance still has its own `*http.Client`, so `TestResolveOptions_Defaults`
+holds, and a caller's `WithHTTPClient` is unchanged. The transports are one
+per distinct configuration, created on first use; today every default
+configuration is the same, so the process opens one set of connections where
+each instance opened its own. The idle limit per host rises from 4 to 16. A
+client's `CloseIdleConnections` closes nothing: its transport is a view of
+the shared one that does not implement it, so one instance cannot close the
+connections another would reuse. Proxy handling (`http.ProxyFromEnvironment`)
+and the timeouts are unchanged.

@@ -2010,3 +2010,106 @@ After those, every check exits 0:
 | `gate-selftest` | OK |
 | links | `0 problem(s), 627 relative link(s) in 73 file(s)` |
 | vet, race, shuffle, tidy, parity, dep, generate, markdownlint, deny scan | 0 each |
+
+### Deviation D15 (2026-10-09): two tests assert the default transport's type
+
+* **Found** in Phase 9, before the change: `TestResolveOptions_DefaultTimeout`
+  (`llmprovider/options_test.go:21`) and `TestDefaultClient_Timeouts`
+  (`llmprovider/internal/transport/client_test.go:18`) assert
+  `DefaultClient().Transport.(*http.Transport)` to check its timeouts.
+  D-A2's wrapper, which hides `CloseIdleConnections` from one instance's
+  client, is not an `*http.Transport`, so both fail. The plan lists neither.
+* **Options put to the owner:** a `Base() *http.Transport` method on the
+  wrapper; an exported helper in `internal/transport`; or no wrapper, which
+  gives up D-A2's scoped `CloseIdleConnections`.
+* **Decision.** "Unwrap via a method": the wrapper has
+  `Base() *http.Transport`; both tests reach the transport through an
+  interface assertion and keep every check as written. No package-level
+  name is added.
+* **Files added to the phase:** `llmprovider/options_test.go`,
+  `llmprovider/internal/transport/client_test.go`.
+
+### Phase 9: the transport manager (2026-10-09)
+
+* **Before it.** The owner committed and pushed Phase 8 as `860dcab`.
+* **Approval.** "committed and pushed, proceed", 2026-10-09. D15 was
+  decided during the phase.
+
+**Step 1, red first.** `manager_0028_test.go` did not compile
+(`undefined: defaultConfig`, `defaultManager`). The planned behavioural red
+is step 3's plant: with a new transport on each call, the shared-transport
+test reports "connections = 2; want 1, shared".
+
+The tests:
+
+* **`TestDefaultClient_SharesOneTransport`**, over HTTP/1.1 and HTTP/2.
+  Each runs a TLS `httptest` server that counts the connections it accepts.
+  The test seam, `defaultConfig.rootCAs`, gives the default configuration
+  that server's roots.
+* **`TestDefaultClient_CloseIdleConnectionsIsScoped`**, over HTTP/2.
+* **`TestManager_OneTransportPerConfig`**, which also checks that a
+  configuration's settings reach its transport.
+* **`TestDefaultClients_GoroutinesBounded`**: 20 clients, the baseline and
+  8.
+* **`TestDefaultClient_MaxIdleConnsPerHost`**, a test the plan did not
+  list.
+
+**Step 2, the change** (`transport.go`):
+
+* **`Config`** holds the timeouts, `MaxIdleConnsPerHost` (16) and
+  `ForceAttemptHTTP2`, plus an unexported `rootCAs` for tests.
+* **`defaultConfig`** is the default configuration.
+* **`manager.transport(Config)`** creates a transport the first time a
+  configuration is asked for, under a mutex, and keeps it for the process.
+  Proxy handling and the dialer are the same for every configuration.
+* **`DefaultClient()`** returns a new `*http.Client` each call over
+  `scoped{base}`. `scoped` has `RoundTrip`, and `Base()` per D15, but no
+  `CloseIdleConnections`.
+* **`manager.drop`** closes a configuration's idle connections and forgets
+  it, for the tests' cleanup.
+* `catalog.listingClient` is unchanged in code; it now rides the shared
+  transport.
+
+**D15's tests.** `TestDefaultClient_Timeouts` failed as predicted ("transport
+is transport.scoped, want *http.Transport"). It and
+`TestResolveOptions_DefaultTimeout` now reach the transport through `Base()`,
+with every check as before. `TestResolveOptions_Defaults`, which checks that
+instances get distinct clients, and `auth`'s tests pass unchanged.
+
+**Green:** `go test ./...`, 27 packages ok.
+
+**Step 3, proofs on scratch copies** (`p9_plants.py`):
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| a new transport each call (the plan's) | `TestDefaultClient_SharesOneTransport` ("connections = 2; want 1, shared"), `…_CloseIdleConnectionsIsScoped`, `TestDefaultClients_GoroutinesBounded`, `TestManager_OneTransportPerConfig` |
+| the scoped view closes idle connections | `TestDefaultClient_CloseIdleConnectionsIsScoped` ("connections = 2; want 1, B reusing the connection A left idle") |
+| every configuration's transport kept under one key | the four above; the test roots were not used, so TLS was refused |
+| four idle connections per host | `TestDefaultClient_MaxIdleConnsPerHost` |
+| the first-byte bound not set | `TestDefaultClient_Timeouts`, `TestManager_OneTransportPerConfig`, `TestResolveOptions_DefaultTimeout` |
+
+**Step 4.** 0016-MADR gains "Amendment 2026-10-09: D8's default clients
+share a transport (0028 D-A2)".
+
+**Step 5, the gate** (`p26_gate.py`, a scratch copy of the tree). The first
+run failed `make lint` on one finding,
+`manager_0028_test.go:93: SA4000: identical expressions on the left and
+right side of the '!=' operator`. The check was rewritten to compare two
+variables, and the second run exits 0:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `499 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `coverage-check` | `internal/transport: 86.2%`; `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/`; nothing exported changed, as the package is internal |
+| `records-check` | `63 records, 0 problem(s)` |
+| `gate-selftest` | OK |
+| links | `0 problem(s), 628 relative link(s) in 73 file(s)` |
+| vet, race, shuffle, tidy, parity, dep, generate, markdownlint, G-wire stable, deny scan | 0 each |
+
+**Left for Phase 10, the documentation phase:**
+
+* `docs/architecture.md:56` describes `internal/transport` as "the default
+  client"; it should describe the shared transports and Phase 7's probe
+  cache.
+* `docs/architecture.md:96` does not list Phase 7's `wire.ProbeHealth`.

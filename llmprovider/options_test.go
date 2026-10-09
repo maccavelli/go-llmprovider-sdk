@@ -18,8 +18,9 @@ func TestResolveOptions_DefaultTimeout(t *testing.T) {
 	if st.HTTPClient() == nil {
 		t.Fatal("default HTTPClient is nil")
 	}
-	transport, ok := st.HTTPClient().Transport.(*http.Transport)
-	if !ok || transport.ResponseHeaderTimeout != 300*time.Second || transport.DialContext == nil {
+	// The shared transport, behind the client's scoped view (0028-PLAN D15).
+	base, ok := st.HTTPClient().Transport.(interface{ Base() *http.Transport })
+	if !ok || base.Base().ResponseHeaderTimeout != 300*time.Second || base.Base().DialContext == nil {
 		t.Errorf("default transport %T: want a 300s first-byte bound and a bounded dialer", st.HTTPClient().Transport)
 	}
 	if st.HTTPClient().Timeout != 0 {

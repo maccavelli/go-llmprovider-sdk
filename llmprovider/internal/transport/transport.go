@@ -9,6 +9,8 @@ package transport
 
 import (
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"math"
 	"net"
@@ -40,19 +42,93 @@ var dialer = &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 // honours HTTP_PROXY, HTTPS_PROXY and NO_PROXY, as net/http's own default
 // transport does (0016-MADR D8). Setting a dialer turns off net/http's
 // automatic HTTP/2, so ForceAttemptHTTP2 keeps it.
+//
+// Each call returns a new client, one per provider instance, over the one
+// transport the process keeps for the default configuration, so instances
+// share connections (0028-MADR D-A2). The client's transport does not
+// implement CloseIdleConnections: one instance closing its idle connections
+// does not close those the others would reuse.
 func DefaultClient() *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           dialer.DialContext,
-			ForceAttemptHTTP2:     true,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 300 * time.Second,
-			IdleConnTimeout:       90 * time.Second,
-			MaxIdleConnsPerHost:   4,
-		},
+	return &http.Client{Transport: scoped{base: defaultManager.transport(defaultConfig)}}
+}
+
+// Config is one default transport's configuration. Two equal Configs share a
+// transport; one that differs gets its own, and never shares connections
+// with the others (0028-MADR D-A2).
+type Config struct {
+	TLSHandshakeTimeout   time.Duration
+	ResponseHeaderTimeout time.Duration
+	IdleConnTimeout       time.Duration
+	MaxIdleConnsPerHost   int
+	ForceAttemptHTTP2     bool
+	// rootCAs, when set, replaces the system's roots: tests trust their own
+	// server with it.
+	rootCAs *x509.CertPool
+}
+
+// defaultConfig is DefaultClient's configuration. Tests set rootCAs.
+var defaultConfig = Config{
+	TLSHandshakeTimeout:   10 * time.Second,
+	ResponseHeaderTimeout: 300 * time.Second,
+	IdleConnTimeout:       90 * time.Second,
+	MaxIdleConnsPerHost:   16,
+	ForceAttemptHTTP2:     true,
+}
+
+// manager keeps the process's default transports, one per Config, each
+// created on first use and kept for the process.
+type manager struct {
+	mu         sync.Mutex
+	transports map[Config]*http.Transport
+}
+
+// defaultManager is the process's manager.
+var defaultManager = &manager{transports: map[Config]*http.Transport{}}
+
+// transport returns cfg's transport, creating it on first use.
+func (m *manager) transport(cfg Config) *http.Transport {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if t, ok := m.transports[cfg]; ok {
+		return t
+	}
+	t := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     cfg.ForceAttemptHTTP2,
+		TLSHandshakeTimeout:   cfg.TLSHandshakeTimeout,
+		ResponseHeaderTimeout: cfg.ResponseHeaderTimeout,
+		IdleConnTimeout:       cfg.IdleConnTimeout,
+		MaxIdleConnsPerHost:   cfg.MaxIdleConnsPerHost,
+	}
+	if cfg.rootCAs != nil {
+		t.TLSClientConfig = &tls.Config{RootCAs: cfg.rootCAs, MinVersion: tls.VersionTLS12}
+	}
+	m.transports[cfg] = t
+	return t
+}
+
+// drop closes cfg's transport's idle connections and forgets it; tests use it.
+func (m *manager) drop(cfg Config) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if t, ok := m.transports[cfg]; ok {
+		t.CloseIdleConnections()
+		delete(m.transports, cfg)
 	}
 }
+
+// scoped is one client's view of a shared transport: it round-trips, and has
+// no CloseIdleConnections, so http.Client.CloseIdleConnections leaves the
+// shared connections open.
+type scoped struct{ base *http.Transport }
+
+// RoundTrip sends req on the shared transport.
+func (s scoped) RoundTrip(req *http.Request) (*http.Response, error) { return s.base.RoundTrip(req) }
+
+// Base is the shared transport, for tests that check its settings
+// (0028-PLAN D15).
+func (s scoped) Base() *http.Transport { return s.base }
 
 // Client identification (MADR 0012 §1.4): every request names this module and
 // the consuming application honestly, and never a reference client.
