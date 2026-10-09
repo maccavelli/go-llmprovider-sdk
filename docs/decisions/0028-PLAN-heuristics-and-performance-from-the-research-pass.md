@@ -1703,3 +1703,97 @@ run failed `make lint` (`unparam` on `decodeLimited`) and `gate-selftest`
 | `gate-selftest` | `Ran 14 tests`, OK |
 | links | `0 problem(s), 627 relative link(s) in 73 file(s)` |
 | vet (three platforms, with and without `live_gateways`), race and shuffle, lint, tidy, parity, dep, generate, markdownlint, G-wire stable, deny scan | 0 each |
+
+### Phase 7: probe results (2026-10-08)
+
+* **Before it.** Phase 6 committed and pushed as `fd99677`; CI run
+  37880345368 green on all three jobs.
+* **Approval.** "Commit to main push, then proceed", 2026-10-08.
+
+**Step 1, red first.** The new tests did not compile:
+`undefined: ProbeKey`, `Fingerprint`, `ProbeGenerateHealthCached`,
+`probeCache`. The planned behavioural red was taken on a scratch copy of
+`HEAD`, with the provider tests that use no new symbol:
+
+```text
+    probe_cache_head_test.go:60: second listing: 3 probes; want 0
+--- FAIL: TestListModels_SecondListingSendsNoProbes
+--- PASS: TestProbeCache_KeyedByCredentialAndBaseURL
+```
+
+The keyed-by test passed there as a guard, since `HEAD` probes every time.
+
+**Step 2, the change:**
+
+* **`transport` gains the cache:**
+  * `ProbeKey{Provider, BaseURL, Credential string}`;
+  * `Fingerprint(credential)`, SHA-256 in hexadecimal, and `""` for no
+    credential;
+  * `ProbeGenerateHealthCached`, backed by a process-wide map under a
+    mutex. An entry lives 10 minutes (`probeCacheTTL`, Q7), an expired one
+    is deleted when looked up, and only a result with at least one model is
+    cached. Results are copied in and out.
+  * `probeCacheNow` is the clock seam for tests.
+* **Built differently from step 2's wording:** `transport` cannot import
+  `llmprovider`, which imports it, so it cannot read a `TokenSource`. The
+  providers therefore call `wire.ProbeHealth` (`llmprovider/internal/wire/probe.go`),
+  which reads the token, builds the key with `Fingerprint`, and calls
+  `ProbeGenerateHealthCached`.
+  * A token that cannot be read is probed for, uncached
+    (`TestProbeHealth_UnreadableTokenProbesUncached`), never cached under
+    a key with no credential.
+  * Ollama's default token is `""`, so its key has an empty credential, as
+    step 2 says. An Ollama given a key is fingerprinted like the others.
+* **The callers:** OpenAI, Claude, Gemini, Grok and Ollama each call
+  `wire.ProbeHealth` with their ID, `p.baseURL` and `p.src`. Each one's
+  `transport` import went with its last use.
+* **Tests added beyond the plan:** `TestProbeCache_ReturnsACopy` and
+  `TestProbeCache_ProviderKeyIsFingerprinted`. The latter is a black-box
+  check in `providers/openai`: after a listing, the cache answers a lookup
+  by the key's fingerprint, and not one by the key itself.
+  `TestProbeCache_FingerprintOnly` checks `Fingerprint`'s form.
+
+**Green:** `go test ./llmprovider/...`, 23 packages ok.
+
+**Step 3, proofs on scratch copies** (`p7_plants.py`, which now reports a
+build failure as one):
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| the cache bypassed | `TestListModels_SecondListingSendsNoProbes` ("second listing: 3 probes; want 0"), `TestProbeCache_ProviderKeyIsFingerprinted` |
+| no credential in the key | `TestProbeCache_KeyedByCredentialAndBaseURL` ("another key: 0 probes; want 3"), `TestProbeCache_ProviderKeyIsFingerprinted` |
+| no base URL in the key | `TestProbeCache_KeyedByCredentialAndBaseURL` ("another base URL: 0 probes; want 3"), `TestProbeCache_ProviderKeyIsFingerprinted` |
+| the raw credential in the key | `TestProbeCache_ProviderKeyIsFingerprinted` |
+| an empty result cached | `TestProbeCache_EmptyResultNotCached` ("probes = 2; want 4") |
+| no TTL | `TestProbeCache_ExpiresAfterTTL` ("past the TTL: 3 probes in all; want 6") |
+| the cached slice handed out | `TestProbeCache_ReturnsACopy` ("call 2 = [changed b]") |
+| an unreadable token cached | `TestProbeHealth_UnreadableTokenProbesUncached` ("probes = 2; want 4") |
+
+Two plants needed a second run:
+
+* "No credential in the key" first broke the build, by leaving `token`
+  unused. The script reported that as a build failure, and the plant was
+  rewritten to compile.
+* "The cached slice handed out" first failed no test. The test changed
+  only the first call's slice, which comes from the probes, not the cache.
+  It now changes each call's slice, cached ones included.
+
+**Step 4, the gate** (`p26_gate.py`, a scratch copy of the tree). Every
+check exits 0:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `491 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `coverage-check` | `internal/transport: 84.7%`; `internal/wire: 93.9%`, 95.7 % with the unreadable-token test, which was added after the gate; `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/`; no exported identifier changes, as the cache is internal |
+| `records-check` | `63 records, 0 problem(s)` |
+| `gate-selftest` | OK |
+| links | `0 problem(s), 627 relative link(s) in 73 file(s)` |
+| vet, race, shuffle, lint, tidy, parity, dep, generate, markdownlint, G-wire stable, deny scan | 0 each |
+
+The unreadable-token test was added after the gate. `make pre-add-check`
+over it and `wire/probe.go` gave `2 file(s) clean (gofmt, golangci-lint,
+go vet, go test, govulncheck)`.
+
+**Not done:** two listings that start together both probe. The plan asks
+for no single-flight, and the cache keeps the first result to finish.

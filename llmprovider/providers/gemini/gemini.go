@@ -40,7 +40,6 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
@@ -265,7 +264,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := transport.ProbeGenerateHealth(ctx, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
+	healthy := wire.ProbeHealth(ctx, llmprovider.ProviderGemini, p.baseURL, p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		// The old API's probe: the provider's output limit, nothing stored, no
 		// reasoning (0015-MADR D1).
 		probe := *p

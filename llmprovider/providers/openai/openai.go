@@ -39,7 +39,6 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
@@ -323,7 +322,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := transport.ProbeGenerateHealth(ctx, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
+	healthy := wire.ProbeHealth(ctx, llmprovider.ProviderOpenAI, p.baseURL, p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.store, probe.reasoning = model, probeMaxOutputTokens, nil, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{
