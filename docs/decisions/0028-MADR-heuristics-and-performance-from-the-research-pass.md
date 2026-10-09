@@ -839,3 +839,26 @@ same folding leaves a secret spelled with ſ (U+017F) or K unmasked.
 **Decision:** the replacement functions read their groups from the match in
 context; and a message holding either letter is redacted as a copy with them
 replaced by `s` and `k`, which its redacted text then shows.
+
+## Amendment 2026-10-08: D-A1 decodes with json/v2
+
+Made by the 0028 PLAN's deviation D12, chosen by the owner ("json/v2, v1
+semantics"). D-A1 says `json.NewDecoder` over the limited reader replaces
+`io.ReadAll` and `json.Unmarshal`. Measured, it does not stream:
+`encoding/json`'s `Decoder` buffers the whole value, and the decode took 34 %
+longer and 11.7 % more bytes than `HEAD`'s. The decode is
+`encoding/json/v2`'s `UnmarshalRead` with `encoding/json.DefaultOptionsV1()`,
+measured at 71 % fewer bytes in the same time, with v1's semantics and the
+same 32 MiB limit. It is the standard library: the dependency rule is
+unchanged.
+
+## Amendment 2026-10-08: D-A1's json/v2 decode takes three v1 behaviours, not all
+
+Made by the 0028 PLAN's deviation D12, corrected and chosen again by the
+owner ("json/v2, three options"). The amendment "D-A1 decodes with json/v2"
+names `encoding/json.DefaultOptionsV1()`. Measured, it puts json/v2 in v1's
+legacy mode, which buffers the whole value: 21.49 MB per decode, no saving.
+The decode takes only the v1 behaviours it can meet: names matched without
+regard to case, duplicate names, and invalid UTF-8 taken as `json.Unmarshal`
+takes them. That is 4.71 MB, 75 % less than `HEAD`, and decodes the
+documents tested exactly as `json.Unmarshal` does.

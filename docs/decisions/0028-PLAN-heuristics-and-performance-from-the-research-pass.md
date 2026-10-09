@@ -1525,3 +1525,181 @@ check exits 0.
   checked by its prefix only, since its length is not confirmed.
 * A foreign key is still named only on OpenAI's token-paste path, as
   before. On the API-key path, the shape warning is what catches it.
+
+### Deviation D12 (2026-10-08): `json.NewDecoder` does not stream; json/v2 does
+
+* **Found** in Phase 6, step 4. `BenchmarkDecodeModelMetadata` (a
+  generated models.dev-shaped document of 5.8 MB, seed 28), `HEAD` against
+  the tree with D-A1's `json.NewDecoder` decode, seven alternated rounds:
+  32.5 ms and 19.24 MB per decode on `HEAD`; 43.6 ms and 21.49 MB on the
+  tree, 34 % slower and 11.7 % more bytes. `encoding/json`'s `Decoder`
+  reads the whole top-level value into its own growing buffer before it
+  decodes, so it holds the body as `io.ReadAll` did, and grows a buffer to
+  do it. D-A1's premise, that it decodes as the body arrives, is wrong.
+* **Measured on a scratch copy:** `encoding/json/v2`'s `UnmarshalRead`, in
+  Go 1.27 with no experiment flag, over the same document: 5.66 MB per
+  decode, 71 % less, in 27–34 ms against `HEAD`'s 33 ms in the same run.
+* **Options put to the owner:** json/v2 with v1 semantics; or keep the
+  buffered decode and drop the decode from D-A1.
+* **Decision.** "json/v2, v1 semantics": `decodeStreamed` calls
+  `encoding/json/v2.UnmarshalRead` over the limit reader with
+  `encoding/json.DefaultOptionsV1()`, so names match case-insensitively and
+  duplicate names and invalid UTF-8 are taken as `json.Unmarshal` takes
+  them. A test holds the result equal to `json.Unmarshal`'s on the
+  generated document and on the fixtures. 0028-MADR D-A1 is amended.
+* **Files:** none beyond Phase 6's.
+* **Corrected, 2026-10-08.** Built as decided, the decode still took
+  21.49 MB: `DefaultOptionsV1()` puts json/v2 in v1's legacy mode, which
+  buffers the whole value. Measured on a scratch copy over the same
+  document: json/v2 with no options and the limit reader, 5.66 MB;
+  `DefaultOptionsV1()`, with that reader, `io.LimitReader` or none,
+  21.49 MB each; with only `MatchCaseInsensitiveNames`,
+  `AllowDuplicateNames` and `AllowInvalidUTF8`, 4.71 MB. With those three,
+  the decode equals `json.Unmarshal`'s on the generated document, the
+  fixtures, and documents with `interleaved` as `true`, an object and
+  `null`, nulls on every field, mixed-case and duplicate names, and invalid
+  UTF-8; adding `CallMethodsWithLegacySemantics` and
+  `MergeWithLegacySemantics` changed nothing there. Put to the owner again
+  with that measured: **"json/v2, three options"**. `decodeStreamed` uses
+  those three; the equivalence test gains the edge cases.
+
+### Deviation D13 (2026-10-08): a background fetch races one test; a lint finding
+
+* **Found** by Phase 6's gate (`p26_gate.py`):
+  * `gate-selftest`'s coverage run failed
+    `TestOpencode_MetadataLookupUsesClientInfo`
+    (`metadata_ua_0026_test.go:44`, "no metadata request was made"). Its
+    model, `glm-5.3-flash`, is in Go's route table, so under D-A1 the
+    first `Generate` routes by the table and the metadata request runs in
+    the background; the test looked for it as soon as `Generate` returned.
+    It passed in the other runs: a race, not a regression.
+  * `make lint`: `discovery.go:38:33: decodeLimited - limit always receives
+    listingPageLimit (8388608) (unparam)`, since the metadata decode no
+    longer calls it.
+* **Options put to the owner:** fix both in Phase 6; or hold Phase 6 and
+  revisit D-A1.
+* **Decision.** "Fix both in Phase 6":
+  * the test waits, at most 5 s, for the metadata server to receive its
+    request (a channel its handler signals), then asserts the User-Agent
+    as before; its assertions are unchanged;
+  * `decodeLimited` drops its `limit` parameter and reads
+    `listingPageLimit`.
+* **Files added to the phase:** `llmprovider/catalog/discovery.go`,
+  `llmprovider/providers/opencode/metadata_ua_0026_test.go`.
+
+### Phase 6: OpenCode's metadata (2026-10-08)
+
+* **Before it.** Phase 5 committed and pushed as `5fe50d1`; CI run
+  37877588921 green on all three jobs.
+* **Approval.** "Commit and push to main, then proceed", 2026-10-08. D12
+  (asked twice) and D13 were decided during the phase.
+
+**Step 1, red first.** The catalog tests did not compile:
+`undefined: CachedMetadataWith`, `undefined: metadataDecodes`, and
+`e.etag undefined`. The OpenCode test failed:
+
+```text
+--- FAIL: TestOpencode_ColdCacheUsesTableRoute
+    the first Generate took 2.004351167s; want it not to wait for the document
+    paths = [/chat/completions /chat/completions]; want the table's route, then the document's: [/messages /chat/completions]
+--- PASS: TestOpencode_UnknownModelWaitsForMetadata
+```
+
+Two of the new tests passed on `HEAD`, as guards:
+
+* `TestOpencode_UnknownModelWaitsForMetadata`;
+* `TestDecodeModelMetadata_StreamedLimit`, run on a scratch copy of `HEAD`.
+  `HEAD`'s buffered decode already enforced the limit. Streaming can't be
+  observed through the result, so step 4's benchmark measures it.
+
+**Step 2, the changes:**
+
+* **`catalog.CachedMetadataWith`**, the one exported addition. It returns
+  the cached document, fresh or past its TTL, and true. It starts a
+  background fetch when the document is missing or stale, unless a failure
+  is being remembered. Metadata that is turned off, or an option it
+  refuses, reports false. `TestCachedMetadataWith_Unavailable` covers these
+  cases, a test the plan did not list.
+* **The cache entry keeps the document's ETag.** `fetchModelMetadata`
+  sends `If-None-Match` when the entry holds a document and an ETag. A 304
+  returns the held document, neither downloaded nor decoded, and the entry's
+  time is renewed.
+* **`decodeModelMetadata`** decodes through `decodeStreamed`: json/v2's
+  `UnmarshalRead`, over a reader that fails once the body passes
+  `metadataLimit`, with three v1 behaviours (D12). The error still names
+  32 MiB. `metadataDecodes` counts decodes for the tests.
+* **`opencode.requestRoute`:** a pinned route first. Then
+  `CachedMetadataWith`. With nothing cached, a model in the route table
+  (`inRouteTable`) takes the table's route at once. Any other model waits
+  for `LookupMetadataWith`, as before.
+* **Not changed:** `chatReasoningEffort` and `chatReplayField` still wait
+  for the document on a cold cache. They run only for a reasoning request
+  on the chat route, or when there is an assistant turn to replay. D-A1
+  covers the route only.
+* **R43:** `docs/architecture.md`'s catalog row lists `CachedMetadataWith`.
+
+**Step 3, the fixture.** `TestOpencode_RoutesFromMetadata` failed as
+expected (`over table`: `path = "/messages", want "/chat/completions"`).
+Each case now warms the cache with `LookupMetadataWith`, awaited, before
+`Generate`, and its assertions are unchanged. D13 changed one more test,
+`TestOpencode_MetadataLookupUsesClientInfo`.
+
+**Step 4, benchmarks.** `BenchmarkDecodeModelMetadata` decodes a generated
+document of 5.8 MB in the models.dev shape (seed 28). Medians of seven
+alternated rounds, `HEAD` against the tree:
+
+| Decode | Time | Bytes per decode | Allocations |
+| :--- | ---: | ---: | ---: |
+| `HEAD`, `io.ReadAll` and `json.Unmarshal` | 28.7 ms | 19,239,774 | 108,908 |
+| D-A1 as written, `json.NewDecoder` (D12) | 43.6 ms | 21,494,901 | 108,912 |
+| json/v2 with `DefaultOptionsV1()` (D12) | about 38 ms | 21,489,489 | 108,880 |
+| **the tree, json/v2 with three options** | **21.7 ms** | **4,712,454** | **108,868** |
+
+The tree takes 24 % less time and 75.5 % fewer bytes. The plan asked for
+peak bytes as well. Go's benchmark harness does not measure a peak, so
+bytes allocated per decode are recorded instead. The decode no longer
+holds the 5.8 MB body as one buffer, but its peak was not measured.
+
+**Step 5, proofs on scratch copies** (`p6_plants.py`):
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| `requestRoute` waits on a cold cache | `TestOpencode_ColdCacheUsesTableRoute` ("the first Generate took 2.003698375s") |
+| the 304 branch removed | `TestLoadModelMetadata_RevalidatesWithETag` (the time not renewed) |
+| no `If-None-Match` sent | `TestLoadModelMetadata_RevalidatesWithETag` (`If-None-Match = ""`) |
+| the ETag not kept | `TestLoadModelMetadata_RevalidatesWithETag` |
+| a cold `CachedMetadataWith` starts no fetch | `TestCachedMetadataWith_ColdStartsFetchWithoutWaiting`, `TestCachedMetadataWith_Unavailable`, `TestOpencode_MetadataLookupUsesClientInfo` |
+| json/v2 without the three options | `TestDecodeModelMetadata_MatchesUnmarshal` (mixed-case names) |
+| no check past the last byte | `TestDecodeModelMetadata_StreamedLimit` ("unexpected EOF after offset 33554432"; want one naming 32 MiB) |
+
+The first run of "the ETag not kept" reported no failure. The plant had
+left a variable unused, so the package did not build, and the script
+counted only `--- FAIL` lines. The plant was rewritten to compile, and the
+script now reports a build failure. The rewritten plant fails the test.
+
+D13's race was shown on a scratch copy with the background fetch delayed
+by 50 ms. `HEAD`'s version of the test failed ("no metadata request was
+made"), and the changed test passed. It did not reproduce in 50 runs
+under `-race` without the delay.
+
+The first equivalence fixture for invalid UTF-8 held a valid `ÿ`, written
+by the shell's quoting. It is now an interpreted Go string with the byte
+`0xFF`, and the test passes with it.
+
+**Step 6.** 0012-MADR gains "Amendment 2026-10-08: OpenCode routes by its
+table while the metadata is fetched (0028 D-A1)".
+
+**Step 7, the gate** (`p26_gate.py`, a scratch copy of the tree). The first
+run failed `make lint` (`unparam` on `decodeLimited`) and `gate-selftest`
+(the race); both are D13. After D13:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `488 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `coverage-check` | `llmprovider/catalog: 92.6%`; `llmprovider/providers/opencode: 99.1%`; `28 packages, 0 problem(s)` |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| apidiff, `HEAD` against the tree, every change (`p6_apidiff.py`) | `Compatible changes: - ./llmprovider/catalog.CachedMetadataWith: added` |
+| `records-check` | `63 records, 0 problem(s)` |
+| `gate-selftest` | `Ran 14 tests`, OK |
+| links | `0 problem(s), 627 relative link(s) in 73 file(s)` |
+| vet (three platforms, with and without `live_gateways`), race and shuffle, lint, tidy, parity, dep, generate, markdownlint, G-wire stable, deny scan | 0 each |

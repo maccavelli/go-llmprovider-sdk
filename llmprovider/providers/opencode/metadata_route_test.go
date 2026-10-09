@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // Ported from llmprovider's opencode_metadata_route_test.go (0015-PLAN S7).
@@ -106,6 +107,13 @@ func TestOpencode_RoutesFromMetadata(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, paths := routeServer(t, tc.gateway, tc.model, tc.npm, true)
+			// The document is cached first: a cold cache routes a model the
+			// table knows by the table (0028-MADR D-A1; 0028-PLAN Phase 6,
+			// step 3).
+			if _, err := catalog.LookupMetadataWith(context.Background(), tc.gateway,
+				llmprovider.WithModelMetadataURL(srv.URL+"/api.json")); err != nil {
+				t.Fatalf("warming the metadata cache: %v", err)
+			}
 			if got := generatePath(t, srv, paths, tc.gateway, tc.model); got != tc.want {
 				t.Errorf("path = %q, want %q", got, tc.want)
 			}

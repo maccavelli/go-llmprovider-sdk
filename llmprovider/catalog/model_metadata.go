@@ -3,6 +3,8 @@ package catalog
 import (
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -169,6 +172,30 @@ func LookupMetadataWith(ctx context.Context, id llmprovider.ProviderID, opts ...
 	return Metadata{doc: doc}, err
 }
 
+// CachedMetadataWith is LookupMetadataWith without the wait: the cached
+// document, fresh or past its TTL, and true; or, with none cached, false. A
+// document past its TTL is refreshed in the background, and with none cached
+// the fetch is started, unless a failure is remembered (MADR 0013 A6), so a
+// later call finds it. Metadata that WithoutModelMetadata turns off, or an
+// option that is refused, reports false (0028-MADR D-A1).
+func CachedMetadataWith(ctx context.Context, id llmprovider.ProviderID, opts ...llmprovider.Option) (Metadata, bool) {
+	cfg, err := configFor(id, opts)
+	if err != nil || cfg.metadataOff {
+		return Metadata{}, false
+	}
+	url := modelMetadataURL(cfg)
+	modelMetadataMu.Lock()
+	defer modelMetadataMu.Unlock()
+	e := modelMetadataCache[url]
+	now := metadataNow()
+	fresh := e.doc != nil && now.Sub(e.fetched) < modelMetadataTTL
+	backingOff := !e.failed.IsZero() && now.Sub(e.failed) < modelMetadataRetryAfter
+	if !fresh && !backingOff {
+		startMetadataFetch(ctx, url, cfg)
+	}
+	return Metadata{doc: e.doc}, e.doc != nil
+}
+
 // ReasoningEfforts returns the effort values the document lists for a
 // model's reasoning_options, or nil.
 func (m Metadata) ReasoningEfforts(provider llmprovider.ProviderID, model string) []string {
@@ -205,7 +232,8 @@ func modelMetadataKey(provider llmprovider.ProviderID) string {
 // modelMetadataCacheEntry is one URL's last good document and last failure.
 type modelMetadataCacheEntry struct {
 	doc     modelMetadataDoc // nil until a fetch succeeds; kept when a refresh fails
-	fetched time.Time        // when doc was fetched
+	etag    string           // doc's ETag, sent as If-None-Match by the refresh (0028-MADR D-A1)
+	fetched time.Time        // when doc was fetched, or last revalidated
 	failed  time.Time        // when the last fetch failed; zero after a success
 	err     error            // that failure
 }
@@ -229,6 +257,9 @@ var (
 	metadataFetching sync.WaitGroup
 	// metadataNow is the cache's clock. Tests move it.
 	metadataNow = time.Now
+	// metadataDecodes counts decodeModelMetadata's calls, so that tests can
+	// tell a revalidation from a download.
+	metadataDecodes atomic.Int64
 )
 
 // metadataLimit bounds the metadata document (0021-MADR C3).
@@ -311,17 +342,19 @@ func startMetadataFetch(ctx context.Context, url string, cfg config) *metadataFe
 	fetch := &metadataFetch{done: make(chan struct{})}
 	modelMetadataFetches[url] = fetch
 	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataFetchTimeout)
+	// The document the cache holds, and its ETag, for a revalidation.
+	held := modelMetadataCache[url]
 	metadataFetching.Add(1)
 	go func() {
 		defer metadataFetching.Done()
 		defer cancel()
-		doc, err := fetchModelMetadata(fetchCtx, url, cfg)
+		doc, etag, err := fetchModelMetadata(fetchCtx, url, cfg, held)
 		modelMetadataMu.Lock()
 		e := modelMetadataCache[url]
 		if err != nil {
 			e.failed, e.err = metadataNow(), err
 		} else {
-			e = modelMetadataCacheEntry{doc: doc, fetched: metadataNow()}
+			e = modelMetadataCacheEntry{doc: doc, etag: etag, fetched: metadataNow()}
 		}
 		modelMetadataCache[url] = e
 		delete(modelMetadataFetches, url)
@@ -341,35 +374,49 @@ func (e modelMetadataCacheEntry) cached() (modelMetadataDoc, error) {
 	return nil, e.err
 }
 
-// fetchModelMetadata performs one GET. Go's transport requests gzip itself.
-func fetchModelMetadata(ctx context.Context, url string, cfg config) (modelMetadataDoc, error) {
+// fetchModelMetadata performs one GET, and returns the document and its ETag.
+// Go's transport requests gzip itself. When held has a document and an ETag,
+// the request sends If-None-Match, and a 304 returns held's document as it is,
+// neither downloaded nor decoded again (0028-MADR D-A1).
+func fetchModelMetadata(ctx context.Context, url string, cfg config, held modelMetadataCacheEntry) (modelMetadataDoc, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
-		return nil, fmt.Errorf("model metadata: %w", err)
+		return nil, "", fmt.Errorf("model metadata: %w", err)
 	}
 	cfg.setUserAgent(req) // the caller's identity (0020-MADR F37)
+	revalidate := held.doc != nil && held.etag != ""
+	if revalidate {
+		req.Header.Set("If-None-Match", held.etag)
+	}
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("model metadata: %w", err)
+		return nil, "", fmt.Errorf("model metadata: %w", err)
 	}
 	defer cfg.closeBody(resp)
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("model metadata: %s returned HTTP %d", url, resp.StatusCode)
+	if revalidate && resp.StatusCode == http.StatusNotModified {
+		return held.doc, held.etag, nil
 	}
-	return decodeModelMetadata(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("model metadata: %s returned HTTP %d", url, resp.StatusCode)
+	}
+	doc, err := decodeModelMetadata(resp.Body)
+	return doc, resp.Header.Get("ETag"), err
 }
 
 // decodeModelMetadata keeps the sections the ranking reads: MADR 0009's
 // three and Together's (0017-MADR D1; 0020-MADR F4). A section without
 // models is treated as absent.
+// It decodes as the body streams in, never holding the whole body, under
+// metadataLimit (0028-MADR D-A1).
 func decodeModelMetadata(r io.Reader) (modelMetadataDoc, error) {
+	metadataDecodes.Add(1)
 	var raw struct {
 		Zen      *modelMetadataSection `json:"opencode"`
 		Go       *modelMetadataSection `json:"opencode-go"`
 		HF       *modelMetadataSection `json:"huggingface"`
 		Together *modelMetadataSection `json:"togetherai"`
 	}
-	if err := decodeLimited(r, metadataLimit, &raw, "model metadata"); err != nil {
+	if err := decodeStreamed(r, metadataLimit, &raw, "model metadata"); err != nil {
 		return nil, err
 	}
 	doc := modelMetadataDoc{}
@@ -381,6 +428,53 @@ func decodeModelMetadata(r io.Reader) (modelMetadataDoc, error) {
 		}
 	}
 	return doc, nil
+}
+
+// errPastLimit is a body longer than its decode's limit.
+var errPastLimit = errors.New("past the limit")
+
+// limitedReader reads r, and fails with errPastLimit when r holds more than
+// left bytes.
+type limitedReader struct {
+	r    io.Reader
+	left int64
+}
+
+func (l *limitedReader) Read(p []byte) (int, error) {
+	if l.left <= 0 {
+		var one [1]byte
+		if n, err := l.r.Read(one[:]); n > 0 {
+			return 0, errPastLimit
+		} else if err != nil {
+			return 0, err
+		}
+		return 0, nil
+	}
+	if int64(len(p)) > l.left {
+		p = p[:l.left]
+	}
+	n, err := l.r.Read(p)
+	l.left -= int64(n)
+	return n, err
+}
+
+// decodeStreamed decodes one JSON value from r into v as it streams in, as
+// decodeLimited does from a buffer: a body past limit bytes, or anything but
+// white space after the value, is an error. encoding/json's Decoder, and
+// json/v2 in v1's legacy mode, buffer the whole value; json/v2 takes only the
+// v1 behaviours this decode can meet (names matched without regard to case,
+// duplicate names, invalid UTF-8), and decodes as json.Unmarshal would
+// (0028-PLAN D12).
+func decodeStreamed(r io.Reader, limit int64, v any, what string) error {
+	err := jsonv2.UnmarshalRead(&limitedReader{r: r, left: limit}, v, jsonv2.MatchCaseInsensitiveNames(true),
+		jsontext.AllowDuplicateNames(true), jsontext.AllowInvalidUTF8(true))
+	switch {
+	case errors.Is(err, errPastLimit):
+		return fmt.Errorf("%s: the reply is larger than %d MiB", what, limit>>20)
+	case err != nil:
+		return fmt.Errorf("%s: decode: %w", what, err)
+	}
+	return nil
 }
 
 // modelMetadataResult carries one fetch's outcome across a goroutine.

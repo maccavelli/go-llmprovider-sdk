@@ -1276,3 +1276,16 @@ Made by [0028-MADR-heuristics-and-performance-from-the-research-pass.md](0028-MA
   `permission_error` → `ErrNotPermitted`; `rate_limit_error` →
   `ErrRateLimited`; `overloaded_error`, `api_error`, `server_error` →
   `ErrProviderUnavailable` (D-H8). A service's own codes still win.
+
+## Amendment 2026-10-08: OpenCode routes by its table while the metadata is fetched (0028 D-A1)
+
+Made by [0028-MADR-heuristics-and-performance-from-the-research-pass.md](0028-MADR-heuristics-and-performance-from-the-research-pass.md)
+(D-A1), executed in its PLAN's Phase 6. §3.1 routes a model by its
+metadata's `provider.npm`, and by the route table when the metadata is
+unavailable. It is amended: the table is the route **while the metadata is
+being fetched**, as well as when it is unavailable. With no document
+cached, a model the table lists is sent on the table's route at once and the
+document is fetched in the background; the next request, once it is
+cached, takes its `provider.npm` route. A model the table does not list
+waits for the document, at most 5 s, as before. A pinned route
+(`WithRoute`) still wins over both.

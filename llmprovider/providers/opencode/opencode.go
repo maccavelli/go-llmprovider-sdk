@@ -302,12 +302,24 @@ func keyHeader(r Route) (header, scheme string) {
 
 // requestRoute is one request's wire format: the pinned route, else the
 // model's provider.npm route in the metadata, else the table's or the
-// heuristic's (MADR 0012 §3.1). The lookup waits at most 5 s.
+// heuristic's (MADR 0012 §3.1). With no document cached, a model the table
+// knows takes the table's route at once while the document is fetched, and
+// any other waits for the lookup, at most 5 s (0028-MADR D-A1).
 func (p *provider) requestRoute(ctx context.Context, model string) Route {
 	if p.routePinned {
 		return p.route
 	}
-	if meta, err := p.metadata(ctx); err == nil {
+	meta, cached := catalog.Metadata{}, false
+	if !p.metadataOff {
+		meta, cached = catalog.CachedMetadataWith(ctx, p.gateway, p.listing...)
+	}
+	if !cached && !inRouteTable(p.gateway, model) {
+		var err error
+		if meta, err = p.metadata(ctx); err == nil {
+			cached = true
+		}
+	}
+	if cached {
 		if npm, ok := meta.NPM(p.gateway, model); ok {
 			return routeForNPM(npm)
 		}

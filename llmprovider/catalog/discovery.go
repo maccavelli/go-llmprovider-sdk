@@ -32,10 +32,11 @@ const (
 // models, set the figure.
 const listingPageLimit = 8 << 20
 
-// decodeLimited decodes one JSON value from r into v, reading at most limit
-// bytes. A longer body is an error naming the limit; what labels the errors
-// (0021-MADR C3).
-func decodeLimited(r io.Reader, limit int64, v any, what string) error {
+// decodeLimited decodes one listing page's JSON value from r into v, reading
+// at most listingPageLimit bytes. A longer body is an error naming the limit;
+// what labels the errors (0021-MADR C3).
+func decodeLimited(r io.Reader, v any, what string) error {
+	const limit = listingPageLimit
 	raw, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
 		return fmt.Errorf("%s: read: %w", what, err)
@@ -314,7 +315,7 @@ func fetchGeminiPage(ctx context.Context, endpoint string, token llmprovider.Tok
 	if resp.StatusCode != http.StatusOK {
 		return result, llmprovider.ClassifyHTTPError(string(llmprovider.ProviderGemini), resp)
 	}
-	err = decodeLimited(resp.Body, listingPageLimit, &result, "gemini: models")
+	err = decodeLimited(resp.Body, &result, "gemini: models")
 	return result, err
 }
 
@@ -408,7 +409,7 @@ func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Tok
 		// Older keys / regional proxies may not support Models API.
 		return result, llmprovider.ClassifyHTTPError(string(llmprovider.ProviderClaude), resp)
 	}
-	err = decodeLimited(resp.Body, listingPageLimit, &result, "claude: models")
+	err = decodeLimited(resp.Body, &result, "claude: models")
 	return result, err
 }
 
@@ -464,7 +465,7 @@ func fetchOllamaNames(ctx context.Context, token llmprovider.Token, cfg config) 
 			Name string `json:"name"`
 		} `json:"models"`
 	}
-	if err := decodeLimited(resp.Body, listingPageLimit, &result, "ollama: tags"); err != nil {
+	if err := decodeLimited(resp.Body, &result, "ollama: tags"); err != nil {
 		return nil, fmt.Errorf("failed to parse Ollama response: %w", err)
 	}
 
@@ -567,7 +568,7 @@ func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg confi
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if err := decodeLimited(resp.Body, listingPageLimit, &result, string(provider)+": models"); err != nil {
+	if err := decodeLimited(resp.Body, &result, string(provider)+": models"); err != nil {
 		return nil, err
 	}
 	ids := make([]string, 0, len(result.Data))
@@ -685,7 +686,7 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 			} `json:"providers"`
 		} `json:"data"`
 	}
-	if err := decodeLimited(resp.Body, listingPageLimit, &result, "huggingface: models"); err != nil {
+	if err := decodeLimited(resp.Body, &result, "huggingface: models"); err != nil {
 		return nil, err
 	}
 
@@ -770,7 +771,7 @@ func fetchTogetherUsable(ctx context.Context, token llmprovider.Token, cfg confi
 		ID   string `json:"id"`
 		Type string `json:"type"`
 	}
-	if err := decodeLimited(resp.Body, listingPageLimit, &models, "together: models"); err != nil {
+	if err := decodeLimited(resp.Body, &models, "together: models"); err != nil {
 		return nil, err
 	}
 	usable := make([]string, 0, len(models))
@@ -859,7 +860,7 @@ func fetchKiloCatalog(ctx context.Context, token llmprovider.Token, cfg config) 
 	var result struct {
 		Data []kiloCatalogEntry `json:"data"`
 	}
-	if err := decodeLimited(resp.Body, listingPageLimit, &result, "kilo: models"); err != nil {
+	if err := decodeLimited(resp.Body, &result, "kilo: models"); err != nil {
 		return nil, err
 	}
 	return result.Data, nil

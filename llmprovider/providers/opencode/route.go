@@ -186,6 +186,12 @@ func resolveRoute(gateway llmprovider.ProviderID, model string, override Route) 
 	return tableRoute(gateway, model), nil
 }
 
+// inRouteTable reports whether gateway's route table lists model.
+func inRouteTable(gateway llmprovider.ProviderID, model string) bool {
+	_, ok := routeTable[gateway][strings.ToLower(strings.TrimSpace(model))]
+	return ok
+}
+
 // tableRoute is the published table's route for (gateway, model), else the
 // prefix heuristic's.
 func tableRoute(gateway llmprovider.ProviderID, model string) Route {
