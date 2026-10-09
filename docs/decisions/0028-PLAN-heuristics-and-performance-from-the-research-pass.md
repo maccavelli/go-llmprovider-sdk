@@ -1129,6 +1129,7 @@ rows.
   in 0028-MADR's amendment "A10b keeps diagnostic words for `code` only",
   and in 0021-MADR's Z2 amendment, and is named in the handoff for the
   owner to confirm.
+* **Confirmed** by the owner, 2026-10-08: "Confirmed".
 
 ### Deviation D9 (2026-10-08): A10b and A10c slowed clean-text redaction past step 7's bound
 
