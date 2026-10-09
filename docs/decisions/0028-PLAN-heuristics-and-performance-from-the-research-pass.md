@@ -2273,3 +2273,138 @@ check exits 0 on the first run:
 | `records-check` | `63 records, 0 problem(s)` |
 | links | `0 problem(s), 628 relative link(s) in 73 file(s)` |
 | vet, race, shuffle, lint, tidy, parity, dep, generate, gate self-test, markdownlint, deny scan | 0 each |
+
+### Phase 10: documentation and release (2026-10-09)
+
+* **Before it.** Phase 9b committed by the owner as `f378147`; 0019-PLAN's
+  Phase 2, a second `go fix` run, as `c26b57b` and `e5707e1`.
+* **Approval.** "i committed, proceed", 2026-10-09.
+
+**Step 1, `docs/architecture.md`.** It now describes:
+
+* the transport manager: one transport per configuration, shared by every
+  default client, 16 idle connections per host, and a client that cannot
+  close the shared connections; `catalog`'s calls on one such client;
+* the probe cache, and `wire.ProbeHealth` (Phase 9's left-over items, lines
+  56 and 96);
+* the metadata refresh by `ETag`, the streamed decode, and
+  `CachedMetadataWith`;
+* the redaction bound of 2 KiB, cut at a separator, the vendor key shapes,
+  `ſ` and the Kelvin sign, and `code` values kept;
+* the classification of a 403, Grok's refused key, an overflow the
+  completion fills, and a failure inside a 200;
+* `WithRetry`'s rules for a failure after the request was written and a
+  429's reset headers;
+* the typed request bodies and `wire.Arena`;
+* the wizard's refused and misshapen keys.
+
+**Step 2, `docs/guides/api-standards.md`:** unchanged. R32 ("one default
+HTTP client per provider instance") still holds under D-A2.
+`catalog.CachedMetadataWith` takes its context first (R40), has a doc
+comment (R41), and replaces no `mcplib` identifier (R43).
+
+**Step 3, the release notes** (below), and `README.md`'s Status names
+`v1.4.0`. V5: apidiff from `v1.3.2` to the tree (`check_api.py`'s, without
+`-incompatible`) lists one change, `./llmprovider/catalog.CachedMetadataWith:
+added`.
+
+#### Release notes: `v1.4.0`
+
+`v1.4.0` makes 0028-MADR's decisions and their amendments. It adds one
+identifier, `catalog.CachedMetadataWith`, and requires Go 1.27.2.
+
+**Errors** (D-H2, H11, D-H3, D-H8):
+
+* A 403's `Kind` is `ErrNotPermitted`, and the built-in renewal no longer
+  renews or resends on it. `errors.Is(err, ErrAuthFailure)` still matches a
+  403, through the legacy status sentinel. No provider was measured
+  refusing a key with a 403.
+* Grok's HTTP 400 `invalid-argument` naming an API key is `ErrAuthFailure`,
+  so a `CommandToken` or a session is renewed, and a caller that stops on
+  `ErrAuthFailure` does.
+* An overflow whose stated completion alone fills the context is
+  `ErrInvalidRequest`, naming `max_tokens`, not `ErrContextOverflow`:
+  shortening the input cannot help.
+* A failure inside a 200 with no known code is classified by its OpenAI- or
+  Anthropic-style type (`invalid_request_error`, `authentication_error`,
+  `permission_error`, `rate_limit_error`, `overloaded_error`, `api_error`,
+  `server_error`), and an overflow inside a 200 is `ErrContextOverflow`.
+  Before, both were retried as a 500.
+
+**Retry** (D-H1, D-H5):
+
+* Under `WithRetry`, a generation that fails after its request was written,
+  such as a timeout awaiting the reply's headers, is sent at most twice,
+  since the first may have been billed. A failure before the request was
+  written is retried as before.
+* A 429 that names no delay in `retry-after-ms`, `Retry-After` or its body
+  waits for the longest of `x-ratelimit-reset-requests`,
+  `x-ratelimit-reset-tokens` and the `anthropic-ratelimit-…-reset` headers.
+  A reset past `MaxDelay` returns at once, as any long delay does.
+
+**The wizard** (D-H10, H10b):
+
+* `ConfigureLLM` asks for another key when the listing refuses a typed one,
+  up to three, then returns an error. A refused key from the environment or
+  `Options.Existing`, or a refused session or CLI login, is an error naming
+  that source, where `v1.3` warned and returned the credential to be saved.
+* A typed key without its provider's published shape is warned about, not
+  refused. An OpenRouter, OpenCode, Hugging Face org or Gemini `AQ.` key
+  pasted for OpenAI is named as such.
+
+**Redaction** (D-A10, A10b, A10c, D10):
+
+* Redaction masks Gemini's `AQ.` auth keys, Google refresh tokens
+  (`1//`), Hugging Face org tokens (`api_org_`) and the other published
+  vendor shapes. Everything masked by `v1.3.2` stays masked, except `sk-` and
+  `xai-` values made of lower-case words, such as
+  `sk-learn-tutorial-for-beginners`.
+* A `code` value of letter-only words, such as Grok's `invalid-argument` or
+  Kilo's `INVALID_TOKEN`, is kept, so an error names its code.
+* **Fixed:** `Redact`, and so `ClassifyHTTPError`, panicked on text such as
+  `key api_Key=…` holding the Kelvin sign; a secret spelled with `ſ` or the
+  Kelvin sign was left unmasked. Both are in `v1.3.2`.
+* Only an error message's first 2 KiB, cut back to a separator, is redacted
+  (16 KiB before); 512 bytes are kept, as before.
+
+**Connections and listings** (D-A2, D-A3, D-A1):
+
+* Default clients share one transport per configuration, with up to 16 idle
+  connections per host (4 before). One client's `CloseIdleConnections`
+  leaves the shared connections open. A caller's `WithHTTPClient` is
+  unchanged.
+* The models that answered a listing's probes are cached in memory for ten
+  minutes, keyed by provider, base URL and the SHA-256 of the credential:
+  a listing within that time sends no billed probe.
+* OpenCode routes a model its table knows without waiting for the metadata
+  document, which is fetched in the background. A refresh revalidates with
+  `If-None-Match`, and a 304 costs no download.
+
+**Performance**, medians on the same host, `HEAD` before each phase
+against the phase:
+
+| What | Before | After |
+| :--- | ---: | ---: |
+| Classifying a 16 KiB error of tokens | 12.69 ms | 309 µs |
+| Classifying a 64 KiB HTML error | 899 µs | 119 µs |
+| Decoding the 5.8 MB metadata document | 28.7 ms, 19.2 MB | 21.7 ms, 4.7 MB |
+| Chat Completions, 100 plain messages | 56.1 µs, 1,022 allocations | 19.5 µs, 18 |
+| Messages, 100 plain messages | 56.3 µs, 1,008 | 21.9 µs, 13 |
+| Responses, 100 plain messages | 55.4 µs, 1,008 | 26.9 µs, 12 |
+| generateContent, 100 plain messages | 100.8 µs, 1,808 | 28.5 µs, 15 |
+
+Every request body is the same JSON, byte for byte: the G-wire goldens are
+unchanged.
+
+**Also in this release:**
+
+* **Go 1.27.2** (0029-MADR): `go.mod` requires it, for the standard
+  library's security fixes. With `GOTOOLCHAIN=auto`, the default, `go`
+  downloads it.
+* **`go fix`'s modernizations** (0019-PLAN Phase 2): no behaviour change.
+* **0027's live-test skips** change tests only.
+
+**Upgrading.** A caller that switches on `APIError.Kind` sees
+`ErrNotPermitted` for a 403 and `ErrAuthFailure` for Grok's refused key. A
+wizard caller that relied on a refused environment key being returned now
+gets an error naming the variable. Nothing on disk changes format.

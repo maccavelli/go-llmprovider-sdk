@@ -53,7 +53,7 @@ llmprovider/providers/ollama/  a local Ollama: Chat Completions
 llmprovider/internal/wire/     what the shared wire formats have in common
 llmprovider/internal/wire/*/   one shared wire format each: responses, chatcompletions, messages, generatecontent
 llmprovider/catalog/          model listing, static catalogs, ranking, metadata, search, profiles
-llmprovider/internal/transport/ the default client, the client identity, Retry-After, the listing probe
+llmprovider/internal/transport/ the shared default transports, the client identity, Retry-After and the rate-limit resets, the listing probe and its cache
 llmprovider/internal/kiloendpoint/ Kilo's endpoints, derived from a credential
 llmprovider/internal/ownerperm/ a directory and its files private to the current user
 llmprovider/internal/filelock/ an exclusive OS lock on an open file, for the refresh lock
@@ -93,7 +93,7 @@ standard library is left out.
 | `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire` |
 | `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire` |
 | `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/transport`, `internal/wire` |
-| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule | `llmprovider`, `internal/transport`, `internal/redact` |
+| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule; `ProbeHealth`, a listing's probes through the probe cache; `Arena`, which holds the strings a request body points to | `llmprovider`, `internal/transport`, `internal/redact` |
 | `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `DecodeFor`, `ReadStream` | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact` |
 | `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode`, `DecodeFor` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `AddThinking` | `llmprovider`, `internal/wire` |
@@ -102,7 +102,7 @@ standard library is left out.
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
-| `llmprovider/internal/transport` | `DefaultClient`, `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `ProbeGenerateHealth`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
+| `llmprovider/internal/transport` | `DefaultClient` and `Config`, over the transports the process keeps; `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `RateLimitReset`; `ProbeGenerateHealth`, and `ProbeGenerateHealthCached` with its `ProbeKey` and `Fingerprint`; `Unsendable`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 | `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
 
@@ -164,8 +164,12 @@ The metadata document is fetched once per URL at a time, detached from the
 callers that wait for it and bounded at 10 s; each lookup waits under its
 own context, a request's for at most 5 s. Past the ten-minute cache the
 cached document is served while one refresh runs in the background. A failed
-fetch is remembered for a minute; a caller's own deadline is not. Listing
-pages are read up to 8 MiB, and the document up to 32 MiB.
+fetch is remembered for a minute; a caller's own deadline is not. A refresh
+sends the cached document's `ETag` as `If-None-Match`, and a 304 renews the
+entry without a download or a decode. Listing pages are read up to 8 MiB,
+and the document up to 32 MiB, decoded as it streams in.
+`CachedMetadataWith` returns the cached document without waiting, and
+starts the fetch when none is cached.
 
 ### The wizard
 
@@ -205,11 +209,20 @@ for a session, from the store.
 - `APIError` carries a `Kind`, one of the sentinels. `ErrContextOverflow`
   sits beneath `ErrInvalidRequest`; it is classified from the service's
   error type, or from a message table taken from pi's `overflow.ts`
-  (`context_overflow.go`).
+  (`context_overflow.go`). An overflow whose completion alone fills the
+  context is `ErrInvalidRequest`: shortening the input cannot help. A 403
+  is `ErrNotPermitted`, a refusal of what the key may do, so it is neither
+  renewed nor resent; every provider refuses a key with a 401 or a 400.
+  Grok's 400 `invalid-argument` naming an API key is `ErrAuthFailure`. A
+  failure inside a 200 with no known code is classified by its OpenAI- or
+  Anthropic-style error type.
 - `WithRetry(p, RetryPolicy{…})` retries what `Retryable` allows, waiting as
-  long as the service asks with up to a tenth more, up to a cap. A failure
-  while reading a reply is retried once per call (0021-MADR D1), and a wait
-  past the context's deadline returns the error at once.
+  long as the service asks with up to a tenth more, up to a cap. A 429
+  whose headers and body name no delay waits for the longest rate-limit
+  reset header the service sent. A failure while reading a reply, or one
+  after the request was written, is retried at most once per call
+  (0021-MADR D1, 0028-MADR D-H1); one before the request was written, as
+  often as the policy allows. A wait past the context's deadline returns the error at once.
 - `Registry` holds `Descriptor` and `Factory` pairs and refuses a duplicate
   id. There is no global registry.
 - `llmprovider/llmtest` has `Run`, the conformance suite every built-in
@@ -261,6 +274,11 @@ for a session, from the store.
   - A Responses request sent with `store: false` asks for encrypted
     reasoning, so a tool loop keeps it (0021-MADR D4). Kilo's
     `reasoning_details` are kept and replayed as they came (0021-MADR W9).
+- **Request bodies:** each shared wire encodes its messages as typed
+  structs, with fields in the wire's key order and optional ones omitted
+  when unset. Messages, Responses and generateContent use one union struct
+  per item, block or part, whose strings are held in a per-request
+  `wire.Arena`. The body around the messages is a map.
 - **Answers:** every wire maps its finish reason the same way. A value with
   no constant is kept as sent, and a reply with a call finishes
   `tool_calls`. An answer with nothing usable is `ErrIncomplete`, with the
@@ -274,10 +292,14 @@ for a session, from the store.
   package. Options are `Option` values: the common ones in `llmprovider`
   (`WithBaseURL`, `WithHTTPClient`, `WithReasoning`, …), and a provider
   package's own, scoped to it. `WithRetry` retries by the error's kind.
-- **Transport:** without `WithHTTPClient`, each provider builds one client,
-  `internal/transport`'s `DefaultClient`: 30 s to connect, 300 s to the
-  first byte, no total timeout, HTTP/2 kept, and `HTTP_PROXY`, `HTTPS_PROXY`
-  and `NO_PROXY` honoured. Every generation goes through `internal/wire`'s
+- **Transport:** without `WithHTTPClient`, each provider instance gets its
+  own client from `internal/transport`'s `DefaultClient`, over the one
+  transport the process keeps for each transport configuration, so
+  instances share connections, up to 16 idle per host. Closing one
+  client's idle connections leaves the shared ones open. The bounds are
+  30 s to connect, 300 s to the first byte, no total timeout, HTTP/2 kept,
+  and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` honoured. `catalog`'s own
+  calls use one such client. Every generation goes through `internal/wire`'s
   `Post`, which reads the reply under a 300 s idle limit and, unless it is
   an event stream, a 16 MiB limit, whatever client the caller gave
   (0021-MADR D2). Auth requests carry their own 30 s bound. It carries the provider's requests, its listing
@@ -289,10 +311,14 @@ for a session, from the store.
   response its `Reason`. `Retryable()` says whether to try again. Every
   sentinel's message starts `llmprovider:`; a wrapped error keeps its
   package's or provider's prefix, such as `oauth:`. Error bodies pass through
-  `redact.String`: the first 16 KiB of a message, control characters
-  removed, is redacted, and 512 bytes of it kept; a service's error code is
-  stripped the same way and kept to 128 bytes. Each redaction pattern runs
-  only when the text holds one of its literal anchors.
+  `redact.String`: the first 2 KiB of a message, cut back to a separator
+  so no secret is split, control characters removed, is redacted, and 512
+  bytes of it kept; a service's error code is stripped the same way and kept
+  to 128 bytes. Each redaction pattern runs
+  only when the text holds one of its literal anchors. Redaction masks each
+  vendor's published key and token shapes, reads `ſ` and the Kelvin sign
+  as `s` and `k`, and keeps a `code` value made of letter-only words, such
+  as `invalid-argument`.
 
 ## Credentials
 
@@ -419,7 +445,9 @@ for a session, from the store.
 - A provider's `ListModels`, through `llmprovider.ModelLister`, returns the
   listing. By default, OpenAI (API key), Claude, Gemini, Grok and Ollama also
   send one billed generation to each candidate, up to `catalog.MaxListed`,
-  and keep those that answer.
+  and keep those that answer. The models that answered are cached in
+  memory for 10 minutes, keyed by provider, base URL and the SHA-256 of
+  the credential, so a listing within that time sends no probe.
   `WithModelProbes(false)` turns that off. `ModelProbesFromEnv()` reads
   `LLMPROVIDER_PROBES` (`true` or `false`) for a caller who passes it; the
   package reads the variable nowhere else.
@@ -459,7 +487,13 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   `https` with a host, and carry no userinfo, query or fragment; plain
   `http` to a host that is not loopback is used only once confirmed. A
   pasted OpenAI credential that is another vendor's key, or not a JWT, or
-  an expired one, is refused before anything is saved.
+  an expired one, is refused before anything is saved. A typed key without
+  its provider's published shape is warned about, not refused.
+- **A refused key.** When the listing refuses a typed key, the wizard asks
+  for another, up to three keys, then returns an error. A refused key from
+  the environment or `Options.Existing`, or a refused session or CLI login,
+  is an error naming that source. Any other listing failure falls back to
+  the built-in catalog, with a warning.
 - **`TextPrompter`** strips control characters from what `Notify` writes.
   Its masked entry redraws only when its input has caught up, pads rather
   than erasing the line, ignores a lone Escape, clears on Ctrl-U, and

@@ -190,8 +190,20 @@ key.
 
 ## Status
 
-The current release is `v1.3.2`. The module requires Go 1.27.2.
+The current release is `v1.4.0`. The module requires Go 1.27.2.
 
+- `v1.4` makes
+  [0028-MADR](docs/decisions/0028-MADR-heuristics-and-performance-from-the-research-pass.md)'s
+  heuristic and performance decisions, and adds only
+  `catalog.CachedMetadataWith` to the API. Some behaviour changes for
+  callers: a 403 is `ErrNotPermitted` and is not renewed, Grok's refused key
+  is `ErrAuthFailure`, a generation that fails after its request was
+  written is sent at most twice, a 429 waits for the service's reset
+  headers, and `ConfigureLLM` asks again for a refused typed key and fails
+  for a refused key from anywhere else. Default clients share connections,
+  and listing probes are cached for ten minutes. The release notes are in
+  [0028-PLAN](docs/decisions/0028-PLAN-heuristics-and-performance-from-the-research-pass.md),
+  Phase 10.
 - `v1.3` remediates
   [0026-MADR](docs/decisions/0026-MADR-remediate-v1-2-debugging-pass-findings.md)'s
   67 findings, and only adds to the API. Some behaviour changes for callers:
