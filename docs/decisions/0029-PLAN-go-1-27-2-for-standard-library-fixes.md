@@ -152,3 +152,30 @@ with no exclusion.
 * Staged for the owner's commit: exactly the files Verification lists. The
   tree's other changes, 0028 Phase 4's D10 work, are left unstaged.
 * Pending: the owner's commit and push, and the CI run (D2).
+
+### Deviation D3 (2026-10-08): CI's golangci-lint cannot read Go 1.27.2's export data
+
+* **Found** in CI on `2e5e881`, after this change and 0028's follow-up were
+  pushed: the Linux job passed govulncheck and failed "vet, gofmt, tidy,
+  lint". `golangci-lint` `v2.13.1`, which CI installs
+  (`.github/workflows/ci.yml:53`), reported four `typecheck` errors such as
+  `could not import errors (… could not import internal/goarch (-: could
+  not load export data: internal error in importing "internal/goarch"
+  (cannot decode "internal/goarch", export data version 5 is greater than
+  maximum supported version 4)))`. Reproduced on this host under
+  `GOTOOLCHAIN=go1.27.2`: `v2.13.1`, installed to a scratch `GOBIN`, exits 1
+  with the same errors; `v2.14.0` exits 0, `0 issues.`. The owner's local
+  linter was already `v2.14.0`, so step 6's gate could not see it.
+* **Options put to the owner:** pin `v2.14.0` under this PLAN; or a
+  separate pair.
+* **Decision.** "Pin v2.14.0 under 0029": the install in
+  `.github/workflows/ci.yml:53`, and the install hints in `Makefile:39` and
+  `scripts/go-precheck.sh:109`, name `v2.14.0`. Records that name `v2.13.1`
+  describe what ran then, and are left. Added to the scope: those three
+  files.
+* **Checks** (2026-10-08, `GOTOOLCHAIN=go1.27.2`): `make lint` with
+  `GOLANGCI_LINT` set to `v2.14.0` exits 0, `0 issues.` for the host and for
+  `GOOS=windows`; with `v2.13.1` it exits 2, `8 issues: * typecheck: 8`.
+  `make parity-check`, `make records-check` (63 records) and
+  `make gate-selftest` exit 0. Staged for the owner; CI's run on the commit
+  is the check that remains.

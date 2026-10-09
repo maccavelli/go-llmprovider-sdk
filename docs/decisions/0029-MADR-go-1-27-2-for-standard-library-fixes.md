@@ -142,3 +142,12 @@ which gains a pointer here. AGENTS.md, README.md and
   (0021-MADR Z5)", failed; the Windows and macOS jobs passed.
 * [0029-PLAN-go-1-27-2-for-standard-library-fixes.md](0029-PLAN-go-1-27-2-for-standard-library-fixes.md)
   carries the change.
+
+## Amendment 2026-10-08: the linter moves with the toolchain
+
+Made by the PLAN's deviation D3, chosen by the owner ("Pin v2.14.0 under
+0029"). The Consequences say CI's checks pass on 1.27.2. They did not: CI's
+`golangci-lint` `v2.13.1` cannot decode Go 1.27.2's export data (version 5;
+it supports 4), and its lint step failed. CI's pinned linter is `v2.14.0`,
+measured to lint the module under 1.27.2 with no findings. A later toolchain
+move checks the linter pin too.

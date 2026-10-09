@@ -36,7 +36,7 @@ vet: ## Runs go vet
 lint: ## Runs golangci-lint with fleet config, for the host and for GOOS=windows
 	@if [ ! -x "$(GOLANGCI_LINT)" ]; then \
 		echo "golangci-lint not found at $(GOLANGCI_LINT)"; \
-		echo "Install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1"; \
+		echo "Install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0"; \
 		exit 1; \
 	fi
 	$(GOLANGCI_LINT) run -c $(FLEET_LINT_CFG) --build-tags live_gateways ./...
