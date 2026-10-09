@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: complete
 date: 2026-10-09
 associated-madr: "0019-MADR-go-fix-modernizations.md"
 ---
@@ -121,3 +121,57 @@ Added by 0019-MADR's amendment "a second run, on Go 1.27.2". Runs after
 | Behaviour unchanged | every test passes with none changed but the one added; goldens unchanged |
 | `go fix` has nothing left | step 3's two `-diff` runs print nothing |
 | The tidy is guarded | step 1's two plants fail `TestIgnored_EventTypes` |
+
+### Phase 2's execution (2026-10-09)
+
+* **Before it.** 0028-PLAN's Phase 9b committed by the owner as `f378147`,
+  and this phase's records as `c26b57b`.
+* **Approval.** "i committed, proceed", 2026-10-09. Staged for the owner to
+  commit.
+
+**Step 1, the test first.** `TestIgnored_EventTypes` checks three skipped
+`response.` events (a text delta, `response.in_progress`, a reasoning
+delta) and eleven decoded payloads: each of the five `handledEvents`, an
+`error` event, no type, a type not closed, an empty payload, and one whose
+first `"type"` is a nested item's. It passed on `HEAD`'s `ignored`. Plants on
+scratch copies (`gf_plants.py`), run before `go fix` and again after the
+tidy, with the same result each time:
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| `ignored` always `false` | `TestIgnored_EventTypes` only, the gap the amendment names |
+| `ignored` always `true` | `TestIgnored_EventTypes` and seven decode and stream tests |
+| the `response.` prefix check dropped | `TestIgnored_EventTypes`, `TestReadStream_ErrorEventIsClassified` |
+
+**Step 2, `go fix ./...` and `go fix -tags live_gateways ./...`,** both exit
+0. The whole diff was read. It changes three files, with only the three
+rewrites the amendment lists:
+
+* `startMetadataFetch` uses `metadataFetching.Go`;
+* `ignored` uses `bytes.Cut`, with the names `after`, `rest := after`,
+  `before0` and `ok0`;
+* the live-tagged `contains` uses `slices.Contains`, with its import.
+
+**Step 3, the tidy.** `ignored` now reads
+`_, rest, ok := bytes.Cut(payload, []byte(key))`, then
+`eventType, _, ok := bytes.Cut(rest, []byte{'"'})`, with the logic `go fix`
+left. `go fix -diff` prints nothing for darwin, linux (`CGO_ENABLED=0`) and
+windows, with and without `-tags live_gateways`.
+
+**Step 4, the gate** (`p26_gate.py`, a scratch copy of the tree). Every
+check exits 0 on the first run:
+
+| Check | Result |
+| :--- | :--- |
+| `make pre-add-check` | `508 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)` |
+| `coverage-check` | `wire/responses: 98.5%` (97.8 % before); `catalog: 92.6%`; `llmprovider: 98.2%`; `28 packages, 0 problem(s)` |
+| goldens (`g-wire-stable`) | 0; no golden changed |
+| `api-check` | `against v1.3.2, 0 incompatible change(s) outside llmprovider/x/` |
+| `records-check` | `63 records, 0 problem(s)` |
+| links | `0 problem(s), 628 relative link(s) in 73 file(s)` |
+| vet (darwin, linux, windows; with and without `live_gateways`), race, shuffle, lint, tidy, parity, dep, generate, gate self-test, markdownlint, deny scan | 0 each |
+
+No test changed but the one added.
+
+* **Not done, as scoped:** no tag; the live-tagged `contains` was vetted and
+  linted, not run, since live tests call real services.

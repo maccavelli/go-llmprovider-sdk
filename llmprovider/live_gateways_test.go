@@ -36,6 +36,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -209,12 +210,7 @@ func TestLive_KiloSupportedParameters(t *testing.T) {
 }
 
 func contains(hay []string, needle string) bool {
-	for _, h := range hay {
-		if h == needle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(hay, needle)
 }
 
 // TestLive_HuggingFaceMetadataFields pins the four fields metadata-driven

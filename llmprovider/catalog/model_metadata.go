@@ -344,9 +344,7 @@ func startMetadataFetch(ctx context.Context, url string, cfg config) *metadataFe
 	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataFetchTimeout)
 	// The document the cache holds, and its ETag, for a revalidation.
 	held := modelMetadataCache[url]
-	metadataFetching.Add(1)
-	go func() {
-		defer metadataFetching.Done()
+	metadataFetching.Go(func() {
 		defer cancel()
 		doc, etag, err := fetchModelMetadata(fetchCtx, url, cfg, held)
 		modelMetadataMu.Lock()
@@ -361,7 +359,7 @@ func startMetadataFetch(ctx context.Context, url string, cfg config) *metadataFe
 		fetch.doc, fetch.err = e.cached()
 		modelMetadataMu.Unlock()
 		close(fetch.done)
-	}()
+	})
 	return fetch
 }
 

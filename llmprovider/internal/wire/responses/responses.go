@@ -420,16 +420,14 @@ var handledEvents = map[string]bool{
 // decoded in full (0021-MADR W2).
 func ignored(payload []byte) bool {
 	const key = `"type":"`
-	i := bytes.Index(payload, []byte(key))
-	if i < 0 {
+	_, rest, ok := bytes.Cut(payload, []byte(key))
+	if !ok {
 		return false
 	}
-	rest := payload[i+len(key):]
-	j := bytes.IndexByte(rest, '"')
-	if j < 0 {
+	eventType, _, ok := bytes.Cut(rest, []byte{'"'})
+	if !ok {
 		return false
 	}
-	eventType := rest[:j]
 	return bytes.HasPrefix(eventType, []byte("response.")) && !handledEvents[string(eventType)]
 }
 
