@@ -2274,6 +2274,26 @@ check exits 0 on the first run:
 | links | `0 problem(s), 628 relative link(s) in 73 file(s)` |
 | vet, race, shuffle, lint, tidy, parity, dep, generate, gate self-test, markdownlint, deny scan | 0 each |
 
+### Deviation D17 (2026-10-09): three live checks were skipped as transient twice
+
+* **Found** in Phase 10, step 4, on the release commit `9e9f9f7`. The suite
+  passed with no failure, but 0027-MADR's transient rule skipped four
+  checks on a service 503: `TestLive_TogetherWire/text`, `…/forced_tool`
+  and `…/thinking_with_effort`, and `TestLive_TogetherToolChoices/none`,
+  each on `openai/gpt-oss-120b` ("together HTTP 503 service_unavailable");
+  and `TestLive_KiloReportsUsage`, on `kilo-auto/free` ("kilo stream 503:
+  Upstream error from Nvidia: Service temporarily overloaded"). Step 4's
+  rerun alone passed `…/none`; `…/text`, `…/thinking_with_effort` and
+  Kilo's were skipped again, and `…/forced_tool`, passed in the first run,
+  was skipped. Every DeepSeek case passed in both runs.
+* **Options put to the owner:** rerun the three once more after a wait,
+  then record; record them now as not verified on the release commit; or
+  hold the release until they pass.
+* **Decision.** The owner chose the first ("Retry later, then record"),
+  then asked for the retry at once ("retry again"); the waiting run was
+  stopped before it sent anything. The retry passed all three (below).
+  No decision or asserted fact of 0028-MADR changes.
+
 ### Phase 10: documentation and release (2026-10-09)
 
 * **Before it.** Phase 9b committed by the owner as `f378147`; 0019-PLAN's
@@ -2307,6 +2327,34 @@ comment (R41), and replaces no `mcplib` identifier (R43).
 `v1.4.0`. V5: apidiff from `v1.3.2` to the tree (`check_api.py`'s, without
 `-incompatible`) lists one change, `./llmprovider/catalog.CachedMetadataWith:
 added`.
+
+**Step 4, the live suites,** on the release commit `9e9f9f7`, with every
+provider's key variable set (checked for presence only) and
+`LLMPROVIDER_LIVE_TOGETHER=1`; the suites that need a person, a
+subscription or their own switch stay off. Three runs, per D17:
+
+| Run | When (UTC) | What | Result |
+| :--- | :--- | :--- | :--- |
+| the suites | 17:17–17:20 | `go test -tags live_gateways -count=1 -v ./llmprovider/... -run Live` | exit 0; top level 63 passed, 16 skipped, 0 failed; subtests 72 passed, 4 skipped, 0 failed |
+| the rerun alone | 17:20 | `TestLive_TogetherWire`, `TestLive_TogetherToolChoices`, `TestLive_KiloReportsUsage` | exit 0; `…/none` passed; `…/text`, `…/forced_tool`, `…/thinking_with_effort` and Kilo's skipped on a 503 |
+| the retry | 17:35 | `TestLive_TogetherWire/text`, `…/thinking_with_effort`, `TestLive_KiloReportsUsage` | exit 0; all three passed |
+
+The 16 skipped at the top level:
+
+* **Off by their own switch,** 14:
+  * 0028's Phase 1 measurements (`LLMPROVIDER_LIVE_0028`), 3;
+  * the ChatGPT and Codex CLI subscription (`LLMPROVIDER_LIVE_CHATGPT`), 4;
+  * Gemini's rate-limit drain (`LLMPROVIDER_LIVE_GEMINI_429`), 1;
+  * the Grok CLI (`LLMPROVIDER_LIVE_GROK_CLI`), 1;
+  * the browser and device sign-ins and the OpenAI sign-in probe, 5.
+* **No active model:** `TestLive_OpencodeInterleavedReasoningReplay`, "no
+  active opencode-go model among [kimi-k2.6]", as in 0026-PLAN's run.
+* **Transient:** `TestLive_KiloReportsUsage`, passed by the retry.
+
+Of the subtests, `TestLive_OpencodeGoogleTwoCallRoundTrip/zen` is skipped
+as 0026-PLAN D6 records; the other three passed in a later run. Every check
+that ran on a service passed on the release commit. The requests were not
+counted: the suites log tests, not requests.
 
 #### Release notes: `v1.4.0`
 
