@@ -1,6 +1,6 @@
 ---
-status: complete
-date: 2026-10-02
+status: proposed
+date: 2026-10-09
 associated-madr: "0019-MADR-go-fix-modernizations.md"
 ---
 # Implement `go fix`'s modernizations, except one that changes behaviour
@@ -92,3 +92,32 @@ Approved by the owner ("proceed"). Staged for the owner to commit.
     85.3 %, as before.
 * **Not done, as scoped:** no tag, and no report of the modernizer's
   rewrite upstream.
+
+## Phase 2 (2026-10-09): a second run, on Go 1.27.2
+
+Added by 0019-MADR's amendment "a second run, on Go 1.27.2". Runs after
+0028-PLAN's Phase 9b is committed.
+
+1. **The test first.** `TestIgnored_EventTypes`
+   (`llmprovider/internal/wire/responses/ignored_test.go`): a payload whose
+   type is a `response.` event not in `handledEvents` is skipped; one in
+   `handledEvents`, one whose type is not a `response.` event, one with
+   no type, and one whose type is not closed are decoded. It passes on
+   `HEAD`; on a scratch copy with `ignored` returning `false` it fails, and
+   with it returning `true` it fails.
+2. **`go fix ./...` and `go fix -tags live_gateways ./...`.** Read the whole
+   diff: only the three rewrites the amendment lists, and the `slices`
+   import.
+3. **Tidy `ignored`:** `_, rest, ok := bytes.Cut(payload, []byte(key))`, then
+   `eventType, _, ok := bytes.Cut(rest, []byte{'"'})`; the logic as `go fix`
+   left it. `go fix -diff ./...` and `go fix -diff -tags live_gateways ./...`
+   print nothing.
+4. **Gate.** The full gate; `go vet -tags live_gateways` on the three
+   platforms; the G-wire goldens unchanged; `make api-check` clean.
+5. **Record; stage** as one change, separate from 0028's.
+
+| Criterion | Check |
+|---|---|
+| Behaviour unchanged | every test passes with none changed but the one added; goldens unchanged |
+| `go fix` has nothing left | step 3's two `-diff` runs print nothing |
+| The tidy is guarded | step 1's two plants fail `TestIgnored_EventTypes` |

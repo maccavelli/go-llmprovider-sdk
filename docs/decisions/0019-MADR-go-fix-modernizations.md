@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-02
+date: 2026-10-09
 decision-makers: repository owner
 consulted: 0015-MADR-canonical-sdk-api-and-module-layout.md (R2, R48)
 informed: consumers of go-llmprovider-sdk v1
@@ -111,3 +111,32 @@ because it takes the modernizations that keep behaviour, and leaves
 * The plan: [0019-PLAN-go-fix-modernizations.md](0019-PLAN-go-fix-modernizations.md).
 * The rewrite of a backward loop that drops its index looks like a
   modernizer defect. Reporting it upstream is not part of this decision.
+
+## Amendment 2026-10-09: a second run, on Go 1.27.2
+
+Asked by the owner ("run go fix ./... in this repo"), with the choices below
+made by the owner the same day.
+
+* **Found.** `go fix -diff ./...` under Go 1.27.2, run read-only for darwin,
+  linux (`CGO_ENABLED=0`) and windows, with and without `-tags
+  live_gateways`, proposes the same three rewrites on every platform; each
+  keeps behaviour:
+  * `llmprovider/live_gateways_test.go`: the `contains` loop becomes
+    `slices.Contains` (live-tagged; this record's first run did not use the
+    tag);
+  * `llmprovider/catalog/model_metadata.go`: `metadataFetching.Add(1)` and a
+    `go` statement with `defer metadataFetching.Done()` become
+    `metadataFetching.Go(…)`;
+  * `llmprovider/internal/wire/responses/responses.go`, `ignored`: two
+    `bytes.Index` lookups become `bytes.Cut`, leaving the names
+    `rest := after`, `before0` and `ok0`.
+* **Decided** ("Apply, then tidy"; "9b commit first"): all three are
+  applied, after 0028-PLAN's Phase 9b is committed, as a change of their
+  own; `ignored`'s names are then tidied by hand to the plain `bytes.Cut`
+  form, with no change of logic, and `go fix -diff ./...` stays empty.
+* **Found while planning:** no test notices `ignored` reporting an event it
+  should skip as one to decode (a scratch copy with `return false` passes
+  every test), since decoding it is correct, only slower. A direct test of
+  `ignored` is added before the rewrite, so the hand tidy is guarded.
+* The first run's decision stands: the modernizer's rewrites are adopted
+  when they keep behaviour.
