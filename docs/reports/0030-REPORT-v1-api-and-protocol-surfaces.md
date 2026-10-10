@@ -169,13 +169,18 @@ third-party provider registers a `Descriptor` and `Factory` on a
 - `ErrInvalidProvider`
 
 Retryability is `Retryable()`. After a 401, `wire.Reauth` invalidates an
-`InvalidatingSource` and sends once more. A 403 is `ErrNotPermitted` and
-is left unrenewed.
+`InvalidatingSource` and sends once more. `ClassifyHTTPError` makes a 403
+`ErrNotPermitted`, which is left unrenewed; a 403 carrying a measured
+credential code would stay `ErrAuthFailure`, and no code has been measured,
+so that table is empty. An `*APIError` built with `Status: 403` and no
+`Kind` still matches `ErrAuthFailure`, through the status-only mapping kept
+from before
+[0012-MADR-conform-providers-to-reference-clients.md](../decisions/0012-MADR-conform-providers-to-reference-clients.md).
 
 **Bears on:**
 
 - [0015-MADR-canonical-sdk-api-and-module-layout.md](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D7
-- [0028-MADR-heuristics-and-performance-from-the-research-pass.md](../decisions/0028-MADR-heuristics-and-performance-from-the-research-pass.md) D-H1
+- [0028-MADR-heuristics-and-performance-from-the-research-pass.md](../decisions/0028-MADR-heuristics-and-performance-from-the-research-pass.md) D-H2
 
 ## F4 — Five generation wire formats (R)
 
@@ -248,6 +253,12 @@ Gemini continuation needs `WithStore(true)`. ChatGPT sessions send
 `WithBaseURL` is accepted by every constructor. Hugging Face, Kilo,
 Together, Ollama and both OpenCode gateways advertise
 `SupportsBaseURL: true` on their descriptors.
+
+**Bears on:**
+
+- [0015-MADR-canonical-sdk-api-and-module-layout.md](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D4
+- [0023-MADR-huggingface-tool-choice-none.md](../decisions/0023-MADR-huggingface-tool-choice-none.md)
+- [api-standards.md](../guides/api-standards.md) R10–R12, R17
 
 ## F6 — Auth protocols (R)
 
@@ -408,6 +419,12 @@ OpenCode already multiplexes four wires behind one `Generate`.
 `WithBaseURL` on a Chat Completions or Responses speaker reaches an
 OpenAI-compatible proxy under that speaker's capability caveats, without
 a new package.
+
+**Bears on:**
+
+- [0015-MADR-canonical-sdk-api-and-module-layout.md](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md) D2, D10
+- [api-standards.md](../guides/api-standards.md) R3, R5, R13, R38
+- [adding-a-provider.md](../guides/adding-a-provider.md)
 
 ## Not verified
 
