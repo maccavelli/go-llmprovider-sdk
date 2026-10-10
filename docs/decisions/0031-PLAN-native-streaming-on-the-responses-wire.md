@@ -48,7 +48,7 @@ and `v1.5.0` is released:
 | 3 | D3, D4 | `llmprovider/internal/wire/post.go` (or a new `stream.go` beside it), `llmprovider/stream.go` (doc) |
 | 4 | D1, D5 | `llmprovider/providers/openai/openai.go`, `llmprovider/providers/grok/grok.go`, `llmprovider/providers/opencode/opencode.go`, their package docs, new live tests |
 | 5 | D6 | `llmprovider/retry.go` (doc only) |
-| 6 | D7 | `llmprovider/llmtest/llmtest.go`, the three providers' harnesses |
+| 6 | D7; D2's refusal row (D4) | `llmprovider/llmtest/llmtest.go`, the three providers' harnesses; `llmprovider/internal/wire/responses/responses.go` (D4) |
 | 7 | docs, release `v1.5.0` | `docs/architecture.md`, `README.md`, `docs/guides/api-standards.md` if a rule's text no longer holds |
 
 Each phase adds the tests named in its steps, beside the code they test.
@@ -258,6 +258,15 @@ Only the providers Phase 1 showed streaming.
 3. Gate; stage.
 
 ### Phase 6: the conformance check (D7)
+
+*Added by D4 (2026-10-10), before step 1:* **the refusal delta.**
+`deltaEvents` gains `response.refusal.delta` → `EventTextDelta`.
+`TestEvents_RefusalDelta`, in `responses/events_0031_test.go` and red first:
+a refusal delta, then a message item with a refusal part, then
+`response.completed`. The events must be `text_delta:<text>`,
+`item:MessageItem`, `done`. The joined deltas must equal the message text,
+and `EventDone`'s `FinishReason` must be `content_filter`. Phase 2's two
+benchmarks are rerun, within rule 5's 10% of Phase 2's figures.
 
 1. **Harness fields** in `llmtest`: a streamed successful reply, and a
    streamed reply that fails after one delta. The check runs only when
@@ -692,3 +701,21 @@ the G-wire goldens unchanged among them. Coverage:
 `internal/wire/responses` was 98.1% after Phase 2. `responses.Stream` is
 covered by the provider tests, not by a test in its own package. The floors
 hold.
+
+### Deviation D4 (2026-10-10): a refusal's text has no delta
+
+* **Found** in Phase 2 and recorded there. `appendOutput` keeps a refusal's
+  text as the message text (0021-MADR W4), but MADR D2's table maps no
+  refusal delta. On a refusal, D7's check (text deltas joined equal the
+  message text) would fail, and native streams would differ from `Stream`'s
+  fallback, which emits the refusal text as `EventTextDelta`.
+* **Options put to the owner:**
+  * map OpenAI's documented `response.refusal.delta` to `EventTextDelta`
+    (recommended);
+  * narrow D7's check to answers whose `FinishReason` is not
+    `content_filter`;
+  * try to elicit a refusal live first (billed, and uncertain to trigger).
+* **Decision.** The owner chose the first. It is done at the start of
+  Phase 6 (above), which gains `responses.go` in its scope. 0031-MADR is
+  amended: a row added to D2's table, with an unmeasured event name as the
+  second exception to its "Measured, not assumed" driver.

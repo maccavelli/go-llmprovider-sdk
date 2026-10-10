@@ -257,6 +257,27 @@ and D2's reasoning names:
   `response.reasoning_summary_text.delta`, the only one seen (Grok).
   `response.reasoning_text.delta` was not seen and is not mapped.
 
+### Amendment (2026-10-10): a refusal's delta is a text delta
+
+0031-PLAN deviation D4 adds a row to D2's table:
+
+| Responses event | `Event` |
+| :--- | :--- |
+| `response.refusal.delta` | `EventTextDelta`, the delta's text |
+
+* **Why:** `appendOutput` keeps a refusal's text as the answer's text
+  (0021-MADR W4), so a refusal ends as a `MessageItem`. D7 asks that the
+  text deltas, joined, equal that text. `Stream`'s fallback already emits a
+  refusal's text as `EventTextDelta`, because it streams the `MessageItem`.
+  Mapping the delta keeps native streams and the fallback alike.
+  `EventDone`'s `FinishReason`, `content_filter`, still marks the answer as
+  a refusal.
+* **Evidence:** the event name is OpenAI's documented one. It was not
+  measured: eliciting a refusal live is billed and unreliable. This is the
+  second exception to the "Measured, not assumed" driver, after Zen's
+  (amendment above). The owner chose it over narrowing D7, and over
+  measuring first.
+
 ### Consequences
 
 * Good, because `Stream` delivers text as it is generated for `openai`,
