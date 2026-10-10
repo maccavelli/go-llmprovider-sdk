@@ -361,8 +361,11 @@ func TestGrok_IDAndCapabilities(t *testing.T) {
 	// (0020-MADR F43).
 	if caps.Tools != llmprovider.Supported || caps.ForcedToolChoice != llmprovider.Supported ||
 		caps.Reasoning != llmprovider.BestEffort || caps.Continuation != llmprovider.Supported ||
-		caps.NativeStreaming != llmprovider.Unsupported {
+		caps.NativeStreaming != llmprovider.Supported {
 		t.Errorf("Capabilities = %+v", caps)
+	}
+	if _, ok := p.(llmprovider.Streamer); !ok {
+		t.Error("the provider does not implement Streamer (0031-MADR D1)")
 	}
 	if _, ok := p.(llmprovider.ModelLister); !ok {
 		t.Error("the provider is not a ModelLister")

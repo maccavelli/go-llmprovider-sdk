@@ -9,8 +9,9 @@
 //
 // Capabilities: tools, forced tool choice and reasoning are Supported.
 // Continuation is Supported with an API key, and Unsupported with a ChatGPT
-// session, which stores no responses (MADR 0012 §4.2). There is no native
-// streaming; llmprovider.Stream emits Generate's result.
+// session, which stores no responses (MADR 0012 §4.2). Native streaming is
+// Supported: Stream asks the Responses API for an event stream and yields its
+// events as they arrive (0031-MADR D1).
 //
 // Degradations:
 //   - Reasoning takes an effort. A Reasoning with only a Budget sends the
@@ -32,6 +33,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -151,7 +153,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			ForcedToolChoice: llmprovider.Supported,
 			Reasoning:        llmprovider.Supported,
 			Continuation:     llmprovider.Supported,
-			NativeStreaming:  llmprovider.Unsupported,
+			NativeStreaming:  llmprovider.Supported,
 		},
 	}
 	for _, v := range st.Values() {
@@ -195,6 +197,17 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	return wire.Reauth(ctx, string(llmprovider.ProviderOpenAI), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
 		return p.generateOnce(ctx, req, token)
 	})
+}
+
+// Stream streams req from the Responses API as it is generated (0031-MADR
+// D1): the request asks for an event stream, a ChatGPT session's as always,
+// and each event is yielded as it arrives. A 401 before the first event
+// renews a session's token and sends once more.
+func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
+	if err := p.caps.Check(req); err != nil {
+		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
+	}
+	return responses.Stream(ctx, p.call(req, true), p.src)
 }
 
 // body is the Responses request for req.
@@ -279,18 +292,31 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 			return responses.ReadStream(string(llmprovider.ProviderOpenAI), r)
 		}
 	}
-	return wire.Post(ctx, wire.Call{
+	return wire.Post(ctx, p.call(req, false), token, decode)
+}
+
+// call is the Responses request for req, asking for an event stream when
+// stream is set; a ChatGPT session's always does.
+func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
+	body := p.body(req)
+	if stream {
+		body["stream"] = true
+	}
+	streamed := stream || p.chatGPT
+	return wire.Call{
 		Provider: string(llmprovider.ProviderOpenAI),
 		Client:   p.client,
 		Logger:   p.logger,
 		URL:      p.baseURL + "/responses",
-		Body:     p.body(req),
-		Stream:   p.chatGPT,
+		Body:     body,
+		Stream:   streamed,
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")
-			if p.chatGPT {
+			if streamed {
 				r.Header.Set("Accept", "text/event-stream")
+			}
+			if p.chatGPT {
 				r.Header.Set(headerSession, p.session)
 				setChatGPTHeaders(r, p.src)
 				if residency := residency(token.Value); residency != "" {
@@ -298,7 +324,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 				}
 			}
 		},
-	}, token, decode)
+	}
 }
 
 // ListModels returns the curated chat models this credential can use, never

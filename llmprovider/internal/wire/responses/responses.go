@@ -5,10 +5,12 @@ package responses
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"maps"
 	"strings"
 
@@ -309,6 +311,33 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 // response (0031-MADR D4).
 func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
 	return readEvents(provider, body, streamedEvents, yield)
+}
+
+// Stream sends c as an event stream through wire.Reauth, and yields its
+// events as they arrive (0031-MADR D1-D4). A refused credential arrives
+// before any event, so src's token is renewed and c sent once more. A
+// failure, before or during the stream, is yielded once with a zero Event and
+// ends it; a caller that stops ranging closes the reply.
+func Stream(ctx context.Context, c wire.Call, src llmprovider.TokenSource) iter.Seq2[llmprovider.Event, error] {
+	return func(yield func(llmprovider.Event, error) bool) {
+		reply, err := wire.Reauth(ctx, c.Provider, src, func(token llmprovider.Token) (*wire.Stream, error) {
+			return wire.OpenStream(ctx, c, token)
+		})
+		if err != nil {
+			yield(llmprovider.Event{}, err)
+			return
+		}
+		stopped := false
+		err = reply.Read(func(body io.Reader) error {
+			return Events(c.Provider, body, func(ev llmprovider.Event) bool {
+				stopped = !yield(ev, nil)
+				return !stopped
+			})
+		})
+		if err != nil && !stopped {
+			yield(llmprovider.Event{}, err)
+		}
+	}
 }
 
 // readEvents is Events, decoding only the event types in handled.

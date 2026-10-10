@@ -23,8 +23,10 @@
 // BestEffort: the chat route sends reasoning_effort only when the model's
 // published reasoning_options list the effort (MADR 0009 §6). Continuation is
 // Unsupported: the gateway rejects previous_response_id with HTTP 400
-// (measured 2026-08-28), so a caller replays prior items. There is no native
-// streaming; llmprovider.Stream emits Generate's result.
+// (measured 2026-08-28), so a caller replays prior items. Native streaming is
+// BestEffort: on the responses route Stream asks for an event stream and
+// yields its events as they arrive; on the other routes it yields Generate's
+// result as events (0031-MADR D1, Q2).
 //
 // Degradations:
 //   - Reasoning: the responses route takes an effort (medium when none is
@@ -53,6 +55,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -169,7 +172,7 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 			ForcedToolChoice: llmprovider.BestEffort,
 			Reasoning:        llmprovider.BestEffort,
 			Continuation:     llmprovider.Unsupported,
-			NativeStreaming:  llmprovider.Unsupported,
+			NativeStreaming:  llmprovider.BestEffort,
 		},
 	}
 	var override Route
@@ -216,8 +219,38 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	})
 }
 
-// generateOnce sends req once, with token, on the model's route.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
+// Stream streams req from the gateway (0031-MADR D1, Q2). On the responses
+// route the request asks for an event stream, and each event is yielded as it
+// arrives; a 401 before the first event renews the token and sends once more.
+// The other routes do not stream yet: Generate's result is yielded as events,
+// as llmprovider.Stream does for a provider without a Streamer.
+func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
+	if err := p.caps.Check(req); err != nil {
+		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
+	}
+	c := p.resolve(ctx, req)
+	if c.route != RouteResponses {
+		return llmprovider.Stream(ctx, generateOnly{p}, req)
+	}
+	body := p.responsesBody(c)
+	body["stream"] = true
+	return responses.Stream(ctx, p.wireCall(c, body, true), p.src)
+}
+
+// generateOnly is a provider without its Stream, so that llmprovider.Stream
+// falls back to Generate.
+type generateOnly struct{ p *provider }
+
+func (g generateOnly) ID() llmprovider.ProviderID { return g.p.ID() }
+
+func (g generateOnly) Capabilities() llmprovider.Capabilities { return g.p.Capabilities() }
+
+func (g generateOnly) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
+	return g.p.Generate(ctx, req)
+}
+
+// resolve is req's call: its model, input, limits, reasoning and route.
+func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 	c := call{model: req.Model, input: req.Input, maxTokens: p.maxTokens, reasoning: p.effectiveReasoning(req), req: req}
 	if c.model == "" {
 		c.model = p.model
@@ -229,6 +262,12 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 		c.input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, c.input...)
 	}
 	c.route = p.requestRoute(ctx, c.model)
+	return c
+}
+
+// generateOnce sends req once, with token, on the model's route.
+func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
+	c := p.resolve(ctx, req)
 	var body map[string]any
 	// The chat and responses routes' failures are classified by OpenCode's
 	// own table (0026-MADR F5, F28).
@@ -244,13 +283,20 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 	default:
 		body = p.chatBody(ctx, c)
 	}
-	return wire.Post(ctx, wire.Call{
+	return wire.Post(ctx, p.wireCall(c, body, false), token, decode)
+}
+
+// wireCall is the request for c with body, on c's route, asking for an event
+// stream when stream is set.
+func (p *provider) wireCall(c call, body map[string]any, stream bool) wire.Call {
+	return wire.Call{
 		// Errors name the gateway and the route (0020-MADR F9).
 		Provider: string(p.gateway) + "/" + string(c.route),
 		Client:   p.client,
 		Logger:   p.logger,
 		URL:      p.baseURL + c.route.path(c.model),
 		Body:     body,
+		Stream:   stream,
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// Each route reads the key from its vendor's header (MADR 0007
@@ -260,8 +306,11 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 			// x-opencode-session is fixed for the provider's lifetime (MADR
 			// 0012 §1.4).
 			r.Header.Set(sessionHeader, p.session)
+			if stream {
+				r.Header.Set("Accept", "text/event-stream")
+			}
 		},
-	}, token, decode)
+	}
 }
 
 // effectiveReasoning is the request's Reasoning, else WithReasoning's, with

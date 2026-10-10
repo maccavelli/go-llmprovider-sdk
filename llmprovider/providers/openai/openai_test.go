@@ -137,15 +137,16 @@ func TestOpenAI_ResponseID(t *testing.T) {
 func TestOpenAI_Capabilities(t *testing.T) {
 	p := build(t, llmprovider.WithAPIKey("k"))
 	want := llmprovider.Capabilities{Tools: llmprovider.Supported, ForcedToolChoice: llmprovider.Supported,
-		Reasoning: llmprovider.Supported, Continuation: llmprovider.Supported, NativeStreaming: llmprovider.Unsupported}
+		Reasoning: llmprovider.Supported, Continuation: llmprovider.Supported, NativeStreaming: llmprovider.Supported}
 	if got := p.Capabilities(); got != want {
 		t.Fatalf("Capabilities() = %+v, want %+v", got, want)
 	}
 	if _, ok := p.(llmprovider.ModelLister); !ok {
 		t.Fatal("the provider is not a ModelLister")
 	}
-	if _, ok := p.(llmprovider.Streamer); ok {
-		t.Fatal("the provider claims native streaming")
+	// It streams natively (0031-MADR D1).
+	if _, ok := p.(llmprovider.Streamer); !ok {
+		t.Fatal("the provider does not implement Streamer")
 	}
 	if p.ID() != llmprovider.ProviderOpenAI {
 		t.Fatalf("ID() = %q", p.ID())

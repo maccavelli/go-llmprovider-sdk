@@ -579,3 +579,116 @@ loosens an assertion):
 
 **Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
 `internal/wire` coverage is 93.9%, and `llmprovider` 98.2%.
+
+### Phase 4: the providers (2026-10-10)
+
+Phase 1 showed all four providers streaming, so all four take MADR D1's
+declarations.
+
+**Change.**
+
+* `internal/wire/responses`: `Stream(ctx, c, src)` is the shared native
+  stream. It opens `c` through `wire.Reauth` and `wire.OpenStream`, reads
+  it with `Events`, and yields each event. A failure, before or during the
+  stream, is yielded once with a zero `Event`; a caller that stops ranging
+  closes the reply.
+* `openai` and `grok`:
+  * The request is built by `call(req, stream)`, which `generateOnce` and
+    the new `Stream` share.
+  * `stream` adds `"stream": true` and `Accept: text/event-stream`. A
+    ChatGPT session's request carries both already, as before.
+  * `Stream` runs `Capabilities.Check`, then `responses.Stream`.
+  * `NativeStreaming` is `Supported`, and the package docs say so.
+* `opencode`:
+  * `generateOnce` is split into `resolve` (model, input, limits,
+    reasoning, route) and `wireCall` (the `wire.Call` for a route).
+  * `Stream` resolves the route. On `responses` it sends the responses body
+    with `"stream": true` through `responses.Stream`. On the other three
+    routes it returns `llmprovider.Stream` over `generateOnly`, which is the
+    provider without its `Stream`, so the fallback's events are the shared
+    ones.
+  * `NativeStreaming` is `BestEffort`, and the package doc lists the route
+    degradation (R12).
+* `Generate`'s request and decoding are unchanged on all three (D5).
+
+**Red** (step 1), on the tree before the change. The updated capability
+expectations and the new tests:
+
+```text
+--- FAIL: TestOpenAI_Capabilities: openai_test.go:142: Capabilities() = {… NativeStreaming:Unsupported}, want {… NativeStreaming:Supported}
+--- FAIL: TestStream_APIKey: stream_0031_test.go:71: the provider does not stream natively
+--- FAIL: TestStream_ChatGPT: stream_0031_test.go:93: the provider does not stream natively
+--- FAIL: TestGrok_IDAndCapabilities: grok_test.go:365: Capabilities = {… NativeStreaming:Unsupported}; grok_test.go:368: the provider does not implement Streamer (0031-MADR D1)
+--- FAIL: TestStream (grok): stream_0031_test.go:63: the provider does not stream natively
+--- FAIL: TestOpencode_Capabilities: identification_test.go:168: opencode-zen: Capabilities = {… NativeStreaming:Unsupported}; identification_test.go:173: … does not implement Streamer (and opencode-go)
+--- FAIL: TestStream_ResponsesRouteNative, TestStream_OtherRoutesFallBack: the provider does not implement Streamer
+```
+
+Each package's `TestGenerate_Unchanged` passed on the tree, as a guard of
+existing behaviour should, and is proven by a plant (below).
+
+**Green, under `-race`:**
+
+* `openai`:
+  * `TestStream_APIKey`: `/responses` with `"stream": true` and `Accept:
+    text/event-stream`; events `text_delta:ok`, `item:MessageItem`,
+    `done`.
+  * `TestStream_ChatGPT`: the same events, with the headers and body
+    `Generate` sends on the same session.
+  * `TestGenerate_Unchanged`.
+* `grok`:
+  * `TestStream`: Phase 1's event shape gives `reasoning_delta:think`,
+    `item`, `text_delta:ok`, `item`, `done`.
+  * `TestGenerate_Unchanged`.
+* `opencode`, on both gateways:
+  * `TestStream_ResponsesRouteNative`: the server holds the stream after
+    its first delta until the test has read it, so the delta reached the
+    caller while the reply was open.
+  * `TestStream_OtherRoutesFallBack`: on each of `messages`,
+    `chat_completions` and `google`, one request without `"stream"`, and
+    the fallback's `text_delta:ok`, `item`, `done`.
+  * `TestGenerate_Unchanged`.
+* `go test -count=1 ./...` passes. Every built-in provider's `llmtest.Run`
+  passes (step 4), its R10 check now seeing `Streamer` and the new values
+  together.
+
+**Plants** (rule 2), on a scratch clone:
+
+| Plant | Test | Result |
+| :--- | :--- | :--- |
+| `openai`'s `Generate` sends `"stream": false` | `TestGenerate_Unchanged` | `stream_0031_test.go:115: Generate sent stream false, Accept ""; want neither`; FAIL |
+| `grok`'s `Generate` sends `"stream": false` | `TestGenerate_Unchanged` | `stream_0031_test.go:96: Generate sent stream false, Accept ""; want neither`; FAIL |
+| `opencode`'s responses-route `Generate` sends `"stream": false` | `TestGenerate_Unchanged` | `stream_0031_test.go:138: Generate sent stream false; want none`; FAIL |
+| `opencode`'s responses route falls back | `TestStream_ResponsesRouteNative` | `stream_0031_test.go:69: after []: llmprovider: incomplete response: opencode-zen/responses: invalid character 'd' looking for beginning of value`, after the held server's 5 s; FAIL |
+
+The fourth plant first failed to build, because a quote in the plant
+script's replacement text was unescaped. It was fixed and rerun, with the
+result above.
+
+**Live** (step 3), `llmprovider/live_stream_0031_test.go`, at 21:04 UTC with
+the three keys set (checked for presence only). Billed: 3 requests of at
+most 16 output tokens. Zen's request was refused before generation.
+
+| Test | Model | Result |
+| :--- | :--- | :--- |
+| `TestLive_OpenAIStreams` | `gpt-4.1-mini` | PASS: 9 text deltas, then `EventDone` |
+| `TestLive_GrokStreams` | `grok-4.6` | PASS: 9 text deltas, then `EventDone` |
+| `TestLive_OpencodeStreams/opencode-go` | `gpt-6-luna`, effort `low` | PASS: 2 text deltas, then `EventDone` |
+| `TestLive_OpencodeStreams/opencode-zen` | `gpt-5-nano`, effort `low` | SKIP, by D1 and 0027-MADR's transient rule: "not permitted: opencode-zen/responses HTTP 403 server_error: Upstream request failed: Model access is disabled"; not run |
+
+The OpenCode test asks for effort `low`, because at the default effort a
+16-token answer can go wholly to reasoning (D2's evidence).
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged,
+the G-wire goldens unchanged among them. Coverage:
+
+| Package | Coverage |
+| :--- | :--- |
+| `openai` | 93.3% |
+| `grok` | 95.7% |
+| `opencode` | 97.4% |
+| `internal/wire/responses` | 90.7% |
+
+`internal/wire/responses` was 98.1% after Phase 2. `responses.Stream` is
+covered by the provider tests, not by a test in its own package. The floors
+hold.

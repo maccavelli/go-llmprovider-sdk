@@ -164,8 +164,13 @@ func TestOpencode_Capabilities(t *testing.T) {
 		caps := p.Capabilities()
 		if caps.Tools != llmprovider.Supported || caps.ForcedToolChoice != llmprovider.BestEffort ||
 			caps.Reasoning != llmprovider.BestEffort || caps.Continuation != llmprovider.Unsupported ||
-			caps.NativeStreaming != llmprovider.Unsupported {
+			caps.NativeStreaming != llmprovider.BestEffort {
 			t.Errorf("%s: Capabilities = %+v", gateway, caps)
+		}
+		// The responses route streams natively; the others fall back
+		// (0031-MADR D1, Q2).
+		if _, ok := p.(llmprovider.Streamer); !ok {
+			t.Errorf("%s: the provider does not implement Streamer", gateway)
 		}
 		if _, ok := p.(llmprovider.ModelLister); !ok {
 			t.Errorf("%s: the provider is not a ModelLister", gateway)
