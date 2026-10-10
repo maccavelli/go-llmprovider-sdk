@@ -297,6 +297,201 @@ at random. A body left open is what leaves the goroutine behind, so `llmtest`
 checks the body. The owner chose this over adding a goroutine count to
 `llmtest`.
 
+### Amendment (2026-10-10): D8 in scope, the other four wires
+
+**Status of this amendment: accepted** (2026-10-10). The owner took the
+recommended answer to each of Q5 to Q8 (below), and the decisions above
+stay accepted. It is implemented by a second plan,
+[0031-PLAN-native-streaming-on-the-other-wires.md](0031-PLAN-native-streaming-on-the-other-wires.md).
+
+**Context.**
+
+* **Why now.** `v1.5.0` streams on the Responses wire only. The owner
+  brought D8 into scope on 2026-10-10 for gobble-cli, the one consumer
+  that calls `llmprovider.Stream` (`llm/provider/provider.go:96`). It
+  chooses its provider at run time, so every wire matters to it.
+* **What the other wires return today,** each read at `0f591c3`:
+  * **Chat Completions:** `huggingface`, `kilo`, `together`, `ollama` and
+    OpenCode's `chat_completions` route. `chatcompletions.decodeAs` reads
+    one JSON reply, with its reasoning in `reasoning_content`,
+    `reasoning` or `reasoning_details`.
+  * **Messages:** `claude` and OpenCode's `messages` route.
+    `messages.Decode` reads one reply of content blocks.
+  * **generateContent:** OpenCode's `google` route. `generatecontent.Decode`
+    reads one reply of parts.
+  * **Gemini Interactions:** `gemini`. `decodeInteraction` in
+    `providers/gemini/interactions.go` reads one interaction of steps.
+* **How these wires differ from Responses.** Responses sends each finished
+  item whole (`response.output_item.done`). These four send fragments:
+  * Messages: content-block starts, deltas and stops;
+  * Chat Completions: `choices[0].delta` chunks, with calls split by
+    `index`;
+  * generateContent: a sequence of partial `GenerateContentResponse`s.
+
+  Their decoders must therefore assemble items, not just forward them. The
+  Interactions stream's event names are not documented in this repository,
+  and have not been measured.
+
+**E1. Which providers, gated on measurement, as D1.**
+
+* Each wire is measured live before it is built, as D1 was. The measured
+  request asks for an event stream, and its status, `Content-Type` and
+  event names are recorded:
+  * Messages: `"stream": true`;
+  * Chat Completions: `"stream": true`;
+  * generateContent: `:streamGenerateContent?alt=sse`;
+  * Interactions: its streaming form.
+* A provider or route whose measurement shows no stream keeps its
+  declaration, `Unsupported` or OpenCode's `BestEffort`, and this
+  amendment is amended with the evidence.
+* A provider that streams declares `NativeStreaming: Supported`, unless E5
+  makes it `BestEffort`.
+* Both OpenCode gateways move to `Supported` when all four of their routes
+  stream (D8).
+
+**E2. One server-sent-events reader, shared.**
+
+* The SSE framing in `responses.readEvents` moves to `internal/wire`, and
+  every wire's decoder uses it. That framing is:
+  * `data:` lines joined into one event;
+  * the 16 MiB per-event bound (0021-MADR W2);
+  * the read-failure and early-end errors, marked `AfterReply`
+    (0021-MADR D1).
+* The Responses decoder keeps its fast skip of unused events, and its
+  benchmarks hold within 10%.
+* `responses.Stream`, the open-read-yield loop over `wire.Reauth` and
+  `wire.OpenStream`, becomes generic in `internal/wire`. Each wire passes
+  it its own decoder.
+
+**E3. Each wire's decoder assembles the items its `Decode` returns.**
+
+* Each wire gains an `Events` decoder beside its `Decode`. It yields text
+  and reasoning deltas as they arrive, assembles the items, and yields each
+  `EventItem` when the wire marks it complete, or at the end where the wire
+  marks nothing.
+* `EventDone`'s `Response` is what that wire's `Decode` returns for the same
+  answer:
+  * the same items, in the same order;
+  * the same `FinishReason`;
+  * the same refusal, cut and empty-answer rules (0021-MADR W3, W4;
+    0026-MADR F7, F25).
+* That is D7's "equals `Generate`'s" carried to each wire, and D4's failure
+  rule applies unchanged.
+* **Mapping**, from each vendor's documented stream form. The names are
+  confirmed or corrected by E1's measurement, as D2's reasoning name was:
+
+  | Wire | Yields `EventTextDelta` | Yields `EventReasoningDelta` | Assembled into items, not yielded as deltas |
+  | :--- | :--- | :--- | :--- |
+  | Messages | `content_block_delta` `text_delta` | `thinking_delta` | `signature_delta`, `input_json_delta`, `redacted_thinking` |
+  | Chat Completions | `delta.content`, `delta.refusal` | `delta.reasoning_content`, `delta.reasoning` | `delta.tool_calls` fragments by `index`, `reasoning_details` |
+  | generateContent | a text part | a part with `thought: true` | `functionCall` parts, `thoughtSignature` |
+  | Interactions | the `model_output` text delta | the thought summary delta | function calls, signatures (names from E1) |
+
+* Call-argument deltas are not yielded (Q4 stands).
+* A stream's own error event is classified as that wire's errors are
+  today. That covers Anthropic's `error` event, a Chat Completions error
+  inside a 200, and Google's error body.
+
+**E4. `Generate` is unchanged on every wire** (D5). Only `Stream` asks for a
+stream.
+
+**E5. Usage in a stream.**
+
+* Messages reports usage in `message_start` and `message_delta`.
+  generateContent and Interactions report it in their final chunk.
+* Chat Completions sends usage in a stream only when the request carries
+  `stream_options: {"include_usage": true}`, and a gateway may refuse that
+  field. E1 measures each Chat Completions gateway with it.
+* Q5 decides what a provider that cannot stream its usage declares.
+
+**E6. Conformance.** Each new streaming provider's `llmtest` harness sets
+`StreamText` and `StreamFailure` in its wire's format, and passes D7's check.
+
+**E7. Release.** The work releases as `v1.6.0`. No exported signature
+changes. `NativeStreaming` changes for the providers that stream.
+
+**Measured (2026-10-10),** by the second plan's Phase 1 (T2, T2b, and its
+deviations D1 and D2). This settles E1, E3 and E5.
+
+* **E1, which targets stream:**
+  * Every reachable target streams:
+    * Messages: `claude`, and OpenCode Go's `messages` route;
+    * Chat Completions: `huggingface`, `kilo`, `together`, OpenCode Go's
+      `chat_completions` route, and `ollama` on a local server;
+    * generateContent: Google's own endpoint;
+    * Interactions: `gemini`.
+  * OpenCode Zen's `google` route answered 402 "Insufficient account
+    funds", so it is unmeasured.
+  * The owner decided that Google's endpoint stands for the route, a third
+    exception to the "Measured, not assumed" driver, after Zen (D1) and the
+    refusal delta. Both OpenCode gateways therefore stay `BestEffort`, with
+    "the `google` route's streaming is unmeasured" in the package doc,
+    rather than moving to `Supported` (D8). Q7's answer is revised to this.
+* **E3, the names, as measured.** Each name maps as the table above says,
+  except where marked here:
+  * Messages: `text_delta`, `thinking_delta`, `signature_delta` and
+    `input_json_delta`; the stream ends in `message_stop`.
+  * Chat Completions: `delta.content`, `delta.reasoning_content` (Hugging
+    Face, Together, OpenCode), `delta.reasoning` with `reasoning_details`
+    (Kilo), `delta.refusal` (seen on OpenCode), and `delta.tool_calls`
+    fragments by `index`. Each stream ends in a `finish_reason` and
+    `[DONE]`.
+  * generateContent: text parts, and `functionCall` parts sent whole
+    (`id`, `name`, `args`), with `thoughtSignature`. **No part with
+    `thought: true` was seen**, so none is mapped.
+  * Interactions: `step.start`, `step.delta`, `step.stop`, and
+    `interaction.completed`. A `model_output` step's `text` delta is
+    `EventTextDelta`. A `function_call` step carries its `id`, `name` and
+    `signature`, and sends its arguments as `arguments_delta`, which are
+    assembled. **A `thought` step sent only `thought_signature` deltas, no
+    summary text**, so no reasoning delta is mapped.
+* **E5, usage:** every Chat Completions gateway accepted `stream_options:
+  {"include_usage": true}` and streamed usage. Q5's `BestEffort` case does
+  not arise, and all five declare `Supported`. Ollama was reachable and
+  measured, which settles Q6.
+
+**Owner questions,** answered by the owner on 2026-10-10.
+
+* **Q5 (E5). A Chat Completions gateway that refuses `include_usage`, or
+  streams no usage.** Offered:
+  * `BestEffort`, with "a stream reports no usage" in the package doc
+    (R12). Recommended: `Usage` stays truthful, and the degradation is
+    named.
+  * `Supported`, with zero usage in the stream.
+  * Keep that provider `Unsupported`.
+
+  **Answer: `BestEffort`, with the degradation named.**
+* **Q6 (E1). Ollama.** It runs locally, has no live tests here, and may not
+  be reachable when E1 runs. Offered:
+  * keep `ollama` `Unsupported` until a local server is measured
+    (recommended);
+  * let the Chat Completions evidence of the other gateways stand for it.
+
+  **Answer: keep `ollama` `Unsupported` until a local server is measured.**
+* **Q7 (E1). OpenCode's `google` route.** Only Zen serves it, and Zen's
+  account answered 402 "Insufficient account funds" on that route on
+  2026-10-10 (0031-PLAN, Phase 7 step 4). Offered:
+  * measure generateContent streaming on Google's own endpoint with
+    `GEMINI_API_KEY`, try the Zen route as well, and keep the OpenCode
+    gateways `BestEffort` until the route itself is measured
+    (recommended);
+  * let Google's endpoint stand for the route, as Go stood for Zen (D1);
+  * leave the `google` route unstreamed.
+
+  **Answer: measure on Google's own endpoint, try the Zen route, and keep
+  the OpenCode gateways `BestEffort` until the route itself is measured.**
+  *Revised by the second plan's deviation D1 (2026-10-10):* the Zen route
+  answered 402, and the owner decided that Google's endpoint stands for it.
+  The route is built; the gateways stay `BestEffort`.
+* **Q8 (E2). One SSE reader, or two.** Offered:
+  * move the Responses reader into `internal/wire` and share it, with its
+    benchmarks held (recommended): one place for the bounds and the error
+    rules;
+  * leave the Responses reader as it is, and add a second reader for the
+    other wires.
+
+  **Answer: one shared reader, with the Responses benchmarks held.**
+
 ### Consequences
 
 * Good, because `Stream` delivers text as it is generated for `openai`,
@@ -395,5 +590,8 @@ checks the body. The owner chose this over adding a goroutine count to
   D-H1 (D3, D6).
 * **Prompted by:** [0030-REPORT-v1-api-and-protocol-surfaces.md](../reports/0030-REPORT-v1-api-and-protocol-surfaces.md)
   F8.
-* The PLAN is
-  [0031-PLAN-native-streaming-on-the-responses-wire.md](0031-PLAN-native-streaming-on-the-responses-wire.md).
+* The plans are
+  [0031-PLAN-native-streaming-on-the-responses-wire.md](0031-PLAN-native-streaming-on-the-responses-wire.md)
+  (D1 to D7, complete) and
+  [0031-PLAN-native-streaming-on-the-other-wires.md](0031-PLAN-native-streaming-on-the-other-wires.md)
+  (D8, by the amendment of 2026-10-10).

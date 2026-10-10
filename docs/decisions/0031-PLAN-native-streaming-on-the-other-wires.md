@@ -1,0 +1,356 @@
+---
+status: in-progress
+date: 2026-10-10
+associated-madr: "0031-MADR-native-streaming-on-the-responses-wire.md"
+decision-makers: repository owner
+---
+
+<!-- markdownlint-disable MD013 MD024 -->
+
+# Implement Native Streaming on the Messages, Chat Completions, generateContent and Interactions Wires
+
+Associated MADR: [0031-MADR-native-streaming-on-the-responses-wire.md](0031-MADR-native-streaming-on-the-responses-wire.md),
+D8 and its amendment of 2026-10-10 (E1 to E7, Q5 to Q8). The Responses wire
+was implemented by
+[0031-PLAN-native-streaming-on-the-responses-wire.md](0031-PLAN-native-streaming-on-the-responses-wire.md),
+whose rules, decoder and conformance check this plan reuses.
+
+## Goal
+
+When it is done, every decision of the amendment holds, each proven red
+first, and `v1.6.0` is released:
+
+* **E1:** each provider and route Phase 1 shows streaming implements native
+  streaming on its wire, and declares it:
+  * `claude`, `gemini`, `huggingface`, `kilo`, `together`, `ollama`;
+  * OpenCode's `messages`, `chat_completions` and `google` routes.
+
+  One that does not stream keeps its declaration, by a recorded deviation.
+* **E2:** one SSE reader in `internal/wire` serves all five wires, and the
+  Responses benchmarks hold.
+* **E3:** each wire's `Events` assembles the items its `Decode` returns.
+  `EventDone`'s `Response` equals `Decode`'s for the same answer.
+* **E4:** `Generate` sends and decodes exactly as at `v1.5.0`, and the wire
+  goldens are unchanged.
+* **E5:** usage in a stream is as Q5 decides.
+* **E6:** every new streaming provider passes D7's check.
+
+## Scope
+
+### In scope
+
+| Phase | Decisions | Files (production) |
+| :--- | :--- | :--- |
+| 0 | records | the amendment, this PLAN, `docs/README.md` |
+| 1 | measurement for E1, E3, E5 | `llmprovider/live_0031b_measure_test.go` (new, `live_gateways`) |
+| 2 | E2 | `llmprovider/internal/wire/sse.go` (new), `stream.go` beside `post.go`, `llmprovider/internal/wire/responses/responses.go` |
+| 3 | E3 to E6, Messages | `llmprovider/internal/wire/messages/messages.go`, `llmprovider/providers/claude/claude.go`, `llmprovider/providers/opencode/opencode.go` |
+| 4 | E3 to E6, Chat Completions | `llmprovider/internal/wire/chatcompletions/chatcompletions.go`; the `huggingface`, `kilo`, `together`, `ollama` and `opencode` providers |
+| 5 | E3 to E6, generateContent | `llmprovider/internal/wire/generatecontent/generatecontent.go`, `llmprovider/providers/opencode/opencode.go` |
+| 6 | E3 to E6, Interactions | `llmprovider/providers/gemini/interactions.go`, `gemini.go` |
+| 7 | docs, release `v1.6.0` | `docs/architecture.md`, `README.md`, the package docs |
+
+Each phase adds the tests named in its steps, beside the code they test, and
+each wire phase adds its providers' live stream tests.
+
+### Out of scope
+
+* `WithRetry` stays buffered (0031-MADR D6, Q1), and call-argument deltas
+  stay unyielded (Q4).
+* `Generate` reading a stream (Q3).
+* The other gobble-cli items, under their own records:
+  * a per-tool strict flag and a tool result's error flag;
+  * model metadata;
+  * image input;
+  * prompt caching;
+  * tool deferral;
+  * timeouts.
+* gobble-cli's own changes: the `v1.5.0` upgrade, and streaming from the
+  unwrapped provider.
+* Push and tags, which are the owner's.
+
+## Rules for every phase
+
+The first plan's rules 1 to 9 apply unchanged:
+
+1. approval, and naming billed requests;
+2. red first, and plants only on a scratch copy;
+3. the 22-check gate;
+4. coverage floors;
+5. benchmarks;
+6. live checks: keys checked for presence only, and nothing logged but
+   types and statuses;
+7. deviations stop and prompt;
+8. one commit per phase, by the owner or on a same-turn ask;
+9. no identifiers.
+
+Two more apply here:
+
+10. **A wire phase builds only what Phase 1 showed streaming.** A provider
+    or route left out is named in the phase's record.
+11. **EventDone equals Decode.** Every wire phase pins, for each scripted
+    stream, that `EventDone`'s `Response` equals that wire's `Decode` on the
+    same answer, written as one JSON reply.
+
+## Implementation Steps
+
+### Phase 0: records
+
+1. The amendment is answered (Q5 to Q8: each recommended option, the
+   owner's of 2026-10-10) and marked accepted; this PLAN is `proposed`.
+2. `docs/README.md` indexes this PLAN, 67 records.
+3. `make records-check` clean; the owner commits.
+
+### Phase 1: measurement (live; billed: at most 26 requests)
+
+Plain requests are capped at 16 output tokens. Reasoning requests use the
+smallest output the wire allows with reasoning on: for Claude, a 1,024-token
+thinking budget and 1,040 output tokens.
+
+1. **T2, does each wire stream.** `TestLive_0031bStreamReplies`, in
+   `llmprovider/live_0031b_measure_test.go` (`live_gateways`; runs only when
+   `LLMPROVIDER_LIVE_0031B` is set).
+   * **How it measures.** As the first plan's T1 did: a recording transport
+     turns each provider's own request into a streamed one, so every other
+     header is the provider's. It logs per request:
+     * the status;
+     * the `Content-Type`;
+     * the ordered, de-duplicated event names;
+     * for Chat Completions, the distinct `delta` keys.
+
+     It never logs text or a key.
+   * **Targets:**
+     * `claude`, and OpenCode Go's `messages` route (Messages);
+     * `huggingface`, `kilo`, `together`, OpenCode Go's `chat_completions`
+       route, and `ollama` when a local server answers (Chat Completions);
+     * Google's own generateContent endpoint with `GEMINI_API_KEY`, and
+       OpenCode Zen's `google` route (generateContent, Q7);
+     * `gemini` (Interactions).
+
+     A target whose key is absent is skipped and recorded as not measured.
+   * **Requests:** a plain one and a reasoning one per target. For Chat
+     Completions the plain request carries `stream_options: {"include_usage":
+     true}`; if it is refused, it is sent once more without the field (E5).
+     For one target per wire (`claude`, `together`, Google's endpoint,
+     `gemini`) there is also a forced-tool request, which records the call's
+     fragment shape.
+2. **Rule (E1).** A target streams when a request answers 2xx with an event
+   stream that ends in its wire's completion event:
+   * `message_stop` for Messages;
+   * a `finish_reason`, and `[DONE]`, for Chat Completions;
+   * a `finishReason` for generateContent;
+   * Interactions' completion, named from T2.
+
+   A stream that ends at the output cap counts, as the first plan's D2
+   decided. Any other outcome is a deviation.
+3. **Rule (E3).** The names that become deltas are exactly the ones T2
+   shows. A name in the MADR's mapping that T2 does not show is not mapped.
+4. **Rule (E5).** A gateway whose stream carries no usage takes Q5's answer.
+5. Gate; record T2; stage the measurement test.
+
+### Phase 2: the shared reader (E2)
+
+1. **Benchmarks before:** `BenchmarkReadStream_Deltas4MiB` and
+   `BenchmarkReadStream_4MiB`.
+2. **Tests, red first** (`internal/wire/sse_0031b_test.go`):
+   * events joined from several `data:` lines;
+   * a comment line and an `event:` line ignored;
+   * an event over 16 MiB is `ErrIncomplete`;
+   * a read failure is `ErrProviderUnavailable` marked `AfterReply`;
+   * an end before the caller says done is `ErrProviderUnavailable` marked
+     `AfterReply`;
+   * a callback that stops reads no further.
+3. **Change.** The SSE framing moves from `responses.readEvents` into
+   `internal/wire`. `responses` keeps its event mapping and fast skip on top
+   of it. `responses.Stream`'s loop moves to `internal/wire` as a generic
+   stream over a decoder function, and the Responses providers call it with
+   `responses.Events`.
+4. Every existing `responses` and `wire` test, the first plan's stream and
+   conformance tests, and the goldens pass unchanged.
+5. **Benchmarks after:** within 10% of step 1, or a deviation.
+6. Gate; stage.
+
+### Phases 3 to 6: one wire each
+
+Each wire phase runs the same steps, for Messages (3), Chat Completions (4),
+generateContent (5) and Interactions (6):
+
+1. **Decoder tests, red first,** in the wire's package
+   (`events_0031b_test.go`), over scripted streams in T2's shapes:
+   * the event sequence for a text answer, a reasoning answer and a call;
+   * `EventDone`'s `Response` equals `Decode`'s on the same answer as one
+     JSON reply (rule 11);
+   * the joined text deltas equal the message text;
+   * a refusal, a cut answer and an empty answer give `Decode`'s result;
+   * a failure after a delta yields the delta, then the classified error,
+     and no `EventDone`;
+   * stopping early reads no further.
+2. **Change:** the wire's `Events`, on Phase 2's reader.
+3. **Provider tests, red first.** For each provider and route on the wire
+   that Phase 1 showed streaming:
+   * `TestStream`: the request asks for a stream, and the events are the
+     decoder's;
+   * `TestGenerate_Unchanged`;
+   * the capability test's expected value moves to its new declaration.
+4. **Change:**
+   * each provider gains `Stream`, as the first plan's providers did:
+     `Capabilities.Check`, then the generic stream with its wire's
+     `Events`;
+   * OpenCode's `Stream` sends the wire's route natively, in place of its
+     fallback;
+   * package docs and declarations change (E1, Q5, Q6, Q7).
+5. **Conformance:** each such provider's harness sets `StreamText` and
+   `StreamFailure` in its wire's format, and passes D7's check.
+6. **Plants,** on a scratch clone, for the guards a red run does not
+   exercise:
+   * the provider's `Generate` sending a stream flag;
+   * the decoder yielding an item out of `Decode`'s order.
+7. **Live:** a `TestLive_<Provider>Streams` per streaming provider, as the
+   first plan's Phase 4: at least one text delta before `EventDone`, and a
+   refused or unfunded model recorded as not run. The billed count is named
+   when the phase is asked.
+8. Gate; stage.
+
+When the last OpenCode route streams, both gateways' declarations move from
+`BestEffort` to `Supported` (D8), in that phase.
+
+### Phase 7: documentation and release
+
+1. **`docs/architecture.md`:**
+   * the streaming paragraphs: which providers stream, and how each wire
+     maps;
+   * "What is not here": no wire left on the fallback, or the ones left
+     named.
+2. **Package docs and `docs/guides/api-standards.md`:** only where a text no
+   longer holds.
+3. **Release notes** in this PLAN's Execution Record, as `v1.6.0`;
+   `README.md`'s Status names `v1.6.0`.
+4. **The live suites** on the release commit; a failure is a deviation, a
+   transient one rerun once alone.
+5. **The owner** commits, pushes, and tags `v1.6.0`.
+6. **After the tag:**
+   * CI on the tag;
+   * the proxy;
+   * apidiff `v1.5.0` to `v1.6.0`, which must show nothing incompatible;
+   * a scratch consumer, and a scratch copy of gobble-cli moved to
+     `v1.6.0`, built and tested.
+7. This PLAN `complete`; the amendment's status recorded; the index updated.
+
+## Verification
+
+* **V1. Red, then green,** for every named test, with both lines in the
+  Execution Record, and every plant's FAIL line.
+* **V2. The gate** clean at the end of each phase; the goldens unchanged.
+* **V3. Measurement:** T2 recorded before Phases 3 to 6 use it.
+* **V4. Benchmarks:** Phase 2's before and after, within 10%.
+* **V5. API:** apidiff against `v1.5.0` shows nothing incompatible.
+* **V6. Live:** each wire phase's live tests, and the live suites on the
+  release commit.
+* **V7. Records:** the amendment amended for anything Phase 1 left
+  unstreamed; `docs/architecture.md` and the package docs match the code.
+
+## Rollout and Rollback
+
+* **Rollout.** Seven commits after the records, one per phase, then
+  `v1.6.0`. gobble-cli moves under its own record.
+* **Rollback, before the tag:** a wire phase reverts alone. Phase 2 reverts
+  only after every wire phase.
+* **Rollback, after the tag:** fix forward in `v1.6.x`. A consumer that
+  meets a defect pins `v1.5.0`, or calls `Generate`, which is unchanged.
+
+## Execution Record
+
+### Phase 0: records (2026-10-10)
+
+The amendment was answered (Q5 to Q8, each recommended option) and marked
+accepted, and this PLAN was indexed (67 records). The owner approved
+execution; this PLAN is `in-progress`.
+
+### Phase 1: measurement (2026-10-10)
+
+`TestLive_0031bStreamReplies` (T2) ran at 23:02 UTC and
+`TestLive_0031bGeminiShapes` (T2b, D2) at 23:07 UTC.
+
+* **Setup:** both in `llmprovider/live_0031b_measure_test.go`, with
+  `LLMPROVIDER_LIVE_0031B=1` and every key variable set (checked for
+  presence only).
+* **How they measure:** a recording transport turns each provider's own
+  request into a streamed one:
+  * `"stream": true`, and `stream_options` on Chat Completions' plain
+    request;
+  * `:streamGenerateContent?alt=sse` for generateContent;
+  * `Accept: text/event-stream`.
+
+  It logs each reply's status, its `Content-Type`, whether it ended with
+  `[DONE]`, and its event shape: key paths, and the values of keys that
+  name an event or a stop. It never logs text or a key.
+* **Result:** exit 0 for both.
+* **Billed:** T2, 20 requests, of which the 2 Ollama requests were local
+  and the 2 to Zen were refused before generation. T2b, 4 more.
+
+**T2:**
+
+| Target | Request | Model | Status | Shape (abridged) |
+| :--- | :--- | :--- | :--- | :--- |
+| `claude` | plain, reasoning (1,024 budget), tool | `claude-haiku-4-5` | 200 ×3, `text/event-stream` | `message_start`, `content_block_start`/`_delta`/`_stop`, `message_delta`, `message_stop`, `ping`; deltas `text_delta`, `thinking_delta`, `signature_delta`, `input_json_delta`; stop reasons `end_turn`, `tool_use` |
+| OpenCode Go `messages` | plain, reasoning | `qwen3.8-flash` | 200 ×2 | the same events; `thinking_delta`, `signature_delta`, `text_delta`; `max_tokens`, `end_turn` |
+| `huggingface` | plain (with `include_usage`), reasoning | `deepseek-ai/DeepSeek-V4-Flash-0731` | 200 ×2 | `delta.content`, `delta.reasoning_content`; `finish_reason=length`; usage; `[DONE]` |
+| `kilo` | plain (with `include_usage`), reasoning | `deepseek/deepseek-v4.1-flash` | 200 ×2 | `delta.reasoning`, `delta.reasoning_details[]` (`reasoning.text`), `delta.provider_metadata`; `length`; usage; `[DONE]` |
+| `together` | plain (with `include_usage`), reasoning, tool | `deepseek-ai/DeepSeek-V4.1-Flash` | 200 ×3 | `delta.reasoning_content`; `delta.tool_calls[]` with `index`, `id`, `type`, `function.name`, `function.arguments`; `length`, `tool_calls`; usage on the plain request only; `[DONE]` |
+| OpenCode Go `chat_completions` | plain (with `include_usage`), reasoning | `glm-5.3-flash` | 200 ×2 | `delta.content`, `delta.reasoning_content`, `delta.refusal`, `delta.tool_calls`; `length`; usage; `[DONE]` |
+| `ollama` (local) | plain (with `include_usage`), reasoning | `llama3.2:latest` | 200, then 400 | plain: `delta.content`; `length`; usage; `[DONE]`. Reasoning: "\"llama3.2:latest\" does not support thinking", a property of the model |
+| Google's endpoint | plain, reasoning, tool | `gemini-3.7-flash` | 200 ×3 | `candidates[].content.parts[].text`, `.thoughtSignature`; `finishReason` `MAX_TOKENS`, `STOP`; `usageMetadata`; no `[DONE]` |
+| OpenCode Zen `google` | plain, reasoning | `gemini-3.5-flash-lite` | 402 ×2, `application/json` | "quota exhausted: opencode-zen/google HTTP 402 UNKNOWN: Upstream request failed: Insufficient account funds" |
+| `gemini` | plain, reasoning, tool | `gemini-3.7-flash` | 200 ×3 | `interaction.created`, `interaction.status_update`, `step.start`, `step.delta`, `step.stop`, `interaction.completed`, `done`; deltas `text`, `thought_signature`; step types `thought`, `model_output`; statuses `incomplete`, `completed` |
+
+The `include_usage` retry never ran: no gateway refused the field. On the
+Gemini wires, the tool requests' 64-token caps went wholly to thinking: no
+call was returned (D2).
+
+**T2b** (D2): effort `low`, a 1,024-token cap, `gemini-3.7-flash`.
+
+| Target | Request | Status | Shape (abridged) |
+| :--- | :--- | :--- | :--- |
+| Google's endpoint | reasoning | 200 | text parts with `thoughtSignature`; `STOP`; no `thought` part |
+| Google's endpoint | tool | 200 | `parts[].functionCall` with `id`, `name`, `args`, sent whole; `STOP` |
+| `gemini` | reasoning | 200 | steps `thought` (deltas `thought_signature` only) and `model_output` (`text`); `completed` |
+| `gemini` | tool | 200 | step `function_call` with `id`, `name`, `signature`, `arguments`, and `arguments_delta` deltas; `requires_action` |
+
+**Outcome, by rules 2 to 4:**
+
+* Every target except Zen's `google` route streams. Zen's route stands on
+  Google's endpoint (D1).
+* The delta names are as 0031-MADR's measured note lists. Neither Gemini
+  wire maps a reasoning delta: none was seen.
+* Every Chat Completions gateway streams usage, so none takes Q5's
+  `BestEffort`.
+
+### Deviation D1 (2026-10-10): Zen's `google` route answered 402
+
+* **Found** in step 1. Both requests to OpenCode Zen's `google` route
+  answered 402 "Insufficient account funds", as the route had in the first
+  plan's Phase 7. The route is OpenCode's only use of generateContent. Rule
+  10 and Q7's answer left Phase 5 nothing measured to build.
+* **Options put to the owner:**
+  * fund the Zen account and re-measure the route (recommended);
+  * build the route on Google's endpoint's evidence, OpenCode staying
+    `BestEffort`;
+  * defer Phase 5.
+* **Decision.** The owner chose the second. Phase 5 builds the `google`
+  route's native stream on Google's endpoint's evidence. Both OpenCode
+  gateways stay `BestEffort`, and the package doc names the unmeasured
+  route. 0031-MADR's amendment records this as a third exception to its
+  "Measured, not assumed" driver, and revises Q7's answer.
+
+### Deviation D2 (2026-10-10): the Gemini wires' caps went to thinking
+
+* **Found** in step 1. On Google's endpoint and on `gemini`, the 16- and
+  64-token caps were spent on thinking. No function call and no
+  thought-summary delta was returned, so the call shape the decoders must
+  assemble was unmeasured on both Gemini wires.
+* **Options put to the owner:**
+  * re-run a reasoning and a forced-tool request on each, at effort `low`
+    and a 1,024-token cap (4 billed requests; recommended);
+  * build from the documented shapes alone.
+* **Decision.** The owner chose the re-run. It is T2b, above, added to the
+  measurement file as `TestLive_0031bGeminiShapes`.
