@@ -39,7 +39,9 @@ type Streamer interface {
 // own Streamer when there is one. Otherwise it runs Generate and emits its
 // result: a delta for each message and reasoning item, then each item, then
 // EventDone. A failure is yielded once, with a zero Event, and ends the
-// stream.
+// stream. Only EventDone carries a Response, and it comes last: the deltas
+// and items a native stream yielded before a failure are not a response, and
+// a caller that showed them shows them as incomplete (0031-MADR D4).
 func Stream(ctx context.Context, p Provider, req *Request) iter.Seq2[Event, error] {
 	if s, ok := p.(Streamer); ok {
 		return s.Stream(ctx, req)
