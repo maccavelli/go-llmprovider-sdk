@@ -719,3 +719,44 @@ hold.
   Phase 6 (above), which gains `responses.go` in its scope. 0031-MADR is
   amended: a row added to D2's table, with an unmeasured event name as the
   second exception to its "Measured, not assumed" driver.
+
+### Phase 5: `WithRetry` (2026-10-10)
+
+**Test**, a guard of existing behaviour: `TestWithRetry_StreamIsBuffered`
+(`llmprovider/retry_0031_test.go`, package `llmprovider_test`).
+
+* It runs `WithRetry` over the `openai` provider with an API key, under
+  `RetryPolicy{MaxAttempts: 3, BaseDelay: 1 ms}`. It first checks that the
+  inner provider is a `Streamer`; otherwise the test would prove nothing.
+* The server answers in whatever format the request asks for (an event
+  stream when `Accept` asks for one, else JSON). It sends the first request
+  the start of an answer ("par") with a longer `Content-Length`, then cuts
+  the connection. Every later request gets the whole answer, "ok".
+* The wrapper must not be a `Streamer`, and must report `NativeStreaming:
+  Unsupported`.
+* `llmprovider.Stream` over it must yield `text_delta:ok`, `item`, `done`,
+  with no error and over 2 requests: the cut reply, then its one retry
+  (0021-MADR D1).
+
+PLAN step 1 named "a 503, then a streamed success". A reply cut part way
+was used instead: it is the case that tells a buffered stream from a live
+one, since a 503 yields nothing either way.
+
+It passes on the tree, and under `-race`.
+
+**Plant** (rule 2), on a scratch clone: a `retry_plant.go` giving the wrapper
+a pass-through `Stream(ctx, req)` that returns `Stream(ctx, r.inner, req)`.
+
+```text
+--- FAIL: TestWithRetry_StreamIsBuffered (0.00s)
+    retry_0031_test.go:84: WithRetry's result is a Streamer
+    retry_0031_test.go:93: after [text_delta:par]: llmprovider: provider unavailable: openai: read reply: unexpected EOF
+```
+
+**Doc** (step 2), `llmprovider/retry.go`: `WithRetry`'s comment says the
+result does not stream natively even when `p` does. Its stream is buffered
+so it can be retried whole, and the caller receives events only from the
+attempt that succeeds. A caller that wants text as it is generated streams
+from `p` itself (MADR D6).
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.

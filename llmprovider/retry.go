@@ -57,8 +57,13 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 //     returned at once, so the caller can reschedule. When ctx ends during a
 //     wait, the error matches both ctx.Err() and the last failure.
 //
-// The result does not stream natively; Stream falls back to its Generate.
-// When p lists models, so does the result, through p (0020-MADR F32).
+// The result does not stream natively, even when p does; Stream falls back to
+// its Generate. That buffers the stream so that it can be retried whole: a
+// failure at any point is retried, and the caller receives events only from
+// the attempt that succeeds, never text it already holds. A caller that wants
+// text as it is generated streams from p itself, and handles a failure there
+// (0031-MADR D6). When p lists models, so does the result, through p
+// (0020-MADR F32).
 func WithRetry(p Provider, policy RetryPolicy) Provider {
 	r := &retrying{inner: p, policy: policy.withDefaults()}
 	if lister, ok := p.(ModelLister); ok {
