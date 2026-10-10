@@ -143,12 +143,14 @@ func TestOpenStream_ReauthBeforeEvents(t *testing.T) {
 // and an early end each end the stream with the error Post and ReadStream
 // give for the same reply, and no EventDone.
 func TestStream_Failures(t *testing.T) {
-	defer wire.SetIdleTimeout(50 * time.Millisecond)()
 	cases := []struct {
 		name    string
 		handler http.HandlerFunc
 		kind    error
 		after   bool
+		// idle, when set, is the idle limit for the case; the others keep
+		// the default, so that a slow write under load is not an idle stall.
+		idle time.Duration
 	}{
 		{"idle stall", func(w http.ResponseWriter, r *http.Request) {
 			// The server sees the client go only once it has read the
@@ -160,17 +162,20 @@ func TestStream_Failures(t *testing.T) {
 			case <-r.Context().Done():
 			case <-time.After(5 * time.Second):
 			}
-		}, llmprovider.ErrProviderUnavailable, true},
+		}, llmprovider.ErrProviderUnavailable, true, 50 * time.Millisecond},
 		{"event too large", func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, sseEvent(`{"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"`+
 				strings.Repeat("x", 16<<20)+`"}]}}`))
-		}, llmprovider.ErrIncomplete, false},
+		}, llmprovider.ErrIncomplete, false, 0},
 		{"ends early", func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, sseEvent(textDelta))
-		}, llmprovider.ErrProviderUnavailable, true},
+		}, llmprovider.ErrProviderUnavailable, true, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.idle > 0 {
+				defer wire.SetIdleTimeout(tc.idle)()
+			}
 			srv := httptest.NewServer(tc.handler)
 			defer srv.Close()
 			events, err := streamEvents(context.Background(), streamCall(srv.URL), llmprovider.Token{})

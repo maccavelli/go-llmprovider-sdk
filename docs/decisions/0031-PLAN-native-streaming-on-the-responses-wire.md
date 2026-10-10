@@ -468,3 +468,114 @@ keeps a refusal's text as the message text (0021-MADR W4), but D2's table
 maps no refusal delta. OpenAI documents a `response.refusal.delta` event;
 it was not measured here. On a refusal, D7's check would therefore fail.
 The owner settles this before Phase 6.
+
+### Deviation D3 (2026-10-10): `bodyclose` cannot follow the open reply
+
+* **Found** at Phase 3's gate. `make lint` reported
+  `llmprovider/internal/wire/post.go:136:26: response body must be closed
+  (bodyclose)` on `resp, err := c.Client.Do(req)`. The finding is new: at
+  `v1.4.0`, `Post` closed the body with a `defer` in the same function. In
+  D3's two-step design, `OpenStream` returns the body open, owned by
+  `*Stream`, and `Read` and `Close` close it.
+* **Two code changes were tried; neither satisfied the analyzer:**
+  * keeping the `*http.Response` in the `Stream` struct;
+  * building the `Stream` in a constructor that takes the response.
+* **Evidence that the body is closed:**
+  * `TestStream_StopClosesBody` passes;
+  * a plant that drops `Read`'s close fails it (below);
+  * a non-2xx reply is closed inside `open`.
+* **Options put to the owner:**
+  * a line `//nolint:bodyclose` with its reason, in the repository's
+    existing nolint-with-reason style (recommended);
+  * a callback API that closes with `defer`, under which `Reauth` would wrap
+    the whole stream and need a guard against resending after events (a
+    change to MADR D3);
+  * excluding `bodyclose` for the file in `.golangci.yml`.
+* **Decision.** The owner chose the first. The constructor from the
+  experiment was removed, so the open step reads as `Post`'s did. No
+  decision of 0031-MADR changes.
+
+### Phase 3: the streaming seam and its failure rules (2026-10-10)
+
+**Change** (`llmprovider/internal/wire/post.go`):
+
+* `Post` and the new `OpenStream` share one open step, `open(ctx, c,
+  token, limit)`. It holds what `Post` did:
+  * marshalling;
+  * the D-H1 write trace;
+  * `Prepare`;
+  * `Unsendable`;
+  * `AfterReply`;
+  * the reply under the idle limit;
+  * `ClassifyHTTPError`, after which a non-2xx is closed.
+* It returns a `*Stream`.
+* `Post` reads that reply with `decode` and `DecodeError`, as before, under
+  `ReplyLimit` unless `c.Stream`.
+* `OpenStream` returns it open, with no whole-body limit.
+* `(*Stream).Read(decode)` runs the decoder, gives a read failure its kind
+  through `DecodeError`, and closes the reply on every exit.
+* `(*Stream).Close()` stops the idle limit, closes the body and cancels the
+  request. It is safe to call twice.
+* The `Do` line carries D3's `//nolint:bodyclose`.
+
+`llmprovider/stream.go`: `Stream`'s doc now says that only `EventDone`
+carries a `Response`, and that what a native stream yielded before a failure
+is not a response (MADR D4).
+
+**Red** (step 1), `stream_0031_test.go` (package `wire_test`, which also
+imports `responses`) on the tree before the change:
+
+```text
+llmprovider/internal/wire/stream_0031_test.go:49:17: undefined: wire.OpenStream
+llmprovider/internal/wire/stream_0031_test.go:80:22: undefined: wire.OpenStream
+llmprovider/internal/wire/stream_0031_test.go:120:93: undefined: wire.Stream
+llmprovider/internal/wire/stream_0031_test.go:121:15: undefined: wire.OpenStream
+llmprovider/internal/wire/stream_0031_test.go:223:17: undefined: wire.OpenStream
+llmprovider/internal/wire/stream_0031_test.go:255:17: undefined: wire.OpenStream
+FAIL	github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire [build failed]
+```
+
+**Green, under `-race`:**
+
+* `TestOpenStream_NonSuccessClassified`: for a 429 with `Retry-After`, a
+  403 and a 500, `OpenStream`'s `*APIError` has the same status, kind and
+  `RetryAfter` as `Post`'s.
+* `TestOpenStream_ReauthBeforeEvents`: a 401, then a stream; one
+  invalidation, two requests, then three events.
+* `TestStream_Failures`:
+  * an idle stall is `ErrProviderUnavailable`, after the reply;
+  * an event over 16 MiB is `ErrIncomplete`;
+  * an early end is `ErrProviderUnavailable`, after the reply.
+
+  In each case the error matches `Post` with `ReadStream` on the same
+  reply, and no `EventDone` is yielded.
+* `TestStream_StopClosesBody` and `TestStream_ContextCancel`: the server
+  sees the client go, and the goroutine count falls back. The cancelled
+  stream's error matches `context.Canceled`.
+
+The new tests passed 10 runs in a row under `-race`. `go test
+./llmprovider/...` passes.
+
+**Corrections to the new tests while they were being made green** (neither
+loosens an assertion):
+
+* The held and stalling handlers now drain the request body first. A Go
+  server notices a client hang up only once it has read the request body.
+  Without the drain, `StopClosesBody` and `ContextCancel` failed ("the
+  server never saw the client go") whatever the client did.
+* The 50 ms idle limit in `TestStream_Failures` applies only to the
+  idle-stall case. Set for every case, it made the 16 MiB case flaky under
+  `pre-add-check`'s load: a write pause over 50 ms tripped the idle limit,
+  so `Post`'s error was "read reply: no data …" rather than `ErrIncomplete`.
+* The kind comparison carries the repository's `//nolint:errorlint // the
+  kind itself, not what it wraps`.
+
+**Plants** (rule 2), on a scratch clone, run against the final code:
+
+| Plant | Test | Result |
+| :--- | :--- | :--- |
+| `Read` leaves the reply open (no `defer s.Close()`) | `TestStream_StopClosesBody` | `stream_0031_test.go:252: the server never saw the client go: the body was left open`; FAIL |
+| `open` classifies a non-2xx only under a size limit | `TestOpenStream_NonSuccessClassified` | `stream_0031_test.go:87: HTTP 429: OpenStream <nil>, …; want the same *APIError` (also 403 and 500); FAIL |
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+`internal/wire` coverage is 93.9%, and `llmprovider` 98.2%.
