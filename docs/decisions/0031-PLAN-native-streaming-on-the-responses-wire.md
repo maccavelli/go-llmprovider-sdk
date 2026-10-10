@@ -903,6 +903,51 @@ Compatible changes:
   holding.
 * **`README.md`:** Status names `v1.5.0`, with a `v1.5` bullet.
 
+**Step 4, the live suites,** on the release commit `2a1c6b7`, from 22:00 to
+22:03 UTC.
+
+* Every provider's key variable was set, checked for presence only, and
+  `LLMPROVIDER_LIVE_TOGETHER=1`. The suites that need a person, a
+  subscription or their own switch stayed off.
+* Command: `go test -tags live_gateways -count=1 -v ./llmprovider/... -run
+  Live`.
+* Result: exit 0. Top level, 67 passed, 16 skipped, 0 failed. Subtests, 76
+  passed, 2 skipped, 0 failed. The requests were not counted: the suites log
+  tests, not requests.
+
+The streaming tests:
+
+| Test | Result |
+| :--- | :--- |
+| `TestLive_OpenAIStreams` (`gpt-4.1-mini`) | PASS: 9 text deltas, then `EventDone` |
+| `TestLive_GrokStreams` (`grok-4.6`) | PASS: 10 text deltas, then `EventDone` |
+| `TestLive_OpencodeStreams/opencode-go` (`gpt-6-luna`, effort `low`) | PASS: 2 text deltas, then `EventDone` |
+| `TestLive_OpencodeStreams/opencode-zen` | SKIP, by D1: 403 "Model access is disabled"; not run |
+
+The 16 top-level skips, each off by its own switch or for want of a model:
+
+* 0028's and 0031's measurements (`LLMPROVIDER_LIVE_0028`,
+  `LLMPROVIDER_LIVE_0031`): 4.
+* The ChatGPT and Codex CLI subscription (`LLMPROVIDER_LIVE_CHATGPT`): 4.
+* Gemini's rate-limit drain (`LLMPROVIDER_LIVE_GEMINI_429`): 1.
+* The Grok CLI (`LLMPROVIDER_LIVE_GROK_CLI`): 1.
+* The browser and device sign-ins, and the OpenAI sign-in probe: 5.
+* `TestLive_OpencodeInterleavedReasoningReplay`: "no active opencode-go
+  model among [kimi-k2.6]", as in 0028-PLAN's run.
+
+None was skipped as transient.
+
+The two subtest skips:
+
+* `TestLive_OpencodeGoogleTwoCallRoundTrip/zen`: skipped as 0026-PLAN D6
+  records. It reported "quota exhausted: opencode-zen/google HTTP 402 …
+  Insufficient account funds" this time.
+* `TestLive_OpencodeStreams/opencode-zen`, above. That the Zen account
+  reports insufficient funds on another route may be why its models are
+  refused. This was not established.
+
+Every check that ran against a service passed on the release commit.
+
 #### Release notes: `v1.5.0`
 
 `v1.5.0` streams natively on the OpenAI Responses wire
