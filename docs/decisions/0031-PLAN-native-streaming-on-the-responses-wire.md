@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-10
 associated-madr: "0031-MADR-native-streaming-on-the-responses-wire.md"
 decision-makers: repository owner
@@ -132,9 +132,15 @@ This phase is the only source of D1's gate and D2's reasoning event names.
    * it logs per request: status, `Content-Type`, and the ordered,
      de-duplicated list of event `type` values. It fails only on a
      transport error.
-2. **Rule (D1).** A target whose plain request answers 2xx with an event
-   stream ending in `response.completed` streams. Any other outcome keeps
-   that provider `Unsupported`, as a deviation and a MADR amendment.
+
+   *Amended by D1 (2026-10-10):* `opencode-zen`'s chosen model was
+   refused to the key; Go's measurement stands for Zen.
+2. **Rule (D1).** ~~A target whose plain request answers 2xx with an event
+   stream ending in `response.completed` streams.~~ *Amended by D2
+   (2026-10-10):* a target streams when either of its requests answers 2xx
+   with an event stream ending in `response.completed` or
+   `response.incomplete`. Any other outcome keeps that provider
+   `Unsupported`, as a deviation and a MADR amendment.
 3. **Rule (D2).** The reasoning delta events mapped to
    `EventReasoningDelta` are exactly the reasoning text and summary-text
    `*.delta` types T1 shows. None seen is a valid outcome: then no
@@ -231,6 +237,9 @@ Only the providers Phase 1 showed streaming.
    one `Stream` of `"Say hi"` with `WithMaxTokens(16)`, wanting at least
    one `EventTextDelta` before `EventDone`. Run once here: at most 4
    billed requests, named when the phase is asked.
+
+   *Per D1 (2026-10-10):* on `opencode-zen`, a 403 refusing the model is
+   recorded as not run, not as a failure.
 4. `llmtest.Run` still passes for every built-in provider (its R10 check
    now sees `Streamer` and the new values together).
 5. Gate; stage.
@@ -312,4 +321,73 @@ Only the providers Phase 1 showed streaming.
 
 ## Execution Record
 
-Nothing executed yet.
+### Phase 0: records (2026-10-10)
+
+The owner committed 0031-MADR (`accepted`), this PLAN (`proposed`) and the
+index (66 records) as `0a466f9`, and approved execution; this PLAN is
+`in-progress`.
+
+### Phase 1: measurement (2026-10-10)
+
+`TestLive_0031StreamReplies` (`llmprovider/live_0031_measure_test.go`),
+run at 20:14 UTC with `LLMPROVIDER_LIVE_0031=1`, `OPENAI_API_KEY`,
+`XAI_API_KEY` and `OPENCODE_API_KEY` set (checked for presence only), and
+`LLMPROVIDER_LIVE_CHATGPT` unset. A recording transport turns each
+provider's own `POST {base}/responses` into a streamed one (`"stream":
+true`, `Accept: text/event-stream`), so every other header is the
+provider's. Exit 0. Billed: 8 requests of at most 16 output tokens; then
+the two `opencode-zen` requests once more, with the redacted error logged
+(both refused before generation).
+
+| Target | Request | Model | Status | `Content-Type` | Event types, in order of first appearance |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `openai` | plain | `gpt-4.1-mini` | 200 | `text/event-stream; charset=utf-8` | `created`, `in_progress`, `output_item.added`, `content_part.added`, `output_text.delta`, `output_text.done`, `content_part.done`, `output_item.done`, `completed` |
+| `openai` | effort `low` | `o4-mini` | 200 | `text/event-stream; charset=utf-8` | `created`, `in_progress`, `output_item.added`, `output_item.done`, `incomplete` |
+| `grok` | plain | `grok-4.6` | 200 | `text/event-stream` | `created`, `in_progress`, `output_item.added`, `reasoning_summary_part.added`, `reasoning_summary_text.delta`, `reasoning_summary_text.done`, `reasoning_summary_part.done`, `output_item.done`, `content_part.added`, `output_text.delta`, `output_text.done`, `content_part.done`, `completed` |
+| `grok` | effort `low` | `grok-3-mini` | 200 | `text/event-stream` | the same as `grok`'s plain request |
+| `opencode-zen` | both | `gpt-5-nano` | 403 | `application/json` | none: "not permitted: opencode-zen/responses HTTP 403 server_error: Upstream request failed: Model access is disabled" |
+| `opencode-go` | plain | `gpt-6-luna` | 200 | `text/event-stream` | `created`, `in_progress`, `output_item.added`, `output_item.done`, `incomplete` |
+| `opencode-go` | effort `low` | `gpt-6-luna` | 200 | `text/event-stream` | `created`, `in_progress`, `output_item.added`, `content_part.added`, `output_text.delta`, `output_text.done`, `content_part.done`, `output_item.done`, `completed` |
+| ChatGPT | — | — | — | — | skipped: `LLMPROVIDER_LIVE_CHATGPT` unset; not measured |
+
+Every type is prefixed `response.` on the wire; the table drops the prefix.
+
+**Outcome, by rule 2 as amended by D2:** `openai`, `grok` and
+`opencode-go` stream on `/responses`; `opencode-zen` streams by D1. All
+four take MADR D1's declarations.
+
+**Outcome, by rule 3:** the one reasoning delta seen is
+`response.reasoning_summary_text.delta` (Grok). It alone maps to
+`EventReasoningDelta`. `response.reasoning_text.delta` was not seen and is
+not mapped; `o4-mini`'s 16 tokens went to reasoning with no delta.
+
+### Deviation D1 (2026-10-10): Zen's key is refused the chosen model
+
+* **Found** in step 1. Step 1's rule chose `gpt-5-nano` for
+  `opencode-zen` (no model in Zen's static catalog routes to
+  `responses`, and it is the snapshot's first "nano" model). Both
+  requests answered 403 "Model access is disabled": an entitlement of the
+  key, which says nothing of streaming. By step 2 as written, Zen would
+  have stayed `Unsupported`.
+* **Options put to the owner:** try Zen's other `responses`-route models
+  until one is permitted (recommended); record Zen as not measured and
+  keep it `Unsupported`; or let Go's measurement stand for Zen, the same
+  gateway and route.
+* **Decision.** The owner chose the third. Zen takes `BestEffort` on Go's
+  evidence; Phase 4's live test records a refused Zen model as not run.
+  0031-MADR is amended (its "Measured, not assumed" driver has this one
+  exception).
+
+### Deviation D2 (2026-10-10): a plain request ended at the output cap
+
+* **Found** in step 2. `opencode-go`'s plain request spent its 16 tokens
+  reasoning at the default effort and ended `response.incomplete`; its
+  effort-`low` request on the same model streamed text and ended
+  `response.completed`. Step 2 as written required the plain request to
+  complete, and would have kept Go `Unsupported`.
+* **Options put to the owner:** count a 2xx event stream ending in
+  `response.completed` or `response.incomplete`, from either request
+  (recommended); or keep the rule and rerun the plain request with a
+  256-token cap (one billed request).
+* **Decision.** The owner chose the first; step 2 is amended in place. No
+  decision of 0031-MADR changes.

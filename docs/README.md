@@ -75,7 +75,7 @@ documents a reader follows to do something.
 | 0029 | PLAN | [Implement Go 1.27.2 as the Module's Requirement](decisions/0029-PLAN-go-1-27-2-for-standard-library-fixes.md) | complete |
 | 0030 | REPORT | [The v1 SDK API Surfaces and the Protocols the Built-in Providers Speak](reports/0030-REPORT-v1-api-and-protocol-surfaces.md) | observation |
 | 0031 | MADR | [Stream Natively on the OpenAI Responses Wire](decisions/0031-MADR-native-streaming-on-the-responses-wire.md) | accepted |
-| 0031 | PLAN | [Implement Native Streaming on the OpenAI Responses Wire](decisions/0031-PLAN-native-streaming-on-the-responses-wire.md) | proposed |
+| 0031 | PLAN | [Implement Native Streaming on the OpenAI Responses Wire](decisions/0031-PLAN-native-streaming-on-the-responses-wire.md) | in-progress |
 
 ## I want to…
 

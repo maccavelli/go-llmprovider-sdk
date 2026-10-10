@@ -241,6 +241,22 @@ Answered by the owner on 2026-10-10.
   as items (recommended); or a new `EventToolCallDelta`, an `EventType`
   addition under `Event`'s "has a default case" rule. **Answer: none.**
 
+### Amendment (2026-10-10): Phase 1's measurement
+
+0031-PLAN's Phase 1 (T1, and its deviations D1 and D2) settles D1's gate
+and D2's reasoning names:
+
+* **D1.** `openai` (an API key), `grok` and `opencode-go` were measured
+  streaming on `/responses`. `opencode-zen` was not: the key was refused
+  the chosen model (403 "Model access is disabled"). The owner decided that
+  Go's measurement stands for Zen, the same gateway and route, so Zen
+  declares `BestEffort` on Go's evidence: the one exception to the
+  "Measured, not assumed" driver. A ChatGPT session was not measured; its
+  stream is the one `ReadStream` already reads.
+* **D2.** The reasoning delta mapped to `EventReasoningDelta` is
+  `response.reasoning_summary_text.delta`, the only one seen (Grok).
+  `response.reasoning_text.delta` was not seen and is not mapped.
+
 ### Consequences
 
 * Good, because `Stream` delivers text as it is generated for `openai`,
