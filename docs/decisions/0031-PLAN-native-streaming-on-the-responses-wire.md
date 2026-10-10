@@ -883,3 +883,89 @@ Compatible changes:
 | :--- | :--- | :--- |
 | `llmtest` | 81.3% | `checkNativeStream` is exercised by the provider packages' conformance runs, not by `llmtest`'s own tests; there is no floor for it |
 | `internal/wire/responses` | 90.7% | |
+
+### Phase 7: documentation and release (2026-10-10)
+
+**Steps 1 to 3**, on `3e0882e` (Phase 6):
+
+* **`docs/architecture.md`:**
+  * the `openai`, `grok` and `opencode` rows name `Stream`;
+  * the `internal/wire` row names `OpenStream` and `Stream`;
+  * the `internal/wire/responses` row names `Events` and `Stream`;
+  * "A generation" says which providers stream natively, and that
+    `WithRetry` does not;
+  * the contract section gives the declarations, the event mapping and
+    the failure rule;
+  * the `WithRetry` and `llmtest` paragraphs cover D6 and D7;
+  * "What is not here" names the four wires still on the fallback (D8).
+* **`docs/guides/api-standards.md`:** unchanged. R13 already says native
+  streaming is added without an API change, and no rule's text stopped
+  holding.
+* **`README.md`:** Status names `v1.5.0`, with a `v1.5` bullet.
+
+#### Release notes: `v1.5.0`
+
+`v1.5.0` streams natively on the OpenAI Responses wire
+([0031-MADR](0031-MADR-native-streaming-on-the-responses-wire.md)). The only
+API change is an addition, in `llmtest`.
+
+**Native streaming.**
+
+* `llmprovider.Stream` on `openai` (an API key or a ChatGPT session) and on
+  `grok` asks `/responses` for an event stream and yields each event as it
+  arrives.
+* Both OpenCode gateways do the same on the `responses` route. On
+  `messages`, `chat_completions` and `google` they still yield `Generate`'s
+  result as events.
+* `NativeStreaming` is `Supported` for `openai` and `grok`, and
+  `BestEffort` for `opencode-zen` and `opencode-go`. Every other provider
+  stays `Unsupported`, and `Stream` there is unchanged.
+* `opencode-zen`'s streaming was not measured on its own: the key used was
+  refused the model tried. It rests on `opencode-go`'s measurement, the
+  same gateway and route (D1).
+
+**What a native stream yields.**
+
+* Text deltas, and a refusal's deltas, as `EventTextDelta`.
+* The reasoning summary delta as `EventReasoningDelta`, the one reasoning
+  delta measured (from xAI; OpenAI's 16-token measurement sent none).
+* Each finished output item as `EventItem`. A function call arrives only as
+  its item; argument deltas are not yielded.
+* `response.completed` as `EventDone`, carrying the same `Response`
+  `Generate` would return.
+
+**Failures.**
+
+* A failure is yielded once and ends the stream, with no `EventDone`.
+* Deltas and items already yielded are not a response: show them as
+  incomplete, or discard them.
+* A 401 before the first event renews a refreshable credential and sends
+  once more, as `Generate` does.
+* Stopping the range closes the reply.
+
+**`WithRetry`** is unchanged: it does not stream natively. `Stream` over it
+runs its `Generate`, so a failure at any point is retried and the caller
+receives events only from the attempt that succeeds. For text as it arrives,
+stream from the provider itself and handle a failure there.
+
+**`Generate`** sends and decodes exactly as in `v1.4.0`.
+
+**`llmtest`:**
+
+* `Harness.StreamText` and `Harness.StreamFailure` switch on a native
+  stream check for any `Streamer`: one `EventDone`, last, equal to
+  `Generate`'s `Response`, with the deltas holding its text; a failure with
+  no `EventDone`; every reply body closed.
+* A harness that sets neither passes as before.
+
+**Upgrading.**
+
+* No code change is needed.
+* Code that reads `NativeStreaming` sees new values for four ids.
+* Code that calls `Stream` on those ids now receives text while it is
+  generated, and should treat events before a failure as partial.
+* `Stream` on those ids sends a streamed request where it used to send
+  `Generate`'s. The output and the billing are the same.
+
+**Not in this release:** native streaming for Chat Completions, Messages,
+Gemini Interactions and generateContent (MADR D8).

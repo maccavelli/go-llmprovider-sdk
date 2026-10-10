@@ -190,8 +190,17 @@ key.
 
 ## Status
 
-The current release is `v1.4.0`. The module requires Go 1.27.2.
+The current release is `v1.5.0`. The module requires Go 1.27.2.
 
+- `v1.5` streams natively on the OpenAI Responses wire, as
+  [0031-MADR](docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md)
+  decides: `Stream` on `openai`, `grok` and OpenCode's `responses` route
+  yields text as it is generated. It adds only `llmtest.Harness`'s
+  `StreamText` and `StreamFailure` to the API. `NativeStreaming` changes
+  for those four ids; `Generate` and `WithRetry` behave as before. The
+  release notes are in
+  [0031-PLAN](docs/decisions/0031-PLAN-native-streaming-on-the-responses-wire.md),
+  Phase 7.
 - `v1.4` makes
   [0028-MADR](docs/decisions/0028-MADR-heuristics-and-performance-from-the-research-pass.md)'s
   heuristic and performance decisions, and adds only
