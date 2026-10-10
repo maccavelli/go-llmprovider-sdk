@@ -70,6 +70,22 @@ var conformanceReplies = map[Route]routeReplies{
 	},
 }
 
+// llmtestMessagesStream is the text reply as a Messages event stream: its
+// text in a delta, then the stop (0031-MADR E6).
+const llmtestMessagesStream = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"llmtest-model\"}}\n\n" +
+	"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n" +
+	"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n\n" +
+	"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
+	"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n" +
+	"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+
+// llmtestMessagesStreamFailure is a Messages event stream that fails after
+// one delta.
+const llmtestMessagesStreamFailure = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"llmtest-model\"}}\n\n" +
+	"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n" +
+	"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hel\"}}\n\n" +
+	"event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"llmtest\"}}\n\n"
+
 // llmtestStream is the text reply as a Responses event stream: its text in a
 // delta, the item, then completed (0031-MADR D7).
 const llmtestStream = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
@@ -128,9 +144,13 @@ func TestConformance(t *testing.T) {
 					_, _ = io.WriteString(w, `{"type":"error","error":{"type":"llmtest","message":"llmtest"}}`)
 				},
 			}
-			// Only the responses route streams natively (0031-MADR D1).
-			if tc.route == RouteResponses {
+			// The responses and messages routes stream natively (0031-MADR
+			// D1, E1).
+			switch tc.route {
+			case RouteResponses:
 				h.StreamText, h.StreamFailure = write(llmtestStream), write(llmtestStreamFailure)
+			case RouteMessages:
+				h.StreamText, h.StreamFailure = write(llmtestMessagesStream), write(llmtestMessagesStreamFailure)
 			}
 			llmtest.Run(t, h)
 		})

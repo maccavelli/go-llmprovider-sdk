@@ -430,3 +430,89 @@ Every figure is within step 5's 10%.
 * `internal/wire` coverage is 89.3%, down from 93.9%: `StreamEvents` is
   exercised by the provider packages' stream tests, not by `wire`'s own.
   The floors hold.
+
+### Phase 3: Messages (2026-10-10)
+
+Phase 1 showed `claude` and OpenCode Go's `messages` route streaming. OpenCode
+Zen's `messages` route was not measured in Phase 1, and its live test below
+was refused for want of funds; it is built with Go's route (rule 10), as D1
+of the first plan stood Go for Zen.
+
+**Change.**
+
+* `internal/wire/messages`:
+  * `Decode` now reads a `message` (model, stop reason, `[]block`, usage)
+    and returns `message.response()`. That function holds Decode's rules
+    unchanged: finish, empty answer, a call cut by the limit, an answer cut
+    while thinking.
+  * `block.item()` builds one block's item.
+  * The new `Events` assembles a `message` from the stream and reads it
+    through `wire.ReadEvents(…, "message_stop", …)`:
+    * `message_start` gives the model and usage;
+    * `content_block_start` gives the block;
+    * `text_delta` and `thinking_delta` are yielded;
+    * `signature_delta` and `input_json_delta` are accumulated;
+    * `content_block_stop` finishes the block and yields its item, but a
+      call whose input does not parse is not yielded: its error is
+      `response()`'s at `message_stop`;
+    * `message_delta` gives the stop reason and the cumulative usage;
+    * `message_stop` yields `EventDone` with `response()`;
+    * an `error` event is classified by its type.
+* `claude`: `call(req, stream)` is shared by `generateOnce` and the new
+  `Stream`, which adds `"stream": true` and `Accept: text/event-stream`.
+  `NativeStreaming` is `Supported`, and the package doc says so.
+* `opencode`: `Stream` streams the `messages` route natively with
+  `messages.Events`, beside the `responses` route. The package doc names
+  both routes. The gateways stay `BestEffort` (D1).
+
+**Red** (steps 1 and 3), on the tree before each change:
+
+```text
+llmprovider/internal/wire/messages/events_0031b_test.go:29:9: undefined: Events
+llmprovider/internal/wire/messages/events_0031b_test.go:181:9: undefined: Events
+--- FAIL: TestClaude_Capabilities: claude_test.go:108: Capabilities() = {… NativeStreaming:Unsupported}, want {… NativeStreaming:Supported}
+--- FAIL: TestStream (claude): stream_0031b_test.go:59: the provider does not stream natively
+--- FAIL: TestStream_MessagesRouteNative: stream_0031_test.go:169: llmprovider: incomplete response: opencode-zen/messages: invalid character 'd' looking for beginning of value (and opencode-go)
+```
+
+**Green, under `-race`:**
+
+* `TestEvents_EqualsDecode` has eight cases: text, reasoning, redacted
+  thinking, a call, a call with no arguments, a refusal, an answer cut
+  while thinking, and a call cut by the limit. Each case passes on three
+  counts:
+  * its events are pinned;
+  * its `EventDone` equals `Decode` on the same answer as one JSON reply,
+    or both fail with the same error (rule 11);
+  * the text deltas, joined, equal the message text.
+* `TestEvents_FailureAfterDelta` (`overloaded_error` →
+  `ErrProviderUnavailable`), `TestEvents_StopEarly` and
+  `TestEvents_EndsEarly` (naming `message_stop`).
+* `claude`: `TestStream`, `TestGenerate_Unchanged`, and
+  `TestClaude_Capabilities` at `Supported`.
+* `opencode`: `TestStream_MessagesRouteNative` on both gateways. Its
+  `TestStream_OtherRoutesFallBack` now covers the `chat_completions` and
+  `google` routes.
+* Conformance: `claude`'s and OpenCode's `go-messages` harnesses set
+  `StreamText` and `StreamFailure` (a Messages stream, and one failing with
+  `overloaded_error` after a delta). Both `D7-native-stream` subtests pass.
+* `go test -count=1 ./...` passes.
+
+**Plants** (step 6), on a scratch clone:
+
+| Plant | Test | Result |
+| :--- | :--- | :--- |
+| `claude`'s `Generate` sends `"stream": false` | `TestGenerate_Unchanged` | `stream_0031b_test.go:92: Generate sent stream false, Accept ""; want neither`; FAIL |
+| the Messages stream's `EventDone` items reversed | `TestEvents_EqualsDecode` | `/reasoning` and `/redacted_thinking`: `events_0031b_test.go:133: EventDone's Response … Output:[{Role:assistant Text:ok} {Text:think …}]; Decode's … Output:[{Text:think …} {Role:assistant Text:ok}]`; FAIL |
+
+**Live** (step 7), `llmprovider/live_stream_0031b_test.go`, at 23:25 UTC.
+Billed: 2 requests; Zen's was refused before generation.
+
+| Test | Model | Result |
+| :--- | :--- | :--- |
+| `TestLive_ClaudeStreams` | `claude-haiku-4-5`, 16 tokens | PASS: 7 text deltas, then `EventDone` |
+| `TestLive_OpencodeMessagesStreams/opencode-go` | `qwen3.8-flash`, a 1,024-token budget | PASS: 3 text deltas, then `EventDone` |
+| `TestLive_OpencodeMessagesStreams/opencode-zen` | the same | SKIP, by 0027-MADR's transient rule: "quota exhausted: opencode-zen/messages HTTP 402 … Insufficient account funds"; not run |
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+Coverage: `internal/wire/messages` 97.3%, `claude` 95.6%, `opencode` 97.4%.

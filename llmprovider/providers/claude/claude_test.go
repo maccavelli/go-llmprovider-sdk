@@ -103,9 +103,13 @@ func TestClaude_Capabilities(t *testing.T) {
 	// ForcedToolChoice is BestEffort: with reasoning it is sent as "auto"
 	// (0020-MADR F43).
 	want := llmprovider.Capabilities{Tools: llmprovider.Supported, ForcedToolChoice: llmprovider.BestEffort,
-		Reasoning: llmprovider.Supported, Continuation: llmprovider.Unsupported, NativeStreaming: llmprovider.Unsupported}
+		Reasoning: llmprovider.Supported, Continuation: llmprovider.Unsupported, NativeStreaming: llmprovider.Supported}
 	if got := p.Capabilities(); got != want {
 		t.Fatalf("Capabilities() = %+v, want %+v", got, want)
+	}
+	// It streams natively (0031-MADR E1).
+	if _, ok := p.(llmprovider.Streamer); !ok {
+		t.Fatal("the provider does not implement Streamer")
 	}
 	if _, ok := p.(llmprovider.ModelLister); !ok {
 		t.Fatal("the provider is not a ModelLister")

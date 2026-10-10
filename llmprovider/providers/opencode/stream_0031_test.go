@@ -85,12 +85,12 @@ func TestStream_ResponsesRouteNative(t *testing.T) {
 	}
 }
 
-// TestStream_OtherRoutesFallBack (0031-MADR D1, Q2): the messages,
-// chat_completions and google routes do not stream yet: Stream sends one
-// request without "stream", and yields Generate's result as events.
+// TestStream_OtherRoutesFallBack (0031-MADR D1, Q2): the routes that do not
+// stream yet send one request without "stream", and yield Generate's result
+// as events. The messages route streams since 0031-PLAN-native-streaming-on-
+// the-other-wires Phase 3.
 func TestStream_OtherRoutesFallBack(t *testing.T) {
 	replies := map[Route]string{
-		RouteMessages:        `{"stop_reason":"end_turn","content":[{"type":"text","text":"ok"}]}`,
 		RouteChatCompletions: `{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}]}`,
 		RouteGoogle:          `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"ok"}]}}]}`,
 	}
@@ -136,5 +136,48 @@ func TestGenerate_Unchanged(t *testing.T) {
 	}
 	if _, ok := body["stream"]; ok {
 		t.Errorf("Generate sent stream %v; want none", body["stream"])
+	}
+}
+
+// TestStream_MessagesRouteNative (0031-MADR E1, E3): on the messages route
+// Stream asks for an event stream and yields the Messages decoder's events.
+func TestStream_MessagesRouteNative(t *testing.T) {
+	stream := sseEvent(`{"type":"message_start","message":{"model":"qwen3.8-flash","usage":{"input_tokens":9}}}`) +
+		sseEvent(`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`) +
+		sseEvent(`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}`) +
+		sseEvent(`{"type":"content_block_stop","index":0}`) +
+		sseEvent(`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}`) +
+		sseEvent(`{"type":"message_stop"}`)
+	for _, gateway := range family {
+		t.Run(string(gateway), func(t *testing.T) {
+			var mu sync.Mutex
+			var accept, path string
+			var body map[string]any
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				raw, _ := io.ReadAll(r.Body)
+				mu.Lock()
+				accept, path = r.Header.Get("Accept"), r.URL.Path
+				_ = json.Unmarshal(raw, &body)
+				mu.Unlock()
+				_, _ = io.WriteString(w, stream)
+			}))
+			defer srv.Close()
+			p := build(t, gateway, apiKey(srv.URL, "some-model", WithRoute(RouteMessages))...)
+			var kinds []string
+			for ev, err := range streamer(t, p).Stream(context.Background(), text("hi")) {
+				if err != nil {
+					t.Fatal(err)
+				}
+				kinds = append(kinds, streamKind(ev))
+			}
+			if want := []string{"text_delta:ok", "item", "done"}; !reflect.DeepEqual(kinds, want) {
+				t.Fatalf("events %v, want %v", kinds, want)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if path != "/messages" || accept != "text/event-stream" || body["stream"] != true {
+				t.Errorf("sent %s, Accept %q, stream %v; want /messages, text/event-stream, true", path, accept, body["stream"])
+			}
+		})
 	}
 }

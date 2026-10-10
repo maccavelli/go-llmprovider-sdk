@@ -10,8 +10,9 @@
 // BestEffort: with reasoning it is sent as "auto" (see Degradations,
 // 0020-MADR F43).
 // Continuation is Unsupported: the Messages API is stateless, so a caller
-// replays prior items instead. There is no native streaming;
-// llmprovider.Stream emits Generate's result.
+// replays prior items instead. Native streaming is
+// Supported: Stream asks the Messages API for an event stream and yields its
+// events as they arrive (0031-MADR E1).
 //
 // Degradations:
 //   - With Reasoning, a forced tool choice (ForceTool or ToolChoiceRequired)
@@ -32,6 +33,7 @@ package claude
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -107,7 +109,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			ForcedToolChoice: llmprovider.BestEffort,
 			Reasoning:        llmprovider.Supported,
 			Continuation:     llmprovider.Unsupported,
-			NativeStreaming:  llmprovider.Unsupported,
+			NativeStreaming:  llmprovider.Supported,
 		},
 	}
 	if base := st.BaseURL(); base != "" {
@@ -134,20 +136,45 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	})
 }
 
+// Stream streams req from the Messages API as it is generated (0031-MADR
+// E1): the request asks for an event stream, and each event is yielded as it
+// arrives. A 401 before the first event renews a refreshable token and sends
+// once more.
+func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
+	if err := p.caps.Check(req); err != nil {
+		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
+	}
+	return wire.StreamEvents(ctx, p.call(req, true), p.src, messages.Events)
+}
+
 // generateOnce sends req once, with token.
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, wire.Call{
+	return wire.Post(ctx, p.call(req, false), token, messages.Decode)
+}
+
+// call is the Messages request for req, asking for an event stream when
+// stream is set.
+func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
+	body := p.body(req)
+	if stream {
+		body["stream"] = true
+	}
+	return wire.Call{
 		Provider: string(llmprovider.ProviderClaude),
 		Client:   p.client,
 		Logger:   p.logger,
 		URL:      p.baseURL + "/messages",
-		Body:     p.body(req),
+		Body:     body,
+		Stream:   stream,
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, "x-api-key", "")
 			r.Header.Set("anthropic-version", anthropicVersion)
+			if stream {
+				r.Header.Set("Accept", "text/event-stream")
+			}
 		},
-	}, token, messages.Decode)
+	}
 }
 
 // body is the Messages request for req.

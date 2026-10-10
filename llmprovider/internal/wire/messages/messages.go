@@ -177,31 +177,42 @@ func FromItems(items []llmprovider.Item) []Message {
 // Response has no ID. stop_reason becomes FinishReason, and a tool call cut
 // by max_tokens is ErrIncomplete (0020-MADR F3; MADR 0012 §1.5).
 func Decode(body io.Reader) (*llmprovider.Response, error) {
-	var result struct {
-		Model      string `json:"model"`
-		StopReason string `json:"stop_reason"`
-		Content    []struct {
-			Type      string          `json:"type"`
-			Text      string          `json:"text"`
-			Thinking  string          `json:"thinking"`
-			Signature string          `json:"signature"`
-			Data      string          `json:"data"`
-			ID        string          `json:"id"`
-			Name      string          `json:"name"`
-			Input     json.RawMessage `json:"input"`
-		} `json:"content"`
-		Usage usage `json:"usage"`
-	}
-	if err := json.NewDecoder(body).Decode(&result); err != nil {
+	var m message
+	if err := json.NewDecoder(body).Decode(&m); err != nil {
 		return nil, err
 	}
+	return m.response()
+}
 
+// message is a Messages API reply, whole, or assembled from its stream.
+type message struct {
+	Model      string  `json:"model"`
+	StopReason string  `json:"stop_reason"`
+	Content    []block `json:"content"`
+	Usage      usage   `json:"usage"`
+}
+
+// block is one content block.
+type block struct {
+	Type      string          `json:"type"`
+	Text      string          `json:"text"`
+	Thinking  string          `json:"thinking"`
+	Signature string          `json:"signature"`
+	Data      string          `json:"data"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Input     json.RawMessage `json:"input"`
+}
+
+// response is m as a Response, or the error its stop reason and content
+// make it.
+func (m message) response() (*llmprovider.Response, error) {
 	hasCall := false
-	for _, b := range result.Content {
+	for _, b := range m.Content {
 		hasCall = hasCall || b.Type == blockToolUse
 	}
-	finish := wire.Finish(result.StopReason, stopReasons, hasCall)
-	if len(result.Content) == 0 {
+	finish := wire.Finish(m.StopReason, stopReasons, hasCall)
+	if len(m.Content) == 0 {
 		return nil, wire.EmptyAnswer("messages", finish)
 	}
 	if finish == llmprovider.FinishLength && hasCall {
@@ -209,31 +220,14 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	}
 
 	// The Messages API is stateless: no ID.
-	res := &llmprovider.Response{Model: result.Model, FinishReason: finish, Usage: result.Usage.counts()}
-	for _, b := range result.Content {
-		switch b.Type {
-		case keyThinking:
-			text := b.Thinking
-			if text == "" {
-				text = b.Text
-			}
-			res.Output = append(res.Output, llmprovider.ReasoningItem{Text: text, Signature: b.Signature, Format: wire.FormatMessages})
-		case blockRedactedThinking:
-			res.Output = append(res.Output, llmprovider.ReasoningItem{Encrypted: b.Data, Format: wire.FormatMessages})
-		case wire.KeyText, "":
-			if b.Text != "" {
-				res.Output = append(res.Output, llmprovider.MessageItem{Role: wire.RoleAssistant, Text: b.Text})
-			}
-		case blockToolUse:
-			argsStr, err := wire.CompactArguments(b.Input)
-			if err != nil {
-				return nil, fmt.Errorf("messages: tool_use input: %w", err)
-			}
-			res.Output = append(res.Output, llmprovider.FunctionCallItem{
-				CallID:    b.ID,
-				Name:      b.Name,
-				Arguments: argsStr,
-			})
+	res := &llmprovider.Response{Model: m.Model, FinishReason: finish, Usage: m.Usage.counts()}
+	for _, b := range m.Content {
+		item, ok, err := b.item()
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			res.Output = append(res.Output, item)
 		}
 	}
 
@@ -244,6 +238,147 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 	}
 
 	return res, nil
+}
+
+// item is the item b holds, and false for none: an empty text, or a block of
+// a type this wire does not read.
+func (b block) item() (llmprovider.Item, bool, error) {
+	switch b.Type {
+	case keyThinking:
+		text := b.Thinking
+		if text == "" {
+			text = b.Text
+		}
+		return llmprovider.ReasoningItem{Text: text, Signature: b.Signature, Format: wire.FormatMessages}, true, nil
+	case blockRedactedThinking:
+		return llmprovider.ReasoningItem{Encrypted: b.Data, Format: wire.FormatMessages}, true, nil
+	case wire.KeyText, "":
+		if b.Text == "" {
+			return nil, false, nil
+		}
+		return llmprovider.MessageItem{Role: wire.RoleAssistant, Text: b.Text}, true, nil
+	case blockToolUse:
+		argsStr, err := wire.CompactArguments(b.Input)
+		if err != nil {
+			return nil, false, fmt.Errorf("messages: tool_use input: %w", err)
+		}
+		return llmprovider.FunctionCallItem{CallID: b.ID, Name: b.Name, Arguments: argsStr}, true, nil
+	}
+	return nil, false, nil
+}
+
+// streamEvent is the part of one Messages stream event the reader uses
+// (0031-PLAN-native-streaming-on-the-other-wires, Phase 1).
+type streamEvent struct {
+	Type    string `json:"type"`
+	Index   int    `json:"index"`
+	Message struct {
+		Model string `json:"model"`
+		Usage usage  `json:"usage"`
+	} `json:"message"`
+	ContentBlock block `json:"content_block"`
+	Delta        struct {
+		Type        string `json:"type"`
+		Text        string `json:"text"`
+		Thinking    string `json:"thinking"`
+		Signature   string `json:"signature"`
+		PartialJSON string `json:"partial_json"`
+		StopReason  string `json:"stop_reason"`
+	} `json:"delta"`
+	Usage usage `json:"usage"`
+	Error struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// blockText is a block's strings as its deltas arrive.
+type blockText struct {
+	text, thinking, signature, args strings.Builder
+}
+
+// Events reads a Messages API event stream and yields its events as they
+// arrive (0031-MADR E3): a text_delta as EventTextDelta, a thinking_delta as
+// EventReasoningDelta, each content block as EventItem when it stops, and
+// message_stop as EventDone, carrying the Response Decode returns for the
+// same answer. Signatures, a call's input_json_delta and a redacted block are
+// assembled into their items, not yielded. The stream's error event is
+// classified by its type. It returns nil once EventDone is yielded or yield
+// returns false, and otherwise the error that ended the stream; what it
+// yielded before an error is not a response (0031-MADR D4).
+func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
+	var m message
+	var texts []*blockText
+	at := func(i int) (*block, *blockText) {
+		for len(m.Content) <= i {
+			m.Content = append(m.Content, block{})
+			texts = append(texts, &blockText{})
+		}
+		return &m.Content[i], texts[i]
+	}
+	dispatch := func(payload []byte) (bool, error) {
+		var ev streamEvent
+		if err := json.Unmarshal(payload, &ev); err != nil {
+			return false, fmt.Errorf("%s: decode stream event: %w", provider, err)
+		}
+		switch ev.Type {
+		case "message_start":
+			m.Model, m.Usage = ev.Message.Model, ev.Message.Usage
+		case "content_block_start":
+			b, _ := at(ev.Index)
+			*b = ev.ContentBlock
+		case "content_block_delta":
+			_, t := at(ev.Index)
+			switch ev.Delta.Type {
+			case "text_delta":
+				t.text.WriteString(ev.Delta.Text)
+				return !yield(llmprovider.Event{Type: llmprovider.EventTextDelta, Text: ev.Delta.Text}), nil
+			case "thinking_delta":
+				t.thinking.WriteString(ev.Delta.Thinking)
+				return !yield(llmprovider.Event{Type: llmprovider.EventReasoningDelta, Text: ev.Delta.Thinking}), nil
+			case "signature_delta":
+				t.signature.WriteString(ev.Delta.Signature)
+			case "input_json_delta":
+				t.args.WriteString(ev.Delta.PartialJSON)
+			}
+		case "content_block_stop":
+			b, t := at(ev.Index)
+			b.Text += t.text.String()
+			b.Thinking += t.thinking.String()
+			b.Signature += t.signature.String()
+			if t.args.Len() > 0 {
+				b.Input = json.RawMessage(t.args.String())
+			}
+			// A call cut short has no usable input: its error is the one
+			// response gives at message_stop, as Decode's.
+			if item, ok, err := b.item(); err == nil && ok {
+				return !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: item}), nil
+			}
+		case "message_delta":
+			if ev.Delta.StopReason != "" {
+				m.StopReason = ev.Delta.StopReason
+			}
+			// The counts are cumulative; one the event leaves out keeps
+			// message_start's.
+			for _, f := range []struct{ to, from *int }{{&m.Usage.Input, &ev.Usage.Input}, {&m.Usage.Output, &ev.Usage.Output},
+				{&m.Usage.CacheRead, &ev.Usage.CacheRead}, {&m.Usage.CacheWrite, &ev.Usage.CacheWrite}} {
+				if *f.from > 0 {
+					*f.to = *f.from
+				}
+			}
+		case "message_stop":
+			resp, err := m.response()
+			if err != nil {
+				return false, err
+			}
+			yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
+			return true, nil
+		case "error":
+			return false, llmprovider.ClassifyStreamFailure(provider, "", ev.Error.Type, ev.Error.Message)
+		}
+		return false, nil
+	}
+	return wire.ReadEvents(provider, body, "message_stop", dispatch)
 }
 
 // The thinking shape, budget-based, as in OpenCode's own client
