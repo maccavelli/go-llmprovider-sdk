@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-63 records. Cite them by full filename.
+64 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -73,6 +73,7 @@ documents a reader follows to do something.
 | 0028 | PLAN | [Implement the Six Heuristic Corrections and the Five Measured Cost Reductions](decisions/0028-PLAN-heuristics-and-performance-from-the-research-pass.md) | complete |
 | 0029 | MADR | [Require Go 1.27.2, for the Standard Library's Security Fixes](decisions/0029-MADR-go-1-27-2-for-standard-library-fixes.md) | accepted |
 | 0029 | PLAN | [Implement Go 1.27.2 as the Module's Requirement](decisions/0029-PLAN-go-1-27-2-for-standard-library-fixes.md) | complete |
+| 0030 | REPORT | [The v1 SDK API Surfaces and the Protocols the Built-in Providers Speak](reports/0030-REPORT-v1-api-and-protocol-surfaces.md) | observation |
 
 ## I want to…
 
@@ -96,6 +97,7 @@ documents a reader follows to do something.
 | know the rules a new or changed API must follow | [guides/api-standards.md](guides/api-standards.md) |
 | move code that used `mcplib`'s `llmprovider` or `wizard` to this module | [guides/migrating-from-mcplib.md](guides/migrating-from-mcplib.md) |
 | see how the imported API measured against the SDK requirements | [0015-REPORT](reports/0015-REPORT-sdk-api-surface-assessment.md) |
+| see the v1 generation API and which wire protocols each provider speaks | [0030-REPORT](reports/0030-REPORT-v1-api-and-protocol-surfaces.md) |
 | know why provider auth builds on `mcplib` and not `magic-cli-remote`, and what it takes from each | [0016-MADR](decisions/0016-MADR-provider-auth-and-support-baseline.md) |
 | compare this module's auth with Codex, Grok, Kilo, OpenCode, pi, agy and Claude Code | [0017-REPORT](reports/0017-REPORT-reference-client-auth-survey.md) |
 | know how Together AI, Kilo device login and command-sourced keys are being added | [0017-MADR](decisions/0017-MADR-together-provider-and-auth-extensions.md) |
