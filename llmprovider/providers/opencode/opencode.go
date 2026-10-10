@@ -234,7 +234,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	}
 	body := p.responsesBody(c)
 	body["stream"] = true
-	return responses.Stream(ctx, p.wireCall(c, body, true), p.src)
+	return wire.StreamEvents(ctx, p.wireCall(c, body, true), p.src, responses.Events)
 }
 
 // generateOnly is a provider without its Stream, so that llmprovider.Stream

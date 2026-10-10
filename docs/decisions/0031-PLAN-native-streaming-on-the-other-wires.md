@@ -354,3 +354,79 @@ call was returned (D2).
   * build from the documented shapes alone.
 * **Decision.** The owner chose the re-run. It is T2b, above, added to the
   measurement file as `TestLive_0031bGeminiShapes`.
+
+### Phase 2: the shared reader (2026-10-10)
+
+**Before it.** The owner committed Phases 0 and 1 together as `67c7165`.
+
+**Change.**
+
+* `llmprovider/internal/wire/sse.go` (new):
+  * `ReadEvents(provider, body, done, dispatch)`. The SSE framing moves
+    here from `responses.readEvents`, with the same rules: data lines
+    joined with "\n", other lines not data, empty events not dispatched,
+    `EventLimit` (16 MiB) per event as `ErrIncomplete`, a read failure as
+    `ErrProviderUnavailable` marked `AfterReply`. An early end is
+    `ErrProviderUnavailable` marked `AfterReply`, and now names `done`, the
+    event the stream lacked.
+  * `readLine`, moved unchanged.
+  * `StreamEvents(ctx, c, src, decode)`: the open-read-yield loop that was
+    `responses.Stream`, generic over a decoder.
+* `internal/wire/responses`:
+  * `readEvents` keeps its event mapping and fast skip, and reads through
+    `wire.ReadEvents(…, "response.completed", …)`, so its early-end text is
+    unchanged.
+  * `responses.Stream`, `eventLimit`, `readLine` and their errors are
+    removed.
+* `openai`, `grok` and `opencode` call `wire.StreamEvents(…,
+  responses.Events)`.
+
+**Red** (step 2), `internal/wire/sse_0031b_test.go` on the tree before the
+change:
+
+```text
+llmprovider/internal/wire/sse_0031b_test.go:18:9: undefined: ReadEvents
+llmprovider/internal/wire/sse_0031b_test.go:121:9: undefined: ReadEvents
+FAIL	github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire [build failed]
+```
+
+**Green, under `-race`:**
+
+* `TestReadEvents_Framing`
+* `TestReadEvents_LastEventWithoutBlankLine`
+* `TestReadEvents_EventTooLarge` (one line, and joined data)
+* `TestReadEvents_ReadFailure`
+* `TestReadEvents_EndsEarly`
+* `TestReadEvents_StopReadsNoFurther`
+* `TestReadEvents_DispatchError`
+
+`go test -count=1 ./...` passes, which covers step 4: every `responses` and
+`wire` test, the first plan's stream and conformance tests, and the
+goldens.
+
+**Plants** (rule 2), on a scratch clone:
+
+| Plant | Test | Result |
+| :--- | :--- | :--- |
+| an event with no data is dispatched | `TestReadEvents_Framing` | `sse_0031b_test.go:37: events ["{\"a\":\n1}" "" "no space" "end"] (<nil>), want [...]`; FAIL |
+| the early end does not name the event it lacked | `TestReadEvents_EndsEarly` | `sse_0031b_test.go:91: an early end: … stream ended early; want ErrProviderUnavailable after the reply, naming the end event`; FAIL |
+
+**Benchmarks** (rule 5; `-count=5`, same host, medians):
+
+| Benchmark | Before | After | Change |
+| :--- | :--- | :--- | :--- |
+| `ReadStream_Deltas4MiB` ns/op | 1,347,644 | 1,372,694 | +1.9% |
+| `ReadStream_Deltas4MiB` B/op | 66,858 | 66,863 | 0.0% |
+| `ReadStream_Deltas4MiB` allocs/op | 13 | 13 | 0 |
+| `ReadStream_4MiB` ns/op | 7,485,438 | 7,526,427 | +0.5% |
+| `ReadStream_4MiB` B/op | 860,498 | 860,468 | 0.0% |
+| `ReadStream_4MiB` allocs/op | 7,120 | 7,120 | 0 |
+
+Every figure is within step 5's 10%.
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+
+* `internal/wire/responses` coverage is 99.2%.
+* `internal/wire` coverage is 89.3%, down from 93.9%: `StreamEvents` is
+  exercised by the provider packages' stream tests, not by `wire`'s own.
+  The floors hold.

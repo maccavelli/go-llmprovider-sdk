@@ -181,7 +181,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.caps.Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return responses.Stream(ctx, p.call(req, true), p.src)
+	return wire.StreamEvents(ctx, p.call(req, true), p.src, responses.Events)
 }
 
 // body is the Responses request for req.

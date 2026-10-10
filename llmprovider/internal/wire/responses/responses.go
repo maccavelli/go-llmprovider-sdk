@@ -3,20 +3,15 @@
 package responses
 
 import (
-	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"iter"
 	"maps"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
@@ -240,11 +235,6 @@ func appendOutput(r *llmprovider.Response, out outputItem) (refused bool) {
 	return refused
 }
 
-// eventLimit bounds one Responses stream event. The stream as a whole has no
-// limit: a long answer is many events, and the idle limit bounds a stalled
-// one (0021-MADR W2, D2).
-const eventLimit = 16 << 20
-
 // streamEvent is the part of one Responses stream event the reader uses. The
 // type is read from the payload, not the SSE "event:" line.
 type streamEvent struct {
@@ -313,45 +303,14 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 	return readEvents(provider, body, streamedEvents, yield)
 }
 
-// Stream sends c as an event stream through wire.Reauth, and yields its
-// events as they arrive (0031-MADR D1-D4). A refused credential arrives
-// before any event, so src's token is renewed and c sent once more. A
-// failure, before or during the stream, is yielded once with a zero Event and
-// ends it; a caller that stops ranging closes the reply.
-func Stream(ctx context.Context, c wire.Call, src llmprovider.TokenSource) iter.Seq2[llmprovider.Event, error] {
-	return func(yield func(llmprovider.Event, error) bool) {
-		reply, err := wire.Reauth(ctx, c.Provider, src, func(token llmprovider.Token) (*wire.Stream, error) {
-			return wire.OpenStream(ctx, c, token)
-		})
-		if err != nil {
-			yield(llmprovider.Event{}, err)
-			return
-		}
-		stopped := false
-		err = reply.Read(func(body io.Reader) error {
-			return Events(c.Provider, body, func(ev llmprovider.Event) bool {
-				stopped = !yield(ev, nil)
-				return !stopped
-			})
-		})
-		if err != nil && !stopped {
-			yield(llmprovider.Event{}, err)
-		}
-	}
-}
-
 // readEvents is Events, decoding only the event types in handled.
 func readEvents(provider string, body io.Reader, handled map[string]bool, yield func(llmprovider.Event) bool) error {
-	reader := bufio.NewReaderSize(body, 64<<10)
 	result := &llmprovider.Response{}
 	refused := false
-	var data []byte
 	// dispatch handles one event; stop ends the stream without an error,
 	// after EventDone or when the caller stops.
-	dispatch := func() (stop bool, err error) {
-		payload := data
-		data = data[:0]
-		if len(payload) == 0 || string(payload) == "[DONE]" || ignored(payload, handled) {
+	dispatch := func(payload []byte) (stop bool, err error) {
+		if string(payload) == "[DONE]" || ignored(payload, handled) {
 			return false, nil
 		}
 		if deltaType, ok := deltaEvents[string(eventType(payload))]; ok {
@@ -400,42 +359,9 @@ func readEvents(provider string, body io.Reader, handled map[string]bool, yield 
 		}
 		return false, nil
 	}
-	tooLarge := fmt.Errorf("%w: %s: stream event over %d MiB", llmprovider.ErrIncomplete, provider, eventLimit>>20)
-	for {
-		line, err := readLine(reader, eventLimit)
-		if errors.Is(err, errLineTooLong) {
-			return tooLarge
-		}
-		switch {
-		case len(line) == 0 && err == nil:
-			if stop, err := dispatch(); stop || err != nil {
-				return err
-			}
-		case bytes.HasPrefix(line, dataPrefix):
-			if len(data) > 0 {
-				data = append(data, '\n')
-			}
-			payload := bytes.TrimPrefix(bytes.TrimPrefix(line, dataPrefix), []byte(" "))
-			if len(data)+len(payload) > eventLimit {
-				return tooLarge
-			}
-			data = append(data, payload...)
-		}
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				return fmt.Errorf("%w: %s: read stream: %w", llmprovider.ErrProviderUnavailable, provider,
-					transport.AfterReply(err))
-			}
-			break
-		}
-	}
-	if stop, err := dispatch(); stop || err != nil {
-		return err
-	}
-	// The service may have generated the answer, so WithRetry asks again at
-	// most once (0021-MADR D1).
-	return fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, provider,
-		transport.AfterReply(errEndedEarly))
+	// The framing, the per-event bound and the early end are the shared
+	// reader's (0031-MADR E2).
+	return wire.ReadEvents(provider, body, "response.completed", dispatch)
 }
 
 // finished is a stream's outcome: the response once it completed, or the
@@ -446,37 +372,6 @@ func finished(result *llmprovider.Response, err error) (*llmprovider.Response, e
 		return nil, err
 	}
 	return result, nil
-}
-
-var (
-	dataPrefix = []byte("data:")
-	// errEndedEarly is a stream that ended before response.completed.
-	errEndedEarly = errors.New("stream ended before response.completed")
-	// errLineTooLong is a line over the event limit.
-	errLineTooLong = errors.New("stream line too long")
-)
-
-// readLine reads one line without its line ending, up to limit bytes. At the
-// end of the stream it returns the last line, which may be empty, with io.EOF.
-// A line that fits the reader's buffer is the reader's own slice, valid until
-// the next read; only a longer one is copied.
-func readLine(r *bufio.Reader, limit int) ([]byte, error) {
-	chunk, err := r.ReadSlice('\n')
-	line := chunk
-	if errors.Is(err, bufio.ErrBufferFull) {
-		line = append([]byte(nil), chunk...)
-		for errors.Is(err, bufio.ErrBufferFull) {
-			if chunk, err = r.ReadSlice('\n'); len(line)+len(chunk) > limit+2 { // +2 for the line ending
-				return nil, errLineTooLong
-			}
-			line = append(line, chunk...)
-		}
-	}
-	line = bytes.TrimSuffix(bytes.TrimSuffix(line, []byte("\n")), []byte("\r"))
-	if len(line) > limit {
-		return nil, errLineTooLong
-	}
-	return line, err
 }
 
 // handledEvents are the event types ReadStream acts on.
