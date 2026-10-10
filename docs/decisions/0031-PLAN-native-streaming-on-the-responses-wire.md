@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-10
 associated-madr: "0031-MADR-native-streaming-on-the-responses-wire.md"
 decision-makers: repository owner
@@ -947,6 +947,51 @@ The two subtest skips:
   refused. This was not established.
 
 Every check that ran against a service passed on the release commit.
+
+**Step 5, the release.** The owner committed step 4's record as `9aeeaa3`,
+pushed, and tagged `v1.5.0` on it, an annotated tag (`cca7e30`). From the
+release commit `2a1c6b7`, `9aeeaa3` changes this PLAN only.
+
+**Step 6, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on the tag (run `38090582588`, a push of `v1.5.0`) | success |
+| CI on `main` at `9aeeaa3` (run `38090266970`) | success |
+| `go list -m -json …@v1.5.0` through `proxy.golang.org` | `Version` `v1.5.0`, `GoVersion` `1.27.2`, `Origin.Hash` `9aeeaa3…` (`refs/tags/v1.5.0`) |
+| apidiff, `v1.4.0` to `v1.5.0` (both tags archived, without `-incompatible`) | `Compatible changes:` `llmtest.Harness.StreamFailure: added`, `llmtest.Harness.StreamText: added`; nothing else |
+| a scratch consumer using every public package, on `v1.5.0` | builds with `CGO_ENABLED=0` for linux, windows and darwin, amd64 and arm64; `go run` prints `true <nil>`, `true`, `false`, and `true Supported <nil>`: `openai` is a `Streamer` declaring `Supported` |
+| a scratch copy of prepare-commit-msg, moved from `v1.3.2` to `v1.5.0` | baseline tests pass; then build, vet on three platforms, `go test`, `go test -race` and golangci-lint (`0 issues.`) pass |
+
+**One earlier failure on `main`:** CI run `38085517392`, on `7445702`, the
+owner's mid-phase commit of Phase 3. Its ubuntu job failed:
+
+```text
+--- FAIL: TestStream_Failures/event_too_large
+    stream_0031_test.go:179: stream error llmprovider: provider unavailable: p: read reply: no data for 300s; want llmprovider: incomplete response, after the reply false
+```
+
+This is the flakiness Phase 3's record describes: a 50 ms idle limit set
+for every case, tripped by a slow 16 MiB write. It was fixed by `7642bfd`,
+and every later run passed.
+
+**Step 7.** Every criterion is met, so this PLAN is `complete`:
+
+* **V1 and V2**, red then green and the gate: in each phase's record.
+* **V3**, T1: recorded in Phase 1, before Phases 2 and 4.
+* **V4**, the benchmarks: Phase 2's and Phase 6's medians, within 10%.
+* **V5**, the API: Phase 6's apidiff from the tree, and step 6's from the
+  tags. Additions only.
+* **V6**, live: Phase 4's live tests, and step 4.
+* **V7**, the records:
+  * 0031-MADR's three amendments of 2026-10-10: Phase 1's measurement, the
+    refusal delta, and what `llmtest` asserts for an early stop. No
+    provider was left `Unsupported`.
+  * `docs/architecture.md` and the package docs match the code (step 1).
+
+**Not done, as scoped:** MADR D8's four wires (Chat Completions, Messages,
+Gemini Interactions, generateContent) stay open as later phases. Consumers
+move to `v1.5.0` under their own records.
 
 #### Release notes: `v1.5.0`
 
