@@ -29,8 +29,14 @@ func TestIgnored_EventTypes(t *testing.T) {
 		}{"handled " + event, `{"type":"` + event + `","sequence_number":1}`, false})
 	}
 	for _, c := range cases {
-		if got := ignored([]byte(c.payload)); got != c.want {
+		if got := ignored([]byte(c.payload), handledEvents); got != c.want {
 			t.Errorf("%s: ignored(%s) = %v, want %v", c.name, c.payload, got, c.want)
+		}
+	}
+	// Events decodes the deltas it yields (0031-MADR D2).
+	for event := range deltaEvents {
+		if payload := `{"type":"` + event + `","delta":"x"}`; ignored([]byte(payload), streamedEvents) {
+			t.Errorf("Events ignores %s", event)
 		}
 	}
 }

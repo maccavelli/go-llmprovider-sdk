@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
@@ -284,17 +285,54 @@ func failed(provider string, e *responseError) error {
 // response.incomplete onto MADR 0012 §1.5, and a stream that ends before
 // response.completed is retryable, once (MADR 0012 §4.1; 0021-MADR D1). Each
 // event is bounded, not the stream (0021-MADR W2). It does not rely on
-// Content-Type, which the ChatGPT backend does not send.
+// Content-Type, which the ChatGPT backend does not send. It collects Events,
+// skipping the deltas it does not need (0031-MADR D2).
 func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) {
+	var result *llmprovider.Response
+	err := readEvents(provider, body, handledEvents, func(ev llmprovider.Event) bool {
+		if ev.Type == llmprovider.EventDone {
+			result = ev.Response
+		}
+		return true
+	})
+	return finished(result, err)
+}
+
+// Events reads a Responses API event stream and yields its events as they
+// arrive (0031-MADR D2): a text delta as EventTextDelta, a reasoning summary
+// delta, the one measured, as EventReasoningDelta (0031-PLAN Phase 1), each
+// response.output_item.done's item as EventItem, and response.completed as
+// EventDone, carrying the Response ReadStream returns. A call-argument delta
+// and every other event yield nothing (0031-MADR Q4). It returns nil once
+// EventDone is yielded or yield returns false, and otherwise the error that
+// ended the stream, as ReadStream's; what it yielded before an error is not a
+// response (0031-MADR D4).
+func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
+	return readEvents(provider, body, streamedEvents, yield)
+}
+
+// readEvents is Events, decoding only the event types in handled.
+func readEvents(provider string, body io.Reader, handled map[string]bool, yield func(llmprovider.Event) bool) error {
 	reader := bufio.NewReaderSize(body, 64<<10)
 	result := &llmprovider.Response{}
 	refused := false
 	var data []byte
-	dispatch := func() (done bool, err error) {
+	// dispatch handles one event; stop ends the stream without an error,
+	// after EventDone or when the caller stops.
+	dispatch := func() (stop bool, err error) {
 		payload := data
 		data = data[:0]
-		if len(payload) == 0 || string(payload) == "[DONE]" || ignored(payload) {
+		if len(payload) == 0 || string(payload) == "[DONE]" || ignored(payload, handled) {
 			return false, nil
+		}
+		if deltaType, ok := deltaEvents[string(eventType(payload))]; ok {
+			var delta struct {
+				Delta string `json:"delta"`
+			}
+			if err := json.Unmarshal(payload, &delta); err != nil {
+				return false, fmt.Errorf("%s: decode stream event: %w", provider, err)
+			}
+			return !yield(llmprovider.Event{Type: deltaType, Text: delta.Delta}), nil
 		}
 		var event streamEvent
 		if err := json.Unmarshal(payload, &event); err != nil {
@@ -307,7 +345,11 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 			// The stream's own error event, not a response's (0020-MADR F39).
 			return false, llmprovider.ClassifyStreamFailure(provider, event.Code, "", event.Message)
 		case "response.output_item.done":
+			n := len(result.Output)
 			refused = appendOutput(result, event.Item) || refused
+			if len(result.Output) > n {
+				return !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: result.Output[n]}), nil
+			}
 		case "response.failed":
 			return false, failed(provider, event.Response.Error)
 		case "response.incomplete":
@@ -320,9 +362,11 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 				result.Model = event.Response.Model
 			}
 			result.Usage = event.Response.Usage.counts()
-			if _, err := completed(result, refused); err != nil {
+			resp, err := completed(result, refused)
+			if err != nil {
 				return false, err
 			}
+			yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
 			return true, nil
 		}
 		return false, nil
@@ -331,12 +375,12 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 	for {
 		line, err := readLine(reader, eventLimit)
 		if errors.Is(err, errLineTooLong) {
-			return nil, tooLarge
+			return tooLarge
 		}
 		switch {
 		case len(line) == 0 && err == nil:
-			if done, err := dispatch(); done || err != nil {
-				return finished(result, err)
+			if stop, err := dispatch(); stop || err != nil {
+				return err
 			}
 		case bytes.HasPrefix(line, dataPrefix):
 			if len(data) > 0 {
@@ -344,24 +388,24 @@ func ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) 
 			}
 			payload := bytes.TrimPrefix(bytes.TrimPrefix(line, dataPrefix), []byte(" "))
 			if len(data)+len(payload) > eventLimit {
-				return nil, tooLarge
+				return tooLarge
 			}
 			data = append(data, payload...)
 		}
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
-				return nil, fmt.Errorf("%w: %s: read stream: %w", llmprovider.ErrProviderUnavailable, provider,
+				return fmt.Errorf("%w: %s: read stream: %w", llmprovider.ErrProviderUnavailable, provider,
 					transport.AfterReply(err))
 			}
 			break
 		}
 	}
-	if done, err := dispatch(); done || err != nil {
-		return finished(result, err)
+	if stop, err := dispatch(); stop || err != nil {
+		return err
 	}
 	// The service may have generated the answer, so WithRetry asks again at
 	// most once (0021-MADR D1).
-	return nil, fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, provider,
+	return fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, provider,
 		transport.AfterReply(errEndedEarly))
 }
 
@@ -412,23 +456,47 @@ var handledEvents = map[string]bool{
 	"response.incomplete": true, "response.completed": true,
 }
 
-// ignored reports whether an event is one ReadStream does not use, such as a
-// delta or an in-progress event: the done events carry the whole items. It
-// reads the first "type" value without decoding the payload. Only a value that
-// starts "response." counts: no item or content type does, so a nested type
-// can never be mistaken for the event's own, and a payload it cannot read is
-// decoded in full (0021-MADR W2).
-func ignored(payload []byte) bool {
+// deltaEvents are the delta event types Events yields, and the Event type of
+// each. The reasoning delta is the one 0031-PLAN Phase 1 measured.
+var deltaEvents = map[string]llmprovider.EventType{
+	"response.output_text.delta":            llmprovider.EventTextDelta,
+	"response.reasoning_summary_text.delta": llmprovider.EventReasoningDelta,
+}
+
+// streamedEvents are the event types Events acts on: ReadStream's, and the
+// deltas.
+var streamedEvents = func() map[string]bool {
+	events := maps.Clone(handledEvents)
+	for event := range deltaEvents {
+		events[event] = true
+	}
+	return events
+}()
+
+// ignored reports whether an event is one the reader does not use, as handled
+// lists them, such as an in-progress event, or a delta when the done events
+// carry the whole items. It reads the first "type" value without decoding the
+// payload. Only a value that starts "response." counts: no item or content
+// type does, so a nested type can never be mistaken for the event's own, and
+// a payload it cannot read is decoded in full (0021-MADR W2).
+func ignored(payload []byte, handled map[string]bool) bool {
+	t := eventType(payload)
+	return bytes.HasPrefix(t, []byte("response.")) && !handled[string(t)]
+}
+
+// eventType is the first "type" value of payload, or nil when it has none.
+// It is a slice of payload, so that a map lookup by it does not allocate.
+func eventType(payload []byte) []byte {
 	const key = `"type":"`
 	_, rest, ok := bytes.Cut(payload, []byte(key))
 	if !ok {
-		return false
+		return nil
 	}
-	eventType, _, ok := bytes.Cut(rest, []byte{'"'})
+	t, _, ok := bytes.Cut(rest, []byte{'"'})
 	if !ok {
-		return false
+		return nil
 	}
-	return bytes.HasPrefix(eventType, []byte("response.")) && !handledEvents[string(eventType)]
+	return t
 }
 
 // usage is the Responses API's token counts. Its input count holds the cached

@@ -391,3 +391,80 @@ not mapped; `o4-mini`'s 16 tokens went to reasoning with no delta.
   256-token cap (one billed request).
 * **Decision.** The owner chose the first; step 2 is amended in place. No
   decision of 0031-MADR changes.
+
+### Phase 2: the decoder (2026-10-10)
+
+**Change** (`llmprovider/internal/wire/responses/responses.go`):
+
+* `Events(provider, body, yield) error` yields the events of MADR D2's
+  table, with Phase 1's one reasoning delta.
+* `ReadStream` collects it.
+* Both run on one reader, `readEvents`, which decodes only the event types
+  in the set it is given. `ReadStream` passes `handledEvents`, so it still
+  skips the deltas undecoded (0021-MADR W2); `Events` passes
+  `streamedEvents`, which is `handledEvents` plus `deltaEvents`.
+* A delta is decoded into a one-field struct.
+* `ignored` takes the set. The new `eventType` returns a slice of the
+  payload, so a map lookup by it does not allocate.
+
+**Red** (step 2), `events_0031_test.go` on the tree before the change:
+
+```text
+llmprovider/internal/wire/responses/events_0031_test.go:19:9: undefined: Events
+llmprovider/internal/wire/responses/events_0031_test.go:147:9: undefined: Events
+FAIL	github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses [build failed]
+```
+
+**Green:** the five tests below pass after the change, and so does
+`go test -count=1 ./llmprovider/...`: every existing `responses` test, and
+the G-wire goldens (step 4).
+
+* `TestEvents_Goldens`: `chatgpt-text.sse` gives `text_delta:ok`,
+  `item:MessageItem`, `done`; `chatgpt-reasoning.sse` gives
+  `text_delta:391`, `item:MessageItem`, `done`; `chatgpt-tool.sse` gives
+  `item:FunctionCallItem`, `done`. In each, `EventDone`'s `Response` equals
+  `ReadStream`'s, the `EventItem`s equal its `Output`, and the text deltas
+  joined equal its message text.
+* `TestEvents_ReasoningDelta`
+* `TestEvents_CallArgumentDeltasSilent`
+* `TestEvents_StopEarly`
+* `TestEvents_FailureAfterDelta`
+
+`TestIgnored_EventTypes` gains a loop: no type in `deltaEvents` is ignored
+under `streamedEvents`.
+
+**Plants** (rule 2), on a scratch clone, for the two guards a compile
+failure does not exercise:
+
+| Plant | Test | Result |
+| :--- | :--- | :--- |
+| `streamedEvents` without the deltas | `TestIgnored_EventTypes` | `ignored_test.go:39: Events ignores response.output_text.delta` (and `…reasoning_summary_text.delta`); FAIL |
+| a delta that ignores `yield`'s false | `TestEvents_StopEarly` | `events_0031_test.go:152: stopped at once: 10001 calls, <nil>; want 1 call and nil`; FAIL |
+
+The first plant was first run against a loop over `streamedEvents`. It
+passed, because removing the deltas from that map also removed the cases
+that should have caught it. The loop was changed to range over
+`deltaEvents`, and the plant then failed as shown.
+
+**Benchmarks** (rule 5; `-benchmem -count=5`, same host, medians):
+
+| Benchmark | Before | After | Change |
+| :--- | :--- | :--- | :--- |
+| `ReadStream_Deltas4MiB` ns/op | 1,416,623 | 1,374,522 | −3.0% |
+| `ReadStream_Deltas4MiB` B/op | 66,874 | 66,879 | 0.0% |
+| `ReadStream_Deltas4MiB` allocs/op | 13 | 13 | 0 |
+| `ReadStream_4MiB` ns/op | 7,713,890 | 7,715,058 | 0.0% |
+| `ReadStream_4MiB` B/op | 860,482 | 860,554 | 0.0% |
+| `ReadStream_4MiB` allocs/op | 7,120 | 7,120 | 0 |
+
+Every figure is within step 5's 10%.
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+`internal/wire/responses` coverage is 98.1%.
+
+**Found, for Phase 6 (not a deviation of this phase):** MADR D7 asks that
+the text deltas, joined, equal the `MessageItem` texts. `appendOutput`
+keeps a refusal's text as the message text (0021-MADR W4), but D2's table
+maps no refusal delta. OpenAI documents a `response.refusal.delta` event;
+it was not measured here. On a refusal, D7's check would therefore fail.
+The owner settles this before Phase 6.
