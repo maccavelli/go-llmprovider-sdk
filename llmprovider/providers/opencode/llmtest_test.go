@@ -70,6 +70,17 @@ var conformanceReplies = map[Route]routeReplies{
 	},
 }
 
+// llmtestStream is the text reply as a Responses event stream: its text in a
+// delta, the item, then completed (0031-MADR D7).
+const llmtestStream = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
+	"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}}\n\n" +
+	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_llmtest\",\"model\":\"llmtest-model\"}}\n\n"
+
+// llmtestStreamFailure is a Responses event stream that fails after one
+// delta.
+const llmtestStreamFailure = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hel\"}\n\n" +
+	"data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"server_error\",\"message\":\"llmtest\"}}}\n\n"
+
 // TestConformance runs llmtest (0015-MADR D11) against each gateway, on every
 // route: chat completions and messages, and google and responses (0026-MADR
 // F56).
@@ -90,7 +101,7 @@ func TestConformance(t *testing.T) {
 			write := func(body string) func(http.ResponseWriter, *http.Request) {
 				return func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, body) }
 			}
-			llmtest.Run(t, llmtest.Harness{
+			h := llmtest.Harness{
 				Model: "llmtest-model",
 				New: func(baseURL string, opts ...llmprovider.Option) (llmprovider.Provider, error) {
 					return newFor(tc.gateway)(append(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-llmtest"),
@@ -116,7 +127,12 @@ func TestConformance(t *testing.T) {
 					w.WriteHeader(status)
 					_, _ = io.WriteString(w, `{"type":"error","error":{"type":"llmtest","message":"llmtest"}}`)
 				},
-			})
+			}
+			// Only the responses route streams natively (0031-MADR D1).
+			if tc.route == RouteResponses {
+				h.StreamText, h.StreamFailure = write(llmtestStream), write(llmtestStreamFailure)
+			}
+			llmtest.Run(t, h)
 		})
 	}
 }

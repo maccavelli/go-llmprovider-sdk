@@ -12,6 +12,17 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/llmtest"
 )
 
+// llmtestStream is the text reply as a Responses event stream: its text in a
+// delta, the item, then completed (0031-MADR D7).
+const llmtestStream = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
+	"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}}\n\n" +
+	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_llmtest\",\"model\":\"llmtest-model\"}}\n\n"
+
+// llmtestStreamFailure is a Responses event stream that fails after one
+// delta.
+const llmtestStreamFailure = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hel\"}\n\n" +
+	"data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"server_error\",\"message\":\"llmtest\"}}}\n\n"
+
 // TestConformance runs llmtest (0015-MADR D11) against Grok, with an API key
 // and with an OAuth session.
 func TestConformance(t *testing.T) {
@@ -35,8 +46,10 @@ func TestConformance(t *testing.T) {
 					_ = json.NewEncoder(w).Encode(map[string]any{"id": "resp_llmtest", "output": []any{map[string]any{
 						"type": "function_call", "call_id": "call_llmtest", "name": tool, "arguments": "{}"}}})
 				},
-				Fidelity:    true,
-				StrictTools: true,
+				Fidelity:      true,
+				StrictTools:   true,
+				StreamText:    func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestStream) },
+				StreamFailure: func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestStreamFailure) },
 				// The Responses wire reports the service's own reason.
 				TruncatedReason: "max_output_tokens",
 				Garbled:         func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },

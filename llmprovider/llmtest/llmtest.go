@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -82,6 +83,14 @@ type Harness struct {
 	// call. Generate must fail with ErrIncomplete, and Reason
 	// TruncatedReason, never succeed with no text (0026-MADR F7).
 	ReasoningCut func(w http.ResponseWriter, r *http.Request)
+	// StreamText and StreamFailure, when both are set and the provider
+	// implements llmprovider.Streamer, switch on the native streaming check
+	// (0031-MADR D7). StreamText writes the service's successful streamed
+	// reply, carrying the response Text writes, its text in at least one
+	// delta. StreamFailure writes a streamed reply that fails after one text
+	// delta.
+	StreamText    func(w http.ResponseWriter, r *http.Request)
+	StreamFailure func(w http.ResponseWriter, r *http.Request)
 }
 
 // The values the Fidelity check sends and looks for on the wire.
@@ -114,7 +123,8 @@ const (
 //   - concurrent use (R20), which the race detector checks;
 //   - when the Harness asks: request fidelity, an undecodable reply, a cut
 //     answer, and a strict tool call (0021-MADR W12), an answer cut while
-//     reasoning (0026-MADR F7), and a not-permitted refusal (0026-MADR F57).
+//     reasoning (0026-MADR F7), a not-permitted refusal (0026-MADR F57), and
+//     a native stream's events, failure and early stop (0031-MADR D7).
 func Run(t *testing.T, h Harness) {
 	t.Helper()
 	runChecks(testReporter{t}, h)
@@ -188,6 +198,9 @@ func runChecks(r reporter, h Harness) {
 	}
 	if h.ReasoningCut != nil {
 		r.Run("F7-reasoning-cut", func(r reporter) { checkReasoningCut(r, h) })
+	}
+	if h.StreamText != nil && h.StreamFailure != nil {
+		r.Run("D7-native-stream", func(r reporter) { checkNativeStream(r, h) })
 	}
 }
 
@@ -986,4 +999,168 @@ func checkStrictTools(r reporter, h Harness) {
 	if calls == 0 {
 		r.Errorf("W12 (strict tools): a call reply has no FunctionCallItem")
 	}
+}
+
+// bodyTracker counts the reply bodies a client opens and closes. It sends
+// through its own transport, never one the process shares (R30).
+type bodyTracker struct {
+	base           http.Transport
+	opened, closed atomic.Int32
+}
+
+type trackedBody struct {
+	io.ReadCloser
+	tracker *bodyTracker
+	once    sync.Once
+}
+
+func (b *trackedBody) Close() error {
+	b.once.Do(func() { b.tracker.closed.Add(1) })
+	return b.ReadCloser.Close()
+}
+
+func (t *bodyTracker) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	t.opened.Add(1)
+	resp.Body = &trackedBody{ReadCloser: resp.Body, tracker: t}
+	return resp, nil
+}
+
+// open reports whether a body the client opened is not closed.
+func (t *bodyTracker) open() bool { return t.closed.Load() < t.opened.Load() }
+
+// streamEvents streams req from s against fs through a tracking client,
+// stopping after stopAfter events when it is above 0, and returns what it
+// yielded: the events, and each error with the index it came at.
+func streamEvents(r reporter, h Harness, fs *fakeServer, stopAfter int) ([]llmprovider.Event, []error, []int, *bodyTracker) {
+	r.Helper()
+	tracker := &bodyTracker{}
+	defer tracker.base.CloseIdleConnections()
+	p := build(r, h, fs, llmprovider.WithHTTPClient(&http.Client{Transport: tracker}))
+	if p == nil {
+		return nil, nil, nil, tracker
+	}
+	s, ok := p.(llmprovider.Streamer)
+	if !ok {
+		r.Errorf("D7 (native streaming, 0031-MADR): the provider built against the stream reply is not a Streamer")
+		return nil, nil, nil, tracker
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+	defer cancel()
+	var events []llmprovider.Event
+	var errs []error
+	var at []int
+	for ev, err := range s.Stream(ctx, textRequest()) {
+		if err != nil {
+			errs, at = append(errs, err), append(at, len(events))
+			continue
+		}
+		events = append(events, ev)
+		if stopAfter > 0 && len(events) >= stopAfter {
+			break
+		}
+	}
+	return events, errs, at, tracker
+}
+
+// checkNativeStream checks a native stream (0031-MADR D7): its events end in
+// one EventDone, whose Response is Generate's and holds the text the deltas
+// carried; a failure ends the stream, with no EventDone; and a caller that
+// stops early, or reads to the end, leaves no reply open.
+func checkNativeStream(r reporter, h Harness) {
+	r.Helper()
+	text := serve(h.Text)
+	defer text.Close()
+	p := build(r, h, text)
+	if p == nil {
+		return
+	}
+	if _, ok := p.(llmprovider.Streamer); !ok {
+		return // the check is for a provider that streams natively
+	}
+	want, err := generate(r, p, textRequest())
+	if err != nil {
+		r.Errorf("D7 (native streaming, 0031-MADR): Generate on the Text reply returned %v", err)
+		return
+	}
+
+	fs := serve(h.StreamText)
+	defer fs.Close()
+	events, errs, _, tracker := streamEvents(r, h, fs, 0)
+	if len(errs) > 0 {
+		r.Errorf("D7 (native streaming, 0031-MADR): the StreamText reply failed: %v", errs[0])
+		return
+	}
+	var deltas strings.Builder
+	var done *llmprovider.Response
+	for i, ev := range events {
+		switch {
+		case done != nil:
+			r.Errorf("D7 (native streaming, 0031-MADR D4): event %d (%s) after EventDone", i, ev.Type)
+		case ev.Type == llmprovider.EventDone:
+			if ev.Response == nil {
+				r.Errorf("D7 (native streaming, 0031-MADR D4): EventDone carries no Response")
+				return
+			}
+			done = ev.Response
+		case ev.Type == llmprovider.EventTextDelta:
+			deltas.WriteString(ev.Text)
+		}
+	}
+	if done == nil {
+		r.Errorf("D7 (native streaming, 0031-MADR D4): the stream ended without EventDone; events %v", eventTypes(events))
+		return
+	}
+	var texts strings.Builder
+	for _, item := range done.Output {
+		if m, ok := item.(llmprovider.MessageItem); ok {
+			texts.WriteString(m.Text)
+		}
+	}
+	if deltas.Len() == 0 || deltas.String() != texts.String() {
+		r.Errorf("D7 (native streaming, 0031-MADR D2): the text deltas joined are %q; EventDone's message text is %q", deltas.String(), texts.String())
+	}
+	if !reflect.DeepEqual(done, want) {
+		r.Errorf("D7 (native streaming, 0031-MADR D2): EventDone's Response %+v; Generate's on the same reply %+v", done, want)
+	}
+	if tracker.open() {
+		r.Errorf("D7 (native streaming, 0031-MADR D3): a completed stream left its reply open")
+	}
+
+	stop := serve(h.StreamText)
+	defer stop.Close()
+	if _, errs, _, tracker := streamEvents(r, h, stop, 1); len(errs) > 0 || tracker.open() {
+		r.Errorf("D7 (native streaming, 0031-MADR D3): a caller that stopped after the first event got %v; reply left open: %v",
+			errs, tracker.open())
+	}
+
+	failing := serve(h.StreamFailure)
+	defer failing.Close()
+	events, errs, at, tracker := streamEvents(r, h, failing, 0)
+	switch {
+	case len(errs) != 1:
+		r.Errorf("D7 (native streaming, 0031-MADR D4): a stream failing after a delta yielded %d errors; want one", len(errs))
+	case at[0] != len(events):
+		r.Errorf("D7 (native streaming, 0031-MADR D4): events came after the failure: %v", eventTypes(events))
+	}
+	for _, ev := range events {
+		if ev.Type == llmprovider.EventDone {
+			r.Errorf("D7 (native streaming, 0031-MADR D4): a failing stream yielded EventDone")
+		}
+	}
+	if tracker.open() {
+		r.Errorf("D7 (native streaming, 0031-MADR D3): a failed stream left its reply open")
+	}
+}
+
+// eventTypes is each event's type, for a report.
+func eventTypes(events []llmprovider.Event) []llmprovider.EventType {
+	types := make([]llmprovider.EventType, len(events))
+	for i, ev := range events {
+		types[i] = ev.Type
+	}
+	return types
 }

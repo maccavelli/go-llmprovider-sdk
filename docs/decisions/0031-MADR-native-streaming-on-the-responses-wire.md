@@ -278,6 +278,25 @@ and D2's reasoning names:
   (amendment above). The owner chose it over narrowing D7, and over
   measuring first.
 
+### Amendment (2026-10-10): what `llmtest` asserts for an early stop
+
+0031-PLAN deviation D5. D7's fifth property ("stopping the range early closes
+the reply body, with no goroutine left behind under `-race`") is asserted in
+two places:
+
+* **`llmtest`:** every reply body the provider opened is closed, after a
+  stream that completes, one the caller stops after its first event, and
+  one that fails. The check counts the bodies through the HTTP client it
+  gives the provider.
+* **`internal/wire`'s `TestStream_StopClosesBody` and
+  `TestStream_ContextCancel`:** the goroutine count, in a controlled test.
+
+`llmtest.Run` runs inside other modules' test binaries, beside tests that
+may run in parallel. A process-wide goroutine count there would fail or pass
+at random. A body left open is what leaves the goroutine behind, so `llmtest`
+checks the body. The owner chose this over adding a goroutine count to
+`llmtest`.
+
 ### Consequences
 
 * Good, because `Stream` delivers text as it is generated for `openai`,

@@ -170,3 +170,22 @@ func TestEvents_FailureAfterDelta(t *testing.T) {
 		t.Fatalf("error %v, want ErrRateLimited", err)
 	}
 }
+
+// TestEvents_RefusalDelta (0031-MADR amendment of 2026-10-10, D4): a
+// refusal's delta is a text delta, so the deltas joined equal the message
+// text appendOutput keeps, and EventDone's FinishReason marks the refusal.
+func TestEvents_RefusalDelta(t *testing.T) {
+	events, err := collectEvents(t, sse(
+		`{"type":"response.refusal.delta","delta":"I can't help with that."}`,
+		`{"type":"response.output_item.done","item":{"type":"message","content":[{"type":"refusal","refusal":"I can't help with that."}]}}`,
+		`{"type":"response.completed","response":{"id":"r1"}}`,
+	))
+	want := []string{"text_delta:I can't help with that.", "item:MessageItem", "done"}
+	if got := eventKinds(events); err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("events %v (%v), want %v", got, err, want)
+	}
+	done := events[len(events)-1].Response
+	if done.FinishReason != llmprovider.FinishContentFilter || done.OutputText() != events[0].Text {
+		t.Fatalf("EventDone's Response %+v; want FinishReason content_filter and the delta's text", done)
+	}
+}

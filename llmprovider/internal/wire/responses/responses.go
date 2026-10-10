@@ -486,9 +486,13 @@ var handledEvents = map[string]bool{
 }
 
 // deltaEvents are the delta event types Events yields, and the Event type of
-// each. The reasoning delta is the one 0031-PLAN Phase 1 measured.
+// each. The reasoning delta is the one 0031-PLAN Phase 1 measured. A
+// refusal's delta is a text delta, since appendOutput keeps a refusal's text
+// as the answer's (0021-MADR W4); its name is OpenAI's documented one (0031-MADR,
+// amendment of 2026-10-10).
 var deltaEvents = map[string]llmprovider.EventType{
 	"response.output_text.delta":            llmprovider.EventTextDelta,
+	"response.refusal.delta":                llmprovider.EventTextDelta,
 	"response.reasoning_summary_text.delta": llmprovider.EventReasoningDelta,
 }
 

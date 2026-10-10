@@ -760,3 +760,126 @@ attempt that succeeds. A caller that wants text as it is generated streams
 from `p` itself (MADR D6).
 
 **Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+
+### Deviation D5 (2026-10-10): `llmtest` checks the bodies, not the goroutines
+
+* **Found** while building step 2. MADR D7's fifth property names "no
+  goroutine left behind under `-race`". `llmtest.Run` runs inside other
+  modules' test binaries, possibly beside parallel tests. A process-wide
+  goroutine count there can rise or fall for reasons that have nothing to
+  do with the provider.
+* **Options put to the owner:**
+  * the check asserts that every reply body is closed, and the goroutine
+    count stays with `internal/wire`'s tests (recommended);
+  * add a `runtime.NumGoroutine` comparison with a 2 s settle as well,
+    which may fail or pass at random.
+* **Decision.** The owner chose the first. 0031-MADR is amended. No code
+  changes.
+
+### Phase 6: the conformance check (2026-10-10)
+
+**D4, the refusal delta** (the step D4 added).
+
+* **Red:**
+
+  ```text
+  --- FAIL: TestEvents_RefusalDelta (0.00s)
+      events_0031_test.go:185: events [item:MessageItem done] (<nil>), want [text_delta:I can't help with that. item:MessageItem done]
+  ```
+
+* **Change:** `deltaEvents` gains `response.refusal.delta` →
+  `EventTextDelta`, with its reason and source in the comment.
+* **Green:** the test passes, and so does the `responses` package.
+* **Benchmarks** (rule 5; medians, `-count=5`), against Phase 2's
+  after-figures:
+
+  | Benchmark | Phase 2 after | Now | Change |
+  | :--- | :--- | :--- | :--- |
+  | `ReadStream_Deltas4MiB` ns/op | 1,374,522 | 1,349,359 | −1.8% |
+  | `ReadStream_Deltas4MiB` B/op | 66,879 | 66,867 | 0.0% |
+  | `ReadStream_Deltas4MiB` allocs/op | 13 | 13 | 0 |
+  | `ReadStream_4MiB` ns/op | 7,715,058 | 7,380,447 | −4.3% |
+  | `ReadStream_4MiB` B/op | 860,554 | 860,501 | 0.0% |
+  | `ReadStream_4MiB` allocs/op | 7,120 | 7,120 | 0 |
+
+**Steps 1, 2 and 4, the check** (`llmprovider/llmtest/llmtest.go`).
+
+* `Harness` gains `StreamText` and `StreamFailure`.
+* `Run` adds `D7-native-stream` when both are set. The check returns
+  without effect for a provider that is not a `Streamer`.
+* It runs `Generate` on the `Text` reply, then streams through an HTTP
+  client that counts the reply bodies opened and closed (its own
+  `http.Transport`; see the note on R30 below). It asserts:
+  * the `StreamText` stream yields no error, exactly one `EventDone` with a
+    `Response`, and nothing after it;
+  * the text deltas are non-empty, and joined equal `EventDone`'s message
+    text;
+  * `EventDone`'s `Response` equals `Generate`'s;
+  * every body is closed after the completed stream, and after a caller
+    that stopped after its first event;
+  * the `StreamFailure` stream yields exactly one error, last, no
+    `EventDone`, and its body is closed (D5 above).
+* `Run`'s doc lists the check.
+
+**Harnesses:**
+
+* `openai` (the API key and the ChatGPT session), `grok` (the API key and
+  the session) and `opencode`'s `go-responses` case set `llmtestStream`
+  (a text delta, the item, completed) and `llmtestStreamFailure` (a delta,
+  then `response.failed`).
+* `opencode`'s other three routes set neither: they do not stream natively.
+
+**Red** (rule 2): with the harness fields set before the check existed:
+
+```text
+llmprovider/providers/openai/llmtest_test.go:55:3: unknown field StreamText in struct literal of type llmtest.Harness
+llmprovider/providers/openai/llmtest_test.go:56:3: unknown field StreamFailure in struct literal of type llmtest.Harness
+llmprovider/providers/grok/llmtest_test.go:51:5: unknown field StreamText in struct literal of type llmtest.Harness
+llmprovider/providers/grok/llmtest_test.go:52:5: unknown field StreamFailure in struct literal of type llmtest.Harness
+FAIL	…/providers/openai [build failed]; FAIL	…/providers/grok [build failed]; FAIL	…/providers/opencode [build failed]
+```
+
+**Green, under `-race`:**
+
+* `TestConformance/api-key/D7-native-stream`
+* `TestConformance/chatgpt/D7-native-stream` (`openai`)
+* `TestConformance/api_key/D7-native-stream`
+* `TestConformance/session/D7-native-stream` (`grok`)
+* `TestConformance/go-responses/D7-native-stream` (`opencode`)
+
+**Plants** (step 3), on a scratch clone, each run against
+`TestConformance/api-key/D7-native-stream` in `openai`:
+
+| Plant | The check's report |
+| :--- | :--- |
+| an item yielded after `EventDone` (in `Events`) | `D7 (native streaming, 0031-MADR D4): event 3 (item) after EventDone` |
+| no `EventDone` | `D7 (…D4): the stream ended without EventDone; events [text_delta item]` |
+| text deltas that differ from the final text (`+ "x"`) | `D7 (…D2): the text deltas joined are "hellox"; EventDone's message text is "hello"` |
+| a reply left open (`Read` without its `Close`) | `D7 (…D3): a completed stream left its reply open`; `…a caller that stopped after the first event got []; reply left open: true`; `…a failed stream left its reply open` |
+
+Each FAILed.
+
+**Fixed at the gate, without a deviation:**
+
+* The first gate run failed `TestNoAmbientState` (R30-R31):
+  `llmtest.go:1021: http.DefaultTransport is shared by the process`. The new
+  tracker had sent through `http.DefaultTransport`. It now owns its
+  `http.Transport` and closes its idle connections. That is the new code
+  meeting an existing rule; no rule was changed.
+* The plants were rerun after the fix, with the same four results.
+
+**API:** apidiff from `v1.4.0` (both trees, without `-incompatible`) reports
+only additions:
+
+```text
+Compatible changes:
+- ./llmprovider/llmtest.Harness.StreamFailure: added
+- ./llmprovider/llmtest.Harness.StreamText: added
+```
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+
+| Package | Coverage | Note |
+| :--- | :--- | :--- |
+| `llmtest` | 81.3% | `checkNativeStream` is exercised by the provider packages' conformance runs, not by `llmtest`'s own tests; there is no floor for it |
+| `internal/wire/responses` | 90.7% | |

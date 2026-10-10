@@ -16,6 +16,17 @@ const (
 	llmtestText = `{"id":"resp_llmtest","model":"llmtest-model","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`
 )
 
+// llmtestStream is the text reply as a Responses event stream: its text in a
+// delta, the item, then completed (0031-MADR D7).
+const llmtestStream = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
+	"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}}\n\n" +
+	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_llmtest\",\"model\":\"llmtest-model\"}}\n\n"
+
+// llmtestStreamFailure is a Responses event stream that fails after one
+// delta.
+const llmtestStreamFailure = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hel\"}\n\n" +
+	"data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"server_error\",\"message\":\"llmtest\"}}}\n\n"
+
 func llmtestCall(tool string) string {
 	call, _ := json.Marshal(map[string]any{"id": "resp_llmtest", "output": []any{map[string]any{
 		"type": "function_call", "call_id": "call_llmtest", "name": tool, "arguments": "{}"}}})
@@ -37,10 +48,12 @@ func harness(credential func() llmprovider.Option, sse bool) llmtest.Harness {
 			return New(append([]llmprovider.Option{credential(), llmprovider.WithModel("gpt-5.5"),
 				llmprovider.WithBaseURL(baseURL)}, opts...)...)
 		},
-		Text:        func(w http.ResponseWriter, _ *http.Request) { write(w, llmtestText) },
-		ToolCall:    func(w http.ResponseWriter, _ *http.Request, tool string) { write(w, llmtestCall(tool)) },
-		Fidelity:    true,
-		StrictTools: true,
+		Text:          func(w http.ResponseWriter, _ *http.Request) { write(w, llmtestText) },
+		ToolCall:      func(w http.ResponseWriter, _ *http.Request, tool string) { write(w, llmtestCall(tool)) },
+		Fidelity:      true,
+		StrictTools:   true,
+		StreamText:    func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestStream) },
+		StreamFailure: func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestStreamFailure) },
 		// The Responses wire reports the service's own reason.
 		TruncatedReason: "max_output_tokens",
 		// A session's replies are streams: a garbled event, and the
