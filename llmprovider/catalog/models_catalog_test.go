@@ -132,8 +132,10 @@ func TestRankGenerations(t *testing.T) {
 		{rankGeminiModel, "gemini-3.8-flash", 180 + 111},
 		{rankGeminiModel, "gemini-3.10-flash", 180 + 113},
 		{rankGeminiModel, "gemini-3.1-flash", 180 + 40},
-		{rankGrokModel, "grok-4.7", 71},
-		{rankGrokModel, "grok-5", 90},
+		// grok-4.7 is a hint since 0033-MADR D4, and the newest anchor, so
+		// grok-5 is placed above it.
+		{rankGrokModel, "grok-4.7", 70},
+		{rankGrokModel, "grok-5", 100},
 		{rankGrokModel, "grok-4.1", 40},
 		{rankClaudeModel, "claude-opus-5", 140},
 		{rankClaudeModel, "claude-opus-4-1", 134},
@@ -263,12 +265,18 @@ func TestIsUsableGrokModel(t *testing.T) {
 	}
 }
 
+// TestRankGrokModel ranks by generation. Before 0033-MADR D4 it pinned a
+// cost preference for the mini tiers, which xAI no longer lists; the record
+// reverses it.
 func TestRankGrokModel(t *testing.T) {
-	if rankGrokModel("grok-3-mini-fast") <= rankGrokModel("grok-3-mini") {
-		t.Error("mini-fast should rank above mini")
+	order := []string{"grok-4.7", "grok-4.6", "grok-4.5", "grok-4.3", "grok-4", "grok-3-mini-fast"}
+	for i := 1; i < len(order); i++ {
+		if rankGrokModel(order[i-1]) <= rankGrokModel(order[i]) {
+			t.Errorf("%s = %d, not above %s = %d", order[i-1], rankGrokModel(order[i-1]), order[i], rankGrokModel(order[i]))
+		}
 	}
-	if rankGrokModel("grok-3-mini") <= rankGrokModel("grok-4") {
-		t.Error("mini should rank above grok-4 for cost preference")
+	if rankGrokModel("grok-3-mini-fast") != rankGrokModel("grok-3-mini") {
+		t.Error("a mini tier still earns a bonus over its generation")
 	}
 }
 

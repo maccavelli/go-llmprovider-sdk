@@ -20,10 +20,11 @@
 //   - A tool's Strict is sent as strict (0032-MADR D2).
 //   - Reasoning takes an effort, clamped to the Grok CLI's menu for the
 //     model (MADR 0012 §6): grok-4.6 offers low to xhigh, grok-4.5 low to
-//     high, grok-4.6-build and grok-3-mini low and high. An effort off the
-//     menu is sent as the nearest lower one, and no effort as high. Other
-//     models reason on their own, and get no reasoning field. A Budget is
-//     not sent.
+//     high, grok-4.6-build and grok-3-mini low and high; grok-4.7 and
+//     grok-4.3 low to xhigh, as xAI's listing reports (0033-MADR D4). An
+//     effort off the menu is sent as the nearest lower one, and no effort
+//     as high. Other models reason on their own, and get no reasoning
+//     field. A Budget is not sent.
 //   - Instructions are sent as a leading system message, the shape the old
 //     API already sent for a system item; the Responses instructions field
 //     is not sent. xAI obeys both forms, measured on grok-4.6 and grok-4.7

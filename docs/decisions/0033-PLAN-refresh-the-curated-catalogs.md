@@ -306,3 +306,145 @@ the wire:
 * **Forced choice is not in Anthropic's metadata.** The record D6 names
   must take it from a measured table: Anthropic's `capabilities` has no
   entry for it. The MADR's measured note says so.
+
+### Phase 2: the catalogs (2026-10-11)
+
+**Change** (`llmprovider/catalog/models_catalog.go`):
+
+* **The four lists, Phase 1's table, in order:**
+  * `staticOpenAI`: `gpt-6-luna`, `gpt-5.6-luna`, `gpt-4.1-mini`,
+    `gpt-5.6-terra`, `gpt-6.1-sol`, `gpt-6-astra`;
+  * `staticGemini`: `gemini-3.5-flash-lite`, `gemini-3.8-flash`,
+    `gemini-3.6-flash`;
+  * `staticClaude`: `claude-haiku-5-5`, `claude-sonnet-5`,
+    `claude-opus-4-8`, `claude-sonnet-4-6`;
+  * `staticGrok`: `grok-4.6`, `grok-4.5`, `grok-4.7`, `grok-4.3`,
+    `grok-build-0.1`.
+
+  Each comment carries its 2026-10-11 check and what it left out.
+* **Shared constants:** `modelGPT6Luna`, `modelGemini38Flash` and
+  `modelGemini35Lite` name the ids the vendor lists share with OpenCode's,
+  for `goconst`. Their file-wide `//nolint:goconst` became unused
+  (`nolintlint`), and was removed.
+* **`modelLabels`** is keyed by provider, and `Label` reads the provider's
+  map, case-insensitively, as `Static` does:
+  * every new id has a label;
+  * the dropped ids lost theirs;
+  * a gateway's fallback six keep the bare id, so Zen's
+    `gemini-3.8-flash` no longer shows the Gemini label.
+* **`rankOpenAIModel`:**
+  * tiers: `luna`, then `nano`, `mini`, `terra`, `sol` and `astra`;
+  * then a generation bonus: `gpt-6.1`, `gpt-6`, `gpt-5.6`, `gpt-5`,
+    `gpt-4.1`.
+* **`rankGrokModel`:**
+  * it ranks by generation only: hints for 4.7, 4.6, 4.5 and 4.3, and
+    anchors up to 4.7;
+  * the `mini-fast`, `mini` and `fast-reasoning` bonuses are gone, with the
+    tiers they favoured.
+* **`rankGeminiModel` and `rankClaudeModel`** are unchanged. Their
+  generation anchors already place `gemini-3.8-flash` above
+  `gemini-3.7-flash`, and `claude-haiku-5-5` above `claude-haiku-4-5`: both
+  cases passed in step 1's red run before any change.
+* **`staticOpencodeGo`'s comment** is corrected, not confirmed:
+  * the Go docs (last updated 2026-10-10) list DeepSeek V4.1 Flash, V4 Pro,
+    V4 Flash and V4 Flash Vision Exp with no region limit;
+  * they mark only Muse Spark 1.2 and 1.3 Contributor "limited regions";
+  * the comment now names the gate (`opencodeGoRegionGated`, MADR 0009 §3
+    item 8), and says that it is not re-measured.
+
+  The gate itself is unchanged; see "Found" below.
+
+**`llmprovider/providers/grok/reasoning.go`:**
+
+* `grok-4.7` and `grok-4.3` take the four efforts. No effort sends `high`,
+  as on every menu.
+* The package doc's Degradations entry names them.
+
+**Red first:**
+
+* `catalog/refresh_0033_test.go`:
+  * `TestStatic_NoRetiredIDs_0033` (a table of retired, scheduled, rerouted
+    and restricted ids, and the three D6 waits);
+  * `TestRank_PrefersCurrentModels_0033`;
+  * `TestLabel_ByProvider_0033`.
+* `providers/grok/reasoning_0033_test.go`: `TestGrokEffortMenus_0033`.
+
+On the tree before the change:
+
+```text
+refresh_0033_test.go:53: openai: static catalog lists "gpt-4.1-nano", which is shuts down 2026-10-23
+refresh_0033_test.go:53: openai: static catalog lists "o4-mini", which is shuts down 2026-10-23
+refresh_0033_test.go:53: gemini: static catalog lists "gemini-3.7-flash", which is routed to gemini-3.8-flash
+refresh_0033_test.go:53: gemini: static catalog lists "gemini-3.5-flash", which is routed to gemini-3.6-flash
+refresh_0033_test.go:53: gemini: static catalog lists "gemini-2.5-flash", which is open only to past users
+refresh_0033_test.go:53: gemini: static catalog lists "gemini-2.5-flash-lite", which is open only to past users
+refresh_0033_test.go:53: claude: static catalog lists "claude-haiku-4-5", which is retirement floor 2026-10-15
+refresh_0033_test.go:53: grok: static catalog lists "grok-3-mini-fast", which is not listed
+refresh_0033_test.go:53: grok: static catalog lists "grok-3-mini", which is not listed
+refresh_0033_test.go:53: grok: static catalog lists "grok-4", which is not listed; grok-4-0709 retired 2026-05-15
+refresh_0033_test.go:53: grok: static catalog lists "grok-4-fast-reasoning", which is retired 2026-05-15
+refresh_0033_test.go:83: openai: Rank("gpt-6-luna") = 150, not above Rank("gpt-4.1-nano") = 200
+refresh_0033_test.go:83: openai: Rank("gpt-5.6-terra") = 150, not above Rank("o4-mini") = 180
+refresh_0033_test.go:83: grok: Rank("grok-4.7") = 71, not above Rank("grok-3-mini-fast") = 230
+refresh_0033_test.go:83: grok: Rank("grok-4.3") = 40, not above Rank("grok-4-fast-reasoning") = 140
+refresh_0033_test.go:102: Label(gemini, "gemini-3.8-flash") = "gemini-3.8-flash", want a label starting "Gemini 3.8 Flash"
+refresh_0033_test.go:114: Label(opencode-zen, "gemini-3.5-flash-lite") = "Gemini 3.5 Flash-Lite  [ultra-low latency]", want the bare id: a gateway's fallback six carry no label
+reasoning_0033_test.go:10: clampReasoningEffort("grok-4.7", "low") = "", want "low"
+reasoning_0033_test.go:10: clampReasoningEffort("grok-4.3", "") = "", want "high"
+```
+
+The record above is abridged: the full run also failed the other new
+labels and the remaining Grok efforts, each in the same form.
+
+**Existing tests whose expectations the record changes.** Each keeps its
+meaning:
+
+| Test | Was | Now | Why |
+| :--- | :--- | :--- | :--- |
+| `model_label_test.go`: `TestModelLabel`, `TestStaticIDs_Labelled`, `TestLabels_NoOrphans`, `unlabelledStaticIDs` | a flat map of ids | keyed by provider; `TestModelLabel` reads `claude-haiku-5-5` | labels are per provider; `gpt-6-luna` is labelled for OpenAI and excused for OpenCode Go |
+| `model_matcher_test.go`: `TestSearchModels_NoSubsequenceOverLabels`, `TestSearchModels_LabelFromModelLabel`, `withLabel` | `Label("", "claude-haiku-4-5")`, a flat map | `Label(claude, "claude-haiku-5-5")`, a provider argument | a provider-less label no longer exists; the labelled id is the current Haiku |
+| `model_matcher_test.go`: `TestSearch_CompactQuery` | `Static(openai)`, which held `gpt-4.1` | the former list, literally | the test is about compact queries, not the list |
+| `discovery_catalog_test.go`: `TestListModelCatalog_OpenAIRecommendedIsCurated` | a listing of the old ids | a listing holding every new `staticOpenAI` id among others | `Recommended` must still equal `staticOpenAI` in catalog order |
+| `models_catalog_test.go`: `TestRankGenerations` | `grok-4.7` 71, `grok-5` 90 | 70 and 100 | 4.7 is now a hint and the newest anchor |
+| `models_catalog_test.go`: `TestRankGrokModel` | the mini tiers rank above their generation | generation order, 4.7 down to `grok-3-mini-fast`; no mini bonus | D4 reverses the preference: xAI no longer lists those tiers |
+| `providers/grok/reasoning_test.go`: one row of `TestGrokEffortMenus_KeepMenuValues` | `grok-4.7` sends no effort | `grok-build-0.1` sends none | `grok-4.7` has a menu now; `grok-build-0.1` reports none |
+| `wizard/model_select_edge_test.go`: `TestConfigureLLM_FallbackExclusionIgnoresCase` | the primary `Claude-Haiku-4-5` | `Claude-Haiku-5-5` | the primary must be a static id to be excluded |
+| `wizard/model_select_test.go`: `TestConfigureLLM_SearchAgain` | the label of `claude-haiku-4-5` | of `claude-haiku-5-5` | the haiku in the list |
+
+**The golden.** One G-wire golden changed, and the record explains it:
+
+```text
+testdata/wire/claude/listing.json: 2 difference(s) from the golden file
+  result[0]: want "claude-haiku-4-5", got "claude-sonnet-5"
+  result[1]: want "claude-sonnet-5", got "claude-haiku-4-5"
+```
+
+* The canned listing holds `claude-sonnet-5` and `claude-haiku-4-5`.
+  `claude-haiku-4-5` left `staticClaude`, so curation puts the static
+  `claude-sonnet-5` first and fills with the other.
+* Only `result` changed; the requests are the same.
+* It was regenerated alone (`-run 'TestWireGoldens/claude/listing$'
+  -update`). Every other golden passes unchanged.
+
+**Green:** `go test -race -count=1 ./...` passes.
+
+**Plants** on a scratch clone, each failing:
+
+| Plant | Test | FAIL line |
+| :--- | :--- | :--- |
+| `o4-mini` back in `staticOpenAI` | `TestStatic_NoRetiredIDs_0033` | `openai: static catalog lists "o4-mini", which is shuts down 2026-10-23` |
+| the Grok ranker prefers `mini-fast` again | `TestRank_PrefersCurrentModels_0033`, `TestRankGrokModel` | `grok: Rank("grok-4.7") = 70, not above Rank("grok-3-mini-fast") = 200`; `a mini tier still earns a bonus over its generation` |
+| the OpenAI ranker loses `luna` | `TestRank_PrefersCurrentModels_0033` | `openai: Rank("gpt-6-luna") = 200, not above Rank("gpt-4.1-nano") = 200` |
+| `Label` ignores the provider | `TestLabel_ByProvider_0033` | `Label(opencode-go, "gpt-6-luna") = "GPT-6 Luna …", want the bare id` |
+| `grok-4.3` has no menu | `TestGrokEffortMenus_0033` | `clampReasoningEffort("grok-4.3", "low") = "", want "low"` |
+
+**Pre-add:** 12 files clean. The first run found the unused
+`//nolint:goconst`, removed above.
+
+**Found, outside this plan's scope**, not changed:
+
+* **OpenCode Go's DeepSeek gate.** The docs no longer mark the four
+  DeepSeek models region-limited, but `opencodeGoRegionGated` still keeps
+  them out of the ranking (MADR 0009 §3 item 8). Whether a workspace
+  without region `cn` is now served them needs a measurement and a record.
+* **`grok-4.5`'s `xhigh`,** as Phase 1 found.

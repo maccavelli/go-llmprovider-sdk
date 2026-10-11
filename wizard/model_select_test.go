@@ -165,7 +165,7 @@ func TestConfigureLLM_SearchAgain(t *testing.T) {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
 	want := []string{
-		catalog.Label(llmprovider.ProviderClaude, "claude-haiku-4-5"),
+		catalog.Label(llmprovider.ProviderClaude, "claude-haiku-5-5"),
 		searchAgainLabel, otherModelLabel,
 	}
 	if got := labels(f.seenSelectItems[1]); !slices.Equal(got, want) {

@@ -112,7 +112,9 @@ func TestListModelCatalog_RecommendedMatchesListAvailable(t *testing.T) {
 }
 
 func TestListModelCatalog_OpenAIRecommendedIsCurated(t *testing.T) {
-	order := []string{"gpt-5.1", "o3", "gpt-4o", "o4-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4.1-nano", "gpt-4.1-mini"}
+	// Every staticOpenAI id, among others, in another order (0033-MADR D4).
+	order := []string{"gpt-5.1", "o3", "gpt-6-astra", "o4-mini", "gpt-6.1-sol", "gpt-4.1-nano", "gpt-5.6-terra",
+		"gpt-4.1-mini", "gpt-5.6-luna", "gpt-6-luna"}
 	srv := serveBody(t, openAIStyleListing(order...))
 	cat, err := listT(context.Background(), llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
 	if err != nil {

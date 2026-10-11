@@ -17,6 +17,11 @@ const (
 	// catalog leads with the same two.
 	model46 = "grok-4.6"
 	model45 = "grok-4.5"
+
+	// model47 and model43 report their efforts in xAI's listing; each
+	// answered all four on 2026-10-11 (0033-MADR D4).
+	model47 = "grok-4.7"
+	model43 = "grok-4.3"
 )
 
 // effortOrder ranks the efforts, lowest first.
@@ -26,12 +31,13 @@ var effortOrder = []string{effortLow, effortMedium, effortHigh, effortXHigh}
 // lowest first, or nil when reasoning_effort must be omitted (MADR 0012 §6).
 // grok-4.6 and grok-4.5 are the CLI catalog's entries (grok-build f0e3be11:
 // xai-grok-models/default_models.json); grok-4.6-build takes low and high
-// (xai-grok-shell/src/agent/config_tests.rs:7958), as does grok-3-mini. Other
-// models reason automatically and may reject the parameter.
+// (xai-grok-shell/src/agent/config_tests.rs:7958), as does grok-3-mini.
+// grok-4.7 and grok-4.3 take the four efforts xAI's listing reports (0033-MADR
+// D4). Other models reason automatically and may reject the parameter.
 func effortMenu(model string) []string {
 	sm := strings.ToLower(model)
 	switch {
-	case sm == model46:
+	case sm == model46, sm == model47, sm == model43:
 		return []string{effortLow, effortMedium, effortHigh, effortXHigh}
 	case sm == model45:
 		return []string{effortLow, effortMedium, effortHigh}

@@ -105,11 +105,11 @@ func TestSearchModels_Subsequence(t *testing.T) {
 func TestSearchModels_NoSubsequenceOverLabels(t *testing.T) {
 	// hspd is an in-order subsequence of the haiku label ("…high speed…") but of
 	// nothing in any id, so it must match nothing.
-	label := strings.ToLower(Label("", "claude-haiku-4-5"))
+	label := strings.ToLower(Label(llmprovider.ProviderClaude, "claude-haiku-5-5"))
 	if _, ok := subsequenceBonus(label, "hspd"); !ok {
 		t.Fatalf("precondition: hspd must be a subsequence of the label %q", label)
 	}
-	if got := Search("", matcherFixture, "hspd"); len(got) != 0 {
+	if got := Search(llmprovider.ProviderClaude, append(slices.Clone(matcherFixture), "claude-haiku-5-5"), "hspd"); len(got) != 0 {
 		t.Errorf("hspd = %v, want no matches", matchIDs(got))
 	}
 }
@@ -145,9 +145,10 @@ func TestSearchModels_Dedupe(t *testing.T) {
 }
 
 func TestSearchModels_LabelFromModelLabel(t *testing.T) {
-	got := Search("", []string{"claude-haiku-4-5"}, "haiku")
-	if len(got) != 1 || got[0].Label != Label("", "claude-haiku-4-5") {
-		t.Errorf("got %+v, want one match labelled %q", got, Label("", "claude-haiku-4-5"))
+	got := Search(llmprovider.ProviderClaude, []string{"claude-haiku-5-5"}, "haiku")
+	want := Label(llmprovider.ProviderClaude, "claude-haiku-5-5")
+	if len(got) != 1 || got[0].Label != want || want == "claude-haiku-5-5" {
+		t.Errorf("got %+v, want one match labelled %q", got, want)
 	}
 }
 
@@ -156,11 +157,21 @@ func TestSearchModels_SeparatorOnlyQuery(t *testing.T) {
 	assertIDs(t, "-", got, []string{"a-b"})
 }
 
-// withLabel adds a curated label for one test.
-func withLabel(t *testing.T, id, label string) {
+// withLabel adds a curated label for one provider's id for one test.
+func withLabel(t *testing.T, provider llmprovider.ProviderID, id, label string) {
 	t.Helper()
-	modelLabels[id] = label
-	t.Cleanup(func() { delete(modelLabels, id) })
+	labels, existed := modelLabels[provider]
+	if !existed {
+		labels = map[string]string{}
+		modelLabels[provider] = labels
+	}
+	labels[id] = label
+	t.Cleanup(func() {
+		delete(labels, id)
+		if !existed {
+			delete(modelLabels, provider)
+		}
+	})
 }
 
 // TestSearch_AnnotationNotSearched (0021-MADR C11): "fast" is only in the
@@ -174,7 +185,9 @@ func TestSearch_AnnotationNotSearched(t *testing.T) {
 // TestSearch_CompactQuery (0021-MADR C11): a query without separators finds
 // the id with them.
 func TestSearch_CompactQuery(t *testing.T) {
-	got := Search(llmprovider.ProviderOpenAI, Static(llmprovider.ProviderOpenAI), "gpt41")
+	// The ids staticOpenAI held before 0033-MADR D4, so that gpt-4.1 is among
+	// them.
+	got := Search(llmprovider.ProviderOpenAI, []string{"gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini", "gpt-4.1", "gpt-4o", "o4-mini"}, "gpt41")
 	i := slices.IndexFunc(got, func(m Match) bool { return m.ID == "gpt-4.1" })
 	if i < 0 || got[i].Score != scoreCompactSubstring {
 		t.Errorf(`"gpt41" = %v, want gpt-4.1 at scoreCompactSubstring`, got)
@@ -198,7 +211,7 @@ func TestSearch_TiesKeepListingOrder(t *testing.T) {
 // TestSearch_GlobIDBeforeLabel (0021-MADR C11): a glob that matches an id
 // ranks it before one that matches only a label.
 func TestSearch_GlobIDBeforeLabel(t *testing.T) {
-	withLabel(t, "vendor/mirror", "kilo-auto/mirror")
+	withLabel(t, "", "vendor/mirror", "kilo-auto/mirror")
 	got := Search("", []string{"vendor/mirror", "kilo-auto/small"}, "kilo-auto/*")
 	assertIDs(t, "kilo-auto/*", got, []string{"kilo-auto/small", "vendor/mirror"})
 	if scores := matchScores(got); !slices.Equal(scores, []int{scoreGlobID, scoreGlobLabel}) {

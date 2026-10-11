@@ -11,10 +11,15 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// The Grok CLI catalog's models (MADR 0012 §6).
+// The Grok CLI catalog's models (MADR 0012 §6), and the gateways' ids the
+// vendor catalogs share (0033-MADR D4).
 const (
 	grokModel46 = "grok-4.6"
 	grokModel45 = "grok-4.5"
+
+	modelGPT6Luna      = "gpt-6-luna"
+	modelGemini38Flash = "gemini-3.8-flash"
+	modelGemini35Lite  = "gemini-3.5-flash-lite"
 )
 
 // MaxListed is the hard cap for configure-time model menus.
@@ -26,58 +31,65 @@ const methodGenerateContent = "generateContent"
 
 // Static curated catalogs — preferred production text models for commit messages
 // and general generate/chat use. Ordered: fast/cheap first, then quality.
-// Updated from provider docs (Gemini 2026-07, OpenAI 2026, Anthropic 2026).
+// The Gemini, OpenAI, Claude and Grok lists were checked against each
+// provider's models and deprecations pages, and measured to answer, on
+// 2026-10-11 (0033-PLAN-refresh-the-curated-catalogs.md Phase 1).
 //
 // These are the PRIMARY source of truth for menus. Live list APIs are used only
 // to confirm availability and drop IDs the key cannot access — not to dump the
 // full catalog (Gemini alone exposes embeddings, TTS, Live, image, robotics, …).
-//
-//nolint:goconst // catalog IDs are intentionally repeated in tests and filters
 var (
-	// staticGemini: stable fast text models only. gemini-2.0-* and 1.5-* are shut down.
-	// Prioritizes low-latency Flash and Flash-Lite models for fast Git hook execution.
+	// staticGemini: stable Flash and Flash-Lite models for fast Git hook
+	// execution. gemini-3.7-flash and gemini-3.5-flash are routed to newer
+	// models, the 2.5 models are open only to past users, and
+	// gemini-3.1-flash-lite shuts down 2027-05-07 (2026-10-11).
 	staticGemini = []string{
-		"gemini-3.7-flash",
+		modelGemini35Lite,
+		modelGemini38Flash,
 		"gemini-3.6-flash",
-		"gemini-3.5-flash",
-		"gemini-3.5-flash-lite",
-		"gemini-2.5-flash",
-		"gemini-2.5-flash-lite",
 	}
 
-	// staticOpenAI: chat-capable defaults; mini/nano first for cost.
+	// staticOpenAI: luna, the efficient tier, first for cost, then terra,
+	// sol and astra. gpt-4.1-nano and o4-mini shut down 2026-10-23
+	// (2026-10-11).
 	staticOpenAI = []string{
+		modelGPT6Luna,
+		"gpt-5.6-luna",
 		"gpt-4.1-mini",
-		"gpt-4.1-nano",
-		"gpt-4o-mini",
-		"gpt-4.1",
-		"gpt-4o",
-		"o4-mini",
+		"gpt-5.6-terra",
+		"gpt-6.1-sol",
+		"gpt-6-astra",
 	}
 
-	// staticClaude: current aliases, each answering on the Messages API
-	// (verified 2026-09-27, MADR 0013 B10).
+	// staticClaude: current aliases, each answering on the Messages API and
+	// accepting a forced tool choice (2026-10-11). claude-sonnet-5-5,
+	// claude-opus-5-5 and claude-fable-5-1 refuse a forced choice, and wait
+	// for 0033-MADR D6's record.
 	staticClaude = []string{
-		"claude-haiku-4-5",
+		"claude-haiku-5-5",
 		"claude-sonnet-5",
-		"claude-sonnet-4-6",
 		"claude-opus-4-8",
+		"claude-sonnet-4-6",
 	}
 
 	// staticOpencodeZen: MADR 0009 Context §7's utility six, ranked from the
 	// 2026-09-26 Zen listing and models.opencode.ai metadata. Routes verified
 	// against api.json's npm packages on 2026-09-26.
 	staticOpencodeZen = []string{
-		"deepseek-v4.1-flash",   // chat_completions
-		"qwen3.8-flash",         // messages
-		"glm-5.3-flash",         // chat_completions
-		"deepseek-v4-flash",     // chat_completions
-		"gemini-3.5-flash-lite", // google
-		"gemini-3.8-flash",      // google
+		"deepseek-v4.1-flash", // chat_completions
+		"qwen3.8-flash",       // messages
+		"glm-5.3-flash",       // chat_completions
+		"deepseek-v4-flash",   // chat_completions
+		modelGemini35Lite,     // google
+		modelGemini38Flash,    // google
 	}
 
 	// staticOpencodeGo: MADR 0009 Context §7's utility six (2026-09-26). It excludes
-	// the region-gated DeepSeek models and the -contributor models.
+	// the -contributor models, and the DeepSeek models MADR 0009 §3 item 8
+	// found served only to a workspace that allows region cn
+	// (opencodeGoRegionGated). The Go docs of 2026-10-10 list them with no
+	// region limit; that the gate still holds is not re-measured (0033-MADR
+	// D4).
 	staticOpencodeGo = []string{
 		"mimo-v2.6-flash", // chat_completions
 		"qwen3.8-flash",   // messages
@@ -125,14 +137,15 @@ var (
 	}
 
 	// staticGrok leads with the Grok CLI's defaults, grok-4.6 then grok-4.5
-	// (MADR 0012 §6), then the fast models.
+	// (MADR 0012 §6), then the flagship, the low-cost tier and the coding
+	// model. grok-4-fast-reasoning was retired 2026-05-15, and grok-4 and
+	// grok-3-mini* are no longer listed (2026-10-11).
 	staticGrok = []string{
 		grokModel46,
 		grokModel45,
-		"grok-3-mini-fast",
-		"grok-3-mini",
-		"grok-4",
-		"grok-4-fast-reasoning",
+		"grok-4.7",
+		"grok-4.3",
+		"grok-build-0.1",
 	}
 )
 
@@ -519,25 +532,46 @@ var geminiShutDown = []string{"2.0", "1.5"}
 // gemini-3- id below the 40 the case gives it.
 var geminiAnchors = []generationAnchor{{205, 30}, {300, 40}, {305, 80}, {306, 90}, {307, 100}}
 
-// rankOpenAIModel prefers mini/nano for cost, then flagship chat.
+// rankOpenAIModel prefers the cheaper tier for cost, then the newer
+// generation: luna, then nano and mini, terra, sol and astra (0033-MADR D4).
 func rankOpenAIModel(m string) int {
 	sm := strings.ToLower(m)
 	score := 0
 	switch {
-	case strings.Contains(sm, "nano"):
+	case hasRun(sm, "luna"):
 		score += 200
+	case strings.Contains(sm, "nano"):
+		score += 190
 	case strings.Contains(sm, "mini"):
 		score += 180
+	case hasRun(sm, "terra"):
+		score += 170
+	case hasRun(sm, "sol"):
+		score += 150
+	case hasRun(sm, "astra"):
+		score += 120
 	case strings.HasPrefix(sm, "o4"):
 		score += 120
 	case strings.HasPrefix(sm, "o3"):
 		score += 100
-	case strings.Contains(sm, "4.1"):
-		score += 160
 	case strings.Contains(sm, "4o"):
 		score += 140
-	case strings.Contains(sm, "gpt-5"), strings.Contains(sm, "gpt-6"):
+	case strings.Contains(sm, "gpt-"):
 		score += 150
+	}
+	// Generation, newest first. A shut-down snapshot keeps its tier, but
+	// ranks below the same tier of a newer generation.
+	switch {
+	case hasRun(sm, "gpt-6.1"):
+		score += 60
+	case hasRun(sm, "gpt-6"):
+		score += 50
+	case hasRun(sm, "gpt-5.6"):
+		score += 40
+	case hasRun(sm, "gpt-5"):
+		score += 30
+	case hasRun(sm, "gpt-4.1"):
+		score += 10
 	}
 	if strings.Contains(sm, "realtime") || strings.Contains(sm, "audio") {
 		score -= 500
@@ -599,34 +633,30 @@ func isUsableGrokModel(id string) bool {
 	return true
 }
 
-// rankGrokModel prefers mini-fast for cost/speed, then by generation.
+// rankGrokModel ranks by generation. The mini and fast-reasoning tiers it
+// once preferred are retired or no longer listed (0033-MADR D4); grok-4.3,
+// the low-cost tier, ranks below the 4.5 to 4.7 flagships.
 func rankGrokModel(m string) int {
 	sm := strings.ToLower(m)
-	score := 0
-	switch {
-	case strings.Contains(sm, "mini-fast"):
-		score += 200
-	case strings.Contains(sm, "mini"):
-		score += 180
-	case strings.Contains(sm, "fast-reasoning"):
-		score += 100
-	}
 	// Generation weights, matched as whole tokens. grok-4 and grok-3 are
 	// anchors, not hints, so a newer grok-4.x ranks above them (0021-MADR
 	// C6).
 	switch {
+	case hasRun(sm, "4.7"):
+		return 70
 	case hasRun(sm, "4.6"):
-		score += 60
+		return 60
 	case hasRun(sm, "4.5"):
-		score += 50
+		return 50
+	case hasRun(sm, "4.3"):
+		return 45
 	default:
-		score += generationScore(sm, grokAnchors, 0)
+		return generationScore(sm, grokAnchors, 0)
 	}
-	return score
 }
 
 // grokAnchors place a Grok generation that no hint names.
-var grokAnchors = []generationAnchor{{300, 30}, {400, 40}, {405, 50}, {406, 60}}
+var grokAnchors = []generationAnchor{{300, 30}, {400, 40}, {403, 45}, {405, 50}, {406, 60}, {407, 70}}
 
 // generationAnchor is a generation hint's score at its order key, ord =
 // 100·major + minor (0021-MADR C6).
@@ -802,47 +832,45 @@ func rankKiloModel(m string) int {
 //
 // Labels are advisory. Label falls back to the bare id, so a live listing
 // that outruns this table degrades to raw ids rather than hiding models.
-var modelLabels = map[string]string{
-	// Gemini
-	"gemini-3.7-flash":      "Gemini 3.7 Flash       [★ Recommended: frontier coding intelligence]",
-	"gemini-3.6-flash":      "Gemini 3.6 Flash       [high efficiency, reduced token overhead]",
-	"gemini-3.5-flash":      "Gemini 3.5 Flash       [high-speed production workhorse]",
-	"gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite  [ultra-low latency]",
-	"gemini-2.5-flash":      "Gemini 2.5 Flash       [proven balanced baseline]",
-	"gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite  [lightweight baseline]",
-
-	// OpenAI
-	"gpt-4.1-mini": "GPT-4.1 Mini           [★ Recommended: fast & cost-effective]",
-	"gpt-4.1-nano": "GPT-4.1 Nano           [ultra-low latency]",
-	"gpt-4o-mini":  "GPT-4o Mini            [stable fast chat model]",
-	"gpt-4.1":      "GPT-4.1                [high-capability fast tier]",
-	"gpt-4o":       "GPT-4o                 [flagship multimodal]",
-	"o4-mini":      "o4-mini                [fast reasoning]",
-
-	// Claude
-	"claude-haiku-4-5":  "Claude Haiku 4.5       [★ Recommended: high speed, low latency]",
-	"claude-sonnet-5":   "Claude Sonnet 5        [balanced speed & precision]",
-	"claude-sonnet-4-6": "Claude Sonnet 4.6      [stable high precision]",
-	"claude-opus-4-8":   "Claude Opus 4.8        [maximum capability]",
-
-	// Grok
-	"grok-3-mini-fast":      "Grok 3 Mini Fast       [★ Recommended: fastest tier]",
-	"grok-3-mini":           "Grok 3 Mini            [low latency]",
-	"grok-4":                "Grok 4                 [flagship]",
-	"grok-4.6":              "Grok 4.6               [current flagship]",
-	"grok-4.5":              "Grok 4.5               [previous flagship]",
-	"grok-4-fast-reasoning": "Grok 4 Fast Reasoning  [fast reasoning tier]",
-
-	// Together
-	"openai/gpt-oss-120b": "GPT-OSS 120B           [highest throughput]",
+var modelLabels = map[llmprovider.ProviderID]map[string]string{
+	llmprovider.ProviderGemini: {
+		modelGemini35Lite:  "Gemini 3.5 Flash-Lite  [★ Recommended: ultra-low latency]",
+		modelGemini38Flash: "Gemini 3.8 Flash       [newest Flash, frontier coding]",
+		"gemini-3.6-flash": "Gemini 3.6 Flash       [high efficiency, reduced token overhead]",
+	},
+	llmprovider.ProviderOpenAI: {
+		modelGPT6Luna:   "GPT-6 Luna             [★ Recommended: fast & cost-effective]",
+		"gpt-5.6-luna":  "GPT-5.6 Luna           [previous efficient tier]",
+		"gpt-4.1-mini":  "GPT-4.1 Mini           [fast, no reasoning]",
+		"gpt-5.6-terra": "GPT-5.6 Terra          [balanced reasoning]",
+		"gpt-6.1-sol":   "GPT-6.1 Sol            [near-flagship, lower cost]",
+		"gpt-6-astra":   "GPT-6 Astra            [maximum capability]",
+	},
+	llmprovider.ProviderClaude: {
+		"claude-haiku-5-5":  "Claude Haiku 5.5       [★ Recommended: high speed, low latency]",
+		"claude-sonnet-5":   "Claude Sonnet 5        [balanced speed & precision]",
+		"claude-opus-4-8":   "Claude Opus 4.8        [maximum capability]",
+		"claude-sonnet-4-6": "Claude Sonnet 4.6      [stable high precision]",
+	},
+	llmprovider.ProviderGrok: {
+		grokModel46:      "Grok 4.6               [★ Recommended: the Grok CLI's default]",
+		grokModel45:      "Grok 4.5               [previous flagship]",
+		"grok-4.7":       "Grok 4.7               [current flagship]",
+		"grok-4.3":       "Grok 4.3               [low cost, long context]",
+		"grok-build-0.1": "Grok Build 0.1         [coding, early access]",
+	},
+	llmprovider.ProviderTogether: {
+		"openai/gpt-oss-120b": "GPT-OSS 120B           [highest throughput]",
+	},
 }
 
 // Label returns a human-readable menu label for a model, or the bare model
-// id when none is known. The provider argument is accepted for future
-// per-provider disambiguation; ids are currently unique across providers.
+// id when none is known. Labels are per provider, compared
+// case-insensitively, as Static compares it: an id two providers offer, such
+// as gpt-6-luna on OpenAI and OpenCode Go, takes each one's label, and a
+// gateway's fallback six carry none (0033-MADR D4).
 func Label(provider llmprovider.ProviderID, model string) string {
-	_ = provider
-	if label, ok := modelLabels[model]; ok {
+	if label, ok := modelLabels[llmprovider.ProviderID(strings.ToLower(string(provider)))][model]; ok {
 		return label
 	}
 	return model

@@ -21,7 +21,7 @@ func TestSearchModels_GlobQuestionMark(t *testing.T) {
 // (0021-MADR C11). Every curated display name restates its id, so the test
 // labels a model of its own.
 func TestSearchModels_LabelSubstringTier(t *testing.T) {
-	withLabel(t, "acme/m1", "Roadrunner Large [balanced speed]")
+	withLabel(t, llmprovider.ProviderClaude, "acme/m1", "Roadrunner Large [balanced speed]")
 	got := Search(llmprovider.ProviderClaude, []string{"acme/m1", "claude-opus-4-8"}, "roadrunner")
 	if len(got) != 1 || got[0].ID != "acme/m1" || got[0].Score != scoreLabelSubstring {
 		t.Errorf("roadrunner = %+v, want acme/m1 at scoreLabelSubstring", got)

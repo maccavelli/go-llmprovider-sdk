@@ -41,7 +41,9 @@ func TestGrokEffortMenus_KeepMenuValues(t *testing.T) {
 		{"grok-4.6", "", "high"},
 		{"grok-3-mini", "high", "high"},
 		{"grok-4", "high", ""},
-		{"grok-4.7", "high", ""},
+		// grok-4.7 has a menu since 0033-MADR D4; grok-build-0.1 reports
+		// none.
+		{"grok-build-0.1", "high", ""},
 	})
 }
 

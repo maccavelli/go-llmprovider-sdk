@@ -92,13 +92,13 @@ func TestConfigureLLM_FallbackExclusionIgnoresCase(t *testing.T) {
 	static := catalog.Static(llmprovider.ProviderClaude)
 	f := newFake(t, fakePrompter{
 		selects: []int{providerIdx(t, llmprovider.ProviderClaude), len(static)},
-		secrets: []string{testKey}, inputs: []string{"", "Claude-Haiku-4-5", ""}, multiSelects: [][]int{{}},
+		secrets: []string{testKey}, inputs: []string{"", "Claude-Haiku-5-5", ""}, multiSelects: [][]int{{}},
 	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{NeedFallbacks: true}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
 	if n := len(f.seenMultiSelectItems[0]); n != len(static)-1 {
-		t.Errorf("fallback menu has %d rows, want %d (claude-haiku-4-5 is the primary)", n, len(static)-1)
+		t.Errorf("fallback menu has %d rows, want %d (claude-haiku-5-5 is the primary)", n, len(static)-1)
 	}
 }
 
