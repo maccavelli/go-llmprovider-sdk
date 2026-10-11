@@ -190,8 +190,18 @@ key.
 
 ## Status
 
-The current release is `v1.5.0`. The module requires Go 1.27.2.
+The current release is `v1.6.0`. The module requires Go 1.27.2.
 
+- `v1.6` streams natively on every wire: Messages (`claude`), Chat
+  Completions (`huggingface`, `kilo`, `together`, `ollama`), Gemini
+  Interactions (`gemini`), and every OpenCode route, by
+  [0031-MADR](docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md)'s
+  amendment of 2026-10-10. The API does not change. `NativeStreaming` is
+  `Supported` for every built-in provider but the OpenCode gateways, which
+  stay `BestEffort`. `Generate` and `WithRetry` behave as before. The
+  release notes are in
+  [0031-PLAN-native-streaming-on-the-other-wires.md](docs/decisions/0031-PLAN-native-streaming-on-the-other-wires.md),
+  Phase 7.
 - `v1.5` streams natively on the OpenAI Responses wire, as
   [0031-MADR](docs/decisions/0031-MADR-native-streaming-on-the-responses-wire.md)
   decides: `Stream` on `openai`, `grok` and OpenCode's `responses` route

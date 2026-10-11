@@ -835,3 +835,78 @@ The live-test meta checks pass.
 With this phase, every built-in provider streams natively. `opencode-zen`
 and `opencode-go` stay `BestEffort` (D1); every other provider is
 `Supported`.
+
+### Phase 7: documentation and release (2026-10-11)
+
+**Steps 1 to 3**, on `727a2ad` (Phase 6):
+
+* **`docs/architecture.md`:**
+  * every provider's row names `Stream`, and OpenCode's says "native on
+    every route";
+  * the `internal/wire` row names `ReadEvents`, `EventLimit`,
+    `StreamEvents` and `StreamEventsFor`;
+  * the four wire rows name `Events`;
+  * the request flow and the contract section say every provider streams,
+    which declare what, how each wire maps its deltas, and that a Chat
+    Completions stream asks for its usage;
+  * the `llmtest` paragraph says every harness sets the stream fields;
+  * "What is not here" names what remains: streamed reasoning on the
+    Gemini wires, and live text through `WithRetry`.
+* **Package docs:** changed in their phases. **`api-standards.md`:**
+  unchanged; R13's text holds.
+* **`README.md`:** Status names `v1.6.0`, with a `v1.6` bullet.
+
+#### Release notes: `v1.6.0`
+
+`v1.6.0` streams natively on every wire (0031-MADR, amendment of
+2026-10-10). The exported API does not change.
+
+**Native streaming.** `llmprovider.Stream` now yields text as it is
+generated from every built-in provider:
+
+| Provider | Wire | `NativeStreaming` | Streamed deltas |
+| :--- | :--- | :--- | :--- |
+| `claude` | Messages | `Supported` | text, thinking |
+| `huggingface`, `kilo`, `together`, `ollama` | Chat Completions | `Supported` | text, refusal, reasoning (`reasoning_content` or `reasoning`) |
+| `gemini` | Interactions | `Supported` | text |
+| `openai`, `grok` | Responses (`v1.5`) | `Supported` | text, refusal, reasoning summary |
+| `opencode-zen`, `opencode-go` | all four, by route | `BestEffort` | as each wire |
+
+* Every stream yields each finished item as `EventItem`, and then
+  `EventDone`, carrying the `Response` that wire's `Generate` would return
+  for the same answer.
+* Calls arrive as items; argument deltas are not yielded.
+* A Chat Completions stream asks for its usage
+  (`stream_options.include_usage`), which every gateway measured accepts.
+* The OpenCode gateways stay `BestEffort`. Their `google` route's stream
+  was measured on Google's own endpoint, because the Zen account was
+  refused; Zen's other routes stand on Go's measurements.
+* Neither Gemini wire streams a thought summary, so Gemini reasoning
+  arrives only as an item.
+* A stored Gemini interaction's id is on the streamed `Response`, so
+  continuation works from a streamed answer.
+
+**Failures, as in `v1.5`:**
+
+* a failure is yielded once and ends the stream, with no `EventDone`;
+* what was yielded before it is not a response;
+* a 401 before the first event renews a refreshable credential;
+* stopping the range closes the reply;
+* an error a service sends inside its stream is classified as its
+  non-streamed errors are.
+
+**Unchanged:** `Generate` sends and decodes as in `v1.5.0` on every wire.
+`WithRetry` still buffers.
+
+**`llmtest`:** every built-in provider's harness now runs the native stream
+check (`StreamText`, `StreamFailure`). The fields are as in `v1.5`.
+
+**Upgrading:**
+
+* No code change is needed.
+* Code that reads `NativeStreaming` sees `Supported` for `claude`,
+  `gemini`, `huggingface`, `kilo`, `together` and `ollama`.
+* Code that calls `Stream` on them now receives text while it is
+  generated, and should treat events before a failure as partial.
+* gobble-cli receives live deltas once it streams from the provider rather
+  than through `WithRetry` (its own record).

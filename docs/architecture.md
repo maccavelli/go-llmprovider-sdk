@@ -85,19 +85,19 @@ standard library is left out.
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
 | `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire/responses`, `internal/transport`, `internal/wire` |
-| `llmprovider/providers/claude` | Claude through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/messages`, `internal/transport` |
-| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/transport` |
+| `llmprovider/providers/claude` | Claude through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/messages`, `internal/transport` |
+| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, `ListModels`, and `Stream`, with the Interactions wire's decoders | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/transport` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `catalog`, `internal/wire/responses`, `internal/transport`, `auth`, `internal/wire` |
-| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute`, `ListModels` and `Stream` (native on the `responses` route), with the route table, built from the embedded `routes_snapshot.json` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent` |
-| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/kiloendpoint`, `internal/wire` |
-| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire` |
-| `llmprovider/providers/together` | Together AI through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire` |
-| `llmprovider/providers/ollama` | Ollama through the new contract: `New` and `ListModels` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/transport`, `internal/wire` |
-| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; `OpenStream` and `Stream`, a reply held open while its events are read; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule; `ProbeHealth`, a listing's probes through the probe cache; `Arena`, which holds the strings a request body points to | `llmprovider`, `internal/transport`, `internal/redact` |
-| `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `DecodeFor`, `ReadStream`; `Events`, which yields a stream's events as they arrive, and `Stream`, the native stream the Responses providers share | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact` |
-| `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode`, `DecodeFor` | `llmprovider`, `internal/wire` |
-| `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `AddThinking` | `llmprovider`, `internal/wire` |
-| `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
+| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute`, `ListModels` and `Stream` (native on every route), with the route table, built from the embedded `routes_snapshot.json` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent` |
+| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/kiloendpoint`, `internal/wire` |
+| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire` |
+| `llmprovider/providers/together` | Together AI through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire` |
+| `llmprovider/providers/ollama` | Ollama through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/transport`, `internal/wire` |
+| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; `OpenStream` and `Stream`, a reply held open while its events are read; `ReadEvents`, the server-sent-events reader every wire's stream decoder uses, with its `EventLimit`; `StreamEvents` and `StreamEventsFor`, the native stream every provider's `Stream` runs; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule; `ProbeHealth`, a listing's probes through the probe cache; `Arena`, which holds the strings a request body points to | `llmprovider`, `internal/transport`, `internal/redact` |
+| `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `DecodeFor`, `ReadStream`; `Events`, which yields a stream's events as they arrive | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact` |
+| `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode`, `DecodeFor`, `Events` | `llmprovider`, `internal/wire` |
+| `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking` | `llmprovider`, `internal/wire` |
+| `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig` | `llmprovider`, `internal/wire` |
 | `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization` | `llmprovider`, `internal/kiloendpoint`, `internal/transport` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
@@ -148,9 +148,9 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/ownerper
 5. **Around it.** `WithRetry` wraps a provider and retries by the error's
    kind; a provider that lists models still does, through it, and it does
    not stream natively: `Stream` over it runs its `Generate`, so a failure
-   is retried whole. `Stream` uses a provider's own `Streamer`: `openai`,
-   `grok` and OpenCode's `responses` route ask for an event stream and yield
-   each event as it arrives (0031-MADR). Otherwise it runs `Generate` and
+   is retried whole. `Stream` uses a provider's own `Streamer`: every
+   built-in provider asks its wire for an event stream and yields each event
+   as it arrives (0031-MADR). A provider without one runs `Generate` and
    emits its result as events.
 
 ### A listing
@@ -201,13 +201,19 @@ for a session, from the store.
 - `Stream(ctx, p, req)` streams from every provider: a provider's own
   `Streamer`, or `Generate`'s result as events. Only `EventDone` carries a
   `Response`, and it comes last; what a native stream yielded before a
-  failure is not a response. `openai` and `grok` declare `NativeStreaming`
-  `Supported`, both OpenCode gateways `BestEffort` (native on the
-  `responses` route only), and the other providers `Unsupported`. A native
-  stream maps the Responses events: text and refusal deltas to
-  `EventTextDelta`, the reasoning summary delta to `EventReasoningDelta`,
-  each finished item to `EventItem`, completion to `EventDone`; a call's
-  arguments arrive only in its item (0031-MADR D2).
+  failure is not a response. Every built-in provider declares
+  `NativeStreaming` `Supported`, except both OpenCode gateways, which
+  declare `BestEffort`: their `google` route was measured on Google's own
+  endpoint, and Zen's routes stand on Go's measurements. Each wire's
+  decoder yields text deltas (a refusal's included) as `EventTextDelta`
+  and, where the wire streams them, reasoning deltas as
+  `EventReasoningDelta`: Responses' reasoning summary, Messages'
+  `thinking_delta`, Chat Completions' `reasoning_content` or `reasoning`;
+  generateContent and Interactions stream none. It yields each item as
+  `EventItem`, and `EventDone` carries the `Response` that wire's `Decode`
+  returns for the same answer. A call's arguments arrive only in its item
+  (0031-MADR D2, E3). A Chat Completions stream asks for its usage
+  (`stream_options.include_usage`, E5).
 - `Response.Usage` is decoded from every wire format that reports it. A
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and
@@ -262,8 +268,8 @@ for a session, from the store.
   `EventDone`, last, whose `Response` is `Generate`'s and holds the text the
   deltas carried; a failure that ends the stream with no `EventDone`; and
   every reply body closed, after a stream that completes, stops early or
-  fails (0031-MADR D7). The `openai`, `grok` and OpenCode `responses`
-  harnesses set them. A harness that sets none passes as before. Every harness also gets checks with no field: each HTTP
+  fails (0031-MADR D7). Every built-in provider's harness sets them, in
+  its wire's format. A harness that sets none passes as before. Every harness also gets checks with no field: each HTTP
   failure an `*APIError`, a 429's `Retry-After` in `RetryAfter`, a token
   that names its own `Header` sent there, and, for a provider that lists,
   the listing's identity and cancellation (0026-MADR F57).
@@ -622,9 +628,9 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 ## What is not here
 
-- **Native streaming on the other wires.** Chat Completions, Messages,
-  Gemini Interactions and generateContent have no stream reader, so
-  `claude`, `gemini`, `huggingface`, `kilo`, `together`, `ollama` and
-  OpenCode's other three routes use the `Generate` fallback. Each is a later
-  phase of 0031-MADR (D8).
+- **Streamed reasoning on the Gemini wires.** generateContent and
+  Interactions send no thought-summary delta in their streams, as measured,
+  so their reasoning arrives only as an item.
+- **Live text through `WithRetry`.** Its stream is buffered so that it can
+  be retried (0031-MADR D6).
 - **`llmprovider/x/`.** No experimental API exists.
