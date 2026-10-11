@@ -144,6 +144,8 @@ both Messages providers", because:
 
 ### D1. The fact: an exact table
 
+*(Amended 2026-10-11: the table is one layer of D9, matched on a normalised id; see "Amendment (2026-10-11): prevention first".)*
+
 `internal/wire/messages` holds the models that refuse a forced choice: exact
 ids, compared case-insensitively.
 
@@ -156,6 +158,8 @@ ids, compared case-insensitively.
 * No version pattern: a new model is added by a record, or learned (D3).
 
 ### D2. The degraded request
+
+*(Amended 2026-10-11: degrading is now the caller's opt-in, a forced named tool uses structured outputs, and every degradation is reported; see "Amendment (2026-10-11): prevention first".)*
 
 When a request forces a choice (`ForceTool`, or `ToolChoiceRequired`) and
 the model refuses forcing:
@@ -183,6 +187,8 @@ the model refuses forcing:
 
 ### D3. Learning a refusal (Q1)
 
+*(Amended 2026-10-11: narrowed to models no layer knows, and bounded by the caller's policy; see "Amendment (2026-10-11): prevention first".)*
+
 When a forced request to a model not in the table is refused, the request
 is sent once more, degraded, and the model is remembered.
 
@@ -194,7 +200,10 @@ is sent once more, degraded, and the model is remembered.
   * never written to disk;
   * cleared only by a restart.
 * **Bounds:**
-  * one resend per request, as `wire.Reauth` resends once;
+  * one resend per request, as `wire.Reauth` resends once. *(Amended
+    2026-10-11: the resend sits in the shared send and stream openers,
+    beside `wire.Reauth`, for `Generate` and `Stream` alike; 0034-PLAN
+    Phase 4f.)*
   * a 400 that is not this refusal is returned as it is.
 * The match is narrower than a typed class, because the API gives no other
   signal. Anthropic's advice against string-matching addresses callers
@@ -239,8 +248,145 @@ bytes. 0032-MADR gains an amendment.
 
 ### D6. Release
 
+*(Amended 2026-10-11: `v1.8.0`, since the amendment adds exported API.)*
+
 `v1.7.2`. No exported API changes. The wire changes for the refusing
 models, and for a set `Tool.Strict` on Messages.
+
+### Amendment (2026-10-11): prevention first
+
+After Phase 4 was committed, the owner asked for the handling to be
+re-assessed. The aims were:
+
+* make preventing degraded requests a priority;
+* follow the protocols' standards, idiomatic Go, and how other agent
+  projects handle it.
+
+**What the research found** (2026-10-11; recorded in 0034-PLAN, "Amendment
+(2026-10-11): prevention first"):
+
+* **Every library that handles this refusal prevents it before sending,
+  from a per-model flag:**
+  * Vercel's AI SDK has `rejectsForcedToolUse`, and degrades to `auto` with
+    a structured warning on the result. Its forced-JSON path uses native
+    structured outputs instead.
+  * LiteLLM has `supports_forced_tool_use`. It refuses before sending with
+    a typed error unless the caller opts in to degrading (`drop_params`).
+  * Anthropic's own Swift bridge proposed refusing: "A required call is a
+    contract, so it's refused rather than silently downgraded."
+* **No project learns from the 400 and resends.**
+* **Some never force a tool at all:**
+  * Goose, pi and Codex always send `auto`;
+  * pi's neutral API cannot express a forced choice.
+* **Others have no handling,** and fail on these models: OpenCode, Kilo
+  Code and grok-build.
+* **No public metadata carries the fact.** Neither models.dev nor
+  Anthropic's Models API has a field for it, and OpenRouter's
+  `supported_parameters` cannot tell `auto` from forced.
+* **The standards:**
+  * ACP reports a degradation as a non-fatal session `notice`, separate
+    from errors;
+  * gRPC's retry design and the SSE spec allow a resend only before
+    anything is committed to the caller;
+  * RFC 9110 allows a 400 to be resent only once the request is changed;
+  * Go favours typed errors and switchable retries;
+  * this SDK's R11 refuses an unsupported request before the network, with
+    `ErrUnsupported`.
+
+**The owner's answers**, the recommended option of each:
+
+* **Q5. The default for a model that refuses forcing:** strict.
+  * A forced choice that would be degraded fails before the network, with
+    an error matching `ErrUnsupported` (R11).
+  * The caller opts in to degrading.
+* **Q6. `GenerateToolCall`, and any forced named tool, on such a model:**
+  native structured outputs, so the guarantee is kept and nothing is
+  degraded.
+* **Q7. Visibility:** a typed `Response.Warnings`.
+* **Q8. The fact:** layered, matched on a normalised id, and seeded by the
+  caller.
+
+**What changes:**
+
+* **D7. Warnings.** `llmprovider` gains, as additions only:
+
+  ```go
+  type WarningKind string
+  const (
+      WarningForcedChoiceDegraded WarningKind = "forced_tool_choice_degraded"
+      WarningForcedChoiceLearned  WarningKind = "forced_tool_choice_learned"
+  )
+  type Warning struct {
+      Kind   WarningKind
+      Model  string // the model the warning is about
+      Detail string // a sentence for a person
+  }
+  // Response gains: Warnings []Warning
+  ```
+
+  * A stream carries them on its `EventDone` response.
+  * Every degradation of a forced choice adds one, including 0020-MADR
+    F43's `auto` with thinking, whose request does not change.
+  * A refusal learned at runtime adds one naming the model, which a
+    caller can persist and pass back as an override (D9).
+  * The SDK knows nothing of ACP. gobble-cli maps a warning to a session
+    `notice` when the client advertises notices, or to an agent message
+    otherwise, under its own record.
+* **D8. A forced named tool is sent as structured outputs.** On a model
+  that refuses forcing, `ForceTool(name)` (and so `GenerateToolCall`) is
+  sent as follows:
+  * `output_config.format` carries that tool's schema (`json_schema`);
+  * the tools stay offered, with `tool_choice: none`, so the conversation's
+    tool history stays valid;
+  * the reply's JSON is returned as a `FunctionCallItem` for that tool,
+    with a synthesised call id, finishing `tool_calls`.
+
+  It is not a degradation: the arguments are schema-valid, except on a
+  refusal or a cut. If the schema cannot be compiled (it lacks
+  `additionalProperties: false`, as 0034-PLAN M7 found), the API's 400 is
+  returned. Phase 4b measures the shape before it is built.
+* **D9. The fact, by layer, highest first:**
+  1. **the caller's override,** `WithModelForcedChoice(model, Supported)`
+     or `(model, Unsupported)`, in either direction;
+  2. **D1's dated table;**
+  3. **a refusal learned this process** (D3);
+  4. **unknown, which is treated as accepting,** as every library does.
+
+  * **Matching:** ids are normalised before matching:
+    * lower case;
+    * a gateway prefix (`anthropic/`), and Bedrock's `anthropic.` prefix
+      and `-v1:0` suffix, removed;
+    * a trailing `-YYYYMMDD` or `@YYYYMMDD` snapshot date removed.
+
+    Matching is then exact. That is still a per-model fact, not a version
+    pattern (0033-MADR Q6).
+  * **0033's `ModelInfo`** gains the fact as a field when that plan lands,
+    and this table becomes one of its layers.
+* **D10. The caller's policy.**
+  * `WithForcedChoiceFallback(ForcedChoiceRefuse)` is the default.
+  * `WithForcedChoiceFallback(ForcedChoiceDegrade)` opts in to D2's `auto`
+    and turn instruction, with a `WarningForcedChoiceDegraded`.
+  * The policy decides only `ToolChoiceRequired`: a named tool takes D8
+    under either policy.
+* **D3, narrowed.** A forced request to a model no layer knows, refused in
+  Anthropic's form, is learned, then handled by policy:
+  * **a named tool** is resent once as D8;
+  * **`ToolChoiceRequired` under the refuse policy** returns an error
+    matching `ErrUnsupported`, wrapping the `*APIError`;
+  * **`ToolChoiceRequired` under the degrade policy** is resent once
+    degraded.
+
+  Each adds a `WarningForcedChoiceLearned`. The resend sits in the shared
+  openers, before anything reaches the caller (0034-PLAN Phase 4f).
+* **D6. Release:** `v1.8.0`, for the exported additions. 0033's metadata
+  plan moves to `v1.9.0`.
+
+The options declined:
+
+* degrading by default, silently or with a warning;
+* following the policy for a named tool too;
+* logging only, or the package docs only;
+* keeping the table and memo as they were, or relying only on the caller.
 
 ### Owner questions
 

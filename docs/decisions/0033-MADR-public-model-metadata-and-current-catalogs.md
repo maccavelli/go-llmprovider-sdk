@@ -329,7 +329,9 @@ func (m Metadata) Models(provider llmprovider.ProviderID) []ModelInfo
 
 * **`v1.7.1`:** the catalog refresh and its live test (D4, apart from the
   tool). It changes no exported API.
-* **`v1.8.0`:** the metadata (D1 to D3) and the maintainer tool. It only
+* **`v1.8.0`:** *(amended 2026-10-11: `v1.9.0`, since 0034-MADR's
+  amendment "prevention first" takes `v1.8.0`)* the metadata (D1 to D3)
+  and the maintainer tool. It only
   adds API.
 
 ### D6. Forced tool choice on the newest Claude models: a record of its own

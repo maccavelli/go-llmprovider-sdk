@@ -27,7 +27,7 @@ When it is done:
   answering.
 * **The live tests.** They no longer depend on `claude-haiku-4-5`.
 
-Every other model sends exactly what it sends today. It ships as `v1.7.2`.
+Every other model sends exactly what it sends today. It ships as `v1.8.0` (amended 2026-10-11 from `v1.7.2`: the amendment adds exported API).
 
 ## Scope
 
@@ -202,6 +202,181 @@ Record a table per step, before Phase 2 uses it.
    * a second resend.
 4. Gate; stage.
 
+### Amendment (2026-10-11): prevention first
+
+*Added by the owner on 2026-10-11, after Phase 4 was committed (`0ed27fa`).
+It replaces a Phase 4b that moved the resend into the shared openers, which
+was never committed; that work is Phase 4f below.*
+
+**The research, read 2026-10-11:**
+
+* Vercel's AI SDK (`packages/anthropic`: `rejectsForcedToolUse`, warnings,
+  structured outputs for its forced-JSON path).
+* LiteLLM (`supports_forced_tool_use`, `UnsupportedParamsError` unless
+  `drop_params`).
+* OpenRouter's `supported_parameters`.
+* Goose (`aaif-goose/goose`, read in a local checkout at `01eb01a`).
+* OpenCode, Kilo Code, pi, Codex and grok-build (local checkouts), and
+  Claude Code's changelog.
+* models.dev's schema, Anthropic's errors, define-tools and Models API
+  pages, and Anthropic's Swift bridge PR #34.
+* ACP's initialization, prompt-turn notices and extensibility pages, and
+  the local ACP Go SDKs.
+* JSON-RPC 2.0, MCP 2026-07-28, RFC 9110, RFC 9457, the WHATWG SSE spec,
+  gRPC's A6 retry design, net/http's transport, and the AWS SDK for Go v2's
+  retryer.
+
+The findings and the owner's answers (Q5 to Q8) are in 0034-MADR,
+"Amendment (2026-10-11): prevention first".
+
+**Phases 4b to 4f** build D7 to D10 and the narrowed D3. Phases 5 to 7
+follow as written, except that the release is `v1.8.0`.
+
+### Phase 4b: measurement (live; billed: at most 8 requests of at most 512 output tokens)
+
+Behind `LLMPROVIDER_LIVE_0034`, in `llmprovider/live_0034_measure_test.go`.
+The test logs statuses, `stop_reason`, the content blocks' types, and
+whether the text parses against the schema.
+
+| Step | What | Model(s) | Requests |
+| :--- | :--- | :--- | :--- |
+| S1 | `output_config.format` with a strict-ready tool schema; the tools offered with `tool_choice: none` | `claude-sonnet-5-5`, `claude-opus-5-5`, `claude-fable-5-1` | 3 |
+| S2 | S1 with a schema lacking `additionalProperties: false` | `claude-sonnet-5-5` | 1 |
+| S3 | a follow-up turn replaying S1's answer as a synthesised `tool_use`, with a `tool_result` | `claude-sonnet-5-5` | 1 |
+| S4 | S1 with the tools omitted, and a history holding a `tool_use` | `claude-sonnet-5-5` | 1 |
+| S5 | S1 with `Reasoning` set (adaptive thinking and an effort) | `claude-opus-5-5` | 1 |
+| | | | **7** |
+
+What each step decides:
+
+* **S1:** D8 is built only if each model answers 200 with schema-valid JSON
+  text and no `tool_use` block.
+* **S2:** confirms the 400 that D8 returns.
+* **S3:** a synthesised call must replay. If it does not, that is a
+  deviation.
+* **S4:** whether the tools must stay offered: if S4 answers 400, D8 keeps
+  them, with `tool_choice: none`.
+* **S5:** structured outputs alongside thinking.
+
+### Phase 4c: warnings (D7)
+
+1. **Red first** (`llmprovider/warning_0034_test.go`; and in
+   `internal/wire/messages`, `providers/claude`, `providers/opencode`):
+   * `Warning` and `WarningKind` exist, with the two constants;
+   * a degraded request's `Response.Warnings` holds a
+     `WarningForcedChoiceDegraded` naming the model;
+   * so does 0020-MADR F43's thinking case, whose wire stays the same;
+   * a request that is not degraded has none;
+   * a stream's `EventDone` response carries the same.
+2. **Change:**
+   * the type, the constants and the field;
+   * the Messages wire reports what `AddToolChoice` did;
+   * Claude and OpenCode put it on the decoded `Response`, and on the
+     stream's done event.
+3. **Plants:**
+   * the warning dropped;
+   * a warning on a request not degraded;
+   * the stream omits it.
+4. Gate; stage. apidiff shows the additions.
+
+### Phase 4d: the fact and the policy (D9, D10)
+
+1. **Red first:**
+   * **Normalisation:**
+     * `anthropic/claude-sonnet-5-5`, `anthropic.claude-opus-5-5-v1:0`,
+       `claude-fable-5-1-20260901` and `claude-sonnet-5-5@20260928` match
+       the table;
+     * `claude-sonnet-5-55` and `claude-sonnet-5` do not.
+   * **Layers:**
+     * `WithModelForcedChoice(m, Supported)` overrides the table;
+     * `(m, Unsupported)` marks an unknown model;
+     * the learned memo sits below both;
+     * unknown accepts.
+   * **The policy:**
+     * by default, `ToolChoiceRequired` on a refusing model fails before
+       the network, with an error matching `ErrUnsupported`, and no request
+       is sent (R11);
+     * with `ForcedChoiceDegrade`, it sends D2's degraded request and a
+       warning.
+   * **llmtest:** every harness still passes; `ForcedToolChoice` stays
+     `BestEffort`.
+2. **Change:**
+   * the options `WithForcedChoiceFallback` and `WithModelForcedChoice`, in
+     `llmprovider`, as common options (R17);
+   * `ForcedChoiceFallback` and its constants;
+   * the resolution in `internal/wire/messages`;
+   * both providers pass their settings;
+   * the package docs.
+3. **Plants:**
+   * normalisation off;
+   * the override below the table;
+   * degrading by default;
+   * the strict refusal sent to the network.
+4. Gate; stage.
+
+### Phase 4e: a forced named tool as structured outputs (D8)
+
+1. **Red first:**
+   * **`internal/wire/messages`:** a `ForceTool(name)` body on a refusing
+     model carries:
+     * `output_config.format` with that tool's schema;
+     * the tools;
+     * `tool_choice: none`, or the tools omitted, as S4 decides;
+     * no turn instruction.
+   * **The decoder:** a text reply becomes a `FunctionCallItem` for the tool,
+     with `Arguments` the compacted JSON, a synthesised call id and
+     `FinishToolCalls`. A stream yields no text deltas for it, and yields
+     the item and the done event.
+   * **`GenerateToolCall`** on a refusing model returns the call, under
+     either policy.
+   * **Wirecase:** `claude-refuses-forced`'s `tool` and `thinking-tool`
+     goldens change from Phase 3's degraded body to the structured-outputs
+     body. The record lists both, with the reason. No other golden changes.
+2. **Change:**
+   * the body;
+   * the reply's conversion in both providers' decode and stream paths;
+   * the package docs.
+3. **Plants:**
+   * the turn instruction sent instead;
+   * the JSON returned as text;
+   * text deltas streamed;
+   * the wrong tool named.
+4. Gate; stage.
+
+### Phase 4f: the narrowed resend, in the shared openers (D3)
+
+1. **Red first:**
+   * **`internal/wire/retry_0034_test.go`:** the send opener and the stream
+     opener take a builder and an optional retry check.
+     * A refused send with the check true is rebuilt, and sent once more.
+     * The check false returns the refusal, after one request.
+     * A refused resend is returned, with two requests.
+     * Success never consults the check.
+     * A 401 is still renewed inside each send.
+     * A stream never resends after an event.
+   * **`internal/wire/messages`:** a refusal from a model no layer knows is
+     learned.
+     * A named tool is resent as D8.
+     * `ToolChoiceRequired` under refuse returns an error matching both
+       `ErrUnsupported` and `*APIError`, with no resend.
+     * Under degrade, it is resent degraded.
+     * Each adds a `WarningForcedChoiceLearned` naming the model.
+   * **The provider tests of Phase 4,** updated for the policy: by
+     default, a learned `ToolChoiceRequired` no longer resends.
+2. **Change:**
+   * the openers;
+   * `SendLearning` and `StreamLearning` replaced by the check;
+   * both providers use the openers.
+3. **Plants:**
+   * a resend after an event;
+   * a second resend;
+   * the first request reused, not rebuilt;
+   * the check consulted on success;
+   * a resend under refuse;
+   * no learned warning.
+4. Gate; stage. The Phase 4 record's `SendLearning` and `StreamLearning`
+   are noted as superseded.
+
 ### Phase 5: Strict on Messages (D4)
 
 1. **Red first:**
@@ -245,15 +420,15 @@ Record a table per step, before Phase 2 uses it.
 
 1. **Docs:**
    * `docs/architecture.md`: the Messages paragraph;
-   * `README.md` Status, `v1.7.2`;
+   * `README.md` Status, `v1.8.0`;
    * release notes in this PLAN;
    * 0033-MADR: D6 answered by this record.
 2. **The live suites** on the release commit (billed, as before).
-3. **The owner** commits, pushes, and tags `v1.7.2`.
+3. **The owner** commits, pushes, and tags `v1.8.0`.
 4. **After the tag:**
    * CI;
    * the proxy;
-   * apidiff `v1.7.1` to `v1.7.2`, which must be empty;
+   * apidiff `v1.7.1` to `v1.8.0`: D7, D9 and D10's additions only;
    * a scratch consumer, and a scratch copy of gobble-cli.
 5. This PLAN `complete`; the MADR's status recorded; the index updated.
 
@@ -261,10 +436,10 @@ Record a table per step, before Phase 2 uses it.
 
 * **V1. Red, then green,** with both lines and every plant's FAIL line in
   the Execution Record.
-* **V2. The gate** at each phase. Goldens change only as Phases 3 and 5
+* **V2. The gate** at each phase. Goldens change only as Phases 3, 4e and 5
   record.
 * **V3. Measurement:** Phase 1's tables recorded before Phase 2.
-* **V4. API:** apidiff `v1.7.1` to `v1.7.2` empty.
+* **V4. API:** apidiff `v1.7.1` to `v1.8.0`: D7, D9 and D10's additions only.
 * **V5. Live:** `TestLive_ClaudeForcedChoiceDegrades` and the live suites
   on the release commit.
 * **V6. Records:**
@@ -274,7 +449,7 @@ Record a table per step, before Phase 2 uses it.
 
 ## Rollout and Rollback
 
-* **Rollout.** Six commits after the records, then `v1.7.2`.
+* **Rollout.** Ten commits after the records (Phases 4b to 4f added on 2026-10-11), then `v1.8.0`.
 * **Rollback, before the tag:** each phase reverts alone, newest first.
   Phase 6's catalog change reverts with Phase 2.
 * **Rollback, after the tag:** fix forward in `v1.7.3`. A caller on a model

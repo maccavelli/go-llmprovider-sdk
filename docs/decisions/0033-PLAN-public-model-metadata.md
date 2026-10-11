@@ -9,10 +9,13 @@ decision-makers: repository owner
 
 # Publish Model Metadata
 
+*Amended 2026-10-11: released as `v1.9.0`, not `v1.8.0`, which
+0034-MADR's amendment "prevention first" takes.*
+
 Associated MADR: [0033-MADR-public-model-metadata-and-current-catalogs.md](0033-MADR-public-model-metadata-and-current-catalogs.md)
 
 This is the second of the MADR's two plans: D1 to D3 and D4's maintainer
-tool, released as `v1.8.0`. It follows
+tool, released as `v1.9.0`. It follows
 [0033-PLAN-refresh-the-curated-catalogs.md](0033-PLAN-refresh-the-curated-catalogs.md).
 
 ## Goal
@@ -181,14 +184,14 @@ Listings and `/api/show` are not billed.
 1. **Docs:**
    * `docs/architecture.md`: the catalog section, the layers, and the tool;
    * `docs/guides/adding-a-provider.md`;
-   * `README.md` Status, `v1.8.0`;
+   * `README.md` Status, `v1.9.0`;
    * release notes in this PLAN.
 2. **The live suites** on the release commit (billed, as before).
-3. **The owner** commits, pushes, and tags `v1.8.0`.
+3. **The owner** commits, pushes, and tags `v1.9.0`.
 4. **After the tag:**
    * CI;
    * the proxy;
-   * apidiff `v1.7.1` to `v1.8.0`: additions only;
+   * apidiff `v1.7.1` to `v1.9.0`: additions only;
    * a scratch consumer that reads `ModelInfo` offline, through
      `ParseMetadata` and a layer;
    * a scratch copy of gobble-cli.
@@ -206,7 +209,7 @@ Listings and `/api/show` are not billed.
 
 ## Rollout and Rollback
 
-* **Rollout.** Four commits after Phase 1, then `v1.8.0`.
+* **Rollout.** Four commits after Phase 1, then `v1.9.0`.
 * **Rollback, before the tag:** each phase reverts alone, newest first.
 * **Rollback, after the tag:** fix forward in `v1.8.x`. A caller that does
   not use the new API is unaffected.
