@@ -388,6 +388,22 @@ The options declined:
 * logging only, or the package docs only;
 * keeping the table and memo as they were, or relying only on the caller.
 
+### Measured (2026-10-11), structured outputs
+
+0034-PLAN Phase 4b sent 7 requests:
+
+* **Schema-valid JSON.** `output_config.format` with a strict-ready schema
+  returned schema-valid JSON as text, beside a thinking block and with no
+  tool call, on `claude-sonnet-5-5`, `claude-opus-5-5` and
+  `claude-fable-5-1`. It did so with the tools offered under
+  `tool_choice: none` (S1), and beside an effort (S5).
+* **An incompatible schema.** A schema without `additionalProperties: false`
+  answers 400 (S2).
+* **Replaying the call.** A synthesised `tool_use` and its `tool_result`
+  replay (S3).
+* **The tools.** They may be omitted (S4). D8 keeps them, so that the tool
+  definitions stay the same from turn to turn.
+
 ### Owner questions
 
 * **Q1 (D3). Where the fact comes from.** Offered:

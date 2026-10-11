@@ -760,3 +760,60 @@ weaker proof. It was replaced by the plant in the table, which keeps the
 stream and drops only the learning.
 
 **Pre-add:** 8 files clean.
+
+### Amendment (2026-10-11): prevention first, recorded
+
+* **The decision.** The owner asked for the refusal handling to be
+  re-assessed, with preventing degraded requests the priority. The
+  research and the answers Q5 to Q8 are in 0034-MADR, "Amendment
+  (2026-10-11): prevention first".
+* **The records.**
+  * Phases 4b to 4f replaced a Phase 4b that moved the resend into the
+    shared openers, which was never committed.
+  * The release became `v1.8.0`.
+  * 0033's metadata plan moved to `v1.9.0`.
+  * The owner committed the amendment as `0d5f668`.
+* **What Phase 4 built that this changes.** Phase 4's `SendLearning` and
+  `StreamLearning` stay in the tree until Phase 4f replaces them.
+
+### Phase 4b: measurement (2026-10-11)
+
+`TestLive_0034StructuredOutputs`, in `llmprovider/live_0034_measure_test.go`,
+behind `LLMPROVIDER_LIVE_0034`, run at 17:35 UTC.
+
+* The provider built each request, and a recording transport added
+  `output_config.format` with a JSON schema, keeping any `output_config`
+  effort.
+* The test logs the status, `stop_reason`, the content blocks' types, and
+  whether the text parses as `{"city": string}`; never the text.
+* Each request allowed at most 512 output tokens.
+
+| Step | Model | Result |
+| :--- | :--- | :--- |
+| S1, `output_config.format` with a strict-ready schema; the tool offered with `tool_choice: none` | `claude-sonnet-5-5`, `claude-opus-5-5`, `claude-fable-5-1` | 200 each, `stop_reason end_turn`, blocks `[thinking text]`, the text a JSON object with `city` a string and 1 key; no `tool_use` |
+| S2, a schema without `additionalProperties: false` | `claude-sonnet-5-5` | 400 `invalid_request_error`: `output_config.format.schema: For 'object' type, 'additionalProperties' must be explicitly set to false` |
+| S3, a synthesised `tool_use` (`toolu_so_1`) and its `tool_result` replayed, then a question | `claude-sonnet-5-5` | 200, `end_turn`, a text answer |
+| S4, no tools, the same history holding a `tool_use`, `output_config.format` | `claude-sonnet-5-5` | 200, `end_turn`, `[thinking text]`, valid JSON |
+| S5, S1 with `Reasoning` at `EffortLow` (adaptive thinking and an effort) | `claude-opus-5-5` | 200, `end_turn`, `[thinking text]`, valid JSON |
+
+7 billed requests, within the phase's 8.
+
+**What each step decides:**
+
+* **S1:** D8 is built. On each refusing model, structured outputs return
+  schema-valid JSON as text, with no tool call, beside the thinking block.
+* **S2:** a schema strict mode cannot compile answers 400. D8 returns that
+  error as the API sent it.
+* **S3:** a synthesised call id replays, so a conversation can go on from
+  D8's call.
+* **S4:** the tools may be omitted, but D8 keeps them, with
+  `tool_choice: none`, which S1 measured on all three models. The tool
+  definitions then stay the same from turn to turn, which a cached prompt
+  prefix needs.
+* **S5:** structured outputs work beside adaptive thinking and an effort.
+
+**A fix to the new helper before the run:** `soShape` first read `city`
+from the map before decoding into it. That was harmless, but misleading, and
+the line was removed.
+
+**Pre-add:** the test file is clean.

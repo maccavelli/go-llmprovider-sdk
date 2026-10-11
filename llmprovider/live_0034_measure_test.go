@@ -193,3 +193,123 @@ func TestLive_0034OpencodeMessages(t *testing.T) {
 		measure0034(t, "M9 forced", llmprovider.ProviderOpencodeGo, key, "qwen3.8-flash", cityRequest(cityTool, ""), nil, true, route)
 	})
 }
+
+// soShape is a Messages reply's status, stop_reason, its content blocks'
+// types, and whether its text parses as {"city": string}; an error's type and
+// message. Never the text itself.
+func soShape(status int, body []byte) string {
+	var r struct {
+		StopReason string `json:"stop_reason"`
+		Content    []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+		Error struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(body, &r)
+	if status/100 != 2 {
+		return fmt.Sprintf("status %d, error %s: %q", status, r.Error.Type, r.Error.Message)
+	}
+	var types []string
+	parsed := "no text"
+	for _, c := range r.Content {
+		types = append(types, c.Type)
+		if c.Type == "text" {
+			var v map[string]any
+			if err := json.Unmarshal([]byte(c.Text), &v); err == nil {
+				_, isCity := v["city"].(string)
+				parsed = fmt.Sprintf("JSON object, city a string %v, keys %d", isCity, len(v))
+			} else {
+				parsed = "text not JSON"
+			}
+		}
+	}
+	return fmt.Sprintf("status %d, stop_reason %s, blocks %v, %s", status, r.StopReason, types, parsed)
+}
+
+// structuredOutput sets output_config.format to schema, keeping any other
+// output_config field (an effort).
+func structuredOutput(schema string) func(map[string]any) {
+	return func(body map[string]any) {
+		cfg, _ := body["output_config"].(map[string]any)
+		if cfg == nil {
+			cfg = map[string]any{}
+		}
+		cfg["format"] = map[string]any{"type": "json_schema", "schema": json.RawMessage(schema)}
+		body["output_config"] = cfg
+	}
+}
+
+const (
+	strictCitySchema = `{"type":"object","properties":{"city":{"type":"string"}},"required":["city"],"additionalProperties":false}`
+	looseCitySchema  = `{"type":"object","properties":{"city":{"type":"string"},"country":{"type":"string"}},"required":["city"]}`
+)
+
+// measureSO sends req to a Claude model with rewrite, at most 512 output
+// tokens, and logs soShape under label.
+func measureSO(t *testing.T, label, key, model string, req *llmprovider.Request, rewrite func(map[string]any)) {
+	t.Helper()
+	rec := &flagRecorder{rewrite: rewrite}
+	p, err := providers.New(llmprovider.ProviderClaude, llmprovider.WithAPIKey(key), llmprovider.WithModel(model),
+		llmprovider.WithMaxTokens(512), llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(),
+		llmprovider.WithHTTPClient(&http.Client{Transport: rec}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := llmprovider.LiveCtx(t)
+	defer cancel()
+	_, genErr := p.Generate(ctx, req)
+	status, body := rec.result()
+	if status == 0 {
+		t.Fatalf("%s %s: no reply: %v", label, model, genErr)
+	}
+	t.Logf("%s %s: %s", label, model, soShape(status, body))
+}
+
+// replayedCall is a conversation in which record_city was called, with the
+// synthesised id 0034-MADR D8 would give it, and answered.
+func replayedCall() []llmprovider.Item {
+	return []llmprovider.Item{
+		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Record the city Paris."},
+		llmprovider.FunctionCallItem{CallID: "toolu_so_1", Name: "record_city", Arguments: `{"city":"Paris"}`},
+		llmprovider.FunctionCallOutputItem{CallID: "toolu_so_1", Output: "recorded"},
+	}
+}
+
+// TestLive_0034StructuredOutputs is 0034-PLAN Phase 4b (S1 to S5): a forced
+// named tool sent as structured outputs on the models that refuse forcing.
+// Billed: 7 requests of at most 512 output tokens.
+func TestLive_0034StructuredOutputs(t *testing.T) {
+	require0034(t)
+	key := llmprovider.LiveEnvKey(t, llmprovider.ProviderEnvVars()[llmprovider.ProviderClaude])
+	for _, model := range []string{"claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1"} {
+		t.Run("S1/"+model, func(t *testing.T) {
+			measureSO(t, "S1 output_config.format, tools with tool_choice none", key, model,
+				cityRequest(strictCityTool, llmprovider.ToolChoiceNone), structuredOutput(strictCitySchema))
+		})
+	}
+	t.Run("S2", func(t *testing.T) {
+		measureSO(t, "S2 a schema without additionalProperties false", key, "claude-sonnet-5-5",
+			cityRequest(cityTool, llmprovider.ToolChoiceNone), structuredOutput(looseCitySchema))
+	})
+	t.Run("S3", func(t *testing.T) {
+		req := &llmprovider.Request{Tools: []llmprovider.Tool{strictCityTool},
+			Input: append(replayedCall(), llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Did that work? Answer in one word."})}
+		measureSO(t, "S3 a synthesised call replayed with its result", key, "claude-sonnet-5-5", req, func(map[string]any) {})
+	})
+	t.Run("S4", func(t *testing.T) {
+		req := &llmprovider.Request{
+			Input: append(replayedCall(), llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Now record the city London."})}
+		measureSO(t, "S4 no tools, a tool_use in the history, output_config.format", key, "claude-sonnet-5-5", req,
+			structuredOutput(strictCitySchema))
+	})
+	t.Run("S5", func(t *testing.T) {
+		req := cityRequest(strictCityTool, llmprovider.ToolChoiceNone)
+		req.Reasoning = &llmprovider.Reasoning{Effort: llmprovider.EffortLow}
+		measureSO(t, "S5 S1 with Reasoning (adaptive thinking, effort low)", key, "claude-opus-5-5", req,
+			structuredOutput(strictCitySchema))
+	})
+}
