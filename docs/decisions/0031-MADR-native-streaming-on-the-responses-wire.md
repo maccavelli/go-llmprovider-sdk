@@ -301,7 +301,8 @@ checks the body. The owner chose this over adding a goroutine count to
 
 **Status of this amendment: accepted** (2026-10-10). The owner took the
 recommended answer to each of Q5 to Q8 (below), and the decisions above
-stay accepted. It is implemented by a second plan,
+stay accepted. Implemented and released as `v1.6.0` (2026-10-11); the
+second plan is complete. It is implemented by a second plan,
 [0031-PLAN-native-streaming-on-the-other-wires.md](0031-PLAN-native-streaming-on-the-other-wires.md).
 
 **Context.**

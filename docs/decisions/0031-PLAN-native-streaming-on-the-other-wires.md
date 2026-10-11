@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-10
+status: complete
+date: 2026-10-11
 associated-madr: "0031-MADR-native-streaming-on-the-responses-wire.md"
 decision-makers: repository owner
 ---
@@ -911,6 +911,45 @@ rule:
   `chat_completions` and `google`.
 
 Every check that ran against a service passed on the release commit.
+
+**Step 5, the release.** The owner committed step 4's record as `fa16e59`,
+pushed, and tagged `v1.6.0` on it, an annotated tag (`31bf821`). From the
+release commit `fb02445`, `fa16e59` changes this PLAN only.
+
+**Step 6, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on the tag (run `38104393459`, a push of `v1.6.0`) | success |
+| CI on `main` at `fa16e59` (run `38104095770`) | success |
+| `go list -m -json …@v1.6.0` through `proxy.golang.org` | `Version` `v1.6.0`, `GoVersion` `1.27.2`, `Origin.Hash` `fa16e59…` (`refs/tags/v1.6.0`) |
+| apidiff, `v1.5.0` to `v1.6.0` (both tags archived, without `-incompatible`) | no output: no change to the exported API, compatible or not |
+| a scratch consumer using every public package, on `v1.6.0` | builds with `CGO_ENABLED=0` for linux, windows and darwin, amd64 and arm64; `go run` builds every provider in `providers.Default()`: each is a `Streamer`, `NativeStreaming` `Supported` but `opencode-zen` and `opencode-go` `BestEffort` |
+| a scratch copy of gobble-cli, moved from `v1.2.1` to `v1.6.0` | baseline tests pass; `go get` upgrades `v1.2.1 => v1.6.0`; then build, vet on three platforms, `go test`, `go test -race` and golangci-lint (`0 issues.`) pass |
+
+**Step 7.** Every criterion is met, so this PLAN is `complete`:
+
+* **V1 and V2**, red then green and the gate: in each phase's record.
+* **V3**, T2 and T2b: recorded in Phase 1, before Phases 3 to 6.
+* **V4**, the benchmarks: Phase 2's medians, within 10%.
+* **V5**, the API: step 6's apidiff, which shows no change.
+* **V6**, live: each wire phase's live tests, and step 4.
+* **V7**, the records:
+  * the amendment's measured note, and its revised Q7 (D1);
+  * `docs/architecture.md` and the package docs match the code.
+
+**Not done, as scoped:**
+
+* gobble-cli's move to `v1.6.0`, and its streaming from the unwrapped
+  provider, are its own records. The scratch copy above shows the move
+  compiles and passes.
+* The other gobble-cli items each wait for their own record:
+  * a per-tool strict flag and a tool result's error flag;
+  * model metadata;
+  * image input;
+  * prompt caching;
+  * tool deferral;
+  * timeouts.
 
 #### Release notes: `v1.6.0`
 
