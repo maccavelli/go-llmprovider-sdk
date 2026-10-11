@@ -483,6 +483,13 @@ for a session, from the store.
   characters. A glob scores an id match above a label-only one. The static
   catalogs are the fallback. `catalog.Static(provider)` returns a copy, and
   `llmprovider.ProviderEnvVars()` a copy of the variable names.
+  `catalog.Label` is per provider, so an id two providers offer can be
+  labelled differently.
+- **Two guards keep the static catalogs current** (0033-MADR D4):
+  - a unit test's table of retired ids, taken from the providers'
+    deprecations pages;
+  - a live test, run before each release, which fails on an id the
+    provider's listing lacks or marks stale.
   `catalog.Rank(provider, model)` scores a model by the provider's own
   ranking.
 - A provider's `ListModels`, through `llmprovider.ModelLister`, returns the

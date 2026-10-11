@@ -537,3 +537,66 @@ For that model, Phase 2's unit test is the guard: its table lists it as
 retiring on 2026-11-30.
 
 **Pre-add:** clean. **Gate:** all 22 checks pass.
+
+### Phase 4: documentation and release (2026-10-11)
+
+**Step 1**, on `443690d` (Phase 3):
+
+* **`README.md`:** Status names `v1.7.1`, with a `v1.7.1` bullet.
+* **`docs/architecture.md`:**
+  * the catalog paragraph says `Label` is per provider;
+  * it names the two guards.
+
+  `Label`'s behaviour changed, and the architecture describes the system
+  as it is (R43), so this file is added to the step.
+* **Package docs:** the Grok package doc changed in Phase 2.
+  **`api-standards.md`:** unchanged.
+
+#### Release notes: `v1.7.1`
+
+`v1.7.1` brings the curated model catalogs up to date with the providers'
+official pages (0033-MADR D4). The exported API does not change.
+
+**The menus.** `catalog.Static`, and each provider's
+`Descriptor.StaticModels`:
+
+| Provider | Now | Dropped, and why |
+| :--- | :--- | :--- |
+| OpenAI | `gpt-6-luna`, `gpt-5.6-luna`, `gpt-4.1-mini`, `gpt-5.6-terra`, `gpt-6.1-sol`, `gpt-6-astra` | `gpt-4.1-nano` and `o4-mini` (shut down 2026-10-23); `gpt-4o-mini`, `gpt-4.1`, `gpt-4o` (superseded) |
+| Gemini | `gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-3.6-flash` | `gemini-3.7-flash` and `gemini-3.5-flash` (rerouted to newer models); `gemini-2.5-flash` and `gemini-2.5-flash-lite` (open only to past users) |
+| Claude | `claude-haiku-5-5`, `claude-sonnet-5`, `claude-opus-4-8`, `claude-sonnet-4-6` | `claude-haiku-4-5` (retirement floor 2026-10-15) |
+| Grok | `grok-4.6`, `grok-4.5`, `grok-4.7`, `grok-4.3`, `grok-build-0.1` | `grok-4-fast-reasoning` (retired 2026-05-15); `grok-4`, `grok-3-mini`, `grok-3-mini-fast` (no longer listed) |
+
+* Every id was listed by its provider, and answered a generation, on
+  2026-10-11. Each menu's first entry is its recommendation.
+* `claude-sonnet-5-5`, `claude-opus-5-5` and `claude-fable-5-1` are not
+  listed yet. They refuse a forced tool choice, which `GenerateToolCall`
+  sends, and wait for the record 0033-MADR D6 names.
+* The gateways' menus (OpenCode Zen and Go, Hugging Face, Kilo, Together)
+  are unchanged: every id was current.
+
+**Ranking.** In a live listing:
+
+* OpenAI ranks `luna` first, then `nano`, `mini`, `terra`, `sol` and
+  `astra`, and a newer generation above an older one of the same tier.
+* Grok ranks by generation, and no longer favours the retired mini tiers.
+
+**Labels.** `catalog.Label` reads the provider. An id two providers offer
+takes each one's label, and a gateway's fallback models show their bare id.
+
+**Grok efforts.** `grok-4.7` and `grok-4.3` take `low` to `xhigh`, as xAI's
+listing reports. Before, they were sent no effort.
+
+**Guards:**
+
+* a unit test fails on a static id the deprecations pages retire;
+* `TestLive_StaticCatalogsCurrent`, in the live suites, fails on one a
+  listing lacks or marks stale.
+
+**Upgrading:**
+
+* No code change is needed.
+* A caller that pinned a dropped id keeps working until its provider
+  retires it. The SDK only stops recommending it.
+* A caller that reads `Label` for a gateway's model now gets the bare id
+  where it got a vendor's label.

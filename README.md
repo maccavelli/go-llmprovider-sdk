@@ -190,8 +190,22 @@ key.
 
 ## Status
 
-The current release is `v1.7.0`. The module requires Go 1.27.2.
+The current release is `v1.7.1`. The module requires Go 1.27.2.
 
+- `v1.7.1` brings the curated model catalogs up to date with the
+  providers' official pages, as
+  [0033-MADR](docs/decisions/0033-MADR-public-model-metadata-and-current-catalogs.md)
+  D4 decides.
+  - OpenAI, Gemini, Claude and Grok's menus drop retired, scheduled,
+    rerouted and restricted models, `gpt-4.1-nano` and `o4-mini` among
+    them, which OpenAI shuts down on 2026-10-23.
+  - Each now lists only current models measured to answer.
+  - Labels are per provider, and the Grok effort menus cover `grok-4.7`
+    and `grok-4.3`.
+
+  The exported API does not change. The release notes are in
+  [0033-PLAN-refresh-the-curated-catalogs.md](docs/decisions/0033-PLAN-refresh-the-curated-catalogs.md),
+  Phase 4.
 - `v1.7` adds two tool flags, as
   [0032-MADR](docs/decisions/0032-MADR-tool-strict-and-result-error-flags.md)
   decides:
