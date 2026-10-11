@@ -131,7 +131,9 @@ Listings and `/api/show` are not billed.
 1. **Red first,** with canned replies:
    * **Each listing:** `Lookup` takes the listing's value for each field D2
      gives that listing, and models.dev's for the others. `SourceOf` names
-     each.
+     each. Anthropic's listing sets no `Status` or `Retires` (0033-MADR,
+     "Amendment (2026-10-11): sources that lag"): a test gives it a
+     `lifecycle` that disagrees with models.dev, and models.dev's wins.
    * **Caller layers:** a caller layer beats both. Of two caller layers,
      the later wins. A field no layer sets stays unset.
    * **Offline:** with `WithoutModelMetadata` and a parsed document as a
@@ -159,6 +161,10 @@ Listings and `/api/show` are not billed.
 1. **`internal/cmd/catalogs`:**
    * it reads models.dev and, for each provider whose key variable is set,
      its listing;
+   * it reads the table of retired ids taken from the deprecations pages.
+     That table moves from `catalog/refresh_0033_test.go` to an internal
+     package that both the unit test and the tool read (0033-MADR,
+     "Amendment (2026-10-11): sources that lag");
    * it prints, per provider, the ids it proposes to add or remove, with
      each id's status, release date and price;
    * it edits nothing, and prints no key.

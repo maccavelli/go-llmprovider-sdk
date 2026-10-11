@@ -237,7 +237,7 @@ and a field no layer sets stays unset. From highest to lowest:
 
    | Listing | Fields it sets |
    | :--- | :--- |
-   | Anthropic | `MaxInput`, `MaxOutput`, image input, effort levels, `Status`, `Retires` |
+   | Anthropic | `MaxInput`, `MaxOutput`, image input, effort levels (amended 2026-10-11: not `Status` or `Retires`; see "Amendment (2026-10-11): sources that lag") |
    | Gemini | `MaxInput`, `MaxOutput` |
    | xAI | `Context`, `Efforts`, `Cost` |
    | Kilo | `Context`, `MaxOutput`, `Cost` |
@@ -314,7 +314,9 @@ func (m Metadata) Models(provider llmprovider.ProviderID) []ModelInfo
   against the Go docs.
 * **A live test fails** when a static id is missing from its provider's
   listing, or is marked deprecated or scheduled for shutdown there. It runs
-  with each release's live suites.
+  with each release's live suites. *(Amended 2026-10-11: a unit test's
+  table of retired ids, taken from the deprecations pages, guards what no
+  listing reports; see "Amendment (2026-10-11): sources that lag".)*
 * **A maintainer tool proposes the next lists.**
   * It reads models.dev and the official listings, and prints a proposed
     diff for a person to review.
@@ -362,6 +364,41 @@ accept forced choice.
   `context_length` per model, as D2's xAI row assumes. Its efforts can
   differ from the docs: it gives `grok-4.3` `xhigh`, which a request
   accepted.
+
+### Amendment (2026-10-11): sources that lag
+
+0033-PLAN-refresh-the-curated-catalogs.md's deviation D1 found that the
+machine-readable sources lag the providers' deprecations pages:
+
+* Anthropic's `GET /v1/models` lists `claude-sonnet-4-5-20250929` with
+  `lifecycle "active"`, and `deprecated_at` and `retires_at` null. Its
+  deprecations page says the model was deprecated on 2026-09-30, and
+  retires on 2026-11-30.
+* models.dev's `anthropic` section does not mark it deprecated either, nor
+  does its `google` section mark the rerouted `gemini-3.7-flash` and
+  `gemini-3.5-flash`.
+* models.dev does mark OpenAI's `gpt-4.1-nano` and `o4-mini` `deprecated`,
+  and OpenAI's listing gives their `shutdown_date`.
+
+The owner chose two guards, and D2 amended:
+
+* **The live guard** stays as built. It fails on a static id missing from
+  its listing, or one a listing marks stale (OpenAI's `shutdown_date`,
+  Kilo's `expiration_date`). It reads Anthropic's `lifecycle`, but cannot
+  rely on it.
+* **The unit test's table of retired ids,** taken from the deprecations
+  pages, guards what no listing reports: Anthropic's deprecations, and
+  Gemini's reroutes. The maintainer tool (D4) reports both, from one table.
+* **D2:** Anthropic's listing sets `MaxInput`, `MaxOutput`, image input and
+  effort levels, but not `Status` or `Retires`. Those come from models.dev,
+  or from a caller's layer.
+
+The other options were declined:
+
+* the guard parsing each provider's deprecations page. It is complete, but
+  fails on a redesign of the page's markup rather than on a stale menu;
+* keeping Anthropic's listing authoritative for `Status`, which would
+  report deprecated models as active.
 
 ### Owner questions
 

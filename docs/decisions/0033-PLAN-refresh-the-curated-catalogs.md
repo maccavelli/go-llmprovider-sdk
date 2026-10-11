@@ -170,7 +170,9 @@ The tests are behind `LLMPROVIDER_LIVE_0033`, in
    * where the listing carries a lifecycle (Anthropic's `lifecycle`,
      OpenAI's `shutdown_date`), none is deprecated or scheduled.
 
-   Listings are not billed.
+   Listings are not billed. *(Amended by deviation D1, 2026-10-11:
+   Anthropic's `lifecycle` lags its deprecations page. Phase 2's
+   `TestStatic_NoRetiredIDs_0033` guards what no listing reports.)*
 2. **Red first:** on a scratch copy with a retired id planted in a list,
    the test fails, naming the provider and the id.
 3. Gate; stage.
@@ -448,3 +450,90 @@ testdata/wire/claude/listing.json: 2 difference(s) from the golden file
   them out of the ranking (MADR 0009 §3 item 8). Whether a workspace
   without region `cn` is now served them needs a measurement and a record.
 * **`grok-4.5`'s `xhigh`,** as Phase 1 found.
+
+### Deviation D1 (2026-10-11): Anthropic's listing lags its deprecations page
+
+* **Found** in Phase 3, step 2. Besides the plants the step names, a third
+  plant put `claude-sonnet-4-5-20250929` in `staticClaude`, to exercise the
+  guard's `lifecycle` branch. The guard passed:
+
+  ```text
+  live_catalog_0033_test.go:208: claude: 14 models listed
+  --- PASS: TestLive_StaticCatalogsCurrent/claude (0.24s)
+  ```
+
+* **Why:** a scratch probe printed every entry's lifecycle fields.
+  * Anthropic lists the model with `lifecycle="active"`,
+    `deprecated_at=null` and `retires_at=null`.
+  * Its deprecations page says it was deprecated on 2026-09-30, and
+    retires on 2026-11-30.
+  * models.dev's `anthropic` section has no `status` for it, nor its
+    `google` section for the rerouted `gemini-3.7-flash` and
+    `gemini-3.5-flash`.
+  * models.dev does mark OpenAI's `gpt-4.1-nano` and `o4-mini`
+    `deprecated`.
+* **What it contradicts:**
+  * 0033-MADR D2 makes Anthropic's listing authoritative for `Status` and
+    `Retires`;
+  * D4 has the guard catch what a listing's lifecycle marks.
+
+  No source the guard reads carries Anthropic's deprecations, nor Gemini's
+  reroutes. The error is in the pair, not in existing code.
+* **Options put to the owner:**
+  * two guards, and D2 amended (recommended);
+  * the guard parsing the deprecations pages;
+  * keeping D2 and noting the lag.
+* **Decision.** The owner chose two guards and D2 amended. 0033-MADR records
+  it as "Amendment (2026-10-11): sources that lag".
+  * The live guard stays as built, and its doc comment says what it cannot
+    see.
+  * Phase 2's `TestStatic_NoRetiredIDs_0033` guards the rest.
+  * 0033-PLAN-public-model-metadata.md takes the D2 change, and the one
+    table for its tool.
+* **Files added to the phase:** none beyond the guard; its doc comment
+  names the lag.
+
+### Phase 3: the guard (2026-10-11)
+
+**`llmprovider/live_catalog_0033_test.go`:** `TestLive_StaticCatalogsCurrent`
+runs with `-run Live`, in the release's live suites.
+
+* For every provider with a static catalog, it reads that provider's
+  listing:
+  * with the key for OpenAI, Anthropic, Gemini and xAI;
+  * without one for OpenCode Zen and Go, Hugging Face and Kilo;
+  * for Together, with the key behind `LLMPROVIDER_LIVE_TOGETHER`.
+* It fails on a static id the listing lacks, or one the listing marks
+  stale (OpenAI's `shutdown_date`, Kilo's `expiration_date`, Anthropic's
+  `lifecycle` other than `active`).
+* A 429 or 5xx skips. An unset key skips.
+* Its doc comment says what it cannot see (deviation D1).
+
+**Green on the tree**, every provider passing:
+
+| Provider | Models listed |
+| :--- | :--- |
+| `openai` | 133 |
+| `claude` | 14 |
+| `gemini` | 62 |
+| `grok` | 55 (ids and aliases) |
+| `opencode-zen` | 87 |
+| `opencode-go` | 45 |
+| `huggingface` | 126 |
+| `kilo` | 390 |
+| `together` | 265 |
+
+**Red** (step 2), on a scratch clone, listings only:
+
+| Plant | Result |
+| :--- | :--- |
+| `o4-mini` in `staticOpenAI` | `openai: static id "o4-mini" is listed as stale: shutdown_date "2026-10-23"`; FAIL |
+| `grok-3-mini` in `staticGrok` | `grok: static id "grok-3-mini" is not in its provider's listing`; FAIL |
+| `claude-sonnet-4-5-20250929` in `staticClaude` | PASS: deviation D1 |
+
+The third plant went beyond the step, to exercise the `lifecycle` branch.
+It found the lag recorded in deviation D1, and the owner's decision there.
+For that model, Phase 2's unit test is the guard: its table lists it as
+retiring on 2026-11-30.
+
+**Pre-add:** clean. **Gate:** all 22 checks pass.
