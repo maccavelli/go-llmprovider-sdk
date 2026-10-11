@@ -856,6 +856,62 @@ and `opencode-go` stay `BestEffort` (D1); every other provider is
   unchanged; R13's text holds.
 * **`README.md`:** Status names `v1.6.0`, with a `v1.6` bullet.
 
+**Step 4, the live suites,** on the release commit `fb02445`.
+
+* **Run:** 01:36 to 01:41 UTC, with every provider's key variable set
+  (checked for presence only), `LLMPROVIDER_LIVE_TOGETHER=1`, and a local
+  Ollama server answering. The suites that need a person, a subscription
+  or their own switch stayed off.
+* **Command:** `go test -tags live_gateways -count=1 -v ./llmprovider/...
+  -run Live`.
+* **Result:** exit 0. Top level, 75 passed, 19 skipped, 0 failed. Subtests,
+  79 passed, 5 skipped, 0 failed. The requests were not counted: the suites
+  log tests, not requests.
+
+One skip was transient: `TestLive_KiloReasoningSpelling`, "gateway
+returned HTTP 429 (free tier limits)" on `kilo-auto/free`. Rerun once alone
+at 01:41 UTC, it passed.
+
+The streaming tests:
+
+| Test | Model | Result |
+| :--- | :--- | :--- |
+| `TestLive_OpenAIStreams` | `gpt-4.1-mini` | 9 text deltas, then `EventDone` |
+| `TestLive_GrokStreams` | `grok-4.6` | 9 text deltas, then `EventDone` |
+| `TestLive_OpencodeStreams/opencode-go` (responses) | `gpt-6-luna` | 3 text deltas, then `EventDone` |
+| `TestLive_ClaudeStreams` | `claude-haiku-4-5` | 5 text deltas, then `EventDone` |
+| `TestLive_OpencodeMessagesStreams/opencode-go` | `qwen3.8-flash` | 4 text deltas, then `EventDone` |
+| `TestLive_HuggingFaceStreams` | `deepseek-ai/DeepSeek-V4-Flash-0731` | 3 text deltas, then `EventDone` |
+| `TestLive_KiloStreams` | `deepseek/deepseek-v4.1-flash` | 3 text deltas, then `EventDone` |
+| `TestLive_TogetherStreams` | `deepseek-ai/DeepSeek-V4.1-Flash` | 2 text deltas, then `EventDone` |
+| `TestLive_OpencodeChatStreams/opencode-go` | `glm-5.3-flash` | 3 text deltas, then `EventDone` |
+| `TestLive_OllamaStreams` | `llama3.2:latest` | 2 text deltas, then `EventDone` |
+| `TestLive_OpencodeGoogleStreams/google-endpoint` | `gemini-3.7-flash` | 1 text delta, then `EventDone` |
+| `TestLive_GeminiStreams` (stored) | `gemini-3.7-flash` | 1 text delta, then `EventDone` with an interaction id |
+
+**The 19 top-level skips:**
+
+* **Off by their own switch, 17:**
+  * the 0028 and 0031 measurements (`LLMPROVIDER_LIVE_0028`,
+    `LLMPROVIDER_LIVE_0031`, `LLMPROVIDER_LIVE_0031B`), 6;
+  * the ChatGPT and Codex CLI subscription, 4;
+  * Gemini's rate-limit drain, 1;
+  * the Grok CLI, 1;
+  * the browser and device sign-ins and the OpenAI sign-in probe, 5.
+* **No active model:** `TestLive_OpencodeInterleavedReasoningReplay`, "no
+  active opencode-go model among [kimi-k2.6]", as before.
+* **Transient:** `TestLive_KiloReasoningSpelling`, passed by its rerun.
+
+**The 5 subtest skips** are all OpenCode Zen, each by 0027-MADR's transient
+rule:
+
+* `TestLive_OpencodeGoogleTwoCallRoundTrip/zen` (402);
+* the four `opencode-zen` stream subtests: 403 "Model access is disabled"
+  on `responses`, and 402 "Insufficient account funds" on `messages`,
+  `chat_completions` and `google`.
+
+Every check that ran against a service passed on the release commit.
+
 #### Release notes: `v1.6.0`
 
 `v1.6.0` streams natively on every wire (0031-MADR, amendment of
