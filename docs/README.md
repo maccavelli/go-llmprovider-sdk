@@ -77,8 +77,8 @@ documents a reader follows to do something.
 | 0031 | MADR | [Stream Natively on the OpenAI Responses Wire](decisions/0031-MADR-native-streaming-on-the-responses-wire.md) | accepted |
 | 0031 | PLAN | [Implement Native Streaming on the OpenAI Responses Wire](decisions/0031-PLAN-native-streaming-on-the-responses-wire.md) | complete |
 | 0031 | PLAN | [Implement Native Streaming on the Messages, Chat Completions, generateContent and Interactions Wires](decisions/0031-PLAN-native-streaming-on-the-other-wires.md) | complete |
-| 0032 | MADR | [Carry a Per-Tool Strict Flag and a Tool Result's Error Flag](decisions/0032-MADR-tool-strict-and-result-error-flags.md) | proposed |
-| 0032 | PLAN | [Implement a Per-Tool Strict Flag and a Tool Result's Error Flag](decisions/0032-PLAN-tool-strict-and-result-error-flags.md) | proposed |
+| 0032 | MADR | [Carry a Per-Tool Strict Flag and a Tool Result's Error Flag](decisions/0032-MADR-tool-strict-and-result-error-flags.md) | accepted |
+| 0032 | PLAN | [Implement a Per-Tool Strict Flag and a Tool Result's Error Flag](decisions/0032-PLAN-tool-strict-and-result-error-flags.md) | in-progress |
 
 ## I want to…
 

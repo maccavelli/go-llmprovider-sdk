@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-11
 decision-makers: repository owner
 consulted: gobble-cli 0012-MADR-tool-schemas-descriptions-and-loading.md (D3, D13), gobble-cli 0014-REPORT-llmprovider-sdk-integration.md (F5, F7), 0015-MADR-canonical-sdk-api-and-module-layout.md (D3)
@@ -135,25 +135,58 @@ and each wire maps them to its own documented field or says it has none.
 * **Release:** `v1.7.0`. The two struct fields are additions, which apidiff
   reports as compatible.
 
+### Measured (2026-10-11)
+
+0032-PLAN's Phase 1 (T1, T1c, T2, and its deviation D1) settles D2 and D3:
+
+* **D2, `Strict`:**
+  * **Responses:** `openai`, `grok` and OpenCode Go's `responses` route
+    each accepted `strict: false` and echoed it back as applied. It is sent
+    on all three.
+  * **Chat Completions:** `huggingface`, `kilo`, `together` and OpenCode
+    Go's `chat_completions` route each answered 200 with
+    `function.strict: false`. None echoes its tools, so that the field was
+    applied, not merely accepted, is unmeasured. It is sent on all four
+    (Q2).
+  * **`ollama`** was not among the measured targets, so `function.strict`
+    stays unsent there and its package doc says so.
+* **D3, `IsError`:**
+  * Messages' `is_error: true` (`claude`), generateContent's
+    `response: {"error": …}` (Google's endpoint), and `is_error: true` on an
+    Interactions `function_result` step (`gemini`) each answered 200. Each
+    wire carries the flag in that form.
+  * Each reply said the call had failed. The output text also said so, so
+    that is no proof the flag itself was read.
+
 ### Owner questions
+
+Answered by the owner on 2026-10-11: the recommended option of each.
 
 * **Q1 (D1). A pointer helper.** Offered:
   * export `llmprovider.Ptr[T any](v T) *T`, as other Go SDKs do, which
     adds one function to the API;
   * no helper: callers write `strict := false; tool.Strict = &strict`
     (recommended, since the API stays as small as the need).
+
+  **Answer: no helper.**
 * **Q2 (D2). Chat Completions.** Offered:
   * send `function.strict` on each gateway the measurement shows accepting
     it (recommended);
   * send it on the Responses wire only.
+
+  **Answer: send it on each gateway that accepts it.**
 * **Q3 (D3). A result's error on a wire with no field.** Offered:
   * send the output unchanged (recommended);
   * prefix the output with a fixed marker, such as `"Error: "`, which
     rewrites the caller's text.
+
+  **Answer: the output unchanged.**
 * **Q4. One record or two.** Offered:
   * one record for both fields (recommended): both are small tool-fidelity
     additions gobble-cli asked for together, released together;
   * a record each.
+
+  **Answer: one record.**
 
 ### Consequences
 

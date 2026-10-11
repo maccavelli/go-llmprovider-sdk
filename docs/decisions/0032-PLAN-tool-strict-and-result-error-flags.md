@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-11
 associated-madr: "0032-MADR-tool-strict-and-result-error-flags.md"
 decision-makers: repository owner
@@ -189,4 +189,92 @@ apply unchanged:
 
 ## Execution Record
 
-Nothing executed yet.
+### Phase 0: records (2026-10-11)
+
+The owner answered Q1 to Q4 with each recommended option, and approved
+execution ("follow recommendations, proceed"):
+
+* Q1: no pointer helper;
+* Q2: Chat Completions `strict` on each gateway that accepts it;
+* Q3: an unmarked output where a wire has no error field;
+* Q4: one record.
+
+0032-MADR is `accepted`, this PLAN `in-progress`, and the index has 69
+records.
+
+### Phase 1: measurement (2026-10-11)
+
+`llmprovider/live_0032_measure_test.go`, run with `LLMPROVIDER_LIVE_0032=1`
+and every key variable set (checked for presence only). A recording
+transport rewrites each provider's own request to carry the flag, and logs:
+
+* the reply's status;
+* any error, redacted;
+* for Responses, the `strict` value the reply's echoed tools carry;
+* for T2, whether the reply's text says the call failed (yes or no, never
+  the text).
+
+Billed: 14 requests, of the 16 budgeted.
+
+**T1, `strict: false`** (`TestLive_0032Strict`, 03:11 UTC). A tool with an
+optional property, at most 64 output tokens:
+
+| Target | Model | Status | Echoed `strict` |
+| :--- | :--- | :--- | :--- |
+| `openai` | `gpt-4.1-mini` | 200 | `false` |
+| `grok` | `grok-4.6` | 200 | `false` |
+| OpenCode Go `responses` | `gpt-6-luna` | 200 | `false` |
+| `huggingface` | `deepseek-ai/DeepSeek-V4-Flash-0731` | 500 "Internal Server Error" | none (D1) |
+| `kilo` | `deepseek/deepseek-v4.1-flash` | 200 | none (no echo) |
+| `together` | `deepseek-ai/DeepSeek-V4.1-Flash` | 200 | none (no echo) |
+| OpenCode Go `chat_completions` | `glm-5.3-flash` | 200 | none (no echo) |
+
+**T1c, Hugging Face's control** (`TestLive_0032StrictHuggingFaceControl`; D1):
+
+| Run | Model | With `strict: false` | Without it |
+| :--- | :--- | :--- | :--- |
+| 03:12 UTC | `deepseek-ai/DeepSeek-V4-Flash-0731` | 500 | 500 |
+| 03:13 UTC (`LLMPROVIDER_LIVE_0032_HF_MODEL`) | `zai-org/GLM-5.3-Flash` | 200 | 200 |
+
+**T2, a failed result** (`TestLive_0032ResultError`, 03:11 UTC). A call, then
+its result "the city registry is offline" in the wire's error form:
+
+| Target | Error form | Model | Status | Reply says it failed |
+| :--- | :--- | :--- | :--- | :--- |
+| `claude` | `tool_result.is_error: true` | `claude-haiku-4-5` | 200 | yes |
+| Google's endpoint (OpenCode `google` route's request) | `functionResponse.response: {"error": …}` | `gemini-3.7-flash`, effort `low`, 1,024 tokens | 200 | yes |
+| `gemini` | `function_result.is_error: true` | `gemini-3.7-flash`, effort `low`, 1,024 tokens | 200 | yes |
+
+The "yes" is not proof the flag was read, since the output text also says
+the call failed.
+
+**Outcome:**
+
+* **By rule 3:**
+  * `Strict` is sent on the Responses wire (three targets) and on the four
+    Chat Completions gateways.
+  * `ollama` was not a T1 target, so its `function.strict` stays unsent.
+    Measuring it would be an amendment.
+* **By rule 4:** `IsError` is carried on Messages, generateContent and
+  Interactions, in the forms above.
+
+**Found, out of this plan's scope:** a tool request to Hugging Face's
+default model, `deepseek-ai/DeepSeek-V4-Flash-0731`, answers 500 with or
+without `strict`. Existing users of `huggingface` with tools on that model
+are affected. It is not fixed here.
+
+### Deviation D1 (2026-10-11): Hugging Face's default model fails every tool request
+
+* **Found** in step 1. Hugging Face answered T1's `strict` request with a
+  500, and so did T1c's control without the field. Its acceptance of
+  `function.strict` could not be measured on that model, and rule 3 covers
+  only a 2xx or a 4xx naming the field.
+* **Options put to the owner:**
+  * re-measure the pair on the next model in Hugging Face's static catalog,
+    2 billed requests (recommended);
+  * leave `strict` unsent on Hugging Face;
+  * send it on the other gateways' evidence.
+* **Decision.** The owner chose the re-measure. On `zai-org/GLM-5.3-Flash`
+  both requests answered 200, so Hugging Face carries `function.strict`.
+  The control test takes `LLMPROVIDER_LIVE_0032_HF_MODEL` to name the
+  model. No decision of 0032-MADR changes.
