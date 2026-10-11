@@ -190,8 +190,28 @@ key.
 
 ## Status
 
-The current release is `v1.7.1`. The module requires Go 1.27.2.
+The current release is `v1.8.0`. The module requires Go 1.27.2.
 
+- `v1.8.0` forces a tool on the Claude models that refuse a forced tool
+  choice (`claude-sonnet-5-5`, `claude-opus-5-5`, `claude-fable-5-1`,
+  `claude-mythos-5-1`), as
+  [0034-MADR](docs/decisions/0034-MADR-degrade-forced-tool-choice-per-model.md)
+  decides:
+  - a forced named tool, and so `GenerateToolCall`, is sent as structured
+    outputs and comes back as its call;
+  - `ToolChoiceRequired` fails before the network with `ErrUnsupported`,
+    unless `WithForcedChoiceFallback(ForcedChoiceDegrade)` opts in to
+    sending it as `auto` with an instruction;
+  - `WithModelForcedChoice` overrides the table per model, and a refusal
+    from a model no layer knows is learned for the process;
+  - `Response.Warnings` reports a degraded or a learned forced choice;
+  - `Tool.Strict` is sent on Messages;
+  - Claude's menu adds `claude-sonnet-5-5` and `claude-opus-5-5`, and drops
+    `claude-sonnet-4-6`.
+
+  The release notes are in
+  [0034-PLAN](docs/decisions/0034-PLAN-degrade-forced-tool-choice-per-model.md),
+  Phase 7.
 - `v1.7.1` brings the curated model catalogs up to date with the
   providers' official pages, as
   [0033-MADR](docs/decisions/0033-MADR-public-model-metadata-and-current-catalogs.md)

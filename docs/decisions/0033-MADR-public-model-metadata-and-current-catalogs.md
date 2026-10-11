@@ -350,6 +350,16 @@ this one:
 Until that record lands, `staticClaude` holds only models measured to
 accept forced choice.
 
+*(Answered 2026-10-11 by
+[0034-MADR-degrade-forced-tool-choice-per-model.md](0034-MADR-degrade-forced-tool-choice-per-model.md),
+released in `v1.8.0`. The per-model fact is a dated table, the caller's
+`WithModelForcedChoice`, and a refusal learned in process (its D1, D3,
+D9); the capabilities have no entry for it. Where forced choice is refused,
+a named tool is sent as structured outputs, not `auto` (its D8), and
+`ToolChoiceRequired` fails unless the caller opts in to degrading it (its
+D10). `claude-sonnet-5-5` and `claude-opus-5-5` joined `staticClaude`; its
+D5.)*
+
 ### Measured (2026-10-11)
 
 0033-PLAN-refresh-the-curated-catalogs.md Phase 1 measured each candidate:
@@ -479,7 +489,8 @@ Answered by the owner on 2026-10-11: the recommended option of each.
 * The refresh's lists, and every field D2 maps, are measured live before
   they are built.
 * The G-wire listing goldens change only as the refresh PLAN records.
-* apidiff: nothing for `v1.7.1`; additions only for `v1.8.0`.
+* apidiff: nothing for `v1.7.1`; additions only for `v1.8.0`. *(Amended
+  2026-10-11: the metadata's release is `v1.9.0`.)*
 * The live catalog test passes on each release commit.
 
 ## Pros and Cons of the Options
@@ -562,5 +573,7 @@ Answered by the owner on 2026-10-11: the recommended option of each.
     (D4, `v1.7.1`). Released as `v1.7.1` on 2026-10-11; the plan is
     complete;
   * [0033-PLAN-public-model-metadata.md](0033-PLAN-public-model-metadata.md)
-    (D1 to D3 and the maintainer tool, `v1.8.0`).
-* **Next:** the record D6 names, for forced tool choice.
+    (D1 to D3 and the maintainer tool, `v1.8.0`; *amended 2026-10-11:
+    `v1.9.0`*).
+* **Next:** the record D6 names, for forced tool choice. *(Done 2026-10-11:
+  0034-MADR, `v1.8.0`.)*

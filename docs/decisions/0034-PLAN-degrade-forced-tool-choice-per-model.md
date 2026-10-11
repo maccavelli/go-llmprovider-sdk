@@ -482,9 +482,12 @@ What each step decides:
 ## Rollout and Rollback
 
 * **Rollout.** Ten commits after the records (Phases 4b to 4f added on 2026-10-11), then `v1.8.0`.
+  *(Amended 2026-10-11, Phase 7: thirteen, twelve through Phase 6 and
+  Phase 7's.)*
 * **Rollback, before the tag:** each phase reverts alone, newest first.
   Phase 6's catalog change reverts with Phase 2.
-* **Rollback, after the tag:** fix forward in `v1.7.3`. A caller on a model
+* **Rollback, after the tag:** fix forward in `v1.7.3` *(amended
+  2026-10-11, Phase 7: `v1.8.1`)*. A caller on a model
   outside the table is unaffected.
 
 ## Execution Record
@@ -1513,3 +1516,101 @@ D5's test and leaves 0034-MADR unchanged.
 
 **Pre-add:** 5 files clean. **API:** unchanged from Phase 4d. **Gate:** 22
 of 22, started once the load average fell below 10.
+
+### Phase 7: documentation and release (2026-10-11)
+
+**Step 1**, on `7dd5ed5` (Phase 6):
+
+* **`README.md`:** Status names `v1.8.0`, with a `v1.8.0` bullet.
+* **`docs/architecture.md`:** the paragraphs on warnings, the layered fact,
+  D8, D3 and `Strict` were written phase by phase. This step adds the
+  package table's rows for `internal/wire` (`Send`,
+  `StreamEventsRetry`) and `internal/wire/messages` (the forced-choice
+  functions).
+* **0033-MADR:** D6 is noted as answered by 0034-MADR. Its two remaining
+  `v1.8.0` mentions of the metadata release are annotated `v1.9.0`.
+* **`docs/README.md`:** the "I want to…" row said `GenerateToolCall` sends
+  `auto`. Since D8 it does not, so the row is reworded.
+* **This PLAN:** two lines in "Rollout and Rollback" had gone stale.
+  * The commit count was ten; it is thirteen.
+  * The fix-forward version was `v1.7.3`; it is `v1.8.1`.
+
+  Both are annotated, not rewritten.
+* **Package docs:** each was written in its phase.
+  **`api-standards.md`:** R7 names `Warnings` (Phase 4c).
+  **`migrating-from-mcplib.md`:** unchanged, since no `mcplib` identifier
+  is replaced.
+
+#### Release notes: `v1.8.0`
+
+`v1.8.0` forces a tool on the Claude models that refuse a forced tool
+choice, and reports what it did (0034-MADR).
+
+**Which models.** `claude-fable-5-1`, `claude-mythos-5-1`,
+`claude-opus-5-5` and `claude-sonnet-5-5` answer a forced `tool_choice`
+with HTTP 400. The SDK knows them from a dated table, matched after a
+gateway or platform prefix and a snapshot date are stripped (D1, D9). It
+applies on the `claude` provider, and on OpenCode's `messages` route.
+
+**A forced named tool** (`ForceTool`, and so `GenerateToolCall`) on such a
+model is sent as structured outputs (D8):
+
+* the tool's schema becomes `output_config.format`, with its open objects
+  closed in a copy;
+* the tools stay offered, under `tool_choice: none`;
+* the JSON answer comes back as a `FunctionCallItem` for the tool,
+  finishing `tool_calls`;
+* a stream yields the call, not text deltas.
+
+It is not a degradation, and carries no warning. Before, the API's 400 was
+returned.
+
+**`ToolChoiceRequired`** on such a model fails before the network, with an
+error matching `ErrUnsupported` (D10). Before, the API's 400 came back as
+`ErrInvalidRequest`. `WithForcedChoiceFallback(ForcedChoiceDegrade)` opts
+in to sending it as `auto`, with Anthropic's turn instruction, and a
+`WarningForcedChoiceDegraded`.
+
+**Other models.** `WithModelForcedChoice(model, Supported | Unsupported)`
+overrides the table, for a model the SDK does not know yet or knows wrongly
+(D9). A refusal from a model no layer knows is learned for the rest of the
+process, in memory only (D3):
+
+* a named tool is sent once more, as structured outputs;
+* `ToolChoiceRequired` follows the policy above;
+* the response carries a `WarningForcedChoiceLearned` naming the model, so
+  a caller can keep it and pass it back with `WithModelForcedChoice`.
+
+**Warnings.** `Response.Warnings []Warning` holds typed, non-fatal notes;
+it is nil when the request was sent as asked (D7). A stream carries them on
+its `EventDone` response. Thinking with a forced choice, which Anthropic
+refuses, now reports `WarningForcedChoiceDegraded` too.
+
+**`Tool.Strict` on Messages.** A set `Strict` is sent as the tool's
+`strict` on `claude` and OpenCode's `messages` route (D4, amending
+0032-MADR D2). Nil still sends nothing.
+
+**The Claude menu.** `catalog.Static(claude)` is `claude-haiku-5-5`,
+`claude-sonnet-5-5`, `claude-sonnet-5`, `claude-opus-5-5`,
+`claude-opus-4-8` (D5). `claude-sonnet-4-6` leaves the menu, and is still
+usable by id. `claude-fable-5-1` stays out of it.
+
+**New API** (additions only, from `v1.7.1`):
+
+* `Response.Warnings`, `Warning`, `WarningKind`,
+  `WarningForcedChoiceDegraded`, `WarningForcedChoiceLearned`;
+* `ForcedChoiceFallback`, `ForcedChoiceRefuse`, `ForcedChoiceDegrade`,
+  `WithForcedChoiceFallback`;
+* `WithModelForcedChoice`;
+* `(*Settings).ForcedChoiceFallback`, `(*Settings).ModelForcedChoices`.
+
+**Upgrading:**
+
+* `GenerateToolCall` on the four models now returns the call, where it
+  returned a 400.
+* `ToolChoiceRequired` on them now fails with `ErrUnsupported` before the
+  network, where it failed with the API's `ErrInvalidRequest`. Opt in to
+  `ForcedChoiceDegrade` to send it as `auto` instead.
+* A caller that sets `Tool.Strict` now sends it on Messages too.
+* A caller that pinned `claude-sonnet-4-6` keeps working; the SDK only
+  stops recommending it.
