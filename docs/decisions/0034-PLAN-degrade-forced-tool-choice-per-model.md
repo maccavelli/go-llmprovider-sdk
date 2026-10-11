@@ -442,3 +442,51 @@ lint fix, which had removed the variable it used, so that it fails its
 test rather than the build.
 
 **Pre-add:** 4 files clean.
+
+### Phase 3: proof on the wire (2026-10-11)
+
+**Wirecase.** `providers/claude/wire_test.go` gains a case,
+`claude-refuses-forced`, built with `WithModel("claude-sonnet-5-5")`, with
+the same canned replies.
+
+* **Red:** its seven scenarios failed with `wiretest: no golden file
+  testdata/wire/claude-refuses-forced/<scenario>.json; record one with
+  -update`, and no other subtest failed. Continuation is not recorded: the
+  P7 type had none.
+* **Green:**
+  * its goldens were recorded once, alone
+    (`-run 'TestWireGoldens/claude-refuses-forced/' -update`);
+  * `TestWireGoldens` passes at `-count=3` across `./llmprovider/...`;
+  * no existing golden changed.
+* **What they pin**, read from each:
+
+| Scenario | `tool_choice` | `thinking` | Last message |
+| :--- | :--- | :--- | :--- |
+| `tool` | `{"type":"auto"}` | none | `role: system`, the instruction naming `get_weather` |
+| `thinking-tool` | `{"type":"auto"}` | `{"type":"adaptive"}` | `role: system`, the instruction naming `get_weather` |
+| `text` | none | none | the user's prompt |
+| `flags` | none (no forced choice) | none | the user's tool results |
+
+The `thinking-tool` row differs from the plan's "shows `auto`, as before".
+On a refusing model the instruction is added with thinking too, which
+Phase 2 decided and asserted.
+
+**OpenCode.** `providers/opencode/toolchoice_0034_test.go`,
+`TestGenerate_RefusingModelDegrades_0034`. Zen routes `claude-opus-5-5` to
+the `messages` route, by `routes_snapshot.json`:
+
+* a named choice sends `{"type":"auto"}`, with a system message naming
+  `get_weather`;
+* `ToolChoiceRequired` sends `auto`, with the one-of-the-tools instruction;
+* `ToolChoiceNone` and `auto` are unchanged, with no message appended.
+
+It passed on Phase 2's code, so it was shown failing on a plant.
+
+**Plants** on a scratch clone:
+
+| Plant | Test | FAIL lines |
+| :--- | :--- | :--- |
+| the Claude provider bypasses the table (`AddToolChoice(…, "")`) | `TestWireGoldens` | `claude-refuses-forced/tool`: `tool_choice.type: want "auto", got "tool"`, `tool_choice.name: want (absent), got "get_weather"`, `messages[1]: want {…"Tool-use requirement…"}`; and `claude-refuses-forced/thinking-tool` |
+| OpenCode's `messages` route bypasses the table | `TestGenerate_RefusingModelDegrades_0034` | `"tool:get_weather": tool_choice = map[name:get_weather type:tool], want map[type:auto]`; `last message = map[content:hi role:user], want a system message holding "a call to the get_weather tool"` |
+
+**Pre-add:** 2 files clean.

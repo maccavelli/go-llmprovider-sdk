@@ -12,14 +12,25 @@ import (
 // record explains (0015-PLAN S2).
 var updateWire = flag.Bool("update", false, "rewrite testdata/wire golden files")
 
-// wireCases is llmprovider's P7 claude case, built through the new API. Its
-// goldens moved here with the provider. The P7 type had no Continue.
+// wireCases is llmprovider's P7 claude case, built through the new API, and a
+// case on a model that refuses a forced tool choice. The first case's goldens
+// moved here with the provider. The P7 type had no Continue.
 var wireCases = []wirecase.Case{{
 	Name:           "claude",
 	Listing:        `{"data":[{"id":"claude-sonnet-5","type":"model"},{"id":"claude-haiku-4-5","type":"model"}],"has_more":false}`,
 	NoContinuation: true,
 	Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
 		return New(append([]llmprovider.Option{llmprovider.WithAPIKey("sk-ant-wire"), llmprovider.WithModel("claude-sonnet-5")},
+			wirecase.Opts(u, extra...)...)...)
+	},
+}, {
+	// claude-refuses-forced pins a model that refuses a forced tool choice:
+	// its tool scenario sends auto and the turn instruction (0034-MADR D2).
+	Name:           "claude-refuses-forced",
+	Listing:        `{"data":[{"id":"claude-sonnet-5-5","type":"model"}],"has_more":false}`,
+	NoContinuation: true,
+	Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
+		return New(append([]llmprovider.Option{llmprovider.WithAPIKey("sk-ant-wire"), llmprovider.WithModel("claude-sonnet-5-5")},
 			wirecase.Opts(u, extra...)...)...)
 	},
 }}
