@@ -147,7 +147,8 @@ apply unchanged:
    the wire where the harness's provider documents it. It needs no new
    field: a provider declares nothing, so the check compares against what
    the provider's wire recorded. The exact form is settled in the phase,
-   and recorded.
+   and recorded. *(Amended by deviation D2, 2026-10-11: the check takes
+   two `Harness` fields, `SendsStrict` and `SendsIsError`.)*
 3. **Plants:** a Fidelity check that cannot fail is caught by planting a
    provider that drops both flags.
 4. Gate; stage.
@@ -163,7 +164,8 @@ apply unchanged:
 5. **After the tag:**
    * CI;
    * the proxy;
-   * apidiff `v1.6.0` to `v1.7.0`: the two fields, as additions;
+   * apidiff `v1.6.0` to `v1.7.0`: the two fields, and deviation D2's two
+     `Harness` fields, as additions;
    * a scratch consumer, and a scratch copy of gobble-cli on `v1.7.0`.
 6. This PLAN `complete`; the index updated.
 
@@ -174,7 +176,8 @@ apply unchanged:
 * **V2. The gate** clean at each phase; the existing goldens unchanged.
 * **V3. Measurement:** T1 and T2 recorded before Phases 2 and 3 use them.
 * **V4. API:** apidiff from `v1.6.0` shows the two fields, as additions
-  only.
+  only. *(Deviation D2 adds `llmtest.Harness`'s `SendsStrict` and
+  `SendsIsError`, also additions.)*
 * **V5. Live:** the live suites on the release commit.
 * **V6. Records:** 0032-MADR amended for anything Phase 1 changes; the
   package docs name every wire that does not carry a flag.
@@ -413,3 +416,186 @@ Compatible changes:
 ```
 
 **Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+
+### Deviation D2 (2026-10-11): the Fidelity check needs to know which flags a provider sends
+
+* **Found** at step 2. Step 2 says the check "needs no new field", and
+  0032-MADR D4 says it "adds no `Harness` field". Step 3 requires the check
+  to fail for a planted provider that drops both flags.
+* **Why both cannot hold:** dropping both flags is `ollama`'s documented
+  behaviour, and each wire drops one of the two.
+  `llmprovider/llmtest/llmtest.go` gives the check no way to tell them
+  apart:
+  * `Harness` does not name the wire;
+  * `Capabilities` (`llmprovider/capabilities.go:33-44`) has no entry for
+    either flag.
+
+  The error is in this pair as written, not in existing code.
+* **Options put to the owner:**
+  * two optional `Harness` fields, `SendsStrict` and `SendsIsError`
+    (recommended): two additions, up to three requests a check, and each
+    provider's harness sets them;
+  * `llmtest` infers the wire from the request's path, with no new field.
+    It cannot tell `ollama` from the other Chat Completions gateways.
+
+  A third route was not offered: keeping the field-less check and dropping
+  step 3's plant would redraw scope.
+* **Decision.** The owner chose the two fields. 0032-MADR records it as
+  "Amendment (2026-10-11): two `Harness` fields". Step 2 is annotated.
+* **Files added to the phase:**
+  * each provider's `llmtest_test.go`, which sets the fields;
+  * `llmprovider/llmtest/llmtest_test.go`, whose reference provider gains
+    the flags and the flaws that break them;
+  * `docs/guides/adding-a-provider.md` and `docs/architecture.md`'s
+    `llmtest` bullet, which describe the fields. Phase 5's `architecture.md`
+    step still covers the contract section.
+
+### Phase 4: proof (2026-10-11)
+
+**Step 1, wirecase.** `llmprovider/internal/wirecase` gains a `flags`
+scenario. `FlagTools` offers `get_weather` with `Strict: true` and
+`get_time` with `Strict: false`. `FlagItems` replays two calls, the first
+result with `IsError` set and the second without. The literals it shares
+with `Items` became the constants `firstCall`, `weatherTool` and
+`parisArguments`, and the schema the function `citySchema`, for
+`goconst`; the values are unchanged.
+
+* **Red:** 18 cases, every case in the nine provider packages, failed with
+  `wirecase.go:312: wiretest: no golden file testdata/wire/claude/flags.json; record one with -update`
+  (and the same per case). No other subtest failed.
+* **Green:** the 18 goldens were recorded once with `-update -run
+  'TestWireGoldens/.*/flags$'`. `TestWireGoldens` passes at `-count=3`, and
+  no existing golden changed.
+* **What the goldens pin**, read from each one, as each package doc says:
+
+| Wire | Cases | `Strict` | `IsError` |
+| :--- | :--- | :--- | :--- |
+| Responses | `openai`, `openai-stateless`, `chatgpt`, `grok`, `grok-stateless`, `opencode-{zen,go}-responses` | `tools[i].strict` `true`, then `false` | not sent |
+| Chat Completions | `huggingface`, `kilo`, `together`, `opencode-{zen,go}-chat` | `tools[i].function.strict` `true`, then `false` | not sent |
+| Chat Completions | `ollama` | not sent | not sent |
+| Messages | `claude`, `opencode-{zen,go}-messages` | not sent | `is_error: true` on the failed `tool_result` only |
+| Interactions | `gemini` | not sent | `is_error: true` on the failed `function_result` only |
+| generateContent | `opencode-zen-google` | not sent | `response.error` for the failed result, `response.output` for the other |
+
+Every `Output` is sent as written.
+
+* **Plants** on a scratch clone, each against `TestWireGoldens`:
+
+| Plant | Failing cases | First difference |
+| :--- | :--- | :--- |
+| Messages drops `is_error` | `claude`, `opencode-zen-messages`, `opencode-go-messages` | `requests[0].body.messages[2].content[0].is_error: want true, got (absent)` |
+| generateContent drops the error form | `opencode-zen-google` | `…functionResponse.response.error: want "weather service offline", got (absent)` |
+| Interactions drops `is_error` | `gemini` | `requests[0].body.input[5].is_error: want true, got (absent)` |
+| Responses drops `strict` | the 7 Responses cases | `requests[0].body.tools[0].strict: want true, got (absent)` |
+| Chat Completions drops `strict` | the 5 gateway chat cases | `requests[0].body.tools[0].function.strict: want true, got (absent)` |
+| `ollama` sends `strict` | `ollama` | `requests[0].body.tools[0].function.strict: want (absent), got true` |
+
+**Step 2, llmtest Fidelity**, in the form deviation D2 chose.
+
+* `llmtest.Harness` gains `SendsStrict` and `SendsIsError`.
+* `checkFidelity` builds its request with `fidelityRequest(strict,
+  isError)` and records what each `Generate` sent. `checkFlags` then
+  checks the flags:
+  * with `Fidelity` set, a request whose result failed must carry
+    `"llmtest-output-7f3a"`, quoted, so its `Output` reached the wire
+    unchanged (0032-MADR D3);
+  * with either field set, the plain request is sent again and must send
+    the same body. A body that changes between identical requests is
+    reported, rather than taken for a flag reaching the wire;
+  * `SendsIsError`: the failed request's body must differ from the plain
+    one;
+  * `SendsStrict`: a request with `Strict: false` must differ from the
+    plain one.
+* **Requests per check:** two with neither field set, three with
+  `SendsIsError` alone, four with `SendsStrict`. That is one more than the
+  "up to three" put to the owner in deviation D2: the repeat of the plain
+  request was added while building, so that a body that differs between
+  identical requests cannot pass for a flag. Every request goes to the
+  harness's local server, so none is billed.
+* **The harnesses:**
+  * `SendsStrict`: `openai`, `grok`, `huggingface`, `kilo`, `together`,
+    and OpenCode's `chat_completions` and `responses` routes;
+  * `SendsIsError`: `claude`, `gemini`, and OpenCode's `messages` and
+    `google` routes;
+  * neither: `ollama`.
+* **The reference provider** in `llmtest_test.go` sends `strict` and
+  `is_error` when set. It gains three flaws:
+  * `dropFlags`;
+  * `rewritesFailure`, which prefixes `"Error: "`;
+  * `noisyBody`, which adds a counter.
+
+  Its harness sets both fields. `TestRun_FlagChecksAreOptional` shows that a
+  harness setting neither field passes with `dropFlags` and `noisyBody`.
+* **Red,** in two steps:
+  * the tests alone did not build:
+    `llmtest_test.go:296:3: unknown field SendsStrict in struct literal of type Harness`;
+  * with the fields and no check, exactly the four new cases failed:
+
+    ```text
+    --- FAIL: TestRun_NamesTheBrokenRule/drops_a_tool's_Strict
+        llmtest_test.go:395: failures []; want one starting "W12-fidelity: W12 (fidelity, 0032-MADR D4): the harness sets SendsStrict"
+    --- FAIL: TestRun_NamesTheBrokenRule/drops_a_result's_IsError
+        llmtest_test.go:395: failures []; want one starting "W12-fidelity: W12 (fidelity, 0032-MADR D4): the harness sets SendsIsError"
+    --- FAIL: TestRun_NamesTheBrokenRule/rewrites_a_failed_result
+        llmtest_test.go:395: failures []; want one starting "W12-fidelity: W12 (fidelity, 0032-MADR D3): a failed result's Output"
+    --- FAIL: TestRun_NamesTheBrokenRule/sends_a_different_body_each_time
+        llmtest_test.go:395: failures []; want one starting "W12-fidelity: W12 (fidelity, 0032-MADR D4): the same request sent twice"
+    ```
+
+* **Green, under `-race`:**
+  * `llmtest` passes;
+  * every provider's `TestConformance` passes, first with no field set (the
+    unchanged-`Output` check alone), then with the fields set;
+  * `go test -race -count=1 ./...` passes.
+
+**Step 3, plants** on a scratch clone, each against the providers'
+`TestConformance`. Every package named failed, and none passed:
+
+| Plant | Failing harnesses | Message |
+| :--- | :--- | :--- |
+| Messages drops `is_error` | `claude`; OpenCode `go-messages` | `W12 (fidelity, 0032-MADR D4): the harness sets SendsIsError, but a failed result reached the wire as one not failed: /messages {…` |
+| generateContent drops the error form | OpenCode `zen-google` | the same, on `…:generateContent` |
+| Interactions drops `is_error` | `gemini` `stored` and `unstored` | the same, on `/interactions` |
+| Responses drops `strict` | `openai` (`api-key`, `session`, `chatgpt`), `grok`, OpenCode `go-responses` | `W12 (fidelity, 0032-MADR D4): the harness sets SendsStrict, but a tool with Strict false reached the wire as one with Strict unset: /responses {…` |
+| Chat Completions drops `strict` | `huggingface`, `kilo`, `together`, OpenCode `zen-chat` | the same, on `/chat/completions` |
+| Chat Completions rewrites a failed output | `ollama` (no field set), `kilo` | `W12 (fidelity, 0032-MADR D3): a failed result's Output, "llmtest-output-7f3a", did not reach the wire unchanged: /v1/chat/completions {…` |
+
+**Documentation**, added to the phase by deviation D2:
+
+* `docs/guides/adding-a-provider.md` tells a new provider when to set the
+  fields;
+* `docs/architecture.md`'s `llmtest` bullet names them.
+
+**Fixes in the phase**, none of which loosens an assertion:
+
+* `goconst` flagged `call_1`, then `get_weather`. Each became a constant,
+  as above.
+* My first constant script asserted the wrong count and stopped before
+  writing. Its second version would also have rewritten the new constant's
+  own literal. It was rewritten to replace the uses first; the file was
+  never left wrong.
+
+**Scratch tooling:** the gate's `g_links.py` and `denyscan.py` had been
+pruned from the scratchpad again. Each was restored byte-for-byte from
+this session's transcript, the version used through Phase 3. Each was
+shown failing on a planted input before the gate ran:
+
+* `a.md:1: missing.md`, rc 1;
+* `a machine home path`, rc 1.
+
+**API:** apidiff from `v1.6.0` (the tree):
+
+```text
+Compatible changes:
+- ./llmprovider.FunctionCallOutputItem.IsError: added
+- ./llmprovider.Tool.Strict: added
+- ./llmprovider/llmtest.Harness.SendsIsError: added
+- ./llmprovider/llmtest.Harness.SendsStrict: added
+```
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files
+staged:
+
+* `g-links`: 0 problems in 700 relative links;
+* `deny-scan`: 0 hits in 33 files;
+* records check: 69 records, 0 problems.

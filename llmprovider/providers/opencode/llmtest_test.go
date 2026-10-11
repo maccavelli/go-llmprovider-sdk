@@ -127,7 +127,10 @@ func TestConformance(t *testing.T) {
 				ToolCall: func(w http.ResponseWriter, _ *http.Request, tool string) {
 					_ = json.NewEncoder(w).Encode(replies.toolCall(tool))
 				},
-				Fidelity:        true,
+				Fidelity: true,
+				// Each route carries the flags its wire has (0032-MADR D2, D3).
+				SendsStrict:     tc.route == RouteChatCompletions || tc.route == RouteResponses,
+				SendsIsError:    tc.route == RouteMessages || tc.route == RouteGoogle,
 				StrictTools:     true,
 				Garbled:         write(`{"garbled`),
 				Truncated:       write(replies.truncated),

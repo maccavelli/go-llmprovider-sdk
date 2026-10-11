@@ -30,6 +30,16 @@ const Session = "wire-session"
 // Prompt is the text scenarios' user message.
 const Prompt = "What is the weather in Paris?"
 
+// firstCall is the call id of the first call a conversation replays.
+const firstCall = "call_1"
+
+// weatherTool is WeatherTool's name, and parisArguments a call's arguments
+// to it, or to get_time.
+const (
+	weatherTool    = "get_weather"
+	parisArguments = `{"city":"Paris"}`
+)
+
 // user is a user message.
 func user(text string) llmprovider.MessageItem {
 	return llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: text}
@@ -42,17 +52,44 @@ func Items() []llmprovider.Item {
 		llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: "Be brief."},
 		user(Prompt),
 		llmprovider.ReasoningItem{Text: "The user wants the weather."},
-		llmprovider.FunctionCallItem{CallID: "call_1", Name: "get_weather", Arguments: `{"city":"Paris"}`, Signature: "sig-1"},
-		llmprovider.FunctionCallOutputItem{CallID: "call_1", Output: `{"sky":"sunny"}`},
+		llmprovider.FunctionCallItem{CallID: firstCall, Name: weatherTool, Arguments: parisArguments, Signature: "sig-1"},
+		llmprovider.FunctionCallOutputItem{CallID: firstCall, Output: `{"sky":"sunny"}`},
 		llmprovider.MessageItem{Role: llmprovider.RoleAssistant, Text: "It is sunny."},
 		user("And tomorrow?"),
 	}
 }
 
+// citySchema is a tool schema taking a city.
+func citySchema() map[string]any {
+	return map[string]any{jsonType: "object", "properties": map[string]any{"city": map[string]any{jsonType: "string"}}}
+}
+
 // WeatherTool is the tool the tool scenarios offer.
 func WeatherTool() llmprovider.Tool {
-	return llmprovider.Tool{Name: "get_weather", Description: "Weather for a city",
-		Schema: map[string]any{jsonType: "object", "properties": map[string]any{"city": map[string]any{jsonType: "string"}}}}
+	return llmprovider.Tool{Name: weatherTool, Description: "Weather for a city", Schema: citySchema()}
+}
+
+// FlagTools offers WeatherTool strict and a second tool not strict, so the
+// "flags" goldens show Tool.Strict set each way (0032-MADR D4).
+func FlagTools() []llmprovider.Tool {
+	strict, loose := true, false
+	weather := WeatherTool()
+	weather.Strict = &strict
+	clock := llmprovider.Tool{Name: "get_time", Description: "Time in a city", Strict: &loose, Schema: citySchema()}
+	return []llmprovider.Tool{weather, clock}
+}
+
+// FlagItems is two calls and their results, the first failed, so the
+// "flags" goldens show FunctionCallOutputItem.IsError set and not set
+// (0032-MADR D4).
+func FlagItems() []llmprovider.Item {
+	return []llmprovider.Item{
+		user(Prompt),
+		llmprovider.FunctionCallItem{CallID: firstCall, Name: weatherTool, Arguments: parisArguments},
+		llmprovider.FunctionCallItem{CallID: "call_2", Name: "get_time", Arguments: parisArguments},
+		llmprovider.FunctionCallOutputItem{CallID: firstCall, Output: "weather service offline", IsError: true},
+		llmprovider.FunctionCallOutputItem{CallID: "call_2", Output: `{"time":"12:00"}`},
+	}
 }
 
 // Opts are the options every case is built with.
@@ -227,6 +264,9 @@ var scenarios = []scenario{
 		}
 		return p.Generate(ctx, &llmprovider.Request{
 			PreviousResponseID: "resp_previous", Input: []llmprovider.Item{user("And tomorrow?")}})
+	}},
+	{"flags", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
+		return p.Generate(ctx, &llmprovider.Request{Input: FlagItems(), Tools: FlagTools()})
 	}},
 	{"listing", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
 		lister, ok := p.(llmprovider.ModelLister)

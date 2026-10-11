@@ -131,7 +131,8 @@ and each wire maps them to its own documented field or says it has none.
 * **`llmtest` Fidelity:** a harness that sets `Fidelity` also checks that a
   `Strict: false` tool and an `IsError` result reach the wire as that
   provider documents. This adds no `Harness` field; it uses what each
-  harness already records.
+  harness already records. *(Amended 2026-10-11: two `Harness` fields;
+  see "Amendment (2026-10-11): two `Harness` fields" below.)*
 * **Release:** `v1.7.0`. The two struct fields are additions, which apidiff
   reports as compatible.
 
@@ -157,6 +158,31 @@ and each wire maps them to its own documented field or says it has none.
     wire carries the flag in that form.
   * Each reply said the call had failed. The output text also said so, so
     that is no proof the flag itself was read.
+
+### Amendment (2026-10-11): two `Harness` fields
+
+0032-PLAN's deviation D2 found that D4's Fidelity check cannot work as
+written. `llmtest` has nothing that says which flags a provider sends:
+`Harness` does not name the wire, and `Capabilities` has no entry for
+either flag. Dropping both flags is what `ollama` documents, and each wire
+drops one of the two. So a check with no new field cannot tell a provider
+that drops a flag from one that never sends it.
+
+The owner chose two optional fields:
+
+* `SendsStrict` and `SendsIsError`. With `Fidelity` set, each that is set
+  requires the flag to change what reaches the wire.
+* Unset, the flag is not checked, so a harness that sets neither passes as
+  before.
+* With `Fidelity` set, the check always requires a failed result's `Output`
+  to reach the wire unchanged (D3).
+
+The other option, `llmtest` inferring the wire from the request's path,
+was declined. It would teach a public test kit the wires' shapes. On Chat
+Completions it still could not tell `ollama` from the gateways that send
+`strict`.
+
+Both fields are additions, which apidiff reports as compatible.
 
 ### Owner questions
 

@@ -305,7 +305,11 @@ func TestConformance(t *testing.T) {
 - Five more checks are optional, and every built-in provider sets them
   (0021-MADR W12; 0026-MADR F7):
   - `Fidelity: true` checks that a request's `Model`, `Instructions` and a
-    tool's output reach the wire;
+    tool's output reach the wire, and that a failed result's output is
+    sent unchanged. Set `SendsStrict` or `SendsIsError` as well when your
+    wire carries `Tool.Strict` or `FunctionCallOutputItem.IsError`: the
+    check then requires that flag to change the request, and the same
+    request sent twice to send the same body (0032-MADR D4);
   - `Garbled` writes a 200 that cannot be decoded, which must be
     `ErrIncomplete` and is not retried;
   - `Truncated` writes an answer cut at the output limit with a partial

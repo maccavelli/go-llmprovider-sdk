@@ -250,7 +250,9 @@ for a session, from the store.
   provider passes, and `Fake`, a scriptable provider for tests. A `Harness`
   may switch on five more checks, and every built-in provider's does:
   - `Fidelity`: a request's `Model`, `Instructions` and a tool's output
-    reach the wire;
+    reach the wire, and a failed result's output reaches it unchanged.
+    With `SendsStrict` or `SendsIsError` set, the flag it names must
+    change the request (0032-MADR D4);
   - `Garbled`: an undecodable 200 is `ErrIncomplete`, sent once through
     `WithRetry`;
   - `Truncated`, with `TruncatedReason`: a cut answer with a partial call

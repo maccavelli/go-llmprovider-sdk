@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -63,6 +64,14 @@ type Harness struct {
 	// and a FunctionCallOutputItem whose Output is FidelityOutput must send
 	// all three, in its path or its body.
 	Fidelity bool
+	// SendsStrict and SendsIsError, with Fidelity set, say the provider's
+	// wire carries Tool.Strict and FunctionCallOutputItem.IsError: a request
+	// with the flag set must then send a different body from one without
+	// it, and the same request sent twice must send the same body. Unset,
+	// the flag is not checked. With Fidelity set, a failed result's Output
+	// always reaches the wire unchanged (0032-MADR D3, D4).
+	SendsStrict  bool
+	SendsIsError bool
 	// Garbled, when set, writes a 200 reply that cannot be decoded. Generate
 	// must fail with ErrIncomplete, and, through WithRetry, send the request
 	// once: the service answered.
@@ -722,8 +731,21 @@ func recordingServer(handler func(http.ResponseWriter, *http.Request)) (*fakeSer
 	}
 }
 
+// fidelityRequest is the Fidelity check's request: a tool, with strict as its
+// Strict, and a call whose result failed when isError is set.
+func fidelityRequest(strict *bool, isError bool) *llmprovider.Request {
+	req := toolRequest(llmprovider.ToolChoiceAuto)
+	req.Model, req.Instructions = FidelityModel, FidelityInstructions
+	req.Tools[0].Strict = strict
+	req.Input = append(req.Input,
+		llmprovider.FunctionCallItem{CallID: "call_llmtest", Name: llmtestTool, Arguments: "{}"},
+		llmprovider.FunctionCallOutputItem{CallID: "call_llmtest", Output: FidelityOutput, IsError: isError})
+	return req
+}
+
 // checkFidelity sends a request's Model, Instructions and a tool's output,
-// and requires each on the wire (0021-MADR W12).
+// and requires each on the wire (0021-MADR W12); then the flags
+// (checkFlags).
 func checkFidelity(r reporter, h Harness) {
 	r.Helper()
 	fs, seen := recordingServer(h.Text)
@@ -732,22 +754,63 @@ func checkFidelity(r reporter, h Harness) {
 	if p == nil {
 		return
 	}
-	req := toolRequest(llmprovider.ToolChoiceAuto)
-	req.Model, req.Instructions = FidelityModel, FidelityInstructions
-	req.Input = append(req.Input,
-		llmprovider.FunctionCallItem{CallID: "call_llmtest", Name: llmtestTool, Arguments: "{}"},
-		llmprovider.FunctionCallOutputItem{CallID: "call_llmtest", Output: FidelityOutput})
-	if _, err := generate(r, p, req); err != nil {
-		r.Errorf("W12 (fidelity): Generate failed: %v", err)
+	// send is what reached the wire while req was generated.
+	send := func(req *llmprovider.Request) (string, bool) {
+		before := len(seen())
+		if _, err := generate(r, p, req); err != nil {
+			r.Errorf("W12 (fidelity): Generate failed: %v", err)
+			return "", false
+		}
+		return strings.Join(seen()[before:], "\n"), true
+	}
+	wire, ok := send(fidelityRequest(nil, false))
+	if !ok {
 		return
 	}
-	wire := strings.Join(seen(), "\n")
 	for _, want := range []struct{ field, value string }{
 		{"Model", FidelityModel}, {"Instructions", FidelityInstructions}, {"a tool's output", FidelityOutput},
 	} {
 		if !strings.Contains(wire, want.value) {
 			r.Errorf("W12 (fidelity, 0021-MADR D5): the request's %s, %q, never reached the wire: %.300s", want.field, want.value, wire)
 		}
+	}
+	checkFlags(r, h, wire, send)
+}
+
+// checkFlags sends the Fidelity request with its result failed: the Output
+// must reach the wire unchanged (0032-MADR D3). Each flag the harness says
+// the wire carries must change the request, which the same request sent
+// twice must not (0032-MADR D4).
+func checkFlags(r reporter, h Harness, plain string, send func(*llmprovider.Request) (string, bool)) {
+	r.Helper()
+	failed, ok := send(fidelityRequest(nil, true))
+	if !ok {
+		return
+	}
+	if quoted := strconv.Quote(FidelityOutput); !strings.Contains(failed, quoted) {
+		r.Errorf("W12 (fidelity, 0032-MADR D3): a failed result's Output, %s, did not reach the wire unchanged: %.300s", quoted, failed)
+	}
+	if !h.SendsStrict && !h.SendsIsError {
+		return
+	}
+	again, ok := send(fidelityRequest(nil, false))
+	if !ok {
+		return
+	}
+	if again != plain {
+		r.Errorf("W12 (fidelity, 0032-MADR D4): the same request sent twice reached the wire differently, so SendsStrict and "+
+			"SendsIsError cannot be checked: %.300s, then %.300s", plain, again)
+		return
+	}
+	if h.SendsIsError && failed == plain {
+		r.Errorf("W12 (fidelity, 0032-MADR D4): the harness sets SendsIsError, but a failed result reached the wire as one not failed: %.300s", failed)
+	}
+	if !h.SendsStrict {
+		return
+	}
+	loose := false
+	if strict, ok := send(fidelityRequest(&loose, false)); ok && strict == plain {
+		r.Errorf("W12 (fidelity, 0032-MADR D4): the harness sets SendsStrict, but a tool with Strict false reached the wire as one with Strict unset: %.300s", strict)
 	}
 }
 

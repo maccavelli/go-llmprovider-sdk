@@ -42,6 +42,7 @@ func TestConformance(t *testing.T) {
 				"type": "tool_use", "id": "toolu_llmtest", "name": tool, "input": map[string]any{}}}})
 		},
 		Fidelity:      true,
+		SendsIsError:  true,
 		StrictTools:   true,
 		StreamText:    func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestMessagesStream) },
 		StreamFailure: func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestMessagesStreamFailure) },

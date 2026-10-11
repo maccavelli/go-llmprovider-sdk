@@ -31,9 +31,10 @@ func TestConformance(t *testing.T) {
 						"steps": []any{map[string]any{"type": "function_call", "id": "call_llmtest", "name": tool,
 							"arguments": map[string]any{}}}})
 				},
-				Fidelity:    true,
-				StrictTools: true,
-				StreamText:  func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestInteractionStream) },
+				Fidelity:     true,
+				SendsIsError: true,
+				StrictTools:  true,
+				StreamText:   func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestInteractionStream) },
 				StreamFailure: func(w http.ResponseWriter, _ *http.Request) {
 					_, _ = io.WriteString(w, llmtestInteractionStreamFailure)
 				},

@@ -51,6 +51,7 @@ func harness(credential func() llmprovider.Option, sse bool) llmtest.Harness {
 		Text:          func(w http.ResponseWriter, _ *http.Request) { write(w, llmtestText) },
 		ToolCall:      func(w http.ResponseWriter, _ *http.Request, tool string) { write(w, llmtestCall(tool)) },
 		Fidelity:      true,
+		SendsStrict:   true,
 		StrictTools:   true,
 		StreamText:    func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestStream) },
 		StreamFailure: func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestStreamFailure) },

@@ -27,6 +27,7 @@ func TestConformance(t *testing.T) {
 					"function": map[string]any{"name": tool, "arguments": "{}"}}}}}}})
 		},
 		Fidelity:      true,
+		SendsStrict:   true,
 		StrictTools:   true,
 		StreamText:    func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestChatStream) },
 		StreamFailure: func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestChatStreamFailure) },

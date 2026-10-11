@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -35,6 +36,10 @@ type flaws struct {
 	decodeBypass     bool // reports an undecodable 200 as a retryable outage
 	noLengthCheck    bool // takes a cut answer for a whole one
 	emptyArguments   bool // reports a call's arguments as ""
+	// The 0032-MADR D4 checks' faults.
+	dropFlags       bool // never sends Tool.Strict or a result's IsError
+	rewritesFailure bool // prefixes a failed result's Output with "Error: "
+	noisyBody       bool // sends a field that changes on every request
 	// keepReasoningCut takes an answer cut while reasoning for a whole one
 	// (0026-MADR F7).
 	keepReasoningCut bool
@@ -51,7 +56,8 @@ type flaws struct {
 }
 
 // refProvider is a small conformant provider over a JSON wire: it POSTs
-// {"text","tool","model","instructions","outputs"} and reads {"text"} or
+// {"text","tool","model","instructions","outputs"}, with "strict" and
+// "is_error" when they are set, and reads {"text"} or
 // {"call":{"name","arguments"},"finish"}.
 type refProvider struct {
 	baseURL   string
@@ -60,6 +66,7 @@ type refProvider struct {
 	userAgent string
 	flaws     flaws
 	calls     int
+	sent      atomic.Int64 // requests sent, for the noisyBody flaw
 }
 
 var refCaps = llmprovider.Capabilities{
@@ -123,13 +130,27 @@ func (p *refProvider) Generate(ctx context.Context, req *llmprovider.Request) (*
 func (p *refProvider) generateOnce(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
 	tool, _ := req.ToolChoice.Tool()
 	var outputs []string
+	failed := false
 	for _, item := range req.Input {
 		if out, ok := item.(llmprovider.FunctionCallOutputItem); ok {
+			if out.IsError && p.flaws.rewritesFailure {
+				out.Output = "Error: " + out.Output
+			}
 			outputs = append(outputs, out.Output)
+			failed = failed || out.IsError
 		}
 	}
 	fields := map[string]string{"text": req.Input[0].(llmprovider.MessageItem).Text, "tool": tool,
 		"model": req.Model, "instructions": req.Instructions, "outputs": strings.Join(outputs, ",")}
+	if len(req.Tools) > 0 && req.Tools[0].Strict != nil && !p.flaws.dropFlags {
+		fields["strict"] = strconv.FormatBool(*req.Tools[0].Strict)
+	}
+	if failed && !p.flaws.dropFlags {
+		fields["is_error"] = "true"
+	}
+	if p.flaws.noisyBody {
+		fields["nonce"] = strconv.FormatInt(p.sent.Add(1), 10)
+	}
 	if p.flaws.dropInstructions {
 		delete(fields, "instructions")
 	}
@@ -271,9 +292,11 @@ func refHarness(f flaws) Harness {
 			w.WriteHeader(status)
 			_, _ = io.WriteString(w, `{"error":"llmtest"}`)
 		},
-		Fidelity:    true,
-		StrictTools: true,
-		Garbled:     func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
+		Fidelity:     true,
+		SendsStrict:  true,
+		SendsIsError: true,
+		StrictTools:  true,
+		Garbled:      func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
 		Truncated: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, `{"call":{"name":"llmtest_tool","arguments":"{\"city\":"},"finish":"length"}`)
 		},
@@ -345,6 +368,10 @@ func TestRun_NamesTheBrokenRule(t *testing.T) {
 		{"never says why it ended", flaws{noFinish: true}, "R7-R9-response: R7 (Response invariants, 0020-MADR F11): a text reply has no FinishReason"},
 		{"sends an empty role", flaws{emptyRole: true}, `R6-empty-role: R6 (an empty Role is the user's, 0020-MADR F10): the request carries "role":""`},
 		{"drops the instructions", flaws{dropInstructions: true}, `W12-fidelity: W12 (fidelity, 0021-MADR D5): the request's Instructions`},
+		{"drops a tool's Strict", flaws{dropFlags: true}, "W12-fidelity: W12 (fidelity, 0032-MADR D4): the harness sets SendsStrict"},
+		{"drops a result's IsError", flaws{dropFlags: true}, "W12-fidelity: W12 (fidelity, 0032-MADR D4): the harness sets SendsIsError"},
+		{"rewrites a failed result", flaws{rewritesFailure: true}, "W12-fidelity: W12 (fidelity, 0032-MADR D3): a failed result's Output"},
+		{"sends a different body each time", flaws{noisyBody: true}, "W12-fidelity: W12 (fidelity, 0032-MADR D4): the same request sent twice"},
 		{"retries an undecodable reply", flaws{decodeBypass: true}, "W12-garbled: W12 (an undecodable reply, 0021-MADR D1): Generate returned"},
 		{"takes a cut answer for a whole one", flaws{noLengthCheck: true}, "W12-truncated: W12 (a cut answer, 0021-MADR W3)"},
 		{"drops a call's arguments", flaws{emptyArguments: true}, `W12-strict-tools: W12 (strict tools, 0021-MADR W1): the call to "llmtest_tool" has arguments ""`},
@@ -532,6 +559,19 @@ func TestRun_W12ChecksAreOptional(t *testing.T) {
 	runChecks(rec, h)
 	if got := rec.failures(); len(got) != 0 {
 		t.Fatalf("a harness without the W12 checks reported %q", got)
+	}
+}
+
+// TestRun_FlagChecksAreOptional (0032-MADR D4): with Fidelity set and
+// neither SendsStrict nor SendsIsError, the flags are not checked, so a
+// provider that drops them, or sends a different body each time, passes.
+func TestRun_FlagChecksAreOptional(t *testing.T) {
+	h := refHarness(flaws{dropFlags: true, noisyBody: true})
+	h.SendsStrict, h.SendsIsError = false, false
+	rec := newRecorder()
+	runChecks(rec, h)
+	if got := rec.failures(); len(got) != 0 {
+		t.Fatalf("a harness setting neither flag reported %q", got)
 	}
 }
 

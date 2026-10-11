@@ -1,0 +1,126 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/chat/completions",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer kilo-wire-key",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Kilocode-Editorname": "go-llmprovider-sdk",
+        "X-Kilocode-Taskid": "wire-session"
+      },
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": "What is the weather in Paris?",
+            "role": "user"
+          },
+          {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "function": {
+                  "arguments": "{\"city\":\"Paris\"}",
+                  "name": "get_weather"
+                },
+                "id": "call_1",
+                "type": "function"
+              },
+              {
+                "function": {
+                  "arguments": "{\"city\":\"Paris\"}",
+                  "name": "get_time"
+                },
+                "id": "call_2",
+                "type": "function"
+              }
+            ]
+          },
+          {
+            "content": "weather service offline",
+            "role": "tool",
+            "tool_call_id": "call_1"
+          },
+          {
+            "content": "{\"time\":\"12:00\"}",
+            "role": "tool",
+            "tool_call_id": "call_2"
+          }
+        ],
+        "model": "anthropic/claude-sonnet-5",
+        "provider": {
+          "data_collection": "deny"
+        },
+        "tools": [
+          {
+            "function": {
+              "description": "Weather for a city",
+              "name": "get_weather",
+              "parameters": {
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": true
+            },
+            "type": "function"
+          },
+          {
+            "function": {
+              "description": "Time in a city",
+              "name": "get_time",
+              "parameters": {
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "strict": false
+            },
+            "type": "function"
+          }
+        ]
+      }
+    }
+  ],
+  "result": {
+    "finish_reason": "tool_calls",
+    "id": "chat_wire",
+    "output": [
+      {
+        "item": {
+          "Text": "thinking",
+          "Signature": "",
+          "Encrypted": "",
+          "Format": "chatcompletions"
+        },
+        "type": "ReasoningItem"
+      },
+      {
+        "item": {
+          "Role": "assistant",
+          "Text": "hello"
+        },
+        "type": "MessageItem"
+      },
+      {
+        "item": {
+          "CallID": "call_wire",
+          "Name": "get_weather",
+          "Arguments": "{\"city\":\"Paris\"}",
+          "Signature": ""
+        },
+        "type": "FunctionCallItem"
+      }
+    ]
+  }
+}
