@@ -9,7 +9,14 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 )
 
-const keySystem = "system"
+const (
+	keySystem       = "system"
+	keyOutputConfig = "output_config"
+
+	// The tool_choice types this wire sends.
+	choiceAuto = "auto"
+	choiceNone = "none"
+)
 
 // forcedChoiceRefused are the models that answer a forced tool_choice (any or
 // tool) with HTTP 400, as Anthropic's define-tools and errors pages name them,
@@ -26,21 +33,25 @@ func refusesForcedChoice(provider, model string) bool {
 }
 
 // ToolChoice is the Messages tool_choice for choice, or nil when none is sent
-// (auto). A forced choice (ForceTool or ToolChoiceRequired) is sent as auto
-// with thinking, which Anthropic refuses to force (0020-MADR F43), and on a
-// model that refuses forcing (0034-MADR D2, D3, D9).
+// (auto). On a model that refuses forcing, a named tool is none: AddToolChoice
+// sends it as structured outputs (0034-MADR D8). Otherwise a forced choice
+// (ForceTool or ToolChoiceRequired) is sent as auto with thinking, which
+// Anthropic refuses to force (0020-MADR F43), and on a model that refuses
+// forcing (0034-MADR D2, D3, D9).
 func ToolChoice(choice llmprovider.ToolChoice, thinking bool, f Forcing) map[string]any {
 	name, named := choice.Tool()
 	forced := named || choice == llmprovider.ToolChoiceRequired
 	switch {
+	case named && f.refuses():
+		return map[string]any{wire.KeyType: choiceNone}
 	case forced && (thinking || f.refuses()):
-		return map[string]any{wire.KeyType: "auto"}
+		return map[string]any{wire.KeyType: choiceAuto}
 	case named:
 		return map[string]any{wire.KeyType: "tool", wire.KeyName: name}
 	case choice == llmprovider.ToolChoiceRequired:
 		return map[string]any{wire.KeyType: "any"}
 	case choice == llmprovider.ToolChoiceNone:
-		return map[string]any{wire.KeyType: "none"}
+		return map[string]any{wire.KeyType: choiceNone}
 	default:
 		return nil
 	}
@@ -53,17 +64,57 @@ func ToolChoice(choice llmprovider.ToolChoice, thinking bool, f Forcing) map[str
 // when the messages do not end with one, which that message must follow, it
 // is added to the top-level system instead. body's messages are FromItems'.
 func AddToolChoice(body map[string]any, choice llmprovider.ToolChoice, thinking bool, f Forcing) {
+	name, named := choice.Tool()
+	if named && f.refuses() {
+		if schema, ok := offeredSchema(body, name); ok {
+			// The tool's arguments, as structured outputs: schema-valid JSON,
+			// with the tools kept, uncalled, so the history stays valid and
+			// the tool definitions stay the same from turn to turn
+			// (0034-MADR D8; 0034-PLAN Phase 4b).
+			body["tool_choice"] = map[string]any{wire.KeyType: choiceNone}
+			cfg, ok := body[keyOutputConfig].(map[string]any)
+			if !ok {
+				cfg = map[string]any{}
+			}
+			cfg["format"] = map[string]any{wire.KeyType: "json_schema", "schema": closedSchema(schema)}
+			body[keyOutputConfig] = cfg
+			return
+		}
+		// A named tool the body does not offer has no schema to send: it is
+		// degraded, as before D8.
+		body["tool_choice"] = map[string]any{wire.KeyType: choiceAuto}
+		appendTurnInstruction(body, turnInstruction(name))
+		return
+	}
 	if c := ToolChoice(choice, thinking, f); c != nil {
 		body["tool_choice"] = c
 	}
-	name, named := choice.Tool()
-	if !f.refuses() || (!named && choice != llmprovider.ToolChoiceRequired) {
+	if !f.refuses() || choice != llmprovider.ToolChoiceRequired {
 		return
 	}
-	if !named {
-		name = "" // Tool's string is the choice itself, not a tool's name
+	appendTurnInstruction(body, turnInstruction(""))
+}
+
+// offeredSchema is the input_schema of the tool body offers under name, and
+// whether it offers one.
+func offeredSchema(body map[string]any, name string) (any, bool) {
+	tools, ok := body["tools"].([]map[string]any)
+	if !ok {
+		return nil, false
 	}
-	text := turnInstruction(name)
+	for _, tool := range tools {
+		if tool[wire.KeyName] == name {
+			schema, ok := tool["input_schema"]
+			return schema, ok
+		}
+	}
+	return nil, false
+}
+
+// appendTurnInstruction adds text after the last user turn, as a
+// mid-conversation system message, or, when the messages do not end with one,
+// to the top-level system.
+func appendTurnInstruction(body map[string]any, text string) {
 	if msgs, ok := body["messages"].([]Message); ok && len(msgs) > 0 && msgs[len(msgs)-1].Role == wire.RoleUser {
 		body["messages"] = append(msgs, Message{Role: wire.RoleSystem, Content: Content{text: &text}})
 		return
@@ -102,6 +153,9 @@ func ToolChoiceWarning(req *llmprovider.Request, thinking bool, f Forcing) (llmp
 		target = "the " + name + " tool"
 	}
 	switch {
+	case named && f.refuses() && offered(req.Tools, name):
+		// Sent as structured outputs: not degraded (0034-MADR D8).
+		return llmprovider.Warning{}, false
 	case f.refuses():
 		return llmprovider.Warning{Kind: llmprovider.WarningForcedChoiceDegraded, Model: model,
 			Detail: model + " refuses a forced tool choice, so it was sent as auto, with an instruction to call " + target + "."}, true

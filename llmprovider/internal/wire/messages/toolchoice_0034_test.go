@@ -54,13 +54,14 @@ func TestToolChoice_UnchangedOutsideTheTable_0034(t *testing.T) {
 	}
 }
 
-// TestToolChoice_RefusingModel_0034 (0034-MADR D2): on a refusing model a
-// forced choice is auto; none and auto are unchanged.
+// TestToolChoice_RefusingModel_0034 (0034-MADR D2, D8): on a refusing model
+// ToolChoiceRequired is auto, a named tool is none (its structured outputs are
+// AddToolChoice's), and none and auto are unchanged.
 func TestToolChoice_RefusingModel_0034(t *testing.T) {
 	auto, none := map[string]any{"type": "auto"}, map[string]any{"type": "none"}
 	for _, c := range []choiceCase{
-		{llmprovider.ForceTool(choiceTool), false, auto}, {llmprovider.ToolChoiceRequired, false, auto},
-		{llmprovider.ForceTool(choiceTool), true, auto}, {llmprovider.ToolChoiceNone, false, none},
+		{llmprovider.ForceTool(choiceTool), false, none}, {llmprovider.ToolChoiceRequired, false, auto},
+		{llmprovider.ForceTool(choiceTool), true, none}, {llmprovider.ToolChoiceNone, false, none},
 		{llmprovider.ToolChoiceAuto, false, nil}, {"", false, nil},
 	} {
 		got := ToolChoice(c.choice, c.thinking, Forcing{Provider: "claude", Model: "claude-opus-5-5"})
@@ -97,7 +98,10 @@ const namedInstruction = "Tool-use requirement for the current turn: the applica
 
 // TestAddToolChoice_TurnInstruction_0034 (0034-MADR D2): a forced choice on a
 // refusing model appends Anthropic's documented mid-conversation system
-// message after the last user turn, naming the tool, or one of the tools.
+// message after the last user turn, naming the tool, or one of the tools. A
+// named tool takes this form only when the body does not offer it, as here:
+// offered, it is sent as structured outputs (D8,
+// TestAddToolChoice_StructuredOutput_0034).
 func TestAddToolChoice_TurnInstruction_0034(t *testing.T) {
 	body := bodyFor(userHi)
 	AddToolChoice(body, llmprovider.ForceTool(choiceTool), false, Forcing{Provider: "claude", Model: "claude-sonnet-5-5"})

@@ -9,7 +9,8 @@ import (
 
 // TestMessagesRoute_WarnsWhenDegraded_0034 (0034-MADR D7): on Zen's messages
 // route, a degraded forced choice warns on the Response and on the stream's
-// done event; an accepting model's does not.
+// done event; an accepting model's does not. The degraded choice is
+// ToolChoiceRequired, opted in to (D10).
 func TestMessagesRoute_WarnsWhenDegraded_0034(t *testing.T) {
 	for _, c := range []struct {
 		model string
@@ -18,8 +19,9 @@ func TestMessagesRoute_WarnsWhenDegraded_0034(t *testing.T) {
 		var body map[string]any
 		srv := captureServer(t, &body, callReply0034)
 		req := weatherRequest0034()
-		req.ToolChoice = llmprovider.ForceTool("get_weather")
-		p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, c.model)...)
+		req.ToolChoice = llmprovider.ToolChoiceRequired
+		p := build(t, llmprovider.ProviderOpencodeZen,
+			apiKey(srv.URL, c.model, llmprovider.WithForcedChoiceFallback(llmprovider.ForcedChoiceDegrade))...)
 		resp, err := p.Generate(context.Background(), req)
 		if err != nil {
 			t.Fatalf("%s: %v", c.model, err)
@@ -30,9 +32,11 @@ func TestMessagesRoute_WarnsWhenDegraded_0034(t *testing.T) {
 	}
 	srv, _ := refusingServer(t, llmtestMessagesStream, refusal0034, false)
 	req := weatherRequest0034()
-	req.ToolChoice = llmprovider.ForceTool("get_weather")
+	req.ToolChoice = llmprovider.ToolChoiceRequired
+	p := build(t, llmprovider.ProviderOpencodeZen,
+		apiKey(srv.URL, "claude-opus-5-5", llmprovider.WithForcedChoiceFallback(llmprovider.ForcedChoiceDegrade))...)
 	var warnings []llmprovider.Warning
-	for ev, err := range build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-opus-5-5")...).(llmprovider.Streamer).Stream(context.Background(), req) {
+	for ev, err := range p.(llmprovider.Streamer).Stream(context.Background(), req) {
 		if err != nil {
 			t.Fatalf("Stream: %v", err)
 		}

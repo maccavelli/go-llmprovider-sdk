@@ -67,8 +67,8 @@ func TestGenerate_MessagesRouteLearnsARefusal_0034(t *testing.T) {
 			t.Fatalf("GenerateToolCall: %v", err)
 		}
 	}
-	if got := seen(); got != "tool,auto,auto" {
-		t.Errorf("tool_choice %s, want tool, auto, then auto at once", got)
+	if got := seen(); got != "tool,none,none" {
+		t.Errorf("tool_choice %s, want tool, none, then none at once: structured outputs (D8)", got)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestStream_MessagesRouteLearnsARefusal_0034(t *testing.T) {
 		}
 		done = done || ev.Type == llmprovider.EventDone
 	}
-	if got := seen(); got != "tool,auto" || !done {
-		t.Errorf("tool_choice %s, done %v; want tool then auto, and EventDone", got, done)
+	if got := seen(); got != "tool,none" || !done {
+		t.Errorf("tool_choice %s, done %v; want tool then none, and EventDone", got, done)
 	}
 }

@@ -313,3 +313,42 @@ func TestLive_0034StructuredOutputs(t *testing.T) {
 			structuredOutput(strictCitySchema))
 	})
 }
+
+// nestedOpenTool's schema never says additionalProperties, at either level, as
+// most callers' tool schemas do not.
+var nestedOpenTool = llmprovider.Tool{Name: "record_city", Description: "Records a city and its country.",
+	Schema: json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"},` +
+		`"place":{"type":"object","properties":{"country":{"type":"string"}},"required":["country"]}},"required":["city","place"]}`)}
+
+// TestLive_0034ClosedFormat is 0034-PLAN Phase 4e, amended (S6): through the
+// SDK, unrewritten, GenerateToolCall on a refusing model with nestedOpenTool
+// returns the call, because the format's objects are closed (0034-MADR Q9).
+// It logs the status, the call's name and whether its arguments are a JSON
+// object; never their text. Billed: 2 requests of at most 512 output tokens.
+func TestLive_0034ClosedFormat(t *testing.T) {
+	require0034(t)
+	key := llmprovider.LiveEnvKey(t, llmprovider.ProviderEnvVars()[llmprovider.ProviderClaude])
+	for _, model := range []string{"claude-sonnet-5-5", "claude-opus-5-5"} {
+		t.Run("S6/"+model, func(t *testing.T) {
+			rec := &flagRecorder{rewrite: func(map[string]any) {}}
+			p, err := providers.New(llmprovider.ProviderClaude, llmprovider.WithAPIKey(key), llmprovider.WithModel(model),
+				llmprovider.WithMaxTokens(512), llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(),
+				llmprovider.WithHTTPClient(&http.Client{Transport: rec}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := llmprovider.LiveCtx(t)
+			defer cancel()
+			call, genErr := llmprovider.GenerateToolCall(ctx, p,
+				cityRequest(nestedOpenTool, llmprovider.ForceTool(nestedOpenTool.Name)))
+			status, body := rec.result()
+			var args map[string]any
+			parsed := json.Unmarshal([]byte(call.Arguments), &args) == nil
+			t.Logf("S6 a nested schema without additionalProperties %s: status %d, call %q, arguments a JSON object %v",
+				model, status, call.Name, parsed)
+			if genErr != nil || call.Name != nestedOpenTool.Name || !parsed {
+				t.Errorf("GenerateToolCall: %v; reply %s", genErr, soShape(status, body))
+			}
+		})
+	}
+}

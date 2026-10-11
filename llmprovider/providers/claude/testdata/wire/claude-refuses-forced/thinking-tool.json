@@ -16,18 +16,28 @@
           {
             "content": "What is the weather in Paris?",
             "role": "user"
-          },
-          {
-            "content": "Tool-use requirement for the current turn: the application requires a call to the get_weather tool in your response to the user's latest message. Begin your response with the get_weather tool call. Do not reply with text only.",
-            "role": "system"
           }
         ],
         "model": "claude-sonnet-5-5",
+        "output_config": {
+          "format": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "json_schema"
+          }
+        },
         "thinking": {
           "type": "adaptive"
         },
         "tool_choice": {
-          "type": "auto"
+          "type": "none"
         },
         "tools": [
           {

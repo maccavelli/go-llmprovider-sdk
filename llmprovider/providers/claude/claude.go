@@ -23,23 +23,32 @@
 //     is sent as "auto": Anthropic refuses to force a tool while thinking.
 //     The Response, and a stream's done event, carry a
 //     WarningForcedChoiceDegraded (0034-MADR D7).
-//   - On claude-fable-5-1, claude-mythos-5-1, claude-opus-5-5 and
-//     claude-sonnet-5-5, which refuse a forced tool choice with HTTP 400, it
-//     is sent as "auto", with Anthropic's turn instruction naming the tool:
-//     a mid-conversation system message after the last user turn, or, when
-//     the input does not end with one, a line of the system field. The model
-//     may still answer in text, which GenerateToolCall reports as
-//     ErrIncomplete (0034-MADR D1, D2). The Response, and a stream's done
-//     event, carry a WarningForcedChoiceDegraded (D7). ToolChoiceRequired is
-//     degraded so only with WithForcedChoiceFallback(ForcedChoiceDegrade); by
-//     default it fails before the network, with an error matching
-//     ErrUnsupported (D10). A model id is matched after its gateway or
-//     platform prefix and snapshot date are stripped, and
-//     WithModelForcedChoice overrides the list either way (D9). Another
-//     model that refuses a forced choice the same way (HTTP 400,
+//   - claude-fable-5-1, claude-mythos-5-1, claude-opus-5-5 and
+//     claude-sonnet-5-5 refuse a forced tool choice with HTTP 400 (0034-MADR
+//     D1). A model id is matched after its gateway or platform prefix and
+//     snapshot date are stripped, and WithModelForcedChoice overrides the
+//     list either way (D9). On those models:
+//   - A named tool (ForceTool, and so GenerateToolCall) is sent as structured
+//     outputs: the tool's schema as output_config.format, the tools offered
+//     with tool_choice "none". The answer's JSON is returned as a
+//     FunctionCallItem for the tool, finishing tool_calls, and a stream
+//     yields the call, not text deltas. It is not degraded, and carries no
+//     warning (D8). The format's schema is a copy in which every object that
+//     does not say otherwise is closed with additionalProperties false, as
+//     structured outputs requires; the tool definition is sent as given. A
+//     schema structured outputs still cannot compile, such as one with an
+//     object left open, returns the API's 400 (Q9).
+//   - ToolChoiceRequired fails before the network, with an error matching
+//     ErrUnsupported (D10). With WithForcedChoiceFallback(ForcedChoiceDegrade)
+//     it is sent as "auto", with Anthropic's turn instruction: a
+//     mid-conversation system message after the last user turn, or, when the
+//     input does not end with one, a line of the system field. The Response,
+//     and a stream's done event, then carry a WarningForcedChoiceDegraded
+//     (D2, D7).
+//   - Another model that refuses a forced choice the same way (HTTP 400,
 //     invalid_request_error, a message naming tool_choice) is sent once
-//     more, degraded, and remembered for the rest of the process, in memory
-//     only (0034-MADR D3).
+//     more, as above, and remembered for the rest of the process, in memory
+//     only (D3).
 //   - Reasoning's shape follows the model. Claude 4.7 and later take adaptive
 //     thinking, with the effort as output_config.effort; a Budget is not sent
 //     to them. Older models take a budget: Reasoning.Budget, else 1024 for
@@ -167,7 +176,9 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 			})
 		})
 	if err == nil {
-		// A forced choice sent as auto is reported (0034-MADR D7).
+		// A named tool sent as structured outputs is returned as its call
+		// (0034-MADR D8); a forced choice sent as auto is reported (D7).
+		messages.StructuredCall(req, f, resp)
 		if w, ok := p.toolChoiceWarning(req); ok {
 			resp.Warnings = append(resp.Warnings, w)
 		}
@@ -203,6 +214,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		func() iter.Seq2[llmprovider.Event, error] {
 			return wire.StreamEvents(ctx, p.call(req, true), p.src, messages.Events)
 		})
+	stream = messages.StructuredStream(req, f, stream)
 	return messages.WarnOnDone(stream, func() (llmprovider.Warning, bool) { return p.toolChoiceWarning(req) })
 }
 

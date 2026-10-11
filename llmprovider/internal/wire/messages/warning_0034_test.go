@@ -20,7 +20,8 @@ func TestToolChoiceWarning_0034(t *testing.T) {
 		warns    bool
 		detail   string
 	}{
-		{"a refusing model, forced", &llmprovider.Request{Tools: tools, ToolChoice: forced}, false, "claude-sonnet-5-5", true, choiceTool},
+		{"a refusing model, a named tool offered: structured outputs, D8", &llmprovider.Request{Tools: tools, ToolChoice: forced}, false, "claude-sonnet-5-5", false, ""},
+		{"a refusing model, a named tool not offered", &llmprovider.Request{Tools: []llmprovider.Tool{{Name: "get_time"}}, ToolChoice: forced}, false, "claude-sonnet-5-5", true, choiceTool},
 		{"a refusing model, required", &llmprovider.Request{Tools: tools, ToolChoice: llmprovider.ToolChoiceRequired}, false, "claude-opus-5-5", true, "one of the tools"},
 		{"thinking, forced", &llmprovider.Request{Tools: tools, ToolChoice: forced}, true, "claude-sonnet-5", true, "thinking"},
 		{"accepting model, forced", &llmprovider.Request{Tools: tools, ToolChoice: forced}, false, "claude-sonnet-5", false, ""},

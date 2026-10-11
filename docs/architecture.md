@@ -239,7 +239,10 @@ for a session, from the store.
   on a normalised id, then a refusal learned this process (0034-MADR D9).
   `ToolChoiceRequired` on such a model fails before the network, with
   `ErrUnsupported`, unless `WithForcedChoiceFallback(ForcedChoiceDegrade)`
-  opts in to sending it as `auto` (D10).
+  opts in to sending it as `auto` (D10). A forced named tool, and so
+  `GenerateToolCall`, goes to such a model as structured outputs, with the
+  tool's schema as `output_config.format`, its open objects closed in a
+  copy, and comes back as its `FunctionCallItem`: not degraded (D8, Q9).
 - `Response.Usage` is decoded from every wire format that reports it. A
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and

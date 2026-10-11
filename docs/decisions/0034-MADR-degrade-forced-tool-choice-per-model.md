@@ -345,6 +345,14 @@ re-assessed. The aims were:
   refusal or a cut. If the schema cannot be compiled (it lacks
   `additionalProperties: false`, as 0034-PLAN M7 found), the API's 400 is
   returned. Phase 4b measures the shape before it is built.
+
+  *(Amended 2026-10-11, Q9: the format's schema is a copy, in which every
+  object that does not say otherwise is closed with
+  `additionalProperties: false`. The tool definition in `tools` stays
+  exactly the caller's. A tool call's arguments never carry an undeclared
+  key, so nothing a caller relies on changes, and ordinary schemas compile.
+  An object the caller left open on purpose, or a keyword strict mode
+  rejects, still returns the API's 400.)*
 * **D9. The fact, by layer, highest first:**
   1. **the caller's override,** `WithModelForcedChoice(model, Supported)`
      or `(model, Unsupported)`, in either direction;
@@ -380,6 +388,16 @@ re-assessed. The aims were:
   openers, before anything reaches the caller (0034-PLAN Phase 4f).
 * **D6. Release:** `v1.8.0`, for the exported additions. 0033's metadata
   plan moves to `v1.9.0`.
+
+**Q9 (D8), answered on 2026-10-11, after Phase 4e:** a schema whose objects
+lack `additionalProperties: false`, as most tool schemas do, is refused by
+structured outputs (0034-PLAN S2).
+
+* Offered:
+  * close the format's objects in a copy (recommended);
+  * keep D8, and return the API's 400;
+  * fall back to degrading on that 400.
+* **Answer:** close the format's objects.
 
 The options declined:
 

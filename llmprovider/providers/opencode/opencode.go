@@ -42,18 +42,17 @@
 //     named); the messages and google routes take the effort or the budget,
 //     shaped by model as Claude's and Gemini's; the chat route, see above.
 //   - On the messages route, a forced tool choice is sent as "auto" with
-//     reasoning: Anthropic refuses to force a tool while thinking. On
+//     reasoning: Anthropic refuses to force a tool while thinking, and the
+//     Response carries a WarningForcedChoiceDegraded (0034-MADR D7). On
 //     claude-fable-5-1, claude-mythos-5-1, claude-opus-5-5 and
-//     claude-sonnet-5-5 it is sent as "auto" with a turn instruction naming
-//     the tool, as the claude provider sends it (0034-MADR D2). Either way
-//     the Response, and a stream's done event, carry a
-//     WarningForcedChoiceDegraded (D7). ToolChoiceRequired is degraded so
-//     only with WithForcedChoiceFallback(ForcedChoiceDegrade); by default it
-//     fails before the network with ErrUnsupported (D10), and
-//     WithModelForcedChoice overrides the list (D9). Another model that
-//     refuses a forced choice in Anthropic's form is sent once more,
-//     degraded, and remembered for the process (0034-MADR D3); the qwen
-//     refusals below have another form, and are not.
+//     claude-sonnet-5-5, as the claude provider does: a named tool is sent
+//     as structured outputs and returned as its call (D8); ToolChoiceRequired
+//     fails before the network with ErrUnsupported unless
+//     WithForcedChoiceFallback(ForcedChoiceDegrade) sends it as "auto" with a
+//     turn instruction and a warning (D2, D10); WithModelForcedChoice
+//     overrides the list (D9). Another model that refuses a forced choice in
+//     Anthropic's form is sent once more and remembered for the process
+//     (D3); the qwen refusals below have another form, and are not.
 //   - Instructions are sent as a leading system item on every route: the
 //     system field on the messages route, systemInstruction on the google
 //     route, a system message elsewhere.
@@ -257,6 +256,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// sent as auto is reported (D7).
 	resp, err := messages.SendLearning(f, req.ToolChoice, send)
 	if err == nil {
+		messages.StructuredCall(req, f, resp)
 		if w, ok := messages.ToolChoiceWarning(req, c.reasoning != nil, f); ok {
 			resp.Warnings = append(resp.Warnings, w)
 		}
@@ -286,6 +286,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 			body["stream"] = true
 			return wire.StreamEvents(ctx, p.wireCall(c, body, true), p.src, messages.Events)
 		})
+		stream = messages.StructuredStream(req, f, stream)
 		return messages.WarnOnDone(stream, func() (llmprovider.Warning, bool) {
 			return messages.ToolChoiceWarning(req, c.reasoning != nil, f)
 		})

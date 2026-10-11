@@ -81,13 +81,13 @@ func TestGenerate_LearnsARefusal_0034(t *testing.T) {
 		t.Fatalf("GenerateToolCall = %+v, %v; want the call", call, err)
 	}
 	choices, last := rs.seen()
-	if strings.Join(choices, ",") != "tool,auto" || last[1] != "system" {
-		t.Errorf("first call sent tool_choice %v, last roles %v; want tool then auto, with the turn instruction", choices, last)
+	if strings.Join(choices, ",") != "tool,none" || last[1] != "user" {
+		t.Errorf("first call sent tool_choice %v, last roles %v; want tool, then none: the resend is structured outputs (D8)", choices, last)
 	}
 	if _, err := llmprovider.GenerateToolCall(context.Background(), p, weatherRequest()); err != nil {
 		t.Fatalf("second GenerateToolCall: %v", err)
 	}
-	if choices, _ := rs.seen(); strings.Join(choices, ",") != "tool,auto,auto" {
+	if choices, _ := rs.seen(); strings.Join(choices, ",") != "tool,none,none" {
 		t.Errorf("tool_choice %v; want the second request degraded at once", choices)
 	}
 }
@@ -114,8 +114,8 @@ func TestGenerate_RefusedResendReturned_0034(t *testing.T) {
 	if !errors.Is(err, llmprovider.ErrInvalidRequest) {
 		t.Errorf("err = %v, want ErrInvalidRequest", err)
 	}
-	if choices, _ := rs.seen(); strings.Join(choices, ",") != "tool,auto" {
-		t.Errorf("tool_choice %v, want tool then auto, and no third request", choices)
+	if choices, _ := rs.seen(); strings.Join(choices, ",") != "tool,none" {
+		t.Errorf("tool_choice %v, want tool then none, and no third request", choices)
 	}
 }
 
@@ -133,7 +133,7 @@ func TestStream_LearnsARefusal_0034(t *testing.T) {
 		}
 		done = done || ev.Type == llmprovider.EventDone
 	}
-	if choices, _ := rs.seen(); strings.Join(choices, ",") != "tool,auto" || !done {
-		t.Errorf("tool_choice %v, done %v; want tool then auto, and EventDone", choices, done)
+	if choices, _ := rs.seen(); strings.Join(choices, ",") != "tool,none" || !done {
+		t.Errorf("tool_choice %v, done %v; want tool then none, and EventDone", choices, done)
 	}
 }

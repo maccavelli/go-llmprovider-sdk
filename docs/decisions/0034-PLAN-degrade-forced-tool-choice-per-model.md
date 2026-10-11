@@ -343,6 +343,34 @@ What each step decides:
    * the wrong tool named.
 4. Gate; stage.
 
+### Phase 4e, amended (2026-10-11): closing the format's objects (Q9)
+
+*Added by the owner on 2026-10-11, before Phase 4e was committed
+(0034-MADR Q9).*
+
+1. **Red first.**
+   * `internal/wire/messages`:
+     * the format's schema closes each object that does not say otherwise
+       (`type: object`, or `properties`), nested ones included (properties,
+       items, `anyOf`, `$defs`);
+     * an object that sets `additionalProperties` keeps it;
+     * the tool definition in `tools` is unchanged;
+     * the caller's schema value is not mutated.
+   * OpenCode: a schema without `additionalProperties` is sent closed in the
+     format, and as it was in `tools`.
+2. **Change:** a copy of the schema through JSON, walked, with each open
+   object closed, in `AddToolChoice`'s structured branch.
+3. **Goldens:** `claude-refuses-forced`'s `tool` and `thinking-tool` gain
+   `additionalProperties: false` in the format's schema, and only there.
+4. **Live, billed: 2 requests.** S6: `GenerateToolCall` through the SDK, on
+   `claude-sonnet-5-5` and `claude-opus-5-5`, with a nested schema that
+   never says `additionalProperties`, returns the call.
+5. **Plants:**
+   * the objects not closed;
+   * the tool definition closed too;
+   * the caller's schema mutated.
+6. Gate; stage, with Phase 4e.
+
 ### Phase 4f: the narrowed resend, in the shared openers (D3)
 
 1. **Red first:**
@@ -1026,3 +1054,200 @@ unchanged.
 ```
 
 **Pre-add:** 15 files clean.
+
+### Phase 4e: a forced named tool as structured outputs (2026-10-11)
+
+**Change.**
+
+* **`internal/wire/messages/toolchoice.go`:**
+  * **The mapping:** `ToolChoice` maps a named tool on a refusing model to
+    `none`, ahead of the thinking rule.
+  * **The body:** `AddToolChoice` sends such a tool, when the body offers it,
+    as structured outputs:
+    * `tool_choice: none`;
+    * `output_config.format` = `{type: json_schema, schema: <its input_schema>}`,
+      merged into any `output_config` (an effort);
+    * the tools kept;
+    * no instruction.
+
+    A named tool the body does not offer has no schema, so it keeps D2's
+    degraded form. `ToolChoiceRequired` keeps D2's form too, which the
+    policy now reaches only on opt-in.
+  * **The warning:** `ToolChoiceWarning` gives none for a named tool sent
+    as structured outputs.
+  * **Constants:** `choiceAuto` and `choiceNone` name the types, for
+    `goconst`.
+* **`internal/wire/messages/structured.go`** (new):
+  * `StructuredCall(req, f, resp)` turns the assistant text, when it is one
+    JSON object, into a `FunctionCallItem` for the tool, in its place:
+    * `Arguments` compacted;
+    * a call id `toolu_` plus 24 hex characters of a SHA-256 over the name,
+      the arguments and the input's length, so that a stream's item and
+      its done response agree, and later turns differ;
+    * `FinishToolCalls`.
+
+    Any other answer is left as it came.
+  * `StructuredStream` does the same for a stream: no text deltas, the item
+    as the call, the done response converted. It decides at the first
+    event, after any resend.
+* **Both providers** call `StructuredCall` after a successful send, beside
+  the warning, and wrap their stream in `StructuredStream`. OpenCode does
+  so on the `messages` route.
+* **Docs:**
+  * Claude's Degradations entry is rewritten into the list of refusing
+    models, then a named tool (D8), `ToolChoiceRequired` (D10, D2), and
+    learning (D3);
+  * OpenCode's entry, and `docs/architecture.md`, name D8.
+
+**Red first.**
+
+* **The messages tests did not build:** `undefined: StructuredCall`,
+  `undefined: StructuredStream`.
+* **The provider tests built, and failed on behaviour:**
+
+  ```text
+  structured_0034_test.go:59: GenerateToolCall = {…}, llmprovider: incomplete response: claude returned no call to tool "get_weather"; want get_weather {"city":"Paris"}
+  structured_0034_test.go:105: deltas 2, item {Role:assistant Text:{"city":"Paris"}}, done …; want no delta and the call in both
+  structured_0034_test.go:23: GenerateToolCall = {…}, llmprovider: incomplete response: opencode-zen returned no call to tool "get_weather"; …
+  toolchoice_0034_test.go:42: "tool:get_weather": tool_choice = map[type:auto], want map[type:none]
+  forced_learn_0034_test.go:85: first call sent tool_choice [tool auto], last roles [user system]; want tool, then none: the resend is structured outputs (D8)
+  ```
+
+**Existing tests whose expectations D8 changes**, each kept to its meaning:
+
+| Test | Was | Now | Why |
+| :--- | :--- | :--- | :--- |
+| `messages/toolchoice_0034_test.go` `TestToolChoice_RefusingModel_0034` | named → `auto` | named → `none` | D8 |
+| `messages/toolchoice_0034_test.go` `TestAddToolChoice_TurnInstruction_0034`, placement tests | a named tool, instruction | unchanged; the comment says the body there offers no tools, so the named tool takes D2's form | a named tool offered takes D8 |
+| `messages/warning_0034_test.go` | a named tool on a refusing model warns | it does not, when offered; a new row: when not offered, it warns | D8 is not a degradation |
+| `claude/warning_0034_test.go`, `opencode/warning_0034_test.go` | a named tool on a refusing model warns | `ToolChoiceRequired`, with `ForcedChoiceDegrade`, warns | the degraded case is now that one |
+| `opencode/toolchoice_0034_test.go`, the named row | `auto` with the instruction | `none`, nothing appended | D8 |
+| `claude/forced_learn_0034_test.go`, `opencode/learn_0034_test.go` | a learned named tool resent `auto` with the instruction | resent `none`, as structured outputs | after learning, the rebuilt request is D8's |
+
+**Goldens.** As the plan foresaw, `claude-refuses-forced`'s `tool` and
+`thinking-tool` changed, with three differences each:
+
+```text
+requests[0].body.messages[1]: want {"content":"Tool-use requirement …","role":"system"}, got (absent)
+requests[0].body.output_config: want (absent), got {"format":{"schema":{"properties":{"city":{"type":"string"}},"type":"object"},"type":"json_schema"}}
+requests[0].body.tool_choice.type: want "auto", got "none"
+```
+
+They were regenerated alone, and no other golden changed. The canned reply
+holds a `tool_use` and the text `hello`, not JSON, so its result is
+unchanged.
+
+**Green:** `go test -race -count=1 ./...` passes.
+
+**Lint:** `goconst` flagged `"none"`, three times. The type values became
+`choiceAuto` and `choiceNone`.
+
+**Plants** on a scratch clone:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the turn instruction sent instead | `tool_choice = map[type:auto], want none`; `output_config = map[effort:low], want … a json_schema format`; `2 messages, want no instruction appended` |
+| the JSON returned as text | `response = … Output:[… {Role:assistant Text:{ "city": "Paris" }}] FinishReason:stop …`; Claude and OpenCode `GenerateToolCall = {…}, … returned no call to tool "get_weather"` |
+| text deltas streamed | `events [reasoning_delta text_delta text_delta item done] hold a text delta`; Claude `deltas 2, …` |
+| the wrong tool named | `call = {… Name:get_weather_x …}, want get_weather …`; Claude and OpenCode `returned no call to tool "get_weather"` |
+
+**Found, for the owner.** D8 returns the API's 400 when the tool's schema is
+one structured outputs cannot compile. Phase 4b's S2 measured it: an object
+without `additionalProperties: false`. Many callers' tool schemas omit it,
+the canned wirecase tool among them. On the refusing models, such a
+`GenerateToolCall` returns that 400, rather than the degraded call it
+returned before this amendment. D8 decided this. Whether the SDK should add
+`additionalProperties: false` to each object of the schema it sends as the
+format is put to the owner. That would change only what the format
+requires, never the tool definition.
+
+**Pre-add:** 14 files clean. **API:** unchanged from Phase 4d. The phase adds
+no exported identifier.
+
+### Phase 4e, amended: the format's objects closed (2026-10-11)
+
+*The owner answered the Phase 4e finding with Q9 (0034-MADR): close the
+format's objects.*
+
+**Change.**
+
+* **`internal/wire/messages/structured.go`:** `closedSchema(schema)` returns
+  a copy made through JSON. In the copy, every object that does not set
+  `additionalProperties` gets `additionalProperties: false`. An object is a
+  schema whose `type` is, or holds, `"object"`, or that has `properties`.
+  * **Walked:** the subschemas under `items`, `additionalProperties`, `not`,
+    `contains`, `if` / `then` / `else` and `propertyNames`; the lists under
+    `anyOf`, `oneOf`, `allOf` and `prefixItems`; the maps under `properties`,
+    `patternProperties`, `$defs`, `definitions` and `dependentSchemas`.
+  * A property named `properties` is a property, not a schema keyword.
+  * A schema that is not JSON is returned as given.
+* **`toolchoice.go`:** `AddToolChoice`'s structured branch sends
+  `closedSchema(schema)` as the format. The tool definition in `tools` is
+  the caller's, unchanged.
+* **Docs:** Claude's Degradations entry and `docs/architecture.md` say the
+  format's schema is closed in a copy. A schema structured outputs still
+  cannot compile, such as one with an object left open on purpose, returns
+  the API's 400.
+
+**Red first.**
+
+```text
+structured_0034_test.go:166:13: undefined: closedSchema
+FAIL  …/internal/wire/messages [build failed]
+structured_0034_test.go:46: format map[format:map[schema:map[properties:map[city:map[type:string]] type:object] type:json_schema]], tools [map[description: input_schema:map[properties:map[city:map[typ…
+FAIL  …/providers/opencode
+```
+
+**Goldens.** As the step foresaw, `claude-refuses-forced`'s `tool` and
+`thinking-tool` each differed by one line:
+
+```text
+requests[0].body.output_config.format.schema.additionalProperties: want (absent), got false
+```
+
+They were regenerated alone with `-update`. The diff adds
+`"additionalProperties": false` under `output_config.format.schema` only;
+`tools[0].input_schema` is unchanged.
+
+**Green:** `go test -race -count=1 ./...` passes.
+
+**Live S6** (billed: 2 requests, as approved with Q9). `GenerateToolCall`
+through the SDK, with no rewrite, and a schema with a nested object that
+never says `additionalProperties`:
+
+```text
+S6 a nested schema without additionalProperties claude-sonnet-5-5: status 200, call "record_city", arguments a JSON object true
+S6 a nested schema without additionalProperties claude-opus-5-5: status 200, call "record_city", arguments a JSON object true
+```
+
+S2 sent the same kind of schema unclosed, and got the 400.
+
+**Plants** on a scratch clone:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the objects not closed | `the root is not closed`, `place is not closed`, `list's items is not closed`, `either's object is not closed`, `the definition is not closed`; `the format's schema is not closed`; the Claude goldens `format.schema.additionalProperties: want false, got (absent)` |
+| the tool definition closed too | `the tool definition was closed too`; the Claude goldens `tools[0].input_schema.additionalProperties: want (absent), got false`; OpenCode `format …, tools [… input_schema:map[additionalProperties…; want the format closed and the tools as given` |
+| the caller's schema mutated | `the caller's schema was changed`; then, as a consequence, the tool-definition failures above |
+
+**Pre-add:** 6 files clean. **API:** unchanged; `closedSchema` is
+unexported.
+
+**Gate: 22 of 22, on the fourth run.** The first three runs each failed one
+to three checks (`coverage-check`; then `pre-add-check`, `test-race-cover`
+and `gate-selftest`; then `pre-add-check`), all on the same tests:
+`TestCommandToken_*` in `llmprovider`, which run the test binary as a key
+command with a 10 s timeout:
+
+```text
+command_token_test.go:93: Token = "", llmprovider: authentication failed: key command "llmprovider.test" timed out after 10s; want the cached key-1
+command_token_test.go:131: took 9.123299667s
+```
+
+The host's load average was between 21 and 52 on 10 CPUs during those runs.
+No 0034 change touches `command_token*.go` or what it calls. At a load of
+about 15, `go test -count=3 -run TestCommandToken ./llmprovider/` passed at
+`HEAD` (`8fca04f`) on a scratch clone and on the working tree. At about 5.7,
+`pre-add-check` and then the whole gate passed. The tests' dependence on
+load predates 0034 and is not changed here; making them independent of it
+would need its own record.

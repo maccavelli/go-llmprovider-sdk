@@ -23,7 +23,7 @@ func TestGenerate_RefusingModelDegrades_0034(t *testing.T) {
 		toolChoice  string
 		instruction string // in the last message, or "" for none appended
 	}{
-		{named, "map[type:auto]", "a call to the get_weather tool"},
+		{named, "map[type:none]", ""}, // structured outputs (D8)
 		{llmprovider.ToolChoiceRequired, "map[type:auto]", "a call to one of the tools"},
 		{llmprovider.ToolChoiceNone, "map[type:none]", ""},
 		{llmprovider.ToolChoiceAuto, "<nil>", ""},
