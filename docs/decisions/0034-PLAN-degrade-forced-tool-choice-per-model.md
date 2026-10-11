@@ -490,3 +490,98 @@ It passed on Phase 2's code, so it was shown failing on a plant.
 | OpenCode's `messages` route bypasses the table | `TestGenerate_RefusingModelDegrades_0034` | `"tool:get_weather": tool_choice = map[name:get_weather type:tool], want map[type:auto]`; `last message = map[content:hi role:user], want a system message holding "a call to the get_weather tool"` |
 
 **Pre-add:** 2 files clean.
+
+### Phase 4: learning a refusal (2026-10-11)
+
+**Change.**
+
+* **`internal/wire/messages/learn.go`** (new):
+  * **the memo:** `learned`, keyed by provider and lowercased model, oldest
+    first, at most `learnedRefusalsLimit` (256) entries, behind a mutex,
+    in memory only;
+  * **`IsForcedChoiceRefusal(err)`:** HTTP 400, `invalid_request_error`,
+    and a message naming `tool_choice`, matched through `errors.As`;
+  * **`SendLearning(provider, model, choice, send)`:** when a forced request
+    to a model not already known to refuse is refused that way, it learns
+    the model and calls `send` once more, which builds the degraded request;
+  * **`StreamLearning`:** the same for a stream refused before its first
+    event.
+* **`refusesForcedChoice(provider, model)`** is the table or the memo.
+  `ToolChoice` and `AddToolChoice` take the provider, and Phase 2's tests
+  pass it.
+* **The Claude provider:**
+  * `Generate` wraps its `wire.Reauth` call in `SendLearning`, and `Stream`
+    its `wire.StreamEvents` in `StreamLearning`, with the key `claude`;
+  * `modelFor(req)` names the model once, for both and for `body`.
+* **OpenCode:**
+  * `Generate` resolves the call once. On the `messages` route it wraps
+    the send in `SendLearning`, with the gateway's id as the key; the other
+    routes send as before.
+  * `generateOnce` now takes the resolved call, so a reauth resend reuses
+    the same route rather than resolving again. That is a change of
+    behaviour only if a route could change between a 401 and its resend.
+  * `Stream` on the `messages` route builds its body inside
+    `StreamLearning`, so a resend is degraded.
+* **Package docs:** Claude and OpenCode name the learning. OpenCode's
+  notes that its qwen refusals have another form, and are not learned
+  (Phase 1, M9).
+
+**Red first.**
+
+* **The provider tests** use only the public API, and built on the old
+  code. They failed as the learning was missing:
+
+  ```text
+  forced_learn_0034_test.go:81: GenerateToolCall = {…}, llmprovider: invalid request: claude HTTP 400 invalid_request_error: tool_choice: type "tool" and "any" are not supported for this model.; want the call
+  forced_learn_0034_test.go:118: tool_choice [tool], want tool then auto, and no third request
+  forced_learn_0034_test.go:132: Stream: llmprovider: invalid request: claude HTTP 400 invalid_request_error: tool_choice: …
+  learn_0034_test.go:45: GenerateToolCall: llmprovider: invalid request: opencode-zen/messages HTTP 400 invalid_request_error: tool_choice: …
+  ```
+
+  `TestGenerate_OtherBadRequestNotResent_0034` passed on the old code, as
+  it must: nothing resent then.
+* **The messages tests** did not build: `undefined: IsForcedChoiceRefusal`,
+  `undefined: learnRefusal`, and `too many arguments in call to
+  refusesForcedChoice`.
+
+**Corrections while making them build**, none loosening an assertion:
+
+* A Claude test read `ev.Kind`. The event's field is `Type`.
+* `TestSendLearning_0034` indexed its replies past their end when a plant
+  sent too many. It now returns an error for a send the case does not
+  expect, so the plant fails on the assertion, not a panic.
+* `errorlint` flagged two `!=` comparisons of errors, now `errors.Is`.
+
+**OpenCode's tests added before green**, so that its route has what
+Claude's has:
+
+* `TestGenerate_MessagesRouteOtherBadRequest_0034`;
+* `TestStream_MessagesRouteLearnsARefusal_0034`.
+
+**A slip in my own script.** Its assert miscounted the Phase 2 test calls
+it rewrites: 12 expected, 10 present. It had already written
+`toolchoice.go`, and stopped before the tests and the providers. The
+rest was applied by a second script, holding only the unapplied parts. The
+tree was checked by building it.
+
+**Green:** `go test -race -count=1 ./llmprovider/...` passes. Every G-wire
+golden is unchanged.
+
+**Plants** on a scratch clone, all against the final code:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| a resend on any 400 | `IsForcedChoiceRefusal(… max_tokens: 999999 > 128000) = true, want false`; `another 400: 2 sends`; Claude `2 requests, want 1` |
+| no memo | `a learned refusal is not remembered, in any case`; Claude `tool_choice [tool tool], want tool then auto`; OpenCode `GenerateToolCall: … HTTP 400` |
+| a second resend | `refused twice: 3 sends …; want 2`; Claude `tool_choice [tool auto auto], want tool then auto, and no third request` |
+| a Claude stream that does not learn | `Stream: llmprovider: invalid request: claude HTTP 400 …` |
+| an unbounded memo | `the oldest refusal is kept past 256 entries` |
+| OpenCode's `Generate` does not learn | `GenerateToolCall: llmprovider: invalid request: opencode-zen/messages HTTP 400 …` |
+| OpenCode's stream opened without `StreamLearning` | `Stream: llmprovider: invalid request: opencode-zen/messages HTTP 400 …` |
+
+A first OpenCode stream plant disabled the route check. That also took
+the stream off the `messages` route, so it failed on a decode error, a
+weaker proof. It was replaced by the plant in the table, which keeps the
+stream and drops only the learning.
+
+**Pre-add:** 8 files clean.

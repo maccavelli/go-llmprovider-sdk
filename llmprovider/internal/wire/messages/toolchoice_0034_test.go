@@ -15,12 +15,12 @@ const choiceTool = "get_weather"
 // in any case, and nothing else: no prefix, no version pattern.
 func TestRefusesForcedChoice_0034(t *testing.T) {
 	for _, id := range []string{"claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "Claude-Sonnet-5-5"} {
-		if !refusesForcedChoice(id) {
+		if !refusesForcedChoice("claude", id) {
 			t.Errorf("refusesForcedChoice(%q) = false, want true", id)
 		}
 	}
 	for _, id := range []string{"claude-haiku-5-5", "claude-sonnet-5", "claude-opus-5-55", "claude-sonnet-5-5-x", "claude-fable-5", ""} {
-		if refusesForcedChoice(id) {
+		if refusesForcedChoice("claude", id) {
 			t.Errorf("refusesForcedChoice(%q) = true, want false: exact ids only", id)
 		}
 	}
@@ -47,7 +47,7 @@ func TestToolChoice_UnchangedOutsideTheTable_0034(t *testing.T) {
 		{llmprovider.ToolChoiceRequired, true, auto}, {llmprovider.ForceTool(choiceTool), true, auto},
 		{llmprovider.ToolChoiceNone, true, none}, {llmprovider.ToolChoiceAuto, true, nil},
 	} {
-		got := ToolChoice(c.choice, c.thinking, "claude-sonnet-5")
+		got := ToolChoice(c.choice, c.thinking, "claude", "claude-sonnet-5")
 		if !maps.Equal(got, c.want) {
 			t.Errorf("ToolChoice(%q, thinking %v) = %v, want %v", c.choice, c.thinking, got, c.want)
 		}
@@ -63,7 +63,7 @@ func TestToolChoice_RefusingModel_0034(t *testing.T) {
 		{llmprovider.ForceTool(choiceTool), true, auto}, {llmprovider.ToolChoiceNone, false, none},
 		{llmprovider.ToolChoiceAuto, false, nil}, {"", false, nil},
 	} {
-		got := ToolChoice(c.choice, c.thinking, "claude-opus-5-5")
+		got := ToolChoice(c.choice, c.thinking, "claude", "claude-opus-5-5")
 		if !maps.Equal(got, c.want) {
 			t.Errorf("ToolChoice(%q, thinking %v) on claude-opus-5-5 = %v, want %v", c.choice, c.thinking, got, c.want)
 		}
@@ -100,7 +100,7 @@ const namedInstruction = "Tool-use requirement for the current turn: the applica
 // message after the last user turn, naming the tool, or one of the tools.
 func TestAddToolChoice_TurnInstruction_0034(t *testing.T) {
 	body := bodyFor(userHi)
-	AddToolChoice(body, llmprovider.ForceTool(choiceTool), false, "claude-sonnet-5-5")
+	AddToolChoice(body, llmprovider.ForceTool(choiceTool), false, "claude", "claude-sonnet-5-5")
 	if want := `{"content":"` + namedInstruction + `","role":"system"}`; lastMessage(t, body) != want {
 		t.Errorf("last message = %s, want %s", lastMessage(t, body), want)
 	}
@@ -113,13 +113,13 @@ func TestAddToolChoice_TurnInstruction_0034(t *testing.T) {
 
 	// With thinking too: the model refuses forcing whatever thinking does.
 	body = bodyFor(userHi)
-	AddToolChoice(body, llmprovider.ForceTool(choiceTool), true, "claude-sonnet-5-5")
+	AddToolChoice(body, llmprovider.ForceTool(choiceTool), true, "claude", "claude-sonnet-5-5")
 	if want := `{"content":"` + namedInstruction + `","role":"system"}`; lastMessage(t, body) != want {
 		t.Errorf("with thinking, last message = %s, want %s", lastMessage(t, body), want)
 	}
 
 	body = bodyFor(userHi)
-	AddToolChoice(body, llmprovider.ToolChoiceRequired, false, "claude-fable-5-1")
+	AddToolChoice(body, llmprovider.ToolChoiceRequired, false, "claude", "claude-fable-5-1")
 	if got := lastMessage(t, body); !strings.Contains(got, "a call to one of the tools") || !strings.Contains(got, `"role":"system"`) {
 		t.Errorf("ToolChoiceRequired's last message = %s, want the one-of-the-tools instruction", got)
 	}
@@ -130,7 +130,7 @@ func TestAddToolChoice_TurnInstruction_0034(t *testing.T) {
 // system text there, and no system message is appended.
 func TestAddToolChoice_Placement_0034(t *testing.T) {
 	body := bodyFor(userHi, assistantOK)
-	AddToolChoice(body, llmprovider.ForceTool(choiceTool), false, "claude-opus-5-5")
+	AddToolChoice(body, llmprovider.ForceTool(choiceTool), false, "claude", "claude-opus-5-5")
 	if n := len(body["messages"].([]Message)); n != 2 {
 		t.Errorf("%d messages, want 2: no system message after an assistant turn", n)
 	}
@@ -140,7 +140,7 @@ func TestAddToolChoice_Placement_0034(t *testing.T) {
 
 	body = bodyFor(userHi, assistantOK)
 	body["system"] = "Be brief."
-	AddToolChoice(body, llmprovider.ForceTool(choiceTool), false, "claude-opus-5-5")
+	AddToolChoice(body, llmprovider.ForceTool(choiceTool), false, "claude", "claude-opus-5-5")
 	if got := body["system"]; got != "Be brief.\n\n"+namedInstruction {
 		t.Errorf("system = %q, want the caller's system, then the instruction", got)
 	}
@@ -159,7 +159,7 @@ func TestAddToolChoice_NoInstructionOtherwise_0034(t *testing.T) {
 		{llmprovider.ToolChoiceAuto, "claude-sonnet-5-5"},
 	} {
 		body := bodyFor(userHi)
-		AddToolChoice(body, c.choice, false, c.model)
+		AddToolChoice(body, c.choice, false, "claude", c.model)
 		if n := len(body["messages"].([]Message)); n != 1 {
 			t.Errorf("%s on %s: %d messages, want 1", c.choice, c.model, n)
 		}

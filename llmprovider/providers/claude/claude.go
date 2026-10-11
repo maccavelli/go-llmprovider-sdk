@@ -27,7 +27,10 @@
 //     a mid-conversation system message after the last user turn, or, when
 //     the input does not end with one, a line of the system field. The model
 //     may still answer in text, which GenerateToolCall reports as
-//     ErrIncomplete (0034-MADR D1, D2).
+//     ErrIncomplete (0034-MADR D1, D2). Another model that refuses a forced
+//     choice the same way (HTTP 400, invalid_request_error, a message naming
+//     tool_choice) is sent once more, degraded, and remembered for the rest
+//     of the process, in memory only (0034-MADR D3).
 //   - Reasoning's shape follows the model. Claude 4.7 and later take adaptive
 //     thinking, with the effort as output_config.effort; a Budget is not sent
 //     to them. Older models take a budget: Reasoning.Budget, else 1024 for
@@ -138,21 +141,37 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
-	// (0020-MADR F2).
-	return wire.Reauth(ctx, string(llmprovider.ProviderClaude), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-		return p.generateOnce(ctx, req, token)
-	})
+	// (0020-MADR F2). A refusal of a forced tool choice teaches the model,
+	// and sends once more, degraded (0034-MADR D3).
+	return messages.SendLearning(string(llmprovider.ProviderClaude), p.modelFor(req), req.ToolChoice,
+		func() (*llmprovider.Response, error) {
+			return wire.Reauth(ctx, string(llmprovider.ProviderClaude), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
+				return p.generateOnce(ctx, req, token)
+			})
+		})
 }
 
 // Stream streams req from the Messages API as it is generated (0031-MADR
 // E1): the request asks for an event stream, and each event is yielded as it
 // arrives. A 401 before the first event renews a refreshable token and sends
-// once more.
+// once more, and a refusal of a forced tool choice is learned and sent once
+// more, degraded (0034-MADR D3).
 func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
 	if err := p.caps.Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEvents(ctx, p.call(req, true), p.src, messages.Events)
+	return messages.StreamLearning(string(llmprovider.ProviderClaude), p.modelFor(req), req.ToolChoice,
+		func() iter.Seq2[llmprovider.Event, error] {
+			return wire.StreamEvents(ctx, p.call(req, true), p.src, messages.Events)
+		})
+}
+
+// modelFor is req's model, else the provider's.
+func (p *provider) modelFor(req *llmprovider.Request) string {
+	if req.Model != "" {
+		return req.Model
+	}
+	return p.model
 }
 
 // generateOnce sends req once, with token.
@@ -187,10 +206,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 
 // body is the Messages request for req.
 func (p *provider) body(req *llmprovider.Request) map[string]any {
-	model := req.Model
-	if model == "" {
-		model = p.model
-	}
+	model := p.modelFor(req)
 	maxTokens := p.maxTokens
 	if req.MaxOutputTokens > 0 {
 		maxTokens = req.MaxOutputTokens
@@ -212,7 +228,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	thinking := p.addReasoning(body, req, model, maxTokens)
 	if len(req.Tools) > 0 {
 		body["tools"] = wire.MessagesTools(req.Tools)
-		messages.AddToolChoice(body, req.ToolChoice, thinking, model)
+		messages.AddToolChoice(body, req.ToolChoice, thinking, string(llmprovider.ProviderClaude), model)
 	}
 	return body
 }

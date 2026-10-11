@@ -45,7 +45,10 @@
 //     reasoning: Anthropic refuses to force a tool while thinking. On
 //     claude-fable-5-1, claude-mythos-5-1, claude-opus-5-5 and
 //     claude-sonnet-5-5 it is sent as "auto" with a turn instruction naming
-//     the tool, as the claude provider sends it (0034-MADR D2).
+//     the tool, as the claude provider sends it (0034-MADR D2). Another
+//     model that refuses a forced choice in Anthropic's form is sent once
+//     more, degraded, and remembered for the process (0034-MADR D3); the qwen
+//     refusals below have another form, and are not.
 //   - Instructions are sent as a leading system item on every route: the
 //     system field on the messages route, systemInstruction on the google
 //     route, a system message elsewhere.
@@ -225,11 +228,20 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err := p.caps.Check(req); err != nil {
 		return nil, err
 	}
+	c := p.resolve(ctx, req)
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2).
-	return wire.Reauth(ctx, "opencode", p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-		return p.generateOnce(ctx, req, token)
-	})
+	send := func() (*llmprovider.Response, error) {
+		return wire.Reauth(ctx, "opencode", p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
+			return p.generateOnce(ctx, c, token)
+		})
+	}
+	if c.route != RouteMessages {
+		return send()
+	}
+	// On the messages route, a refusal of a forced tool choice teaches the
+	// model, and sends once more, degraded (0034-MADR D3).
+	return messages.SendLearning(string(p.gateway), c.model, req.ToolChoice, send)
 }
 
 // Stream streams req from the gateway, on every route (0031-MADR D1, Q2, E1):
@@ -242,14 +254,20 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
 	c := p.resolve(ctx, req)
+	if c.route == RouteMessages {
+		// A refusal of a forced tool choice is learned, and the stream opened
+		// once more, degraded (0034-MADR D3).
+		return messages.StreamLearning(string(p.gateway), c.model, req.ToolChoice, func() iter.Seq2[llmprovider.Event, error] {
+			body := p.messagesBody(c)
+			body["stream"] = true
+			return wire.StreamEvents(ctx, p.wireCall(c, body, true), p.src, messages.Events)
+		})
+	}
 	var body map[string]any
 	var events func(string, io.Reader, func(llmprovider.Event) bool) error
 	switch c.route {
 	case RouteResponses:
 		body, events = p.responsesBody(c), responses.Events
-		body["stream"] = true
-	case RouteMessages:
-		body, events = p.messagesBody(c), messages.Events
 		body["stream"] = true
 	case RouteChatCompletions:
 		body, events = p.chatBody(ctx, c), chatcompletions.Events
@@ -298,9 +316,8 @@ func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 	return c
 }
 
-// generateOnce sends req once, with token, on the model's route.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	c := p.resolve(ctx, req)
+// generateOnce sends c once, with token, on its route.
+func (p *provider) generateOnce(ctx context.Context, c call, token llmprovider.Token) (*llmprovider.Response, error) {
 	var body map[string]any
 	// The chat and responses routes' failures are classified by OpenCode's
 	// own table (0026-MADR F5, F28).
@@ -454,7 +471,7 @@ func (p *provider) messagesBody(c call) map[string]any {
 	body[jsonKeyMaxTokens] = maxTokens
 	if tools := c.req.Tools; len(tools) > 0 {
 		body[jsonKeyTools] = wire.MessagesTools(tools)
-		messages.AddToolChoice(body, c.req.ToolChoice, thinking, c.model)
+		messages.AddToolChoice(body, c.req.ToolChoice, thinking, string(p.gateway), c.model)
 	}
 	return body
 }

@@ -18,20 +18,21 @@ const keySystem = "system"
 // such capability.
 var forcedChoiceRefused = []string{"claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5", "claude-sonnet-5-5"}
 
-// refusesForcedChoice reports whether model refuses a forced tool_choice.
-func refusesForcedChoice(model string) bool {
-	return slices.Contains(forcedChoiceRefused, strings.ToLower(model))
+// refusesForcedChoice reports whether model refuses a forced tool_choice on
+// provider: it is in the table, or this process learned it (0034-MADR D3).
+func refusesForcedChoice(provider, model string) bool {
+	return slices.Contains(forcedChoiceRefused, strings.ToLower(model)) || learnedRefusal(provider, model)
 }
 
 // ToolChoice is the Messages tool_choice for choice, or nil when none is sent
 // (auto). A forced choice (ForceTool or ToolChoiceRequired) is sent as auto
 // with thinking, which Anthropic refuses to force (0020-MADR F43), and on a
-// model that refuses forcing (0034-MADR D2).
-func ToolChoice(choice llmprovider.ToolChoice, thinking bool, model string) map[string]any {
+// model that refuses forcing on provider (0034-MADR D2, D3).
+func ToolChoice(choice llmprovider.ToolChoice, thinking bool, provider, model string) map[string]any {
 	name, named := choice.Tool()
 	forced := named || choice == llmprovider.ToolChoiceRequired
 	switch {
-	case forced && (thinking || refusesForcedChoice(model)):
+	case forced && (thinking || refusesForcedChoice(provider, model)):
 		return map[string]any{wire.KeyType: "auto"}
 	case named:
 		return map[string]any{wire.KeyType: "tool", wire.KeyName: name}
@@ -50,12 +51,12 @@ func ToolChoice(choice llmprovider.ToolChoice, thinking bool, model string) map[
 // instruction is a mid-conversation system message after the last user turn;
 // when the messages do not end with one, which that message must follow, it
 // is added to the top-level system instead. body's messages are FromItems'.
-func AddToolChoice(body map[string]any, choice llmprovider.ToolChoice, thinking bool, model string) {
-	if c := ToolChoice(choice, thinking, model); c != nil {
+func AddToolChoice(body map[string]any, choice llmprovider.ToolChoice, thinking bool, provider, model string) {
+	if c := ToolChoice(choice, thinking, provider, model); c != nil {
 		body["tool_choice"] = c
 	}
 	name, named := choice.Tool()
-	if !refusesForcedChoice(model) || (!named && choice != llmprovider.ToolChoiceRequired) {
+	if !refusesForcedChoice(provider, model) || (!named && choice != llmprovider.ToolChoiceRequired) {
 		return
 	}
 	if !named {
