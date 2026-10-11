@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-11
 associated-madr: "0032-MADR-tool-strict-and-result-error-flags.md"
 decision-makers: repository owner
@@ -673,6 +673,49 @@ in `v1.6.0`:
     `google`.
 
 Every check that ran against a service passed on the release commit.
+
+**Step 4, the release.**
+
+* The owner committed step 3's record as `93f3b53`, pushed, and tagged
+  `v1.7.0` on it, an annotated tag (`909c69e`).
+* From the release commit `8b3841d`, `93f3b53` changes this PLAN only.
+
+**Step 5, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` at `93f3b53` (run `38142074033`) | success |
+| CI on the tag (run `38142345244`, a push of `v1.7.0`) | success |
+| `go list -m -json …@v1.7.0` through `proxy.golang.org` | `Version` `v1.7.0`, `GoVersion` `1.27.2`, `Origin.Hash` `93f3b53…` (`refs/tags/v1.7.0`) |
+| apidiff, `v1.6.0` to `v1.7.0` (both tags archived, without `-incompatible`) | compatible changes only: `FunctionCallOutputItem.IsError`, `Tool.Strict`, `llmtest.Harness.SendsIsError` and `llmtest.Harness.SendsStrict`, each `added` |
+| a scratch consumer of every public package on `v1.7.0`, setting `Tool.Strict`, `IsError` and both `Harness` fields | builds with `CGO_ENABLED=0` for linux, windows and darwin, amd64 and arm64; `go run` builds every provider in `providers.Default()`, with `NativeStreaming` as in `v1.6.0` |
+| a scratch copy of gobble-cli, moved from `v1.2.1` to `v1.7.0` | baseline tests pass. `go get` upgrades `v1.2.1 => v1.7.0`. Then build, vet on three platforms, `go test`, `go test -race` and golangci-lint (`0 issues.`) all pass. |
+
+**Step 6.** Every criterion is met, so this PLAN is `complete`:
+
+* **V1 and V2**, red then green, the plants and the gate: each phase's
+  record.
+* **V3**, T1 and T2: recorded in Phase 1, before Phases 2 and 3.
+* **V4**, the API: step 5's apidiff.
+* **V5**, live: step 3.
+* **V6**, the records:
+  * 0032-MADR's measured note and its D4 amendment;
+  * each package doc names the wires that do not carry a flag.
+
+**Not done, as scoped:**
+
+* gobble-cli's move to `v1.7.0`, and its use of the two flags, are its own
+  records. The scratch copy above shows the move compiles and passes.
+* Whether a Chat Completions gateway applies `function.strict` is
+  unmeasured: none echoes its tools.
+* Hugging Face's default model fails every tool request (deviation D1). It
+  is outside this record.
+* The other gobble-cli items each wait for their own record:
+  * model metadata;
+  * image input;
+  * prompt caching with a cache-write count;
+  * tool deferral;
+  * timeouts.
 
 #### Release notes: `v1.7.0`
 

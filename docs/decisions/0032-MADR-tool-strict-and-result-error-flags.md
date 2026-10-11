@@ -271,3 +271,4 @@ Answered by the owner on 2026-10-11: the recommended option of each.
   input, prompt caching, tool deferral, timeouts) are their own records.
 * The plan is
   [0032-PLAN-tool-strict-and-result-error-flags.md](0032-PLAN-tool-strict-and-result-error-flags.md).
+  Implemented and released as `v1.7.0` (2026-10-11); the plan is complete.
