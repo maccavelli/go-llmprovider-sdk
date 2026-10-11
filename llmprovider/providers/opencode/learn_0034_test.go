@@ -102,3 +102,25 @@ func TestStream_MessagesRouteLearnsARefusal_0034(t *testing.T) {
 		t.Errorf("tool_choice %s, done %v; want tool then none, and EventDone", got, done)
 	}
 }
+
+// TestGenerate_MessagesRouteLearnedRequired_0034 (0034-MADR D3, D10): on Zen's
+// messages route, by default, a refused ToolChoiceRequired is learned and
+// returned as ErrUnsupported with the *APIError, with no resend; a named tool
+// learned there carries the learned warning.
+func TestGenerate_MessagesRouteLearnedRequired_0034(t *testing.T) {
+	srv, seen := refusingServer(t, callReply0034, refusal0034, true)
+	req := weatherRequest0034()
+	req.ToolChoice = llmprovider.ToolChoiceRequired
+	_, err := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-required")...).Generate(context.Background(), req)
+	if !errors.Is(err, llmprovider.ErrUnsupported) || !errors.As(err, new(*llmprovider.APIError)) || seen() != "any" {
+		t.Errorf("err %v, tool_choice %s; want ErrUnsupported wrapping the *APIError, after one request", err, seen())
+	}
+
+	srv, _ = refusingServer(t, `{"stop_reason":"end_turn","content":[{"type":"text","text":"{}"}]}`, refusal0034, false)
+	req = weatherRequest0034()
+	req.ToolChoice = llmprovider.ForceTool("get_weather")
+	resp, err := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-warns")...).Generate(context.Background(), req)
+	if err != nil || len(resp.Warnings) != 1 || resp.Warnings[0].Kind != llmprovider.WarningForcedChoiceLearned {
+		t.Errorf("Generate = %+v, %v; want one learned warning", resp, err)
+	}
+}

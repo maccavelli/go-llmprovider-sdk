@@ -46,9 +46,13 @@
 //     and a stream's done event, then carry a WarningForcedChoiceDegraded
 //     (D2, D7).
 //   - Another model that refuses a forced choice the same way (HTTP 400,
-//     invalid_request_error, a message naming tool_choice) is sent once
-//     more, as above, and remembered for the rest of the process, in memory
-//     only (D3).
+//     invalid_request_error, a message naming tool_choice) is remembered for
+//     the rest of the process, in memory only, and the request handled as
+//     above: a named tool is sent once more, as structured outputs;
+//     ToolChoiceRequired is sent once more, degraded, under
+//     ForcedChoiceDegrade, and otherwise returned as an error matching
+//     ErrUnsupported and wrapping the *APIError. The Response, or a stream's
+//     done event, carries a WarningForcedChoiceLearned naming the model (D3).
 //   - Reasoning's shape follows the model. Claude 4.7 and later take adaptive
 //     thinking, with the effort as output_config.effort; a Budget is not sent
 //     to them. Older models take a budget: Reasoning.Budget, else 1024 for
@@ -160,27 +164,28 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err := p.caps.Check(req); err != nil {
 		return nil, err
 	}
-	// A 401 renews an InvalidatingSource's token and sends once more
-	// (0020-MADR F2). A refusal of a forced tool choice teaches the model,
-	// and sends once more, degraded (0034-MADR D3).
 	f := p.forcingFor(req)
 	// A required choice a model refuses fails here unless the caller opted in
 	// to degrading it (0034-MADR D10; R11).
 	if err := messages.CheckForcing(req, f); err != nil {
 		return nil, err
 	}
-	resp, err := messages.SendLearning(f, req.ToolChoice,
-		func() (*llmprovider.Response, error) {
-			return wire.Reauth(ctx, string(llmprovider.ProviderClaude), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-				return p.generateOnce(ctx, req, token)
-			})
-		})
+	// A 401 renews an InvalidatingSource's token and sends once more
+	// (0020-MADR F2). A refusal of a forced tool choice from a model no layer
+	// knows is learned, and handled by policy: the request is built again and
+	// sent once more, or the refusal returned (0034-MADR D3).
+	retry := messages.NewRefusalRetry(f, req.ToolChoice)
+	resp, err := wire.Send(ctx, string(llmprovider.ProviderClaude), p.src,
+		func(llmprovider.Token) wire.Call { return p.call(req, false) }, messages.Decode, retry.Check)
 	if err == nil {
 		// A named tool sent as structured outputs is returned as its call
-		// (0034-MADR D8); a forced choice sent as auto is reported (D7).
+		// (0034-MADR D8); a refusal learned, and a forced choice sent as
+		// auto, are reported (D3, D7).
 		messages.StructuredCall(req, f, resp)
-		if w, ok := p.toolChoiceWarning(req); ok {
-			resp.Warnings = append(resp.Warnings, w)
+		for _, warn := range []func() (llmprovider.Warning, bool){retry.Warning, func() (llmprovider.Warning, bool) { return p.toolChoiceWarning(req) }} {
+			if w, ok := warn(); ok {
+				resp.Warnings = append(resp.Warnings, w)
+			}
 		}
 	}
 	return resp, err
@@ -200,8 +205,8 @@ func (p *provider) forcingFor(req *llmprovider.Request) messages.Forcing {
 // Stream streams req from the Messages API as it is generated (0031-MADR
 // E1): the request asks for an event stream, and each event is yielded as it
 // arrives. A 401 before the first event renews a refreshable token and sends
-// once more, and a refusal of a forced tool choice is learned and sent once
-// more, degraded (0034-MADR D3).
+// once more, and a refusal of a forced tool choice is handled as Generate
+// handles it (0034-MADR D3).
 func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
 	if err := p.caps.Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
@@ -210,12 +215,19 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := messages.CheckForcing(req, f); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	stream := messages.StreamLearning(f, req.ToolChoice,
-		func() iter.Seq2[llmprovider.Event, error] {
-			return wire.StreamEvents(ctx, p.call(req, true), p.src, messages.Events)
-		})
-	stream = messages.StructuredStream(req, f, stream)
-	return messages.WarnOnDone(stream, func() (llmprovider.Warning, bool) { return p.toolChoiceWarning(req) })
+	return func(yield func(llmprovider.Event, error) bool) {
+		// Each range is its own request, with its own retry check.
+		retry := messages.NewRefusalRetry(f, req.ToolChoice)
+		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderClaude), p.src,
+			func(llmprovider.Token) wire.Call { return p.call(req, true) }, messages.Events, retry.Check)
+		stream = messages.StructuredStream(req, f, stream)
+		for ev, err := range messages.WarnOnDone(stream, retry.Warning,
+			func() (llmprovider.Warning, bool) { return p.toolChoiceWarning(req) }) {
+			if !yield(ev, err) {
+				return
+			}
+		}
+	}
 }
 
 // modelFor is req's model, else the provider's.
@@ -224,11 +236,6 @@ func (p *provider) modelFor(req *llmprovider.Request) string {
 		return req.Model
 	}
 	return p.model
-}
-
-// generateOnce sends req once, with token.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, p.call(req, false), token, messages.Decode)
 }
 
 // call is the Messages request for req, asking for an event stream when

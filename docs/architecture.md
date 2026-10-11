@@ -243,6 +243,12 @@ for a session, from the store.
   `GenerateToolCall`, goes to such a model as structured outputs, with the
   tool's schema as `output_config.format`, its open objects closed in a
   copy, and comes back as its `FunctionCallItem`: not degraded (D8, Q9).
+  A refusal from a model no layer knows is learned in `wire.Send` and
+  `wire.StreamEventsRetry`, the openers beside `wire.Reauth`, through
+  `messages.RefusalRetry`. The request is built again and sent once more for
+  a named tool, or for `ToolChoiceRequired` under `ForcedChoiceDegrade`.
+  Otherwise the refusal is returned as `ErrUnsupported`. A stream is resent
+  only when it fails to open, before any event (D3).
 - `Response.Usage` is decoded from every wire format that reports it. A
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and

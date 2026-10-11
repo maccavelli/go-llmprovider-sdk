@@ -51,8 +51,9 @@
 //     WithForcedChoiceFallback(ForcedChoiceDegrade) sends it as "auto" with a
 //     turn instruction and a warning (D2, D10); WithModelForcedChoice
 //     overrides the list (D9). Another model that refuses a forced choice in
-//     Anthropic's form is sent once more and remembered for the process
-//     (D3); the qwen refusals below have another form, and are not.
+//     Anthropic's form is remembered for the process, and handled as above,
+//     with a WarningForcedChoiceLearned (D3); the qwen refusals below have
+//     another form, and are not.
 //   - Instructions are sent as a leading system item on every route: the
 //     system field on the messages route, systemInstruction on the google
 //     route, a system message elsewhere.
@@ -251,14 +252,19 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err := messages.CheckForcing(req, f); err != nil {
 		return nil, err
 	}
-	// On the messages route, a refusal of a forced tool choice teaches the
-	// model, and sends once more, degraded (0034-MADR D3); a forced choice
-	// sent as auto is reported (D7).
-	resp, err := messages.SendLearning(f, req.ToolChoice, send)
+	// On the messages route, a refusal of a forced tool choice from a model
+	// no layer knows is learned, and handled by policy (0034-MADR D3); a
+	// refusal learned, and a forced choice sent as auto, are reported (D7).
+	retry := messages.NewRefusalRetry(f, req.ToolChoice)
+	resp, err := wire.Send(ctx, "opencode", p.src,
+		func(llmprovider.Token) wire.Call { return p.wireCall(c, p.messagesBody(c), false) }, messages.Decode, retry.Check)
 	if err == nil {
 		messages.StructuredCall(req, f, resp)
-		if w, ok := messages.ToolChoiceWarning(req, c.reasoning != nil, f); ok {
-			resp.Warnings = append(resp.Warnings, w)
+		for _, warn := range []func() (llmprovider.Warning, bool){retry.Warning,
+			func() (llmprovider.Warning, bool) { return messages.ToolChoiceWarning(req, c.reasoning != nil, f) }} {
+			if w, ok := warn(); ok {
+				resp.Warnings = append(resp.Warnings, w)
+			}
 		}
 	}
 	return resp, err
@@ -279,17 +285,26 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		if err := messages.CheckForcing(req, f); err != nil {
 			return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 		}
-		// A refusal of a forced tool choice is learned, and the stream opened
-		// once more, degraded (0034-MADR D3).
-		stream := messages.StreamLearning(f, req.ToolChoice, func() iter.Seq2[llmprovider.Event, error] {
-			body := p.messagesBody(c)
-			body["stream"] = true
-			return wire.StreamEvents(ctx, p.wireCall(c, body, true), p.src, messages.Events)
-		})
-		stream = messages.StructuredStream(req, f, stream)
-		return messages.WarnOnDone(stream, func() (llmprovider.Warning, bool) {
-			return messages.ToolChoiceWarning(req, c.reasoning != nil, f)
-		})
+		// A refusal of a forced tool choice is handled as Generate handles
+		// it (0034-MADR D3). Each range is its own request, with its own
+		// retry check.
+		return func(yield func(llmprovider.Event, error) bool) {
+			retry := messages.NewRefusalRetry(f, req.ToolChoice)
+			build := func(llmprovider.Token) wire.Call {
+				body := p.messagesBody(c)
+				body["stream"] = true
+				return p.wireCall(c, body, true)
+			}
+			stream := wire.StreamEventsRetry(ctx, string(p.gateway)+"/"+string(c.route), p.src, build, messages.Events, retry.Check)
+			stream = messages.StructuredStream(req, f, stream)
+			for ev, err := range messages.WarnOnDone(stream, retry.Warning, func() (llmprovider.Warning, bool) {
+				return messages.ToolChoiceWarning(req, c.reasoning != nil, f)
+			}) {
+				if !yield(ev, err) {
+					return
+				}
+			}
+		}
 	}
 	var body map[string]any
 	var events func(string, io.Reader, func(llmprovider.Event) bool) error

@@ -2,7 +2,7 @@ package messages
 
 import (
 	"errors"
-	"iter"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -76,38 +76,48 @@ func shouldLearn(f Forcing, choice llmprovider.ToolChoice, err error) bool {
 	return forcedChoice(choice) && !overridden && !f.refuses() && IsForcedChoiceRefusal(err)
 }
 
-// SendLearning is send, which builds and sends a request with choice to f's
-// model. When it is refused for forcing a tool, the model is learned
-// and send is called once more, building the degraded request (0034-MADR D3).
-func SendLearning[T any](f Forcing, choice llmprovider.ToolChoice, send func() (T, error)) (T, error) {
-	v, err := send()
-	if !shouldLearn(f, choice, err) {
-		return v, err
-	}
-	learnRefusal(f.Provider, f.Model)
-	return send()
+// RefusalRetry is the retry check for one request with a forced choice to
+// f's model (0034-MADR D3, narrowed). A refusal from a model no layer knows
+// is learned, then:
+//   - a named tool is resent, which the rebuilt request sends as structured
+//     outputs (D8);
+//   - ToolChoiceRequired is resent, degraded, under ForcedChoiceDegrade, and
+//     otherwise returned as an error matching ErrUnsupported and wrapping the
+//     *APIError (D10).
+//
+// Anything else is returned as it came. A RefusalRetry serves one request.
+type RefusalRetry struct {
+	f       Forcing
+	choice  llmprovider.ToolChoice
+	learned bool
 }
 
-// StreamLearning is SendLearning for a stream: a stream refused for forcing a
-// tool before its first event is opened once more, degraded.
-func StreamLearning(f Forcing, choice llmprovider.ToolChoice,
-	open func() iter.Seq2[llmprovider.Event, error]) iter.Seq2[llmprovider.Event, error] {
-	return func(yield func(llmprovider.Event, error) bool) {
-		first := true
-		for ev, err := range open() {
-			if first && shouldLearn(f, choice, err) {
-				learnRefusal(f.Provider, f.Model)
-				for ev, err := range open() {
-					if !yield(ev, err) {
-						return
-					}
-				}
-				return
-			}
-			first = false
-			if !yield(ev, err) {
-				return
-			}
-		}
+// NewRefusalRetry is the retry check for a request with choice to f's model.
+func NewRefusalRetry(f Forcing, choice llmprovider.ToolChoice) *RefusalRetry {
+	return &RefusalRetry{f: f, choice: choice}
+}
+
+// Check is a wire.Retry.
+func (r *RefusalRetry) Check(err error) (bool, error) {
+	if !shouldLearn(r.f, r.choice, err) {
+		return false, err
 	}
+	learnRefusal(r.f.Provider, r.f.Model)
+	r.learned = true
+	if _, named := r.choice.Tool(); named || r.f.Policy.fallback == llmprovider.ForcedChoiceDegrade {
+		return true, nil
+	}
+	return false, fmt.Errorf("%w: %s refused a forced tool choice (ToolChoiceRequired), and is remembered as refusing it; "+
+		"WithForcedChoiceFallback(ForcedChoiceDegrade) sends it as auto, with an instruction to call a tool (0034-MADR D3, D10): %w",
+		llmprovider.ErrUnsupported, r.f.Model, err)
+}
+
+// Warning is the WarningForcedChoiceLearned, when Check learned a refusal.
+func (r *RefusalRetry) Warning() (llmprovider.Warning, bool) {
+	if !r.learned {
+		return llmprovider.Warning{}, false
+	}
+	return llmprovider.Warning{Kind: llmprovider.WarningForcedChoiceLearned, Model: r.f.Model,
+		Detail: r.f.Model + " refused a forced tool choice that no table or option said it would; " +
+			"it is remembered for the rest of the process, and WithModelForcedChoice can say so on the next start."}, true
 }

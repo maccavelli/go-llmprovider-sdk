@@ -57,66 +57,71 @@ func TestLearnedRefusals_0034(t *testing.T) {
 	}
 }
 
-// TestSendLearning_0034 (0034-MADR D3): a forced request refused for forcing
-// is learned and sent once more; any other result is returned as it is.
-func TestSendLearning_0034(t *testing.T) {
+// TestRefusalRetry_0034 (0034-MADR D3, narrowed): a refusal from a model no
+// layer knows is learned; a named tool is resent, as D8; ToolChoiceRequired
+// is resent, degraded, only under ForcedChoiceDegrade, and otherwise
+// returns an error matching ErrUnsupported and the *APIError, with no resend.
+// Each learning earns a WarningForcedChoiceLearned naming the model. Nothing
+// else is resent, learned, or warned of.
+func TestRefusalRetry_0034(t *testing.T) {
 	t.Cleanup(forgetRefusals)
 	refusal := &llmprovider.APIError{Status: 400, Code: "invalid_request_error", Message: refusalMessage}
 	other := &llmprovider.APIError{Status: 400, Code: "invalid_request_error", Message: "max_tokens: too large"}
-	forced := llmprovider.ForceTool("get_weather")
+	refuse, degrade := llmprovider.ForcedChoiceRefuse, llmprovider.ForcedChoiceDegrade
 	for _, c := range []struct {
-		name    string
-		choice  llmprovider.ToolChoice
-		replies []error
-		sends   int
-		learned bool
-		err     error
+		name        string
+		model       string
+		fallback    llmprovider.ForcedChoiceFallback
+		choice      llmprovider.ToolChoice
+		err         error
+		resend      bool
+		unsupported bool
+		learned     bool
 	}{
-		{"refused, then answered", forced, []error{refusal, nil}, 2, true, nil},
-		{"refused twice", forced, []error{refusal, refusal}, 2, true, refusal},
-		{"another 400", forced, []error{other}, 1, false, other},
-		{"not forced", llmprovider.ToolChoiceAuto, []error{refusal}, 1, false, refusal},
-		{"required, refused, then answered", llmprovider.ToolChoiceRequired, []error{refusal, nil}, 2, true, nil},
+		{"named", "claude-future-6", refuse, llmprovider.ForceTool(choiceTool), refusal, true, false, true},
+		{"required, refuse", "claude-future-6", refuse, llmprovider.ToolChoiceRequired, refusal, false, true, true},
+		{"required, degrade", "claude-future-6", degrade, llmprovider.ToolChoiceRequired, refusal, true, false, true},
+		{"another 400", "claude-future-6", refuse, llmprovider.ForceTool(choiceTool), other, false, false, false},
+		{"not forced", "claude-future-6", refuse, llmprovider.ToolChoiceAuto, refusal, false, false, false},
+		{"a table model", "claude-sonnet-5-5", refuse, llmprovider.ForceTool(choiceTool), refusal, false, false, false},
 	} {
 		forgetRefusals()
-		sends := 0
-		_, err := SendLearning(Forcing{Provider: "claude", Model: "claude-future-6"}, c.choice, func() (int, error) {
-			sends++
-			if sends > len(c.replies) {
-				return sends, errors.New("a send past the replies the case expects")
-			}
-			return sends, c.replies[sends-1]
-		})
-		if sends != c.sends || !errors.Is(err, c.err) {
-			t.Errorf("%s: %d sends, err %v; want %d, %v", c.name, sends, err, c.sends, c.err)
+		r := NewRefusalRetry(NewPolicy(c.fallback, nil).For("claude", c.model), c.choice)
+		resend, err := r.Check(c.err)
+		switch {
+		case resend != c.resend:
+			t.Errorf("%s: resend = %v, want %v", c.name, resend, c.resend)
+		case resend && err != nil:
+			t.Errorf("%s: resend with error %v", c.name, err)
+		case !resend && c.unsupported && (!errors.Is(err, llmprovider.ErrUnsupported) || !errors.As(err, new(*llmprovider.APIError))):
+			t.Errorf("%s: err = %v, want ErrUnsupported wrapping the *APIError", c.name, err)
+		case !resend && !c.unsupported && !errors.Is(err, c.err):
+			t.Errorf("%s: err = %v, want %v as it came", c.name, err, c.err)
 		}
-		if got := refusesForcedChoice("claude", "claude-future-6"); got != c.learned {
+		if got := learnedRefusal("claude", c.model); got != c.learned {
 			t.Errorf("%s: learned = %v, want %v", c.name, got, c.learned)
 		}
-	}
-	// A model already known to refuse is sent degraded; a refusal of that is
-	// returned, with no resend.
-	forgetRefusals()
-	sends := 0
-	_, err := SendLearning(Forcing{Provider: "claude", Model: "claude-sonnet-5-5"}, forced, func() (int, error) { sends++; return 0, refusal })
-	if sends != 1 || !errors.Is(err, refusal) {
-		t.Errorf("a table model: %d sends, err %v; want 1 and the refusal", sends, err)
+		w, ok := r.Warning()
+		if ok != c.learned || (ok && (w.Kind != llmprovider.WarningForcedChoiceLearned || w.Model != c.model)) {
+			t.Errorf("%s: warning %+v, %v; want a learned warning naming %s: %v", c.name, w, ok, c.model, c.learned)
+		}
 	}
 }
 
-// TestSendLearning_OverrideWins_0034 (0034-MADR D9): a model the caller said
+// TestRefusalRetry_OverrideWins_0034 (0034-MADR D9): a model the caller said
 // accepts a forced choice is not learned from its refusal, nor resent: the
 // caller's word stands, and the refusal is returned.
-func TestSendLearning_OverrideWins_0034(t *testing.T) {
+func TestRefusalRetry_OverrideWins_0034(t *testing.T) {
 	t.Cleanup(forgetRefusals)
 	forgetRefusals()
 	refusal := &llmprovider.APIError{Status: 400, Code: "invalid_request_error", Message: refusalMessage}
 	f := NewPolicy(llmprovider.ForcedChoiceRefuse, map[string]llmprovider.Support{"claude-future-7": llmprovider.Supported}).
 		For("claude", "claude-future-7")
-	sends := 0
-	_, err := SendLearning(f, llmprovider.ForceTool(choiceTool), func() (int, error) { sends++; return 0, refusal })
-	if sends != 1 || !errors.Is(err, refusal) || learnedRefusal("claude", "claude-future-7") {
-		t.Errorf("%d sends, err %v, learned %v; want 1 send, the refusal, nothing learned", sends, err, learnedRefusal("claude", "claude-future-7"))
+	r := NewRefusalRetry(f, llmprovider.ForceTool(choiceTool))
+	resend, err := r.Check(refusal)
+	if _, warned := r.Warning(); resend || !errors.Is(err, refusal) || learnedRefusal("claude", "claude-future-7") || warned {
+		t.Errorf("resend %v, err %v, learned %v, warned %v; want the refusal, nothing resent, learned or warned",
+			resend, err, learnedRefusal("claude", "claude-future-7"), warned)
 	}
 }
 

@@ -120,13 +120,26 @@ func StreamEvents(ctx context.Context, c Call, src llmprovider.TokenSource,
 // sent with, as Kilo's endpoint is from its key.
 func StreamEventsFor(ctx context.Context, src llmprovider.TokenSource, build func(llmprovider.Token) Call,
 	decode func(provider string, body io.Reader, yield func(llmprovider.Event) bool) error) iter.Seq2[llmprovider.Event, error] {
+	// The label names the provider before a token is fetched, for a failure
+	// to fetch one.
+	return StreamEventsRetry(ctx, build(llmprovider.Token{}).Provider, src, build, decode, nil)
+}
+
+// StreamEventsRetry is StreamEventsFor with a retry check: a stream whose
+// opening fails, which is before any event, is built again and opened once
+// more when retry says to. A failure after the stream opened is never resent
+// (0034-MADR D3). provider labels a failure to fetch a token.
+func StreamEventsRetry(ctx context.Context, provider string, src llmprovider.TokenSource, build func(llmprovider.Token) Call,
+	decode func(provider string, body io.Reader, yield func(llmprovider.Event) bool) error, retry Retry) iter.Seq2[llmprovider.Event, error] {
 	return func(yield func(llmprovider.Event, error) bool) {
-		// The label names the provider before a token is fetched, for a
-		// failure to fetch one.
-		provider := build(llmprovider.Token{}).Provider
-		reply, err := Reauth(ctx, provider, src, func(token llmprovider.Token) (*Stream, error) {
-			return OpenStream(ctx, build(token), token)
-		})
+		open := func(token llmprovider.Token) (*Stream, error) { return OpenStream(ctx, build(token), token) }
+		reply, err := Reauth(ctx, provider, src, open)
+		if err != nil && retry != nil {
+			var resend bool
+			if resend, err = retry(err); resend {
+				reply, err = Reauth(ctx, provider, src, open)
+			}
+		}
 		if err != nil {
 			yield(llmprovider.Event{}, err)
 			return

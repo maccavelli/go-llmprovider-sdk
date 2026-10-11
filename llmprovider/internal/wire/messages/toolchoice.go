@@ -166,14 +166,17 @@ func ToolChoiceWarning(req *llmprovider.Request, thinking bool, f Forcing) (llmp
 	return llmprovider.Warning{}, false
 }
 
-// WarnOnDone is seq with the warning warn returns, if any, added to its done
-// event's Response. warn runs when the done event arrives, after any resend.
-func WarnOnDone(seq iter.Seq2[llmprovider.Event, error], warn func() (llmprovider.Warning, bool)) iter.Seq2[llmprovider.Event, error] {
+// WarnOnDone is seq with the warnings warns return, if any, added in order to
+// its done event's Response. Each runs when the done event arrives, after any
+// resend.
+func WarnOnDone(seq iter.Seq2[llmprovider.Event, error], warns ...func() (llmprovider.Warning, bool)) iter.Seq2[llmprovider.Event, error] {
 	return func(yield func(llmprovider.Event, error) bool) {
 		for ev, err := range seq {
 			if err == nil && ev.Type == llmprovider.EventDone && ev.Response != nil {
-				if w, ok := warn(); ok {
-					ev.Response.Warnings = append(ev.Response.Warnings, w)
+				for _, warn := range warns {
+					if w, ok := warn(); ok {
+						ev.Response.Warnings = append(ev.Response.Warnings, w)
+					}
 				}
 			}
 			if !yield(ev, err) {

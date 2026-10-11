@@ -696,6 +696,10 @@ It passed on Phase 2's code, so it was shown failing on a plant.
 
 ### Phase 4: learning a refusal (2026-10-11)
 
+*`SendLearning` and `StreamLearning` below were superseded by Phase 4f
+(2026-10-11): the resend now sits in `wire.Send` and
+`wire.StreamEventsRetry`, through `messages.RefusalRetry`.*
+
 **Change.**
 
 * **`internal/wire/messages/learn.go`** (new):
@@ -1251,3 +1255,114 @@ about 15, `go test -count=3 -run TestCommandToken ./llmprovider/` passed at
 `pre-add-check` and then the whole gate passed. The tests' dependence on
 load predates 0034 and is not changed here; making them independent of it
 would need its own record.
+
+### Phase 4f: the narrowed resend, in the shared openers (2026-10-11)
+
+**Change.**
+
+* **`internal/wire/retry.go`** (new):
+  * **`Retry`:** `func(err error) (resend bool, replaced error)`. It is
+    consulted only when a send has failed after `Reauth`. It returns true
+    to resend, or false and the error to return in place of `err`.
+  * **`Send[T](ctx, provider, src, build, decode, retry)`:** builds the
+    request with `build`, posts it through `Reauth`, and decodes it. When
+    that fails and `retry` says so, it builds the request again and sends it
+    once more, through `Reauth` again. A nil `retry` sends once.
+* **`internal/wire/sse.go`:** `StreamEventsRetry` is `StreamEventsFor` with
+  a check. A stream whose opening fails, which is before any event, is built
+  again and opened once more. A failure after the stream opened is never
+  resent. `StreamEventsFor` is now `StreamEventsRetry` with no check.
+* **`internal/wire/messages/learn.go`:** `RefusalRetry` replaces
+  `SendLearning` and `StreamLearning`.
+  * **`NewRefusalRetry(f, choice)`**, one per request.
+  * **`Check`** learns a refusal from a model no layer knows (the same
+    `shouldLearn`).
+    * A named tool: resend.
+    * `ToolChoiceRequired` under `ForcedChoiceDegrade`: resend.
+    * `ToolChoiceRequired` under `ForcedChoiceRefuse`: no resend, and an
+      error matching `ErrUnsupported` and wrapping the `*APIError`.
+    * Anything else: returned as it came.
+  * **`Warning`:** a `WarningForcedChoiceLearned` naming the model, when
+    `Check` learned.
+* **`internal/wire/messages/toolchoice.go`:** `WarnOnDone` takes several
+  warning functions, added in order.
+* **Both providers** build the request inside the opener, so a resend
+  carries what was learned: structured outputs for a named tool, the
+  degraded form otherwise.
+  * **Claude:** `Generate` uses `wire.Send`, and `Stream` uses
+    `wire.StreamEventsRetry`; `generateOnce` is gone.
+  * **OpenCode:** the same, on the `messages` route; the other routes are
+    unchanged.
+  * The learned warning comes before the degraded one.
+  * A stream makes its `RefusalRetry` inside its iterator, so each range is
+    its own request.
+* **Docs:** Claude's and OpenCode's Degradations entries, and
+  `docs/architecture.md`.
+
+**Two choices the steps left open:**
+
+* **The check's shape.** The check returns the error to use, not a bare
+  bool. A refused `ToolChoiceRequired` under refuse must come back as
+  `ErrUnsupported` with the `*APIError`, and the check is the one place that
+  knows it learned. A bare bool would need a second pass in each provider.
+* **When a stream resends.** A stream resends only when it fails to open.
+  `StreamLearning` also resent on a read error before the first event.
+  Anthropic sends the refusal as the HTTP 400 status (M2), so it fails at
+  the open, and the narrower rule cannot resend half-read data.
+
+**Red first.**
+
+```text
+llmprovider/internal/wire/messages/learn_0034_test.go:89:8: undefined: NewRefusalRetry
+llmprovider/internal/wire/retry_0034_test.go:106:21: undefined: wire.Send
+llmprovider/internal/wire/retry_0034_test.go:164:29: undefined: wire.StreamEventsRetry
+forced_learn_0034_test.go:162: Generate = &{… Output:[{CallID:toolu_85a4… Name:get_weather …}] FinishReason:tool_calls …}: want one learned warning naming claude-future-warns
+forced_learn_0034_test.go:180: err = <nil>, want ErrUnsupported wrapping the *APIError
+forced_learn_0034_test.go:186: tool_choice [any auto], want one request: no resend, and none for the second
+forced_learn_0034_test.go:224: done warnings "", want the learned warning
+learn_0034_test.go:116: err llmprovider: invalid request: opencode-zen/messages HTTP 400 invalid_request_error: tool_choice: …, tool_choice any,auto; want ErrUnsupported …
+```
+
+**Tests.**
+
+* **New:**
+  * `wire/retry_0034_test.go`: rebuilt and resent, the check saying no
+    (its error kept, with the `*APIError`), a refused resend returned,
+    success never consulting the check, no check, a 401 renewed inside the
+    send with the check seeing only the 400, and a stream: rebuilt at
+    open, the check saying no, no resend after an event.
+  * `messages`: `TestRefusalRetry_0034` and
+    `TestRefusalRetry_OverrideWins_0034` replace `TestSendLearning_0034` and
+    `TestSendLearning_OverrideWins_0034`, keeping their cases (another 400,
+    not forced, a table model, an override) and adding the policy and the
+    warning.
+  * Claude: the learned warning in `Generate` and a stream; a learned
+    `ToolChoiceRequired` refused, and the next one before the network;
+    under degrade, resent and warned twice. OpenCode: the refusal and the
+    learned warning on the `messages` route.
+* **Unchanged:** Phase 4's provider tests all use a named tool, so the
+  step's "updated for the policy" needed no change to them. The default
+  policy is proven by the new tests above.
+
+**Green:** `go test -race -count=1 ./...` passes; `golangci-lint` (with
+`live_gateways`) reports 0 issues.
+
+**Plants** on a scratch clone:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| a resend after an event | `a failure after an event: events [text_delta text_delta], … requests 1@t,2@t, check asked 1; want the failure, one request, no check` |
+| a second resend | `requests 1@t,2@t,3@t, check asked 2 times, "ok", <nil>; want 1@t,2@t, 1, llmprovider: invalid request` |
+| the first request reused, not rebuilt | `requests 1@t,1@t, …; want 1@t,2@t`; `requests 1@stale,1@fresh,1@fresh …`; Claude `tool_choice [tool tool], want tool then none` and the learned tests failing with the refusal |
+| the check consulted on success | `requests 1@t,2@t, check asked 1 times, "ok", <nil>; want 1@t, 0, <nil>`; Claude and OpenCode `returned no response` |
+| a resend under refuse | `required, refuse: resend = true, want false`; Claude `err = <nil>, want ErrUnsupported …`, `tool_choice [any auto], want one request`; OpenCode `tool_choice any,auto; want ErrUnsupported …` |
+| no learned warning | `named: warning {Kind: Model: Detail:}, false; want a learned warning …` (three cases); Claude `want one learned warning`, `want the learned and the degraded warnings`, `done warnings "", want the learned warning` |
+
+**The interim behaviour closed.** Phase 4d's open item, a learned
+`ToolChoiceRequired` resent degraded under either policy, is fixed. Under
+the default it is now refused, with `ErrUnsupported`.
+
+**Pre-add:** 10 files clean. **API:** unchanged from Phase 4d; the new
+identifiers are internal. **Gate:** 22 of 22, started once the load average
+fell below the host's 10 CPUs, after the `TestCommandToken_*` timeouts
+Phase 4e's amendment recorded.
