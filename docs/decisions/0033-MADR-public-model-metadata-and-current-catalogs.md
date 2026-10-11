@@ -557,7 +557,8 @@ Answered by the owner on 2026-10-11: the recommended option of each.
     the previous gobble-cli item.
 * **The plans:**
   * [0033-PLAN-refresh-the-curated-catalogs.md](0033-PLAN-refresh-the-curated-catalogs.md)
-    (D4, `v1.7.1`);
+    (D4, `v1.7.1`). Released as `v1.7.1` on 2026-10-11; the plan is
+    complete;
   * [0033-PLAN-public-model-metadata.md](0033-PLAN-public-model-metadata.md)
     (D1 to D3 and the maintainer tool, `v1.8.0`).
 * **Next:** the record D6 names, for forced tool choice.

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-11
 associated-madr: "0033-MADR-public-model-metadata-and-current-catalogs.md"
 decision-makers: repository owner
@@ -612,6 +612,46 @@ from the one transient skip above.
 
 They pass today. After its retirement they would fail, so the next
 record that touches the live suites moves them to a current model.
+
+**Step 3, the release.**
+
+* The owner committed step 2's record as `0adc791`, pushed, and tagged
+  `v1.7.1` on it, an annotated tag (`09c3c63`).
+* From the release commit `8981532`, `0adc791` changes this PLAN only.
+
+**Step 4, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` at `0adc791` (run `38149317648`) | success |
+| CI on the tag (run `38149800321`, a push of `v1.7.1`) | success |
+| `go list -m -json …@v1.7.1` through `proxy.golang.org` | `Version` `v1.7.1`, `GoVersion` `1.27.2`, `Origin.Hash` `0adc791…` (`refs/tags/v1.7.1`) |
+| apidiff, `v1.7.0` to `v1.7.1` (both tags archived, without `-incompatible`) | no output: no change to the exported API |
+| a scratch consumer of every public package on `v1.7.1` | builds with `CGO_ENABLED=0` for linux, windows and darwin, amd64 and arm64. `go run` prints each provider's first static id and its label: `gemini-3.5-flash-lite`, `gpt-6-luna`, `claude-haiku-5-5` and `grok-4.6`, each with its "★ Recommended" label; each gateway's first id, with its bare id as its label |
+| a scratch copy of gobble-cli, moved from `v1.2.1` to `v1.7.1` | baseline tests pass. `go get` upgrades `v1.2.1 => v1.7.1`. Then build, vet on three platforms, `go test`, `go test -race` and golangci-lint (`0 issues.`) all pass. |
+
+**Step 5.** Every criterion is met, so this PLAN is `complete`:
+
+* **V1:** red then green, and each plant's FAIL line, in Phases 2 and 3.
+* **V2:** the gate at each phase. Only the Claude listing golden changed,
+  as Phase 2 recorded.
+* **V3:** Phase 1's table, recorded before Phase 2.
+* **V4:** step 4's apidiff, empty.
+* **V5:** the guard and the live suites, step 2.
+
+**Not done, as scoped:**
+
+* **The newest Claude models** (`claude-sonnet-5-5`, `claude-opus-5-5`,
+  `claude-fable-5-1`) wait for 0033-MADR D6's record.
+* **The metadata and the maintainer tool:**
+  [0033-PLAN-public-model-metadata.md](0033-PLAN-public-model-metadata.md),
+  `v1.8.0`.
+* **The findings,** each waiting for a measurement and a record:
+  * OpenCode Go's DeepSeek region gate;
+  * `grok-4.5`'s `xhigh`;
+  * the four live test files that name `claude-haiku-4-5`.
+* **gobble-cli's move to `v1.7.1`** is its own record. The scratch copy
+  above shows that the move compiles and passes.
 
 #### Release notes: `v1.7.1`
 
