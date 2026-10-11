@@ -31,6 +31,10 @@
 // stand on Go's measurements (0031-MADR D1, E1).
 //
 // Degradations:
+//   - A tool result's IsError is sent as is_error on the messages route and
+//     as functionResponse.response {"error": …} on the google route; the
+//     responses and chat_completions routes have no error field, so Output
+//     is sent as it is (0032-MADR D3).
 //   - A tool's Strict is sent as strict on the responses route and as
 //     function.strict on the chat_completions route, and not on the
 //     messages and google routes, which have no such field (0032-MADR D2).

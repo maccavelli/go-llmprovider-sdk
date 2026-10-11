@@ -16,6 +16,8 @@
 // streamed, and arrives only in its item (0031-MADR E1).
 //
 // Degradations:
+//   - A tool result's IsError is sent as the function_result step's is_error
+//     (0032-MADR D3).
 //   - A tool's Strict is not sent: the Interactions API has no such field
 //     (0032-MADR D2).
 //   - Reasoning takes an effort, sent as thinking_level: low, medium or high,

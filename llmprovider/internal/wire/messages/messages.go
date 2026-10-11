@@ -88,6 +88,7 @@ type Block struct {
 	Data      *string `json:"data,omitempty"`
 	ID        *string `json:"id,omitempty"`
 	Input     any     `json:"input,omitempty"`
+	IsError   bool    `json:"is_error,omitempty"`
 	Name      *string `json:"name,omitempty"`
 	Signature *string `json:"signature,omitempty"`
 	Text      *string `json:"text,omitempty"`
@@ -167,7 +168,8 @@ func FromItems(items []llmprovider.Item) []Message {
 				Type: "tool_use", ID: arena.Keep(v.CallID), Name: arena.Keep(v.Name), Input: wire.ToolArguments(v.Arguments),
 			})
 		case llmprovider.FunctionCallOutputItem:
-			appendBlock(wire.RoleUser, Block{Type: "tool_result", ToolUseID: arena.Keep(v.CallID), Content: arena.Keep(v.Output)})
+			appendBlock(wire.RoleUser, Block{Type: "tool_result", ToolUseID: arena.Keep(v.CallID), Content: arena.Keep(v.Output),
+				IsError: v.IsError})
 		}
 	}
 	return messages

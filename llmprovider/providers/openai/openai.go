@@ -14,6 +14,8 @@
 // events as they arrive (0031-MADR D1).
 //
 // Degradations:
+//   - A tool result's IsError is not sent: the Responses API has no error
+//     field, so Output is sent as it is (0032-MADR D3).
 //   - A tool's Strict is sent as strict (0032-MADR D2).
 //   - Reasoning takes an effort. A Reasoning with only a Budget sends the
 //     default effort, medium; the budget is not sent.

@@ -87,8 +87,13 @@ func interactionsInput(items []llmprovider.Item) []map[string]any {
 			if name == "" {
 				name = v.CallID
 			}
-			steps = append(steps, map[string]any{jsonKeyType: interactionStepFunctionResult, jsonKeyCallID: v.CallID,
-				jsonKeyName: name, "result": v.Output})
+			step := map[string]any{jsonKeyType: interactionStepFunctionResult, jsonKeyCallID: v.CallID,
+				jsonKeyName: name, "result": v.Output}
+			// A failed call says so (0032-MADR D3).
+			if v.IsError {
+				step["is_error"] = true
+			}
+			steps = append(steps, step)
 		}
 	}
 	return steps

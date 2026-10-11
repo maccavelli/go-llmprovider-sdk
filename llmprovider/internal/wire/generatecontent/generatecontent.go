@@ -65,9 +65,12 @@ type FunctionResponse struct {
 	Response FunctionOutput `json:"response"`
 }
 
-// FunctionOutput is a functionResponse's response.
+// FunctionOutput is a functionResponse's response: the output, or, for a
+// failed call, the error, as Gemini's convention has it (0032-MADR D3).
+// Exactly one is set.
 type FunctionOutput struct {
-	Output string `json:"output"`
+	Error  *string `json:"error,omitempty"`
+	Output *string `json:"output,omitempty"`
 }
 
 // SystemInstruction is generateContent's systemInstruction for the system
@@ -144,7 +147,11 @@ func Contents(items []llmprovider.Item) []Content {
 				name = callName(v.CallID)
 			}
 			// A turn's results share one user turn, as its calls share one model turn.
-			responses = append(responses, FunctionResponse{Name: name, Response: FunctionOutput{Output: v.Output}})
+			output := FunctionOutput{Output: arena.Keep(v.Output)}
+			if v.IsError {
+				output = FunctionOutput{Error: arena.Keep(v.Output)}
+			}
+			responses = append(responses, FunctionResponse{Name: name, Response: output})
 			appendPart(wire.RoleUser, Part{FunctionResponse: &responses[len(responses)-1]}, lastIsResponses)
 			lastIsResponses = true
 		}

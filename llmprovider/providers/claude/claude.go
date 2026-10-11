@@ -15,6 +15,8 @@
 // events as they arrive (0031-MADR E1).
 //
 // Degradations:
+//   - A tool result's IsError is sent as tool_result's is_error
+//     (0032-MADR D3).
 //   - A tool's Strict is not sent: the Messages API has no such field
 //     (0032-MADR D2).
 //   - With Reasoning, a forced tool choice (ForceTool or ToolChoiceRequired)

@@ -346,3 +346,70 @@ Compatible changes:
 ```
 
 **Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+
+### Phase 3: `FunctionCallOutputItem.IsError` (2026-10-11)
+
+**Change.**
+
+* `llmprovider/item.go`: `FunctionCallOutputItem` gains `IsError bool`. Its
+  doc names the wires that carry it, and says `Output` is never rewritten.
+* `internal/wire/messages`: `Block` gains `IsError` (`is_error,omitempty`,
+  in the order `json.Marshal` writes it), and a `tool_result` carries it.
+* `internal/wire/generatecontent`: `FunctionOutput` is now `Error` or
+  `Output`, both `*string` with `omitempty`, exactly one set. A failed
+  result sends `{"error": …}`, and any other sends `{"output": …}` as
+  before.
+* `providers/gemini`: a failed `function_result` step carries
+  `is_error: true`.
+* Responses and Chat Completions are unchanged.
+* `wire.RemapCallIDs` copies the whole item, so the flag survives a
+  remapped call id.
+* Every provider's package doc names, under Degradations, where `IsError`
+  is sent and where `Output` is sent as it is.
+
+**Red** (step 1), on the tree before the change:
+
+```text
+llmprovider/internal/wire/{messages,generatecontent,responses,chatcompletions}/iserror_0032_test.go:16:75: unknown field IsError in struct literal of type llmprovider.FunctionCallOutputItem
+```
+
+**Green, under `-race`:** `TestIsError_0032` passes in each place it runs.
+
+* `messages`: a failed result carries `"is_error":true`; one not failed has
+  no `is_error`.
+* `generatecontent`: `"response":{"error":"offline"}`, and otherwise
+  `"response":{"output":"offline"}`.
+* `gemini`: a failed `function_result` carries `"is_error":true`.
+* `responses` and `chatcompletions`: a failed result encodes exactly as one
+  not failed.
+
+`go test -count=1 ./...` passes; `golangci-lint` reports `0 issues.`; the
+G-wire goldens are unchanged.
+
+**Corrections to the new tests while they were made to build** (neither
+loosens an assertion):
+
+* The helpers were first named `failed` and `encoded`. `failed` clashes
+  with the Responses package's own function, and `asJSON` with
+  `messages_test.go`'s, so they became `turnWithResult`, and `asJSON`, or
+  `resultJSON` in `messages`.
+* An unused `strings` import was removed from the two "unchanged" tests.
+
+**Plants** (step 3), on a scratch clone, each against `TestIsError_0032`:
+
+| Plant | Package | Result |
+| :--- | :--- | :--- |
+| every result marked an error | `messages` | `iserror_0032_test.go:38: a result not failed: […"is_error":true…]`; FAIL |
+| the flag dropped | `generatecontent` | `iserror_0032_test.go:35: a failed result: […"output"…]; want "response":{"error":"offline"}`; FAIL |
+| the flag dropped | `gemini` | `iserror_0032_test.go:35: a failed result: […no is_error…]`; FAIL |
+| a failed output rewritten (`"Error: "` prefix) | `responses` | `iserror_0032_test.go:33: a failed result […"output":"Error: offline"…] differs from one not failed`; FAIL |
+
+**API:** apidiff from `v1.6.0` (the tree):
+
+```text
+Compatible changes:
+- ./llmprovider.FunctionCallOutputItem.IsError: added
+- ./llmprovider.Tool.Strict: added
+```
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.

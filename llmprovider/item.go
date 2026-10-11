@@ -40,6 +40,12 @@ func (FunctionCallItem) itemKind() string { return itemTypeFunctionCall }
 type FunctionCallOutputItem struct {
 	CallID string // matches FunctionCallItem.CallID
 	Output string // the function's return value (typically JSON)
+	// IsError says the call failed, and Output says how. It is sent where the
+	// wire has an error form: Messages' is_error, generateContent's
+	// {"error": …}, Interactions' is_error. Elsewhere Output is sent as it
+	// is, never rewritten; each provider's package doc says where
+	// (0032-MADR D3).
+	IsError bool
 }
 
 func (FunctionCallOutputItem) itemKind() string { return itemTypeFunctionCallOutput }

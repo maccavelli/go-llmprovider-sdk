@@ -24,6 +24,8 @@
 // they arrive (0031-MADR E1, E5).
 //
 // Degradations:
+//   - A tool result's IsError is not sent: Chat Completions has no error
+//     field, so Output is sent as it is (0032-MADR D3).
 //   - A tool's Strict is sent as function.strict (0032-MADR D2).
 //   - Reasoning takes an effort: Kilo's reasoning object {effort}, or
 //     {enabled: true} with none, when the model accepts "reasoning"; else

@@ -19,6 +19,8 @@
 // they arrive (0031-MADR E1, E5).
 //
 // Degradations:
+//   - A tool result's IsError is not sent: Chat Completions has no error
+//     field, so Output is sent as it is (0032-MADR D3).
 //   - A tool's Strict is not sent: Ollama's acceptance of function.strict
 //     has not been measured (0032-MADR D2).
 //   - No tool choice is sent: a named tool and ToolChoiceRequired offer the
