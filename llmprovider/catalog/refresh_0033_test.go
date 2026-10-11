@@ -36,11 +36,11 @@ var retired0033 = map[llmprovider.ProviderID]map[string]string{
 	},
 }
 
-// waiting0033 are current models a static catalog leaves out until 0033-MADR
-// D6's record: they refuse a forced tool choice, which GenerateToolCall
-// sends.
+// waiting0033 are current models a static catalog leaves out. 0034-MADR,
+// the record 0033-MADR D6 named, put claude-sonnet-5-5 and claude-opus-5-5
+// in the menu; claude-fable-5-1 stays out of it (0034-MADR D5).
 var waiting0033 = map[llmprovider.ProviderID][]string{
-	llmprovider.ProviderClaude: {"claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1"},
+	llmprovider.ProviderClaude: {"claude-fable-5-1"},
 }
 
 // TestStatic_NoRetiredIDs_0033 (0033-MADR D4): no static catalog names an id
@@ -58,7 +58,7 @@ func TestStatic_NoRetiredIDs_0033(t *testing.T) {
 		for _, id := range Static(p) {
 			for _, w := range ids {
 				if id == w {
-					t.Errorf("%s: static catalog lists %q, which refuses forced tool choice until 0033-MADR D6's record", p, id)
+					t.Errorf("%s: static catalog lists %q, which 0034-MADR D5 leaves out of the menu", p, id)
 				}
 			}
 		}

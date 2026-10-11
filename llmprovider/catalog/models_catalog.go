@@ -61,15 +61,19 @@ var (
 		"gpt-6-astra",
 	}
 
-	// staticClaude: current aliases, each answering on the Messages API and
-	// accepting a forced tool choice (2026-10-11). claude-sonnet-5-5,
-	// claude-opus-5-5 and claude-fable-5-1 refuse a forced choice, and wait
-	// for 0033-MADR D6's record.
+	// staticClaude: current aliases, fast and cheap first, each answering on
+	// the Messages API (2026-10-11; 0034-MADR D5). claude-sonnet-5-5 and
+	// claude-opus-5-5 refuse a forced tool choice: the provider sends a forced
+	// named tool to them as structured outputs (0034-MADR D8), and
+	// ToolChoiceRequired fails before the network unless the caller opts in
+	// to degrading it (D10). claude-fable-5-1 stays out of the menu, and is
+	// usable by id.
 	staticClaude = []string{
 		"claude-haiku-5-5",
+		"claude-sonnet-5-5",
 		"claude-sonnet-5",
+		"claude-opus-5-5",
 		"claude-opus-4-8",
-		"claude-sonnet-4-6",
 	}
 
 	// staticOpencodeZen: MADR 0009 Context §7's utility six, ranked from the
@@ -848,9 +852,10 @@ var modelLabels = map[llmprovider.ProviderID]map[string]string{
 	},
 	llmprovider.ProviderClaude: {
 		"claude-haiku-5-5":  "Claude Haiku 5.5       [★ Recommended: high speed, low latency]",
+		"claude-sonnet-5-5": "Claude Sonnet 5.5      [latest Sonnet, high precision]",
 		"claude-sonnet-5":   "Claude Sonnet 5        [balanced speed & precision]",
+		"claude-opus-5-5":   "Claude Opus 5.5        [latest Opus, maximum capability]",
 		"claude-opus-4-8":   "Claude Opus 4.8        [maximum capability]",
-		"claude-sonnet-4-6": "Claude Sonnet 4.6      [stable high precision]",
 	},
 	llmprovider.ProviderGrok: {
 		grokModel46:      "Grok 4.6               [★ Recommended: the Grok CLI's default]",

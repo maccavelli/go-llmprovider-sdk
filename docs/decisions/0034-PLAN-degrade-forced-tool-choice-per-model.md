@@ -444,6 +444,8 @@ What each step decides:
    live suites.
 4. **Plant:** on a scratch copy, with the table emptied, the live test
    fails with the 400. That is one billed request.
+   *(Deviation, 2026-10-11: since Phase 4f it fails on the learned
+   warning, not the 400; see Phase 6's record.)*
 5. Gate; stage.
 
 ### Phase 7: documentation and release
@@ -1425,4 +1427,89 @@ and record this; nothing decided or asserted in 0034-MADR changes.
 | `strict` sent when nil | `nil: tools […"strict":false}]; want ""`; W12; `TestStrict_0032` `nil: … want ""`; the `tool` and `thinking-tool` goldens `tools[0].strict: want (absent), got false` |
 
 **Pre-add:** 8 files clean. **API:** unchanged from Phase 4d. **Gate:** 22
+of 22, started once the load average fell below 10.
+
+### Phase 6: the catalog and the live tests (2026-10-11)
+
+**Change.**
+
+* **`catalog/models_catalog.go`:**
+  * `staticClaude` is D5's menu, fast and cheap first: `claude-haiku-5-5`,
+    `claude-sonnet-5-5`, `claude-sonnet-5`, `claude-opus-5-5`,
+    `claude-opus-4-8`. That is five, within `MaxListed` (6).
+  * `claude-sonnet-4-6` leaves the menu, with its label.
+  * Its comment names D8 and D10 for the two refusing models.
+  * `modelLabels` labels `claude-sonnet-5-5` ("latest Sonnet, high
+    precision") and `claude-opus-5-5` ("latest Opus, maximum capability").
+* **`catalog/refresh_0033_test.go`:** `waiting0033` keeps only
+  `claude-fable-5-1`, and its comment and message cite 0034-MADR D5.
+* **The live tests:** D5 lists four tests, in two files.
+  * `TestLive_ClaudeThinkingShapes`'s budget-only model moves from
+    `claude-haiku-4-5` to `claude-sonnet-4-6`.
+  * `TestLive_ToolRoundTripClaude`, `TestLive_SystemMessageClaude` and
+    `TestLive_ClaudeStreams` move to `claude-haiku-5-5`.
+  * `TestLive_OpencodeKeyHeaderPerRoute` and `TestLive_0032ResultError`
+    stay, as D5 says.
+* **`TestLive_ClaudeForcedChoiceDegrades`** (new, `live_claude_test.go`).
+  It sends a forced named tool, as `GenerateToolCall` does, to each model
+  in the menu that refuses one. It takes the refusing models from a copy of
+  D1's table written into the test, so that a table which lost a model
+  fails the test rather than skipping it.
+  * It fails on `ErrInvalidRequest`, and on a
+    `WarningForcedChoiceLearned`.
+  * It logs whether the call came back, since no call (`ErrIncomplete`) is
+    allowed.
+
+**Red first.**
+
+```text
+model_label_test.go:74: claude: static id "claude-sonnet-5-5" has no label and no reason in unlabelledStaticIDs
+model_label_test.go:74: claude: static id "claude-opus-5-5" has no label and no reason in unlabelledStaticIDs
+model_label_test.go:86: claude: label for "claude-sonnet-4-6", which its static catalog does not list
+refresh_0033_test.go:61: claude: static catalog lists "claude-sonnet-5-5", which refuses forced tool choice until 0033-MADR D6's record
+refresh_0033_test.go:61: claude: static catalog lists "claude-opus-5-5", which refuses forced tool choice until 0033-MADR D6's record
+```
+
+**An existing test whose expectation D5 changes:**
+
+| Test | Was | Now | Why |
+| :--- | :--- | :--- | :--- |
+| `wizard/model_select_test.go` `TestConfigureLLM_SearchAgain` | index 1 of the Claude menu is `claude-sonnet-5` | it is `claude-sonnet-5-5` | D5's order |
+
+**Green:** `go test -race -count=1 ./...` passes; `golangci-lint` (with
+`live_gateways`) reports 0 issues; `go vet -tags live_gateways` is clean.
+
+**Live, billed: 4 requests, as the owner chose.**
+
+```text
+live_claude_test.go:166: claude-sonnet-5-5: call true, finish tool_calls
+live_claude_test.go:166: claude-opus-5-5: call true, finish tool_calls
+--- PASS: TestLive_ClaudeForcedChoiceDegrades
+```
+
+The moved tests run in Phase 7's live suites.
+
+**Plant** on a scratch copy, with `forcedChoiceRefused` emptied, on
+`claude-sonnet-5-5` only. It was refused, then resent:
+
+```text
+live_claude_test.go:157: claude-sonnet-5-5 was learned, not known: claude-sonnet-5-5 refused a forced tool choice that no table or option said it would; …
+live_claude_test.go:166: claude-sonnet-5-5: call true, finish tool_calls
+--- FAIL: TestLive_ClaudeForcedChoiceDegrades/claude-sonnet-5-5
+```
+
+The plant is also Phase 4f's resend seen live: Anthropic's refusal was
+learned, the named tool resent as structured outputs, and the call
+returned.
+
+**Deviation (2026-10-11): the plant's FAIL line.** Step 4 expected the
+test, with the table emptied, to fail with the 400. Phase 4f, written after
+it, learns that refusal and resends the named tool as structured outputs,
+so the call comes back and a test that checked only for the 400 would
+pass. The test therefore also fails on a `WarningForcedChoiceLearned`: the
+table, not learning, must be what spares the request. With the table
+emptied, it fails on that warning. The owner accepted this. It tightens
+D5's test and leaves 0034-MADR unchanged.
+
+**Pre-add:** 5 files clean. **API:** unchanged from Phase 4d. **Gate:** 22
 of 22, started once the load average fell below 10.

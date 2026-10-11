@@ -171,8 +171,8 @@ func TestConfigureLLM_SearchAgain(t *testing.T) {
 	if got := labels(f.seenSelectItems[1]); !slices.Equal(got, want) {
 		t.Errorf("search menu = %v, want %v", got, want)
 	}
-	if res.Model != "claude-sonnet-5" {
-		t.Errorf("Model = %q, want claude-sonnet-5 (recommended index 1 after Search again)", res.Model)
+	if res.Model != "claude-sonnet-5-5" {
+		t.Errorf("Model = %q, want claude-sonnet-5-5 (recommended index 1 after Search again)", res.Model)
 	}
 }
 

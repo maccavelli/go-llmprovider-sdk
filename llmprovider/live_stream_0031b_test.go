@@ -61,9 +61,10 @@ func liveStreamKey(t *testing.T, id llmprovider.ProviderID, keyVar, model string
 	t.Logf("%s %s: %d text deltas, then EventDone", id, model, deltas)
 }
 
-// TestLive_ClaudeStreams streams from the Messages API.
+// TestLive_ClaudeStreams streams from the Messages API, on Haiku 4.5 until
+// 0034-MADR D5.
 func TestLive_ClaudeStreams(t *testing.T) {
-	liveStreamWith(t, llmprovider.ProviderClaude, "claude-haiku-4-5", nil, 16)
+	liveStreamWith(t, llmprovider.ProviderClaude, "claude-haiku-5-5", nil, 16)
 }
 
 // TestLive_OpencodeMessagesStreams streams from each gateway's messages
