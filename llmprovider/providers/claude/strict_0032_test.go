@@ -9,14 +9,14 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// TestStrict_0032 (0032-MADR D2): a tool's Strict is not sent on this wire, and a nil Strict
-// sends no strict key.
+// TestStrict_0032 (0032-MADR D2, amended by 0034-MADR D4): a tool's Strict,
+// when set, is sent as its strict, and a nil Strict sends no strict key.
 func TestStrict_0032(t *testing.T) {
 	no := false
 	for name, tc := range map[string]struct {
 		strict *bool
 		want   string
-	}{"nil": {nil, ""}, "false": {&no, ""}} {
+	}{"nil": {nil, ""}, "false": {&no, `"strict":false`}} {
 		srv, got := sseServer(t, `{"model":"m","stop_reason":"end_turn","content":[{"type":"text","text":"ok"}]}`)
 		p := build(t, apiKey(srv.URL, "claude-haiku-4-5")...)
 		req := text("hi")

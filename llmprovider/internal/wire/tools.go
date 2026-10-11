@@ -82,6 +82,11 @@ func MessagesTools(tools []llmprovider.Tool) []map[string]any {
 	list := make([]map[string]any, len(tools))
 	for i, tool := range tools {
 		list[i] = map[string]any{KeyName: tool.Name, keyDescription: tool.Description, "input_schema": ToolSchema(tool.Schema)}
+		// A set Strict is sent as the tool's top-level strict; nil leaves
+		// the service's default (0034-MADR D4, amending 0032-MADR D2).
+		if tool.Strict != nil {
+			list[i]["strict"] = *tool.Strict
+		}
 	}
 	return list
 }

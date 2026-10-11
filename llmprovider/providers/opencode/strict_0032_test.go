@@ -9,15 +9,15 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// TestStrict_0032 (0032-MADR D2): a tool's Strict is sent on the responses
-// and chat_completions routes, and not on messages or google; a nil Strict
-// sends no strict key anywhere.
+// TestStrict_0032 (0032-MADR D2, amended by 0034-MADR D4): a tool's Strict is
+// sent on the responses, chat_completions and messages routes, and not on
+// google; a nil Strict sends no strict key anywhere.
 func TestStrict_0032(t *testing.T) {
 	no := false
 	replies := map[Route]struct{ reply, want string }{
 		RouteResponses:       {`{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}`, `"strict":false`},
 		RouteChatCompletions: {`{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}]}`, `"strict":false`},
-		RouteMessages:        {`{"stop_reason":"end_turn","content":[{"type":"text","text":"ok"}]}`, ""},
+		RouteMessages:        {`{"stop_reason":"end_turn","content":[{"type":"text","text":"ok"}]}`, `"strict":false`},
 		RouteGoogle:          {`{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"ok"}]}}]}`, ""},
 	}
 	for route, r := range replies {

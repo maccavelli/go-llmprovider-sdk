@@ -128,8 +128,9 @@ func TestConformance(t *testing.T) {
 					_ = json.NewEncoder(w).Encode(replies.toolCall(tool))
 				},
 				Fidelity: true,
-				// Each route carries the flags its wire has (0032-MADR D2, D3).
-				SendsStrict:     tc.route == RouteChatCompletions || tc.route == RouteResponses,
+				// Each route carries the flags its wire has (0032-MADR D2, D3;
+				// 0034-MADR D4 adds strict on the messages route).
+				SendsStrict:     tc.route != RouteGoogle,
 				SendsIsError:    tc.route == RouteMessages || tc.route == RouteGoogle,
 				StrictTools:     true,
 				Garbled:         write(`{"garbled`),

@@ -421,6 +421,8 @@ What each step decides:
    and `opencode-go-messages` gain `strict`, `true` then `false`, as
    0032's scenario sets. They are regenerated only for that, and every
    other golden is unchanged.
+   *(Deviation, 2026-10-11: a fourth, `claude-refuses-forced`'s, changes
+   too; see Phase 5's record.)*
 4. **Plants:**
    * `strict` dropped on Messages;
    * `strict` sent when nil.
@@ -1366,3 +1368,61 @@ the default it is now refused, with `ErrUnsupported`.
 identifiers are internal. **Gate:** 22 of 22, started once the load average
 fell below the host's 10 CPUs, after the `TestCommandToken_*` timeouts
 Phase 4e's amendment recorded.
+
+### Phase 5: Strict on Messages (2026-10-11)
+
+**Change.**
+
+* **`internal/wire/tools.go`:** `MessagesTools` sends a set `Strict` as the
+  tool's top-level `strict`; nil sends nothing. M8 found OpenCode Go's
+  `messages` route accepting it, so both callers, `claude` and OpenCode's
+  `messages` route, send it.
+* **Harnesses:** `claude`'s sets `SendsStrict: true`; OpenCode's sets it on
+  every route but `google`.
+* **Docs:**
+  * Claude's Degradations entry now says `Strict` is sent;
+  * OpenCode's entry adds the `messages` route;
+  * `docs/architecture.md` lists Messages among the wires that send it.
+* **0032-MADR:** D2's Messages bullet is annotated, and "Amendment
+  (2026-10-11): Strict on Messages" records D4, with M6 and M8 as its
+  evidence.
+
+**Red first.**
+
+```text
+tools_0034_test.go:26: false: tools [{"description":"","input_schema":{"properties":{},"type":"object"},"name":"t"}]; want "\"strict\":false"
+tools_0034_test.go:26: true: tools [{…,"name":"t"}]; want "\"strict\":true"
+llmtest.go:813: W12 (fidelity, 0032-MADR D4): the harness sets SendsStrict, but a tool with Strict false reached the wire as one with Strict unset: /messages {…   (claude, and opencode go-messages)
+```
+
+**Existing tests whose expectations D4 changes:**
+
+| Test | Was | Now |
+| :--- | :--- | :--- |
+| `claude/strict_0032_test.go` `TestStrict_0032` | `Strict: false` sends no `strict` | sends `"strict":false`; nil still sends nothing |
+| `opencode/strict_0032_test.go` `TestStrict_0032` | the `messages` route sends no `strict` | sends `"strict":false`; `google` still sends none |
+
+**Goldens.** The `flags` goldens of `claude`, `opencode-zen-messages`,
+`opencode-go-messages` and `claude-refuses-forced` each changed by two
+lines: `"strict": true` on `get_weather` and `"strict": false` on
+`get_time`. They were regenerated alone with `-update`: 24 changed lines,
+and no other golden changed.
+
+**Deviation (2026-10-11): a fourth golden.** Step 3 listed three `flags`
+goldens and said every other golden was unchanged. The `claude-refuses-forced`
+case, which Phase 3 of this plan added after Phase 5's step was written,
+runs the same `flags` scenario on the Claude provider, so its golden gains
+the same two lines. The owner chose to regenerate it with the other three
+and record this; nothing decided or asserted in 0034-MADR changes.
+
+**Green:** `go test -race -count=1 ./...` passes.
+
+**Plants** on a scratch clone:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| `strict` dropped on Messages | `false: tools […"name":"t"}]; want "\"strict\":false"` and the same for `true`; `W12 (fidelity, 0032-MADR D4): the harness sets SendsStrict, but a tool with Strict false reached the wire as one with Strict unset`; `TestStrict_0032` `want "\"strict\":false"`; each `flags` golden `tools[0].strict: want true, got (absent)` |
+| `strict` sent when nil | `nil: tools […"strict":false}]; want ""`; W12; `TestStrict_0032` `nil: … want ""`; the `tool` and `thinking-tool` goldens `tools[0].strict: want (absent), got false` |
+
+**Pre-add:** 8 files clean. **API:** unchanged from Phase 4d. **Gate:** 22
+of 22, started once the load average fell below 10.

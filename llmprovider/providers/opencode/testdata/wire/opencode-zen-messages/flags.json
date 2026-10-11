@@ -67,7 +67,8 @@
               },
               "type": "object"
             },
-            "name": "get_weather"
+            "name": "get_weather",
+            "strict": true
           },
           {
             "description": "Time in a city",
@@ -79,7 +80,8 @@
               },
               "type": "object"
             },
-            "name": "get_time"
+            "name": "get_time",
+            "strict": false
           }
         ]
       }

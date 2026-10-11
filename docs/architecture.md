@@ -204,9 +204,11 @@ for a session, from the store.
   - `Tool.Strict` is a `*bool`; nil sends nothing.
     - Set, it is `strict` on Responses (`openai`, `grok`, OpenCode's
       `responses` route).
+    - It is the tool's `strict` on Messages (`claude`, OpenCode's
+      `messages` route; 0034-MADR D4).
     - It is `function.strict` on Chat Completions for `huggingface`,
       `kilo`, `together` and OpenCode's `chat_completions` route.
-    - Messages, Interactions, generateContent and `ollama` do not send it.
+    - Interactions, generateContent and `ollama` do not send it.
   - `FunctionCallOutputItem.IsError` marks a failed call's result.
     - It is `is_error` on Messages and on an Interactions `function_result`.
     - On generateContent, the result is sent as `response: {"error": …}`

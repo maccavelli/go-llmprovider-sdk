@@ -35,9 +35,10 @@
 //     as functionResponse.response {"error": …} on the google route; the
 //     responses and chat_completions routes have no error field, so Output
 //     is sent as it is (0032-MADR D3).
-//   - A tool's Strict is sent as strict on the responses route and as
-//     function.strict on the chat_completions route, and not on the
-//     messages and google routes, which have no such field (0032-MADR D2).
+//   - A tool's Strict is sent as strict on the responses and messages
+//     routes and as function.strict on the chat_completions route, and not
+//     on the google route, which has no such field (0032-MADR D2;
+//     0034-MADR D4).
 //   - Reasoning: the responses route takes an effort (medium when none is
 //     named); the messages and google routes take the effort or the budget,
 //     shaped by model as Claude's and Gemini's; the chat route, see above.

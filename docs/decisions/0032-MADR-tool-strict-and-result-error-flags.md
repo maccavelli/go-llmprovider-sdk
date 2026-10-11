@@ -102,6 +102,8 @@ and each wire maps them to its own documented field or says it has none.
 * **Messages, generateContent, Interactions:** not sent. Each package doc
   names it as a degradation (R12). If a measurement shows Anthropic
   accepting a documented `strict`, adding it is an amendment here.
+  *(Amended 2026-10-11 for Messages: see "Amendment (2026-10-11): Strict on
+  Messages" below.)*
 * `Capabilities` gains no field. Strictness is a hint about the
   arguments' shape, and its absence never refuses a request.
 
@@ -234,6 +236,24 @@ Answered by the owner on 2026-10-11: the recommended option of each.
 * The live measurement is recorded before the wires that depend on it are
   built.
 * apidiff from `v1.6.0` shows additions only.
+
+### Amendment (2026-10-11): Strict on Messages
+
+[0034-MADR-degrade-forced-tool-choice-per-model.md](0034-MADR-degrade-forced-tool-choice-per-model.md)
+D4 sends `Tool.Strict`, when set, as the tool's top-level `strict` on the
+Messages wire: on `claude`, and on OpenCode's `messages` route.
+
+* **Evidence:** the condition D2 set is met.
+  * Anthropic documents a tool's `strict`.
+  * 0034-PLAN's M6 measured it accepted on `claude-sonnet-5-5`.
+  * M8 measured it accepted on OpenCode Go's `messages` route, on
+    `qwen3.8-flash` and `minimax-m3`.
+* **Unchanged:** nil still sends nothing, so a caller that never sets
+  `Strict` sends the same bytes. generateContent and Interactions still do
+  not send it.
+* **The harnesses:** `claude`'s and OpenCode's `messages` route now set
+  `SendsStrict`.
+* **Built in:** 0034-PLAN Phase 5.
 
 ## Pros and Cons of the Options
 

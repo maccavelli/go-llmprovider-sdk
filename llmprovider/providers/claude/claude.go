@@ -17,8 +17,8 @@
 // Degradations:
 //   - A tool result's IsError is sent as tool_result's is_error
 //     (0032-MADR D3).
-//   - A tool's Strict is not sent: the Messages API has no such field
-//     (0032-MADR D2).
+//   - A tool's Strict, when set, is sent as the tool's strict; nil sends
+//     nothing (0034-MADR D4).
 //   - With Reasoning, a forced tool choice (ForceTool or ToolChoiceRequired)
 //     is sent as "auto": Anthropic refuses to force a tool while thinking.
 //     The Response, and a stream's done event, carry a
