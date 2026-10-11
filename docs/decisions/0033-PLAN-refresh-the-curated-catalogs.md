@@ -552,6 +552,67 @@ retiring on 2026-11-30.
 * **Package docs:** the Grok package doc changed in Phase 2.
   **`api-standards.md`:** unchanged.
 
+**Step 2, the live suites,** on the release commit `8981532`.
+
+* **Run:** 14:52 to 14:55 UTC.
+  * Every provider's key variable was set, checked for presence only.
+  * `LLMPROVIDER_LIVE_TOGETHER=1` was set, and a local Ollama server
+    answered.
+  * The suites that need a person, a subscription or their own switch
+    stayed off.
+* **Command:** `go test -tags live_gateways -count=1 -v ./llmprovider/...
+  -run Live`.
+* **Result:** exit 0.
+  * Top level: 75 passed, 27 skipped, 0 failed.
+  * Subtests: 85 passed, 5 skipped, 0 failed.
+
+  The suites log tests, not requests, so the requests were not counted.
+* **The guard,** `TestLive_StaticCatalogsCurrent`, passed for all nine
+  providers.
+* **The streaming tests** passed as in `v1.7.0`. The Gemini ones now run
+  on `gemini-3.5-flash-lite`, the new `Static(gemini)[0]`, with 2 text
+  deltas, then `EventDone`, and an interaction id on the stored one.
+
+**The 27 top-level skips:**
+
+* **Off by their own switch, 24:**
+  * the 0028, 0031, 0031B, 0032 and 0033 measurements, 13;
+  * the ChatGPT and Codex CLI subscription, 4;
+  * Gemini's rate-limit drain, 1;
+  * the Grok CLI, 1;
+  * the browser and device sign-ins and the OpenAI sign-in probe, 5.
+* **No active model:** `TestLive_OpencodeInterleavedReasoningReplay`, "no
+  active opencode-go model among [kimi-k2.6]", as before.
+* **Transient, 2,** each rerun once alone at 14:56 UTC:
+  * `TestLive_KiloChatCompletions`: "kilo stream 503: Upstream error from
+    Nvidia: Service temporarily overloaded". Its rerun passed.
+  * `TestLive_KiloReasoningSpelling`: "gateway returned HTTP 429 (free tier
+    limits)", on `kilo-auto/free`. Its rerun answered 429 again, so it
+    stays skipped under 0027-MADR's transient rule.
+    * It runs on Kilo's free tier, which nothing in this release touches.
+    * It passed on its rerun in the `v1.6.0` run, and in the `v1.7.0` run.
+
+**The 5 subtest skips** are the same five OpenCode Zen ones, for the same
+account reasons, as in `v1.7.0`:
+
+* 403 "Model access is disabled" on `responses`;
+* 402 "Insufficient account funds" on `messages`, `chat_completions` and
+  `google`, and on `TestLive_OpencodeGoogleTwoCallRoundTrip/zen`.
+
+Every check that ran against a service passed on the release commit, apart
+from the one transient skip above.
+
+**Found, outside this plan's scope:** four live test files still name
+`claude-haiku-4-5`, which can be retired from 2026-10-15:
+
+* `live_claude_test.go`;
+* `live_gateways_test.go`;
+* `live_stream_0031b_test.go`;
+* `live_0032_measure_test.go`.
+
+They pass today. After its retirement they would fail, so the next
+record that touches the live suites moves them to a current model.
+
 #### Release notes: `v1.7.1`
 
 `v1.7.1` brings the curated model catalogs up to date with the providers'
