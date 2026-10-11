@@ -749,3 +749,89 @@ The live-test meta checks pass.
 
 **Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
 Coverage: `internal/wire/generatecontent` 96.9%, `opencode` 96.7%.
+
+### Phase 6: Interactions (2026-10-11)
+
+Phase 1 showed `gemini` streaming on the Interactions API, so it declares
+`Supported`.
+
+**Change** (`llmprovider/providers/gemini`, since the Interactions wire is
+this provider's alone):
+
+* `interactions.go`:
+  * `decodeInteraction` reads a named `interaction` (steps of
+    `interactionStep`) and returns `interaction.response()`, which keeps its
+    rules unchanged.
+  * The new `interactionEvents` keeps an `interactionStream` and reads
+    through `wire.ReadEvents(…, "interaction.completed", …)`:
+    * `interaction.created` gives the id and the model;
+    * `step.start` gives each step;
+    * a `model_output` step's `text` delta is yielded;
+    * `thought_signature` deltas are joined into the step's signature;
+    * `arguments_delta` is accumulated as text fragments, or replaced by
+      an object when one arrives whole, since Phase 1 showed the delta's
+      key but not its form;
+    * `interaction.completed` gives the status, usage, id and model, then
+      the items, in `decodeInteraction`'s order, then `EventDone`;
+    * an error event is classified by the status its code names.
+  * Each step's text and argument builders are held by pointer. A
+    `strings.Builder` must not be copied once written, and the slices grow.
+* `gemini.go`: `call(req, stream)` is shared by `generateOnce` and the new
+  `Stream`, which adds `"stream": true` and `Accept: text/event-stream`.
+  `NativeStreaming` is `Supported`. The package doc says a thought summary
+  is not streamed and arrives only in its item.
+
+**Red** (steps 1 and 3), on the tree before each change:
+
+```text
+llmprovider/providers/gemini/events_0031b_test.go:34:9: undefined: interactionEvents
+--- FAIL: TestGemini_Capabilities: items_test.go:134: Capabilities = {… NativeStreaming:Unsupported}; items_test.go:138: the provider does not implement Streamer
+--- FAIL: TestStream (gemini): stream_0031b_test.go:54: the provider does not stream natively
+```
+
+A first build of the provider tests failed: the test's stream constant was
+named `interactionStream`, which is also the decoder's type. The constant
+was renamed `scriptedInteraction` before the red run above.
+
+**Green, under `-race`:**
+
+* `TestInteractionEvents_EqualsDecode` has four cases: text after a
+  thought, a call with its arguments in deltas, a call with its arguments
+  whole, and an incomplete interaction. Each `EventDone` equals
+  `decodeInteraction` on the same interaction, or both fail with the same
+  error (rule 11).
+* `TestInteractionEvents_ErrorInsideTheStream` (`503 UNAVAILABLE` →
+  `ErrProviderUnavailable`), `TestInteractionEvents_StopEarly`, and
+  `TestInteractionEvents_EndsEarly` (naming `interaction.completed`).
+* `TestStream`: a stream, with the interaction's id on `EventDone`'s
+  `Response`. Also `TestGenerate_Unchanged`, and `TestGemini_Capabilities`
+  at `Supported`.
+* Conformance: the harness, unstored and stored, sets `StreamText` and
+  `StreamFailure` (an Interactions stream, and one failing with an error
+  event after a delta). Both `D7-native-stream` subtests pass.
+* `go test -count=1 ./...` passes; `golangci-lint` reports `0 issues.`
+
+**Plants** (step 6), on a scratch clone:
+
+| Plant | Test | Result |
+| :--- | :--- | :--- |
+| `gemini`'s `Generate` sends `"stream": false` | `TestGenerate_Unchanged` | `stream_0031b_test.go:91: Generate sent stream false, Accept ""; want neither`; FAIL |
+| the stream drops the interaction's id | `TestInteractionEvents_EqualsDecode` | `events_0031b_test.go:109: EventDone's Response &{ID: …}; decodeInteraction's &{ID:int_1 …}` (all three answer cases); FAIL |
+
+**Live** (step 7), `TestLive_GeminiStreams` in
+`llmprovider/live_stream_0031b_test.go`, at 01:16 UTC.
+
+* Setup: `gemini-3.7-flash`, effort `low`, a 1,024-token cap (D2), with
+  `gemini.WithStore(true)`, so that it also checks that a streamed answer
+  carries the interaction's id that continuation needs. Billed: 1 request.
+* Result: PASS. "gemini gemini-3.7-flash: 1 text deltas, then EventDone with
+  an interaction id".
+
+The live-test meta checks pass.
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+`gemini` coverage is 96.3%.
+
+With this phase, every built-in provider streams natively. `opencode-zen`
+and `opencode-go` stay `BestEffort` (D1); every other provider is
+`Supported`.

@@ -8,6 +8,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/gemini"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/opencode"
 )
 
@@ -158,4 +159,40 @@ func TestLive_OpencodeGoogleStreams(t *testing.T) {
 		liveStreamWith(t, llmprovider.ProviderOpencodeZen, "gemini-3.5-flash-lite", low, 1024,
 			opencode.WithRoute(opencode.RouteGoogle), llmprovider.WithoutModelMetadata())
 	})
+}
+
+// TestLive_GeminiStreams streams from the Interactions API, stored, so that
+// it also shows the streamed Response carries the interaction's id, which
+// continuation needs (0031-MADR E3). Effort low and a 1,024-token cap: at 16
+// tokens gemini-3.7-flash's answer went wholly to thinking (0031-PLAN-native-
+// streaming-on-the-other-wires D2). One billed request.
+func TestLive_GeminiStreams(t *testing.T) {
+	key := llmprovider.LiveEnvKey(t, llmprovider.ProviderEnvVars()[llmprovider.ProviderGemini])
+	model := catalog.Static(llmprovider.ProviderGemini)[0]
+	p, err := providers.New(llmprovider.ProviderGemini, llmprovider.WithAPIKey(key), llmprovider.WithModel(model),
+		llmprovider.WithMaxTokens(1024), llmprovider.WithModelProbes(false), gemini.WithStore(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := llmprovider.LiveCtx(t)
+	defer cancel()
+	deltas := 0
+	var done *llmprovider.Response
+	for ev, err := range llmprovider.Stream(ctx, p, &llmprovider.Request{Reasoning: &llmprovider.Reasoning{Effort: llmprovider.EffortLow},
+		Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hi"}}}) {
+		if err != nil {
+			llmprovider.SkipIfTransient(t, err)
+			t.Fatalf("gemini %s: after %d deltas: %v", model, deltas, err)
+		}
+		switch ev.Type {
+		case llmprovider.EventTextDelta:
+			deltas++
+		case llmprovider.EventDone:
+			done = ev.Response
+		}
+	}
+	if deltas == 0 || done == nil || done.ID == "" {
+		t.Fatalf("gemini %s: %d text deltas, Response %+v; want a delta, then EventDone with the interaction's id", model, deltas, done)
+	}
+	t.Logf("gemini %s: %d text deltas, then EventDone with an interaction id", model, deltas)
 }

@@ -11,7 +11,9 @@
 // BestEffort: one listed model does not think at every effort (below).
 // Continuation is Supported only with WithStore(true): Gemini chains only from
 // a stored interaction, and nothing is stored by default (MADR 0014 §2).
-// There is no native streaming; llmprovider.Stream emits Generate's result.
+// Native streaming is Supported: Stream asks the Interactions API for an event
+// stream and yields its events as they arrive; a thought summary is not
+// streamed, and arrives only in its item (0031-MADR E1).
 //
 // Degradations:
 //   - Reasoning takes an effort, sent as thinking_level: low, medium or high,
@@ -33,6 +35,7 @@ package gemini
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -112,7 +115,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			// and the Interactions API takes no budget (0026-MADR F38).
 			Reasoning:       llmprovider.BestEffort,
 			Continuation:    llmprovider.Unsupported,
-			NativeStreaming: llmprovider.Unsupported,
+			NativeStreaming: llmprovider.Supported,
 		},
 	}
 	for _, v := range st.Values() {
@@ -147,20 +150,44 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	})
 }
 
+// Stream streams req from the Interactions API as it is generated (0031-MADR
+// E1): the request asks for an event stream, and each event is yielded as it
+// arrives.
+func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
+	if err := p.caps.Check(req); err != nil {
+		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
+	}
+	return wire.StreamEvents(ctx, p.call(req, true), p.src, interactionEvents)
+}
+
 // generateOnce sends req once, with token.
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, wire.Call{
+	return wire.Post(ctx, p.call(req, false), token, decodeInteraction)
+}
+
+// call is the Interactions request for req, asking for an event stream when
+// stream is set.
+func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
+	body := p.body(req)
+	if stream {
+		body["stream"] = true
+	}
+	return wire.Call{
 		Provider: string(llmprovider.ProviderGemini),
 		Client:   p.client,
 		Logger:   p.logger,
 		URL:      p.baseURL + interactionsPath,
-		Body:     p.body(req),
+		Body:     body,
+		Stream:   stream,
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// In a header, not the URL, so it cannot leak through a *url.Error.
 			token.Apply(r, googleKeyHeader, "")
+			if stream {
+				r.Header.Set("Accept", "text/event-stream")
+			}
 		},
-	}, token, decodeInteraction)
+	}
 }
 
 // body is the Interactions request for req (MADR 0014 §1).
