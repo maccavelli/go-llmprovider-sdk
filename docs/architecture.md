@@ -198,6 +198,21 @@ for a session, from the store.
   `Continuation` and `NativeStreaming` as `Unsupported`, `BestEffort` or
   `Supported`. `Capabilities.Check(req)` validates a request and refuses an
   unsupported need before any network call, with `ErrUnsupported`.
+- Two tool flags are sent only where a wire has the field (0032-MADR
+  D1–D3). Each provider's package doc names the wires that do not send
+  them.
+  - `Tool.Strict` is a `*bool`; nil sends nothing.
+    - Set, it is `strict` on Responses (`openai`, `grok`, OpenCode's
+      `responses` route).
+    - It is `function.strict` on Chat Completions for `huggingface`,
+      `kilo`, `together` and OpenCode's `chat_completions` route.
+    - Messages, Interactions, generateContent and `ollama` do not send it.
+  - `FunctionCallOutputItem.IsError` marks a failed call's result.
+    - It is `is_error` on Messages and on an Interactions `function_result`.
+    - On generateContent, the result is sent as `response: {"error": …}`
+      in place of `{"output": …}`.
+    - Responses and Chat Completions have no such field, so the `Output`
+      is sent as written. No wire rewrites it.
 - `Stream(ctx, p, req)` streams from every provider: a provider's own
   `Streamer`, or `Generate`'s result as events. Only `EventDone` carries a
   `Response`, and it comes last; what a native stream yielded before a

@@ -599,3 +599,77 @@ staged:
 * `g-links`: 0 problems in 700 relative links;
 * `deny-scan`: 0 hits in 33 files;
 * records check: 69 records, 0 problems.
+
+### Phase 5: documentation and release (2026-10-11)
+
+**Steps 1 and 2**, on `9446adc` (Phase 4):
+
+* **`docs/architecture.md`:** the contract section gains a bullet naming
+  both flags and the wires that send each. Phase 4 had already added the
+  `llmtest` bullet's fields. "What is not here" is unchanged: it names
+  nothing these flags address.
+* **`README.md`:** Status names `v1.7.0`, with a `v1.7` bullet.
+* **Package docs:** changed in Phases 2 and 3. **`api-standards.md`:**
+  unchanged; no rule's text changes.
+
+#### Release notes: `v1.7.0`
+
+`v1.7.0` adds a per-tool strict flag and a tool result's error flag
+(0032-MADR). Every change to the exported API is an addition.
+
+**`Tool.Strict *bool`.** Nil sends nothing, as before. Set, it opts the
+tool in or out of the service's strict schema mode:
+
+| Wire | Providers | Sent as |
+| :--- | :--- | :--- |
+| Responses | `openai`, `grok`, OpenCode's `responses` route | `strict` |
+| Chat Completions | `huggingface`, `kilo`, `together`, OpenCode's `chat_completions` route | `function.strict` |
+| Chat Completions | `ollama` | not sent |
+| Messages, Interactions, generateContent | `claude`, `gemini`, OpenCode's `messages` and `google` routes | not sent: no such field |
+
+**`FunctionCallOutputItem.IsError bool`.** It marks a failed call's result:
+
+| Wire | Providers | Sent as |
+| :--- | :--- | :--- |
+| Messages | `claude`, OpenCode's `messages` route | `tool_result`'s `is_error` |
+| Interactions | `gemini` | the `function_result` step's `is_error` |
+| generateContent | OpenCode's `google` route | `response: {"error": …}` in place of `{"output": …}` |
+| Responses, Chat Completions | the rest | not sent: no such field |
+
+* `Output` is never rewritten. A caller who wants the model to read why
+  the call failed writes it in `Output`.
+* Each provider's package doc names, under Degradations, where each flag is
+  not sent.
+* Each form was measured live before it was built (Phase 1 above):
+  * `strict` on `openai`, `grok` and OpenCode Go's `responses` route;
+  * `function.strict` on `huggingface` (on `zai-org/GLM-5.3-Flash`; its
+    default model fails every tool request), `kilo`, `together` and
+    OpenCode Go's `chat_completions` route;
+  * `is_error` on `claude` and `gemini`;
+  * the `error` response on Google's endpoint, with the `google` route's
+    request.
+
+  OpenCode Zen's routes, and OpenCode's `messages` route, stand on those
+  measurements of the same wire. The Chat Completions gateways do not echo
+  their tools, so whether one applies `function.strict` is unmeasured.
+
+**`llmtest`:**
+
+* `Harness` gains `SendsStrict` and `SendsIsError`. With `Fidelity` set,
+  each that is set requires its flag to change the request, and the same
+  request sent twice must send the same body.
+* With `Fidelity` set, a failed result's `Output` must reach the wire
+  unchanged, whether or not either field is set.
+* A harness that sets neither field otherwise passes as before.
+
+**Unchanged:** a caller that sets neither field sends byte-for-byte what it
+sent in `v1.6.0`. The existing wire goldens are unchanged.
+
+**Upgrading:**
+
+* No code change is needed.
+* To opt a tool out of OpenAI's strict mode, write
+  `strict := false; tool.Strict = &strict`.
+* To report a failed call, set `IsError: true` on its result.
+* A third-party provider whose wire carries either flag can set the
+  matching `Harness` field.

@@ -190,8 +190,20 @@ key.
 
 ## Status
 
-The current release is `v1.6.0`. The module requires Go 1.27.2.
+The current release is `v1.7.0`. The module requires Go 1.27.2.
 
+- `v1.7` adds two tool flags, as
+  [0032-MADR](docs/decisions/0032-MADR-tool-strict-and-result-error-flags.md)
+  decides:
+  - `Tool.Strict` (`*bool`) opts a tool in or out of strict schema mode,
+    on Responses and on the Chat Completions gateways that accept it;
+  - `FunctionCallOutputItem.IsError` marks a failed call's result, on
+    Messages, Interactions and generateContent.
+
+  A caller that sets neither sends what it sent before. `llmtest.Harness`
+  gains `SendsStrict` and `SendsIsError`. The release notes are in
+  [0032-PLAN](docs/decisions/0032-PLAN-tool-strict-and-result-error-flags.md),
+  Phase 5.
 - `v1.6` streams natively on every wire: Messages (`claude`), Chat
   Completions (`huggingface`, `kilo`, `together`, `ollama`), Gemini
   Interactions (`gemini`), and every OpenCode route, by
