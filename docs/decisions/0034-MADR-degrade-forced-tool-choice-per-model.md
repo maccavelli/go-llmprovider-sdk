@@ -285,6 +285,25 @@ models, and for a set `Tool.Strict` on Messages.
 * **Q4:** add `claude-sonnet-5-5` and `claude-opus-5-5`, drop
   `claude-sonnet-4-6`, and leave `claude-fable-5-1` out of the menu.
 
+### Measured (2026-10-11)
+
+0034-PLAN Phase 1 sent 23 requests:
+
+* **The table.** `claude-fable-5-1` refuses a forced choice with the same
+  400 as `claude-sonnet-5-5` (M1, M2). D1's table stands.
+* **The degraded request.** `auto` with the turn instruction called the
+  tool in 9 of 9 tries on the three refusing models, with valid input (M4).
+  The top-level fallback (M5), and `auto` alone (M3, 3 of 3), also called
+  it.
+* **Strict.** Messages accepts a tool's `strict: true`: forced on
+  `claude-haiku-5-5` and `claude-sonnet-5`, degraded on
+  `claude-sonnet-5-5` (M6), and on OpenCode Go's `messages` route (M8). A
+  schema without `additionalProperties: false` answers 400 (M7). D4 is
+  built on both providers, with `strict` only where the caller set it.
+* **D3's rule.** It matches Anthropic's refusal (M2). OpenCode Go's qwen
+  refusal answers 400 with the body `{"model":"qwen3.8-flash"}`, which it
+  does not match (M9), so that refusal is not learned.
+
 ### Consequences
 
 * Good, because `GenerateToolCall` works on every current Claude model, and

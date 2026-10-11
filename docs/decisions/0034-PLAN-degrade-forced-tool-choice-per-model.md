@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-11
 associated-madr: "0034-MADR-degrade-forced-tool-choice-per-model.md"
 decision-makers: repository owner
@@ -282,4 +282,72 @@ Record a table per step, before Phase 2 uses it.
 
 ## Execution Record
 
-Not started.
+### Phase 0: records (2026-10-11)
+
+* The MADR and this PLAN were written `proposed`.
+* The owner answered Q1 to Q4 with the recommended option of each, and the
+  MADR was accepted with them.
+* The owner committed the records as `9ad49eb`.
+* The index has two rows, 74 records, and an "I want to…" row.
+
+### Phase 1: measurement (2026-10-11)
+
+`llmprovider/live_0034_measure_test.go`, behind `LLMPROVIDER_LIVE_0034`,
+run at 15:43 UTC.
+
+* A recording transport rewrote each request as its step needs.
+* The test logs only each reply's status, `stop_reason`, whether it holds a
+  `tool_use` block, the shape of that block's input, and an error's type and
+  message.
+* Each key was read from its variable, and sent only in its header.
+* Every request asked for at most 256 output tokens, on the prompt "Record
+  the city Paris."
+
+| Step | Model | Result |
+| :--- | :--- | :--- |
+| M1, forced | `claude-fable-5-1` | 400 `invalid_request_error`: `tool_choice: type "tool" and "any" are not supported for this model.` |
+| M2, forced | `claude-sonnet-5-5` | 400 `invalid_request_error`, the same message |
+| M3, `auto` alone | `claude-sonnet-5-5`, `claude-opus-5-5`, `claude-fable-5-1` | 200 each, `stop_reason tool_use`, input valid JSON with `city` a string: 3 of 3 calls |
+| M4, `auto` and the turn instruction, three times each | the same three | 200 each, `stop_reason tool_use`, valid input: 9 of 9 calls |
+| M5, `auto` and the instruction in the top-level `system` | `claude-sonnet-5-5` | 200, `stop_reason tool_use`, valid input |
+| M6, `strict: true` on a strict-ready schema | forced on `claude-haiku-5-5` and `claude-sonnet-5`; degraded on `claude-sonnet-5-5` | 200 each, `stop_reason tool_use`, valid input |
+| M7, `strict: true` on a schema without `additionalProperties: false` | `claude-haiku-5-5` | 400 `invalid_request_error`: `tools.0.custom: For 'object' type, 'additionalProperties' must be explicitly set to false` |
+| M8, `auto` and `strict: true`, on Go's `messages` route | `qwen3.8-flash`, `minimax-m3` | 200 each, `stop_reason tool_use`, valid input |
+| M9, forced, on Go's `messages` route | `qwen3.8-flash` | 400, body `{"model":"qwen3.8-flash"}` |
+
+**M9 was sent twice.**
+
+* Its first reply was not in Anthropic's error shape, and the log, which
+  read only `error.type` and `error.message`, showed neither.
+* The test was changed to log a reply's body, bounded to 400 bytes, when
+  neither field is present, and M9 alone ran again.
+* That makes 23 billed requests, within the phase's 24.
+
+**What each step decides:**
+
+* **M1:** `claude-fable-5-1` refuses, so it stays in D1's table. The table
+  is the four ids Anthropic names. `claude-mythos-5-1` is not offered to
+  this account, and is not measured.
+* **M2:** D3's rule is the reply seen here: HTTP 400,
+  `invalid_request_error`, and a message naming `tool_choice`.
+* **M3 to M5:**
+  * the degraded request called the tool in 13 of 13 tries, well above
+    the deviation line of 2 of 3;
+  * `auto` alone also called it in 3 of 3, on this one-tool prompt. The
+    instruction stays, as Anthropic advises, for prompts where the call is
+    less obvious;
+  * the top-level fallback works.
+* **M6:** strict tool use is accepted on Messages, forced and degraded, so
+  D4 is built.
+* **M7:** a schema that strict mode cannot compile answers 400, as Q2's
+  answer assumed. The SDK sends `strict` only where the caller set it.
+* **M8:** OpenCode Go's `messages` route accepts `strict`, so D4 covers it
+  (Q3's answer).
+* **M9:** the qwen refusal on Go's `messages` route has no error type, and
+  no message naming `tool_choice`.
+  * D3's rule does not match it, so OpenCode does not learn it.
+  * The package doc's note of 2026-10-02 stays: the request is sent as
+    asked, and fails with an error matching `ErrInvalidRequest`.
+  * The plan foresaw this outcome, so it is not a deviation.
+
+**Pre-add:** the test file is clean.
