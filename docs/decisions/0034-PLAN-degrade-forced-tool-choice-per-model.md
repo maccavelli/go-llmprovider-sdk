@@ -898,3 +898,131 @@ Compatible changes:
 ```
 
 **Pre-add:** 9 files clean.
+
+### Phase 4d: the fact and the policy (2026-10-11)
+
+**Change.**
+
+* **`llmprovider/forcing.go`** (new):
+  * `ForcedChoiceFallback`, with `ForcedChoiceRefuse` (the zero value, and
+    the default) and `ForcedChoiceDegrade`, and its `String`;
+  * the common options `WithForcedChoiceFallback` and
+    `WithModelForcedChoice(model, Support)` (R17), whose model is kept in
+    lower case;
+  * `Settings.ForcedChoiceFallback()`, and `Settings.ModelForcedChoices()`,
+    which returns a copy (R29);
+  * `checkForcedChoice`, called from `sendable`, which refuses with
+    `ErrInvalidRequest` (R23) an empty model, a control character, a
+    `Support` other than `Supported` or `Unsupported`, and a fallback out of
+    range.
+* **`llmprovider/options.go`:** `providerConfig` gains the two fields.
+* **`internal/wire/messages/forcing.go`** (new):
+  * `normalizeModel` strips `anthropic/`, `anthropic.`, a Bedrock `-vN[:M]`
+    suffix and a `-YYYYMMDD` or `@YYYYMMDD` date, after lower-casing;
+  * `Policy` (`NewPolicy`, keyed by normalised id) and `Forcing`, whose
+    `refuses` takes the caller's override, then the table, then a learned
+    refusal;
+  * `CheckForcing`, which refuses `ToolChoiceRequired` with tools for a
+    refusing model unless the policy degrades, with an error matching
+    `ErrUnsupported` that names the model and the opt-in.
+* **The Messages helpers** take a `Forcing` in place of a provider and a
+  model: `ToolChoice`, `AddToolChoice`, `ToolChoiceWarning`,
+  `SendLearning`, `StreamLearning`.
+  * The table and the memo match normalised ids.
+  * `shouldLearn` never learns a model the caller overrode: the caller's
+    word stands.
+* **The providers:**
+  * Claude and OpenCode hold a `messages.Policy` from their settings.
+  * `CheckForcing` runs before `Generate` sends and before `Stream` opens;
+    OpenCode's on the `messages` route only.
+* **Docs:**
+  * both package docs name the strict default, the opt-in, the
+    normalisation and the override;
+  * `docs/architecture.md` names the layers and the policy.
+
+**Red first.**
+
+* **The `_0034` tests did not build:** `undefined: normalizeModel`,
+  `undefined: NewPolicy`, `undefined: CheckForcing`, and
+  `st.ForcedChoiceFallback undefined`.
+* **With `llmprovider`'s options in place** and the Messages package not yet
+  changed, the Claude test built, and failed on behaviour:
+
+  ```text
+  forcing_0034_test.go:42: strict by default: err = <nil>, want ErrUnsupported: true
+  forcing_0034_test.go:47: strict by default: 1 requests sent, want none
+  forcing_0034_test.go:42: an alias, strict: err = <nil>, want ErrUnsupported: true
+  forcing_0034_test.go:49: the table overridden: tool_choice [auto], want [any]
+  forcing_0034_test.go:42: an unknown model marked: err = <nil>, want ErrUnsupported: true
+  ```
+
+  The degrade case and the accepting model passed, as they must.
+
+**Corrections to the new test while it was made right**, neither loosening
+an assertion:
+
+* Its fake service refused every forced choice, even for the overridden
+  and accepting models, which then learned instead of answering. Those two
+  cases now get a service that accepts a forced choice, as the model does.
+* Adding that case field left four rows one value short, which did not
+  build; each was completed.
+
+**An existing test changed by the policy.**
+`opencode/toolchoice_0034_test.go`'s `ToolChoiceRequired` row expected
+Phase 3's degraded body. Under the strict default, the request now fails
+before the network:
+
+```text
+toolchoice_0034_test.go:34: "required": Generate: llmprovider: unsupported: claude-opus-5-5 refuses a forced tool choice (ToolChoiceRequired); WithForcedChoiceFallback(ForcedChoiceDegrade) sends it as auto, …
+```
+
+The test is about the degraded body's shape. It now builds with
+`WithForcedChoiceFallback(ForcedChoiceDegrade)`, and a new
+`TestGenerate_RefusingModelStrict_0034` asserts the default: an error
+matching `ErrUnsupported`, and no request sent.
+
+**An assertion added after green:** `TestSendLearning_OverrideWins_0034`.
+A model the caller said accepts is not learned from, nor resent. It
+passed at once, so a plant proves it below.
+
+**Lint:** the refactor left `strings` unused in `toolchoice.go`, which did not
+build. The import was removed.
+
+**Green:** `go test -race -count=1 ./...` passes, and every G-wire golden is
+unchanged.
+
+**Plants** on a scratch clone:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| normalisation off | `normalizeModel("anthropic/claude-sonnet-5-5") = "anthropic/claude-sonnet-5-5", want "claude-sonnet-5-5"`; `refusesForcedChoice("anthropic.claude-opus-5-5-v1:0") = false: an alias of a table id` |
+| the override below the table | `claude-sonnet-5-5: refuses = true, want false`; Claude `the table overridden: tool_choice [], want [any]` |
+| degrading by default | `err = <nil>, want ErrUnsupported naming the model and the opt-in`; Claude `strict by default: 1 requests sent, want none` |
+| the strict refusal sent to the network (Claude's `CheckForcing` removed) | `strict by default: err = <nil>, want ErrUnsupported: true`; `an unknown model marked: 1 requests sent, want none` |
+| an override second-guessed by learning | `2 sends, err … tool_choice: …, learned true; want 1 send, the refusal, nothing learned` |
+
+**Interim behaviour, until the next phases:**
+
+* A forced named tool on a refusing model is still sent degraded, with a
+  warning, until Phase 4e sends it as structured outputs.
+* A refusal learned from an unknown model is still resent degraded under
+  either policy, until Phase 4f bounds it by the policy.
+
+**API:** apidiff from `v1.7.1` (the tree), compatible changes only:
+
+```text
+- ./llmprovider.(*Settings).ForcedChoiceFallback: added
+- ./llmprovider.(*Settings).ModelForcedChoices: added
+- ./llmprovider.ForcedChoiceDegrade: added
+- ./llmprovider.ForcedChoiceFallback: added
+- ./llmprovider.ForcedChoiceRefuse: added
+- ./llmprovider.Response.Warnings: added
+- ./llmprovider.Warning: added
+- ./llmprovider.WarningForcedChoiceDegraded: added
+- ./llmprovider.WarningForcedChoiceLearned: added
+- ./llmprovider.WarningKind: added
+- ./llmprovider.WithForcedChoiceFallback: added
+- ./llmprovider.WithModelForcedChoice: added
+```
+
+**Pre-add:** 15 files clean.

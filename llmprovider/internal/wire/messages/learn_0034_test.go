@@ -80,7 +80,7 @@ func TestSendLearning_0034(t *testing.T) {
 	} {
 		forgetRefusals()
 		sends := 0
-		_, err := SendLearning("claude", "claude-future-6", c.choice, func() (int, error) {
+		_, err := SendLearning(Forcing{Provider: "claude", Model: "claude-future-6"}, c.choice, func() (int, error) {
 			sends++
 			if sends > len(c.replies) {
 				return sends, errors.New("a send past the replies the case expects")
@@ -98,9 +98,25 @@ func TestSendLearning_0034(t *testing.T) {
 	// returned, with no resend.
 	forgetRefusals()
 	sends := 0
-	_, err := SendLearning("claude", "claude-sonnet-5-5", forced, func() (int, error) { sends++; return 0, refusal })
+	_, err := SendLearning(Forcing{Provider: "claude", Model: "claude-sonnet-5-5"}, forced, func() (int, error) { sends++; return 0, refusal })
 	if sends != 1 || !errors.Is(err, refusal) {
 		t.Errorf("a table model: %d sends, err %v; want 1 and the refusal", sends, err)
+	}
+}
+
+// TestSendLearning_OverrideWins_0034 (0034-MADR D9): a model the caller said
+// accepts a forced choice is not learned from its refusal, nor resent: the
+// caller's word stands, and the refusal is returned.
+func TestSendLearning_OverrideWins_0034(t *testing.T) {
+	t.Cleanup(forgetRefusals)
+	forgetRefusals()
+	refusal := &llmprovider.APIError{Status: 400, Code: "invalid_request_error", Message: refusalMessage}
+	f := NewPolicy(llmprovider.ForcedChoiceRefuse, map[string]llmprovider.Support{"claude-future-7": llmprovider.Supported}).
+		For("claude", "claude-future-7")
+	sends := 0
+	_, err := SendLearning(f, llmprovider.ForceTool(choiceTool), func() (int, error) { sends++; return 0, refusal })
+	if sends != 1 || !errors.Is(err, refusal) || learnedRefusal("claude", "claude-future-7") {
+		t.Errorf("%d sends, err %v, learned %v; want 1 send, the refusal, nothing learned", sends, err, learnedRefusal("claude", "claude-future-7"))
 	}
 }
 

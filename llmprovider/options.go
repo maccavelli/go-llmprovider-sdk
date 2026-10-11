@@ -30,6 +30,12 @@ type providerConfig struct {
 	// DisableModelMetadata stops the metadata fetch; see
 	// WithoutModelMetadata.
 	DisableModelMetadata bool
+	// ForcedChoiceFallback and ModelForcedChoice are what a provider does
+	// with a forced tool choice a model refuses, and the caller's per-model
+	// facts; see WithForcedChoiceFallback and WithModelForcedChoice
+	// (0034-MADR D9, D10).
+	ForcedChoiceFallback ForcedChoiceFallback
+	ModelForcedChoice    map[string]Support
 }
 
 // WithHTTPClient sets a custom HTTP client for connection pooling. Nil is the

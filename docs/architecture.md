@@ -234,6 +234,12 @@ for a session, from the store.
   went as `auto`, and `WarningForcedChoiceLearned` when a model's refusal of
   forcing was learned (0034-MADR D7). A stream carries them on its
   `EventDone` response. Errors stay errors.
+- A model that refuses a forced tool choice is known by layer: the
+  caller's `WithModelForcedChoice`, then the providers' dated table matched
+  on a normalised id, then a refusal learned this process (0034-MADR D9).
+  `ToolChoiceRequired` on such a model fails before the network, with
+  `ErrUnsupported`, unless `WithForcedChoiceFallback(ForcedChoiceDegrade)`
+  opts in to sending it as `auto` (D10).
 - `Response.Usage` is decoded from every wire format that reports it. A
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"iter"
 	"slices"
-	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
@@ -20,20 +19,21 @@ const keySystem = "system"
 var forcedChoiceRefused = []string{"claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5", "claude-sonnet-5-5"}
 
 // refusesForcedChoice reports whether model refuses a forced tool_choice on
-// provider: it is in the table, or this process learned it (0034-MADR D3).
+// provider: its normalised id is in the table, or this process learned it
+// (0034-MADR D3, D9). The caller's override is Forcing's.
 func refusesForcedChoice(provider, model string) bool {
-	return slices.Contains(forcedChoiceRefused, strings.ToLower(model)) || learnedRefusal(provider, model)
+	return slices.Contains(forcedChoiceRefused, normalizeModel(model)) || learnedRefusal(provider, model)
 }
 
 // ToolChoice is the Messages tool_choice for choice, or nil when none is sent
 // (auto). A forced choice (ForceTool or ToolChoiceRequired) is sent as auto
 // with thinking, which Anthropic refuses to force (0020-MADR F43), and on a
-// model that refuses forcing on provider (0034-MADR D2, D3).
-func ToolChoice(choice llmprovider.ToolChoice, thinking bool, provider, model string) map[string]any {
+// model that refuses forcing (0034-MADR D2, D3, D9).
+func ToolChoice(choice llmprovider.ToolChoice, thinking bool, f Forcing) map[string]any {
 	name, named := choice.Tool()
 	forced := named || choice == llmprovider.ToolChoiceRequired
 	switch {
-	case forced && (thinking || refusesForcedChoice(provider, model)):
+	case forced && (thinking || f.refuses()):
 		return map[string]any{wire.KeyType: "auto"}
 	case named:
 		return map[string]any{wire.KeyType: "tool", wire.KeyName: name}
@@ -52,12 +52,12 @@ func ToolChoice(choice llmprovider.ToolChoice, thinking bool, provider, model st
 // instruction is a mid-conversation system message after the last user turn;
 // when the messages do not end with one, which that message must follow, it
 // is added to the top-level system instead. body's messages are FromItems'.
-func AddToolChoice(body map[string]any, choice llmprovider.ToolChoice, thinking bool, provider, model string) {
-	if c := ToolChoice(choice, thinking, provider, model); c != nil {
+func AddToolChoice(body map[string]any, choice llmprovider.ToolChoice, thinking bool, f Forcing) {
+	if c := ToolChoice(choice, thinking, f); c != nil {
 		body["tool_choice"] = c
 	}
 	name, named := choice.Tool()
-	if !refusesForcedChoice(provider, model) || (!named && choice != llmprovider.ToolChoiceRequired) {
+	if !f.refuses() || (!named && choice != llmprovider.ToolChoiceRequired) {
 		return
 	}
 	if !named {
@@ -87,11 +87,12 @@ func turnInstruction(name string) string {
 }
 
 // ToolChoiceWarning is the warning a request's forced tool choice earns when
-// it is sent as auto, on model through provider, and false when it is sent as
+// it is sent as auto, for f's model, and false when it is sent as
 // asked (0034-MADR D7). It is decided as AddToolChoice decides: with
 // thinking (0020-MADR F43), or on a model that refuses forcing. Called after
 // the request is sent, it sees a refusal learned by its resend.
-func ToolChoiceWarning(req *llmprovider.Request, thinking bool, provider, model string) (llmprovider.Warning, bool) {
+func ToolChoiceWarning(req *llmprovider.Request, thinking bool, f Forcing) (llmprovider.Warning, bool) {
+	model := f.Model
 	name, named := req.ToolChoice.Tool()
 	if len(req.Tools) == 0 || (!named && req.ToolChoice != llmprovider.ToolChoiceRequired) {
 		return llmprovider.Warning{}, false
@@ -101,7 +102,7 @@ func ToolChoiceWarning(req *llmprovider.Request, thinking bool, provider, model 
 		target = "the " + name + " tool"
 	}
 	switch {
-	case refusesForcedChoice(provider, model):
+	case f.refuses():
 		return llmprovider.Warning{Kind: llmprovider.WarningForcedChoiceDegraded, Model: model,
 			Detail: model + " refuses a forced tool choice, so it was sent as auto, with an instruction to call " + target + "."}, true
 	case thinking:

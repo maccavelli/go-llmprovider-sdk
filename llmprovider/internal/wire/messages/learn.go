@@ -22,8 +22,8 @@ var learned = struct {
 	set   map[string]struct{}
 }{set: map[string]struct{}{}}
 
-// refusalKey is the memo's key for provider and model.
-func refusalKey(provider, model string) string { return provider + "\x00" + strings.ToLower(model) }
+// refusalKey is the memo's key for provider and model, normalised.
+func refusalKey(provider, model string) string { return provider + "\x00" + normalizeModel(model) }
 
 // learnRefusal remembers that model refuses a forced choice on provider,
 // dropping the oldest entry past learnedRefusalsLimit.
@@ -67,34 +67,36 @@ func forcedChoice(choice llmprovider.ToolChoice) bool {
 	return named || choice == llmprovider.ToolChoiceRequired
 }
 
-// shouldLearn reports whether err, the reply to a request with choice to
-// model on provider, teaches a refusal: the request forced a tool, the model
-// was not already known to refuse, and err is the refusal.
-func shouldLearn(provider, model string, choice llmprovider.ToolChoice, err error) bool {
-	return forcedChoice(choice) && !refusesForcedChoice(provider, model) && IsForcedChoiceRefusal(err)
+// shouldLearn reports whether err, the reply to a request with choice, teaches
+// a refusal of f's model: the request forced a tool, no layer said the model
+// refuses, the caller said nothing of it, and err is the refusal. A caller's
+// override is never second-guessed (0034-MADR D9).
+func shouldLearn(f Forcing, choice llmprovider.ToolChoice, err error) bool {
+	_, overridden := f.override()
+	return forcedChoice(choice) && !overridden && !f.refuses() && IsForcedChoiceRefusal(err)
 }
 
-// SendLearning is send, which builds and sends a request with choice to model
-// on provider. When it is refused for forcing a tool, the model is learned
+// SendLearning is send, which builds and sends a request with choice to f's
+// model. When it is refused for forcing a tool, the model is learned
 // and send is called once more, building the degraded request (0034-MADR D3).
-func SendLearning[T any](provider, model string, choice llmprovider.ToolChoice, send func() (T, error)) (T, error) {
+func SendLearning[T any](f Forcing, choice llmprovider.ToolChoice, send func() (T, error)) (T, error) {
 	v, err := send()
-	if !shouldLearn(provider, model, choice, err) {
+	if !shouldLearn(f, choice, err) {
 		return v, err
 	}
-	learnRefusal(provider, model)
+	learnRefusal(f.Provider, f.Model)
 	return send()
 }
 
 // StreamLearning is SendLearning for a stream: a stream refused for forcing a
 // tool before its first event is opened once more, degraded.
-func StreamLearning(provider, model string, choice llmprovider.ToolChoice,
+func StreamLearning(f Forcing, choice llmprovider.ToolChoice,
 	open func() iter.Seq2[llmprovider.Event, error]) iter.Seq2[llmprovider.Event, error] {
 	return func(yield func(llmprovider.Event, error) bool) {
 		first := true
 		for ev, err := range open() {
-			if first && shouldLearn(provider, model, choice, err) {
-				learnRefusal(provider, model)
+			if first && shouldLearn(f, choice, err) {
+				learnRefusal(f.Provider, f.Model)
 				for ev, err := range open() {
 					if !yield(ev, err) {
 						return

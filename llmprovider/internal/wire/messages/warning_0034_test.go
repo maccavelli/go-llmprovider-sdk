@@ -28,7 +28,7 @@ func TestToolChoiceWarning_0034(t *testing.T) {
 		{"a refusing model, none", &llmprovider.Request{Tools: tools, ToolChoice: llmprovider.ToolChoiceNone}, false, "claude-sonnet-5-5", false, ""},
 		{"no tools", &llmprovider.Request{ToolChoice: forced}, false, "claude-sonnet-5-5", false, ""},
 	} {
-		w, ok := ToolChoiceWarning(c.req, c.thinking, "claude", c.model)
+		w, ok := ToolChoiceWarning(c.req, c.thinking, Forcing{Provider: "claude", Model: c.model})
 		if ok != c.warns {
 			t.Errorf("%s: warns = %v, want %v", c.name, ok, c.warns)
 			continue

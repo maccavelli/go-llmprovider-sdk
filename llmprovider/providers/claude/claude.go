@@ -30,10 +30,16 @@
 //     the input does not end with one, a line of the system field. The model
 //     may still answer in text, which GenerateToolCall reports as
 //     ErrIncomplete (0034-MADR D1, D2). The Response, and a stream's done
-//     event, carry a WarningForcedChoiceDegraded (D7). Another model that
-//     refuses a forced choice the same way (HTTP 400, invalid_request_error,
-//     a message naming tool_choice) is sent once more, degraded, and
-//     remembered for the rest of the process, in memory only (0034-MADR D3).
+//     event, carry a WarningForcedChoiceDegraded (D7). ToolChoiceRequired is
+//     degraded so only with WithForcedChoiceFallback(ForcedChoiceDegrade); by
+//     default it fails before the network, with an error matching
+//     ErrUnsupported (D10). A model id is matched after its gateway or
+//     platform prefix and snapshot date are stripped, and
+//     WithModelForcedChoice overrides the list either way (D9). Another
+//     model that refuses a forced choice the same way (HTTP 400,
+//     invalid_request_error, a message naming tool_choice) is sent once
+//     more, degraded, and remembered for the rest of the process, in memory
+//     only (0034-MADR D3).
 //   - Reasoning's shape follows the model. Claude 4.7 and later take adaptive
 //     thinking, with the effort as output_config.effort; a Budget is not sent
 //     to them. Older models take a budget: Reasoning.Budget, else 1024 for
@@ -81,6 +87,7 @@ type provider struct {
 	caps      llmprovider.Capabilities
 	maxTokens int
 	reasoning *llmprovider.Reasoning // WithReasoning's default, or nil
+	forcing   messages.Policy        // WithForcedChoiceFallback's and WithModelForcedChoice's
 	userAgent string
 	logger    *slog.Logger
 	probe     bool
@@ -115,6 +122,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		client:    st.HTTPClient(),
 		maxTokens: st.MaxTokens(),
 		reasoning: st.Reasoning(),
+		forcing:   messages.NewPolicy(st.ForcedChoiceFallback(), st.ModelForcedChoices()),
 		userAgent: st.UserAgent(),
 		logger:    st.Logger(),
 		probe:     st.ModelProbes(),
@@ -146,7 +154,13 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2). A refusal of a forced tool choice teaches the model,
 	// and sends once more, degraded (0034-MADR D3).
-	resp, err := messages.SendLearning(string(llmprovider.ProviderClaude), p.modelFor(req), req.ToolChoice,
+	f := p.forcingFor(req)
+	// A required choice a model refuses fails here unless the caller opted in
+	// to degrading it (0034-MADR D10; R11).
+	if err := messages.CheckForcing(req, f); err != nil {
+		return nil, err
+	}
+	resp, err := messages.SendLearning(f, req.ToolChoice,
 		func() (*llmprovider.Response, error) {
 			return wire.Reauth(ctx, string(llmprovider.ProviderClaude), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
 				return p.generateOnce(ctx, req, token)
@@ -164,7 +178,12 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 // toolChoiceWarning is the warning req's tool choice earns, if any.
 func (p *provider) toolChoiceWarning(req *llmprovider.Request) (llmprovider.Warning, bool) {
 	thinking := req.Reasoning != nil || p.reasoning != nil
-	return messages.ToolChoiceWarning(req, thinking, string(llmprovider.ProviderClaude), p.modelFor(req))
+	return messages.ToolChoiceWarning(req, thinking, p.forcingFor(req))
+}
+
+// forcingFor is req's forced-choice context (0034-MADR D9, D10).
+func (p *provider) forcingFor(req *llmprovider.Request) messages.Forcing {
+	return p.forcing.For(string(llmprovider.ProviderClaude), p.modelFor(req))
 }
 
 // Stream streams req from the Messages API as it is generated (0031-MADR
@@ -176,7 +195,11 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.caps.Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	stream := messages.StreamLearning(string(llmprovider.ProviderClaude), p.modelFor(req), req.ToolChoice,
+	f := p.forcingFor(req)
+	if err := messages.CheckForcing(req, f); err != nil {
+		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
+	}
+	stream := messages.StreamLearning(f, req.ToolChoice,
 		func() iter.Seq2[llmprovider.Event, error] {
 			return wire.StreamEvents(ctx, p.call(req, true), p.src, messages.Events)
 		})
@@ -245,7 +268,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	thinking := p.addReasoning(body, req, model, maxTokens)
 	if len(req.Tools) > 0 {
 		body["tools"] = wire.MessagesTools(req.Tools)
-		messages.AddToolChoice(body, req.ToolChoice, thinking, string(llmprovider.ProviderClaude), model)
+		messages.AddToolChoice(body, req.ToolChoice, thinking, p.forcing.For(string(llmprovider.ProviderClaude), model))
 	}
 	return body
 }

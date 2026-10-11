@@ -47,10 +47,13 @@
 //     claude-sonnet-5-5 it is sent as "auto" with a turn instruction naming
 //     the tool, as the claude provider sends it (0034-MADR D2). Either way
 //     the Response, and a stream's done event, carry a
-//     WarningForcedChoiceDegraded (D7). Another model that refuses a forced
-//     choice in Anthropic's form is sent once more, degraded, and remembered
-//     for the process (0034-MADR D3); the qwen refusals below have another
-//     form, and are not.
+//     WarningForcedChoiceDegraded (D7). ToolChoiceRequired is degraded so
+//     only with WithForcedChoiceFallback(ForcedChoiceDegrade); by default it
+//     fails before the network with ErrUnsupported (D10), and
+//     WithModelForcedChoice overrides the list (D9). Another model that
+//     refuses a forced choice in Anthropic's form is sent once more,
+//     degraded, and remembered for the process (0034-MADR D3); the qwen
+//     refusals below have another form, and are not.
 //   - Instructions are sent as a leading system item on every route: the
 //     system field on the messages route, systemInstruction on the google
 //     route, a system message elsewhere.
@@ -135,6 +138,7 @@ type provider struct {
 	caps        llmprovider.Capabilities
 	maxTokens   int
 	reasoning   *llmprovider.Reasoning // WithReasoning's default, or nil
+	forcing     messages.Policy        // WithForcedChoiceFallback's and WithModelForcedChoice's
 	route       Route                  // WithRoute's, or the table's for model
 	routePinned bool
 	metadataOff bool // WithoutModelMetadata
@@ -181,6 +185,7 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 		client:      st.HTTPClient(),
 		maxTokens:   st.MaxTokens(),
 		reasoning:   st.Reasoning(),
+		forcing:     messages.NewPolicy(st.ForcedChoiceFallback(), st.ModelForcedChoices()),
 		metadataOff: st.ModelMetadataDisabled(),
 		userAgent:   st.UserAgent(),
 		session:     st.SessionID(),
@@ -241,12 +246,18 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if c.route != RouteMessages {
 		return send()
 	}
+	f := p.forcing.For(string(p.gateway), c.model)
+	// A required choice a model refuses fails here unless the caller opted in
+	// to degrading it (0034-MADR D10; R11).
+	if err := messages.CheckForcing(req, f); err != nil {
+		return nil, err
+	}
 	// On the messages route, a refusal of a forced tool choice teaches the
 	// model, and sends once more, degraded (0034-MADR D3); a forced choice
 	// sent as auto is reported (D7).
-	resp, err := messages.SendLearning(string(p.gateway), c.model, req.ToolChoice, send)
+	resp, err := messages.SendLearning(f, req.ToolChoice, send)
 	if err == nil {
-		if w, ok := messages.ToolChoiceWarning(req, c.reasoning != nil, string(p.gateway), c.model); ok {
+		if w, ok := messages.ToolChoiceWarning(req, c.reasoning != nil, f); ok {
 			resp.Warnings = append(resp.Warnings, w)
 		}
 	}
@@ -264,15 +275,19 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	}
 	c := p.resolve(ctx, req)
 	if c.route == RouteMessages {
+		f := p.forcing.For(string(p.gateway), c.model)
+		if err := messages.CheckForcing(req, f); err != nil {
+			return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
+		}
 		// A refusal of a forced tool choice is learned, and the stream opened
 		// once more, degraded (0034-MADR D3).
-		stream := messages.StreamLearning(string(p.gateway), c.model, req.ToolChoice, func() iter.Seq2[llmprovider.Event, error] {
+		stream := messages.StreamLearning(f, req.ToolChoice, func() iter.Seq2[llmprovider.Event, error] {
 			body := p.messagesBody(c)
 			body["stream"] = true
 			return wire.StreamEvents(ctx, p.wireCall(c, body, true), p.src, messages.Events)
 		})
 		return messages.WarnOnDone(stream, func() (llmprovider.Warning, bool) {
-			return messages.ToolChoiceWarning(req, c.reasoning != nil, string(p.gateway), c.model)
+			return messages.ToolChoiceWarning(req, c.reasoning != nil, f)
 		})
 	}
 	var body map[string]any
@@ -483,7 +498,7 @@ func (p *provider) messagesBody(c call) map[string]any {
 	body[jsonKeyMaxTokens] = maxTokens
 	if tools := c.req.Tools; len(tools) > 0 {
 		body[jsonKeyTools] = wire.MessagesTools(tools)
-		messages.AddToolChoice(body, c.req.ToolChoice, thinking, string(p.gateway), c.model)
+		messages.AddToolChoice(body, c.req.ToolChoice, thinking, p.forcing.For(string(p.gateway), c.model))
 	}
 	return body
 }
