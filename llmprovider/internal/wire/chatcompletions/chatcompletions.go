@@ -59,6 +59,9 @@ type Opts struct {
 	// decoded, as they came, on the assistant message they precede, as
 	// OpenRouter-style gateways need them back: Kilo (0021-MADR W9).
 	ReplayReasoningDetails bool
+	// SendStrict sends each tool's Strict, when set, as function.strict: for
+	// a gateway measured accepting it (0032-MADR D2, Q2).
+	SendStrict bool
 }
 
 // chatMessage is one Chat Completions message. Its fields are in the order
@@ -105,6 +108,7 @@ type chatToolFunction struct {
 	Description string `json:"description"`
 	Name        string `json:"name"`
 	Parameters  any    `json:"parameters"`
+	Strict      *bool  `json:"strict,omitempty"`
 }
 
 // replayString is the string the message holds under key, as the map's
@@ -313,11 +317,14 @@ func itemsToChatMessagesReplaying(items []llmprovider.Item, field string, detail
 }
 
 // toolList is tools as Chat Completions functions.
-func toolList(tools []llmprovider.Tool) []chatTool {
+func toolList(tools []llmprovider.Tool, sendStrict bool) []chatTool {
 	list := make([]chatTool, len(tools))
 	for i, tool := range tools {
 		list[i] = chatTool{Type: keyFunction, Function: chatToolFunction{
 			Name: tool.Name, Description: tool.Description, Parameters: wire.ToolSchema(tool.Schema)}}
+		if sendStrict {
+			list[i].Function.Strict = tool.Strict
+		}
 	}
 	return list
 }
@@ -341,7 +348,7 @@ func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[str
 		keyMaxTokens: maxTokens,
 	}
 	if len(o.Tools) > 0 && (!o.NoToolChoice || o.ToolChoice != llmprovider.ToolChoiceNone) {
-		body[keyTools] = toolList(o.Tools)
+		body[keyTools] = toolList(o.Tools, o.SendStrict)
 		if choice := toolChoice(o.ToolChoice); choice != nil && !o.NoToolChoice {
 			body[keyToolChoice] = choice
 		}

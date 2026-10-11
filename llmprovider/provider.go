@@ -18,6 +18,12 @@ type Tool struct {
 	Name        string
 	Description string
 	Schema      any
+	// Strict, when set, asks the service to hold the call's arguments to
+	// Schema (true) or not (false). Nil leaves the service's default: OpenAI's
+	// Responses API applies strict mode unless a tool opts out. It is sent
+	// where the wire has the field, and each provider's package doc says
+	// where it is not (0032-MADR D1, D2).
+	Strict *bool
 }
 
 // Typed errors for programmatic classification (go.dev/doc/effective-go).

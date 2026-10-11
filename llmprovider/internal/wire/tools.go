@@ -53,6 +53,11 @@ func ResponsesTools(tools []llmprovider.Tool) []map[string]any {
 			keyDescription: tool.Description,
 			keyParameters:  ToolSchema(tool.Schema),
 		}
+		// A set Strict is sent; nil leaves the service's default (0032-MADR
+		// D2).
+		if tool.Strict != nil {
+			list[i]["strict"] = *tool.Strict
+		}
 	}
 	return list
 }

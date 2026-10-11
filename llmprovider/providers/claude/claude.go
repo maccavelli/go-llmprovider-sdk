@@ -15,6 +15,8 @@
 // events as they arrive (0031-MADR E1).
 //
 // Degradations:
+//   - A tool's Strict is not sent: the Messages API has no such field
+//     (0032-MADR D2).
 //   - With Reasoning, a forced tool choice (ForceTool or ToolChoiceRequired)
 //     is sent as "auto": Anthropic refuses to force a tool while thinking.
 //   - Reasoning's shape follows the model. Claude 4.7 and later take adaptive

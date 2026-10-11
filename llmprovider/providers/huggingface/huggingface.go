@@ -23,6 +23,7 @@
 // they arrive (0031-MADR E1, E5).
 //
 // Degradations:
+//   - A tool's Strict is sent as function.strict (0032-MADR D2).
 //   - Reasoning takes an effort, sent as reasoning_effort (medium with none);
 //     a Budget is not sent.
 //   - Instructions are sent as a leading system message.
@@ -196,7 +197,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		tools, choice = nil, llmprovider.ToolChoiceAuto
 	}
 	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req),
-		Tools: tools, ToolChoice: choice})
+		Tools: tools, ToolChoice: choice, SendStrict: true})
 }
 
 // effort is reasoning_effort for req: the request's Reasoning, else

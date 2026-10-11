@@ -102,7 +102,7 @@ func TestToolList_SameJSONAsReference(t *testing.T) {
 		"empty schema":   {{Name: "empty", Schema: map[string]any{}}},
 		"no description": {{Name: "plain", Schema: map[string]any{"type": "object"}}},
 	} {
-		got, err := json.Marshal(toolList(tools))
+		got, err := json.Marshal(toolList(tools, false))
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}

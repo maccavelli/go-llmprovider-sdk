@@ -14,6 +14,7 @@
 // events as they arrive (0031-MADR D1).
 //
 // Degradations:
+//   - A tool's Strict is sent as strict (0032-MADR D2).
 //   - Reasoning takes an effort. A Reasoning with only a Budget sends the
 //     default effort, medium; the budget is not sent.
 //   - A ChatGPT session sends no output limit: the backend rejects

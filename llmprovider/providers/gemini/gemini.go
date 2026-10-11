@@ -16,6 +16,8 @@
 // streamed, and arrives only in its item (0031-MADR E1).
 //
 // Degradations:
+//   - A tool's Strict is not sent: the Interactions API has no such field
+//     (0032-MADR D2).
 //   - Reasoning takes an effort, sent as thinking_level: low, medium or high,
 //     with EffortXHigh sent as high. The Interactions API has no thinking
 //     budget, so Reasoning.Budget is not sent. gemini-2.5-flash-lite takes

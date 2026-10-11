@@ -31,6 +31,9 @@
 // stand on Go's measurements (0031-MADR D1, E1).
 //
 // Degradations:
+//   - A tool's Strict is sent as strict on the responses route and as
+//     function.strict on the chat_completions route, and not on the
+//     messages and google routes, which have no such field (0032-MADR D2).
 //   - Reasoning: the responses route takes an effort (medium when none is
 //     named); the messages and google routes take the effort or the budget,
 //     shaped by model as Claude's and Gemini's; the chat route, see above.
@@ -521,6 +524,7 @@ func (p *provider) chatBody(ctx context.Context, c call) map[string]any {
 		ReasoningEffort:      p.chatReasoningEffort(ctx, c),
 		ReplayReasoningField: p.chatReplayField(ctx, c),
 		Tools:                c.req.Tools,
+		SendStrict:           true,
 		ToolChoice:           c.req.ToolChoice,
 	})
 }

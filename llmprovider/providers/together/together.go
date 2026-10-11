@@ -18,6 +18,7 @@
 // they arrive (0031-MADR E1, E5).
 //
 // Degradations:
+//   - A tool's Strict is sent as function.strict (0032-MADR D2).
 //   - Reasoning sends reasoning {"enabled": true}, which Together's toggleable
 //     models read, and reasoning_effort only when an effort is set: Together
 //     accepts it for some models only (openai/gpt-oss-*, DeepSeek-V4-Pro). A
@@ -187,7 +188,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	o := chatcompletions.Opts{Tools: req.Tools, ToolChoice: req.ToolChoice}
+	o := chatcompletions.Opts{Tools: req.Tools, ToolChoice: req.ToolChoice, SendStrict: true}
 	if r := p.reasoningFor(req); r != nil {
 		o.Reasoning = map[string]any{"enabled": true}
 		o.ReasoningEffort = p.effort(r)

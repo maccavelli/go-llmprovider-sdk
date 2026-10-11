@@ -278,3 +278,71 @@ are affected. It is not fixed here.
   both requests answered 200, so Hugging Face carries `function.strict`.
   The control test takes `LLMPROVIDER_LIVE_0032_HF_MODEL` to name the
   model. No decision of 0032-MADR changes.
+
+### Phase 2: `Tool.Strict` (2026-10-11)
+
+**Change.**
+
+* `llmprovider/provider.go`: `Tool` gains `Strict *bool`. Its doc says nil
+  leaves the service's default, and that a set value is sent where the wire
+  has the field.
+* `internal/wire/tools.go`: `ResponsesTools` adds `"strict"` when `Strict`
+  is set.
+* `internal/wire/chatcompletions`:
+  * `Opts` gains `SendStrict`, and `chatToolFunction` gains `Strict *bool`
+    (`strict,omitempty`, after `parameters`, so an unset one leaves the
+    JSON byte for byte);
+  * `toolList(tools, sendStrict)` copies a tool's `Strict` only when
+    `sendStrict` is set.
+* `huggingface`, `kilo`, `together` and OpenCode's `chat_completions` route
+  set `SendStrict`. `ollama` does not: it was not measured.
+* Every provider's package doc names, under Degradations, where `Strict` is
+  sent and where it is not: Responses `strict`; Chat Completions
+  `function.strict`; not on Messages, Interactions, Ollama, or OpenCode's
+  `messages` and `google` routes.
+* The existing `TestToolList_*` comparison (`typed_0028_test.go`) now calls
+  `toolList(tools, false)`. Its tools set no `Strict`, so what it compares
+  is unchanged.
+
+**Red** (step 1), on the tree before the change: every new test failed to
+build.
+
+```text
+llmprovider/internal/wire/tools_0032_test.go:19:74: unknown field Strict in struct literal of type llmprovider.Tool
+llmprovider/internal/wire/chatcompletions/strict_0032_test.go:24:94: unknown field SendStrict in struct literal of type Opts
+llmprovider/providers/{claude,gemini,grok,huggingface,kilo,…}/strict_0032_test.go:23:56: unknown field Strict in struct literal of type llmprovider.Tool
+```
+
+**Green, under `-race`:**
+
+* `TestResponsesTools_Strict`: nil sends no key; `false` and `true` send
+  theirs.
+* `TestBody_Strict`: set and sent; set and not sent; nil and sent.
+* `TestStrict_0032` in each provider:
+  * `openai`, `grok`, `huggingface`, `kilo` and `together` send
+    `"strict":false`;
+  * `ollama`, `claude` and `gemini` send no `strict`;
+  * `opencode` sends it on `responses` and `chat_completions`, and not on
+    `messages` or `google`;
+  * a nil `Strict` sends no `strict` anywhere.
+* `go test -count=1 ./...` passes; `golangci-lint` reports `0 issues.`; the
+  G-wire goldens are unchanged.
+
+**Plants** (step 3), on a scratch clone. The last two prove the "not sent"
+guards, which pass on the tree by design.
+
+| Plant | Test | Result |
+| :--- | :--- | :--- |
+| `ResponsesTools` sends `strict` for a nil `Strict` | `TestResponsesTools_Strict` | `tools_0032_test.go:25: nil: tools [{… "strict":false …}]; want ""`; FAIL |
+| `ResponsesTools` drops a set `Strict` | `openai` `TestStrict_0032` | `strict_0032_test.go:35: false: sent tools [{… no strict …}]; want "\"strict\":false"`; FAIL |
+| `MessagesTools` sends `strict` | `claude` `TestStrict_0032` | `nil: sent tools [{… "strict":false}]; want ""` and `false: … "strict":true …`; FAIL |
+| `ollama` sets `SendStrict` | `ollama` `TestStrict_0032` | `false: sent tools [{"function":{… "strict":false} …}]; want ""`; FAIL |
+
+**API:** apidiff from `v1.6.0` (the tree, without `-incompatible`):
+
+```text
+Compatible changes:
+- ./llmprovider.Tool.Strict: added
+```
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.

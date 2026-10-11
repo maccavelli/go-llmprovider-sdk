@@ -24,6 +24,7 @@
 // they arrive (0031-MADR E1, E5).
 //
 // Degradations:
+//   - A tool's Strict is sent as function.strict (0032-MADR D2).
 //   - Reasoning takes an effort: Kilo's reasoning object {effort}, or
 //     {enabled: true} with none, when the model accepts "reasoning"; else
 //     reasoning_effort (medium with none) when it accepts that. A Budget is
@@ -285,6 +286,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		ReasoningEffort: effort,
 		Reasoning:       reasoning,
 		Tools:           req.Tools,
+		SendStrict:      true,
 		ToolChoice:      req.ToolChoice,
 		// 301 of 366 models accept "tools" but only 279 accept
 		// "tool_choice"; offering the tools unforced is strictly better than

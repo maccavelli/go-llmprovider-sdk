@@ -19,6 +19,8 @@
 // they arrive (0031-MADR E1, E5).
 //
 // Degradations:
+//   - A tool's Strict is not sent: Ollama's acceptance of function.strict
+//     has not been measured (0032-MADR D2).
 //   - No tool choice is sent: a named tool and ToolChoiceRequired offer the
 //     tools unforced, and ToolChoiceNone sends no tools (0020-MADR F40).
 //   - Reasoning takes an effort, sent as reasoning_effort (medium with none).
