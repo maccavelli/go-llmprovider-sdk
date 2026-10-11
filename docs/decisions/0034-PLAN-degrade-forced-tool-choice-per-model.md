@@ -817,3 +817,84 @@ from the map before decoding into it. That was harmless, but misleading, and
 the line was removed.
 
 **Pre-add:** the test file is clean.
+
+### Phase 4c: warnings (2026-10-11)
+
+**Change.**
+
+* **`llmprovider/warning.go`** (new): `WarningKind`, with
+  `WarningForcedChoiceDegraded` (`"forced_tool_choice_degraded"`) and
+  `WarningForcedChoiceLearned` (`"forced_tool_choice_learned"`), and
+  `Warning{Kind, Model, Detail}`. Each has a doc comment (R41).
+* **`Response`** gains `Warnings []Warning`: "non-fatal notes … Nil when it
+  was" sent as asked.
+* **`internal/wire/messages/toolchoice.go`:**
+  * `ToolChoiceWarning(req, thinking, provider, model)` decides as
+    `AddToolChoice` does: a refusing model, or thinking (0020-MADR F43).
+    Only for a forced choice with tools.
+  * `WarnOnDone(seq, warn)` adds the warning to a stream's done-event
+    `Response`.
+* **The Claude provider:** `Generate` adds the warning after the send, so a
+  learned resend is reported too, and `Stream` wraps its events in
+  `WarnOnDone`.
+* **OpenCode** does the same on the `messages` route.
+* **Docs:**
+  * api-standards R7 names `Warnings`;
+  * `docs/architecture.md`'s contract section describes them;
+  * Claude's and OpenCode's Degradations entries say each degradation
+    carries one.
+
+  Both F43's thinking case and the refusing models' case carry the
+  warning. Neither request changes.
+
+**Red first.**
+
+* The tests alone did not build: `unknown field Warnings in struct literal
+  of type Response`, `undefined: Warning`, `undefined: ToolChoiceWarning`.
+* With the types and a `ToolChoiceWarning` that never warns, the warning
+  assertions failed, and nothing else did:
+
+  ```text
+  warning_0034_test.go:33: a refusing model, forced: warns = false, want true
+  warning_0034_test.go:33: a refusing model, required: warns = false, want true
+  warning_0034_test.go:33: thinking, forced: warns = false, want true
+  warning_0034_test.go:35: a refusing model: warnings [], want a degraded warning: true
+  warning_0034_test.go:35: thinking on an accepting model: warnings [], want a degraded warning: true
+  warning_0034_test.go:56: done event's warnings = [], want one degraded warning
+  warning_0034_test.go:28: claude-opus-5-5: warnings [], want 1
+  warning_0034_test.go:44: done event's warnings = [], want one degraded warning
+  ```
+
+  `llmprovider`'s `TestWarning_0034` passed once the types existed.
+
+**Green:**
+
+* `go test -race -count=1 ./...` passes;
+* every G-wire golden is unchanged, as the goldens record a response's id,
+  finish reason and output, not its warnings.
+
+**A doc fix before staging:** the first edit to Claude's Degradations broke
+a sentence across lines, and did not cover the thinking bullet. Both
+bullets were rewritten, and OpenCode's entry likewise.
+
+**Plants** on a scratch clone:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the refusing model's warning dropped | `a refusing model, forced: warns = false, want true`; Claude `warnings [], want a degraded warning: true`; OpenCode `claude-opus-5-5: warnings [], want 1` |
+| a warning on a request not degraded | `accepting model, forced: warns = true, want false`; Claude and OpenCode, `claude-sonnet-5: warnings [{…}], want 0` |
+| the stream omits it | Claude and OpenCode, `done event's warnings = [], want one degraded warning` |
+| OpenCode's `Generate` does not attach it | `claude-opus-5-5: warnings [], want 1` |
+
+**API:** apidiff from `v1.7.1` (the tree):
+
+```text
+Compatible changes:
+- ./llmprovider.Response.Warnings: added
+- ./llmprovider.Warning: added
+- ./llmprovider.WarningForcedChoiceDegraded: added
+- ./llmprovider.WarningForcedChoiceLearned: added
+- ./llmprovider.WarningKind: added
+```
+
+**Pre-add:** 9 files clean.

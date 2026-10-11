@@ -2,6 +2,7 @@ package messages
 
 import (
 	"fmt"
+	"iter"
 	"slices"
 	"strings"
 
@@ -83,4 +84,46 @@ func turnInstruction(name string) string {
 	}
 	return fmt.Sprintf("Tool-use requirement for the current turn: the application requires a call to the %s tool in your "+
 		"response to the user's latest message. Begin your response with the %s tool call. Do not reply with text only.", name, name)
+}
+
+// ToolChoiceWarning is the warning a request's forced tool choice earns when
+// it is sent as auto, on model through provider, and false when it is sent as
+// asked (0034-MADR D7). It is decided as AddToolChoice decides: with
+// thinking (0020-MADR F43), or on a model that refuses forcing. Called after
+// the request is sent, it sees a refusal learned by its resend.
+func ToolChoiceWarning(req *llmprovider.Request, thinking bool, provider, model string) (llmprovider.Warning, bool) {
+	name, named := req.ToolChoice.Tool()
+	if len(req.Tools) == 0 || (!named && req.ToolChoice != llmprovider.ToolChoiceRequired) {
+		return llmprovider.Warning{}, false
+	}
+	target := "one of the tools"
+	if named {
+		target = "the " + name + " tool"
+	}
+	switch {
+	case refusesForcedChoice(provider, model):
+		return llmprovider.Warning{Kind: llmprovider.WarningForcedChoiceDegraded, Model: model,
+			Detail: model + " refuses a forced tool choice, so it was sent as auto, with an instruction to call " + target + "."}, true
+	case thinking:
+		return llmprovider.Warning{Kind: llmprovider.WarningForcedChoiceDegraded, Model: model,
+			Detail: "A forced tool choice was sent as auto, since Anthropic refuses to force a tool while thinking; the model may not call " + target + "."}, true
+	}
+	return llmprovider.Warning{}, false
+}
+
+// WarnOnDone is seq with the warning warn returns, if any, added to its done
+// event's Response. warn runs when the done event arrives, after any resend.
+func WarnOnDone(seq iter.Seq2[llmprovider.Event, error], warn func() (llmprovider.Warning, bool)) iter.Seq2[llmprovider.Event, error] {
+	return func(yield func(llmprovider.Event, error) bool) {
+		for ev, err := range seq {
+			if err == nil && ev.Type == llmprovider.EventDone && ev.Response != nil {
+				if w, ok := warn(); ok {
+					ev.Response.Warnings = append(ev.Response.Warnings, w)
+				}
+			}
+			if !yield(ev, err) {
+				return
+			}
+		}
+	}
 }

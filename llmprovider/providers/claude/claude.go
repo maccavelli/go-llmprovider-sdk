@@ -21,16 +21,19 @@
 //     (0032-MADR D2).
 //   - With Reasoning, a forced tool choice (ForceTool or ToolChoiceRequired)
 //     is sent as "auto": Anthropic refuses to force a tool while thinking.
+//     The Response, and a stream's done event, carry a
+//     WarningForcedChoiceDegraded (0034-MADR D7).
 //   - On claude-fable-5-1, claude-mythos-5-1, claude-opus-5-5 and
 //     claude-sonnet-5-5, which refuse a forced tool choice with HTTP 400, it
 //     is sent as "auto", with Anthropic's turn instruction naming the tool:
 //     a mid-conversation system message after the last user turn, or, when
 //     the input does not end with one, a line of the system field. The model
 //     may still answer in text, which GenerateToolCall reports as
-//     ErrIncomplete (0034-MADR D1, D2). Another model that refuses a forced
-//     choice the same way (HTTP 400, invalid_request_error, a message naming
-//     tool_choice) is sent once more, degraded, and remembered for the rest
-//     of the process, in memory only (0034-MADR D3).
+//     ErrIncomplete (0034-MADR D1, D2). The Response, and a stream's done
+//     event, carry a WarningForcedChoiceDegraded (D7). Another model that
+//     refuses a forced choice the same way (HTTP 400, invalid_request_error,
+//     a message naming tool_choice) is sent once more, degraded, and
+//     remembered for the rest of the process, in memory only (0034-MADR D3).
 //   - Reasoning's shape follows the model. Claude 4.7 and later take adaptive
 //     thinking, with the effort as output_config.effort; a Budget is not sent
 //     to them. Older models take a budget: Reasoning.Budget, else 1024 for
@@ -143,12 +146,25 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2). A refusal of a forced tool choice teaches the model,
 	// and sends once more, degraded (0034-MADR D3).
-	return messages.SendLearning(string(llmprovider.ProviderClaude), p.modelFor(req), req.ToolChoice,
+	resp, err := messages.SendLearning(string(llmprovider.ProviderClaude), p.modelFor(req), req.ToolChoice,
 		func() (*llmprovider.Response, error) {
 			return wire.Reauth(ctx, string(llmprovider.ProviderClaude), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
 				return p.generateOnce(ctx, req, token)
 			})
 		})
+	if err == nil {
+		// A forced choice sent as auto is reported (0034-MADR D7).
+		if w, ok := p.toolChoiceWarning(req); ok {
+			resp.Warnings = append(resp.Warnings, w)
+		}
+	}
+	return resp, err
+}
+
+// toolChoiceWarning is the warning req's tool choice earns, if any.
+func (p *provider) toolChoiceWarning(req *llmprovider.Request) (llmprovider.Warning, bool) {
+	thinking := req.Reasoning != nil || p.reasoning != nil
+	return messages.ToolChoiceWarning(req, thinking, string(llmprovider.ProviderClaude), p.modelFor(req))
 }
 
 // Stream streams req from the Messages API as it is generated (0031-MADR
@@ -160,10 +176,11 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.caps.Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return messages.StreamLearning(string(llmprovider.ProviderClaude), p.modelFor(req), req.ToolChoice,
+	stream := messages.StreamLearning(string(llmprovider.ProviderClaude), p.modelFor(req), req.ToolChoice,
 		func() iter.Seq2[llmprovider.Event, error] {
 			return wire.StreamEvents(ctx, p.call(req, true), p.src, messages.Events)
 		})
+	return messages.WarnOnDone(stream, func() (llmprovider.Warning, bool) { return p.toolChoiceWarning(req) })
 }
 
 // modelFor is req's model, else the provider's.

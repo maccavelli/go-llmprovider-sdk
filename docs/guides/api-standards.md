@@ -64,7 +64,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
   `PreviousResponseID`. A field's zero value means "the provider's default"
   or "not requested". (0015 D3)
 - **R7. `Response` fields.** `ID`, `Model`, `Output []Item`, a typed
-  `FinishReason`, and `Usage`, which is zero when the service reports none.
+  `FinishReason`, `Usage`, which is zero when the service reports none, and
+  `Warnings`, typed non-fatal notes, nil when the request was sent as asked
+  (0034 D7).
   In `Usage` a total holds its part: `InputTokens` includes `CachedTokens`,
   and `OutputTokens` includes `ReasoningTokens`, whatever the service's own
   convention. (0015 D3, D4, and its amendment "what `Usage` counts")

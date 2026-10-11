@@ -229,6 +229,11 @@ for a session, from the store.
   returns for the same answer. A call's arguments arrive only in its item
   (0031-MADR D2, E3). A Chat Completions stream asks for its usage
   (`stream_options.include_usage`, E5).
+- `Response.Warnings` holds typed, non-fatal notes, nil when the request
+  was sent as asked: `WarningForcedChoiceDegraded` when a forced tool choice
+  went as `auto`, and `WarningForcedChoiceLearned` when a model's refusal of
+  forcing was learned (0034-MADR D7). A stream carries them on its
+  `EventDone` response. Errors stay errors.
 - `Response.Usage` is decoded from every wire format that reports it. A
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and

@@ -96,6 +96,11 @@ type Response struct {
 	// Usage counts the response's tokens; zero where the service reports
 	// none.
 	Usage Usage
+
+	// Warnings are non-fatal notes: the request was answered, but not
+	// exactly as asked, such as a forced tool choice sent as auto. Nil when
+	// it was (0034-MADR D7).
+	Warnings []Warning
 }
 
 // OutputText returns the concatenation of all MessageItem texts in Output,

@@ -45,10 +45,12 @@
 //     reasoning: Anthropic refuses to force a tool while thinking. On
 //     claude-fable-5-1, claude-mythos-5-1, claude-opus-5-5 and
 //     claude-sonnet-5-5 it is sent as "auto" with a turn instruction naming
-//     the tool, as the claude provider sends it (0034-MADR D2). Another
-//     model that refuses a forced choice in Anthropic's form is sent once
-//     more, degraded, and remembered for the process (0034-MADR D3); the qwen
-//     refusals below have another form, and are not.
+//     the tool, as the claude provider sends it (0034-MADR D2). Either way
+//     the Response, and a stream's done event, carry a
+//     WarningForcedChoiceDegraded (D7). Another model that refuses a forced
+//     choice in Anthropic's form is sent once more, degraded, and remembered
+//     for the process (0034-MADR D3); the qwen refusals below have another
+//     form, and are not.
 //   - Instructions are sent as a leading system item on every route: the
 //     system field on the messages route, systemInstruction on the google
 //     route, a system message elsewhere.
@@ -240,8 +242,15 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return send()
 	}
 	// On the messages route, a refusal of a forced tool choice teaches the
-	// model, and sends once more, degraded (0034-MADR D3).
-	return messages.SendLearning(string(p.gateway), c.model, req.ToolChoice, send)
+	// model, and sends once more, degraded (0034-MADR D3); a forced choice
+	// sent as auto is reported (D7).
+	resp, err := messages.SendLearning(string(p.gateway), c.model, req.ToolChoice, send)
+	if err == nil {
+		if w, ok := messages.ToolChoiceWarning(req, c.reasoning != nil, string(p.gateway), c.model); ok {
+			resp.Warnings = append(resp.Warnings, w)
+		}
+	}
+	return resp, err
 }
 
 // Stream streams req from the gateway, on every route (0031-MADR D1, Q2, E1):
@@ -257,10 +266,13 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if c.route == RouteMessages {
 		// A refusal of a forced tool choice is learned, and the stream opened
 		// once more, degraded (0034-MADR D3).
-		return messages.StreamLearning(string(p.gateway), c.model, req.ToolChoice, func() iter.Seq2[llmprovider.Event, error] {
+		stream := messages.StreamLearning(string(p.gateway), c.model, req.ToolChoice, func() iter.Seq2[llmprovider.Event, error] {
 			body := p.messagesBody(c)
 			body["stream"] = true
 			return wire.StreamEvents(ctx, p.wireCall(c, body, true), p.src, messages.Events)
+		})
+		return messages.WarnOnDone(stream, func() (llmprovider.Warning, bool) {
+			return messages.ToolChoiceWarning(req, c.reasoning != nil, string(p.gateway), c.model)
 		})
 	}
 	var body map[string]any
