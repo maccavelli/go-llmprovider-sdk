@@ -18,7 +18,14 @@ import (
 func liveStreamWith(t *testing.T, id llmprovider.ProviderID, model string, reasoning *llmprovider.Reasoning, maxTokens int,
 	opts ...llmprovider.Option) {
 	t.Helper()
-	key := llmprovider.LiveEnvKey(t, llmprovider.ProviderEnvVars()[id])
+	liveStreamKey(t, id, llmprovider.ProviderEnvVars()[id], model, reasoning, maxTokens, opts...)
+}
+
+// liveStreamKey is liveStreamWith with the key read from keyVar.
+func liveStreamKey(t *testing.T, id llmprovider.ProviderID, keyVar, model string, reasoning *llmprovider.Reasoning, maxTokens int,
+	opts ...llmprovider.Option) {
+	t.Helper()
+	key := llmprovider.LiveEnvKey(t, keyVar)
 	p, err := providers.New(id, append([]llmprovider.Option{llmprovider.WithAPIKey(key), llmprovider.WithModel(model),
 		llmprovider.WithMaxTokens(maxTokens), llmprovider.WithModelProbes(false)}, opts...)...)
 	if err != nil {
@@ -133,4 +140,22 @@ func TestLive_OllamaStreams(t *testing.T) {
 		t.Fatalf("ollama %s: %d text deltas, done %v; want at least one delta, then EventDone", model, deltas, done)
 	}
 	t.Logf("ollama %s: %d text deltas, then EventDone", model, deltas)
+}
+
+// TestLive_OpencodeGoogleStreams streams generateContent through the google
+// route's request: from Google's own endpoint, whose evidence stands for the
+// route (0031-PLAN-native-streaming-on-the-other-wires D1), and from Zen's
+// route. Effort low and a 1,024-token cap: at 16 tokens gemini-3.7-flash's
+// answer went wholly to thinking (D2).
+func TestLive_OpencodeGoogleStreams(t *testing.T) {
+	low := &llmprovider.Reasoning{Effort: llmprovider.EffortLow}
+	t.Run("google-endpoint", func(t *testing.T) {
+		liveStreamKey(t, llmprovider.ProviderOpencodeZen, "GEMINI_API_KEY", catalog.Static(llmprovider.ProviderGemini)[0], low, 1024,
+			opencode.WithRoute(opencode.RouteGoogle), llmprovider.WithBaseURL("https://generativelanguage.googleapis.com/v1beta"),
+			llmprovider.WithoutModelMetadata())
+	})
+	t.Run("opencode-zen", func(t *testing.T) {
+		liveStreamWith(t, llmprovider.ProviderOpencodeZen, "gemini-3.5-flash-lite", low, 1024,
+			opencode.WithRoute(opencode.RouteGoogle), llmprovider.WithoutModelMetadata())
+	})
 }

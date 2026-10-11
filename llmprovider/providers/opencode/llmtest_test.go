@@ -144,8 +144,7 @@ func TestConformance(t *testing.T) {
 					_, _ = io.WriteString(w, `{"type":"error","error":{"type":"llmtest","message":"llmtest"}}`)
 				},
 			}
-			// The responses, messages and chat_completions routes stream
-			// natively (0031-MADR D1, E1).
+			// Every route streams natively (0031-MADR D1, E1).
 			switch tc.route {
 			case RouteResponses:
 				h.StreamText, h.StreamFailure = write(llmtestStream), write(llmtestStreamFailure)
@@ -153,6 +152,8 @@ func TestConformance(t *testing.T) {
 				h.StreamText, h.StreamFailure = write(llmtestMessagesStream), write(llmtestMessagesStreamFailure)
 			case RouteChatCompletions:
 				h.StreamText, h.StreamFailure = write(llmtestChatStream), write(llmtestChatStreamFailure)
+			case RouteGoogle:
+				h.StreamText, h.StreamFailure = write(llmtestGoogleStream), write(llmtestGoogleStreamFailure)
 			}
 			llmtest.Run(t, h)
 		})
@@ -166,3 +167,11 @@ const llmtestChatStream = "data: {\"model\":\"llmtest-model\",\"choices\":[{\"in
 // llmtestChatStreamFailure is a Chat Completions event stream that fails
 // after one delta, with an error inside the 200.
 const llmtestChatStreamFailure = "data: {\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hel\"},\"finish_reason\":null}]}\n\ndata: {\"error\":{\"message\":\"llmtest\",\"code\":503}}\n\n"
+
+// llmtestGoogleStream is the text reply as a generateContent event stream:
+// its text in two parts, the second with the finishReason (0031-MADR E6).
+const llmtestGoogleStream = "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"hel\"}]},\"index\":0}],\"modelVersion\":\"llmtest-model\"}\n\ndata: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"lo\"}]},\"finishReason\":\"STOP\",\"index\":0}],\"modelVersion\":\"llmtest-model\"}\n\n"
+
+// llmtestGoogleStreamFailure is a generateContent event stream that fails
+// after one part, with Google's error body.
+const llmtestGoogleStreamFailure = "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"hel\"}]},\"index\":0}],\"modelVersion\":\"llmtest-model\"}\n\ndata: {\"error\":{\"code\":503,\"message\":\"llmtest\",\"status\":\"UNAVAILABLE\"}}\n\n"

@@ -85,42 +85,45 @@ func TestStream_ResponsesRouteNative(t *testing.T) {
 	}
 }
 
-// TestStream_OtherRoutesFallBack (0031-MADR D1, Q2): the routes that do not
-// stream yet send one request without "stream", and yield Generate's result
-// as events. The messages and chat_completions routes stream since 0031-PLAN-
-// native-streaming-on-the-other-wires Phases 3 and 4.
-func TestStream_OtherRoutesFallBack(t *testing.T) {
-	replies := map[Route]string{
-		RouteGoogle: `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"ok"}]}}]}`,
-	}
+// TestStream_GoogleRouteNative (0031-MADR E1, E3; 0031-PLAN-native-streaming-
+// on-the-other-wires D1): the google route, the last that fell back, streams
+// at :streamGenerateContent?alt=sse, with no stream field in the body, and
+// yields the generateContent decoder's events.
+func TestStream_GoogleRouteNative(t *testing.T) {
+	stream := sseEvent(`{"candidates":[{"content":{"role":"model","parts":[{"text":"o"}]},"index":0}],"modelVersion":"g"}`) +
+		sseEvent(`{"candidates":[{"content":{"role":"model","parts":[{"text":"k"}]},"finishReason":"STOP","index":0}],"modelVersion":"g",`+
+			`"usageMetadata":{"promptTokenCount":9,"candidatesTokenCount":2}}`)
 	for _, gateway := range family {
-		for route, reply := range replies {
-			t.Run(string(gateway)+"/"+string(route), func(t *testing.T) {
-				var body map[string]any
-				requests := 0
-				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					requests++
-					raw, _ := io.ReadAll(r.Body)
-					_ = json.Unmarshal(raw, &body)
-					_, _ = io.WriteString(w, reply)
-				}))
-				defer srv.Close()
-				p := build(t, gateway, apiKey(srv.URL, "some-model", WithRoute(route))...)
-				var kinds []string
-				for ev, err := range streamer(t, p).Stream(context.Background(), text("hi")) {
-					if err != nil {
-						t.Fatal(err)
-					}
-					kinds = append(kinds, streamKind(ev))
+		t.Run(string(gateway), func(t *testing.T) {
+			var mu sync.Mutex
+			var path, query string
+			var body map[string]any
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				raw, _ := io.ReadAll(r.Body)
+				mu.Lock()
+				path, query = r.URL.Path, r.URL.RawQuery
+				_ = json.Unmarshal(raw, &body)
+				mu.Unlock()
+				_, _ = io.WriteString(w, stream)
+			}))
+			defer srv.Close()
+			p := build(t, gateway, apiKey(srv.URL, "gemini-3.8-flash", WithRoute(RouteGoogle))...)
+			var kinds []string
+			for ev, err := range streamer(t, p).Stream(context.Background(), text("hi")) {
+				if err != nil {
+					t.Fatal(err)
 				}
-				if want := []string{"text_delta:ok", "item", "done"}; !reflect.DeepEqual(kinds, want) {
-					t.Fatalf("events %v, want %v", kinds, want)
-				}
-				if _, ok := body["stream"]; ok || requests != 1 {
-					t.Errorf("%d requests, stream %v; want one, without stream", requests, body["stream"])
-				}
-			})
-		}
+				kinds = append(kinds, streamKind(ev))
+			}
+			if want := []string{"text_delta:o", "text_delta:k", "item", "done"}; !reflect.DeepEqual(kinds, want) {
+				t.Fatalf("events %v, want %v", kinds, want)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if _, ok := body["stream"]; ok || path != "/models/gemini-3.8-flash:streamGenerateContent" || query != "alt=sse" {
+				t.Errorf("sent %s?%s, stream %v; want :streamGenerateContent?alt=sse and no stream field", path, query, body["stream"])
+			}
+		})
 	}
 }
 

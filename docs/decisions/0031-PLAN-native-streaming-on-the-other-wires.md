@@ -655,3 +655,97 @@ The live-test meta checks (`TestLiveTests_TransientSkipsUseTheHelper`,
 | `together` | 95.1% |
 | `ollama` | 95.8% |
 | `opencode` | 97.4% |
+
+### Phase 5: generateContent (2026-10-10)
+
+The `google` route is built on Google's own endpoint's evidence (D1). Both
+OpenCode gateways stay `BestEffort`.
+
+**Change.**
+
+* `internal/wire/generatecontent`:
+  * `Decode` reads a named `reply` and returns `reply.response()`, which
+    keeps its rules unchanged: the blocked prompt, the finish, a call cut by
+    the limit, an answer cut while thinking. `reply.Usage` is now a pointer,
+    so a chunk without usage leaves the last one in place.
+  * The new `Events` reads `:streamGenerateContent?alt=sse` through
+    `wire.ReadEvents(…, "a finishReason", …)`:
+    * each text part is yielded as `EventTextDelta`;
+    * parts are kept with `appendPart`, which joins a text part to a text
+      part before it, and a thought part to a thought part, as a whole
+      reply sends one of each;
+    * the chunk with the `finishReason` gives the items, in `Decode`'s
+      order, then `EventDone`;
+    * Google's error body in the stream is classified by the status its
+      code names (`ClassifyStreamFailure` with the code as a string);
+    * a blocked prompt is `Decode`'s error.
+  * Thought parts are not yielded as deltas: none was seen streaming
+    (Phase 1, rule 3).
+* `opencode`:
+  * the `google` route streams natively at
+    `{base}/models/{model}:streamGenerateContent?alt=sse`, with no `stream`
+    field in the body;
+  * every route now streams;
+  * the package doc says why the gateways stay `BestEffort`: the `google`
+    route's stream was measured on Google's endpoint, and Zen's routes
+    stand on Go's measurements.
+
+**Red** (steps 1 and 3), on the tree before each change:
+
+```text
+llmprovider/internal/wire/generatecontent/events_0031b_test.go:41:9: undefined: Events
+--- FAIL: TestStream_GoogleRouteNative: stream_0031_test.go:114: llmprovider: incomplete response: opencode-zen/google: invalid character 'd' looking for beginning of value (and opencode-go)
+```
+
+**A test replaced.** `TestStream_OtherRoutesFallBack` asserted that the
+`google` route, the last on the fallback, sends one request without
+`"stream"`. That behaviour is changed on purpose by this phase. The test is
+replaced by `TestStream_GoogleRouteNative`, which asserts the native stream
+in its place. No route is left on the fallback to test.
+
+**Green, under `-race`:**
+
+* `TestEvents_EqualsDecode` has seven cases: text in two parts, thought
+  then text, two calls, a filtered answer, an answer cut while thinking, a
+  call cut by the limit, and a blocked prompt. In each:
+  * the events are pinned;
+  * `EventDone` equals `Decode` on the same answer as one reply, or both
+    fail with the same error (rule 11);
+  * the text deltas, joined, equal the message text.
+* `TestEvents_ErrorInsideTheStream` (`503 UNAVAILABLE` →
+  `ErrProviderUnavailable`), `TestEvents_StopEarly`, and
+  `TestEvents_EndsEarly` (naming `finishReason`).
+* `opencode`: `TestStream_GoogleRouteNative` on both gateways, with the
+  path, `alt=sse`, and no `stream` field.
+* Conformance: OpenCode's `zen-google` case sets `StreamText` and
+  `StreamFailure` (a stream in two parts, and one failing with Google's
+  error body). All four OpenCode `D7-native-stream` subtests pass.
+* `go test -count=1 ./...` passes.
+* A lint finding (`whitespace`: a blank line opening `reply.response`) was
+  fixed before the gate.
+
+**Plants** (step 6), on a scratch clone:
+
+| Plant | Test | Result |
+| :--- | :--- | :--- |
+| the `google` route's stream sends `"stream": true` | `TestStream_GoogleRouteNative` | `stream_0031_test.go:124: sent /models/gemini-3.8-flash:streamGenerateContent?alt=sse, stream true; want … no stream field`; FAIL |
+| streamed text parts are not joined | `TestEvents_EqualsDecode` | `events_0031b_test.go:100: events [text_delta:hel text_delta:lo item:MessageItem item:MessageItem done], want [… item:MessageItem done]` (and the thought case); FAIL |
+
+**Live** (step 7), `TestLive_OpencodeGoogleStreams` in
+`llmprovider/live_stream_0031b_test.go`, at 00:30 UTC on 2026-10-11:
+
+* effort `low` and a 1,024-token cap (D2);
+* billed: 1 request, plus Zen's, which was refused before generation.
+
+`liveStreamKey`, added beside `liveStreamWith`, reads the key from a named
+variable.
+
+| Subtest | Model | Result |
+| :--- | :--- | :--- |
+| `google-endpoint`: the route's request, at Google's endpoint, with `GEMINI_API_KEY` | `gemini-3.7-flash` | PASS: 1 text delta, then `EventDone` |
+| `opencode-zen` | `gemini-3.5-flash-lite` | SKIP, by 0027-MADR's transient rule: "quota exhausted: opencode-zen/google HTTP 402 … Insufficient account funds"; not run |
+
+The live-test meta checks pass.
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+Coverage: `internal/wire/generatecontent` 96.9%, `opencode` 96.7%.

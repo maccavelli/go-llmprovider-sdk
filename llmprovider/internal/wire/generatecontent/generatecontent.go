@@ -154,32 +154,54 @@ func Contents(items []llmprovider.Item) []Content {
 
 // Decode decodes a generateContent response.
 func Decode(body io.Reader) (*llmprovider.Response, error) {
-	var raw struct {
-		ModelVersion string `json:"modelVersion"`
-		Candidates   []struct {
-			FinishReason string `json:"finishReason"`
-			Content      struct {
-				Parts []struct {
-					Text         string `json:"text"`
-					Thought      bool   `json:"thought"`
-					FunctionCall *struct {
-						ID   string          `json:"id"`
-						Name string          `json:"name"`
-						Args json.RawMessage `json:"args"`
-					} `json:"functionCall"`
-					ThoughtSignature string `json:"thoughtSignature"`
-				} `json:"parts"`
-			} `json:"content"`
-		} `json:"candidates"`
-		Usage          usage `json:"usageMetadata"`
-		PromptFeedback struct {
-			BlockReason string `json:"blockReason"`
-		} `json:"promptFeedback"`
-	}
+	var raw reply
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, err
 	}
+	return raw.response()
+}
 
+// reply is a GenerateContentResponse, whole, or assembled from its stream.
+type reply struct {
+	ModelVersion string      `json:"modelVersion"`
+	Candidates   []candidate `json:"candidates"`
+	Usage        *usage      `json:"usageMetadata"`
+	// Error is a failure inside a stream (0031-MADR E3).
+	Error          *replyError `json:"error"`
+	PromptFeedback struct {
+		BlockReason string `json:"blockReason"`
+	} `json:"promptFeedback"`
+}
+
+// candidate is one of a reply's candidates.
+type candidate struct {
+	FinishReason string `json:"finishReason"`
+	Content      struct {
+		Parts []replyPart `json:"parts"`
+	} `json:"content"`
+}
+
+// replyPart is one part of a candidate's content.
+type replyPart struct {
+	Text         string `json:"text"`
+	Thought      bool   `json:"thought"`
+	FunctionCall *struct {
+		ID   string          `json:"id"`
+		Name string          `json:"name"`
+		Args json.RawMessage `json:"args"`
+	} `json:"functionCall"`
+	ThoughtSignature string `json:"thoughtSignature"`
+}
+
+// replyError is Google's error body.
+type replyError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Status  string `json:"status"`
+}
+
+// response is raw as a Response, or the error its candidate makes it.
+func (raw reply) response() (*llmprovider.Response, error) {
 	// A blocked prompt has no candidate; its block reason says why
 	// (0026-MADR F25).
 	if len(raw.Candidates) == 0 {
@@ -198,7 +220,10 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		return nil, &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: string(llmprovider.FinishLength)}
 	}
 
-	result := &llmprovider.Response{Model: raw.ModelVersion, FinishReason: finish, Usage: raw.Usage.counts()}
+	result := &llmprovider.Response{Model: raw.ModelVersion, FinishReason: finish}
+	if raw.Usage != nil {
+		result.Usage = raw.Usage.counts()
+	}
 	calls := 0
 	for _, part := range raw.Candidates[0].Content.Parts {
 		// A thought summary is flagged thought: true, with its text in text.
@@ -232,6 +257,84 @@ func Decode(body io.Reader) (*llmprovider.Response, error) {
 		return nil, wire.EmptyAnswer("generatecontent", finish)
 	}
 	return result, nil
+}
+
+// Events reads a generateContent event stream (:streamGenerateContent?alt=sse)
+// and yields its events as they arrive (0031-MADR E3): each text part as
+// EventTextDelta and, at the chunk carrying the finishReason, the items Decode
+// returns for the same answer as one reply, in its order, then EventDone,
+// carrying that Response. A thought part is assembled into its item, not
+// yielded as a delta: none was seen streaming (0031-PLAN-native-streaming-on-
+// the-other-wires, Phase 1). A function call arrives whole, as an item.
+// Consecutive text parts, and consecutive thought parts, are one part, as a
+// whole reply sends them. Google's error body in the stream is classified by
+// the status its code names, and a blocked prompt is Decode's error. It
+// returns nil once EventDone is yielded or yield returns false, and otherwise
+// the error that ended the stream; what it yielded before an error is not a
+// response (0031-MADR D4).
+func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
+	raw := reply{Candidates: []candidate{{}}}
+	return wire.ReadEvents(provider, body, "a finishReason", func(payload []byte) (bool, error) {
+		var chunk reply
+		if err := json.Unmarshal(payload, &chunk); err != nil {
+			return false, fmt.Errorf("%s: decode stream chunk: %w", provider, err)
+		}
+		if e := chunk.Error; e != nil {
+			return false, llmprovider.ClassifyStreamFailure(provider, strconv.Itoa(e.Code), e.Status, e.Message)
+		}
+		if chunk.ModelVersion != "" {
+			raw.ModelVersion = chunk.ModelVersion
+		}
+		if chunk.Usage != nil {
+			raw.Usage = chunk.Usage
+		}
+		if len(chunk.Candidates) == 0 {
+			if chunk.PromptFeedback.BlockReason == "" {
+				return false, nil
+			}
+			chunk.Candidates = nil
+			_, err := chunk.response()
+			return false, err
+		}
+		next := chunk.Candidates[0]
+		for _, part := range next.Content.Parts {
+			raw.Candidates[0].Content.Parts = appendPart(raw.Candidates[0].Content.Parts, part)
+			if part.Text != "" && !part.Thought && part.FunctionCall == nil &&
+				!yield(llmprovider.Event{Type: llmprovider.EventTextDelta, Text: part.Text}) {
+				return true, nil
+			}
+		}
+		if next.FinishReason == "" {
+			return false, nil
+		}
+		raw.Candidates[0].FinishReason = next.FinishReason
+		resp, err := raw.response()
+		if err != nil {
+			return false, err
+		}
+		for _, item := range resp.Output {
+			if !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: item}) {
+				return true, nil
+			}
+		}
+		yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
+		return true, nil
+	})
+}
+
+// appendPart adds one streamed part to parts: a text part joins a text part
+// before it, and a thought part a thought part, as a whole reply sends one of
+// each; a signature is kept wherever it arrives.
+func appendPart(parts []replyPart, part replyPart) []replyPart {
+	if n := len(parts); n > 0 && part.FunctionCall == nil && parts[n-1].FunctionCall == nil &&
+		parts[n-1].Thought == part.Thought && parts[n-1].Text != "" {
+		parts[n-1].Text += part.Text
+		if part.ThoughtSignature != "" {
+			parts[n-1].ThoughtSignature = part.ThoughtSignature
+		}
+		return parts
+	}
+	return append(parts, part)
 }
 
 // callID is a call's own id, or "name#index" for a service that sends none,
