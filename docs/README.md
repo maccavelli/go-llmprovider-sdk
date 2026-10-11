@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-67 records. Cite them by full filename.
+69 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -77,6 +77,8 @@ documents a reader follows to do something.
 | 0031 | MADR | [Stream Natively on the OpenAI Responses Wire](decisions/0031-MADR-native-streaming-on-the-responses-wire.md) | accepted |
 | 0031 | PLAN | [Implement Native Streaming on the OpenAI Responses Wire](decisions/0031-PLAN-native-streaming-on-the-responses-wire.md) | complete |
 | 0031 | PLAN | [Implement Native Streaming on the Messages, Chat Completions, generateContent and Interactions Wires](decisions/0031-PLAN-native-streaming-on-the-other-wires.md) | complete |
+| 0032 | MADR | [Carry a Per-Tool Strict Flag and a Tool Result's Error Flag](decisions/0032-MADR-tool-strict-and-result-error-flags.md) | proposed |
+| 0032 | PLAN | [Implement a Per-Tool Strict Flag and a Tool Result's Error Flag](decisions/0032-PLAN-tool-strict-and-result-error-flags.md) | proposed |
 
 ## I want to…
 
@@ -102,6 +104,7 @@ documents a reader follows to do something.
 | see how the imported API measured against the SDK requirements | [0015-REPORT](reports/0015-REPORT-sdk-api-surface-assessment.md) |
 | see the v1 generation API and which wire protocols each provider speaks | [0030-REPORT](reports/0030-REPORT-v1-api-and-protocol-surfaces.md) |
 | know how native streaming is being added, starting with the Responses wire | [0031-MADR](decisions/0031-MADR-native-streaming-on-the-responses-wire.md) |
+| opt a tool out of OpenAI's strict mode, or mark a tool result as failed | [0032-MADR](decisions/0032-MADR-tool-strict-and-result-error-flags.md) |
 | know why provider auth builds on `mcplib` and not `magic-cli-remote`, and what it takes from each | [0016-MADR](decisions/0016-MADR-provider-auth-and-support-baseline.md) |
 | compare this module's auth with Codex, Grok, Kilo, OpenCode, pi, agy and Claude Code | [0017-REPORT](reports/0017-REPORT-reference-client-auth-survey.md) |
 | know how Together AI, Kilo device login and command-sourced keys are being added | [0017-MADR](decisions/0017-MADR-together-provider-and-auth-extensions.md) |
