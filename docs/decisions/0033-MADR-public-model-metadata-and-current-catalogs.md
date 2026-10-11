@@ -346,6 +346,23 @@ this one:
 Until that record lands, `staticClaude` holds only models measured to
 accept forced choice.
 
+### Measured (2026-10-11)
+
+0033-PLAN-refresh-the-curated-catalogs.md Phase 1 measured each candidate:
+
+* **Every candidate answered.** Each was listed by its provider and
+  answered a generation, and the four lists keep three ids or more.
+* **Forced choice.** `claude-sonnet-5-5` and `claude-opus-5-5` refused it
+  with 400, as Anthropic's release notes say, so they wait for D6's record.
+  `claude-haiku-5-5` accepted it.
+* **D6's source.** Anthropic's models API `capabilities` has no entry for
+  forced tool choice. D6's per-model fact therefore comes from the measured
+  table it names as the fallback, unless Anthropic adds one.
+* **D2's xAI row.** xAI's listing reports `reasoning_effort` and
+  `context_length` per model, as D2's xAI row assumes. Its efforts can
+  differ from the docs: it gives `grok-4.3` `xhigh`, which a request
+  accepted.
+
 ### Owner questions
 
 Answered by the owner on 2026-10-11: the recommended option of each.

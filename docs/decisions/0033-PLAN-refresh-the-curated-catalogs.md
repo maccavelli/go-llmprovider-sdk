@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-11
 associated-madr: "0033-MADR-public-model-metadata-and-current-catalogs.md"
 decision-makers: repository owner
@@ -209,4 +209,100 @@ The tests are behind `LLMPROVIDER_LIVE_0033`, in
 
 ## Execution Record
 
-Not started.
+### Phase 0: records (2026-10-11)
+
+* The MADR and both plans, written `proposed`. The owner answered Q1 to Q8
+  with the recommended option of each, and the MADR was accepted with
+  them. The owner committed the records as `9ec6571`.
+* The index has three rows, 72 records, and two "I want to…" rows.
+
+### Phase 1: measurement (2026-10-11)
+
+`llmprovider/live_0033_measure_test.go`, behind `LLMPROVIDER_LIVE_0033`.
+Each key was read from its provider's variable and sent only in its
+request header. The test logs statuses, ids and listing metadata only.
+
+**Step 1, the listings,** not billed. Each candidate, then each of today's
+static ids:
+
+| Provider | Listing | Candidates | Today's ids |
+| :--- | :--- | :--- | :--- |
+| OpenAI | 200, 133 models | all six listed, `shutdown_date null` | `gpt-4.1-nano` and `o4-mini`: `shutdown_date "2026-10-23"`; `gpt-4o-mini`, `gpt-4.1`, `gpt-4o`: `null` |
+| Anthropic | 14 models | all six listed, `lifecycle "active"`, `max_input_tokens 1000000`, `max_tokens 128000` | `claude-haiku-4-5` not listed by that alias |
+| Gemini | 62 models | all three listed, `inputTokenLimit 1048576`, `outputTokenLimit 65536`, `thinking true` | `gemini-3.7-flash`, `gemini-3.5-flash`, and both 2.5 models still listed for this key |
+| xAI | 200, 14 models | all five listed | `grok-3-mini-fast`, `grok-3-mini`, `grok-4`, `grok-4-fast-reasoning` not listed |
+
+The listings' own facts:
+
+* **Anthropic's `capabilities`:**
+  * `effort` levels (`xhigh` false on `claude-sonnet-4-6` only);
+  * `image_input`;
+  * `thinking.types`: `enabled` false on all but `claude-sonnet-4-6`, and
+    `disabled` false on `claude-sonnet-5-5` and `claude-opus-5-5`.
+
+  It has **no entry for forced tool choice**.
+* **xAI's `capabilities.reasoning_effort`:**
+  * `grok-4.7`, `grok-4.6` and `grok-4.5`: `low`, `medium`, `high`,
+    `xhigh`, default `high`;
+  * `grok-4.3`: `none`, `low`, `medium`, `high`, `xhigh`, default `low`;
+  * `grok-build-0.1`: no `capabilities`.
+* **xAI's `context_length`:**
+  * 500000 for 4.7, 4.6 and 4.5;
+  * 1000000 for 4.3;
+  * 256000 for `grok-build-0.1`.
+
+**Step 2, one generation per candidate,** billed: 18 requests of at most 16
+output tokens, 13:52 UTC.
+
+| Provider | Candidate | Status |
+| :--- | :--- | :--- |
+| OpenAI | `gpt-6-luna`, `gpt-5.6-luna`, `gpt-4.1-mini`, `gpt-5.6-terra`, `gpt-6.1-sol`, `gpt-6-astra` | 200 each |
+| Gemini | `gemini-3.5-flash-lite` | 200 |
+| Gemini | `gemini-3.8-flash`, `gemini-3.6-flash` | 200, `incomplete`: thinking spent the 16 tokens, as 0031-PLAN-native-streaming-on-the-other-wires.md deviation D2 found |
+| Claude | `claude-haiku-5-5`, `claude-sonnet-5`, `claude-opus-4-8`, `claude-sonnet-4-6`, `claude-sonnet-5-5`, `claude-opus-5-5` | 200 each |
+| Grok | `grok-4.6`, `grok-4.5`, `grok-build-0.1` | 200 each (`grok-4.7` and `grok-4.3` in step 4) |
+
+**Step 3, forced choice,** billed: 6 requests. `GenerateToolCall` on each
+Claude candidate:
+
+| Candidate | Status |
+| :--- | :--- |
+| `claude-haiku-5-5`, `claude-sonnet-5`, `claude-opus-4-8`, `claude-sonnet-4-6` | 200, cut at 16 tokens (`length`): forced choice accepted |
+| `claude-sonnet-5-5`, `claude-opus-5-5` | 400 `invalid_request_error`: "tool_choice: type "tool" and "any" are not supported for this model." |
+
+**Step 4, the Grok efforts,** billed: 8 requests, `reasoning.effort` set on
+the wire:
+
+* `grok-4.7`: `low`, `medium`, `high` and `xhigh` each answered 200;
+* `grok-4.3`: `low`, `medium`, `high` and `xhigh` each answered 200.
+
+32 billed requests in all, as planned.
+
+**The lists Phase 2 builds**, the candidates that passed:
+
+| List | Ids, in order |
+| :--- | :--- |
+| `staticOpenAI` | `gpt-6-luna`, `gpt-5.6-luna`, `gpt-4.1-mini`, `gpt-5.6-terra`, `gpt-6.1-sol`, `gpt-6-astra` |
+| `staticGemini` | `gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-3.6-flash` |
+| `staticClaude` | `claude-haiku-5-5`, `claude-sonnet-5`, `claude-opus-4-8`, `claude-sonnet-4-6` |
+| `staticGrok` | `grok-4.6`, `grok-4.5`, `grok-4.7`, `grok-4.3`, `grok-build-0.1` |
+
+* `claude-sonnet-5-5` and `claude-opus-5-5` wait for 0033-MADR D6's record.
+* Every list has three ids or more.
+* **The Grok effort menus** Phase 2 adds, as the listing reports and step
+  4 measured:
+  * `grok-4.7`: `low`, `medium`, `high`, `xhigh`;
+  * `grok-4.3`: `low`, `medium`, `high`, `xhigh`.
+
+  `none` has no `Effort` constant, so an omitted effort stays omitted.
+
+**Found, outside this plan's scope**, and not changed by it:
+
+* **`grok-4.5`'s efforts.** The listing reports `xhigh` for `grok-4.5`.
+  `providers/grok/reasoning.go` gives it `low`, `medium` and `high`, from
+  the Grok CLI's catalog (0012-MADR §6), and clamps `xhigh` to `high`.
+  Whether to follow the listing is the owner's call; it is not measured
+  here.
+* **Forced choice is not in Anthropic's metadata.** The record D6 names
+  must take it from a measured table: Anthropic's `capabilities` has no
+  entry for it. The MADR's measured note says so.
