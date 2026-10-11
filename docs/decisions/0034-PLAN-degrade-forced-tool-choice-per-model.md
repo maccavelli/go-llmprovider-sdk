@@ -351,3 +351,94 @@ run at 15:43 UTC.
   * The plan foresaw this outcome, so it is not a deviation.
 
 **Pre-add:** the test file is clean.
+
+### Phase 2: the shared mapping and the table (2026-10-11)
+
+**Change.**
+
+* **`llmprovider/internal/wire/messages/toolchoice.go`** (new):
+  * `forcedChoiceRefused`, the four ids, and `refusesForcedChoice`, an
+    exact, case-insensitive match;
+  * `ToolChoice(choice, thinking, model)`: today's mapping, with a forced
+    choice sent as `auto` on a refusing model as well as with thinking;
+  * `AddToolChoice(body, choice, thinking, model)`, which sets
+    `tool_choice`. On a refusing model, a forced choice also appends
+    Anthropic's turn instruction as a `role: system` message after the last
+    `user` turn. When the messages do not end with one, it adds the text to
+    the top-level `system`, after any system text there.
+* **The Claude provider and OpenCode's `messages` route** call
+  `messages.AddToolChoice`. Their copies are deleted: `claude.toolChoice`
+  and `opencode.messagesToolChoice`.
+* **The Claude constants** `jsonKeyType` and `jsonKeyName` became unused
+  (`unused`) and were removed.
+* **Package docs:**
+  * Claude's capability line and Degradations entry name the four models,
+    the degraded request, and `ErrIncomplete` on a text reply;
+  * OpenCode's `messages` route entry names them too.
+
+**Red first** (`internal/wire/messages/toolchoice_0034_test.go`).
+
+* The tests alone did not build:
+  `undefined: refusesForcedChoice`, `undefined: ToolChoice`,
+  `undefined: AddToolChoice`.
+* With the three functions holding today's behaviour (no table, the old
+  mapping, no instruction), exactly the new assertions failed:
+
+  ```text
+  toolchoice_0034_test.go:19: refusesForcedChoice("claude-fable-5-1") = false, want true
+  toolchoice_0034_test.go:68: ToolChoice("tool:get_weather", thinking false) on claude-opus-5-5 = map[name:get_weather type:tool], want map[type:auto]
+  toolchoice_0034_test.go:68: ToolChoice("required", thinking false) on claude-opus-5-5 = map[type:any], want map[type:auto]
+  toolchoice_0034_test.go:105: last message = {"content":"hi","role":"user"}, want {"content":"Tool-use requirement for the current turn: …","role":"system"}
+  toolchoice_0034_test.go:108: tool_choice = map[name:get_weather type:tool], want auto
+  toolchoice_0034_test.go:131: system = <nil>, want the instruction
+  toolchoice_0034_test.go:138: system = "Be brief.", want the caller's system, then the instruction
+  ```
+
+  The abridged list also had the other three refusing ids, the
+  required-choice instruction and the message count. The two tests that
+  pin unchanged behaviour passed on today's mapping, as they must:
+  * `TestToolChoice_UnchangedOutsideTheTable_0034`;
+  * `TestAddToolChoice_NoInstructionOtherwise_0034`.
+
+**A defect found by the test, before green.**
+
+* The first implementation named the tool from `choice.Tool()`. For
+  `ToolChoiceRequired` that returns the choice's own string, so the
+  instruction asked for "the required tool":
+
+  ```text
+  toolchoice_0034_test.go:117: ToolChoiceRequired's last message = {"content":"Tool-use requirement … a call to the required tool …"}, want the one-of-the-tools instruction
+  ```
+
+* The name is now used only when a tool is named.
+
+**An assertion added after green.** On a refusing model, the instruction
+is also added with thinking, as D2 applies to every forced request there.
+It passed at once, so it was shown failing on a plant (below).
+
+**Green:**
+
+* `go test -race -count=1 ./llmprovider/...` passes;
+* every G-wire golden is unchanged: the golden models, `claude-sonnet-5`
+  and `qwen3.8-flash`, are outside the table.
+
+**Lint.** The first pre-add found four issues, fixed in code:
+
+* `errcheck` on two type assertions in `AddToolChoice`, now checked;
+* `unused` on the two Claude constants.
+
+**Plants** on a scratch clone, each against the `_0034` tests:
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the table matched by prefix | `refusesForcedChoice("claude-sonnet-5-5-x") = true, want false: exact ids only` |
+| the system message dropped | `1 messages, want the user turn and the system message` |
+| the system message before the last `user` turn | `last message = {"content":"hi","role":"user"}, want {"content":"Tool-use requirement …","role":"system"}` |
+| the mapping changed outside the table | `ToolChoice("required", thinking false) = map[type:auto], want map[type:any]` |
+| no instruction with thinking | `with thinking, last message = {"content":"hi","role":"user"}, want …` |
+
+The plants ran on the final code. One plant's text was rewritten after the
+lint fix, which had removed the variable it used, so that it fails its
+test rather than the build.
+
+**Pre-add:** 4 files clean.

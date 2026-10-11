@@ -42,7 +42,10 @@
 //     named); the messages and google routes take the effort or the budget,
 //     shaped by model as Claude's and Gemini's; the chat route, see above.
 //   - On the messages route, a forced tool choice is sent as "auto" with
-//     reasoning: Anthropic refuses to force a tool while thinking.
+//     reasoning: Anthropic refuses to force a tool while thinking. On
+//     claude-fable-5-1, claude-mythos-5-1, claude-opus-5-5 and
+//     claude-sonnet-5-5 it is sent as "auto" with a turn instruction naming
+//     the tool, as the claude provider sends it (0034-MADR D2).
 //   - Instructions are sent as a leading system item on every route: the
 //     system field on the messages route, systemInstruction on the google
 //     route, a system message elsewhere.
@@ -451,31 +454,9 @@ func (p *provider) messagesBody(c call) map[string]any {
 	body[jsonKeyMaxTokens] = maxTokens
 	if tools := c.req.Tools; len(tools) > 0 {
 		body[jsonKeyTools] = wire.MessagesTools(tools)
-		if choice := messagesToolChoice(c.req.ToolChoice, thinking); choice != nil {
-			body[jsonKeyToolChoice] = choice
-		}
+		messages.AddToolChoice(body, c.req.ToolChoice, thinking, c.model)
 	}
 	return body
-}
-
-// messagesToolChoice is the Messages tool_choice for choice. With thinking,
-// forcing is sent as "auto": extended thinking is incompatible with a forced
-// tool_choice.
-func messagesToolChoice(choice llmprovider.ToolChoice, thinking bool) map[string]any {
-	name, named := choice.Tool()
-	forced := named || choice == llmprovider.ToolChoiceRequired
-	switch {
-	case forced && thinking:
-		return map[string]any{jsonKeyType: "auto"}
-	case named:
-		return map[string]any{jsonKeyType: "tool", jsonKeyName: name}
-	case choice == llmprovider.ToolChoiceRequired:
-		return map[string]any{jsonKeyType: "any"}
-	case choice == llmprovider.ToolChoiceNone:
-		return map[string]any{jsonKeyType: "none"}
-	default:
-		return nil
-	}
 }
 
 // googleBody is the Gemini generateContent shape.

@@ -7,8 +7,8 @@
 // Anthropic subscriptions (0016-MADR D10).
 //
 // Capabilities: tools and reasoning are Supported. Forced tool choice is
-// BestEffort: with reasoning it is sent as "auto" (see Degradations,
-// 0020-MADR F43).
+// BestEffort: with reasoning, and on the models that refuse it, it is sent as
+// "auto" (see Degradations; 0020-MADR F43, 0034-MADR D2).
 // Continuation is Unsupported: the Messages API is stateless, so a caller
 // replays prior items instead. Native streaming is
 // Supported: Stream asks the Messages API for an event stream and yields its
@@ -21,6 +21,13 @@
 //     (0032-MADR D2).
 //   - With Reasoning, a forced tool choice (ForceTool or ToolChoiceRequired)
 //     is sent as "auto": Anthropic refuses to force a tool while thinking.
+//   - On claude-fable-5-1, claude-mythos-5-1, claude-opus-5-5 and
+//     claude-sonnet-5-5, which refuse a forced tool choice with HTTP 400, it
+//     is sent as "auto", with Anthropic's turn instruction naming the tool:
+//     a mid-conversation system message after the last user turn, or, when
+//     the input does not end with one, a line of the system field. The model
+//     may still answer in text, which GenerateToolCall reports as
+//     ErrIncomplete (0034-MADR D1, D2).
 //   - Reasoning's shape follows the model. Claude 4.7 and later take adaptive
 //     thinking, with the effort as output_config.effort; a Budget is not sent
 //     to them. Older models take a budget: Reasoning.Budget, else 1024 for
@@ -52,9 +59,6 @@ import (
 const (
 	defaultBaseURL   = "https://api.anthropic.com/v1"
 	anthropicVersion = "2023-06-01"
-
-	jsonKeyType = "type"
-	jsonKeyName = "name"
 
 	// probeMaxTokens is the output limit a listing probe sends: the default
 	// of the old API's probe provider, kept so the probe's request is
@@ -208,9 +212,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	thinking := p.addReasoning(body, req, model, maxTokens)
 	if len(req.Tools) > 0 {
 		body["tools"] = wire.MessagesTools(req.Tools)
-		if choice := toolChoice(req.ToolChoice, thinking); choice != nil {
-			body["tool_choice"] = choice
-		}
+		messages.AddToolChoice(body, req.ToolChoice, thinking, model)
 	}
 	return body
 }
@@ -237,25 +239,6 @@ func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, m
 	}
 	body["max_tokens"] = messages.AddThinking(body, model, string(effort), budget, maxTokens)
 	return true
-}
-
-// toolChoice is the tool_choice for choice. With thinking, forcing is sent
-// as "auto": Anthropic refuses a forced tool while thinking.
-func toolChoice(choice llmprovider.ToolChoice, thinking bool) map[string]any {
-	name, named := choice.Tool()
-	forced := named || choice == llmprovider.ToolChoiceRequired
-	switch {
-	case forced && thinking:
-		return map[string]any{jsonKeyType: "auto"}
-	case named:
-		return map[string]any{jsonKeyType: "tool", jsonKeyName: name}
-	case choice == llmprovider.ToolChoiceRequired:
-		return map[string]any{jsonKeyType: "any"}
-	case choice == llmprovider.ToolChoiceNone:
-		return map[string]any{jsonKeyType: "none"}
-	default:
-		return nil
-	}
 }
 
 // ListModels returns curated Claude text models (Models API and catalog),
