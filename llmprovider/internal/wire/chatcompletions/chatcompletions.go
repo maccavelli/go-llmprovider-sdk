@@ -387,34 +387,52 @@ func DecodeFor(provider string) func(io.Reader) (*llmprovider.Response, error) {
 
 // decodeAs is Decode, with errors labelled and classified for provider.
 func decodeAs(body io.Reader, provider string) (*llmprovider.Response, error) {
-	var raw struct {
-		ID      string        `json:"id"`
-		Model   string        `json:"model"`
-		Error   *gatewayError `json:"error"`
-		Choices []struct {
-			FinishReason string        `json:"finish_reason"`
-			Error        *gatewayError `json:"error"`
-			Message      struct {
-				Role             string            `json:"role"`
-				Content          chatContent       `json:"content"`
-				Refusal          string            `json:"refusal"`
-				ReasoningContent string            `json:"reasoning_content"`
-				Reasoning        string            `json:"reasoning"`
-				ReasoningDetails []json.RawMessage `json:"reasoning_details"`
-				ToolCalls        []struct {
-					ID       string `json:"id"`
-					Function struct {
-						Name      string        `json:"name"`
-						Arguments chatArguments `json:"arguments"`
-					} `json:"function"`
-				} `json:"tool_calls"`
-			} `json:"message"`
-		} `json:"choices"`
-		Usage usage `json:"usage"`
-	}
+	var raw chatReply
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
 		return nil, err
 	}
+	return raw.response(provider)
+}
+
+// chatReply is a Chat Completions reply, whole, or assembled from its stream.
+type chatReply struct {
+	ID      string        `json:"id"`
+	Model   string        `json:"model"`
+	Error   *gatewayError `json:"error"`
+	Choices []chatChoice  `json:"choices"`
+	Usage   usage         `json:"usage"`
+}
+
+// chatChoice is one choice of a reply.
+type chatChoice struct {
+	FinishReason string        `json:"finish_reason"`
+	Error        *gatewayError `json:"error"`
+	Message      replyMessage  `json:"message"`
+}
+
+// replyMessage is a choice's message.
+type replyMessage struct {
+	Role             string            `json:"role"`
+	Content          chatContent       `json:"content"`
+	Refusal          string            `json:"refusal"`
+	ReasoningContent string            `json:"reasoning_content"`
+	Reasoning        string            `json:"reasoning"`
+	ReasoningDetails []json.RawMessage `json:"reasoning_details"`
+	ToolCalls        []replyCall       `json:"tool_calls"`
+}
+
+// replyCall is one of a message's calls.
+type replyCall struct {
+	ID       string `json:"id"`
+	Function struct {
+		Name      string        `json:"name"`
+		Arguments chatArguments `json:"arguments"`
+	} `json:"function"`
+}
+
+// response is raw as a Response, or the error it carries or makes, for
+// provider.
+func (raw chatReply) response(provider string) (*llmprovider.Response, error) {
 	// A gateway may answer 200 with an error, at the top level or in the
 	// choice, as OpenRouter does, which Kilo inherits (0021-MADR W5).
 	if raw.Error != nil {
@@ -485,6 +503,229 @@ func decodeAs(body io.Reader, provider string) (*llmprovider.Response, error) {
 		return nil, wire.EmptyAnswer("chat completions", finish)
 	}
 	return result, nil
+}
+
+// chatChunk is the part of one Chat Completions stream chunk the reader uses
+// (0031-PLAN-native-streaming-on-the-other-wires, Phase 1).
+type chatChunk struct {
+	ID      string        `json:"id"`
+	Model   string        `json:"model"`
+	Error   *gatewayError `json:"error"`
+	Choices []struct {
+		FinishReason string        `json:"finish_reason"`
+		Error        *gatewayError `json:"error"`
+		Delta        chunkDelta    `json:"delta"`
+	} `json:"choices"`
+	Usage *usage `json:"usage"`
+}
+
+// chunkDelta is a chunk's choice delta.
+type chunkDelta struct {
+	Content          chatContent       `json:"content"`
+	Refusal          string            `json:"refusal"`
+	ReasoningContent string            `json:"reasoning_content"`
+	Reasoning        string            `json:"reasoning"`
+	ReasoningDetails []json.RawMessage `json:"reasoning_details"`
+	ToolCalls        []struct {
+		Index    int    `json:"index"`
+		ID       string `json:"id"`
+		Function struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		} `json:"function"`
+	} `json:"tool_calls"`
+}
+
+// streamCall is a call as its fragments arrive.
+type streamCall struct {
+	id, name  string
+	arguments strings.Builder
+}
+
+// chatStream is a reply as its chunks arrive.
+type chatStream struct {
+	provider                                      string
+	raw                                           chatReply
+	content, refusal, reasoningContent, reasoning strings.Builder
+	calls                                         []*streamCall
+	details                                       []map[string]any
+	yield                                         func(llmprovider.Event) bool
+}
+
+// Events reads a Chat Completions event stream and yields its events as they
+// arrive (0031-MADR E3): delta.content and delta.refusal as EventTextDelta,
+// delta.reasoning_content, else delta.reasoning, as EventReasoningDelta, and
+// at [DONE] the items Decode returns for the same answer, in its order, then
+// EventDone, carrying that Response. Calls, assembled from their fragments by
+// index, and reasoning_details, merged by index, arrive only as items. An
+// error inside the 200, in a chunk or its choice, is classified as Decode
+// classifies it (0021-MADR W5). It returns nil once EventDone is yielded or
+// yield returns false, and otherwise the error that ended the stream; what it
+// yielded before an error is not a response (0031-MADR D4).
+func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
+	s := &chatStream{provider: provider, raw: chatReply{Choices: []chatChoice{{}}}, yield: yield}
+	return wire.ReadEvents(provider, body, "[DONE]", func(payload []byte) (bool, error) {
+		if string(payload) == "[DONE]" {
+			return s.done()
+		}
+		return s.chunk(payload)
+	})
+}
+
+// done finishes the reply at [DONE]: its items, then EventDone.
+func (s *chatStream) done() (bool, error) {
+	msg := &s.raw.Choices[0].Message
+	msg.Content, msg.Refusal = chatContent(s.content.String()), s.refusal.String()
+	msg.ReasoningContent, msg.Reasoning = s.reasoningContent.String(), s.reasoning.String()
+	for _, c := range s.calls {
+		call := replyCall{ID: c.id}
+		call.Function.Name = c.name
+		call.Function.Arguments = chatArguments(c.arguments.String())
+		if strings.TrimSpace(c.arguments.String()) == "" {
+			call.Function.Arguments = "{}"
+		}
+		msg.ToolCalls = append(msg.ToolCalls, call)
+	}
+	for _, detail := range s.details {
+		entry, err := json.Marshal(detail)
+		if err != nil {
+			return false, fmt.Errorf("%s: reasoning_details: %w", s.provider, err)
+		}
+		msg.ReasoningDetails = append(msg.ReasoningDetails, entry)
+	}
+	resp, err := s.raw.response(s.provider)
+	if err != nil {
+		return false, err
+	}
+	for _, item := range resp.Output {
+		if !s.yield(llmprovider.Event{Type: llmprovider.EventItem, Item: item}) {
+			return true, nil
+		}
+	}
+	s.yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
+	return true, nil
+}
+
+// chunk reads one chunk: its error, its id, model and usage, and its choice.
+func (s *chatStream) chunk(payload []byte) (bool, error) {
+	var chunk chatChunk
+	if err := json.Unmarshal(payload, &chunk); err != nil {
+		return false, fmt.Errorf("%s: decode stream chunk: %w", s.provider, err)
+	}
+	// A gateway may fail inside the 200, at the top level or in the choice
+	// (0021-MADR W5).
+	if chunk.Error != nil {
+		return false, chunk.Error.classify(s.provider)
+	}
+	if s.raw.ID == "" {
+		s.raw.ID = chunk.ID
+	}
+	if s.raw.Model == "" {
+		s.raw.Model = chunk.Model
+	}
+	if chunk.Usage != nil {
+		s.raw.Usage = *chunk.Usage
+	}
+	if len(chunk.Choices) == 0 {
+		return false, nil
+	}
+	choice := chunk.Choices[0]
+	if e := choice.Error; e != nil || choice.FinishReason == finishError {
+		if e == nil {
+			e = &gatewayError{Message: "finish_reason error"}
+		}
+		return false, e.classify(s.provider)
+	}
+	if choice.FinishReason != "" {
+		s.raw.Choices[0].FinishReason = choice.FinishReason
+	}
+	return s.delta(choice.Delta)
+}
+
+// delta adds one delta: calls and reasoning_details are accumulated, and
+// reasoning and text are yielded.
+func (s *chatStream) delta(delta chunkDelta) (bool, error) {
+	for _, tc := range delta.ToolCalls {
+		for len(s.calls) <= tc.Index {
+			s.calls = append(s.calls, &streamCall{})
+		}
+		c := s.calls[tc.Index]
+		if tc.ID != "" {
+			c.id = tc.ID
+		}
+		c.name += tc.Function.Name
+		c.arguments.WriteString(tc.Function.Arguments)
+	}
+	for _, entry := range delta.ReasoningDetails {
+		if err := s.detail(entry); err != nil {
+			return false, err
+		}
+	}
+	s.reasoningContent.WriteString(delta.ReasoningContent)
+	s.reasoning.WriteString(delta.Reasoning)
+	reasoning := delta.ReasoningContent
+	if reasoning == "" {
+		reasoning = delta.Reasoning
+	}
+	if reasoning != "" && !s.yield(llmprovider.Event{Type: llmprovider.EventReasoningDelta, Text: reasoning}) {
+		return true, nil
+	}
+	// A refusal's delta is a text delta, as on the Responses wire (0031-MADR
+	// amendment of 2026-10-10, D4).
+	for _, part := range []struct {
+		text string
+		to   *strings.Builder
+	}{{string(delta.Content), &s.content}, {delta.Refusal, &s.refusal}} {
+		if part.text == "" {
+			continue
+		}
+		part.to.WriteString(part.text)
+		if !s.yield(llmprovider.Event{Type: llmprovider.EventTextDelta, Text: part.text}) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// detail merges one reasoning_details fragment into the entry its index
+// names.
+func (s *chatStream) detail(entry json.RawMessage) error {
+	var fragment map[string]any
+	if err := json.Unmarshal(entry, &fragment); err != nil {
+		return fmt.Errorf("%s: reasoning_details: %w", s.provider, err)
+	}
+	index := 0
+	if f, ok := fragment["index"].(float64); ok {
+		index = int(f)
+	}
+	for len(s.details) <= index {
+		s.details = append(s.details, map[string]any{})
+	}
+	mergeDetail(s.details[index], fragment)
+	return nil
+}
+
+// mergeDetail adds one reasoning_details fragment to its entry: the strings a
+// stream splits (text, summary, data, signature) are joined, and any other
+// field keeps its first value.
+func mergeDetail(entry, fragment map[string]any) {
+	for k, v := range fragment {
+		switch k {
+		case "text", "summary", "data", "signature":
+			next, ok := v.(string)
+			if !ok {
+				continue
+			}
+			if prev, ok := entry[k].(string); ok {
+				next = prev + next
+			}
+			entry[k] = next
+		default:
+			if _, ok := entry[k]; !ok {
+				entry[k] = v
+			}
+		}
+	}
 }
 
 // reasoningDetail is one reasoning_details entry as a ReasoningItem: its text

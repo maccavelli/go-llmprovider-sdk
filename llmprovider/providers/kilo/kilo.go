@@ -19,8 +19,9 @@
 // Capabilities: tools are Supported. Forced tool choice and reasoning are
 // BestEffort: they are sent only when the model accepts them, as WithCapabilities
 // declares (all are sent when it is not given). Continuation is Unsupported:
-// Chat Completions is stateless. There is no native streaming;
-// llmprovider.Stream emits Generate's result.
+// Chat Completions is stateless. Native streaming is Supported:
+// Stream asks for an event stream, with its usage, and yields its events as
+// they arrive (0031-MADR E1, E5).
 //
 // Degradations:
 //   - Reasoning takes an effort: Kilo's reasoning object {effort}, or
@@ -40,6 +41,7 @@ package kilo
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net/http"
 
@@ -193,7 +195,7 @@ func (p *provider) Capabilities() llmprovider.Capabilities {
 		ForcedToolChoice: llmprovider.BestEffort,
 		Reasoning:        llmprovider.BestEffort,
 		Continuation:     llmprovider.Unsupported,
-		NativeStreaming:  llmprovider.Unsupported,
+		NativeStreaming:  llmprovider.Supported,
 	}
 }
 
@@ -213,17 +215,42 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	})
 }
 
+// Stream streams req from the Chat Completions API as it is generated
+// (0031-MADR E1, E5): the request asks for an event stream with its usage,
+// and each event is yielded as it arrives. A 401 before the first event
+// renews a refreshable token and sends once more.
+func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
+	if err := p.Capabilities().Check(req); err != nil {
+		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
+	}
+	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
+		return p.call(req, token, true)
+	}, chatcompletions.Events)
+}
+
 // generateOnce sends req once, with token. The token names the gateway and
 // the organization.
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
+	return wire.Post(ctx, p.call(req, token, false), token, chatcompletions.DecodeFor(string(llmprovider.ProviderKilo)))
+}
+
+// call is the Chat Completions request for req, asking for an event stream
+// with its usage when stream is set (0031-MADR E5).
+func (p *provider) call(req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
 	endpoints := kiloendpoint.Resolve(p.baseURL, token.Value, p.org)
 	gateway, org := endpoints.Gateway, endpoints.Org
-	return wire.Post(ctx, wire.Call{
+	body := p.body(req)
+	if stream {
+		body["stream"] = true
+		body["stream_options"] = map[string]any{"include_usage": true}
+	}
+	return wire.Call{
 		Provider: string(llmprovider.ProviderKilo),
 		Client:   p.client,
 		Logger:   p.logger,
 		URL:      gateway + "/chat/completions",
-		Body:     p.body(req),
+		Body:     body,
+		Stream:   stream,
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			r.Header.Set(headerEditor, p.editor)
@@ -232,8 +259,11 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 			if org != "" {
 				r.Header.Set(headerOrganization, org)
 			}
+			if stream {
+				r.Header.Set("Accept", "text/event-stream")
+			}
 		},
-	}, token, chatcompletions.DecodeFor(string(llmprovider.ProviderKilo)))
+	}
 }
 
 // body is the Chat Completions request for req.

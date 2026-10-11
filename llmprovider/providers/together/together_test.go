@@ -198,8 +198,12 @@ func TestTogether_Capabilities(t *testing.T) {
 	caps := p.Capabilities()
 	if caps.Tools != llmprovider.BestEffort || caps.ForcedToolChoice != llmprovider.BestEffort ||
 		caps.Reasoning != llmprovider.BestEffort || caps.Continuation != llmprovider.Unsupported ||
-		caps.NativeStreaming != llmprovider.Unsupported {
+		caps.NativeStreaming != llmprovider.Supported {
 		t.Errorf("Capabilities = %+v", caps)
+	}
+	// It streams natively (0031-MADR E1).
+	if _, ok := p.(llmprovider.Streamer); !ok {
+		t.Error("the provider does not implement Streamer")
 	}
 	if p.ID() != llmprovider.ProviderTogether {
 		t.Errorf("ID() = %q", p.ID())

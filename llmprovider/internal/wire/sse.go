@@ -113,9 +113,19 @@ func readLine(r *bufio.Reader, limit int) ([]byte, error) {
 // with a zero Event and ends it; a caller that stops ranging closes the reply.
 func StreamEvents(ctx context.Context, c Call, src llmprovider.TokenSource,
 	decode func(provider string, body io.Reader, yield func(llmprovider.Event) bool) error) iter.Seq2[llmprovider.Event, error] {
+	return StreamEventsFor(ctx, src, func(llmprovider.Token) Call { return c }, decode)
+}
+
+// StreamEventsFor is StreamEvents for a request built from the token it is
+// sent with, as Kilo's endpoint is from its key.
+func StreamEventsFor(ctx context.Context, src llmprovider.TokenSource, build func(llmprovider.Token) Call,
+	decode func(provider string, body io.Reader, yield func(llmprovider.Event) bool) error) iter.Seq2[llmprovider.Event, error] {
 	return func(yield func(llmprovider.Event, error) bool) {
-		reply, err := Reauth(ctx, c.Provider, src, func(token llmprovider.Token) (*Stream, error) {
-			return OpenStream(ctx, c, token)
+		// The label names the provider before a token is fetched, for a
+		// failure to fetch one.
+		provider := build(llmprovider.Token{}).Provider
+		reply, err := Reauth(ctx, provider, src, func(token llmprovider.Token) (*Stream, error) {
+			return OpenStream(ctx, build(token), token)
 		})
 		if err != nil {
 			yield(llmprovider.Event{}, err)
@@ -123,7 +133,7 @@ func StreamEvents(ctx context.Context, c Call, src llmprovider.TokenSource,
 		}
 		stopped := false
 		err = reply.Read(func(body io.Reader) error {
-			return decode(c.Provider, body, func(ev llmprovider.Event) bool {
+			return decode(provider, body, func(ev llmprovider.Event) bool {
 				stopped = !yield(ev, nil)
 				return !stopped
 			})

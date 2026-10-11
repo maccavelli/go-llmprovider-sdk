@@ -26,9 +26,11 @@ func TestConformance(t *testing.T) {
 				"role": "assistant", "tool_calls": []any{map[string]any{"id": "call_llmtest", "type": "function",
 					"function": map[string]any{"name": tool, "arguments": "{}"}}}}}}})
 		},
-		Fidelity:    true,
-		StrictTools: true,
-		Garbled:     func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
+		Fidelity:      true,
+		StrictTools:   true,
+		StreamText:    func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestChatStream) },
+		StreamFailure: func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, llmtestChatStreamFailure) },
+		Garbled:       func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"garbled`) },
 		Truncated: func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = io.WriteString(w, `{"model":"llmtest-model","choices":[{"finish_reason":"length","message":{"role":"assistant","tool_calls":[{"id":"call_llmtest","type":"function","function":{"name":"llmtest_tool","arguments":"{\"city\":"}}]}}]}`)
 		},
@@ -41,3 +43,11 @@ func TestConformance(t *testing.T) {
 		},
 	})
 }
+
+// llmtestChatStream is the text reply as a Chat Completions event stream: its
+// text in a delta, the finish, then [DONE] (0031-MADR E6).
+const llmtestChatStream = "data: {\"id\":\"cmpl-hf\",\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"cmpl-hf\",\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
+
+// llmtestChatStreamFailure is a Chat Completions event stream that fails
+// after one delta, with an error inside the 200.
+const llmtestChatStreamFailure = "data: {\"id\":\"cmpl-hf\",\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hel\"},\"finish_reason\":null}]}\n\ndata: {\"error\":{\"message\":\"llmtest\",\"code\":503}}\n\n"

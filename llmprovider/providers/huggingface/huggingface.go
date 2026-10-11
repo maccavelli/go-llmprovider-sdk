@@ -18,8 +18,9 @@
 // named tool was measured (see Degradations, 0020-MADR F43). Reasoning is
 // BestEffort: Hugging Face documents reasoning_effort as "provider and
 // model-dependent", so an ignored effort is a normal outcome. Continuation is
-// Unsupported: Chat Completions is stateless. There is no native streaming;
-// llmprovider.Stream emits Generate's result.
+// Unsupported: Chat Completions is stateless. Native streaming is Supported:
+// Stream asks for an event stream, with its usage, and yields its events as
+// they arrive (0031-MADR E1, E5).
 //
 // Degradations:
 //   - Reasoning takes an effort, sent as reasoning_effort (medium with none);
@@ -41,6 +42,7 @@ package huggingface
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -105,7 +107,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			ForcedToolChoice: llmprovider.BestEffort,
 			Reasoning:        llmprovider.BestEffort,
 			Continuation:     llmprovider.Unsupported,
-			NativeStreaming:  llmprovider.Unsupported,
+			NativeStreaming:  llmprovider.Supported,
 		},
 	}
 	if b := st.BaseURL(); b != "" {
@@ -132,19 +134,45 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	})
 }
 
+// Stream streams req from the Chat Completions API as it is generated
+// (0031-MADR E1, E5): the request asks for an event stream with its usage,
+// and each event is yielded as it arrives. A 401 before the first event
+// renews a refreshable token and sends once more.
+func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
+	if err := p.Capabilities().Check(req); err != nil {
+		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
+	}
+	return wire.StreamEvents(ctx, p.call(req, true), p.src, chatcompletions.Events)
+}
+
 // generateOnce sends req once, with token.
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, wire.Call{
+	return wire.Post(ctx, p.call(req, false), token, chatcompletions.DecodeFor(string(llmprovider.ProviderHuggingFace)))
+}
+
+// call is the Chat Completions request for req, asking for an event stream
+// with its usage when stream is set (0031-MADR E5).
+func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
+	body := p.body(req)
+	if stream {
+		body["stream"] = true
+		body["stream_options"] = map[string]any{"include_usage": true}
+	}
+	return wire.Call{
 		Provider: string(llmprovider.ProviderHuggingFace),
 		Client:   p.client,
 		Logger:   p.logger,
 		URL:      p.baseURL + "/chat/completions",
-		Body:     p.body(req),
+		Body:     body,
+		Stream:   stream,
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")
+			if stream {
+				r.Header.Set("Accept", "text/event-stream")
+			}
 		},
-	}, token, chatcompletions.DecodeFor(string(llmprovider.ProviderHuggingFace)))
+	}
 }
 
 // body is the Chat Completions request for req.

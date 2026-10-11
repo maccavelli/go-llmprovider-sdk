@@ -24,9 +24,9 @@
 // published reasoning_options list the effort (MADR 0009 §6). Continuation is
 // Unsupported: the gateway rejects previous_response_id with HTTP 400
 // (measured 2026-08-28), so a caller replays prior items. Native streaming is
-// BestEffort: on the responses and messages routes Stream asks for an event
-// stream and yields its events as they arrive; on the other routes it yields
-// Generate's result as events (0031-MADR D1, Q2, E1).
+// BestEffort: on the responses, messages and chat_completions routes Stream
+// asks for an event stream and yields its events as they arrive; on the
+// google route it yields Generate's result as events (0031-MADR D1, Q2, E1).
 //
 // Degradations:
 //   - Reasoning: the responses route takes an effort (medium when none is
@@ -221,11 +221,11 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 }
 
 // Stream streams req from the gateway (0031-MADR D1, Q2, E1). On the
-// responses and messages routes the request asks for an event stream, and
-// each event is yielded as it arrives; a 401 before the first event renews
-// the token and sends once more. The other routes do not stream yet:
-// Generate's result is yielded as events, as llmprovider.Stream does for a
-// provider without a Streamer.
+// responses, messages and chat_completions routes the request asks for an
+// event stream, and each event is yielded as it arrives; a 401 before the
+// first event renews the token and sends once more. The google route does
+// not stream yet: Generate's result is yielded as events, as
+// llmprovider.Stream does for a provider without a Streamer.
 func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
 	if err := p.caps.Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
@@ -238,6 +238,10 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		body, events = p.responsesBody(c), responses.Events
 	case RouteMessages:
 		body, events = p.messagesBody(c), messages.Events
+	case RouteChatCompletions:
+		body, events = p.chatBody(ctx, c), chatcompletions.Events
+		// Usage comes in a stream only when asked for (0031-MADR E5).
+		body["stream_options"] = map[string]any{"include_usage": true}
 	default:
 		return llmprovider.Stream(ctx, generateOnly{p}, req)
 	}

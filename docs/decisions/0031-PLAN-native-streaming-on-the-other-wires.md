@@ -516,3 +516,142 @@ Billed: 2 requests; Zen's was refused before generation.
 
 **Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
 Coverage: `internal/wire/messages` 97.3%, `claude` 95.6%, `opencode` 97.4%.
+
+### Phase 4: Chat Completions (2026-10-10)
+
+Phase 1 showed the following streaming, each with usage under
+`include_usage`, so each declares `Supported` (E5, Q6):
+
+* `huggingface`
+* `kilo`
+* `together`
+* `ollama` (local)
+* OpenCode Go's `chat_completions` route
+
+OpenCode Zen's `chat_completions` route is built with Go's, as in Phase 3.
+
+**Change.**
+
+* `internal/wire/chatcompletions`:
+  * `decodeAs` reads a named `chatReply` and returns
+    `chatReply.response(provider)`, which keeps its rules unchanged.
+  * The new `Events` keeps a `chatStream`. Its chunks add up:
+    * `id`, `model` and `usage` (the usage chunk);
+    * the finish reason;
+    * `delta.content` and `delta.refusal` as text deltas;
+    * `delta.reasoning_content`, else `delta.reasoning`, as reasoning
+      deltas;
+    * call fragments assembled by `index`;
+    * `reasoning_details` fragments merged by `index` (`text`, `summary`,
+      `data` and `signature` joined; other fields keep their first value).
+  * At `[DONE]`, `response()` gives the items, in `Decode`'s order, then
+    `EventDone`. An error inside the 200, at the top level or in the
+    choice, is classified as `Decode` classifies it. It reads through
+    `wire.ReadEvents(…, "[DONE]", …)`.
+* `internal/wire`: `StreamEventsFor(ctx, src, build, decode)` builds the
+  request from the token it is sent with. Kilo's endpoint comes from its
+  key. `StreamEvents` is now `StreamEventsFor` over a fixed call.
+* `huggingface`, `together`, `ollama`:
+  * `call(req, stream)` is shared by `generateOnce` and the new `Stream`;
+  * a stream adds `"stream": true`, `stream_options: {"include_usage":
+    true}` and `Accept: text/event-stream`.
+* `kilo`: `call(req, token, stream)`, through `StreamEventsFor`.
+* Each of the four declares `NativeStreaming: Supported`, and its package
+  doc says so.
+* `opencode`: `Stream` streams the `chat_completions` route natively, with
+  `include_usage`. Only the `google` route still falls back.
+
+**Red** (steps 1 and 3), on the tree before each change:
+
+```text
+llmprovider/internal/wire/chatcompletions/events_0031b_test.go:40:9: undefined: Events
+--- FAIL: TestHuggingFace_Capabilities: huggingface_test.go:218: Capabilities = {… NativeStreaming:Unsupported}; huggingface_test.go:222: the provider does not implement Streamer
+--- FAIL: TestKilo_Capabilities, TestTogether_Capabilities, TestOllama_Capabilities: likewise
+--- FAIL: TestStream (huggingface, kilo, together, ollama): stream_0031b_test.go:57: the provider does not stream natively
+--- FAIL: TestStream_ChatRouteNative: stream_0031_test.go:210: llmprovider: incomplete response: opencode-zen/chat_completions: invalid character 'd' looking for beginning of value
+```
+
+**A correction to a new test:** the first green run failed
+`TestEvents_EqualsDecode/reasoning_content` and `/reasoning_with_details_(Kilo)`.
+The expected lists I had written left out the `text_delta:ok` that their
+scripted streams send. The code was right, and the expected lists were
+corrected to include it.
+
+**Green, under `-race`:**
+
+* `TestEvents_EqualsDecode` has eight cases: text, `reasoning_content`,
+  Kilo's `reasoning` with `reasoning_details`, two calls in fragments, a
+  refusal, an answer cut while reasoning, a call cut by the limit, and no
+  usage. In each:
+  * the events are pinned;
+  * `EventDone` equals `Decode` on the same answer, or both fail with the
+    same error (rule 11);
+  * the text deltas, joined, equal the message text.
+* `TestEvents_ErrorInsideTheStream` (top level, and in the choice),
+  `TestEvents_StopEarly`, and `TestEvents_EndsEarly` (naming `[DONE]`).
+* For each of the four providers: `TestStream` (a stream with its usage),
+  `TestGenerate_Unchanged` (no `stream`, no `stream_options`), and the
+  capability test at `Supported`.
+* `opencode`: `TestStream_ChatRouteNative` on both gateways.
+  `TestStream_OtherRoutesFallBack` now covers the `google` route alone.
+* Conformance: the four harnesses and OpenCode's `zen-chat` case set
+  `StreamText` and `StreamFailure` (a Chat Completions stream, and one
+  failing with an error inside the 200 after a delta). Every
+  `D7-native-stream` subtest passes.
+* `go test -count=1 ./...` passes.
+
+**Fixed at the gate, without a deviation.** The first gate run failed
+`make lint` on the new decoder:
+
+* `errcheck` on three type assertions that discarded their ok value;
+* `gocognit` complexity 79 for `Events`, above the limit of 50.
+
+The code was changed:
+
+* `Events` is split into `chatStream.done`, `.chunk`, `.delta` and
+  `.detail`;
+* the assertions check their ok value.
+
+`golangci-lint` then reported `0 issues.`, and the tests, plants and gate
+were rerun.
+
+**Plants** (step 6), on a scratch clone, against the final code:
+
+| Plant | Test | Result |
+| :--- | :--- | :--- |
+| `huggingface`'s `Generate` sends `"stream": false` | `TestGenerate_Unchanged` | `stream_0031b_test.go:95: Generate sent stream false, stream_options <nil>, Accept ""; want none`; FAIL |
+| `huggingface`'s stream asks for no usage | `TestStream` | `stream_0031b_test.go:78: … stream true, stream_options <nil>; want a stream with its usage`; FAIL |
+| the Chat Completions stream's items reversed | `TestEvents_EqualsDecode` | `/reasoning_content`, `/reasoning_with_details_(Kilo)`: items in the wrong order; `/calls`: `EventDone's Response … Output:[{CallID:call_2 …} {CallID:call_1 …}]`; FAIL |
+
+The third plant's anchor was updated after the lint refactor moved the loop
+it plants into.
+
+**Live** (step 7), `llmprovider/live_stream_0031b_test.go`, at 23:46 UTC:
+
+* a 512-token cap, since the gateways' default models reason first;
+* billed: 4 requests, plus Zen's, which was refused before generation;
+* Ollama's request was local.
+
+| Test | Model | Result |
+| :--- | :--- | :--- |
+| `TestLive_HuggingFaceStreams` | `deepseek-ai/DeepSeek-V4-Flash-0731` | PASS: 3 text deltas, then `EventDone` |
+| `TestLive_KiloStreams` | `deepseek/deepseek-v4.1-flash` | PASS: 8 text deltas, then `EventDone` |
+| `TestLive_TogetherStreams` | `deepseek-ai/DeepSeek-V4.1-Flash` | PASS: 2 text deltas, then `EventDone` |
+| `TestLive_OpencodeChatStreams/opencode-go` | `glm-5.3-flash` | PASS: 3 text deltas, then `EventDone` |
+| `TestLive_OpencodeChatStreams/opencode-zen` | the same | SKIP, by 0027-MADR's transient rule: "quota exhausted: opencode-zen/chat_completions HTTP 402 … Insufficient account funds"; not run |
+| `TestLive_OllamaStreams` | `llama3.2:latest`, 16 tokens | PASS: 7 text deltas, then `EventDone` |
+
+The live-test meta checks (`TestLiveTests_TransientSkipsUseTheHelper`,
+`TestLiveTransient_SkipsOnlyTransientClasses`) pass.
+
+**Gate:** all 22 checks pass on a scratch copy with the phase's files staged.
+
+| Package | Coverage |
+| :--- | :--- |
+| `internal/wire/chatcompletions` | 93.5% |
+| `internal/wire` | 88.1% |
+| `huggingface` | 93.5% |
+| `kilo` | 95.7% |
+| `together` | 95.1% |
+| `ollama` | 95.8% |
+| `opencode` | 97.4% |

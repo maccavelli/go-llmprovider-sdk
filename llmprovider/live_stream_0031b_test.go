@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/opencode"
 )
@@ -68,4 +69,68 @@ func TestLive_OpencodeMessagesStreams(t *testing.T) {
 				opencode.WithRoute(opencode.RouteMessages), llmprovider.WithoutModelMetadata())
 		})
 	}
+}
+
+// chatLiveTokens is the output cap of the Chat Completions live streams: the
+// gateways' default models reason first, and at 16 tokens some answered with
+// reasoning alone (0031-PLAN-native-streaming-on-the-other-wires, Phase 1).
+const chatLiveTokens = 512
+
+// TestLive_HuggingFaceStreams streams from the Hugging Face router.
+func TestLive_HuggingFaceStreams(t *testing.T) {
+	liveStreamWith(t, llmprovider.ProviderHuggingFace, catalog.Static(llmprovider.ProviderHuggingFace)[0], nil, chatLiveTokens)
+}
+
+// TestLive_KiloStreams streams from the Kilo gateway.
+func TestLive_KiloStreams(t *testing.T) {
+	liveStreamWith(t, llmprovider.ProviderKilo, catalog.Static(llmprovider.ProviderKilo)[0], nil, chatLiveTokens)
+}
+
+// TestLive_TogetherStreams streams from Together AI.
+func TestLive_TogetherStreams(t *testing.T) {
+	liveStreamWith(t, llmprovider.ProviderTogether, catalog.Static(llmprovider.ProviderTogether)[0], nil, chatLiveTokens)
+}
+
+// TestLive_OpencodeChatStreams streams from each gateway's chat_completions
+// route.
+func TestLive_OpencodeChatStreams(t *testing.T) {
+	for _, id := range []llmprovider.ProviderID{llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo} {
+		t.Run(string(id), func(t *testing.T) {
+			liveStreamWith(t, id, "glm-5.3-flash", nil, chatLiveTokens,
+				opencode.WithRoute(opencode.RouteChatCompletions), llmprovider.WithoutModelMetadata())
+		})
+	}
+}
+
+// TestLive_OllamaStreams streams from a local Ollama server, when one
+// answers; Ollama takes no key, and its requests are not billed.
+func TestLive_OllamaStreams(t *testing.T) {
+	model := ollamaModel()
+	if model == "" {
+		t.Skip("no local Ollama server answered")
+	}
+	p, err := providers.New(llmprovider.ProviderOllama, llmprovider.WithModel(model), llmprovider.WithMaxTokens(16),
+		llmprovider.WithModelProbes(false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := llmprovider.LiveCtx(t)
+	defer cancel()
+	deltas, done := 0, false
+	for ev, err := range llmprovider.Stream(ctx, p, &llmprovider.Request{Input: []llmprovider.Item{
+		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hi"}}}) {
+		if err != nil {
+			t.Fatalf("ollama %s: after %d deltas: %v", model, deltas, err)
+		}
+		switch ev.Type {
+		case llmprovider.EventTextDelta:
+			deltas++
+		case llmprovider.EventDone:
+			done = true
+		}
+	}
+	if deltas == 0 || !done {
+		t.Fatalf("ollama %s: %d text deltas, done %v; want at least one delta, then EventDone", model, deltas, done)
+	}
+	t.Logf("ollama %s: %d text deltas, then EventDone", model, deltas)
 }

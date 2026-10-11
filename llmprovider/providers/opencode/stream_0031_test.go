@@ -87,12 +87,11 @@ func TestStream_ResponsesRouteNative(t *testing.T) {
 
 // TestStream_OtherRoutesFallBack (0031-MADR D1, Q2): the routes that do not
 // stream yet send one request without "stream", and yield Generate's result
-// as events. The messages route streams since 0031-PLAN-native-streaming-on-
-// the-other-wires Phase 3.
+// as events. The messages and chat_completions routes stream since 0031-PLAN-
+// native-streaming-on-the-other-wires Phases 3 and 4.
 func TestStream_OtherRoutesFallBack(t *testing.T) {
 	replies := map[Route]string{
-		RouteChatCompletions: `{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}]}`,
-		RouteGoogle:          `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"ok"}]}}]}`,
+		RouteGoogle: `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"ok"}]}}]}`,
 	}
 	for _, gateway := range family {
 		for route, reply := range replies {
@@ -177,6 +176,50 @@ func TestStream_MessagesRouteNative(t *testing.T) {
 			defer mu.Unlock()
 			if path != "/messages" || accept != "text/event-stream" || body["stream"] != true {
 				t.Errorf("sent %s, Accept %q, stream %v; want /messages, text/event-stream, true", path, accept, body["stream"])
+			}
+		})
+	}
+}
+
+// TestStream_ChatRouteNative (0031-MADR E1, E3, E5): on the chat_completions
+// route Stream asks for an event stream with its usage, and yields the Chat
+// Completions decoder's events.
+func TestStream_ChatRouteNative(t *testing.T) {
+	stream := sseEvent(`{"id":"c1","model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":null}]}`) +
+		sseEvent(`{"id":"c1","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`) +
+		sseEvent(`{"id":"c1","model":"m","choices":[],"usage":{"prompt_tokens":9,"completion_tokens":2}}`) +
+		"data: [DONE]\n\n"
+	for _, gateway := range family {
+		t.Run(string(gateway), func(t *testing.T) {
+			var mu sync.Mutex
+			var accept, path string
+			var body map[string]any
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				raw, _ := io.ReadAll(r.Body)
+				mu.Lock()
+				accept, path = r.Header.Get("Accept"), r.URL.Path
+				_ = json.Unmarshal(raw, &body)
+				mu.Unlock()
+				_, _ = io.WriteString(w, stream)
+			}))
+			defer srv.Close()
+			p := build(t, gateway, apiKey(srv.URL, "some-model", WithRoute(RouteChatCompletions))...)
+			var kinds []string
+			for ev, err := range streamer(t, p).Stream(context.Background(), text("hi")) {
+				if err != nil {
+					t.Fatal(err)
+				}
+				kinds = append(kinds, streamKind(ev))
+			}
+			if want := []string{"text_delta:ok", "item", "done"}; !reflect.DeepEqual(kinds, want) {
+				t.Fatalf("events %v, want %v", kinds, want)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			options, _ := body["stream_options"].(map[string]any)
+			if path != "/chat/completions" || accept != "text/event-stream" || body["stream"] != true || options["include_usage"] != true {
+				t.Errorf("sent %s, Accept %q, stream %v, stream_options %v; want a stream with its usage", path, accept,
+					body["stream"], body["stream_options"])
 			}
 		})
 	}

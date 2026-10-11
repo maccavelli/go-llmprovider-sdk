@@ -144,15 +144,25 @@ func TestConformance(t *testing.T) {
 					_, _ = io.WriteString(w, `{"type":"error","error":{"type":"llmtest","message":"llmtest"}}`)
 				},
 			}
-			// The responses and messages routes stream natively (0031-MADR
-			// D1, E1).
+			// The responses, messages and chat_completions routes stream
+			// natively (0031-MADR D1, E1).
 			switch tc.route {
 			case RouteResponses:
 				h.StreamText, h.StreamFailure = write(llmtestStream), write(llmtestStreamFailure)
 			case RouteMessages:
 				h.StreamText, h.StreamFailure = write(llmtestMessagesStream), write(llmtestMessagesStreamFailure)
+			case RouteChatCompletions:
+				h.StreamText, h.StreamFailure = write(llmtestChatStream), write(llmtestChatStreamFailure)
 			}
 			llmtest.Run(t, h)
 		})
 	}
 }
+
+// llmtestChatStream is the text reply as a Chat Completions event stream: its
+// text in a delta, the finish, then [DONE] (0031-MADR E6).
+const llmtestChatStream = "data: {\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":null}]}\n\ndata: {\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
+
+// llmtestChatStreamFailure is a Chat Completions event stream that fails
+// after one delta, with an error inside the 200.
+const llmtestChatStreamFailure = "data: {\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hel\"},\"finish_reason\":null}]}\n\ndata: {\"error\":{\"message\":\"llmtest\",\"code\":503}}\n\n"
