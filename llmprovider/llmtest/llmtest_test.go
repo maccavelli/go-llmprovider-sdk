@@ -484,6 +484,19 @@ func TestRun_ChecksTheResponse(t *testing.T) {
 			return &llmprovider.Response{Output: []llmprovider.Item{llmprovider.MessageItem{Text: "x"}},
 				Usage: llmprovider.Usage{OutputTokens: 5, ReasoningTokens: 6}}, nil
 		}, "a part larger than its total"},
+		// The cache-write counts (0036-MADR D1, D3).
+		{"negative cache write", func() (*llmprovider.Response, error) {
+			return &llmprovider.Response{Output: []llmprovider.Item{llmprovider.MessageItem{Text: "x"}},
+				Usage: llmprovider.Usage{InputTokens: 5, CacheWriteTokens: -1}}, nil
+		}, "negative usage"},
+		{"cache read and write beyond input", func() (*llmprovider.Response, error) {
+			return &llmprovider.Response{Output: []llmprovider.Item{llmprovider.MessageItem{Text: "x"}},
+				Usage: llmprovider.Usage{InputTokens: 5, CachedTokens: 3, CacheWriteTokens: 3}}, nil
+		}, "a part larger than its total"},
+		{"1-hour writes beyond writes", func() (*llmprovider.Response, error) {
+			return &llmprovider.Response{Output: []llmprovider.Item{llmprovider.MessageItem{Text: "x"}},
+				Usage: llmprovider.Usage{InputTokens: 5, CacheWriteTokens: 2, CacheWrite1hTokens: 3}}, nil
+		}, "a part larger than its total"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			h := refHarness(flaws{})

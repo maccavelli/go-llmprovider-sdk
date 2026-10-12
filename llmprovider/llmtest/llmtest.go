@@ -558,11 +558,14 @@ func checkResponse(r reporter, h Harness) {
 		}
 	}
 	u := resp.Usage
-	if u.InputTokens < 0 || u.OutputTokens < 0 || u.ReasoningTokens < 0 || u.CachedTokens < 0 {
+	if u.InputTokens < 0 || u.OutputTokens < 0 || u.ReasoningTokens < 0 || u.CachedTokens < 0 ||
+		u.CacheWriteTokens < 0 || u.CacheWrite1hTokens < 0 {
 		r.Errorf("R7 (Response invariants): negative usage %+v", u)
 	}
-	// A total holds its part (0015-MADR amendment "what `Usage` counts").
-	if u.CachedTokens > u.InputTokens || u.ReasoningTokens > u.OutputTokens {
+	// A total holds its parts (0015-MADR amendment "what `Usage` counts"), and
+	// the cache's reads and writes do not overlap (0036-MADR D1, D3).
+	if u.CachedTokens+u.CacheWriteTokens > u.InputTokens || u.CacheWrite1hTokens > u.CacheWriteTokens ||
+		u.ReasoningTokens > u.OutputTokens {
 		r.Errorf("R7 (Response invariants): usage %+v has a part larger than its total", u)
 	}
 }

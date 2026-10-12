@@ -139,11 +139,15 @@ const (
 )
 
 // Usage counts a response's tokens. Each is zero when the service reports
-// none (0015-MADR D3, D4). A total holds its part, whatever the service's
+// none (0015-MADR D3, D4). A total holds its parts, whatever the service's
 // own convention, so InputTokens + OutputTokens is the response's whole count
-// (0015-MADR amendment "what `Usage` counts").
+// (0015-MADR amendment "what `Usage` counts"). CachedTokens and
+// CacheWriteTokens are parts of InputTokens that do not overlap, so
+// InputTokens - CachedTokens - CacheWriteTokens is the uncached input
+// (0036-MADR D1).
 type Usage struct {
-	// InputTokens is every input token, CachedTokens included.
+	// InputTokens is every input token, CachedTokens and CacheWriteTokens
+	// included.
 	InputTokens int
 	// OutputTokens is every output token, ReasoningTokens included.
 	OutputTokens int
@@ -151,6 +155,12 @@ type Usage struct {
 	ReasoningTokens int
 	// CachedTokens is the part of InputTokens read from the service's cache.
 	CachedTokens int
+	// CacheWriteTokens is the part of InputTokens written to the service's
+	// cache. It does not overlap CachedTokens.
+	CacheWriteTokens int
+	// CacheWrite1hTokens is the part of CacheWriteTokens written with a
+	// one-hour lifetime. Only Anthropic's Messages reports it.
+	CacheWrite1hTokens int
 }
 
 // Request is everything one generation needs (0015-MADR D3). A field's zero

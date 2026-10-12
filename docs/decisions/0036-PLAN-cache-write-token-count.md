@@ -479,3 +479,50 @@ go test, govulncheck); `make records-check`, `tools/linkcheck.py` and
 `tools/denyscan.py --changed`, clean.
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.5.
+
+### Phase 2: the type, the rule and its check (2026-10-12)
+
+**Change:**
+
+* **`llmprovider/contract.go`:** `Usage.CacheWriteTokens` and
+  `Usage.CacheWrite1hTokens`, with D1's comments. The type's comment states
+  that `CachedTokens` and `CacheWriteTokens` are parts of `InputTokens` that
+  do not overlap. `InputTokens`' own comment names both.
+* **`llmprovider/llmtest/llmtest.go`:** the negative check covers both new
+  fields. The part check is now `u.CachedTokens+u.CacheWriteTokens >
+  u.InputTokens || u.CacheWrite1hTokens > u.CacheWriteTokens ||
+  u.ReasoningTokens > u.OutputTokens`.
+* **`llmprovider/llmtest/llmtest_test.go`:** three rows in
+  `TestRun_ChecksTheResponse`, as step 1 lists them.
+* **`docs/guides/api-standards.md` R7:** D3's sentence, citing 0036 D1 and
+  D3.
+
+**Red first:**
+
+* With the rows and no fields: `unknown field CacheWriteTokens in struct
+  literal of type llmprovider.Usage`, and the same for
+  `CacheWrite1hTokens`; `[build failed]`.
+* With the fields and no check, each row failed on its want. The canned
+  provider's other harness failures were reported, and no usage failure:
+  * `negative_cache_write`: `want a response failure containing "negative
+    usage"`;
+  * `cache_read_and_write_beyond_input` and `1-hour_writes_beyond_writes`:
+    `want a response failure containing "a part larger than its total"`.
+
+**Green:** `TestRun_ChecksTheResponse`, 10 of 10. `go test ./...`: every
+package passes, so every provider's `llmtest.Run` accepts the new check. Each
+decoder still reports zero writes.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the part check without `CacheWriteTokens` | `--- FAIL: TestRun_ChecksTheResponse/cache_read_and_write_beyond_input` |
+| the part check without the 1-hour rule | `--- FAIL: TestRun_ChecksTheResponse/1-hour_writes_beyond_writes` |
+| the negative check without `CacheWriteTokens` | `--- FAIL: TestRun_ChecksTheResponse/negative_cache_write` |
+
+**Checks:** `make pre-add-check` on the three Go files, clean (gofmt,
+golangci-lint, go vet, go test, govulncheck); markdownlint on
+`api-standards.md`, 0 issues.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.1.

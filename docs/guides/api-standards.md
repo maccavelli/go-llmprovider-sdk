@@ -73,6 +73,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
   In `Usage` a total holds its part: `InputTokens` includes `CachedTokens`,
   and `OutputTokens` includes `ReasoningTokens`, whatever the service's own
   convention. (0015 D3, D4, and its amendment "what `Usage` counts")
+  `InputTokens` includes `CachedTokens` and `CacheWriteTokens`, which do not
+  overlap, and `CacheWriteTokens` includes `CacheWrite1hTokens`. (0036 D1,
+  D3)
 - **R8. Convenience is a package function over any `Provider`,** never a method
   on one. The two that replace `mcplib`'s convenience methods are
   `llmprovider.GenerateText(ctx, p, req) (string, error)`, which returns the
