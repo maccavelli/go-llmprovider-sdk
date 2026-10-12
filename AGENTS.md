@@ -146,6 +146,25 @@ CI also runs `make parity-check dep-check coverage-check api-check
 generate-check records-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
 `scripts/coverage-floors.txt`, by a record.
 
+## Tools
+
+`scripts/` holds the gates CI runs. `tools/` holds the maintainer tools
+([`tools/README.md`](tools/README.md); 0035-MADR), which CI does not run:
+
+- `python3 -B tools/gate.py` runs every local check on a scratch clone of
+  the working tree, once the load average is below the CPU count. Run it
+  before staging a phase.
+- `tools/plant.py SPEC.json` proves a new check fails on a planted breach,
+  on a scratch clone, never in the tree.
+- `tools/denyscan.py --changed` and `tools/linkcheck.py` are the
+  identifier scan and the link check.
+- `tools/apidiff.py OLD [NEW]`, `tools/liveskips.py` and
+  `tools/consumer.py` serve a release's record.
+
+Write every script, loops and waits included, in Python, not shell. A
+script worth running twice belongs in `tools/`, with a test in
+`tools/test_tools.py`; `make tools-test` runs them.
+
 ## Live tests
 
 Live tests call real services and are opt-in:

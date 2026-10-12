@@ -35,6 +35,9 @@ scripts/check_api.py        api-check: apidiff against the latest v1 tag
 scripts/check_generated.py  generate-check: go:generate outputs are current
 scripts/check_records.py    records-check: the decision records and their index
 scripts/test_gates.py       gate-selftest: each gate fails on a planted breach
+tools/                      maintainer tools, not run by CI: the local gate,
+                            plants, link check, identifier scan, apidiff,
+                            release helpers; tools/README.md
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
 llmprovider/                the contract, errors, options and credential sources
@@ -588,7 +591,8 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 - **`make` targets:** `test`, `test-sum`, `fmt`, `vet`, `lint`, `tidy`,
   `vuln`, `pre-add-check`, `parity-check`, `dep-check`, `coverage-check`,
-  `api-check`, `generate-check`, `records-check`, `gate-selftest`, `help`.
+  `api-check`, `generate-check`, `records-check`, `gate-selftest`,
+  `tools-test`, `help`.
   `lint` runs golangci-lint twice: for the host and with `GOOS=windows`, so the
   `_windows.go` files are linted. Its `nolintlint` requires every `//nolint`
   to name its linter and still be needed.
@@ -658,6 +662,13 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   packages, `go mod tidy -diff`, and `govulncheck ./...`. `make pre-add-check` runs it, and so does
   the machine-wide agent gate before an agent `git commit` that stages Go
   files.
+- **`tools/`** (0035-MADR) holds the maintainer tools, in Python on the
+  standard library. `tools/gate.py` runs every local check on a scratch
+  clone of the working tree, once the load average is below the CPU count:
+  the checks above, `go vet` for three platforms with and without
+  `live_gateways`, markdownlint, the link check, the identifier scan, and
+  `tools-test`. `make tools-test` (`tools/test_tools.py`) proves each tool
+  fails on a planted input. CI runs neither.
 - **CI** (`.github/workflows/ci.yml`) runs on Linux, macOS and Windows, with
   the Go version read from `go.mod`, on each push to `main`, each pull
   request, and weekly: `go test -shuffle=on`. On Linux it also runs:

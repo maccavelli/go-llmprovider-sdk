@@ -1,0 +1,65 @@
+# Maintainer tools
+
+The tools a maintainer, or an agent, runs while working in this repository,
+as [0035-MADR](../docs/decisions/0035-MADR-maintainer-tools-in-python.md)
+decides. The gates CI runs are in [`scripts/`](../scripts/); these are not run
+by CI.
+
+Each tool is Python 3 on the standard library. Each finds the repository root
+from its own file, so it runs from any working directory. None names a host,
+an account or a machine path. Anything outside the repository is an argument.
+
+Exit codes, for every tool: **0** clean, **1** a finding, **2** a tool error.
+
+| Tool | What it does | Usage |
+| :--- | :--- | :--- |
+| `gate.py` | the local gate: 23 checks on a scratch clone of the working tree, staged there, started once the load average is below the CPU count | `tools/gate.py [--src DIR] [--out DIR] [--max-load N] [--timeout S]` |
+| `plant.py` | runs plants from a JSON spec on a scratch clone; fails if any plant is not caught | `tools/plant.py SPEC.json` |
+| `linkcheck.py` | every relative link in every Markdown file resolves | `tools/linkcheck.py [--detail FILE]` |
+| `denyscan.py` | no file names this machine's account, its host, or a real home path; it prints the kind of hit, never the identifier | `tools/denyscan.py FILE...` or `--changed` |
+| `apidiff.py` | every exported API change between two refs, or a ref and the tree, at `scripts/check_api.py`'s pin | `tools/apidiff.py OLD [NEW]` |
+| `edit.py` | exact replacements from a JSON spec, each asserted to match, all applied or none | `tools/edit.py SPEC.json` |
+| `liveskips.py` | sorts a `go test -v` run into passes, skips with their reasons, and failures | `tools/liveskips.py RUN.txt` |
+| `consumer.py` | after a tag: a consumer of every public package built for six platforms, and optionally a dependent repository moved to the version | `tools/consumer.py VERSION [--dependent PATH]` |
+
+`_common.py` holds what they share:
+
+- the repository root;
+- a runner that never uses a shell;
+- the load wait;
+- the scratch clone.
+
+## The gate's checks
+
+In order:
+
+1. `pre-add-check`.
+2. `go vet` for darwin, linux and windows, with and without
+   `live_gateways`.
+3. `go test -race -cover`, then `go test -shuffle=on`.
+4. `go mod tidy -diff`, `lint`, `parity-check`, `dep-check`,
+   `coverage-check`, `api-check`, `generate-check`, `records-check` and
+   `gate-selftest`.
+5. markdownlint, on every Markdown file but the records.
+6. `TestWireGoldens` three times.
+7. The link check, and the identifier scan of the changed files.
+8. `tools-test`.
+
+Each check's output is in `--out`, with the exit codes in `summary.out`.
+
+## Plant specs
+
+```json
+{"packages": ["./llmprovider/catalog/"], "run": "_0033$",
+ "plants": [{"name": "the decoder drops limit.output", "file": "llmprovider/catalog/model_metadata.go",
+             "old": "…", "new": "…"}]}
+```
+
+`"command"` replaces the default `go test -count=1 -run RUN PACKAGES`, so a
+spec can plant in `tools/` and run `make tools-test`'s command.
+
+## Tests
+
+`make tools-test` runs [`test_tools.py`](test_tools.py). Each tool there fails
+on a planted input and passes a clean one, in temporary directories. Run it
+after changing a tool. The gate runs it too.

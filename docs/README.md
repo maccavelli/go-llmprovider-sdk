@@ -85,7 +85,7 @@ documents a reader follows to do something.
 | 0034 | MADR | [Degrade a Forced Tool Choice Per Model, Where Anthropic Refuses It](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) | accepted |
 | 0034 | PLAN | [Implement a Per-Model Degradation of Forced Tool Choice](decisions/0034-PLAN-degrade-forced-tool-choice-per-model.md) | complete |
 | 0035 | MADR | [Keep the Maintainer Tools in `tools/`, Written in Python](decisions/0035-MADR-maintainer-tools-in-python.md) | accepted |
-| 0035 | PLAN | [Implement the Maintainer Tools in `tools/`](decisions/0035-PLAN-maintainer-tools-in-python.md) | in-progress |
+| 0035 | PLAN | [Implement the Maintainer Tools in `tools/`](decisions/0035-PLAN-maintainer-tools-in-python.md) | complete |
 
 ## I want to…
 

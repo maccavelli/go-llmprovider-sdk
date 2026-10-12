@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-12
 associated-madr: "0035-MADR-maintainer-tools-in-python.md"
 decision-makers: repository owner
@@ -358,3 +358,48 @@ of 8.6. It replaces the scratch gate from here on.
 | `consumer` leaving a public package out | `test_imports_every_public_package`: `'_ "github.com/maccavelli/go-llmprovider-sdk/llmprovider"' not found in '// Command consumer links …'` |
 
 **Gate:** `tools/gate.py`: 23 of 23, started at a load of 6.8.
+
+### Phase 4: documentation (2026-10-12)
+
+**Change:**
+
+* **`tools/README.md`:**
+  * each tool, its purpose and usage;
+  * the exit codes;
+  * the gate's checks in order;
+  * a plant spec;
+  * how `make tools-test` runs.
+* **`AGENTS.md`:** a "Tools" section. It says that `scripts/` is CI's and
+  `tools/` the maintainers'; that `tools/gate.py` runs before a phase is
+  staged; that plants go through `tools/plant.py`; and that every script
+  is Python, a reusable one kept in `tools/` with a test.
+* **`docs/architecture.md`:**
+  * the tree gains `tools/`;
+  * the `make` targets gain `tools-test`;
+  * the gates section gains a `tools/` paragraph, which says CI runs
+    neither.
+
+**Checks:**
+
+* markdownlint first failed `tools/README.md` on four `MD004` lines: the
+  list used `*` where this repository's non-record docs use `-`. It was
+  corrected. The gate lints that file from now on, since its list is
+  derived.
+* `tools/linkcheck.py`: `G-links: 0 problem(s), 747 relative link(s) in
+  87 file(s)`.
+* **Step 2,** `tools/denyscan.py` over every file in `tools/`: `deny-scan:
+  0 hit(s) in 11 file(s)`.
+
+**Complete.** Each criterion is met:
+
+* **V1:** red, then green, and every plant's FAIL line, in Phases 1 to 3;
+* **V2:** `make tools-test`, 25 tests, fails on each recorded plant;
+* **V3:** the gate's planted proof, and 23 of 23, in Phase 2;
+* **V4:** no file in `tools/` names a host, an account or a machine path.
+
+**Not done, as decided:**
+
+* CI does not run `make tools-test` (Q1);
+* `scripts/go-precheck.sh` stays in bash (Q2).
+
+**Gate:** `tools/gate.py`: 23 of 23, started at a load of 8.8.
