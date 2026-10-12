@@ -1614,3 +1614,58 @@ usable by id. `claude-fable-5-1` stays out of it.
 * A caller that sets `Tool.Strict` now sends it on Messages too.
 * A caller that pinned `claude-sonnet-4-6` keeps working; the SDK only
   stops recommending it.
+
+**Step 2, the live suites,** on the release commit `66558ee`.
+
+* **Run:** 21:56 to 22:00 UTC.
+  * Every provider's key variable was set, checked for presence only.
+  * `LLMPROVIDER_LIVE_TOGETHER=1` was set, and a local Ollama server
+    answered.
+  * The suites that need a person, a subscription or their own switch
+    stayed off.
+* **Command:** `go test -tags live_gateways -count=1 -v ./llmprovider/...
+  -run Live`.
+* **Result:** exit 0.
+  * Top level: 78 passed, 29 skipped, 0 failed.
+  * Subtests: 88 passed, 5 skipped, 0 failed.
+
+  The suites log tests, not requests, so the requests were not counted.
+* **This release's tests:**
+  * `TestLive_ClaudeForcedChoiceDegrades` passed on `claude-sonnet-5-5`
+    and `claude-opus-5-5`;
+  * the moved tests passed: `TestLive_ClaudeThinkingShapes` (budget on
+    `claude-sonnet-4-6`), and `TestLive_ToolRoundTripClaude`,
+    `TestLive_SystemMessageClaude` and `TestLive_ClaudeStreams` on
+    `claude-haiku-5-5`;
+  * `TestLive_StaticClaudeServed` passed over the new five-model menu, and
+    `TestLive_StaticCatalogsCurrent` for every provider.
+
+**The 29 top-level skips,** none transient:
+
+* **Off by their own switch, 27:**
+  * the 0028, 0031, 0031B, 0032, 0033 and 0034 measurements, 17 (0034's
+    four are new);
+  * the ChatGPT and Codex CLI subscription, 4;
+  * Gemini's rate-limit drain, 1;
+  * the Grok CLI, 1;
+  * the browser and device sign-ins and the OpenAI sign-in probe, 5.
+* **No active model:** `TestLive_OpencodeInterleavedReasoningReplay`, "no
+  active opencode-go model among [kimi-k2.6]", as before.
+
+Both of `v1.7.1`'s Kilo tests passed this time.
+
+**The 5 subtest skips** are the same five OpenCode Zen ones, for the same
+account reasons, as in `v1.7.1`:
+
+* 403 "Model access is disabled" on `responses`;
+* 402 "Insufficient account funds" on `messages`, `chat_completions` and
+  `google`, and on `TestLive_OpencodeGoogleTwoCallRoundTrip/zen`.
+
+**Found, outside this plan's scope:** the skip of
+`TestLive_OpencodeMessagesStreams/opencode-zen` is logged at
+`toolchoice.go:182`, not at the test. The test calls `t.Skip` from inside
+the range over the stream, and Go's testing reports the first frame that
+is not a helper. Since Phase 4c that frame is `WarnOnDone`'s call to
+`yield`. The skip itself is correct, and only the location is misleading.
+A later record could mark the stream wrappers' frames, or move the skip
+out of the range body.
