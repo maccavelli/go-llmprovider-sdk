@@ -1112,3 +1112,50 @@ them apart.
 approved as the ranker chose them.
 
 Phase 7 used 10 billed requests so far: 9, then 1.
+
+Phase 7's record to here, 0009-MADR's amendment and the measurement test
+were committed by the owner as `02873ea`.
+
+### Phase 7a: 0009-MADR §3 item 10 (2026-10-12)
+
+**Change** (`llmprovider/catalog/model_metadata.go`):
+
+* `listedOnly(provider)` is true for Together alone. Its comment cites §3
+  item 10 and the exception to "Unknown values never exclude".
+* `metadataCurate`, once the document has the provider's section, drops
+  from a clone of `usable` every id the section does not list, where
+  `listedOnly` holds. Both the candidates and the fill are built from it.
+  `Catalog.Usable` is built outside this function, so it keeps every id.
+* With the document failed or disabled, `metadataCurate` returns the
+  fallback, so item 10 does not apply.
+
+**Tests** (`llmprovider/catalog/together_item10_test.go`):
+
+* `TestTogetherRanksOnlyModelsDevIDs`: a listing of two covered and two
+  uncovered chat models, ranked under both profiles. The six holds both
+  covered ids and neither uncovered one, and `Usable` keeps all four.
+* `TestTogetherWithoutMetadata`: with the document disabled, the six is
+  `curateTogether`'s, and it fills from the whole listing.
+
+**Red first:** `TestTogetherRanksOnlyModelsDevIDs` failed under both
+profiles: `Recommended [t/covered-a t/covered-b t/uncovered-a t/uncovered-b]
+holds t/uncovered-a, which models.dev does not list`, and the same for
+`t/uncovered-b`. `TestTogetherWithoutMetadata` passed before the change, as
+it must: it guards that item 10 leaves the fallback alone.
+
+**Green:** `go test ./llmprovider/catalog/`, every test.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | FAIL line |
+| :--- | :--- |
+| item 10 applied to the ranking but not the fill | `TestTogetherRanksOnlyModelsDevIDs`: `Recommended [t/covered-a t/covered-b t/uncovered-a t/uncovered-b] holds t/uncovered-a`, under both profiles |
+| item 10 applied to every provider | `TestListModelCatalog_HuggingFaceRanksWithMetadata`: `ranked = [c/flash b/mid a/large v/no-reason]`, with `d/uncovered` lost |
+| the filter mutating `Usable` in place, without its clone | `TestTogetherRanksOnlyModelsDevIDs`: `Usable [t/covered-a t/covered-b  ] lacks t/uncovered-a; item 10 keeps every id searchable` |
+
+**The 2026-09-26 golden** is unchanged; it has no Together snapshot.
+
+**Checks:** `make pre-add-check` on the two Go files, clean (gofmt,
+golangci-lint, go vet, go test, govulncheck).
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.7.

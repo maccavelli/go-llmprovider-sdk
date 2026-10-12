@@ -687,6 +687,12 @@ func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta <-cha
 		if res.err != nil || !ok {
 			return fallback(usable)
 		}
+		if listedOnly(provider) {
+			usable = slices.DeleteFunc(slices.Clone(usable), func(id string) bool {
+				_, listed := models[id]
+				return !listed
+			})
+		}
 		now := rankingNow()
 		cands := make([]rankCandidate, 0, len(usable))
 		for _, id := range usable {
@@ -695,4 +701,13 @@ func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta <-cha
 		}
 		return rankRecommended(profile, provider, cands, append(fallback(usable), usable...))
 	}
+}
+
+// listedOnly reports whether a provider ranks and fills only the ids its
+// models.dev section lists: Together, whose section is its serverless catalog.
+// An id outside it can need streaming, a dedicated endpoint or account access
+// (0009-MADR §3 item 10, an exception to "Unknown values never exclude"). Such
+// an id stays in Usable, so a search finds it.
+func listedOnly(provider llmprovider.ProviderID) bool {
+	return provider == llmprovider.ProviderTogether
 }
