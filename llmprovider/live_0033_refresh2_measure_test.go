@@ -20,14 +20,14 @@ import (
 // is routed as the SDK routes it at runtime: OpenCode Go sends a Claude model
 // to Messages only through models.dev's npm (Phase 7's deviation).
 
-// refreshCandidates0033 are the additions the command printed on 2026-10-12
-// (Phase 7, step 1), by provider.
+// refreshCandidates0033 are the additions the command printed on 2026-10-12,
+// by provider, after 0009-MADR §3 items 10 and 11 (Phases 7a and 7b). Step
+// 1's first Together picks that could not be served are in Phase 7's record.
 var refreshCandidates0033 = map[llmprovider.ProviderID][]string{
 	llmprovider.ProviderOpencodeZen: {"claude-haiku-5-5"},
 	llmprovider.ProviderOpencodeGo:  {"claude-haiku-5-5", "space-bunny"},
 	llmprovider.ProviderKilo:        {"openai/gpt-6.1-sol"},
-	llmprovider.ProviderTogether: {"zai-org/GLM-5.3-Flash", "deepseek-ai/DeepSeek-V4-Flash-0731", "Qwen/Qwen3.8-Flash",
-		"arcee-ai/trinity-mini", "mistralai/Devstral-Small-2505"},
+	llmprovider.ProviderTogether:    {"zai-org/GLM-5.3-Flash", "deepseek-ai/DeepSeek-V4-Flash-0731", "MiniMaxAI/MiniMax-M2.7"},
 }
 
 // statusRecorder keeps the status of the last reply to a POST.
@@ -53,7 +53,7 @@ func (r *statusRecorder) last() int {
 }
 
 // TestLive_0033RefreshCandidates is Phase 7, step 2. Billed: one generation of
-// at most 16 output tokens per candidate, 9 in all.
+// at most 16 output tokens per candidate, 7 in all.
 func TestLive_0033RefreshCandidates(t *testing.T) {
 	if os.Getenv("LLMPROVIDER_LIVE_0033_REFRESH") == "" {
 		t.Skip("set LLMPROVIDER_LIVE_0033_REFRESH to run 0033-PLAN-refresh-the-curated-catalogs Phase 7's measurement")

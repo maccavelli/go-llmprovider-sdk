@@ -996,6 +996,10 @@ sent one `Say hello.` request with Together's key:
 >     exception to "Unknown values never exclude", for Together alone. The
 >     id stays in `Usable`, so a search finds it.
 
+*(Corrected 2026-10-12: the section can lag Together, and list an id
+Together no longer serves. See the amendment "Together's ids measured not to
+serve (§3 item 12)".)*
+
 * **Ranked and filled:** like items 7 and 8, item 10 holds for the ranking
   and the fill, so the six never names such an id.
 * **When the document is unavailable,** the metadata ranking is not used at
@@ -1037,3 +1041,36 @@ million tokens.
 * **Not chosen:**
   * the rule under both profiles; the capable profile ranks by strength;
   * taking Together out of the ranked lists.
+
+## Amendment 2026-10-12: Together's ids measured not to serve (§3 item 12)
+
+Status: **accepted** 2026-10-12, by the owner, during
+0033-PLAN-refresh-the-curated-catalogs.md Phase 7.
+
+**Fact found, and a correction to item 10.** With items 10 and 11 in place,
+Together's utility six ranked `MiniMaxAI/MiniMax-M2.7` fifth. models.dev's
+`togetherai` section lists it, `active`, released 2026-03-18. One `Say
+hello.` request answered HTTP 400 `model_not_available`: "Unable to access
+non-serverless model". So item 10's premise, that the section is Together's
+serverless catalog, holds only in part: the section can lag Together.
+
+* **No field tells it apart.** Together's listing entry for
+  `MiniMaxAI/MiniMax-M2.7` has the shape of `MiniMaxAI/MiniMax-M3`'s, which
+  is served: `type: "chat"`, `running: false`, and prices of $0.30 and
+  $1.20 per million with `cached_input`. models.dev marks both `active`.
+* **Item 10 stays.** It left out three of the four unservable picks this
+  refresh found.
+
+**Decided.** §3 gains, as item 8 lists OpenCode Go's region-gated ids:
+
+> 12. for Together only, it is one of the ids a refresh measured not to answer
+>     on Together's serverless API: `MiniMaxAI/MiniMax-M2.7` (2026-10-12,
+>     `model_not_available`). Each refresh's measurement (0033-MADR D4) adds
+>     to the list, and removes an id that answers again. The ids stay
+>     searchable.
+
+* **Ranked and filled:** item 12 joins items 7 and 8 in `excludedAtRequest`,
+  so the ranking, the fill and any fallback curation that uses it leave
+  them out.
+* **Not chosen:** taking Together out of the ranked lists, which would leave
+  its static list outside the snapshot.

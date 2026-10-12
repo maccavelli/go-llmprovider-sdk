@@ -366,6 +366,26 @@ is neither ranked nor filled, on every ranked provider.
    sixes.
 5. Gate; stage. The owner commits. Phase 7 then resumes at step 1.
 
+### Phase 7c: 0009-MADR §3 item 12 *(amended 2026-10-12, Phase 7's fourth deviation)*
+
+0009-MADR's amendment "Together's ids measured not to serve (§3 item 12)":
+on Together, an id on a dated list of ids measured not to answer is neither
+ranked nor filled.
+
+1. **Red first** (`llmprovider/catalog`), `TestTogetherMeasuredUnserved`:
+   * a Together listing and document that cover `MiniMaxAI/MiniMax-M2.7` and
+     two other models: the six holds neither ranked nor filled
+     `MiniMaxAI/MiniMax-M2.7`, and `Usable` keeps it;
+   * the same id on Hugging Face is ranked.
+2. **Change:** `togetherUnserved`, a list beside `opencodeGoRegionGated`,
+   with the date and the error each id gave. `excludedAtRequest` leaves its
+   ids out on Together.
+3. **Plants:**
+   * the list applied on every provider: the Hugging Face case fails;
+   * `excludedAtRequest` without the Together list.
+4. Gate; stage. The owner commits. Phase 7 then resumes at step 1, and the
+   new sixth pick is measured.
+
 ### Phase 8: the lists, and the golden *(amended 2026-10-12)*
 
 1. **Red first** (`llmprovider/catalog`):
@@ -1258,3 +1278,30 @@ second run, all four plants were caught.
 golangci-lint, go vet, go test, govulncheck).
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load of 8.4.
+
+Committed by the owner as `14f000d`.
+
+**Step 1 again, after Phase 7b** (not billed): 14 proposals. Item 11 held: `Qwen/Qwen3.5-9B` left
+the six. Together's diff:
+
+* add `zai-org/GLM-5.3-Flash` (1), `deepseek-ai/DeepSeek-V4-Flash-0731` (2)
+  and `MiniMaxAI/MiniMax-M2.7` (5);
+* remove `zai-org/GLM-5.3`, `moonshotai/Kimi-K3` and `openai/gpt-oss-120b`.
+
+The other lists' diffs were unchanged, and every addition there had
+answered. The measurement test's Together list became these three, and its
+count 7.
+
+**The new id measured,** 1 billed request: together
+`MiniMaxAI/MiniMax-M2.7`, HTTP 400 `model_not_available`, "Unable to access
+non-serverless model".
+
+**Deviation 4 (2026-10-12): an unservable id that models.dev lists.**
+models.dev's `togetherai` section lists `MiniMaxAI/MiniMax-M2.7` as
+`active`. Together's listing entry has the shape of
+`MiniMaxAI/MiniMax-M3`'s, which is served. No field tells the two apart. The
+owner chose a list in the manner of §3 item 8: 0009-MADR's amendment
+"Together's ids measured not to serve (§3 item 12)", which also corrects
+item 10's premise. Phase 7c builds it.
+
+Phase 7 used 11 billed requests so far.
