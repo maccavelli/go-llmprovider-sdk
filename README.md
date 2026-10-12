@@ -190,8 +190,18 @@ key.
 
 ## Status
 
-The current release is `v1.10.0`. The module requires Go 1.27.2.
+The current release is `v1.10.1`. The module requires Go 1.27.2.
 
+- `v1.10.1` reads two `Usage` counts it missed, as
+  [0037-MADR](docs/decisions/0037-MADR-reasoning-and-cache-read-spellings.md)
+  decides: Anthropic's reasoning count,
+  `output_tokens_details.thinking_tokens`, is now `ReasoningTokens` on every
+  Messages route, in a full response and a stream; and Chat Completions
+  reads a top-level `cache_read_input_tokens` as a cache read when no other
+  spelling is present. The exported API does not change. The release notes
+  are in
+  [0037-PLAN-reasoning-and-cache-read-spellings.md](docs/decisions/0037-PLAN-reasoning-and-cache-read-spellings.md),
+  Phase 2.
 - `v1.10.0` reports cache writes in `Usage`, as
   [0036-MADR](docs/decisions/0036-MADR-cache-write-token-count.md)
   decides:

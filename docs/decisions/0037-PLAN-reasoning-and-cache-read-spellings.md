@@ -323,3 +323,96 @@ golangci-lint, go vet, go test, govulncheck); markdownlint on
 `docs/architecture.md`, 0 issues.
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.6.
+
+Committed by the owner as `3d7a360`.
+
+### Phase 2: live confirmation and release (2026-10-12)
+
+**Step 1, the test** (`llmprovider/live_0037_reasoning_measure_test.go`):
+
+* `parseReasoning0037` reads a Messages reply, either a JSON body or an
+  event stream. For a stream it takes the last `message_delta`'s counts,
+  and notes whether `message_start`, or a `message_delta` before the last,
+  carried `thinking_tokens`.
+* `problems` reports `thinking_tokens` above `output_tokens`, and a count
+  sent anywhere but the last `message_delta`. `decodedProblems` reports a
+  decoded `ReasoningTokens` or `OutputTokens` that differs from the reply,
+  and `ReasoningTokens` above `OutputTokens`.
+* `TestLive_0037ReasoningCount` is switched on by `LLMPROVIDER_LIVE_0037`.
+  It has the two targets and two calls step 1 gives, at
+  `Reasoning{Effort: EffortHigh}` and `WithMaxTokens(2048)`. A target
+  whose two calls both report zero fails.
+* `TestReasoningChecks_0037` runs the checks on 7 canned replies.
+
+**Red first:**
+
+* `undefined: parseReasoning0037`;
+* then, with the checks stubbed to report nothing, five canned replies
+  passed: `problems "", want one containing "above output_tokens"`,
+  `"message_start"`, `"not the last"`, `"decoded ReasoningTokens 0, raw
+  thinking_tokens 30"` and `"decoded OutputTokens 1, raw output_tokens 40"`.
+
+**Green:** 7 of 7. `go vet -tags live_gateways ./llmprovider/` is clean.
+`gofmt` rewrapped two closures in the target table; nothing else moved.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the above-the-output check dropped | `problems "decoded ReasoningTokens 50 above OutputTokens 40", want one containing "above output_tokens"` |
+| the `message_start` check dropped | `problems "", want one containing "message_start"` |
+| the not-the-last check dropped | `problems "", want one containing "not the last"` |
+| the decoded reasoning comparison dropped | `problems "", want one containing "decoded ReasoningTokens 0, raw thinking_tokens 30"` |
+| the decoded output comparison dropped | `problems "decoded ReasoningTokens 30 above OutputTokens 1", want one containing "decoded OutputTokens 1, raw output_tokens 40"` |
+
+**Steps 2 and 3, the live run.** The owner approved 4 billed requests.
+`ANTHROPIC_API_KEY` and `OPENCODE_API_KEY` were set, checked for presence
+only. The run exited 0, and both targets passed:
+
+| Target | Call | Raw usage, the parts that bear on reasoning | Decoded |
+| :--- | :--- | :--- | :--- |
+| R1 claude `claude-haiku-5-5` | generate | `"output_tokens":253,"output_tokens_details":{"thinking_tokens":153}` | `OutputTokens:253 ReasoningTokens:153` |
+| R1 claude | stream | `message_start` `"output_tokens":3`, no `output_tokens_details`; `message_delta` `"output_tokens":239,"output_tokens_details":{"thinking_tokens":105}` | `OutputTokens:239 ReasoningTokens:105` |
+| R2 opencode-zen `claude-haiku-5-5` | generate | `"output_tokens":313,"output_tokens_details":{"thinking_tokens":172}` | `OutputTokens:313 ReasoningTokens:172` |
+| R2 opencode-zen | stream | `message_start` `"output_tokens":3`, no `output_tokens_details`; `message_delta` `"output_tokens":328,"output_tokens_details":{"thinking_tokens":177}` | `OutputTokens:328 ReasoningTokens:177` |
+
+* **Anthropic's guide holds:** in both streams, `message_start` had no
+  `output_tokens_details`, and the one `message_delta`, the last, carried
+  it.
+* **OpenCode Zen** passes the field through unchanged, in a body and in a
+  stream.
+* **No deviation:** each count was found where D1 says, no larger than the
+  output, and above zero on every call.
+
+**Step 5, docs:** `README.md` Status names `v1.10.1`, with a bullet.
+
+**Checks:** `make pre-add-check` on the test file, clean (gofmt,
+golangci-lint, go vet, go test, govulncheck); markdownlint on `README.md`,
+0 issues; `tools/linkcheck.py`, 0 problems.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 10.0.
+
+#### Release notes: `v1.10.1`
+
+`v1.10.1` reads two `Usage` counts that the SDK missed (0037-MADR). The
+exported API does not change.
+
+**Claude's reasoning count.** On every Messages route (Claude, and OpenCode
+Zen's and OpenCode Go's Messages routes), `Usage.ReasoningTokens` is now
+`usage.output_tokens_details.thinking_tokens`: the part of the billed output
+that was reasoning, as Anthropic's extended-thinking guide documents it.
+
+* A stream takes it from the last `message_delta`, where Anthropic sends it.
+* `OutputTokens` is unchanged and still includes it, so a price computed
+  from `OutputTokens` is unchanged.
+* A Claude response that reasoned reported 0 before. It now reports the
+  count, measured at 105 to 177 tokens on Claude Haiku 5.5 at high effort.
+
+**A fourth cache-read spelling.** Chat Completions reads a top-level
+`cache_read_input_tokens` as `CachedTokens`, when none of
+`prompt_tokens_details.cached_tokens`, `prompt_cache_hit_tokens` or a
+top-level `cached_tokens` is present. OpenCode Zen passes it through from
+some upstreams.
+
+**Upgrading:** no code change is needed. A caller that assumed
+`ReasoningTokens` is always 0 for Claude sees real counts.
