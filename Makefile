@@ -11,7 +11,7 @@ GOVULNCHECK_PIN := $(shell grep -oE 'golang.org/x/vuln/cmd/govulncheck@v[0-9][0-
 GOTESTSUM     ?= $(or $(wildcard $(GOBIN)/gotestsum),$(GOPATH_BIN)/gotestsum,$(shell command -v gotestsum 2>/dev/null))
 FLEET_LINT_CFG := .golangci.yml
 
-.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check parity-check dep-check coverage-check api-check generate-check records-check gate-selftest
+.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check parity-check dep-check coverage-check api-check generate-check records-check gate-selftest tools-test
 
 all: help
 
@@ -86,6 +86,11 @@ records-check: ## Checks the decision records and their index
 # 0021-PLAN step 6.2: each gate above fails on a planted breach, on a copy.
 gate-selftest: ## Checks that each CI gate fails on a planted breach
 	python3 -B -m unittest scripts/test_gates.py
+
+# 0035-MADR D3: the maintainer tools in tools/, each on a planted input. Local
+# only (0035-MADR Q1): CI does not run it.
+tools-test: ## Checks that each maintainer tool in tools/ fails on a planted input
+	python3 -B -m unittest discover -s tools -p 'test_*.py'
 
 help: ## Displays this help message
 	@echo "Usage: make [target]"

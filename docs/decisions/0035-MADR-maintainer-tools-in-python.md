@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-12
 decision-makers: repository owner
 consulted: 0026-PLAN-remediate-v1-2-debugging-pass-findings.md (the gate, rule 3), AGENTS.md (pre-add checks)

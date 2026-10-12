@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-12
 associated-madr: "0035-MADR-maintainer-tools-in-python.md"
 decision-makers: repository owner
@@ -180,4 +180,69 @@ No Go code changes, and no exported API.
 
 ## Execution Record
 
-Not started.
+### Phase 0: records (2026-10-12)
+
+* The MADR and this PLAN were written `proposed`.
+* The owner answered Q1 (local only) and Q2 (leave `go-precheck.sh` in
+  bash), and committed them as `ae1a95f`.
+* The owner then directed "proceed to 0035 execute the plan", which
+  accepts the MADR and approves this PLAN.
+
+### Phase 1: the shared code, and the three small tools (2026-10-12)
+
+**Change:**
+
+* **`tools/_common.py`:**
+  * `ROOT`, from the file's own location;
+  * `out_dir`, under `tempfile.gettempdir()`;
+  * `run`, an argument list, never a shell;
+  * `load_limit`, the CPU count;
+  * `wait_load(limit, timeout, *, load, sleep, clock, interval)`;
+  * `scratch_clone(src, dest)`.
+* **`tools/linkcheck.py`:** `g_links.py`, with `argparse`, `--root` and
+  `--detail`.
+* **`tools/denyscan.py`:** files, or `--changed` from `git status
+  --porcelain -z`. It reads the account and host names at run time, and
+  prints only the kind of hit.
+* **`tools/edit.py`:** a JSON spec of `{file, old, new, count}`. Every
+  entry is checked before any file is written.
+* **`tools/test_tools.py`:** 15 tests.
+* **`Makefile`:** `tools-test`, local only (Q1), and in `.PHONY`. The
+  Makefile edit was the edit tool's first spec.
+
+**`TestScratchClone`,** which Phase 2 lists, is written here, because
+`scratch_clone` lands here. It adds a test, and changes no scope.
+
+**Red first:**
+
+```text
+    import _common
+ModuleNotFoundError: No module named '_common'
+FAILED (errors=1)
+```
+
+**Green:** `make tools-test`: `Ran 15 tests … OK`.
+
+**The tools on the tree:**
+
+* `tools/linkcheck.py`: `G-links: 0 problem(s), 743 relative link(s) in
+  86 file(s)`, the same counts the scratch link checker gave on the same
+  tree;
+* `tools/denyscan.py --changed`: `deny-scan: 0 hit(s) in 6 file(s)`.
+
+**Plants,** each on a temporary copy of `tools/`:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| `linkcheck` skipping every link | `test_a_missing_target_is_a_finding`: `AssertionError: 0 != 1 : G-links: 0 problem(s), 0 relative link(s) in 2 file(s)` |
+| `denyscan` printing the identifier | `test_the_account_name_is_a_hit_and_is_never_printed`: `AssertionError: '<the account name>' unexpectedly found in 'f.md:1: the local account name written by <the account name> today …'` |
+| `edit` writing before it checks every entry | `test_a_double_match_changes_nothing`: `AssertionError: 'beta\n' != 'alpha\n'` |
+| `wait_load` returning at once | `test_gives_up_at_the_timeout`: `True is not false`; `test_waits_until_the_load_falls`: `0 != 1` |
+| `scratch_clone` dropping the deletion | `test_the_clone_commits_the_working_tree`: `Lists differ: ['changed.txt', 'deleted.txt', 'kept.txt', 'new.txt'] != ['changed.txt', 'kept.txt', 'new.txt']` |
+
+The account name in the second plant's output is given here as a
+placeholder, as AGENTS.md's "Identifiers" rule requires.
+
+**Gate:** the 22 checks, then `make tools-test`, all passing. They were
+started at a load average of 7.4 by a scratch runner that waits with
+`tools/_common.wait_load`. `tools/gate.py` is Phase 2's.
