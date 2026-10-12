@@ -23,24 +23,38 @@ const runDoc = `{"anthropic": {"models": {
 
 const testKey = "sk-ant-0033-never-printed"
 
-// fakeFetcher answers with a canned listing, or an error, and records the
-// keys it was given.
+// fakeFetcher answers with a canned listing and listing body, or an error,
+// and records the keys it was given, by provider, and which it ranked.
 type fakeFetcher struct {
 	listed map[llmprovider.ProviderID][]string
+	bodies map[llmprovider.ProviderID][]byte
 	fail   error
 	keys   []string
+	asked  map[llmprovider.ProviderID]string
+	ranked map[llmprovider.ProviderID]bool
 }
 
 func (f *fakeFetcher) Metadata(context.Context) (catalog.Metadata, error) {
 	return catalog.ParseMetadata(strings.NewReader(runDoc))
 }
 
-func (f *fakeFetcher) Listed(_ context.Context, p llmprovider.ProviderID, key string) ([]string, error) {
-	f.keys = append(f.keys, key)
-	if f.fail != nil {
-		return nil, f.fail
+func (f *fakeFetcher) Catalog(_ context.Context, p llmprovider.ProviderID, key string, ranked bool) (catalog.Catalog, error) {
+	if key != "" {
+		f.keys = append(f.keys, key)
 	}
-	return f.listed[p], nil
+	if f.asked == nil {
+		f.asked, f.ranked = map[llmprovider.ProviderID]string{}, map[llmprovider.ProviderID]bool{}
+	}
+	f.asked[p], f.ranked[p] = key, ranked
+	if f.fail != nil {
+		return catalog.Catalog{}, f.fail
+	}
+	return catalog.Catalog{Usable: f.listed[p], Recommended: f.listed[p], Live: true}, nil
+}
+
+func (f *fakeFetcher) Listing(p llmprovider.ProviderID) ([]byte, bool) {
+	body, ok := f.bodies[p]
+	return body, ok
 }
 
 // TestRun_Proposes_0033: with Claude's key set, run lists Claude, prints the
@@ -55,8 +69,11 @@ func TestRun_Proposes_0033(t *testing.T) {
 	if len(f.keys) != 1 || f.keys[0] != testKey {
 		t.Errorf("the lister was given %d key(s), want Claude's", len(f.keys))
 	}
-	if !strings.Contains(out.String(), "claude\tadd\tclaude-next\t") {
-		t.Errorf("stdout lacks the proposal to add claude-next:\n%s", out.String())
+	// Claude's is a vendor list, so its newer model is a review line
+	// (0033-MADR's amendment "the second refresh, and what the command
+	// reads", Q18).
+	if !strings.Contains(out.String(), "claude\treview\tclaude-next\t") {
+		t.Errorf("stdout lacks the review line for claude-next:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), "proposal(s)") {
 		t.Errorf("stdout lacks the summary:\n%s", out.String())

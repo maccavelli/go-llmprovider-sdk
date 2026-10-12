@@ -35,20 +35,22 @@ func metadata(t *testing.T, doc string) catalog.Metadata {
 func TestPropose_RemovesARetiredID_0033(t *testing.T) {
 	static := map[llmprovider.ProviderID][]string{llmprovider.ProviderClaude: {"claude-haiku-4-5", "claude-cur"}}
 	got := Propose(static, Sources{Metadata: metadata(t, proposeDoc)})
-	want := Proposal{Provider: llmprovider.ProviderClaude, ID: "claude-haiku-4-5", Add: false, Reason: "retired: retirement floor 2026-10-15"}
+	want := Proposal{Provider: llmprovider.ProviderClaude, ID: "claude-haiku-4-5", Kind: KindRemove, Reason: "retired: retirement floor 2026-10-15"}
 	if len(got) == 0 || !reflect.DeepEqual(got[0], want) {
 		t.Errorf("proposals %+v, want first %+v", got, want)
 	}
 }
 
-// TestPropose_AddsACurrentModel_0033: a newer current model is proposed for
-// addition with its status, release date and input price; a deprecated one,
-// or one older than the list's newest, is not.
+// TestPropose_AddsACurrentModel_0033: a newer current model is proposed with
+// its status, release date and input price; a deprecated one, or one older
+// than the list's newest, is not. Claude's is a vendor list, so the proposal
+// is a review line (0033-MADR's amendment "the second refresh, and what the
+// command reads", Q18).
 func TestPropose_AddsACurrentModel_0033(t *testing.T) {
 	static := map[llmprovider.ProviderID][]string{llmprovider.ProviderClaude: {"claude-cur"}}
 	got := Propose(static, Sources{Metadata: metadata(t, proposeDoc)})
-	want := []Proposal{{Provider: llmprovider.ProviderClaude, ID: "claude-new", Add: true,
-		Reason: "status active, released 2026-09-28, input $3.00 per million tokens"}}
+	want := []Proposal{{Provider: llmprovider.ProviderClaude, ID: "claude-new", Kind: KindReview,
+		Reason: "review against the official page; status active, released 2026-09-28, input $3.00 per million tokens"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("proposals %+v, want %+v", got, want)
 	}
@@ -70,7 +72,7 @@ func TestPropose_NeverAddsADeprecatedModel_0033(t *testing.T) {
 	static := map[llmprovider.ProviderID][]string{llmprovider.ProviderClaude: {"claude-cur", "claude-gone"}}
 	listed := map[llmprovider.ProviderID][]string{llmprovider.ProviderClaude: {"claude-cur", "claude-dep"}}
 	got := Propose(static, Sources{Metadata: metadata(t, proposeDoc), Listed: listed})
-	want := []Proposal{{Provider: llmprovider.ProviderClaude, ID: "claude-gone", Add: false, Reason: "not in the listing"}}
+	want := []Proposal{{Provider: llmprovider.ProviderClaude, ID: "claude-gone", Kind: KindRemove, Reason: "not in the listing"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("proposals %+v, want %+v", got, want)
 	}

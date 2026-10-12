@@ -896,3 +896,122 @@ finding was written without checking. The owner chose a dated correction:
 
 **Checks:** `make records-check`, `tools/linkcheck.py` and
 `tools/denyscan.py --changed`, clean.
+
+Committed by the owner as `e43f89d`.
+
+### Phase 6: the command (2026-10-12)
+
+**Change:**
+
+* **`internal/catalogtool/propose.go`:**
+  * `Proposal.Add bool` is now `Kind`: `add`, `remove` or `review`.
+    `String` prints the kind;
+  * `Sources.Ranked` is each ranked list's utility six;
+  * `rankedLists`, and `Ranked(provider)`: Zen, Go, Kilo, Hugging Face and
+    Together;
+  * `Propose`:
+    * removes from any list an id the retired table or models.dev retires,
+      or the listing leaves out;
+    * removes from a ranked list one its six leaves out ("not in today's
+      utility six");
+    * adds to a ranked list each id of its six it lacks, with its rank;
+    * turns a vendor list's newer models into `review` lines, "review
+      against the official page".
+* **`internal/cmd/catalogs/main.go`:**
+  * `publicListing`, the guard's four public gateways, read with no key.
+    Its comment names the guard's constants;
+  * the fetcher's `Listed` is now `Catalog(ctx, provider, key, ranked)`,
+    plus `Listing(provider)`. The live fetcher ranks a ranked list with
+    `WithProfile(ProfileUtility)` and metadata, and lists a vendor with
+    `WithoutModelMetadata`;
+  * `listingRecorder` keeps the one GET whose path ends in `/models`. None,
+    or two, is an error;
+  * `-snapshot DIR`:
+    * it refuses a `DIR` that exists, before any listing is read;
+    * it writes the five listing bodies, `Metadata.Encode`'s output and
+      `snapshot.json`, with `recorded_at` and each file's SHA-256;
+    * it writes into `DIR.partial`, then renames it into place, and
+      removes it if a write or the rename fails;
+    * it writes nothing unless every ranked listing was read;
+  * `liveFetcher` gains `metadataURL` and `extra` options. Their zero values
+    are the real endpoints, and a test points them at its own server.
+* **`R30`:** the environment is still read only in `KeysFromEnv`.
+
+**Tests,** as step 1 lists them, and three more:
+
+* `catalogtool`: `TestPropose_RankedListDiff`,
+  `TestPropose_RankedListNoBroadAdds`, `TestPropose_RetiredRemovedFromAnyList`,
+  `TestPropose_VendorReviewLines` and `TestRankedLists`;
+* `cmd/catalogs`: `TestRun_PublicListings`, `TestRun_Snapshot`,
+  `TestRun_SnapshotRefusesAnExistingDir`, and also
+  `TestRun_SnapshotNeedsEveryRankedListing`, `TestSnapshotFiles` (the
+  snapshot names every ranked list, and nothing else), `TestListingRecorder`
+  and `TestLiveFetcher`.
+
+**Red first:**
+
+* `catalogtool`: the build failed on `unknown field Ranked`, `unknown
+  field Kind` and `undefined: KindRemove`. With the new shapes and the old
+  behaviour, four tests failed:
+  * the ranked diff got the broad additions, `zen-unpicked` among them;
+  * the vendor test got `claude add claude-new`;
+  * `Ranked` was false for all five gateways.
+
+  `TestPropose_RetiredRemovedFromAnyList` passed before the change, since
+  the retired check already applied to every list. It stays as a guard.
+* `cmd/catalogs`: the build failed on `undefined: snapshotFiles`,
+  `f.asked undefined` and `unknown field bodies`. The behaviour of each of
+  its tests was proven by the plants below, not by a separate stub run.
+
+**Two existing assertions changed, by Q18.** Claude's list is a vendor
+list, so its newer model is now a `review` line:
+
+* `TestPropose_AddsACurrentModel_0033` wants `Kind: KindReview`, and the
+  reason prefixed "review against the official page; ";
+* `TestRun_Proposes_0033` wants `claude\treview\tclaude-next\t`.
+
+Each still pins the same model, status, date and price.
+
+**Green:** both packages pass. Coverage is 98.5% for `catalogtool` and
+94.2% for `cmd/catalogs`. It was 77.8% before `TestLiveFetcher`, under the
+80% floor; step 4 is met.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | Caught by |
+| :--- | :--- |
+| `publicListing` without Zen | `TestRun_PublicListings` |
+| a ranked list's removal dropped | `TestPropose_RankedListDiff` |
+| a vendor list's newer model proposed as an addition | `TestPropose_VendorReviewLines`, `TestPropose_AddsACurrentModel_0033`, `TestRun_Proposes_0033` |
+| `-snapshot` writing a body other than the one recorded | `TestRun_Snapshot` |
+| `snapshot.json` with a wrong hash | `TestRun_Snapshot` |
+| `-snapshot` writing into an existing directory | `TestRun_SnapshotRefusesAnExistingDir`: `9 listing(s) were read before the directory was refused` |
+| the recorder keeping more than one listing | `TestListingRecorder` |
+
+**A plant not caught at first.** On the first run, "`-snapshot` writing
+into an existing directory" passed. With the early check gone, the rename
+onto the existing directory still failed, so the test saw exit 2 and an
+empty directory. But the run had read every listing first, and left
+`DIR.partial` beside the target. So:
+
+* the test now also requires that no listing was read, and that no
+  `DIR.partial` is left;
+* `writeSnapshot` removes `DIR.partial` when the rename fails.
+
+On the second run, all seven plants were caught.
+
+**The first gate failed, 18 of 23.** `TestNoAmbientState` (R30) found
+`llmprovider/internal/cmd/catalogs/main.go:147: http.DefaultTransport is
+shared by the process`: the recorder sent its requests through net/http's
+shared transport. `pre-add-check`, `test-race-cover`, `test-shuffle`,
+`coverage-check` and `gate-selftest` (which runs `coverage-check` on a
+clean copy) all failed on that one test. The per-file pre-add check had
+passed, since it does not run `internal/ambientcheck`. The fix, within this
+phase: `newListingRecorder` builds the recorder over the SDK's bounded
+default transport, `transport.DefaultClient().Transport`. The ambient check
+then passed, and the seven plants were run again, and all caught.
+
+**Checks:** `make pre-add-check` on the six Go files, clean (gofmt,
+golangci-lint, go vet, go test, govulncheck).
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 8.8, after the fix.
