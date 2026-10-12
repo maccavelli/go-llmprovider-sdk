@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-78 records. Cite them by full filename.
+80 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -88,6 +88,8 @@ documents a reader follows to do something.
 | 0035 | PLAN | [Implement the Maintainer Tools in `tools/`](decisions/0035-PLAN-maintainer-tools-in-python.md) | complete |
 | 0036 | MADR | [Report Cache-Write Tokens in `Usage`, as a Part of the Input Count](decisions/0036-MADR-cache-write-token-count.md) | accepted |
 | 0036 | PLAN | [Implement the Cache-Write Counts in `Usage`](decisions/0036-PLAN-cache-write-token-count.md) | complete |
+| 0037 | MADR | [Read Anthropic's Reasoning Count, and a Fourth Cache-Read Spelling on Chat Completions](decisions/0037-MADR-reasoning-and-cache-read-spellings.md) | accepted |
+| 0037 | PLAN | [Implement Anthropic's Reasoning Count and the Fourth Cache-Read Spelling](decisions/0037-PLAN-reasoning-and-cache-read-spellings.md) | proposed |
 
 ## I want to…
 
@@ -119,6 +121,7 @@ documents a reader follows to do something.
 | know how GenerateToolCall forces a tool on the Claude models that refuse it | [0034-MADR](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) |
 | run the local gate, the link check or the identifier scan myself | [0035-MADR](decisions/0035-MADR-maintainer-tools-in-python.md) |
 | price a response's cache writes, or know what each `Usage` count includes | [0036-MADR](decisions/0036-MADR-cache-write-token-count.md) |
+| know why a Claude response now reports reasoning tokens | [0037-MADR](decisions/0037-MADR-reasoning-and-cache-read-spellings.md) |
 | know why provider auth builds on `mcplib` and not `magic-cli-remote`, and what it takes from each | [0016-MADR](decisions/0016-MADR-provider-auth-and-support-baseline.md) |
 | compare this module's auth with Codex, Grok, Kilo, OpenCode, pi, agy and Claude Code | [0017-REPORT](reports/0017-REPORT-reference-client-auth-survey.md) |
 | know how Together AI, Kilo device login and command-sourced keys are being added | [0017-MADR](decisions/0017-MADR-together-provider-and-auth-extensions.md) |
