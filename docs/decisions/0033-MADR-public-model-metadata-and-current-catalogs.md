@@ -819,8 +819,8 @@ recommended option of each.
 
 ### Amendment (2026-10-12): the second refresh, and what the command reads
 
-Status: **proposed**. The owner answered Q13 to Q15 on 2026-10-12, with
-the recommended options; it is accepted when the owner says so.
+Status: **accepted** 2026-10-12. The owner answered Q13 to Q15 with the
+recommended options, then accepted this amendment.
 
 0033-PLAN-public-model-metadata.md's Phase 4 ran D4's maintainer command
 for the first time. It proposed 49 changes, and recorded one as found
@@ -934,10 +934,87 @@ its check reads the public one, as the guard does.
   **Answer: apply each rule's output, measured,** with the two surprising
   picks shown to the owner before they are listed.
 
+#### Research for the plan (2026-10-12), and what it refines
+
+The owner asked for each phase to be researched before the plan was
+written. The research refines D4a to D4c. Q16 to Q19 settled the four
+choices it raised.
+
+* **R1. Which listings need a key.** `catalog.List` with an empty token
+  answers for OpenCode Zen, OpenCode Go, Kilo and Hugging Face. Those are
+  the four listings the live guard reads with no key. Keyed and public
+  `Usable` are equal for Go (34), Kilo (285) and Hugging Face (122). They
+  differ only for Zen (41 against 79), by F1. Together, OpenAI, Claude,
+  Gemini and Grok refuse a request with no key.
+* **R2. How the sixes are pinned today.**
+  `TestListModelCatalog_Snapshot20260926` replays
+  `llmprovider/catalog/testdata/ranking-2026-09-26/`, with the ranking
+  clock pinned, and requires 0009 §7's sixes exactly. That fixture was
+  trimmed by hand in a scratch directory, and 0009-PLAN records only its
+  checksums, so it cannot be reproduced.
+* **R3. What a snapshot weighs.** Raw, on 2026-10-12:
+  * listings: Kilo 487 KB, Together 442 KB, Hugging Face 86 KB, Zen 7 KB,
+    Go 3 KB;
+  * `Metadata.Encode`: 509 KB. It keeps, losslessly, the sections the SDK
+    reads, `opencode`, `opencode-go`, `huggingface`, `togetherai` and
+    `kilo` among them.
+
+  Git stores them compressed. Together's keyed listing names vendors in
+  `organization` and nothing of the account, and `tools/denyscan.py` found
+  no hit in it.
+* **R4. Together.** 0017-MADR D1 says Together's live menu is "curated by
+  the open-catalog ranking with the models.dev key `togetherai`". The rule
+  "one per vendor, newest first" is in `staticTogether`'s comment only.
+* **R5. The vendor lists** (OpenAI, Claude, Gemini, Grok) are rebuilt from
+  the official pages (D4), which no tool reads.
+* **R6. `space-bunny`** has no family, closed weights and a 2026-09-23
+  release in models.dev's `opencode-go` section. The local OpenCode docs
+  (`083ed266e0`, 2026-09-28) list only "Space Bunny Free" in Go's data
+  table. The live docs page answered 404. Its data policy is undocumented.
+
+**Refined, by the owner's answers:**
+
+* **D4a, refined:** the command reads the public listing for all four of
+  the guard's public gateways (Zen, Go, Kilo, Hugging Face), and the keyed
+  listing for the rest. The command and the guard read the same listings.
+* **D4b, refined:**
+  * the ranked lists are five: Zen, Go, Kilo, Hugging Face and Together
+    (Q17). The command prints each one's utility six, from
+    `catalog.List` with `WithProfile(ProfileUtility)` and metadata on, as a
+    diff against the static list;
+  * the vendor lists keep the removal checks: the retired table, models.dev
+    `deprecated` or `retired`, and absence from the keyed listing. Newer
+    models are printed as "review against the official page" lines, not as
+    proposals (Q18).
+* **D4c, refined:** a refresh is pinned by a recorded snapshot (Q16):
+  * `catalogs -snapshot DIR` writes the listing bodies the ranker read,
+    through a recording HTTP client, and `Metadata.Encode`'s output. Each
+    file is identifier-scanned before it is committed;
+  * a golden test replays the snapshot with the clock pinned, and requires
+    each ranked list's utility and capable sixes;
+  * a test requires each ranked static list to equal the latest snapshot's
+    utility six.
+* **Vetoes** (Q19): a ranker pick the owner refuses is a ranker rule, by a
+  0009-MADR amendment, so the runtime menu and the static list agree. There
+  is no per-list exception.
+
+**Owner questions (the research):**
+
+* **Q16 (D4c).** Recorded snapshot and golden (recommended), or a live run
+  only. **Answer: recorded snapshot and golden.**
+* **Q17 (D4b).** Together by the ranker, like the other gateways
+  (recommended), or by its comment's rule. **Answer: the ranker.**
+* **Q18 (D4b).** Vendor lists: removals and review lines (recommended), or
+  removals only. **Answer: removals and review lines.**
+* **Q19.** A veto changes the ranker (recommended), or a documented
+  exception list. **Answer: change the ranker.**
+
 #### Consequences of this amendment
 
 * Good, because a curated list no longer loses a live model to one
   workspace's settings.
+* Good, because each ranked list is reproducible offline, from a committed
+  snapshot, by the code that ranks the runtime menu.
 * Good, because the command's output is the change a refresh would make,
   and the guard and the command read the same listing.
 * Neutral, because a refresh is a patch release: no exported API changes.

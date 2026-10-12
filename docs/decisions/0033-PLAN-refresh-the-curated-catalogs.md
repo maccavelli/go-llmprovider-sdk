@@ -1,6 +1,6 @@
 ---
-status: complete
-date: 2026-10-11
+status: in-progress
+date: 2026-10-12
 associated-madr: "0033-MADR-public-model-metadata-and-current-catalogs.md"
 decision-makers: repository owner
 ---
@@ -51,6 +51,20 @@ All of it ships as `v1.7.1` before 2026-10-23, when OpenAI shuts down
 * The G-wire listing goldens, only where Phase 2's change explains a
   difference.
 * `README.md` Status, release notes, and the index.
+* *(Amended 2026-10-12, 0033-MADR's amendment "the second refresh, and what
+  the command reads"; Phases 5 to 9.)*
+  * `llmprovider/internal/catalogtool` and `llmprovider/internal/cmd/catalogs`:
+    the listings the command reads, the proposal for each list by its rule,
+    and `-snapshot`;
+  * the five ranked lists, `staticOpencodeZen`, `staticOpencodeGo`,
+    `staticKilo`, `staticHuggingFace` and `staticTogether`, and their
+    comments;
+  * a recorded snapshot, `llmprovider/catalog/testdata/ranking-<date>/`,
+    its golden test, and a test that each ranked list equals it;
+  * a live measurement of each id the refresh adds;
+  * dated notes in 0033-PLAN-public-model-metadata.md and
+    0036-PLAN-cache-write-token-count.md;
+  * `README.md` Status, release notes, and the index, for `v1.10.2`.
 
 ### Out of scope
 
@@ -61,7 +75,16 @@ All of it ships as `v1.7.1` before 2026-10-23, when OpenAI shuts down
 * The maintainer tool that proposes the next lists (D4): the other plan,
   `v1.8.0`.
 * The gateway lists (Zen, Go, Hugging Face, Kilo, Together). All 30 ids are
-  current. Only the Go comment is re-checked.
+  current. Only the Go comment is re-checked. *(Amended 2026-10-12: they are
+  in scope for Phases 5 to 9.)*
+* *(Amended 2026-10-12.)* For Phases 5 to 9:
+  * the ranker's rules (0009-MADR §3 and §4). A pick the owner refuses
+    becomes a ranker rule, by a 0009-MADR amendment (Q19), and is a
+    deviation here;
+  * the vendor lists (OpenAI, Claude, Gemini, Grok), which the command only
+    checks;
+  * the runtime catalog, which keeps reading the keyed listing;
+  * the 2026-09-26 snapshot and its golden, which stay as they are.
 * gobble-cli's own move to the new release.
 
 ## Rules for every phase
@@ -190,6 +213,140 @@ The tests are behind `LLMPROVIDER_LIVE_0033`, in
    * a scratch consumer, and a scratch copy of gobble-cli on `v1.7.1`.
 5. This PLAN `complete`; the index updated.
 
+### Phase 5: records *(amended 2026-10-12)*
+
+1. 0033-MADR's amendment "the second refresh, and what the command reads",
+   with its research and Q13 to Q19, `accepted` (the owner, 2026-10-12).
+2. **D4d's notes,** each dated, each saying that the removal was one
+   workspace's disabled model, not a retirement (0033-MADR F1):
+   * 0033-PLAN-public-model-metadata.md, Phase 4's "Found, outside this
+     plan's scope";
+   * the same PLAN's "Not done, and why";
+   * 0036-PLAN-cache-write-token-count.md's "Not done, and why".
+3. This PLAN `in-progress`; the index updated.
+4. `make records-check`, `tools/linkcheck.py`, `tools/denyscan.py
+   --changed`. Stage. The owner commits.
+
+### Phase 6: the command *(amended 2026-10-12; D4a, D4b, D4c)*
+
+1. **Red first** (`internal/catalogtool/propose_0033_test.go`, and
+   `internal/cmd/catalogs/main_0033_test.go`):
+
+   | Test | Asserts |
+   | :--- | :--- |
+   | `TestPropose_RankedListDiff` | for a ranked list, the proposals are exactly the difference between the static list and the ranked six: an id in the six and not the list is an addition whose reason names its rank; an id in the list and not the six is a removal "not in today's utility six" |
+   | `TestPropose_RankedListNoBroadAdds` | a newer model with tools that the ranker did not pick is not proposed for a ranked list |
+   | `TestPropose_RetiredRemovedFromAnyList` | an id on the retired table, or models.dev `deprecated`, is proposed for removal from a ranked list too |
+   | `TestPropose_VendorReviewLines` | for a vendor list, a newer model is a `review` line, never an addition; a removal is unchanged |
+   | `TestRun_PublicListings` | with every key set, the fetcher is asked for Zen, Go, Kilo and Hugging Face with an empty key, and for Together and the vendors with their keys |
+   | `TestRun_Snapshot` | `-snapshot DIR` writes `zen.json`, `go.json`, `kilo.json`, `hf.json`, `together.json` and `metadata.json`, each byte for byte what the fetcher recorded or `Metadata.Encode` wrote, and `snapshot.json` with `recorded_at` and each file's SHA-256 |
+   | `TestRun_SnapshotRefusesAnExistingDir` | `-snapshot` into a directory that exists exits 2, and writes nothing |
+
+2. **Change:**
+   * **`catalogtool`:**
+     * `Sources` gains `Ranked map[llmprovider.ProviderID][]string`, each
+       ranked list's utility six;
+     * `Proposal`'s `Add bool` becomes `Kind`: `add`, `remove` or
+       `review`. The package is internal;
+     * a table of the ranked lists: Zen, Go, Kilo, Hugging Face and Together
+       (Q17). Their additions come from `Ranked`, and the broad rule applies
+       to the vendor lists only, as `review`.
+   * **`cmd/catalogs`:**
+     * the fetcher's `Listed` becomes `Catalog(ctx, provider, key)
+       (catalog.Catalog, error)`. The live fetcher calls `catalog.List` with
+       `WithProfile(ProfileUtility)` and metadata on for a ranked list, and
+       with `WithoutModelMetadata` for a vendor list;
+     * `publicListing`, the four gateways whose listing is read with no
+       key. Its comment names the live guard's four constants, which it
+       must match;
+     * `-snapshot DIR`: the live fetcher's HTTP client records each listing
+       body, and the command writes them, `Metadata.Encode`'s output and
+       `snapshot.json`. It refuses a directory that exists. It edits no
+       list (D4).
+   * **`R30`:** the environment is still read in `KeysFromEnv` only.
+3. **Plants,** each failing a named test:
+   * `publicListing` without Zen;
+   * a ranked list's removal dropped;
+   * a vendor list's newer model proposed as an addition;
+   * `-snapshot` writing a body other than the one recorded;
+   * `snapshot.json` with a wrong hash;
+   * `-snapshot` writing into an existing directory.
+4. **Coverage:** both packages keep the default floor of 80%.
+5. Gate; stage. The owner commits.
+
+### Phase 7: measure, then record the snapshot *(amended 2026-10-12)*
+
+1. **Run the command** (listings and models.dev: not billed). The printed
+   diffs, for the five ranked lists and the vendor review lines, go in the
+   Execution Record. The ids to add are those the diffs name, and nothing
+   else.
+2. **Measure each id to add** (D4: every candidate answers before it is
+   listed):
+   * `llmprovider/live_0033_refresh2_measure_test.go`,
+     `TestLive_0033RefreshCandidates`, switched on by
+     `LLMPROVIDER_LIVE_0033_REFRESH`. One `Generate` of at most 16 output
+     tokens per id, with the provider's key. It logs the status and error
+     only.
+   * **The count goes to the owner before the run.** The research on
+     2026-10-12 gives 9: Zen 1, Go 2, Kilo 1, Together 5. Step 1's diffs
+     give the real count.
+   * Each id's data policy is recorded where its provider documents one:
+     Kilo's `mayTrainOnYourPrompts`, and Go's data table. `space-bunny`'s
+     is undocumented (0033-MADR R6).
+3. **The owner reviews the picks** with their measurements (Q15),
+   `openai/gpt-6.1-sol` and `space-bunny` among them. A refusal is a
+   deviation: the work stops, and a 0009-MADR amendment makes it a ranker
+   rule (Q19). Then step 1 is run again.
+4. **Record the snapshot,** after the owner's approval of the picks:
+
+   ```text
+   go run ./llmprovider/internal/cmd/catalogs -snapshot llmprovider/catalog/testdata/ranking-<date>
+   ```
+
+   * `tools/denyscan.py` over each file. One hit stops the work.
+   * The snapshot's sixes must equal step 1's diffs. A difference (a listing
+     that moved between the two runs) is recorded, and the snapshot is
+     taken again.
+5. Gate; stage. The owner commits.
+
+### Phase 8: the lists, and the golden *(amended 2026-10-12)*
+
+1. **Red first** (`llmprovider/catalog`):
+
+   | Test | Asserts |
+   | :--- | :--- |
+   | `TestListModelCatalog_Snapshot<date>` | the snapshot, replayed with the clock pinned to `snapshot.json`'s `recorded_at`, gives each ranked list's utility and capable sixes, as step 1 printed them |
+   | `TestStatic_EqualsLatestSnapshot` | each ranked static list equals the latest snapshot's utility six. It fails until the lists change |
+   | `TestStaticOpenCatalogs_UtilityCriteria` | gains `staticTogether` |
+
+2. **Change:** the five ranked lists become the snapshot's utility sixes.
+   Each comment names the snapshot, its date, and this amendment. A test
+   that names an id leaving a list changes only where it asserts the list
+   itself, and the record names each one. A label in `modelLabels` is
+   added where a new id needs one.
+3. **Plants:**
+   * one id of `staticOpencodeZen` swapped for another usable id:
+     `TestStatic_EqualsLatestSnapshot` fails;
+   * the golden replay not pinning the clock;
+   * `staticTogether` left out of the criteria test's table, with a
+     planted free id.
+4. **The live guard,** `TestLive_StaticCatalogsCurrent` (not billed),
+   passes for all nine providers.
+5. Gate; stage. The owner commits.
+
+### Phase 9: release *(amended 2026-10-12)*
+
+1. **`README.md` Status:** `v1.10.2`. **Release notes** in this PLAN.
+2. Gate; stage. The owner commits, runs the disclosure guard, pushes, and
+   tags `v1.10.2`.
+3. **After the tag:**
+   * CI on `main` and on the tag;
+   * the proxy;
+   * `tools/apidiff.py v1.10.1 v1.10.2`: no change;
+   * `tools/consumer.py v1.10.2`;
+   * `tools/offline.py v1.10.2`.
+4. This PLAN `complete`; the index updated.
+
 ## Verification
 
 * **V1. Red, then green,** with both lines and every plant's FAIL line in
@@ -199,6 +356,14 @@ The tests are behind `LLMPROVIDER_LIVE_0033`, in
 * **V3. Measurement:** Phase 1's table recorded before Phase 2 uses it.
 * **V4. API:** apidiff `v1.7.0` to `v1.7.1` empty.
 * **V5. Live:** the guard and the live suites on the release commit.
+* *(Amended 2026-10-12, Phases 5 to 9.)*
+  * **V6.** The command reads the guard's four public listings, and
+    proposes each list by its rule. Its tests fail on each plant.
+  * **V7.** Every id the refresh adds answered a live request, and the owner
+    approved the picks.
+  * **V8.** Each ranked list equals its recorded snapshot's utility six, by
+    a test, and the snapshot's golden replays offline.
+  * **V9.** apidiff `v1.10.1` to `v1.10.2`: no change.
 
 ## Rollout and Rollback
 
