@@ -817,6 +817,133 @@ recommended option of each.
   2026-10-11: the metadata's release is `v1.9.0`.)*
 * The live catalog test passes on each release commit.
 
+### Amendment (2026-10-12): the second refresh, and what the command reads
+
+Status: **proposed**. The owner answered Q13 to Q15 on 2026-10-12, with
+the recommended options; it is accepted when the owner says so.
+
+0033-PLAN-public-model-metadata.md's Phase 4 ran D4's maintainer command
+for the first time. It proposed 49 changes, and recorded one as found
+outside that plan: "`opencode-zen remove deepseek-v4-flash not in the
+listing`. Zen's listing no longer offers a model its static list names."
+0036-PLAN-cache-write-token-count.md repeated it. This amendment rests on
+the research for a second refresh, on 2026-10-12.
+
+#### F1. The removal is a false positive, from one workspace
+
+* **The live guard passes.** `TestLive_StaticCatalogsCurrent`, run on
+  2026-10-12, passes for all nine providers. It reads Zen's public listing,
+  with no key, and that listing offers `deepseek-v4-flash`.
+* **The command reads a different listing.** It calls `catalog.List` with
+  the provider's key, and compares against `Usable`.
+* **Zen's listing depends on the key's workspace.** The gateway's own route
+  (OpenCode `907b3bc518`, `packages/console/app/src/routes/zen/v1/models.ts`)
+  drops, for a keyed request, every model the key's workspace has disabled
+  (its `ModelTable` rows).
+* **Measured on 2026-10-12:**
+  * the public listing had 83 models, and the owner's keyed listing 45;
+  * every keyed model was in the public listing;
+  * the 38 public-only models included `deepseek-v4-flash`, the Claude Opus
+    4.5 to 4.8 and Sonnet 4.5 and 4.6 models, the GPT-5 to 5.6 models,
+    and Gemini 3 to 3.7 Flash;
+  * models.dev's `opencode` section marks all 38 `active`.
+
+So `deepseek-v4-flash` is not retired. That workspace disables it. The
+runtime menu is right to read the keyed listing, since a caller cannot use
+a model its workspace disables. A curated list serves every workspace, so
+its check reads the public one, as the guard does.
+
+#### F2. The command's additions are not how the lists are built
+
+* **The command adds** any model newer than a list's newest that is not
+  known to lack tools. That gave 50 proposals on 2026-10-12: 36 for Kilo,
+  11 for Zen, 2 for OpenCode Go, and the removal above.
+* **The lists are built by a rule:**
+  * Zen, Go, Kilo and Hugging Face hold the utility six that the shipped
+    ranker chose, under 0009-MADR's §3 and §4, on 2026-09-26 (§7). Their
+    comments say so.
+  * Together holds 0017-MADR D1's rule over models.dev's `togetherai`
+    section: tool-calling chat models, not deprecated, text out, one per
+    vendor, newest first.
+* **Each rule, run on 2026-10-12,** from a scratch program and a scratch
+  script, on the public listings the guard reads (Kilo and Together with
+  their keys):
+
+  | List | Today's rule output, against the list |
+  | :--- | :--- |
+  | OpenCode Zen | adds `claude-haiku-5-5` (released 2026-10-07); `gemini-3.8-flash` falls to seventh. `deepseek-v4-flash` stays |
+  | OpenCode Go | adds `claude-haiku-5-5` and `space-bunny`; drops `mimo-v2.6-pro` and `hy3` |
+  | Kilo | `openai/gpt-6.1-sol` replaces `thinkingmachines/inkling` |
+  | Hugging Face | unchanged |
+  | Together | `zai-org/GLM-5.3-Flash`, `thinkingmachines/Inkling` and `nvidia/nemotron-3-ultra-550b-a55b` in; `zai-org/GLM-5.3`, `Qwen/Qwen3.6-Plus` and `openai/gpt-oss-120b` out. This is a scratch reading of D1's rule, which the PLAN reproduces before use |
+
+* **Two of these need a look before they are listed:**
+  * `openai/gpt-6.1-sol` is $2.00 per million input tokens and $10.00
+    output, against `thinkingmachines/inkling`'s $0.95 and $4.05
+    (models.dev's `kilo` section, 2026-10-12). The ranker's age and cost
+    blend still chose it for the utility profile;
+  * `space-bunny` is unknown to the records here. D4 requires it to be
+    measured, and 0009 §3's data-policy rule applies.
+* **What tests pin:** `TestStaticOpenCatalogs_UtilityCriteria` checks 0009
+  §3's criteria on each six (six ids, none free, no dense model of 14B or
+  less, no `-contributor`, nothing region-gated on Go), not the ids
+  themselves.
+
+#### Decided
+
+* **D4a. The command reads OpenCode's public listing.** For OpenCode Zen and
+  Go it reads the listing with no key, as the live guard does. A keyed
+  listing describes one workspace (Q13).
+* **D4b. The command proposes each list by its own rule.** For a ranked list
+  it prints the ranker's utility six from today's listing, and the
+  difference. For Together it prints 0017-MADR D1's rule. The broad
+  candidate list goes (Q14).
+* **D4c. This refresh applies each rule's output.** Every new id is
+  measured to answer before it is listed (D4), and the 0009 §3 criteria
+  test passes. `openai/gpt-6.1-sol` and `space-bunny` are put to the owner
+  with their measurements (Q15).
+* **D4d. The records are corrected.**
+  0033-PLAN-public-model-metadata.md's Phase 4 finding, and
+  0036-PLAN-cache-write-token-count.md's "not done" entry, each gain a
+  dated note that the removal was a workspace's setting.
+* **Unchanged:** the runtime catalog keeps reading the keyed listing, and
+  the live guard keeps reading the public one.
+
+#### Owner questions (this amendment)
+
+* **Q13 (D4a). The command's OpenCode listing.** Offered:
+  * **the public listing** (recommended). The curated list serves every
+    workspace, and the guard already reads it;
+  * **the keyed listing, labelled.** An absence is reported as "not in this
+    workspace's listing", and never proposed as a removal.
+
+  **Answer: the public listing.**
+* **Q14 (D4b). What the command proposes.** Offered:
+  * **each list by its own rule** (recommended). The output is the diff a
+    refresh would apply, about a dozen lines, not 50;
+  * **both:** the rule's output first, then the broad candidates, for
+    review.
+
+  **Answer: each list by its own rule.**
+* **Q15 (D4c). This refresh.** Offered:
+  * **apply each rule's output, measured** (recommended). The two
+    surprising picks are shown to the owner with their measurements before
+    they are listed;
+  * **correct the records only.** The lists change at the next refresh.
+
+  **Answer: apply each rule's output, measured,** with the two surprising
+  picks shown to the owner before they are listed.
+
+#### Consequences of this amendment
+
+* Good, because a curated list no longer loses a live model to one
+  workspace's settings.
+* Good, because the command's output is the change a refresh would make,
+  and the guard and the command read the same listing.
+* Neutral, because a refresh is a patch release: no exported API changes.
+* Bad, because a ranked six can pick a model a person would not, such as
+  `openai/gpt-6.1-sol`. Q15 keeps a person on each change.
+
 ## Pros and Cons of the Options
 
 ### Layered metadata, resolved through one entry point
