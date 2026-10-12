@@ -828,3 +828,112 @@ static list.
 **Gate:** `tools/gate.py`, rerun after the R30 fix: 23 of 23. It waited at a
 load average of 56.2, and started at 9.6. **API:** unchanged from Phase 3;
 the three packages are internal.
+
+### Phase 5: documentation and release (2026-10-12)
+
+**Step 1,** on `d341cc8` (Phase 4):
+
+* **`docs/architecture.md`:**
+  * the tree and the package table name `internal/retired`,
+    `internal/catalogtool` and `internal/cmd/catalogs`;
+  * a "Model metadata" section gives the three kinds of layer, the merge by
+    `Field`, lazy decoding, the listing cache and the units.
+
+  The catalog row's exports were added in Phases 2 and 3, with their API
+  (R43).
+* **`docs/guides/adding-a-provider.md`:** a new provider names its
+  models.dev section, decodes its listing's fields into a converter marked
+  with `Known`, and joins `listingLayers`, with a row in
+  `TestLookupModel_Listings_0033`.
+* **`catalog`'s package comment** has named models.dev's known errors since
+  Phase 2.
+* **`README.md`:** Status names `v1.9.0`, with a `v1.9.0` bullet.
+* **`TestLive_LookupModel_0033`** (new, `llmprovider/live_lookup_0033_test.go`,
+  in the live suites). It needs no switch, since it is not billed. It was run
+  once before the release commit, and all nine keyed providers passed:
+
+  | Provider | Model | Window | Input limit | Output cap | Input price |
+  | :--- | :--- | :--- | :--- | :--- | :--- |
+  | claude | `claude-haiku-5-5` | 1000000, models.dev | 1000000, listing | 128000, listing | 0.1, models.dev |
+  | gemini | `gemini-3.5-flash-lite` | 1048576, models.dev | 1048576, listing | 65536, listing | 0.3, models.dev |
+  | grok | `grok-4.6` | 500000, listing | — | 500000, models.dev | 2, listing |
+  | huggingface | `deepseek-ai/DeepSeek-V4-Flash-0731` | 1048576, models.dev | — | 384000, models.dev | 0.14, models.dev |
+  | kilo | `deepseek/deepseek-v4.1-flash` | 1048576, listing | — | 393216, listing | 0.3, listing |
+  | openai | `gpt-6-luna` | 1050000, models.dev | 922000, models.dev | 128000, models.dev | 0.1, models.dev |
+  | opencode-go | `mimo-v2.6-flash` | 1048576, models.dev | — | 131072, models.dev | 0.14, models.dev |
+  | opencode-zen | `deepseek-v4.1-flash` | 1000000, models.dev | — | 384000, models.dev | 0.3, models.dev |
+  | together | `deepseek-ai/DeepSeek-V4.1-Flash` | 1048576, listing | — | 384000, models.dev | 0.3, listing |
+
+  Each field came from the layer amended D2 gives it.
+* **Gate:** `tools/gate.py`, 23 of 23, started at a load average of 4.3.
+
+#### Release notes: `v1.9.0`
+
+`v1.9.0` publishes model metadata (0033-MADR D1 to D3, as amended on
+2026-10-12). The exported API only grows.
+
+**`catalog.ModelInfo`.** One model's facts:
+
+* its context window, input and output limits;
+* its input and output modalities;
+* whether it takes tools, a temperature and structured output;
+* its reasoning controls (`ModelReasoning`: supported, toggle, effort
+  levels, budget range);
+* its prices in USD per million tokens (`ModelRates`: input, output, cache
+  read and write, reasoning), with `Tiers` for longer inputs;
+* its release date, status and retirement date.
+
+**Known, and from where.**
+
+* `Has(Field)` says whether a layer set a field, so a known zero, such as
+  a free price, is told apart from an unknown value.
+* `SourceOf(Field)` says which layer set it: `models.dev`,
+  `listing:<provider>`, or the caller's layer name.
+* `Known(fields...)` is how any layer marks the fields it sets.
+* `ModelCost.RatesFor(inputTokens)` picks the highest tier the input
+  exceeds.
+
+**Where from.** `catalog.LookupModel(ctx, provider, src, model, opts...)`
+merges, field by field:
+
+1. models.dev, unless `WithoutModelMetadata` is set;
+2. the provider's listing, when `src` is given;
+3. each layer the caller adds with `WithModelLayer`, a later one winning.
+
+A model no layer knows is not an error. A failed source is joined into the
+error, beside what the other layers set. `catalog.CachedModel` answers from
+the caches without waiting.
+
+**Offline.**
+
+* `catalog.ParseMetadata` reads a models.dev-format document a caller
+  persisted.
+* `Metadata.Encode` writes the sections the SDK reads, losslessly.
+* A `Metadata` is a `Layer`.
+* `Metadata.Model` and `Models` read one model, or all of a provider's.
+
+**The listings' metadata:**
+
+| Provider | Fields |
+| :--- | :--- |
+| Anthropic | limits and capabilities |
+| Gemini | limits and thinking |
+| xAI | window, efforts and prices |
+| Kilo | window, output cap, prices and expiration |
+| Together | window and prices |
+| OpenAI | shutdown date |
+| Ollama | window and capabilities, from `/api/show` |
+
+A listing's metadata is cached for ten minutes, keyed by a fingerprint of the
+credential.
+
+**Also:**
+
+* models.dev's document is read for nine sections, each decoded when first
+  read. A fetch no longer decodes sections nobody reads.
+* `Metadata.ReasoningEfforts`, `InterleavedField` and `NPM` now answer for
+  OpenAI, Claude, Gemini, Grok and Kilo too.
+* A maintainer command, `go run ./llmprovider/internal/cmd/catalogs`,
+  proposes the next curated lists.
+
+**Upgrading:** no code change is needed.

@@ -61,6 +61,9 @@ llmprovider/internal/kiloendpoint/ Kilo's endpoints, derived from a credential
 llmprovider/internal/ownerperm/ a directory and its files private to the current user
 llmprovider/internal/filelock/ an exclusive OS lock on an open file, for the refresh lock
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
+llmprovider/internal/retired/ the retired model ids, with why, for the catalog tests and the maintainer tool
+llmprovider/internal/catalogtool/ the maintainer tool's proposals for the static lists
+llmprovider/internal/cmd/catalogs/ the maintainer tool: go run, prints the proposals, edits nothing
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
@@ -107,6 +110,9 @@ standard library is left out.
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
 | `llmprovider/internal/transport` | `DefaultClient` and `Config`, over the transports the process keeps; `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `RateLimitReset`; `ProbeGenerateHealth`, and `ProbeGenerateHealthCached` with its `ProbeKey` and `Fingerprint`; `Unsendable`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
+| `llmprovider/internal/retired` | `IDs`, the retired model ids by provider, each with why (0033-MADR D4) | `llmprovider` |
+| `llmprovider/internal/catalogtool` | `Propose`, the maintainer tool's proposals: ids to remove from a static list, and models to add | `llmprovider`, `catalog`, `internal/retired` |
+| `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, `go run ./llmprovider/internal/cmd/catalogs`: it reads models.dev and each keyed listing, and prints the proposals | `llmprovider`, `catalog`, `internal/catalogtool` |
 | `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
 
 ## Package graph
@@ -177,6 +183,48 @@ entry without a download or a decode. Listing pages are read up to 8 MiB,
 and the document up to 32 MiB, decoded as it streams in.
 `CachedMetadataWith` returns the cached document without waiting, and
 starts the fetch when none is cached.
+
+### Model metadata
+
+`catalog.LookupModel(ctx, id, src, model, opts...)` returns a `ModelInfo`.
+That holds the model's limits, modalities, capabilities, reasoning
+descriptor, prices in USD per million tokens (with a list of tiers), and
+lifecycle. It is merged field by field from three kinds of layer, a later one
+winning (0033-MADR D1 to D3):
+
+1. **models.dev's document,** unless `WithoutModelMetadata` is set. Nine
+   sections are read: the four open catalogs', and `openai`, `anthropic`,
+   `google`, `xai` and `kilo`.
+   - A fetched document keeps each section's bytes, and decodes a section
+     the first time it is read, once.
+   - `ParseMetadata` decodes every section of a document a caller
+     persisted.
+   - `Metadata.Encode` writes the sections back as they were read,
+     losslessly.
+2. **The provider's listing,** when a `TokenSource` is given: the fields
+   each listing is authoritative for, decoded from the replies `List`
+   already reads.
+   - Anthropic: limits and capabilities, never its lifecycle.
+   - Gemini: limits and thinking.
+   - xAI: window, efforts and prices, from cents per 100 million tokens.
+   - Kilo: window, output cap, prices from per-token strings, expiration.
+   - Together: window and prices.
+   - OpenAI: shutdown date.
+   - Ollama: window and capabilities, from one model's `/api/show`.
+3. **The caller's layers,** given with `WithModelLayer`. Any `Layer` is
+   one, `Metadata` among them.
+
+`ModelInfo.Has` says whether a layer set a field, so a known zero, such as a
+free price, is told apart from an unknown value. `SourceOf` names the layer.
+`Known` is how a layer marks the fields it sets. `ModelCost.RatesFor` picks
+the highest tier the input exceeds. `Cost.Tiers` merges as a whole.
+
+A listing's metadata is cached for ten minutes, keyed by provider, base URL
+and a fingerprint of the credential, never the credential itself. `List`
+fills the cache too. `CachedModel` answers from the caches and the caller's
+layers without waiting, and starts a refresh where one is missing or stale.
+A model no layer knows is not an error; a failed source is joined into
+`LookupModel`'s error, beside what the other layers set.
 
 ### The wizard
 

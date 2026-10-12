@@ -352,6 +352,13 @@ A provider in this module is all of the above, and:
   `llmprovider/providers/providers.go`, in menu order (R38).
 - **The catalog.** `catalog.List` and `catalog.Static` learn the id, so the
   wizard can list its models.
+- **Its metadata** (0033-MADR D2).
+  - Name its models.dev section in `modelMetadataKey`.
+  - If its listing gives limits, prices or capabilities, the listing's page
+    struct decodes them. A converter in `catalog/listing_metadata.go` marks
+    each field it sets with `Known`, sourced `listing:<id>`, with prices in
+    USD per million tokens.
+  - The id joins `listingLayers`, with a row in `TestLookupModel_Listings_0033`.
 - **The tests:**
   - `llmtest.Run` in the package (R44);
   - G-wire cases through `llmprovider/internal/wirecase`, whose goldens are

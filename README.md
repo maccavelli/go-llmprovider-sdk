@@ -190,8 +190,28 @@ key.
 
 ## Status
 
-The current release is `v1.8.0`. The module requires Go 1.27.2.
+The current release is `v1.9.0`. The module requires Go 1.27.2.
 
+- `v1.9.0` publishes model metadata, as
+  [0033-MADR](docs/decisions/0033-MADR-public-model-metadata-and-current-catalogs.md)
+  decides:
+  - `catalog.LookupModel` returns a `ModelInfo`, merged field by field from
+    models.dev, the provider's own listing, and layers the caller adds with
+    `WithModelLayer`. It holds a model's context window, input and output
+    limits, modalities, tools, reasoning controls, prices in USD per million
+    tokens with cache and reasoning rates and tiers, release date, status
+    and retirement date.
+  - For each field, `Has` says whether it is known, and `SourceOf` which
+    layer set it, so a known zero, such as a free price, is told apart from
+    an unknown value.
+  - `CachedModel` answers without waiting.
+  - `ParseMetadata` and `Metadata.Encode` read and write a models.dev-format
+    document, losslessly, for a caller that starts offline.
+  - A maintainer command proposes the next curated model lists.
+
+  The exported API only grows. The release notes are in
+  [0033-PLAN-public-model-metadata.md](docs/decisions/0033-PLAN-public-model-metadata.md),
+  Phase 5.
 - `v1.8.0` forces a tool on the Claude models that refuse a forced tool
   choice (`claude-sonnet-5-5`, `claude-opus-5-5`, `claude-fable-5-1`,
   `claude-mythos-5-1`), as
