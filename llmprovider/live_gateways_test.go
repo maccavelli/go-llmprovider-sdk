@@ -279,8 +279,11 @@ func TestLive_ListingsNeedNoCredential(t *testing.T) {
 
 // TestLive_OpencodeKeyHeaderPerRoute pins MADR 0007 §1c against the live Zen
 // server with a bogus key, which spends nothing: a route that does not read the
-// header answers "Missing API key.", and the route's own header reaches key
-// validation ("Invalid API key."). Measured 2026-09-26.
+// header treats the request as anonymous, and the route's own header reaches
+// key validation. Measured 2026-09-26; Zen's wording re-measured 2026-10-12,
+// when "Missing API key." became "Rate-limited models require a workspace" and
+// "Invalid API key." became "Invalid credential"
+// (0033-PLAN-public-model-metadata.md, Phase 5's deviation).
 func TestLive_OpencodeKeyHeaderPerRoute(t *testing.T) {
 	const bogus = "sk-bogus-000"
 	routes := []struct{ name, path, body, right string }{
@@ -290,8 +293,8 @@ func TestLive_OpencodeKeyHeaderPerRoute(t *testing.T) {
 	for _, rt := range routes {
 		t.Run(rt.name, func(t *testing.T) {
 			for _, tc := range []struct{ header, value, want string }{
-				{"Authorization", "Bearer " + bogus, "Missing API key."},
-				{rt.right, bogus, "Invalid API key."},
+				{"Authorization", "Bearer " + bogus, "Rate-limited models require a workspace"},
+				{rt.right, bogus, "Invalid credential"},
 			} {
 				status, body := postLive(t, liveOpencodeZenBaseURL+rt.path, rt.body, tc.header, tc.value)
 				if status != http.StatusUnauthorized {

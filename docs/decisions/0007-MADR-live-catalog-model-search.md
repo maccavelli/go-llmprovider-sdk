@@ -448,6 +448,13 @@ credential:
 | Google route with `Authorization: Bearer` | `401 AuthError "Missing API key."` |
 | Google route with `x-goog-api-key` | `401 AuthError "Invalid API key."` |
 
+*(Re-measured 2026-10-12, 0033-PLAN-public-model-metadata.md Phase 5's
+deviation. Zen's wording changed and the distinction did not. The
+`Authorization` requests answer `401 "Upstream request failed: Rate-limited
+models require a workspace"`: the key there is not read, and the request is
+treated as anonymous. The route's own header answers `401 "Upstream request
+failed: Invalid credential"`: the key is read and refused. §1c stands.)*
+
 So every Anthropic- or Google-shaped Zen/Go model fails today with "Missing API
 key.", including three `StaticOpencodeZen` defaults: `claude-haiku-4-5`,
 `gemini-3.7-flash` and `gemini-3.5-flash-lite`. A free model on those routes

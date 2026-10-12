@@ -325,6 +325,8 @@ the models.dev document and a local Ollama are not billed.
    only.
 3. **The live suites** on the release commit. They are billed: the count
    is given before they run, as before.
+   *(Deviation, 2026-10-12: one live test drifted with OpenCode Zen's
+   wording; see Phase 5's record.)*
 4. **The owner** commits, pushes, and tags `v1.9.0`, after the disclosure
    guard.
 5. **After the tag:**
@@ -937,3 +939,68 @@ credential.
   proposes the next curated lists.
 
 **Upgrading:** no code change is needed.
+
+**Step 2, the live suites,** on the release commit `3ed1c25`.
+
+* **Command:** `LLMPROVIDER_LIVE_TOGETHER=1 go test -tags live_gateways
+  -count=1 -v ./llmprovider/... -run Live`.
+  * Every provider's key variable was set, checked for presence only.
+  * A local Ollama answered.
+* **Result:** exit 1, sorted with `tools/liveskips.py`.
+  * Top level: 77 passed, 31 skipped, 1 failed.
+  * Subtests: 95 passed, 5 skipped, 2 failed.
+* **This release's test,** `TestLive_LookupModel_0033`, passed for all nine
+  keyed providers.
+* **The 31 top-level skips:**
+  * **Off by their own switch, 29:**
+    * the 0028, 0031, 0031B, 0032, 0033 and 0034 measurements, 18 (0033's
+      Phase 1 `TestLive_0033MetadataSources` is new);
+    * the ChatGPT and Codex CLI subscription, 4;
+    * Gemini's rate-limit drain, 1;
+    * the Grok CLI, 1;
+    * the browser and device sign-ins and the OpenAI sign-in probe, 5.
+  * **No active model:** `TestLive_OpencodeInterleavedReasoningReplay`,
+    as before.
+  * **Transient, 1:** `TestLive_KiloChatCompletions`, `kilo HTTP 429:
+    Provider returned error`. Its rerun alone, at 17:31 UTC, passed on
+    `kilo-auto/free`.
+* **The 5 subtest skips** are the same OpenCode Zen ones, for the same
+  account reasons, as in `v1.8.0`.
+
+**Deviation (2026-10-12): OpenCode Zen's wording.**
+`TestLive_OpencodeKeyHeaderPerRoute` failed on both its routes. It pins
+0007-MADR §1c, which header each Zen route reads, with a bogus key, at no
+cost. It passed in `v1.8.0`'s run the day before.
+
+```text
+DRIFT: messages with the key in Authorization: want "Missing API key.", got {…"Upstream request failed: Rate-limited models require a workspace"}
+DRIFT: messages with the key in x-api-key: want "Invalid API key.", got {…"Upstream request failed: Invalid credential"}
+DRIFT: google with the key in Authorization: want "Missing API key.", got {…"Upstream request failed: Rate-limited models require a workspace"}
+DRIFT: google with the key in x-goog-api-key: want "Invalid API key.", got {…"Upstream request failed: Invalid credential"}
+```
+
+Zen's wording changed. The distinction §1c rests on did not:
+
+* the key in `Authorization` is not read, and the request is answered as
+  an anonymous one;
+* the key in the route's own header is read, and refused.
+
+The owner chose to update the test's two expected messages, keeping its
+meaning, and to rerun that test alone. No code changed, so the run's other
+results stand.
+
+* **The test** expects the new wording, and its comment gives both dates.
+* **0007-MADR's** measurement table carries a dated note.
+* **Rerun,** live, with the bogus key: `--- PASS:
+  TestLive_OpencodeKeyHeaderPerRoute`, both routes.
+* **Plants,** through `tools/plant.py`, live and not billed:
+
+  | Plant | FAIL lines |
+  | :--- | :--- |
+  | `Authorization` expected to be read as the key | `DRIFT: messages with the key in Authorization: want "Invalid credential", got {…"Rate-limited models require a workspace"}`, and the same for google |
+  | the route's own header expected to be ignored | `DRIFT: messages with the key in x-api-key: want "Rate-limited models require a workspace", got {…"Invalid credential"}`, and the same for google |
+
+  The updated test still tells the two headers apart.
+
+This fix is a test-only commit. It becomes the release commit, and `v1.9.0`
+is tagged on it. **Gate:** `tools/gate.py`, 23 of 23.
