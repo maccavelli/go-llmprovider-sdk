@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-11
+status: complete
+date: 2026-10-12
 associated-madr: "0034-MADR-degrade-forced-tool-choice-per-model.md"
 decision-makers: repository owner
 ---
@@ -1669,3 +1669,59 @@ is not a helper. Since Phase 4c that frame is `WarnOnDone`'s call to
 `yield`. The skip itself is correct, and only the location is misleading.
 A later record could mark the stream wrappers' frames, or move the skip
 out of the range body.
+
+**Step 3, the release** (2026-10-12).
+
+* The owner committed step 2's record as `be8453f`, pushed `main`, and
+  tagged `v1.8.0` on it, an annotated tag (`d6cff4f`).
+* Before the push, the disclosure guard passed over the four outgoing
+  commits, `81ab2e9`, `7dd5ed5`, `66558ee` and `be8453f`, with no output.
+* From the release commit `66558ee`, `be8453f` changes this PLAN only.
+
+**Step 4, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` at `be8453f` (run `38255994345`) | success |
+| CI on the tag (run `38257334843`, a push of `v1.8.0`) | success |
+| `go list -m -json …@v1.8.0` through `proxy.golang.org` | `Version` `v1.8.0`, `GoVersion` `1.27.2`, `Origin.Hash` `be8453f…` (`refs/tags/v1.8.0`) |
+| apidiff, `v1.7.1` to `v1.8.0` (both tags archived) | 12 additions, no other change: D7's `Response.Warnings`, `Warning`, `WarningKind`, `WarningForcedChoiceDegraded`, `WarningForcedChoiceLearned`; D9's `WithModelForcedChoice`, `(*Settings).ModelForcedChoices`; D10's `ForcedChoiceFallback`, `ForcedChoiceRefuse`, `ForcedChoiceDegrade`, `WithForcedChoiceFallback`, `(*Settings).ForcedChoiceFallback` |
+| a scratch consumer of every public package on `v1.8.0`, using each addition | builds with `CGO_ENABLED=0` for linux, windows and darwin, amd64 and arm64. `go run` prints `ForcedChoiceRefuse ForcedChoiceDegrade`, constructs `claude` with both forcing options and no error, and lists each provider's first static id and label: `claude-haiku-5-5` with its "★ Recommended" label |
+| a scratch copy of gobble-cli, moved from `v1.2.1` to `v1.8.0` | baseline tests pass. `go get` upgrades `v1.2.1 => v1.8.0`. Then build, vet on three platforms, `go test`, `go test -race` and golangci-lint (`0 issues.`) all pass |
+
+**Step 5.** Every criterion is met, so this PLAN is `complete`. 0034-MADR
+stays `accepted`.
+
+* **V1:** red then green, and each plant's FAIL line, in every phase's
+  record.
+* **V2:** the gate at each phase. Goldens changed only as Phases 3, 4e and
+  5 record; Phase 5's fourth golden is its recorded deviation.
+* **V3:** Phase 1's tables recorded before Phase 2, and Phase 4b's before
+  Phase 4e.
+* **V4:** step 4's apidiff: D7, D9 and D10's additions only.
+* **V5:** `TestLive_ClaudeForcedChoiceDegrades` in Phase 6 and in the live
+  suites, step 2.
+* **V6:**
+  * 0032-MADR is amended (Phase 5);
+  * 0033-MADR is noted (step 1);
+  * each package doc names the degradation (Phases 2, 4c to 4f, 5).
+
+**Deviations, all dated in their phases:**
+
+* Phase 5's fourth golden;
+* Phase 6's plant FAIL line;
+* Phase 7's two stale Rollout lines, annotated.
+
+**Not done, as scoped:**
+
+* **The metadata and the maintainer tool:**
+  [0033-PLAN-public-model-metadata.md](0033-PLAN-public-model-metadata.md),
+  `v1.9.0`.
+* **gobble-cli's move to `v1.8.0`** is its own record. The scratch copy
+  above shows that the move compiles and passes.
+* **Findings,** each waiting for a record:
+  * the `TestCommandToken_*` tests time out under host load (Phase 4e,
+    amended), which predates this plan;
+  * a skip inside a stream is logged at `toolchoice.go:182` (step 2);
+  * 0033's OpenCode Go DeepSeek region gate and `grok-4.5`'s `xhigh`, as
+    before.

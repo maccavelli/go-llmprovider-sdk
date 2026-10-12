@@ -83,7 +83,7 @@ documents a reader follows to do something.
 | 0033 | PLAN | [Refresh the Curated Model Catalogs](decisions/0033-PLAN-refresh-the-curated-catalogs.md) | complete |
 | 0033 | PLAN | [Publish Model Metadata](decisions/0033-PLAN-public-model-metadata.md) | proposed |
 | 0034 | MADR | [Degrade a Forced Tool Choice Per Model, Where Anthropic Refuses It](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) | accepted |
-| 0034 | PLAN | [Implement a Per-Model Degradation of Forced Tool Choice](decisions/0034-PLAN-degrade-forced-tool-choice-per-model.md) | in-progress |
+| 0034 | PLAN | [Implement a Per-Model Degradation of Forced Tool Choice](decisions/0034-PLAN-degrade-forced-tool-choice-per-model.md) | complete |
 
 ## I want to…
 
