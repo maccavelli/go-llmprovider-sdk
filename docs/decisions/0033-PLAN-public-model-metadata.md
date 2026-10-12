@@ -302,6 +302,8 @@ the models.dev document and a local Ollama are not billed.
 4. **Coverage:** `internal/catalogtool` keeps the default 80% floor.
    `internal/retired` is data, read by both tests. `internal/cmd/catalogs`
    holds only `main`.
+   *(Deviation, 2026-10-12: `go test -cover` reports an untested package as
+   0.0%, so `main` calls a tested `run`; see Phase 4's record.)*
 5. Gate; stage.
 
 ### Phase 5: documentation and release
@@ -710,3 +712,119 @@ Phase 2's 46, and `Layer`, `LookupModel`, `CachedModel` and
 `WithModelLayer`.
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load average of 6.7.
+
+### Phase 4: the maintainer tool (2026-10-12)
+
+**Change:**
+
+* **`llmprovider/internal/retired`** (new): `IDs`, the table moved from
+  `catalog/refresh_0033_test.go`, which now reads it. It imports only
+  `llmprovider`.
+* **`llmprovider/internal/catalogtool`** (new): `Propose(static, Sources)
+  []Proposal`, sorted by provider, then id, and `Proposal.String`, one
+  tab-separated line.
+  * **Removed:** an id in `retired.IDs`; one models.dev marks deprecated
+    or retired; or, where the listing was read, one it lacks.
+  * **Added:** a model of the listing, or of models.dev where none was
+    read, that is not retired or deprecated, not known to lack tools, and
+    released no earlier than the list's newest model. Its reason gives its
+    status, release date and input price.
+* **`llmprovider/internal/cmd/catalogs`** (new): `main` calls
+  `run(args, stdout, stderr, getenv, fetcher)`.
+  * It lists each provider whose `ProviderEnvVars` variable is set, and
+    says on stderr which listings it skipped.
+  * `-doc FILE` reads a document in place of a fetch.
+  * It prints the proposals and a summary, edits nothing, and prints no
+    key.
+* **`docs/guides/api-standards.md`:** R2's table has rows for the three
+  packages.
+
+**Deviation (2026-10-12): the command's coverage.** Step 4 said
+`internal/cmd/catalogs` "holds only `main`". That assumed a package without
+tests needs no coverage. In fact `go test -cover` reports such a package as
+0.0%, and `coverage-check` holds it to the default 80%, which is why
+`internal/wirecase` has its own measured-by line. A floor of 0 would loosen
+a check, so it was not offered. The owner chose a one-line `main` calling a
+tested `run`, with a fake fetcher, no network and no key.
+
+**Red first:**
+
+```text
+llmprovider/internal/catalogtool/propose_0033_test.go:37:9: undefined: Propose
+llmprovider/internal/cmd/catalogs/main_0033_test.go:54:8: undefined: run
+```
+
+Pinning the "added" rule changed one of the test's own inputs before green.
+`TestPropose_Deterministic_0033`'s Claude list holds `claude-cur` beside
+`claude-haiku-4-5`. With no dated model in the list there is nothing to
+compare against, and every current model would be proposed. A real menu
+always has dated models.
+
+**Green:**
+
+| Package | Coverage | Floor |
+| :--- | :--- | :--- |
+| `internal/catalogtool` | 96.3% | 80% |
+| `internal/cmd/catalogs` | 89.8% | 80% |
+| `internal/retired` | no statements | none |
+
+The catalog tests still pass, reading the moved table.
+
+`golangci-lint` first reported seven findings in the command:
+
+* `errcheck` on its five unchecked writes, and on the document's `Close`;
+* `gosec` G304 on opening the `-doc` path, which is the maintainer's own
+  argument.
+
+The writes now go through a writer that keeps the first error, and a
+failed write exits 2. The document is read with
+`os.ReadFile(filepath.Clean(path))`. Lint then reported 0 issues.
+
+**The gate's first run failed** 5 of 23 checks (`pre-add-check`,
+`test-race-cover`, `test-shuffle`, `coverage-check`, `gate-selftest`), all
+on one cause, `TestNoAmbientState`:
+
+```text
+llmprovider/internal/cmd/catalogs/main.go:30: os.Getenv outside an exported ...FromEnv function
+```
+
+R30 allows the environment to be read only in an exported `…FromEnv`
+function. The per-package runs before it had not included
+`internal/ambientcheck`, which only the whole suite runs.
+
+* **The fix:** `KeysFromEnv` reads each provider's key variable, and `run`
+  takes the map in place of a `getenv`.
+* **Coverage:** it fell to 79.7%, below the floor. Two tests were added:
+  * `TestKeysFromEnv_0033` blanks every provider variable with
+    `t.Setenv` first, so it reads no key the host holds;
+  * `TestRun_WriteFails_0033` covers the failed-write path.
+
+  Coverage then reached 89.8%.
+
+**The tool, run once on 2026-10-12** (`go run ./llmprovider/internal/cmd/catalogs`,
+listings only, not billed):
+
+* Every key was set, so no listing was skipped. The identifier scan of
+  stdout and stderr found nothing.
+* It made 49 proposals: 35 additions on Kilo, 11 on OpenCode Zen and 2 on
+  OpenCode Go, and one removal. The vendors' lists drew none.
+* **Found, outside this plan's scope:** `opencode-zen remove
+  deepseek-v4-flash not in the listing`. Zen's listing no longer offers a
+  model its static list names. A catalog refresh record decides it.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| a proposal that ignores `Status` | every `catalogtool` test; for one, `proposals [claude add claude-dep status deprecated, …], want none` |
+| the tool reading an empty retired table | `TestPropose_RemovesARetiredID_0033`: `proposals [claude add claude-new …], want first claude remove claude-haiku-4-5 retired: retirement floor 2026-10-15` |
+| a retired id in a static list | `TestStatic_NoRetiredIDs_0033`: `claude: static catalog lists "claude-haiku-4-5", which is retirement floor 2026-10-15`, the moved test's FAIL text unchanged |
+
+The step's second plant reads "the unit test reading an empty table". It is
+covered twice. The tool reading an empty table fails its own test. The unit
+test, reading the moved table, still fails on a retired id planted in a
+static list.
+
+**Gate:** `tools/gate.py`, rerun after the R30 fix: 23 of 23. It waited at a
+load average of 56.2, and started at 9.6. **API:** unchanged from Phase 3;
+the three packages are internal.
