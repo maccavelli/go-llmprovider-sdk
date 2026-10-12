@@ -144,7 +144,7 @@ func TestDecodeModelMetadata_StreamedLimit(t *testing.T) {
 		t.Errorf("a body of exactly the limit: %v; want it decoded", err)
 	}
 	doc, err := decodeModelMetadata(strings.NewReader(smallMetadataDoc))
-	if err != nil || doc[metadataKeyZen] == nil {
+	if err != nil || doc.all()[metadataKeyZen] == nil {
 		t.Errorf("a valid body: %v, %v; want it decoded", doc, err)
 	}
 	if _, err := decodeModelMetadata(strings.NewReader(smallMetadataDoc + ` {}`)); err == nil {

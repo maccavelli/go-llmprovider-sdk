@@ -38,7 +38,7 @@ func TestLoadModelMetadata_StaleOnRefreshFailure(t *testing.T) {
 	modelMetadataMu.Unlock()
 	fail.Store(true)
 	doc, err := loadModelMetadata(context.Background(), cfg)
-	if err != nil || doc[metadataKeyZen] == nil {
+	if err != nil || doc.all()[metadataKeyZen] == nil {
 		t.Errorf("refresh failed: doc=%v err=%v, want the stale document", doc, err)
 	}
 	waitMetadataFetches() // the refresh runs in the background (0021-MADR C2)
@@ -107,7 +107,7 @@ func TestLookupMetadata_CallerDeadlineNotCached(t *testing.T) {
 		t.Fatal("a lookup under a 1 ms deadline succeeded")
 	}
 	m, err := LookupMetadata(context.Background(), srv.URL, nil)
-	if err != nil || m.doc[metadataKeyZen] == nil {
+	if err != nil || m.doc.all()[metadataKeyZen] == nil {
 		t.Fatalf("the next lookup = %v, %v; want the document, not the first caller's deadline", m.doc, err)
 	}
 }
@@ -147,7 +147,7 @@ func TestLookupMetadata_StaleServedWhileRefreshing(t *testing.T) {
 	t.Cleanup(func() { metadataNow = time.Now })
 	start := time.Now()
 	for i := range 10 {
-		if m, err := LookupMetadata(context.Background(), srv.URL, nil); err != nil || m.doc[metadataKeyZen] == nil {
+		if m, err := LookupMetadata(context.Background(), srv.URL, nil); err != nil || m.doc.all()[metadataKeyZen] == nil {
 			t.Fatalf("lookup %d past the TTL = %v, %v; want the stale document", i, m.doc, err)
 		}
 	}

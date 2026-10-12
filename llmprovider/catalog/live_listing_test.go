@@ -83,11 +83,11 @@ func TestLive_ModelMetadataDocument(t *testing.T) {
 		t.Skipf("metadata unreachable: %v", err)
 	}
 	for _, key := range []string{metadataKeyZen, metadataKeyGo, metadataKeyHF} {
-		if len(doc[key]) == 0 {
+		if len(doc.all()[key]) == 0 {
 			t.Errorf("DRIFT: %s no longer publishes section %q", defaultModelMetadataURL, key)
 		}
 	}
-	m, ok := doc[metadataKeyZen]["glm-5.3-flash"]
+	m, ok := doc.all()[metadataKeyZen]["glm-5.3-flash"]
 	if !ok || m.Reasoning == nil || !*m.Reasoning {
 		t.Errorf("DRIFT: %s/glm-5.3-flash reasoning = %v (present %v), want true", metadataKeyZen, m.Reasoning, ok)
 	}

@@ -53,6 +53,24 @@ func BenchmarkDecodeModelMetadata(b *testing.B) {
 	}
 }
 
+// BenchmarkDecodeModelMetadataAllSections: the same decode, then every
+// section the SDK reads decoded, which the fetch defers until a section is
+// read (0033-PLAN-public-model-metadata.md, Phase 2's deviation).
+func BenchmarkDecodeModelMetadataAllSections(b *testing.B) {
+	doc := generatedMetadata()
+	b.SetBytes(int64(len(doc)))
+	b.ReportAllocs()
+	for b.Loop() {
+		d, err := decodeModelMetadata(strings.NewReader(doc))
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := d.decodeAll(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 // TestDecodeModelMetadata_MatchesUnmarshal (0028-PLAN D12): json/v2, with
 // the three v1 behaviours it takes, decodes the generated document, and
 // documents with mixed-case names, duplicate names, invalid UTF-8, nulls and
@@ -72,24 +90,32 @@ func TestDecodeModelMetadata_MatchesUnmarshal(t *testing.T) {
 		if err != nil {
 			t.Fatalf("decodeModelMetadata(%.40q…): %v", body, err)
 		}
+		// The nine sections the SDK reads (0033-MADR D2).
 		var raw struct {
-			Zen      *modelMetadataSection `json:"opencode"`
-			Go       *modelMetadataSection `json:"opencode-go"`
-			HF       *modelMetadataSection `json:"huggingface"`
-			Together *modelMetadataSection `json:"togetherai"`
+			Zen       *modelMetadataSection `json:"opencode"`
+			Go        *modelMetadataSection `json:"opencode-go"`
+			HF        *modelMetadataSection `json:"huggingface"`
+			Together  *modelMetadataSection `json:"togetherai"`
+			OpenAI    *modelMetadataSection `json:"openai"`
+			Anthropic *modelMetadataSection `json:"anthropic"`
+			Google    *modelMetadataSection `json:"google"`
+			XAI       *modelMetadataSection `json:"xai"`
+			Kilo      *modelMetadataSection `json:"kilo"`
 		}
 		if err := json.Unmarshal([]byte(body), &raw); err != nil {
 			t.Fatalf("json.Unmarshal(%.40q…): %v", body, err)
 		}
-		want := modelMetadataDoc{}
+		want := map[string]map[string]modelMetadata{}
 		for key, s := range map[string]*modelMetadataSection{
 			metadataKeyZen: raw.Zen, metadataKeyGo: raw.Go, metadataKeyHF: raw.HF, metadataKeyTogether: raw.Together,
+			metadataKeyOpenAI: raw.OpenAI, metadataKeyAnthropic: raw.Anthropic, metadataKeyGoogle: raw.Google,
+			metadataKeyXAI: raw.XAI, metadataKeyKilo: raw.Kilo,
 		} {
 			if s != nil && s.Models != nil {
 				want[key] = s.Models
 			}
 		}
-		if !reflect.DeepEqual(got, want) {
+		if !reflect.DeepEqual(got.all(), want) {
 			t.Errorf("%.40q…: json/v2 and json.Unmarshal differ", body)
 		}
 	}

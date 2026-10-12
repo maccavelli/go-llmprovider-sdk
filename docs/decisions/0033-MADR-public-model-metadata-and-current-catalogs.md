@@ -696,6 +696,13 @@ func (m Metadata) Models(provider llmprovider.ProviderID) []ModelInfo
   iterator, because callers sort and filter it.
 * **Unchanged:** `LookupMetadata`, `LookupMetadataWith`,
   `CachedMetadataWith` and `ListModels`.
+* *(Added 2026-10-12, 0033-PLAN-public-model-metadata.md Phase 2's
+  deviation.)* A fetched document keeps each section's bytes, and decodes a
+  section the first time it is read, once. A caller pays only for the
+  sections it reads. `ParseMetadata` decodes every section at once, so a
+  malformed one is reported to the caller. On the fetch path, a section that
+  does not decode is treated as absent, as a section without models already
+  was.
 
 ### Owner questions
 

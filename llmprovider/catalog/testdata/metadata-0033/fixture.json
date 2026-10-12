@@ -1,0 +1,175 @@
+{
+  "anthropic": {
+    "id": "anthropic",
+    "models": {
+      "claude-x": {
+        "id": "claude-x",
+        "name": "Claude X",
+        "family": "claude-x",
+        "attachment": true,
+        "reasoning": true,
+        "reasoning_options": [{"type": "effort", "values": [null, "low", "high", "max"]}],
+        "tool_call": true,
+        "temperature": true,
+        "structured_output": true,
+        "release_date": "2026-09-28",
+        "last_updated": "2026-10-01",
+        "modalities": {"input": ["text", "image", "pdf"], "output": ["text"]},
+        "open_weights": false,
+        "limit": {"context": 1000000, "output": 128000},
+        "cost": {
+          "input": 3, "output": 15, "cache_read": 0.3, "cache_write": 3.75,
+          "tiers": [{"input": 6, "output": 22.5, "cache_read": 0.6, "cache_write": 7.5, "tier": {"type": "context", "size": 200000}}]
+        },
+        "future_field": {"kept": true}
+      },
+      "claude-a": {
+        "id": "claude-a",
+        "name": "Claude A",
+        "reasoning": false,
+        "tool_call": true,
+        "release_date": "2026-01-01",
+        "modalities": {"input": ["text"], "output": ["text"]},
+        "limit": {"context": 200000, "output": 64000},
+        "cost": {"input": 1, "output": 5}
+      }
+    }
+  },
+  "openai": {
+    "id": "openai",
+    "models": {
+      "gpt-x": {
+        "id": "gpt-x",
+        "name": "GPT X",
+        "reasoning": true,
+        "reasoning_options": [{"type": "effort", "values": ["minimal", "low", "medium", "high", "xhigh"]}],
+        "tool_call": true,
+        "release_date": "2026-08-01",
+        "modalities": {"input": ["text", "image"], "output": ["text"]},
+        "limit": {"context": 1050000, "input": 922000, "output": 128000},
+        "cost": {
+          "input": 2, "output": 8, "cache_read": 0.2,
+          "tiers": [
+            {"input": 8, "output": 32, "tier": {"type": "context", "size": 1000000}},
+            {"input": 4, "output": 16, "tier": {"type": "context", "size": 200000}}
+          ],
+          "context_over_200k": {"input": 4, "output": 16}
+        }
+      }
+    }
+  },
+  "google": {
+    "id": "google",
+    "models": {
+      "gemini-x": {
+        "id": "gemini-x",
+        "name": "Gemini X",
+        "reasoning": true,
+        "reasoning_options": [{"type": "budget_tokens", "min": 0, "max": 24576}],
+        "tool_call": true,
+        "status": "beta",
+        "release_date": "2026-09",
+        "modalities": {"input": ["text", "image", "audio", "video", "pdf"], "output": ["text"]},
+        "limit": {"context": 1048576, "output": 65536},
+        "cost": {"input": 0.3, "output": 2.5, "cache_read": 0.075}
+      }
+    }
+  },
+  "xai": {
+    "id": "xai",
+    "models": {
+      "grok-x": {
+        "id": "grok-x",
+        "name": "Grok X",
+        "reasoning": true,
+        "reasoning_options": [{"type": "effort", "values": ["low", "medium", "high", "xhigh"]}],
+        "tool_call": true,
+        "status": "deprecated",
+        "release_date": "2026-05-15",
+        "modalities": {"input": ["text", "image"], "output": ["text"]},
+        "limit": {"context": 500000, "output": 500000},
+        "cost": {"input": 2, "output": 6, "cache_read": 0.5, "context_over_200k": {"input": 4, "output": 12, "cache_read": 1}}
+      }
+    }
+  },
+  "kilo": {
+    "id": "kilo",
+    "models": {
+      "vendor/kilo-x": {
+        "id": "vendor/kilo-x",
+        "name": "Kilo X",
+        "reasoning": false,
+        "tool_call": true,
+        "release_date": "2026-07-01",
+        "modalities": {"input": ["text"], "output": ["text"]},
+        "limit": {"context": 131072, "output": 32768},
+        "cost": {"input": 0.15, "output": 0.6}
+      }
+    }
+  },
+  "opencode": {
+    "id": "opencode",
+    "models": {
+      "zen-x": {
+        "id": "zen-x",
+        "name": "Zen X",
+        "reasoning": true,
+        "reasoning_options": [{"type": "toggle"}, {"type": "budget_tokens", "min": 1024, "max": 32000}],
+        "tool_call": true,
+        "release_date": "2026-06-01",
+        "modalities": {"input": ["text"], "output": ["text"]},
+        "limit": {"context": 262144, "output": 65536},
+        "cost": {"input": 0.5, "output": 2, "reasoning": 2.5},
+        "provider": {"npm": "@ai-sdk/anthropic"}
+      }
+    }
+  },
+  "opencode-go": {
+    "id": "opencode-go",
+    "models": {
+      "go-x": {
+        "id": "go-x",
+        "name": "Go X",
+        "reasoning": false,
+        "tool_call": true,
+        "status": "alpha",
+        "release_date": "soon",
+        "modalities": {"input": ["text"], "output": ["text"]},
+        "limit": {"context": 131072, "output": 16384},
+        "cost": {"input": 0.1, "output": 0.4}
+      }
+    }
+  },
+  "huggingface": {
+    "id": "huggingface",
+    "models": {
+      "org/hf-x": {
+        "id": "org/hf-x",
+        "name": "HF X",
+        "reasoning": false,
+        "tool_call": false,
+        "release_date": "2026-04-01",
+        "modalities": {"input": ["text"], "output": ["text"]},
+        "limit": {"context": 65536, "output": 8192},
+        "cost": {"input": 0, "output": 0}
+      }
+    }
+  },
+  "togetherai": {
+    "id": "togetherai",
+    "models": {
+      "org/together-x": {
+        "id": "org/together-x",
+        "name": "Together X",
+        "reasoning": true,
+        "reasoning_options": [{"type": "toggle"}],
+        "tool_call": true,
+        "release_date": "2026-03-01",
+        "modalities": {"input": ["text"], "output": ["text"]},
+        "limit": {"context": 1048576, "output": 384000},
+        "cost": {"input": 0.3, "output": 1.2, "cache_read": 0.006}
+      }
+    }
+  },
+  "ignored-section": {"id": "ignored-section", "models": {"m": {"id": "m", "name": "M"}}}
+}

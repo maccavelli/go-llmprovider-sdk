@@ -41,26 +41,70 @@ const (
 	// metadataKeyTogether is models.dev's key for Together AI (measured
 	// 2026-09-30; 0017-REPORT).
 	metadataKeyTogether = "togetherai"
+	// The vendors' and Kilo's sections (0033-MADR D2; measured in
+	// 0033-PLAN-public-model-metadata.md Phase 1).
+	metadataKeyOpenAI    = "openai"
+	metadataKeyAnthropic = "anthropic"
+	metadataKeyGoogle    = "google"
+	metadataKeyXAI       = "xai"
+	metadataKeyKilo      = "kilo"
 )
 
 // errModelMetadataDisabled reports that the environment turned the fetch off.
 var errModelMetadataDisabled = errors.New("model metadata: disabled by WithoutModelMetadata")
 
-// modelCost is a models.dev price, USD per million tokens.
+// modelCost is a models.dev price, USD per million tokens. Input and Output
+// are required wherever cost is present (models.dev's schema), so a cost
+// present is a known input and output price, a zero one included.
 type modelCost struct {
-	Input  float64 `json:"input"`
-	Output float64 `json:"output"`
+	Input           float64         `json:"input"`
+	Output          float64         `json:"output"`
+	CacheRead       *float64        `json:"cache_read"`
+	CacheWrite      *float64        `json:"cache_write"`
+	Reasoning       *float64        `json:"reasoning"`
+	Tiers           []modelCostTier `json:"tiers"`
+	ContextOver200k *modelCostRates `json:"context_over_200k"`
 }
 
-// modelMetadata is the subset of one models.dev model entry the ranker reads.
+// modelCostRates are one tier's prices. An omitted one is the base price.
+type modelCostRates struct {
+	Input      *float64 `json:"input"`
+	Output     *float64 `json:"output"`
+	CacheRead  *float64 `json:"cache_read"`
+	CacheWrite *float64 `json:"cache_write"`
+	Reasoning  *float64 `json:"reasoning"`
+}
+
+// modelCostTier is one entry of cost.tiers: rates for inputs past tier.size.
+type modelCostTier struct {
+	modelCostRates
+	Tier struct {
+		Type string `json:"type"`
+		Size int    `json:"size"`
+	} `json:"tier"`
+}
+
+// modelMetadata is the subset of one models.dev model entry the SDK reads:
+// for ranking, and for ModelInfo (0033-MADR D1).
 type modelMetadata struct {
 	Name      string     `json:"name"`
 	Family    string     `json:"family"`
 	Reasoning *bool      `json:"reasoning"`
 	Cost      *modelCost `json:"cost"`
-	Limit     struct {
-		Context int `json:"context"`
+	// Limit.Context is required by models.dev's schema; a window of 0 is
+	// read as unknown.
+	Limit struct {
+		Context int  `json:"context"`
+		Input   *int `json:"input"`
+		Output  *int `json:"output"`
 	} `json:"limit"`
+	Modalities *struct {
+		Input  []string `json:"input"`
+		Output []string `json:"output"`
+	} `json:"modalities"`
+	ToolCall         *bool                  `json:"tool_call"`
+	Temperature      *bool                  `json:"temperature"`
+	StructuredOutput *bool                  `json:"structured_output"`
 	ReleaseDate      string                 `json:"release_date"`
 	Status           string                 `json:"status"`
 	ReasoningOptions []modelReasoningOption `json:"reasoning_options"`
@@ -75,10 +119,13 @@ type modelMetadata struct {
 	} `json:"provider"`
 }
 
-// modelReasoningOption is one models.dev reasoning_options entry.
+// modelReasoningOption is one models.dev reasoning_options entry: a toggle,
+// effort values (a null one decodes as ""), or a budget range.
 type modelReasoningOption struct {
 	Type   string   `json:"type"`
 	Values []string `json:"values"`
+	Min    *int     `json:"min"`
+	Max    *int     `json:"max"`
 }
 
 // modelMetadataSection is one provider's entry in the document.
@@ -86,13 +133,75 @@ type modelMetadataSection struct {
 	Models map[string]modelMetadata `json:"models"`
 }
 
-// modelMetadataDoc maps a document key to its models by id.
-type modelMetadataDoc map[string]map[string]modelMetadata
+// modelMetadataDoc is a fetched or parsed document: each section the SDK
+// reads, by key, kept as read, for a lossless Encode (0033-MADR D3, as
+// amended), and decoded the first time it is read. A caller pays only for the
+// sections it reads (0033-PLAN-public-model-metadata.md, Phase 2's
+// deviation). A nil *modelMetadataDoc is an empty document.
+type modelMetadataDoc struct {
+	sections map[string]*lazySection
+}
+
+// lazySection is one section's bytes, and its models once decoded. A key the
+// document repeats keeps each occurrence's bytes, in order, and they merge
+// when decoded, as encoding/json merges them (0028-PLAN D12).
+type lazySection struct {
+	raws   []jsontext.Value
+	once   sync.Once
+	models map[string]modelMetadata
+	err    error
+}
+
+// decode decodes the section, once, however many readers ask at once (R20).
+func (s *lazySection) decode() (map[string]modelMetadata, error) {
+	s.once.Do(func() {
+		var section modelMetadataSection
+		for _, v := range s.raws {
+			if err := unmarshalSection(v, &section); err != nil {
+				s.err = err
+				return
+			}
+		}
+		s.models = section.Models
+	})
+	return s.models, s.err
+}
+
+// models returns the section key's models, and whether the document has it.
+// A section without models, or one that does not decode, is absent.
+func (d *modelMetadataDoc) models(key string) (map[string]modelMetadata, bool) {
+	if d == nil || d.sections[key] == nil {
+		return nil, false
+	}
+	m, err := d.sections[key].decode()
+	return m, err == nil && m != nil
+}
+
+// decodeAll decodes every section, and returns the first one that fails.
+func (d *modelMetadataDoc) decodeAll() error {
+	if d == nil {
+		return nil
+	}
+	for key, s := range d.sections {
+		if _, err := s.decode(); err != nil {
+			return fmt.Errorf("model metadata: decode %s: %w", key, err)
+		}
+	}
+	return nil
+}
+
+// entry returns one model's entry, and whether the document lists it.
+func (d *modelMetadataDoc) entry(provider llmprovider.ProviderID, model string) (modelMetadata, bool) {
+	models, _ := d.models(modelMetadataKey(provider))
+	m, ok := models[model]
+	return m, ok
+}
 
 // reasoningEfforts returns the effort values the document lists for one
 // model's reasoning_options, or nil.
-func (d modelMetadataDoc) reasoningEfforts(provider llmprovider.ProviderID, model string) []string {
-	for _, o := range d[modelMetadataKey(provider)][model].ReasoningOptions {
+func (d *modelMetadataDoc) reasoningEfforts(provider llmprovider.ProviderID, model string) []string {
+	m, _ := d.entry(provider, model)
+	for _, o := range m.ReasoningOptions {
 		if o.Type == jsonKeyEffort {
 			// The cache is the process's; the caller gets its own copy
 			// (R29; 0026-MADR F53).
@@ -105,11 +214,12 @@ func (d modelMetadataDoc) reasoningEfforts(provider llmprovider.ProviderID, mode
 // interleavedField returns the message field a model expects its prior
 // reasoning replayed under ("reasoning_content"), or "" when it declares none
 // (MADR 0012 §2, O5).
-func (d modelMetadataDoc) interleavedField(provider llmprovider.ProviderID, model string) string {
+func (d *modelMetadataDoc) interleavedField(provider llmprovider.ProviderID, model string) string {
 	var declared struct {
 		Field string `json:"field"`
 	}
-	if json.Unmarshal(d[modelMetadataKey(provider)][model].Interleaved, &declared) != nil {
+	m, _ := d.entry(provider, model)
+	if json.Unmarshal(m.Interleaved, &declared) != nil {
 		return ""
 	}
 	return declared.Field
@@ -118,8 +228,8 @@ func (d modelMetadataDoc) interleavedField(provider llmprovider.ProviderID, mode
 // npm returns a model's provider.npm, the AI SDK package OpenCode's client
 // routes it by, and false when the document does not list the model (MADR
 // 0012 §3.1).
-func (d modelMetadataDoc) npm(provider llmprovider.ProviderID, model string) (string, bool) {
-	m, ok := d[modelMetadataKey(provider)][model]
+func (d *modelMetadataDoc) npm(provider llmprovider.ProviderID, model string) (string, bool) {
+	m, ok := d.entry(provider, model)
 	if !ok {
 		return "", false
 	}
@@ -131,7 +241,7 @@ func (d modelMetadataDoc) npm(provider llmprovider.ProviderID, model string) (st
 // package, per model (MADR 0009 §2).
 //
 // Moved here from llmprovider (0015-PLAN S8, commit 2).
-type Metadata struct{ doc modelMetadataDoc }
+type Metadata struct{ doc *modelMetadataDoc }
 
 // LookupMetadata returns the document at url, or the default document when
 // url is empty, fetched through client and cached as the listing caches it.
@@ -225,24 +335,34 @@ func modelMetadataKey(provider llmprovider.ProviderID) string {
 		return metadataKeyHF
 	case llmprovider.ProviderTogether:
 		return metadataKeyTogether
+	case llmprovider.ProviderOpenAI:
+		return metadataKeyOpenAI
+	case llmprovider.ProviderClaude:
+		return metadataKeyAnthropic
+	case llmprovider.ProviderGemini:
+		return metadataKeyGoogle
+	case llmprovider.ProviderGrok:
+		return metadataKeyXAI
+	case llmprovider.ProviderKilo:
+		return metadataKeyKilo
 	}
 	return ""
 }
 
 // modelMetadataCacheEntry is one URL's last good document and last failure.
 type modelMetadataCacheEntry struct {
-	doc     modelMetadataDoc // nil until a fetch succeeds; kept when a refresh fails
-	etag    string           // doc's ETag, sent as If-None-Match by the refresh (0028-MADR D-A1)
-	fetched time.Time        // when doc was fetched, or last revalidated
-	failed  time.Time        // when the last fetch failed; zero after a success
-	err     error            // that failure
+	doc     *modelMetadataDoc // nil until a fetch succeeds; kept when a refresh fails
+	etag    string            // doc's ETag, sent as If-None-Match by the refresh (0028-MADR D-A1)
+	fetched time.Time         // when doc was fetched, or last revalidated
+	failed  time.Time         // when the last fetch failed; zero after a success
+	err     error             // that failure
 }
 
 // metadataFetch is one URL's fetch in flight, which every lookup of that URL
 // waits for (0021-MADR C2). doc and err are set before done is closed.
 type metadataFetch struct {
 	done chan struct{}
-	doc  modelMetadataDoc
+	doc  *modelMetadataDoc
 	err  error
 }
 
@@ -304,7 +424,7 @@ func OptionsFromEnv() []llmprovider.Option {
 // context. Past the TTL the stale document is returned at once and the
 // fetch refreshes it in the background. Every failure of the fetch is
 // remembered; a caller's own context ending never is (0021-MADR C1, C2).
-func loadModelMetadata(ctx context.Context, cfg config) (modelMetadataDoc, error) {
+func loadModelMetadata(ctx context.Context, cfg config) (*modelMetadataDoc, error) {
 	if cfg.metadataOff {
 		return nil, errModelMetadataDisabled
 	}
@@ -365,7 +485,7 @@ func startMetadataFetch(ctx context.Context, url string, cfg config) *metadataFe
 
 // cached answers from a cache entry after a failure: the stale document when
 // there is one, else the failure.
-func (e modelMetadataCacheEntry) cached() (modelMetadataDoc, error) {
+func (e modelMetadataCacheEntry) cached() (*modelMetadataDoc, error) {
 	if e.doc != nil {
 		return e.doc, nil
 	}
@@ -376,7 +496,7 @@ func (e modelMetadataCacheEntry) cached() (modelMetadataDoc, error) {
 // Go's transport requests gzip itself. When held has a document and an ETag,
 // the request sends If-None-Match, and a 304 returns held's document as it is,
 // neither downloaded nor decoded again (0028-MADR D-A1).
-func fetchModelMetadata(ctx context.Context, url string, cfg config, held modelMetadataCacheEntry) (modelMetadataDoc, string, error) {
+func fetchModelMetadata(ctx context.Context, url string, cfg config, held modelMetadataCacheEntry) (*modelMetadataDoc, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("model metadata: %w", err)
@@ -401,31 +521,59 @@ func fetchModelMetadata(ctx context.Context, url string, cfg config, held modelM
 	return doc, resp.Header.Get("ETag"), err
 }
 
-// decodeModelMetadata keeps the sections the ranking reads: MADR 0009's
-// three and Together's (0017-MADR D1; 0020-MADR F4). A section without
-// models is treated as absent.
-// It decodes as the body streams in, never holding the whole body, under
+// sectionBytes captures each occurrence of one section, as read.
+type sectionBytes struct{ raws []jsontext.Value }
+
+// UnmarshalJSONFrom keeps the value's bytes; it does not decode them.
+func (s *sectionBytes) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+	v, err := dec.ReadValue()
+	if err != nil {
+		return err
+	}
+	s.raws = append(s.raws, v.Clone())
+	return nil
+}
+
+// decodeModelMetadata keeps the sections the SDK reads: MADR 0009's three,
+// Together's (0017-MADR D1; 0020-MADR F4), and the vendors' and Kilo's
+// (0033-MADR D2). Each section's bytes are kept as read, for Encode, and the
+// section is decoded when it is first read; a section without models is
+// then treated as absent.
+// It reads as the body streams in, never holding the whole body, under
 // metadataLimit (0028-MADR D-A1).
-func decodeModelMetadata(r io.Reader) (modelMetadataDoc, error) {
+func decodeModelMetadata(r io.Reader) (*modelMetadataDoc, error) {
 	metadataDecodes.Add(1)
 	var raw struct {
-		Zen      *modelMetadataSection `json:"opencode"`
-		Go       *modelMetadataSection `json:"opencode-go"`
-		HF       *modelMetadataSection `json:"huggingface"`
-		Together *modelMetadataSection `json:"togetherai"`
+		Zen       sectionBytes `json:"opencode"`
+		Go        sectionBytes `json:"opencode-go"`
+		HF        sectionBytes `json:"huggingface"`
+		Together  sectionBytes `json:"togetherai"`
+		OpenAI    sectionBytes `json:"openai"`
+		Anthropic sectionBytes `json:"anthropic"`
+		Google    sectionBytes `json:"google"`
+		XAI       sectionBytes `json:"xai"`
+		Kilo      sectionBytes `json:"kilo"`
 	}
 	if err := decodeStreamed(r, metadataLimit, &raw, "model metadata"); err != nil {
 		return nil, err
 	}
-	doc := modelMetadataDoc{}
-	for key, s := range map[string]*modelMetadataSection{
+	doc := &modelMetadataDoc{sections: map[string]*lazySection{}}
+	for key, s := range map[string]sectionBytes{
 		metadataKeyZen: raw.Zen, metadataKeyGo: raw.Go, metadataKeyHF: raw.HF, metadataKeyTogether: raw.Together,
+		metadataKeyOpenAI: raw.OpenAI, metadataKeyAnthropic: raw.Anthropic, metadataKeyGoogle: raw.Google,
+		metadataKeyXAI: raw.XAI, metadataKeyKilo: raw.Kilo,
 	} {
-		if s != nil && s.Models != nil {
-			doc[key] = s.Models
+		if len(s.raws) > 0 {
+			doc.sections[key] = &lazySection{raws: s.raws}
 		}
 	}
 	return doc, nil
+}
+
+// unmarshalSection decodes one section's bytes with decodeStreamed's options.
+func unmarshalSection(v jsontext.Value, section *modelMetadataSection) error {
+	return jsonv2.Unmarshal(v, section, jsonv2.MatchCaseInsensitiveNames(true),
+		jsontext.AllowDuplicateNames(true), jsontext.AllowInvalidUTF8(true))
 }
 
 // errPastLimit is a body longer than its decode's limit.
@@ -477,7 +625,7 @@ func decodeStreamed(r io.Reader, limit int64, v any, what string) error {
 
 // modelMetadataResult carries one fetch's outcome across a goroutine.
 type modelMetadataResult struct {
-	doc modelMetadataDoc
+	doc *modelMetadataDoc
 	err error
 }
 
@@ -527,7 +675,7 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta <-chan modelMetadataResult, fallback func([]string) []string) func([]string) []string {
 	return func(usable []string) []string {
 		res := <-meta
-		models, ok := res.doc[modelMetadataKey(provider)]
+		models, ok := res.doc.models(modelMetadataKey(provider))
 		if res.err != nil || !ok {
 			return fallback(usable)
 		}

@@ -201,6 +201,8 @@ the models.dev document and a local Ollama are not billed.
 2. **Change:** the files above.
 3. **Benchmark:** `BenchmarkDecodeModelMetadata`, before and after, with
    `-count=10`. A slowdown over 25% is a deviation.
+   *(Deviation, 2026-10-12: the eager decode was 35.7% slower; resolved by
+   decoding each section lazily. See Phase 2's record.)*
 4. **Plants**, each failing a test above:
    * the decoder drops `limit.output`;
    * a zero price is marked unknown;
@@ -499,3 +501,118 @@ in Python for this run.
 
 **Pre-add:** 1 file clean. **API:** unchanged; only a live-tagged test file
 was added.
+
+### Phase 2: the type, the models.dev layer and the document (2026-10-12)
+
+**Change:**
+
+* **`catalog/model_info.go`** (new):
+  * `ModelInfo`, `ModelReasoning`, `ModelRates`, `ModelCost` and
+    `ModelCostTier`;
+  * `Modality`, `ModelStatus` and `Field`, with their constants;
+  * presence as a bitset and a fixed array of source names, copied with the
+    value, so `Known` can never reach its receiver;
+  * `Has`, `SourceOf`, `Known` and `RatesFor`.
+* **`catalog/model_metadata.go`:**
+  * the entry gains `limit.input` and `limit.output`, `modalities`,
+    `tool_call`, `temperature`, `structured_output`, the cache and
+    reasoning prices, `tiers`, `context_over_200k`, and the budget range of
+    `reasoning_options`;
+  * the five sections are added to `modelMetadataKey`;
+  * the document keeps each section's bytes, and decodes it when first read
+    (the deviation below).
+* **`catalog/metadata_document.go`** (new): `ParseMetadata`, `Encode`,
+  `Name`, `Model` and `Models`, and the conversion of an entry to a
+  `ModelInfo`.
+* **`catalog/doc.go`** (new): the package comment, which R41 requires and
+  the package lacked, naming models.dev's known errors.
+* **`docs/architecture.md`:** the catalog row lists the new exports, in the
+  same change, as R43 requires.
+
+**Red first:**
+
+```text
+llmprovider/catalog/model_info_0033_test.go:32:12: undefined: ParseMetadata
+llmprovider/catalog/model_info_0033_test.go:40:79: undefined: ModelInfo
+llmprovider/catalog/model_info_0033_test.go:42:16: m.Model undefined (type Metadata has no field or method Model)
+```
+
+**Tests:**
+
+* The 11 the step lists, and `TestLazySection_DecodesOnce_0033`.
+* `TestDecodeModelMetadata_MatchesUnmarshal` covers the nine sections, as
+  the step says. It still finds json/v2 and `json.Unmarshal` equal,
+  repeated keys included.
+* Test plumbing only: the document is no longer a map, so the tests that
+  indexed it read it through the test helper `all()`. Their expectations
+  are unchanged.
+
+**One additive effect:** `Metadata.ReasoningEfforts`, `InterleavedField`
+and `NPM` now also answer for the five added providers, where they gave
+nothing. Only OpenCode calls them, with its own ids.
+
+**Green:**
+
+* `go test -race -count=1 ./...` passes.
+* `golangci-lint` first reported `func ModelInfo.clone is unused`. It was
+  removed until Phase 3's merge needs it, and lint then reported 0 issues.
+
+**Deviation (2026-10-12): the decode's cost.** The eager decode was 35.7%
+slower than before on `BenchmarkDecodeModelMetadata`, past the 25% bound.
+Both were run ten times, alternated, under the same load. A split, on
+scratch clones, showed where the cost came from:
+
+| Decoder | Generated 5 MB document | The real models.dev document |
+| :--- | :--- | :--- |
+| before | 21.27 ms, 4.71 MB | 8.80 ms, 0.12 MB |
+| eager, with the bytes kept | 28.86 ms (+35.7%), 13.27 MB | 10.58 ms (+20.2%), 1.62 MB |
+| eager, without the bytes | 24.52 ms (+15.3%), 7.27 MB | 10.08 ms (+14.5%), 0.56 MB |
+
+About 15 points were D1's added fields. About 20 were the bytes kept for a
+lossless `Encode`, which read each section twice.
+
+The owner chose to decode each section lazily:
+
+* the fetch reads each section once and keeps its bytes;
+* a section is decoded the first time it is read, once, under a
+  `sync.Once`;
+* `ParseMetadata` decodes every section at once, so a malformed one is
+  reported.
+
+0033-MADR's D3 is annotated. `BenchmarkDecodeModelMetadataAllSections` is
+added, so the deferred cost stays measured.
+
+**Benchmark,** before (HEAD) and after (lazy), ten runs each, alternated,
+at a load average near 6:
+
+| Measure | Before | After | Change |
+| :--- | :--- | :--- | :--- |
+| generated document, the fetch (`BenchmarkDecodeModelMetadata`) | 21.54 ms, 4.71 MB | 8.30 ms, 6.00 MB | -61.5% |
+| generated document, every section decoded | 21.54 ms, 4.71 MB | 29.16 ms, 13.27 MB | +35.4% |
+| the real document, the fetch | 8.94 ms, 0.12 MB | 8.39 ms, 1.06 MB | -6.2% |
+| the real document, every section decoded | 8.94 ms, 0.12 MB | 10.72 ms, 1.62 MB | +19.9% |
+
+The step's benchmark is 61.5% faster. Decoding every section costs what the
+eager decode did. Only `ParseMetadata` and `Encode` do that; a fetch, a
+ranking and a `Model` call decode only the sections they read.
+
+**Plants,** through `tools/plant.py`, on `./llmprovider/catalog/` with `-run
+_0033$`:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the decoder drops `limit.output` | `TestModelInfo_Decodes_0033`: `claude-x:` with `MaxOutputTokens:0` |
+| a zero price marked unknown | `a price of 0: Has false, Input 0; want known, 0`; `SourceOf(FieldCostInput) = "", want models.dev` |
+| `Models` returns the cached slice | `a change to Models' result reached the next call: {… Input:[changed image pdf] …}` |
+| `Encode` drops a section | `claude: 2 models before, 0 after, or they differ`; `section anthropic: the encoded bytes differ from those read`; `"future_field" was lost` |
+| `Encode` re-encodes from the struct | `section <each of the nine>: the encoded bytes differ from those read`; `"future_field" was lost` |
+| `RatesFor` applies a tier at exactly `Above` | `RatesFor(200000) = {Input:2 …}, want {Input:1 …}`; `RatesFor(1000000) = {Input:3 …}, want {Input:2 …}` |
+| `Known` changes its receiver | `Known: copy true, receiver true; want true, false` |
+| the fetch decodes every section at once | `the section was decoded before it was read` |
+| `ParseMetadata` skips the up-front decode | `ParseMetadata accepted a section that does not decode` |
+
+**API:** `tools/apidiff.py v1.8.0` lists 46 additions and nothing else. They
+are the types, constants, functions and methods of amended D1 and D3 that
+this phase builds.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load average of 5.1.

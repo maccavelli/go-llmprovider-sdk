@@ -172,7 +172,7 @@ func TestLoadModelMetadata_FailureRetriedAfterBackoff(t *testing.T) {
 	modelMetadataCache[srv.URL] = e
 	modelMetadataMu.Unlock()
 	doc, err := loadModelMetadata(context.Background(), cfg)
-	if err != nil || doc[metadataKeyZen] == nil {
+	if err != nil || doc.all()[metadataKeyZen] == nil {
 		t.Fatalf("load after the backoff: doc=%v err=%v, want a fresh fetch", doc, err)
 	}
 	if n := hits.Load(); n != 2 {
@@ -188,17 +188,17 @@ func TestLoadModelMetadata_Decode(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	var keys []string
-	for k := range doc {
+	for k := range doc.all() {
 		keys = append(keys, k)
 	}
-	if len(doc) != 3 || doc["opencode"] == nil || doc["opencode-go"] == nil || doc["huggingface"] == nil {
+	if all := doc.all(); len(all) != 3 || all["opencode"] == nil || all["opencode-go"] == nil || all["huggingface"] == nil {
 		t.Errorf("keys = %v, want exactly opencode, opencode-go, huggingface", keys)
 	}
 	doc, err = decodeModelMetadata(strings.NewReader(`{"huggingface":{"name":"x"}}`))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if _, ok := doc["huggingface"]; ok {
+	if _, ok := doc.models("huggingface"); ok {
 		t.Error("a section without models must be treated as absent")
 	}
 	if _, err := decodeModelMetadata(strings.NewReader(`{`)); err == nil ||
