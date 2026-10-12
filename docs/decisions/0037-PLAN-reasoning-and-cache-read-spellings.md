@@ -248,3 +248,78 @@ As 0037-MADR D4 decides:
   The amendment's own text is unchanged.
 * `make records-check`, `tools/linkcheck.py` and `tools/denyscan.py
   --changed`: clean.
+
+Committed by the owner as `1c1a43f`.
+
+### Phase 1: the decoders (2026-10-12)
+
+**Change:**
+
+* **Messages** (`internal/wire/messages/messages.go`): `usage` gains
+  `OutputDetails.Thinking`, from `output_tokens_details.thinking_tokens`.
+  `counts` sets `ReasoningTokens` from it, and the stream merge's list gains
+  it. The comment no longer says the API reports no reasoning count.
+* **Chat Completions:** `usage` gains `CacheReadTop`, from a top-level
+  `cache_read_input_tokens`, last in the read list. The comment names the
+  four spellings and their order, and cites 0015-PLAN's Phase S9 instead of
+  "0017-REPORT P7".
+* **`internal/wirecase`:** `MessagesReply` reports `thinking_tokens` 30.
+  `messagesUsage` gains `ReasoningTokens: 30`, and the comment states the
+  rule.
+* **`docs/architecture.md`:** the `Response.Usage` paragraph names
+  `thinking_tokens` and the four read spellings.
+
+**Tests,** as step 1 lists them:
+
+* `messages.TestDecode_Reasoning`, with and without `output_tokens_details`;
+* `messages.TestEvents_Reasoning`, three streams: the count on the last
+  `message_delta` only, not reported, and on both events. The third is the
+  case the "adding" plant needs.
+* `chatcompletions.TestDecode_Usage`, three rows: the fourth spelling
+  alone, the details before it, and the top-level `cached_tokens` before it.
+
+**Red first:**
+
+* `TestDecode_Reasoning`: `with thinking_tokens: Usage = {… ReasoningTokens:0
+  …}, want {… ReasoningTokens:30 …}`.
+* `TestEvents_Reasoning`: `on the last message_delta: Usage = {…
+  ReasoningTokens:0 …}, want ReasoningTokens 30 and OutputTokens 40`, and
+  the same for `on both events`.
+* `chatcompletions.TestDecode_Usage`: `cache_read_input_tokens: Usage =
+  {… CachedTokens:0 …}, want {… CachedTokens:100 …}`. The two order rows
+  passed before the change, since nothing read the field. They are there
+  for the plants.
+* With the canned reply, `TestWireGoldens` failed on every Messages route,
+  and on no other: `claude`, `claude-refuses-forced`,
+  `opencode-zen-messages` and `opencode-go-messages`, with `wirecase.go:329:
+  Usage = {… ReasoningTokens:0 …}, want the canned reply's {…
+  ReasoningTokens:30 …}`.
+
+**Green:** `go test ./...`, all 29 packages.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | Caught by | First FAIL line |
+| :--- | :--- | :--- |
+| Messages `counts` leaving out `ReasoningTokens` | `TestDecode_Reasoning`, `TestEvents_Reasoning`, `TestWireGoldens/claude/…`, `…/claude-refuses-forced/items` | `with thinking_tokens: Usage = {… ReasoningTokens:0 …}` |
+| Messages not reading `output_tokens_details` | the same | the same |
+| the stream merge without the reasoning count | `TestEvents_Reasoning` | `on the last message_delta: Usage = {… ReasoningTokens:0 …}` |
+| the stream merge adding `message_delta`'s count to `message_start`'s | `TestEvents_EqualsDecode` and its subtests, and `TestEvents_Reasoning` | `on both events: Usage = {… OutputTokens:41 ReasoningTokens:60 …}, want ReasoningTokens 30 and OutputTokens 40` |
+| Chat Completions leaving `cache_read_input_tokens` out | `TestDecode_Usage` | `cache_read_input_tokens: Usage = {… CachedTokens:0 …}` |
+| Chat Completions reading it before the details | `TestDecode_Usage` | `the details before cache_read_input_tokens: Usage = {… CachedTokens:90 …}` |
+| Chat Completions reading it before the top-level `cached_tokens` | `TestDecode_Usage` | `cached_tokens before cache_read_input_tokens: Usage = {… CachedTokens:90 …}` |
+
+Step 5 named the second plant "reading `thinking_tokens` from the top level
+of `usage`". It ran as the `output_tokens_details` field not being read, the
+one-edit form of the same fault. `plant.py` printed only the head of the
+fourth plant's output, so it was rerun against `TestEvents_Reasoning` alone,
+which gave the line above.
+
+**The goldens:** the gate's `g-wire-stable` ran `TestWireGoldens` three
+times, unchanged.
+
+**Checks:** `make pre-add-check` on the five Go files, clean (gofmt,
+golangci-lint, go vet, go test, govulncheck); markdownlint on
+`docs/architecture.md`, 0 issues.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.6.

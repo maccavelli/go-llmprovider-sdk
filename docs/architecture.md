@@ -306,6 +306,12 @@ for a session, from the store.
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and
   writes are added to the input, and Gemini's thoughts to the output.
+  Anthropic's reasoning count is `output_tokens_details.thinking_tokens`,
+  which a stream sends on its last `message_delta` (0037-MADR). Chat
+  Completions reads the cache read from
+  `prompt_tokens_details.cached_tokens`, `prompt_cache_hit_tokens`, a
+  top-level `cached_tokens`, then a top-level `cache_read_input_tokens`,
+  the first present.
   `CacheWriteTokens`, the part of the input written to the cache, does not
   overlap `CachedTokens` (0036-MADR):
   - **Messages:** `cache_creation_input_tokens`, with

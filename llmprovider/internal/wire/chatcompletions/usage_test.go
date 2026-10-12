@@ -28,6 +28,15 @@ func TestDecode_Usage(t *testing.T) {
 		{"details first, as pi reads them", `{"prompt_tokens":120,"completion_tokens":40,"prompt_tokens_details":{"cached_tokens":100},` +
 			`"prompt_cache_hit_tokens":90,"cached_tokens":80}`,
 			llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100}},
+		// The fourth spelling, last (0037-MADR D2).
+		{"cache_read_input_tokens", `{"prompt_tokens":120,"completion_tokens":40,"cache_read_input_tokens":100}`,
+			llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100}},
+		{"the details before cache_read_input_tokens", `{"prompt_tokens":120,"completion_tokens":40,` +
+			`"prompt_tokens_details":{"cached_tokens":100},"cache_read_input_tokens":90}`,
+			llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100}},
+		{"cached_tokens before cache_read_input_tokens", `{"prompt_tokens":120,"completion_tokens":40,` +
+			`"cached_tokens":80,"cache_read_input_tokens":90}`,
+			llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 80}},
 		{"together", `{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}`,
 			llmprovider.Usage{InputTokens: 7, OutputTokens: 3}},
 	} {

@@ -364,7 +364,8 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 			// message_start's.
 			for _, f := range []struct{ to, from *int }{{&m.Usage.Input, &ev.Usage.Input}, {&m.Usage.Output, &ev.Usage.Output},
 				{&m.Usage.CacheRead, &ev.Usage.CacheRead}, {&m.Usage.CacheWrite, &ev.Usage.CacheWrite},
-				{&m.Usage.CacheCreation.Ephemeral1h, &ev.Usage.CacheCreation.Ephemeral1h}} {
+				{&m.Usage.CacheCreation.Ephemeral1h, &ev.Usage.CacheCreation.Ephemeral1h},
+				{&m.Usage.OutputDetails.Thinking, &ev.Usage.OutputDetails.Thinking}} {
 				if *f.from > 0 {
 					*f.to = *f.from
 				}
@@ -462,9 +463,11 @@ func AddThinking(body map[string]any, model, effort string, budget, maxTokens in
 }
 
 // usage is the Messages API's token counts. input_tokens leaves out the cache
-// reads and writes, so the input count adds them; the API reports no
-// reasoning count. cache_creation splits the writes by lifetime, and its
-// one-hour count is CacheWrite1hTokens (0036-MADR D2).
+// reads and writes, so the input count adds them. cache_creation splits the
+// writes by lifetime, and its one-hour count is CacheWrite1hTokens (0036-MADR
+// D2). output_tokens_details.thinking_tokens is the part of output_tokens
+// that was reasoning; a stream sends it on its last message_delta only
+// (0037-MADR D1).
 type usage struct {
 	Input         int `json:"input_tokens"`
 	Output        int `json:"output_tokens"`
@@ -473,9 +476,13 @@ type usage struct {
 	CacheCreation struct {
 		Ephemeral1h int `json:"ephemeral_1h_input_tokens"`
 	} `json:"cache_creation"`
+	OutputDetails struct {
+		Thinking int `json:"thinking_tokens"`
+	} `json:"output_tokens_details"`
 }
 
 func (u usage) counts() llmprovider.Usage {
 	return llmprovider.Usage{InputTokens: u.Input + u.CacheRead + u.CacheWrite, OutputTokens: u.Output,
-		CachedTokens: u.CacheRead, CacheWriteTokens: u.CacheWrite, CacheWrite1hTokens: u.CacheCreation.Ephemeral1h}
+		ReasoningTokens: u.OutputDetails.Thinking, CachedTokens: u.CacheRead, CacheWriteTokens: u.CacheWrite,
+		CacheWrite1hTokens: u.CacheCreation.Ephemeral1h}
 }

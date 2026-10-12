@@ -73,3 +73,53 @@ func TestEvents_Usage(t *testing.T) {
 		}
 	}
 }
+
+// The reasoning count (0037-MADR D1): output_tokens_details.thinking_tokens is
+// the part of output_tokens that was reasoning.
+func TestDecode_Reasoning(t *testing.T) {
+	withThinking := `{"input_tokens":15,"cache_read_input_tokens":100,"cache_creation_input_tokens":5,` +
+		`"cache_creation":{"ephemeral_5m_input_tokens":3,"ephemeral_1h_input_tokens":2},"output_tokens":40,` +
+		`"output_tokens_details":{"thinking_tokens":30}}`
+	reasoned := cacheWriteWant
+	reasoned.ReasoningTokens = 30
+	for _, c := range []struct {
+		name, usage string
+		want        llmprovider.Usage
+	}{
+		{"with thinking_tokens", withThinking, reasoned},
+		{"without output_tokens_details", cacheWriteUsage, cacheWriteWant},
+	} {
+		resp, err := Decode(strings.NewReader(`{"content":[{"type":"text","text":"hi"}],"usage":` + c.usage + `}`))
+		if err != nil || resp.Usage != c.want {
+			t.Errorf("%s: Usage = %+v (err %v), want %+v", c.name, resp.Usage, err, c.want)
+		}
+	}
+}
+
+// TestEvents_Reasoning: a stream carries thinking_tokens on its last
+// message_delta only, as Anthropic's extended-thinking guide says; a count
+// repeated on both events is replaced, not added.
+func TestEvents_Reasoning(t *testing.T) {
+	bare := `{"type":"message_start","message":{"model":"m","usage":{"input_tokens":15,"output_tokens":1}}}`
+	withThinking := `{"type":"message_start","message":{"model":"m","usage":{"input_tokens":15,"output_tokens":1,` +
+		`"output_tokens_details":{"thinking_tokens":30}}}}`
+	final := `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":40,"output_tokens_details":{"thinking_tokens":30}}}`
+	for _, c := range []struct {
+		name, start, final string
+		want               int
+	}{
+		{"on the last message_delta", bare, final, 30},
+		{"not reported", bare, `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":40}}`, 0},
+		{"on both events", withThinking, final, 30},
+	} {
+		stream := sse(c.start, blockStart("0", `{"type":"text","text":""}`), delta("0", `{"type":"text_delta","text":"hi"}`),
+			blockStop("0"), c.final, stop)
+		events, _, err := collect(t, stream)
+		if err != nil || len(events) == 0 || events[len(events)-1].Type != llmprovider.EventDone {
+			t.Fatalf("%s: stream did not end in EventDone (err %v)", c.name, err)
+		}
+		if u := events[len(events)-1].Response.Usage; u.ReasoningTokens != c.want || u.OutputTokens != 40 {
+			t.Errorf("%s: Usage = %+v, want ReasoningTokens %d and OutputTokens 40", c.name, u, c.want)
+		}
+	}
+}

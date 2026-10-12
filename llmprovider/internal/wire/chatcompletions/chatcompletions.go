@@ -830,9 +830,11 @@ func (a *chatArguments) UnmarshalJSON(data []byte) error {
 
 // usage is Chat Completions' token counts. prompt_tokens holds the cached
 // tokens and completion_tokens the reasoning tokens, as Usage's do. The
-// cached count has three spellings, read in pi's order: OpenAI's
+// cached count has four spellings, read in this order: OpenAI's
 // prompt_tokens_details.cached_tokens, DeepSeek's prompt_cache_hit_tokens,
-// and a top-level cached_tokens (0017-REPORT P7). prompt_tokens holds the
+// and a top-level cached_tokens, in pi's order (0015-PLAN Phase S9); then a
+// top-level cache_read_input_tokens, which OpenCode Zen passes through from
+// some upstreams (0037-MADR D2). prompt_tokens holds the
 // cache-written tokens too. Their count has two spellings, read in this
 // order: prompt_tokens_details.cache_write_tokens, then Kilo's top-level
 // cache_creation_input_tokens (0036-MADR D2, and its amendment of
@@ -843,6 +845,7 @@ type usage struct {
 	CacheHit      *int `json:"prompt_cache_hit_tokens"`
 	Cached        *int `json:"cached_tokens"`
 	CacheCreation *int `json:"cache_creation_input_tokens"`
+	CacheReadTop  *int `json:"cache_read_input_tokens"`
 	PromptDetails struct {
 		Cached     *int `json:"cached_tokens"`
 		CacheWrite *int `json:"cache_write_tokens"`
@@ -854,7 +857,7 @@ type usage struct {
 
 func (u usage) counts() llmprovider.Usage {
 	cached := 0
-	for _, c := range []*int{u.PromptDetails.Cached, u.CacheHit, u.Cached} {
+	for _, c := range []*int{u.PromptDetails.Cached, u.CacheHit, u.Cached, u.CacheReadTop} {
 		if c != nil {
 			cached = *c
 			break
