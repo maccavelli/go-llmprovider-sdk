@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-12
 associated-madr: "0037-MADR-reasoning-and-cache-read-spellings.md"
 decision-makers: repository owner
@@ -416,3 +416,50 @@ some upstreams.
 
 **Upgrading:** no code change is needed. A caller that assumed
 `ReasoningTokens` is always 0 for Claude sees real counts.
+
+**Step 6, the release.**
+
+* The disclosure guard passed over the four outgoing commits, `41a18fe` to
+  `47920f2`.
+* The owner pushed `main` and tagged `v1.10.1`, annotated (`7281e02`), on
+  `47920f2`.
+
+**Step 7, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` | run `38310723576`, push, success |
+| CI on the tag | run `38311390239`, push, success |
+| The proxy | `"Version": "v1.10.1"`, `"GoVersion": "1.27.2"`, `Ref refs/tags/v1.10.1`, hash `47920f2…` |
+| apidiff `v1.10.0` to `v1.10.1` | `tools/apidiff.py`, exit 0, no output: no change to the exported API |
+| `tools/consumer.py v1.10.1` | 15 packages linked, built for six platforms, every step passed |
+| `tools/offline.py v1.10.1` | passed: 19 fields, `requests=0`, six platforms, both its plants caught |
+
+**Step 8:** this PLAN is `complete`, and `docs/README.md` says so.
+
+#### Verification, confirmed
+
+| | Result |
+| :--- | :--- |
+| V1. Red, then green | each phase's record gives its red runs and every plant's FAIL lines |
+| V2. The gate | 23 of 23 at each phase; the goldens unchanged |
+| V3. Canned | every Messages provider and route decodes the canned reasoning count, through `wirecase` |
+| V4. Live | Claude, directly and through Zen, reported 105 to 177 reasoning tokens, in bodies and streams, decoded exactly |
+| V5. API | apidiff `v1.10.0` to `v1.10.1`: no change |
+
+#### Deviations, in all
+
+None changed a decision or a stated fact. Two plants in Phases 1 and 2 ran
+in a one-edit form of the plan's wording, and `plant.py` cut one plant's
+output short so it was rerun alone. Each phase's record says so.
+
+#### Not done, and why
+
+* **D2 has not fired live.** No reply under the top-level
+  `cache_read_input_tokens` alone has been seen, as 0037-MADR's consequences
+  state. It is checked on canned bodies only.
+* **OpenCode's and the Zen gateway's own decoders** still assume no
+  reasoning count from Anthropic (0037-MADR D4). That is those projects'
+  work.
+* **Requests that ask for caching** remain the next gobble-cli item
+  (0036-MADR D4).
