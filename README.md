@@ -190,8 +190,24 @@ key.
 
 ## Status
 
-The current release is `v1.9.0`. The module requires Go 1.27.2.
+The current release is `v1.10.0`. The module requires Go 1.27.2.
 
+- `v1.10.0` reports cache writes in `Usage`, as
+  [0036-MADR](docs/decisions/0036-MADR-cache-write-token-count.md)
+  decides:
+  - `CacheWriteTokens` is the part of `InputTokens` written to the
+    service's cache, beside `CachedTokens`, the part read from it. The two
+    do not overlap.
+  - `CacheWrite1hTokens` is the part of the writes with a one-hour
+    lifetime, which Anthropic prices at twice the input rate.
+  - They are decoded from Anthropic's Messages, OpenAI's Responses, and
+    Chat Completions, including Kilo's own spelling, and stay zero on
+    Gemini's wires, which report no write.
+
+  With `catalog.ModelRates`, a caller can now price a response's cache
+  writes. The exported API only grows. The release notes are in
+  [0036-PLAN-cache-write-token-count.md](docs/decisions/0036-PLAN-cache-write-token-count.md),
+  Phase 4.
 - `v1.9.0` publishes model metadata, as
   [0033-MADR](docs/decisions/0033-MADR-public-model-metadata-and-current-catalogs.md)
   decides:

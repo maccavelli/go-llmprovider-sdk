@@ -624,3 +624,106 @@ golangci-lint, go vet, go test, govulncheck); markdownlint on
 `docs/architecture.md`, 0 issues; `tools/linkcheck.py`, 0 problems.
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.1.
+
+### Phase 4: live confirmation and release (2026-10-12)
+
+**Step 1, the decoded check.** `usage0036.decodedProblems` reports a
+decoded `CacheWriteTokens` that differs from the raw write; a decoded
+`CacheWrite1hTokens` that differs from `ephemeral_1h_input_tokens`, which
+is zero where the reply has no `cache_creation`; and a decoded `Usage` that
+breaks D1's invariants. `TestLive_0036CacheWrites` applies it to each reply
+the SDK returned a `Response` for.
+
+* **Red first:** `u.decodedProblems undefined`, then, with a stub that
+  reported nothing, three cases of `TestDecodedChecks_0036` failed:
+  `problems "", want one containing "decoded CacheWriteTokens 0, raw write
+  5"`, `"decoded CacheWrite1hTokens 0, raw 2"` and `"breaks D1"`.
+* **Green:** `TestDecodedChecks_0036`, 5 of 5, and `TestCacheWriteChecks_0036`,
+  11 of 11.
+* **Plants,** through `tools/plant.py`, each caught by its case:
+
+  | Plant | FAIL line |
+  | :--- | :--- |
+  | the write comparison dropped | `problems "", want one containing "decoded CacheWriteTokens 0, raw write 5"` |
+  | the 1-hour comparison dropped | `problems "", want one containing "decoded CacheWrite1hTokens 0, raw 2"` |
+  | the invariant check without the sum | `problems "", want one containing "breaks D1"` |
+
+**Step 2, the live run,** approved by the owner: 16 billed requests, with
+every key variable set, checked for presence only. Exit 0, every target
+passed, and the decoded counts equal the raw ones:
+
+| # | Request 1, decoded | Request 2, decoded |
+| :--- | :--- | :--- |
+| T1 openai `gpt-6-luna` | `InputTokens:8730 CachedTokens:0 CacheWriteTokens:8727` | `InputTokens:8730 CachedTokens:8727 CacheWriteTokens:0` |
+| T2 claude `claude-haiku-5-5` | `InputTokens:14136 CachedTokens:0 CacheWriteTokens:0 CacheWrite1hTokens:0` | the same |
+| T3 grok `grok-4.6` | `InputTokens:9359 CachedTokens:512 CacheWriteTokens:0` | `InputTokens:9359 CachedTokens:9344 CacheWriteTokens:0` |
+| T4 kilo `openai/gpt-6-luna` | `InputTokens:8730 CachedTokens:0 CacheWriteTokens:8727` | `InputTokens:8730 CachedTokens:8727 CacheWriteTokens:0` |
+| T5 kilo `anthropic/claude-haiku-5.5` | `InputTokens:14136 CachedTokens:0 CacheWriteTokens:14132` | `InputTokens:14136 CachedTokens:14132 CacheWriteTokens:0` |
+| T6 opencode-zen `claude-haiku-5-5` | `InputTokens:14136 CachedTokens:0 CacheWriteTokens:0 CacheWrite1hTokens:0` | the same |
+| T7 opencode-zen `gpt-6-luna` | `InputTokens:8730 CachedTokens:0 CacheWriteTokens:8727` | `InputTokens:8730 CachedTokens:8727 CacheWriteTokens:0` |
+| T8 opencode-zen `deepseek-v4.1-flash` | no `Response`: see below | `InputTokens:9051 CachedTokens:8922 CacheWriteTokens:0` |
+
+* **Kilo's writes,** under its top-level spelling, now decode: 8,727 and
+  14,132, where Phase 1's decoder gave none.
+* **T8's request 1** spent all 16 output tokens reasoning, and the SDK
+  returned `llmprovider: incomplete response: length: chat completions:
+  the answer has no content`, so there was no decoded `Usage` to compare.
+  Its raw usage, `{"prompt_tokens":9051,"completion_tokens":16,
+  "prompt_tokens_details":{"cached_tokens":0},
+  "completion_tokens_details":{"reasoning_tokens":16}}`, passed the raw
+  checks. Request 2 decoded and matched.
+* **Phase 4 used 16 billed requests;** 0036-PLAN's live runs used 40 in all.
+
+**Step 3, docs:** `README.md` Status names `v1.10.0`, with a bullet.
+
+**Checks:** `make pre-add-check` on the test file, clean (gofmt,
+golangci-lint, go vet, go test, govulncheck); markdownlint on `README.md`,
+0 issues; `tools/linkcheck.py`, 0 problems.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 5.5.
+
+#### Release notes: `v1.10.0`
+
+`v1.10.0` reports cache writes in `Usage` (0036-MADR, and its amendment of
+2026-10-12). The exported API only grows: two fields.
+
+**`Usage.CacheWriteTokens`** is the part of `InputTokens` written to the
+service's cache. It does not overlap `CachedTokens`, the part read from it,
+so `InputTokens - CachedTokens - CacheWriteTokens` is the uncached input.
+
+**`Usage.CacheWrite1hTokens`** is the part of the writes with a one-hour
+lifetime. Only Anthropic reports it.
+
+**Where they come from:**
+
+| Wire | Write count |
+| :--- | :--- |
+| Anthropic Messages (Claude, OpenCode Zen's Claude route) | `cache_creation_input_tokens`; the 1-hour part from `cache_creation` |
+| OpenAI Responses (OpenAI, ChatGPT, Grok, Zen's OpenAI route) | `input_tokens_details.cache_write_tokens` |
+| Chat Completions (Kilo, Together, Hugging Face, Ollama, Zen's chat route) | `prompt_tokens_details.cache_write_tokens`, else Kilo's top-level `cache_creation_input_tokens` |
+| Gemini `generateContent` and Interactions | none: both stay zero |
+
+**Measured on 2026-10-12:**
+
+* OpenAI's `gpt-6-luna` writes on its own, and from GPT-5.6 a write costs
+  1.25 times the input price;
+* Kilo caches OpenAI and Claude models on its own;
+* Claude, called directly or through Zen, writes only when the request asks
+  for caching, which this SDK does not yet send;
+* xAI and DeepSeek report no write.
+
+**Pricing a response** takes `catalog.ModelRates` (`v1.9.0`):
+
+* uncached input at `Input`;
+* `CachedTokens` at `CacheRead`;
+* the 5-minute writes, `CacheWriteTokens - CacheWrite1hTokens`, at
+  `CacheWrite`;
+* the 1-hour writes at twice `Input`, Anthropic's price.
+
+The SDK publishes the counts, not a cost (0033-MADR Q12).
+
+**`llmtest`** now refuses a negative write count, reads and writes above the
+input, and 1-hour writes above the writes.
+
+**Upgrading:** no code change is needed. A caller that writes a `Usage`
+literal without field names must name them.

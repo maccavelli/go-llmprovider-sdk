@@ -130,6 +130,28 @@ func (u usage0036) problems() []string {
 	return out
 }
 
+// decodedProblems lists where got, the decoded Usage, differs from the raw
+// reply's write counts, or breaks 0036-MADR D1's invariants (0036-PLAN
+// Phase 4).
+func (u usage0036) decodedProblems(got llmprovider.Usage) []string {
+	var out []string
+	if got.CacheWriteTokens != u.write {
+		out = append(out, fmt.Sprintf("decoded CacheWriteTokens %d, raw write %d", got.CacheWriteTokens, u.write))
+	}
+	h1 := 0
+	if u.creation != nil {
+		h1 = u.creation.h1
+	}
+	if got.CacheWrite1hTokens != h1 {
+		out = append(out, fmt.Sprintf("decoded CacheWrite1hTokens %d, raw %d", got.CacheWrite1hTokens, h1))
+	}
+	if got.CachedTokens < 0 || got.CacheWriteTokens < 0 || got.CacheWrite1hTokens < 0 ||
+		got.CachedTokens+got.CacheWriteTokens > got.InputTokens || got.CacheWrite1hTokens > got.CacheWriteTokens {
+		out = append(out, fmt.Sprintf("decoded usage %+v breaks D1's invariants", got))
+	}
+	return out
+}
+
 // TestCacheWriteChecks_0036 proves the measurement's checks on canned bodies,
 // with no key and no network (0036-PLAN Phase 1, step 4).
 func TestCacheWriteChecks_0036(t *testing.T) {
@@ -162,6 +184,45 @@ func TestCacheWriteChecks_0036(t *testing.T) {
 				t.Fatalf("parse: %v", err)
 			}
 			problems := strings.Join(u.problems(), "; ")
+			switch {
+			case c.want == "" && problems != "":
+				t.Errorf("problems %q, want none", problems)
+			case c.want != "" && !strings.Contains(problems, c.want):
+				t.Errorf("problems %q, want one containing %q", problems, c.want)
+			}
+		})
+	}
+}
+
+// TestDecodedChecks_0036 proves Phase 4's decoded check on canned bodies:
+// the decoded counts equal the raw ones, and keep 0036-MADR D1's invariants
+// (0036-PLAN Phase 4, step 1).
+func TestDecodedChecks_0036(t *testing.T) {
+	messages := `{"usage":{"input_tokens":15,"cache_read_input_tokens":100,"cache_creation_input_tokens":5,` +
+		`"cache_creation":{"ephemeral_5m_input_tokens":3,"ephemeral_1h_input_tokens":2},"output_tokens":40}}`
+	kilo := `{"usage":{"prompt_tokens":120,"prompt_tokens_details":{"cached_tokens":100},"cache_creation_input_tokens":5,"completion_tokens":40}}`
+	good := llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100, CacheWriteTokens: 5, CacheWrite1hTokens: 2}
+	for _, c := range []struct {
+		name, wire, body string
+		got              llmprovider.Usage
+		want             string
+	}{
+		{"messages, matching", "/messages", messages, good, ""},
+		{"chat, Kilo's spelling, matching", "/chat/completions", kilo,
+			llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100, CacheWriteTokens: 5}, ""},
+		{"a write not decoded", "/chat/completions", kilo,
+			llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100}, "decoded CacheWriteTokens 0, raw write 5"},
+		{"a 1-hour count not decoded", "/messages", messages,
+			llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100, CacheWriteTokens: 5}, "decoded CacheWrite1hTokens 0, raw 2"},
+		{"decoded parts above the input", "/messages", messages,
+			llmprovider.Usage{InputTokens: 100, OutputTokens: 40, CachedTokens: 100, CacheWriteTokens: 5, CacheWrite1hTokens: 2}, "breaks D1"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			u, err := parseUsage0036(c.wire, []byte(c.body))
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			problems := strings.Join(u.decodedProblems(c.got), "; ")
 			switch {
 			case c.want == "" && problems != "":
 				t.Errorf("problems %q, want none", problems)
@@ -309,6 +370,12 @@ func TestLive_0036CacheWrites(t *testing.T) {
 					tg.name, n, model, path, u.hasWrite, u.raw, decoded, genErr)
 				for _, problem := range u.problems() {
 					t.Errorf("%s request %d: %s", tg.name, n, problem)
+				}
+				// Phase 4: the decoded counts equal the raw ones.
+				if resp != nil {
+					for _, problem := range u.decodedProblems(resp.Usage) {
+						t.Errorf("%s request %d: %s", tg.name, n, problem)
+					}
 				}
 			}
 		})
