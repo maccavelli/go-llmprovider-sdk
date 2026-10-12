@@ -81,7 +81,7 @@ documents a reader follows to do something.
 | 0032 | PLAN | [Implement a Per-Tool Strict Flag and a Tool Result's Error Flag](decisions/0032-PLAN-tool-strict-and-result-error-flags.md) | complete |
 | 0033 | MADR | [Publish Model Metadata, and Bring the Curated Catalogs Up to Date](decisions/0033-MADR-public-model-metadata-and-current-catalogs.md) | accepted |
 | 0033 | PLAN | [Refresh the Curated Model Catalogs](decisions/0033-PLAN-refresh-the-curated-catalogs.md) | complete |
-| 0033 | PLAN | [Publish Model Metadata](decisions/0033-PLAN-public-model-metadata.md) | proposed |
+| 0033 | PLAN | [Publish Model Metadata](decisions/0033-PLAN-public-model-metadata.md) | in-progress |
 | 0034 | MADR | [Degrade a Forced Tool Choice Per Model, Where Anthropic Refuses It](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) | accepted |
 | 0034 | PLAN | [Implement a Per-Model Degradation of Forced Tool Choice](decisions/0034-PLAN-degrade-forced-tool-choice-per-model.md) | complete |
 

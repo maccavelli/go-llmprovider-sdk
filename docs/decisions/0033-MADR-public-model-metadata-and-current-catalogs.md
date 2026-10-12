@@ -663,8 +663,8 @@ The listings set:
 | Anthropic | `MaxInputTokens`, `MaxOutputTokens`; `Input` image and pdf; `StructuredOutput`; `Reasoning` (supported and toggle, from `thinking`), efforts (from `effort`). Not `Status` or `Retires`. |
 | Gemini | `MaxInputTokens`, `MaxOutputTokens`, `Reasoning` (from `thinking`) |
 | xAI | `ContextWindow`, efforts, `Cost` (input, output, cache read, and a tier at `long_context_threshold`), converted from cents per 100 million |
-| Kilo | `ContextWindow`, `MaxOutputTokens`, `Cost` (input, output; a `-1` price is unset), `Retires` (from `expiration_date`) |
-| Together | `ContextWindow`, `Cost` (input, output, cache read), once Phase 1 confirms the unit |
+| Kilo | `ContextWindow`, `MaxOutputTokens`, `Cost` (input, output; a `-1` price is unset), `Retires` (from `expiration_date`). *(Amended 2026-10-12, Phase 1: also cache read, cache write and reasoning, from `input_cache_read`, `input_cache_write` and `internal_reasoning`, when present. `discount` is not applied, so the rates are list prices.)* |
+| Together | `ContextWindow`, `Cost` (input, output, cache read), once Phase 1 confirms the unit. *(Phase 1, 2026-10-12: the unit is USD per million.)* |
 | OpenAI | `Retires`, from `shutdown_date` |
 | Ollama | `ContextWindow`, `Tools`, `Input` image, `Reasoning`, from one model's `/api/show` |
 

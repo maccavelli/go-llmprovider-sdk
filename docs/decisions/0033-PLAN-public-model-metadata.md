@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-12
 associated-madr: "0033-MADR-public-model-metadata-and-current-catalogs.md"
 decision-makers: repository owner
@@ -235,7 +235,7 @@ the models.dev document and a local Ollama are not billed.
    | :--- | :--- |
    | `TestLookupModel_Listings_0033` | for each of Anthropic, Gemini, xAI, Kilo, Together, OpenAI and Ollama: every field amended D2 gives it is the listing's value, sourced `listing:<provider>`; every other field is models.dev's |
    | `TestLookupModel_AnthropicLifecycle_0033` | a `lifecycle` of `deprecated` beside a models.dev entry without `status` leaves `StatusActive` from models.dev ("sources that lag") |
-   | `TestLookupModel_Units_0033` | xAI's `prompt_text_token_price` 20000 is 2.0 USD per million; its `long_context_threshold` 200000 is the tier `Above` 199999; Kilo's `"0.000002"` is 2.0; Kilo's `"-1"` leaves the price unset; Together's, as Phase 1 found |
+   | `TestLookupModel_Units_0033` | xAI's `prompt_text_token_price` 20000 is 2.0 USD per million; its `long_context_threshold` 200000 is the tier `Above` 199999; Kilo's `"0.000002"` is 2.0; Kilo's `"-1"` leaves the price unset; Together's `input` 0.3 is 0.3 (Phase 1). *(Deviation, 2026-10-12: Kilo's `input_cache_read`, `input_cache_write` and `internal_reasoning` set `CacheRead`, `CacheWrite` and `Reasoning`; `discount` changes nothing.)* |
    | `TestLookupModel_Retires_0033` | OpenAI's `shutdown_date` and Kilo's `expiration_date` set `Retires` |
    | `TestLookupModel_CallerLayers_0033` | a caller layer beats the listing and models.dev; of two `WithModelLayer`s, the later wins; a field no layer sets stays unset; a caller's `FieldCostTiers` replaces the list whole; a caller's known zero price beats a listing's non-zero |
    | `TestLookupModel_Unknown_0033` | a model no layer knows returns no error and no field set; a listing that fails returns models.dev's fields and an error naming the listing |
@@ -363,4 +363,139 @@ the models.dev document and a local Ollama are not billed.
 
 ## Execution Record
 
-Not started.
+### Phase 0: records (2026-10-12)
+
+* 0033-MADR gained "Amendment (2026-10-12): the research, and the API
+  surface", and this PLAN was rewritten to follow it.
+* The owner answered Q9 to Q12 with the recommended option of each.
+* The owner committed both as `10c1be3`, accepted the amendment, and
+  approved this PLAN.
+
+### Phase 1: measurement (2026-10-12)
+
+`TestLive_0033MetadataSources`, in the new
+`llmprovider/live_0033_metadata_measure_test.go`, behind
+`LLMPROVIDER_LIVE_0033`.
+
+* Each key was checked for presence only. Only field names, shapes and
+  public prices were logged.
+* No request was billed.
+* Result: exit 0, all 8 subtests passing, in 4.3 s.
+
+**Step 1, models.dev** (`models.opencode.ai/api.json`): HTTP 200, 5,388,868
+bytes, 226 sections.
+
+* **The nine sections are 508,550 bytes,** decoded generically in 4 ms.
+
+  | Section | Models | `reasoning_options` | `status` | `release_date` | `tiers` | `context_over_200k` |
+  | :--- | ---: | :--- | :--- | :--- | ---: | ---: |
+  | `anthropic` | 17 | budget 8, effort 13, toggle 2 | none | `YYYY-MM-DD` 17 | 1 | 0 |
+  | `google` | 39 | budget 3, effort 17, toggle 4 | beta 1, deprecated 1 | `YYYY-MM-DD` 39 | 6 | 6 |
+  | `huggingface` | 81 | effort 20, toggle 3 | none | `YYYY-MM` 3, `YYYY-MM-DD` 78 | 0 | 0 |
+  | `kilo` | 386 | effort 264 | beta 1 | `YYYY-MM` 5, `YYYY-MM-DD` 381 | 2 | 2 |
+  | `openai` | 53 | effort 33 | deprecated 12 | `YYYY-MM-DD` 53 | 13 | 13 |
+  | `opencode` | 120 | budget 11, effort 71, toggle 24 | deprecated 36 | `YYYY-MM-DD` 120 | 17 | 16 |
+  | `opencode-go` | 36 | budget 5, effort 23, toggle 10 | deprecated 5 | `YYYY-MM-DD` 36 | 9 | 8 |
+  | `togetherai` | 29 | effort 9, toggle 10 | deprecated 11 | `YYYY-MM-DD` 29 | 0 | 0 |
+  | `xai` | 13 | effort 5 | none | `YYYY-MM-DD` 13 | 8 | 8 |
+
+  * No `alpha` status was seen, and no section marks a model `retired`.
+  * `YYYY-MM` dates occur, so D1's parse of both forms is needed.
+  * Most priced tiers carry both `tiers` and `context_over_200k`. Where
+    both are present, `tiers` is read.
+  * Keys D1 does not read: `canonical_model_id`, `description` and
+    `experimental`. `Encode` keeps them.
+* **Every static id is in its section.** The D1 fields each one lacks:
+  * `limit.input` is set only on the OpenAI models but `gpt-4.1-mini`, and
+    on OpenCode Go's `gpt-6-luna` and `hy3`;
+  * `cost.reasoning` is set on none;
+  * `status` is absent on all, which reads as active;
+  * `cost.cache_write` is set on:
+    * the Claude models;
+    * the OpenAI models but `gpt-4.1-mini`;
+    * Kilo's `google/gemini-3.8-flash` and `google/gemini-3.6-flash`;
+    * `qwen3.8-flash` on both OpenCode gateways;
+    * OpenCode Go's `gpt-6-luna`;
+  * `cost.tiers` is set on:
+    * `claude-haiku-5-5`;
+    * the Grok models;
+    * the OpenAI models but `gpt-4.1-mini`;
+    * OpenCode Go's `gpt-6-luna`;
+  * `structured_output` is absent on 8 gateway models: three on Hugging
+    Face, three on OpenCode Go, two on Together;
+  * `family` is absent on two Hugging Face models.
+
+**Step 2, the listings:**
+
+| Listing | Fields seen (two models each) |
+| :--- | :--- |
+| Anthropic | `max_input_tokens` 1000000, `max_tokens` 128000; `capabilities`: `effort` `low` to `max` with `xhigh`; `image_input`, `pdf_input`, `structured_outputs` supported; `thinking.types` `adaptive` and `disabled` supported, `enabled` not |
+| Gemini | `inputTokenLimit` 1048576, `outputTokenLimit` 65536, `thinking` true |
+| xAI | `context_length` 500000; `capabilities.reasoning_effort` `low`, `medium`, `high`, `xhigh`, default `high`; `long_context_threshold` 200000; the `prompt`, `cached_prompt` and `completion` text prices and their `_long_context` forms; `prompt_image_token_price` |
+| OpenAI | 133 models, 54 with a `shutdown_date`; the static ids' is `null` |
+| Kilo | 390 models; `context_length`, `top_provider.max_completion_tokens`, `expiration_date` (`null`); `pricing` keys `prompt` and `completion` (390), `discount` (272), `input_cache_read` (245), `web_search` (130), `input_cache_write` (76), `internal_reasoning` (32), `image` (31), `request` (12); 20 prices of `"-1"` |
+| Together | `context_length`; `pricing` `input`, `output`, `cached_input`, and zeros for `hourly`, `base`, `finetune`, `image`, `video` and others |
+
+**The units,** compared with models.dev's USD per million:
+
+| Model | Listing | As USD per million | models.dev |
+| :--- | :--- | :--- | :--- |
+| xAI `grok-4.6` | 20000, 60000, 5000 | 2, 6, 0.5 | 2, 6, 0.5 |
+| xAI `grok-4.6`, long context | 40000, 120000, 10000 | 4, 12, 1 | the tier at 200000: 4, 12, 1 |
+| Kilo `deepseek/deepseek-v4.1-flash` | `"0.000000300000"`, `"0.000001200000"`, `"0.000000006000"` | 0.3, 1.2, 0.006 | 0.3, 1.2, 0.006 |
+| Together `deepseek-ai/DeepSeek-V4.1-Flash` | 0.3, 1.2, 0.006 | the same | 0.3, 1.2, 0.006 |
+
+* xAI's unit, cents per 100 million tokens, is confirmed.
+* Kilo's per-token strings are confirmed.
+* Together's unit is USD per million.
+* Together gives `zai-org/GLM-5.3` a `context_length` of 1048575, where
+  models.dev has 1048576. D2 takes the listing's.
+
+**Step 3, Ollama** (`llama3.2:latest`, local):
+
+* `general.architecture` is `llama`;
+* `llama.context_length` is 131072;
+* `capabilities` is `[completion tools]`;
+* `details.context_length` is absent, so the window comes from
+  `model_info` only.
+
+**Step 4, coverage:**
+
+* Every field amended D2 maps was returned by its listing, so there is no
+  missing-field deviation.
+* Every unit matches.
+
+**Deviation (2026-10-12): Kilo's other prices.** Kilo's listing carries
+`input_cache_read`, `input_cache_write` and `internal_reasoning`, which
+amended D2's Kilo row did not map. The owner chose to set them when
+present, without applying `discount`:
+
+* 0033-MADR's D2 table is annotated;
+* Phase 3's `TestLookupModel_Units_0033` row gains them.
+
+**The gate.** The scratchpad's gate script had been pruned. It was rebuilt
+from its one write and two edits in the session transcript, and proved on
+a scratch clone holding two plants before it was trusted:
+
+* a `vet` error in `catalog`:
+  `plant_vet.go:5:46: fmt.Sprintf format %d reads arg #1, but call has 0 args`;
+* this PLAN's index row marked `complete`:
+  `docs/README.md: decisions/0033-PLAN-public-model-metadata.md indexed as 'complete'; the file says 'in-progress'`.
+
+Thirteen checks failed on the planted clone:
+
+* the six `vet` variants;
+* `pre-add-check`;
+* `test-race-cover` and `test-shuffle`;
+* `lint`;
+* `coverage-check` and `gate-selftest`;
+* `g-wire-stable`;
+* `records-check`.
+
+Then, on this phase's tree, all 22 passed, started at a load average of
+9.4. The owner then directed that every script be Python, and reusable ones
+kept in `tools/`. 0035-MADR records that, so the load wait was rewritten
+in Python for this run.
+
+**Pre-add:** 1 file clean. **API:** unchanged; only a live-tagged test file
+was added.
