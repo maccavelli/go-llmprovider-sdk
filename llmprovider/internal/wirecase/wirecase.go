@@ -119,7 +119,8 @@ const (
 		`{"type":"thinking","thinking":"thinking","signature":"sig_wire"},` +
 		`{"type":"text","text":"hello"},` +
 		`{"type":"tool_use","id":"toolu_wire","name":"get_weather","input":{"city":"Paris"}}],` +
-		`"usage":{"input_tokens":15,"cache_creation_input_tokens":5,"cache_read_input_tokens":100,"output_tokens":40}}`
+		`"usage":{"input_tokens":15,"cache_creation_input_tokens":5,"cache_read_input_tokens":100,` +
+		`"cache_creation":{"ephemeral_5m_input_tokens":3,"ephemeral_1h_input_tokens":2},"output_tokens":40}}`
 	InteractionsReply = `{"id":"v1_int_wire","status":"completed","steps":[` +
 		`{"type":"thought","signature":"sig_wire","summary":[{"type":"text","text":"thinking"}]},` +
 		`{"type":"model_output","content":[{"type":"text","text":"hello"}]},` +
@@ -132,20 +133,24 @@ const (
 	ChatReply = `{"id":"chat_wire","choices":[{"index":0,"finish_reason":"tool_calls","message":{` +
 		`"role":"assistant","content":"hello","reasoning_content":"thinking",` +
 		`"tool_calls":[{"id":"call_wire","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]}}],` +
-		`"usage":{"prompt_tokens":120,"completion_tokens":40,"total_tokens":160,"prompt_tokens_details":{"cached_tokens":100},` +
+		`"usage":{"prompt_tokens":120,"completion_tokens":40,"total_tokens":160,"prompt_tokens_details":{"cached_tokens":100,"cache_write_tokens":5},` +
 		`"completion_tokens_details":{"reasoning_tokens":30}}}`
 )
 
 // responsesUsage is the Responses API's usage for the canned counts.
-const responsesUsage = `{"input_tokens":120,"input_tokens_details":{"cached_tokens":100},"output_tokens":40,` +
+const responsesUsage = `{"input_tokens":120,"input_tokens_details":{"cached_tokens":100,"cache_write_tokens":5},"output_tokens":40,` +
 	`"output_tokens_details":{"reasoning_tokens":30},"total_tokens":160}`
 
 // Every canned reply reports the same counts in its own wire's spelling: 120
 // input, 100 of them cached, and 40 output, 30 of them reasoning. Messages
 // reports no reasoning count (0015-MADR amendment "what `Usage` counts").
+// The wires that report a cache write report 5 of the input written, and
+// Messages 2 of those with a one-hour lifetime; Gemini's two wires report no
+// write (0036-MADR D2).
 var (
-	replyUsage    = llmprovider.Usage{InputTokens: 120, OutputTokens: 40, ReasoningTokens: 30, CachedTokens: 100}
-	messagesUsage = llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100}
+	writeUsage    = llmprovider.Usage{InputTokens: 120, OutputTokens: 40, ReasoningTokens: 30, CachedTokens: 100, CacheWriteTokens: 5}
+	googleUsage   = llmprovider.Usage{InputTokens: 120, OutputTokens: 40, ReasoningTokens: 30, CachedTokens: 100}
+	messagesUsage = llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100, CacheWriteTokens: 5, CacheWrite1hTokens: 2}
 )
 
 // lastGeneration is the path of a generation request: every one is a POST, and
@@ -161,10 +166,13 @@ func lastGeneration(reqs []wiretest.Request) string {
 
 // usageFor is the Usage the canned reply for a generation at path reports.
 func usageFor(path string) llmprovider.Usage {
-	if strings.HasSuffix(path, "/messages") {
+	switch {
+	case strings.HasSuffix(path, "/messages"):
 		return messagesUsage
+	case strings.HasSuffix(path, ":generateContent"), strings.HasSuffix(path, "/interactions"):
+		return googleUsage
 	}
-	return replyUsage
+	return writeUsage
 }
 
 // SSEReply is ResponsesReply as the ChatGPT backend streams it.

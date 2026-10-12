@@ -526,3 +526,101 @@ golangci-lint, go vet, go test, govulncheck); markdownlint on
 `api-standards.md`, 0 issues.
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.1.
+
+### Phase 3: the decoders, the canned replies and the docs (2026-10-12)
+
+**Change:**
+
+* **Messages** (`internal/wire/messages/messages.go`):
+  * `usage` gains `CacheCreation.Ephemeral1h`, from
+    `cache_creation.ephemeral_1h_input_tokens`;
+  * `counts` sets `CacheWriteTokens` and `CacheWrite1hTokens`, and
+    `InputTokens` is unchanged;
+  * the stream merge's list gains the 1-hour count.
+* **Responses:** `usage.InputDetails.CacheWrite`, from `cache_write_tokens`.
+* **Chat Completions:** `usage.PromptDetails.CacheWrite`, and a top-level
+  `CacheCreation`. `counts` takes the first present, details first, as the
+  MADR's amendment decides.
+* **`internal/wirecase`:**
+  * `MessagesReply` gains `cache_creation` `{3, 2}`;
+  * `responsesUsage`, shared by `ResponsesReply` and `SSEReply`, and
+    `ChatReply` gain `cache_write_tokens` 5;
+  * the expected values are `messagesUsage` (writes 5, 1-hour 2),
+    `writeUsage` (writes 5) and `googleUsage` (none);
+  * `usageFor` picks one by the path's suffix.
+* **`docs/architecture.md`:** the `Response.Usage` paragraph names each
+  wire's write spelling, and the zero on Gemini's two wires.
+
+**Tests,** as step 1 lists them, with these names:
+
+* `messages`: `TestDecode_CacheWrites` (with and without `cache_creation`),
+  and `TestEvents_Usage`;
+* `responses`: a `TestDecode_Usage` row, and `TestReadStream_Usage`
+  extended;
+* `chatcompletions`: `TestDecode_CacheWrites` (the details, Kilo's
+  top-level spelling, and both, details first), and `TestEvents_Usage` in
+  both spellings;
+* `generatecontent` and `gemini`: unchanged, and passing.
+
+**Red first:**
+
+* Every new test failed on its wire, before its decoder changed, with
+  `CacheWriteTokens:0`. For example: `with cache_creation: Usage =
+  {InputTokens:120 OutputTokens:40 ReasoningTokens:0 CachedTokens:100
+  CacheWriteTokens:0 CacheWrite1hTokens:0} (err <nil>), want {… CacheWriteTokens:5
+  CacheWrite1hTokens:2}`.
+* With the new canned replies, `TestWireGoldens` failed for every provider
+  but Gemini: `wirecase.go:326: Usage = {… CacheWriteTokens:0
+  CacheWrite1hTokens:0}, want the canned reply's {… CacheWriteTokens:5
+  CacheWrite1hTokens:2}`. Gemini passed, as `googleUsage` has no write.
+
+**An existing assertion, extended.** The old `messages.TestDecode_Usage`
+compared the whole `Usage` of a body that already carried
+`cache_creation_input_tokens` 5. Once the decoder read it, the test failed
+with `CacheWriteTokens:5` against a want of 0. Its want now includes
+`CacheWriteTokens: 5`, which is step 1's "extended". That makes the test
+stricter, not looser.
+
+**A test added for a plant.** Before the plants ran, a review found that
+"the stream merge without the 1-hour count" could not fail either stream:
+in both, the count came in `message_start`. `TestEvents_Usage` gained a
+third stream, whose `message_start` has no cache counts and whose
+`message_delta` carries them all.
+
+**Green:** `go test ./...`, every package. Each usage test passes, and
+`TestWireGoldens` passes for every provider.
+
+**Plants,** through `tools/plant.py`, against `./llmprovider/internal/wire/...`
+and `./llmprovider/providers/...`:
+
+| Plant | Caught by | First FAIL line |
+| :--- | :--- | :--- |
+| Messages `counts` leaving out `CacheWriteTokens` | `TestDecode_Usage`, `TestDecode_CacheWrites`, `TestEvents_Usage`, `TestWireGoldens/claude/items` | `Usage = {… CacheWriteTokens:0 …}, want {… CacheWriteTokens:5 …}` |
+| Messages taking the 1-hour count from the 5-minute key | `TestDecode_CacheWrites`, `TestEvents_Usage`, `TestWireGoldens/claude/…` | `with cache_creation: Usage = {… CacheWriteTokens:5 CacheWrite1hTokens:3}` |
+| the stream merge without the 1-hour count | `TestEvents_Usage` | `message_delta carrying counts message_start left out: Usage = {… CacheWriteTokens:5 CacheWrite1hTokens:0}` |
+| the stream merge adding `message_delta`'s counts to `message_start`'s | `TestEvents_EqualsDecode` and its subtests | `EventDone's Response … Usage:{InputTokens:12 OutputTokens:6 …}` |
+| Responses not reading `cache_write_tokens` | `TestDecode_Usage`, `TestReadStream_Usage`, `TestWireGoldens/grok/…` | `cache writes (0036-MADR D2): Usage = {… CacheWriteTokens:0 …}` |
+| Chat Completions not reading the details' `cache_write_tokens` | `TestDecode_CacheWrites`, `TestEvents_Usage`, `TestWireGoldens/huggingface/…` | `cache_write_tokens: Usage = {… CacheWriteTokens:0 …}` |
+| *(deviation)* Chat Completions ignoring Kilo's top-level spelling | `TestDecode_CacheWrites`, `TestEvents_Usage` | `Kilo's top-level spelling: Usage = {… CacheWriteTokens:0 …}` |
+| *(deviation)* Chat Completions preferring the top level to the details | `TestDecode_CacheWrites` | `the details before the top level: Usage = {… CacheWriteTokens:7 …}` |
+| `usageFor` giving Gemini's paths the write counts | `TestWireGoldens/gemini/…`, `TestWireGoldens/opencode-zen-google/…` | `wirecase.go:326: Usage = {… CacheWriteTokens:0 …}, want the canned reply's {… CacheWriteT…` |
+| Messages leaving the writes out of `InputTokens` | `TestDecode_Usage`, `TestDecode_CacheWrites`, `TestEvents_Usage`, `TestWireGoldens/claude/items` | `Usage = {InputTokens:115 … CacheWriteTokens:5 …}, want {InputTokens:120 …}` |
+
+Two plants are worded differently from step 5, because one exact edit
+cannot express the plan's wording:
+
+* "Responses reading `cache_write_tokens` from `output_tokens_details`"
+  ran as Responses not reading it at all;
+* "Chat Completions reading a top-level `cache_write_tokens`" ran as Chat
+  Completions not reading the details' field.
+
+Each breaks the same assertion, and each was caught.
+
+**The goldens:** the gate's `g-wire-stable` ran `TestWireGoldens` three
+times, unchanged, with no `-update`.
+
+**Checks:** `make pre-add-check` on the seven Go files, clean (gofmt,
+golangci-lint, go vet, go test, govulncheck); markdownlint on
+`docs/architecture.md`, 0 issues; `tools/linkcheck.py`, 0 problems.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.1.

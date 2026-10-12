@@ -428,12 +428,14 @@ func eventType(payload []byte) []byte {
 }
 
 // usage is the Responses API's token counts. Its input count holds the cached
-// tokens, and its output count the reasoning tokens, as Usage's do.
+// and the cache-written tokens, and its output count the reasoning tokens, as
+// Usage's do (0036-MADR D2).
 type usage struct {
 	Input        int `json:"input_tokens"`
 	Output       int `json:"output_tokens"`
 	InputDetails struct {
-		Cached int `json:"cached_tokens"`
+		Cached     int `json:"cached_tokens"`
+		CacheWrite int `json:"cache_write_tokens"`
 	} `json:"input_tokens_details"`
 	OutputDetails struct {
 		Reasoning int `json:"reasoning_tokens"`
@@ -442,5 +444,6 @@ type usage struct {
 
 func (u usage) counts() llmprovider.Usage {
 	return llmprovider.Usage{InputTokens: u.Input, OutputTokens: u.Output,
-		ReasoningTokens: u.OutputDetails.Reasoning, CachedTokens: u.InputDetails.Cached}
+		ReasoningTokens: u.OutputDetails.Reasoning, CachedTokens: u.InputDetails.Cached,
+		CacheWriteTokens: u.InputDetails.CacheWrite}
 }

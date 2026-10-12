@@ -41,3 +41,42 @@ func TestDecode_Usage(t *testing.T) {
 		t.Errorf("not reported: Usage = %+v (err %v), want zero", resp.Usage, err)
 	}
 }
+
+// The cache-write count (0036-MADR D2, and its amendment of 2026-10-12):
+// prompt_tokens_details.cache_write_tokens, else Kilo's top-level
+// cache_creation_input_tokens, inside prompt_tokens.
+func TestDecode_CacheWrites(t *testing.T) {
+	choice := `"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"hi"}}]`
+	want := llmprovider.Usage{InputTokens: 120, OutputTokens: 40, CachedTokens: 100, CacheWriteTokens: 5}
+	for _, c := range []struct{ name, usage string }{
+		{"cache_write_tokens", `{"prompt_tokens":120,"completion_tokens":40,"prompt_tokens_details":{"cached_tokens":100,"cache_write_tokens":5}}`},
+		{"Kilo's top-level spelling", `{"prompt_tokens":120,"completion_tokens":40,"prompt_tokens_details":{"cached_tokens":100},"cache_creation_input_tokens":5}`},
+		{"the details before the top level", `{"prompt_tokens":120,"completion_tokens":40,` +
+			`"prompt_tokens_details":{"cached_tokens":100,"cache_write_tokens":5},"cache_creation_input_tokens":7}`},
+	} {
+		resp, err := Decode(strings.NewReader(`{"id":"c",` + choice + `,"usage":` + c.usage + `}`))
+		if err != nil || resp.Usage != want {
+			t.Errorf("%s: Usage = %+v (err %v), want %+v", c.name, resp.Usage, err, want)
+		}
+	}
+}
+
+// TestEvents_Usage: a stream's usage is its last chunk's, as
+// stream_options.include_usage asks, in either write spelling.
+func TestEvents_Usage(t *testing.T) {
+	want := llmprovider.Usage{InputTokens: 9, OutputTokens: 4, CachedTokens: 2, CacheWriteTokens: 1}
+	for _, c := range []struct{ name, usage string }{
+		{"cache_write_tokens", `{"prompt_tokens":9,"completion_tokens":4,"prompt_tokens_details":{"cached_tokens":2,"cache_write_tokens":1}}`},
+		{"Kilo's top-level spelling", `{"prompt_tokens":9,"completion_tokens":4,"prompt_tokens_details":{"cached_tokens":2},"cache_creation_input_tokens":1}`},
+	} {
+		stream := chunks(d(`{"role":"assistant","content":"hi"}`, ""), d(`{}`, "stop"),
+			`{"id":"c1","model":"m","choices":[],"usage":`+c.usage+`}`)
+		events, _, err := collect(t, stream)
+		if err != nil || len(events) == 0 || events[len(events)-1].Type != llmprovider.EventDone {
+			t.Fatalf("%s: stream did not end in EventDone (err %v)", c.name, err)
+		}
+		if got := events[len(events)-1].Response.Usage; got != want {
+			t.Errorf("%s: Usage = %+v, want %+v", c.name, got, want)
+		}
+	}
+}

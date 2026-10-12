@@ -306,6 +306,15 @@ for a session, from the store.
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and
   writes are added to the input, and Gemini's thoughts to the output.
+  `CacheWriteTokens`, the part of the input written to the cache, does not
+  overlap `CachedTokens` (0036-MADR):
+  - **Messages:** `cache_creation_input_tokens`, with
+    `cache_creation.ephemeral_1h_input_tokens` as `CacheWrite1hTokens`;
+  - **Responses:** `input_tokens_details.cache_write_tokens`;
+  - **Chat Completions:** `prompt_tokens_details.cache_write_tokens`, else
+    Kilo's top-level `cache_creation_input_tokens`;
+  - **generateContent** and **Interactions** report no write, so both
+    counts stay zero there.
 - `Option` configures construction. A provider package's `New` resolves its
   options with `ResolveOptions(id, opts)`, which refuses an option scoped to
   another provider (`ScopedOption`). `For(id, opts...)` scopes options to
