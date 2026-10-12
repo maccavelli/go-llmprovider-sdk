@@ -300,6 +300,9 @@ The tests are behind `LLMPROVIDER_LIVE_0033`, in
    `openai/gpt-6.1-sol` and `space-bunny` among them. A refusal is a
    deviation: the work stops, and a 0009-MADR amendment makes it a ranker
    rule (Q19). Then step 1 is run again.
+   *(Deviation, 2026-10-12: three Together picks could not be served, and
+   0009-MADR gained §3 item 10. Phase 7a builds it, and step 1 is run again.
+   See Phase 7's record.)*
 4. **Record the snapshot,** after the owner's approval of the picks:
 
    ```text
@@ -311,6 +314,33 @@ The tests are behind `LLMPROVIDER_LIVE_0033`, in
      that moved between the two runs) is recorded, and the snapshot is
      taken again.
 5. Gate; stage. The owner commits.
+
+### Phase 7a: 0009-MADR §3 item 10 *(amended 2026-10-12, Phase 7's deviation)*
+
+0009-MADR's amendment "Together ranks only what models.dev lists (§3 item
+10)": on Together, an id that models.dev's `togetherai` section does not list
+is neither ranked nor filled. It stays in `Usable`.
+
+1. **Red first** (`llmprovider/catalog`):
+
+   | Test | Asserts |
+   | :--- | :--- |
+   | `TestTogetherRanksOnlyModelsDevIDs` | a Together listing of ids models.dev lists and ids it does not, ranked with a document that covers only the first: the utility and capable sixes hold no uncovered id, neither ranked nor filled, and `Usable` keeps every id |
+   | `TestTogetherWithoutMetadata` | with the document disabled, Together's curation is the fallback, unchanged by item 10 |
+
+   The existing `TestListModelCatalog_HuggingFaceRanksWithMetadata`, which
+   ranks an uncovered Hugging Face id, keeps the rule to Together.
+2. **Change:** `metadataCurate` leaves Together's uncovered ids out of the
+   candidates and the fill, through one predicate. Its comment cites §3
+   item 10.
+3. **Plants:**
+   * item 10 applied to the ranking but not the fill;
+   * item 10 applied to every provider: the Hugging Face test must fail;
+   * item 10 removing the ids from `Usable`.
+4. **The 2026-09-26 golden** is unchanged: it has no Together snapshot.
+5. Gate; stage. The owner commits. Phase 7 then resumes at step 1: the
+   command again, the measurement of any new addition (its count to the
+   owner first), the owner's review, and the snapshot.
 
 ### Phase 8: the lists, and the golden *(amended 2026-10-12)*
 
@@ -1015,3 +1045,70 @@ then passed, and the seven plants were run again, and all caught.
 golangci-lint, go vet, go test, govulncheck).
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load of 8.8, after the fix.
+
+Committed by the owner as `35b9321`.
+
+### Phase 7: measure, then record the snapshot (2026-10-12)
+
+**Step 1, the command,** live (listings and models.dev; not billed): 18
+proposals, against 50 from the old rule. The vendor lists drew none.
+
+| List | Add (rank in today's utility six) | Remove |
+| :--- | :--- | :--- |
+| OpenCode Zen | `claude-haiku-5-5` (1) | `gemini-3.8-flash` |
+| OpenCode Go | `claude-haiku-5-5` (1), `space-bunny` (6) | `hy3`, `mimo-v2.6-pro` |
+| Kilo | `openai/gpt-6.1-sol` (6) | `thinkingmachines/inkling` |
+| Together | `zai-org/GLM-5.3-Flash` (1), `deepseek-ai/DeepSeek-V4-Flash-0731` (2), `Qwen/Qwen3.8-Flash` (4), `arcee-ai/trinity-mini` (5), `mistralai/Devstral-Small-2505` (6) | `zai-org/GLM-5.3`, `moonshotai/Kimi-K3`, `MiniMaxAI/MiniMax-M3`, `Qwen/Qwen3.6-Plus`, `openai/gpt-oss-120b` |
+| Hugging Face | none | none |
+
+**Free facts for the owner's review:**
+
+* Kilo's listing: `openai/gpt-6.1-sol` has `mayTrainOnYourPrompts: false`,
+  `preferredIndex` 5, and is priced at $2.00 and $10.00 per million. For
+  `thinkingmachines/inkling` the figures are `false`, none, and $0.95 and
+  $4.05.
+* Together's listing: `mistralai/Devstral-Small-2505` was created on
+  2025-05-21 and is priced at 0, and `arcee-ai/trinity-mini` was created on
+  2026-05-15.
+
+**Step 2, the measurement** (`llmprovider/live_0033_refresh2_measure_test.go`,
+`TestLive_0033RefreshCandidates`). The owner approved 9 billed requests,
+each "Say hello." with at most 16 output tokens. Every key variable was set,
+checked for presence only.
+
+| Candidate | Status |
+| :--- | :--- |
+| opencode-zen `claude-haiku-5-5` | 200 |
+| opencode-go `claude-haiku-5-5` | 400 `ModelProtocolUnsupported`, on `/chat_completions` (Deviation 1) |
+| opencode-go `space-bunny` | 200 |
+| kilo `openai/gpt-6.1-sol` | 200 |
+| together `zai-org/GLM-5.3-Flash` | 200; `ErrIncomplete`, its 16 tokens spent reasoning |
+| together `deepseek-ai/DeepSeek-V4-Flash-0731` | 200; `ErrIncomplete`, as above |
+| together `Qwen/Qwen3.8-Flash` | 400 `streaming_required` |
+| together `arcee-ai/trinity-mini` | 400 `model_not_available`, "non-serverless model" |
+| together `mistralai/Devstral-Small-2505` | 400 `dedicated_endpoint_not_running` |
+
+**Deviation 1 (2026-10-12): the measurement's routing.** The test copied
+0033's older probe, which turns model metadata off. Without it, OpenCode
+routes a `claude-` model to Messages on Zen only (`heuristicRoute`). On Go the
+route comes from models.dev's npm, `@ai-sdk/anthropic`. So Go's request went
+to Chat Completions, which a Claude model does not serve.
+
+* The owner chose to re-measure as the runtime routes it.
+* The test leaves metadata on, and its comment says why.
+* The re-measure was 1 billed request: opencode-go `claude-haiku-5-5`,
+  status 200.
+
+**Deviation 2 (2026-10-12): Together's unservable picks.** The three Together
+picks that failed are exactly those models.dev's `togetherai` section does not
+list. The two it lists answered. Together's listing has no field that tells
+them apart.
+
+* The owner chose a ranker rule (Q19): 0009-MADR's amendment "Together ranks
+  only what models.dev lists (§3 item 10)".
+* Phase 7a builds it, and step 1 is then run again.
+
+**Q15, the owner's review:** `openai/gpt-6.1-sol` and `space-bunny` are
+approved as the ranker chose them.
+
+Phase 7 used 10 billed requests so far: 9, then 1.

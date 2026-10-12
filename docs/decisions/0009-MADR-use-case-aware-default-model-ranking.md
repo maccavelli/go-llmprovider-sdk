@@ -959,3 +959,47 @@ C7 and C8), and built by its PLAN's step 4.6.
   `gpt-6-luna`, `grok-4.7`, `muse-spark-1.3`, `claude-fable-5-1`, where
   `gpt-6-astra` was. `TestListModelCatalog_Snapshot20260926` holds the new
   six; the other sixes are unchanged.
+
+## Amendment 2026-10-12: Together ranks only what models.dev lists (§3 item 10)
+
+Status: **accepted** 2026-10-12, by the owner, during
+0033-PLAN-refresh-the-curated-catalogs.md Phase 7 (0033-MADR's amendment
+"the second refresh, and what the command reads", Q19: a pick the owner
+refuses is a ranker rule).
+
+**Fact found.** On 2026-10-12 the ranker's utility six for Together, from its
+keyed listing and models.dev, held five ids its static list lacked. Each was
+sent one `Say hello.` request with Together's key:
+
+| Id | In models.dev's `togetherai` section | Answer |
+| :--- | :--- | :--- |
+| `zai-org/GLM-5.3-Flash` | yes | HTTP 200 |
+| `deepseek-ai/DeepSeek-V4-Flash-0731` | yes | HTTP 200 |
+| `Qwen/Qwen3.8-Flash` | no | HTTP 400 `streaming_required`: "This model only supports streaming" |
+| `arcee-ai/trinity-mini` | no | HTTP 400 `model_not_available`: "Unable to access non-serverless model" |
+| `mistralai/Devstral-Small-2505` | no | HTTP 400 `dedicated_endpoint_not_running` |
+
+* The three that failed are exactly the three models.dev does not list. The
+  two it lists answered.
+* Together's listing gives no field that tells them apart: `running` is
+  false for all five, and `arcee-ai/trinity-mini` has a price
+  ($0.045 per million input tokens).
+* §2 ranks an id the metadata does not cover "with every field unknown",
+  and "Unknown values never exclude" (§3). So an id Together lists but
+  cannot serve on its serverless API ranks, and fills, like any other.
+
+**Decided.** §3 gains:
+
+> 10. for Together only, models.dev's `togetherai` section does not list
+>     it. That section is Together's serverless catalog; an id outside it
+>     can need streaming, a dedicated endpoint or account access. It is an
+>     exception to "Unknown values never exclude", for Together alone. The
+>     id stays in `Usable`, so a search finds it.
+
+* **Ranked and filled:** like items 7 and 8, item 10 holds for the ranking
+  and the fill, so the six never names such an id.
+* **When the document is unavailable,** the metadata ranking is not used at
+  all (§2), so item 10 does not apply, and the fallback curation is
+  unchanged.
+* **Not chosen:** taking Together out of the ranked lists (0033-MADR Q17
+  reversed), which would leave the runtime menu offering models that fail.
