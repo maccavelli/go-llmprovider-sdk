@@ -1003,3 +1003,37 @@ sent one `Say hello.` request with Together's key:
   unchanged.
 * **Not chosen:** taking Together out of the ranked lists (0033-MADR Q17
   reversed), which would leave the runtime menu offering models that fail.
+
+## Amendment 2026-10-12: no small dense model in the utility six (§3 item 11)
+
+Status: **accepted** 2026-10-12, by the owner, during
+0033-PLAN-refresh-the-curated-catalogs.md Phase 7.
+
+**Fact found.** This record's Confirmation states that the pure ranking tests
+show "the utility six contains no dense model of 14B or less". Its Context
+names "no dense model of 14B or less" among the criteria, and
+`TestStaticOpenCatalogs_UtilityCriteria` checks the static lists for it. But
+none of §3's items excludes such a model. The ranker's only size signal is
+`isSmallModel`, a naming hint (`nano`, `flash`, `mini` and the like), which
+the utility profile favours. On the 2026-09-26 snapshot no small dense model
+reached a six, so the gap did not show.
+
+On 2026-10-12, with §3 item 10 in place, Together's utility six ranked
+`Qwen/Qwen3.5-9B` fourth. It is a 9B dense model in models.dev's `togetherai`
+section: reasoning-capable, released 2026-03-03, at $0.17 and $0.25 per
+million tokens.
+
+**Decided.** §3 gains:
+
+> 11. under `ProfileUtility` only, its id names a dense model of 14B or less:
+>     a size such as `9b` or `14B`, standing alone in the id, of 14 or less,
+>     where the id does not name a mixture of experts's active size
+>     (`-a3b`). The size is read from the id, as the criteria test reads it.
+>     It stays searchable, and eligible under `ProfileCapable`, as item 9's
+>     ids do.
+
+* **Ranked and filled:** like item 9, item 11 holds for the ranking and the
+  fill, through `utilityExcluded`, on every ranked provider.
+* **Not chosen:**
+  * the rule under both profiles; the capable profile ranks by strength;
+  * taking Together out of the ranked lists.

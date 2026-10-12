@@ -342,6 +342,30 @@ is neither ranked nor filled. It stays in `Usable`.
    command again, the measurement of any new addition (its count to the
    owner first), the owner's review, and the snapshot.
 
+### Phase 7b: 0009-MADR §3 item 11 *(amended 2026-10-12, Phase 7's second deviation)*
+
+0009-MADR's amendment "no small dense model in the utility six (§3 item
+11)": under `ProfileUtility`, an id that names a dense model of 14B or less
+is neither ranked nor filled, on every ranked provider.
+
+1. **Red first** (`llmprovider/catalog`), `TestRankRecommended_SmallDenseUtility`,
+   pure ranking over fixed candidates:
+   * `x/model-9b` and `x/model-14B` are left out of the utility six, ranked
+     or filled;
+   * `x/model-15b`, `x/moe-30b-a3b` and `x/model-flash` stay eligible;
+   * under `ProfileCapable`, `x/model-9b` is ranked.
+2. **Change:** `utilityExcluded` gains item 11, through one predicate,
+   `smallDense(id)`, with its pattern in production code. The criteria test
+   keeps its own pattern, so the rule and its check do not share code.
+3. **Plants:**
+   * the threshold as `< 14`: `x/model-14B` stays;
+   * the mixture-of-experts exemption dropped: `x/moe-30b-a3b` is left out;
+   * item 11 under `ProfileCapable` too;
+   * item 11 in the ranking only, not the fill.
+4. **The 2026-09-26 golden** is unchanged: no small dense model was in its
+   sixes.
+5. Gate; stage. The owner commits. Phase 7 then resumes at step 1.
+
 ### Phase 8: the lists, and the golden *(amended 2026-10-12)*
 
 1. **Red first** (`llmprovider/catalog`):
@@ -1159,3 +1183,24 @@ it must: it guards that item 10 leaves the fallback alone.
 golangci-lint, go vet, go test, govulncheck).
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.7.
+
+Committed by the owner as `09b3798`.
+
+**Step 1 again, after Phase 7a** (listings and models.dev; not billed): 16 proposals. Item 10
+held: Together's six named no id models.dev does not list. Together's diff
+is now:
+
+* add `zai-org/GLM-5.3-Flash` (1), `deepseek-ai/DeepSeek-V4-Flash-0731` (2),
+  `Qwen/Qwen3.5-9B` (4) and `MiniMaxAI/MiniMax-M2.7` (6);
+* remove `zai-org/GLM-5.3`, `moonshotai/Kimi-K3`, `Qwen/Qwen3.6-Plus` and
+  `openai/gpt-oss-120b`.
+
+The other lists' diffs are unchanged.
+
+**Deviation 3 (2026-10-12): a small dense model in the utility six.**
+`Qwen/Qwen3.5-9B` is a 9B dense model. 0009-MADR's Confirmation says the
+utility six never holds a dense model of 14B or less, and Phase 8's criteria
+test would fail on it. But no §3 item enforced it. The owner chose §3 item
+11, under the utility profile only: 0009-MADR's amendment "no small dense
+model in the utility six (§3 item 11)". Phase 7b builds it, and step 1 is
+then run again.
