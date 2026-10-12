@@ -43,6 +43,17 @@ type config struct {
 	session          string
 	metadataOff      bool         // WithoutModelMetadata
 	logger           *slog.Logger // Settings.Logger
+	layers           []Layer      // WithModelLayer's, in the order given
+	// sink, when set, receives what a listing says of each model it lists
+	// (0033-MADR D2).
+	sink func(ModelInfo)
+}
+
+// emit hands one listed model's metadata to the sink, if there is one.
+func (c config) emit(info ModelInfo) {
+	if c.sink != nil {
+		c.sink(info)
+	}
 }
 
 // profileOption is WithProfile's value; kiloOrganizationOption is
@@ -50,6 +61,8 @@ type config struct {
 type (
 	profileOption          Profile
 	kiloOrganizationOption string
+	// modelLayerOption is WithModelLayer's value.
+	modelLayerOption struct{ layer Layer }
 )
 
 // builtinIDs are the ids WithProfile is scoped to: every built-in provider,
@@ -105,6 +118,8 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 			cfg.ModelProfile = Profile(v)
 		case kiloOrganizationOption:
 			cfg.KiloOrganization = string(v)
+		case modelLayerOption:
+			cfg.layers = append(cfg.layers, v.layer)
 		}
 	}
 	return cfg, nil

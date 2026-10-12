@@ -290,7 +290,15 @@ func LookupMetadataWith(ctx context.Context, id llmprovider.ProviderID, opts ...
 // option that is refused, reports false (0028-MADR D-A1).
 func CachedMetadataWith(ctx context.Context, id llmprovider.ProviderID, opts ...llmprovider.Option) (Metadata, bool) {
 	cfg, err := configFor(id, opts)
-	if err != nil || cfg.metadataOff {
+	if err != nil {
+		return Metadata{}, false
+	}
+	return cachedMetadata(ctx, cfg)
+}
+
+// cachedMetadata is CachedMetadataWith's answer for a resolved configuration.
+func cachedMetadata(ctx context.Context, cfg config) (Metadata, bool) {
+	if cfg.metadataOff {
 		return Metadata{}, false
 	}
 	url := modelMetadataURL(cfg)

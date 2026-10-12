@@ -616,3 +616,97 @@ are the types, constants, functions and methods of amended D1 and D3 that
 this phase builds.
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load average of 5.1.
+
+### Phase 3: the listings, the cache and the resolver (2026-10-12)
+
+**Change:**
+
+* **`catalog/discovery.go`:**
+  * the listing page structs gain amended D2's fields: Gemini's, Claude's,
+    the OpenAI-shaped `dataModel` (OpenAI and xAI), Together's and Kilo's;
+  * each fetcher hands every entry it decodes to an optional sink, so the
+    same replies are decoded further, with no request added;
+  * `List` is split into `listAndRecord` (the listing, with a refused
+    credential renewed once) and `listOnce`, which records a successful
+    listing's metadata in the listing cache. `List` and `LookupModel` share
+    them.
+* **`catalog/listing_metadata.go`** (new):
+  * each listing's fields as a `ModelInfo`, sourced `listing:<provider>`;
+  * xAI's prices are multiplied by 10⁻⁴, from cents per 100 million, and
+    its `long_context_threshold` *t* becomes the tier `Above` *t* − 1;
+  * Kilo's per-token strings are multiplied by 10⁶, and `-1` or anything
+    unparseable is left unset;
+  * Ollama's `POST /api/show` is read for one model.
+
+  Anthropic's `lifecycle` and `retires_at` are not read.
+* **`catalog/listing_cache.go`** (new):
+  * a cache of 10 minutes, keyed by provider, base URL and
+    `transport.Fingerprint` of the credential;
+  * one background fetch per key, detached and bounded as a listing is,
+    whose failure goes only to the caller's logger (R31).
+* **`catalog/lookup.go`** (new):
+  * `Layer`, `WithModelLayer` (scoped to `builtinIDs`), `LookupModel` and
+    `CachedModel`;
+  * the merge, by `Field`: models.dev, then the listing, then each caller
+    layer in order, with slices copied.
+* **`catalog/config.go`:** the layers, and the listing sink.
+* **`catalog/model_metadata.go`:** `CachedMetadataWith`'s body becomes
+  `cachedMetadata`, which `CachedModel` shares.
+* **`docs/architecture.md`:** the catalog row lists `Layer`, `LookupModel`,
+  `CachedModel` and `WithModelLayer` (R43).
+
+**Two facts measured before the tests were written** (unbilled):
+
+* OpenAI's non-null `shutdown_date` is `YYYY-MM-DD` (54 of 54).
+* Kilo's non-null `expiration_date` is `YYYY-MM-DD` (16 of 16), and its
+  `top_provider.max_completion_tokens` is an integer (382) or `null` (8).
+
+**Red first:**
+
+```text
+llmprovider/catalog/lookup_0033_test.go:100:2: undefined: resetListingCache
+llmprovider/catalog/lookup_0033_test.go:198:9: undefined: LookupModel
+llmprovider/catalog/lookup_0033_test.go:296:42: undefined: WithModelLayer
+```
+
+Two of the test's own names first collided with other test files
+(`kiloListing`, `countingTransport`). They were renamed with a `0033`
+suffix before the test ran.
+
+**Tests:**
+
+* `catalog/lookup_0033_test.go`: the step's eleven tests but the last.
+* `catalog/lookup_scope_0033_test.go` (`package catalog_test`):
+  `TestWithModelLayer_Scoped_0033`.
+  * It needs `providers.New`, which imports `catalog`, so it is an
+    external test.
+  * It checks the refusal with `ResolveOptions` on an id outside
+    `builtinIDs`, which is what `New` calls.
+
+**Green:**
+
+* `go test -race -count=1 ./...` passes.
+* No golden file changed (step 3).
+* `golangci-lint` first reported `errcheck` on the background fetch's
+  discarded error. The error is now logged to the caller's logger, as R31
+  allows, and lint reported 0 issues.
+
+**Plants,** through `tools/plant.py`, on `./llmprovider/catalog/` with `-run
+_0033$`:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| models.dev wins over a listing | `field 4: source "models.dev", want listing:claude`, and the same for Gemini and xAI |
+| caller layers in the wrong order | `ContextWindow 1 from "first", want 2 from the later layer` |
+| xAI's unit not converted | `xAI: <nil>, cost {ModelRates:{Input:20000 Output:60000 CacheRead:5000 …` |
+| a `-1` price kept | `Kilo: <nil>, Input 2, Output -1e+06 from "listing:kilo"; want 2.0, and the -1 output left to models.dev's 0.6` |
+| `CachedModel` waits | `cold: ok false after 10.001600625s; want false within 50 ms` |
+| the cache ignores the credential | `another credential: 1 listing requests, want 2`; `after ten minutes: 2 listing requests, want 3` |
+| tiers merged element by element | `tiers [{Above:199999 …} {Above:100 …}], want the caller's list whole` |
+| Anthropic's lifecycle sets `Status` | `Status "deprecated" from "listing:claude", …; want active from models.dev, no Retires` |
+
+**API:** `tools/apidiff.py v1.8.0` lists 50 additions and nothing else:
+Phase 2's 46, and `Layer`, `LookupModel`, `CachedModel` and
+`WithModelLayer`.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load average of 6.7.

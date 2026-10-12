@@ -103,10 +103,18 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 		return Catalog{}, err
 	}
 
+	cat, _, err := listAndRecord(ctx, id, src, cfg)
+	return cat, err
+}
+
+// listAndRecord is List's listing, after its id and options are checked: it
+// lists, renews a refused credential once, and returns what the listing said
+// of each model besides the catalog (0033-MADR D2).
+func listAndRecord(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, cfg config) (Catalog, map[string]ModelInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, modelListingTimeout)
 	defer cancel()
 	if src == nil {
-		return Catalog{}, errors.New("model listing: TokenSource is required")
+		return Catalog{}, nil, errors.New("model listing: TokenSource is required")
 	}
 	// A session with no client refreshes through the listing's, so a
 	// refresh the listing causes keeps the caller's transport (0026-MADR
@@ -117,15 +125,15 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 	}
 	token, err := src.Token(ctx)
 	if err != nil {
-		return Catalog{}, fmt.Errorf("model listing: acquire token: %w", err)
+		return Catalog{}, nil, fmt.Errorf("model listing: acquire token: %w", err)
 	}
-	cat, err := modelCatalogFor(ctx, id, token, cfg)
+	cat, models, err := listOnce(ctx, id, token, cfg)
 	// A refused credential is renewed once, as Generate renews it
 	// (0026-MADR F36): a listing that still fails keeps the degrade-to-static
 	// contract.
 	source, ok := src.(llmprovider.InvalidatingSource)
 	if !ok || !credentialRefused(cmp.Or(err, cat.Err)) {
-		return cat, err
+		return cat, models, err
 	}
 	if invalidator, ok := src.(llmprovider.TokenInvalidator); ok {
 		invalidator.InvalidateToken(token)
@@ -133,9 +141,21 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 		source.Invalidate()
 	}
 	if token, err = src.Token(ctx); err != nil {
-		return Catalog{}, fmt.Errorf("model listing: acquire token: %w", err)
+		return Catalog{}, nil, fmt.Errorf("model listing: acquire token: %w", err)
 	}
-	return modelCatalogFor(ctx, id, token, cfg)
+	return listOnce(ctx, id, token, cfg)
+}
+
+// listOnce lists with token, collects what the listing says of each model,
+// and, when the listing succeeded, records it in the listing cache.
+func listOnce(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (Catalog, map[string]ModelInfo, error) {
+	models := map[string]ModelInfo{}
+	cfg.sink = func(info ModelInfo) { models[info.ID] = info }
+	cat, err := modelCatalogFor(ctx, id, token, cfg)
+	if err == nil && cat.Err == nil && cat.Live && len(models) > 0 {
+		storeListing(listingKeyFor(id, cfg, token), models, false)
+	}
+	return cat, models, err
 }
 
 // defaultClientUser is a source that refreshes through a client it is given,
@@ -253,11 +273,18 @@ func unlistedProvider(id llmprovider.ProviderID) error {
 
 // geminiModelsPage is one page of Gemini's GET {base}/models.
 type geminiModelsPage struct {
-	Models []struct {
-		Name                       string   `json:"name"`
-		SupportedGenerationMethods []string `json:"supportedGenerationMethods"`
-	} `json:"models"`
-	NextPageToken string `json:"nextPageToken"`
+	Models        []geminiModel `json:"models"`
+	NextPageToken string        `json:"nextPageToken"`
+}
+
+// geminiModel is one entry of Gemini's listing: its id and methods, and the
+// limits and thinking flag 0033-MADR D2 reads.
+type geminiModel struct {
+	Name                       string   `json:"name"`
+	SupportedGenerationMethods []string `json:"supportedGenerationMethods"`
+	InputTokenLimit            *int     `json:"inputTokenLimit"`
+	OutputTokenLimit           *int     `json:"outputTokenLimit"`
+	Thinking                   *bool    `json:"thinking"`
 }
 
 // fetchGeminiUsable returns the usable Gemini text models in listing order,
@@ -283,6 +310,7 @@ func fetchGeminiUsable(ctx context.Context, token llmprovider.Token, cfg config)
 		}
 		for _, m := range result.Models {
 			id := strings.TrimPrefix(m.Name, "models/")
+			cfg.emit(geminiInfo(id, m))
 			if isUsableGeminiTextModel(id, m.SupportedGenerationMethods) {
 				available = append(available, id)
 			}
@@ -345,11 +373,19 @@ func curateOpenAI(usable []string) []string {
 
 // claudeModelsPage is one page of Anthropic's GET /v1/models.
 type claudeModelsPage struct {
-	Data []struct {
-		ID string `json:"id"`
-	} `json:"data"`
-	HasMore bool   `json:"has_more"`
-	LastID  string `json:"last_id"`
+	Data    []claudeModel `json:"data"`
+	HasMore bool          `json:"has_more"`
+	LastID  string        `json:"last_id"`
+}
+
+// claudeModel is one entry of Anthropic's listing: its id, and the limits and
+// capabilities 0033-MADR D2 reads. Its lifecycle is not read: it lags the
+// deprecations page (0033-MADR, "sources that lag").
+type claudeModel struct {
+	ID             string              `json:"id"`
+	MaxInputTokens *int                `json:"max_input_tokens"`
+	MaxTokens      *int                `json:"max_tokens"`
+	Capabilities   *claudeCapabilities `json:"capabilities"`
 }
 
 // fetchClaudeUsable returns the usable Claude text models in listing order,
@@ -373,6 +409,7 @@ func fetchClaudeUsable(ctx context.Context, token llmprovider.Token, cfg config)
 			return nil, err
 		}
 		for _, m := range result.Data {
+			cfg.emit(claudeInfo(m))
 			if isUsableClaudeTextModel(m.ID) {
 				available = append(available, m.ID)
 			}
@@ -564,9 +601,7 @@ func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg confi
 	}
 
 	var result struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
+		Data []dataModel `json:"data"`
 	}
 	if err := decodeLimited(resp.Body, &result, string(provider)+": models"); err != nil {
 		return nil, err
@@ -574,6 +609,9 @@ func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg confi
 	ids := make([]string, 0, len(result.Data))
 	for _, m := range result.Data {
 		ids = append(ids, m.ID)
+		if info, ok := dataModelInfo(provider, m); ok {
+			cfg.emit(info)
+		}
 	}
 	return ids, nil
 }
@@ -767,15 +805,15 @@ func fetchTogetherUsable(ctx context.Context, token llmprovider.Token, cfg confi
 		return nil, llmprovider.ClassifyHTTPError(string(llmprovider.ProviderTogether), resp)
 	}
 
-	var models []struct {
-		ID   string `json:"id"`
-		Type string `json:"type"`
-	}
+	var models []togetherModel
 	if err := decodeLimited(resp.Body, &models, "together: models"); err != nil {
 		return nil, err
 	}
 	usable := make([]string, 0, len(models))
 	for _, m := range models {
+		if m.ID != "" {
+			cfg.emit(togetherInfo(m))
+		}
 		if m.Type == "chat" && m.ID != "" {
 			usable = append(usable, m.ID)
 		}
@@ -806,9 +844,15 @@ type kiloCatalogEntry struct {
 		OutputModalities []string `json:"output_modalities"`
 	} `json:"architecture"`
 	Pricing struct {
-		Prompt     string `json:"prompt"`
-		Completion string `json:"completion"`
+		Prompt            string `json:"prompt"`
+		Completion        string `json:"completion"`
+		InputCacheRead    string `json:"input_cache_read"`
+		InputCacheWrite   string `json:"input_cache_write"`
+		InternalReasoning string `json:"internal_reasoning"`
 	} `json:"pricing"`
+	TopProvider struct {
+		MaxCompletionTokens *int `json:"max_completion_tokens"`
+	} `json:"top_provider"`
 	ContextLength         int                `json:"context_length"`
 	ExpirationDate        string             `json:"expiration_date"`
 	PreferredIndex        *int               `json:"preferredIndex"`
@@ -862,6 +906,9 @@ func fetchKiloCatalog(ctx context.Context, token llmprovider.Token, cfg config) 
 	}
 	if err := decodeLimited(resp.Body, &result, "kilo: models"); err != nil {
 		return nil, err
+	}
+	for _, e := range result.Data {
+		cfg.emit(kiloInfo(e))
 	}
 	return result.Data, nil
 }
