@@ -57,13 +57,13 @@ Read from each vendor's documentation on 2026-10-12, unless marked otherwise.
 | OpenAI Responses | `input_tokens_details.cache_write_tokens` | yes: the guide's own example computes `inputTokens - cachedTokens - cacheWriteTokens` | GPT-5.6 and later: 1.25×, "not an additive fee"; earlier: "No additional cache-write charge" | Responses (OpenAI, ChatGPT, Grok, Zen's OpenAI route) |
 | OpenAI Chat Completions | `prompt_tokens_details.cache_write_tokens` (openai-go `CompletionUsage`) | yes | as above | Chat Completions |
 | OpenRouter, and gateways compatible with it | `prompt_tokens_details.cache_write_tokens`, "only returned for models with explicit caching and cache write pricing" | not stated; pi and the OpenRouter AI SDK provider treat reads and writes as separate parts of `prompt_tokens` | the upstream's | Chat Completions (Kilo) |
-| Kilo Gateway | `cache_write_tokens` is listed as tracked; the API reference shows only the three totals | not documented | the upstream's | Chat Completions |
+| Kilo Gateway | `cache_write_tokens` is listed as tracked; the API reference shows only the three totals. *(Measured 2026-10-12: a top-level `usage.cache_creation_input_tokens`; see the amendment.)* | not documented. *(Measured: inside `prompt_tokens`.)* | the upstream's | Chat Completions |
 | Gemini `generateContent` | none; `cachedContentTokenCount` is reads | `promptTokenCount` includes cached content | an explicit cache is billed as storage per hour, not per request | generateContent (Gemini; Zen's Google route) |
 | Gemini Interactions | none; `total_cached_tokens` is reads | not documented | explicit caching is not supported there | Interactions |
 | xAI | none; `cached_tokens` is reads | yes, by its examples | not documented | Responses (Grok) |
 | Together AI | none | not documented | "No charge for writing to the cache" | Chat Completions |
 | DeepSeek, Hugging Face router, Ollama | none | — | — | Chat Completions |
-| OpenCode Zen | not documented: its docs page answered 404 on 2026-10-12 | — | — | all four wires |
+| OpenCode Zen | not documented: its docs page answered 404 on 2026-10-12. *(Measured 2026-10-12, 0036-PLAN Phase 1: each route passes its upstream's usage through. Messages sends Anthropic's fields, Responses OpenAI's `cache_write_tokens`.)* | as the upstream | — | all four wires |
 
 Sources: `platform.claude.com/docs/en/build-with-claude/prompt-caching`
 and `…/streaming`; `developers.openai.com/api/docs/guides/prompt-caching`;
@@ -200,7 +200,7 @@ type Usage struct {
 | :--- | :--- | :--- |
 | Messages | `cache_creation_input_tokens`; and `CacheWrite1hTokens` from `cache_creation.ephemeral_1h_input_tokens` | unchanged: `input_tokens` + reads + writes |
 | Responses | `input_tokens_details.cache_write_tokens` | unchanged: `input_tokens` |
-| Chat Completions | `prompt_tokens_details.cache_write_tokens` | unchanged: `prompt_tokens` |
+| Chat Completions | `prompt_tokens_details.cache_write_tokens`; *(amended 2026-10-12)* else a top-level `cache_creation_input_tokens` | unchanged: `prompt_tokens` |
 | generateContent | 0: the service reports no write | unchanged |
 | Interactions | 0: the service reports no write | unchanged |
 
@@ -216,8 +216,10 @@ type Usage struct {
 * **The value is reported as given.** A decoder does not clamp it. A
   gateway whose `prompt_tokens` left writes out would break the invariant.
   The PLAN measures the gateways, and a breach found there is a deviation.
-* **No other spelling is read.** Each service that reports writes uses one
-  of the spellings above.
+* ~~**No other spelling is read.** Each service that reports writes uses one
+  of the spellings above.~~ *(Amended 2026-10-12: Kilo uses a second
+  spelling on Chat Completions, which is read after the first. See the
+  amendment.)*
 
 ### D3. The rule and its check
 
@@ -326,6 +328,53 @@ type Usage struct {
 * Good, because it costs nothing.
 * Bad, because a caller cannot reach the raw usage, so nobody can price a
   write. The Messages wire keeps discarding a number it has.
+
+## Amendment 2026-10-12: a second write spelling on Chat Completions
+
+Status: **accepted** 2026-10-12. The owner's decision, asked during
+0036-PLAN-cache-write-token-count.md Phase 1, before any decoder changed.
+
+### Fact found
+
+Phase 1's measurement sent the same long prompt twice to Kilo's
+`openai/gpt-6-luna`, on the Chat Completions wire. Kilo reported the write
+under Anthropic's name, at the top level of `usage`:
+
+```text
+request 1: "prompt_tokens":8730, "prompt_tokens_details":{"cached_tokens":0,…}, "cache_creation_input_tokens":8727
+request 2: "prompt_tokens":8730, "prompt_tokens_details":{"cached_tokens":8727,…}, "cache_creation_input_tokens":0
+```
+
+* `prompt_tokens_details` had no `cache_write_tokens` field.
+* The write is inside `prompt_tokens`. Request 2 read the 8,727 tokens that
+  request 1 wrote, of the same 8,730.
+* Kilo's `anthropic/claude-haiku-5.5` was cached the same way, though the
+  SDK sent no `cache_control`: 14,132 of 14,136 prompt tokens written on
+  request 1, and read on request 2, under the same top-level spelling. So
+  Kilo caches Claude on its own, and a caller there sees writes now. Kilo
+  sends no lifetime split.
+* On 2026-10-02, Kilo's `kilo-auto/free` sent
+  `prompt_tokens_details.cache_write_tokens`
+  (0015-PLAN-canonical-sdk-api-and-module-layout.md, Phase S9). So the
+  spelling varies with the upstream.
+
+D2 read only `prompt_tokens_details.cache_write_tokens`, so Kilo's writes
+would have decoded as zero.
+
+### Decided
+
+The owner chose "read both spellings":
+
+* **Chat Completions reads `prompt_tokens_details.cache_write_tokens`
+  first, then a top-level `cache_creation_input_tokens`.** That is the
+  order its cache read already follows: the documented field first, then
+  the gateways' own spellings.
+* **The write is inside `prompt_tokens`,** as measured, so `InputTokens` is
+  unchanged.
+* **Not chosen:**
+  * a Kilo-only spelling, since another gateway of the same kind could send
+    it;
+  * leaving it unread, which would drop a billed count the service sends.
 
 ## More Information
 

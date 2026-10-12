@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-12
 associated-madr: "0036-MADR-cache-write-token-count.md"
 decision-makers: repository owner
@@ -231,6 +231,8 @@ read, before they read it.
    | `responses.TestDecode_Usage`, a new row | `input_tokens` 120, `input_tokens_details` `{cached_tokens: 100, cache_write_tokens: 5}` | `CachedTokens: 100, CacheWriteTokens: 5` |
    | `responses.TestReadStream_Usage`, extended | `response.completed`'s usage with `cache_write_tokens` 1 | `CacheWriteTokens: 1` |
    | `chatcompletions.TestDecode_Usage`, a new row | `prompt_tokens_details` `{cached_tokens: 100, cache_write_tokens: 5}` | `CachedTokens: 100, CacheWriteTokens: 5` |
+   | `chatcompletions.TestDecode_Usage`, Kilo's row *(deviation, 2026-10-12)* | `prompt_tokens` 120, `prompt_tokens_details` `{cached_tokens: 100}`, a top-level `cache_creation_input_tokens` 5 | `CachedTokens: 100, CacheWriteTokens: 5` |
+   | `chatcompletions.TestDecode_Usage`, both spellings *(deviation)* | `cache_write_tokens` 5 in the details and a top-level `cache_creation_input_tokens` 7 | `CacheWriteTokens: 5`: the details first |
    | `chatcompletions.TestEvents_Usage` (new) | a stream whose last chunk carries the usage above, as `stream_options.include_usage` asks | the `EventDone` `Response`'s `Usage` |
    | `generatecontent.TestDecode_Usage` and `gemini.TestDecodeInteraction_Usage` | unchanged bodies | unchanged: they compare the whole struct, so both new fields must stay zero |
 
@@ -284,6 +286,10 @@ read, before they read it.
      rather than replacing them;
    * Responses reading `cache_write_tokens` from `output_tokens_details`;
    * Chat Completions reading a top-level `cache_write_tokens`;
+   * *(deviation)* Chat Completions ignoring the top-level
+     `cache_creation_input_tokens`;
+   * *(deviation)* Chat Completions preferring the top-level spelling to the
+     details;
    * `usageFor` giving Gemini's paths the write counts;
    * `InputTokens` on Messages leaving the writes out, which would break
      R7: both the Messages test and `wirecase` must fail.
@@ -358,4 +364,118 @@ read, before they read it.
 
 ## Execution Record
 
-Nothing has run yet.
+### Phase 0: records (2026-10-12)
+
+0036-MADR was accepted and this PLAN written. The owner committed both
+(`01edcae`), then directed "committed, proceed".
+
+### Phase 1: measure what each service sends (2026-10-12)
+
+**Deviation (2026-10-12): Kilo's write spelling.** The first run found Kilo
+reporting the write as a top-level `usage.cache_creation_input_tokens`,
+inside `prompt_tokens`, not as `prompt_tokens_details.cache_write_tokens`.
+
+* **The owner chose "read both spellings".** It is recorded in 0036-MADR's
+  amendment of the same date.
+* **Added to Phase 3:** two `chatcompletions.TestDecode_Usage` rows and two
+  plants.
+* **The measurement's parser** reads both spellings on Chat Completions, so
+  Phase 4 compares like with like.
+
+**Unmeasured on the first run, and rerun by the owner's decision:**
+
+* **T5:** the candidate ids were wrong. Kilo lists
+  `anthropic/claude-haiku-5.5` and `anthropic/claude-sonnet-5.5`, with
+  dots. They are corrected.
+* **T6 to T8:** OpenCode Zen answered `HTTP 402 … Insufficient account
+  funds` on all three routes. The owner funds the account, and T5 to T8 are
+  rerun: 8 billed requests.
+* **The test** passed those targets silently, since they had no usage to
+  check. A reply with no usage and a quota or rate-limit error now skips
+  the target, with its error. Any other error without usage fails it.
+
+**The test** (`llmprovider/live_0036_cache_write_measure_test.go`):
+
+* `TestLive_0036CacheWrites`, switched on by `LLMPROVIDER_LIVE_0036`, as
+  step 1 gives it. The prompt is 300 numbered lines in `Instructions`.
+* `TestCacheWriteChecks_0036` runs the checks on 11 canned bodies, with no
+  key and no network.
+
+**Red first:**
+
+* `undefined: parseUsage0036`, before the helpers;
+* then, with `problems` returning nothing, four bad bodies passed:
+  `problems "", want one containing "above the input"` (Responses and Chat
+  Completions), `"cache_creation sums"` and `"negative"`;
+* after the deviation, Kilo's over-total body passed before the parser read
+  its spelling: `problems "", want one containing "above the input"`.
+
+**Green:** 11 of 11. `go vet -tags live_gateways ./llmprovider/` is clean.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the sum check dropped | `problems "", want one containing "above the input"`, twice |
+| the `cache_creation` check dropped | `problems "", want one containing "cache_creation sums"` |
+| the negative check without the write | `problems "", want one containing "negative"` |
+| Chat Completions reading the write from a field that is not there | `problems "", want one containing "above the input"` |
+| Chat Completions ignoring Kilo's top-level write | `problems "", want one containing "above the input"` |
+| Chat Completions preferring the top level to the details | `problems "read 90 and write 20 sum above the input 100", want none` |
+
+**The measurement.** The owner approved 16 billed requests, and then 8 for
+the rerun of T5 to T8. Every key variable was set, checked for presence
+only. Each line below is the raw usage the service sent, with fields that
+do not bear on the cache left out:
+
+| # | Model | Request 1 | Request 2 |
+| :--- | :--- | :--- | :--- |
+| T1 openai, Responses | `gpt-6-luna` | `input_tokens` 8730, `input_tokens_details` `{cache_write_tokens: 8727, cached_tokens: 0}` | 8730, `{cache_write_tokens: 0, cached_tokens: 8727}` |
+| T2 claude, Messages | `claude-haiku-5-5` | `input_tokens` 14136, `cache_creation_input_tokens` 0, `cache_read_input_tokens` 0, `cache_creation` `{ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0}` | the same |
+| T3 grok, Responses | `grok-4.6` | `input_tokens` 9359, `input_tokens_details` `{cached_tokens: 512}`: no write field | 9359, `{cached_tokens: 9344}` |
+| T4 kilo, Chat Completions | `openai/gpt-6-luna` | `prompt_tokens` 8730, `prompt_tokens_details` `{cached_tokens: 0}`, top-level `cache_creation_input_tokens` 8727 | 8730, `{cached_tokens: 8727}`, 0 |
+| T5 kilo, Chat Completions | `anthropic/claude-haiku-5.5` | `prompt_tokens` 14136, `prompt_tokens_details` `{cached_tokens: 0}`, top-level `cache_creation_input_tokens` 14132 | 14136, `{cached_tokens: 14132}`, 0 |
+| T6 opencode-zen, Messages | `claude-haiku-5-5` | `input_tokens` 14136, `cache_creation_input_tokens` 0, `cache_read_input_tokens` 0, `cache_creation` `{ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0}` | the same |
+| T7 opencode-zen, Responses | `gpt-6-luna` | `input_tokens` 8730, `input_tokens_details` `{cached_tokens: 0, cache_write_tokens: 8727}` | 8730, `{cached_tokens: 8727, cache_write_tokens: 0}` |
+| T8 opencode-zen, Chat Completions | `deepseek-v4.1-flash` | `prompt_tokens` 9051, top-level `cache_read_input_tokens` 0, no `prompt_tokens_details`: no write field | 9051, `cache_read_input_tokens` 8960, `prompt_tokens_details` `{cached_tokens: 8960}` |
+
+What it shows:
+
+* **OpenAI** writes on its own, and reports it as D2 reads it, inside
+  `input_tokens`.
+* **Claude, called directly,** writes nothing without `cache_control`, as
+  0036-MADR states. Its `cache_creation` object is sent even at zero.
+* **xAI** caches, and sends no write field, as its documentation says.
+* **Kilo** caches both models on its own, Claude included, and spells the
+  write as Anthropic does, at the top level and inside `prompt_tokens`. It
+  sends no lifetime split, so `CacheWrite1hTokens` stays zero there.
+* **OpenCode Zen** passes each upstream's usage through:
+  * its Messages route sends Anthropic's fields, `cache_creation`
+    included, and writes nothing without `cache_control`, as Claude does
+    when called directly;
+  * its Responses route sends `cache_write_tokens` as OpenAI does;
+  * its Chat Completions route, for DeepSeek, sends no write field.
+* The checks found no problem in any body.
+
+The rerun of T5 to T8, after the account was funded, used 8 billed
+requests. Phase 1 used 24 in all: 16, then 2 for T5, then 6 for T6 to T8.
+The 6 Zen requests of the first run were refused with HTTP 402.
+
+**Found, outside this PLAN:**
+
+* T2's and T6's Messages usage carries
+  `output_tokens_details.thinking_tokens`. 0015-MADR's amendment "what
+  `Usage` counts" says Anthropic reports no reasoning count. That fact
+  needs its own record.
+* T8's Zen Chat Completions route spells a cache read at the top level,
+  `cache_read_input_tokens`. On request 1 it was the only cache field (0).
+  On request 2 it came with `prompt_tokens_details.cached_tokens`, which
+  the decoder reads. A read reported under the top-level spelling alone
+  would decode as zero. That is a read, outside this record's scope, and
+  needs its own record.
+
+**Checks:** `make pre-add-check` on the test file, clean (gofmt, golangci-lint, go vet,
+go test, govulncheck); `make records-check`, `tools/linkcheck.py` and
+`tools/denyscan.py --changed`, clean.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.5.
