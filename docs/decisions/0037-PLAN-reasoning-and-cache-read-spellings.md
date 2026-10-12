@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-12
 associated-madr: "0037-MADR-reasoning-and-cache-read-spellings.md"
 decision-makers: repository owner
@@ -238,4 +238,13 @@ As 0037-MADR D4 decides:
 
 ## Execution Record
 
-Nothing has run yet.
+### Phase 0: records (2026-10-12)
+
+* 0037-MADR was accepted, and this PLAN written; the owner committed both
+  (`41a18fe`), then directed "committed, proceed".
+* **0015-MADR's amendment "what `Usage` counts"** gains a dated note after
+  its "Fact found" list. The statement it supersedes is in 0015-PLAN's
+  Phase S9, "Anthropic reports no reasoning count", and the note says so.
+  The amendment's own text is unchanged.
+* `make records-check`, `tools/linkcheck.py` and `tools/denyscan.py
+  --changed`: clean.

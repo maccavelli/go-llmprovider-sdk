@@ -89,7 +89,7 @@ documents a reader follows to do something.
 | 0036 | MADR | [Report Cache-Write Tokens in `Usage`, as a Part of the Input Count](decisions/0036-MADR-cache-write-token-count.md) | accepted |
 | 0036 | PLAN | [Implement the Cache-Write Counts in `Usage`](decisions/0036-PLAN-cache-write-token-count.md) | complete |
 | 0037 | MADR | [Read Anthropic's Reasoning Count, and a Fourth Cache-Read Spelling on Chat Completions](decisions/0037-MADR-reasoning-and-cache-read-spellings.md) | accepted |
-| 0037 | PLAN | [Implement Anthropic's Reasoning Count and the Fourth Cache-Read Spelling](decisions/0037-PLAN-reasoning-and-cache-read-spellings.md) | proposed |
+| 0037 | PLAN | [Implement Anthropic's Reasoning Count and the Fourth Cache-Read Spelling](decisions/0037-PLAN-reasoning-and-cache-read-spellings.md) | in-progress |
 
 ## I want to…
 

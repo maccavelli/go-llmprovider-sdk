@@ -987,6 +987,15 @@ count differently:
   that includes reasoning (`pi: packages/ai/src/api/openai-completions.ts`,
   `google-generative-ai.ts`, `anthropic-messages.ts`).
 
+*(Note, 2026-10-12: 0015-PLAN's Phase S9 decoded Messages with no reasoning
+count, "Anthropic reports no reasoning count", and a test asserted it.
+Anthropic's extended-thinking guide, read 2026-10-12, documents
+`usage.output_tokens_details.thinking_tokens` as the part of the billed
+output that was reasoning, sent on a stream's last `message_delta`.
+0037-MADR-reasoning-and-cache-read-spellings.md D1 supersedes that
+statement: the Messages decoder reads it as `ReasoningTokens`. The rule
+above, that a total holds its parts, is unchanged.)*
+
 S9 also has to measure whether Kilo reports usage without the
 `usage: {include: true}` its own client sends (0017-REPORT K2).
 
