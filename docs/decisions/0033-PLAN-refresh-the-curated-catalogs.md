@@ -1305,3 +1305,53 @@ owner chose a list in the manner of §3 item 8: 0009-MADR's amendment
 item 10's premise. Phase 7c builds it.
 
 Phase 7 used 11 billed requests so far.
+
+The records of Deviation 4 and item 12 were committed by the owner as
+`769e2b9`.
+
+### Phase 7c: 0009-MADR §3 item 12 (2026-10-12)
+
+**Change** (`llmprovider/catalog/model_ranking.go`):
+
+* `togetherUnserved`, beside `opencodeGoRegionGated`, holds
+  `MiniMaxAI/MiniMax-M2.7`, with its date and error.
+* `excludedAtRequest` leaves its ids out on Together. It already holds for
+  the ranking, the fill and Go's fallback curation.
+
+**Test** (`llmprovider/catalog/together_item12_test.go`),
+`TestTogetherMeasuredUnserved`:
+
+* a Together listing and document covering `MiniMaxAI/MiniMax-M2.7`, priced
+  cheapest so that only item 12 can keep it out, and two other models;
+* under both profiles, the six does not hold it, and `Usable` does;
+* the same id, on Hugging Face, is ranked.
+
+**Red first:** `profile 0: Recommended [MiniMaxAI/MiniMax-M2.7 t/covered-a
+t/covered-b] holds MiniMaxAI/MiniMax-M2.7, which Together does not serve`,
+and the same under profile 1.
+
+**Green:** `go test ./llmprovider/catalog/`, every test.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the list applied on every provider | `huggingface: [x/other], want MiniMaxAI/MiniMax-M2.7 ranked; item 12 is Together's alone` |
+| `excludedAtRequest` without the Together list | `profile 0: Recommended [MiniMaxAI/MiniMax-M2.7 t/covered-a t/covered-b] holds MiniMaxAI/MiniMax-M2.7`, and the same under profile 1 |
+
+**The command, after item 12** (not billed): 12 proposals. Together's diff
+is now:
+
+* add `zai-org/GLM-5.3-Flash` (1) and `deepseek-ai/DeepSeek-V4-Flash-0731`
+  (2), both measured at HTTP 200;
+* remove `zai-org/GLM-5.3` and `moonshotai/Kimi-K3`.
+
+`MiniMaxAI/MiniMax-M3`, `Qwen/Qwen3.6-Plus` and `openai/gpt-oss-120b` stay.
+No new id needs measuring. The measurement test's Together list became these
+two, and its count 6.
+
+**Checks:** `make pre-add-check` on the two catalog files and the
+measurement test, clean (gofmt, golangci-lint, go vet, go test,
+govulncheck).
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.9.

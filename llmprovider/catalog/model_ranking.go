@@ -47,6 +47,13 @@ var (
 	opencodeGoRegionGated = []string{
 		opencodeDeepSeekV41Flash, opencodeDeepSeekFlash, opencodeDeepSeekV4Flash, opencodeDeepSeekV4Pro,
 	}
+	// togetherUnserved lists the Together ids a catalog refresh measured not
+	// to answer on Together's serverless API, though models.dev lists them
+	// (MADR 0009 §3 item 12). Each refresh's measurement adds to it, and
+	// removes an id that answers again. They stay searchable.
+	togetherUnserved = []string{
+		"MiniMaxAI/MiniMax-M2.7", // 2026-10-12: HTTP 400 model_not_available, non-serverless
+	}
 )
 
 // The OpenCode Go region-gated ids are named because they recur across the
@@ -124,12 +131,14 @@ func (c rankCandidate) eligible(provider llmprovider.ProviderID) bool {
 }
 
 // excludedAtRequest reports the ids a request would fail on: the
-// -contributor models, and on OpenCode Go the region-gated ones (MADR 0009
-// §3 items 7 and 8). The ranking, the fill and Go's fallback curation all
-// leave them out; they stay searchable (0021-MADR D3).
+// -contributor models, on OpenCode Go the region-gated ones, and on Together
+// the ones measured not to serve (MADR 0009 §3 items 7, 8 and 12). The
+// ranking, the fill and Go's fallback curation all leave them out; they stay
+// searchable (0021-MADR D3).
 func excludedAtRequest(provider llmprovider.ProviderID, id string) bool {
 	return strings.Contains(id, "-contributor") ||
-		provider == llmprovider.ProviderOpencodeGo && slices.Contains(opencodeGoRegionGated, id)
+		provider == llmprovider.ProviderOpencodeGo && slices.Contains(opencodeGoRegionGated, id) ||
+		provider == llmprovider.ProviderTogether && slices.Contains(togetherUnserved, id)
 }
 
 // rankNorm holds the blend normalisers over the eligible set: the largest
