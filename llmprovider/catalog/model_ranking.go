@@ -35,6 +35,11 @@ const (
 var (
 	// smallModelRE is OpenCode's SMALL_MODEL_RE (packages/core/src/catalog.ts).
 	smallModelRE = regexp.MustCompile(`\b(nano|flash|lite|mini|haiku|small|fast)\b`)
+	// denseSizeRE reads a size such as 9b or 14B standing alone in an id, and
+	// moeActiveRE a mixture of experts's active size, such as -a3b (MADR 0009
+	// §3 item 11).
+	denseSizeRE = regexp.MustCompile(`(?i)(?:^|[^a-z0-9])(\d+(?:\.\d+)?)b(?:[^a-z0-9]|$)`)
+	moeActiveRE = regexp.MustCompile(`(?i)-a\d+(?:\.\d+)?b\b`)
 	// unstableModelRE marks preview and experimental ids (MADR 0009 §3 item 6).
 	unstableModelRE = regexp.MustCompile(`(?i)preview|-exp\b|experimental|alpha`)
 	// opencodeGoRegionGated lists the OpenCode Go models served only when the
@@ -203,9 +208,32 @@ func boolFirst(a, b bool) int {
 
 // utilityExcluded reports ids the utility profile never recommends, ranked or
 // filled: Kilo's kilo-auto/* managed tiers (MADR 0009 §3 item 9, a maintainer
-// decision). They stay searchable and eligible under ProfileCapable.
+// decision), and on any provider a dense model of 14B or less (§3 item 11).
+// They stay searchable and eligible under ProfileCapable.
 func utilityExcluded(profile Profile, provider llmprovider.ProviderID, id string) bool {
-	return profile != ProfileCapable && provider == llmprovider.ProviderKilo && strings.HasPrefix(id, "kilo-auto/")
+	if profile == ProfileCapable {
+		return false
+	}
+	return provider == llmprovider.ProviderKilo && strings.HasPrefix(id, "kilo-auto/") || smallDense(id)
+}
+
+// smallDenseMax is the largest dense size, in billions of parameters, that
+// MADR 0009 §3 item 11 leaves out of the utility six.
+const smallDenseMax = 14
+
+// smallDense reports whether id names a dense model of smallDenseMax or less:
+// a size standing alone in the id, where the id names no mixture of experts's
+// active size (MADR 0009 §3 item 11).
+func smallDense(id string) bool {
+	if moeActiveRE.MatchString(id) {
+		return false
+	}
+	for _, m := range denseSizeRE.FindAllStringSubmatch(id, -1) {
+		if size, err := strconv.ParseFloat(m[1], 64); err == nil && size <= smallDenseMax {
+			return true
+		}
+	}
+	return false
 }
 
 // rankRecommended returns at most MaxListed distinct ids: the eligible

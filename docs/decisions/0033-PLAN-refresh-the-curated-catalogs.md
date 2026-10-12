@@ -1204,3 +1204,57 @@ test would fail on it. But no §3 item enforced it. The owner chose §3 item
 11, under the utility profile only: 0009-MADR's amendment "no small dense
 model in the utility six (§3 item 11)". Phase 7b builds it, and step 1 is
 then run again.
+
+The records of Deviation 3 and 0009-MADR's item 11 were committed by the
+owner as `e475f08`.
+
+### Phase 7b: 0009-MADR §3 item 11 (2026-10-12)
+
+**Change** (`llmprovider/catalog/model_ranking.go`):
+
+* `denseSizeRE` reads a size such as `9b` or `14B` standing alone in an id,
+  and `moeActiveRE` a mixture of experts's active size, such as `-a3b`.
+* `smallDense(id)` is true for a size of `smallDenseMax` (14) or less, where
+  the id names no active size.
+* `utilityExcluded` returns false under `ProfileCapable`. Otherwise it
+  excludes Kilo's `kilo-auto/*` (item 9), or any `smallDense` id (item 11).
+  `rankRecommended` already applies it to the ranking and the fill.
+* The criteria test keeps its own pattern, so the rule and its check share
+  no code.
+
+**Test** (`llmprovider/catalog/small_dense_item11_test.go`),
+`TestRankRecommended_SmallDenseUtility`, on Together and Kilo:
+
+* under the utility profile, `a/model-9b`, `b/model-14B` and the fill's
+  `f/fill-7b` are left out;
+* `c/model-15b`, `d/moe-30b-a3b`, `h/moe-7b-a1b`, `e/model-flash` and
+  `g/fill-ok` stay;
+* under the capable profile, `a/model-9b` is ranked.
+
+**Red first:** under the utility profile, `ranked = [a/model-9b b/model-14B
+c/model-15b d/moe-30b-a3b e/model-flash f/fill-7b]`, against `want
+[c/model-15b d/moe-30b-a3b e/model-flash g/fill-ok]`.
+
+**Green:** `go test ./llmprovider/catalog/`, every test, the 2026-09-26
+golden among them, unchanged.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the threshold as `< 14` | `ranked = [b/model-14B c/model-15b d/moe-30b-a3b e/model-flash g/fill-ok]` |
+| the mixture-of-experts exemption dropped | `ranked = [c/model-15b d/moe-30b-a3b e/model-flash g/fill-ok]`: `h/moe-7b-a1b` lost |
+| item 11 under `ProfileCapable` too | `together capable: [e/model-flash c/model-15b d/moe-30b-a3b g/fill-ok], want a/model-9b ranked` |
+| item 11 in the ranking only, not the fill | `ranked = [c/model-15b d/moe-30b-a3b e/model-flash f/fill-7b g/fill-ok]` |
+
+**A plant not caught at first.** On the first run, "the mixture-of-experts
+exemption dropped" passed. The test's only mixture of experts,
+`d/moe-30b-a3b`, is 30B in total, so item 11 never touched it. The
+exemption matters only for one of 14B or less in total, which the criteria
+test also exempts. The test gained `h/moe-7b-a1b`, which must stay. On the
+second run, all four plants were caught.
+
+**Checks:** `make pre-add-check` on the two Go files, clean (gofmt,
+golangci-lint, go vet, go test, govulncheck).
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 8.4.
