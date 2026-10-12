@@ -23,9 +23,12 @@ import unittest
 from pathlib import Path
 
 import _common
+import apidiff
 import denyscan
 import edit
+import gate
 import linkcheck
+import plant
 
 
 def git(cwd: Path, *args: str) -> None:
@@ -184,6 +187,65 @@ class TestScratchClone(unittest.TestCase):
             self.assertEqual(sorted(tree), ["changed.txt", "kept.txt", "new.txt"])
             self.assertEqual((dest / "changed.txt").read_text(), "changed\n")
             self.assertEqual(sorted(changed), ["changed.txt", "new.txt"])
+
+
+class TestGateChecks(unittest.TestCase):
+    def test_the_checks_and_their_order(self) -> None:
+        want = ["pre-add-check", "vet-darwin", "vet-darwin-live", "vet-linux", "vet-linux-live", "vet-windows",
+                "vet-windows-live", "test-race-cover", "test-shuffle", "tidy-diff", "lint", "parity-check", "dep-check",
+                "coverage-check", "api-check", "generate-check", "records-check", "gate-selftest", "markdownlint",
+                "g-wire-stable", "g-links", "deny-scan", "tools-test"]
+        self.assertEqual([c.name for c in gate.CHECKS], want)
+
+    def test_markdownlint_skips_the_records(self) -> None:
+        root = temp_repo(self)
+        for rel in ("README.md", "docs/guides/g.md", "docs/decisions/0001-MADR-x.md", "docs/reports/0002-REPORT-y.md", "notes.txt"):
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text("x\n")
+        self.assertEqual(gate.markdown_files(root), ["README.md", "docs/guides/g.md"])
+
+
+GO_MOD = "module example.com/plant\n\ngo 1.21\n"
+GO_SRC = "package plant\n\n// Add returns the sum of its arguments.\nfunc Add(a, b int) int { return a + b }\n"
+GO_TEST = ("package plant\n\nimport \"testing\"\n\nfunc TestAdd(t *testing.T) {\n"
+           "\tif got := Add(1, 2); got != 3 {\n\t\tt.Errorf(\"Add(1, 2) = %d, want 3\", got)\n\t}\n}\n")
+
+
+class TestPlant(unittest.TestCase):
+    def run_spec(self, plants: list[dict]) -> tuple[int, str]:
+        root = temp_repo(self)
+        (root / "go.mod").write_text(GO_MOD)
+        (root / "plant.go").write_text(GO_SRC)
+        (root / "plant_test.go").write_text(GO_TEST)
+        git(root, "add", ".")
+        git(root, "commit", "-q", "-m", "seed")
+        spec = root.parent / (root.name + "-spec.json")
+        self.addCleanup(spec.unlink, missing_ok=True)
+        spec.write_text(json.dumps({"packages": ["./..."], "run": "TestAdd", "plants": plants}))
+        return call(plant.main, "--root", str(root), str(spec))
+
+    def test_a_caught_plant_passes_with_its_fail_lines(self) -> None:
+        rc, out = self.run_spec([{"name": "subtracts", "file": "plant.go", "old": "a + b", "new": "a - b"}])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("== subtracts: caught", out)
+        self.assertIn("Add(1, 2) = -1, want 3", out)
+
+    def test_an_uncaught_plant_fails_naming_it(self) -> None:
+        rc, out = self.run_spec([{"name": "commutes", "file": "plant.go", "old": "a + b", "new": "b + a"}])
+        self.assertEqual(rc, 1, out)
+        self.assertIn("== commutes: NOT CAUGHT", out)
+
+    def test_a_plant_that_does_not_match_is_a_tool_error(self) -> None:
+        rc, out = self.run_spec([{"name": "absent", "file": "plant.go", "old": "a * b", "new": "a / b"}])
+        self.assertEqual(rc, 2, out)
+        self.assertIn("absent", out)
+
+
+class TestApidiffArgs(unittest.TestCase):
+    def test_the_pin_is_read_from_check_api(self) -> None:
+        source = (_common.ROOT / "scripts" / "check_api.py").read_text()
+        self.assertIn(f'APIDIFF = "{apidiff.pinned()}"', source)
+        self.assertNotIn("golang.org/x/exp/cmd/apidiff@", (_common.ROOT / "tools" / "apidiff.py").read_text())
 
 
 if __name__ == "__main__":

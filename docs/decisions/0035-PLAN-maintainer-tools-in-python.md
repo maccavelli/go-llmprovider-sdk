@@ -246,3 +246,71 @@ placeholder, as AGENTS.md's "Identifiers" rule requires.
 **Gate:** the 22 checks, then `make tools-test`, all passing. They were
 started at a load average of 7.4 by a scratch runner that waits with
 `tools/_common.wait_load`. `tools/gate.py` is Phase 2's.
+
+### Phase 2: the gate, the plant runner, and apidiff (2026-10-12)
+
+**Change:**
+
+* **`tools/gate.py`:** the scratch gate, rebuilt with `CHECKS` as data,
+  one `Check(name, run)` per check, in its order, then `tools-test` (Q1).
+  * It has `--src`, `--out`, `--copy`, `--max-load` (the CPU count) and
+    `--timeout`.
+  * `g-links` and `deny-scan` call `linkcheck` and `denyscan` as modules.
+  * The markdownlint list is derived: every Markdown file but those under
+    `docs/decisions/` and `docs/reports/`, which `.markdownlint-cli2.jsonc`
+    excludes.
+* **`tools/plant.py`:**
+  * a JSON spec of `packages`, `run` (or a whole `command`) and `plants`;
+  * one scratch clone, under a fresh temporary directory, each plant
+    applied, run and restored;
+  * exit 0 when every plant is caught, 1 when one is not, 2 when one's
+    `old` does not match once.
+* **`tools/apidiff.py`:** `OLD [NEW]`, at the pin `pinned()` reads from
+  `scripts/check_api.py`; exit 1 on an incompatible change.
+* **`tools/test_tools.py`:** six more tests:
+  * `TestGateChecks`, two;
+  * `TestPlant`, three, on a three-file Go module in a temporary
+    repository;
+  * `TestApidiffArgs`.
+
+  That makes 21.
+
+**Red first:** the module could not import the new tools: `Ran 1 test …
+FAILED (errors=1)`.
+
+**A fixture error, then green.** Two `TestPlant` cases first failed with
+`"old" matches 2 time(s) in plant.go, want 1`. The test's Go source said
+`a + b` in a comment as well as in the code. `plant.py` was right to
+refuse it. The comment was reworded, and `make tools-test` passed all 21.
+
+**The markdownlint list grows** from the scratch gate's seven files to ten:
+the three agent-rule pointers (`.claude/rules/`, `.grok/rules/`,
+`.opencode/rules.md`) are now linted too, and are clean.
+
+**The tools on the tree:**
+
+* `tools/apidiff.py v1.8.0`: no output, exit 0, since the exported API has
+  not changed since `v1.8.0`.
+* `tools/plant.py` ran this phase's two plants itself, with `make
+  tools-test`'s command:
+
+  | Plant | FAIL lines |
+  | :--- | :--- |
+  | `scratch_clone` dropping the deletion | `test_the_clone_commits_the_working_tree`: `Lists differ: ['changed.txt', 'deleted.txt', 'kept.txt', 'new.txt'] != ['changed.txt', 'kept.txt', 'new.txt']` |
+  | `plant` reporting a passing plant as caught | `test_an_uncaught_plant_fails_naming_it`: `AssertionError: 0 != 1 : == commutes: caught (exit 0)` |
+
+**The gate's planted proof** (step 3), on a scratch clone holding a `vet`
+error and this PLAN's index row marked `complete`:
+
+* It waited at a load average of 64.3 and started at 9.7.
+* Fourteen checks failed and nine passed:
+  * the failures were `pre-add-check`, the six `vet` variants,
+    `test-race-cover`, `test-shuffle`, `lint`, `coverage-check`,
+    `records-check`, `gate-selftest` and `g-wire-stable`;
+  * `vet`: `plant_vet.go:5:46: fmt.Sprintf format %d reads arg #1, but
+    call has 0 args`;
+  * `records-check`: `decisions/0035-PLAN-maintainer-tools-in-python.md
+    indexed as 'complete'; the file says 'in-progress'`.
+
+**Gate:** `tools/gate.py` on this phase's tree: 23 of 23, started at a load
+of 8.6. It replaces the scratch gate from here on.
