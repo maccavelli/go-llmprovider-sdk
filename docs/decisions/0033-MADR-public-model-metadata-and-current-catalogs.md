@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-11
+date: 2026-10-12
 decision-makers: repository owner
 consulted: gobble-cli 0005-MADR-v1-feature-scope.md (Model catalog row, choice 11), gobble-cli 0004-MADR-go-module-architecture.md (decision 6), gobble-cli 0014-REPORT-llmprovider-sdk-integration.md (F4), 0009-MADR-use-case-aware-default-model-ranking.md
 informed: consumers of go-llmprovider-sdk v1
@@ -180,6 +180,9 @@ because two OpenAI ids stop answering on 2026-10-23.
 
 ### D1. `catalog.ModelInfo`, with a presence set
 
+*(Amended 2026-10-12: the fields, names and tiers are as "Amendment
+(2026-10-12): the research, and the API surface" sets out.)*
+
 A public, copyable value per model, with plain fields:
 
 ```go
@@ -216,6 +219,9 @@ func (m ModelInfo) SourceOf(f Field) string // "models.dev", "listing:anthropic"
   `Efforts` are copies (R29).
 
 ### D2. Layers, and the order they resolve in
+
+*(Amended 2026-10-12: `Layer` takes no context, and the listing table
+gains the fields the research found; see the same amendment.)*
 
 A `Layer` is anything that can describe a model:
 
@@ -263,6 +269,9 @@ The SDK corrects no source. `SourceOf` says which layer set a value, and
 the package doc names the known errors.
 
 ### D3. One entry point, and a document the caller persists
+
+*(Amended 2026-10-12: `LookupModel` and `CachedModel`, a listing cache,
+and a lossless `Encode`; see the same amendment.)*
 
 ```go
 func Lookup(ctx context.Context, provider llmprovider.ProviderID, src llmprovider.TokenSource,
@@ -412,6 +421,282 @@ The other options were declined:
 * keeping Anthropic's listing authoritative for `Status`, which would
   report deprecated models as active.
 
+### Amendment (2026-10-12): the research, and the API surface
+
+0033-PLAN-public-model-metadata.md had not started. Before it did, the
+owner asked for the official schemas, the standards, and how the agents
+that will read this metadata use it. What follows was read on 2026-10-12.
+
+#### The official schemas
+
+| Concept | models.dev | Anthropic | Gemini | xAI | OpenAI | OpenRouter | LiteLLM |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Context window | `limit.context` | — | — | `context_length` | — | `context_length` | — |
+| Max input | `limit.input` | `max_input_tokens` | `inputTokenLimit` | — | — | `per_request_limits.prompt_tokens` | `max_input_tokens` |
+| Max output | `limit.output` | `max_tokens` | `outputTokenLimit` | — | — | `top_provider.max_completion_tokens` | `max_output_tokens` |
+| Input modalities | `modalities.input` | `capabilities.image_input`, `pdf_input` | — | `input_modalities` (`/v1/language-models`) | — | `architecture.input_modalities` | `supports_vision`, `supports_pdf_input` |
+| Tools | `tool_call` | — | — | — | — | `supported_parameters` holds `tools` | `supports_function_calling` |
+| Reasoning | `reasoning`, `reasoning_options` | `capabilities.thinking`, `capabilities.effort` | `thinking` | `capabilities.reasoning_effort` | — | `reasoning.supported_efforts` | `supports_reasoning` |
+| Prices | `cost.*` | — | — | `*_token_price` | — | `pricing.*` | `*_cost_per_token` |
+| Long-context price | `cost.tiers[]`, `context_over_200k` | — | — | `*_long_context`, `long_context_threshold` | — | `pricing.overrides[].min_prompt_tokens` | `*_above_200k_tokens` |
+| Release | `release_date` | `created_at` | — | `created` | `created` | `created` | — |
+| Lifecycle | `status` | `lifecycle`, `deprecated_at` | — | — | — | — | — |
+| Retirement date | — | `retires_at` | — | — | `shutdown_date` | `expiration_date` | `deprecation_date` |
+
+* **models.dev**, `packages/core/src/schema.ts` on its `dev` branch:
+  * Prices are numbers, in USD per million tokens: `input` and `output`;
+    optionally `reasoning`, `cache_read`, `cache_write`, `input_audio` and
+    `output_audio`.
+  * `tiers[]` adds a price per tier, each with `tier: {type: "context",
+    size}` and a unique `size`. `context_over_200k` is the older form.
+  * `reasoning_options[]` is a union on `type`:
+    * `toggle`;
+    * `effort`, whose `values` are drawn from `null`, `none`, `minimal`,
+      `low`, `medium`, `high`, `xhigh`, `max` and `default`;
+    * `budget_tokens`, with optional `min` and `max`.
+
+    It is required when `reasoning` is true, and forbidden otherwise.
+  * `status` is `alpha`, `beta` or `deprecated`, and no retirement date.
+  * Dates are `YYYY-MM` or `YYYY-MM-DD`.
+  * Modalities are `text`, `audio`, `image`, `video` and `pdf`.
+  * `temperature` and `structured_output` are flags.
+  * Its data is MIT-licensed.
+* **Anthropic** `GET /v1/models`:
+  * `capabilities` holds `{supported}` leaves: `image_input`, `pdf_input`,
+    `structured_outputs`, `thinking.types` (`adaptive`, `enabled`,
+    `disabled`), and `effort` (`low` to `max`, and `xhigh`).
+  * Its docs say `retires_at` can be revised, and that `lifecycle` is the
+    signal. "Sources that lag" stands.
+* **Gemini** `models`: `inputTokenLimit`, `outputTokenLimit` and `thinking`.
+  There are no prices, modalities or lifecycle.
+* **xAI** `/v1/models`:
+  * `context_length`, and `capabilities.reasoning_effort` with a default;
+  * token prices as integers in **USD cents per 100 million tokens**,
+    which is 10⁻⁴ USD per million;
+  * `long_context_threshold`, the input size "at or above which" the
+    `*_long_context` prices apply.
+* **OpenAI** `/v1/models`: `shutdown_date`, and no limits or prices.
+* **OpenRouter** `/api/v1/models` is the de-facto gateway shape, with
+  prices as strings in USD per token.
+  * Kilo's `/api/gateway/models` follows it, with `-1` as the price of its
+    auto-routing models.
+  * Vercel's AI Gateway follows it too, and copies models.dev's
+    `reasoning_options`.
+* **Together** `/v1/models`: `context_length`, and `pricing.{input, output,
+  cached_input}` as numbers whose unit its docs do not state.
+* **Ollama** `POST /api/show`:
+  * the context window is `model_info["<general.architecture>.context_length"]`;
+  * `capabilities` includes `tools`, `vision` and `thinking`.
+* **No standard exists.** No W3C, IETF or model-card format describes model
+  limits or prices. The de-facto shapes are OpenRouter's and models.dev's.
+* **ACP** (`agentclientprotocol.com`, and the Go SDK at schema 1.25.0)
+  carries no per-model metadata. Models are `SessionConfigOption`s of
+  category `model`.
+  * `usage_update` is stable: `size` (the context window, required),
+    `used`, and `cost{amount, currency}`, cumulative.
+  * The turn's `Usage` is unstable. It counts `cachedReadTokens` and
+    `cachedWriteTokens` apart.
+* **Go:**
+  * `anthropic-sdk-go`'s `ModelInfo` keeps presence apart from the value,
+    asked with `.Valid()`.
+  * `google.golang.org/genai`'s `Model` lets zero mean unknown
+    (`InputTokenLimit`, `OutputTokenLimit`, all `omitempty`).
+  * Go 1.27 ships `encoding/json/v2`, which this SDK already decodes with.
+
+#### The consumers
+
+Each was read in a local checkout:
+
+* **OpenCode** (`907b3bc518`) and **Kilo Code** (`4a7c4e883f`):
+  * They read models.dev, cache it on disk, embed a snapshot at build
+    time, and merge their config over a provider listing over models.dev,
+    field by field.
+  * A missing price becomes 0 and shows as "Free".
+  * A missing context becomes 0, which turns compaction off.
+  * A config override rebuilds `cost` and drops the tiers.
+  * They take reasoning variants from `reasoning_options`, filter out
+    `deprecated` models, and sort by `release_date`.
+  * Kilo sets an OpenRouter model's `release_date` to the day it fetched
+    it.
+* **Codex** (`823ea830c0`):
+  * Its `ModelInfo` has `context_window: Option<i64>`, `input_modalities`,
+    `supported_reasoning_levels` with a default, and `upgrade.retirement_at`.
+  * It has no prices.
+  * It reads a bundled `models.json` and a remote `/models`, cached on
+    disk for 300 s with an ETag.
+  * Config overrides individual fields.
+  * It compacts at 90% of the window.
+* **grok-build** (`2bdd1d6a`):
+  * Its window cannot be empty, so an unknown one is a 256,000-token
+    sentinel value.
+  * It has `max_completion_tokens`, an effort menu, a severity-tagged
+    notice for lifecycle, and no prices.
+  * It caches like Codex, and compacts at 85%.
+* **Pi** (`312184edb`), whose shape gobble-cli asks for (D1's context):
+  * Its `Model` has `contextWindow`, `maxTokens`, `input`, a `cost` in USD
+    per million with `tiers[].inputTokensAbove`, and a `thinkingLevelMap`
+    built from models.dev's `reasoning_options`.
+  * Missing values become 4096 and a price of 0.
+* **gobble-cli** (`ad6ea57`):
+  * It still shows `Cost: $0.000` and "an unknown window". It sends ACP
+    `usage_update` without `size`, and no output cap.
+  * Completion reads only its on-disk cache, within 150 ms.
+
+#### What follows
+
+1. **Unknown is not zero.** Every consumer without presence pays for it:
+   "Free" for an unpriced model, compaction off for an unknown window, a
+   256k sentinel. D1's presence set (Q3) is confirmed.
+2. **Facts, not policy.** Each consumer compacts by its own rule (90%, 85%,
+   window minus output, input limit minus a reserve), and computes cost
+   its own way. The SDK publishes the facts, and no usable-window or cost
+   helper (Q12).
+3. **Prices are a list of tiers** (Q9). A model can carry more than one,
+   and models.dev, xAI, OpenRouter and LiteLLM each say it differently.
+4. **Reasoning is a descriptor** (Q10). Pi's thinking map and OpenCode's
+   variants are built from the effort values, the toggle and the budget,
+   not from a flag.
+5. **The names are the SDK's own** (Q11). `Request.MaxOutputTokens`
+   already exists, and Pi and Codex say `contextWindow` and
+   `context_window`.
+6. **A caller states presence.** D1's presence set is unexported, so a
+   caller's layer could not mark a field known, and a known zero (a free
+   price) could not be said at all. `Known` lets every layer, the SDK's
+   own included, say which fields it sets (Q11).
+7. **Offline, as D3 decided.** Every agent read keeps a bundled snapshot,
+   a disk cache and an ETag. D3's "the caller persists, the SDK refreshes"
+   fits. `Encode` writes each section's bytes as they were read, so a
+   field the SDK does not decode yet survives the round trip.
+8. **`CachedModel` needs a listing cache.** It must not wait, and no
+   listing is cached today. D3 gains an in-process cache of the listings'
+   metadata. It lives 10 minutes, as the models.dev cache does, and is
+   keyed by provider, base URL and a credential fingerprint, as the probe
+   cache is.
+9. **`Layer` takes no context.** A caller's layer is data it already
+   holds, and the SDK's listings are not caller layers. A layer must not
+   block, so `Metadata` satisfies `Layer` as it is.
+10. **Prices are USD per million tokens,** the unit of models.dev, Pi,
+    OpenCode, Kilo's catalog and ACP's `cost.amount`. xAI's and the
+    per-token strings are converted. Together's unit is measured before it
+    is trusted.
+
+#### D1, amended
+
+```go
+type ModelInfo struct {
+    ID, Name, Family string
+    ContextWindow, MaxInputTokens, MaxOutputTokens int
+    Input, Output    []Modality
+    Tools, Temperature, StructuredOutput bool
+    Reasoning        ModelReasoning
+    Cost             ModelCost
+    Released         time.Time
+    Status           ModelStatus
+    Retires          time.Time
+    // unexported: which fields are set, and by which layer
+}
+
+type ModelReasoning struct {
+    Supported, Toggle    bool
+    Efforts              []llmprovider.Effort // as the source names them
+    BudgetMin, BudgetMax int
+}
+
+type ModelRates struct { // USD per million tokens
+    Input, Output, CacheRead, CacheWrite, Reasoning float64
+}
+
+type ModelCost struct {
+    ModelRates
+    Tiers []ModelCostTier // ascending by Above
+}
+
+type ModelCostTier struct {
+    Above int // the tier applies to more input tokens than this
+    ModelRates
+}
+
+func (c ModelCost) RatesFor(inputTokens int) ModelRates
+func (m ModelInfo) Has(f Field) bool
+func (m ModelInfo) SourceOf(f Field) string
+func (m ModelInfo) Known(fields ...Field) ModelInfo
+```
+
+* **`Field`** has one constant per field: `FieldName`, `FieldFamily`,
+  `FieldContextWindow`, `FieldMaxInputTokens`, `FieldMaxOutputTokens`,
+  `FieldInput`, `FieldOutput`, `FieldTools`, `FieldTemperature`,
+  `FieldStructuredOutput`, `FieldReasoning`, `FieldReasoningToggle`,
+  `FieldReasoningEfforts`, `FieldReasoningBudget`, `FieldCostInput`,
+  `FieldCostOutput`, `FieldCostCacheRead`, `FieldCostCacheWrite`,
+  `FieldCostReasoning`, `FieldCostTiers`, `FieldReleased`, `FieldStatus`
+  and `FieldRetires`. A field added later is one more constant.
+* **The other named types** (R21):
+  * `Modality`: `ModalityText`, `ModalityImage`, `ModalityAudio`,
+    `ModalityVideo`, `ModalityPDF`;
+  * `ModelStatus`: `StatusActive`, `StatusBeta`, `StatusAlpha`,
+    `StatusDeprecated`, `StatusRetired`.
+* **`Known`** returns a copy with those fields marked as set, by the layer
+  that returned it. A layer's presence is exactly what it marks, and no
+  value is inferred from being non-zero.
+* **Merging is by `Field`.** `FieldCostTiers` replaces the whole list, as
+  Codex replaces an effort menu, so a caller's override never drops tiers
+  by accident, as OpenCode's does.
+* **`RatesFor`** returns the rates of the highest tier whose `Above` the
+  input exceeds, or the base rates.
+  * This is the rule of Pi and OpenCode.
+  * xAI's "at or above" threshold *t* is the tier `Above` *t* − 1.
+  * A tier's rate its source omits is the base rate.
+* **Efforts keep the source's values.** They include `none`, `minimal` and
+  `max`, which `llmprovider.Effort` holds without constants, as Codex
+  keeps `Custom`. models.dev's `null` is read as `none`, as OpenCode does.
+* **Out of the type:** image size limits, audio prices and knowledge
+  cutoff. Each would be one more `Field` later.
+
+#### D2, amended
+
+`Layer` is `{Name() string; Model(provider llmprovider.ProviderID, id
+string) (ModelInfo, bool)}`. It must not block or reach the network.
+The listings set:
+
+| Listing | Fields |
+| :--- | :--- |
+| Anthropic | `MaxInputTokens`, `MaxOutputTokens`; `Input` image and pdf; `StructuredOutput`; `Reasoning` (supported and toggle, from `thinking`), efforts (from `effort`). Not `Status` or `Retires`. |
+| Gemini | `MaxInputTokens`, `MaxOutputTokens`, `Reasoning` (from `thinking`) |
+| xAI | `ContextWindow`, efforts, `Cost` (input, output, cache read, and a tier at `long_context_threshold`), converted from cents per 100 million |
+| Kilo | `ContextWindow`, `MaxOutputTokens`, `Cost` (input, output; a `-1` price is unset), `Retires` (from `expiration_date`) |
+| Together | `ContextWindow`, `Cost` (input, output, cache read), once Phase 1 confirms the unit |
+| OpenAI | `Retires`, from `shutdown_date` |
+| Ollama | `ContextWindow`, `Tools`, `Input` image, `Reasoning`, from one model's `/api/show` |
+
+OpenCode Zen and Go, and Hugging Face, still add nothing.
+
+#### D3, amended
+
+```go
+func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmprovider.TokenSource,
+    model string, opts ...llmprovider.Option) (ModelInfo, error)
+func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmprovider.TokenSource,
+    model string, opts ...llmprovider.Option) (ModelInfo, bool)
+func WithModelLayer(l Layer) llmprovider.Option
+
+func ParseMetadata(r io.Reader) (Metadata, error)
+func (m Metadata) Encode(w io.Writer) error
+func (m Metadata) Name() string
+func (m Metadata) Model(provider llmprovider.ProviderID, id string) (ModelInfo, bool)
+func (m Metadata) Models(provider llmprovider.ProviderID) []ModelInfo
+```
+
+* **A model no layer knows** is not an error. Its fields are all unset, as
+  `Has` reports.
+* **A source that fails** is joined into the error, beside what the other
+  layers set, as `catalog.List` reports a failed listing in `Catalog.Err`.
+* **`WithModelLayer`** is a `catalog` option, scoped as `WithProfile` is
+  (R17).
+* **`Models`** returns copies, sorted by id (R29). A slice, not an
+  iterator, because callers sort and filter it.
+* **Unchanged:** `LookupMetadata`, `LookupMetadataWith`,
+  `CachedMetadataWith` and `ListModels`.
+
 ### Owner questions
 
 Answered by the owner on 2026-10-11: the recommended option of each.
@@ -467,6 +752,33 @@ Answered by the owner on 2026-10-11: the recommended option of each.
 
   **Answer: the refresh PLAN's lists.**
 
+Answered by the owner on 2026-10-12, after the research above: the
+recommended option of each.
+
+* **Q9 (D1). Price tiers.** Offered:
+  * an ordered list of tiers, with `RatesFor` (recommended);
+  * D1's one long-context tier.
+
+  **Answer: an ordered list.**
+* **Q10 (D1). Reasoning and capability fields.** Offered:
+  * the full descriptor (toggle, efforts, budget), with `Temperature`,
+    `StructuredOutput`, `Output` and a reasoning price (recommended);
+  * D1's flag and effort list.
+
+  **Answer: the full descriptor, and the fields.**
+* **Q11 (D1, D3). Names, and presence from a caller.** Offered:
+  * `ContextWindow`, `MaxInputTokens`, `MaxOutputTokens`; `LookupModel`
+    and `CachedModel`; and `Known` (recommended);
+  * D1's and D3's names, with presence inferred from non-zero values.
+
+  **Answer: the SDK's names, and `Known`.**
+* **Q12 (D3). A cost helper.** Offered:
+  * facts only now, with the helper in the cache-write record
+    (recommended);
+  * `ModelCost.Of(Usage)` now, short of cache writes.
+
+  **Answer: facts only.**
+
 ### Consequences
 
 * Good, because gobble-cli can show a window, a cost and an output cap for
@@ -482,6 +794,11 @@ Answered by the owner on 2026-10-11: the recommended option of each.
 * Bad, because `Lookup` merges up to three kinds of layer. Its rule per
   field must be tested per listing.
 * Bad, because the catalogs still need a person to accept each refresh.
+* Bad, because `CachedModel` needs a cache of the listings' metadata,
+  which the SDK did not keep before. *(Added 2026-10-12.)*
+* Good, because the names, the tiers and the reasoning descriptor match
+  what Pi, Codex and OpenCode already read, so a consumer maps them one to
+  one. *(Added 2026-10-12.)*
 
 ### Confirmation
 
@@ -550,6 +867,21 @@ Answered by the owner on 2026-10-11: the recommended option of each.
     F4.
 
   All read in that repository on 2026-10-11.
+* **Read on 2026-10-12, for the amendment:**
+  * models.dev `schema.ts` (`dev` branch) and `api.json`;
+  * platform.claude.com/docs/en/api/models/list and `…/retrieve`;
+  * ai.google.dev/api/models;
+  * docs.x.ai/developers/rest-api-reference/inference/models;
+  * developers.openai.com/api/reference/resources/models;
+  * openrouter.ai/docs/api/api-reference/models/get-models;
+  * kilo.ai/docs/gateway/api-reference; docs.together.ai/reference/models-1;
+    docs.ollama.com/api-reference/show-model-details;
+  * LiteLLM's `model_prices_and_context_window.json`;
+  * vercel.com/docs/ai-gateway/sdks-and-apis/rest-api;
+  * agentclientprotocol.com/protocol/schema;
+  * go.dev/blog/range-functions, pkg.go.dev/iter, go.dev/doc/go1.27;
+  * local checkouts of OpenCode, Kilo Code, Codex, grok-build, Pi,
+    gobble-cli and the ACP Go SDK, at the commits named above.
 * **Official pages read on 2026-10-11:**
   * developers.openai.com/api/docs/deprecations;
   * ai.google.dev/gemini-api/docs/deprecations;
