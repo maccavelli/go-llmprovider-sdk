@@ -21,13 +21,16 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import _common
 import apidiff
+import consumer
 import denyscan
 import edit
 import gate
 import linkcheck
+import liveskips
 import plant
 
 
@@ -246,6 +249,63 @@ class TestApidiffArgs(unittest.TestCase):
         source = (_common.ROOT / "scripts" / "check_api.py").read_text()
         self.assertIn(f'APIDIFF = "{apidiff.pinned()}"', source)
         self.assertNotIn("golang.org/x/exp/cmd/apidiff@", (_common.ROOT / "tools" / "apidiff.py").read_text())
+
+
+LIVE_RUN = """=== RUN   TestLive_A
+    live_a_test.go:10: answered
+--- PASS: TestLive_A (0.10s)
+=== RUN   TestLive_B
+    live_b_test.go:20: set LLMPROVIDER_LIVE_X to run it
+--- SKIP: TestLive_B (0.00s)
+=== RUN   TestLive_C
+=== RUN   TestLive_C/zen
+    live_c_test.go:30: gateway transient: HTTP 402
+=== RUN   TestLive_C/go
+--- PASS: TestLive_C (0.50s)
+    --- SKIP: TestLive_C/zen (0.10s)
+    --- PASS: TestLive_C/go (0.40s)
+ok  \texample.com/m\t1.0s
+"""
+
+
+class TestLiveSkips(unittest.TestCase):
+    def classify(self, text: str) -> tuple[int, str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "run.txt"
+            path.write_text(text)
+            return call(liveskips.main, str(path))
+
+    def test_counts_and_reasons(self) -> None:
+        rc, out = self.classify(LIVE_RUN)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("top level: 2 passed, 1 skipped, 0 failed", out)
+        self.assertIn("subtests: 1 passed, 1 skipped, 0 failed", out)
+        self.assertIn("SKIP TestLive_B: set LLMPROVIDER_LIVE_X to run it", out)
+        self.assertIn("SKIP TestLive_C/zen: gateway transient: HTTP 402", out)
+
+    def test_a_failure_exits_one(self) -> None:
+        failed = LIVE_RUN.replace("--- PASS: TestLive_A", "--- FAIL: TestLive_A")
+        rc, out = self.classify(failed)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("top level: 1 passed, 1 skipped, 1 failed", out)
+        self.assertIn("FAIL TestLive_A: answered", out)
+
+
+class TestConsumerSource(unittest.TestCase):
+    def test_imports_every_public_package(self) -> None:
+        listed = _common.run(["go", "list", "./..."], check=True).stdout.split()
+        public = [p for p in listed if "/internal" not in p]
+        source = consumer.main_source(consumer.public_packages())
+        for pkg in public:
+            self.assertIn(f'_ "{pkg}"', source)
+        self.assertNotIn("/internal", source)
+
+    def test_builds_against_the_tree_with_no_network(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"GOPROXY": "off", "GOFLAGS": "-mod=mod"}):
+            rc, out = call(consumer.main, "--replace", "--platforms", "host", "--out", tmp)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("go build", out)
+        self.assertIn("consumer: every step passed", out)
 
 
 if __name__ == "__main__":

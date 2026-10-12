@@ -314,3 +314,47 @@ error and this PLAN's index row marked `complete`:
 
 **Gate:** `tools/gate.py` on this phase's tree: 23 of 23, started at a load
 of 8.6. It replaces the scratch gate from here on.
+
+### Phase 3: the release helpers (2026-10-12)
+
+**Change:**
+
+* **`tools/liveskips.py`:** counts passes, skips and failures at the top
+  level and among subtests. A name holding `/` is a subtest. Each skip's
+  and failure's reason is the test's last logged line. A failed package
+  counts too. Exit 1 on any failure.
+* **`tools/consumer.py`:**
+  * `public_packages()` takes every package `go list ./...` reports
+    outside `internal/` that is not a command;
+  * `main_source()` imports each with `_`;
+  * `VERSION` goes through the proxy, or `--replace` builds against the
+    tree;
+  * `--platforms` is six `GOOS/GOARCH` pairs, or `host`;
+  * `--dependent PATH` copies a dependent repository, skipping `.git`,
+    `bin`, `dist`, `*.devops.*.json`, `secrets.json` and `.env*`, and runs
+    the baseline, move, build, vet, test, race and lint steps.
+* **`tools/test_tools.py`:** `TestLiveSkips` (2) and `TestConsumerSource`
+  (2), 25 tests in all. The build case runs with `GOPROXY=off`, so it
+  proves the consumer builds against the tree with no network.
+
+**Red first:** `ModuleNotFoundError: No module named 'consumer'`. **Green:**
+`Ran 25 tests … OK`.
+
+**The tools on real input:**
+
+* `tools/liveskips.py` on `v1.8.0`'s live-suite output (0034-PLAN Phase 7,
+  step 2) gives `top level: 78 passed, 29 skipped, 0 failed` and
+  `subtests: 88 passed, 5 skipped, 0 failed`, with 34 skip reasons. These
+  are the counts that record states.
+* `tools/consumer.py v1.8.0 --platforms host`, through the proxy: `go get`,
+  `go mod tidy`, `go build` and `go run` each exit 0, and the consumer
+  prints `consumer: 15 packages linked`.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| `liveskips` counting a subtest as top level | `test_counts_and_reasons`: `'top level: 2 passed, 1 skipped, 0 failed' not found in 'top level: 3 passed, 2 skipped, 0 failed …'`; `test_a_failure_exits_one`, likewise |
+| `consumer` leaving a public package out | `test_imports_every_public_package`: `'_ "github.com/maccavelli/go-llmprovider-sdk/llmprovider"' not found in '// Command consumer links …'` |
+
+**Gate:** `tools/gate.py`: 23 of 23, started at a load of 6.8.
