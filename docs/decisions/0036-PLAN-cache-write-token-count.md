@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-12
 associated-madr: "0036-MADR-cache-write-token-count.md"
 decision-makers: repository owner
@@ -727,3 +727,94 @@ input, and 1-hour writes above the writes.
 
 **Upgrading:** no code change is needed. A caller that writes a `Usage`
 literal without field names must name them.
+
+**Step 4, the release.**
+
+* The disclosure guard passed over the five outgoing commits, `01edcae` to
+  `ea7689d`.
+* The owner pushed `main` and tagged `v1.10.0`, annotated (`17dc2fe`), on
+  `ea7689d`.
+
+**Step 5, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` | run `38304148668`, push, success |
+| CI on the tag | run `38304678630`, push, success |
+| The proxy | `"Version": "v1.10.0"`, `"GoVersion": "1.27.2"`, `Ref refs/tags/v1.10.0`, hash `ea7689d…` |
+| apidiff `v1.9.0` to `v1.10.0` | `tools/apidiff.py`, exit 0: `llmprovider.Usage.CacheWrite1hTokens: added` and `llmprovider.Usage.CacheWriteTokens: added`, and nothing else |
+| `tools/consumer.py v1.10.0` | 15 packages linked, built for six platforms |
+| the gobble-cli copy | passed; see below |
+| `tools/offline.py v1.10.0` | passed: 19 fields, `requests=0`, six platforms, both its plants caught |
+
+**The gobble-cli copy.** `tools/consumer.py v1.10.0 --dependent` copied a
+local checkout at `ad6ea57` into a scratch directory, without its `.git`,
+`*.devops.*.json`, `secrets.json` or `.env*` files. The checkout itself was
+not changed.
+
+* **On its own requirement,** `v1.2.1`, `go test ./...` passed.
+* **Moved to `v1.10.0`:** `go build`; `go vet` for darwin, linux and
+  windows; `go test`; `go test -race`; and `golangci-lint`, 0 issues. Each
+  passed.
+* **The pricing test,** `TestPriceCacheWrites_0036`, scratch, in the copy's
+  `llm/catalog`:
+  * it maps a `Usage` of 120,000 input, 40,000 read, 30,000 written (10,000
+    of them for one hour) and 2,000 output into gobble-cli's `llm.Usage`, and
+    the write count arrives;
+  * it prices it with `claude-x`'s `ModelRates` from the 0033 fixture, read
+    offline with `ParseMetadata`, against a figure worked by hand: 50,000
+    uncached × 3, 40,000 read × 0.3, 20,000 five-minute writes × 3.75,
+    10,000 one-hour writes × 6, 2,000 output × 15, per million. That is
+    US$0.327;
+  * `--- PASS`; `golangci-lint` on the package, 0 issues.
+
+  The test first failed the copy's lint on its own import order (`gofmt`).
+  That was the scratch test's fault, and it was corrected and rerun. The
+  test passed, and both plants were caught, on both runs.
+* **Its plants:**
+
+  | Plant | FAIL line |
+  | :--- | :--- |
+  | the 1-hour writes priced at `CacheWrite` | `price = 0.364500000, want 0.327000000` |
+  | the writes left in the uncached input | `price = 0.417000000, want 0.327000000` |
+
+**Step 6:** this PLAN is `complete`, and `docs/README.md` says so.
+
+#### Verification, confirmed
+
+| | Result |
+| :--- | :--- |
+| V1. Red, then green | each phase's record gives its red runs and every plant's FAIL lines |
+| V2. The gate | 23 of 23 at every phase; the wire goldens unchanged |
+| V3. Measured first | Phase 1's raw usage from all eight targets, recorded before Phase 3 |
+| V4. The invariants | held for every canned reply, through `wirecase` and `llmtest`, and for every live body in Phases 1 and 4 |
+| V5. API | two additions, and nothing else |
+| V6. Live | Phase 4's decoded counts equal the raw fields, target by target |
+| V7. A consumer | the gobble-cli copy fills its write count and prices the writes from `Usage` and `ModelRates` |
+
+#### Deviations, in all
+
+* **Phase 1, 2026-10-12: Kilo's write spelling.** Kilo sends the write as a
+  top-level `cache_creation_input_tokens`. The owner chose to read both
+  spellings, and 0036-MADR's amendment records it. Phase 3 gained two test
+  rows and two plants.
+* **Phase 1:** T5's model ids were wrong, and OpenCode Zen's account was out
+  of funds. Both were corrected, and T5 to T8 were rerun.
+* **Phase 3:** a test was added, because a plant could not otherwise fail.
+  Two plants were worded to fit one exact edit. Phase 3's record has both.
+
+#### Not done, and why
+
+* **Asking for caching** (`cache_control`, OpenAI's cache options): 0036-MADR
+  D4. Until then, a direct Claude call reports no write.
+* **A cost helper** (0033-MADR Q12). The copy's pricing test shows that a
+  caller has what it needs.
+* **gobble-cli's adapter,** and its double count of cache reads: that
+  repository's own work.
+* **Found, and outside this PLAN** (Phase 1's record):
+  * Anthropic now sends `output_tokens_details.thinking_tokens`, against
+    0015-MADR's amendment "what `Usage` counts";
+  * OpenCode Zen's Chat Completions route can send a cache read only as a
+    top-level `cache_read_input_tokens`.
+
+  Each needs its own record.

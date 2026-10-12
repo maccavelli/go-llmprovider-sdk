@@ -87,7 +87,7 @@ documents a reader follows to do something.
 | 0035 | MADR | [Keep the Maintainer Tools in `tools/`, Written in Python](decisions/0035-MADR-maintainer-tools-in-python.md) | accepted |
 | 0035 | PLAN | [Implement the Maintainer Tools in `tools/`](decisions/0035-PLAN-maintainer-tools-in-python.md) | complete |
 | 0036 | MADR | [Report Cache-Write Tokens in `Usage`, as a Part of the Input Count](decisions/0036-MADR-cache-write-token-count.md) | accepted |
-| 0036 | PLAN | [Implement the Cache-Write Counts in `Usage`](decisions/0036-PLAN-cache-write-token-count.md) | in-progress |
+| 0036 | PLAN | [Implement the Cache-Write Counts in `Usage`](decisions/0036-PLAN-cache-write-token-count.md) | complete |
 
 ## I want to…
 
