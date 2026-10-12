@@ -813,6 +813,11 @@ listings only, not billed):
 * **Found, outside this plan's scope:** `opencode-zen remove
   deepseek-v4-flash not in the listing`. Zen's listing no longer offers a
   model its static list names. A catalog refresh record decides it.
+  *(Note, 2026-10-12: this was not a retirement. The command read the
+  owner's keyed listing, which leaves out the models that key's workspace
+  disables. Zen's public listing still offers `deepseek-v4-flash`, and the
+  live guard passes. 0033-MADR's amendment "the second refresh, and what
+  the command reads", F1.)*
 
 **Plants,** through `tools/plant.py`:
 
@@ -1127,7 +1132,9 @@ All dated 2026-10-12, each in its phase's record:
 * **Found, and outside this PLAN:**
   * OpenCode Zen's static `deepseek-v4-flash` is no longer in Zen's
     listing; the Phase 4 command proposes its removal. It waits for the
-    next catalog refresh.
+    next catalog refresh. *(Note, 2026-10-12: it is in Zen's public
+    listing; the owner's workspace disables it. 0033-MADR's amendment "the
+    second refresh, and what the command reads", F1.)*
   * The `TestCommandToken_*` tests still time out under host load, as
     0034-PLAN-degrade-forced-tool-choice-per-model.md records;
     `tools/gate.py` waits for the load to fall first.

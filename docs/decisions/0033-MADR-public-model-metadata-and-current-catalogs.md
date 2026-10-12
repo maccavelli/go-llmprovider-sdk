@@ -826,8 +826,11 @@ recommended options, then accepted this amendment.
 for the first time. It proposed 49 changes, and recorded one as found
 outside that plan: "`opencode-zen remove deepseek-v4-flash not in the
 listing`. Zen's listing no longer offers a model its static list names."
-0036-PLAN-cache-write-token-count.md repeated it. This amendment rests on
-the research for a second refresh, on 2026-10-12.
+~~0036-PLAN-cache-write-token-count.md repeated it.~~ *(Corrected
+2026-10-12, 0033-PLAN-refresh-the-curated-catalogs.md Phase 5: 0036-PLAN
+never carried it. The same PLAN's "Not done, and why" repeated it
+instead.)* This amendment rests on the research for a second refresh, on
+2026-10-12.
 
 #### F1. The removal is a false positive, from one workspace
 
@@ -904,8 +907,9 @@ its check reads the public one, as the guard does.
   with their measurements (Q15).
 * **D4d. The records are corrected.**
   0033-PLAN-public-model-metadata.md's Phase 4 finding, and
-  0036-PLAN-cache-write-token-count.md's "not done" entry, each gain a
-  dated note that the removal was a workspace's setting.
+  ~~0036-PLAN-cache-write-token-count.md's "not done" entry~~ *(corrected
+  2026-10-12: that PLAN's own "Not done, and why")*, each gain a dated
+  note that the removal was a workspace's setting.
 * **Unchanged:** the runtime catalog keeps reading the keyed listing, and
   the live guard keeps reading the public one.
 

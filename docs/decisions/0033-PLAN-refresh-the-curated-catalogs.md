@@ -62,8 +62,9 @@ All of it ships as `v1.7.1` before 2026-10-23, when OpenAI shuts down
   * a recorded snapshot, `llmprovider/catalog/testdata/ranking-<date>/`,
     its golden test, and a test that each ranked list equals it;
   * a live measurement of each id the refresh adds;
-  * dated notes in 0033-PLAN-public-model-metadata.md and
-    0036-PLAN-cache-write-token-count.md;
+  * dated notes in 0033-PLAN-public-model-metadata.md ~~and
+    0036-PLAN-cache-write-token-count.md~~ *(corrected 2026-10-12, Phase
+    5's deviation)*;
   * `README.md` Status, release notes, and the index, for `v1.10.2`.
 
 ### Out of scope
@@ -222,7 +223,9 @@ The tests are behind `LLMPROVIDER_LIVE_0033`, in
    * 0033-PLAN-public-model-metadata.md, Phase 4's "Found, outside this
      plan's scope";
    * the same PLAN's "Not done, and why";
-   * 0036-PLAN-cache-write-token-count.md's "Not done, and why".
+   * ~~0036-PLAN-cache-write-token-count.md's "Not done, and why".~~
+     *(Deviation, 2026-10-12: that PLAN never carried the finding; see
+     Phase 5's record.)*
 3. This PLAN `in-progress`; the index updated.
 4. `make records-check`, `tools/linkcheck.py`, `tools/denyscan.py
    --changed`. Stage. The owner commits.
@@ -866,3 +869,30 @@ listing reports. Before, they were sent no effort.
   retires it. The SDK only stops recommending it.
 * A caller that reads `Label` for a gateway's model now gets the bare id
   where it got a vendor's label.
+
+### Phase 5: records (2026-10-12)
+
+* 0033-MADR's amendment "the second refresh, and what the command reads"
+  was committed as `caffd35`. Its research and Q13 to Q19, and Phases 5 to
+  9 here, were committed as `f9df589`, accepted by the owner.
+* **D4d's notes,** each dated, in 0033-PLAN-public-model-metadata.md: on
+  Phase 4's "Found, outside this plan's scope", and on its "Not done, and
+  why". Each says the removal was one workspace's disabled model, and cites
+  F1.
+
+**Deviation (2026-10-12): 0036-PLAN never carried the finding.** Step 2
+planned a note in 0036-PLAN-cache-write-token-count.md's "Not done, and
+why". That list names only the Anthropic reasoning count and the Zen
+cache-read spelling. The amendment's claim that 0036-PLAN repeated the
+finding was written without checking. The owner chose a dated correction:
+
+* 0033-MADR's amendment strikes "0036-PLAN-cache-write-token-count.md
+  repeated it" and its D4d's mention of 0036-PLAN, each with a dated note.
+  The finding's repetition was in 0033-PLAN-public-model-metadata.md's own
+  "Not done, and why".
+* This PLAN's scope and step 2 strike the 0036-PLAN bullet, each with a
+  dated note.
+* 0036-PLAN is unchanged.
+
+**Checks:** `make records-check`, `tools/linkcheck.py` and
+`tools/denyscan.py --changed`, clean.
