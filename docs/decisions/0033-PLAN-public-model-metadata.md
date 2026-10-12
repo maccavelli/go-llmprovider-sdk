@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-12
 associated-madr: "0033-MADR-public-model-metadata-and-current-catalogs.md"
 decision-makers: repository owner
@@ -1004,3 +1004,130 @@ results stand.
 
 This fix is a test-only commit. It becomes the release commit, and `v1.9.0`
 is tagged on it. **Gate:** `tools/gate.py`, 23 of 23.
+
+**Steps 3 and 4, the release.**
+
+* The live suites' fix, `3c006a9`, is the release commit.
+* The disclosure guard passed over the outgoing commits before the push.
+* The owner pushed `main` and tagged `v1.9.0`, annotated (`59c5c7b`), on
+  `3c006a9`.
+
+**Step 5, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` | run `38286544006`, push, success |
+| CI on the tag | run `38288513887`, push, success |
+| The proxy | `"Version": "v1.9.0"`, `"GoVersion": "1.27.2"`, `Ref refs/tags/v1.9.0`, hash `3c006a9…` |
+| apidiff `v1.8.0` to `v1.9.0` | `tools/apidiff.py`, exit 0. 50 additions, all in `catalog`, and nothing incompatible, removed or changed |
+| A scratch consumer of every public package | `tools/consumer.py v1.9.0`: 15 packages linked, built for six platforms |
+| The offline consumer | passed, built for six platforms; see below |
+| A scratch copy of gobble-cli | passed on `v1.9.0`; see below |
+
+The 50 additions are amended D1 to D3 and nothing else:
+
+* **D1, the type:** `ModelInfo`, `ModelReasoning`, `ModelRates`,
+  `ModelCost`, `ModelCostTier`, `Modality` and its five values,
+  `ModelStatus` and its five values, `Field` and its 23 values.
+* **D2, the layers:** `Layer`, `WithModelLayer`, `ParseMetadata`, and
+  `Metadata`'s `Name`, `Model`, `Models` and `Encode`.
+* **D3, the lookup:** `LookupModel` and `CachedModel`.
+
+**The offline consumer** is a scratch program, outside the repository, that
+requires `v1.9.0` from the proxy. It:
+
+* parses the Phase 2 fixture with `ParseMetadata`, and adds it with
+  `WithModelLayer`;
+* sets `WithoutModelMetadata` and passes a nil token source;
+* gives `WithHTTPClient` a transport that counts each request and refuses
+  it;
+* reads `claude-x` through `LookupModel` and `CachedModel`, and requires
+  the window, the output cap, the input and output prices and the tiers to
+  be set, each from the layer's `Name()`.
+
+```text
+window=1000000 output=128000 input=3 output=15 tiers=1 above-200k input=6 source=models.dev
+requests=0
+offline: ok
+```
+
+`go vet` was clean. The program built with `CGO_ENABLED=0` for
+linux, windows and darwin, each on amd64 and arm64. Its two plants, each on
+a fresh copy, were caught:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| `WithoutModelMetadata` removed | `FAIL: LookupModel: model metadata: Get "https://models.opencode.ai/api.json": offline: request refused`; `FAIL: the counting transport saw 1 request(s), want 0` |
+| `WithModelLayer` removed | `FAIL: CachedModel: nothing known`; `FAIL: LookupModel: field 2 unset`, and the same for fields 4, 14, 15 and 19, for both calls |
+
+**The gobble-cli copy.** `tools/consumer.py v1.9.0 --dependent` copied a
+local checkout at `ad6ea57` into a scratch directory, without its `.git`,
+`*.devops.*.json`, `secrets.json` or `.env*` files. The checkout itself was
+not changed.
+
+* **On its own requirement,** `v1.2.1`: `go test ./...` passed.
+* **Moved to `v1.9.0`:** `go get` and `go mod tidy`; then `go build`; `go
+  vet` for darwin, linux and windows; `go test`; `go test -race`; and
+  `golangci-lint run -c .golangci.yml` with 0 issues. Each passed.
+* **Pi's `Model`.** gobble-cli has no model type yet: its `llm/catalog` is
+  a stub. So a scratch test, `TestPiModelFromModelInfo_0033`, in that
+  package of the copy, declares Pi's shape (0033-MADR's consumers). It
+  fills `contextWindow`, `maxTokens` and `cost`, with
+  `tiers[].inputTokensAbove`, from a `ModelInfo` read offline as above. A
+  field `Has` does not report takes Pi's default, 4096 or a price of 0.
+  * `claude-x`: window 1000000; `maxTokens` 128000; cost 3, 15, 0.3 and
+    3.75; one tier above 200000, at 6, 22.5, 0.6 and 7.5.
+  * An unknown model: Pi's defaults.
+  * The transport saw no request.
+  * `gofmt` clean; `--- PASS`; `golangci-lint` on the package, 0 issues.
+* **Its plants** were caught:
+
+  | Plant | FAIL line |
+  | :--- | :--- |
+  | the window copied without `Has` | `unknown model {ContextWindow:0 MaxTokens:4096 …}; want Pi's defaults, 4096 and a price of 0` |
+  | cache write taken from cache read | `claude-x cost {Input:3 Output:15 CacheRead:0.3 CacheWrite:0.3 …}; want {… CacheWrite:3.75 …}` |
+
+  The first is the reason for `Has`: without it an unknown window reads as
+  zero.
+
+**Step 6:** this PLAN is `complete`, and `docs/README.md` says so.
+
+#### Verification, confirmed
+
+| | Result |
+| :--- | :--- |
+| V1. Red, then green | each phase's record gives its red run and every plant's FAIL line |
+| V2. The gate | 23 of 23 at every phase; the generation and listing goldens unchanged |
+| V3. Measurement | Phase 1's coverage table, recorded before Phase 2, every unit confirmed |
+| V4. Benchmark | within 25% once decoding was lazy (Phase 2's deviation): fetch −61.5%, the real document +19.9% |
+| V5. API | apidiff `v1.8.0` to `v1.9.0`: 50 additions, those of amended D1 to D3 only |
+| V6. Live | `TestLive_LookupModel_0033` passed for nine providers; the live suites on the release commit, with the Zen drift fixed and rerun |
+| V7. Offline | the scratch consumer's counting transport saw no request, and saw one when models.dev was left on |
+
+#### Deviations, in all
+
+All dated 2026-10-12, each in its phase's record:
+
+* **Phase 1:** Kilo's listing has cache and reasoning prices; amended D2
+  sets them.
+* **Phase 2:** decoding every section cost +35.7%, over V4's bound; each
+  section is now decoded when first read.
+* **Phase 4:** `go test -cover` counts an untested `main` package as 0.0%,
+  so `main` calls a tested `run`.
+* **Phase 5:** OpenCode Zen changed its error wording; the live test's two
+  expected messages were updated, and §1c of 0007-MADR stands.
+
+#### Not done, and why
+
+* **A usable-window or cost helper:** none, by Q12. Each consumer applies
+  its own rule.
+* **gobble-cli's own adoption:** out of this repository. The scratch test
+  shows the shape it needs fills from `ModelInfo`; it lives only in the
+  scratch copy.
+* **Found, and outside this PLAN:**
+  * OpenCode Zen's static `deepseek-v4-flash` is no longer in Zen's
+    listing; the Phase 4 command proposes its removal. It waits for the
+    next catalog refresh.
+  * The `TestCommandToken_*` tests still time out under host load, as
+    0034-PLAN-degrade-forced-tool-choice-per-model.md records;
+    `tools/gate.py` waits for the load to fall first.

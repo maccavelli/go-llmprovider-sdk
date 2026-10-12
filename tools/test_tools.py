@@ -31,6 +31,7 @@ import edit
 import gate
 import linkcheck
 import liveskips
+import offline
 import plant
 
 
@@ -306,6 +307,43 @@ class TestConsumerSource(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("go build", out)
         self.assertIn("consumer: every step passed", out)
+
+
+class TestOffline(unittest.TestCase):
+    """0035-MADR D5: a ModelInfo read with no request, and the plants that prove it."""
+
+    NO_NETWORK = {"GOPROXY": "off", "GOFLAGS": "-mod=mod"}
+
+    def run_offline(self, plants: dict[str, tuple[str, str]] | None = None) -> tuple[int, str]:
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, self.NO_NETWORK):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                rc = offline.main(["--replace", "--platforms", "host", "--out", tmp], plants=plants)
+        return rc, out.getvalue()
+
+    def test_each_plant_matches_the_program_once(self) -> None:
+        for name, (old, _) in offline.PLANTS.items():
+            self.assertEqual(offline.PROGRAM.count(old), 1, name)
+
+    def test_passes_against_the_tree_with_no_network(self) -> None:
+        rc, out = self.run_offline()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("requests=0", out)
+        for name in offline.PLANTS:
+            self.assertIn(f"caught: {name}", out)
+        self.assertIn("offline: every step passed", out)
+
+    def test_a_harmless_plant_is_not_caught(self) -> None:
+        rc, out = self.run_offline({"a comment": ("// Command offline", "// Command  offline")})
+        self.assertEqual(rc, 1, out)
+        self.assertIn("NOT CAUGHT: a comment", out)
+
+    def test_an_unmatched_plant_is_a_tool_error(self) -> None:
+        rc, out = self.run_offline({"absent": ("no such text", "")})
+        self.assertEqual(rc, 2, out)
+        self.assertIn('"absent"', out)
+        self.assertNotIn("go get", out)
+        self.assertNotIn("go mod", out)
 
 
 if __name__ == "__main__":

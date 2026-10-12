@@ -21,6 +21,7 @@ Exit codes, for every tool: **0** clean, **1** a finding, **2** a tool error.
 | `edit.py` | exact replacements from a JSON spec, each asserted to match, all applied or none | `tools/edit.py SPEC.json` |
 | `liveskips.py` | sorts a `go test -v` run into passes, skips with their reasons, and failures | `tools/liveskips.py RUN.txt` |
 | `consumer.py` | after a tag: a consumer of every public package built for six platforms, and optionally a dependent repository moved to the version | `tools/consumer.py VERSION [--dependent PATH]` |
+| `offline.py` | after a tag: a program reads a `ModelInfo` from a metadata document with no request, built for six platforms; two built-in plants must each fail it | `tools/offline.py VERSION [--metadata FILE] [--provider ID] [--model ID]` |
 
 `_common.py` holds what they share:
 

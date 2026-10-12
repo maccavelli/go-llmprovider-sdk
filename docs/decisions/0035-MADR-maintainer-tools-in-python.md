@@ -107,6 +107,7 @@ CI gates", because:
 | `tools/plant.py` | runs plants from a JSON spec on a scratch clone; fails if any plant passes; prints each plant's FAIL lines | the plant runners |
 | `tools/liveskips.py` | sorts a `go test -v` run into passes, skips with their reasons, and failures | the live-run classifier |
 | `tools/consumer.py` | the post-tag check: a scratch consumer of every public package at a version, built for six platforms; optionally a scratch copy of a dependent repo, given by path, moved to that version | the consumer scripts |
+| `tools/offline.py` | *(D5, amended 2026-10-12)* the post-tag offline check: a scratch program reads a `ModelInfo` at a version with no request, built for six platforms, and two plants prove it would see one | 0033-PLAN-public-model-metadata.md Phase 5's scratch program |
 | `tools/edit.py` | exact replacements from a JSON spec, each asserted to match once, all or none applied | the record-edit helpers |
 | `tools/README.md` | what each tool does, its usage and exit codes | new |
 | `tools/test_tools.py` | each tool on planted input, in temporary directories | new |
@@ -154,6 +155,39 @@ It stays in bash, as it is (Q2). The new tools are Python. The pre-add
 check, which the machine-wide commit gate calls by its path, is not
 changed by this record.
 
+### D5. The offline check *(amended 2026-10-12)*
+
+0033-PLAN-public-model-metadata.md, Phase 5 step 5, checked `v1.9.0` with
+a scratch Go program. The program reads a `ModelInfo` from a parsed metadata
+document with no request, and two plants prove it would see one. The check
+is worth running at each release that touches `catalog`, so by the owner's
+second direction it belongs in `tools/`. The owner directed, the same day:
+"make the amendment, put the tool where it goes."
+
+* **`tools/offline.py`,** beside `consumer.py`, whose build steps it
+  reuses. `consumer.py` is not changed: its consumer must build at any
+  version, and `LookupModel` exists only from `v1.9.0`.
+* **The program** is generated into `--out`, and takes its inputs as
+  flags:
+  * a metadata document, `--metadata` (the 0033 fixture by default),
+    parsed with `ParseMetadata` and added with `WithModelLayer`;
+  * `WithoutModelMetadata`, a nil token source, and an HTTP client whose
+    transport counts each request and refuses it;
+  * `--provider` and `--model` (`claude` and `claude-x` by default).
+* **It requires** that `LookupModel` returns no error and `CachedModel`
+  knows the model; that every field the document sets reaches both, with
+  the layer's `Name()` as its source; and that the transport saw no
+  request.
+* **Each run proves itself.** After `go vet`, `go run` and a build for each
+  platform, two plants, each on a fresh copy of the program, must each fail
+  it: `WithoutModelMetadata` removed, and `WithModelLayer` removed. A plant
+  that passes is exit 1. A plant that does not match the program exactly
+  once is exit 2.
+* **The Pi mapping test stays out.** It tested one consumer's shape, in that
+  consumer's copy, and is that release's record.
+* **`tools/test_tools.py`** runs it against the tree with no network, and
+  gives it a harmless plant that it must report as not caught.
+
 ### Consequences
 
 * Good, because the tools no longer depend on a session, and a lost
@@ -165,6 +199,8 @@ changed by this record.
   tests, on the standard library only.
 * Bad, because two directories of Python now sit side by side. The README
   of each says which is which.
+* Neutral, because `tools/offline.py` holds a Go program as a string
+  (D5). Each run vets it, but the gate's lint does not read it.
 
 ### Confirmation
 
@@ -173,6 +209,8 @@ changed by this record.
   wrong index status each fail their checks.
 * `tools/denyscan.py` runs over `tools/` itself, with no hit.
 * `make records-check`, `make lint` and the gate pass at each phase.
+* *(D5)* `tools/offline.py` passes on `v1.9.0`, and fails each of its own
+  plants.
 
 ## Pros and Cons of the Options
 

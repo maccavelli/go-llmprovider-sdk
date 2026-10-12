@@ -158,8 +158,8 @@ generate-check records-check gate-selftest`; run them before asking for a push. 
   on a scratch clone, never in the tree.
 - `tools/denyscan.py --changed` and `tools/linkcheck.py` are the
   identifier scan and the link check.
-- `tools/apidiff.py OLD [NEW]`, `tools/liveskips.py` and
-  `tools/consumer.py` serve a release's record.
+- `tools/apidiff.py OLD [NEW]`, `tools/liveskips.py`,
+  `tools/consumer.py` and `tools/offline.py` serve a release's record.
 
 Write every script, loops and waits included, in Python, not shell. A
 script worth running twice belongs in `tools/`, with a test in

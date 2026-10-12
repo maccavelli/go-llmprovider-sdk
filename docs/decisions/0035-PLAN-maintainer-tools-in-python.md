@@ -33,6 +33,8 @@ No Go code changes, and no exported API.
   `apidiff.py`, `plant.py`, `liveskips.py`, `consumer.py`, `edit.py`,
   `README.md` and `test_tools.py`.
 * **`Makefile`:** a `tools-test` target.
+* **Phase 5** *(amended 2026-10-12, 0035-MADR D5):* `tools/offline.py`,
+  its tests, and its lines in `tools/README.md` and `AGENTS.md`.
 * **Docs:** `AGENTS.md` ("Pre-add checks", and a pointer to `tools/`), the
   layout block and the gates section of `docs/architecture.md`,
   `docs/README.md`'s index.
@@ -163,6 +165,36 @@ No Go code changes, and no exported API.
    finds nothing.
 3. This PLAN `complete`; the index updated.
 
+### Phase 5: the offline check *(amended 2026-10-12, 0035-MADR D5)*
+
+The owner directed "make the amendment, put the tool where it goes" after
+0033-PLAN-public-model-metadata.md's post-tag checks, which ran this check
+from the scratchpad.
+
+1. **Red first** (`tools/test_tools.py`, `TestOffline`):
+
+   | Test | Asserts |
+   | :--- | :--- |
+   | `test_each_plant_matches_the_program_once` | each built-in plant's `old` is in the program exactly once |
+   | `test_passes_against_the_tree_with_no_network` | `--replace --platforms host`, with `GOPROXY=off`: exit 0; `requests=0`; both plants `caught` |
+   | `test_a_harmless_plant_is_not_caught` | a plant that changes only a comment: exit 1, and `NOT CAUGHT` names it |
+   | `test_an_unmatched_plant_is_a_tool_error` | a plant whose `old` is not in the program: exit 2, before any build |
+
+2. **Change:**
+   * **`tools/offline.py`:** D5's program as a string, `VERSION` or
+     `--replace`, `--metadata`, `--provider`, `--model`, `--platforms` and
+     `--out`. It reuses `consumer.py`'s `Steps`, `platforms` and
+     `go_version`.
+   * **`tools/README.md`:** a row.
+   * **`AGENTS.md`:** "Tools" names it among the release helpers.
+3. **Plants,** through `tools/plant.py`, with `TestOffline`'s command:
+   * the plant loop counting a passing plant as caught;
+   * the program left without `WithoutModelMetadata`.
+4. **On the release:** `tools/offline.py v1.9.0`, through the proxy, for six
+   platforms. It must give 0033-PLAN-public-model-metadata.md's result.
+5. `tools/denyscan.py` over the changed files; the gate; this PLAN
+   `complete`; the index updated; stage.
+
 ## Verification
 
 * **V1. Red, then green,** with every plant's FAIL line.
@@ -170,6 +202,8 @@ No Go code changes, and no exported API.
 * **V3.** The gate's planted proof in Phase 2, and a clean 23 of 23.
 * **V4.** No committed file in `tools/` names a host, an account or a
   machine path (`tools/denyscan.py`).
+* **V5** *(Phase 5)*. `tools/offline.py` passes on `v1.9.0` and against the
+  tree, and catches both its plants; its tests fail on Phase 5's plants.
 
 ## Rollout and Rollback
 
@@ -403,3 +437,69 @@ of 8.6. It replaces the scratch gate from here on.
 * `scripts/go-precheck.sh` stays in bash (Q2).
 
 **Gate:** `tools/gate.py`: 23 of 23, started at a load of 8.8.
+
+### Phase 5: the offline check (2026-10-12)
+
+The owner directed "make the amendment, put the tool where it goes." The
+amendment is 0035-MADR D5, with this PLAN's Phase 5, written before the tool.
+
+**Change:**
+
+* **`tools/offline.py`:** D5's Go program as a string, and two built-in
+  plants. It reuses `consumer.py`'s `Steps`, `platforms`, `go_version` and
+  `MODULE`. The program reads `-metadata`, `-provider` and `-model` as flags,
+  so the source is the same for every input. It checks that every field the
+  document sets for the model reaches `LookupModel` and `CachedModel` from
+  the layer, rather than a fixed list, and it checks `gofmt` on the program
+  too.
+* **`tools/test_tools.py`:** `TestOffline`, 4 tests, 29 in all.
+* **`tools/README.md`:** a row. **`AGENTS.md`:** "Tools" names it.
+
+**Red first:**
+
+```text
+ModuleNotFoundError: No module named 'offline'
+FAILED (errors=1)
+```
+
+**Green:** `make tools-test`: `Ran 29 tests … OK`.
+
+**Plants,** through `tools/plant.py`, with `TestOffline`'s command:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the plant loop counting a passing plant as caught | `test_a_harmless_plant_is_not_caught`: `AssertionError: 0 != 1` |
+| the program left without `WithoutModelMetadata` (commented out, so the built-in plant still matches) | `test_passes_against_the_tree_with_no_network`: `AssertionError: 1 != 0`; `test_a_harmless_plant_is_not_caught`: `'NOT CAUGHT: a comment' not found` |
+
+`plant.py` prints only the head of an assertion's message. The second plant
+was rerun in memory, with the tree untouched, to see why it failed: the
+green run printed `requests=1` and `FAIL: the counting transport saw 1
+request(s), want 0`.
+
+**On the release** (step 4): `tools/offline.py v1.9.0`, through the proxy,
+exit 0:
+
+```text
+fields=19 window=1000000 output=128000 input=3 output=15 tiers=1 source=models.dev
+requests=0
+offline: ok
+```
+
+* `gofmt` and `go vet` were clean, and it built with `CGO_ENABLED=0` for
+  linux, windows and darwin, each on amd64 and arm64.
+* `models.dev left on` was caught: `FAIL: LookupModel: model metadata: Get
+  "https://models.opencode.ai/api.json": offline: request refused`; `FAIL:
+  the counting transport saw 1 request(s), want 0`.
+* `no caller layer` was caught: `FAIL: CachedModel: nothing known`, and
+  each of the 19 fields unset, for both calls.
+
+This is 0033-PLAN-public-model-metadata.md's result, with 19 fields checked
+where the scratch program checked five.
+
+**Checks:** `tools/denyscan.py --changed`, `deny-scan: 0 hit(s) in 8
+file(s)`; `tools/linkcheck.py`, 0 problems; markdownlint on
+`tools/README.md` and `AGENTS.md`, 0 issues; `make records-check`, clean.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.0.
+
+**Complete.** V5 is met, and V1 to V4 still hold.
