@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-76 records. Cite them by full filename.
+78 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -86,6 +86,8 @@ documents a reader follows to do something.
 | 0034 | PLAN | [Implement a Per-Model Degradation of Forced Tool Choice](decisions/0034-PLAN-degrade-forced-tool-choice-per-model.md) | complete |
 | 0035 | MADR | [Keep the Maintainer Tools in `tools/`, Written in Python](decisions/0035-MADR-maintainer-tools-in-python.md) | accepted |
 | 0035 | PLAN | [Implement the Maintainer Tools in `tools/`](decisions/0035-PLAN-maintainer-tools-in-python.md) | complete |
+| 0036 | MADR | [Report Cache-Write Tokens in `Usage`, as a Part of the Input Count](decisions/0036-MADR-cache-write-token-count.md) | accepted |
+| 0036 | PLAN | [Implement the Cache-Write Counts in `Usage`](decisions/0036-PLAN-cache-write-token-count.md) | proposed |
 
 ## I want to…
 
@@ -116,6 +118,7 @@ documents a reader follows to do something.
 | know why a model is or is not in a provider's menu | [0033-PLAN-refresh-the-curated-catalogs.md](decisions/0033-PLAN-refresh-the-curated-catalogs.md) |
 | know how GenerateToolCall forces a tool on the Claude models that refuse it | [0034-MADR](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) |
 | run the local gate, the link check or the identifier scan myself | [0035-MADR](decisions/0035-MADR-maintainer-tools-in-python.md) |
+| price a response's cache writes, or know what each `Usage` count includes | [0036-MADR](decisions/0036-MADR-cache-write-token-count.md) |
 | know why provider auth builds on `mcplib` and not `magic-cli-remote`, and what it takes from each | [0016-MADR](decisions/0016-MADR-provider-auth-and-support-baseline.md) |
 | compare this module's auth with Codex, Grok, Kilo, OpenCode, pi, agy and Claude Code | [0017-REPORT](reports/0017-REPORT-reference-client-auth-survey.md) |
 | know how Together AI, Kilo device login and command-sourced keys are being added | [0017-MADR](decisions/0017-MADR-together-provider-and-auth-extensions.md) |
