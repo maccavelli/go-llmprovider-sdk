@@ -379,6 +379,59 @@ The option's value type lives in a module-internal package,
 `llmprovider/internal/listlimit`, which `catalog` and the providers share.
 No accessor is exported.
 
+## Amendment 2026-10-13 (A4): the full list's order, and the menu
+
+0041-MADR-decide-per-model-behaviour-from-metadata.md, proposed on
+2026-10-13, orders every provider's live menu by facts. It changes this
+record's full list in four ways. D1 to D7 and A1 to A3 stand except where
+this says otherwise. Their text is not edited. This amendment takes effect
+when 0041-MADR is accepted, and is implemented by
+0041-PLAN-decide-per-model-behaviour-from-metadata.md, Phase 4. The owner
+accepted 0041-MADR on 2026-10-13, so A4 is in effect; until that phase
+lands, the code still builds the full list as A1 describes.
+
+### A4.1. The full list's order
+
+D1 orders the full list as the ranking with no cap. A1 builds it as today's
+six, then the rest of that ranking. After this amendment:
+
+1. **The six** are 0041-MADR D4's recommended band, computed on its own, as
+   A1 requires.
+2. **The rest** are the other eligible models, newest first by release
+   date (0041-MADR D1), then in listing order, then by id. They are no
+   longer in the name scorers' order, or the uncapped ranking's.
+
+The prefix property of D2 and A1 still holds by construction:
+`WithLimit(MaxListed)` is the band, and `WithLimit(n)` is a prefix of the
+full list.
+
+### A4.2. What the full list leaves out
+
+D1's "known, working" list also leaves out every model with a 0041-MADR D3
+caveat:
+
+* deprecated;
+* no tools;
+* no text output;
+* expiring within 30 days.
+
+A model that fails at request was already left out (D1). None of these is
+dropped from the catalog. They are in the new `Catalog.Menu`, after the
+full list, with their caveats, and in `Usable`, as today.
+
+### A4.3. The menu
+
+`Catalog` gains `Menu`, every usable model in 0041-MADR D3's order, with
+its facts, rank and caveats; and `Source` and `FetchedAt` (0041-MADR D6).
+`Recommended` keeps its type and is a prefix of `Menu`'s ids.
+
+### A4.4. D3, "the static lists are unchanged"
+
+The static lists are still at most six, and still the floor. But each
+ranked list must equal the latest snapshot's utility six
+(`TestStatic_EqualsLatestSnapshot`), so they change when 0041-MADR D4
+changes the ranking. 0041-PLAN Phase 3 updates them.
+
 ## Pros and Cons of the Options
 
 ### A. Full by default, `catalog.WithLimit(n)` to cut

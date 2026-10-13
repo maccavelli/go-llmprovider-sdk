@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-84 records. Cite them by full filename.
+88 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -94,6 +94,10 @@ documents a reader follows to do something.
 | 0038 | PLAN | [Implement the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-PLAN-full-curated-catalog-by-default.md) | complete |
 | 0039 | MADR | [Let a Request Ask for Prompt Caching](decisions/0039-MADR-request-side-prompt-caching.md) | accepted |
 | 0039 | PLAN | [Implement Request-Side Prompt Caching](decisions/0039-PLAN-request-side-prompt-caching.md) | complete |
+| 0040 | MADR | [Let a Request Defer Tools Until a Tool Result Loads Them](decisions/0040-MADR-native-tool-deferral.md) | accepted |
+| 0040 | PLAN | [Implement Native Tool Deferral](decisions/0040-PLAN-native-tool-deferral.md) | proposed |
+| 0041 | MADR | [Order a Live Model Menu, and Decide Per-Model Behaviour, From Model Facts](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md) | accepted |
+| 0041 | PLAN | [Implement a Live Model Menu, and Per-Model Behaviour, From Model Facts](decisions/0041-PLAN-decide-per-model-behaviour-from-metadata.md) | proposed |
 
 ## I want to…
 
@@ -123,6 +127,10 @@ documents a reader follows to do something.
 | read a model's context window, output limit, prices or modalities | [0033-MADR](decisions/0033-MADR-public-model-metadata-and-current-catalogs.md) |
 | know why a model is or is not in a provider's menu | [0033-PLAN-refresh-the-curated-catalogs.md](decisions/0033-PLAN-refresh-the-curated-catalogs.md) |
 | ask a provider to cache a prompt | [0039-MADR-request-side-prompt-caching.md](decisions/0039-MADR-request-side-prompt-caching.md) |
+| offer many tools but load only the ones a search finds, keeping the cache | [0040-MADR-native-tool-deferral.md](decisions/0040-MADR-native-tool-deferral.md) |
+| know how a provider's live model menu is ordered, what its caveats mean, or what it shows when a listing fails | [0041-MADR-decide-per-model-behaviour-from-metadata.md](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md) |
+| know why a model's thinking, effort or output limit comes from its facts | [0041-MADR-decide-per-model-behaviour-from-metadata.md](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md) |
+| get each provider's model listing exactly as the provider sent it, with none of the SDK's curation | [0041-MADR-decide-per-model-behaviour-from-metadata.md](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md), D9 |
 | list every model a provider serves, or only the top six | [0038-MADR-full-curated-catalog-by-default.md](decisions/0038-MADR-full-curated-catalog-by-default.md) |
 | know how GenerateToolCall forces a tool on the Claude models that refuse it | [0034-MADR](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) |
 | run the local gate, the link check or the identifier scan myself | [0035-MADR](decisions/0035-MADR-maintainer-tools-in-python.md) |

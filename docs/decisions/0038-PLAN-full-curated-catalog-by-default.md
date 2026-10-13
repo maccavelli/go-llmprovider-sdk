@@ -998,3 +998,20 @@ All are dated 2026-10-13, each in its phase's record:
 * **No live test asserts that a full list is longer than six.** Under a
   profile that excludes much, a list can hold six or fewer. The offline
   tests pin each length against the snapshot.
+
+### Follow-up (2026-10-13): 0038-MADR amendment A4
+
+0038-MADR's amendment A4 changes the full list's order and its exclusions,
+and adds `Catalog.Menu`, for 0041-MADR. This PLAN stays `complete`: the work
+is 0041-PLAN-decide-per-model-behaviour-from-metadata.md's, as follows.
+
+* Phase 3 updates the static lists and this PLAN's snapshot tests.
+* Phase 4 builds the menu and the new full list.
+* Phase 4 re-runs this PLAN's offline tests:
+  * the `_0038` tests in `llmprovider/catalog`;
+  * `llmprovider/providers/limit_0038_test.go`;
+  * `llmprovider/providers/openai/limit_0038_test.go`;
+  * `wizard/model_limit_0038_test.go`.
+
+  Each assertion A4 changes is updated in the same commit, and recorded
+  there.
