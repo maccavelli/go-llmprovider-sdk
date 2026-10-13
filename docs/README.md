@@ -93,7 +93,7 @@ documents a reader follows to do something.
 | 0038 | MADR | [List the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-MADR-full-curated-catalog-by-default.md) | accepted |
 | 0038 | PLAN | [Implement the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-PLAN-full-curated-catalog-by-default.md) | complete |
 | 0039 | MADR | [Let a Request Ask for Prompt Caching](decisions/0039-MADR-request-side-prompt-caching.md) | accepted |
-| 0039 | PLAN | [Implement Request-Side Prompt Caching](decisions/0039-PLAN-request-side-prompt-caching.md) | in-progress |
+| 0039 | PLAN | [Implement Request-Side Prompt Caching](decisions/0039-PLAN-request-side-prompt-caching.md) | complete |
 
 ## I want to…
 

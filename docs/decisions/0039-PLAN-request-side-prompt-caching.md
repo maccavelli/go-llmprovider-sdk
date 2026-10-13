@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-13
 associated-madr: "0039-MADR-request-side-prompt-caching.md"
 decision-makers: repository owner
@@ -712,3 +712,57 @@ the input price. `Usage.CachedTokens`, `CacheWriteTokens` and
   conversation.
 
 **Upgrading:** no change is needed. Caching is opt-in.
+
+**Phase 4, step 5, the release.**
+
+* The owner committed steps 1 to 4 as `57cbd79`.
+* **The disclosure guard** ran over the five outgoing commits, `2883e90` to
+  `57cbd79`, when the owner asked ("run the guard"). It exited 0 with no
+  finding.
+* **The push and tag:** the owner pushed `main`, then tagged `v1.12.0`,
+  annotated (`95639e9`), on `57cbd79`, and pushed the tag.
+
+**Step 6, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` | run `38455810471`, push, success |
+| CI on the tag | run `38459087589`, push, success |
+| The proxy | `"Version":"v1.12.0"`, `Ref refs/tags/v1.12.0`, hash `57cbd79…` |
+| `tools/apidiff.py v1.11.0 v1.12.0` | exit 0. Compatible changes only: `CacheLong`, `CacheRetention`, `CacheShort` and `Request.Cache`, each `added` |
+| `tools/consumer.py v1.12.0` | 15 packages linked, built for six platforms |
+| `tools/offline.py v1.12.0` | passed: 19 fields, `requests=0`, six platforms. Both its plants were caught |
+
+**Step 7:** this PLAN is `complete`, and `docs/README.md` says so.
+
+#### Verification, confirmed
+
+| | Result |
+| :--- | :--- |
+| V1. Refused before the network | `TestRequest_CacheValues`, and `llmtest` R23 for every provider |
+| V2. No change without `Cache` | `g-wire-stable` held in every phase. No existing golden changed, and a plant showed one failing on a change |
+| V3. Messages markers | `TestAddCache`, and the `claude` and OpenCode Messages goldens: two markers, one TTL |
+| V4. The key and Kilo's field | `TestCache_PerProvider`, and the regenerated goldens |
+| V5. Live | run 1 and the rerun: every Claude path wrote, then read; Claude's long write was an hour's; OpenAI and Together read |
+| V6. API | exactly the four additions |
+| V7. Plants | every new assertion failed on a plant; one planned plant that could not fail was replaced (Phase 3) |
+
+#### Deviations, in all
+
+* **Phase 4, deviation 1 (2026-10-13):** the long paths read the short
+  paths' entries. Each path now has its own prompt, and four more billed
+  requests ran.
+
+#### Not done, and why
+
+* **Out of scope,** as 0039-MADR D6 decides:
+  * `CacheNone`;
+  * breakpoints placed by the caller;
+  * cache warming;
+  * Gemini's `cachedContents`;
+  * OpenAI's explicit breakpoints and `prewarm`;
+  * a per-request session id.
+* **gobble-cli's adoption** belongs to that repository: setting `Cache`,
+  and a session id per conversation.
+* **xAI's reads are logged, not required.** xAI read a 512-token prefix on
+  both requests. Its caching is best-effort routing (D3).
