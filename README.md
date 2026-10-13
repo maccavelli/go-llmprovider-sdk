@@ -190,8 +190,19 @@ key.
 
 ## Status
 
-The current release is `v1.10.1`. The module requires Go 1.27.2.
+The current release is `v1.10.2`. The module requires Go 1.27.2.
 
+- `v1.10.2` refreshes the curated model lists of OpenCode Zen, OpenCode Go,
+  Kilo and Together from a recorded snapshot, as
+  [0033-MADR](docs/decisions/0033-MADR-public-model-metadata-and-current-catalogs.md)'s
+  amendment "the second refresh, and what the command reads" decides. A test
+  holds each list to the snapshot. The ranker gains three rules
+  ([0009-MADR](docs/decisions/0009-MADR-use-case-aware-default-model-ranking.md)
+  §3 items 10 to 12): Together recommends only models it serves, and the
+  utility profile recommends no dense model of 14B or less. The exported API
+  does not change. The release notes are in
+  [0033-PLAN-refresh-the-curated-catalogs.md](docs/decisions/0033-PLAN-refresh-the-curated-catalogs.md),
+  Phase 9.
 - `v1.10.1` reads two `Usage` counts it missed, as
   [0037-MADR](docs/decisions/0037-MADR-reasoning-and-cache-read-spellings.md)
   decides: Anthropic's reasoning count,

@@ -1489,3 +1489,50 @@ passed once `modelClaudeHaiku55` named it, on all five Go files (gofmt,
 golangci-lint, go vet, go test, govulncheck).
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load of 8.3, on the tree with `modelClaudeHaiku55`.
+
+Phase 8 was committed by the owner as `1f10937`.
+
+### Phase 9: release (2026-10-12)
+
+**Step 1:** `README.md` Status names `v1.10.2`, with a bullet.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 5.7; `README.md` was then linted and link-checked apart.
+
+#### Release notes: `v1.10.2`
+
+`v1.10.2` refreshes the curated model lists, and tightens the ranker that
+builds them (0033-MADR's amendment "the second refresh, and what the command
+reads"; 0009-MADR §3 items 10 to 12). The exported API does not change.
+
+**The lists,** each now the utility six of a recorded snapshot,
+`llmprovider/catalog/testdata/ranking-2026-10-12/`:
+
+| List | Added | Removed |
+| :--- | :--- | :--- |
+| OpenCode Zen | `claude-haiku-5-5` | `gemini-3.8-flash` |
+| OpenCode Go | `claude-haiku-5-5`, `space-bunny` | `mimo-v2.6-pro`, `hy3` |
+| Kilo | `openai/gpt-6.1-sol` | `thinkingmachines/inkling` |
+| Together | `zai-org/GLM-5.3-Flash`, `deepseek-ai/DeepSeek-V4-Flash-0731` | `zai-org/GLM-5.3`, `moonshotai/Kimi-K3` |
+
+Hugging Face's list is unchanged. Every added id answered a live request
+before it was listed. `deepseek-v4-flash` stays on Zen's list: the earlier
+"no longer listed" finding was one workspace's disabled model.
+
+**The ranker** (runtime menus and the lists alike):
+
+* **Together** recommends only models models.dev's `togetherai` section
+  lists (item 10), and none on a dated list of models measured not to answer
+  on its serverless API (item 12), starting with `MiniMaxAI/MiniMax-M2.7`.
+* **The utility profile** recommends no dense model of 14B or less, read from
+  the id, on any provider (item 11). A mixture of experts is exempt.
+* Each excluded model stays searchable.
+
+**For maintainers:** `go run ./llmprovider/internal/cmd/catalogs` now reads
+the public OpenCode, Kilo and Hugging Face listings, proposes each ranked
+list as a diff against the ranker's six, and prints vendor lists' newer
+models as review lines. `-snapshot DIR` records a snapshot, and a test holds
+each ranked list to the latest one.
+
+**Upgrading:** no code change is needed. A caller that pinned a removed id
+keeps working while its provider serves it; the SDK only stops recommending
+it.
