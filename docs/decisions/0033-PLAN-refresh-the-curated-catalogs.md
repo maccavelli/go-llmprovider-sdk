@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-12
 associated-madr: "0033-MADR-public-model-metadata-and-current-catalogs.md"
 decision-makers: repository owner
@@ -1536,3 +1536,65 @@ each ranked list to the latest one.
 **Upgrading:** no code change is needed. A caller that pinned a removed id
 keeps working while its provider serves it; the SDK only stops recommending
 it.
+
+**Phase 9, step 2, the release.**
+
+* The owner committed the release notes as `e465281`, pushed `main`, and
+  tagged `v1.10.2`, annotated (`4ac9f5f`), on `e465281`.
+* The disclosure guard was not run by the agent before this push. The
+  owner's push passed the global pre-push guard that runs on every push.
+
+**Step 3, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` | run `38329883808`, push, success |
+| CI on the tag | run `38330716680`, push, success |
+| The proxy | `"Version": "v1.10.2"`, `"GoVersion": "1.27.2"`, `Ref refs/tags/v1.10.2`, hash `e465281…` |
+| apidiff `v1.10.1` to `v1.10.2` | `tools/apidiff.py`, exit 0, no output: no change |
+| `tools/consumer.py v1.10.2` | 15 packages linked, built for six platforms |
+| `tools/offline.py v1.10.2` | passed: 19 fields, `requests=0`, six platforms, both its plants caught |
+
+**Step 4:** this PLAN is `complete`, and `docs/README.md` says so.
+
+#### Verification of Phases 5 to 9, confirmed
+
+| | Result |
+| :--- | :--- |
+| V6. The command | reads the guard's four public listings, proposes each list by its rule, and its tests fail on each plant (Phase 6) |
+| V7. The additions | every id added answered a live request, and the owner approved the picks (Phase 7) |
+| V8. The snapshot | each ranked list equals its recorded snapshot's utility six, by a test, and the snapshot's golden replays offline with the clock pinned (Phase 8) |
+| V9. API | apidiff `v1.10.1` to `v1.10.2`: no change |
+
+V1 to V5 held at every phase: red, then green, with each plant's FAIL lines;
+the gate at 23 of 23; the goldens changed only as recorded, Together's
+listing golden alone.
+
+#### Deviations of Phases 5 to 9, in all
+
+All dated 2026-10-12, each in its phase's record:
+
+* **Phase 5:** 0033-MADR's amendment wrongly said 0036-PLAN repeated the
+  stale-Zen finding; corrected with dated notes.
+* **Phase 6:** the recorder used net/http's shared transport, which R30
+  forbids; it now uses the SDK's. Two plants needed stronger tests before
+  they failed.
+* **Phase 7:**
+  * **1:** the measurement routed Go's Claude model wrongly with metadata
+    off; it was re-measured with metadata on.
+  * **2:** three Together picks could not be served; 0009-MADR §3 item 10.
+  * **3:** a 9B dense model reached the utility six; §3 item 11.
+  * **4:** a Together pick that models.dev lists could not be served; §3
+    item 12, which also corrected item 10's premise.
+* **Phase 8:** a plant the plan named could not fail, so a direct clock test
+  was added; `goconst` asked for `modelClaudeHaiku55`.
+
+#### Not done, and why
+
+* **The vendor lists** (OpenAI, Claude, Gemini, Grok) were not refreshed:
+  the command printed no removal or review line for them, and their rule is
+  the official pages (D4).
+* **Item 12's list** is kept by hand at each refresh; no listing field marks
+  a model Together does not serve.
+* **The runtime menu** still reads the keyed Zen listing, which is right for
+  a workspace (0033-MADR F1).
