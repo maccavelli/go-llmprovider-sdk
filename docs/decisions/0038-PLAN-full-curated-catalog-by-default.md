@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-13
 associated-madr: "0038-MADR-full-curated-catalog-by-default.md"
 decision-makers: repository owner
@@ -942,3 +942,59 @@ needed.
 **Gate:** `tools/gate.py`, 23 of 23 passed.
 
 **Release checks:** `make lint vuln parity-check dep-check coverage-check api-check generate-check records-check gate-selftest` exit 0: lint 0 issues (host and Windows), no vulnerabilities, dep-check 0 problems, coverage-check 31 packages 0 problems, api-check 0 incompatible changes against `v1.10.2`, generate-check and records-check 0 problems.
+
+**Phase 4, step 5, the release.**
+
+* The owner committed steps 1 to 4 as `d1fbad5`.
+* **The disclosure guard** ran over the five outgoing commits, `2ef6f25` to
+  `d1fbad5`, when the owner asked ("run the guard"). It exited 0 with no
+  finding.
+* **The push and tag:** the owner pushed `main`, then tagged `v1.11.0`,
+  annotated (`f0d7c60`), on `d1fbad5`, and pushed the tag.
+
+**Step 6, after the tag:**
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` | run `38417684107`, push, success |
+| CI on the tag | run `38424063440`, push, success |
+| The proxy | `"Version":"v1.11.0"`, `Ref refs/tags/v1.11.0`, hash `d1fbad5…` |
+| `tools/apidiff.py v1.10.2 v1.11.0` | exit 0. Compatible changes only: `./llmprovider/catalog.WithLimit: added` and `./wizard.Options.ModelLimit: added` |
+| `tools/consumer.py v1.11.0` | 15 packages linked, built for six platforms |
+| `tools/offline.py v1.11.0` | passed: 19 fields, `requests=0`, six platforms. Both its plants were caught: "models.dev left on" and "no caller layer" |
+
+**Step 7:** this PLAN is `complete`, and `docs/README.md` says so.
+
+#### Verification, confirmed
+
+| | Result |
+| :--- | :--- |
+| V1. The six | `WithLimit(MaxListed)` is the full list's first six, and the snapshot sixes are unchanged (Phases 2 and 3) |
+| V2. The default | `TestList_DefaultIsFullList`, `TestWithLimit_FullList` against the measured lengths, and the live run, 13 of 13 |
+| V3. Working models only | `TestWithLimit_FallbackExcludes`, and the live run's exclusion check |
+| V4. Probes | Phase 1's tests and `TestListModels_FullListProbesSix`: at most six probes, the tail kept |
+| V5. The wizard | `TestWizard_MenuIsFullListByDefault` and `TestWizard_ModelLimit`, on every path |
+| V6. API | exactly `catalog.WithLimit` and `wizard.Options.ModelLimit` added |
+| V7. Plants | every new assertion failed on a plant. Phase 4 named the one plant that could not reach its code |
+
+#### Deviations, in all
+
+All are dated 2026-10-13, each in its phase's record:
+
+* **Phase 1:** an existing probe test asserted the old result, and now
+  follows D4. The planned Ollama assertion moved to Phase 2.
+* **Phase 4:** Together's two listings were billed, and the owner approved
+  them.
+
+#### Not done, and why
+
+* **The consumers' adoption,** as 0038-MADR D7 decides. Each needs its own
+  record in its own repository.
+  * prepare-commit-msg: add `catalog.WithLimit(catalog.MaxListed)` to its
+    `--yes` listing, and `ModelLimit: catalog.MaxListed` to its wizard.
+  * gobble-cli: list through `catalog` instead of `Descriptor.StaticModels`,
+    and widen its ACP model option.
+* **The static catalogs** stay at most six (D3).
+* **No live test asserts that a full list is longer than six.** Under a
+  profile that excludes much, a list can hold six or fewer. The offline
+  tests pin each length against the snapshot.

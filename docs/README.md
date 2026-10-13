@@ -91,7 +91,7 @@ documents a reader follows to do something.
 | 0037 | MADR | [Read Anthropic's Reasoning Count, and a Fourth Cache-Read Spelling on Chat Completions](decisions/0037-MADR-reasoning-and-cache-read-spellings.md) | accepted |
 | 0037 | PLAN | [Implement Anthropic's Reasoning Count and the Fourth Cache-Read Spelling](decisions/0037-PLAN-reasoning-and-cache-read-spellings.md) | complete |
 | 0038 | MADR | [List the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-MADR-full-curated-catalog-by-default.md) | accepted |
-| 0038 | PLAN | [Implement the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-PLAN-full-curated-catalog-by-default.md) | in-progress |
+| 0038 | PLAN | [Implement the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-PLAN-full-curated-catalog-by-default.md) | complete |
 
 ## I want to…
 
