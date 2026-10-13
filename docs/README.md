@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-82 records. Cite them by full filename.
+84 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -92,6 +92,8 @@ documents a reader follows to do something.
 | 0037 | PLAN | [Implement Anthropic's Reasoning Count and the Fourth Cache-Read Spelling](decisions/0037-PLAN-reasoning-and-cache-read-spellings.md) | complete |
 | 0038 | MADR | [List the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-MADR-full-curated-catalog-by-default.md) | accepted |
 | 0038 | PLAN | [Implement the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-PLAN-full-curated-catalog-by-default.md) | complete |
+| 0039 | MADR | [Let a Request Ask for Prompt Caching](decisions/0039-MADR-request-side-prompt-caching.md) | accepted |
+| 0039 | PLAN | [Implement Request-Side Prompt Caching](decisions/0039-PLAN-request-side-prompt-caching.md) | proposed |
 
 ## I want to…
 
@@ -120,6 +122,7 @@ documents a reader follows to do something.
 | opt a tool out of OpenAI's strict mode, or mark a tool result as failed | [0032-MADR](decisions/0032-MADR-tool-strict-and-result-error-flags.md) |
 | read a model's context window, output limit, prices or modalities | [0033-MADR](decisions/0033-MADR-public-model-metadata-and-current-catalogs.md) |
 | know why a model is or is not in a provider's menu | [0033-PLAN-refresh-the-curated-catalogs.md](decisions/0033-PLAN-refresh-the-curated-catalogs.md) |
+| ask a provider to cache a prompt | [0039-MADR-request-side-prompt-caching.md](decisions/0039-MADR-request-side-prompt-caching.md) |
 | list every model a provider serves, or only the top six | [0038-MADR-full-curated-catalog-by-default.md](decisions/0038-MADR-full-curated-catalog-by-default.md) |
 | know how GenerateToolCall forces a tool on the Claude models that refuse it | [0034-MADR](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) |
 | run the local gate, the link check or the identifier scan myself | [0035-MADR](decisions/0035-MADR-maintainer-tools-in-python.md) |
