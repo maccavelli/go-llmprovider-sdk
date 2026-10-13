@@ -83,6 +83,14 @@ type Options struct {
 	// catalog.ProfileUtility, suits short frequent tasks such as commit
 	// messages; catalog.ProfileCapable suits reasoning-heavy tiers.
 	Profile catalog.Profile
+	// ModelLimit is the most models the menu recommends, on every listing
+	// path and the built-in catalog alike. Zero recommends the whole curated
+	// list, with the best six first; catalog.MaxListed keeps the menu to
+	// those six. Search still covers the whole listing. The wizard passes it
+	// to catalog.List as catalog.WithLimit: pass it here, not in
+	// ProviderOptions, which a third-party provider would refuse (0038-MADR
+	// D5, A2).
+	ModelLimit int
 	// LookupEnv reads an environment variable, for AllowEnv, the vendor CLI
 	// homes and the home directory under which a vendor CLI's auth file is
 	// found by default (HOME, or USERPROFILE on Windows). Nil reads nothing,
@@ -392,7 +400,9 @@ func discoverModels(
 	if chatGPT {
 		static = nil
 	}
-	fallback := catalog.Catalog{Recommended: static, Usable: static}
+	// The static catalog is cut in both views, which stay equal (0038-MADR
+	// D3).
+	fallback := catalog.Catalog{Recommended: cutModels(static, o.ModelLimit), Usable: cutModels(static, o.ModelLimit)}
 	if !o.Discover {
 		return fallback, nil
 	}
@@ -407,6 +417,7 @@ func discoverModels(
 	// overlay (0015-MADR D5; an empty one is the personal account).
 	opts := []llmprovider.Option{
 		catalog.WithProfile(o.Profile),
+		catalog.WithLimit(o.ModelLimit),
 		llmprovider.For(llmprovider.ProviderKilo, catalog.WithKiloOrganization(res.Organization)),
 	}
 	if res.BaseURL != "" {
@@ -478,16 +489,16 @@ func chatGPTCatalog(
 	if err != nil {
 		return catalog.Catalog{}, err
 	}
-	// At most MaxListed are recommended, as providerCatalog caps them; search
-	// covers them all (0026-MADR F47).
-	recommended := slices.Clone(models[:min(len(models), catalog.MaxListed)])
+	// At most ModelLimit are recommended, as providerCatalog cuts them; search
+	// covers them all (0026-MADR F47; 0038-MADR A2).
+	recommended := cutModels(models, o.ModelLimit)
 	return catalog.Catalog{Recommended: recommended, Usable: slices.Clone(models), Live: true}, nil
 }
 
 // providerCatalog lists a provider catalog does not know, such as a third
 // party's, through its own ListModels (0015-MADR, amendment "the wizard lists
-// a provider through its own ListModels"). The first catalog.MaxListed ids
-// are recommended, in the provider's order, and search covers them all. A
+// a provider through its own ListModels"). Its ids are recommended in the
+// provider's order, cut to Options.ModelLimit, and search covers them all. A
 // provider that cannot list, or lists nothing, is an error, so the caller
 // warns and offers the static catalog.
 func providerCatalog(
@@ -508,8 +519,17 @@ func providerCatalog(
 	if len(models) == 0 {
 		return catalog.Catalog{}, fmt.Errorf("wizard: %s listed no models", d.Label)
 	}
-	recommended := slices.Clone(models[:min(len(models), catalog.MaxListed)])
+	recommended := cutModels(models, o.ModelLimit)
 	return catalog.Catalog{Recommended: recommended, Usable: slices.Clone(models), Live: true}, nil
+}
+
+// cutModels is a copy of models, cut to its first limit when limit is
+// positive (Options.ModelLimit; 0038-MADR A2).
+func cutModels(models []string, limit int) []string {
+	if limit > 0 && limit < len(models) {
+		models = models[:limit]
+	}
+	return slices.Clone(models)
 }
 
 // listerFor builds d's provider from the run's Registry, with the run's

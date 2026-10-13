@@ -66,7 +66,7 @@ func TestListModelCatalog_KiloRanksByProfile(t *testing.T) {
 		{"capable", []llmprovider.Option{WithProfile(ProfileCapable)}, capable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			opts := append([]llmprovider.Option{llmprovider.WithBaseURL(srv.URL)}, tc.opts...)
+			opts := append([]llmprovider.Option{llmprovider.WithBaseURL(srv.URL), WithLimit(MaxListed)}, tc.opts...)
 			cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), opts...)
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
@@ -240,7 +240,7 @@ func TestListModelCatalog_OpencodeGoGates(t *testing.T) {
 		`{`+mdSection("opencode-go", models...)+`,`+mdSection("opencode", models...)+`}`)
 	listing := serveBody(t, zenStyleListing(opencodeDeepSeekV4Flash, "muse-spark-1.3-contributor", "glm-5.3-flash",
 		"qwen3.8-flash", "kimi-k2.6", "mimo-v2.6-flash", "gpt-6-luna", "hy3"))
-	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL)}
+	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithLimit(MaxListed)}
 
 	goCat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeGo, opts...)
 	assertRanked(t, goCat.Recommended,
@@ -328,7 +328,8 @@ func TestListModelCatalog_Snapshot20260926(t *testing.T) {
 			want    []string
 		}{{ProfileUtility, tc.utility}, {ProfileCapable, tc.capable}} {
 			cat := listCatalog(context.Background(), t, tc.provider,
-				llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithProfile(p.profile))
+				llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithProfile(p.profile),
+				WithLimit(MaxListed))
 			if !slices.Equal(cat.Recommended, p.want) {
 				t.Errorf("%s profile %d:\n got  %v\n want %v", tc.provider, p.profile, cat.Recommended, p.want)
 			}

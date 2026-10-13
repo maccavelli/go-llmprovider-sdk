@@ -24,8 +24,9 @@
 //     WithMaxTokens have no effect there. It always sends store false, so
 //     WithStore has no effect there either.
 //
-// ListModels returns the curated listing. With an API key it probes each
-// listed model with one short, billed generation, unless
+// ListModels returns the curated listing. With an API key it probes each of
+// the first catalog.MaxListed listed models with one short, billed
+// generation (0038-MADR D4), unless
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5); a ChatGPT
 // session is never probed (MADR 0012 §1.6).
 package openai
@@ -184,7 +185,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if st.LoggerGiven() {
 		shareLogger(src, st.Logger())
 	}
-	p.limit, _ = listlimit.Of(st.Values())
+	p.limit = listlimit.Of(st.Values())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(p.session), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil

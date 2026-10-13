@@ -31,9 +31,10 @@
 //
 // Instructions and system items go to system_instruction, in that order.
 //
-// ListModels returns the curated listing, probing each listed model with one
-// short, billed generation unless llmprovider.WithModelProbes(false) says
-// otherwise (0016-MADR A5).
+// ListModels returns the curated listing, probing each of the first
+// catalog.MaxListed listed models with one short, billed generation unless
+// llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5; 0038-MADR
+// D4).
 package gemini
 
 import (
@@ -137,7 +138,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if base := st.BaseURL(); base != "" {
 		p.baseURL = base
 	}
-	p.limit, _ = listlimit.Of(st.Values())
+	p.limit = listlimit.Of(st.Values())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(st.SessionID()), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil
@@ -286,8 +287,9 @@ func toolChoice(choice llmprovider.ToolChoice) any {
 	}
 }
 
-// ListModels returns a short, curated list of production text models: the
-// Models API intersected with the static catalog, probed unless
+// ListModels returns the curated list of production text models: the static
+// catalog's models the Models API serves, then the rest it serves, in full
+// unless catalog.WithLimit cuts it (0038-MADR D4), probed unless
 // WithModelProbes(false). It falls back to the static catalog, and returns
 // the curated list when every probe fails.
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {

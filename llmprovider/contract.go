@@ -23,8 +23,9 @@ type Provider interface {
 
 // ModelLister is implemented by a provider that can list the models it
 // serves (0015-MADR D3, amendment of 2026-09-30). ListModels returns the
-// curated listing, probed where 0016-MADR A5 says; a caller type-asserts to
-// it, as to Streamer.
+// curated listing, in full unless catalog.WithLimit cuts it (0038-MADR D4),
+// probed where 0016-MADR A5 says; a caller type-asserts to it, as to
+// Streamer.
 type ModelLister interface {
 	ListModels(ctx context.Context) ([]string, error)
 }

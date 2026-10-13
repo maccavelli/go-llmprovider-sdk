@@ -107,7 +107,7 @@ func TestListModelCatalog_Snapshot20261012(t *testing.T) {
 			profile Profile
 			want    []string
 		}{{ProfileUtility, tc.utility}, {ProfileCapable, tc.capable}} {
-			cat := replaySnapshot(t, dir, tc.provider, p.profile)
+			cat := replaySnapshot(t, dir, tc.provider, p.profile, WithLimit(MaxListed))
 			if !slices.Equal(cat.Recommended, p.want) {
 				t.Errorf("%s profile %d:\n got  %v\n want %v", tc.provider, p.profile, cat.Recommended, p.want)
 			}
@@ -124,7 +124,7 @@ func TestListModelCatalog_Snapshot20261012(t *testing.T) {
 func TestStatic_EqualsLatestSnapshot(t *testing.T) {
 	dir := latestSnapshot(t)
 	for provider := range snapshotFile {
-		six := replaySnapshot(t, dir, provider, ProfileUtility).Recommended
+		six := replaySnapshot(t, dir, provider, ProfileUtility, WithLimit(MaxListed)).Recommended
 		if static := Static(provider); !slices.Equal(static, six) {
 			t.Errorf("%s: static list\n %v\nwant the utility six of %s\n %v", provider, static, dir, six)
 		}

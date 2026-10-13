@@ -58,10 +58,10 @@ const modelListingTimeout = 10 * time.Second
 
 // Catalog is the result of one model listing, viewed two ways.
 type Catalog struct {
-	// Recommended is what List returns: at most
-	// MaxListed ids, curated against the static catalog. It may be empty on
-	// a live listing, when nothing in it meets the profile; Usable then holds
-	// the listing to search (0021-MADR C13).
+	// Recommended is what List returns: the full curated catalog, the best
+	// six first, or its first n with WithLimit(n) (0038-MADR D1, D2). It may
+	// be empty on a live listing, when nothing in it meets the profile;
+	// Usable then holds the listing to search (0021-MADR C13).
 	Recommended []string
 	// Usable is every id the provider's usability filters admit, once each,
 	// uncapped, in the order its lister gives: the listing's own for most,
@@ -84,7 +84,7 @@ type Catalog struct {
 // TTS, Live, image, dated previews, …), spends no generation, and is bounded
 // at 10 s.
 //
-// opts are llmprovider's common options, with WithProfile and
+// opts are llmprovider's common options, with WithProfile, WithLimit and
 // WithKiloOrganization. A failed listing degrades to the static catalog with a
 // nil error and Live false, and its classified failure in Catalog.Err; only
 // Ollama, an unknown provider, a missing source, a token failure or a refused
@@ -187,8 +187,8 @@ type curator func(usable []string, limit int) []string
 
 // catalogFrom applies the degrade-to-static contract every lister except
 // Ollama has always had: a failed fetch, or one that yields no usable id,
-// substitutes the static catalog. limit is the listing's (config's
-// recommendLimit).
+// substitutes the static catalog. limit is the listing's WithLimit, zero or
+// less for the full list.
 func catalogFrom(usable []string, fetchErr error, static []string, curate curator, limit int) Catalog {
 	usable = uniqueIDs(usable)
 	if fetchErr != nil || len(usable) == 0 {
@@ -252,34 +252,34 @@ func modelCatalogFor(ctx context.Context, id llmprovider.ProviderID, token llmpr
 	switch p := llmprovider.ProviderID(strings.ToLower(string(id))); p {
 	case llmprovider.ProviderGemini:
 		usable, err := fetchGeminiUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderGemini), curateGemini, cfg.recommendLimit()), nil
+		return catalogFrom(usable, err, Static(llmprovider.ProviderGemini), curateGemini, cfg.limit), nil
 	case llmprovider.ProviderOpenAI:
 		usable, err := fetchOpenAIUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderOpenAI), curateOpenAI, cfg.recommendLimit()), nil
+		return catalogFrom(usable, err, Static(llmprovider.ProviderOpenAI), curateOpenAI, cfg.limit), nil
 	case llmprovider.ProviderClaude:
 		usable, err := fetchClaudeUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderClaude), curateClaude, cfg.recommendLimit()), nil
+		return catalogFrom(usable, err, Static(llmprovider.ProviderClaude), curateClaude, cfg.limit), nil
 	case llmprovider.ProviderGrok:
 		usable, err := fetchGrokUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderGrok), curateGrok, cfg.recommendLimit()), nil
+		return catalogFrom(usable, err, Static(llmprovider.ProviderGrok), curateGrok, cfg.limit), nil
 	case llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo:
 		return opencodeCatalog(ctx, p, token, cfg)
 	case llmprovider.ProviderHuggingFace:
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := fetchHuggingFaceUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, Static(llmprovider.ProviderHuggingFace),
-			metadataCurate(llmprovider.ProviderHuggingFace, cfg.ModelProfile, meta, curateHuggingFace), cfg.recommendLimit()), nil
+			metadataCurate(llmprovider.ProviderHuggingFace, cfg.ModelProfile, meta, curateHuggingFace), cfg.limit), nil
 	case llmprovider.ProviderKilo:
 		entries, err := fetchKiloCatalog(ctx, token, cfg)
 		// Deliberate: a failed Kilo fetch degrades to the static catalog rather
 		// than failing, like every other lister here. See catalogFrom.
 		return catalogFrom(kiloUsable(entries), err, Static(llmprovider.ProviderKilo), kiloCurate(entries, cfg.ModelProfile),
-			cfg.recommendLimit()), nil
+			cfg.limit), nil
 	case llmprovider.ProviderTogether:
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := fetchTogetherUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, Static(llmprovider.ProviderTogether),
-			metadataCurate(llmprovider.ProviderTogether, cfg.ModelProfile, meta, curateTogether), cfg.recommendLimit()), nil
+			metadataCurate(llmprovider.ProviderTogether, cfg.ModelProfile, meta, curateTogether), cfg.limit), nil
 	case llmprovider.ProviderOllama:
 		return ollamaCatalog(ctx, token, cfg)
 	default:
@@ -495,7 +495,7 @@ func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (Ca
 		return Catalog{}, err
 	}
 	// Recommended never shares Usable's array (0020-MADR F34).
-	return Catalog{Recommended: listlimit.Cut(names, cfg.recommendLimit()), Usable: names, Live: true}, nil
+	return Catalog{Recommended: listlimit.Cut(names, cfg.limit), Usable: names, Live: true}, nil
 }
 
 // fetchOllamaNames returns every installed model name in /api/tags order.
@@ -676,7 +676,7 @@ func opencodeCatalog(ctx context.Context, gateway llmprovider.ProviderID, token 
 		// every provider (0038-MADR D1).
 		return curateFromCatalog(gateway, staticOpencodeCatalog(gateway), usable, isUsableOpencodeModel, rankOpencodeModel, limit)
 	}
-	return catalogFrom(usable, fetchErr, Static(gateway), metadataCurate(gateway, cfg.ModelProfile, meta, curate), cfg.recommendLimit()), nil
+	return catalogFrom(usable, fetchErr, Static(gateway), metadataCurate(gateway, cfg.ModelProfile, meta, curate), cfg.limit), nil
 }
 
 // fetchOpencodeUsable returns the usable gateway models in listing order.

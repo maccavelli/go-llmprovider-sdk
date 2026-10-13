@@ -61,9 +61,10 @@
 // Instructions and system items go to the top-level system field, in that
 // order.
 //
-// ListModels returns the curated listing, probing each listed model with one
-// short, billed generation unless llmprovider.WithModelProbes(false) says
-// otherwise (0016-MADR A5).
+// ListModels returns the curated listing, probing each of the first
+// catalog.MaxListed listed models with one short, billed generation unless
+// llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5; 0038-MADR
+// D4).
 package claude
 
 import (
@@ -154,7 +155,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if base := st.BaseURL(); base != "" {
 		p.baseURL = base
 	}
-	p.limit, _ = listlimit.Of(st.Values())
+	p.limit = listlimit.Of(st.Values())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(st.SessionID()), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil

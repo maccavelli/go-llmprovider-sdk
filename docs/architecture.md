@@ -234,8 +234,10 @@ sign-in that saves the session to `Options.TokenStore`. It lists the models
 with `catalog.List`, adding `Options.ProviderOptions`. Two cases go through
 a provider's own `ListModels` instead, built from the registry: a ChatGPT
 session, through `openai`, and an id that `catalog` does not list, such as a
-third party's. It then asks for the model and fallbacks, and
-returns a `Result`. The caller builds its provider from that `Result` and,
+third party's. The menu recommends the whole curated list, best six first,
+cut on every path to `Options.ModelLimit` when it is positive; the wizard
+passes it to `catalog.List` as `catalog.WithLimit`. It then asks for the
+model and fallbacks, and returns a `Result`. The caller builds its provider from that `Result` and,
 for a session, from the store.
 
 ## The contract
@@ -558,9 +560,14 @@ for a session, from the store.
 ## Discovery and ranking
 
 - `catalog.List(ctx, id, src, opts...)` lists a provider's models within a
-  10 s bound; a `Catalog` carries the recommended six, the full usable list
-  and, on failure, `Err`. Its options are `llmprovider`'s common ones, with
-  `catalog.WithProfile` and `catalog.WithKiloOrganization`. It lists the ten
+  10 s bound; a `Catalog` carries the recommended list, the full usable list
+  and, on failure, `Err`. The recommended list is the full curated catalog,
+  every usable id less those measured not to answer and the profile's
+  exclusions, ranked with the best six first; `catalog.WithLimit(n)` cuts it
+  to `n`, and `WithLimit(catalog.MaxListed)` to the six. A static fallback
+  is cut in both views. Its options are `llmprovider`'s common ones, with
+  `catalog.WithProfile`, `catalog.WithLimit` and
+  `catalog.WithKiloOrganization`. It lists the ten
   built-in ids. For any other id it returns an error matching
   `ErrUnsupported`, before it reads the options.
 - `catalog.Search` matches a query against a list, highest tier first and
@@ -581,9 +588,11 @@ for a session, from the store.
   `catalog.Rank(provider, model)` scores a model by the provider's own
   ranking.
 - A provider's `ListModels`, through `llmprovider.ModelLister`, returns the
-  listing. By default, OpenAI (API key), Claude, Gemini, Grok and Ollama also
-  send one billed generation to each candidate, up to `catalog.MaxListed`,
-  and keep those that answer. The models that answered are cached in
+  listing, cut by `catalog.WithLimit` given to `New`, its static fallback
+  included. By default, OpenAI (API key), Claude, Gemini, Grok and Ollama
+  also send one billed generation to each of the first `catalog.MaxListed`
+  candidates and drop those that do not answer; the later ones are returned
+  unprobed. The models that answered are cached in
   memory for 10 minutes, keyed by provider, base URL and the SHA-256 of
   the credential, so a listing within that time sends no probe.
   `WithModelProbes(false)` turns that off. `ModelProbesFromEnv()` reads

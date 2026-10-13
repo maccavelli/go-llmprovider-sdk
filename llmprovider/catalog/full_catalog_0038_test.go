@@ -14,7 +14,7 @@ import (
 
 // 0038-MADR D1, D2 and its amendment A1: WithLimit(n) cuts the recommended
 // list; with n zero or less it is the full curated catalog, today's six
-// first. Until 0038-PLAN Phase 3, no option is still the six.
+// first. Since 0038-PLAN Phase 3, no option is the full list.
 
 // vendorIDs is an OpenAI listing longer than six, every id usable.
 var vendorIDs = append(slices.Clone(staticOpenAI), "gpt-5.6-sol", "gpt-6-sol", "gpt-4.1")
@@ -76,23 +76,47 @@ func sameSet(a, b []string) bool {
 	return len(slices.Compact(slices.Clone(sa))) == len(sa) && slices.Equal(sa, sb)
 }
 
-// TestWithLimit_SixIsToday: WithLimit(MaxListed) recommends what no option
-// does, on the open catalogs, a vendor and Ollama.
+// TestWithLimit_SixIsToday: WithLimit(MaxListed) recommends today's six, the
+// first six of the default list, on the open catalogs, a vendor and Ollama.
+// The open catalogs' sixes themselves are pinned by
+// TestListModelCatalog_Snapshot20261012.
 func TestWithLimit_SixIsToday(t *testing.T) {
 	dir := filepath.Join("testdata", "ranking-2026-10-12")
 	for provider := range snapshotFile {
 		for _, p := range []Profile{ProfileUtility, ProfileCapable} {
-			six := replaySnapshot(t, dir, provider, p).Recommended
+			full := replaySnapshot(t, dir, provider, p).Recommended
+			six := full[:min(len(full), MaxListed)]
 			if got := replaySnapshot(t, dir, provider, p, WithLimit(MaxListed)).Recommended; !slices.Equal(got, six) {
 				t.Errorf("%s profile %d: WithLimit(MaxListed) = %v; want %v", provider, p, got, six)
 			}
 		}
 	}
-	if got, six := listVendor(t, WithLimit(MaxListed)).Recommended, listVendor(t).Recommended; !slices.Equal(got, six) {
-		t.Errorf("openai: WithLimit(MaxListed) = %v; want %v", got, six)
+	if got := listVendor(t, WithLimit(MaxListed)).Recommended; !slices.Equal(got, staticOpenAI) {
+		t.Errorf("openai: WithLimit(MaxListed) = %v; want the curated six %v", got, staticOpenAI)
 	}
-	if got, six := listOllama(t, WithLimit(MaxListed)).Recommended, listOllama(t).Recommended; !slices.Equal(got, six) {
-		t.Errorf("ollama: WithLimit(MaxListed) = %v; want %v", got, six)
+	if got := listOllama(t, WithLimit(MaxListed)).Recommended; !slices.Equal(got, ollamaNames[:MaxListed]) {
+		t.Errorf("ollama: WithLimit(MaxListed) = %v; want %v", got, ollamaNames[:MaxListed])
+	}
+}
+
+// TestList_DefaultIsFullList: with no option, a listing recommends the full
+// list, as WithLimit(0) does, on the open catalogs, a vendor and Ollama
+// (0038-MADR D1).
+func TestList_DefaultIsFullList(t *testing.T) {
+	dir := filepath.Join("testdata", "ranking-2026-10-12")
+	for provider := range snapshotFile {
+		for _, p := range []Profile{ProfileUtility, ProfileCapable} {
+			want := replaySnapshot(t, dir, provider, p, WithLimit(0)).Recommended
+			if got := replaySnapshot(t, dir, provider, p).Recommended; !slices.Equal(got, want) {
+				t.Errorf("%s profile %d: no option recommends %d ids; want the full list's %d", provider, p, len(got), len(want))
+			}
+		}
+	}
+	if got, want := listVendor(t).Recommended, listVendor(t, WithLimit(0)).Recommended; !slices.Equal(got, want) {
+		t.Errorf("openai: no option recommends %v; want the full list %v", got, want)
+	}
+	if got := listOllama(t).Recommended; !slices.Equal(got, ollamaNames) {
+		t.Errorf("ollama: no option recommends %v; want every installed model %v", got, ollamaNames)
 	}
 }
 
@@ -102,7 +126,7 @@ func TestWithLimit_FullList(t *testing.T) {
 	dir := filepath.Join("testdata", "ranking-2026-10-12")
 	for provider, lengths := range snapshotFull {
 		for _, p := range []Profile{ProfileUtility, ProfileCapable} {
-			six := replaySnapshot(t, dir, provider, p).Recommended
+			six := replaySnapshot(t, dir, provider, p, WithLimit(MaxListed)).Recommended
 			cat := replaySnapshot(t, dir, provider, p, WithLimit(0))
 			full := cat.Recommended
 			if len(full) < len(six) || !slices.Equal(full[:len(six)], six) {
@@ -117,7 +141,7 @@ func TestWithLimit_FullList(t *testing.T) {
 		}
 	}
 	vendor := listVendor(t, WithLimit(0))
-	if six := listVendor(t).Recommended; !slices.Equal(vendor.Recommended[:min(len(vendor.Recommended), len(six))], six) ||
+	if six := listVendor(t, WithLimit(MaxListed)).Recommended; !slices.Equal(vendor.Recommended[:min(len(vendor.Recommended), len(six))], six) ||
 		!sameSet(vendor.Recommended, vendor.Usable) {
 		t.Errorf("openai: the full list %v; want the six %v first, then the rest of Usable %v", vendor.Recommended, six, vendor.Usable)
 	}

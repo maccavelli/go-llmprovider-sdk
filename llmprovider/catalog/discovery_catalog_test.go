@@ -116,7 +116,8 @@ func TestListModelCatalog_OpenAIRecommendedIsCurated(t *testing.T) {
 	order := []string{"gpt-5.1", "o3", "gpt-6-astra", "o4-mini", "gpt-6.1-sol", "gpt-4.1-nano", "gpt-5.6-terra",
 		"gpt-4.1-mini", "gpt-5.6-luna", "gpt-6-luna"}
 	srv := serveBody(t, openAIStyleListing(order...))
-	cat, err := listT(context.Background(), llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL),
+		WithLimit(MaxListed))
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}
@@ -143,7 +144,8 @@ func TestListModelCatalog_UsableIsUncapped(t *testing.T) {
 	} {
 		t.Run(string(tc.provider), func(t *testing.T) {
 			srv := serveBody(t, tc.body)
-			cat, err := listT(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL))
+			cat, err := listT(context.Background(), tc.provider, llmprovider.NewStaticToken(tc.key), llmprovider.WithBaseURL(srv.URL),
+				WithLimit(MaxListed))
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
 			}
@@ -205,7 +207,8 @@ func TestListModelCatalog_FiltersStillApply(t *testing.T) {
 func TestListModelCatalog_OllamaSplit(t *testing.T) {
 	names := []string{"m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"}
 	srv := serveBody(t, ollamaTags(names...))
-	cat, err := listT(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL),
+		WithLimit(MaxListed))
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}

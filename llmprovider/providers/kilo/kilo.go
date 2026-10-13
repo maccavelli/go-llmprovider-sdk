@@ -184,7 +184,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			p.collect = bool(v)
 		}
 	}
-	p.limit, _ = listlimit.Of(st.Values())
+	p.limit = listlimit.Of(st.Values())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(p.session), llmprovider.WithHTTPClient(p.client))
 	if p.org != "" {

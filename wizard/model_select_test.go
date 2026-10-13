@@ -364,6 +364,7 @@ func TestConfigureLLM_FallbackSearchLoops(t *testing.T) {
 	})
 	opts := zenOptions()
 	opts.NeedFallbacks = true
+	opts.ModelLimit = catalog.MaxListed
 	res, err := ConfigureLLM(context.Background(), f, opts)
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)

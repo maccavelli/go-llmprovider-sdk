@@ -9,15 +9,16 @@ import "slices"
 // recommends. Zero or less is no limit.
 type Value int
 
-// Of returns the last Value among values, since options apply in order, and
-// whether there was one.
-func Of(values []any) (n int, set bool) {
+// Of returns the last Value among values, since options apply in order, or
+// zero, no limit, when there is none.
+func Of(values []any) int {
+	n := 0
 	for _, v := range values {
 		if l, ok := v.(Value); ok {
-			n, set = int(l), true
+			n = int(l)
 		}
 	}
-	return n, set
+	return n
 }
 
 // Cut returns a copy of ids, cut to its first n when 0 < n < len(ids). A nil

@@ -120,7 +120,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if b := st.BaseURL(); b != "" {
 		p.baseURL = strings.TrimRight(b, "/")
 	}
-	p.limit, _ = listlimit.Of(st.Values())
+	p.limit = listlimit.Of(st.Values())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(st.SessionID()), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil

@@ -9,13 +9,14 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
-// TestChatGPTCatalog_Capped (0026-MADR F47): a ChatGPT session's listing
-// recommends at most catalog.MaxListed models, as every other listing does,
-// and search still covers every listed model.
+// TestChatGPTCatalog_Capped (0026-MADR F47): with ModelLimit at
+// catalog.MaxListed, a ChatGPT session's listing recommends at most that many
+// models, as every other listing does, and search still covers every listed
+// model (0038-MADR A2).
 func TestChatGPTCatalog_Capped(t *testing.T) {
 	var built []*thirdParty
 	listed := listedIDs(14)
-	o := Options{Registry: thirdPartyRegistry(t, thirdParty{models: listed}, true, &built)}
+	o := Options{Registry: thirdPartyRegistry(t, thirdParty{models: listed}, true, &built), ModelLimit: catalog.MaxListed}
 	d := llmprovider.Descriptor{ID: thirdPartyID, Label: "Acme"}
 	cat, err := chatGPTCatalog(context.Background(), o, d, Result{}, llmprovider.NewStaticToken("k"))
 	if err != nil {

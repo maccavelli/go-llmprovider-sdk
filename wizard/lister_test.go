@@ -82,15 +82,15 @@ func noticeContaining(notes []string, s string) bool {
 }
 
 // TestConfigureLLM_ThirdPartyListsThroughItsLister: the listing is offered,
-// its first catalog.MaxListed ids recommended, and the provider is built
-// with the run's credential, client and ProviderOptions.
+// its first ModelLimit ids recommended (here catalog.MaxListed), and the
+// provider is built with the run's credential, client and ProviderOptions.
 func TestConfigureLLM_ThirdPartyListsThroughItsLister(t *testing.T) {
 	var built []*thirdParty
 	models := listedIDs(catalog.MaxListed + 2)
 	client := &http.Client{}
 	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{0, 1}, secrets: []string{testKey}})
 	res, err := ConfigureLLM(context.Background(), f, Options{
-		Registry: thirdPartyRegistry(t, thirdParty{models: models}, true, &built), Discover: true,
+		Registry: thirdPartyRegistry(t, thirdParty{models: models}, true, &built), Discover: true, ModelLimit: catalog.MaxListed,
 		HTTPClient: client, ProviderOptions: []llmprovider.Option{llmprovider.WithModel("from-provider-options")},
 	})
 	if err != nil {

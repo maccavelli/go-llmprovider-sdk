@@ -687,3 +687,134 @@ passed unchanged.
 * the wizard (Phase 3).
 
 **Gate:** `tools/gate.py`, 23 of 23 passed.
+
+The owner committed Phase 2 as `8f99c2f`.
+
+### Phase 3: the default becomes the full list; the wizard follows (2026-10-13)
+
+**Research: the default flipped alone.**
+
+* **The run:** on a scratch clone at `8f99c2f`, `recommendLimit` was
+  changed to return `WithLimit`'s n without the `MaxListed` default, and
+  `go test ./...` was run. The tree was not touched.
+* **The result:** 15 tests failed, 13 in `catalog` and 2 in `wizard`.
+  * **(a), their meaning is "the six": all 15.**
+    * `catalog`:
+      * `TestListModelCatalog_OpenAIRecommendedIsCurated`;
+      * `_UsableIsUncapped`;
+      * `_OllamaSplit`;
+      * `_KiloRanksByProfile`;
+      * `_OpencodeGoGates`;
+      * `_Snapshot20260926`;
+      * `_Snapshot20261012`;
+      * `TestStatic_EqualsLatestSnapshot`;
+      * Phase 2's `TestWithLimit_SixIsToday`.
+    * `wizard`:
+      * `TestConfigureLLM_BlankFallbackRoundWithNothingLeft`: the five
+        fallbacks are the six without the primary;
+      * `TestConfigureLLM_FallbackSearchLoops`: "second menu … want 5 rows".
+  * **(b), a G-wire listing golden:** none. `TestWireGoldens` passed, and no
+    file under `testdata/wire` changed.
+  * **(c), anything else:** none.
+* **Read but not failing:** `wizard/configure.go:380-512`,
+  `model_select.go:40-100` and their tests. Two wizard tests assert the
+  wizard's own cut at `MaxListed`, which the flip alone did not touch:
+  * `TestChatGPTCatalog_Capped`;
+  * `TestConfigureLLM_ThirdPartyListsThroughItsLister`.
+
+  Both are (a). They take `ModelLimit: catalog.MaxListed`, and a plant
+  below shows the second failing without it.
+
+**Step 1, `wizard.Options.ModelLimit`:** the field was added first, with no
+behavior, so the new tests compiled.
+
+**Red first:**
+
+```text
+--- FAIL: TestList_DefaultIsFullList
+    full_catalog_0038_test.go:111: together profile 0: no option recommends 6 ids; want the full list's 19
+    (the same for each ranked list and profile: Zen 77, Go 28, Kilo 272/285, Hugging Face 102/119, Together 19/21)
+    full_catalog_0038_test.go:116: openai: no option recommends [gpt-6-luna … gpt-6-astra]; want the full list [… gpt-6-sol gpt-5.6-sol gpt-4.1]
+    full_catalog_0038_test.go:119: ollama: no option recommends [m1 m2 m3 m4 m5 m6]; want every installed model [m1 … m8]
+--- FAIL: TestWizard_MenuIsFullListByDefault
+    model_limit_0038_test.go:97: built-in listing: the menu shows [deepseek-v4.1-flash qwen3.8-flash glm-5.3-flash deepseek-v4-flash gemini-3.5-flash-lite gemini-3.8-flash]; want all 8 listed models
+    model_limit_0038_test.go:101: third party: the menu shows [acme-model-1 … acme-model-6]; want [acme-model-1 … acme-model-8]
+    model_limit_0038_test.go:104: ChatGPT session: 6 recommended; want all 14
+--- FAIL: TestWizard_ModelLimit
+    model_limit_0038_test.go:114: built-in listing, ModelLimit 2: the menu shows [six ids]
+    model_limit_0038_test.go:117: third party, ModelLimit 2: the menu shows [acme-model-1 … acme-model-6]; want [acme-model-1 acme-model-2]
+    model_limit_0038_test.go:120: ChatGPT session, ModelLimit 2: 6 recommended
+    model_limit_0038_test.go:125: built-in catalog, ModelLimit 2: the menu shows [claude-haiku-5-5 claude-sonnet-5-5 claude-sonnet-5 claude-opus-5-5 claude-opus-4-8]; want [claude-haiku-5-5 claude-sonnet-5-5]
+```
+
+`TestWizard_ProviderOptionsLimitRefused` passed before the change, as it
+must. It documents A2: a third party's `New` refuses `catalog.WithLimit`
+in `ProviderOptions`, so the wizard warns, "could not list", and offers the
+static catalog.
+
+**Change:**
+
+* **`catalog`:** the default is the full list. `listlimit.Of` returns only
+  n, zero when unset, since nothing reads "set" once the default is no limit
+  (`unparam`). `config.limitSet` and `recommendLimit` are removed, and the
+  listings read `cfg.limit`. The providers read `p.limit =
+  listlimit.Of(st.Values())`.
+* **`wizard/configure.go`:**
+  * `Options.ModelLimit`, with its doc. It names `ProviderOptions` as the
+    wrong place for the limit (A2).
+  * `discoverModels` passes `catalog.WithLimit(o.ModelLimit)` beside
+    `WithProfile`, and cuts the static fallback in both views.
+  * `chatGPTCatalog` and `providerCatalog` cut with `cutModels(models,
+    o.ModelLimit)` in place of `catalog.MaxListed`.
+
+**The category (a) tests,** each taking the limit and so keeping its meaning
+(R46):
+
+* the catalog's nine (`WithLimit(MaxListed)`);
+* the wizard's four (`ModelLimit: catalog.MaxListed`).
+
+Phase 2's two 0038 tests also changed:
+
+* `TestWithLimit_SixIsToday` now compares `WithLimit(MaxListed)` with the
+  default list's first six, with `staticOpenAI`, and with Ollama's first six.
+  The open catalogs' sixes are pinned by `TestListModelCatalog_Snapshot20261012`.
+* `TestWithLimit_FullList` takes its six from `WithLimit(MaxListed)`.
+
+**Docs:**
+
+* `Catalog.Recommended` and `List`;
+* `ModelLister` in `contract.go`;
+* the package docs of `gemini`, `claude`, `grok` and `openai`, which said
+  each listed model is probed;
+* `gemini`'s `ListModels`, which said "a short, curated list";
+* `docs/architecture.md`: the wizard paragraph, the `catalog.List` bullet
+  and the `ListModels` bullet;
+* `README.md`'s Listing bullet.
+
+`MaxListed`'s doc changed in Phase 2.
+
+**Green:** `go test ./...`, all 30 packages `ok`. `internal/cmd/catalogs`'s
+tests passed unchanged.
+
+**Plants** (`tools/plant.py`, 4 of 4 caught):
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the default left at six | `TestList_DefaultIsFullList`: `ollama: no option recommends [m1 m2 m3 m4 m5 m6]; want every installed model …`; `TestWithLimit_FullList`: `together profile 0: the full list holds 6 ids; want the 19 …` |
+| the wizard ignoring `ModelLimit` on the third-party path | `TestConfigureLLM_ThirdPartyListsThroughItsLister`: `"acme-model-7" shown = true, want the first 6 listed ids only`; `TestWizard_ModelLimit`: `third party, ModelLimit 2: the menu shows [acme-model-1 … acme-model-8]` |
+| the wizard cutting at `MaxListed` when `ModelLimit` is zero | `TestWizard_MenuIsFullListByDefault`: `third party: the menu shows [acme-model-1 … acme-model-6]`; `ChatGPT session: 6 recommended; want all 14` |
+| the wizard not passing `ModelLimit` to `catalog.List` | `TestWizard_ModelLimit`: `built-in listing, ModelLimit 2: the menu shows [deepseek-v4.1-flash … claude-opus-5]` |
+
+The fourth plant is beyond the PLAN's three. It shows that the built-in
+path, which the other three do not touch, is covered.
+
+**Checks:**
+
+* `make pre-add-check` on the 23 Go files: clean.
+* `tools/apidiff.py v1.10.2`, compatible changes only:
+  `./wizard.Options.ModelLimit: added` and
+  `./llmprovider/catalog.WithLimit: added`. These are V6's two.
+* markdownlint on `README.md` and `docs/architecture.md`: no issue in
+  either.
+
+**Gate:** `tools/gate.py`, 23 of 23 passed.

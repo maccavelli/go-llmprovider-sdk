@@ -5,22 +5,22 @@ import (
 	"testing"
 )
 
-// TestOf: the last Value wins, other values are ignored, and none is unset.
+// TestOf: the last Value wins, other values are ignored, and none is zero,
+// no limit.
 func TestOf(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		values  []any
-		n       int
-		wantSet bool
+		name   string
+		values []any
+		n      int
 	}{
-		{"none", nil, 0, false},
-		{"other values only", []any{"x", 3}, 0, false},
-		{"one", []any{Value(6)}, 6, true},
-		{"the last wins", []any{Value(6), "x", Value(0)}, 0, true},
-		{"negative", []any{Value(-1)}, -1, true},
+		{"none", nil, 0},
+		{"other values only", []any{"x", 3}, 0},
+		{"one", []any{Value(6)}, 6},
+		{"the last wins", []any{Value(6), "x", Value(0)}, 0},
+		{"negative", []any{Value(-1)}, -1},
 	} {
-		if n, set := Of(tc.values); n != tc.n || set != tc.wantSet {
-			t.Errorf("%s: Of = %d, %v; want %d, %v", tc.name, n, set, tc.n, tc.wantSet)
+		if n := Of(tc.values); n != tc.n {
+			t.Errorf("%s: Of = %d; want %d", tc.name, n, tc.n)
 		}
 	}
 }

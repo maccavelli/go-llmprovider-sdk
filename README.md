@@ -112,9 +112,12 @@ functions over any provider, and `Stream` streams from every one.
 - **Listing.** `catalog.List(ctx, id, src, opts...)` lists a provider's
   models within 10 seconds, curated against its static catalog, and
   `catalog.Search` matches a query against them. A provider's own
-  `ListModels` returns its listing. By default OpenAI (API key), Claude,
-  Gemini, Grok and Ollama send one billed generation to each candidate and
-  keep those that answer; `WithModelProbes(false)` turns that off.
+  `ListModels` returns its listing. The listing is the full curated catalog,
+  every known model that works, ranked, with the best six first.
+  `catalog.WithLimit(catalog.MaxListed)`, or `wizard.Options.ModelLimit`,
+  keeps it to those six. By default OpenAI (API key), Claude, Gemini, Grok
+  and Ollama send one billed generation to each of the first six and drop
+  those that do not answer; `WithModelProbes(false)` turns that off.
 - **Ranking.** The recommended models of Kilo, OpenCode Zen and Go,
   Hugging Face and Together are ranked by use case. The default profile,
   `catalog.ProfileUtility`, suits short, frequent tasks such as commit
