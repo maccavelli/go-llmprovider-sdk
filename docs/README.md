@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-80 records. Cite them by full filename.
+82 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -90,6 +90,8 @@ documents a reader follows to do something.
 | 0036 | PLAN | [Implement the Cache-Write Counts in `Usage`](decisions/0036-PLAN-cache-write-token-count.md) | complete |
 | 0037 | MADR | [Read Anthropic's Reasoning Count, and a Fourth Cache-Read Spelling on Chat Completions](decisions/0037-MADR-reasoning-and-cache-read-spellings.md) | accepted |
 | 0037 | PLAN | [Implement Anthropic's Reasoning Count and the Fourth Cache-Read Spelling](decisions/0037-PLAN-reasoning-and-cache-read-spellings.md) | complete |
+| 0038 | MADR | [List the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-MADR-full-curated-catalog-by-default.md) | accepted |
+| 0038 | PLAN | [Implement the Full Curated Catalog by Default, and Six Only on Request](decisions/0038-PLAN-full-curated-catalog-by-default.md) | in-progress |
 
 ## I want to…
 
@@ -118,6 +120,7 @@ documents a reader follows to do something.
 | opt a tool out of OpenAI's strict mode, or mark a tool result as failed | [0032-MADR](decisions/0032-MADR-tool-strict-and-result-error-flags.md) |
 | read a model's context window, output limit, prices or modalities | [0033-MADR](decisions/0033-MADR-public-model-metadata-and-current-catalogs.md) |
 | know why a model is or is not in a provider's menu | [0033-PLAN-refresh-the-curated-catalogs.md](decisions/0033-PLAN-refresh-the-curated-catalogs.md) |
+| list every model a provider serves, or only the top six | [0038-MADR-full-curated-catalog-by-default.md](decisions/0038-MADR-full-curated-catalog-by-default.md) |
 | know how GenerateToolCall forces a tool on the Claude models that refuse it | [0034-MADR](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) |
 | run the local gate, the link check or the identifier scan myself | [0035-MADR](decisions/0035-MADR-maintainer-tools-in-python.md) |
 | price a response's cache writes, or know what each `Usage` count includes | [0036-MADR](decisions/0036-MADR-cache-write-token-count.md) |
