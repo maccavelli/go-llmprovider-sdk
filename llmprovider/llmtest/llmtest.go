@@ -385,6 +385,9 @@ func checkInvalidValues(r reporter, h Harness) {
 	negativeLimit.MaxOutputTokens = -1
 	unknownRole := textRequest()
 	unknownRole.Input = []llmprovider.Item{llmprovider.MessageItem{Role: "model", Text: "hi"}}
+	// An unknown cache retention (0039-MADR D1).
+	unknownCache := textRequest()
+	unknownCache.Cache = "forever"
 	for _, c := range []struct {
 		name string
 		req  *llmprovider.Request
@@ -392,6 +395,7 @@ func checkInvalidValues(r reporter, h Harness) {
 		{"an unknown tool choice", unknownChoice},
 		{"a negative MaxOutputTokens", negativeLimit},
 		{"an unknown role", unknownRole},
+		{"an unknown cache retention", unknownCache},
 		{"a nil request", nil},
 	} {
 		fs := serve(h.Text)

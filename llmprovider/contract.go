@@ -92,6 +92,30 @@ type Reasoning struct {
 	Budget int
 }
 
+// CacheRetention asks the service to cache the request's prompt, for how
+// long (0039-MADR D1). The zero value asks for nothing: the request is sent
+// as it would be without the field, and a service that caches on its own
+// still does. Each provider's package doc says what it sends.
+type CacheRetention string
+
+const (
+	// CacheShort is the service's short lifetime: five minutes on Anthropic.
+	CacheShort CacheRetention = "short"
+	// CacheLong is the longest lifetime the service offers: one hour on
+	// Anthropic. Where the service offers one lifetime, it is CacheShort's.
+	CacheLong CacheRetention = "long"
+)
+
+// valid reports whether r is the zero value or a constant.
+func (r CacheRetention) valid() bool {
+	switch r {
+	case "", CacheShort, CacheLong:
+		return true
+	default:
+		return false
+	}
+}
+
 // ToolChoice says whether and how the model must call a tool (0015-MADR D3).
 // The empty value is ToolChoiceAuto. ForceTool names one tool.
 type ToolChoice string
@@ -183,6 +207,9 @@ type Request struct {
 	MaxOutputTokens int
 	// PreviousResponseID continues a conversation the service stored.
 	PreviousResponseID string
+	// Cache asks the service to cache the prompt. The zero value asks for
+	// nothing (0039-MADR D1).
+	Cache CacheRetention
 }
 
 // Check validates req and refuses a request that needs a capability c does
@@ -244,6 +271,9 @@ func (req *Request) validate() error {
 	}
 	if err := req.validateToolChoice(); err != nil {
 		return err
+	}
+	if !req.Cache.valid() {
+		return fmt.Errorf("%w: unknown cache retention %q", ErrInvalidRequest, req.Cache)
 	}
 	return req.Reasoning.check()
 }

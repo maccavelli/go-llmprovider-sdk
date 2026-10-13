@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-13
 associated-madr: "0039-MADR-request-side-prompt-caching.md"
 decision-makers: repository owner
@@ -115,7 +115,7 @@ As 0039-MADR D6 decides:
 ### Phase 0: records
 
 1. 0039-MADR is `accepted` (the owner, 2026-10-13). This PLAN is
-   `proposed`.
+   `in-progress`, approved by the owner on 2026-10-13.
 2. `docs/README.md`: the PLAN's row, the status and the count.
 3. `make records-check`, `tools/linkcheck.py` and `tools/denyscan.py
    --changed`. Stage. The owner commits.
@@ -323,4 +323,70 @@ No provider sends anything for `Cache` yet. Every golden is unchanged.
 
 ## Execution Record
 
-No phase has been executed.
+### Phase 0: records (2026-10-13)
+
+* **The commit:** the owner committed the MADR, this PLAN and the index as
+  `2883e90`.
+* **The approval:** the owner approved the PLAN ("committed, accepted,
+  approved to proceed"), so it is `in-progress`.
+
+### Phase 1: the field (2026-10-13)
+
+**Research** confirmed the PLAN's facts:
+
+* `Effort` is the pattern for a string type with constants: a `valid()`
+  method, checked in `validate`. `ToolChoice` and `Reasoning` are checked
+  at the end of `validate` (`contract.go`).
+* `llmtest`'s `checkInvalidValues` builds each case from `textRequest()`,
+  and requires `ErrInvalidRequest` and no request sent.
+
+**Step A:** the type, its two constants and the field were added with no
+validation, so the tests compiled.
+
+**Red first:**
+
+```text
+--- FAIL: TestRequest_CacheValues
+    cache_0039_test.go:23: Cache "forever": <nil>; want ErrInvalidRequest naming the value
+--- FAIL: TestConformance/R23-invalid-values (claude; the same for every provider)
+    llmtest.go:405: R23 (invalid values): an unknown cache retention returned <nil>; want an error matching ErrInvalidRequest
+    llmtest.go:408: R23 (invalid values): an unknown cache retention sent 1 request(s); want none
+```
+
+**Change:**
+
+* **`llmprovider/contract.go`:**
+  * `type CacheRetention string`, with `CacheShort` (`"short"`) and
+    `CacheLong` (`"long"`), and `valid()`;
+  * `Request.Cache`;
+  * `validate` refuses an unknown value: `unknown cache retention %q`,
+    matching `ErrInvalidRequest`.
+* **`llmprovider/llmtest/llmtest.go`:** R23's table gains "an unknown cache
+  retention", so every provider's conformance run checks it.
+* **`docs/guides/api-standards.md`:** R6 lists `Cache`, citing 0039 D1.
+
+No provider sends anything for `Cache` yet.
+
+**Green:** `go test ./...`, all 30 packages `ok`.
+
+**Plants** (`tools/plant.py`, 2 of 2 caught):
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the validation removed | `TestRequest_CacheValues`: `Cache "forever": <nil>; want ErrInvalidRequest naming the value`; `TestConformance/R23-invalid-values` for `claude` and `ollama`: `an unknown cache retention returned <nil>` and `sent 1 request(s); want none` |
+| `CacheLong` refused | `TestRequest_CacheValues`: `Cache "long": … unknown cache retention "long"; want it accepted` |
+
+**Done differently from step 4.** The third plant, "`llmtest`'s new case
+dropped", was not run. The first plant already shows the new `llmtest` case
+failing, through two providers' conformance runs, when validation is
+missing. That was the third plant's purpose.
+
+**Checks:**
+
+* `make pre-add-check` on the three Go files: clean.
+* `tools/apidiff.py v1.11.0`, compatible changes only:
+  `./llmprovider.CacheLong`, `./llmprovider.CacheRetention`,
+  `./llmprovider.CacheShort` and `./llmprovider.Request.Cache`, each
+  `added`.
+
+**Gate:** `tools/gate.py`, 23 of 23 passed.
