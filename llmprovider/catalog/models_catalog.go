@@ -23,8 +23,9 @@ const (
 	modelClaudeHaiku55 = "claude-haiku-5-5"
 )
 
-// MaxListed is the hard cap for configure-time model menus.
-// Keeps wizards short and avoids dumping dozens of unusable API IDs.
+// MaxListed is the length of the short list, the six best models a listing
+// recommends with WithLimit(MaxListed). It also bounds each static catalog,
+// and the probes a provider's ListModels sends (0038-MADR D6).
 const MaxListed = 6
 
 // Gemini generateContent method name (Models API supportedGenerationMethods).
@@ -421,17 +422,24 @@ func isUsableClaudeTextModel(id string) bool {
 }
 
 // curateFromCatalog returns catalog models that appear in available (case-sensitive
-// match first, then case-insensitive). Preserves catalog order. If catalog hits do not
-// fill MaxListed, dynamically backfills with top-ranked usable models from available.
+// match first, then case-insensitive). Preserves catalog order. It then
+// backfills with the rest of the usable models in available, top-ranked first,
+// until limit; with limit zero or less it backfills them all (0038-MADR D1).
 // If nothing from the catalog is available, falls back to filtering `available` with rankFn.
-func curateFromCatalog(catalog, available []string, usable func(string) bool, rankFn func(string) int) []string {
+// An id measured not to answer on provider is never chosen (D1).
+func curateFromCatalog(provider llmprovider.ProviderID, catalog, available []string, usable func(string) bool,
+	rankFn func(string) int, limit int) []string {
+	admit := func(id string) bool {
+		return (usable == nil || usable(id)) && !excludedAtRequest(provider, id)
+	}
+	full := func(out []string) bool { return limit > 0 && len(out) >= limit }
 	avail := make(map[string]string, len(available)) // lower -> canonical
 	for _, a := range available {
 		a = strings.TrimSpace(a)
 		if a == "" {
 			continue
 		}
-		if usable != nil && !usable(a) {
+		if !admit(a) {
 			continue
 		}
 		avail[strings.ToLower(a)] = a
@@ -448,18 +456,18 @@ func curateFromCatalog(catalog, available []string, usable func(string) bool, ra
 			}
 			seen[key] = struct{}{}
 			out = append(out, canon)
-			if len(out) >= MaxListed {
+			if full(out) {
 				return out
 			}
 		}
 	}
 
-	// Backfill with remaining usable models from available if catalog hits < MaxListed.
+	// Backfill with remaining usable models from available if catalog hits < limit.
 	if len(available) > 0 {
 		var remaining []string
 		for _, a := range available {
 			key := strings.ToLower(strings.TrimSpace(a))
-			if usable != nil && !usable(a) {
+			if !admit(a) {
 				continue
 			}
 			if _, dup := seen[key]; !dup {
@@ -470,7 +478,7 @@ func curateFromCatalog(catalog, available []string, usable func(string) bool, ra
 			sortByRankDesc(remaining, rankFn)
 		}
 		for _, r := range remaining {
-			if len(out) >= MaxListed {
+			if full(out) {
 				break
 			}
 			key := strings.ToLower(r)

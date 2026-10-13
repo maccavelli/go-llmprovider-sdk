@@ -187,7 +187,7 @@ func TestListModelCatalog_MetadataFallback(t *testing.T) {
 			}
 			cat := listCatalog(ctx, t, llmprovider.ProviderHuggingFace, opts...)
 			assertRanked(t, cat.Recommended, hfFallbackOrder)
-			assertRanked(t, cat.Recommended, curateHuggingFace(cat.Usable))
+			assertRanked(t, cat.Recommended, curateHuggingFace(cat.Usable, MaxListed))
 		})
 	}
 }
@@ -197,7 +197,7 @@ func TestListModelCatalog_MetadataFallbackZen(t *testing.T) {
 	listing := serveBody(t, opencodeListingFixture)
 	meta, _ := metadataServer(t, http.StatusInternalServerError, "")
 	cat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeZen, llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL))
-	want := curateFromCatalog(staticOpencodeCatalog(llmprovider.ProviderOpencodeZen), cat.Usable, isUsableOpencodeModel, rankOpencodeModel)
+	want := curateFromCatalog(llmprovider.ProviderOpencodeZen, staticOpencodeCatalog(llmprovider.ProviderOpencodeZen), cat.Usable, isUsableOpencodeModel, rankOpencodeModel, MaxListed)
 	assertRanked(t, cat.Recommended, want)
 }
 

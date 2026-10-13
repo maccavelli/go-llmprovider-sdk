@@ -52,6 +52,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 )
@@ -128,6 +129,9 @@ type provider struct {
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
+	// limit is catalog.WithLimit's n, which cuts ListModels's static
+	// fallback; zero is no limit (0038-MADR A3).
+	limit int
 }
 
 // New builds the Kilo provider.
@@ -180,6 +184,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			p.collect = bool(v)
 		}
 	}
+	p.limit, _ = listlimit.Of(st.Values())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(p.session), llmprovider.WithHTTPClient(p.client))
 	if p.org != "" {
@@ -346,7 +351,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	cat, err := catalog.List(ctx, llmprovider.ProviderKilo, p.src, opts...)
 	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
-		listed = catalog.Static(llmprovider.ProviderKilo)
+		listed = listlimit.Cut(catalog.Static(llmprovider.ProviderKilo), p.limit)
 	}
 	return listed, nil
 }

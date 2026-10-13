@@ -245,10 +245,11 @@ func smallDense(id string) bool {
 	return false
 }
 
-// rankRecommended returns at most MaxListed distinct ids: the eligible
-// candidates in profile order, at most maxPerRankGroup per group, then fill in
-// order, skipping ids already chosen or excluded (MADR 0009 §4, MADR 0013 A1).
-func rankRecommended(profile Profile, provider llmprovider.ProviderID, cands []rankCandidate, fill []string) []string {
+// rankRecommended returns at most limit distinct ids, or every one when limit
+// is zero or less: the eligible candidates in profile order, at most
+// maxPerRankGroup per group, then fill in order, skipping ids already chosen
+// or excluded (MADR 0009 §4, MADR 0013 A1, 0038-MADR D1).
+func rankRecommended(profile Profile, provider llmprovider.ProviderID, cands []rankCandidate, fill []string, limit int) []string {
 	var eligible []rankCandidate
 	for _, c := range cands {
 		if c.eligible(provider) && !utilityExcluded(profile, provider, c.id) {
@@ -264,7 +265,7 @@ func rankRecommended(profile Profile, provider llmprovider.ProviderID, cands []r
 	out := make([]string, 0, MaxListed)
 	perGroup := map[string]int{}
 	for _, c := range eligible {
-		if len(out) == MaxListed {
+		if limit > 0 && len(out) == limit {
 			break
 		}
 		if perGroup[c.group] >= maxPerRankGroup || slices.Contains(out, c.id) {
@@ -274,7 +275,7 @@ func rankRecommended(profile Profile, provider llmprovider.ProviderID, cands []r
 		out = append(out, c.id)
 	}
 	for _, id := range fill {
-		if len(out) == MaxListed {
+		if limit > 0 && len(out) == limit {
 			break
 		}
 		if !slices.Contains(out, id) && !utilityExcluded(profile, provider, id) && !excludedAtRequest(provider, id) {

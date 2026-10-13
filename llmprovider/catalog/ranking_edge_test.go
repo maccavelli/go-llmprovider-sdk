@@ -43,7 +43,7 @@ func TestListModelCatalog_DuplicateIDs(t *testing.T) {
 // ranker: two candidates with one id take one slot.
 func TestRankRecommended_SkipsDuplicateCandidates(t *testing.T) {
 	c := good("x/a", "x", 1, 10)
-	got := rankRecommended(ProfileUtility, llmprovider.ProviderKilo, []rankCandidate{c, c, good("y/b", "y", 2, 10)}, nil)
+	got := rankRecommended(ProfileUtility, llmprovider.ProviderKilo, []rankCandidate{c, c, good("y/b", "y", 2, 10)}, nil, MaxListed)
 	assertRanked(t, got, []string{"x/a", "y/b"})
 }
 
@@ -93,7 +93,7 @@ func TestRankRecommended_InfinitePriceNotCheapest(t *testing.T) {
 			fmt.Sprintf(`,"pricing":{"prompt":%q,"completion":%q}`, price, price)), refNow)
 	}
 	got := rankRecommended(ProfileUtility, llmprovider.ProviderKilo,
-		[]rankCandidate{mk("a/cheap", "0.0000001"), mk("b/mid", "0.000001"), mk("z/infinite", "Infinity")}, nil)
+		[]rankCandidate{mk("a/cheap", "0.0000001"), mk("b/mid", "0.000001"), mk("z/infinite", "Infinity")}, nil, MaxListed)
 	assertRanked(t, got, []string{"a/cheap", "b/mid", "z/infinite"})
 }
 

@@ -26,9 +26,9 @@ func TestRankRecommended_SmallDenseUtility(t *testing.T) {
 	}
 	fill := []string{"f/fill-7b", "g/fill-ok"}
 	for _, provider := range []llmprovider.ProviderID{llmprovider.ProviderTogether, llmprovider.ProviderKilo} {
-		assertRanked(t, rankRecommended(ProfileUtility, provider, cands, fill),
+		assertRanked(t, rankRecommended(ProfileUtility, provider, cands, fill, MaxListed),
 			[]string{"c/model-15b", "d/moe-30b-a3b", "h/moe-7b-a1b", "e/model-flash", "g/fill-ok"})
-		if got := rankRecommended(ProfileCapable, provider, cands, fill); !slices.Contains(got, "a/model-9b") {
+		if got := rankRecommended(ProfileCapable, provider, cands, fill, MaxListed); !slices.Contains(got, "a/model-9b") {
 			t.Errorf("%s capable: %v, want a/model-9b ranked", provider, got)
 		}
 	}

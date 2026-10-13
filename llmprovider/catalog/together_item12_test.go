@@ -49,7 +49,7 @@ func TestTogetherMeasuredUnserved(t *testing.T) {
 		}
 	}
 	cands := []rankCandidate{good(unserved, "minimaxai", 0.03, 10), good("x/other", "x", 0.5, 10)}
-	if got := rankRecommended(ProfileUtility, llmprovider.ProviderHuggingFace, cands, nil); !slices.Contains(got, unserved) {
+	if got := rankRecommended(ProfileUtility, llmprovider.ProviderHuggingFace, cands, nil, MaxListed); !slices.Contains(got, unserved) {
 		t.Errorf("huggingface: %v, want %s ranked; item 12 is Together's alone", got, unserved)
 	}
 }

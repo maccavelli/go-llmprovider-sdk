@@ -500,3 +500,190 @@ No list a provider passes today is longer than six, so no result changes.
 golangci-lint, go vet, go test, govulncheck).
 
 **Gate:** `tools/gate.py`, 23 of 23 passed.
+
+The owner committed Phase 1 as `df90f3d`.
+
+### Phase 2: `catalog.WithLimit` and the full list, with the default still six (2026-10-13)
+
+**Research** confirmed the PLAN's facts, and found what follows.
+
+* **Built-in providers take the option; others refuse it.** Every built-in
+  `New` resolves an option scoped to `builtinIDs`. A third party's refuses
+  it (`settings.go:138-145`).
+* **Where the providers read their values.** `gemini`, `grok`, `kilo`,
+  `openai` and `opencode` already read `Settings.Values()` in `New`.
+  `claude`, `huggingface` and `together` did not.
+* **Ollama has no static fallback.** Its `ListModels` returns the listing's
+  error (`ollama.go:235-240`), so it reads no limit of its own.
+* **OpenCode already excluded unservable ids.** Its fallback curation left
+  out `excludedAtRequest` ids itself (0021-MADR D3).
+* **The metadata is received once.** `metadataCurate` receives the metadata
+  document from a channel, once (`res := <-meta`). The full list runs the
+  curation twice, the six and the uncapped one, so the closure now receives
+  it through `sync.OnceValue`.
+
+**The measurement** was a throwaway test, run on a scratch clone at
+`df90f3d`, not in the tree. It replayed the 2026-10-12 snapshot and counted,
+for each list and profile, `Usable` and D1's exclusions. It used the
+existing predicates (`excludedAtRequest`, `utilityExcluded`, `listedOnly`
+against the snapshot's document), with no ranking code:
+
+| List | Utility: usable → full | Capable: usable → full | Left out |
+| :--- | ---: | ---: | :--- |
+| Hugging Face | 119 → 102 | 119 → 119 | 17 dense ≤ 14B (utility) |
+| Kilo | 285 → 272 | 285 → 285 | 13 (utility) |
+| OpenCode Go | 34 → 28 | 34 → 28 | the four region-gated DeepSeek ids, two `-contributor` |
+| OpenCode Zen | 79 → 77 | 79 → 77 | two `-contributor-free` |
+| Together | 172 → 19 | 172 → 21 | `MiniMaxAI/MiniMax-M2.7`; ids models.dev does not list; utility's exclusions |
+
+No `excludedAtRequest` id is in any list's six.
+
+**Step A, the option, with no behavior yet:**
+
+* `llmprovider/internal/listlimit`: `Value`, `Of` and `Cut`, with
+  `listlimit_test.go` (coverage 100 %).
+* `catalog.WithLimit` and `config`'s `limit` and `limitSet` (`config.go`).
+
+**Red first,** with the option defined and ignored:
+
+```text
+--- FAIL: TestWithLimit_FullList
+    full_catalog_0038_test.go:112: opencode-zen profile 0: the full list holds 6 ids; want the 77 usable ids less D1's exclusions
+    full_catalog_0038_test.go:115: opencode-zen profile 0: 6 ids; want 77, as measured
+    (the same two lines for each ranked list and profile)
+    full_catalog_0038_test.go:122: openai: the full list [gpt-6-luna gpt-5.6-luna gpt-4.1-mini gpt-5.6-terra gpt-6.1-sol gpt-6-astra]; want the six […] first, then the rest of Usable […, gpt-5.6-sol gpt-6-sol gpt-4.1]
+    full_catalog_0038_test.go:125: ollama: the full list [m1 m2 m3 m4 m5 m6]; want every installed model [m1 m2 m3 m4 m5 m6 m7 m8]
+--- FAIL: TestWithLimit_Cuts
+    full_catalog_0038_test.go:135: WithLimit(0) holds 6 ids; want Kilo's full list, longer than nine
+--- FAIL: TestWithLimit_FallbackExcludes
+    full_catalog_0038_test.go:162: together (0 options): Recommended [MiniMaxAI/MiniMax-M2.7 t/a t/b], Usable [MiniMaxAI/MiniMax-M2.7 t/a t/b]; want MiniMaxAI/MiniMax-M2.7 searchable but not recommended
+--- FAIL: TestWithLimit_StaticFallback
+    full_catalog_0038_test.go:175: Live false, Recommended [gpt-6-luna … gpt-6-astra], Usable […]; want the static catalog's first two in both, not live
+--- FAIL: TestListModels_WithLimit/gemini (and openai, claude, grok, opencode-zen, opencode-go, huggingface, kilo, together)
+    limit_0038_test.go:64: 1 options: ListModels = [gemini-3.5-flash-lite gemini-3.8-flash gemini-3.6-flash]; want [gemini-3.5-flash-lite gemini-3.8-flash]
+--- FAIL: TestListModels_FullListProbesSix
+    limit_0038_test.go:43: ListModels = 6 ids after 6 probes; want 9 after 6: […]
+--- FAIL: TestListModels_ChatGPTWithLimit
+    limit_0038_test.go:69: 1 options: ListModels = [gpt-6-astra gpt-5.6-sol gpt-5.6-luna]/<nil>; want [gpt-6-astra gpt-5.6-sol]
+--- FAIL: TestListModels_ProbesAtMostMaxListedModels (ollama)
+    listing_test.go:89: ListModels = [model-0:latest … model-5:latest]; want every installed model [model-0:latest … model-8:latest]
+```
+
+Three tests passed before the change, as they must: they guard today's
+behavior or the scope. They are `TestWithLimit_SixIsToday`, the OpenCode Go
+half of `TestWithLimit_FallbackExcludes`, and `TestWithLimit_Scope`. The
+plants show each failing.
+
+The first red run of `TestWithLimit_Cuts` panicked, slicing the six at nine.
+The test now fails with a message when the full list is not longer than
+nine.
+
+**Change:**
+
+* **`models_catalog.go`:**
+  * `curateFromCatalog(provider, catalog, available, usable, rankFn, limit)`.
+    `limit` zero or less backfills every usable id. An `excludedAtRequest`
+    id is never chosen (D1).
+  * The `MaxListed` doc (D6).
+* **`model_ranking.go`:** `rankRecommended(…, fill, limit)`, where `limit`
+  zero or less is no cap.
+* **`discovery.go`:**
+  * `type curator func(usable []string, limit int) []string`, and every
+    curate function takes `limit` and passes it to its fallback.
+  * `fullList` is the six, `curate(usable, MaxListed)`, then
+    `curate(usable, 0)`'s other ids (A1).
+  * `recommend` cuts the six when the limit is within six. Otherwise it cuts
+    the full list.
+  * `catalogFrom`, `staticCatalog` and `ollamaCatalog` take the listing's
+    limit. A static fallback is cut in both views, which stay equal (D3).
+  * OpenCode's curation passes `isUsableOpencodeModel` to
+    `curateFromCatalog`, which now applies the exclusion its own predicate
+    did.
+* **`model_metadata.go`:** `metadataCurate` receives the document once
+  (`sync.OnceValue`) and passes `limit` on.
+* **`config.go`:**
+  * `recommendLimit()`: `MaxListed` without the option (until Phase 3),
+    else `WithLimit`'s n.
+  * `WithLimit`'s doc says a static fallback's `Usable` is cut with it.
+* **The providers** (`claude`, `gemini`, `grok`, `huggingface`, `kilo`,
+  `openai`, `opencode`, `together`):
+  * Each `New` sets `p.limit` from `listlimit.Of(st.Values())`.
+  * `ListModels` cuts its `catalog.Static` fallback with `listlimit.Cut`.
+  * OpenAI also cuts a ChatGPT session's listing. `listlimit.Cut` with
+    zero is no cut, so a listing without the option is unchanged.
+
+**A bug found on the way to green:** `rankRecommended` broke at once when
+`limit` was zero, since `len(out) == limit` held for an empty result.
+`TestRankRecommended_UncappedFillDiffers` failed with
+`uncapped = []; want [s/one s/two r/first r/second]`, and every open
+catalog's full list was six long. Both loops now test `limit > 0 &&`.
+
+**Tests added:**
+
+| Test | File |
+| :--- | :--- |
+| `TestWithLimit_SixIsToday`, `_FullList`, `_Cuts`, `_FallbackExcludes`, `_StaticFallback` | `llmprovider/catalog/full_catalog_0038_test.go` |
+| `TestFullList_SixFirst`; `TestRankRecommended_UncappedFillDiffers`, which pins A1's finding that today's six cannot be read off the uncapped ranking | `llmprovider/catalog/full_list_0038_test.go` |
+| `TestWithLimit_Scope`, `TestListModels_WithLimit` | `llmprovider/providers/limit_0038_test.go` |
+| `TestListModels_FullListProbesSix`, `TestListModels_ChatGPTWithLimit` | `llmprovider/providers/openai/limit_0038_test.go` |
+| `TestOf`, `TestCut` | `llmprovider/internal/listlimit/listlimit_test.go` |
+
+`TestListModels_ProbesAtMostMaxListedModels` (Ollama) takes
+`catalog.WithLimit(0)` and requires all `MaxListed+3` models in order
+(Phase 1's deviation 2).
+
+**Done differently from the steps' wording.** No decision changed:
+
+* **`TestWithLimit_Scope`** is in `llmprovider/providers`, not the catalog
+  file. It builds every built-in provider, and `catalog`'s internal tests
+  cannot import the providers.
+* **`TestListModels_FullListProbesSix`** is in the new
+  `openai/limit_0038_test.go`, beside the ChatGPT test the PLAN's step 6
+  needed, not in `listing_test.go`.
+* **Three tests are added beyond the table:** `TestFullList_SixFirst`,
+  `TestRankRecommended_UncappedFillDiffers` and
+  `TestListModels_ChatGPTWithLimit`.
+
+**Existing tests,** each changed only in how it calls, so each keeps its
+meaning (R46). A script matched each call's parentheses and counted the
+edits:
+
+* 14 `rankRecommended` calls, two `curate*` calls and five
+  `curateFromCatalog` calls, across seven files, take `MaxListed`. Each
+  `curateFromCatalog` call names its provider.
+* `replaySnapshot` takes options after its own.
+
+**Step 8, the fallback exclusion,** changed no existing test's expectation.
+`TestStatic_EqualsLatestSnapshot` and `TestListModelCatalog_Snapshot20261012`
+passed unchanged.
+
+**Green:** `go test ./...`, all 30 packages `ok`.
+
+**Plants** (`tools/plant.py`, 6 of 6 caught):
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the six not first (`fullList` from the uncapped curation alone) | `TestFullList_SixFirst`: `fullList = [b a c d e g f h]; want [a b c d e f g h]` |
+| `curateFromCatalog` without the exclusion | `TestWithLimit_FallbackExcludes`: `together (0 options): Recommended [MiniMaxAI/MiniMax-M2.7 t/a t/b] …`, and `opencode-go (0 options): Recommended [qwen3.8-flash glm-5.3-flash deepseek-v4-flash] …` |
+| `gemini`'s fallback not reading the limit | `TestListModels_WithLimit/gemini`: `1 options: ListModels = [gemini-3.5-flash-lite gemini-3.8-flash gemini-3.6-flash]; want [gemini-3.5-flash-lite gemini-3.8-flash]` |
+| a negative n read as the six | `TestWithLimit_Cuts`: `WithLimit(-1) holds 6 ids; want the full list's 272` |
+| the option scoped to one provider | `TestWithLimit_SixIsToday` and the others: `option catalog.WithLimit is for provider "kilo", not "huggingface"`; `TestWithLimit_Scope`: `gemini: New refused catalog.WithLimit` |
+| `Of` keeping the first value | `TestOf`: `the last wins: Of = 6, true; want 0, true` |
+
+**Checks:**
+
+* `make pre-add-check` on the 28 Go files: clean (gofmt, golangci-lint, go
+  vet, go test, govulncheck).
+* `make api-check`: 0 incompatible changes against `v1.10.2`.
+  `tools/apidiff.py v1.10.2` printed one compatible change,
+  `./llmprovider/catalog.WithLimit: added`.
+* `make coverage-check`: `llmprovider/internal/listlimit: 100.0% against
+  80.0%`. No floor line was needed.
+
+**Not done in this phase,** as planned:
+
+* the `Catalog.Recommended` and `List` docs, which still say "at most
+  `MaxListed`" (Phase 3);
+* the wizard (Phase 3).
+
+**Gate:** `tools/gate.py`, 23 of 23 passed.

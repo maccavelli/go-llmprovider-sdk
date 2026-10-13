@@ -167,9 +167,9 @@ func TestCurateFromCatalog_Gemini(t *testing.T) {
 			filtered = append(filtered, a)
 		}
 	}
-	out := curateFromCatalog(staticGemini, filtered, func(s string) bool {
+	out := curateFromCatalog(llmprovider.ProviderGemini, staticGemini, filtered, func(s string) bool {
 		return isUsableGeminiTextModel(s, []string{methodGenerateContent})
-	}, rankGeminiModel)
+	}, rankGeminiModel, MaxListed)
 
 	if len(out) == 0 {
 		t.Fatal("expected curated models")
@@ -198,13 +198,13 @@ func indexOf(ss []string, want string) int {
 }
 
 func TestCurateFromCatalog_EmptyAvailableUsesNothingThenFallback(t *testing.T) {
-	out := curateFromCatalog(staticGemini, nil, nil, rankGeminiModel)
+	out := curateFromCatalog(llmprovider.ProviderGemini, staticGemini, nil, nil, rankGeminiModel, MaxListed)
 	if len(out) != 0 {
 		// no available, no fallback path without available items
 		t.Fatalf("expected empty, got %v", out)
 	}
 	// With only unusable available, usable filter empties map → empty
-	out = curateFromCatalog(staticOpenAI, []string{"dall-e-3"}, isUsableOpenAIChatModel, rankOpenAIModel)
+	out = curateFromCatalog(llmprovider.ProviderOpenAI, staticOpenAI, []string{"dall-e-3"}, isUsableOpenAIChatModel, rankOpenAIModel, MaxListed)
 	if len(out) != 0 {
 		t.Fatalf("expected empty when only junk available: %v", out)
 	}
@@ -369,7 +369,7 @@ func TestCurateFromCatalog_Backfill(t *testing.T) {
 	// Catalog has only 1 matching model, available has more usable models
 	catalog := []string{"gpt-4.1-mini"}
 	available := []string{"gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-5"}
-	out := curateFromCatalog(catalog, available, isUsableOpenAIChatModel, rankOpenAIModel)
+	out := curateFromCatalog(llmprovider.ProviderOpenAI, catalog, available, isUsableOpenAIChatModel, rankOpenAIModel, MaxListed)
 	if len(out) != 4 {
 		t.Fatalf("expected 4 backfilled models, got %d (%v)", len(out), out)
 	}

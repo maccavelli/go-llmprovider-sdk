@@ -679,13 +679,15 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 
 // metadataCurate ranks a provider's usable models with the metadata document
 // (MADR 0009 §2). A failed or disabled fetch, or a document without the
-// provider's key, returns fallback's curation unchanged.
-func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta <-chan modelMetadataResult, fallback func([]string) []string) func([]string) []string {
-	return func(usable []string) []string {
-		res := <-meta
+// provider's key, returns fallback's curation unchanged. The document is
+// received once, however often the curation runs (0038-MADR A1).
+func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta <-chan modelMetadataResult, fallback curator) curator {
+	received := sync.OnceValue(func() modelMetadataResult { return <-meta })
+	return func(usable []string, limit int) []string {
+		res := received()
 		models, ok := res.doc.models(modelMetadataKey(provider))
 		if res.err != nil || !ok {
-			return fallback(usable)
+			return fallback(usable, limit)
 		}
 		if listedOnly(provider) {
 			usable = slices.DeleteFunc(slices.Clone(usable), func(id string) bool {
@@ -699,7 +701,7 @@ func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta <-cha
 			m, covered := models[id]
 			cands = append(cands, metadataCandidate(id, m, covered, now))
 		}
-		return rankRecommended(profile, provider, cands, append(fallback(usable), usable...))
+		return rankRecommended(profile, provider, cands, append(fallback(usable, limit), usable...), limit)
 	}
 }
 

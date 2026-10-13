@@ -69,7 +69,7 @@ func TestRankRecommended_UtilityOrder(t *testing.T) {
 		good("p/pro", "p", 0.5, 30),
 		good("q/max", "q", 4, 60),
 	}
-	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, nil),
+	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, nil, MaxListed),
 		[]string{"s/bench", "f/flash-a", "g/flash-b", "h/flash-c", "p/pro", "q/max"})
 }
 
@@ -88,7 +88,7 @@ func TestRankRecommended_BlendWeighsAge(t *testing.T) {
 		unknownCost,
 		unknownAge,
 	}
-	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, nil),
+	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, nil, MaxListed),
 		[]string{"e/flash-noage", "b/flash-new", "a/flash-old", "d/flash-unk", "c/flash-max"})
 }
 
@@ -102,9 +102,9 @@ func TestRankRecommended_CapableOrder(t *testing.T) {
 		good("t/old", "t", 10, 400),
 		small(good("u/flash", "u", 1, 5)),
 	}
-	assertRanked(t, rankRecommended(ProfileCapable, llmprovider.ProviderKilo, cands, nil),
+	assertRanked(t, rankRecommended(ProfileCapable, llmprovider.ProviderKilo, cands, nil, MaxListed),
 		[]string{"x/top", "y/second", "z/pref0", "w/pref3", "v/big", "t/old"})
-	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, nil),
+	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, nil, MaxListed),
 		[]string{"w/pref3", "z/pref0", "x/top", "y/second", "u/flash", "v/big"})
 }
 
@@ -123,7 +123,7 @@ func TestRankRecommended_DiversityCap(t *testing.T) {
 		c.small = s.small
 		cands = append(cands, c)
 	}
-	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, nil),
+	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, nil, MaxListed),
 		[]string{"~a/flash-0", "a/flash-1", "b/flash", "c/flash", "d/pro", "e/pro"})
 }
 
@@ -134,7 +134,7 @@ func TestRankRecommended_Fill(t *testing.T) {
 		good("o/old", "o", 1, 600),
 	}
 	fill := []string{"o/old", "m/flash", "p/x", "q/y", "r/z", "s/w"}
-	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, fill),
+	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderKilo, cands, fill, MaxListed),
 		[]string{"m/flash", "n/pro", "o/old", "p/x", "q/y", "r/z"})
 }
 
@@ -144,7 +144,7 @@ func TestRankRecommended_Fill(t *testing.T) {
 func TestRankRecommended_FillSkipsRequestFailures(t *testing.T) {
 	cands := []rankCandidate{good("glm-5.3-flash", "glm", 1, 10)}
 	fill := []string{"muse-spark-1.3-contributor", opencodeDeepSeekV4Flash, "hy3", opencodeDeepSeekV4Pro, "kimi-k2.6"}
-	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderOpencodeGo, cands, fill),
+	assertRanked(t, rankRecommended(ProfileUtility, llmprovider.ProviderOpencodeGo, cands, fill, MaxListed),
 		[]string{"glm-5.3-flash", "hy3", "kimi-k2.6"})
 }
 
@@ -210,7 +210,7 @@ func TestRankRecommended_Eligibility(t *testing.T) {
 			for _, id := range []string{"g1/pro", "g2/pro", "g3/pro", "g4/pro", "g5/pro", "g6/pro"} {
 				cands = append(cands, good(id, id[:2], 5, 100))
 			}
-			got := rankRecommended(ProfileUtility, tc.provider, cands, nil)
+			got := rankRecommended(ProfileUtility, tc.provider, cands, nil, MaxListed)
 			if slices.Contains(got, tested.id) != tc.want {
 				t.Errorf("%s in %v = %v, want %v", tested.id, got, !tc.want, tc.want)
 			}
@@ -240,7 +240,7 @@ func TestRankRecommended_KiloAutoUtility(t *testing.T) {
 		{ProfileUtility, llmprovider.ProviderOpencodeZen, []string{"kilo-auto/small", "g1/pro", "g2/pro", "g3/pro", "g4/pro", "g5/pro"}},
 	}
 	for _, tc := range tests {
-		assertRanked(t, rankRecommended(tc.profile, tc.provider, cands, fill), tc.want)
+		assertRanked(t, rankRecommended(tc.profile, tc.provider, cands, fill, MaxListed), tc.want)
 	}
 }
 

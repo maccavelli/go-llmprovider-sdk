@@ -39,8 +39,8 @@ func latestSnapshot(t *testing.T) string {
 }
 
 // replaySnapshot lists provider from the snapshot in dir, with the ranking
-// clock pinned to the snapshot's recorded_at.
-func replaySnapshot(t *testing.T, dir string, provider llmprovider.ProviderID, profile Profile) Catalog {
+// clock pinned to the snapshot's recorded_at, and opts after its own.
+func replaySnapshot(t *testing.T, dir string, provider llmprovider.ProviderID, profile Profile, opts ...llmprovider.Option) Catalog {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(dir, "snapshot.json"))
 	if err != nil {
@@ -65,8 +65,9 @@ func replaySnapshot(t *testing.T, dir string, provider llmprovider.ProviderID, p
 		}
 		return serveBody(t, string(body)).URL
 	}
-	return listCatalog(context.Background(), t, provider, llmprovider.WithBaseURL(serve(snapshotFile[provider])),
-		llmprovider.WithModelMetadataURL(serve("metadata.json")), WithProfile(profile))
+	return listCatalog(context.Background(), t, provider, append([]llmprovider.Option{
+		llmprovider.WithBaseURL(serve(snapshotFile[provider])), llmprovider.WithModelMetadataURL(serve("metadata.json")),
+		WithProfile(profile)}, opts...)...)
 }
 
 // TestListModelCatalog_Snapshot20261012 replays the 2026-10-12 snapshot and

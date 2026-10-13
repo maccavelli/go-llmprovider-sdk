@@ -44,6 +44,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
@@ -109,6 +110,9 @@ type provider struct {
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
+	// limit is catalog.WithLimit's n, which cuts ListModels's static
+	// fallback; zero is no limit (0038-MADR A3).
+	limit int
 }
 
 // New builds the OpenAI provider. It needs a credential: WithAPIKey, or
@@ -180,6 +184,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if st.LoggerGiven() {
 		shareLogger(src, st.Logger())
 	}
+	p.limit, _ = listlimit.Of(st.Values())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(p.session), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil
@@ -340,13 +345,14 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	// once more, as Generate does (0020-MADR F2, F38).
 	if p.chatGPT {
 		return wire.Reauth(ctx, string(llmprovider.ProviderOpenAI), p.src, func(token llmprovider.Token) ([]string, error) {
-			return p.listChatGPT(ctx, token)
+			models, err := p.listChatGPT(ctx, token)
+			return listlimit.Cut(models, p.limit), err
 		})
 	}
 	cat, err := catalog.List(ctx, llmprovider.ProviderOpenAI, p.src, p.listing...)
 	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
-		listed = catalog.Static(llmprovider.ProviderOpenAI)
+		listed = listlimit.Cut(catalog.Static(llmprovider.ProviderOpenAI), p.limit)
 	}
 	if !p.probe {
 		return listed, nil

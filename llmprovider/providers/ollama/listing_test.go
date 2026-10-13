@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -69,18 +70,23 @@ func TestListModels_ProbesFollowTheOption(t *testing.T) {
 
 // TestListModels_ProbesAtMostMaxListedModels: the probe's limit, which
 // internal/transport takes as an argument since 0015-PLAN S7b, is
-// catalog.MaxListed.
+// catalog.MaxListed. With the full list, every installed model comes back,
+// in order, the unprobed ones included (0038-MADR D4).
 func TestListModels_ProbesAtMostMaxListedModels(t *testing.T) {
 	names := make([]string, catalog.MaxListed+3)
 	for i := range names {
 		names[i] = fmt.Sprintf("model-%d:latest", i)
 	}
 	srv, posts := instance(t, ollamaTags(names...), false)
-	if _, err := list(t, build(t, local(srv.URL, "m")...)); err != nil {
+	models, err := list(t, build(t, local(srv.URL, "m", catalog.WithLimit(0))...))
+	if err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}
 	if n := posts.Load(); n != int32(catalog.MaxListed) {
 		t.Errorf("%d probes, want %d", n, catalog.MaxListed)
+	}
+	if !slices.Equal(models, names) {
+		t.Errorf("ListModels = %v; want every installed model %v", models, names)
 	}
 }
 

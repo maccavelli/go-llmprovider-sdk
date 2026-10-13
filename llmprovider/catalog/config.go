@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
@@ -42,6 +43,8 @@ type config struct {
 	userAgent        string
 	session          string
 	metadataOff      bool         // WithoutModelMetadata
+	limit            int          // WithLimit's n; zero or less is no limit
+	limitSet         bool         // whether WithLimit was given
 	logger           *slog.Logger // Settings.Logger
 	layers           []Layer      // WithModelLayer's, in the order given
 	// sink, when set, receives what a listing says of each model it lists
@@ -65,7 +68,7 @@ type (
 	modelLayerOption struct{ layer Layer }
 )
 
-// builtinIDs are the ids WithProfile is scoped to: every built-in provider,
+// builtinIDs are the ids WithProfile and WithLimit are scoped to: every built-in provider,
 // so that one option list carrying it is valid for each.
 var builtinIDs = []llmprovider.ProviderID{
 	llmprovider.ProviderGemini, llmprovider.ProviderOpenAI, llmprovider.ProviderClaude, llmprovider.ProviderGrok,
@@ -79,6 +82,18 @@ var builtinIDs = []llmprovider.ProviderID{
 // providers' ListModels rank with it, and the others ignore it.
 func WithProfile(p Profile) llmprovider.Option {
 	return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithProfile", profileOption(p))
+}
+
+// WithLimit cuts the recommended list to its first n models, and a provider's
+// ListModels to the same, its static fallback included. With n zero or less
+// the list is the full curated catalog: every known, working model the
+// listing serves, ranked, with the best six first (0038-MADR D1, D2). A
+// listing with WithLimit(MaxListed) recommends the six it always has. A live
+// listing's Usable, which search covers, is never cut; a static fallback's
+// is cut with Recommended, which it equals. It is scoped to every built-in
+// provider, as WithProfile is.
+func WithLimit(n int) llmprovider.Option {
+	return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithLimit", listlimit.Value(n))
 }
 
 // WithKiloOrganization lists a Kilo organization's catalog: the request
@@ -122,7 +137,18 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 			cfg.layers = append(cfg.layers, v.layer)
 		}
 	}
+	cfg.limit, cfg.limitSet = listlimit.Of(st.Values())
 	return cfg, nil
+}
+
+// recommendLimit is how many models the listing recommends: WithLimit's n,
+// where zero or less is the full list, and MaxListed without the option
+// until 0038-PLAN Phase 3.
+func (c config) recommendLimit() int {
+	if !c.limitSet {
+		return MaxListed
+	}
+	return c.limit
 }
 
 // defaultConfig is a listing's configuration with no options.

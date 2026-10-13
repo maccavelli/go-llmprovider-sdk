@@ -77,6 +77,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
 )
@@ -107,6 +108,9 @@ type provider struct {
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
+	// limit is catalog.WithLimit's n, which cuts ListModels's static
+	// fallback; zero is no limit (0038-MADR A3).
+	limit int
 }
 
 // New builds the Claude provider. It needs an API key: WithAPIKey, or
@@ -150,6 +154,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if base := st.BaseURL(); base != "" {
 		p.baseURL = base
 	}
+	p.limit, _ = listlimit.Of(st.Values())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(st.SessionID()), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil
@@ -322,7 +327,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	cat, err := catalog.List(ctx, llmprovider.ProviderClaude, p.src, p.listing...)
 	listed := cat.Recommended
 	if err != nil || len(listed) == 0 {
-		listed = catalog.Static(llmprovider.ProviderClaude)
+		listed = listlimit.Cut(catalog.Static(llmprovider.ProviderClaude), p.limit)
 	}
 	// Probes are billed; they are on by default, and callers can turn them off (0016-MADR A5).
 	if !p.probe {

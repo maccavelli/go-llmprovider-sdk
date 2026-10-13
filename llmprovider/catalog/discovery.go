@@ -16,6 +16,7 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 )
 
 // Listing pagination (MADR 0007 §2): Gemini and Anthropic page their model
@@ -180,20 +181,48 @@ func credentialRefused(err error) bool {
 	}
 }
 
+// curator curates a listing's usable ids, best first, to at most limit, or
+// every one it recommends when limit is zero or less.
+type curator func(usable []string, limit int) []string
+
 // catalogFrom applies the degrade-to-static contract every lister except
 // Ollama has always had: a failed fetch, or one that yields no usable id,
-// substitutes the static catalog.
-func catalogFrom(usable []string, fetchErr error, static []string, curate func([]string) []string) Catalog {
+// substitutes the static catalog. limit is the listing's (config's
+// recommendLimit).
+func catalogFrom(usable []string, fetchErr error, static []string, curate curator, limit int) Catalog {
 	usable = uniqueIDs(usable)
 	if fetchErr != nil || len(usable) == 0 {
-		cat := staticCatalog(static)
+		cat := staticCatalog(static, limit)
 		cat.Err = fetchErr
 		return cat
 	}
 	// A curation that leaves nothing, such as Kilo's tiers alone under the
 	// utility profile, keeps the live listing: the user searches it
 	// (0021-MADR C13).
-	return Catalog{Recommended: curate(usable), Usable: usable, Live: true}
+	return Catalog{Recommended: recommend(usable, curate, limit), Usable: usable, Live: true}
+}
+
+// recommend is the recommended list: the six, or the full list, cut to limit
+// (0038-MADR D2). A limit within the six needs no uncapped curation.
+func recommend(usable []string, curate curator, limit int) []string {
+	if limit > 0 && limit <= MaxListed {
+		return listlimit.Cut(curate(usable, MaxListed), limit)
+	}
+	return listlimit.Cut(fullList(usable, curate), limit)
+}
+
+// fullList is the full curated list (0038-MADR D1, A1): the six, curated as
+// before 0038, then the uncapped curation's other ids, in its order. The six
+// are computed on their own because an uncapped fill can reach ids in
+// another order once the fallback's first six are used up.
+func fullList(usable []string, curate curator) []string {
+	out := curate(usable, MaxListed)
+	for _, id := range curate(usable, 0) {
+		if !slices.Contains(out, id) {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // uniqueIDs drops repeated ids, keeping the first of each (MADR 0013 A1).
@@ -209,8 +238,10 @@ func uniqueIDs(ids []string) []string {
 	return out
 }
 
-// staticCatalog wraps a caller-owned copy of a static catalog.
-func staticCatalog(static []string) Catalog {
+// staticCatalog wraps a caller-owned copy of a static catalog, cut to limit
+// in both views, which stay equal (0038-MADR D3).
+func staticCatalog(static []string, limit int) Catalog {
+	static = listlimit.Cut(static, limit)
 	return Catalog{Recommended: static, Usable: slices.Clone(static), Live: false}
 }
 
@@ -221,33 +252,34 @@ func modelCatalogFor(ctx context.Context, id llmprovider.ProviderID, token llmpr
 	switch p := llmprovider.ProviderID(strings.ToLower(string(id))); p {
 	case llmprovider.ProviderGemini:
 		usable, err := fetchGeminiUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderGemini), curateGemini), nil
+		return catalogFrom(usable, err, Static(llmprovider.ProviderGemini), curateGemini, cfg.recommendLimit()), nil
 	case llmprovider.ProviderOpenAI:
 		usable, err := fetchOpenAIUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderOpenAI), curateOpenAI), nil
+		return catalogFrom(usable, err, Static(llmprovider.ProviderOpenAI), curateOpenAI, cfg.recommendLimit()), nil
 	case llmprovider.ProviderClaude:
 		usable, err := fetchClaudeUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderClaude), curateClaude), nil
+		return catalogFrom(usable, err, Static(llmprovider.ProviderClaude), curateClaude, cfg.recommendLimit()), nil
 	case llmprovider.ProviderGrok:
 		usable, err := fetchGrokUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderGrok), curateGrok), nil
+		return catalogFrom(usable, err, Static(llmprovider.ProviderGrok), curateGrok, cfg.recommendLimit()), nil
 	case llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo:
 		return opencodeCatalog(ctx, p, token, cfg)
 	case llmprovider.ProviderHuggingFace:
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := fetchHuggingFaceUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, Static(llmprovider.ProviderHuggingFace),
-			metadataCurate(llmprovider.ProviderHuggingFace, cfg.ModelProfile, meta, curateHuggingFace)), nil
+			metadataCurate(llmprovider.ProviderHuggingFace, cfg.ModelProfile, meta, curateHuggingFace), cfg.recommendLimit()), nil
 	case llmprovider.ProviderKilo:
 		entries, err := fetchKiloCatalog(ctx, token, cfg)
 		// Deliberate: a failed Kilo fetch degrades to the static catalog rather
 		// than failing, like every other lister here. See catalogFrom.
-		return catalogFrom(kiloUsable(entries), err, Static(llmprovider.ProviderKilo), kiloCurate(entries, cfg.ModelProfile)), nil
+		return catalogFrom(kiloUsable(entries), err, Static(llmprovider.ProviderKilo), kiloCurate(entries, cfg.ModelProfile),
+			cfg.recommendLimit()), nil
 	case llmprovider.ProviderTogether:
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := fetchTogetherUsable(ctx, token, cfg)
 		return catalogFrom(usable, err, Static(llmprovider.ProviderTogether),
-			metadataCurate(llmprovider.ProviderTogether, cfg.ModelProfile, meta, curateTogether)), nil
+			metadataCurate(llmprovider.ProviderTogether, cfg.ModelProfile, meta, curateTogether), cfg.recommendLimit()), nil
 	case llmprovider.ProviderOllama:
 		return ollamaCatalog(ctx, token, cfg)
 	default:
@@ -347,10 +379,10 @@ func fetchGeminiPage(ctx context.Context, endpoint string, token llmprovider.Tok
 	return result, err
 }
 
-func curateGemini(usable []string) []string {
-	return curateFromCatalog(staticGemini, usable, func(s string) bool {
+func curateGemini(usable []string, limit int) []string {
+	return curateFromCatalog(llmprovider.ProviderGemini, staticGemini, usable, func(s string) bool {
 		return isUsableGeminiTextModel(s, []string{methodGenerateContent})
-	}, rankGeminiModel)
+	}, rankGeminiModel, limit)
 }
 
 // fetchOpenAIUsable returns the usable OpenAI chat models in listing order.
@@ -367,8 +399,8 @@ func fetchOpenAIUsable(ctx context.Context, token llmprovider.Token, cfg config)
 	return filterIDs(ids, isUsableOpenAIChatModel), nil
 }
 
-func curateOpenAI(usable []string) []string {
-	return curateFromCatalog(staticOpenAI, usable, isUsableOpenAIChatModel, rankOpenAIModel)
+func curateOpenAI(usable []string, limit int) []string {
+	return curateFromCatalog(llmprovider.ProviderOpenAI, staticOpenAI, usable, isUsableOpenAIChatModel, rankOpenAIModel, limit)
 }
 
 // claudeModelsPage is one page of Anthropic's GET /v1/models.
@@ -450,8 +482,8 @@ func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Tok
 	return result, err
 }
 
-func curateClaude(usable []string) []string {
-	return curateFromCatalog(staticClaude, usable, isUsableClaudeTextModel, rankClaudeModel)
+func curateClaude(usable []string, limit int) []string {
+	return curateFromCatalog(llmprovider.ProviderClaude, staticClaude, usable, isUsableClaudeTextModel, rankClaudeModel, limit)
 }
 
 // ollamaCatalog lists every installed model. Ollama has no static catalog, so
@@ -463,8 +495,7 @@ func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (Ca
 		return Catalog{}, err
 	}
 	// Recommended never shares Usable's array (0020-MADR F34).
-	recommended := slices.Clone(names[:min(len(names), MaxListed)])
-	return Catalog{Recommended: recommended, Usable: names, Live: true}, nil
+	return Catalog{Recommended: listlimit.Cut(names, cfg.recommendLimit()), Usable: names, Live: true}, nil
 }
 
 // fetchOllamaNames returns every installed model name in /api/tags order.
@@ -571,8 +602,8 @@ func fetchGrokUsable(ctx context.Context, token llmprovider.Token, cfg config) (
 	return filterIDs(ids, isUsableGrokModel), nil
 }
 
-func curateGrok(usable []string) []string {
-	return curateFromCatalog(staticGrok, usable, isUsableGrokModel, rankGrokModel)
+func curateGrok(usable []string, limit int) []string {
+	return curateFromCatalog(llmprovider.ProviderGrok, staticGrok, usable, isUsableGrokModel, rankGrokModel, limit)
 }
 
 // fetchDataIDs performs GET endpoint and decodes a {"data":[{"id":…}]} body.
@@ -639,13 +670,13 @@ func opencodeCatalog(ctx context.Context, gateway llmprovider.ProviderID, token 
 	}
 	meta := startModelMetadata(ctx, cfg)
 	usable, fetchErr := fetchOpencodeUsable(ctx, gateway, token, cfg)
-	curate := func(usable []string) []string {
+	curate := func(usable []string, limit int) []string {
 		// Without metadata the curation still leaves out what a request
-		// would fail on (0021-MADR D3).
-		recommendable := func(id string) bool { return isUsableOpencodeModel(id) && !excludedAtRequest(gateway, id) }
-		return curateFromCatalog(staticOpencodeCatalog(gateway), usable, recommendable, rankOpencodeModel)
+		// would fail on (0021-MADR D3); curateFromCatalog now does so for
+		// every provider (0038-MADR D1).
+		return curateFromCatalog(gateway, staticOpencodeCatalog(gateway), usable, isUsableOpencodeModel, rankOpencodeModel, limit)
 	}
-	return catalogFrom(usable, fetchErr, Static(gateway), metadataCurate(gateway, cfg.ModelProfile, meta, curate)), nil
+	return catalogFrom(usable, fetchErr, Static(gateway), metadataCurate(gateway, cfg.ModelProfile, meta, curate), cfg.recommendLimit()), nil
 }
 
 // fetchOpencodeUsable returns the usable gateway models in listing order.
@@ -823,13 +854,13 @@ func fetchTogetherUsable(ctx context.Context, token llmprovider.Token, cfg confi
 
 // curateTogether is the fallback curation when the metadata document is
 // unavailable: the static catalog's order, then the listing's.
-func curateTogether(usable []string) []string {
-	return curateFromCatalog(staticTogether, usable, nil, nil)
+func curateTogether(usable []string, limit int) []string {
+	return curateFromCatalog(llmprovider.ProviderTogether, staticTogether, usable, nil, nil, limit)
 }
 
 // curateHuggingFace passes a nil rankFn, which preserves the metadata order.
-func curateHuggingFace(usable []string) []string {
-	return curateFromCatalog(staticHuggingFace, usable, isUsableHuggingFaceModel, nil)
+func curateHuggingFace(usable []string, limit int) []string {
+	return curateFromCatalog(llmprovider.ProviderHuggingFace, staticHuggingFace, usable, isUsableHuggingFaceModel, nil, limit)
 }
 
 // kiloCatalogEntry is the subset of Kilo's OpenRouter-shaped catalog entry this
@@ -968,15 +999,15 @@ func kiloUsable(entries []kiloCatalogEntry) []string {
 }
 
 // curateKilo passes a nil rankFn, which preserves the price ordering.
-func curateKilo(usable []string) []string {
-	return curateFromCatalog(staticKilo, usable, isUsableKiloModel, nil)
+func curateKilo(usable []string, limit int) []string {
+	return curateFromCatalog(llmprovider.ProviderKilo, staticKilo, usable, isUsableKiloModel, nil, limit)
 }
 
 // kiloCurate ranks Kilo's usable models from the listing's own metadata
-// (MADR 0009 §2). When fewer than MaxListed are eligible, the rest come
-// from curateKilo's order, then the usable list.
-func kiloCurate(entries []kiloCatalogEntry, profile Profile) func([]string) []string {
-	return func(usable []string) []string {
+// (MADR 0009 §2). When fewer than limit are eligible, the rest come from
+// curateKilo's order, then the usable list.
+func kiloCurate(entries []kiloCatalogEntry, profile Profile) curator {
+	return func(usable []string, limit int) []string {
 		byID := make(map[string]kiloCatalogEntry, len(entries))
 		for _, e := range entries {
 			byID[e.ID] = e
@@ -990,7 +1021,7 @@ func kiloCurate(entries []kiloCatalogEntry, profile Profile) func([]string) []st
 			}
 			cands = append(cands, kiloCandidate(e, now))
 		}
-		return rankRecommended(profile, llmprovider.ProviderKilo, cands, append(curateKilo(usable), usable...))
+		return rankRecommended(profile, llmprovider.ProviderKilo, cands, append(curateKilo(usable, limit), usable...), limit)
 	}
 }
 
