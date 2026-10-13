@@ -1400,3 +1400,92 @@ go run ./llmprovider/internal/cmd/catalogs -snapshot llmprovider/catalog/testdat
 
 **Phase 7 is complete.** It used 11 billed requests: 9, then 1 to re-measure
 Go's Claude model, then 1 for `MiniMaxAI/MiniMax-M2.7`.
+
+Phase 7's snapshot was committed by the owner as `e2a0f1e`.
+
+### Phase 8: the lists, and the golden (2026-10-12)
+
+**Research first.** The golden needs each list's capable six as well as its
+utility six, with the clock pinned. A throwaway probe test, run in a scratch
+clone and not in the tree, replayed the snapshot pinned to `recorded_at`. Its
+utility sixes equal the unpinned replay of Phase 7.
+
+**Tests** (`llmprovider/catalog/snapshot_20261012_test.go`):
+
+* `replaySnapshot(t, dir, provider, profile)` serves a snapshot's listing and
+  `metadata.json` from local servers. It pins the ranking clock to
+  `snapshot.json`'s `recorded_at`. `latestSnapshot` is the last
+  `testdata/ranking-*` that holds a `snapshot.json`.
+* `TestListModelCatalog_Snapshot20261012` requires each ranked list's utility
+  and capable sixes, and its usable count: Zen 79, Go 34, Kilo 285, Hugging
+  Face 119, Together 172.
+* `TestStatic_EqualsLatestSnapshot`: each ranked static list equals the
+  latest snapshot's utility six, in order.
+* `TestReplaySnapshot_PinsTheClock` (added; see below).
+* `TestStaticOpenCatalogs_UtilityCriteria` gains `staticTogether`.
+
+**Red first:** `TestStatic_EqualsLatestSnapshot` failed for `opencode-zen`,
+`opencode-go`, `kilo` and `together` (`static list … want the utility six of
+testdata/ranking-2026-10-12`), and passed for `huggingface`, whose list does
+not change. The golden and the criteria test passed before the lists
+changed, as they must: the ranker had not changed.
+
+**Change** (`llmprovider/catalog/models_catalog.go`): the four lists become
+the snapshot's utility sixes, in its order, with the routes from api.json's
+npm. Each comment, Hugging Face's included, names the snapshot and the test
+that holds the list to it. `modelClaudeHaiku55` names `claude-haiku-5-5`,
+which the file now uses four times (`goconst`), as `modelGPT6Luna` and
+`modelGemini35Lite` are named.
+
+**Tests that named the old lists,** each changed where it asserts the list
+itself:
+
+* `model_label_test.go`'s `unlabelledStaticIDs`: the gateway lists' ids,
+  excused as `fallbackSix`, follow the new lists.
+* `providers/together/together_test.go`'s `TestTogether_Listing`: "the
+  static order leads". `openai/gpt-oss-120b` is still static and now leads.
+  `zai-org/GLM-5.3`, no longer static, follows in the listing's order. The
+  fixture is unchanged, and the test's comment says why.
+* **One G-wire golden,** `providers/together/testdata/wire/together/listing.json`,
+  regenerated alone (`-update -run TestWireGoldens/together/listing`), for the
+  same reason. Its diff is the two result lines swapped:
+
+  ```text
+  -    "zai-org/GLM-5.3",
+  -    "openai/gpt-oss-120b"
+  +    "openai/gpt-oss-120b",
+  +    "zai-org/GLM-5.3"
+  ```
+
+  No other golden changed.
+
+**Green:** `go test ./...`, all 29 packages.
+
+**A plant the plan named could not fail.** "The golden replay not pinning
+the clock" would not have changed today's sixes: the replay ran within
+hours of the recording, so no model's age moved enough. So
+`TestReplaySnapshot_PinsTheClock` checks the clock directly. During a
+replay it must read `2026-10-12T23:54:43Z`.
+
+**Plants,** through `tools/plant.py`:
+
+| Plant | FAIL line |
+| :--- | :--- |
+| one of `staticOpencodeZen`'s ids swapped for another usable one (`gemini-3.8-flash` for `gemini-3.5-flash-lite`) | `TestStatic_EqualsLatestSnapshot`: `opencode-zen: static list … want the utility six of testdata/ranking-2026-10-12` |
+| the replay not pinning the clock | `TestReplaySnapshot_PinsTheClock`: `the ranking clock is` the host's local time `during the replay, want recorded_at 2026-10-12 23:54:43 +0000 UTC` |
+| a free id planted in `staticTogether` | `TestStaticOpenCatalogs_UtilityCriteria`: `staticTogether: "openai/gpt-oss-120b:free" is a free model`; and `TestStatic_EqualsLatestSnapshot` |
+
+The third plant shows that Together is in the criteria test. The plan's
+form, "left out of the criteria test's table, with a planted free id", was
+run as the free id alone. The table already holds Together, so the plant
+must be caught.
+
+**The live guard,** `TestLive_StaticCatalogsCurrent` (not billed), passed for
+all nine providers.
+
+**Checks:** the first `make pre-add-check` failed on `goconst`:
+``string `claude-haiku-5-5` has 4 occurrences, make it a constant``. It
+passed once `modelClaudeHaiku55` named it, on all five Go files (gofmt,
+golangci-lint, go vet, go test, govulncheck).
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 8.3, on the tree with `modelClaudeHaiku55`.

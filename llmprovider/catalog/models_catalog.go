@@ -20,6 +20,7 @@ const (
 	modelGPT6Luna      = "gpt-6-luna"
 	modelGemini38Flash = "gemini-3.8-flash"
 	modelGemini35Lite  = "gemini-3.5-flash-lite"
+	modelClaudeHaiku55 = "claude-haiku-5-5"
 )
 
 // MaxListed is the hard cap for configure-time model menus.
@@ -69,43 +70,47 @@ var (
 	// to degrading it (D10). claude-fable-5-1 stays out of the menu, and is
 	// usable by id.
 	staticClaude = []string{
-		"claude-haiku-5-5",
+		modelClaudeHaiku55,
 		"claude-sonnet-5-5",
 		"claude-sonnet-5",
 		"claude-opus-5-5",
 		"claude-opus-4-8",
 	}
 
-	// staticOpencodeZen: MADR 0009 Context §7's utility six, ranked from the
-	// 2026-09-26 Zen listing and models.opencode.ai metadata. Routes verified
-	// against api.json's npm packages on 2026-09-26.
+	// staticOpencodeZen: the utility six of the 2026-10-12 snapshot
+	// (testdata/ranking-2026-10-12), ranked from Zen's public listing and
+	// models.opencode.ai metadata; TestStatic_EqualsLatestSnapshot holds it to
+	// that snapshot (0033-MADR's amendment "the second refresh, and what the
+	// command reads"). Routes from api.json's npm packages.
 	staticOpencodeZen = []string{
+		modelClaudeHaiku55,    // messages
 		"deepseek-v4.1-flash", // chat_completions
 		"qwen3.8-flash",       // messages
 		"glm-5.3-flash",       // chat_completions
 		"deepseek-v4-flash",   // chat_completions
 		modelGemini35Lite,     // google
-		modelGemini38Flash,    // google
 	}
 
-	// staticOpencodeGo: MADR 0009 Context §7's utility six (2026-09-26). It excludes
-	// the -contributor models, and the DeepSeek models MADR 0009 §3 item 8
-	// found served only to a workspace that allows region cn
-	// (opencodeGoRegionGated). The Go docs of 2026-10-10 list them with no
-	// region limit; that the gate still holds is not re-measured (0033-MADR
-	// D4).
+	// staticOpencodeGo: the utility six of the 2026-10-12 snapshot
+	// (testdata/ranking-2026-10-12), held to it by
+	// TestStatic_EqualsLatestSnapshot. It excludes the -contributor models, and
+	// the DeepSeek models MADR 0009 §3 item 8 found served only to a workspace
+	// that allows region cn (opencodeGoRegionGated). The Go docs of 2026-10-10
+	// list them with no region limit; that the gate still holds is not
+	// re-measured (0033-MADR D4).
 	staticOpencodeGo = []string{
-		"mimo-v2.6-flash", // chat_completions
-		"qwen3.8-flash",   // messages
-		"glm-5.3-flash",   // chat_completions
-		"gpt-6-luna",      // responses
-		"mimo-v2.6-pro",   // chat_completions
-		"hy3",             // chat_completions
+		modelClaudeHaiku55, // messages
+		"mimo-v2.6-flash",  // chat_completions
+		"qwen3.8-flash",    // messages
+		"glm-5.3-flash",    // chat_completions
+		"gpt-6-luna",       // responses
+		"space-bunny",      // chat_completions
 	}
 
-	// staticHuggingFace: fallback only — discovery is metadata-driven. MADR
-	// 0009 Context §7's utility six, from the 2026-09-26 router listing and
-	// models.opencode.ai metadata: reasoning-capable, paid, recent.
+	// staticHuggingFace: fallback only — discovery is metadata-driven. The
+	// utility six of the 2026-10-12 snapshot (testdata/ranking-2026-10-12),
+	// unchanged from 2026-09-26, and held to it by
+	// TestStatic_EqualsLatestSnapshot.
 	staticHuggingFace = []string{
 		"deepseek-ai/DeepSeek-V4-Flash-0731",
 		"zai-org/GLM-5.3-Flash",
@@ -115,29 +120,31 @@ var (
 		"stepfun-ai/Step-3.5-Flash",
 	}
 
-	// staticTogether: fallback only — discovery is metadata-driven. From
-	// models.dev's togetherai entry on 2026-09-30: tool-calling chat models,
-	// not deprecated, text out, one per vendor, newest first
-	// (docs/decisions/0017-MADR-together-provider-and-auth-extensions.md D1).
+	// staticTogether: fallback only — discovery is metadata-driven. The
+	// utility six of the 2026-10-12 snapshot (testdata/ranking-2026-10-12),
+	// by the open-catalog ranking that 0017-MADR D1 names for Together's menu,
+	// held to it by TestStatic_EqualsLatestSnapshot (0033-MADR's amendment "the
+	// second refresh, and what the command reads", Q17).
 	staticTogether = []string{
+		"zai-org/GLM-5.3-Flash",
+		"deepseek-ai/DeepSeek-V4-Flash-0731",
 		"deepseek-ai/DeepSeek-V4.1-Flash",
-		"zai-org/GLM-5.3",
-		"moonshotai/Kimi-K3",
 		"MiniMaxAI/MiniMax-M3",
 		"Qwen/Qwen3.6-Plus",
 		"openai/gpt-oss-120b",
 	}
 
-	// staticKilo: fallback only — discovery is metadata-driven. MADR 0009 Context §7's
-	// utility six, from the 2026-09-26 listing: reasoning-capable, paid,
-	// recent, at most two per vendor, none training on prompts.
+	// staticKilo: fallback only — discovery is metadata-driven. The utility six
+	// of the 2026-10-12 snapshot (testdata/ranking-2026-10-12), held to it by
+	// TestStatic_EqualsLatestSnapshot: reasoning-capable, paid, recent, at
+	// most two per vendor, none training on prompts.
 	staticKilo = []string{
 		"deepseek/deepseek-v4.1-flash",
 		"z-ai/glm-5.3-flash",
 		"google/gemini-3.8-flash",
 		"google/gemini-3.6-flash",
 		"meta/muse-spark-1.2",
-		"thinkingmachines/inkling",
+		"openai/gpt-6.1-sol",
 	}
 
 	// staticGrok leads with the Grok CLI's defaults, grok-4.6 then grok-4.5
@@ -851,7 +858,7 @@ var modelLabels = map[llmprovider.ProviderID]map[string]string{
 		"gpt-6-astra":   "GPT-6 Astra            [maximum capability]",
 	},
 	llmprovider.ProviderClaude: {
-		"claude-haiku-5-5":  "Claude Haiku 5.5       [★ Recommended: high speed, low latency]",
+		modelClaudeHaiku55:  "Claude Haiku 5.5       [★ Recommended: high speed, low latency]",
 		"claude-sonnet-5-5": "Claude Sonnet 5.5      [latest Sonnet, high precision]",
 		"claude-sonnet-5":   "Claude Sonnet 5        [balanced speed & precision]",
 		"claude-opus-5-5":   "Claude Opus 5.5        [latest Opus, maximum capability]",

@@ -114,7 +114,10 @@ func TestTogether_Listing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"zai-org/GLM-5.3", "openai/gpt-oss-120b", "new/Chat-Model"}; !slices.Equal(got, want) {
+	// openai/gpt-oss-120b is static and leads; zai-org/GLM-5.3 left the
+	// static list on 2026-10-12 (0033-PLAN-refresh-the-curated-catalogs.md
+	// Phase 8), so it follows in the listing's order.
+	if want := []string{"openai/gpt-oss-120b", "zai-org/GLM-5.3", "new/Chat-Model"}; !slices.Equal(got, want) {
 		t.Errorf("ListModels = %v, want %v", got, want)
 	}
 	if path, _, _ := c.last(); path != "" {

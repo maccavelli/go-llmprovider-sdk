@@ -36,15 +36,15 @@ var unlabelledStaticIDs = map[llmprovider.ProviderID]map[string]string{
 	llmprovider.ProviderKilo: {
 		"deepseek/deepseek-v4.1-flash": fallbackSix, "z-ai/glm-5.3-flash": fallbackSix,
 		"google/gemini-3.8-flash": fallbackSix, "google/gemini-3.6-flash": fallbackSix,
-		"meta/muse-spark-1.2": fallbackSix, "thinkingmachines/inkling": fallbackSix,
+		"meta/muse-spark-1.2": fallbackSix, "openai/gpt-6.1-sol": fallbackSix,
 	},
 	llmprovider.ProviderOpencodeZen: {
-		"deepseek-v4.1-flash": fallbackSix, "qwen3.8-flash": fallbackSix, "glm-5.3-flash": fallbackSix,
-		"deepseek-v4-flash": fallbackSix, "gemini-3.5-flash-lite": fallbackSix, "gemini-3.8-flash": fallbackSix,
+		"claude-haiku-5-5": fallbackSix, "deepseek-v4.1-flash": fallbackSix, "qwen3.8-flash": fallbackSix,
+		"glm-5.3-flash": fallbackSix, "deepseek-v4-flash": fallbackSix, "gemini-3.5-flash-lite": fallbackSix,
 	},
 	llmprovider.ProviderOpencodeGo: {
-		"mimo-v2.6-flash": fallbackSix, "qwen3.8-flash": fallbackSix, "glm-5.3-flash": fallbackSix,
-		"gpt-6-luna": fallbackSix, "mimo-v2.6-pro": fallbackSix, "hy3": fallbackSix,
+		"claude-haiku-5-5": fallbackSix, "mimo-v2.6-flash": fallbackSix, "qwen3.8-flash": fallbackSix,
+		"glm-5.3-flash": fallbackSix, "gpt-6-luna": fallbackSix, "space-bunny": fallbackSix,
 	},
 	llmprovider.ProviderHuggingFace: {
 		"deepseek-ai/DeepSeek-V4-Flash-0731": fallbackSix, "zai-org/GLM-5.3-Flash": fallbackSix,
@@ -52,8 +52,8 @@ var unlabelledStaticIDs = map[llmprovider.ProviderID]map[string]string{
 		"stepfun-ai/Step-3.7-Flash": fallbackSix, "stepfun-ai/Step-3.5-Flash": fallbackSix,
 	},
 	llmprovider.ProviderTogether: {
-		"deepseek-ai/DeepSeek-V4.1-Flash": fallbackSix, "zai-org/GLM-5.3": fallbackSix,
-		"moonshotai/Kimi-K3": fallbackSix, "MiniMaxAI/MiniMax-M3": fallbackSix, "Qwen/Qwen3.6-Plus": fallbackSix,
+		"zai-org/GLM-5.3-Flash": fallbackSix, "deepseek-ai/DeepSeek-V4-Flash-0731": fallbackSix,
+		"deepseek-ai/DeepSeek-V4.1-Flash": fallbackSix, "MiniMaxAI/MiniMax-M3": fallbackSix, "Qwen/Qwen3.6-Plus": fallbackSix,
 	},
 }
 

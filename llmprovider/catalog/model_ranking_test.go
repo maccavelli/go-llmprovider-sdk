@@ -269,6 +269,9 @@ func TestStaticOpenCatalogs_UtilityCriteria(t *testing.T) {
 	for name, list := range map[string][]string{
 		"staticKilo": staticKilo, "staticOpencodeZen": staticOpencodeZen,
 		"staticOpencodeGo": staticOpencodeGo, "staticHuggingFace": staticHuggingFace,
+		// Together joined the ranked lists (0033-MADR's amendment "the second
+		// refresh, and what the command reads", Q17).
+		"staticTogether": staticTogether,
 	} {
 		if len(list) != 6 {
 			t.Errorf("%s has %d entries, want 6", name, len(list))
