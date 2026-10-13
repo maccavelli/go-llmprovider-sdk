@@ -1355,3 +1355,48 @@ measurement test, clean (gofmt, golangci-lint, go vet, go test,
 govulncheck).
 
 **Gate:** `tools/gate.py`, 23 of 23, started at a load of 9.9.
+
+Phase 7c was committed by the owner as `930b74d`.
+
+**Phase 7, step 4: the snapshot.** With every addition measured and the picks approved (Q15),
+the command ran again (listings and models.dev; not billed):
+
+```text
+go run ./llmprovider/internal/cmd/catalogs -snapshot llmprovider/catalog/testdata/ranking-2026-10-12
+```
+
+* **Exit 0.** Its 12 proposals were identical to the run before it.
+* **The snapshot,** `llmprovider/catalog/testdata/ranking-2026-10-12/`:
+
+  | File | Bytes | SHA-256 |
+  | :--- | :--- | :--- |
+  | `zen.json` | 6,967 | `700a2a7613610dcf3b83bde13b1415ed4fc48c3e9505c40502dcf00ac9a521bf` |
+  | `go.json` | 3,181 | `bcdb4c3ea52c6a8563e8ee2473a501912abe927aded6a09b14cfbd1fcec79d61` |
+  | `kilo.json` | 486,974 | `133ea2d9be2ba98f1783431756b0b0b974ff0647772cc67e335d883cab44d340` |
+  | `hf.json` | 83,364 | `fa23012ee0d5a838ac657664f9068b81c366a672598bc873691c630853119c37` |
+  | `together.json` | 442,420 | `3c63e508a0a1f6cc2e0eb48d45ca7f976671c88b355e6211087a2b66a16ce578` |
+  | `metadata.json` | 509,488 | `eda4b2e7542f376529851240835355012ba5b6a4498b44782b718062def2b417` |
+
+  `snapshot.json` gives `recorded_at` `2026-10-12T23:54:43Z`, and those
+  hashes. A check recomputed each one: no mismatch.
+* **The identifier scan,** `tools/denyscan.py` over the seven files: `0
+  hit(s) in 7 file(s)`.
+* **Replayed offline,** a scratch program served each file from a local
+  server and ran `catalog.List` under the utility profile, 31 seconds after
+  the recording. Each ranked list's six gave the command's diff exactly:
+
+  | List | The snapshot's utility six, in rank order |
+  | :--- | :--- |
+  | OpenCode Zen | `claude-haiku-5-5`, `deepseek-v4.1-flash`, `qwen3.8-flash`, `glm-5.3-flash`, `deepseek-v4-flash`, `gemini-3.5-flash-lite` |
+  | OpenCode Go | `claude-haiku-5-5`, `mimo-v2.6-flash`, `qwen3.8-flash`, `glm-5.3-flash`, `gpt-6-luna`, `space-bunny` |
+  | Kilo | `deepseek/deepseek-v4.1-flash`, `z-ai/glm-5.3-flash`, `google/gemini-3.8-flash`, `google/gemini-3.6-flash`, `meta/muse-spark-1.2`, `openai/gpt-6.1-sol` |
+  | Hugging Face | `deepseek-ai/DeepSeek-V4-Flash-0731`, `zai-org/GLM-5.3-Flash`, `deepseek-ai/DeepSeek-V4.1-Flash`, `thinkingmachines/Inkling-Small`, `stepfun-ai/Step-3.7-Flash`, `stepfun-ai/Step-3.5-Flash` (unchanged) |
+  | Together | `zai-org/GLM-5.3-Flash`, `deepseek-ai/DeepSeek-V4-Flash-0731`, `deepseek-ai/DeepSeek-V4.1-Flash`, `MiniMaxAI/MiniMax-M3`, `Qwen/Qwen3.6-Plus`, `openai/gpt-oss-120b` |
+
+  Phase 8's golden pins the clock to `recorded_at`. This replay could not,
+  from outside the package.
+
+**Gate:** `tools/gate.py`, 23 of 23, started at a load of 5.1, with the snapshot in the tree.
+
+**Phase 7 is complete.** It used 11 billed requests: 9, then 1 to re-measure
+Go's Claude model, then 1 for `MiniMaxAI/MiniMax-M2.7`.
