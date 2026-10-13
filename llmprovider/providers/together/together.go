@@ -38,6 +38,10 @@
 // ListModels returns the curated chat models, ranked by the metadata
 // llmprovider.WithModelMetadataURL names, and falls back to the static
 // catalog. It never probes, as every call is metered (0016-MADR D9).
+//
+// Together caches prompts on its own, and a write is free. Request.Cache sends
+// the provider's session id as prompt_cache_key, which routes a conversation
+// to one cache; CacheLong sends the same as CacheShort (0039-MADR D3).
 package together
 
 import (
@@ -75,6 +79,9 @@ type provider struct {
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
+	// session is the conversation id, sent as prompt_cache_key when a
+	// request asks for caching (0039-MADR D3).
+	session string
 	// limit is catalog.WithLimit's n, which cuts ListModels's static
 	// fallback; zero is no limit (0038-MADR A3).
 	limit int
@@ -119,6 +126,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		p.baseURL = strings.TrimRight(b, "/")
 	}
 	p.limit = listlimit.Of(st.Values())
+	p.session = st.SessionID()
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(st.SessionID()), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil
@@ -200,7 +208,9 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		o.Reasoning = map[string]any{"enabled": true}
 		o.ReasoningEffort = p.effort(r)
 	}
-	return chatcompletions.Body(model, maxTokens, input, o)
+	body := chatcompletions.Body(model, maxTokens, input, o)
+	wire.AddPromptCacheKey(body, req.Cache, p.session) // 0039-MADR D3
+	return body
 }
 
 // reasoningFor is req's Reasoning, else WithReasoning's; nil for none.

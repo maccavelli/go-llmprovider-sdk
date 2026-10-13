@@ -39,6 +39,12 @@
 // Requests carry provider.data_collection "deny" unless WithDataCollection(true)
 // (MADR 0012 §3.3). ListModels returns the curated gateway listing; it never
 // probes, as the gateway meters every call (MADR 0012 §1.6).
+//
+// Request.Cache, for a model whose id starts "anthropic/", sends OpenRouter's
+// top-level cache_control with Anthropic's TTL: "5m" for CacheShort, "1h"
+// for CacheLong (0039-MADR D4). Another model gets nothing for it. Kilo
+// caches Claude on its own too, keyed by X-KiloCode-TaskId, which is sent
+// either way.
 package kilo
 
 import (
@@ -47,6 +53,7 @@ import (
 	"iter"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
@@ -55,6 +62,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
 )
 
 // The wire shapes here were measured against the live gateway on the date
@@ -306,6 +314,11 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		// Kilo's opt-out from upstreams that train on prompts, which its client
 		// sends with hide_prompt_training_models (MADR 0012 §3.3).
 		body["provider"] = map[string]any{"data_collection": "deny"}
+	}
+	// A Claude model gets OpenRouter's top-level cache_control, with
+	// Anthropic's TTL (0039-MADR D4).
+	if req.Cache != "" && strings.HasPrefix(model, "anthropic/") {
+		body["cache_control"] = messages.CacheMarker(req.Cache)
 	}
 	return body
 }

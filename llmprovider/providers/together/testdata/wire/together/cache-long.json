@@ -22,6 +22,7 @@
           }
         ],
         "model": "openai/gpt-oss-120b",
+        "prompt_cache_key": "wire-session",
         "tools": [
           {
             "function": {

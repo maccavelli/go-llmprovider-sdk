@@ -268,6 +268,20 @@ for a session, from the store.
       in place of `{"output": …}`.
     - Responses and Chat Completions have no such field, so the `Output`
       is sent as written. No wire rewrites it.
+- `Request.Cache` (`CacheShort`, `CacheLong`; zero asks for nothing) asks
+  the service to cache the prompt (0039-MADR). An unknown value is refused
+  before the network. Each wire asks in its service's way, and a request
+  without it is sent unchanged:
+  - Messages (`claude`, OpenCode's `messages` route): the top-level
+    `cache_control` and one breakpoint, on the system prompt (then one text
+    block) or else the last tool, both with `ttl` `5m` or `1h`.
+  - Responses (`openai` with an API key, `grok`, OpenCode's `responses`
+    route) and `together`: `prompt_cache_key`, the provider's session id.
+    The ChatGPT backend sends it on every request.
+  - `kilo`: OpenRouter's top-level `cache_control` for an `anthropic/`
+    model.
+  - Interactions, generateContent, `huggingface`, `ollama` and OpenCode's
+    `chat_completions` route send nothing for it.
 - `Stream(ctx, p, req)` streams from every provider: a provider's own
   `Streamer`, or `Generate`'s result as events. Only `EventDone` carries a
   `Response`, and it comes last; what a native stream yielded before a

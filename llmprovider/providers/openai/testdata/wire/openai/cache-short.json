@@ -19,6 +19,7 @@
         "instructions": "Be brief.",
         "max_output_tokens": 8192,
         "model": "gpt-5.5",
+        "prompt_cache_key": "wire-session",
         "tools": [
           {
             "description": "Weather for a city",

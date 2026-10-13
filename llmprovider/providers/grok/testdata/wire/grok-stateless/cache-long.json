@@ -25,6 +25,7 @@
         ],
         "max_output_tokens": 8192,
         "model": "grok-4.5",
+        "prompt_cache_key": "wire-session",
         "store": false,
         "tools": [
           {

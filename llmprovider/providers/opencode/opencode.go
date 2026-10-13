@@ -504,6 +504,7 @@ func (p *provider) responsesBody(c call) map[string]any {
 		// (0020-MADR F24; 0021-MADR D4).
 		body["reasoning"] = map[string]any{"effort": effort, "summary": "auto"}
 	}
+	wire.AddPromptCacheKey(body, c.req.Cache, p.session) // 0039-MADR D3, D4
 	return body
 }
 

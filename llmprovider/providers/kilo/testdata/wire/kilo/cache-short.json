@@ -12,6 +12,10 @@
         "X-Kilocode-Taskid": "wire-session"
       },
       "body": {
+        "cache_control": {
+          "ttl": "5m",
+          "type": "ephemeral"
+        },
         "max_tokens": 8192,
         "messages": [
           {

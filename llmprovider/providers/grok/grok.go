@@ -37,6 +37,10 @@
 // catalog.MaxListed listed models with one short, billed generation unless
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5; 0038-MADR
 // D4).
+//
+// xAI caches prompts on its own. Request.Cache sends the provider's session
+// id as prompt_cache_key, which xAI treats as its x-grok-conv-id routing
+// key; CacheLong sends the same as CacheShort (0039-MADR D3).
 package grok
 
 import (
@@ -93,6 +97,9 @@ type provider struct {
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
+	// session is the conversation id, sent as prompt_cache_key when a
+	// request asks for caching (0039-MADR D3).
+	session string
 	// limit is catalog.WithLimit's n, which cuts ListModels's static
 	// fallback; zero is no limit (0038-MADR A3).
 	limit int
@@ -161,6 +168,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		shareLogger(src, st.Logger())
 	}
 	p.limit = listlimit.Of(st.Values())
+	p.session = st.SessionID()
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(st.SessionID()), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
 	return p, nil
@@ -228,6 +236,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.PreviousResponseID != "" {
 		body["previous_response_id"] = req.PreviousResponseID
 	}
+	wire.AddPromptCacheKey(body, req.Cache, p.session) // 0039-MADR D3
 	return body
 }
 

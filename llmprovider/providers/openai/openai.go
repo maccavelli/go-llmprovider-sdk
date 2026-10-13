@@ -29,6 +29,13 @@
 // generation (0038-MADR D4), unless
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5); a ChatGPT
 // session is never probed (MADR 0012 §1.6).
+//
+// OpenAI caches prompts on its own. Request.Cache sends the provider's
+// session id (llmprovider.WithSessionID, else a random id fixed for the
+// provider) as prompt_cache_key, which routes a conversation to one cache;
+// CacheLong sends the same as CacheShort, since OpenAI offers no longer
+// lifetime to ask for (0039-MADR D3). A ChatGPT session sends the key on
+// every request, as Codex does.
 package openai
 
 import (
@@ -258,6 +265,8 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 				body["include"] = []string{includeEncryptedReasoning}
 			}
 		}
+		// The ChatGPT backend sends the key always, above (0039-MADR D3).
+		wire.AddPromptCacheKey(body, req.Cache, p.session)
 	}
 	wire.AddResponsesTools(body, req.Tools, req.ToolChoice)
 	if effort, ok := p.effort(req); ok {

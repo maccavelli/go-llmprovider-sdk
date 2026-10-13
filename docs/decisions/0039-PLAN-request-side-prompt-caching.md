@@ -472,3 +472,106 @@ request without `Cache` changes.
 **Checks:** `make pre-add-check` on the five Go files: clean.
 
 **Gate:** `tools/gate.py`, 23 of 23 passed.
+
+The owner committed Phase 2 as `5aa7ef5`.
+
+### Phase 3: routing keys and Kilo (2026-10-13)
+
+**Research** confirmed the PLAN's facts:
+
+* **The bodies that take the key:**
+  * `openai`'s body adds `prompt_cache_key` on the ChatGPT branch only;
+  * `opencode`'s `responsesBody`, `grok`'s body (Responses) and
+    `together`'s body (Chat Completions, through `chatcompletions.Body`)
+    send none.
+* **Sessions.** Grok and Together resolve `st.SessionID()` only for their
+  listing options. `openai` and `opencode` keep `p.session`.
+* **Kilo's wire case** uses `anthropic/claude-sonnet-5`
+  (`providers/kilo/wire_test.go:25`). So its `cache-*` goldens show the
+  top-level field. The PLAN allowed for either.
+
+**Step A:** `wire.AddPromptCacheKey` was added as a no-op, so the tests
+compiled.
+
+**Red first:**
+
+```text
+--- FAIL: TestAddPromptCacheKey
+    cache_0039_test.go:25: retention "short", session "s-1": prompt_cache_key = <nil>; want s-1
+    cache_0039_test.go:25: retention "long", session "s-1": prompt_cache_key = <nil>; want s-1
+--- FAIL: TestCache_PerProvider
+    --- FAIL: …/openai/gpt-6-luna: Cache true: prompt_cache_key = <nil> (sent false); want sent true, as "session-0039"
+    --- FAIL: …/grok/grok-4.6: the same
+    --- FAIL: …/together/openai/gpt-oss-120b: the same
+    --- FAIL: …/opencode-zen/gpt-5.5: the same
+    --- FAIL: …/kilo/anthropic/claude-haiku-5.5: Cache true: top-level cache_control sent false; want true
+```
+
+Seven rows passed before the change, as they must:
+
+* the Messages routes, already done in Phase 2;
+* OpenCode's chat route, Kilo's `openai/` model, Gemini, Hugging Face and
+  Ollama, which send nothing.
+
+**Change:**
+
+* **`llmprovider/internal/wire/cache.go`:** `AddPromptCacheKey` sets
+  `prompt_cache_key` to the session when the retention and the session are
+  both non-empty.
+* **The providers:**
+  * `openai`'s API-key branch and `opencode`'s `responsesBody` call it;
+  * `grok` and `together` gain `session` (from `st.SessionID()`) and call it
+    last;
+  * `kilo` adds `cache_control: messages.CacheMarker(req.Cache)` when
+    `Cache` is set and the model starts `anthropic/`.
+* **Docs:**
+  * the package docs of `openai`, `grok`, `together` and `kilo` say what
+    `Cache` sends;
+  * those of `gemini`, `huggingface` and `ollama` say it sends nothing, and
+    why;
+  * `docs/architecture.md`'s contract section lists each wire's form;
+  * `README.md` has a "Prompt caching" bullet.
+
+**The goldens.** With the change, `TestWireGoldens` failed on exactly the 16
+expected `cache-*` goldens, and on nothing else. The only differences:
+
+```text
+14 × requests[0].body.prompt_cache_key: want (absent), got "wire-session"
+     (openai, openai-stateless, grok, grok-stateless, together,
+      opencode-zen-responses, opencode-go-responses; short and long)
+ 1 × requests[0].body.cache_control: want (absent), got {"ttl":"5m","type":"ephemeral"}   (kilo/cache-short)
+ 1 × requests[0].body.cache_control: want (absent), got {"ttl":"1h","type":"ephemeral"}   (kilo/cache-long)
+```
+
+Those 16 were regenerated alone, package by package, with `-update -run
+'TestWireGoldens/.*/cache-(short|long)$'`. No other golden changed.
+
+**Green:** `go test ./...`, all 30 packages `ok`.
+
+**Plants** (`tools/plant.py`, 4 of 4 caught):
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the key sent without `Cache` | `TestAddPromptCacheKey`: `retention "", session "s-1": prompt_cache_key = s-1; want <nil>`; `TestCache_PerProvider`: `Cache false: prompt_cache_key = session-0039 (sent true); want sent false` |
+| Grok's session not stored | `TestCache_PerProvider`: `Cache true: prompt_cache_key = <nil> (sent false)`; the goldens: `requests[0].body.prompt_cache_key: want "wire-session", got (absent)` |
+| Kilo marking every model | `TestCache_PerProvider`: `Cache true: top-level cache_control sent true; want false` (`openai/gpt-6-luna`) |
+| OpenCode's Messages route also sending the key | `TestCache_PerProvider`: `Cache true: prompt_cache_key = session-0039 (sent true); want sent false`; the goldens: `prompt_cache_key: want (absent), got "wire-session"` |
+
+**Done differently from the steps' wording.** No decision changed:
+
+* **One table test, not four.** The four per-package body tests are one
+  table test, `TestCache_PerProvider` (`llmprovider/providers/cache_0039_test.go`).
+  It covers every built-in provider, including the five that must send
+  nothing. Kilo's two models are in it, so it is also
+  `TestKilo_CacheControlForClaude`.
+* **The fourth plant was replaced.** The PLAN's fourth plant, "the ChatGPT
+  body sending the key twice", cannot fail: a body is a map, and the key
+  already holds the same session. It was replaced by OpenCode's Messages
+  route also sending the key, which can fail.
+
+**Checks:**
+
+* `make pre-add-check` on the 11 Go files: clean.
+* markdownlint on `README.md` and `docs/architecture.md`: no issue.
+
+**Gate:** `tools/gate.py`, 23 of 23 passed.

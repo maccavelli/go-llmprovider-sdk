@@ -35,6 +35,9 @@
 // catalog.MaxListed listed models with one short, billed generation unless
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5; 0038-MADR
 // D4).
+//
+// Request.Cache sends nothing: Gemini caches prompts implicitly, and its
+// explicit cachedContents resource is out of scope (0039-MADR D4, D6).
 package gemini
 
 import (

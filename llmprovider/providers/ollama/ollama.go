@@ -37,6 +37,9 @@
 //
 // The wire shapes were measured against a running v0.31.1 on the date
 // llmprovider's wireShapesProbedOnOllama holds.
+//
+// Request.Cache sends nothing: a local server takes no caching parameter
+// (0039-MADR D4).
 package ollama
 
 import (

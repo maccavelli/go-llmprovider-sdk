@@ -40,6 +40,9 @@
 // ListModels returns the curated router listing, ranked by the metadata the
 // router publishes (llmprovider.WithModelMetadataURL). It never probes, as the
 // router meters every call (MADR 0012 §1.6).
+//
+// Request.Cache sends nothing: the router documents no caching parameter
+// (0039-MADR D4).
 package huggingface
 
 import (

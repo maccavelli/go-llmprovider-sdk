@@ -105,6 +105,12 @@ functions over any provider, and `Stream` streams from every one.
   `WithClientInfo(name, version)` names the application, and
   `WithSessionID(id)` sets the conversation id that OpenCode
   (`x-opencode-session`) and Kilo (`X-KiloCode-TaskId`) receive.
+- **Prompt caching.** `Request.Cache` (`llmprovider.CacheShort`, or
+  `CacheLong` for Anthropic's one-hour lifetime) asks the service to cache
+  the prompt. Claude gets Anthropic's `cache_control` markers, OpenAI, xAI
+  and Together a `prompt_cache_key`, and Kilo's Claude models the top-level
+  marker. Without it, a request is sent as before. `Usage` reports the
+  reads and writes.
 - **No ambient state.** The library reads no environment variable by
   itself. Pass `catalog.OptionsFromEnv()`, `auth.GrokFlowFromEnv()` or
   `llmprovider.ModelProbesFromEnv()` to opt in, and give logging a logger
