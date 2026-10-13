@@ -14,13 +14,20 @@ import (
 // probeTimeout bounds one probe; tests shorten it.
 var probeTimeout = 5 * time.Second
 
-// ProbeGenerateHealth runs a tiny generate against each candidate and returns
-// those that did not fail, preserving preferred order. At most limit
-// candidates are probed; the providers pass llmprovider.MaxListedModels. A
-// probe that failed, or answered wrongly, drops its model. One that timed out,
-// such as a model a local server is still loading, keeps it (0020-MADR F21,
-// Q3 a).
+// ProbeGenerateHealth runs a tiny generate against each of the first limit
+// candidates, and returns those that did not fail followed by every later
+// candidate, unprobed, in preferred order (0038-MADR D4). The providers pass
+// catalog.MaxListed. A probe that failed, or answered wrongly, drops its
+// model. One that timed out, such as a model a local server is still
+// loading, keeps it (0020-MADR F21, Q3 a). When no probe answered, it returns
+// nil, and the provider keeps its listing.
 func ProbeGenerateHealth(ctx context.Context, preferred []string, limit int, generate func(ctx context.Context, modelID string) (string, error)) []string {
+	return withTail(probeHead(ctx, preferred, limit, generate), preferred, limit)
+}
+
+// probeHead probes the first limit candidates and returns those that
+// answered, in preferred order.
+func probeHead(ctx context.Context, preferred []string, limit int, generate func(ctx context.Context, modelID string) (string, error)) []string {
 	if len(preferred) == 0 {
 		return nil
 	}
@@ -73,6 +80,21 @@ func ProbeGenerateHealth(ctx context.Context, preferred []string, limit int, gen
 	return out
 }
 
+// withTail appends the candidates past limit, unprobed, to the probed head,
+// skipping any the head already holds. An empty head stays nil.
+func withTail(head, preferred []string, limit int) []string {
+	if len(head) == 0 || len(preferred) <= limit {
+		return head
+	}
+	out := slices.Clone(head)
+	for _, id := range preferred[max(limit, 0):] {
+		if !slices.ContainsFunc(out, func(h string) bool { return strings.EqualFold(h, id) }) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 // ProbeKey identifies one listing's probes: the provider, its base URL, and
 // the fingerprint of the credential the probes sent (0028-MADR D-A3).
 // Credential is Fingerprint's, never the credential.
@@ -83,7 +105,8 @@ type ProbeKey struct {
 // probeCacheTTL is how long the models that answered a probe are kept (Q7).
 const probeCacheTTL = 10 * time.Minute
 
-// probeCacheEntry is one listing's healthy models and when they were probed.
+// probeCacheEntry is one listing's healthy probed models and when they were
+// probed.
 type probeCacheEntry struct {
 	healthy []string
 	at      time.Time
@@ -110,7 +133,9 @@ func Fingerprint(credential string) string {
 // ProbeGenerateHealthCached is ProbeGenerateHealth, answered from the
 // process's cache for ten minutes after a listing for the same key probed:
 // a listing within that time sends no probe. A result with no model is not
-// cached, so the next listing probes again (0028-MADR D-A3).
+// cached, so the next listing probes again (0028-MADR D-A3). The cache holds
+// the probed head only; the current listing's tail is appended to it
+// (0038-MADR D4).
 func ProbeGenerateHealthCached(
 	ctx context.Context,
 	key ProbeKey,
@@ -122,15 +147,15 @@ func ProbeGenerateHealthCached(
 	e, ok := probeCache[key]
 	if ok && probeCacheNow().Sub(e.at) < probeCacheTTL {
 		probeCacheMu.Unlock()
-		return slices.Clone(e.healthy)
+		return withTail(slices.Clone(e.healthy), preferred, limit)
 	}
 	delete(probeCache, key)
 	probeCacheMu.Unlock()
-	healthy := ProbeGenerateHealth(ctx, preferred, limit, generate)
+	healthy := probeHead(ctx, preferred, limit, generate)
 	if len(healthy) > 0 {
 		probeCacheMu.Lock()
 		probeCache[key] = probeCacheEntry{healthy: slices.Clone(healthy), at: probeCacheNow()}
 		probeCacheMu.Unlock()
 	}
-	return healthy
+	return withTail(healthy, preferred, limit)
 }

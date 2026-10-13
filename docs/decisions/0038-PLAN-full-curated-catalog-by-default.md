@@ -155,10 +155,17 @@ prepares D4 for Phase 3.
    | `TestProbe_ShortList` | 4 ids, limit 6 | 4 probes; the healthy ones, as today |
    | `TestProbeCached_KeepsTheTail` | the first test twice, same key | 6 probes in all; the second call returns the cached head plus the current tail |
 
-   `TestListModels_ProbesAtMostMaxListedModels` in
+   ~~`TestListModels_ProbesAtMostMaxListedModels` in
    `providers/ollama/listing_test.go` gains an assertion: with
    `MaxListed+3` installed models, all answering, `ListModels` returns all
-   `MaxListed+3`, in order. Each test fails before the change.
+   `MaxListed+3`, in order.~~ *(Moved to Phase 2, step 7: deviation 2 of
+   2026-10-13.)* Each test fails before the change.
+
+   *(Deviation 1 of 2026-10-13.)* `TestProbeGenerateHealth_Limit`
+   (`transport/probe_test.go:39-47`, existing) wants `[a b c]`, the probed
+   head and the unprobed tail, in place of `[a b]`. It also counts exactly
+   two probes, so it asserts its stated meaning, "no more than limit
+   candidates are probed, in order", directly.
 3. **Change** (`transport/probe.go`):
    * `ProbeGenerateHealth` probes `preferred[:min(limit, len)]`, as today.
      It returns the healthy head followed by `preferred[limit:]`, and `nil`
@@ -242,6 +249,7 @@ full list in this phase only. Phase 3 makes it the default.
    | `TestWithLimit_Scope` (same) | every built-in `New` accepts `catalog.WithLimit`, and a registry's third-party `New` refuses it with `ErrInvalidRequest` |
    | `TestListModels_WithLimit` (`providers/hygiene_test.go`, or a new `providers/limit_0038_test.go`) | for each built-in provider, with probes off: `WithLimit(2)` returns at most two, its static fallback included, and `WithLimit(0)` returns at least the listing's six |
    | `TestListModels_FullListProbesSix` (`providers/openai/listing_test.go`) | with probes on and nine served ids, nine come back and at most six probes are sent |
+   | `TestListModels_ProbesAtMostMaxListedModels` (`providers/ollama/listing_test.go`, existing; deviation 2 of 2026-10-13) | with `catalog.WithLimit(0)` and `MaxListed+3` installed models, all answering, `ListModels` returns all `MaxListed+3`, in order, after exactly `MaxListed` probes |
 
 8. **The fallback exclusion** (D1) can change an existing test's six where
    a fixture backfills an unservable id. Each such test gets a changed
@@ -388,3 +396,107 @@ full list in this phase only. Phase 3 makes it the default.
   * `make records-check`: 82 records, 0 problems;
   * `tools/linkcheck.py`: exit 0;
   * `tools/denyscan.py --changed`: 0 hits.
+
+The owner committed Phase 0 as `2ef6f25`.
+
+### Phase 1: the probes keep the unprobed tail (2026-10-13)
+
+**Research** confirmed the PLAN's facts:
+
+* All five probing providers pass `catalog.MaxListed` to `wire.ProbeHealth`:
+  `gemini.go:298`, `claude.go:331`, `grok.go:288`, `ollama.go:245` and
+  `openai.go:354`.
+* Each returns `listed` when no probe answered: `gemini.go:310-313`,
+  `claude.go:341-344`, `grok.go:300-303`, `ollama.go:257-260` and
+  `openai.go:364-367`.
+* `wire.ProbeHealth` calls the cached probe when the token resolves, and
+  the uncached one otherwise (`internal/wire/probe.go:22-27`).
+
+It also found two facts the PLAN had wrong.
+
+#### Deviations
+
+**Deviation 1 (2026-10-13): an existing test asserts the old result.**
+
+* **Found:** `TestProbeGenerateHealth_Limit`
+  (`llmprovider/internal/transport/probe_test.go:39-47`) probes `[a b c]`
+  with limit 2. It requires the result `[a b]`. Under 0038-MADR D4 the
+  result is `[a b c]`. The PLAN said this phase changes no existing test.
+  No other test probes more ids than its limit.
+* **Decision (the owner):** the test follows D4. It wants `[a b c]` and
+  counts exactly two probes, so it asserts its stated meaning directly.
+  The MADR does not change.
+
+**Deviation 2 (2026-10-13): the planned Ollama assertion cannot hold in this
+phase.**
+
+* **Found:** `ollamaCatalog` recommends the first `MaxListed` installed
+  models (`llmprovider/catalog/discovery.go:466`) until Phase 2. So
+  `ListModels` sees six ids, and "returns all `MaxListed+3`" fails
+  whatever the probe does.
+* **Decision (the owner):** the assertion moves to Phase 2, step 7, with
+  `catalog.WithLimit(0)`. This phase's transport tests cover the tail
+  directly.
+
+#### Tests, change and checks
+
+**Tests** (`llmprovider/internal/transport/probe_tail_0038_test.go`, new):
+
+* `TestProbe_KeepsTheTail`;
+* `TestProbe_AllHeadFail`;
+* `TestProbe_ShortList`;
+* `TestProbeCached_KeepsTheTail`.
+
+`TestProbeGenerateHealth_Limit` follows D4 (deviation 1).
+
+**Red first:**
+
+```text
+--- FAIL: TestProbe_KeepsTheTail (0.00s)
+    probe_tail_0038_test.go:37: ProbeGenerateHealth = [m1 m3 m4 m5 m6] after 6 probes; want [m1 m3 m4 m5 m6 m7 m8 m9] after 6
+--- FAIL: TestProbeCached_KeepsTheTail (0.00s)
+    probe_tail_0038_test.go:69: listing 1: [m1 m3 m4 m5 m6]; want [m1 m3 m4 m5 m6 m7 m8 m9]
+    probe_tail_0038_test.go:69: listing 2: [m1 m3 m4 m5 m6]; want [m1 m3 m4 m5 m6 m7 m8 m9]
+--- FAIL: TestProbeGenerateHealth_Limit (0.00s)
+    probe_test.go:45: ProbeGenerateHealth = [a b] after 2 probes, want [a b c] after 2
+```
+
+`TestProbe_AllHeadFail` and `TestProbe_ShortList` passed before the change,
+as they must: they hold today's behavior. The plants show
+`TestProbe_AllHeadFail` failing.
+
+**Change:**
+
+* **`llmprovider/internal/transport/probe.go`:**
+  * `ProbeGenerateHealth` is `withTail(probeHead(…), preferred, limit)`.
+  * `probeHead` is the old body: it probes the first `limit` ids.
+  * `withTail` appends `preferred[limit:]`, unprobed, to a non-empty head,
+    skipping an id the head already holds, case-insensitively, as the
+    probe's own match does. An empty head stays `nil`, so each provider
+    still returns its listing when no probe answered.
+  * `ProbeGenerateHealthCached` caches `probeHead`'s result, and appends
+    the current tail to a fresh or cached head.
+  * The comment names `catalog.MaxListed`, not the missing
+    `llmprovider.MaxListedModels`.
+* **`llmprovider/options.go`:** the `WithModelProbes` doc says the first
+  `catalog.MaxListed` are probed, and the later ones returned unprobed.
+
+No list a provider passes today is longer than six, so no result changes.
+
+**Green:** `go test ./llmprovider/internal/transport/
+./llmprovider/internal/wire/ ./llmprovider/providers/...`, every package
+`ok`.
+
+**Plants** (`tools/plant.py`, 4 of 4 caught):
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the tail dropped | `TestProbe_KeepsTheTail`: `ProbeGenerateHealth = [m1 m3 m4 m5 m6] after 6 probes; want [m1 m3 m4 m5 m6 m7 m8 m9] after 6`; also `TestProbeCached_KeepsTheTail` and `TestProbeGenerateHealth_Limit` |
+| the limit ignored, so every id is probed | `TestProbe_KeepsTheTail`: `… after 9 probes; want … after 6`; `TestProbe_AllHeadFail`: `ProbeGenerateHealth = [] after 9 probes; want nil after 6`; `TestProbeCached_KeepsTheTail`: `9 probes in all; want 6`; `TestProbeGenerateHealth_Limit`: `… after 3 probes, want [a b c] after 2` |
+| an all-failed head returning the tail | `TestProbe_AllHeadFail`: `ProbeGenerateHealth = [m7 m8 m9] after 6 probes; want nil after 6` |
+| the cached path dropping the tail | `TestProbeCached_KeepsTheTail`: `listing 2: [m1 m3 m4 m5 m6]; want [m1 m3 m4 m5 m6 m7 m8 m9]` |
+
+**Checks:** `make pre-add-check` on the four Go files: clean (gofmt,
+golangci-lint, go vet, go test, govulncheck).
+
+**Gate:** `tools/gate.py`, 23 of 23 passed.

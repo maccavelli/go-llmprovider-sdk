@@ -64,9 +64,10 @@ func WithBaseURL(url string) Option {
 
 // WithModelProbes enables or disables listing probes. With probes, which is
 // the default, ListModels on OpenAI (API key), Claude, Gemini, Grok and
-// Ollama sends one short generation to each listed model, up to
-// MaxListedModels, and keeps those that answer. Every probe is a billed
-// request. Other providers never probe (0016-MADR A5).
+// Ollama sends one short generation to each of the first catalog.MaxListed
+// listed models, and drops those that do not answer. The later models are
+// returned unprobed (0038-MADR D4). Every probe is a billed request. Other
+// providers never probe (0016-MADR A5).
 func WithModelProbes(enabled bool) Option {
 	return commonOption("WithModelProbes", func(cfg *providerConfig) {
 		cfg.DisableModelProbes = !enabled

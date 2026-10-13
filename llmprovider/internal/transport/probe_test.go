@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 )
 
@@ -36,12 +37,11 @@ func TestProbeGenerateHealth(t *testing.T) {
 }
 
 // TestProbeGenerateHealth_Limit: no more than limit candidates are probed, in
-// order.
+// order. The rest come back unprobed (0038-MADR D4).
 func TestProbeGenerateHealth_Limit(t *testing.T) {
-	got := ProbeGenerateHealth(context.Background(), []string{"a", "b", "c"}, 2, func(context.Context, string) (string, error) {
-		return "hello", nil
-	})
-	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
-		t.Errorf("ProbeGenerateHealth = %v, want [a b]", got)
+	probe, calls := failingProbe()
+	got := ProbeGenerateHealth(context.Background(), []string{"a", "b", "c"}, 2, probe)
+	if !slices.Equal(got, []string{"a", "b", "c"}) || calls.Load() != 2 {
+		t.Errorf("ProbeGenerateHealth = %v after %d probes, want [a b c] after 2", got, calls.Load())
 	}
 }
