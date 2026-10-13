@@ -390,3 +390,85 @@ missing. That was the third plant's purpose.
   `added`.
 
 **Gate:** `tools/gate.py`, 23 of 23 passed.
+
+The owner committed Phase 1 as `c2f2f60`.
+
+### Phase 2: the Messages wire (2026-10-13)
+
+**Research** confirmed the PLAN's facts:
+
+* Both Messages bodies set `system` as a string and `tools` from
+  `wire.MessagesTools`, and return. So one helper can run last:
+  `claude.go:273-298`, and `opencode.go:507-525`, where `Instructions`
+  reach `system` as a leading system item (`:361-362`).
+* The scenario table is a plain list (`wirecase.go:255-293`). A new entry
+  adds one golden per case and leaves the others alone.
+
+**Step A:** `messages.CacheMarker` and `messages.AddCache` were added as
+no-ops, so the tests compiled.
+
+**Red first:**
+
+```text
+--- FAIL: TestAddCache
+    cache_0039_test.go:87: short, system and tools: markers at []; want them at ["" ".system[0]"]
+    cache_0039_test.go:87: short, tools alone: markers at []; want them at ["" ".tools[1]"]
+    cache_0039_test.go:87: short, neither: markers at []; want them at [""]
+    (the same three for long)
+--- FAIL: TestAddCache_SystemFormOnlyWhenAsked
+    cache_0039_test.go:110: a cached body's system is still a string: Be brief.
+```
+
+**Change:**
+
+* **`llmprovider/internal/wire/messages/cache.go`:**
+  * `CacheMarker(retention)` is `{"type":"ephemeral","ttl":…}`: `"5m"` for
+    `CacheShort`, `"1h"` for `CacheLong`.
+  * `AddCache(body, retention)` returns at once for the zero value.
+    Otherwise it sets the top-level `cache_control`, and either turns
+    `system` into one text block carrying the marker, or marks the last
+    tool.
+* **The callers:** `claude`'s `body` and `opencode`'s `messagesBody` call it
+  last.
+* **`wirecase`:** the `cache-short` and `cache-long` scenarios send
+  `cacheRequest(retention)`: `Instructions: "Be brief."`, the weather tool
+  and the question.
+* **The package docs** of `claude` and `opencode` say what `Cache` sends.
+
+**The goldens.** Before any golden was written, `TestWireGoldens` failed
+only on the 38 new `cache-*` files, and no existing scenario failed. The new
+goldens were then written alone, package by package:
+
+```text
+go test ./llmprovider/providers/<p>/ -run 'TestWireGoldens/.*/cache-(short|long)$' -update
+```
+
+No existing golden changed. Their cache fields:
+
+| Cases | `cache_control` | `prompt_cache_key` |
+| :--- | ---: | ---: |
+| `claude`, `claude-refuses-forced`, `opencode-zen-messages`, `opencode-go-messages` | 2: top level and `system[0]`, `5m` or `1h` | 0 |
+| `chatgpt` | 0 | 1, as before 0039 |
+| every other case | 0 | 0, until Phase 3 |
+
+`claude/cache-long.json`'s body carries `"cache_control":{"ttl":"1h","type":"ephemeral"}`
+and `"system":[{"cache_control":{"ttl":"1h","type":"ephemeral"},"text":"Be brief.","type":"text"}]`.
+Its tool carries no marker.
+
+**Green:** `go test ./...`, all 30 packages `ok`.
+
+**Plants** (`tools/plant.py`, 4 of 4 caught):
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the system kept a string when caching | `TestAddCache`: `short, system and tools: markers at []`; `TestWireGoldens/claude/cache-short`: `requests[0].body.system: want [{"cache_control":…}], got "Be brief."` |
+| the breakpoint's TTL `5m` under `CacheLong` | `TestAddCache`: `the marker at ".system[0]" is map[ttl:5m type:ephemeral]; want map[ttl:1h …]`; `TestWireGoldens/claude/cache-long`: `system[0].cache_control.ttl: want "1h", got "5m"` |
+| a marker on every tool | `TestAddCache`: `tools alone: markers at [ .tools[0] .tools[1]]; want them at ["" ".tools[1]"]` |
+| the zero value adding the markers | `TestAddCache_SystemFormOnlyWhenAsked`: `AddCache with no retention changed the body`; the existing goldens: `TestWireGoldens/claude/text`: `requests[0].body.cache_control: want (absent), got {"ttl":"5m",…}` |
+
+The last plant shows V2 holding: an existing golden fails as soon as a
+request without `Cache` changes.
+
+**Checks:** `make pre-add-check` on the five Go files: clean.
+
+**Gate:** `tools/gate.py`, 23 of 23 passed.

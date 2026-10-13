@@ -279,6 +279,14 @@ var scenarios = []scenario{
 	{"flags", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
 		return p.Generate(ctx, &llmprovider.Request{Input: FlagItems(), Tools: FlagTools()})
 	}},
+	// The cache scenarios show what each wire sends for Request.Cache
+	// (0039-MADR D2-D4).
+	{"cache-short", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
+		return p.Generate(ctx, cacheRequest(llmprovider.CacheShort))
+	}},
+	{"cache-long", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
+		return p.Generate(ctx, cacheRequest(llmprovider.CacheLong))
+	}},
 	{"listing", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
 		lister, ok := p.(llmprovider.ModelLister)
 		if !ok {
@@ -286,6 +294,13 @@ var scenarios = []scenario{
 		}
 		return lister.ListModels(ctx)
 	}},
+}
+
+// cacheRequest is the cache scenarios' request: instructions, a tool and a
+// question, with retention.
+func cacheRequest(retention llmprovider.CacheRetention) *llmprovider.Request {
+	return &llmprovider.Request{Instructions: "Be brief.", Input: []llmprovider.Item{user(Prompt)},
+		Tools: []llmprovider.Tool{WeatherTool()}, Cache: retention}
 }
 
 // result makes a return value comparable with its P7 golden: a Response's

@@ -61,6 +61,14 @@
 // Instructions and system items go to the top-level system field, in that
 // order.
 //
+// Request.Cache asks Anthropic to cache the prompt (0039-MADR D2): the
+// request carries the top-level cache_control, Anthropic's automatic caching,
+// and one breakpoint, on the system prompt, which is then sent as one text
+// block, or with none on the last tool. Both have one TTL: "5m" for
+// CacheShort, "1h" for CacheLong. Two of Anthropic's four breakpoints are
+// used. A prompt below the model's minimum is not cached, and no error is
+// returned. Without Cache nothing is sent, and Anthropic does not cache.
+//
 // ListModels returns the curated listing, probing each of the first
 // catalog.MaxListed listed models with one short, billed generation unless
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5; 0038-MADR
@@ -295,6 +303,8 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		body["tools"] = wire.MessagesTools(req.Tools)
 		messages.AddToolChoice(body, req.ToolChoice, thinking, p.forcing.For(string(llmprovider.ProviderClaude), model))
 	}
+	// Last, once the system and tools are set (0039-MADR D2).
+	messages.AddCache(body, req.Cache)
 	return body
 }
 

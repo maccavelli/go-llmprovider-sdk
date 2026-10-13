@@ -67,6 +67,10 @@
 //     tool) with an error matching ErrInvalidRequest; the minimax models
 //     accept every choice but may ignore it (minimax-m2.7 honours
 //     ToolChoiceRequired and ignores ToolChoiceNone).
+//   - Request.Cache, on the messages route, sends Anthropic's markers as the
+//     claude package does: the top-level cache_control and one breakpoint
+//     on the system prompt or the last tool, with "5m" or "1h"
+//     (0039-MADR D2, D4). The x-opencode-session header is sent either way.
 //
 // ListModels returns the curated gateway listing. It never probes: the
 // gateways meter every call (MADR 0012 §1.6).
@@ -522,6 +526,8 @@ func (p *provider) messagesBody(c call) map[string]any {
 		body[jsonKeyTools] = wire.MessagesTools(tools)
 		messages.AddToolChoice(body, c.req.ToolChoice, thinking, p.forcing.For(string(p.gateway), c.model))
 	}
+	// Last, once the system and tools are set (0039-MADR D2).
+	messages.AddCache(body, c.req.Cache)
 	return body
 }
 
