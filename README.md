@@ -199,8 +199,18 @@ key.
 
 ## Status
 
-The current release is `v1.11.0`. The module requires Go 1.27.2.
+The current release is `v1.12.0`. The module requires Go 1.27.2.
 
+- `v1.12.0` lets a request ask for prompt caching: `Request.Cache`,
+  `CacheShort` or `CacheLong`. Claude, directly or through OpenCode, gets
+  Anthropic's `cache_control` markers, with a five-minute or one-hour
+  lifetime. OpenAI, xAI and Together get a `prompt_cache_key`, and Kilo's
+  Claude models the top-level marker. A request that does not set it is
+  sent as before, as
+  [0039-MADR](docs/decisions/0039-MADR-request-side-prompt-caching.md)
+  decides. The release notes are in
+  [0039-PLAN-request-side-prompt-caching.md](docs/decisions/0039-PLAN-request-side-prompt-caching.md),
+  Phase 4.
 - `v1.11.0` lists the full curated catalog by default: `catalog.List`,
   every built-in provider's `ListModels` and the wizard's menu recommend
   every known model that works, ranked, with the best six first, where

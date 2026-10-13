@@ -575,3 +575,140 @@ Those 16 were regenerated alone, package by package, with `-update -run
 * markdownlint on `README.md` and `docs/architecture.md`: no issue.
 
 **Gate:** `tools/gate.py`, 23 of 23 passed.
+
+The owner committed Phase 3 as `a4169b3`.
+
+### Phase 4: live confirmation and release (2026-10-13)
+
+#### Deviations
+
+**Deviation 1 (2026-10-13): the long paths read the short paths' entries.**
+
+* **Found:** the first run sent all 16 approved requests. In it, `claude
+  long`'s first request read `CachedTokens: 7082` and wrote nothing, so
+  `CacheWrite1hTokens` was 0 and the test failed. It ran about five seconds
+  after `claude short`, with the same system prompt and question, so it
+  read the 5-minute entry `claude short` had just written. `kilo claude
+  long` read the same way.
+* **What the code did:** it sent `"ttl":"1h"`, as the goldens show, but
+  the measurement never exercised a fresh one-hour write. The fault is the
+  measurement's: the paths shared one prefix.
+* **Decision (the owner):** each path's system prompt begins with its own
+  line, so no path can read another's entry. Only the two long paths run
+  again, four more billed requests. The first run stays recorded below.
+
+#### The measurement
+
+`llmprovider/live_0039_prompt_cache_measure_test.go`
+(`TestLive_0039PromptCache`) ran with `LLMPROVIDER_LIVE_0039=1`, and with
+`LLMPROVIDER_LIVE_TOGETHER=1` for the first run, which Together needs.
+
+* **Keys:** all were checked for presence only.
+* **Logs:** each request logs its decoded `Usage`, and no prompt, header or
+  key.
+* **The prompt:** each path sends one system prompt of about 3,000 words,
+  7,086 Claude tokens. From the rerun on, each path's prompt begins with its
+  own line (deviation 1).
+
+**Run 1:** 16 billed requests, 7 of 8 paths passed.
+
+| Path | Request 1 | Request 2 |
+| :--- | :--- | :--- |
+| Claude, short | write 7,082 | read 7,082 |
+| Claude, long | read 7,082, no write (deviation 1) | read 7,082 |
+| Zen Claude, short | write 7,082 | read 7,082 |
+| Kilo Claude, short | write 7,082 | read 7,082 |
+| Kilo Claude, long | read 7,082 (deviation 1) | read 7,082 |
+| OpenAI `gpt-6-luna`, short | write 4,377 | read 4,377 |
+| xAI `grok-4.6`, short | read 512 | read 512 |
+| Together `zai-org/GLM-5.3-Flash`, short | none | read 4,544 |
+
+```text
+claude long: the first long request reported no one-hour write: {InputTokens:7086 … CachedTokens:7082 CacheWriteTokens:0 CacheWrite1hTokens:0}
+```
+
+**Run 2, after deviation 1:** the two long paths, each with its own
+prompt. 4 billed requests, 2 of 2 passed.
+
+| Path | Request 1 | Request 2 |
+| :--- | :--- | :--- |
+| Claude, long | write 7,093, all of it `CacheWrite1hTokens` | read 7,093 |
+| Kilo Claude, long | write 7,096; Kilo sends no lifetime split, as 0036 found | read 7,096 |
+
+**What it shows:**
+
+* **Each path behaves as D2 to D4 expect.**
+  * Every Claude path writes on the first request and reads on the second.
+  * Claude's long write is an hour's.
+  * OpenAI, on GPT-6, writes and reads.
+  * Together reads on the second request, routed by the key.
+  * xAI reads a 512-token prefix on both requests.
+* **No path refused a field:**
+  * Kilo took OpenRouter's top-level `cache_control`;
+  * Zen took Anthropic's markers;
+  * OpenAI, xAI and Together took `prompt_cache_key`.
+* **Billed in all:** 20 requests, 16 approved and the 4 the deviation's
+  decision added.
+
+**The live checks, seen failing:**
+
+* The one-hour check failed for real in run 1, as above.
+* Both checks were moved into `path0039.problems`, and
+  `TestPromptCacheChecks_0039` tests that function on canned usages, with
+  no key and no network.
+* Plants (`tools/plant.py`, with the `live_gateways` tag, 2 of 2 caught):
+
+  | Plant | FAIL line |
+  | :--- | :--- |
+  | the read check never firing | `no read: problems "", want one containing "read nothing"` |
+  | the hour check never firing | `a read where the hour was due: problems "", want one containing "no one-hour write"` |
+
+**Step 3:** `README.md` Status names `v1.12.0`, with a bullet.
+
+**Step 4, the checks:**
+
+* `make pre-add-check` on the live test: clean.
+* `make lint vuln parity-check dep-check coverage-check api-check
+  generate-check records-check gate-selftest` exited 0:
+  * lint: 0 issues, on the host and on Windows;
+  * vuln: no vulnerabilities;
+  * dep-check: 0 problems;
+  * coverage-check: 31 packages, 0 problems;
+  * api-check: 0 incompatible changes against `v1.11.0`;
+  * generate-check and records-check: 0 problems.
+* **Gate:** `tools/gate.py`, 23 of 23 passed.
+
+#### Release notes: `v1.12.0`
+
+`v1.12.0` lets a request ask for prompt caching (0039-MADR). The exported
+API adds four identifiers and changes none. A request that does not set the
+new field is sent exactly as before.
+
+**New API:**
+
+* `llmprovider.CacheRetention`, with `CacheShort` and `CacheLong`.
+* `Request.Cache`. The zero value asks for nothing. Any other value is
+  refused before the network with `ErrInvalidRequest`.
+
+**What each provider sends:**
+
+| Provider | With `Cache` set |
+| :--- | :--- |
+| `claude`, OpenCode's Claude routes | Anthropic's top-level `cache_control`, plus one breakpoint on the system prompt (sent as one text block) or else the last tool, with `ttl` `5m` (`CacheShort`) or `1h` (`CacheLong`) |
+| `openai` (API key), `grok`, `together`, OpenCode's Responses route | `prompt_cache_key`, the provider's session id. These services cache on their own; the key routes a conversation to one cache |
+| `kilo`, an `anthropic/` model | OpenRouter's top-level `cache_control`, with the same TTLs |
+| `gemini`, `huggingface`, `ollama`, OpenCode's chat and Gemini routes | nothing |
+
+**What it saves, measured:** a request repeating a 7,086-token prompt read
+7,082 of those tokens from the cache. Anthropic charges a read at 0.1 times
+the input price. `Usage.CachedTokens`, `CacheWriteTokens` and
+`CacheWrite1hTokens` report what each request read and wrote.
+
+**For gobble-cli:**
+
+* Set `Cache: llmprovider.CacheShort`, or `CacheLong` across idle turns, on
+  each conversation request.
+* Set `WithSessionID` per session, so the routing key follows the
+  conversation.
+
+**Upgrading:** no change is needed. Caching is opt-in.
