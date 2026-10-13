@@ -115,8 +115,10 @@ When it is done:
   * markdownlint on any changed non-record Markdown;
   * the gate, `python3 -B tools/gate.py --out <scratch>`, at 23 of 23.
 * **Billed requests:** the count goes to the owner, and the owner approves,
-  before any live run. This PLAN plans none: Phase 4 lists only, with probes
-  off. Keys are checked for presence only.
+  before any live run. ~~This PLAN plans none: Phase 4 lists only, with
+  probes off.~~ *Phase 4 lists only, with probes off; its two Together
+  listings are billed and owner-approved (Phase 4's deviation 1 of
+  2026-10-13).* Keys are checked for presence only.
 * **A deviation stops the work:** evidence, options with the recommended
   one first, and a dated entry here, plus a MADR amendment where a fact or
   a decision changes.
@@ -321,7 +323,9 @@ full list in this phase only. Phase 3 makes it the default.
 ### Phase 4: live confirmation and release
 
 1. **The measurement,** `live_0038_full_catalog_measure_test.go`
-   (`live_gateways`; listings only, `WithModelProbes(false)`, not billed).
+   (`live_gateways`; listings only, `WithModelProbes(false)`, ~~not billed~~;
+   *two billed Together listings, owner-approved: Phase 4's deviation 1 of
+   2026-10-13*).
    It covers every provider whose key is set (checked for presence only),
    and the public listings of OpenCode Zen, OpenCode Go, Kilo and Hugging
    Face. For each:
@@ -818,3 +822,123 @@ path, which the other three do not touch, is covered.
   either.
 
 **Gate:** `tools/gate.py`, 23 of 23 passed.
+
+The owner committed Phase 3 as `8e36d03`.
+
+### Phase 4: live confirmation and release (2026-10-13)
+
+#### Deviations
+
+**Deviation 1 (2026-10-13): Together's listing is billed.**
+
+* **Found:** the PLAN says this phase sends no billed request. But this
+  repository treats a live Together listing as billed:
+  `llmprovider/catalog/live_listing_test.go:25-37` skips Together unless
+  `LLMPROVIDER_LIVE_TOGETHER=1`, because "live Together calls are billed".
+  The measurement lists each provider twice, so Together costs two billed
+  listing requests. No other provider's listing is billed.
+* **Decision (the owner):** approve the two billed Together listings. The
+  run sets `LLMPROVIDER_LIVE_TOGETHER=1` for that one invocation. The
+  measurement uses the existing `liveEnvKey` gate, so a later run without
+  the variable skips Together.
+
+#### The measurement
+
+`llmprovider/catalog/live_0038_full_catalog_measure_test.go`
+(`TestLive_FullCatalog`) ran once, on 2026-10-13, with
+`LLMPROVIDER_LIVE_TOGETHER=1` for that invocation only.
+
+* **What it sent:** two listings per subtest, with the metadata document on
+  as at runtime, and no generation. Two of the listings were Together's,
+  billed and approved.
+* **Keys:** all eight key variables were set, checked for presence only.
+* **Result:** 13 of 13 subtests passed. In each, the six are the full list's
+  first six, the full list holds no `excludedAtRequest` id, and it is a
+  subset of `Usable`.
+
+| Listing | Usable | Full | Six |
+| :--- | ---: | ---: | :--- |
+| Claude (keyed) | 14 | 14 | `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-sonnet-5`, `claude-opus-5-5`, `claude-opus-4-8`, `claude-haiku-4-5-20251001` |
+| Gemini (keyed) | 12 | 12 | `gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.7-flash`, `gemini-3.5-flash`, `gemini-3.1-flash-lite` |
+| Grok (keyed) | 8 | 8 | `grok-4.6`, `grok-4.5`, `grok-4.7`, `grok-4.3`, `grok-build-0.1`, `grok-4.20-0309-non-reasoning` |
+| OpenAI (keyed) | 73 | 73 | `staticOpenAI`, in order |
+| Hugging Face (keyed and public) | 112 | 100 | the snapshot's utility six |
+| Kilo (keyed and public) | 285 | 272 | the static six |
+| OpenCode Go (keyed and public) | 35 | 29 | the static six |
+| OpenCode Zen (public) | 80 | 78 | the static six |
+| OpenCode Zen (keyed) | 42 | 40 | `claude-haiku-5-5`, `deepseek-v4.1-flash`, `qwen3.8-flash`, `glm-5.3-flash`, `gemini-3.8-flash`, `gemini-3.5-flash-lite` |
+| Together (keyed) | 172 | 19 | the static six |
+
+* **The keyed Zen listing is shorter than the public one,** as
+  0033-MADR F1 found: the key's workspace has models turned off. Its six
+  therefore differ from the public one's in one id.
+* **Every vendor list is full:** the vendors' usability filters already hold
+  only text models.
+
+**Plants** (`tools/plant.py`, run with the live command, and with
+`LLMPROVIDER_LIVE_TOGETHER` unset so that no plant run was billed):
+
+| Plant | Result |
+| :--- | :--- |
+| the ranking's fill admitting an `excludedAtRequest` id | caught: `opencode-go (keyed)`: `the full list holds "deepseek-v4-flash", measured not to answer`, and the other five Go ids; the same for `opencode-go (public)` |
+| `listlimit.Cut` keeping the last n | not caught. Neither live path runs the cut: `WithLimit(MaxListed)` cuts a curation that already holds at most six, and no option cuts nothing. `TestCut` covers it offline. |
+| the full list not led by the six (reversed, in its place) | caught: `claude (keyed)`: `the six [claude-haiku-5-5 …] are not the full list's first 6: [claude-fable-5 claude-opus-4-6 …]`, and every other listing |
+
+#### Release notes: `v1.11.0`
+
+`v1.11.0` lists the full curated catalog by default, and makes today's six
+models an option (0038-MADR, with its amendment A1–A3). The exported API
+adds two identifiers and changes none.
+
+**What changes by default:**
+
+* **`catalog.List`'s `Catalog.Recommended`** is the full curated catalog.
+  It holds every usable id the listing serves, less those measured not to
+  answer and the profile's exclusions, ranked, with the best six first. It
+  was at most six. For Kilo that is 272 models under the default profile.
+* **Every built-in provider's `ListModels`** returns the same full list.
+* **`wizard.ConfigureLLM`'s menu** shows the full list, on every path.
+
+**To keep today's six,** add one option:
+
+* `catalog.WithLimit(catalog.MaxListed)` to `catalog.List`, or to a
+  provider's `New`;
+* `ModelLimit: catalog.MaxListed` in `wizard.Options`. Pass the limit
+  there, not in `ProviderOptions`: a third-party provider refuses the
+  option.
+
+With the limit, the six are today's six. The one exception: the fallback
+curation (model metadata off or unavailable) no longer recommends an id
+measured not to answer.
+
+**Probes** (OpenAI with an API key, Claude, Gemini, Grok, Ollama) test only
+the first `catalog.MaxListed` models of a listing, as before, and drop those
+that fail. The later models are returned unprobed. A listing costs no more
+billed requests than before.
+
+**New API:**
+
+* `catalog.WithLimit(n int) llmprovider.Option`, scoped to every built-in
+  provider. With n zero or less there is no limit.
+* `wizard.Options.ModelLimit int`. Zero is the whole list.
+
+**Unchanged:** the static catalogs, `Catalog.Usable`, `catalog.Search` and
+the ranker's rules.
+
+**Consumers,** each in its own repository and its own record (0038-MADR
+D7):
+
+* prepare-commit-msg adds the opt-in to its `--yes` listing and its wizard
+  options. Its primary model and fallbacks do not change without it, but its
+  menu would.
+* gobble-cli lists through `catalog` rather than `Descriptor.StaticModels`,
+  with no limit.
+
+**Upgrading:** a caller that wants six adds the option. No other change is
+needed.
+
+**Step 2:** `README.md` Status names `v1.11.0`, with a bullet.
+
+**Gate:** `tools/gate.py`, 23 of 23 passed.
+
+**Release checks:** `make lint vuln parity-check dep-check coverage-check api-check generate-check records-check gate-selftest` exit 0: lint 0 issues (host and Windows), no vulnerabilities, dep-check 0 problems, coverage-check 31 packages 0 problems, api-check 0 incompatible changes against `v1.10.2`, generate-check and records-check 0 problems.

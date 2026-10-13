@@ -193,8 +193,18 @@ key.
 
 ## Status
 
-The current release is `v1.10.2`. The module requires Go 1.27.2.
+The current release is `v1.11.0`. The module requires Go 1.27.2.
 
+- `v1.11.0` lists the full curated catalog by default: `catalog.List`,
+  every built-in provider's `ListModels` and the wizard's menu recommend
+  every known model that works, ranked, with the best six first, where
+  they recommended six. `catalog.WithLimit(catalog.MaxListed)`, or
+  `wizard.Options.ModelLimit`, keeps today's six. Probes still test only
+  the first six, as
+  [0038-MADR](docs/decisions/0038-MADR-full-curated-catalog-by-default.md)
+  decides. The release notes are in
+  [0038-PLAN-full-curated-catalog-by-default.md](docs/decisions/0038-PLAN-full-curated-catalog-by-default.md),
+  Phase 4.
 - `v1.10.2` refreshes the curated model lists of OpenCode Zen, OpenCode Go,
   Kilo and Together from a recorded snapshot, as
   [0033-MADR](docs/decisions/0033-MADR-public-model-metadata-and-current-catalogs.md)'s
