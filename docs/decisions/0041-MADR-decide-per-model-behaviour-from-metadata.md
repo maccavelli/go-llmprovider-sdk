@@ -808,6 +808,8 @@ evidence. Each was read on 2026-10-13.
 
 ### Evidence index
 
+<!-- claims: self=3e81e3d magic-cli-remote=9b75e5f3 opencode=907b3bc518 gobble-cli=007b63f prepare-commit-msg=7a2b7b4 -->
+
 Checked on 2026-10-13 against go-llmprovider-sdk `3e81e3d`, gobble-cli
 `origin/main` `007b63f`, prepare-commit-msg `7a2b7b4`, magic-cli-remote
 `9b75e5f3` and opencode `907b3bc518`, each at that commit, not its working

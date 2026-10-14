@@ -339,11 +339,14 @@ before 5.4, and o-series models).
 
 * **A deferred tool** is sent as today with `"defer_loading": true`.
 * **The `Search` tool** is an ordinary tool. Messages needs no marker for it.
-* **A result with `Load`** is sent as a `tool_result` whose `content` is a
+* ~~**A result with `Load`** is sent as a `tool_result` whose `content` is a
   list: one `text` block with `Output`, then one
-  `{"type": "tool_reference", "tool_name": …}` per name. Any result can
-  load, so gobble's event load (its D9.3) is native here. A result with no
-  `Load` is sent as today, its content a string.
+  `{"type": "tool_reference", "tool_name": …}` per name.~~ *(Amended by A1:
+  Anthropic refuses text in that list. The `tool_result` holds the
+  `tool_reference` blocks only, and `Output` follows it as its own `text`
+  block in the same user turn.)* Any result can load, so gobble's event load
+  (its D9.3) is native here. A result with no `Load` is sent as today, its
+  content a string.
 * **0039's breakpoint** goes on the last tool that is not deferred. That is
   the last tool of the fixed prefix, since deferred tools are not in it.
 
@@ -525,6 +528,61 @@ Where D2 to D5 do not apply (Q2):
 * **Live, after the code:** a gated test, as 0039's was, repeating the probe
   through the SDK.
 
+## Amendment 2026-10-13: what the live probe found
+
+0040-PLAN-native-tool-deferral.md Phase 0 ran the probe of this record's
+Confirmation, as the owner approved (Q5): 20 of the 21 billed requests. Its
+record holds every step. The decisions above stand, except as these change
+them. Their text is struck through where it changes, not rewritten.
+
+### A1. Anthropic: the text goes beside the `tool_result`, not in it
+
+* **Found.** With one `text` block and one `tool_reference` in a
+  `tool_result`'s content, Anthropic refused the second request:
+  "Tool definitions/code execution functions cannot be mixed with other
+  content". Zen's Messages route returned the same, as "Upstream request
+  failed: [invalid_request_error] …".
+* **Measured.** With the `tool_result` holding only the `tool_reference`,
+  and the text as its own block after it in the same user turn, Claude
+  (`claude-haiku-5-5`) searched, called `get_weather` with
+  `{"location":"Paris"}`, and answered. The second and third requests read
+  7,678 and 7,836 tokens from the cache: the load kept the prefix.
+* **Decided.** D2 sends a loading result that way. A result's `Output`
+  still reaches the model on this wire.
+
+### A2. Kilo does not honour `deferred_tools`: D4 is not built
+
+* **Found.** Under the protocol, every request answered 200, and the model
+  searched, then called the loaded tool. But asked, with no tool call, to
+  name every tool it could call, it named `read_file, tool_search,
+  get_weather, lookup_stock`. Both deferred tools were in its context before
+  any search. Kilo's gateway does not apply the protocol.
+* **Decided.** As D4 provides: Kilo takes D6, append on load, and
+  `deferred_tools` is never sent. 0040-PLAN Phase 6 is skipped and recorded.
+  The D1 table's Kilo row is D6.
+
+### A3. The ChatGPT session: codex's source now, a live run in Phase 7
+
+* **Found.** The probe's ChatGPT path needs the Codex CLI's credential
+  file, which only the owner opts into reading
+  (`LLMPROVIDER_LIVE_CHATGPT`). It was not run.
+* **Owner's decision** (2026-10-13): codex's production use of the client
+  `tool_search` on the ChatGPT backend (E12–E17) is the evidence for now. The
+  live test of 0040-PLAN Phase 7 adds a ChatGPT path the owner runs. If it
+  fails, the ChatGPT row takes D6 by amendment.
+
+### A4. What the other paths showed
+
+| Path | Search, then load, then answer | Cache read on requests 2 and 3 |
+| :--- | :--- | :--- |
+| OpenAI key, `gpt-6-luna`, `store: false` | yes; the stateless replay of `tool_search_call`, with object `arguments`, was accepted | 4,498 and 4,675 |
+| Zen Responses, `gpt-6-luna` | yes | 4,499 and 4,680 |
+| Grok, `grok-4.6`, `use_tool` dispatch | yes; the model called `use_tool` with `{"tool_name":"get_weather","tool_input":{"location":"Paris"}}` | 5,248 and 5,376 |
+| Zen Messages | refused as A1; it forwarded the fields unchanged, so it takes A1's form, confirmed in Phase 7 | — |
+
+Every fact D3 and D5 leave to the probe holds. Zen's Messages route stays
+native with A1's form, since its refusal was Anthropic's own.
+
 ## Pros and Cons of the Options
 
 ### A. A caller-run search, in the contract
@@ -616,6 +674,8 @@ Where D2 to D5 do not apply (Q2):
   Anthropic's and OpenAI's pages (2026-10-08) agree with those above.
 
 ### Evidence index
+
+<!-- claims: self=3e81e3d codex=823ea830c0 grok-build=2bdd1d6a opencode=907b3bc518 kilocode=4a7c4e883f gobble-cli=108d9f0 -->
 
 Added on acceptance, 2026-10-13. Each row is checked, by the checker
 0041-PLAN commits as `tools/claims.py`, against go-llmprovider-sdk

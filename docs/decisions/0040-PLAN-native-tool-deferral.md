@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-13
 associated-madr: "0040-MADR-native-tool-deferral.md"
 decision-makers: repository owner
@@ -32,7 +32,7 @@ When it is done:
   | `claude`, `opencode` Messages | D2 native | Claude 4.5 and later |
   | `openai` ChatGPT session | D3 native | every model |
   | `openai` key, `opencode` Responses | D3 native | `gpt-N.M` 5.4 and later |
-  | `kilo` | D4 OpenRouter protocol | once Phase 0 shows Kilo forwards it |
+  | `kilo` | ~~D4 OpenRouter protocol~~ D6 append on load (0040-MADR A2) | always |
   | `grok` | D5 dispatch | every model |
   | the rest, and every model left out above | D6 append on load | always |
 
@@ -244,9 +244,11 @@ No wire sends anything for the fields yet. Every golden is unchanged.
 3. **Change, Messages.**
    * `MessagesTools` sends `"defer_loading": true` on a deferred tool, when
      the form is native.
-   * `FromItems` sends a result with `Load` as a content list: one `text`
-     block with `Output`, then one `tool_reference` per name. This is the
-     form Phase 0 measured; a Phase 0 amendment governs here.
+   * ~~`FromItems` sends a result with `Load` as a content list: one `text`
+     block with `Output`, then one `tool_reference` per name.~~ *(0040-MADR
+     A1.)* `FromItems` sends a result with `Load` as a `tool_result` whose
+     content is one `tool_reference` per name, followed in the same user turn
+     by a `text` block holding `Output`. This is the form Phase 0 measured.
    * `AddCache` puts the breakpoint on the last tool that is not deferred.
    * `claude` and `opencode`'s Messages route call `deferral.Form` and send
      its tools.
@@ -375,6 +377,10 @@ No wire sends anything for the fields yet. Every golden is unchanged.
 
 ### Phase 6: Kilo's OpenRouter protocol (D4), if Phase 0 allows
 
+**Skipped (2026-10-13).** Phase 0 showed Kilo does not honour
+`deferred_tools` (0040-MADR A2). Kilo takes Phase 4's append on load. The
+steps below stay as written, for the record.
+
 1. **Skipped, and recorded,** if Phase 0 showed Kilo does not forward
    `deferred_tools`.
 2. **Research.**
@@ -416,7 +422,11 @@ No wire sends anything for the fields yet. Every golden is unchanged.
 2. **The live measurement,** `llmprovider/live_0040_deferral_test.go`:
    * gated by `LLMPROVIDER_LIVE_0040=1`;
    * the Phase 0 paths that stayed native, through the SDK, with the
-     owner's approval of the count;
+     owner's approval of the count: Claude, Zen Messages (A1's form, not yet
+     measured through Zen), OpenAI, Zen Responses and Grok;
+   * **a ChatGPT session path, which the owner runs** with
+     `LLMPROVIDER_LIVE_CHATGPT=1` (0040-MADR A3). If it fails, the ChatGPT
+     row takes D6 by amendment;
    * each path asserts the model called the loaded tool, and that the second
      and third requests read the first one's cache;
    * each check is seen failing on canned usages, offline, as 0039's were.
@@ -470,7 +480,10 @@ No wire sends anything for the fields yet. Every golden is unchanged.
 
 ## Evidence index
 
-Checked against go-llmprovider-sdk `3e81e3d`, at that commit.
+<!-- claims: self=3e81e3d -->
+
+Checked against go-llmprovider-sdk `3e81e3d`, at that commit, by
+`tools/claims.py`.
 
 | Id | Location | Where | Matched |
 | :--- | :--- | :--- | :--- |
@@ -508,5 +521,139 @@ Checked against go-llmprovider-sdk `3e81e3d`, at that commit.
 
 ## Execution Record
 
-No phase has run. Each phase appends its record here: what it did, its FAIL
-and plant lines, its gate summary, and a dated entry for every deviation.
+Each phase appends its record here: what it did, its FAIL and plant lines,
+its gate summary, and a dated entry for every deviation.
+
+### Phase 0: records and the live probe (2026-10-13)
+
+The owner committed the records as `7abe504`, approved this PLAN's
+execution, and approved the probe's 21 billed requests (Q5).
+
+#### Deviations
+
+* **Deviation 1 (2026-10-13): the claims checker's wiring.**
+  * **Found.** Step 2 adopts 0041-PLAN Phase 0 step 2, which said the gate
+    would run the checker, and that `make gate-selftest` would cover it.
+    Research showed both wrong:
+    * `gate-selftest` runs `scripts/test_gates.py`, the CI gates' self-test;
+      `tools/` is tested by `make tools-test` (`Makefile:87-94`);
+    * a record's claims are pinned to past revisions and to other
+      checkouts. The gate's copy holds neither, and a checkout's path cannot
+      be committed.
+  * **Owner's decision:** "optimize claims.py for agentic use, it needs to
+    be run both by agents and also human operators depending on the
+    situation".
+  * **Done:**
+    * `tools/claims.py` is run by hand, never by the gate, which stays at 23
+      checks;
+    * each record names its revisions in a `<!-- claims: NAME=REV ... -->`
+      marker, added to the four 0040 and 0041 records;
+    * other repositories are found as checkouts beside this one, or beside
+      its parent, so it runs with no arguments here;
+    * `--repo` and `--rev` override, `--changed` checks the records `git
+      status` lists, `--json` prints one object for an agent, and `--fixes`
+      writes an `edit.py` spec moving each failing row to the one line its
+      text is on;
+    * it prints paths relative to the repository, never a machine path.
+  * **Records.** 0041-PLAN Phase 0 step 2 is annotated. No MADR fact
+    changes.
+
+#### The claims checker (step 2)
+
+* **Red:** `tools/test_tools.py` with the new `TestClaims`, on a scratch
+  copy of `tools/` without `claims.py`:
+  `ModuleNotFoundError: No module named 'claims'`.
+* **Green:** `TestClaims`, 11 tests, ok; `make tools-test`, 40 tests, OK.
+* **Plants** (`tools/plant.py`, 6 of 6 caught):
+
+  | Plant | FAIL lines |
+  | :--- | :--- |
+  | the line compared off by one | `test_double_backtick_cell`, `test_json_output`, `test_other_repository_by_search_and_missing`, `test_passing_rows`, `test_pinned_revision_not_head` |
+  | the file read at HEAD, not the record's revision | `test_json_output`, `test_passing_rows`, `test_pinned_revision_not_head`, `test_wrong_line_reports_where_found_and_writes_a_fix` |
+  | a missing checkout passes | `test_other_repository_by_search_and_missing` |
+  | a record with no rows is clean | `test_no_rows_is_a_finding` |
+  | the fix spec names the old line | `test_wrong_line_reports_where_found_and_writes_a_fix` |
+  | an escaped pipe kept escaped | `test_passing_rows` |
+  | a marker quoted in prose is read | `test_marker_quoted_in_prose_is_not_the_marker` |
+
+* **A fault the tool found in itself.** Its first run on the amended
+  records failed 0041-PLAN with "claims marker: '...' is not NAME=REV". The
+  annotation of 0041-PLAN Phase 0 quotes the marker's syntax in prose,
+  before the real marker, and the tool took the first match. A new test,
+  `test_marker_quoted_in_prose_is_not_the_marker`, failed the same way (red).
+  The fix accepts a marker only alone on its line. The test passed, and its
+  plant above was caught: 7 of 7.
+
+* **On the records,** with no arguments: 0040-MADR 25 of 25, 0040-PLAN 31
+  of 31, 0041-MADR 57 of 57, 0041-PLAN 39 of 39.
+
+#### The probe (steps 3 to 7)
+
+* **Keys,** checked for presence only: Anthropic, OpenAI, OpenCode, Kilo
+  and xAI present. `LLMPROVIDER_LIVE_CHATGPT` absent: see deviation 3.
+* **The file:** `llmprovider/live_0040_probe_test.go`, tagged
+  `live_gateways`. It holds `TestLive_0040Probe`, `TestLive_0040ProbeFollowUp`
+  and the offline `TestProbeChecks_0040`. It reuses 0039's
+  `prompt0039`, with each path's own first line.
+* **The checks, seen failing** (`tools/plant.py`, with `-tags
+  live_gateways`). The first run left one plant uncaught: the "refused" case
+  still reported a problem, from its missing tool call. The test was
+  tightened so each case names the problem it must report, and all three
+  plants were then caught:
+
+  | Plant | FAIL line |
+  | :--- | :--- |
+  | a failed request is not a problem | `refused: problems ["step 1 called \"\", want the search \"tool_search\""], want one containing "step 1: HTTP 400: bad"` |
+  | the loaded tool is not checked | `not loaded: problems [], want one containing "want the loaded tool"` |
+  | the cache read is not checked | `no cache: problems [], want one containing "step 2 read nothing"` |
+
+* **The run,** `LLMPROVIDER_LIVE_0040_PROBE=1`, 16 billed requests:
+
+  | Path | Step 1 | Step 2 | Step 3 |
+  | :--- | :--- | :--- | :--- |
+  | Claude, `claude-haiku-5-5` | 200, `tool_search` | **400:** "Tool definitions/code execution functions cannot be mixed with other content" | not sent |
+  | Zen Messages, `claude-haiku-5-5` | 200, `tool_search` | **400:** "Upstream request failed: [invalid_request_error] Tool definitions/code execution functions cannot be mixed with other content" | not sent |
+  | OpenAI, `gpt-6-luna` | 200, `tool_search`, cached 0 | 200, `get_weather` `{"location":"Paris"}`, cached 4,498 | 200, answer, cached 4,675 |
+  | Zen Responses, `gpt-6-luna` | 200, `tool_search`, cached 0 | 200, `get_weather`, cached 4,499 | 200, answer, cached 4,680 |
+  | Kilo, `anthropic/claude-haiku-5.5` | 200, `tool_search`, cached 0 | 200, `get_weather`, cached 7,741 | 200, answer, cached 7,864 |
+  | Grok, `grok-4.6` | 200, `tool_search`, cached 512 | 200, `use_tool` naming `get_weather`, `{"location":"Paris"}`, cached 5,248 | 200, answer, cached 5,376 |
+
+* **The follow-up,** `LLMPROVIDER_LIVE_0040_FOLLOWUP=1`, 4 billed requests:
+
+  | Path | Result |
+  | :--- | :--- |
+  | Claude, text beside the `tool_result` | 200 `tool_search`; 200 `get_weather` `{"location":"Paris"}`, cached 7,678; 200 `end_turn`, cached 7,836 |
+  | Kilo, list the callable tools | 200: `read_file, tool_search, get_weather, lookup_stock` |
+
+* **Billed in all:** 20 of the owner's 21.
+
+#### Deviations, continued
+
+* **Deviation 2 (2026-10-13): Anthropic refuses text beside
+  `tool_reference` in one `tool_result`.** Foreseen by step 7. The
+  follow-up measured the alternative step 7 names, the text as its own block
+  after the `tool_result`, and it held the cache. **0040-MADR A1** records
+  it, and Phase 2's step is annotated. No owner choice was needed: step 7
+  fixed this outcome in advance.
+* **Deviation 3 (2026-10-13): Kilo does not honour `deferred_tools`.**
+  Foreseen by step 7. The first run could not tell, since its prompt sends
+  the model to the search first, so one discriminating request was added
+  within the approval. **0040-MADR A2** records it. Phase 6 is skipped, and
+  the Goal's Kilo row is annotated.
+* **Deviation 4 (2026-10-13): the ChatGPT path was not run.** Its
+  credentials come from the Codex CLI's auth file, which only the owner opts
+  into reading. Owner's choice: codex's source is the evidence now, and Phase
+  7's live test adds a ChatGPT path the owner runs. **0040-MADR A3** records
+  it, and Phase 7's step is annotated.
+
+#### Checks (step 8)
+
+* `make pre-add-check FILES="llmprovider/live_0040_probe_test.go"`: the
+  first run found two `staticcheck` S1011 loops; collapsed to
+  `append(input, output...)`, then clean. The probe's requests are unchanged
+  by that edit, and `TestProbeChecks_0040` passed again with the tag.
+* `make tools-test`: OK. `tools/claims.py --changed`: 25, 31, 57 and 39 of
+  each record's rows pass.
+* `make records-check`, `tools/linkcheck.py`, `tools/denyscan.py --changed`:
+  clean.
+* **Gate:** `tools/gate.py`, 23 of 23 passed.

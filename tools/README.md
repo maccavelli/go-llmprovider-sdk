@@ -21,6 +21,7 @@ Exit codes, for every tool: **0** clean, **1** a finding, **2** a tool error.
 | `edit.py` | exact replacements from a JSON spec, each asserted to match, all applied or none | `tools/edit.py SPEC.json` |
 | `liveskips.py` | sorts a `go test -v` run into passes, skips with their reasons, and failures | `tools/liveskips.py RUN.txt` |
 | `consumer.py` | after a tag: a consumer of every public package built for six platforms, and optionally a dependent repository moved to the version | `tools/consumer.py VERSION [--dependent PATH]` |
+| `claims.py` | each row of a record's evidence index holds its text, on its line, at the revision the record's `<!-- claims: … -->` marker names; finds other repositories beside this one; `--json` for agents, `--fixes` writes an `edit.py` spec for rows found on another line. Run by hand before a record is staged, not by the gate | `tools/claims.py RECORD...` or `--changed`, `[--repo NAME=DIR] [--rev NAME=REV] [--json] [--fixes SPEC.json]` |
 | `offline.py` | after a tag: a program reads a `ModelInfo` from a metadata document with no request, built for six platforms; two built-in plants must each fail it | `tools/offline.py VERSION [--metadata FILE] [--provider ID] [--model ID]` |
 
 `_common.py` holds what they share:

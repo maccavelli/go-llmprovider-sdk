@@ -147,8 +147,7 @@ stops and records a deviation.
   * `make records-check`;
   * `tools/denyscan.py --changed` and `tools/linkcheck.py`;
   * `tools/claims.py` on both records;
-  * the gate, `tools/gate.py`, at 23 of 23 (24 once Phase 0 adds the claims
-    check).
+  * the gate, `tools/gate.py`, at 23 of 23.
 * **Keys and requests.** Keys are checked for presence only, never printed.
   The owner approves the count of any billed request before it runs. None is
   planned.
@@ -176,7 +175,12 @@ stops and records a deviation.
    * `docs/README.md` gets the PLAN's row, the statuses and the count.
 2. **`tools/claims.py`.** It is the checker that verified 0041-MADR, made
    general:
-   * **Arguments:** `claims.py RECORD.md [NAME=DIR@REV ...]`.
+   * ~~**Arguments:** `claims.py RECORD.md [NAME=DIR@REV ...]`.~~ *(Amended
+     2026-10-13 by 0040-PLAN-native-tool-deferral.md's Phase 0 deviation 1,
+     which built the tool: each record names its revisions in a
+     `<!-- claims: NAME=REV ... -->` marker, other checkouts are found beside
+     this repository, and `--repo`, `--rev`, `--json`, `--fixes` and
+     `--changed` serve people and agents alike. See `tools/README.md`.)*
    * **What it reads:** every row of a table whose first cell is `E` or `P`
      and a number, whose Where cell is `` `path:line` `` (this repository) or
      `` `name:path:line` `` (another), and whose last cell is the matched
@@ -195,9 +199,15 @@ stops and records a deviation.
      * a record with no rows.
    * **Other wiring:**
      * a row in `tools/README.md`;
-     * `gate.py` gains it as a check on the changed records, which makes 24
-       checks;
-     * `make gate-selftest` covers the new check.
+     * ~~`gate.py` gains it as a check on the changed records, which makes 24
+       checks;~~
+     * ~~`make gate-selftest` covers the new check.~~
+
+     *(Amended 2026-10-13, 0040-PLAN Phase 0 deviation 1: `gate-selftest`
+     tests `scripts/`, not `tools/`; and a gate check cannot read claims
+     pinned to past revisions and other checkouts. The tool is run by hand,
+     by a person or an agent, before a record is staged, and `make
+     tools-test` tests it. The gate stays at 23 checks.)*
    * **Plant:** the line comparison off by one, which a test must catch.
 3. **`llmprovider/catalog/evidence_0041_test.go`.** Offline, on
    `testdata/ranking-2026-10-12`, with the clock pinned at its
@@ -680,6 +690,8 @@ stops and records a deviation.
   alone. Its package move is reverted with it.
 
 ## Evidence index
+
+<!-- claims: self=3e81e3d -->
 
 Checked against go-llmprovider-sdk `3e81e3d`, at that commit, by the
 checker Phase 0 commits as `tools/claims.py`. The first run found three

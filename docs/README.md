@@ -95,7 +95,7 @@ documents a reader follows to do something.
 | 0039 | MADR | [Let a Request Ask for Prompt Caching](decisions/0039-MADR-request-side-prompt-caching.md) | accepted |
 | 0039 | PLAN | [Implement Request-Side Prompt Caching](decisions/0039-PLAN-request-side-prompt-caching.md) | complete |
 | 0040 | MADR | [Let a Request Defer Tools Until a Tool Result Loads Them](decisions/0040-MADR-native-tool-deferral.md) | accepted |
-| 0040 | PLAN | [Implement Native Tool Deferral](decisions/0040-PLAN-native-tool-deferral.md) | proposed |
+| 0040 | PLAN | [Implement Native Tool Deferral](decisions/0040-PLAN-native-tool-deferral.md) | in-progress |
 | 0041 | MADR | [Order a Live Model Menu, and Decide Per-Model Behaviour, From Model Facts](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md) | accepted |
 | 0041 | PLAN | [Implement a Live Model Menu, and Per-Model Behaviour, From Model Facts](decisions/0041-PLAN-decide-per-model-behaviour-from-metadata.md) | proposed |
 

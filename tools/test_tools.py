@@ -17,6 +17,7 @@ import getpass
 import io
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -25,6 +26,7 @@ from unittest import mock
 
 import _common
 import apidiff
+import claims
 import consumer
 import denyscan
 import edit
@@ -344,6 +346,132 @@ class TestOffline(unittest.TestCase):
         self.assertIn('"absent"', out)
         self.assertNotIn("go get", out)
         self.assertNotIn("go mod", out)
+
+
+class TestClaims(unittest.TestCase):
+    """0040-PLAN Phase 0: each evidence row holds its text, on its line, at its revision."""
+
+    SOURCE = "package demo\n\nfunc Alpha() {}\n\nfunc Beta() string { return \"a|b\" }\n"
+
+    def setUp(self) -> None:
+        self.repo = temp_repo(self)
+        (self.repo / "demo.go").write_text(self.SOURCE, encoding="utf-8")
+        git(self.repo, "add", "demo.go")
+        git(self.repo, "commit", "-q", "-m", "one")
+        self.rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=self.repo, check=True,
+                                  capture_output=True, text=True).stdout.strip()
+        # A later commit moves Alpha; the claims stay pinned to the first.
+        (self.repo / "demo.go").write_text("package demo\n\n\n\n" + self.SOURCE[len("package demo\n\n"):], encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "two")
+
+    def record(self, rows: list[str], marker: str | None = None) -> Path:
+        marker = f"<!-- claims: self={self.rev} -->" if marker is None else marker
+        body = "# R\n\n" + marker + "\n\n| Id | Claim | Where | Matched |\n| :--- | :--- | :--- | :--- |\n"
+        path = self.repo / "record.md"
+        path.write_text(body + "".join(r + "\n" for r in rows), encoding="utf-8")
+        return path
+
+    def claims(self, *argv: str) -> tuple[int, str]:
+        return call(claims.main, *argv, "--repo", f"self={self.repo}")
+
+    def test_passing_rows(self) -> None:
+        rec = self.record(["| E1 | alpha | `demo.go:3` | `func Alpha() {}` |",
+                           "| P2 | an escaped pipe | `demo.go:5` | `return \"a\\|b\"` |"])
+        rc, out = self.claims(str(rec))
+        self.assertEqual(rc, 0, out)
+        self.assertIn("2 of 2 pass", out)
+
+    def test_pinned_revision_not_head(self) -> None:
+        # At HEAD Alpha is on line 5; the record's revision has it on line 3.
+        rc, out = self.claims(str(self.record(["| E1 | alpha | `demo.go:3` | `func Alpha() {}` |"])))
+        self.assertEqual(rc, 0, out)
+
+    def test_wrong_line_reports_where_found_and_writes_a_fix(self) -> None:
+        rec = self.record(["| E1 | alpha | `demo.go:4` | `func Alpha() {}` |"])
+        spec = self.repo / "fix.json"
+        rc, out = self.claims(str(rec), "--fixes", str(spec))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("FAIL E1 demo.go:4", out)
+        self.assertIn("text found at [3]", out)
+        fixes = json.loads(spec.read_text(encoding="utf-8"))
+        self.assertEqual(len(fixes), 1)
+        self.assertIn("`demo.go:3`", fixes[0]["new"])
+        self.assertEqual(rec.read_text(encoding="utf-8").count(fixes[0]["old"]), 1)
+
+    def test_missing_file(self) -> None:
+        rc, out = self.claims(str(self.record(["| E1 | gone | `nope.go:1` | `x` |"])))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("FAIL E1 nope.go:1", out)
+
+    def test_revision_that_lacks_the_file(self) -> None:
+        rec = self.record(["| E1 | alpha | `demo.go:3` | `func Alpha() {}` |"], marker="<!-- claims: self=0000000 -->")
+        rc, out = self.claims(str(rec))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("FAIL E1", out)
+
+    def test_no_rows_is_a_finding(self) -> None:
+        rc, out = self.claims(str(self.record([])))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("no evidence rows", out)
+
+    def test_no_revision_names_the_fix(self) -> None:
+        rc, out = self.claims(str(self.record(["| E1 | alpha | `demo.go:3` | `func Alpha() {}` |"], marker="")))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("--rev self=REV", out)
+
+    def test_other_repository_by_search_and_missing(self) -> None:
+        base = self.repo.parent / f"claims-search-{self.rev}"
+        base.mkdir()
+        self.addCleanup(shutil.rmtree, base, True)
+        other = base / "other-repo"
+        other.mkdir()
+        git(other, "init", "-q")
+        git(other, "config", "user.email", "tools-test@invalid")
+        git(other, "config", "user.name", "tools-test")
+        (other / "x.txt").write_text("first\nsecond\n", encoding="utf-8")
+        git(other, "add", "x.txt")
+        git(other, "commit", "-q", "-m", "x")
+        orev = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=other, check=True,
+                              capture_output=True, text=True).stdout.strip()
+        rec = self.record(["| E1 | other | `other-repo:x.txt:2` | `second` |"],
+                          marker=f"<!-- claims: self={self.rev} other-repo={orev} -->")
+        rc, out = self.claims(str(rec), "--search", str(base))
+        self.assertEqual(rc, 0, out)
+        rc, out = self.claims(str(rec), "--search", str(self.repo))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("--repo other-repo=DIR", out)
+
+    def test_json_output(self) -> None:
+        rec = self.record(["| E1 | alpha | `demo.go:3` | `func Alpha() {}` |",
+                           "| E2 | wrong | `demo.go:1` | `func Alpha() {}` |"])
+        rc, out = self.claims(str(rec), "--json")
+        self.assertEqual(rc, 1, out)
+        data = json.loads(out)
+        self.assertFalse(data["ok"])
+        rows = {r["id"]: r for r in data["records"][0]["rows"]}
+        self.assertEqual(rows["E1"]["status"], "pass")
+        self.assertEqual(rows["E2"]["found"], [3])
+
+    def test_double_backtick_cell(self) -> None:
+        (self.repo / "tick.go").write_text("x := `raw`\n", encoding="utf-8")
+        git(self.repo, "add", "tick.go")
+        git(self.repo, "commit", "-q", "-m", "tick")
+        rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=self.repo, check=True,
+                             capture_output=True, text=True).stdout.strip()
+        rec = self.record(["| E1 | tick | `tick.go:1` | `` x := `raw` `` |"], marker=f"<!-- claims: self={rev} -->")
+        rc, out = self.claims(str(rec))
+        self.assertEqual(rc, 0, out)
+
+    def test_marker_quoted_in_prose_is_not_the_marker(self) -> None:
+        marker = f"Write `<!-- claims: NAME=REV ... -->` to name them.\n\n<!-- claims: self={self.rev} -->"
+        rc, out = self.claims(str(self.record(["| E1 | alpha | `demo.go:3` | `func Alpha() {}` |"], marker=marker)))
+        self.assertEqual(rc, 0, out)
+
+    def test_bad_arguments_are_a_tool_error(self) -> None:
+        rc, _ = call(claims.main)
+        self.assertEqual(rc, 2)
+        rc, _ = call(claims.main, "x.md", "--repo", "noequals")
+        self.assertEqual(rc, 2)
 
 
 if __name__ == "__main__":
