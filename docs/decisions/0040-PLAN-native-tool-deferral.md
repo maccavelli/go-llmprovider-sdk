@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-13
 associated-madr: "0040-MADR-native-tool-deferral.md"
 decision-makers: repository owner
@@ -1390,7 +1390,8 @@ owner's approval of its count, and the release notes (step 5) wait for its
 results.~~ Step 2's five keyed paths passed. ~~Its ChatGPT session path,
 and the release notes (step 5), wait for the owner's run of that path.~~
 The owner skipped the ChatGPT path (deviation 1). Steps 1 to 5 and the
-draft of step 7 are done. The tag and step 6 are the owner's.
+draft of step 7 are done. ~~The tag and step 6 are the owner's.~~ The
+owner tagged `v1.13.0`, and step 6 passed (below). The phase is complete.
 
 #### Step 1: the wire scenarios
 
@@ -1618,3 +1619,44 @@ To be opened only on the owner's ask, after the tag, and after
 > Grok, and the prompt cache held across the load (go-llmprovider-sdk
 > 0040-PLAN-native-tool-deferral.md, Phase 7). The ChatGPT session path is
 > not yet measured live.
+
+#### Step 5, the release
+
+* The owner committed steps 1 to 5 as `6330bc0`.
+* **The disclosure guard** ran over the eight outgoing commits, `7abe504` to
+  `6330bc0`, when the owner asked ("run the guard"). It exited 0 with no
+  finding.
+* **The push and tag:** the owner pushed `main`, then tagged `v1.13.0`,
+  annotated (`c5bc023`), on `6330bc0`, and pushed the tag.
+
+#### Step 6, after the tag
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` | run `38505216457`, push, success |
+| CI on the tag | run `38505867412`, push, success (macOS, Ubuntu and Windows) |
+| The proxy | `"Version":"v1.13.0"`, `Ref refs/tags/v1.13.0`, hash `6330bc0…` |
+| `tools/apidiff.py v1.12.0 v1.13.0` | exit 0. Compatible changes only: `Tool.Deferred`, `Tool.Search`, `ToolLoadItem` and `WarningDeferralEmulated`, each `added` |
+| `tools/consumer.py v1.13.0` | 15 packages linked, built for six platforms |
+| `tools/offline.py v1.13.0` | passed: 19 fields, `requests=0`, six platforms. Both its plants were caught |
+
+**Step 7:** the gobble-cli issue is drafted above and not opened. It is
+opened only on the owner's ask. This PLAN is `complete`, and
+`docs/README.md` says so.
+
+#### Verification, confirmed
+
+| 0040-MADR | Result |
+| :--- | :--- |
+| §2 facts the vendors leave open | Phase 0's probe, recorded, with A1 to A4 |
+| D1 contract and refusals | `TestRequest_Deferral_0040` and `llmtest` R23: six refusals |
+| D1 table and model rules | `TestForm_0040`, `TestForRequest_0040`, `TestForRequest_Dispatch_0040` |
+| D2, A1 | the Phase 2 tests; the `defer-*` goldens of `claude` and Zen Messages; live through Claude and Zen |
+| D3, A3 | the Phase 3 tests; the `defer-*` goldens of `openai`, `chatgpt` and Zen Responses; live through OpenAI and Zen. The ChatGPT session is not live-measured (Phase 7, deviation 1) |
+| D4 | skipped by A2, recorded in Phase 6 |
+| D5 | the Phase 5 tests; the `grok` goldens; live through Grok |
+| D6, D7 | the Phase 4 tests; the append goldens; the warning on every live Grok reply, and on no native one |
+| "a request with no deferral is unchanged" | `g-wire-stable` held at every phase's gate, and in three runs in Phase 7. No existing golden changed |
+| the cache holds | Phase 0, and Phase 7's five live paths: requests 2 and 3 read 4,499 to 7,837 tokens |
+| every E*n*, P*n* | `tools/claims.py`: 25 of 25 and 31 of 31 |
+| API | `tools/apidiff.py v1.12.0 v1.13.0` |
