@@ -43,6 +43,7 @@
 package ollama
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -55,6 +56,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 )
 
 const (
@@ -167,6 +169,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
 	}
+	model := cmp.Or(req.Model, p.model)
 	return wire.Call{
 		Provider: string(llmprovider.ProviderOllama),
 		Client:   p.client,
@@ -174,6 +177,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		URL:      p.baseURL + "/v1/chat/completions",
 		Body:     body,
 		Stream:   stream,
+		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// Ollama takes no credential: a token is sent only where it names its
@@ -203,9 +207,10 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
 	// Ollama does not support tool_choice: every tool is offered and none
-	// forced, and ToolChoiceNone sends no tools (0020-MADR F40).
+	// forced, and ToolChoiceNone sends no tools (0020-MADR F40). Deferred
+	// tools are appended as loaded (0040-MADR D6).
 	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req),
-		Tools: req.Tools, ToolChoice: req.ToolChoice, NoToolChoice: true})
+		Tools: deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)), ToolChoice: req.ToolChoice, NoToolChoice: true})
 }
 
 // effort is reasoning_effort for req: the request's Reasoning, else

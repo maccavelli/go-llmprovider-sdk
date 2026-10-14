@@ -132,7 +132,12 @@ func StreamEventsFor(ctx context.Context, src llmprovider.TokenSource, build fun
 func StreamEventsRetry(ctx context.Context, provider string, src llmprovider.TokenSource, build func(llmprovider.Token) Call,
 	decode func(provider string, body io.Reader, yield func(llmprovider.Event) bool) error, retry Retry) iter.Seq2[llmprovider.Event, error] {
 	return func(yield func(llmprovider.Event, error) bool) {
-		open := func(token llmprovider.Token) (*Stream, error) { return OpenStream(ctx, build(token), token) }
+		var warnings []llmprovider.Warning // the call's, added to the done event's Response
+		open := func(token llmprovider.Token) (*Stream, error) {
+			c := build(token)
+			warnings = c.Warnings
+			return OpenStream(ctx, c, token)
+		}
 		reply, err := Reauth(ctx, provider, src, open)
 		if err != nil && retry != nil {
 			var resend bool
@@ -147,6 +152,9 @@ func StreamEventsRetry(ctx context.Context, provider string, src llmprovider.Tok
 		stopped := false
 		err = reply.Read(func(body io.Reader) error {
 			return decode(provider, body, func(ev llmprovider.Event) bool {
+				if ev.Type == llmprovider.EventDone && ev.Response != nil {
+					ev.Response.Warnings = append(ev.Response.Warnings, warnings...)
+				}
 				stopped = !yield(ev, nil)
 				return !stopped
 			})

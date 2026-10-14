@@ -48,6 +48,7 @@
 package kilo
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -62,6 +63,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
 )
 
@@ -260,6 +262,7 @@ func (p *provider) call(req *llmprovider.Request, token llmprovider.Token, strea
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
 	}
+	model := cmp.Or(req.Model, p.model)
 	return wire.Call{
 		Provider: string(llmprovider.ProviderKilo),
 		Client:   p.client,
@@ -267,6 +270,7 @@ func (p *provider) call(req *llmprovider.Request, token llmprovider.Token, strea
 		URL:      gateway + "/chat/completions",
 		Body:     body,
 		Stream:   stream,
+		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			r.Header.Set(headerEditor, p.editor)
@@ -300,9 +304,11 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	body := chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{
 		ReasoningEffort: effort,
 		Reasoning:       reasoning,
-		Tools:           req.Tools,
-		SendStrict:      true,
-		ToolChoice:      req.ToolChoice,
+		// Deferred tools are appended as loaded: the gateway does not
+		// forward defer_loading (0040-MADR D6, A2).
+		Tools:      deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)),
+		SendStrict: true,
+		ToolChoice: req.ToolChoice,
 		// 301 of 366 models accept "tools" but only 279 accept
 		// "tool_choice"; offering the tools unforced is strictly better than
 		// a 400, and ToolChoiceNone sends none (0020-MADR F40).

@@ -41,6 +41,7 @@
 package gemini
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -53,6 +54,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 )
 
 const (
@@ -185,6 +187,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 	if stream {
 		body["stream"] = true
 	}
+	model := cmp.Or(req.Model, p.model)
 	return wire.Call{
 		Provider: string(llmprovider.ProviderGemini),
 		Client:   p.client,
@@ -192,6 +195,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		URL:      p.baseURL + interactionsPath,
 		Body:     body,
 		Stream:   stream,
+		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// In a header, not the URL, so it cannot leak through a *url.Error.
@@ -236,9 +240,10 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if len(system) > 0 {
 		body["system_instruction"] = strings.Join(system, "\n\n")
 	}
-	if len(req.Tools) > 0 {
-		tools := make([]map[string]any, len(req.Tools))
-		for i, tool := range req.Tools {
+	// Deferred tools are appended as loaded (0040-MADR D6).
+	if sent := deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)); len(sent) > 0 {
+		tools := make([]map[string]any, len(sent))
+		for i, tool := range sent {
 			tools[i] = map[string]any{
 				jsonKeyType:        jsonKeyFunction,
 				jsonKeyName:        tool.Name,

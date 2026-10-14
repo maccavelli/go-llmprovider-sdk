@@ -260,6 +260,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 	if stream {
 		body["stream"] = true
 	}
+	model := p.modelFor(req)
 	return wire.Call{
 		Provider: string(llmprovider.ProviderClaude),
 		Client:   p.client,
@@ -267,6 +268,8 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		URL:      p.baseURL + "/messages",
 		Body:     body,
 		Stream:   stream,
+		// A model before Claude 4.5 has its deferred tools appended (0040-MADR D7).
+		Warnings: deferral.Warnings(deferral.Of(deferral.Messages, model), req, model),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, "x-api-key", "")

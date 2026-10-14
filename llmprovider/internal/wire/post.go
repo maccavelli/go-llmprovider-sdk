@@ -42,6 +42,10 @@ type Call struct {
 	// Stream reads an event stream: no limit on the whole body, since the
 	// decoder bounds each event.
 	Stream bool
+	// Warnings are added to the reply's Response: by Post, when it decodes
+	// one, and by StreamEventsRetry, to the done event's. A provider sets
+	// them where it builds the request, such as 0040-MADR D7's.
+	Warnings []llmprovider.Warning
 }
 
 // Post sends c once with token, and decodes a 2xx reply with decode (0021-MADR
@@ -60,6 +64,9 @@ func Post[T any](ctx context.Context, c Call, token llmprovider.Token, decode fu
 	}
 	defer reply.Close()
 	out, err := decode(reply.reader)
+	if resp, ok := any(out).(*llmprovider.Response); ok && resp != nil && err == nil {
+		resp.Warnings = append(resp.Warnings, c.Warnings...)
+	}
 	return out, DecodeError(c.Provider, err, reply.reader.ReadErr())
 }
 

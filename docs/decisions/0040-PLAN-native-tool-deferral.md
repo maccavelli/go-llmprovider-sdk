@@ -439,7 +439,8 @@ steps below stay as written, for the record.
    * each check is seen failing on canned usages, offline, as 0039's were.
 3. **Docs:**
    * `api-standards.md` R6;
-   * `docs/architecture.md`;
+   * `docs/architecture.md` (its deferral row, the importers' `Depends on`
+     and the warning kind landed in Phase 4, deviation 1);
    * `README.md`;
    * each provider's package doc: its form, its models, and what it does not
      send (R12).
@@ -999,5 +1000,181 @@ caught.
   no tools were added. The plants were rerun on the fixed code, 10 of 10,
   and the check was then clean.
 * `make records-check` and `tools/claims.py --changed`: clean.
+* **Gate:** `tools/gate.py`, 23 of 23 passed, `g-wire-stable` included: no
+  existing golden changed.
+
+### Phase 4: append on load, and the warning (2026-10-13)
+
+#### Research
+
+* **P23, P24.** `chatcompletions.Opts.Tools` goes through `toolList`
+  unchanged, so the Chat Completions package does not change: each caller
+  passes `deferral.Tools` as `Opts.Tools`.
+* **P25, P26.** Gemini's Interactions encoder and OpenCode's Google route
+  loop over `req.Tools`; both now loop over `deferral.Tools`.
+* **P27.** The Chat Completions callers are Kilo, Together, Hugging Face,
+  Ollama and OpenCode's chat route.
+* **P28.** `Warning` is `Kind`, `Model` and `Detail`. Every provider sends
+  through `wire.Post` (directly, or through `wire.Send`) or
+  `wire.StreamEventsRetry` (through `StreamEvents` and `StreamEventsFor`).
+  A field on `wire.Call` therefore reaches every response from the one place
+  that builds the request, and no provider appends after decoding. A
+  provider's own later warnings, such as the forced-choice ones on the
+  messages route, still follow it.
+* **A `ToolLoadItem` on an appending wire.** Each encoder's type switch has
+  no case for it, so it sends nothing. The provider test now proves this on
+  every wire, and five plants confirm it (below).
+
+#### What was built
+
+* **`llmprovider`:** `WarningDeferralEmulated` (`"deferral_emulated"`).
+* **`deferral`:**
+  * `Warning(form, req, model)`: for `Append` ("each loaded tool was
+    appended", or "every deferred tool" with `PreviousResponseID`), for
+    `Dispatch` ("use_tool"), and for `ResponsesNative` when a result other
+    than the search's loaded a tool (it names them);
+  * `Warnings`, the same as a slice for `wire.Call`.
+* **`wire.Call.Warnings`:** `Post` appends them to a decoded `*Response` on
+  success, and `StreamEventsRetry` appends them to the `EventDone`
+  response. A rebuilt request's call is read again.
+* **The providers:**
+  * Gemini, Hugging Face, Kilo, Ollama and Together send
+    `deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req))`
+    and set `Call.Warnings`;
+  * Claude and OpenAI set `Call.Warnings` from the form their body already
+    used;
+  * OpenCode has one `call.deferForm()` per route. The four bodies, the
+    responses decoder and `wireCall` all use it.
+* **Grok** is unchanged; its dispatch is Phase 5's.
+
+#### Found while building
+
+* **Test names.** The PLAN's `TestAppend_Order_0040` and
+  `TestWarning_Emulated_0040` are the two checks of one table,
+  `TestDeferral_PerProvider_0040`. It runs 13 provider and model rows, each
+  by `Generate` and by `Stream`. `TestAppend_PreviousResponseID_0040` keeps
+  its name. Its rows are OpenAI and Gemini (with `WithStore(true)`), the
+  providers that take a continuation; Grok's is Phase 5's. Nothing decided
+  changes.
+* **A reply cannot read the request body**, because `wiretest` reads it
+  first, and `wirecase` serves no stream. The stream half therefore runs
+  against a second server, which serves each wire's smallest complete
+  stream by path.
+* **`docs/architecture.md`** has no row for `internal/wire/deferral`,
+  added in Phase 2. Its `Response.Warnings` passage does not list the new
+  kind either. This PLAN puts `architecture.md` in Phase 7, but AGENTS.md
+  wants the layout updated in the same change (R43). ~~Not done in this
+  phase; raised with the owner.~~ Done in this phase: deviation 1 below.
+* **The package docs** (R12) and `api-standards.md` stay in Phase 7, as
+  planned.
+
+#### Deviations
+
+1. **2026-10-13: `docs/architecture.md` in Phase 4, not Phase 7.**
+   * **Found:** the package table had no row for `internal/wire/deferral`
+     (Phase 2), no package's `Depends on` named it, and the
+     `Response.Warnings` passage did not name the new kind. AGENTS.md wants
+     the layout updated in the same change (R43).
+   * **Decided by the owner:** fix it now. `docs/architecture.md` joins
+     Phase 4's files.
+   * **Done:**
+     * a row for `internal/wire/deferral`;
+     * the package added to the `Depends on` of the eight providers that
+       import it (Grok does not yet) and of `internal/wire/responses`;
+     * `WarningDeferralEmulated` named, with how it reaches a response.
+   * **Left to Phase 7:** each wire package's list of exported names
+     (`FromItemsLoading`, `InputLoading`, `Decoder`, `ClaudeVersion`, the
+     native tool lists), with the package docs (R12). No MADR fact or
+     decision changes.
+
+#### Tests, red and green
+
+* **Red, the mechanism.** Reproduced on a scratch clone of the working tree,
+  with `warning.go`, `post.go`, `sse.go` and `deferral.go` put back to
+  `5c9f46b` in the clone only:
+
+  ```text
+  warnings_0040_test.go:22:48: undefined: llmprovider.WarningDeferralEmulated
+  warnings_0040_test.go:24:90: unknown field Warnings in struct literal of type Call
+  warning_0040_test.go:33:12: undefined: Warning
+  warning_0040_test.go:38:12: undefined: Warnings
+  ```
+
+* **Red, the providers**, run before they were wired:
+  * The first run used `wirecase`'s replies for both halves, and every
+    `Stream` failed: the stream ended before its end event, and OpenCode's
+    Google route got a 404. That is the finding above.
+  * With the stream server, the native rows passed (`claude-haiku-5-5`,
+    `gpt-6-luna`, and OpenCode's `claude-sonnet-5` and `gpt-5.5`).
+    `claude-opus-4-1` and `gpt-4.1-mini` already appended (Phases 2
+    and 3), but had no warning:
+
+    ```text
+    claude/claude-opus-4-1: Generate: WarningDeferralEmulated false, want true (warnings [])
+    openai/gpt-4.1-mini: Generate: WarningDeferralEmulated false, want true (warnings [])
+    ```
+
+  * Every other row sent every tool and no warning, by both halves:
+
+    ```text
+    kilo/openai/gpt-6-luna: Generate: tools [read_file tool_search get_weather lookup_stock], want [read_file tool_search get_weather]
+    kilo/openai/gpt-6-luna: Generate: WarningDeferralEmulated false, want true (warnings [])
+    ```
+
+    The same pair failed for OpenCode's `glm-5.3` (chat route) and
+    `gemini-3.8-flash` (Google route), and for Gemini, Hugging Face,
+    Together and Ollama.
+* **Tightened while green.**
+  * After wiring, the request was strengthened: two loads, in the reverse
+    of their declared order, and a deferred tool that is never loaded.
+  * The append rows also check that the conversation (`messages`, `input`
+    or `contents`) equals the one sent with the loads taken out.
+  * `TestAppend_PreviousResponseID_0040` was added.
+  * None of these was red first. Each is shown failing by the plants below.
+* **Green:**
+  * `TestCallWarnings_0040` (`wire`);
+  * `TestWarning_0040` (`deferral`), now also checking `Warnings`;
+  * `TestDeferral_PerProvider_0040`, `TestAppend_PreviousResponseID_0040`
+    and `TestDeferral_NoWarningWithoutDeferral_0040` (`providers`);
+  * every other test in `go test ./...`.
+
+#### Plants (`tools/plant.py`, 20 of 20 caught)
+
+Every plant compiles. Each was caught by a test assertion, not by a build
+failure. `plant.py` prints a plant's first 12 FAIL lines, so a row names the
+rows those lines show, not every row that failed.
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| load order reversed (`Loaded`) | `Generate: tools [read_file tool_search get_weather lookup_stock], want [read_file tool_search lookup_stock get_weather]`, on Claude 4.1, GPT-4.1 and OpenCode's chat and Google routes, by both halves |
+| a deferred tool sent before its load (`Tools` returns every tool under `Append`) | `tools [… send_email], want [read_file tool_search lookup_stock get_weather]`, on the same rows |
+| Together sends `req.Tools` | `together/openai/gpt-oss-120b: … tools [… send_email], want …`, by both halves |
+| OpenCode's chat route sends `req.Tools` | `opencode-zen/glm-5.3: … tools [… send_email], want …` |
+| OpenCode's Google route sends `req.Tools` | `opencode-zen/gemini-3.8-flash: … tools [… send_email], want …` |
+| OpenCode's other routes ruled native | the two rows above: tools, and `WarningDeferralEmulated false, want true` |
+| a continuation sends only `Input`'s loads | `openai/gpt-4.1-mini: tools [read_file tool_search], want [… send_email]`, and Gemini's; `TestTools_0040`'s continuation case |
+| a continuation's warning says "appended" | `warning "… each loaded tool was appended …", want one containing "every deferred tool"`; `TestWarning_0040`'s "appended, continued" |
+| the warning on Messages native | `claude/claude-haiku-5-5: WarningDeferralEmulated true, want false`, and OpenCode's `claude-sonnet-5`; `TestWarning_0040: Messages native: warned true` |
+| the warning on every Responses native request | `openai/gpt-6-luna: … true, want false`, OpenCode's `gpt-5.5`, the continuation's `gpt-6-luna` row; `Responses, a search's loads only: warned true` |
+| Kilo sets no warning | `kilo/openai/gpt-6-luna: … false, want true`, by both halves |
+| OpenCode sets no warning | `glm-5.3` and `gemini-3.8-flash`: `… false, want true` |
+| Claude sets no warning | `claude/claude-opus-4-1: … false, want true` |
+| `Post` drops the call's warnings | `Generate: WarningDeferralEmulated false, want true` on six rows |
+| a stream drops the call's warnings | `Stream: done … Warnings:[] …; want WarningDeferralEmulated true` on six rows |
+| Chat Completions sends a load | `the loads sent something: […]` on Kilo, Hugging Face, Together, Ollama and OpenCode's chat route |
+| Messages sends a load | `claude/claude-opus-4-1: the loads sent something` |
+| Responses sends a load | `openai/gpt-4.1-mini: the loads sent something` |
+| Interactions sends a load | `gemini/gemini-3.8-flash: the loads sent something` |
+| generateContent sends a load | `opencode-zen/gemini-3.8-flash: the loads sent something` |
+
+#### Checks
+
+* `make pre-add-check` on the 15 Go files: clean.
+* `make api-check`: `0 incompatible change(s)`. `tools/apidiff.py v1.12.0`
+  lists four compatible additions: `Tool.Deferred`, `Tool.Search`,
+  `ToolLoadItem` and `WarningDeferralEmulated`.
+* `tools/claims.py` on both records: 25 of 25, and 31 of 31.
+* `make records-check`, `tools/denyscan.py --changed` and
+  `tools/linkcheck.py`: clean.
 * **Gate:** `tools/gate.py`, 23 of 23 passed, `g-wire-stable` included: no
   existing golden changed.

@@ -45,6 +45,7 @@
 package together
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -58,6 +59,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 )
 
 const (
@@ -172,6 +174,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
 	}
+	model := cmp.Or(req.Model, p.model)
 	return wire.Call{
 		Provider: string(llmprovider.ProviderTogether),
 		Client:   p.client,
@@ -179,6 +182,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		URL:      p.baseURL + "/chat/completions",
 		Body:     body,
 		Stream:   stream,
+		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")
@@ -203,7 +207,9 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	o := chatcompletions.Opts{Tools: req.Tools, ToolChoice: req.ToolChoice, SendStrict: true}
+	// Deferred tools are appended as loaded (0040-MADR D6).
+	o := chatcompletions.Opts{Tools: deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)),
+		ToolChoice: req.ToolChoice, SendStrict: true}
 	if r := p.reasoningFor(req); r != nil {
 		o.Reasoning = map[string]any{"enabled": true}
 		o.ReasoningEffort = p.effort(r)

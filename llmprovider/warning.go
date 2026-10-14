@@ -14,6 +14,12 @@ const (
 	// learned it for the rest of the process. Its Model is what a caller can
 	// keep, and pass back with WithModelForcedChoice on its next start.
 	WarningForcedChoiceLearned WarningKind = "forced_tool_choice_learned"
+	// WarningDeferralEmulated reports that the request's deferred tools were
+	// not sent in the service's own form: they were appended to the tools as
+	// they were loaded, or dispatched through a wrapper, as the provider's
+	// package doc lists. Its Detail names which. An appended load changes the
+	// tools, so the prompt cache breaks there once (0040-MADR D6, D7).
+	WarningDeferralEmulated WarningKind = "deferral_emulated"
 )
 
 // Warning is a non-fatal note on a Response: the request was answered, but

@@ -214,6 +214,51 @@ func Tools(req *llmprovider.Request, form Form) []llmprovider.Tool {
 	}
 }
 
+// Warning is the WarningDeferralEmulated req earns sent in form to model, if
+// any (0040-MADR D7): when it defers a tool and form appends or dispatches
+// them, or form is ResponsesNative and a result other than the search's
+// loaded a tool, which is appended.
+func Warning(form Form, req *llmprovider.Request, model string) (llmprovider.Warning, bool) {
+	if !Deferring(req.Tools) {
+		return llmprovider.Warning{}, false
+	}
+	warn := func(detail string) (llmprovider.Warning, bool) {
+		return llmprovider.Warning{Kind: llmprovider.WarningDeferralEmulated, Model: model, Detail: detail}, true
+	}
+	switch form {
+	case Append:
+		if req.PreviousResponseID != "" {
+			return warn("Deferred tools have no native form here, and the earlier loads are held by the service, " +
+				"so every deferred tool was sent as an ordinary tool.")
+		}
+		return warn("Deferred tools have no native form here, so each loaded tool was appended to the tools; " +
+			"the prompt cache breaks once at each load.")
+	case Dispatch:
+		return warn("Deferred tools were sent through the use_tool wrapper, with each loaded tool's schema in its result.")
+	case ResponsesNative:
+		calls := searchCalls(req)
+		var other []string
+		for _, item := range req.Input {
+			if load, ok := item.(llmprovider.ToolLoadItem); ok && !calls[load.CallID] {
+				other = append(other, load.Name)
+			}
+		}
+		if len(other) > 0 {
+			return warn("A tool loaded by a result other than the search's (" + strings.Join(other, ", ") +
+				") has no native form on this wire, so it was appended to the tools.")
+		}
+	}
+	return llmprovider.Warning{}, false
+}
+
+// Warnings is Warning as what a wire.Call carries: the warning, or nil.
+func Warnings(form Form, req *llmprovider.Request, model string) []llmprovider.Warning {
+	if w, ok := Warning(form, req, model); ok {
+		return []llmprovider.Warning{w}
+	}
+	return nil
+}
+
 // withLoaded is the tools that are not deferred, in order, then the deferred
 // ones named in loaded, in loaded's order.
 func withLoaded(tools []llmprovider.Tool, loaded []string) []llmprovider.Tool {

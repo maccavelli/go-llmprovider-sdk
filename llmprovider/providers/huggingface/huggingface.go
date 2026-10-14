@@ -46,6 +46,7 @@
 package huggingface
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -59,6 +60,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 )
 
 const (
@@ -169,6 +171,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
 	}
+	model := cmp.Or(req.Model, p.model)
 	return wire.Call{
 		Provider: string(llmprovider.ProviderHuggingFace),
 		Client:   p.client,
@@ -176,6 +179,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		URL:      p.baseURL + "/chat/completions",
 		Body:     body,
 		Stream:   stream,
+		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")
@@ -200,7 +204,8 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	tools, choice := req.Tools, req.ToolChoice
+	// Deferred tools are appended as loaded (0040-MADR D6).
+	tools, choice := deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)), req.ToolChoice
 	if choice == llmprovider.ToolChoiceNone {
 		// The router's upstreams refuse a call made under "none" with HTTP 400
 		// tool_use_failed, so none is kept by offering no tools (0023-MADR).

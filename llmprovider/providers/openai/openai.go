@@ -39,6 +39,7 @@
 package openai
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -353,6 +354,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		body["stream"] = true
 	}
 	streamed := stream || p.chatGPT
+	form, _ := p.deferForm(req)
 	return wire.Call{
 		Provider: string(llmprovider.ProviderOpenAI),
 		Client:   p.client,
@@ -360,6 +362,9 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		URL:      p.baseURL + "/responses",
 		Body:     body,
 		Stream:   streamed,
+		// Deferred tools appended, before GPT-5.4 or for a non-search load
+		// (0040-MADR D7).
+		Warnings: deferral.Warnings(form, req, cmp.Or(req.Model, p.model)),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")

@@ -401,6 +401,7 @@ func (p *provider) wireCall(c call, body map[string]any, stream bool) wire.Call 
 		URL:      p.baseURL + c.route.path(c.model),
 		Body:     body,
 		Stream:   stream,
+		Warnings: deferral.Warnings(c.deferForm(), c.req, c.model), // 0040-MADR D7
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// Each route reads the key from its vendor's header (MADR 0007
@@ -483,10 +484,24 @@ func (p *provider) requestRoute(ctx context.Context, model string) Route {
 	return tableRoute(p.gateway, model)
 }
 
+// deferForm is how c's deferred tools go out on its route: natively on the
+// messages route from Claude 4.5 and on the responses route from GPT-5.4,
+// and appended as loaded otherwise (0040-MADR D1, D6).
+func (c call) deferForm() deferral.Form {
+	switch c.route {
+	case RouteMessages:
+		return deferral.Of(deferral.Messages, c.model)
+	case RouteResponses:
+		return deferral.ForRequest(deferral.Responses, c.model, c.req)
+	default:
+		return deferral.ForRequest(deferral.Other, c.model, c.req)
+	}
+}
+
 // responsesDecoder is the decoder c's reply needs: one that names the
 // Search tool when c's deferred tools go out natively (0040-MADR D3).
 func responsesDecoder(c call) responses.Decoder {
-	if deferral.ForRequest(deferral.Responses, c.model, c.req) == deferral.ResponsesNative {
+	if c.deferForm() == deferral.ResponsesNative {
 		return responses.Decoder{Search: deferral.SearchName(c.req.Tools)}
 	}
 	return responses.Decoder{}
@@ -496,7 +511,7 @@ func responsesDecoder(c call) responses.Decoder {
 func (p *provider) responsesBody(c call) map[string]any {
 	// Deferred tools go out natively from GPT-5.4 on, and are appended as
 	// loaded before it (0040-MADR D1, D3, D6).
-	form := deferral.ForRequest(deferral.Responses, c.model, c.req)
+	form := c.deferForm()
 	input := responses.Input(c.input)
 	if form == deferral.ResponsesNative {
 		input = responses.InputLoading(c.input, c.req)
@@ -534,7 +549,7 @@ func (p *provider) messagesBody(c call) map[string]any {
 	maxTokens := c.maxTokens
 	// Deferred tools go out in the model's form: a Claude model's natively,
 	// any other model's appended as loaded (0040-MADR D1, D2, D6).
-	form := deferral.Of(deferral.Messages, c.model)
+	form := c.deferForm()
 	msgs := messages.FromItems(c.input)
 	if form == deferral.MessagesNative {
 		msgs = messages.FromItemsLoading(c.input)
@@ -577,7 +592,7 @@ func (p *provider) googleBody(c call) map[string]any {
 	if system := generatecontent.SystemInstruction(c.input); system != nil {
 		body["systemInstruction"] = system
 	}
-	if tools := c.req.Tools; len(tools) > 0 {
+	if tools := deferral.Tools(c.req, c.deferForm()); len(tools) > 0 {
 		decls := make([]map[string]any, len(tools))
 		for i, tool := range tools {
 			decls[i] = map[string]any{jsonKeyName: tool.Name, jsonKeyDescription: tool.Description, jsonKeyParameters: wire.ToolSchema(tool.Schema)}
@@ -613,7 +628,7 @@ func (p *provider) chatBody(ctx context.Context, c call) map[string]any {
 	return chatcompletions.Body(c.model, c.maxTokens, c.input, chatcompletions.Opts{
 		ReasoningEffort:      p.chatReasoningEffort(ctx, c),
 		ReplayReasoningField: p.chatReplayField(ctx, c),
-		Tools:                c.req.Tools,
+		Tools:                deferral.Tools(c.req, c.deferForm()),
 		SendStrict:           true,
 		ToolChoice:           c.req.ToolChoice,
 	})
