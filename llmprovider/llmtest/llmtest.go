@@ -388,6 +388,27 @@ func checkInvalidValues(r reporter, h Harness) {
 	// An unknown cache retention (0039-MADR D1).
 	unknownCache := textRequest()
 	unknownCache.Cache = "forever"
+	// The deferral refusals (0040-MADR D1, A5).
+	deferral := func(edit func(*llmprovider.Request)) *llmprovider.Request {
+		req := textRequest()
+		req.Tools = []llmprovider.Tool{{Name: "read_file"}, {Name: "tool_search", Search: true},
+			{Name: "get_weather", Deferred: true}}
+		edit(req)
+		return req
+	}
+	twoSearches := deferral(func(r *llmprovider.Request) { r.Tools[0].Search = true })
+	deferredSearch := deferral(func(r *llmprovider.Request) { r.Tools[1].Deferred = true })
+	allDeferred := deferral(func(r *llmprovider.Request) {
+		r.Tools = []llmprovider.Tool{{Name: "a", Deferred: true}, {Name: "b", Deferred: true}}
+	})
+	unknownLoad := deferral(func(r *llmprovider.Request) {
+		r.Input = append(r.Input, llmprovider.FunctionCallItem{CallID: "c1", Name: "tool_search", Arguments: "{}"},
+			llmprovider.FunctionCallOutputItem{CallID: "c1"}, llmprovider.ToolLoadItem{CallID: "c1", Name: "send_email"})
+	})
+	forcedUnloaded := deferral(func(r *llmprovider.Request) { r.ToolChoice = llmprovider.ForceTool("get_weather") })
+	orphanLoad := deferral(func(r *llmprovider.Request) {
+		r.Input = append(r.Input, llmprovider.ToolLoadItem{CallID: "c9", Name: "get_weather"})
+	})
 	for _, c := range []struct {
 		name string
 		req  *llmprovider.Request
@@ -397,6 +418,12 @@ func checkInvalidValues(r reporter, h Harness) {
 		{"an unknown role", unknownRole},
 		{"an unknown cache retention", unknownCache},
 		{"a nil request", nil},
+		{"two search tools", twoSearches},
+		{"a deferred search tool", deferredSearch},
+		{"every tool deferred", allDeferred},
+		{"a load of no deferred tool", unknownLoad},
+		{"a forced, unloaded deferred tool", forcedUnloaded},
+		{"a load with no earlier result", orphanLoad},
 	} {
 		fs := serve(h.Text)
 		if p := build(r, h, fs); p != nil {

@@ -412,7 +412,9 @@ for a session, from the store.
   optional interfaces.
 - **`Item`** is sealed. Its types are `MessageItem`, `FunctionCallItem`,
   `FunctionCallOutputItem` and `ReasoningItem`, and `Response.Output` holds
-  them.
+  them. A fifth, `ToolLoadItem`, is only ever in a request's `Input`: it
+  loads one deferred tool (`Tool.Deferred`) from the result of the call it
+  names, and no response holds one (0040-MADR D1, A5).
   - A call's `Arguments` are the JSON the service sent, compacted, never
     decoded and re-encoded; no arguments are `"{}"`.
   - A `ReasoningItem`'s `Format` names the wire that produced it. Its

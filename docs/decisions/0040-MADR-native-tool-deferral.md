@@ -297,9 +297,11 @@ Three fields, each zero by default (Q1):
   context until a tool result loads it.
 * **`Tool.Search bool`.** The tool is the caller's search for deferred tools.
   At most one tool in a request has it. It is never deferred.
-* **`FunctionCallOutputItem.Load []string`.** The names of the deferred tools
-  this result loads. The result's `Output` is still the model's text, for
-  example "loaded `lsp`".
+* ~~**`FunctionCallOutputItem.Load []string`.** The names of the deferred tools
+  this result loads.~~ *(Amended by A5: a slice made the item
+  incomparable. A load is a `ToolLoadItem{CallID, Name}`, one per tool, after
+  the result it belongs to.)* The result's `Output` is still the model's
+  text, for example "loaded `lsp`".
 
 A loaded tool stays loaded for the rest of the conversation. Every later
 request carries the same `Tools`, deferred tools included, and the history
@@ -311,6 +313,7 @@ that loaded them.
 * every tool `Deferred` (Anthropic's 400);
 * a `Load` name that is not a `Deferred` tool in `Tools` (Anthropic's
   "Tool reference … not found");
+* *(A5)* a `ToolLoadItem` whose call has no earlier result in `Input`;
 * `ForceTool` naming a deferred tool that no result in `Input` has loaded.
   The model cannot see it.
 
@@ -468,8 +471,11 @@ Where D2 to D5 do not apply (Q2):
   uses, and Kilo may, through OpenRouter's protocol.
 * Good, because one request works on every provider. The warning says when
   a form was emulated.
-* Good, because the contract gains three fields and a warning kind, and no
-  `Item` type. A caller's `switch` is unchanged.
+* ~~Good, because the contract gains three fields and a warning kind, and no
+  `Item` type. A caller's `switch` is unchanged.~~ *(A5: the contract gains
+  two fields, one `Item` type, `ToolLoadItem`, and a warning kind. Only a
+  request's `Input` holds the new type, and no response does, so a caller's
+  switch over a response's output is unchanged.)*
 * Good, because Anthropic's three refusals are caught before the network.
 * Neutral, because a request with no deferred tool is unchanged on every
   wire.
@@ -582,6 +588,34 @@ them. Their text is struck through where it changes, not rewritten.
 
 Every fact D3 and D5 leave to the probe holds. Zen's Messages route stays
 native with A1's form, since its refusal was Anthropic's own.
+
+### A5. A load is its own `Item`, `ToolLoadItem`, one per tool
+
+* **Found** in 0040-PLAN Phase 1, by `make api-check` against `v1.12.0`:
+  "`./llmprovider.FunctionCallOutputItem: old is comparable, new is not`".
+  A `[]string` field makes the item incomparable. Code that compares two
+  items, or uses one as a map key, would no longer compile, and comparing two
+  `Item` interfaces holding one would panic at run time. That breaks R48.
+* **Owner's decision** (2026-10-13), of three: a new item type, one per
+  tool, over an opaque comparable handle on the result, or a comma-separated
+  string.
+* **Decided.**
+  * `llmprovider.ToolLoadItem{CallID, Name string}` loads one deferred tool.
+    It follows, in `Input`, the `FunctionCallOutputItem` of the same call. A
+    result that loads several tools is followed by several. Every field is a
+    string, so it is comparable.
+  * This is R9's rule, that new content is a new `Item` type. No decoder
+    produces one, so a response never holds one.
+  * D1 gains one refusal: a `ToolLoadItem` whose call has no earlier result
+    in `Input`, since no wire could attach it.
+  * Wherever this record says `FunctionCallOutputItem.Load`, "a result with
+    `Load`" or "the `Load` names", read: the `ToolLoadItem`s that follow
+    that result. The wires gather a call's loads into its `tool_result`
+    (D2), its `tool_search_output` (D3), its dispatch text (D5), or the
+    appended tools (D6).
+  * Anthropic's call-id rewriting (`wire.RemapCallIDs`) applies the same
+    mapping to a `ToolLoadItem`'s `CallID` as to its result's (0040-PLAN
+    Phase 2).
 
 ## Pros and Cons of the Options
 

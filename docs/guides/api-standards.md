@@ -66,7 +66,10 @@ tool that holds a rule, where one does. For how the code is laid out, read
   `Reasoning *Reasoning` (nil for none), `MaxOutputTokens`,
   `PreviousResponseID`, and `Cache` (`CacheShort` or `CacheLong`; zero asks
   for no caching). A field's zero value means "the provider's default"
-  or "not requested". (0015 D3; 0039 D1)
+  or "not requested". A `Tool` may be `Deferred`, kept out of the model's
+  context until a `ToolLoadItem` in `Input` loads it, and one tool may be
+  the caller's `Search` for them; every provider honours them, in its
+  service's form or by appending the loaded tool. (0015 D3; 0039 D1; 0040 D1)
 - **R7. `Response` fields.** `ID`, `Model`, `Output []Item`, a typed
   `FinishReason`, `Usage`, which is zero when the service reports none, and
   `Warnings`, typed non-fatal notes, nil when the request was sent as asked

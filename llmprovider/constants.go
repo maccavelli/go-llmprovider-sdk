@@ -38,4 +38,5 @@ const (
 	itemTypeFunctionCall       = "function_call"
 	itemTypeFunctionCallOutput = "function_call_output"
 	itemTypeReasoning          = "reasoning"
+	itemTypeToolLoad           = "tool_load"
 )

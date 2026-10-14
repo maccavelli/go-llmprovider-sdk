@@ -21,8 +21,8 @@ claims are its E*n* rows.
 When it is done:
 
 * **The contract** (D1):
-  * `Tool.Deferred`, `Tool.Search` and `FunctionCallOutputItem.Load` exist,
-    each zero by default;
+  * `Tool.Deferred`, `Tool.Search` and ~~`FunctionCallOutputItem.Load`~~
+    `ToolLoadItem` (0040-MADR A5) exist, the fields zero by default;
   * the four refusals of D1 fail before the network with `ErrInvalidRequest`,
     for every provider, through `llmtest` R23.
 * **Each adapter sends its form** (D1's table):
@@ -97,7 +97,7 @@ issue, and opens it only on the owner's ask.
 
 | Package | Addition | Phase |
 | :--- | :--- | :--- |
-| `llmprovider` | `Tool.Deferred`, `Tool.Search`, `FunctionCallOutputItem.Load` | 1 |
+| `llmprovider` | `Tool.Deferred`, `Tool.Search`, ~~`FunctionCallOutputItem.Load`~~ `ToolLoadItem` (A5) | 1 |
 | `llmprovider` | `WarningDeferralEmulated` | 4 |
 
 ## Rules for every phase
@@ -199,14 +199,16 @@ issue, and opens it only on the owner's ask.
 2. **Change.**
    * `Tool.Deferred bool` and `Tool.Search bool`, each documented against
      D1.
-   * `FunctionCallOutputItem.Load []string`.
+   * ~~`FunctionCallOutputItem.Load []string`.~~ `ToolLoadItem{CallID, Name}`
+     (0040-MADR A5).
    * `validate` refuses, with `ErrInvalidRequest` and a message naming the
      tool or the name:
      * two `Search` tools;
      * a `Search` tool that is `Deferred`;
      * every tool `Deferred`;
      * a `Load` name that is not a `Deferred` tool in `Tools`;
-     * `ForceTool` naming a deferred tool that no result in `Input` loads.
+     * `ForceTool` naming a deferred tool that no result in `Input` loads;
+     * *(A5)* a `ToolLoadItem` with no earlier result for its call.
    * R6 in `api-standards.md` names the fields, citing 0040.
 3. **Red first:**
 
@@ -233,8 +235,11 @@ No wire sends anything for the fields yet. Every golden is unchanged.
      `OpenRouter`, `Dispatch` or `Append`, from the MADR's D1 table. The
      Claude rule is `claudeVersionRE` at 4.5 or later. The GPT rule parses
      `gpt-N.M` at 5.4 or later. Anything unparsed is `Append`.
-   * **`Loaded(input) []string`** returns the names `Load` brings in, in
-     first-load order, without repeats.
+   * **`Loaded(input) []string`** returns the names the `ToolLoadItem`s bring
+     in (A5), in first-load order, without repeats.
+   * **`wire.RemapCallIDs`** gives each `ToolLoadItem` the id its call's
+     result is sent with (A5), with a test that a remapped result keeps its
+     load.
    * **`Tools(req, form) []llmprovider.Tool`** returns the tools a form
      sends:
      * all of them, for Messages native;
@@ -258,6 +263,7 @@ No wire sends anything for the fields yet. Every golden is unchanged.
    | :--- | :--- |
    | `TestForm_0040` | the D1 table, row by row, with the model rules at their edges: `claude-opus-4-1` is `Append`, `claude-haiku-4-5` `Native`, `gpt-5.3` `Append`, `gpt-5.4` `Native`, `minimax-m3` on Messages `Append` |
    | `TestLoaded_0040` | first-load order, without repeats, across several results |
+   | `TestRemapCallIDs_ToolLoad_0040` | a `ToolLoadItem` follows its result's new id |
    | `TestMessagesTools_Deferred_0040` | `defer_loading` on deferred tools only, and nowhere when the form is `Append` |
    | `TestFromItems_Load_0040` | a result with `Load` is a text block then `tool_reference` blocks, byte for byte; one without is a string, as today |
    | `TestAddCache_Deferred_0040` | with no system prompt and the last tool deferred, the marker is on the last non-deferred tool |
@@ -325,7 +331,8 @@ No wire sends anything for the fields yet. Every golden is unchanged.
    * Read `Warning` (P28).
 2. **Change.**
    * Every encoder under `Append` sends `deferral.Tools`.
-   * `Search` is an ordinary function, and `Load` sends nothing.
+   * `Search` is an ordinary function, and a `ToolLoadItem` sends nothing
+     (A5).
    * With `PreviousResponseID`, every deferred tool is sent.
    * `WarningDeferralEmulated` is added. A response gets it, with its model
      and a `Detail` naming the form, when the request had a deferred tool
@@ -447,7 +454,8 @@ steps below stay as written, for the record.
    * CI on `main` and the tag;
    * the module proxy;
    * `tools/consumer.py`.
-7. **gobble-cli.** Draft the issue: adopting `Deferred`, `Search` and `Load`
+7. **gobble-cli.** Draft the issue: adopting `Deferred`, `Search` and
+   `ToolLoadItem`
    for its D7 tiers and D9 loads, and amending its 0012-MADR D13. Open it
    only on the owner's ask.
 
@@ -657,3 +665,98 @@ execution, and approved the probe's 21 billed requests (Q5).
 * `make records-check`, `tools/linkcheck.py`, `tools/denyscan.py --changed`:
   clean.
 * **Gate:** `tools/gate.py`, 23 of 23 passed.
+
+The owner committed Phase 0 as `0af9ac7`.
+
+### Phase 1: the contract (2026-10-13)
+
+#### Deviations
+
+* **Deviation 5 (2026-10-13): `FunctionCallOutputItem.Load []string` broke
+  compatibility.**
+  * **Found** by `make api-check` after the change:
+    `api-check: incompatible: ./llmprovider.FunctionCallOutputItem: old is
+    comparable, new is not`. A slice field makes the item incomparable, so
+    `==` on items, and an item as a map key, stop compiling, and `==` on two
+    `Item` interfaces holding one panics. R48 forbids it.
+  * **Owner's decision:** a new item type, one per tool, over an opaque
+    handle or a comma-separated string.
+  * **Done:** `ToolLoadItem{CallID, Name string}`, after its call's result in
+    `Input`, recorded as **0040-MADR A5**. The field was removed. `validate`
+    gains a sixth refusal: a load with no earlier result for its call.
+  * **Found while doing it:** `wire.RemapCallIDs` rewrites call ids for
+    Anthropic and does not know the new item, so a remapped result would lose
+    its load once Phase 2 attaches loads by id. **Phase 2 gains that step and
+    its test.** Nothing sends a load before Phase 2, so Phase 1 is correct
+    without it.
+  * **Records:**
+    * the MADR's D1, its refusals and its consequence on `Item` types are
+      struck through and annotated;
+    * this PLAN's Goal, exported additions, Phase 1, Phase 2, Phase 4 and
+      Phase 7 steps are annotated;
+    * `api-standards.md` R6 and `architecture.md` name `ToolLoadItem`.
+
+#### Research
+
+* `validate` (P3) runs before `Capabilities.Check`'s capability test, so every
+  refusal reaches every provider before the network, whatever its tool
+  support.
+* `llmtest`'s R23 (P4, P5) runs in each provider's `TestConformance`.
+* Every encoder's item switch skips an unknown type. `llmtest`'s R9 check of
+  a response's output fails on one, which is right: no response holds a
+  `ToolLoadItem`.
+
+#### Tests, change and checks
+
+* **Red,** with the fields added and no validation,
+  `TestRequest_Deferral_0040`:
+
+  ```text
+  forcing an unloaded: <nil>; want ErrInvalidRequest containing "\"get_weather\" is deferred"
+  two search tools: <nil>; want ErrInvalidRequest containing "\"read_file\" and \"tool_search\""
+  a deferred search: <nil>; want ErrInvalidRequest containing "search tool \"tool_search\" is deferred"
+  every tool deferred: <nil>; want ErrInvalidRequest containing "every tool is deferred"
+  loading an unknown: <nil>; want ErrInvalidRequest containing "loads \"send_email\""
+  loading a direct tool: <nil>; want ErrInvalidRequest containing "loads \"read_file\""
+  ```
+
+  Before that, the test did not compile: `unknown field Search in struct
+  literal of type Tool`.
+* **Change:**
+  * `Tool.Deferred` and `Tool.Search` (`provider.go`);
+  * `ToolLoadItem` and its kind (`item.go`, `constants.go`);
+  * `validate` accepts the new item, and `validateDeferral` refuses six
+    cases (`contract.go`);
+  * `llmtest` R23 gains six cases.
+
+  The expected text for the forced case was aligned to the message the code
+  gives, "forces \"get_weather\", which is deferred and not loaded".
+* **Green:** `TestRequest_Deferral_0040` passes, with eight accepted shapes
+  and eight refused. Every provider's `TestConformance`, R23 included,
+  passes.
+* **Plants** (`tools/plant.py`, the contract test and Claude's
+  `TestConformance`): 8 of 8 caught.
+  * The first plant of "two search tools" deleted a block. That left a
+    variable unused, so it caught nothing but a build failure. It was
+    replaced by a compiling plant, `if false && search != ""`.
+
+  | Plant | FAIL lines |
+  | :--- | :--- |
+  | a deferred search tool accepted | `a deferred search: <nil>; want ErrInvalidRequest containing …`; `R23 (invalid values): a deferred search tool returned <nil>`; `… sent 1 request(s); want none` |
+  | two search tools accepted | `two search tools: <nil>; …`; `R23 …: two search tools returned <nil>`; `… sent 1 request(s)` |
+  | every tool deferred accepted | `every tool deferred: <nil>; …`; `R23 …: every tool deferred returned <nil>`; `… sent 1 request(s)` |
+  | a load of no deferred tool accepted | `loading an unknown: <nil>; …`; `loading a direct tool: <nil>; …`; `R23 …: a load of no deferred tool returned <nil>` |
+  | a load with no earlier result accepted | `a load before its result: <nil>; …`; `a load with no result: <nil>; …`; `R23 …: a load with no earlier result returned <nil>`; `… sent 1 request(s)` |
+  | a forced unloaded deferred tool accepted | `forcing an unloaded: <nil>; …`; `R23 …: a forced, unloaded deferred tool returned <nil>` |
+  | `ToolLoadItem` refused as an unknown item | `deferred, loaded: llmprovider: invalid request: input 3 is llmprovider.ToolLoadItem; …`, and five more |
+
+* **API:** `make api-check`, 0 incompatible changes against `v1.12.0`.
+  `tools/apidiff.py v1.12.0` reports `Tool.Deferred`, `Tool.Search` and
+  `ToolLoadItem`, each `added`, and nothing else.
+* **Wire:** no encoder sends anything for the new fields or item yet, and
+  every existing golden is unchanged (the gate's `g-wire-stable`).
+* **Checks:**
+  * `make pre-add-check` on the six Go files: clean;
+  * `make records-check`: clean;
+  * `tools/claims.py --changed`: every row passes;
+  * **gate:** `tools/gate.py`, 23 of 23 passed.

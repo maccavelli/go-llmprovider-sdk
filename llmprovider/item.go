@@ -10,7 +10,8 @@ import (
 // the unexported marker method itemKind() prevents external implementations.
 //
 // Callers switch on concrete types: MessageItem, FunctionCallItem,
-// FunctionCallOutputItem, ReasoningItem.
+// FunctionCallOutputItem, ReasoningItem, and ToolLoadItem, which only a
+// request's Input holds.
 type Item interface {
 	itemKind() string // sealed marker — unexported, prevents external implementation
 }
@@ -49,6 +50,20 @@ type FunctionCallOutputItem struct {
 }
 
 func (FunctionCallOutputItem) itemKind() string { return itemTypeFunctionCallOutput }
+
+// ToolLoadItem loads one deferred tool from a tool result: the caller's
+// answer to a call, given in Input after that call's FunctionCallOutputItem.
+// One item loads one tool; a result that loads several is followed by
+// several. A loaded tool stays loaded for the rest of the conversation, so
+// later requests carry the items that loaded it. Each provider sends the
+// load in its service's form, or appends the tool to the request's tools, as
+// its package doc says. No response holds one (0040-MADR D1, amendment A5).
+type ToolLoadItem struct {
+	CallID string // the FunctionCallOutputItem's, which comes before it
+	Name   string // a Tool of the request with Deferred set
+}
+
+func (ToolLoadItem) itemKind() string { return itemTypeToolLoad }
 
 // ReasoningItem represents a model's internal reasoning/thinking trace.
 // Not all providers or models emit this; when absent, the Output slice

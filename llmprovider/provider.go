@@ -24,6 +24,16 @@ type Tool struct {
 	// where the wire has the field, and each provider's package doc says
 	// where it is not (0032-MADR D1, D2).
 	Strict *bool
+	// Deferred offers the tool but keeps it out of the model's context
+	// until a FunctionCallOutputItem's Load names it. Each provider sends
+	// it in its service's own form, or appends the tool once it is loaded,
+	// as its package doc says (0040-MADR D1). At least one tool in a
+	// request is not deferred.
+	Deferred bool
+	// Search marks the caller's own search for deferred tools: the tool
+	// whose results load them. At most one tool in a request has it, and it
+	// is never deferred (0040-MADR D1).
+	Search bool
 }
 
 // Typed errors for programmatic classification (go.dev/doc/effective-go).

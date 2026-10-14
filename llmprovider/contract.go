@@ -263,13 +263,16 @@ func (req *Request) validate() error {
 			if !it.Role.valid() {
 				return fmt.Errorf("%w: input %d has unknown role %q", ErrInvalidRequest, i, it.Role)
 			}
-		case FunctionCallItem, FunctionCallOutputItem, ReasoningItem:
+		case FunctionCallItem, FunctionCallOutputItem, ReasoningItem, ToolLoadItem:
 		default:
 			return fmt.Errorf("%w: input %d is %T; an item is a MessageItem, FunctionCallItem, "+
-				"FunctionCallOutputItem or ReasoningItem value", ErrInvalidRequest, i, item)
+				"FunctionCallOutputItem, ReasoningItem or ToolLoadItem value", ErrInvalidRequest, i, item)
 		}
 	}
 	if err := req.validateToolChoice(); err != nil {
+		return err
+	}
+	if err := req.validateDeferral(); err != nil {
 		return err
 	}
 	if !req.Cache.valid() {
@@ -290,6 +293,57 @@ func (r *Reasoning) check() error {
 	}
 	if r.Budget < 0 {
 		return fmt.Errorf("%w: reasoning budget %d is negative", ErrInvalidRequest, r.Budget)
+	}
+	return nil
+}
+
+// validateDeferral rejects what no service can send with deferred tools
+// (0040-MADR D1, A5): two search tools, a deferred search tool, every tool
+// deferred (Anthropic refuses it), a ToolLoadItem naming anything but a
+// deferred tool of the request (Anthropic's "Tool reference … not found"), a
+// ToolLoadItem with no earlier result for its call, whose load no wire could
+// attach, and a forced choice of a deferred tool nothing has loaded, which
+// the model cannot see.
+func (req *Request) validateDeferral() error {
+	deferred := map[string]bool{}
+	search, deferredCount := "", 0
+	for _, tool := range req.Tools {
+		if tool.Search {
+			if tool.Deferred {
+				return fmt.Errorf("%w: search tool %q is deferred", ErrInvalidRequest, tool.Name)
+			}
+			if search != "" {
+				return fmt.Errorf("%w: two search tools, %q and %q", ErrInvalidRequest, search, tool.Name)
+			}
+			search = tool.Name
+		}
+		if tool.Deferred {
+			deferred[tool.Name] = true
+			deferredCount++
+		}
+	}
+	if deferredCount > 0 && deferredCount == len(req.Tools) {
+		return fmt.Errorf("%w: every tool is deferred; at least one must not be", ErrInvalidRequest)
+	}
+	loaded, answered := map[string]bool{}, map[string]bool{}
+	for i, item := range req.Input {
+		switch it := item.(type) {
+		case FunctionCallOutputItem:
+			answered[it.CallID] = true
+		case ToolLoadItem:
+			if !deferred[it.Name] {
+				return fmt.Errorf("%w: input %d loads %q, which is not a deferred tool of the request",
+					ErrInvalidRequest, i, it.Name)
+			}
+			if !answered[it.CallID] {
+				return fmt.Errorf("%w: input %d loads %q for call %q, which has no earlier result",
+					ErrInvalidRequest, i, it.Name, it.CallID)
+			}
+			loaded[it.Name] = true
+		}
+	}
+	if name, forced := req.ToolChoice.Tool(); forced && deferred[name] && !loaded[name] {
+		return fmt.Errorf("%w: tool choice forces %q, which is deferred and not loaded", ErrInvalidRequest, name)
 	}
 	return nil
 }
