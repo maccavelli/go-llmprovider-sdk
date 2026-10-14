@@ -36,7 +36,15 @@ func AddCache(body map[string]any, retention llmprovider.CacheRetention) {
 		body["system"] = []map[string]any{{"type": "text", "text": system, keyCacheControl: CacheMarker(retention)}}
 		return
 	}
-	if tools, ok := body["tools"].([]map[string]any); ok && len(tools) > 0 {
-		tools[len(tools)-1][keyCacheControl] = CacheMarker(retention)
+	// The last tool that is not deferred: Anthropic refuses cache_control on
+	// a deferred one, which is not in the prefix anyway (0040-MADR D2).
+	if tools, ok := body["tools"].([]map[string]any); ok {
+		for i := len(tools) - 1; i >= 0; i-- {
+			if deferred, ok := tools[i]["defer_loading"].(bool); ok && deferred {
+				continue
+			}
+			tools[i][keyCacheControl] = CacheMarker(retention)
+			break
+		}
 	}
 }

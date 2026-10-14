@@ -57,6 +57,17 @@ func RemapCallIDs(items []llmprovider.Item, rule CallIDRule) []llmprovider.Item 
 				v.CallID = id
 				set(i, v)
 			}
+		case llmprovider.ToolLoadItem:
+			// A load follows its result's id, so the wire can attach it
+			// (0040-MADR A5).
+			id, ok := latest[v.CallID]
+			if !ok {
+				id = rule.valid(v.CallID)
+			}
+			if id != v.CallID {
+				v.CallID = id
+				set(i, v)
+			}
 		}
 	}
 	if out == nil {

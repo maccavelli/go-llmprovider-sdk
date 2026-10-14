@@ -81,20 +81,63 @@ func (c Content) MarshalJSON() ([]byte, error) {
 }
 
 // Block is every content block in one struct: text, thinking,
-// redacted_thinking, tool_use and tool_result. A field a block does not have
-// is nil, and omitted; Type is always sent.
+// redacted_thinking, tool_use, tool_result and tool_reference. A field a
+// block does not have is nil, and omitted; Type is always sent.
 type Block struct {
-	Content   *string `json:"content,omitempty"`
-	Data      *string `json:"data,omitempty"`
-	ID        *string `json:"id,omitempty"`
-	Input     any     `json:"input,omitempty"`
-	IsError   bool    `json:"is_error,omitempty"`
-	Name      *string `json:"name,omitempty"`
-	Signature *string `json:"signature,omitempty"`
-	Text      *string `json:"text,omitempty"`
-	Thinking  *string `json:"thinking,omitempty"`
-	ToolUseID *string `json:"tool_use_id,omitempty"`
-	Type      string  `json:"type"`
+	Content   ResultContent `json:"content,omitzero"`
+	Data      *string       `json:"data,omitempty"`
+	ID        *string       `json:"id,omitempty"`
+	Input     any           `json:"input,omitempty"`
+	IsError   bool          `json:"is_error,omitempty"`
+	Name      *string       `json:"name,omitempty"`
+	Signature *string       `json:"signature,omitempty"`
+	Text      *string       `json:"text,omitempty"`
+	Thinking  *string       `json:"thinking,omitempty"`
+	ToolName  *string       `json:"tool_name,omitempty"`
+	ToolUseID *string       `json:"tool_use_id,omitempty"`
+	Type      string        `json:"type"`
+}
+
+// ResultContent is a tool_result's content: its text, as every result had
+// before 0040, or blocks, the tool_reference blocks of a result that loads
+// deferred tools (0040-MADR D2, A1). The zero value is omitted. Like Content,
+// it is not an interface, so encoding it allocates nothing (0028-PLAN D16).
+type ResultContent struct {
+	text   *string
+	blocks *[]Block
+}
+
+// IsZero reports a block with no content, which omitzero leaves out.
+func (c ResultContent) IsZero() bool { return c.text == nil && c.blocks == nil }
+
+// Text is the result's text, or "" when it holds blocks or nothing.
+func (c ResultContent) Text() string {
+	if c.text == nil {
+		return ""
+	}
+	return *c.text
+}
+
+// MarshalJSONTo writes the blocks as a list, or the text as a string.
+func (c ResultContent) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if c.blocks != nil {
+		return jsonv2.MarshalEncode(enc, *c.blocks)
+	}
+	if c.text == nil {
+		return enc.WriteToken(jsontext.Null)
+	}
+	return enc.WriteToken(jsontext.String(*c.text))
+}
+
+// MarshalJSON is MarshalJSONTo for an encoder that does not call it.
+func (c ResultContent) MarshalJSON() ([]byte, error) {
+	if c.blocks != nil {
+		return json.Marshal(*c.blocks)
+	}
+	if c.text == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(*c.text)
 }
 
 // FromItems converts items to Anthropic messages. System items are left out:
@@ -105,8 +148,32 @@ type Block struct {
 // The strings the blocks carry are kept in one arena, and every message's
 // blocks in one backing array: only the last message ever takes a block, so
 // each message's blocks are contiguous (0028-PLAN D16).
-func FromItems(items []llmprovider.Item) []Message {
+//
+// FromItems sends no ToolLoadItem: a request whose form appends its loaded
+// tools has nothing to say of them in the messages (0040-MADR D6).
+func FromItems(items []llmprovider.Item) []Message { return encodeItems(items, false) }
+
+// FromItemsLoading is FromItems for a request that defers tools natively
+// (0040-MADR D2, A1). A result that ToolLoadItems follow holds one
+// tool_reference per loaded tool, and its text goes after the turn's
+// results, as its own text block: Anthropic refuses text beside a
+// tool_reference in one tool_result. With no load, it is FromItems.
+func FromItemsLoading(items []llmprovider.Item) []Message { return encodeItems(items, true) }
+
+// encodeItems is FromItems, and with loading, FromItemsLoading.
+func encodeItems(items []llmprovider.Item, loading bool) []Message {
 	items = wire.RemapCallIDs(items, wire.AnthropicCallIDs)
+	var loads map[string][]string // a result's call id → the tools it loads
+	if loading {
+		for _, item := range items {
+			if load, ok := item.(llmprovider.ToolLoadItem); ok {
+				if loads == nil {
+					loads = map[string][]string{}
+				}
+				loads[load.CallID] = append(loads[load.CallID], load.Name)
+			}
+		}
+	}
 	var (
 		messages []Message
 		arena    = wire.NewArena(4 * len(items))
@@ -139,7 +206,21 @@ func FromItems(items []llmprovider.Item) []Message {
 		}
 		messages = append(messages, Message{Role: role, Content: openList(block)})
 	}
+	// pending holds the texts of the turn's loading results, which go after
+	// all of the turn's results (0040-MADR A1).
+	var pending []*string
+	flush := func() {
+		for _, text := range pending {
+			appendBlock(wire.RoleUser, Block{Type: wire.KeyText, Text: text})
+		}
+		pending = pending[:0]
+	}
 	for _, item := range items {
+		switch item.(type) {
+		case llmprovider.FunctionCallOutputItem, llmprovider.ToolLoadItem:
+		default:
+			flush()
+		}
 		switch v := item.(type) {
 		case llmprovider.MessageItem:
 			role := string(v.Role)
@@ -168,10 +249,24 @@ func FromItems(items []llmprovider.Item) []Message {
 				Type: "tool_use", ID: arena.Keep(v.CallID), Name: arena.Keep(v.Name), Input: wire.ToolArguments(v.Arguments),
 			})
 		case llmprovider.FunctionCallOutputItem:
-			appendBlock(wire.RoleUser, Block{Type: "tool_result", ToolUseID: arena.Keep(v.CallID), Content: arena.Keep(v.Output),
-				IsError: v.IsError})
+			names := loads[v.CallID]
+			if len(names) == 0 {
+				appendBlock(wire.RoleUser, Block{Type: "tool_result", ToolUseID: arena.Keep(v.CallID),
+					Content: ResultContent{text: arena.Keep(v.Output)}, IsError: v.IsError})
+				continue
+			}
+			refs := make([]Block, len(names))
+			for i, name := range names {
+				refs[i] = Block{Type: "tool_reference", ToolName: arena.Keep(name)}
+			}
+			appendBlock(wire.RoleUser, Block{Type: "tool_result", ToolUseID: arena.Keep(v.CallID),
+				Content: ResultContent{blocks: &refs}, IsError: v.IsError})
+			if v.Output != "" {
+				pending = append(pending, arena.Keep(v.Output))
+			}
 		}
 	}
+	flush()
 	return messages
 }
 
@@ -394,6 +489,30 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 // in claude-sonnet-4-20250514 is not read as one. OpenCode's
 // anthropicUsesModernAdaptiveThinking uses the same pattern.
 var claudeVersionRE = regexp.MustCompile(`(?i)claude-(?:[a-z]+-)?(\d+)(?:[.-](\d{1,2}))?(?:[.@-]|$)`)
+
+// ClaudeVersion reads a Claude id's major and minor version, such as 4 and 5
+// in claude-haiku-4-5 or 5 and 0 in claude-sonnet-5, by claudeVersionRE. It
+// reports false for an id without "claude-" or with no readable version.
+func ClaudeVersion(model string) (major, minor int, ok bool) {
+	lower := strings.ToLower(model)
+	if !strings.Contains(lower, "claude-") {
+		return 0, 0, false
+	}
+	m := claudeVersionRE.FindStringSubmatch(lower)
+	if m == nil {
+		return 0, 0, false
+	}
+	major, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0, 0, false
+	}
+	if m[2] != "" {
+		if minor, err = strconv.Atoi(m[2]); err != nil {
+			return 0, 0, false
+		}
+	}
+	return major, minor, true
+}
 
 // claudeAdaptiveOnly reports whether model refuses thinking.type "enabled":
 // Claude 4.7 and later, and a claude- id with no readable version (HTTP 400 on

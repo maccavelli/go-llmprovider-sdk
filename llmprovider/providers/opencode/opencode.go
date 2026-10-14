@@ -93,6 +93,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/generatecontent"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
@@ -511,9 +512,16 @@ func (p *provider) responsesBody(c call) map[string]any {
 // messagesBody is the Anthropic Messages shape.
 func (p *provider) messagesBody(c call) map[string]any {
 	maxTokens := c.maxTokens
+	// Deferred tools go out in the model's form: a Claude model's natively,
+	// any other model's appended as loaded (0040-MADR D1, D2, D6).
+	form := deferral.Of(deferral.Messages, c.model)
+	msgs := messages.FromItems(c.input)
+	if form == deferral.MessagesNative {
+		msgs = messages.FromItemsLoading(c.input)
+	}
 	body := map[string]any{
 		"model":    c.model,
-		"messages": messages.FromItems(c.input),
+		"messages": msgs,
 	}
 	if system := wire.SystemPrompt(c.input); system != "" {
 		body["system"] = system
@@ -523,8 +531,12 @@ func (p *provider) messagesBody(c call) map[string]any {
 		maxTokens = messages.AddThinking(body, c.model, string(c.reasoning.Effort), c.reasoning.Budget, maxTokens)
 	}
 	body[jsonKeyMaxTokens] = maxTokens
-	if tools := c.req.Tools; len(tools) > 0 {
-		body[jsonKeyTools] = wire.MessagesTools(tools)
+	if tools := deferral.Tools(c.req, form); len(tools) > 0 {
+		if form == deferral.MessagesNative {
+			body[jsonKeyTools] = wire.MessagesToolsNative(tools)
+		} else {
+			body[jsonKeyTools] = wire.MessagesTools(tools)
+		}
 		messages.AddToolChoice(body, c.req.ToolChoice, thinking, p.forcing.For(string(p.gateway), c.model))
 	}
 	// Last, once the system and tools are set (0039-MADR D2).

@@ -88,6 +88,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
 )
 
@@ -284,10 +285,16 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.MaxOutputTokens > 0 {
 		maxTokens = req.MaxOutputTokens
 	}
+	// Deferred tools go out in the model's form (0040-MADR D1, D2, D6).
+	form := deferral.Of(deferral.Messages, model)
+	msgs := messages.FromItems(req.Input)
+	if form == deferral.MessagesNative {
+		msgs = messages.FromItemsLoading(req.Input)
+	}
 	body := map[string]any{
 		"model":      model,
 		"max_tokens": maxTokens,
-		"messages":   messages.FromItems(req.Input),
+		"messages":   msgs,
 	}
 	var system []string
 	for _, part := range []string{req.Instructions, wire.SystemPrompt(req.Input)} {
@@ -299,8 +306,12 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		body["system"] = strings.Join(system, "\n\n")
 	}
 	thinking := p.addReasoning(body, req, model, maxTokens)
-	if len(req.Tools) > 0 {
-		body["tools"] = wire.MessagesTools(req.Tools)
+	if tools := deferral.Tools(req, form); len(tools) > 0 {
+		if form == deferral.MessagesNative {
+			body["tools"] = wire.MessagesToolsNative(tools)
+		} else {
+			body["tools"] = wire.MessagesTools(tools)
+		}
 		messages.AddToolChoice(body, req.ToolChoice, thinking, p.forcing.For(string(llmprovider.ProviderClaude), model))
 	}
 	// Last, once the system and tools are set (0039-MADR D2).

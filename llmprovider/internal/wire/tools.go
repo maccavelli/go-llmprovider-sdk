@@ -76,6 +76,18 @@ func AddResponsesTools(body map[string]any, tools []llmprovider.Tool, choice llm
 	}
 }
 
+// MessagesToolsNative is MessagesTools for a request that defers tools
+// natively: each deferred tool carries "defer_loading": true (0040-MADR D2).
+func MessagesToolsNative(tools []llmprovider.Tool) []map[string]any {
+	list := MessagesTools(tools)
+	for i, tool := range tools {
+		if tool.Deferred {
+			list[i]["defer_loading"] = true
+		}
+	}
+	return list
+}
+
 // MessagesTools is tools as Messages tools. Each provider sends its own
 // tool_choice.
 func MessagesTools(tools []llmprovider.Tool) []map[string]any {

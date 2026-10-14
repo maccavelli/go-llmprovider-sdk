@@ -49,7 +49,7 @@ func TestFromItems_CallIDsFitAnthropicRule(t *testing.T) {
 			case "tool_use":
 				ids = append(ids, deref(b.ID))
 			case "tool_result":
-				pairs[deref(b.ToolUseID)] = deref(b.Content)
+				pairs[deref(b.ToolUseID)] = b.Content.Text()
 			}
 		}
 	}

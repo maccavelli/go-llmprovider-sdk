@@ -760,3 +760,116 @@ The owner committed Phase 0 as `0af9ac7`.
   * `make records-check`: clean;
   * `tools/claims.py --changed`: every row passes;
   * **gate:** `tools/gate.py`, 23 of 23 passed.
+
+The owner committed Phase 1 as `12a921c`.
+
+### Phase 2: the shared form, and Anthropic Messages (2026-10-13)
+
+#### Research
+
+* Only `FromItems` sets a Messages block's `Content`
+  (`internal/wire/messages/messages.go`). One existing test reads it,
+  `callid_0026_test.go:52`, which moved from `deref(b.Content)` to
+  `b.Content.Text()`, with the same assertion (R46).
+* No test counts the Messages encoder's allocations. A tool result's content
+  still became a value type, `ResultContent`, like the message's `Content`,
+  with `omitzero`, so no interface is encoded (0028-PLAN D16).
+* `wire.Arena` grows past its size and keeps every pointer it gave
+  (`internal/wire/arena.go`), so the loads' extra strings are safe.
+* `MessagesTools` and `FromItems` each have two callers, Claude's body and
+  OpenCode's messages route. Each keeps its old behaviour, and a sibling
+  does the native form: `MessagesToolsNative` and `FromItemsLoading`. No
+  existing test changes.
+
+#### What was built
+
+* **`llmprovider/internal/wire/deferral`:**
+  * `Of(wire, model)` returns D1's form. `Wire` names `Messages`,
+    `Responses`, `ChatGPT`, `Grok` and `Other`, in place of the four
+    arguments step 2 sketched.
+  * The Claude rule reuses `claudeVersionRE`, through a new
+    `messages.ClaudeVersion`, at 4.5 or later.
+  * The GPT rule is `gpt-N.M` at 5.4 or later. An unreadable id is
+    `Append`.
+  * `Loaded`, `SearchLoads` (for Phase 3), `Tools` and `Deferring`.
+  * A request with nothing deferred gets its own `Tools` slice back.
+* **Messages:**
+  * `FromItemsLoading`: a loading result's `tool_result` holds one
+    `tool_reference` per load, and its text follows the turn's results as a
+    `text` block (A1). A result with no text adds no block.
+  * `MessagesToolsNative` sends `defer_loading` on deferred tools.
+  * `AddCache` marks the last tool that is not deferred.
+* **`wire.RemapCallIDs`** gives a `ToolLoadItem` its result's id (A5).
+* **`claude` and `opencode`'s messages route** take the form, the tools and
+  the messages from it.
+
+#### Tests, red and green
+
+* **Red:**
+  * `deferral`: `undefined: Wire`, then the package added;
+  * `messages`: `undefined: FromItemsLoading`;
+  * `wire`: `undefined: MessagesToolsNative`;
+  * Claude, before the wiring:
+
+    ```text
+    deferral_0040_test.go:78: tools [read_file tool_search get_weather lookup_stock], deferred map[]; want all four, the last two deferred
+    deferral_0040_test.go:81: cache marker on "lookup_stock", want tool_search, the last tool not deferred
+    deferral_0040_test.go:100: tools [read_file tool_search get_weather lookup_stock], want read_file, tool_search, get_weather
+    deferral_0040_test.go:103: cache marker on "lookup_stock", want the last tool sent, get_weather
+    ```
+
+  * OpenCode's test was written after its wiring, so it has no red run of
+    its own. Its plant, the route forced to `Append`, is what shows it
+    fails (below).
+* **Green,** every one passing:
+  * `TestForm_0040`, 25 rows;
+  * `TestLoaded_0040`, `TestTools_0040` and `TestSearchLoads_0040`;
+  * `TestFromItemsLoading_Load_0040`, `…_Unchanged_0040`, `…_EmptyOutput_0040`
+    and `…_RemappedID_0040`;
+  * `TestAddCache_Deferred_0040`;
+  * `TestMessagesToolsNative_0040` and `TestRemapCallIDs_ToolLoad_0040`;
+  * Claude's `TestDeferral_Native_0040`, `…_Append_0040` and `…_None_0040`;
+  * OpenCode's `TestDeferral_MessagesRoute_0040`.
+
+  The planned names `TestMessagesTools_Deferred_0040` and
+  `TestFromItems_Load_0040` became the names above, after the siblings.
+* **Every existing test** in `internal/wire/...`, `claude` and `opencode`
+  passes, the G-wire goldens included.
+* **Coverage:** `deferral` 97.0%; `make coverage-check`, 32 packages, 0
+  problems.
+
+#### Plants (`tools/plant.py`, 8 of 8 caught)
+
+The first run left one plant uncaught: the load given its own call id
+instead of its result's. For a single call the two ids are the same string,
+so the test could not tell them apart. `TestRemapCallIDs_ToolLoad_0040` gained a
+repeated id, where the second call is renamed. It then caught the plant:
+`the load's id "fn_1", want the second result's "fn_1_2" (the first's is
+"fn_1")`.
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the Claude version edge moved to 4.6 | `Of(1, "claude-haiku-4-5") = 0, want 1`, and two more |
+| a repeated load listed twice | `Loaded = [lookup_stock get_weather send_email get_weather], want [lookup_stock get_weather send_email]` |
+| `defer_loading` sent when the form appends | `defer_loading sent on map[get_weather:true]` |
+| the loading result's text dropped | `FromItemsLoading:` diff; Claude's `last turn:` diff; OpenCode's `want a tool_reference result and a text block` |
+| the text sent before the turn's other results | `FromItemsLoading:` diff |
+| the breakpoint on a deferred tool | `tool 1 (b): marked false; want only b marked`; `a deferred tool was marked`; `cache marker on "lookup_stock", want tool_search` |
+| a load keeps its old call id | `the load's id "fn_1", want the second result's "fn_1_2"` |
+| OpenCode's messages route always appends | `claude-haiku-5-5: deferred [] of 3 tools; want get_weather and lookup_stock of 4` |
+
+#### Checks
+
+* **`make pre-add-check`** on the 13 Go files. The first run found five
+  issues, each fixed:
+  * two `strconv.Atoi` errors not checked, now read by `gptVersion`, where
+    an unreadable id gives `Append`;
+  * an unchecked type assertion in `AddCache`;
+  * two names differing only in case: the test helper `tools()` became
+    `deferralTools()`, and `fromItems` became `encodeItems`.
+
+  The plants were rerun on the fixed code, 8 of 8 caught, and the check was
+  then clean.
+* `make records-check` and `tools/claims.py --changed`: clean.
+* **Gate:** `tools/gate.py`, 23 of 23 passed, `g-wire-stable` included: no
+  existing golden changed.
