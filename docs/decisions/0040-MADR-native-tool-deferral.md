@@ -576,6 +576,12 @@ them. Their text is struck through where it changes, not rewritten.
   `tool_search` on the ChatGPT backend (E12–E17) is the evidence for now. The
   live test of 0040-PLAN Phase 7 adds a ChatGPT path the owner runs. If it
   fails, the ChatGPT row takes D6 by amendment.
+* **Deferred** (2026-10-13). The owner chose to skip the ChatGPT path in
+  Phase 7 ("skip the chatgpt test for now"), so the release ships without
+  it. The ChatGPT row stays native, on codex's source alone (E12–E17). The
+  path stays in `live_0040_deferral_test.go`, gated by
+  `LLMPROVIDER_LIVE_CHATGPT`. If a later run fails, this amendment's rule
+  still holds: the ChatGPT row takes D6 by a further amendment.
 
 ### A4. What the other paths showed
 

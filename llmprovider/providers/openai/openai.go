@@ -36,6 +36,17 @@
 // CacheLong sends the same as CacheShort, since OpenAI offers no longer
 // lifetime to ask for (0039-MADR D3). A ChatGPT session sends the key on
 // every request, as Codex does.
+//
+// Deferred tools (Tool.Deferred) go out natively with a key from GPT-5.4 on,
+// and in a ChatGPT session for every model (0040-MADR D3, A3): the Search
+// tool as a client tool_search entry, and the deferred tools only in the
+// tool_search_output that replays a search's result; that result's text is
+// not sent. A load from any other result is appended to the tools. An earlier
+// model, and a forced choice of the Search tool, which tool_choice cannot
+// name there, append each loaded tool instead; with PreviousResponseID that
+// form sends every deferred tool (D6). Each of these carries
+// WarningDeferralEmulated (D7). A hosted tool_search (execution "server") in
+// a reply is dropped.
 package openai
 
 import (

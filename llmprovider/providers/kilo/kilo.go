@@ -45,6 +45,14 @@
 // for CacheLong (0039-MADR D4). Another model gets nothing for it. Kilo
 // caches Claude on its own too, keyed by X-KiloCode-TaskId, which is sent
 // either way.
+//
+// Deferred tools (Tool.Deferred) have no native form here (0040-MADR D6):
+// each tool a ToolLoadItem loads is appended to the tools, in load order,
+// and a ToolLoadItem itself sends nothing. The response carries
+// WarningDeferralEmulated (D7), and the prompt cache breaks once at each
+// load.
+// OpenRouter's deferred_tools is not sent: Kilo's gateway does not honour it
+// (A2).
 package kilo
 
 import (

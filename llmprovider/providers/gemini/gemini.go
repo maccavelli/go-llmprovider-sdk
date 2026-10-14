@@ -38,6 +38,14 @@
 //
 // Request.Cache sends nothing: Gemini caches prompts implicitly, and its
 // explicit cachedContents resource is out of scope (0039-MADR D4, D6).
+//
+// Deferred tools (Tool.Deferred) have no native form here (0040-MADR D6):
+// each tool a ToolLoadItem loads is appended to the tools, in load order,
+// and a ToolLoadItem itself sends nothing. The response carries
+// WarningDeferralEmulated (D7), and the prompt cache breaks once at each
+// load.
+// With PreviousResponseID, every deferred tool is sent, since the earlier
+// loads are held by the service.
 package gemini
 
 import (

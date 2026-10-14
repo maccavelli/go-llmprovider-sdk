@@ -69,7 +69,10 @@ tool that holds a rule, where one does. For how the code is laid out, read
   or "not requested". A `Tool` may be `Deferred`, kept out of the model's
   context until a `ToolLoadItem` in `Input` loads it, and one tool may be
   the caller's `Search` for them; every provider honours them, in its
-  service's form or by appending the loaded tool. (0015 D3; 0039 D1; 0040 D1)
+  service's form, through a fixed wrapper, or by appending the loaded tool,
+  and says which in its package doc. A response that did not use the
+  service's own form carries `WarningDeferralEmulated`. (0015 D3; 0039 D1;
+  0040 D1, D5, D7)
 - **R7. `Response` fields.** `ID`, `Model`, `Output []Item`, a typed
   `FinishReason`, `Usage`, which is zero when the service reports none, and
   `Warnings`, typed non-fatal notes, nil when the request was sent as asked

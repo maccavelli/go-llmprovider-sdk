@@ -42,6 +42,12 @@
 // Together caches prompts on its own, and a write is free. Request.Cache sends
 // the provider's session id as prompt_cache_key, which routes a conversation
 // to one cache; CacheLong sends the same as CacheShort (0039-MADR D3).
+//
+// Deferred tools (Tool.Deferred) have no native form here (0040-MADR D6):
+// each tool a ToolLoadItem loads is appended to the tools, in load order,
+// and a ToolLoadItem itself sends nothing. The response carries
+// WarningDeferralEmulated (D7), and the prompt cache breaks once at each
+// load.
 package together
 
 import (

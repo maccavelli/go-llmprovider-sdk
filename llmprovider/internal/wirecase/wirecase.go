@@ -34,10 +34,13 @@ const Prompt = "What is the weather in Paris?"
 const firstCall = "call_1"
 
 // weatherTool is WeatherTool's name, and parisArguments a call's arguments
-// to it, or to get_time.
+// to it, or to timeTool, the second tool. searchCall is the deferral
+// scenarios' call to their search.
 const (
 	weatherTool    = "get_weather"
 	parisArguments = `{"city":"Paris"}`
+	timeTool       = "get_time"
+	searchCall     = "call_search"
 )
 
 // user is a user message.
@@ -75,7 +78,7 @@ func FlagTools() []llmprovider.Tool {
 	strict, loose := true, false
 	weather := WeatherTool()
 	weather.Strict = &strict
-	clock := llmprovider.Tool{Name: "get_time", Description: "Time in a city", Strict: &loose, Schema: citySchema()}
+	clock := llmprovider.Tool{Name: timeTool, Description: "Time in a city", Strict: &loose, Schema: citySchema()}
 	return []llmprovider.Tool{weather, clock}
 }
 
@@ -86,7 +89,7 @@ func FlagItems() []llmprovider.Item {
 	return []llmprovider.Item{
 		user(Prompt),
 		llmprovider.FunctionCallItem{CallID: firstCall, Name: weatherTool, Arguments: parisArguments},
-		llmprovider.FunctionCallItem{CallID: "call_2", Name: "get_time", Arguments: parisArguments},
+		llmprovider.FunctionCallItem{CallID: "call_2", Name: timeTool, Arguments: parisArguments},
 		llmprovider.FunctionCallOutputItem{CallID: firstCall, Output: "weather service offline", IsError: true},
 		llmprovider.FunctionCallOutputItem{CallID: "call_2", Output: `{"time":"12:00"}`},
 	}
@@ -287,6 +290,14 @@ var scenarios = []scenario{
 	{"cache-long", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
 		return p.Generate(ctx, cacheRequest(llmprovider.CacheLong))
 	}},
+	// The deferral scenarios show each wire's form for deferred tools
+	// (0040-MADR D1 to D6): offered, then loaded by a search's result.
+	{"defer-offer", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
+		return p.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{user(Prompt)}, Tools: deferTools()})
+	}},
+	{"defer-load", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
+		return p.Generate(ctx, &llmprovider.Request{Input: deferLoadItems(), Tools: deferTools()})
+	}},
 	{"listing", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
 		lister, ok := p.(llmprovider.ModelLister)
 		if !ok {
@@ -301,6 +312,31 @@ var scenarios = []scenario{
 func cacheRequest(retention llmprovider.CacheRetention) *llmprovider.Request {
 	return &llmprovider.Request{Instructions: "Be brief.", Input: []llmprovider.Item{user(Prompt)},
 		Tools: []llmprovider.Tool{WeatherTool()}, Cache: retention}
+}
+
+// deferTools is the deferral scenarios' tools: two direct tools, the
+// caller's search, and two deferred tools (0040-PLAN Phase 7).
+func deferTools() []llmprovider.Tool {
+	takes := func(field string) map[string]any {
+		return map[string]any{jsonType: "object", "properties": map[string]any{field: map[string]any{jsonType: "string"}}}
+	}
+	return []llmprovider.Tool{
+		WeatherTool(),
+		{Name: timeTool, Description: "Time in a city", Schema: citySchema()},
+		{Name: "tool_search", Description: "Finds tools by keyword", Schema: takes("query"), Search: true},
+		{Name: "lookup_stock", Description: "A stock's price", Schema: takes("symbol"), Deferred: true},
+		{Name: "send_email", Description: "Sends an email", Schema: takes("to"), Deferred: true},
+	}
+}
+
+// deferLoadItems is a search call and its result, which loads lookup_stock.
+func deferLoadItems() []llmprovider.Item {
+	return []llmprovider.Item{
+		user(Prompt),
+		llmprovider.FunctionCallItem{CallID: searchCall, Name: "tool_search", Arguments: `{"query":"stock"}`},
+		llmprovider.FunctionCallOutputItem{CallID: searchCall, Output: "Loaded lookup_stock."},
+		llmprovider.ToolLoadItem{CallID: searchCall, Name: "lookup_stock"},
+	}
 }
 
 // result makes a return value comparable with its P7 golden: a Response's

@@ -41,6 +41,18 @@
 // xAI caches prompts on its own. Request.Cache sends the provider's session
 // id as prompt_cache_key, which xAI treats as its x-grok-conv-id routing
 // key; CacheLong sends the same as CacheShort (0039-MADR D3).
+//
+// Deferred tools (Tool.Deferred) go through grok-build's use_tool wrapper
+// (0040-MADR D5): the tools sent are those not deferred, then use_tool, the
+// same list before and after each load, so the cache holds. A result that
+// ToolLoadItems follow is sent with its text, then the loaded tools'
+// definitions as JSON. A use_tool call naming a deferred tool comes back as
+// that tool's call, and is replayed as the wrapper call; one naming anything
+// else, or with input that is not an object, stays a use_tool call. A caller
+// tool named use_tool, beside a deferred tool, is refused with
+// ErrInvalidRequest. A forced choice of a deferred tool, which tool_choice
+// can name only in the list, appends it instead (D6). Either way the response
+// carries WarningDeferralEmulated (D7).
 package grok
 
 import (

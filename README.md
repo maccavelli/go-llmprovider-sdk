@@ -111,6 +111,15 @@ functions over any provider, and `Stream` streams from every one.
   and Together a `prompt_cache_key`, and Kilo's Claude models the top-level
   marker. Without it, a request is sent as before. `Usage` reports the
   reads and writes.
+- **Deferred tools.** A `Tool` with `Deferred` stays out of the model's
+  context until the caller's search (the tool with `Search`) finds it, and
+  a `ToolLoadItem` after that result loads it. Claude 4.5 and later,
+  directly or through OpenCode, get Anthropic's `defer_loading` and
+  `tool_reference`. OpenAI from GPT-5.4, and every ChatGPT session model,
+  get a client `tool_search`. Grok runs them through one fixed `use_tool`
+  wrapper. Every other wire appends each tool as it is loaded. A response
+  that did not use the service's own form carries
+  `WarningDeferralEmulated`.
 - **No ambient state.** The library reads no environment variable by
   itself. Pass `catalog.OptionsFromEnv()`, `auth.GrokFlowFromEnv()` or
   `llmprovider.ModelProbesFromEnv()` to opt in, and give logging a logger
@@ -199,8 +208,20 @@ key.
 
 ## Status
 
-The current release is `v1.12.0`. The module requires Go 1.27.2.
+The current release is `v1.13.0`. The module requires Go 1.27.2.
 
+- `v1.13.0` adds deferred tools: `Tool.Deferred`, `Tool.Search` and
+  `ToolLoadItem`. A deferred tool stays out of the model's context until the
+  caller's search loads it. Claude 4.5 and later, and OpenAI from GPT-5.4
+  (with every ChatGPT session model), get their service's native form. Grok
+  runs them through one fixed `use_tool` wrapper, and every other wire
+  appends each tool as it is loaded. `WarningDeferralEmulated` says when the
+  native form was not used. A request with no deferred tool is sent as
+  before, as
+  [0040-MADR](docs/decisions/0040-MADR-native-tool-deferral.md) decides.
+  The release notes are in
+  [0040-PLAN-native-tool-deferral.md](docs/decisions/0040-PLAN-native-tool-deferral.md),
+  Phase 7.
 - `v1.12.0` lets a request ask for prompt caching: `Request.Cache`,
   `CacheShort` or `CacheLong`. Claude, directly or through OpenCode, gets
   Anthropic's `cache_control` markers, with a five-minute or one-hour

@@ -25,9 +25,11 @@ type Tool struct {
 	// where it is not (0032-MADR D1, D2).
 	Strict *bool
 	// Deferred offers the tool but keeps it out of the model's context
-	// until a FunctionCallOutputItem's Load names it. Each provider sends
-	// it in its service's own form, or appends the tool once it is loaded,
-	// as its package doc says (0040-MADR D1). At least one tool in a
+	// until a ToolLoadItem in Input loads it (0040-MADR A5). Each provider
+	// sends it in its service's own form, through a fixed wrapper, or by
+	// appending the tool once it is loaded, as its package doc says; a
+	// response says when it was not the service's own form with
+	// WarningDeferralEmulated (0040-MADR D1, D7). At least one tool in a
 	// request is not deferred.
 	Deferred bool
 	// Search marks the caller's own search for deferred tools: the tool

@@ -43,6 +43,12 @@
 //
 // Request.Cache sends nothing: the router documents no caching parameter
 // (0039-MADR D4).
+//
+// Deferred tools (Tool.Deferred) have no native form here (0040-MADR D6):
+// each tool a ToolLoadItem loads is appended to the tools, in load order,
+// and a ToolLoadItem itself sends nothing. The response carries
+// WarningDeferralEmulated (D7), and the prompt cache breaks once at each
+// load.
 package huggingface
 
 import (

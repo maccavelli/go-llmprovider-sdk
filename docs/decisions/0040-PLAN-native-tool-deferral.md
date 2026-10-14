@@ -1373,3 +1373,248 @@ test could catch them:
 * **Staging.** Phase 4 was still staged and uncommitted, so Phase 5 stayed
   unstaged until the owner committed it (`87b87f5`). Phase 5 was then
   staged.
+
+### Phase 6: Kilo's OpenRouter protocol (2026-10-13)
+
+**Skipped**, as its step 1 provides. Phase 0 found that Kilo does not honour
+`deferred_tools` (0040-MADR A2). Kilo therefore takes Phase 4's append on
+load, and `deferred_tools` is never sent. Kilo's package doc says so
+(Phase 7). The append form is tested by Phase 4's
+`TestDeferral_PerProvider_0040` Kilo row and its plants. Nothing was built,
+and no number or file was added for this phase.
+
+### Phase 7: goldens, live measurement, docs and release (2026-10-13)
+
+In progress. Steps 1, 3 and 4 are done. ~~Step 2's live run waits for the
+owner's approval of its count, and the release notes (step 5) wait for its
+results.~~ Step 2's five keyed paths passed. ~~Its ChatGPT session path,
+and the release notes (step 5), wait for the owner's run of that path.~~
+The owner skipped the ChatGPT path (deviation 1). Steps 1 to 5 and the
+draft of step 7 are done. The tag and step 6 are the owner's.
+
+#### Step 1: the wire scenarios
+
+* **`wirecase`:**
+  * `defer-offer` sends `deferTools()`: `get_weather` and `get_time`
+    (direct), `tool_search` (`Search`), and `lookup_stock` and `send_email`
+    (`Deferred`);
+  * `defer-load` sends the same tools, after a call to `tool_search` whose
+    result is followed by a `ToolLoadItem` loading `lookup_stock`.
+* **Red.** Before any golden was written, `TestWireGoldens` failed only on
+  the 38 new files (19 cases, two scenarios), and no existing scenario
+  failed:
+
+  ```text
+  wirecase.go:384: wiretest: no golden file testdata/wire/claude/defer-offer.json; record one with -update
+  ```
+
+* **The new goldens** were written alone, package by package:
+
+  ```text
+  go test ./llmprovider/providers/<p>/ -run 'TestWireGoldens/.*/defer-(offer|load)$' -update
+  ```
+
+  38 files were added, and no tracked golden changed. Three runs of every
+  wire golden with `-count=3`, without `-update`, were all `ok`.
+* **What they send:** the last request's tools, where `*` marks
+  `defer_loading`, and the load's form. Each matches D1's table:
+
+  | Cases | `defer-offer` tools | `defer-load` tools and the load |
+  | :--- | :--- | :--- |
+  | `claude`, `claude-refuses-forced`, `opencode-zen-messages` (Claude 4.5 and later) | `get_weather get_time tool_search lookup_stock* send_email*` | the same; a `tool_result` holding a `tool_reference`, then the result's text as its own block (A1) |
+  | `openai`, `openai-stateless` (`gpt-5.5`), `chatgpt`, `opencode-zen-responses` | `get_weather get_time` and a client `tool_search` entry | the same; a `tool_search_call` and a `tool_search_output` holding `lookup_stock` with `defer_loading` (D3) |
+  | `grok`, `grok-stateless` | `get_weather get_time tool_search use_tool` | the same list; the result's text, then `lookup_stock`'s definition (D5) |
+  | `gemini`, `huggingface`, `together`, `ollama`, `kilo`, `opencode-zen-chat`, `opencode-zen-google`, and OpenCode Go's `chat`, `messages` (`qwen3.8-flash`) and `responses` (`grok-4.7`) | `get_weather get_time tool_search` | `lookup_stock` appended (D6) |
+
+  OpenCode Go's responses route carries `grok-4.7`, which is not a GPT
+  model, so it appends. D5's dispatch is the xAI provider's alone.
+  Claude's deferred tools carry no cache marker. The `cache-*` goldens are
+  unchanged.
+
+#### Step 2: the live measurement
+
+**Run on 2026-10-13**, with the owner's approval of 15 billed requests (five
+keyed paths, three each). `LLMPROVIDER_LIVE_CHATGPT` was unset, so the
+ChatGPT path skipped; it waits for the owner. All five paths passed:
+
+| Path | Step 1 | Step 2 | Step 3 | Cache read, steps 2 and 3 | `WarningDeferralEmulated` |
+| :--- | :--- | :--- | :--- | ---: | :--- |
+| Claude, `claude-haiku-5-5` | `tool_search` | `get_weather` `{"location":"Paris"}` | answer | 7,676 and 7,834 | none |
+| Zen Messages, `claude-haiku-5-5` | `tool_search` | `get_weather` | answer | 7,679 and 7,837 | none |
+| OpenAI, `gpt-6-luna` | `tool_search` | `get_weather` | answer | 4,499 and 4,678 | none |
+| Zen Responses, `gpt-6-luna` | `tool_search` | `get_weather` | answer | 4,500 and 4,679 | none |
+| Grok, `grok-4.6` | `tool_search` | `get_weather`, decoded from the model's `use_tool` call | answer | 5,248 and 5,376 (512 on step 1) | on all three |
+
+* **Zen Messages** takes A1's form through the SDK, which A4 left to this
+  phase to confirm: the gateway forwards it, and the model calls the loaded
+  tool.
+* **The cache reads** are about the same as Phase 0's raw probe (A4): the
+  SDK's form costs no cache.
+* **The ChatGPT session path** (`gpt-5.4-mini`, A3) ~~is not yet run~~ was
+  skipped by the owner (deviation 1, below).
+
+The test as written:
+
+* **`llmprovider/live_0040_deferral_test.go`:**
+  * `TestLive_0040Deferral` runs only with `LLMPROVIDER_LIVE_0040=1`, and
+    each path only with its key;
+  * it covers Claude, Zen Messages and OpenAI (all `claude-haiku-5-5` or
+    `gpt-6-luna`), Zen Responses and Grok (`grok-4.6`), each through
+    `providers.New`;
+  * a ChatGPT session path (`gpt-5.4-mini`) also needs
+    `LLMPROVIDER_LIVE_CHATGPT=1`, which only the owner sets (A3).
+* **Each path** sends Phase 0's three requests with `Request.Cache`:
+  * the search's result loads `get_weather` with a `ToolLoadItem`;
+  * the checks are the probe's `probeWant.problems` (the loaded tool
+    called, the second and third requests reading the cache), plus
+    `deferralWant`'s: `WarningDeferralEmulated` on every Grok reply, and on
+    no native one.
+* **The checks offline.** `TestDeferralChecks_0040`, with the live tag and
+  no network, passes on canned runs. Two plants show it failing:
+
+  | Plant | FAIL lines |
+  | :--- | :--- |
+  | the warning not checked | `a native path warned: problems [], want one containing "step 2: WarningDeferralEmulated true, want false"`; `a dispatched path silent: …` |
+  | the probe's checks not applied | `the loaded tool not called: problems [], want one containing "want the loaded tool"`; `a failed request: …` |
+
+* `TestLiveTests_TransientSkipsUseTheHelper` passes: the file skips a
+  transient failure only through `SkipIfTransient`.
+
+#### Step 3: docs
+
+* **`api-standards.md` R6** names the wrapper and the warning.
+* **`docs/architecture.md`:** `responses` names `InputLoading`,
+  `InputDispatch` and `Decoder`, and `messages` names `FromItemsLoading`
+  and `ClaudeVersion`. These were left to this phase by Phase 4's
+  deviation 1.
+* **`README.md`** has a "Deferred tools" bullet under the providers'
+  behaviour. Its Status entry for the release is written with step 5, as
+  0039's was.
+* **Each provider's package doc** (R12) has a paragraph after its
+  `Request.Cache` one; OpenCode's is a bullet. It gives the form, the
+  models, what is not sent, the fallbacks and the warning.
+* **`Tool.Deferred`'s doc comment** now names `ToolLoadItem` (A5), the
+  wrapper and the warning. This was carried from Phase 5.
+
+#### Step 4: checks so far
+
+* **Golden plants** (`tools/plant.py`, 4 of 4 caught), with only
+  `TestWireGoldens` run. Each form's drift fails its own new golden:
+
+  | Plant | FAIL line |
+  | :--- | :--- |
+  | Messages native without `defer_loading` | `testdata/wire/claude/defer-offer.json: 2 difference(s) from the golden file` |
+  | `tool_search_output` without `defer_loading` | `testdata/wire/openai/defer-load.json: 1 difference(s)` |
+  | the wrapper's description changed | `testdata/wire/grok/defer-offer.json: 1 difference(s)` |
+  | Gemini sends every tool | `testdata/wire/gemini/defer-offer.json: 2 difference(s)` |
+
+* **`make pre-add-check`** on the 12 Go files. The first run found two
+  `goconst` repeats in `wirecase` (`"get_time"`, `"call_search"`), now
+  constants. The second run was clean, and the goldens are unchanged.
+* **`tools/apidiff.py v1.12.0`** reports exactly "The exported additions":
+  `Tool.Deferred`, `Tool.Search`, `ToolLoadItem` and
+  `WarningDeferralEmulated`, all added, and nothing else.
+* `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
+  and `tools/linkcheck.py`: clean.
+* **Gate:** `tools/gate.py`, 23 of 23 passed, with Phase 5 staged and
+  these steps unstaged. It includes `lint`, `parity-check`, `dep-check`,
+  `coverage-check`, `api-check`, `generate-check`, `records-check` and
+  `gate-selftest`; `govulncheck` ran in `pre-add-check`. `g-wire-stable`
+  passed: no existing golden changed.
+
+#### Deviations
+
+1. **2026-10-13: the ChatGPT session path is skipped.**
+   * **Found:** step 2 has a ChatGPT path the owner runs (0040-MADR A3). It
+     needs a ChatGPT login read by the test process. The owner first asked
+     that a login file be used by the test in memory. Listing that file's
+     directory was denied by this session's permission check, and nothing
+     was read.
+   * **Decided by the owner:** "skip the chatgpt test for now".
+   * **Done:** the release ships without the path. The ChatGPT row stays
+     native, on codex's source (E12–E17). 0040-MADR A3 gains a dated
+     "Deferred" note, and its rule stands: if a later run fails, the row
+     takes D6 by a further amendment. The path stays in
+     `live_0040_deferral_test.go`, gated by `LLMPROVIDER_LIVE_CHATGPT`, and
+     skips without it.
+   * Step 2's other five paths are unchanged, and passed.
+
+#### Step 5: release notes, `v1.13.0`
+
+`v1.13.0` adds deferred tools (0040-MADR). The exported API adds four
+identifiers and changes none. A request with no deferred tool is sent
+exactly as before: no existing golden changed.
+
+**New API:**
+
+* `Tool.Deferred`: offered, but kept out of the model's context until a
+  `ToolLoadItem` loads it. At least one tool in a request is not deferred.
+* `Tool.Search`: the caller's own search for deferred tools. At most one,
+  never deferred.
+* `ToolLoadItem{CallID, Name}`: in `Input`, after the
+  `FunctionCallOutputItem` of the same call, it loads one deferred tool.
+  It is comparable, and no response holds one.
+* `WarningDeferralEmulated`: on a response whose deferred tools were not
+  sent in the service's own form.
+
+The contract refuses six requests before the network, with
+`ErrInvalidRequest`:
+
+* two Search tools;
+* a deferred Search tool;
+* every tool deferred;
+* a load of no deferred tool;
+* a load with no earlier result;
+* a forced choice of a deferred tool nothing has loaded.
+
+Grok also refuses a caller tool named `use_tool` beside a deferred tool.
+
+**What each provider sends:**
+
+| Provider | Form | Warning |
+| :--- | :--- | :--- |
+| `claude`, and OpenCode's messages route, Claude 4.5 and later | `defer_loading` on each deferred tool; a load as a `tool_reference` in its `tool_result`, the result's text after it | none |
+| `openai` with a key from GPT-5.4, every ChatGPT session model, OpenCode's responses route from GPT-5.4 | a client `tool_search` entry; the deferred tools only in a search result's `tool_search_output` | none; one when a load comes from another result, which is appended |
+| `grok` | the tools not deferred, then one fixed `use_tool` wrapper; a loaded tool's definition in its result's text; a `use_tool` call decoded as the tool's own | always |
+| every other model and wire (`gemini`, `huggingface`, `together`, `ollama`, `kilo`, OpenCode's chat and Google routes, older Claude and GPT models) | each loaded tool appended to the tools, in load order | always |
+
+A forced choice that the native form cannot name falls back to append:
+the Search tool on Responses, or a deferred tool on Grok.
+
+**Measured** (0040-PLAN Phase 7, step 2): on Claude, Zen Messages, OpenAI,
+Zen Responses and Grok, the model searched, called the tool the search
+loaded, and answered. The second and third requests read the first one's
+cache: 4,499 to 7,837 tokens. The ChatGPT session path was not run in this
+release (deviation 1).
+
+**For gobble-cli:** see step 7.
+
+**Upgrading:** no change is needed. Deferral is opt-in, per tool.
+
+#### Step 7: the gobble-cli issue (draft; not opened)
+
+To be opened only on the owner's ask, after the tag, and after
+`tools/denyscan.py` over its text.
+
+> **Title:** Adopt go-llmprovider-sdk v1.13.0's deferred tools for D7 tiers
+> and D9 loads (amend 0012-MADR D13)
+>
+> go-llmprovider-sdk `v1.13.0` sends deferred tools in each service's own
+> form. It adds `Tool.Deferred`, `Tool.Search` and `ToolLoadItem`, and
+> `WarningDeferralEmulated` when the native form is not used.
+>
+> * **D7 tiers.** Mark each tier's tools `Deferred`, and the tool search
+>   `Search`. The SDK keeps them out of the model's context on Claude 4.5
+>   and later and on OpenAI from GPT-5.4, wraps them in one fixed `use_tool`
+>   on Grok, and appends them as they are loaded elsewhere.
+> * **D9 loads.** After the search's `FunctionCallOutputItem`, add one
+>   `ToolLoadItem{CallID, Name}` per tool it loads. The SDK turns it into a
+>   `tool_reference`, a `tool_search_output`, the dispatch text, or an
+>   appended tool.
+> * **0012-MADR D13** should be amended to rest on the SDK's form in place
+>   of gobble's own. A request with no deferred tool is sent as before.
+>
+> Measured: the model called the loaded tool on every native path and on
+> Grok, and the prompt cache held across the load (go-llmprovider-sdk
+> 0040-PLAN-native-tool-deferral.md, Phase 7). The ChatGPT session path is
+> not yet measured live.

@@ -71,6 +71,12 @@
 //     claude package does: the top-level cache_control and one breakpoint
 //     on the system prompt or the last tool, with "5m" or "1h"
 //     (0039-MADR D2, D4). The x-opencode-session header is sent either way.
+//   - Deferred tools (Tool.Deferred) go out natively on the messages route
+//     from Claude 4.5 on, as the claude package sends them, and on the
+//     responses route from GPT-5.4 on, as the openai package sends them
+//     (0040-MADR D2, D3). The chat and google routes, and every other
+//     model, append each loaded tool, and the response carries
+//     WarningDeferralEmulated (D6, D7).
 //
 // ListModels returns the curated gateway listing. It never probes: the
 // gateways meter every call (MADR 0012 §1.6).
