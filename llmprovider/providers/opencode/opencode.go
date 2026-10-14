@@ -321,7 +321,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	var events func(string, io.Reader, func(llmprovider.Event) bool) error
 	switch c.route {
 	case RouteResponses:
-		body, events = p.responsesBody(c), responses.Events
+		body, events = p.responsesBody(c), responsesDecoder(c).Events
 		body["stream"] = true
 	case RouteChatCompletions:
 		body, events = p.chatBody(ctx, c), chatcompletions.Events
@@ -379,7 +379,7 @@ func (p *provider) generateOnce(ctx context.Context, c call, token llmprovider.T
 	decode := chatcompletions.DecodeFor(label)
 	switch c.route {
 	case RouteResponses:
-		body, decode = p.responsesBody(c), responses.DecodeFor(label)
+		body, decode = p.responsesBody(c), responsesDecoder(c).DecodeFor(label)
 	case RouteMessages:
 		body, decode = p.messagesBody(c), messages.Decode
 	case RouteGoogle:
@@ -483,11 +483,27 @@ func (p *provider) requestRoute(ctx context.Context, model string) Route {
 	return tableRoute(p.gateway, model)
 }
 
+// responsesDecoder is the decoder c's reply needs: one that names the
+// Search tool when c's deferred tools go out natively (0040-MADR D3).
+func responsesDecoder(c call) responses.Decoder {
+	if deferral.ForRequest(deferral.Responses, c.model, c.req) == deferral.ResponsesNative {
+		return responses.Decoder{Search: deferral.SearchName(c.req.Tools)}
+	}
+	return responses.Decoder{}
+}
+
 // responsesBody is the OpenAI Responses shape.
 func (p *provider) responsesBody(c call) map[string]any {
+	// Deferred tools go out natively from GPT-5.4 on, and are appended as
+	// loaded before it (0040-MADR D1, D3, D6).
+	form := deferral.ForRequest(deferral.Responses, c.model, c.req)
+	input := responses.Input(c.input)
+	if form == deferral.ResponsesNative {
+		input = responses.InputLoading(c.input, c.req)
+	}
 	body := map[string]any{
 		"model":             c.model,
-		"input":             responses.Input(c.input),
+		"input":             input,
 		"max_output_tokens": c.maxTokens,
 		// OpenCode's client stores nothing for @ai-sdk/openai models
 		// (transform.ts:1235-1243, MADR 0012 §3.2); items are replayed, so
@@ -495,7 +511,11 @@ func (p *provider) responsesBody(c call) map[string]any {
 		"store":   false,
 		"include": []string{"reasoning.encrypted_content"},
 	}
-	wire.AddResponsesTools(body, c.req.Tools, c.req.ToolChoice)
+	if tools := deferral.Tools(c.req, form); form == deferral.ResponsesNative {
+		wire.AddResponsesToolsNative(body, tools, c.req.ToolChoice)
+	} else {
+		wire.AddResponsesTools(body, tools, c.req.ToolChoice)
+	}
 	if c.reasoning != nil {
 		effort := c.reasoning.Effort
 		if effort == "" {

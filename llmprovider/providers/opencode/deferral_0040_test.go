@@ -39,6 +39,64 @@ func messagesSent(t *testing.T, model string, req *llmprovider.Request) map[stri
 	return body
 }
 
+// TestDeferral_ResponsesRoute_0040: gpt-6-luna on the responses route sends a
+// client tool_search, replays the search's call and output, and decodes a
+// tool_search_call as a call to the Search tool (0040-MADR D3); so does its
+// stream.
+func TestDeferral_ResponsesRoute_0040(t *testing.T) {
+	reply := `{"id":"r","status":"completed","output":[` +
+		`{"type":"tool_search_call","execution":"client","call_id":"c9","status":"completed","arguments":{"query":"stock"}}]}`
+	var body map[string]any
+	srv := captureServer(t, &body, reply)
+	p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "gpt-6-luna", WithRoute(RouteResponses))...)
+	resp, err := p.Generate(context.Background(), deferralRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tools []string
+	for _, raw := range body["tools"].([]any) {
+		tool := raw.(map[string]any)
+		if name, ok := tool["name"].(string); ok {
+			tools = append(tools, name)
+		} else {
+			tools = append(tools, tool["type"].(string))
+		}
+	}
+	if len(tools) != 2 || tools[0] != "read_file" || tools[1] != "tool_search" {
+		t.Errorf("tools %v; want read_file and a tool_search entry", tools)
+	}
+	var types []string
+	for _, raw := range body["input"].([]any) {
+		if typ, ok := raw.(map[string]any)["type"].(string); ok {
+			types = append(types, typ)
+		}
+	}
+	if len(types) != 2 || types[0] != "tool_search_call" || types[1] != "tool_search_output" {
+		t.Errorf("input types %v; want the search call and its output", types)
+	}
+	want := llmprovider.FunctionCallItem{CallID: "c9", Name: "tool_search", Arguments: `{"query":"stock"}`}
+	if len(resp.Output) != 1 || resp.Output[0] != want {
+		t.Errorf("output %+v, want %+v", resp.Output, want)
+	}
+
+	stream := "data: " + `{"type":"response.output_item.done","item":{"type":"tool_search_call","execution":"client","call_id":"c9","status":"completed","arguments":{"query":"stock"}}}` + "\n\n" +
+		"data: " + `{"type":"response.completed","response":{"id":"r","status":"completed"}}` + "\n\n"
+	srv = captureServer(t, &body, stream)
+	p = build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "gpt-6-luna", WithRoute(RouteResponses))...)
+	var items []llmprovider.Item
+	for event, err := range llmprovider.Stream(context.Background(), p, deferralRequest()) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		if event.Type == llmprovider.EventItem {
+			items = append(items, event.Item)
+		}
+	}
+	if len(items) != 1 || items[0] != want {
+		t.Errorf("streamed %+v, want %+v", items, want)
+	}
+}
+
 // TestDeferral_MessagesRoute_0040: claude-haiku-5-5 sends defer_loading and
 // a tool_reference; minimax-m3 sends the loaded tool after the others, and
 // the result as text.

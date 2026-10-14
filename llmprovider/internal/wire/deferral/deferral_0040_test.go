@@ -133,6 +133,32 @@ func TestTools_0040(t *testing.T) {
 	}
 }
 
+// TestForRequest_0040: the wire and model's form, except that a forced
+// choice of the Search tool on Responses appends, since tool_choice cannot
+// name a tool_search entry; and a request with nothing deferred is Append,
+// which sends it as before.
+func TestForRequest_0040(t *testing.T) {
+	req := &llmprovider.Request{Tools: deferralTools()}
+	if got := ForRequest(Responses, "gpt-6-luna", req); got != ResponsesNative {
+		t.Errorf("unforced: %v, want ResponsesNative", got)
+	}
+	req.ToolChoice = llmprovider.ForceTool("tool_search")
+	if got := ForRequest(Responses, "gpt-6-luna", req); got != Append {
+		t.Errorf("search forced on Responses: %v, want Append", got)
+	}
+	if got := ForRequest(Messages, "claude-haiku-5-5", req); got != MessagesNative {
+		t.Errorf("search forced on Messages: %v, want MessagesNative", got)
+	}
+	req.ToolChoice = llmprovider.ForceTool("read_file")
+	if got := ForRequest(Responses, "gpt-6-luna", req); got != ResponsesNative {
+		t.Errorf("another tool forced: %v, want ResponsesNative", got)
+	}
+	plain := &llmprovider.Request{Tools: []llmprovider.Tool{{Name: "a"}}}
+	if got := ForRequest(Responses, "gpt-6-luna", plain); got != Append {
+		t.Errorf("nothing deferred: %v, want Append", got)
+	}
+}
+
 // TestSearchLoads_0040: the loads a search result made, by call, for the
 // Responses wire's tool_search_output.
 func TestSearchLoads_0040(t *testing.T) {

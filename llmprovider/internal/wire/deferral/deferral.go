@@ -83,6 +83,20 @@ func Of(wire Wire, model string) Form {
 	return Append
 }
 
+// ForRequest is Of for req: Append when req defers nothing, which sends it
+// as before; and Append on Responses when req forces its Search tool, since
+// tool_choice can name a function but not a tool_search entry (0040-MADR D3).
+func ForRequest(wire Wire, model string, req *llmprovider.Request) Form {
+	if !Deferring(req.Tools) {
+		return Append
+	}
+	form := Of(wire, model)
+	if name, forced := req.ToolChoice.Tool(); forced && form == ResponsesNative && name == searchTool(req.Tools) {
+		return Append
+	}
+	return form
+}
+
 // gptVersion reads a GPT id's major and minor version by gptVersionRE; a
 // missing minor is 0. It reports false for an id it cannot read.
 func gptVersion(model string) (major, minor int, ok bool) {
@@ -125,6 +139,10 @@ func Loaded(input []llmprovider.Item) []string {
 	}
 	return out
 }
+
+// SearchName is the Search tool's name among tools, or "": what a Responses
+// decoder names a client tool_search_call (0040-MADR D3).
+func SearchName(tools []llmprovider.Tool) string { return searchTool(tools) }
 
 // searchTool is the request's Search tool's name, or "".
 func searchTool(tools []llmprovider.Tool) string {

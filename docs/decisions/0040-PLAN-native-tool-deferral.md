@@ -873,3 +873,131 @@ repeated id, where the second call is renamed. It then caught the plant:
 * `make records-check` and `tools/claims.py --changed`: clean.
 * **Gate:** `tools/gate.py`, 23 of 23 passed, `g-wire-stable` included: no
   existing golden changed.
+
+The owner committed Phase 2 as `338dedf`.
+
+### Phase 3: OpenAI Responses (2026-10-13)
+
+#### Research
+
+* **`outputItem.Arguments` was a `string`.** A `tool_search_call` sends its
+  `arguments` as a JSON object (MADR §3; codex's `ToolSearchCall`, E13), so
+  a reply holding one would not have decoded at all. It is now a
+  `json.RawMessage`, read as a string's content (every function call, as
+  before) or as the object, compacted.
+* **The decoder had no request.** `appendOutput` cannot know the Search
+  tool's name. `responses.Events` is passed to `wire.StreamEvents` as a
+  function value (`openai.go`, `grok.go`, `opencode.go`), so a variadic
+  option would have changed its type.
+  * A `responses.Decoder{Search}` value now carries the name, with
+    `DecodeFor`, `ReadStream` and `Events` methods.
+  * The package functions delegate with no name, so every other caller is
+    untouched.
+* **`InputItem` keeps its byte-for-byte order** (0028-MADR D-A6).
+  * `Arguments` became a value type, `Arguments`, that writes a string or a
+    JSON object, with `omitzero`.
+  * `execution`, `status` and `tools` were added at their alphabetical
+    places, each omitted when empty.
+  * The existing byte tests (`typed_0028_test.go`, the goldens) pass
+    unchanged.
+
+#### Found while building
+
+* **A forced choice of the Search tool cannot be native on Responses.**
+  `tool_choice` names a function, and the search is a `tool_search` entry,
+  with no name. `deferral.ForRequest` gives such a request `Append`, where
+  the search is a function the choice can name. 0040-MADR is silent on
+  forced choices, so this changes no decision. Each provider's package doc
+  says so in Phase 7.
+* **A hosted search** (`execution: "server"`) is the service's own, which
+  D8 leaves out. It is dropped, as every unknown item is, even with a Search
+  tool named.
+* **Arguments that are not a JSON object** replay as `{}`, which the API
+  takes, rather than a string it would refuse.
+
+#### What was built
+
+* **`responses`:**
+  * `Decoder`;
+  * `InputLoading(items, req)`, which sends a call to the Search tool as a
+    client `tool_search_call` and its result as a `tool_search_output`
+    holding the loaded definitions with `defer_loading`. The result's text
+    is not sent;
+  * `appendOutput` decodes a client `tool_search_call` as a
+    `FunctionCallItem` naming the Search tool.
+* **`wire.AddResponsesToolsNative`:** the Search tool as `{"type":
+  "tool_search", "execution": "client", "description", "parameters"}`, with
+  no name or `strict`.
+* **`deferral`:** `ForRequest` and `SearchName`.
+* **`openai`:** `deferForm` gives the form and the decoder once. The body,
+  `Generate` and `Stream` all use it. A ChatGPT session takes the native
+  form for every model (A3).
+* **`opencode`'s responses route:** its body, its decoder and its stream.
+
+#### Tests, red and green
+
+* **Red:**
+  * `responses`: `undefined: Decoder`, `undefined: InputLoading`;
+  * `wire`: `undefined: AddResponsesToolsNative`;
+  * `deferral`: `undefined: ForRequest`;
+  * OpenAI, before the wiring, after two fixtures were given a text answer
+    (an empty `output` is rightly refused as "the answer has no content"):
+
+    ```text
+    TestDeferral_KeyNative_0040: llmprovider: incomplete response: stop: responses: the answer has no content
+    TestDeferral_KeyAppend_0040: tools [read_file tool_search get_weather lookup_stock]; want read_file, tool_search and the loaded get_weather
+    TestDeferral_KeyStream_0040: llmprovider: incomplete response: stop: responses: the answer has no content
+    TestDeferral_ChatGPT_0040: llmprovider: incomplete response: stop: responses: the answer has no content
+    TestDeferral_ForcedSearch_0040: tools [read_file tool_search get_weather lookup_stock]; want the append form
+    ```
+
+    The search call was dropped, leaving no content, and the appending
+    models sent every tool;
+  * OpenCode's responses route: `the answer has no content`.
+* **One test fixed while green:** `TestInputLoading_Unchanged_0040` first
+  failed for flagging any `"tool_search"`. Plain `Input` rightly sends a
+  call to a function of that name. It now checks that no
+  `tool_search_call` or `tool_search_output` is sent, and that the load is
+  dropped.
+* **Green:**
+  * `TestDecode_ToolSearchCall_0040`, with a hosted search added after the
+    plant review below;
+  * `TestEvents_ToolSearchCall_0040`;
+  * `TestInputLoading_Replay_0040`, `…_Unchanged_0040` and
+    `…_BadArguments_0040`;
+  * `TestAddResponsesToolsNative_0040` and `TestForRequest_0040`;
+  * OpenAI's `TestDeferral_KeyNative_0040`, `…_KeyAppend_0040`,
+    `…_KeyStream_0040`, `…_ChatGPT_0040` and `…_ForcedSearch_0040`;
+  * OpenCode's `TestDeferral_ResponsesRoute_0040`;
+  * every other test in `./llmprovider/...`.
+
+#### Plants (`tools/plant.py`, 10 of 10 caught)
+
+Reviewing the plants before running them found one untested path: a hosted
+search, which no test sent. `TestDecode_ToolSearchCall_0040` gained it. One
+plant, "the search's arguments sent as a string", first left a variable
+unused and failed only to build. It was rerun in a compiling form and
+caught.
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the search sent as a function | `search entry … type:function`; `search entry sent a name`; `search entry sent strict` |
+| the call decoded under its wire name | `with a search tool: [{CallID:c1 Name:tool_search_call …`, and four more across the wire and both providers |
+| a hosted search decoded | `a hosted search: [{CallID:c1 Name:tool_search …} …], want only …` |
+| the stream ignores the search name | `the answer has no content`, in four stream tests |
+| `Output` sent in `tool_search_output` | `InputLoading:` diff |
+| the search's arguments sent as a string | `InputLoading:` diff; `bad arguments: … "arguments":"not json" …` |
+| a deferred tool left at the top level | `tools [read_file tool_search get_weather lookup_stock]; want read_file and a tool_search entry`, and three more |
+| a forced search kept native | `search forced on Responses: 2, want Append`; `tools [read_file tool_search]; want the append form` |
+| a ChatGPT session ruled as a key | `Of(3, "gpt-5") = 0, want 2`; the ChatGPT provider test |
+| OpenCode's responses route never native | `tools [read_file tool_search get_weather]; want read_file and a tool_search entry` |
+
+#### Checks
+
+* `make pre-add-check` on the 10 Go files. The first run found one
+  unchecked type assertion in `AddResponsesToolsNative`, now returning when
+  no tools were added. The plants were rerun on the fixed code, 10 of 10,
+  and the check was then clean.
+* `make records-check` and `tools/claims.py --changed`: clean.
+* **Gate:** `tools/gate.py`, 23 of 23 passed, `g-wire-stable` included: no
+  existing golden changed.

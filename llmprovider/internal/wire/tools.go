@@ -76,6 +76,26 @@ func AddResponsesTools(body map[string]any, tools []llmprovider.Tool, choice llm
 	}
 }
 
+// AddResponsesToolsNative is AddResponsesTools for a request whose deferred
+// tools go out natively (0040-MADR D3): the Search tool is a client
+// tool_search, with its description and its schema as parameters, and no
+// name or strict, which the entry does not take. tools are those
+// deferral.Tools gives, so no deferred tool is among them unless a result
+// other than the search loaded it.
+func AddResponsesToolsNative(body map[string]any, tools []llmprovider.Tool, choice llmprovider.ToolChoice) {
+	AddResponsesTools(body, tools, choice)
+	list, ok := body["tools"].([]map[string]any)
+	if !ok {
+		return // no tools, so none was added
+	}
+	for i, tool := range tools {
+		if tool.Search {
+			list[i] = map[string]any{KeyType: "tool_search", "execution": "client",
+				keyDescription: tool.Description, keyParameters: ToolSchema(tool.Schema)}
+		}
+	}
+}
+
 // MessagesToolsNative is MessagesTools for a request that defers tools
 // natively: each deferred tool carries "defer_loading": true (0040-MADR D2).
 func MessagesToolsNative(tools []llmprovider.Tool) []map[string]any {

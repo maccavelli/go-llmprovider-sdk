@@ -54,6 +54,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
 
@@ -223,7 +224,28 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.caps.Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEvents(ctx, p.call(req, true), p.src, responses.Events)
+	_, decoder := p.deferForm(req)
+	return wire.StreamEvents(ctx, p.call(req, true), p.src, decoder.Events)
+}
+
+// deferForm is req's deferred-tool form, and the decoder its reply needs: a
+// ChatGPT session takes the native form for every model, a key from GPT-5.4
+// on, and the native form's decoder names the Search tool (0040-MADR D1, D3).
+func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses.Decoder) {
+	model := req.Model
+	if model == "" {
+		model = p.model
+	}
+	route := deferral.Responses
+	if p.chatGPT {
+		route = deferral.ChatGPT
+	}
+	form := deferral.ForRequest(route, model, req)
+	var decoder responses.Decoder
+	if form == deferral.ResponsesNative {
+		decoder.Search = deferral.SearchName(req.Tools)
+	}
+	return form, decoder
 }
 
 // body is the Responses request for req.
@@ -236,9 +258,14 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if model == "" {
 		model = p.model
 	}
+	form, _ := p.deferForm(req)
+	input := responses.Input(req.Input)
+	if form == deferral.ResponsesNative {
+		input = responses.InputLoading(req.Input, req)
+	}
 	body := map[string]any{
 		jsonKeyModel: model,
-		jsonKeyInput: responses.Input(req.Input),
+		jsonKeyInput: input,
 	}
 	if req.Instructions != "" {
 		body["instructions"] = req.Instructions
@@ -268,7 +295,11 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		// The ChatGPT backend sends the key always, above (0039-MADR D3).
 		wire.AddPromptCacheKey(body, req.Cache, p.session)
 	}
-	wire.AddResponsesTools(body, req.Tools, req.ToolChoice)
+	if tools := deferral.Tools(req, form); form == deferral.ResponsesNative {
+		wire.AddResponsesToolsNative(body, tools, req.ToolChoice)
+	} else {
+		wire.AddResponsesTools(body, tools, req.ToolChoice)
+	}
 	if effort, ok := p.effort(req); ok {
 		// The summary makes reasoning items carry text (0020-MADR F24).
 		body["reasoning"] = map[string]any{"effort": effort, "summary": "auto"}
@@ -304,10 +335,11 @@ func (p *provider) effort(req *llmprovider.Request) (llmprovider.Effort, bool) {
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
 	// A failed reply is classified by OpenAI's vocabulary, as the stream's
 	// is (0026-MADR F28).
-	decode := responses.DecodeFor(string(llmprovider.ProviderOpenAI))
+	_, decoder := p.deferForm(req)
+	decode := decoder.DecodeFor(string(llmprovider.ProviderOpenAI))
 	if p.chatGPT {
 		decode = func(r io.Reader) (*llmprovider.Response, error) {
-			return responses.ReadStream(string(llmprovider.ProviderOpenAI), r)
+			return decoder.ReadStream(string(llmprovider.ProviderOpenAI), r)
 		}
 	}
 	return wire.Post(ctx, p.call(req, false), token, decode)

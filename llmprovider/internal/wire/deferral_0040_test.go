@@ -30,6 +30,43 @@ func TestMessagesToolsNative_0040(t *testing.T) {
 	}
 }
 
+// TestAddResponsesToolsNative_0040: the Search tool is a client tool_search,
+// with its description and schema and no strict or name; every other tool is
+// the function AddResponsesTools sends.
+func TestAddResponsesToolsNative_0040(t *testing.T) {
+	strict := true
+	schema := map[string]any{"type": "object", "properties": map[string]any{"query": map[string]any{"type": "string"}}}
+	tools := []llmprovider.Tool{{Name: "read_file", Strict: &strict},
+		{Name: "tool_search", Description: "Finds tools.", Schema: schema, Search: true, Strict: &strict}}
+	native, plain := map[string]any{}, map[string]any{}
+	AddResponsesToolsNative(native, tools, "")
+	AddResponsesTools(plain, tools, "")
+	got := native["tools"].([]map[string]any)
+	want := plain["tools"].([]map[string]any)
+	if len(got) != 2 || got[0][KeyName] != want[0][KeyName] || got[0]["strict"] != true {
+		t.Fatalf("native tools %v; want read_file as AddResponsesTools sends it first", got)
+	}
+	search := got[1]
+	if search[KeyType] != "tool_search" || search["execution"] != "client" || search[keyDescription] != "Finds tools." {
+		t.Errorf("search entry %v; want a client tool_search with its description", search)
+	}
+	if _, ok := search[KeyName]; ok {
+		t.Errorf("search entry sent a name: %v", search)
+	}
+	if _, ok := search["strict"]; ok {
+		t.Errorf("search entry sent strict: %v", search)
+	}
+	if params, ok := search[keyParameters].(map[string]any); !ok || params["type"] != "object" {
+		t.Errorf("search parameters %v; want the tool's schema", search[keyParameters])
+	}
+	// A forced choice of another tool is sent as AddResponsesTools sends it.
+	native = map[string]any{}
+	AddResponsesToolsNative(native, tools, llmprovider.ForceTool("read_file"))
+	if choice, _ := native[keyToolChoice].(map[string]any); choice[KeyName] != "read_file" {
+		t.Errorf("tool_choice %v; want read_file forced", native[keyToolChoice])
+	}
+}
+
 // TestRemapCallIDs_ToolLoad_0040: a ToolLoadItem takes the id its call's
 // result is sent with.
 func TestRemapCallIDs_ToolLoad_0040(t *testing.T) {
