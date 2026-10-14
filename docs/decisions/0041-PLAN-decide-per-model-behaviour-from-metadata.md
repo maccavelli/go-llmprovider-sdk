@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-13
 associated-madr: "0041-MADR-decide-per-model-behaviour-from-metadata.md"
 decision-makers: repository owner
@@ -218,8 +218,8 @@ stops and records a deviation.
    | :--- | :--- |
    | `TestEvidence0041_ClaudeAdaptive` | R1: `claudeAdaptiveOnly` equals "no `budget_tokens` option" on 34 of 34 Claude reasoning models in `anthropic`, `opencode` and `opencode-go` (§3) |
    | `TestEvidence0041_GeminiLegacy` | R4: 27 of 29, the two others being `gemini-2.5-flash-image` and `gemini-2.5-computer-use-preview-10-2025` (§3) |
-   | `TestEvidence0041_GrokMenus` | R6: 5 of 7 reasoning models agree; `grok-4.3` and `grok-4.20-multi-agent-0309` differ as stated (§3) |
-   | `TestEvidence0041_OutputLimits` | R7: 52 models below 8192 across the sections; the smallest Claude limit is 64,000 (§3) |
+   | `TestEvidence0041_GrokMenus` | R6: 5 of 7 reasoning models agree; `grok-4.3` and `grok-4.20-multi-agent-0309` differ as stated (§3). *In `llmprovider/providers/grok/evidence_0041_test.go` (Phase 0, deviation 2).* |
+   | `TestEvidence0041_OutputLimits` | R7: ~~52 models below 8192 across the sections~~ 52 entries below 8192 across the sections, 10 of them image and video models at a stated 0, so 42 text models (0041-MADR A1); the smallest Claude limit is 64,000 (§3) |
    | `TestEvidence0041_FullListFlags` | the OpenAI curator over its section gives 42 ids, 11 of them deprecated, `gpt-3.5-turbo` at #32 without tools; Grok's gives 8, the last without tools (§4) |
    | `TestEvidence0041_ListingDates` | the per-listing table of §4: rows, distinct `created`, and matches within 31 days |
    | `TestEvidence0041_CostKeyReach` | §5's table: 13 of 276, 3 of 136, 0 of 78, 144 of 23,220 |
@@ -691,23 +691,27 @@ stops and records a deviation.
 
 ## Evidence index
 
-<!-- claims: self=3e81e3d -->
+<!-- claims: self=2c82cf1 -->
 
 Checked against go-llmprovider-sdk `3e81e3d`, at that commit, by the
 checker Phase 0 commits as `tools/claims.py`. The first run found three
 rows a line off; they were corrected, and the second run passed every row.
 
+*Re-pinned 2026-10-13 to `2c82cf1`, in Phase 0, after 0040-PLAN moved
+the lines of ten rows (P1–P5, P7, P9, P20, P27, P31). Each row's text is
+unchanged; only its line number moved. See Phase 0's record.*
+
 | Id | Location | Where | Matched |
 | :--- | :--- | :--- | :--- |
-| P1 | Claude's thinking call | `llmprovider/providers/claude/claude.go:331` | `messages.AddThinking(body, model, string(effort), budget, maxTokens)` |
-| P2 | OpenCode's Messages thinking call | `llmprovider/providers/opencode/opencode.go:523` | `messages.AddThinking(body, c.model, string(c.reasoning.Effort), c.reasoning.Budget, maxTokens)` |
-| P3 | OpenCode's Google thinking call | `llmprovider/providers/opencode/opencode.go:539` | `generatecontent.ThinkingConfig(c.model, string(c.reasoning.Effort), c.reasoning.Budget)` |
-| P4 | Gemini's level | `llmprovider/providers/gemini/gemini.go:220` | `if level := thinkingLevel(model, r.Effort); level != "" {` |
-| P5 | Grok's clamp | `llmprovider/providers/grok/grok.go:258` | `clamped := clampReasoningEffort(model, string(effort))` |
+| P1 | Claude's thinking call | `llmprovider/providers/claude/claude.go:353` | `messages.AddThinking(body, model, string(effort), budget, maxTokens)` |
+| P2 | OpenCode's Messages thinking call | `llmprovider/providers/opencode/opencode.go:572` | `messages.AddThinking(body, c.model, string(c.reasoning.Effort), c.reasoning.Budget, maxTokens)` |
+| P3 | OpenCode's Google thinking call | `llmprovider/providers/opencode/opencode.go:592` | `generatecontent.ThinkingConfig(c.model, string(c.reasoning.Effort), c.reasoning.Budget)` |
+| P4 | Gemini's level | `llmprovider/providers/gemini/gemini.go:232` | `if level := thinkingLevel(model, r.Effort); level != "" {` |
+| P5 | Grok's clamp | `llmprovider/providers/grok/grok.go:300` | `clamped := clampReasoningEffort(model, string(effort))` |
 | P6 | the output limit setting | `llmprovider/settings.go:289` | `func (st *Settings) MaxTokens() int { return st.s.cfg.MaxTokens }` |
-| P7 | Kilo's replay | `llmprovider/providers/kilo/kilo.go:311` | `ReplayReasoningDetails: true,` |
+| P7 | Kilo's replay | `llmprovider/providers/kilo/kilo.go:325` | `ReplayReasoningDetails: true,` |
 | P8 | `CachedModel` | `llmprovider/catalog/lookup.go:94` | `func CachedModel(` |
-| P9 | OpenCode reads the cached document | `llmprovider/providers/opencode/opencode.go:466` | `meta, cached = catalog.CachedMetadataWith(ctx, p.gateway, p.listing...)` |
+| P9 | OpenCode reads the cached document | `llmprovider/providers/opencode/opencode.go:474` | `meta, cached = catalog.CachedMetadataWith(ctx, p.gateway, p.listing...)` |
 | P10 | eligibility | `llmprovider/catalog/model_ranking.go:118` | `func (c rankCandidate) eligible(provider llmprovider.ProviderID) bool {` |
 | P11 | `Profile` | `llmprovider/catalog/model_profile.go:5` | `type Profile int` |
 | P12 | the capable order | `llmprovider/catalog/model_ranking.go:195` | `func (n rankNorm) capableOrder(a, b rankCandidate) int {` |
@@ -718,18 +722,18 @@ rows a line off; they were corrected, and the second run passed every row.
 | P17 | the snapshot's ranked lists | `llmprovider/internal/cmd/catalogs/main.go:75` | `var snapshotFiles = map[llmprovider.ProviderID]string{` |
 | P18 | the latest snapshot | `llmprovider/catalog/snapshot_20261012_test.go:31` | `func latestSnapshot(t *testing.T) string {` |
 | P19 | `ModelInfo` | `llmprovider/catalog/model_info.go:17` | `type ModelInfo struct {` |
-| P20 | `AddThinking` | `llmprovider/internal/wire/messages/messages.go:439` | `func AddThinking(body map[string]any, model, effort string, budget, maxTokens int) int {` |
+| P20 | `AddThinking` | `llmprovider/internal/wire/messages/messages.go:558` | `func AddThinking(body map[string]any, model, effort string, budget, maxTokens int) int {` |
 | P21 | `ThinkingConfig` | `llmprovider/internal/wire/generatecontent/generatecontent.go:393` | `func ThinkingConfig(model, effort string, budget int) map[string]any {` |
 | P22 | the Chat Completions body | `llmprovider/internal/wire/chatcompletions/chatcompletions.go:344` | `func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[string]any {` |
 | P23 | `catalogFrom` | `llmprovider/catalog/discovery.go:192` | `func catalogFrom(usable []string, fetchErr error, static []string, curate curator, limit int) Catalog {` |
 | P24 | `metadataCurate` | `llmprovider/catalog/model_metadata.go:684` | `func metadataCurate(provider llmprovider.ProviderID, profile Profile` |
 | P25 | the first-party dispatch | `llmprovider/catalog/discovery.go:251` | `func modelCatalogFor(` |
 | P26 | the static-equals-snapshot test | `llmprovider/catalog/snapshot_20261012_test.go:124` | `func TestStatic_EqualsLatestSnapshot(t *testing.T) {` |
-| P27 | the wire scenarios run with metadata off | `llmprovider/internal/wirecase/wirecase.go:330` | `llmprovider.WithoutModelMetadata()` |
+| P27 | the wire scenarios run with metadata off | `llmprovider/internal/wirecase/wirecase.go:366` | `llmprovider.WithoutModelMetadata()` |
 | P28 | the ChatGPT listing's sort | `llmprovider/providers/openai/chatgpt_listing.go:126` | `slices.SortStableFunc(listed, func(a, b ranked) int {` |
 | P29 | the ChatGPT listing's filter | `llmprovider/providers/openai/chatgpt_listing.go:153` | `if model.Supported != nil && !*model.Supported {` |
 | P30 | the ChatGPT session check | `llmprovider/providers/openai/chatgpt_session.go:31` | `func isChatGPTSession(src llmprovider.TokenSource) bool {` |
-| P31 | the ChatGPT branch of `ListModels` | `llmprovider/providers/openai/openai.go:356` | `if p.chatGPT {` |
+| P31 | the ChatGPT branch of `ListModels` | `llmprovider/providers/openai/openai.go:404` | `if p.chatGPT {` |
 | P32 | Claude's listing page | `llmprovider/catalog/discovery.go:461` | `func fetchClaudePage(ctx context.Context, endpoint string` |
 | P33 | Gemini's listing page | `llmprovider/catalog/discovery.go:360` | `func fetchGeminiPage(ctx context.Context, endpoint string` |
 | P34 | Ollama's listing | `llmprovider/catalog/discovery.go:504` | `func fetchOllamaNames(ctx context.Context, token llmprovider.Token, cfg config) ([]string, error) {` |
@@ -741,5 +745,138 @@ rows a line off; they were corrected, and the second run passed every row.
 
 ## Execution Record
 
-No phase has run. Each phase appends its record here: what it did, its FAIL
-and plant lines, its gate summary, and a dated entry for every deviation.
+~~No phase has run.~~ Each phase appends its record here: what it did, its
+FAIL and plant lines, its gate summary, and a dated entry for every
+deviation.
+
+### Phase 0: records, the claims check, and the evidence tests (2026-10-13)
+
+#### Records (step 1)
+
+* The owner approved this PLAN ("proceed with 0041"). It is
+  `in-progress`, and `docs/README.md` says so.
+* **The evidence index was re-pinned** from `3e81e3d` to `2c82cf1`, as the
+  rule "Ordering with 0040-PLAN" requires of the plan that runs second.
+  * At `HEAD`, `tools/claims.py` found ten PLAN rows on moved lines (P1–P5,
+    P7, P9, P20, P27, P31). It wrote the fixes for nine. P31's text, `if
+    p.chatGPT {`, now occurs six times, and its `ListModels` branch was read
+    as line 404 by hand.
+  * The marker became `self=2c82cf1`, with a dated note. All 39 rows pass.
+  * **0041-MADR stays at `3e81e3d`,** where its 57 rows pass. Seven of its
+    rows would also have moved. But its evidence is what the decision was
+    made on, and its prose names that commit, so it is not re-pinned.
+
+#### `tools/claims.py` (step 2)
+
+**Skipped,** as step 1 provides. 0040-PLAN Phase 0 committed the tool
+(`0af9ac7`), and it runs as it stands.
+
+#### Deviations
+
+1. **2026-10-13: R7's count.**
+   * **Found** while measuring §3 through the SDK's own functions on the
+     snapshot. 52 entries in the eight sections record `limit.output` below
+     8192, but 10 of them are image and video models with a stated `0`
+     (five `gpt-image`/`chatgpt-image`, five `grok-imagine`). Only 42 text
+     models allow less than 8192.
+   * **Decided by the owner:** amend with the split. 0041-MADR gains
+     amendment A1; R7's row and the Consequences line are annotated, and so
+     is this PLAN's row for `TestEvidence0041_OutputLimits`. The test
+     asserts 52, 10 and 42.
+2. **2026-10-13: the Grok test's package.**
+   * **Found:** R6's rule, `effortMenu`, is unexported in `providers/grok`,
+     and `grok` imports `catalog`. A `catalog` test that imported `grok`
+     would be an import cycle.
+   * **Decided by the owner:** the test lives in
+     `llmprovider/providers/grok/evidence_0041_test.go`. It calls
+     `effortMenu` directly, and reads the committed snapshot from
+     `catalog`'s testdata. The other seven stay in
+     `llmprovider/catalog/evidence_0041_test.go`. The row in step 3's
+     table is annotated.
+
+#### Research (step 3)
+
+A scratch probe on a scratch clone measured each number through the SDK's
+own functions before any test was written. R1 used `messages.AddThinking`
+and R4 `generatecontent.ThinkingConfig` at low effort; §4 used `curateOpenAI`
+and `curateGrok`, and §5 `capableOrder`'s keys before cost:
+
+| 0041-MADR | Measured |
+| :--- | :--- |
+| R1 | `anthropic` 17 of 17, `opencode` 16 of 16, `opencode-go` 1 of 1: 34 of 34 |
+| R4 | 27 of 29; `gemini-2.5-computer-use-preview-10-2025` and `gemini-2.5-flash-image` differ |
+| R7 | 52 below 8192, 10 at a stated 0 (deviation 1); the smallest Claude limit 64,000 |
+| §4 | OpenAI: section 53, full list 42, 11 deprecated, `gpt-3.5-turbo` at #32 without tools; Grok: 8, the last `grok-4.20-multi-agent-0309` without tools |
+| §5 | OpenAI 13 of 276, Claude 3 of 136, Together 0 of 78, Kilo 144 of 23,220 (216 eligible: the snapshot, not the live document) |
+| §7 | `0.99 × 2 + 0.01 × 10 = 2.08`; cached, 0.476 to 0.526 |
+
+R6 is measured in its own package (deviation 2).
+
+#### The evidence tests (step 3)
+
+* **`llmprovider/catalog/evidence_0041_test.go`** holds seven. Each reads
+  the snapshot's models.dev document with `decodeModelMetadata`, and pins
+  the ranking clock at its `recorded_at`:
+  * `TestEvidence0041_ClaudeAdaptive` (R1). `messages.AddThinking` sends
+    `{"type":"adaptive"}` exactly where models.dev lists no `budget_tokens`
+    option: 17, 16 and 1, so 34 of 34.
+  * `TestEvidence0041_GeminiLegacy` (R4). `generatecontent.ThinkingConfig`
+    at low effort sends a `thinkingBudget` exactly where models.dev lists a
+    budget and no effort: 27 of 29, the two named.
+  * `TestEvidence0041_OutputLimits` (R7, A1): 52, 42, the ten ids at 0,
+    and 64,000. The default is read from `ResolveOptions(…).MaxTokens()`,
+    not written as 8192.
+  * `TestEvidence0041_FullListFlags` (§4), through `curateOpenAI` and
+    `curateGrok`.
+  * `TestEvidence0041_ListingDates` (§4's table). It reproduces the
+    research script's measure: a row with no `created`, or no models.dev
+    `release_date`, is not dated, and within 31 days counts as matched.
+    Every number the table states holds. The table gives no count of
+    zero-dated Kilo rows; the test asserts the 5 measured, and says so.
+  * `TestEvidence0041_CostKeyReach` (§5), through `metadataCandidate`,
+    `eligible`, `newRankNorm` and `capableOrder`'s keys before cost.
+  * `TestEvidence0041_CachedTurn` (§7): D5's formula, `cachedTurn0041`,
+    gives 2.08 uncached, and 0.476 to 0.526 cached. Phase 5 replaces it
+    with `ProfileAgent`'s own function.
+* **`llmprovider/providers/grok/evidence_0041_test.go`** holds
+  `TestEvidence0041_GrokMenus` (R6, deviation 2). `effortMenu` equals
+  models.dev's effort values on 5 of 7. `grok-4.3` and
+  `grok-4.20-multi-agent-0309` differ exactly as §3 states.
+* **No red run.** These tests assert behaviour that exists, and no code
+  changes in this phase, so there is nothing to be red against. Their
+  plants are their proof of failing.
+* **One expectation fixed while writing.** The first run failed only on
+  Kilo's zero-dated count, which the test had assumed to be 0:
+
+  ```text
+  kilo.json: {… zeroes:5 …}; want {… zeroes:0 …}
+  ```
+
+  The table states no such count, and every number it does state held.
+
+#### Plants (`tools/plant.py`, 8 of 8 caught)
+
+Each plant changes one test's function, or its input, by about one model.
+Every plant compiles, and each was caught by an assertion.
+
+| Plant | FAIL line |
+| :--- | :--- |
+| R1: Claude 4.7 no longer adaptive (`minor >= 8`) | `anthropic/claude-opus-4-7: adaptive false, but models.dev's budget_tokens options are []`; `anthropic: 16 of 17 …` |
+| R4: Gemini 2 no longer legacy | `R4: 26 of 29 agree, differing [gemini-2.5-flash gemini-2.5-flash-lite gemini-2.5-pro]` |
+| R7: the default output limit 8193 | `R7: 69 below 8193, 59 of them text models …` |
+| §4: `gpt-3.5-turbo` renamed in the snapshot | `OpenAI: section 53, full list 41, 10 deprecated, gpt-3.5-turbo at #0` |
+| §4's table: one zero-dated Kilo row dated | `kilo.json: {… distinct:369 zeroes:4 within:365 dated:383}` |
+| §5: age no longer orders | `openai: 196 of 276 pairs reach the cost key`; `claude: 94 of 136 …` |
+| §7: the new input priced as a read | `cached: 0.298 to 0.298; want both within [0.47, 0.53]` |
+| R6: `grok-4.5` gains `xhigh` | `R6: 4 of 7 agree, differing map[… grok-4.5:[[high low medium xhigh] [high low medium]]]` |
+
+#### Checks (step 4)
+
+* `go test ./llmprovider/catalog -run Evidence0041`, and the Grok test:
+  all pass.
+* `make pre-add-check` on the two test files: clean.
+* `make tools-test`: 41 tests, OK.
+* `make records-check`, and `tools/claims.py` on both records: 57 of 57
+  (0041-MADR, at `3e81e3d`) and 39 of 39 (this PLAN, at `2c82cf1`).
+* `tools/denyscan.py --changed` and `tools/linkcheck.py`: clean.
+* **Gate:** `tools/gate.py`, 23 of 23 passed.

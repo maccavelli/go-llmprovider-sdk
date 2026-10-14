@@ -89,7 +89,7 @@ document of 2026-10-13 gives the same results to within one model.
 | R2 | `minimax-m3` on Go has `toggle` only: agrees |
 | R4 | **27 of 29**. The two others, an image model and a computer-use model, are dropped by the usability filter |
 | R6 | 5 of 7 reasoning models. **`grok-4.3`:** xAI's listing gives `xhigh`, and a request accepted it (0033-MADR, "D2's xAI row"), but models.dev omits it. `grok-4.20-multi-agent-0309`: models.dev has efforts the menu omits |
-| R7 | **52 models** in the SDK's sections allow less output than 8192 tokens. Every Claude model allows at least 64,000 |
+| R7 | **52 models** in the SDK's sections allow less output than 8192 tokens. Every Claude model allows at least 64,000. *(Amended, A1: 52 entries record a limit below 8192, but 10 of them are image and video models with a stated 0; 42 text models allow less than 8192.)* |
 
 **The facts can be wrong.** `catalog/doc.go` lists models.dev errors that
 0033-MADR found, and `grok-4.3` is another. A first-party listing, and a
@@ -642,7 +642,8 @@ changes them.
 * Good, because a model the regexes have never seen gets its thinking
   shape, efforts and output limit from the facts as soon as they list it.
 * Good, because the 52 models with an output limit under 8192 are no longer
-  asked for more.
+  asked for more. *(Amended, A1: the 42 text models among them; the other
+  10 are image and video models the usability filter drops.)*
 * Good, because OpenAI's utility six leads with its cheapest current model,
   and holds no `o3-pro`.
 * Good, because an agent caller sees the strongest models ordered by what
@@ -698,6 +699,29 @@ changes them.
   * recording the first-party listings in Phase 2 calls listing endpoints,
     which are free, except Together's, which bills (0038-PLAN);
   * the owner may approve one generation per changed thinking shape.
+
+## Amendment 2026-10-13: what Phase 0's evidence tests found
+
+### A1. R7 counts 42 text models, and 10 image and video models at 0
+
+* **Found** in 0041-PLAN Phase 0, measuring §3 through the SDK's own
+  functions on the committed snapshot: 52 entries in the eight sections
+  record a `limit.output` below 8192, as §3 says. But 10 of them record a
+  stated `0`, and they are image and video models, not text models:
+  * `chatgpt-image-latest`, `gpt-image-1`, `gpt-image-1-mini`,
+    `gpt-image-1.5` and `gpt-image-2` (`openai`);
+  * `grok-imagine-image`, `grok-imagine-image-quality`,
+    `grok-imagine-video`, `grok-imagine-video-1.5` and
+    `grok-imagine-video-1.5-lite` (`xai`).
+
+  The usability filter drops them all.
+* **Owner's decision** (2026-10-13): state the split. 52 entries record a
+  limit below 8192; 10 are image and video models with a stated `0`; **42
+  text models allow less output than 8192 tokens.** Every Claude model
+  allows at least 64,000, as stated.
+* **What it changes:** the fact only. D2's decision, that the output limit
+  follows each model's `limit.output`, stands on the 42.
+  `TestEvidence0041_OutputLimits` asserts all three numbers.
 
 ## Pros and Cons of the Options
 
@@ -781,6 +805,9 @@ All answered by the owner on 2026-10-13, who then accepted this record:
 * **2026-10-13, raw mode.** The owner added raw listings to the scope. §8
   records what `List` does to a listing; D9 decides `ListRaw`. The consumer
   section became §9.
+
+* **2026-10-13, Phase 0's evidence.** Amendment A1 corrects R7's count to
+  42 text models, with 10 image and video models at a stated 0.
 
 ### Sources
 
