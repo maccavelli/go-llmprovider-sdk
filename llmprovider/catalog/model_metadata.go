@@ -87,10 +87,12 @@ type modelCostTier struct {
 // modelMetadata is the subset of one models.dev model entry the SDK reads:
 // for ranking, and for ModelInfo (0033-MADR D1).
 type modelMetadata struct {
-	Name      string     `json:"name"`
-	Family    string     `json:"family"`
-	Reasoning *bool      `json:"reasoning"`
-	Cost      *modelCost `json:"cost"`
+	Name   string `json:"name"`
+	Family string `json:"family"`
+	// CanonicalModelID is the same model's id in its maker's section.
+	CanonicalModelID string     `json:"canonical_model_id"`
+	Reasoning        *bool      `json:"reasoning"`
+	Cost             *modelCost `json:"cost"`
 	// Limit.Context is required by models.dev's schema; a window of 0 is
 	// read as unknown.
 	Limit struct {

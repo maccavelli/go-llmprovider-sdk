@@ -17,6 +17,10 @@ import (
 type ModelInfo struct {
 	// ID is the model's id, as the provider names it.
 	ID string
+	// CanonicalID is models.dev's canonical_model_id: the same model's id
+	// in its maker's section, as section/model, such as
+	// "anthropic/claude-opus-4-1" for a gateway's copy (0041-MADR D1).
+	CanonicalID string
 	// Name and Family are the model's display name and family.
 	Name, Family string
 	// ContextWindow is the model's context window, in tokens. MaxInputTokens
@@ -194,12 +198,26 @@ const (
 	FieldRetires
 	// FieldReasoningReplay is ModelInfo.Reasoning.ReplayField.
 	FieldReasoningReplay
+	// FieldCanonicalID is ModelInfo.CanonicalID.
+	FieldCanonicalID
 
 	fieldCount
 )
 
 // valid reports whether f names a field.
 func (f Field) valid() bool { return f >= 0 && f < fieldCount }
+
+// without is m with f unset: its value zeroed, its mark and source cleared.
+func (m ModelInfo) without(f Field) ModelInfo {
+	if !f.valid() {
+		return m
+	}
+	var zero ModelInfo
+	copyField(&m, zero, f)
+	m.known &^= 1 << f
+	m.sources[f] = ""
+	return m
+}
 
 // Has reports whether a layer set f.
 func (m ModelInfo) Has(f Field) bool { return f.valid() && m.known&(1<<f) != 0 }

@@ -85,8 +85,11 @@ type fetcher interface {
 	// Catalog lists provider with key, "" for a public listing. A ranked list
 	// is ranked with the utility profile and metadata.
 	Catalog(ctx context.Context, provider llmprovider.ProviderID, key string, ranked bool) (catalog.Catalog, error)
-	// Listing is the listing body provider's catalog was built from.
+	// Listing is the listing body provider's catalog was built from, when it
+	// was one page.
 	Listing(provider llmprovider.ProviderID) ([]byte, bool)
+	// Pages are every page of the listing provider's catalog was built from.
+	Pages(provider llmprovider.ProviderID) ([][]byte, bool)
 }
 
 // liveFetcher reads the sources from the network, and keeps each listing body.
@@ -95,7 +98,7 @@ type liveFetcher struct {
 	metadataURL string               // "" is models.dev's default
 	extra       []llmprovider.Option // appended to each catalog.List
 	mu          sync.Mutex
-	listings    map[llmprovider.ProviderID][]byte
+	listings    map[llmprovider.ProviderID][][]byte // every page
 }
 
 func (f *liveFetcher) Metadata(ctx context.Context) (catalog.Metadata, error) {
@@ -117,24 +120,33 @@ func (f *liveFetcher) Catalog(ctx context.Context, provider llmprovider.Provider
 	if err != nil {
 		return cat, err
 	}
-	body, err := rec.listing()
+	pages, err := rec.pages()
 	if err != nil {
 		return cat, err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.listings == nil {
-		f.listings = map[llmprovider.ProviderID][]byte{}
+		f.listings = map[llmprovider.ProviderID][][]byte{}
 	}
-	f.listings[provider] = body
+	f.listings[provider] = pages
 	return cat, nil
 }
 
 func (f *liveFetcher) Listing(provider llmprovider.ProviderID) ([]byte, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	body, ok := f.listings[provider]
-	return body, ok
+	if pages := f.listings[provider]; len(pages) == 1 {
+		return pages[0], true
+	}
+	return nil, false
+}
+
+func (f *liveFetcher) Pages(provider llmprovider.ProviderID) ([][]byte, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pages, ok := f.listings[provider]
+	return pages, ok
 }
 
 // listingRecorder keeps the body of each GET whose path ends in /models: a
@@ -169,6 +181,16 @@ func (r *listingRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	r.mu.Unlock()
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 	return resp, nil
+}
+
+// pages are every listing body recorded, in order; none is an error.
+func (r *listingRecorder) pages() ([][]byte, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.bodies) == 0 {
+		return nil, errors.New("recorded no listing")
+	}
+	return slices.Clone(r.bodies), nil
 }
 
 // listing is the one listing body recorded; none, or more than one, is an
@@ -211,12 +233,17 @@ func runTo(args []string, out, errOut *writer, stderr io.Writer, keys map[llmpro
 	flags.SetOutput(stderr)
 	doc := flags.String("doc", "", "read a models.dev-format document from this file instead of fetching one")
 	snapshot := flags.String("snapshot", "", "write the ranked listings and the document to this new directory")
+	firstParty := flags.String("firstparty", "",
+		"write the first-party listings (OpenAI, Anthropic, Gemini, xAI), every page, redacted, to this new directory")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
-	if *snapshot != "" {
-		if _, err := os.Stat(*snapshot); !errors.Is(err, os.ErrNotExist) {
-			errOut.printf("catalogs: -snapshot %s: the directory exists, or cannot be checked (%v)\n", *snapshot, err)
+	for flagName, dir := range map[string]string{"-snapshot": *snapshot, "-firstparty": *firstParty} {
+		if dir == "" {
+			continue
+		}
+		if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+			errOut.printf("catalogs: %s %s: the directory exists, or cannot be checked (%v)\n", flagName, dir, err)
 			return 2
 		}
 	}
@@ -271,6 +298,13 @@ func runTo(args []string, out, errOut *writer, stderr io.Writer, keys map[llmpro
 		}
 		out.printf("snapshot: %s\n", *snapshot)
 	}
+	if *firstParty != "" {
+		if err := writeFirstParty(*firstParty, f, time.Now().UTC()); err != nil {
+			errOut.printf("catalogs: -firstparty: %v\n", err)
+			return 2
+		}
+		out.printf("firstparty: %s\n", *firstParty)
+	}
 	return 0
 }
 
@@ -305,6 +339,117 @@ func writeSnapshot(dir string, meta catalog.Metadata, f fetcher, now time.Time) 
 		return err
 	}
 	files["snapshot.json"] = append(m, '\n')
+	tmp := dir + ".partial"
+	if err := os.Mkdir(tmp, 0o750); err != nil {
+		return err
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(tmp, name), body, 0o600); err != nil {
+			return errors.Join(err, os.RemoveAll(tmp))
+		}
+	}
+	if err := os.Rename(tmp, dir); err != nil {
+		return errors.Join(err, os.RemoveAll(tmp))
+	}
+	return nil
+}
+
+// firstPartyFiles names each first-party listing in a -firstparty directory
+// (0041-PLAN Phase 2).
+var firstPartyFiles = map[llmprovider.ProviderID]string{
+	llmprovider.ProviderOpenAI: "openai.json", llmprovider.ProviderClaude: "claude.json",
+	llmprovider.ProviderGemini: "gemini.json", llmprovider.ProviderGrok: "grok.json",
+}
+
+// vendorOwners are the owned_by values a listing may keep: the vendors' own.
+// Any other names an account or organisation, and is replaced.
+var vendorOwners = map[string]bool{"openai": true, "system": true, "openai-internal": true, "xai": true}
+
+// redactListing drops a page's fine-tuned rows, whose ids name an
+// organisation, and replaces any owned_by that is not a vendor's with
+// "<owner>". Numbers are kept exactly.
+func redactListing(page []byte) ([]byte, error) {
+	dec := json.NewDecoder(bytes.NewReader(page))
+	dec.UseNumber()
+	var doc map[string]any
+	if err := dec.Decode(&doc); err != nil {
+		return nil, err
+	}
+	for _, key := range []string{"data", "models"} {
+		rows, ok := doc[key].([]any)
+		if !ok {
+			continue
+		}
+		kept := rows[:0]
+		for _, raw := range rows {
+			row, ok := raw.(map[string]any)
+			if !ok {
+				kept = append(kept, raw)
+				continue
+			}
+			if id, ok := row["id"].(string); ok && strings.HasPrefix(id, "ft:") {
+				continue
+			}
+			if owner, ok := row["owned_by"].(string); ok && !vendorOwners[owner] {
+				row["owned_by"] = "<owner>"
+			}
+			kept = append(kept, row)
+		}
+		doc[key] = kept
+	}
+	return marshalPlain(doc)
+}
+
+// marshalPlain is json.Marshal without HTML escaping, so that a placeholder
+// such as "<owner>" reads as written.
+func marshalPlain(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
+}
+
+// writeFirstParty writes dir: each first-party listing as a JSON array of its
+// pages, redacted, and firstparty.json, the time and each file's SHA-256. It
+// writes nothing unless all four were read, and builds the directory beside
+// dir before renaming it into place.
+func writeFirstParty(dir string, f fetcher, now time.Time) error {
+	files := map[string][]byte{}
+	for p, name := range firstPartyFiles {
+		pages, ok := f.Pages(p)
+		if !ok {
+			return fmt.Errorf("%s's listing was not read: its key is unset, or the listing failed", p)
+		}
+		redacted := make([]json.RawMessage, len(pages))
+		for i, page := range pages {
+			body, err := redactListing(page)
+			if err != nil {
+				return fmt.Errorf("%s page %d: %w", p, i+1, err)
+			}
+			redacted[i] = body
+		}
+		body, err := marshalPlain(redacted)
+		if err != nil {
+			return err
+		}
+		files[name] = append(body, '\n')
+	}
+	manifest := struct {
+		RecordedAt string            `json:"recorded_at"`
+		Files      map[string]string `json:"files"`
+	}{RecordedAt: now.Format(time.RFC3339), Files: map[string]string{}}
+	for name, body := range files {
+		sum := sha256.Sum256(body)
+		manifest.Files[name] = hex.EncodeToString(sum[:])
+	}
+	m, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	files["firstparty.json"] = append(m, '\n')
 	tmp := dir + ".partial"
 	if err := os.Mkdir(tmp, 0o750); err != nil {
 		return err

@@ -153,10 +153,39 @@ func listOnce(ctx context.Context, id llmprovider.ProviderID, token llmprovider.
 	models := map[string]ModelInfo{}
 	cfg.sink = func(info ModelInfo) { models[info.ID] = info }
 	cat, err := modelCatalogFor(ctx, id, token, cfg)
+	undatedConstant(models)
 	if err == nil && cat.Err == nil && cat.Live && len(models) > 0 {
 		storeListing(listingKeyFor(id, cfg, token), models, false)
 	}
 	return cat, models, err
+}
+
+// undatedConstant drops the Released of a listing whose dated rows all
+// share one date, as Zen's and Go's do: such a date is when the listing was
+// built, not when a model was released (0041-MADR D1). It needs two dated
+// rows to tell.
+func undatedConstant(models map[string]ModelInfo) {
+	var first time.Time
+	dated, same := 0, true
+	for _, m := range models {
+		if !m.Has(FieldReleased) {
+			continue
+		}
+		if dated == 0 {
+			first = m.Released
+		} else if !m.Released.Equal(first) {
+			same = false
+		}
+		dated++
+	}
+	if dated < 2 || !same {
+		return
+	}
+	for id, m := range models {
+		if m.Has(FieldReleased) {
+			models[id] = m.without(FieldReleased)
+		}
+	}
 }
 
 // defaultClientUser is a source that refreshes through a client it is given,
@@ -414,7 +443,9 @@ type claudeModelsPage struct {
 // capabilities 0033-MADR D2 reads. Its lifecycle is not read: it lags the
 // deprecations page (0033-MADR, "sources that lag").
 type claudeModel struct {
-	ID             string              `json:"id"`
+	ID string `json:"id"`
+	// CreatedAt is when Anthropic lists the model as released, RFC 3339.
+	CreatedAt      string              `json:"created_at"`
 	MaxInputTokens *int                `json:"max_input_tokens"`
 	MaxTokens      *int                `json:"max_tokens"`
 	Capabilities   *claudeCapabilities `json:"capabilities"`
@@ -743,6 +774,7 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 	var result struct {
 		Data []struct {
 			ID           string `json:"id"`
+			Created      int64  `json:"created"`
 			Architecture struct {
 				InputModalities  []string `json:"input_modalities"`
 				OutputModalities []string `json:"output_modalities"`
@@ -766,6 +798,10 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 	}
 	var ranked []scored
 	for _, m := range result.Data {
+		// Its created is a release date, measured (0041-PLAN Phase 2).
+		b := newInfo(llmprovider.ProviderHuggingFace, m.ID)
+		b.released(listingDay(m.Created))
+		cfg.emit(b.done())
 		if !hasText(m.Architecture.InputModalities) || !onlyText(m.Architecture.OutputModalities) {
 			continue
 		}

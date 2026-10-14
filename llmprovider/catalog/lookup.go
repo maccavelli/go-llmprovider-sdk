@@ -33,7 +33,8 @@ func WithModelLayer(l Layer) llmprovider.Option {
 // listingLayers are the providers whose listing is a layer: those amended D2
 // gives fields.
 var listingLayers = map[llmprovider.ProviderID]bool{
-	llmprovider.ProviderClaude: true, llmprovider.ProviderGemini: true, llmprovider.ProviderGrok: true,
+	llmprovider.ProviderHuggingFace: true, // its release dates (0041-PLAN Phase 2)
+	llmprovider.ProviderClaude:      true, llmprovider.ProviderGemini: true, llmprovider.ProviderGrok: true,
 	llmprovider.ProviderKilo: true, llmprovider.ProviderTogether: true, llmprovider.ProviderOpenAI: true,
 	llmprovider.ProviderOllama: true,
 }
@@ -250,6 +251,8 @@ func copyField(dst *ModelInfo, src ModelInfo, f Field) {
 		dst.Retires = src.Retires
 	case FieldReasoningReplay:
 		dst.Reasoning.ReplayField = src.Reasoning.ReplayField
+	case FieldCanonicalID:
+		dst.CanonicalID = src.CanonicalID
 	}
 }
 

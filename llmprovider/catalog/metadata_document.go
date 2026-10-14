@@ -6,6 +6,7 @@ import (
 	"io"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -74,7 +75,42 @@ func (m Metadata) Model(provider llmprovider.ProviderID, id string) (ModelInfo, 
 	if !ok {
 		return ModelInfo{}, false
 	}
-	return modelInfoFrom(id, e), true
+	return withCanonicalCacheRead(m.doc, modelInfoFrom(id, e)), true
+}
+
+// firstPartySections are the sections a canonical id names for its maker's
+// prices (0041-MADR D1).
+var firstPartySections = map[string]bool{"openai": true, "anthropic": true, "google": true, "xai": true}
+
+// pricesByCanonical is the base rates of the model canonical names,
+// section/model, in its maker's first-party section, and whether that entry
+// states a cache read price.
+func pricesByCanonical(doc *modelMetadataDoc, canonical string) (ModelRates, bool) {
+	section, model, ok := strings.Cut(canonical, "/")
+	if !ok || !firstPartySections[section] {
+		return ModelRates{}, false
+	}
+	models, _ := doc.models(section)
+	e, ok := models[model]
+	if !ok || e.Cost == nil {
+		return ModelRates{}, false
+	}
+	var c ModelCost
+	return c.ModelRates, slices.Contains(costFrom(&c, e.Cost), FieldCostCacheRead)
+}
+
+// withCanonicalCacheRead fills info's missing cache read price from its
+// canonical model's first-party entry (0041-MADR D1); it is the document's
+// own fact, so its source stays models.dev.
+func withCanonicalCacheRead(doc *modelMetadataDoc, info ModelInfo) ModelInfo {
+	if info.CanonicalID == "" || info.Has(FieldCostCacheRead) {
+		return info
+	}
+	if rates, ok := pricesByCanonical(doc, info.CanonicalID); ok {
+		info.Cost.CacheRead = rates.CacheRead
+		info = info.Known(FieldCostCacheRead)
+	}
+	return info
 }
 
 // Models returns what the document says of every model it lists for provider,
@@ -88,7 +124,7 @@ func (m Metadata) Models(provider llmprovider.ProviderID) []ModelInfo {
 	sort.Strings(ids)
 	out := make([]ModelInfo, len(ids))
 	for i, id := range ids {
-		out[i] = modelInfoFrom(id, models[id])
+		out[i] = withCanonicalCacheRead(m.doc, modelInfoFrom(id, models[id]))
 	}
 	return out
 }
@@ -106,6 +142,10 @@ func modelInfoFrom(id string, e modelMetadata) ModelInfo {
 	if e.Family != "" {
 		info.Family = e.Family
 		set(FieldFamily)
+	}
+	if e.CanonicalModelID != "" {
+		info.CanonicalID = e.CanonicalModelID
+		set(FieldCanonicalID)
 	}
 	if e.Limit.Context > 0 {
 		info.ContextWindow = e.Limit.Context

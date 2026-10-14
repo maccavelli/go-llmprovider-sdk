@@ -113,7 +113,7 @@ standard library is left out.
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 | `llmprovider/internal/retired` | `IDs`, the retired model ids by provider, each with why (0033-MADR D4) | `llmprovider` |
 | `llmprovider/internal/catalogtool` | `Propose`, the maintainer tool's proposals: ids to remove from a static list, and models to add | `llmprovider`, `catalog`, `internal/retired` |
-| `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, `go run ./llmprovider/internal/cmd/catalogs`: it reads models.dev and each keyed listing, and prints the proposals | `llmprovider`, `catalog`, `internal/catalogtool` |
+| `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, `go run ./llmprovider/internal/cmd/catalogs`: it reads models.dev and each keyed listing, and prints the proposals; `-snapshot` records the ranked listings, and `-firstparty` the first-party listings, every page, redacted | `llmprovider`, `catalog`, `internal/catalogtool` |
 | `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
 
 ## Package graph
@@ -198,6 +198,9 @@ winning (0033-MADR D1 to D3):
    `google`, `xai` and `kilo`.
    - A fetched document keeps each section's bytes, and decodes a section
      the first time it is read, once.
+   - `canonical_model_id` is `CanonicalID`. A gateway model's missing
+     `cache_read` comes from its canonical model's first-party entry
+     (0041-MADR D1).
    - `ParseMetadata` decodes every section of a document a caller
      persisted.
    - `Metadata.Encode` writes the sections back as they were read,
@@ -205,12 +208,19 @@ winning (0033-MADR D1 to D3):
 2. **The provider's listing,** when a `TokenSource` is given: the fields
    each listing is authoritative for, decoded from the replies `List`
    already reads.
-   - Anthropic: limits and capabilities, never its lifecycle.
+   - Anthropic: limits, capabilities and release date, never its lifecycle.
    - Gemini: limits and thinking.
-   - xAI: window, efforts and prices, from cents per 100 million tokens.
-   - Kilo: window, output cap, prices from per-token strings, expiration.
+   - xAI: window, efforts, prices, from cents per 100 million tokens, and
+     release date.
+   - Kilo: window, output cap, prices from per-token strings, expiration
+     and release date.
    - Together: window and prices.
-   - OpenAI: shutdown date.
+   - OpenAI: shutdown date and release date.
+   - Hugging Face: release date.
+
+   A listing's date is read only where it was measured to be a release
+   date, and never when every dated row shares one, or from a zero
+   (0041-MADR D1; 0041-PLAN Phase 2).
    - Ollama: window and capabilities, from one model's `/api/show`.
 3. **The caller's layers,** given with `WithModelLayer`. Any `Layer` is
    one, `Metadata` among them.

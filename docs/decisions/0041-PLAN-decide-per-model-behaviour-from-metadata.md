@@ -1125,3 +1125,168 @@ token plant.
   39 of 39; `tools/denyscan.py --changed` and `tools/linkcheck.py`: clean.
 * **Gate:** `tools/gate.py`, 23 of 23 passed, `g-wire-stable` included: no
   existing golden changed.
+
+### Phase 2: listing facts (2026-10-14)
+
+#### Research
+
+* **P15, P16, P19, the listing decoders.**
+  * Each listing a `List` reads emits its models' facts through
+    `config.emit`, and `listOnce` stores them by provider, base URL and
+    credential.
+  * Kilo's entry already has `created`; OpenAI's and xAI's share
+    `dataModel`; Anthropic's `claudeModel` did not decode `created_at`.
+  * Hugging Face's listing was no listing layer: its fetch emitted nothing.
+* **P17, the snapshot command,** records the five ranked listings, one body
+  each. Anthropic and Gemini page their listings, and the recorder refused
+  more than one body. The fetcher now keeps every page:
+  * `Listing` gives a listing's body only when it was one page, so the
+    ranked snapshot keeps its rule;
+  * `Pages` gives them all.
+* **P18:** `latestSnapshot` reads `ranking-*` only, so
+  `testdata/firstparty-*` moves no ranked list. The ranked tests are
+  unchanged.
+* **The four keys** were checked for presence only, and all were set.
+
+#### Step 2: the first-party listings
+
+`go run ./llmprovider/internal/cmd/catalogs -firstparty
+llmprovider/catalog/testdata/firstparty-2026-10-14` read the four
+listings. They are free; no request was billed. It wrote `openai.json`,
+`claude.json`, `gemini.json` and `grok.json`, each an array of its pages,
+and `firstparty.json`, the time and each file's SHA-256.
+
+| Listing | Pages | Rows | Its date field |
+| :--- | ---: | ---: | :--- |
+| OpenAI | 1 | 133 | `created`, Unix |
+| Anthropic | 1 | 14 | `created_at`, RFC 3339 |
+| Gemini | 1 | 63 | none |
+| xAI | 1 | 14 | `created`, Unix |
+
+**Redaction.** Fine-tuned rows (`ft:…`, which name an organisation) are
+dropped, and an `owned_by` that is not a vendor's becomes `<owner>`. The
+recorded `owned_by` values are `system`, `openai`, `openai-internal` and
+`xai`. No row holds `org-`, `user-`, `proj_` or `@`, and no fine-tuned row
+was listed. `tools/denyscan.py` over the five files: 0 hits.
+
+#### Step 3: the dates measured
+
+Each listing's date against models.dev's `release_date`, as §4 measured
+it: rows with both, and within 31 days. A listing qualifies at 90% or more,
+with no single date on every row and no zero.
+
+| Listing | Rows | Within 31 days | Share | Qualifies |
+| :--- | ---: | ---: | ---: | :--- |
+| OpenAI | 133 | 45 of 48 | 94% | yes |
+| Anthropic | 14 | 14 of 14 | 100% | yes |
+| xAI | 14 | 12 of 13 | 92% | yes |
+| Gemini | 63 | no date field | — | no |
+| Kilo | 391 | 365 of 382 | 96% | yes |
+| Hugging Face | 125 | 66 of 69 | 96% | yes |
+| Together | 265 | 11 of 16 | 69% | no |
+| OpenCode Zen | 83 | 13 of 80 | 16% | no: one date on every row |
+| OpenCode Go | 38 | 8 of 34 | 24% | no: one date on every row |
+
+The Kilo, Hugging Face, Together, Zen and Go counts are §4's, unchanged.
+
+#### Step 4: what was built
+
+* **Release dates,** from the five that qualified:
+  * OpenAI's and xAI's `created`, Anthropic's `created_at`, Kilo's
+    `created` and Hugging Face's `created`, each as a UTC day, through
+    `listingDay`;
+  * a zero dates nothing;
+  * `undatedConstant`, in `listOnce`, drops every date of a listing whose
+    dated rows all share one. It needs two dated rows to tell, so a
+    one-row listing keeps its date.
+* **Hugging Face becomes a listing layer,** for its dates. Step 4 reads
+  Hugging Face's date "from the listing layer", and Hugging Face had none.
+  So `LookupModel` and `CachedModel` now read its listing too, as they do
+  the others'. `List` already read it.
+* **The canonical id:**
+  * `canonical_model_id` is `ModelInfo.CanonicalID`, with
+    `FieldCanonicalID`;
+  * `pricesByCanonical(doc, canonical)` is that model's rates in its
+    maker's first-party section (`openai`, `anthropic`, `google`, `xai`).
+* **D1's fill is applied in `Metadata.Model` and `Models`,** whose result
+  every layer reads: a missing `cache_read` comes from the canonical
+  model's entry, with models.dev as its source. A helper only tests called
+  would fail the linter's `unused`. On the snapshot it fills one model:
+  Kilo's `openai/gpt-3.5-turbo`.
+* **Expiry:** OpenAI's `shutdown_date` and Kilo's `expiration_date` were
+  already `Retires`. The first-party test checks OpenAI's on the recorded
+  listing.
+* **`docs/architecture.md`:**
+  * which listing gives a release date;
+  * the canonical id;
+  * the command's `-snapshot` and `-firstparty` (R43).
+
+#### Tests, red and green
+
+* **Red:**
+
+  ```text
+  firstparty_0041_test.go:70: exit 2: flag provided but not defined: -firstparty
+  listingdates_0041_test.go:188:11: info.CanonicalID undefined (type ModelInfo has no field or method CanonicalID)
+  listingdates_0041_test.go: undefined: FieldCanonicalID, pricesByCanonical
+  ```
+
+  Once the canonical id built, before the dates were decoded:
+
+  ```text
+  listingdates_0041_test.go:81: openai, two dates: Released 0001-01-01 00:00:00 +0000 UTC from ""; want from the listing true
+  listingdates_0041_test.go:126: openai/gpt-4.1: Released 0001-01-01 00:00:00 +0000 UTC, known false; want known true
+  ```
+
+  The same failed for Anthropic, xAI, Kilo and Hugging Face, and for the
+  recorded Anthropic and xAI listings. The rows that want no date passed
+  already, as they should.
+* **Fixed while writing:**
+  * the command's placeholder first came out `<owner>`, since
+    `json.Marshal` escapes HTML. `marshalPlain` writes it as given;
+  * the first `make pre-add-check` found an unchecked type assertion
+    (`errcheck`).
+* **Green:**
+  * `TestFirstParty_0041`;
+  * `TestListingDates_0041`, `TestListingDates_FirstParty_0041` and
+    `TestCanonicalID_0041`;
+  * `go test ./...`;
+  * every wire golden, three runs, with no golden changed, and no ranked
+    list moved.
+
+#### Plants (`tools/plant.py`, 9 of 9 caught)
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the guard for one date on every row removed (PLAN) | `openai, one date on every row: Released 2026-05-28 … from "listing:openai"; want from the listing false` |
+| Together, which did not qualify, given a date (PLAN) | `together, two dates: Released 2026-09-02 … from "listing:together"; want from the listing false` |
+| the canonical lookup on the wrong section (PLAN) | `openai/gpt-x: cache_read 0, known false; want 0.25, true` |
+| Hugging Face not a listing layer | `huggingface, two dates: Released 0001-01-01 … from ""; want from the listing true` |
+| Anthropic's `created_at` ignored | `claude, two dates: … want from the listing true` |
+| a zero read as a date | `openai, a zero: Released 1970-01-01 … from "listing:openai"` |
+| an entry's own `cache_read` overwritten | `openai/gpt-x-own: cache_read 0.25, known true; want 0.5, true` |
+| an organisation owner kept | `openai.json keeps "user-xyz"` |
+| a fine-tuned row kept | `openai.json keeps "ft:"` |
+
+`plant.py` takes one edit per plant. So "Together given a date" sets a date
+in `togetherInfo` itself, as a read of its listing would, rather than
+adding a field and reading it. A first version gave every row the same
+date, which the one-date guard rightly dropped, and it was not caught. The
+plant was rewritten with a date per row, and caught. The fine-tuned-row
+plant was rerun after the `errcheck` fix, and caught.
+
+#### Checks
+
+* `make pre-add-check` on the 9 Go files: clean after the fix above.
+* `tools/apidiff.py 6253cc8`: `ModelInfo.CanonicalID` and
+  `FieldCanonicalID`, added, and nothing else, as "The exported additions"
+  lists for Phase 2.
+* `make records-check`; `tools/claims.py` on both records, 57 of 57 and
+  39 of 39; `tools/linkcheck.py`: clean.
+* **The identifier scan's first run** found 6 hits, all in `catalogs`, a
+  Mach-O binary that a `go build` of the command wrote into the repository
+  root during this phase. It was never staged. It was removed, and the scan
+  then found 0 hits in 16 files.
+* **Gate:** `tools/gate.py`, 22 of 23 on the first run (`deny-scan`, the
+  binary above), then 23 of 23. `g-wire-stable` was included: no existing
+  golden changed.

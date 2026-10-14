@@ -53,6 +53,9 @@ type claudeCapabilities struct {
 type dataModel struct {
 	ID           string  `json:"id"`
 	ShutdownDate *string `json:"shutdown_date"`
+	// Created is the Unix time OpenAI and xAI list the model at: a release
+	// date, measured (0041-PLAN Phase 2).
+	Created int64 `json:"created"`
 	// xAI's /v1/models.
 	ContextLength *int `json:"context_length"`
 	Capabilities  *struct {
@@ -96,6 +99,23 @@ func (b *infoBuilder) set(f ...Field) { b.known = append(b.known, f...) }
 
 func (b *infoBuilder) done() ModelInfo { return b.info.Known(b.known...) }
 
+// listingDay is a listing's Unix creation time as a release day, in UTC, and
+// false for zero, which dates nothing (0041-MADR D1).
+func listingDay(unix int64) (time.Time, bool) {
+	if unix <= 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(unix, 0).UTC().Truncate(24 * time.Hour), true
+}
+
+// released sets b's Released to day, when there is one.
+func (b *infoBuilder) released(day time.Time, ok bool) {
+	if ok {
+		b.info.Released = day
+		b.set(FieldReleased)
+	}
+}
+
 // listingDate reads a YYYY-MM-DD date, as OpenAI's shutdown_date and Kilo's
 // expiration_date give one (measured on 2026-10-12).
 func listingDate(s string) (time.Time, bool) {
@@ -124,6 +144,9 @@ func geminiInfo(id string, m geminiModel) ModelInfo {
 // claudeInfo reads Anthropic's limits and capabilities, never its lifecycle.
 func claudeInfo(m claudeModel) ModelInfo {
 	b := newInfo(llmprovider.ProviderClaude, m.ID)
+	if t, err := time.Parse(time.RFC3339, m.CreatedAt); err == nil {
+		b.released(listingDay(t.Unix()))
+	}
 	if m.MaxInputTokens != nil {
 		b.info.MaxInputTokens = *m.MaxInputTokens
 		b.set(FieldMaxInputTokens)
@@ -182,6 +205,7 @@ func dataModelInfo(provider llmprovider.ProviderID, m dataModel) (ModelInfo, boo
 	b := newInfo(provider, m.ID)
 	switch provider {
 	case llmprovider.ProviderOpenAI:
+		b.released(listingDay(m.Created))
 		if m.ShutdownDate != nil {
 			if t, ok := listingDate(*m.ShutdownDate); ok {
 				b.info.Retires = t
@@ -189,6 +213,7 @@ func dataModelInfo(provider llmprovider.ProviderID, m dataModel) (ModelInfo, boo
 			}
 		}
 	case llmprovider.ProviderGrok:
+		b.released(listingDay(m.Created))
 		grokFields(b, m)
 	default:
 		return ModelInfo{}, false
@@ -263,6 +288,7 @@ func togetherInfo(m togetherModel) ModelInfo {
 // prices.
 func kiloInfo(e kiloCatalogEntry) ModelInfo {
 	b := newInfo(llmprovider.ProviderKilo, e.ID)
+	b.released(listingDay(e.Created))
 	if e.ContextLength > 0 {
 		b.info.ContextWindow = e.ContextLength
 		b.set(FieldContextWindow)
