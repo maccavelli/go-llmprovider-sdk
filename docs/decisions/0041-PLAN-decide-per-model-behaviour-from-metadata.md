@@ -418,15 +418,24 @@ stops and records a deviation.
      (its place in the band, else 0), and its caveats.
    * **The order** (D3):
      1. the band, by rank;
-     2. the uncaveated entries, newest first by release date, then in
-        listing order, then by id;
+     2. the uncaveated entries, newest first by release date, ~~then in
+        listing order,~~ then by id *(0041-MADR A4: a dated entry before
+        an undated one; listing order is no key)*;
      3. the caveated entries, in the same order.
    * **`Recommended`** is the menu's first two groups' ids. `WithLimit(n)`
-     cuts it.
+     cuts it. *(A4: the second group includes the profile's exclusions
+     and Together's ids models.dev does not list. The band is curated
+     from the uncaveated ids, so no caveated id is ranked.)*
    * **The static path:** `Menu` holds the static ids, with what facts are
-     cached.
+     cached. *(Phase 4: in the static order, each ranked by its place,
+     and `Recommended` stays equal to `Usable`, 0038-MADR D3. No static
+     id has a caveat on the snapshot.)*
    * **Ollama:** listing order, with `CaveatNoTools` where its `/api/show`
-     capabilities say so.
+     capabilities say so. *(A4: `List` asks `/api/show` for each
+     installed model not cached, four at a time, within its 10 s bound,
+     and caches the replies; a failed reply leaves no caveat. The entries
+     with `CaveatNoTools` follow the others, in listing order, and are
+     not in `Recommended`.)*
 4. **Red first:**
 
    | Test | Want |
@@ -434,9 +443,9 @@ stops and records a deviation.
    | `TestMenu_Order_0041` | on a fixture: band by rank, then newest first, then listing order, then id; caveated last |
    | `TestMenu_Deterministic_0041` | the same input in a shuffled listing order gives the same menu, 100 times, under `-shuffle=on` |
    | `TestMenu_Caveats_0041` | each caveat from its fact; a caveated entry is in `Menu`, not in `Recommended` |
-   | `TestMenu_Snapshot_0041` | on the 2026-10-12 snapshot, each provider's `Menu` holds exactly `Usable`, and OpenAI's section-based full list holds no deprecated model (the evidence test's 11 becomes 0) |
+   | `TestMenu_Snapshot_0041` | on the 2026-10-12 snapshot, each provider's `Menu` holds exactly `Usable`, and OpenAI's section-based full list holds no deprecated model (the evidence test's 11 becomes 0) *(A4: and each full list's length, measured and pinned, with the profile's exclusions and Together's unlisted ids in it)* |
    | `TestRecommended_Prefix_0041` | `WithLimit(n)` is a prefix of the unlimited list for n = 1 to 8; `WithLimit(MaxListed)` is the band |
-   | 0038's tests | each assertion A4 changes is updated and recorded; the rest pass unchanged |
+   | 0038's tests | each assertion A4 changes is updated and recorded; the rest pass unchanged *(0038-MADR A5: `TestWithLimit_FullList`'s expected set and lengths; `fullList`, A1's builder, gives way to the menu, and `TestFullList_SixFirst` with it; the Ollama provider's test server counts generation requests only, as `/api/show` is a POST)* |
    | the wizard's tests | unchanged: it shows `Recommended` |
 
 5. **Plants:**
@@ -1473,3 +1482,235 @@ change in behaviour, and none breaks the build.
 * `tools/denyscan.py --changed`: 0 hits in 14 files.
   `tools/linkcheck.py`: 0 problems.
 * **Gate:** `tools/gate.py`, 23 of 23, `g-wire-stable` included.
+
+### Phase 4: the live menu (2026-10-14)
+
+#### Research
+
+* **P23, `catalogFrom`,** wraps a lister's usable ids. Its `recommend`
+  cuts the six from `curate(usable, MaxListed)`. Its `fullList` (0038-MADR
+  A1) appends `curate(usable, 0)`'s other ids. Each curator is
+  `rankRecommended` over the facts, filled from its name curator and then
+  the listing. The fill skips `utilityExcluded` and `excludedAtRequest`,
+  and `metadataCurate` drops Together's unlisted ids first (`listedOnly`).
+* **P24, `metadataCurate`,** reads the document from a channel. The menu's
+  facts are read once the curation has run: the listing's own, collected
+  by `listOnce`, the cached document (`peekMetadata`), and the caller's
+  layers, merged as `CachedFacts` merges them (D1).
+* **Ollama:** `ollamaCatalog` lists `/api/tags` only. `/api/show` is read
+  by `fetchListingModel`, for `LookupModel`, and its reply is cached by
+  provider, base URL and credential.
+* **The `_0038` tests** that 0038-PLAN's follow-up lists:
+  * `TestWithLimit_FullList` asserts D1's exclusions, through
+    `expectedFull`, and the measured lengths, `snapshotFull`;
+  * `TestFullList_SixFirst` pins `fullList`;
+  * `TestWithLimit_FallbackExcludes` asserts that no id measured to fail
+    at request is recommended;
+  * the Ollama provider's `instance` counts every POST as a generation
+    probe.
+* **The wizard** reads `Recommended` and `Usable` only.
+* **Measured on the 2026-10-12 snapshot** (a scratch test, on a clone):
+  every usable id outside today's full list is measured to fail at
+  request (Zen 2, Go 6, Together 1), or is a profile exclusion (Kilo 13,
+  Hugging Face 17, Together 49, under `ProfileUtility`), or is one of
+  Together's ids models.dev does not list (103 utility, 150 capable).
+  There are no others. No static id has a deprecated status, or no tools,
+  in the document.
+
+#### Deviations
+
+1. **2026-10-14: D3's order, the uncaveated exclusions, and Ollama's
+   facts.**
+   * **Found** in research, before any code: the three gaps 0041-MADR A4
+     lists. D3's listing-order key leaves its id key unreachable, and the
+     determinism test as step 4 states it cannot pass. Two classes 0038-MADR
+     D1 leaves out of the full list have no caveat. And `List` reads no
+     `/api/show`.
+   * **Decided by the owner,** of the options offered:
+     * the order is release date, then id (recommended);
+     * the profile's exclusions and Together's unlisted ids are admitted to
+       `Recommended` past the band (offered third; the recommended option
+       was two more caveats);
+     * `List` fetches `/api/show` for each uncached Ollama model
+       (recommended).
+   * **Recorded:** 0041-MADR amendment A4, D3 annotated; 0038-MADR
+     amendment A5, A4.1 and A4.2 annotated; step 3 and step 4's rows
+     annotated above. No exported identifier is added.
+   * **Added to the phase's scope:** the Ollama provider's test server,
+     which would count `/api/show` as a probe; `fullList` and its test,
+     which the menu replaces.
+   * **Not decided by the owner, and recorded here:** the band is curated
+     from the uncaveated ids, so that D3's rule that no caveated entry is
+     in `Recommended` holds within the six too; a static catalog's menu
+     keeps the static order. A status of `retired` is caveated as
+     `CaveatDeprecated`, since `StatusDeprecated` already covers "no longer
+     served" and a retired model is past it.
+2. **2026-10-14: the tests that pinned the exclusions on the full list.**
+   * **Found** on the first green run: five catalog tests and two wizard
+     tests asserted, on the whole of `Recommended`, what A4 now asserts only
+     for the band:
+     * `TestListKiloModels_MetadataCuration` and
+       `TestKiloAuto_ExcludedButChoosable`: no `kilo-auto/*` tier under
+       `ProfileUtility` (0009-MADR §3 item 9);
+     * `TestTogetherRanksOnlyModelsDevIDs`: no id models.dev does not list
+       (item 10);
+     * `TestCatalogFrom_EmptyCurationKeepsLiveListing`: Kilo's tiers alone
+       recommend nothing (0021-MADR C13);
+     * `TestWithLimit_FullList`: D1's exclusions and the lengths;
+     * the wizard's `TestConfigure_EmptyRecommendedOpensSearch` and
+       `TestConfigure_EmptyRecommendedHonoursCtx`, which reach the
+       "nothing recommended" path through Kilo's tiers alone. Step 4 said
+       the wizard's tests would not change.
+   * **The catalog tests follow deviation 1's decision.** Each item-9 and
+     item-10 assertion now holds for the band (`Rank > 0`), and each test
+     also asserts that the excluded ids follow the band in `Recommended`.
+     The C13 test keeps the tiers-only case, which now recommends the
+     tiers after an empty band, and adds a listing whose every id fails at
+     request, which recommends nothing and stays live. `TestWithLimit_FullList`
+     takes the lengths measured below, and its expected set is usable less
+     the caveated, which it reads from the document and the listing's
+     facts itself.
+   * **Decided by the owner for the wizard,** of two options: "both
+     cases" (recommended). `TestConfigure_TiersOnlyAreOffered` asserts that
+     the tiers alone are offered, with no notice that no model meets the
+     profile. The three empty-path tests take `caveatedKiloListing`, two
+     `-contributor` ids, so the path and its ctx test are still reached.
+     `TestConfigure_EmptyRecommendedSearchStillWorks` passed on the tiers
+     listing, but no longer on an empty `Recommended`, so it moved too.
+     No assertion was removed.
+3. **2026-10-14: the Ollama wire golden.**
+   * **Found:** `testdata/wire/ollama/listing.json` records the listing
+     and its probes. It now also records the two `/api/show` requests A4
+     decided. I reported that four requests at a time would make their
+     order unstable.
+   * **Decided by the owner,** of two options: keep four at a time, and
+     compare the `/api/show` requests as a set (offered second; the
+     recommended option was one at a time).
+   * **Then found, and corrected here:** the harness already does that.
+     `wiretest.Server.Requests` sorts the recorded requests by their
+     encoding, because a listing's probes run concurrently too. So the
+     arrival order never reaches the golden, and no harness change was
+     made. My report of an unstable order was wrong.
+   * **Done:** the one golden was regenerated with `-update`. Its diff adds
+     the two `POST /api/show` requests, for `llama3.3:latest` and
+     `qwen3:8b`, and changes nothing else. `g-wire-stable` runs it three
+     times.
+
+#### What was built
+
+* **`menu.go`** (new):
+  * `Caveat` and its five constants, and `MenuEntry`, as "The exported
+    additions" lists;
+  * `caveatsOf`: a deprecated or retired status; `tool_call` false; an
+    output without text; a retirement within 30 days, the last day
+    included; `excludedAtRequest`;
+  * `newestFirst`: a dated id before an undated one, newest first, then
+    by id;
+  * `factsOf`: the listing's facts, the document's and the caller's
+    layers, merged by `mergeLayers`, as `CachedFacts` merges them;
+  * `menuOf`, `staticMenu` and `ollamaMenu`, and `ollamaShows`, which asks
+    `/api/show` four at a time for each model not cached.
+* **`discovery.go`:**
+  * `Catalog.Menu`, and `Recommended`'s doc comment as A4 states it;
+  * each lister returns a `listingResult`: the usable ids, the failure,
+    the static list, the curator and the document it ranks with.
+    `listOnce` builds the catalog from it once the listing's facts are
+    collected. A failed listing reads only what is cached, so the static
+    path waits for no document;
+  * `catalogFrom`, `recommend` and `fullList` gave way to it;
+  * `ollamaCatalog` emits each `/api/show` reply, so that `listOnce`
+    caches it with the listing.
+* **`model_metadata.go`:** `startModelMetadata` returns a function that
+  waits for the document once, which the curation and the menu share;
+  `metadataCurate` takes it.
+* **A redundant guard removed:** `menuOf` first kept only curated ids that
+  were uncaveated, unique and within six. A curator returns distinct ids
+  of those it is given, at most `limit`, so the guard could never fail,
+  and no plant could show it working. It was removed.
+* **The lint's first run** found the local name `clear`, which shadows the
+  built-in (`revive`); it is `uncaveated`.
+* **Docs:** `docs/architecture.md`, the listing paragraph, the
+  recommended list, `Catalog.Menu` and the package table (R43); 0038-PLAN's
+  follow-up note.
+
+#### The full lists, measured
+
+On the 2026-10-12 snapshot, the same under both profiles, pinned by
+`TestMenu_Snapshot_0041` and `TestWithLimit_FullList`:
+
+| Provider | Before, utility / capable | After | The caveated |
+| :--- | ---: | ---: | :--- |
+| OpenCode Zen | 77 / 77 | 77 | 2 `-contributor` ids, unavailable, one also deprecated |
+| OpenCode Go | 28 / 28 | 25 | 6 unavailable; `qwen3.7-max`, `kimi-k2.6`, `qwen3.6-plus` deprecated |
+| Kilo | 272 / 285 | 276 | 9 expiring by Kilo's listing, `google/gemini-2.5-pro` among them |
+| Hugging Face | 102 / 119 | 118 | `zai-org/AutoGLM-Phone-9B-Multilingual`, no tools |
+| Together | 19 / 21 | 166 | 5 deprecated; `MiniMaxAI/MiniMax-M2.7`, unavailable |
+
+No six changed: `TestListModelCatalog_Snapshot20261012`,
+`TestListModelCatalog_Snapshot20260926` and `TestStatic_EqualsLatestSnapshot`
+pass unchanged. OpenAI's section, ranked as a menu, holds no deprecated
+model in its full list, where §4's curator held 11, and `gpt-3.5-turbo`
+is in the menu with `CaveatNoTools`.
+
+#### Tests, red and green
+
+* **Red** (the tests written first):
+
+  ```text
+  menu_0041_test.go:67:21: undefined: MenuEntry
+  menu_0041_test.go:79:9: undefined: menuOf
+  menu_0041_test.go:152:23: undefined: Caveat
+  menu_0041_test.go:153:18: undefined: CaveatDeprecated
+  ```
+
+  The behaviour each test checks was seen failing through the plants
+  below, the build intact.
+* **Green:**
+  * `TestMenu_Order_0041`, `TestMenu_Deterministic_0041` (100 shuffled
+    listings), `TestMenu_Caveats_0041`, `TestMenu_Snapshot_0041`,
+    `TestRecommended_Prefix_0041` (n = 1 to 8), `TestMenu_Static_0041`
+    and `TestMenu_Ollama_0041`;
+  * the tests deviation 2 lists, and the Ollama provider's four, whose
+    servers answer `/api/show` apart from the generation requests they
+    count. `TestListModels_CarriesTheCallersIdentity` now also requires
+    the `/api/show` request to name the caller;
+  * `TestFullList_SixFirst` was removed with `fullList`, the function it
+    pinned. `TestRankRecommended_UncappedFillDiffers` is kept;
+  * `go test ./...`; `-race -shuffle=on` on `catalog`, `wizard` and
+    `providers/ollama`.
+
+#### Plants (`tools/plant.py`, 13 of 13 caught)
+
+| Plant | FAIL line |
+| :--- | :--- |
+| caveated entries left in `Recommended` (PLAN) | `deprecated: in Recommended true, rank 0; want false`; the wizard's `Model = "a/x-contributor", want b/y-contributor, found by search` |
+| the id tie-break removed (PLAN) | `TestMenu_Deterministic_0041`: `listing [band-1 old-deprecated z-old …]:` a different menu |
+| the rest ordered by name score instead of date (PLAN) | `tiers only: … Recommended [] …; want … [kilo-auto/balanced kilo-auto/small]` |
+| a caveat's fact ignored: tools (PLAN) | `notools: caveats []; want [no-tools]` |
+| the band curated from every usable id | `TestMenu_Order_0041`: `menu:` and `Recommended:` differ |
+| a retired status not caveated | `retired: caveats []; want [deprecated]` |
+| the expiry window's last day left out | `expiring: caveats []; want [expiring]` |
+| the menu not cut by `WithLimit` | `together WithLimit(1): … want the full list's first 1` |
+| a static id ranked 0 | `gpt-6-luna: rank 0; want 1` |
+| Ollama's caveated left in `Recommended` | `Recommended [b:1 a:1 notools:1]; want [b:1 a:1]` |
+| Ollama's cached replies asked for again | `/api/show asked 6 times after a second listing; want the cached 3` |
+| Ollama's replies not cached | `menu [b:1 notools:1 a:1]; want [b:1 a:1 notools:1]` |
+| the menu's facts without the document | `huggingface profile 0: the full list holds 119 ids; want 118` |
+
+`plant.py` prints 12 failure lines a plant, so the first plant was run
+again on the wizard alone, to see its tests fail.
+`TestConfigure_EmptyRecommendedSearchStillWorks` passes under it, since
+search works whatever is recommended, as it did before this phase.
+
+#### Checks
+
+* `make pre-add-check` on the 14 Go files: clean, after the rename above.
+* `tools/apidiff.py 7f34e31`: `Catalog.Menu`, `Caveat`, its five constants
+  and `MenuEntry`, all added, and nothing else, as "The exported
+  additions" lists for Phase 4.
+* `make records-check`: 88 records, 0 problems. `tools/claims.py`: 57 of
+  57 on the MADR and 39 of 39 on the PLAN; 0038-MADR has no evidence rows.
+* `tools/denyscan.py --changed`: 0 hits in 20 files.
+  `tools/linkcheck.py`: 0 problems.
+* **Gate:** `tools/gate.py`, 23 of 23. `g-wire-stable` ran every golden
+  three times; the one golden that changed is deviation 3's.

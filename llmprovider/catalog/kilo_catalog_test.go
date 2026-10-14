@@ -103,9 +103,10 @@ func TestClassify_KiloDataCollectionRequired(t *testing.T) {
 }
 
 // TestKiloAuto_ExcludedButChoosable (0021-MADR D3's condition): under the
-// utility profile no kilo-auto tier is recommended, but every tier is usable
-// and found by its id and by the glob kilo-auto/*, in a full listing and in
-// one of the tiers alone.
+// utility profile no kilo-auto tier is in the band, and since 0041-MADR A4
+// each follows it in Recommended; every tier is usable and found by its id
+// and by the glob kilo-auto/*, in a full listing and in one of the tiers
+// alone.
 func TestKiloAuto_ExcludedButChoosable(t *testing.T) {
 	pinRankingNow(t, refNow)
 	for name, srv := range map[string]*httptest.Server{
@@ -127,9 +128,10 @@ func TestKiloAuto_ExcludedButChoosable(t *testing.T) {
 			if len(tiers) < 2 {
 				t.Fatalf("Usable has tiers %v, want the listing's", tiers)
 			}
-			for _, id := range cat.Recommended {
-				if strings.HasPrefix(id, "kilo-auto/") {
-					t.Errorf("Recommended has %s; the utility profile excludes kilo-auto tiers", id)
+			for _, e := range cat.Menu {
+				if strings.HasPrefix(e.ID, "kilo-auto/") && (e.Rank != 0 || !slices.Contains(cat.Recommended, e.ID)) {
+					t.Errorf("%s ranked %d, in Recommended %t; the utility band excludes kilo-auto tiers, and A4 recommends them after it",
+						e.ID, e.Rank, slices.Contains(cat.Recommended, e.ID))
 				}
 			}
 			glob := matchIDs(Search(llmprovider.ProviderKilo, cat.Usable, "kilo-auto/*"))

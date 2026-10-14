@@ -659,14 +659,16 @@ type modelMetadataResult struct {
 }
 
 // startModelMetadata fetches the document concurrently with a listing, under
-// the listing's context (MADR 0009 §2). The channel receives exactly one value.
-func startModelMetadata(ctx context.Context, cfg config) <-chan modelMetadataResult {
+// the listing's context (MADR 0009 §2). The function it returns waits for the
+// result, once, however often it is called: the curation and the menu read
+// the same document (0041-MADR D3).
+func startModelMetadata(ctx context.Context, cfg config) func() modelMetadataResult {
 	ch := make(chan modelMetadataResult, 1)
 	go func() {
 		doc, err := loadModelMetadata(ctx, cfg)
 		ch <- modelMetadataResult{doc: doc, err: err}
 	}()
-	return ch
+	return sync.OnceValue(func() modelMetadataResult { return <-ch })
 }
 
 // metadataCandidate reads one models.dev entry (MADR 0009 §2). An id the
@@ -708,12 +710,11 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 
 // metadataCurate ranks a provider's usable models with the metadata document
 // (MADR 0009 §2). A failed or disabled fetch, or a document without the
-// provider's key, returns fallback's curation unchanged. The document is
-// received once, however often the curation runs (0038-MADR A1).
-func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta <-chan modelMetadataResult, fallback curator) curator {
-	received := sync.OnceValue(func() modelMetadataResult { return <-meta })
+// provider's key, returns fallback's curation unchanged. meta is the
+// document startModelMetadata waits for once (0038-MADR A1).
+func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta func() modelMetadataResult, fallback curator) curator {
 	return func(usable []string, limit int) []string {
-		res := received()
+		res := meta()
 		models, ok := res.doc.models(modelMetadataKey(provider))
 		if res.err != nil || !ok {
 			return fallback(usable, limit)

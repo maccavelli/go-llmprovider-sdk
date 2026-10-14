@@ -382,14 +382,17 @@ by an explicit `WithLimit`.
 
 1. the recommended band, by rank (D4);
 2. the other entries without a caveat, newest first by release date (D1),
-   then in listing order, then by id;
+   ~~then in listing order,~~ then by id *(amended 2026-10-14, A4: listing
+   order is no key; a dated entry precedes an undated one)*;
 3. the entries with a caveat, in the same order.
 
 The id is the last key, so the same facts always give the same order.
 
 **`Recommended`** keeps its type and its role (0038-MADR):
 
-* the band, then step 2 of the order;
+* the band, then step 2 of the order *(A4: step 2 includes the profile's
+  exclusions and Together's ids models.dev does not list; Ollama keeps
+  `/api/tags` order)*;
 * entries with a caveat never appear in it;
 * `WithLimit(n)` cuts it to its first `n`. `WithLimit(MaxListed)` is the
   band.
@@ -784,6 +787,76 @@ changes them.
   * It adds two exported identifiers to 0041-PLAN's list.
 * **What it costs:** an app that never lists its models, and never calls
   `LookupModel`, gets the name rules until something fetches the document.
+
+## Amendment 2026-10-14: what Phase 4's research found
+
+### A4. The menu's order, what `Recommended` holds past the band, and Ollama's facts
+
+* **Found** in 0041-PLAN Phase 4's research, before any code. Three gaps
+  in D3, measured on the committed 2026-10-12 snapshot:
+  1. **The order's last two keys.** D3 orders the entries after the band
+     by release date, then listing order, then id. `Usable` holds each id
+     once, so two entries never share a listing position, and the id never
+     decides. A listing's order is no fact either: OpenAI's `/v1/models`
+     states none. The PLAN's determinism test, that a shuffled listing
+     gives the same menu, cannot hold under D3's keys.
+  2. **Two classes with no caveat.** 0038-MADR D1 keeps three classes out
+     of the full list. D3 gives one of them a caveat (`excludedAtRequest`,
+     `CaveatUnavailable`), and none to the other two:
+     * the profile's exclusions (`utilityExcluded`, 0009-MADR §3 items 9
+       and 11): 13 on Kilo, 17 on Hugging Face and 49 on Together, under
+       `ProfileUtility`;
+     * Together's ids models.dev does not list (`listedOnly`, item 10):
+       103 under `ProfileUtility` and 150 under `ProfileCapable`.
+
+     Every other usable id is already in today's full list: 0 others on
+     any provider.
+  3. **Ollama's facts.** `catalog.List` sends no `/api/show` for Ollama.
+     So its `CaveatNoTools` would show only where a `LookupModel` had
+     already cached that reply.
+* **Owner's decisions** (2026-10-14):
+  1. **The order after the band is release date, newest first, then
+     id.** Entries with a known date come first. Listing order is no
+     longer a key. The caveated entries are ordered the same way.
+  2. **The profile's exclusions and Together's unlisted ids are admitted
+     to `Recommended` past the band.** They carry no caveat, and sort with
+     the other uncaveated entries. The band itself is unchanged: 0009-MADR
+     §3 items 9, 10 and 11 still hold for the ranking and its fill.
+  3. **`catalog.List` asks a local Ollama's `/api/show` for each installed
+     model** whose reply is not cached. It asks a few at a time, within
+     List's 10 s bound, and caches each reply as `LookupModel` does. A
+     failed reply leaves its entry with no caveat.
+* **What it changes:**
+  * D3's order, step 2 and step 3: "then in listing order" is removed.
+  * D3's `Recommended`: past the band, it holds every usable entry without
+    a caveat. That reverses 0038-MADR D1's "profile" and "known" rules for
+    the full list past the six. 0038-MADR amendment A5 records it.
+  * Ollama keeps its own order. It has no band and no release date, so
+    its menu keeps `/api/tags` order, as 0038-MADR D1 states, with the
+    entries `/api/show` marks as taking no tools after the others.
+  * No exported identifier is added: the five caveats stand.
+* **What it costs:**
+  * Kilo's cheapest-first and Hugging Face's fastest-first order no longer
+    break ties among same-date or undated models. `Usable` keeps that
+    order.
+  * The full lists, measured on the snapshot in Phase 4, with the
+    caveats applied (`TestMenu_Snapshot_0041`), are the same under both
+    profiles:
+
+    | Provider | Before, utility / capable | After |
+    | :--- | ---: | ---: |
+    | OpenCode Zen | 77 / 77 | 77 |
+    | OpenCode Go | 28 / 28 | 25: three deprecated leave |
+    | Kilo | 272 / 285 | 276: the profile's 13 join; 9 expiring leave |
+    | Hugging Face | 102 / 119 | 118: the profile's 17 join; 1 without tools leaves |
+    | Together | 19 / 21 | 166: the unlisted and the profile's join; 5 deprecated leave |
+
+    The six do not change.
+  * 0021-MADR C13's empty `Recommended` now needs every listed model to
+    have a caveat. Kilo's tiers alone, its example, are now recommended
+    after an empty band. The live listing is kept in both cases.
+  * A listing of Ollama sends one local, unbilled request per uncached
+    installed model.
 
 ## Pros and Cons of the Options
 

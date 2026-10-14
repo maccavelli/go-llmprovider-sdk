@@ -73,8 +73,7 @@ func (d *defaultsPrompter) Notify(Level, string, ...any) { d.calls.Add(1) }
 // so the run ends at once. A search that never matches, answered by its
 // default, Search again, stops when ctx ends (R40).
 func TestConfigure_EmptyRecommendedHonoursCtx(t *testing.T) {
-	listing := `{"data":[` + kiloProfileEntry("kilo-auto/small", "-1", "-1", 0, 0) + "," +
-		kiloProfileEntry("kilo-auto/balanced", "-1", "-1", 0, 0) + `]}`
+	listing := caveatedKiloListing
 	for _, c := range []struct {
 		name, search string
 		wantCtx      bool
@@ -112,15 +111,13 @@ func TestConfigure_EmptyRecommendedHonoursCtx(t *testing.T) {
 // C13): with nothing recommended, a query typed at the search prompt still
 // searches the listing.
 func TestConfigure_EmptyRecommendedSearchStillWorks(t *testing.T) {
-	listing := `{"data":[` + kiloProfileEntry("kilo-auto/small", "-1", "-1", 0, 0) + "," +
-		kiloProfileEntry("kilo-auto/balanced", "-1", "-1", 0, 0) + `]}`
-	srv := zenServer(t, http.StatusOK, listing)
+	srv := zenServer(t, http.StatusOK, caveatedKiloListing)
 	f := newFake(t, fakePrompter{
 		selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
-		inputs:  []string{srv.URL, "small"}, secrets: []string{testKey},
+		inputs:  []string{srv.URL, "y-contrib"}, secrets: []string{testKey},
 	})
 	res, err := ConfigureLLM(context.Background(), f, zenOptions())
-	if err != nil || res.Model != "kilo-auto/small" {
-		t.Fatalf("ConfigureLLM = %+v, %v; want kilo-auto/small, found by search", res, err)
+	if err != nil || res.Model != "b/y-contributor" {
+		t.Fatalf("ConfigureLLM = %+v, %v; want b/y-contributor, found by search", res, err)
 	}
 }

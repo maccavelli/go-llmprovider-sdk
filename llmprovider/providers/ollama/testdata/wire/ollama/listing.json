@@ -10,6 +10,30 @@
     },
     {
       "method": "POST",
+      "path": "/api/show",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "model": "llama3.3:latest"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/show",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "model": "qwen3:8b"
+      }
+    },
+    {
+      "method": "POST",
       "path": "/v1/chat/completions",
       "header": {
         "Accept-Encoding": "gzip",

@@ -20,7 +20,9 @@ import (
 // (0015-PLAN S7). DiscoverModels is ListModels.
 
 // instance answers GET /api/tags with tags, and counts the generation
-// requests (POST), answering each with fxOllamaChat or failing it.
+// requests (POST), answering each with fxOllamaChat or failing it. The
+// /api/show that List sends for each model (0041-MADR A4) is answered
+// 404, which leaves the model without a caveat, and is not counted.
 func instance(t *testing.T, tags string, fail bool) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var posts atomic.Int32
@@ -28,6 +30,8 @@ func instance(t *testing.T, tags string, fail bool) (*httptest.Server, *atomic.I
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/tags":
 			_, _ = w.Write([]byte(tags))
+		case r.URL.Path == "/api/show":
+			w.WriteHeader(http.StatusNotFound)
 		case r.Method == http.MethodPost:
 			posts.Add(1)
 			if fail {
@@ -108,6 +112,11 @@ func TestListModels_ProbeIsTheOldRequest(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			_, _ = w.Write([]byte(ollamaTags("llama3.3:latest")))
+			return
+		}
+		// List's /api/show (0041-MADR A4) is no probe.
+		if r.URL.Path == "/api/show" {
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		raw, _ := io.ReadAll(r.Body)
@@ -191,7 +200,8 @@ func TestListModels_ListingBounded(t *testing.T) {
 }
 
 // TestListModels_CarriesTheCallersIdentity: the listing names the application
-// the caller named with WithClientInfo, as generation does (MADR 0012 §1.4).
+// the caller named with WithClientInfo, as generation does (MADR 0012 §1.4):
+// its /api/tags, and the /api/show it sends for the model (0041-MADR A4).
 func TestListModels_CarriesTheCallersIdentity(t *testing.T) {
 	var mu sync.Mutex
 	var agents []string
@@ -208,7 +218,8 @@ func TestListModels_CarriesTheCallersIdentity(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(agents) != 1 || !strings.HasPrefix(agents[0], "GET /api/tags wire-app/9.9.9 (") {
-		t.Fatalf("listing requests %q; want one GET /api/tags naming wire-app/9.9.9", agents)
+	if len(agents) != 2 || !strings.HasPrefix(agents[0], "GET /api/tags wire-app/9.9.9 (") ||
+		!strings.HasPrefix(agents[1], "POST /api/show wire-app/9.9.9 (") {
+		t.Fatalf("listing requests %q; want GET /api/tags, then POST /api/show, each naming wire-app/9.9.9", agents)
 	}
 }

@@ -25,10 +25,13 @@ var ollamaNames = []string{"m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"}
 // snapshotFull is each ranked list's full length in the 2026-10-12 snapshot,
 // by profile: Usable less D1's exclusions, as 0038-PLAN Phase 2 measured
 // them before the change.
+// 0041-PLAN Phase 4 measured them again, under 0038-MADR A5: the profile's
+// exclusions and Together's unlisted ids join, the caveated leave (they
+// were 102 and 119, 272 and 285, 28, 77, and 19 and 21).
 var snapshotFull = map[llmprovider.ProviderID][2]int{
-	llmprovider.ProviderHuggingFace: {102, 119}, llmprovider.ProviderKilo: {272, 285},
-	llmprovider.ProviderOpencodeGo: {28, 28}, llmprovider.ProviderOpencodeZen: {77, 77},
-	llmprovider.ProviderTogether: {19, 21},
+	llmprovider.ProviderHuggingFace: {118, 118}, llmprovider.ProviderKilo: {276, 276},
+	llmprovider.ProviderOpencodeGo: {25, 25}, llmprovider.ProviderOpencodeZen: {77, 77},
+	llmprovider.ProviderTogether: {166, 166},
 }
 
 // listVendor lists vendorIDs from OpenAI, with opts.
@@ -45,11 +48,12 @@ func listOllama(t *testing.T, opts ...llmprovider.Option) Catalog {
 	return listCatalog(context.Background(), t, llmprovider.ProviderOllama, append([]llmprovider.Option{llmprovider.WithBaseURL(srv.URL)}, opts...)...)
 }
 
-// expectedFull is the set D1 says the full list holds: usable, less the ids
-// measured not to answer, the profile's exclusions, and on Together the ids
-// models.dev does not list. It reads the snapshot's document itself, apart
-// from the ranking.
-func expectedFull(t *testing.T, dir string, provider llmprovider.ProviderID, profile Profile, usable []string) []string {
+// expectedFull is the set D1, as 0038-MADR A5 amends it, says the full
+// list holds: usable, less the ids measured not to answer and the ids the
+// snapshot's document or listing gives a 0041-MADR D3 caveat. It reads the
+// document itself, apart from the ranking, and the listing's own facts
+// through the menu's entries.
+func expectedFull(t *testing.T, dir string, provider llmprovider.ProviderID, cat Catalog) []string {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
 	if err != nil {
@@ -60,10 +64,19 @@ func expectedFull(t *testing.T, dir string, provider llmprovider.ProviderID, pro
 		t.Fatal(err)
 	}
 	known, _ := doc.models(modelMetadataKey(provider))
+	listing := map[string]ModelInfo{}
+	for _, e := range cat.Menu {
+		listing[e.ID] = e.Info
+	}
 	var out []string
-	for _, id := range usable {
-		_, listed := known[id]
-		if !excludedAtRequest(provider, id) && !utilityExcluded(profile, provider, id) && (!listedOnly(provider) || listed) {
+	for _, id := range cat.Usable {
+		m, listed := known[id]
+		caveated := listed && (m.Status == "deprecated" || m.Status == "retired" || m.ToolCall != nil && !*m.ToolCall ||
+			m.Modalities != nil && m.Modalities.Output != nil && !slices.Contains(m.Modalities.Output, "text"))
+		if f := listing[id]; f.Has(FieldRetires) && !f.Retires.After(rankingNow().AddDate(0, 0, minRankExpiryDays)) {
+			caveated = true
+		}
+		if !excludedAtRequest(provider, id) && !caveated {
 			out = append(out, id)
 		}
 	}
@@ -125,7 +138,8 @@ func TestList_DefaultIsFullList(t *testing.T) {
 }
 
 // TestWithLimit_FullList: WithLimit(0) is today's six, then the rest of the
-// curated list: every usable id less D1's exclusions, once each.
+// curated list: every usable id less D1's exclusions, as 0038-MADR A5
+// amends them, once each.
 func TestWithLimit_FullList(t *testing.T) {
 	dir := filepath.Join("testdata", "ranking-2026-10-12")
 	for provider, lengths := range snapshotFull {
@@ -136,8 +150,8 @@ func TestWithLimit_FullList(t *testing.T) {
 			if len(full) < len(six) || !slices.Equal(full[:len(six)], six) {
 				t.Errorf("%s profile %d: the full list does not start with the six %v: %v", provider, p, six, full[:min(len(full), MaxListed)])
 			}
-			if want := expectedFull(t, dir, provider, p, cat.Usable); !sameSet(full, want) {
-				t.Errorf("%s profile %d: the full list holds %d ids; want the %d usable ids less D1's exclusions", provider, p, len(full), len(want))
+			if want := expectedFull(t, dir, provider, cat); !sameSet(full, want) {
+				t.Errorf("%s profile %d: the full list holds %d ids; want the %d usable ids less A5's exclusions", provider, p, len(full), len(want))
 			}
 			if len(full) != lengths[p] {
 				t.Errorf("%s profile %d: %d ids; want %d, as measured", provider, p, len(full), lengths[p])

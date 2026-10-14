@@ -30,8 +30,9 @@ const togetherItem10Metadata = `{"togetherai":{"models":{
 }}}`
 
 // TestTogetherRanksOnlyModelsDevIDs: on Together, an id models.dev's
-// togetherai section does not list is neither ranked nor filled, under either
-// profile, and stays in Usable.
+// togetherai section does not list is neither ranked nor filled into the
+// band, under either profile, and stays in Usable. Since 0041-MADR A4 it
+// follows the band in Recommended.
 func TestTogetherRanksOnlyModelsDevIDs(t *testing.T) {
 	pinRankingNow(t, refNow)
 	enableModelMetadata(t)
@@ -40,10 +41,14 @@ func TestTogetherRanksOnlyModelsDevIDs(t *testing.T) {
 	for _, profile := range []Profile{ProfileUtility, ProfileCapable} {
 		cat := listCatalog(context.Background(), t, llmprovider.ProviderTogether,
 			llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithProfile(profile))
-		for _, id := range cat.Recommended {
-			if id == "t/uncovered-a" || id == "t/uncovered-b" {
-				t.Errorf("profile %d: Recommended %v holds %s, which models.dev does not list", profile, cat.Recommended, id)
+		for _, e := range cat.Menu {
+			if uncovered := e.ID == "t/uncovered-a" || e.ID == "t/uncovered-b"; uncovered && e.Rank != 0 {
+				t.Errorf("profile %d: the band ranks %s, which models.dev does not list", profile, e.ID)
 			}
+		}
+		if n := len(cat.Recommended); n != 4 || slices.Index(cat.Recommended, "t/uncovered-a") < 2 ||
+			slices.Index(cat.Recommended, "t/uncovered-b") < 2 {
+			t.Errorf("profile %d: Recommended %v; want the two uncovered ids after the band", profile, cat.Recommended)
 		}
 		if !slices.Contains(cat.Recommended, "t/covered-a") || !slices.Contains(cat.Recommended, "t/covered-b") {
 			t.Errorf("profile %d: Recommended %v, want both covered models", profile, cat.Recommended)

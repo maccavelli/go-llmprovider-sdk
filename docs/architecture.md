@@ -105,7 +105,7 @@ standard library is left out.
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig`, and from a model's facts `Thinking`, `FactsThinking` and `ThinkingConfigFor` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
-| `llmprovider/catalog` | `List`, `Catalog`, `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer` | `llmprovider`, `internal/kiloendpoint`, `internal/transport` |
+| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer` | `llmprovider`, `internal/kiloendpoint`, `internal/transport` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
@@ -170,7 +170,7 @@ provider's model list, and curates it into a `Catalog`. Every provider ranks
 by `Profile`, with the model metadata unless `WithoutModelMetadata` is set;
 OpenAI, Claude, Gemini and Grok rank by their name curators only with no
 document (0041-MADR D4). A failed fetch gives the static catalog, with the failure in `Err`. A
-listing in which nothing meets the profile stays live, with an empty
+listing in which every model has a caveat stays live, with an empty
 `Recommended` and the listing in `Usable` to search. A provider's own
 `ListModels` (`ModelLister`) returns its listing, probed by default where the
 provider probes.
@@ -600,15 +600,33 @@ for a session, from the store.
 
 - `catalog.List(ctx, id, src, opts...)` lists a provider's models within a
   10 s bound; a `Catalog` carries the recommended list, the full usable list
-  and, on failure, `Err`. The recommended list is the full curated catalog,
-  every usable id less those measured not to answer and the profile's
-  exclusions, ranked with the best six first; `catalog.WithLimit(n)` cuts it
-  to `n`, and `WithLimit(catalog.MaxListed)` to the six. A static fallback
-  is cut in both views. Its options are `llmprovider`'s common ones, with
+  and, on failure, `Err`. The recommended list is the band, the profile's
+  six, then every other usable id without a caveat, newest first by
+  release date, then by id; `catalog.WithLimit(n)` cuts it to `n`, and
+  `WithLimit(catalog.MaxListed)` to the band. A static fallback is cut in
+  both views. Its options are `llmprovider`'s common ones, with
   `catalog.WithProfile`, `catalog.WithLimit` and
   `catalog.WithKiloOrganization`. It lists the ten
   built-in ids. For any other id it returns an error matching
   `ErrUnsupported`, before it reads the options.
+- **`Catalog.Menu`** is every usable model as a `MenuEntry`: its id, its
+  facts (`ModelInfo`, merged as `CachedFacts` merges them), its rank in the
+  band (1 to 6, or 0) and its caveats (0041-MADR D3, A4):
+  - the band by rank, then the uncaveated, then the caveated, each newest
+    first, then by id; `Recommended` is the menu less the caveated;
+  - a `Caveat` sinks a model, and never drops it: `CaveatDeprecated` (a
+    deprecated or retired status), `CaveatNoTools`, `CaveatNoTextOutput`,
+    `CaveatExpiring` (a retirement date within 30 days) and
+    `CaveatUnavailable` (measured to fail at request);
+  - the band is ranked from the uncaveated models only; the profile's
+    exclusions and Together's ids models.dev does not list are never in
+    it, and follow it;
+  - a static catalog's menu is the static ids, in order, each ranked by
+    its place;
+  - Ollama's keeps `/api/tags` order, with no band. `List` asks
+    `/api/show` for each installed model not cached, four at a time, and
+    caches the replies; a model it marks as taking no tools follows the
+    others, out of `Recommended`.
 - `catalog.Search` matches a query against a list, highest tier first and
   in the list's order within a tier: the id exactly, as a prefix or a
   substring, then without separators (`gpt41` finds `gpt-4.1`), then a

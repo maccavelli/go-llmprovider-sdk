@@ -459,10 +459,13 @@ func TestListKiloModels_MetadataCuration(t *testing.T) {
 		t.Fatalf("Usable = %v, want %v (cheapest first, \"-1\" last)", cat.Usable, wantUsable)
 	}
 	models := cat.Recommended
-	for _, m := range models {
-		if strings.HasPrefix(m, "kilo-auto/") {
-			t.Errorf("utility Recommended must not contain %q (MADR 0009 §3 item 9)", m)
+	// Item 9 holds for the band; since 0041-MADR A4 the tier follows it.
+	for _, e := range cat.Menu {
+		if strings.HasPrefix(e.ID, "kilo-auto/") && e.Rank != 0 {
+			t.Errorf("the utility band must not rank %q (MADR 0009 §3 item 9)", e.ID)
 		}
+	}
+	for _, m := range models {
 		switch m {
 		case "org/painter":
 			t.Error("model whose output is not exactly text must be dropped")
@@ -474,7 +477,7 @@ func TestListKiloModels_MetadataCuration(t *testing.T) {
 			t.Error("model without tools in supported_parameters must be dropped")
 		}
 	}
-	want := []string{"org/cheap", "org/vlm", "org/dear"}
+	want := []string{"org/cheap", "org/vlm", "org/dear", "kilo-auto/variable"}
 	if !slices.Equal(models, want) {
 		t.Fatalf("Recommended = %v, want %v", models, want)
 	}

@@ -330,27 +330,54 @@ func TestConfigureLLM_InjectedLookupEnv(t *testing.T) {
 	}
 }
 
+// caveatedKiloListing is a Kilo listing whose every id is measured to fail
+// at request, so every entry has a caveat and nothing is recommended
+// (0041-MADR D3).
+var caveatedKiloListing = `{"data":[` + kiloProfileEntry("a/x-contributor", "-1", "-1", 0, 0) + "," +
+	kiloProfileEntry("b/y-contributor", "-1", "-1", 0, 0) + `]}`
+
 // TestConfigure_EmptyRecommendedOpensSearch (0021-MADR C13): a live listing
-// with nothing recommended, here Kilo's tiers alone under the utility
-// profile, keeps the live listing. A blank search says no model meets the
-// profile and asks again, and a search finds a tier.
+// with nothing recommended, here one whose every model has a caveat, keeps
+// the live listing. A blank search says no model meets the profile and asks
+// again, and a search finds a model.
 func TestConfigure_EmptyRecommendedOpensSearch(t *testing.T) {
-	listing := `{"data":[` + kiloProfileEntry("kilo-auto/small", "-1", "-1", 0, 0) + "," +
-		kiloProfileEntry("kilo-auto/balanced", "-1", "-1", 0, 0) + `]}`
-	srv := zenServer(t, http.StatusOK, listing)
+	srv := zenServer(t, http.StatusOK, caveatedKiloListing)
 	f := newFake(t, fakePrompter{
 		selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
-		inputs:  []string{srv.URL, "", "kilo-auto/small"}, secrets: []string{testKey},
+		inputs:  []string{srv.URL, "", "b/y-contributor"}, secrets: []string{testKey},
 	})
 	res, err := ConfigureLLM(context.Background(), f, zenOptions())
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
-	if res.Model != "kilo-auto/small" {
-		t.Errorf("Model = %q, want kilo-auto/small, found by search", res.Model)
+	if res.Model != "b/y-contributor" {
+		t.Errorf("Model = %q, want b/y-contributor, found by search", res.Model)
 	}
 	if countContaining(f.seenNotify, "meets the profile") != 1 {
 		t.Errorf("notices = %v, want one that no model meets the profile", f.seenNotify)
+	}
+}
+
+// TestConfigure_TiersOnlyAreOffered (0041-MADR A4): Kilo's tiers alone,
+// which the utility band leaves out, follow the empty band in Recommended,
+// so the menu offers them, and no notice says no model meets the profile.
+func TestConfigure_TiersOnlyAreOffered(t *testing.T) {
+	listing := `{"data":[` + kiloProfileEntry("kilo-auto/small", "-1", "-1", 0, 0) + "," +
+		kiloProfileEntry("kilo-auto/balanced", "-1", "-1", 0, 0) + `]}`
+	srv := zenServer(t, http.StatusOK, listing)
+	f := newFake(t, fakePrompter{
+		selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
+		inputs:  []string{srv.URL, ""}, secrets: []string{testKey},
+	})
+	res, err := ConfigureLLM(context.Background(), f, zenOptions())
+	if err != nil {
+		t.Fatalf("ConfigureLLM: %v", err)
+	}
+	if res.Model != "kilo-auto/balanced" {
+		t.Errorf("Model = %q, want kilo-auto/balanced, the menu's first", res.Model)
+	}
+	if n := countContaining(f.seenNotify, "meets the profile"); n != 0 {
+		t.Errorf("notices = %v, want none that no model meets the profile", f.seenNotify)
 	}
 }
 

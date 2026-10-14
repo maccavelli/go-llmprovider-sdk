@@ -8,21 +8,9 @@ import (
 )
 
 // 0038-MADR amendment A1: the full list is built as the six, then the rest.
-
-// TestFullList_SixFirst: the full list is the six computed as before, then
-// the uncapped ranking's other ids, even where the uncapped ranking's first
-// six differ (A1).
-func TestFullList_SixFirst(t *testing.T) {
-	curate := func(_ []string, max int) []string {
-		if max == MaxListed {
-			return []string{"a", "b", "c", "d", "e", "f"}
-		}
-		return []string{"b", "a", "c", "d", "e", "g", "f", "h"}
-	}
-	if got, want := fullList(nil, curate), []string{"a", "b", "c", "d", "e", "f", "g", "h"}; !slices.Equal(got, want) {
-		t.Errorf("fullList = %v; want %v", got, want)
-	}
-}
+// The six are still computed on their own (0041-MADR D3, menuOf);
+// fullList, which appended the uncapped ranking, gave way to the menu in
+// 0041-PLAN Phase 4, and its test with it.
 
 // TestRankRecommended_UncappedFillDiffers pins A1's finding: once the
 // fallback's first six are used up, today's six fill from the listing's

@@ -398,8 +398,10 @@ six, then the rest of that ranking. After this amendment:
 1. **The six** are 0041-MADR D4's recommended band, computed on its own, as
    A1 requires.
 2. **The rest** are the other eligible models, newest first by release
-   date (0041-MADR D1), then in listing order, then by id. They are no
+   date (0041-MADR D1), ~~then in listing order,~~ then by id. They are no
    longer in the name scorers' order, or the uncapped ranking's.
+   *(Amended 2026-10-14, A5: listing order is no key, and "eligible"
+   is every usable model without a caveat.)*
 
 The prefix property of D2 and A1 still holds by construction:
 `WithLimit(MaxListed)` is the band, and `WithLimit(n)` is a prefix of the
@@ -408,7 +410,8 @@ full list.
 ### A4.2. What the full list leaves out
 
 D1's "known, working" list also leaves out every model with a 0041-MADR D3
-caveat:
+caveat *(A5: and, past the six, no longer leaves out the profile's
+exclusions or Together's ids models.dev does not list)*:
 
 * deprecated;
 * no tools;
@@ -431,6 +434,36 @@ The static lists are still at most six, and still the floor. But each
 ranked list must equal the latest snapshot's utility six
 (`TestStatic_EqualsLatestSnapshot`), so they change when 0041-MADR D4
 changes the ranking. 0041-PLAN Phase 3 updates them.
+
+## Amendment 2026-10-14 (A5): the full list past the six
+
+[0041-MADR-decide-per-model-behaviour-from-metadata.md](0041-MADR-decide-per-model-behaviour-from-metadata.md)
+amendment A4 records three decisions the owner made on 2026-10-14, in
+0041-PLAN-decide-per-model-behaviour-from-metadata.md Phase 4's research.
+Two change this record. D1's text is not edited.
+
+* **Past the six, D1's "profile" and "known" rules no longer hold.**
+  The full list holds every usable model without a caveat:
+  * under `ProfileUtility`, the profile's exclusions (`utilityExcluded`:
+    `kilo-auto/*`, dense models of 14B or less) follow the six;
+  * on Together, the ids models.dev does not list (`listedOnly`) follow
+    it too.
+
+  The six, `WithLimit(MaxListed)`, are unchanged: 0009-MADR §3 items 9,
+  10 and 11 still hold for the ranking and its fill. "Working" stands:
+  a model measured to fail at request carries `CaveatUnavailable`, and
+  is not in the full list.
+* **A4.1's order loses its listing-order key.** The rest are newest
+  first by release date, a dated model before an undated one, then by
+  id.
+* **Ollama is unchanged:** the installed models in `/api/tags` order,
+  less those `/api/show` marks as taking no tools, which follow in
+  `Menu`.
+
+On the committed 2026-10-12 snapshot, measured in 0041-PLAN Phase 4, the
+full lists are, under both profiles: OpenCode Zen 77, OpenCode Go 25,
+Kilo 276, Hugging Face 118 and Together 166. They were 77, 28, 272 and
+285, 102 and 119, and 19 and 21. `TestWithLimit_FullList` pins them.
 
 ## Pros and Cons of the Options
 

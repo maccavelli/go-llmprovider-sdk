@@ -1015,3 +1015,10 @@ is 0041-PLAN-decide-per-model-behaviour-from-metadata.md's, as follows.
 
   Each assertion A4 changes is updated in the same commit, and recorded
   there.
+
+**Done in 0041-PLAN Phase 4** (2026-10-14), in the commit after `7f34e31`,
+with 0038-MADR amendment A5. That PLAN's Phase 4 record lists each changed
+assertion: `TestWithLimit_FullList`'s set and lengths, and
+`TestFullList_SixFirst`, removed with `fullList`. The other `_0038` tests,
+in `llmprovider/catalog`, `llmprovider/providers`, `providers/openai` and
+`wizard`, pass unchanged.

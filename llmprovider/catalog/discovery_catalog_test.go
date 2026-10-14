@@ -314,16 +314,31 @@ func kiloTierListing(tiers ...string) string {
 
 // TestCatalogFrom_EmptyCurationKeepsLiveListing (0021-MADR C13): a live
 // listing whose curation leaves nothing stays live: Usable is the listing,
-// Recommended is empty, and there is no error. Under the utility profile a
-// Kilo listing of only kilo-auto tiers is such a listing.
+// and there is no error. Under the utility profile a Kilo listing of only
+// kilo-auto tiers ranks none of them, and since 0041-MADR A4 recommends
+// them after the empty band. A listing whose every model has a caveat
+// recommends nothing.
 func TestCatalogFrom_EmptyCurationKeepsLiveListing(t *testing.T) {
-	srv := serveBody(t, kiloTierListing("kilo-auto/small", "kilo-auto/balanced"))
-	cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !cat.Live || !slices.Equal(cat.Usable, []string{"kilo-auto/small", "kilo-auto/balanced"}) ||
-		len(cat.Recommended) != 0 || cat.Err != nil {
-		t.Errorf("catalog = %+v; want it live, Usable the listing, Recommended empty, no error", cat)
+	for _, tc := range []struct {
+		name        string
+		ids         []string
+		recommended []string
+	}{
+		{"tiers only", []string{"kilo-auto/small", "kilo-auto/balanced"}, []string{"kilo-auto/balanced", "kilo-auto/small"}},
+		{"every model caveated", []string{"a/x-contributor", "b/y-contributor"}, nil},
+	} {
+		srv := serveBody(t, kiloTierListing(tc.ids...))
+		cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !cat.Live || !slices.Equal(cat.Usable, tc.ids) || !slices.Equal(cat.Recommended, tc.recommended) || cat.Err != nil {
+			t.Errorf("%s: catalog = %+v; want it live, Usable the listing, Recommended %v, no error", tc.name, cat, tc.recommended)
+		}
+		for _, e := range cat.Menu {
+			if e.Rank != 0 {
+				t.Errorf("%s: %s ranked %d; want an empty band", tc.name, e.ID, e.Rank)
+			}
+		}
 	}
 }
