@@ -111,7 +111,7 @@ func TestTools_0040(t *testing.T) {
 		// (read_file's result) is appended (D3, Q4).
 		{"Responses appends only a non-search load", ResponsesNative, req,
 			[]string{"read_file", "tool_search", "send_email"}},
-		{"Dispatch sends no deferred tool", Dispatch, req, []string{"read_file", "tool_search"}},
+		{"Dispatch sends no deferred tool, and the wrapper", Dispatch, req, []string{"read_file", "tool_search", UseTool}},
 		{"Append adds the loaded, in load order", Append, req,
 			[]string{"read_file", "tool_search", "lookup_stock", "get_weather", "send_email"}},
 		{"Append with a continuation sends every tool", Append,

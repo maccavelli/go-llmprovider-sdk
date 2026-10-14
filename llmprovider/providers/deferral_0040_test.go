@@ -170,6 +170,8 @@ func TestDeferral_PerProvider_0040(t *testing.T) {
 		{llmprovider.ProviderHuggingFace, "deepseek-ai/DeepSeek-V4.1-Flash", appended, true},
 		{llmprovider.ProviderTogether, "openai/gpt-oss-120b", appended, true},
 		{llmprovider.ProviderOllama, "llama3.3:latest", appended, true},
+		// The wrapper, whatever is loaded (D5).
+		{llmprovider.ProviderGrok, "grok-4.6", []string{"read_file", "tool_search", "use_tool"}, true},
 	} {
 		t.Run(string(tc.id)+"/"+tc.model, func(t *testing.T) {
 			provider := func(srv *wiretest.Server) llmprovider.Provider {
@@ -191,9 +193,10 @@ func TestDeferral_PerProvider_0040(t *testing.T) {
 			if got := emulated(resp.Warnings); got != tc.warn {
 				t.Errorf("Generate: WarningDeferralEmulated %t, want %t (warnings %+v)", got, tc.warn, resp.Warnings)
 			}
-			if tc.warn {
+			if tc.warn && tc.id != llmprovider.ProviderGrok {
 				// Appended, a ToolLoadItem sends nothing: the conversation is
-				// the one sent with the loads taken out (A5).
+				// the one sent with the loads taken out (A5). Dispatched, the
+				// loads' definitions ride in the result (D5).
 				bare := wiretest.NewServer(t, wirecase.Case{}.Reply)
 				req := deferralRequest()
 				req.Input = slices.DeleteFunc(req.Input, func(item llmprovider.Item) bool {
@@ -255,6 +258,8 @@ func TestAppend_PreviousResponseID_0040(t *testing.T) {
 		{llmprovider.ProviderOpenAI, "gpt-4.1-mini", nil, every, "every deferred tool"},
 		{llmprovider.ProviderOpenAI, "gpt-6-luna", nil, []string{"read_file", "tool_search"}, ""},
 		{llmprovider.ProviderGemini, "gemini-3.8-flash", []llmprovider.Option{gemini.WithStore(true)}, every, "every deferred tool"},
+		// The wrapper's list needs no history (D5).
+		{llmprovider.ProviderGrok, "grok-4.6", nil, []string{"read_file", "tool_search", "use_tool"}, "use_tool"},
 	} {
 		srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 		p, err := New(tc.id, append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model),

@@ -181,6 +181,83 @@ func InputLoading(items []llmprovider.Item, req *llmprovider.Request) []InputIte
 	return input
 }
 
+// InputDispatch is Input for a request whose deferred tools go out through
+// deferral.UseTool (0040-MADR D5). A call to a deferred tool is sent as the
+// call to the wrapper the model made, with tool_name and tool_input; a
+// result that ToolLoadItems follow is sent with its text, then the loaded
+// tools' definitions (name, description, input_schema) as JSON, as
+// grok-build's search returns them. Every other item is sent as Input sends
+// it.
+func InputDispatch(items []llmprovider.Item, req *llmprovider.Request) []InputItem {
+	dispatched, loads := deferral.Dispatched(req.Tools), deferral.Loads(items)
+	defs := map[string]llmprovider.Tool{}
+	for _, tool := range req.Tools {
+		defs[tool.Name] = tool
+	}
+	var input []InputItem
+	for _, item := range items {
+		switch v := item.(type) {
+		case llmprovider.FunctionCallItem:
+			if dispatched[v.Name] {
+				v.Arguments, v.Name = useToolArguments(v.Name, v.Arguments), deferral.UseTool
+			}
+			input = append(input, Input([]llmprovider.Item{v})...)
+		case llmprovider.FunctionCallOutputItem:
+			if names := loads[v.CallID]; len(names) > 0 {
+				v.Output = loadedText(v.Output, names, defs)
+			}
+			input = append(input, Input([]llmprovider.Item{v})...)
+		default:
+			input = append(input, Input([]llmprovider.Item{v})...)
+		}
+	}
+	return input
+}
+
+// useToolArguments is a call to name, with arguments, as a call to
+// deferral.UseTool: {"tool_name":…,"tool_input":…}. Arguments that are not a
+// JSON object are sent as {}, as a tool_search_call's are.
+func useToolArguments(name, arguments string) string {
+	input := json.RawMessage("{}")
+	if trimmed := strings.TrimSpace(arguments); json.Valid([]byte(trimmed)) && strings.HasPrefix(trimmed, "{") {
+		input = json.RawMessage(trimmed)
+	}
+	out, err := json.Marshal(struct {
+		ToolName  string          `json:"tool_name"`
+		ToolInput json.RawMessage `json:"tool_input"`
+	}{name, input})
+	if err != nil {
+		// Unreachable: a string and a valid object always encode.
+		return `{"tool_name":"","tool_input":{}}`
+	}
+	return string(out)
+}
+
+// loadedText is a result's text, then a blank line and the named tools'
+// definitions as a JSON array.
+func loadedText(output string, names []string, defs map[string]llmprovider.Tool) string {
+	type definition struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		InputSchema any    `json:"input_schema"`
+	}
+	list := make([]definition, 0, len(names))
+	for _, name := range names {
+		tool := defs[name]
+		list = append(list, definition{Name: tool.Name, Description: tool.Description, InputSchema: wire.ToolSchema(tool.Schema)})
+	}
+	raw, err := json.Marshal(list)
+	if err != nil {
+		// Unreachable: deferral.CheckDispatch refuses a deferred tool whose
+		// schema does not encode. The names still say what was loaded.
+		raw = []byte("Loaded: " + strings.Join(names, ", "))
+	}
+	if output == "" {
+		return string(raw)
+	}
+	return output + "\n\n" + string(raw)
+}
+
 // DecodeFor is Decode for provider, the label the caller gives wire.Call: a
 // failed response names provider, and is classified by that service's error
 // vocabulary, as ReadStream's is (0026-MADR F28).
@@ -188,22 +265,30 @@ func DecodeFor(provider string) func(io.Reader) (*llmprovider.Response, error) {
 	return Decoder{}.DecodeFor(provider)
 }
 
-// Decoder decodes Responses replies for one request. Search names the
-// request's Search tool, when its deferred tools go out natively: a client
-// tool_search_call then decodes as a FunctionCallItem calling it, its
-// arguments the object as JSON text. With no Search, such a call is dropped,
-// as every unknown item is (0040-MADR D3).
-type Decoder struct{ Search string }
+// Decoder decodes Responses replies for one request.
+type Decoder struct {
+	// Search names the request's Search tool, when its deferred tools go
+	// out natively: a client tool_search_call then decodes as a
+	// FunctionCallItem calling it, its arguments the object as JSON text.
+	// With no Search, such a call is dropped, as every unknown item is
+	// (0040-MADR D3).
+	Search string
+	// Dispatch holds the deferred tools' names, when they go out through
+	// deferral.UseTool: a call to the wrapper whose tool_name is one of them
+	// decodes as that tool's call, with tool_input as its arguments. Any
+	// other call to the wrapper stays one (0040-MADR D5).
+	Dispatch map[string]bool
+}
 
 // DecodeFor is the package's DecodeFor, with d's Search.
 func (d Decoder) DecodeFor(provider string) func(io.Reader) (*llmprovider.Response, error) {
-	return func(body io.Reader) (*llmprovider.Response, error) { return decodeAs(body, provider, d.Search) }
+	return func(body io.Reader) (*llmprovider.Response, error) { return decodeAs(body, provider, d) }
 }
 
 // ReadStream is the package's ReadStream, with d's Search.
 func (d Decoder) ReadStream(provider string, body io.Reader) (*llmprovider.Response, error) {
 	var result *llmprovider.Response
-	err := readEvents(provider, body, handledEvents, d.Search, func(ev llmprovider.Event) bool {
+	err := readEvents(provider, body, handledEvents, d, func(ev llmprovider.Event) bool {
 		if ev.Type == llmprovider.EventDone {
 			result = ev.Response
 		}
@@ -214,16 +299,16 @@ func (d Decoder) ReadStream(provider string, body io.Reader) (*llmprovider.Respo
 
 // Events is the package's Events, with d's Search.
 func (d Decoder) Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
-	return readEvents(provider, body, streamedEvents, d.Search, yield)
+	return readEvents(provider, body, streamedEvents, d, yield)
 }
 
 // Decode decodes a Responses API JSON body into a Response.
 func Decode(body io.Reader) (*llmprovider.Response, error) {
-	return decodeAs(body, "responses", "")
+	return decodeAs(body, "responses", Decoder{})
 }
 
 // decodeAs is Decode, with a failure labelled and classified for provider.
-func decodeAs(body io.Reader, provider, search string) (*llmprovider.Response, error) {
+func decodeAs(body io.Reader, provider string, d Decoder) (*llmprovider.Response, error) {
 	var raw struct {
 		ID                string         `json:"id"`
 		Model             string         `json:"model"`
@@ -251,7 +336,7 @@ func decodeAs(body io.Reader, provider, search string) (*llmprovider.Response, e
 	result := &llmprovider.Response{ID: raw.ID, Model: raw.Model, Usage: raw.Usage.counts()}
 	refused := false
 	for _, out := range raw.Output {
-		refused = appendOutput(result, out, search) || refused
+		refused = appendOutput(result, out, d) || refused
 	}
 	return completed(result, refused)
 }
@@ -340,7 +425,7 @@ func argumentsText(raw json.RawMessage) string {
 // and reports whether it was a refusal. A refusal part's text is kept as the
 // answer's text (0021-MADR W4). It was the method Response.appendOutput
 // (0015-PLAN S7b step 5).
-func appendOutput(r *llmprovider.Response, out outputItem, search string) (refused bool) {
+func appendOutput(r *llmprovider.Response, out outputItem, d Decoder) (refused bool) {
 	switch out.Type {
 	case itemTypeMessage:
 		var sb strings.Builder
@@ -363,23 +448,27 @@ func appendOutput(r *llmprovider.Response, out outputItem, search string) (refus
 		if strings.TrimSpace(args) == "" {
 			args = "{}"
 		}
+		name := out.Name
+		if name == deferral.UseTool && len(d.Dispatch) > 0 {
+			name, args = d.dispatched(args)
+		}
 		r.Output = append(r.Output, llmprovider.FunctionCallItem{
 			CallID:    out.CallID,
-			Name:      out.Name,
+			Name:      name,
 			Arguments: args,
 		})
 	case itemTypeToolSearchCall:
 		// A client search the caller runs, as a call to its Search tool; a
 		// hosted one, or one with no Search tool to name, is dropped
 		// (0040-MADR D3).
-		if search == "" || out.Execution != executionClientValue {
+		if d.Search == "" || out.Execution != executionClientValue {
 			break
 		}
 		args := argumentsText(out.Arguments)
 		if strings.TrimSpace(args) == "" {
 			args = "{}"
 		}
-		r.Output = append(r.Output, llmprovider.FunctionCallItem{CallID: out.CallID, Name: search, Arguments: args})
+		r.Output = append(r.Output, llmprovider.FunctionCallItem{CallID: out.CallID, Name: d.Search, Arguments: args})
 	case itemTypeReasoning:
 		var sb strings.Builder
 		for _, s := range out.Summary {
@@ -395,6 +484,32 @@ func appendOutput(r *llmprovider.Response, out outputItem, search string) (refus
 		}
 	}
 	return refused
+}
+
+// dispatched is a call to deferral.UseTool with arguments, as the call it
+// makes: the deferred tool tool_name names, with tool_input, an object or a
+// string holding one, as its arguments, "{}" when there is none. A call naming
+// no tool in d.Dispatch, or with input that is not an object, stays a call to
+// the wrapper, with its arguments as they came (0040-MADR D5).
+func (d Decoder) dispatched(arguments string) (name, args string) {
+	var call struct {
+		ToolName  string          `json:"tool_name"`
+		ToolInput json.RawMessage `json:"tool_input"`
+	}
+	if json.Unmarshal([]byte(arguments), &call) != nil || !d.Dispatch[call.ToolName] {
+		return deferral.UseTool, arguments
+	}
+	input := argumentsText(call.ToolInput)
+	switch trimmed := strings.TrimSpace(input); {
+	case trimmed == "":
+		return call.ToolName, "{}"
+	case strings.HasPrefix(trimmed, "{") && json.Valid([]byte(trimmed)):
+		var compact bytes.Buffer
+		if json.Compact(&compact, []byte(trimmed)) == nil {
+			return call.ToolName, compact.String()
+		}
+	}
+	return deferral.UseTool, arguments
 }
 
 // streamEvent is the part of one Responses stream event the reader uses. The
@@ -459,7 +574,7 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 }
 
 // readEvents is Events, decoding only the event types in handled.
-func readEvents(provider string, body io.Reader, handled map[string]bool, search string, yield func(llmprovider.Event) bool) error {
+func readEvents(provider string, body io.Reader, handled map[string]bool, d Decoder, yield func(llmprovider.Event) bool) error {
 	result := &llmprovider.Response{}
 	refused := false
 	// dispatch handles one event; stop ends the stream without an error,
@@ -489,7 +604,7 @@ func readEvents(provider string, body io.Reader, handled map[string]bool, search
 			return false, llmprovider.ClassifyStreamFailure(provider, event.Code, "", event.Message)
 		case "response.output_item.done":
 			n := len(result.Output)
-			refused = appendOutput(result, event.Item, search) || refused
+			refused = appendOutput(result, event.Item, d) || refused
 			if len(result.Output) > n {
 				return !yield(llmprovider.Event{Type: llmprovider.EventItem, Item: result.Output[n]}), nil
 			}

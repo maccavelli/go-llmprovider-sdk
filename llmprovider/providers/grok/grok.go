@@ -44,6 +44,7 @@
 package grok
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -55,6 +56,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
 )
 
@@ -184,10 +186,14 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	if err := p.caps.Check(req); err != nil {
 		return nil, err
 	}
+	form, decoder := p.deferForm(req)
+	if err := deferral.CheckDispatch(form, req); err != nil {
+		return nil, err
+	}
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2).
 	return wire.Reauth(ctx, string(llmprovider.ProviderGrok), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-		return p.generateOnce(ctx, req, token)
+		return wire.Post(ctx, p.call(req, false), token, decoder.DecodeFor(string(llmprovider.ProviderGrok)))
 	})
 }
 
@@ -196,10 +202,27 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 // arrives. A 401 before the first event renews a refreshable token and sends
 // once more.
 func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
-	if err := p.caps.Check(req); err != nil {
+	form, decoder := p.deferForm(req)
+	err := p.caps.Check(req)
+	if err == nil {
+		err = deferral.CheckDispatch(form, req)
+	}
+	if err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEvents(ctx, p.call(req, true), p.src, responses.Events)
+	return wire.StreamEvents(ctx, p.call(req, true), p.src, decoder.Events)
+}
+
+// deferForm is req's deferred-tool form, and the decoder its reply needs:
+// Grok has no native form, so its deferred tools go through grok-build's
+// use_tool wrapper, and the decoder unwraps a call to it (0040-MADR D5).
+func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses.Decoder) {
+	form := deferral.ForRequest(deferral.Grok, cmp.Or(req.Model, p.model), req)
+	var decoder responses.Decoder
+	if form == deferral.Dispatch {
+		decoder.Dispatch = deferral.Dispatched(req.Tools)
+	}
+	return form, decoder
 }
 
 // body is the Responses request for req.
@@ -216,9 +239,16 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
+	// Deferred tools go through the use_tool wrapper, or are appended when a
+	// forced choice names one (0040-MADR D5, D6).
+	form, _ := p.deferForm(req)
+	sent := responses.Input(input)
+	if form == deferral.Dispatch {
+		sent = responses.InputDispatch(input, req)
+	}
 	body := map[string]any{
 		"model":             model,
-		"input":             responses.Input(input),
+		"input":             sent,
 		"max_output_tokens": maxTokens,
 	}
 	if p.store != nil {
@@ -229,7 +259,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 			body["include"] = []string{"reasoning.encrypted_content"}
 		}
 	}
-	wire.AddResponsesTools(body, req.Tools, req.ToolChoice)
+	wire.AddResponsesTools(body, deferral.Tools(req, form), req.ToolChoice)
 	if effort, ok := p.effort(req, model); ok {
 		body["reasoning"] = map[string]any{"effort": effort}
 	}
@@ -259,11 +289,6 @@ func (p *provider) effort(req *llmprovider.Request, model string) (string, bool)
 	return clamped, clamped != ""
 }
 
-// generateOnce sends req once, with token.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, p.call(req, false), token, responses.DecodeFor(string(llmprovider.ProviderGrok)))
-}
-
 // call is the Responses request for req, asking for an event stream when
 // stream is set.
 func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
@@ -271,6 +296,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 	if stream {
 		body["stream"] = true
 	}
+	form, _ := p.deferForm(req)
 	return wire.Call{
 		Provider: string(llmprovider.ProviderGrok),
 		Client:   p.client,
@@ -278,6 +304,8 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 		URL:      p.baseURL + "/responses",
 		Body:     body,
 		Stream:   stream,
+		// Dispatched, or appended for a forced choice (0040-MADR D7).
+		Warnings: deferral.Warnings(form, req, cmp.Or(req.Model, p.model)),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")

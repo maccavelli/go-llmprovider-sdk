@@ -443,7 +443,9 @@ steps below stay as written, for the record.
      and the warning kind landed in Phase 4, deviation 1);
    * `README.md`;
    * each provider's package doc: its form, its models, and what it does not
-     send (R12).
+     send (R12);
+   * `Tool.Deferred`'s doc comment (`llmprovider/provider.go`), which still
+     names `FunctionCallOutputItem.Load` (carried from Phase 5; A5).
 4. **Checks:**
    * `make lint vuln parity-check dep-check coverage-check api-check
      generate-check records-check gate-selftest`;
@@ -1178,3 +1180,196 @@ rows those lines show, not every row that failed.
   `tools/linkcheck.py`: clean.
 * **Gate:** `tools/gate.py`, 23 of 23 passed, `g-wire-stable` included: no
   existing golden changed.
+
+### Phase 5: Grok dispatch (2026-10-13)
+
+#### Research
+
+* **P20.** Grok's body sent `responses.Input` and `req.Tools` as they were.
+  `Generate` decoded with `responses.DecodeFor`, and `Stream` with
+  `responses.Events`, neither knowing the request.
+* **P17, P18.** `appendOutput` decodes every function call, for both the
+  body and the stream. A call's arguments arrive only in its item
+  (0031-MADR D2), so unwrapping a `use_tool` call there covers both.
+* **The probe's Grok path** (Phase 0, A4) sent this phase's shape: the
+  wrapper's schema, and the loaded definitions in the result's text. The
+  model called `use_tool` with
+  `{"tool_name":"get_weather","tool_input":{"location":"Paris"}}`.
+  `TestGrokDispatch_Decode_0040` and `…_Replay_0040` use that string.
+
+#### Found while building
+
+* **A forced choice of a deferred tool.** `tool_choice` can name only a tool
+  in the list, and under D5 the list holds a deferred tool only behind
+  `use_tool`. `deferral.ForRequest` therefore gives such a request on Grok
+  the append form, where the loaded tool is in the list and the choice
+  names it. The response carries the append warning. A forced Search, or
+  any tool not deferred, keeps the wrapper. 0040-MADR is silent on forced
+  choices, as for Phase 3's forced Search, so this changes no decision.
+  Grok's package doc says so in Phase 7.
+* **A deferred tool's schema that does not encode.** Under D5 it is sent
+  only inside a result's text. Elsewhere it fails the request at encoding,
+  as `ErrInvalidRequest`. `deferral.CheckDispatch` refuses it the same way,
+  so it cannot be lost silently. This keeps the outcome the other wires
+  have; it is not a new decision.
+* **What a `use_tool` call holds.** `tool_input` is decoded when it is an
+  object, or a string holding one; when it is missing it is `{}`, as on
+  every wire. Input that is anything else stays a `use_tool` call with its
+  arguments as they came, as D5 has an unknown tool's. The caller answers
+  it as an unknown tool.
+* **`TestTools_0040`'s dispatch case** (Phase 2) pinned `Dispatch` before
+  the wrapper existed. It now wants `use_tool` last.
+* **The code was refactored once.** `responses.Decoder` gains `Dispatch`.
+  The private `decodeAs`, `readEvents` and `appendOutput` take the
+  `Decoder` in place of its `Search` name. No test calls them directly, and
+  every Phase 3 test passes unchanged. Grok's `generateOnce` went, and
+  `Generate` posts with its decoder.
+* **Lint.** The first `make pre-add-check` found three things:
+  * `errcheck`: a discarded error in the unreachable fallback of
+    `loadedText`;
+  * `goconst`: `"type"` three times in the wrapper's schema;
+  * after a first fix through `wire.KeyType`, `gocritic`'s `importShadow`,
+    since `Of` and `ForRequest` take a `wire` parameter.
+
+  The fallback now writes the names without a second `Marshal`, and the
+  schema uses a local `keyType`. The plants were rerun on the fixed code.
+* **The coverage floor.** The first gate run passed 21 of 23.
+  `coverage-check` found `llmprovider/internal/wire/responses` at 78.3%,
+  below its 80.0% floor, and `gate-selftest` failed for the same reason
+  (`coverage-check exit 1 on a clean copy`). The new encoder and decoder
+  were tested only from Grok's package, and the floor counts the package's
+  own tests. `responses` gained `TestInputDispatch_0040` and
+  `TestDecode_Dispatch_0040`, which brought it to 96.5%. The floor was not
+  changed. Their nine plants ran on that package alone (below).
+* **Not done here:**
+  * `responses`' exported names in `docs/architecture.md`
+    (`InputDispatch` joins `InputLoading` and `Decoder`) stay in Phase 7,
+    as deviation 1 of Phase 4 recorded.
+  * `Tool.Deferred`'s doc comment (`llmprovider/provider.go`) still says
+    "until a FunctionCallOutputItem's Load names it". A5 replaced `Load`
+    with `ToolLoadItem`, and Phase 1 did not update the comment. This is
+    outside Phase 5; raised with the owner. The owner answered "proceed"
+    without choosing, so it stays out of Phase 5 and is carried to Phase
+    7's docs step (annotated there).
+
+#### What was built
+
+* **`deferral`:**
+  * `UseTool` and `DispatchTool()`: the wrapper, with `tool_name` (a
+    string) and `tool_input` (an object), both required;
+  * `Tools` under `Dispatch`: the tools not deferred, then the wrapper, the
+    same list whatever is loaded;
+  * `ForRequest`: the forced-choice rule above;
+  * `CheckDispatch`, `Dispatched` and `Loads`.
+* **`responses`:**
+  * `InputDispatch`: a call to a deferred tool is sent as the wrapper call,
+    `{"tool_name":…,"tool_input":…}`;
+  * a result that `ToolLoadItem`s follow is sent with its text, a blank
+    line, then
+    `[{"name","description","input_schema"}]`, as grok-build's search
+    returns them;
+  * `Decoder.Dispatch`, which unwraps a wrapper call naming a deferred tool,
+    by `Generate` and by `Stream`.
+* **`grok`:** `deferForm` gives the form and the decoder once. The body,
+  `Generate`, `Stream`, the refusal and `Call.Warnings` all use it.
+* **`docs/architecture.md`,** in this change (R43): Grok's `Depends on`
+  names `internal/wire/deferral`, and the deferral row names the dispatch
+  functions.
+
+#### Tests, red and green
+
+* **Red, Grok** (`dispatch_0040_test.go`), before the change:
+
+  ```text
+  TestGrokDispatch_Tools_0040: request 0: tools [read_file tool_search get_weather lookup_stock], want [read_file tool_search use_tool]
+  TestGrokDispatch_Tools_0040: request 0: warnings []; want WarningDeferralEmulated naming use_tool
+  TestGrokDispatch_Decode_0040: a deferred tool: Generate output [{CallID:c2 Name:use_tool Arguments:{"tool_name":"get_weather","tool_input":{"location":"Paris"}} …}], want {CallID:c2 Name:get_weather Arguments:{"location":"Paris"} …}
+  TestGrokDispatch_Replay_0040: input […{"call_id":"c1","output":"Loaded get_weather.","type":"function_call_output"},{"arguments":"{\"location\":\"Paris\"}","call_id":"c2","name":"get_we…
+  TestGrokDispatch_NameClash_0040: Generate: <nil>; want ErrInvalidRequest naming use_tool
+  TestGrokDispatch_NameClash_0040: a refused request was sent: …
+  TestGrokDispatch_Forced_0040: forcing get_weather: tools [read_file tool_search get_weather lookup_stock], want [read_file tool_search get_weather]
+  ```
+
+  The decode cases that stay `use_tool` (an unknown tool, input that is not
+  an object, nothing deferred) passed before the change, as they should.
+* **Red, `deferral`.** The unit tests were written after the code. They
+  were reproduced on a scratch clone, with `deferral.go` put back to its
+  staged Phase 4 version in the clone only:
+
+  ```text
+  deferral_0040_test.go:114:108: undefined: UseTool
+  dispatch_0040_test.go:54:10: undefined: CheckDispatch
+  dispatch_0040_test.go:64:9: undefined: Loads
+  dispatch_0040_test.go:78:9: undefined: Dispatched
+  ```
+
+* **Added after the code**, and shown failing only by the plants:
+  * a Grok row in `TestDeferral_PerProvider_0040` and in
+    `TestAppend_PreviousResponseID_0040`;
+  * the decode case "input that is JSON but not an object" (`5`), added
+    because `"Paris"` alone did not reach the object check.
+* **Green:**
+  * `TestGrokDispatch_Tools_0040`, `…_Decode_0040`, `…_Replay_0040`,
+    `…_NameClash_0040` and `…_Forced_0040`;
+  * `TestForRequest_Dispatch_0040`, `TestCheckDispatch_0040`,
+    `TestLoads_0040` and `TestDispatched_0040`;
+  * `TestInputDispatch_0040` and `TestDecode_Dispatch_0040` (`responses`).
+    These were added after the gate (above), and are shown failing only by
+    their plants. The first run of `TestInputDispatch_0040` failed on the
+    test's own expectation: it was written in the wrong key order, while
+    `InputItem` writes 0028-MADR D-A6's. Each encoded item was read and
+    found right, and the expectation was corrected;
+  * every other test in `go test ./llmprovider/...`.
+
+#### Plants (`tools/plant.py`, 16 of 16 caught)
+
+Every plant compiles, and each was caught by a test assertion. They were
+run again after the lint fixes, 16 of 16.
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the list changed on a load (PLAN) | `request 1: tools [read_file tool_search get_weather use_tool], want [read_file tool_search use_tool]`; the Grok rows of the provider test, by both halves |
+| the decode skipped (PLAN) | `a deferred tool: Generate output [{… Name:use_tool …}], want {… Name:get_weather …}`, and by `Stream` |
+| the replay sent under the tool's own name (PLAN) | `TestGrokDispatch_Replay_0040: input` diff |
+| a load's definitions not sent | the same diff |
+| a definition without its schema | the same diff |
+| `tool_input` as JSON text not read | `its input as JSON text: … Name:use_tool …, want … Name:get_weather …`, by both |
+| `tool_input` that is not an object unwrapped | `input that is JSON but not an object: … Name:get_weather Arguments:5 …, want … Name:use_tool …`, by both |
+| no `tool_input` decoded as empty | `no input: … Arguments: …, want … Arguments:{} …`, by both |
+| an unknown tool unwrapped | `an unknown tool: … Name:send_fax …, want … Name:use_tool …`, by both |
+| the name clash not refused | `Generate: <nil>; want ErrInvalidRequest naming use_tool`; `Stream: … stream ended before response.completed; want ErrInvalidRequest`; `a refused request was sent` |
+| a deferred schema not checked | `a schema that does not encode, dispatched: <nil>` |
+| `Stream` not checked | `Stream: …; want ErrInvalidRequest`; `a refused request was sent` |
+| a forced deferred tool kept behind the wrapper | `forcing get_weather: tools [read_file tool_search use_tool], want [read_file tool_search get_weather]`; `choice tool:get_weather: 3, want 0` |
+| Grok sets no warning | the provider test's Grok row, by both halves; `grok/grok-4.6: warning "", want one containing "use_tool"` |
+| Grok's decoder unwraps nothing | `a deferred tool: … Name:use_tool …`, by both |
+| Grok sends `req.Tools` | `tools [… send_email], want [read_file tool_search use_tool]`, in the provider and continuation tests |
+
+The `responses` tests' own plants (9 of 9 caught), run on
+`./llmprovider/internal/wire/responses/` alone, so that no other package's
+test could catch them:
+
+| Plant | FAIL lines |
+| :--- | :--- |
+| the decode skipped | `an object: DecodeFor … Name:use_tool …`; `an object: Events … Name:use_tool …` |
+| the replay sent under the tool's own name | `TestInputDispatch_0040: InputDispatch` diff |
+| a load's definitions not sent | the same diff |
+| a definition without its schema | the same diff |
+| a repeated load sent twice (`deferral.Loads`) | the same diff |
+| `tool_input` as JSON text not read | `JSON text: DecodeFor … Name:use_tool …`, and by `Events` |
+| `tool_input` that is not an object unwrapped | `an array: DecodeFor … Name:get_weather Arguments:[1] …`, and by `Events` |
+| no `tool_input` decoded as empty | `null input: … Arguments: …, want … Arguments:{} …` |
+| an unknown tool unwrapped | `an unknown tool: … Name:send_fax …, want … Name:use_tool …` |
+
+#### Checks
+
+* `make pre-add-check` on the 8 Go files: clean after the lint fixes
+  above.
+* `make coverage-check`: 32 packages, 0 problems; `responses` 96.5%.
+* `make records-check`, `tools/claims.py` (25 of 25, 31 of 31),
+  `tools/denyscan.py --changed` and `tools/linkcheck.py`: clean.
+* **Gate:** `tools/gate.py`, 23 of 23 passed on the second run (the first
+  is above), `g-wire-stable` included: no existing golden changed.
+* **Staging.** Phase 4 was still staged and uncommitted, so Phase 5 stayed
+  unstaged until the owner committed it (`87b87f5`). Phase 5 was then
+  staged.

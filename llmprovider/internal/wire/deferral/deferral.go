@@ -8,7 +8,10 @@
 package deferral
 
 import (
+	"encoding/json"
+	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -54,6 +57,30 @@ const (
 	Dispatch
 )
 
+// UseTool is the wrapper Dispatch sends in place of the deferred tools, as
+// grok-build names it (0040-MADR D5, E20).
+const UseTool = "use_tool"
+
+// keyType is a JSON schema's type key.
+const keyType = "type"
+
+// useToolSchema is UseTool's input: the name of a tool the search found, and
+// that tool's arguments, an open object (0040-MADR D5, E21).
+var useToolSchema = map[string]any{
+	keyType: "object",
+	"properties": map[string]any{
+		"tool_name":  map[string]any{keyType: "string", "description": "The name of a tool the search found."},
+		"tool_input": map[string]any{keyType: "object", "description": "Its arguments, by the input schema the search gave."},
+	},
+	"required": []string{"tool_name", "tool_input"},
+}
+
+// DispatchTool is UseTool's definition.
+func DispatchTool() llmprovider.Tool {
+	return llmprovider.Tool{Name: UseTool, Schema: useToolSchema,
+		Description: "Runs a tool that the search found, with the input schema the search gave."}
+}
+
 // gptVersionRE reads an OpenAI GPT id's version, such as 5.4 in gpt-5.4-mini
 // or 6 in gpt-6-luna.
 var gptVersionRE = regexp.MustCompile(`(?i)^gpt-(\d+)(?:\.(\d+))?(?:[-.]|$)`)
@@ -84,17 +111,58 @@ func Of(wire Wire, model string) Form {
 }
 
 // ForRequest is Of for req: Append when req defers nothing, which sends it
-// as before; and Append on Responses when req forces its Search tool, since
-// tool_choice can name a function but not a tool_search entry (0040-MADR D3).
+// as before. A forced choice must name a tool in the list, so it is Append on
+// Responses when req forces its Search tool, which is a tool_search entry
+// there (0040-MADR D3), and under Dispatch when req forces a deferred tool,
+// which the list holds only behind UseTool (D5).
 func ForRequest(wire Wire, model string, req *llmprovider.Request) Form {
 	if !Deferring(req.Tools) {
 		return Append
 	}
 	form := Of(wire, model)
-	if name, forced := req.ToolChoice.Tool(); forced && form == ResponsesNative && name == searchTool(req.Tools) {
-		return Append
+	if name, forced := req.ToolChoice.Tool(); forced {
+		switch {
+		case form == ResponsesNative && name == searchTool(req.Tools),
+			form == Dispatch && slices.ContainsFunc(req.Tools, func(t llmprovider.Tool) bool { return t.Deferred && t.Name == name }):
+			return Append
+		}
 	}
 	return form
+}
+
+// CheckDispatch refuses, when form is Dispatch, a request with a tool of its
+// own named UseTool, whose name the wrapper would take (0040-MADR D5), or a
+// deferred tool whose schema does not encode as JSON. Such a schema is sent
+// only inside a result's text, so it would otherwise not fail the request,
+// as it does where tools are encoded.
+func CheckDispatch(form Form, req *llmprovider.Request) error {
+	if form != Dispatch {
+		return nil
+	}
+	for _, tool := range req.Tools {
+		if tool.Name == UseTool {
+			return fmt.Errorf("%w: tool %q has the name of the deferred-tool wrapper; rename it, or defer no tool",
+				llmprovider.ErrInvalidRequest, UseTool)
+		}
+		if tool.Deferred {
+			if _, err := json.Marshal(tool.Schema); err != nil {
+				return fmt.Errorf("%w: tool %q: schema: %w", llmprovider.ErrInvalidRequest, tool.Name, err)
+			}
+		}
+	}
+	return nil
+}
+
+// Dispatched is the deferred tools' names: those a UseTool call may run
+// (0040-MADR D5).
+func Dispatched(tools []llmprovider.Tool) map[string]bool {
+	out := map[string]bool{}
+	for _, tool := range tools {
+		if tool.Deferred {
+			out[tool.Name] = true
+		}
+	}
+	return out
 }
 
 // gptVersion reads a GPT id's major and minor version by gptVersionRE; a
@@ -210,8 +278,21 @@ func Tools(req *llmprovider.Request, form Form) []llmprovider.Tool {
 		}
 		return withLoaded(req.Tools, other)
 	default: // Dispatch
-		return withLoaded(req.Tools, nil)
+		// The list never changes, so the cache holds across loads (D5).
+		return append(withLoaded(req.Tools, nil), DispatchTool())
 	}
+}
+
+// Loads is, by call id, the tools each result's ToolLoadItems load, in
+// order, once each: what a Dispatch result carries (0040-MADR D5, A5).
+func Loads(input []llmprovider.Item) map[string][]string {
+	out := map[string][]string{}
+	for _, item := range input {
+		if load, ok := item.(llmprovider.ToolLoadItem); ok && !slices.Contains(out[load.CallID], load.Name) {
+			out[load.CallID] = append(out[load.CallID], load.Name)
+		}
+	}
+	return out
 }
 
 // Warning is the WarningDeferralEmulated req earns sent in form to model, if
