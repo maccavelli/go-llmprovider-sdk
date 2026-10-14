@@ -215,10 +215,16 @@ func (d *modelMetadataDoc) reasoningEfforts(provider llmprovider.ProviderID, mod
 // reasoning replayed under ("reasoning_content"), or "" when it declares none
 // (MADR 0012 §2, O5).
 func (d *modelMetadataDoc) interleavedField(provider llmprovider.ProviderID, model string) string {
+	m, _ := d.entry(provider, model)
+	return interleavedFieldOf(m)
+}
+
+// interleavedFieldOf is an entry's interleaved.field, or "" when it
+// declares none: interleaved is true, absent, or has no field.
+func interleavedFieldOf(m modelMetadata) string {
 	var declared struct {
 		Field string `json:"field"`
 	}
-	m, _ := d.entry(provider, model)
 	if json.Unmarshal(m.Interleaved, &declared) != nil {
 		return ""
 	}
@@ -311,6 +317,19 @@ func cachedMetadata(ctx context.Context, cfg config) (Metadata, bool) {
 	if !fresh && !backingOff {
 		startMetadataFetch(ctx, url, cfg)
 	}
+	return Metadata{doc: e.doc}, e.doc != nil
+}
+
+// peekMetadata is the cached document, fresh or past its TTL, and true; or,
+// with none cached or metadata off, false. Unlike cachedMetadata it starts
+// no fetch: what a request reads (0041-MADR A3).
+func peekMetadata(cfg config) (Metadata, bool) {
+	if cfg.metadataOff {
+		return Metadata{}, false
+	}
+	modelMetadataMu.Lock()
+	defer modelMetadataMu.Unlock()
+	e := modelMetadataCache[modelMetadataURL(cfg)]
 	return Metadata{doc: e.doc}, e.doc != nil
 }
 

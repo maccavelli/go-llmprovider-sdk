@@ -48,6 +48,15 @@
 // and a ToolLoadItem itself sends nothing. The response carries
 // WarningDeferralEmulated (D7), and the prompt cache breaks once at each
 // load.
+//
+// Model facts (0041-MADR D1, D2, A3). Each request reads what the caches
+// already hold of its model: a caller's catalog.WithModelLayer, a listing
+// that ListModels or catalog.List read, and the models.dev document once
+// something has fetched it. A request never fetches, and never waits.
+// With no MaxOutputTokens, the output limit is the default, cut to the
+// model's own when that is smaller; it is never raised.
+// Prior reasoning is replayed under the field the model's interleaved.field
+// names, and under none when no source names one.
 package together
 
 import (
@@ -57,6 +66,7 @@ import (
 	"iter"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -164,18 +174,51 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.Capabilities().Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEvents(ctx, p.call(req, true), p.src, chatcompletions.Events)
+	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
+		return p.call(ctx, req, token, true)
+	}, chatcompletions.Events)
+}
+
+// facts is what the caches know of req's model, read for each request and
+// never waited for (0041-MADR D1). The request's own token finds the cached
+// listing, so the token source is not asked again.
+func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) catalog.ModelInfo {
+	info, _ := catalog.CachedFacts(ctx, llmprovider.ProviderTogether, cmp.Or(req.Model, p.model),
+		slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
+	return info
 }
 
 // generateOnce sends req once, with token.
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, p.call(req, false), token, chatcompletions.DecodeFor(string(llmprovider.ProviderTogether)))
+	return wire.Post(ctx, p.call(ctx, req, token, false), token, chatcompletions.DecodeFor(string(llmprovider.ProviderTogether)))
+}
+
+// replayField is the field the model's prior reasoning is replayed under,
+// its facts' ReplayField, when the input has an assistant turn to replay onto
+// (0041-MADR D2, A3); "" otherwise.
+func replayField(input []llmprovider.Item, facts catalog.ModelInfo) string {
+	if !slices.ContainsFunc(input, isAssistantTurn) {
+		return ""
+	}
+	return facts.Reasoning.ReplayField
+}
+
+// isAssistantTurn reports an item the model wrote: a call, or an assistant
+// message.
+func isAssistantTurn(item llmprovider.Item) bool {
+	switch v := item.(type) {
+	case llmprovider.FunctionCallItem:
+		return true
+	case llmprovider.MessageItem:
+		return v.Role == llmprovider.RoleAssistant
+	}
+	return false
 }
 
 // call is the Chat Completions request for req, asking for an event stream
 // with its usage when stream is set (0031-MADR E5).
-func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
-	body := p.body(req)
+func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
+	body := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -200,7 +243,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 }
 
 // body is the Chat Completions request for req.
-func (p *provider) body(req *llmprovider.Request) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -208,6 +251,9 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	maxTokens := p.maxTokens
 	if req.MaxOutputTokens > 0 {
 		maxTokens = req.MaxOutputTokens
+	} else if limit := facts.MaxOutputTokens; limit > 0 && facts.Has(catalog.FieldMaxOutputTokens) {
+		// The default, cut to the model's limit, never raised (0041-MADR D2).
+		maxTokens = min(maxTokens, limit)
 	}
 	input := req.Input
 	if req.Instructions != "" {
@@ -220,6 +266,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 		o.Reasoning = map[string]any{"enabled": true}
 		o.ReasoningEffort = p.effort(r)
 	}
+	o.ReplayReasoningField = replayField(input, facts)
 	body := chatcompletions.Body(model, maxTokens, input, o)
 	wire.AddPromptCacheKey(body, req.Cache, p.session) // 0039-MADR D3
 	return body

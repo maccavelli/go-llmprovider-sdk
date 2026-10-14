@@ -114,6 +114,7 @@ As 0041-MADR D8 decides:
 | Package | Addition | Phase |
 | :--- | :--- | :--- |
 | `catalog` | `CachedFacts` | 1 |
+| `catalog` | `ModelReasoning.ReplayField`, `FieldReasoningReplay` (0041-MADR A3; Phase 1, deviation 3) | 1 |
 | `catalog` | `ModelInfo.CanonicalID`, `FieldCanonicalID` | 2 |
 | `catalog` | `Catalog.Menu`, `MenuEntry` and its fields `ID`, `Info`, `Rank` and `Caveats`; `Caveat`, `CaveatDeprecated`, `CaveatNoTools`, `CaveatNoTextOutput`, `CaveatExpiring` and `CaveatUnavailable` | 4 |
 | `catalog` | `ProfileAgent`, `WithWorkload`, `ObservedWorkload` | 5 |
@@ -296,7 +297,7 @@ stops and records a deviation.
    | `TestGrokEfforts_Facts_0041` | `grok-4.3` with a listing `reasoning_effort` holding `xhigh` sends `xhigh`; with no facts, the menu's |
    | `TestOutputLimit_Facts_0041` (per provider, through `wiretest`) | a model whose `limit.output` is 4096 sends 4096; one of 128,000 sends 8192 |
    | `TestReplayField_Facts_0041` | Together and Hugging Face replay under `reasoning_content` when the fact says so; none when unknown |
-   | `TestAgreement0041_*` (the offline half of D7) | on the committed snapshot, R1, R2, R4, R5 and R6 from facts equal the rule for every model both answer, except the listed set. The set is `grok-4.3`, `grok-4.20-multi-agent-0309` and the two Gemini models of §3, each with its reason |
+   | `TestAgreement0041_*` (the offline half of D7) | on the committed snapshot, R1, R2, R4, R5 and R6 from facts equal the rule for every model both answer, except the listed set. ~~The set is `grok-4.3`, `grok-4.20-multi-agent-0309` and the two Gemini models of §3, each with its reason~~ *The set is 0041-MADR A2's (Phase 1, deviation 1): `grok-4.3` and `grok-4.20-multi-agent-0309` (R6); four Gemini image models (R4, R5); and the models whose facts are silent, §3's two among them, where the rule decides* |
    | the wire goldens | unchanged: every scenario, three runs |
 
 6. **Plants:**
@@ -880,3 +881,247 @@ Every plant compiles, and each was caught by an assertion.
   (0041-MADR, at `3e81e3d`) and 39 of 39 (this PLAN, at `2c82cf1`).
 * `tools/denyscan.py --changed` and `tools/linkcheck.py`: clean.
 * **Gate:** `tools/gate.py`, 23 of 23 passed.
+
+### Phase 1: facts at request time (2026-10-14)
+
+#### Research
+
+* **P8, `CachedModel`.** It merges the caller's layers, the cached listing
+  and the cached document, and starts any missing fetch. `CachedFacts` is
+  the same merge with no listing fetch. The listing cache is keyed by
+  provider, base URL and a fingerprint of the token, so `CachedFacts` needs
+  the credential. `Settings.TokenSource()` gives it from the options
+  (`WithAPIKey` or `WithTokenSource`), as the PLAN's signature implies, and
+  `config` now holds it.
+* **P9, OpenCode's `requestRoute`,** reads the cached document
+  (`CachedMetadataWith`), which starts a missing fetch for the next call
+  without waiting. That is D1's "no request waits".
+  * OpenCode's `chatReplayField` instead blocks on `LookupMetadataWith`.
+  * Step 4 says the Chat Completions adapters replay "as OpenCode's
+    `chatReplayField` does". It is read, by D1, as the same field from the
+    same document, read from the cache without waiting. OpenCode's own is
+    unchanged.
+* **The replay field is not a `ModelInfo` field.** `Metadata`'s
+  `InterleavedField` gives it. Together, Hugging Face and Ollama read it
+  from `CachedMetadataWith`.
+* **Every provider keeps its options** in `p.listing`, which `CachedFacts`
+  takes.
+* **P27:** the wire scenarios run with `WithoutModelMetadata`, and no
+  scenario caches a listing at their base URL, so the goldens keep the rule
+  path.
+* **A module-internal field beyond the PLAN's list.**
+  `messages.Thinking` gains `MaxOutput`. D2 says a thinking budget's raise
+  of `max_tokens` never passes the model's limit, and Anthropic requires
+  `max_tokens` above `budget_tokens`. Only the wire function sees both. It
+  is not API, and decides nothing new.
+* **Import cycles.**
+  * `catalog`'s agreement test can call `messages` and `generatecontent`,
+    which do not import `catalog`.
+  * R5's and R6's rules are unexported in `gemini` and `grok`, which do
+    import `catalog`. Their agreement tests live in those packages, as
+    Phase 0's deviation 2 did for R6.
+
+#### Deviations
+
+1. **2026-10-14: the agreement set.**
+   * **Found:** the agreement tests measured a set other than the one step
+     5 predicts. R6 is exactly `grok-4.3` and `grok-4.20-multi-agent-0309`,
+     and R1 and R2 differ on no model. But on Gemini:
+     * §3's two models do not differ. Their facts are silent (reasoning,
+       with no budget and no effort), so the rule decides for them.
+     * Four image models do differ: `gemini-3-pro-image` (R5), and
+       `gemini-3.1-flash-image`, `gemini-3.1-flash-image-preview` and
+       `gemini-3.1-flash-lite-image` (R4 and R5). models.dev lists their
+       efforts as `minimal` and `high`, so D2 sends no level where the rule
+       sends one the model does not list.
+   * **Decided by the owner:** the facts win, as D2 decides, and the
+     measured set is recorded with its reasons. 0041-MADR gains amendment
+     A2. Step 5's row is annotated. The tests assert the exact differing
+     sets and the exact silent sets:
+     * Google, silent: `deep-research-max-preview-04-2026`,
+       `deep-research-preview-04-2026`,
+       `gemini-2.5-computer-use-preview-10-2025`, `gemini-2.5-flash-image`,
+       `gemini-3-pro-image-preview`, `gemini-3.1-flash-tts-preview`,
+       `gemini-omni-flash-preview`, `gemma-4-26b-a4b-it` and
+       `gemma-4-31b-it`;
+     * the Messages route, silent: `opencode-go/minimax-m2.7`,
+       `opencode-zen/minimax-m2.1-free` and
+       `opencode-zen/minimax-m2.5-free`.
+2. **2026-10-14: a request starts no fetch.**
+   * **Found:** wired as step 2 says, `CachedFacts` started the models.dev
+     fetch whenever the document was missing or stale. A race detector run
+     caught `TestGrok_TokenSourceCalledPerRequest` recording that
+     background fetch through its counting transport, from another
+     goroutine:
+     * `session_test.go:92`, written by `catalog/model_metadata.go:517`,
+       from `lookup.go:145`;
+     * read by `post.go:144`.
+
+     It depends on test order: whichever test first meets an uncached
+     document triggers the fetch.
+     * The eight providers' test helpers do not turn metadata off, as
+       OpenCode's do (0015-PLAN S10), so their tests would reach
+       models.dev.
+     * In production, a first `Generate` would fetch ~1 MB through the
+       caller's client.
+   * **Decided by the owner:** amend D1. A request reads the cached document
+     and starts no fetch (0041-MADR A3). `CachedFacts` reads the caches
+     only. Step 2's sentence "With no document cached, it starts that fetch
+     only" no longer holds. Step 5's `TestCachedFacts_NoListingFetch_0041`
+     asserts no document request either.
+3. **2026-10-14: the replay field is a fact.**
+   * **Found:** the Chat Completions replay field (`interleaved.field`) is
+     not a `ModelInfo` field. `CachedMetadataWith`, its only read, starts a
+     fetch, and OpenCode's route depends on that.
+   * **Decided by the owner:** `ModelInfo.Reasoning.ReplayField`, with
+     `FieldReasoningReplay` (0041-MADR A3). The two are added to "The
+     exported additions". `Metadata.Model` sets it from the document, and
+     Together, Hugging Face and Ollama read it from `CachedFacts`.
+
+#### What was built
+
+* **`catalog`:**
+  * `CachedFacts(ctx, provider, model, opts...) (ModelInfo, bool)`. It
+    merges the caller's layers, a listing already cached for the provider,
+    base URL and credential, and the cached document (`peekMetadata`, which
+    starts no fetch; A3). `config` holds the options' token source, so the
+    listing is found by its credential.
+  * `ModelReasoning.ReplayField` and `FieldReasoningReplay`, set from
+    `interleaved.field` by `modelInfoFrom`. `interleavedField` reads
+    through the same `interleavedFieldOf`, so the two never differ.
+* **`messages`:** `Thinking` (`Known`, `Adaptive`, `EffortOnly`,
+  `BudgetMin`, `BudgetMax`, and `MaxOutput`, which research added),
+  `FactsThinking` and `AddThinkingFor`. `AddThinking` is `AddThinkingFor`
+  with no facts.
+* **`generatecontent`:** `Thinking` (`Known`, `Budget`, `Levels`),
+  `FactsThinking` and `ThinkingConfigFor`.
+* **The providers.** Each reads its facts once per request, with the
+  request's own token: `WithAPIKey(token.Value)`, after its options.
+  * Gemini, OpenAI, Together, Hugging Face, Ollama and Grok now build
+    `Stream`'s call per token, through `StreamEventsFor`.
+  * Claude builds through `Send` and `StreamEventsRetry`, and Kilo already
+    built per token.
+  * OpenCode reads its facts in `resolve`; its gateways are not listing
+    layers, so no token is needed.
+  * **What each reads:**
+    * every provider, the output limit;
+    * Claude, and OpenCode's messages route, the thinking shape;
+    * Gemini's `thinkingLevelFor`, and OpenCode's google route, the level;
+    * Grok's `clampReasoningEffortFor`, the efforts;
+    * Together, Hugging Face and Ollama, the replay field.
+* **Docs:**
+  * each provider's package doc names the facts it reads and its fallback
+    (R12);
+  * `docs/architecture.md` names `CachedFacts` and the wire functions, and
+    says what a request reads (R43).
+
+#### Found while building
+
+* **The token for the listing.** As first written, `CachedFacts` asked the
+  options' token source for a token. That was a second call per request:
+  `TestGrok_TokenSourceCalledPerRequest` panicked when its two-token source
+  ran out. A rotating source would hand the request the wrong token, and a
+  `CommandToken` would run its command twice. Each provider now passes the
+  token it is sending with, and `CachedFacts`'s doc says so. The panic is
+  the plant "Grok's facts read through its token source" below.
+* **A wiring test the plants showed missing.** "Gemini's levels ignored"
+  passed the first plant run only because of the race that deviation 2
+  removed. On the second run it was not caught. `TestThinkingLevel_Wired_0041`
+  was added, and the plant then failed it:
+
+  ```text
+  level_0041_test.go:83: facts true, effort medium: thinking_level medium; want <nil>
+  ```
+
+* **Not this phase's:** the 0034 learned-refusal tests of Claude and
+  OpenCode fail under `-count=3`, since their learned memo is the
+  process's. They fail the same way on a clean clone of `0eef583`, and
+  pass at `-count=1`, as the gate runs them. Nothing was changed for them.
+
+#### Tests, red and green
+
+* **Red, the wire and the catalog** (before the code):
+
+  ```text
+  undefined: CachedFacts
+  undefined: AddThinkingFor
+  undefined: ThinkingConfigFor
+  undefined: thinkingLevelFor
+  undefined: clampReasoningEffortFor
+  ```
+
+  The undefined `messages.Thinking`, `messages.FactsThinking` and
+  `generatecontent.FactsThinking` failed the same way.
+* **Red, the providers**, run before any was wired: every provider sent the
+  8192 default for a model whose limit is 4096, and neither Together nor
+  Hugging Face replayed under the field.
+
+  ```text
+  facts_0041_test.go:97: claude/claude-sonnet-5, a limit of 4096: sent 8192 (found true); want 4096
+  ```
+
+  This failed for all 12 rows, and so did:
+
+  ```text
+  facts_0041_test.go:158: together, interleaved.field "reasoning_content": the reasoning was replayed under ""; want "reasoning_content"
+  efforts_0041_test.go:92: models.dev only: sent effort xhigh; want "high"
+  ```
+
+  The 128,000 rows passed already, as they should: the default is never
+  raised.
+* **Fixed while writing:** `sentLimit` first read `float64`, but `wiretest`
+  keeps numbers exact as `json.Number`, so every row read "found false".
+* **Added after the code**, and shown failing only by the plants:
+  * `TestModelReasoning_ReplayField_0041` (A3);
+  * `TestThinkingLevel_Wired_0041`;
+  * the A2 sets in the agreement tests.
+* **Green:**
+  * `TestCachedFacts_NoListingFetch_0041` and
+    `TestCachedFacts_Precedence_0041`;
+  * `TestAddThinkingFor_0041`, `TestThinkingConfigFor_0041` and both
+    `TestFactsThinking_0041`;
+  * `TestGrokEfforts_Facts_0041` and `TestThinkingLevel_Facts_0041`;
+  * `TestOutputLimit_Facts_0041` and `TestReplayField_Facts_0041`;
+  * the five `TestAgreement0041_*`;
+  * `go test ./...`;
+  * every wire golden, three runs, with no golden changed;
+  * `go test -race -shuffle=on ./llmprovider/...`, once, and Grok's former
+    race ten times under `-race`.
+
+#### Plants (`tools/plant.py`, 18 of 18 caught)
+
+Every plant compiles; two that first did not were rewritten in compiling
+forms. Each was caught by an assertion, or by the source's panic for the
+token plant.
+
+| Plant | FAIL line |
+| :--- | :--- |
+| `CachedFacts` calls the listing fetch | `CachedFacts on a cold cache knew the model` |
+| `CachedFacts` starts the document fetch | the same |
+| the precedence inverted | `field 4: 128000 from "models.dev"; want 100000 from "listing:claude"` |
+| efforts give a toggle's shape | `claude/claude-fable-5 at "low": rule […"output_config":{"effort":"low"}…], facts […]` |
+| a budget option ignored | `claude/claude-opus-4-5 at "": rule [{"thinking":{"budget_tokens":4096…}}], facts [{"thinking":{"type":"adaptive"}}]` |
+| the effort sent with a toggle | `a toggle alone: adaptive, no effort: {…"output_config":{"effort":"high"}…}` |
+| the output cap on the raise removed | `the raise stops at the output limit: {…"max_tokens":10096}` |
+| a level outside the list sent | `R4: facts and the rule differ on [] …` |
+| the replay field not decoded | `a: "", known true; want "reasoning_content"` |
+| Claude's output cut removed | `claude/claude-sonnet-5, a limit of 4096: sent 8192` |
+| OpenCode's output cut removed | `opencode-zen/claude-sonnet-5, a limit of 4096: sent 8192` |
+| Together's replay field ignored | `together, interleaved.field "reasoning_content": … replayed under ""` |
+| Grok's efforts facts ignored | `models.dev only: sent effort xhigh; want "high"` |
+| Gemini's levels ignored | `facts true, effort medium: thinking_level medium; want <nil>` |
+| Grok's facts read through its token source | `TestGrok_TokenSourceCalledPerRequest` panics: the source ran out |
+| an R6 exception removed | `R6: facts and the menu differ on [grok-4.20-multi-agent-0309 grok-4.3]; want only [grok-4.3]` |
+| an R4 exception removed | `gemini-3.1-flash-image: rule {…"thinkingLevel":"low"}, facts {…}` |
+| an R5 exception removed | `R5: facts and thinkingLevel differ on [gemini-3-pro-image …]; want only […]` |
+
+#### Checks
+
+* `make pre-add-check` on the 25 Go files: clean.
+* `tools/apidiff.py v1.13.0`: `CachedFacts`, `FieldReasoningReplay` and
+  `ModelReasoning.ReplayField`, all added, and nothing else, as amended by
+  deviation 3.
+* `make records-check`; `tools/claims.py` on both records, 57 of 57 and
+  39 of 39; `tools/denyscan.py --changed` and `tools/linkcheck.py`: clean.
+* **Gate:** `tools/gate.py`, 23 of 23 passed, `g-wire-stable` included: no
+  existing golden changed.

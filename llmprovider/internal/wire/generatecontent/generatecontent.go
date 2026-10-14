@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -404,6 +405,52 @@ func ThinkingConfig(model, effort string, budget int) map[string]any {
 		cfg[keyThinkingBudget] = wire.LowEffortThinkingBudget
 	default:
 		cfg["thinkingLevel"] = low
+	}
+	return cfg
+}
+
+// Thinking is what a model's facts say of its Gemini thinking (0041-MADR D2,
+// R4–R5), resolved by the provider so that this package reads no facts.
+type Thinking struct {
+	// Known reports that the facts answer. Without it geminiLegacyRE decides.
+	Known bool
+	// Budget is a thinking budget without efforts: thinkingBudget.
+	Budget bool
+	// Levels are the model's efforts: thinkingLevel, sent only when the
+	// effort is one of them.
+	Levels []string
+}
+
+// FactsThinking is the Thinking a model's reasoning facts give: efforts are
+// levels, and a budget without efforts is a budget. With neither the facts do
+// not answer.
+func FactsThinking(efforts []string, budget bool) Thinking {
+	switch {
+	case len(efforts) > 0:
+		return Thinking{Known: true, Levels: efforts}
+	case budget:
+		return Thinking{Known: true, Budget: true}
+	}
+	return Thinking{}
+}
+
+// ThinkingConfigFor is ThinkingConfig with the model's facts (0041-MADR D2): a
+// configured budget still wins; a model with levels gets thinkingLevel, only
+// for an effort among them; one with a budget gets ThinkingConfig's budgets.
+func ThinkingConfigFor(model, effort string, budget int, facts Thinking) map[string]any {
+	if !facts.Known || budget > 0 {
+		return ThinkingConfig(model, effort, budget)
+	}
+	cfg := map[string]any{"includeThoughts": true}
+	switch {
+	case len(facts.Levels) > 0:
+		if effort != "" && slices.Contains(facts.Levels, effort) {
+			cfg["thinkingLevel"] = effort
+		}
+	case effort == string(llmprovider.EffortLow):
+		cfg[keyThinkingBudget] = wire.LowEffortThinkingBudget
+	default:
+		cfg[keyThinkingBudget] = dynamicThinkingBudget
 	}
 	return cfg
 }

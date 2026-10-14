@@ -326,8 +326,10 @@ Chosen option: **"A. A live menu ordered by facts"**, because:
   * a listing that a `catalog.List` or `ListModels` call has already read;
   * the models.dev document.
 
-  A missing document starts its fetch for the next request, as OpenCode's
-  route already does (E18). A request never starts a listing fetch, unlike
+  ~~A missing document starts its fetch for the next request, as OpenCode's
+  route already does (E18).~~ *(Amended, A3: a request starts no fetch at all;
+  `catalog.List`, `ListModels` and `LookupModel` warm the document. OpenCode's
+  route lookup is unchanged.)* A request never starts a listing fetch, unlike
   `CachedModel`, which "starts any fetch that is missing or stale" (E47). A
   generation then sends no request it did not send before, and the wire
   goldens, recorded with metadata off (E48), keep the rule path.
@@ -723,6 +725,66 @@ changes them.
   follows each model's `limit.output`, stands on the 42.
   `TestEvidence0041_OutputLimits` asserts all three numbers.
 
+### A2. The agreement set: two Grok models, four Gemini image models, and the silent
+
+* **Found** in 0041-PLAN Phase 1. The agreement tests compare each decision
+  from models.dev's facts with its rule on the committed snapshot, for every
+  model both answer. The PLAN predicted the exceptions as `grok-4.3`,
+  `grok-4.20-multi-agent-0309` and §3's two Gemini models. Measured:
+  * **R6:** exactly `grok-4.3` and `grok-4.20-multi-agent-0309`, as §3
+    states.
+  * **R1, R2:** no model differs.
+  * **R4, R5:** four Gemini image models differ:
+    * `gemini-3-pro-image` (R5 only);
+    * `gemini-3.1-flash-image`, `gemini-3.1-flash-image-preview` and
+      `gemini-3.1-flash-lite-image` (R4 and R5).
+
+    models.dev lists their efforts as `minimal` and `high`. At low or
+    medium effort the rule sends a `thinkingLevel` the model does not list;
+    from the facts, D2 sends none.
+  * **§3's two Gemini models do not differ.** `gemini-2.5-flash-image` and
+    `gemini-2.5-computer-use-preview-10-2025` list reasoning with no budget
+    and no effort. The facts are silent, so the rule decides for them.
+    * Seven more Google models are silent the same way.
+    * So are three MiniMax M2 models on OpenCode's Messages route:
+      `minimax-m2.7` on Go, and `minimax-m2.1-free` and `minimax-m2.5-free`
+      on Zen.
+* **Owner's decision** (2026-10-14): the facts win, as D2 decides. The
+  agreement set is the measured one, each entry with its reason. Gemini's
+  usability filter drops every image model, so only a caller that names one
+  explicitly meets the difference.
+* **What it changes:** §3 and the PLAN's predicted set, not D2. The tests
+  assert the exact differing sets and the exact silent sets.
+
+### A3. A request starts no fetch, and the replay field is a fact
+
+* **Found** in 0041-PLAN Phase 1. As D1 was written, a request on any of the
+  eight other providers would start the models.dev fetch whenever the
+  document was missing or stale.
+  * **In production,** an app's first `Generate` would send a background
+    GET for the ~1 MB document through the caller's HTTP client. Before
+    0041 only OpenCode did, and a Claude-only app that never listed models
+    never reached models.dev.
+  * **In tests,** the rule that no test reaches the network (0015-PLAN
+    S10) holds only where a test turns metadata off. OpenCode's helpers and
+    the conformance harness do; the eight others' helpers do not. A race
+    detector run caught Grok's token-per-request test recording that
+    background fetch from another goroutine, depending on test order.
+* **Owner's decision** (2026-10-14): a request reads the cached document
+  and never starts its fetch. `catalog.List`, a provider's `ListModels` and
+  `LookupModel` warm it, as the menus and the wizard already do. OpenCode's
+  route lookup keeps its own fetch (E18), unchanged.
+* **The replay field becomes a fact.** `interleaved.field` was read through
+  `CachedMetadataWith`, which starts a fetch, and which OpenCode's route
+  depends on. So the field becomes `ModelInfo.Reasoning.ReplayField`, with
+  `FieldReasoningReplay`, merged in D1's order like every other fact.
+  * **Owner's decision** (2026-10-14), of two: this field, over a
+    no-fetch `PeekMetadataWith`. With the field, `CachedFacts` gives
+    everything a request reads, and a caller layer can set it.
+  * It adds two exported identifiers to 0041-PLAN's list.
+* **What it costs:** an app that never lists its models, and never calls
+  `LookupModel`, gets the name rules until something fetches the document.
+
 ## Pros and Cons of the Options
 
 ### A. A live menu ordered by facts
@@ -808,6 +870,13 @@ All answered by the owner on 2026-10-13, who then accepted this record:
 
 * **2026-10-13, Phase 0's evidence.** Amendment A1 corrects R7's count to
   42 text models, with 10 image and video models at a stated 0.
+
+* **2026-10-14, Phase 1's agreement.** Amendment A2 records the measured
+  agreement set: the two Grok models, four Gemini image models, and the
+  models whose facts are silent.
+
+* **2026-10-14, the fetch.** Amendment A3: a request starts no fetch, and
+  the replay field is a fact, `ModelReasoning.ReplayField`.
 
 ### Sources
 

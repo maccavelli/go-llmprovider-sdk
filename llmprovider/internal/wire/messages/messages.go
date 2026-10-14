@@ -554,15 +554,56 @@ func minimaxAdaptiveThinking(model string) bool {
 // not apply to them. Other models get an enabled budget: the configured one,
 // else wire.LowEffortThinkingBudget for "low", else defaultThinkingBudget,
 // with max_tokens raised above it when needed (Anthropic requires max_tokens >
-// budget_tokens).
+// budget_tokens). It is AddThinkingFor with no facts.
 func AddThinking(body map[string]any, model, effort string, budget, maxTokens int) int {
-	if minimaxAdaptiveThinking(model) {
-		body[keyThinking] = map[string]any{wire.KeyType: "adaptive"}
-		return maxTokens
+	return AddThinkingFor(body, model, effort, budget, maxTokens, Thinking{})
+}
+
+// Thinking is what a model's facts say of its Messages thinking (0041-MADR
+// D2, R1–R3), resolved by the provider so that this package reads no facts.
+type Thinking struct {
+	// Known reports that the facts answer. Without it the rules decide:
+	// claudeAdaptiveOnly and minimaxAdaptiveThinking.
+	Known bool
+	// Adaptive is thinking.type "adaptive", not an enabled budget.
+	// EffortOnly, with it, sends the effort as output_config.effort.
+	Adaptive, EffortOnly bool
+	// BudgetMin and BudgetMax bound an enabled budget; zero is unstated.
+	BudgetMin, BudgetMax int
+	// MaxOutput is the model's output limit, which a budget's raise of
+	// max_tokens never passes; zero is unknown. It applies with the rules too.
+	MaxOutput int
+}
+
+// FactsThinking is the Thinking a model's reasoning facts give: a budget
+// option means an enabled budget within its bounds; efforts without one mean
+// adaptive thinking with the effort; a toggle alone means adaptive thinking
+// with none. With none of them the facts do not answer. maxOutput is the
+// model's output limit, or zero.
+func FactsThinking(toggle bool, efforts []string, budget bool, budgetMin, budgetMax, maxOutput int) Thinking {
+	switch {
+	case budget:
+		return Thinking{Known: true, BudgetMin: budgetMin, BudgetMax: budgetMax, MaxOutput: maxOutput}
+	case len(efforts) > 0:
+		return Thinking{Known: true, Adaptive: true, EffortOnly: true, MaxOutput: maxOutput}
+	case toggle:
+		return Thinking{Known: true, Adaptive: true, MaxOutput: maxOutput}
 	}
-	if claudeAdaptiveOnly(model) {
+	return Thinking{MaxOutput: maxOutput}
+}
+
+// AddThinkingFor is AddThinking with the model's facts (0041-MADR D2): the
+// facts choose the shape when they answer, and an enabled budget is held to
+// their bounds and below the output limit.
+func AddThinkingFor(body map[string]any, model, effort string, budget, maxTokens int, facts Thinking) int {
+	adaptive, withEffort := facts.Adaptive, facts.EffortOnly
+	if !facts.Known {
+		adaptive = minimaxAdaptiveThinking(model) || claudeAdaptiveOnly(model)
+		withEffort = !minimaxAdaptiveThinking(model)
+	}
+	if adaptive {
 		fields := map[string]any{keyThinking: map[string]any{wire.KeyType: "adaptive"}}
-		if effort != "" {
+		if withEffort && effort != "" {
 			fields["output_config"] = map[string]any{keyEffort: effort}
 		}
 		maps.Copy(body, fields)
@@ -574,8 +615,18 @@ func AddThinking(body map[string]any, model, effort string, budget, maxTokens in
 			budget = wire.LowEffortThinkingBudget
 		}
 	}
+	if facts.BudgetMax > 0 {
+		budget = min(budget, facts.BudgetMax)
+	}
+	budget = max(budget, facts.BudgetMin)
 	if maxTokens <= budget {
 		maxTokens = budget + defaultThinkingBudget
+	}
+	if facts.MaxOutput > 0 && maxTokens > facts.MaxOutput {
+		// The raise stops at the limit, and the budget stays below it, as
+		// Anthropic requires.
+		maxTokens = facts.MaxOutput
+		budget = min(budget, maxTokens-1)
 	}
 	body[keyThinking] = map[string]any{wire.KeyType: keyEnabled, "budget_tokens": budget}
 	return maxTokens

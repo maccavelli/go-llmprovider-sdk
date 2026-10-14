@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 const (
@@ -26,6 +27,15 @@ const (
 
 // effortOrder ranks the efforts, lowest first.
 var effortOrder = []string{effortLow, effortMedium, effortHigh, effortXHigh}
+
+// factsEfforts is info's reasoning efforts, as strings.
+func factsEfforts(info catalog.ModelInfo) []string {
+	out := make([]string, len(info.Reasoning.Efforts))
+	for i, e := range info.Reasoning.Efforts {
+		out[i] = strings.ToLower(string(e))
+	}
+	return out
+}
 
 // effortMenu returns the reasoning efforts the Grok CLI offers a model,
 // lowest first, or nil when reasoning_effort must be omitted (MADR 0012 §6).
@@ -53,7 +63,23 @@ func effortMenu(model string) []string {
 // sends high, every menu's CLI default. An effort off the menu clamps to the
 // nearest lower one on it, else the menu's highest.
 func clampReasoningEffort(model, effort string) string {
+	return clampReasoningEffortFor(model, effort, nil, false)
+}
+
+// clampReasoningEffortFor is clampReasoningEffort with the model's facts
+// (0041-MADR D2, R6): when known, the menu is the efforts the facts list
+// that xAI takes, in effortOrder, the listing above models.dev; otherwise it
+// is effortMenu's.
+func clampReasoningEffortFor(model, effort string, efforts []string, known bool) string {
 	menu := effortMenu(model)
+	if known {
+		menu = nil
+		for _, e := range effortOrder {
+			if slices.Contains(efforts, e) {
+				menu = append(menu, e)
+			}
+		}
+	}
 	if len(menu) == 0 {
 		return ""
 	}

@@ -57,6 +57,10 @@ type ModelReasoning struct {
 	// BudgetMin and BudgetMax bound a reasoning budget in tokens, for a model
 	// that takes one. Zero is an unstated bound.
 	BudgetMin, BudgetMax int
+	// ReplayField names the message field a Chat Completions request
+	// replays the model's prior reasoning under, such as
+	// "reasoning_content"; empty for none (0041-MADR D2, A3).
+	ReplayField string
 }
 
 // ModelRates are prices, in USD per million tokens.
@@ -188,6 +192,8 @@ const (
 	FieldStatus
 	// FieldRetires is ModelInfo.Retires.
 	FieldRetires
+	// FieldReasoningReplay is ModelInfo.Reasoning.ReplayField.
+	FieldReasoningReplay
 
 	fieldCount
 )

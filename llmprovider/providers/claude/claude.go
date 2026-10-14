@@ -81,6 +81,17 @@
 // gets each loaded tool appended to the tools instead, and the response
 // carries WarningDeferralEmulated (D6, D7). The Search tool is the caller's
 // own function; Anthropic's hosted tool search is not sent.
+//
+// Model facts (0041-MADR D1, D2, A3). Each request reads what the caches
+// already hold of its model: a caller's catalog.WithModelLayer, a listing
+// that ListModels or catalog.List read, and the models.dev document once
+// something has fetched it. A request never fetches, and never waits.
+// From them comes the thinking shape: a budget bound means an enabled
+// budget within it, efforts mean adaptive thinking with the effort, and a
+// toggle alone means adaptive thinking with none.
+// With no MaxOutputTokens, the output limit is the default, cut to the
+// model's own when that is smaller; it is never raised.
+// With no facts, the version rules decide the shape, as before.
 package claude
 
 import (
@@ -89,6 +100,7 @@ import (
 	"iter"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -199,7 +211,8 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// sent once more, or the refusal returned (0034-MADR D3).
 	retry := messages.NewRefusalRetry(f, req.ToolChoice)
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderClaude), p.src,
-		func(llmprovider.Token) wire.Call { return p.call(req, false) }, messages.Decode, retry.Check)
+		func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), false) }, messages.Decode,
+		retry.Check)
 	if err == nil {
 		// A named tool sent as structured outputs is returned as its call
 		// (0034-MADR D8); a refusal learned, and a forced choice sent as
@@ -242,7 +255,8 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		// Each range is its own request, with its own retry check.
 		retry := messages.NewRefusalRetry(f, req.ToolChoice)
 		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderClaude), p.src,
-			func(llmprovider.Token) wire.Call { return p.call(req, true) }, messages.Events, retry.Check)
+			func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), true) }, messages.Events,
+			retry.Check)
 		stream = messages.StructuredStream(req, f, stream)
 		for ev, err := range messages.WarnOnDone(stream, retry.Warning,
 			func() (llmprovider.Warning, bool) { return p.toolChoiceWarning(req) }) {
@@ -263,8 +277,8 @@ func (p *provider) modelFor(req *llmprovider.Request) string {
 
 // call is the Messages request for req, asking for an event stream when
 // stream is set.
-func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
-	body := p.body(req)
+func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool) wire.Call {
+	body := p.body(req, facts)
 	if stream {
 		body["stream"] = true
 	}
@@ -289,12 +303,43 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 	}
 }
 
-// body is the Messages request for req.
-func (p *provider) body(req *llmprovider.Request) map[string]any {
+// facts is what the caches know of req's model, read for each request and
+// never waited for (0041-MADR D1). The request's own token finds the cached
+// listing, so the token source is not asked again.
+func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) catalog.ModelInfo {
+	info, _ := catalog.CachedFacts(ctx, llmprovider.ProviderClaude, p.modelFor(req),
+		slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
+	return info
+}
+
+// thinkingFacts is the Messages thinking info's reasoning facts give
+// (0041-MADR D2, R1–R3), with its output limit.
+func thinkingFacts(info catalog.ModelInfo) messages.Thinking {
+	efforts := make([]string, len(info.Reasoning.Efforts))
+	for i, e := range info.Reasoning.Efforts {
+		efforts[i] = string(e)
+	}
+	return messages.FactsThinking(info.Reasoning.Toggle, efforts, info.Has(catalog.FieldReasoningBudget),
+		info.Reasoning.BudgetMin, info.Reasoning.BudgetMax, outputLimit(info))
+}
+
+// outputLimit is info's output limit, or zero when no source states it.
+func outputLimit(info catalog.ModelInfo) int {
+	if !info.Has(catalog.FieldMaxOutputTokens) {
+		return 0
+	}
+	return info.MaxOutputTokens
+}
+
+// body is the Messages request for req, with its model's facts.
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
 	model := p.modelFor(req)
 	maxTokens := p.maxTokens
 	if req.MaxOutputTokens > 0 {
 		maxTokens = req.MaxOutputTokens
+	} else if limit := outputLimit(facts); limit > 0 {
+		// The default, cut to the model's limit, never raised (0041-MADR D2).
+		maxTokens = min(maxTokens, limit)
 	}
 	// Deferred tools go out in the model's form (0040-MADR D1, D2, D6).
 	form := deferral.Of(deferral.Messages, model)
@@ -316,7 +361,7 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	if len(system) > 0 {
 		body["system"] = strings.Join(system, "\n\n")
 	}
-	thinking := p.addReasoning(body, req, model, maxTokens)
+	thinking := p.addReasoning(body, req, model, maxTokens, thinkingFacts(facts))
 	if tools := deferral.Tools(req, form); len(tools) > 0 {
 		if form == deferral.MessagesNative {
 			body["tools"] = wire.MessagesToolsNative(tools)
@@ -331,9 +376,10 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 }
 
 // addReasoning adds the thinking fields for the request's Reasoning, or
-// WithReasoning's, and reports whether it did. Each of effort and budget
-// falls back to WithReasoning's.
-func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, model string, maxTokens int) bool {
+// WithReasoning's, in the shape the model's facts give, and reports whether
+// it did. Each of effort and budget falls back to WithReasoning's.
+func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, model string, maxTokens int,
+	facts messages.Thinking) bool {
 	r := req.Reasoning
 	if r == nil {
 		r = p.reasoning
@@ -350,7 +396,7 @@ func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, m
 			budget = p.reasoning.Budget
 		}
 	}
-	body["max_tokens"] = messages.AddThinking(body, model, string(effort), budget, maxTokens)
+	body["max_tokens"] = messages.AddThinkingFor(body, model, string(effort), budget, maxTokens, facts)
 	return true
 }
 

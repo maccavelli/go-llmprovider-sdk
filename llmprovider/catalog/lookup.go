@@ -120,6 +120,41 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	return info, info.known != 0
 }
 
+// CachedFacts is CachedModel without the listing fetch: what a request may
+// read of model at request time (0041-MADR D1). It merges, field by field,
+// the caller's layers, a listing a List or ListModels call already read for
+// the provider, base URL and credential opts give, and the cached models.dev
+// document, and reports whether anything is known of model. It starts no
+// fetch: catalog.List, ListModels and LookupModel warm the caches it reads
+// (0041-MADR A3). WithoutModelMetadata leaves the document out. It asks the
+// credential opts give for its token, to find the listing: a provider passes
+// its request's own token, as WithAPIKey(token.Value) after its options, so
+// that its token source is not asked a second time.
+func CachedFacts(ctx context.Context, provider llmprovider.ProviderID, model string, opts ...llmprovider.Option) (ModelInfo,
+	bool) {
+	id, err := lookupProvider(provider)
+	if err != nil {
+		return ModelInfo{}, false
+	}
+	cfg, err := configFor(id, opts)
+	if err != nil {
+		return ModelInfo{}, false
+	}
+	var dev, lst ModelInfo
+	var devOK, lstOK bool
+	if m, ok := peekMetadata(cfg); ok {
+		dev, devOK = m.Model(id, model)
+	}
+	if cfg.tokens != nil && listingLayers[id] {
+		if token, err := cfg.tokens.Token(ctx); err == nil {
+			models, _ := cachedListing(listingKeyFor(id, cfg, token))
+			lst, lstOK = models[model]
+		}
+	}
+	info := mergeLayers(id, model, cfg.layers, dev, devOK, lst, lstOK)
+	return info, info.known != 0
+}
+
 // listingModel reads one model's metadata from its provider's listing, from
 // the cache while it is fresh.
 func listingModel(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, model string,
@@ -213,6 +248,8 @@ func copyField(dst *ModelInfo, src ModelInfo, f Field) {
 		dst.Status = src.Status
 	case FieldRetires:
 		dst.Retires = src.Retires
+	case FieldReasoningReplay:
+		dst.Reasoning.ReplayField = src.Reasoning.ReplayField
 	}
 }
 

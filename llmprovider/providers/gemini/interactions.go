@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -104,7 +105,23 @@ func interactionsInput(items []llmprovider.Item) []map[string]any {
 // gemini-2.5-flash-lite refuses medium and fails on low (measured
 // 2026-09-27), so it gets high or nothing.
 func thinkingLevel(model string, effort llmprovider.Effort) string {
+	return thinkingLevelFor(model, effort, nil, false)
+}
+
+// thinkingLevelFor is thinkingLevel with the model's facts (0041-MADR D2, R5):
+// when known, the effort's level (xhigh as high) is sent only when levels
+// holds it, and the rule's gemini-2.5-flash-lite exception gives way to them.
+func thinkingLevelFor(model string, effort llmprovider.Effort, levels []string, known bool) string {
 	level := llmprovider.Effort(strings.ToLower(string(effort)))
+	if known {
+		if level == llmprovider.EffortXHigh {
+			level = llmprovider.EffortHigh
+		}
+		if slices.Contains(levels, string(level)) {
+			return string(level)
+		}
+		return ""
+	}
 	switch level {
 	case llmprovider.EffortXHigh:
 		level = llmprovider.EffortHigh

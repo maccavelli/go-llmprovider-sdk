@@ -77,6 +77,13 @@
 //     (0040-MADR D2, D3). The chat and google routes, and every other
 //     model, append each loaded tool, and the response carries
 //     WarningDeferralEmulated (D6, D7).
+//   - Model facts (0041-MADR D1, D2, A3): each request reads what the caches
+//     hold of its model, a caller's catalog.WithModelLayer and the models.dev
+//     document once fetched, and never fetches. From them come the messages
+//     route's thinking shape, as the claude package sends it; the google
+//     route's thinkingLevel, sent only when the model lists it; and, with no
+//     MaxOutputTokens, the default output limit cut to the model's. With no
+//     facts the rules decide, as before.
 //
 // ListModels returns the curated gateway listing. It never probes: the
 // gateways meter every call (MADR 0012 §1.6).
@@ -245,6 +252,9 @@ type call struct {
 	maxTokens int
 	reasoning *llmprovider.Reasoning // nil for none
 	req       *llmprovider.Request
+	// facts is what the caches know of the model, read once per request
+	// (0041-MADR D1).
+	facts catalog.ModelInfo
 }
 
 // Generate sends req to the gateway on the model's route.
@@ -366,8 +376,14 @@ func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 	if c.model == "" {
 		c.model = p.model
 	}
+	// The gateways are not listing layers, so the facts need no token, and
+	// are never waited for (0041-MADR D1).
+	c.facts, _ = catalog.CachedFacts(ctx, p.gateway, c.model, p.listing...)
 	if req.MaxOutputTokens > 0 {
 		c.maxTokens = req.MaxOutputTokens
+	} else if limit := c.facts.MaxOutputTokens; limit > 0 && c.facts.Has(catalog.FieldMaxOutputTokens) {
+		// The default, cut to the model's limit, never raised (0041-MADR D2).
+		c.maxTokens = min(c.maxTokens, limit)
 	}
 	if req.Instructions != "" {
 		c.input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, c.input...)
@@ -569,7 +585,8 @@ func (p *provider) messagesBody(c call) map[string]any {
 	}
 	thinking := c.reasoning != nil
 	if thinking {
-		maxTokens = messages.AddThinking(body, c.model, string(c.reasoning.Effort), c.reasoning.Budget, maxTokens)
+		maxTokens = messages.AddThinkingFor(body, c.model, string(c.reasoning.Effort), c.reasoning.Budget, maxTokens,
+			messagesThinking(c.facts))
 	}
 	body[jsonKeyMaxTokens] = maxTokens
 	if tools := deferral.Tools(c.req, form); len(tools) > 0 {
@@ -585,11 +602,38 @@ func (p *provider) messagesBody(c call) map[string]any {
 	return body
 }
 
+// effortsOf is info's reasoning efforts, as strings.
+func effortsOf(info catalog.ModelInfo) []string {
+	out := make([]string, len(info.Reasoning.Efforts))
+	for i, e := range info.Reasoning.Efforts {
+		out[i] = string(e)
+	}
+	return out
+}
+
+// messagesThinking is the Messages thinking info's facts give (0041-MADR
+// D2, R1–R3), with its output limit.
+func messagesThinking(info catalog.ModelInfo) messages.Thinking {
+	limit := 0
+	if info.Has(catalog.FieldMaxOutputTokens) {
+		limit = info.MaxOutputTokens
+	}
+	return messages.FactsThinking(info.Reasoning.Toggle, effortsOf(info), info.Has(catalog.FieldReasoningBudget),
+		info.Reasoning.BudgetMin, info.Reasoning.BudgetMax, limit)
+}
+
+// geminiThinking is the Gemini thinking info's facts give (0041-MADR D2,
+// R4).
+func geminiThinking(info catalog.ModelInfo) generatecontent.Thinking {
+	return generatecontent.FactsThinking(effortsOf(info), info.Has(catalog.FieldReasoningBudget))
+}
+
 // googleBody is the Gemini generateContent shape.
 func (p *provider) googleBody(c call) map[string]any {
 	genCfg := map[string]any{"maxOutputTokens": c.maxTokens}
 	if c.reasoning != nil {
-		genCfg["thinkingConfig"] = generatecontent.ThinkingConfig(c.model, string(c.reasoning.Effort), c.reasoning.Budget)
+		genCfg["thinkingConfig"] = generatecontent.ThinkingConfigFor(c.model, string(c.reasoning.Effort), c.reasoning.Budget,
+			geminiThinking(c.facts))
 	}
 	body := map[string]any{
 		"contents":         generatecontent.Contents(c.input),

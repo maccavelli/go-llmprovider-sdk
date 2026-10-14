@@ -46,6 +46,9 @@ type config struct {
 	limit            int          // WithLimit's n; zero or less, the default, is no limit
 	logger           *slog.Logger // Settings.Logger
 	layers           []Layer      // WithModelLayer's, in the order given
+	// tokens is the credential the options give (WithAPIKey or
+	// WithTokenSource), or nil: CachedFacts finds a listing by it.
+	tokens llmprovider.TokenSource
 	// sink, when set, receives what a listing says of each model it lists
 	// (0033-MADR D2).
 	sink func(ModelInfo)
@@ -125,6 +128,7 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 		session:          st.SessionID(),
 		metadataOff:      st.ModelMetadataDisabled(),
 		logger:           st.Logger(),
+		tokens:           st.TokenSource(),
 	}
 	for _, v := range st.Values() {
 		switch v := v.(type) {

@@ -53,6 +53,14 @@
 // load.
 // OpenRouter's deferred_tools is not sent: Kilo's gateway does not honour it
 // (A2).
+//
+// Model facts (0041-MADR D1, D2, A3). Each request reads what the caches
+// already hold of its model: a caller's catalog.WithModelLayer, a listing
+// that ListModels or catalog.List read, and the models.dev document once
+// something has fetched it. A request never fetches, and never waits.
+// With no MaxOutputTokens, the output limit is the default, cut to the
+// model's own when that is smaller; it is never raised.
+// Its reasoning_details replay is unchanged.
 package kilo
 
 import (
@@ -62,6 +70,7 @@ import (
 	"iter"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -250,22 +259,22 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
 	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
-		return p.call(req, token, true)
+		return p.call(ctx, req, token, true)
 	}, chatcompletions.Events)
 }
 
 // generateOnce sends req once, with token. The token names the gateway and
 // the organization.
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, p.call(req, token, false), token, chatcompletions.DecodeFor(string(llmprovider.ProviderKilo)))
+	return wire.Post(ctx, p.call(ctx, req, token, false), token, chatcompletions.DecodeFor(string(llmprovider.ProviderKilo)))
 }
 
 // call is the Chat Completions request for req, asking for an event stream
 // with its usage when stream is set (0031-MADR E5).
-func (p *provider) call(req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
+func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
 	endpoints := kiloendpoint.Resolve(p.baseURL, token.Value, p.org)
 	gateway, org := endpoints.Gateway, endpoints.Org
-	body := p.body(req)
+	body := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -294,8 +303,17 @@ func (p *provider) call(req *llmprovider.Request, token llmprovider.Token, strea
 	}
 }
 
-// body is the Chat Completions request for req.
-func (p *provider) body(req *llmprovider.Request) map[string]any {
+// facts is what the caches know of req's model, read for each request and
+// never waited for (0041-MADR D1). The request's own token finds the cached
+// listing, so the token source is not asked again.
+func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) catalog.ModelInfo {
+	info, _ := catalog.CachedFacts(ctx, llmprovider.ProviderKilo, cmp.Or(req.Model, p.model),
+		slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
+	return info
+}
+
+// body is the Chat Completions request for req, with its model's facts.
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -303,6 +321,9 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	maxTokens := p.maxTokens
 	if req.MaxOutputTokens > 0 {
 		maxTokens = req.MaxOutputTokens
+	} else if limit := facts.MaxOutputTokens; limit > 0 && facts.Has(catalog.FieldMaxOutputTokens) {
+		// The default, cut to the model's limit, never raised (0041-MADR D2).
+		maxTokens = min(maxTokens, limit)
 	}
 	input := req.Input
 	if req.Instructions != "" {

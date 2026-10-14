@@ -46,6 +46,15 @@
 // load.
 // With PreviousResponseID, every deferred tool is sent, since the earlier
 // loads are held by the service.
+//
+// Model facts (0041-MADR D1, D2, A3). Each request reads what the caches
+// already hold of its model: a caller's catalog.WithModelLayer, a listing
+// that ListModels or catalog.List read, and the models.dev document once
+// something has fetched it. A request never fetches, and never waits.
+// From them, thinking_level is sent only when the model lists it.
+// With no MaxOutputTokens, the output limit is the default, cut to the
+// model's own when that is smaller; it is never raised.
+// With no facts, the level rules decide, as before.
 package gemini
 
 import (
@@ -55,6 +64,7 @@ import (
 	"iter"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -180,18 +190,29 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.caps.Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEvents(ctx, p.call(req, true), p.src, interactionEvents)
+	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
+		return p.call(ctx, req, token, true)
+	}, interactionEvents)
+}
+
+// facts is what the caches know of req's model, read for each request and
+// never waited for (0041-MADR D1). The request's own token finds the cached
+// listing, so the token source is not asked again.
+func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) catalog.ModelInfo {
+	info, _ := catalog.CachedFacts(ctx, llmprovider.ProviderGemini, cmp.Or(req.Model, p.model),
+		slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
+	return info
 }
 
 // generateOnce sends req once, with token.
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, p.call(req, false), token, decodeInteraction)
+	return wire.Post(ctx, p.call(ctx, req, token, false), token, decodeInteraction)
 }
 
 // call is the Interactions request for req, asking for an event stream when
 // stream is set.
-func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
-	body := p.body(req)
+func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
+	body := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 	}
@@ -216,7 +237,7 @@ func (p *provider) call(req *llmprovider.Request, stream bool) wire.Call {
 }
 
 // body is the Interactions request for req (MADR 0014 §1).
-func (p *provider) body(req *llmprovider.Request) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -224,12 +245,20 @@ func (p *provider) body(req *llmprovider.Request) map[string]any {
 	maxTokens := p.maxTokens
 	if req.MaxOutputTokens > 0 {
 		maxTokens = req.MaxOutputTokens
+	} else if limit := facts.MaxOutputTokens; limit > 0 && facts.Has(catalog.FieldMaxOutputTokens) {
+		// The default, cut to the model's limit, never raised (0041-MADR D2).
+		maxTokens = min(maxTokens, limit)
 	}
 	gen := map[string]any{"max_output_tokens": maxTokens}
 	if r := p.effectiveReasoning(req); r != nil {
 		// Without it a thought step carries only its signature.
 		gen["thinking_summaries"] = interactionSummariesAuto
-		if level := thinkingLevel(model, r.Effort); level != "" {
+		// The model's listed levels decide, when it lists any (0041-MADR D2).
+		levels := make([]string, len(facts.Reasoning.Efforts))
+		for i, e := range facts.Reasoning.Efforts {
+			levels[i] = string(e)
+		}
+		if level := thinkingLevelFor(model, r.Effort, levels, len(levels) > 0); level != "" {
 			gen["thinking_level"] = level
 		}
 	}

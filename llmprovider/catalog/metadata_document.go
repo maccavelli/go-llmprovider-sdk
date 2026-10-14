@@ -119,6 +119,10 @@ func modelInfoFrom(id string, e modelMetadata) ModelInfo {
 		info.MaxOutputTokens = *e.Limit.Output
 		set(FieldMaxOutputTokens)
 	}
+	if field := interleavedFieldOf(e); field != "" {
+		info.Reasoning.ReplayField = field
+		set(FieldReasoningReplay)
+	}
 	if e.Modalities != nil {
 		if e.Modalities.Input != nil {
 			info.Input = modalities(e.Modalities.Input)
