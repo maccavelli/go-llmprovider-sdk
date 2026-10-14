@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-10-13
+date: 2026-10-14
 associated-madr: "0041-MADR-decide-per-model-behaviour-from-metadata.md"
 decision-makers: repository owner
 ---
@@ -388,7 +388,7 @@ stops and records a deviation.
    | `TestSmallFromPrice_0041` | `gpt-6-luna` (blend 0.20) small; `gpt-5.4-mini` (1.69) not; a model with no price small by its name |
    | `TestUnusableIneligible_0041` | a `tool_call: false` model and an image-output model are never in the band, and stay in `Usable` |
    | `TestOneVendorGroups_0041` | OpenAI's band holds up to two of each family, and no `o3-pro` |
-   | `TestFirstPartyRankByFacts_0041` | the four first-party providers' sixes, on their sections, equal D4's table; with metadata off they equal today's static order |
+   | `TestFirstPartyRankByFacts_0041` | the four first-party providers' sixes, on their sections, equal D4's table; with metadata off they equal today's static order *(Phase 3: the static list leads, in order, and the name curator fills the six, as it did before; `TestFirstPartyListRanksByFacts_0041` was added for `List` itself, deviation 2)* |
    | the two snapshot tests | as step 3 |
    | `TestEvidence0041_*` | updated where D4 changes what they measure |
 
@@ -1290,3 +1290,186 @@ plant was rerun after the `errcheck` fix, and caught.
 * **Gate:** `tools/gate.py`, 22 of 23 on the first run (`deny-scan`, the
   binary above), then 23 of 23. `g-wire-stable` was included: no existing
   golden changed.
+
+### Phase 3: the band (2026-10-14)
+
+#### Research
+
+* **P10–P13, the ranking.**
+  * `rankCandidate.eligible` holds 0009-MADR §3's exclusions.
+  * `rankGroup` is the id's leading letters on every provider, so on
+    OpenAI `o3-pro` and `o4-mini` share a group with nothing, and the
+    per-group cap of two never meets them.
+  * `isSmallModel` is the name regex alone.
+* **P14, `kiloCandidate`,** reads Kilo's own per-token prices, which D4
+  reads the same way, per million tokens.
+* **P24, `metadataCurate`,** builds the candidates from the document's
+  section and falls back to the curator it is given.
+* **P25.** `modelCatalogFor` gave each first-party provider its name
+  curator (`curateOpenAI`, `curateClaude`, `curateGemini`, `curateGrok`),
+  and never fetched the document for them.
+* **P26.** `TestListModelCatalog_Snapshot20261012` pins the five ranked
+  sixes, and `TestStatic_EqualsLatestSnapshot` holds the ranked static
+  lists to its utility sixes. `TestListModelCatalog_Snapshot20260926`
+  replays 0009-MADR §7, and requires that "a rule change must update §7
+  and this test together".
+
+#### What was built
+
+* **`model_ranking.go`:**
+  * `smallBlendMax = 1.0`, and `smallByPrice(input, output)`, which is
+    `(3 × input + output) / 4 ≤ 1.0`. Its `ok` is false when the blend is
+    not positive and finite, and the name then decides;
+  * `rankCandidate.unusable`, which `eligible` excludes first;
+  * `kiloCandidate` sets small from its price when it has one.
+* **`model_metadata.go`:**
+  * `metadataCandidate` sets small from the price, and `unusable` when
+    `tool_call` is false or the output modalities lack `text`;
+  * `metadataCurate` groups by `family` on the `oneVendor` providers:
+    OpenAI, Claude, Gemini and Grok.
+* **`discovery.go`:** the four first-party cases are one case. It starts
+  the document fetch and lists through `firstPartyUsable`, then curates
+  through `metadataCurate`, with `firstPartyCurator(p)` (the name curator)
+  as the fallback.
+* **`models_catalog.go`:** the five ranked static lists are the new
+  utility sixes. The first-party static lists are unchanged; they remain
+  the fallback with no listing.
+* **`docs/architecture.md`:** every provider ranks by facts, and the band's
+  three rules (R43).
+
+#### The sixes against D4's table
+
+On the committed 2026-10-12 snapshot, measured by the tests:
+
+| Provider | D4's table | Measured |
+| :--- | :--- | :--- |
+| OpenCode Zen | utility 5 of 6: `gpt-6-luna` in, `gemini-3.5-flash-lite` out; capable 6 of 6 | the same |
+| OpenCode Go | utility 6 of 6; capable 3 of 6: `qwen3.8-max`, `kimi-k3`, `glm-5.2` for `space-bunny`, `mimo-v2.6-pro`, `gpt-6-luna` | the same; the utility six is reordered |
+| Kilo | utility 4 of 6: `minimax/minimax-m3`, `nvidia/nemotron-3-ultra-550b-a55b` for `meta/muse-spark-1.2`, `openai/gpt-6.1-sol`; capable 6 of 6 | the same |
+| Hugging Face | utility 3 of 6: `tencent/Hy3` and the two `gemma-4` models for `Inkling-Small` and the two Step models; capable 6 of 6 | the same |
+| Together | utility 6 of 6; capable 5 of 6: `nemotron-3-ultra` for `MiniMax-M3` | the same; the utility six is reordered |
+| OpenAI | utility `gpt-6-luna`, `gpt-5.6-luna`, `gpt-5.4-nano`, `gpt-5-nano`, `gpt-5-mini`, `gpt-6.1-sol`; capable `gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-astra`, `gpt-5.6-terra`, `gpt-5.5-pro`, `gpt-5.5`; no `o3-pro` | exactly these |
+| Claude | utility 4 of 5 static, adds `claude-haiku-4-5`, `claude-opus-5`; capable 3 of 5, adds `claude-fable-5-1`, `claude-opus-5`, `claude-fable-5` | utility `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-sonnet-5`, `claude-haiku-4-5`, `claude-opus-5-5`, `claude-opus-5`; capable `claude-sonnet-5-5`, `claude-opus-5-5`, `claude-fable-5-1`, `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5` |
+| Gemini | 3 of 3 static, filled from the section | utility `gemini-3.1-flash-lite`, `gemini-3.5-flash-lite`, `gemini-2.5-flash`, `gemini-3.8-flash`, `gemini-2.5-pro`, `gemini-3.6-flash`; capable `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-2.5-pro`, `gemini-3.5-flash-lite`, `gemini-flash-lite-latest`, `gemini-3.6-flash` |
+| Grok | 5 of 5 static, filled from the section | utility `grok-build-0.1`, `grok-4.3`, `grok-4.20-0309-reasoning`, `grok-4.6`, `grok-4.5`, `grok-4.7`; capable `grok-4.7`, `grok-4.6`, `grok-build-0.1`, `grok-4.5`, `grok-4.3`, `grok-4.20-0309-non-reasoning` |
+
+No row differs from the table. A reorder within an unchanged set is what
+"kept" allows.
+
+With metadata off, on the recorded first-party listings, each six begins
+with today's static list in order. The name curator fills the rest, as it
+did before this phase: Claude's sixth is `claude-haiku-4-5-20251001`;
+Gemini's are `gemini-3.7-flash`, `gemini-3.5-flash` and
+`gemini-3.1-flash-lite`; Grok's is `grok-4.20-0309-non-reasoning`.
+OpenAI's static list is already six.
+
+#### Tests, red and green
+
+* **Red** (the tests written, the code not yet changed):
+
+  ```text
+  band_0041_test.go:41: gpt-6-luna: small false, want true
+  band_0041_test.go:41: gpt-5.4-mini: small true, want false
+  band_0041_test.go:56: kilo cheap-pro: small false, want true
+  band_0041_test.go:56: kilo dear-mini: small true, want false
+  band_0041_test.go:79: no tools: eligible
+  band_0041_test.go:79: image output: eligible
+  band_0041_test.go:96: band [a/image a/notools]; want the two usable models only
+  band_0041_test.go:149: profile 0: o3-pro in [gpt-5.4-nano gpt-5.4-mini o3-pro gpt-6-luna gpt-5.6-luna gpt-4.1-mini]
+  band_0041_test.go:169: openai profile 1:
+       got  [gpt-6.1-sol gpt-6-sol o3-pro gpt-6-luna gpt-5.6-luna gpt-4.1-mini]
+       want [gpt-6.1-sol gpt-6-sol gpt-6-astra gpt-5.6-terra gpt-5.5-pro gpt-5.5]
+  band_0041_test.go:199: claude profile 1: [...] lacks claude-fable-5-1
+  ```
+
+* **Green:**
+  * `TestSmallFromPrice_0041`, `TestUnusableIneligible_0041`,
+    `TestOneVendorGroups_0041`, `TestFirstPartyRankByFacts_0041` and
+    `TestFirstPartyListRanksByFacts_0041`;
+  * both snapshot tests and `TestStatic_EqualsLatestSnapshot`, with the
+    new sixes;
+  * `go test ./...`;
+  * `-race -shuffle=on` on `catalog` and `wizard`;
+  * every wire golden, three runs, with no golden changed.
+* **Pre-existing, not this phase's:** the 0034 learned-refusal tests fail
+  under `-count=3` at HEAD, before any Phase 3 change. They pass at
+  `-count=1`, as the gate runs them.
+
+#### Plants (`tools/plant.py`, 7 of 7 caught)
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the price band at 2.0 (PLAN) | `gpt-5.4-mini: small true, want false` |
+| the regex deciding over a known price (PLAN) | `gpt-6-luna: small false, want true` |
+| unusable models made eligible (PLAN) | `band [a/image a/notools]; want the two usable models only` |
+| the letters group restored (PLAN) | `profile 0: o3-pro in [gpt-6-luna gpt-5.6-luna o3-pro gpt-4.1-mini gpt-5.6-terra gpt-6.1-sol]` |
+| one first-party case still on its name curator (PLAN) | `TestFirstPartyListRanksByFacts_0041`: `openai:` got the name curator's six |
+| Kilo's small from its name only | `kilo cheap-pro: small false, want true` |
+| Grok's name curator replaced | `grok with metadata off: [] does not start with the static [grok-4.6 grok-4.5 grok-4.7 grok-4.3 grok-build-0.1]` |
+
+On the first run the PLAN's fifth plant was **not caught**: every test
+ranked a section through `metadataCurate` directly, and none listed a
+first-party provider with a document. `TestFirstPartyListRanksByFacts_0041`
+was added (deviation 2), and the rerun caught all seven. Every plant is a
+change in behaviour, and none breaks the build.
+
+#### Deviations
+
+1. **2026-10-14: the tests D4 moves outside the two snapshot tests.**
+   * **Found:** step 3 says the snapshot tests change "here, and only
+     here", and names two. D4's rules also move:
+     * `TestListModelCatalog_Snapshot20260926`, which replays 0009-MADR §7
+       and must change with it;
+     * `TestListModelCatalog_HuggingFaceRanksWithMetadata`: `b/mid`'s 0.75
+       blend makes it small, so the capable profile ranks it after
+       `d/uncovered` and `c/flash`;
+     * `TestListModelCatalog_OpencodeGoGates`: `gpt-6-luna`'s 0.20 blend
+       makes it small, so the utility profile ranks it second;
+     * `TestWithLimit_SixIsToday` (0038): OpenAI's six is no longer the
+       static list. It is now the first six of the default listing, which
+       is the property 0038-MADR asserts;
+     * `TestEvidence0041_CostKeyReach`: OpenAI's pairs that reach the cost
+       key go from 13 to 8 of 276. Kilo's eligible set goes from 216 to
+       209, the unusable leaving it, and its pairs from 144 of 23220 to 111
+       of 21736. 0041-MADR §5's figures are the pre-D4 measurement, and
+       stand as that;
+     * the wizard's `claudeRefusals` fixture. Claude now fetches the
+       document, and its transport counted that fetch as a listing. It
+       now counts only `/v1/models`, and answers other paths 404 with
+       `{}`. The assertion (three listings for three refused keys) is
+       unchanged;
+     * `unlabelledStaticIDs` in `model_label_test.go`: the new ranked
+       static ids join it as `fallbackSix`, the reason every other ranked
+       id has, and the ids that left the lists leave it.
+   * **Decided by the owner:** amend 0009-MADR with the new sixes. It gains
+     "Amendment 2026-10-14: 0041-MADR D4's band", with the six rows that
+     change and the price that moves each one. §7's own table is kept as
+     the 2026-09-26 record, and annotated. The other changes follow the
+     same rule: each test's new expectation is D4's, with a comment that
+     gives the price, and no assertion was loosened or removed.
+2. **2026-10-14: a test for `List` on the first-party providers.**
+   * **Found:** the PLAN's fifth plant, which leaves OpenAI on its name
+     curator, was not caught (above).
+   * **Done:** `TestFirstPartyListRanksByFacts_0041` serves each recorded
+     first-party listing with the committed document. It asserts that
+     `List`'s six is `metadataCurate`'s on the same usable ids, and that
+     this differs from the name curator's, so each case tests something.
+     It is in `band_0041_test.go`, in this phase's scope. The metadata-off
+     check of `TestFirstPartyRankByFacts_0041` also asserts that today's
+     static list leads (the Grok plant above). Neither changes a decision.
+
+#### Checks
+
+* `make pre-add-check` on the 11 Go files: clean, after one fix (an
+  unused helper in the new test, `unused`).
+* A misplaced doc comment was found while reading for the plants and
+  fixed: `modelCatalogFor`'s comment had been left above
+  `firstPartyUsable`.
+* `tools/apidiff.py 9765ffc`: no exported change, as "The exported
+  additions" lists none for Phase 3.
+* `make records-check`: 88 records, 0 problems. `tools/claims.py`: 57 of
+  57 on the MADR and 39 of 39 on the PLAN. 0009-MADR has no evidence rows
+  for it to check.
+* `tools/denyscan.py --changed`: 0 hits in 14 files.
+  `tools/linkcheck.py`: 0 problems.
+* **Gate:** `tools/gate.py`, 23 of 23, `g-wire-stable` included.

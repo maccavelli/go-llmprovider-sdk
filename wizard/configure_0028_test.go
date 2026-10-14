@@ -21,10 +21,16 @@ import (
 // from.
 
 // claudeRefusals answers Claude's model listing with a 401 for each of the
-// first refusals requests, then with one model. It counts the requests.
+// first refusals requests, then with one model. It counts the listing's
+// requests. The listing also starts the models.dev fetch (0041-MADR D4),
+// which is answered apart, with no document, and not counted.
 func claudeRefusals(refusals int32, requests *atomic.Int32) *http.Client {
 	model := catalog.Static(llmprovider.ProviderClaude)[0]
-	return &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+	return &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if !strings.HasSuffix(r.URL.Path, "/v1/models") {
+			return &http.Response{StatusCode: http.StatusNotFound, Header: make(http.Header),
+				Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+		}
 		n := requests.Add(1)
 		if n <= refusals {
 			return &http.Response{StatusCode: http.StatusUnauthorized, Header: make(http.Header),

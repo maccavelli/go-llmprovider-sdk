@@ -136,7 +136,9 @@ func TestListModelCatalog_HuggingFaceRanksWithMetadata(t *testing.T) {
 		want    []string
 	}{
 		{ProfileUtility, []string{"c/flash", "b/mid", "a/large", "d/uncovered", "v/no-reason"}},
-		{ProfileCapable, []string{"a/large", "b/mid", "d/uncovered", "c/flash", "v/no-reason"}},
+		// b/mid's 0.75 blend makes it small (0041-MADR D4), so it ranks
+		// after the models that are not.
+		{ProfileCapable, []string{"a/large", "d/uncovered", "c/flash", "b/mid", "v/no-reason"}},
 	} {
 		cat := listCatalog(context.Background(), t, llmprovider.ProviderHuggingFace,
 			llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithProfile(tc.profile))
@@ -243,8 +245,10 @@ func TestListModelCatalog_OpencodeGoGates(t *testing.T) {
 	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), WithLimit(MaxListed)}
 
 	goCat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeGo, opts...)
+	// gpt-6-luna's 0.20 blend makes it small (0041-MADR D4), so the
+	// utility profile ranks it higher.
 	assertRanked(t, goCat.Recommended,
-		[]string{"mimo-v2.6-flash", "glm-5.3-flash", "qwen3.8-flash", "gpt-6-luna", "hy3", "kimi-k2.6"})
+		[]string{"mimo-v2.6-flash", "gpt-6-luna", "glm-5.3-flash", "qwen3.8-flash", "hy3", "kimi-k2.6"})
 	for _, id := range []string{opencodeDeepSeekV4Flash, "muse-spark-1.3-contributor"} {
 		if !slices.Contains(goCat.Usable, id) {
 			t.Errorf("Go Usable must keep %s searchable: %v", id, goCat.Usable)
@@ -252,7 +256,7 @@ func TestListModelCatalog_OpencodeGoGates(t *testing.T) {
 	}
 	zenCat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeZen, opts...)
 	assertRanked(t, zenCat.Recommended,
-		[]string{opencodeDeepSeekV4Flash, "mimo-v2.6-flash", "glm-5.3-flash", "qwen3.8-flash", "gpt-6-luna", "hy3"})
+		[]string{opencodeDeepSeekV4Flash, "mimo-v2.6-flash", "gpt-6-luna", "glm-5.3-flash", "qwen3.8-flash", "hy3"})
 }
 
 // TestOpencodeGoFallback_AppliesItemsSevenAndEight (0021-MADR D3, C7):
@@ -300,25 +304,27 @@ func TestListModelCatalog_Snapshot20260926(t *testing.T) {
 		usable           int
 		utility, capable []string
 	}{
+		// The sixes 0041-MADR D4 gives, as 0009-MADR's amendment of
+		// 2026-10-14 records them.
 		{llmprovider.ProviderKilo, "kilo.json", 284,
-			[]string{"deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3-flash", "google/gemini-3.8-flash",
-				"google/gemini-3.6-flash", "meta/muse-spark-1.2", "thinkingmachines/inkling"},
+			[]string{"deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3-flash", "google/gemini-3.6-flash",
+				"minimax/minimax-m3", "nvidia/nemotron-3-ultra-550b-a55b", "xiaomi/mimo-v2.5-pro"},
 			[]string{"openai/gpt-6-astra", "anthropic/claude-fable-5.1", "openai/gpt-5.6-sol",
 				"deepseek/deepseek-v4.1-flash", "google/gemini-3.8-flash", "x-ai/grok-4.6"}},
 		// 78: the listing's jev-1.13 and jev-1.13-free are not usable (MADR 0012 §3.1).
 		{llmprovider.ProviderOpencodeZen, "zen.json", 78,
-			[]string{opencodeDeepSeekV41Flash, "qwen3.8-flash", "glm-5.3-flash", opencodeDeepSeekV4Flash,
-				"gemini-3.5-flash-lite", "gemini-3.8-flash"},
+			[]string{"gpt-6-luna", opencodeDeepSeekV41Flash, "qwen3.8-flash", "glm-5.3-flash", opencodeDeepSeekV4Flash,
+				"gpt-5.6-luna"},
 			// The gpt families are one diversity group, so gpt-6-astra gives
 			// way to claude-fable-5-1 (0021-MADR D3; 0009-MADR amendment of
 			// 2026-10-05).
-			[]string{"claude-opus-5-5", "gpt-6-sol", "gpt-6-luna", "grok-4.7", "muse-spark-1.3", "claude-fable-5-1"}},
+			[]string{"claude-opus-5-5", "gpt-6-sol", "grok-4.7", "gpt-6-astra", "gemini-3.8-flash", "muse-spark-1.3"}},
 		{llmprovider.ProviderOpencodeGo, "go.json", 38,
-			[]string{"mimo-v2.6-flash", "qwen3.8-flash", "glm-5.3-flash", "gpt-6-luna", "mimo-v2.6-pro", "hy3"},
-			[]string{"mimo-v2.6-pro", "gpt-6-luna", "grok-4.7", "glm-5.3", "grok-4.6", "qwen3.8-max"}},
+			[]string{"mimo-v2.6-flash", "gpt-6-luna", "qwen3.8-flash", "glm-5.3-flash", "mimo-v2.6-pro", "hy3"},
+			[]string{"grok-4.7", "glm-5.3", "grok-4.6", "qwen3.8-max", "kimi-k3", "glm-5.2"}},
 		{llmprovider.ProviderHuggingFace, "hf.json", 131,
-			[]string{"deepseek-ai/DeepSeek-V4-Flash-0731", "zai-org/GLM-5.3-Flash", "deepseek-ai/DeepSeek-V4.1-Flash",
-				"thinkingmachines/Inkling-Small", "stepfun-ai/Step-3.7-Flash", "stepfun-ai/Step-3.5-Flash"},
+			[]string{"deepseek-ai/DeepSeek-V4-Flash-0731", "zai-org/GLM-5.3-Flash", "tencent/Hy3",
+				"deepseek-ai/DeepSeek-V4.1-Flash", "google/gemma-4-26B-A4B-it", "google/gemma-4-31B-it"},
 			[]string{"zai-org/GLM-5.3", "Qwen/Qwen3.8-27B", "Qwen/Qwen3.8-2.4T-A95B",
 				"deepseek-ai/DeepSeek-V4-Pro-0813", "moonshotai/Kimi-K3", "thinkingmachines/Inkling"}},
 	} {

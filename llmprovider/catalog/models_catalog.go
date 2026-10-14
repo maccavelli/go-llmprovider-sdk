@@ -85,11 +85,11 @@ var (
 	// command reads"). Routes from api.json's npm packages.
 	staticOpencodeZen = []string{
 		modelClaudeHaiku55,    // messages
+		"gpt-6-luna",          // responses
 		"deepseek-v4.1-flash", // chat_completions
 		"qwen3.8-flash",       // messages
 		"glm-5.3-flash",       // chat_completions
 		"deepseek-v4-flash",   // chat_completions
-		modelGemini35Lite,     // google
 	}
 
 	// staticOpencodeGo: the utility six of the 2026-10-12 snapshot
@@ -102,10 +102,10 @@ var (
 	staticOpencodeGo = []string{
 		modelClaudeHaiku55, // messages
 		"mimo-v2.6-flash",  // chat_completions
-		"qwen3.8-flash",    // messages
-		"glm-5.3-flash",    // chat_completions
 		"gpt-6-luna",       // responses
 		"space-bunny",      // chat_completions
+		"qwen3.8-flash",    // messages
+		"glm-5.3-flash",    // chat_completions
 	}
 
 	// staticHuggingFace: fallback only — discovery is metadata-driven. The
@@ -115,10 +115,10 @@ var (
 	staticHuggingFace = []string{
 		"deepseek-ai/DeepSeek-V4-Flash-0731",
 		"zai-org/GLM-5.3-Flash",
+		"tencent/Hy3",
 		"deepseek-ai/DeepSeek-V4.1-Flash",
-		"thinkingmachines/Inkling-Small",
-		"stepfun-ai/Step-3.7-Flash",
-		"stepfun-ai/Step-3.5-Flash",
+		"google/gemma-4-26B-A4B-it",
+		"google/gemma-4-31B-it",
 	}
 
 	// staticTogether: fallback only — discovery is metadata-driven. The
@@ -131,8 +131,8 @@ var (
 		"deepseek-ai/DeepSeek-V4-Flash-0731",
 		"deepseek-ai/DeepSeek-V4.1-Flash",
 		"MiniMaxAI/MiniMax-M3",
-		"Qwen/Qwen3.6-Plus",
 		"openai/gpt-oss-120b",
+		"Qwen/Qwen3.6-Plus",
 	}
 
 	// staticKilo: fallback only — discovery is metadata-driven. The utility six
@@ -142,10 +142,10 @@ var (
 	staticKilo = []string{
 		"deepseek/deepseek-v4.1-flash",
 		"z-ai/glm-5.3-flash",
-		"google/gemini-3.8-flash",
 		"google/gemini-3.6-flash",
-		"meta/muse-spark-1.2",
-		"openai/gpt-6.1-sol",
+		"minimax/minimax-m3",
+		"nvidia/nemotron-3-ultra-550b-a55b",
+		"google/gemini-3.8-flash",
 	}
 
 	// staticGrok leads with the Grok CLI's defaults, grok-4.6 then grok-4.5

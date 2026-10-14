@@ -695,6 +695,14 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 	if t, ok := parseRankDate(m.ReleaseDate); ok && !t.After(now) {
 		c.ageDays, c.ageKnown = floorDays(t, now), true
 	}
+	// Small from a known price, and the name only without one (D4).
+	if m.Cost != nil {
+		if small, ok := smallByPrice(m.Cost.Input, m.Cost.Output); ok {
+			c.small = small
+		}
+	}
+	c.unusable = m.ToolCall != nil && !*m.ToolCall ||
+		m.Modalities != nil && m.Modalities.Output != nil && !slices.Contains(m.Modalities.Output, "text")
 	return c
 }
 
@@ -720,10 +728,22 @@ func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta <-cha
 		cands := make([]rankCandidate, 0, len(usable))
 		for _, id := range usable {
 			m, covered := models[id]
-			cands = append(cands, metadataCandidate(id, m, covered, now))
+			c := metadataCandidate(id, m, covered, now)
+			// On one vendor's catalog the group is the whole family, not its
+			// leading letters (D4).
+			if oneVendor[provider] && m.Family != "" {
+				c.group = m.Family
+			}
+			cands = append(cands, c)
 		}
 		return rankRecommended(profile, provider, cands, append(fallback(usable, limit), usable...), limit)
 	}
+}
+
+// oneVendor are the providers whose catalog is one vendor's models.
+var oneVendor = map[llmprovider.ProviderID]bool{
+	llmprovider.ProviderOpenAI: true, llmprovider.ProviderClaude: true,
+	llmprovider.ProviderGemini: true, llmprovider.ProviderGrok: true,
 }
 
 // listedOnly reports whether a provider ranks and fills only the ids its

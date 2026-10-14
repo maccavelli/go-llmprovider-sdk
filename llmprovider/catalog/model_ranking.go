@@ -86,6 +86,24 @@ type rankCandidate struct {
 	benchKnown                bool
 	preferred                 int // Kilo preferredIndex
 	preferredKnown            bool
+	// unusable is a model that takes no tools, or writes no text: never
+	// eligible (0041-MADR D4).
+	unusable bool
+}
+
+// smallBlendMax is the most a small model's 3:1 blended price may be, in USD
+// per million tokens: Artificial Analysis's middle band (0041-MADR D4).
+const smallBlendMax = 1.0
+
+// smallByPrice reports whether input and output prices, per million tokens,
+// make a small model, (3 × input + output) / 4 ≤ smallBlendMax, and false
+// for ok when the blend is not positive, so that the name decides.
+func smallByPrice(input, output float64) (small, ok bool) {
+	blend := (3*input + output) / 4
+	if !(blend > 0) || math.IsInf(blend, 0) {
+		return false, false
+	}
+	return blend <= smallBlendMax, true
 }
 
 // signal reports a provider quality signal (MADR 0009 §4).
@@ -117,7 +135,8 @@ func (c rankCandidate) costOrZero() float64 {
 // eligible applies MADR 0009 §3 for one provider.
 func (c rankCandidate) eligible(provider llmprovider.ProviderID) bool {
 	switch {
-	case c.reasoningKnown && !c.reasoning,
+	case c.unusable,
+		c.reasoningKnown && !c.reasoning,
 		c.costKnown && c.cost == 0,
 		c.ageKnown && c.ageDays > maxRankAgeDays,
 		c.context > 0 && c.context < minRankContext,
@@ -341,6 +360,9 @@ func kiloCandidate(e kiloCatalogEntry, now time.Time) rankCandidate {
 	completion, completionOK := kiloPrice(e.Pricing.Completion)
 	if promptOK && completionOK {
 		c.cost, c.costKnown = (prompt+completion)*perMillionTokens, true
+		if small, ok := smallByPrice(prompt*perMillionTokens, completion*perMillionTokens); ok {
+			c.small = small
+		}
 	}
 	if e.Created > 0 {
 		c.ageDays, c.ageKnown = floorDays(time.Unix(e.Created, 0), now), true

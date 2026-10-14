@@ -91,8 +91,12 @@ func TestWithLimit_SixIsToday(t *testing.T) {
 			}
 		}
 	}
-	if got := listVendor(t, WithLimit(MaxListed)).Recommended; !slices.Equal(got, staticOpenAI) {
-		t.Errorf("openai: WithLimit(MaxListed) = %v; want the curated six %v", got, staticOpenAI)
+	// A vendor's six is the first six of its default list, ranked by facts
+	// since 0041-MADR D4.
+	vendor := listVendor(t).Recommended
+	if got := listVendor(t, WithLimit(MaxListed)).Recommended; !slices.Equal(got, vendor[:min(len(vendor), MaxListed)]) {
+		t.Errorf("openai: WithLimit(MaxListed) = %v; want the default list's first six %v", got,
+			vendor[:min(len(vendor), MaxListed)])
 	}
 	if got := listOllama(t, WithLimit(MaxListed)).Recommended; !slices.Equal(got, ollamaNames[:MaxListed]) {
 		t.Errorf("ollama: WithLimit(MaxListed) = %v; want %v", got, ollamaNames[:MaxListed])

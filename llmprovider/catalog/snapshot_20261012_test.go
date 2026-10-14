@@ -81,27 +81,32 @@ func TestListModelCatalog_Snapshot20261012(t *testing.T) {
 		utility, capable []string
 	}{
 		{llmprovider.ProviderOpencodeZen, 79,
-			[]string{"claude-haiku-5-5", opencodeDeepSeekV41Flash, "qwen3.8-flash", "glm-5.3-flash", opencodeDeepSeekV4Flash,
-				"gemini-3.5-flash-lite"},
+			// 0041-MADR D4: gpt-6-luna joins, gemini-3.5-flash-lite leaves.
+			[]string{"claude-haiku-5-5", "gpt-6-luna", opencodeDeepSeekV41Flash, "qwen3.8-flash", "glm-5.3-flash",
+				opencodeDeepSeekV4Flash},
 			[]string{"mistral-large-4", "gpt-6.1-sol", "claude-sonnet-5-5", "claude-opus-5-5", "gpt-6-sol", "grok-4.7"}},
 		{llmprovider.ProviderOpencodeGo, 34,
-			[]string{"claude-haiku-5-5", "mimo-v2.6-flash", "qwen3.8-flash", "glm-5.3-flash", "gpt-6-luna", "space-bunny"},
-			[]string{"space-bunny", "mimo-v2.6-pro", "gpt-6-luna", "grok-4.7", "glm-5.3", "grok-4.6"}},
+			[]string{"claude-haiku-5-5", "mimo-v2.6-flash", "gpt-6-luna", "space-bunny", "qwen3.8-flash", "glm-5.3-flash"},
+			// D4: space-bunny, mimo-v2.6-pro and gpt-6-luna are small by price.
+			[]string{"grok-4.7", "glm-5.3", "grok-4.6", "qwen3.8-max", "kimi-k3", "glm-5.2"}},
 		{llmprovider.ProviderKilo, 285,
-			[]string{"deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3-flash", "google/gemini-3.8-flash", "google/gemini-3.6-flash",
-				"meta/muse-spark-1.2", "openai/gpt-6.1-sol"},
+			// D4: minimax-m3 and nemotron replace muse-spark-1.2 and gpt-6.1-sol.
+			[]string{"deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3-flash", "google/gemini-3.6-flash", "minimax/minimax-m3",
+				"nvidia/nemotron-3-ultra-550b-a55b", "google/gemini-3.8-flash"},
 			[]string{"openai/gpt-6-astra", "anthropic/claude-fable-5.1", "openai/gpt-5.6-sol", "deepseek/deepseek-v4.1-flash",
 				"google/gemini-3.8-flash", "x-ai/grok-4.6"}},
 		{llmprovider.ProviderHuggingFace, 119,
-			[]string{"deepseek-ai/DeepSeek-V4-Flash-0731", "zai-org/GLM-5.3-Flash", "deepseek-ai/DeepSeek-V4.1-Flash",
-				"thinkingmachines/Inkling-Small", "stepfun-ai/Step-3.7-Flash", "stepfun-ai/Step-3.5-Flash"},
+			// D4: Hy3 and the two gemma-4 models, small by price, outrank three.
+			[]string{"deepseek-ai/DeepSeek-V4-Flash-0731", "zai-org/GLM-5.3-Flash", "tencent/Hy3",
+				"deepseek-ai/DeepSeek-V4.1-Flash", "google/gemma-4-26B-A4B-it", "google/gemma-4-31B-it"},
 			[]string{"zai-org/GLM-5.3", "Qwen/Qwen3.8-27B", "Qwen/Qwen3.8-2.4T-A95B", "deepseek-ai/DeepSeek-V4-Pro-0813",
 				"moonshotai/Kimi-K3", "thinkingmachines/Inkling"}},
 		{llmprovider.ProviderTogether, 172,
 			[]string{"zai-org/GLM-5.3-Flash", "deepseek-ai/DeepSeek-V4-Flash-0731", "deepseek-ai/DeepSeek-V4.1-Flash",
-				"MiniMaxAI/MiniMax-M3", "Qwen/Qwen3.6-Plus", "openai/gpt-oss-120b"},
+				"MiniMaxAI/MiniMax-M3", "openai/gpt-oss-120b", "Qwen/Qwen3.6-Plus"},
+			// D4: nemotron replaces MiniMax-M3.
 			[]string{"zai-org/GLM-5.3", "deepseek-ai/DeepSeek-V4-Pro-0813", "moonshotai/Kimi-K3", "thinkingmachines/Inkling",
-				"zai-org/GLM-5.2", "MiniMaxAI/MiniMax-M3"}},
+				"zai-org/GLM-5.2", "nvidia/nemotron-3-ultra-550b-a55b"}},
 	} {
 		for _, p := range []struct {
 			profile Profile

@@ -331,7 +331,10 @@ calls it.
 ### 7. Candidate-ranking simulation
 
 A reference implementation of exactly §3–§4, run on 2026-09-26 over the shipped
-`ListModelCatalog` output with today's metadata, produces these sixes. The
+`ListModelCatalog` output with today's metadata, produces these sixes.
+*(Amended 2026-10-14: 0041-MADR D4 moves several of them; the sixes
+`TestListModelCatalog_Snapshot20260926` now pins are in the amendment
+"0041-MADR D4's band" below.)* The
 utility profile is the commit-message default; the capable profile ranks by
 strength.
 
@@ -1074,3 +1077,50 @@ serverless catalog, holds only in part: the section can lag Together.
   them out.
 * **Not chosen:** taking Together out of the ranked lists, which would leave
   its static list outside the snapshot.
+
+## Amendment 2026-10-14: 0041-MADR D4's band
+
+[0041-MADR-decide-per-model-behaviour-from-metadata.md](0041-MADR-decide-per-model-behaviour-from-metadata.md)
+D4 changes three of this record's rules:
+
+* **"Small" comes from cost:** a 3:1 blended price, `(3 × input + output) /
+  4`, of $1 or less per million tokens. The name regex decides only when
+  the price is unknown.
+* **A model that takes no tools, or writes no text, is never eligible.**
+* **A one-vendor catalog groups by `family`.**
+
+`TestListModelCatalog_Snapshot20260926` replays §7's snapshot, and its rule
+is that "a rule change must update §7 and this test together". Under D4 its
+sixes are these; a row not listed is unchanged:
+
+| Provider | Profile | Six |
+| :--- | :--- | :--- |
+| Kilo | utility | `deepseek/deepseek-v4.1-flash`, `z-ai/glm-5.3-flash`, `google/gemini-3.6-flash`, `minimax/minimax-m3`, `nvidia/nemotron-3-ultra-550b-a55b`, `xiaomi/mimo-v2.5-pro` |
+| OpenCode Zen | utility | `gpt-6-luna`, `deepseek-v4.1-flash`, `qwen3.8-flash`, `glm-5.3-flash`, `deepseek-v4-flash`, `gpt-5.6-luna` |
+| OpenCode Zen | capable | `claude-opus-5-5`, `gpt-6-sol`, `grok-4.7`, `gpt-6-astra`, `gemini-3.8-flash`, `muse-spark-1.3` |
+| OpenCode Go | utility | `mimo-v2.6-flash`, `gpt-6-luna`, `qwen3.8-flash`, `glm-5.3-flash`, `mimo-v2.6-pro`, `hy3` |
+| OpenCode Go | capable | `grok-4.7`, `glm-5.3`, `grok-4.6`, `qwen3.8-max`, `kimi-k3`, `glm-5.2` |
+| Hugging Face | utility | `deepseek-ai/DeepSeek-V4-Flash-0731`, `zai-org/GLM-5.3-Flash`, `tencent/Hy3`, `deepseek-ai/DeepSeek-V4.1-Flash`, `google/gemma-4-26B-A4B-it`, `google/gemma-4-31B-it` |
+
+Why, by the snapshot's prices:
+
+* **Zen:**
+  * `gemini-3.8-flash`, a 3.00 blend, is no longer small, though its name
+    says flash, so it leaves the utility six;
+  * `gpt-6-luna` (0.20) and `gpt-5.6-luna` (0.45), small by price though
+    not by name, join it;
+  * in the capable six, `gpt-6-luna`, now small, gives way, freeing the
+    `gpt` group's second place for `gpt-6-astra`. `gemini-3.8-flash`, no
+    longer small, joins the non-small models ahead of `claude-fable-5-1`.
+* **Go, capable:** `gpt-6-luna` (0.20) and `mimo-v2.6-pro` (0.54) are now
+  small, so the capable profile ranks them after the non-small models.
+  `qwen3.8-max`, `kimi-k3` and `glm-5.2` take their places.
+* **Hugging Face:** `tencent/Hy3` (0.25) and the two `gemma-4` models (0.20
+  and 0.21) are now small, and outrank `thinkingmachines/Inkling-Small` and
+  the two Step models, which were small before.
+* **Kilo** ranks by its own listing's prices, which D4 reads the same way.
+  `minimax/minimax-m3`, `nvidia/nemotron-3-ultra-550b-a55b` and
+  `xiaomi/mimo-v2.5-pro` join its utility six.
+
+§7's own table is the record of what this ranking gave on 2026-09-26, and
+is kept.

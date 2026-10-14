@@ -166,9 +166,10 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/ownerper
 ### A listing
 
 `catalog.List(ctx, id, src, opts...)` resolves the same options, fetches the
-provider's model list, and curates it into a `Catalog`. For the open catalogs
-it ranks by `Profile`, with the model metadata unless `WithoutModelMetadata`
-is set. A failed fetch gives the static catalog, with the failure in `Err`. A
+provider's model list, and curates it into a `Catalog`. Every provider ranks
+by `Profile`, with the model metadata unless `WithoutModelMetadata` is set;
+OpenAI, Claude, Gemini and Grok rank by their name curators only with no
+document (0041-MADR D4). A failed fetch gives the static catalog, with the failure in `Err`. A
 listing in which nothing meets the profile stays live, with an empty
 `Recommended` and the listing in `Usable` to search. A provider's own
 `ListModels` (`ModelLister`) returns its listing, probed by default where the
@@ -637,12 +638,20 @@ for a session, from the store.
   `LLMPROVIDER_PROBES` (`true` or `false`) for a caller who passes it; the
   package reads the variable nowhere else.
 - `catalog.Profile` (`ProfileUtility`, `ProfileCapable`), passed with
-  `catalog.WithProfile`, ranks the open catalogs,
+  `catalog.WithProfile`, ranks every provider's catalog,
   using models.dev-format metadata from `https://models.opencode.ai/api.json`.
   `WithModelMetadataURL` names another document, and `WithoutModelMetadata`
   turns the fetch off. `catalog.OptionsFromEnv()` sets either from
   `LLMPROVIDER_MODELS_METADATA_URL` and `LLMPROVIDER_DISABLE_MODELS_METADATA`
   for a caller who passes its result.
+- **The band** (0041-MADR D4):
+  - a model is small when its 3:1 blended price, `(3 × input + output) / 4`,
+    is $1 or less per million tokens; the name decides only with no
+    positive price;
+  - a model that takes no tools, or writes no text, is never recommended,
+    and stays in `Usable`;
+  - on OpenAI, Claude, Gemini and Grok, the per-group cap counts models.dev's
+    `family`; the gateways keep the vendor prefix.
 - **No ambient state.** Library code reads the environment only in
   exported `…FromEnv` helpers a caller opts into (`ModelProbesFromEnv`,
   `catalog.OptionsFromEnv`, `auth.GrokFlowFromEnv`). The default transport

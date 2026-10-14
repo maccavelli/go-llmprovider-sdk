@@ -311,10 +311,12 @@ func TestEvidence0041_CostKeyReach(t *testing.T) {
 		usable          func(string) bool
 		eligible, reach int
 	}{
-		{llmprovider.ProviderOpenAI, isUsableOpenAIChatModel, 24, 13},
+		// Phase 3: D4's small by price moves OpenAI's and Kilo's counts, and
+		// the unusable leave Kilo's eligible set (§5 measured 13 and 144).
+		{llmprovider.ProviderOpenAI, isUsableOpenAIChatModel, 24, 8},
 		{llmprovider.ProviderClaude, isUsableClaudeTextModel, 17, 3},
 		{llmprovider.ProviderTogether, func(string) bool { return true }, 13, 0},
-		{llmprovider.ProviderKilo, isUsableKiloModel, 216, 144},
+		{llmprovider.ProviderKilo, isUsableKiloModel, 209, 111},
 	} {
 		models := evidence0041Section(t, doc, modelMetadataKey(tc.provider))
 		var ids []string

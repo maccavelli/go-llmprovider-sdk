@@ -274,23 +274,47 @@ func staticCatalog(static []string, limit int) Catalog {
 	return Catalog{Recommended: static, Usable: slices.Clone(static), Live: false}
 }
 
+// firstPartyUsable is a first-party provider's usable listed models.
+func firstPartyUsable(ctx context.Context, p llmprovider.ProviderID, token llmprovider.Token, cfg config) ([]string, error) {
+	switch p {
+	case llmprovider.ProviderOpenAI:
+		return fetchOpenAIUsable(ctx, token, cfg)
+	case llmprovider.ProviderClaude:
+		return fetchClaudeUsable(ctx, token, cfg)
+	case llmprovider.ProviderGemini:
+		return fetchGeminiUsable(ctx, token, cfg)
+	default:
+		return fetchGrokUsable(ctx, token, cfg)
+	}
+}
+
+// firstPartyCurator is a first-party provider's name curator: its whole
+// ranking before 0041-MADR D4, and its fallback with no document since.
+func firstPartyCurator(p llmprovider.ProviderID) curator {
+	switch p {
+	case llmprovider.ProviderOpenAI:
+		return curateOpenAI
+	case llmprovider.ProviderClaude:
+		return curateClaude
+	case llmprovider.ProviderGemini:
+		return curateGemini
+	default:
+		return curateGrok
+	}
+}
+
 // modelCatalogFor dispatches one provider's fetch and curation. The caller
 // owns the timeout. Every lister sends token as it describes itself
 // (0016-MADR A6).
 func modelCatalogFor(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (Catalog, error) {
 	switch p := llmprovider.ProviderID(strings.ToLower(string(id))); p {
-	case llmprovider.ProviderGemini:
-		usable, err := fetchGeminiUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderGemini), curateGemini, cfg.limit), nil
-	case llmprovider.ProviderOpenAI:
-		usable, err := fetchOpenAIUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderOpenAI), curateOpenAI, cfg.limit), nil
-	case llmprovider.ProviderClaude:
-		usable, err := fetchClaudeUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderClaude), curateClaude, cfg.limit), nil
-	case llmprovider.ProviderGrok:
-		usable, err := fetchGrokUsable(ctx, token, cfg)
-		return catalogFrom(usable, err, Static(llmprovider.ProviderGrok), curateGrok, cfg.limit), nil
+	case llmprovider.ProviderGemini, llmprovider.ProviderOpenAI, llmprovider.ProviderClaude, llmprovider.ProviderGrok:
+		// Ranked by facts, as every provider is; the name curator ranks with
+		// no document (0041-MADR D4).
+		meta := startModelMetadata(ctx, cfg)
+		usable, err := firstPartyUsable(ctx, p, token, cfg)
+		return catalogFrom(usable, err, Static(p), metadataCurate(p, cfg.ModelProfile, meta, firstPartyCurator(p)),
+			cfg.limit), nil
 	case llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo:
 		return opencodeCatalog(ctx, p, token, cfg)
 	case llmprovider.ProviderHuggingFace:
