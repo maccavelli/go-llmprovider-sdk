@@ -703,6 +703,15 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 			c.small = small
 		}
 	}
+	if m.Cost != nil && c.costKnown {
+		c.prices = turnPrices{input: m.Cost.Input, output: m.Cost.Output, known: true}
+		if r := m.Cost.CacheRead; r != nil && *r >= 0 && !math.IsInf(*r, 0) {
+			c.prices.read, c.prices.readKnown = *r, true
+		}
+		if w := m.Cost.CacheWrite; w != nil && *w >= 0 && !math.IsInf(*w, 0) {
+			c.prices.write, c.prices.writeKnown = *w, true
+		}
+	}
 	c.unusable = m.ToolCall != nil && !*m.ToolCall ||
 		m.Modalities != nil && m.Modalities.Output != nil && !slices.Contains(m.Modalities.Output, "text")
 	return c
@@ -711,8 +720,10 @@ func metadataCandidate(id string, m modelMetadata, covered bool, now time.Time) 
 // metadataCurate ranks a provider's usable models with the metadata document
 // (MADR 0009 §2). A failed or disabled fetch, or a document without the
 // provider's key, returns fallback's curation unchanged. meta is the
-// document startModelMetadata waits for once (0038-MADR A1).
-func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta func() modelMetadataResult, fallback curator) curator {
+// document startModelMetadata waits for once (0038-MADR A1). w prices each
+// candidate's cached turn, for ProfileAgent (0041-MADR D5).
+func metadataCurate(provider llmprovider.ProviderID, profile Profile, w workload, meta func() modelMetadataResult,
+	fallback curator) curator {
 	return func(usable []string, limit int) []string {
 		res := meta()
 		models, ok := res.doc.models(modelMetadataKey(provider))
@@ -730,6 +741,8 @@ func metadataCurate(provider llmprovider.ProviderID, profile Profile, meta func(
 		for _, id := range usable {
 			m, covered := models[id]
 			c := metadataCandidate(id, m, covered, now)
+			c.prices = withCanonicalRead(c.prices, m, res.doc)
+			c = c.withTurn(w)
 			// On one vendor's catalog the group is the whole family, not its
 			// leading letters (D4).
 			if oneVendor[provider] && m.Family != "" {

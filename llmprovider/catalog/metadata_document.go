@@ -96,7 +96,26 @@ func pricesByCanonical(doc *modelMetadataDoc, canonical string) (ModelRates, boo
 		return ModelRates{}, false
 	}
 	var c ModelCost
-	return c.ModelRates, slices.Contains(costFrom(&c, e.Cost), FieldCostCacheRead)
+	known := slices.Contains(costFrom(&c, e.Cost), FieldCostCacheRead)
+	return c.ModelRates, known
+}
+
+// withCanonicalRead fills p's missing cache read price from m's canonical
+// model's first-party entry (0041-MADR D1, D5). Failing that, the turn
+// reads the input price.
+func withCanonicalRead(p turnPrices, m modelMetadata, doc *modelMetadataDoc) turnPrices {
+	if p.readKnown || m.CanonicalModelID == "" || doc == nil {
+		return p
+	}
+	if rates, ok := pricesByCanonical(doc, m.CanonicalModelID); ok {
+		p.read, p.readKnown = rates.CacheRead, true
+	}
+	return p
+}
+
+// pricesOf is m's turn prices, the canonical fill applied.
+func pricesOf(m modelMetadata, doc *modelMetadataDoc) turnPrices {
+	return withCanonicalRead(metadataCandidate("", m, true, rankingNow()).prices, m, doc)
 }
 
 // withCanonicalCacheRead fills info's missing cache read price from its

@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-88 records. Cite them by full filename.
+91 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -47,6 +47,7 @@ documents a reader follows to do something.
 | 0016 | MADR | [Build Provider Support and Authentication from mcplib's `llmprovider`, and Adopt magic-cli-remote's Credential Hygiene](decisions/0016-MADR-provider-auth-and-support-baseline.md) | accepted |
 | 0016 | PLAN | [Implement the Provider Auth and Support Baseline](decisions/0016-PLAN-provider-auth-and-support-baseline.md) | complete |
 | 0017 | REPORT | [Reference-Client Survey: How Six Coding Agents Authenticate, Compared with `llmprovider`](reports/0017-REPORT-reference-client-auth-survey.md) | observation |
+| 0017 | REPORT | [OpenAI's Sign in with ChatGPT for Open-Source Agents: The Flow, Its Terms, and What `llmprovider` Lacks](reports/0017-REPORT-openai-sign-in-for-agents.md) | observation |
 | 0017 | MADR | [Add Together AI, Kilo Device Login and Command-Sourced Keys, from the Reference-Client Survey](decisions/0017-MADR-together-provider-and-auth-extensions.md) | accepted |
 | 0017 | PLAN | [Implement Together AI, Kilo Device Login and Command-Sourced Keys](decisions/0017-PLAN-together-provider-and-auth-extensions.md) | complete |
 | 0018 | MADR | [The module is released under the Apache License 2.0](decisions/0018-MADR-apache-2-license.md) | accepted |
@@ -98,6 +99,8 @@ documents a reader follows to do something.
 | 0040 | PLAN | [Implement Native Tool Deferral](decisions/0040-PLAN-native-tool-deferral.md) | complete |
 | 0041 | MADR | [Order a Live Model Menu, and Decide Per-Model Behaviour, From Model Facts](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md) | accepted |
 | 0041 | PLAN | [Implement a Live Model Menu, and Per-Model Behaviour, From Model Facts](decisions/0041-PLAN-decide-per-model-behaviour-from-metadata.md) | in-progress |
+| 0042 | MADR | [List Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-MADR-ollama-models-that-write-text.md) | accepted |
+| 0042 | PLAN | [Implement Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-PLAN-ollama-models-that-write-text.md) | proposed |
 
 ## I want to…
 
@@ -131,6 +134,7 @@ documents a reader follows to do something.
 | know how a provider's live model menu is ordered, what its caveats mean, or what it shows when a listing fails | [0041-MADR-decide-per-model-behaviour-from-metadata.md](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md) |
 | know why a model's thinking, effort or output limit comes from its facts | [0041-MADR-decide-per-model-behaviour-from-metadata.md](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md) |
 | get each provider's model listing exactly as the provider sent it, with none of the SDK's curation | [0041-MADR-decide-per-model-behaviour-from-metadata.md](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md), D9 |
+| know why Ollama's listing leaves out embedding models but keeps chat models that take no tools | [0042-MADR-ollama-models-that-write-text.md](decisions/0042-MADR-ollama-models-that-write-text.md) |
 | list every model a provider serves, or only the top six | [0038-MADR-full-curated-catalog-by-default.md](decisions/0038-MADR-full-curated-catalog-by-default.md) |
 | know how GenerateToolCall forces a tool on the Claude models that refuse it | [0034-MADR](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) |
 | run the local gate, the link check or the identifier scan myself | [0035-MADR](decisions/0035-MADR-maintainer-tools-in-python.md) |
@@ -138,6 +142,7 @@ documents a reader follows to do something.
 | know why a Claude response now reports reasoning tokens | [0037-MADR](decisions/0037-MADR-reasoning-and-cache-read-spellings.md) |
 | know why provider auth builds on `mcplib` and not `magic-cli-remote`, and what it takes from each | [0016-MADR](decisions/0016-MADR-provider-auth-and-support-baseline.md) |
 | compare this module's auth with Codex, Grok, Kilo, OpenCode, pi, agy and Claude Code | [0017-REPORT](reports/0017-REPORT-reference-client-auth-survey.md) |
+| know how OpenAI's Sign in with ChatGPT for agents works, what its terms require, and what this module lacks for it | [0017-REPORT-openai-sign-in-for-agents.md](reports/0017-REPORT-openai-sign-in-for-agents.md) |
 | know how Together AI, Kilo device login and command-sourced keys are being added | [0017-MADR](decisions/0017-MADR-together-provider-and-auth-extensions.md) |
 | find where an `mcplib` record number ends up here | [the table below](#migrated-from-mcplib) |
 

@@ -333,25 +333,25 @@ func modelCatalogFor(ctx context.Context, id llmprovider.ProviderID, token llmpr
 		// no document (0041-MADR D4).
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := firstPartyUsable(ctx, p, token, cfg)
-		return listingResult{usable, err, Static(p), metadataCurate(p, cfg.ModelProfile, meta, firstPartyCurator(p)), meta}, nil
+		return listingResult{usable, err, Static(p), metadataCurate(p, cfg.ModelProfile, cfg.workload, meta, firstPartyCurator(p)), meta}, nil
 	case llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo:
 		return opencodeCatalog(ctx, p, token, cfg)
 	case llmprovider.ProviderHuggingFace:
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := fetchHuggingFaceUsable(ctx, token, cfg)
 		return listingResult{usable, err, Static(llmprovider.ProviderHuggingFace),
-			metadataCurate(llmprovider.ProviderHuggingFace, cfg.ModelProfile, meta, curateHuggingFace), meta}, nil
+			metadataCurate(llmprovider.ProviderHuggingFace, cfg.ModelProfile, cfg.workload, meta, curateHuggingFace), meta}, nil
 	case llmprovider.ProviderKilo:
 		entries, err := fetchKiloCatalog(ctx, token, cfg)
 		// Deliberate: a failed Kilo fetch degrades to the static catalog rather
 		// than failing, like every other lister here. See listingResult.catalog.
-		return listingResult{kiloUsable(entries), err, Static(llmprovider.ProviderKilo), kiloCurate(entries, cfg.ModelProfile),
+		return listingResult{kiloUsable(entries), err, Static(llmprovider.ProviderKilo), kiloCurate(entries, cfg.ModelProfile, cfg.workload),
 			nil}, nil
 	case llmprovider.ProviderTogether:
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := fetchTogetherUsable(ctx, token, cfg)
 		return listingResult{usable, err, Static(llmprovider.ProviderTogether),
-			metadataCurate(llmprovider.ProviderTogether, cfg.ModelProfile, meta, curateTogether), meta}, nil
+			metadataCurate(llmprovider.ProviderTogether, cfg.ModelProfile, cfg.workload, meta, curateTogether), meta}, nil
 	case llmprovider.ProviderOllama:
 		return ollamaCatalog(ctx, token, cfg)
 	default:
@@ -761,7 +761,7 @@ func opencodeCatalog(ctx context.Context, gateway llmprovider.ProviderID, token 
 		// every provider (0038-MADR D1).
 		return curateFromCatalog(gateway, staticOpencodeCatalog(gateway), usable, isUsableOpencodeModel, rankOpencodeModel, limit)
 	}
-	return listingResult{usable, fetchErr, Static(gateway), metadataCurate(gateway, cfg.ModelProfile, meta, curate), meta}, nil
+	return listingResult{usable, fetchErr, Static(gateway), metadataCurate(gateway, cfg.ModelProfile, cfg.workload, meta, curate), meta}, nil
 }
 
 // fetchOpencodeUsable returns the usable gateway models in listing order.
@@ -1096,7 +1096,7 @@ func curateKilo(usable []string, limit int) []string {
 // kiloCurate ranks Kilo's usable models from the listing's own metadata
 // (MADR 0009 §2). When fewer than limit are eligible, the rest come from
 // curateKilo's order, then the usable list.
-func kiloCurate(entries []kiloCatalogEntry, profile Profile) curator {
+func kiloCurate(entries []kiloCatalogEntry, profile Profile, w workload) curator {
 	return func(usable []string, limit int) []string {
 		byID := make(map[string]kiloCatalogEntry, len(entries))
 		for _, e := range entries {
@@ -1109,7 +1109,7 @@ func kiloCurate(entries []kiloCatalogEntry, profile Profile) curator {
 			if !ok {
 				e.ID = id
 			}
-			cands = append(cands, kiloCandidate(e, now))
+			cands = append(cands, kiloCandidate(e, now).withTurn(w))
 		}
 		return rankRecommended(profile, llmprovider.ProviderKilo, cands, append(curateKilo(usable, limit), usable...), limit)
 	}

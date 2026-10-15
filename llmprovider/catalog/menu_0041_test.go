@@ -217,7 +217,7 @@ func TestMenu_Snapshot_0041(t *testing.T) {
 	meta := func() modelMetadataResult { return modelMetadataResult{doc: doc} }
 	cfg := config{}
 	cat := menuOf(llmprovider.ProviderOpenAI, ids, factsOf(llmprovider.ProviderOpenAI, cfg, ids, nil, doc),
-		metadataCurate(llmprovider.ProviderOpenAI, ProfileUtility, meta, curateOpenAI), 0, rankingNow())
+		metadataCurate(llmprovider.ProviderOpenAI, ProfileUtility, defaultWorkload, meta, curateOpenAI), 0, rankingNow())
 	deprecated := 0
 	for _, id := range cat.Recommended {
 		if models[id].Status == "deprecated" {

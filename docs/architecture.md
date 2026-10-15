@@ -105,7 +105,7 @@ standard library is left out.
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig`, and from a model's facts `Thinking`, `FactsThinking` and `ThinkingConfigFor` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
-| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, and the options `WithProfile` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer` | `llmprovider`, `internal/kiloendpoint`, `internal/transport` |
+| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, and the options `WithProfile`, `WithWorkload` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer` | `llmprovider`, `internal/kiloendpoint`, `internal/transport` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
@@ -605,7 +605,7 @@ for a session, from the store.
   release date, then by id; `catalog.WithLimit(n)` cuts it to `n`, and
   `WithLimit(catalog.MaxListed)` to the band. A static fallback is cut in
   both views. Its options are `llmprovider`'s common ones, with
-  `catalog.WithProfile`, `catalog.WithLimit` and
+  `catalog.WithProfile`, `catalog.WithWorkload`, `catalog.WithLimit` and
   `catalog.WithKiloOrganization`. It lists the ten
   built-in ids. For any other id it returns an error matching
   `ErrUnsupported`, before it reads the options.
@@ -655,13 +655,25 @@ for a session, from the store.
   `WithModelProbes(false)` turns that off. `ModelProbesFromEnv()` reads
   `LLMPROVIDER_PROBES` (`true` or `false`) for a caller who passes it; the
   package reads the variable nowhere else.
-- `catalog.Profile` (`ProfileUtility`, `ProfileCapable`), passed with
-  `catalog.WithProfile`, ranks every provider's catalog,
+- `catalog.Profile` (`ProfileUtility`, `ProfileCapable`, `ProfileAgent`),
+  passed with `catalog.WithProfile`, ranks every provider's catalog,
   using models.dev-format metadata from `https://models.opencode.ai/api.json`.
   `WithModelMetadataURL` names another document, and `WithoutModelMetadata`
   turns the fetch off. `catalog.OptionsFromEnv()` sets either from
   `LLMPROVIDER_MODELS_METADATA_URL` and `LLMPROVIDER_DISABLE_MODELS_METADATA`
   for a caller who passes its result.
+- **`ProfileAgent`** (0041-MADR D5) is for long agent sessions with prompt
+  caching on. Its band holds `ProfileCapable`'s six, reordered by signal,
+  bench, preferred index, release quarter (90 days), then the cheaper
+  cached turn, `(1 − o)(h × read + (1 − h) × write) + o × output`, an
+  unknown price last, then id. `read` is the cache read price, else the
+  canonical model's, else the input price; `write` is the cache write
+  price, else the input price. `h` and `o` default to 0.90 and 0.01;
+  `catalog.WithWorkload(h, o)` sets them, each within (0, 1), and
+  `catalog.ObservedWorkload(usages...)` measures them from a caller's own
+  responses, `ok` false when there is nothing to measure or a share is
+  0 or 1. Its reasoning effort is the provider's default, as
+  `ProfileCapable`'s is.
 - **The band** (0041-MADR D4):
   - a model is small when its 3:1 blended price, `(3 × input + output) / 4`,
     is $1 or less per million tokens; the name decides only with no

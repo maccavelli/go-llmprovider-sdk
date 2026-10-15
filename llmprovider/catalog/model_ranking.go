@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 )
 
 // Use-case ranking of the recommended models (MADR 0009 §3–§4). Ranking is a
@@ -89,6 +90,30 @@ type rankCandidate struct {
 	// unusable is a model that takes no tools, or writes no text: never
 	// eligible (0041-MADR D4).
 	unusable bool
+	// prices are what one cached turn reads, and turn its price at the
+	// curation's workload, for ProfileAgent (0041-MADR D5).
+	prices    turnPrices
+	turn      float64
+	turnKnown bool
+}
+
+// withTurn is c with its cached turn priced at w.
+func (c rankCandidate) withTurn(w workload) rankCandidate {
+	c.turn, c.turnKnown = w.turn(c.prices)
+	return c
+}
+
+// rankQuarterDays is the release bucket ProfileAgent orders by: a quarter,
+// so that the cached turn decides between models of one (0041-MADR D5).
+const rankQuarterDays = 90
+
+// quarter is c's release quarter, 0 for the newest; an unknown age is the
+// oldest.
+func (c rankCandidate) quarter() int {
+	if c.ageKnown {
+		return c.ageDays / rankQuarterDays
+	}
+	return math.MaxInt
 }
 
 // smallBlendMax is the most a small model's 3:1 blended price may be, in USD
@@ -223,6 +248,45 @@ func (n rankNorm) capableOrder(a, b rankCandidate) int {
 	)
 }
 
+// agentOrder is ProfileAgent's order within its band (0041-MADR D5): a
+// quality signal first, then higher terminalBench, lower preferredIndex, the
+// newer release quarter, the cheaper cached turn, an unknown one last, then
+// id.
+func agentOrder(a, b rankCandidate) int {
+	return cmp.Or(
+		boolFirst(a.signal(), b.signal()),
+		cmp.Compare(b.benchOrZero(), a.benchOrZero()),
+		cmp.Compare(a.preferredOrInf(), b.preferredOrInf()),
+		cmp.Compare(a.quarter(), b.quarter()),
+		boolFirst(a.turnKnown, b.turnKnown),
+		cmp.Compare(a.turn, b.turn),
+		strings.Compare(a.id, b.id),
+	)
+}
+
+// agentBand is ProfileAgent's ranking: ProfileCapable's, its first six, the
+// band, reordered by agentOrder. The price orders the band and never chooses
+// its members (0041-MADR D5). A limit within the six cuts the reordered band.
+func agentBand(provider llmprovider.ProviderID, cands []rankCandidate, fill []string, limit int) []string {
+	n := limit
+	if n > 0 && n < MaxListed {
+		n = MaxListed
+	}
+	out := rankRecommended(ProfileCapable, provider, cands, fill, n)
+	byID := make(map[string]rankCandidate, len(cands))
+	for _, c := range cands {
+		byID[c.id] = c
+	}
+	candidate := func(id string) rankCandidate {
+		if c, ok := byID[id]; ok {
+			return c
+		}
+		return rankCandidate{id: id}
+	}
+	slices.SortFunc(out[:min(len(out), MaxListed)], func(a, b string) int { return agentOrder(candidate(a), candidate(b)) })
+	return listlimit.Cut(out, limit)
+}
+
 // boolFirst orders true before false.
 func boolFirst(a, b bool) int {
 	switch {
@@ -237,7 +301,8 @@ func boolFirst(a, b bool) int {
 // utilityExcluded reports ids the utility profile never recommends, ranked or
 // filled: Kilo's kilo-auto/* managed tiers (MADR 0009 §3 item 9, a maintainer
 // decision), and on any provider a dense model of 14B or less (§3 item 11).
-// They stay searchable and eligible under ProfileCapable.
+// They stay searchable and eligible under ProfileCapable; ProfileAgent ranks as
+// ProfileCapable does (agentBand), so it never reaches here.
 func utilityExcluded(profile Profile, provider llmprovider.ProviderID, id string) bool {
 	if profile == ProfileCapable {
 		return false
@@ -269,6 +334,9 @@ func smallDense(id string) bool {
 // maxPerRankGroup per group, then fill in order, skipping ids already chosen
 // or excluded (MADR 0009 §4, MADR 0013 A1, 0038-MADR D1).
 func rankRecommended(profile Profile, provider llmprovider.ProviderID, cands []rankCandidate, fill []string, limit int) []string {
+	if profile == ProfileAgent {
+		return agentBand(provider, cands, fill, limit)
+	}
 	var eligible []rankCandidate
 	for _, c := range cands {
 		if c.eligible(provider) && !utilityExcluded(profile, provider, c.id) {
@@ -360,6 +428,13 @@ func kiloCandidate(e kiloCatalogEntry, now time.Time) rankCandidate {
 	completion, completionOK := kiloPrice(e.Pricing.Completion)
 	if promptOK && completionOK {
 		c.cost, c.costKnown = (prompt+completion)*perMillionTokens, true
+		c.prices.input, c.prices.output, c.prices.known = prompt*perMillionTokens, completion*perMillionTokens, true
+		if read, ok := kiloPrice(e.Pricing.InputCacheRead); ok && e.Pricing.InputCacheRead != "" {
+			c.prices.read, c.prices.readKnown = read*perMillionTokens, true
+		}
+		if write, ok := kiloPrice(e.Pricing.InputCacheWrite); ok && e.Pricing.InputCacheWrite != "" {
+			c.prices.write, c.prices.writeKnown = write*perMillionTokens, true
+		}
 		if small, ok := smallByPrice(prompt*perMillionTokens, completion*perMillionTokens); ok {
 			c.small = small
 		}

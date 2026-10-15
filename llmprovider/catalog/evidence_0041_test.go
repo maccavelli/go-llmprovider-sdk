@@ -372,3 +372,89 @@ func TestEvidence0041_CachedTurn(t *testing.T) {
 		t.Errorf("cached: %v to %v; want both within [0.47, 0.53], the new input at the input price lower", low, high)
 	}
 }
+
+// TestEvidence0041_AgentTrial is D5's trial: the cached turn choosing the
+// members, not only ordering them, on every models.dev section with D4's
+// rules. Each eligible model is ordered by a signal, bench, preferred index,
+// not small, the release quarter, the cheaper turn, then id, and the six
+// taken with D4's group cap. It keeps few of capable's six where no signal
+// of strength exists, which is why ProfileAgent's members are capable's.
+// Over the 4 x 4 grid of h and o, it counts the distinct bands.
+func TestEvidence0041_AgentTrial(t *testing.T) {
+	doc := evidence0041Doc(t)
+	for _, tc := range []struct {
+		provider             llmprovider.ProviderID
+		usable               func(string) bool
+		kept, size, distinct int
+	}{
+		{llmprovider.ProviderOpenAI, isUsableOpenAIChatModel, 6, 6, 1},
+		{llmprovider.ProviderClaude, isUsableClaudeTextModel, 6, 6, 1},
+		{llmprovider.ProviderGemini, func(id string) bool { return isUsableGeminiTextModel(id, []string{"generateContent"}) }, 4, 5, 1},
+		{llmprovider.ProviderGrok, isUsableGrokModel, 3, 3, 1},
+		{llmprovider.ProviderOpencodeZen, isUsableOpencodeModel, 1, 6, 4},
+		{llmprovider.ProviderOpencodeGo, isUsableOpencodeModel, 5, 6, 3},
+		{llmprovider.ProviderHuggingFace, isUsableHuggingFaceModel, 6, 6, 1},
+		{llmprovider.ProviderTogether, func(string) bool { return true }, 6, 6, 3},
+		{llmprovider.ProviderKilo, isUsableKiloModel, 1, 6, 12},
+	} {
+		models := evidence0041Section(t, doc, modelMetadataKey(tc.provider))
+		var ids []string
+		for id := range models {
+			if tc.usable(id) {
+				ids = append(ids, id)
+			}
+		}
+		slices.Sort(ids)
+		var cands, eligible []rankCandidate
+		for _, id := range ids {
+			c := metadataCandidate(id, models[id], true, rankingNow())
+			if f := models[id].Family; oneVendor[tc.provider] && f != "" {
+				c.group = f
+			}
+			c.prices = pricesOf(models[id], doc)
+			cands = append(cands, c)
+			if c.eligible(tc.provider) {
+				eligible = append(eligible, c)
+			}
+		}
+		capable := rankRecommended(ProfileCapable, tc.provider, cands, nil, MaxListed)
+		band := func(w workload) []string {
+			ordered := make([]rankCandidate, len(eligible))
+			for i, c := range eligible {
+				ordered[i] = c.withTurn(w)
+			}
+			slices.SortFunc(ordered, func(a, b rankCandidate) int {
+				return cmp.Or(boolFirst(a.signal(), b.signal()), cmp.Compare(b.benchOrZero(), a.benchOrZero()),
+					cmp.Compare(a.preferredOrInf(), b.preferredOrInf()), boolFirst(!a.small, !b.small),
+					cmp.Compare(a.quarter(), b.quarter()), boolFirst(a.turnKnown, b.turnKnown), cmp.Compare(a.turn, b.turn),
+					strings.Compare(a.id, b.id))
+			})
+			var six []string
+			groups := map[string]int{}
+			for _, c := range ordered {
+				if len(six) < MaxListed && groups[c.group] < maxPerRankGroup {
+					groups[c.group]++
+					six = append(six, c.id)
+				}
+			}
+			return six
+		}
+		at := band(defaultWorkload)
+		kept := 0
+		for _, id := range at {
+			if slices.Contains(capable, id) {
+				kept++
+			}
+		}
+		distinct := map[string]bool{}
+		for _, h := range []float64{0.6, 0.75, 0.9, 0.96} {
+			for _, o := range []float64{0.005, 0.01, 0.05, 0.12} {
+				distinct[strings.Join(band(workload{cacheShare: h, outputShare: o}), ",")] = true
+			}
+		}
+		if kept != tc.kept || len(at) != tc.size || len(capable) != tc.size || len(distinct) != tc.distinct {
+			t.Errorf("%s: the price's band %v keeps %d of capable's %d %v, %d distinct over the grid; want %d of %d, %d",
+				tc.provider, at, kept, len(capable), capable, len(distinct), tc.kept, tc.size, tc.distinct)
+		}
+	}
+}

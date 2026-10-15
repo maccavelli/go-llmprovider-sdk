@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -46,6 +47,7 @@ type config struct {
 	limit            int          // WithLimit's n; zero or less, the default, is no limit
 	logger           *slog.Logger // Settings.Logger
 	layers           []Layer      // WithModelLayer's, in the order given
+	workload         workload     // WithWorkload's, else the published one
 	// tokens is the credential the options give (WithAPIKey or
 	// WithTokenSource), or nil: CachedFacts finds a listing by it.
 	tokens llmprovider.TokenSource
@@ -68,6 +70,8 @@ type (
 	kiloOrganizationOption string
 	// modelLayerOption is WithModelLayer's value.
 	modelLayerOption struct{ layer Layer }
+	// workloadOption is WithWorkload's value.
+	workloadOption workload
 )
 
 // builtinIDs are the ids WithProfile and WithLimit are scoped to: every built-in provider,
@@ -78,10 +82,9 @@ var builtinIDs = []llmprovider.ProviderID{
 	llmprovider.ProviderKilo, llmprovider.ProviderTogether, llmprovider.ProviderOllama,
 }
 
-// WithProfile selects how the open catalogs (Kilo, OpenCode Zen and Go,
-// Hugging Face, Together) rank their recommended models. The zero value is
-// ProfileUtility. It is scoped to every built-in provider: the open-catalog
-// providers' ListModels rank with it, and the others ignore it.
+// WithProfile selects how a listing ranks its recommended models: every
+// provider's but Ollama's, which has no band (0041-MADR D4). The zero value
+// is ProfileUtility. It is scoped to every built-in provider.
 func WithProfile(p Profile) llmprovider.Option {
 	return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithProfile", profileOption(p))
 }
@@ -96,6 +99,18 @@ func WithProfile(p Profile) llmprovider.Option {
 // provider, as WithProfile is.
 func WithLimit(n int) llmprovider.Option {
 	return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithLimit", listlimit.Value(n))
+}
+
+// WithWorkload sets the agent turn ProfileAgent prices its band by: the
+// share of a turn's input read from the cache, and the share of its tokens
+// that are output (0041-MADR D5). Without it the shares are the published
+// 0.90 and 0.01. ObservedWorkload measures a caller's own. Each must be
+// within (0, 1): List, and a provider's ListModels, refuse another value
+// with ErrInvalidRequest. It orders the band, and never chooses its
+// members. It is scoped to every built-in provider, as WithProfile is.
+func WithWorkload(cacheShare, outputShare float64) llmprovider.Option {
+	return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithWorkload",
+		workloadOption{cacheShare: cacheShare, outputShare: outputShare})
 }
 
 // WithKiloOrganization lists a Kilo organization's catalog: the request
@@ -129,6 +144,7 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 		metadataOff:      st.ModelMetadataDisabled(),
 		logger:           st.Logger(),
 		tokens:           st.TokenSource(),
+		workload:         defaultWorkload,
 	}
 	for _, v := range st.Values() {
 		switch v := v.(type) {
@@ -138,6 +154,12 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 			cfg.KiloOrganization = string(v)
 		case modelLayerOption:
 			cfg.layers = append(cfg.layers, v.layer)
+		case workloadOption:
+			if !share(v.cacheShare) || !share(v.outputShare) {
+				return config{}, fmt.Errorf("%w: catalog.WithWorkload(%v, %v): each share must be within (0, 1)",
+					llmprovider.ErrInvalidRequest, v.cacheShare, v.outputShare)
+			}
+			cfg.workload = workload(v)
 		}
 	}
 	cfg.limit = listlimit.Of(st.Values())

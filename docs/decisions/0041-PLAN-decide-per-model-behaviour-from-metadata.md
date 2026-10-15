@@ -1714,3 +1714,185 @@ search works whatever is recommended, as it did before this phase.
   `tools/linkcheck.py`: 0 problems.
 * **Gate:** `tools/gate.py`, 23 of 23. `g-wire-stable` ran every golden
   three times; the one golden that changed is deviation 3's.
+
+### Phase 5: `ProfileAgent` (2026-10-14)
+
+#### Research
+
+* **P11 to P13.** `Profile` had two values, and `ReasoningEffort` tested
+  for `ProfileCapable`. The capable order and the band's loop are
+  `rankRecommended`'s. `WithProfile`'s doc still named only the open
+  catalogs, which has been out of date since Phase 3 ranked every provider
+  (D4).
+* **Phase 2's `pricesByCanonical`** returned
+  `c.ModelRates, slices.Contains(costFrom(&c, e.Cost), FieldCostCacheRead)`.
+  * The Go spec leaves unspecified when the variable `c` is read, relative
+    to the call that fills it (the spec's "Order of evaluation", and its
+    example with `x[j()]` and `y`).
+  * Today's compiler reads it after the call. `TestCanonicalID_0041`'s
+    check of a 0.25 cache-read price passes at 35c2e47, re-run on a
+    scratch clone.
+  * Phase 5's `withCanonicalRead` is its second caller. That is deviation 1.
+* **The trial.** 0041-MADR D5's figures came from a scratch harness this
+  session wrote, and the clone it ran on is gone.
+  * The harness was recovered from the session transcript.
+    `TestEvidence0041_AgentTrial` reproduces it.
+  * The harness has every models.dev section, and D4's family groups on
+    the one-vendor sections. Its prices come from the document, with the
+    canonical fill.
+  * Its order is: signal, bench, preferred index, not small, the release
+    quarter, the known turn first, the cheaper turn, then id.
+  * The test gives exactly the MADR's numbers, below.
+* **Kilo's prices.** Kilo is ranked from its own listing, not the
+  document. So `kiloCandidate` reads its per-token prompt, completion,
+  cache read and cache write prices, as millions. A cache price counts as
+  known only when its string is present.
+
+#### Deviations
+
+1. **2026-10-14: `pricesByCanonical`'s order of evaluation.**
+   * **Found:** in research, before Phase 5's new caller. See above.
+   * **Decided by the owner** (recommended): keep the fix, and record it.
+     The value is computed into `known` first, and then returned. Nothing
+     measurable changes, so no MADR amendment is needed.
+   * **Added to the phase's scope:** `metadata_document.go`'s two lines.
+2. **2026-10-14: `ObservedWorkload`'s `ok`.**
+   * **Found:** step 2 says `ok` is false "when the sums are zero". A
+     measured share of exactly 0 or 1 is refused by `WithWorkload`, so an
+     `ok` result would not always be usable. A caller with no cached
+     tokens is one case.
+   * **Decided by the owner** (recommended): `ok` means usable. It is
+     false when there is nothing to measure, or when a share is 0 or 1.
+     0041-MADR D5 already gives the shares "for `WithWorkload`", so the
+     MADR stands.
+
+#### What was built
+
+* **`model_profile.go`:**
+  * `ProfileAgent = 2`, documented.
+  * `strongest()`, true for `ProfileCapable` and `ProfileAgent`, gives
+    `ReasoningEffort` its `""`.
+  * `workload{cacheShare, outputShare}`, with `defaultWorkload` from
+    `agentCacheShare = 0.90` and `agentOutputShare = 0.01`. Each constant
+    cites 0041-MADR §7.
+  * `turnPrices`, and `workload.turn`: the cached turn as step 2 states
+    it. It is unknown when the input or output price is.
+  * `share`, and `ObservedWorkload`.
+* **`config.go`:**
+  * `WithWorkload(h, o)`, scoped to the built-in ids. `configFor` refuses
+    a value outside (0, 1), NaN and infinities included, with
+    `ErrInvalidRequest`.
+  * `config.workload` defaults to the published workload.
+  * `WithProfile`'s doc is corrected (Research).
+* **`model_ranking.go`:**
+  * `rankCandidate` gains `prices`, `turn` and `turnKnown`, set by
+    `withTurn`.
+  * `quarter()` is `ageDays / 90`, and an unknown age sorts last.
+  * `agentOrder` is the order step 2 lists, with an unknown turn after a
+    known one.
+  * `agentBand` takes `ProfileCapable`'s ranking at no fewer than six,
+    reorders the first six, and then cuts to the caller's limit.
+    `rankRecommended` sends `ProfileAgent` to it.
+  * Kilo's prices (Research).
+* **`model_metadata.go` and `discovery.go`:**
+  * `metadataCandidate` sets the turn prices from the document.
+  * `metadataCurate` and `kiloCurate` take the workload. Each candidate
+    gets the canonical read fill (`withCanonicalRead`), then its turn.
+* **`metadata_document.go`:**
+  * `withCanonicalRead`, and `pricesOf` for the evidence test;
+  * deviation 1.
+* **Docs:**
+  * `Profile`'s doc and `WithProfile`'s;
+  * `docs/architecture.md`: the package row, `List`'s options, the
+    `Profile` bullet, and a `ProfileAgent` bullet (R43).
+
+#### The agent bands, measured
+
+On the 2026-10-12 snapshot, through `List` with `WithLimit(MaxListed)`.
+`TestProfileAgent_Snapshot_0041` pins both the published and the
+(0.5, 0.05) columns.
+
+| Provider | `ProfileCapable` | `ProfileAgent`, published workload | `ProfileAgent`, (0.5, 0.05) |
+| :--- | :--- | :--- | :--- |
+| OpenCode Zen | mistral-large-4, gpt-6.1-sol, claude-sonnet-5-5, claude-opus-5-5, gpt-6-sol, grok-4.7 | mistral-large-4, gpt-6.1-sol, claude-sonnet-5-5, gpt-6-sol, grok-4.7, claude-opus-5-5 | mistral-large-4, grok-4.7, gpt-6.1-sol, claude-sonnet-5-5, gpt-6-sol, claude-opus-5-5 |
+| OpenCode Go | grok-4.7, glm-5.3, grok-4.6, qwen3.8-max, kimi-k3, glm-5.2 | glm-5.3, qwen3.8-max, grok-4.6, grok-4.7, kimi-k3, glm-5.2 | glm-5.3, grok-4.6, grok-4.7, qwen3.8-max, kimi-k3, glm-5.2 |
+| Kilo | openai/gpt-6-astra, anthropic/claude-fable-5.1, openai/gpt-5.6-sol, deepseek/deepseek-v4.1-flash, google/gemini-3.8-flash, x-ai/grok-4.6 | the same | the same |
+| Hugging Face | zai-org/GLM-5.3, Qwen/Qwen3.8-27B, Qwen/Qwen3.8-2.4T-A95B, deepseek-ai/DeepSeek-V4-Pro-0813, moonshotai/Kimi-K3, thinkingmachines/Inkling | Qwen/Qwen3.8-27B, thinkingmachines/Inkling, deepseek-ai/DeepSeek-V4-Pro-0813, zai-org/GLM-5.3, Qwen/Qwen3.8-2.4T-A95B, moonshotai/Kimi-K3 | the same as published |
+| Together | zai-org/GLM-5.3, deepseek-ai/DeepSeek-V4-Pro-0813, moonshotai/Kimi-K3, thinkingmachines/Inkling, zai-org/GLM-5.2, nvidia/nemotron-3-ultra-550b-a55b | deepseek-ai/DeepSeek-V4-Pro-0813, thinkingmachines/Inkling, zai-org/GLM-5.3, moonshotai/Kimi-K3, nvidia/nemotron-3-ultra-550b-a55b, zai-org/GLM-5.2 | thinkingmachines/Inkling, deepseek-ai/DeepSeek-V4-Pro-0813, zai-org/GLM-5.3, moonshotai/Kimi-K3, nvidia/nemotron-3-ultra-550b-a55b, zai-org/GLM-5.2 |
+
+* Every agent band holds its capable band's members.
+* Kilo's order is capable's at both workloads: its quality signals
+  decide before the price.
+* The trial (`TestEvidence0041_AgentTrial`) gives the MADR's figures.
+  "Kept" is how many of the price-chosen six are in capable's six;
+  "distinct" is how many different bands the 16 workloads give:
+
+  | Section | Kept | Distinct |
+  | :--- | :--- | :--- |
+  | OpenAI | 6 of 6 | 1 |
+  | Claude | 6 of 6 | 1 |
+  | Gemini | 4 of 5 | 1 |
+  | Grok | 3 of 3 | 1 |
+  | Zen | 1 of 6 | 4 |
+  | Go | 5 of 6 | 3 |
+  | Hugging Face | 6 of 6 | 1 |
+  | Together | 6 of 6 | 3 |
+  | Kilo | 1 of 6 | 12 |
+
+#### Tests, red and green
+
+* **Red** (the tests written first):
+
+  ```text
+  profile_agent_0041_test.go:20:12: undefined: ProfileAgent
+  profile_agent_0041_test.go:47:68: undefined: workload
+  profile_agent_0041_test.go:50:3: unknown field prices in struct literal of type rankCandidate
+  profile_agent_0041_test.go:50:11: undefined: turnPrices
+  profile_agent_0041_test.go:58:7: undefined: defaultWorkload
+  ```
+
+  The behaviour each test checks was seen failing through the plants
+  below, the build intact.
+* **Green:**
+  * Step 3's tests: `TestProfileAgent_ReasoningEffort_0041`,
+    `TestProfileAgent_Members_0041`, `TestProfileAgent_Order_0041`,
+    `TestCachedTurn_0041`, `TestWithWorkload_0041`,
+    `TestObservedWorkload_0041` and `TestEvidence0041_AgentTrial`.
+  * Beyond step 3:
+    * `TestProfileAgent_Snapshot_0041`: the table above;
+    * `TestKiloTurnPrices_0041`: Kilo's four prices, and no cache price
+      without one.
+  * `TestWithWorkload_0041` also refuses infinity.
+  * `band_0041_test.go` and `menu_0041_test.go` pass the published
+    workload to `metadataCurate`'s new parameter.
+  * `go test ./...` passes.
+
+#### Plants (`tools/plant.py`, 10 of 10 caught)
+
+| Plant | FAIL line |
+| :--- | :--- |
+| members chosen by price (PLAN) | `opencode-go: agent band [mimo-v2.6-flash claude-haiku-5-5 …]; want capable's members [grok-4.7 glm-5.3 …]`, on every provider and section |
+| the bucket removed (PLAN) | `agent order [unpriced-new dear-new cheap-new cheapest-old]; want [cheap-new dear-new unpriced-new cheapest-old]` |
+| `h` and `o` swapped (PLAN) | `uncached turn 9.2, true; want 2.08` |
+| the canonical fill skipped (PLAN) | `a/claude-x: read 0, known false; want the canonical model's 0.2` |
+| the range check removed (PLAN) | `WithWorkload(0, 0.5): <nil>; want ErrInvalidRequest`, and five more |
+| an unknown turn not last | `agent order [unpriced-new cheap-new dear-new cheapest-old]; want …` |
+| Kilo's cache read ignored | `prices {… read:0 … readKnown:false …}; want 2, 10, 0.2 and 2.5, each known` |
+| the curated candidates' turn not computed | `TestProfileAgent_Snapshot_0041`: `opencode-zen:` and every other priced provider |
+| `ObservedWorkload`'s share check removed | `no cached tokens, a share of 0: ok true` |
+| `ProfileAgent`'s effort low | `ProfileAgent.ReasoningEffort() = "low"; want ""` |
+
+#### Checks
+
+* `make pre-add-check` on the 10 Go files: clean (gofmt, golangci-lint,
+  go vet, go test, govulncheck).
+* `tools/apidiff.py 35c2e47`: `ObservedWorkload`, `ProfileAgent` and
+  `WithWorkload`, all added, and nothing else.
+* **Gate:** `tools/gate.py`, 23 of 23.
+  * The first run gave 21 of 23. `records-check` and `gate-selftest`
+    found the index at 90 records while 91 were on disk. Another session
+    was adding `docs/reports/0017-REPORT-openai-sign-in-for-agents.md` and
+    its index row while the gate copied the tree.
+  * Once both had landed, `make records-check` gave 91 records and
+    0 problems, and the second run gave 23 of 23.
+  * That report is not this phase's, and is not staged with it.
