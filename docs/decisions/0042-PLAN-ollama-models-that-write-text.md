@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-14
 associated-madr: "0042-MADR-ollama-models-that-write-text.md"
 ---
@@ -1044,3 +1044,84 @@ and S5 fail.
 * **Gate:** `tools/gate.py, 23 of 23`.
 * `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
   and `tools/linkcheck.py`: in the staging run.
+
+### Phase 3: the live check, and closing the records (2026-10-14)
+
+`<base>` is 84fa102, Phase 2's commit.
+
+#### The live test
+
+`llmprovider/catalog/live_ollama_0042_test.go`
+(`TestLive_OllamaWritesText_0042`, `live_gateways`):
+
+* It skips unless `http://localhost:11434/api/tags` answers within 1 s.
+* It reads `fetchOllamaTags`, then `fetchOllamaShow` for each model, then
+  `List`.
+* It asserts step 1's four checks, and logs the counts. Nothing it sends
+  generates.
+
+#### Runs against the local Ollama 0.33.2
+
+1. **The install as it was, 8 chat models,** green:
+   `installed 8, listed 8, left out 0, /api/show failed 0, tool-less recommended 1`.
+   The tool-less model is `gemma3:12b`.
+2. **The embedding model.** Approved by the owner on 2026-10-14 ("you may
+   pull an embedding model").
+   * The smallest embedding model on ollama.com is `all-minilm:latest`, at
+     46 MB, read from its library page before pulling.
+   * It is also one of the four embedding models the `embed` name rule
+     misses (0042-MADR section 2).
+   * Pulled with `ollama pull all-minilm`. Both endpoints report
+     `["embedding"]` for it. That is the first real embedding model seen
+     reporting it here.
+3. **With it installed,** green:
+   `installed 9, listed 8, left out 1, /api/show failed 0, tool-less recommended 1`.
+4. **Removed** with `ollama rm all-minilm`. `/api/tags` lists the original
+   8 models again.
+
+#### Plants (`tools/plant.py`, live, 2 of 2 caught)
+
+| Plant | FAIL line |
+| :--- | :--- |
+| `/api/tags` says no model writes text | `llama3.2:latest: /api/tags ([completion tools]) and /api/show ([text]) disagree on writing text`, for each of the 8 chat models |
+| the filter removed | `all-minilm:latest is listed, but its facts say it writes no text` |
+
+Both ran with `all-minilm` installed, so the filter plant was seen to fail
+live. Step 2's fallback, recording that assertion 1 ran with nothing to
+exclude, was not needed.
+
+#### Checks
+
+* `go vet -tags live_gateways ./...`: clean.
+* `make pre-add-check` on the live file: clean (gofmt, golangci-lint,
+  go vet, go test, govulncheck).
+* `tools/apidiff.py 84fa102`: no exported change.
+* **Gate:** `tools/gate.py, 23 of 23`.
+* `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
+  and `tools/linkcheck.py`: in the staging run.
+
+#### Acceptance criteria
+
+| # | Met by |
+| :--- | :--- |
+| AC1 | `TestOllamaUsable_0042` S1, S3, S6, S7 and S8; live assertion 1, with `all-minilm` installed |
+| AC2 | S4, S5 |
+| AC3 | S4b, and `TestOllamaUsable_TagsNotCached_0042` |
+| AC4 | S9 |
+| AC5 | `TestLookupModel_Listings_0033`'s Ollama row |
+| AC6 | S2, M1 to M4; `TestMenu_Caveats_0041` and `TestMenu_Snapshot_0041` unchanged |
+| AC7 | `TestListModels_LeavesOutNonText_0042`, `TestListModels_KeepsToolless_0042`, `TestConfigureLLM_OllamaLeavesOutEmbedding_0042`, `TestConfigureLLM_OllamaToolless_0042` |
+| AC8 | `/api/show` counts in S1 to S9: one per installed model not cached |
+| AC9 | `tools/apidiff.py` at each phase: no exported change |
+| AC10 | the plant tables of Phases 1, 2 and 3: 9, 8 and 2 caught |
+| AC11 | `TestWireGoldens`, with no `-update`, in each phase |
+| AC12 | live assertion 3, over 8 chat models and `all-minilm` |
+| AC13 | the gate, 23 of 23, at each phase |
+
+#### What is left to the owner
+
+* **Issue 1's comment** is drafted. It names a4fe9f4 and 84fa102, so it
+  waits until those are pushed. It is posted, and the issue closed on the
+  release that carries them, only on the owner's ask.
+* **The release** is 0041-PLAN Phase 9's.
+* **prepare-commit-msg's pin** is that repository's work.

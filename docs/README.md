@@ -100,7 +100,7 @@ documents a reader follows to do something.
 | 0041 | MADR | [Order a Live Model Menu, and Decide Per-Model Behaviour, From Model Facts](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md) | accepted |
 | 0041 | PLAN | [Implement a Live Model Menu, and Per-Model Behaviour, From Model Facts](decisions/0041-PLAN-decide-per-model-behaviour-from-metadata.md) | in-progress |
 | 0042 | MADR | [List Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-MADR-ollama-models-that-write-text.md) | accepted |
-| 0042 | PLAN | [Implement Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-PLAN-ollama-models-that-write-text.md) | in-progress |
+| 0042 | PLAN | [Implement Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-PLAN-ollama-models-that-write-text.md) | complete |
 
 ## I want to…
 
