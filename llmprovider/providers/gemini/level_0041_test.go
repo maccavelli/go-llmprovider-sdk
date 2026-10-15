@@ -85,12 +85,22 @@ func TestThinkingLevel_Wired_0041(t *testing.T) {
 	}
 }
 
+// agreementSnapshotDir is the snapshot the agreement test reads: the one
+// LLMPROVIDER_SNAPSHOT_DIR names, as tools/catalogcheck.py sets it, else the
+// committed one (0041-MADR D7; 0041-PLAN Phase 7).
+func agreementSnapshotDir() string {
+	if dir := os.Getenv("LLMPROVIDER_SNAPSHOT_DIR"); dir != "" {
+		return dir
+	}
+	return filepath.Join("..", "..", "catalog", "testdata", "ranking-2026-10-12")
+}
+
 // TestAgreement0041_GeminiLevel is D7's offline half for R5: on the committed
 // snapshot, the level from models.dev's facts equals thinkingLevel's for
 // every Google model with listed efforts, at every effort, except the listed
 // set.
 func TestAgreement0041_GeminiLevel(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "catalog", "testdata", "ranking-2026-10-12", "metadata.json"))
+	raw, err := os.ReadFile(filepath.Join(agreementSnapshotDir(), "metadata.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

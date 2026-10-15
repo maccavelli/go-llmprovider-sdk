@@ -94,11 +94,21 @@ func TestGrokEfforts_Facts_0041(t *testing.T) {
 	}
 }
 
+// agreementSnapshotDir is the snapshot the agreement test reads: the one
+// LLMPROVIDER_SNAPSHOT_DIR names, as tools/catalogcheck.py sets it, else the
+// committed one (0041-MADR D7; 0041-PLAN Phase 7).
+func agreementSnapshotDir() string {
+	if dir := os.Getenv("LLMPROVIDER_SNAPSHOT_DIR"); dir != "" {
+		return dir
+	}
+	return filepath.Join("..", "..", "catalog", "testdata", "ranking-2026-10-12")
+}
+
 // TestAgreement0041_GrokEfforts is D7's offline half for R6: on the committed
 // snapshot, the menu from models.dev's facts equals effortMenu for every xAI
 // model both answer, except the listed set.
 func TestAgreement0041_GrokEfforts(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "catalog", "testdata", "ranking-2026-10-12", "metadata.json"))
+	raw, err := os.ReadFile(filepath.Join(agreementSnapshotDir(), "metadata.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

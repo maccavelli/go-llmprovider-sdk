@@ -279,6 +279,13 @@ The tests are behind `LLMPROVIDER_LIVE_0033`, in
 
 ### Phase 7: measure, then record the snapshot *(amended 2026-10-12)*
 
+*2026-10-15, from 0041-PLAN Phase 7: at each refresh, also run
+`tools/catalogcheck.py`, which records the snapshot with the command and
+reports each rule that differs from the facts, and how many of each open
+catalog's six changed since the newest committed snapshot. Its report goes
+in the Execution Record with the command's diffs; a change it reports is
+for the owner to review, and is not a failure (0041-MADR D7).*
+
 1. **Run the command** (listings and models.dev: not billed). The printed
    diffs, for the five ranked lists and the vendor review lines, go in the
    Execution Record. The ids to add are those the diffs name, and nothing

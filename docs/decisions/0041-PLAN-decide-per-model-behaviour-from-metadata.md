@@ -2080,3 +2080,157 @@ The plants ran again after the `fetchClaimed` change: 11 of 11.
 * **Gate:** `tools/gate.py, 23 of 23`.
 * `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
   and `tools/linkcheck.py`: in the staging run.
+
+### Phase 7: the refresh check (2026-10-15)
+
+#### Research
+
+* **The command.** `internal/cmd/catalogs -snapshot DIR` writes a new
+  directory:
+  * each ranked list's listing body, the four public ones read with no key
+    and the others with their provider's key when it is set;
+  * the document's sections the SDK reads;
+  * `snapshot.json`, with `recorded_at` and each file's SHA-256.
+
+  It prints "`<provider>: <VAR> unset; its listing is skipped`" for each
+  unset key, and never prints a key. The committed
+  `testdata/ranking-2026-10-12` has that layout: `zen.json`, `go.json`,
+  `kilo.json`, `hf.json`, `together.json`, `metadata.json` and
+  `snapshot.json`.
+* **The agreement tests.**
+  * `TestAgreement0041_MessagesThinking` (R1, R2) and
+    `TestAgreement0041_GeminiConfig` (R4) are in `catalog`, and read
+    `evidence0041Dir`.
+  * `TestAgreement0041_GeminiLevel` (R5) is in `providers/gemini`, and
+    `TestAgreement0041_GrokEfforts` (R6) in `providers/grok`. Each
+    hard-codes `../../catalog/testdata/ranking-2026-10-12/metadata.json`
+    (`level_0041_test.go:93`, `efforts_0041_test.go:101`).
+  * Each reports one line per rule, "`facts and the rule differ on […];
+    want only […]`", and logs each differing model with `-v`.
+* **`LLMPROVIDER_SNAPSHOT_DIR`** is read nowhere. Step 1 assumes it.
+* **The sixes.** Nothing prints a snapshot's sixes. `replaySnapshot(t,
+  dir, provider, profile, opts…)` builds a provider's `Catalog` from any
+  snapshot directory, and `latestSnapshot` picks the newest committed
+  one.
+
+#### Deviations
+
+1. **2026-10-15: how the check reads a new snapshot.**
+   * **Found:** in research, before any code. No test reads
+     `LLMPROVIDER_SNAPSHOT_DIR`, and nothing prints the sixes.
+   * **Decided by the owner** (recommended):
+     * `evidence0041Dir` and the two provider agreement tests read
+       `LLMPROVIDER_SNAPSHOT_DIR` when it is set, else the committed
+       snapshot. This is test code only.
+     * One printer test, `TestCatalogCheck0041_Sixes`, skipped unless the
+       variable is set, prints each open catalog's six under each
+       profile.
+     * `catalogcheck.py` gains `--dir DIR`, to check an existing snapshot
+       with no network. Its tests use it on planted fixtures.
+   * **Added to the phase's scope:**
+     * `llmprovider/catalog/evidence_0041_test.go`;
+     * `llmprovider/providers/gemini/level_0041_test.go`;
+     * `llmprovider/providers/grok/efforts_0041_test.go`;
+     * the new `llmprovider/catalog/catalogcheck_0041_test.go`.
+   * D7 names no variable, so the MADR stands.
+
+#### What was built
+
+* **`tools/catalogcheck.py`:**
+  * Without `--dir`, it records a snapshot with
+    `go run ./llmprovider/internal/cmd/catalogs -snapshot DIR`, into
+    `--out`, which must not exist, or a new temporary directory. It
+    relays the listings the command skipped. It reads no key and prints
+    none.
+  * With `--dir`, it checks an existing snapshot, and sends no request.
+  * It runs the `TestAgreement0041_` tests in `catalog`,
+    `providers/gemini` and `providers/grok`, with
+    `LLMPROVIDER_SNAPSHOT_DIR`, and lists each failing one with its logged
+    models.
+  * It runs `TestCatalogCheck0041_Sixes` for the snapshot and for the
+    baseline (`--baseline`, or the newest committed
+    `testdata/ranking-*/`). It reports each open catalog's six under each
+    profile, as unchanged or as "`n of 6 changed: +… -…`".
+  * Exit 0 is clean, 1 a finding, 2 a tool error. It never edits.
+* **Deviation 1's test changes:**
+  * `evidence0041Dir` reads `LLMPROVIDER_SNAPSHOT_DIR` through
+    `snapshotDirOr`;
+  * `providers/gemini` and `providers/grok` each gain
+    `agreementSnapshotDir`;
+  * `catalogcheck_0041_test.go` holds the printer, skipped without the
+    variable.
+* **Tests** (`tools/test_tools.py`, `TestCatalogCheck`):
+  * a clean copy of the committed snapshot gives exit 0;
+  * a planted copy gives exit 1, and names each planted model:
+    * Claude Haiku 4.5's budget minimum (R1, R2);
+    * Gemini Flash's efforts, which move both R4 and R5;
+    * Grok 4.7's efforts (R6);
+    * a model removed from Kilo's six;
+  * a directory without `snapshot.json`, and an `--out` that exists, each
+    give exit 2.
+* **Docs:**
+  * `tools/README.md`'s row;
+  * 0033-PLAN's Phase 7, by a dated note: the refresh runs the check, and
+    its report goes in the Execution Record.
+
+#### Runs
+
+* **The committed snapshot:**
+  `tools/catalogcheck.py --dir llmprovider/catalog/testdata/ranking-2026-10-12`
+  gives `rules: 0 differ from the facts`, and each of the 15 sixes
+  unchanged, exit 0.
+* **The planted fixture:** `rules: 4 differ from the facts`, each with
+  its model:
+  * `claude/claude-haiku-4-5 at "low": rule …budget_tokens":1024…, facts …4096…`;
+  * R4 and R5 on `gemini-flash-latest`;
+  * R6 on `grok-4.7`.
+
+  And `sixes …: 3 changed`:
+  * `kilo utility: 1 of 6 changed: +meta/muse-spark-1.2; -deepseek/deepseek-v4.1-flash`;
+  * Kilo's capable and agent sixes, each with `+moonshotai/kimi-k3`.
+
+  Exit 1.
+* **The plants, found first.** Before the fixture was written, edits were
+  tried on scratch copies to find ones that move each rule:
+  * a budget minimum of 4096 moves R1/R2 on that model alone;
+  * `reasoning: false` moves nothing;
+  * dropping the reasoning options makes the model silent instead.
+
+#### Tests, red and green
+
+* **Red.** The tests were written after the tool, so their red is the
+  plants below. Each was seen failing on a deliberate breach, the build
+  intact.
+* **Green:**
+  * `make tools-test`: 45 tests, OK;
+  * `TestCatalogCheck`, also under the system's Python 3.9;
+  * `go test ./llmprovider/...`. The variable is unset there, so the
+    agreement tests read the committed snapshot, as before.
+
+#### Plants (`tools/plant.py`, the command `unittest … -k TestCatalogCheck`, 10 of 10 caught)
+
+| Plant | Caught by |
+| :--- | :--- |
+| the snapshot not passed to the agreement tests | `test_a_planted_snapshot_reports_both` |
+| a failing agreement test not counted | the same |
+| a changed six ignored | the same |
+| the baseline compared with itself | the same |
+| a failed command not a tool error | `test_an_existing_out_is_a_tool_error` |
+| a directory without a snapshot accepted | `test_a_dir_without_a_snapshot_is_a_tool_error` |
+| `catalog`'s agreement tests ignore the variable | `test_a_planted_snapshot_reports_both` |
+| the Gemini agreement test ignores the variable | the same |
+| the Grok agreement test ignores the variable | the same |
+| the sixes printer ignores the variable | the same |
+
+#### Checks
+
+* `make pre-add-check` on the 4 Go files: clean (gofmt, golangci-lint,
+  go vet, go test, govulncheck).
+* `tools/apidiff.py 1d4e8ba`: no exported change.
+* **Gate:** `tools/gate.py, 23 of 23`.
+* `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
+  and `tools/linkcheck.py`: in the staging run.
+* **Not run:** a live `tools/catalogcheck.py` without `--dir`.
+  * It reads the public listings, and the keyed ones whose keys are set.
+  * Phase 9's live check covers the release. A refresh runs it by
+    0033-PLAN's note.

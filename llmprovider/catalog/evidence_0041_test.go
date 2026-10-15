@@ -24,8 +24,19 @@ import (
 // asserted in providers/grok, which imports this package (Phase 0,
 // deviation 2).
 
-// evidence0041Dir is the snapshot 0041-MADR measured.
-var evidence0041Dir = filepath.Join("testdata", "ranking-2026-10-12")
+// evidence0041Dir is the snapshot 0041-MADR measured, or the one
+// LLMPROVIDER_SNAPSHOT_DIR names, as tools/catalogcheck.py sets it for the
+// agreement tests (0041-MADR D7; 0041-PLAN Phase 7). The evidence tests pin
+// the measured snapshot's figures, and fail on any other.
+var evidence0041Dir = snapshotDirOr(filepath.Join("testdata", "ranking-2026-10-12"))
+
+// snapshotDirOr is LLMPROVIDER_SNAPSHOT_DIR when it is set, else dir.
+func snapshotDirOr(dir string) string {
+	if v := os.Getenv("LLMPROVIDER_SNAPSHOT_DIR"); v != "" {
+		return v
+	}
+	return dir
+}
 
 // evidence0041Doc decodes the snapshot's models.dev document and pins the
 // ranking clock at its recorded_at.

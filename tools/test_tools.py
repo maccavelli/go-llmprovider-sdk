@@ -17,6 +17,7 @@ import getpass
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -26,6 +27,7 @@ from unittest import mock
 
 import _common
 import apidiff
+import catalogcheck
 import claims
 import consumer
 import denyscan
@@ -472,6 +474,64 @@ class TestClaims(unittest.TestCase):
         self.assertEqual(rc, 2)
         rc, _ = call(claims.main, "x.md", "--repo", "noequals")
         self.assertEqual(rc, 2)
+
+
+class TestCatalogCheck(unittest.TestCase):
+    """0041-PLAN Phase 7: a planted disagreement and a changed six are each reported; a clean snapshot is not."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = Path(tempfile.mkdtemp())
+        base = catalogcheck.latest_snapshot()
+        assert base is not None
+        cls.clean = cls.tmp / "clean"
+        shutil.copytree(base, cls.clean)
+        cls.planted = cls.tmp / "planted"
+        shutil.copytree(base, cls.planted)
+        # A rule that differs in each package the agreement tests are in: Claude Haiku 4.5's budget
+        # minimum, which R1's rule sends as 1024 (catalog); Gemini Flash's efforts (R5,
+        # providers/gemini); Grok 4.7's efforts (R6, providers/grok).
+        meta = cls.planted / "metadata.json"
+        doc = json.loads(meta.read_text(encoding="utf-8"))
+        doc["anthropic"]["models"]["claude-haiku-4-5"]["reasoning_options"] = [{"type": "budget_tokens", "min": 4096}]
+        doc["google"]["models"]["gemini-flash-latest"]["reasoning_options"] = [
+            {"type": "effort", "values": ["minimal", "high"]}]
+        doc["xai"]["models"]["grok-4.7"]["reasoning_options"] = [{"type": "effort", "values": ["low", "high"]}]
+        meta.write_text(json.dumps(doc), encoding="utf-8")
+        # A changed six: a model of Kilo's utility six leaves the listing.
+        kilo = cls.planted / "kilo.json"
+        listing = json.loads(kilo.read_text(encoding="utf-8"))
+        listing["data"] = [m for m in listing["data"] if m["id"] != "deepseek/deepseek-v4.1-flash"]
+        kilo.write_text(json.dumps(listing), encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_a_clean_snapshot_reports_nothing(self) -> None:
+        rc, out = call(catalogcheck.main, "--dir", str(self.clean))
+        self.assertEqual(rc, 0, out)
+        self.assertIn("rules: 0 differ", out)
+        self.assertIn(": 0 changed", out)
+
+    def test_a_planted_snapshot_reports_both(self) -> None:
+        rc, out = call(catalogcheck.main, "--dir", str(self.planted))
+        self.assertEqual(rc, 1, out)
+        # The Gemini edit moves both R4 (catalog) and R5 (providers/gemini).
+        self.assertIn("rules: 4 differ", out)
+        for test, model in (("MessagesThinking", "claude/claude-haiku-4-5"), ("GeminiConfig", "gemini-flash-latest"),
+                            ("GeminiLevel", "gemini-flash-latest"), ("GrokEfforts", "grok-4.7")):
+            self.assertRegex(out, rf"TestAgreement0041_{test}:\n(    .*\n)*    .*{re.escape(model)}")
+        self.assertRegex(out, r"kilo utility: \d of 6 changed: .*-deepseek/deepseek-v4\.1-flash")
+
+    def test_a_dir_without_a_snapshot_is_a_tool_error(self) -> None:
+        rc, out = call(catalogcheck.main, "--dir", str(self.tmp))
+        self.assertEqual(rc, 2, out)
+
+    def test_an_existing_out_is_a_tool_error(self) -> None:
+        rc, out = call(catalogcheck.main, "--out", str(self.clean))
+        self.assertEqual(rc, 2, out)
+        self.assertIn("the catalogs command failed", out)
 
 
 if __name__ == "__main__":
