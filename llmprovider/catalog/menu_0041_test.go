@@ -309,8 +309,9 @@ func ollamaShowServer(t *testing.T, names []string, noTools map[string]bool) (*h
 }
 
 // TestMenu_Ollama_0041: Ollama's menu is the installed models in /api/tags
-// order, those /api/show marks as taking no tools after the others and out
-// of Recommended; each reply is asked for once and cached.
+// order, those /api/show marks as taking no tools after the others, and in
+// Recommended after them (0042-MADR D2); each reply is asked for once and
+// cached.
 func TestMenu_Ollama_0041(t *testing.T) {
 	resetLookupCaches(t)
 	srv, shows := ollamaShowServer(t, []string{"b:1", "notools:1", "a:1"}, map[string]bool{"notools:1": true})
@@ -326,7 +327,7 @@ func TestMenu_Ollama_0041(t *testing.T) {
 	if got, want := menuIDs(cat.Menu), []string{"b:1", "a:1", "notools:1"}; !slices.Equal(got, want) {
 		t.Errorf("menu %v; want %v", got, want)
 	}
-	if want := []string{"b:1", "a:1"}; !slices.Equal(cat.Recommended, want) {
+	if want := []string{"b:1", "a:1", "notools:1"}; !slices.Equal(cat.Recommended, want) {
 		t.Errorf("Recommended %v; want %v", cat.Recommended, want)
 	}
 	if !slices.Equal(cat.Usable, []string{"b:1", "notools:1", "a:1"}) {

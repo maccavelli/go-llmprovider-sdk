@@ -170,8 +170,9 @@ provider's model list, and curates it into a `Catalog`. Every provider ranks
 by `Profile`, with the model metadata unless `WithoutModelMetadata` is set;
 OpenAI, Claude, Gemini and Grok rank by their name curators only with no
 document (0041-MADR D4). A failed fetch gives the static catalog, with the failure in `Err`. A
-listing in which every model has a caveat stays live, with an empty
-`Recommended` and the listing in `Usable` to search. A provider's own
+listing in which every model has a caveat stays live (on Ollama, a caveat
+other than `CaveatNoTools`), with an empty `Recommended` and the listing in
+`Usable` to search. A provider's own
 `ListModels` (`ModelLister`) returns its listing, probed by default where the
 provider probes.
 
@@ -615,7 +616,8 @@ for a session, from the store.
   facts (`ModelInfo`, merged as `CachedFacts` merges them), its rank in the
   band (1 to 6, or 0) and its caveats (0041-MADR D3, A4):
   - the band by rank, then the uncaveated, then the caveated, each newest
-    first, then by id; `Recommended` is the menu less the caveated;
+    first, then by id; `Recommended` is the menu less the caveated (Ollama keeps its
+    tool-less models: 0042-MADR D2);
   - a `Caveat` sinks a model, and never drops it: `CaveatDeprecated` (a
     deprecated or retired status), `CaveatNoTools`, `CaveatNoTextOutput`,
     `CaveatExpiring` (a retirement date within 30 days) and
@@ -628,7 +630,7 @@ for a session, from the store.
   - Ollama's keeps `/api/tags` order, with no band. `List` asks
     `/api/show` for each installed model not cached, four at a time, and
     caches the replies; a model it marks as taking no tools follows the
-    others, out of `Recommended`. A model Ollama says writes no text,
+    others, and stays in `Recommended` (0042-MADR D2). A model Ollama says writes no text,
     such as an embedding model, is not listed (0042-MADR D1).
 - `catalog.Search` matches a query against a list, highest tier first and
   in the list's order within a tier: the id exactly, as a prefix or a

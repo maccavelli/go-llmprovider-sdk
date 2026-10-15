@@ -1715,6 +1715,14 @@ search works whatever is recommended, as it did before this phase.
 * **Gate:** `tools/gate.py`, 23 of 23. `g-wire-stable` ran every golden
   three times; the one golden that changed is deviation 3's.
 
+*2026-10-14, a cross-reference.*
+[0042-PLAN-ollama-models-that-write-text.md](0042-PLAN-ollama-models-that-write-text.md)
+Phase 2 changed `TestMenu_Ollama_0041`'s `Recommended` assertion to
+`[b:1 a:1 notools:1]`: on Ollama, a model whose only caveat is
+`CaveatNoTools` stays recommended (0042-MADR D2; 0041-MADR A5). The
+plant above, "Ollama's caveated left in `Recommended`", describes the
+behaviour before that change.
+
 ### Phase 5: `ProfileAgent` (2026-10-14)
 
 #### Research

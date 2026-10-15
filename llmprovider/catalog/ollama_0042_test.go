@@ -152,7 +152,8 @@ func TestOllamaInfo_Output_0042(t *testing.T) {
 // TestOllamaUsable_0042: Ollama's listing leaves out each model Ollama says
 // writes no text, from /api/show or, where that fails, /api/tags, and keeps
 // a model it cannot judge; a caller's layer decides over both (0042-MADR
-// D1, PLAN Phase 1).
+// D1). A model whose only caveat is no tools stays recommended, after the
+// others (D2).
 func TestOllamaUsable_0042(t *testing.T) {
 	embedAsText := staticLayer{name: "caller",
 		info: ModelInfo{ID: "granite-embedding:30m", Output: []Modality{ModalityText}}.Known(FieldOutput)}
@@ -167,8 +168,8 @@ func TestOllamaUsable_0042(t *testing.T) {
 	}{
 		{name: "S1", models: ollama0042S1, usable: chats, recommended: chats, menu: chats, asked: 4},
 		{name: "S2", models: []ollama0042Model{{"gemma3:12b", "", `["completion","vision"]`}, {"codellama:7b", "", `["completion","insert"]`}},
-			usable: []string{"gemma3:12b", "codellama:7b"}, menu: []string{"gemma3:12b", "codellama:7b"},
-			noTools: []string{"gemma3:12b", "codellama:7b"}, asked: 2},
+			usable: []string{"gemma3:12b", "codellama:7b"}, recommended: []string{"gemma3:12b", "codellama:7b"},
+			menu: []string{"gemma3:12b", "codellama:7b"}, noTools: []string{"gemma3:12b", "codellama:7b"}, asked: 2},
 		{name: "S3", models: []ollama0042Model{{"embed-tools:1", "", `["tools","embedding"]`}, {"chat:1", "", capsChat}},
 			usable: []string{"chat:1"}, recommended: []string{"chat:1"}, menu: []string{"chat:1"}, asked: 2},
 		{name: "S4", models: []ollama0042Model{{"granite-embedding:30m", "", "500"}, {"chat:1", "", capsChat}},
@@ -186,7 +187,7 @@ func TestOllamaUsable_0042(t *testing.T) {
 		{name: "S8", models: []ollama0042Model{{"granite-embedding:30m", "", capsEmbedding}, {"nomic-embed-text:latest", "", capsEmbedding}},
 			asked: 2},
 		{name: "S9", models: ollama0042S1, opts: []llmprovider.Option{WithModelLayer(embedAsText)},
-			usable: append([]string{"granite-embedding:30m"}, chats...), recommended: chats,
+			usable: append([]string{"granite-embedding:30m"}, chats...), recommended: append(slices.Clone(chats), "granite-embedding:30m"),
 			menu: append(slices.Clone(chats), "granite-embedding:30m"), noTools: []string{"granite-embedding:30m"}, asked: 4},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -245,5 +246,54 @@ func TestOllamaUsable_TagsNotCached_0042(t *testing.T) {
 	s.list(t)
 	if got, want := s.asked(), map[string]int{"granite-embedding:30m": 2, "chat:1": 1}; !maps.Equal(got, want) {
 		t.Errorf("/api/show asked %v after two listings; want %v", got, want)
+	}
+}
+
+// deprecatedLayer is a caller's layer marking id deprecated.
+func deprecatedLayer(id string) llmprovider.Option {
+	return WithModelLayer(staticLayer{name: "caller-" + id,
+		info: ModelInfo{ID: id, Status: StatusDeprecated}.Known(FieldStatus)})
+}
+
+// TestOllamaRecommended_0042: on Ollama, a model whose only caveat is no
+// tools stays in Recommended, after the uncaveated ones; any other caveat
+// keeps a model out; WithLimit cuts both views (0042-MADR D2).
+func TestOllamaRecommended_0042(t *testing.T) {
+	m1 := []ollama0042Model{{"na:1", "", `["completion"]`}, {"tb:1", "", capsChat}, {"nc:1", "", `["completion"]`},
+		{"td:1", "", capsChat}}
+	for _, tc := range []struct {
+		name              string
+		opts              []llmprovider.Option
+		menu, recommended []string
+		caveats           map[string][]Caveat
+	}{
+		{name: "M1", opts: []llmprovider.Option{WithLimit(0)},
+			menu: []string{"tb:1", "td:1", "na:1", "nc:1"}, recommended: []string{"tb:1", "td:1", "na:1", "nc:1"},
+			caveats: map[string][]Caveat{"na:1": {CaveatNoTools}, "nc:1": {CaveatNoTools}}},
+		{name: "M2", opts: []llmprovider.Option{WithLimit(0), deprecatedLayer("td:1"), deprecatedLayer("nc:1")},
+			menu: []string{"tb:1", "na:1", "nc:1", "td:1"}, recommended: []string{"tb:1", "na:1"},
+			caveats: map[string][]Caveat{"na:1": {CaveatNoTools}, "nc:1": {CaveatDeprecated, CaveatNoTools},
+				"td:1": {CaveatDeprecated}}},
+		{name: "M3", opts: []llmprovider.Option{WithLimit(2)},
+			menu: []string{"tb:1", "td:1"}, recommended: []string{"tb:1", "td:1"}},
+		{name: "M4", opts: []llmprovider.Option{WithLimit(3)},
+			menu: []string{"tb:1", "td:1", "na:1"}, recommended: []string{"tb:1", "td:1", "na:1"},
+			caveats: map[string][]Caveat{"na:1": {CaveatNoTools}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resetLookupCaches(t)
+			cat := newOllama0042Server(t, m1...).list(t, tc.opts...)
+			if got := menuIDs(cat.Menu); !slices.Equal(got, tc.menu) {
+				t.Errorf("Menu %q; want %q", got, tc.menu)
+			}
+			if !slices.Equal(cat.Recommended, tc.recommended) {
+				t.Errorf("Recommended %q; want %q", cat.Recommended, tc.recommended)
+			}
+			for _, e := range cat.Menu {
+				if !slices.Equal(e.Caveats, tc.caveats[e.ID]) {
+					t.Errorf("%s: caveats %v; want %v", e.ID, e.Caveats, tc.caveats[e.ID])
+				}
+			}
+		})
 	}
 }

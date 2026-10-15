@@ -13,14 +13,16 @@ import (
 
 // Caveat is a reason a listed model should not be the default. A caveat
 // does not drop the model: it sinks it to the end of Catalog.Menu, and keeps
-// it out of Recommended (0041-MADR D3).
+// it out of Recommended (0041-MADR D3), except CaveatNoTools on Ollama
+// (0042-MADR D2).
 type Caveat string
 
 // The caveats, each read from one fact.
 const (
 	// CaveatDeprecated is a model whose status is deprecated or retired.
 	CaveatDeprecated Caveat = "deprecated"
-	// CaveatNoTools is a model that takes no tools.
+	// CaveatNoTools is a model that takes no tools. On Ollama it stays in
+	// Recommended, after the models that take tools (0042-MADR D2).
 	CaveatNoTools Caveat = "no-tools"
 	// CaveatNoTextOutput is a model that writes no text.
 	CaveatNoTextOutput Caveat = "no-text-output"
@@ -167,10 +169,12 @@ func writesNoText(info ModelInfo) bool {
 }
 
 // ollamaMenu is an Ollama listing's catalog: no band; the installed models
-// that may write text, in /api/tags order, the caveated after the others and
-// out of Recommended (0041-MADR A4). A model Ollama says writes no text, such
-// as an embedding model, is not usable, as on every other provider
-// (0042-MADR D1).
+// that may write text, in /api/tags order, the caveated after the others
+// (0041-MADR A4). A model Ollama says writes no text, such as an embedding
+// model, is not usable, as on every other provider (0042-MADR D1).
+// Recommended is the menu less each entry with a caveat other than
+// CaveatNoTools: the install is all there is, so a chat model that takes no
+// tools stays recommended, after those that do (0042-MADR D2).
 func ollamaMenu(names []string, facts map[string]ModelInfo, limit int, now time.Time) Catalog {
 	usable := slices.DeleteFunc(slices.Clone(names), func(id string) bool { return writesNoText(facts[id]) })
 	var uncaveated, sunk []MenuEntry
@@ -182,17 +186,21 @@ func ollamaMenu(names []string, facts map[string]ModelInfo, limit int, now time.
 			sunk = append(sunk, e)
 		}
 	}
-	return Catalog{Recommended: listlimit.Cut(menuIDsOf(uncaveated), limit), Usable: usable, Live: true,
-		Menu: cutMenu(slices.Concat(uncaveated, sunk), limit)}
+	menu := slices.Concat(uncaveated, sunk)
+	var recommended []string
+	for _, e := range menu {
+		if ollamaRecommends(e) {
+			recommended = append(recommended, e.ID)
+		}
+	}
+	return Catalog{Recommended: listlimit.Cut(recommended, limit), Usable: usable, Live: true,
+		Menu: cutMenu(menu, limit)}
 }
 
-// menuIDsOf is the entries' ids, in order.
-func menuIDsOf(entries []MenuEntry) []string {
-	ids := make([]string, len(entries))
-	for i, e := range entries {
-		ids[i] = e.ID
-	}
-	return ids
+// ollamaRecommends reports whether an Ollama menu entry is recommended: it
+// has no caveat but CaveatNoTools (0042-MADR D2).
+func ollamaRecommends(e MenuEntry) bool {
+	return !slices.ContainsFunc(e.Caveats, func(c Caveat) bool { return c != CaveatNoTools })
 }
 
 // cutMenu is menu's first n, or all of it when n is zero or less.

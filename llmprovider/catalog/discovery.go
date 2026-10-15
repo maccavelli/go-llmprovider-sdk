@@ -61,9 +61,10 @@ type Catalog struct {
 	// Recommended is what List returns: the recommended band, then every
 	// other usable id without a caveat, newest first, or its first n with
 	// WithLimit(n) (0038-MADR D1, D2, A5; 0041-MADR D3, A4). It is Menu's
-	// ids less the caveated ones. It may be empty on a live listing, when
-	// every listed model has a caveat; Usable then holds the listing to
-	// search (0021-MADR C13).
+	// ids less the caveated ones, except that Ollama's keeps those whose only
+	// caveat is CaveatNoTools (0042-MADR D2). It may be empty on a live
+	// listing, when every listed model has a caveat; Usable then holds the
+	// listing to search (0021-MADR C13).
 	Recommended []string
 	// Usable is every id the provider's usability filters admit, once each,
 	// uncapped, in the order its lister gives: the listing's own for most,

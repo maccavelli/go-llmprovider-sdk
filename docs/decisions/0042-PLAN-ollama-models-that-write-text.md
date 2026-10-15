@@ -316,8 +316,9 @@ was not touched.
          plants are what prove them.
        * The provider's S1 and S8 tests, and the wizard's blank search.
          35c2e47 already keeps the embedding models out of `Recommended`,
-         through `CaveatNoTools`. Phase 2's plant "the filter removed,
-         under D2" proves them.
+         through `CaveatNoTools`. Phase 2's plant ~~"the filter removed,
+         under D2"~~ *"`Output` not marked, under D2" (Phase 2,
+         deviation 1)* proves them.
      * **The `/api/show` counts** at `<base>` must equal those in
        0042-MADR section 3. That run is the reproduction (Phase 0,
        step 4).
@@ -616,7 +617,8 @@ was not touched.
    | the tool-less first | `menu.go` | `for _, e := range menu {` → `for _, e := range slices.Concat(sunk, uncaveated) {` | M1 |
    | D2 applied to every provider | `menu.go` | `if len(caveatsOf(provider, id, facts[id], now)) == 0 {` → `if !slices.ContainsFunc(caveatsOf(provider, id, facts[id], now), func(c Caveat) bool { return c != CaveatNoTools }) {` | `TestMenu_Caveats_0041`; `TestMenu_Snapshot_0041` (Hugging Face's 118) |
    | the limit ignored | `menu.go` | `Recommended: listlimit.Cut(recommended, limit)` → `Recommended: recommended` | M3, M4 |
-| the filter removed, under D2 | `menu.go` | Phase 1's first plant, again | S1 and S8 through `List`, through the provider's `ListModels`, and through the wizard's blank search: the embedding models carry only `no-tools`, so D2 would recommend them |
+   | the filter removed, under D2 | `menu.go` | Phase 1's first plant, again | ~~S1 and S8 through `List`, through the provider's `ListModels`, and through the wizard's blank search: the embedding models carry only `no-tools`, so D2 would recommend them~~ *(deviation 1: S1, S3, S4b, S6, S7 and S8 through `List`, and the wizard's `granite` search and embedding-only cases. The embedding models also carry `no-text-output`, so D2 keeps them out of `Recommended`.)* |
+   | `Output` not marked, under D2 *(added, deviation 1)* | `listing_metadata.go` | Phase 1's seventh plant, again | the provider's S1 and S8 `ListModels` test, and the wizard's menu case: with `Output` unknown, the embedding models carry only `no-tools`, so D2 recommends them |
 
 6. **Docs and records.**
    * `docs/architecture.md`:
@@ -943,3 +945,102 @@ and S5 fail.
       `FAIL C12 llmprovider/providers/ollama/ollama.go:298`;
     * E1's old cell restored:
       `FAIL E1 …: the matched cell is not code`.
+
+### Phase 2: tool-less chat models stay recommended (2026-10-14)
+
+`<base>` is a4fe9f4, Phase 1's commit.
+
+#### Research
+
+* `grep -rn 'menuIDsOf' llmprovider`: only `ollamaMenu` calls it, so it
+  is removed.
+* `TestMenu_Caveats_0041` (`menu_0041_test.go:118`) asserts that a
+  `no-tools` entry of `menuOf` is not in `Recommended`. It guards every
+  other provider, and passes unchanged.
+
+#### Deviations
+
+1. **2026-10-14: which plant proves the provider and wizard-menu tests.**
+   * **Found** by the plant run. Step 5's "the filter removed, under D2"
+     does not fail the provider's S1/S8 `ListModels` test, nor the
+     wizard's menu case.
+     * With the filter removed, the embedding models keep a known `Output`
+       without text, so they carry `no-text-output` as well as `no-tools`.
+       D2 keeps them out of `Recommended`.
+     * Under that plant, only the wizard's `granite` search and
+       embedding-only cases fail, as do the `List` cases.
+     * Phase 1's red note made the same claim.
+   * **Measured:** Phase 1's "`Output` not marked" plant, run again under
+     D2, fails every one of them:
+     * `listing_test.go:267: ListModels = [qwen3-vl:8b … granite-embedding:30m], <nil>; want [qwen3-vl:8b …]`;
+     * `listing_test.go:271: ListModels of embedding models only = [granite-embedding:30m nomic-embed-text:latest], <nil>; want nil, nil`;
+     * `model_select_edge_test.go:328: the menu offers "granite-embedding:30m"`.
+   * **Decided by the owner** (recommended): add that plant to step 5's
+     table, annotate the original row and Phase 1's note with what each
+     catches, and record it here. No code or test changes.
+
+#### Tests, red and green
+
+* **Red** (the tests written first, at a4fe9f4):
+
+  ```text
+  menu_0041_test.go:331: Recommended [b:1 a:1]; want [b:1 a:1 notools:1]
+  ollama_0042_test.go:204: Recommended []; want ["gemma3:12b" "codellama:7b"]
+  ollama_0042_test.go:204: Recommended ["qwen3-vl:8b" …]; want [… "granite-embedding:30m"]
+  ollama_0042_test.go:290: Recommended ["tb:1" "td:1"]; want ["tb:1" "td:1" "na:1" "nc:1"]
+  ollama_0042_test.go:290: Recommended ["tb:1"]; want ["tb:1" "na:1"]
+  listing_test.go:282: ListModels = [], <nil>; want [gemma3:12b codellama:7b]
+  model_select_edge_test.go:369: … scripted index 1 out of range for "Choose a Ollama (local) model:"
+  ```
+
+  * M3 passes before the change: with `WithLimit(2)`, both rules give
+    `tb td`. Its plant, "the limit ignored", proves it.
+* **Green:**
+  * `go test -run '_0042|_0041'` on `catalog`, `providers/ollama` and
+    `wizard`, `TestMenu_Caveats_0041` and `TestMenu_Snapshot_0041`
+    unchanged among them;
+  * `go test ./llmprovider/... ./wizard/ ./internal/...`;
+  * the Ollama wire golden is unchanged, with no `-update`.
+
+#### What was built
+
+* **`menu.go`:**
+  * `ollamaMenu` builds `Recommended` from the menu with
+    `ollamaRecommends`: an entry with no caveat but `CaveatNoTools`.
+  * `menuIDsOf` is removed.
+  * The `Caveat` and `CaveatNoTools` docs, and `ollamaMenu`'s doc.
+* **`discovery.go`:** `Catalog.Recommended`'s doc.
+* **Tests:**
+  * S2 and S9 take D2's `Recommended`;
+  * `TestOllamaRecommended_0042` (M1 to M4);
+  * `TestMenu_Ollama_0041`'s `Recommended` becomes
+    `[b:1 a:1 notools:1]`, D2's named assertion change;
+  * `TestListModels_KeepsToolless_0042`;
+  * `TestConfigureLLM_OllamaToolless_0042`.
+* **Docs and records:**
+  * `docs/architecture.md`: the empty-`Recommended` sentence, the menu
+    bullet, and the Ollama bullet;
+  * 0041-MADR: amendment A5, the D3 and A4 annotations, and a
+    revision-history entry;
+  * 0041-PLAN: a dated cross-reference under Phase 4's record.
+
+#### Plants (`tools/plant.py`, 6 of 6 caught, then 2 of 2)
+
+| Plant | FAIL line |
+| :--- | :--- |
+| D2 removed | `S2: Recommended []; want ["gemma3:12b" "codellama:7b"]`; `TestMenu_Ollama_0041: Recommended [b:1 a:1]; want [b:1 a:1 notools:1]` |
+| every caveat recommended | `M2: Recommended ["tb:1" "na:1" "nc:1" "td:1"]; want ["tb:1" "na:1"]` |
+| the tool-less first | `M1: Recommended ["na:1" "nc:1" "tb:1" "td:1"]; want ["tb:1" "td:1" "na:1" "nc:1"]` |
+| D2 applied to every provider | `TestMenu_Caveats_0041: notools: in Recommended true, rank 3; want false`; `huggingface profile 0: the full list holds 119 ids; want 118` |
+| the limit ignored | `M3: Recommended ["tb:1" "td:1" "na:1" "nc:1"]; want ["tb:1" "td:1"]` |
+| the filter removed, under D2 | `S1: Usable ["granite-embedding:30m" …]`; on `providers/ollama` and `wizard` alone: `search for granite: notices []; want no match` |
+| `Output` not marked, under D2 (deviation 1) | `listing_test.go:267: ListModels = [… granite-embedding:30m]`; `model_select_edge_test.go:328: the menu offers "granite-embedding:30m"` |
+
+#### Checks
+
+* `make pre-add-check` on the 6 Go files: clean (gofmt, golangci-lint,
+  go vet, go test, govulncheck).
+* `tools/apidiff.py a4fe9f4`: no exported change.
+* **Gate:** `tools/gate.py, 23 of 23`.
+* `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
+  and `tools/linkcheck.py`: in the staging run.

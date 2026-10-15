@@ -356,3 +356,22 @@ func TestConfigureLLM_OllamaLeavesOutEmbedding_0042(t *testing.T) {
 		}
 	})
 }
+
+// TestConfigureLLM_OllamaToolless_0042: an install whose chat models take
+// no tools offers them as the menu, with no "meets the profile" notice
+// (0042-MADR D2).
+func TestConfigureLLM_OllamaToolless_0042(t *testing.T) {
+	srv := ollamaShowServer(t, [2]string{"gemma3:12b", `["completion","vision"]`},
+		[2]string{"codellama:7b", `["completion","insert"]`})
+	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOllama), 1}, inputs: []string{srv.URL, ""}})
+	res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
+	if err != nil || res.Model != "codellama:7b" {
+		t.Fatalf("ConfigureLLM: model=%q err=%v, want codellama:7b", res.Model, err)
+	}
+	if len(f.seenNotify) != 0 {
+		t.Errorf("notices = %v; want none", f.seenNotify)
+	}
+	if menu := f.seenSelectItems[len(f.seenSelectItems)-1]; len(menu) != 3 {
+		t.Errorf("menu %v; want both models and Other", menu)
+	}
+}

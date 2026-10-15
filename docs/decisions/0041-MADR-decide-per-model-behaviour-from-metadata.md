@@ -361,7 +361,8 @@ Chosen option: **"A. A live menu ordered by facts"**, because:
 ### D3. The live menu
 
 **Membership.** Every model the provider's live listing serves and the
-usability filters admit, which is `Usable` today. Nothing is dropped except
+usability filters admit, which is `Usable` today *(Ollama's usability
+filter: 0042-MADR D1)*. Nothing is dropped except
 by an explicit `WithLimit`.
 
 **Each entry** (`Catalog.Menu`, a new field) carries:
@@ -393,7 +394,8 @@ The id is the last key, so the same facts always give the same order.
 * the band, then step 2 of the order *(A4: step 2 includes the profile's
   exclusions and Together's ids models.dev does not list; Ollama keeps
   `/api/tags` order)*;
-* entries with a caveat never appear in it;
+* entries with a caveat never appear in it *(except Ollama's
+  `CaveatNoTools`: A5, 0042-MADR D2)*;
 * `WithLimit(n)` cuts it to its first `n`. `WithLimit(MaxListed)` is the
   band.
 
@@ -833,7 +835,8 @@ changes them.
     the full list past the six. 0038-MADR amendment A5 records it.
   * Ollama keeps its own order. It has no band and no release date, so
     its menu keeps `/api/tags` order, as 0038-MADR D1 states, with the
-    entries `/api/show` marks as taking no tools after the others.
+    entries `/api/show` marks as taking no tools after the others *(and in
+    `Recommended`: A5)*.
   * No exported identifier is added: the five caveats stand.
 * **What it costs:**
   * Kilo's cheapest-first and Hugging Face's fastest-first order no longer
@@ -857,6 +860,35 @@ changes them.
     after an empty band. The live listing is kept in both cases.
   * A listing of Ollama sends one local, unbilled request per uncached
     installed model.
+
+## Amendment 2026-10-14: Ollama's tool-less models stay recommended
+
+### A5. On Ollama, `CaveatNoTools` keeps a model in `Recommended`
+
+* **Found** in issue 1's assessment
+  ([0042-MADR-ollama-models-that-write-text.md](0042-MADR-ollama-models-that-write-text.md),
+  F3). Under D3 and A4, an Ollama install whose chat models take no tools
+  gets an empty `Recommended`, where v1.13.0 recommends them all.
+  * prepare-commit-msg's `configure --yes` then fails with "no live
+    models listed for ollama".
+  * The Ollama provider's `ListModels` returns nothing.
+  * The wizard warns that no model meets the profile.
+* **Owner's decision** (2026-10-14): 0042-MADR D2, its option T3.
+  * **On Ollama,** a model whose only caveat is `CaveatNoTools` stays in
+    `Recommended`, after the uncaveated models. `Menu` keeps the caveat
+    and the order.
+  * **Every other provider** is unchanged. On the 2026-10-12 snapshot,
+    the no-tools caveat removes one model from the five open catalogs'
+    `ProfileUtility` lists (0042-MADR E8).
+* **What it changes:**
+  * D3's "entries with a caveat never appear in it", and A4's Ollama
+    bullet, for Ollama's `CaveatNoTools` only;
+  * `Catalog.Recommended`'s doc, and the `Caveat` and `CaveatNoTools` docs.
+* **What it costs:** Ollama's `Recommended` is no longer the menu less
+  every caveated entry. A caller that sends tools reads `Caveats`, or
+  takes the first entry, which takes tools wherever such a model is
+  installed.
+* **Built** in 0042-PLAN Phase 2.
 
 ## Pros and Cons of the Options
 
@@ -950,6 +982,10 @@ All answered by the owner on 2026-10-13, who then accepted this record:
 
 * **2026-10-14, the fetch.** Amendment A3: a request starts no fetch, and
   the replay field is a fact, `ModelReasoning.ReplayField`.
+
+* **2026-10-14, Ollama's tool-less models.** Amendment A5, from
+  0042-MADR D2: on Ollama, a model whose only caveat is `CaveatNoTools`
+  stays in `Recommended`.
 
 ### Sources
 

@@ -271,3 +271,14 @@ func TestListModels_LeavesOutNonText_0042(t *testing.T) {
 		t.Errorf("ListModels of embedding models only = %v, %v; want nil, nil", models, err)
 	}
 }
+
+// TestListModels_KeepsToolless_0042: an install whose chat models take no
+// tools still lists them (0042-MADR D2).
+func TestListModels_KeepsToolless_0042(t *testing.T) {
+	srv := showInstance(t, [2]string{"gemma3:12b", `["completion","vision"]`},
+		[2]string{"codellama:7b", `["completion","insert"]`})
+	models, err := list(t, build(t, local(srv.URL, "m", llmprovider.WithModelProbes(false))...))
+	if want := []string{"gemma3:12b", "codellama:7b"}; err != nil || !slices.Equal(models, want) {
+		t.Errorf("ListModels = %v, %v; want %v", models, err, want)
+	}
+}
