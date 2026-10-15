@@ -1,6 +1,7 @@
 package ollama
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -221,5 +222,52 @@ func TestListModels_CarriesTheCallersIdentity(t *testing.T) {
 	if len(agents) != 2 || !strings.HasPrefix(agents[0], "GET /api/tags wire-app/9.9.9 (") ||
 		!strings.HasPrefix(agents[1], "POST /api/show wire-app/9.9.9 (") {
 		t.Fatalf("listing requests %q; want GET /api/tags, then POST /api/show, each naming wire-app/9.9.9", agents)
+	}
+}
+
+// showInstance answers GET /api/tags with the models, in order, and each
+// POST /api/show with that model's capabilities (0042-MADR D1). Any other
+// request is refused, so a generation probe would fail the test.
+func showInstance(t *testing.T, models ...[2]string) *httptest.Server {
+	t.Helper()
+	caps := map[string]string{}
+	names := make([]string, len(models))
+	for i, m := range models {
+		names[i], caps[m[0]] = m[0], m[1]
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/tags":
+			_, _ = w.Write([]byte(ollamaTags(names...)))
+		case r.URL.Path == "/api/show":
+			var body struct {
+				Model string `json:"model"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			_, _ = io.WriteString(w, `{"model_info":{},"capabilities":`+caps[body.Model]+`}`)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestListModels_LeavesOutNonText_0042: ListModels never offers a model
+// Ollama says writes no text; an install of only those lists nothing
+// (0042-MADR D1).
+func TestListModels_LeavesOutNonText_0042(t *testing.T) {
+	srv := showInstance(t, [2]string{"granite-embedding:30m", `["embedding"]`},
+		[2]string{"qwen3-vl:8b", `["completion","vision","tools","thinking"]`},
+		[2]string{"llama3.1:8b-instruct-q5_K_M", `["completion","tools"]`},
+		[2]string{"qwen2.5-coder:7b", `["completion","tools","insert"]`})
+	models, err := list(t, build(t, local(srv.URL, "m", llmprovider.WithModelProbes(false))...))
+	if want := []string{"qwen3-vl:8b", "llama3.1:8b-instruct-q5_K_M", "qwen2.5-coder:7b"}; err != nil || !slices.Equal(models, want) {
+		t.Errorf("ListModels = %v, %v; want %v", models, err, want)
+	}
+	srv = showInstance(t, [2]string{"granite-embedding:30m", `["embedding"]`}, [2]string{"nomic-embed-text:latest", `["embedding"]`})
+	if models, err := list(t, build(t, local(srv.URL, "m", llmprovider.WithModelProbes(false))...)); err != nil || models != nil {
+		t.Errorf("ListModels of embedding models only = %v, %v; want nil, nil", models, err)
 	}
 }

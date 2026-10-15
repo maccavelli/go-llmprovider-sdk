@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-14
 associated-madr: "0042-MADR-ollama-models-that-write-text.md"
 ---
@@ -778,6 +778,168 @@ against 35c2e47.
 
 ## Execution Record
 
-No phase has run. Each phase appends its record here: the research
-results, the red and green output, the plant runs, the checks' output,
-and a dated entry for every deviation.
+### Phase 0: preconditions and the baseline (2026-10-14)
+
+* **0041-PLAN Phase 5 is committed:** c7b9e94, "feat(catalog): add
+  agent-optimized model profile". `<base>` is c7b9e94.
+* **The records commit, a note.** Step 2 asked for this pair in a commit
+  of its own. The owner's c7b9e94 holds Phase 5's source together with
+  0042-MADR, this PLAN, the `docs/README.md` rows, and another session's
+  `docs/reports/0017-REPORT-openai-sign-in-for-agents.md`. The commit is
+  unpushed. Splitting it is the owner's choice; nothing here depends on
+  it.
+* **The baseline:**
+  * `go test -count=1 ./llmprovider/catalog/ ./llmprovider/providers/ollama/ ./wizard/`
+    passes.
+  * `tools/gate.py`: 23 of 23.
+  * `tools/claims.py` on this PLAN: 28 of 28.
+* **The reproduction** is Phase 1's first red run, below. S1 to S7 gave
+  0042-MADR section 3's 35c2e47 column.
+
+### Phase 1: what Ollama says a model writes (2026-10-14)
+
+#### Research
+
+* **`fetchOllamaNames`'s references:** its definition, its call in
+  `ollamaCatalog` (`discovery.go:568`), and `read_limit_test.go:35`. There
+  are no others.
+* **`ModelInfo.Output` has no request-side reader.**
+  `grep -rn 'FieldOutput\|\.Output, ' llmprovider/providers llmprovider/internal`
+  finds no `FieldOutput`. Every `.Output` it finds is a `Response`'s
+  items or a `Usage` count.
+* **`listOnce` caches what was emitted:**
+  `storeListing(listingKeyFor(id, cfg, token), models, false)`
+  (`discovery.go:171`).
+* **`listingResult` literals:** five positional ones, at `discovery.go`
+  lines 336, 342, 348, 353 and 764 (first-party, Hugging Face, Kilo,
+  Together, the OpenCode gateways).
+* **An empty install keeps a nil `Usable`.** A scratch program prints
+  `true true` for `slices.Clone(nil) == nil` and for
+  `slices.DeleteFunc(that, …) == nil`.
+
+#### Tests, red and green
+
+* **Red, the first file and the edits to existing tests,** at c7b9e94:
+
+  ```text
+  ollama_0042_test.go:139: "[\"completion\",\"tools\",\"insert\"]": Output [], known false; want [text], known true
+  ollama_0042_test.go:143: "[]": Tools false, known true; want false, known false
+  ollama_0042_test.go:200: Usable ["granite-embedding:30m" "qwen3-vl:8b" "llama3.1:8b-instruct-q5_K_M" "qwen2.5-coder:7b"]; want ["qwen3-vl:8b" "llama3.1:8b-instruct-q5_K_M" "qwen2.5-coder:7b"]
+  ollama_0042_test.go:200: Usable ["embed-tools:1" "chat:1"]; want ["chat:1"]
+  ollama_0042_test.go:200: Usable ["x/flux2:1" "classifier:1" "chat:1"]; want ["chat:1"]
+  ollama_0042_test.go:236: Usable ["granite-embedding:30m" "chat:1"]; want [chat:1]
+  lookup_0033_test.go:227: field 6: source "", want listing:ollama
+  model_select_edge_test.go:343: search for granite: notices []; want no match
+  model_select_edge_test.go:352: … unexpected Select("Choose a Ollama (local) model:"), want llama3
+  ```
+
+  * **Failed:** S1, S3, S4b, S6, S7 and S8, the `ollamaInfo` rows, the
+    `LookupModel` row, and the wizard's search and embedding-only cases.
+  * **Passed, as predicted:** S2, S4, S5 and S9, the provider's test, and
+    the wizard's menu case.
+* **Red, the second file:**
+
+  ```text
+  ollama_facts_0042_test.go:31:11: undefined: ollamaTagInfo
+  ollama_facts_0042_test.go:31:25: undefined: ollamaTag
+  ollama_facts_0042_test.go:54:15: undefined: fetchOllamaTags
+  ```
+
+* **The keyed literals, alone.** `go test -count=1 ./llmprovider/...`
+  passes on a scratch clone of c7b9e94 with only the five literals keyed.
+  That is the proof that keying changes nothing.
+* **Green:**
+  * every test above;
+  * `TestListing_PageLimit`, with the renamed fetch;
+  * `TestMenu_Ollama_0041`, unchanged in this phase;
+  * `go test -count=1 ./llmprovider/... ./wizard/ ./internal/...`;
+  * `TestWireGoldens` in `providers/ollama`, with no `-update`. No
+    golden changed.
+
+#### What was built
+
+* **`listing_metadata.go`:**
+  * Ollama's capability names as constants;
+  * `ollamaInfo` reads a missing or empty list as unknown, and sets
+    `Output`;
+  * `ollamaOutputs` and `ollamaTagInfo`;
+  * `fetchOllamaShow`'s doc names what it writes.
+* **`discovery.go`:**
+  * the five literals, keyed: no value changed, wrapped as before, and
+    Kilo's `meta: nil` left out, as the zero value;
+  * `listingResult.listed`, read by the Ollama branch;
+  * `ollamaTag` and `fetchOllamaTags`, replacing `fetchOllamaNames`;
+  * `ollamaCatalog`, as step 3 gives it;
+  * `Catalog.Usable`'s doc.
+* **`menu.go`:** `writesNoText`, used by `caveatsOf` and `ollamaMenu`.
+  `ollamaMenu` filters `Usable`, and its doc says so.
+* **Tests:**
+  * `ollama_0042_test.go` and `ollama_facts_0042_test.go`;
+  * the `LookupModel` row;
+  * `read_limit_test.go`;
+  * `TestListModels_LeavesOutNonText_0042`;
+  * `TestConfigureLLM_OllamaLeavesOutEmbedding_0042`.
+* **How the tests differ from step 2's text.** None changes what is
+  asserted:
+  * S4b's second listing and cache check are their own test,
+    `TestOllamaUsable_TagsNotCached_0042`. A positive control asserts
+    `chat:1`'s reply is cached.
+  * The wizard's fake server also answers `GET /api/version`, which the
+    wizard checks first.
+  * Its notice is matched on `models match "granite"`, since the
+    provider's label is "Ollama (local)".
+* **Docs:**
+  * `docs/architecture.md`: the facts line, and the Ollama menu bullet;
+  * 0038-MADR's two Ollama lines, annotated.
+
+#### Plants (`tools/plant.py`, 9 of 9 caught)
+
+| Plant | FAIL line |
+| :--- | :--- |
+| the filter removed | `S1: Usable ["granite-embedding:30m" …]; want ["qwen3-vl:8b" …]`, and S3, S4b |
+| unknown read as no text | `band_0041_test.go:225: openai with metadata off: [] does not start with the static …`; re-run on `TestOllamaUsable_0042` alone: `S4: Usable ["chat:1"]; want ["granite-embedding:30m" "chat:1"]`, `S5: Usable []; want …` |
+| the `/api/tags` fallback ignored | `S4b: Usable ["granite-embedding:30m" "chat:1"]; want ["chat:1"]` |
+| the `/api/tags` fact cached | `the embedding model is cached from /api/tags, though its /api/show failed`; `/api/show asked map[chat:1:1 granite-embedding:30m:1] after two listings; want … granite-embedding:30m:2` |
+| an empty list read as known | `"[]": Output [], known true; want [], known false` |
+| the image ignored | `"[\"image\"]": Output [], known true; want [image], known true` |
+| `Output` not marked | `lookup_0033_test.go:227: field 6: source "", want listing:ollama` |
+| the caller's layers skipped | `S9: Usable ["qwen3-vl:8b" …]; want ["granite-embedding:30m" "qwen3-vl:8b" …]` |
+| tools read from `/api/tags` | `["completion" "tools" "insert"]: field 7 set from /api/tags` |
+
+`plant.py` prints 12 failure lines a plant. The second plant breaks
+`writesNoText` for every provider, so 0041's band tests filled those
+lines, and it was run again on `TestOllamaUsable_0042` alone to see S4
+and S5 fail.
+
+#### Checks
+
+* `make pre-add-check` on the 9 Go files: clean (gofmt, golangci-lint,
+  go vet, go test, govulncheck).
+* `tools/apidiff.py c7b9e94`: no exported change.
+* **Gate:** `tools/gate.py`, 23 of 23.
+* `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
+  and `tools/linkcheck.py`: see the staging run.
+* **Python on this host.** The tools were run with Homebrew's Python 3.14.
+  Mid-phase, this host's `python3` became macOS's 3.9.6: a Homebrew
+  upgrade of python@3.14 stopped linking the unversioned names. 3.9 lacks
+  `tarfile`'s `filter` argument, which `apidiff.py` uses. The owner's
+  dotfiles now restore it, in their own record. Nothing in this
+  repository changed for it.
+
+#### 2026-10-14: 0042-MADR's evidence made checkable (owner's request)
+
+* **Found:** `tools/claims.py` failed on 0042-MADR with "the matched cell
+  is not code", from row E1 of its methods table. A record with no claim
+  rows fails it too ("0 of 0 pass").
+* **Done:**
+  * E1's "How" cell is reworded, so it is no longer a lone code span.
+  * A "Code claims" section, dated, adds 20 claims for the code lines the
+    MADR cites, pinned to `self=35c2e47` and `prepare-commit-msg=a04b617`.
+  * No decision or finding changed.
+* **Checked:**
+  * `tools/claims.py`: 0042-MADR 20 of 20, this PLAN 28 of 28.
+  * Two plants, on scratch copies of the MADR, each fail it:
+    * a claim's text changed:
+      `FAIL C12 llmprovider/providers/ollama/ollama.go:298`;
+    * E1's old cell restored:
+      `FAIL E1 …: the matched cell is not code`.

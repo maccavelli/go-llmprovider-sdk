@@ -158,7 +158,8 @@ no cap: the curated list, all of it.
 * **The vendor catalogs:** `curateFromCatalog` without its cap. First come
   the static list's served ids, in static order, then the rest of the usable
   ids by rank.
-* **Ollama:** the installed models, in listing order.
+* **Ollama:** the installed models, in listing order. *(0042-MADR D1,
+  2026-10-14: less the models Ollama says write no text.)*
 
 **What the full list leaves out.** It holds every *known, working* model:
 
@@ -458,7 +459,8 @@ Two change this record. D1's text is not edited.
   id.
 * **Ollama is unchanged:** the installed models in `/api/tags` order,
   less those `/api/show` marks as taking no tools, which follow in
-  `Menu`.
+  `Menu`. *(0042-MADR D1, 2026-10-14: less the models Ollama says write
+  no text.)*
 
 On the committed 2026-10-12 snapshot, measured in 0041-PLAN Phase 4, the
 full lists are, under both profiles: OpenCode Zen 77, OpenCode Go 25,

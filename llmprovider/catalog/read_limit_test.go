@@ -32,7 +32,7 @@ func TestListing_PageLimit(t *testing.T) {
 	for name, list := range map[string]func() error{
 		"gemini":      func() error { _, err := fetchGeminiUsable(ctx, token, cfg); return err },
 		"claude":      func() error { _, err := fetchClaudeUsable(ctx, token, cfg); return err },
-		"ollama":      func() error { _, err := fetchOllamaNames(ctx, token, cfg); return err },
+		"ollama":      func() error { _, err := fetchOllamaTags(ctx, token, cfg); return err },
 		"openai":      func() error { _, err := fetchOpenAIUsable(ctx, token, cfg); return err },
 		"huggingface": func() error { _, err := fetchHuggingFaceUsable(ctx, token, cfg); return err },
 		"together":    func() error { _, err := fetchTogetherUsable(ctx, token, cfg); return err },

@@ -69,6 +69,8 @@ type Catalog struct {
 	// uncapped, in the order its lister gives: the listing's own for most,
 	// cheapest first for Kilo, and fastest first for Hugging Face (MADR 0007's
 	// table; 0026-MADR F54). It equals Recommended when Live is false.
+	// Ollama's admits each installed model that writes text, or whose output
+	// Ollama does not report (0042-MADR D1).
 	Usable []string
 	// Live reports whether Usable came from the provider's listing rather
 	// than the static catalog.
@@ -238,6 +240,10 @@ type listingResult struct {
 	curate curator
 	// meta is nil where the lister fetches no document, as Kilo's does not.
 	meta func() modelMetadataResult
+	// listed is what an Ollama listing read of each model, its /api/tags
+	// entry under its /api/show reply, cached or not; nil for the other
+	// listers, whose facts are the ones they emit (0042-MADR D1).
+	listed map[string]ModelInfo
 }
 
 // catalog applies the degrade-to-static contract every lister except
@@ -250,7 +256,7 @@ func (l listingResult) catalog(id llmprovider.ProviderID, token llmprovider.Toke
 	models map[string]ModelInfo) Catalog {
 	now := rankingNow()
 	if l.curate == nil {
-		return ollamaMenu(l.usable, factsOf(id, cfg, l.usable, models, nil), cfg.limit, now)
+		return ollamaMenu(l.usable, factsOf(id, cfg, l.usable, l.listed, nil), cfg.limit, now)
 	}
 	usable := uniqueIDs(l.usable)
 	if l.err != nil || len(usable) == 0 {
@@ -333,25 +339,28 @@ func modelCatalogFor(ctx context.Context, id llmprovider.ProviderID, token llmpr
 		// no document (0041-MADR D4).
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := firstPartyUsable(ctx, p, token, cfg)
-		return listingResult{usable, err, Static(p), metadataCurate(p, cfg.ModelProfile, cfg.workload, meta, firstPartyCurator(p)), meta}, nil
+		return listingResult{usable: usable, err: err, static: Static(p),
+			curate: metadataCurate(p, cfg.ModelProfile, cfg.workload, meta, firstPartyCurator(p)), meta: meta}, nil
 	case llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo:
 		return opencodeCatalog(ctx, p, token, cfg)
 	case llmprovider.ProviderHuggingFace:
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := fetchHuggingFaceUsable(ctx, token, cfg)
-		return listingResult{usable, err, Static(llmprovider.ProviderHuggingFace),
-			metadataCurate(llmprovider.ProviderHuggingFace, cfg.ModelProfile, cfg.workload, meta, curateHuggingFace), meta}, nil
+		return listingResult{usable: usable, err: err, static: Static(llmprovider.ProviderHuggingFace),
+			curate: metadataCurate(llmprovider.ProviderHuggingFace, cfg.ModelProfile, cfg.workload, meta, curateHuggingFace),
+			meta:   meta}, nil
 	case llmprovider.ProviderKilo:
 		entries, err := fetchKiloCatalog(ctx, token, cfg)
 		// Deliberate: a failed Kilo fetch degrades to the static catalog rather
 		// than failing, like every other lister here. See listingResult.catalog.
-		return listingResult{kiloUsable(entries), err, Static(llmprovider.ProviderKilo), kiloCurate(entries, cfg.ModelProfile, cfg.workload),
-			nil}, nil
+		return listingResult{usable: kiloUsable(entries), err: err, static: Static(llmprovider.ProviderKilo),
+			curate: kiloCurate(entries, cfg.ModelProfile, cfg.workload)}, nil
 	case llmprovider.ProviderTogether:
 		meta := startModelMetadata(ctx, cfg)
 		usable, err := fetchTogetherUsable(ctx, token, cfg)
-		return listingResult{usable, err, Static(llmprovider.ProviderTogether),
-			metadataCurate(llmprovider.ProviderTogether, cfg.ModelProfile, cfg.workload, meta, curateTogether), meta}, nil
+		return listingResult{usable: usable, err: err, static: Static(llmprovider.ProviderTogether),
+			curate: metadataCurate(llmprovider.ProviderTogether, cfg.ModelProfile, cfg.workload, meta, curateTogether),
+			meta:   meta}, nil
 	case llmprovider.ProviderOllama:
 		return ollamaCatalog(ctx, token, cfg)
 	default:
@@ -561,32 +570,51 @@ func curateClaude(usable []string, limit int) []string {
 }
 
 // ollamaCatalog lists every installed model, and reads /api/show for each
-// one whose reply is not cached, for its caveats (0041-MADR A4). Ollama has
-// no static catalog, so its errors are returned rather than degraded, and an
+// one whose reply is not cached, for its caveats (0041-MADR A4). Only the
+// replies are emitted, and so cached. A model's /api/tags capabilities say
+// what it writes where its reply does not, for this listing alone, so a
+// failed reply is asked again the next time (0042-MADR D1). Ollama has no
+// static catalog, so its errors are returned rather than degraded, and an
 // empty install is a successful (Live) listing.
 func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (listingResult, error) {
-	names, err := fetchOllamaNames(ctx, token, cfg)
+	tags, err := fetchOllamaTags(ctx, token, cfg)
 	if err != nil {
 		return listingResult{}, err
+	}
+	var names []string
+	for _, t := range tags {
+		names = append(names, t.Name)
 	}
 	cached, fresh := cachedListing(listingKeyFor(llmprovider.ProviderOllama, cfg, token))
 	if !fresh {
 		cached = nil
 	}
 	shows := ollamaShows(ctx, token, cfg, names, cached)
-	for _, name := range names {
-		if info, ok := shows[name]; ok {
-			cfg.emit(info)
+	listed := make(map[string]ModelInfo, len(tags))
+	for _, t := range tags {
+		info := ollamaTagInfo(t)
+		if show, ok := shows[t.Name]; ok {
+			cfg.emit(show)
+			overlay(&info, show, "")
 		}
+		listed[t.Name] = info
 	}
 	// Recommended never shares Usable's array (0020-MADR F34).
-	return listingResult{usable: names}, nil
+	return listingResult{usable: names, listed: listed}, nil
 }
 
-// fetchOllamaNames returns every installed model name in /api/tags order.
-// Ollama takes no credential, so a token is sent only where it names its own
-// Header (R16; 0016-MADR D2, A6).
-func fetchOllamaNames(ctx context.Context, token llmprovider.Token, cfg config) ([]string, error) {
+// ollamaTag is one /api/tags entry: the model's name, and the capabilities
+// Ollama v0.30.0 and later list beside it.
+type ollamaTag struct {
+	Name         string   `json:"name"`
+	Capabilities []string `json:"capabilities"`
+}
+
+// fetchOllamaTags returns every installed model in /api/tags order, with its
+// capabilities where Ollama lists them (0042-MADR D1). Ollama takes no
+// credential, so a token is sent only where it names its own Header (R16;
+// 0016-MADR D2, A6).
+func fetchOllamaTags(ctx context.Context, token llmprovider.Token, cfg config) ([]ollamaTag, error) {
 	baseURL := "http://localhost:11434"
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
@@ -614,19 +642,12 @@ func fetchOllamaNames(ctx context.Context, token llmprovider.Token, cfg config) 
 	}
 
 	var result struct {
-		Models []struct {
-			Name string `json:"name"`
-		} `json:"models"`
+		Models []ollamaTag `json:"models"`
 	}
 	if err := decodeLimited(resp.Body, &result, "ollama: tags"); err != nil {
 		return nil, fmt.Errorf("failed to parse Ollama response: %w", err)
 	}
-
-	var models []string
-	for _, m := range result.Models {
-		models = append(models, m.Name)
-	}
-	return models, nil
+	return result.Models, nil
 }
 
 // ValidateOllamaURL checks if an Ollama instance is reachable at the given URL
@@ -761,7 +782,8 @@ func opencodeCatalog(ctx context.Context, gateway llmprovider.ProviderID, token 
 		// every provider (0038-MADR D1).
 		return curateFromCatalog(gateway, staticOpencodeCatalog(gateway), usable, isUsableOpencodeModel, rankOpencodeModel, limit)
 	}
-	return listingResult{usable, fetchErr, Static(gateway), metadataCurate(gateway, cfg.ModelProfile, cfg.workload, meta, curate), meta}, nil
+	return listingResult{usable: usable, err: fetchErr, static: Static(gateway),
+		curate: metadataCurate(gateway, cfg.ModelProfile, cfg.workload, meta, curate), meta: meta}, nil
 }
 
 // fetchOpencodeUsable returns the usable gateway models in listing order.

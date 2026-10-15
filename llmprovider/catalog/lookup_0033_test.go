@@ -180,9 +180,10 @@ var listingCases = []listingCase{
 			}
 		}},
 	{llmprovider.ProviderOllama, "llama3.2:latest", ollamaShow0033,
-		[]Field{FieldContextWindow, FieldTools, FieldInput, FieldReasoning},
+		[]Field{FieldContextWindow, FieldTools, FieldInput, FieldOutput, FieldReasoning},
 		func(t *testing.T, i ModelInfo) {
-			if i.ContextWindow != 131072 || !i.Tools || !slices.Equal(i.Input, []Modality{ModalityText, ModalityImage}) || i.Reasoning.Supported {
+			if i.ContextWindow != 131072 || !i.Tools || !slices.Equal(i.Input, []Modality{ModalityText, ModalityImage}) ||
+				!slices.Equal(i.Output, []Modality{ModalityText}) || i.Reasoning.Supported {
 				t.Errorf("ollama: %+v", i.public())
 			}
 		}},

@@ -21,8 +21,9 @@ gobble-cli `docs/decisions/0005-PLAN-v1-feature-scope.md`, entry "F4-3b made
 executable".
 
 This report records what OpenAI's documents, pi's source, this module's
-source and two live probes show. It decides nothing. The amendment to
-0017-MADR D4 decides.
+source and a live probe show. It decides nothing. The amendment to
+0017-MADR D4 decides. Its contents are also filed as
+[go-llmprovider-sdk issue 2](https://github.com/maccavelli/go-llmprovider-sdk/issues/2).
 
 ## Method
 
@@ -35,7 +36,7 @@ source and two live probes show. It decides nothing. The amendment to
   snapshot `20261007132710` of
   `https://openai.com/policies/sign-in-with-chatgpt-terms/`, which is dated
   29 September 2026.
-- **Source.** pi at `312184edb`; this module at `v1.13.0` (`c5bc023`), the
+- **Source.** pi at `312184edb`; this module at `v1.13.0` (commit `6330bc0`), the
   latest tag, whose five later commits on `main` are catalog work and one plan update.
 - **Probes.**
   - The client-id probe was run by gobble-cli's owner on 2026-10-14. It sent

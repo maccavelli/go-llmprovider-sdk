@@ -528,7 +528,7 @@ reproduction as tests.
 
 | # | What | How | Result |
 | :--- | :--- | :--- | :--- |
-| E1 | The issue's text | `gh issue view 1 --json …` | quoted in the Context |
+| E1 | The issue's text | read with `gh issue view 1 --json …` | quoted in the Context |
 | E2 | `ollamaCatalog` at all 21 release tags and at 7f34e31 | `git show <ref>:<file>` for each non-test file in `llmprovider/catalog/`, grouping identical bodies | section 1: three forms (v1.0.0; v1.1.0 to v1.10.2; v1.11.0 to v1.13.0), none filtering |
 | E3 | Ollama's capability source | `gh api repos/ollama/ollama/contents/<path>?ref=<ref>`, for `types/model/capability.go`, `server/images.go`, `server/model_list.go`, `server/routes.go`, `server/create.go`, `api/types.go`, `docs/api.md` and `server/routes_cloud_test.go`. Each file read at main was compared byte for byte with the same file at 8e4dad49f9f5; the cloud test was re-read at that commit. | section 2 |
 | E4 | The first release with each field | binary search over the 261 stable `v0.x.y` tags, testing `api/types.go`'s `ListModelResponse` and `ShowResponse` for `Capabilities` | `/api/show`: v0.6.4 (absent at v0.6.3); `/api/tags`: v0.30.0 (absent at v0.24.0, the stable release before it) |
@@ -537,6 +537,48 @@ reproduction as tests.
 | E7 | The reproduction S1 to S7 | an external test in `package catalog_test`, copied into a scratch clone of each ref and of the working tree; `go test -run TestIssue1Repro -v ./llmprovider/catalog/` | section 3; apart from timing lines, v1.13.0 and 7f34e31 identical to v1.12.0, and the working tree identical to 35c2e47 |
 | E8 | The no-tools caveat's reach | on a scratch clone of the working tree, the 2026-10-12 snapshot replayed under `ProfileUtility`, with and without the `CaveatNoTools` lines of `caveatsOf` | six unchanged on all five open catalogs; only Hugging Face's full list changes, 118 to 119 |
 | E9 | prepare-commit-msg's use | read at a04b617: `go.mod` pins v1.12.0; `internal/ui/setup.go:153-178, 198, 447`; README lines 578-581 document the workaround | F3 |
+
+### Code claims
+
+*(Added 2026-10-14, at the owner's request.)*
+
+* **Why this table was added.** `tools/claims.py` reads any table row
+  whose first cell is an id and whose last two cells are code. The methods
+  table above is not a claims table. Its row E1, whose "How" cell was a
+  single code span, made the tool fail with "the matched cell is not
+  code". E1's cell is reworded so the tool skips it, and nothing else in
+  the table changed.
+* **What this table pins.** The code lines this record cites, checked
+  by `tools/claims.py`:
+  * `self` at 35c2e47, the commit section 1 measures;
+  * prepare-commit-msg at a04b617, read beside this repository.
+* **What it cannot pin.** v1.12.0's `ollamaCatalog`, which the marker's
+  one `self` revision cannot hold. E2 records how that was read.
+
+<!-- claims: self=35c2e47 prepare-commit-msg=a04b617 -->
+
+| # | What | Where | Text |
+| :--- | :--- | :--- | :--- |
+| C1 | Ollama's lister, with `/api/show` (section 1) | `llmprovider/catalog/discovery.go:567` | `func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (listingResult, error) {` |
+| C2 | the `/api/show` fan-out | `llmprovider/catalog/menu.go:204` | `func ollamaShows(ctx context.Context, token llmprovider.Token, cfg config, names []string,` |
+| C3 | Ollama's menu | `llmprovider/catalog/menu.go:166` | `func ollamaMenu(names []string, facts map[string]ModelInfo, limit int, now time.Time) Catalog {` |
+| C4 | the reply's reader | `llmprovider/catalog/listing_metadata.go:375` | `func ollamaInfo(model string, show ollamaShowReply) ModelInfo {` |
+| C5 | `LookupModel`'s `/api/show` | `llmprovider/catalog/listing_cache.go:123` | `info, err := fetchOllamaShow(ctx, token, cfg, model)` |
+| C6 | no static Ollama catalog | `llmprovider/catalog/models_catalog.go:277` | `// Installed models are machine-specific, so there is no meaningful` |
+| C7 | the other providers' embedding rule (F7) | `llmprovider/catalog/models_catalog.go:173` | `denyEmbed   = "embed"` |
+| C8 | `List`'s promise (F7) | `llmprovider/catalog/discovery.go:92` | `// static catalog so configure UIs never show huge unusable lists (embeddings,` |
+| C9 | `Usable`'s rule (F7) | `llmprovider/catalog/discovery.go:68` | `// Usable is every id the provider's usability filters admit, once each,` |
+| C10 | the wizard searches `Usable` (F2) | `wizard/model_select.go:61` | `matches := catalog.Search(d.ID, cat.Usable, q)` |
+| C11 | the wizard's empty-menu notice (F3) | `wizard/model_select.go:23` | `noRecommendedNotice  = "no %s model meets the profile; search the listing for one"` |
+| C12 | the provider's `ListModels` returns `Recommended` (F3) | `llmprovider/providers/ollama/ollama.go:298` | `listed := cat.Recommended` |
+| C13 | ProfileUtility's stated use (F3) | `llmprovider/catalog/model_profile.go:8` | `// ProfileUtility (the zero value) ranks for short, frequent tasks such as` |
+| C14 | the `/api/show` caching test (F6) | `llmprovider/catalog/menu_0041_test.go:314` | `func TestMenu_Ollama_0041(t *testing.T) {` |
+| C15 | the `-contributor` rule (D2) | `llmprovider/catalog/model_ranking.go:157` | `func excludedAtRequest(provider llmprovider.ProviderID, id string) bool {` |
+| C16 | prepare-commit-msg's pin | `prepare-commit-msg:go.mod:6` | `github.com/maccavelli/go-llmprovider-sdk v1.12.0` |
+| C17 | its listing for `configure --yes` | `prepare-commit-msg:internal/ui/setup.go:153` | `func discoverModels(ctx context.Context, provider, apiKey, baseURL string, extra ...llmprovider.Option) ([]string, error) {` |
+| C18 | its fallback on an empty `Recommended` (F3) | `prepare-commit-msg:internal/ui/setup.go:176` | `return defaultModels(provider), nil` |
+| C19 | that fallback is `catalog.Static` (F3) | `prepare-commit-msg:internal/ui/setup.go:198` | `func defaultModels(provider string) []string {` |
+| C20 | the error a tool-less install gets (F3) | `prepare-commit-msg:internal/ui/setup.go:447` | `return fmt.Errorf("no live models listed for %s; pass --model", provider)` |
 
 ### Related records
 

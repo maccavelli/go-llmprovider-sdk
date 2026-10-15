@@ -222,7 +222,9 @@ winning (0033-MADR D1 to D3):
    A listing's date is read only where it was measured to be a release
    date, and never when every dated row shares one, or from a zero
    (0041-MADR D1; 0041-PLAN Phase 2).
-   - Ollama: window and capabilities, from one model's `/api/show`.
+   - Ollama: window, capabilities and what it writes, from one model's
+     `/api/show`; what it writes from `/api/tags` when that reply fails
+     (Ollama v0.30.0 on).
 3. **The caller's layers,** given with `WithModelLayer`. Any `Layer` is
    one, `Metadata` among them.
 
@@ -626,7 +628,8 @@ for a session, from the store.
   - Ollama's keeps `/api/tags` order, with no band. `List` asks
     `/api/show` for each installed model not cached, four at a time, and
     caches the replies; a model it marks as taking no tools follows the
-    others, out of `Recommended`.
+    others, out of `Recommended`. A model Ollama says writes no text,
+    such as an embedding model, is not listed (0042-MADR D1).
 - `catalog.Search` matches a query against a list, highest tier first and
   in the list's order within a tier: the id exactly, as a prefix or a
   substring, then without separators (`gpt41` finds `gpt-4.1`), then a

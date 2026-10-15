@@ -267,3 +267,92 @@ func TestConfigureLLM_UnusableListingNotice(t *testing.T) {
 		t.Errorf("notice %q seen %d times, want 1: %v", want, n, f.seenNotify)
 	}
 }
+
+// ollamaShowServer answers GET /api/version, which the wizard checks first,
+// GET /api/tags with the models, in order, and POST /api/show with each
+// model's capabilities (0042-MADR D1).
+func ollamaShowServer(t *testing.T, models ...[2]string) *httptest.Server {
+	t.Helper()
+	caps := map[string]string{}
+	var tags []string
+	for _, m := range models {
+		caps[m[0]] = m[1]
+		tags = append(tags, `{"name":"`+m[0]+`"}`)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/version":
+			_, _ = io.WriteString(w, `{"version":"0.40.2"}`)
+		case "/api/tags":
+			_, _ = io.WriteString(w, `{"models":[`+strings.Join(tags, ",")+`]}`)
+		case "/api/show":
+			raw, _ := io.ReadAll(r.Body)
+			for name, c := range caps {
+				if strings.Contains(string(raw), `"`+name+`"`) {
+					_, _ = io.WriteString(w, `{"model_info":{},"capabilities":`+c+`}`)
+					return
+				}
+			}
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// ollama0042S1 is issue 1's install: an embedding model listed first.
+var ollama0042S1 = [][2]string{
+	{"granite-embedding:30m", `["embedding"]`},
+	{"qwen3-vl:8b", `["completion","vision","tools","thinking"]`},
+	{"llama3.1:8b-instruct-q5_K_M", `["completion","tools"]`},
+	{"qwen2.5-coder:7b", `["completion","tools","insert"]`},
+}
+
+// TestConfigureLLM_OllamaLeavesOutEmbedding_0042: the wizard neither shows
+// nor finds a model Ollama says writes no text, and an install of only
+// those falls through to manual entry, as an empty one does (0042-MADR D1).
+func TestConfigureLLM_OllamaLeavesOutEmbedding_0042(t *testing.T) {
+	ollama := providerIdx(t, llmprovider.ProviderOllama)
+	t.Run("menu", func(t *testing.T) {
+		srv := ollamaShowServer(t, ollama0042S1...)
+		f := newFake(t, fakePrompter{selects: []int{ollama, 0}, inputs: []string{srv.URL, ""}})
+		res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
+		if err != nil || res.Model != "qwen3-vl:8b" {
+			t.Fatalf("ConfigureLLM: model=%q err=%v, want qwen3-vl:8b", res.Model, err)
+		}
+		menu := f.seenSelectItems[len(f.seenSelectItems)-1]
+		for _, c := range menu {
+			if strings.Contains(c.Label, "granite") {
+				t.Errorf("the menu offers %q", c.Label)
+			}
+		}
+		if len(menu) != 4 {
+			t.Errorf("menu %v; want the three chat models and Other", menu)
+		}
+	})
+	t.Run("search", func(t *testing.T) {
+		srv := ollamaShowServer(t, ollama0042S1...)
+		f := newFake(t, fakePrompter{selects: []int{ollama, 1, 0}, inputs: []string{srv.URL, "granite", "qwen2.5"}})
+		res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
+		if err != nil || res.Model != "qwen2.5-coder:7b" {
+			t.Fatalf("ConfigureLLM: model=%q err=%v, want qwen2.5-coder:7b", res.Model, err)
+		}
+		if n := countContaining(f.seenNotify, `models match "granite"`); n != 1 {
+			t.Errorf("search for granite: notices %v; want no match", f.seenNotify)
+		}
+	})
+	t.Run("only embedding models", func(t *testing.T) {
+		srv := ollamaShowServer(t, [2]string{"granite-embedding:30m", `["embedding"]`},
+			[2]string{"nomic-embed-text:latest", `["embedding"]`})
+		f := newFake(t, fakePrompter{selects: []int{ollama}, inputs: []string{srv.URL, "llama3"}})
+		res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
+		if err != nil || res.Model != "llama3" {
+			t.Fatalf("ConfigureLLM: model=%q err=%v, want llama3", res.Model, err)
+		}
+		if len(f.seenNotify) != 0 {
+			t.Errorf("notices = %v, want none, as for an empty install", f.seenNotify)
+		}
+	})
+}

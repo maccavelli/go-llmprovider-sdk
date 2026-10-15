@@ -58,7 +58,7 @@ func caveatsOf(provider llmprovider.ProviderID, model string, info ModelInfo, no
 	if info.Has(FieldTools) && !info.Tools {
 		out = append(out, CaveatNoTools)
 	}
-	if info.Has(FieldOutput) && !slices.Contains(info.Output, ModalityText) {
+	if writesNoText(info) {
 		out = append(out, CaveatNoTextOutput)
 	}
 	if info.Has(FieldRetires) && !info.Retires.After(now.Add(expiringWithin)) {
@@ -160,12 +160,21 @@ func staticMenu(provider llmprovider.ProviderID, static []string, facts map[stri
 	return cat
 }
 
-// ollamaMenu is an Ollama listing's catalog: no band, the installed models
-// in /api/tags order, the caveated after the others and out of Recommended
-// (0041-MADR A4).
+// writesNoText reports whether info says the model writes no text: its
+// output is known, and text is not in it (0041-MADR D3; 0042-MADR D1).
+func writesNoText(info ModelInfo) bool {
+	return info.Has(FieldOutput) && !slices.Contains(info.Output, ModalityText)
+}
+
+// ollamaMenu is an Ollama listing's catalog: no band; the installed models
+// that may write text, in /api/tags order, the caveated after the others and
+// out of Recommended (0041-MADR A4). A model Ollama says writes no text, such
+// as an embedding model, is not usable, as on every other provider
+// (0042-MADR D1).
 func ollamaMenu(names []string, facts map[string]ModelInfo, limit int, now time.Time) Catalog {
+	usable := slices.DeleteFunc(slices.Clone(names), func(id string) bool { return writesNoText(facts[id]) })
 	var uncaveated, sunk []MenuEntry
-	for _, id := range names {
+	for _, id := range usable {
 		e := entry(llmprovider.ProviderOllama, id, facts, 0, now)
 		if len(e.Caveats) == 0 {
 			uncaveated = append(uncaveated, e)
@@ -173,7 +182,7 @@ func ollamaMenu(names []string, facts map[string]ModelInfo, limit int, now time.
 			sunk = append(sunk, e)
 		}
 	}
-	return Catalog{Recommended: listlimit.Cut(menuIDsOf(uncaveated), limit), Usable: names, Live: true,
+	return Catalog{Recommended: listlimit.Cut(menuIDsOf(uncaveated), limit), Usable: usable, Live: true,
 		Menu: cutMenu(slices.Concat(uncaveated, sunk), limit)}
 }
 

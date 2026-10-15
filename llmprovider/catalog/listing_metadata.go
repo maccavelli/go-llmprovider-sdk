@@ -328,6 +328,16 @@ func setRate(r *ModelRates, f Field, v float64) {
 	}
 }
 
+// Ollama's capability names, as its types/model/capability.go spells them
+// (0042-MADR, section 2).
+const (
+	ollamaCompletion = "completion"
+	ollamaImage      = "image"
+	ollamaThinking   = "thinking"
+	ollamaTools      = "tools"
+	ollamaVision     = "vision"
+)
+
 // ollamaShowReply is the part of Ollama's POST /api/show reply D2 reads.
 type ollamaShowReply struct {
 	ModelInfo    map[string]json.RawMessage `json:"model_info"`
@@ -336,8 +346,8 @@ type ollamaShowReply struct {
 
 // fetchOllamaShow asks a local Ollama about one model: its context window,
 // from model_info["<general.architecture>.context_length"], and its
-// capabilities (tools, vision, thinking). Like the listing, it sends a
-// credential only where the token names its own header.
+// capabilities (tools, vision, thinking, and what it writes). Like the
+// listing, it sends a credential only where the token names its own header.
 func fetchOllamaShow(ctx context.Context, token llmprovider.Token, cfg config, model string) (ModelInfo, error) {
 	baseURL := "http://localhost:11434"
 	if cfg.BaseURL != "" {
@@ -371,7 +381,8 @@ func fetchOllamaShow(ctx context.Context, token llmprovider.Token, cfg config, m
 	return ollamaInfo(model, show), nil
 }
 
-// ollamaInfo reads one /api/show reply.
+// ollamaInfo reads one /api/show reply. A missing or empty capability list
+// says nothing: Ollama omits an empty one (0042-MADR D1).
 func ollamaInfo(model string, show ollamaShowReply) ModelInfo {
 	b := newInfo(llmprovider.ProviderOllama, model)
 	var arch string
@@ -382,14 +393,41 @@ func ollamaInfo(model string, show ollamaShowReply) ModelInfo {
 			b.set(FieldContextWindow)
 		}
 	}
-	if show.Capabilities != nil {
-		b.info.Tools = slices.Contains(show.Capabilities, "tools")
+	if caps := show.Capabilities; len(caps) > 0 {
+		b.info.Tools = slices.Contains(caps, ollamaTools)
 		b.info.Input = []Modality{ModalityText}
-		if slices.Contains(show.Capabilities, "vision") {
+		if slices.Contains(caps, ollamaVision) {
 			b.info.Input = append(b.info.Input, ModalityImage)
 		}
-		b.info.Reasoning.Supported = slices.Contains(show.Capabilities, "thinking")
-		b.set(FieldTools, FieldInput, FieldReasoning)
+		b.info.Output = ollamaOutputs(caps)
+		b.info.Reasoning.Supported = slices.Contains(caps, ollamaThinking)
+		b.set(FieldTools, FieldInput, FieldOutput, FieldReasoning)
+	}
+	return b.done()
+}
+
+// ollamaOutputs is what a model writes, from its capabilities: text when it
+// completes, an image when it makes one. An embedding or a decision model
+// writes neither (0042-MADR D1).
+func ollamaOutputs(capabilities []string) []Modality {
+	var out []Modality
+	if slices.Contains(capabilities, ollamaCompletion) {
+		out = append(out, ModalityText)
+	}
+	if slices.Contains(capabilities, ollamaImage) {
+		out = append(out, ModalityImage)
+	}
+	return out
+}
+
+// ollamaTagInfo is what one /api/tags entry says of its model: only what it
+// writes. Its tools, input and reasoning come from /api/show alone, where the
+// two endpoints were measured to differ (0042-MADR D1).
+func ollamaTagInfo(t ollamaTag) ModelInfo {
+	b := newInfo(llmprovider.ProviderOllama, t.Name)
+	if len(t.Capabilities) > 0 {
+		b.info.Output = ollamaOutputs(t.Capabilities)
+		b.set(FieldOutput)
 	}
 	return b.done()
 }
