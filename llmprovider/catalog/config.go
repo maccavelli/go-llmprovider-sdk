@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
+	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
@@ -48,6 +50,7 @@ type config struct {
 	logger           *slog.Logger // Settings.Logger
 	layers           []Layer      // WithModelLayer's, in the order given
 	workload         workload     // WithWorkload's, else the published one
+	lastGood         lastGood     // WithLastGood's
 	// tokens is the credential the options give (WithAPIKey or
 	// WithTokenSource), or nil: CachedFacts finds a listing by it.
 	tokens llmprovider.TokenSource
@@ -72,7 +75,16 @@ type (
 	modelLayerOption struct{ layer Layer }
 	// workloadOption is WithWorkload's value.
 	workloadOption workload
+	// lastGoodOption is WithLastGood's value.
+	lastGoodOption lastGood
 )
+
+// lastGood is a listing a caller kept from an earlier run: its usable ids,
+// and when they were read (0041-MADR D6).
+type lastGood struct {
+	ids []string
+	at  time.Time
+}
 
 // builtinIDs are the ids WithProfile and WithLimit are scoped to: every built-in provider,
 // so that one option list carrying it is valid for each.
@@ -111,6 +123,21 @@ func WithLimit(n int) llmprovider.Option {
 func WithWorkload(cacheShare, outputShare float64) llmprovider.Option {
 	return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithWorkload",
 		workloadOption{cacheShare: cacheShare, outputShare: outputShare})
+}
+
+// WithLastGood hands in a listing the caller kept from an earlier run: its
+// usable ids, as Catalog.Usable gave them, and when they were read, as
+// Catalog.FetchedAt gave it. It is used only after a transient failure, when
+// no listing for the same provider, base URL, organization and credential
+// is cached, and only within 24 hours of fetchedAt; the Catalog is then
+// stale (0041-MADR D6). Kilo's band is then ranked without Kilo's prices,
+// which the ids do not carry (0041-MADR A6). Ollama ignores it. It is
+// scoped to every built-in provider, as WithProfile is, but its ids are one
+// provider's: pass it with llmprovider.For(id, …) in a list several
+// providers share.
+func WithLastGood(ids []string, fetchedAt time.Time) llmprovider.Option {
+	return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithLastGood",
+		lastGoodOption{ids: slices.Clone(ids), at: fetchedAt})
 }
 
 // WithKiloOrganization lists a Kilo organization's catalog: the request
@@ -154,6 +181,8 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 			cfg.KiloOrganization = string(v)
 		case modelLayerOption:
 			cfg.layers = append(cfg.layers, v.layer)
+		case lastGoodOption:
+			cfg.lastGood = lastGood(v)
 		case workloadOption:
 			if !share(v.cacheShare) || !share(v.outputShare) {
 				return config{}, fmt.Errorf("%w: catalog.WithWorkload(%v, %v): each share must be within (0, 1)",

@@ -1904,3 +1904,179 @@ On the 2026-10-12 snapshot, through `List` with `WithLimit(MaxListed)`.
   * Once both had landed, `make records-check` gave 91 records and
     0 problems, and the second run gave 23 of 23.
   * That report is not this phase's, and is not staged with it.
+
+### Phase 6: steady menus (2026-10-15)
+
+#### Research
+
+* **P15, the listing cache.**
+  * `listingEntry` holds a listing's facts and when they were read, by
+    `listingKey`: the provider, the base URL, and the credential's
+    fingerprint.
+  * `listOnce` stores the facts it emitted (`storeListing(…, false)`)
+    when the catalog is live.
+  * Nothing caches the listing itself: every `List` fetches.
+* **The listers.**
+  * `modelCatalogFor` fetches and builds in one step.
+  * Most listers' curators need only the usable ids and the models.dev
+    document. Kilo's, `kiloCurate(entries, profile, w)`, ranks from each
+    entry's prices and dates.
+  * Ollama's lister fetches `/api/show` per model, and returns its errors.
+* **The errors.**
+  * `ClassifyHTTPError` gives `ErrProviderUnavailable` for 5xx and 408, and
+    for no response. ~~The listers wrap send failures in it too (0026-MADR
+    F35).~~ *(Corrected by the network test, 2026-10-15: only Ollama's
+    listing wraps a send failure. The others return the transport's error,
+    a `net.Error`, which the allowlist's "a network error" covers.)*
+  * It gives `ErrRateLimited` for 429.
+  * Others are terminal: `ErrAuthFailure`, `ErrInvalidRequest`,
+    `ErrQuotaExhausted` and `ErrNotPermitted`.
+  * Step 2's allowlist (`ErrProviderUnavailable`, `ErrRateLimited`,
+    `context.DeadlineExceeded`, a network error) therefore sends
+    everything else to the static floor.
+* **The consumers.**
+  * gobble treats `!Live` as a failure and retries (E42, E43).
+  * prepare-commit-msg shows `Recommended` (E44), and reports a refused
+    credential (E45).
+* **A scratch prototype.** A fresh listing was served without fetching,
+  per key, profile, limit, workload, layer count and metadata switch.
+  `go test ./llmprovider/... ./wizard/` then failed two tests, and no
+  others:
+  * `TestListModels_ListsTheOrganization` (`providers/kilo`):
+    `listing requests = [], want the organization's catalog with its header`;
+  * `TestOllamaUsable_TagsNotCached_0042`:
+    `/api/show asked map[chat:1:1 granite-embedding:30m:1] after two listings; want … granite-embedding:30m:2`.
+
+#### Deviations
+
+1. **2026-10-15: what the cache holds.**
+   * **Found:** the curators need more than ids for Kilo (research).
+   * **Decided by the owner** (recommended): the cache holds the fetched
+     listing, ids and Kilo's entries. Each lister is split into a fetch
+     and a build. 0041-MADR A6.
+   * **Added to the phase's scope:** that restructuring of `discovery.go`.
+2. **2026-10-15: the cache key.**
+   * **Found:** the prototype answered a Kilo organization's request from
+     the personal account's listing.
+   * **Decided by the owner** (recommended): `listingKey` gains the Kilo
+     organization. 0041-MADR A6.
+   * **Added to the phase's scope:** the facts cache, which shares the key.
+3. **2026-10-15: Ollama.**
+   * **Found:** a fresh cached listing breaks 0042-MADR D1's retry of a
+     failed `/api/show`, hides newly pulled models, and Ollama has no
+     static floor.
+   * **Decided by the owner** (recommended): Ollama is outside D6. It lists
+     every time, never serves stale, and returns its errors. 0041-MADR A6.
+
+#### Deviation 1, measured
+
+On the 2026-10-12 snapshot, a scratch probe built Kilo's list both with its
+entries and from its ids alone. The ids are cheapest first, as `kiloUsable`
+orders them:
+
+| Profile | `WithLimit` | Same list without the entries? |
+| :--- | :--- | :--- |
+| `ProfileUtility` | `MaxListed` | yes |
+| `ProfileUtility` | none | no: the full list differs from its seventh id |
+| `ProfileCapable` | `MaxListed` and none | no: the six differ from the first, `openai/gpt-6-astra…` against `deepseek/deepseek-v4.1-flash…` |
+| `ProfileAgent` | `MaxListed` and none | no, as for `ProfileCapable` |
+
+`TestList_KiloStaleRanksAsLive_0041` was first written under
+`ProfileUtility`'s six, and so passed with the entries dropped. That plant
+was not caught. The test now checks `ProfileCapable`'s six and
+`ProfileUtility`'s full list, and the plant is caught.
+
+#### What was built
+
+* **`discovery.go`:**
+  * `Catalog.Source` and `Catalog.FetchedAt`, and `ListSource` with
+    `ListLive`, `ListStale` and `ListStatic`;
+  * the `Live`, `Err` and `List` docs;
+  * `listOnce`, through the cache, and Ollama's `listOllamaOnce` beside
+    it;
+  * `cachedOrFetched` and `fetchClaimed`: one fetch per key;
+  * `transientListingFailure`: the allowlist;
+  * `modelCatalogFor` split into `fetchListing` and `buildListing` around
+    `fetchedListing` (deviation 1). `opencodeCatalog` goes, and its doc
+    moves to `fetchOpencodeUsable`.
+* **`listing_cache.go`:**
+  * `listingKey` gains `organization` (deviation 2);
+  * `listingEntry` gains the fetched listing and when it was read;
+  * `lastGoodWindow` (24 hours);
+  * `storeFetched`, `freshListing`, `lastGoodListing` and
+    `claimListing`.
+  * `storeListing` keeps the listing when it replaces the facts.
+* **`config.go`:** `WithLastGood`, and its `lastGood` value.
+* **Tests:**
+  * `steady_0041_test.go`: step 3's six tests, and four more for the
+    deviations: `TestList_CachedRebuildsWithProfile_0041`,
+    `TestList_KiloStaleRanksAsLive_0041`,
+    `TestList_KiloOrganizationKeyed_0041` and
+    `TestList_OllamaOutsideD6_0041`.
+  * `providers/kilo`'s `TestListModels_ListsTheOrganization` gives each
+    iteration its own server. Its two iterations list the same
+    organization, so the second was answered from the cache, which D6
+    intends. The assertion is unchanged.
+* **Docs:** `docs/architecture.md`, the listing section, the package row
+  and `List`'s options (R43).
+
+#### Tests, red and green
+
+* **Red** (the tests written first):
+
+  ```text
+  steady_0041_test.go:115:68: second.Source undefined (type Catalog has no field or method Source)
+  steady_0041_test.go:115:78: undefined: ListLive
+  steady_0041_test.go:116:11: second.FetchedAt undefined (type Catalog has no field or method FetchedAt)
+  steady_0041_test.go:175:23: undefined: ListStale
+  ```
+
+  The behaviour each test checks was seen failing through the plants
+  below.
+* **Green:**
+  * the `TestList_` tests;
+  * `go test ./llmprovider/... ./wizard/ ./internal/...`;
+  * `-race` on `catalog`'s `TestList_`, `_0041` and `_0042` tests.
+  * No wire golden changed.
+* **Found while going green:**
+  * The network case's `Err` is `dial tcp …: connection refused`, a
+    `net.Error`, and not `ErrProviderUnavailable`. That corrects the
+    research note above. The test now expects a `net.Error`.
+  * My `listOllama` collided with a test helper of that name, and was
+    renamed `listOllamaOnce`.
+  * gocritic's `deferInLoop` moved the claimed fetch into `fetchClaimed`.
+
+#### Plants (`tools/plant.py`, 11 of 11 caught)
+
+| Plant | FAIL line |
+| :--- | :--- |
+| stale served on a 401 (PLAN) | `Source stale, Live true, Err llmprovider: authentication failed: openai HTTP 401 …; want static, not live, an auth failure` |
+| the 24-hour window removed (PLAN) | `Source stale, Live true, Err llmprovider: provider unavailable: openai HTTP 503 …; want the static floor` |
+| `Live` false on stale (PLAN) | `Source stale, Live false, …; want stale, live, llmprovider: provider unavailable` |
+| the fetch not deduplicated (PLAN) | `8 listing requests for 8 concurrent Lists; want 1` |
+| the cache served past the TTL | `1 listing requests once the TTL passed; want 2` |
+| a network error not transient | `Source static, Live false, Err Get "http://127.0.0.1:…/models": dial tcp …: connection refused; want stale` |
+| `WithLastGood` ignored | `Source static; want stale` |
+| Kilo's entries not cached (deviation 1) | `stale Kilo list (stale, 6 ids) differs from the live one (6 ids): ["deepseek/deepseek-v4.1-flash" …]` |
+| the organization left out of the key (deviation 2) | `listing requests ["/models"]; want one personal, one for the organization, each once` |
+| Ollama through the cache (deviation 3) | `ollama: no option recommends []; want every installed model [m1 … m8]` |
+| a cache hit built without the listing's facts | `menu entry 1: cached gpt-4.1-mini released 2025-04-14 … ; live gpt-4.1-mini released 2025-04-15 …` |
+
+The first run caught 9 of 11. "Kilo's entries not cached" is above. "A
+cache hit built without the listing's facts" was not caught because the
+listing carried no dates. The test now serves `created` times, and checks
+each menu entry's release date against the live listing's.
+
+The plants ran again after the `fetchClaimed` change: 11 of 11.
+
+#### Checks
+
+* `make pre-add-check` on the 5 Go files: clean (gofmt, golangci-lint,
+  go vet, go test, govulncheck), after the `deferInLoop` change.
+* `tools/apidiff.py 2e17224`: `Catalog.FetchedAt`, `Catalog.Source`,
+  `ListLive`, `ListSource`, `ListStale`, `ListStatic` and `WithLastGood`,
+  all added, and nothing else, as "The exported additions" lists for
+  Phase 6.
+* **Gate:** `tools/gate.py, 23 of 23`.
+* `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
+  and `tools/linkcheck.py`: in the staging run.

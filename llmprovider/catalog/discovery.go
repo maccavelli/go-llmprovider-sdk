@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -74,11 +75,13 @@ type Catalog struct {
 	// Ollama does not report (0042-MADR D1).
 	Usable []string
 	// Live reports whether Usable came from the provider's listing rather
-	// than the static catalog.
+	// than the static catalog. A stale listing is live: it came from the
+	// provider, at FetchedAt (Source ListStale; 0041-MADR D6).
 	Live bool
-	// Err is the listing failure that made Live false. It is nil when Live is
-	// true, and when a listing that succeeded yielded no usable id (MADR 0013
-	// C2).
+	// Err is the listing failure: the one that made Live false, or, on a
+	// stale listing, the one the last good listing stands in for. It is nil
+	// on a listing read now or cached, and when a listing that succeeded
+	// yielded no usable id (MADR 0013 C2).
 	Err error
 	// Menu is every usable model, each with its facts, its rank and its
 	// caveats: the band by rank, then the other models without a caveat,
@@ -87,7 +90,31 @@ type Catalog struct {
 	// a static catalog it is the static ids, in order. WithLimit(n) cuts it
 	// as it cuts Recommended.
 	Menu []MenuEntry
+	// Source is where the listing came from: the provider's listing, read now
+	// or within the listing cache's ten minutes (ListLive), the last good
+	// listing after a transient failure (ListStale), or the static catalog
+	// (ListStatic) (0041-MADR D6, A6). It is empty on a Catalog List did not
+	// build.
+	Source ListSource
+	// FetchedAt is when the listing was read from the provider: now, or
+	// earlier for a cached or stale one. It is zero for the static catalog.
+	FetchedAt time.Time
 }
+
+// ListSource says where a Catalog's listing came from (0041-MADR D6).
+type ListSource string
+
+// The sources of a listing.
+const (
+	// ListLive is the provider's listing, read now or within the listing
+	// cache's ten minutes.
+	ListLive ListSource = "live"
+	// ListStale is the last good listing, at most 24 hours old, served after
+	// a transient failure: a timeout, a 5xx, a rate limit or a network error.
+	ListStale ListSource = "stale"
+	// ListStatic is the static catalog, served when no good listing exists.
+	ListStatic ListSource = "static"
+)
 
 // List performs one model listing for id and returns both the curated
 // recommendation and every usable id (MADR 0007 §1). src is the credential: a
@@ -96,13 +123,21 @@ type Catalog struct {
 // TTS, Live, image, dated previews, …), spends no generation, and is bounded
 // at 10 s.
 //
-// opts are llmprovider's common options, with WithProfile, WithLimit and
-// WithKiloOrganization. A failed listing degrades to the static catalog with a
-// nil error and Live false, and its classified failure in Catalog.Err; only
-// Ollama, an unknown provider, a missing source, a token failure or a refused
-// option return an error. A listing refused for its credential renews src
-// once, when src is an llmprovider.InvalidatingSource, and lists again
-// (0026-MADR F36).
+// opts are llmprovider's common options, with WithProfile, WithLimit,
+// WithWorkload, WithLastGood and WithKiloOrganization.
+//
+// A listing read within the last ten minutes, for the same provider, base
+// URL, Kilo organization and credential, is ranked again with no request,
+// and callers at once share one fetch (0041-MADR D6, A6). A transient
+// failure (a timeout, a 5xx, a rate limit, a network error) serves the last
+// good listing, at most 24 hours old: Catalog.Source is ListStale, Live
+// true, and Err the failure. Any other failed listing degrades to the
+// static catalog with a nil error and Live false, and its classified
+// failure in Catalog.Err. Ollama is listed every time and never served
+// stale. Only Ollama, an unknown provider, a missing source, a token
+// failure or a refused option return an error. A listing refused for its
+// credential renews src once, when src is an llmprovider.InvalidatingSource,
+// and lists again (0026-MADR F36).
 func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, opts ...llmprovider.Option) (Catalog, error) {
 	// The id first: an option scoped to the built-in ids would otherwise
 	// refuse an unknown one with ErrInvalidRequest (0015-PLAN S12b).
@@ -159,21 +194,117 @@ func listAndRecord(ctx context.Context, id llmprovider.ProviderID, src llmprovid
 	return listOnce(ctx, id, token, cfg)
 }
 
-// listOnce lists with token, collects what the listing says of each model,
-// and, when the listing succeeded, records it in the listing cache.
+// listOnce lists with token, and returns what the listing says of each
+// model besides the catalog. Ollama lists every time (listOllamaOnce). Every
+// other provider lists through the listing cache (0041-MADR D6, A6): a
+// listing read within listingMetadataTTL is built again with no request;
+// otherwise one fetch per key runs at a time, and a transient failure
+// serves the last good listing, read within lastGoodWindow, or WithLastGood's.
 func listOnce(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (Catalog, map[string]ModelInfo, error) {
+	id = llmprovider.ProviderID(strings.ToLower(string(id)))
+	if !listed[id] {
+		return Catalog{}, nil, unlistedProvider(id)
+	}
+	if id == llmprovider.ProviderOllama {
+		return listOllamaOnce(ctx, token, cfg)
+	}
+	key := listingKeyFor(id, cfg, token)
+	var meta func() modelMetadataResult
+	if id != llmprovider.ProviderKilo {
+		// The document is read alongside the listing; Kilo's ranking reads
+		// its own listing (MADR 0009 §2).
+		meta = startModelMetadata(ctx, cfg)
+	}
+	f, models, at, failure := cachedOrFetched(ctx, id, token, cfg, key)
+	source := ListLive
+	if failure != nil && transientListingFailure(failure) {
+		if last, lastAt, ok := lastGoodListing(key, cfg); ok {
+			f, at, source = last, lastAt, ListStale
+			models, _ = cachedListing(key)
+		}
+	}
+	l := buildListing(id, f, cfg, meta)
+	if source == ListLive {
+		l.err = failure
+	}
+	cat := l.catalog(id, token, cfg, models)
+	switch {
+	case source == ListStale:
+		cat.Source, cat.FetchedAt, cat.Err = ListStale, at, failure
+	case cat.Live:
+		cat.Source, cat.FetchedAt = ListLive, at
+	default:
+		cat.Source = ListStatic
+	}
+	return cat, models, nil
+}
+
+// listOllamaOnce is Ollama's listing, outside the listing cache: it lists every
+// time, never serves a stale listing, and returns its errors (0041-MADR A6).
+// Its /api/show replies are cached, as before (0041-MADR A4).
+func listOllamaOnce(ctx context.Context, token llmprovider.Token, cfg config) (Catalog, map[string]ModelInfo, error) {
 	models := map[string]ModelInfo{}
 	cfg.sink = func(info ModelInfo) { models[info.ID] = info }
-	l, err := modelCatalogFor(ctx, id, token, cfg)
+	l, err := ollamaCatalog(ctx, token, cfg)
 	if err != nil {
 		return Catalog{}, models, err
 	}
 	undatedConstant(models)
-	cat := l.catalog(id, token, cfg, models)
+	cat := l.catalog(llmprovider.ProviderOllama, token, cfg, models)
+	cat.Source, cat.FetchedAt = ListLive, listingNow()
 	if cat.Err == nil && cat.Live && len(models) > 0 {
-		storeListing(listingKeyFor(id, cfg, token), models, false)
+		storeListing(listingKeyFor(llmprovider.ProviderOllama, cfg, token), models, false)
 	}
 	return cat, models, nil
+}
+
+// cachedOrFetched is key's listing: the cached one while it is fresh, else
+// one fetched now, by at most one caller per key at a time; the others wait
+// for it (0041-MADR D6). models is what the listing says of each model, and
+// at is when it was read. failure is the fetch's failure, or ctx's while
+// waiting; f is then empty.
+func cachedOrFetched(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config,
+	key listingKey) (f fetchedListing, models map[string]ModelInfo, at time.Time, failure error) {
+	for {
+		if f, at, ok := freshListing(key); ok {
+			models, _ := cachedListing(key)
+			return f, models, at, nil
+		}
+		done, wait := claimListing(key)
+		if wait == nil {
+			return fetchClaimed(ctx, id, token, cfg, key, done)
+		}
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			return fetchedListing{}, nil, time.Time{}, ctx.Err()
+		}
+	}
+}
+
+// fetchClaimed fetches the listing the caller claimed, records it when it
+// succeeds, and releases the claim with done.
+func fetchClaimed(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config, key listingKey,
+	done func()) (fetchedListing, map[string]ModelInfo, time.Time, error) {
+	defer done()
+	models := map[string]ModelInfo{}
+	cfg.sink = func(info ModelInfo) { models[info.ID] = info }
+	f, failure := fetchListing(ctx, id, token, cfg)
+	if failure != nil {
+		return fetchedListing{}, models, time.Time{}, failure
+	}
+	undatedConstant(models)
+	return f, models, storeFetched(key, f, models), nil
+}
+
+// transientListingFailure reports whether a listing's failure may serve the
+// last good listing: a timeout, a 5xx or 408, a rate limit, or a network
+// error (0041-MADR D6). A refused credential, a refused request, an
+// exhausted quota and anything unclassified fall to the static list.
+func transientListingFailure(err error) bool {
+	var netErr net.Error
+	return errors.Is(err, llmprovider.ErrProviderUnavailable) || errors.Is(err, llmprovider.ErrRateLimited) ||
+		errors.Is(err, context.DeadlineExceeded) || errors.As(err, &netErr)
 }
 
 // undatedConstant drops the Released of a listing whose dated rows all
@@ -330,46 +461,72 @@ func firstPartyCurator(p llmprovider.ProviderID) curator {
 	}
 }
 
-// modelCatalogFor dispatches one provider's fetch and curation. The caller
-// owns the timeout. Every lister sends token as it describes itself
-// (0016-MADR A6).
-func modelCatalogFor(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (listingResult, error) {
-	switch p := llmprovider.ProviderID(strings.ToLower(string(id))); p {
+// fetchedListing is what one provider's fetch returned: all its build needs
+// (0041-MADR A6). It is what the listing cache keeps.
+type fetchedListing struct {
+	// usable is the listing's usable ids, in the lister's order.
+	usable []string
+	// kilo is Kilo's entries, whose prices and dates its ranking reads.
+	kilo []kiloCatalogEntry
+}
+
+// fetchListing sends one provider's listing requests, Ollama's aside, and
+// returns what buildListing needs (0041-MADR D6, A6). The caller owns the
+// timeout. Every lister sends token as it describes itself (0016-MADR A6).
+// A failed fetch degrades to the static catalog rather than failing: see
+// listingResult.catalog.
+func fetchListing(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (fetchedListing, error) {
+	var usable []string
+	var err error
+	switch id {
+	case llmprovider.ProviderGemini, llmprovider.ProviderOpenAI, llmprovider.ProviderClaude, llmprovider.ProviderGrok:
+		usable, err = firstPartyUsable(ctx, id, token, cfg)
+	case llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo:
+		usable, err = fetchOpencodeUsable(ctx, id, token, cfg)
+	case llmprovider.ProviderHuggingFace:
+		usable, err = fetchHuggingFaceUsable(ctx, token, cfg)
+	case llmprovider.ProviderKilo:
+		entries, err := fetchKiloCatalog(ctx, token, cfg)
+		return fetchedListing{usable: kiloUsable(entries), kilo: entries}, err
+	case llmprovider.ProviderTogether:
+		usable, err = fetchTogetherUsable(ctx, token, cfg)
+	default:
+		return fetchedListing{}, unlistedProvider(id)
+	}
+	return fetchedListing{usable: usable}, err
+}
+
+// buildListing is one provider's listingResult from f: a listing fetched
+// now, cached, or kept as the last good one. It sends no listing request:
+// the caller's profile, limit, workload and layers rank it as they rank a
+// live listing (0041-MADR D6, A6). meta is the models.dev document's, and
+// nil for Kilo, which ranks from its own entries (MADR 0009 §2).
+func buildListing(id llmprovider.ProviderID, f fetchedListing, cfg config, meta func() modelMetadataResult) listingResult {
+	l := listingResult{usable: f.usable, static: Static(id), meta: meta}
+	switch id {
 	case llmprovider.ProviderGemini, llmprovider.ProviderOpenAI, llmprovider.ProviderClaude, llmprovider.ProviderGrok:
 		// Ranked by facts, as every provider is; the name curator ranks with
 		// no document (0041-MADR D4).
-		meta := startModelMetadata(ctx, cfg)
-		usable, err := firstPartyUsable(ctx, p, token, cfg)
-		return listingResult{usable: usable, err: err, static: Static(p),
-			curate: metadataCurate(p, cfg.ModelProfile, cfg.workload, meta, firstPartyCurator(p)), meta: meta}, nil
+		l.curate = metadataCurate(id, cfg.ModelProfile, cfg.workload, meta, firstPartyCurator(id))
 	case llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo:
-		return opencodeCatalog(ctx, p, token, cfg)
+		// The OpenCode listing carries no routing or capability metadata, so
+		// the curation leaves out, by name, what a request would fail on
+		// (0021-MADR D3); curateFromCatalog does so for every provider
+		// (0038-MADR D1).
+		l.curate = metadataCurate(id, cfg.ModelProfile, cfg.workload, meta, func(usable []string, limit int) []string {
+			return curateFromCatalog(id, staticOpencodeCatalog(id), usable, isUsableOpencodeModel, rankOpencodeModel, limit)
+		})
 	case llmprovider.ProviderHuggingFace:
-		meta := startModelMetadata(ctx, cfg)
-		usable, err := fetchHuggingFaceUsable(ctx, token, cfg)
-		return listingResult{usable: usable, err: err, static: Static(llmprovider.ProviderHuggingFace),
-			curate: metadataCurate(llmprovider.ProviderHuggingFace, cfg.ModelProfile, cfg.workload, meta, curateHuggingFace),
-			meta:   meta}, nil
+		l.curate = metadataCurate(id, cfg.ModelProfile, cfg.workload, meta, curateHuggingFace)
 	case llmprovider.ProviderKilo:
-		entries, err := fetchKiloCatalog(ctx, token, cfg)
-		// Deliberate: a failed Kilo fetch degrades to the static catalog rather
-		// than failing, like every other lister here. See listingResult.catalog.
-		return listingResult{usable: kiloUsable(entries), err: err, static: Static(llmprovider.ProviderKilo),
-			curate: kiloCurate(entries, cfg.ModelProfile, cfg.workload)}, nil
+		l.curate = kiloCurate(f.kilo, cfg.ModelProfile, cfg.workload)
 	case llmprovider.ProviderTogether:
-		meta := startModelMetadata(ctx, cfg)
-		usable, err := fetchTogetherUsable(ctx, token, cfg)
-		return listingResult{usable: usable, err: err, static: Static(llmprovider.ProviderTogether),
-			curate: metadataCurate(llmprovider.ProviderTogether, cfg.ModelProfile, cfg.workload, meta, curateTogether),
-			meta:   meta}, nil
-	case llmprovider.ProviderOllama:
-		return ollamaCatalog(ctx, token, cfg)
-	default:
-		return listingResult{}, unlistedProvider(id)
+		l.curate = metadataCurate(id, cfg.ModelProfile, cfg.workload, meta, curateTogether)
 	}
+	return l
 }
 
-// listed holds the ids modelCatalogFor lists.
+// listed holds the ids List lists.
 var listed = map[llmprovider.ProviderID]bool{
 	llmprovider.ProviderGemini: true, llmprovider.ProviderOpenAI: true, llmprovider.ProviderClaude: true,
 	llmprovider.ProviderGrok: true, llmprovider.ProviderOpencodeZen: true, llmprovider.ProviderOpencodeGo: true,
@@ -765,29 +922,12 @@ func filterIDs(ids []string, usable func(string) bool) []string {
 	return out
 }
 
-// opencodeCatalog lists one OpenCode gateway. An unknown gateway is an error,
-// not a degradation. The OpenCode /models endpoint is PUBLIC — it answers 200
-// with no credentials (verified 2026-08-28) — so the credential is sent only
-// when there is one, and an empty key is not an error. The listing carries no
-// routing or capability metadata (every entry reports owned_by "opencode"), so
-// route selection cannot be derived from it; see providers/opencode.
-func opencodeCatalog(ctx context.Context, gateway llmprovider.ProviderID, token llmprovider.Token, cfg config) (listingResult, error) {
-	if _, err := opencodeBaseURL(gateway); err != nil {
-		return listingResult{}, err
-	}
-	meta := startModelMetadata(ctx, cfg)
-	usable, fetchErr := fetchOpencodeUsable(ctx, gateway, token, cfg)
-	curate := func(usable []string, limit int) []string {
-		// Without metadata the curation still leaves out what a request
-		// would fail on (0021-MADR D3); curateFromCatalog now does so for
-		// every provider (0038-MADR D1).
-		return curateFromCatalog(gateway, staticOpencodeCatalog(gateway), usable, isUsableOpencodeModel, rankOpencodeModel, limit)
-	}
-	return listingResult{usable: usable, err: fetchErr, static: Static(gateway),
-		curate: metadataCurate(gateway, cfg.ModelProfile, cfg.workload, meta, curate), meta: meta}, nil
-}
-
 // fetchOpencodeUsable returns the usable gateway models in listing order.
+// The OpenCode /models endpoint is PUBLIC — it answers 200 with no
+// credentials (verified 2026-08-28) — so the credential is sent only when
+// there is one, and an empty key is not an error. The listing carries no
+// routing or capability metadata (every entry reports owned_by "opencode"),
+// so route selection cannot be derived from it; see providers/opencode.
 func fetchOpencodeUsable(ctx context.Context, gateway llmprovider.ProviderID, token llmprovider.Token, cfg config) ([]string, error) {
 	baseURL, err := opencodeBaseURL(gateway)
 	if err != nil {

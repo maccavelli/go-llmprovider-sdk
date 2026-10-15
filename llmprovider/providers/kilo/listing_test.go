@@ -130,19 +130,21 @@ func TestListModels_CarriesTheCallersIdentity(t *testing.T) {
 func TestListModels_ListsTheOrganization(t *testing.T) {
 	var mu sync.Mutex
 	var seen []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		seen = append(seen, r.URL.Path+" org="+r.Header.Get("X-KILOCODE-ORGANIZATIONID"))
-		mu.Unlock()
-		_, _ = w.Write([]byte(kiloListing))
-	}))
-	t.Cleanup(srv.Close)
 	for _, org := range []llmprovider.Option{
 		WithOrganization("org-1"),
 		// The same, through an overlay in a list other providers share
 		// (0015-MADR D5 step 3).
 		llmprovider.For(llmprovider.ProviderKilo, WithOrganization("org-1")),
 	} {
+		// A server for each, so that neither listing is the other's cached
+		// one (0041-MADR D6).
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			seen = append(seen, r.URL.Path+" org="+r.Header.Get("X-KILOCODE-ORGANIZATIONID"))
+			mu.Unlock()
+			_, _ = w.Write([]byte(kiloListing))
+		}))
+		t.Cleanup(srv.Close)
 		mu.Lock()
 		seen = nil
 		mu.Unlock()

@@ -105,7 +105,7 @@ standard library is left out.
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig`, and from a model's facts `Thinking`, `FactsThinking` and `ThinkingConfigFor` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
-| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, and the options `WithProfile`, `WithWorkload` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer` | `llmprovider`, `internal/kiloendpoint`, `internal/transport` |
+| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer` | `llmprovider`, `internal/kiloendpoint`, `internal/transport` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
@@ -169,7 +169,15 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/ownerper
 provider's model list, and curates it into a `Catalog`. Every provider ranks
 by `Profile`, with the model metadata unless `WithoutModelMetadata` is set;
 OpenAI, Claude, Gemini and Grok rank by their name curators only with no
-document (0041-MADR D4). A failed fetch gives the static catalog, with the failure in `Err`. A
+document (0041-MADR D4). A listing read in the last ten minutes, for the
+same provider, base URL, Kilo organization and credential, is ranked again
+with no request, and callers at once share one fetch. A transient failure
+(a timeout, a 5xx, a rate limit, a network error) serves the last good
+listing, at most 24 hours old, or one the caller kept and hands in with
+`WithLastGood`: `Source` is `ListStale`, `Live` stays true, `Err` is the
+failure, and `FetchedAt` says when it was read. Any other failed fetch
+gives the static catalog (`ListStatic`), with the failure in `Err`. Ollama
+lists every time, and returns its errors (0041-MADR D6, A6). A
 listing in which every model has a caveat stays live (on Ollama, a caveat
 other than `CaveatNoTools`), with an empty `Recommended` and the listing in
 `Usable` to search. A provider's own
@@ -608,8 +616,8 @@ for a session, from the store.
   release date, then by id; `catalog.WithLimit(n)` cuts it to `n`, and
   `WithLimit(catalog.MaxListed)` to the band. A static fallback is cut in
   both views. Its options are `llmprovider`'s common ones, with
-  `catalog.WithProfile`, `catalog.WithWorkload`, `catalog.WithLimit` and
-  `catalog.WithKiloOrganization`. It lists the ten
+  `catalog.WithProfile`, `catalog.WithWorkload`, `catalog.WithLimit`,
+  `catalog.WithLastGood` and `catalog.WithKiloOrganization`. It lists the ten
   built-in ids. For any other id it returns an error matching
   `ErrUnsupported`, before it reads the options.
 - **`Catalog.Menu`** is every usable model as a `MenuEntry`: its id, its

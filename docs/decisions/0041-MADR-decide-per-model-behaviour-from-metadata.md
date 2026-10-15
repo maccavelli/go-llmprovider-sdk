@@ -506,10 +506,13 @@ sixes exactly (E22), so the harness reproduces today's ranking.
 
 * **The listing is cached** per provider, base URL and credential
   fingerprint, as its metadata already is (E3). There is one fetch per key
-  at a time, and the cache lives for `listingMetadataTTL`.
+  at a time, and the cache lives for `listingMetadataTTL`. *(A6: the key
+  also holds the Kilo organization; the cache holds the fetched listing,
+  ids and Kilo's entries, not only ids; Ollama is outside D6.)*
 * **A transient failure serves the last good listing.** A timeout, a 5xx, a
   rate limit or a network error, with a listing for the same key read within
-  24 hours, serves that listing. For that response:
+  24 hours, serves that listing *(A6: not on Ollama, which returns its
+  error)*. For that response:
   * `Source` is `ListStale`;
   * `FetchedAt` is when it was read;
   * `Err` is the failure;
@@ -890,6 +893,52 @@ changes them.
   installed.
 * **Built** in 0042-PLAN Phase 2.
 
+## Amendment 2026-10-15: what Phase 6's research found
+
+### A6. What the listing cache holds, its key, and Ollama
+
+* **Found** in 0041-PLAN Phase 6's research, before any code. Three gaps
+  in D6:
+  1. **What is cached.** The PLAN cached "the ordered usable ids". Kilo's
+     band is ranked from each model's listing entry: its prices and dates
+     (`kiloCurate(entries, …)`). A stale Kilo menu rebuilt from ids would
+     rank differently from the live one. The other listers rebuild exactly
+     from ids and the models.dev document.
+  2. **The key.** A Kilo organization changes the listing's endpoint
+     (`/api/organizations/<org>/models`), but not the key D6 names.
+     * A scratch prototype that served a fresh cached listing without
+       fetching answered an organization's request from the personal
+       account's listing (`TestListModels_ListsTheOrganization`).
+     * The listing-facts cache (E3) has shared that key since 0033.
+  3. **Ollama.**
+     * Serving a fresh cached listing without fetching breaks
+       0042-MADR D1's promise that a failed `/api/show` is asked again on
+       the next listing. `TestOllamaUsable_TagsNotCached_0042` fails under
+       the prototype.
+     * It would also hide a model pulled within the last ten minutes.
+     * Ollama returns its errors rather than degrading, and has no static
+       floor.
+* **Owner's decisions** (2026-10-15), each the recommended option:
+  1. **The cache holds the fetched listing:** the usable ids, and Kilo's
+     entries. Each lister is split into a fetch, which sends the requests,
+     and a build, which needs none. A cached or stale listing is built with
+     the caller's own profile, limit, workload and layers, as a live one
+     is.
+  2. **The key gains the Kilo organization,** for the listing and for its
+     facts.
+  3. **Ollama is outside D6.**
+     * It lists every time, never serves a stale listing, and returns its
+       errors as before.
+     * Its `Source` is `ListLive`, and its `FetchedAt` is the time of the
+       listing.
+     * D6 covers the nine other providers.
+* **What it changes:** D6's first bullet, as annotated, and its second
+  bullet for Ollama.
+* **What it costs:**
+  * `discovery.go` is restructured into fetch and build.
+  * A Kilo listing handed in with `WithLastGood` holds ids only, so its
+    band is ranked without Kilo's prices, until a listing is fetched.
+
 ## Pros and Cons of the Options
 
 ### A. A live menu ordered by facts
@@ -986,6 +1035,10 @@ All answered by the owner on 2026-10-13, who then accepted this record:
 * **2026-10-14, Ollama's tool-less models.** Amendment A5, from
   0042-MADR D2: on Ollama, a model whose only caveat is `CaveatNoTools`
   stays in `Recommended`.
+
+* **2026-10-15, the listing cache.** Amendment A6: the cache holds the
+  fetched listing, its key holds the Kilo organization, and Ollama is
+  outside D6.
 
 ### Sources
 
