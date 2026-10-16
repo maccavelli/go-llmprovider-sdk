@@ -2,8 +2,14 @@
 // each one.
 //
 // It holds the curated static catalogs (Static, Label, Rank), the live
-// listing curated against them (List, Catalog), model search (Search), the
-// ranking profiles (Profile), and model metadata.
+// listing curated against them (List, Catalog), the same listing as the
+// provider sent it (ListRaw, RawListing), model search (Search), the ranking
+// profiles (Profile), and model metadata.
+//
+// ListRaw sends List's requests, through the same code, and returns every
+// page byte for byte with each entry of its model array: no filter, ranking,
+// caveat, static fallback or models.dev fetch, and nothing written to the
+// listing cache. A failed listing is its error (0041-MADR D9).
 //
 // Model metadata comes from a models.dev-format document (Metadata), fetched
 // and cached in-process (LookupMetadata, CachedMetadataWith), or read from one

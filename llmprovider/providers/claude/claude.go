@@ -74,6 +74,9 @@
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5; 0038-MADR
 // D4).
 //
+// catalog.ListRaw returns the listing as Anthropic sends it: every page of
+// GET https://api.anthropic.com/v1/models, by after_id (0041-MADR D9).
+//
 // Deferred tools (Tool.Deferred) go out natively from Claude 4.5 on
 // (0040-MADR D2, A1): each with defer_loading and no cache marker, and a
 // result's loads as tool_reference blocks in its tool_result, with the

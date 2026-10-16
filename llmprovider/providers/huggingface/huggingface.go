@@ -41,6 +41,9 @@
 // router publishes (llmprovider.WithModelMetadataURL). It never probes, as the
 // router meters every call (MADR 0012 §1.6).
 //
+// catalog.ListRaw returns the listing as the router sends it:
+// GET https://router.huggingface.co/v1/models (0041-MADR D9).
+//
 // Request.Cache sends nothing: the router documents no caching parameter
 // (0039-MADR D4).
 //

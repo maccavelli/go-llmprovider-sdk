@@ -30,6 +30,11 @@
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5); a ChatGPT
 // session is never probed (MADR 0012 §1.6).
 //
+// catalog.ListRaw returns the listing as OpenAI sends it: with an API key,
+// GET https://api.openai.com/v1/models; with a ChatGPT session, the Codex
+// backend's GET https://chatgpt.com/backend-api/codex/models?client_version=…,
+// unsorted and unfiltered, each entry's slug as its id (0041-MADR D9).
+//
 // OpenAI caches prompts on its own. Request.Cache sends the provider's
 // session id (llmprovider.WithSessionID, else a random id fixed for the
 // provider) as prompt_cache_key, which routes a conversation to one cache;
@@ -73,6 +78,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/chatgpt"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
@@ -108,7 +114,7 @@ const (
 	// PlatformBaseURL is the API-key endpoint.
 	PlatformBaseURL = "https://api.openai.com/v1"
 	// ChatGPTBaseURL is the ChatGPT subscription endpoint, the Codex backend.
-	ChatGPTBaseURL = "https://chatgpt.com/backend-api/codex"
+	ChatGPTBaseURL = chatgpt.BaseURL
 )
 
 // storeOption is WithStore's value.

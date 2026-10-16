@@ -5,15 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/chatgpt"
 )
 
 // chatGPTListingTimeout bounds one ChatGPT listing, as catalog bounds every
@@ -21,26 +18,8 @@ import (
 const chatGPTListingTimeout = 10 * time.Second
 
 // chatgptModelsClientVersion is the client_version a build with no release
-// version sends. The ChatGPT backend's /models endpoint requires the
-// parameter; 0.0.0 is accepted but hides models whose minimal_client_version
-// is higher (gpt-6-sol and gpt-6-luna on 2026-09-27).
-const chatgptModelsClientVersion = "0.0.0"
-
-// chatgptVersionRE reads X.Y.Z from a module version: the only form the
-// backend accepts ("v1.5.0", "1.5" and "(devel)" answer 400, as does anything
-// over 32 characters; measured 2026-09-27). A pseudo-version names the
-// release it precedes.
-var chatgptVersionRE = regexp.MustCompile(`^v?(\d{1,9}\.\d{1,9}\.\d{1,9})(?:[-+].*)?$`)
-
-// chatgptClientVersion is the client_version for this module at version v: its
-// own release, never a Codex version string (MADR 0012 §4.3), else
-// chatgptModelsClientVersion.
-func chatgptClientVersion(v string) string {
-	if m := chatgptVersionRE.FindStringSubmatch(v); m != nil {
-		return m[1]
-	}
-	return chatgptModelsClientVersion
-}
+// version sends (internal/chatgpt.ModelsClientVersion).
+const chatgptModelsClientVersion = chatgpt.ModelsClientVersion
 
 type chatGPTCatalogModel struct {
 	Slug       string `json:"slug"`
@@ -55,22 +34,11 @@ type chatGPTCatalogModel struct {
 func (p *provider) listChatGPT(ctx context.Context, token llmprovider.Token) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, chatGPTListingTimeout)
 	defer cancel()
-	endpoint, err := url.Parse(strings.TrimRight(p.baseURL, "/") + "/models")
+	// The request is the one catalog's ListRaw sends (0041-MADR D9).
+	req, err := chatgpt.ModelsRequest(ctx, p.baseURL, p.userAgent, token, p.src)
 	if err != nil {
-		return nil, fmt.Errorf("model listing: parse chatgpt models URL: %w", err)
+		return nil, err
 	}
-	query := endpoint.Query()
-	sdk, _ := transport.BuildVersions()
-	query.Set("client_version", chatgptClientVersion(sdk))
-	endpoint.RawQuery = query.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("model listing: create chatgpt models request: %w", err)
-	}
-	req.Header.Set("User-Agent", p.userAgent)
-	token.Apply(req, headerAuthorization, "Bearer")
-	setChatGPTHeaders(req, p.src)
 
 	resp, err := p.client.Do(req)
 	if err != nil {

@@ -87,6 +87,10 @@
 //
 // ListModels returns the curated gateway listing. It never probes: the
 // gateways meter every call (MADR 0012 §1.6).
+//
+// catalog.ListRaw returns the listing as the gateway sends it:
+// GET https://opencode.ai/zen/v1/models for Zen, and
+// GET https://opencode.ai/zen/go/v1/models for Go (0041-MADR D9).
 package opencode
 
 import (

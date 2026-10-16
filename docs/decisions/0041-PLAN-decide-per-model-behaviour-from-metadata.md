@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-10-14
+date: 2026-10-15
 associated-madr: "0041-MADR-decide-per-model-behaviour-from-metadata.md"
 decision-makers: repository owner
 ---
@@ -587,7 +587,8 @@ stops and records a deviation.
      * the four first-party listings from Phase 2's recording;
      * a ChatGPT session's and Ollama's from the owner's own, with the
        owner's approval: each is free, and the ChatGPT one is metered on
-       the subscription.
+       the subscription. *(Phase 8 deviation 1: recorded through
+       `ListRaw` once built, by a live-tagged test.)*
 
      Each is redacted, and checked by `tools/denyscan.py`. A provider whose
      envelope differs from 0041-MADR D9's table is a deviation.
@@ -2234,3 +2235,230 @@ The plants ran again after the `fetchClaimed` change: 11 of 11.
   * It reads the public listings, and the keyed ones whose keys are set.
   * Phase 9's live check covers the release. A refresh runs it by
     0033-PLAN's note.
+
+### Phase 8: raw listings (2026-10-15)
+
+#### Research
+
+* **The package map.** `auth` imports `llmprovider`, `internal/redact`,
+  `internal/filelock`, `internal/kiloendpoint`, `internal/ownerperm` and
+  `internal/transport`, and not `catalog`. So `catalog` →
+  `internal/chatgpt` → `auth` is no cycle. `scripts/check_deps.py` checks
+  only modules outside this one. `docs/architecture.md`'s graph had `auth`
+  and `catalog` on one row; it now puts `internal/chatgpt`, then `auth`,
+  below `catalog`.
+* **The envelopes, against D9's table.** All eleven match:
+  * Zen, Go, Kilo, Hugging Face and Together, from
+    `testdata/ranking-2026-10-12`;
+  * Claude, Gemini, Grok and OpenAI, from `testdata/firstparty-2026-10-14`,
+    each file a JSON array of the listing's pages;
+  * Ollama and a ChatGPT session, recorded by deviation 1:
+    * **Ollama:** the owner's local server, 8 models, 3341 bytes;
+    * **ChatGPT:** one page, 6 models, 316905 bytes. Its envelope is
+      `{"models": […]}` alone, each entry keyed by `slug`.
+* **The ChatGPT page, checked for account data** before it was copied in:
+  * no e-mail address, UUID, token or home path;
+  * eight strings shaped like account ids, each prose in a model's
+    instructions ("User-authored", "user-supplied");
+  * `available_in_plans`, the same list of plan names on every model.
+
+  Nothing was redacted. `tools/denyscan.py` found 0 hits in each recording.
+
+#### Deviations
+
+1. **2026-10-15: the two envelopes recorded after `ListRaw`, through it.**
+   * **Found:** step 1 records the ChatGPT and Ollama envelopes before any
+     code. No path in the tree reads a ChatGPT session's listing raw: the
+     openai provider decodes it as it reads it.
+   * **Decided by the owner:**
+     * record both now;
+     * record each through `ListRaw` itself, once built, with a
+       live-tagged test, so each fixture is what `ListRaw` read.
+     The owner ran the ChatGPT recording; it uses the Codex CLI's login.
+   * **Added to the phase's scope:**
+     * `llmprovider/live_0041_rawlistings_test.go`, writing into
+       `LLMPROVIDER_RAW_RECORD_DIR`;
+     * `llmprovider/catalog/testdata/rawlistings-2026-10-15/`.
+   * The envelopes still came before the tests that depend on them:
+     `TestListRaw_Verbatim_0041` and `TestListRaw_SameTransportAsList_0041`
+     stayed red until `chatgpt.json` was in.
+   * D9's table matched, so the MADR stands on this.
+2. **2026-10-15: a caller's client with no transport.**
+   * **Found:** `TestNoAmbientState` refused `raw.go`'s fallback to
+     `http.DefaultTransport` for a client with no transport. `List` sends
+     through that one in that case, by net/http's rule.
+   * **Decided by the owner** (recommended): keep the SDK's default
+     transport, as the snapshot command's recorder does (E49), and amend
+     D9: 0041-MADR A7.
+   * Recording each page where the fetch code reads it was considered and
+     not taken: it changes every fetch function.
+3. **2026-10-15: `internal/chatgpt` below its coverage floor.**
+   * **Found:** the first gate run, 21 of 23. `coverage-check` and
+     `gate-selftest` each reported
+     `llmprovider/internal/chatgpt is 0.0%, below its 80.0% floor`.
+     Step 2 kept the moved code's tests in `providers/openai`, unchanged,
+     as the proof of the move, so the new package had none of its own.
+     Its callers' tests cover 90.0% of it, but `coverage-floors.txt` lets
+     only a test-support package be measured by other packages' tests
+     (0015-MADR's amendment).
+   * **Decided by the owner** (recommended): the package gets its own
+     tests. No floor or rule changes, and `providers/openai`'s tests stay
+     unchanged.
+   * Measuring it by its callers was considered and not taken: it widens
+     0015-MADR's rule to library code.
+   * **Added to the phase's scope:**
+     `llmprovider/internal/chatgpt/chatgpt_test.go`.
+   * Neither MADR changes.
+
+#### What was built
+
+* **`llmprovider/internal/chatgpt`:** the ChatGPT session's `BaseURL`, its
+  header names, `IsSession`, `SetHeaders`, `ModelsClientVersion`,
+  `ClientVersion`, and `ModelsRequest`, the listing request.
+* **`providers/openai`:**
+  * `chatgpt_session.go` keeps its names as aliases of the shared ones;
+  * `chatgpt_listing.go` sends `chatgpt.ModelsRequest`;
+  * `ChatGPTBaseURL` is `chatgpt.BaseURL`.
+
+  Its sort and filter are unchanged, and its tests pass with no test file
+  changed.
+* **`internal/chatgpt`'s own tests** (deviation 3): `TestIsSession`,
+  `TestSetHeaders`, `TestClientVersion` and `TestModelsRequest`, 96.7% of
+  its statements.
+* **`catalog/discovery.go`:** `listAndRecord`'s token and its one renewal
+  are two helpers, `listingToken` and `renewRefused`, which `ListRaw`
+  calls too.
+* **`catalog/raw.go`:**
+  * `ListRaw`, `RawListing` and `RawModel`, as D9 gives them;
+  * `listRawOnce` calls the fetch `List` calls, or the ChatGPT request,
+    through `rawRecorder`;
+  * `rawRecorder` keeps each 200 reply's body, read at most one byte past
+    the 8 MiB bound, and hands the same bytes on;
+  * a failed page is an error naming it: the page is the last one asked
+    for, and the classified error is kept with `%w`;
+  * `rawArray` and `rawModels` split each page's model array by D9's
+    table.
+* **Docs:**
+  * the `catalog` package doc describes `ListRaw` beside `List`;
+  * each provider's package doc names the endpoint `ListRaw` reads;
+  * `docs/architecture.md`:
+    * the tree;
+    * the `catalog` row's API, and its import of `internal/chatgpt`;
+    * a row for `internal/chatgpt`, which the openai row now imports;
+    * the package graph;
+    * a paragraph under "A listing".
+
+#### Found while building
+
+1. **The ambient check:** deviation 2.
+2. **A page that is not JSON did not name the page.**
+   * Measured on a scratch copy: Claude's page 2 as `<html>` gave
+     `claude: models: decode: invalid character '<' …`, the same text as
+     page 1. D9 asks for the page.
+   * `rawRecorder` now counts the requests it sends, and a failure names
+     the last one: `model listing: claude page 2: …`.
+   * `TestListRaw_FailedPageNamed_0041` covers it.
+3. **What the shared fetch refuses.**
+   * Measured on OpenAI's listing: an entry `{"id":7}` fails the page,
+     because `List`'s fetch decodes each id as a string.
+   * A ChatGPT session's fetch keeps its entries raw, so a `slug` that is
+     not a string reaches `rawModels`, which returns the entry with an
+     empty `ID`.
+   * Recorded in 0041-MADR A7, item 2. `RawModel.ID`'s doc says so.
+4. **golangci-lint's errcheck** refused `rawModels` discarding a failed
+   decode of the id. The empty `ID` is now explicit and documented, and
+   tested by `TestListRaw_NoCuration_0041` (no `id`) and
+   `TestListRaw_ChatGPT_0041` (a non-string `slug`).
+5. **Not fixed: `internal/listlimit` is missing from
+   `docs/architecture.md`.**
+   * `catalog` and `providers/openai` import it, as they already did at
+     e112a66.
+   * Neither their rows nor the tree name it.
+   * The drift predates Phase 8, which leaves it as it stands.
+
+#### Tests, red and green
+
+* **Red:**
+  * `raw_0041_test.go`, before `raw.go`: `undefined: ListRaw` at each
+    call, `[build failed]`.
+  * With `raw.go` in, `TestListRaw_Verbatim_0041` and
+    `TestListRaw_SameTransportAsList_0041` failed on
+    `open testdata/rawlistings-2026-10-15/chatgpt.json: no such file or
+    directory`, until the recording was in.
+  * `TestListRaw_ReadsBounded_0041` and
+    `TestListRaw_FailedPageNamed_0041` were written after the code. Their
+    red is the plants below.
+  * `internal/chatgpt`'s tests were written after the code they test,
+    which moved unchanged. Their red is the second plant table.
+* **Green:**
+  * the 12 `TestListRaw_` tests, and `internal/chatgpt`'s 4;
+  * `go test ./...`, exit 0;
+  * `go vet -tags live_gateways ./...`, exit 0;
+  * the live test: `chatgpt: 6 models, 316905 bytes, recorded` and
+    `ollama: 8 models, 3341 bytes, recorded`, each PASS.
+
+#### Plants (`tools/plant.py`, 21 of 21 caught)
+
+The first six are the PLAN's. None was caught by a failed build. Two
+earlier drafts were caught for the wrong reason, and were redone:
+* a models.dev fetch inside the recorder was refused as a page, before
+  `NoSideEffects`' count could see it. It now sits before the wrap;
+* a shared-transport plant left an import unused, so `catalog` failed to
+  build. The import is now kept used.
+
+| Plant | Caught by |
+| :--- | :--- |
+| the usability filter applied | `Verbatim` (0 of 391 Kilo models) |
+| a page re-encoded instead of kept | `Verbatim`: "page 0 differs from the served body" |
+| the ChatGPT sort applied | `Verbatim/chatgpt`, `ChatGPT` |
+| the listing cache written | `NoSideEffects`: "CachedFacts knows the listed model" |
+| the static fallback returned on a failure | `NoFallback`, `Pages`, `Bound`, `ReadsBounded`, `FailedPageNamed` |
+| the second page skipped | `Pages`: one page of three |
+| a model entry re-encoded instead of kept | `Verbatim`: each Kilo entry's bytes differ |
+| the models.dev document fetched | `NoSideEffects`: "1 models.dev requests; want 0" |
+| the failed page not named | `FailedPageNamed` |
+| the failed page always named page 1 | `FailedPageNamed` |
+| the failure's class lost in the wrap | `NoFallback`, `FailedPageNamed` |
+| the refused credential not renewed | `NoFallback`: "1 requests, 0 renewals" |
+| the recorder reading past the bound | `ReadsBounded`: 33554440 bytes read |
+| the recorder truncating at the bound | `Bound`: a decode error, not the 8 MiB one |
+| the ChatGPT id field taken as `id` | `Verbatim/chatgpt`, `ChatGPT` |
+| a non-string id rendered as its JSON | `ChatGPT`: slug `"7"` |
+| an entry with no id dropped | `NoCuration`, `ChatGPT` |
+| the endpoint's query kept | `Verbatim`: Claude's `?limit=1000`, ChatGPT's `?client_version=` |
+| a ChatGPT session listed as an API key | `Verbatim/chatgpt`, `ChatGPT` |
+| Ollama listed through the hosted listings | `Verbatim/ollama`, `SameTransportAsList/ollama`, `Ollama` |
+| net/http's shared transport for a bare client | `TestNoAmbientState` |
+
+#### Plants on `internal/chatgpt` (its own tests alone, 12 of 12 caught)
+
+Three first drafts left a name unused and only broke the build; each was
+redone to compile, and is caught by its test.
+
+| Plant | Caught by |
+| :--- | :--- |
+| any vendor login taken for ChatGPT's | `TestIsSession`: the Grok CLI |
+| any OAuth session taken for ChatGPT's | `TestIsSession`: another issuer |
+| the originator not sent | `TestSetHeaders`, `TestModelsRequest` |
+| the account id not sent | the same |
+| the FedRAMP flag sent for any account | `TestSetHeaders`: an account |
+| a pseudo-version refused | `TestClientVersion` |
+| an unbounded version accepted | `TestClientVersion`: `v1234567890.0.0` |
+| the fallback version changed | `TestClientVersion`, `TestModelsRequest` |
+| the base URL's trailing slash kept | `TestModelsRequest`: `codex//models` |
+| `client_version` not sent | `TestModelsRequest` |
+| the session's headers not set | `TestModelsRequest` |
+| the bearer scheme dropped | `TestModelsRequest`: `Authorization: "t"` |
+
+#### Checks
+
+* `make pre-add-check` on the 18 Go files: clean (gofmt, golangci-lint,
+  go vet, go test, govulncheck).
+* `tools/apidiff.py e112a66`: `catalog.ListRaw`, `catalog.RawListing` and
+  `catalog.RawModel` added, nothing else.
+* **Gate:**
+  * first run: 21 of 23, `coverage-check` and `gate-selftest` failing on
+    `internal/chatgpt` (deviation 3);
+  * after deviation 3: `tools/gate.py`, 23 of 23.
+* `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
+  and `tools/linkcheck.py`: in the staging run.

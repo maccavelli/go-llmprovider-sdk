@@ -58,6 +58,7 @@ llmprovider/internal/wire/*/   one shared wire format each: responses, chatcompl
 llmprovider/catalog/          model listing, static catalogs, ranking, metadata, search, profiles
 llmprovider/internal/transport/ the shared default transports, the client identity, Retry-After and the rate-limit resets, the listing probe and its cache
 llmprovider/internal/kiloendpoint/ Kilo's endpoints, derived from a credential
+llmprovider/internal/chatgpt/ a ChatGPT session's headers and listing request, for catalog and providers/openai
 llmprovider/internal/ownerperm/ a directory and its files private to the current user
 llmprovider/internal/filelock/ an exclusive OS lock on an open file, for the refresh lock
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
@@ -90,7 +91,7 @@ standard library is left out.
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
-| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire/responses`, `internal/transport`, `internal/wire`, `internal/wire/deferral` |
+| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/chatgpt`, `internal/wire/responses`, `internal/transport`, `internal/wire`, `internal/wire/deferral` |
 | `llmprovider/providers/claude` | Claude through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/wire/messages`, `internal/transport`, `internal/wire/deferral` |
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, `ListModels`, and `Stream`, with the Interactions wire's decoders | `llmprovider`, `auth`, `catalog`, `internal/wire`, `internal/transport`, `internal/wire/deferral` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `catalog`, `internal/wire/responses`, `internal/transport`, `auth`, `internal/wire`, `internal/wire/deferral` |
@@ -105,8 +106,9 @@ standard library is left out.
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig`, and from a model's facts `Thinking`, `FactsThinking` and `ThinkingConfigFor` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
-| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer` | `llmprovider`, `internal/kiloendpoint`, `internal/transport` |
+| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer` | `llmprovider`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/transport` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
+| `llmprovider/internal/chatgpt` | a ChatGPT session's `BaseURL`, `IsSession`, `SetHeaders` and its header names, `ClientVersion`, and `ModelsRequest`, the Codex backend's listing request, for `catalog`'s `ListRaw` and `providers/openai` (0041-MADR D9) | `llmprovider`, `auth`, `internal/transport` |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
 | `llmprovider/internal/transport` | `DefaultClient` and `Config`, over the transports the process keeps; `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `RateLimitReset`; `ProbeGenerateHealth`, and `ProbeGenerateHealthCached` with its `ProbeKey` and `Fingerprint`; `Unsendable`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
@@ -125,7 +127,9 @@ the standard library; only `wizard` uses anything else, `golang.org/x/term`.
 wizard
 providers                     Default(), New(id, …)
 providers/<id>                one package per provider or gateway family
-auth   catalog   internal/wire/<format>   llmtest
+catalog   internal/wire/<format>   llmtest
+internal/chatgpt              a ChatGPT session's headers and listing request
+auth
 internal/wire
 llmprovider                   the contract
 internal/transport   internal/redact   internal/kiloendpoint   internal/ownerperm   internal/filelock
@@ -183,6 +187,17 @@ other than `CaveatNoTools`), with an empty `Recommended` and the listing in
 `Usable` to search. A provider's own
 `ListModels` (`ModelLister`) returns its listing, probed by default where the
 provider probes.
+
+`catalog.ListRaw(ctx, id, src, opts...)` sends the same requests through
+the same code, with a recording transport over the caller's, and returns
+the listing as the provider sent it: every page byte for byte, and each
+entry of the pages' model arrays with the provider's own id (0041-MADR D9).
+It filters, ranks and caveats nothing, fetches no metadata document,
+neither reads nor writes the listing cache, and never falls back: a failed
+page is its error. It renews a refused credential once, as `List` does.
+A ChatGPT session lists the Codex backend, with the request the openai
+provider sends (`internal/chatgpt`); Ollama's listing is `/api/tags`
+alone.
 
 The metadata document is fetched once per URL at a time, detached from the
 callers that wait for it and bounded at 10 s; each lookup waits under its

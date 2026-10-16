@@ -40,6 +40,10 @@
 // (MADR 0012 §3.3). ListModels returns the curated gateway listing; it never
 // probes, as the gateway meters every call (MADR 0012 §1.6).
 //
+// catalog.ListRaw returns the listing as Kilo sends it:
+// GET https://api.kilo.ai/api/gateway/models, or an organization's
+// /api/organizations/{id}/models (0041-MADR D9).
+//
 // Request.Cache, for a model whose id starts "anthropic/", sends OpenRouter's
 // top-level cache_control with Anthropic's TTL: "5m" for CacheShort, "1h"
 // for CacheLong (0039-MADR D4). Another model gets nothing for it. Kilo

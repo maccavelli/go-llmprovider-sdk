@@ -39,6 +39,9 @@
 // llmprovider.WithModelMetadataURL names, and falls back to the static
 // catalog. It never probes, as every call is metered (0016-MADR D9).
 //
+// catalog.ListRaw returns the listing as Together sends it:
+// GET https://api.together.ai/v1/models, a bare array (0041-MADR D9).
+//
 // Together caches prompts on its own, and a write is free. Request.Cache sends
 // the provider's session id as prompt_cache_key, which routes a conversation
 // to one cache; CacheLong sends the same as CacheShort (0039-MADR D3).

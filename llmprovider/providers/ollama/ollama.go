@@ -35,6 +35,9 @@
 // (0016-MADR A5). There is no static catalog: installed models are
 // machine-specific, so a failed listing returns its error.
 //
+// catalog.ListRaw returns the listing as the server sends it: GET /api/tags
+// alone, each entry's name as its id, and no /api/show (0041-MADR D9).
+//
 // The wire shapes were measured against a running v0.31.1 on the date
 // llmprovider's wireShapesProbedOnOllama holds.
 //

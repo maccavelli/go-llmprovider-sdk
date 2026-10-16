@@ -36,6 +36,11 @@
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5; 0038-MADR
 // D4).
 //
+// catalog.ListRaw returns the listing as Google sends it: every page of
+// GET https://generativelanguage.googleapis.com/v1beta/models, by
+// pageToken, each entry's name, models/ prefix included, as its id
+// (0041-MADR D9).
+//
 // Request.Cache sends nothing: Gemini caches prompts implicitly, and its
 // explicit cachedContents resource is out of scope (0039-MADR D4, D6).
 //

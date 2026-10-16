@@ -38,6 +38,9 @@
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5; 0038-MADR
 // D4).
 //
+// catalog.ListRaw returns the listing as xAI sends it:
+// GET https://api.x.ai/v1/models (0041-MADR D9).
+//
 // xAI caches prompts on its own. Request.Cache sends the provider's session
 // id as prompt_cache_key, which xAI treats as its x-grok-conv-id routing
 // key; CacheLong sends the same as CacheShort (0039-MADR D3).

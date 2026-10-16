@@ -554,7 +554,9 @@ every other path are unchanged.
 
 **It does only the transport** that `List` does:
 - the credential, in the provider's header;
-- `WithBaseURL`, `WithHTTPClient` and the user agent;
+- `WithBaseURL`, `WithHTTPClient` and the user agent *(A7: a caller's
+  client with no transport sends through the SDK's default transport,
+  where `List` sends through net/http's shared one)*;
 - OpenCode's session header, and Kilo's organisation endpoint;
 - every page, up to `maxListingPages`;
 - the 8 MiB bound on each page;
@@ -602,7 +604,8 @@ type RawModel struct {
 **Errors** are returned, never degraded:
 - a failed page gives a zero `RawListing` and the classified error;
 - a page that is not JSON, or has no model array where the provider has
-  one, is an error naming the page.
+  one, is an error naming the page *(A7: so is a page the shared fetch
+  code refuses, such as one whose id is not a string)*.
 
 **Every provider:**
 
@@ -939,6 +942,42 @@ changes them.
   * A Kilo listing handed in with `WithLastGood` holds ids only, so its
     band is ranked without Kilo's prices, until a listing is fetched.
 
+## Amendment 2026-10-15: what Phase 8 found
+
+### A7. A client with no transport, and what the shared fetch refuses
+
+* **Found** while building 0041-PLAN Phase 8, after the code:
+  1. **A client with no transport.** `ListRaw` records through a
+     transport wrapped round the caller's (E49). Given
+     `WithHTTPClient(&http.Client{})`, there is no transport to wrap.
+     * `List` then sends through net/http's shared `DefaultTransport`,
+       by net/http's own rule for a client with none.
+     * Naming `http.DefaultTransport` in `ListRaw` fails
+       `TestNoAmbientState` (0016-MADR D8, R30).
+     * The requests are the same either way
+       (`TestListRaw_SameTransportAsList_0041`). The timeouts and the
+       connection pool are not.
+  2. **What the shared fetch refuses.** `ListRaw` reads each page
+     through `List`'s fetch code, which decodes the ids it needs. A page
+     that code refuses is an error, not a raw page.
+     * Measured on OpenAI's listing: an entry `{"id":7}` fails the
+       page with `decode: json: cannot unmarshal number`.
+     * A ChatGPT session's fetch keeps its entries raw. An entry whose
+       `slug` is missing or not a string is returned, with an empty
+       `ID`; so is an entry with no `id` on the other listings.
+* **Owner's decision** (2026-10-15, the recommended option): **keep
+  the SDK's default transport** for a client with none, as the snapshot
+  command's recorder does (E49). It is the transport R30 allows.
+  Recording each page where the fetch code reads it, leaving the
+  caller's client untouched, was considered: it would match `List`
+  exactly, at the cost of a change to every fetch function.
+* **What it changes:** D9's transport bullet and its errors, as
+  annotated. Item 2 follows from "the transport that `List` does";
+  it is recorded, not chosen.
+* **What it costs:** a caller who passes a client with no transport,
+  to both, gets `List` and `ListRaw` over different connection pools
+  and timeouts.
+
 ## Pros and Cons of the Options
 
 ### A. A live menu ordered by facts
@@ -1039,6 +1078,10 @@ All answered by the owner on 2026-10-13, who then accepted this record:
 * **2026-10-15, the listing cache.** Amendment A6: the cache holds the
   fetched listing, its key holds the Kilo organization, and Ollama is
   outside D6.
+
+* **2026-10-15, raw listings.** Amendment A7: a caller's client with no
+  transport lists raw through the SDK's default transport, and a page
+  the shared fetch code refuses is an error.
 
 ### Sources
 

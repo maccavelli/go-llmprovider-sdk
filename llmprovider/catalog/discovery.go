@@ -161,8 +161,27 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 func listAndRecord(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, cfg config) (Catalog, map[string]ModelInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, modelListingTimeout)
 	defer cancel()
+	token, err := listingToken(ctx, src, cfg)
+	if err != nil {
+		return Catalog{}, nil, err
+	}
+	cat, models, err := listOnce(ctx, id, token, cfg)
+	// A listing that still fails after the renewal keeps the
+	// degrade-to-static contract.
+	token, renewed, err2 := renewRefused(ctx, src, token, cmp.Or(err, cat.Err))
+	if err2 != nil {
+		return Catalog{}, nil, err2
+	}
+	if !renewed {
+		return cat, models, err
+	}
+	return listOnce(ctx, id, token, cfg)
+}
+
+// listingToken is src's token for a listing. List and ListRaw share it.
+func listingToken(ctx context.Context, src llmprovider.TokenSource, cfg config) (llmprovider.Token, error) {
 	if src == nil {
-		return Catalog{}, nil, errors.New("model listing: TokenSource is required")
+		return llmprovider.Token{}, errors.New("model listing: TokenSource is required")
 	}
 	// A session with no client refreshes through the listing's, so a
 	// refresh the listing causes keeps the caller's transport (0026-MADR
@@ -173,25 +192,30 @@ func listAndRecord(ctx context.Context, id llmprovider.ProviderID, src llmprovid
 	}
 	token, err := src.Token(ctx)
 	if err != nil {
-		return Catalog{}, nil, fmt.Errorf("model listing: acquire token: %w", err)
+		return llmprovider.Token{}, fmt.Errorf("model listing: acquire token: %w", err)
 	}
-	cat, models, err := listOnce(ctx, id, token, cfg)
-	// A refused credential is renewed once, as Generate renews it
-	// (0026-MADR F36): a listing that still fails keeps the degrade-to-static
-	// contract.
+	return token, nil
+}
+
+// renewRefused renews src's token once when failure says the credential was
+// refused, as Generate renews it (0026-MADR F36), and reports whether it did.
+// List and ListRaw share it.
+func renewRefused(ctx context.Context, src llmprovider.TokenSource, token llmprovider.Token,
+	failure error) (llmprovider.Token, bool, error) {
 	source, ok := src.(llmprovider.InvalidatingSource)
-	if !ok || !credentialRefused(cmp.Or(err, cat.Err)) {
-		return cat, models, err
+	if !ok || !credentialRefused(failure) {
+		return token, false, nil
 	}
 	if invalidator, ok := src.(llmprovider.TokenInvalidator); ok {
 		invalidator.InvalidateToken(token)
 	} else {
 		source.Invalidate()
 	}
-	if token, err = src.Token(ctx); err != nil {
-		return Catalog{}, nil, fmt.Errorf("model listing: acquire token: %w", err)
+	renewed, err := src.Token(ctx)
+	if err != nil {
+		return token, false, fmt.Errorf("model listing: acquire token: %w", err)
 	}
-	return listOnce(ctx, id, token, cfg)
+	return renewed, true, nil
 }
 
 // listOnce lists with token, and returns what the listing says of each
