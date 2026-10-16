@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-10-15
+date: 2026-10-16
 associated-madr: "0041-MADR-decide-per-model-behaviour-from-metadata.md"
 decision-makers: repository owner
 ---
@@ -647,6 +647,10 @@ stops and records a deviation.
      R10, for the menu and `ProfileAgent`, citing 0041.
    * `docs/architecture.md`.
    * `README.md`, its Status and a bullet.
+   * *Added by deviation 1 (2026-10-16): R2's table, rows for
+     `internal/chatgpt` and `internal/listlimit` and both in `catalog`'s;
+     `docs/architecture.md`'s `internal/listlimit` tree line, row, graph
+     entry and importers.*
 2. **Live,** optional, with the owner's approval of the count: one Claude
    generation per changed thinking shape, and one Gemini level, each
    through the fact path. Up to three billed requests.
@@ -2462,3 +2466,362 @@ redone to compile, and is caught by its test.
   * after deviation 3: `tools/gate.py`, 23 of 23.
 * `make records-check`, `tools/claims.py`, `tools/denyscan.py --changed`
   and `tools/linkcheck.py`: in the staging run.
+
+### Phase 9: documentation, live check and release (2026-10-16)
+
+In progress. Steps 1 to 4, and the drafts of step 6, are done; the owner
+commits, pushes and tags, and step 5 follows the tag.
+
+#### Research
+
+* **The start:** `cbc2761`, Phase 8, committed by the owner. The tree was
+  clean.
+* `tools/claims.py`: the MADR 57 of 57, this PLAN 39 of 39.
+* **`tools/apidiff.py v1.13.0`** (the last tag): 26 lines, every one
+  `added`, and exactly "The exported additions". `v1.13.0..cbc2761` is
+  13 commits: this PLAN's Phases 0 to 8, 0042-PLAN's two phases and its
+  live test, and 0040-PLAN's closing record. The release carries
+  0042-PLAN-ollama-models-that-write-text.md's work too, as that plan's
+  Rollout says.
+* **The docs, against the code.** `docs/architecture.md` already names
+  every addition (each phase updated it, R43). `README.md` names none;
+  its "Listing" and "Ranking" bullets describe v1.13.0. `api-standards.md`
+  names none of them.
+* **The package tables.** A script (scratch, read-only) compared each
+  package's module imports (`go list`) with the table rows of
+  `architecture.md` and of `api-standards.md`'s R2. `make dep-check`
+  checks only modules outside this one, so it holds neither table.
+
+#### Deviations
+
+1. **2026-10-16: R2's table has no row for `internal/chatgpt` or
+   `internal/listlimit`.**
+   * **Found** in the research above.
+     * R2's table is normative. Its `catalog` row allows `llmprovider`,
+       `internal/transport` and `internal/kiloendpoint`. But `catalog`
+       imports `internal/chatgpt` (Phase 8 of this PLAN) and
+       `internal/listlimit`
+       (0038-PLAN-full-curated-catalog-by-default.md). Neither package has
+       a row.
+     * `docs/architecture.md` has no `internal/listlimit` in its tree, its
+       table, its graph, or the rows of the eight providers that import it.
+       Phase 8 recorded this, unfixed, as outside its scope.
+     * Both gaps are older than this phase. Phase 8 added
+       `internal/chatgpt` to `architecture.md`, but not to R2.
+   * **Decided by the owner** (recommended): fix both in this phase.
+     0033-PLAN-public-model-metadata.md set the precedent: a plan adds R2
+     rows for its own packages, with no amendment to 0015-MADR. 0038-PLAN
+     gets a dated note for the part it missed.
+   * Fixing only `internal/chatgpt`, and leaving `internal/listlimit` to
+     its own amendment, was considered and not taken. The drift would
+     ship in the release.
+   * **Added to the phase's scope:** R2's table, in `api-standards.md`;
+     the `internal/listlimit` entries of `docs/architecture.md`; a
+     follow-up note in `0038-PLAN-full-curated-catalog-by-default.md`.
+   * Neither MADR changes.
+   * **Found, and not in this deviation.** The same comparison shows
+     drift that neither 0041 nor 0038 caused, which is left as it is:
+     * R2: `internal/cmd/catalogs` imports `internal/transport`, and
+       `internal/wire/deferral` (0040) imports `internal/wire/messages`.
+       Neither import is in its row.
+     * `architecture.md`: the rows for `claude`, `gemini`, `grok`,
+       `openai`, `ollama` and `internal/wire/responses` name
+       `internal/transport`, which none of them imports, outside tests;
+       `kilo`'s omits `internal/wire/messages`; `internal/cmd/catalogs`'s
+       omits `internal/transport`.
+
+     They need their own record or amendment, on the owner's ask.
+2. **2026-10-16: Claude never lists live, and the listing cache misses a
+   listing with no base URL.**
+   * **Found** in step 2's first run (below). `claude-adaptive` failed
+     with "the facts did not answer with the shape's field". Then, on
+     scratch clones, with free listing requests only (0041-MADR A8 has
+     the lines):
+     * the Claude provider's `ListModels` asks for `/v1/v1/models`, gets
+       a 404, and returns the static five. The provider's base,
+       `https://api.anthropic.com/v1` (`claude.go:119`, passed at `:192`),
+       is read by `fetchClaudeUsable` as the host (`discovery.go:692`,
+       `:704`). This dates from `da4425a`. Every other provider's default
+       base equals its lister's;
+     * `listingKeyFor` (`listing_cache.go:35`) keys by `cfg.BaseURL` as
+       given. A `catalog.List` with no base URL, read back with the
+       provider's base, gave `cached=false`.
+   * **Decided by the owner** (recommended): the catalog's Claude lister
+     takes the base with or without `/v1`, and the key is the base the
+     listing reads, with an empty one the provider's default. Then re-run
+     all three live paths, three more billed requests.
+   * Having the provider strip `/v1` was considered and not taken.
+   * **Added to the phase's scope:**
+     * `llmprovider/catalog/discovery.go` and `listing_cache.go`: the
+       lister's base and the key; `lookup.go`: `CachedFacts`' doc;
+     * `docs/architecture.md`: the listing key;
+     * a new test file in `llmprovider/catalog`, and one in
+       `llmprovider/providers/claude`;
+     * 0041-MADR amendment A8, and the PLAN's evidence for it.
+
+#### Step 1: docs
+
+* **`docs/guides/api-standards.md`:**
+  * R6: what a request leaves to the provider, the model's facts decide,
+    in D1's order, from the caches alone (0041 D1, D2, A3);
+  * R10: a model's capabilities are data too: the menu, its caveats, the
+    band from facts, `ProfileAgent`, `Source`, and `ListRaw` (0041 D3–D6,
+    D9);
+  * R2 (deviation 1): rows for `internal/listlimit` and `internal/chatgpt`,
+    both in `catalog`'s, and the citation.
+* **`docs/architecture.md`:** `internal/listlimit`'s tree line, row and
+  graph entry, and in the rows of `catalog` and the eight providers
+  (deviation 1); the listing key (deviation 2).
+* **`README.md`:**
+  * the `catalog` row of the package table;
+  * a "Model facts and the menu" bullet, after "Listing";
+  * "Ranking": every provider but Ollama ranks from facts;
+    `WithoutModelMetadata` restores the curated order for the four gateways
+    and the name rules for the first-party four; an empty `Recommended`
+    needs every model caveated (0041-MADR A4). These sentences described
+    v1.13.0;
+  * Status: `v1.14.0`, with the release's entry.
+* **`0038-PLAN-full-curated-catalog-by-default.md`:** a dated follow-up
+  note (deviation 1).
+* The script that compared the package tables with `go list`, run again
+  after the edits, shows no `internal/listlimit` or `internal/chatgpt`
+  gap. It still shows the drift deviation 1 leaves.
+
+#### Step 2: the live check
+
+**The test:** `llmprovider/live_0041_facts_test.go`.
+
+* `TestLive_0041Facts` runs only with `LLMPROVIDER_LIVE_0041=1`, and each
+  path only with its key. Each path:
+  * lists the provider's models with probes off, which warms the facts
+    and sends no generation;
+  * checks that `catalog.CachedFacts` answers with the field the shape
+    comes from;
+  * sends one generation, `Reply with the one word: ok`, and keeps the
+    request's body;
+  * checks the body's thinking fields, and that the reply has text.
+
+  It logs the shape, the stop reason and the token counts, never a key,
+  a header, a prompt or a body.
+* **The paths,** picked from the committed snapshot's facts:
+
+  | Path | Model | Request | The facts' shape | The rule's |
+  | :--- | :--- | :--- | :--- | :--- |
+  | `claude-adaptive` | `claude-haiku-5-5` | effort `low` | efforts, no budget option: `adaptive`, `output_config.effort` `low` | the same |
+  | `claude-budget` | `claude-sonnet-4-5-20250929` | budget 512 | a budget option, minimum 1024: `enabled`, `budget_tokens` 1024 | `budget_tokens` 512 |
+  | `gemini-level` | `gemini-3.1-flash-lite` | effort `low` | a listed level: `thinking_level` `low` | the same |
+
+  * `claude-haiku-4-5`, the first budget-only pick, is in
+    `internal/retired` from 2026-10-15. `claude-sonnet-4-5-20250929` was
+    taken instead: budget-only too, and in the 2026-10-14 listing.
+  * Gemini's facts list `minimal` for this model, which the rule never
+    sends. `Effort` refuses `minimal` before the network, so no Gemini
+    request can show it.
+* **Its checks offline.** `TestFactsChecks_0041`, with the live tag and no
+  network, passes on canned runs and bodies. Plants (`tools/plant.py`, 8
+  of 8 caught, with that test alone). The first run caught 7: the budget
+  plant, a fixed `enabled budget=1024`, matched the only canned budget
+  body. A second canned body, 512, was added; the second run caught all 8:
+
+  | Plant | FAIL line |
+  | :--- | :--- |
+  | a failed request not reported | `a failed reply: problems [], want one containing "the request failed: …"` |
+  | the rule path not reported | `the rule path: problems [], want one containing "the request took the rule path"` |
+  | the shape not compared | `another shape: problems [], want one containing "sent \"enabled budget=512\", …"` |
+  | an empty reply accepted | `no text: problems [], want one containing "the reply has no text"` |
+  | the effort not read | `thinkingShape(…"effort":"low"…) = "adaptive effort=1"; want "adaptive effort=low"` |
+  | the budget not read | `thinkingShape(…"budget_tokens":512…) = "enabled budget=1024"; want "enabled budget=512"` |
+  | Gemini's level not read | `thinkingShape(…"thinking_level":"low"…) = "none"; want "level=low"` |
+  | no thinking read as a shape | `thinkingShape({"max_tokens":8}) = "level=low"; want "none"` |
+
+* **The first run,** three billed requests, as approved: 2 passed.
+
+  ```text
+  claude-adaptive claude-haiku-5-5: adaptive effort=low, stop=stop, input=18 output=4 reasoning=0
+  claude-adaptive: the facts did not answer with the shape's field: the request took the rule path
+  claude-budget claude-sonnet-4-5-20250929: enabled budget=1024, stop=stop, input=43 output=45 reasoning=39
+  gemini-level gemini-3.1-flash-lite: level=low, stop=stop, input=8 output=85 reasoning=84
+  ```
+
+  The failure was real: the Claude provider's listing had failed
+  (deviation 2), and the request took the rule path, whose shape is the
+  same. `claude-budget` passed on the models.dev document, which had
+  loaded by then.
+* **The second run,** after deviation 2's fix, three more billed requests,
+  as the owner approved: all 3 passed.
+
+  ```text
+  claude-adaptive claude-haiku-5-5: adaptive effort=low, stop=stop, input=18 output=4 reasoning=0
+  claude-budget claude-sonnet-4-5-20250929: enabled budget=1024, stop=stop, input=43 output=48 reasoning=41
+  gemini-level gemini-3.1-flash-lite: level=low, stop=stop, input=8 output=132 reasoning=131
+  --- PASS: TestLive_0041Facts (5.49s)
+  ```
+
+  Anthropic accepted the budget the facts raised to their minimum, which
+  the rule would have sent as 512.
+
+#### Deviation 2: what was built
+
+* **`discovery.go`:**
+  * the first-party listings' default bases are constants, used by
+    their listers;
+  * `claudeListingBase` drops `/v1` from a base, so `fetchClaudeUsable`
+    reads `/v1/models` under the provider's base and under a host;
+  * `listingBaseURL` is the base a listing reads: the caller's, or the
+    provider's default; Claude's from `claudeListingBase`.
+* **`listing_cache.go`:** `listingKeyFor` keys by `listingBaseURL`.
+* **`lookup.go`:** `CachedFacts`' doc says that no base URL is the
+  provider's default.
+* **Measured after,** on a scratch clone, free listing requests:
+
+  ```text
+  GET api.anthropic.com/v1/models -> 200
+  provider ListModels: 14 ids
+  catalog.List, no base URL: live=true source=live 14 ids
+  catalog.List, the provider's base URL: live=true source=live 14 ids
+  ```
+
+  The two `List` calls after the first are served from its cache entry.
+
+**Tests, red and green.** Written before the fix, and run against the tree
+as it was:
+
+| Test | Red |
+| :--- | :--- |
+| `TestList_ClaudeBase_0041` (bases with and without `/v1`, and a trailing slash) | `base "/v1": Source static, read [".../v1/v1/models"]; want live from .../v1/models`; `ListRaw endpoint "", model listing: claude page 1: no "data" model array` |
+| `TestListingKey_DefaultBase_0041` (every provider) | `claude: key with no base {… baseURL: …}; with https://api.anthropic.com/v1 {…}; want one key`, and the same for the other nine |
+| `TestCachedFacts_ListWithoutBaseURL_0041` | `CachedFacts: false, efforts known false []; want the listing's [low]` |
+| `TestListModels_DefaultBaseShape_0041` (`providers/claude`) | `ListModels ["claude-haiku-5-5" …] after ["/api.json" "/v1/v1/models"]; want the live listing's model`; `thinking map[budget_tokens:1024 type:enabled]; want adaptive, from the listing's efforts` |
+
+`TestListingBase_IsWhatListReads_0041` (every provider: with no base URL,
+the listing is read under `listingBaseURL`'s default) was written with the
+fix, which it names; its red is the plants. Green: every `_0041` test in
+both packages, and `go test ./...`, 32 packages.
+
+**Plants** (`tools/plant.py`, 7 of 7 caught, with the `_0041` tests of
+`catalog` and `providers/claude`):
+
+| Plant | Caught by |
+| :--- | :--- |
+| Claude's `/v1` kept | `TestList_ClaudeBase_0041`: `.../v1/v1/models`; `TestListingKey_DefaultBase_0041`; `TestCachedFacts_ListWithoutBaseURL_0041`; `TestListModels_DefaultBaseShape_0041` |
+| the key by the raw base | `TestListingKey_DefaultBase_0041`, all ten; `TestCachedFacts_ListWithoutBaseURL_0041` |
+| Claude's default with `/v1` | `TestListingKey_DefaultBase_0041`: claude; `TestCachedFacts_ListWithoutBaseURL_0041` |
+| Ollama's default missing | `TestListingKey_DefaultBase_0041`: ollama; `TestListingBase_IsWhatListReads_0041`: `read [".../api/tags"]; want under` |
+| a caller's base ignored | `TestListingKey_DefaultBase_0041`: `no base and another base share a key`, nine; `TestList_Cached_0041` |
+| xAI's lister off its default | `TestListingBase_IsWhatListReads_0041`: `grok: read ["https://api.x.ai/v2/models"]; want under https://api.x.ai/v1` |
+| OpenCode's default missing | `TestListingKey_DefaultBase_0041` and `TestListingBase_IsWhatListReads_0041`: both gateways |
+
+The first draft had an eighth, "Claude's trailing slash kept". It was not
+caught: `ResolveOptions` already trims a base's trailing slash
+(`settings.go:208`), so the lister's own trim could not be reached. The
+trim was removed, and the plant with it. The tests' `/` and `/v1/` bases
+still pass, through the options.
+
+#### Step 3: checks
+
+* `make pre-add-check` on the 6 Go files: clean (gofmt, golangci-lint,
+  go vet, go test, govulncheck).
+* **`tools/apidiff.py v1.13.0`:** the same 26 lines as the research, every
+  one `added`: exactly "The exported additions".
+* `make records-check`: 91 records, 0 problems. `tools/claims.py`: the
+  MADR 57 of 57, this PLAN 39 of 39. `tools/denyscan.py --changed`: 0 hits
+  in 12 files. `tools/linkcheck.py`: 0 problems.
+* **Gate:** `tools/gate.py`, 23 of 23. `g-wire-stable` passed: no wire
+  golden changed. It runs `lint`, `parity-check`, `dep-check`,
+  `coverage-check`, `api-check`, `generate-check`, `records-check` and
+  `gate-selftest`; `govulncheck` (`make vuln`) ran in `pre-add-check`.
+
+#### Step 4: release notes, `v1.14.0`
+
+`v1.14.0` decides each model's behaviour from its facts, and lists a live
+menu ordered by them (0041-MADR). It also carries
+0042-MADR-ollama-models-that-write-text.md. The exported API adds 26
+identifiers, all in `catalog`, and changes none. No wire golden changed.
+
+**New API:**
+
+* **Facts at request time** (D1, D2, A3): `CachedFacts`;
+  `ModelReasoning.ReplayField` and `FieldReasoningReplay`;
+  `ModelInfo.CanonicalID` and `FieldCanonicalID`.
+* **The menu** (D3): `Catalog.Menu` of `MenuEntry` (`ID`, `Info`, `Rank`,
+  `Caveats`), and `Caveat`: `CaveatDeprecated`, `CaveatNoTools`,
+  `CaveatNoTextOutput`, `CaveatExpiring`, `CaveatUnavailable`.
+* **`ProfileAgent`** (D5), with `WithWorkload` and `ObservedWorkload`.
+* **Steady listings** (D6): `Catalog.Source` and `Catalog.FetchedAt`;
+  `ListSource`, `ListLive`, `ListStale`, `ListStatic`; `WithLastGood`.
+* **Raw listings** (D9): `ListRaw`, `RawListing` and `RawModel`.
+
+**What changes for a caller who changes nothing:**
+
+* A request that leaves its thinking, effort or output limit to the
+  provider gets them from the model's cached facts. Where the facts are
+  silent, or not yet cached, the name rules decide, as before. A request
+  never fetches them.
+* A request without `MaxOutputTokens` gets the configured default cut to
+  the model's limit, never raised: 42 text models allow less than 8192.
+* Every provider's band is ranked from facts. OpenAI, Claude, Gemini and
+  Grok join the gateways (D4's table gives each six's change).
+* `Recommended` past the band holds every usable model without a caveat,
+  newest first (A4).
+* After a transient listing failure, the last good listing of the last 24
+  hours is served, with `Live` true, `Source` `ListStale` and `Err` set.
+  An authentication failure never serves it.
+* A Claude provider's `ListModels` lists live; it had asked for
+  `/v1/v1/models` and returned the static list since v1.0 (A8). Its
+  probes, on by default, now test the live list's first six.
+* Ollama leaves out models that cannot write text, and keeps recommending
+  its chat models without tools, after those with them (0042-MADR).
+
+**Measured:** step 2's live check, through the fact path. Anthropic took
+adaptive thinking with an effort, and a budget the facts raised to the
+model's minimum; Gemini took a listed level.
+
+**Upgrading:**
+
+* Read `Catalog.Source`, not `Live`, to tell a fresh listing from a stale
+  one; `Err` on a stale listing is the failure that made it stale, not a
+  refused credential.
+* `catalog.WithLimit(catalog.MaxListed)` keeps a list of six.
+* `WithoutModelMetadata` turns the facts off: every request decision
+  takes its name rule.
+
+#### Step 6: the consumers' issues (drafts; not opened)
+
+Each is opened only on the owner's ask, after the tag, and after
+`tools/denyscan.py` over its text.
+
+> **gobble-cli.** Title: Adopt go-llmprovider-sdk v1.14.0's agent profile,
+> model menu and stale listings
+>
+> go-llmprovider-sdk `v1.14.0` ranks every provider's models from their
+> facts, and adds:
+>
+> * **`catalog.ProfileAgent`:** `ProfileCapable`'s strongest six, ordered
+>   by the price of a cached agent turn. Pass
+>   `catalog.WithWorkload(catalog.ObservedWorkload(usages...))` with
+>   gobble's own responses' `Usage`, so the order uses gobble's cache and
+>   output shares.
+> * **`Catalog.Menu`:** every usable model with its facts, rank and
+>   caveats (deprecated, no tools, no text output, expiring, failing at
+>   request). The model picker can show why a model sinks.
+> * **`Catalog.Source`:** gobble treats `!Live` as "discard and retry". A
+>   stale listing, served after a transient failure, now has `Live` true
+>   and `Source` `ListStale`. A retry that wants a fresh listing should
+>   read `Source`.
+>
+> (go-llmprovider-sdk 0041-MADR D3, D5, D6.)
+
+> **prepare-commit-msg.** Title: go-llmprovider-sdk v1.14.0: the
+> recommended six change, and a stale list's error
+>
+> * **The six change** on every provider, as 0041-MADR D4's table gives.
+>   OpenAI's utility six now leads with `gpt-6-luna`, and holds no
+>   `o3-pro`.
+> * **`Err` on a stale list.** After a transient failure the menu is the
+>   last good listing, with `Live` true, `Source` `ListStale`, and the
+>   failure in `Err`. That `Err` does not mean a refused key; an
+>   authentication failure still returns the static list, `ListStatic`.
+> * **Claude** now lists live through the provider; it had returned the
+>   static five.
+> * **Ollama:** move the pin, and drop the README's workaround for issue 1
+>   (0042-PLAN's Rollout).

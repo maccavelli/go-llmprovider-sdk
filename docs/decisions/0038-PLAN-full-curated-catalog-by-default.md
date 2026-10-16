@@ -1022,3 +1022,12 @@ assertion: `TestWithLimit_FullList`'s set and lengths, and
 `TestFullList_SixFirst`, removed with `fullList`. The other `_0038` tests,
 in `llmprovider/catalog`, `llmprovider/providers`, `providers/openai` and
 `wizard`, pass unchanged.
+
+### Follow-up (2026-10-16): `internal/listlimit` in the package tables
+
+Step 2's new package, `llmprovider/internal/listlimit`, was not added to
+`docs/guides/api-standards.md` R2's table or to `docs/architecture.md`.
+This PLAN stays `complete`. 0041-PLAN-decide-per-model-behaviour-from-metadata.md
+Phase 9, deviation 1, adds both: R2's row, and `catalog`'s import of it,
+and in `architecture.md` its tree line, its row, its place in the package
+graph, and the rows of `catalog` and the eight providers that import it.

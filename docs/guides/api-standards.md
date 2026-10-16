@@ -24,14 +24,16 @@ tool that holds a rule, where one does. For how the code is laid out, read
 - **R2. A package holds one concern**, and imports only what the table allows.
   Only `wizard` may leave the standard library, and then only for
   `golang.org/x/term`. (0015 D2, D13; the table's `internal/wire` rows, 0026
-  F62)
+  F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
   | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport` |
   | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
-  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` | `llmprovider`, `internal/transport`, `internal/kiloendpoint` |
+  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt` |
   | `llmprovider/internal/kiloendpoint` | Kilo's endpoints, derived from a credential | the standard library |
+  | `llmprovider/internal/listlimit` | `catalog.WithLimit`'s value, for `catalog` and the providers that cut their own fallback listings with it | the standard library |
+  | `llmprovider/internal/chatgpt` | a ChatGPT session's check, headers and listing request, for `catalog`'s `ListRaw` and `providers/openai` | `llmprovider`, `auth`, `internal/transport` |
   | `llmprovider/internal/retired` | the retired model ids, with why (0033-MADR D4) | `llmprovider` |
   | `llmprovider/internal/catalogtool` | the maintainer tool's proposals for the static lists | `llmprovider`, `catalog`, `internal/retired` |
   | `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, run with `go run` | `llmprovider`, `catalog`, `internal/catalogtool` |
@@ -73,6 +75,14 @@ tool that holds a rule, where one does. For how the code is laid out, read
   and says which in its package doc. A response that did not use the
   service's own form carries `WarningDeferralEmulated`. (0015 D3; 0039 D1;
   0040 D1, D5, D7)
+  What a request leaves to the provider, the model's facts decide: the
+  thinking shape and its budget bounds, Gemini's level, Grok's efforts,
+  the Chat Completions field that reasoning is replayed under, and the
+  output limit, which cuts the default and never raises it. The facts are
+  the caller's layers, then the provider's listing, then models.dev, read
+  only from what is cached (`catalog.CachedFacts`). A request never waits
+  for them or fetches them. Without them, and with `WithoutModelMetadata`,
+  the name rules decide. (0041 D1, D2, A3)
 - **R7. `Response` fields.** `ID`, `Model`, `Output []Item`, a typed
   `FinishReason`, `Usage`, which is zero when the service reports none, and
   `Warnings`, typed non-fatal notes, nil when the request was sent as asked
@@ -98,6 +108,15 @@ tool that holds a rule, where one does. For how the code is laid out, read
 - **R10. Capabilities are data.** A provider declares `Tools`,
   `ForcedToolChoice`, `Reasoning`, `Continuation` and `NativeStreaming`,
   each `Unsupported`, `BestEffort` or `Supported`. (0015 D4)
+  A model's are data too: its facts, as `catalog.ModelInfo`, with each
+  one's source. A `Catalog`'s `Menu` holds every usable model with its
+  facts, its rank and its `Caveat`s. A caveat sinks a model and never
+  removes it. Every provider's band is ranked from the facts. A profile
+  orders it, and `ProfileAgent` orders `ProfileCapable`'s band by the
+  price of a cached turn, with `WithWorkload`'s shares or
+  `ObservedWorkload`'s. `Catalog.Source` says whether a listing is live,
+  the last good one after a transient failure, or the static floor.
+  `ListRaw` returns the listing with none of this. (0041 D3–D6, D9)
 - **R11. An unsupported request fails before the network,** with an error
   matching `ErrUnsupported`, which wraps `errors.ErrUnsupported`. (0015 D4)
 - **R12. Every `BestEffort` degradation is listed** in the provider's package

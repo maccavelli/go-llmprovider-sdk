@@ -124,7 +124,8 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 // CachedFacts is CachedModel without the listing fetch: what a request may
 // read of model at request time (0041-MADR D1). It merges, field by field,
 // the caller's layers, a listing a List or ListModels call already read for
-// the provider, base URL and credential opts give, and the cached models.dev
+// the provider, base URL and credential opts give, where no base URL is the
+// provider's default (0041-MADR A8), and the cached models.dev
 // document, and reports whether anything is known of model. It starts no
 // fetch: catalog.List, ListModels and LookupModel warm the caches it reads
 // (0041-MADR A3). WithoutModelMetadata leaves the document out. It asks the

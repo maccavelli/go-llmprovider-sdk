@@ -26,7 +26,7 @@ It requires Go 1.27.2.
 | `llmprovider/providers` | `Default()`, a registry of every built-in provider, and `New(id, opts...)` |
 | `llmprovider/providers/<id>` | one built-in provider each: `openai`, `claude`, `gemini`, `grok`, `opencode`, `kilo`, `huggingface`, `together`, `ollama` |
 | `llmprovider/auth` | OAuth sessions, browser and device-code logins, vendor CLI sessions, token stores |
-| `llmprovider/catalog` | model listing, static catalogs, ranking and search |
+| `llmprovider/catalog` | model listing, model facts, the menu, static catalogs, ranking and search |
 | `llmprovider/llmtest` | the conformance suite for a provider, and `Fake` for tests |
 | `wizard` | `ConfigureLLM`, the interactive configuration flow |
 
@@ -133,8 +133,31 @@ functions over any provider, and `Stream` streams from every one.
   keeps it to those six. By default OpenAI (API key), Claude, Gemini, Grok
   and Ollama send one billed generation to each of the first six and drop
   those that do not answer; `WithModelProbes(false)` turns that off.
-- **Ranking.** The recommended models of Kilo, OpenCode Zen and Go,
-  Hugging Face and Together are ranked by use case. The default profile,
+- **Model facts and the menu.** What a request leaves to the provider, the
+  model's facts decide: its thinking shape and budget bounds, Gemini's
+  level, Grok's efforts, and an output limit that cuts the default. The
+  facts are the caller's `catalog.WithModelLayer`, then the provider's
+  listing, then models.dev, and a request reads only what is already
+  cached. Without them the name rules decide, as before.
+  - A `Catalog`'s `Menu` holds every usable model with its facts, its rank
+    and its caveats: deprecated, no tools, no text output, expiring, or
+    failing at request. A caveat sinks a model and never removes it.
+    `Recommended` is the band, then the other models without a caveat,
+    newest first.
+  - `catalog.ProfileAgent` suits long sessions with prompt caching: it
+    orders `ProfileCapable`'s six by the price of a cached turn.
+    `catalog.WithWorkload`, or `catalog.ObservedWorkload` over your own
+    responses' `Usage`, sets the shares that price uses.
+  - After a transient failure (a timeout, a 5xx, a rate limit or a network
+    error), a listing read in the last 24 hours is served again, with
+    `Source` `ListStale`, its `FetchedAt`, and the error in `Err`. An
+    authentication failure never serves it, and Ollama, which lists every
+    time, returns its error. `catalog.WithLastGood` hands in a listing kept
+    from an earlier run.
+  - `catalog.ListRaw` returns a provider's listing exactly as it was sent,
+    every page and every entry, with none of the SDK's curation.
+- **Ranking.** The recommended models of every provider but Ollama are
+  ranked by use case, from each model's facts. The default profile,
   `catalog.ProfileUtility`, suits short, frequent tasks such as commit
   messages. It ranks recent, paid, reasoning-capable models first, at most
   two per vendor or model family (the `gpt-*` families count as one), and
@@ -148,12 +171,13 @@ functions over any provider, and `Stream` streams from every one.
   ranks the strongest first instead. Kilo ranks from its own listing. The
   others read `https://models.opencode.ai/api.json`, cached for ten minutes
   and refreshed in the background after that; a failed fetch is not retried
-  for a minute. When nothing in a listing meets the profile, the
+  for a minute. When every model in a listing has a caveat, the
   recommendations are empty and the wizard asks for a search; a blank search
   then offers the saved model, if any, or a typed id, never the same prompt
   again. `WithModelMetadataURL` points
-  elsewhere, and `WithoutModelMetadata` turns the fetch off, which restores
-  the curated order for those four. `catalog.OptionsFromEnv()` maps
+  elsewhere, and `WithoutModelMetadata` turns the fetch off. That restores
+  the curated order for the four gateways, and the name rules for OpenAI,
+  Claude, Gemini and Grok. `catalog.OptionsFromEnv()` maps
   `LLMPROVIDER_MODELS_METADATA_URL` and
   `LLMPROVIDER_DISABLE_MODELS_METADATA=1` onto those options. Search still
   covers every usable model. For commit-message-sized work, ask for the
@@ -208,8 +232,32 @@ key.
 
 ## Status
 
-The current release is `v1.13.0`. The module requires Go 1.27.2.
+The current release is `v1.14.0`. The module requires Go 1.27.2.
 
+- `v1.14.0` decides each model's behaviour from its facts, and lists a live
+  menu ordered by them, as
+  [0041-MADR](docs/decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md)
+  decides:
+  - a request's thinking, effort and output limit follow the model's
+    cached facts, read with `catalog.CachedFacts`;
+  - `Catalog.Menu` lists every usable model with its facts, rank and
+    caveats, and every provider's band is ranked from the facts;
+  - `catalog.ProfileAgent` orders the strongest models by the price of a
+    cached turn;
+  - a transient listing failure serves the last good listing, and
+    `Catalog.Source` says so;
+  - `catalog.ListRaw` returns each provider's listing as it was sent.
+
+  A Claude provider's `ListModels` now lists live. Since v1.0 it had asked
+  for `/v1/v1/models` and returned the static list. A `catalog.List` with
+  no base URL now warms the facts a provider's requests read.
+  Ollama leaves out models that cannot write text, and keeps recommending
+  its chat models without tools, as
+  [0042-MADR](docs/decisions/0042-MADR-ollama-models-that-write-text.md)
+  decides. The recommended models change, and the exported API only
+  grows. The release notes are in
+  [0041-PLAN-decide-per-model-behaviour-from-metadata.md](docs/decisions/0041-PLAN-decide-per-model-behaviour-from-metadata.md),
+  Phase 9.
 - `v1.13.0` adds deferred tools: `Tool.Deferred`, `Tool.Search` and
   `ToolLoadItem`. A deferred tool stays out of the model's context until the
   caller's search loads it. Claude 4.5 and later, and OpenAI from GPT-5.4

@@ -34,6 +34,62 @@ const (
 // models, set the figure.
 const listingPageLimit = 8 << 20
 
+// The first-party listings' default bases. Claude's is the host: its lister
+// reads /v1/models under it.
+const (
+	openAIListingBase = "https://api.openai.com/v1"
+	claudeListingHost = "https://api.anthropic.com"
+	geminiListingBase = "https://generativelanguage.googleapis.com/v1beta"
+	xaiListingBase    = "https://api.x.ai/v1"
+	ollamaListingBase = "http://localhost:11434"
+)
+
+// listingBaseURL is the base id's listing is read from, given base, the
+// caller's WithBaseURL: base itself, or the provider's default when it is
+// empty; for Claude, claudeListingBase's host. The listing cache is keyed by
+// it, so a listing with no base URL and a provider's request, which names
+// its provider's default, share one entry (0041-MADR A8).
+func listingBaseURL(id llmprovider.ProviderID, base string) string {
+	if id == llmprovider.ProviderClaude {
+		return claudeListingBase(base)
+	}
+	if base != "" {
+		return base
+	}
+	switch id {
+	case llmprovider.ProviderOpenAI:
+		return openAIListingBase
+	case llmprovider.ProviderGemini:
+		return geminiListingBase
+	case llmprovider.ProviderGrok:
+		return xaiListingBase
+	case llmprovider.ProviderOllama:
+		return ollamaListingBase
+	case llmprovider.ProviderKilo:
+		return kiloendpoint.BaseURL
+	case llmprovider.ProviderHuggingFace:
+		return huggingFaceBaseURL
+	case llmprovider.ProviderTogether:
+		return togetherBaseURL
+	}
+	gateway, err := opencodeBaseURL(id)
+	if err != nil {
+		return ""
+	}
+	return gateway
+}
+
+// claudeListingBase is the host a Claude listing reads /v1/models from:
+// base without /v1, so that the Claude provider's base, which ends in /v1,
+// and a host both list (0041-MADR A8); or Anthropic's. The options have
+// already trimmed base's trailing slash.
+func claudeListingBase(base string) string {
+	if base == "" {
+		return claudeListingHost
+	}
+	return strings.TrimSuffix(base, "/v1")
+}
+
 // decodeLimited decodes one listing page's JSON value from r into v, reading
 // at most listingPageLimit bytes. A longer body is an error naming the limit;
 // what labels the errors (0021-MADR C3).
@@ -586,7 +642,7 @@ type geminiModel struct {
 // following nextPageToken for at most maxListingPages pages (MADR 0007 §2).
 // Any page failure, or running out of pages, fails the whole listing.
 func fetchGeminiUsable(ctx context.Context, token llmprovider.Token, cfg config) ([]string, error) {
-	baseURL := "https://generativelanguage.googleapis.com/v1beta"
+	baseURL := geminiListingBase
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
@@ -650,7 +706,7 @@ func curateGemini(usable []string, limit int) []string {
 
 // fetchOpenAIUsable returns the usable OpenAI chat models in listing order.
 func fetchOpenAIUsable(ctx context.Context, token llmprovider.Token, cfg config) ([]string, error) {
-	baseURL := "https://api.openai.com/v1"
+	baseURL := openAIListingBase
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
@@ -689,10 +745,7 @@ type claudeModel struct {
 // following has_more/last_id for at most maxListingPages pages (MADR 0007 §2).
 // Any page failure, or running out of pages, fails the whole listing.
 func fetchClaudeUsable(ctx context.Context, token llmprovider.Token, cfg config) ([]string, error) {
-	baseURL := "https://api.anthropic.com"
-	if cfg.BaseURL != "" {
-		baseURL = strings.TrimRight(cfg.BaseURL, "/")
-	}
+	baseURL := claudeListingBase(cfg.BaseURL)
 
 	var available []string
 	afterID := ""
@@ -797,7 +850,7 @@ type ollamaTag struct {
 // credential, so a token is sent only where it names its own Header (R16;
 // 0016-MADR D2, A6).
 func fetchOllamaTags(ctx context.Context, token llmprovider.Token, cfg config) ([]ollamaTag, error) {
-	baseURL := "http://localhost:11434"
+	baseURL := ollamaListingBase
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
@@ -878,7 +931,7 @@ func checkOllamaURL(ctx context.Context, baseURL string, cfg config) error {
 
 // fetchGrokUsable returns the usable Grok models in listing order.
 func fetchGrokUsable(ctx context.Context, token llmprovider.Token, cfg config) ([]string, error) {
-	baseURL := "https://api.x.ai/v1"
+	baseURL := xaiListingBase
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}

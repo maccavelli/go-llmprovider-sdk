@@ -323,7 +323,9 @@ Chosen option: **"A. A live menu ordered by facts"**, because:
 * **No request waits, and no request lists.** A provider reads the facts
   once per request, from what is already cached:
   * the caller's layers;
-  * a listing that a `catalog.List` or `ListModels` call has already read;
+  * a listing that a `catalog.List` or `ListModels` call has already read
+    *(A8: with or without the provider's base URL; until 2026-10-16 only
+    with the same one, and never on Claude)*;
   * the models.dev document.
 
   ~~A missing document starts its fetch for the next request, as OpenCode's
@@ -978,6 +980,62 @@ changes them.
   to both, gets `List` and `ListRaw` over different connection pools
   and timeouts.
 
+## Amendment 2026-10-16: what Phase 9's live check found
+
+### A8. Claude's listing base, and a listing cache keyed by the URL it reads
+
+* **Found** in 0041-PLAN Phase 9's live check. Its `claude-adaptive` path
+  failed: after the provider's `ListModels`, `CachedFacts` gave no efforts
+  for `claude-haiku-5-5`. Two defects, both older than 0041, measured on
+  a scratch clone with free listing requests:
+  1. **The Claude provider never lists live.** It hands the catalog its
+     base URL, `https://api.anthropic.com/v1`. The catalog's Claude
+     lister takes a base as the host, and appends `/v1/models`:
+
+     ```text
+     GET api.anthropic.com/v1/v1/models -> 404   (the provider's ListModels)
+     provider ListModels: 5 ids                  (the static list, no error)
+     GET api.anthropic.com/v1/models -> 200      (catalog.List, no base URL)
+     ```
+
+     So the provider's `ListModels` returns the static list, and its
+     requests never read the listing's facts. This has been so since the
+     provider's move to its own package (`da4425a`, 2026-09-30), in every
+     v1 release.
+  2. **The listing cache is keyed by the raw `WithBaseURL` value.** Every
+     built-in provider passes its own base URL. A caller's
+     `catalog.List(ctx, id, src)` with none caches the listing, and its
+     facts, under another key:
+
+     ```text
+     catalog.List, no base URL; then CachedFacts:
+       no base URL:             cached=true  efforts known=true [low]
+       the provider's base URL: cached=false efforts known=false
+     ```
+
+     D1's "a listing that a `catalog.List` or `ListModels` call has
+     already read" held only when both named the same base URL. The
+     models.dev document is keyed by its URL, and is not affected.
+* **Owner's decisions** (2026-10-16), each the recommended option:
+  1. **The catalog's Claude lister takes both forms.** It drops a
+     trailing `/` and `/v1` from the base it is given, then reads
+     `/v1/models`. The provider's base and a caller's host reach the same
+     URL. `List`, `ListRaw` and the listing facts share the fix. Having
+     the provider strip `/v1` was considered: a caller who passed `/v1`
+     to `catalog.List` would still get the 404.
+  2. **The listing cache is keyed by the base the listing reads.** An
+     empty base is the provider's default, and Claude's is the host from
+     decision 1. A `catalog.List` with no base URL, and a provider's
+     request, then share one key: for the listing, its facts and D6's
+     last good listing.
+* **What it changes:** D1's bullet, as annotated. The decision stands;
+  this makes it true.
+* **What it costs:** a Claude provider's `ListModels` now sends its
+  listing to `/v1/models`, and lists live where it listed the static
+  five. Its probes, which are on by default, then test the live list's
+  first six, not the static five. A listing with no base URL and one with
+  the provider's default now share one cache entry.
+
 ## Pros and Cons of the Options
 
 ### A. A live menu ordered by facts
@@ -1082,6 +1140,10 @@ All answered by the owner on 2026-10-13, who then accepted this record:
 * **2026-10-15, raw listings.** Amendment A7: a caller's client with no
   transport lists raw through the SDK's default transport, and a page
   the shared fetch code refuses is an error.
+
+* **2026-10-16, the listing base.** Amendment A8: the catalog's Claude
+  lister takes a base with or without `/v1`, and the listing cache is
+  keyed by the base the listing reads.
 
 ### Sources
 

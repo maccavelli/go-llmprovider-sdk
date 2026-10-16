@@ -31,9 +31,11 @@ type listingKey struct {
 	credential string
 }
 
-// listingKeyFor is the key of id's listing under cfg with token.
+// listingKeyFor is the key of id's listing under cfg with token. Its base is
+// the one the listing reads, so no base URL and the provider's default are
+// one key (0041-MADR A8).
 func listingKeyFor(id llmprovider.ProviderID, cfg config, token llmprovider.Token) listingKey {
-	return listingKey{provider: id, baseURL: cfg.BaseURL, organization: cfg.KiloOrganization,
+	return listingKey{provider: id, baseURL: listingBaseURL(id, cfg.BaseURL), organization: cfg.KiloOrganization,
 		credential: transport.Fingerprint(token.Value)}
 }
 
