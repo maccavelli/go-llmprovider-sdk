@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-16
 associated-madr: "0041-MADR-decide-per-model-behaviour-from-metadata.md"
 decision-makers: repository owner
@@ -2469,8 +2469,10 @@ redone to compile, and is caught by its test.
 
 ### Phase 9: documentation, live check and release (2026-10-16)
 
-In progress. Steps 1 to 4, and the drafts of step 6, are done; the owner
-commits, pushes and tags, and step 5 follows the tag.
+~~In progress. Steps 1 to 4, and the drafts of step 6, are done; the owner
+commits, pushes and tags, and step 5 follows the tag.~~ The owner committed
+steps 1 to 4 as `e88fe50`, pushed `main`, and tagged `v1.14.0`. Step 5
+passed (below). The phase, and this PLAN, are complete.
 
 #### Research
 
@@ -2825,3 +2827,65 @@ Each is opened only on the owner's ask, after the tag, and after
 >   static five.
 > * **Ollama:** move the pin, and drop the README's workaround for issue 1
 >   (0042-PLAN's Rollout).
+
+#### The release
+
+* The owner committed steps 1 to 4 as `e88fe50`, and pushed `main`.
+* **The disclosure guard** ran over the 14 commits from `v1.13.0` to
+  `e88fe50`, before the tag was pushed. It exited 0 with no finding.
+* **The tag:** the owner tagged `v1.14.0`, annotated (`f4ce8cc`), on
+  `e88fe50`, and pushed it.
+
+#### Step 5, after the tag
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` | run `38924379676`, push, success (macOS, Ubuntu and Windows) |
+| CI on the tag | run `38925643802`, push, success (macOS, Ubuntu and Windows) |
+| The proxy | `"Version":"v1.14.0"`, `Ref refs/tags/v1.14.0`, hash `e88fe50…` |
+| `tools/apidiff.py v1.13.0 v1.14.0` | exit 0. The same 26 lines as step 3, every one `added`: exactly "The exported additions" |
+| `tools/consumer.py v1.14.0` | 15 packages linked, built for six platforms |
+| `tools/offline.py v1.14.0` | passed: 19 fields, `requests=0`, six platforms. Both its plants were caught |
+
+* **Earlier runs on `main`, found while checking CI:** two failed, and
+  neither was this release's code.
+  * `2e17224` (run `38684764236`): the macOS and Windows jobs failed at
+    "Set up job", before any step ran.
+  * `7f34e31` (run `38569759839`): `gate-selftest` on Ubuntu failed in
+    `TestListenOpenAILoopback_UsesSecondPortWhenFirstBusy`
+    (`llmprovider/auth`): `bind: address already in use` on the
+    registered port it falls back to. It assumes that port is free, which
+    a shared runner does not promise.
+
+  The flaky test is not fixed here. It needs its own record, on the
+  owner's ask.
+
+#### Issue 1
+
+0042-PLAN-ollama-models-that-write-text.md leaves the issue to this
+release. On the owner's ask ("let's fix and close out issue 1"; tag first,
+then close), after the tag and step 5, the agent posted a closing comment
+naming `v1.14.0`, scanned by `tools/denyscan.py` (0 hits), and closed the
+issue as completed.
+
+#### Step 6
+
+The two drafts above are not opened. Each is opened only on the owner's
+ask, after `tools/denyscan.py` over its text.
+
+#### Verification, confirmed
+
+| 0041-MADR | Result |
+| :--- | :--- |
+| §3–§5, §7 numbers | `TestEvidence0041_*`, Phase 0, updated where a phase changed them |
+| every E*n*, P*n* | `tools/claims.py`: the MADR 57 of 57, this PLAN 39 of 39 |
+| D1, A3, A8 | `TestCachedFacts_*`; Phase 9's `TestCachedFacts_ListWithoutBaseURL_0041` and `TestListingKey_DefaultBase_0041` |
+| D2 | the Phase 1 tests, `TestAgreement0041_*`, no wire golden changed (`g-wire-stable` at every gate); live in Phase 9, step 2 |
+| D3, A4, A5 | the Phase 4 tests, and 0042-PLAN's |
+| D4 | the Phase 3 tests, and the two snapshot tests equal to D4's table |
+| D5 | the Phase 5 tests |
+| D6, A6 | the Phase 6 tests |
+| D7 | `TestAgreement0041_*` in CI; `tools/catalogcheck.py` and its tests |
+| D9, A7 | the Phase 8 tests, and `providers/openai`'s listing tests unchanged |
+| A8, Claude's listing | `TestList_ClaudeBase_0041`, `TestListModels_DefaultBaseShape_0041`, and the scratch-clone measurement in Phase 9 |
+| API | `tools/apidiff.py v1.13.0 v1.14.0`: exactly the additions |

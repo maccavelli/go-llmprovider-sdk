@@ -1125,3 +1125,11 @@ exclude, was not needed.
   release that carries them, only on the owner's ask.
 * **The release** is 0041-PLAN Phase 9's.
 * **prepare-commit-msg's pin** is that repository's work.
+
+### Follow-up (2026-10-16): released, and issue 1 closed
+
+`v1.14.0` (0041-PLAN-decide-per-model-behaviour-from-metadata.md, Phase 9)
+carries this PLAN's two phases. After the tag, and on the owner's ask, the
+agent posted issue 1's closing comment, naming `v1.14.0`, and closed the
+issue as completed. This PLAN stays `complete`. prepare-commit-msg's pin
+is still that repository's work.
