@@ -103,7 +103,7 @@ documents a reader follows to do something.
 | 0042 | PLAN | [Implement Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-PLAN-ollama-models-that-write-text.md) | complete |
 | 0043 | MADR | [Add OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-MADR-openai-chatgpt-plan-sign-in.md) | accepted |
 | 0043 | PLAN | [Implement OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-PLAN-openai-chatgpt-plan-sign-in.md) | in-progress |
-| 0044 | MADR | [Let a Caller See Each Retry That WithRetry Waits For](decisions/0044-MADR-observe-retries.md) | proposed |
+| 0044 | MADR | [Let a Caller See Each Retry That WithRetry Waits For](decisions/0044-MADR-observe-retries.md) | accepted |
 | 0044 | PLAN | [Implement Letting a Caller See Each Retry That WithRetry Waits For](decisions/0044-PLAN-observe-retries.md) | proposed |
 
 ## I want to…

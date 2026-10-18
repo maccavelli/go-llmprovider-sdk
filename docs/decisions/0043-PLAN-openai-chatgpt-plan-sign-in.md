@@ -416,3 +416,7 @@ Phase 1 is `188330e`, and Phase 2 is `180f01e`.
   open. D3's store field reads `scope` (A1), and A2 says that a refresh is
   not origin-checked. Nothing in the code changed. The Phase 2 entries
   above stand as written, except for step 3's annotation.
+* **Discovery's fallback accepted (2026-10-18).** The owner accepted the
+  built-in endpoint fallback, as Phase 1 built it, over two alternatives:
+  failing closed, and keeping the fallback for revocation only. 0043-MADR
+  A3 records why. No code changed, and no file was added to any phase.

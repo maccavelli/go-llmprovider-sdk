@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-18
 decision-makers: repository owner
 consulted: issue 3 (gobble-cli's request, 2026-10-16); this module at 180f01e; `tools/apidiff.py v1.14.0` on two scratch clones (2026-10-18)

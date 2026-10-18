@@ -405,6 +405,21 @@ is removed in the same phase.
   D2 and D4 say only that the endpoints come from the discovery document.
   Phase 1 built this (`planOAuthEndpoints`), and the PLAN recorded it
   there, but not as a deviation.
+  * **Accepted** by the owner on 2026-10-18, with no code change. It
+    matches the other logins. The built-in endpoints are constants on the
+    issuer's origin, so blocking discovery cannot redirect a code or a
+    token. It also keeps revocation working while discovery is down, when
+    a failed revocation would leave the refresh token live.
+  * **Rejected:** failing closed when discovery fails, for both sign-in and
+    revocation, because revocation would then fail with discovery; and
+    keeping the fallback for revocation only, which costs the same change
+    for less.
+  * **The cost accepted:** if OpenAI moves an endpoint while discovery is
+    also failing, the stale constant is used, and the request fails
+    visibly. D9's live test reads discovery on every run.
+  * When discovery succeeds, its endpoints are used as published. Unlike
+    the Codex login, the plan login does not replace the authorize and
+    token paths.
 * **What A2 checks.** The origin check runs at sign-in and at revocation. A
   refresh posts to the session's stored `TokenURL` unchecked. The login set
   that URL from a checked discovery. But a session that a caller builds, or
