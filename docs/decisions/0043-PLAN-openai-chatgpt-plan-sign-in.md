@@ -99,7 +99,8 @@ stored record or wire golden changes behaviour.
    fallback.
 3. **Tests** (fake issuer): both authorize URLs, parameter by parameter;
    `localhost` never used; the exchange with the issued id; a bad
-   signature, audience or nonce; a grant without the direct scope; an
+   signature *(covered by the shared verifier's tests, not here; see the
+   Phase 2 record)*, audience or nonce; a grant without the direct scope; an
    empty `AgentName`; a callback with no client id or another one; the
    generated host id's form.
 
@@ -170,6 +171,7 @@ stored record or wire golden changes behaviour.
 
 The owner committed the pair as `8969f1c`, accepted the MADR and approved
 this PLAN ("committed, accepted, approved to proceed", 2026-10-18).
+Phase 1 is `188330e`, and Phase 2 is `180f01e`.
 
 ### Phase 0: baseline and names (2026-10-18)
 
@@ -391,3 +393,26 @@ this PLAN ("committed, accepted, approved to proceed", 2026-10-18).
   * `tools/gate.py`: 23 of 23. `auth` coverage 86.9 % (87.0 % after Phase 1, 86.6 % at `<base>`).
   * `tools/denyscan.py --changed`: 0 hits. `make records-check`: 0
     problems.
+* **Not done here.**
+  * **No signature case in the plan tests.** Step 3 planned one. The login
+    calls the shared verifier (`verifiedSession`), whose tests already
+    refuse a bad signature (`TestVerifyIDToken_Rejects`, "tampered
+    payload"). The plant that skips verification altogether is caught by
+    the audience and nonce cases. A plant that broke only the signature
+    check would be caught by the verifier's tests, not by this file's.
+  * **Untested:** `id_token_hint` left out when `Previous` has no ID token;
+    the login failing when both loopback ports are taken; a bare pasted
+    code on a first sign-in (it follows from two tested pieces). 0043-MADR
+    A3 lists these.
+  * Nothing outside `auth` calls the login yet. A plan session given to
+    `openai.New` is still treated as a platform token until Phase 3.
+* **Carried to Phase 3.** A plan session has `AccountID` and `FedRAMP` from
+  its ID token, as every OpenAI login does, so `Account()` answers. The
+  provider must not send them as the Codex backend's headers (D5); Phase
+  3's goldens assert their absence.
+* **Records aligned (2026-10-18).** At the owner's request, after the
+  commit, the code at `180f01e` was read against this record and 0043-MADR.
+  The MADR gains A3, which records what the login settled that D4 left
+  open. D3's store field reads `scope` (A1), and A2 says that a refresh is
+  not origin-checked. Nothing in the code changed. The Phase 2 entries
+  above stand as written, except for step 3's annotation.

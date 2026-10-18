@@ -153,7 +153,7 @@ Every other session's refresh and revocation are unchanged.
 `TokenStore` still keeps one session per provider. A plan sign-in saved
 under `openai` replaces a Codex-id session there, and the reverse; a
 person signs in with one of the two. `FileTokenStore`'s record gains
-`resource`, `scopes`, `id_token` and `host_id`, each `omitempty`, so a
+`resource`, ~~`scopes`~~ `scope` (A1), `id_token` and `host_id`, each `omitempty`, so a
 record written by an older version reads as before.
 
 * A record written by this version and read by an older one is read as a
@@ -196,6 +196,9 @@ func LoginChatGPTPlan(ctx context.Context, opts ChatGPTPlanOptions) (*OAuthSessi
 * The host id, when not given, is a random version 4 UUID as
   `urn:uuid:…`, kept in the session (D1). OpenAI asks for one kept for the
   host's life; a caller that keeps one host-wide passes it.
+* *(A3 records what the login settled that D4 left open: the callback's
+  client id on a first sign-in, the pasted fallback, the host id's order,
+  the grant with no scope, and discovery's fallback.)*
 
 ### D5. The `openai` provider: a third request shape
 
@@ -358,6 +361,60 @@ is removed in the same phase.
   an authorize, token, revocation or JWKS endpoint that is not on the
   issuer's origin (scheme and host), so a code or a refresh token is never
   posted to another host. The existing logins and revocations are
-  unchanged.
+  unchanged. *(A3: a refresh is not checked; it trusts the session's
+  `TokenURL`.)*
 * **Rejected:** presence only, as today; and the check for every login,
   which changes existing sessions and needs its own record.
+
+### A3. What the login settled that D4 left open (2026-10-18)
+
+* **Recorded** at the owner's request after Phase 2 (`180f01e`), to make
+  this record describe the code. Nothing in the code changes. Each point is
+  tested in `llmprovider/auth/plan_login_0043_test.go` or
+  `plan_session_0043_test.go` unless it says otherwise.
+* **The callback's client id on a first sign-in.** The callback must name
+  an issued client: one with no `client_id`, or one naming
+  `dynamic_agent_client`, is refused before the code is exchanged. A
+  re-sign-in's callback may leave `client_id` out, and the session's client
+  is kept. D4 named only the re-sign-in's mismatch.
+* **The pasted fallback** reads the pasted URL's `client_id` too. A bare
+  code, which the other logins accept, carries none. So a bare code
+  completes a re-sign-in only, and a first sign-in needs the whole URL. This
+  follows from two tested pieces (a bare code parses with no client; a
+  first sign-in with no client is refused); no test pastes a bare code into
+  a first sign-in.
+* **`id_token_hint`** is sent only when `Previous` holds an ID token.
+  Untested on its own.
+* **The host id** is `HostID`, trimmed; else `Previous`'s; else a new
+  `urn:uuid`. D4's struct comment names only the last.
+* **`AgentName` is required on a re-sign-in too,** though only a first
+  sign-in sends it, so that one call serves both. A `Previous` that is not
+  a plan session (`PlanUsage`) with a client id is an error matching
+  `ErrInvalidRequest`, before any request.
+* **The grant.** A token response with no `scope` is refused, like one
+  without `chatgpt.tokens.use.direct`: it matches `ErrNotPermitted`. One
+  with no ID token is refused by the existing verifier, since `openid` was
+  asked for (`TestVerifiedSession_RequiresIDToken`).
+* **The signature** is checked by the shared verifier, whose tests cover a
+  bad one (`TestVerifyIDToken_Rejects`). The plan tests cover the audience
+  and the nonce only; 0043-PLAN Phase 2 step 3 planned a signature case
+  there too.
+* **Discovery's fallback.** For OpenAI's own issuer only, M9's endpoints
+  fill in when discovery fails or leaves one out, as the built-in values do
+  for the other logins (0016-MADR D7). Any other issuer must publish them.
+  D2 and D4 say only that the endpoints come from the discovery document.
+  Phase 1 built this (`planOAuthEndpoints`), and the PLAN recorded it
+  there, but not as a deviation.
+* **What A2 checks.** The origin check runs at sign-in and at revocation. A
+  refresh posts to the session's stored `TokenURL` unchecked. The login set
+  that URL from a checked discovery. But a session that a caller builds, or
+  loads from its own store, is trusted as given, like every other session's
+  `TokenURL` (`refreshTokenURL`).
+* **The listener** is the OpenAI loopback one: `127.0.0.1`, port 1455, else
+  1457, path `/auth/callback`, with ten minutes to finish. When both ports
+  are taken, the login fails, as `LoginBrowserOAuth` does for OpenAI.
+  Untested for the plan login.
+* **The account.** As with every OpenAI login, `AccountID` and `FedRAMP`
+  are read from the ID token's claims, so `Account()` answers for a plan
+  session. Phase 3 must not send them as the Codex backend's headers (D5).
+  Untested until Phase 3.
