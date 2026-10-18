@@ -16,6 +16,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
 )
 
 // CredentialKind identifies the credential represented by a Result.
@@ -37,6 +38,7 @@ const (
 var (
 	loginBrowserOAuth = auth.LoginBrowserOAuth
 	loginDeviceOAuth  = auth.LoginDeviceOAuth
+	loginChatGPTPlan  = auth.LoginChatGPTPlan
 	kiloProfile       = auth.KiloProfile
 )
 
@@ -63,14 +65,14 @@ const (
 )
 
 // offeredAuthMethods returns the methods the caller can keep. Without a
-// TokenStore, a method that saves a session is left out (0020-MADR F51).
-func offeredAuthMethods(d llmprovider.Descriptor, haveStore bool) []llmprovider.AuthMethod {
-	if haveStore {
-		return d.AuthMethods
-	}
+// TokenStore, a method that saves a session is left out (0020-MADR F51);
+// without the consumer's app name, so is the ChatGPT plan sign-in
+// (0043-MADR D7).
+func offeredAuthMethods(d llmprovider.Descriptor, o Options) []llmprovider.AuthMethod {
+	haveStore, haveName := o.TokenStore != nil, strings.TrimSpace(o.AgentName) != ""
 	var keep []llmprovider.AuthMethod
 	for _, m := range d.AuthMethods {
-		if !needsStore(d.ID, m.ID) {
+		if (haveStore || !needsStore(d.ID, m.ID)) && (haveName || m.ID != llmprovider.AuthChatGPTPlan) {
 			keep = append(keep, m)
 		}
 	}
@@ -106,6 +108,11 @@ func existingMethod(methods []llmprovider.AuthMethod, d llmprovider.Descriptor, 
 		want = []llmprovider.AuthMethodID{llmprovider.AuthImportVendorCLI}
 	case CredOAuth:
 		want = []llmprovider.AuthMethodID{llmprovider.AuthBrowserOAuth, llmprovider.AuthDeviceCode}
+		// An OpenAI session under a client other than Codex's is a plan
+		// session, whose client OpenAI issued the app (0043-MADR D7).
+		if d.ID == llmprovider.ProviderOpenAI && o.Existing.ClientID != "" && o.Existing.ClientID != auth.DefaultOpenAIClientID {
+			want = []llmprovider.AuthMethodID{llmprovider.AuthChatGPTPlan}
+		}
 	}
 	for _, id := range want {
 		if i := slices.IndexFunc(methods, func(m llmprovider.AuthMethod) bool { return m.ID == id }); i >= 0 {
@@ -122,7 +129,7 @@ func resolveCredential(
 	baseURL string,
 	o Options,
 ) (resolvedCredential, error) {
-	methods := offeredAuthMethods(d, o.TokenStore != nil)
+	methods := offeredAuthMethods(d, o)
 	if len(methods) == 0 || (len(methods) == 1 && methods[0].ID == llmprovider.AuthAPIKey) {
 		key, from, err := resolveAPIKey(p, d, o)
 		if err != nil {
@@ -174,6 +181,9 @@ func resolveCredential(
 	if method == llmprovider.AuthImportVendorCLI {
 		return resolveVendorCLI(ctx, p, d, o)
 	}
+	if method == llmprovider.AuthChatGPTPlan {
+		return resolveChatGPTPlan(ctx, p, o)
+	}
 	switch method {
 	case llmprovider.AuthBrowserOAuth:
 		flow, drain := browserFlowOptions(p, o)
@@ -195,6 +205,45 @@ func resolveCredential(
 	default:
 		return resolvedCredential{}, fmt.Errorf("wizard: unsupported authentication method %q", method)
 	}
+}
+
+// resolveChatGPTPlan signs the user in with their ChatGPT plan, under the
+// consumer's own app name (auth.LoginChatGPTPlan; 0043-MADR D7). A plan
+// session the store already holds is signed in to again, so that the client
+// OpenAI issued the app is reused. With none, the user first confirms
+// OpenAI's one-time notice, "You're using your ChatGPT plan", with the page
+// where the plan's usage is managed. The new session replaces whatever
+// OpenAI session the store held (D3).
+func resolveChatGPTPlan(ctx context.Context, p Prompter, o Options) (resolvedCredential, error) {
+	previous, err := o.TokenStore.Load(ctx, llmprovider.ProviderOpenAI)
+	if err != nil {
+		return resolvedCredential{}, fmt.Errorf("wizard: load the saved OpenAI session: %w", err)
+	}
+	if previous != nil && (!previous.PlanUsage() || previous.ClientID == "") {
+		previous = nil
+	}
+	instruction, prompt := pasteCodeInstruction, pasteCodePrompt
+	if previous == nil {
+		use, err := p.Confirm(fmt.Sprintf("You're using your ChatGPT plan: this app's requests count toward its usage, "+
+			"which you can manage at %s. Continue?", openai.ChatGPTUsageURL), true)
+		if err != nil {
+			return resolvedCredential{}, err
+		}
+		if !use {
+			return resolvedCredential{}, errors.New("wizard: ChatGPT plan sign-in declined")
+		}
+		// A first sign-in learns the app's client from the callback URL, so
+		// a bare code cannot complete it (0043-MADR A3).
+		instruction, prompt = pasteURLInstruction, pasteURLPrompt
+	}
+	flow, drain := browserFlowOptionsFor(p, o, instruction, prompt)
+	session, loginErr := loginChatGPTPlan(ctx, auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: previous,
+		HTTPClient: o.HTTPClient, OpenURL: flow.OpenURL, InputCode: flow.InputCode})
+	drain()
+	if loginErr != nil {
+		return resolvedCredential{}, loginErr
+	}
+	return saveOAuthCredential(ctx, o.TokenStore, llmprovider.ProviderOpenAI, session)
 }
 
 // resolveVendorCLI uses a vendor CLI's login read-through: it checks the
@@ -554,7 +603,14 @@ func oauthFlowOptions(p Prompter, o Options) auth.OAuthFlowOptions {
 	}
 }
 
-const pasteCodePrompt = "Paste the redirected URL or authorization code if the browser does not return"
+// The paste instruction and prompt, and a ChatGPT plan's first sign-in's,
+// which needs the URL (0043-MADR A3).
+const (
+	pasteCodeInstruction = "If the browser does not return here, paste the redirected URL or the authorization code"
+	pasteCodePrompt      = "Paste the redirected URL or authorization code if the browser does not return"
+	pasteURLInstruction  = "If the browser does not return here, paste the redirected URL"
+	pasteURLPrompt       = "Paste the redirected URL if the browser does not return"
+)
 
 // browserFlowOptions adds MADR 0008 D3's paste-code race to oauthFlowOptions.
 // The authorize URL and the paste instruction are shown even when the consumer
@@ -562,7 +618,13 @@ const pasteCodePrompt = "Paste the redirected URL or authorization code if the b
 // returns: it finishes a paste prompt the loopback overtook, so no later
 // prompt reads alongside it.
 func browserFlowOptions(p Prompter, o Options) (auth.OAuthFlowOptions, func()) {
-	paste := &pastePrompt{p: p, shown: make(chan struct{})}
+	return browserFlowOptionsFor(p, o, pasteCodeInstruction, pasteCodePrompt)
+}
+
+// browserFlowOptionsFor is browserFlowOptions with the paste instruction and
+// prompt given.
+func browserFlowOptionsFor(p Prompter, o Options, instruction, prompt string) (auth.OAuthFlowOptions, func()) {
+	paste := &pastePrompt{p: p, shown: make(chan struct{}), instruction: instruction, prompt: prompt}
 	flow := oauthFlowOptions(p, o)
 	flow.OpenURL = func(authorizeURL string) error {
 		paste.show(authorizeURL)
@@ -582,6 +644,8 @@ func browserFlowOptions(p Prompter, o Options) (auth.OAuthFlowOptions, func()) {
 type pastePrompt struct {
 	p     Prompter
 	shown chan struct{} // closed once the URL and instruction are shown
+	// instruction is shown with the URL; prompt asks for the paste.
+	instruction, prompt string
 
 	mu      sync.Mutex
 	done    bool          // drain ran: nothing further may use the prompter
@@ -595,7 +659,7 @@ func (s *pastePrompt) show(authorizeURL string) {
 		return
 	}
 	s.p.Notify(LevelInfo, "Open %s in your browser", authorizeURL)
-	s.p.Notify(LevelInfo, "If the browser does not return here, paste the redirected URL or the authorization code")
+	s.p.Notify(LevelInfo, "%s", s.instruction)
 	close(s.shown)
 }
 
@@ -614,7 +678,7 @@ func (s *pastePrompt) input(ctx context.Context) (string, error) {
 	s.pending = pending
 	s.mu.Unlock()
 	defer close(pending)
-	return s.p.Input(pasteCodePrompt, "")
+	return s.p.Input(s.prompt, "")
 }
 
 func (s *pastePrompt) drain() {

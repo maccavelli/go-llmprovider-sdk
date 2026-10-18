@@ -114,6 +114,13 @@ type Options struct {
 	HTTPClient *http.Client
 	// OpenURL opens an OAuth authorization URL. Nil reports the URL through Prompter.
 	OpenURL func(string) error
+	// AgentName is the consumer's own app name, which OpenAI's Sign in with
+	// ChatGPT for agents shows the user and registers the app under
+	// (auth.ChatGPTPlanOptions). Keep it the same across installations.
+	// Without it, that method (llmprovider.AuthChatGPTPlan) is not offered:
+	// OpenAI's terms ask an app to sign in under its own name, and this
+	// module's is not the consumer's (0043-MADR D7).
+	AgentName string
 }
 
 // lookupEnv is the run's environment reader: the caller's, else one that

@@ -67,6 +67,12 @@ func TestDescriptors_OpenAIAndGrokOfferOAuth(t *testing.T) {
 				Interactive: true,
 				HeadlessOK:  true,
 			},
+			{
+				ID:          llmprovider.AuthChatGPTPlan,
+				Label:       "Use your ChatGPT plan with this app",
+				Detail:      "Sign in with ChatGPT for agents; usage counts toward your plan",
+				Interactive: true,
+			},
 		},
 		llmprovider.ProviderGrok: {
 			{

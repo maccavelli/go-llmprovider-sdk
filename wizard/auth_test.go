@@ -536,8 +536,9 @@ func TestConfigureLLM_NoTokenStoreOffersStorelessMethods(t *testing.T) {
 	}
 }
 
-// TestConfigureLLM_TokenStoreOffersAllMethods: with a TokenStore the menu lists
-// every descriptor method, in descriptor order.
+// TestConfigureLLM_TokenStoreOffersAllMethods: with a TokenStore, and the
+// consumer's app name for the ChatGPT plan sign-in (0043-MADR D7), the menu
+// lists every descriptor method, in descriptor order.
 func TestConfigureLLM_TokenStoreOffersAllMethods(t *testing.T) {
 	for _, provider := range []llmprovider.ProviderID{llmprovider.ProviderOpenAI, llmprovider.ProviderGrok} {
 		t.Run(string(provider), func(t *testing.T) {
@@ -546,7 +547,7 @@ func TestConfigureLLM_TokenStoreOffersAllMethods(t *testing.T) {
 				t.Fatalf("no descriptor for %s", provider)
 			}
 			f := newFake(t, fakePrompter{selects: []int{providerIdx(t, provider)}})
-			_, _ = ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore()})
+			_, _ = ConfigureLLM(context.Background(), f, Options{TokenStore: newMemoryTokenStore(), AgentName: "test-app"})
 			if len(f.seenSelect) < 2 || !strings.Contains(f.seenSelect[1], "authenticate") {
 				t.Fatalf("Select titles = %q, want the method menu second", f.seenSelect)
 			}

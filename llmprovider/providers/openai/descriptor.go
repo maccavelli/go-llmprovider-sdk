@@ -47,6 +47,14 @@ func Descriptor() llmprovider.Descriptor {
 				Interactive: true,
 				HeadlessOK:  true,
 			},
+			// Last, so that every earlier method keeps its place; the wizard
+			// offers it only with the consumer's app name (0043-MADR D7).
+			{
+				ID:          llmprovider.AuthChatGPTPlan,
+				Label:       "Use your ChatGPT plan with this app",
+				Detail:      "Sign in with ChatGPT for agents; usage counts toward your plan",
+				Interactive: true,
+			},
 		},
 		StaticModels: catalog.Static(llmprovider.ProviderOpenAI),
 	}

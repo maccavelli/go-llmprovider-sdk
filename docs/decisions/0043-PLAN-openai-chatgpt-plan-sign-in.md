@@ -595,3 +595,118 @@ records alignment (`d8efb45`).
     output limit.
   * The wizard (Phase 4), and the docs, the live test and the release
     (Phase 5).
+
+### Phase 4: the wizard (2026-10-18)
+
+The owner committed Phase 3 as `1972bb8` and approved Phase 4 ("committed,
+proceed").
+
+* **`<base>`** is `1972bb8`. Coverage there: `wizard` 89.6 %, `providers` 85.7 % (a clone of `1972bb8`).
+* **No deviation.** The choices below are within D7, which leaves the
+  flow's details to this phase. None changes a decision or a fact the MADR
+  states.
+* **Done.**
+  * **Step 1, the method.**
+    * `llmprovider.AuthChatGPTPlan` is `"chatgpt_plan"`.
+    * The OpenAI descriptor lists it last, "Use your ChatGPT plan with this
+      app", interactive and not headless, as the browser login is. Last,
+      so that every earlier method keeps its menu index.
+      `TestDescriptors_OpenAIAndGrokOfferOAuth` pins the new entry.
+  * **`wizard.Options.AgentName`.** `offeredAuthMethods` now takes the
+    `Options`. It leaves the plan sign-in out without a `TokenStore` (the
+    method saves a session) and without a non-blank `AgentName`.
+    `TestConfigureLLM_TokenStoreOffersAllMethods` passes an app name, since
+    "every method" now needs one.
+  * **`resolveChatGPTPlan`.**
+    * The OpenAI session in the store is passed as `Previous` when it is a
+      plan session with a client, so that the client OpenAI issued is
+      reused. A Codex-id session is not passed.
+    * With no such session, the user first confirms OpenAI's notice: "You're
+      using your ChatGPT plan: this app's requests count toward its usage,
+      which you can manage at" `openai.ChatGPTUsageURL`. Declining it is an
+      error, and no login runs. "One-time" means once per store: a re-sign-in
+      skips the notice.
+    * The login gets the app's name, the caller's client, and the browser
+      hooks with the paste race. On a first sign-in, the paste instruction
+      and prompt ask for the redirected URL, since a bare code cannot
+      complete one (A3).
+    * The session is saved under `openai` by `saveOAuthCredential`,
+      replacing any OpenAI session there (D3).
+  * **The default method.** For an `Existing` OpenAI OAuth result whose
+    `ClientID` is neither empty nor Codex's, the menu defaults to the plan
+    sign-in (the rule of 0020-MADR F19).
+  * **Logout** needs no change: `RevokeOAuthSession` takes Phase 1's plan
+    branch.
+  * **The listing** needs no change: an OpenAI OAuth result lists through
+    the provider's `ListModels` (`chatGPTCatalog`), which Phase 3 sends to
+    the plan listing. With `Discover` off, as for a ChatGPT session, the
+    user is asked for a model id.
+  * **Step 2, tests,** `wizard/plan_0043_test.go`, eight tests:
+    * the method offered only with a store and a non-blank name, and last;
+      the id pinned;
+    * a first sign-in: the notice with the usage page, the login's options,
+      the URL paste instruction, and the saved plan session bound to the
+      store;
+    * the paste prompt of a first sign-in, through
+      `browserFlowOptionsFor`;
+    * a declined notice: no login and no save;
+    * a re-sign-in: `Previous` is the saved plan session, no notice, one
+      save, the usual paste instruction;
+    * a saved Codex-id session: the notice, no `Previous`, and the plan
+      session in its place;
+    * the default method for an issued client and for Codex's;
+    * logout: one RFC 7009 form, with the refresh token and the issued
+      client, to the revocation endpoint of a fake issuer's discovery
+      document; then the session is deleted.
+* **Red first.** `tools/plant.py`, 19 plants on a scratch clone, all caught.
+  * Two of them were first caught by a build failure, not an assertion,
+    because each left a name unused: "the method is offered without a
+    name" and "the notice names no usage page". Both were rewritten to
+    keep the build, and caught on a second run, by
+    `TestPlan_OfferedOnlyWithAppName_0043` (the plan sign-in in the menus
+    with no name and a blank one) and `TestPlan_FirstSignIn_0043`
+    (`manage at https://. Continue?`).
+
+  | Plant | Result |
+  | :--- | :--- |
+  | the method id changes | caught |
+  | the descriptor drops the method | caught |
+  | the method is offered without a name | caught (second run) |
+  | the method is offered without a store | caught |
+  | a blank name counts | caught |
+  | an issued client does not default to the plan sign-in | caught |
+  | the menu choice is not handled | caught |
+  | the saved plan session is not used again | caught |
+  | a Codex session is signed in to again | caught |
+  | the notice is skipped | caught |
+  | the notice names no usage page | caught (second run) |
+  | a declined notice signs in anyway | caught |
+  | the app name is not passed | caught |
+  | the caller's client is not passed | caught |
+  | the paste hook is not passed | caught |
+  | a first sign-in asks for a code | caught |
+  | the session is not saved | caught |
+  | the instruction is fixed | caught |
+  | the paste prompt is fixed | caught |
+* **Gate.**
+  * `make pre-add-check` on the seven Go files: `7 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)`.
+  * `tools/apidiff.py v1.14.0`: the eight lines from Phases 1–3, and
+    `llmprovider.AuthChatGPTPlan` and `wizard.Options.AgentName`, each
+    `added`.
+  * `tools/gate.py`: 23 of 23. Coverage after: `wizard` 89.6 %, `providers` 85.7 %, unchanged.
+  * `tools/denyscan.py --changed`: 0 hits. `make records-check`: 0
+    problems.
+* **Not done here.**
+  * **The host id.** The wizard takes no host id, so a first sign-in
+    through it makes a random one, which the session keeps and a
+    re-sign-in reuses (D4). A consumer that keeps one host-wide calls
+    `auth.LoginChatGPTPlan` itself.
+  * **A Result field for the kind.** `Result` gains none: the session in
+    the store carries `Resource`, and `Result.ClientID` tells an issued
+    client from Codex's.
+  * **The usage label.** The "Using ChatGPT plan" label near the model
+    picker, and "Manage usage" on a usage-limit error, are the consumer's
+    UI. The wizard renders nothing, and `openai.ChatGPTUsageURL` is there
+    for them.
+  * The docs, the live test and the release (Phase 5).

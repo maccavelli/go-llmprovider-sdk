@@ -17,6 +17,10 @@ const (
 	AuthTokenStdin AuthMethodID = "token_stdin"
 	// AuthImportVendorCLI imports a session from the provider's CLI.
 	AuthImportVendorCLI AuthMethodID = "import_vendor_cli"
+	// AuthChatGPTPlan selects OpenAI's Sign in with ChatGPT for agents: the
+	// user's ChatGPT plan, under the consumer's own app name
+	// (auth.LoginChatGPTPlan; 0043-MADR D7).
+	AuthChatGPTPlan AuthMethodID = "chatgpt_plan"
 )
 
 // AuthMethod describes one authentication path a provider offers.
