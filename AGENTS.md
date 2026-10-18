@@ -178,7 +178,7 @@ provider's live tests run when its key variable is set (`ProviderEnvVars()`),
 and skip without it. These suites are switched on by their own variable:
 `LLMPROVIDER_LIVE_CHATGPT`, `LLMPROVIDER_LIVE_BROWSER_LOGIN` (the ChatGPT and
 Grok browser logins), `LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok device-code
-login), `LLMPROVIDER_LIVE_OPENAI_SIGNIN` (the OpenAI sign-in probe),
+login), `LLMPROVIDER_LIVE_CHATGPT_PLAN` (the ChatGPT plan sign-in),
 `LLMPROVIDER_LIVE_GROK_CLI`, `LLMPROVIDER_LIVE_TOGETHER` (with
 `TOGETHER_API_KEY`). The login tests need a person to sign in. CI only vets
 the live-tagged files (`go vet -tags live_gateways ./...`); it never runs them.

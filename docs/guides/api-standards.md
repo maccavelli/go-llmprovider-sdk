@@ -33,7 +33,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt` |
   | `llmprovider/internal/kiloendpoint` | Kilo's endpoints, derived from a credential | the standard library |
   | `llmprovider/internal/listlimit` | `catalog.WithLimit`'s value, for `catalog` and the providers that cut their own fallback listings with it | the standard library |
-  | `llmprovider/internal/chatgpt` | a ChatGPT session's check, headers and listing request, for `catalog`'s `ListRaw` and `providers/openai` | `llmprovider`, `auth`, `internal/transport` |
+  | `llmprovider/internal/chatgpt` | a ChatGPT session's check, headers and listing request, and a ChatGPT plan session's check and listing request, for `catalog`'s `ListRaw` and `providers/openai` | `llmprovider`, `auth`, `internal/transport` |
   | `llmprovider/internal/retired` | the retired model ids, with why (0033-MADR D4) | `llmprovider` |
   | `llmprovider/internal/catalogtool` | the maintainer tool's proposals for the static lists | `llmprovider`, `catalog`, `internal/retired` |
   | `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, run with `go run` | `llmprovider`, `catalog`, `internal/catalogtool` |
@@ -216,8 +216,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
 
 - **R33. A secret-bearing value redacts itself.** `Token`, `StaticToken`,
   `CommandToken`, an OAuth session and `wizard.Result` implement `String`,
-  `GoString` and `slog.LogValuer` with a masked form. Code that needs the
-  secret reads the field. (0016 D5)
+  `GoString` and `slog.LogValuer` with a masked form; a session's ID token
+  is masked as its tokens are. Code that needs the secret reads the field.
+  (0016 D5; 0043 D1)
 - **R34. Descriptors and status values carry no key material.** (0016 D5)
 - **R35. An error message is redacted and bounded** before it is returned.
   (0015 D7)

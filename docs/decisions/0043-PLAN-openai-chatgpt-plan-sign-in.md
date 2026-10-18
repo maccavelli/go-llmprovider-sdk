@@ -710,3 +710,153 @@ proceed").
     UI. The wizard renders nothing, and `openai.ChatGPTUsageURL` is there
     for them.
   * The docs, the live test and the release (Phase 5).
+
+### Phase 5: docs, the live test, and the release (2026-10-18)
+
+The owner committed Phase 4 as `24adf7e` and approved Phase 5 ("committed,
+proceed").
+
+* **No deviation.**
+* **Step 1, the docs.**
+  * **`llmprovider/auth/doc.go`** names `LoginChatGPTPlan` and lists what
+    OpenAI's terms ask of the app that the package cannot do for it (D8):
+    * requests only from the user's own runtime, for that user's activity;
+    * express consent before background use;
+    * the connected application only;
+    * no pooling, sharing, transfer or resale;
+    * no charge.
+  * **`README.md`:**
+    * the opening line;
+    * the plan session under Credentials;
+    * a section, "Signing in with a ChatGPT plan": the call, the request
+      rules, the usage URL, the store and D3's downgrade cost, and the same
+      list of what stays the consumer's;
+    * a wizard bullet for `Options.AgentName`;
+    * an "I want to…" row;
+    * the `v1.15.0` status entry.
+  * **`docs/guides/api-standards.md`:** the `internal/chatgpt` row of R2,
+    and R33, whose masked fields now include the ID token.
+  * **`docs/architecture.md`** (R43):
+    * the tree lines and the package rows of `auth`, `providers/openai`
+      and `internal/chatgpt`;
+    * `ListRaw`'s plan listing;
+    * the provider ids and the credentials;
+    * a bullet for the plan session;
+    * `LoginChatGPTPlan` under "Creating one";
+    * the wizard's offer.
+  * **`docs/guides/migrating-from-mcplib.md`** is unchanged: no new name
+    replaces an `mcplib` identifier.
+* **Step 2, the live test.**
+  * **`llmprovider/live_chatgpt_plan_test.go`**, `TestLive_ChatGPTPlan`,
+    tagged `live_gateways` and switched on by
+    `LLMPROVIDER_LIVE_CHATGPT_PLAN`, in order:
+    * signs in under this module's name and checks the session's kind,
+      issued client, plan scope and host id;
+    * saves it to a `FileTokenStore` and uses what it loads back;
+    * `ListModels` with `WithModelProbes(true)`, then `catalog.ListRaw`;
+    * `Generate`, `Stream`, and a forced tool call;
+    * a forced refresh, checked against the store;
+    * a revocation, then a refresh that must be refused.
+
+    It logs no token and no client id.
+  * **Removed:** `llmprovider/live_openai_signin_probe_test.go` and its
+    offline helpers, `llmprovider/signin_probe_0017_test.go`, which nothing
+    else used (`grep`). `AGENTS.md`'s live list names
+    `LLMPROVIDER_LIVE_CHATGPT_PLAN` in place of
+    `LLMPROVIDER_LIVE_OPENAI_SIGNIN`.
+* **Step 3, the live run (2026-10-18).** Three runs, the owner signing in
+  at the logged URL:
+  * **The first** passed in 194.94 s, with the test as one function. `make
+    pre-add-check` then refused it: `cyclomatic complexity 46 of func
+    TestLive_ChatGPTPlan is high (> 40) (gocyclo)`. It was split into
+    `planSignIn`, `planRequests` and `planRefresh`, with the same checks.
+  * **The second**, on the split test, timed out with no sign-in:
+    `oauth: browser login timed out: context deadline exceeded` (600 s).
+  * **The third**, on the split test as staged: `--- PASS:
+    TestLive_ChatGPTPlan (47.21s)`. Its findings match the first run's:
+
+  | Check | Result |
+  | :--- | :--- |
+  | sign-in | an issued client of 32 characters; the token URL `https://auth.openai.com/api/accounts/oauth/token`, from discovery |
+  | the store round trip | the loaded session is a plan session, with the same client, scope and host id |
+  | listing | 7 listed models, the first `gpt-6.1-sol`, as M6 measured |
+  | `Generate`, `Stream`, forced tool | each passed on `gpt-6.1-sol` |
+  | refresh | the token rotated; the store holds it with its plan fields |
+  | refresh after revocation | refused, matching `ErrAuthFailure` |
+
+  M1–M9 hold; no stop condition was met.
+  * **Not done:** the live test was not seen to fail on a planted break,
+    which would need another person-run sign-in per plant. Each of its
+    checks has an offline counterpart that was (Phases 1–4).
+* **Gate.**
+  * `make pre-add-check` on `llmprovider/auth/doc.go` and
+    `llmprovider/live_chatgpt_plan_test.go`, with the two removed files:
+    `2 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)`, after the split.
+  * `go vet -tags live_gateways ./llmprovider/`: clean.
+  * `tools/gate.py`, on the split test: 23 of 23.
+  * `tools/apidiff.py v1.14.0`: the ten lines of Phases 1–4, unchanged.
+  * `tools/denyscan.py --changed`: 0 hits. `make records-check`: 0
+    problems.
+
+#### Step 4: release notes, `v1.15.0`
+
+`v1.15.0` adds OpenAI's Sign in with ChatGPT for agents as an OpenAI auth
+method (0043-MADR). The exported API adds 10 identifiers and changes none.
+No existing wire golden changed.
+
+**New API:**
+
+* **The login** (D4): `auth.LoginChatGPTPlan` and `auth.ChatGPTPlanOptions`.
+* **The session** (D1, A1): `OAuthSession.Resource`, `.Scope`, `.IDToken`
+  and `.HostID`; `(*OAuthSession).PlanUsage`.
+* **The provider** (D6): `openai.ChatGPTUsageURL`.
+* **The wizard** (D7): `llmprovider.AuthChatGPTPlan` (`"chatgpt_plan"`) and
+  `wizard.Options.AgentName`.
+
+**What a plan session does:**
+
+* It is sent to `api.openai.com/v1`, always streamed, with `store` false,
+  no output limit, and none of the Codex backend's headers.
+* It has no continuation. Deferred tools are appended, with
+  `WarningDeferralEmulated`. A system message in `Input` is refused before
+  the network (`ErrUnsupported`): put it in `Instructions`.
+* `ListModels` lists the account's `models` array and never probes;
+  `catalog.ListRaw` returns that array as sent.
+* `subscription_sharing_usage_limit_exceeded` is `ErrQuotaExhausted`.
+  `_user_not_eligible` and `_route_not_supported` are `ErrNotPermitted`,
+  and `_unsupported_capability` is `ErrInvalidRequest`. All are terminal,
+  in a reply or a stream.
+* It refreshes and revokes with forms and the resource, at endpoints from
+  the issuer's discovery document, which must be on the issuer's origin.
+
+**What changes for a caller who changes nothing:**
+
+* Nothing on the wire: a key and a ChatGPT session send what they sent
+  before.
+* The OpenAI descriptor lists a sixth method, last. The wizard offers it
+  only with `Options.AgentName` and a `TokenStore`, so a menu built
+  without them is unchanged.
+* An `OAuthSession` with none of the new fields formats, stores, refreshes
+  and revokes as before.
+
+**Upgrading, and going back:**
+
+* A `TokenStore` keeps one OpenAI login: a plan sign-in replaces a Codex-id
+  one, and the reverse.
+* A record saved by `v1.15.0` and read by an earlier version is read as a
+  Codex-id session, whose refresh fails; signing in again mends it (D3).
+* What OpenAI's terms ask of the app stays the consumer's: requests from
+  the user's own runtime, consent before background use, the connected
+  application only, no pooling, and no charge (D8; the `auth` package doc
+  and the README).
+* `LLMPROVIDER_LIVE_OPENAI_SIGNIN` is gone. `LLMPROVIDER_LIVE_CHATGPT_PLAN`
+  runs the live test.
+
+**Measured:** step 3's live run.
+
+#### Step 5, after the tag (pending)
+
+The owner commits, pushes and tags `v1.15.0`. Then: CI, the module proxy,
+`tools/consumer.py v1.15.0` and `tools/offline.py v1.15.0`. Issue 2 is
+answered and closed on the owner's ask. This PLAN becomes `complete` when
+these pass.

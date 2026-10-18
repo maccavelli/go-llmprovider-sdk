@@ -1,8 +1,9 @@
 # go-llmprovider-sdk
 
 A Go library for calling LLM providers and authenticating to them: API keys,
-subscription OAuth (browser and device-code login, refresh, revocation), a
-token store, model discovery, and an interactive configuration wizard. It
+subscription OAuth (browser and device-code login, refresh, revocation),
+OpenAI's Sign in with ChatGPT for agents, a token store, model discovery, and
+an interactive configuration wizard. It
 depends on the standard library and `golang.org/x/term` only, and ships no
 binary.
 
@@ -68,6 +69,8 @@ functions over any provider, and `Stream` streams from every one.
   `CommandToken`.
   - A ChatGPT session uses `chatgpt.com/backend-api/codex`, never the
     API-key endpoint at `api.openai.com`.
+  - A ChatGPT plan session, from `auth.LoginChatGPTPlan`, uses
+    `api.openai.com/v1`, billed to the user's ChatGPT plan (see below).
   - A Grok session and a Grok key both use `api.x.ai/v1`.
   - Claude and Gemini take an API key only. Claude's is read from
     `ANTHROPIC_API_KEY`, when the caller asks for the environment.
@@ -190,6 +193,45 @@ functions over any provider, and `Stream` streams from every one.
   p = llmprovider.WithRetry(p, llmprovider.RetryPolicy{})
   ```
 
+## Signing in with a ChatGPT plan
+
+`auth.LoginChatGPTPlan` is OpenAI's Sign in with ChatGPT for agents
+([0043-MADR](docs/decisions/0043-MADR-openai-chatgpt-plan-sign-in.md)). The
+user signs in in a browser, under your app's own name. At the first
+sign-in OpenAI registers a client for your app under the user's account.
+Pass the saved session as `Previous` to sign in to it again.
+
+```go
+session, err := auth.LoginChatGPTPlan(ctx, auth.ChatGPTPlanOptions{
+    AgentName: "my-agent", // your app's own name, the same on every install
+    OpenURL:   openBrowser,
+})
+if err != nil {
+    return err
+}
+p, err := openai.New(llmprovider.WithTokenSource(session))
+```
+
+- **Requests.** Every request is streamed, with `store` false and no output
+  limit. `PreviousResponseID`, native tool search, and a system message in
+  `Input` are not supported: put system prompts in `Instructions`.
+  `ListModels` lists the account's models and never sends a billed probe.
+- **Usage.** A plan's usage limit is `ErrQuotaExhausted`.
+  `openai.ChatGPTUsageURL` is the page your "Manage usage" action opens.
+- **Store.** A `TokenStore` keeps one OpenAI login, of either kind: a plan
+  sign-in replaces a Codex-id one, and the reverse. A record saved by this
+  version and read by one before `v1.15.0` fails to refresh; signing in
+  again mends it.
+- **What stays yours.** OpenAI's terms ask things of your app that this
+  module cannot do for you, and no option claims to:
+  - send requests only from the user's own runtime, or one only that user
+    controls, and only for that user's activity;
+  - get the user's express consent before any background use;
+  - use the plan only for the app the user connected, never as
+    general-purpose API access for other tools;
+  - never pool, share, transfer or resell plan usage or the tokens;
+  - charge nothing for this use.
+
 ## The configuration wizard
 
 `wizard.ConfigureLLM(ctx, prompter, opts)` asks for a provider, its
@@ -203,6 +245,11 @@ key.
   it before asking how to sign in. Without a `TokenStore`, only the methods
   that save no session are offered: the API key, a vendor CLI's login, and
   a pasted Grok key.
+- With `Options.AgentName`, your app's own name, OpenAI also offers "Use
+  your ChatGPT plan with this app" (`AuthChatGPTPlan`). Before the first
+  plan sign-in the user confirms OpenAI's notice, "You're using your
+  ChatGPT plan". A saved plan session is signed in to again, keeping the
+  client OpenAI issued your app.
 - A vendor CLI's login is found by default under the home directory, which
   the wizard reads only through `Options.LookupEnv` (`HOME`, or
   `USERPROFILE` on Windows). Pass `LookupEnv: os.Getenv` to find it there.
@@ -232,7 +279,16 @@ key.
 
 ## Status
 
-The current release is `v1.14.0`. The module requires Go 1.27.2.
+The current release is `v1.15.0`. The module requires Go 1.27.2.
+
+- `v1.15.0` adds OpenAI's Sign in with ChatGPT for agents, as
+  [0043-MADR](docs/decisions/0043-MADR-openai-chatgpt-plan-sign-in.md)
+  decides:
+  - `auth.LoginChatGPTPlan` signs a user in with their ChatGPT plan, under
+    your app's own name;
+  - the `openai` provider sends a plan session's requests to
+    `api.openai.com/v1` under OpenAI's rules for plan usage;
+  - the wizard offers the method when `Options.AgentName` is set.
 
 - `v1.14.0` decides each model's behaviour from its facts, and lists a live
   menu ordered by them, as
@@ -462,6 +518,7 @@ The current release is `v1.14.0`. The module requires Go 1.27.2.
 | add a provider, in this module or my own | [adding-a-provider.md](docs/guides/adding-a-provider.md) |
 | move code from `mcplib`'s `llmprovider` or `wizard` | [migrating-from-mcplib.md](docs/guides/migrating-from-mcplib.md) |
 | know how provider auth is built, and what it takes from `magic-cli-remote` | [0016-MADR](docs/decisions/0016-MADR-provider-auth-and-support-baseline.md) |
+| sign a user in with their ChatGPT plan under my own app's name | [0043-MADR](docs/decisions/0043-MADR-openai-chatgpt-plan-sign-in.md) |
 | contribute: checks, records and commit rules | [AGENTS.md](AGENTS.md) |
 
 ## License

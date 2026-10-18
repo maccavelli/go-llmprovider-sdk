@@ -44,7 +44,7 @@ llmprovider/                the contract, errors, options and credential sources
 llmprovider/auth/           OAuth sessions and logins, vendor CLI sessions, token stores
 llmprovider/llmtest/        the conformance suite and a fake provider
 llmprovider/providers/      the built-in providers, by id
-llmprovider/providers/openai/  OpenAI: the Responses API, and the ChatGPT backend
+llmprovider/providers/openai/  OpenAI: the Responses API, with a key or a ChatGPT plan session, and the ChatGPT backend
 llmprovider/providers/claude/  Claude: the Anthropic Messages API
 llmprovider/providers/gemini/  Gemini: the Interactions API
 llmprovider/providers/grok/    Grok: the xAI Responses API
@@ -59,7 +59,7 @@ llmprovider/catalog/          model listing, static catalogs, ranking, metadata,
 llmprovider/internal/transport/ the shared default transports, the client identity, Retry-After and the rate-limit resets, the listing probe and its cache
 llmprovider/internal/kiloendpoint/ Kilo's endpoints, derived from a credential
 llmprovider/internal/listlimit/ catalog.WithLimit's value, for catalog and the providers
-llmprovider/internal/chatgpt/ a ChatGPT session's headers and listing request, for catalog and providers/openai
+llmprovider/internal/chatgpt/ a ChatGPT session's headers and listing request, and a plan session's, for catalog and providers/openai
 llmprovider/internal/ownerperm/ a directory and its files private to the current user
 llmprovider/internal/filelock/ an exclusive OS lock on an open file, for the refresh lock
 llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests only
@@ -86,13 +86,13 @@ standard library is left out.
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
 | `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact` |
-| `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
+| `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
-| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/chatgpt`, `internal/wire/responses`, `internal/transport`, `internal/wire`, `internal/wire/deferral` |
+| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, `Stream`, and `ChatGPTUsageURL` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/chatgpt`, `internal/wire/responses`, `internal/transport`, `internal/wire`, `internal/wire/deferral` |
 | `llmprovider/providers/claude` | Claude through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/messages`, `internal/transport`, `internal/wire/deferral` |
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, `ListModels`, and `Stream`, with the Interactions wire's decoders | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/transport`, `internal/wire/deferral` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `catalog`, `internal/listlimit`, `internal/wire/responses`, `internal/transport`, `auth`, `internal/wire`, `internal/wire/deferral` |
@@ -110,7 +110,7 @@ standard library is left out.
 | `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer` | `llmprovider`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/listlimit` | `Value`, `catalog.WithLimit`'s option value, `Of`, which reads it from a provider's options, and `Cut`, for `catalog` and the providers that cut their own fallback listings with it (0038-MADR A3) | the standard library |
-| `llmprovider/internal/chatgpt` | a ChatGPT session's `BaseURL`, `IsSession`, `SetHeaders` and its header names, `ClientVersion`, and `ModelsRequest`, the Codex backend's listing request, for `catalog`'s `ListRaw` and `providers/openai` (0041-MADR D9) | `llmprovider`, `auth`, `internal/transport` |
+| `llmprovider/internal/chatgpt` | a ChatGPT session's `BaseURL`, `IsSession`, `SetHeaders` and its header names, `ClientVersion`, and `ModelsRequest`, the Codex backend's listing request; a plan session's `IsPlanSession` and `PlanModelsRequest`; for `catalog`'s `ListRaw` and `providers/openai` (0041-MADR D9; 0043-MADR D5) | `llmprovider`, `auth`, `internal/transport` |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
 | `llmprovider/internal/transport` | `DefaultClient` and `Config`, over the transports the process keeps; `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `RateLimitReset`; `ProbeGenerateHealth`, and `ProbeGenerateHealthCached` with its `ProbeKey` and `Fingerprint`; `Unsendable`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
@@ -130,7 +130,7 @@ wizard
 providers                     Default(), New(id, …)
 providers/<id>                one package per provider or gateway family
 catalog   internal/wire/<format>   llmtest
-internal/chatgpt              a ChatGPT session's headers and listing request
+internal/chatgpt              a ChatGPT session's headers and listing request, and a plan session's
 auth
 internal/wire
 llmprovider                   the contract
@@ -198,7 +198,8 @@ It filters, ranks and caveats nothing, fetches no metadata document,
 neither reads nor writes the listing cache, and never falls back: a failed
 page is its error. It renews a refused credential once, as `List` does.
 A ChatGPT session lists the Codex backend, with the request the openai
-provider sends (`internal/chatgpt`); Ollama's listing is `/api/tags`
+provider sends (`internal/chatgpt`); a ChatGPT plan session reads the
+`models` array of the platform's `/models`; Ollama's listing is `/api/tags`
 alone.
 
 The metadata document is fetched once per URL at a time, detached from the
@@ -452,7 +453,8 @@ for a session, from the store.
 ## Providers and items
 
 - **Ten provider ids,** `ProviderID` constants in `llmprovider`: `openai`
-  (API key, or a ChatGPT subscription through the Codex backend), `claude`,
+  (API key; a ChatGPT subscription through the Codex backend; or a ChatGPT
+  plan session on the platform), `claude`,
   `gemini`, `grok`, `opencode-zen`, `opencode-go`, `huggingface`, `kilo`,
   `together` and `ollama`. A label that may carry a route, such as
   `APIError.Provider`, stays a `string`.
@@ -527,7 +529,8 @@ for a session, from the store.
 
 - **`TokenSource`** returns a `Token` for each request. `StaticToken` wraps an
   API key. `openai.New` takes a source with `WithTokenSource`; a ChatGPT
-  session selects the ChatGPT backend. `grok.New` takes any source: a key,
+  session selects the ChatGPT backend, and a plan session the platform with
+  OpenAI's rules for plan usage. `grok.New` takes any source: a key,
   an xAI OAuth session or the Grok CLI's login.
 - **Where a token goes.** A token with no `Header` goes in the service's own
   header: `Authorization: Bearer` for OpenAI, Grok, Kilo, Hugging Face and Together, `x-api-key` for
@@ -547,6 +550,14 @@ for a session, from the store.
   catalog, and sets the originator, account and FedRAMP headers, reading
   `Account()` on an `OAuthSession` or `VendorCLISession`. `catalog` lists
   only the other providers' catalogs.
+- **The ChatGPT plan session** (`OAuthSession.PlanUsage`, 0043-MADR) is
+  `openai`'s concern too. Its requests go to `api.openai.com/v1` with none
+  of the Codex backend's headers: always streamed, with `store` false and
+  no output limit. It has no continuation, appends deferred tools, and
+  refuses a system message in the input before the network. It lists the
+  account's `models` array and is never probed. Its four
+  `subscription_sharing_*` codes are classified by code, in a reply or a
+  stream.
 - **After a 401** a provider invalidates any `InvalidatingSource` and retries
   once: a `CommandToken` reruns its command, and an `OAuthSession` refreshes.
   A source that is also a `TokenInvalidator`, as both are, is told which
@@ -564,6 +575,12 @@ for a session, from the store.
   Grok.
   - **Creating one:**
     - `LoginBrowserOAuth` uses PKCE on a loopback redirect.
+    - `LoginChatGPTPlan` is OpenAI's Sign in with ChatGPT for agents. It
+      runs the same loopback flow under the consumer's app name, through
+      endpoints read from discovery that must be on the issuer's origin, and
+      keeps the client OpenAI issued, the resource, the scopes, the ID token
+      and the host id. Its session refreshes and revokes with forms and the
+      resource.
     - `StartDeviceOAuth` returns a `DeviceLogin` handle: the user code, the
       verification URI and the expiry, then `Wait` and `Cancel`. `Wait`
       polls through transport errors, 429 and 5xx, backing off up to 60 s,
@@ -625,7 +642,9 @@ for a session, from the store.
   shows. Each provider package declares its own (`Descriptor()`, or
   `DescriptorZen()` and `DescriptorGo()`), and `providers.Default()`
   registers them in menu order. `wizard` builds its menu from
-  `Options.Registry`, `providers.Default()` when nil.
+  `Options.Registry`, `providers.Default()` when nil. It offers OpenAI's
+  ChatGPT plan sign-in (`AuthChatGPTPlan`) only with `Options.AgentName`
+  and a `TokenStore`.
 
 ## Discovery and ranking
 
