@@ -170,7 +170,8 @@ changes.
   * notices arrive through `llmprovider.Stream`.
 * Each test is first seen to fail on a planted break (`tools/plant.py`).
 * `make api-check` reports additions only, and `tools/apidiff.py` lists
-  exactly `RetryNotice`, its six fields and `WithRetryNotify`.
+  exactly `RetryNotice`, ~~its six fields~~ and `WithRetryNotify`. *(A1:
+  `apidiff` lists a new type once, not its fields.)*
 
 ## Pros and Cons of the Options
 
@@ -214,3 +215,20 @@ changes.
 * Related: 0015-MADR D8 (`WithRetry`); 0021-MADR D1 and T6 (the single
   retry after a reply; the deadline); 0026-MADR F22 (jitter); 0031-MADR D6
   (the buffered stream).
+
+## Amendments
+
+### A1. What apidiff lists for a new type (2026-10-18)
+
+* **Found** by 0044-PLAN Phase 1's gate. Confirmation said
+  `tools/apidiff.py v1.14.0` would list `RetryNotice`, its six fields and
+  `WithRetryNotify`. It lists `./llmprovider.RetryNotice: added` and
+  `./llmprovider.WithRetryNotify: added`, and no fields: `apidiff` reports
+  a new type once. The record predicted it wrongly when it was written;
+  the code matches D1.
+* **Decided** by the owner: correct the record. Confirmation's check is
+  the two lines. The six fields are those of D1, as the code and its doc
+  comments show, and the Phase 1 tests read each of them.
+* **Rejected:** a test that reflects over the struct's fields, which
+  checks the same thing through more code.
+

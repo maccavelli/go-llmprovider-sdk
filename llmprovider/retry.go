@@ -26,6 +26,25 @@ type RetryPolicy struct {
 	MaxDelay time.Duration
 }
 
+// RetryNotice describes a retry that WithRetryNotify is about to wait for
+// (0044-MADR D1).
+type RetryNotice struct {
+	// Provider is the wrapped provider's ID.
+	Provider ProviderID
+	// Attempt is the try that failed, the first being 1.
+	Attempt int
+	// MaxAttempts is the policy's, after its defaults.
+	MaxAttempts int
+	// Wait is the wait about to begin, jitter included.
+	Wait time.Duration
+	// ServerDirected reports that the service asked for the wait, by
+	// Retry-After or a rate-limit reset header (APIError.RetryAfter).
+	ServerDirected bool
+	// Err is the failure being retried, classified and redacted, as Generate
+	// would return it if it stopped here.
+	Err error
+}
+
 // withDefaults fills the zero fields.
 func (p RetryPolicy) withDefaults() RetryPolicy {
 	if p.MaxAttempts <= 0 {
@@ -63,9 +82,24 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 // the attempt that succeeds, never text it already holds. A caller that wants
 // text as it is generated streams from p itself, and handles a failure there
 // (0031-MADR D6). When p lists models, so does the result, through p
-// (0020-MADR F32).
+// (0020-MADR F32). WithRetryNotify also reports each retry before its wait.
 func WithRetry(p Provider, policy RetryPolicy) Provider {
-	r := &retrying{inner: p, policy: policy.withDefaults()}
+	return WithRetryNotify(p, policy, nil)
+}
+
+// WithRetryNotify is WithRetry, and calls notify before each wait, so that a
+// caller can say that a retry is pending, why, and for how long (0044-MADR).
+// It retries exactly as WithRetry does.
+//
+// notify is called only when a wait is about to begin: never for a success,
+// a failure that is not retried, the last attempt, a wait longer than
+// MaxDelay or than ctx's deadline allows, or a second failure after a reply.
+// It runs on the goroutine of Generate, with that call's ctx. The wait begins
+// when it returns, so it must not block, and a panic in it is not recovered.
+// Through llmprovider.Stream the notices come before the first event, since
+// the result buffers the stream. A nil notify is WithRetry.
+func WithRetryNotify(p Provider, policy RetryPolicy, notify func(context.Context, RetryNotice)) Provider {
+	r := &retrying{inner: p, policy: policy.withDefaults(), notify: notify}
 	if lister, ok := p.(ModelLister); ok {
 		return &retryingLister{retrying: r, lister: lister}
 	}
@@ -75,6 +109,8 @@ func WithRetry(p Provider, policy RetryPolicy) Provider {
 type retrying struct {
 	inner  Provider
 	policy RetryPolicy
+	// notify is WithRetryNotify's, or nil.
+	notify func(context.Context, RetryNotice)
 }
 
 // retryingLister is retrying for a provider that lists models.
@@ -125,6 +161,11 @@ func (r *retrying) Generate(ctx context.Context, req *Request) (*Response, error
 		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < wait {
 			// The wait would outlast the caller (0021-MADR T6).
 			return nil, err
+		}
+		if r.notify != nil {
+			// Only now is a wait certain (0044-MADR D2).
+			r.notify(ctx, RetryNotice{Provider: r.inner.ID(), Attempt: attempt, MaxAttempts: r.policy.MaxAttempts,
+				Wait: wait, ServerDirected: serverRetryAfter(err) > 0, Err: err})
 		}
 		timer := time.NewTimer(wait)
 		select {
