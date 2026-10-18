@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-91 records. Cite them by full filename.
+93 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -101,6 +101,8 @@ documents a reader follows to do something.
 | 0041 | PLAN | [Implement a Live Model Menu, and Per-Model Behaviour, From Model Facts](decisions/0041-PLAN-decide-per-model-behaviour-from-metadata.md) | complete |
 | 0042 | MADR | [List Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-MADR-ollama-models-that-write-text.md) | accepted |
 | 0042 | PLAN | [Implement Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-PLAN-ollama-models-that-write-text.md) | complete |
+| 0043 | MADR | [Add OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-MADR-openai-chatgpt-plan-sign-in.md) | proposed |
+| 0043 | PLAN | [Implement OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-PLAN-openai-chatgpt-plan-sign-in.md) | proposed |
 
 ## I want to…
 
@@ -135,6 +137,7 @@ documents a reader follows to do something.
 | know why a model's thinking, effort or output limit comes from its facts | [0041-MADR-decide-per-model-behaviour-from-metadata.md](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md) |
 | get each provider's model listing exactly as the provider sent it, with none of the SDK's curation | [0041-MADR-decide-per-model-behaviour-from-metadata.md](decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md), D9 |
 | know why Ollama's listing leaves out embedding models but keeps chat models that take no tools | [0042-MADR-ollama-models-that-write-text.md](decisions/0042-MADR-ollama-models-that-write-text.md) |
+| sign a user in with their ChatGPT plan under my own app's name | [0043-MADR-openai-chatgpt-plan-sign-in.md](decisions/0043-MADR-openai-chatgpt-plan-sign-in.md) |
 | list every model a provider serves, or only the top six | [0038-MADR-full-curated-catalog-by-default.md](decisions/0038-MADR-full-curated-catalog-by-default.md) |
 | know how GenerateToolCall forces a tool on the Claude models that refuse it | [0034-MADR](decisions/0034-MADR-degrade-forced-tool-choice-per-model.md) |
 | run the local gate, the link check or the identifier scan myself | [0035-MADR](decisions/0035-MADR-maintainer-tools-in-python.md) |

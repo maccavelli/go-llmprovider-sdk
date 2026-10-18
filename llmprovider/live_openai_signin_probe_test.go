@@ -3,6 +3,7 @@
 package llmprovider_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -11,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -38,6 +40,7 @@ const (
 	signinRedirectURI     = "http://127.0.0.1:1455/auth/callback"
 	signinDirectScope     = "chatgpt.tokens.use.direct"
 	signinScope           = "openid profile email offline_access resource.invoke " + signinDirectScope
+	signinDiscoveryURL    = "https://auth.openai.com/.well-known/openid-configuration"
 	signinModel           = "gpt-6-luna"
 )
 
@@ -49,11 +52,19 @@ const (
 // It records, without logging any token or the issued client id:
 //   - whether registration succeeds, and the issued client id's form;
 //   - the granted scopes;
+//   - the model listing's shape; the rest uses its first listed model
+//     (0017-PLAN U5);
+//   - two raw streamed requests, OpenAI's documented minimum and the same
+//     with max_output_tokens (U5);
 //   - one text and one tool call on api.openai.com/v1/responses, and which
-//     request options the token is refused.
+//     request options the token is refused;
+//   - a streamed text and a streamed tool call through openai.New with
+//     WithStore(false) (U5);
+//   - a refresh with the issued client id, a revocation at the discovery
+//     document's revocation_endpoint, and a refresh after it (U5).
 //
-// The flow failing fails the test. A refused generation is a finding, logged
-// as REFUSED, not a failure.
+// The flow failing fails the test. A refused generation, refresh or
+// revocation is a finding, logged as REFUSED, not a failure.
 func TestLive_OpenAISigninProbe(t *testing.T) {
 	if os.Getenv("LLMPROVIDER_LIVE_OPENAI_SIGNIN") != "1" {
 		t.Skip("LLMPROVIDER_LIVE_OPENAI_SIGNIN unset: this registers a client at OpenAI and needs a person to sign in")
@@ -138,6 +149,32 @@ func TestLive_OpenAISigninProbe(t *testing.T) {
 	if token.AccessToken == "" {
 		t.Fatal("the token response has no access_token")
 	}
+	// The rest gets its own time, however long the sign-in took.
+	ctx, stop := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer stop()
+
+	model := probeModel(ctx, t, token.AccessToken)
+	for _, tc := range []struct {
+		name  string
+		extra map[string]any
+	}{
+		{"raw streamed, the documented minimum", nil},
+		{"raw streamed, with max_output_tokens", map[string]any{"max_output_tokens": 64}},
+	} {
+		body := map[string]any{
+			"model":  model,
+			"input":  []map[string]any{{"role": "user", "content": "Reply with only the word ALPHA"}},
+			"store":  false,
+			"stream": true,
+		}
+		maps.Copy(body, tc.extra)
+		status, reply, err := probeDo(ctx, http.MethodPost, signinResource+"/responses", token.AccessToken, body)
+		if err != nil {
+			t.Logf("FINDING %s: REFUSED: %v", tc.name, err)
+			continue
+		}
+		t.Logf("FINDING %s: %s", tc.name, probeStreamOutcome(status, reply))
+	}
 
 	tool := llmprovider.Tool{Name: "get_weather", Description: "Get the weather for a city", Schema: map[string]any{
 		"type": "object", "properties": map[string]any{"city": map[string]any{"type": "string"}}, "required": []string{"city"}}}
@@ -151,7 +188,7 @@ func TestLive_OpenAISigninProbe(t *testing.T) {
 		{"text with WithStore(false)", []llmprovider.Option{openai.WithStore(false)}, false},
 		{"text with reasoning effort low", []llmprovider.Option{llmprovider.WithReasoning(&llmprovider.Reasoning{Effort: llmprovider.EffortLow})}, false},
 	} {
-		p, err := openai.New(append([]llmprovider.Option{llmprovider.WithAPIKey(token.AccessToken), llmprovider.WithModel(signinModel)}, tc.opts...)...)
+		p, err := openai.New(append([]llmprovider.Option{llmprovider.WithAPIKey(token.AccessToken), llmprovider.WithModel(model)}, tc.opts...)...)
 		if err != nil {
 			t.Fatalf("%s: openai.New: %v", tc.name, err)
 		}
@@ -166,7 +203,198 @@ func TestLive_OpenAISigninProbe(t *testing.T) {
 		out, err := llmprovider.GenerateText(ctx, p, req)
 		probeOutcome(t, tc.name, fmt.Sprintf("text %q", out), err)
 	}
-	t.Log("NOTE no revocation endpoint is known for this client, so the session is left to expire")
+
+	for _, tc := range []struct {
+		name string
+		tool bool
+	}{
+		{"streamed text with WithStore(false)", false},
+		{"streamed tool call with WithStore(false)", true},
+	} {
+		p, err := openai.New(llmprovider.WithAPIKey(token.AccessToken), llmprovider.WithModel(model), openai.WithStore(false))
+		if err != nil {
+			t.Fatalf("%s: openai.New: %v", tc.name, err)
+		}
+		req := userText("Reply with only the word ALPHA")
+		if tc.tool {
+			req = userText("What is the weather in Paris?")
+			req.Tools = []llmprovider.Tool{tool}
+			req.ToolChoice = llmprovider.ForceTool(tool.Name)
+		}
+		resp, deltas, err := probeStream(ctx, p, req)
+		if err != nil {
+			probeOutcome(t, tc.name, "", err)
+			continue
+		}
+		ok := fmt.Sprintf("text %q after %d text deltas", resp.OutputText(), deltas)
+		if tc.tool {
+			ok = "no call"
+			for _, item := range resp.Output {
+				if call, isCall := item.(llmprovider.FunctionCallItem); isCall {
+					ok = fmt.Sprintf("call %s(%s)", call.Name, call.Arguments)
+				}
+			}
+		}
+		probeOutcome(t, tc.name, ok, nil)
+	}
+
+	refresh := token.RefreshToken
+	status, reply, err := probeForm(ctx, signinTokenURL, probeRefreshForm(cb.clientID, refresh))
+	switch {
+	case err != nil:
+		t.Logf("FINDING refresh with the issued client id: REFUSED: %v", err)
+	case status != http.StatusOK:
+		t.Logf("FINDING refresh with the issued client id: %s", probeRefusal(status, reply))
+	default:
+		var renewed probeToken
+		if err := json.Unmarshal(reply, &renewed); err != nil {
+			t.Logf("FINDING refresh with the issued client id: HTTP 200, a body that is not a token response: %v", err)
+			break
+		}
+		t.Logf("FINDING refresh with the issued client id: accepted; access %s, refresh present %t, rotated %t, scopes %q, expires_in %d s",
+			probeShape(renewed.AccessToken), renewed.RefreshToken != "", renewed.RefreshToken != "" && renewed.RefreshToken != refresh,
+			strings.Fields(renewed.Scope), renewed.ExpiresIn)
+		if renewed.RefreshToken != "" {
+			refresh = renewed.RefreshToken
+		}
+	}
+
+	status, reply, err = probeDo(ctx, http.MethodGet, signinDiscoveryURL, "", nil)
+	if err != nil || status != http.StatusOK {
+		t.Logf("FINDING revocation: no discovery document: HTTP %d, %v", status, err)
+		return
+	}
+	endpoint, err := probeRevocationEndpoint(reply)
+	if err != nil {
+		t.Logf("FINDING revocation: %v", err)
+		return
+	}
+	status, reply, err = probeForm(ctx, endpoint, url.Values{
+		"token":           {refresh},
+		"token_type_hint": {"refresh_token"},
+		"client_id":       {cb.clientID},
+	})
+	switch {
+	case err != nil:
+		t.Logf("FINDING revocation at %s: REFUSED: %v", endpoint, err)
+	case status != http.StatusOK:
+		t.Logf("FINDING revocation at %s: %s", endpoint, probeRefusal(status, reply))
+	default:
+		t.Logf("FINDING revocation at %s: HTTP 200, a body of %d bytes", endpoint, len(reply))
+	}
+	status, reply, err = probeForm(ctx, signinTokenURL, probeRefreshForm(cb.clientID, refresh))
+	switch {
+	case err != nil:
+		t.Logf("FINDING refresh after revocation: REFUSED: %v", err)
+	case status == http.StatusOK:
+		t.Logf("FINDING refresh after revocation: ACCEPTED, so the revocation did not hold")
+	default:
+		t.Logf("FINDING refresh after revocation: %s", probeRefusal(status, reply))
+	}
+}
+
+// probeModel reads the token's model listing, logs its shape, and returns
+// the first model a picker shows, or signinModel when there is none.
+func probeModel(ctx context.Context, t *testing.T, token string) string {
+	t.Helper()
+	status, body, err := probeDo(ctx, http.MethodGet, signinResource+"/models", token, nil)
+	switch {
+	case err != nil:
+		t.Logf("FINDING listing: REFUSED: %v; using %s", err, signinModel)
+		return signinModel
+	case status != http.StatusOK:
+		t.Logf("FINDING listing: %s; using %s", probeRefusal(status, body), signinModel)
+		return signinModel
+	}
+	s, err := probeListing(body)
+	if err != nil {
+		t.Logf("FINDING listing: HTTP 200, top-level keys %q: %v; using %s", s.Keys, err, signinModel)
+		return signinModel
+	}
+	t.Logf("FINDING listing: HTTP 200, top-level keys %q, %d models, %d with visibility \"list\", the first %q",
+		s.Keys, s.Count, s.Listed, s.First)
+	if s.First == "" {
+		t.Logf("NOTE no listed model; using %s", signinModel)
+		return signinModel
+	}
+	return s.First
+}
+
+// probeStream streams req from p, and returns the response and the number of
+// text deltas before it.
+func probeStream(ctx context.Context, p llmprovider.Provider, req *llmprovider.Request) (*llmprovider.Response, int, error) {
+	deltas := 0
+	for ev, err := range llmprovider.Stream(ctx, p, req) {
+		if err != nil {
+			return nil, deltas, err
+		}
+		switch ev.Type {
+		case llmprovider.EventTextDelta:
+			deltas++
+		case llmprovider.EventDone:
+			return ev.Response, deltas, nil
+		}
+	}
+	return nil, deltas, errors.New("the stream ended with no EventDone")
+}
+
+// probeRefreshForm is a refresh with the issued client id, without scope,
+// which keeps the grant (OpenAI's profiles-and-sessions page).
+func probeRefreshForm(clientID, refresh string) url.Values {
+	return url.Values{
+		"grant_type":    {"refresh_token"},
+		"client_id":     {clientID},
+		"refresh_token": {refresh},
+		"resource":      {signinResource},
+	}
+}
+
+// probeDo sends a request with an optional bearer token and JSON body, and
+// returns the status and up to 1 MiB of the reply.
+func probeDo(ctx context.Context, method, target, token string, body map[string]any) (int, []byte, error) {
+	var payload io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return 0, nil, err
+		}
+		payload = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, target, payload)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "text/event-stream")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	return probeSend(req)
+}
+
+// probeForm posts a form, and returns the status and up to 1 MiB of the
+// reply.
+func probeForm(ctx context.Context, target string, form url.Values) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, strings.NewReader(form.Encode()))
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	return probeSend(req)
+}
+
+func probeSend(req *http.Request) (int, []byte, error) {
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	return resp.StatusCode, body, err
 }
 
 type probeToken struct {

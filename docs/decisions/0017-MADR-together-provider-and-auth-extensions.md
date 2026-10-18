@@ -161,7 +161,7 @@ what the dedicated providers give: a curated listing, a descriptor for
 * If it works for any third-party agent, it removes 0016-MADR's recorded
   risk of borrowing Codex's client id.
 * **The evidence is one day old and comes from one client.** No OpenAI
-  document was read.
+  document was read. *(Since read: see the amendment of 2026-10-16.)*
 * **Decided:** a live-tagged probe, run only on the owner's request, records:
   * whether registration succeeds under this module's name;
   * which scopes are granted;
@@ -356,3 +356,221 @@ Option B, "Not now; keep the probe":
   no consumer has asked for.
 * **C, reject it,** because the probe costs nothing while off, and the
   borrowed-client-id risk is still open.
+
+## Amendment 2026-10-16: the revisit trigger has fired, and OpenAI's documents are read
+
+Status: **accepted** 2026-10-17; proposed 2026-10-16. The owner chose
+option A ("proceed"). It answers
+[go-llmprovider-sdk issue 2](https://github.com/maccavelli/go-llmprovider-sdk/issues/2),
+whose text is [0017-REPORT-openai-sign-in-for-agents.md](../reports/0017-REPORT-openai-sign-in-for-agents.md). The
+amendment of 2026-10-03 chose option B, "Not now; keep the probe", and named
+when to revisit it.
+
+### Facts found
+
+* **The trigger of 2026-10-03 has fired.** `openai` has streamed natively
+  since `eab8fce` (2026-10-10, first tagged `v1.10.0`;
+  [0031-MADR-native-streaming-on-the-responses-wire.md](0031-MADR-native-streaming-on-the-responses-wire.md)).
+  With an API key, `Stream` sends `stream: true`
+  (`llmprovider/providers/openai/openai.go:394`), and `WithStore(false)`
+  sends `store: false` (`openai.go:328-334`). The provider can now send the
+  pair the probe could not.
+  * It still sends `max_output_tokens` on every key request
+    (`openai.go:327`), a field OpenAI lists as unsupported for this token.
+* **A consumer has asked.** On 2026-10-14 gobble-cli's owner asked whether
+  this flow keeps a ChatGPT subscription login within OpenAI's policy, and
+  said to adopt it if so (the report, "Purpose"). The 2026-10-03 reason for
+  rejecting option A, "a path no consumer has asked for", no longer holds.
+* **OpenAI's documents are read.** The report read them in full on
+  2026-10-14 (its F1–F3). On 2026-10-16 four pages under
+  `https://developers.openai.com/siwc/token-sharing-open-source/` were read
+  again (`sign-in`, `profiles-and-sessions`, `preview-limitations`,
+  `models-and-inference`). Each still says what the report quotes:
+  * "Set `store: false` and `stream: true`." Fifteen fields are to be
+    omitted, `max_output_tokens` and `temperature` among them, and
+    "Omit `previous_response_id` over HTTP".
+  * "Group function/custom tools in namespaces or supply them through
+    `additional_tools` input items." Responses `tool_search` is
+    unsupported. No page shows a namespace's JSON.
+  * `agent_name_hint` is "your app's actual name, used consistently across
+    installations".
+  * Sign-out revokes at "the `revocation_endpoint` from
+    `https://auth.openai.com/.well-known/openid-configuration`".
+  * `GET /v1/models` returns "a `models` array", with `slug`,
+    `display_name` and `visibility`.
+  * No page shows a date.
+
+  This replaces D4's "No OpenAI document was read", and the 2026-10-03
+  amendment's "No revocation endpoint is known".
+* **A correction.** The report, and issue 2, say this module's probe "has
+  not been run" (the report, "Method"). It ran on 2026-10-02, with the owner
+  signing in (the amendment of 2026-10-03, above).
+* **Still unmeasured:**
+  * whether a request with `store: false` and `stream: true` is accepted;
+  * whether a top-level function tool is accepted, as pi sends it, or only
+    a namespace;
+  * whether an unsupported field, such as `max_output_tokens`, is refused
+    or ignored;
+  * the model listing's shape with this token;
+  * a refresh with the issued client id, and a revocation.
+* **What adoption would change,** each checked at `v1.14.0`:
+  * `auth.OAuthSession` has no `resource`, scopes, ID token or host id
+    (`llmprovider/auth/tokenstore.go:21`), which refresh and re-sign-in
+    need (the report, F1 and F6);
+  * the agent name has to come from the consumer, since the terms (§1) and
+    the `sign-in` page ask for the app's own name;
+  * `openai` would gain a third request shape: the platform URL, with
+    `store: false` and `stream: true`, without `max_output_tokens` or
+    `previous_response_id`, without native `tool_search`, and with no
+    billed model probes;
+  * there is no device flow, so only the browser login applies.
+
+### Considered options
+
+* **A. Probe again with streamed requests, then decide.** 0017-PLAN U5
+  extends the probe to measure the five unmeasured items, and to revoke
+  what it signs in. The next amendment decides adoption with the results.
+  If it adopts, the design takes a new MADR at the next free number,
+  since it is a new auth method, session record, request shape and wizard
+  method.
+  * Good, because adoption is decided on measured acceptance, as D4 asked,
+    and the 2026-10-03 amendment named this measurement.
+  * Good, because a run now ends by revoking its session, which U4's could
+    not.
+  * Bad, because it needs the owner at a browser once, and registers one
+    more client under the account.
+  * Bad, because the consumer waits for two records, not one.
+* **B. Adopt now; design in a new MADR, and measure in its first phase.**
+  * Good, because the consumer's answer comes one record sooner.
+  * Bad, because it decides before the one refusal that blocked the path
+    in 2026-10-02's run is measured again.
+* **C. Keep "not now".**
+  * Bad, because both of its conditions have since changed: the trigger
+    fired, and a consumer asked.
+* **D. Reject it, and remove the probe.**
+  * Bad, because it keeps the borrowed Codex client id (0016-MADR's
+    recorded risk) as the only OpenAI subscription path, against a
+    consumer's request.
+
+### Decided
+
+Option A, "Probe again with streamed requests, then decide":
+
+* 0017-PLAN U5 runs on the owner's request, after this amendment is
+  accepted.
+* Nothing ships from it: no default changes and no exported API is added.
+* Issue 2 stays open until the amendment that decides adoption. A comment
+  correcting "has not been run" is posted only on the owner's ask.
+
+## Amendment 2026-10-17: what the streamed probe found, and adoption
+
+Status: **accepted** 2026-10-18; proposed 2026-10-17. The owner chose
+option A ("go with recommendations, proceed"). It is the amendment that
+D4, and the amendment of 2026-10-16, leave to decide whether this flow
+becomes an OpenAI auth method. Its evidence is 0017-PLAN U5's run of
+2026-10-17, with the owner signing in.
+
+### Facts found
+
+* **The token works on streamed, unstored requests, through today's
+  provider.** `openai.New` with the access token as `WithAPIKey`, and
+  `WithStore(false)`, streamed a text reply (`"ALPHA"`) and a forced
+  top-level tool call (`get_weather({"city":"Paris"})`). So pi's form,
+  tools at the top level, is accepted; no namespace is needed.
+* **`Generate` is still refused,** with the same messages as on
+  2026-10-02: `Store must be set to false`, then `Stream must be set to
+  true`. A request is accepted only when it streams.
+* **`max_output_tokens` is not refused.** A raw request with OpenAI's
+  documented minimum completed, and so did the same with
+  `max_output_tokens: 64`. OpenAI's page says to omit it; whether the
+  service applies it or ignores it is unmeasured, since the reply fitted.
+  The provider's streamed request sends it too, and was accepted.
+* **The listing is not the platform's.** `GET /v1/models` answered HTTP
+  200 with one top-level key, `models`: 9 models, 7 with
+  `visibility: "list"`, the first `gpt-6.1-sol`. The `openai` provider's
+  key listing reads the platform's `data` array, so it would not read
+  this one.
+* **Refresh and revocation work as documented.** A refresh with the issued
+  client id and no `scope` returned a rotated refresh token and the same six
+  scopes. Revocation at the discovery document's `revocation_endpoint`,
+  `https://auth.openai.com/api/accounts/oauth/revoke`, answered HTTP 200
+  with an empty body, and a refresh afterwards was refused `invalid_grant`.
+  Every run can now end by revoking its session.
+* **Registration** succeeded again, and every scope was granted. The
+  issued client id was 32 characters this time, and 31 on 2026-10-02, so
+  its length is not fixed.
+* **Not measured:**
+  * the other fourteen fields OpenAI lists as unsupported;
+  * the `subscription_sharing_*` errors, among them the usage limit that
+    can fail a stream after it has begun;
+  * native `tool_search` (0040-MADR D3), which OpenAI lists as
+    unsupported, and `previous_response_id`;
+  * the two models not listed for a picker.
+
+### What adoption takes
+
+From these findings and the amendment of 2026-10-16:
+
+* **A login.** The browser flow with `dynamic_agent_client`, the agent name
+  taken from the consumer (the terms, §1), a host id kept for the host's
+  life, and the issued client id kept per account. There is no device
+  flow.
+* **A session record** that keeps what a refresh and a re-sign-in need:
+  the issued client id, `resource`, the scopes, the ID token and the host
+  id. `auth.OAuthSession` has none of the last four.
+* **A request shape in `openai`.** The platform URL, `store: false`, and
+  always streamed, `Generate` reading the stream as a ChatGPT session's
+  does today. Continuation is Unsupported. Deferred tools are appended,
+  never native. No billed model probes, and the listing read from
+  `models`. The provider picks its backend by the kind of credential
+  (`llmprovider/providers/openai/openai.go:5-8`), and pi tells this token
+  from a key only by a missing `sk-` prefix (the report, F5), so the
+  session has to say what it is.
+* **Errors:** `subscription_sharing_*` codes mapped to the existing
+  classes, and the usage URL exposed for a consumer's "Manage usage".
+* **The wizard** offers the login beside the Codex one.
+* **The terms in a consumer.** Consent before background use, and "connected
+  application only", are the consumer's to meet; the SDK can carry the
+  consent as an option and the usage URL as a value, not meet them alone.
+
+### Considered options
+
+* **A. Adopt it, designed in a new MADR.** The flow becomes an OpenAI auth
+  method. Its design, the items above, takes a new MADR and PLAN at the
+  next free number, since it adds a login, a session record, a request
+  shape and a wizard method. The Codex-id login stays beside it, as pi
+  keeps both; whether it is ever retired is that MADR's question.
+  * Good, because it gives consumers an OpenAI subscription login under
+    their own name, which removes 0016-MADR's borrowed-client-id risk for
+    those who use it.
+  * Good, because it is now measured: text, a tool call, refresh and
+    revocation all work with the provider's streamed request.
+  * Good, because a consumer asked for it.
+  * Bad, because OpenAI's pages carry no dates and call the limits
+    "Preview limitations", so the shape may move under it.
+  * Bad, because it is a large addition: a second OpenAI login, a session
+    kind and a third request shape to keep working.
+* **B. Document the token only.** No login: a caller that obtains a token
+  itself passes it as `WithAPIKey` and calls `Stream` with
+  `WithStore(false)`.
+  * Good, because it costs one paragraph.
+  * Bad, because `Generate` is refused, the listing and refresh do not
+    work, and each consumer writes the login itself.
+* **C. Not now; keep the probe.**
+  * Bad, because nothing it waited for is still missing: streaming works,
+    and a consumer asked.
+* **D. Reject it.**
+  * Bad, because the flow works, and it is the only OpenAI subscription
+    login that does not borrow a vendor's client id.
+
+### Decided
+
+Option A, "Adopt it, designed in a new MADR":
+
+* The design goes to a new MADR and PLAN, at the number
+  `scripts/check_records.py --next` gives when they are written (0043
+  today). Nothing ships before that PLAN is approved. *(Written
+  2026-10-18: [0043-MADR-openai-chatgpt-plan-sign-in.md](0043-MADR-openai-chatgpt-plan-sign-in.md).)*
+* The probe stays, off by default, as the measurement to repeat.
+* Issue 2 is answered with this decision once it is accepted. Whether it
+  closes then, or when the method ships, is the owner's choice.

@@ -44,7 +44,8 @@ source and a live probe show. It decides nothing. The amendment to
     in each vendor's shape, and with an unregistered control. No vendor
     CLI's id was sent and no user signed in.
   - This module's own probe, `live_openai_signin_probe_test.go` (0017-PLAN
-    U4), has not been run.
+    U4), has not been run. *(Wrong: it ran on 2026-10-02. See
+    "Correction (2026-10-17)", at the end.)*
 - **Marks.** **(V)** is a claim read directly in the cited source or page.
   **(O)** is a probe's observed output. A quotation is the source's text,
   unchanged.
@@ -307,3 +308,23 @@ Observations only; the amendment decides.
 | pi's login and requests | pi `312184edb`: `packages/ai/src/auth/oauth/openai-chatgpt.ts`, `packages/ai/src/api/openai-responses.ts` |
 | This module's logins, session, lock, backends and requests | `v1.13.0`: `llmprovider/auth/*.go`, `wizard/auth.go`, `llmprovider/providers/openai/openai.go` |
 | prepare-commit-msg's login | prepare-commit-msg `a04b617`: `internal/ui/setup.go` |
+
+## Correction (2026-10-17)
+
+"Method" said this module's probe "has not been run". It ran on 2026-10-02,
+with the owner signing in, and
+[0017-MADR-together-provider-and-auth-extensions.md](../decisions/0017-MADR-together-provider-and-auth-extensions.md),
+amendment of 2026-10-03, records what it found: registration succeeded and
+every scope was granted, and every request was refused, first for `store`,
+then for `stream`. That record's amendment of 2026-10-16 takes this report
+as its evidence, and 0017-PLAN U5 runs the probe again with streamed
+requests. The rest of this report stands as written on 2026-10-14.
+
+## Follow-up (2026-10-17)
+
+0017-PLAN U5 ran the probe again with streamed requests. Its findings, and
+the decision on adoption, are
+[0017-MADR-together-provider-and-auth-extensions.md](../decisions/0017-MADR-together-provider-and-auth-extensions.md),
+amendment of 2026-10-17. They answer this report's "What remains open":
+pi's top-level tools are accepted; `max_output_tokens` is not refused;
+the listing is a `models` array; refresh rotates; and revocation holds.

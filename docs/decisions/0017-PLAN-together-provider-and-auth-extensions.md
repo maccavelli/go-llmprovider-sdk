@@ -1,6 +1,6 @@
 ---
 status: complete
-date: 2026-10-03
+date: 2026-10-18
 associated-madr: "0017-MADR-together-provider-and-auth-extensions.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -161,6 +161,51 @@ Associated MADR: [0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-
 3. Its output becomes an amendment to the MADR, which decides whether it
    becomes an auth method.
 
+### Phase U5: the probe, streamed (accepted 2026-10-17, on request only)
+
+From the MADR's amendment of 2026-10-16, option A. It runs only once that
+amendment is accepted and the owner asks; its run needs the owner at a
+browser.
+
+1. **The report's correction.** In
+   [0017-REPORT-openai-sign-in-for-agents.md](../reports/0017-REPORT-openai-sign-in-for-agents.md),
+   annotate "has not been run" (its "Method"), and append a dated
+   correction naming the 2026-10-02 run.
+2. **Extend `llmprovider/live_openai_signin_probe_test.go`.** After the
+   exchange, it:
+   1. reads `GET https://api.openai.com/v1/models` with the token, and logs
+      the top-level keys, the count, and how many entries have
+      `visibility: "list"`. The rest uses the first `list` slug; with none,
+      it uses `signinModel` and says so;
+   2. sends two raw streamed requests to `/v1/responses`: OpenAI's
+      documented minimum (`model`, `input`, `store: false`,
+      `stream: true`), and the same with `max_output_tokens`. It logs each
+      status, and the error's code and message;
+   3. calls `Stream` through `openai.New`, with `WithAPIKey` and
+      `WithStore(false)`, for one text and one top-level tool call;
+   4. refreshes with the issued client id, the refresh token and
+      `resource`, without `scope`, and logs whether new access and refresh
+      tokens came back;
+   5. revokes the latest refresh token at the discovery document's
+      `revocation_endpoint`, with the issued client id, and logs the status
+      and the body's length. A refresh with the revoked token follows, and
+      is expected to be refused.
+
+   U4's four generations stay, as the non-streamed baseline. As in U4, a
+   failed registration or exchange fails the test; every other outcome is a
+   logged finding.
+3. **Logging stays as U4's:** shapes and outcomes, never a token or the
+   issued client id.
+4. **Red first.** The listing's and the revocation's parsing are helpers
+   with an offline test beside the probe. Each is seen to fail on a planted
+   break, by `tools/plant.py` on a scratch clone.
+5. **Checks:** `go vet -tags live_gateways ./...`, `make pre-add-check` on
+   the file, and `tools/gate.py`. No default changes, and no exported API
+   is added (`tools/apidiff.py`).
+6. **The run's findings** become the MADR's next amendment, which decides
+   whether this becomes an OpenAI auth method. The report gets a pointer
+   to it.
+
 ## Verification
 
 | # | Criterion | Check | Phase |
@@ -171,6 +216,7 @@ Associated MADR: [0017-MADR-together-provider-and-auth-extensions.md](0017-MADR-
 | V4 | Kilo device login handles every outcome, and never refreshes | fake-server tests | U2 |
 | V5 | The command source is bounded, cached and redacted | unit tests | U3 |
 | V6 | The OpenAI probe exists and is off by default | `go vet -tags live_gateways`; no default changed | U4 |
+| V7 | The probe measures streamed requests, the listing, refresh and revocation, and is still off by default | the offline helper tests, seen to fail first; the run's log; `tools/apidiff.py` | U5 |
 
 ## Rollout and Rollback
 
@@ -572,4 +618,93 @@ the live tag, Kilo device login live test").
 * **Verification:** V1–V6 are met. V2 and V4's live check were met today;
   V6 by U4's probe.
 * **U4's decision** is the MADR's amendment of 2026-10-03, option B.
-* This PLAN is `complete`.
+* This PLAN is `complete`. *(Reopened 2026-10-17 for U5, below.)*
+
+### Phase U5: the probe, streamed (2026-10-17)
+
+The owner accepted the MADR's amendment of 2026-10-16, option A, and asked
+for U5 ("proceed").
+
+* **Step 1, the report's correction.** The report's "has not been run" is
+  annotated, and "Correction (2026-10-17)" is appended to it.
+* **Step 2, the probe.** `llmprovider/live_openai_signin_probe_test.go`
+  gains, after the exchange: the listing, two raw streamed requests,
+  streamed text and a streamed tool call through `openai.New` with
+  `WithStore(false)`, a refresh, a revocation and a refresh after it. The
+  post-sign-in steps have their own three minutes. U4's four generations
+  stay, and now use the listing's first model rather than `signinModel`,
+  so both sets ask the same model.
+  * The revocation sends `token_type_hint=refresh_token` beside the token
+    and the issued client id. OpenAI's pages name only the endpoint; the
+    hint is RFC 7009's, and optional.
+* **Step 3, logging.** Shapes and outcomes only. The run's log holds no
+  token and no issued client id, which `probeShape` describes by length
+  and a prefix of four characters.
+* **Step 4, red first.** The parsing is in
+  `llmprovider/signin_probe_0017_test.go`, untagged, with
+  `TestSigninProbeHelpers_0017`. `tools/plant.py` ran eight plants on a
+  scratch clone:
+
+  | Plant | First run | Second run |
+  | :--- | :--- | :--- |
+  | the listing counts hidden models as listed | caught | caught |
+  | the listing accepts the platform's `data` array | **not caught** | caught |
+  | the revocation endpoint may be plain http | caught | caught |
+  | an OAuth refusal loses its description | caught | caught |
+  | a refusal's param is dropped | caught | caught |
+  | a failed stream reads as completed | caught | caught |
+  | text deltas are not counted | caught | caught |
+  | a stream with no terminal event reads as accepted | caught | caught |
+
+  The miss: with the `"models"` check bypassed, decoding the absent array
+  still errs, with a vaguer message. The run's finding is that message, so
+  the test now asserts it names `no "models" array`; the second run's
+  failure read `the listing's "models" is not an array of models:
+  unexpected end of JSON input, want an error naming no "models" array`.
+* **Step 5, checks.**
+  * `make pre-add-check` on both files: `2 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)`.
+  * `go vet -tags live_gateways ./llmprovider/`: clean.
+  * `tools/apidiff.py HEAD`: no output, exit 0.
+  * `tools/gate.py`: 20 of 23. `api-check`, `generate-check` and
+    `gate-selftest` failed on `lookup proxy.golang.org: no such host`
+    while fetching their pinned tools. Once the name resolved, each was
+    run again in the tree: `api-check` "0 incompatible change(s)" against
+    `v1.14.0`, `generate-check` "2 generated file(s), 0 problem(s)", and
+    `gate-selftest` 14 tests, OK.
+* **The run,** 2026-10-17, with the owner signing in: the test passed in
+  203.6 s. Its findings, as logged:
+
+  | Step | Finding |
+  | :--- | :--- |
+  | registration | succeeded; issued client id of 32 characters, starting `oaia` |
+  | scopes | all six granted, `chatgpt.tokens.use.direct` among them |
+  | token response | a 2106-character JWT access token, a refresh token and an `id_token`; `expires_in` 3600 s |
+  | listing | HTTP 200; top-level keys `["models"]`; 9 models, 7 with `visibility: "list"`; the first `gpt-6.1-sol` |
+  | raw streamed, the documented minimum | accepted, completed, after 2 text deltas |
+  | raw streamed, with `max_output_tokens` | accepted, completed, after 2 text deltas |
+  | text (`Generate`) | REFUSED, HTTP 400: `Store must be set to false` |
+  | tool call (`Generate`) | REFUSED, HTTP 400: `Store must be set to false` |
+  | text with `WithStore(false)` (`Generate`) | REFUSED, HTTP 400: `Stream must be set to true` |
+  | text with reasoning effort low (`Generate`) | REFUSED, HTTP 400: `Store must be set to false` |
+  | streamed text with `WithStore(false)` | accepted, text `"ALPHA"` after 2 text deltas |
+  | streamed tool call with `WithStore(false)` | accepted, `get_weather({"city":"Paris"})` |
+  | refresh with the issued client id | accepted; rotated; the same six scopes; 3600 s |
+  | revocation | `https://auth.openai.com/api/accounts/oauth/revoke`: HTTP 200, an empty body |
+  | refresh after revocation | REFUSED, HTTP 400, `invalid_grant`: "The refresh token has been invalidated. A fresh sign-in is required." |
+
+  The run registered one more client under the owner's account. Its
+  refresh token is revoked; the registration itself stays listed in the
+  account's ChatGPT settings.
+* **Step 6.** The MADR's amendment of 2026-10-17, "what the streamed probe
+  found", holds these findings and the adoption options, `proposed`, for
+  the owner. The report points to it.
+* **V7 is met:** the probe measures streamed requests, the listing,
+  refresh and revocation; the helpers' test was seen to fail on each
+  plant; the probe is still off by default; no exported API changed.
+* **Not done here:** nothing ships from U5. ~~This PLAN stays
+  `in-progress` until the owner decides the amendment.~~ The owner
+  accepted it on 2026-10-18, option A; the design and its
+  implementation are
+  [0043-MADR-openai-chatgpt-plan-sign-in.md](0043-MADR-openai-chatgpt-plan-sign-in.md)
+  and its PLAN. This PLAN is `complete`.
