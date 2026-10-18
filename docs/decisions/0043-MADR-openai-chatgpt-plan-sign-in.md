@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-18
 decision-makers: repository owner
 consulted: OpenAI's Sign in with ChatGPT pages for open-source agents (read 2026-10-14 and 2026-10-16) and its discovery document (read 2026-10-18); pi at 312184edb; the probe runs of 2026-10-02 and 2026-10-17; this module at v1.14.0 and aeedc28
@@ -120,7 +120,8 @@ than inferred from an option, and adds the fewest exported names.
 * `Resource string`: the resource the tokens were granted for. Non-empty
   marks a plan session; the new login always sets it to
   `https://api.openai.com/v1`.
-* `Scopes []string`: the granted scopes.
+* ~~`Scopes []string`: the granted scopes.~~ `Scope string`: the granted
+  scopes, space-separated as the token response sends them (A1).
 * `IDToken string`: the last ID token, for a re-sign-in's `id_token_hint`.
   It is a secret: `String`, `GoString`, `MarshalJSON` and `LogValue` show
   it as they show the tokens (R33).
@@ -176,7 +177,9 @@ func LoginChatGPTPlan(ctx context.Context, opts ChatGPTPlanOptions) (*OAuthSessi
 ```
 
 * It reads the issuer's discovery document, and refuses one whose
-  endpoints are not on the issuer's origin, as `LoginBrowserOAuth` does.
+  endpoints are not on the issuer's origin~~, as `LoginBrowserOAuth`
+  does~~. *(A2: `LoginBrowserOAuth` does not; the check is new, and for
+  plan sessions only.)*
 * The first sign-in sends `client_id=dynamic_agent_client`,
   `agent_name_hint`, `ext_agent_host_id`, the six scopes, `resource`, PKCE
   `S256`, `state` and `nonce`, with an HTTP loopback redirect on
@@ -280,7 +283,7 @@ is removed in the same phase.
 
 ### Confirmation
 
-* Fake-issuer tests for every branch of D1–D4: the fields, `PlanUsage`,
+* Fake-issuer tests for every branch of D1–D4 (with A1): the fields, `PlanUsage`,
   `ChatGPT()` false, the refresh form, the revocation form, the store
   round trip and an older record, the first sign-in and the re-sign-in, a
   callback with another client id, a grant without the direct scope, and
@@ -326,3 +329,35 @@ is removed in the same phase.
 * The implementation: [0043-PLAN-openai-chatgpt-plan-sign-in.md](0043-PLAN-openai-chatgpt-plan-sign-in.md).
 * Revisit when OpenAI changes the request rules, adds a device flow, or
   dates its pages; and when no consumer uses a Codex-id login.
+
+## Amendments
+
+### A1. The scopes are one string (2026-10-18)
+
+* **Found** by 0043-PLAN Phase 0, step 2, before any code. D1's
+  `Scopes []string` makes `OAuthSession` incomparable, and `make
+  api-check` reports that as an incompatible change against `v1.14.0`
+  (R48). 0021-PLAN's deviation of 2026-10-04 met the same failure with a
+  func field.
+* **Decided** by the owner: `Scope string`, the granted scopes
+  space-separated, as OAuth's token response sends `scope`. A caller
+  splits it with `strings.Fields`. The struct stays comparable.
+* **Rejected:** an unexported slice with an accessor, which a caller's own
+  `TokenStore` could not set; and accepting the break, which needs a major
+  version.
+* The store record's field is `scope`, to match.
+
+### A2. The origin check is new, and for plan sessions only (2026-10-18)
+
+* **Found** by 0043-PLAN Phase 1, reading `auth` before the code. D4 says
+  the plan login refuses discovery endpoints off the issuer's origin "as
+  `LoginBrowserOAuth` does". It does not: `requireEndpoints`
+  (`llmprovider/auth/oauth_loopback.go:257`) only requires each endpoint
+  to be present, and nothing in `auth` compares origins.
+* **Decided** by the owner: the plan login and the plan revocation refuse
+  an authorize, token, revocation or JWKS endpoint that is not on the
+  issuer's origin (scheme and host), so a code or a refresh token is never
+  posted to another host. The existing logins and revocations are
+  unchanged.
+* **Rejected:** presence only, as today; and the check for every login,
+  which changes existing sessions and needs its own record.

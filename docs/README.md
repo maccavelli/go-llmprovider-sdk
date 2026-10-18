@@ -101,8 +101,8 @@ documents a reader follows to do something.
 | 0041 | PLAN | [Implement a Live Model Menu, and Per-Model Behaviour, From Model Facts](decisions/0041-PLAN-decide-per-model-behaviour-from-metadata.md) | complete |
 | 0042 | MADR | [List Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-MADR-ollama-models-that-write-text.md) | accepted |
 | 0042 | PLAN | [Implement Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-PLAN-ollama-models-that-write-text.md) | complete |
-| 0043 | MADR | [Add OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-MADR-openai-chatgpt-plan-sign-in.md) | proposed |
-| 0043 | PLAN | [Implement OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-PLAN-openai-chatgpt-plan-sign-in.md) | proposed |
+| 0043 | MADR | [Add OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-MADR-openai-chatgpt-plan-sign-in.md) | accepted |
+| 0043 | PLAN | [Implement OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-PLAN-openai-chatgpt-plan-sign-in.md) | in-progress |
 
 ## I want to…
 

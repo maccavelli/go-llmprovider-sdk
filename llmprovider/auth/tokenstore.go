@@ -19,15 +19,29 @@ import (
 // when Store is a RefreshLocker. Format a *OAuthSession: its String, GoString
 // and LogValue never show the tokens.
 type OAuthSession struct {
-	Provider   llmprovider.ProviderID
-	Access     string
-	Refresh    string
-	Expiry     time.Time
-	Issuer     string
-	ClientID   string
-	AccountID  string
-	FedRAMP    bool // id-token chatgpt_account_is_fedramp: sends X-OpenAI-Fedramp (MADR 0012 §4.4)
-	TokenURL   string
+	Provider  llmprovider.ProviderID
+	Access    string
+	Refresh   string
+	Expiry    time.Time
+	Issuer    string
+	ClientID  string
+	AccountID string
+	FedRAMP   bool // id-token chatgpt_account_is_fedramp: sends X-OpenAI-Fedramp (MADR 0012 §4.4)
+	TokenURL  string
+	// Resource is the resource a Sign in with ChatGPT plan session's tokens
+	// were granted for; it is set only on such a session, which it marks
+	// (PlanUsage). Its refresh and revocation are forms, and its requests go
+	// to the platform, not the Codex backend (0043-MADR D1, D2).
+	Resource string
+	// Scope is a plan session's granted scopes, space-separated as the token
+	// response sends them (0043-MADR A1).
+	Scope string
+	// IDToken is a plan session's last ID token, sent as a re-sign-in's
+	// id_token_hint. It is a secret, hidden as the tokens are (R33).
+	IDToken string
+	// HostID is the ext_agent_host_id a plan session's client was
+	// registered with.
+	HostID     string
 	Store      TokenStore
 	HTTPClient *http.Client
 	// Logger receives a failure to save a rotated session, which the session
@@ -79,9 +93,19 @@ func (s *OAuthSession) String() string {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return fmt.Sprintf("OAuthSession{Provider:%s Issuer:%s ClientID:%s AccountID:%s FedRAMP:%t TokenURL:%s Expiry:%s Access:%s Refresh:%s}",
+	text := fmt.Sprintf("OAuthSession{Provider:%s Issuer:%s ClientID:%s AccountID:%s FedRAMP:%t TokenURL:%s Expiry:%s Access:%s Refresh:%s",
 		s.Provider, s.Issuer, s.ClientID, s.AccountID, s.FedRAMP, s.TokenURL, expiryText(s.Expiry),
 		secretText(s.Access), secretText(s.Refresh))
+	if s.planFields() {
+		text += fmt.Sprintf(" Resource:%s Scope:%q HostID:%s IDToken:%s", s.Resource, s.Scope, s.HostID, secretText(s.IDToken))
+	}
+	return text + "}"
+}
+
+// planFields reports that the session carries a plan session's fields, which
+// its formatters then show; another session's forms are as they were.
+func (s *OAuthSession) planFields() bool {
+	return s.Resource != "" || s.Scope != "" || s.IDToken != "" || s.HostID != ""
 }
 
 // GoString renders the session for %#v, without its tokens.
@@ -105,8 +129,12 @@ func (s *OAuthSession) MarshalJSON() ([]byte, error) {
 		Expiry    string                 `json:"expiry"`
 		Access    string                 `json:"access"`
 		Refresh   string                 `json:"refresh"`
+		Resource  string                 `json:"resource,omitempty"`
+		Scope     string                 `json:"scope,omitempty"`
+		HostID    string                 `json:"host_id,omitempty"`
+		IDToken   string                 `json:"id_token,omitempty"`
 	}{s.Provider, s.Issuer, s.ClientID, s.AccountID, s.FedRAMP, s.TokenURL, expiryText(s.Expiry),
-		secretText(s.Access), secretText(s.Refresh)})
+		secretText(s.Access), secretText(s.Refresh), s.Resource, s.Scope, s.HostID, secretText(s.IDToken)})
 }
 
 // LogValue renders the session for slog, without its tokens.
@@ -116,7 +144,7 @@ func (s *OAuthSession) LogValue() slog.Value {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return slog.GroupValue(
+	attrs := []slog.Attr{
 		slog.String("provider", string(s.Provider)),
 		slog.String("issuer", s.Issuer),
 		slog.String("client_id", s.ClientID),
@@ -124,7 +152,16 @@ func (s *OAuthSession) LogValue() slog.Value {
 		slog.String("expiry", expiryText(s.Expiry)),
 		slog.String("access", secretText(s.Access)),
 		slog.String("refresh", secretText(s.Refresh)),
-	)
+	}
+	if s.planFields() {
+		attrs = append(attrs,
+			slog.String("resource", s.Resource),
+			slog.String("scope", s.Scope),
+			slog.String("host_id", s.HostID),
+			slog.String("id_token", secretText(s.IDToken)),
+		)
+	}
+	return slog.GroupValue(attrs...)
 }
 
 // TokenStore persists OAuth sessions, one per provider. Load returns nil and no
@@ -155,6 +192,12 @@ type fileRecord struct {
 	AccountID string                 `json:"account_id"`
 	FedRAMP   bool                   `json:"fedramp,omitempty"`
 	TokenURL  string                 `json:"token_url"`
+	// A plan session's fields (0043-MADR D3, A1); absent from every other
+	// session's record, so an older record reads as before.
+	Resource string `json:"resource,omitempty"`
+	Scope    string `json:"scope,omitempty"`
+	IDToken  string `json:"id_token,omitempty"`
+	HostID   string `json:"host_id,omitempty"`
 }
 
 // windowsDeviceNames are the names Windows opens as a device rather than a

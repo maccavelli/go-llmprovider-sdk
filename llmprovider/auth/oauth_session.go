@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -84,6 +85,10 @@ func ValidateOAuthSession(session *OAuthSession) error {
 		}
 	case session.ClientID == "":
 		return errors.New("oauth: refreshable session has no client id")
+	// A plan session refreshes only at the token endpoint it signed in at
+	// (0043-MADR D2).
+	case session.Resource != "" && session.TokenURL == "":
+		return errors.New("oauth: plan session has no token URL")
 	default:
 		if _, err := refreshTokenURL(oauthSessionState{provider: session.Provider, issuer: session.Issuer,
 			tokenURL: session.TokenURL}); err != nil {
@@ -115,6 +120,10 @@ type oauthRefreshResponse struct {
 	AccessToken  string       `json:"access_token"`
 	RefreshToken string       `json:"refresh_token"`
 	ExpiresIn    oauthSeconds `json:"expires_in"`
+	// Scope and IDToken are kept on a plan session when a refresh returns
+	// them (0043-MADR D2).
+	Scope   string `json:"scope"`
+	IDToken string `json:"id_token"`
 }
 
 // Token returns the current bearer token, refreshing and persisting it when
@@ -252,7 +261,8 @@ func (s *OAuthSession) persistable() *OAuthSession {
 	return &OAuthSession{
 		Provider: s.Provider, Access: s.Access, Refresh: s.Refresh, Expiry: s.Expiry,
 		Issuer: s.Issuer, ClientID: s.ClientID, AccountID: s.AccountID, FedRAMP: s.FedRAMP,
-		TokenURL: s.TokenURL, Store: s.Store, HTTPClient: s.HTTPClient,
+		TokenURL: s.TokenURL, Resource: s.Resource, Scope: s.Scope, IDToken: s.IDToken, HostID: s.HostID,
+		Store: s.Store, HTTPClient: s.HTTPClient,
 	}
 }
 
@@ -323,14 +333,33 @@ func (s *OAuthSession) Owner() llmprovider.ProviderID {
 	return ""
 }
 
-// ChatGPT reports whether the session was issued by the default OpenAI issuer.
+// ChatGPT reports whether the session is a ChatGPT login for the Codex
+// backend: issued by the default OpenAI issuer, and not a plan session, whose
+// requests go to the platform (0043-MADR D1).
 func (s *OAuthSession) ChatGPT() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.Resource != "" {
+		return false
+	}
 	// An OpenAI session with no issuer is an older ChatGPT sign-in, as its
 	// refresh treats it (refreshTokenURL), never a platform key (0026-MADR F2).
 	issuer := strings.TrimRight(s.Issuer, "/")
 	return issuer == DefaultOpenAIIssuer || issuer == "" && s.Provider == llmprovider.ProviderOpenAI
+}
+
+// PlanUsage reports whether the session is a Sign in with ChatGPT plan
+// session, from LoginChatGPTPlan: an OpenAI session with a Resource. Its
+// requests use the user's ChatGPT plan on the platform's Responses API
+// (0043-MADR D1).
+func (s *OAuthSession) PlanUsage() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Resource == "" {
+		return false
+	}
+	return s.Provider == llmprovider.ProviderOpenAI ||
+		s.Provider == "" && strings.TrimRight(s.Issuer, "/") == DefaultOpenAIIssuer
 }
 
 // Account returns the session's ChatGPT account id and FedRAMP flag, under
@@ -418,12 +447,18 @@ type oauthSessionState struct {
 	// unsaved rotation is pending it is a token this session spent: a store
 	// that still holds it has not moved on, and it must never be adopted and
 	// sent again (0020-MADR F1; 0026-MADR F1).
-	stored     string
-	issuer     string
-	clientID   string
-	accountID  string
-	fedramp    bool
-	tokenURL   string
+	stored    string
+	issuer    string
+	clientID  string
+	accountID string
+	fedramp   bool
+	tokenURL  string
+	// resource, scope, idToken and hostID are a plan session's (0043-MADR
+	// D1); resource set selects its form refresh and revocation (D2).
+	resource   string
+	scope      string
+	idToken    string
+	hostID     string
 	store      TokenStore
 	httpClient *http.Client
 	now        sessionClock
@@ -438,6 +473,10 @@ func (s *OAuthSession) refreshState() oauthSessionState {
 		accountID:  s.AccountID,
 		fedramp:    s.FedRAMP,
 		tokenURL:   s.TokenURL,
+		resource:   s.Resource,
+		scope:      s.Scope,
+		idToken:    s.IDToken,
+		hostID:     s.HostID,
 		store:      s.Store,
 		httpClient: s.HTTPClient,
 		now:        s.now,
@@ -504,6 +543,10 @@ func (s *OAuthSession) adopt(next *OAuthSession) {
 	s.AccountID = next.AccountID
 	s.FedRAMP = next.FedRAMP
 	s.TokenURL = next.TokenURL
+	s.Resource = next.Resource
+	s.Scope = next.Scope
+	s.IDToken = next.IDToken
+	s.HostID = next.HostID
 	s.Store = next.Store
 	s.HTTPClient = next.HTTPClient
 	s.issued = next.issued
@@ -584,6 +627,10 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 		AccountID:  state.accountID,
 		FedRAMP:    state.fedramp,
 		TokenURL:   state.tokenURL,
+		Resource:   state.resource,
+		Scope:      cmp.Or(payload.Scope, state.scope),
+		IDToken:    cmp.Or(payload.IDToken, state.idToken),
+		HostID:     state.hostID,
 		Store:      state.store,
 		HTTPClient: state.httpClient,
 		issued:     now,
@@ -599,15 +646,20 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 // newRefreshRequest builds the refresh request: JSON for the OpenAI issuer,
 // as Codex sends it (login/src/oauth/client.rs:80-110), form-encoded
 // otherwise, as the Grok CLI sends it (xai-grok-login/src/oidc/protocol.rs:492-507).
+// A plan session's is a form with its resource and no scope, which keeps the
+// grant (0043-MADR D2; OpenAI's profiles-and-sessions page).
 func newRefreshRequest(ctx context.Context, state oauthSessionState) (*http.Request, error) {
 	params := map[string]string{
 		"grant_type":      oauthRefreshToken,
 		oauthRefreshToken: state.refresh,
 		"client_id":       state.clientID,
 	}
+	if state.resource != "" {
+		params[planParamResource] = state.resource
+	}
 	contentType := "application/x-www-form-urlencoded"
 	var body io.Reader
-	if strings.TrimRight(state.issuer, "/") == DefaultOpenAIIssuer {
+	if strings.TrimRight(state.issuer, "/") == DefaultOpenAIIssuer && state.resource == "" {
 		raw, err := json.Marshal(params)
 		if err != nil {
 			return nil, fmt.Errorf("oauth: encode refresh request: %w", err)

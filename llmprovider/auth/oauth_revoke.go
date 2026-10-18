@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -51,6 +52,8 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 	var req *http.Request
 	var err error
 	switch {
+	case state.resource != "":
+		req, err = planRevokeRequest(ctx, state, client, token, hint)
 	case state.provider == llmprovider.ProviderOpenAI || strings.TrimRight(state.issuer, "/") == DefaultOpenAIIssuer:
 		req, err = openAIRevokeRequest(ctx, state, token, hint)
 	case state.provider == llmprovider.ProviderGrok:
@@ -120,8 +123,30 @@ func grokRevokeRequest(ctx context.Context, state oauthSessionState, client *htt
 	if endpoints.Revocation == "" {
 		return nil, fmt.Errorf("oauth: revoke: %s publishes no revocation_endpoint: %w", issuer, errors.ErrUnsupported)
 	}
-	form := url.Values{"token": {token}, "token_type_hint": {hint}, oauthParamClientID: {state.clientID}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoints.Revocation, strings.NewReader(form.Encode()))
+	return formRevokeRequest(ctx, endpoints.Revocation, state.clientID, token, hint)
+}
+
+// planRevokeRequest posts an RFC 7009 form to the revocation_endpoint of the
+// plan session's issuer, with its issued client id; an endpoint off the
+// issuer's origin is refused (0043-MADR D2, A2). OpenAI answers an empty 200,
+// also for a token already invalid.
+func planRevokeRequest(ctx context.Context, state oauthSessionState, client *http.Client, token, hint string) (*http.Request, error) {
+	issuer := cmp.Or(strings.TrimRight(state.issuer, "/"), DefaultOpenAIIssuer)
+	endpoints, err := planOAuthEndpoints(ctx, client, issuer)
+	if err != nil {
+		return nil, err
+	}
+	if endpoints.Revocation == "" {
+		return nil, fmt.Errorf("oauth: revoke: %s publishes no revocation_endpoint: %w", issuer, errors.ErrUnsupported)
+	}
+	return formRevokeRequest(ctx, endpoints.Revocation, state.clientID, token, hint)
+}
+
+// formRevokeRequest is an RFC 7009 revocation form for token, with its hint
+// and the client id.
+func formRevokeRequest(ctx context.Context, endpoint, clientID, token, hint string) (*http.Request, error) {
+	form := url.Values{"token": {token}, "token_type_hint": {hint}, oauthParamClientID: {clientID}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("oauth: revoke: create request: %w", err)
 	}
