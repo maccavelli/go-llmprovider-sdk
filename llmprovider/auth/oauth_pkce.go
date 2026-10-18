@@ -13,7 +13,7 @@ type pkceCodes struct {
 }
 
 func newPKCE() (pkceCodes, error) {
-	verifier, err := randomBase64URL(32)
+	verifier, err := randomBase64URL()
 	if err != nil {
 		return pkceCodes{}, fmt.Errorf("oauth: generate PKCE verifier: %w", err)
 	}
@@ -24,8 +24,10 @@ func newPKCE() (pkceCodes, error) {
 	}, nil
 }
 
-func randomBase64URL(byteCount int) (string, error) {
-	random := make([]byte, byteCount)
+// randomBase64URL is 32 random bytes, base64url-encoded without padding: a
+// PKCE verifier, a state or a nonce.
+func randomBase64URL() (string, error) {
+	random := make([]byte, 32)
 	if _, err := rand.Read(random); err != nil {
 		return "", err
 	}

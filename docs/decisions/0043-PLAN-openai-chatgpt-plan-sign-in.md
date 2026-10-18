@@ -298,3 +298,96 @@ this PLAN ("committed, accepted, approved to proceed", 2026-10-18).
 * **Not done here:** nothing calls the new fields yet. A plan session given
   to `openai.New` now fails `chatgpt.IsSession` and would be treated as a
   platform token until Phase 3; no release carries this phase alone.
+
+### Phase 2: the login (2026-10-18)
+
+* **Done.**
+  * **Step 1.** `ChatGPTPlanOptions` and `LoginChatGPTPlan`, in
+    `llmprovider/auth/oauth_plan.go`. It reuses the loopback listener
+    (`browserListener`, ports 1455 and 1457, `127.0.0.1`), PKCE, the
+    callback handler, `planOAuthEndpoints` (Phase 1) and the ID-token
+    verifier (`verifiedSession`). The fake issuer is an unexported
+    `issuer` field, as Phase 0 planned.
+  * **Step 2.** The first sign-in sends `dynamic_agent_client`,
+    `agent_name_hint` and `ext_agent_host_id`; a re-sign-in sends the
+    issued client, `id_token_hint` and the host id, without the name. Both
+    send the six scopes, `resource`, PKCE `S256`, `state` and `nonce`.
+    The callback must name an issued client on a first sign-in, and may not
+    name another one on a re-sign-in. The exchange sends the issued client
+    and `resource`. A grant without `chatgpt.tokens.use.direct` is refused,
+    matching `ErrNotPermitted`; so is a token response with no `scope`,
+    since OpenAI's page says to check the granted scopes. An empty
+    `AgentName`, or a `Previous` that is not a plan session with a client,
+    matches `ErrInvalidRequest` before any request. The host id is the
+    option's, else `Previous`'s, else a new version 4 `urn:uuid`.
+  * **The callback** (`oauth_loopback.go`): `oauthCallbackResult` carries
+    the callback's `client_id`, from the listener and from a pasted URL
+    (`parseOAuthCallback`, which `parseOAuthInput` now wraps with the same
+    behaviour and messages). The Codex and Grok logins ignore it.
+    `oauthTokenResponse` gains `scope`.
+  * **Step 3, tests,** `llmprovider/auth/plan_login_0043_test.go`, 12
+    tests against a fake issuer: the first sign-in's authorize query
+    parameter by parameter, the `127.0.0.1` redirect, the token form and
+    the session; the re-sign-in, with and without the callback repeating
+    the client; three refused callbacks, none exchanged; a grant without
+    plan usage, and one with no scope; an ID token for another audience,
+    and one with another nonce; four invalid options with no request; an
+    off-origin token endpoint, refused before the browser opens; the pasted
+    callback; a given host id; and `parseOAuthCallback`. Three runs under
+    `-race` are clean.
+* **Deviation 2026-10-18: `unparam` on `randomBase64URL`.** Found by `make
+  pre-add-check`: `oauth_pkce.go:27:22: randomBase64URL - byteCount always
+  receives 32 (unparam)`. HEAD's three callers all pass 32 and lint clean;
+  the login's two more cross the linter's threshold. Not pre-existing as a
+  failure.
+  * **Resolutions offered:** drop the parameter (recommended); a second
+    helper in `oauth_plan.go`, which duplicates one to pass a lint.
+  * **Decided:** the owner chose to drop it. `randomBase64URL()` makes 32
+    bytes, and the five calls lose the argument; no behaviour changes.
+    `llmprovider/auth/oauth_pkce.go` is added to this phase's files.
+* **Red first.** `tools/plant.py`, 23 plants on a scratch clone.
+  * **The first run hung** at "a Codex session is accepted as Previous":
+    with that check broken, `TestLoginChatGPTPlan_InvalidOptions_0043`
+    reached a login that falls back to the built-in endpoints and waits
+    ten minutes for a browser. The run was stopped. The test now gives
+    each case a five-second deadline, so a regression fails fast.
+  * **The second run** caught all 23; the hung plant's failure read
+    `Previous Codex: err = oauth: browser login timed out: context
+    deadline exceeded, want ErrInvalidRequest` in 5.00 s.
+
+  | Plant | Second run |
+  | :--- | :--- |
+  | the first sign-in sends Codex's client | caught |
+  | the first sign-in omits the app's name | caught |
+  | a re-sign-in sends the app's name | caught |
+  | a re-sign-in omits the ID token hint | caught |
+  | the authorize request omits the resource | caught |
+  | the authorize request omits the nonce | caught |
+  | the authorize request asks Codex's scopes | caught |
+  | a re-sign-in makes a new host id | caught |
+  | a given host id is ignored | caught |
+  | a first sign-in without an issued client is accepted | caught |
+  | the registration client is kept | caught |
+  | a re-sign-in accepts another client | caught |
+  | the exchange omits the resource | caught |
+  | the exchange sends the registration client | caught |
+  | a grant without plan usage is accepted | caught |
+  | the ID token is not verified | caught |
+  | the nonce is not checked | caught |
+  | an empty app name is accepted | caught |
+  | a Codex session is accepted as Previous | caught |
+  | the session is not marked a plan session | caught |
+  | the callback drops the issued client | caught |
+  | a pasted callback drops the issued client | caught |
+  | the callback client keeps its spaces | caught |
+
+  The plants ran before the deviation's rename, which touches no planted
+  line.
+* **Gate.**
+  * `make pre-add-check` on the four Go files: `4 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)`.
+  * `tools/apidiff.py v1.14.0`: Phase 1's five lines, and
+    `auth.ChatGPTPlanOptions` and `auth.LoginChatGPTPlan`, each `added`.
+  * `tools/gate.py`: 23 of 23. `auth` coverage 86.9 % (87.0 % after Phase 1, 86.6 % at `<base>`).
+  * `tools/denyscan.py --changed`: 0 hits. `make records-check`: 0
+    problems.

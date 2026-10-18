@@ -80,11 +80,16 @@ type oauthTokenResponse struct {
 	RefreshToken string       `json:"refresh_token"`
 	IDToken      string       `json:"id_token"`
 	ExpiresIn    oauthSeconds `json:"expires_in"`
+	// Scope is the granted scopes, which a plan login checks (0043-MADR D4).
+	Scope string `json:"scope"`
 }
 
 type oauthCallbackResult struct {
 	code string
-	err  error
+	// clientID is the callback's client_id: the client a plan login's
+	// registration issued (0043-MADR D4). The other logins ignore it.
+	clientID string
+	err      error
 }
 
 // LoginBrowserOAuth completes a browser authorization-code flow with PKCE.
@@ -105,7 +110,7 @@ func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opt
 	if err != nil {
 		return nil, err
 	}
-	state, err := randomBase64URL(32)
+	state, err := randomBase64URL()
 	if err != nil {
 		return nil, fmt.Errorf("oauth: generate state: %w", err)
 	}
@@ -124,7 +129,7 @@ func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opt
 
 	nonce := ""
 	if config.provider == llmprovider.ProviderGrok {
-		if nonce, err = randomBase64URL(32); err != nil {
+		if nonce, err = randomBase64URL(); err != nil {
 			return nil, fmt.Errorf("oauth: generate nonce: %w", err)
 		}
 	}
@@ -525,7 +530,7 @@ func oauthCallbackHandler(path, state string, result chan<- oauthCallbackResult,
 			return
 		}
 		select {
-		case result <- oauthCallbackResult{code: code}:
+		case result <- oauthCallbackResult{code: code, clientID: callbackClientID(query)}:
 		default:
 		}
 	})
@@ -574,9 +579,16 @@ func callbackError(query url.Values) error {
 }
 
 func parseOAuthInput(input, expectedState string) (string, error) {
+	callback := parseOAuthCallback(input, expectedState)
+	return callback.code, callback.err
+}
+
+// parseOAuthCallback reads a pasted callback URL, or a bare code, with the
+// URL's client_id, which a plan login needs (0043-MADR D4).
+func parseOAuthCallback(input, expectedState string) oauthCallbackResult {
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return "", errors.New("oauth: empty authorization code")
+		return oauthCallbackResult{err: errors.New("oauth: empty authorization code")}
 	}
 	parsed, err := url.Parse(input)
 	if err == nil && parsed.Scheme != "" {
@@ -584,20 +596,23 @@ func parseOAuthInput(input, expectedState string) (string, error) {
 		// A pasted URL must carry this login's state; only a bare code skips
 		// the check (0020-MADR F44).
 		if !callbackStateMatches(query.Get("state"), expectedState) {
-			return "", errors.New("oauth: callback state mismatch")
+			return oauthCallbackResult{err: errors.New("oauth: callback state mismatch")}
 		}
 		if authErr := callbackError(query); authErr != nil {
-			return "", authErr
+			return oauthCallbackResult{err: authErr}
 		}
 		if code := redact.StripControl(query.Get("code")); code != "" {
-			return code, nil
+			return oauthCallbackResult{code: code, clientID: callbackClientID(query)}
 		}
-		return "", errors.New("oauth: callback URL missing authorization code")
+		return oauthCallbackResult{err: errors.New("oauth: callback URL missing authorization code")}
 	}
-	if input != "" {
-		return input, nil
-	}
-	return "", errors.New("oauth: empty authorization code")
+	return oauthCallbackResult{code: input}
+}
+
+// callbackClientID is a callback's client_id, stripped of control
+// characters and space.
+func callbackClientID(query url.Values) string {
+	return strings.TrimSpace(redact.StripControl(query.Get(oauthParamClientID)))
 }
 
 func exchangeOAuthCode(
