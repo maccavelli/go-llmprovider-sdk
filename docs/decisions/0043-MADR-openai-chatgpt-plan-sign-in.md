@@ -220,6 +220,7 @@ With a plan session, `openai.New`:
 * lists from the `models` array, the entries with `visibility: "list"`,
   and never probes a model (each probe would spend the user's plan);
   `catalog.ListRaw` returns that listing as sent.
+* *(A4: refuses a system message in the input before sending it.)*
 
 A key and a ChatGPT session send exactly what they send today; no G-wire
 golden changes, and the plan shape gets its own goldens.
@@ -235,6 +236,8 @@ golden changes, and the plan shape gets its own goldens.
   `ErrNotPermitted`; `subscription_sharing_unsupported_capability` is a
   400, already `ErrInvalidRequest`. A `{"detail": …}` admission body is
   classified by its status, as today.
+* *(A4: the three codes above are classified by code too, so they mean the
+  same inside a stream.)*
 * `openai.ChatGPTUsageURL`, `https://chatgpt.com/settings/usage`, is the
   page a consumer's "Manage usage" opens. pi links the same page; OpenAI's
   UI guidance names the action, not the URL, so the constant cites pi.
@@ -433,3 +436,37 @@ is removed in the same phase.
   are read from the ID token's claims, so `Account()` answers for a plan
   session. Phase 3 must not send them as the Codex backend's headers (D5).
   Untested until Phase 3.
+
+### A4. Two request rules D5 and D6 left out (2026-10-18)
+
+* **Found** by 0043-PLAN Phase 3, reading the provider and the error model
+  before any code.
+* **The three other `subscription_sharing_*` codes inside a stream.** D6
+  says `subscription_sharing_user_not_eligible` and
+  `subscription_sharing_route_not_supported` are already `ErrNotPermitted`,
+  and `subscription_sharing_unsupported_capability` already
+  `ErrInvalidRequest`. That holds for an HTTP reply, which is classified by
+  its status (403, 400). Inside a stream there is no status:
+  `ClassifyStreamFailure` (`llmprovider/api_error.go`) treats an unknown
+  code as a 500, so each would be `ErrProviderUnavailable`, which is
+  retried. 0043-PLAN Phase 3 step 4 tests all four codes inside a stream.
+  * **Decided** by the owner: OpenAI's table in `classifyAPIError` names the
+    three codes. The first two are `ErrNotPermitted` and the third
+    `ErrInvalidRequest`, all terminal, in a reply or a stream. Keys and
+    ChatGPT sessions never receive these codes, so nothing changes for
+    them.
+  * **Rejected:** classifying them by status only, as D6 stated, which
+    would leave a stream's copy retried as an outage.
+* **A system message in the input.** OpenAI's preview-limitations page
+  says a plan request rejects an explicit `{"role": "system"}` input item,
+  and that system prompts go in `instructions`
+  (0017-REPORT-openai-sign-in-for-agents.md F2). The provider sends a
+  `RoleSystem` `MessageItem` as such an item (`responses.Input`). D5 did not
+  say what to do with it.
+  * **Decided** by the owner: with a plan session, a request whose input
+    holds a `RoleSystem` message fails before the network, matching
+    `ErrUnsupported` (R11), and names `Request.Instructions`. A key's and
+    a ChatGPT session's requests are unchanged.
+  * **Rejected:** folding the text into `instructions`, which loses where
+    the message stood and changes what the caller asked for; and sending
+    it for OpenAI to refuse with a 400, after a round trip, against R11.

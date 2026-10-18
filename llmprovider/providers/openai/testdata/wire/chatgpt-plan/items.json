@@ -1,0 +1,5 @@
+{
+  "requests": [],
+  "result": null,
+  "error": "llmprovider: unsupported: openai: a ChatGPT plan session takes no system message in Input; put it in Request.Instructions (0043-MADR A4)"
+}

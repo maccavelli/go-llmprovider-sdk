@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -40,7 +41,8 @@ type RawListing struct {
 type RawModel struct {
 	// ID is the provider's own identifier field, unchanged: id for most;
 	// name for Gemini, its models/ prefix included, and for Ollama; slug for
-	// a ChatGPT session. It is empty for an entry with no such field, or one
+	// a ChatGPT session and a ChatGPT plan session. It is empty for an entry
+	// with no such field, or one
 	// that is not a string; the entry is returned all the same.
 	ID string
 	// Raw is the entry's bytes, unchanged.
@@ -53,7 +55,9 @@ type RawModel struct {
 // user agent, OpenCode's session header, Kilo's organization endpoint, every
 // page up to the listing's limit, 8 MiB a page, 10 s in all, and one renewal
 // of a refused credential. An OpenAI listing with a ChatGPT session lists the
-// Codex backend, as the openai provider's ListModels does.
+// Codex backend, and one with a ChatGPT plan session reads the "models"
+// array of the platform's listing, as the openai provider's ListModels does
+// (0043-MADR D5).
 //
 // It does none of List's curation: no usability filter, ranking, caveat or
 // static fallback; no models.dev fetch; no listing cache read or write, so
@@ -106,10 +110,13 @@ func listRawOnce(ctx context.Context, id llmprovider.ProviderID, src llmprovider
 	cfg.sink = nil
 	at := time.Now()
 	chatGPT := id == llmprovider.ProviderOpenAI && chatgpt.IsSession(src)
+	plan := id == llmprovider.ProviderOpenAI && chatgpt.IsPlanSession(src)
 	var err error
 	switch {
 	case chatGPT:
 		err = fetchChatGPTRaw(ctx, src, token, cfg)
+	case plan:
+		err = fetchPlanRaw(ctx, token, cfg)
 	case id == llmprovider.ProviderOllama:
 		_, err = fetchOllamaTags(ctx, token, cfg)
 	default:
@@ -119,7 +126,28 @@ func listRawOnce(ctx context.Context, id llmprovider.ProviderID, src llmprovider
 		// The page that failed is the last one asked for.
 		return RawListing{}, fmt.Errorf("model listing: %s page %d: %w", id, max(rec.requests(), 1), err)
 	}
-	return rec.listing(id, chatGPT, at)
+	return rec.listing(id, chatGPT || plan, at)
+}
+
+// fetchPlanRaw sends a plan session's listing request, the one the openai
+// provider sends (internal/chatgpt), and checks its reply as a page.
+func fetchPlanRaw(ctx context.Context, token llmprovider.Token, cfg config) error {
+	req, err := chatgpt.PlanModelsRequest(ctx, cmp.Or(cfg.BaseURL, openAIListingBase), cfg.userAgent, token)
+	if err != nil {
+		return err
+	}
+	resp, err := cfg.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("model listing: plan models: %w", err)
+	}
+	defer cfg.closeBody(resp)
+	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderOpenAI), resp); err != nil {
+		return fmt.Errorf("model listing: %w", err)
+	}
+	var page struct {
+		Models []json.RawMessage `json:"models"`
+	}
+	return decodeLimited(resp.Body, &page, "plan: models")
 }
 
 // fetchChatGPTRaw sends a ChatGPT session's listing request, the one the
@@ -216,7 +244,9 @@ func (r *rawRecorder) listing(id llmprovider.ProviderID, chatGPT bool, at time.T
 }
 
 // rawArray is where id's pages keep their model array ("" for a bare array)
-// and which field is the provider's own id (0041-MADR D9).
+// and which field is the provider's own id (0041-MADR D9). chatGPT is set
+// for a ChatGPT session and a plan session, which share the shape
+// (0043-MADR M6).
 func rawArray(id llmprovider.ProviderID, chatGPT bool) (array, field string) {
 	switch {
 	case chatGPT:

@@ -1,17 +1,20 @@
 // Package openai is the OpenAI provider (0015-MADR D2): the Responses API at
 // api.openai.com with an API key, or the ChatGPT backend with a ChatGPT
-// session (an OpenAI OAuth session, or the Codex CLI's login).
+// session (an OpenAI OAuth session, or the Codex CLI's login), or the
+// Responses API with a ChatGPT plan session (auth.LoginChatGPTPlan).
 //
 // Build it with New, or providers.New(llmprovider.ProviderOpenAI, …). The
 // credential decides the backend: WithAPIKey, or WithTokenSource with a
 // static token, uses the platform; a ChatGPT session uses the backend at
-// chatgpt.com.
+// chatgpt.com; a plan session uses the platform, billed to the user's
+// ChatGPT plan (0043-MADR D5).
 //
 // Capabilities: tools, forced tool choice and reasoning are Supported.
 // Continuation is Supported with an API key, and Unsupported with a ChatGPT
-// session, which stores no responses (MADR 0012 §4.2). Native streaming is
-// Supported: Stream asks the Responses API for an event stream and yields its
-// events as they arrive (0031-MADR D1).
+// session, which stores no responses (MADR 0012 §4.2), and with a plan
+// session, for which OpenAI says to omit previous_response_id. Native
+// streaming is Supported: Stream asks the Responses API for an event stream
+// and yields its events as they arrive (0031-MADR D1).
 //
 // Degradations:
 //   - A tool result's IsError is not sent: the Responses API has no error
@@ -23,28 +26,42 @@
 //     max_output_tokens (gate G-C, 2026-09-27), so MaxOutputTokens and
 //     WithMaxTokens have no effect there. It always sends store false, so
 //     WithStore has no effect there either.
+//   - A plan session follows OpenAI's rules for plan usage (0043-MADR D5):
+//     every request streams, Generate reading the stream; it sends store
+//     false and no output limit, so WithStore, MaxOutputTokens and
+//     WithMaxTokens have no effect there; and it sends no tool_search, which
+//     OpenAI does not support there, so deferred tools are appended, with
+//     WarningDeferralEmulated. A system message in Input is refused before
+//     the network, matching llmprovider.ErrUnsupported: OpenAI rejects one
+//     there, and system prompts go in Request.Instructions (0043-MADR A4).
 //
 // ListModels returns the curated listing. With an API key it probes each of
 // the first catalog.MaxListed listed models with one short, billed
 // generation (0038-MADR D4), unless
 // llmprovider.WithModelProbes(false) says otherwise (0016-MADR A5); a ChatGPT
-// session is never probed (MADR 0012 §1.6).
+// session is never probed (MADR 0012 §1.6). A plan session lists the account's
+// models from the "models" array of GET https://api.openai.com/v1/models,
+// those with visibility "list", in the listing's order, and is never probed:
+// each probe would spend the user's plan (0043-MADR D5).
 //
 // catalog.ListRaw returns the listing as OpenAI sends it: with an API key,
 // GET https://api.openai.com/v1/models; with a ChatGPT session, the Codex
-// backend's GET https://chatgpt.com/backend-api/codex/models?client_version=…,
-// unsorted and unfiltered, each entry's slug as its id (0041-MADR D9).
+// backend's GET https://chatgpt.com/backend-api/codex/models?client_version=…;
+// with a plan session, GET https://api.openai.com/v1/models and its "models"
+// array; unsorted and unfiltered, each entry's slug as its id where the
+// array is "models" (0041-MADR D9).
 //
 // OpenAI caches prompts on its own. Request.Cache sends the provider's
 // session id (llmprovider.WithSessionID, else a random id fixed for the
 // provider) as prompt_cache_key, which routes a conversation to one cache;
 // CacheLong sends the same as CacheShort, since OpenAI offers no longer
 // lifetime to ask for (0039-MADR D3). A ChatGPT session sends the key on
-// every request, as Codex does.
+// every request, as Codex does; a plan session sends it as a key does.
 //
 // Deferred tools (Tool.Deferred) go out natively with a key from GPT-5.4 on,
-// and in a ChatGPT session for every model (0040-MADR D3, A3): the Search
-// tool as a client tool_search entry, and the deferred tools only in the
+// and in a ChatGPT session for every model (0040-MADR D3, A3), but never in
+// a plan session (above): the Search tool as a client tool_search entry, and
+// the deferred tools only in the
 // tool_search_output that replays a search's result; that result's text is
 // not sent. A load from any other result is appended to the tools. An earlier
 // model, and a forced choice of the Search tool, which tool_choice cannot
@@ -59,7 +76,7 @@
 // something has fetched it. A request never fetches, and never waits.
 // With no MaxOutputTokens, the output limit is the default, cut to the
 // model's own when that is smaller; it is never raised.
-// A ChatGPT session sends no output limit, as before.
+// A ChatGPT session and a plan session send no output limit, as before.
 package openai
 
 import (
@@ -117,21 +134,30 @@ const (
 	ChatGPTBaseURL = chatgpt.BaseURL
 )
 
+// ChatGPTUsageURL is the page where a user manages their ChatGPT plan's usage:
+// what a "Manage usage" action opens when a plan session's limit is reached,
+// an error matching llmprovider.ErrQuotaExhausted (0043-MADR D6). OpenAI's
+// guidance names the action, not the URL; pi links this page.
+const ChatGPTUsageURL = "https://chatgpt.com/settings/usage"
+
 // storeOption is WithStore's value.
 type storeOption bool
 
 // WithStore sets whether an API key's responses are stored (MADR 0012 §6).
 // Without it the service default applies, which keeps continuation working;
 // callers under zero data retention pass false, after which a
-// PreviousResponseID has nothing to chain from. A ChatGPT session always
-// sends false.
+// PreviousResponseID has nothing to chain from. A ChatGPT session and a plan
+// session always send false.
 func WithStore(store bool) llmprovider.Option {
 	return llmprovider.ScopedOption(llmprovider.ProviderOpenAI, "openai.WithStore", storeOption(store))
 }
 
 type provider struct {
-	src       llmprovider.TokenSource
-	chatGPT   bool
+	src     llmprovider.TokenSource
+	chatGPT bool
+	// plan is a ChatGPT plan session: the platform's URL, with OpenAI's rules
+	// for plan usage (0043-MADR D5).
+	plan      bool
 	model     string
 	baseURL   string
 	client    *http.Client
@@ -183,6 +209,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	p := &provider{
 		src:       src,
 		chatGPT:   isChatGPTSession(src),
+		plan:      chatgpt.IsPlanSession(src),
 		model:     st.Model(),
 		client:    st.HTTPClient(),
 		maxTokens: st.MaxTokens(),
@@ -210,6 +237,10 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		p.baseURL = ChatGPTBaseURL
 		p.caps.Continuation = llmprovider.Unsupported
 	}
+	if p.plan {
+		// "Omit previous_response_id over HTTP" (0043-MADR D5).
+		p.caps.Continuation = llmprovider.Unsupported
+	}
 	if base := st.BaseURL(); base != "" {
 		p.baseURL = base
 	}
@@ -233,7 +264,7 @@ func (p *provider) Capabilities() llmprovider.Capabilities { return p.caps }
 // Generate sends req to the Responses API. A 401 from a session that can
 // refresh is retried once with a new token.
 func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
-	if err := p.caps.Check(req); err != nil {
+	if err := p.check(req); err != nil {
 		return nil, err
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
@@ -248,13 +279,30 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 // and each event is yielded as it arrives. A 401 before the first event
 // renews a session's token and sends once more.
 func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
-	if err := p.caps.Check(req); err != nil {
+	if err := p.check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
 	_, decoder := p.deferForm(req)
 	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
 		return p.call(ctx, req, token, true)
 	}, decoder.Events)
+}
+
+// check refuses, before the network, what the capabilities refuse, and a
+// system message in a plan session's input, which OpenAI rejects there:
+// system prompts go in Request.Instructions (0043-MADR A4).
+func (p *provider) check(req *llmprovider.Request) error {
+	if err := p.caps.Check(req); err != nil {
+		return err
+	}
+	if p.plan && slices.ContainsFunc(req.Input, func(item llmprovider.Item) bool {
+		message, ok := item.(llmprovider.MessageItem)
+		return ok && message.Role == llmprovider.RoleSystem
+	}) {
+		return fmt.Errorf("%w: openai: a ChatGPT plan session takes no system message in Input; "+
+			"put it in Request.Instructions (0043-MADR A4)", llmprovider.ErrUnsupported)
+	}
+	return nil
 }
 
 // facts is what the caches know of req's model, read for each request and
@@ -269,7 +317,12 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 // deferForm is req's deferred-tool form, and the decoder its reply needs: a
 // ChatGPT session takes the native form for every model, a key from GPT-5.4
 // on, and the native form's decoder names the Search tool (0040-MADR D1, D3).
+// A plan session appends: OpenAI lists tool_search as unsupported there
+// (0043-MADR D5).
 func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses.Decoder) {
+	if p.plan {
+		return deferral.Append, responses.Decoder{}
+	}
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -316,6 +369,15 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 		body["store"] = false
 		body["include"] = []string{includeEncryptedReasoning}
 		body["prompt_cache_key"] = p.session
+	} else if p.plan {
+		// OpenAI's rules for plan usage: stream, store false, and no
+		// max_output_tokens, which it says to omit though M5 measured it
+		// accepted (0043-MADR D5). Stateless, so reasoning comes back
+		// encrypted, as with WithStore(false); the cache key goes as a key's.
+		body["stream"] = true
+		body["store"] = false
+		body["include"] = []string{includeEncryptedReasoning}
+		wire.AddPromptCacheKey(body, req.Cache, p.session)
 	} else {
 		maxTokens := p.maxTokens
 		if req.MaxOutputTokens > 0 {
@@ -371,14 +433,15 @@ func (p *provider) effort(req *llmprovider.Request) (llmprovider.Effort, bool) {
 	}
 }
 
-// generateOnce sends req once, with token. A ChatGPT session's reply is an
-// event stream, bounded per event rather than as a whole.
+// generateOnce sends req once, with token. A ChatGPT session's reply, and a
+// plan session's, is an event stream, bounded per event rather than as a
+// whole.
 func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
 	// A failed reply is classified by OpenAI's vocabulary, as the stream's
 	// is (0026-MADR F28).
 	_, decoder := p.deferForm(req)
 	decode := decoder.DecodeFor(string(llmprovider.ProviderOpenAI))
-	if p.chatGPT {
+	if p.chatGPT || p.plan {
 		decode = func(r io.Reader) (*llmprovider.Response, error) {
 			return decoder.ReadStream(string(llmprovider.ProviderOpenAI), r)
 		}
@@ -387,13 +450,14 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 }
 
 // call is the Responses request for req, asking for an event stream when
-// stream is set; a ChatGPT session's always does.
+// stream is set; a ChatGPT session's and a plan session's always do. Only a
+// ChatGPT session sends the Codex backend's headers.
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
 	body := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 	}
-	streamed := stream || p.chatGPT
+	streamed := stream || p.chatGPT || p.plan
 	form, _ := p.deferForm(req)
 	return wire.Call{
 		Provider: string(llmprovider.ProviderOpenAI),
@@ -424,8 +488,18 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 
 // ListModels returns the curated chat models this credential can use, never
 // the raw /v1/models dump. An API key's models are probed unless
-// WithModelProbes(false); a ChatGPT session's are not (MADR 0012 §1.6).
+// WithModelProbes(false); a ChatGPT session's are not (MADR 0012 §1.6), nor
+// a plan session's (0043-MADR D5).
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {
+	// A plan session lists its account's catalog, with no static fallback,
+	// since those models may not be on the plan, and no probe, which the
+	// plan would pay for. A 401 renews the token and lists once more.
+	if p.plan {
+		return wire.Reauth(ctx, string(llmprovider.ProviderOpenAI), p.src, func(token llmprovider.Token) ([]string, error) {
+			models, err := p.listPlan(ctx, token)
+			return listlimit.Cut(models, p.limit), err
+		})
+	}
 	// A ChatGPT session lists from the Codex backend, with no static catalog
 	// (MADR 0008 D11), and its subscription meters every call: no generation
 	// probe (MADR 0012 §1.6). A 401 renews the session's token and lists

@@ -357,7 +357,14 @@ const serviceOpencode = "opencode"
 var (
 	opencodeQuotaTypes     = []string{"FreeUsageLimitError", "GoUsageLimitError", "BlackUsageLimitError", "CreditsError", "MonthlyLimitError", "UserLimitError"}
 	opencodeForbiddenTypes = []string{"RegionError", "DataPolicyError", "FreeTierError"}
-	openAIQuotaTypes       = []string{"usage_limit_reached", "insufficient_quota"}
+	// subscription_sharing_usage_limit_exceeded is a ChatGPT plan session's
+	// usage limit, which a retry within minutes does not pass (0043-MADR D6).
+	openAIQuotaTypes = []string{"usage_limit_reached", "insufficient_quota", "subscription_sharing_usage_limit_exceeded"}
+	// openAIPlanRefusals and openAIPlanInvalid are a plan session's other
+	// codes, named so that they mean in a stream what their 403 and 400
+	// mean in a reply (0043-MADR A4).
+	openAIPlanRefusals = []string{"subscription_sharing_user_not_eligible", "subscription_sharing_route_not_supported"}
+	openAIPlanInvalid  = []string{"subscription_sharing_unsupported_capability"}
 	// geminiAuthReasons are the details reasons Gemini gives a refused key
 	// with HTTP 400, as captured live (0020-MADR F23, Q6 a).
 	geminiAuthReasons = []string{"API_KEY_INVALID"}
@@ -383,7 +390,7 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 	// OpenCode refuses a model or a route with 403, typed or not; a bad
 	// key is its 401 (0012-MADR, amendment 2026-10-05; 0021-MADR L3).
 	case service == serviceOpencode && (status == http.StatusForbidden || has(opencodeForbiddenTypes...)),
-		service == string(ProviderOpenAI) && has("usage_not_included"),
+		service == string(ProviderOpenAI) && (has("usage_not_included") || has(openAIPlanRefusals...)),
 		service == string(ProviderKilo) && (status == http.StatusForbidden || has("data_collection_required")):
 		return true, ErrNotPermitted
 	case service == string(ProviderGemini) && has(geminiAuthReasons...):
@@ -405,7 +412,8 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 	case service == string(ProviderGemini) && status == http.StatusTooManyRequests && env.perDayQuota:
 		return true, ErrQuotaExhausted
 	case service == serviceOpencode && has("ModelError"),
-		service == string(ProviderKilo) && has("PAID_MODEL_AUTH_REQUIRED"):
+		service == string(ProviderKilo) && has("PAID_MODEL_AUTH_REQUIRED"),
+		service == string(ProviderOpenAI) && has(openAIPlanInvalid...):
 		return true, ErrInvalidRequest
 	case status == http.StatusTooManyRequests:
 		return false, ErrRateLimited

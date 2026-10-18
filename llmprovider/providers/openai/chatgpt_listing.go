@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -39,10 +40,52 @@ func (p *provider) listChatGPT(ctx context.Context, token llmprovider.Token) ([]
 	if err != nil {
 		return nil, err
 	}
+	models, err := p.fetchCatalog(req, "chatgpt")
+	if err != nil {
+		return nil, err
+	}
+	return rankChatGPTModels(models)
+}
 
+// listPlan returns a plan session's catalog: the "models" array of the
+// platform's GET /models, the entries with visibility "list", in the
+// listing's order, once each (0043-MADR D5, M6). A failure is an error, as
+// listChatGPT's is.
+func (p *provider) listPlan(ctx context.Context, token llmprovider.Token) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, chatGPTListingTimeout)
+	defer cancel()
+	// The request is the one catalog's ListRaw sends (0041-MADR D9).
+	req, err := chatgpt.PlanModelsRequest(ctx, p.baseURL, p.userAgent, token)
+	if err != nil {
+		return nil, err
+	}
+	models, err := p.fetchCatalog(req, "plan")
+	if err != nil {
+		return nil, err
+	}
+	if models == nil {
+		// The platform's "data" array is a key's listing, not the account's.
+		return nil, fmt.Errorf(`%w: model listing: the plan catalog has no "models" array`, llmprovider.ErrIncomplete)
+	}
+	var out []string
+	for _, model := range models {
+		slug := strings.TrimSpace(model.Slug)
+		if slug != "" && strings.EqualFold(strings.TrimSpace(model.Visibility), "list") && !slices.Contains(out, slug) {
+			out = append(out, slug)
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%w: model listing: the plan catalog listed no models", llmprovider.ErrIncomplete)
+	}
+	return out, nil
+}
+
+// fetchCatalog sends req and reads its "models" array, nil when the reply
+// has none; what names the catalog in errors.
+func (p *provider) fetchCatalog(req *http.Request, what string) ([]chatGPTCatalogModel, error) {
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("model listing: chatgpt models: %w", err)
+		return nil, fmt.Errorf("model listing: %s models: %w", what, err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -58,19 +101,19 @@ func (p *provider) listChatGPT(ctx context.Context, token llmprovider.Token) ([]
 	// (0021-MADR C3; 0026-MADR F34).
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, chatGPTListingLimit+1))
 	if err != nil {
-		return nil, fmt.Errorf("%w: model listing: read chatgpt catalog: %w", llmprovider.ErrIncomplete, err)
+		return nil, fmt.Errorf("%w: model listing: read %s catalog: %w", llmprovider.ErrIncomplete, what, err)
 	}
 	if len(raw) > chatGPTListingLimit {
-		return nil, fmt.Errorf("%w: model listing: the chatgpt catalog is larger than %d MiB", llmprovider.ErrIncomplete,
-			chatGPTListingLimit>>20)
+		return nil, fmt.Errorf("%w: model listing: the %s catalog is larger than %d MiB", llmprovider.ErrIncomplete,
+			what, chatGPTListingLimit>>20)
 	}
 	var payload struct {
 		Models []chatGPTCatalogModel `json:"models"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, fmt.Errorf("%w: model listing: decode chatgpt catalog: %w", llmprovider.ErrIncomplete, err)
+		return nil, fmt.Errorf("%w: model listing: decode %s catalog: %w", llmprovider.ErrIncomplete, what, err)
 	}
-	return rankChatGPTModels(payload.Models)
+	return payload.Models, nil
 }
 
 // chatGPTListingLimit bounds the ChatGPT listing, as catalog bounds one

@@ -110,10 +110,12 @@ stored record or wire golden changes behaviour.
    `ChatGPT()`); `providers/openai` detects `PlanUsage()` and uses the
    platform URL, `store: false`, `stream: true`, no `max_output_tokens`,
    Continuation `Unsupported`, deferred tools appended, `prompt_cache_key`
-   and `include` as with `WithStore(false)`.
+   and `include` as with `WithStore(false)`. *(A4: a system message in the
+   input is refused before the network.)*
 2. `ListModels` and `catalog.ListRaw` read the `models` array; no probes.
 3. `subscription_sharing_usage_limit_exceeded` joins `openAIQuotaTypes`;
-   `openai.ChatGPTUsageURL`.
+   `openai.ChatGPTUsageURL`. *(A4: the other three codes are classified by
+   code, in a reply and inside a stream.)*
 4. **Tests:** new G-wire goldens for the plan shape (text, tool call,
    reasoning, deferred tools); every existing golden unchanged; the
    listing from a `models` body and the refusal of a `data` body; no probe
@@ -420,3 +422,176 @@ Phase 1 is `188330e`, and Phase 2 is `180f01e`.
   built-in endpoint fallback, as Phase 1 built it, over two alternatives:
   failing closed, and keeping the fallback for revocation only. 0043-MADR
   A3 records why. No code changed, and no file was added to any phase.
+
+### Phase 3: the provider (2026-10-18)
+
+The owner approved Phase 3 ("committed, proceed", 2026-10-18), after the
+records alignment (`d8efb45`).
+
+* **Deviation 2026-10-18: two rules D5 and D6 left out.** Found reading
+  `llmprovider/api_error.go` and `llmprovider/internal/wire/responses`
+  before any code. Neither is a failure in existing code; both concern
+  plan sessions only.
+  * **The codes inside a stream.** `ClassifyStreamFailure` classifies an
+    unknown code as a 500. So `subscription_sharing_user_not_eligible`,
+    `_route_not_supported` and `_unsupported_capability` inside a stream
+    would be `ErrProviderUnavailable` and retried, though step 4 tests them
+    as D6's kinds.
+    * **Resolutions offered:** classify them by code (recommended); test
+      them as HTTP replies only, and annotate step 4.
+    * **Decided:** classify by code.
+  * **A system message in the input.** OpenAI rejects it for plan
+    requests (0017-REPORT F2), and the provider sends one as `role:
+    "system"`.
+    * **Resolutions offered:** refuse it before the network (recommended);
+      fold it into `instructions`; leave it for OpenAI to refuse.
+    * **Decided:** refuse it before the network.
+  * 0043-MADR A4 records both, and steps 1 and 3 are annotated. Nothing
+    is added to the phase's files: `llmprovider/api_error.go` was already
+    in scope.
+* **`<base>`** is `d8efb45`. Coverage there: `llmprovider` 97.7 %,
+  `providers/openai` 94.3 %, `catalog` 95.2 %, `internal/chatgpt` 96.7 %.
+* **Done.**
+  * **Step 1, the session check.** `internal/chatgpt.IsSession` already
+    follows `ChatGPT()`, which Phase 1 made false for a plan session.
+    `internal/chatgpt.IsPlanSession` is new, and the provider and
+    `catalog` share it.
+  * **Step 1, the request shape** (`providers/openai/openai.go`). With a
+    plan session the provider:
+    * sends to `PlatformBaseURL`, with `Authorization: Bearer` and none of
+      the Codex backend's headers (`session-id`, `originator`,
+      `ChatGPT-Account-Id`, FedRAMP, residency), though the session holds
+      an account (A3);
+    * sends `stream: true`, `store: false` and `include` for encrypted
+      reasoning on every request, and reads the stream in `Generate`;
+    * sends no `max_output_tokens`, so `WithMaxTokens`, `MaxOutputTokens`
+      and `WithStore` have no effect;
+    * sends `prompt_cache_key` only for a cached request, as a key does;
+    * has Continuation `Unsupported`;
+    * appends deferred tools (`deferral.Append`), with
+      `WarningDeferralEmulated`, and never sends `tool_search`;
+    * refuses a `RoleSystem` message in `Input` before the network, matching
+      `ErrUnsupported`, and names `Request.Instructions` (A4).
+
+    The package doc lists each of these.
+  * **Step 2, the listing.**
+    * `ListModels` sends `internal/chatgpt.PlanModelsRequest`: GET
+      `/models`, with the bearer token, `Accept: application/json`, no
+      `client_version` and no Codex headers.
+    * It keeps the `models` entries with `visibility` `list` (trimmed,
+      any case) and a slug, in the listing's order, once each.
+    * It never probes, even with `WithModelProbes(true)`. A 401 renews the
+      token once, through `wire.Reauth`, as the ChatGPT listing does; that
+      is untested for the plan listing.
+    * A body with no `models` array (a key's `data` listing), a catalog
+      that lists nothing, and a body that does not decode are each
+      `ErrIncomplete`. There is no static fallback, as for a ChatGPT
+      session.
+    * `fetchCatalog` now holds the reading that the ChatGPT listing already
+      did, with that listing's messages unchanged.
+    * `catalog.ListRaw` sends the same request and splits the `models`
+      array by `slug` (`fetchPlanRaw`).
+  * **Step 3, the errors** (`llmprovider/api_error.go`).
+    * `subscription_sharing_usage_limit_exceeded` joins `openAIQuotaTypes`.
+    * Per A4, `subscription_sharing_user_not_eligible` and
+      `_route_not_supported` are `ErrNotPermitted`, and
+      `_unsupported_capability` is `ErrInvalidRequest`.
+    * All four are terminal, in a reply or a stream, for the `openai`
+      service only.
+    * `openai.ChatGPTUsageURL` is `https://chatgpt.com/settings/usage`.
+  * **Step 4, tests.**
+    * **The wire case.** `chatgpt-plan` is a new case in
+      `providers/openai/wire_test.go`. Its session has an account id, and
+      it is built with `WithMaxTokens(2048)`, so the goldens show that
+      neither is sent. Its 12 goldens were recorded with `-update` for this
+      case only, and read in full:
+      * text, tool, thinking, thinking and tool, items, flags;
+      * `cache-short` and `cache-long`, which send the key;
+      * `defer-offer` (no deferred tool) and `defer-load` (`lookup_stock`
+        appended, no `tool_search` entry);
+      * `continuation`, refused with no request sent;
+      * `listing`, which keeps the two listed models.
+    * **Unchanged goldens.** `git status` shows no existing golden
+      changed, and the existing tests of the four packages pass.
+    * **`providers/openai/plan_0043_test.go`, six tests:**
+      * the request, the URL and the headers;
+      * the refusals, through `Generate` and `Stream`, with no request
+        sent;
+      * a ChatGPT session's system message still sent;
+      * deferred tools appended, with the warning;
+      * the listing, its order, no probe, and three refused bodies;
+      * the four codes inside a stream, each terminal.
+
+      A seventh, `TestChatGPTUsageURL_0043`, pins the usage page.
+    * **Elsewhere:**
+      * `llmprovider/api_error_0043_test.go`: the four codes in a reply
+        and in a stream, and another service's stream unchanged;
+      * `internal/chatgpt/plan_0043_test.go`: `IsPlanSession` and
+        `PlanModelsRequest`;
+      * `catalog/raw_0041_test.go`: `TestListRaw_ChatGPTPlan_0043`.
+* **Red first.** `tools/plant.py`, 26 plants on a scratch clone, all caught
+  on the first run. Each failed on an assertion, not on a build error.
+
+  | Plant | Result |
+  | :--- | :--- |
+  | the usage limit is not a quota code | caught |
+  | the refusal codes are not named | caught |
+  | the capability code is not named | caught |
+  | no session is a plan session | caught |
+  | the plan listing sends the Codex headers | caught |
+  | the plan listing sends no Accept | caught |
+  | the provider ignores the plan session | caught |
+  | a plan session continues | caught |
+  | a system message is sent | caught |
+  | a plan session sends tool_search | caught |
+  | a plan session sends an output limit | caught |
+  | a plan session sends no store | caught |
+  | a plan session always sends the cache key | caught |
+  | a plan session asks no encrypted reasoning | caught |
+  | Generate does not read a plan session's stream | caught |
+  | a plan request asks no event stream | caught |
+  | a plan session sends the Codex headers | caught |
+  | a plan session lists through the key's catalog | caught |
+  | the plan listing keeps hidden models | caught |
+  | the plan listing repeats a model | caught |
+  | the plan listing takes a data body as empty | caught |
+  | the plan listing names the chatgpt catalog | caught |
+  | ListRaw lists a plan session as a key | caught |
+  | ListRaw sends the plan listing with Codex headers | caught |
+  | ListRaw splits a plan page as data | caught |
+  | the usage page moves | caught |
+  | ListRaw does not classify a plan listing's failure (a second run, below) | caught |
+
+  After the gate, `catalog` measured 95.1 %, under `<base>`'s 95.2 % but
+  over its 80 % floor; the dip is `fetchPlanRaw`'s error branch.
+  `TestListRaw_ChatGPTPlan_0043` gained a 503 case, and a 27th plant, which
+  skips its classification, was caught alone: `a 503: err = model listing:
+  no page was read; want ErrProviderUnavailable naming page 1`. `catalog`
+  still rounds to 95.1 %.
+
+  The failure of "the plan listing sends the Codex headers", for example,
+  read `requests[0].header.Originator: want (absent), got
+  "go-llmprovider-sdk"` in the listing golden, and `originator:
+  "go-llmprovider-sdk"; want ""` in `TestPlanModelsRequest_0043`.
+* **Gate.**
+  * `make pre-add-check` on the ten Go files: `10 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)`. Two comment lines in
+    the package doc were rewrapped, and gofmt aligned one map in a test,
+    after the plants ran; neither touches a planted line.
+  * `tools/apidiff.py v1.14.0`: the seven lines from Phases 1 and 2, and
+    `providers/openai.ChatGPTUsageURL`, each `added`.
+  * `tools/gate.py`: 23 of 23, before the 503 case; `make pre-add-check` on `catalog/raw_0041_test.go` after it: `1 file(s) clean`. Coverage after: `llmprovider` 97.7 %, `providers/openai` 95.7 %, `catalog` 95.1 %, `internal/chatgpt` 97.4 %.
+  * `tools/denyscan.py --changed`: 0 hits. `make records-check`: 0
+    problems.
+* **Not done here.**
+  * **`catalog.List`** (not `ListRaw`) with a plan session is unchanged.
+    It lists the platform as for a key, as it does today for a ChatGPT
+    session; D5 named only `ListModels` and `ListRaw`. The provider's
+    `ListModels` does not call it for a plan session.
+  * **Admission bodies** (`{"detail": …}` with 401, 403 or 503) are
+    classified by status as before, per D6. No new test.
+  * **`facts`** still reads the cached facts with the session's token. It
+    sends nothing, and a plan session uses no fact, since it sends no
+    output limit.
+  * The wizard (Phase 4), and the docs, the live test and the release
+    (Phase 5).

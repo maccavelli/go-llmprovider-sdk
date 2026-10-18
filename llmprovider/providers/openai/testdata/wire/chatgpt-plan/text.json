@@ -1,0 +1,30 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept": "text/event-stream",
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer plan-access",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>"
+      },
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": "What is the weather in Paris?",
+            "role": "user"
+          }
+        ],
+        "model": "gpt-6.1-sol",
+        "store": false,
+        "stream": true
+      }
+    }
+  ],
+  "result": "hello"
+}

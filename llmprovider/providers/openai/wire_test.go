@@ -47,6 +47,23 @@ var wireCases = []wirecase.Case{
 				wirecase.Opts(u, extra...)...)...)
 		},
 	},
+	{
+		// A ChatGPT plan session (0043-MADR D5): the platform, streamed, store
+		// false, no output limit though one is given, none of the Codex
+		// backend's headers though the session has an account, deferred tools
+		// appended, and no continuation; the listing is its "models" array.
+		Name: "chatgpt-plan",
+		Listing: `{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1 Sol","visibility":"list"},` +
+			`{"slug":"gpt-6-hidden","visibility":"hide"},{"slug":"gpt-6-luna","visibility":"list"}]}`,
+		SSE: true,
+		Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
+			session := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: auth.DefaultOpenAIIssuer,
+				Access: "plan-access", Refresh: "plan-refresh", Expiry: time.Now().Add(time.Hour), ClientID: "oaiapp_wire",
+				AccountID: "acct-wire", Resource: PlatformBaseURL}
+			return New(append([]llmprovider.Option{llmprovider.WithTokenSource(session), llmprovider.WithModel("gpt-6.1-sol"),
+				llmprovider.WithMaxTokens(2048)}, wirecase.Opts(u, extra...)...)...)
+		},
+	},
 }
 
 // TestWireGoldens is G-wire (0015-MADR D12) for OpenAI, through the new API.

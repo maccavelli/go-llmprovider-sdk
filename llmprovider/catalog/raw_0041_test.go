@@ -426,6 +426,44 @@ func TestListRaw_ChatGPT_0041(t *testing.T) {
 	}
 }
 
+// TestListRaw_ChatGPTPlan_0043: a plan session's raw listing is the
+// platform's GET /models as sent, its "models" array split by slug, with no
+// client_version and none of the Codex backend's headers; a "data" body is
+// an error (0043-MADR D5).
+func TestListRaw_ChatGPTPlan_0043(t *testing.T) {
+	plan := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: auth.DefaultOpenAIIssuer, Access: "p",
+		Expiry: time.Now().Add(time.Hour), AccountID: "acct", Resource: "https://api.openai.com/v1"}
+	body := []byte(`{"models":[{"slug":"gpt-6.1-sol","visibility":"list"},{"slug":"gpt-6-hidden","visibility":"hide"}]}`)
+	s := newPagedServer(t, body)
+	got, err := ListRaw(context.Background(), llmprovider.ProviderOpenAI, plan, llmprovider.WithBaseURL(s.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Models) != 2 || got.Models[0].ID != "gpt-6.1-sol" || got.Models[1].ID != "gpt-6-hidden" ||
+		len(got.Pages) != 1 || string(got.Pages[0]) != string(body) || got.Endpoint != s.URL+"/models" {
+		t.Errorf("listing %+v; want both entries by slug, the page as sent, at /models", got)
+	}
+	sent := s.sent()
+	if len(sent) != 1 || sent[0].URL.Path != "/models" || sent[0].URL.RawQuery != "" ||
+		sent[0].Header.Get("originator") != "" || sent[0].Header.Get("ChatGPT-Account-Id") != "" ||
+		sent[0].Header.Get("Authorization") != "Bearer p" {
+		t.Errorf("requests %d: %v; want one GET /models with the bearer token only", len(sent), sent)
+	}
+	data := newPagedServer(t, []byte(`{"object":"list","data":[{"id":"gpt-5.5"}]}`))
+	if _, err := ListRaw(context.Background(), llmprovider.ProviderOpenAI, plan, llmprovider.WithBaseURL(data.URL)); err == nil ||
+		!strings.Contains(err.Error(), `no "models" model array`) {
+		t.Errorf("a data body: err = %v; want it to name the missing models array", err)
+	}
+	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"detail":"unavailable"}`, http.StatusServiceUnavailable)
+	}))
+	defer down.Close()
+	if _, err := ListRaw(context.Background(), llmprovider.ProviderOpenAI, plan, llmprovider.WithBaseURL(down.URL)); !errors.Is(err, llmprovider.ErrProviderUnavailable) ||
+		!strings.Contains(err.Error(), "page 1") {
+		t.Errorf("a 503: err = %v; want ErrProviderUnavailable naming page 1", err)
+	}
+}
+
 // TestListRaw_Ollama_0041: Ollama's listing is /api/tags, with name as the
 // id, and no /api/show (0041-MADR D9).
 func TestListRaw_Ollama_0041(t *testing.T) {

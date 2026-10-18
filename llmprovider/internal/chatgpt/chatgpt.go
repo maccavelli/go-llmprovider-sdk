@@ -1,7 +1,8 @@
 // Package chatgpt is what a ChatGPT session's requests share between
 // providers/openai and catalog's ListRaw (0041-MADR D9): the session check,
 // the headers Codex sends, and the listing request. Moved from
-// providers/openai in 0041-PLAN Phase 8, unchanged.
+// providers/openai in 0041-PLAN Phase 8, unchanged. A ChatGPT plan session's
+// check and listing request are here too (0043-MADR D5).
 package chatgpt
 
 import (
@@ -47,6 +48,28 @@ func IsSession(src llmprovider.TokenSource) bool {
 	}
 	session, ok := src.(*auth.OAuthSession)
 	return ok && session.ChatGPT()
+}
+
+// IsPlanSession reports whether src is a Sign in with ChatGPT plan session
+// (auth.OAuthSession.PlanUsage): its requests go to the platform's Responses
+// API, never to this backend (0043-MADR D1, D5).
+func IsPlanSession(src llmprovider.TokenSource) bool {
+	session, ok := src.(*auth.OAuthSession)
+	return ok && session.PlanUsage()
+}
+
+// PlanModelsRequest is a plan session's listing request: GET baseURL/models
+// with the user agent and the bearer token, and none of this backend's
+// headers or its client_version (0043-MADR D5, M6).
+func PlanModelsRequest(ctx context.Context, baseURL, userAgent string, token llmprovider.Token) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/models", http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("model listing: create plan models request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+	token.Apply(req, "Authorization", "Bearer")
+	return req, nil
 }
 
 // SetHeaders sets the originator, and the account id and FedRAMP flag of src
