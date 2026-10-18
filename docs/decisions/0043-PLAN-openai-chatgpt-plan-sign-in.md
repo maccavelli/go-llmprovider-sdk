@@ -801,8 +801,9 @@ proceed").
 #### Step 4: release notes, `v1.15.0`
 
 `v1.15.0` adds OpenAI's Sign in with ChatGPT for agents as an OpenAI auth
-method (0043-MADR). The exported API adds 10 identifiers and changes none.
-No existing wire golden changed.
+method (0043-MADR). It also carries 0044-MADR-observe-retries.md
+(0044-PLAN Phase 2 added it to these notes). The exported API adds 12
+identifiers and changes none. No existing wire golden changed.
 
 **New API:**
 
@@ -812,6 +813,10 @@ No existing wire golden changed.
 * **The provider** (D6): `openai.ChatGPTUsageURL`.
 * **The wizard** (D7): `llmprovider.AuthChatGPTPlan` (`"chatgpt_plan"`) and
   `wizard.Options.AgentName`.
+* **Retry notices** (0044-MADR): `llmprovider.WithRetryNotify` and
+  `llmprovider.RetryNotice`. Before each wait it would take, the wrapper
+  calls the callback with the attempt, the maximum, the wait, whether the
+  service asked for it, and the error.
 
 **What a plan session does:**
 
@@ -838,6 +843,7 @@ No existing wire golden changed.
   without them is unchanged.
 * An `OAuthSession` with none of the new fields formats, stores, refreshes
   and revokes as before.
+* `WithRetry` retries as before; it is `WithRetryNotify` with no callback.
 
 **Upgrading, and going back:**
 
@@ -858,5 +864,5 @@ No existing wire golden changed.
 
 The owner commits, pushes and tags `v1.15.0`. Then: CI, the module proxy,
 `tools/consumer.py v1.15.0` and `tools/offline.py v1.15.0`. Issue 2 is
-answered and closed on the owner's ask. This PLAN becomes `complete` when
-these pass.
+answered and closed on the owner's ask, as is issue 3 (0044-PLAN Phase 2).
+This PLAN becomes `complete` when these pass.

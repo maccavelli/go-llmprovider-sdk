@@ -23,7 +23,7 @@ It requires Go 1.27.2.
 
 | Package | For |
 | :--- | :--- |
-| `llmprovider` | the contract: `Provider`, `Request`, `Response`, items, options, errors, `Registry`, `WithRetry`, `Stream`, `TokenSource` |
+| `llmprovider` | the contract: `Provider`, `Request`, `Response`, items, options, errors, `Registry`, `WithRetry` and `WithRetryNotify`, `Stream`, `TokenSource` |
 | `llmprovider/providers` | `Default()`, a registry of every built-in provider, and `New(id, opts...)` |
 | `llmprovider/providers/<id>` | one built-in provider each: `openai`, `claude`, `gemini`, `grok`, `opencode`, `kilo`, `huggingface`, `together`, `ollama` |
 | `llmprovider/auth` | OAuth sessions, browser and device-code logins, vendor CLI sessions, token stores |
@@ -98,6 +98,10 @@ functions over any provider, and `Stream` streams from every one.
   is not begun: the error is returned at once, so the caller can
   reschedule. After a 401, an OAuth session refreshes and a
   `CommandToken` reruns its command, and the request is sent once more.
+  `WithRetryNotify(p, policy, notify)` retries the same, and calls `notify`
+  before each wait with a `RetryNotice`: the attempt, the wait, whether the
+  service asked for it, and the error. Use it to tell your user "rate
+  limited, retrying in 4 s"; `notify` must not block.
 - **Transport.** The default client connects within 30 seconds and waits
   up to 300 seconds for response headers. It has no total timeout: a reply
   may take as long as it keeps sending, and is given up after 300 seconds
@@ -289,6 +293,9 @@ The current release is `v1.15.0`. The module requires Go 1.27.2.
   - the `openai` provider sends a plan session's requests to
     `api.openai.com/v1` under OpenAI's rules for plan usage;
   - the wizard offers the method when `Options.AgentName` is set.
+- It also adds `llmprovider.WithRetryNotify`, which reports each retry
+  before its wait, as
+  [0044-MADR](docs/decisions/0044-MADR-observe-retries.md) decides.
 
 - `v1.14.0` decides each model's behaviour from its facts, and lists a live
   menu ordered by them, as

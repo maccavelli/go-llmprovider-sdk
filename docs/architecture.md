@@ -162,7 +162,8 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/listlimi
    once more. A success is decoded into a `Response`:
    `Output`, `FinishReason` and `Usage`.
 5. **Around it.** `WithRetry` wraps a provider and retries by the error's
-   kind; a provider that lists models still does, through it, and it does
+   kind, and `WithRetryNotify` also reports each wait to a callback; a
+   provider that lists models still does, through it, and it does
    not stream natively: `Stream` over it runs its `Generate`, so a failure
    is retried whole. `Stream` uses a provider's own `Streamer`: every
    built-in provider asks its wire for an event stream and yields each event
@@ -418,6 +419,9 @@ for a session, from the store.
   after the request was written, is retried at most once per call
   (0021-MADR D1, 0028-MADR D-H1); one before the request was written, as
   often as the policy allows. A wait past the context's deadline returns the error at once.
+- `WithRetryNotify(p, policy, notify)` is the same wrapper, which calls
+  `notify` with a `RetryNotice` on the caller's goroutine, with its `ctx`,
+  each time a wait is about to begin, and at no other time (0044-MADR).
 - `Registry` holds `Descriptor` and `Factory` pairs and refuses a duplicate
   id. There is no global registry.
 - `llmprovider/llmtest` has `Run`, the conformance suite every built-in

@@ -204,3 +204,28 @@ the 0044 pair and proceed", 2026-10-18), after committing 0043-PLAN Phase
     problems.
 * **Not done here:** the docs and the release notes (Phase 2).
 
+### Phase 2: docs and the release (2026-10-18)
+
+The owner committed Phase 1 as `3ac4c3a` and approved Phase 2 ("committed,
+proceed").
+
+* **No deviation.**
+* **Step 1, the docs** (R43):
+  * `docs/guides/api-standards.md` R28 names `WithRetryNotify` and
+    `RetryNotice` next to `WithRetry`;
+  * `README.md`: the `llmprovider` package row, a paragraph after
+    `WithRetry`'s, and the `v1.15.0` status entry;
+  * `docs/architecture.md`: "Around it" and a bullet after `WithRetry`'s.
+  * No layout changed.
+* **Step 2, the release notes.** `v1.15.0` carries both pairs, so its notes
+  stay in one place:
+  0043-PLAN-openai-chatgpt-plan-sign-in.md, Phase 5, step 4. They now say
+  that the release carries this record, count 12 identifiers, list the two
+  names under New API, and say that `WithRetry` retries as before.
+* **Step 3, issue 3:** after the tag, and closed on the owner's ask, with
+  0043-PLAN's step 5.
+* **Gate.**
+  * `tools/linkcheck.py`, markdownlint on the changed Markdown,
+    `tools/denyscan.py --changed` and `make records-check`: clean.
+  * No Go file changed in this phase.
+

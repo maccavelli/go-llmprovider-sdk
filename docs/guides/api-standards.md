@@ -192,8 +192,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
 
 - **R28. Cross-cutting behaviour wraps a provider:** `func(Provider) Provider`.
   Retry is `WithRetry(p, RetryPolicy{…})`, which honours `RetryAfter` and the
-  error kind. Logging, metrics and rate limiting take the same shape. There
-  are no hooks inside providers. (0015 D8)
+  error kind; `WithRetryNotify` retries the same, and gives a callback a
+  `RetryNotice` before each wait. Logging, metrics and rate limiting take the
+  same shape. There are no hooks inside providers. (0015 D8; 0044 D1)
 
 ## State, logging and the environment
 
