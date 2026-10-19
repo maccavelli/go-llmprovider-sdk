@@ -24,7 +24,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
 - **R2. A package holds one concern**, and imports only what the table allows.
   Only `wizard` may leave the standard library, and then only for
   `golang.org/x/term`. (0015 D2, D13; the table's `internal/wire` rows, 0026
-  F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9)
+  F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
@@ -36,16 +36,17 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/internal/chatgpt` | a ChatGPT session's check, headers and listing request, and a ChatGPT plan session's check and listing request, for `catalog`'s `ListRaw` and `providers/openai` | `llmprovider`, `auth`, `internal/transport` |
   | `llmprovider/internal/retired` | the retired model ids, with why (0033-MADR D4) | `llmprovider` |
   | `llmprovider/internal/catalogtool` | the maintainer tool's proposals for the static lists | `llmprovider`, `catalog`, `internal/retired` |
-  | `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, run with `go run` | `llmprovider`, `catalog`, `internal/catalogtool` |
+  | `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, run with `go run` | `llmprovider`, `catalog`, `internal/catalogtool`, `internal/transport` |
   | `llmprovider/internal/ownerperm` | a directory and its files private to the current user: modes on Unix, a protected DACL on Windows through generated `syscall` bindings | the standard library |
   | `llmprovider/internal/filelock` | an exclusive OS lock on an open file: `flock` on Unix, `LockFileEx` on Windows through generated `syscall` bindings | the standard library |
   | `llmprovider/providers/<id>` | one provider or gateway family: `New`, its options, its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
   | `llmprovider/providers` | `Default()` and `New(id, opts...)` | `llmprovider` and the provider packages |
   | `llmprovider/llmtest` | the conformance suite and `Fake` | `llmprovider` |
   | `llmprovider/internal/wire` | what the shared wire formats have in common | `llmprovider`, `internal/transport`, `internal/redact` |
-  | `llmprovider/internal/wire/<format>` | one wire format | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact` |
+  | `llmprovider/internal/wire/<format>` | one wire format | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact`, `internal/wire/deferral` |
+  | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, for the wire formats and the providers | `llmprovider`, `internal/wire/messages` |
   | `llmprovider/internal/transport` | the default client, identity headers, `Retry-After`, the listing probe | the standard library |
-  | `wizard` | the configuration flow, over a `Registry` | the above, `golang.org/x/term` |
+  | `wizard` | the configuration flow, over a `Registry` | the above, `internal/redact`, `golang.org/x/term` |
   | `internal/redact` | redaction | the standard library |
   | `llmprovider/internal/wirecase` | G-wire's scenarios, for the provider packages' tests only | `llmprovider`, `internal/wiretest` |
   | `internal/wiretest` | G-wire's request recorder, for tests only | the standard library |

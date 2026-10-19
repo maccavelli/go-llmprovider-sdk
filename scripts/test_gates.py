@@ -35,6 +35,7 @@ GATES = {
     "coverage-check": "scripts/check_coverage.py",
     "api-check": "scripts/check_api.py",
     "records-check": "scripts/check_records.py",
+    "tables-check": "scripts/check_tables.py",
 }
 GENERATE_LINE = re.compile(r"^//go:generate .*$", re.M)
 
@@ -229,6 +230,40 @@ class GateSelfTest(unittest.TestCase):
         proc = subprocess.run([sys.executable, "-B", GATES["records-check"], "--next"], cwd=self.tree,
                               capture_output=True, text=True, check=False)
         self.assertEqual(proc.stdout.strip(), "0100", f"--next printed {proc.stdout.strip()!r}, want 0100")
+
+    def test_tables_check_architecture_stale(self) -> None:
+        """An architecture row names a package its package does not import
+        (0046-MADR D4)."""
+        replace_once(self.tree / "docs/architecture.md", "`providers/openai`, `internal/redact`, `golang.org/x/term` |",
+                     "`providers/openai`, `internal/redact`, `internal/transport`, `golang.org/x/term` |")
+        self.assertFails("tables-check", "docs/architecture.md: wizard")
+
+    def test_tables_check_r2_disallowed(self) -> None:
+        """A package imports what its R2 row does not allow."""
+        replace_once(self.tree / "docs/guides/api-standards.md", "`internal/catalogtool`, `internal/transport` |",
+                     "`internal/catalogtool` |")
+        self.assertFails("tables-check", "api-standards.md: llmprovider/internal/cmd/catalogs")
+
+    def test_tables_check_package_without_row(self) -> None:
+        """A package with no row in either table."""
+        planted = self.tree / "llmprovider/internal/zzplanted"
+        planted.mkdir()
+        (planted / "zzplanted.go").write_text("// Package zzplanted is planted.\npackage zzplanted\n", encoding="utf-8")
+        self.assertFails("tables-check", "docs/architecture.md: llmprovider/internal/zzplanted: no row")
+        self.assertFails("tables-check", "docs/guides/api-standards.md: llmprovider/internal/zzplanted: no row")
+
+    def test_tables_check_live_variable_unnamed(self) -> None:
+        """A live variable a test reads, which AGENTS.md does not name."""
+        replace_once(self.tree / "AGENTS.md", "`LLMPROVIDER_LIVE_CHATGPT_PLAN` (the ChatGPT plan sign-in),",
+                     "the ChatGPT plan sign-in,")
+        self.assertFails("tables-check", "AGENTS.md: LLMPROVIDER_LIVE_CHATGPT_PLAN")
+
+    def test_tables_check_switch_without_record(self) -> None:
+        """A record measurement switch that no record of its number names."""
+        (self.tree / "llmprovider/live_zz_planted_test.go").write_text(
+            "//go:build live_gateways\n\npackage llmprovider_test\n\n// LLMPROVIDER_LIVE_0045_PLANTED is planted.\n",
+            encoding="utf-8")
+        self.assertFails("tables-check", "LLMPROVIDER_LIVE_0045_PLANTED")
 
     def test_clean_copy_passes_every_gate(self) -> None:
         for gate in GATES:

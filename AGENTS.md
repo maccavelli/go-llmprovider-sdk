@@ -143,7 +143,7 @@ is no `git add` hook on every host; do not rely on one.
 
 `make lint` and `make vuln` must be clean before a release-shaped change.
 CI also runs `make parity-check dep-check coverage-check api-check
-generate-check records-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
+generate-check records-check tables-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
 `scripts/coverage-floors.txt`, by a record.
 
 ## Tools
@@ -177,11 +177,20 @@ go test -tags live_gateways ./llmprovider/... -run Live
 provider's live tests run when its key variable is set (`ProviderEnvVars()`),
 and skip without it. These suites are switched on by their own variable:
 `LLMPROVIDER_LIVE_CHATGPT`, `LLMPROVIDER_LIVE_BROWSER_LOGIN` (the ChatGPT and
-Grok browser logins), `LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok device-code
-login), `LLMPROVIDER_LIVE_CHATGPT_PLAN` (the ChatGPT plan sign-in),
+Grok browser logins), `LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok and Kilo
+device logins), `LLMPROVIDER_LIVE_CHATGPT_PLAN` (the ChatGPT plan sign-in),
 `LLMPROVIDER_LIVE_GROK_CLI`, `LLMPROVIDER_LIVE_TOGETHER` (with
-`TOGETHER_API_KEY`). The login tests need a person to sign in. CI only vets
-the live-tagged files (`go vet -tags live_gateways ./...`); it never runs them.
+`TOGETHER_API_KEY`), and `LLMPROVIDER_LIVE_GEMINI_429` (with
+`LLMPROVIDER_LIVE_GEMINI_429_MODEL` and `LLMPROVIDER_LIVE_GEMINI_429_BURST`; it
+exhausts a Gemini rate limit on purpose). A record's own measurement test is
+switched on by `LLMPROVIDER_LIVE_<NNNN>`, with suffixes for its options, as
+that record says. The login tests need a person to sign in. Each keeps its
+checks after the sign-in in a function in `llmprovider/live_checks_test.go`,
+which an offline twin in `llmprovider/live_twins_test.go` runs against a fake.
+A planted break of one of those checks runs on its twin (0046-MADR D3). CI only
+vets the live-tagged files (`go vet -tags live_gateways ./...`); it never runs
+them. `scripts/check_tables.py` checks that every variable a live test reads is
+named here, or is a record's.
 
 ## Identifiers
 
