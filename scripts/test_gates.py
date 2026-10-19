@@ -38,6 +38,7 @@ GATES = {
     "tables-check": "scripts/check_tables.py",
     "fixtures-check": "scripts/check_fixtures.py",
     "changelog-check": "scripts/check_changelog.py",
+    "docs-check": "scripts/check_docs.py",
 }
 GENERATE_LINE = re.compile(r"^//go:generate .*$", re.M)
 
@@ -309,6 +310,26 @@ class GateSelfTest(unittest.TestCase):
             ' "email": "user@example.com", "note": "user_message", "home": "/home/<user>/x"}\n', encoding="utf-8")
         proc = run_gate(self.tree, "fixtures-check")
         self.assertEqual(proc.returncode, 0, f"placeholders were reported:\n{proc.stdout}{proc.stderr}")
+
+    # 0048-PLAN Phase 6: the API audit, R50 to R52, on the copy.
+    def test_docs_check_concurrency_sentence_removed(self) -> None:
+        """An exported type whose doc no longer says whether it is safe for
+        concurrent use."""
+        replace_once(self.tree / "llmprovider/auth/oauth_device.go",
+                     "// so one surface can show the code while another waits. It is safe for\n"
+                     "// concurrent use: Cancel, and any number of Waits, may run at once.\n",
+                     "// so one surface can show the code while another waits.\n")
+        self.assertFails("docs-check", "R51 type DeviceLogin does not say whether it is safe for concurrent use")
+
+    def test_docs_check_error_sentence_removed(self) -> None:
+        """A function returning an error whose doc no longer names one."""
+        replace_once(self.tree / "llmprovider/token.go", " It never returns an error.", "")
+        self.assertFails("docs-check", "R52 StaticToken.Token returns an error its doc does not name")
+
+    def test_docs_check_example_removed(self) -> None:
+        """A public package left without an example."""
+        (self.tree / "llmprovider/llmtest/example_test.go").unlink()
+        self.assertFails("docs-check", "R50 package llmprovider/llmtest has no Example function with an Output comment")
 
     # 0048-PLAN Phase 5: CHANGELOG.md against the release tags.
     def test_changelog_check_tag_without_section(self) -> None:

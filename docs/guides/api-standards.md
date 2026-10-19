@@ -7,7 +7,9 @@ decision, in
 [0015-MADR-canonical-sdk-api-and-module-layout.md](../decisions/0015-MADR-canonical-sdk-api-and-module-layout.md)
 ("0015 D*n*") or
 [0016-MADR-provider-auth-and-support-baseline.md](../decisions/0016-MADR-provider-auth-and-support-baseline.md)
-("0016 D*n*").
+("0016 D*n*"), and R49 to R55 and the reasons for R14, R15 and R19 in
+[0048-MADR-adopt-go-sdk-best-practices.md](../decisions/0048-MADR-adopt-go-sdk-best-practices.md)
+("0048 D*n*", "0048 X*n*").
 
 **The tree meets these rules.** Phase S11 of
 [0015-PLAN-canonical-sdk-api-and-module-layout.md](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
@@ -136,11 +138,17 @@ tool that holds a rule, where one does. For how the code is laid out, read
   `New(opts ...llmprovider.Option) (llmprovider.Provider, error)`. A
   package for a family of gateways has one such constructor per id it
   serves, named for it, such as `opencode.NewZen` and `opencode.NewGo`. A
-  constructor takes no context and makes no network call. (0015 D5, and its
-  amendment "the OpenCode family")
+  constructor takes no context and makes no network call. It returns the
+  `Provider` interface, not a concrete type, as a middleware returns what it
+  wraps (R28): the module's product is one contract over many providers,
+  and a `Registry` holds factories of one signature, as `sha256.New` returns
+  a `hash.Hash`. (0015 D5, and its amendment "the OpenCode family"; 0048 X1)
 - **R15. Credentials are a `TokenSource`.** `WithTokenSource`, or `WithAPIKey`
-  as shorthand for a `StaticToken`. There are no `*WithSource` twins.
-  (0015 D5, 0016 D2)
+  as shorthand for a `StaticToken`. There are no `*WithSource` twins. A
+  required credential is an option, not a parameter, so that one
+  constructor shape serves a keyless provider, such as Ollama, and every
+  kind of source; where the service needs one, `New` refuses a missing one
+  at once. (0015 D5, 0016 D2; 0048 X2)
 - **R16. A provider applies the token as `Token` describes it.** An empty
   `Header` means the service's own header and scheme. A non-empty one
   overrides it: a `TokenBearer` is sent as `Bearer <value>`, a `TokenAPIKey`
@@ -159,7 +167,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
   the caller scoped it with `For(id, …)`: an overlay for another id is
   skipped. (0015 D5 and its amendment of 2026-09-30)
 - **R19. Configuration structs are unexported.** No exported `ProviderConfig` or
-  `ApplyOptions`. (0015 D5)
+  `ApplyOptions`. The module serializes no configuration of its own: a
+  consumer keeps its own, and `wizard.Result` is exported for it to keep.
+  (0015 D5; 0048 X3)
 - **R20. After `New`, a provider is immutable and safe for concurrent use.**
   (0015 D9)
 
@@ -280,9 +290,55 @@ tool that holds a rule, where one does. For how the code is laid out, read
   under the compatibility promise,** and `apidiff` against the latest `v1.*`
   tag fails an incompatible change. (0015 D13)
 
+## Go SDK practice
+
+These rules are
+[0048-MADR-adopt-go-sdk-best-practices.md](../decisions/0048-MADR-adopt-go-sdk-best-practices.md)'s
+("0048 D*n*"), which measured the module against Go SDK practice.
+
+- **R49. A caller can own the caches.** What the catalog and the providers
+  keep in memory between calls, the listings and their models' metadata, the
+  models.dev document and the models that answered a probe, is held in a
+  `catalog.Cache`: its zero value is ready, and it is safe for concurrent
+  use. `catalog.WithCache` gives one to a listing or to a provider's `New`,
+  and `providers.DefaultWith` to every built-in provider a `Registry`
+  builds; without it, the process's cache is used. One memory stays
+  process-wide, which no option replaces: the models a provider learned
+  refuse a forced tool choice, at most 256 (0034 D3). A new in-memory cache
+  goes into `catalog.Cache`, never into a package variable a caller cannot
+  replace. (0048 D1)
+- **R50. Every public package has an example** that runs offline, over
+  `llmtest.Fake` or `httptest`, with an `// Output:` comment, so that `go
+  test` runs it. The package comments of `llmprovider`, `providers` and
+  `wizard` show the simplest call in an indented block. (0048 D2)
+- **R51. Every exported type's doc says whether it is safe for concurrent
+  use,** in those words: a value, while no goroutine changes it; an
+  interface a caller implements, what an implementation must be, and why; a
+  type with state, as a test under `-race` measures it. (0048 D3)
+- **R52. Every exported function or method that returns an error names the
+  kinds it returns** in its doc: a sentinel, `*APIError`, a context's
+  error, or a plain error. A test through that function shows each kind it
+  names. A method of a standard interface (`Error`, `String`, `GoString`,
+  `Format`, `LogValue`, `MarshalJSON`, `UnmarshalJSON`, `MarshalText`,
+  `UnmarshalText`) is exempt. (0048 D4)
+- **R53. Every release has a changelog section and a GitHub Release.**
+  `CHANGELOG.md` is in the Keep a Changelog form, with a section for each
+  `v*` tag, newest first, dated by the tag's commit. A release's section is
+  written before its tag, and CI's `release` job makes the tag's Release
+  with that section as its notes. (0048 D5)
+- **R54. The Go floor is `go 1.27.2`,** with no `toolchain` line, and CI
+  builds with the version `go.mod` names. Go 1.27 is the least the module
+  builds with: it uses `encoding/json/v2` and `encoding/json/jsontext`, in
+  the standard library from Go 1.27.0. The patch, `.2`, carries the
+  2026-10-08 security fixes. The floor is raised with each Go security
+  patch. (0048 D6, A1)
+- **R55. A new export is justified.** A PLAN that adds an exported name
+  lists each one in its record with the call site that needs it; `make
+  api-check` lists every addition. (0048 D7)
+
 ## Checks
 
-| Rule | Checked by | From 0015-PLAN phase |
+| Rule | Checked by | From |
 | :--- | :--- | :--- |
 | R2 (leaving the standard library) | `make dep-check` | S12 |
 | R30–R31 | `internal/ambientcheck` | S10 |
@@ -293,5 +349,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
 | R45 | G-wire (`TestWireGoldens`) | now |
 | R47 | `make coverage-check` | S12 |
 | R48 | `make api-check` | S12 |
+| R50–R52 | `make docs-check` (`sdkaudit -check`) | 0048-PLAN Phase 6 |
+| R53 | `make changelog-check` | 0048-PLAN Phase 5 |
+| R54 | `go.mod`'s `go` line, which CI's `go-version-file` reads | 0048-MADR A1 |
 
-The other rules are held by review against this guide.
+An S*n* phase is 0015-PLAN's. The other rules are held by review against this
+guide.

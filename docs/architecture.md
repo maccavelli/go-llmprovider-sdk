@@ -37,6 +37,7 @@ scripts/check_records.py    records-check: the decision records and their index
 scripts/check_tables.py     tables-check: the import tables and the live variables match the code
 scripts/check_fixtures.py   fixtures-check: recorded fixtures hold no account data
 scripts/check_changelog.py  changelog-check: CHANGELOG.md has a section for every release tag
+scripts/check_docs.py       docs-check: the API audit's R50-R52, the examples and the concurrency and error docs
 scripts/test_gates.py       gate-selftest: each gate fails on a planted breach
 tools/                      maintainer tools, not run by CI: the local gate,
                             plants, link check, identifier scan, apidiff,
@@ -904,7 +905,8 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   - `go vet`, `gofmt`, `go mod tidy -diff` and `make lint`;
   - `go vet -tags live_gateways`;
   - `make parity-check dep-check coverage-check api-check generate-check
-    records-check tables-check fixtures-check changelog-check gate-selftest`.
+    records-check tables-check fixtures-check changelog-check docs-check
+    gate-selftest`.
 
   It checks out the full history, so that `api-check` and `changelog-check`
   see the tags. A job stops after 30 minutes, and a newer push to a pull

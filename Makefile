@@ -11,7 +11,7 @@ GOVULNCHECK_PIN := $(shell grep -oE 'golang.org/x/vuln/cmd/govulncheck@v[0-9][0-
 GOTESTSUM     ?= $(or $(wildcard $(GOBIN)/gotestsum),$(GOPATH_BIN)/gotestsum,$(shell command -v gotestsum 2>/dev/null))
 FLEET_LINT_CFG := .golangci.yml
 
-.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check parity-check dep-check coverage-check api-check generate-check records-check tables-check fixtures-check changelog-check gate-selftest tools-test
+.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check parity-check dep-check coverage-check api-check generate-check records-check tables-check fixtures-check changelog-check docs-check gate-selftest tools-test
 
 all: help
 
@@ -94,6 +94,10 @@ fixtures-check: ## Checks recorded fixtures for account data
 # 0048-PLAN Phase 5: CHANGELOG.md has a section for every release tag (0048-MADR D5).
 changelog-check: ## Checks CHANGELOG.md against the release tags
 	python3 -B scripts/check_changelog.py
+
+# 0048-PLAN Phase 6: the API audit's examples, concurrency and error docs (R50-R52).
+docs-check: ## Checks the examples and the concurrency and error docs
+	python3 -B scripts/check_docs.py
 
 # 0021-PLAN step 6.2: each gate above fails on a planted breach, on a copy.
 gate-selftest: ## Checks that each CI gate fails on a planted breach

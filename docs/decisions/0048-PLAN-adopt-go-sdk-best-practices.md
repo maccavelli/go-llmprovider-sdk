@@ -879,3 +879,44 @@ kept command's exact R51 phrase, is the list of record.
   is created before Phase 7.
 * **The gate:** `tools/gate.py` on the final tree, 26 of 26 passed, with
   `changelog-check` among them. No Go file changed.
+
+### Phase 6: the standard and the docs gate (2026-10-19)
+
+* **No deviation.** Phase 5 was committed by the owner as `f5db6d4`.
+* **Step 1,** `api-standards.md`: a section "Go SDK practice" with R49 to
+  R55, each citing 0048-MADR, after "Tests and compatibility", so that the
+  rules stay in their numbers' order; the guide's opening names 0048-MADR
+  beside 0015 and 0016. R14, R15 and R19 gain X1's, X2's and X3's reasons
+  (`0048 X1` to `X3`). The Checks table gains R50–R52 (`make docs-check`),
+  R53 (`make changelog-check`) and R54 (`go.mod`'s `go` line, which CI's
+  `go-version-file` reads); its third column is now "From", with a note
+  that an S*n* phase is 0015-PLAN's. R48 is unchanged.
+* **Found, written into R49 rather than hidden by it:** a fourth memory is
+  process-wide, the models a provider learned refuse a forced tool choice
+  (`internal/wire/messages/learn.go`, at most 256, 0034-MADR D3). G1 named
+  the three caches, and D1 moved them; this memo was neither. R49 names it
+  as the one exception; moving it into `catalog.Cache` is a decision of its
+  own, for a later record.
+* **Step 2,** `scripts/check_docs.py` (`make docs-check`): runs `go run
+  ./llmprovider/internal/cmd/sdkaudit -check .` and returns the audit's
+  exit code, which `go run` reports as "exit status N" and itself turns into
+  1; a build failure, which has no such line, and a missing `go` are 2.
+  Measured on a scratch copy: clean 0; one R52 sentence removed 1; a build
+  break in the audit 2; `PATH` without `go` 2. Wired as Phase 5 wired
+  `changelog-check`: the Makefile and `.PHONY`, CI's list and step name,
+  `tools/gate.py` after `changelog-check`, `scripts/test_gates.py`'s
+  `GATES`, `tools/test_tools.py`'s order test, and the lists in AGENTS.md,
+  `docs/architecture.md` and `tools/README.md`. Selftest cases, in the
+  copied tree: `DeviceLogin`'s concurrency sentence removed; `StaticToken.
+  Token`'s "never returns an error" removed; `llmtest`'s example removed.
+* **Step 3,** AGENTS.md: the CI list has `changelog-check` (Phase 5) and
+  `docs-check`; "API work" says a PLAN adding exports lists each with its
+  call site (R55); "Requires Go 1.27.2" gives its two reasons (R54).
+* **Step 4,** `docs/architecture.md`: the scripts list and CI's list name
+  `docs-check`.
+* **Step 5, red first,** `tools/plant.py` on the three cases, four plants,
+  all caught: `docs-check` always 0 (all three cases fail); R51 never
+  reported, R52 never reported, R50's missing example never reported (each
+  fails its own case alone).
+* **The gate:** `tools/gate.py` on the final tree, 27 of 27 passed, with
+  `docs-check` among them. No Go file changed.

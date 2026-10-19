@@ -8,7 +8,8 @@ this file. A repository-local `CLAUDE.md` / `.claude/rules/` / `.grok/rules/` /
 (`github.com/maccavelli/go-llmprovider-sdk`). It is a library only: no packaged
 binary. LLM providers live in `llmprovider/`; the configuration wizard lives in
 `wizard/`; secret redaction for both lives in `internal/redact/`. Requires Go
-1.27.2.
+1.27.2: Go 1.27 for `encoding/json/v2`, and the `.2` patch for the
+2026-10-08 security fixes (the standards guide's R54).
 
 ## API work
 
@@ -18,7 +19,9 @@ normative: a change that breaks a rule is wrong, and the rule changes only by
 amending the decision it cites. In the same change, update
 [`docs/guides/migrating-from-mcplib.md`](docs/guides/migrating-from-mcplib.md)
 for anything that replaces an `mcplib` identifier, and
-[`docs/architecture.md`](docs/architecture.md) for the layout (R43). A new
+[`docs/architecture.md`](docs/architecture.md) for the layout (R43). A PLAN
+that adds an exported name lists each one, in its record, with the call
+site that needs it (R55). A new
 provider follows
 [`docs/guides/adding-a-provider.md`](docs/guides/adding-a-provider.md), after
 its MADR.
@@ -143,7 +146,7 @@ is no `git add` hook on every host; do not rely on one.
 
 `make lint` and `make vuln` must be clean before a release-shaped change.
 CI also runs `make parity-check dep-check coverage-check api-check
-generate-check records-check tables-check fixtures-check changelog-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
+generate-check records-check tables-check fixtures-check changelog-check docs-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
 `scripts/coverage-floors.txt`, by a record.
 
 ## Tools

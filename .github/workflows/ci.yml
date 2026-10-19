@@ -55,9 +55,9 @@ jobs:
       - name: vet live-tagged tests
         if: runner.os == 'Linux'
         run: go vet -tags live_gateways ./...
-      - name: parity, dependencies, coverage, API, generated code, records, the tables, the fixtures, the changelog, the gates' self-test (0015-MADR D12, D13; 0010-PLAN P6b; 0025-MADR; 0046-MADR; 0047-MADR; 0048-MADR D5; 0021-MADR Z9)
+      - name: parity, dependencies, coverage, API, generated code, records, the tables, the fixtures, the changelog, the docs, the gates' self-test (0015-MADR D12, D13; 0010-PLAN P6b; 0025-MADR; 0046-MADR; 0047-MADR; 0048-MADR D5, D8; 0021-MADR Z9)
         if: runner.os == 'Linux'
-        run: make parity-check dep-check coverage-check api-check generate-check records-check tables-check fixtures-check changelog-check gate-selftest
+        run: make parity-check dep-check coverage-check api-check generate-check records-check tables-check fixtures-check changelog-check docs-check gate-selftest
 
   # A v* tag's GitHub Release, its notes the tag's CHANGELOG.md section, once
   # every validate job has passed; validate's changelog-check has already

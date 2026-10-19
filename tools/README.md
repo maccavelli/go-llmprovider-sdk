@@ -44,7 +44,8 @@ In order:
 3. `go test -race -cover`, then `go test -shuffle=on`.
 4. `go mod tidy -diff`, `lint`, `parity-check`, `dep-check`,
    `coverage-check`, `api-check`, `generate-check`, `records-check`,
-   `tables-check`, `fixtures-check`, `changelog-check` and `gate-selftest`.
+   `tables-check`, `fixtures-check`, `changelog-check`, `docs-check` and
+   `gate-selftest`.
 5. markdownlint, on every Markdown file but the records.
 6. `TestWireGoldens` three times.
 7. The link check, and the identifier scan of the changed files.
