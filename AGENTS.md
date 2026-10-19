@@ -143,7 +143,7 @@ is no `git add` hook on every host; do not rely on one.
 
 `make lint` and `make vuln` must be clean before a release-shaped change.
 CI also runs `make parity-check dep-check coverage-check api-check
-generate-check records-check tables-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
+generate-check records-check tables-check fixtures-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
 `scripts/coverage-floors.txt`, by a record.
 
 ## Tools
@@ -191,6 +191,18 @@ A planted break of one of those checks runs on its twin (0046-MADR D3). CI only
 vets the live-tagged files (`go vet -tags live_gateways ./...`); it never runs
 them. `scripts/check_tables.py` checks that every variable a live test reads is
 named here, or is a record's.
+
+## Recorded fixtures
+
+A fixture recorded from a live service is redacted before it is committed:
+an account, user or organization id becomes its prefix and `REDACTED`
+(`user-REDACTED`), a UUID that is not a public object's becomes the nil
+UUID, and an e-mail address `user@example.com`. `make fixtures-check`
+(`scripts/check_fixtures.py`, 0047-MADR D1), which CI runs, finds any that
+is not; it prints a fingerprint, never the value. A hit that a review
+admits, such as a public model's id, goes in `scripts/fixtures-baseline.txt`
+by `scripts/check_fixtures.py --write-baseline`, with the review named in
+its header.
 
 ## Identifiers
 

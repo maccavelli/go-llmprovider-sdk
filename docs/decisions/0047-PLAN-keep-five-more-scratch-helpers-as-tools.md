@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-19
 associated-madr: "0047-MADR-keep-five-more-scratch-helpers-as-tools.md"
 decision-makers: repository owner
@@ -108,7 +108,8 @@ Associated MADR: [0047-MADR-keep-five-more-scratch-helpers-as-tools.md](0047-MAD
      finding. `--write-baseline` writes it, with a header naming
      0047-MADR's review, and prints the count only.
 2. **The baseline.** `--write-baseline` on the tree. Assert, by a count
-   from the file and not a reading of it: 134 lines, every line's path
+   from the file and not a reading of it: ~~134 lines~~ 133 lines for 134
+   hits *(Deviation 1)*, every line's path
    `llmprovider/catalog/testdata/ranking-2026-10-12/together.json`, every
    kind `uuid`. Any other line is a stop condition.
 3. **`Makefile`:** `fixtures-check: ## Checks recorded fixtures for account
@@ -208,7 +209,7 @@ Associated MADR: [0047-MADR-keep-five-more-scratch-helpers-as-tools.md](0047-MAD
 
 | # | Criterion | Phase | Check |
 | :--- | :--- | :--- | :--- |
-| V1 | The fixture gate passes on the tree, and its baseline is 134 Together `uuid` lines | 1 | `make fixtures-check`; the baseline's counts |
+| V1 | The fixture gate passes on the tree, and its baseline is 133 Together `uuid` lines for 134 hits (Deviation 1) | 1 | `make fixtures-check`; the baseline's counts |
 | V2 | Each planted address, id, JWT and stale line is caught, and no value is printed | 1 | `make gate-selftest` |
 | V3 | CI runs `fixtures-check` | 1 | the CI run on `main` |
 | V4 | `edit.py` appends and creates, and reads text from files; old specs unchanged | 2 | `make tools-test` |
@@ -225,4 +226,50 @@ Associated MADR: [0047-MADR-keep-five-more-scratch-helpers-as-tools.md](0047-MAD
 
 ## Execution record
 
-(Empty until the PLAN is approved.)
+### Phase 0: records (2026-10-19)
+
+* The MADR was accepted and this PLAN indexed, committed by the owner as
+  `06de97d`; the owner then approved the PLAN ("approved, proceed").
+
+### Deviation 1 (2026-10-19): 133 baseline lines for 134 hits
+
+* **Found.** Step 2: `--write-baseline` wrote 133 lines for 134 hits. Two
+  Together entries, `mistralai/Mistral-7B-Instruct-v0.1` and `-v0.3`, carry
+  one UUID (fingerprint `2dd3fb6ddc44`). Step 2 and V1 asserted 134 lines;
+  the stop condition holds (only Together's UUIDs are found).
+* **Resolution, the owner's:** a line admits a value wherever it occurs in
+  its file; the baseline is 133 lines. Step 2 and V1 are annotated; the
+  MADR's A1 records the fact.
+
+### Phase 1: the fixture gate (2026-10-19)
+
+* **Deviation 1,** above, on the owner's choice.
+* **Step 1.** `scripts/check_fixtures.py`: the five kinds; placeholders,
+  the nil UUID and the example domains never hits; files from `git ls-files
+  -co --exclude-standard` under a `testdata` directory, so a fixture not yet
+  added is scanned too; a finding per unadmitted hit and per stale line.
+* **Step 2.** Before the baseline: 250 files, 134 hits, every one a `uuid`
+  in `llmprovider/catalog/testdata/ranking-2026-10-12/together.json`; none
+  of the 54 placeholder and prose hits of the MADR's review. `--write-baseline`:
+  "wrote 133 baseline line(s) for 134 hit(s)"; the file's lines, counted by
+  path and kind, are 133 of that path and `uuid`. Then `make
+  fixtures-check`: "250 file(s), 134 hit(s), 0 problem(s)".
+* **Steps 3–8** as written: the `fixtures-check` target; CI's list
+  (`.github/workflows/ci.yml:60`); the local gate after `tables-check`, and
+  the order test; five `gate-selftest` cases (an address, an `org-` id, a
+  JWT, each made up and asserted absent from the output; a stale baseline
+  line; placeholders that must pass); AGENTS.md's CI list and its "Recorded
+  fixtures" section; `tools/README.md`'s count, 25, and its checks list,
+  which also gains `tables-check`, missing since 0046.
+* **Step 9, red first,** `tools/plant.py` on a scratch clone, with `python3
+  -B -m unittest scripts/test_gates.py -k fixtures` as the command: all five
+  plants caught (exit 1 each):
+  * the JWT kind removed;
+  * the stale-line check removed;
+  * the value printed in place of its fingerprint: caught by the address
+    and id tests' "unexpectedly found" assertion. That planted run printed
+    a Together model id, a public one of the baseline, as the plant meant;
+  * placeholders no longer allowed;
+  * lowercase-word ids reported.
+* **The gate:** `tools/gate.py`, 25 of 25 passed.
+

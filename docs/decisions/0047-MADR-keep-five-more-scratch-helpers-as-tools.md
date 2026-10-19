@@ -138,7 +138,7 @@ start, so a fixture holding account data cannot be merged.
   admitted them. A hit in the baseline passes; any other is a finding, exit
   1. A baseline line no hit matches is a finding too, so the file never
   holds stale entries. Its first content is the 134 Together model ids of
-  the review above.
+  the review above *(A1: 133 lines, one per distinct id)*.
 * **`--write-baseline`** writes the current hits' lines and prints only
   their count: a person's step, after a review like the one above.
 * **CI** runs it as `make fixtures-check`, in the list beside
@@ -284,3 +284,14 @@ Answered 2026-10-19; each answer is in the decisions above.
 * Related: [0035-MADR](0035-MADR-maintainer-tools-in-python.md) (the
   tools' rules), [0046-MADR](0046-MADR-v1-15-0-follow-ups.md) (the claims
   plants it ran by hand), and AGENTS.md's "Identifiers" and "Tools".
+
+### A1 (2026-10-19): 133 baseline lines for the 134 hits
+
+* **Found** in 0047-PLAN Phase 1 step 2: `--write-baseline` wrote 133 lines
+  for 134 hits. Two of Together's model entries carry one UUID:
+  `mistralai/Mistral-7B-Instruct-v0.1` and `mistralai/Mistral-7B-Instruct-v0.3`
+  (fingerprint `2dd3fb6ddc44`) **[probed]**. The Context's own probe had said
+  "134 hit(s), 133 distinct"; D1 carried 134 into the baseline.
+* **The owner chose (2026-10-19):** a baseline line admits a value wherever
+  it occurs in its file, so the baseline is 133 lines for the 134 hits. D1
+  is annotated; no decision changes.

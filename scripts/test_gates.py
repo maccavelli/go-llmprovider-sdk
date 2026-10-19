@@ -36,6 +36,7 @@ GATES = {
     "api-check": "scripts/check_api.py",
     "records-check": "scripts/check_records.py",
     "tables-check": "scripts/check_tables.py",
+    "fixtures-check": "scripts/check_fixtures.py",
 }
 GENERATE_LINE = re.compile(r"^//go:generate .*$", re.M)
 
@@ -264,6 +265,40 @@ class GateSelfTest(unittest.TestCase):
             "//go:build live_gateways\n\npackage llmprovider_test\n\n// LLMPROVIDER_LIVE_0045_PLANTED is planted.\n",
             encoding="utf-8")
         self.assertFails("tables-check", "LLMPROVIDER_LIVE_0045_PLANTED")
+
+    # 0047-PLAN Phase 1 step 6: each value below is made up; none may be printed.
+    PLANT_FIXTURE = "llmprovider/catalog/testdata/zz_0047_plant.json"
+
+    def assertFixtureCaught(self, value: str, kind: str) -> None:
+        (self.tree / self.PLANT_FIXTURE).write_text('{"field": "' + value + '"}\n', encoding="utf-8")
+        proc = run_gate(self.tree, "fixtures-check")
+        out = proc.stdout + proc.stderr
+        self.assertEqual(proc.returncode, 1, f"fixtures-check exit {proc.returncode}, want 1:\n{out}")
+        self.assertIn(f"{self.PLANT_FIXTURE}:1:", out)
+        self.assertIn(f" {kind} ", out)
+        self.assertNotIn(value, out, "fixtures-check printed the value it found")
+
+    def test_fixtures_check_address(self) -> None:
+        self.assertFixtureCaught("jane.q.public@acme-widgets.io", "email")
+
+    def test_fixtures_check_account_id(self) -> None:
+        self.assertFixtureCaught("org-Zq7Rb2Lm9Xc4Vt8N", "account-id")
+
+    def test_fixtures_check_jwt(self) -> None:
+        self.assertFixtureCaught("eyJhbGciOiJub25lIn0.eyJzdWIiOiJwbGFudGVkLTAwNDcifQ.c2ln", "jwt")
+
+    def test_fixtures_check_stale_baseline_line(self) -> None:
+        baseline = self.tree / "scripts/fixtures-baseline.txt"
+        stale = "llmprovider/catalog/testdata/ranking-2026-10-12/together.json uuid 0047deadbeef"
+        baseline.write_text(baseline.read_text(encoding="utf-8") + stale + "\n", encoding="utf-8")
+        self.assertFails("fixtures-check", f"stale, no hit matches: {stale}")
+
+    def test_fixtures_check_placeholders_pass(self) -> None:
+        (self.tree / self.PLANT_FIXTURE).write_text(
+            '{"safety_identifier": "user-REDACTED", "prompt_cache_key": "00000000-0000-0000-0000-000000000000",'
+            ' "email": "user@example.com", "note": "user_message", "home": "/home/<user>/x"}\n', encoding="utf-8")
+        proc = run_gate(self.tree, "fixtures-check")
+        self.assertEqual(proc.returncode, 0, f"placeholders were reported:\n{proc.stdout}{proc.stderr}")
 
     def test_clean_copy_passes_every_gate(self) -> None:
         for gate in GATES:

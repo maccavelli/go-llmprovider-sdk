@@ -13,7 +13,7 @@ Exit codes, for every tool: **0** clean, **1** a finding, **2** a tool error.
 
 | Tool | What it does | Usage |
 | :--- | :--- | :--- |
-| `gate.py` | the local gate: 23 checks on a scratch clone of the working tree, staged there, started once the load average is below the CPU count | `tools/gate.py [--src DIR] [--out DIR] [--max-load N] [--timeout S]` |
+| `gate.py` | the local gate: 25 checks on a scratch clone of the working tree, staged there, started once the load average is below the CPU count | `tools/gate.py [--src DIR] [--out DIR] [--max-load N] [--timeout S]` |
 | `plant.py` | runs plants from a JSON spec on a scratch clone; fails if any plant is not caught | `tools/plant.py SPEC.json` |
 | `linkcheck.py` | every relative link in every Markdown file resolves | `tools/linkcheck.py [--detail FILE]` |
 | `denyscan.py` | no file names this machine's account, its host, or a real home path; it prints the kind of hit, never the identifier | `tools/denyscan.py FILE...` or `--changed` |
@@ -41,8 +41,8 @@ In order:
    `live_gateways`.
 3. `go test -race -cover`, then `go test -shuffle=on`.
 4. `go mod tidy -diff`, `lint`, `parity-check`, `dep-check`,
-   `coverage-check`, `api-check`, `generate-check`, `records-check` and
-   `gate-selftest`.
+   `coverage-check`, `api-check`, `generate-check`, `records-check`,
+   `tables-check`, `fixtures-check` and `gate-selftest`.
 5. markdownlint, on every Markdown file but the records.
 6. `TestWireGoldens` three times.
 7. The link check, and the identifier scan of the changed files.

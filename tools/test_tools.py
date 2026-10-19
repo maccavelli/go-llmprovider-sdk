@@ -201,7 +201,8 @@ class TestGateChecks(unittest.TestCase):
     def test_the_checks_and_their_order(self) -> None:
         want = ["pre-add-check", "vet-darwin", "vet-darwin-live", "vet-linux", "vet-linux-live", "vet-windows",
                 "vet-windows-live", "test-race-cover", "test-shuffle", "tidy-diff", "lint", "parity-check", "dep-check",
-                "coverage-check", "api-check", "generate-check", "records-check", "tables-check", "gate-selftest", "markdownlint",
+                "coverage-check", "api-check", "generate-check", "records-check", "tables-check", "fixtures-check",
+                "gate-selftest", "markdownlint",
                 "g-wire-stable", "g-links", "deny-scan", "tools-test"]
         self.assertEqual([c.name for c in gate.CHECKS], want)
 
