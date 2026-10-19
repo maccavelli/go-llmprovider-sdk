@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-19
 associated-madr: "0046-MADR-v1-15-0-follow-ups.md"
 decision-makers: repository owner
@@ -775,4 +775,51 @@ before Phase 1's record was written; the record above came after it.
   * `git diff --stat` touches six test files and the records; no
     production file or golden.
   * `tools/claims.py` on this PLAN: 31 of 31, with K29 retargeted.
+
+### Phase 3: the consumers' issues (2026-10-19)
+
+The owner committed Phase 2 as `c6c5716` ("committed, proceed").
+
+* **No deviation.**
+* **Step 1, the facts.**
+  * gobble-cli had moved from `ea509b6` to `8cad165`, with 18 uncommitted
+    files. `tools/claims.py` on 0046-MADR, with `--rev
+    gobble-cli=8cad165`, passed 39 of 39.
+  * The four new commits (personality and docs) and the uncommitted files
+    (compaction, `acpserver`'s tests) touch none of the files the issue
+    cites (`git diff HEAD --stat` over them printed nothing). `go.mod`
+    still pins `v1.13.0`.
+  * prepare-commit-msg was unchanged at `a04b617`, its tree clean.
+* **Step 2, the drafts.** Appendix B's two drafts were written to files,
+  their titles and bodies taken from the appendix as they stand.
+  `tools/denyscan.py` on the four files found 0 hits. Both were shown to
+  the owner in full. Both repositories have issues enabled.
+* **Step 3, opened** on the owner's word ("open both"), with `gh issue
+  create --body-file`:
+  * gobble-cli:
+    [maccavelli/gobble-cli#3](https://github.com/maccavelli/gobble-cli/issues/3);
+  * prepare-commit-msg:
+    [maccavelli/prepare-commit-msg#2](https://github.com/maccavelli/prepare-commit-msg/issues/2).
+
+  Each posted body, read back with `gh issue view --json body`, equals its
+  file. The only difference is the trailing newline the read adds.
+
+### Phase 4: the issues (2026-10-19)
+
+* **No deviation.**
+* **Step 1.** Appendix A's two comments were written to files.
+  `tools/denyscan.py` found 0 hits, and both were shown to the owner in
+  full. Both issues were open.
+* **Step 2,** on the owner's word ("post and close"): `gh issue comment
+  <n> --body-file`, then `gh issue close <n> --reason completed`.
+  * Issue 2:
+    [`#issuecomment-6258761450`](https://github.com/maccavelli/go-llmprovider-sdk/issues/2#issuecomment-6258761450);
+    closed, `COMPLETED`.
+  * Issue 3:
+    [`#issuecomment-6258761777`](https://github.com/maccavelli/go-llmprovider-sdk/issues/3#issuecomment-6258761777);
+    closed, `COMPLETED`.
+
+  Each comment, read back with `gh issue view --json comments`, equals its
+  file, but for the trailing newline the read adds.
+* **Step 3.** V1–V10 are met, so this PLAN is `complete`.
 
