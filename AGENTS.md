@@ -167,6 +167,11 @@ generate-check records-check tables-check fixtures-check gate-selftest`; run the
   planted false (0047-MADR).
 - `tools/edit.py SPEC.json` makes exact replacements, appends and new
   files, with any text read from a file beside the spec.
+- `go run ./llmprovider/internal/cmd/sdkaudit` reports the API's measures,
+  and `-check` the violations of R50–R52 (0048-MADR D8). It is the one
+  maintainer tool in Go, not Python, because it parses Go with `go/ast`, which
+  a regular expression cannot match; as a package of the module it meets the
+  module's rules (its R2 row, its tests, R47's 80 %).
 
 Write every script, loops and waits included, in Python, not shell. A
 script worth running twice belongs in `tools/`, with a test in

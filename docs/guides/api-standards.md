@@ -37,6 +37,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/internal/retired` | the retired model ids, with why (0033-MADR D4) | `llmprovider` |
   | `llmprovider/internal/catalogtool` | the maintainer tool's proposals for the static lists | `llmprovider`, `catalog`, `internal/retired` |
   | `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, run with `go run` | `llmprovider`, `catalog`, `internal/catalogtool`, `internal/transport` |
+  | `llmprovider/internal/cmd/sdkaudit` | the API audit's command, run with `go run` (0048) | the standard library |
   | `llmprovider/internal/ownerperm` | a directory and its files private to the current user: modes on Unix, a protected DACL on Windows through generated `syscall` bindings | the standard library |
   | `llmprovider/internal/filelock` | an exclusive OS lock on an open file: `flock` on Unix, `LockFileEx` on Windows through generated `syscall` bindings | the standard library |
   | `llmprovider/providers/<id>` | one provider or gateway family: `New`, its options, its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |

@@ -69,6 +69,7 @@ llmprovider/internal/wirecase/ G-wire's scenarios through the new API, for tests
 llmprovider/internal/retired/ the retired model ids, with why, for the catalog tests and the maintainer tool
 llmprovider/internal/catalogtool/ the maintainer tool's proposals for the static lists
 llmprovider/internal/cmd/catalogs/ the maintainer tool: go run, prints the proposals, edits nothing
+llmprovider/internal/cmd/sdkaudit/ the API audit: go run, reports or checks R50–R52, edits nothing
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
@@ -123,6 +124,7 @@ standard library is left out.
 | `llmprovider/internal/retired` | `IDs`, the retired model ids by provider, each with why (0033-MADR D4) | `llmprovider` |
 | `llmprovider/internal/catalogtool` | `Propose`, the maintainer tool's proposals: ids to remove from a static list, and models to add | `llmprovider`, `catalog`, `internal/retired` |
 | `llmprovider/internal/cmd/catalogs` | the maintainer tool's command, `go run ./llmprovider/internal/cmd/catalogs`: it reads models.dev and each keyed listing, and prints the proposals; `-snapshot` records the ranked listings, and `-firstparty` the first-party listings, every page, redacted | `llmprovider`, `catalog`, `internal/catalogtool`, `internal/transport` |
+| `llmprovider/internal/cmd/sdkaudit` | the API audit, `go run ./llmprovider/internal/cmd/sdkaudit`: the measures of 0048-MADR as JSON, or with `-check` the violations of R50–R52, from the source by `go/ast`; it changes nothing | the standard library |
 | `internal/ambientcheck` | `TestNoAmbientState`, which parses every non-test source for environment reads and global logging; no package API | the standard library |
 
 ## Package graph

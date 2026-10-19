@@ -454,3 +454,56 @@ kept command's exact R51 phrase, is the list of record.
   would fail it, so `go.mod` gets no toolchain line, as A1 says.
 * `tools/records.py status`: the MADR `accepted`, this PLAN `in-progress`,
   both index rows with them; "records-check: 0 problem(s)".
+
+### Phase 1: the audit command (2026-10-19)
+
+* **No deviation.** Phase 0 was committed by the owner as `72e70a0`.
+* **Steps 1–2.** `llmprovider/internal/cmd/sdkaudit/`: `main.go` (flags,
+  `run`, and a `writer` that keeps the first write error, as
+  `internal/cmd/catalogs`'s does), `audit.go` (`load`, and `-check`'s R50,
+  R51, R52), `measure.go` (the report). The standard library only.
+* **Step 3, the tests,** five on `testdata/bad` and `testdata/good` and one on
+  a failing writer:
+  * the report counts each planted defect once, and classes each of eight
+    package-level variables;
+  * `-check` names exactly R51 `Doer`, R52 `Quiet` and R50's two;
+  * the good module passes, its `internal/` package unread;
+  * `-rules` selects;
+  * six tool errors exit 2; a failed write exits 2.
+
+  An unparsable file is written by the test into a temporary directory, not
+  committed: a committed one fails `gofmt -l .`, which CI runs. Coverage
+  91.2 % (`make coverage-check`, against R47's 80 %).
+* **Step 4.** Rows in `docs/architecture.md`'s package table and tree, and in
+  R2's table, "the standard library"; `make tables-check`: "36 packages, 0
+  problem(s)".
+* **Step 5.** `tools/README.md`'s section "The one tool in Go", and AGENTS.md's
+  tools list.
+* **Step 6, red first,** `tools/plant.py`, the `_0048$` tests the command,
+  five plants, all caught:
+  * R50's `Output:` match made always true;
+  * R51's phrase emptied;
+  * R52's exemption list emptied;
+  * internal packages counted public;
+  * a failed write ignored.
+
+  The R52 plant was first not caught: the good module's `MarshalJSON` doc
+  said "error", which R52's pattern matches without the exemption. The doc
+  was reworded so only the exemption lets it pass, and the plant then failed
+  `TestCheckPassesTheGoodModule_0048`.
+* **Step 7, the baseline,** `go run ./llmprovider/internal/cmd/sdkaudit
+  -check .`, exit 1:
+  * R50: 18, the 15 public packages with no example and the package comments
+    of `llmprovider`, `llmprovider/providers` and `wizard`;
+  * R51: 78. The MADR's audit counted 76, as it took "concurrent" or
+    "goroutine"; the rule's phrase is "concurrent use", which the docs of
+    `auth.DeviceLogin` and `llmprovider.CommandToken` lack. Phase 3's list is
+    the 78;
+  * R52: 27, as the MADR.
+
+  The report on the tree gives the MADR's numbers: 15 packages, 199 exported
+  functions and methods, 82 types, 58 returning an error and 27 of them
+  naming one, 6 types speaking of concurrency.
+* **The gate:** `make pre-add-check` on the four Go files, "4 file(s) clean
+  (gofmt, golangci-lint, go vet, go test, govulncheck)"; `tools/gate.py`, 25
+  of 25 passed.

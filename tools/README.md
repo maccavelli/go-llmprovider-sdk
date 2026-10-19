@@ -68,3 +68,19 @@ spec can plant in `tools/` and run `make tools-test`'s command.
 `make tools-test` runs [`test_tools.py`](test_tools.py). Each tool there fails
 on a planted input and passes a clean one, in temporary directories. Run it
 after changing a tool. The gate runs it too.
+
+## The one tool in Go
+
+`llmprovider/internal/cmd/sdkaudit` is a maintainer tool written in Go, not
+Python, as 0048-MADR D8 decides: it parses the module with `go/ast`, which no
+regular expression matches. It lives beside `internal/cmd/catalogs`, as a
+package of the module, so the module's checks hold it: its rows in the
+package tables, its tests, and R47's 80 % coverage.
+
+```bash
+go run ./llmprovider/internal/cmd/sdkaudit            # the measures, as JSON
+go run ./llmprovider/internal/cmd/sdkaudit -check     # R50–R52's violations
+```
+
+With `-check` it exits 1 on a violation. `-rules` picks the rules, and
+`-codedoc` the packages whose comment must hold a code block.
