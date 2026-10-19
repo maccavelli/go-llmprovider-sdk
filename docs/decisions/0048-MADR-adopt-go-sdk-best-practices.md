@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-19
 decision-makers: repository owner
 consulted: the owner's "Best practices for designing and building a Go SDK" (2026-10-19), which synthesizes Effective Go, Go Code Review Comments, Google's Go Style Guide and the module compatibility rules; docs/guides/api-standards.md; a source audit of b8ffd4b (method below)

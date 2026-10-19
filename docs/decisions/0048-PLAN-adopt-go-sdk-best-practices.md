@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-19
 associated-madr: "0048-MADR-adopt-go-sdk-best-practices.md"
 decision-makers: repository owner
@@ -440,4 +440,17 @@ kept command's exact R51 phrase, is the list of record.
 
 ## Execution record
 
-(Empty until the PLAN is approved.)
+### Phase 0: records (2026-10-19)
+
+* **No deviation.**
+* The owner committed the MADR as `f8ab6bf` and this PLAN, with the MADR's
+  A1, as `21f9c73`, and pushed. The owner then said "accept and approve,
+  proceed to phase 0".
+* After this PLAN was written, the owner asked again for a `go 1.26.9`
+  floor, was shown that it needs a build-tag split or the removal of
+  `encoding/json/v2`, and kept `go 1.27.2` (A1 stands). The owner also chose
+  `toolchain go1.27.2`; on a scratch module, `go mod tidy` removes that line
+  when it equals the `go` line, and this repository's `go mod tidy -diff`
+  would fail it, so `go.mod` gets no toolchain line, as A1 says.
+* `tools/records.py status`: the MADR `accepted`, this PLAN `in-progress`,
+  both index rows with them; "records-check: 0 problem(s)".
