@@ -37,6 +37,7 @@ import linkcheck
 import liveskips
 import offline
 import plant
+import recordlint
 import records
 
 
@@ -302,6 +303,61 @@ class TestRecords(unittest.TestCase):
         rc, out = self.run_records("add", "docs/decisions/0002-PLAN-second.md")
         self.assertEqual(rc, 1, out)
         self.assertIn("no MADR numbered 0002", out)
+
+
+RECORD = "docs/decisions/0001-MADR-lint.md"
+RECORD_TEXT = "# Lint\n\n* one\n* two\n\nProse.\n"
+
+
+@unittest.skipUnless(shutil.which("markdownlint-cli2"), "markdownlint-cli2 is not on PATH")
+class TestRecordLint(unittest.TestCase):
+    """The repository config pins "-" markers; the records' "*" must not count (A2)."""
+
+    def setUp(self) -> None:
+        self.root = temp_repo(self)
+        (self.root / ".markdownlint-cli2.jsonc").write_text(
+            '{\n  // the repository\'s rules\n  "config": {"MD004": {"style": "dash"}, "MD013": false,},\n}\n')
+        (self.root / "docs/decisions").mkdir(parents=True)
+        (self.root / RECORD).write_text(RECORD_TEXT)
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-q", "-m", "seed")
+
+    def lint(self, *argv: str) -> tuple[int, str]:
+        return call(recordlint.main, "--root", str(self.root), *argv)
+
+    def test_an_added_finding_is_named_with_its_line(self) -> None:
+        (self.root / RECORD).write_text(RECORD_TEXT + "\n\n\nMore.\n")
+        rc, out = self.lint(RECORD)
+        self.assertEqual(rc, 1, out)
+        self.assertIn(f"{RECORD}: new findings", out)
+        self.assertRegex(out, rf"{RECORD}:\d+ MD012")
+
+    def test_old_findings_alone_pass(self) -> None:
+        (self.root / RECORD).write_text(RECORD_TEXT + "\n\n\nOld.\n")
+        git(self.root, "commit", "-q", "-am", "an old finding")
+        (self.root / RECORD).write_text(RECORD_TEXT + "\n\n\nOld.\n\nNew prose.\n")
+        rc, out = self.lint(RECORD)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("HEAD {'MD012': 2}, tree {'MD012': 2}", out)
+
+    def test_star_markers_and_tabs_in_code_are_the_records_convention(self) -> None:
+        (self.root / RECORD).write_text(RECORD_TEXT + "\n* three\n\n```go\nfunc f() {\n\treturn\n}\n```\n")
+        rc, out = self.lint(RECORD)
+        self.assertEqual(rc, 0, out)
+
+    def test_mixed_markers_are_a_finding(self) -> None:
+        (self.root / RECORD).write_text(RECORD_TEXT + "\n- three\n")
+        rc, out = self.lint(RECORD)
+        self.assertEqual(rc, 1, out)
+        self.assertRegex(out, rf"{RECORD}:\d+ MD004")
+
+    def test_a_new_record_is_compared_with_none(self) -> None:
+        new = "docs/decisions/0002-MADR-new.md"
+        (self.root / new).write_text("# New\n\n\n\nText.\n")
+        rc, out = self.lint("--changed")
+        self.assertEqual(rc, 1, out)
+        self.assertIn(f"{new}: new findings; HEAD {{}}", out)
+        self.assertNotIn(f"{RECORD}:", out)
 
 
 class TestScratchClone(unittest.TestCase):

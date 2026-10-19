@@ -173,8 +173,10 @@ Associated MADR: [0047-MADR-keep-five-more-scratch-helpers-as-tools.md](0047-MAD
 ### Phase 4: an edit's new markdownlint findings (D4)
 
 1. **`tools/recordlint.py`:** as MADR D4. markdownlint-cli2 runs with
-   `--no-globs` on a temporary copy at `HEAD` and on the tree's file, with
-   the repository's config. The findings are counted per rule.
+   `--no-globs` on a temporary copy at `HEAD` and ~~on the tree's file, with
+   the repository's config~~ on a temporary copy of the tree's file, with
+   the repository's rules and MD004 `consistent`, MD010 `code_blocks:
+   false` *(Deviation 2)*. The findings are counted per rule.
 2. **Tests:** a record with a finding added (exit 1, the line named); a
    record with only old findings (exit 0); a new record compared with
    none. They skip, with a reason, when markdownlint-cli2 is not on `PATH`.
@@ -336,3 +338,44 @@ Associated MADR: [0047-MADR-keep-five-more-scratch-helpers-as-tools.md](0047-MAD
 * **Step 5.** `tools/README.md`'s row.
 * **The gate:** `tools/gate.py`, 25 of 25 passed.
 
+### Deviation 2 (2026-10-19): the records are linted with their own conventions
+
+* **Found.** Before step 1, a probe of markdownlint-cli2 on the records:
+  18,871 MD004 and 8,873 MD010 findings under the repository's config, of
+  about 28,000 in all; a `--config` override loses to the config found from
+  each record's directory. With the records copied out and MD004
+  `consistent`, MD010 `code_blocks: false`: about 830 findings in 51 of 101
+  records.
+* **Resolution, the owner's (2026-10-19):** step 1 lints copies of both
+  versions with those two rules added. Step 1 is annotated; the MADR's A2
+  records the facts.
+
+### Phase 4: an edit's new markdownlint findings (2026-10-19)
+
+* **Deviation 2,** above, on the owner's choice. Phase 3 was committed by
+  the owner as `59d1611`.
+* **Step 1.** `tools/recordlint.py`: the repository's rules read from
+  `.markdownlint-cli2.jsonc` (comments and trailing commas removed), with
+  MD004 `consistent` and MD010 `code_blocks: false`; both versions copied
+  into a temporary directory with that config beside them, and linted
+  there; the count of each rule per record, `HEAD` against the tree; each
+  finding of a rule that rose, with its line. `--changed` takes the records
+  `git status` lists, untracked included; a record new since `HEAD` is
+  compared with none.
+* **Step 2.** Five `TestRecordLint` tests, on a temporary repository whose
+  config pins `-` markers: an added finding named with its line; old
+  findings alone pass (`HEAD {'MD012': 2}, tree {'MD012': 2}`); `*`
+  markers and tabs in a Go block pass; mixed markers are a finding; a new
+  record is compared with none. They skip when markdownlint-cli2 is not on
+  `PATH`; in the gate's run, none skipped. The second test first asserted
+  `'MD012': 1`, where three blank lines are two findings; its assertion was
+  corrected before any plant ran.
+* **Step 3, red first,** `tools/plant.py`, the `TestRecordLint` tests the
+  command:
+  * the tree compared with itself: three tests fail;
+  * MD004's override removed: three fail;
+  * MD010's override removed: one fails.
+* **Step 4.** `tools/README.md`'s row. On this PLAN and its MADR, as
+  changed: "no rule rose".
+* **The gate:** `tools/gate.py`, 25 of 25 passed; its `tools-test` ran
+  64 tests.

@@ -186,6 +186,9 @@ start, so a fixture holding account data cannot be merged.
   compared with no findings.
 * It respects a record's own `markdownlint-disable` comments, as
   markdownlint does.
+* *(A2, 2026-10-19)* Both versions are linted from copies in a temporary
+  directory, with the repository's rules and two for the records' own
+  conventions: MD004 `consistent` and MD010 `code_blocks: false`.
 
 ### D5. `tools/claims.py --plants SPEC.json`: plants of false claims
 
@@ -295,3 +298,22 @@ Answered 2026-10-19; each answer is in the decisions above.
 * **The owner chose (2026-10-19):** a baseline line admits a value wherever
   it occurs in its file, so the baseline is 133 lines for the 134 hits. D1
   is annotated; no decision changes.
+
+### A2 (2026-10-19): the records are linted with their own conventions
+
+* **Found** in 0047-PLAN Phase 4, before the tool was written **[probed]**:
+  under the repository's markdownlint config, the 101 records hold 18,871
+  MD004 findings and 8,873 MD010, against about 500 of every other rule
+  together. The config pins list markers to `-`; 95 records use `*`, as the
+  records' own convention asks. MD010's are gofmt tabs in quoted Go. Almost
+  every record edit adds one or the other, so D4 as written would flag
+  almost every edit.
+* A `--config` override does not take: markdownlint-cli2 still reads the
+  repository's config from each record's directory, and its MD004 wins
+  **[probed]**.
+* On copies in a temporary directory, with MD004 `consistent` (one marker
+  style per file) and MD010 `code_blocks: false`, the records hold about
+  830 findings in 51 of 101, each a real one, such as mixed markers or a
+  list without blank lines around it **[probed]**.
+* **The owner chose (2026-10-19):** D4 lints both versions from such copies,
+  with those two rules. No other decision changes.
