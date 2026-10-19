@@ -959,3 +959,23 @@ kept command's exact R51 phrase, is the list of record.
   rewritten too; the fragment dropped; links pointed at `main`; a missing
   file passing; `--repo` ignored.
 * **The gate:** `tools/gate.py` on the final tree, 27 of 27 passed.
+
+### Phase 7: release `v1.16.0` (2026-10-19)
+
+* **No deviation so far.** Phase 5 step 7 was committed by the owner as
+  `a63afbf`.
+* **Step 1.** `CHANGELOG.md`: `[Unreleased]` became `[v1.16.0] -
+  2026-10-19`, with Added (`catalog.Cache`, `catalog.WithCache`,
+  `providers.DefaultWith`; the examples), Changed (the stated concurrency
+  and errors) and Repository (the changelog and the Releases, the two gates,
+  R49 to R55); an empty `[Unreleased]` stays above it, and the comparison
+  links gain `v1.16.0`. "changelog-check: 24 release section(s), 0
+  problem(s)": the untagged section is newer than every tag. The date must
+  be the commit's that the tag names (R53): a tag on a later day's commit
+  fails `changelog-check` until the date is changed. The README's Status
+  names `v1.16.0`.
+* **Step 2, before the push:** `tools/gate.py`, 27 of 27 passed;
+  `tools/apidiff.py v1.15.0`, "Compatible changes:
+  ./llmprovider/catalog.Cache: added, ./llmprovider/catalog.WithCache:
+  added, ./llmprovider/providers.DefaultWith: added", nothing else; the
+  disclosure guard over the outgoing commits, once this one is committed.

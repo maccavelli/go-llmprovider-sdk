@@ -10,6 +10,8 @@ section.
 
 ## [Unreleased]
 
+## [v1.16.0] - 2026-10-19
+
 ### Added
 
 - `catalog.Cache` and `catalog.WithCache`: a cache a caller owns, for the
@@ -28,6 +30,14 @@ section.
   every function that returns an error names the kinds it returns (D3, D4).
   `wizard.TextPrompter` is documented not safe for concurrent use: two reads
   at once race on its reader.
+
+### Repository
+
+- `CHANGELOG.md`, from `v1.0.0`, and a GitHub Release for each tag, made by
+  CI's `release` job from the tag's section (D5). `make changelog-check`
+  holds the changelog to the tags, and `make docs-check` the examples and
+  the concurrency and error docs (D8).
+- The standards guide's R49 to R55 (D8).
 
 ## [v1.15.0] - 2026-10-18
 
@@ -433,7 +443,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.15.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.16.0...HEAD
+[v1.16.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.15.0...v1.16.0
 [v1.15.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.14.0...v1.15.0
 [v1.14.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.13.0...v1.14.0
 [v1.13.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.12.0...v1.13.0
