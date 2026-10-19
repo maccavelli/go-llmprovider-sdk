@@ -8,7 +8,7 @@ informed: maintainers, agents, and the SDK's consumers (prepare-commit-msg, gobb
 
 <!-- markdownlint-disable MD013 -->
 
-# Close the SDK's Gaps Against Go SDK Practice: Injectable Caches, Runnable Examples, Stated Concurrency and Errors, a Changelog, a Go 1.26.9 Floor, and Reviewed Exports
+# Close the SDK's Gaps Against Go SDK Practice: Injectable Caches, Runnable Examples, Stated Concurrency and Errors, a Changelog, and Reviewed Exports
 
 ## Context and Problem Statement
 
@@ -261,19 +261,23 @@ and a rule with a check keeps the module from drifting back.
   (Q3). The 23 past tags get theirs once, from the built changelog.
 * The README's Status keeps the current release, and links the changelog.
 
-### D6. A Go 1.26.9 floor, this repository on the newest (G6)
+### D6. ~~A Go 1.26.9 floor, this repository on the newest~~ The Go floor stays `go 1.27.2`, with its reasons (G6; A1)
 
-* `go.mod` says `go 1.26.9`: the older supported major's newest patch, the
+* *(A1, 2026-10-19: the floor stays `go 1.27.2`, CI its one version, and no
+  `toolchain` line. `api-standards.md` states the two reasons: the module
+  uses `encoding/json/v2`, standard library only from Go 1.27.0, and 1.27.2
+  carries the 2026-10-08 security fixes. The bullets below are struck.)*
+* ~~`go.mod` says `go 1.26.9`: the older supported major's newest patch, the
   widest floor that still carries the 2026-10-08 security fixes to
-  `net/http`, `crypto/tls`, `net/textproto` and `os` (Q1).
-* `go.mod` also says `toolchain go1.27.2`, so this repository's own builds,
-  tests and CI use the newest patch; a consumer needs only the floor.
-* CI tests both: the floor job with Go 1.26.9 and `GOTOOLCHAIN=local`, so the
-  toolchain line does not raise it, and the newest with 1.27.2.
-* That the module builds and passes its tests on Go 1.26.9 is measured
-  first, on a scratch clone; a failure stops the work for the owner.
-* AGENTS.md's "Requires Go 1.27.2", the README's Status and
-  `api-standards.md` follow.
+  `net/http`, `crypto/tls`, `net/textproto` and `os` (Q1).~~
+* ~~`go.mod` also says `toolchain go1.27.2`, so this repository's own builds,
+  tests and CI use the newest patch; a consumer needs only the floor.~~
+* ~~CI tests both: the floor job with Go 1.26.9 and `GOTOOLCHAIN=local`, so the
+  toolchain line does not raise it, and the newest with 1.27.2.~~
+* ~~That the module builds and passes its tests on Go 1.26.9 is measured
+  first, on a scratch clone; a failure stops the work for the owner.~~
+* ~~AGENTS.md's "Requires Go 1.27.2", the README's Status and
+  `api-standards.md` follow.~~
 
 ### D7. A review of new exports (G7)
 
@@ -304,11 +308,11 @@ and a rule with a check keeps the module from drifting back.
 * Good, because a caller implementing `TokenSource` or `TokenStore` learns its
   contract from the doc.
 * Neutral, because X1–X3 stay as they are, now with written reasons.
-* Good, because a consumer on Go 1.26.9 can build the SDK, and still has the
-  October security fixes.
+* ~~Good, because a consumer on Go 1.26.9 can build the SDK, and still has the
+  October security fixes.~~ *(A1)*
 * Bad, because there is more API (`catalog.Cache`, `WithCache`,
-  `providers.DefaultWith`), more gates, a second Go version in CI, and a Go
-  maintainer command to keep.
+  `providers.DefaultWith`), more gates, ~~a second Go version in CI,~~ and a
+  Go maintainer command to keep *(A1)*.
 
 ### Confirmation
 
@@ -320,7 +324,7 @@ and a rule with a check keeps the module from drifting back.
   no per-run key.
 * A tag without a changelog section fails CI, and a tag with one gets its
   Release.
-* CI green on Go 1.26.9 (`GOTOOLCHAIN=local`) and on 1.27.2.
+* ~~CI green on Go 1.26.9 (`GOTOOLCHAIN=local`) and on 1.27.2.~~ *(A1)*
 
 ## Pros and Cons of the Options
 
@@ -355,7 +359,7 @@ Answered 2026-10-19; each answer is in the decisions above.
   (D6). The owner first kept `go 1.27.2` for its security fixes, then chose
   `go 1.26.8`; Go's release history showed that 1.26.8 lacks the 2026-10-08
   security fixes to `net/http` and `crypto/tls`, which 1.26.9 carries, and
-  the owner took 1.26.9.
+  the owner took 1.26.9. *Then, with A1's fact, the owner kept `go 1.27.2`.*
 * **Q2. D1's shape.** **The owner: one `catalog.Cache`, and the default
   registry can take it.** Since `Default()`'s signature is under R48, that is
   an additive `providers.DefaultWith` (D1).
@@ -402,3 +406,30 @@ Answered 2026-10-19; each answer is in the decisions above.
   and [0047-MADR](0047-MADR-keep-five-more-scratch-helpers-as-tools.md) (the
   tools), [0041-MADR](0041-MADR-decide-per-model-behaviour-from-metadata.md)
   (the listing cache, D6).
+
+### A1 (2026-10-19): the floor stays `go 1.27.2`, because the module needs Go 1.27
+
+* **Found** while grounding 0048-PLAN: the module imports
+  `encoding/json/v2` and `encoding/json/jsontext` (C23, C24), which Go's
+  release notes list among Go 1.27's new packages (go.dev/doc/go1.27)
+  **[read]**; before 1.27 they were behind the `jsonv2` experiment. So a
+  `go 1.26.9` floor cannot build `catalog` or `internal/wire/messages`
+  **[derived]**. No other Go 1.27 API, and no generic method, is used: each
+  of the release notes' new names was searched for in the module's Go files
+  **[probed]**.
+* **The uses are decisions:** 0028-MADR's amendments of 2026-10-08 (decoding
+  models.dev with json/v2 took 4.71 MB against 19.24 MB, 75 % less) and of
+  2026-10-09 (the Messages wire's typed encoder, 13.7 µs and 4 allocations
+  against 54.3 µs and 1,008) **[read]**.
+* **Weighed:** a build-tag split keeping both encoders, or dropping json/v2.
+  Go 1.26 leaves support when Go 1.28 ships, due about February 2027 on Go's
+  six-month cadence **[derived]**, and every consumer is on 1.27.2 already
+  **[read]**.
+* **The owner chose (2026-10-19):** keep `go 1.27.2`. D6 is struck and
+  rewritten; the title drops "a Go 1.26.9 Floor"; G6 is closed by the stated
+  reasons, not by a lower floor.
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| C23 | `catalog` imports json/v2 | `llmprovider/catalog/model_metadata.go:7` | `jsonv2 "encoding/json/v2"` |
+| C24 | The Messages wire imports jsontext | `llmprovider/internal/wire/messages/messages.go:8` | `"encoding/json/jsontext"` |
