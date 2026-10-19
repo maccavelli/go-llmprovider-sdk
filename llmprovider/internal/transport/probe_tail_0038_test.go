@@ -65,7 +65,7 @@ func TestProbeCached_KeepsTheTail(t *testing.T) {
 	probe, calls := failingProbe("m2")
 	want := []string{"m1", "m3", "m4", "m5", "m6", "m7", "m8", "m9"}
 	for i := range 2 {
-		if got := ProbeGenerateHealthCached(context.Background(), key, nineIDs, 6, probe); !slices.Equal(got, want) {
+		if got := ProbeGenerateHealthCached(context.Background(), nil, key, nineIDs, 6, probe); !slices.Equal(got, want) {
 			t.Errorf("listing %d: %v; want %v", i+1, got, want)
 		}
 	}

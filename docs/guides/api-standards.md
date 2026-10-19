@@ -24,14 +24,15 @@ tool that holds a rule, where one does. For how the code is laid out, read
 - **R2. A package holds one concern**, and imports only what the table allows.
   Only `wizard` may leave the standard library, and then only for
   `golang.org/x/term`. (0015 D2, D13; the table's `internal/wire` rows, 0026
-  F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4)
+  F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
   | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport` |
   | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
-  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt` |
+  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref` |
   | `llmprovider/internal/kiloendpoint` | Kilo's endpoints, derived from a credential | the standard library |
+  | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport` |
   | `llmprovider/internal/listlimit` | `catalog.WithLimit`'s value, for `catalog` and the providers that cut their own fallback listings with it | the standard library |
   | `llmprovider/internal/chatgpt` | a ChatGPT session's check, headers and listing request, and a ChatGPT plan session's check and listing request, for `catalog`'s `ListRaw` and `providers/openai` | `llmprovider`, `auth`, `internal/transport` |
   | `llmprovider/internal/retired` | the retired model ids, with why (0033-MADR D4) | `llmprovider` |
@@ -41,7 +42,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/internal/ownerperm` | a directory and its files private to the current user: modes on Unix, a protected DACL on Windows through generated `syscall` bindings | the standard library |
   | `llmprovider/internal/filelock` | an exclusive OS lock on an open file: `flock` on Unix, `LockFileEx` on Windows through generated `syscall` bindings | the standard library |
   | `llmprovider/providers/<id>` | one provider or gateway family: `New`, its options, its `Descriptor` | `llmprovider`, `auth`, `catalog`, internal packages |
-  | `llmprovider/providers` | `Default()` and `New(id, opts...)` | `llmprovider` and the provider packages |
+  | `llmprovider/providers` | `Default()`, `DefaultWith(opts...)` and `New(id, opts...)` | `llmprovider` and the provider packages |
   | `llmprovider/llmtest` | the conformance suite and `Fake` | `llmprovider` |
   | `llmprovider/internal/wire` | what the shared wire formats have in common | `llmprovider`, `internal/transport`, `internal/redact` |
   | `llmprovider/internal/wire/<format>` | one wire format | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact`, `internal/wire/deferral` |

@@ -110,10 +110,10 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	if src != nil && listingLayers[id] {
 		if token, err := src.Token(ctx); err == nil {
 			key := listingKeyFor(id, cfg, token)
-			models, fresh := cachedListing(key)
+			models, fresh := cfg.store.cachedListing(key)
 			lst, lstOK = models[model]
 			if !fresh || (id == llmprovider.ProviderOllama && !lstOK) {
-				startListingFetch(ctx, id, src, model, cfg, key)
+				cfg.store.startListingFetch(ctx, id, src, model, cfg, key)
 			}
 		}
 	}
@@ -149,7 +149,7 @@ func CachedFacts(ctx context.Context, provider llmprovider.ProviderID, model str
 	}
 	if cfg.tokens != nil && listingLayers[id] {
 		if token, err := cfg.tokens.Token(ctx); err == nil {
-			models, _ := cachedListing(listingKeyFor(id, cfg, token))
+			models, _ := cfg.store.cachedListing(listingKeyFor(id, cfg, token))
 			lst, lstOK = models[model]
 		}
 	}
@@ -165,7 +165,7 @@ func listingModel(ctx context.Context, id llmprovider.ProviderID, src llmprovide
 	if err != nil {
 		return ModelInfo{}, false, fmt.Errorf("acquire token: %w", err)
 	}
-	if models, fresh := cachedListing(listingKeyFor(id, cfg, token)); fresh {
+	if models, fresh := cfg.store.cachedListing(listingKeyFor(id, cfg, token)); fresh {
 		if info, ok := models[model]; ok || id != llmprovider.ProviderOllama {
 			return info, ok, nil
 		}

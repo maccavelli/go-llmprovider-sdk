@@ -57,6 +57,8 @@ type config struct {
 	// sink, when set, receives what a listing says of each model it lists
 	// (0033-MADR D2).
 	sink func(ModelInfo)
+	// store is WithCache's, else the process's (0048-MADR D1).
+	store *store
 }
 
 // emit hands one listed model's metadata to the sink, if there is one.
@@ -192,6 +194,7 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 		}
 	}
 	cfg.limit = listlimit.Of(st.Values())
+	cfg.store = storeIn(st.Values())
 	return cfg, nil
 }
 

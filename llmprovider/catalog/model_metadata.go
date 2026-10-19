@@ -310,14 +310,15 @@ func cachedMetadata(ctx context.Context, cfg config) (Metadata, bool) {
 		return Metadata{}, false
 	}
 	url := modelMetadataURL(cfg)
-	modelMetadataMu.Lock()
-	defer modelMetadataMu.Unlock()
-	e := modelMetadataCache[url]
+	c := cfg.store
+	c.metadataMu.Lock()
+	defer c.metadataMu.Unlock()
+	e := c.metadata[url]
 	now := metadataNow()
 	fresh := e.doc != nil && now.Sub(e.fetched) < modelMetadataTTL
 	backingOff := !e.failed.IsZero() && now.Sub(e.failed) < modelMetadataRetryAfter
 	if !fresh && !backingOff {
-		startMetadataFetch(ctx, url, cfg)
+		c.startMetadataFetch(ctx, url, cfg)
 	}
 	return Metadata{doc: e.doc}, e.doc != nil
 }
@@ -329,9 +330,10 @@ func peekMetadata(cfg config) (Metadata, bool) {
 	if cfg.metadataOff {
 		return Metadata{}, false
 	}
-	modelMetadataMu.Lock()
-	defer modelMetadataMu.Unlock()
-	e := modelMetadataCache[modelMetadataURL(cfg)]
+	c := cfg.store
+	c.metadataMu.Lock()
+	defer c.metadataMu.Unlock()
+	e := c.metadata[modelMetadataURL(cfg)]
 	return Metadata{doc: e.doc}, e.doc != nil
 }
 
@@ -396,15 +398,7 @@ type metadataFetch struct {
 }
 
 var (
-	modelMetadataMu    sync.Mutex
-	modelMetadataCache = map[string]modelMetadataCacheEntry{}
-	// modelMetadataFetches holds each URL's fetch in flight, under
-	// modelMetadataMu.
-	modelMetadataFetches = map[string]*metadataFetch{}
-	// metadataFetching counts the fetches in flight, so that tests can wait
-	// for a background refresh.
-	metadataFetching sync.WaitGroup
-	// metadataNow is the cache's clock. Tests move it.
+	// metadataNow is the caches' clock. Tests move it.
 	metadataNow = time.Now
 	// metadataDecodes counts decodeModelMetadata's calls, so that tests can
 	// tell a revalidation from a download.
@@ -458,19 +452,20 @@ func loadModelMetadata(ctx context.Context, cfg config) (*modelMetadataDoc, erro
 		return nil, errModelMetadataDisabled
 	}
 	url := modelMetadataURL(cfg)
-	modelMetadataMu.Lock()
-	e := modelMetadataCache[url]
+	c := cfg.store
+	c.metadataMu.Lock()
+	e := c.metadata[url]
 	now := metadataNow()
 	switch {
 	case e.doc != nil && now.Sub(e.fetched) < modelMetadataTTL:
-		modelMetadataMu.Unlock()
+		c.metadataMu.Unlock()
 		return e.doc, nil
 	case !e.failed.IsZero() && now.Sub(e.failed) < modelMetadataRetryAfter:
-		modelMetadataMu.Unlock()
+		c.metadataMu.Unlock()
 		return e.cached()
 	}
-	fetch := startMetadataFetch(ctx, url, cfg)
-	modelMetadataMu.Unlock()
+	fetch := c.startMetadataFetch(ctx, url, cfg)
+	c.metadataMu.Unlock()
 	if e.doc != nil {
 		return e.doc, nil
 	}
@@ -483,30 +478,30 @@ func loadModelMetadata(ctx context.Context, cfg config) (*modelMetadataDoc, erro
 }
 
 // startMetadataFetch returns url's fetch in flight, starting one when there
-// is none. modelMetadataMu is held.
-func startMetadataFetch(ctx context.Context, url string, cfg config) *metadataFetch {
-	if fetch := modelMetadataFetches[url]; fetch != nil {
+// is none. c.metadataMu is held.
+func (c *store) startMetadataFetch(ctx context.Context, url string, cfg config) *metadataFetch {
+	if fetch := c.metadataFetches[url]; fetch != nil {
 		return fetch
 	}
 	fetch := &metadataFetch{done: make(chan struct{})}
-	modelMetadataFetches[url] = fetch
+	c.metadataFetches[url] = fetch
 	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataFetchTimeout)
 	// The document the cache holds, and its ETag, for a revalidation.
-	held := modelMetadataCache[url]
-	metadataFetching.Go(func() {
+	held := c.metadata[url]
+	c.metadataFetching.Go(func() {
 		defer cancel()
 		doc, etag, err := fetchModelMetadata(fetchCtx, url, cfg, held)
-		modelMetadataMu.Lock()
-		e := modelMetadataCache[url]
+		c.metadataMu.Lock()
+		e := c.metadata[url]
 		if err != nil {
 			e.failed, e.err = metadataNow(), err
 		} else {
 			e = modelMetadataCacheEntry{doc: doc, etag: etag, fetched: metadataNow()}
 		}
-		modelMetadataCache[url] = e
-		delete(modelMetadataFetches, url)
+		c.metadata[url] = e
+		delete(c.metadataFetches, url)
 		fetch.doc, fetch.err = e.cached()
-		modelMetadataMu.Unlock()
+		c.metadataMu.Unlock()
 		close(fetch.done)
 	})
 	return fetch

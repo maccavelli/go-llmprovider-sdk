@@ -92,11 +92,11 @@ func TestProbeCache_ProviderKeyIsFingerprinted(t *testing.T) {
 	var probed atomic.Int32
 	probe := func(context.Context, string) (string, error) { probed.Add(1); return "hello", nil }
 	byFingerprint := transport.ProbeKey{Provider: string(llmprovider.ProviderOpenAI), BaseURL: srv.URL, Credential: transport.Fingerprint(key)}
-	if _ = transport.ProbeGenerateHealthCached(context.Background(), byFingerprint, models, catalog.MaxListed, probe); probed.Load() != 0 {
+	if _ = transport.ProbeGenerateHealthCached(context.Background(), nil, byFingerprint, models, catalog.MaxListed, probe); probed.Load() != 0 {
 		t.Errorf("by the fingerprint: %d probes; want the cached entry", probed.Load())
 	}
 	byKey := transport.ProbeKey{Provider: string(llmprovider.ProviderOpenAI), BaseURL: srv.URL, Credential: key}
-	if _ = transport.ProbeGenerateHealthCached(context.Background(), byKey, models, catalog.MaxListed, probe); probed.Load() == 0 {
+	if _ = transport.ProbeGenerateHealthCached(context.Background(), nil, byKey, models, catalog.MaxListed, probe); probed.Load() == 0 {
 		t.Error("by the key itself: answered from the cache; want no entry under the raw key")
 	}
 }

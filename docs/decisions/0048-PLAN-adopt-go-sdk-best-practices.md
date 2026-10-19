@@ -507,3 +507,108 @@ kept command's exact R51 phrase, is the list of record.
 * **The gate:** `make pre-add-check` on the four Go files, "4 file(s) clean
   (gofmt, golangci-lint, go vet, go test, govulncheck)"; `tools/gate.py`, 25
   of 25 passed.
+
+### Phase 2: caches a caller can own (2026-10-19)
+
+* **No deviation.** Phase 1 was committed by the owner as `0e6736a`. A first
+  draft named the catalog's state `cacheState`, read it through a `config`
+  method, gave `ProbeStore` a `GenerateHealth` method and gave
+  `wire.ProbeHealth` the `*cacheref.Value`. Before the tests were planted,
+  the code was brought to steps 1, 2 and 4 as written: `store`,
+  `processStore` and the field `cfg.store`; `ProbeGenerateHealthCached(ctx,
+  s *ProbeStore, …)`; `wire.ProbeHealth(ctx, probes *transport.ProbeStore,
+  …)`.
+* **Step 1.** `internal/transport/probe.go`: `ProbeStore` (its mutex and
+  map), `NewProbeStore`, the process's `defaultProbes`;
+  `ProbeGenerateHealthCached` takes the store, nil meaning the process's.
+  Its eight callers in tests pass nil. `probeCacheNow` stays the clock.
+* **Step 2.** `catalog/cache.go`: the unexported `store` (the listing state
+  of `listing_cache.go` and the metadata state of `model_metadata.go`, each
+  under its own lock), `newStore`, `processStore`, and `storeIn`, which reads
+  a `*cacheref.Value` from the options. `configFor` sets `cfg.store`; the
+  listing and metadata functions became methods on `*store`, and their
+  callers read `cfg.store`. `defaultConfig` builds through `configFor`, so it
+  keeps the process's. `listingNow` and `metadataNow` stay the clocks.
+  `resetListingCache` and `resetModelMetadataCache` reset `processStore`;
+  one test that builds a `config` literal (`menu_0041_test.go`) names
+  `processStore`.
+* **Step 3.** `internal/cacheref`: `Value{Catalog any; Probes
+  *transport.ProbeStore}`, `From` (the last `*Value` wins) and a nil-safe
+  `ProbeStore`. Rows in both package tables; `make tables-check`: "37
+  packages, 0 problem(s)". Its own test (`cacheref_0048_test.go`), 100 %:
+  without one `make coverage-check` measures it at 0 % against R47's 80 %.
+* **Step 4.** `catalog.Cache` (a `sync.Once` and the `*cacheref.Value`;
+  zero value ready; safe for concurrent use; not to be copied after first
+  use) and `catalog.WithCache`, scoped to `builtinIDs`. The five probing
+  providers (`gemini`, `claude`, `grok`, `ollama`, `openai`) keep
+  `cacheref.From(st.Values())` in `New` and pass `p.cache.ProbeStore()` to
+  `wire.ProbeHealth`. `providers.DefaultWith(opts...)`: `Default()` is
+  `DefaultWith()`; each built-in's factory is wrapped to call it with a copy
+  of `opts` and then the call's own.
+* **Step 5, the tests** (`_0048$`), all passing, also under `-race`:
+  * `catalog/cache_0048_test.go`: two zero `Cache` values and the process's
+    each fetch Together's listing once; `WithCache(nil)` is the process's; of
+    two `WithCache`, the last wins; a provider from `providers.New(Together,
+    …, WithCache(&a))` lists into `a`, where `CachedFacts` finds the model,
+    and not into `b`; 32 goroutines listing through one `Cache` send one
+    request;
+  * `internal/transport/probe_store_0048_test.go`: two stores and the
+    process's probe separately; `ProbeGenerateHealthCached(nil)` reads the
+    process's;
+  * `providers/defaultwith_0048_test.go`: an option scoped to no built-in is
+    refused by each of the ten built-ins' `New`, so it reached each; a later
+    `WithAPIKey` wins (Claude's `x-api-key` on a fake server); a factory the
+    caller registers is given no option;
+  * beyond the step's list, so that the probe plumbing is tested where it
+    runs: `internal/wire/probe_0048_test.go` (`ProbeHealth` probes through
+    the store it is given) and `providers/openai/probe_cache_0048_test.go` (a
+    provider built `WithCache(&a)` keeps its probes in `a`: 3, 0, then 3
+    through `b` and 3 through the process's); and
+    `internal/cacheref/cacheref_0048_test.go`.
+* **Step 6, red first,** `tools/plant.py`, nine plants, all caught:
+  * `configFor` ignoring `WithCache`: "cache_0048_test.go:74: step 2: 1
+    listing request(s), want 2";
+  * `DefaultWith` dropping `opts`: "defaultwith_0048_test.go:32: gemini: New
+    = \<nil\>; want the foreign option refused", and the nine others;
+  * `ProbeHealth` ignoring its store: "probe_0048_test.go:29: step 2: 2
+    probes in all; want 4";
+  * a nil `ProbeStore` not the process's: "probe_store_0048_test.go:26: step
+    4: 12 probes in all, want 9";
+  * `storeIn` dropping the value it finds: "cache_0048_test.go:99:
+    CachedFacts found the model in a cache the provider was not given";
+  * OpenAI passing no store, and OpenAI's `New` dropping the cache:
+    "probe_cache_0048_test.go:27: step 2: 0 probes; want 3";
+  * `From` taking the first `*Value`: "cacheref_0048_test.go:26: case 3";
+  * a nil `Value` given a store: "cacheref_0048_test.go:36: nil Value's
+    ProbeStore = …; want nil".
+* **Not covered:** the probe call sites of Gemini, Claude, Grok and Ollama
+  are the same line as OpenAI's, `wire.ProbeHealth(ctx,
+  p.cache.ProbeStore(), …)`, but no test lists through those providers with
+  a `Cache`; a plant there would not be caught. Their listings and facts are
+  covered through `catalog`, which every provider's `p.listing` reaches.
+* **Step 7, D7,** each export with the call site that needs it:
+  * `catalog.Cache`: a test that keeps its listings apart from every other
+    test's, prepare-commit-msg's case (the MADR's C18), here
+    `TestCache_KeepsListingsApart_0048`;
+  * `catalog.WithCache`: a process that keeps more than one configuration,
+    each provider given its own cache;
+  * `providers.DefaultWith`: a `Registry` whose providers share one cache,
+    `providers.DefaultWith(catalog.WithCache(&c))`, as the README shows.
+* **Step 8.** `docs/architecture.md`: the tree, the rows of `providers`,
+  `catalog`, `internal/wire`, `internal/transport` and the new
+  `internal/cacheref`, the five providers' imports, and a paragraph on whose
+  caches a listing reads. R2's table: the `catalog` row (`Cache`, and
+  `internal/cacheref` among its imports), the `providers` row
+  (`DefaultWith`), the `internal/cacheref` row, and its citation. The
+  README: a section "Caches".
+* **The API:** `tools/apidiff.py v1.15.0`: "Compatible changes:
+  ./llmprovider/providers.DefaultWith: added, ./llmprovider/catalog.Cache:
+  added, ./llmprovider/catalog.WithCache: added", and nothing else. No golden
+  changed.
+* **The gate:** `go test -count=1 ./...`, 34 packages ok; `-race` on
+  `catalog`, `providers/...`, `internal/transport` and `internal/wire`, ok;
+  `make pre-add-check` on the phase's 31 Go files, in two runs, "30 file(s)
+  clean" and, for `cacheref`'s two, "2 file(s) clean (gofmt, golangci-lint,
+  go vet, go test, govulncheck)"; `tools/claims.py`, this PLAN 26 of 26 and
+  the MADR 24 of 24; `tools/gate.py` on the final tree, 25 of 25 passed,
+  `coverage-check` among them.

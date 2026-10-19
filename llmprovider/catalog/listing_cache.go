@@ -4,7 +4,6 @@ import (
 	"context"
 	"maps"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -60,72 +59,61 @@ type listingFetchKey struct {
 	model string
 }
 
-var (
-	listingMu    sync.Mutex
-	listingCache = map[listingKey]listingEntry{}
-	// listingInFlight holds the background fetches running, under listingMu.
-	listingInFlight = map[listingFetchKey]bool{}
-	// listingClaims holds, under listingMu, the listings being fetched by
-	// a List, each closed when its fetch ends (0041-MADR D6).
-	listingClaims = map[listingKey]chan struct{}{}
-	// listingFetching counts the background fetches, so tests can wait.
-	listingFetching sync.WaitGroup
-	// listingNow is the cache's clock. Tests move it.
-	listingNow = time.Now
-)
+// listingNow is the caches' clock. Tests move it.
+var listingNow = time.Now
 
 // storeListing records a listing's metadata. With merge, the models are added
 // to a fresh entry rather than replacing it, as Ollama's are, one by one.
-func storeListing(key listingKey, models map[string]ModelInfo, merge bool) {
-	listingMu.Lock()
-	defer listingMu.Unlock()
+func (c *store) storeListing(key listingKey, models map[string]ModelInfo, merge bool) {
+	c.listingMu.Lock()
+	defer c.listingMu.Unlock()
 	now := listingNow()
-	e := listingCache[key]
+	e := c.listing[key]
 	if !merge || e.models == nil || now.Sub(e.fetched) >= listingMetadataTTL {
 		// The listing itself is kept: it has its own times.
-		listingCache[key] = listingEntry{models: maps.Clone(models), fetched: now, listing: e.listing,
+		c.listing[key] = listingEntry{models: maps.Clone(models), fetched: now, listing: e.listing,
 			listedAt: e.listedAt}
 		return
 	}
 	next := maps.Clone(e.models)
 	maps.Copy(next, models)
-	listingCache[key] = listingEntry{models: next, fetched: e.fetched}
+	c.listing[key] = listingEntry{models: next, fetched: e.fetched}
 }
 
 // cachedListing returns a listing's metadata, and whether it is fresh. Stale
 // metadata is still returned, for the caller to use while it refreshes.
-func cachedListing(key listingKey) (map[string]ModelInfo, bool) {
-	listingMu.Lock()
-	defer listingMu.Unlock()
-	e := listingCache[key]
+func (c *store) cachedListing(key listingKey) (map[string]ModelInfo, bool) {
+	c.listingMu.Lock()
+	defer c.listingMu.Unlock()
+	e := c.listing[key]
 	return e.models, e.models != nil && listingNow().Sub(e.fetched) < listingMetadataTTL
 }
 
 // storeFetched records a listing as fetched, and its models' metadata when
 // it has any, and returns when it was read. A listing with no usable id is
 // not kept: it is no last good listing (0041-MADR D6).
-func storeFetched(key listingKey, f fetchedListing, models map[string]ModelInfo) time.Time {
+func (c *store) storeFetched(key listingKey, f fetchedListing, models map[string]ModelInfo) time.Time {
 	if len(models) > 0 {
-		storeListing(key, models, false)
+		c.storeListing(key, models, false)
 	}
-	listingMu.Lock()
-	defer listingMu.Unlock()
+	c.listingMu.Lock()
+	defer c.listingMu.Unlock()
 	now := listingNow()
 	if len(uniqueIDs(f.usable)) == 0 {
 		return now
 	}
-	e := listingCache[key]
+	e := c.listing[key]
 	e.listing, e.listedAt = &fetchedListing{usable: slices.Clone(f.usable), kilo: slices.Clone(f.kilo)}, now
-	listingCache[key] = e
+	c.listing[key] = e
 	return now
 }
 
 // freshListing is key's listing while it is younger than
 // listingMetadataTTL, and when it was read.
-func freshListing(key listingKey) (fetchedListing, time.Time, bool) {
-	listingMu.Lock()
-	defer listingMu.Unlock()
-	e := listingCache[key]
+func (c *store) freshListing(key listingKey) (fetchedListing, time.Time, bool) {
+	c.listingMu.Lock()
+	defer c.listingMu.Unlock()
+	e := c.listing[key]
 	if e.listing == nil || listingNow().Sub(e.listedAt) >= listingMetadataTTL {
 		return fetchedListing{}, time.Time{}, false
 	}
@@ -135,11 +123,11 @@ func freshListing(key listingKey) (fetchedListing, time.Time, bool) {
 // lastGoodListing is the listing a transient failure serves: key's cached
 // one, read within lastGoodWindow, else the one WithLastGood hands in,
 // within the same window (0041-MADR D6).
-func lastGoodListing(key listingKey, cfg config) (fetchedListing, time.Time, bool) {
-	listingMu.Lock()
-	e := listingCache[key]
+func (c *store) lastGoodListing(key listingKey, cfg config) (fetchedListing, time.Time, bool) {
+	c.listingMu.Lock()
+	e := c.listing[key]
 	now := listingNow()
-	listingMu.Unlock()
+	c.listingMu.Unlock()
 	if e.listing != nil && now.Sub(e.listedAt) < lastGoodWindow {
 		return *e.listing, e.listedAt, true
 	}
@@ -152,43 +140,43 @@ func lastGoodListing(key listingKey, cfg config) (fetchedListing, time.Time, boo
 // claimListing makes the caller key's one fetcher, with done to call when
 // its fetch ends; or, when another caller is fetching key, returns wait,
 // closed when that fetch ends (0041-MADR D6).
-func claimListing(key listingKey) (done func(), wait <-chan struct{}) {
-	listingMu.Lock()
-	defer listingMu.Unlock()
-	if ch, ok := listingClaims[key]; ok {
+func (c *store) claimListing(key listingKey) (done func(), wait <-chan struct{}) {
+	c.listingMu.Lock()
+	defer c.listingMu.Unlock()
+	if ch, ok := c.listingClaims[key]; ok {
 		return nil, ch
 	}
 	ch := make(chan struct{})
-	listingClaims[key] = ch
+	c.listingClaims[key] = ch
 	return func() {
-		listingMu.Lock()
-		delete(listingClaims, key)
-		listingMu.Unlock()
+		c.listingMu.Lock()
+		delete(c.listingClaims, key)
+		c.listingMu.Unlock()
 		close(ch)
 	}, nil
 }
 
 // startListingFetch refreshes a listing in the background, detached from ctx
 // and bounded as a listing is, unless the same fetch is already running.
-func startListingFetch(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, model string, cfg config, key listingKey) {
+func (c *store) startListingFetch(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, model string, cfg config, key listingKey) {
 	fk := listingFetchKey{listingKey: key}
 	if id == llmprovider.ProviderOllama {
 		fk.model = model
 	}
-	listingMu.Lock()
-	if listingInFlight[fk] {
-		listingMu.Unlock()
+	c.listingMu.Lock()
+	if c.listingInFlight[fk] {
+		c.listingMu.Unlock()
 		return
 	}
-	listingInFlight[fk] = true
-	listingMu.Unlock()
+	c.listingInFlight[fk] = true
+	c.listingMu.Unlock()
 	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), modelListingTimeout)
-	listingFetching.Go(func() {
+	c.listingFetching.Go(func() {
 		defer cancel()
 		defer func() {
-			listingMu.Lock()
-			delete(listingInFlight, fk)
-			listingMu.Unlock()
+			c.listingMu.Lock()
+			delete(c.listingInFlight, fk)
+			c.listingMu.Unlock()
 		}()
 		// Nothing waits for this fetch, so its failure goes only to the
 		// caller's logger (R31); the next lookup tries again.
@@ -212,7 +200,7 @@ func fetchListingModel(ctx context.Context, id llmprovider.ProviderID, src llmpr
 		if err != nil {
 			return ModelInfo{}, false, err
 		}
-		storeListing(listingKeyFor(id, cfg, token), map[string]ModelInfo{model: info}, true)
+		cfg.store.storeListing(listingKeyFor(id, cfg, token), map[string]ModelInfo{model: info}, true)
 		return info, true, nil
 	}
 	cat, models, err := listAndRecord(ctx, id, src, cfg)

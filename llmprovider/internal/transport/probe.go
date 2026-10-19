@@ -112,10 +112,22 @@ type probeCacheEntry struct {
 	at      time.Time
 }
 
+// ProbeStore holds probe results in memory, by ProbeKey: the process's, or a
+// catalog.Cache's (0048-MADR D1). Make one with NewProbeStore. It is safe for
+// concurrent use.
+type ProbeStore struct {
+	mu sync.Mutex
+	m  map[ProbeKey]probeCacheEntry
+}
+
+// NewProbeStore returns an empty store.
+func NewProbeStore() *ProbeStore {
+	return &ProbeStore{m: map[ProbeKey]probeCacheEntry{}}
+}
+
 var (
-	probeCacheMu sync.Mutex
-	// probeCache is the process's probe results, in memory only.
-	probeCache = map[ProbeKey]probeCacheEntry{}
+	// defaultProbes is the process's probe results, in memory only.
+	defaultProbes = NewProbeStore()
 	// probeCacheNow is the cache's clock. Tests move it.
 	probeCacheNow = time.Now
 )
@@ -130,32 +142,36 @@ func Fingerprint(credential string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// ProbeGenerateHealthCached is ProbeGenerateHealth, answered from the
-// process's cache for ten minutes after a listing for the same key probed:
-// a listing within that time sends no probe. A result with no model is not
-// cached, so the next listing probes again (0028-MADR D-A3). The cache holds
-// the probed head only; the current listing's tail is appended to it
-// (0038-MADR D4).
+// ProbeGenerateHealthCached is ProbeGenerateHealth, answered from s for ten
+// minutes after a listing for the same key probed: a listing within that time
+// sends no probe. A nil s is the process's store (0048-MADR D1). A result with
+// no model is not cached, so the next listing probes again (0028-MADR D-A3).
+// The store holds the probed head only; the current listing's tail is
+// appended to it (0038-MADR D4).
 func ProbeGenerateHealthCached(
 	ctx context.Context,
+	s *ProbeStore,
 	key ProbeKey,
 	preferred []string,
 	limit int,
 	generate func(ctx context.Context, modelID string) (string, error),
 ) []string {
-	probeCacheMu.Lock()
-	e, ok := probeCache[key]
+	if s == nil {
+		s = defaultProbes
+	}
+	s.mu.Lock()
+	e, ok := s.m[key]
 	if ok && probeCacheNow().Sub(e.at) < probeCacheTTL {
-		probeCacheMu.Unlock()
+		s.mu.Unlock()
 		return withTail(slices.Clone(e.healthy), preferred, limit)
 	}
-	delete(probeCache, key)
-	probeCacheMu.Unlock()
+	delete(s.m, key)
+	s.mu.Unlock()
 	healthy := probeHead(ctx, preferred, limit, generate)
 	if len(healthy) > 0 {
-		probeCacheMu.Lock()
-		probeCache[key] = probeCacheEntry{healthy: slices.Clone(healthy), at: probeCacheNow()}
-		probeCacheMu.Unlock()
+		s.mu.Lock()
+		s.m[key] = probeCacheEntry{healthy: slices.Clone(healthy), at: probeCacheNow()}
+		s.mu.Unlock()
 	}
 	return withTail(healthy, preferred, limit)
 }

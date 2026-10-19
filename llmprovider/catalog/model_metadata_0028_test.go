@@ -116,9 +116,9 @@ func TestLoadModelMetadata_RevalidatesWithETag(t *testing.T) {
 	if tag, _ := sentTag.Load().(string); tag != `"v1"` {
 		t.Errorf("If-None-Match = %q; want %q", tag, `"v1"`)
 	}
-	modelMetadataMu.Lock()
-	e := modelMetadataCache[srv.URL]
-	modelMetadataMu.Unlock()
+	processStore.metadataMu.Lock()
+	e := processStore.metadata[srv.URL]
+	processStore.metadataMu.Unlock()
 	if !e.fetched.Equal(later) || e.etag != `"v1"` || fmt.Sprint(e.doc) != fmt.Sprint(first) {
 		t.Errorf("entry: fetched %v, etag %q; want the renewed time %v, the same ETag and document", e.fetched, e.etag, later)
 	}

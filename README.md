@@ -197,6 +197,24 @@ functions over any provider, and `Stream` streams from every one.
   p = llmprovider.WithRetry(p, llmprovider.RetryPolicy{})
   ```
 
+## Caches
+
+A listing's models, the models.dev document and the models that answered a
+probe are kept in memory, shared by every listing and provider of the
+process. A `catalog.Cache` keeps them apart: the listings and providers
+given `catalog.WithCache(&c)` share `c`, and no other cache. A test, or a
+process with more than one configuration, gives each its own. The zero
+value is ready, and a `Cache` is safe for concurrent use.
+
+```go
+var cache catalog.Cache
+reg := providers.DefaultWith(catalog.WithCache(&cache))
+p, err := reg.New(llmprovider.ProviderClaude, llmprovider.WithAPIKey(key))
+```
+
+`DefaultWith`'s options come before each `New`'s own, so a later option
+wins. A provider the caller registers on the `Registry` is not given them.
+
 ## Signing in with a ChatGPT plan
 
 `auth.LoginChatGPTPlan` is OpenAI's Sign in with ChatGPT for agents

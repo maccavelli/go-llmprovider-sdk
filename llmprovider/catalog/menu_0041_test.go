@@ -215,7 +215,7 @@ func TestMenu_Snapshot_0041(t *testing.T) {
 	}
 	slices.Sort(ids)
 	meta := func() modelMetadataResult { return modelMetadataResult{doc: doc} }
-	cfg := config{}
+	cfg := config{store: processStore}
 	cat := menuOf(llmprovider.ProviderOpenAI, ids, factsOf(llmprovider.ProviderOpenAI, cfg, ids, nil, doc),
 		metadataCurate(llmprovider.ProviderOpenAI, ProfileUtility, defaultWorkload, meta, curateOpenAI), 0, rankingNow())
 	deprecated := 0

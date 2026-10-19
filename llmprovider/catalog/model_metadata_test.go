@@ -17,16 +17,16 @@ import (
 
 // waitMetadataFetches waits for every metadata fetch in flight, such as a
 // background refresh, to finish.
-func waitMetadataFetches() { metadataFetching.Wait() }
+func waitMetadataFetches() { processStore.metadataFetching.Wait() }
 
 // resetModelMetadataCache empties the in-process metadata cache, after any
 // fetch in flight has finished. httptest reuses ports, so a cache keyed by
 // URL must not outlive a test.
 func resetModelMetadataCache() {
 	waitMetadataFetches()
-	modelMetadataMu.Lock()
-	defer modelMetadataMu.Unlock()
-	clear(modelMetadataCache)
+	processStore.metadataMu.Lock()
+	defer processStore.metadataMu.Unlock()
+	clear(processStore.metadata)
 }
 
 // enableModelMetadata empties the metadata cache on both sides of a test that
@@ -166,11 +166,11 @@ func TestLoadModelMetadata_FailureRetriedAfterBackoff(t *testing.T) {
 	if _, err := loadModelMetadata(context.Background(), cfg); err == nil {
 		t.Fatal("first load: want an error for HTTP 500")
 	}
-	modelMetadataMu.Lock()
-	e := modelMetadataCache[srv.URL]
+	processStore.metadataMu.Lock()
+	e := processStore.metadata[srv.URL]
 	e.failed = time.Now().Add(-modelMetadataRetryAfter - time.Second)
-	modelMetadataCache[srv.URL] = e
-	modelMetadataMu.Unlock()
+	processStore.metadata[srv.URL] = e
+	processStore.metadataMu.Unlock()
 	doc, err := loadModelMetadata(context.Background(), cfg)
 	if err != nil || doc.all()[metadataKeyZen] == nil {
 		t.Fatalf("load after the backoff: doc=%v err=%v, want a fresh fetch", doc, err)

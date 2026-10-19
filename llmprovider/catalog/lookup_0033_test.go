@@ -94,15 +94,15 @@ func newLookupServer(t *testing.T, doc string, status int, reply string) *lookup
 }
 
 // waitListingFetches waits for the background listing fetches.
-func waitListingFetches() { listingFetching.Wait() }
+func waitListingFetches() { processStore.listingFetching.Wait() }
 
 // resetListingCache empties the listing cache, after any fetch in flight.
 func resetListingCache() {
 	waitListingFetches()
-	listingMu.Lock()
-	defer listingMu.Unlock()
-	clear(listingCache)
-	clear(listingInFlight)
+	processStore.listingMu.Lock()
+	defer processStore.listingMu.Unlock()
+	clear(processStore.listing)
+	clear(processStore.listingInFlight)
 }
 
 // resetLookupCaches empties both caches on both sides of a test.

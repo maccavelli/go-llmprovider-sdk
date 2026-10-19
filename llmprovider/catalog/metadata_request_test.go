@@ -31,11 +31,11 @@ func TestLoadModelMetadata_StaleOnRefreshFailure(t *testing.T) {
 	if _, err := loadModelMetadata(context.Background(), cfg); err != nil {
 		t.Fatalf("first load: %v", err)
 	}
-	modelMetadataMu.Lock()
-	e := modelMetadataCache[srv.URL]
+	processStore.metadataMu.Lock()
+	e := processStore.metadata[srv.URL]
 	e.fetched = time.Now().Add(-modelMetadataTTL - time.Minute)
-	modelMetadataCache[srv.URL] = e
-	modelMetadataMu.Unlock()
+	processStore.metadata[srv.URL] = e
+	processStore.metadataMu.Unlock()
 	fail.Store(true)
 	doc, err := loadModelMetadata(context.Background(), cfg)
 	if err != nil || doc.all()[metadataKeyZen] == nil {

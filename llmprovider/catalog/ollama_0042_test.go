@@ -236,7 +236,7 @@ func TestOllamaUsable_TagsNotCached_0042(t *testing.T) {
 	if cat := s.list(t); !slices.Equal(cat.Usable, []string{"chat:1"}) {
 		t.Fatalf("Usable %q; want [chat:1]", cat.Usable)
 	}
-	cached, _ := cachedListing(listingKeyFor(llmprovider.ProviderOllama, config{BaseURL: s.URL}, llmprovider.Token{}))
+	cached, _ := processStore.cachedListing(listingKeyFor(llmprovider.ProviderOllama, config{BaseURL: s.URL}, llmprovider.Token{}))
 	if _, ok := cached["chat:1"]; !ok {
 		t.Errorf("chat:1's reply is not cached: %v", slices.Sorted(maps.Keys(cached)))
 	}

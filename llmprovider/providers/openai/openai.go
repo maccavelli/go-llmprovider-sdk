@@ -95,6 +95,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/chatgpt"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
@@ -169,6 +170,8 @@ type provider struct {
 	session   string
 	logger    *slog.Logger
 	probe     bool
+	// cache is catalog.WithCache's, nil for the process's (0048-MADR D1).
+	cache *cacheref.Value
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
@@ -218,6 +221,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		logger:    st.Logger(),
 		session:   st.SessionID(),
 		probe:     st.ModelProbes(),
+		cache:     cacheref.From(st.Values()),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.Supported,
@@ -518,7 +522,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := wire.ProbeHealth(ctx, llmprovider.ProviderOpenAI, p.baseURL, p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
+	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), llmprovider.ProviderOpenAI, p.baseURL, p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.store, probe.reasoning = model, probeMaxOutputTokens, nil, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{

@@ -7,6 +7,7 @@ package providers
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/claude"
@@ -41,14 +42,35 @@ var builtins = []struct {
 
 // Default returns a new Registry holding the built-in providers.
 func Default() *llmprovider.Registry {
+	return DefaultWith()
+}
+
+// DefaultWith is Default, with opts given to every built-in provider's New
+// before the options of the call that builds it, so that a later option wins:
+// catalog.WithCache, for example, so that a Registry's providers share one
+// cache (0048-MADR D1). A provider the caller registers on the Registry is not
+// given opts. An option a built-in refuses fails that provider's New, as it
+// would given there, with an error matching llmprovider.ErrInvalidRequest.
+func DefaultWith(opts ...llmprovider.Option) *llmprovider.Registry {
 	r := llmprovider.NewRegistry()
 	for _, b := range builtins {
 		d := b.descriptor()
-		if err := r.Register(d, b.new); err != nil {
+		if err := r.Register(d, withOptions(b.new, opts)); err != nil {
 			panic(fmt.Sprintf("providers: built-in %q: %v", d.ID, err))
 		}
 	}
 	return r
+}
+
+// withOptions is f with opts before its own; f itself when there are none.
+func withOptions(f llmprovider.Factory, opts []llmprovider.Option) llmprovider.Factory {
+	if len(opts) == 0 {
+		return f
+	}
+	base := slices.Clone(opts)
+	return func(more ...llmprovider.Option) (llmprovider.Provider, error) {
+		return f(append(slices.Clone(base), more...)...)
+	}
 }
 
 // New builds the built-in provider id with opts. An unknown id gives an error

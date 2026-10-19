@@ -298,9 +298,9 @@ func listOnce(ctx context.Context, id llmprovider.ProviderID, token llmprovider.
 	f, models, at, failure := cachedOrFetched(ctx, id, token, cfg, key)
 	source := ListLive
 	if failure != nil && transientListingFailure(failure) {
-		if last, lastAt, ok := lastGoodListing(key, cfg); ok {
+		if last, lastAt, ok := cfg.store.lastGoodListing(key, cfg); ok {
 			f, at, source = last, lastAt, ListStale
-			models, _ = cachedListing(key)
+			models, _ = cfg.store.cachedListing(key)
 		}
 	}
 	l := buildListing(id, f, cfg, meta)
@@ -333,7 +333,7 @@ func listOllamaOnce(ctx context.Context, token llmprovider.Token, cfg config) (C
 	cat := l.catalog(llmprovider.ProviderOllama, token, cfg, models)
 	cat.Source, cat.FetchedAt = ListLive, listingNow()
 	if cat.Err == nil && cat.Live && len(models) > 0 {
-		storeListing(listingKeyFor(llmprovider.ProviderOllama, cfg, token), models, false)
+		cfg.store.storeListing(listingKeyFor(llmprovider.ProviderOllama, cfg, token), models, false)
 	}
 	return cat, models, nil
 }
@@ -346,11 +346,11 @@ func listOllamaOnce(ctx context.Context, token llmprovider.Token, cfg config) (C
 func cachedOrFetched(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config,
 	key listingKey) (f fetchedListing, models map[string]ModelInfo, at time.Time, failure error) {
 	for {
-		if f, at, ok := freshListing(key); ok {
-			models, _ := cachedListing(key)
+		if f, at, ok := cfg.store.freshListing(key); ok {
+			models, _ := cfg.store.cachedListing(key)
 			return f, models, at, nil
 		}
-		done, wait := claimListing(key)
+		done, wait := cfg.store.claimListing(key)
 		if wait == nil {
 			return fetchClaimed(ctx, id, token, cfg, key, done)
 		}
@@ -374,7 +374,7 @@ func fetchClaimed(ctx context.Context, id llmprovider.ProviderID, token llmprovi
 		return fetchedListing{}, models, time.Time{}, failure
 	}
 	undatedConstant(models)
-	return f, models, storeFetched(key, f, models), nil
+	return f, models, cfg.store.storeFetched(key, f, models), nil
 }
 
 // transientListingFailure reports whether a listing's failure may serve the
@@ -473,7 +473,7 @@ func (l listingResult) catalog(id llmprovider.ProviderID, token llmprovider.Toke
 	usable := uniqueIDs(l.usable)
 	if l.err != nil || len(usable) == 0 {
 		// What facts are cached: the static path starts no wait.
-		cached, _ := cachedListing(listingKeyFor(id, cfg, token))
+		cached, _ := cfg.store.cachedListing(listingKeyFor(id, cfg, token))
 		var doc *modelMetadataDoc
 		if m, ok := peekMetadata(cfg); ok {
 			doc = m.doc
@@ -820,7 +820,7 @@ func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (li
 	for _, t := range tags {
 		names = append(names, t.Name)
 	}
-	cached, fresh := cachedListing(listingKeyFor(llmprovider.ProviderOllama, cfg, token))
+	cached, fresh := cfg.store.cachedListing(listingKeyFor(llmprovider.ProviderOllama, cfg, token))
 	if !fresh {
 		cached = nil
 	}
