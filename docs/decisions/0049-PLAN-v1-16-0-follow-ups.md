@@ -234,3 +234,39 @@ all of D2a to D2d; Q3 the learned refusals in `catalog.Cache`):
   "committed, proceed".
 * `tools/records.py status`: the MADR `accepted`, this PLAN `in-progress`,
   both index rows with them; "records-check: 0 problem(s)".
+
+### Phase 1: errors in place of the panics (2026-10-19)
+
+* **No deviation.** Phase 0 was committed by the owner as `0979446`.
+* **Step 1,** `settings.sendable`: a nil `*StaticToken` is refused, "%w:
+  WithTokenSource: a nil *StaticToken" with `ErrInvalidRequest`, before its
+  value is read; `ResolveOptions`'s doc names it.
+* **Step 2,** `(*DeviceLogin).Wait`: with no `poll`, "%w: oauth: a
+  DeviceLogin that StartDeviceOAuth did not return" with
+  `llmprovider.ErrInvalidRequest`, at once, before the lock (`poll` is set
+  once, by `StartDeviceOAuth`). `Wait`'s doc says so; `DeviceLogin`'s says
+  only the one `StartDeviceOAuth` returns can be waited on.
+* **Step 3, the tests,** under `-race`:
+  `TestResolveOptions_NilStaticToken_0049` (`ResolveOptions` and
+  `providers.New(ProviderClaude, …)` with a typed-nil `*StaticToken` give
+  `ErrInvalidRequest`; a nil `TokenSource` is still no source) and
+  `TestDeviceLogin_ZeroWaitIsAnError_0049` (two `Wait`s on a zero
+  `DeviceLogin`, each `ErrInvalidRequest`; `Cancel` returns; a third `Wait`
+  likewise). Each recovers a panic and fails with it.
+* **Step 4, red first,** three plants, all caught: the nil check removed
+  ("nil_token_0049_test.go:19: ResolveOptions panicked: runtime error:
+  invalid memory address or nil pointer dereference; want an error"); the
+  zero check removed ("device_login_zero_0049_test.go:21: Wait 1 on a zero
+  DeviceLogin panicked: …"); the refusal without its sentinel
+  ("nil_token_0049_test.go:37: … want ErrInvalidRequest").
+* **The checks:** `make docs-check`, "sdkaudit: 0 violation(s) of
+  R50,R51,R52"; `tools/apidiff.py v1.16.0`, no output, exit 0; `make
+  pre-add-check` on the four Go files, "4 file(s) clean (gofmt,
+  golangci-lint, go vet, go test, govulncheck)".
+* **The gate,** first run: 26 of 27. `gate-selftest`'s
+  `test_docs_check_concurrency_sentence_removed` plants a break by finding
+  `DeviceLogin`'s two concurrency lines as 0048 wrote them, and step 2's
+  sentence, wrapped onto the second, changed it ("found 0 times"). The
+  sentence was moved to a line of its own, leaving those two lines as they
+  were; the case then passed, and `tools/gate.py` on the final tree, 27 of
+  27 passed.

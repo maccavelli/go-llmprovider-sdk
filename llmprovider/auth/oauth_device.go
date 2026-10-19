@@ -79,6 +79,7 @@ type oauthDeviceError struct {
 // code is valid until Expiry. Cancel stops the login from another goroutine,
 // so one surface can show the code while another waits. It is safe for
 // concurrent use: Cancel, and any number of Waits, may run at once.
+// Only the one StartDeviceOAuth returns can be waited on.
 type DeviceLogin struct {
 	// UserCode is the code the user enters.
 	UserCode string
@@ -130,8 +131,14 @@ func StartDeviceOAuth(ctx context.Context, provider llmprovider.ProviderID, opts
 // ctx's. A denied or expired code the service reports gives an error matching
 // llmprovider.ErrAuthFailure, and the code passing its own expiry an error
 // that says so; an unexpected or undecodable poll reply, a failed token
-// exchange and a rejected id_token are plain errors.
+// exchange and a rejected id_token are plain errors. A DeviceLogin that
+// StartDeviceOAuth did not return, such as a zero one, gives an error
+// matching llmprovider.ErrInvalidRequest at once.
 func (d *DeviceLogin) Wait(ctx context.Context) (*OAuthSession, error) {
+	// poll is set once, by StartDeviceOAuth, so it is read without the lock.
+	if d.poll == nil {
+		return nil, fmt.Errorf("%w: oauth: a DeviceLogin that StartDeviceOAuth did not return", llmprovider.ErrInvalidRequest)
+	}
 	d.mu.Lock()
 	if done := d.done; done != nil {
 		d.mu.Unlock()
