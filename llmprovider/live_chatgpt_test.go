@@ -8,27 +8,12 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
 )
 
 // liveRoundTrip adapts a function to http.RoundTripper.
 type liveRoundTrip func(*http.Request) (*http.Response, error)
 
 func (fn liveRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return fn(r) }
-
-// liveOpenAI builds OpenAI from a session, or fails the test.
-func liveOpenAI(t *testing.T, src llmprovider.TokenSource, model string, opts ...llmprovider.Option) llmprovider.Provider {
-	t.Helper()
-	p, err := openai.New(append([]llmprovider.Option{llmprovider.WithTokenSource(src), llmprovider.WithModel(model)}, opts...)...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
-func userText(text string) *llmprovider.Request {
-	return &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Role: "user", Text: text}}}
-}
 
 // TestLive_ChatGPTGenerate is gate G-C's end-to-end check through this module: a
 // text call, a forced tool call, and a tool round trip replayed with

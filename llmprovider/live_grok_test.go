@@ -19,15 +19,6 @@ import (
 // XAI_API_KEY and skip without it; the CLI login's needs
 // LLMPROVIDER_LIVE_GROK_CLI=1.
 
-func liveGrok(t *testing.T, src llmprovider.TokenSource, model string, opts ...llmprovider.Option) llmprovider.Provider {
-	t.Helper()
-	p, err := grok.New(append([]llmprovider.Option{llmprovider.WithTokenSource(src), llmprovider.WithModel(model)}, opts...)...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
 // xaiRecorder keeps the last POST body sent, passing the request on.
 type xaiRecorder struct{ sent []byte }
 

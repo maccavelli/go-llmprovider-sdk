@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/kilo"
 )
 
 // identityValue is what the sign-ins send as the ChatGPT originator and the
@@ -71,10 +69,7 @@ func TestLive_ChatGPTBrowserLogin(t *testing.T) {
 		t.Fatalf("LoginBrowserOAuth: %v", err)
 	}
 	revokeAfter(t, session)
-	out, err := llmprovider.GenerateText(ctx, liveOpenAI(t, session, "gpt-6-astra"), userText("Reply with only the word ALPHA"))
-	if err != nil || !strings.Contains(strings.ToUpper(out), "ALPHA") {
-		t.Fatalf("Generate = %q, %v", out, err)
-	}
+	checkWord(ctx, t, liveOpenAI(t, session, "gpt-6-astra"), "ALPHA", noSkip)
 }
 
 // TestLive_GrokBrowserLogin is the owner-run gate for Grok's loopback login
@@ -94,10 +89,7 @@ func TestLive_GrokBrowserLogin(t *testing.T) {
 		t.Fatalf("LoginBrowserOAuth: %v", err)
 	}
 	revokeAfter(t, session)
-	out, err := llmprovider.GenerateText(ctx, liveGrok(t, session, "grok-4.6"), userText("Reply with only the word ALPHA"))
-	if err != nil || !strings.Contains(strings.ToUpper(out), "ALPHA") {
-		t.Fatalf("Generate = %q, %v", out, err)
-	}
+	checkWord(ctx, t, liveGrok(t, session, "grok-4.6"), "ALPHA", noSkip)
 }
 
 // TestLive_GrokDeviceLogin is the owner-run gate for Grok's device-code login
@@ -120,10 +112,7 @@ func TestLive_GrokDeviceLogin(t *testing.T) {
 		t.Fatalf("LoginDeviceOAuth: %v", err)
 	}
 	revokeAfter(t, session)
-	out, err := llmprovider.GenerateText(ctx, liveGrok(t, session, "grok-4.6"), userText("Reply with only the word ALPHA"))
-	if err != nil || !strings.Contains(strings.ToUpper(out), "ALPHA") {
-		t.Fatalf("Generate = %q, %v", out, err)
-	}
+	checkWord(ctx, t, liveGrok(t, session, "grok-4.6"), "ALPHA", noSkip)
 }
 
 // TestLive_KiloDeviceLogin is the owner-run gate for Kilo's device login
@@ -146,23 +135,6 @@ func TestLive_KiloDeviceLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoginDeviceOAuth: %v", err)
 	}
-	if session.Access == "" || session.Refresh != "" || !session.Expiry.IsZero() {
-		t.Fatalf("session: access set %t, refresh set %t, expiry %v; want an access token only, with no refresh and no expiry",
-			session.Access != "", session.Refresh != "", session.Expiry)
-	}
-	account, err := auth.KiloProfile(ctx, session.Access)
-	if err != nil {
-		t.Fatalf("KiloProfile: %v", err)
-	}
-	t.Logf("profile: %d organizations, personal account %t", len(account.Organizations), account.HasPersonalAccount)
-	p, err := kilo.New(llmprovider.WithTokenSource(session), kilo.WithDataCollection(true),
-		llmprovider.WithModel(llmprovider.LiveModel(t, llmprovider.ProviderKilo, llmprovider.LiveKiloFreeCollecting...)))
-	if err != nil {
-		t.Fatalf("kilo.New: %v", err)
-	}
-	out, err := llmprovider.GenerateText(ctx, p, userText("Reply with only the word ALPHA"))
-	llmprovider.SkipIfTransient(t, err)
-	if err != nil || strings.TrimSpace(out) == "" {
-		t.Fatalf("Generate = %q, %v", out, err)
-	}
+	checkKiloSession(ctx, t, session, llmprovider.LiveModel(t, llmprovider.ProviderKilo, llmprovider.LiveKiloFreeCollecting...),
+		llmprovider.SkipIfTransient)
 }

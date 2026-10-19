@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-19
 associated-madr: "0046-MADR-v1-15-0-follow-ups.md"
 decision-makers: repository owner
@@ -114,7 +114,7 @@ The lines this PLAN's steps change or plant into, at `<base>`'s parent
 | K26 | the profile's route, which the twin's fake answers by suffix | `llmprovider/auth/kilo_device.go:185` | `req, err := http.NewRequestWithContext(ctx, http.MethodGet, kiloendpoint.Route(base, "profile"), http.NoBody)` |
 | K27 | the stream event the twin's fake sends for text | `llmprovider/internal/wire/responses/responses.go:659` | `"response.output_text.delta":            llmprovider.EventTextDelta,` |
 | K28 | plant P6's line | `llmprovider/auth/tokenstore_file.go:170` | `HostID:    s.HostID,` |
-| K29 | plant P12's line | `llmprovider/auth/oauth_session.go:264` | `TokenURL: s.TokenURL, Resource: s.Resource, Scope: s.Scope, IDToken: s.IDToken, HostID: s.HostID,` |
+| K29 | plant P12's line, the refreshed session's scope (retargeted from `persistable` at `:264`; Phase 2's deviation of 2026-10-19) | `llmprovider/auth/oauth_session.go:631` | `Scope:      cmp.Or(payload.Scope, state.scope),` |
 | K30 | plant P13's line, where the plan revocation reads its endpoints (once in the file) | `llmprovider/auth/oauth_revoke.go:135` | `endpoints, err := planOAuthEndpoints(ctx, client, issuer)` |
 | K31 | plant P8's line | `llmprovider/catalog/raw.go:113` | `plan := id == llmprovider.ProviderOpenAI && chatgpt.IsPlanSession(src)` |
 
@@ -325,7 +325,7 @@ The lines this PLAN's steps change or plant into, at `<base>`'s parent
    | P9 | `deltas: true` → `deltas: false` | twins | ChatGPTPlan |
    | P10 | `tool: true` → `tool: false` | twins | ChatGPTPlan |
    | P11 | `rotate: true` → `rotate: false` | twins | ChatGPTPlan |
-   | P12 | `Scope: s.Scope, ` removed from `persistable` (K29) | `llmprovider/auth/oauth_session.go` | ChatGPTPlan |
+   | P12 | ~~`Scope: s.Scope, ` removed from `persistable`~~ the refreshed session's `Scope:` line removed (K29; Phase 2's deviation) | `llmprovider/auth/oauth_session.go` | ChatGPTPlan |
    | P13 | after K30's line, insert `endpoints.Revocation = endpoints.Token`: the form goes to `/token`, which answers as a refresh, so nothing is revoked | `llmprovider/auth/oauth_revoke.go` | ChatGPTPlan |
    | P14 | `revokeKills: true` → `revokeKills: false` | twins | ChatGPTPlan |
 
@@ -571,3 +571,208 @@ the wizard
 > D3). CI only vets the live-tagged files (`go vet -tags live_gateways
 > ./...`); it never runs them. `scripts/check_tables.py` checks that every
 > variable a live test reads is named here, or is a record's.
+
+## Execution record
+
+The owner committed the pair as `9928572`, and approved this PLAN
+("approved. proceed", 2026-10-19).
+
+### Phase 0: baseline (2026-10-19)
+
+* **`<base>`** is `9928572`, the tree clean.
+* **`tools/gate.py` at `<base>`:** 23 of 23.
+* **F7's measurement:** 13 problems. **The live variables (A1):** 24
+  read, 6 named in `AGENTS.md`.
+* **`tools/claims.py`:** 0046-MADR 39 of 39, this PLAN 31 of 31.
+* **`llmprovider` coverage:** 97.7 %.
+
+### Phase 1: the docs tables, fixed and checked (2026-10-19)
+
+* **Deviation 2026-10-19: the tools' test pins the gate's checks.** Found
+  by the phase's first gate run: 23 of 24, with `tools-test` failing in
+  `tools/test_tools.py`, `TestGateChecks.test_the_checks_and_their_order`.
+  The test pins `tools/gate.py`'s list in order, and step 3 had added
+  `make("tables-check")` after `records-check`. The lists differed: the
+  gate had `'tables-check'` where the test expected `'gate-selftest'`.
+  This comes from the step, not from earlier code.
+  * **Resolutions offered:**
+    * pin the new check in the test's list (recommended);
+    * keep `tables-check` out of the gate, which contradicts D4 and needs
+      an amendment.
+  * **Decided:** the owner chose to pin it. `'tables-check'` follows
+    `'records-check'` in the test's expected list, and
+    `tools/test_tools.py` is added to this phase's files. The MADR is
+    unchanged: no decision or fact changes.
+* **Step 1, `scripts/check_tables.py`,** as step 1 specifies: standard
+  library only, exit 0, 1 or 2. Run at the tree before step 2, it exited 1
+  with 16 problems, exactly the prediction:
+  * the 9 architecture rows of D4's table;
+  * the 4 R2 imports;
+  * `LLMPROVIDER_LIVE_GEMINI_429`, `…_429_BURST` and `…_429_MODEL`.
+
+  None of the 15 measurement switches was reported (A1). The last line
+  read `check-tables: 35 packages, 16 problem(s)`.
+* **Step 2, the tables.** Each edit asserted its old text once.
+  * **R2:**
+    * the catalogs command gains `internal/transport`;
+    * the wire-format row gains `internal/wire/deferral`;
+    * a row for `llmprovider/internal/wire/deferral` (`llmprovider`,
+      `internal/wire/messages`) follows it;
+    * `wizard`'s row names `internal/redact`;
+    * the citation gains `the import rows, 0046 D4`.
+  * **The architecture table:** `wizard` gains `providers/openai`, `kilo`
+    gains `internal/wire/messages`, and the catalogs command gains
+    `internal/transport`. Six rows (`openai`, `claude`, `gemini`, `grok`,
+    `ollama`, `internal/wire/responses`) lose `internal/transport`.
+  * **`AGENTS.md`'s live paragraph** is Appendix C's text. It names
+    `llmprovider/live_checks_test.go` and `llmprovider/live_twins_test.go`,
+    which Phase 2 adds.
+
+  `scripts/check_tables.py` then read `check-tables: 35 packages, 0
+  problem(s)`, exit 0.
+* **Step 3, wired in:**
+  * the `Makefile` (`.PHONY`, and the `tables-check` target after
+    `records-check`);
+  * CI's step (its name, and `tables-check` after `records-check`);
+  * `tools/gate.py` (`make("tables-check")`);
+  * `AGENTS.md`'s list of the CI checks.
+* **Step 4, the self-test.** `"tables-check"` is in `GATES`, so the clean
+  test runs it, with the five tests of step 4, all passing.
+  * **Red first,** `tools/plant.py` on scratch clones, with the five tests
+    as the command. Each plant switches off one of the check's rules:
+
+    | Plant | Result |
+    | :--- | :--- |
+    | a stale architecture entry is not reported | caught (`test_tables_check_architecture_stale`) |
+    | an import R2 does not allow is not reported | caught (`test_tables_check_r2_disallowed`) |
+    | a package without an architecture row is not reported | **not caught**, then caught |
+    | a package without an R2 row is not reported | caught (second run) |
+    | an unnamed live variable is not reported | caught (`…_live_variable_unnamed`, `…_switch_without_record`) |
+    | any switch passes, with or without its record | caught (`test_tables_check_switch_without_record`) |
+
+  * **The miss:** `test_tables_check_package_without_row` asserted only
+    `llmprovider/internal/zzplanted: no row`, which R2's report also
+    holds. With the architecture report switched off, the test still
+    passed. It now asserts each table's line, in full. On a second run,
+    each table's plant was caught: `AssertionError:
+    'docs/architecture.md: llmprovider/internal/zzplanted: no row' not
+    found`, and the same for R2.
+* **Step 5:** `docs/architecture.md`'s tree names `scripts/check_tables.py`.
+* **Gate.**
+  * `tools/gate.py`: 24 of 24, `tables-check` and `gate-selftest` among them, after the deviation (the first run was 23 of 24).
+  * No Go file changed in this phase. `tools/apidiff.py v1.15.0` prints
+    nothing.
+  * `tools/denyscan.py --changed`: 0 hits. `make records-check`: 0
+    problems.
+
+### Phase 2: the person-gated live tests' twins (2026-10-19)
+
+The owner committed Phase 1's code as `0382fbe` ("committed, proceed"),
+before Phase 1's record was written; the record above came after it.
+
+* **Deviation 2026-10-19: P12 aimed at the wrong line.** Found by step 4's
+  first plant run: P12 was not caught (exit 0).
+  * **Why:** P12 removed `Scope: s.Scope, ` from `persistable`
+    (`llmprovider/auth/oauth_session.go:264`). Its one caller (`:184`)
+    runs only when a failed save is retried. A normal refresh saves the
+    session built at `:631`, `Scope: cmp.Or(payload.Scope, state.scope),`,
+    and that is what `planRefresh`'s store check reads. The check is sound;
+    the plant missed its path. `persistable`'s scope stays pinned offline
+    by `TestPlanSession_AdoptAndPersistable_0043` (0043-PLAN Phase 1).
+  * **Resolutions offered:**
+    * retarget P12 to `:631` (recommended);
+    * keep P12, and add a twin step whose first save fails, so the retry
+      goes through `persistable`.
+  * **Decided:** the owner chose to retarget. P12 and K29 are annotated
+    above. No MADR change and no file added.
+* **Deviation 2026-10-19: Kilo's live run used a model the owner chose.**
+  Found in step 6. The first device-login run passed Grok's test, and
+  skipped Kilo's at the generation step: Kilo's gateway answered `kilo
+  stream 504: Upstream idle timeout exceeded` on `kilo-auto/free` after
+  138 s. The suite counts that as a transient failure. The login, the
+  token's shape and the profile had passed.
+  * **Resolutions offered:**
+    * run Kilo again (recommended);
+    * accept the skip, the generation check being proven by its twin and
+      P2.
+  * **Decided:** the owner chose to run again with `minimax-m3`. The test
+    has no model setting, so the run was made from a scratch clone of the
+    working tree, with only `checkKiloSession`'s model argument changed;
+    the tree was not touched.
+    * **The first try,** `minimax/minimax-m3:free`, was refused: `kilo HTTP
+      404 model_not_found`. That id came from a catalog test fixture
+      (`llmprovider/catalog/kilo_catalog_test.go:43`), not from Kilo's
+      listing. Kilo's public listing (402 models) has `minimax/minimax-m3`
+      only, at $0.30 per million input tokens and $1.20 per million output.
+    * **The owner chose** the paid `minimax/minimax-m3`. `--- PASS:
+      TestLive_KiloDeviceLogin (11.05s)`.
+  * The shipped test still picks from `LiveKiloFreeCollecting`, as before.
+* **Done.**
+  * **Step 1, `llmprovider/live_checks_test.go`,** untagged:
+    * `liveOpenAI`, `liveGrok` and `userText` moved there from the two
+      tagged files, which keep compiling;
+    * `transientSkip` and `noSkip`;
+    * `checkWord` and `checkKiloSession`;
+    * the plan's `checkPlanKind`, `planStoreRoundTrip`, `planRequests`,
+      `planRefresh` and `planRevoke`.
+
+    Each check is the live test's code, with `opts` passed through.
+    `planStoreRoundTrip` adds nothing to the session but its store.
+  * **Step 2, the live tests:**
+    * the ChatGPT and both Grok tests call `checkWord(…, "ALPHA",
+      noSkip)`, since they did not skip before;
+    * Kilo's calls `checkKiloSession(…, LiveModel(…),
+      SkipIfTransient)`, since it skipped before. One order change:
+      `LiveModel` is now evaluated as an argument, before the token's
+      shape is checked; before, it ran at `kilo.New`. Every assertion still
+      runs; a model lookup that skips now skips first;
+    * the plan test signs in, then runs the five steps in order. Its
+      cleanup revokes unless `planRevoke` returned.
+  * **Step 3, `llmprovider/live_twins_test.go`,** untagged: `twinFake`,
+    with the defaults of step 3, answering by path suffix, and four twins.
+    All pass offline in under 0.1 s. The plan twin runs the whole path,
+    ending in `FINDING refresh after revocation: refused, ErrAuthFailure`.
+* **Step 4, red first.** `tools/plant.py`, on scratch clones:
+
+  | # | Plant | Result |
+  | :--- | :--- | :--- |
+  | P1 | `echo: false` | caught by ChatGPT, Grok, ChatGPTPlan |
+  | P2 | `chatWord: false` | caught by Kilo |
+  | P3 | the Kilo session gains `Refresh: "r"` | caught by Kilo |
+  | P4 | `profileStatus: http.StatusInternalServerError` | caught by Kilo |
+  | P5 | the plan session's `Resource` emptied | caught by ChatGPTPlan (second run): `session: plan false, …` |
+  | P6 | `HostID:    s.HostID,` removed from the file store's save | caught by ChatGPTPlan |
+  | P7 | `models: nil` | caught by ChatGPTPlan |
+  | P8 | `plan := false` in `catalog/raw.go` | caught by ChatGPTPlan |
+  | P9 | `deltas: false` | caught by ChatGPTPlan |
+  | P10 | `tool: false` | caught by ChatGPTPlan |
+  | P11 | `rotate: false` | caught by ChatGPTPlan |
+  | P12 | the refreshed session's `Scope:` line removed (retargeted, above) | caught by ChatGPTPlan (second run): `the refreshed session was not saved with its plan fields` |
+  | P13 | `endpoints.Revocation = endpoints.Token` inserted | caught by ChatGPTPlan |
+  | P14 | `revokeKills: false` | caught by ChatGPTPlan |
+
+  * **The first run's two exceptions:**
+    * P5, which removed `Resource:`, was caught only by a build failure
+      (`openai` imported and not used). It was rewritten as
+      `openai.PlatformBaseURL[:0]`, which keeps the import, and caught by
+      an assertion.
+    * P12 was not caught; see the deviation above.
+* **Step 5:** `AGENTS.md` has carried the rule since Phase 1.
+* **Step 6, the live runs, the owner signing in five times:**
+
+  | Suite | Result |
+  | :--- | :--- |
+  | `BROWSER_LOGIN` | `--- PASS: TestLive_ChatGPTBrowserLogin (30.37s)`; `--- PASS: TestLive_GrokBrowserLogin (14.30s)` |
+  | `DEVICE_LOGIN` | `--- PASS: TestLive_GrokDeviceLogin (25.01s)`; Kilo skipped (504), then failed (404) and passed (11.05s) on the owner's model, per the deviation above |
+  | `CHATGPT_PLAN` | `--- PASS: TestLive_ChatGPTPlan (43.50s)`: an issued client of 32 characters, 7 listed models (the first `gpt-6.1-sol`), the rotation saved, and a refresh after revocation refused `ErrAuthFailure` |
+
+* **Gate.**
+  * `make pre-add-check` on the six Go files: `6 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)`.
+  * `tools/gate.py`: 24 of 24.
+  * `llmprovider` coverage 97.8 %, up from Phase 0's 97.7 %.
+  * `tools/apidiff.py v1.15.0`: no output.
+  * `git diff --stat` touches six test files and the records; no
+    production file or golden.
+  * `tools/claims.py` on this PLAN: 31 of 31, with K29 retargeted.
+
