@@ -110,7 +110,7 @@ documents a reader follows to do something.
 | 0046 | MADR | [Close v1.15.0's Follow-ups: Answer the Issues, Tell the Consumers, Prove the Person-Gated Live Tests, and Keep the Docs Tables True](decisions/0046-MADR-v1-15-0-follow-ups.md) | accepted |
 | 0046 | PLAN | [Implement Closing v1.15.0's Follow-ups](decisions/0046-PLAN-v1-15-0-follow-ups.md) | complete |
 | 0047 | MADR | [Keep Five More Scratch Helpers: a Fixture Gate, Appends for `edit.py` and `plant.py`, Record Status, Record Lint, and Claims Plants](decisions/0047-MADR-keep-five-more-scratch-helpers-as-tools.md) | accepted |
-| 0047 | PLAN | [Implement Keeping Five More Scratch Helpers: a Fixture Gate, Appends for `edit.py` and `plant.py`, Record Status, Record Lint, and Claims Plants](decisions/0047-PLAN-keep-five-more-scratch-helpers-as-tools.md) | in-progress |
+| 0047 | PLAN | [Implement Keeping Five More Scratch Helpers: a Fixture Gate, Appends for `edit.py` and `plant.py`, Record Status, Record Lint, and Claims Plants](decisions/0047-PLAN-keep-five-more-scratch-helpers-as-tools.md) | complete |
 
 ## I want to…
 

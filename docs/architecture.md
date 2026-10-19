@@ -35,9 +35,11 @@ scripts/check_api.py        api-check: apidiff against the latest v1 tag
 scripts/check_generated.py  generate-check: go:generate outputs are current
 scripts/check_records.py    records-check: the decision records and their index
 scripts/check_tables.py     tables-check: the import tables and the live variables match the code
+scripts/check_fixtures.py   fixtures-check: recorded fixtures hold no account data
 scripts/test_gates.py       gate-selftest: each gate fails on a planted breach
 tools/                      maintainer tools, not run by CI: the local gate,
                             plants, link check, identifier scan, apidiff,
+                            edits, record status and lint, claims,
                             release helpers; tools/README.md
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
@@ -876,7 +878,10 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   the checks above, `go vet` for three platforms with and without
   `live_gateways`, markdownlint, the link check, the identifier scan, and
   `tools-test`. `make tools-test` (`tools/test_tools.py`) proves each tool
-  fails on a planted input. CI runs neither.
+  fails on a planted input. CI runs neither. 0047-MADR added `records.py`
+  (a record's status and index row), `recordlint.py` (an edit's new
+  markdownlint findings) and `claims.py --plants`, and the CI gate
+  `fixtures-check` (`scripts/check_fixtures.py`).
 - **CI** (`.github/workflows/ci.yml`) runs on Linux, macOS and Windows, with
   the Go version read from `go.mod`, on each push to `main`, each pull
   request, and weekly: `go test -shuffle=on`. On Linux it also runs:
@@ -885,7 +890,7 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   - `go vet`, `gofmt`, `go mod tidy -diff` and `make lint`;
   - `go vet -tags live_gateways`;
   - `make parity-check dep-check coverage-check api-check generate-check
-    records-check gate-selftest`.
+    records-check tables-check fixtures-check gate-selftest`.
 
   It checks out the full history, so that `api-check` sees the tags. A job
   stops after 30 minutes, and a newer push to a pull request cancels its

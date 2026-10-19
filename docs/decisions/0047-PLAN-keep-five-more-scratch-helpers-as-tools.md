@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-19
 associated-madr: "0047-MADR-keep-five-more-scratch-helpers-as-tools.md"
 decision-makers: repository owner
@@ -407,3 +407,25 @@ Associated MADR: [0047-MADR-keep-five-more-scratch-helpers-as-tools.md](0047-MAD
 * **Step 5.** `tools/README.md`'s `claims.py` row.
 * **The gate:** `tools/gate.py`, 25 of 25 passed; its `tools-test` ran 69
   tests.
+
+### Phase 6: documents and close (2026-10-19)
+
+* **No deviation.** Phase 5 was committed by the owner as `020f5b9`.
+* **Step 1,** made with `tools/edit.py`, this entry by its `append_file`:
+  * AGENTS.md's tools list names `tools/records.py`, `tools/recordlint.py`
+    and `tools/claims.py --plants`;
+  * `docs/architecture.md`'s tree names `scripts/check_fixtures.py` and the
+    new tools; its CI list gains `tables-check`, missing since 0046, and
+    `fixtures-check`; its `tools/` paragraph names the new tools and that
+    `fixtures-check` is in the local gate.
+* **Step 2.** `tools/records.py status` set this PLAN to `complete`, after
+  `tools/gate.py` passed 25 of 25 on the phase.
+* **Verification:**
+  * V1: `make fixtures-check`, "250 file(s), 134 hit(s), 0 problem(s)";
+    the baseline, 133 `uuid` lines of `together.json` (Phase 1).
+  * V2: `gate-selftest`'s five fixture cases (Phase 1).
+  * V3: CI run `39275511985` on `3705255` (Phase 1).
+  * V4–V7: `make tools-test` (Phases 2–5); V7 also Phase 5 step 3.
+  * V8: each phase's red-first plants, in its entry.
+* **Not done:** the MADR's weaker candidates (the issue-draft extractor,
+  the listing envelope report), which it did not choose.

@@ -160,6 +160,13 @@ generate-check records-check tables-check fixtures-check gate-selftest`; run the
   identifier scan and the link check.
 - `tools/apidiff.py OLD [NEW]`, `tools/liveskips.py`,
   `tools/consumer.py` and `tools/offline.py` serve a release's record.
+- `tools/records.py add RECORD...` and `status RECORD STATUS` change a
+  record's status and its index row together; `tools/recordlint.py
+  --changed` reports the markdownlint findings an edit adds to a record;
+  `tools/claims.py --plants SPEC.json` proves a record's claims fail when
+  planted false (0047-MADR).
+- `tools/edit.py SPEC.json` makes exact replacements, appends and new
+  files, with any text read from a file beside the spec.
 
 Write every script, loops and waits included, in Python, not shell. A
 script worth running twice belongs in `tools/`, with a test in
