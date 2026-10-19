@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-19
 decision-makers: repository owner
 consulted: this module at c1eec68 and its v1.16.0 tag (14a5b63); probes on a scratch copy of c1eec68 (method below); prepare-commit-msg at 87f0e64; 0048-PLAN-adopt-go-sdk-best-practices.md's execution record, which found these

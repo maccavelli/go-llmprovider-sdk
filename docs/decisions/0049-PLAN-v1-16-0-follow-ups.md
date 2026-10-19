@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-19
 associated-madr: "0049-MADR-v1-16-0-follow-ups.md"
 decision-makers: repository owner
@@ -225,3 +225,12 @@ all of D2a to D2d; Q3 the learned refusals in `catalog.Cache`):
 | C19 | `ConfigureLLM`'s doc | `wizard/configure.go:151` | `// errors.Is matches it; so is a failed device-code sign-in's, as` |
 
 ## Execution record
+
+### Phase 0: records (2026-10-19)
+
+* **No deviation.** The owner committed the MADR and this PLAN as
+  `941e547`, with the MADR's questions answered (Q1 `v1.17.0`; Q2 all of
+  D2a to D2d; Q3 the learned refusals in `catalog.Cache`), and said
+  "committed, proceed".
+* `tools/records.py status`: the MADR `accepted`, this PLAN `in-progress`,
+  both index rows with them; "records-check: 0 problem(s)".
