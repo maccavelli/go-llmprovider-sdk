@@ -36,6 +36,7 @@ scripts/check_generated.py  generate-check: go:generate outputs are current
 scripts/check_records.py    records-check: the decision records and their index
 scripts/check_tables.py     tables-check: the import tables and the live variables match the code
 scripts/check_fixtures.py   fixtures-check: recorded fixtures hold no account data
+scripts/check_changelog.py  changelog-check: CHANGELOG.md has a section for every release tag
 scripts/test_gates.py       gate-selftest: each gate fails on a planted breach
 tools/                      maintainer tools, not run by CI: the local gate,
                             plants, link check, identifier scan, apidiff,
@@ -903,11 +904,14 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   - `go vet`, `gofmt`, `go mod tidy -diff` and `make lint`;
   - `go vet -tags live_gateways`;
   - `make parity-check dep-check coverage-check api-check generate-check
-    records-check tables-check fixtures-check gate-selftest`.
+    records-check tables-check fixtures-check changelog-check gate-selftest`.
 
-  It checks out the full history, so that `api-check` sees the tags. A job
-  stops after 30 minutes, and a newer push to a pull request cancels its
-  older run.
+  It checks out the full history, so that `api-check` and `changelog-check`
+  see the tags. A job stops after 30 minutes, and a newer push to a pull
+  request cancels its older run. On a `v*` tag, once every `validate` job
+  has passed, the `release` job, the only one that may write, creates the
+  tag's GitHub Release with its `CHANGELOG.md` section as the notes
+  (0048-MADR D5).
 
 ## What is not here
 

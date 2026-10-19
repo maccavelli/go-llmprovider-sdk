@@ -37,6 +37,7 @@ GATES = {
     "records-check": "scripts/check_records.py",
     "tables-check": "scripts/check_tables.py",
     "fixtures-check": "scripts/check_fixtures.py",
+    "changelog-check": "scripts/check_changelog.py",
 }
 GENERATE_LINE = re.compile(r"^//go:generate .*$", re.M)
 
@@ -308,6 +309,48 @@ class GateSelfTest(unittest.TestCase):
             ' "email": "user@example.com", "note": "user_message", "home": "/home/<user>/x"}\n', encoding="utf-8")
         proc = run_gate(self.tree, "fixtures-check")
         self.assertEqual(proc.returncode, 0, f"placeholders were reported:\n{proc.stdout}{proc.stderr}")
+
+    # 0048-PLAN Phase 5: CHANGELOG.md against the release tags.
+    def test_changelog_check_tag_without_section(self) -> None:
+        """A release tag with no section."""
+        subprocess.run(["git", "tag", "v1.99.0"], cwd=self.tree, check=True, capture_output=True)
+        self.assertFails("changelog-check", "v1.99.0 has no section")
+
+    def test_changelog_check_out_of_order(self) -> None:
+        """Two sections out of order, each with its own tag's date."""
+        log = self.tree / "CHANGELOG.md"
+        replace_once(log, "## [v1.14.0] - 2026-10-16", "## [v-swap]")
+        replace_once(log, "## [v1.13.0] - 2026-10-13", "## [v1.14.0] - 2026-10-16")
+        replace_once(log, "## [v-swap]", "## [v1.13.0] - 2026-10-13")
+        self.assertFails("changelog-check", "sections out of order")
+
+    def test_changelog_check_wrong_date(self) -> None:
+        """A section dated other than its tag's commit."""
+        replace_once(self.tree / "CHANGELOG.md", "## [v1.14.0] - 2026-10-16", "## [v1.14.0] - 2026-10-15")
+        self.assertFails("changelog-check", "v1.14.0 is dated 2026-10-15; its tag's commit is 2026-10-16")
+
+    def test_changelog_check_untagged_old_section(self) -> None:
+        """A section with no tag, older than the newest tag: only the release
+        being prepared, newer than every tag, may have no tag yet."""
+        replace_once(self.tree / "CHANGELOG.md", "## [v1.14.0] - 2026-10-16",
+                     "## [v1.14.1] - 2026-10-17\n\n### Fixed\n\n- Planted.\n\n## [v1.14.0] - 2026-10-16")
+        self.assertFails("changelog-check", "v1.14.1 has a section and no tag")
+
+    def test_changelog_section_of_unknown_tag(self) -> None:
+        """--section of a tag the file has no section for exits 1."""
+        proc = subprocess.run([sys.executable, "-B", GATES["changelog-check"], "--section", "v0.0.9"],
+                              cwd=self.tree, capture_output=True, text=True, check=False)
+        self.assertEqual(proc.returncode, 1, f"--section v0.0.9 exit {proc.returncode}, want 1:\n{proc.stdout}{proc.stderr}")
+        self.assertIn("no section for v0.0.9", proc.stderr)
+
+    def test_changelog_section_prints_the_body(self) -> None:
+        """--section prints its section's body: no heading, no comparison link."""
+        proc = subprocess.run([sys.executable, "-B", GATES["changelog-check"], "--section", "v1.0.0"],
+                              cwd=self.tree, capture_output=True, text=True, check=False)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("The v1 API that", proc.stdout)
+        self.assertNotIn("## [", proc.stdout)
+        self.assertNotIn("]: https://", proc.stdout)
 
     def test_clean_copy_passes_every_gate(self) -> None:
         for gate in GATES:

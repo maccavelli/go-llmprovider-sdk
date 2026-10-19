@@ -55,6 +55,27 @@ jobs:
       - name: vet live-tagged tests
         if: runner.os == 'Linux'
         run: go vet -tags live_gateways ./...
-      - name: parity, dependencies, coverage, API, generated code, records, the tables, the gates' self-test (0015-MADR D12, D13; 0010-PLAN P6b; 0025-MADR; 0046-MADR; 0021-MADR Z9)
+      - name: parity, dependencies, coverage, API, generated code, records, the tables, the fixtures, the changelog, the gates' self-test (0015-MADR D12, D13; 0010-PLAN P6b; 0025-MADR; 0046-MADR; 0047-MADR; 0048-MADR D5; 0021-MADR Z9)
         if: runner.os == 'Linux'
-        run: make parity-check dep-check coverage-check api-check generate-check records-check tables-check fixtures-check gate-selftest
+        run: make parity-check dep-check coverage-check api-check generate-check records-check tables-check fixtures-check changelog-check gate-selftest
+
+  # A v* tag's GitHub Release, its notes the tag's CHANGELOG.md section, once
+  # every validate job has passed; validate's changelog-check has already
+  # failed a tag without a section (0048-MADR D5). Only this job may write.
+  release:
+    needs: validate
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: the release notes, from CHANGELOG.md
+        run: python3 -B scripts/check_changelog.py --section "$GITHUB_REF_NAME" > notes.md
+      - name: the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag

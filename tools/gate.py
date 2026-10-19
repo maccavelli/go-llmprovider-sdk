@@ -98,6 +98,7 @@ CHECKS: list[Check] = [
     make("records-check"),
     make("tables-check"),
     make("fixtures-check"),
+    make("changelog-check"),
     make("gate-selftest"),
     Check("markdownlint", markdownlint),
     Check("g-wire-stable", command(["go", "test", "-count=3", "./llmprovider/...", "-run", "TestWireGoldens"])),

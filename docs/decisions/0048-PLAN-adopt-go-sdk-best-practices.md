@@ -821,3 +821,61 @@ kept command's exact R51 phrase, is the list of record.
   package, `p.test`, carries the same imports and is still checked as `p`.
 * **The gate,** after step 5: `tools/gate.py` on the final tree, 25 of 25
   passed.
+
+### Phase 5: the changelog and the Releases (2026-10-19)
+
+* **No deviation.** Phase 4 was committed by the owner as `3761d3a`.
+* **Step 1,** `CHANGELOG.md`, Keep a Changelog 1.1.0: `## [Unreleased]`
+  (0048's `catalog.Cache`, `catalog.WithCache`, `providers.DefaultWith`, the
+  examples and the concurrency and error docs), then 23 release sections,
+  newest first, each dated by `git log -1 --format=%cs TAG`, and the
+  comparison links. The text:
+  * from the README's Status bullets for `v1.15.0` back to `v1.3.0` and
+    `v1.0.0`, under Added, Changed or Fixed as each says;
+  * `v1.2.0` from 0021-PLAN's rollout and git: `git diff --stat v1.1.1
+    v1.2.0 -- . ':!docs'` is empty, so its section says no code changed,
+    and `v1.1.1`, where `ReasoningItem.Format` and `TokenInvalidator` first
+    appear (`git grep` finds neither at `v1.1.0`), carries 0021's additions;
+  * `v1.3.1`: only the README changed outside `docs/`, its release notes;
+  * `v1.1.0`, `v1.1.1` and `v1.2.1` from the commit subjects outside
+    `docs/` and the records they name (0020, 0021, 0023).
+* **Step 2,** `scripts/check_changelog.py` (`make changelog-check`): a tag
+  with no section, sections out of order, a section not dated by its tag, a
+  heading of another form, a version given twice, and a section with no tag
+  unless it is newer than every tag (the release being prepared, so that
+  its section can be committed before its tag) all fail; `--section TAG`
+  prints the body, exit 1 if none. On the tree: "changelog-check: 23
+  release section(s), 0 problem(s)".
+* **Step 3, the wiring:** the Makefile's target and `.PHONY`; CI's list,
+  with its step name; `tools/gate.py` after `fixtures-check`;
+  `scripts/test_gates.py`'s `GATES`; `tools/test_tools.py`'s order test
+  (`make tools-test`, 69 tests, OK). The gate lists in AGENTS.md,
+  `docs/architecture.md` and `tools/README.md` name it too. Selftest
+  cases: the step's three (a tag with no section, `git tag v1.99.0` in the
+  copy; two sections swapped; `--section v0.0.9`), and, so that every rule
+  of the script has one, a section's date off by a day, an untagged
+  section older than the newest tag, and `--section v1.0.0` printing
+  neither its heading nor a link line.
+* **Step 4,** the `release` job in `ci.yml`, as the step gives it: `needs:
+  validate`; on a pushed `v*` tag; `ubuntu-24.04`; `permissions: contents:
+  write` (the workflow's stays `contents: read`); the pinned checkout with
+  `fetch-depth: 0`; the notes from `--section "$GITHUB_REF_NAME"`; `gh
+  release create … --verify-tag` with `GH_TOKEN`. `actionlint`: clean.
+  Read as YAML: `needs` validate, the `if`, the job's and the workflow's
+  permissions as given.
+* **Step 5,** the README's Status keeps "The current release is `v1.15.0`.
+  The module requires Go 1.27.2." and links `CHANGELOG.md`; its 229 lines
+  of release bullets are now the changelog's. A row "see what changed in a
+  release" in its "I want to…" table.
+* **Step 6, red first,** `tools/plant.py` on the six cases, six plants of
+  `scripts/check_changelog.py`, all caught: the missing-section report
+  removed, the order check removed, `--section`'s exit code made 0 for an
+  unknown tag ("--section v0.0.9 exit 0, want 1"), the date check removed,
+  an untagged old section allowed, and `--section` printing its heading.
+* **Found, for the owner before Phase 7:** a section's links are relative
+  to the repository's root, as the README's were, and a GitHub Release
+  renders its notes away from the tree, where they do not resolve.
+  `--section`, as step 2 specifies it, prints them as they are. No Release
+  is created before Phase 7.
+* **The gate:** `tools/gate.py` on the final tree, 26 of 26 passed, with
+  `changelog-check` among them. No Go file changed.
