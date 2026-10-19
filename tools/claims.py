@@ -26,14 +26,30 @@ Usage:
   tools/claims.py RECORD... [--repo NAME=DIR]... [--rev NAME=REV]...
                   [--search DIR]... [--json] [--fixes SPEC.json]
   tools/claims.py --changed [same options]
+  tools/claims.py --plants SPEC.json [--repo NAME=DIR]... [--rev NAME=REV]...
+                  [--search DIR]...
 
 --changed checks the records under docs/ that `git status` lists as added,
 changed or untracked. --json prints one JSON object instead of text. --fixes
 writes a tools/edit.py spec that moves each failing row to the one line where
 its text was found, for a person or an agent to review and apply.
 
-Exit codes: 0 every row passes, 1 a row fails, a repository or a revision is
-missing, or a record has no rows, 2 tool error.
+--plants runs plants of false claims (0047-MADR D5). The spec is JSON:
+
+  {"record": "docs/decisions/NNNN-MADR-slug.md",
+   "plants": [{"name", "old", "new"}, ...]}
+
+"record" is relative to the spec's directory, or absolute; a plant's "old"
+and "new" may be "old_file" and "new_file", as in tools/edit.py. The record
+must pass first. Then each plant replaces "old", which must occur exactly
+once, in a copy of the record in a temporary directory, and the copy is
+checked as the record is, with the same --repo, --rev and --search. Each
+plant must fail; the record itself is never changed.
+
+Exit codes: 0 every row passes (with --plants, the record passes and every
+plant is caught), 1 a row fails, a repository or a revision is missing, a
+record has no rows, or a plant is not caught, 2 tool error or a plant whose
+"old" does not match once.
 """
 from __future__ import annotations
 
@@ -42,10 +58,11 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from _common import ROOT
+from _common import ROOT, text_field
 
 ROW = re.compile(r"^\|\s*([A-Z]\d+)\s*\|.*\|\s*`([^`]+)`\s*\|\s*(.+?)\s*\|\s*$")
 # A marker stands alone on its line, so prose that quotes the syntax, such as
@@ -193,6 +210,55 @@ def changed_records() -> list[Path]:
     return sorted(out)
 
 
+def caught(results: list[Result], err: str) -> bool:
+    """Whether a record's check failed: an error, no rows, or a row that does not pass."""
+    return bool(err) or not results or any(r.status != "pass" for r in results)
+
+
+def run_plants(spec_path: Path, repos: dict[str, Path], revs: dict[str, str], search: list[Path]) -> int:
+    """--plants: the record passes, then each plant of a false claim is caught."""
+    try:
+        spec = json.loads(spec_path.read_text(encoding="utf-8"))
+        base = spec_path.resolve().parent
+        record = Path(spec["record"])
+        record = record if record.is_absolute() else base / record
+        text = record.read_text(encoding="utf-8")
+        plants = [(p["name"], text_field(p, "old", base), text_field(p, "new", base)) for p in spec["plants"]]
+    except (OSError, ValueError, KeyError, TypeError) as err:
+        print(f"claims: bad plant spec: {err}", file=sys.stderr)
+        return 2
+    files = Files()
+    results, _, err = check_record(record, repos, revs, search, files)
+    if caught(results, err):
+        print(f"claims: {shown(record)} does not pass unplanted; fix it before planting")
+        return 1
+    mismatched = []
+    for name, old, _ in plants:
+        if (n := text.count(old)) != 1:
+            print(f"== {name}: \"old\" matches {n} time(s), want 1")
+            mismatched.append(name)
+    if mismatched:
+        print(f"claims: {len(mismatched)} plant(s) did not match; nothing run")
+        return 2
+    uncaught = []
+    with tempfile.TemporaryDirectory(prefix="claims-plant-") as tmp:
+        copy = Path(tmp) / record.name
+        for name, old, new in plants:
+            copy.write_text(text.replace(old, new, 1), encoding="utf-8")
+            results, _, err = check_record(copy, repos, revs, search, files)
+            if not caught(results, err):
+                print(f"== {name}: NOT CAUGHT")
+                uncaught.append(name)
+                continue
+            why = err or next(f"{r.status.upper()} {r.id} {r.where}: {r.detail}" for r in results if r.status != "pass")
+            print(f"== {name}: caught ({why[:160]})")
+    if uncaught:
+        print(f"claims: {len(uncaught)} plant(s) not caught: {', '.join(uncaught)}")
+        return 1
+    print(f"claims: all {len(plants)} plant(s) caught")
+    return 0
+
+
 def pairs(values: list[str], what: str) -> dict[str, str]:
     out = {}
     for v in values:
@@ -213,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="a directory holding other checkouts (default: this repository's parent and its parent)")
     parser.add_argument("--json", action="store_true", help="print one JSON object")
     parser.add_argument("--fixes", type=Path, help="write an edit.py spec for rows found on another line")
+    parser.add_argument("--plants", type=Path, help="run the plants of false claims in this spec")
     args = parser.parse_args(argv)
     try:
         repos = {k: Path(v) for k, v in pairs(args.repo, "--repo").items()}
@@ -221,6 +288,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"claims: {err}", file=sys.stderr)
         return 2
     search = args.search or [ROOT.parent, ROOT.parent.parent]
+    if args.plants:
+        if args.records or args.changed:
+            print("claims: --plants takes its record from the spec; name none", file=sys.stderr)
+            return 2
+        return run_plants(args.plants, repos, revs, search)
     records = [r if r.is_absolute() else Path.cwd() / r for r in args.records]
     if args.changed:
         records += changed_records()

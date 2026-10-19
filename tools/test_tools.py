@@ -616,6 +616,49 @@ class TestClaims(unittest.TestCase):
         self.assertEqual(rc, 1, out)
         self.assertIn("--rev self=REV", out)
 
+    def plants(self, plants: list[dict]) -> tuple[int, str]:
+        self.record(["| E1 | alpha | `demo.go:3` | `func Alpha() {}` |",
+                     "| E2 | beta | `demo.go:5` | `func Beta() string` |"])
+        spec = self.repo / "plants.json"
+        spec.write_text(json.dumps({"record": "record.md", "plants": plants}), encoding="utf-8")
+        return self.claims("--plants", str(spec))
+
+    def test_plants_a_moved_line_is_caught(self) -> None:
+        rc, out = self.plants([{"name": "E1 off by one", "old": "`demo.go:3`", "new": "`demo.go:4`"},
+                               {"name": "the marker's revision", "old": f"self={self.rev}", "new": "self=0000000"}])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("== E1 off by one: caught (FAIL E1 demo.go:4", out)
+        self.assertIn("all 2 plant(s) caught", out)
+        self.assertIn("`demo.go:3`", (self.repo / "record.md").read_text(encoding="utf-8"),
+                      "the record itself was changed")
+
+    def test_plants_a_harmless_plant_is_a_finding(self) -> None:
+        rc, out = self.plants([{"name": "the claim's words", "old": "| alpha |", "new": "| ALPHA |"}])
+        self.assertEqual(rc, 1, out)
+        self.assertIn("== the claim's words: NOT CAUGHT", out)
+
+    def test_plants_an_old_matching_twice_is_a_tool_error(self) -> None:
+        rc, out = self.plants([{"name": "ambiguous", "old": "demo.go", "new": "x.go"}])
+        self.assertEqual(rc, 2, out)
+        self.assertIn("ambiguous", out)
+
+    def test_plants_from_files(self) -> None:
+        (self.repo / "old.txt").write_text("`demo.go:5`", encoding="utf-8")
+        (self.repo / "new.txt").write_text("`demo.go:6`", encoding="utf-8")
+        rc, out = self.plants([{"name": "E2 moved", "old_file": "old.txt", "new_file": "new.txt"}])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("== E2 moved: caught", out)
+
+    def test_plants_on_a_failing_record_are_refused(self) -> None:
+        self.record(["| E1 | alpha | `demo.go:4` | `func Alpha() {}` |"])
+        spec = self.repo / "plants.json"
+        spec.write_text(json.dumps({"record": "record.md", "plants": [
+            {"name": "would look caught", "old": "| alpha |", "new": "| ALPHA |"}]}), encoding="utf-8")
+        rc, out = self.claims("--plants", str(spec))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("does not pass unplanted", out)
+        self.assertNotIn("would look caught", out)
+
     def test_other_repository_by_search_and_missing(self) -> None:
         base = self.repo.parent / f"claims-search-{self.rev}"
         base.mkdir()

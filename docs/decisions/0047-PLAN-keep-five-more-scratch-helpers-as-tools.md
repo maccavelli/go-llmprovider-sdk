@@ -379,3 +379,31 @@ Associated MADR: [0047-MADR-keep-five-more-scratch-helpers-as-tools.md](0047-MAD
   changed: "no rule rose".
 * **The gate:** `tools/gate.py`, 25 of 25 passed; its `tools-test` ran
   64 tests.
+
+### Phase 5: plants of false claims (2026-10-19)
+
+* **No deviation.** Phase 4 was committed by the owner as `6ed5ba8`.
+* **Step 1.** `tools/claims.py --plants SPEC.json`: the spec's `record`,
+  relative to the spec or absolute; each plant's `old` and `new` read with
+  `_common.text_field`, so `old_file` and `new_file` work as in `edit.py`.
+  The record must pass unplanted first (else exit 1). Each `old` must match
+  once (else exit 2, nothing run). Each plant is written to a copy in a
+  temporary directory and checked with `check_record`, in-process, with
+  the same `--repo`, `--rev` and `--search`; a plant that passes is a
+  finding. `--plants` refuses record arguments and `--changed`.
+* **Step 2.** Five `TestClaims` tests: a moved line and a wrong revision
+  caught, the record unchanged; a plant the check does not read is a
+  finding; an `old` that matches twice is exit 2; a plant from files. A
+  fifth, not in the step: a record that fails unplanted is refused before
+  any plant runs, since every plant of a failing record would look caught.
+* **Step 3, the first use.** 0046-MADR's five plants, as a spec in a
+  scratch directory, the two with a `\|` in a cell read from files: all
+  five caught, each by its own row (C1, C13, G2 in gobble-cli, P4 in
+  prepare-commit-msg, and G1 for the marker's revision), the sibling
+  checkouts found beside this repository. The record was not changed.
+* **Step 4, red first,** `tools/plant.py`, the `TestClaims` tests the
+  command: the "must fail" inverted (two tests fail); the unplanted check
+  removed (the refusal test fails).
+* **Step 5.** `tools/README.md`'s `claims.py` row.
+* **The gate:** `tools/gate.py`, 25 of 25 passed; its `tools-test` ran 69
+  tests.
