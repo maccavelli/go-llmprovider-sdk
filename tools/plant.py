@@ -8,6 +8,9 @@ rule that a check is unused until it has been seen to fail. The spec is JSON:
    "command": ["go", "test", ...],            (optional; replaces the go test)
    "plants": [{"name", "file", "old", "new"}, ...]}
 
+A plant's "old" and "new" may instead be "old_file" and "new_file": the text
+of that file, relative to the spec's own directory (0047-MADR D2).
+
 The working tree is cloned once, with tools/_common.scratch_clone. Each plant
 replaces "old", which must occur exactly once, runs the command, prints the
 failure lines, and restores the file.
@@ -29,7 +32,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from _common import ROOT, scratch_clone
+from _common import ROOT, scratch_clone, text_field
 
 FAIL_LINE = re.compile(r"_test\.go:\d+|^\s*--- FAIL|^FAIL\s|llmtest\.go:\d+|wirecase\.go:\d+|want .* got|^(FAIL|ERROR): |Error")
 
@@ -52,7 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         spec = json.loads(args.spec.read_text(encoding="utf-8"))
-        plants = spec["plants"]
+        base = args.spec.resolve().parent
+        plants = [{**p, "old": text_field(p, "old", base), "new": text_field(p, "new", base)} for p in spec["plants"]]
         cmd = spec.get("command") or default_command(spec)
     except (OSError, ValueError, KeyError) as err:
         print(f"plant: bad spec: {err}", file=sys.stderr)

@@ -17,6 +17,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def has_text(entry: Mapping[str, object], field: str) -> bool:
+    """Whether entry gives field, inline or as field_file."""
+    return field in entry or f"{field}_file" in entry
+
+
+def text_field(entry: Mapping[str, object], field: str, base: Path) -> str:
+    """entry's field: its text, or the text of the file field_file names,
+    relative to base (0047-MADR D2). Neither, or both, is a ValueError."""
+    inline, named = field in entry, f"{field}_file" in entry
+    if inline == named:
+        raise ValueError(f"give one of {field!r} and {field + '_file'!r}")
+    if inline:
+        return str(entry[field])
+    path = Path(str(entry[f"{field}_file"]))
+    return (path if path.is_absolute() else base / path).read_text(encoding="utf-8")
+
+
 def out_dir(name: str) -> Path:
     """A directory for a tool's output, under the system's temporary directory."""
     path = Path(tempfile.gettempdir()) / "go-llmprovider-sdk-tools" / name

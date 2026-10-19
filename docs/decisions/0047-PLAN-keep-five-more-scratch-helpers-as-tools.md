@@ -272,4 +272,37 @@ Associated MADR: [0047-MADR-keep-five-more-scratch-helpers-as-tools.md](0047-MAD
   * placeholders no longer allowed;
   * lowercase-word ids reported.
 * **The gate:** `tools/gate.py`, 25 of 25 passed.
+* **After the commit.** The owner committed the phase as `3705255` and
+  pushed. CI run `39275511985`: `success` on macOS, Windows and Linux; its
+  log holds `fixtures-check: 250 file(s), 134 hit(s), 0 problem(s)`. V3 is
+  met.
+
+### Phase 2: appends, new files and text from files (2026-10-19)
+
+* **No deviation.**
+* **Steps 1–2.** `tools/_common.py` gains `has_text` and `text_field`: a
+  field inline, or the text of `<field>_file` relative to the spec's
+  directory; both or neither is a `ValueError`. `edit.py`'s `plan` takes
+  an entry of exactly one shape (`old`/`new`, `append` or `create`), else
+  exit 2; `create` of a file that exists, or that an earlier entry wrote, is
+  a finding (exit 1, nothing written); a created file's directories are
+  made. `plant.py` reads each plant's `old` and `new` through `text_field`
+  before the clone, so a missing file is exit 2.
+* **Step 3.** Seven `TestEdit` tests (append with and without a final
+  newline; append after a replace; create; create of an existing file
+  changes nothing; text from files; a missing text file; an entry of two
+  shapes) and one `TestPlant` test (a plant from files caught as its inline
+  twin). The four existing `TestEdit` tests are unchanged. `make
+  tools-test`: 53 tests, OK.
+* **Step 4, red first,** `tools/plant.py` on a scratch clone, the command
+  the `TestEdit` and `TestPlant` tests; the third plant's text was itself
+  read from files, by the new `plant.py`:
+  * the append's newline rule removed: `test_an_append_adds_at_the_end`
+    fails;
+  * create's existence check removed:
+    `test_a_create_of_an_existing_file_changes_nothing` fails;
+  * a text file's name taken for its text: three tests fail, among them
+    the plant-from-files test.
+* **Step 5.** `tools/README.md`'s `edit.py` and `plant.py` rows.
+* **The gate:** `tools/gate.py`, 25 of 25 passed.
 

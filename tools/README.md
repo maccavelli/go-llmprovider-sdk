@@ -14,11 +14,11 @@ Exit codes, for every tool: **0** clean, **1** a finding, **2** a tool error.
 | Tool | What it does | Usage |
 | :--- | :--- | :--- |
 | `gate.py` | the local gate: 25 checks on a scratch clone of the working tree, staged there, started once the load average is below the CPU count | `tools/gate.py [--src DIR] [--out DIR] [--max-load N] [--timeout S]` |
-| `plant.py` | runs plants from a JSON spec on a scratch clone; fails if any plant is not caught | `tools/plant.py SPEC.json` |
+| `plant.py` | runs plants from a JSON spec on a scratch clone; fails if any plant is not caught; a plant's text may be read from a file (`old_file`, `new_file`) | `tools/plant.py SPEC.json` |
 | `linkcheck.py` | every relative link in every Markdown file resolves | `tools/linkcheck.py [--detail FILE]` |
 | `denyscan.py` | no file names this machine's account, its host, or a real home path; it prints the kind of hit, never the identifier | `tools/denyscan.py FILE...` or `--changed` |
 | `apidiff.py` | every exported API change between two refs, or a ref and the tree, at `scripts/check_api.py`'s pin | `tools/apidiff.py OLD [NEW]` |
-| `edit.py` | exact replacements from a JSON spec, each asserted to match, all applied or none | `tools/edit.py SPEC.json` |
+| `edit.py` | exact replacements, appends and new files from a JSON spec, each asserted, all applied or none; any text may be read from a file beside the spec (`old_file`, `new_file`, `append_file`, `create_file`) | `tools/edit.py SPEC.json` |
 | `liveskips.py` | sorts a `go test -v` run into passes, skips with their reasons, and failures | `tools/liveskips.py RUN.txt` |
 | `consumer.py` | after a tag: a consumer of every public package built for six platforms, and optionally a dependent repository moved to the version | `tools/consumer.py VERSION [--dependent PATH]` |
 | `claims.py` | each row of a record's evidence index holds its text, on its line, at the revision the record's `<!-- claims: … -->` marker names; finds other repositories beside this one; `--json` for agents, `--fixes` writes an `edit.py` spec for rows found on another line. Run by hand before a record is staged, not by the gate | `tools/claims.py RECORD...` or `--changed`, `[--repo NAME=DIR] [--rev NAME=REV] [--json] [--fixes SPEC.json]` |

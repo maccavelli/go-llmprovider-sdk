@@ -176,6 +176,48 @@ class TestEdit(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertEqual((self.root / "a.txt").read_text(), "one 2 2\n")
 
+    def test_an_append_adds_at_the_end(self) -> None:
+        (self.root / "c.txt").write_text("no final newline")
+        rc, out = self.apply([{"file": "a.txt", "append": "three\n"}, {"file": "c.txt", "append": "next\n"}])
+        self.assertEqual(rc, 0, out)
+        self.assertEqual((self.root / "a.txt").read_text(), "one two two\nthree\n")
+        self.assertEqual((self.root / "c.txt").read_text(), "no final newline\nnext\n")
+
+    def test_an_append_follows_an_earlier_replace(self) -> None:
+        rc, out = self.apply([{"file": "b.txt", "old": "alpha", "new": "beta"}, {"file": "b.txt", "append": "gamma\n"}])
+        self.assertEqual(rc, 0, out)
+        self.assertEqual((self.root / "b.txt").read_text(), "beta\ngamma\n")
+
+    def test_a_create_makes_a_new_file(self) -> None:
+        rc, out = self.apply([{"file": "new/d.txt", "create": "delta\n"}])
+        self.assertEqual(rc, 0, out)
+        self.assertEqual((self.root / "new/d.txt").read_text(), "delta\n")
+
+    def test_a_create_of_an_existing_file_changes_nothing(self) -> None:
+        rc, out = self.apply([{"file": "b.txt", "old": "alpha", "new": "beta"}, {"file": "a.txt", "create": "x\n"}])
+        self.assertEqual(rc, 1, out)
+        self.assertIn("a.txt: exists; create wants a new file", out)
+        self.assertEqual((self.root / "a.txt").read_text(), "one two two\n")
+        self.assertEqual((self.root / "b.txt").read_text(), "alpha\n")
+
+    def test_text_from_files_beside_the_spec(self) -> None:
+        (self.root / "old.txt").write_text("two two\n")
+        (self.root / "new.txt").write_text("2\n2\n")
+        rc, out = self.apply([{"file": "a.txt", "old_file": "old.txt", "new_file": "new.txt"}])
+        self.assertEqual(rc, 0, out)
+        self.assertEqual((self.root / "a.txt").read_text(), "one 2\n2\n")
+
+    def test_a_missing_text_file_is_a_tool_error(self) -> None:
+        rc, out = self.apply([{"file": "a.txt", "old_file": "absent.txt", "new": "x"}])
+        self.assertEqual(rc, 2, out)
+        self.assertEqual((self.root / "a.txt").read_text(), "one two two\n")
+
+    def test_an_entry_of_two_shapes_is_a_tool_error(self) -> None:
+        rc, out = self.apply([{"file": "a.txt", "old": "one", "new": "1", "append": "x"}])
+        self.assertEqual(rc, 2, out)
+        rc, out = self.apply([{"file": "a.txt", "old": "one", "old_file": "x", "new": "1"}])
+        self.assertEqual(rc, 2, out)
+
 
 class TestScratchClone(unittest.TestCase):
     def test_the_clone_commits_the_working_tree(self) -> None:
@@ -243,6 +285,17 @@ class TestPlant(unittest.TestCase):
         rc, out = self.run_spec([{"name": "commutes", "file": "plant.go", "old": "a + b", "new": "b + a"}])
         self.assertEqual(rc, 1, out)
         self.assertIn("== commutes: NOT CAUGHT", out)
+
+    def test_a_plant_from_files_is_caught_as_its_inline_twin(self) -> None:
+        spec_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, spec_dir, ignore_errors=True)
+        (spec_dir / "old.txt").write_text("a + b")
+        (spec_dir / "new.txt").write_text("a - b")
+        rc, out = self.run_spec([{"name": "subtracts", "file": "plant.go", "old_file": str(spec_dir / "old.txt"),
+                                  "new_file": str(spec_dir / "new.txt")}])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("== subtracts: caught", out)
+        self.assertIn("Add(1, 2) = -1, want 3", out)
 
     def test_a_plant_that_does_not_match_is_a_tool_error(self) -> None:
         rc, out = self.run_spec([{"name": "absent", "file": "plant.go", "old": "a * b", "new": "a / b"}])
