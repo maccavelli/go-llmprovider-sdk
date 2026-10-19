@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/nettest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -191,10 +192,13 @@ func TestList_StaleOn503_0041(t *testing.T) {
 			s := newSteadyServer(t, 0, steadyOpenAI, steadyReply{tc.status, ""})
 			first := steadyList(t, llmprovider.ProviderOpenAI, s)
 			clock.advance(11 * time.Minute)
+			var refused []llmprovider.Option
 			if tc.status == 0 {
-				s.Close()
+				// The same listing, refused at dial with no freed port to
+				// meet (0045-MADR D1); the cache's key has no client.
+				refused = append(refused, llmprovider.WithHTTPClient(nettest.Refusing()))
 			}
-			stale := steadyList(t, llmprovider.ProviderOpenAI, s)
+			stale := steadyList(t, llmprovider.ProviderOpenAI, s, refused...)
 			var netErr net.Error
 			matched := errors.Is(stale.Err, tc.want)
 			if tc.want == nil {
@@ -392,9 +396,9 @@ func TestList_OllamaOutsideD6_0041(t *testing.T) {
 		t.Errorf("/api/tags asked %d times, Source %s at %v; want 2, live at %v", tags, first.Source, first.FetchedAt,
 			clock.Now())
 	}
-	s.Close()
+	// Ollama down: refused at dial, with no freed port to meet (0045-MADR D1).
 	if _, err := listT(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""),
-		llmprovider.WithBaseURL(s.URL)); !errors.Is(err, llmprovider.ErrProviderUnavailable) {
+		llmprovider.WithBaseURL(s.URL), llmprovider.WithHTTPClient(nettest.Refusing())); !errors.Is(err, llmprovider.ErrProviderUnavailable) {
 		t.Errorf("Ollama down: err %v; want ErrProviderUnavailable, not a stale listing", err)
 	}
 }

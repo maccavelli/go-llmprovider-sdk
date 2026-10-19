@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/nettest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -18,7 +19,8 @@ func TestOAuthRefresh_EveryFailureHasAKind(t *testing.T) {
 	t.Run("transport failure", func(t *testing.T) {
 		srv, _ := refreshServer(t, func(_ int32, w http.ResponseWriter, _ *http.Request) {})
 		session := expiredSession(srv, DefaultOpenAIIssuer)
-		srv.Close()
+		// A refused connection, with no freed port to meet (0045-MADR D1).
+		session.TokenURL, session.HTTPClient = nettest.RefusedURL, nettest.Refusing()
 		if _, err := session.Token(context.Background()); !errors.Is(err, llmprovider.ErrProviderUnavailable) {
 			t.Fatalf("Token = %v, want ErrProviderUnavailable", err)
 		}

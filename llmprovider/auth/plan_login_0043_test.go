@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/nettest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -50,12 +51,9 @@ type planLogin struct {
 
 func newPlanLogin(t *testing.T) *planLogin {
 	t.Helper()
-	first, firstPort := listenOnFreePort(t)
-	second, secondPort := listenOnFreePort(t)
-	closeListener(t, first)
-	closeListener(t, second)
+	// Ports no other package can be given while they are free (0045-MADR D2).
 	originalPorts := openaiLoopbackPorts
-	openaiLoopbackPorts = []int{firstPort, secondPort}
+	openaiLoopbackPorts = []int{nettest.Port(t), nettest.Port(t)}
 	t.Cleanup(func() { openaiLoopbackPorts = originalPorts })
 
 	pl := &planLogin{t: t, callbackClient: "oaiapp_issued0043", scope: planScopes}

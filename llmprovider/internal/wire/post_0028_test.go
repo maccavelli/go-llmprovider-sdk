@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/nettest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
@@ -37,10 +38,10 @@ func TestPost_FailureAfterWriteIsAfterReply(t *testing.T) {
 // here a refused connection, keeps its own *url.Error, unmarked, so
 // WithRetry retries it as before (0020-MADR F9).
 func TestPost_FailureBeforeWriteIsNot(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	addr := srv.URL
-	srv.Close()
-	_, err := Post(context.Background(), postCall(addr), llmprovider.Token{Value: "t"}, readAllString)
+	// Refused at dial, with no freed port to meet (0045-MADR D1).
+	call := postCall(nettest.RefusedURL)
+	call.Client = nettest.Refusing()
+	_, err := Post(context.Background(), call, llmprovider.Token{Value: "t"}, readAllString)
 	var urlErr *url.Error
 	if err == nil || transport.IsAfterReply(err) || !errors.As(err, &urlErr) {
 		t.Fatalf("Post = %v; want an unmarked *url.Error", err)

@@ -3,13 +3,13 @@ package wizard
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/nettest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers"
@@ -101,13 +101,14 @@ func TestConfigureLLM_LocalProviderSkipsKey(t *testing.T) {
 		selects: []int{providerIdx(t, llmprovider.ProviderOllama)},
 		// Two inputs: the endpoint, then the manual model id (Ollama has no
 		// static catalog, so the flow falls through to manual entry).
-		inputs: []string{refusedURL(t), "llama3.2:latest"},
+		inputs: []string{nettest.RefusedURL, "llama3.2:latest"},
 		// The endpoint refuses, so the wizard asks to try a different one;
-		// a refused port, not localhost:11434, keeps that so on a host that
-		// runs Ollama (0021-PLAN step 6.4).
+		// a refused connection, not localhost:11434, keeps that so on a host
+		// that runs Ollama (0021-PLAN step 6.4), and the refusing client
+		// meets no freed port (0045-MADR D1).
 		confirms: []bool{false},
 	})
-	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true})
+	res, err := ConfigureLLM(context.Background(), f, Options{AllowEnv: true, HTTPClient: nettest.Refusing()})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -132,10 +133,10 @@ func TestConfigureLLM_LocalProviderSkipsKey(t *testing.T) {
 func TestConfigureLLM_NoModelsAndNoneEnteredErrors(t *testing.T) {
 	f := newFake(t, fakePrompter{
 		selects:  []int{providerIdx(t, llmprovider.ProviderOllama)},
-		inputs:   []string{refusedURL(t), ""},
+		inputs:   []string{nettest.RefusedURL, ""},
 		confirms: []bool{false},
 	})
-	if _, err := ConfigureLLM(context.Background(), f, Options{}); err == nil {
+	if _, err := ConfigureLLM(context.Background(), f, Options{HTTPClient: nettest.Refusing()}); err == nil {
 		t.Error("expected an error when no model is available and none is entered")
 	}
 }
@@ -414,18 +415,4 @@ func TestResolveBaseURL_Validates(t *testing.T) {
 			}
 		})
 	}
-}
-
-// refusedURL is an http URL on a loopback port nothing listens on.
-func refusedURL(t *testing.T) string {
-	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := l.Addr().String()
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return "http://" + addr
 }

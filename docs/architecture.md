@@ -69,6 +69,7 @@ llmprovider/internal/cmd/catalogs/ the maintainer tool: go run, prints the propo
 wizard/                     interactive provider configuration
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
+internal/nettest/           a refused connection and a free loopback port, for tests only
 internal/ambientcheck/      the no-ambient-state check, a test only
 docs/
   README.md                 record index, "I want to…", migration table
@@ -90,6 +91,7 @@ standard library is left out.
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
+| `internal/nettest` | `Refusing`, a client whose every dial is refused, with `RefusedURL`; `Port`, a loopback port outside every ephemeral range; so that no test depends on a freed port (0045-MADR); imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
 | `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, `Stream`, and `ChatGPTUsageURL` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/chatgpt`, `internal/wire/responses`, `internal/transport`, `internal/wire`, `internal/wire/deferral` |

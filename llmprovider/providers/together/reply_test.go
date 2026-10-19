@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/nettest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -68,13 +69,11 @@ func TestGenerate_AnsweredOnceIsNotBoughtAgain(t *testing.T) {
 		t.Errorf("a connection dropped after the request: %d request(s), want 2: resent at most once", hits.Load())
 	}
 
-	// A refused connection: the request never reached a service.
-	refused := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	refusedURL := refused.URL
-	refused.Close()
+	// A refused connection: the request never reached a service. The dial is
+	// refused without a freed port to meet (0045-MADR D1).
 	var attempts atomic.Int32
-	client := &http.Client{Transport: roundTripCounter{count: &attempts, next: http.DefaultTransport}}
-	p, err := New(llmprovider.WithAPIKey("tgp-test"), llmprovider.WithModel("m"), llmprovider.WithBaseURL(refusedURL),
+	client := &http.Client{Transport: roundTripCounter{count: &attempts, next: nettest.Refusing().Transport}}
+	p, err := New(llmprovider.WithAPIKey("tgp-test"), llmprovider.WithModel("m"), llmprovider.WithBaseURL(nettest.RefusedURL),
 		llmprovider.WithHTTPClient(client))
 	if err != nil {
 		t.Fatal(err)

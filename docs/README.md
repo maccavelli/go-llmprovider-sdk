@@ -105,8 +105,8 @@ documents a reader follows to do something.
 | 0043 | PLAN | [Implement OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-PLAN-openai-chatgpt-plan-sign-in.md) | in-progress |
 | 0044 | MADR | [Let a Caller See Each Retry That WithRetry Waits For](decisions/0044-MADR-observe-retries.md) | accepted |
 | 0044 | PLAN | [Implement Letting a Caller See Each Retry That WithRetry Waits For](decisions/0044-PLAN-observe-retries.md) | in-progress |
-| 0045 | MADR | [Make Tests Fail to Connect Without Reusing a Freed Port](decisions/0045-MADR-tests-never-reuse-a-freed-port.md) | proposed |
-| 0045 | PLAN | [Implement Making Tests Fail to Connect Without Reusing a Freed Port](decisions/0045-PLAN-tests-never-reuse-a-freed-port.md) | proposed |
+| 0045 | MADR | [Make Tests Fail to Connect Without Reusing a Freed Port](decisions/0045-MADR-tests-never-reuse-a-freed-port.md) | accepted |
+| 0045 | PLAN | [Implement Making Tests Fail to Connect Without Reusing a Freed Port](decisions/0045-PLAN-tests-never-reuse-a-freed-port.md) | in-progress |
 
 ## I want to…
 

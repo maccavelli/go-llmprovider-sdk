@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-18
 decision-makers: repository owner
 consulted: CI runs 39177122292 (6aefe73, 2026-10-18) and 38569759839 (7f34e31, 2026-10-14); a read-only search of every test file at 6aefe73

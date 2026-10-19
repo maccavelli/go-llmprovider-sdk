@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/nettest"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
@@ -25,8 +26,8 @@ func TestListenOpenAILoopback_UsesSecondPortWhenFirstBusy(t *testing.T) {
 
 	first, firstPort := listenOnFreePort(t)
 	defer closeListener(t, first)
-	second, secondPort := listenOnFreePort(t)
-	closeListener(t, second)
+	// A port no other package can be given while it is free (0045-MADR D2).
+	secondPort := nettest.Port(t)
 
 	listeners, port, err := listenOpenAILoopback([]int{firstPort, secondPort})
 	if err != nil {
@@ -108,8 +109,7 @@ func TestBuildAuthorizeURL_OpenAIContract(t *testing.T) {
 }
 
 func TestListenLoopbackBothFamilies_LocalhostDials(t *testing.T) {
-	held, port := listenOnFreePort(t)
-	closeListener(t, held)
+	port := nettest.Port(t) // 0045-MADR D2
 
 	listeners, err := listenLoopbackBothFamilies(port)
 	if err != nil {
@@ -180,10 +180,7 @@ func TestGrokFlowFromEnv(t *testing.T) {
 }
 
 func TestLoginBrowserOAuth_OpenAICompletesCallbackAndExchange(t *testing.T) {
-	first, firstPort := listenOnFreePort(t)
-	second, secondPort := listenOnFreePort(t)
-	closeListener(t, first)
-	closeListener(t, second)
+	firstPort, secondPort := nettest.Port(t), nettest.Port(t) // 0045-MADR D2
 	originalPorts := openaiLoopbackPorts
 	openaiLoopbackPorts = []int{firstPort, secondPort}
 	t.Cleanup(func() { openaiLoopbackPorts = originalPorts })
@@ -365,7 +362,13 @@ func TestOAuthLogin_RejectsUnsupportedProvider(t *testing.T) {
 // 127.0.0.1, so the dial names the family explicitly.
 func TestListenLoopbackBothFamilies_IPv4OnlyMissesIPv6Localhost(t *testing.T) {
 	requireIPv6Loopback(t)
-	v4, port := listenOnFreePort(t)
+	// A port free on both families, which no :0 bind can be given, held on
+	// IPv4 only (0045-MADR D2).
+	port := nettest.Port(t)
+	v4, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	if err != nil {
+		t.Fatalf("listen on 127.0.0.1:%d: %v", port, err)
+	}
 	defer closeListener(t, v4)
 
 	conn, err := net.DialTimeout("tcp6", net.JoinHostPort("::1", strconv.Itoa(port)), time.Second)
@@ -379,8 +382,7 @@ func TestListenLoopbackBothFamilies_IPv4OnlyMissesIPv6Localhost(t *testing.T) {
 // helper answers a browser that dials ::1 (D1).
 func TestListenLoopbackBothFamilies_AcceptsIPv6Loopback(t *testing.T) {
 	requireIPv6Loopback(t)
-	held, port := listenOnFreePort(t)
-	closeListener(t, held)
+	port := nettest.Port(t) // 0045-MADR D2
 
 	listeners, err := listenLoopbackBothFamilies(port)
 	if err != nil {

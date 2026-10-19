@@ -49,6 +49,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `internal/redact` | redaction | the standard library |
   | `llmprovider/internal/wirecase` | G-wire's scenarios, for the provider packages' tests only | `llmprovider`, `internal/wiretest` |
   | `internal/wiretest` | G-wire's request recorder, for tests only | the standard library |
+  | `internal/nettest` | a refused connection and a free loopback port, for tests only (0045) | the standard library |
   | `internal/ambientcheck` | the R30–R31 check, a test with no package API | the standard library |
 
 - **R3. Wire knowledge stays internal.** A wire format shared by more than one
