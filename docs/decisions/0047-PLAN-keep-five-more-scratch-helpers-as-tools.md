@@ -306,3 +306,33 @@ Associated MADR: [0047-MADR-keep-five-more-scratch-helpers-as-tools.md](0047-MAD
 * **Step 5.** `tools/README.md`'s `edit.py` and `plant.py` rows.
 * **The gate:** `tools/gate.py`, 25 of 25 passed.
 
+### Phase 3: a record's status, and the index (2026-10-19)
+
+* **No deviation.** Phase 2 was committed by the owner as `f824bc3`.
+* **Step 1.** `tools/records.py`: `add` and `status`. It imports
+  `scripts/check_records.py` for its name pattern, status lists, index
+  path, row and count patterns, and front-matter reader, and runs its three
+  checks after writing, with its `ROOT` pointed at `--root` for the call
+  and restored after.
+  * `add` places a row after the last row of the same or a lower number:
+    the index does not order one number's kinds (0015's REPORT precedes its
+    MADR), so no kind order is imposed. The title is the record's first
+    heading after its front matter. The count is the table's rows.
+  * `status` checks the status against the record's kind before writing
+    anything, sets `status` and `date` (adding `date` after `status` when
+    absent), and the row's last cell.
+* **Step 2.** Six `TestRecords` tests on a temporary repository: `add` by
+  number with the count and "I want to…" unchanged; a PLAN after its MADR;
+  `add` of an indexed record writes nothing (exit 1); `status` with its
+  date and row; a bad status writes nothing (exit 2); a PLAN without its
+  MADR fails the checks run after writing (exit 1).
+* **Step 3, red first,** `tools/plant.py`, the `TestRecords` tests the
+  command: the count not updated (two tests fail); the row put at the
+  section's end (two fail); the checks not run after writing (one fails).
+* **Step 4.** On a copy of this repository's `docs/`: `records.py status`
+  of this PLAN to `complete`, exit 0, "records-check: 0 problem(s)"; the
+  copy's front matter and row say `complete`. The tree was not touched.
+  This PLAN's own status changes are made with it from here.
+* **Step 5.** `tools/README.md`'s row.
+* **The gate:** `tools/gate.py`, 25 of 25 passed.
+

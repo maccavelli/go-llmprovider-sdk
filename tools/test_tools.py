@@ -37,6 +37,7 @@ import linkcheck
 import liveskips
 import offline
 import plant
+import records
 
 
 def git(cwd: Path, *args: str) -> None:
@@ -217,6 +218,90 @@ class TestEdit(unittest.TestCase):
         self.assertEqual(rc, 2, out)
         rc, out = self.apply([{"file": "a.txt", "old": "one", "old_file": "x", "new": "1"}])
         self.assertEqual(rc, 2, out)
+
+
+INDEX = """# Documentation
+
+## Records
+
+2 records. Cite them by full filename.
+
+| Number | Kind | Record | Status |
+| :--- | :--- | :--- | :--- |
+| 0001 | MADR | [First](decisions/0001-MADR-first.md) | accepted |
+| 0003 | MADR | [Third](decisions/0003-MADR-third.md) | proposed |
+
+## I want to…
+
+| I want to… | Start here |
+| :--- | :--- |
+| know the first | [0001-MADR](decisions/0001-MADR-first.md) |
+"""
+
+
+class TestRecords(unittest.TestCase):
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        (self.root / "docs/decisions").mkdir(parents=True)
+        (self.root / "docs/reports").mkdir()
+        (self.root / "docs/README.md").write_text(INDEX)
+        self.write("0001-MADR-first.md", "accepted", "First")
+        self.write("0003-MADR-third.md", "proposed", "Third")
+
+    def write(self, name: str, status: str, title: str, extra: str = "") -> Path:
+        path = self.root / "docs/decisions" / name
+        path.write_text(f"---\nstatus: {status}\ndate: 2026-10-01\n{extra}---\n\n# {title}\n\nBody.\n")
+        return path
+
+    def run_records(self, *argv: str) -> tuple[int, str]:
+        return call(records.main, "--root", str(self.root), *argv)
+
+    def test_add_places_a_row_by_number_and_recounts(self) -> None:
+        self.write("0002-MADR-second.md", "proposed", "Second")
+        rc, out = self.run_records("add", "docs/decisions/0002-MADR-second.md")
+        self.assertEqual(rc, 0, out)
+        text = (self.root / "docs/README.md").read_text()
+        rows = [line for line in text.splitlines() if line.startswith("| 000")]
+        self.assertEqual([r[:13] for r in rows], ["| 0001 | MADR", "| 0002 | MADR", "| 0003 | MADR"])
+        self.assertIn("| 0002 | MADR | [Second](decisions/0002-MADR-second.md) | proposed |", text)
+        self.assertIn("3 records. Cite them by full filename.", text)
+        self.assertEqual(text.split("## I want to…")[1], INDEX.split("## I want to…")[1])
+
+    def test_add_a_plan_after_its_madr(self) -> None:
+        self.write("0003-PLAN-third.md", "proposed", "Implement Third", 'associated-madr: "0003-MADR-third.md"\n')
+        rc, out = self.run_records("add", "docs/decisions/0003-PLAN-third.md")
+        self.assertEqual(rc, 0, out)
+        rows = [l for l in (self.root / "docs/README.md").read_text().splitlines() if l.startswith("| 000")]
+        self.assertEqual(rows[-1], "| 0003 | PLAN | [Implement Third](decisions/0003-PLAN-third.md) | proposed |")
+
+    def test_add_of_an_indexed_record_writes_nothing(self) -> None:
+        rc, out = self.run_records("add", "docs/decisions/0001-MADR-first.md")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("already indexed", out)
+        self.assertEqual((self.root / "docs/README.md").read_text(), INDEX)
+
+    def test_status_sets_the_front_matter_and_the_row(self) -> None:
+        rc, out = self.run_records("status", "docs/decisions/0003-MADR-third.md", "accepted", "--date", "2026-10-19")
+        self.assertEqual(rc, 0, out)
+        record = (self.root / "docs/decisions/0003-MADR-third.md").read_text()
+        self.assertTrue(record.startswith("---\nstatus: accepted\ndate: 2026-10-19\n---\n"), record)
+        self.assertIn("| 0003 | MADR | [Third](decisions/0003-MADR-third.md) | accepted |",
+                      (self.root / "docs/README.md").read_text())
+
+    def test_a_bad_status_writes_nothing(self) -> None:
+        before = (self.root / "docs/decisions/0003-MADR-third.md").read_text()
+        rc, out = self.run_records("status", "docs/decisions/0003-MADR-third.md", "complete")
+        self.assertEqual(rc, 2, out)
+        self.assertEqual((self.root / "docs/decisions/0003-MADR-third.md").read_text(), before)
+        self.assertEqual((self.root / "docs/README.md").read_text(), INDEX)
+
+    def test_the_checks_run_after_writing(self) -> None:
+        self.write("0002-PLAN-second.md", "proposed", "Implement Second", 'associated-madr: "0002-MADR-second.md"\n')
+        rc, out = self.run_records("add", "docs/decisions/0002-PLAN-second.md")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("no MADR numbered 0002", out)
 
 
 class TestScratchClone(unittest.TestCase):
