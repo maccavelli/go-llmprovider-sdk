@@ -74,7 +74,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: the release notes, from CHANGELOG.md
-        run: python3 -B scripts/check_changelog.py --section "$GITHUB_REF_NAME" > notes.md
+        run: python3 -B scripts/check_changelog.py --section "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > notes.md
       - name: the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

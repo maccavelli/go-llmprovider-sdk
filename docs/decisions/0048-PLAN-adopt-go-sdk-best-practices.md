@@ -325,6 +325,21 @@ Associated MADR: [0048-MADR-adopt-go-sdk-best-practices.md](0048-MADR-adopt-go-s
    and links `CHANGELOG.md` for the rest.
 6. **Red first:** the selftest's three cases; a plant of `--section`'s exit
    code.
+7. **Amendment (2026-10-19), chosen by the owner after Phase 6:** a section's
+   links are relative to the repository's root, and a Release's notes are
+   read away from the tree, where they do not resolve (Phase 5's record).
+   `--section TAG --repo OWNER/NAME`, or with `GITHUB_REPOSITORY` set as CI
+   sets it, prints each relative link as
+   `https://github.com/OWNER/NAME/blob/TAG/PATH`, its fragment kept; an
+   absolute link is left as it is. A linked file that does not exist at the
+   tag (`git cat-file -e TAG:PATH`) fails `--section`, exit 1, so a Release
+   is not made with a link to nothing; on the tree, all 42 relative links of
+   the 23 sections exist at their tags. Without a repository the links are
+   printed as they are. The `release` job passes `--repo
+   "$GITHUB_REPOSITORY"`. Selftest cases, red first: a relative link
+   rewritten and an absolute one kept; a link to a file missing at the tag.
+   Rejected: links left relative, and absolute links to `main` in
+   `CHANGELOG.md` itself.
 
 ### Phase 6: the standard and the docs gate (D6–D8)
 
@@ -920,3 +935,27 @@ kept command's exact R51 phrase, is the list of record.
   fails its own case alone).
 * **The gate:** `tools/gate.py` on the final tree, 27 of 27 passed, with
   `docs-check` among them. No Go file changed.
+
+### Phase 5, step 7: the notes' links (2026-10-19)
+
+* **The amendment,** Phase 5 step 7, chosen by the owner after Phase 6 was
+  staged; Phase 6 was committed as `73e37c2` before it began.
+* **Measured first:** each of the 42 relative links in the 23 release
+  sections names a file that exists at its section's tag (`git cat-file -e
+  TAG:PATH`, a scratch script).
+* **The change:** `scripts/check_changelog.py --section TAG --repo
+  OWNER/NAME` (or `GITHUB_REPOSITORY`) prints each relative link as
+  `https://github.com/OWNER/NAME/blob/TAG/PATH`, its fragment kept, an
+  absolute link as it is, and fails, exit 1, on a link to a file the tag
+  lacks; without a repository the links are as written. `--section` with
+  `--repo` exits 0 for every one of the 23 tags. The `release` job passes
+  `--repo "$GITHUB_REPOSITORY"`; `actionlint`: clean.
+  `docs/architecture.md` says so.
+* **Selftest:** the `--section` cases run without `GITHUB_REPOSITORY`, so
+  that CI's does not change them; two cases added: a relative link at the
+  tag with its fragment, an absolute link kept, and the links as written
+  without `--repo`; a link to a file the tag lacks.
+* **Red first,** `tools/plant.py`, five plants, all caught: an absolute link
+  rewritten too; the fragment dropped; links pointed at `main`; a missing
+  file passing; `--repo` ignored.
+* **The gate:** `tools/gate.py` on the final tree, 27 of 27 passed.

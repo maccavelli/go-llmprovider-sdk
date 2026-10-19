@@ -357,21 +357,50 @@ class GateSelfTest(unittest.TestCase):
                      "## [v1.14.1] - 2026-10-17\n\n### Fixed\n\n- Planted.\n\n## [v1.14.0] - 2026-10-16")
         self.assertFails("changelog-check", "v1.14.1 has a section and no tag")
 
+    def changelog_section(self, *args: str) -> subprocess.CompletedProcess[str]:
+        """check_changelog.py --section, in the copy, without CI's
+        GITHUB_REPOSITORY, which --repo defaults to."""
+        env = {k: v for k, v in os.environ.items() if k != "GITHUB_REPOSITORY"}
+        return subprocess.run([sys.executable, "-B", GATES["changelog-check"], "--section", *args],
+                              cwd=self.tree, env=env, capture_output=True, text=True, check=False)
+
     def test_changelog_section_of_unknown_tag(self) -> None:
         """--section of a tag the file has no section for exits 1."""
-        proc = subprocess.run([sys.executable, "-B", GATES["changelog-check"], "--section", "v0.0.9"],
-                              cwd=self.tree, capture_output=True, text=True, check=False)
+        proc = self.changelog_section("v0.0.9")
         self.assertEqual(proc.returncode, 1, f"--section v0.0.9 exit {proc.returncode}, want 1:\n{proc.stdout}{proc.stderr}")
         self.assertIn("no section for v0.0.9", proc.stderr)
 
     def test_changelog_section_prints_the_body(self) -> None:
         """--section prints its section's body: no heading, no comparison link."""
-        proc = subprocess.run([sys.executable, "-B", GATES["changelog-check"], "--section", "v1.0.0"],
-                              cwd=self.tree, capture_output=True, text=True, check=False)
+        proc = self.changelog_section("v1.0.0")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("The v1 API that", proc.stdout)
         self.assertNotIn("## [", proc.stdout)
         self.assertNotIn("]: https://", proc.stdout)
+
+    def test_changelog_section_links_at_the_tag(self) -> None:
+        """With --repo, a relative link names its file at the tag, its
+        fragment kept, and an absolute link is kept; without it, the links are
+        as written (0048-PLAN Phase 5 step 7)."""
+        replace_once(self.tree / "CHANGELOG.md", "  [0042-MADR](docs/decisions/0042-MADR-ollama-models-that-write-text.md)\n",
+                     "  [0042-MADR](docs/decisions/0042-MADR-ollama-models-that-write-text.md#d2)\n"
+                     "  ([the form](https://keepachangelog.com/en/1.1.0/))\n")
+        proc = self.changelog_section("v1.14.0", "--repo", "owner/name")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("](https://github.com/owner/name/blob/v1.14.0/docs/decisions/"
+                      "0042-MADR-ollama-models-that-write-text.md#d2)", proc.stdout)
+        self.assertIn("](https://keepachangelog.com/en/1.1.0/)", proc.stdout)
+        self.assertNotIn("](docs/", proc.stdout)
+        plain = self.changelog_section("v1.14.0")
+        self.assertIn("](docs/decisions/0042-MADR-ollama-models-that-write-text.md#d2)", plain.stdout)
+
+    def test_changelog_section_link_missing_at_the_tag(self) -> None:
+        """With --repo, a link to a file the tag lacks fails --section."""
+        replace_once(self.tree / "CHANGELOG.md", "(docs/decisions/0042-MADR-ollama-models-that-write-text.md)",
+                     "(docs/decisions/9999-MADR-missing.md)")
+        proc = self.changelog_section("v1.14.0", "--repo", "owner/name")
+        self.assertEqual(proc.returncode, 1, f"exit {proc.returncode}, want 1:\n{proc.stdout}{proc.stderr}")
+        self.assertIn("v1.14.0's section links docs/decisions/9999-MADR-missing.md, which v1.14.0 lacks", proc.stderr)
 
     def test_clean_copy_passes_every_gate(self) -> None:
         for gate in GATES:

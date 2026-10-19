@@ -15,18 +15,24 @@ form: an optional "## [Unreleased]" section first, then one
   * a heading of another form, or a version given twice.
 
 --section TAG prints that section's body, the lines between its heading and
-the next, for a release's notes; the release job runs it.
+the next, for a release's notes; the release job runs it. With --repo
+OWNER/NAME, or GITHUB_REPOSITORY set as CI sets it, each relative link is
+printed as https://github.com/OWNER/NAME/blob/TAG/PATH, its fragment kept,
+since a Release's notes are read away from the tree; an absolute link is
+left as it is, and a linked file that does not exist at TAG fails it
+(0048-PLAN Phase 5 step 7).
 
 Usage:
   scripts/check_changelog.py
-  scripts/check_changelog.py --section vX.Y.Z
+  scripts/check_changelog.py --section vX.Y.Z [--repo OWNER/NAME]
 
 Exit codes: 0 clean (or the section printed), 1 a check failed (or no such
-section), 2 tool error.
+section, or a link to a file TAG lacks), 2 tool error.
 """
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -37,6 +43,10 @@ CHANGELOG = ROOT / "CHANGELOG.md"
 UNRELEASED = "## [Unreleased]"
 RELEASE = re.compile(r"^## \[(v(\d+)\.(\d+)\.(\d+))\] - (\d{4}-\d{2}-\d{2})$")
 VERSION = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+# An inline link's target, and a target that is not relative: a scheme, a
+# fragment alone, or a path from the host's root.
+LINK = re.compile(r"\]\(([^)\s]+)\)")
+ABSOLUTE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:|#|/)")
 
 
 def git(*args: str) -> str:
@@ -112,9 +122,29 @@ def section(lines: list[str], tag: str) -> list[str] | None:
     return None
 
 
+def at_tag(body: list[str], tag: str, repo: str) -> tuple[list[str], list[str]]:
+    """body with each relative link pointed at its file at tag on GitHub, and
+    the links whose file tag lacks."""
+    missing: list[str] = []
+
+    def rewrite(m: re.Match[str]) -> str:
+        target = m.group(1)
+        if ABSOLUTE.match(target):
+            return m.group(0)
+        path, _, fragment = target.partition("#")
+        found = subprocess.run(["git", "cat-file", "-e", f"{tag}:{path}"], cwd=ROOT, capture_output=True, check=False)
+        if found.returncode != 0:
+            missing.append(target)
+        return f"](https://github.com/{repo}/blob/{tag}/{path}" + (f"#{fragment}" if fragment else "") + ")"
+
+    return [LINK.sub(rewrite, line) for line in body], missing
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--section", metavar="TAG", help="print the section of TAG and exit")
+    parser.add_argument("--repo", metavar="OWNER/NAME", default=os.environ.get("GITHUB_REPOSITORY", ""),
+                        help="point --section's relative links at TAG in this GitHub repository")
     args = parser.parse_args(argv)
     try:
         lines = CHANGELOG.read_text(encoding="utf-8").splitlines()
@@ -126,6 +156,13 @@ def main(argv: list[str] | None = None) -> int:
         if body is None:
             print(f"changelog-check: CHANGELOG.md has no section for {args.section}", file=sys.stderr)
             return 1
+        if args.repo:
+            body, missing = at_tag(body, args.section, args.repo)
+            if missing:
+                for target in missing:
+                    print(f"changelog-check: {args.section}'s section links {target}, which {args.section} lacks",
+                          file=sys.stderr)
+                return 1
         print("\n".join(body))
         return 0
     problems = check(lines)

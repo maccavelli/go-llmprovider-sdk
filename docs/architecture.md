@@ -912,8 +912,9 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   see the tags. A job stops after 30 minutes, and a newer push to a pull
   request cancels its older run. On a `v*` tag, once every `validate` job
   has passed, the `release` job, the only one that may write, creates the
-  tag's GitHub Release with its `CHANGELOG.md` section as the notes
-  (0048-MADR D5).
+  tag's GitHub Release with its `CHANGELOG.md` section as the notes, each
+  relative link pointed at its file at the tag (0048-MADR D5; 0048-PLAN
+  Phase 5 step 7).
 
 ## What is not here
 
