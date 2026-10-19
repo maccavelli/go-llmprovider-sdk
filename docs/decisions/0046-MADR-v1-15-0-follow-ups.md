@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-19
 decision-makers: repository owner
 consulted: this module at 150bcc2 and its v1.15.0 tag (b1bf9bb); gobble-cli at ea509b6 and prepare-commit-msg at a04b617, read beside it; issues 2 and 3; CI runs 39181623652 and 39182359773
@@ -54,7 +54,7 @@ repeatable with the command given.
 | F5 | The record commit is not pushed | git, `origin/main..HEAD` after a fetch | one commit, `150bcc2` |
 | F6 | Neither consumer uses any `v1.15.0` name | a grep for the 12 names over each consumer's non-test Go files | no match in either |
 | F7 | The docs tables disagree with the imports in 13 places | a script that compares `go list` imports (host and `GOOS=windows`) with each table's cells; it is to become `scripts/check_tables.py` (D4) | 9 in `docs/architecture.md`, 4 in R2; the table under D4 lists them |
-| F8 | `AGENTS.md` omits three live variables that a test reads, and says one variable runs Grok's device login only | a grep for `LLMPROVIDER_LIVE_` over the live tests, against `AGENTS.md`'s list | `LLMPROVIDER_LIVE_GEMINI_429`, `…_429_MODEL` and `…_429_BURST` are missing; `LLMPROVIDER_LIVE_DEVICE_LOGIN` also runs Kilo's |
+| F8 | `AGENTS.md` omits ~~three~~ eighteen live variables that a test reads (A1), and says one variable runs Grok's device login only | a grep for `LLMPROVIDER_LIVE_` over the live tests, against `AGENTS.md`'s list | `LLMPROVIDER_LIVE_GEMINI_429`, `…_429_MODEL` and `…_429_BURST` are missing; `LLMPROVIDER_LIVE_DEVICE_LOGIN` also runs Kilo's |
 | F9 | Five live tests need a person to sign in, in three suites | a grep for the variable gates in the live tests | `BROWSER_LOGIN` (ChatGPT, Grok), `DEVICE_LOGIN` (Grok, Kilo), `CHATGPT_PLAN` |
 | F10 | Live tests with a key have been planted live; no person-gated one has | a search of the records for live plants | key-gated: 0033-, 0038-, 0039-, 0040-, 0042-PLAN; person-gated: none, and 0043-PLAN says so |
 
@@ -243,7 +243,7 @@ sign-in. The live run still proves the service.
   | R2 | `internal/wire/<format>` | `responses` imports `wire/deferral` (C5, C7) | allow `internal/wire/deferral` |
   | R2 | `internal/wire/deferral` | under the wire-format row, imports `wire/messages` (C6, C7) | a row of its own: `llmprovider`, `internal/wire/messages` |
   | R2 | `internal/cmd/catalogs` | imports `internal/transport` (C8, C9) | allow it |
-  | `AGENTS.md` | the live variables | `GEMINI_429`, `…_MODEL`, `…_BURST` missing; `DEVICE_LOGIN` "Grok" only (C14–C16) | list the three; say Grok and Kilo |
+  | `AGENTS.md` | the live variables | `GEMINI_429`, `…_MODEL`, `…_BURST` missing; `DEVICE_LOGIN` "Grok" only (C14–C16); *(A1: and 15 record measurement switches)* | list the three; say Grok and Kilo; *(A1: state the family rule for the switches)* |
 
   R2's rows change by this record, which they will cite. Every import is
   legitimate, so the rule moves to the code rather than the reverse.
@@ -253,6 +253,8 @@ sign-in. The live run still proves the service.
   * a package imports what its R2 row does not allow;
   * a package has no row in either table;
   * `AGENTS.md`'s live variables differ from those the live tests read.
+    *(A1: a record's measurement switch is accepted when that record
+    names it.)*
 
   It reads `go list` for the host and for `GOOS=windows`, as
   `scripts/check_deps.py` does. `scripts/test_gates.py` proves it with a
@@ -388,3 +390,33 @@ sign-in. The live run still proves the service.
     match in either.
 * The PLAN is written once this record is accepted:
   `0046-PLAN-v1-15-0-follow-ups.md`.
+
+## Amendments
+
+### A1. F8 undercounted the live variables (2026-10-19)
+
+* **Found** writing 0046-PLAN, before any change. F8's grep used the
+  pattern `LLMPROVIDER_LIVE_[A-Z_]*`, which stops at a digit. With digits
+  (`LLMPROVIDER_LIVE_[A-Z0-9_]*[A-Z0-9]`), the live tests read 24
+  variables, and `AGENTS.md` names 6 of them. The other 18 are:
+  * `LLMPROVIDER_LIVE_GEMINI_429`, `…_429_MODEL` and `…_429_BURST`, as F8
+    said;
+  * 15 record measurement switches: `LLMPROVIDER_LIVE_0028`, `_0031`,
+    `_0031B`, `_0032`, `_0032_HF_MODEL`, `_0033`, `_0033_REFRESH`, `_0034`,
+    `_0036`, `_0037`, `_0039`, `_0040`, `_0040_FOLLOWUP`, `_0040_PROBE` and
+    `_0041`.
+
+  Each switch is named, as a whole word, in a record of its own number
+  (`grep -w`). The claims C14–C16 stand. The question put to the owner
+  counted 16 switches; the list holds 15.
+* **Decided** by the owner: name the family.
+  * `AGENTS.md` lists the suites by name, the three `GEMINI_429` variables
+    among them, and states the rule: a record's own measurement test is
+    switched on by `LLMPROVIDER_LIVE_<NNNN>`, with suffixes for its
+    options, as that record says.
+  * `scripts/check_tables.py` accepts a variable of that form only when a
+    record numbered `NNNN` names it as a whole word, and fails on any other
+    variable `AGENTS.md` does not name.
+* **Rejected:** listing all 24 in `AGENTS.md`, a list that every new
+  measurement record would have to edit.
+
