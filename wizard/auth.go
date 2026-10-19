@@ -19,7 +19,8 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
 )
 
-// CredentialKind identifies the credential represented by a Result.
+// CredentialKind identifies the credential represented by a Result. It is a
+// string, safe for concurrent use.
 type CredentialKind string
 
 const (

@@ -27,7 +27,10 @@ const lockWait = 40 * time.Second
 // FileTokenStore persists one OAuth session per provider in a directory.
 // Writes are durable (0016-MADR D3), and a refresh holds an OS file lock
 // beside the session so two processes never spend the same refresh token
-// (0016-MADR amendment A2; 0026-MADR F13).
+// (0016-MADR amendment A2; 0026-MADR F13). It keeps nothing in memory but
+// Dir, so it is safe for concurrent use while Dir is unchanged: a save writes
+// a new file and renames it into place, and the refresh lock excludes the
+// process's other callers as it does other processes'.
 type FileTokenStore struct {
 	Dir string
 
@@ -39,7 +42,9 @@ type FileTokenStore struct {
 // current user: mode 0700 on Unix; on Windows a protected DACL whose one
 // entry, the user's, the directory's files inherit (0010-MADR D10). On Unix
 // an existing directory must be the user's and not a symlink, and loses any
-// group or other write bit (0021-MADR T15).
+// group or other write bit (0021-MADR T15). An empty dir is a plain error,
+// and a directory it cannot make gives an error wrapping the filesystem's
+// *fs.PathError.
 func NewFileTokenStore(dir string) (*FileTokenStore, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("FileTokenStore: empty dir")
@@ -212,6 +217,9 @@ func (fs *FileTokenStore) Save(ctx context.Context, provider llmprovider.Provide
 }
 
 // Delete removes a provider session and succeeds when it is already absent.
+// An invalid provider id gives an error matching
+// llmprovider.ErrInvalidProvider, and a file it cannot remove the
+// *fs.PathError os.Remove gives.
 func (fs *FileTokenStore) Delete(ctx context.Context, provider llmprovider.ProviderID) error {
 	if err := validateProviderID(provider); err != nil {
 		return err

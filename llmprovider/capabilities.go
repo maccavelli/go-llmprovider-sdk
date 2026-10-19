@@ -1,6 +1,7 @@
 package llmprovider
 
-// Support is how far a provider honours one capability (0015-MADR D4).
+// Support is how far a provider honours one capability (0015-MADR D4). It is
+// an integer, safe for concurrent use.
 type Support int
 
 const (
@@ -29,7 +30,8 @@ func (s Support) String() string {
 }
 
 // Capabilities declares what a provider supports (0015-MADR D4). The zero
-// value supports nothing.
+// value supports nothing. It is safe for concurrent use only while no
+// goroutine changes it.
 type Capabilities struct {
 	// Tools is calling functions the request offers.
 	Tools Support

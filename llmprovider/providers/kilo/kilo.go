@@ -165,7 +165,10 @@ type provider struct {
 	limit int
 }
 
-// New builds the Kilo provider.
+// New builds the Kilo provider. Without a key it sends Kilo's anonymous
+// token. An option llmprovider.ResolveOptions refuses gives an error matching
+// llmprovider.ErrInvalidRequest; an OAuth session for another provider, or a
+// vendor CLI session, one matching llmprovider.ErrUnsupported.
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	st, err := llmprovider.ResolveOptions(llmprovider.ProviderKilo, opts)
 	if err != nil {

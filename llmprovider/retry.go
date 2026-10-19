@@ -11,7 +11,8 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
-// RetryPolicy says how WithRetry retries (0015-MADR D8).
+// RetryPolicy says how WithRetry retries (0015-MADR D8). It is safe for
+// concurrent use only while no goroutine changes it.
 type RetryPolicy struct {
 	// MaxAttempts counts every try, the first included. Zero means 3; one
 	// means no retry.
@@ -27,7 +28,8 @@ type RetryPolicy struct {
 }
 
 // RetryNotice describes a retry that WithRetryNotify is about to wait for
-// (0044-MADR D1).
+// (0044-MADR D1). It is safe for concurrent use only while no goroutine
+// changes it.
 type RetryNotice struct {
 	// Provider is the wrapped provider's ID.
 	Provider ProviderID

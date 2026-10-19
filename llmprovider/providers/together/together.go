@@ -108,7 +108,10 @@ type provider struct {
 	limit int
 }
 
-// New builds the Together AI provider. It needs a key.
+// New builds the Together AI provider. It needs a key. No key, an empty key,
+// and an option llmprovider.ResolveOptions refuses give an error matching
+// llmprovider.ErrInvalidRequest; an OAuth or vendor CLI session, one matching
+// llmprovider.ErrUnsupported.
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	st, err := llmprovider.ResolveOptions(llmprovider.ProviderTogether, opts)
 	if err != nil {

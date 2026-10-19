@@ -177,12 +177,16 @@ type provider struct {
 	limit int
 }
 
-// NewZen builds the OpenCode Zen provider.
+// NewZen builds the OpenCode Zen provider. Without a key it sends the
+// gateway's public token. An option llmprovider.ResolveOptions refuses, and a
+// WithRoute naming no route, give an error matching
+// llmprovider.ErrInvalidRequest; an OAuth or vendor CLI session, one matching
+// llmprovider.ErrUnsupported.
 func NewZen(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	return newGateway(llmprovider.ProviderOpencodeZen, zenBaseURL, opts)
 }
 
-// NewGo builds the OpenCode Go provider.
+// NewGo builds the OpenCode Go provider. Its errors are NewZen's.
 func NewGo(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	return newGateway(llmprovider.ProviderOpencodeGo, goBaseURL, opts)
 }

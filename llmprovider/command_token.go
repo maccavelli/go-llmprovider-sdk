@@ -27,6 +27,7 @@ const (
 // InvalidatingSource is a TokenSource that can be told its token was refused
 // (HTTP 401), so its next Token fetches a fresh one. A provider that receives
 // a 401 invalidates such a source and retries once. CommandToken is one.
+// Implementations must be safe for concurrent use, as a TokenSource's must.
 type InvalidatingSource interface {
 	TokenSource
 	Invalidate()
@@ -37,6 +38,8 @@ type InvalidatingSource interface {
 // one, so a 401 that arrives after a renewal does not discard the fresh token
 // (0021-MADR D5). A provider calls it, when the source has it, in place of
 // Invalidate. CommandToken and auth.OAuthSession are TokenInvalidators.
+// Implementations must be safe for concurrent use: a refused request calls
+// InvalidateToken while the provider's other requests call Token.
 type TokenInvalidator interface {
 	InvalidateToken(Token)
 }
@@ -57,7 +60,9 @@ type tokenFuture struct {
 // with the process's environment; its output is trimmed, capped at 8 KiB and
 // cached for TTL. Concurrent callers share one run. A failure names the
 // command, never its output. Its String, GoString, LogValue and MarshalJSON
-// show the command's name only, never its arguments or the token.
+// show the command's name only, never its arguments or the token. It is safe
+// for concurrent use while its fields are unchanged after the first Token,
+// and it must not be copied after that.
 type CommandToken struct {
 	// Argv is the command and its arguments.
 	Argv []string
@@ -86,7 +91,11 @@ func NewCommandToken(argv ...string) *CommandToken {
 }
 
 // Token returns the cached output, or runs the command when there is none or
-// it is older than TTL.
+// it is older than TTL. A caller that comes while another's run is going gets
+// that run's result, or runs the command itself when that run's caller gave
+// up. No command gives an error matching ErrInvalidRequest; a run that times
+// out, fails, writes more than 8 KiB or prints nothing, one matching
+// ErrAuthFailure. A caller whose ctx ends first gets ctx's error.
 func (c *CommandToken) Token(ctx context.Context) (Token, error) {
 	c.mu.Lock()
 	now := c.clock()

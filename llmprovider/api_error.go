@@ -71,7 +71,8 @@ const (
 // limit is one of kind ErrRateLimited with its RetryAfter, and a response the
 // service cut short one of kind ErrIncomplete with its Reason. It unwraps to
 // its Kind and, when that differs, to the sentinel the status alone mapped to
-// before, so every existing errors.Is check still matches (MADR 0012 §7).
+// before, so every existing errors.Is check still matches (MADR 0012 §7). It
+// is safe for concurrent use only while no goroutine changes it.
 type APIError struct {
 	// Provider names the provider, or "gateway/route" for a gateway.
 	Provider string

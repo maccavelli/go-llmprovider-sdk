@@ -3,7 +3,8 @@ package llmprovider
 // The authentication paths a Descriptor lists. Each provider package declares
 // its own Descriptor (0015-MADR D10; 0015-PLAN S8, commit 1).
 
-// AuthMethodID identifies a provider authentication method.
+// AuthMethodID identifies a provider authentication method. It is a string,
+// safe for concurrent use.
 type AuthMethodID string
 
 const (
@@ -23,7 +24,8 @@ const (
 	AuthChatGPTPlan AuthMethodID = "chatgpt_plan"
 )
 
-// AuthMethod describes one authentication path a provider offers.
+// AuthMethod describes one authentication path a provider offers. It is safe
+// for concurrent use only while no goroutine changes it.
 type AuthMethod struct {
 	ID          AuthMethodID
 	Label       string

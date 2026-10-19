@@ -14,7 +14,7 @@ import (
 // Caveat is a reason a listed model should not be the default. A caveat
 // does not drop the model: it sinks it to the end of Catalog.Menu, and keeps
 // it out of Recommended (0041-MADR D3), except CaveatNoTools on Ollama
-// (0042-MADR D2).
+// (0042-MADR D2). It is a string, safe for concurrent use.
 type Caveat string
 
 // The caveats, each read from one fact.
@@ -33,7 +33,8 @@ const (
 	CaveatUnavailable Caveat = "unavailable"
 )
 
-// MenuEntry is one model of Catalog.Menu (0041-MADR D3).
+// MenuEntry is one model of Catalog.Menu (0041-MADR D3). It is safe for
+// concurrent use only while no goroutine changes it.
 type MenuEntry struct {
 	// ID is the model's id, as the provider lists it.
 	ID string

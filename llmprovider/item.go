@@ -11,12 +11,14 @@ import (
 //
 // Callers switch on concrete types: MessageItem, FunctionCallItem,
 // FunctionCallOutputItem, ReasoningItem, and ToolLoadItem, which only a
-// request's Input holds.
+// request's Input holds. Its implementations are safe for concurrent use only
+// while no goroutine changes them.
 type Item interface {
 	itemKind() string // sealed marker — unexported, prevents external implementation
 }
 
 // MessageItem represents a text message from a role (typically "assistant").
+// It is safe for concurrent use only while no goroutine changes it.
 type MessageItem struct {
 	Role Role // RoleUser, RoleAssistant or RoleSystem
 	Text string
@@ -24,7 +26,8 @@ type MessageItem struct {
 
 func (MessageItem) itemKind() string { return itemTypeMessage }
 
-// FunctionCallItem represents the model requesting a function/tool call.
+// FunctionCallItem represents the model requesting a function/tool call. It
+// is safe for concurrent use only while no goroutine changes it.
 type FunctionCallItem struct {
 	CallID    string // provider-issued call identifier
 	Name      string // function name
@@ -38,6 +41,7 @@ type FunctionCallItem struct {
 func (FunctionCallItem) itemKind() string { return itemTypeFunctionCall }
 
 // FunctionCallOutputItem represents the caller's response to a function call.
+// It is safe for concurrent use only while no goroutine changes it.
 type FunctionCallOutputItem struct {
 	CallID string // matches FunctionCallItem.CallID
 	Output string // the function's return value (typically JSON)
@@ -58,6 +62,7 @@ func (FunctionCallOutputItem) itemKind() string { return itemTypeFunctionCallOut
 // later requests carry the items that loaded it. Each provider sends the
 // load in its service's form, or appends the tool to the request's tools, as
 // its package doc says. No response holds one (0040-MADR D1, amendment A5).
+// It is safe for concurrent use only while no goroutine changes it.
 type ToolLoadItem struct {
 	CallID string // the FunctionCallOutputItem's, which comes before it
 	Name   string // a Tool of the request with Deferred set
@@ -67,7 +72,8 @@ func (ToolLoadItem) itemKind() string { return itemTypeToolLoad }
 
 // ReasoningItem represents a model's internal reasoning/thinking trace.
 // Not all providers or models emit this; when absent, the Output slice
-// simply contains no ReasoningItem values.
+// simply contains no ReasoningItem values. It is safe for concurrent use only
+// while no goroutine changes it.
 type ReasoningItem struct {
 	Text string
 	// Signature is the service's proof that Text is its own, which it needs
@@ -88,7 +94,8 @@ type ReasoningItem struct {
 
 func (ReasoningItem) itemKind() string { return itemTypeReasoning }
 
-// Response is the result of a generation (0015-MADR D3).
+// Response is the result of a generation (0015-MADR D3). It is safe for
+// concurrent use only while no goroutine changes it.
 type Response struct {
 	// ID is the provider-issued response identifier, used for server-side
 	// conversation chaining (OpenAI/xAI: response ID, Gemini: interaction ID,

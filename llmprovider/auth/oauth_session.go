@@ -71,7 +71,9 @@ const chatGPTAccessFixture = "chatgpt-access"
 // token that token_stdin produces, and never a stub. A
 // refreshable session needs a client id, and a token URL, which may be empty
 // only for OpenAI's and xAI's own issuers, from which the refresh derives it
-// (0020-MADR F45; 0026-MADR F44).
+// (0020-MADR F45; 0026-MADR F44). A custom issuer's session with no token URL
+// gives an error matching llmprovider.ErrAuthFailure; the other refusals are
+// plain errors naming the reason.
 func ValidateOAuthSession(session *OAuthSession) error {
 	switch {
 	case session == nil || strings.TrimSpace(session.Access) == "":

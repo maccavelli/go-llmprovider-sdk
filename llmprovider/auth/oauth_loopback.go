@@ -37,7 +37,8 @@ const (
 
 var openaiLoopbackPorts = []int{1455, 1457}
 
-// OAuthFlowOptions supplies transport and user-interaction hooks for OAuth login.
+// OAuthFlowOptions supplies transport and user-interaction hooks for OAuth
+// login. It is safe for concurrent use only while no goroutine changes it.
 type OAuthFlowOptions struct {
 	HTTPClient   *http.Client
 	OpenURL      func(string) error
@@ -92,7 +93,12 @@ type oauthCallbackResult struct {
 	err      error
 }
 
-// LoginBrowserOAuth completes a browser authorization-code flow with PKCE.
+// LoginBrowserOAuth completes a browser authorization-code flow with PKCE. A
+// provider it does not support, a failed issuer discovery, an error the
+// identity provider sends back (access_denied included, which does not match
+// llmprovider.ErrAuthFailure), a failed token exchange and a rejected
+// id_token are plain errors. A ctx that ends gives an error wrapping ctx's,
+// and an error from opts.InputCode ends the login, matching that error.
 func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opts OAuthFlowOptions) (*OAuthSession, error) {
 	config, err := resolveOAuthFlowConfig(provider, opts)
 	if err != nil {

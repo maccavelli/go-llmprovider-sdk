@@ -34,7 +34,8 @@ func ParseMetadata(r io.Reader) (Metadata, error) {
 // Encode writes the sections of m the SDK reads, in models.dev's format, each
 // section's bytes exactly as they were read, so fields the SDK does not
 // decode survive. ParseMetadata reads the result back to an equal Metadata
-// (0033-MADR D3, as amended).
+// (0033-MADR D3, as amended). A failed write is returned wrapped, so the
+// writer's error matches it.
 func (m Metadata) Encode(w io.Writer) error {
 	keys := make([]string, 0)
 	if m.doc != nil {

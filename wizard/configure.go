@@ -28,7 +28,8 @@ const defaultDiscoverLimit = 10 * time.Second
 // A CredOAuth Result holds no token: the session is in Options.TokenStore,
 // its only copy, and the consumer loads it from there (0016-MADR D11, A7).
 // Its String, GoString and LogValue never show APIKey; json.Marshal keeps it,
-// for the consumer to persist (0016-MADR D5, A9).
+// for the consumer to persist (0016-MADR D5, A9). It is safe for
+// concurrent use only while no goroutine changes it.
 type Result struct {
 	Provider llmprovider.ProviderID
 	Kind     CredentialKind
@@ -54,7 +55,8 @@ type Result struct {
 }
 
 // Options controls the flow. The zero value runs a full interactive
-// configuration over every known provider with no discovery.
+// configuration over every known provider with no discovery. It is safe for
+// concurrent use only while no goroutine changes it.
 type Options struct {
 	// Registry is where the menu's providers come from. Nil uses
 	// providers.Default(), every built-in provider (0015-PLAN S8).
@@ -144,6 +146,15 @@ func (o Options) lookupEnv() func(string) string {
 // It never writes configuration and never logs a credential: an API key
 // appears only in the returned Result, a session only in Options.TokenStore,
 // and anything shown to the user is masked with redact.MaskSecret.
+//
+// A Prompter's error ends the flow and is returned, wrapped or as it is, so
+// errors.Is matches it; so is a failed device-code sign-in's, as
+// auth.LoginDeviceOAuth gave it. An ended ctx gives an error matching ctx's,
+// and a credential the provider refuses while its models are listed, one
+// matching llmprovider.ErrAuthFailure. Options.Providers naming no provider
+// of the Registry, a Prompter's choice out of range, and no model chosen are
+// plain errors. A listing that fails otherwise is not an error: the flow
+// warns and offers the provider's static catalog.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	descriptors, err := selectableDescriptors(o.registry(), o.Providers)
 	if err != nil {

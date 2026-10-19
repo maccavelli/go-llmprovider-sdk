@@ -5,11 +5,14 @@ import (
 	"sync"
 )
 
-// Factory builds a provider from options (0015-MADR D5, D10).
+// Factory builds a provider from options (0015-MADR D5, D10). Registry.New
+// does not serialise calls to it, so a Factory must be safe for
+// concurrent use: two New calls for one id run it at once.
 type Factory func(opts ...Option) (Provider, error)
 
 // Descriptor is what a configuration UI needs to know about a provider
-// (0015-MADR D10).
+// (0015-MADR D10). It is safe for concurrent use only while no goroutine
+// changes it.
 type Descriptor struct {
 	// ID is the provider's canonical identifier.
 	ID ProviderID

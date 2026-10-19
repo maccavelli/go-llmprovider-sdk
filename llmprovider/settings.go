@@ -15,7 +15,10 @@ import (
 // options are in this package. A provider package defines its own with
 // ScopedOption or ScopedOptionFor, and New refuses one meant for another
 // provider unless For scopes it. Options apply in order, so a later one wins;
-// a For's options apply after all the others.
+// a For's options apply after all the others. Applying an Option does not
+// change it, so one may be given to many New calls at once; the values it
+// holds, such as a TokenSource or a Layer, must themselves be safe for
+// concurrent use.
 type Option struct {
 	name      string       // the constructor's name, for errors
 	scoped    bool         // a provider-specific option
@@ -157,7 +160,8 @@ func scopeText(providers []ProviderID) string {
 }
 
 // Settings is the configuration a provider's New resolved from its options.
-// It cannot be changed after ResolveOptions returns it.
+// It cannot be changed after ResolveOptions returns it. It is safe for
+// concurrent use: its methods only read it, and Reasoning returns a copy.
 type Settings struct {
 	s        settings
 	identity transport.Identity

@@ -7,7 +7,7 @@ import (
 )
 
 // Profile selects how a listing ranks its recommended models (MADR 0009
-// §1; 0041-MADR D4, D5).
+// §1; 0041-MADR D4, D5). It is an integer, safe for concurrent use.
 type Profile int
 
 const (

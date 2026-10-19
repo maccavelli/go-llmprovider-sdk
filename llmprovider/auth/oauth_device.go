@@ -77,7 +77,8 @@ type oauthDeviceError struct {
 // DeviceLogin is a device-code login in progress (0016-MADR D6). Show the
 // user UserCode and VerificationURI, then call Wait for the session. The
 // code is valid until Expiry. Cancel stops the login from another goroutine,
-// so one surface can show the code while another waits.
+// so one surface can show the code while another waits. It is safe for
+// concurrent use: Cancel, and any number of Waits, may run at once.
 type DeviceLogin struct {
 	// UserCode is the code the user enters.
 	UserCode string
@@ -102,7 +103,12 @@ type DeviceLogin struct {
 var errDeviceLoginCanceled = fmt.Errorf("oauth: device login canceled: %w", context.Canceled)
 
 // StartDeviceOAuth starts the provider's device-code login: it requests the
-// code, and returns a handle to show it and wait for approval.
+// code, and returns a handle to show it and wait for approval. A provider
+// other than OpenAI, Grok and Kilo, a failed issuer discovery, a status other
+// than success, and a reply that does not decode or is incomplete are plain
+// errors, and a reply unsafe to show is refused; Kilo's rate limit gives an
+// error matching llmprovider.ErrRateLimited. A request that fails in
+// transport wraps the *url.Error, so it matches ctx's error when ctx ends.
 func StartDeviceOAuth(ctx context.Context, provider llmprovider.ProviderID, opts OAuthFlowOptions) (*DeviceLogin, error) {
 	if provider == llmprovider.ProviderKilo {
 		return startKiloDevice(ctx, opts)
@@ -119,6 +125,12 @@ func StartDeviceOAuth(ctx context.Context, provider llmprovider.ProviderID, opts
 
 // Wait polls until the user approves, the code expires, ctx ends or Cancel is
 // called. A second Wait, concurrent or later, returns the first one's result.
+// A second Wait whose own ctx ends first gets ctx's error. Cancel ends it
+// with an error matching context.Canceled, and ctx ending with one matching
+// ctx's. A denied or expired code the service reports gives an error matching
+// llmprovider.ErrAuthFailure, and the code passing its own expiry an error
+// that says so; an unexpected or undecodable poll reply, a failed token
+// exchange and a rejected id_token are plain errors.
 func (d *DeviceLogin) Wait(ctx context.Context) (*OAuthSession, error) {
 	d.mu.Lock()
 	if done := d.done; done != nil {
@@ -168,7 +180,8 @@ func (d *DeviceLogin) Cancel() {
 
 // LoginDeviceOAuth completes the provider's headless device-code flow in one
 // call: it starts the login, reports the code through opts.NotifyDevice, and
-// waits for approval. StartDeviceOAuth gives the same flow as a handle.
+// waits for approval. StartDeviceOAuth gives the same flow as a handle. Its
+// errors are StartDeviceOAuth's and Wait's.
 func LoginDeviceOAuth(ctx context.Context, provider llmprovider.ProviderID, opts OAuthFlowOptions) (*OAuthSession, error) {
 	login, err := StartDeviceOAuth(ctx, provider, opts)
 	if err != nil {

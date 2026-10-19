@@ -6,7 +6,8 @@ import (
 	"iter"
 )
 
-// EventType names what an Event carries.
+// EventType names what an Event carries. It is a string, safe for
+// concurrent use.
 type EventType string
 
 const (
@@ -22,7 +23,8 @@ const (
 )
 
 // Event is one step of a streamed response (0015-MADR D4). Code that switches
-// on Type has a default case: new types may be added.
+// on Type has a default case: new types may be added. It is safe for
+// concurrent use only while no goroutine changes it.
 type Event struct {
 	Type     EventType
 	Text     string
@@ -30,7 +32,9 @@ type Event struct {
 	Response *Response
 }
 
-// Streamer is implemented by a provider that streams natively.
+// Streamer is implemented by a provider that streams natively. An
+// implementation must be safe for concurrent use, as the Provider that has it
+// is.
 type Streamer interface {
 	Stream(ctx context.Context, req *Request) iter.Seq2[Event, error]
 }

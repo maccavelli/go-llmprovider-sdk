@@ -8,7 +8,8 @@ import (
 
 // ForcedChoiceFallback is what a provider does with ToolChoiceRequired for a
 // model that refuses a forced tool choice (0034-MADR D10). A forced named tool
-// (ForceTool) is not affected: it is sent in a form the model accepts.
+// (ForceTool) is not affected: it is sent in a form the model accepts. It is
+// an integer, safe for concurrent use.
 type ForcedChoiceFallback int
 
 const (

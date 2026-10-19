@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-// TokenType identifies how a token authenticates a provider request.
+// TokenType identifies how a token authenticates a provider request. It is a
+// string, safe for concurrent use.
 type TokenType string
 
 const (
@@ -48,7 +49,8 @@ func expiryText(t time.Time) string {
 //
 // A provider sends it as Token describes it (0016-MADR D2, A6): with no
 // Header, in the service's own header and scheme; with a Header, in that
-// header instead, prefixed as Type says.
+// header instead, prefixed as Type says. It is safe for concurrent use only
+// while no goroutine changes it.
 type Token struct {
 	Value  string
 	Type   TokenType
@@ -88,13 +90,16 @@ func (t Token) LogValue() slog.Value {
 	)
 }
 
-// TokenSource supplies authentication for a provider request.
+// TokenSource supplies authentication for a provider request. Implementations
+// must be safe for concurrent use: a provider calls Token from each of its
+// requests, so from many goroutines at once.
 type TokenSource interface {
 	Token(ctx context.Context) (Token, error)
 }
 
 // StaticToken returns one fixed API key without expiry. Its String,
-// GoString and LogValue never show Value.
+// GoString and LogValue never show Value. Token only reads it, so it is safe
+// for concurrent use while no goroutine changes it.
 type StaticToken struct {
 	Value string
 	// Header is the request header the key goes in; empty is the service's
@@ -108,7 +113,7 @@ func NewStaticToken(value string) *StaticToken {
 }
 
 // Token returns the static value as a TokenAPIKey, with the Header the caller
-// set, if any (0016-MADR A6).
+// set, if any (0016-MADR A6). It never returns an error.
 func (s *StaticToken) Token(ctx context.Context) (Token, error) {
 	return Token{
 		Value:  s.Value,

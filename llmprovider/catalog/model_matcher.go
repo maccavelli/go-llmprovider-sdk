@@ -30,7 +30,8 @@ const (
 	minSubsequenceQuery = 3
 )
 
-// Match is one ranked Search result.
+// Match is one ranked Search result. It is safe for concurrent use only while
+// no goroutine changes it.
 type Match struct {
 	ID    string
 	Label string // Label(provider, ID)

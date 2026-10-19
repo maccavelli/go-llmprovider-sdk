@@ -25,19 +25,20 @@ type Provider interface {
 // serves (0015-MADR D3, amendment of 2026-09-30). ListModels returns the
 // curated listing, in full unless catalog.WithLimit cuts it (0038-MADR D4),
 // probed where 0016-MADR A5 says; a caller type-asserts to it, as to
-// Streamer.
+// Streamer. An implementation must be safe for concurrent use, as the
+// Provider that has it is.
 type ModelLister interface {
 	ListModels(ctx context.Context) ([]string, error)
 }
 
 // ProviderID is a provider's canonical identifier: the models.dev registry
 // key (0015-MADR D6). The ProviderGemini family of constants are its
-// built-in values.
+// built-in values. It is a string, safe for concurrent use.
 type ProviderID string
 
 // Role is the author of a MessageItem (0015-MADR D6). An empty Role is the
 // user's; any other value outside the constants is refused before any network
-// call, with ErrInvalidRequest.
+// call, with ErrInvalidRequest. It is a string, safe for concurrent use.
 type Role string
 
 const (
@@ -58,7 +59,8 @@ func (r Role) valid() bool {
 	}
 }
 
-// Effort is a reasoning effort level (0015-MADR D6).
+// Effort is a reasoning effort level (0015-MADR D6). It is a string, safe for
+// concurrent use.
 type Effort string
 
 const (
@@ -83,7 +85,8 @@ func (e Effort) valid() bool {
 }
 
 // Reasoning requests extended reasoning with either an effort level or a
-// token budget. A nil *Reasoning on a Request means none.
+// token budget. A nil *Reasoning on a Request means none. It is safe for
+// concurrent use only while no goroutine changes it.
 type Reasoning struct {
 	// Effort is the level to reason at. Empty leaves the provider's default.
 	Effort Effort
@@ -95,7 +98,8 @@ type Reasoning struct {
 // CacheRetention asks the service to cache the request's prompt, for how
 // long (0039-MADR D1). The zero value asks for nothing: the request is sent
 // as it would be without the field, and a service that caches on its own
-// still does. Each provider's package doc says what it sends.
+// still does. Each provider's package doc says what it sends. It is a string,
+// safe for concurrent use.
 type CacheRetention string
 
 const (
@@ -117,7 +121,8 @@ func (r CacheRetention) valid() bool {
 }
 
 // ToolChoice says whether and how the model must call a tool (0015-MADR D3).
-// The empty value is ToolChoiceAuto. ForceTool names one tool.
+// The empty value is ToolChoiceAuto. ForceTool names one tool. It is a
+// string, safe for concurrent use.
 type ToolChoice string
 
 const (
@@ -149,7 +154,8 @@ func (c ToolChoice) forced() bool {
 }
 
 // FinishReason says why the model stopped (0015-MADR D6). A service's own
-// value that no constant names is kept as the service sent it.
+// value that no constant names is kept as the service sent it. It is a
+// string, safe for concurrent use.
 type FinishReason string
 
 const (
@@ -169,7 +175,8 @@ const (
 // (0015-MADR amendment "what `Usage` counts"). CachedTokens and
 // CacheWriteTokens are parts of InputTokens that do not overlap, so
 // InputTokens - CachedTokens - CacheWriteTokens is the uncached input
-// (0036-MADR D1).
+// (0036-MADR D1). It is safe for concurrent use only while no goroutine
+// changes it.
 type Usage struct {
 	// InputTokens is every input token, CachedTokens and CacheWriteTokens
 	// included.
@@ -189,7 +196,8 @@ type Usage struct {
 }
 
 // Request is everything one generation needs (0015-MADR D3). A field's zero
-// value means the provider's default, or not requested.
+// value means the provider's default, or not requested. It is safe for
+// concurrent use only while no goroutine changes it.
 type Request struct {
 	// Model overrides the model the provider was built with. Empty uses it.
 	Model string

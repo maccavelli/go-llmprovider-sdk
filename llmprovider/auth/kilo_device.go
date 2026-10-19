@@ -149,7 +149,8 @@ func decodeKiloResponse(resp *http.Response, into any) error {
 	return errors.Join(err, closeResponseBody(resp))
 }
 
-// KiloOrganization is one organization a Kilo account belongs to.
+// KiloOrganization is one organization a Kilo account belongs to. It is safe
+// for concurrent use only while no goroutine changes it.
 type KiloOrganization struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -157,7 +158,8 @@ type KiloOrganization struct {
 }
 
 // KiloAccount is what GET /api/profile says about a Kilo token's account
-// (kilocode packages/kilo-gateway/src/api/profile.ts:23-39).
+// (kilocode packages/kilo-gateway/src/api/profile.ts:23-39). It is safe for
+// concurrent use only while no goroutine changes it.
 type KiloAccount struct {
 	Email                  string
 	Organizations          []KiloOrganization

@@ -13,7 +13,8 @@ import (
 // A value that is not known is not zero by convention. Has reports whether a
 // layer set a field, so a known zero, such as a free price, is told apart from
 // an unknown one, and SourceOf names the layer that set it. ModelInfo is a
-// plain value: its slices are the caller's own copies.
+// plain value: its slices are the caller's own copies. It is safe for
+// concurrent use only while no goroutine changes it.
 type ModelInfo struct {
 	// ID is the model's id, as the provider names it.
 	ID string
@@ -48,7 +49,8 @@ type ModelInfo struct {
 	layer   string             // the layer that built this value, for Known
 }
 
-// ModelReasoning is a model's reasoning controls (0033-MADR Q10).
+// ModelReasoning is a model's reasoning controls (0033-MADR Q10). It is safe
+// for concurrent use only while no goroutine changes it.
 type ModelReasoning struct {
 	// Supported reports whether the model reasons.
 	Supported bool
@@ -67,7 +69,8 @@ type ModelReasoning struct {
 	ReplayField string
 }
 
-// ModelRates are prices, in USD per million tokens.
+// ModelRates are prices, in USD per million tokens. It is safe for
+// concurrent use only while no goroutine changes it.
 type ModelRates struct {
 	// Input and Output are the prices of input and output tokens.
 	Input, Output float64
@@ -80,6 +83,7 @@ type ModelRates struct {
 }
 
 // ModelCost is a model's price: its base rates, and the rates of each tier.
+// It is safe for concurrent use only while no goroutine changes it.
 type ModelCost struct {
 	ModelRates
 	// Tiers are the prices for longer inputs, ascending by Above.
@@ -87,7 +91,7 @@ type ModelCost struct {
 }
 
 // ModelCostTier is the price that applies to an input of more than Above
-// tokens.
+// tokens. It is safe for concurrent use only while no goroutine changes it.
 type ModelCostTier struct {
 	// Above is the input size, in tokens, past which the tier applies.
 	Above int
@@ -108,7 +112,8 @@ func (c ModelCost) RatesFor(inputTokens int) ModelRates {
 	return rates
 }
 
-// Modality is a kind of model input or output (R21).
+// Modality is a kind of model input or output (R21). It is a string, safe for
+// concurrent use.
 type Modality string
 
 // The modalities models.dev names.
@@ -125,7 +130,8 @@ const (
 	ModalityPDF Modality = "pdf"
 )
 
-// ModelStatus is a model's lifecycle stage (R21).
+// ModelStatus is a model's lifecycle stage (R21). It is a string, safe for
+// concurrent use.
 type ModelStatus string
 
 // The lifecycle stages.
@@ -144,7 +150,8 @@ const (
 )
 
 // Field names one ModelInfo field, for Has, SourceOf and Known (R21). A field
-// added later is one more constant.
+// added later is one more constant. It is an integer, safe for
+// concurrent use.
 type Field int
 
 // The fields of ModelInfo, and of its Reasoning and Cost.

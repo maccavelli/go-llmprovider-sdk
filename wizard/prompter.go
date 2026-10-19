@@ -12,7 +12,8 @@ package wizard
 
 import "fmt"
 
-// Level classifies a Notify message.
+// Level classifies a Notify message. It is an integer, safe for
+// concurrent use.
 type Level int
 
 // Notification levels.
@@ -37,7 +38,8 @@ func (l Level) String() string {
 }
 
 // Choice is one selectable option. Detail is an optional qualifier shown
-// alongside the label, e.g. a provider's pricing model.
+// alongside the label, e.g. a provider's pricing model. It is safe for
+// concurrent use only while no goroutine changes it.
 type Choice struct {
 	Label  string
 	Detail string
@@ -50,6 +52,9 @@ type Choice struct {
 // something all three existing wizards already do. It is public API in a
 // library twelve repositories consume, so changing it later is a breaking
 // change for all of them.
+//
+// An implementation must allow one concurrent use: during a browser sign-in,
+// ConfigureLLM may call Notify while an Input still waits for the pasted code.
 type Prompter interface {
 	// Select asks the user to choose one option, returning its index.
 	// defaultIdx is chosen when the user accepts the default.

@@ -46,7 +46,8 @@ var planBuiltinEndpoints = oauthEndpoints{
 	SigningAlgs:   []string{algRS256},
 }
 
-// ChatGPTPlanOptions configures LoginChatGPTPlan (0043-MADR D4).
+// ChatGPTPlanOptions configures LoginChatGPTPlan (0043-MADR D4). It is safe
+// for concurrent use only while no goroutine changes it.
 type ChatGPTPlanOptions struct {
 	// AgentName is the app's own name, shown to the user at sign-in and kept
 	// the same across installations. It is required: OpenAI's terms ask an

@@ -113,7 +113,9 @@ func decodeLimited(r io.Reader, v any, what string) error {
 // (MADR 0013 A5).
 const modelListingTimeout = 10 * time.Second
 
-// Catalog is the result of one model listing, viewed two ways.
+// Catalog is the result of one model listing, viewed two ways. A Catalog
+// shares nothing with the cache or with another Catalog, so it is safe for
+// concurrent use only while no goroutine changes it.
 type Catalog struct {
 	// Recommended is what List returns: the recommended band, then every
 	// other usable id without a caveat, newest first, or its first n with
@@ -157,7 +159,8 @@ type Catalog struct {
 	FetchedAt time.Time
 }
 
-// ListSource says where a Catalog's listing came from (0041-MADR D6).
+// ListSource says where a Catalog's listing came from (0041-MADR D6). It is a
+// string, safe for concurrent use.
 type ListSource string
 
 // The sources of a listing.
@@ -895,7 +898,11 @@ func ValidateOllamaURL(ctx context.Context, baseURL string) error {
 
 // ValidateOllamaURLWith is ValidateOllamaURL with llmprovider's common
 // options: WithHTTPClient, WithClientInfo (0020-MADR F37, Q5 a and its
-// amendment).
+// amendment). An option it refuses gives an error matching
+// llmprovider.ErrInvalidRequest. A URL no request can be made to, a server it
+// cannot reach, and a status other than 200 give plain errors; a server it
+// cannot reach wraps the transport's error, which matches ctx's when ctx
+// ends.
 func ValidateOllamaURLWith(ctx context.Context, baseURL string, opts ...llmprovider.Option) error {
 	cfg, err := configFor(llmprovider.ProviderOllama, opts)
 	if err != nil {

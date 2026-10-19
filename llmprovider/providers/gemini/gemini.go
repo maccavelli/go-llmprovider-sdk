@@ -120,7 +120,10 @@ type provider struct {
 }
 
 // New builds the Gemini provider. It needs an API key: WithAPIKey, or
-// WithTokenSource with a source that yields one.
+// WithTokenSource with a source that yields one. No key, an empty key, and an
+// option llmprovider.ResolveOptions refuses give an error matching
+// llmprovider.ErrInvalidRequest; an OAuth or vendor CLI session, one matching
+// llmprovider.ErrUnsupported.
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	st, err := llmprovider.ResolveOptions(llmprovider.ProviderGemini, opts)
 	if err != nil {

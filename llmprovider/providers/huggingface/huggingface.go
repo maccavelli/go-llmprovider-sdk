@@ -106,7 +106,10 @@ type provider struct {
 	limit int
 }
 
-// New builds the Hugging Face provider. It needs a token.
+// New builds the Hugging Face provider. It needs a token. No token, an empty
+// one, and an option llmprovider.ResolveOptions refuses give an error
+// matching llmprovider.ErrInvalidRequest; an OAuth or vendor CLI session, one
+// matching llmprovider.ErrUnsupported.
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	st, err := llmprovider.ResolveOptions(llmprovider.ProviderHuggingFace, opts)
 	if err != nil {

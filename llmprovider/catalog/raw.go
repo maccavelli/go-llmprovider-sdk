@@ -22,6 +22,7 @@ import (
 // RawListing is one provider's model listing as the provider sent it, with
 // none of the SDK's curation (0041-MADR D9). The SDK promises its shape; the
 // bytes inside are the provider's, and change when the provider changes them.
+// It is safe for concurrent use only while no goroutine changes it.
 type RawListing struct {
 	// Provider is the provider listed.
 	Provider llmprovider.ProviderID
@@ -37,7 +38,8 @@ type RawListing struct {
 	Models []RawModel
 }
 
-// RawModel is one entry of a provider's model array.
+// RawModel is one entry of a provider's model array. It is safe for
+// concurrent use only while no goroutine changes it.
 type RawModel struct {
 	// ID is the provider's own identifier field, unchanged: id for most;
 	// name for Gemini, its models/ prefix included, and for Ollama; slug for

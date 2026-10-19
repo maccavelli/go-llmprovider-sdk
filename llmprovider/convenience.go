@@ -6,7 +6,9 @@ import (
 )
 
 // GenerateText runs req on p and returns the text of its output (0015-MADR
-// D3; the name is the standards guide's R8).
+// D3; the name is the standards guide's R8). It returns Generate's error
+// unchanged, and an error matching ErrIncomplete when Generate returns no
+// response and no error.
 func GenerateText(ctx context.Context, p Provider, req *Request) (string, error) {
 	resp, err := generate(ctx, p, req)
 	if err != nil {

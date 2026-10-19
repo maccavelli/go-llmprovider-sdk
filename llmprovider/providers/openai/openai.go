@@ -181,7 +181,10 @@ type provider struct {
 }
 
 // New builds the OpenAI provider. It needs a credential: WithAPIKey, or
-// WithTokenSource.
+// WithTokenSource. No credential, an empty key, and an option
+// llmprovider.ResolveOptions refuses give an error matching
+// llmprovider.ErrInvalidRequest; an OAuth session that is not OpenAI's, or
+// another vendor's CLI session, one matching llmprovider.ErrUnsupported.
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	st, err := llmprovider.ResolveOptions(llmprovider.ProviderOpenAI, opts)
 	if err != nil {

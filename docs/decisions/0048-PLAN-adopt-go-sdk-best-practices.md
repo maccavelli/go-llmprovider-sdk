@@ -203,18 +203,52 @@ Associated MADR: [0048-MADR-adopt-go-sdk-best-practices.md](0048-MADR-adopt-go-s
    * **a stateful type** (`FileTokenStore`, `VendorCLISession`,
      `TextPrompter`, `Catalog`): its behaviour as measured first, by a test of
      concurrent use under `-race`. A type found unsafe is documented "not safe
-     for concurrent use", and is not changed in this PLAN.
+     for concurrent use", and is not changed in this PLAN. (Amended by step 5:
+     a `-race` test also for four interface and function-type sentences.)
 2. **Each function** of Phase 1's R52 list (27 at the MADR, Appendix B) gets
    a sentence naming its error kinds, read from its code paths and its tests:
    each provider's `New`: `ErrInvalidRequest` for a missing or empty
    credential or a foreign option, `ErrUnsupported` for a credential kind the
    service does not take; `GenerateText`: `Generate`'s errors and
    `ErrIncomplete` for an answer with no text; and so on. A kind with no test
-   that shows it is a stop condition.
+   that shows it is a stop condition. (Met; amended by step 5: the missing
+   tests are written in this phase.)
 3. **Check:** `go run ./llmprovider/internal/cmd/sdkaudit -check -rules
    R51,R52 .` exits 0.
 4. **Red first:** a plant removing one R51 sentence, and one R52 sentence;
    the command the check above.
+5. **Deviation (2026-10-19), chosen by the owner.** Step 2's stop condition
+   was met. Read from the code, the error kinds of about 14 of the 27
+   functions have no test through the function itself:
+   * the logins: `StartDeviceOAuth`, `DeviceLogin.Wait`, `LoginDeviceOAuth`
+     and `LoginBrowserOAuth` (context ends, transport, status and decode
+     failures);
+   * `NewFileTokenStore`, `ValidateOllamaURLWith`, `Metadata.Encode`;
+   * `ConfigureLLM` (no test asserts a Prompter's error with `errors.Is`) and
+     `TextPrompter`'s `Select`, `MultiSelect`, `Confirm` and `Input`;
+   * no `errors.Is` for `ValidateOAuthSession`'s `ErrAuthFailure`,
+     `FileTokenStore.Delete`'s `ErrInvalidProvider`, or `CommandToken.Token`'s
+     context errors.
+
+   Four R51 sentences would also state a behaviour no test shows: a provider
+   calls a `Layer`'s `Model` from many goroutines; two `Registry.New` calls
+   run one `Factory` at once; `ConfigureLLM` calls `Notify` while an `Input`
+   waits; `VendorCLISession` is safe for concurrent use (step 1 already asks
+   for that one's test).
+
+   The resolution: step 2 writes, for every kind a doc names, a test through
+   that function where none exists, each red first; step 1 writes a `-race`
+   test for each of the four. No code changes: a doc states what the code
+   does now. By the same rule, `Settings`, `Option` and `Metadata`, whose
+   sentences say they are safe, get a `-race` test as the stateful types do. Rejected: docs that name only what is tested, and docs that
+   state an implementation's requirement without its reason.
+
+   Found and left out of this PLAN, for a record of their own: a browser
+   login's `access_denied` is a plain error where the device login's is
+   `ErrAuthFailure`; `ValidateOllamaURL`'s errors are not classified as the
+   Ollama listing's are; an unsupported provider in a login is a plain
+   error; a typed-nil `*StaticToken` makes `ResolveOptions` panic, and so
+   does a zero `DeviceLogin`'s `Wait`.
 
 ### Phase 4: examples and package docs (D2)
 
@@ -612,3 +646,94 @@ kept command's exact R51 phrase, is the list of record.
   go vet, go test, govulncheck)"; `tools/claims.py`, this PLAN 26 of 26 and
   the MADR 24 of 24; `tools/gate.py` on the final tree, 25 of 25 passed,
   `coverage-check` among them.
+
+### Phase 3: stated concurrency and errors (2026-10-19)
+
+* **One deviation**, step 5, chosen by the owner: the missing tests are
+  written in this phase. Phase 2 was committed by the owner as `b7523d9`.
+* **The baseline,** `sdkaudit -check -rules R51,R52 .`: 105 violations, R51
+  78 and R52 27, Phase 1's. After: "sdkaudit: 0 violation(s) of R51,R52",
+  exit 0 (step 3).
+* **Step 1, R51, 78 types.** Each sentence was read from the code; every
+  changed line outside a test file is a comment:
+  * 21 string or integer kinds: "It is a string (an integer), safe for
+    concurrent use." The step's value-type sentence, "safe only while no
+    goroutine changes it", is true of them but says less, as a value of
+    those kinds cannot be changed in place;
+  * 35 structs of plain values: "It is safe for concurrent use only while no
+    goroutine changes it."; and the sealed `Item`'s implementations;
+  * the interfaces a caller implements: `TokenSource`, `TokenInvalidator`,
+    `Layer`, `TokenStore` and `RefreshLocker` say why an implementation must
+    be safe; `InvalidatingSource`, `ModelLister` and `Streamer` state the
+    requirement, inherited from `TokenSource` and `Provider`; `Prompter` must
+    allow one concurrent use, `Notify` while an `Input` waits; `Factory`
+    must be safe, as `Registry.New` does not serialise it;
+  * the stateful types, as measured: `FileTokenStore`, `VendorCLISession`,
+    `DeviceLogin`, `CommandToken`, `StaticToken`, `Settings`, `Option`,
+    `Catalog`, `Metadata` and `Harness` safe, each with its condition;
+    `TextPrompter` **not safe**: on a scratch copy of the module, two
+    goroutines in `Input` at once gave "WARNING: DATA RACE … Read at … by
+    goroutine 9: wizard.(*TextPrompter).bufReader() text_prompter.go:120":
+    15 reports with a reader that pauses, and races in 6 of 7 runs with a
+    `strings.Reader`; the copy was deleted, and the type is not changed, as
+    step 1 says.
+* **Step 2, R52, 27 functions.** Each sentence names the kinds its tests
+  show: the ten providers' `New` (credential, foreign option, session
+  kinds; `ResolveOptions`'s refusals); `GenerateText`; `StaticToken.Token`
+  ("never returns an error"); `CommandToken.Token`; `ValidateOllamaURLWith`;
+  `Metadata.Encode`; the four logins; `ValidateOAuthSession`;
+  `NewFileTokenStore` and `FileTokenStore.Delete`; `ConfigureLLM`; and
+  `TextPrompter`'s `Select`, `MultiSelect`, `Confirm` and `Input`.
+* **Step 5, the tests** (`_0048$`), 12 new files, all passing under
+  `-race`:
+  * `llmprovider`: `command_token_0048_test.go` (a caller's and a waiter's
+    context, the shared run's error), `concurrency_0048_test.go` (`Factory`
+    run by two `New` calls at once, one option list shared by 16 builds, 16
+    concurrent readers of one `Settings`);
+  * `llmprovider/catalog`: `concurrency_0048_test.go` (catalogs listed at
+    once share nothing; one `Metadata` read by 16 goroutines),
+    `errors_0048_test.go` (`ValidateOllamaURLWith`, `Encode`),
+    `layer_0048_test.go` (two concurrent Claude requests call one `Layer`
+    at once);
+  * `llmprovider/auth`: `kinds_helpers_0048_test.go`,
+    `device_kinds_0048_test.go`, `browser_kinds_0048_test.go`,
+    `session_store_kinds_0048_test.go`, `vendor_session_race_0048_test.go`
+    (16 goroutines on one `VendorCLISession`);
+  * `wizard`: `configure_errors_0048_test.go` (a Prompter's error wrapped
+    and as it is, a failed device-code sign-in's `*url.Error`, the plain
+    errors, an empty `Registry`), `text_prompter_errors_0048_test.go`.
+
+  `Prompter`'s concurrent use is shown by the existing
+  `TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt`: its `Input`
+  returns only once a `Notify` came while it waited. A planted break of it
+  hangs until the test timeout rather than failing an assertion.
+* **Not named, for want of a test:** `ConfigureLLM`'s browser and ChatGPT
+  plan sign-ins return their errors as the device-code one does, but only
+  the device-code one is tested, so only it is named; `LoginBrowserOAuth`'s
+  own ten-minute bound takes the same branch as a caller's deadline, which
+  is tested, so the doc names the caller's only; its `crypto/rand` failures
+  cannot be reached.
+* **Red first,** `tools/plant.py`, 92 plants in six specs, all caught, each
+  by a failing test, none by a build failure:
+  * `llmprovider` and `catalog`, 13, under `-race`: for example
+    "concurrency_0048_test.go:50: the two New calls never ran the factory at
+    once", "layer_0048_test.go:70: two concurrent requests never called the
+    layer at once (2 calls)";
+  * `auth`, 50, and 1 under `-race` (the lock around `VendorCLISession`'s
+    account write removed);
+  * `wizard`, 25, and 1 for the sign-in prompt (`drain` waiting for the
+    read);
+  * step 4, the check itself, 2: one R51 sentence removed gives
+    "llmprovider/auth/oauth_device.go:81 R51 type DeviceLogin does not say
+    whether it is safe for concurrent use", one R52 sentence removed
+    "llmprovider/token.go:117 R52 StaticToken.Token returns an error its doc
+    does not name", each exit 1.
+* **Found, left for a record of its own,** as step 5 lists: the error kinds
+  that differ between like paths, and the two panics.
+* **The API:** `tools/apidiff.py v1.15.0` lists only Phase 2's three
+  additions. No golden changed.
+* **The gate:** `go vet ./...`, also with `GOOS=windows`, clean; `go test
+  -count=1 ./...`, 35 packages ok; `-race` on `llmprovider/...` and
+  `wizard/...`, ok; `make pre-add-check` on the phase's 59 Go files, "59
+  file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)";
+  `tools/gate.py` on the final tree, 25 of 25 passed.

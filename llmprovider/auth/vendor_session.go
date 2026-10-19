@@ -33,7 +33,8 @@ var (
 // stays the CLI's alone, because both vendors revoke a refresh-token family
 // when one is used twice (grok-build xai-grok-login/src/oidc/refresh.rs:29-35;
 // codex login/src/auth/manager.rs:1657-1690). An expired token is
-// ErrAuthFailure telling the user to run the CLI, which refreshes it.
+// ErrAuthFailure telling the user to run the CLI, which refreshes it. It is
+// safe for concurrent use while Provider and Path are unchanged.
 type VendorCLISession struct {
 	// Provider is ProviderOpenAI (the Codex CLI's auth.json) or ProviderGrok
 	// (the Grok CLI's auth.json).

@@ -111,7 +111,10 @@ type provider struct {
 	listing []llmprovider.Option
 }
 
-// New builds the Ollama provider. It needs no credential.
+// New builds the Ollama provider. It needs no credential. An option
+// llmprovider.ResolveOptions refuses gives an error matching
+// llmprovider.ErrInvalidRequest; an OAuth or vendor CLI session, one matching
+// llmprovider.ErrUnsupported.
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	st, err := llmprovider.ResolveOptions(llmprovider.ProviderOllama, opts)
 	if err != nil {

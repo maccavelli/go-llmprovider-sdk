@@ -31,7 +31,10 @@ const maskGlyphs = 8
 
 // TextPrompter is the zero-toolkit Prompter: stdlib plus golang.org/x/term,
 // which this module already requires. Consumers with
-// a UI toolkit implement Prompter over it instead.
+// a UI toolkit implement Prompter over it instead. It is not safe for
+// concurrent use: two goroutines reading at once race on its reader. Notify
+// may be called while another goroutine waits in a read, as a sign-in does.
+// In and Out must not change once it is in use.
 type TextPrompter struct {
 	// In is the input source. When it is an *os.File attached to a terminal,
 	// Secret uses raw mode for live masking; otherwise it degrades to a plain
@@ -181,7 +184,10 @@ func (p *TextPrompter) renderChoices(title string, choices []Choice, selected []
 	}
 }
 
-// Select implements Prompter.
+// Select implements Prompter. No choices is a plain error. A failed read of
+// In or write to Out is returned, matching the reader's or writer's error; a
+// read after the input has ended matches io.EOF; an answer that names no
+// choice on the input's last line is a plain error.
 func (p *TextPrompter) Select(title string, choices []Choice, defaultIdx int) (int, error) {
 	if len(choices) == 0 {
 		return 0, fmt.Errorf("wizard: Select called with no choices")
@@ -213,7 +219,11 @@ func (p *TextPrompter) Select(title string, choices []Choice, defaultIdx int) (i
 
 // MultiSelect implements Prompter. Input is a comma-separated list of indices,
 // a repeated index counting once (MADR 0013 C1); an empty line accepts the
-// preselection. A preselection is marked, and 0 clears it (0020-MADR F50).
+// preselection. A preselection is marked, and 0 clears it (0020-MADR F50). No
+// choices returns nil and no error. A failed read of In or write to Out is
+// returned, matching the reader's or writer's error; a read after the input
+// has ended matches io.EOF; an answer that names no choice on the input's
+// last line is a plain error.
 func (p *TextPrompter) MultiSelect(title string, choices []Choice, preselected []int) ([]int, error) {
 	if len(choices) == 0 {
 		return nil, nil
@@ -262,7 +272,11 @@ func (p *TextPrompter) MultiSelect(title string, choices []Choice, preselected [
 	}
 }
 
-// Confirm implements Prompter.
+// Confirm implements Prompter. An empty answer is def, and an answer other
+// than y or yes is false, with no error. A failed read of In or write to Out
+// is returned, matching the
+// reader's or writer's error; a read after the input has ended matches
+// io.EOF.
 func (p *TextPrompter) Confirm(question string, def bool) (bool, error) {
 	hint := "[y/N]"
 	if def {
@@ -286,7 +300,9 @@ func (p *TextPrompter) Confirm(question string, def bool) (bool, error) {
 	}
 }
 
-// Input implements Prompter.
+// Input implements Prompter. A failed read of In or write to Out is returned,
+// matching the reader's or writer's error; a read after the input has ended
+// matches io.EOF.
 func (p *TextPrompter) Input(prompt, def string) (string, error) {
 	if def != "" {
 		p.printf("%s (default %s): ", prompt, def)

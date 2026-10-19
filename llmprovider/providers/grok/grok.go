@@ -137,7 +137,10 @@ type provider struct {
 }
 
 // New builds the Grok provider. It needs a credential: WithAPIKey, or
-// WithTokenSource.
+// WithTokenSource. No credential, an empty key, and an option
+// llmprovider.ResolveOptions refuses give an error matching
+// llmprovider.ErrInvalidRequest; an OAuth session that is not Grok's, or
+// another vendor's CLI session, one matching llmprovider.ErrUnsupported.
 func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	st, err := llmprovider.ResolveOptions(llmprovider.ProviderGrok, opts)
 	if err != nil {

@@ -13,7 +13,8 @@ import (
 	"time"
 )
 
-// Tool defines an LLM function/tool schema, for Request.Tools.
+// Tool defines an LLM function/tool schema, for Request.Tools. It is safe for
+// concurrent use only while no goroutine changes it.
 type Tool struct {
 	Name        string
 	Description string

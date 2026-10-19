@@ -165,7 +165,9 @@ func (s *OAuthSession) LogValue() slog.Value {
 }
 
 // TokenStore persists OAuth sessions, one per provider. Load returns nil and no
-// error when the provider has none. FileTokenStore is the built-in one.
+// error when the provider has none. FileTokenStore is the built-in one. A
+// TokenStore shared by several OAuthSessions must be safe for concurrent use:
+// each session loads and saves from its own refresh, while the others do.
 type TokenStore interface {
 	Load(ctx context.Context, provider llmprovider.ProviderID) (*OAuthSession, error)
 	Save(ctx context.Context, provider llmprovider.ProviderID, s *OAuthSession) error
@@ -177,6 +179,9 @@ type TokenStore interface {
 // around a refresh and re-reads the store once it holds it, so a refresh
 // token is never spent twice: both vendors revoke the whole token family on
 // reuse (0016-MADR amendment A2). The returned func releases the lock.
+// LockRefresh must be safe for concurrent use, since sessions sharing the
+// store call it at once, and must exclude the process's other callers as it
+// does other processes'.
 type RefreshLocker interface {
 	LockRefresh(ctx context.Context, provider llmprovider.ProviderID) (unlock func(), err error)
 }

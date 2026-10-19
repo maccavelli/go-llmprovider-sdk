@@ -246,7 +246,9 @@ func (d *modelMetadataDoc) npm(provider llmprovider.ProviderID, model string) (s
 
 // Metadata is the model metadata document as a provider reads it for one
 // request: reasoning efforts, the interleaved-reasoning field and the AI SDK
-// package, per model (MADR 0009 §2).
+// package, per model (MADR 0009 §2). It is safe for concurrent use: it is not
+// changed once read, and each section decodes once, however many goroutines
+// read it at once.
 //
 // Moved here from llmprovider (0015-PLAN S8, commit 2).
 type Metadata struct{ doc *modelMetadataDoc }

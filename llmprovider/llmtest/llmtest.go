@@ -25,7 +25,9 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// Harness wires a provider to the fake server Run starts for each check.
+// Harness wires a provider to the fake server Run starts for each check. Run
+// reads it from one goroutine, but its Text handler serves R20's overlapping
+// requests, so Text must be safe for concurrent use.
 type Harness struct {
 	// New builds the provider under test, sending every request to baseURL,
 	// with opts applied after its own.

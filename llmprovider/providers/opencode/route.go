@@ -24,7 +24,8 @@ const wireShapesProbedOn = "2026-09-27"
 // Route identifies which wire format the OpenCode gateway expects for a given
 // model; WithRoute pins one. OpenCode Zen and Go are multi-protocol gateways:
 // they do not normalize to a single request shape, and sending a model to the
-// wrong route fails with an opaque HTTP 500 rather than a typed error.
+// wrong route fails with an opaque HTTP 500 rather than a typed error. It is
+// a string, safe for concurrent use.
 type Route string
 
 // The four wire formats the OpenCode gateways dispatch to.

@@ -1,6 +1,7 @@
 package llmprovider
 
-// WarningKind names what a Warning reports (0034-MADR D7).
+// WarningKind names what a Warning reports (0034-MADR D7). It is a string,
+// safe for concurrent use.
 type WarningKind string
 
 const (
@@ -24,7 +25,8 @@ const (
 
 // Warning is a non-fatal note on a Response: the request was answered, but
 // not exactly as asked. It is advisory; an error says when a request failed
-// (0034-MADR D7).
+// (0034-MADR D7). It is safe for concurrent use only while no goroutine
+// changes it.
 type Warning struct {
 	// Kind says what happened.
 	Kind WarningKind

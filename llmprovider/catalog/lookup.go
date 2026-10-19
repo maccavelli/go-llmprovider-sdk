@@ -14,7 +14,9 @@ import (
 // its own, or a document it persisted (0033-MADR D2, as amended). Model
 // returns what the layer says of one model, with the fields it knows marked
 // by ModelInfo.Known, and whether it knows the model at all. Model must not
-// block or reach the network. Metadata is a Layer.
+// block or reach the network. Metadata is a Layer. Implementations must be
+// safe for concurrent use: every request of a provider given WithModelLayer
+// asks the layer, so concurrent requests call Model at once.
 type Layer interface {
 	// Name is the layer's source name, as SourceOf reports it.
 	Name() string
