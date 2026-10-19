@@ -1,0 +1,42 @@
+package grok_test
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/grok"
+)
+
+// ExampleNew builds the Grok provider and asks it for text. The httptest
+// server stands in for the xAI Responses API, so that the example runs offline; without
+// WithBaseURL the provider sends to the service itself.
+func ExampleNew() {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"resp_example","output":[{"type":"message","content":[{"type":"output_text","text":"Hello!"}]}]}`)
+	}))
+	defer srv.Close()
+
+	p, err := grok.New(
+		llmprovider.WithAPIKey("your-api-key"),
+		llmprovider.WithBaseURL(srv.URL),
+		llmprovider.WithoutModelMetadata(),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	text, err := llmprovider.GenerateText(context.Background(), p, &llmprovider.Request{
+		Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello."}},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(text)
+	// Output: Hello!
+}

@@ -5,6 +5,23 @@
 // CommandToken). The providers are in llmprovider/providers/..., the OAuth
 // sessions and stores in llmprovider/auth, and model listing in
 // llmprovider/catalog. All providers use raw net/http.
+//
+// A provider is built with options and asked for text; a failure is matched
+// by its kind:
+//
+//	p, err := providers.New(llmprovider.ProviderClaude,
+//		llmprovider.WithAPIKey(os.Getenv("ANTHROPIC_API_KEY")),
+//		llmprovider.WithModel("claude-sonnet-5"))
+//	if err != nil {
+//		return err
+//	}
+//	p = llmprovider.WithRetry(p, llmprovider.RetryPolicy{MaxAttempts: 3})
+//	text, err := llmprovider.GenerateText(ctx, p, &llmprovider.Request{
+//		Input: []llmprovider.Item{llmprovider.MessageItem{Text: "Say hello in one word."}},
+//	})
+//	if errors.Is(err, llmprovider.ErrRateLimited) {
+//		return fmt.Errorf("try later: %w", err)
+//	}
 package llmprovider
 
 import (

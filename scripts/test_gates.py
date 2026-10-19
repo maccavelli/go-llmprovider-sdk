@@ -148,6 +148,15 @@ class GateSelfTest(unittest.TestCase):
             'package llmprovider\n\nimport "golang.org/x/term"\n\n// zzTerm is planted.\nvar zzTerm = term.IsTerminal\n')
         self.assertFails("dep-check", "llmprovider depends on golang.org/x/term")
 
+    def test_dep_check_external_test_package(self) -> None:
+        """An external test package shares its package's allowance, and no
+        more: llmprovider_test may not import golang.org/x/term, and is named
+        as its package (0048-PLAN Phase 4)."""
+        (self.tree / "llmprovider/zz_term_test.go").write_text(
+            'package llmprovider_test\n\nimport (\n\t"testing"\n\n\t"golang.org/x/term"\n)\n\n'
+            "func TestZZTerm(t *testing.T) { _ = term.IsTerminal }\n")
+        self.assertFails("dep-check", "llmprovider depends on golang.org/x/term")
+
     def _generate_file(self) -> tuple[Path, str]:
         doc = self.tree / "llmprovider/internal/ownerperm/doc.go"
         line = GENERATE_LINE.search(doc.read_text(encoding="utf-8"))

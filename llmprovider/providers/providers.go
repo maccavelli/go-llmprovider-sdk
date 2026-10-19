@@ -3,6 +3,16 @@
 // Default returns a new Registry holding every built-in provider; there is no
 // global registry and no init-time registration. Each built-in provider is in
 // its own package, as 0015-PLAN S7 moved it.
+//
+// A configuration that names its provider by id builds it with New, and a
+// menu lists Default's descriptors:
+//
+//	p, err := providers.New(llmprovider.ProviderID(cfg.Provider),
+//		llmprovider.WithAPIKey(cfg.APIKey), llmprovider.WithModel(cfg.Model))
+//
+//	for _, d := range providers.Default().Descriptors() {
+//		fmt.Println(d.ID, d.Label)
+//	}
 package providers
 
 import (

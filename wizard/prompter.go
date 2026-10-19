@@ -8,6 +8,16 @@
 //
 // Consumers implement Prompter over whatever they already use. TextPrompter is
 // provided for those with no toolkit at all.
+//
+// A terminal program with no toolkit runs the flow over its standard input and
+// output, and keeps the Result in its own configuration:
+//
+//	res, err := wizard.ConfigureLLM(ctx, &wizard.TextPrompter{In: os.Stdin, Out: os.Stdout},
+//		wizard.Options{AllowEnv: true, LookupEnv: os.Getenv, Discover: true})
+//	if err != nil {
+//		return err
+//	}
+//	save(res.Provider, res.Model, res.APIKey)
 package wizard
 
 import "fmt"

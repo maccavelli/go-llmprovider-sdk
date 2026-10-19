@@ -6,7 +6,7 @@ Defined by docs/decisions/0015-MADR-canonical-sdk-api-and-module-layout.md D2
 and D13, and the standards guide's R2; written in 0015-PLAN S12. For every
 package of the module it reads the transitive dependencies of its non-test
 build and of its test build (`go list -deps`, then `go list -test -deps`),
-and fails on one outside the standard library and this module that the
+an external test package counted as its package, and fails on one outside the standard library and this module that the
 package is not allowed. It reads the build for the host and for
 GOOS=windows, so an import in a _windows.go file is checked too (0010-PLAN
 P6a). It also fails on a go.mod requirement outside REQUIRES (`go mod edit
@@ -54,8 +54,9 @@ def go_list(goos: str, *args: str) -> list[str]:
 
 
 def base(path: str) -> str:
-    """A package path without its test-build decoration."""
-    return TEST_VARIANT.sub("", path).removesuffix(".test")
+    """A package path without its test-build decoration. An external test
+    package, p_test, is p: its tests share p's allowance (0048-PLAN Phase 4)."""
+    return TEST_VARIANT.sub("", path).removesuffix(".test").removesuffix("_test")
 
 
 def check(goos: str) -> tuple[int, list[str]]:

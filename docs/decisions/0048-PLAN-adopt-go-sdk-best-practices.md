@@ -272,6 +272,20 @@ Associated MADR: [0048-MADR-adopt-go-sdk-best-practices.md](0048-MADR-adopt-go-s
    examples.
 4. **Red first:** an example's `// Output:` line changed (its `go test`
    fails); one package's example removed (`sdkaudit` fails).
+5. **Deviation (2026-10-19), chosen by the owner.** `wizard`'s example is the
+   first external test package of `wizard`, `wizard_test`, and
+   `scripts/check_deps.py` checked it as a package of its own, outside
+   `wizard`'s allowance (R2): "dep-check: GOOS=host: wizard_test depends on
+   golang.org/x/term", with `golang.org/x/sys/unix` (`x/sys/windows` for
+   Windows); `gate-selftest`'s clean copy then failed too. `base()` already
+   gave a package's test build its package's allowance (it strips
+   `" [p.test]"` and `.test`) but not an external test package `p_test`.
+   The resolution: `base()` also maps `p_test` to `p`, and
+   `scripts/test_gates.py` gains a case that an external test package gets
+   its package's allowance and no more, each red first. Files added to the
+   phase: `scripts/check_deps.py`, `scripts/test_gates.py`. Rejected: the
+   example in `package wizard`, against step 1, and an entry for
+   `wizard_test` alone in `ALLOWED`.
 
 ### Phase 5: the changelog and the Releases (D5)
 
@@ -737,3 +751,73 @@ kept command's exact R51 phrase, is the list of record.
   `wizard/...`, ok; `make pre-add-check` on the phase's 59 Go files, "59
   file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)";
   `tools/gate.py` on the final tree, 25 of 25 passed.
+
+### Phase 4: examples and package docs (2026-10-19)
+
+* **No deviation.** Phase 3 was committed by the owner as `5e5895d`.
+* **The baseline,** `sdkaudit -check -rules R50 .`: 18 violations, the 15
+  public packages with no example and the package comments of
+  `llmprovider`, `llmprovider/providers` and `wizard`, Phase 1's.
+* **Step 1,** an `example_test.go` in each of the 15 packages, 18 examples,
+  each offline and with `// Output:`:
+  * `llmprovider`: `ExampleGenerateText` and `ExampleWithRetry` (the first
+    try `ErrProviderUnavailable`, the second answered), over `llmtest.Fake`;
+  * `llmprovider/auth`: `ExampleNewFileTokenStore`, a Save and a Load in a
+    temporary directory, printing the provider;
+  * `llmprovider/catalog`: `ExampleStatic`; `ExampleWithCache`, two caches
+    and the listing requests, 1, 1 and 2;
+  * `llmprovider/llmtest`: `ExampleFake`;
+  * `llmprovider/providers`: `ExampleNew` and `ExampleDefaultWith`, printing
+    the built provider's id; building sends no request;
+  * the nine provider packages: `ExampleNew` (`ExampleNewZen` in
+    `opencode`, on its Chat Completions route) against an `httptest`
+    server answering that wire's shape, printing "Hello!". None names a
+    model: each provider's own default is used;
+  * `wizard`: `ExampleConfigureLLM`, a `TextPrompter` over a
+    `strings.Reader`: the one provider offered, a key, a search for an id
+    the static catalog does not list and the choice to use it, so that the
+    output does not change when the catalog does; it prints "claude api_key
+    my-model-id".
+
+  `go test -count=1 -run '^Example' -v ./llmprovider/... ./wizard/...`: 18
+  "--- PASS: Example" lines.
+* **Step 2,** an indented example in the package comments: `llmprovider`'s
+  is the README's quick start; `providers`' builds a provider from a
+  configuration's id and lists `Default`'s descriptors; `wizard`'s runs the
+  flow over standard input and output.
+* **Step 3:** `sdkaudit -check -rules R50 .`, "0 violation(s) of R50"; with
+  every rule, "sdkaudit: 0 violation(s) of R50,R51,R52", exit 0.
+* **Step 4, red first,** `tools/plant.py`, four plants, all caught:
+  * an `// Output:` line changed in `ExampleWithCache` and in
+    `ExampleConfigureLLM`: "--- FAIL: ExampleWithCache", "--- FAIL:
+    ExampleConfigureLLM";
+  * `llmtest`'s example left without its `// Output:`, so that no example
+    of the package counts: "llmprovider/llmtest:1 R50 package
+    llmprovider/llmtest has no Example function with an Output comment";
+  * `providers`' code blocks removed: "llmprovider/providers:1 R50 package
+    llmprovider/providers's comment has no indented code block". A first
+    plant removed only one of its two blocks and was not caught, as the
+    other remained; the plant, not the check, was wrong.
+* **The API:** `tools/apidiff.py v1.15.0` lists only Phase 2's three
+  additions.
+* **The gate:** `go vet ./...`, also with `GOOS=windows`, clean; `go test
+  -count=1 ./...`, 35 packages ok; `make pre-add-check` on the phase's 18
+  Go files, "18 file(s) clean (gofmt, golangci-lint, go vet, go test,
+  govulncheck)".
+* **The first gate,** `tools/gate.py`: 23 of 25. `dep-check` failed on
+  `wizard_test` and `gate-selftest` on its clean copy: step 5's deviation.
+  A chained command wrote "25 of 25 passed" here and staged the phase
+  before that result was read; the line was corrected and the phase
+  unstaged before the owner was told.
+* **Step 5,** `scripts/check_deps.py`'s `base()` maps `p_test` to `p`;
+  `make dep-check`, "37 packages, 0 problem(s)" for the host and for
+  Windows. `scripts/test_gates.py`'s
+  `test_dep_check_external_test_package`: `llmprovider_test` importing
+  `golang.org/x/term` is reported as `llmprovider`'s. Red first, two
+  plants, both caught: the mapping removed ("dep-check exit 1 on a clean
+  copy"); every test-build package given `wizard`'s allowance ("dep-check
+  exit 0, want 1"). A first plant of the second kind, which gave only
+  `p_test` packages that allowance, was not caught: the test binary's main
+  package, `p.test`, carries the same imports and is still checked as `p`.
+* **The gate,** after step 5: `tools/gate.py` on the final tree, 25 of 25
+  passed.
