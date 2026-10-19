@@ -259,6 +259,7 @@ and a rule with a check keeps the module from drifting back.
 * Each tag gets a GitHub Release whose body is its changelog section, made
   by a CI job on a `v*` tag; a gate fails the tag when the section is missing
   (Q3). The 23 past tags get theirs once, from the built changelog.
+  *(A2, 2026-10-19: only the six tags before `v1.16.0` get one.)*
 * The README's Status keeps the current release, and links the changelog.
 
 ### D6. ~~A Go 1.26.9 floor, this repository on the newest~~ The Go floor stays `go 1.27.2`, with its reasons (G6; A1)
@@ -433,3 +434,15 @@ Answered 2026-10-19; each answer is in the decisions above.
 | :--- | :--- | :--- | :--- |
 | C23 | `catalog` imports json/v2 | `llmprovider/catalog/model_metadata.go:7` | `jsonv2 "encoding/json/v2"` |
 | C24 | The Messages wire imports jsontext | `llmprovider/internal/wire/messages/messages.go:8` | `"encoding/json/jsontext"` |
+
+### A2 (2026-10-19): Releases for the six tags before `v1.16.0`, not all 23
+
+* **The owner chose (2026-10-19),** at 0048-PLAN Phase 7 step 5, with each
+  of the 23 notes written and scanned: a GitHub Release for the six tags
+  before `v1.16.0` only, `v1.10.2`, `v1.11.0`, `v1.12.0`, `v1.13.0`,
+  `v1.14.0` and `v1.15.0`. D5's "The 23 past tags get theirs once" is
+  narrowed to those six.
+* **The other 17,** `v1.0.0` to `v1.10.1`, get no Release. Their sections
+  stay in `CHANGELOG.md`, which `make changelog-check` still holds to every
+  tag, and the tags stay as they are; a Release can be made for any of them
+  later from its section, as the six were.

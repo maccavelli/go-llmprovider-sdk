@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-19
 associated-madr: "0048-MADR-adopt-go-sdk-best-practices.md"
 decision-makers: repository owner
@@ -397,7 +397,8 @@ Associated MADR: [0048-MADR-adopt-go-sdk-best-practices.md](0048-MADR-adopt-go-s
 5. **The 23 past Releases,** on the owner's word: each tag's section, written
    to a file and scanned with `tools/denyscan.py`, shown first; then `gh
    release create <tag> --notes-file … --verify-tag --latest=false`. Each URL
-   goes into the record.
+   goes into the record. *(Deviation, 2026-10-19, the owner's: the six tags
+   before `v1.16.0` only; 0048-MADR A2.)*
 6. **The consumers,** on the owner's word: a comment or an issue in
    prepare-commit-msg (its per-run keys can go), and in gobble-cli if it lists.
    Each is written to a file, scanned and shown first.
@@ -979,3 +980,95 @@ kept command's exact R51 phrase, is the list of record.
   ./llmprovider/catalog.Cache: added, ./llmprovider/catalog.WithCache:
   added, ./llmprovider/providers.DefaultWith: added", nothing else; the
   disclosure guard over the outgoing commits, once this one is committed.
+
+* **The push and the tag.** The owner committed step 1 as `14a5b63`, pushed
+  `main`, then tagged `v1.16.0` on it and pushed the tag, before the agent
+  had run the disclosure guard, which step 2 runs before the push. It was
+  run after, over the range that went out (`21f9c73..14a5b63`): exit 0,
+  nothing reported. CI on `main` at `14a5b63`, run 39330079374: `validate`
+  on ubuntu-24.04, macos-15 and windows-2025, success; `release` skipped,
+  as on a branch. The tag's commit date is 2026-10-19, the section's.
+* **Step 3,** the tag's run, 39332941770: `validate` on the three systems,
+  success; `release`, success. The
+  [Release](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.16.0),
+  published 2026-10-19T22:17:33Z, not a draft or a prerelease. `gh release
+  view v1.16.0 --json body` equals `check_changelog.py --section v1.16.0
+  --repo maccavelli/go-llmprovider-sdk`, 1,274 characters each; its one link
+  names the 0048-MADR at `v1.16.0`.
+* **Step 4, after the tag:**
+  * `tools/consumer.py v1.16.0`: "consumer: 15 packages linked",
+    "consumer: every step passed", the six platforms built and the
+    consumer run;
+  * `tools/offline.py v1.16.0`: "offline: every step passed", each plant
+    caught;
+  * the MADR's confirmation of D1, on a scratch copy of prepare-commit-msg
+    (its `.git`, any `*.devops.*.json`, `secrets.json` and `.env*` left
+    out) moved to `v1.16.0`: a `listingCache` beside its `listingClient`,
+    given to `discoverModels` and to the wizard's `ProviderOptions`; each
+    test that sets `listingClient` sets a `new(catalog.Cache)`; `testKey`
+    a key per test name, with no run counter, as its 0015-PLAN Deviation 2
+    found failing. `go test -count=3 -shuffle=on ./internal/ui/`: exit 0.
+    The control, the same copy with every test on the process's cache:
+    exit 1, "setup_test.go:210: discoverModels did not list through the
+    injected client", Deviation 2's failure. The copy is not committed, and
+    the repository has no change.
+* **Step 5, prepared:** each of the 23 past tags' notes, as the release job
+  makes them (`--section TAG --repo maccavelli/go-llmprovider-sdk`), written
+  to a scratch file, 3 to 33 lines each; `tools/denyscan.py` over the 23,
+  "0 hit(s) in 23 file(s)". No past tag had a Release. They wait for the
+  owner's word.
+* **Step 5, deviation (2026-10-19), the owner's:** asked to make all 23, the
+  owner chose the six tags before `v1.16.0` only (0048-MADR A2). Made oldest
+  first with `gh release create TAG --title TAG --notes-file TAG.md
+  --verify-tag --latest=false`, from the scanned notes, each body then read
+  back with `gh release view TAG --json body` and equal to its file:
+  [v1.10.2](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.10.2),
+  [v1.11.0](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.11.0),
+  [v1.12.0](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.12.0),
+  [v1.13.0](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.13.0),
+  [v1.14.0](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.14.0),
+  [v1.15.0](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.15.0).
+  `gh release list`: `v1.16.0` stays Latest. `v1.0.0` to `v1.10.1`, 17 tags,
+  have no Release, as A2 says.
+* **Step 6, on the owner's word ("Post both"):** each note written to a
+  file, scanned (`tools/denyscan.py`, "0 hit(s) in 2 file(s)") and shown
+  first, then posted, and read back equal to its file:
+  * prepare-commit-msg,
+    [issue 3](https://github.com/maccavelli/prepare-commit-msg/issues/3):
+    a listing cache per test in place of its per-run test keys, with step
+    4's measurement;
+  * gobble-cli,
+    [a comment on issue 3](https://github.com/maccavelli/gobble-cli/issues/3#issuecomment-6278849594):
+    `v1.16.0` only adds to the API, and its listing needs no change.
+
+  Each note's "nothing else needs a change" was measured first,
+  `tools/consumer.py v1.16.0 --dependent`: prepare-commit-msg, every step
+  passed (build, vet for three platforms, tests, `-race`, lint). gobble-cli's
+  working tree, which holds the owner's uncommitted work, fails
+  `TestToolFlagsSelectMCPTools` and `TestToolFlagsSelectResourceTools` on
+  its own `v1.15.0` as on `v1.16.0`; a clone of its `main` at `382f64a`
+  passes them, and, moved to `v1.16.0`, `go test ./...` and `-race`. The
+  note names the clone, not the working tree.
+* **Step 7, the MADR's Confirmation:**
+  * `sdkaudit`: "sdkaudit: 0 violation(s) of R50,R51,R52", on the tree and
+    in CI's run of the tag (39332941770);
+  * `tools/apidiff.py v1.15.0`: the three additions, nothing else (step 2);
+  * prepare-commit-msg's listing tests pass with a `catalog.Cache` per test
+    and no per-run key, and fail without it (step 4);
+  * a tag without a section fails `changelog-check`
+    (`test_changelog_check_tag_without_section`, Phase 5), which CI runs on
+    each `v*` tag before `release`; the tag's run logged "changelog-check: 24
+    release section(s), 0 problem(s)", and `v1.16.0` got its Release (step
+    3);
+  * the Go 1.26.9 item is struck by A1.
+* **The Verification table:** V1 Phase 1's record; V2 Phase 2's tests under
+  `-race`; V3 step 2; V4 and V5 the audit above, and Phase 4's 18 examples
+  under `go test ./...`; V6 `make changelog-check` and the selftest; V7 the
+  tag's CI log above and `tools/gate.py`'s 27 checks; V8 the gate's
+  `g-wire-stable` and `coverage-check` at every phase; V9 step 3; V10 step
+  4; V11 each phase's red-first plants.
+* **Not done, and why:** Releases for `v1.0.0` to `v1.10.1`, by the owner's
+  choice (A2). Left for records of their own, as the phases found them: the
+  error kinds that differ between like paths and the two panics (Phase 3);
+  the learned forced-choice memo outside `catalog.Cache` (Phase 6, R49).
+* **Status:** this PLAN `complete`, by `tools/records.py status`.

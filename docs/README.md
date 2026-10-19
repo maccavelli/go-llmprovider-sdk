@@ -112,7 +112,7 @@ documents a reader follows to do something.
 | 0047 | MADR | [Keep Five More Scratch Helpers: a Fixture Gate, Appends for `edit.py` and `plant.py`, Record Status, Record Lint, and Claims Plants](decisions/0047-MADR-keep-five-more-scratch-helpers-as-tools.md) | accepted |
 | 0047 | PLAN | [Implement Keeping Five More Scratch Helpers: a Fixture Gate, Appends for `edit.py` and `plant.py`, Record Status, Record Lint, and Claims Plants](decisions/0047-PLAN-keep-five-more-scratch-helpers-as-tools.md) | complete |
 | 0048 | MADR | [Close the SDK's Gaps Against Go SDK Practice: Injectable Caches, Runnable Examples, Stated Concurrency and Errors, a Changelog, and Reviewed Exports](decisions/0048-MADR-adopt-go-sdk-best-practices.md) | accepted |
-| 0048 | PLAN | [Implement Closing the SDK's Gaps Against Go SDK Practice](decisions/0048-PLAN-adopt-go-sdk-best-practices.md) | in-progress |
+| 0048 | PLAN | [Implement Closing the SDK's Gaps Against Go SDK Practice](decisions/0048-PLAN-adopt-go-sdk-best-practices.md) | complete |
 
 ## I want to…
 
