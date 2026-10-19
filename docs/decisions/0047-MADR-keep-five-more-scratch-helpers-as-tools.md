@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-19
 decision-makers: repository owner
 consulted: docs/decisions/0035-MADR-maintainer-tools-in-python.md; a read of the 103 helper scripts left in the agent's session scratchpad from the work on records 0017 to 0046, on 2026-10-19; a count of account-data-shaped strings in the committed test data at ab704db
