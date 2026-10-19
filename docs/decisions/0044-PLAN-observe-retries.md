@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-18
 associated-madr: "0044-MADR-observe-retries.md"
 decision-makers: repository owner
@@ -228,4 +228,13 @@ proceed").
   * `tools/linkcheck.py`, markdownlint on the changed Markdown,
     `tools/denyscan.py --changed` and `make records-check`: clean.
   * No Go file changed in this phase.
+
+### After the tag (2026-10-19)
+
+`v1.15.0` was tagged on `b1bf9bb`, and carries this record;
+0043-PLAN-openai-chatgpt-plan-sign-in.md, Phase 5, step 5, records its
+checks. All passed, among them `tools/apidiff.py v1.14.0 v1.15.0` with
+`./llmprovider.RetryNotice: added` and `./llmprovider.WithRetryNotify:
+added`. V1–V6 are met, so this PLAN is `complete`. Step 3, the answer to
+issue 3 and its closing, waits for the owner's ask.
 

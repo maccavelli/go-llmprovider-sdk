@@ -102,11 +102,11 @@ documents a reader follows to do something.
 | 0042 | MADR | [List Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-MADR-ollama-models-that-write-text.md) | accepted |
 | 0042 | PLAN | [Implement Only the Ollama Models That Write Text, and Keep the Tool-less Ones Recommended](decisions/0042-PLAN-ollama-models-that-write-text.md) | complete |
 | 0043 | MADR | [Add OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-MADR-openai-chatgpt-plan-sign-in.md) | accepted |
-| 0043 | PLAN | [Implement OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-PLAN-openai-chatgpt-plan-sign-in.md) | in-progress |
+| 0043 | PLAN | [Implement OpenAI's Sign in with ChatGPT for Agents as an OpenAI Auth Method](decisions/0043-PLAN-openai-chatgpt-plan-sign-in.md) | complete |
 | 0044 | MADR | [Let a Caller See Each Retry That WithRetry Waits For](decisions/0044-MADR-observe-retries.md) | accepted |
-| 0044 | PLAN | [Implement Letting a Caller See Each Retry That WithRetry Waits For](decisions/0044-PLAN-observe-retries.md) | in-progress |
+| 0044 | PLAN | [Implement Letting a Caller See Each Retry That WithRetry Waits For](decisions/0044-PLAN-observe-retries.md) | complete |
 | 0045 | MADR | [Make Tests Fail to Connect Without Reusing a Freed Port](decisions/0045-MADR-tests-never-reuse-a-freed-port.md) | accepted |
-| 0045 | PLAN | [Implement Making Tests Fail to Connect Without Reusing a Freed Port](decisions/0045-PLAN-tests-never-reuse-a-freed-port.md) | in-progress |
+| 0045 | PLAN | [Implement Making Tests Fail to Connect Without Reusing a Freed Port](decisions/0045-PLAN-tests-never-reuse-a-freed-port.md) | complete |
 
 ## I want to…
 

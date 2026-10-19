@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-18
 associated-madr: "0045-MADR-tests-never-reuse-a-freed-port.md"
 decision-makers: repository owner
@@ -220,4 +220,14 @@ this PLAN ("committed, approved, proceed", 2026-10-18).
 * **Note:** `go install golang.org/x/tools/cmd/goimports@latest` ran once
   to make sure `goimports` was present in the home directory's `go/bin`;
   it writes nothing in the tree.
+
+### Phase 2: CI and the release (2026-10-19)
+
+The owner committed Phase 1 as `b1bf9bb` and pushed it. CI passed on all
+three platforms (run `39181623652`); the job that failed before,
+`gate-selftest` on Ubuntu, passed. The only annotation was GitHub's notice
+of queue times for macOS arm64 runners. The owner tagged `v1.15.0` on
+`b1bf9bb`; CI on the tag passed (run `39182359773`), and the release's
+other checks are in 0043-PLAN-openai-chatgpt-plan-sign-in.md, Phase 5, step
+5. V6 is met, so this PLAN is `complete`.
 

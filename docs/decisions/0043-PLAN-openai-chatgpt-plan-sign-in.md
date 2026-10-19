@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-18
 associated-madr: "0043-MADR-openai-chatgpt-plan-sign-in.md"
 decision-makers: repository owner
@@ -860,9 +860,27 @@ identifiers and changes none. No existing wire golden changed.
 
 **Measured:** step 3's live run.
 
-#### Step 5, after the tag (pending)
+#### Step 5, after the tag (2026-10-19)
 
 The owner commits, pushes and tags `v1.15.0`. Then: CI, the module proxy,
 `tools/consumer.py v1.15.0` and `tools/offline.py v1.15.0`. Issue 2 is
 answered and closed on the owner's ask, as is issue 3 (0044-PLAN Phase 2).
 This PLAN becomes `complete` when these pass.
+
+* **The first push failed CI.** Run `39177122292` on `6aefe73` failed on
+  Ubuntu: two packages' tests met on a freed loopback port. None of this
+  release's code was at fault.
+  0045-MADR-tests-never-reuse-a-freed-port.md fixed the tests, and the
+  owner tagged `v1.15.0` on its commit, `b1bf9bb`.
+
+| Check | Result |
+| :--- | :--- |
+| CI on `main` at `b1bf9bb` | run `39181623652`, push, success (macOS, Ubuntu and Windows) |
+| CI on the tag | run `39182359773`, push, success (macOS, Ubuntu and Windows) |
+| The proxy | `"Version":"v1.15.0"`, `Ref refs/tags/v1.15.0`, hash `b1bf9bb…` |
+| `tools/apidiff.py v1.14.0 v1.15.0` | exit 0. Twelve lines, every one `added`: exactly step 4's "New API" |
+| `tools/consumer.py v1.15.0` | 15 packages linked, built for six platforms |
+| `tools/offline.py v1.15.0` | passed: 19 fields, `requests=0`, six platforms. Both its plants were caught |
+
+Every check passed, and V1–V8 are met, so this PLAN is `complete`. The
+answer to issue 2, and its closing, wait for the owner's ask.
