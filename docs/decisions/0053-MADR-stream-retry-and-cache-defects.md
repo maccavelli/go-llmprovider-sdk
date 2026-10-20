@@ -239,7 +239,7 @@ exported name or a change on the wire.
   stream with an error matching `ErrIncomplete`, naming the field and the
   index, as an event over `EventLimit` does (`sse.go:33`). It is sent whole,
   and asking again buys the same.
-* **The bound:** `maxStreamIndex` is 1024 (Q2), one unexported constant in
+* **The bound:** `maxStreamIndex` is 4096 (the owner's Q2), one unexported constant in
   `internal/wire`, with one helper used at C3 to C6. Gaps below the bound
   are allowed, as today.
 * **Why a bound and not a `recover`:** a recover at the stream boundary
@@ -316,12 +316,11 @@ exported name or a change on the wire.
   each still bounded by `probeTimeout`, so a cancelled claimant does not turn
   every waiter's result into "nothing answered". The probes of a cancelled
   caller then finish. At most six one-word generations, in the background.
-* **The empty result** follows the owner's Q1:
-  * kept as 0028-MADR D-A3 has it, not cached past the run (C18, C20);
-  * or remembered for one minute, as a failed metadata fetch is
-    (`modelMetadataRetryAfter`). The listing shown is the same either way
-    (no probe answered, so the listing is not filtered). That would amend
-    D-A3, and `TestProbeCache_EmptyResultNotCached` with it.
+* **The empty result** is kept as 0028-MADR D-A3 has it (the owner's Q1): a
+  run in which no probe answered is shared with that run's waiters and is not
+  cached past it (C18, C20), so the next listing probes again.
+  `TestProbeCache_EmptyResultNotCached` stands. Remembering it for a minute is
+  0054-REPORT's idea 3.1, applied to probes.
 * **The output limit stays.** `probeMaxTokens` (C22) caps the output; the
   answer, not the cap, is billed. 0015-MADR D1 kept it so the probe request
   would be unchanged, and a reasoning model may spend tokens before it says
@@ -347,8 +346,11 @@ exported name or a change on the wire.
   function whose errors change names them (R52); `make docs-check` stays at
   0. `docs/architecture.md`'s listing-cache and streaming sections say what
   D3 to D6 change.
-* **Release:** `v1.19.1`, a patch release, since no exported name changes
-  (Q3). `CHANGELOG.md`'s Fixed lists each finding.
+* **Release:** `v1.20.0`, a minor release (the owner's Q3). No exported
+  name changes, but a caller can see two behaviours change. `CHANGELOG.md`'s
+  Changed names them: an in-stream failure retried at most once (D3), and a
+  streamed index past the bound ending the stream (D2). Its Fixed lists each
+  finding.
 
 ### Consequences
 
@@ -368,8 +370,10 @@ exported name or a change on the wire.
   caller that has gone, up to its own bound (10 s, or 5 s a probe). The
   metadata fetch already does.
 * Bad, because the stream-index bound is a new limit a pathological but
-  valid reply could exceed. 1024 content blocks or tool calls in one reply is
-  far beyond any measured, and the error names the index.
+  valid reply could exceed. 4096 content blocks or tool calls in one reply is
+  far beyond any measured, and the error names the index. At M2's rate, about
+  505 bytes a slot, one event can still make the decoder allocate about
+  2 MiB.
 
 ### Confirmation
 
@@ -392,8 +396,8 @@ exported name or a change on the wire.
   defect is.
 * Good, because each is small, separately testable and separately
   revertible.
-* Neutral, because it amends three recorded decisions (0021 D1, 0041 A4, and
-  0028 D-A3 if Q1 says so), in the open.
+* Neutral, because it amends two recorded decisions (0021 D1, 0041 A4), in
+  the open.
 
 ### B. Recover panics at the stream boundary
 
@@ -419,15 +423,20 @@ exported name or a change on the wire.
 
 ## Owner questions
 
+Answered by the owner on 2026-10-20.
+
 * **Q1 (D6). The empty probe result.** Offered: keep 0028-MADR D-A3, so a
   run in which no probe answered is not cached past the run (recommended for
   this record, which fixes defects and decides no new behaviour); or remember
   it for one minute, as a failed metadata fetch is, saving six billed probes
   per listing while every probe fails, with the same listing shown.
+  **Answer: keep D-A3.**
 * **Q2 (D2). The stream-index bound.** Offered: 1024 (recommended); or
   4096; or reject only a negative index, which leaves M2's allocation.
+  **Answer: 4096.**
 * **Q3 (D7). The release.** Offered: `v1.19.1` (recommended), a patch; or
-  `v1.20.0`, if Q1's one-minute memory is taken as a behaviour change.
+  `v1.20.0`, if Q1's one-minute memory or the index bound is taken as a
+  behaviour change. **Answer: `v1.20.0`.**
 
 ## More Information
 
@@ -437,8 +446,8 @@ exported name or a change on the wire.
   0054-REPORT-heuristics-and-performance-opportunities.md, with the other
   optimization ideas.
 * **Records amended once this is accepted:** 0021-MADR-harden-and-tune-after-the-v1-1-review.md
-  D1 (D3); 0041-MADR-decide-per-model-behaviour-from-metadata.md A4 (D5);
-  0028-MADR-heuristics-and-performance-from-the-research-pass.md D-A3, if Q1
-  takes the one-minute memory (D6).
+  D1 (D3); 0041-MADR-decide-per-model-behaviour-from-metadata.md A4 (D5).
+  0028-MADR-heuristics-and-performance-from-the-research-pass.md D-A3 stands
+  (Q1).
 * The PLAN, `0053-PLAN-stream-retry-and-cache-defects.md`, follows once
   this record is reviewed.
