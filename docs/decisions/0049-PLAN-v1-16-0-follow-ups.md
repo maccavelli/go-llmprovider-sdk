@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-19
 associated-madr: "0049-MADR-v1-16-0-follow-ups.md"
 decision-makers: repository owner
@@ -422,3 +422,36 @@ all of D2a to D2d; Q3 the learned refusals in `catalog.Cache`):
   `tools/apidiff.py v1.16.0`, no output, exit 0: no exported name changed;
   the disclosure guard over the outgoing commits, once this one is
   committed, before the owner pushes.
+* **Step 2, the guard:** the owner committed step 1 as `1fa0d94`; the
+  disclosure guard over the 8 outgoing commits (`14a5b63..1fa0d94`), run by
+  the agent before the push: exit 0, nothing reported. The owner pushed
+  `main`; CI run 39355344377: `validate` on ubuntu-24.04, macos-15 and
+  windows-2025, success; `release` skipped, as on a branch.
+* **Step 3,** the owner tagged `v1.17.0` on `1fa0d94` (commit date
+  2026-10-19, the section's) and pushed it; run 39355939832: `validate` on
+  the three systems and `release`, success. The
+  [Release](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.17.0),
+  not a draft or a prerelease, Latest; `gh release view v1.17.0 --json
+  body` equals `check_changelog.py --section v1.17.0 --repo
+  maccavelli/go-llmprovider-sdk`, 1,540 characters each.
+* **Step 4:** `tools/consumer.py v1.17.0`, "consumer: 15 packages linked",
+  "every step passed"; `tools/offline.py v1.17.0`, "every step passed".
+* **Step 5, the MADR's Confirmation:**
+  * the probe of F1 to F3, run again unchanged on a scratch copy of
+    `v1.17.0`: no panic for a typed-nil `*StaticToken` or a zero
+    `DeviceLogin`'s `Wait`; `ValidateOllamaURLWith`'s refused connection
+    matches `ErrProviderUnavailable`, as the listing's; both logins'
+    unsupported provider matches `ErrUnsupported`, as `catalog.List`'s;
+  * the F3 tests changed with D2 pass, and each D2 change failed its test
+    when planted back (Phase 2);
+  * `go test -count=2 -run _0034 ./llmprovider/...` passes (Phase 3);
+  * F5's and F6's six plants are caught (Phase 4);
+  * `sdkaudit -check`, 0; `tools/apidiff.py v1.16.0`, no change; `make
+    changelog-check` with the `v1.17.0` section, 0 problems.
+* **The Verification table:** V1 Phase 1 and the probe above; V2 Phase 2;
+  V3 Phase 3; V4 Phase 4; V5 apidiff and `docs-check` at every phase; V6
+  step 3; V7 each phase's plants.
+* **Not done, and why:** other typed-nil token sources, which the MADR did
+  not probe (Scope); gobble-cli's and prepare-commit-msg's adoption of
+  `v1.17.0`, theirs to make.
+* **Status:** this PLAN `complete`, by `tools/records.py status`.

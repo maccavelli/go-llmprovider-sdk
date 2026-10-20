@@ -114,7 +114,7 @@ documents a reader follows to do something.
 | 0048 | MADR | [Close the SDK's Gaps Against Go SDK Practice: Injectable Caches, Runnable Examples, Stated Concurrency and Errors, a Changelog, and Reviewed Exports](decisions/0048-MADR-adopt-go-sdk-best-practices.md) | accepted |
 | 0048 | PLAN | [Implement Closing the SDK's Gaps Against Go SDK Practice](decisions/0048-PLAN-adopt-go-sdk-best-practices.md) | complete |
 | 0049 | MADR | [Close v1.16.0's Follow-ups: Errors in Place of Two Panics, One Kind for Like Failures, the Learned Refusals in `catalog.Cache`, and the Tests 0048 Left Out](decisions/0049-MADR-v1-16-0-follow-ups.md) | accepted |
-| 0049 | PLAN | [Implement Closing v1.16.0's Follow-ups](decisions/0049-PLAN-v1-16-0-follow-ups.md) | in-progress |
+| 0049 | PLAN | [Implement Closing v1.16.0's Follow-ups](decisions/0049-PLAN-v1-16-0-follow-ups.md) | complete |
 
 ## I want to…
 
