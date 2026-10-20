@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-19
+status: complete
+date: 2026-10-20
 associated-madr: "0050-MADR-refuse-typed-nil-token-sources.md"
 decision-makers: repository owner
 ---
@@ -351,3 +351,37 @@ interface in `List` and `ListRaw` matches `ErrInvalidRequest` too; Q1:
   `tools/apidiff.py v1.17.0`, no output, exit 0: no exported name changed;
   the disclosure guard over the outgoing commits, once this one is
   committed, before the owner pushes.
+* **Step 2, the guard:** the owner committed step 1 as `d19f7a3`; the
+  disclosure guard over the 5 outgoing commits (`b92cf29..d19f7a3`), run by
+  the agent before the push: exit 0, nothing reported. The owner pushed
+  `main`; CI run 39433940716: `validate` on ubuntu-24.04, macos-15 and
+  windows-2025, success; `release` skipped, as on a branch.
+* **Step 3,** the owner tagged `v1.18.0` on `d19f7a3` (commit date
+  2026-10-20, the section's) and pushed it; run 39435526622: `validate` on
+  the three systems and `release`, success. The
+  [Release](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.18.0),
+  not a draft or a prerelease, Latest; `gh release view v1.18.0 --json
+  body` equals `check_changelog.py --section v1.18.0 --repo
+  maccavelli/go-llmprovider-sdk`, 661 characters each, the latter exit 0
+  now that the tag holds the MADR.
+* **Step 4:** `tools/consumer.py v1.18.0`, "consumer: 15 packages linked",
+  "every step passed"; `tools/offline.py v1.18.0`, "offline: ok", 0
+  requests, its two plants caught, "every step passed".
+* **Step 5, the MADR's Confirmation:**
+  * the probe of F1 to F3, run again unchanged on a scratch copy of
+    `v1.18.0`: 30 of 30 lines "New=ErrInvalidRequest | Generate=- |
+    List=ErrInvalidRequest", 0 "PANIC"; "ListRaw=ErrInvalidRequest",
+    "LookupModel=ErrInvalidRequest", "CachedModel=ok", D4's answers;
+  * D5's tests pass, and each failed on its planted break (Phases 1 and 2:
+    seven plants, all caught);
+  * at `v1.18.0`, `scripts/check_tables.py`, "38 packages, 0 problem(s)";
+    `sdkaudit -check`, "0 violation(s) of R50,R51,R52"; `tools/apidiff.py
+    v1.17.0`, no change (step 2 of this phase).
+* **The Verification table:** V1 Phase 1 (100 %); V2 Phase 1's provider
+  table; V3 and V4 Phase 2's catalog tests; V5 Phase 2's probe and step 5's;
+  V6 apidiff and `docs-check` at every phase; V7 step 3; V8 each phase's
+  plants.
+* **Not done, and why:** nil-safe methods on the module's sources, the
+  MADR's option B, out of scope; gobble-cli's and prepare-commit-msg's
+  adoption of `v1.18.0`, theirs to make.
+* **Status:** this PLAN `complete`, by `tools/records.py status`.
