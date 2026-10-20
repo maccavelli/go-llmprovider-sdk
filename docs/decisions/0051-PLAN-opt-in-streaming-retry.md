@@ -399,3 +399,93 @@ provider package keeping its scripts at two):
   renamed `errCut0051`, and the plants were run again after it, all six
   caught);
   `tools/gate.py` on the final tree, 27 of 27 passed.
+
+### Phase 2: `llmtest` (2026-10-20)
+
+* Phase 1 was committed by the owner as `79300d7`.
+* **Deviation (2026-10-20), no decision changed.** Two facts
+  differ from the steps as written, and neither changes what is built:
+  * **eleven scripts were split, not twelve:** OpenCode's generateContent
+    `StreamText` (`llmtestGoogleStream`) already carried its text in two
+    parts, "hel" and "lo"; the twelve scripts all carry two now, as D5
+    says;
+  * **the provider guide's note** is in its section 8, "Pass `llmtest`",
+    beside the other `Harness` fields, not in section 3 by C21's rule,
+    which is unchanged. Offered to the owner: keep it in section 8, or move
+    it to section 3 as step 5 says; **the owner's choice: keep it** in
+    section 8.
+* **Step 1:** `StreamText`'s doc (C10): at least one text delta, two or
+  more preferred, and the parts that let the check show liveness. D7's
+  check (C18) unchanged. `reporter` gains `Logf`; `testReporter.Logf` is
+  `t.Logf`, and the package's own test `recorder` keeps the lines. `Run`'s
+  doc gains the check.
+* **Step 2, the check,** `llmprovider/llmtest/stream_retry.go`,
+  "D7-stream-retry", run beside D7's (C19): `checkStreamRetry` (a 503,
+  then `StreamText`: two requests, one notice, `EventDone` last with
+  `Generate`'s `Response`, the deltas joined equal its text; `StreamFailure`:
+  one request, no notice, one error, last, no `EventDone`; every reply
+  closed) and `checkStreamLive` (M5's heuristic: the provider served one
+  part at a time, 50 ms apart, to find the part `k` after which its first
+  text delta comes; the wrapped provider served parts 0 to `k`, the rest
+  held for its first delta, at most 2 s; the events equal; a one-part
+  script, or a first delta only with the last part, logged and passed; one
+  delta logged).
+* **Step 3, the scripts:** eleven split by
+  `split_scripts.py` (a scratch script, every replacement asserted once):
+  Responses (`openai`, `grok`, `opencode`) "hel" and "lo"; Messages
+  (`claude`, `opencode`); Chat Completions (`huggingface`, `kilo`,
+  `together`, `opencode`; `ollama`'s "ALPHA" as "AL" and "PHA"), the second
+  chunk keeping its script's id and model; Interactions (`gemini`). Each
+  comment says "two deltas".
+* **Step 4, the nine packages' tests:** `TestStreamTextDeltas_0051` in each
+  `llmtest_test.go`, its provider built as its harness's `New` builds it,
+  `opencode`'s over its four routes; each passes.
+* **Step 5, the docs:** `docs/architecture.md`'s stream harness entry
+  (C20); `docs/guides/adding-a-provider.md` section 8; `CHANGELOG.md`
+  `[Unreleased]`, Changed. `make docs-check`, "sdkaudit: 0 violation(s) of
+  R50,R51,R52"; `make parity-check`, "409 identifiers, 409 rows, 409 with an
+  SDK equivalent, 0 problem(s)"; `make tables-check`, "38 packages, 0
+  problem(s)"; `make changelog-check`, "26 release section(s), 0
+  problem(s)"; markdownlint on the three files, no finding.
+* **The conformance suites:** with the one-delta scripts, all fifteen runs
+  passed the new check, fourteen logging the one-delta line (the fifteenth,
+  generateContent's, carried two) and none the not-checkable lines, so
+  liveness was checked on every run; with the two-delta scripts, all
+  fifteen passed and nothing was logged. `llmtest`'s own tests, over
+  `streamRef`, a reference provider that streams natively:
+  `TestStreamRetryCheck_TwoDeltas_0051` (no failure, no line),
+  `_OneDelta_0051` (the one-delta line), `_OnePart_0051` (the one-part
+  line), `_ProviderNotLive_0051` (a provider that reads its whole reply
+  first: the not-checkable line); each passes, under `-race`.
+* **Step 6, red first,** eight plants (the step's six, and two more for
+  the logged lines), all caught by a failing test, none by a failed build:
+  * `WithStreamRetry` collecting the inner stream before yielding: all nine
+    provider packages failed, and all fifteen runs said "D7-stream-retry
+    (0051-MADR D5): no text delta through WithStreamRetry before
+    StreamText's part 4 of 7 was sent; the stream is held back, not live"
+    (Gemini's unstored run's part numbers; each run names its own), counted
+    on a full run of the suites, since `tools/plant.py` prints only the
+    first lines; and `llmtest`'s own tests;
+  * dropping every text delta after the first: all nine packages, "after the
+    retry the text deltas joined are \"hello from \"; EventDone's message
+    text is \"hello from the reference provider\"" in `llmtest`'s;
+  * retrying after the first event: "a stream failing after a delta was
+    sent 3 times, with 2 notices; want once, with none";
+  * not retrying before it: "a 503, then the StreamText reply: llmprovider:
+    llmtest-reference failed after 3 attempts";
+  * `openai`'s script back to one delta: "llmtest_test.go:130: StreamText
+    gave 1 text deltas, joined \"hello\"; want two or more";
+  * a one-part script, and a provider not live itself, each failed instead
+    of logged: `_OnePart_0051` and `_ProviderNotLive_0051` fail;
+  * the one-delta line not logged: "failures [], logs []; want none, and
+    the one-delta line".
+* **The checks:** `tools/apidiff.py v1.18.0`, "Compatible changes:
+  ./llmprovider.WithStreamRetry: added", nothing else; `make
+  coverage-check`, "37 packages, 0 problem(s)", `llmtest` at 90.1 %; `make
+  pre-add-check` on the thirteen Go files, "13 file(s) clean" (a first run
+  found errcheck on the staged server's unchecked `http.Flusher` assertion
+  and `Write`, and gosec's G115 on two `int32` conversions: the write's
+  error now ends the handler, the assertion's flag is kept, and the counts
+  are `atomic.Int64`; the eight plants, and the full run of the first, were
+  run again after it, all caught); `tools/gate.py` on the final tree, 27
+  of 27 passed (25 of 27 before that fix, its pre-add check and lint).

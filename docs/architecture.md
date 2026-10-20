@@ -481,8 +481,17 @@ for a session, from the store.
   `EventDone`, last, whose `Response` is `Generate`'s and holds the text the
   deltas carried; a failure that ends the stream with no `EventDone`; and
   every reply body closed, after a stream that completes, stops early or
-  fails (0031-MADR D7). Every built-in provider's harness sets them, in
-  its wire's format. A harness that sets none passes as before. Every harness also gets checks with no field: each HTTP
+  fails (0031-MADR D7). They also switch on the check through
+  `WithStreamRetry`: a 503 before the first event retried, with one
+  notice; a failure after a delta not; the stream live, shown by holding
+  back the part of `StreamText` after the one that gives the provider's
+  own first delta; and the provider's own events, in order (0051-MADR D5).
+  `StreamText` needs one delta, and two are preferred, since one cannot
+  show that none is merged; a check that cannot be made, such as liveness
+  for a script in one part, goes to the test log. Every built-in
+  provider's harness sets them, in its wire's format, its text in two
+  deltas, which each package's `TestStreamTextDeltas_0051` holds. A
+  harness that sets none passes as before. Every harness also gets checks with no field: each HTTP
   failure an `*APIError`, a 429's `Retry-After` in `RetryAfter`, a token
   that names its own `Header` sent there, and, for a provider that lists,
   the listing's identity and cancellation (0026-MADR F57).

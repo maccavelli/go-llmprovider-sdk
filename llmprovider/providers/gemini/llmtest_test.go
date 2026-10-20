@@ -1,9 +1,11 @@
 package gemini
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -66,10 +68,46 @@ func TestConformance(t *testing.T) {
 	}
 }
 
-// llmtestInteractionStream is the text reply as an Interactions event stream
-// (0031-MADR E6).
-const llmtestInteractionStream = "event: interaction.created\ndata: {\"event_type\":\"interaction.created\",\"interaction\":{\"id\":\"v1_llmtest\",\"model\":\"llmtest-model\",\"status\":\"in_progress\"}}\n\nevent: step.start\ndata: {\"event_type\":\"step.start\",\"index\":0,\"step\":{\"type\":\"model_output\"}}\n\nevent: step.delta\ndata: {\"event_type\":\"step.delta\",\"index\":0,\"delta\":{\"type\":\"text\",\"text\":\"hello\"}}\n\nevent: step.stop\ndata: {\"event_type\":\"step.stop\",\"index\":0}\n\nevent: interaction.completed\ndata: {\"event_type\":\"interaction.completed\",\"interaction\":{\"id\":\"v1_llmtest\",\"model\":\"llmtest-model\",\"status\":\"completed\"}}\n\nevent: done\ndata: [DONE]\n\n"
+// llmtestInteractionStream is the text reply as an Interactions event stream,
+// its text in two deltas (0031-MADR E6).
+const llmtestInteractionStream = "event: interaction.created\ndata: {\"event_type\":\"interaction.created\",\"interaction\":{\"id\":\"v1_llmtest\",\"model\":\"llmtest-model\",\"status\":\"in_progress\"}}\n\nevent: step.start\ndata: {\"event_type\":\"step.start\",\"index\":0,\"step\":{\"type\":\"model_output\"}}\n\nevent: step.delta\ndata: {\"event_type\":\"step.delta\",\"index\":0,\"delta\":{\"type\":\"text\",\"text\":\"hel\"}}\n\nevent: step.delta\ndata: {\"event_type\":\"step.delta\",\"index\":0,\"delta\":{\"type\":\"text\",\"text\":\"lo\"}}\n\nevent: step.stop\ndata: {\"event_type\":\"step.stop\",\"index\":0}\n\nevent: interaction.completed\ndata: {\"event_type\":\"interaction.completed\",\"interaction\":{\"id\":\"v1_llmtest\",\"model\":\"llmtest-model\",\"status\":\"completed\"}}\n\nevent: done\ndata: [DONE]\n\n"
 
 // llmtestInteractionStreamFailure is an Interactions event stream that fails
 // after one delta.
 const llmtestInteractionStreamFailure = "event: interaction.created\ndata: {\"event_type\":\"interaction.created\",\"interaction\":{\"id\":\"v1_llmtest\",\"model\":\"llmtest-model\",\"status\":\"in_progress\"}}\n\nevent: step.start\ndata: {\"event_type\":\"step.start\",\"index\":0,\"step\":{\"type\":\"model_output\"}}\n\nevent: step.delta\ndata: {\"event_type\":\"step.delta\",\"index\":0,\"delta\":{\"type\":\"text\",\"text\":\"hel\"}}\n\nevent: error\ndata: {\"event_type\":\"error\",\"error\":{\"code\":503,\"message\":\"llmtest\",\"status\":\"UNAVAILABLE\"}}\n\n"
+
+// TestStreamTextDeltas_0051 (0051-MADR D5): the harness's StreamText script
+// gives at least two text deltas through the provider's own Stream, so that
+// llmtest's stream retry check also shows that the wrapper merges none.
+func TestStreamTextDeltas_0051(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, llmtestInteractionStream)
+	}))
+	defer srv.Close()
+	p, err := New(llmprovider.WithAPIKey("gemini-llmtest"), llmprovider.WithModel("gemini-3.7-flash"), llmprovider.WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertTwoDeltas0051(t, p, "hello")
+}
+
+// assertTwoDeltas0051 streams a request from p and checks that its text came
+// in two or more text deltas, joined equal to want.
+func assertTwoDeltas0051(t *testing.T, p llmprovider.Provider, want string) {
+	t.Helper()
+	deltas, text := 0, ""
+	for ev, err := range llmprovider.Stream(context.Background(), p, &llmprovider.Request{
+		Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}},
+	}) {
+		if err != nil {
+			t.Fatalf("Stream: %v", err)
+		}
+		if ev.Type == llmprovider.EventTextDelta {
+			deltas++
+			text += ev.Text
+		}
+	}
+	if deltas < 2 || text != want {
+		t.Errorf("StreamText gave %d text deltas, joined %q; want two or more, joined %q", deltas, text, want)
+	}
+}

@@ -1,9 +1,11 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -16,9 +18,10 @@ const (
 	llmtestText = `{"id":"resp_llmtest","model":"llmtest-model","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`
 )
 
-// llmtestStream is the text reply as a Responses event stream: its text in a
-// delta, the item, then completed (0031-MADR D7).
-const llmtestStream = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
+// llmtestStream is the text reply as a Responses event stream: its text in two
+// deltas, the item, then completed (0031-MADR D7).
+const llmtestStream = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hel\"}\n\n" +
+	"data: {\"type\":\"response.output_text.delta\",\"delta\":\"lo\"}\n\n" +
 	"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}}\n\n" +
 	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_llmtest\",\"model\":\"llmtest-model\"}}\n\n"
 
@@ -111,4 +114,40 @@ func TestConformance(t *testing.T) {
 		h.NoReauth = "the ChatGPT session decides the mode"
 		llmtest.Run(t, h)
 	})
+}
+
+// TestStreamTextDeltas_0051 (0051-MADR D5): the harness's StreamText script
+// gives at least two text deltas through the provider's own Stream, so that
+// llmtest's stream retry check also shows that the wrapper merges none.
+func TestStreamTextDeltas_0051(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, llmtestStream)
+	}))
+	defer srv.Close()
+	p, err := New(llmprovider.WithAPIKey("sk-llmtest"), llmprovider.WithModel("gpt-5.5"), llmprovider.WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertTwoDeltas0051(t, p, "hello")
+}
+
+// assertTwoDeltas0051 streams a request from p and checks that its text came
+// in two or more text deltas, joined equal to want.
+func assertTwoDeltas0051(t *testing.T, p llmprovider.Provider, want string) {
+	t.Helper()
+	deltas, text := 0, ""
+	for ev, err := range llmprovider.Stream(context.Background(), p, &llmprovider.Request{
+		Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}},
+	}) {
+		if err != nil {
+			t.Fatalf("Stream: %v", err)
+		}
+		if ev.Type == llmprovider.EventTextDelta {
+			deltas++
+			text += ev.Text
+		}
+	}
+	if deltas < 2 || text != want {
+		t.Errorf("StreamText gave %d text deltas, joined %q; want two or more, joined %q", deltas, text, want)
+	}
 }

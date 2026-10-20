@@ -325,6 +325,16 @@ func TestConformance(t *testing.T) {
     request must be sent once more with a renewed token;
   - `NotPermitted` writes its refusal of a request the key may not make,
     which must be `ErrNotPermitted`, not retryable.
+- If your provider implements `Streamer`, set `StreamText` and
+  `StreamFailure` (0031-MADR D7; 0051-MADR D5). `StreamText` writes your
+  service's streamed reply to `Text`'s request, as an event stream whose
+  events each end in a blank line, its text in two deltas or more;
+  `StreamFailure` writes one that fails after a delta. The checks then
+  require one `EventDone`, last, with `Generate`'s `Response`, and, through
+  `llmprovider.WithStreamRetry`, a 503 before the first event retried, a
+  failure after it not, and the stream live. A failure before your
+  stream's first event must be its first pair, classified as `Generate`'s
+  would be.
 - Some checks need no field: every HTTP failure must be an `*APIError`
   (R24), a 429's `Retry-After` must reach `RetryAfter`, a token that names
   its own `Header` must be sent there (R16), and, if your provider is a

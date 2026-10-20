@@ -310,15 +310,18 @@ func refHarness(f flaws) Harness {
 	}
 }
 
-// recorder is a reporter that keeps every failure, prefixed with its
-// subtest path.
+// recorder is a reporter that keeps every failure, and every line logged,
+// prefixed with its subtest path.
 type recorder struct {
 	prefix string
 	mu     *sync.Mutex
 	msgs   *[]string
+	logs   *[]string
 }
 
-func newRecorder() *recorder { return &recorder{mu: &sync.Mutex{}, msgs: &[]string{}} }
+func newRecorder() *recorder {
+	return &recorder{mu: &sync.Mutex{}, msgs: &[]string{}, logs: &[]string{}}
+}
 
 func (r *recorder) Helper() {}
 
@@ -328,14 +331,26 @@ func (r *recorder) Errorf(format string, args ...any) {
 	*r.msgs = append(*r.msgs, r.prefix+fmt.Sprintf(format, args...))
 }
 
+func (r *recorder) Logf(format string, args ...any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	*r.logs = append(*r.logs, r.prefix+fmt.Sprintf(format, args...))
+}
+
 func (r *recorder) Run(name string, f func(reporter)) {
-	f(&recorder{prefix: r.prefix + name + ": ", mu: r.mu, msgs: r.msgs})
+	f(&recorder{prefix: r.prefix + name + ": ", mu: r.mu, msgs: r.msgs, logs: r.logs})
 }
 
 func (r *recorder) failures() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]string(nil), *r.msgs...)
+}
+
+func (r *recorder) logged() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), *r.logs...)
 }
 
 func TestRun_ConformantProviderPasses(t *testing.T) {

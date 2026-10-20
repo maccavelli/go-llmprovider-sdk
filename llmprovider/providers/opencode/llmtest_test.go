@@ -1,9 +1,11 @@
 package opencode
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -71,10 +73,11 @@ var conformanceReplies = map[Route]routeReplies{
 }
 
 // llmtestMessagesStream is the text reply as a Messages event stream: its
-// text in a delta, then the stop (0031-MADR E6).
+// text in two deltas, then the stop (0031-MADR E6).
 const llmtestMessagesStream = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"llmtest-model\"}}\n\n" +
 	"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n" +
-	"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n\n" +
+	"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hel\"}}\n\n" +
+	"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"lo\"}}\n\n" +
 	"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
 	"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n" +
 	"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
@@ -86,9 +89,10 @@ const llmtestMessagesStreamFailure = "event: message_start\ndata: {\"type\":\"me
 	"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hel\"}}\n\n" +
 	"event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"llmtest\"}}\n\n"
 
-// llmtestStream is the text reply as a Responses event stream: its text in a
-// delta, the item, then completed (0031-MADR D7).
-const llmtestStream = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
+// llmtestStream is the text reply as a Responses event stream: its text in two
+// deltas, the item, then completed (0031-MADR D7).
+const llmtestStream = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hel\"}\n\n" +
+	"data: {\"type\":\"response.output_text.delta\",\"delta\":\"lo\"}\n\n" +
 	"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}}\n\n" +
 	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_llmtest\",\"model\":\"llmtest-model\"}}\n\n"
 
@@ -165,8 +169,8 @@ func TestConformance(t *testing.T) {
 }
 
 // llmtestChatStream is the text reply as a Chat Completions event stream: its
-// text in a delta, the finish, then [DONE] (0031-MADR E6).
-const llmtestChatStream = "data: {\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":null}]}\n\ndata: {\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
+// text in two deltas, the finish, then [DONE] (0031-MADR E6).
+const llmtestChatStream = "data: {\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"he\"},\"finish_reason\":null}]}\n\ndata: {\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"llo\"},\"finish_reason\":null}]}\n\ndata: {\"model\":\"llmtest-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
 
 // llmtestChatStreamFailure is a Chat Completions event stream that fails
 // after one delta, with an error inside the 200.
@@ -179,3 +183,55 @@ const llmtestGoogleStream = "data: {\"candidates\":[{\"content\":{\"role\":\"mod
 // llmtestGoogleStreamFailure is a generateContent event stream that fails
 // after one part, with Google's error body.
 const llmtestGoogleStreamFailure = "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"hel\"}]},\"index\":0}],\"modelVersion\":\"llmtest-model\"}\n\ndata: {\"error\":{\"code\":503,\"message\":\"llmtest\",\"status\":\"UNAVAILABLE\"}}\n\n"
+
+// TestStreamTextDeltas_0051 (0051-MADR D5): the harness's StreamText script
+// gives at least two text deltas through the provider's own Stream, so that
+// llmtest's stream retry check also shows that the wrapper merges none.
+func TestStreamTextDeltas_0051(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		gateway llmprovider.ProviderID
+		model   string
+		route   Route
+		script  string
+	}{
+		{"zen-chat", llmprovider.ProviderOpencodeZen, "glm-5.3", RouteChatCompletions, llmtestChatStream},
+		{"go-messages", llmprovider.ProviderOpencodeGo, "qwen3.8-flash", RouteMessages, llmtestMessagesStream},
+		{"zen-google", llmprovider.ProviderOpencodeZen, "gemini-3.8-flash", RouteGoogle, llmtestGoogleStream},
+		{"go-responses", llmprovider.ProviderOpencodeGo, "gpt-6-luna", RouteResponses, llmtestStream},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = io.WriteString(w, tc.script)
+			}))
+			defer srv.Close()
+			p, err := newFor(tc.gateway)(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-llmtest"),
+				llmprovider.WithModel(tc.model), llmprovider.WithBaseURL(srv.URL), WithRoute(tc.route)}, metadataOff()...)...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertTwoDeltas0051(t, p, "hello")
+		})
+	}
+}
+
+// assertTwoDeltas0051 streams a request from p and checks that its text came
+// in two or more text deltas, joined equal to want.
+func assertTwoDeltas0051(t *testing.T, p llmprovider.Provider, want string) {
+	t.Helper()
+	deltas, text := 0, ""
+	for ev, err := range llmprovider.Stream(context.Background(), p, &llmprovider.Request{
+		Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}},
+	}) {
+		if err != nil {
+			t.Fatalf("Stream: %v", err)
+		}
+		if ev.Type == llmprovider.EventTextDelta {
+			deltas++
+			text += ev.Text
+		}
+	}
+	if deltas < 2 || text != want {
+		t.Errorf("StreamText gave %d text deltas, joined %q; want two or more, joined %q", deltas, text, want)
+	}
+}

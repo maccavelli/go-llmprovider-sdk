@@ -20,6 +20,17 @@ section.
   every event passes through, a failure ending the stream unretried.
   `WithRetry` and `WithRetryNotify` still buffer, unchanged (D1 to D4).
 
+### Changed
+
+- `llmtest.Run` checks a provider that streams natively through
+  `WithStreamRetry`, when its `Harness` sets `StreamText` and
+  `StreamFailure`: a 503 before the first event retried, a failure after
+  it not, the stream live and carrying the provider's own events (D5). A
+  third-party provider whose stream does not yield a failure before its
+  first event as a classified first pair fails it. `StreamText` still
+  needs one text delta; two are preferred, and a check that cannot be
+  made is logged, not failed.
+
 ## [v1.18.0] - 2026-10-20
 
 ### Changed

@@ -96,10 +96,14 @@ type Harness struct {
 	ReasoningCut func(w http.ResponseWriter, r *http.Request)
 	// StreamText and StreamFailure, when both are set and the provider
 	// implements llmprovider.Streamer, switch on the native streaming check
-	// (0031-MADR D7). StreamText writes the service's successful streamed
-	// reply, carrying the response Text writes, its text in at least one
-	// delta. StreamFailure writes a streamed reply that fails after one text
-	// delta.
+	// (0031-MADR D7), and the check of the stream through
+	// llmprovider.WithStreamRetry (0051-MADR D5). StreamText writes the
+	// service's successful streamed reply, carrying the response Text writes,
+	// its text in at least one delta; two or more are preferred, since one
+	// cannot show that deltas are not merged. Written as an event stream, in
+	// parts that each end in a blank line, it also lets the check show that
+	// the stream is live. StreamFailure writes a streamed reply that fails
+	// after one text delta.
 	StreamText    func(w http.ResponseWriter, r *http.Request)
 	StreamFailure func(w http.ResponseWriter, r *http.Request)
 }
@@ -135,7 +139,12 @@ const (
 //   - when the Harness asks: request fidelity, an undecodable reply, a cut
 //     answer, and a strict tool call (0021-MADR W12), an answer cut while
 //     reasoning (0026-MADR F7), a not-permitted refusal (0026-MADR F57), and
-//     a native stream's events, failure and early stop (0031-MADR D7).
+//     a native stream's events, failure and early stop (0031-MADR D7);
+//   - for a native stream, the stream through llmprovider.WithStreamRetry: a
+//     503 before its first event retried, a failure after it not, the stream
+//     live and carrying the provider's own events (0051-MADR D5). A check
+//     that cannot be made, such as liveness for a StreamText written in one
+//     piece, is reported in the test log, not as a failure.
 func Run(t *testing.T, h Harness) {
 	t.Helper()
 	runChecks(testReporter{t}, h)
@@ -146,6 +155,7 @@ func Run(t *testing.T, h Harness) {
 type reporter interface {
 	Helper()
 	Errorf(format string, args ...any)
+	Logf(format string, args ...any)
 	Run(name string, f func(reporter))
 }
 
@@ -156,6 +166,11 @@ func (r testReporter) Helper() { r.t.Helper() }
 func (r testReporter) Errorf(format string, args ...any) {
 	r.t.Helper()
 	r.t.Errorf(format, args...)
+}
+
+func (r testReporter) Logf(format string, args ...any) {
+	r.t.Helper()
+	r.t.Logf(format, args...)
 }
 
 func (r testReporter) Run(name string, f func(reporter)) {
@@ -212,6 +227,7 @@ func runChecks(r reporter, h Harness) {
 	}
 	if h.StreamText != nil && h.StreamFailure != nil {
 		r.Run("D7-native-stream", func(r reporter) { checkNativeStream(r, h) })
+		r.Run("D7-stream-retry", func(r reporter) { checkStreamRetry(r, h) })
 	}
 }
 
