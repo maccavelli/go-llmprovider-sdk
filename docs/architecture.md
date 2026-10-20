@@ -178,7 +178,10 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/listlimi
    kind, and `WithRetryNotify` also reports each wait to a callback; a
    provider that lists models still does, through it, and it does
    not stream natively: `Stream` over it runs its `Generate`, so a failure
-   is retried whole. `Stream` uses a provider's own `Streamer`: every
+   is retried whole. `WithStreamRetry` streams natively over a provider
+   that does: it retries a failure before the first event, and passes
+   every event after it through, a failure there ending the stream
+   (0051-MADR). `Stream` uses a provider's own `Streamer`: every
    built-in provider asks its wire for an event stream and yields each event
    as it arrives (0031-MADR). A provider without one runs `Generate` and
    emits its result as events.
@@ -446,6 +449,12 @@ for a session, from the store.
 - `WithRetryNotify(p, policy, notify)` is the same wrapper, which calls
   `notify` with a `RetryNotice` on the caller's goroutine, with its `ctx`,
   each time a wait is about to begin, and at no other time (0044-MADR).
+- `WithStreamRetry(p, policy, notify)` is a `Streamer` over a provider that
+  is one, with its `Capabilities`: a failure before the first event is
+  retried as `WithRetryNotify` retries it, through the same decision, and
+  after the first event every event passes through, a failure ending the
+  stream with no `EventDone` and no retry. Over a provider that does not
+  stream it is `WithRetryNotify`'s result (0051-MADR).
 - `Registry` holds `Descriptor` and `Factory` pairs and refuses a duplicate
   id. There is no global registry.
 - `llmprovider/llmtest` has `Run`, the conformance suite every built-in
@@ -925,6 +934,4 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 - **Streamed reasoning on the Gemini wires.** generateContent and
   Interactions send no thought-summary delta in their streams, as measured,
   so their reasoning arrives only as an item.
-- **Live text through `WithRetry`.** Its stream is buffered so that it can
-  be retried (0031-MADR D6).
 - **`llmprovider/x/`.** No experimental API exists.

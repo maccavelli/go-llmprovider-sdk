@@ -329,3 +329,73 @@ provider package keeping its scripts at two):
 * **The checks:** `tools/claims.py`, 14 of 14 and 18 of 18; `make
   records-check`, 0 problems; `tools/recordlint.py --changed`, no rule rose;
   `tools/linkcheck.py`, 0 problems; `tools/gate.py`, 27 of 27 passed.
+
+### Phase 1: `WithStreamRetry` (2026-10-20)
+
+* **No deviation.** Phase 0 was committed by the owner as `b59ce93`. Step 6's example
+  runs over `httptest`, with the `openai` provider, which R50 names; a
+  scripted `Streamer` in the example file, the step's other choice, would
+  not have been `llmtest.Fake` or `httptest`.
+* **Step 1, the shared decision:** `(r *retrying) after(ctx, attempt, err,
+  &retriedAfterReply) error`, `Generate`'s body after a failed attempt,
+  moved unchanged; `Generate` calls it. `go test -race -count=1
+  ./llmprovider/` before any new test: ok, every existing retry test
+  unchanged.
+* **Steps 2 and 3:** `WithStreamRetry`, `*streamRetrying` (embedding
+  `*retrying`, with the inner `Streamer`) and `*streamRetryingLister`;
+  over a provider that is not a `Streamer`, `WithRetryNotify(p, policy,
+  notify)`. `Stream` breaks out of the inner stream on an error before the
+  first event and asks `after`; after the first event it yields every pair
+  as it comes. `Capabilities` is the inner provider's.
+* **Step 4, the docs:** `WithStreamRetry`'s (D2, D3, the trade-off, R51,
+  R52); `WithRetry`'s last paragraph names it. `make docs-check`:
+  "sdkaudit: 0 violation(s) of R50,R51,R52".
+* **Step 5, the tests,** `retry_stream_0051_test.go`, under `-race`, over
+  `streamScript0051`: `TestStreamRetry_Live_0051`,
+  `_BeforeFirstEvent_0051`, `_AfterFirstEvent_0051`,
+  `_PolicyAsGenerate_0051` (503 every time, 3 calls; after the reply began,
+  2; a wait over `MaxDelay`, 1; `ErrAuthFailure`, 1; each the same calls
+  and error text as `Generate`), `_Deadline_0051`, `_CancelledWait_0051`,
+  `_StopEarly_0051`, `_Methods_0051`, `_NotAStreamer_0051`: 9 of 9 pass. A
+  first run failed `_PolicyAsGenerate_0051` on the test's own fault: it
+  compared against a `Generate` over another fake, whose id is in the
+  error; it now compares two `streamScript0051`s.
+* **Step 6, `ExampleWithStreamRetry`:** a server unavailable once, then two
+  deltas on the Responses wire; its output "retrying after attempt 1",
+  "delta \"Hel\"", "delta \"lo\"". Pass.
+* **Step 7, the user docs:** README's `llmprovider` row and retry
+  paragraph; `docs/architecture.md`'s step 5, its `WithStreamRetry` entry,
+  and the "Live text through `WithRetry`" entry of "What is not here",
+  removed; R28. `CHANGELOG.md` `[Unreleased]`, Added. `make parity-check`,
+  "409 identifiers, 409 rows, 409 with an SDK equivalent, 0 problem(s)";
+  `make tables-check`, "38 packages, 0 problem(s)"; `make
+  changelog-check`, "26 release section(s), 0 problem(s)"; markdownlint on
+  the four files, no finding.
+* **Step 8, red first,** six plants, all caught by a failing test, none
+  by a failed build (a first spec of plants 1 and 2 left a variable unused,
+  so the build failed; they were rewritten and run again):
+  * `Stream` retrying after the first event:
+    "retry_stream_0051_test.go:171: events [{text_delta hel …} {text_delta
+    hel …} …]; want the one delta, then the failure unchanged";
+  * `Stream` not retrying before it: ":156: events [], errors
+    [llmprovider: script failed after 3 attempts: …]; want the second
+    attempt's events and no error", and `_PolicyAsGenerate_0051`,
+    `_Deadline_0051`, `_CancelledWait_0051`;
+  * `after` without the once-only rule: "retry_reply_test.go:22: calls = 5
+    …; want 2 calls: retried once" (0021-MADR D1's test), and ":202: a
+    failure after the reply began, every time: Stream 3 calls";
+  * `Stream` collecting every event before yielding any: ":133: the first
+    delta reached the caller after the inner stream yielded 4 events; want
+    1: the stream is held back";
+  * `Capabilities` dropping `NativeStreaming`: ":254: Capabilities {…
+    NativeStreaming:Unsupported} …; want the inner provider's";
+  * the non-`Streamer` branch wrapping as a `Streamer`: ":281: over a
+    provider that does not stream: Streamer true …; want neither".
+* **The checks:** `tools/apidiff.py v1.18.0`: "Compatible changes:
+  ./llmprovider.WithStreamRetry: added", nothing else; `make
+  coverage-check`, "37 packages, 0 problem(s)", `llmprovider` at 98.0 %
+  against 95.9 %; `make pre-add-check` on the three Go files, "3 file(s)
+  clean" (a first run found staticcheck's ST1012 on the test's `cut0051`,
+  renamed `errCut0051`, and the plants were run again after it, all six
+  caught);
+  `tools/gate.py` on the final tree, 27 of 27 passed.

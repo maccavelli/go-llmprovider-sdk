@@ -10,6 +10,16 @@ section.
 
 ## [Unreleased]
 
+### Added
+
+- `llmprovider.WithStreamRetry(p, policy, notify)`: live text and a retry
+  together, as
+  [0051-MADR](docs/decisions/0051-MADR-opt-in-streaming-retry.md) decides.
+  Over a provider that streams natively, a failure before the first event
+  is retried as `WithRetryNotify` retries it, and after the first event
+  every event passes through, a failure ending the stream unretried.
+  `WithRetry` and `WithRetryNotify` still buffer, unchanged (D1 to D4).
+
 ## [v1.18.0] - 2026-10-20
 
 ### Changed

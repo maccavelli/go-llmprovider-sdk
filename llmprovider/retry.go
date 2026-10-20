@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"math/rand/v2"
 	"net/url"
 	"time"
@@ -83,8 +84,10 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 // failure at any point is retried, and the caller receives events only from
 // the attempt that succeeds, never text it already holds. A caller that wants
 // text as it is generated streams from p itself, and handles a failure there
-// (0031-MADR D6). When p lists models, so does the result, through p
-// (0020-MADR F32). WithRetryNotify also reports each retry before its wait.
+// (0031-MADR D6), or uses WithStreamRetry, which retries a failure only
+// before the first event (0051-MADR). When p lists models, so does the
+// result, through p (0020-MADR F32). WithRetryNotify also reports each retry
+// before its wait.
 func WithRetry(p Provider, policy RetryPolicy) Provider {
 	return WithRetryNotify(p, policy, nil)
 }
@@ -143,38 +146,139 @@ func (r *retrying) Generate(ctx context.Context, req *Request) (*Response, error
 		if err == nil {
 			return resp, nil
 		}
-		if ctx.Err() != nil || !retryable(err) {
-			return nil, err
+		if final := r.after(ctx, attempt, err, &retriedAfterReply); final != nil {
+			return nil, final
 		}
-		if transport.IsAfterReply(err) {
-			// Once per Generate (0021-MADR D1).
-			if retriedAfterReply {
-				return nil, err
+	}
+}
+
+// after decides attempt's failure err: it waits and returns nil when the
+// request is to be sent again, or returns the error to give the caller.
+// Generate and a streaming retry's Stream share it, so that both retry alike
+// (0051-MADR D2). retriedAfterReply is the call's own.
+func (r *retrying) after(ctx context.Context, attempt int, err error, retriedAfterReply *bool) error {
+	if ctx.Err() != nil || !retryable(err) {
+		return err
+	}
+	if transport.IsAfterReply(err) {
+		// Once per Generate or Stream call (0021-MADR D1).
+		if *retriedAfterReply {
+			return err
+		}
+		*retriedAfterReply = true
+	}
+	if attempt >= r.policy.MaxAttempts {
+		return fmt.Errorf("llmprovider: %s failed after %d attempts: %w", r.inner.ID(), attempt, err)
+	}
+	wait, ok := r.policy.wait(attempt, err)
+	if !ok {
+		return err
+	}
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < wait {
+		// The wait would outlast the caller (0021-MADR T6).
+		return err
+	}
+	if r.notify != nil {
+		// Only now is a wait certain (0044-MADR D2).
+		r.notify(ctx, RetryNotice{Provider: r.inner.ID(), Attempt: attempt, MaxAttempts: r.policy.MaxAttempts,
+			Wait: wait, ServerDirected: serverRetryAfter(err) > 0, Err: err})
+	}
+	timer := time.NewTimer(wait)
+	select {
+	case <-ctx.Done():
+		timer.Stop()
+		return errors.Join(ctx.Err(), err)
+	case <-timer.C:
+		return nil
+	}
+}
+
+// WithStreamRetry is WithRetryNotify for a caller that wants text as it is
+// generated (0051-MADR). Over a provider that streams natively, its result
+// streams natively too, and its Stream retries only until the first event:
+//
+//   - A failure before the first event, when the caller has seen nothing, is
+//     retried exactly as Generate retries one: the same kinds, the once-only
+//     resend of a failure after the request was written or the reply begun
+//     (once per Stream call), the waits, MaxDelay, ctx's deadline, and notify
+//     before each wait, on the goroutine ranging the stream. The failure that
+//     ends the stream there is yielded once, with a zero Event: the inner
+//     stream's error, or the "failed after N attempts" error at the last
+//     attempt, or one matching both ctx.Err() and the failure when ctx ends
+//     during a wait.
+//   - After the first event (a text or reasoning delta, or an item) every
+//     event passes through as the inner stream yields it, and a failure ends
+//     the stream with that error, unchanged, and no EventDone. It is not
+//     retried, so a caller loses the generation where WithRetry would have
+//     retried it; the events already yielded are not a response (0031-MADR
+//     D4).
+//
+// A caller that stops ranging stops the inner stream. Generate retries the
+// whole generation, as WithRetryNotify's does; Capabilities is p's,
+// NativeStreaming included; ListModels lists through p when p lists. Over a
+// provider that does not stream natively there is nothing to pass through:
+// the result is WithRetryNotify(p, policy, notify)'s. A nil notify reports
+// nothing. The result is safe for concurrent use, as p is.
+func WithStreamRetry(p Provider, policy RetryPolicy, notify func(context.Context, RetryNotice)) Provider {
+	s, ok := p.(Streamer)
+	if !ok {
+		// Not a Streamer, as R10 requires of a provider that does not stream
+		// (0051-MADR D3).
+		return WithRetryNotify(p, policy, notify)
+	}
+	r := &streamRetrying{retrying: &retrying{inner: p, policy: policy.withDefaults(), notify: notify}, streamer: s}
+	if lister, ok := p.(ModelLister); ok {
+		return &streamRetryingLister{streamRetrying: r, lister: lister}
+	}
+	return r
+}
+
+// streamRetrying is WithStreamRetry's result over a Streamer.
+type streamRetrying struct {
+	*retrying
+	streamer Streamer
+}
+
+// streamRetryingLister is streamRetrying for a provider that lists models.
+type streamRetryingLister struct {
+	*streamRetrying
+	lister ModelLister
+}
+
+// ListModels lists through the inner provider, once.
+func (r *streamRetryingLister) ListModels(ctx context.Context) ([]string, error) {
+	return r.lister.ListModels(ctx)
+}
+
+// Capabilities is the inner provider's, NativeStreaming included: the wrapper
+// streams as it does (0051-MADR D3).
+func (r *streamRetrying) Capabilities() Capabilities { return r.inner.Capabilities() }
+
+// Stream retries a failure before the first event, and passes every event
+// after it through (0051-MADR D2).
+func (r *streamRetrying) Stream(ctx context.Context, req *Request) iter.Seq2[Event, error] {
+	return func(yield func(Event, error) bool) {
+		retriedAfterReply := false
+		for attempt := 1; ; attempt++ {
+			started := false
+			var failure error
+			for ev, err := range r.streamer.Stream(ctx, req) {
+				if err != nil && !started {
+					failure = err
+					break
+				}
+				started = true
+				if !yield(ev, err) {
+					return
+				}
 			}
-			retriedAfterReply = true
-		}
-		if attempt >= r.policy.MaxAttempts {
-			return nil, fmt.Errorf("llmprovider: %s failed after %d attempts: %w", r.inner.ID(), attempt, err)
-		}
-		wait, ok := r.policy.wait(attempt, err)
-		if !ok {
-			return nil, err
-		}
-		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < wait {
-			// The wait would outlast the caller (0021-MADR T6).
-			return nil, err
-		}
-		if r.notify != nil {
-			// Only now is a wait certain (0044-MADR D2).
-			r.notify(ctx, RetryNotice{Provider: r.inner.ID(), Attempt: attempt, MaxAttempts: r.policy.MaxAttempts,
-				Wait: wait, ServerDirected: serverRetryAfter(err) > 0, Err: err})
-		}
-		timer := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, errors.Join(ctx.Err(), err)
-		case <-timer.C:
+			if failure == nil {
+				return
+			}
+			if final := r.after(ctx, attempt, failure, &retriedAfterReply); final != nil {
+				yield(Event{}, final)
+				return
+			}
 		}
 	}
 }
