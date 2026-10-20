@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-105 records. Cite them by full filename.
+107 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -115,6 +115,8 @@ documents a reader follows to do something.
 | 0048 | PLAN | [Implement Closing the SDK's Gaps Against Go SDK Practice](decisions/0048-PLAN-adopt-go-sdk-best-practices.md) | complete |
 | 0049 | MADR | [Close v1.16.0's Follow-ups: Errors in Place of Two Panics, One Kind for Like Failures, the Learned Refusals in `catalog.Cache`, and the Tests 0048 Left Out](decisions/0049-MADR-v1-16-0-follow-ups.md) | accepted |
 | 0049 | PLAN | [Implement Closing v1.16.0's Follow-ups](decisions/0049-PLAN-v1-16-0-follow-ups.md) | complete |
+| 0050 | MADR | [Refuse a Typed-Nil Token Source Where It Enters, With `ErrInvalidRequest`](decisions/0050-MADR-refuse-typed-nil-token-sources.md) | proposed |
+| 0050 | PLAN | [Implement Refusing a Typed-Nil Token Source Where It Enters](decisions/0050-PLAN-refuse-typed-nil-token-sources.md) | proposed |
 
 ## I want to…
 
