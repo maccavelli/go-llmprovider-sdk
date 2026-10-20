@@ -67,7 +67,8 @@ type RawModel struct {
 // sorting or id rewriting. Its errors are returned, never degraded: a failed
 // page gives a zero RawListing and the classified error, naming the page, and
 // so does a page that is not JSON or has no model array where the provider
-// has one.
+// has one. A missing src, and a typed-nil one, give an error matching
+// llmprovider.ErrInvalidRequest, as List's do (0050-MADR D4).
 // Ollama's listing is /api/tags alone: per-model detail calls are not
 // listings.
 func ListRaw(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource,

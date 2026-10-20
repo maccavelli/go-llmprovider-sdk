@@ -271,3 +271,59 @@ interface in `List` and `ListRaw` matches `ErrInvalidRequest` too; Q1:
   exit 0; `go test -count=1 ./...`, ok; `make pre-add-check` on the five Go
   files, "5 file(s) clean"; `tools/gate.py` on the final tree, 27 of 27
   passed.
+
+### Phase 2: the catalog (2026-10-20)
+
+* **No deviation.** Phase 1 was committed by the owner as `d1e089b`. The
+  steps name no table, but the MADR's D2 (its C17) gives `catalog`'s rows
+  the import, and this PLAN's C5 is that row: R2's `catalog` row and
+  `docs/architecture.md`'s add `internal/nilsource`. `make tables-check`:
+  "38 packages, 0 problem(s)".
+* **Step 1,** `listingToken`: a nil interface gives "%w: model listing:
+  TokenSource is required", a typed nil "%w: model listing: a nil %T is not
+  a TokenSource", each with `llmprovider.ErrInvalidRequest`, before any
+  method of the source is called.
+* **Step 2,** `LookupModel`: a typed nil gives no listing layer and appends
+  "model metadata: listing %s: %w: a nil %T is not a TokenSource", for any
+  provider, listing layer or not; the caller's layers and the document are
+  merged as before. A nil interface is unchanged.
+* **Step 3,** `CachedModel`: `src != nil && !nilsource.Is(src)` guards the
+  listing read and the fetch.
+* **Step 4, the docs:** `List` and `ListRaw` name a missing and a typed-nil
+  source as `ErrInvalidRequest`; `LookupModel`, a typed nil reported so,
+  beside the other layers; `CachedModel`, a typed nil as no source. `make
+  docs-check`: "sdkaudit: 0 violation(s) of R50,R51,R52".
+* **Step 5, the tests,** under `-race`, in `catalog_test`:
+  `TestList_TypedNilSources_0050` (every built-in provider, `List` and
+  `ListRaw`, a nil source and five typed-nil ones: 120 calls, each
+  `ErrInvalidRequest` with its message, none a panic) and
+  `TestLookupModel_TypedNilSources_0050` (Claude, a caller's layer that
+  knows the model: `LookupModel` gives the layer's context window, with no
+  error for a nil source and `ErrInvalidRequest` naming the type for each
+  typed nil; `CachedModel` the layer's, known; none a panic).
+* **Step 6, the MADR's probe,** unchanged, on a copy of the working tree: 30
+  lines, each "New=ErrInvalidRequest | Generate=- | List=ErrInvalidRequest",
+  0 "PANIC"; the catalog probe "ListRaw=ErrInvalidRequest",
+  "LookupModel=ErrInvalidRequest", "CachedModel=ok". Before, every line
+  held a panic.
+* **Step 7, red first,** four plants, all caught:
+  * `listingToken` without its typed-nil check: "typed_nil_0050_test.go:55:
+    gemini, *llmprovider.StaticToken: List panicked: runtime error: invalid
+    memory address or nil pointer dereference; want no panic";
+  * the nil interface's error left plain: "typed_nil_0050_test.go:80:
+    gemini, <nil>: List = model listing: TokenSource is required; want
+    ErrInvalidRequest";
+  * `LookupModel` without its check: ":55: *llmprovider.StaticToken:
+    LookupModel panicked", and ":113: … LookupModel err = <nil>; want
+    ErrInvalidRequest naming its type";
+  * `CachedModel` without its check: ":55: *llmprovider.StaticToken:
+    CachedModel panicked", for each of the five.
+* **Step 8, `CHANGELOG.md`,** `[Unreleased]`: Changed, a missing source in
+  `List` and `ListRaw` matches `ErrInvalidRequest` (Q2); Fixed, a typed-nil
+  source refused by every `New`, `List`, `ListRaw` and `LookupModel`, and no
+  source to `CachedModel`. `make changelog-check`: "25 release section(s), 0
+  problem(s)".
+* **The checks:** `tools/apidiff.py v1.17.0`, no output, exit 0; `make
+  coverage-check`, "37 packages, 0 problem(s)", `catalog` at 95.5 %; `make
+  pre-add-check` on the four Go files, "4 file(s) clean"; `tools/gate.py`
+  on the final tree, 27 of 27 passed.

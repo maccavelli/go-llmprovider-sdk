@@ -18,6 +18,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/nilsource"
 )
 
 // Listing pagination (MADR 0007 §2): Gemini and Anthropic page their model
@@ -194,9 +195,11 @@ const (
 // static catalog with a nil error and Live false, and its classified
 // failure in Catalog.Err. Ollama is listed every time and never served
 // stale. Only Ollama, an unknown provider, a missing source, a token
-// failure or a refused option return an error. A listing refused for its
-// credential renews src once, when src is an llmprovider.InvalidatingSource,
-// and lists again (0026-MADR F36).
+// failure or a refused option return an error. A missing src, and a typed-nil
+// one such as a nil *llmprovider.CommandToken held in a non-nil TokenSource,
+// give an error matching llmprovider.ErrInvalidRequest (0050-MADR D4). A
+// listing refused for its credential renews src once, when src is an
+// llmprovider.InvalidatingSource, and lists again (0026-MADR F36).
 func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, opts ...llmprovider.Option) (Catalog, error) {
 	// The id first: an option scoped to the built-in ids would otherwise
 	// refuse an unknown one with ErrInvalidRequest (0015-PLAN S12b).
@@ -239,8 +242,13 @@ func listAndRecord(ctx context.Context, id llmprovider.ProviderID, src llmprovid
 
 // listingToken is src's token for a listing. List and ListRaw share it.
 func listingToken(ctx context.Context, src llmprovider.TokenSource, cfg config) (llmprovider.Token, error) {
+	// A missing source and a typed nil, such as a nil *CommandToken in a
+	// non-nil TokenSource, are both the caller's to fix (0050-MADR D4).
 	if src == nil {
-		return llmprovider.Token{}, errors.New("model listing: TokenSource is required")
+		return llmprovider.Token{}, fmt.Errorf("%w: model listing: TokenSource is required", llmprovider.ErrInvalidRequest)
+	}
+	if nilsource.Is(src) {
+		return llmprovider.Token{}, fmt.Errorf("%w: model listing: a nil %T is not a TokenSource", llmprovider.ErrInvalidRequest, src)
 	}
 	// A session with no client refreshes through the listing's, so a
 	// refresh the listing causes keeps the caller's transport (0026-MADR

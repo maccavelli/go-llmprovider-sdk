@@ -32,7 +32,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | :--- | :--- | :--- |
   | `llmprovider` | the contract: `Provider`, `Request`, `Response`, `Item`, `Tool`, `Capabilities`, `Event`, `Usage`, typed identifiers, options, errors and their classification, `Registry`, `Descriptor`, retry middleware, `TokenSource` and `Token`, `StaticToken` and `CommandToken` | the standard library, `internal/redact`, `internal/transport`, `internal/nilsource` |
   | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
-  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref` |
+  | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref`, `internal/nilsource` |
   | `llmprovider/internal/kiloendpoint` | Kilo's endpoints, derived from a credential | the standard library |
   | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport`, `internal/wire/messages` |
   | `llmprovider/internal/nilsource` | a typed-nil `TokenSource`'s test, for `llmprovider` and `catalog` | the standard library |

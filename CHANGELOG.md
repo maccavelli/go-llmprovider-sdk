@@ -10,6 +10,21 @@ section.
 
 ## [Unreleased]
 
+### Changed
+
+- A missing token source given to `catalog.List` or `catalog.ListRaw`
+  matches `ErrInvalidRequest`, with its message, as
+  [0050-MADR](docs/decisions/0050-MADR-refuse-typed-nil-token-sources.md)
+  decides (Q2); it was a plain error.
+
+### Fixed
+
+- A typed-nil token source, a nil pointer such as a nil `*CommandToken`
+  held in a non-nil `TokenSource`, of any type, is refused with
+  `ErrInvalidRequest` by every `New` (D3) and by `catalog.List`, `ListRaw`
+  and `LookupModel`; `catalog.CachedModel` treats it as no source (D4).
+  Each panicked, at once or on the first request, before.
+
 ## [v1.17.0] - 2026-10-19
 
 ### Changed

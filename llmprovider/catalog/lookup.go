@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/nilsource"
 )
 
 // Layer is a source of model metadata a caller adds, such as a models.json of
@@ -57,7 +58,10 @@ func lookupProvider(provider llmprovider.ProviderID) (llmprovider.ProviderID, er
 //
 // A model no layer knows is not an error: its fields are all unset, as Has
 // reports. A source that fails is reported in the error, beside what the
-// other layers set, which the caller may use either way.
+// other layers set, which the caller may use either way. A typed-nil src,
+// such as a nil *llmprovider.CommandToken held in a non-nil TokenSource,
+// gives no listing layer, as a nil one does, and is reported so, matching
+// llmprovider.ErrInvalidRequest (0050-MADR D4).
 func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmprovider.TokenSource, model string,
 	opts ...llmprovider.Option) (ModelInfo, error) {
 	id, err := lookupProvider(provider)
@@ -81,7 +85,10 @@ func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 			dev, devOK = Metadata{doc: doc}.Model(id, model)
 		}
 	}
-	if src != nil && listingLayers[id] {
+	if nilsource.Is(src) {
+		errs = append(errs, fmt.Errorf("model metadata: listing %s: %w: a nil %T is not a TokenSource", id,
+			llmprovider.ErrInvalidRequest, src))
+	} else if src != nil && listingLayers[id] {
 		lst, lstOK, err = listingModel(ctx, id, src, model, cfg)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("model metadata: listing %s: %w", id, err))
@@ -93,7 +100,9 @@ func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 // CachedModel is LookupModel without the wait: what the caches and the
 // caller's layers hold now, and whether anything is known of model. It starts
 // any fetch that is missing or stale, so a later call finds it. It asks src
-// for its token as the source gives it.
+// for its token as the source gives it. A typed-nil src, such as a nil
+// *llmprovider.CommandToken held in a non-nil TokenSource, is no source: no
+// listing is read, and no fetch started (0050-MADR D4).
 func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmprovider.TokenSource, model string,
 	opts ...llmprovider.Option) (ModelInfo, bool) {
 	id, err := lookupProvider(provider)
@@ -109,7 +118,7 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	if m, ok := cachedMetadata(ctx, cfg); ok {
 		dev, devOK = m.Model(id, model)
 	}
-	if src != nil && listingLayers[id] {
+	if src != nil && !nilsource.Is(src) && listingLayers[id] {
 		if token, err := src.Token(ctx); err == nil {
 			key := listingKeyFor(id, cfg, token)
 			models, fresh := cfg.store.cachedListing(key)
