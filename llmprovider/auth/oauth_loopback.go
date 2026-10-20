@@ -94,10 +94,11 @@ type oauthCallbackResult struct {
 }
 
 // LoginBrowserOAuth completes a browser authorization-code flow with PKCE. A
-// provider it does not support, a failed issuer discovery, an error the
-// identity provider sends back (access_denied included, which does not match
-// llmprovider.ErrAuthFailure), a failed token exchange and a rejected
-// id_token are plain errors. A ctx that ends gives an error wrapping ctx's,
+// provider it does not support gives an error matching
+// llmprovider.ErrUnsupported, and the identity provider's access_denied one
+// matching llmprovider.ErrAuthFailure, as a device-code login's denial does.
+// A failed issuer discovery, another error the identity provider sends back,
+// a failed token exchange and a rejected id_token are plain errors. A ctx that ends gives an error wrapping ctx's,
 // and an error from opts.InputCode ends the login, matching that error.
 func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opts OAuthFlowOptions) (*OAuthSession, error) {
 	config, err := resolveOAuthFlowConfig(provider, opts)
@@ -211,7 +212,7 @@ func resolveOAuthFlowConfig(provider llmprovider.ProviderID, opts OAuthFlowOptio
 			clientID = DefaultGrokOAuthClientID
 		}
 	default:
-		return oauthFlowConfig{}, fmt.Errorf("oauth: provider %q is not supported", provider)
+		return oauthFlowConfig{}, fmt.Errorf("%w: oauth: provider %q is not supported", llmprovider.ErrUnsupported, provider)
 	}
 
 	client := opts.HTTPClient
@@ -556,6 +557,10 @@ func callbackStateMatches(received, expected string) bool {
 // callbackErrorMessageLimit bounds the IdP's error_description.
 const callbackErrorMessageLimit = 300
 
+// oauthAccessDenied is the OAuth error code for a denied authorization, on
+// the device flow and in the browser callback alike (0049-MADR D2a).
+const oauthAccessDenied = "access_denied"
+
 // callbackError reports an authorize error from the callback query, or nil.
 // It carries error_description, and Codex's explanation for a workspace
 // without Codex (codex login/src/server.rs:934-956).
@@ -573,15 +578,22 @@ func callbackError(query url.Values) error {
 	if len(description) > callbackErrorMessageLimit {
 		description = description[:callbackErrorMessageLimit]
 	}
+	var err error
 	switch {
-	case code == "access_denied" && strings.Contains(strings.ToLower(description), "missing_codex_entitlement"):
-		return fmt.Errorf("oauth: authorization failed (%s): Codex is not enabled for your workspace; "+
+	case code == oauthAccessDenied && strings.Contains(strings.ToLower(description), "missing_codex_entitlement"):
+		err = fmt.Errorf("oauth: authorization failed (%s): Codex is not enabled for your workspace; "+
 			"ask your workspace administrator for access to Codex", code)
 	case strings.TrimSpace(description) != "":
-		return fmt.Errorf("oauth: authorization failed (%s): %s", code, description)
+		err = fmt.Errorf("oauth: authorization failed (%s): %s", code, description)
 	default:
-		return fmt.Errorf("oauth: authorization failed: %s", code)
+		err = fmt.Errorf("oauth: authorization failed: %s", code)
 	}
+	// A denial matches ErrAuthFailure, as the device flow's does (0049-MADR
+	// D2a); another code stays plain, as there.
+	if code == oauthAccessDenied {
+		return fmt.Errorf("%w: %w", llmprovider.ErrAuthFailure, err)
+	}
+	return err
 }
 
 func parseOAuthInput(input, expectedState string) (string, error) {

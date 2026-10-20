@@ -105,8 +105,9 @@ var errDeviceLoginCanceled = fmt.Errorf("oauth: device login canceled: %w", cont
 
 // StartDeviceOAuth starts the provider's device-code login: it requests the
 // code, and returns a handle to show it and wait for approval. A provider
-// other than OpenAI, Grok and Kilo, a failed issuer discovery, a status other
-// than success, and a reply that does not decode or is incomplete are plain
+// other than OpenAI, Grok and Kilo gives an error matching
+// llmprovider.ErrUnsupported. A failed issuer discovery, a status other than
+// success, and a reply that does not decode or is incomplete are plain
 // errors, and a reply unsafe to show is refused; Kilo's rate limit gives an
 // error matching llmprovider.ErrRateLimited. A request that fails in
 // transport wraps the *url.Error, so it matches ctx's error when ctx ends.
@@ -128,10 +129,10 @@ func StartDeviceOAuth(ctx context.Context, provider llmprovider.ProviderID, opts
 // called. A second Wait, concurrent or later, returns the first one's result.
 // A second Wait whose own ctx ends first gets ctx's error. Cancel ends it
 // with an error matching context.Canceled, and ctx ending with one matching
-// ctx's. A denied or expired code the service reports gives an error matching
-// llmprovider.ErrAuthFailure, and the code passing its own expiry an error
-// that says so; an unexpected or undecodable poll reply, a failed token
-// exchange and a rejected id_token are plain errors. A DeviceLogin that
+// ctx's. A denied or expired code, the service's report or the code passing
+// its own expiry, gives an error matching llmprovider.ErrAuthFailure; an
+// unexpected or undecodable poll reply, a failed token exchange and a
+// rejected id_token are plain errors. A DeviceLogin that
 // StartDeviceOAuth did not return, such as a zero one, gives an error
 // matching llmprovider.ErrInvalidRequest at once.
 func (d *DeviceLogin) Wait(ctx context.Context) (*OAuthSession, error) {
@@ -363,7 +364,7 @@ func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin,
 			case "slow_down":
 				interval += deviceSlowDownIncrement
 				continue
-			case "access_denied":
+			case oauthAccessDenied:
 				return nil, fmt.Errorf("%w: oauth: Grok device authorization denied", llmprovider.ErrAuthFailure)
 			case "expired_token":
 				return nil, fmt.Errorf("%w: oauth: Grok device code expired", llmprovider.ErrAuthFailure)
@@ -435,7 +436,7 @@ func durationFromSeconds(seconds float64, fallback time.Duration, floor bool) ti
 }
 
 // errDeviceCodeExpired ends a device-code poll at the code's expiry.
-var errDeviceCodeExpired = errors.New("oauth: device code expired")
+var errDeviceCodeExpired = fmt.Errorf("%w: oauth: device code expired", llmprovider.ErrAuthFailure)
 
 func sleepBeforeDeadline(ctx context.Context, config oauthFlowConfig, interval time.Duration, deadline time.Time) error {
 	remaining := deadline.Sub(config.now())

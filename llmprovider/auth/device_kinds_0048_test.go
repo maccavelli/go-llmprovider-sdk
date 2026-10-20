@@ -29,7 +29,7 @@ func reply0048(t *testing.T, pattern string, status int, body string) func(f *fa
 func TestStartDeviceOAuth_PlainFailures_0048(t *testing.T) {
 	t.Run("unsupported provider", func(t *testing.T) {
 		_, err := StartDeviceOAuth(context.Background(), llmprovider.ProviderClaude, OAuthFlowOptions{})
-		assertPlain0048(t, err, "is not supported")
+		assertKind0049(t, err, llmprovider.ErrUnsupported, "is not supported") // 0049-MADR D2d
 	})
 	const discovery = "/.well-known/openid-configuration"
 	for _, tc := range []struct {
@@ -255,13 +255,14 @@ func TestDeviceLoginWait_PlainFailures_0048(t *testing.T) {
 }
 
 // TestLoginDeviceOAuth_StartAndWaitErrors_0048 shows that LoginDeviceOAuth
-// returns Start's error, plain for an unsupported provider, and Wait's,
+// returns Start's error, ErrUnsupported for an unsupported provider (0049-MADR
+// D2d), and Wait's,
 // context.Canceled when the caller's context ends while it waits
 // (0048-MADR D4).
 func TestLoginDeviceOAuth_StartAndWaitErrors_0048(t *testing.T) {
 	t.Run("Start's error", func(t *testing.T) {
 		_, err := LoginDeviceOAuth(context.Background(), llmprovider.ProviderClaude, OAuthFlowOptions{})
-		assertPlain0048(t, err, "is not supported")
+		assertKind0049(t, err, llmprovider.ErrUnsupported, "is not supported")
 	})
 	t.Run("Wait's error", func(t *testing.T) {
 		f := newFake0048(t, llmprovider.ProviderGrok,

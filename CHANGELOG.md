@@ -10,6 +10,29 @@ section.
 
 ## [Unreleased]
 
+### Changed
+
+- Like failures now match like kinds, as
+  [0049-MADR](docs/decisions/0049-MADR-v1-16-0-follow-ups.md) D2 decides.
+  Each error gains its sentinel's text before its message:
+  - `auth.LoginBrowserOAuth`: the identity provider's `access_denied`
+    matches `ErrAuthFailure`, as a device-code login's denial does;
+  - a device-code login whose code passes its own expiry (`DeviceLogin.Wait`,
+    `auth.LoginDeviceOAuth`) matches `ErrAuthFailure`, as the service's
+    `expired_token` does;
+  - `catalog.ValidateOllamaURL` and `ValidateOllamaURLWith`: an unreachable
+    server matches `ErrProviderUnavailable`, and a status other than 200 is
+    the Ollama listing's `*APIError`, with its message;
+  - `auth.StartDeviceOAuth`, `LoginDeviceOAuth` and `LoginBrowserOAuth`: a
+    provider they do not serve matches `ErrUnsupported`.
+
+### Fixed
+
+- A nil `*StaticToken` given to `WithTokenSource` is refused by every `New`
+  with `ErrInvalidRequest`, and `Wait` on a `DeviceLogin` that
+  `auth.StartDeviceOAuth` did not return gives `ErrInvalidRequest`; each
+  panicked before (D1).
+
 ## [v1.16.0] - 2026-10-19
 
 ### Added

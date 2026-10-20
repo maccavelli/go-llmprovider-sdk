@@ -889,7 +889,11 @@ func fetchOllamaTags(ctx context.Context, token llmprovider.Token, cfg config) (
 }
 
 // ValidateOllamaURL checks if an Ollama instance is reachable at the given URL
-// by calling GET /api/version. Returns nil on success, error on failure.
+// by calling GET /api/version, and classifies a failure as the Ollama listing
+// does: a server it cannot reach gives an error matching
+// llmprovider.ErrProviderUnavailable, wrapping the transport's error, which
+// matches ctx's when ctx ends; a status other than 200, an
+// *llmprovider.APIError; a URL no request can be made to, a plain error.
 // ValidateOllamaURLWith takes options, such as the HTTP client and the
 // caller's identity.
 func ValidateOllamaURL(ctx context.Context, baseURL string) error {
@@ -899,10 +903,7 @@ func ValidateOllamaURL(ctx context.Context, baseURL string) error {
 // ValidateOllamaURLWith is ValidateOllamaURL with llmprovider's common
 // options: WithHTTPClient, WithClientInfo (0020-MADR F37, Q5 a and its
 // amendment). An option it refuses gives an error matching
-// llmprovider.ErrInvalidRequest. A URL no request can be made to, a server it
-// cannot reach, and a status other than 200 give plain errors; a server it
-// cannot reach wraps the transport's error, which matches ctx's when ctx
-// ends.
+// llmprovider.ErrInvalidRequest; its other errors are ValidateOllamaURL's.
 func ValidateOllamaURLWith(ctx context.Context, baseURL string, opts ...llmprovider.Option) error {
 	cfg, err := configFor(llmprovider.ProviderOllama, opts)
 	if err != nil {
@@ -926,12 +927,13 @@ func checkOllamaURL(ctx context.Context, baseURL string, cfg config) error {
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("could not reach Ollama at %s: %w", baseURL, err)
+		return fmt.Errorf("%w: could not reach Ollama at %s: %w", llmprovider.ErrProviderUnavailable, baseURL, err)
 	}
 	defer config{}.closeBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("ollama returned HTTP %d", resp.StatusCode)
+		// Classified as the listing's is (0049-MADR D2c).
+		return llmprovider.ClassifyHTTPError(string(llmprovider.ProviderOllama), resp)
 	}
 	return nil
 }

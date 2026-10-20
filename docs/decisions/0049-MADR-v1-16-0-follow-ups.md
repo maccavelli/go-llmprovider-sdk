@@ -161,7 +161,8 @@ entry.
 ### D2. One kind for like failures (F3)
 
 Each takes its counterpart's form: the sentinel's text, then the message
-as it is today, as `fmt.Errorf("%w: …")` gives it.
+as it is today, as `fmt.Errorf("%w: …")` gives it. *(A1, 2026-10-19: but
+D2c's status, which takes the listing's message whole.)*
 
 * **D2a.** The browser flow's `access_denied` matches `ErrAuthFailure`, as
   the device flow's does, the workspace-without-Codex case included.
@@ -313,3 +314,18 @@ The owner answered (2026-10-19): Q1 `v1.17.0`; Q2 all four; Q3 the memo in
   above gives what they printed.
 * The PLAN, `0049-PLAN-v1-16-0-follow-ups.md`, follows once this record is
   reviewed.
+
+## Amendments
+
+### A1 (2026-10-19): D2c's status takes the listing's message
+
+* **Found** in 0049-PLAN Phase 2: classified through
+  `llmprovider.ClassifyHTTPError`, as the Ollama listing's is (C8), a status
+  other than 200 reads "llmprovider: provider unavailable: ollama HTTP 503",
+  not "ollama returned HTTP 503" after the sentinel's text, as D2's opening
+  sentence said each error would **[probed]**: `errors_0048_test.go:54`,
+  with the change in place.
+* **The owner chose (2026-10-19):** the listing's message, so that the check
+  and the listing give one error, text included. D2's opening sentence holds
+  for D2a, D2b, D2d and D2c's unreachable server; D2c's status takes the
+  listing's message whole.

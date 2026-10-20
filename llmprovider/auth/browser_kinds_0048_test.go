@@ -24,14 +24,14 @@ func browserLogin0048(t *testing.T, ctx context.Context, f *fake0048, hooks OAut
 }
 
 // TestLoginBrowserOAuth_PlainFailures_0048 shows that LoginBrowserOAuth's
-// unsupported provider, caller-issuer discovery failure, IdP error in the
-// callback (access_denied included, which is not ErrAuthFailure), failed
-// token exchange and rejected id_token are plain errors naming their step
-// (0048-MADR D4).
+// caller-issuer discovery failure, IdP error in the callback, failed token
+// exchange and rejected id_token are plain errors naming their step
+// (0048-MADR D4); since 0049-MADR D2, its unsupported provider matches
+// ErrUnsupported and the IdP's access_denied ErrAuthFailure.
 func TestLoginBrowserOAuth_PlainFailures_0048(t *testing.T) {
 	t.Run("unsupported provider", func(t *testing.T) {
 		_, err := LoginBrowserOAuth(context.Background(), llmprovider.ProviderClaude, OAuthFlowOptions{})
-		assertPlain0048(t, err, "is not supported")
+		assertKind0049(t, err, llmprovider.ErrUnsupported, "is not supported")
 	})
 	ctx := func(t *testing.T) context.Context {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -42,13 +42,20 @@ func TestLoginBrowserOAuth_PlainFailures_0048(t *testing.T) {
 		f := newFake0048(t, llmprovider.ProviderGrok, reply0048(t, "/.well-known/openid-configuration", http.StatusInternalServerError, "down"))
 		assertPlain0048(t, browserLogin0048(t, ctx(t), f, OAuthFlowOptions{}), "discovery for")
 	})
-	for _, tc := range []struct{ name, query, step string }{
-		{"IdP access_denied", "error=access_denied", "authorization failed: access_denied"},
-		{"IdP error with a description", "error=server_error&error_description=upstream+down", "authorization failed (server_error): upstream down"},
+	for _, tc := range []struct {
+		name, query, step string
+		kind              error // nil: plain
+	}{
+		{"IdP access_denied", "error=access_denied", "authorization failed: access_denied", llmprovider.ErrAuthFailure},
+		{"IdP error with a description", "error=server_error&error_description=upstream+down", "authorization failed (server_error): upstream down", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFake0048(t, llmprovider.ProviderGrok, nil)
 			err := browserLogin0048(t, ctx(t), f, OAuthFlowOptions{OpenURL: visit0048(f.ti, tc.query)})
+			if tc.kind != nil {
+				assertKind0049(t, err, tc.kind, tc.step)
+				return
+			}
 			assertPlain0048(t, err, tc.step)
 		})
 	}

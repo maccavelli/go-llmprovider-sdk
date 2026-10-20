@@ -38,8 +38,9 @@ func plain0048(t *testing.T, what string, err error, want string) {
 }
 
 // TestValidateOllamaURLWith_Errors_0048: a refused option is ErrInvalidRequest;
-// an unreachable server, a status other than 200 and a malformed URL are plain
-// errors; the transport's error is wrapped, so a context that ends matches.
+// a malformed URL is a plain error; since 0049-MADR D2c, an unreachable server
+// is ErrProviderUnavailable and a status other than 200 the listing's
+// *APIError; the transport's error is wrapped, so a context that ends matches.
 func TestValidateOllamaURLWith_Errors_0048(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -51,11 +52,18 @@ func TestValidateOllamaURLWith_Errors_0048(t *testing.T) {
 	if err := catalog.ValidateOllamaURLWith(ctx, srv.URL, foreign); !errors.Is(err, llmprovider.ErrInvalidRequest) {
 		t.Errorf("a foreign option: %v; want ErrInvalidRequest", err)
 	}
-	plain0048(t, "HTTP 503", catalog.ValidateOllamaURLWith(ctx, srv.URL), "ollama returned HTTP 503")
+	// Since 0049-MADR D2c (and A1), classified as the listing's status is.
+	status := catalog.ValidateOllamaURLWith(ctx, srv.URL)
+	if api, ok := errors.AsType[*llmprovider.APIError](status); !ok || api.Status != http.StatusServiceUnavailable ||
+		!errors.Is(status, llmprovider.ErrProviderUnavailable) || !strings.Contains(status.Error(), "ollama HTTP 503") {
+		t.Errorf("HTTP 503: %v; want the listing's *APIError, ErrProviderUnavailable", status)
+	}
 	plain0048(t, "a malformed URL", catalog.ValidateOllamaURLWith(ctx, "http://[::1"), "failed to create request")
 
 	err := catalog.ValidateOllamaURLWith(ctx, "http://127.0.0.1:1", llmprovider.WithHTTPClient(nettest.Refusing()))
-	plain0048(t, "a refused connection", err, "could not reach Ollama")
+	if !errors.Is(err, llmprovider.ErrProviderUnavailable) || !strings.Contains(err.Error(), "could not reach Ollama") {
+		t.Errorf("a refused connection: %v; want ErrProviderUnavailable, as the listing's (0049-MADR D2c)", err)
+	}
 	if _, ok := errors.AsType[*url.Error](err); !ok {
 		t.Errorf("a refused connection: %v; want the transport's *url.Error wrapped", err)
 	}

@@ -110,7 +110,9 @@ all of D2a to D2d; Q3 the learned refusals in `catalog.Cache`):
    `access_denied` and unsupported provider, the device's unsupported
    provider, `LoginDeviceOAuth`'s Start error, `ValidateOllamaURLWith`'s
    refused connection and HTTP 503) assert the new kind instead, and its
-   message still holds today's text; new `_0049` tests: a Grok device code
+   message still holds today's text *(deviation, 2026-10-19: but HTTP 503,
+   which holds the listing's, "ollama HTTP 503"; 0049-MADR A1)*; new `_0049`
+   tests: a Grok device code
    past its own expiry matches `ErrAuthFailure`; the browser's Codex
    `access_denied` matches it; `ValidateOllamaURL`, without options, as
    `ValidateOllamaURLWith`.
@@ -270,3 +272,57 @@ all of D2a to D2d; Q3 the learned refusals in `catalog.Cache`):
   sentence was moved to a line of its own, leaving those two lines as they
   were; the case then passed, and `tools/gate.py` on the final tree, 27 of
   27 passed.
+
+### Phase 2: one kind for like failures (2026-10-19)
+
+* **One deviation**, step 5, the owner's: classified as the listing's is,
+  Ollama's status other than 200 reads "llmprovider: provider unavailable:
+  ollama HTTP 503", the listing's message, not "ollama returned HTTP 503"
+  after the sentinel's text, as D2's opening said (0049-MADR A1). Phase 1
+  was committed by the owner as `81f6370`.
+* **Steps 1 to 4:**
+  * D2a, `callbackError`: each `access_denied` branch, the Codex one
+    included, wrapped as "%w: %w" with `llmprovider.ErrAuthFailure`; other
+    codes plain. The code is one constant, `oauthAccessDenied`, for the
+    device flow and the callback, because `goconst` refused a third literal
+    (`make pre-add-check`, "string `access_denied` has 3 occurrences").
+  * D2b, `errDeviceCodeExpired`: "%w: oauth: device code expired" with
+    `ErrAuthFailure`; its three uses unchanged.
+  * D2c, `checkOllamaURL`: an unreachable server "%w: could not reach
+    Ollama …" with `ErrProviderUnavailable`, as the listing's; a status
+    through `llmprovider.ClassifyHTTPError`.
+  * D2d, `resolveOAuthFlowConfig`: "%w: oauth: provider %q is not
+    supported" with `ErrUnsupported`.
+* **Step 5, the tests.** With the changes in place and the tests as they
+  were, exactly the 0048 assertions of "plain" for these paths failed: the
+  browser's unsupported provider and IdP `access_denied`, the device's
+  unsupported provider, `LoginDeviceOAuth`'s Start error,
+  `ValidateOllamaURLWith`'s HTTP 503 and refused connection. Each now
+  asserts its kind and today's text (the 503, the listing's); new:
+  `TestDeviceCode_OwnExpiryIsAuthFailure_0049`,
+  `TestLoginBrowserOAuth_CodexDenialIsAuthFailure_0049`,
+  `TestValidateOllamaURL_ClassifiesAsTheListing_0049`. `go test -count=1
+  -race` of `auth`, `catalog` and `wizard`: ok; `go test -count=1 ./...`:
+  ok.
+* **Step 6, the docs:** `StartDeviceOAuth`, `Wait`, `LoginBrowserOAuth`,
+  `ValidateOllamaURL` (which named no kind before) and
+  `ValidateOllamaURLWith`.
+* **Step 7, red first,** five plants, each wrap removed, all caught:
+  * D2a: "browser_kinds_0048_test.go:56: err = oauth: authorization failed:
+    access_denied; want one matching llmprovider: authentication failed …",
+    and the Codex test at `kinds_0049_test.go:57`;
+  * D2b: "kinds_0049_test.go:45: err = oauth: device code expired; want one
+    matching llmprovider: authentication failed …";
+  * D2c, the unreachable server: "errors_0048_test.go:65: … want
+    ErrProviderUnavailable, as the listing's"; the status:
+    "errors_0048_test.go:59: HTTP 503: ollama returned HTTP 503; want the
+    listing's *APIError, ErrProviderUnavailable";
+  * D2d: "browser_kinds_0048_test.go:34", "device_kinds_0048_test.go:32"
+    and ":265": "… want one matching llmprovider: unsupported …".
+* **Step 8,** `CHANGELOG.md`'s `[Unreleased]`: D2 under Changed, each
+  function and its kind; D1 under Fixed.
+* **The checks:** `make docs-check`, 0 violations; `make changelog-check`,
+  "24 release section(s), 0 problem(s)"; `tools/apidiff.py v1.16.0`, no
+  output, exit 0; `make pre-add-check` on the eight Go files, "8 file(s)
+  clean"; the five plants again after the constant, all caught;
+  `tools/gate.py` on the final tree, 27 of 27 passed.
