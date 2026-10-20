@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-19
 decision-makers: repository owner
 consulted: this module at 0fbaf90 (v1.17.0 is 1fa0d94); probes on a scratch copy of 0fbaf90 (method below); 0049-MADR-v1-16-0-follow-ups.md, which fixed the *StaticToken case and left the others unprobed

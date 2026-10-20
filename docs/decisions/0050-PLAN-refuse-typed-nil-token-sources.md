@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-19
 associated-madr: "0050-MADR-refuse-typed-nil-token-sources.md"
 decision-makers: repository owner
@@ -218,3 +218,12 @@ interface in `List` and `ListRaw` matches `ErrInvalidRequest` too; Q1:
 | C14 | `CachedModel`'s doc | `llmprovider/catalog/lookup.go:93` | `// CachedModel is LookupModel without the wait: what the caches and the` |
 
 ## Execution record
+
+### Phase 0: records (2026-10-19)
+
+* **No deviation.** The owner committed the MADR and this PLAN as
+  `b92cf29`, with the MADR's questions answered (Q2 align a nil interface
+  in `List` and `ListRaw` to `ErrInvalidRequest`; Q1 `v1.18.0`), and said
+  "committed, proceed".
+* `tools/records.py status`: the MADR `accepted`, this PLAN `in-progress`,
+  both index rows with them; "records-check: 0 problem(s)".
