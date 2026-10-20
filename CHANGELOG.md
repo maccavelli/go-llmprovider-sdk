@@ -10,6 +10,8 @@ section.
 
 ## [Unreleased]
 
+## [v1.17.0] - 2026-10-19
+
 ### Changed
 
 - Like failures now match like kinds, as
@@ -35,6 +37,12 @@ section.
   with `ErrInvalidRequest`, and `Wait` on a `DeviceLogin` that
   `auth.StartDeviceOAuth` did not return gives `ErrInvalidRequest`; each
   panicked before (D1).
+
+### Repository
+
+- Tests of each provider's probe cache, and of every sign-in method's error
+  through `wizard.ConfigureLLM`; the forced-choice tests pass at any `-count`
+  (D3, D4).
 
 ## [v1.16.0] - 2026-10-19
 
@@ -469,7 +477,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.16.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.17.0...HEAD
+[v1.17.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.16.0...v1.17.0
 [v1.16.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.15.0...v1.16.0
 [v1.15.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.14.0...v1.15.0
 [v1.14.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.13.0...v1.14.0

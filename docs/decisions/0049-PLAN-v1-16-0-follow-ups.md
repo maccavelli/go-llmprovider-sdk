@@ -406,3 +406,19 @@ all of D2a to D2d; Q3 the learned refusals in `catalog.Cache`):
   output, exit 0; `go test -count=1 ./...`, ok; `make pre-add-check` on the
   six Go files, "6 file(s) clean"; `tools/gate.py` on the final tree, 27
   of 27 passed.
+
+### Phase 5: release `v1.17.0` (2026-10-19)
+
+* **No deviation so far.** Phase 4 was committed by the owner as `3cc54bf`.
+* **Step 1.** `CHANGELOG.md`: `[Unreleased]` became `[v1.17.0] -
+  2026-10-19`, with Changed (D2, D3), Fixed (D1) and Repository (D3's and
+  D4's tests); an empty `[Unreleased]` above it; the comparison links gain
+  `v1.17.0`. "changelog-check: 25 release section(s), 0 problem(s)": the
+  untagged section is newer than every tag. `--section v1.17.0` prints its
+  31 lines. The date must be the commit's that the tag names (R53). The
+  README's Status names `v1.17.0`. `tools/linkcheck.py` and markdownlint
+  on both files: clean.
+* **Step 2, before the push:** `tools/gate.py`, 27 of 27 passed;
+  `tools/apidiff.py v1.16.0`, no output, exit 0: no exported name changed;
+  the disclosure guard over the outgoing commits, once this one is
+  committed, before the owner pushes.
