@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-113 records. Cite them by full filename.
+114 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -121,7 +121,8 @@ documents a reader follows to do something.
 | 0051 | PLAN | [Implement Streaming Through a Retry, Opt-In](decisions/0051-PLAN-opt-in-streaming-retry.md) | complete |
 | 0052 | MADR | [Skip the Full CI for a Push or Pull Request That Changes Only Markdown, and Check It With a One-Job Docs Workflow](decisions/0052-MADR-skip-full-ci-for-docs-only-pushes.md) | accepted |
 | 0052 | PLAN | [Implement Skipping the Full CI for Docs-Only Pushes, With a Docs Workflow](decisions/0052-PLAN-skip-full-ci-for-docs-only-pushes.md) | in-progress |
-| 0053 | MADR | [Fix Six Defects in Streaming, Retry and the Catalog's Caches](decisions/0053-MADR-stream-retry-and-cache-defects.md) | proposed |
+| 0053 | MADR | [Fix Six Defects in Streaming, Retry and the Catalog's Caches](decisions/0053-MADR-stream-retry-and-cache-defects.md) | accepted |
+| 0053 | PLAN | [Implement Fixing Six Defects in Streaming, Retry and the Catalog's Caches](decisions/0053-PLAN-stream-retry-and-cache-defects.md) | in-progress |
 | 0054 | REPORT | [Heuristics and Performance Opportunities, 2026-10-20](reports/0054-REPORT-heuristics-and-performance-opportunities.md) | observation |
 
 ## I want to…

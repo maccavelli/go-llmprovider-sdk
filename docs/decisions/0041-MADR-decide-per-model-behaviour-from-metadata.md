@@ -1036,6 +1036,31 @@ changes them.
   first six, not the static five. A listing with no base URL and one with
   the provider's default now share one cache entry.
 
+## Amendment 2026-10-20: each Ollama reply ages from its own fetch
+
+### A9. An `/api/show` reply keeps its own age, and its model's digest
+
+[0053-MADR-stream-retry-and-cache-defects.md](0053-MADR-stream-retry-and-cache-defects.md)
+D5 makes A4's "caches each reply as `LookupModel` does" hold:
+
+- **Its own age.** Each reply keeps the time it was fetched, whether a
+  listing or a lookup asked for it, and is reused only while younger than
+  `listingMetadataTTL`. Until now a listing stored every reply it re-emitted
+  as fresh, so a reply was never asked again while listings came within ten
+  minutes of each other: 0053-MADR's M6 counted one `/api/show` over five
+  listings in 36 minutes, where three are due.
+- **Its model's digest.** `/api/tags` lists a `digest` for each model,
+  which Ollama's API reference shows but does not define. A reply records
+  the digest it was fetched for, and is asked again at once when the listed
+  digest differs, so a model pulled again within the ten minutes is not
+  described by its old reply. The digest is compared as an opaque string.
+  When either digest is absent, the age alone decides.
+- **Unchanged:** a failed reply is not cached, and is asked again on the next
+  listing (0042-MADR D1). The concurrency of four, `/api/tags` order, and
+  the caveats stay as they are.
+
+A4's text above is not rewritten.
+
 ## Pros and Cons of the Options
 
 ### A. A live menu ordered by facts

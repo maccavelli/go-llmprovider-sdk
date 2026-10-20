@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-20
 decision-makers: repository owner
 consulted: this module at cadaad5 (v1.19.0 is 87b6c9c); probes on a scratch copy of cadaad5 (method below); a read-only analysis of the catalog, retry, transport, streaming and redaction code on 2026-10-20, whose optimization ideas are recorded in 0054-REPORT-heuristics-and-performance-opportunities.md; Ollama's API reference (docs/api.md in the ollama repository)

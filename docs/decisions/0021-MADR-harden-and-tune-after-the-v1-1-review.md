@@ -882,3 +882,25 @@ after equivalence").
   lower-case snake case: a random value with no digit can take the
   letter-words shape, and a key's value is a secret far more often than a
   code's. Any value holding a digit is still masked.
+
+## Amendment 2026-10-20: a failure event inside a 200 stream counts
+
+[0053-MADR-stream-retry-and-cache-defects.md](0053-MADR-stream-retry-and-cache-defects.md)
+D3 adds a case to D1's "What counts": **a failure event the service sends
+inside a 200 stream**, such as Responses' `response.failed` or Messages'
+`error` event.
+
+* **What it changes:** such a failure is retried at most once per `Generate`
+  call, and at most once per `Stream` call under `WithStreamRetry` before
+  the first event. Until now it fell to the usual `MaxAttempts` budget by
+  omission: 0053-MADR's M4 measured 3 and 5 requests at `MaxAttempts` 3 and
+  5, each after a delta.
+* **Why:** the service had accepted the request and begun its reply, so the
+  answer may have been generated and billed, which is D1's own reason.
+  `WithRetry`'s doc already promised this for "a failure while reading a
+  reply the service had begun to send".
+* **How it is told apart:** the shared stream reader marks a decoder's error
+  as it marks its own read failure. The classification of the failure
+  (0028-MADR D-H8) is unchanged.
+
+D1's text above is not rewritten.
