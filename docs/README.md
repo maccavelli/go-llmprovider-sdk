@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-109 records. Cite them by full filename.
+111 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -119,6 +119,8 @@ documents a reader follows to do something.
 | 0050 | PLAN | [Implement Refusing a Typed-Nil Token Source Where It Enters](decisions/0050-PLAN-refuse-typed-nil-token-sources.md) | complete |
 | 0051 | MADR | [Stream Through a Retry, Opt-In: Retry Before the First Event, Pass Through After](decisions/0051-MADR-opt-in-streaming-retry.md) | accepted |
 | 0051 | PLAN | [Implement Streaming Through a Retry, Opt-In](decisions/0051-PLAN-opt-in-streaming-retry.md) | complete |
+| 0053 | MADR | [Fix Six Defects in Streaming, Retry and the Catalog's Caches](decisions/0053-MADR-stream-retry-and-cache-defects.md) | proposed |
+| 0054 | REPORT | [Heuristics and Performance Opportunities, 2026-10-20](reports/0054-REPORT-heuristics-and-performance-opportunities.md) | observation |
 
 ## I want to…
 
