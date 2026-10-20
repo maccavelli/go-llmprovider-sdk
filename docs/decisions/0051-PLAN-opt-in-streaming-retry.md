@@ -489,3 +489,29 @@ provider package keeping its scripts at two):
   are `atomic.Int64`; the eight plants, and the full run of the first, were
   run again after it, all caught); `tools/gate.py` on the final tree, 27
   of 27 passed (25 of 27 before that fix, its pre-add check and lint).
+
+### Phase 3: release `v1.19.0` (2026-10-20)
+
+* **No deviation so far.** Phase 2 was committed by the owner as
+  `9f56b7b`, with the owner's choice to keep the provider guide's note in
+  its section 8.
+* **Step 1.** `CHANGELOG.md`: `[Unreleased]` became `[v1.19.0] -
+  2026-10-20`, with Added (D1 to D4) and Changed (D5); an empty
+  `[Unreleased]` above it; the comparison links gain `v1.19.0`.
+  "changelog-check: 27 release section(s), 0 problem(s)". The date must be
+  the commit's that the tag names (R53). The README's Status names
+  `v1.19.0`. In a local clone of `9f56b7b` with this `CHANGELOG.md` and a
+  local `v1.19.0` tag, `--section v1.19.0` exits 0 and prints the Added and
+  Changed entries, 1,052 bytes, the MADR's link made absolute at
+  `blob/v1.19.0`; it runs again against the Release at step 3.
+  `tools/linkcheck.py`, 0 problem(s); markdownlint on both files, no
+  finding.
+* **Step 2, before the push:** `tools/gate.py`, 27 of 27 passed;
+  `tools/apidiff.py v1.18.0`, "Compatible changes:
+  ./llmprovider.WithStreamRetry: added", nothing else, as R55's table
+  lists; the disclosure guard over the outgoing commits, once this one is
+  committed, before the owner pushes.
+* **Step 5's reply** to issue 4 is drafted outside the tree, naming
+  `v1.19.0`, the function, each acceptance item with its test, and
+  gobble's one-line change; it is posted, and the issue closed, only on the
+  owner's word, after the tag.

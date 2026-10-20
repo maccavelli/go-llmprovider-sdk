@@ -10,6 +10,8 @@ section.
 
 ## [Unreleased]
 
+## [v1.19.0] - 2026-10-20
+
 ### Added
 
 - `llmprovider.WithStreamRetry(p, policy, notify)`: live text and a retry
@@ -515,7 +517,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.18.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.19.0...HEAD
+[v1.19.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.18.0...v1.19.0
 [v1.18.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.17.0...v1.18.0
 [v1.17.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.16.0...v1.17.0
 [v1.16.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.15.0...v1.16.0
