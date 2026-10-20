@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/nilsource"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
@@ -107,7 +108,9 @@ func WithAPIKey(key string) Option {
 }
 
 // WithTokenSource sets where a provider gets its credential (0015-MADR D5,
-// 0016-MADR D2).
+// 0016-MADR D2). A nil src is no source. A typed-nil one, a nil pointer such
+// as a nil *CommandToken held in a non-nil TokenSource, is refused by every
+// New with an error matching ErrInvalidRequest (0050-MADR D3).
 func WithTokenSource(src TokenSource) Option {
 	return newOption("WithTokenSource", func(s *settings) { s.tokens = src })
 }
@@ -171,7 +174,7 @@ type Settings struct {
 // the options outside any For in order, then those of each For(id, …) in
 // order. It refuses, with an error matching ErrInvalidRequest, an option
 // scoped to another provider that no For scopes away, a malformed For, and a
-// nil *StaticToken given to WithTokenSource.
+// typed-nil TokenSource given to WithTokenSource.
 func ResolveOptions(id ProviderID, opts []Option) (*Settings, error) {
 	s := newSettings()
 	var overlays []Option
@@ -233,15 +236,13 @@ func (s *settings) sendable() error {
 				ErrInvalidRequest, base)
 		}
 	}
-	if st, ok := s.tokens.(*StaticToken); ok {
-		// A typed nil is a source, not none: refused here, before its value
-		// is read (0049-MADR D1).
-		if st == nil {
-			return fmt.Errorf("%w: WithTokenSource: a nil *StaticToken", ErrInvalidRequest)
-		}
-		if hasControl(st.Value) {
-			return fmt.Errorf("%w: the API key holds a control character, such as a pasted newline", ErrInvalidRequest)
-		}
+	// A typed nil is a source, not none: refused here, of any type, before
+	// any check reads it (0049-MADR D1; 0050-MADR D3).
+	if nilsource.Is(s.tokens) {
+		return fmt.Errorf("%w: WithTokenSource: a nil %T", ErrInvalidRequest, s.tokens)
+	}
+	if st, ok := s.tokens.(*StaticToken); ok && hasControl(st.Value) {
+		return fmt.Errorf("%w: the API key holds a control character, such as a pasted newline", ErrInvalidRequest)
 	}
 	for _, f := range [...]struct{ name, value string }{
 		{"WithClientInfo name", s.cfg.ClientName},

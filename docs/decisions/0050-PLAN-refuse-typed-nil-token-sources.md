@@ -227,3 +227,47 @@ interface in `List` and `ListRaw` matches `ErrInvalidRequest` too; Q1:
   "committed, proceed".
 * `tools/records.py status`: the MADR `accepted`, this PLAN `in-progress`,
   both index rows with them; "records-check: 0 problem(s)".
+
+### Phase 1: the test, and `ResolveOptions` (2026-10-19)
+
+* **No deviation.** Phase 0 was committed by the owner as `9e46609`. Step
+  1's package comment is in `nilsource.go`, its one source file, as
+  `internal/listlimit` keeps its own, not in a separate `doc.go`.
+* **Steps 1 and 2,** `llmprovider/internal/nilsource`: `Is(v any) bool`,
+  false for a nil interface, `reflect.ValueOf(v).IsNil()` for the six
+  nilable kinds, false otherwise, calling no method of `v`; the standard
+  library alone. `TestIs_0050`: a nil interface, a nil and a non-nil value
+  of each kind behind an `any`, and an `int`, a string and a struct; 100 %.
+* **Step 3,** `settings.sendable`: `if nilsource.Is(s.tokens)` refuses with
+  "%w: WithTokenSource: a nil %T" and `ErrInvalidRequest`, before the
+  control-character check of a `*StaticToken`'s value, which stays. 0049's
+  `*StaticToken` nil check is gone, its case covered.
+* **Step 4, the docs:** `WithTokenSource` (a nil source is none; a typed-nil
+  one is refused by every `New`) and `ResolveOptions` ("a typed-nil
+  TokenSource given to WithTokenSource").
+* **Step 5, the tests,** under `-race`:
+  `TestResolveOptions_TypedNilSources_0050` (a typed-nil `*StaticToken`,
+  `*CommandToken` and a caller's own func type, each `ErrInvalidRequest`
+  naming its type; a nil interface, no source and no error) and
+  `TestNew_TypedNilSources_0050` (every built-in provider's `New` with each
+  of five typed-nil sources, `*StaticToken`, `*CommandToken`,
+  `*auth.OAuthSession`, `*auth.VendorCLISession` and the func type: 50
+  calls, each `ErrInvalidRequest`, none a panic). 0049's
+  `TestResolveOptions_NilStaticToken_0049` passes: it asserts the kind
+  alone.
+* **Step 6, the tables:** R2's `nilsource` row and `llmprovider`'s import,
+  and its citation; `docs/architecture.md`'s tree, row and `llmprovider`'s
+  imports. `make tables-check`: "38 packages, 0 problem(s)".
+* **Step 7, red first,** three plants, all caught:
+  * `Is` ignoring a nil func: "typed_nil_0050_test.go:35: a nil
+    llmprovider_test.tokenFunc0050: ResolveOptions = <nil>; want
+    ErrInvalidRequest naming its type", and the provider table at ":44";
+  * `Is` answering false for a nil pointer: "nil_token_0049_test.go:19:
+    ResolveOptions panicked: runtime error: invalid memory address or nil
+    pointer dereference; want an error": the control-character check reads
+    the value, so the refusal must come first, as it does;
+  * `sendable` without its check: the same panics, reported as failures.
+* **The checks:** `make docs-check`, 0; `tools/apidiff.py v1.17.0`, no output,
+  exit 0; `go test -count=1 ./...`, ok; `make pre-add-check` on the five Go
+  files, "5 file(s) clean"; `tools/gate.py` on the final tree, 27 of 27
+  passed.
