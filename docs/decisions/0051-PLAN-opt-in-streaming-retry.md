@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-20
 associated-madr: "0051-MADR-opt-in-streaming-retry.md"
 decision-makers: repository owner
@@ -515,3 +515,47 @@ provider package keeping its scripts at two):
   `v1.19.0`, the function, each acceptance item with its test, and
   gobble's one-line change; it is posted, and the issue closed, only on the
   owner's word, after the tag.
+* **Step 2, the guard:** the owner committed step 1 as `87b6c9c`; the
+  disclosure guard over the 5 outgoing commits (`ea4fddb..87b6c9c`), run by
+  the agent before the push: exit 0, nothing reported. The owner pushed
+  `main`; CI run 39474947857: `validate` on ubuntu-24.04, macos-15 and
+  windows-2025, success; `release` skipped, as on a branch.
+* **Step 3,** the owner tagged `v1.19.0` on `87b6c9c` (commit date
+  2026-10-20, the section's) and pushed it; run 39476389239: `validate` on
+  the three systems and `release`, success. The
+  [Release](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.19.0),
+  not a draft or a prerelease, Latest; `gh release view v1.19.0 --json
+  body` equals `check_changelog.py --section v1.19.0 --repo
+  maccavelli/go-llmprovider-sdk`, 1,051 characters each, the latter exit 0.
+* **Step 4:** `tools/consumer.py v1.19.0`, "consumer: 15 packages linked",
+  "every step passed"; `tools/offline.py v1.19.0`, "offline: ok", its two
+  plants caught, "every step passed".
+* **Step 5:** on the owner's word, the reply was posted to issue 4
+  ([comment](https://github.com/maccavelli/go-llmprovider-sdk/issues/4#issuecomment-6298644726)),
+  naming `v1.19.0`, the function, each acceptance item with its test, and
+  gobble's one-line change, and the issue was closed as completed.
+* **Step 6, the MADR's Confirmation,** on a scratch copy of `v1.19.0`,
+  under `-race`:
+  * D5's tests pass: the nine `TestStreamRetry_*_0051`, the four
+    `TestStreamRetryCheck_*_0051`, and the nine `TestStreamTextDeltas_0051`
+    (opencode's four routes as subtests), 26 passes in all, and
+    `ExampleWithStreamRetry`; each failed on its planted break (Phases 1
+    and 2: fourteen plants, all caught);
+  * every built-in provider's `TestConformance` passes with the new check:
+    15 `D7-stream-retry` passes, no failure, and no line logged, so
+    liveness was checked on every run;
+  * `tools/apidiff.py v1.18.0` lists `WithStreamRetry` as the only change,
+    an addition (step 2); `sdkaudit -check` at the tag, "0 violation(s) of
+    R50,R51,R52";
+  * the issue's acceptance items map to those tests as the Confirmation
+    lists, and the collecting wrapper failed the live check on every wire,
+    Gemini's included (Phase 2, M5).
+* **The Verification table:** V1 Phase 1 (the existing retry tests,
+  unchanged); V2 Phase 1's live test and Phase 2's live case and event
+  comparison; V3 and V4 the unit tests and the `llmtest` check; V5
+  `_NotAStreamer_0051`; V6 apidiff, `docs-check` and `parity-check` at
+  every phase; V7 the nine `TestStreamTextDeltas_0051` and `llmtest`'s own
+  tests; V8 step 3; V9 each phase's plants.
+* **Not done, and why:** gobble-cli's adoption of `WithStreamRetry`, its
+  own records (G1, G2).
+* **Status:** this PLAN `complete`, by `tools/records.py status`.
