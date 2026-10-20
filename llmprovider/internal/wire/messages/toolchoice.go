@@ -26,10 +26,11 @@ const (
 var forcedChoiceRefused = []string{"claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5", "claude-sonnet-5-5"}
 
 // refusesForcedChoice reports whether model refuses a forced tool_choice on
-// provider: its normalised id is in the table, or this process learned it
-// (0034-MADR D3, D9). The caller's override is Forcing's.
-func refusesForcedChoice(provider, model string) bool {
-	return slices.Contains(forcedChoiceRefused, normalizeModel(model)) || learnedRefusal(provider, model)
+// provider: its normalised id is in the table, or learned holds it, a nil one
+// being the process's (0034-MADR D3, D9; 0049-MADR D3). The caller's override
+// is Forcing's.
+func refusesForcedChoice(learned *Refusals, provider, model string) bool {
+	return slices.Contains(forcedChoiceRefused, normalizeModel(model)) || learned.learned(provider, model)
 }
 
 // ToolChoice is the Messages tool_choice for choice, or nil when none is sent

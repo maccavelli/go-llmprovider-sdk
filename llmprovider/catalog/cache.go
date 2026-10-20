@@ -5,12 +5,12 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // Cache holds what the catalog and a provider keep in memory between calls:
-// the listings and their models' metadata, the models.dev document, and the
-// models that answered a probe (0048-MADR D1). Without WithCache, every
+// the listings and their models' metadata, the models.dev document, the
+// models that answered a probe (0048-MADR D1), and the models a provider
+// learned refuse a forced tool choice (0049-MADR D3). Without WithCache, every
 // listing and provider of the process shares one; a Cache given with WithCache
 // is shared only by the calls and providers that are given it, so a test or a
 // process with more than one configuration can keep them apart.
@@ -25,14 +25,15 @@ type Cache struct {
 // value is c's option value, made on first use.
 func (c *Cache) value() *cacheref.Value {
 	c.once.Do(func() {
-		c.ref = &cacheref.Value{Catalog: newStore(), Probes: transport.NewProbeStore()}
+		c.ref = cacheref.New(newStore())
 	})
 	return c.ref
 }
 
 // WithCache makes a listing (List, ListRaw, the lookups) or a built-in
 // provider's New use c in place of the process's cache. A provider given it
-// uses it for its listings, its model facts and its probes. A nil c is the
+// uses it for its listings, its model facts, its probes and the refusals it
+// learns. A nil c is the
 // process's cache, as no option is. The last WithCache given wins.
 func WithCache(c *Cache) llmprovider.Option {
 	var v *cacheref.Value

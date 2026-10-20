@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 // refusal0034 is Anthropic's refusal of a forced tool choice, as 0034-PLAN
@@ -75,7 +76,7 @@ func weatherRequest() *llmprovider.Request {
 // so its next forced request is degraded at once.
 func TestGenerate_LearnsARefusal_0034(t *testing.T) {
 	srv, rs := newRefusingServer(t, callReply0034, false, http.StatusBadRequest, refusal0034)
-	p := build(t, apiKey(srv.URL, "claude-future-learns")...)
+	p := build(t, apiKey(srv.URL, "claude-future-learns", catalog.WithCache(new(catalog.Cache)))...)
 	call, err := llmprovider.GenerateToolCall(context.Background(), p, weatherRequest())
 	if err != nil || call.Name != "get_weather" {
 		t.Fatalf("GenerateToolCall = %+v, %v; want the call", call, err)
@@ -97,7 +98,7 @@ func TestGenerate_LearnsARefusal_0034(t *testing.T) {
 func TestGenerate_OtherBadRequestNotResent_0034(t *testing.T) {
 	srv, rs := newRefusingServer(t, callReply0034, true, http.StatusBadRequest,
 		`{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens: 999999 > 128000"}}`)
-	_, err := llmprovider.GenerateToolCall(context.Background(), build(t, apiKey(srv.URL, "claude-future-other")...), weatherRequest())
+	_, err := llmprovider.GenerateToolCall(context.Background(), build(t, apiKey(srv.URL, "claude-future-other", catalog.WithCache(new(catalog.Cache)))...), weatherRequest())
 	if !errors.Is(err, llmprovider.ErrInvalidRequest) {
 		t.Errorf("err = %v, want ErrInvalidRequest", err)
 	}
@@ -110,7 +111,7 @@ func TestGenerate_OtherBadRequestNotResent_0034(t *testing.T) {
 // degraded resend is returned; there is no third request.
 func TestGenerate_RefusedResendReturned_0034(t *testing.T) {
 	srv, rs := newRefusingServer(t, callReply0034, true, http.StatusBadRequest, refusal0034)
-	_, err := llmprovider.GenerateToolCall(context.Background(), build(t, apiKey(srv.URL, "claude-future-twice")...), weatherRequest())
+	_, err := llmprovider.GenerateToolCall(context.Background(), build(t, apiKey(srv.URL, "claude-future-twice", catalog.WithCache(new(catalog.Cache)))...), weatherRequest())
 	if !errors.Is(err, llmprovider.ErrInvalidRequest) {
 		t.Errorf("err = %v, want ErrInvalidRequest", err)
 	}
@@ -123,7 +124,7 @@ func TestGenerate_RefusedResendReturned_0034(t *testing.T) {
 // before its first event is opened once more, degraded.
 func TestStream_LearnsARefusal_0034(t *testing.T) {
 	srv, rs := newRefusingServer(t, messagesStream, false, http.StatusBadRequest, refusal0034)
-	p := build(t, apiKey(srv.URL, "claude-future-streams")...)
+	p := build(t, apiKey(srv.URL, "claude-future-streams", catalog.WithCache(new(catalog.Cache)))...)
 	req := weatherRequest()
 	req.ToolChoice = llmprovider.ForceTool("get_weather")
 	var done bool
@@ -153,7 +154,7 @@ func warningKinds(ws []llmprovider.Warning) string {
 func TestGenerate_LearnedWarning_0034(t *testing.T) {
 	srv, _ := newRefusingServer(t, `{"stop_reason":"end_turn","content":[{"type":"text","text":"{\"city\":\"Paris\"}"}]}`,
 		false, http.StatusBadRequest, refusal0034)
-	p := build(t, apiKey(srv.URL, "claude-future-warns")...)
+	p := build(t, apiKey(srv.URL, "claude-future-warns", catalog.WithCache(new(catalog.Cache)))...)
 	req := weatherRequest()
 	req.ToolChoice = llmprovider.ForceTool("get_weather")
 	resp, err := p.Generate(context.Background(), req)
@@ -172,7 +173,7 @@ func TestGenerate_LearnedWarning_0034(t *testing.T) {
 // next one fails before the network.
 func TestGenerate_LearnedRequiredRefuses_0034(t *testing.T) {
 	srv, rs := newRefusingServer(t, callReply0034, false, http.StatusBadRequest, refusal0034)
-	p := build(t, apiKey(srv.URL, "claude-future-required")...)
+	p := build(t, apiKey(srv.URL, "claude-future-required", catalog.WithCache(new(catalog.Cache)))...)
 	req := weatherRequest()
 	req.ToolChoice = llmprovider.ToolChoiceRequired
 	_, err := p.Generate(context.Background(), req)
@@ -192,7 +193,7 @@ func TestGenerate_LearnedRequiredRefuses_0034(t *testing.T) {
 // as degraded.
 func TestGenerate_LearnedRequiredDegrades_0034(t *testing.T) {
 	srv, rs := newRefusingServer(t, callReply0034, false, http.StatusBadRequest, refusal0034)
-	p := build(t, append(apiKey(srv.URL, "claude-future-degrades"), llmprovider.WithForcedChoiceFallback(llmprovider.ForcedChoiceDegrade))...)
+	p := build(t, append(apiKey(srv.URL, "claude-future-degrades", catalog.WithCache(new(catalog.Cache))), llmprovider.WithForcedChoiceFallback(llmprovider.ForcedChoiceDegrade))...)
 	req := weatherRequest()
 	req.ToolChoice = llmprovider.ToolChoiceRequired
 	resp, err := p.Generate(context.Background(), req)
@@ -208,7 +209,7 @@ func TestGenerate_LearnedRequiredDegrades_0034(t *testing.T) {
 // refusal carries the learned warning on its done event.
 func TestStream_LearnedWarning_0034(t *testing.T) {
 	srv, _ := newRefusingServer(t, messagesStream, false, http.StatusBadRequest, refusal0034)
-	p := build(t, apiKey(srv.URL, "claude-future-streams-warn")...)
+	p := build(t, apiKey(srv.URL, "claude-future-streams-warn", catalog.WithCache(new(catalog.Cache)))...)
 	req := weatherRequest()
 	req.ToolChoice = llmprovider.ForceTool("get_weather")
 	var kinds string

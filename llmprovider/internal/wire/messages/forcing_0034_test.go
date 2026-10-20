@@ -27,12 +27,12 @@ func TestNormalizeModel_0034(t *testing.T) {
 		}
 	}
 	for _, id := range []string{"anthropic/claude-sonnet-5-5", "anthropic.claude-opus-5-5-v1:0", "claude-fable-5-1-20260901", "claude-sonnet-5-5@20260928"} {
-		if !refusesForcedChoice("claude", id) {
+		if !refusesForcedChoice(nil, "claude", id) {
 			t.Errorf("refusesForcedChoice(%q) = false: an alias of a table id", id)
 		}
 	}
 	for _, id := range []string{"claude-sonnet-5-55", "claude-sonnet-5"} {
-		if refusesForcedChoice("claude", id) {
+		if refusesForcedChoice(nil, "claude", id) {
 			t.Errorf("refusesForcedChoice(%q) = true", id)
 		}
 	}
@@ -43,11 +43,11 @@ func TestNormalizeModel_0034(t *testing.T) {
 func TestForcing_Layers_0034(t *testing.T) {
 	t.Cleanup(forgetRefusals)
 	forgetRefusals()
-	learnRefusal("claude", "claude-learned-6")
+	processRefusals.learn("claude", "claude-learned-6")
 	policy := NewPolicy(llmprovider.ForcedChoiceRefuse, map[string]llmprovider.Support{
 		"claude-sonnet-5-5": llmprovider.Supported, "anthropic/claude-future-6": llmprovider.Unsupported,
 		"claude-learned-6": llmprovider.Supported,
-	})
+	}, nil)
 	for model, want := range map[string]bool{
 		"claude-sonnet-5-5": false, // the override beats the table
 		"claude-future-6":   true,  // the override marks an unknown model, its key normalised
@@ -70,7 +70,7 @@ func TestForcing_Layers_0034(t *testing.T) {
 // model and a request without tools pass.
 func TestCheckForcing_0034(t *testing.T) {
 	tools := []llmprovider.Tool{{Name: choiceTool}}
-	refuse, degrade := NewPolicy(llmprovider.ForcedChoiceRefuse, nil), NewPolicy(llmprovider.ForcedChoiceDegrade, nil)
+	refuse, degrade := NewPolicy(llmprovider.ForcedChoiceRefuse, nil, nil), NewPolicy(llmprovider.ForcedChoiceDegrade, nil, nil)
 	err := CheckForcing(&llmprovider.Request{Tools: tools, ToolChoice: llmprovider.ToolChoiceRequired}, refuse.For("claude", "claude-sonnet-5-5"))
 	if !errors.Is(err, llmprovider.ErrUnsupported) || !strings.Contains(err.Error(), "claude-sonnet-5-5") ||
 		!strings.Contains(err.Error(), "ForcedChoiceDegrade") {

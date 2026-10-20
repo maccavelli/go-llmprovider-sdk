@@ -25,6 +25,9 @@ section.
     the Ollama listing's `*APIError`, with its message;
   - `auth.StartDeviceOAuth`, `LoginDeviceOAuth` and `LoginBrowserOAuth`: a
     provider they do not serve matches `ErrUnsupported`.
+- `catalog.Cache` also holds the models a provider learned refuse a forced
+  tool choice, so a provider built with `catalog.WithCache` learns into its
+  own cache; without it, the process's, as before (D3).
 
 ### Fixed
 

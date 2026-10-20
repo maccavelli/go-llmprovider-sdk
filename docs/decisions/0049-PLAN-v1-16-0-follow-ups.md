@@ -326,3 +326,55 @@ all of D2a to D2d; Q3 the learned refusals in `catalog.Cache`):
   output, exit 0; `make pre-add-check` on the eight Go files, "8 file(s)
   clean"; the five plants again after the constant, all caught;
   `tools/gate.py` on the final tree, 27 of 27 passed.
+
+### Phase 3: the learned refusals in `catalog.Cache` (2026-10-19)
+
+* **No deviation.** Phase 2 was committed by the owner as `6b9f850`.
+* **Step 1,** `internal/wire/messages`: the package variable `learned`
+  became the type `Refusals` (its mutex, order and set, bounded at
+  `learnedRefusalsLimit` per memo), with `NewRefusals`, the process's
+  `processRefusals`, and a nil `*Refusals` the process's. `Policy` holds
+  one; `NewPolicy` takes it; `refusesForcedChoice` reads it and
+  `RefusalRetry.Check` learns into it. The package's own tests call
+  `processRefusals.learn`/`learned`, pass `nil` to `refusesForcedChoice` and
+  `NewPolicy`, and `forgetRefusals` resets `processRefusals`.
+* **Step 2,** `internal/cacheref`: `Value.Refusals`, `New(catalog)` (a whole
+  Value: the catalog's state, a probe store and a memo), and the nil-safe
+  `LearnedRefusals`; `catalog.Cache` makes its Value with `cacheref.New`,
+  so `catalog` imports neither `messages` nor, in `cache.go`, `transport`.
+* **Step 3,** Claude's and OpenCode's `New` pass
+  `cacheref.From(st.Values()).LearnedRefusals()` to `messages.NewPolicy`.
+* **Step 4, the tests:** the 13 builds of the 0034 tests in `claude` (8)
+  and `opencode` (5) each take a `catalog.WithCache(new(catalog.Cache))`.
+  `go test -count=2 -run _0034 ./llmprovider/...`: ok, where the MADR's F4
+  measured 10 failures. New, `_0049`, each passing twice under `-race`:
+  `TestRefusals_KeptApart_0049` (`messages`: a memo learns alone; another
+  and the process's do not see it; no memo learns into the process's) and
+  `TestCache_KeepsLearnedRefusalsApart_0049` in `claude` and, beyond the
+  step's list so that both providers' wiring is tested, in `opencode` (two
+  providers of one cache share a refusal; one of another cache forces first
+  and learns it again).
+* **Step 5, the docs:** R49 names the refusals among what a `Cache` holds,
+  and has no exception; `catalog.Cache`'s and `WithCache`'s docs, and
+  `cacheref`'s; `docs/architecture.md`'s `cacheref` row, OpenCode's imports
+  and the caches' paragraph; R2's `cacheref` row and citation. `make
+  tables-check`: "37 packages, 0 problem(s)".
+* **Step 6, red first,** five plants, all caught: Claude's `New` dropping
+  the cache's memo, and OpenCode's ("learn_cache_0049_test.go: step 2:
+  tool_choice … none,none,none; want tool,none,none,tool,none"); a `Policy`
+  learning into the process's memo whatever it was given, and reading it
+  ("refusals_0049_test.go:28: a: refuses = false, want true"); a `Cache`
+  made without a memo.
+* **Step 7,** `CHANGELOG.md`'s `[Unreleased]`: D3 under Changed.
+* **The checks:** `make docs-check`, 0; `make changelog-check`, 0
+  problems; `tools/apidiff.py v1.16.0`, no output, exit 0; `go test
+  -count=1 ./...`, ok; `make pre-add-check` on the 15 Go files, "15 file(s)
+  clean".
+* **The gate,** first run: 25 of 27. `coverage-check`: "llmprovider/internal/cacheref
+  is 63.6%, below its 80.0% floor", as `New` and `LearnedRefusals` had no
+  test of the package's own; `gate-selftest` failed on the same, in its
+  clean copy. `cacheref_0049_test.go` (`New` makes a whole Value, two
+  share nothing; a nil Value has no memo), 100 %; red first, two plants,
+  both caught (`New` without a memo, "cacheref_0049_test.go:11"; a memo
+  for a nil Value, ":23"); `make pre-add-check` on it, clean;
+  `tools/gate.py` on the final tree, 27 of 27 passed.

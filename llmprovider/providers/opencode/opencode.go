@@ -107,6 +107,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
@@ -216,7 +217,7 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 		client:      st.HTTPClient(),
 		maxTokens:   st.MaxTokens(),
 		reasoning:   st.Reasoning(),
-		forcing:     messages.NewPolicy(st.ForcedChoiceFallback(), st.ModelForcedChoices()),
+		forcing:     messages.NewPolicy(st.ForcedChoiceFallback(), st.ModelForcedChoices(), cacheref.From(st.Values()).LearnedRefusals()),
 		metadataOff: st.ModelMetadataDisabled(),
 		userAgent:   st.UserAgent(),
 		session:     st.SessionID(),

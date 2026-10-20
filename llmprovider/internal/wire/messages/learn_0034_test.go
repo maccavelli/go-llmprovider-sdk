@@ -39,20 +39,20 @@ func TestIsForcedChoiceRefusal_0034(t *testing.T) {
 func TestLearnedRefusals_0034(t *testing.T) {
 	t.Cleanup(forgetRefusals)
 	forgetRefusals()
-	learnRefusal("claude", "Claude-Future-6")
-	if !refusesForcedChoice("claude", "claude-future-6") {
+	processRefusals.learn("claude", "Claude-Future-6")
+	if !refusesForcedChoice(nil, "claude", "claude-future-6") {
 		t.Error("a learned refusal is not remembered, in any case")
 	}
-	if refusesForcedChoice("opencode-zen", "claude-future-6") {
+	if refusesForcedChoice(nil, "opencode-zen", "claude-future-6") {
 		t.Error("a refusal learned on claude holds for opencode-zen")
 	}
 	for i := range learnedRefusalsLimit {
-		learnRefusal("claude", fmt.Sprintf("model-%d", i))
+		processRefusals.learn("claude", fmt.Sprintf("model-%d", i))
 	}
-	if refusesForcedChoice("claude", "claude-future-6") {
+	if refusesForcedChoice(nil, "claude", "claude-future-6") {
 		t.Errorf("the oldest refusal is kept past %d entries", learnedRefusalsLimit)
 	}
-	if !refusesForcedChoice("claude", fmt.Sprintf("model-%d", learnedRefusalsLimit-1)) {
+	if !refusesForcedChoice(nil, "claude", fmt.Sprintf("model-%d", learnedRefusalsLimit-1)) {
 		t.Error("the newest refusal is dropped")
 	}
 }
@@ -86,7 +86,7 @@ func TestRefusalRetry_0034(t *testing.T) {
 		{"a table model", "claude-sonnet-5-5", refuse, llmprovider.ForceTool(choiceTool), refusal, false, false, false},
 	} {
 		forgetRefusals()
-		r := NewRefusalRetry(NewPolicy(c.fallback, nil).For("claude", c.model), c.choice)
+		r := NewRefusalRetry(NewPolicy(c.fallback, nil, nil).For("claude", c.model), c.choice)
 		resend, err := r.Check(c.err)
 		switch {
 		case resend != c.resend:
@@ -98,7 +98,7 @@ func TestRefusalRetry_0034(t *testing.T) {
 		case !resend && !c.unsupported && !errors.Is(err, c.err):
 			t.Errorf("%s: err = %v, want %v as it came", c.name, err, c.err)
 		}
-		if got := learnedRefusal("claude", c.model); got != c.learned {
+		if got := processRefusals.learned("claude", c.model); got != c.learned {
 			t.Errorf("%s: learned = %v, want %v", c.name, got, c.learned)
 		}
 		w, ok := r.Warning()
@@ -115,19 +115,19 @@ func TestRefusalRetry_OverrideWins_0034(t *testing.T) {
 	t.Cleanup(forgetRefusals)
 	forgetRefusals()
 	refusal := &llmprovider.APIError{Status: 400, Code: "invalid_request_error", Message: refusalMessage}
-	f := NewPolicy(llmprovider.ForcedChoiceRefuse, map[string]llmprovider.Support{"claude-future-7": llmprovider.Supported}).
+	f := NewPolicy(llmprovider.ForcedChoiceRefuse, map[string]llmprovider.Support{"claude-future-7": llmprovider.Supported}, nil).
 		For("claude", "claude-future-7")
 	r := NewRefusalRetry(f, llmprovider.ForceTool(choiceTool))
 	resend, err := r.Check(refusal)
-	if _, warned := r.Warning(); resend || !errors.Is(err, refusal) || learnedRefusal("claude", "claude-future-7") || warned {
+	if _, warned := r.Warning(); resend || !errors.Is(err, refusal) || processRefusals.learned("claude", "claude-future-7") || warned {
 		t.Errorf("resend %v, err %v, learned %v, warned %v; want the refusal, nothing resent, learned or warned",
-			resend, err, learnedRefusal("claude", "claude-future-7"), warned)
+			resend, err, processRefusals.learned("claude", "claude-future-7"), warned)
 	}
 }
 
 // forgetRefusals empties the memo between tests.
 func forgetRefusals() {
-	learned.mu.Lock()
-	defer learned.mu.Unlock()
-	learned.order, learned.set = nil, map[string]struct{}{}
+	processRefusals.mu.Lock()
+	defer processRefusals.mu.Unlock()
+	processRefusals.order, processRefusals.set = nil, map[string]struct{}{}
 }

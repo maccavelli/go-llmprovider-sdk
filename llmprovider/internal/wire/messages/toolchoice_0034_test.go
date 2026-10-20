@@ -15,12 +15,12 @@ const choiceTool = "get_weather"
 // in any case, and nothing else: no prefix, no version pattern.
 func TestRefusesForcedChoice_0034(t *testing.T) {
 	for _, id := range []string{"claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "Claude-Sonnet-5-5"} {
-		if !refusesForcedChoice("claude", id) {
+		if !refusesForcedChoice(nil, "claude", id) {
 			t.Errorf("refusesForcedChoice(%q) = false, want true", id)
 		}
 	}
 	for _, id := range []string{"claude-haiku-5-5", "claude-sonnet-5", "claude-opus-5-55", "claude-sonnet-5-5-x", "claude-fable-5", ""} {
-		if refusesForcedChoice("claude", id) {
+		if refusesForcedChoice(nil, "claude", id) {
 			t.Errorf("refusesForcedChoice(%q) = true, want false: exact ids only", id)
 		}
 	}

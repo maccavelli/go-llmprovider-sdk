@@ -13,41 +13,60 @@ import (
 // learnedRefusalsLimit bounds the memo of learned refusals (0034-MADR D3).
 const learnedRefusalsLimit = 256
 
-// learned holds the models this process learned refuse a forced tool choice,
-// by provider and model, oldest first. It is never written to disk, and a
-// restart clears it (0034-MADR D3).
-var learned = struct {
+// Refusals holds the models a provider learned refuse a forced tool choice,
+// by provider and model, oldest first, at most learnedRefusalsLimit. It is
+// never written to disk, and a restart clears it (0034-MADR D3). A
+// catalog.Cache holds one; a nil *Refusals is the process's (0049-MADR D3).
+// It is safe for concurrent use.
+type Refusals struct {
 	mu    sync.Mutex
 	order []string
 	set   map[string]struct{}
-}{set: map[string]struct{}{}}
+}
+
+// NewRefusals returns an empty memo.
+func NewRefusals() *Refusals { return &Refusals{set: map[string]struct{}{}} }
+
+// processRefusals is the process's memo: every provider's without
+// catalog.WithCache.
+var processRefusals = NewRefusals()
+
+// or is r, or the process's memo when r is nil.
+func (r *Refusals) or() *Refusals {
+	if r == nil {
+		return processRefusals
+	}
+	return r
+}
 
 // refusalKey is the memo's key for provider and model, normalised.
 func refusalKey(provider, model string) string { return provider + "\x00" + normalizeModel(model) }
 
-// learnRefusal remembers that model refuses a forced choice on provider,
-// dropping the oldest entry past learnedRefusalsLimit.
-func learnRefusal(provider, model string) {
+// learn remembers that model refuses a forced choice on provider, dropping
+// the oldest entry past learnedRefusalsLimit.
+func (r *Refusals) learn(provider, model string) {
+	r = r.or()
 	key := refusalKey(provider, model)
-	learned.mu.Lock()
-	defer learned.mu.Unlock()
-	if _, ok := learned.set[key]; ok {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.set[key]; ok {
 		return
 	}
-	if len(learned.order) >= learnedRefusalsLimit {
-		delete(learned.set, learned.order[0])
-		learned.order = learned.order[1:]
+	if len(r.order) >= learnedRefusalsLimit {
+		delete(r.set, r.order[0])
+		r.order = r.order[1:]
 	}
-	learned.order = append(learned.order, key)
-	learned.set[key] = struct{}{}
+	r.order = append(r.order, key)
+	r.set[key] = struct{}{}
 }
 
-// learnedRefusal reports whether this process learned that model refuses a
-// forced choice on provider.
-func learnedRefusal(provider, model string) bool {
-	learned.mu.Lock()
-	defer learned.mu.Unlock()
-	_, ok := learned.set[refusalKey(provider, model)]
+// learned reports whether r learned that model refuses a forced choice on
+// provider.
+func (r *Refusals) learned(provider, model string) bool {
+	r = r.or()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.set[refusalKey(provider, model)]
 	return ok
 }
 
@@ -102,7 +121,7 @@ func (r *RefusalRetry) Check(err error) (bool, error) {
 	if !shouldLearn(r.f, r.choice, err) {
 		return false, err
 	}
-	learnRefusal(r.f.Provider, r.f.Model)
+	r.f.Policy.refusals.learn(r.f.Provider, r.f.Model)
 	r.learned = true
 	if _, named := r.choice.Tool(); named || r.f.Policy.fallback == llmprovider.ForcedChoiceDegrade {
 		return true, nil

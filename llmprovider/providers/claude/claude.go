@@ -178,7 +178,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		client:    st.HTTPClient(),
 		maxTokens: st.MaxTokens(),
 		reasoning: st.Reasoning(),
-		forcing:   messages.NewPolicy(st.ForcedChoiceFallback(), st.ModelForcedChoices()),
+		forcing:   messages.NewPolicy(st.ForcedChoiceFallback(), st.ModelForcedChoices(), cacheref.From(st.Values()).LearnedRefusals()),
 		userAgent: st.UserAgent(),
 		logger:    st.Logger(),
 		probe:     st.ModelProbes(),

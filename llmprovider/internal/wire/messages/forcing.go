@@ -27,17 +27,21 @@ func normalizeModel(id string) string {
 	return snapshotDate.ReplaceAllString(s, "")
 }
 
-// Policy is a provider's forced-choice settings: its fallback, and the
-// caller's per-model facts, keyed by normalised id (0034-MADR D9, D10).
+// Policy is a provider's forced-choice settings: its fallback, the caller's
+// per-model facts, keyed by normalised id, and the memo it learns refusals
+// into (0034-MADR D9, D10; 0049-MADR D3).
 type Policy struct {
 	fallback  llmprovider.ForcedChoiceFallback
 	overrides map[string]llmprovider.Support
+	refusals  *Refusals
 }
 
 // NewPolicy is the policy for WithForcedChoiceFallback's fallback and
-// WithModelForcedChoice's facts.
-func NewPolicy(fallback llmprovider.ForcedChoiceFallback, overrides map[string]llmprovider.Support) Policy {
-	p := Policy{fallback: fallback}
+// WithModelForcedChoice's facts, learning refusals into refusals, a nil one
+// being the process's.
+func NewPolicy(fallback llmprovider.ForcedChoiceFallback, overrides map[string]llmprovider.Support,
+	refusals *Refusals) Policy {
+	p := Policy{fallback: fallback, refusals: refusals}
 	for model, s := range overrides {
 		if p.overrides == nil {
 			p.overrides = make(map[string]llmprovider.Support, len(overrides))
@@ -73,7 +77,7 @@ func (f Forcing) refuses() bool {
 	if s, ok := f.override(); ok {
 		return s == llmprovider.Unsupported
 	}
-	return refusesForcedChoice(f.Provider, f.Model)
+	return refusesForcedChoice(f.Policy.refusals, f.Provider, f.Model)
 }
 
 // CheckForcing refuses, before any network call, ToolChoiceRequired with tools

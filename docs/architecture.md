@@ -105,7 +105,7 @@ standard library is left out.
 | `llmprovider/providers/claude` | Claude through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/messages`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, `ListModels`, and `Stream`, with the Interactions wire's decoders | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `catalog`, `internal/listlimit`, `internal/wire/responses`, `auth`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
-| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute`, `ListModels` and `Stream` (native on every route), with the route table, built from the embedded `routes_snapshot.json` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent`, `internal/wire/deferral` |
+| `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute`, `ListModels` and `Stream` (native on every route), with the route table, built from the embedded `routes_snapshot.json` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/kiloendpoint`, `internal/wire`, `internal/wire/deferral`, `internal/wire/messages` |
 | `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral` |
 | `llmprovider/providers/together` | Together AI through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral` |
@@ -119,7 +119,7 @@ standard library is left out.
 | `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache` and the option `WithCache` (0048-MADR D1) | `llmprovider`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/listlimit` | `Value`, `catalog.WithLimit`'s option value, `Of`, which reads it from a provider's options, and `Cut`, for `catalog` and the providers that cut their own fallback listings with it (0038-MADR A3) | the standard library |
-| `llmprovider/internal/cacheref` | `Value`, `catalog.WithCache`'s option value: a `catalog.Cache`'s store and its `transport.ProbeStore`; `From`, which reads it from a listing's or a provider's options, and `ProbeStore` (0048-MADR D1) | `internal/transport` |
+| `llmprovider/internal/cacheref` | `Value`, `catalog.WithCache`'s option value: a `catalog.Cache`'s store, its `transport.ProbeStore` and its `messages.Refusals`; `New`, a whole one; `From`, which reads it from a listing's or a provider's options; `ProbeStore` and `LearnedRefusals` (0048-MADR D1; 0049-MADR D3) | `internal/transport`, `internal/wire/messages` |
 | `llmprovider/internal/chatgpt` | a ChatGPT session's `BaseURL`, `IsSession`, `SetHeaders` and its header names, `ClientVersion`, and `ModelsRequest`, the Codex backend's listing request; a plan session's `IsPlanSession` and `PlanModelsRequest`; for `catalog`'s `ListRaw` and `providers/openai` (0041-MADR D9; 0043-MADR D5) | `llmprovider`, `auth`, `internal/transport` |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
@@ -291,11 +291,13 @@ facts the name rules decide.
 These caches, and the models.dev document's and the probes', are the
 process's, shared by every listing and provider, unless a caller gives
 `catalog.WithCache(&c)` (0048-MADR D1). A `catalog.Cache` holds its own
-listings, metadata documents and probe results, shared only by the listings
-and providers given it; `providers.DefaultWith(catalog.WithCache(&c))` gives
-it to every built-in a `Registry` builds. `internal/cacheref` carries it in
-the option's value: the catalog's store and a `transport.ProbeStore`, which
-each provider reads in `New` and passes to `wire.ProbeHealth`.
+listings, metadata documents, probe results and learned forced-choice
+refusals (0049-MADR D3), shared only by the listings and providers given it;
+`providers.DefaultWith(catalog.WithCache(&c))` gives it to every built-in a
+`Registry` builds. `internal/cacheref` carries it in the option's value: the
+catalog's store, a `transport.ProbeStore`, which each provider reads in `New`
+and passes to `wire.ProbeHealth`, and a `messages.Refusals`, which Claude and
+OpenCode give to their forced-choice policy.
 A model no layer knows is not an error; a failed source is joined into
 `LookupModel`'s error, beside what the other layers set.
 

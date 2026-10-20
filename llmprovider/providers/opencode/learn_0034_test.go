@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
 const (
@@ -61,7 +62,7 @@ func weatherRequest0034() *llmprovider.Request {
 // sent once more, degraded, and remembered.
 func TestGenerate_MessagesRouteLearnsARefusal_0034(t *testing.T) {
 	srv, seen := refusingServer(t, callReply0034, refusal0034, false)
-	p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen")...)
+	p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen", catalog.WithCache(new(catalog.Cache)))...)
 	for range 2 {
 		if _, err := llmprovider.GenerateToolCall(context.Background(), p, weatherRequest0034()); err != nil {
 			t.Fatalf("GenerateToolCall: %v", err)
@@ -78,7 +79,7 @@ func TestGenerate_MessagesRouteOtherBadRequest_0034(t *testing.T) {
 	srv, seen := refusingServer(t, callReply0034,
 		`{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens: 999999 > 128000"}}`, true)
 	_, err := llmprovider.GenerateToolCall(context.Background(),
-		build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-other")...), weatherRequest0034())
+		build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-other", catalog.WithCache(new(catalog.Cache)))...), weatherRequest0034())
 	if !errors.Is(err, llmprovider.ErrInvalidRequest) || seen() != "tool" {
 		t.Errorf("err %v, tool_choice %s; want ErrInvalidRequest after one request", err, seen())
 	}
@@ -88,7 +89,7 @@ func TestGenerate_MessagesRouteOtherBadRequest_0034(t *testing.T) {
 // Zen's messages route refused for forcing is opened once more, degraded.
 func TestStream_MessagesRouteLearnsARefusal_0034(t *testing.T) {
 	srv, seen := refusingServer(t, llmtestMessagesStream, refusal0034, false)
-	p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-streams")...)
+	p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-streams", catalog.WithCache(new(catalog.Cache)))...)
 	req := weatherRequest0034()
 	req.ToolChoice = llmprovider.ForceTool("get_weather")
 	var done bool
@@ -111,7 +112,7 @@ func TestGenerate_MessagesRouteLearnedRequired_0034(t *testing.T) {
 	srv, seen := refusingServer(t, callReply0034, refusal0034, true)
 	req := weatherRequest0034()
 	req.ToolChoice = llmprovider.ToolChoiceRequired
-	_, err := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-required")...).Generate(context.Background(), req)
+	_, err := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-required", catalog.WithCache(new(catalog.Cache)))...).Generate(context.Background(), req)
 	if !errors.Is(err, llmprovider.ErrUnsupported) || !errors.As(err, new(*llmprovider.APIError)) || seen() != "any" {
 		t.Errorf("err %v, tool_choice %s; want ErrUnsupported wrapping the *APIError, after one request", err, seen())
 	}
@@ -119,7 +120,7 @@ func TestGenerate_MessagesRouteLearnedRequired_0034(t *testing.T) {
 	srv, _ = refusingServer(t, `{"stop_reason":"end_turn","content":[{"type":"text","text":"{}"}]}`, refusal0034, false)
 	req = weatherRequest0034()
 	req.ToolChoice = llmprovider.ForceTool("get_weather")
-	resp, err := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-warns")...).Generate(context.Background(), req)
+	resp, err := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "claude-future-zen-warns", catalog.WithCache(new(catalog.Cache)))...).Generate(context.Background(), req)
 	if err != nil || len(resp.Warnings) != 1 || resp.Warnings[0].Kind != llmprovider.WarningForcedChoiceLearned {
 		t.Errorf("Generate = %+v, %v; want one learned warning", resp, err)
 	}

@@ -26,7 +26,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
 - **R2. A package holds one concern**, and imports only what the table allows.
   Only `wizard` may leave the standard library, and then only for
   `golang.org/x/term`. (0015 D2, D13; the table's `internal/wire` rows, 0026
-  F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1)
+  F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1, 0049 D3)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
@@ -34,7 +34,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
   | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref` |
   | `llmprovider/internal/kiloendpoint` | Kilo's endpoints, derived from a credential | the standard library |
-  | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport` |
+  | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport`, `internal/wire/messages` |
   | `llmprovider/internal/listlimit` | `catalog.WithLimit`'s value, for `catalog` and the providers that cut their own fallback listings with it | the standard library |
   | `llmprovider/internal/chatgpt` | a ChatGPT session's check, headers and listing request, and a ChatGPT plan session's check and listing request, for `catalog`'s `ListRaw` and `providers/openai` | `llmprovider`, `auth`, `internal/transport` |
   | `llmprovider/internal/retired` | the retired model ids, with why (0033-MADR D4) | `llmprovider` |
@@ -298,15 +298,14 @@ These rules are
 
 - **R49. A caller can own the caches.** What the catalog and the providers
   keep in memory between calls, the listings and their models' metadata, the
-  models.dev document and the models that answered a probe, is held in a
+  models.dev document, the models that answered a probe and the models a
+  provider learned refuse a forced tool choice (0034 D3), is held in a
   `catalog.Cache`: its zero value is ready, and it is safe for concurrent
   use. `catalog.WithCache` gives one to a listing or to a provider's `New`,
   and `providers.DefaultWith` to every built-in provider a `Registry`
-  builds; without it, the process's cache is used. One memory stays
-  process-wide, which no option replaces: the models a provider learned
-  refuse a forced tool choice, at most 256 (0034 D3). A new in-memory cache
+  builds; without it, the process's cache is used. A new in-memory cache
   goes into `catalog.Cache`, never into a package variable a caller cannot
-  replace. (0048 D1)
+  replace. (0048 D1; 0049 D3)
 - **R50. Every public package has an example** that runs offline, over
   `llmtest.Fake` or `httptest`, with an `// Output:` comment, so that `go
   test` runs it. The package comments of `llmprovider`, `providers` and
