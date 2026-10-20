@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-20
 decision-makers: repository owner
 consulted: GitHub issue 4 ("WithRetry buffers a stream", 2026-10-20); this module at b5583cf (v1.18.0 is d19f7a3); gobble-cli at 6ab7928; a prototype and probes on a scratch copy of b5583cf (method below); 0031-MADR-native-streaming-on-the-responses-wire.md (D4, D6, Q1); 0044-MADR-observe-retries.md

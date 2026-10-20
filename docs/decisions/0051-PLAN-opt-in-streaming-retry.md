@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-20
 associated-madr: "0051-MADR-opt-in-streaming-retry.md"
 decision-makers: repository owner
@@ -315,3 +315,17 @@ provider package keeping its scripts at two):
 | C21 | The provider guide's streaming rule | `docs/guides/adding-a-provider.md:135` | `` - Declare `NativeStreaming` `Supported` only if you implement `Streamer`. `` |
 
 ## Execution record
+
+### Phase 0: records (2026-10-20)
+
+* **No deviation.** The owner committed the MADR and this PLAN, with Q3
+  as revised, as `ea4fddb`.
+* **Step 1,** `tools/records.py status`: the MADR `accepted`, this PLAN
+  `in-progress`, each with its index row; "records-check: 0 problem(s)".
+* **Step 2,** 0031-MADR's "Amendment (2026-10-20): live text through a
+  retry, opt-in", before its `### Consequences` (C13): D6 stands for
+  `WithRetry` and `WithRetryNotify`, its last bullet (C8) holds for those
+  two and no longer for the module, and D6's text is not rewritten.
+* **The checks:** `tools/claims.py`, 14 of 14 and 18 of 18; `make
+  records-check`, 0 problems; `tools/recordlint.py --changed`, no rule rose;
+  `tools/linkcheck.py`, 0 problems; `tools/gate.py`, 27 of 27 passed.

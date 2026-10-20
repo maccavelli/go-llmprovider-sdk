@@ -493,6 +493,19 @@ deviations D1 and D2). This settles E1, E3 and E5.
 
   **Answer: one shared reader, with the Responses benchmarks held.**
 
+### Amendment (2026-10-20): live text through a retry, opt-in
+
+[0051-MADR-opt-in-streaming-retry.md](0051-MADR-opt-in-streaming-retry.md)
+adds `WithStreamRetry`, for a caller who wants live text and a retry
+together: a failure before the first event is retried under the policy, and
+one after it ends the stream, Q1's first answer for that caller only.
+
+* D6 stands for `WithRetry` and `WithRetryNotify`: buffered, retried whole,
+  nothing repeated.
+* D6's last bullet, "Live deltas and `WithRetry` are therefore exclusive",
+  holds for those two and no longer for the module: a caller of
+  `WithStreamRetry` has both. D6's text is not rewritten.
+
 ### Consequences
 
 * Good, because `Stream` delivers text as it is generated for `openai`,
