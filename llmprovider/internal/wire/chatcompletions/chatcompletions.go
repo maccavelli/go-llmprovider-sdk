@@ -555,8 +555,30 @@ type chatStream struct {
 	raw                                           chatReply
 	content, refusal, reasoningContent, reasoning strings.Builder
 	calls                                         []*streamCall
-	details                                       []map[string]any
+	details                                       []*streamDetail
 	yield                                         func(llmprovider.Event) bool
+}
+
+// streamDetail is one reasoning_details entry as its fragments arrive: the
+// strings a stream splits accumulate in builders, so a stream of many
+// fragments costs time linear in its length (0053-MADR D1), and any other
+// field keeps its first value.
+type streamDetail struct {
+	fields map[string]any
+	split  map[string]*strings.Builder
+}
+
+// value is the entry as one object: its fields, and each split string,
+// joined.
+func (d *streamDetail) value() map[string]any {
+	entry := make(map[string]any, len(d.fields)+len(d.split))
+	for k, v := range d.fields {
+		entry[k] = v
+	}
+	for k, b := range d.split {
+		entry[k] = b.String()
+	}
+	return entry
 }
 
 // Events reads a Chat Completions event stream and yields its events as they
@@ -594,7 +616,7 @@ func (s *chatStream) done() (bool, error) {
 		msg.ToolCalls = append(msg.ToolCalls, call)
 	}
 	for _, detail := range s.details {
-		entry, err := json.Marshal(detail)
+		entry, err := json.Marshal(detail.value())
 		if err != nil {
 			return false, fmt.Errorf("%s: reasoning_details: %w", s.provider, err)
 		}
@@ -653,6 +675,11 @@ func (s *chatStream) chunk(payload []byte) (bool, error) {
 // reasoning and text are yielded.
 func (s *chatStream) delta(delta chunkDelta) (bool, error) {
 	for _, tc := range delta.ToolCalls {
+		// The index is the service's: checked before it grows the slice
+		// (0053-MADR D2).
+		if err := wire.StreamIndex(s.provider, "tool_calls", tc.Index); err != nil {
+			return false, err
+		}
 		for len(s.calls) <= tc.Index {
 			s.calls = append(s.calls, &streamCall{})
 		}
@@ -703,10 +730,13 @@ func (s *chatStream) detail(entry json.RawMessage) error {
 	}
 	index := 0
 	if f, ok := fragment["index"].(float64); ok {
-		index = int(f)
+		var err error
+		if index, err = wire.StreamIndexNumber(s.provider, "reasoning_details", f); err != nil {
+			return err
+		}
 	}
 	for len(s.details) <= index {
-		s.details = append(s.details, map[string]any{})
+		s.details = append(s.details, &streamDetail{fields: map[string]any{}, split: map[string]*strings.Builder{}})
 	}
 	mergeDetail(s.details[index], fragment)
 	return nil
@@ -715,7 +745,7 @@ func (s *chatStream) detail(entry json.RawMessage) error {
 // mergeDetail adds one reasoning_details fragment to its entry: the strings a
 // stream splits (text, summary, data, signature) are joined, and any other
 // field keeps its first value.
-func mergeDetail(entry, fragment map[string]any) {
+func mergeDetail(entry *streamDetail, fragment map[string]any) {
 	for k, v := range fragment {
 		switch k {
 		case "text", "summary", "data", "signature":
@@ -723,13 +753,15 @@ func mergeDetail(entry, fragment map[string]any) {
 			if !ok {
 				continue
 			}
-			if prev, ok := entry[k].(string); ok {
-				next = prev + next
+			b := entry.split[k]
+			if b == nil {
+				b = &strings.Builder{}
+				entry.split[k] = b
 			}
-			entry[k] = next
+			b.WriteString(next)
 		default:
-			if _, ok := entry[k]; !ok {
-				entry[k] = v
+			if _, ok := entry.fields[k]; !ok {
+				entry.fields[k] = v
 			}
 		}
 	}

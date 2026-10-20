@@ -35,7 +35,10 @@ var (
 // ErrProviderUnavailable, and so is a stream that ends before dispatch says
 // stop, naming done, the event it lacked: both are marked
 // transport.AfterReply, since the service may have generated the answer, so
-// WithRetry asks again at most once (0021-MADR D1).
+// WithRetry asks again at most once (0021-MADR D1). So is dispatch's error,
+// such as a failure event the service sent inside the stream: the service
+// had begun its reply, so WithRetry and WithStreamRetry ask again at most
+// once (0053-MADR D3). The mark changes neither its text nor its kind.
 func ReadEvents(provider string, body io.Reader, done string, dispatch func(data []byte) (stop bool, err error)) error {
 	reader := bufio.NewReaderSize(body, 64<<10)
 	var data []byte
@@ -56,7 +59,7 @@ func ReadEvents(provider string, body io.Reader, done string, dispatch func(data
 		switch {
 		case len(line) == 0 && err == nil:
 			if stop, err := next(); stop || err != nil {
-				return err
+				return transport.AfterReply(err)
 			}
 		case bytes.HasPrefix(line, dataPrefix):
 			if len(data) > 0 {
@@ -77,7 +80,7 @@ func ReadEvents(provider string, body io.Reader, done string, dispatch func(data
 		}
 	}
 	if stop, err := next(); stop || err != nil {
-		return err
+		return transport.AfterReply(err)
 	}
 	return fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, provider,
 		transport.AfterReply(fmt.Errorf("stream ended before %s", done)))

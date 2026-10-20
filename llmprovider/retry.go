@@ -67,7 +67,8 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 // than exhausted quota, an unavailable service, or a failure to reach it.
 //
 //   - A failure while reading a reply the service had begun to send, such as a
-//     cut connection or a stream that ended early, is retried at most once per
+//     cut connection, a stream that ended early, or a failure the service
+//     reports inside the stream (0053-MADR D3), is retried at most once per
 //     Generate: the lost reply may have been generated and billed (0021-MADR
 //     D1). So is a failure after the request was written, such as a timeout
 //     awaiting the reply's headers (0028-MADR D-H1). That retry counts

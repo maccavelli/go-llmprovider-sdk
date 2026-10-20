@@ -12,6 +12,16 @@ section.
 
 ### Changed
 
+- A failure the service reports inside a 200 event stream, such as
+  Responses' `response.failed` or Messages' `error` event, is retried at
+  most once per call by `WithRetry`, and by `WithStreamRetry` before the
+  first event, as a failure while reading a reply already was, as
+  [0053-MADR](docs/decisions/0053-MADR-stream-retry-and-cache-defects.md)
+  decides (D3). It was retried up to `MaxAttempts` times, each attempt
+  perhaps billed.
+- A stream whose tool-call, content-block, step or reasoning-entry index is
+  negative or 4096 or more ends with an error matching `ErrIncomplete`
+  (D2).
 - A push to `main` or a pull request that changes only Markdown runs a
   one-job Docs workflow, not the full CI: the gates that read Markdown
   (`parity-check`, `records-check`, `tables-check`, `changelog-check`) and
@@ -19,6 +29,16 @@ section.
   [0052-MADR](docs/decisions/0052-MADR-skip-full-ci-for-docs-only-pushes.md)
   decides. Every other change, every tag (and so every GitHub Release) and
   the weekly run keep the full CI. The module's code is unchanged.
+
+### Fixed
+
+- Chat Completions' `reasoning_details`, generateContent's text parts and
+  Gemini Interactions' thought signatures accumulate in builders: a stream
+  of N fragments took time and memory growing with N², 540 MiB for 16,000
+  four-byte fragments (D1).
+- A negative index in a Chat Completions, Messages or Gemini Interactions
+  stream panicked the caller, and a large one allocated a slot for every
+  index below it; both now end the stream with `ErrIncomplete` (D2).
 
 ## [v1.19.0] - 2026-10-20
 

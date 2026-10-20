@@ -406,12 +406,17 @@ type blockText struct {
 func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
 	var m message
 	var texts []*blockText
-	at := func(i int) (*block, *blockText) {
+	// at is the block a content_block event's index names. The index is the
+	// service's: checked before it grows the blocks (0053-MADR D2).
+	at := func(i int) (*block, *blockText, error) {
+		if err := wire.StreamIndex(provider, "content_block", i); err != nil {
+			return nil, nil, err
+		}
 		for len(m.Content) <= i {
 			m.Content = append(m.Content, block{})
 			texts = append(texts, &blockText{})
 		}
-		return &m.Content[i], texts[i]
+		return &m.Content[i], texts[i], nil
 	}
 	dispatch := func(payload []byte) (bool, error) {
 		var ev streamEvent
@@ -422,10 +427,16 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 		case "message_start":
 			m.Model, m.Usage = ev.Message.Model, ev.Message.Usage
 		case "content_block_start":
-			b, _ := at(ev.Index)
+			b, _, err := at(ev.Index)
+			if err != nil {
+				return false, err
+			}
 			*b = ev.ContentBlock
 		case "content_block_delta":
-			_, t := at(ev.Index)
+			_, t, err := at(ev.Index)
+			if err != nil {
+				return false, err
+			}
 			switch ev.Delta.Type {
 			case "text_delta":
 				t.text.WriteString(ev.Delta.Text)
@@ -439,7 +450,10 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 				t.args.WriteString(ev.Delta.PartialJSON)
 			}
 		case "content_block_stop":
-			b, t := at(ev.Index)
+			b, t, err := at(ev.Index)
+			if err != nil {
+				return false, err
+			}
 			b.Text += t.text.String()
 			b.Thinking += t.thinking.String()
 			b.Signature += t.signature.String()

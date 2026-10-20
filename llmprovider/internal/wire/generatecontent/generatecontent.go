@@ -282,6 +282,7 @@ func (raw reply) response() (*llmprovider.Response, error) {
 // response (0031-MADR D4).
 func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool) error {
 	raw := reply{Candidates: []candidate{{}}}
+	var parts streamParts
 	return wire.ReadEvents(provider, body, "a finishReason", func(payload []byte) (bool, error) {
 		var chunk reply
 		if err := json.Unmarshal(payload, &chunk); err != nil {
@@ -306,7 +307,7 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 		}
 		next := chunk.Candidates[0]
 		for _, part := range next.Content.Parts {
-			raw.Candidates[0].Content.Parts = appendPart(raw.Candidates[0].Content.Parts, part)
+			parts.add(part)
 			if part.Text != "" && !part.Thought && part.FunctionCall == nil &&
 				!yield(llmprovider.Event{Type: llmprovider.EventTextDelta, Text: part.Text}) {
 				return true, nil
@@ -316,6 +317,7 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 			return false, nil
 		}
 		raw.Candidates[0].FinishReason = next.FinishReason
+		raw.Candidates[0].Content.Parts = parts.all()
 		resp, err := raw.response()
 		if err != nil {
 			return false, err
@@ -330,19 +332,42 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 	})
 }
 
-// appendPart adds one streamed part to parts: a text part joins a text part
-// before it, and a thought part a thought part, as a whole reply sends one of
-// each; a signature is kept wherever it arrives.
-func appendPart(parts []replyPart, part replyPart) []replyPart {
-	if n := len(parts); n > 0 && part.FunctionCall == nil && parts[n-1].FunctionCall == nil &&
-		parts[n-1].Thought == part.Thought && parts[n-1].Text != "" {
-		parts[n-1].Text += part.Text
+// streamParts is a reply's parts as they stream: a text part joins a text
+// part before it, and a thought part a thought part, as a whole reply sends
+// one of each; a signature is kept wherever it arrives. The text joining the
+// last part is held in a builder, so a stream of many parts costs time linear
+// in its length (0053-MADR D1).
+type streamParts struct {
+	parts []replyPart
+	tail  strings.Builder // text joining parts[len(parts)-1], not yet in it
+}
+
+// add adds one streamed part.
+func (p *streamParts) add(part replyPart) {
+	if n := len(p.parts); n > 0 && part.FunctionCall == nil && p.parts[n-1].FunctionCall == nil &&
+		p.parts[n-1].Thought == part.Thought && p.parts[n-1].Text != "" {
+		p.tail.WriteString(part.Text)
 		if part.ThoughtSignature != "" {
-			parts[n-1].ThoughtSignature = part.ThoughtSignature
+			p.parts[n-1].ThoughtSignature = part.ThoughtSignature
 		}
-		return parts
+		return
 	}
-	return append(parts, part)
+	p.flush()
+	p.parts = append(p.parts, part)
+}
+
+// flush writes the held text into the last part.
+func (p *streamParts) flush() {
+	if p.tail.Len() > 0 {
+		p.parts[len(p.parts)-1].Text += p.tail.String()
+		p.tail.Reset()
+	}
+}
+
+// all is every part, joined.
+func (p *streamParts) all() []replyPart {
+	p.flush()
+	return p.parts
 }
 
 // callID is a call's own id, or "name#index" for a service that sends none,

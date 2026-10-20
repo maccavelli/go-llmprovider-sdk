@@ -205,7 +205,7 @@ keep 0028-MADR D-A3; Q2: a stream-index bound of 4096; Q3: `v1.20.0`):
      byte-for-byte equal to the entry sent whole. The existing
      `reasoning_details` replay tests pass unchanged.
    * **F2, every decoder:** `TestStreamIndex_0053`, a table over the four
-     decoders (C3 to C6). Index `-1`, index `4096` and index `1e9` each give
+     decoders (C3 to C6). Index `-1`, index `4096` and index ~~`1e9`~~ 100,000 *(Phase 1 deviation: safe to plant)* each give
      an error matching `ErrIncomplete` that names the field, with no panic
      and less than 1 MiB allocated. Index `4095` is accepted.
    * **F2, through a provider:** `TestStream_IndexOutOfRange_0053` in
@@ -476,3 +476,129 @@ keep 0028-MADR D-A3; Q2: a stream-index bound of 4096; Q3: `v1.20.0`):
 * **The checks:** `tools/claims.py`, 22 of 22 and 31 of 31; `make
   records-check`, 0 problems; `tools/recordlint.py --changed`, no rule rose;
   `tools/linkcheck.py`, 0 problems; `tools/gate.py`, 27 of 27 passed.
+
+### Phase 1: the streams (2026-10-20)
+
+* Phase 0 was committed by the owner as `882272f`.
+* **Deviations (2026-10-20), no decision changed,** offered to the owner
+  before the commit:
+  * **Step 5's large index is 100,000, not 1e9.** The first run of step 7's
+    plants had to be stopped: with a check planted away, index 1e9 made the
+    decoder allocate a slot for every index below it, which would have
+    exhausted the machine's memory. Index 100,000 still proves the bound:
+    unchecked it allocates about 50 MB, fifty times the test's 1 MiB limit,
+    and it is safe to plant. Step 5's text is annotated, not rewritten.
+  * **`TestStreamIndex_0053` is one test per package,** in
+    `chatcompletions`, `messages` and `providers/gemini`, not one table.
+    The four decoders live in three packages, and Gemini's
+    `interactionEvents` is unexported.
+  * **Step 1's helper has a sibling,** `StreamIndexNumber`, for
+    `reasoning_details`' index, which arrives as a JSON number. It refuses a
+    value that is not finite or not whole before converting it. Both are in
+    an internal package, so no exported name changes.
+* **Step 1, the bound** (D2), `internal/wire/index.go`: `MaxStreamIndex =
+  4096`, `StreamIndex` and `StreamIndexNumber`, each an error matching
+  `ErrIncomplete`, "stream <field> index <i> out of range (0 to 4095)". They
+  are used at all four places:
+  * Chat Completions' tool calls, before the growth loop;
+  * Chat Completions' `reasoning_details`, on the float;
+  * Messages' `at()`, which now returns an error to its three callers;
+  * Gemini Interactions' `step()`, which now returns an error to its two
+    callers.
+* **Step 2, the builders** (D1):
+  * **Chat Completions:** `streamDetail` keeps an entry's first-value fields
+    and a `strings.Builder` per split string. `value()` joins them at
+    `[DONE]`, and the map marshals as before.
+  * **generateContent:** `streamParts` holds the text joining the last part
+    in a builder, flushed when a part that does not merge arrives, and
+    before the reply is built.
+  * **Gemini Interactions:** a signature builder per step, added after the
+    start's signature at `completed`.
+* **Step 3, the mark** (D3): `ReadEvents` returns
+  `transport.AfterReply(err)` at both dispatch call sites. `AfterReply(nil)`
+  is nil, so a clean stop is unchanged.
+* **The drift check:** after steps 1 to 3, before any new test,
+  `go test -race -count=1 ./...` passed in all 36 packages, unchanged.
+* **Step 4, the docs:**
+  * `ReadEvents`' doc (C9) and `WithRetry`'s (C10);
+  * `docs/architecture.md`'s `internal/wire` row (the mark and the bound)
+    and its `WithRetry` entry (C23);
+  * `CHANGELOG.md` `[Unreleased]`: Changed (D3, D2) and Fixed (D1, D2),
+    beside 0052's Changed entry.
+
+  `make docs-check`, "sdkaudit: 0 violation(s) of R50,R51,R52"; `make
+  changelog-check`, "27 release section(s), 0 problem(s)"; `make
+  tables-check`, "38 packages, 0 problem(s)"; `make parity-check`, "409
+  identifiers, 409 rows, 409 with an SDK equivalent, 0 problem(s)";
+  markdownlint on both files, no finding.
+* **Step 5, the tests,** under `-race`, each passing:
+  * **F1:**
+    * `TestEvents_ReasoningDetailsLinear_0053` and
+      `TestEvents_TextPartsLinear_0053`: the least of three runs of
+      `TotalAlloc`, under 12 times for eight times the fragments;
+    * `BenchmarkEvents_ReasoningDetails_0053` and
+      `BenchmarkEvents_TextParts_0053`;
+    * `TestReasoningDetailsReplay_0053`: `text`, `summary` and `signature`
+      split, `format` kept at its first value; EventDone's Response equals
+      `Decode`'s on the entry sent whole;
+    * `TestInteractionSignature_0053`: the start's signature, then two
+      deltas, give "abc" on the call that follows. A first draft looked for
+      it on a reasoning item; a thought step's signature goes to the next
+      call, and the test was corrected.
+  * **F2:**
+    * `TestStreamIndex_0053`, in the three packages: -1, 4096 and 100,000,
+      each `ErrIncomplete` naming the field, with no panic and, in Chat
+      Completions, under 1 MiB allocated. 4095 passes the bound (in
+      Messages and Gemini, where the test's answer is empty, the check is
+      that no error says "out of range");
+    * `TestStreamIndex_Helpers_0053` (`internal/wire`);
+    * `TestStream_IndexOutOfRange_0053` (Hugging Face's public `Stream`).
+  * **F3:**
+    * `TestReadEvents_DispatchErrorMarked_0053`: marked at an event and at
+      the stream's end, with the text and kind unchanged; over the limit,
+      unmarked; a clean stop, nil;
+    * `TestGenerate_InStreamFailureOnce_0053`: 2 requests at `MaxAttempts` 3
+      and 5;
+    * `TestStreamRetry_InStreamFailureBeforeFirstEvent_0053`: 2 requests
+      before the first event, 1 after a delta.
+* **Step 6, the MADR's probe,** unchanged, on a copy of the working tree:
+  * **M1:** Chat Completions' `reasoning_details` allocates 1,689, 3,226,
+    6,406 and 12,688 KiB for 2,000 to 16,000 fragments, against 10,048 to
+    552,955 KiB before. generateContent allocates 492 to 3,167 KiB, against
+    8,814 to 543,276 KiB.
+  * **M2:** each decoder, at index -1, returns "llmprovider: incomplete
+    response: probe: stream <field> index -1 out of range (0 to 4095)",
+    with no panic. Index 1,000,000 allocates 0 MiB, against 505 MiB before.
+  * **M3:** Hugging Face's public `Stream`: no panic.
+  * **M4:** the ChatGPT `Generate`, 2 requests at `MaxAttempts` 3 and 5,
+    `afterReply=true`, against 3 and 5. Claude's `Stream` after a delta: 1
+    request, passed through.
+* **Step 7, red first,** ten plants, each caught by a failing test, none by
+  a failed build:
+
+  | Plant | Failure line |
+  | :--- | :--- |
+  | `reasoning_details` joined by copying, as before | "16,000 fragments allocated 1118685600 bytes, 2,000 allocated 18763584: 59.6 times; want under 12" |
+  | generateContent parts joined with `+=`, as before | "61.8 times; want under 12" |
+  | Chat Completions' tool-call index unchecked | "tool_calls -1: err <nil>, panic runtime error: index out of range [-1]" |
+  | Chat Completions' `reasoning_details` index unchecked | "reasoning_details -1: … panic runtime error: index out of range [-1]" |
+  | Messages' content-block index unchecked | "content_block_start index -1: … panic runtime error: index out of range [-1]" |
+  | Gemini Interactions' step index unchecked | "step.start index -1: … panic" |
+  | `ReadEvents`' mark removed at an event | the reader's test, `TestGenerate_InStreamFailureOnce_0053` ("MaxAttempts 3: 3 requests … want 2") and the stream retry test ("before the first event: 3 requests … want 2") |
+  | `ReadEvents`' mark removed at the stream's end | "at the stream end: … (after the reply: false)" |
+  | the split strings not written at `[DONE]` | the replay test, its Encrypted entry lacking text, summary and signature |
+  | Gemini's signature deltas not joined | "the call's signature \"a\"; want \"abc\"" |
+
+  The plant command carries `-timeout 180s`, after the stopped first run.
+  The plants were run again after the last test edit (the lint fix
+  below), all caught.
+* **The checks:**
+  * `tools/apidiff.py v1.19.0`: no output, exit 0;
+  * `make coverage-check`: "37 packages, 0 problem(s)" (`internal/wire`
+    95.8 %, `chatcompletions` 94.6 %, `generatecontent` 97.4 %, `messages`
+    91.3 %, `gemini` 96.7 %);
+  * `make pre-add-check` on the 14 Go files: "14 file(s) clean". A first
+    run found staticcheck's ST1008 in two test helpers that returned
+    their error first; they now return it last, and the plants were run
+    again after the fix, all caught;
+  * `tools/gate.py`: 27 of 27 passed.

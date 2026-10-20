@@ -258,6 +258,7 @@ type interactionStream struct {
 	raw      interaction
 	text     []*strings.Builder // each step's text deltas
 	args     []*strings.Builder // each step's argument fragments
+	sig      []*strings.Builder // each step's signature deltas (0053-MADR D1)
 	yield    func(llmprovider.Event) bool
 }
 
@@ -294,7 +295,11 @@ func (s *interactionStream) event(payload []byte) (bool, error) {
 	case "interaction.created":
 		s.raw.ID, s.raw.Model = ev.Interaction.ID, ev.Interaction.Model
 	case "step.start":
-		*s.step(ev.Index) = ev.Step
+		step, err := s.step(ev.Index)
+		if err != nil {
+			return false, err
+		}
+		*step = ev.Step
 	case "step.delta":
 		return s.delta(ev)
 	case "interaction.completed":
@@ -303,19 +308,27 @@ func (s *interactionStream) event(payload []byte) (bool, error) {
 	return false, nil
 }
 
-// step is the step at index, grown to it.
-func (s *interactionStream) step(index int) *interactionStep {
+// step is the step at index, grown to it. The index is the service's:
+// checked before it grows the steps (0053-MADR D2).
+func (s *interactionStream) step(index int) (*interactionStep, error) {
+	if err := wire.StreamIndex(s.provider, "step", index); err != nil {
+		return nil, err
+	}
 	for len(s.raw.Steps) <= index {
 		s.raw.Steps = append(s.raw.Steps, interactionStep{})
 		s.text = append(s.text, &strings.Builder{})
 		s.args = append(s.args, &strings.Builder{})
+		s.sig = append(s.sig, &strings.Builder{})
 	}
-	return &s.raw.Steps[index]
+	return &s.raw.Steps[index], nil
 }
 
 // delta adds one step delta.
 func (s *interactionStream) delta(ev interactionEvent) (bool, error) {
-	step := s.step(ev.Index)
+	step, err := s.step(ev.Index)
+	if err != nil {
+		return false, err
+	}
 	switch ev.Delta.Type {
 	case jsonKeyText:
 		s.text[ev.Index].WriteString(ev.Delta.Text)
@@ -323,7 +336,7 @@ func (s *interactionStream) delta(ev interactionEvent) (bool, error) {
 			return !s.yield(llmprovider.Event{Type: llmprovider.EventTextDelta, Text: ev.Delta.Text}), nil
 		}
 	case "thought_signature":
-		step.Signature += ev.Delta.Signature
+		s.sig[ev.Index].WriteString(ev.Delta.Signature)
 	case "arguments_delta":
 		var fragment string
 		if err := json.Unmarshal(ev.Delta.Arguments, &fragment); err == nil {
@@ -354,6 +367,7 @@ func (s *interactionStream) completed(final interaction) (bool, error) {
 		if s.args[i].Len() > 0 {
 			step.Arguments = json.RawMessage(s.args[i].String())
 		}
+		step.Signature += s.sig[i].String()
 	}
 	resp, err := s.raw.response()
 	if err != nil {
