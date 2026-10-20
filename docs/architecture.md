@@ -27,6 +27,7 @@ Makefile                    development targets (below)
 .golangci.yml               golangci-lint configuration
 .markdownlint-cli2.jsonc    Markdown lint configuration
 .github/workflows/ci.yml    CI
+.github/workflows/docs.yml  Docs: the Markdown gates, for a Markdown-only change
 scripts/go-precheck.sh      the pre-add check
 scripts/check_parity_map.py G-parity: the mcplib migration map is complete
 scripts/check_deps.py       dep-check: only wizard leaves the standard library
@@ -937,6 +938,18 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   tag's GitHub Release with its `CHANGELOG.md` section as the notes, each
   relative link pointed at its file at the tag (0048-MADR D5; 0048-PLAN
   Phase 5 step 7).
+
+  A push to `main` or a pull request that changes only Markdown skips it
+  (`paths-ignore: ['**.md']`). **Docs** (`.github/workflows/docs.yml`) runs
+  instead, on one Linux runner, with `ci.yml`'s checkout of the full
+  history and its Go version: `make parity-check records-check tables-check
+  changelog-check gate-selftest`, the gates that read Markdown and the
+  gates' self-test, whose plants replace exact strings in the docs. A
+  change to anything else runs CI, and Docs too when it also changes
+  Markdown or `docs.yml`. GitHub does not filter a tag push, and the weekly
+  run is not a push, so both always run CI in full, and a Release still
+  follows a full `validate`
+  ([0052-MADR](decisions/0052-MADR-skip-full-ci-for-docs-only-pushes.md)).
 
 ## What is not here
 

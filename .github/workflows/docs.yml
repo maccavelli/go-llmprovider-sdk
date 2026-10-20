@@ -1,0 +1,39 @@
+name: Docs
+
+# Checks a change to Markdown alone, which ci.yml skips: the gates that
+# read Markdown (parity, records, tables, changelog) and the gates'
+# self-test, whose plants replace exact strings in the docs and whose
+# clean test runs every gate. The steps are ci.yml's, by the same make
+# targets. A change to anything else runs ci.yml, and so does every tag
+# (docs/decisions/0052-MADR-skip-full-ci-for-docs-only-pushes.md).
+on:
+  push:
+    branches: [main]
+    paths: ['**.md', '.github/workflows/docs.yml']
+  pull_request:
+    paths: ['**.md', '.github/workflows/docs.yml']
+
+# A newer push to a pull request cancels its older run; main runs each push.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every tag, for changelog-check.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go mod download
+      - name: parity, records, the tables, the changelog, the gates' self-test (0052-MADR D2)
+        run: make parity-check records-check tables-check changelog-check gate-selftest

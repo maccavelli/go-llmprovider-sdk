@@ -146,7 +146,11 @@ is no `git add` hook on every host; do not rely on one.
 
 `make lint` and `make vuln` must be clean before a release-shaped change.
 CI also runs `make parity-check dep-check coverage-check api-check
-generate-check records-check tables-check fixtures-check changelog-check docs-check gate-selftest`; run them before asking for a push. A coverage floor is changed only in
+generate-check records-check tables-check fixtures-check changelog-check docs-check gate-selftest`; run them before asking for a push. A push or
+pull request that changes only Markdown runs `.github/workflows/docs.yml`
+instead, which runs `make parity-check records-check tables-check
+changelog-check gate-selftest`; a tag always runs CI in full
+(`docs/decisions/0052-MADR-skip-full-ci-for-docs-only-pushes.md`). A coverage floor is changed only in
 `scripts/coverage-floors.txt`, by a record.
 
 ## Tools

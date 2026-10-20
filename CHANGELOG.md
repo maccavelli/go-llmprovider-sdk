@@ -10,6 +10,16 @@ section.
 
 ## [Unreleased]
 
+### Changed
+
+- A push to `main` or a pull request that changes only Markdown runs a
+  one-job Docs workflow, not the full CI: the gates that read Markdown
+  (`parity-check`, `records-check`, `tables-check`, `changelog-check`) and
+  `gate-selftest`, as
+  [0052-MADR](docs/decisions/0052-MADR-skip-full-ci-for-docs-only-pushes.md)
+  decides. Every other change, every tag (and so every GitHub Release) and
+  the weekly run keep the full CI. The module's code is unchanged.
+
 ## [v1.19.0] - 2026-10-20
 
 ### Added
