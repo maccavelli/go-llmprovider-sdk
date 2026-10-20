@@ -378,3 +378,31 @@ all of D2a to D2d; Q3 the learned refusals in `catalog.Cache`):
   both caught (`New` without a memo, "cacheref_0049_test.go:11"; a memo
   for a nil Value, ":23"); `make pre-add-check` on it, clean;
   `tools/gate.py` on the final tree, 27 of 27 passed.
+
+### Phase 4: the tests 0048 left out (2026-10-19)
+
+* **No deviation.** Phase 3 was committed by the owner as `348035d`.
+* **Step 1, F5:** `probe_cache_0049_test.go` in `providers/gemini`,
+  `claude`, `grok` and `ollama`, as OpenAI's 0048 test: a provider built
+  `WithCache(&a)` with probes on probes its listing; a second listing
+  through `a` sends none; through `b`, and through the process's, it probes
+  again. Each server answers the probe in its wire's shape (Interactions,
+  Messages, Responses, Chat Completions), because the probe store keeps no
+  result without a healthy model: the existing probe tests fail every
+  probe, so they could not show it. Each passes twice under `-race`.
+* **Step 2, F6:** `wizard/signin_errors_0049_test.go`: a failed browser
+  sign-in (Grok, its browser method, `loginBrowserOAuth` stubbed) and a
+  failed ChatGPT plan sign-in (`stubPlanLogin`, the notice confirmed), each
+  returned as the login gave it, by `errors.Is` and its text.
+  `ConfigureLLM`'s doc names a failed sign-in's error, browser, device-code
+  or ChatGPT plan.
+* **Step 3, red first:** the MADR's six plants, NOT CAUGHT when the MADR was
+  written, all caught: the four providers passing no probe store
+  ("probe_cache_0049_test.go:40: step 2: 0 probes; want probes true", and
+  ":27" in `ollama`); the browser and the plan sign-in's error losing its
+  kind ("signin_errors_0049_test.go:35" and ":52": "… want the login's
+  error as it gave it").
+* **The checks:** `make docs-check`, 0; `tools/apidiff.py v1.16.0`, no
+  output, exit 0; `go test -count=1 ./...`, ok; `make pre-add-check` on the
+  six Go files, "6 file(s) clean"; `tools/gate.py` on the final tree, 27
+  of 27 passed.

@@ -148,9 +148,9 @@ func (o Options) lookupEnv() func(string) string {
 // and anything shown to the user is masked with redact.MaskSecret.
 //
 // A Prompter's error ends the flow and is returned, wrapped or as it is, so
-// errors.Is matches it; so is a failed device-code sign-in's, as
-// auth.LoginDeviceOAuth gave it. An ended ctx gives an error matching ctx's,
-// and a credential the provider refuses while its models are listed, one
+// errors.Is matches it; so is a failed sign-in's, browser, device-code or
+// ChatGPT plan, as the login gave it. An ended ctx gives an error matching
+// ctx's, and a credential the provider refuses while its models are listed, one
 // matching llmprovider.ErrAuthFailure. Options.Providers naming no provider
 // of the Registry, a Prompter's choice out of range, and no model chosen are
 // plain errors. A listing that fails otherwise is not an error: the flow
