@@ -327,3 +327,27 @@ interface in `List` and `ListRaw` matches `ErrInvalidRequest` too; Q1:
   coverage-check`, "37 packages, 0 problem(s)", `catalog` at 95.5 %; `make
   pre-add-check` on the four Go files, "4 file(s) clean"; `tools/gate.py`
   on the final tree, 27 of 27 passed.
+
+### Phase 3: release `v1.18.0` (2026-10-20)
+
+* **No deviation so far.** Phase 2 was committed by the owner as `6724d45`.
+* **Step 1.** `CHANGELOG.md`: `[Unreleased]` became `[v1.18.0] -
+  2026-10-20`, with Changed (Q2) and Fixed (D3, D4); an empty
+  `[Unreleased]` above it; the comparison links gain `v1.18.0`.
+  "changelog-check: 26 release section(s), 0 problem(s)". The date must be
+  the commit's that the tag names (R53). The README's Status names
+  `v1.18.0`. `tools/linkcheck.py`, 0 problem(s); markdownlint on both
+  files, no finding (its 189 are all in
+  `docs/reports/0011-REPORT-provider-source-compatibility-audit.md`, which
+  the configuration's globs add).
+* **`--section v1.18.0`** in the tree exits 1, "v1.18.0's section links
+  docs/decisions/0050-MADR-refuse-typed-nil-token-sources.md, which v1.18.0
+  lacks": it reads each link at the tag, and there is no tag yet. In a
+  local clone of `6724d45`, which holds the MADR, with this `CHANGELOG.md`
+  and a local `v1.18.0` tag, it exits 0 and prints the 14 lines of Changed
+  and Fixed, the MADR's link made absolute at `blob/v1.18.0`. It runs again
+  against the Release at step 3.
+* **Step 2, before the push:** `tools/gate.py`, 27 of 27 passed;
+  `tools/apidiff.py v1.17.0`, no output, exit 0: no exported name changed;
+  the disclosure guard over the outgoing commits, once this one is
+  committed, before the owner pushes.
