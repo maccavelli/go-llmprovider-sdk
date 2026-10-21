@@ -201,6 +201,34 @@ every Release) and the weekly run keep `ci.yml` exactly as it is.
 4. `### Verification, at closing`, `tools/records.py status` to
    `complete`. The MADR stays `accepted`.
 
+### Phase 4: the docs job's golangci-lint (MADR amendment A1, A2)
+
+Added 2026-10-20, by the owner's decision ("fix it option 1 + check"),
+after the docs job failed on its first two runs (execution record,
+"Deviation (2026-10-20): the docs job failed on its runs").
+
+1. **`docs.yml`:** after `go mod download`, a step that runs `go install
+   github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0`, the
+   line `ci.yml` runs, with a comment citing A1 and A2.
+2. **`scripts/test_gates.py`:** `WorkflowsTest`, as A2 gives it, with
+   `installs_before_selftest`, which reads a workflow's `go install`
+   targets above its `make … gate-selftest` line.
+3. **The documents:** the architecture's Docs paragraph names the
+   golangci-lint install and the test; `CHANGELOG.md`'s `[Unreleased]`
+   gains a Fixed entry.
+4. **Red first:**
+   * the precheck test, on this host, with `GOLANGCI_LINT` naming a
+     missing file, fails as the runs did;
+   * `tools/plant.py` on a scratch clone, with `WorkflowsTest` as its
+     command: docs.yml's install removed; at another version; moved after
+     the `make` step; `ci.yml`'s pin raised alone; docs.yml's `make` line
+     lacking `gate-selftest`. Each fails the test.
+5. **Checks:** `actionlint` on both workflows; `make gate-selftest`;
+   `tools/gate.py`; claims, records, recordlint, the link and identifier
+   checks.
+6. **Live:** after the owner pushes, "Docs" passes; its run id and time are
+   recorded, and so is the install step's time.
+
 ## Verification
 
 | # | Criterion | Phase | Check |
@@ -212,6 +240,8 @@ every Release) and the weekly run keep `ci.yml` exactly as it is.
 | V5 | A docs-only push ran only "Docs"; a non-Markdown push ran "CI" | 3 | the run ids |
 | V6 | The next tag ran the full CI and made its Release | later | that release's PLAN |
 | V7 | The architecture, AGENTS.md and the changelog say so | 2 | the files; link, identifier and lint checks |
+| V8 | The docs job installs golangci-lint at `ci.yml`'s pin, and its `gate-selftest` passes on a runner | 4 | the file; the first "Docs" run after the push |
+| V9 | `WorkflowsTest` fails on each planted break, and passes on the tree | 4 | `tools/plant.py` |
 
 ## Rollout and Rollback
 
@@ -459,3 +489,91 @@ docs-only test.
 
 Not done: Phase 3 (the live checks and closing), which needs the owner's
 pushes. The plan stays `in-progress`.
+
+### Deviation (2026-10-20): the docs job failed on its runs
+
+* **Found** while `0053-PLAN-stream-retry-and-cache-defects.md`'s Phase 3
+  was being pushed: "Docs" failed on both of its runs, 39498970113 on
+  `882272f` and 39521616742 on `5c60593`. In each, the four Markdown gates
+  passed, and `gate-selftest` failed
+  `PrecheckTest.test_precheck_deleted_file_checks_its_package` (`2 != 1`,
+  "go-precheck: golangci-lint not found at …"): `Ran 36 tests`,
+  `FAILED (failures=1)`. "CI" passed on `882272f`. The cause and the
+  options are in the MADR's "Amendment 2026-10-20".
+* **Why Phase 1 did not see it.** X1 to X5 and the clean run ran on this
+  host, where golangci-lint is installed.
+* **Neither push tested Phase 3's docs-only case.** The push of `882272f`
+  also carried `90c69a6` (the workflows), and that of `5c60593` Go, so
+  "CI" ran for both. Phase 3 step 2 still needs a docs-only push.
+* **The decision:** the owner's, "fix it option 1 + check": the MADR's A1
+  and A2, executed as Phase 4. Files added: `.github/workflows/docs.yml`,
+  `scripts/test_gates.py`, `docs/architecture.md`, `CHANGELOG.md`.
+
+### Phase 4: the docs job's golangci-lint (2026-10-20)
+
+Done:
+
+* `docs.yml`: after `go mod download`, a comment of four lines and `- run:
+  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0`.
+* `scripts/test_gates.py`: `SELFTEST_STEP`, `GO_INSTALL`,
+  `installs_before_selftest` and `WorkflowsTest`, before the module's
+  `__main__` block.
+* `docs/architecture.md`'s Docs paragraph and `CHANGELOG.md`'s
+  `[Unreleased]` Fixed entry, as step 3 gives them.
+
+Seen failing (step 4), each exit status captured before any filter:
+
+```text
+$ GOLANGCI_LINT=<scratch>/no-such-golangci-lint python3 -B -m unittest scripts.test_gates.PrecheckTest
+AssertionError: 2 != 1 : go-precheck exit 2, want 1:
+go-precheck: golangci-lint not found at <scratch>/no-such-golangci-lint.
+FAILED (failures=1)                                                   (exit 1)
+$ python3 -B -m unittest scripts.test_gates.PrecheckTest
+OK                                                                    (exit 0)
+$ python3 -B tools/plant.py <spec>     (command: python3 -B -m unittest scripts.test_gates.WorkflowsTest)
+== docs.yml's install removed: caught (exit 1)
+   AssertionError: Lists differ: ['github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0'] != []
+== docs.yml's install at another version: caught (exit 1)
+   AssertionError: Lists differ: ['github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0'] != []
+== docs.yml's install moved after the make step: caught (exit 1)
+   AssertionError: Lists differ: ['github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0'] != []
+== ci.yml's pin raised alone: caught (exit 1)
+   AssertionError: Lists differ: ['github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0'] != []
+== docs.yml's make line without gate-selftest: caught (exit 1)
+   AssertionError: unexpectedly None : docs.yml has no `make … gate-selftest` line
+== ci.yml installs nothing before gate-selftest: caught (exit 1)
+   AssertionError: [] is not true : ci.yml installs nothing before gate-selftest; the precheck test needs golangci-lint
+plant: all 6 plant(s) caught                                          (exit 0)
+$ python3 -B -m unittest scripts.test_gates.WorkflowsTest
+OK                                                                    (exit 0)
+```
+
+The first line reproduces the runs' failure on this host; the scratch
+path is shortened to `<scratch>`.
+
+Checks (step 5):
+
+```text
+$ actionlint .github/workflows/ci.yml .github/workflows/docs.yml
+(no output)                                                           (exit 0)
+$ python3 -B tools/gate.py
+gate: 27 of 27 passed                                                 (exit 0)
+$ python3 -B tools/claims.py <the MADR> <this PLAN>
+claims: …0052-MADR…: 36 of 36 pass; …0052-PLAN…: 12 of 12 pass         (exit 0)
+$ make records-check changelog-check tables-check
+records-check: 114 records, 0 problem(s)
+changelog-check: 28 release section(s), 0 problem(s)
+check-tables: 38 packages, 0 problem(s)                               (exit 0)
+$ python3 -B tools/recordlint.py --changed
+recordlint: 2 record(s); no rule rose                                 (exit 0)
+$ python3 -B tools/linkcheck.py
+G-links: 0 problem(s), 920 relative link(s) in 126 file(s)            (exit 0)
+$ python3 -B tools/denyscan.py --changed
+deny-scan: 0 hit(s) in 6 file(s)                                      (exit 0)
+```
+
+The first identifier scan found one hit, "a machine home path": the
+runner's home directory, in the MADR's quotation of the run's log. It is
+replaced by `<runner home>`, which the MADR says.
+
+Step 6, the live run, follows the owner's push.

@@ -234,6 +234,88 @@ sentence. `CHANGELOG.md`'s `## [Unreleased]` (C30) gains a "Changed" entry.
 * The next tag push shows a full "CI" run and its Release; that release's
   PLAN records it.
 
+## Amendment 2026-10-20: the docs job installs golangci-lint
+
+The owner decided this on 2026-10-20 ("fix it option 1 + check"), after
+the docs job had failed on each of its first two runs. D2 is not rewritten;
+A1 adds a step to it, and A2 a test.
+
+### What the runs showed
+
+* **Run 39498970113**, on `882272f`, and **run 39521616742**, on
+  `5c60593`: "Docs", `failure`. In both, `parity-check`, `records-check`,
+  `tables-check` and `changelog-check` passed, and `gate-selftest` failed
+  one test of 36:
+
+  ```text
+  FAIL: test_precheck_deleted_file_checks_its_package (scripts.test_gates.PrecheckTest.test_precheck_deleted_file_checks_its_package)
+  AssertionError: 2 != 1 : go-precheck exit 2, want 1:
+  go-precheck: golangci-lint not found at <runner home>/go/bin/golangci-lint.
+  ```
+
+  The runner's home directory is replaced by `<runner home>`.
+
+  "CI" passed on `882272f`, its `gate-selftest` included.
+* **The cause.** That test runs `scripts/go-precheck.sh`, which looks for
+  golangci-lint at `$(go env GOPATH)/bin/golangci-lint` and exits 2 when it
+  is not there (`scripts/go-precheck.sh`, its step 2). `ci.yml` installs it,
+  at `v2.14.0`, in its "vet, gofmt, tidy, lint" step, before its `make`
+  step. D2 gave the docs job `ci.yml`'s checkout, setup-go, `go mod
+  download` and `make` targets, but not that install.
+* **Why the Confirmation did not see it.** Its plants and its clean run ran
+  on this host, where golangci-lint is installed, so the precheck test
+  passed there. The defect shows only on a runner without it.
+
+### A1. The docs job installs golangci-lint at `ci.yml`'s pin
+
+After `go mod download` and before the `make` step, `docs.yml` runs `go
+install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0`,
+the line `ci.yml` runs, with a comment that says why. `gate-selftest` then
+runs in full, as D2 meant it to.
+
+### A2. A test keeps the two workflows' installs in step
+
+`scripts/test_gates.py` gains `WorkflowsTest`: every `go install` target
+that `ci.yml` runs before its `make … gate-selftest` line must appear in
+`docs.yml` before its own `make … gate-selftest` line, at the same version.
+It runs under `gate-selftest`, so both workflows run it. It fails when the
+docs job lacks one of `ci.yml`'s installs, has it at another version, or
+has it after the `make` step, and when either workflow has no `make …
+gate-selftest` line or `ci.yml` none of its installs.
+
+This narrows the Consequence "there are two workflows to keep in step": a
+tool the self-test needs is now checked. A new gate in one `make` line and
+not the other still is not.
+
+### Options considered
+
+* **A1 and A2** (chosen): the docs job runs what the self-test needs, and
+  a test says so.
+* **A1 alone:** the same fix, with nothing to catch the next tool `ci.yml`
+  adds before its self-test.
+* **The precheck test skipped when golangci-lint is missing:** the docs job
+  would pass, but a missing tool would then hide the precheck's own
+  failure, on any runner. Rejected: it removes a check to make a job pass.
+* **The docs job running `ci.yml`'s whole "vet, gofmt, tidy, lint" step:**
+  it would lint Go on a Markdown-only change, which is what D1 removes.
+
+### Consequences of A1 and A2
+
+* Good, because the docs job's `gate-selftest` passes on a runner, as on
+  this host, and fails only on what it checks.
+* Bad, because each docs run also builds golangci-lint; the time is
+  measured on the first run and recorded in the PLAN.
+* Neutral, because the pin is now in three places: `ci.yml`, `docs.yml`,
+  and `scripts/go-precheck.sh`'s install hint. A2 checks the first two.
+
+### Confirmation of A1 and A2
+
+* The precheck test, run on this host with `GOLANGCI_LINT` naming a missing
+  file, fails as the runs did.
+* `tools/plant.py` on a scratch clone: A2's test fails for each planted
+  break, and passes on the tree.
+* After the push, "Docs" passes; the PLAN records its run id and time.
+
 ## Pros and Cons of the Options
 
 ### A. `paths-ignore` only

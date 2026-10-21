@@ -35,5 +35,10 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go mod download
+      # gate-selftest's precheck test runs scripts/go-precheck.sh, which needs
+      # golangci-lint where ci.yml installs it, at ci.yml's pin; without it
+      # the test exits 2 (0052-MADR A1). scripts/test_gates.py checks that
+      # this job installs what ci.yml installs before its self-test (A2).
+      - run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
       - name: parity, records, the tables, the changelog, the gates' self-test (0052-MADR D2)
         run: make parity-check records-check tables-check changelog-check gate-selftest

@@ -10,6 +10,16 @@ section.
 
 ## [Unreleased]
 
+### Fixed
+
+- The Docs workflow installs golangci-lint at CI's pin, which the gates'
+  self-test needs for its precheck test; without it every Docs run failed
+  that test, as
+  [0052-MADR](docs/decisions/0052-MADR-skip-full-ci-for-docs-only-pushes.md)'s
+  amendment records (A1). A test now fails when the Docs workflow lacks a
+  tool that CI installs before its self-test (A2). The module's code is
+  unchanged.
+
 ## [v1.20.0] - 2026-10-20
 
 ### Changed

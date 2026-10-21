@@ -410,5 +410,36 @@ class GateSelfTest(unittest.TestCase):
                                                      f"{proc.stdout}{proc.stderr}")
 
 
+SELFTEST_STEP = re.compile(r"^\s*run: make .*\bgate-selftest\b", re.M)
+GO_INSTALL = re.compile(r"\bgo install (\S+@\S+)")
+
+
+def installs_before_selftest(workflow: Path) -> list[str] | None:
+    """The `go install` targets a workflow runs before its `make …
+    gate-selftest` line, in order; None when it has no such line."""
+    text = workflow.read_text(encoding="utf-8")
+    step = SELFTEST_STEP.search(text)
+    if step is None:
+        return None
+    return GO_INSTALL.findall(text[:step.start()])
+
+
+class WorkflowsTest(unittest.TestCase):
+    """docs.yml runs gate-selftest as ci.yml does, so it installs each tool
+    ci.yml installs first (0052-MADR A2): the precheck test needs
+    golangci-lint, and the docs job without it failed every run."""
+
+    def test_docs_installs_what_ci_installs_before_gate_selftest(self) -> None:
+        workflows = ROOT / ".github/workflows"
+        ci = installs_before_selftest(workflows / "ci.yml")
+        docs = installs_before_selftest(workflows / "docs.yml")
+        self.assertIsNotNone(ci, "ci.yml has no `make … gate-selftest` line")
+        self.assertIsNotNone(docs, "docs.yml has no `make … gate-selftest` line")
+        self.assertTrue(ci, "ci.yml installs nothing before gate-selftest; the precheck test needs golangci-lint")
+        missing = [target for target in ci if target not in docs]
+        self.assertEqual(missing, [], f"docs.yml does not install {missing} before gate-selftest, as ci.yml does; "
+                                      f"it installs {docs}")
+
+
 if __name__ == "__main__":
     unittest.main()

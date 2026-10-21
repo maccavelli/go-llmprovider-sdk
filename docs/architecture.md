@@ -949,9 +949,12 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   A push to `main` or a pull request that changes only Markdown skips it
   (`paths-ignore: ['**.md']`). **Docs** (`.github/workflows/docs.yml`) runs
   instead, on one Linux runner, with `ci.yml`'s checkout of the full
-  history and its Go version: `make parity-check records-check tables-check
-  changelog-check gate-selftest`, the gates that read Markdown and the
-  gates' self-test, whose plants replace exact strings in the docs. A
+  history, its Go version and its pinned golangci-lint, which the
+  self-test's precheck test runs: `make parity-check records-check
+  tables-check changelog-check gate-selftest`, the gates that read Markdown
+  and the gates' self-test, whose plants replace exact strings in the docs.
+  A test in the self-test fails when `docs.yml` lacks a tool `ci.yml`
+  installs before its own self-test. A
   change to anything else runs CI, and Docs too when it also changes
   Markdown or `docs.yml`. GitHub does not filter a tag push, and the weekly
   run is not a push, so both always run CI in full, and a Release still
