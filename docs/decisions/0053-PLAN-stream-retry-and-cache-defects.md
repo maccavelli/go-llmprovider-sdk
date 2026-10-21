@@ -715,3 +715,20 @@ keep 0028-MADR D-A3; Q2: a stream-index bound of 4096; Q3: `v1.20.0`):
   * `make pre-add-check` on the 7 Go files: "7 file(s) clean". A first run
     found one line gofmt wraps, in `probe_flight_0053_test.go`;
   * `tools/gate.py`: 27 of 27 passed.
+
+### Phase 3: release `v1.20.0` (2026-10-20)
+
+* **No deviation so far.** Phase 2 was committed by the owner as
+  `360dadb`.
+* **Step 1.** `CHANGELOG.md`: `[Unreleased]` became `[v1.20.0] -
+  2026-10-20`, with Changed (D3, D2 and 0052's Docs workflow) and Fixed
+  (D1, D2, D4, D5, D6); an empty `[Unreleased]` above it; the comparison
+  links gain `v1.20.0`. "changelog-check: 28 release section(s), 0
+  problem(s)". The date must be the commit's that the tag names (R53). The
+  README's Status names `v1.20.0`. In a local clone of `360dadb` with this
+  `CHANGELOG.md` and a local `v1.20.0` tag, `--section v1.20.0` exits 0 and
+  prints the Changed and Fixed entries, 2,239 bytes, both MADRs' links made
+  absolute at `blob/v1.20.0`; it runs again against the Release at step 3.
+* **Step 2, before the push:** `tools/gate.py`, 27 of 27 passed;
+  `tools/apidiff.py v1.19.0`, no output, exit 0; the disclosure guard over the
+  outgoing commits, once this one is committed, before the owner pushes.
