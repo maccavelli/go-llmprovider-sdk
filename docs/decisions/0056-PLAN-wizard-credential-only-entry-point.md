@@ -666,3 +666,29 @@ gate: 27 of 27 passed                                                 (exit 0)
 ```
 
 V5 and V6 are met.
+
+### Phase 4: release `v1.21.0` (2026-10-21)
+
+* **Approval.** "committed, proceed", after Phase 3 was committed as
+  `448900e`. No deviation so far.
+* **Step 1.**
+  * `CHANGELOG.md`: `[Unreleased]` became `[v1.21.0] - 2026-10-21`, with
+    Added (the four names) and Changed (D3). An empty `[Unreleased]` sits
+    above it, and the comparison links gain `v1.21.0`. "changelog-check: 30
+    release section(s), 0 problem(s)". The date must be that of the commit
+    the tag names (R53).
+  * The README's Status names `v1.21.0`.
+* **Step 2, before the push.**
+  * **The notes.** In a clone of `448900e` with this `CHANGELOG.md` and
+    README and a local `v1.21.0` tag, `--section v1.21.0 --repo
+    maccavelli/go-llmprovider-sdk` exits 0. It prints the Added and Changed
+    entries, 1,464 bytes, the MADR's link made absolute at `blob/v1.21.0`.
+    `tools/denyscan.py` on them: 0 hits.
+  * **The API.** `tools/apidiff.py v1.20.1` gives "Compatible changes:",
+    then `./wizard.Options.KiloDeviceKey`,
+    `./wizard.Options.NoEndpointPrompt`, `./wizard.Options.SkipMethods` and
+    `./wizard.ResolveCredential`, each "added", and nothing else: the
+    PLAN's table, exactly. V8 is met.
+  * **The gate:** "gate: 27 of 27 passed".
+  * **The disclosure guard** runs over the outgoing commits once this one is
+    made.
