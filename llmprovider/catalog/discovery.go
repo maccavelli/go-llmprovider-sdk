@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net"
 	"net/http"
@@ -188,7 +189,9 @@ const (
 //
 // A listing read within the last ten minutes, for the same provider, base
 // URL, Kilo organization and credential, is ranked again with no request,
-// and callers at once share one fetch (0041-MADR D6, A6). A transient
+// and callers at once share one fetch, and its result, a failure included;
+// a caller that is cancelled ends only its own wait (0041-MADR D6, A6;
+// 0053-MADR D4). A transient
 // failure (a timeout, a 5xx, a rate limit, a network error) serves the last
 // good listing, at most 24 hours old: Catalog.Source is ListStale, Live
 // true, and Err the failure. Any other failed listing degrades to the
@@ -350,34 +353,41 @@ func listOllamaOnce(ctx context.Context, token llmprovider.Token, cfg config) (C
 }
 
 // cachedOrFetched is key's listing: the cached one while it is fresh, else
-// one fetched now, by at most one caller per key at a time; the others wait
-// for it (0041-MADR D6). models is what the listing says of each model, and
-// at is when it was read. failure is the fetch's failure, or ctx's while
-// waiting; f is then empty.
+// the one fetch per key in flight, started by the first caller (0041-MADR
+// D6). The fetch is detached from every caller and bounded as a listing is,
+// and each caller waits for it under its own ctx and receives its result, a
+// failure included, so N callers cost one request and a caller that is
+// cancelled ends only its own wait (0053-MADR D4). models is what the listing
+// says of each model, and at is when it was read. failure is the fetch's
+// failure, or ctx's while waiting; f is then empty.
 func cachedOrFetched(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config,
 	key listingKey) (f fetchedListing, models map[string]ModelInfo, at time.Time, failure error) {
-	for {
-		if f, at, ok := cfg.store.freshListing(key); ok {
-			models, _ := cfg.store.cachedListing(key)
-			return f, models, at, nil
-		}
-		done, wait := cfg.store.claimListing(key)
-		if wait == nil {
-			return fetchClaimed(ctx, id, token, cfg, key, done)
-		}
-		select {
-		case <-wait:
-		case <-ctx.Done():
-			return fetchedListing{}, nil, time.Time{}, ctx.Err()
-		}
+	if f, at, ok := cfg.store.freshListing(key); ok {
+		models, _ := cfg.store.cachedListing(key)
+		return f, models, at, nil
+	}
+	call, leader := cfg.store.claimListing(key)
+	if leader {
+		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), modelListingTimeout)
+		cfg.store.listingFetching.Go(func() {
+			defer cancel()
+			call.f, call.models, call.at, call.err = fetchClaimed(fetchCtx, id, token, cfg, key)
+			cfg.store.finishListing(key, call)
+		})
+	}
+	select {
+	case <-call.done:
+		// Each caller keeps its own copy of what the models say.
+		return call.f, maps.Clone(call.models), call.at, call.err
+	case <-ctx.Done():
+		return fetchedListing{}, nil, time.Time{}, ctx.Err()
 	}
 }
 
-// fetchClaimed fetches the listing the caller claimed, records it when it
-// succeeds, and releases the claim with done.
-func fetchClaimed(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config, key listingKey,
-	done func()) (fetchedListing, map[string]ModelInfo, time.Time, error) {
-	defer done()
+// fetchClaimed fetches the listing a call's leader claimed, and records it
+// when it succeeds.
+func fetchClaimed(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config,
+	key listingKey) (fetchedListing, map[string]ModelInfo, time.Time, error) {
 	models := map[string]ModelInfo{}
 	cfg.sink = func(info ModelInfo) { models[info.ID] = info }
 	f, failure := fetchListing(ctx, id, token, cfg)
@@ -828,14 +838,22 @@ func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (li
 		return listingResult{}, err
 	}
 	var names []string
+	digests := make(map[string]string, len(tags))
 	for _, t := range tags {
 		names = append(names, t.Name)
+		digests[t.Name] = t.Digest
 	}
-	cached, fresh := cfg.store.cachedListing(listingKeyFor(llmprovider.ProviderOllama, cfg, token))
-	if !fresh {
-		cached = nil
-	}
+	// Each reply keeps its own age and digest: a listing reuses one only
+	// while it is younger than listingMetadataTTL and its model's digest is
+	// unchanged, and stores only the replies it fetched (0053-MADR D5).
+	key := listingKeyFor(llmprovider.ProviderOllama, cfg, token)
+	cached := cfg.store.freshShows(key, digests)
 	shows := ollamaShows(ctx, token, cfg, names, cached)
+	for name, info := range shows {
+		if _, reused := cached[name]; !reused {
+			cfg.store.storeShow(key, name, info, digests[name])
+		}
+	}
 	listed := make(map[string]ModelInfo, len(tags))
 	for _, t := range tags {
 		info := ollamaTagInfo(t)
@@ -849,10 +867,12 @@ func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (li
 	return listingResult{usable: names, listed: listed}, nil
 }
 
-// ollamaTag is one /api/tags entry: the model's name, and the capabilities
-// Ollama v0.30.0 and later list beside it.
+// ollamaTag is one /api/tags entry: the model's name, its digest, which a
+// cached /api/show reply is checked against (0053-MADR D5), and the
+// capabilities Ollama v0.30.0 and later list beside it.
 type ollamaTag struct {
 	Name         string   `json:"name"`
+	Digest       string   `json:"digest"`
 	Capabilities []string `json:"capabilities"`
 }
 

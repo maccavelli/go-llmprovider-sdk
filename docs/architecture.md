@@ -195,7 +195,9 @@ by `Profile`, with the model metadata unless `WithoutModelMetadata` is set;
 OpenAI, Claude, Gemini and Grok rank by their name curators only with no
 document (0041-MADR D4). A listing read in the last ten minutes, for the
 same provider, base URL, Kilo organization and credential, is ranked again
-with no request, and callers at once share one fetch. A transient failure
+with no request, and callers at once share one fetch, and its result, a
+failure included; a caller that is cancelled ends only its own wait
+(0053-MADR D4). A transient failure
 (a timeout, a 5xx, a rate limit, a network error) serves the last good
 listing, at most 24 hours old, or one the caller kept and hands in with
 `WithLastGood`: `Source` is `ListStale`, `Live` stays true, `Err` is the
@@ -724,7 +726,9 @@ for a session, from the store.
     its place;
   - Ollama's keeps `/api/tags` order, with no band. `List` asks
     `/api/show` for each installed model not cached, four at a time, and
-    caches the replies; a model it marks as taking no tools follows the
+    caches the replies, each for ten minutes from when it was fetched, and
+    asks again at once when its model's digest in `/api/tags` changes
+    (0053-MADR D5); a model it marks as taking no tools follows the
     others, and stays in `Recommended` (0042-MADR D2). A model Ollama says writes no text,
     such as an embedding model, is not listed (0042-MADR D1).
 - `catalog.Search` matches a query against a list, highest tier first and
@@ -751,7 +755,9 @@ for a session, from the store.
   candidates and drop those that do not answer; the later ones are returned
   unprobed. The models that answered are cached in
   memory, the process's or a `catalog.Cache`'s, for 10 minutes, keyed by provider, base URL and the SHA-256 of
-  the credential, so a listing within that time sends no probe.
+  the credential, so a listing within that time sends no probe, and
+  listings that miss the cache at once share one run of probes (0053-MADR
+  D6).
   `WithModelProbes(false)` turns that off. `ModelProbesFromEnv()` reads
   `LLMPROVIDER_PROBES` (`true` or `false`) for a caller who passes it; the
   package reads the variable nowhere else.

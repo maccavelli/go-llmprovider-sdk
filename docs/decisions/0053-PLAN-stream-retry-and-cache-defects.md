@@ -602,3 +602,116 @@ keep 0028-MADR D-A3; Q2: a stream-index bound of 4096; Q3: `v1.20.0`):
     their error first; they now return it last, and the plants were run
     again after the fix, all caught;
   * `tools/gate.py`: 27 of 27 passed.
+
+### Phase 2: the catalog's caches (2026-10-20)
+
+* **No deviation.** Phase 1 was committed by the owner as `50668bc`, with
+  its three deviations accepted.
+* **Step 1, the listing flight** (D4):
+  * **The call:** `store.listingClaims` holds `*listingCall` (`done`, and
+    the result: `f`, `models`, `at`, `err`). `claimListing` returns the call
+    and whether the caller leads; `finishListing` removes it and closes
+    `done`.
+  * **The fetch:** `cachedOrFetched`'s leader runs `fetchClaimed` on
+    `listingFetching.Go`, under `context.WithTimeout(context.WithoutCancel(ctx),
+    modelListingTimeout)`.
+  * **Every caller** waits on `done` or its own context, and receives the
+    result with its own copy of `models` (`maps.Clone`).
+  * **Unchanged:** `fetchClaimed` lost only its `done` parameter. The last
+    good listing, `storeFetched`, `renewRefused` and `startListingFetch` are
+    as they were.
+* **Step 2, Ollama's replies** (D5):
+  * **The tag:** `ollamaTag` decodes `digest`, and its doc says why.
+  * **The store:** `store.ollamaShows` holds a `showReply` (`info`,
+    `fetched`, `digest`) per listing key and model.
+    * `freshShows` returns the replies younger than `listingMetadataTTL`
+      whose digest matches the listed one, when both are known.
+    * `storeShow` records a reply fetched now.
+  * **The listing:** `ollamaCatalog` passes `freshShows` to `ollamaShows`,
+    and stores only the replies it fetched, with their models' digests.
+  * **A lookup:** `fetchListingModel`'s Ollama path stores its reply with no
+    digest.
+  * **The listing's facts** (`storeListing`) are stored as before. A lookup
+    reads them, and they are stamped when the listing is stored, so a lookup
+    may see a reply up to about two TTLs old, as the step keeps it. That is
+    no longer forever: a listing reuses a reply only while it is young.
+* **Step 3, the probe flight** (D6):
+  * **The flight:** `ProbeStore` gains `flights` (`*probeFlight`: `done`,
+    `healthy`), initialised by `NewProbeStore`. It is also made on first use,
+    for a store whose results map a test resets (`resetProbeCache`).
+  * **The run:** one goroutine per key runs `probeHead` on
+    `context.WithoutCancel(ctx)`, caches a non-empty result, records it on
+    the flight, and closes `done`.
+  * **Every caller** waits on `done` or its own context. A caller whose
+    context ends first gets `withTail(nil, …)`, nil.
+  * **The doc** of `ProbeGenerateHealthCached` says so.
+* **The drift check:** after steps 1 to 3, before any new test,
+  `go test -race -count=1 ./...` passed in all 36 packages, unchanged. That
+  includes `TestList_Cached_0041`'s 8 concurrent Lists (C27),
+  `TestOllamaUsable_TagsNotCached_0042` (0042-MADR D1's re-ask of a failed
+  reply) and `TestProbeCache_EmptyResultNotCached` (C28).
+* **Step 4, the docs:**
+  * `List`'s doc (C26) and `docs/architecture.md`: its listing paragraph
+    (C22), its Ollama entry (C24) and its probe entry (C25);
+  * `CHANGELOG.md` `[Unreleased]` Fixed: D4, D5 and D6, each with its
+    measured count.
+
+  `make docs-check`, "sdkaudit: 0 violation(s) of R50,R51,R52"; `make
+  changelog-check`, "27 release section(s), 0 problem(s)"; `make
+  tables-check`, "38 packages, 0 problem(s)"; `make parity-check`, "409
+  identifiers, 409 rows, 409 with an SDK equivalent, 0 problem(s)";
+  markdownlint on both files, no finding.
+* **Step 5, the tests,** under `-race`, each passing:
+  * **F4,** `catalog`:
+    * `TestListingFlight_SharesFailure_0053`: HTTP 503, then 401, after
+      100 ms, five concurrent Lists: 1 request, and all five given the
+      static catalog with the failure in `Err`;
+    * `TestListingFlight_CancelledClaimant_0053`: a claimant cancelled at
+      30 ms, a waiter 5 ms after it: 1 request, the waiter's catalog live.
+  * **F5,** `catalog`, on the steady clock:
+    * `TestOllamaShow_AgePerReply_0053`: five listings nine minutes apart,
+      3 `/api/show` requests;
+    * `TestOllamaShow_DigestChange_0053`: an unchanged digest, 1; a changed
+      one, 2; no digest at 1 minute, 2; at 11 minutes, 3.
+  * **F6:**
+    * `TestProbeFlight_SharedRun_0053` (`transport`): five concurrent cold
+      calls, 6 probes, each given the head and its tail;
+    * `TestProbeFlight_CancelledClaimant_0053`: the cancelled claimant nil,
+      the waiter the full list after 6 probes, a later call cached;
+    * `TestProbeFlight_EmptyRunShared_0053`: three concurrent calls whose
+      every probe answers wrongly share one run (6 probes), and the next
+      call probes again (6 more), as Q1 keeps D-A3. A first draft's
+      instant-failing probe could not make the calls overlap, so it
+      asserted only "at most 18"; a 50 ms probe makes it exact;
+    * `TestListModels_ConcurrentProbes_0053` (`openai`): five concurrent
+      cold `ListModels`, 6 probes, then 0 for a warm one.
+* **Step 6, the MADR's probe,** unchanged, on a copy of the working tree:
+  * **M5:** 5 concurrent Lists, 503 or 401: "requests=1 wall=100ms",
+    against 5 and 510 ms. A cancelled claimant: "requests=1 waiter
+    wall=100ms live=true", against 2 and 130 ms.
+  * **M6:** `/api/show` 1, 1, 2, 2, 3 at 0, 9, 18, 27 and 36 minutes,
+    against 1 throughout.
+  * **M7:** "5 concurrent cold ListModels: probe generations=6; a 6th, warm:
+    +0", against 30. Every probe failing: 6, 12, 18 over three listings, as
+    D-A3 keeps it.
+* **Step 7, red first,** six plants, each caught by a failing test, none by
+  a failed build:
+
+  | Plant | Failure line |
+  | :--- | :--- |
+  | a waiter not given the flight's failure, fetching again | "HTTP 503: 5 requests, 5 callers given the failure; want 1 and 5" |
+  | the listing flight on the claimant's context | "waiter: live false, <nil>, after 1 requests; want live from 1 request" |
+  | re-emitted Ollama replies stamped now | "1 /api/show requests over five listings nine minutes apart; want 3" |
+  | the Ollama digest ignored | "a changed digest: 1 /api/show requests; want 2" |
+  | no probe flight, each caller probing | "30 probes for five concurrent listings; want 6" |
+  | the probe flight on the claimant's context | "the waiter: [] after 6 probes; want [\"a\" … \"g\"] after 6" |
+
+  The plants were run again after the last test edit (gofmt's wrapping of
+  one line), all caught.
+* **The checks:**
+  * `tools/apidiff.py v1.19.0`: no output, exit 0;
+  * `make coverage-check`: "37 packages, 0 problem(s)" (`catalog` 95.6 %,
+    `internal/transport` 87.6 %, `openai` 95.7 %);
+  * `make pre-add-check` on the 7 Go files: "7 file(s) clean". A first run
+    found one line gofmt wraps, in `probe_flight_0053_test.go`;
+  * `tools/gate.py`: 27 of 27 passed.

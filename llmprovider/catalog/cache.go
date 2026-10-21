@@ -51,8 +51,12 @@ type store struct {
 	// listingInFlight holds the background fetches running, under listingMu.
 	listingInFlight map[listingFetchKey]bool
 	// listingClaims holds, under listingMu, the listings being fetched by a
-	// List, each closed when its fetch ends (0041-MADR D6).
-	listingClaims map[listingKey]chan struct{}
+	// List, each with its result for every caller that waits on it
+	// (0041-MADR D6; 0053-MADR D4).
+	listingClaims map[listingKey]*listingCall
+	// ollamaShows holds, under listingMu, Ollama's /api/show replies by
+	// listing and model, each with its own age and digest (0053-MADR D5).
+	ollamaShows map[listingKey]map[string]showReply
 	// listingFetching counts the background fetches, so tests can wait.
 	listingFetching sync.WaitGroup
 
@@ -69,7 +73,8 @@ func newStore() *store {
 	return &store{
 		listing:         map[listingKey]listingEntry{},
 		listingInFlight: map[listingFetchKey]bool{},
-		listingClaims:   map[listingKey]chan struct{}{},
+		listingClaims:   map[listingKey]*listingCall{},
+		ollamaShows:     map[listingKey]map[string]showReply{},
 		metadata:        map[string]modelMetadataCacheEntry{},
 		metadataFetches: map[string]*metadataFetch{},
 	}

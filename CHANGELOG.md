@@ -39,6 +39,15 @@ section.
 - A negative index in a Chat Completions, Messages or Gemini Interactions
   stream panicked the caller, and a large one allocated a slot for every
   index below it; both now end the stream with `ErrIncomplete` (D2).
+- Concurrent `catalog.List` calls for one listing share one fetch and its
+  result, a failure included, and a caller that is cancelled no longer
+  restarts it; five concurrent listings answered 503 or 401 sent 5
+  requests, one after another (D4).
+- An Ollama `/api/show` reply is asked again ten minutes after it was
+  fetched, and at once when its model's digest changes; a listing every
+  few minutes kept a reply forever (D5).
+- Concurrent listings share one run of the model probes `ListModels`
+  sends; five cold listings sent 30 billed probes where 6 do (D6).
 
 ## [v1.19.0] - 2026-10-20
 

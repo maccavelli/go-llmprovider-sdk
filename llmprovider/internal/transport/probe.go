@@ -118,11 +118,21 @@ type probeCacheEntry struct {
 type ProbeStore struct {
 	mu sync.Mutex
 	m  map[ProbeKey]probeCacheEntry
+	// flights holds, under mu, each key's probe run in flight (0053-MADR D6).
+	flights map[ProbeKey]*probeFlight
+}
+
+// probeFlight is one run of a listing's probes, and the models that
+// answered, which every caller waiting on it receives. healthy is written
+// once, before done is closed.
+type probeFlight struct {
+	done    chan struct{}
+	healthy []string
 }
 
 // NewProbeStore returns an empty store.
 func NewProbeStore() *ProbeStore {
-	return &ProbeStore{m: map[ProbeKey]probeCacheEntry{}}
+	return &ProbeStore{m: map[ProbeKey]probeCacheEntry{}, flights: map[ProbeKey]*probeFlight{}}
 }
 
 var (
@@ -148,6 +158,13 @@ func Fingerprint(credential string) string {
 // no model is not cached, so the next listing probes again (0028-MADR D-A3).
 // The store holds the probed head only; the current listing's tail is
 // appended to it (0038-MADR D4).
+//
+// One run of probes per key at a time: listings that miss the cache while
+// a run is in flight wait for it and share its result, empty included, so N
+// concurrent listings send one run's probes. The run is detached from every
+// caller, each probe still bounded by probeTimeout; a caller whose ctx ends
+// first gets what a run with no answer gives, and its provider keeps its
+// listing (0053-MADR D6).
 func ProbeGenerateHealthCached(
 	ctx context.Context,
 	s *ProbeStore,
@@ -166,12 +183,31 @@ func ProbeGenerateHealthCached(
 		return withTail(slices.Clone(e.healthy), preferred, limit)
 	}
 	delete(s.m, key)
-	s.mu.Unlock()
-	healthy := probeHead(ctx, preferred, limit, generate)
-	if len(healthy) > 0 {
-		s.mu.Lock()
-		s.m[key] = probeCacheEntry{healthy: slices.Clone(healthy), at: probeCacheNow()}
-		s.mu.Unlock()
+	if s.flights == nil {
+		s.flights = map[ProbeKey]*probeFlight{}
 	}
-	return withTail(healthy, preferred, limit)
+	flight, running := s.flights[key]
+	if !running {
+		flight = &probeFlight{done: make(chan struct{})}
+		s.flights[key] = flight
+		detached := context.WithoutCancel(ctx)
+		go func() {
+			healthy := probeHead(detached, preferred, limit, generate)
+			s.mu.Lock()
+			if len(healthy) > 0 {
+				s.m[key] = probeCacheEntry{healthy: slices.Clone(healthy), at: probeCacheNow()}
+			}
+			flight.healthy = healthy
+			delete(s.flights, key)
+			s.mu.Unlock()
+			close(flight.done)
+		}()
+	}
+	s.mu.Unlock()
+	select {
+	case <-flight.done:
+		return withTail(slices.Clone(flight.healthy), preferred, limit)
+	case <-ctx.Done():
+		return withTail(nil, preferred, limit)
+	}
 }

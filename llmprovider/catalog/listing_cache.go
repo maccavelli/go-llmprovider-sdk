@@ -137,23 +137,77 @@ func (c *store) lastGoodListing(key listingKey, cfg config) (fetchedListing, tim
 	return fetchedListing{}, time.Time{}, false
 }
 
-// claimListing makes the caller key's one fetcher, with done to call when
-// its fetch ends; or, when another caller is fetching key, returns wait,
-// closed when that fetch ends (0041-MADR D6).
-func (c *store) claimListing(key listingKey) (done func(), wait <-chan struct{}) {
+// showReply is one Ollama /api/show reply: what it says of its model, when
+// it was fetched, and the digest /api/tags listed for the model then, when
+// it listed one (0053-MADR D5).
+type showReply struct {
+	info    ModelInfo
+	fetched time.Time
+	digest  string
+}
+
+// freshShows is key's replies a listing may reuse: each younger than
+// listingMetadataTTL, and fetched for the digest digests lists for its model
+// when both are known (0041-MADR A9).
+func (c *store) freshShows(key listingKey, digests map[string]string) map[string]ModelInfo {
 	c.listingMu.Lock()
 	defer c.listingMu.Unlock()
-	if ch, ok := c.listingClaims[key]; ok {
-		return nil, ch
+	now := listingNow()
+	fresh := map[string]ModelInfo{}
+	for name, r := range c.ollamaShows[key] {
+		listed, known := digests[name]
+		if now.Sub(r.fetched) >= listingMetadataTTL || known && listed != "" && r.digest != "" && listed != r.digest {
+			continue
+		}
+		fresh[name] = r.info
 	}
-	ch := make(chan struct{})
-	c.listingClaims[key] = ch
-	return func() {
-		c.listingMu.Lock()
-		delete(c.listingClaims, key)
-		c.listingMu.Unlock()
-		close(ch)
-	}, nil
+	return fresh
+}
+
+// storeShow records a reply fetched now, for digest ("" when unknown).
+func (c *store) storeShow(key listingKey, name string, info ModelInfo, digest string) {
+	c.listingMu.Lock()
+	defer c.listingMu.Unlock()
+	replies := c.ollamaShows[key]
+	if replies == nil {
+		replies = map[string]showReply{}
+		c.ollamaShows[key] = replies
+	}
+	replies[name] = showReply{info: info, fetched: listingNow(), digest: digest}
+}
+
+// listingCall is one listing fetch and its result, which every caller that
+// asked for its key while it ran receives, a failure included (0053-MADR
+// D4). Its fields are written once, before done is closed.
+type listingCall struct {
+	done   chan struct{}
+	f      fetchedListing
+	models map[string]ModelInfo
+	at     time.Time
+	err    error
+}
+
+// claimListing returns key's fetch in flight, and whether the caller is its
+// leader, which must start it; there is one per key at a time (0041-MADR
+// D6).
+func (c *store) claimListing(key listingKey) (call *listingCall, leader bool) {
+	c.listingMu.Lock()
+	defer c.listingMu.Unlock()
+	if call, ok := c.listingClaims[key]; ok {
+		return call, false
+	}
+	call = &listingCall{done: make(chan struct{})}
+	c.listingClaims[key] = call
+	return call, true
+}
+
+// finishListing ends key's call, once its result is written, and wakes its
+// callers.
+func (c *store) finishListing(key listingKey, call *listingCall) {
+	c.listingMu.Lock()
+	delete(c.listingClaims, key)
+	c.listingMu.Unlock()
+	close(call.done)
 }
 
 // startListingFetch refreshes a listing in the background, detached from ctx
@@ -200,7 +254,11 @@ func fetchListingModel(ctx context.Context, id llmprovider.ProviderID, src llmpr
 		if err != nil {
 			return ModelInfo{}, false, err
 		}
-		cfg.store.storeListing(listingKeyFor(id, cfg, token), map[string]ModelInfo{model: info}, true)
+		key := listingKeyFor(id, cfg, token)
+		// A lookup knows no digest: the reply's age alone decides (0053-MADR
+		// D5).
+		cfg.store.storeShow(key, model, info, "")
+		cfg.store.storeListing(key, map[string]ModelInfo{model: info}, true)
 		return info, true, nil
 	}
 	cat, models, err := listAndRecord(ctx, id, src, cfg)
