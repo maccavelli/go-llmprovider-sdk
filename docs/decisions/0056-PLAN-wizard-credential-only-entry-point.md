@@ -120,7 +120,8 @@ acceptance list is a passing test:
      error)`: today's lines 159 to 177;
    * `credentialStep(ctx, p, d, o) (Result, catalog.Catalog, error)`: today's
      lines 178 to 213 (the Result's fields, `resolveBaseURL`,
-     `resolveCredential`, `discoverModels` and the refusal loop).
+     `resolveCredential` *(renamed `signIn`, Phase 1's deviation)*,
+     `discoverModels` and the refusal loop).
 
    `ConfigureLLM` becomes `chooseProvider`, then `credentialStep`, then its
    model steps (lines 214 to 240), as they are. **The drift check runs
@@ -190,7 +191,8 @@ acceptance list is a passing test:
 1. **`Options.KiloDeviceKey bool`,** documented after `AgentName`:
    * `offeredAuthMethods`: Kilo's `AuthDeviceCode` needs no store when it is
      set;
-   * `resolveCredential`: Kilo's device method with the field set goes to a
+   * `resolveCredential` *(now `signIn`)*: Kilo's device method with the
+     field set goes to a
      new `resolveKiloDeviceKey`. It runs `loginDeviceOAuth`, refuses an
      empty token as today, and returns `staticCredential(CredAPIKey,
      session.Access)` with `keyFrom` a new `keyDevice`. It saves nothing
@@ -200,7 +202,7 @@ acceptance list is a passing test:
    * the refusal loop ends on it, as on every key that was not typed.
 2. **`Options.SkipMethods []llmprovider.AuthMethodID`:** `offeredAuthMethods`
    leaves them out, after the store and name filters. When the descriptor
-   has methods and none is left, `resolveCredential` returns
+   has methods and none is left, `resolveCredential` *(now `signIn`)* returns
    `fmt.Errorf("wizard: Options.SkipMethods leaves no sign-in method for
    %s", d.Label)`. A descriptor with no methods (a provider that needs no
    key) is unchanged.
@@ -366,3 +368,108 @@ V1 to V5 are the issue's acceptance list, in its order.
   `v1.20.1` is released, so Phases 1 to 4 have no wait left but this
   PLAN's own order.
 * **Checks:** "records-check: 118 records, 0 problem(s)"; the MADR's claims, 29 of 29 pass.
+
+### Phase 1: `ResolveCredential` (2026-10-21)
+
+* **Approval.** "comitted, proceed", 2026-10-21, after Phase 0 was committed
+  as `e6521a0`.
+
+**Deviation (2026-10-21): the private `resolveCredential` is renamed
+`signIn`.**
+
+* **Found** at step 7's pre-add check. golangci-lint's revive rule
+  `confusing-naming` failed on both platforms: "wizard/auth.go:126:6:
+  confusing-naming: Method 'resolveCredential' differs only by
+  capitalization to function 'ResolveCredential' in wizard/configure.go". It
+  is new, since `ResolveCredential` is.
+* **Options put to the owner:**
+  * rename the unexported function (one definition, one caller, no test or
+    document names it);
+  * rename the exported one, which changes the MADR's D1, the issue's name,
+    the tests and the changelog.
+
+  A `nolint` directive was not offered: it hides a finding.
+* **Decision.** "Rename the private one". It is now `signIn`, with a doc
+  comment saying what it does. Steps 1 and Phase 2's steps that name it are
+  annotated. The MADR's F1 describes `5c60593`, and is unchanged. No
+  decision changes, and no exported name beyond the PLAN's table.
+
+**Step 1, the extraction.**
+
+* `chooseProvider(p, o)` holds `ConfigureLLM`'s provider menu.
+* `credentialStep(ctx, p, d, o)` holds the endpoint, the credential, the
+  listing and the refusal loop, returning the `Result` and the catalog.
+* `ConfigureLLM` calls both, then its model steps, as they were.
+
+**The drift check,** before anything else changed: `gofmt -l wizard/` empty,
+`go vet ./wizard/` 0, and `go test -race -count=1 ./wizard/` "ok", every
+existing test unchanged.
+
+**Steps 2 and 3.**
+
+* **The function.** `ResolveCredential(ctx, p, o, id)` takes its provider
+  from `credentialProvider`: the menu when `id` is empty, else the Registry's
+  descriptor. An `id` the Registry lacks, or that `o.Providers` leaves out,
+  matches `ErrInvalidProvider`. It then runs `credentialStep`.
+* **Two `ctx` checks, beyond the step as written.** One comes before the
+  first prompt. The other comes after the listing: a listing that `ctx` ends
+  is not a refusal, so `discoverModels` warns and falls back to the static
+  catalog, which would pass for a checked credential. `ConfigureLLM` is not
+  given either; its model step stops on `ctx`.
+* **The docs.** `ResolveCredential`'s doc names what it runs, what it does
+  not, `Discover`'s part, and its error kinds (R52). `ConfigureLLM`'s doc
+  names it.
+
+**Step 4.** `ExampleResolveCredential`: `// Output: claude api_key true
+true`, passing.
+
+**Step 5, the tests,** `wizard/resolve_0056_test.go`, each passing under
+`-race`:
+
+| Test | Shows |
+| :--- | :--- |
+| `TestResolveCredential_AsksNoProviderNoModel_0056` | the key's prompt only; `CredAPIKey`, no `Model`, no `Fallbacks`; the live catalog after one listing |
+| `TestResolveCredential_RefusedThreeKeys_0056` | three prompts; `ErrAuthFailure`, "refused 3 keys"; no save |
+| `TestResolveCredential_ChatGPTPlan_0056` | OpenAI's notice with the usage page; the plan session saved; no `Input` |
+| `TestResolveCredential_EmptyIDAsksProvider_0056` | "Choose an LLM provider:" |
+| `TestResolveCredential_UnknownID_0056` | `ErrInvalidProvider` for both cases, nothing shown |
+| `TestResolveCredential_EmptyCatalog_0056` | Ollama: an empty catalog, no error, the endpoint the one `Input` |
+| `TestResolveCredential_ErrorKinds_0056` | a Prompter's error; `context.Canceled` before the first prompt and during the listing; a plain error out of range |
+
+**Step 6, red first,** `tools/plant.py` on a scratch clone:
+
+| Plant | Failure line |
+| :--- | :--- |
+| the model step run | "search models: fakePrompter: unexpected Input(\"Search models (blank for recommended)\")", in four tests |
+| the refusal loop dropped | "error <nil>; want ErrAuthFailure naming 3 keys" |
+| the `Options.Providers` check dropped | "error enter API key: fakePrompter: unexpected Secret(…); want ErrInvalidProvider" |
+| the static catalog in place of the listing | "catalog live false, usable [\"claude-haiku-5-5\" …], after 1 listings; want the one live listing" |
+| the provider asked with `id` set | "select provider: fakePrompter: unexpected Select(\"Choose an LLM provider:\")", in four tests |
+| no `ctx` check before the first prompt | "error enter API key: …; want context.Canceled" |
+| no `ctx` check after the listing | "error <nil>; want context.Canceled, not the static catalog as a checked key" |
+
+The static-catalog plant first failed to build, its `cat` left unused. It
+was run again with `cat.Err` kept, and was caught by the test above. All
+seven were run again after the rename: "plant: all 7 plant(s) caught", none by a failed build.
+
+**Step 7, the docs and the checks:**
+
+* **Docs:** `docs/architecture.md`'s "The wizard" gains a
+  `ResolveCredential` entry, and `CHANGELOG.md`'s `[Unreleased]` an Added
+  entry.
+* **The checks,** each exit status captured before any filter:
+
+```text
+$ go test -race -count=1 ./wizard/
+ok                                                                    (exit 0)
+$ python3 -B tools/apidiff.py v1.20.1
+Compatible changes:
+- ./wizard.ResolveCredential: added                                   (exit 0)
+$ make docs-check changelog-check tables-check parity-check
+sdkaudit: 0 violation(s) of R50,R51,R52; changelog-check: 29 release section(s), 0 problem(s);
+check-tables: 38 packages, 0 problem(s); G-parity: 409 identifiers, … 0 problem(s)   (exit 0)
+$ make pre-add-check FILES="wizard/auth.go wizard/configure.go wizard/example_test.go wizard/resolve_0056_test.go"
+go-precheck: 4 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck).   (exit 0, after the rename)
+$ python3 -B tools/gate.py
+gate: 27 of 27 passed                                                 (exit 0)
+```

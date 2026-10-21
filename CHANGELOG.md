@@ -10,6 +10,17 @@ carry their sections.
 
 ## [Unreleased]
 
+### Added
+
+- `wizard.ResolveCredential(ctx, p, o, id)`: the wizard's credential step
+  alone, for a consumer with its own model picker, as
+  [0056-MADR](docs/decisions/0056-MADR-wizard-credential-only-entry-point.md)
+  decides (D1). With `id` set it asks no provider; it never asks a model.
+  It runs the endpoint, every sign-in method (the ChatGPT plan sign-in with
+  its notice included) and the listing that checks the credential, asking
+  again for a refused typed key, and returns the `Result`, with no `Model`,
+  and that listing's catalog. `ConfigureLLM` is unchanged.
+
 ## [v1.20.1] - 2026-10-21
 
 ### Security

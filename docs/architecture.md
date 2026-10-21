@@ -803,6 +803,13 @@ nothing itself: everything goes through the `Prompter` interface (`Select`,
 implements it over a terminal with `golang.org/x/term`. OAuth and other
 non-API-key methods are offered only when `Options.TokenStore` is set.
 
+- **`ResolveCredential(ctx, p, opts, id)`** runs the same steps up to the
+  model and stops there, for a consumer with its own model picker
+  (0056-MADR D1). It asks the provider only when `id` is empty, and no
+  model, fallback or model id. It returns the `Result`, with no `Model`, and
+  the catalog its listing checked the credential with: the refusal loop, the
+  ChatGPT plan sign-in and every other method are `ConfigureLLM`'s own.
+
 - **One copy of a session.** A sign-in saves its session to
   `Options.TokenStore` and returns a `CredOAuth` `Result` with no token; the
   consumer loads the session from the store. Keeping an existing session

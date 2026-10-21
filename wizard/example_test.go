@@ -28,3 +28,17 @@ func ExampleConfigureLLM() {
 	fmt.Println(res.Provider, res.Kind, res.Model)
 	// Output: claude api_key my-model-id
 }
+
+// ExampleResolveCredential runs only the credential step, for a program with
+// its own model picker: the provider is given, so no provider is asked, and
+// no model is asked. The catalog it returns is what the picker shows.
+func ExampleResolveCredential() {
+	p := &wizard.TextPrompter{In: strings.NewReader("your-api-key\n"), Out: io.Discard}
+	res, cat, err := wizard.ResolveCredential(context.Background(), p, wizard.Options{}, llmprovider.ProviderClaude)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(res.Provider, res.Kind, res.Model == "", len(cat.Recommended) > 0)
+	// Output: claude api_key true true
+}

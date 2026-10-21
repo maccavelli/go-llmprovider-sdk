@@ -137,7 +137,8 @@ func (o Options) lookupEnv() func(string) string {
 
 // ConfigureLLM runs the canonical provider configuration flow: choose a
 // provider, resolve a base URL, resolve a credential, choose a model, and
-// optionally choose fallbacks.
+// optionally choose fallbacks. ResolveCredential runs the steps before the
+// model alone.
 //
 // It renders nothing itself — every interaction goes through p — so a consumer
 // keeps its own look and feel, and the flow is testable with a scripted
@@ -156,60 +157,13 @@ func (o Options) lookupEnv() func(string) string {
 // plain errors. A listing that fails otherwise is not an error: the flow
 // warns and offers the provider's static catalog.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
-	descriptors, err := selectableDescriptors(o.registry(), o.Providers)
+	d, err := chooseProvider(p, o)
 	if err != nil {
 		return Result{}, err
 	}
-
-	choices := make([]Choice, 0, len(descriptors))
-	defaultIdx := 0
-	for i, d := range descriptors {
-		choices = append(choices, Choice{Label: d.Label, Detail: d.Notes})
-		if d.ID == o.Existing.Provider {
-			defaultIdx = i
-		}
-	}
-
-	idx, err := choose(p, "Choose an LLM provider:", choices, defaultIdx)
-	if err != nil {
-		return Result{}, fmt.Errorf("select provider: %w", err)
-	}
-	d := descriptors[idx]
-	res := Result{Provider: d.ID}
-
-	if res.BaseURL, err = resolveBaseURL(ctx, p, d, o); err != nil {
-		return Result{}, err
-	}
-	credential, err := resolveCredential(ctx, p, d, res.BaseURL, o)
+	res, cat, err := credentialStep(ctx, p, d, o)
 	if err != nil {
 		return Result{}, err
-	}
-	res.Kind = credential.kind
-	res.APIKey = credential.apiKey
-	res.VendorAuthPath = credential.vendorPath
-	res.Organization = credential.organization
-	if credential.session != nil {
-		res.TokenExpiry = credential.session.Expiry
-		res.Issuer = credential.session.Issuer
-		res.ClientID = credential.session.ClientID
-		res.AccountID = credential.session.AccountID
-		res.FedRAMP = credential.session.FedRAMP
-	}
-
-	cat, listErr := discoverModels(ctx, p, d, res, credential.source, o)
-	for keys := 1; refusedCredential(listErr); keys++ {
-		if credential.keyFrom != keyTyped || keys == maxTypedKeys {
-			return Result{}, refusalError(d, credential, keys, listErr)
-		}
-		p.Notify(LevelWarn, "%s refused this key (%v); enter another", d.Label, listErr)
-		key, keyErr := promptAPIKey(p, d)
-		if keyErr != nil {
-			return Result{}, keyErr
-		}
-		credential = staticCredential(CredAPIKey, key)
-		credential.keyFrom = keyTyped
-		res.APIKey = key
-		cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
 	}
 	if len(cat.Recommended) == 0 && len(cat.Usable) == 0 {
 		// Ollama with nothing installed, or a provider whose listing failed
@@ -238,6 +192,130 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 		}
 	}
 	return res, nil
+}
+
+// ResolveCredential runs ConfigureLLM's credential step alone, for a consumer
+// with its own model picker: the provider (asked when id is empty, as
+// ConfigureLLM asks it), its endpoint, the sign-in method and credential,
+// every method included, the ChatGPT plan sign-in among them, and the listing
+// that checks it, which asks again for a typed key it refuses (0056-MADR D1).
+// It asks no model question, no fallback question and no model id, and ignores
+// Options.Existing.Model and Options.NeedFallbacks.
+//
+// It returns the Result, with no Model and no Fallbacks, and the catalog the
+// check listed, so the consumer need not list again. The credential is
+// checked only with Options.Discover; without it, the catalog is the
+// provider's static one, and may be empty.
+//
+// A Prompter's error is returned, wrapped or as it is, so errors.Is matches
+// it; so is a failed sign-in's. An ended ctx gives an error matching ctx's,
+// and a credential the provider refuses, one matching
+// llmprovider.ErrAuthFailure. An id the Registry lacks, or that
+// Options.Providers leaves out, gives an error matching
+// llmprovider.ErrInvalidProvider. A Prompter's choice out of range is a plain
+// error.
+func ResolveCredential(ctx context.Context, p Prompter, o Options, id llmprovider.ProviderID) (Result, catalog.Catalog, error) {
+	if err := ctx.Err(); err != nil {
+		return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %w", err)
+	}
+	d, err := credentialProvider(p, o, id)
+	if err != nil {
+		return Result{}, catalog.Catalog{}, err
+	}
+	res, cat, err := credentialStep(ctx, p, d, o)
+	if err != nil {
+		return Result{}, catalog.Catalog{}, err
+	}
+	// A listing ctx ended is not a refusal: it falls back to the static
+	// catalog, which must not pass for a checked credential.
+	if err := ctx.Err(); err != nil {
+		return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %w", err)
+	}
+	return res, cat, nil
+}
+
+// credentialProvider is ResolveCredential's provider: the one the user
+// chooses when id is empty, else id's, which the run must be able to offer.
+func credentialProvider(p Prompter, o Options, id llmprovider.ProviderID) (llmprovider.Descriptor, error) {
+	if id == "" {
+		return chooseProvider(p, o)
+	}
+	d, ok := o.registry().Descriptor(id)
+	if !ok {
+		return llmprovider.Descriptor{}, fmt.Errorf("wizard: no provider %q in the registry: %w", id, llmprovider.ErrInvalidProvider)
+	}
+	if len(o.Providers) > 0 && !slices.Contains(o.Providers, id) {
+		return llmprovider.Descriptor{}, fmt.Errorf("wizard: provider %q is not in Options.Providers: %w", id, llmprovider.ErrInvalidProvider)
+	}
+	return d, nil
+}
+
+// chooseProvider asks which provider to configure, from the run's Registry as
+// Options.Providers restricts it; Existing's provider is the default.
+func chooseProvider(p Prompter, o Options) (llmprovider.Descriptor, error) {
+	descriptors, err := selectableDescriptors(o.registry(), o.Providers)
+	if err != nil {
+		return llmprovider.Descriptor{}, err
+	}
+
+	choices := make([]Choice, 0, len(descriptors))
+	defaultIdx := 0
+	for i, d := range descriptors {
+		choices = append(choices, Choice{Label: d.Label, Detail: d.Notes})
+		if d.ID == o.Existing.Provider {
+			defaultIdx = i
+		}
+	}
+
+	idx, err := choose(p, "Choose an LLM provider:", choices, defaultIdx)
+	if err != nil {
+		return llmprovider.Descriptor{}, fmt.Errorf("select provider: %w", err)
+	}
+	return descriptors[idx], nil
+}
+
+// credentialStep resolves d's endpoint and credential, then lists its models,
+// which checks the credential: a typed key the listing refuses is asked for
+// again, up to maxTypedKeys (0028-MADR D-H10). The Result names no model; the
+// catalog is the listing, or the static one (0056-MADR D1).
+func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (Result, catalog.Catalog, error) {
+	res := Result{Provider: d.ID}
+	var err error
+	if res.BaseURL, err = resolveBaseURL(ctx, p, d, o); err != nil {
+		return Result{}, catalog.Catalog{}, err
+	}
+	credential, err := signIn(ctx, p, d, res.BaseURL, o)
+	if err != nil {
+		return Result{}, catalog.Catalog{}, err
+	}
+	res.Kind = credential.kind
+	res.APIKey = credential.apiKey
+	res.VendorAuthPath = credential.vendorPath
+	res.Organization = credential.organization
+	if credential.session != nil {
+		res.TokenExpiry = credential.session.Expiry
+		res.Issuer = credential.session.Issuer
+		res.ClientID = credential.session.ClientID
+		res.AccountID = credential.session.AccountID
+		res.FedRAMP = credential.session.FedRAMP
+	}
+
+	cat, listErr := discoverModels(ctx, p, d, res, credential.source, o)
+	for keys := 1; refusedCredential(listErr); keys++ {
+		if credential.keyFrom != keyTyped || keys == maxTypedKeys {
+			return Result{}, catalog.Catalog{}, refusalError(d, credential, keys, listErr)
+		}
+		p.Notify(LevelWarn, "%s refused this key (%v); enter another", d.Label, listErr)
+		key, keyErr := promptAPIKey(p, d)
+		if keyErr != nil {
+			return Result{}, catalog.Catalog{}, keyErr
+		}
+		credential = staticCredential(CredAPIKey, key)
+		credential.keyFrom = keyTyped
+		res.APIKey = key
+		cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
+	}
+	return res, cat, nil
 }
 
 // registry is the run's Registry: the caller's, else every built-in provider.

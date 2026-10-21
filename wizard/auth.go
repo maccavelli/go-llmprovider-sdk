@@ -123,7 +123,11 @@ func existingMethod(methods []llmprovider.AuthMethod, d llmprovider.Descriptor, 
 	return 0
 }
 
-func resolveCredential(
+// signIn resolves d's credential by the method the user chooses: a key, a
+// saved session, a browser or device sign-in, the ChatGPT plan, a pasted
+// token or a vendor CLI's login. (Named so beside ResolveCredential, 0056-PLAN
+// Phase 1's deviation.)
+func signIn(
 	ctx context.Context,
 	p Prompter,
 	d llmprovider.Descriptor,
