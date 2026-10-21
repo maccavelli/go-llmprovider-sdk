@@ -20,6 +20,13 @@ carry their sections.
   its notice included) and the listing that checks the credential, asking
   again for a refused typed key, and returns the `Result`, with no `Model`,
   and that listing's catalog. `ConfigureLLM` is unchanged.
+- `wizard.Options.KiloDeviceKey`: Kilo's device sign-in returns the device
+  token as a `CredAPIKey`, for a consumer that stores keys rather than
+  sessions. It saves no session, needs no `TokenStore`, and asks no
+  organization (D2). Without it, the sign-in is as before.
+- `wizard.Options.SkipMethods`, which leaves sign-in methods out of every
+  menu, and `wizard.Options.NoEndpointPrompt`, which asks no endpoint and
+  uses `Existing`'s or the default (D4).
 
 ## [v1.20.1] - 2026-10-21
 

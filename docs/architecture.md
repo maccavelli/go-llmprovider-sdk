@@ -816,6 +816,13 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   reads it there too (0016-MADR D11, A7, A10).
 - **Kilo.** A Kilo device login saves its token the same way, offers the
   account's organizations, and puts the choice in `Result.Organization`.
+  With `Options.KiloDeviceKey` it returns the token as a `CredAPIKey`
+  instead, needing no store, saving nothing and asking no organization: one
+  copy, in the `Result` (0056-MADR D2).
+- **`Options.SkipMethods`** leaves sign-in methods out of every menu, and
+  a provider it leaves with none is an error. **`Options.NoEndpointPrompt`**
+  asks no endpoint: `Existing`'s, else the default, is checked and used, and
+  a failure is returned (0056-MADR D4).
 - **`Logout(ctx, p, opts, id)`** revokes the stored session (OpenAI and
   Grok), reports a failure, and deletes it.
 - **`Result`** prints `[redacted]` for its API key under `fmt` and `slog`.

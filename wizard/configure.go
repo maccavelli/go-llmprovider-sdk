@@ -123,6 +123,22 @@ type Options struct {
 	// OpenAI's terms ask an app to sign in under its own name, and this
 	// module's is not the consumer's (0043-MADR D7).
 	AgentName string
+	// KiloDeviceKey takes Kilo's device sign-in as a key, for a consumer that
+	// stores keys rather than sessions: the sign-in returns CredAPIKey with the
+	// device token in APIKey, saves no session and reads no profile, so no
+	// organization is asked and Organization is empty. The method is then
+	// offered without a TokenStore. The token has no refresh and no expiry,
+	// as a key (0056-MADR D2; 0017-MADR D2).
+	KiloDeviceKey bool
+	// SkipMethods leaves these sign-in methods out of every provider's menu,
+	// after TokenStore and AgentName filter it. A provider it leaves with no
+	// method, its API key included, is an error (0056-MADR D4).
+	SkipMethods []llmprovider.AuthMethodID
+	// NoEndpointPrompt asks no endpoint: the base URL is Existing's for that
+	// provider, else the descriptor's default. A remote URL is checked as a
+	// typed one is, a local one for reachability, and a failure is returned,
+	// not asked again (0056-MADR D4).
+	NoEndpointPrompt bool
 }
 
 // lookupEnv is the run's environment reader: the caller's, else one that
@@ -154,7 +170,9 @@ func (o Options) lookupEnv() func(string) string {
 // ctx's, and a credential the provider refuses while its models are listed, one
 // matching llmprovider.ErrAuthFailure. Options.Providers naming no provider
 // of the Registry, a Prompter's choice out of range, and no model chosen are
-// plain errors. A listing that fails otherwise is not an error: the flow
+// plain errors, as are Options.SkipMethods leaving the provider no sign-in
+// method and, under Options.NoEndpointPrompt, an endpoint refused or not
+// reached. A listing that fails otherwise is not an error: the flow
 // warns and offers the provider's static catalog.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	d, err := chooseProvider(p, o)
@@ -213,7 +231,8 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // llmprovider.ErrAuthFailure. An id the Registry lacks, or that
 // Options.Providers leaves out, gives an error matching
 // llmprovider.ErrInvalidProvider. A Prompter's choice out of range is a plain
-// error.
+// error, as are Options.SkipMethods leaving the provider no sign-in method
+// and, under Options.NoEndpointPrompt, an endpoint refused or not reached.
 func ResolveCredential(ctx context.Context, p Prompter, o Options, id llmprovider.ProviderID) (Result, catalog.Catalog, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %w", err)
@@ -365,6 +384,17 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		check = append(check, llmprovider.WithHTTPClient(o.HTTPClient))
 	}
 	check = append(check, o.ProviderOptions...)
+	if o.NoEndpointPrompt {
+		// Nothing to ask again with: a refusal or an unreachable endpoint is
+		// the caller's to fix (0056-MADR D4).
+		if !d.IsLocal {
+			return validateBaseURL(p, def)
+		}
+		if vErr := catalog.ValidateOllamaURLWith(ctx, def, check...); vErr != nil {
+			return "", fmt.Errorf("wizard: cannot reach %s: %w", def, vErr)
+		}
+		return def, nil
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return "", fmt.Errorf("enter base URL: %w", err)
@@ -417,6 +447,8 @@ func refusalError(d llmprovider.Descriptor, c resolvedCredential, keys int, err 
 		return fmt.Errorf("wizard: %s refused the key in %s: %w", d.Label, d.EnvVar, err)
 	case c.keyFrom == keySaved:
 		return fmt.Errorf("wizard: %s refused the saved key: %w", d.Label, err)
+	case c.keyFrom == keyDevice:
+		return fmt.Errorf("wizard: %s refused the device sign-in; sign in again: %w", d.Label, err)
 	case c.kind == CredVendorCLI:
 		return fmt.Errorf("wizard: %s refused the %s CLI login in %s; sign in there again: %w",
 			d.Label, d.Label, c.vendorPath, err)

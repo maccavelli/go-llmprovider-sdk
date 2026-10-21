@@ -473,3 +473,94 @@ go-precheck: 4 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck
 $ python3 -B tools/gate.py
 gate: 27 of 27 passed                                                 (exit 0)
 ```
+
+### Phase 2: `KiloDeviceKey`, `SkipMethods`, `NoEndpointPrompt` (2026-10-21)
+
+* **Approval.** "committed, proceed", after Phase 1 was committed as
+  `5ab2605`. No deviation.
+
+**Steps 1 to 4, the code:**
+
+* **`KiloDeviceKey`:**
+  * `offeredAuthMethods` offers Kilo's device sign-in with no store when it
+    is set, through `deviceKey`;
+  * `signIn` sends that sign-in to the new `resolveKiloDeviceKey`, which
+    returns `staticCredential(CredAPIKey, token)` with the new `keyDevice`,
+    saving nothing and reading no profile;
+  * `refusalError` words it "refused the device sign-in; sign in again".
+* **`SkipMethods`:** `offeredAuthMethods` leaves the methods out, before its
+  other filters.
+  * `skippedEvery` finds a provider the skip alone left with none, the
+    implicit API key of a descriptor with no methods included (Claude's).
+    `signIn` then returns "Options.SkipMethods leaves no sign-in method for
+    …".
+  * A provider that needs no key, such as Ollama, is unchanged.
+* **`NoEndpointPrompt`:** `resolveBaseURL` asks nothing.
+  * A remote URL, `Existing`'s or the default, goes through
+    `validateBaseURL`.
+  * A local one goes through `catalog.ValidateOllamaURLWith`, and a failure
+    is "wizard: cannot reach …", wrapping the check's error.
+* **The fields' docs,** and `ConfigureLLM`'s and `ResolveCredential`'s, name
+  the two new plain errors (R52).
+
+**The drift check,** after the code and before the tests:
+`go test -race -count=1 ./wizard/` "ok", every existing test unchanged, the
+Kilo device tests included.
+
+**Step 5, the tests,** `wizard/options_0056_test.go`, each passing under
+`-race`:
+
+| Test | Shows |
+| :--- | :--- |
+| `TestKiloDeviceKey_ReturnsTheKey_0056` | with a store: `CredAPIKey`, the token, no organization; 0 saves, 0 profile reads, no "Use Kilo as:" |
+| `TestKiloDeviceKey_NoStoreNeeded_0056` | with no store: "Sign in with Kilo (device code)" in the menu; without key mode, no menu |
+| `TestKiloDeviceKey_Refused_0056` | a 401 listing: `ErrAuthFailure`, "refused the device sign-in" |
+| `TestKiloDeviceKey_KeptNextRun_0056` | the token, now `Existing`'s key, offered as "Keep the existing key", and kept |
+| `TestSkipMethods_LeavesThemOut_0056` | OpenAI's menu with the API key, and neither ChatGPT sign-in |
+| `TestSkipMethods_NoneLeft_0056` | Claude with `AuthAPIKey` skipped: the plain error, no prompt |
+| `TestNoEndpointPrompt_0056` | Kilo's default and `Existing`'s URL with no `Input`; Ollama reachable, nothing asked; unreachable, "cannot reach" |
+
+A first run failed one test, on the test's own fault: its menu title said
+"Kilo" where the descriptor's label is "Kilo Gateway". The title is now
+built from the descriptor.
+
+**Step 6, red first,** `tools/plant.py` on a scratch clone. Every plant was
+caught by a failing test, none by a failed build:
+
+| Plant | Failure line |
+| :--- | :--- |
+| the device token saved in key mode | "1 saves, 0 profile reads, …; want none, none, and no organization question" |
+| the profile read in key mode | "0 saves, 1 profile reads, …" |
+| key mode still needing a store | "enter API key: fakePrompter: unexpected Secret(\"Enter your Kilo Gateway API key\")" |
+| the device refusal worded as a pasted credential | "error wizard: Kilo Gateway refused the pasted credential: …; want ErrAuthFailure, refused the device sign-in" |
+| `SkipMethods` ignored | "menu [\"OpenAI API key\" \"Sign in with ChatGPT\" …]; want the API key, and neither ChatGPT sign-in" |
+| an empty menu falling into the API-key path | "error enter API key: …, shown [\"Enter your Claude (Anthropic) API key\"]; want the plain error, and no prompt" |
+| the endpoint asked despite `NoEndpointPrompt` | "enter base URL: fakePrompter: unexpected Input(\"Kilo Gateway endpoint\")", in all four cases |
+| an unreachable Ollama endpoint returned as success | "error <nil>, shown []; want cannot reach, and no prompt" |
+
+The PLAN listed six. Two more are added for the parts it did not name: key
+mode still needing a store, and the device refusal's wording.
+
+**Step 7, the docs and checks:**
+
+* **Docs:** `docs/architecture.md`'s Kilo entry names key mode, and a new
+  entry covers `SkipMethods` and `NoEndpointPrompt`. `CHANGELOG.md`'s Added
+  gains two entries.
+* **The checks,** each exit status captured before any filter:
+
+```text
+$ python3 -B tools/apidiff.py v1.20.1
+Compatible changes:
+- ./wizard.Options.KiloDeviceKey: added
+- ./wizard.Options.NoEndpointPrompt: added
+- ./wizard.Options.SkipMethods: added
+- ./wizard.ResolveCredential: added                                   (exit 0)
+$ make docs-check changelog-check tables-check parity-check
+sdkaudit: 0 violation(s) of R50,R51,R52; … 0 problem(s) each          (exit 0)
+$ make pre-add-check FILES="wizard/auth.go wizard/configure.go wizard/options_0056_test.go"
+go-precheck: 3 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck).   (exit 0)
+$ python3 -B tools/gate.py
+gate: 27 of 27 passed                                                 (exit 0)
+```
+
+apidiff lists exactly the PLAN's table of four. V4 and V7 are met.

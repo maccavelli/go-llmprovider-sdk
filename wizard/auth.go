@@ -63,21 +63,48 @@ const (
 	keyTyped                        // the Secret prompt
 	keyEnvironment                  // the descriptor's environment variable
 	keySaved                        // Options.Existing
+	keyDevice                       // Kilo's device sign-in, under Options.KiloDeviceKey
 )
 
 // offeredAuthMethods returns the methods the caller can keep. Without a
-// TokenStore, a method that saves a session is left out (0020-MADR F51);
+// TokenStore, a method that saves a session is left out (0020-MADR F51),
+// unless Options.KiloDeviceKey makes Kilo's device sign-in save none;
 // without the consumer's app name, so is the ChatGPT plan sign-in
-// (0043-MADR D7).
+// (0043-MADR D7). Options.SkipMethods are left out last (0056-MADR D4).
 func offeredAuthMethods(d llmprovider.Descriptor, o Options) []llmprovider.AuthMethod {
 	haveStore, haveName := o.TokenStore != nil, strings.TrimSpace(o.AgentName) != ""
 	var keep []llmprovider.AuthMethod
 	for _, m := range d.AuthMethods {
-		if (haveStore || !needsStore(d.ID, m.ID)) && (haveName || m.ID != llmprovider.AuthChatGPTPlan) {
+		if slices.Contains(o.SkipMethods, m.ID) {
+			continue
+		}
+		stored := needsStore(d.ID, m.ID) && !deviceKey(d.ID, m.ID, o)
+		if (haveStore || !stored) && (haveName || m.ID != llmprovider.AuthChatGPTPlan) {
 			keep = append(keep, m)
 		}
 	}
 	return keep
+}
+
+// deviceKey reports that method is Kilo's device sign-in taken as a key
+// (Options.KiloDeviceKey), which saves no session (0056-MADR D2).
+func deviceKey(provider llmprovider.ProviderID, method llmprovider.AuthMethodID, o Options) bool {
+	return o.KiloDeviceKey && provider == llmprovider.ProviderKilo && method == llmprovider.AuthDeviceCode
+}
+
+// skippedEvery reports that Options.SkipMethods, and nothing else, left d no
+// method: a menu it emptied, or the API key of a provider whose descriptor
+// lists no methods, the key being implicit (0056-MADR D4).
+func skippedEvery(d llmprovider.Descriptor, o Options, methods []llmprovider.AuthMethod) bool {
+	if len(methods) > 0 || len(o.SkipMethods) == 0 {
+		return false
+	}
+	if len(d.AuthMethods) == 0 {
+		return d.RequiresAPIKey && slices.Contains(o.SkipMethods, llmprovider.AuthAPIKey)
+	}
+	unskipped := o
+	unskipped.SkipMethods = nil
+	return len(offeredAuthMethods(d, unskipped)) > 0
 }
 
 // needsStore reports whether method saves a session to the TokenStore. The
@@ -135,6 +162,9 @@ func signIn(
 	o Options,
 ) (resolvedCredential, error) {
 	methods := offeredAuthMethods(d, o)
+	if skippedEvery(d, o, methods) {
+		return resolvedCredential{}, fmt.Errorf("wizard: Options.SkipMethods leaves no sign-in method for %s", d.Label)
+	}
 	if len(methods) == 0 || (len(methods) == 1 && methods[0].ID == llmprovider.AuthAPIKey) {
 		key, from, err := resolveAPIKey(p, d, o)
 		if err != nil {
@@ -200,6 +230,9 @@ func signIn(
 		return saveOAuthCredential(ctx, o.TokenStore, d.ID, session)
 	case llmprovider.AuthDeviceCode:
 		if d.ID == llmprovider.ProviderKilo {
+			if o.KiloDeviceKey {
+				return resolveKiloDeviceKey(ctx, p, d, o)
+			}
 			return resolveKiloDevice(ctx, p, d, baseURL, o)
 		}
 		session, loginErr := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p, o))
@@ -349,6 +382,23 @@ func resolveKiloDevice(
 		return resolvedCredential{}, fmt.Errorf("select Kilo organization: %w", err)
 	}
 	cred.organization = ids[idx]
+	return cred, nil
+}
+
+// resolveKiloDeviceKey runs Kilo's device login and takes its token as the
+// key, under Options.KiloDeviceKey: nothing is saved and no profile is read,
+// so no organization is chosen. One copy of the token, in the Result
+// (0056-MADR D2; 0016-MADR D11).
+func resolveKiloDeviceKey(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (resolvedCredential, error) {
+	session, err := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p, o))
+	if err != nil {
+		return resolvedCredential{}, err
+	}
+	if session == nil || session.Access == "" {
+		return resolvedCredential{}, errors.New("wizard: Kilo login returned no token")
+	}
+	cred := staticCredential(CredAPIKey, session.Access)
+	cred.keyFrom = keyDevice
 	return cred, nil
 }
 
