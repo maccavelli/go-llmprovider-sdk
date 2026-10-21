@@ -170,7 +170,8 @@ func TestConfigureLLM_EmptyDiscoveryFallsBackToStatic(t *testing.T) {
 	if len(static) == 0 || res.Model != static[0] {
 		t.Errorf("Model = %q, want the first static model %v", res.Model, static)
 	}
-	if countContaining(f.seenNotify, "refused by the test") != 1 {
+	// The failure as its class, not the transport's text (0056-MADR D3).
+	if countContaining(f.seenNotify, "(the request failed)") != 1 {
 		t.Errorf("notices = %v, want the listing failure reported once", f.seenNotify)
 	}
 }

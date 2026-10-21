@@ -266,7 +266,9 @@ acceptance list is a passing test:
 4. **The changed test.** `model_select_test.go:267`'s expected notice
    becomes "live model listing for OpenCode Zen is unavailable (provider
    unavailable, HTTP 500); …". The reason: D3, by the owner's Q1 answer.
-   Nothing else in it changes.
+   Nothing else in it changes. *(2026-10-21 deviation: two more change for
+   the same reason, `configure_test.go:174` and
+   `model_select_edge_test.go:245`; see Phase 3's record.)*
 5. **The tests,** `wizard/describe_0056_test.go`:
    * `TestDescribe_0056`, a table:
      * `*APIError` 401 gives "authentication failed, HTTP 401";
@@ -564,3 +566,103 @@ gate: 27 of 27 passed                                                 (exit 0)
 ```
 
 apidiff lists exactly the PLAN's table of four. V4 and V7 are met.
+
+### Phase 3: refusals without the provider's text (2026-10-21)
+
+* **Approval.** "Commit to main, then proceed". Phase 2 was committed at the
+  owner's ask as `94cb68b`.
+
+**Deviation (2026-10-21): two more existing tests read a notice's error
+text.**
+
+* **Found** after steps 1 and 2, in the drift check. Two tests failed:
+  * `TestConfigureLLM_EmptyDiscoveryFallsBackToStatic`
+    (`configure_test.go:174`): "notices = [… live model listing for Claude
+    (Anthropic) is unavailable (the request failed); …], want the listing
+    failure reported once". It counted "refused by the test", the
+    transport's error.
+  * `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog`
+    (`model_select_edge_test.go:245`): "listing warning seen 0 times, want
+    1: [could not list models for Grok (xAI) (timed out); using the
+    built-in catalog]". It counted "deadline exceeded); using the built-in
+    catalog".
+
+  The MADR's F8 named one such test. Its search matched the notices' words,
+  not the errors'.
+* **Options put to the owner:**
+  * the two tests take D3's wording, keeping their purpose (recommended);
+  * D3 changed so a transport error keeps its text. That spares the first
+    test only, and lets local error text reach the screen.
+* **Decision.** "option 1". Both tests now count "(the request failed)" and
+  "(timed out); using the built-in catalog", each with a comment. The MADR
+  gains an amendment correcting F8, and step 4 is annotated. D3 stands.
+  Files added to the phase: `wizard/configure_test.go`,
+  `wizard/model_select_edge_test.go`.
+
+**Steps 1 to 3.**
+
+* **`describe`,** in the new `wizard/describe.go`: the context's end
+  first, then the most specific of nine kind sentinels, a child before its
+  parent, as its text without "llmprovider: ", then ", HTTP <status>" from
+  an `*APIError`, and else "the request failed".
+* **The six notices** use it: the refusal, the three listing warnings,
+  Kilo's profile and the failed revocation. The three left with `%v` are
+  D3's exclusions: the endpoint's validation, an unreachable local
+  endpoint, and the terminal's restore.
+* **The docs:** `ConfigureLLM`'s doc and `refusalError`'s comment say that
+  a notice shows the class and status, and the returned error keeps its
+  text.
+
+**Step 4.** `model_select_test.go:267` expects "(provider unavailable, HTTP
+500)", with a comment, and so do the two tests of the deviation. After them,
+`go test -race -count=1 ./wizard/` "ok".
+
+**Step 5, the tests,** `wizard/describe_0056_test.go`. Every refusal or
+failure in them carries "Incorrect API key provided:
+sk-proj-****…abcd.", a key the service masked itself. All pass under
+`-race`.
+
+| Test | Shows |
+| :--- | :--- |
+| `TestDescribe_0056` | 401 "authentication failed, HTTP 401"; 403 "not permitted, HTTP 403"; 429 quota "quota exhausted, HTTP 429"; 500 "provider unavailable, HTTP 500"; a deadline "timed out"; cancelled "cancelled"; a transport error "the request failed"; a sentinel with no status "authentication failed" |
+| `TestRefusalNotice_NoProviderText_0056` | two "refused this key (authentication failed, HTTP 401); enter another"; the error still `ErrAuthFailure`; nothing shown holds the message |
+| `TestListingWarnings_NoProviderText_0056` | each listing warning (no static catalog, a static catalog, the live listing unavailable) and Kilo's profile notice, by class and status, nothing of the message |
+| `TestLogoutNotice_NoProviderText_0056` | a revocation refused with the message: the notice shows none of it |
+
+**Step 6, red first,** `tools/plant.py` on a scratch clone, all eight caught
+by failing tests:
+
+| Plant | First failure line |
+| :--- | :--- |
+| the refusal notice back to `%v` | "notices [… \"Claude (Anthropic) refused this key (llmprovider: …" |
+| warning 1 back to `%v` | "could not list models for Acme (llmprovider: provider unavailable: acme HTTP 500: Incorrect API key provided: sk-proj-…abcd.)" |
+| warning 2 back to `%v` | the same, "…; using the built-in catalog" |
+| warning 3 back to `%v` | "live model listing for OpenCode Zen is unavailable (llmprovider: pr…" |
+| Kilo's profile notice back to `%v` | "could not read the Kilo account's organizations (llmprovider: provider unavailable: acme HTTP 500: Incorrect API key provided: sk-p…" |
+| the revocation notice back to `%v` | "shown \"could not revoke the OpenAI session (oauth: revoke failed: 400 Bad Request: {\\\"error\\\":\\\"invalid_request\\\",\\\"error_description\\\":\\\"Incorrect API key provided: sk-proj-…" |
+| a parent before its child | "describe = \"rate limited, HTTP 429\"; want \"quota exhausted, HTTP 429\"" |
+| the status left out | "describe = \"authentication failed\"; want \"authentication failed, HTTP 401\"" |
+
+The six `%v` plants show the defect itself: each put the service's echo of
+a masked key on the screen. The revocation printed the raw response body.
+
+**Step 7, the docs and checks:**
+
+* **Docs:** `docs/architecture.md`'s "A refused key" names D3's rule, and
+  `CHANGELOG.md` gains a Changed entry.
+* **The checks,** each exit status captured before any filter:
+
+```text
+$ go test -race -count=1 ./wizard/
+ok                                                                    (exit 0)
+$ python3 -B tools/apidiff.py v1.20.1
+the four names of the PLAN's table, and nothing more                   (exit 0)
+$ make docs-check changelog-check tables-check parity-check
+sdkaudit: 0 violation(s) of R50,R51,R52; … 0 problem(s) each          (exit 0)
+$ make pre-add-check FILES="<the 8 Go files>"
+go-precheck: 8 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck).   (exit 0)
+$ python3 -B tools/gate.py
+gate: 27 of 27 passed                                                 (exit 0)
+```
+
+V5 and V6 are met.

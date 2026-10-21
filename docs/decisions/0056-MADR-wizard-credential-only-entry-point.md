@@ -74,7 +74,8 @@ HEAD -- wizard/` is empty.
   `wizard/model_select_test.go:267` expects "live model listing for
   OpenCode Zen is unavailable (llmprovider: provider unavailable: opencode
   HTTP 500); …" (C23). The other two that read these warnings match their
-  prefix only.
+  prefix only. *(Wrong: two more read the error's text. See the amendment
+  of 2026-10-21.)*
 * **F9. The methods and the endpoint come from the descriptor.** Changing
   either means registering other descriptors, and `Registry.Register`
   needs a `Factory` (C24), which the registry does not expose.
@@ -422,3 +423,24 @@ Registry around wrapped factories (F9).
 | C28 | A revocation's notice | `wizard/logout.go:48` | `p.Notify(LevelWarn, "could not revoke the %s session (%v); deleting the local copy", label, err)` |
 | C29 | Kilo's profile notice | `wizard/auth.go:321` | `p.Notify(LevelWarn, "could not read the Kilo account's organizations (%v); using the personal account", err)` |
 | C27 | A sentinel's text has the prefix | `llmprovider/provider.go:63` | `ErrAuthFailure         = errors.New("llmprovider: authentication failed")` |
+
+## Amendment 2026-10-21: three existing tests read a notice's error text, not one
+
+* **Found** at the PLAN's Phase 3, when the notices took D3's wording. F8 is
+  wrong: it says one existing test reads a warning's `%v`. Two more do, and
+  failed:
+  * `TestConfigureLLM_EmptyDiscoveryFallsBackToStatic`
+    (`wizard/configure_test.go:174`) counts the notices holding the
+    transport's error, "refused by the test";
+  * `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog`
+    (`wizard/model_select_edge_test.go:245`) counts "deadline exceeded);
+    using the built-in catalog".
+
+  F8's search matched the notices' own words and missed these, which match
+  the error's.
+* **The owner chose (2026-10-21),** "option 1": both tests expect D3's
+  wording, "(the request failed)" and "(timed out); using the built-in
+  catalog", each keeping its purpose (the failure reported once, the static
+  catalog used). Keeping a transport error's text, which would have spared
+  the first, was put to the owner and not chosen: it changes D3. D3 and F7
+  stand.

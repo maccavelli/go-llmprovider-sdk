@@ -45,7 +45,7 @@ func Logout(ctx context.Context, p Prompter, o Options, id llmprovider.ProviderI
 			session.HTTPClient = o.HTTPClient
 		}
 		if err := auth.RevokeOAuthSession(ctx, session); err != nil {
-			p.Notify(LevelWarn, "could not revoke the %s session (%v); deleting the local copy", label, err)
+			p.Notify(LevelWarn, "could not revoke the %s session (%s); deleting the local copy", label, describe(err))
 		}
 	default:
 		p.Notify(LevelInfo, "%s offers no revocation; deleting the local copy", label)

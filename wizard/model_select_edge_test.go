@@ -241,7 +241,8 @@ func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 	if res.Model != static[0] {
 		t.Errorf("Model = %q, want the first built-in model %q", res.Model, static[0])
 	}
-	if n := countContaining(f.seenNotify, "deadline exceeded); using the built-in catalog"); n != 1 {
+	// The deadline as "timed out", not the error's text (0056-MADR D3).
+	if n := countContaining(f.seenNotify, "(timed out); using the built-in catalog"); n != 1 {
 		t.Errorf("listing warning seen %d times, want 1: %v", n, f.seenNotify)
 	}
 }

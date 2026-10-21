@@ -837,7 +837,11 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   for another, up to three keys, then returns an error. A refused key from
   the environment or `Options.Existing`, or a refused session or CLI login,
   is an error naming that source. Any other listing failure falls back to
-  the built-in catalog, with a warning.
+  the built-in catalog, with a warning. Every notice that reports a service's
+  error, the refusal, the three listing warnings, Kilo's profile and a
+  failed revocation, shows its class and HTTP status, never its text: a
+  service can echo a key it has masked itself, which redaction leaves as it
+  is. A returned error keeps its text, for `errors.Is` (0056-MADR D3).
 - **`TextPrompter`** strips control characters from what `Notify` writes.
   Its masked entry redraws only when its input has caught up, pads rather
   than erasing the line, ignores a lone Escape, clears on Ctrl-U, and

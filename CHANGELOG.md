@@ -28,6 +28,14 @@ carry their sections.
   menu, and `wizard.Options.NoEndpointPrompt`, which asks no endpoint and
   uses `Existing`'s or the default (D4).
 
+### Changed
+
+- The wizard's notices that report a service's error (a refused key, the
+  three model-listing warnings, Kilo's profile, a failed revocation) show
+  its class and HTTP status, such as "authentication failed, HTTP 401",
+  never the service's message, which can echo a key the service masked
+  itself (D3). The errors the wizard returns are unchanged.
+
 ## [v1.20.1] - 2026-10-21
 
 ### Security

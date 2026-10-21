@@ -355,7 +355,7 @@ func resolveKiloDevice(
 	opts = append(opts, o.ProviderOptions...)
 	account, err := kiloProfile(ctx, session.Access, opts...)
 	if err != nil {
-		p.Notify(LevelWarn, "could not read the Kilo account's organizations (%v); using the personal account", err)
+		p.Notify(LevelWarn, "could not read the Kilo account's organizations (%s); using the personal account", describe(err))
 		return cred, nil
 	}
 	if len(account.Organizations) == 0 {

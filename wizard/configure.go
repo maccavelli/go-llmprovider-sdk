@@ -162,7 +162,9 @@ func (o Options) lookupEnv() func(string) string {
 //
 // It never writes configuration and never logs a credential: an API key
 // appears only in the returned Result, a session only in Options.TokenStore,
-// and anything shown to the user is masked with redact.MaskSecret.
+// and anything shown to the user is masked with redact.MaskSecret. A
+// service's error is shown as its class and HTTP status, never its text; the
+// error returned keeps its text, for errors.Is (0056-MADR D3).
 //
 // A Prompter's error ends the flow and is returned, wrapped or as it is, so
 // errors.Is matches it; so is a failed sign-in's, browser, device-code or
@@ -324,7 +326,7 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		if credential.keyFrom != keyTyped || keys == maxTypedKeys {
 			return Result{}, catalog.Catalog{}, refusalError(d, credential, keys, listErr)
 		}
-		p.Notify(LevelWarn, "%s refused this key (%v); enter another", d.Label, listErr)
+		p.Notify(LevelWarn, "%s refused this key (%s); enter another", d.Label, describe(listErr))
 		key, keyErr := promptAPIKey(p, d)
 		if keyErr != nil {
 			return Result{}, catalog.Catalog{}, keyErr
@@ -438,7 +440,9 @@ func refusedCredential(err error) bool {
 }
 
 // refusalError names the refused credential's source, so the user knows what
-// to replace; keys is how many typed keys were tried.
+// to replace; keys is how many typed keys were tried. It wraps err, whose
+// text can hold the service's message: a notice shows describe(err) instead
+// (0056-MADR D3).
 func refusalError(d llmprovider.Descriptor, c resolvedCredential, keys int, err error) error {
 	switch {
 	case c.keyFrom == keyTyped:
@@ -576,10 +580,10 @@ func discoverModels(
 	}
 	if err != nil {
 		if len(static) == 0 {
-			p.Notify(LevelWarn, "could not list models for %s (%v)", d.Label, err)
+			p.Notify(LevelWarn, "could not list models for %s (%s)", d.Label, describe(err))
 			return fallback, err
 		}
-		p.Notify(LevelWarn, "could not list models for %s (%v); using the built-in catalog", d.Label, err)
+		p.Notify(LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(err))
 		return fallback, err
 	}
 	// A live listing with nothing recommended is kept for search (0021-MADR
@@ -590,8 +594,8 @@ func discoverModels(
 	switch {
 	case cat.Live || chatGPT:
 	case cat.Err != nil:
-		p.Notify(LevelWarn, "live model listing for %s is unavailable (%v); search covers the built-in catalog only",
-			d.Label, cat.Err)
+		p.Notify(LevelWarn, "live model listing for %s is unavailable (%s); search covers the built-in catalog only",
+			d.Label, describe(cat.Err))
 	default:
 		p.Notify(LevelInfo, "live model listing for %s is unavailable; search covers the built-in catalog only", d.Label)
 	}
