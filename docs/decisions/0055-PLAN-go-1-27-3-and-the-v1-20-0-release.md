@@ -1,0 +1,231 @@
+---
+status: proposed
+date: 2026-10-20
+associated-madr: "0055-MADR-go-1-27-3-and-the-v1-20-0-release.md"
+decision-makers: repository owner
+---
+
+<!-- markdownlint-disable MD013 MD024 -->
+
+# Implement Go 1.27.3 as the Floor, Release v1.20.1, and Make v1.20.0's Release
+
+Associated MADR: [0055-MADR-go-1-27-3-and-the-v1-20-0-release.md](0055-MADR-go-1-27-3-and-the-v1-20-0-release.md)
+
+## Goal
+
+The MADR's D1 to D3, as the owner chose them on 2026-10-20 (1(a), 2(i)):
+
+* `go.mod` requires Go 1.27.3, CI builds with it, and govulncheck passes
+  with no exclusion;
+* `v1.20.1` is released by CI's `release` job, with the floor and the Docs
+  workflow's fix in its section;
+* `v1.20.0` has a GitHub Release whose body is its section, made by hand
+  after `v1.20.1`'s, with `v1.20.1` left Latest.
+
+## Scope
+
+### In scope
+
+* **Phase 1, the floor:**
+  * `go.mod`;
+  * the current-state statements: `AGENTS.md:11` to `12`, `README.md:20`,
+    `README.md:308` (its Go sentence), `docs/architecture.md:10` to `11`,
+    `docs/guides/migrating-from-mcplib.md:38`;
+  * `docs/guides/api-standards.md`: R54 (lines 331 to 336) and its row in
+    the index (line 356);
+  * an amendment in `0048-MADR-adopt-go-sdk-best-practices.md` (A3) and in
+    `0029-MADR-go-1-27-2-for-standard-library-fixes.md`, each a pointer
+    here;
+  * `CHANGELOG.md`'s `[Unreleased]`: a Security entry.
+* **Phase 2, `v1.20.1`:** `CHANGELOG.md`, and the README's Status.
+* **Phase 3, `v1.20.0`'s Release:** a GitHub Release, and nothing in the
+  tree but this PLAN's record.
+* **Records:** this pair, its index rows, and the deviation entry in
+  `0053-PLAN-stream-retry-and-cache-defects.md`.
+
+### Out of scope
+
+* **Any exported name, golden or test:** `tools/apidiff.py v1.20.0`
+  reports nothing.
+* **The owner's Go environment** (`GOTOOLCHAIN=go1.27.2`): it is the
+  owner's. Until the owner changes it, each `go` command this PLAN runs sets
+  `GOTOOLCHAIN=go1.27.3` in its own environment. Phase 1 step 7 asks the
+  owner. *(2026-10-21: the owner has changed it; `go env GOTOOLCHAIN` is
+  `go1.27.3`.)*
+* **Records that name 1.27.2,** which say what ran then.
+* **`scripts/test_gates.py:137`'s scratch `go 1.27.1`,** which states
+  nothing about this module.
+* **The `v1.20.0` tag,** which does not move (MADR F7).
+* **gobble-cli and prepare-commit-msg moving to `v1.20.1`,** which their
+  own repositories do. This PLAN names the release to them only if the
+  owner asks.
+* **0052's staged Docs fix,** which is 0052's. It is committed first, on
+  its own, and its Fixed entry is carried into `v1.20.1`'s section.
+
+## Rules for every phase
+
+* **Approval.** The owner approves this PLAN, whole or by phase. A phase
+  starts after the owner has committed the last.
+* **The toolchain.** Every `go`, `make` and `tools/gate.py` command runs
+  with `GOTOOLCHAIN=go1.27.3` in its environment, until the owner's
+  environment names it. The first such command downloads the toolchain to
+  the module cache.
+* **The gate, before staging:**
+  * `GOTOOLCHAIN=go1.27.3 python3 -B tools/gate.py`;
+  * `tools/claims.py` on both records;
+  * `make records-check`;
+  * `tools/recordlint.py --changed`;
+  * `tools/denyscan.py --changed`;
+  * `tools/linkcheck.py`.
+
+  Each exit status is captured before any filter.
+* **Stage, then the owner commits** with `git commit --no-edit`. The
+  disclosure guard runs over the outgoing commits before each push. Push and
+  tags happen on the owner's word.
+* **Stop conditions:**
+  * a fact of the MADR no longer holds;
+  * golangci-lint `v2.14.0` fails under Go 1.27.3;
+  * govulncheck reports anything under Go 1.27.3;
+  * an exported name, a golden or a test would change;
+  * a CI job fails.
+
+  On any of these, stop, record a dated deviation here (with an amendment
+  in the MADR when a decision or a fact changes), and wait.
+
+## Implementation Steps
+
+### Phase 0: records
+
+1. This pair, and its two rows in `docs/README.md` (`tools/records.py
+   add`).
+2. `0053-PLAN-stream-retry-and-cache-defects.md`: a dated deviation entry
+   for its Phase 3 step 3 (the tag's CI failed, the Release was not made),
+   with steps 4 and 5's results, pointing here.
+
+Before this phase is staged, 0052's Docs fix, staged now, is committed by
+the owner on its own, so that this commit holds records only. *(2026-10-21:
+committed as `e68be51`; 0019's third `go fix` run followed as `3c7ad7e`.)*
+
+### Phase 1: the floor (MADR D1)
+
+1. **Red first, already seen.** CI's run 39535986410 failed its
+   govulncheck step on Go 1.27.2, and `make vuln` on this host exits 2 with
+   the same finding (MADR F2, F5). Under `GOTOOLCHAIN=go1.27.3`, on the
+   tree before step 2, `make vuln` is run once more and recorded. The
+   expected result is a pass, since govulncheck reads the toolchain's
+   standard library version, not the directive **[assumption, measured by
+   this step]**.
+2. **The directive.** `GOTOOLCHAIN=go1.27.3 go mod edit -go=1.27.3`.
+   Assert that `git diff go.mod` is the one line `go 1.27.2` to
+   `go 1.27.3`, that there is no `toolchain` line, and that `go.sum` is
+   unchanged.
+3. **The statements**, each asserted to land, nothing else on their lines:
+   * `AGENTS.md`: "Requires Go 1.27.3: Go 1.27 for `encoding/json/v2`, and
+     the `.3` patch for the standard library's security fixes, the last
+     GO-2026-6809 (the standards guide's R54)."
+   * `README.md:20`: "It requires Go 1.27.3."; `README.md:308`'s second
+     sentence: "The module requires Go 1.27.3."
+   * `docs/architecture.md`: "It requires Go 1.27.3, …".
+   * `docs/guides/migrating-from-mcplib.md:38`: "… The module requires Go
+     1.27.3 (0055-MADR)."
+4. **R54.** "**R54. The Go floor is `go 1.27.3`,** …. The patch, `.3`,
+   carries the standard library's security fixes through GO-2026-6809
+   (`crypto/x509`). The floor is raised with each Go security patch. (0048
+   D6, A1; 0055)". The index row's last cell becomes "0048-MADR A1,
+   0055-MADR".
+5. **The amendments.**
+   * 0048-MADR, after A2: "### A3 (2026-10-20): the floor is `go
+     1.27.3`", one paragraph: R54's version is raised by its own rule, for
+     GO-2026-6809, by 0055-MADR; A1's reasons for Go 1.27 stand.
+   * 0029-MADR, at its end: "## Amendment 2026-10-20: the floor is raised
+     again, to `go 1.27.3`", one paragraph pointing to 0055-MADR. Neither
+     record's earlier text is rewritten.
+6. **`CHANGELOG.md`,** `[Unreleased]`, `### Security`, above 0052's
+   `### Fixed`: the module requires Go 1.27.3, for GO-2026-6809 in
+   `crypto/x509` (`Certificate.Verify`), which every HTTPS request the
+   module makes reaches; a consumer at `go 1.27.2` raises its directive,
+   and `GOTOOLCHAIN=auto` fetches the toolchain; `v1.20.0` and earlier need
+   a Go 1.27.3 toolchain to be built safely. The MADR is linked.
+7. **The checks,** all under `GOTOOLCHAIN=go1.27.3`:
+   * `go mod tidy -diff`, 0;
+   * `make vuln`, 0, "No vulnerabilities found.";
+   * golangci-lint `v2.14.0`, `make lint` for the host and for
+     `GOOS=windows`, 0 issues. If it fails, stop (0029-MADR's amendment);
+   * `GOTOOLCHAIN=go1.27.2 go build ./...`, which must fail naming the
+     1.27.3 requirement;
+   * `git grep -n "1\.27\.2" -- ':!docs/decisions' ':!docs/reports'`, which
+     must find no current-state statement;
+   * the gate, and the record checks of "Rules for every phase".
+
+   Then the owner is asked to run `go env -w GOTOOLCHAIN=go1.27.3`, since
+   this host's `go` refuses the module at 1.27.2 once the commit lands. The
+   PLAN does not run it. *(2026-10-21: already done by the owner.)*
+8. **Push.** With the owner's word, after the disclosure guard: 0052's fix,
+   Phase 0 and this phase go out together, with 0019's `go fix` commit
+   (`3c7ad7e`), whose CI also needs the floor.
+   * "CI" on `main` passes all three `validate` jobs, govulncheck included.
+   * "Docs" passes too, since the push changes `docs.yml`. That is 0052's
+     Phase 4 step 6, which 0052's PLAN records.
+
+### Phase 2: release `v1.20.1` (MADR D2)
+
+1. **`CHANGELOG.md`:** `[Unreleased]` becomes `[v1.20.1] - <date>`, dated
+   by the commit the tag will name, with Security (Phase 1) and Fixed
+   (0052's Docs workflow). An empty `[Unreleased]` goes above it, and the
+   comparison links gain `v1.20.1`. The README's Status names `v1.20.1`.
+2. **The notes,** in a local clone of the tree with a local `v1.20.1` tag:
+   `--section v1.20.1 --repo maccavelli/go-llmprovider-sdk` exits 0, and
+   the output is scanned for identifiers.
+3. **Before the push:** the gate; `tools/apidiff.py v1.20.0`, no change;
+   the disclosure guard.
+4. **The tag,** on the owner's word: `v1.20.1`, annotated as `v1.20.0` is
+   (message `v1.20.1`), on the release commit, then pushed. The tag's run
+   passes every `validate` job, and its `release` job makes the Release.
+   `gh release view v1.20.1 --json body` equals step 2's output.
+5. **After the tag:**
+   * `tools/consumer.py v1.20.1` and `tools/offline.py v1.20.1`;
+   * `go list -m -json github.com/maccavelli/go-llmprovider-sdk@v1.20.1`
+     through the proxy: `"GoVersion": "1.27.3"`.
+
+### Phase 3: `v1.20.0`'s Release (MADR D3)
+
+1. **The notes.** In a clone at the tag `v1.20.0`, with every tag:
+   `python3 -B scripts/check_changelog.py --section v1.20.0 --repo
+   maccavelli/go-llmprovider-sdk > v1.20.0.md`, exit 0. The file is
+   compared with 0053-PLAN Phase 3's output (2,239 bytes), and
+   `tools/denyscan.py` reads it, 0 hits. It is shown to the owner.
+2. **The Release,** on the owner's word: `gh release create v1.20.0 --title
+   v1.20.0 --notes-file v1.20.0.md --verify-tag --latest=false`.
+3. **Read back:** `gh release view v1.20.0 --json body` equals the file;
+   `gh release list` shows `v1.20.1` as Latest; every tag from `v1.10.2`
+   on has a Release.
+4. **Close:**
+   * this PLAN `complete` (`tools/records.py status`);
+   * `0053-PLAN-stream-retry-and-cache-defects.md` `complete`, its
+     deviation entry completed with the Release's link.
+
+## Verification
+
+| # | Criterion | Phase | Check |
+| :--- | :--- | :--- | :--- |
+| V1 | `go.mod` says `go 1.27.3`, no `toolchain` line, tidy | 1 | `git diff go.mod`; `go mod tidy -diff` |
+| V2 | govulncheck passes on 1.27.3, and fails on 1.27.2 | 1 | `make vuln`, under each |
+| V3 | The linter works on 1.27.3 | 1 | `make lint`, host and Windows |
+| V4 | A 1.27.2 toolchain refuses the module | 1 | `GOTOOLCHAIN=go1.27.2 go build ./...` |
+| V5 | No current statement names 1.27.2 | 1 | the `git grep` |
+| V6 | CI and Docs pass on `main` | 1 | the run ids |
+| V7 | `v1.20.1`'s Release is its section, and its `GoVersion` is 1.27.3 | 2 | `gh release view`; `go list -m -json` |
+| V8 | No exported name changes | 2 | `tools/apidiff.py v1.20.0` |
+| V9 | `v1.20.0`'s Release is its section, and `v1.20.1` is Latest | 3 | `gh release view`; `gh release list` |
+
+## Rollout and Rollback
+
+* **Rollout.** Four commits on `main`, staged by the agent and committed by
+  the owner: 0052's fix, Phase 0, Phase 1, then Phase 2's release commit.
+  Then the owner's tag, then Phase 3's Release.
+* **Rollback.**
+  * Phase 1 reverts on its own, and CI is red on govulncheck again until
+    another fix lands. After `v1.20.1` is tagged, a revert ships as a new
+    release.
+  * Phase 3's Release can be deleted with `gh release delete v1.20.0`,
+    which leaves the tag. The tag itself is never deleted.

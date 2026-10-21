@@ -372,7 +372,9 @@ keep 0028-MADR D-A3; Q2: a stream-index bound of 4096; Q3: `v1.20.0`):
      before the owner pushes.
 3. **The tag.** The owner tags `v1.20.0` and pushes it. CI's `release` job
    makes the Release, and its body equals `check_changelog.py --section
-   v1.20.0 --repo maccavelli/go-llmprovider-sdk`.
+   v1.20.0 --repo maccavelli/go-llmprovider-sdk`. *(2026-10-20 deviation:
+   the tag's CI failed on GO-2026-6809, so the Release is made by hand, by
+   0055-PLAN's Phase 3.)*
 4. **After the tag:** `tools/consumer.py v1.20.0` and `tools/offline.py
    v1.20.0`.
 5. **Close:**
@@ -732,3 +734,57 @@ keep 0028-MADR D-A3; Q2: a stream-index bound of 4096; Q3: `v1.20.0`):
 * **Step 2, before the push:** `tools/gate.py`, 27 of 27 passed;
   `tools/apidiff.py v1.19.0`, no output, exit 0; the disclosure guard over the
   outgoing commits, once this one is committed, before the owner pushes.
+* **Step 3, the tag.** The owner committed this phase as `5c60593`. At the
+  owner's ask ("Tag the commit and push"), `v1.20.0` was tagged on it,
+  annotated as `v1.19.0` is, and pushed after the disclosure guard (exit
+  0, no output).
+
+### Deviation (2026-10-20): the tag's CI failed, and `v1.20.0` has no Release
+
+* **Found** at step 3. CI's run for the tag, 39535986410, failed
+  `validate (ubuntu-24.04)` at its govulncheck step (exit 3) on
+  GO-2026-6809, `crypto/x509`, "Found in: crypto/x509@go1.27.2, Fixed in:
+  crypto/x509@go1.27.3". Its trace runs through
+  `llmprovider/catalog/model_metadata.go:618`. The `release` job was
+  skipped, so no Release was made. macOS and Windows passed.
+* **Not this PLAN's code.** The same commit passed all three `validate`
+  jobs on `main` three hours earlier (run 39521616762). The advisory was
+  published in between, and `make vuln` on this host now fails the same
+  way.
+* **The tag stays.** The module proxy already serves `v1.20.0` (step 4's
+  `consumer.py` downloaded it), and its CI cannot pass on Go 1.27.2.
+* **The decision:** the owner's, "Follow recommendations": the Go floor
+  raised to 1.27.3 and released as `v1.20.1`, and `v1.20.0`'s Release made
+  by hand from its section once `v1.20.1` passes CI. This is
+  [0055-MADR-go-1-27-3-and-the-v1-20-0-release.md](0055-MADR-go-1-27-3-and-the-v1-20-0-release.md)
+  and its PLAN. Step 3's comparison of the Release body moves to that
+  PLAN's Phase 3. No decision of this record's MADR changes.
+* **Step 4, after the tag:**
+  * `tools/consumer.py v1.20.0`: "consumer: 15 packages linked", "every
+    step passed", built for the six platforms;
+  * `tools/offline.py v1.20.0`: "fields=19 … requests=0", "offline: ok",
+    built for the six platforms. Its two built-in plants were both caught:
+    "models.dev left on" (1 request) and "no caller layer" (every field
+    unset).
+* **Step 5, the MADR's Confirmation.** The MADR's probes M1 to M7, as
+  they were, on a clean clone at the tag (`5c60593`): `go test -run
+  TestProbe53`, exit 0, in 8 packages.
+  * **M1:** `reasoning_details` 2,000 to 16,000 fragments, 1,689 KiB to
+    12,693 KiB, linear. generateContent's text 2,000 to 16,000 chunks, 487
+    KiB to 3,172 KiB.
+  * **M2:** index -1 in a Chat Completions tool call, `reasoning_details`,
+    Messages and Gemini Interactions: each "incomplete response: … out of
+    range (0 to 4095) panic=<nil>". Hugging Face's public `Stream`:
+    "panic=<nil>".
+  * **M3:** tool-call index 1,000,000: "alloc=0MiB".
+  * **M4:** an in-stream `server_error` with `MaxAttempts` 3 and 5:
+    "requests=2" each. Claude's `overloaded_error` under `WithStreamRetry`:
+    "requests=1 … afterReply=true".
+  * **M5:** 503 and 401: "requests=1 wall=100ms". A cancelled claimant:
+    "requests=1 waiter wall=100ms live=true".
+  * **M6:** `/api/show` 1, 1, 2, 2, 3 at 0, 9, 18, 27 and 36 minutes.
+  * **M7:** "probe generations=6; a 6th, warm: +0". Every probe failing:
+    6, 12, 18.
+
+  This PLAN stays `in-progress` until 0055-PLAN's Phase 3 makes the
+  Release.
