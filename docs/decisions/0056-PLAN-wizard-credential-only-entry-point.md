@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-21
 associated-madr: "0056-MADR-wizard-credential-only-entry-point.md"
 decision-makers: repository owner
@@ -692,3 +692,69 @@ V5 and V6 are met.
   * **The gate:** "gate: 27 of 27 passed".
   * **The disclosure guard** runs over the outgoing commits once this one is
     made.
+
+* **The push.** At the owner's ask ("Commit to main. Push."), the release
+  commit was committed as `d902c03` (2026-10-21). The disclosure guard ran
+  over `e6521a0`, `5ab2605`, `94cb68b`, `448900e` and `d902c03`, exit 0 with
+  nothing flagged, and `main` was pushed (`4e6130f..d902c03`). "CI",
+  39642685344: `validate` passed on the three platforms, and `release` was
+  skipped. "Docs", 39642685126, passed.
+* **Step 3, the tag.** At the owner's ask ("Tag and push"), `v1.21.0` was
+  tagged on `d902c03`, annotated, and pushed after the guard (exit 0).
+  * CI's run for the tag, 39644039751, `success`: every `validate` job
+    passed, and `release` published the Release at 17:34:05 UTC. It is not
+    a draft or a pre-release, and it is Latest.
+  * `gh release view v1.21.0 --json body` equals step 2's notes, 1,464
+    bytes, apart from the trailing newline `gh --jq` adds. V10 is met.
+* **Step 4, after the tag:**
+  * **The Release that fell to sixth.** `gh release delete v1.17.0 --yes`,
+    exit 0. Its body was saved before 0055's deletions.
+    * `gh release list` shows `v1.21.0` (Latest), `v1.20.1`, `v1.20.0`,
+      `v1.19.0` and `v1.18.0`.
+    * `git ls-remote --tags` lists 30 tags, `v1.17.0`'s among them.
+  * `tools/consumer.py v1.21.0`: "consumer: 15 packages linked", "every
+    step passed", built for the six platforms.
+  * `tools/offline.py v1.21.0`: "requests=0", "offline: ok", and both
+    built-in plants caught.
+  * Through the proxy: `"Version": "v1.21.0"`, `"GoVersion": "1.27.3"`,
+    `Hash d902c03…`.
+* **Step 5, the issue.** The reply is written to a scratch file, scanned
+  ("deny-scan: 0 hit(s)") and shown to the owner. It is posted, and issue 5
+  closed, on the owner's word.
+
+### Phase 4, steps 5 and 6: the issue, and closing (2026-10-21)
+
+* **Step 5.** On the owner's word ("post it and close it, stage the
+  records"):
+  * the reply was posted:
+    [issue 5, comment 6322545515](https://github.com/maccavelli/go-llmprovider-sdk/issues/5#issuecomment-6322545515);
+  * read back with `gh issue view 5 --json comments`, it equals the scanned
+    file, 3,718 characters;
+  * `gh issue close 5 --reason completed`: "CLOSED COMPLETED
+    2026-10-21T17:41:17Z".
+* **Step 6, the MADR's Confirmation, item by item:**
+  * **"Each test of D5, seen failing first, and `make api-check` listing
+    exactly the four additions."** Every test of Phases 1 to 3 failed on a
+    planted break before it passed: 7, 8 and 8 plants, each caught by a
+    test, none by a failed build. `tools/apidiff.py v1.20.1`, the same
+    comparison `make api-check` makes against the latest tag, listed the
+    four names and nothing else.
+  * **"`make docs-check`: `ResolveCredential`'s doc names its error kinds
+    (R52), and its example runs (R50)."** "sdkaudit: 0 violation(s) of
+    R50,R51,R52" at each phase. `ExampleResolveCredential` passes, `//
+    Output: claude api_key true true`.
+  * **"The issue's acceptance list, item by item, in the PLAN's record."**
+    V1 to V5 name a test for each item, all passing, and the posted reply
+    repeats the table.
+* **The Verification table:**
+  * V1 to V5: the tests named;
+  * V6: the drift checks of Phases 1 to 3, with Phase 3's three tests that
+    asserted the old text, named in its deviation;
+  * V7: Phase 2's tests;
+  * V8: the four names;
+  * V9: `make docs-check` and the example;
+  * V10: `v1.21.0`'s Release body;
+  * V11: the plants.
+
+  Every criterion is met. This PLAN is `complete`; the MADR stays
+  `accepted`.
