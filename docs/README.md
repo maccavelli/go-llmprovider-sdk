@@ -125,7 +125,7 @@ documents a reader follows to do something.
 | 0053 | PLAN | [Implement Fixing Six Defects in Streaming, Retry and the Catalog's Caches](decisions/0053-PLAN-stream-retry-and-cache-defects.md) | in-progress |
 | 0054 | REPORT | [Heuristics and Performance Opportunities, 2026-10-20](reports/0054-REPORT-heuristics-and-performance-opportunities.md) | observation |
 | 0055 | MADR | [Require Go 1.27.3 for GO-2026-6809, Release It as v1.20.1, and Give v1.20.0 Its GitHub Release by Hand](decisions/0055-MADR-go-1-27-3-and-the-v1-20-0-release.md) | accepted |
-| 0055 | PLAN | [Implement Go 1.27.3 as the Floor, Release v1.20.1, and Make v1.20.0's Release](decisions/0055-PLAN-go-1-27-3-and-the-v1-20-0-release.md) | proposed |
+| 0055 | PLAN | [Implement Go 1.27.3 as the Floor, Release v1.20.1, and Make v1.20.0's Release](decisions/0055-PLAN-go-1-27-3-and-the-v1-20-0-release.md) | in-progress |
 | 0056 | MADR | [Give the Wizard a Credential-Only Entry Point, Kilo's Device Sign-In as a Key, and Refusals Without the Provider's Text](decisions/0056-MADR-wizard-credential-only-entry-point.md) | proposed |
 | 0056 | PLAN | [Implement the Wizard's Credential-Only Entry Point, Kilo's Device Sign-In as a Key, and Refusals Without the Provider's Text](decisions/0056-PLAN-wizard-credential-only-entry-point.md) | proposed |
 

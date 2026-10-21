@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-20
+status: in-progress
+date: 2026-10-21
 associated-madr: "0055-MADR-go-1-27-3-and-the-v1-20-0-release.md"
 decision-makers: repository owner
 ---
@@ -229,3 +229,78 @@ committed as `e68be51`; 0019's third `go fix` run followed as `3c7ad7e`.)*
     release.
   * Phase 3's Release can be deleted with `gh release delete v1.20.0`,
     which leaves the tag. The tag itself is never deleted.
+
+## Execution record
+
+### Phase 0: records (2026-10-21)
+
+* 0052's fix was committed first, as `e68be51`, and 0019's third `go fix`
+  run as `3c7ad7e`.
+* The records were staged on their own: this pair, 0053-PLAN's deviation
+  entry, and `docs/README.md` with this pair's rows only (`records-check:
+  116 records, 0 problem(s)` on the staged snapshot). The owner committed
+  them as `5eb068a`, with
+  `0056-MADR-wizard-credential-only-entry-point.md` and its PLAN, still
+  `proposed`, added. Records only, so the commit is still Phase 0's kind.
+* Before staging, three statements that the owner's change of Go
+  environment had made out of date were annotated, not rewritten: MADR F9
+  and its Consequence, and this PLAN's toolchain rule and Phase 1 step 7.
+
+### Phase 1: the floor (2026-10-21)
+
+* **Approval.** "committed, proceed", 2026-10-21. This PLAN is
+  `in-progress`. No deviation.
+* **The toolchain.** The owner's environment names `go1.27.3`, so no
+  command needed `GOTOOLCHAIN` set, except to name 1.27.2.
+
+**Step 1,** on the tree before step 2 (`go 1.27.2`):
+
+```text
+$ GOTOOLCHAIN=go1.27.3 make vuln
+No vulnerabilities found.                                             (exit 0)
+$ GOTOOLCHAIN=go1.27.2 make vuln
+Vulnerability #1: GO-2026-6809 … Found in: crypto/x509@go1.27.2      (exit 2; govulncheck's 3)
+```
+
+The step's assumption holds: govulncheck reads the toolchain's standard
+library, not the directive.
+
+**Step 2.** `go mod edit -go=1.27.3`. `git diff go.mod` is the one line
+`go 1.27.2` to `go 1.27.3`. There is no `toolchain` line, `go.sum` is
+unchanged, and `go mod tidy -diff` exits 0.
+
+**Steps 3 to 6,** by `tools/edit.py`, each asserted:
+
+* `AGENTS.md`: "Requires Go 1.27.3: Go 1.27 for `encoding/json/v2`, and the
+  `.3` patch for the standard library's security fixes, the last
+  GO-2026-6809 (the standards guide's R54)."
+* `README.md`: both statements say 1.27.3.
+* `docs/architecture.md`: "It requires Go 1.27.3, …".
+* `docs/guides/migrating-from-mcplib.md`: "… The module requires Go 1.27.3
+  (0055-MADR)."
+* R54: "`go 1.27.3`", "The patch, `.3`, carries the standard library's
+  security fixes through GO-2026-6809 (`crypto/x509`)", and "(0048 D6, A1;
+  0055)". Its index row: "0048-MADR A1, 0055-MADR".
+* 0048-MADR gains A3, and 0029-MADR "Amendment 2026-10-20: the floor is
+  raised again, to `go 1.27.3`". Neither record's earlier text changes.
+* `CHANGELOG.md` `[Unreleased]`: a Security entry above 0052's Fixed.
+
+**Step 7, the checks,** each exit status captured before any filter:
+
+| Check | Result |
+| :--- | :--- |
+| `go mod tidy -diff` | 0 |
+| `make vuln` | 0, "No vulnerabilities found." |
+| `make lint`, golangci-lint `v2.14.0` (built with go1.27.2), host and `GOOS=windows` | 0, "0 issues." each |
+| `GOTOOLCHAIN=go1.27.2 go build ./...` | 1, "go: go.mod requires go >= 1.27.3 (running go 1.27.2; GOTOOLCHAIN=go1.27.2)" |
+| `git grep -n "1\.27\.2" -- ':!docs/decisions' ':!docs/reports'` | 4 hits, none a current statement: the Security entry's own two lines, and 0029's two index titles |
+| `make records-check changelog-check tables-check docs-check parity-check` | 118 records, 28 release sections, 38 packages, 0 sdkaudit violations, 409 parity rows: 0 problems each |
+| `tools/claims.py` on 0055-MADR and 0048-MADR | 24 of 24 each |
+| `tools/recordlint.py --changed`, `tools/linkcheck.py`, `tools/denyscan.py --changed` | no rule rose; 0 problems; 0 hits in 11 files |
+| `tools/gate.py` | 27 of 27 passed, every line `rc=0` |
+
+No Go file changed, so `make pre-add-check` has no file to check; the gate
+runs it over every tracked Go file.
+
+Step 7's ask of the owner is moot: the environment already names
+`go1.27.3`. Step 8, the push, waits for the owner's word.

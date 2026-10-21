@@ -10,6 +10,18 @@ section.
 
 ## [Unreleased]
 
+### Security
+
+- The module requires Go 1.27.3, for GO-2026-6809 in `crypto/x509`
+  (`Certificate.Verify`), which every HTTPS request the module makes
+  reaches: Go 1.27.3 distrusts a set of compromised intermediate
+  certificates that 1.27.2 accepts, as
+  [0055-MADR](docs/decisions/0055-MADR-go-1-27-3-and-the-v1-20-0-release.md)
+  records. A consumer at `go 1.27.2` raises its own `go` line to take this
+  release; with `GOTOOLCHAIN=auto`, the default, `go` fetches the
+  toolchain. `v1.20.0` and earlier build safely only with a Go 1.27.3
+  toolchain. No exported name changes.
+
 ### Fixed
 
 - The Docs workflow installs golangci-lint at CI's pin, which the gates'

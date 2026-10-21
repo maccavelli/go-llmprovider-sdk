@@ -446,3 +446,15 @@ Answered 2026-10-19; each answer is in the decisions above.
   stay in `CHANGELOG.md`, which `make changelog-check` still holds to every
   tag, and the tags stay as they are; a Release can be made for any of them
   later from its section, as the six were.
+
+### A3 (2026-10-20): the floor is `go 1.27.3`
+
+* **By R54's own rule,** "the floor is raised with each Go security
+  patch": Go 1.27.3 fixes GO-2026-6809 in `crypto/x509`
+  (`Certificate.Verify`), which every HTTPS request the module makes
+  reaches, and CI's govulncheck failed on 1.27.2 for it.
+  [0055-MADR-go-1-27-3-and-the-v1-20-0-release.md](0055-MADR-go-1-27-3-and-the-v1-20-0-release.md)
+  records the finding and the change.
+* **A1's reasons for Go 1.27 stand:** `encoding/json/v2` and
+  `encoding/json/jsontext`. Only the patch changes: R54 reads `go 1.27.3`
+  and cites 0055-MADR beside A1.

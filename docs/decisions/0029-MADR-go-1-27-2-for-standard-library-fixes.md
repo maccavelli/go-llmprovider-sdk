@@ -151,3 +151,11 @@ Made by the PLAN's deviation D3, chosen by the owner ("Pin v2.14.0 under
 it supports 4), and its lint step failed. CI's pinned linter is `v2.14.0`,
 measured to lint the module under 1.27.2 with no findings. A later toolchain
 move checks the linter pin too.
+
+## Amendment 2026-10-20: the floor is raised again, to `go 1.27.3`
+
+[0055-MADR-go-1-27-3-and-the-v1-20-0-release.md](0055-MADR-go-1-27-3-and-the-v1-20-0-release.md)
+raises the `go` directive to `go 1.27.3`, for GO-2026-6809 in `crypto/x509`,
+by this record's option and for its reasons: one line that sets CI's Go, the
+module's minimum and its consumers'. The checks above describe the 1.27.2
+change as it was made.

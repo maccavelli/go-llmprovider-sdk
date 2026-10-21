@@ -8,8 +8,9 @@ this file. A repository-local `CLAUDE.md` / `.claude/rules/` / `.grok/rules/` /
 (`github.com/maccavelli/go-llmprovider-sdk`). It is a library only: no packaged
 binary. LLM providers live in `llmprovider/`; the configuration wizard lives in
 `wizard/`; secret redaction for both lives in `internal/redact/`. Requires Go
-1.27.2: Go 1.27 for `encoding/json/v2`, and the `.2` patch for the
-2026-10-08 security fixes (the standards guide's R54).
+1.27.3: Go 1.27 for `encoding/json/v2`, and the `.3` patch for the
+standard library's security fixes, the last GO-2026-6809 (the standards
+guide's R54).
 
 ## API work
 

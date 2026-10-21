@@ -17,7 +17,7 @@ Module: `github.com/maccavelli/go-llmprovider-sdk`
 go get github.com/maccavelli/go-llmprovider-sdk
 ```
 
-It requires Go 1.27.2.
+It requires Go 1.27.3.
 
 ## Packages
 
@@ -305,7 +305,7 @@ key.
 
 ## Status
 
-The current release is `v1.20.0`. The module requires Go 1.27.2.
+The current release is `v1.20.0`. The module requires Go 1.27.3.
 
 What each release changed, from `v1.0.0` on, is in
 [CHANGELOG.md](CHANGELOG.md); each tag's GitHub Release carries its
