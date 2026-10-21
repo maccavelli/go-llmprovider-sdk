@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-20
+status: accepted
+date: 2026-10-21
 decision-makers: repository owner
 consulted: "GitHub issue 5 (maccavelli/go-llmprovider-sdk), and gobble-cli at d76e3d2 as it cites; 0016-MADR-provider-auth-and-support-baseline.md (D11, A7); 0017-MADR-together-provider-and-auth-extensions.md (D2); 0043-MADR-openai-chatgpt-plan-sign-in.md; the standards guide (R19, R39, R40, R48, R50 to R52, R55); this repository at 5c60593"
 informed: gobble-cli, and every consumer of the wizard

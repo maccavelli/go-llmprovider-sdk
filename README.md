@@ -308,8 +308,8 @@ key.
 The current release is `v1.20.1`. The module requires Go 1.27.3.
 
 What each release changed, from `v1.0.0` on, is in
-[CHANGELOG.md](CHANGELOG.md); each tag's GitHub Release carries its
-section.
+[CHANGELOG.md](CHANGELOG.md); the five newest tags' GitHub Releases carry
+their sections.
 
 ## I want to…
 

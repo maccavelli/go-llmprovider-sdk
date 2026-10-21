@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-20
+status: complete
+date: 2026-10-21
 associated-madr: "0053-MADR-stream-retry-and-cache-defects.md"
 decision-makers: repository owner
 ---
@@ -788,3 +788,12 @@ keep 0028-MADR D-A3; Q2: a stream-index bound of 4096; Q3: `v1.20.0`):
 
   This PLAN stays `in-progress` until 0055-PLAN's Phase 3 makes the
   Release.
+
+### Closing (2026-10-21)
+
+* `v1.20.0`'s Release was made by hand, by
+  [0055-PLAN-go-1-27-3-and-the-v1-20-0-release.md](0055-PLAN-go-1-27-3-and-the-v1-20-0-release.md)'s
+  Phase 3: [v1.20.0](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.20.0).
+  Its body equals `--section v1.20.0`'s 2,239 bytes, the notes step 3 named.
+* Steps 4 and 5 were recorded in the deviation entry above. Every
+  criterion of this PLAN is met, and it is `complete`.

@@ -323,11 +323,13 @@ These rules are
   names. A method of a standard interface (`Error`, `String`, `GoString`,
   `Format`, `LogValue`, `MarshalJSON`, `UnmarshalJSON`, `MarshalText`,
   `UnmarshalText`) is exempt. (0048 D4)
-- **R53. Every release has a changelog section and a GitHub Release.**
-  `CHANGELOG.md` is in the Keep a Changelog form, with a section for each
-  `v*` tag, newest first, dated by the tag's commit. A release's section is
-  written before its tag, and CI's `release` job makes the tag's Release
-  with that section as its notes. (0048 D5)
+- **R53. Every release has a changelog section, and the five newest tags a
+  GitHub Release.** `CHANGELOG.md` is in the Keep a Changelog form, with a
+  section for each `v*` tag, newest first, dated by the tag's commit. A
+  release's section is written before its tag, and CI's `release` job makes
+  the tag's Release with that section as its notes. The release then
+  deletes the Release of the tag that falls to sixth, keeping the tag and
+  its section. (0048 D5, A4; 0055)
 - **R54. The Go floor is `go 1.27.3`,** with no `toolchain` line, and CI
   builds with the version `go.mod` names. Go 1.27 is the least the module
   builds with: it uses `encoding/json/v2` and `encoding/json/jsontext`, in

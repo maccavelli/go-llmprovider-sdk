@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-20
+status: in-progress
+date: 2026-10-21
 associated-madr: "0056-MADR-wizard-credential-only-entry-point.md"
 decision-makers: repository owner
 ---
@@ -303,7 +303,12 @@ acceptance list is a passing test:
 3. **The tag,** on the owner's word: `v1.21.0`, annotated, pushed. Every
    `validate` job passes, and the `release` job's body equals step 2's
    notes.
-4. **After the tag:** `tools/consumer.py v1.21.0` and `tools/offline.py
+4. **After the tag:** `gh release delete v1.17.0 --yes`, the Release that
+   falls to sixth, as R53 now asks
+   (0055-MADR-go-1-27-3-and-the-v1-20-0-release.md's amendment of
+   2026-10-21; this step added 2026-10-21, at Phase 0). Its tag and section
+   stay, and `gh release list` then shows `v1.18.0` to `v1.21.0`.
+   `tools/consumer.py v1.21.0` and `tools/offline.py
    v1.21.0`.
 5. **The issue,** on the owner's word: a reply naming `v1.21.0`, each
    acceptance item with its test, and gobble's change (its `/login` over
@@ -340,3 +345,24 @@ V1 to V5 are the issue's acceptance list, in its order.
   * Reverting Phase 3 restores the `%v` notices and the old test text.
   * Reverting Phase 1 or 2 removes names. That is allowed only before
     `v1.21.0` is tagged (R48). After it, a fix ships forward.
+
+## Execution record
+
+### Phase 0: records (2026-10-21)
+
+* **Approval.** "proceed to 0056", 2026-10-21. The MADR is `accepted`,
+  with the owner's answers to Q1 to Q4, and this PLAN is `in-progress`.
+* **The amendments:**
+  * 0016-MADR's "Amendment 2026-10-21: Kilo's device sign-in as a key, under
+    `Options.KiloDeviceKey`": A7 stands as the default.
+  * 0017-MADR's "Amendment 2026-10-21: the device token can be kept as a
+    key": D2's storage stays the default.
+* **Phase 4 step 4 gains the deletion of `v1.17.0`'s Release.** R53 changed
+  after this PLAN was written:
+  0055-MADR-go-1-27-3-and-the-v1-20-0-release.md's amendment of 2026-10-21
+  keeps a Release for the five newest tags only. The step is annotated, not
+  rewritten. No decision of the MADR changes.
+* **Order with 0055.** 0055's Phase 1 is on `main` (`a3fd64a`) and
+  `v1.20.1` is released, so Phases 1 to 4 have no wait left but this
+  PLAN's own order.
+* **Checks:** "records-check: 118 records, 0 problem(s)"; the MADR's claims, 29 of 29 pass.

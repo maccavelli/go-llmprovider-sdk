@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-20
+status: complete
+date: 2026-10-21
 associated-madr: "0052-MADR-skip-full-ci-for-docs-only-pushes.md"
 decision-makers: repository owner
 ---
@@ -595,3 +595,20 @@ The owner pushed `e68be51` (this fix) with `3c7ad7e`, `5eb068a` and
 A1 and A2 are confirmed live. Phase 3 step 2 still needs a push that
 changes only Markdown. The next release commit, `CHANGELOG.md`, the README
 and records, is one.
+
+### Phase 3: live checks and closing (2026-10-21)
+
+* **Step 1, a push with a non-Markdown change:** the owner's push ending in
+  `a3fd64a` (with `e68be51`, `3c7ad7e` and `5eb068a`) ran "CI", 39612453007,
+  and "Docs", 39612452935, both `success` (Phase 4 step 6 above).
+* **Step 2, a docs-only push:** `4e6130f`, 0055-PLAN's `v1.20.1` release
+  commit, four Markdown files. `gh api
+  "repos/maccavelli/go-llmprovider-sdk/actions/runs?head_sha=4e6130f…"`
+  gives `total_count` 1: "Docs", 39620406675, `success`. Its job ran 2 min
+  23 s, with the golangci-lint install at 4 s on a warm cache and the
+  `make` step at 1 min 51 s. No "CI" run started.
+* **Step 3, tags:** the tag `v1.20.1`'s push ran the full "CI", 39626499816,
+  `success`, and its `release` job made the Release, as
+  0055-PLAN's Phase 2 records.
+* **Step 4.** V1 to V7 are met, with V5 and V6 by the runs above. The MADR
+  stays `accepted`, and this PLAN is `complete`.

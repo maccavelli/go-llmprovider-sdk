@@ -284,3 +284,35 @@ The notes are exactly the section, with no line added about the floor. The
 | C22 | 0048-MADR's floor amendment | `docs/decisions/0048-MADR-adopt-go-sdk-best-practices.md:411` | `### A1 (2026-10-19): the floor stays` |
 | C23 | 0048's hand-made Releases | `docs/decisions/0048-PLAN-adopt-go-sdk-best-practices.md:1023` | `--verify-tag --latest=false` |
 | C24 | 0029-MADR's choice | `docs/decisions/0029-MADR-go-1-27-2-for-standard-library-fixes.md:80` | `Chosen option: "Raise the` |
+
+## Amendment 2026-10-21: the five newest tags keep a GitHub Release
+
+* **The owner's decision,** asked at the PLAN's Phase 3 step 2:
+  * "i only want the past 3 tags to have releases", then, asked what
+    becomes of the older Releases, "Delete them";
+  * asked whether that is a standing rule or a one-time cleanup, "change it
+    from 3 to 5".
+
+  It is recorded as a standing rule of five. The number is what the owner
+  changed; a one-time cleanup would change only this record's wording.
+* **D3 stands, its reason replaced.** `v1.20.0` gets its Release by hand,
+  as D3 says, since it is one of the five newest tags. Its reason "R53 then
+  holds for every tag from `v1.10.2` on" is struck: the goal is the five
+  newest, and only those.
+* **What changes:**
+  * The Releases of `v1.10.2`, `v1.11.0`, `v1.12.0`, `v1.13.0`, `v1.14.0`,
+    `v1.15.0` and `v1.16.0` are deleted, the six that 0048-MADR A2 made by
+    hand and the first the release job made. Their tags and their
+    `CHANGELOG.md` sections stay. Each body was saved first, so any can be
+    made again from it or from its section.
+  * **R53** reads: every release has a changelog section, and the five
+    newest tags a GitHub Release. CI's `release` job still makes each new
+    tag's Release, unchanged. The release's PLAN then deletes the Release of
+    the tag that falls to sixth.
+  * 0048-MADR, whose D5 R53 cites, gains A4, a pointer here.
+  * The statements that each tag has a Release are corrected:
+    `CHANGELOG.md`'s preamble, the README's Status, and
+    `docs/architecture.md`'s CI passage.
+* **Considered,** and not chosen: a step in CI's `release` job that deletes
+  the sixth-newest Release. It would give the job a destructive write on
+  every tag, and change `ci.yml` for what one command per release does.

@@ -794,3 +794,18 @@ client's `CloseIdleConnections` closes nothing: its transport is a view of
 the shared one that does not implement it, so one instance cannot close the
 connections another would reuse. Proxy handling (`http.ProxyFromEnvironment`)
 and the timeouts are unchanged.
+
+## Amendment 2026-10-21: Kilo's device sign-in as a key, under `Options.KiloDeviceKey`
+
+[0056-MADR-wizard-credential-only-entry-point.md](0056-MADR-wizard-credential-only-entry-point.md)
+D2 adds an opt-in mode to the wizard, for a consumer that stores keys rather
+than sessions. A7 stands, and stays the default.
+
+* With `Options.KiloDeviceKey` set, Kilo's device sign-in returns
+  `Kind: CredAPIKey` with the device token in `Result.APIKey`. It saves no
+  session to `Options.TokenStore`, and asks no organization question.
+* A7 rejected the token as `APIKey` because the store also held it: two
+  copies. In this mode the store holds none, so there is one copy, the one
+  D11 asks for.
+* The token is a key in all but name: it has no refresh and no known expiry
+  (0017-MADR D2), and Kilo sends both as `Authorization: Bearer`.

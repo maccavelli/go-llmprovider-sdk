@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-21
 associated-madr: "0055-MADR-go-1-27-3-and-the-v1-20-0-release.md"
 decision-makers: repository owner
@@ -333,3 +333,70 @@ V1 to V6 are met.
   at step 4.
 * **Step 3, before the push:** `tools/apidiff.py v1.20.0`, no output, exit 0; the
   gate, 27 of 27 passed; the disclosure guard, once this commit is made.
+
+### Deviation (2026-10-21): only the five newest tags keep a Release
+
+* **Found** at Phase 3 step 2, before the Release was made, by the owner:
+  "i do not care that every tag from v1.10.x has a release. i only want the
+  past 3 tags to have releases"; then "Delete them" for the older ones; then
+  "change it from 3 to 5". Recorded as a standing rule of five (the MADR's
+  amendment of 2026-10-21).
+* **Saved first.** Every Release's metadata and body, all 11, were written
+  to the session's scratch directory, none with assets. A first count of
+  the older Releases, "8", was wrong; there were nine below the three
+  newest, and seven below the five, which is what is deleted.
+* **Phase 3, as amended:**
+  * Step 2 stands: `v1.20.0`'s Release, with `--latest=false`.
+  * Step 3's "every tag from `v1.10.2` on has a Release" is struck. In its
+    place: `gh release delete TAG --yes`, which leaves the tag, for
+    `v1.10.2`, `v1.11.0`, `v1.12.0`, `v1.13.0`, `v1.14.0`, `v1.15.0` and
+    `v1.16.0`. Then `gh release list` shows exactly `v1.17.0` to `v1.20.1`,
+    `v1.20.1` Latest, and `git ls-remote --tags` still lists all 29 tags.
+  * New: R53, `CHANGELOG.md`'s preamble, the README's Status,
+    `docs/architecture.md`'s CI passage, and 0048-MADR's A4, staged as one
+    Markdown-only commit.
+* **Files added to the scope:** `docs/guides/api-standards.md`,
+  `CHANGELOG.md`, `README.md`, `docs/architecture.md`,
+  `docs/decisions/0048-MADR-adopt-go-sdk-best-practices.md`.
+
+**Phase 2, steps 4 and 5, after the tag** (2026-10-21):
+
+* The owner tagged `v1.20.1` on `4e6130f`, annotated, and pushed it.
+* CI's run for the tag, 39626499816, `success`: every `validate` job
+  passed, and `release` published the Release at 15:36:40 UTC. It is not a
+  draft or a pre-release, and it is Latest.
+* `gh release view v1.20.1 --json body` equals step 2's notes, 1,118 bytes,
+  apart from the trailing newline `gh --jq` adds.
+* `tools/consumer.py v1.20.1`: "consumer: 15 packages linked", "every step
+  passed", built for the six platforms.
+* `tools/offline.py v1.20.1`: "requests=0", "offline: ok", and both
+  built-in plants caught.
+* Through the proxy, `go list -m -json …@v1.20.1`: `"Version": "v1.20.1"`,
+  `"GoVersion": "1.27.3"`, `Hash 4e6130f…`.
+
+V7 and V8 are met.
+
+### Phase 3: `v1.20.0`'s Release (2026-10-21)
+
+As amended by the deviation entry above.
+
+* **Step 1.** In a clone at the tag `v1.20.0` (`5c60593`), with every tag,
+  `--section v1.20.0 --repo maccavelli/go-llmprovider-sdk` exits 0: 2,239
+  bytes, byte for byte the notes 0053-PLAN's Phase 3 checked.
+  `tools/denyscan.py`: 0 hits.
+* **Step 2.** `gh release create v1.20.0 --title v1.20.0 --notes-file …
+  --verify-tag --latest=false`:
+  [v1.20.0](https://github.com/maccavelli/go-llmprovider-sdk/releases/tag/v1.20.0).
+  Its body, read back, equals the file, apart from the trailing newline.
+  It is not a draft or a pre-release.
+* **Step 3, as amended.** `gh release delete TAG --yes`, each exit 0, for
+  `v1.10.2`, `v1.11.0`, `v1.12.0`, `v1.13.0`, `v1.14.0`, `v1.15.0` and
+  `v1.16.0`.
+  * `gh release list` shows exactly `v1.20.1` (Latest), `v1.20.0`,
+    `v1.19.0`, `v1.18.0` and `v1.17.0`.
+  * `git ls-remote --tags origin 'v*'` still lists 29 tags, the deleted
+    Releases' among them.
+* **Step 4, close.** V9 is met, as amended: `v1.20.0`'s Release is its
+  section, `v1.20.1` is Latest, and only the five newest tags have a
+  Release. Every criterion is met, and this PLAN is `complete`.
+  0053-PLAN is closed with it.

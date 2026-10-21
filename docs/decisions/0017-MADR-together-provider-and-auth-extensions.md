@@ -574,3 +574,13 @@ Option A, "Adopt it, designed in a new MADR":
 * The probe stays, off by default, as the measurement to repeat.
 * Issue 2 is answered with this decision once it is accepted. Whether it
   closes then, or when the method ships, is the owner's choice.
+
+## Amendment 2026-10-21: the device token can be kept as a key
+
+D2 says the Kilo device login's token "is stored in the `TokenStore` and
+applied like an API key". It stays so by default.
+[0056-MADR-wizard-credential-only-entry-point.md](0056-MADR-wizard-credential-only-entry-point.md)
+D2 adds one exception: with the wizard's `Options.KiloDeviceKey`, the token
+is returned as the `Result`'s API key, nothing is stored, and no
+organization is chosen. The `auth` package's login is unchanged: only what
+the wizard does with its token differs.

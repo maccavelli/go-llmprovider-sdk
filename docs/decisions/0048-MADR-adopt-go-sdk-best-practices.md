@@ -458,3 +458,15 @@ Answered 2026-10-19; each answer is in the decisions above.
 * **A1's reasons for Go 1.27 stand:** `encoding/json/v2` and
   `encoding/json/jsontext`. Only the patch changes: R54 reads `go 1.27.3`
   and cites 0055-MADR beside A1.
+
+### A4 (2026-10-21): the five newest tags keep a Release
+
+* **The owner chose** that only the five newest tags have a GitHub
+  Release, as a standing rule.
+  [0055-MADR-go-1-27-3-and-the-v1-20-0-release.md](0055-MADR-go-1-27-3-and-the-v1-20-0-release.md)'s
+  amendment of 2026-10-21 records it.
+* **R53** (D5) now reads that every release has a changelog section, and
+  the five newest tags a GitHub Release. The `release` job is unchanged,
+  and each release deletes the Release of the tag that falls to sixth.
+* **A2's six Releases** (`v1.10.2` to `v1.15.0`) are deleted, with
+  `v1.16.0`'s. Their tags and sections stay.

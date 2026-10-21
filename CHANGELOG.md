@@ -5,8 +5,8 @@ All notable changes to this module are recorded here, in the form of
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html): from
 `v1.0.0`, a release that is not major only adds to the exported API, which
 `make api-check` enforces (the standards guide's R48). `make changelog-check`
-holds this file to the release tags, and each tag's GitHub Release carries its
-section.
+holds this file to the release tags, and the five newest tags' GitHub Releases
+carry their sections.
 
 ## [Unreleased]
 
