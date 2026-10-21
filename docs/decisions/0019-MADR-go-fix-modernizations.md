@@ -140,3 +140,70 @@ made by the owner the same day.
   `ignored` is added before the rewrite, so the hand tidy is guarded.
 * The first run's decision stands: the modernizer's rewrites are adopted
   when they keep behaviour.
+
+## Amendment 2026-10-20: a third run, on Go 1.27.3
+
+Asked by the owner ("Run go fix ./..."). Proposed; the choices below are the
+owner's to make.
+
+* **Found.** `go fix -diff ./...` under Go 1.27.3, run read-only at
+  `5c60593` for darwin, linux (`CGO_ENABLED=0`) and windows, with and
+  without `-tags live_gateways`, proposes the same rewrites on every
+  platform, in 9 files, and 3 more with the tag:
+  * **`mapsloop`,** a copy loop to `maps.Copy`, four times: in
+    `chatcompletions.go` (`streamDetail.value`), `llmtest/stream_retry.go`,
+    and two `auth` tests;
+  * **`slicesbackward`,** a backward index loop to `range
+    slices.Backward(…)`, twice: `cacheref.From` and `messages/cache.go`'s
+    cache marker. Neither returns or keeps the index, so the first run's
+    trap (`pathSegments`) is not here; the tests confirm it;
+  * **`embedlit`,** `ModelCost{ModelRates: ModelRates{…}}` to
+    `ModelCost{Input: …}`, in two `catalog` tests. Go 1.27 allows a
+    promoted field as a key in a struct literal (the spec, "[Go 1.27] for
+    a (possibly promoted) field");
+  * **`newexpr`** and **`inline`,** `ptrBool(v)` to `new(v)`, in
+    `band_0041_test.go`;
+  * **`rangeint`,** `for i := 0; i < n; i++` with `i` unused, to `for range
+    n`, in three live-tagged tests.
+* **Found: three things `go fix` leaves wrong.** On a scratch clone with
+  both `go fix` runs applied, vet passes for every platform and tag,
+  `go test -race ./...` passes in 36 packages, and `make lint` exits 2:
+  * `messages/cache.go` gets a second `import` declaration, which
+    goimports rejects;
+  * `ptrBool` is left with `//go:fix inline` and no caller, which `unused`
+    rejects;
+  * `sdkaudit` gets none of its four suggested fixes. `slicescontains` and
+    `stringsseq` both claim `audit.go:108`'s loop, so `go fix` reports "1 of
+    4 fixes skipped" on every run, exits 1, and changes nothing there. The
+    other three are `stringsseq`, at `audit.go:185` and `main.go:141`.
+
+  With these tidied by hand, on the same clone, every check passes:
+  * the import merged into one block;
+  * `ptrBool` deleted;
+  * `strings.SplitSeq` at the three `sdkaudit` loops, which leaves
+    `slicescontains` nothing to claim.
+
+  The results: `go fix -diff ./...` prints nothing, with and without the
+  tag; `make lint` reports 0 issues for the host and for Windows; `go test
+  -race ./...` passes in all 36 packages; and `make docs-check` reports 0
+  violations. That is 14 files, 40 lines in and 40 out.
+* **Found: one rewrite no test guards.** Each production rewrite was
+  planted back broken on the scratch clone, with its import kept in use. Six
+  were caught by a failing test:
+  * `cacheref.From` iterating forward: `TestFrom_LastValueWins_0048`;
+  * the cache marker on the first tool: `TestAddCache` and the 0040 tests;
+  * a deferred tool not skipped: `TestAddCache_Deferred_0040`;
+  * `streamDetail.value` dropping its plain fields: `TestEvents_EqualsDecode`
+    and `TestReasoningDetailsReplay_0053`;
+  * `sdkaudit`'s two splits: its 0048 tests.
+
+  One was not. `llmtest`'s stream relay (`stream_retry.go`) not copying the
+  recorded headers at all passes every `llmtest` test. The rewrite keeps
+  behaviour (`maps.Copy` is that loop), but nothing would see the line
+  broken.
+* **Proposed**, as the second run did ("Apply, then tidy"):
+  * apply every rewrite, with the three hand tidies, as one change;
+  * first add a test that `llmtest`'s relayed stream carries the headers
+    `StreamText` set, seen failing on a scratch copy without the copy;
+  * this record's rule stands: the modernizer's rewrites are adopted when
+    they keep behaviour.

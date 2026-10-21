@@ -127,7 +127,7 @@ func TestLive_0033Listings(t *testing.T) {
 	t.Run("claude", func(t *testing.T) {
 		key := llmprovider.LiveEnvKey(t, llmprovider.ProviderEnvVars()[llmprovider.ProviderClaude])
 		entries, n, after := map[string]string{}, 0, ""
-		for page := 0; page < 10; page++ {
+		for range 10 {
 			u := "https://api.anthropic.com/v1/models?limit=1000"
 			if after != "" {
 				u += "&after_id=" + url.QueryEscape(after)
@@ -163,7 +163,7 @@ func TestLive_0033Listings(t *testing.T) {
 	t.Run("gemini", func(t *testing.T) {
 		key := llmprovider.LiveEnvKey(t, llmprovider.ProviderEnvVars()[llmprovider.ProviderGemini])
 		entries, n, token := map[string]string{}, 0, ""
-		for page := 0; page < 10; page++ {
+		for range 10 {
 			u := "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
 			if token != "" {
 				u += "&pageToken=" + url.QueryEscape(token)

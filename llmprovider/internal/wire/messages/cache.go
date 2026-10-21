@@ -1,6 +1,10 @@
 package messages
 
-import "github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+import (
+	"slices"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+)
 
 // keyCacheControl is Anthropic's cache marker, on the request or a block.
 const keyCacheControl = "cache_control"
@@ -39,11 +43,11 @@ func AddCache(body map[string]any, retention llmprovider.CacheRetention) {
 	// The last tool that is not deferred: Anthropic refuses cache_control on
 	// a deferred one, which is not in the prefix anyway (0040-MADR D2).
 	if tools, ok := body["tools"].([]map[string]any); ok {
-		for i := len(tools) - 1; i >= 0; i-- {
-			if deferred, ok := tools[i]["defer_loading"].(bool); ok && deferred {
+		for _, tool := range slices.Backward(tools) {
+			if deferred, ok := tool["defer_loading"].(bool); ok && deferred {
 				continue
 			}
-			tools[i][keyCacheControl] = CacheMarker(retention)
+			tool[keyCacheControl] = CacheMarker(retention)
 			break
 		}
 	}

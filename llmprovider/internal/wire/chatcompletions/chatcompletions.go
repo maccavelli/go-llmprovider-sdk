@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -572,9 +573,7 @@ type streamDetail struct {
 // joined.
 func (d *streamDetail) value() map[string]any {
 	entry := make(map[string]any, len(d.fields)+len(d.split))
-	for k, v := range d.fields {
-		entry[k] = v
-	}
+	maps.Copy(entry, d.fields)
 	for k, b := range d.split {
 		entry[k] = b.String()
 	}

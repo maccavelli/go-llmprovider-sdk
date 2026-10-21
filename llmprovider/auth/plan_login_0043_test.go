@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -67,9 +68,7 @@ func newPlanLogin(t *testing.T) *planLogin {
 			"token_endpoint":         pl.srv.URL + "/api/accounts/oauth/token",
 			"revocation_endpoint":    pl.srv.URL + "/api/accounts/oauth/revoke",
 		}
-		for k, v := range pl.discovery {
-			fields[k] = v
-		}
+		maps.Copy(fields, pl.discovery)
 		writeTestJSON(t, w, pl.ti.discovery(t, fields))
 	})
 	mux.HandleFunc("/api/accounts/oauth/token", func(w http.ResponseWriter, r *http.Request) {

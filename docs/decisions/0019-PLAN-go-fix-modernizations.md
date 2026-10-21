@@ -1,6 +1,6 @@
 ---
 status: complete
-date: 2026-10-09
+date: 2026-10-21
 associated-madr: "0019-MADR-go-fix-modernizations.md"
 ---
 # Implement `go fix`'s modernizations, except one that changes behaviour
@@ -175,3 +175,131 @@ No test changed but the one added.
 
 * **Not done, as scoped:** no tag; the live-tagged `contains` was vetted and
   linted, not run, since live tests call real services.
+
+## Phase 3 (2026-10-20): a third run, on Go 1.27.3
+
+Added by 0019-MADR's amendment "a third run, on Go 1.27.3". Proposed: it
+runs on the owner's approval, after 0052's staged fix is committed.
+
+1. **The test first.** In `llmprovider/llmtest`, a test that `Run`'s stream
+   relay passes on the headers the harness's `StreamText` set (a custom
+   header and `Content-Type`). It passes on `HEAD`. On a scratch copy whose
+   relay copies no header it fails, and that failure is recorded.
+2. **`go fix ./...` and `go fix -tags live_gateways ./...`.** Read the whole
+   diff: only the rewrites the amendment lists, in its 12 files.
+3. **The tidies:**
+   * `messages/cache.go`: one import block;
+   * `band_0041_test.go`: `ptrBool` deleted;
+   * `sdkaudit`: `strings.SplitSeq` at `audit.go:108`, `audit.go:185` and
+     `main.go:141`.
+
+   `go fix -diff` prints nothing for darwin, linux (`CGO_ENABLED=0`) and
+   windows, with and without `-tags live_gateways`.
+4. **Gate.** `tools/gate.py`; `make pre-add-check` on the changed Go files;
+   the G-wire goldens unchanged; `tools/apidiff.py` against the latest tag,
+   no change.
+5. **Plants,** on scratch copies, of each production rewrite broken. Each
+   fails a test, and the record names it.
+6. **Record; stage** as one change, apart from 0052's, 0055's and 0056's.
+
+| Criterion | Check |
+|---|---|
+| Behaviour unchanged | every test passes with none changed but the one added; goldens unchanged |
+| `go fix` has nothing left | step 3's six `-diff` runs print nothing |
+| Every production rewrite is guarded | step 5's plants each fail a test |
+
+### Phase 3's execution (2026-10-20)
+
+* **Approval.** "Proceed", 2026-10-20.
+* **Not yet as the phase is written.** 0052's fix was still staged, not
+  committed, when the work began. The work stayed in the working tree, and
+  is staged only once the owner has committed 0052's fix, so the two stay
+  apart. No decision changes.
+* **The toolchain.** `go version go1.27.3 darwin/arm64`: the owner's Go
+  environment already names 1.27.3.
+
+**Step 1, the test first.**
+`TestStreamStaged_RelaysHeaders_0019`
+(`llmprovider/llmtest/stream_relay_0019_test.go`, new):
+
+* `StreamText` sets `Content-Type: text/event-stream` and
+  `X-Llmtest-Probe: kept`;
+* a `headerProbe` around the reference streaming provider keeps the reply's
+  headers;
+* `streamStaged` runs it.
+
+It passed on `HEAD`'s loop. Plants on a scratch clone (`tools/plant.py`):
+
+| Plant | Failure line |
+| :--- | :--- |
+| the relay copies no header | "the relayed reply's headers are map[Content-Type:[text/plain; charset=utf-8] Date:[…]]; want StreamText's X-Llmtest-Probe and Content-Type" |
+| the relay copies `Content-Type` only | "the relayed reply's headers are map[Content-Type:[text/event-stream] Date:[…]]; want …" |
+
+**Step 2, `go fix ./...` and `go fix -tags live_gateways ./...`.** Each
+exited 1, with "fix: applied 3 of 4 fixes; 2 files updated" for `sdkaudit`,
+and changed 12 files: the amendment's 9, and the 3 live-tagged tests. Each
+file was compared with the scratch clone whose whole diff had been read:
+10 were identical, and the 4 that differ are the step 3 tidies' files.
+
+**Step 3, the tidies,** by `tools/edit.py`, each asserted:
+
+* `sdkaudit`: `strings.SplitSeq` in `public` and `hasCodeBlock`
+  (`audit.go`) and `splitList` (`main.go`);
+* `messages/cache.go`: one import block;
+* `band_0041_test.go`: `ptrBool` deleted.
+
+After them, every changed file equals the scratch clone's, which had passed
+every check: 14 files, 40 lines in and 40 out. `go fix -diff` exits 0 with
+no output for darwin, linux and windows (`CGO_ENABLED=0`), with and without
+`-tags live_gateways`.
+
+**Step 5, plants of each production rewrite,** on a scratch clone of the
+tree, each import kept in use:
+
+| Plant | Tests that failed |
+| :--- | :--- |
+| `cacheref.From` forward (`slices.Clone`) | `TestFrom_LastValueWins_0048` |
+| the cache marker on the first tool | `TestAddCache`, `TestAddCache_Deferred_0040`, `TestDeferral_Native_0040`, `TestDeferral_Append_0040` |
+| a deferred tool not skipped | `TestAddCache_Deferred_0040`, `TestDeferral_Native_0040` |
+| `streamDetail.value` without its plain fields | `TestEvents_EqualsDecode`, `TestReasoningDetailsReplay_0053` |
+| the relay's headers not copied | `TestStreamStaged_RelaysHeaders_0019` |
+| `public` not seeing `internal/` | `TestCheckPassesTheGoodModule_0048` |
+| `hasCodeBlock` seeing no line | `TestCheckPassesTheGoodModule_0048` ("exit 1, want 0") |
+| `splitList` splitting nothing | `TestReportCountsEachPlantedDefectOnce_0048`, `TestCheckNamesEachViolationOnce_0048`, `TestCheckPassesTheGoodModule_0048` |
+
+A first plant of `hasCodeBlock`, splitting on `\r`, was not caught. It
+broke nothing: a `//` comment's `Text` is one line, so either split gives
+it whole. The plant was replaced by one that sees no line, which is caught.
+Before the phase, the amendment's own plants first dropped three calls
+outright, and failed to build on the unused import. Every plant here keeps
+the import in use, so that a test, not the compiler, catches it.
+
+**Step 4, the gate,** each exit status captured before any filter:
+
+```text
+$ make pre-add-check FILES="<the 14 changed Go files> llmprovider/llmtest/stream_relay_0019_test.go"
+go-precheck: 15 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck).   (exit 0)
+$ python3 -B tools/apidiff.py v1.20.0
+(no output)                                                           (exit 0)
+$ python3 -B tools/gate.py
+started at load 9.5
+gate: 27 of 27 passed                                                 (exit 0)
+```
+
+The gate's 27 lines all read `rc=0`, `g-wire-stable` among them, so the
+goldens are unchanged. Its govulncheck passes because this host runs Go
+1.27.3; CI, on the `go 1.27.2` that `go.mod` names, still fails it until
+`0055-PLAN-go-1-27-3-and-the-v1-20-0-release.md`'s Phase 1 lands.
+
+**Step 6.** Recorded here. The 15 Go files and this pair are staged as one
+change once 0052's fix is committed.
+
+### Completion of Phase 3 (2026-10-21)
+
+* 0052's fix was committed first, at the owner's ask ("Commit then
+  proceed"), as `e68be51`. This phase is then staged on its own: the 15 Go
+  files and this pair.
+* Every criterion of the phase's table is met: every test passes, with only
+  `TestStreamStaged_RelaysHeaders_0019` added and the goldens unchanged;
+  `go fix -diff` prints nothing on the six runs; each of the eight
+  production plants fails a test. This PLAN is `complete`.

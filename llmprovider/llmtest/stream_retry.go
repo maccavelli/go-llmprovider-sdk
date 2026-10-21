@@ -3,6 +3,7 @@ package llmtest
 import (
 	"bytes"
 	"context"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -232,9 +233,7 @@ func streamStaged(r reporter, h Harness, seen *once, wrap bool, hold func(i, n i
 	fs := serve(func(w http.ResponseWriter, req *http.Request) {
 		rec := httptest.NewRecorder()
 		h.StreamText(rec, req)
-		for k, v := range rec.Header() {
-			w.Header()[k] = v
-		}
+		maps.Copy(w.Header(), rec.Header())
 		w.WriteHeader(rec.Code)
 		flusher, canFlush := w.(http.Flusher)
 		chunks := splitParts(rec.Body.Bytes())

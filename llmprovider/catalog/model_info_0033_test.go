@@ -108,7 +108,7 @@ func TestModelInfo_Decodes_0033(t *testing.T) {
 		Reasoning: ModelReasoning{Supported: true, Efforts: []llmprovider.Effort{"none", "low", "high", "max"}},
 		Cost: ModelCost{
 			ModelRates: ModelRates{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75},
-			Tiers:      []ModelCostTier{{Above: 200000, ModelRates: ModelRates{Input: 6, Output: 22.5, CacheRead: 0.6, CacheWrite: 7.5}}},
+			Tiers:      []ModelCostTier{{Above: 200000, Input: 6, Output: 22.5, CacheRead: 0.6, CacheWrite: 7.5}},
 		},
 		Released: time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC),
 		Status:   StatusActive,
@@ -220,14 +220,14 @@ func TestModelCost_Tiers_0033(t *testing.T) {
 	m := fixtureMetadata0033(t)
 	gpt := model0033(t, m, llmprovider.ProviderOpenAI, "gpt-x")
 	want := []ModelCostTier{
-		{Above: 200000, ModelRates: ModelRates{Input: 4, Output: 16, CacheRead: 0.2}},
-		{Above: 1000000, ModelRates: ModelRates{Input: 8, Output: 32, CacheRead: 0.2}},
+		{Above: 200000, Input: 4, Output: 16, CacheRead: 0.2},
+		{Above: 1000000, Input: 8, Output: 32, CacheRead: 0.2},
 	}
 	if !reflect.DeepEqual(gpt.Cost.Tiers, want) || !gpt.Has(FieldCostTiers) {
 		t.Errorf("gpt-x tiers = %+v, want %+v (tiers read over context_over_200k, omitted cache rate the base's)", gpt.Cost.Tiers, want)
 	}
 	grok := model0033(t, m, llmprovider.ProviderGrok, "grok-x")
-	if lone := []ModelCostTier{{Above: 200000, ModelRates: ModelRates{Input: 4, Output: 12, CacheRead: 1}}}; !reflect.DeepEqual(grok.Cost.Tiers, lone) {
+	if lone := []ModelCostTier{{Above: 200000, Input: 4, Output: 12, CacheRead: 1}}; !reflect.DeepEqual(grok.Cost.Tiers, lone) {
 		t.Errorf("grok-x tiers = %+v, want %+v", grok.Cost.Tiers, lone)
 	}
 	if k := model0033(t, m, llmprovider.ProviderKilo, "vendor/kilo-x"); len(k.Cost.Tiers) != 0 || !k.Has(FieldCostTiers) {

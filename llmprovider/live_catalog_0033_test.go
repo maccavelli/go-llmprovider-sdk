@@ -94,7 +94,7 @@ var guardListings = []guardListing{
 	{llmprovider.ProviderClaude, func(t *testing.T) listed {
 		key := llmprovider.LiveEnvKey(t, llmprovider.ProviderEnvVars()[llmprovider.ProviderClaude])
 		out, after := listed{}, ""
-		for page := 0; page < 10; page++ {
+		for range 10 {
 			u := "https://api.anthropic.com/v1/models?limit=1000"
 			if after != "" {
 				u += "&after_id=" + url.QueryEscape(after)
@@ -124,7 +124,7 @@ var guardListings = []guardListing{
 	{llmprovider.ProviderGemini, func(t *testing.T) listed {
 		key := llmprovider.LiveEnvKey(t, llmprovider.ProviderEnvVars()[llmprovider.ProviderGemini])
 		out, token := listed{}, ""
-		for page := 0; page < 10; page++ {
+		for range 10 {
 			u := "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
 			if token != "" {
 				u += "&pageToken=" + url.QueryEscape(token)

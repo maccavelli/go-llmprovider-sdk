@@ -15,8 +15,6 @@ import (
 // unusable never eligible, one-vendor catalogs grouped by family, and the
 // first-party providers ranked by facts.
 
-func ptrBool(v bool) *bool { return &v }
-
 // TestSmallFromPrice_0041: with a known positive price, small is a 3:1 blend
 // of $1 or less; with none, the name decides.
 func TestSmallFromPrice_0041(t *testing.T) {
@@ -62,10 +60,10 @@ func TestSmallFromPrice_0041(t *testing.T) {
 // TestUnusableIneligible_0041: a model that takes no tools, or writes no
 // text, is never in the band, but stays in the listing's usable ids.
 func TestUnusableIneligible_0041(t *testing.T) {
-	ok := modelMetadata{Name: "M", Reasoning: ptrBool(true), Cost: &modelCost{Input: 1, Output: 5}, ToolCall: ptrBool(true)}
+	ok := modelMetadata{Name: "M", Reasoning: new(true), Cost: &modelCost{Input: 1, Output: 5}, ToolCall: new(true)}
 	ok.Limit.Context = 1000000
 	noTools := ok
-	noTools.ToolCall = ptrBool(false)
+	noTools.ToolCall = new(false)
 	image := ok
 	image.Modalities = &struct {
 		Input  []string `json:"input"`

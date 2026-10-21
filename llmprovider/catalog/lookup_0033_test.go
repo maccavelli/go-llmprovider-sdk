@@ -148,8 +148,8 @@ var listingCases = []listingCase{
 	{llmprovider.ProviderGrok, "grok-x", grokListing0033,
 		[]Field{FieldContextWindow, FieldReasoningEfforts, FieldCostInput, FieldCostOutput, FieldCostCacheRead, FieldCostTiers},
 		func(t *testing.T, i ModelInfo) {
-			want := ModelCost{ModelRates: ModelRates{Input: 2, Output: 6, CacheRead: 0.5},
-				Tiers: []ModelCostTier{{Above: 199999, ModelRates: ModelRates{Input: 4, Output: 12, CacheRead: 1}}}}
+			want := ModelCost{Input: 2, Output: 6, CacheRead: 0.5,
+				Tiers: []ModelCostTier{{Above: 199999, Input: 4, Output: 12, CacheRead: 1}}}
 			if i.ContextWindow != 500000 || !slices.Equal(i.Reasoning.Efforts, []llmprovider.Effort{"low", "high"}) ||
 				!costEqual(i.Cost, want) {
 				t.Errorf("grok: %+v, want cost %+v", i.public(), want)
@@ -304,7 +304,7 @@ func TestLookupModel_CallerLayers_0033(t *testing.T) {
 	first := ModelInfo{ID: "grok-x", ContextWindow: 1, Cost: ModelCost{ModelRates: ModelRates{Input: 0}}}.
 		Known(FieldContextWindow, FieldCostInput)
 	second := ModelInfo{ID: "grok-x", ContextWindow: 2,
-		Cost: ModelCost{Tiers: []ModelCostTier{{Above: 100, ModelRates: ModelRates{Input: 7}}}}}.
+		Cost: ModelCost{Tiers: []ModelCostTier{{Above: 100, Input: 7}}}}.
 		Known(FieldContextWindow, FieldCostTiers)
 	info, err := lookup(t, listingCases[2], WithModelLayer(staticLayer{"first", first}), WithModelLayer(staticLayer{"second", second}))
 	if err != nil {

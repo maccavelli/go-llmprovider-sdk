@@ -5,6 +5,8 @@
 package cacheref
 
 import (
+	"slices"
+
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
 )
@@ -29,8 +31,8 @@ func New(catalog any) *Value {
 // From returns the last *Value among a provider's option values, so that a
 // later WithCache wins; nil when there is none, or the last is nil.
 func From(values []any) *Value {
-	for i := len(values) - 1; i >= 0; i-- {
-		if v, ok := values[i].(*Value); ok {
+	for _, value := range slices.Backward(values) {
+		if v, ok := value.(*Value); ok {
 			return v
 		}
 	}

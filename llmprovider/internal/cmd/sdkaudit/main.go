@@ -138,7 +138,7 @@ func parseRules(list string) (map[string]bool, error) {
 // splitList is a comma-separated list's non-empty elements.
 func splitList(s string) []string {
 	var out []string
-	for _, p := range strings.Split(s, ",") {
+	for p := range strings.SplitSeq(s, ",") {
 		if p = strings.TrimSpace(p); p != "" {
 			out = append(out, p)
 		}

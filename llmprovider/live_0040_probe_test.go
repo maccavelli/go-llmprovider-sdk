@@ -205,7 +205,7 @@ func messagesPathWith(t *testing.T, url string, headers map[string]string, model
 	}
 	messages := []any{map[string]any{"role": "user", "content": probeUser}}
 	var steps []probeStep
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		body := map[string]any{"model": model, "max_tokens": 1024, "system": prompt0039("0040 " + name),
 			"tools": tools, "messages": messages, "cache_control": map[string]any{"type": "ephemeral"}}
 		status, reply := post(t, url, headers, body)
@@ -258,7 +258,7 @@ func responsesPath(t *testing.T, url string, headers map[string]string, model, n
 	}
 	input := []any{map[string]any{"role": "user", "content": probeUser}}
 	var steps []probeStep
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		body := map[string]any{"model": model, "store": false, "instructions": prompt0039("0040 " + name),
 			"tools": tools, "input": input, "include": []string{"reasoning.encrypted_content"},
 			"prompt_cache_key": "probe-0040-" + name}
@@ -318,7 +318,7 @@ func kiloPath(t *testing.T, url string, headers map[string]string, model string)
 	messages := []any{map[string]any{"role": "system", "content": prompt0039("0040 kilo")},
 		map[string]any{"role": "user", "content": probeUser}}
 	var steps []probeStep
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		body := map[string]any{"model": model, "max_tokens": 1024, "messages": messages, "tools": tools,
 			"deferred_tools": map[string]any{"protocol": "v1", "profile": "portable", "validation": "runtime",
 				"search": map[string]any{"type": "custom", "tool_id": "tool_search", "result_key": "tools"}}}
@@ -376,7 +376,7 @@ func grokPath(t *testing.T, url string, headers map[string]string, model string)
 		probeWeatherDesc, schema)
 	input := []any{map[string]any{"role": "user", "content": probeUser}}
 	var steps []probeStep
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		body := map[string]any{"model": model, "store": false, "instructions": prompt0039("0040 grok"),
 			"tools": tools, "input": input, "include": []string{"reasoning.encrypted_content"}}
 		status, reply := post(t, url, headers, body)

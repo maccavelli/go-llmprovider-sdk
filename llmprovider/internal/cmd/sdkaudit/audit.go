@@ -105,7 +105,7 @@ func (m *module) collectInterfaces(fl file) {
 
 // public reports whether the package in dir is outside every internal/.
 func public(dir string) bool {
-	for _, e := range strings.Split(dir, "/") {
+	for e := range strings.SplitSeq(dir, "/") {
 		if e == "internal" {
 			return false
 		}
@@ -182,7 +182,7 @@ func hasCodeBlock(cg *ast.CommentGroup) bool {
 		return false
 	}
 	for _, c := range cg.List {
-		for _, line := range strings.Split(c.Text, "\n") {
+		for line := range strings.SplitSeq(c.Text, "\n") {
 			if strings.HasPrefix(line, "//\t") {
 				return true
 			}

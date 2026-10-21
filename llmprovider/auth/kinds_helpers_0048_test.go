@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -98,9 +99,7 @@ func newFake0048(t *testing.T, provider llmprovider.ProviderID, routes func(f *f
 		all[kiloCodes0048] = answer0048(t, http.StatusOK, kiloCode0048)
 	}
 	if routes != nil {
-		for pattern, handler := range routes(f) {
-			all[pattern] = handler
-		}
+		maps.Copy(all, routes(f))
 	}
 	for pattern, handler := range all {
 		mux.HandleFunc(pattern, handler)
