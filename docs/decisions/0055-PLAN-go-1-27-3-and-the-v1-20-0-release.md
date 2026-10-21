@@ -304,3 +304,32 @@ runs it over every tracked Go file.
 
 Step 7's ask of the owner is moot: the environment already names
 `go1.27.3`. Step 8, the push, waits for the owner's word.
+
+**Step 8, the push.** The owner committed this phase as `a3fd64a` and
+pushed it with `e68be51`, `3c7ad7e` and `5eb068a` (2026-10-21).
+
+* "CI", run 39612453007, `success`: `validate` passed on ubuntu-24.04
+  (7 min 22 s, govulncheck included), windows-2025 and macos-15, and
+  `release` was skipped.
+* "Docs", run 39612452935, `success`: 0052's fix, live.
+
+V1 to V6 are met.
+
+### Phase 2: release `v1.20.1` (2026-10-21)
+
+* **Approval.** The owner's "committed, pushed, proceed". No deviation.
+* **Step 1.**
+  * `CHANGELOG.md`: `[Unreleased]` became `[v1.20.1] - 2026-10-21`, with
+    Security (Phase 1) and Fixed (0052's Docs workflow). An empty
+    `[Unreleased]` sits above it, and the comparison links gain `v1.20.1`.
+    "changelog-check: 29 release section(s), 0 problem(s)". The date must
+    be that of the commit the tag names (R53).
+  * The README's Status names `v1.20.1`.
+* **Step 2, the notes.** In a clone of `a3fd64a` with this `CHANGELOG.md`
+  and README and a local `v1.20.1` tag, `--section v1.20.1 --repo
+  maccavelli/go-llmprovider-sdk` exits 0. It prints the Security and Fixed
+  entries, 1,118 bytes, both MADR links made absolute at `blob/v1.20.1`.
+  `tools/denyscan.py` on them: 0 hits. They are compared with the Release
+  at step 4.
+* **Step 3, before the push:** `tools/apidiff.py v1.20.0`, no output, exit 0; the
+  gate, 27 of 27 passed; the disclosure guard, once this commit is made.

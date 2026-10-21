@@ -10,6 +10,8 @@ section.
 
 ## [Unreleased]
 
+## [v1.20.1] - 2026-10-21
+
 ### Security
 
 - The module requires Go 1.27.3, for GO-2026-6809 in `crypto/x509`
@@ -580,7 +582,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.20.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.20.1...HEAD
+[v1.20.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.20.0...v1.20.1
 [v1.20.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.19.0...v1.20.0
 [v1.19.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.18.0...v1.19.0
 [v1.18.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.17.0...v1.18.0

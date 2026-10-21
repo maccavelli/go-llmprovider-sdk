@@ -577,3 +577,21 @@ runner's home directory, in the MADR's quotation of the run's log. It is
 replaced by `<runner home>`, which the MADR says.
 
 Step 6, the live run, follows the owner's push.
+
+### Phase 4, step 6: the live run (2026-10-21)
+
+The owner pushed `e68be51` (this fix) with `3c7ad7e`, `5eb068a` and
+`a3fd64a` (0055-PLAN's Phase 1) to `main`.
+
+* **"Docs", run 39612452935, `success`,** in 4 min 40 s. Its steps:
+  * the golangci-lint install, 72 s (13:57:04 to 13:58:16 UTC);
+  * the `make` step, 3 min 08 s, `gate-selftest`'s precheck test
+    included.
+
+  This is the cost the MADR's amendment left to measure.
+* **"CI", run 39612453007, `success`:** all three `validate` jobs passed,
+  and `release` was skipped, as on any branch push.
+
+A1 and A2 are confirmed live. Phase 3 step 2 still needs a push that
+changes only Markdown. The next release commit, `CHANGELOG.md`, the README
+and records, is one.
