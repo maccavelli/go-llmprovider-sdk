@@ -523,3 +523,80 @@ gate: 27 of 27 passed                                                 (exit 0)
 ```
 
 V4 to V6 are met.
+
+### Phase 3: `InputerContext` (2026-10-22)
+
+* **Approval.** "Commit to main and proceed". Phase 2 was committed at the
+  owner's ask as `71e5da4`. No deviation.
+
+**Steps 1 to 3, the code:**
+
+* **`InputerContext`,** in `wizard/prompter.go`, with the MADR's contract
+  in its doc: give up when `ctx` ends, return soon after with an error,
+  leave no read running; a `Prompter` that cannot must not implement it, and
+  `TextPrompter` does not; a wrapper must forward it; it is called on a
+  goroutine of its own while `Notify` may run, which an implementation must
+  allow; and the Enter follows if it has not returned shortly after `ctx`
+  ends. It is used for the paste prompt only.
+* **`pastePrompt`:**
+  * `read` derives a context from the login's for each read, keeps its
+    `cancel` under the lock, and calls `InputContext` with it when the
+    `Prompter` implements it, else `Input`;
+  * `drain` sets `done` and calls that `cancel`. For an `InputerContext` it
+    waits for the read, silently, up to `drainGrace`; past it, and for any
+    other `Prompter`, it does as before: the notice, then the wait;
+  * `var drainGrace = 2 * time.Second`.
+* **`TextPrompter`'s doc** says that it does not implement `InputerContext`,
+  and why.
+
+**Step 4, the drift check:** `gofmt -l wizard/` empty, `go vet ./wizard/` 0,
+`go test -race -count=1 ./wizard/` "ok", every existing test unchanged.
+
+**Step 5, the tests,** `wizard/inputctx_0057_test.go`, over a `ctxPrompter`
+that fails a second read while one runs, an `InputContext` for another
+prompt, and a `Select` while the read runs. Each run of `ConfigureLLM` is
+bounded at 5 s. Run three times under `-race`, all passing:
+
+| Test | Shows |
+| :--- | :--- |
+| `TestInputerContext_LoopbackWinNoEnter_0057` | the login gives `InputCode` a context it never ends; the read's context ended with `context.Canceled`; no press-Enter notice; the model `Select` after the read |
+| `TestInputerContext_PasteWins_0057` | an `InputContext` that answers first: the login got the code, from one call |
+| `TestInputerContext_IgnoresContext_0057` | `drainGrace` at 10 ms, an `InputContext` that ignores its context: one press-Enter notice, and the run finished |
+| `TestInputerContext_PasteOnly_0057` | one `InputContext` call; the model search through `Input` |
+| `TestTextPrompter_NotInputerContext_0057` | `*TextPrompter` does not implement it |
+
+**Step 6, red first,** `tools/plant.py` on a scratch clone, all five caught
+by failing tests, none by a failed build. The plants that hang were stopped
+by the tests' own 5 s bound:
+
+| Plant | Failure line |
+| :--- | :--- |
+| `drain` not cancelling | "ConfigureLLM did not return within 5 s of a finished sign-in" |
+| the notice shown for an `InputerContext` | "notices [… \"Browser sign-in finished; press Enter to continue\"]; want no press-Enter notice" |
+| `InputContext` used for every `Input` (the model search) | "InputContext(\"Search models (blank for recommended)\"); want the paste prompt only", in all four `InputerContext` tests |
+| the grace dropped | `TestInputerContext_IgnoresContext_0057`: "ConfigureLLM did not return within 5 s of a finished sign-in" |
+| `Input` called in place of `InputContext` | "InputCode = \"\", fakePrompter: unexpected Input(\"Paste the redirected URL …\"); want the pasted code"; "0 InputContext calls; want 1" |
+
+**Step 7, the docs and checks:**
+
+* **Docs:** `docs/architecture.md`'s "The paste prompt" names
+  `InputerContext`, and says that `TextPrompter` keeps the Enter.
+  `CHANGELOG.md` gains an Added entry.
+* **The checks,** each exit status captured before any filter:
+
+```text
+$ python3 -B tools/apidiff.py v1.21.0
+Compatible changes:
+- ./wizard.DeviceCode: added
+- ./wizard.InputerContext: added
+- ./wizard.Options.NoPastePrompt: added
+- ./wizard.Options.ShowDeviceCode: added                              (exit 0)
+$ make docs-check changelog-check tables-check parity-check
+sdkaudit: 0 violation(s) of R50,R51,R52; … 0 problem(s) each          (exit 0)
+$ make pre-add-check FILES="wizard/auth.go wizard/prompter.go wizard/text_prompter.go wizard/inputctx_0057_test.go"
+go-precheck: 4 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck).   (exit 0)
+$ python3 -B tools/gate.py
+gate: 27 of 27 passed                                                 (exit 0)
+```
+
+apidiff lists exactly the PLAN's table of four. V7, V8 and V11 are met.

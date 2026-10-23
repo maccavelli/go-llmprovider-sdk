@@ -35,6 +35,10 @@ const maskGlyphs = 8
 // concurrent use: two goroutines reading at once race on its reader. Notify
 // may be called while another goroutine waits in a read, as a sign-in does.
 // In and Out must not change once it is in use.
+//
+// It does not implement InputerContext: a read of stdin cannot be given up,
+// so after a browser sign-in that the loopback finished, the wizard asks for
+// the Enter that ends the paste prompt (0057-MADR D3).
 type TextPrompter struct {
 	// In is the input source. When it is an *os.File attached to a terminal,
 	// Secret uses raw mode for live masking; otherwise it degrades to a plain

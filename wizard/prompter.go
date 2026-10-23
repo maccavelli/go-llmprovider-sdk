@@ -20,7 +20,10 @@
 //	save(res.Provider, res.Model, res.APIKey)
 package wizard
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // Level classifies a Notify message. It is an integer, safe for
 // concurrent use.
@@ -89,4 +92,25 @@ type Prompter interface {
 	// Notify reports progress or a problem. It must not be used to display a
 	// credential; callers mask first.
 	Notify(level Level, format string, args ...any)
+}
+
+// InputerContext is implemented by a Prompter that can give up a read. The
+// wizard calls InputContext in place of Input for a browser sign-in's paste
+// prompt, the one read the loopback can make moot, and ends ctx once the
+// sign-in has finished, so that the sign-in returns without the Enter it
+// otherwise asks for (0057-MADR D3). Every other prompt still calls Input.
+//
+// InputContext is Input that gives up when ctx ends: it returns soon after,
+// with an error, and leaves no read running that could take the user's next
+// answer, so that a line typed later goes to the next prompt. A Prompter that
+// cannot promise this must not implement it: TextPrompter does not, since a
+// read of stdin cannot be given up. A Prompter that wraps another must
+// forward it, or the wizard asks for the Enter.
+//
+// The wizard calls it on a goroutine of its own, while another goroutine may
+// call Notify, as it calls Input; an implementation must allow that one
+// concurrent use. If it has not returned shortly after ctx ends, the wizard
+// asks for the Enter and waits for it.
+type InputerContext interface {
+	InputContext(ctx context.Context, prompt, def string) (string, error)
 }

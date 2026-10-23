@@ -711,9 +711,14 @@ type pastePrompt struct {
 	instruction, prompt string
 
 	mu      sync.Mutex
-	done    bool          // drain ran: nothing further may use the prompter
-	pending chan struct{} // closed when the started read returns
+	done    bool               // drain ran: nothing further may use the prompter
+	pending chan struct{}      // closed when the started read returns
+	cancel  context.CancelFunc // ends the started read's context
 }
+
+// drainGrace is how long drain waits, silently, for an InputerContext read
+// to give up before it asks for the Enter (0057-MADR D3).
+var drainGrace = 2 * time.Second
 
 func (s *pastePrompt) show(authorizeURL string) {
 	s.mu.Lock()
@@ -743,27 +748,47 @@ func (s *pastePrompt) input(ctx context.Context) (string, error) {
 	}
 }
 
-// read is one read of the paste, unless drain has run or ctx has ended.
+// read is one read of the paste, unless drain has run or ctx has ended. A
+// Prompter that can give up a read is given a context of the wizard's own,
+// which drain ends, so the wizard does not rely on the login's own cancel
+// (0057-MADR D3).
 func (s *pastePrompt) read(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	if s.done || ctx.Err() != nil {
 		s.mu.Unlock()
 		return "", context.Canceled
 	}
+	readCtx, cancel := context.WithCancel(ctx)
 	pending := make(chan struct{})
-	s.pending = pending
+	s.pending, s.cancel = pending, cancel
 	s.mu.Unlock()
 	defer close(pending)
+	defer cancel()
+	if ic, ok := s.p.(InputerContext); ok {
+		return ic.InputContext(readCtx, s.prompt, "")
+	}
 	return s.p.Input(s.prompt, "")
 }
 
+// drain finishes a read the loopback overtook, before any other prompt. An
+// InputerContext's read is ended, and waited for in silence; one that has not
+// returned within drainGrace, like any other Prompter's read, is finished by
+// the Enter the notice asks for (0008-MADR's amendment).
 func (s *pastePrompt) drain() {
 	s.mu.Lock()
 	s.done = true
-	pending := s.pending
+	pending, cancel := s.pending, s.cancel
 	s.mu.Unlock()
 	if pending == nil {
 		return
+	}
+	cancel()
+	if _, ok := s.p.(InputerContext); ok {
+		select {
+		case <-pending:
+			return
+		case <-time.After(drainGrace):
+		}
 	}
 	select {
 	case <-pending:

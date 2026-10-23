@@ -21,6 +21,11 @@ carry their sections.
 - `wizard.Options.NoPastePrompt`: a browser sign-in starts no paste prompt,
   for a caller with no terminal. The URL is still shown and opened, and the
   loopback alone completes the sign-in, the ChatGPT plan's included (D2).
+- `wizard.InputerContext`: a `Prompter` that can give up a read implements
+  `InputContext(ctx, prompt, def)`, and a browser sign-in that the loopback
+  finishes then returns at once, with no Enter to press (D3). The wizard uses
+  it for the paste prompt only. `TextPrompter` does not implement it, and
+  keeps the Enter, since a read of stdin cannot be given up.
 
 ### Changed
 

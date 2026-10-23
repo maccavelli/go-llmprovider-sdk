@@ -833,7 +833,13 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
 - **The paste prompt.** A browser sign-in otherwise races the loopback
   against a paste prompt. An empty paste is asked again; when the loopback
   wins, a read still waiting is finished by one Enter, which the wizard asks
-  for, before any other prompt (0008-MADR's amendment; 0057-MADR D4).
+  for, before any other prompt (0008-MADR's amendment; 0057-MADR D4). A
+  `Prompter` that can give up a read implements **`InputerContext`**: the
+  paste prompt, and no other, goes to its `InputContext`, whose context the
+  wizard ends when the loopback wins, and no Enter is asked for unless the
+  read is still running after a short grace. `TextPrompter` does not
+  implement it, since a read of stdin cannot be given up, and keeps the
+  Enter (0057-MADR D3).
 - **`Logout(ctx, p, opts, id)`** revokes the stored session (OpenAI and
   Grok), reports a failure, and deletes it.
 - **`Result`** prints `[redacted]` for its API key under `fmt` and `slog`.
