@@ -638,3 +638,34 @@ credential unique to the run. Three things show it:
   file(s) clean"; `make tools-test`, OK; `python3 -B tools/gate.py`, "gate:
   27 of 27 passed".
 * **Not done here:** Phase 5, the close.
+* **Committed** as `54e71fb`, by the owner ("committed, proceed").
+
+### Phase 5: close (2026-10-23)
+
+* **Step 1, the census, whole:** `tools/cachecensus.py` over `./...` at
+  `54e71fb`, every test passing, listed 82 tests in 7 packages:
+  * outside `catalog`, only the deliberate steps of Phase 2 and
+    `TestLiveFetcher` (Phase 2's deviation):
+    `TestProbeCache_ProviderProbesIntoItsCache_0049` in claude, gemini,
+    grok and ollama, `_0048` and `TestProbeCache_ProviderKeyIsFingerprinted`
+    in openai, and `TestLiveFetcher` in `internal/cmd/catalogs`;
+  * in `catalog`, 75: Phase 4's 74 and
+    `TestResetProcessStore_EmptiesEveryURLMap_0058`, which fills the store
+    on purpose. Phase 4's script found that 74 reach `clearProcessStore`.
+    The one that does not is `TestCache_KeepsListingsApart_0048`, the
+    deliberate step under its key of the run's own.
+* **Step 2, on linux/amd64,** in a copy of `54e71fb` made by `git archive`,
+  outside the tree:
+  * the opencode package's test binary, 300 runs with `-test.shuffle=on`
+    and `-test.count=1`: "loop runs=300 fails=0". Before the change, the
+    MADR's P6 failed 4 times in 300 and P8 3 times in 150;
+  * `go test -count=2000 -run 'TestOpencode_RoutesFromMetadata$'`: ok,
+    58.4 s.
+
+  The copy was removed afterwards.
+* **Step 3, the gate:** `python3 -B tools/gate.py`, "gate: 27 of 27
+  passed". The disclosure guard over the six commits not yet pushed
+  (`b66ecdf` to `54e71fb`) exited 0, with nothing flagged.
+* **Not done yet:** CI on the three platforms, which runs on a push and so
+  waits for the owner's word, and step 4, the MADR's Confirmation item by
+  item and this PLAN `complete`, which follows CI.
