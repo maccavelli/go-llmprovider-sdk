@@ -7,8 +7,16 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
 )
+
+// wireOpts is wirecase.Opts with a cache of the scenario's own. Each scenario
+// builds once, against a server of its own that it closes before the next
+// starts, so no listing may outlive its server (0058-MADR D1).
+func wireOpts(u string, extra ...llmprovider.Option) []llmprovider.Option {
+	return append(wirecase.Opts(u, extra...), catalog.WithCache(new(catalog.Cache)))
+}
 
 // updateWire rewrites this package's G-wire goldens, only for a difference a
 // record explains (0015-PLAN S2).
@@ -22,7 +30,7 @@ var wireCases = []wirecase.Case{
 		Listing: wirecase.ListingDataIDs("gpt-5.5", "gpt-5.4-mini", "text-embedding-3-small"),
 		Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append([]llmprovider.Option{llmprovider.WithAPIKey("sk-wire"), llmprovider.WithModel("gpt-5.5")},
-				wirecase.Opts(u, extra...)...)...)
+				wireOpts(u, extra...)...)...)
 		},
 	},
 	{
@@ -32,7 +40,7 @@ var wireCases = []wirecase.Case{
 		Listing: wirecase.ListingDataIDs("gpt-5.5", "gpt-5.4-mini", "text-embedding-3-small"),
 		Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
 			return New(append([]llmprovider.Option{llmprovider.WithAPIKey("sk-wire"), llmprovider.WithModel("gpt-5.5"),
-				WithStore(false)}, wirecase.Opts(u, extra...)...)...)
+				WithStore(false)}, wireOpts(u, extra...)...)...)
 		},
 	},
 	{
@@ -44,7 +52,7 @@ var wireCases = []wirecase.Case{
 			session := &auth.OAuthSession{Issuer: auth.DefaultOpenAIIssuer, Access: "chatgpt-access",
 				Refresh: "chatgpt-refresh", Expiry: time.Now().Add(time.Hour), AccountID: "acct-wire"}
 			return New(append([]llmprovider.Option{llmprovider.WithTokenSource(session), llmprovider.WithModel("gpt-6-astra")},
-				wirecase.Opts(u, extra...)...)...)
+				wireOpts(u, extra...)...)...)
 		},
 	},
 	{
@@ -61,7 +69,7 @@ var wireCases = []wirecase.Case{
 				Access: "plan-access", Refresh: "plan-refresh", Expiry: time.Now().Add(time.Hour), ClientID: "oaiapp_wire",
 				AccountID: "acct-wire", Resource: PlatformBaseURL}
 			return New(append([]llmprovider.Option{llmprovider.WithTokenSource(session), llmprovider.WithModel("gpt-6.1-sol"),
-				llmprovider.WithMaxTokens(2048)}, wirecase.Opts(u, extra...)...)...)
+				llmprovider.WithMaxTokens(2048)}, wireOpts(u, extra...)...)...)
 		},
 	},
 }

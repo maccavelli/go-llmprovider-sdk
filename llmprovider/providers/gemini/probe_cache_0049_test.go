@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"crypto/rand"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -27,12 +28,19 @@ func TestProbeCache_ProviderProbesIntoItsCache_0049(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	var a, b catalog.Cache
+	processKey := "k-process-" + rand.Text()
 	for i, step := range []struct {
 		cache  *catalog.Cache
 		probes bool
 	}{{&a, true}, {&a, false}, {&b, true}, {nil, true}} {
 		before := posts.Load()
-		p := build(t, apiKey(srv.URL, "gemini-3.7-flash", llmprovider.WithModelProbes(true), catalog.WithCache(step.cache))...)
+		opts := apiKey(srv.URL, "gemini-3.7-flash", llmprovider.WithModelProbes(true), catalog.WithCache(step.cache))
+		if step.cache == nil {
+			// The process's cache, under a key of this run's own, so that
+			// its entry meets no other test's (0058-MADR D1).
+			opts = append(opts, llmprovider.WithAPIKey(processKey))
+		}
+		p := build(t, opts...)
 		if models, err := list(t, p); err != nil || len(models) == 0 {
 			t.Fatalf("step %d: ListModels = %v, %v; want models", i, models, err)
 		}

@@ -377,3 +377,125 @@ credential unique to the run. Three things show it:
 * **Not done here:** the other packages, which Phases 2 to 4 cover. Until
   then they still write to the process's cache, so a full census lists
   them.
+* **Committed** as `65e3cf6`, on the owner's word ("Commit to main then
+  proceed").
+
+### Phase 2: the other provider packages, and `internal/cmd/catalogs` (2026-10-23)
+
+* **Step 1.** `testCache(t)` in the `helpers_test.go` of claude, gemini,
+  grok, huggingface, kilo, ollama, openai and together, with the doc
+  Phase 1 gave it, and each `build` puts it first. The root package gets
+  it in the new `cache_0058_test.go`. After this step alone, the census
+  over the phase's ten packages listed 19 tests, not P7's 65. Two of them
+  failed:
+  * `TestGrokEfforts_Facts_0041`, whose warm-up filled the process's cache
+    while its provider read its own. This is the state step 2 ends, as in
+    Phase 1;
+  * `TestProbeCache_ProviderKeyIsFingerprinted` (openai), which reads the
+    process's probe store itself, `transport.ProbeGenerateHealthCached`
+    with a nil store, after a listing. That makes it a deliberate step, as
+    Scope's last item foresees: "any other step the census finds that
+    tests the process's cache".
+* **Step 2, where the tests bypass `build`:**
+  * every package's wire-golden constructors go through a new `wireOpts`
+    in its `wire_test.go`, which adds a cache per build. This is Phase 1's
+    deviation for opencode, for the same reason;
+  * `grok/efforts_0041_test.go`: `testCache(t)` in the options its warm-up
+    and its provider share;
+  * `huggingface/listing_test.go` and `together/listing_test.go`: the same,
+    in `TestListModels_HonoursTheMetadataURLOption`;
+  * `providers/facts_0041_test.go`: the same, in
+    `TestReplayField_Facts_0041`.
+
+  The files step 2 named for their direct `New` (`ollama/listing_0026_test.go`,
+  `together/listing_test.go`'s other tests) needed no change: the census
+  listed none of their tests once step 1 was in.
+* **Step 3, the deliberate steps.** Each keeps the process's cache and
+  takes a key from `crypto/rand.Text()`, made once per test as
+  `processKey`:
+  * the `WithCache(nil)` step of `TestProbeCache_ProviderProbesIntoItsCache_0049`
+    in claude, gemini, grok and ollama, and of `_0048` in openai. Ollama
+    sends no key, but its probe key holds the fingerprint of the one it is
+    given, so a key of the run's own isolates it too;
+  * `TestProbeCache_ProviderKeyIsFingerprinted`: `listProbes` takes
+    options, the test gives `catalog.WithCache(nil)`, and its key is
+    `"k-fingerprint-" + rand.Text()`.
+
+  No assertion changed.
+* **Step 4:** `TestLiveFetcher`'s `extra` gains
+  `catalog.WithCache(new(catalog.Cache))`.
+* **Deviation (2026-10-23): `TestLiveFetcher`'s metadata read cannot take a
+  cache.**
+  * **Found.** With step 4 in, the census still listed it, for
+    "metadata". `liveFetcher.Metadata` is `return
+    catalog.LookupMetadata(ctx, f.metadataURL, nil)`
+    (`internal/cmd/catalogs/main.go:105`), which takes no option. It was
+    so before this record. The PLAN's scope rules out a change outside
+    `_test.go` files.
+  * **Options put to the owner:**
+    * a metadata URL of the run's own, in the test only (recommended);
+    * `liveFetcher.Metadata` given the fetcher's options, a change to the
+      command and an amendment of this PLAN's scope.
+  * **Decision.** "Option 1". The test's `metadataURL` is `srv.URL + "/" +
+    rand.Text() + "/api.json"`, which its handler serves by the
+    `/api.json` suffix as before. Its entry's key can meet no other test's,
+    as the deliberate steps' keys cannot. The census still lists it, and
+    Phase 5 names it beside them. The MADR's T2 was rejected as the general
+    fix, since it reaches only the metadata; here the metadata is all that
+    is left, so no decision of the MADR changes.
+  * **Seen:** the census line became `CENSUS metadata
+    http://127.0.0.1:64038/BWHOYYOI2NHGCYFE2IHXENROV3/api.json`, and
+    `go test -race -count=3 -run TestLiveFetcher` passed.
+* **Step 5, the drift check:** `go test -race -count=1 -shuffle=on` on the
+  phase's ten packages: ok, each.
+* **Step 6, the plants.** `tools/plant.py`, a scratch clone, `-run
+  TestProbeCache_`:
+
+  ```text
+  == claude: the nil step given cache a: caught (exit 1)
+     probe_cache_0049_test.go:48: step 3: 0 probes; want probes true
+  == gemini: the nil step given cache a: caught (exit 1)
+     probe_cache_0049_test.go:48: step 3: 0 probes; want probes true
+  == grok: the nil step given cache a: caught (exit 1)
+     probe_cache_0049_test.go:48: step 3: 0 probes; want probes true
+  == ollama: the nil step given cache a: caught (exit 1)
+     probe_cache_0049_test.go:35: step 3: 0 probes; want probes true
+  == openai 0048: the nil step given cache a: caught (exit 1)
+     probe_cache_0048_test.go:35: step 3: 0 probes; want 3
+  == openai fingerprint: the provider on the test's own cache: caught (exit 1)
+     probe_cache_0028_test.go:99: by the fingerprint: 3 probes; want the cached entry
+  plant: all 6 plant(s) caught
+  ```
+
+  The census plants, each on a scratch copy given to
+  `tools/cachecensus.py --src`, with the census expected to list the tests
+  again:
+
+  ```text
+  == claude: build without testCache (probes): caught; listed [TestClaude_TokenHeaderOverride,
+     TestListModels, TestListModels_CarriesTheCallersIdentity, TestListModels_DefaultBaseShape_0041,
+     TestListModels_ListingBounded, TestListModels_ProbeBodyIsTheOldProbes,
+     TestListModels_ProbesFollowDefaultOptionAndEnv, TestProbeCache_ProviderProbesIntoItsCache_0049]
+  == together: build without testCache (listings): caught; listed [TestListModels_CarriesTheCallersIdentity,
+     TestListModels_NeverProbes, TestTogether_Listing, TestTogether_TokenHeaderOverride]
+  == root: TestReplayField_Facts_0041 without testCache (metadata): caught; listed [TestReplayField_Facts_0041]
+  ```
+
+* **Step 7, the census** over the phase's ten packages, every test passing,
+  lists only the deliberate steps and the deviation's test:
+
+  ```text
+  llmprovider/internal/cmd/catalogs: TestLiveFetcher metadata
+  llmprovider/providers/claude: TestProbeCache_ProviderProbesIntoItsCache_0049 listed,listing,probes
+  llmprovider/providers/gemini: TestProbeCache_ProviderProbesIntoItsCache_0049 listed,listing,probes
+  llmprovider/providers/grok: TestProbeCache_ProviderProbesIntoItsCache_0049 listed,listing,probes
+  llmprovider/providers/ollama: TestProbeCache_ProviderProbesIntoItsCache_0049 probes
+  llmprovider/providers/openai: TestProbeCache_ProviderKeyIsFingerprinted listed,listing,probes
+  llmprovider/providers/openai: TestProbeCache_ProviderProbesIntoItsCache_0048 listed,listing,probes
+  ```
+
+* **The checks:**
+  * `make pre-add-check` on the phase's 28 Go files: clean, and again on
+    the deviation's file once it changed;
+  * `python3 -B tools/gate.py`: "gate: 27 of 27 passed".
+* **Not done here:** the wizard (Phase 3) and package `catalog` (Phase 4).

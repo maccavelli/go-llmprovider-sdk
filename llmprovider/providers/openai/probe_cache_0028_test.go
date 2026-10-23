@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"crypto/rand"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,11 +37,11 @@ func probeServer(t *testing.T) (*httptest.Server, *atomic.Int32) {
 
 // listProbes lists through a provider with key and base URL, and returns
 // the models and the probes the listing sent.
-func listProbes(t *testing.T, key, url string, posts *atomic.Int32) ([]string, int32) {
+func listProbes(t *testing.T, key, url string, posts *atomic.Int32, opts ...llmprovider.Option) ([]string, int32) {
 	t.Helper()
 	before := posts.Load()
-	p := build(t, llmprovider.WithAPIKey(key), llmprovider.WithBaseURL(url), llmprovider.WithModel("gpt-4.1-mini"),
-		llmprovider.WithModelProbes(true))
+	p := build(t, append([]llmprovider.Option{llmprovider.WithAPIKey(key), llmprovider.WithBaseURL(url),
+		llmprovider.WithModel("gpt-4.1-mini"), llmprovider.WithModelProbes(true)}, opts...)...)
 	models, err := list(t, p)
 	if err != nil || len(models) == 0 {
 		t.Fatalf("ListModels = %v, %v; want models", models, err)
@@ -87,8 +88,10 @@ func TestProbeCache_KeyedByCredentialAndBaseURL(t *testing.T) {
 // fingerprint, and not one by the key itself.
 func TestProbeCache_ProviderKeyIsFingerprinted(t *testing.T) {
 	srv, posts := probeServer(t)
-	const key = "k-fingerprint"
-	models, _ := listProbes(t, key, srv.URL, posts)
+	// The test reads the process's probe store itself, so the provider
+	// writes there, under a key of this run's own (0058-MADR D1).
+	key := "k-fingerprint-" + rand.Text()
+	models, _ := listProbes(t, key, srv.URL, posts, catalog.WithCache(nil))
 	var probed atomic.Int32
 	probe := func(context.Context, string) (string, error) { probed.Add(1); return "hello", nil }
 	byFingerprint := transport.ProbeKey{Provider: string(llmprovider.ProviderOpenAI), BaseURL: srv.URL, Credential: transport.Fingerprint(key)}

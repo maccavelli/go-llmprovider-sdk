@@ -109,7 +109,8 @@ func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	t.Cleanup(listing.Close)
 	meta, metaHits := metadataServer(t, http.StatusOK, `{"huggingface":{"models":{`+
 		`"a/large":{"id":"a/large","reasoning":true},"c/flash":{"id":"c/flash","reasoning":true}}}}`)
-	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL)}
+	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL),
+		testCache(t)}
 	wantCat, err := catalog.List(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken("k"), opts...)
 	want := wantCat.Recommended
 	if err != nil {

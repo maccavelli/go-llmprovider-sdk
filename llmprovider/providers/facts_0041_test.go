@@ -125,7 +125,8 @@ func TestReplayField_Facts_0041(t *testing.T) {
 			t.Cleanup(meta.Close)
 			srv := wiretest.NewServer(t, wirecase.Case{}.Reply)
 			opts := []llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model),
-				llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelMetadataURL(meta.URL), llmprovider.WithModelProbes(false)}
+				llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelMetadataURL(meta.URL), llmprovider.WithModelProbes(false),
+				testCache(t)}
 			// The document cached, as a request finds it once fetched.
 			if _, err := catalog.LookupMetadataWith(context.Background(), tc.id, opts...); err != nil {
 				t.Fatal(err)

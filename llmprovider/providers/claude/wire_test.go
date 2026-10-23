@@ -5,8 +5,16 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
 )
+
+// wireOpts is wirecase.Opts with a cache of the scenario's own. Each scenario
+// builds once, against a server of its own that it closes before the next
+// starts, so no listing may outlive its server (0058-MADR D1).
+func wireOpts(u string, extra ...llmprovider.Option) []llmprovider.Option {
+	return append(wirecase.Opts(u, extra...), catalog.WithCache(new(catalog.Cache)))
+}
 
 // updateWire rewrites this package's G-wire goldens, only for a difference a
 // record explains (0015-PLAN S2).
@@ -21,7 +29,7 @@ var wireCases = []wirecase.Case{{
 	NoContinuation: true,
 	Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
 		return New(append([]llmprovider.Option{llmprovider.WithAPIKey("sk-ant-wire"), llmprovider.WithModel("claude-sonnet-5")},
-			wirecase.Opts(u, extra...)...)...)
+			wireOpts(u, extra...)...)...)
 	},
 }, {
 	// claude-refuses-forced pins a model that refuses a forced tool choice:
@@ -31,7 +39,7 @@ var wireCases = []wirecase.Case{{
 	NoContinuation: true,
 	Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
 		return New(append([]llmprovider.Option{llmprovider.WithAPIKey("sk-ant-wire"), llmprovider.WithModel("claude-sonnet-5-5")},
-			wirecase.Opts(u, extra...)...)...)
+			wireOpts(u, extra...)...)...)
 	},
 }}
 

@@ -70,7 +70,7 @@ func TestGrokEfforts_Facts_0041(t *testing.T) {
 	} {
 		srv, sent := effortServer(t)
 		opts := apiKey(srv.URL, "grok-4.3", llmprovider.WithModelMetadataURL(srv.URL+"/api.json"),
-			llmprovider.WithModelProbes(false))
+			llmprovider.WithModelProbes(false), testCache(t))
 		if tc.off {
 			opts = append(opts, llmprovider.WithoutModelMetadata())
 		} else {

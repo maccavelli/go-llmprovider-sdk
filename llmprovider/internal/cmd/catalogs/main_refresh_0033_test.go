@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/catalogtool"
 )
 
@@ -209,8 +211,11 @@ func TestLiveFetcher(t *testing.T) {
 	}))
 	defer srv.Close()
 	ctx := context.Background()
-	f := &liveFetcher{metadataURL: srv.URL + "/api.json",
-		extra: []llmprovider.Option{llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelMetadataURL(srv.URL + "/api.json")}}
+	// Metadata reads into the process's cache, which takes no option of the
+	// test's, so the document's URL is the run's own (0058-PLAN Phase 2).
+	f := &liveFetcher{metadataURL: srv.URL + "/" + rand.Text() + "/api.json",
+		extra: []llmprovider.Option{llmprovider.WithBaseURL(srv.URL), llmprovider.WithModelMetadataURL(srv.URL + "/api.json"),
+			catalog.WithCache(new(catalog.Cache))}}
 	meta, err := f.Metadata(ctx)
 	if err != nil {
 		t.Fatal(err)

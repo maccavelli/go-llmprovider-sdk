@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"crypto/rand"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -13,13 +14,20 @@ import (
 func TestProbeCache_ProviderProbesIntoItsCache_0048(t *testing.T) {
 	srv, posts := probeServer(t)
 	var a, b catalog.Cache
+	processKey := "k-process-" + rand.Text()
 	for i, step := range []struct {
 		cache *catalog.Cache
 		want  int32
 	}{{&a, 3}, {&a, 0}, {&b, 3}, {nil, 3}} {
 		before := posts.Load()
-		p := build(t, llmprovider.WithAPIKey("k-0048"), llmprovider.WithBaseURL(srv.URL), llmprovider.WithModel("gpt-4.1-mini"),
-			llmprovider.WithModelProbes(true), catalog.WithCache(step.cache))
+		opts := []llmprovider.Option{llmprovider.WithAPIKey("k-0048"), llmprovider.WithBaseURL(srv.URL),
+			llmprovider.WithModel("gpt-4.1-mini"), llmprovider.WithModelProbes(true), catalog.WithCache(step.cache)}
+		if step.cache == nil {
+			// The process's cache, under a key of this run's own, so that
+			// its entry meets no other test's (0058-MADR D1).
+			opts = append(opts, llmprovider.WithAPIKey(processKey))
+		}
+		p := build(t, opts...)
 		if models, err := list(t, p); err != nil || len(models) == 0 {
 			t.Fatalf("step %d: ListModels = %v, %v; want models", i, models, err)
 		}
