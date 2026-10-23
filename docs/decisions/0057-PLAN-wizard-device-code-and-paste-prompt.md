@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-22
 associated-madr: "0057-MADR-wizard-device-code-and-paste-prompt.md"
 decision-makers: repository owner
@@ -182,7 +182,9 @@ test:
      returned drain does nothing.
    * `offeredAuthMethods`, **under Q3 (b)**: the ChatGPT plan sign-in is
      left out when the field is set, and its comment says so. Under Q3 (a)
-     it is unchanged.
+     it is unchanged. *(Q3 answered (a), 2026-10-22: unchanged. The plan
+     sign-in's `InputCode` comes from `browserFlowOptionsFor`, so the first
+     bullet covers it.)*
 3. **The drift check runs here,** before step 4.
 4. **The empty paste, under Q5 (a):** `pastePrompt.input` asks again while
    the answer is empty after trimming. Before each read it checks `done`
@@ -199,6 +201,7 @@ test:
    * `TestNoPastePrompt_PlanSignIn_0057`: OpenAI with `AgentName`, a store
      and the field set. Under Q3 (b), the menu lacks the plan sign-in;
      under Q3 (a), it offers it, and the plan login's `InputCode` is nil.
+     *(Q3 (a): the second.)*
    * `TestNoPastePrompt_OtherMethodsUnchanged_0057`: the device and API-key
      methods are in the menu with the field set.
    * `TestPaste_EmptyAskedAgain_0057`: a stub login that reads `InputCode`
@@ -210,7 +213,7 @@ test:
    * `InputCode` left set under the field;
    * the paste instruction shown under the field;
    * the plan sign-in offered (Q3 (b)) or hidden (Q3 (a)), against the
-     answer;
+     answer *(Q3 (a): hidden)*, and its `InputCode` left set;
    * the empty answer passed to the login;
    * the re-ask that ignores `done` (expected to fail
      `TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt`).
@@ -324,4 +327,19 @@ V1 to V3 are issue 6's request, V4 to V6 issue 7's, and V7 and V8 issue 8's.
 
 ## Execution record
 
-Nothing is executed yet.
+### Phase 0: records (2026-10-22)
+
+* **Approval.** "Q3 a, Q4 a, Q5 a; commit, then proceed", 2026-10-22. The
+  records were first committed as `9d9d59c`.
+* **The answers,** each the recommended one, written into the MADR's
+  "Owner questions":
+  * Q3 (a): the ChatGPT plan sign-in is offered under `NoPastePrompt`. It
+    replaces Q1's "hide it", which is kept as given. D2 now says so, with
+    the reason, and D5's test bullet with it. Phase 2's steps 2, 5 and 6
+    are annotated, not rewritten.
+  * Q4 (a): the hook takes a `DeviceCode` and returns an error. D1 says it
+    is the owner's answer. No step changes.
+  * Q5 (a): an empty paste is asked again. D4 says it is the owner's
+    answer. No step changes.
+* **Statuses:** the MADR `accepted`, this PLAN `in-progress`, by
+  `tools/records.py status`.

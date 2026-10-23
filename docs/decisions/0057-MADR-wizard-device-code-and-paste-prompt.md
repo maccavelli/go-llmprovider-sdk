@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-22
 decision-makers: repository owner
 consulted: "GitHub issues 6, 7 and 8 (maccavelli/go-llmprovider-sdk), and gobble-cli at ea04387 as they cite; 0008-MADR-repair-oauth-loopback-and-session-wiring.md (D3, its amendment of 2026-09-27); 0043-MADR-openai-chatgpt-plan-sign-in.md (A3); 0056-MADR-wizard-credential-only-entry-point.md (D4, D5); the standards guide (R40, R48, R51, R52, R55); database/sql/driver's optional interfaces; this repository at ca111b1"
@@ -154,9 +154,9 @@ Ending the paste prompt when the loopback wins (issue 8):
 ## Decision Outcome
 
 Chosen options: **DC1, NP1 and IC1**. The owner answered Q1 and Q2 below on
-2026-10-22. Q3 to Q5 are open, and each decision they bear on states the
-recommended answer. The record stays `proposed` until they are answered and
-its PLAN's Phase 0 marks it `accepted`.
+2026-10-22, then Q3 to Q5 the same day, each with the recommended answer.
+Q3 (a) replaces Q1's answer, which rested on the wrong summary that F5
+corrects. The PLAN's Phase 0 marked this record `accepted`.
 
 ### D1. `Options.ShowDeviceCode` and `wizard.DeviceCode`
 
@@ -188,7 +188,7 @@ ShowDeviceCode func(DeviceCode) error
   becomes a wizard-level `deviceLogin`, which returns plain values, since
   only `auth` can build a `DeviceLogin` that waits. F3's three test files
   move to it, and keep what they assert (R46).
-* **Recommended for Q4:** the struct (DC1), not the issue's three
+* **The struct (DC1), the owner's answer to Q4,** not the issue's three
   arguments (DC2). A function type cannot gain a parameter under R48, and
   a struct can gain a field. gobble's event needs the provider (G6), and
   with an empty `id` only the wizard knows which one the user chose.
@@ -202,21 +202,20 @@ When true:
   the loopback completes the sign-in, within the login's own limit;
 * nothing is left to drain, so the sign-in returns as soon as the login
   does;
-* **the ChatGPT plan sign-in is not offered,** the owner's answer to Q1.
-  `offeredAuthMethods` leaves it out, beside its `AgentName` filter (C23).
-  Q3 asks for this to be confirmed, given F5;
+* **the ChatGPT plan sign-in is offered,** as every other browser sign-in,
+  with no paste prompt: the owner's answer to Q3, which replaces Q1's.
+  `offeredAuthMethods` is unchanged (C23);
 * every other method is unchanged.
 
 When false, the sign-in is as today, apart from D4's empty paste.
 
-**Recommended for Q3: offer the plan sign-in under `NoPastePrompt`.** F5
-shows that the loopback completes it, a first sign-in included, as it
-completes Grok's and OpenAI's browser sign-ins, which D2 keeps. Hiding it
-costs gobble its only scripted route to the ChatGPT plan, and protects
-nothing: a machine whose browser cannot reach the loopback fails every
-browser sign-in alike, by the login's time limit. Changing the answer
-removes one condition from `offeredAuthMethods`, one test, and a sentence
-from the field's doc.
+**Why the plan sign-in stays offered.** F5 shows that the loopback
+completes it, a first sign-in included, as it completes Grok's and
+OpenAI's browser sign-ins. Hiding it would cost gobble its only scripted
+route to the ChatGPT plan, and protect nothing: a machine whose browser
+cannot reach the loopback fails every browser sign-in alike, by the login's
+time limit. *(Q1's answer, "hide it", was given on 2026-10-22 on the
+assessment's wrong summary, and is kept below as given.)*
 
 ### D3. `wizard.InputerContext`
 
@@ -262,7 +261,7 @@ that `drain` asks for ends the read and is not taken as a paste. At the end
 of the input (`TextPrompter` on a closed pipe) the second read is an error,
 which ends the sign-in as before.
 
-**Recommended for Q5:** ask again, not gobble's "wait for the browser"
+**Ask again, the owner's answer to Q5,** not gobble's "wait for the browser"
 (G5). A stray Enter would leave a user whose browser cannot reach the
 loopback no way to paste until the login's limit, ten minutes (C26).
 
@@ -275,8 +274,8 @@ loopback no way to paste until the login's limit, ten minutes (C26).
   * the expiry through the real `auth.StartDeviceOAuth`, over a client
     whose transport answers Grok's endpoints with `expires_in`;
   * `NoPastePrompt`: no `Input`, no paste instruction, the URL shown, the
-    login's `InputCode` nil, and the plan sign-in hidden (or offered, by
-    Q3);
+    login's `InputCode` nil, and the plan sign-in offered, its login's
+    `InputCode` nil too (Q3);
   * a `Prompter` implementing `InputerContext` whose read the loopback
     overtakes: no "press Enter" notice, the next prompt starts after the
     read returned, and the read's context was cancelled;
@@ -407,13 +406,19 @@ loopback no way to paste until the login's limit, ten minutes (C26).
 * **Q3 (D2). Q1 again, given F5.**
   * **(a)** Offer it, as every other browser sign-in (recommended).
   * **(b)** Hide it, as answered.
+
+  **Answered 2026-10-22: (a).** It replaces Q1's answer.
 * **Q4 (D1). The hook's shape.**
   * **(a)** `func(DeviceCode) error` (recommended).
   * **(b)** The issue's `func(url, code string, expires time.Time)`.
+
+  **Answered 2026-10-22: (a).**
 * **Q5 (D4). An empty paste.**
   * **(a)** Ask again (recommended).
   * **(b)** Stop asking, and wait for the loopback, as gobble does.
   * **(c)** Unchanged: it ends the sign-in.
+
+  **Answered 2026-10-22: (a).**
 
 ## More Information
 
