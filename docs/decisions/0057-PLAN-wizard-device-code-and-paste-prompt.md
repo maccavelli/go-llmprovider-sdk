@@ -600,3 +600,30 @@ gate: 27 of 27 passed                                                 (exit 0)
 ```
 
 apidiff lists exactly the PLAN's table of four. V7, V8 and V11 are met.
+
+### Phase 4: release `v1.22.0` (2026-10-22)
+
+* **Approval.** "committed, proceed", after Phase 3 was committed as
+  `8275ea0`. No deviation so far.
+* **Step 1.**
+  * `CHANGELOG.md`: `[Unreleased]` became `[v1.22.0] - 2026-10-22`, with
+    Added (the four names) and Changed (the empty paste). An empty
+    `[Unreleased]` sits above it, and the comparison links gain `v1.22.0`.
+  * The README's Status names `v1.22.0`.
+  * The date is the committer's local date, which `changelog-check` reads
+    (`git log --format=%cs`). It holds only if the release commit is made on
+    2026-10-22, local time.
+* **Step 2, before the push.**
+  * **The notes.** In a clone of `8275ea0` with this `CHANGELOG.md` and
+    README and a local `v1.22.0` tag, `--section v1.22.0 --repo
+    maccavelli/go-llmprovider-sdk` exits 0. It prints the Added and Changed
+    entries, 1,317 bytes, the MADR's link made absolute at `blob/v1.22.0`.
+    `tools/denyscan.py` on them: 0 hits. `changelog-check` in the clone:
+    "31 release section(s), 0 problem(s)".
+  * **The API.** `tools/apidiff.py v1.21.0` gives "Compatible changes:",
+    then `./wizard.DeviceCode`, `./wizard.InputerContext`,
+    `./wizard.Options.NoPastePrompt` and `./wizard.Options.ShowDeviceCode`,
+    each "added", and nothing else: the PLAN's table, exactly. V10 is met.
+  * **The gate:** "gate: 27 of 27 passed".
+  * **The disclosure guard** runs over the outgoing commits once the
+    release commit is made.
