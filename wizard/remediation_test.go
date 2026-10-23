@@ -240,9 +240,9 @@ func TestConfigureLLM_VendorPathDefaultsFromExisting(t *testing.T) {
 func TestConfigureLLM_LoginUsesTheCallersClient(t *testing.T) {
 	client := &http.Client{}
 	var got *http.Client
-	original := loginDeviceOAuth
-	t.Cleanup(func() { loginDeviceOAuth = original })
-	loginDeviceOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
+	original := deviceLogin
+	t.Cleanup(func() { deviceLogin = original })
+	deviceLogin = func(_ context.Context, provider llmprovider.ProviderID, opts auth.OAuthFlowOptions, _ func(DeviceCode) error) (*auth.OAuthSession, error) {
 		got = opts.HTTPClient
 		return testOAuthSession(provider), nil
 	}

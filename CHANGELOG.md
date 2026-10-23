@@ -10,6 +10,15 @@ carry their sections.
 
 ## [Unreleased]
 
+### Added
+
+- `wizard.Options.ShowDeviceCode` and `wizard.DeviceCode`: a device
+  sign-in's provider, URL, code and expiry, given to the caller in place of
+  the notice, for one that reports it as data, as
+  [0057-MADR](docs/decisions/0057-MADR-wizard-device-code-and-paste-prompt.md)
+  decides (D1). An error from the hook ends the sign-in before any poll.
+  Without it, the notice is as before.
+
 ## [v1.21.0] - 2026-10-21
 
 ### Added

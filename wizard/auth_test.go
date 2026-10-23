@@ -188,10 +188,10 @@ func TestConfigureLLM_TokenStdinClassification(t *testing.T) {
 
 func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 	originalBrowser := loginBrowserOAuth
-	originalDevice := loginDeviceOAuth
+	originalDevice := deviceLogin
 	t.Cleanup(func() {
 		loginBrowserOAuth = originalBrowser
-		loginDeviceOAuth = originalDevice
+		deviceLogin = originalDevice
 	})
 
 	loginBrowserOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
@@ -203,11 +203,13 @@ func TestConfigureLLM_BrowserAndDevicePersistSessions(t *testing.T) {
 		}
 		return testOAuthSession(provider), nil
 	}
-	loginDeviceOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
-		if opts.NotifyDevice == nil {
-			t.Fatal("device NotifyDevice hook is nil")
+	deviceLogin = func(_ context.Context, provider llmprovider.ProviderID, _ auth.OAuthFlowOptions, show func(DeviceCode) error) (*auth.OAuthSession, error) {
+		if show == nil {
+			t.Fatal("device show hook is nil")
 		}
-		opts.NotifyDevice("https://verify.test", "ABCD-EFGH")
+		if err := show(DeviceCode{Provider: provider, URL: "https://verify.test", Code: "ABCD-EFGH"}); err != nil {
+			return nil, err
+		}
 		return testOAuthSession(provider), nil
 	}
 

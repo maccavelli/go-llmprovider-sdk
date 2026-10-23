@@ -123,7 +123,8 @@ test:
      `auth.StartDeviceOAuth`, then `show` with the provider,
      `VerificationURI`, `UserCode` and `Expiry`. On an error from `show`,
      `login.Cancel()` and return that error as it is. Else
-     `login.Wait(ctx)`;
+     `login.Wait(ctx)`; *(2026-10-22 deviation: no `Cancel`. The error is
+     returned before `Wait`, so before any poll; see Phase 1's record.)*
    * `var deviceLogin = runDeviceLogin`, the test seam, in place of
      `loginDeviceOAuth`;
    * `showDeviceCode(p, o) func(DeviceCode) error`: `o.ShowDeviceCode` when
@@ -166,7 +167,9 @@ test:
    * the hook's error ignored, and the wait run;
    * `Provider` left empty;
    * Kilo's key mode still on the notice;
-   * `login.Cancel()` dropped (the token endpoint is then polled).
+   * ~~`login.Cancel()` dropped (the token endpoint is then polled).~~
+     *(Struck 2026-10-22: there is no `Cancel` to drop. The plant of the
+     hook's error ignored covers the poll.)*
 8. **Docs:** "The wizard" in `docs/architecture.md` names the hook;
    `CHANGELOG.md`'s `[Unreleased]` Added.
 
@@ -300,7 +303,7 @@ test:
 | :--- | :--- | :--- | :--- |
 | V1 | A device sign-in's provider, URL, code and expiry reach the hook, and no notice | 1 | `TestShowDeviceCode_Data_0057`, `TestShowDeviceCode_Kilo_0057` |
 | V2 | The expiry is the device authorization's | 1 | `TestRunDeviceLogin_Expiry_0057` |
-| V3 | An error from the hook ends the sign-in and cancels the login | 1 | `TestShowDeviceCode_ErrorEndsSignIn_0057`, `TestRunDeviceLogin_Expiry_0057` |
+| V3 | An error from the hook ends the sign-in, before any poll *(was "and cancels the login"; amended 2026-10-22)* | 1 | `TestShowDeviceCode_ErrorEndsSignIn_0057`, `TestRunDeviceLogin_Expiry_0057` |
 | V4 | With `NoPastePrompt`, no paste prompt, and the loopback alone | 2 | `TestNoPastePrompt_LoopbackOnly_0057` |
 | V5 | The plan sign-in under `NoPastePrompt`, as Q3 decides | 2 | `TestNoPastePrompt_PlanSignIn_0057` |
 | V6 | An empty paste is asked again; the drain's Enter is not | 2 | `TestPaste_EmptyAskedAgain_0057`; `TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt` |
@@ -343,3 +346,104 @@ V1 to V3 are issue 6's request, V4 to V6 issue 7's, and V7 and V8 issue 8's.
     answer. No step changes.
 * **Statuses:** the MADR `accepted`, this PLAN `in-progress`, by
   `tools/records.py status`.
+* Committed by the owner as `f39372d`.
+
+### Phase 1: the device code as data (2026-10-22)
+
+* **Approval.** "committed", 2026-10-22, after Phase 0 was committed as
+  `f39372d`, under the approval to proceed.
+
+**Deviation (2026-10-22): no `Cancel` on the hook's error.**
+
+* **Found** before any code, reading `auth.DeviceLogin`. It polls only in
+  `Wait` (`oauth_device.go:164`), and `Cancel` sets a flag and stops a
+  running `Wait` (`:179`, `:181`). Step 1's `login.Cancel()`, made before
+  any `Wait`, changes nothing a test can observe, so plant 6 could fail
+  none.
+* **Options put to the owner:**
+  * no `Cancel`: the error is returned before `Wait`, so no poll is made
+    (recommended);
+  * keep `Cancel` as a defence and strike plant 6, which leaves a line no
+    test checks.
+* **Decision.** "resolution 1". Step 1 is annotated, plant 6 struck and V3
+  reworded. The MADR gains an amendment, and its D1 and D5 bullets are
+  annotated. Plant 3 (the hook's error ignored and the wait run) is caught
+  by `TestRunDeviceLogin_Expiry_0057`'s count of token requests. No exported
+  name changes.
+
+**Steps 1 to 3, the code:**
+
+* **`wizard/device.go`:** `DeviceCode`; `runDeviceLogin`, which starts the
+  login, gives `show` the code and returns its error before `Wait`;
+  `deviceLogin`, the seam; `showDeviceCode`, the hook or today's notice.
+* **`Options.ShowDeviceCode`,** after `KiloDeviceKey`, with its doc.
+* **`wizard/auth.go`:** `loginDeviceOAuth` is gone, and the three device
+  call sites call `deviceLogin`. `oauthFlowOptions` sets no `NotifyDevice`.
+  Its unused `Prompter` parameter is dropped too, at its four callers, so
+  that lint has no unused parameter to find. Nothing else in the step
+  changes.
+
+**Step 4, the three moved tests:** each stub of `loginDeviceOAuth` now stubs
+`deviceLogin`, and calls `show` with a `DeviceCode` where it called
+`NotifyDevice`, returning its error. `auth_test.go`'s nil check is of
+`show`. **The drift check:** `gofmt -l wizard/` empty, `go vet ./wizard/` 0,
+`go test -race -count=1 ./wizard/` "ok".
+
+**Step 5:** `ConfigureLLM`'s and `ResolveCredential`'s docs name the hook's
+error, returned as it is.
+
+**Step 6, the tests,** `wizard/device_0057_test.go`, each passing under
+`-race`:
+
+| Test | Shows |
+| :--- | :--- |
+| `TestShowDeviceCode_Data_0057` | Grok: the hook given the code once; no notice holds it |
+| `TestShowDeviceCode_Kilo_0057` | Kilo, with and without key mode: the hook given Kilo's code once; no notice holds it |
+| `TestShowDeviceCode_ErrorEndsSignIn_0057` | the hook's error, as it is; nothing saved |
+| `TestShowDeviceCode_NilKeepsNotice_0057` | no hook: `Open https://verify.test and enter code ABCD-EFGH` |
+| `TestRunDeviceLogin_Expiry_0057` | the real sign-in for Grok: its provider, URL and code, the expiry within 5 s of now plus 600 s, the hook's error, no request beyond discovery and the device code |
+
+`TestRunDeviceLogin_Expiry_0057` bounds its wait at 5 s, and its device
+reply asks a 1 s interval: under plant 3 the wait polls, and fails there
+rather than hanging (the PLAN's red-first rule).
+
+**Step 7, red first,** `tools/plant.py` on a scratch clone. Every plant was
+caught by a failing test, none by a failed build:
+
+| Plant | Failure line |
+| :--- | :--- |
+| the notice shown as well as the hook | `notices ["Open https://verify.test and enter code ABCD-EFGH"] show the code; the hook replaces the notice` |
+| `Expiry` left zero | "expiry 0001-01-01 00:00:00 +0000 UTC; want within 5 s of …, the device authorization's 600 s" |
+| the hook's error ignored, and the wait run | "error oauth: device-code wait: context deadline exceeded; want show's error as it is" |
+| `Provider` left empty | `show given {Provider: URL:https://accounts.x.ai/device Code:WXYZ-1234 …}; want Grok's provider, URL and code` |
+| Kilo's key mode still on the notice | "key mode true: hook given []; want Kilo's code once" |
+| Grok's and OpenAI's device sign-in still on the notice | `hook given [], kind "oauth"; want {grok https://verify.test ABCD-EFGH …} once`; "error <nil>, 1 saves; want the hook's error and nothing saved" |
+| Kilo's session sign-in still on the notice | "key mode false: hook given []; want Kilo's code once" |
+
+The PLAN listed six, the sixth struck by the deviation. Two more are added
+for call sites it did not name: Grok's and OpenAI's, and Kilo's session
+sign-in.
+
+**Step 8, the docs and checks:**
+
+* **Docs:** `docs/architecture.md`'s wizard section gains "A device
+  sign-in's code", and `CHANGELOG.md`'s `[Unreleased]` an Added entry.
+* **The checks,** each exit status captured before any filter:
+
+```text
+$ python3 -B tools/apidiff.py v1.21.0
+Compatible changes:
+- ./wizard.DeviceCode: added
+- ./wizard.Options.ShowDeviceCode: added                              (exit 0)
+$ make docs-check changelog-check tables-check parity-check
+sdkaudit: 0 violation(s) of R50,R51,R52; changelog-check: 30 release section(s), 0 problem(s);
+check-tables: 38 packages, 0 problem(s); G-parity: 409 identifiers, … 0 problem(s)   (exit 0)
+$ make pre-add-check FILES="<the 7 Go files>"
+go-precheck: 7 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck).   (exit 0)
+$ python3 -B tools/gate.py
+gate: 27 of 27 passed                                                 (exit 0)
+$ python3 -B tools/claims.py docs/decisions/0057-MADR-wizard-device-code-and-paste-prompt.md
+claims: … 36 of 36 pass                                               (exit 0)
+```
+
+V1 to V3 are met.

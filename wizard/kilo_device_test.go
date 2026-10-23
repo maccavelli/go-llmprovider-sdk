@@ -49,13 +49,15 @@ const kiloWizardToken = "kilo-device-token-0123456789"
 // stubKilo replaces the Kilo device login and profile for one test.
 func stubKilo(t *testing.T, account auth.KiloAccount, profileErr error) {
 	t.Helper()
-	originalDevice, originalProfile := loginDeviceOAuth, kiloProfile
-	t.Cleanup(func() { loginDeviceOAuth, kiloProfile = originalDevice, originalProfile })
-	loginDeviceOAuth = func(_ context.Context, provider llmprovider.ProviderID, opts auth.OAuthFlowOptions) (*auth.OAuthSession, error) {
+	originalDevice, originalProfile := deviceLogin, kiloProfile
+	t.Cleanup(func() { deviceLogin, kiloProfile = originalDevice, originalProfile })
+	deviceLogin = func(_ context.Context, provider llmprovider.ProviderID, _ auth.OAuthFlowOptions, show func(DeviceCode) error) (*auth.OAuthSession, error) {
 		if provider != llmprovider.ProviderKilo {
 			t.Errorf("device login for %q", provider)
 		}
-		opts.NotifyDevice("https://app.kilo.ai/device", "KILO-1234")
+		if err := show(DeviceCode{Provider: provider, URL: "https://app.kilo.ai/device", Code: "KILO-1234"}); err != nil {
+			return nil, err
+		}
 		return &auth.OAuthSession{Provider: llmprovider.ProviderKilo, Access: kiloWizardToken}, nil
 	}
 	kiloProfile = func(_ context.Context, token string, _ ...llmprovider.Option) (auth.KiloAccount, error) {

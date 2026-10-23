@@ -38,7 +38,6 @@ const (
 
 var (
 	loginBrowserOAuth = auth.LoginBrowserOAuth
-	loginDeviceOAuth  = auth.LoginDeviceOAuth
 	loginChatGPTPlan  = auth.LoginChatGPTPlan
 	kiloProfile       = auth.KiloProfile
 )
@@ -235,7 +234,7 @@ func signIn(
 			}
 			return resolveKiloDevice(ctx, p, d, baseURL, o)
 		}
-		session, loginErr := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p, o))
+		session, loginErr := deviceLogin(ctx, d.ID, oauthFlowOptions(o), showDeviceCode(p, o))
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
 		}
@@ -333,7 +332,7 @@ func resolveKiloDevice(
 	baseURL string,
 	o Options,
 ) (resolvedCredential, error) {
-	session, err := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p, o))
+	session, err := deviceLogin(ctx, d.ID, oauthFlowOptions(o), showDeviceCode(p, o))
 	if err != nil {
 		return resolvedCredential{}, err
 	}
@@ -390,7 +389,7 @@ func resolveKiloDevice(
 // so no organization is chosen. One copy of the token, in the Result
 // (0056-MADR D2; 0016-MADR D11).
 func resolveKiloDeviceKey(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (resolvedCredential, error) {
-	session, err := loginDeviceOAuth(ctx, d.ID, oauthFlowOptions(p, o))
+	session, err := deviceLogin(ctx, d.ID, oauthFlowOptions(o), showDeviceCode(p, o))
 	if err != nil {
 		return resolvedCredential{}, err
 	}
@@ -647,15 +646,11 @@ func accessTokenAccount(access string) (string, bool) {
 	return cmp.Or(claims.AccountID, claims.Auth.AccountID), claims.Auth.FedRAMP
 }
 
-// oauthFlowOptions is a sign-in's options: the caller's client, and the
-// device code shown through p (0020-MADR F20).
-func oauthFlowOptions(p Prompter, o Options) auth.OAuthFlowOptions {
-	return auth.OAuthFlowOptions{
-		HTTPClient: o.HTTPClient,
-		NotifyDevice: func(verificationURL, userCode string) {
-			p.Notify(LevelInfo, "Open %s and enter code %s", verificationURL, userCode)
-		},
-	}
+// oauthFlowOptions is a sign-in's options: the caller's client (0020-MADR
+// F20). It sets no NotifyDevice: a device sign-in shows its code through
+// showDeviceCode (0057-MADR D1).
+func oauthFlowOptions(o Options) auth.OAuthFlowOptions {
+	return auth.OAuthFlowOptions{HTTPClient: o.HTTPClient}
 }
 
 // The paste instruction and prompt, and a ChatGPT plan's first sign-in's,
@@ -680,7 +675,7 @@ func browserFlowOptions(p Prompter, o Options) (auth.OAuthFlowOptions, func()) {
 // prompt given.
 func browserFlowOptionsFor(p Prompter, o Options, instruction, prompt string) (auth.OAuthFlowOptions, func()) {
 	paste := &pastePrompt{p: p, shown: make(chan struct{}), instruction: instruction, prompt: prompt}
-	flow := oauthFlowOptions(p, o)
+	flow := oauthFlowOptions(o)
 	flow.OpenURL = func(authorizeURL string) error {
 		paste.show(authorizeURL)
 		if o.OpenURL == nil {

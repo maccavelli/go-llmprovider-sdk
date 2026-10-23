@@ -179,6 +179,8 @@ ShowDeviceCode func(DeviceCode) error
   flow's goroutine, before the wait for approval.
 * **An error from it** cancels the device login and is returned as it is,
   as a `Prompter`'s error is: a code the user never saw cannot be approved.
+  *(Amended 2026-10-22: it ends the sign-in before any poll, and no
+  `Cancel` is called. See the amendment below.)*
 * **When nil,** the notice is today's, word for word.
 * **The expiry** is `DeviceLogin.Expiry`, as F2 describes. The doc says it
   is never zero, and that for OpenAI it is the module's own wait.
@@ -269,7 +271,8 @@ loopback no way to paste until the login's limit, ten minutes (C26).
 
 * **Tests,** each first seen failing on a planted break:
   * the hook receives the provider, URL, code and expiry, and no notice is
-    shown; an error from it ends the sign-in, and the login is cancelled;
+    shown; an error from it ends the sign-in, and the login is cancelled
+    *(amended: and no poll is made)*;
     without it, today's notice;
   * the expiry through the real `auth.StartDeviceOAuth`, over a client
     whose transport answers Grok's endpoints with `expires_in`;
@@ -480,3 +483,19 @@ loopback no way to paste until the login's limit, ten minutes (C26).
 | G4 | Its paste reader, abandoned on ctx | `gobble-cli:internal/cli/auth.go:273` | `s, _ := bufio.NewReader(e.stdin).ReadString('\n')` |
 | G5 | An empty paste waits for the browser | `gobble-cli:internal/cli/auth.go:279` | `<-ctx.Done() // nothing pasted: the browser's callback may still arrive` |
 | G6 | Its device event | `gobble-cli:internal/cli/auth.go:232` | `c := loginEvent{Event: "device_code", Provider: id, URL: d.URL, Code: d.Code}` |
+| C27 | A device login polls only in Wait | `llmprovider/auth/oauth_device.go:164` | `session, err := d.poll(pollCtx)` |
+| C28 | Cancel | `llmprovider/auth/oauth_device.go:179` | `func (d *DeviceLogin) Cancel() {` |
+| C29 | Cancel sets a flag | `llmprovider/auth/oauth_device.go:181` | `d.canceled = true` |
+
+## Amendment 2026-10-22: an error from `ShowDeviceCode` needs no `Cancel`
+
+* **Found** at the PLAN's Phase 1, before any code. D1 says an error from
+  the hook "cancels the device login", and the PLAN's step 1 calls
+  `login.Cancel()`. But a `DeviceLogin` makes no request until `Wait`
+  (C27). `Cancel` sets a flag (C28, C29) and stops a running `Wait`. With
+  no `Wait` it changes nothing that can be observed, so the PLAN's plant of
+  its removal could fail no test.
+* **The owner chose (2026-10-22),** "resolution 1": no `Cancel`. An error
+  from the hook ends the sign-in before `Wait`, so before any poll, and is
+  returned as it is. Keeping the call as a defence, a line no test can
+  check, was put to the owner and not chosen. D1 stands otherwise.

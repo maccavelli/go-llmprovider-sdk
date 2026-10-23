@@ -819,6 +819,10 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   With `Options.KiloDeviceKey` it returns the token as a `CredAPIKey`
   instead, needing no store, saving nothing and asking no organization: one
   copy, in the `Result` (0056-MADR D2).
+- **A device sign-in's code.** It is shown as a notice, or, with
+  `Options.ShowDeviceCode`, given to the caller as a `DeviceCode`: the
+  provider, URL, code and expiry, for a caller that reports it as data. An
+  error from the hook ends the sign-in before any poll (0057-MADR D1).
 - **`Options.SkipMethods`** leaves sign-in methods out of every menu, and
   a provider it leaves with none is an error. **`Options.NoEndpointPrompt`**
   asks no endpoint: `Existing`'s, else the default, is checked and used, and

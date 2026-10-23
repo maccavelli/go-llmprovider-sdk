@@ -130,6 +130,13 @@ type Options struct {
 	// offered without a TokenStore. The token has no refresh and no expiry,
 	// as a key (0056-MADR D2; 0017-MADR D2).
 	KiloDeviceKey bool
+	// ShowDeviceCode, when set, is given each device sign-in's code, in place
+	// of the notice "Open <URL> and enter code <code>": Grok's, OpenAI's and
+	// Kilo's, Kilo's as a key included. It is called once, on the flow's
+	// goroutine, before the wait for approval. An error from it ends the
+	// sign-in before any poll and is returned as it is. The code's Expiry is
+	// never zero; for OpenAI it is this module's own wait (0057-MADR D1).
+	ShowDeviceCode func(DeviceCode) error
 	// SkipMethods leaves these sign-in methods out of every provider's menu,
 	// after TokenStore and AgentName filter it. A provider it leaves with no
 	// method, its API key included, is an error (0056-MADR D4).
@@ -168,7 +175,8 @@ func (o Options) lookupEnv() func(string) string {
 //
 // A Prompter's error ends the flow and is returned, wrapped or as it is, so
 // errors.Is matches it; so is a failed sign-in's, browser, device-code or
-// ChatGPT plan, as the login gave it. An ended ctx gives an error matching
+// ChatGPT plan, as the login gave it, and Options.ShowDeviceCode's, as it is.
+// An ended ctx gives an error matching
 // ctx's, and a credential the provider refuses while its models are listed, one
 // matching llmprovider.ErrAuthFailure. Options.Providers naming no provider
 // of the Registry, a Prompter's choice out of range, and no model chosen are
@@ -228,7 +236,8 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // provider's static one, and may be empty.
 //
 // A Prompter's error is returned, wrapped or as it is, so errors.Is matches
-// it; so is a failed sign-in's. An ended ctx gives an error matching ctx's,
+// it; so is a failed sign-in's, and Options.ShowDeviceCode's, as it is. An
+// ended ctx gives an error matching ctx's,
 // and a credential the provider refuses, one matching
 // llmprovider.ErrAuthFailure. An id the Registry lacks, or that
 // Options.Providers leaves out, gives an error matching
