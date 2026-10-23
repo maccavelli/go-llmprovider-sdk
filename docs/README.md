@@ -129,7 +129,7 @@ documents a reader follows to do something.
 | 0056 | MADR | [Give the Wizard a Credential-Only Entry Point, Kilo's Device Sign-In as a Key, and Refusals Without the Provider's Text](decisions/0056-MADR-wizard-credential-only-entry-point.md) | accepted |
 | 0056 | PLAN | [Implement the Wizard's Credential-Only Entry Point, Kilo's Device Sign-In as a Key, and Refusals Without the Provider's Text](decisions/0056-PLAN-wizard-credential-only-entry-point.md) | complete |
 | 0057 | MADR | [Give the Wizard's Device Code to the Caller as Data, Let a Browser Sign-In Run Without a Paste Prompt, and End the Paste Prompt Once the Loopback Wins](decisions/0057-MADR-wizard-device-code-and-paste-prompt.md) | accepted |
-| 0057 | PLAN | [Implement the Wizard's Device Code as Data, Browser Sign-In Without a Paste Prompt, and the End of the Paste Prompt Once the Loopback Wins](decisions/0057-PLAN-wizard-device-code-and-paste-prompt.md) | in-progress |
+| 0057 | PLAN | [Implement the Wizard's Device Code as Data, Browser Sign-In Without a Paste Prompt, and the End of the Paste Prompt Once the Loopback Wins](decisions/0057-PLAN-wizard-device-code-and-paste-prompt.md) | complete |
 
 ## I want to…
 

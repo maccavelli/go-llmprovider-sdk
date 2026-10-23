@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-22
 associated-madr: "0057-MADR-wizard-device-code-and-paste-prompt.md"
 decision-makers: repository owner
@@ -627,3 +627,97 @@ apidiff lists exactly the PLAN's table of four. V7, V8 and V11 are met.
   * **The gate:** "gate: 27 of 27 passed".
   * **The disclosure guard** runs over the outgoing commits once the
     release commit is made.
+* **The release commit and the push.** At the owner's ask ("Do 1-5"), the
+  release commit was committed as `3b63351` (2026-10-22, local time, as the
+  section's date needs). The disclosure guard ran over `9d9d59c`,
+  `f39372d`, `29c0238`, `71e5da4`, `8275ea0` and `3b63351`, exit 0 with
+  nothing flagged, and `main` was pushed (`ca111b1..3b63351`). "CI",
+  39889554004: `validate` passed on the three platforms, and `release` was
+  skipped. "Docs", 39889553982, passed.
+* **Step 3, the tag.** `v1.22.0` was tagged on `3b63351`, annotated as the
+  earlier tags are, and pushed after the guard (exit 0).
+
+**Deviation (2026-10-22): the tag's CI failed on a test outside 0057.**
+
+* **Found.** CI's run for the tag, 39890209652, failed in `validate
+  (ubuntu-24.04)`: `TestOpencode_RoutesFromMetadata/openai`,
+  "metadata_route_test.go:118: path = \"/chat/completions\", want
+  \"/responses\"", shuffle seed `1792722845670550151`. macOS and Windows
+  passed; `release` was skipped, so `v1.22.0` has no GitHub Release.
+  * 0057 changed `wizard/` only, and the same commit had passed on the
+    three platforms in 39889554004.
+  * Locally the test passes with that seed, and in eight more shuffled
+    runs. No recent CI run shows it failing.
+  * **Suspected, not shown:** the metadata cache is the process's, keyed by
+    URL and never evicted (`catalog/model_metadata.go:310`). An `httptest`
+    server given a port an earlier test's server had would find that test's
+    document cached, and route by it.
+* **Options put to the owner:**
+  * re-run the failed job on the same tag, so that `release` publishes the
+    Release as usual, and fix the test's isolation under a record of its
+    own (recommended);
+  * fix the test first, release `v1.22.1`, and make `v1.22.0`'s Release by
+    hand, as 0048-MADR A2 and 0055-MADR D3 did.
+
+  Deleting and re-pushing the published tag, and skipping the test, were
+  not offered.
+* **Decision.** "Yeah rerun". The re-run does not fix the flake; it is
+  accepted because the identical commit passed CI in full on `main`. The
+  test's isolation is a new record's, the next number, not this PLAN's. No
+  decision of the MADR changes.
+
+**Step 3, after the re-run.** Attempt 2 of 39890209652, `success`:
+`validate (ubuntu-24.04)` passed, and `release` published the Release at
+03:02:36 UTC. It is not a draft or a pre-release, and it is Latest. `gh
+release view v1.22.0 --json body` equals step 2's notes, 1,317 bytes, apart
+from the trailing newline. V12 is met.
+
+**Step 4, after the tag:**
+
+* **The Release that fell to sixth.** `v1.18.0`'s body was saved (663
+  bytes, in the session's scratch directory), then `gh release delete
+  v1.18.0 --yes`, exit 0. `gh release list` shows `v1.22.0` (Latest),
+  `v1.21.0`, `v1.20.1`, `v1.20.0` and `v1.19.0`, and `git ls-remote --tags`
+  still lists `v1.18.0`.
+* `tools/consumer.py v1.22.0`: "consumer: 15 packages linked", "every step
+  passed", built for the six platforms.
+* `tools/offline.py v1.22.0`: "requests=0", "offline: ok", and both built-in
+  plants caught ("models.dev left on", "no caller layer").
+* Through the proxy: `"Version": "v1.22.0"`, `Hash 3b63351…`, and the
+  module's `go 1.27.3`.
+
+**Step 5, the issues.** On the owner's word ("Do 1-5"):
+
+* the replies, written to scratch files, scanned ("deny-scan: 0 hit(s) in 3
+  file(s)") and shown before the word, were posted:
+  [issue 6](https://github.com/maccavelli/go-llmprovider-sdk/issues/6#issuecomment-6356369750),
+  [issue 7](https://github.com/maccavelli/go-llmprovider-sdk/issues/7#issuecomment-6356369934),
+  [issue 8](https://github.com/maccavelli/go-llmprovider-sdk/issues/8#issuecomment-6356370126);
+* read back with `gh issue view --json comments`, each equals its file:
+  1,392, 1,512 and 1,907 characters;
+* `gh issue close --reason completed`: "CLOSED COMPLETED" at
+  03:04:15, 03:04:16 and 03:04:18 UTC. No issue is left open.
+
+**Step 6, the MADR's Confirmation, item by item:**
+
+* **"Each test of D5, seen failing first, and `make api-check` listing
+  exactly the four additions."** Every test of Phases 1 to 3 failed on a
+  planted break before it passed: 7, 6 and 5 plants, each caught by a test,
+  none by a failed build. `tools/apidiff.py v1.21.0`, the comparison `make
+  api-check` makes against the latest tag, listed the four names and
+  nothing else.
+* **"`make docs-check`: the new names' docs say whether they are safe for
+  concurrent use (R51) and name their error kinds (R52)."** "sdkaudit: 0
+  violation(s) of R50,R51,R52" at each phase.
+* **"Each issue's request, item by item, in the PLAN's record."** V1 to V3
+  (issue 6), V4 to V6 (issue 7) and V7 and V8 (issue 8) name a test for
+  each request, all passing, and each posted reply repeats its table.
+
+**The Verification table:** V1 to V8 by the tests named; V9 by the drift
+checks of Phases 1 to 3, with Phase 1's three moved files; V10 by apidiff;
+V11 by `make docs-check`; V12 by `v1.22.0`'s Release body; V13 by the
+plants. Every criterion is met. This PLAN is `complete`; the MADR stays
+`accepted`.
+
+**Not done here:** the flaky `TestOpencode_RoutesFromMetadata`, which the
+deviation above leaves to a record of its own.
