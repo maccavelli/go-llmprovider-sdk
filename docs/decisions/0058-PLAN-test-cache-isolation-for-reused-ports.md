@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-23
 associated-madr: "0058-MADR-test-cache-isolation-for-reused-ports.md"
 decision-makers: repository owner
@@ -669,3 +669,30 @@ credential unique to the run. Three things show it:
 * **Not done yet:** CI on the three platforms, which runs on a push and so
   waits for the owner's word, and step 4, the MADR's Confirmation item by
   item and this PLAN `complete`, which follows CI.
+* **Committed and pushed** by the owner, as `dfd65f9` ("committed and
+  pushed"). "CI", run 39970710624: `validate` passed on macos-15,
+  windows-2025 and ubuntu-24.04, and `release` was skipped. "Docs", run
+  39970710621, passed.
+* **Step 4, the MADR's Confirmation, item by item:**
+  * **"D3's test passes, and fails on its planted break with `path =
+    \"/chat/completions\", want \"/responses\"`."** Met, Phase 1 step 7: two
+    plants, each failing with that text.
+  * **"The route test passes `-count=2000` on linux/amd64."** Met, step 2.
+  * **"D5's census reports no test in scope, apart from the deliberate
+    steps of D1."** Met, step 1. As the amendment of 2026-10-23 decided, it
+    also lists `TestLiveFetcher` (Phase 2's deviation) and the catalog
+    tests that keep the process's store and clear it.
+  * **"The opencode package, run 300 times shuffled on linux/amd64 as P6
+    ran it, does not fail."** Met, step 2: 0 of 300.
+  * **"`python3 -B tools/gate.py` passes, and CI passes on the three
+    platforms."** Met, step 3 and run 39970710624.
+  * **"The PLAN's record lists each test of F9's census, and each test
+    found beyond it, with what changed or why nothing did."** Met in part.
+    The records name, test by test, every test that still writes to the
+    process's caches and why, and every test that needed more than a
+    package's helper (Phases 1 to 4). The tests that a helper covered are
+    recorded by helper and by the census before and after: 16 to 0 in
+    opencode, 65 to 7 in Phase 2's ten packages, 16 to 0 in the wizard,
+    and 110 to 74 in `catalog`, the 74 each shown to clear. They are not
+    listed one by one. P7's census holds their names.
+* **The PLAN is `complete`.** The MADR stays `accepted`.
