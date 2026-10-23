@@ -146,6 +146,12 @@ type Options struct {
 	// typed one is, a local one for reachability, and a failure is returned,
 	// not asked again (0056-MADR D4).
 	NoEndpointPrompt bool
+	// NoPastePrompt starts no paste prompt in a browser sign-in, for a caller
+	// with no terminal: no paste instruction is shown and the Prompter is not
+	// read. The authorize URL is still shown and given to OpenURL, and the
+	// browser's return to the loopback alone completes the sign-in, the
+	// ChatGPT plan's included (0057-MADR D2).
+	NoPastePrompt bool
 }
 
 // lookupEnv is the run's environment reader: the caller's, else one that

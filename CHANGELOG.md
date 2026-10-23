@@ -18,6 +18,16 @@ carry their sections.
   [0057-MADR](docs/decisions/0057-MADR-wizard-device-code-and-paste-prompt.md)
   decides (D1). An error from the hook ends the sign-in before any poll.
   Without it, the notice is as before.
+- `wizard.Options.NoPastePrompt`: a browser sign-in starts no paste prompt,
+  for a caller with no terminal. The URL is still shown and opened, and the
+  loopback alone completes the sign-in, the ChatGPT plan's included (D2).
+
+### Changed
+
+- An empty answer to a browser sign-in's paste prompt is asked again,
+  instead of ending the sign-in with "oauth: empty authorization code"
+  (D4). At the end of the input, as from a closed pipe, the next read's
+  error, which matches `io.EOF`, ends it.
 
 ## [v1.21.0] - 2026-10-21
 

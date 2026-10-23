@@ -826,7 +826,14 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
 - **`Options.SkipMethods`** leaves sign-in methods out of every menu, and
   a provider it leaves with none is an error. **`Options.NoEndpointPrompt`**
   asks no endpoint: `Existing`'s, else the default, is checked and used, and
-  a failure is returned (0056-MADR D4).
+  a failure is returned (0056-MADR D4). **`Options.NoPastePrompt`**, for a
+  caller with no terminal, starts no paste prompt in a browser sign-in: the
+  URL is shown and opened, and the loopback alone completes it, the ChatGPT
+  plan's included (0057-MADR D2).
+- **The paste prompt.** A browser sign-in otherwise races the loopback
+  against a paste prompt. An empty paste is asked again; when the loopback
+  wins, a read still waiting is finished by one Enter, which the wizard asks
+  for, before any other prompt (0008-MADR's amendment; 0057-MADR D4).
 - **`Logout(ctx, p, opts, id)`** revokes the stored session (OpenAI and
   Grok), reports a failure, and deletes it.
 - **`Result`** prints `[redacted]` for its API key under `fmt` and `slog`.

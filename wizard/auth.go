@@ -666,7 +666,8 @@ const (
 // The authorize URL and the paste instruction are shown even when the consumer
 // opens the browser itself. The returned drain must run once the login
 // returns: it finishes a paste prompt the loopback overtook, so no later
-// prompt reads alongside it.
+// prompt reads alongside it. Under Options.NoPastePrompt there is no race:
+// the URL is shown, and the loopback alone completes the sign-in.
 func browserFlowOptions(p Prompter, o Options) (auth.OAuthFlowOptions, func()) {
 	return browserFlowOptionsFor(p, o, pasteCodeInstruction, pasteCodePrompt)
 }
@@ -674,8 +675,20 @@ func browserFlowOptions(p Prompter, o Options) (auth.OAuthFlowOptions, func()) {
 // browserFlowOptionsFor is browserFlowOptions with the paste instruction and
 // prompt given.
 func browserFlowOptionsFor(p Prompter, o Options, instruction, prompt string) (auth.OAuthFlowOptions, func()) {
-	paste := &pastePrompt{p: p, shown: make(chan struct{}), instruction: instruction, prompt: prompt}
 	flow := oauthFlowOptions(o)
+	if o.NoPastePrompt {
+		// No InputCode: nothing reads the Prompter, so nothing is drained
+		// (0057-MADR D2).
+		flow.OpenURL = func(authorizeURL string) error {
+			p.Notify(LevelInfo, "Open %s in your browser", authorizeURL)
+			if o.OpenURL == nil {
+				return nil
+			}
+			return o.OpenURL(authorizeURL)
+		}
+		return flow, func() {}
+	}
+	paste := &pastePrompt{p: p, shown: make(chan struct{}), instruction: instruction, prompt: prompt}
 	flow.OpenURL = func(authorizeURL string) error {
 		paste.show(authorizeURL)
 		if o.OpenURL == nil {
@@ -713,12 +726,25 @@ func (s *pastePrompt) show(authorizeURL string) {
 	close(s.shown)
 }
 
+// input reads the paste, asking again while the answer is empty: an Enter
+// alone is no paste, and the loopback may still return (0057-MADR D4). Once
+// drain has run, no read is started, so the Enter drain asks for ends it.
 func (s *pastePrompt) input(ctx context.Context) (string, error) {
 	select {
 	case <-s.shown:
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
+	for {
+		answer, err := s.read(ctx)
+		if err != nil || strings.TrimSpace(answer) != "" {
+			return answer, err
+		}
+	}
+}
+
+// read is one read of the paste, unless drain has run or ctx has ended.
+func (s *pastePrompt) read(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	if s.done || ctx.Err() != nil {
 		s.mu.Unlock()

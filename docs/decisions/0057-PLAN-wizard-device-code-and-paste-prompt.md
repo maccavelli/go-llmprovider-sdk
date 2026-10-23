@@ -447,3 +447,79 @@ claims: … 36 of 36 pass                                               (exit 0)
 ```
 
 V1 to V3 are met.
+
+### Phase 2: `NoPastePrompt`, and an empty paste asked again (2026-10-22)
+
+* **Approval.** "Commit to main, then proceed". Phase 1 was committed at the
+  owner's ask as `29c0238`. No deviation.
+
+**Steps 1 and 2, the field and the flow:**
+
+* **`Options.NoPastePrompt`,** after `NoEndpointPrompt`, with its doc: no
+  paste prompt, no paste instruction, no read of the `Prompter`; the URL
+  shown and given to `OpenURL`; the loopback alone completes the sign-in,
+  the ChatGPT plan's included.
+* **`browserFlowOptionsFor`** returns, under the field, a flow whose
+  `OpenURL` shows "Open %s in your browser" and calls `o.OpenURL`, with no
+  `InputCode` and a drain that does nothing. No `pastePrompt` is made. The
+  plan sign-in takes its `InputCode` from this flow, so it has none either.
+* **`offeredAuthMethods`** is unchanged (Q3 (a)).
+
+**Step 3, the drift check:** `gofmt -l wizard/` empty, `go vet ./wizard/` 0,
+`go test -race -count=1 ./wizard/` "ok".
+
+**Step 4, the empty paste:** `pastePrompt.input` loops over a new `read`
+while the trimmed answer is empty. `read` is the old body: it checks `done`
+and `ctx` under the lock, makes its own `pending`, and calls `Input`. An
+error is returned as it is. **The drift check again:** "ok", with
+`TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt` unchanged.
+
+**Step 5, the tests,** `wizard/paste_0057_test.go`, each passing under
+`-race`:
+
+| Test | Shows |
+| :--- | :--- |
+| `TestNoPastePrompt_LoopbackOnly_0057` | Grok's browser sign-in: no `InputCode`, no `Input`, no notice saying "paste"; the URL shown once and opened once |
+| `TestNoPastePrompt_PlanSignIn_0057` | OpenAI with `AgentName`: the plan sign-in in the menu, its login given `OpenURL` and no `InputCode`, the session's client |
+| `TestNoPastePrompt_OtherMethodsUnchanged_0057` | every built-in provider's methods equal with and without the field |
+| `TestPaste_EmptyAskedAgain_0057` | answers "" then a code: the paste prompt twice, and the login got the code |
+| `TestPaste_EndOfInputEnds_0057` | a `TextPrompter` over an empty reader: an error matching `io.EOF` |
+
+**Step 6, red first,** `tools/plant.py` on a scratch clone, all six caught
+by failing tests, none by a failed build:
+
+| Plant | Failure line |
+| :--- | :--- |
+| `InputCode` left set under the field | "the login was given an InputCode under NoPastePrompt"; the same for the plan login |
+| the paste instruction shown under the field | "notice \"If the browser does not return here, paste the redirected URL or the authorization code\" under NoPastePrompt; want no paste instruction" |
+| the plan sign-in hidden under the field, against Q3 (a) | "scripted index 5 out of range for \"Choose how to authenticate with OpenAI:\""; "openai: methods [… ] under NoPastePrompt; want …" |
+| the plan login's `InputCode` left set | "the plan login was given an InputCode under NoPastePrompt" |
+| the empty answer passed to the login | "InputCode = \"\", <nil>; want the code after the empty answer"; "want an error matching io.EOF" |
+| the re-ask that ignores `done` | a panic in `TestConfigureLLM_BrowserLoopbackWinDrainsPastePrompt`: its `drainPrompter.Input` closed `inputStarted` a second time (`auth_test.go:479`), so a second paste read started after the drain |
+
+The last is caught by the existing test the PLAN named, as a panic, not an
+assertion: a second read after the drain is what it was written to refuse.
+
+**Step 7, the docs and checks:**
+
+* **Docs:** `docs/architecture.md`'s wizard section names `NoPastePrompt`,
+  and a new entry, "The paste prompt", says that an empty paste is asked
+  again and that the Enter finishes a read the loopback overtook.
+  `CHANGELOG.md` gains an Added and a Changed entry.
+* **The checks,** each exit status captured before any filter:
+
+```text
+$ python3 -B tools/apidiff.py v1.21.0
+Compatible changes:
+- ./wizard.DeviceCode: added
+- ./wizard.Options.NoPastePrompt: added
+- ./wizard.Options.ShowDeviceCode: added                              (exit 0)
+$ make docs-check changelog-check tables-check parity-check
+sdkaudit: 0 violation(s) of R50,R51,R52; … 0 problem(s) each          (exit 0)
+$ make pre-add-check FILES="wizard/auth.go wizard/configure.go wizard/paste_0057_test.go"
+go-precheck: 3 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck).   (exit 0)
+$ python3 -B tools/gate.py
+gate: 27 of 27 passed                                                 (exit 0)
+```
+
+V4 to V6 are met.
