@@ -94,7 +94,7 @@ func TestListModels_HonoursTheMetadataURLOption(t *testing.T) {
 	t.Cleanup(listing.Close)
 	meta, metaHits := metadataServer(t, http.StatusOK, `{"opencode":{"models":{`+
 		`"glm-5.3-flash":{"id":"glm-5.3-flash","reasoning":true},"kimi-k2.6":{"id":"kimi-k2.6","reasoning":true}}}}`)
-	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL)}
+	opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), llmprovider.WithModelMetadataURL(meta.URL), testCache(t)}
 	wantCat, err := catalog.List(context.Background(), llmprovider.ProviderOpencodeZen, llmprovider.NewStaticToken("k"), opts...)
 	want := wantCat.Recommended
 	if err != nil {

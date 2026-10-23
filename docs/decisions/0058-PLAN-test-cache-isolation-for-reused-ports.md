@@ -290,3 +290,90 @@ credential unique to the run. Three things show it:
   `in-progress`, both dated 2026-10-23, with their index rows.
 * **Not done here:** no code. Phase 1 starts after the owner has committed
   this phase.
+* **Committed** as `2160673`, on the owner's word ("Commit to main, then
+  proceed").
+
+### Phase 1: the census tool, opencode, and the regression test (2026-10-23)
+
+* **Step 1, `tools/cachecensus.py`.** As written, with two choices the step
+  left open:
+  * the anchors are checked in the source tree before the clone is made, so
+    a moved anchor costs no clone;
+  * the census functions sit in two new files in the clone (`catalog` and
+    `transport`), so no import line is edited.
+
+  `go test` runs with stderr merged into stdout, since the attribution
+  depends on the order of the two. Its first run, on the opencode package
+  at `2160673`, listed the same 16 tests as the MADR's P7.
+* **Step 2, its tests:** `TestCacheCensus` in `tools/test_tools.py`, four
+  tests. The fourth, `test_an_anchor_found_twice_is_named`, was added
+  after step 7's plant "an anchor found twice taken as once" came back NOT
+  CAUGHT (exit 0) against the first three. With it, the plant was caught.
+* **Step 3:** its row in `tools/README.md`.
+* **Step 4:** `testCache(t)` and `build` in `helpers_test.go`, as written.
+  Its doc also says why one cache serves the whole test: a test's servers
+  stay open until it ends, so none shares a port with another within it.
+* **Step 5, where the tests bypass `build`.** After step 4 alone, the census
+  listed 5 opencode tests, not the 16 of P7. One test failed:
+  `TestOpencode_RoutesFromMetadata/over_table`, `path = "/messages", want
+  "/chat/completions"`. That is the state step 5 exists to end, not a stop
+  condition. The route test's warm-up still filled the process's cache,
+  while its provider read its own cache, which was empty, and a cold cache
+  routes `minimax-m3` by the table, as 0028-MADR D-A1 requires.
+* **Deviation (2026-10-23): step 5's file list was a guess, and the census
+  gave the true one.** Changed:
+  * `metadata_route_test.go`: the warm-up passes `testCache(t)`;
+  * `metadata_cold_0028_test.go`: the `LookupMetadataWith` call of
+    `TestOpencode_ColdCacheUsesTableRoute`;
+  * `metadata_ua_0026_test.go`: its direct `NewGo`;
+  * `listing_test.go`: `TestListModels_HonoursTheMetadataURLOption`'s
+    options, which its `catalog.List` and its `build` share;
+  * `wire_test.go`: the wire-golden constructor.
+
+  `opencode_test.go` and `llmtest_test.go`, which step 5 named, needed no
+  change: once step 4 was in, the census listed none of their tests.
+* **Deviation (2026-10-23): the wire goldens take a cache per build, not
+  `testCache(t)`.** `wirecase.Run` builds once per scenario, in a subtest of
+  its own, against a server that the subtest closes before the next one
+  starts. One cache for `TestWireGoldens` would be shared by servers that
+  can have the same port, which is the hazard itself. So each `Build`
+  gives `catalog.WithCache(new(catalog.Cache))`. This is D1's rule, a cache
+  for each server's life, and no decision of the MADR changes.
+* **Step 6, the regression test:** `reuse_0058_test.go`. To start B on A's
+  address, `routeServer` became a call to a new `routeServerAt(t, addr, …)`,
+  whose `addr` of "" is any port. The handler and every assertion are
+  unchanged.
+* **Step 7, the plants** (`tools/plant.py`, scratch clones):
+
+  ```text
+  == testCache returns the process's cache: caught (exit 1)
+     --- FAIL: TestOpencode_ReusedPortRoutesByItsOwnDocument_0058/second (0.00s)
+     reuse_0058_test.go:45: path = "/chat/completions", want "/responses"
+  == build without testCache: caught (exit 1)
+     --- FAIL: TestOpencode_ReusedPortRoutesByItsOwnDocument_0058/second (0.00s)
+     reuse_0058_test.go:45: path = "/chat/completions", want "/responses"
+  plant: all 2 plant(s) caught
+
+  == a missing anchor not reported: caught (exit 1)
+  == an anchor found twice taken as once: caught (exit 1)
+     AssertionError: Lists differ: [] != ["a.go: anchor found 2 times: 'x()'"]
+  == attribution carried over the package line: caught (exit 1)
+  == a subtest taken as its own test: caught (exit 1)
+  == CONT not followed: caught (exit 1)
+  plant: all 5 plant(s) caught
+  ```
+
+  The failure text is CI's for `v1.22.0`, as the MADR's Confirmation asks.
+* **Step 8, the census:** `tools/cachecensus.py
+  ./llmprovider/providers/opencode/` gave "0 test(s) in 0 package(s) wrote a
+  loopback URL into the process's caches; go test exit 0".
+* **The checks:**
+  * `go test -race -count=1 -shuffle=on ./llmprovider/providers/opencode/`:
+    ok;
+  * `make pre-add-check` on the 7 Go files: "7 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)";
+  * `make tools-test`: 73 tests, OK;
+  * `python3 -B tools/gate.py`: "gate: 27 of 27 passed".
+* **Not done here:** the other packages, which Phases 2 to 4 cover. Until
+  then they still write to the process's cache, so a full census lists
+  them.

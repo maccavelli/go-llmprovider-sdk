@@ -40,7 +40,7 @@ func TestOpencode_MetadataLookupUsesClientInfo(t *testing.T) {
 	defer gateway.Close()
 
 	p, err := NewGo(llmprovider.WithAPIKey("k"), llmprovider.WithModel("glm-5.3-flash"), llmprovider.WithBaseURL(gateway.URL),
-		llmprovider.WithModelMetadataURL(meta.URL), llmprovider.WithClientInfo("acme-cli", "4.2.0"))
+		llmprovider.WithModelMetadataURL(meta.URL), llmprovider.WithClientInfo("acme-cli", "4.2.0"), testCache(t))
 	if err != nil {
 		t.Fatal(err)
 	}

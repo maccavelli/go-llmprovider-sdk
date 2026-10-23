@@ -3,6 +3,7 @@ package opencode
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,12 +31,20 @@ func metadataKey(gateway llmprovider.ProviderID) string {
 // recording the request paths.
 func routeServer(t *testing.T, gateway llmprovider.ProviderID, model, npm string, listed bool) (*httptest.Server, func() []string) {
 	t.Helper()
+	return routeServerAt(t, "", gateway, model, npm, listed)
+}
+
+// routeServerAt is routeServer listening on addr, or on any port when addr is
+// empty.
+func routeServerAt(t *testing.T, addr string, gateway llmprovider.ProviderID, model, npm string,
+	listed bool) (*httptest.Server, func() []string) {
+	t.Helper()
 	enableMetadata(t)
 	var (
 		mu    sync.Mutex
 		paths []string
 	)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/api.json") {
 			entry := `"other-model":{"id":"other-model"}`
 			if listed {
@@ -62,6 +71,15 @@ func routeServer(t *testing.T, gateway llmprovider.ProviderID, model, npm string
 			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
 		}
 	}))
+	if addr != "" {
+		l, err := net.Listen("tcp", addr)
+		if err != nil {
+			t.Fatalf("listening on %s: %v", addr, err)
+		}
+		_ = srv.Listener.Close()
+		srv.Listener = l
+	}
+	srv.Start()
 	t.Cleanup(srv.Close)
 	return srv, func() []string {
 		mu.Lock()
@@ -111,7 +129,7 @@ func TestOpencode_RoutesFromMetadata(t *testing.T) {
 			// table knows by the table (0028-MADR D-A1; 0028-PLAN Phase 6,
 			// step 3).
 			if _, err := catalog.LookupMetadataWith(context.Background(), tc.gateway,
-				llmprovider.WithModelMetadataURL(srv.URL+"/api.json")); err != nil {
+				llmprovider.WithModelMetadataURL(srv.URL+"/api.json"), testCache(t)); err != nil {
 				t.Fatalf("warming the metadata cache: %v", err)
 			}
 			if got := generatePath(t, srv, paths, tc.gateway, tc.model); got != tc.want {

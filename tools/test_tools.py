@@ -27,6 +27,7 @@ from unittest import mock
 
 import _common
 import apidiff
+import cachecensus
 import catalogcheck
 import claims
 import consumer
@@ -543,6 +544,55 @@ class TestOffline(unittest.TestCase):
         self.assertIn('"absent"', out)
         self.assertNotIn("go get", out)
         self.assertNotIn("go mod", out)
+
+
+class TestCacheCensus(unittest.TestCase):
+    """0058-MADR D5: the tests that leave a loopback URL in the process's caches."""
+
+    MODULE = "example.com/m"
+    LOG = [
+        "CENSUS metadata http://127.0.0.1:1/api.json",
+        "=== RUN   TestA",
+        "CENSUS listing http://127.0.0.1:2",
+        "=== RUN   TestA/sub",
+        "CENSUS probes http://127.0.0.1:2",
+        "--- PASS: TestA (0.00s)",
+        "=== RUN   TestB",
+        "=== PAUSE TestB",
+        "=== RUN   TestC",
+        "=== CONT  TestB",
+        "CENSUS metadata http://127.0.0.1:3/api.json",
+        "ok  \texample.com/m/one\t0.1s",
+        "CENSUS listed http://127.0.0.1:4",
+        "=== RUN   TestD",
+        "--- FAIL: TestD (0.00s)",
+        "FAIL\texample.com/m/two\t0.1s",
+    ]
+
+    def test_each_anchor_matches_the_tree_once(self) -> None:
+        self.assertEqual(cachecensus.check_anchors(_common.ROOT, cachecensus.INSTRUMENTS), [])
+
+    def test_lines_go_to_their_package_and_top_level_test(self) -> None:
+        self.assertEqual(cachecensus.attribute(self.LOG, self.MODULE), {
+            "one": {"?": ["metadata"], "TestA": ["listing", "probes"], "TestB": ["metadata"]},
+            "two": {"?": ["listed"]},
+        })
+
+    def test_an_anchor_found_twice_is_named(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "a.go").write_text("x()\nx()\ny()\n", encoding="utf-8")
+            bad = cachecensus.check_anchors(Path(tmp), [("a.go", "x()\n", ""), ("a.go", "y()\n", "")])
+        self.assertEqual(bad, ["a.go: anchor found 2 times: 'x()'"])
+
+    def test_a_missing_anchor_is_a_tool_error_before_any_clone(self) -> None:
+        missing = [("llmprovider/catalog/cache.go", "no such anchor\n", "")]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                rc = cachecensus.main(["--out", tmp], instruments=missing)
+            self.assertEqual(rc, 2, out.getvalue())
+            self.assertIn("llmprovider/catalog/cache.go: anchor found 0 times", out.getvalue())
+            self.assertFalse((Path(tmp) / "clone").exists())
 
 
 class TestClaims(unittest.TestCase):

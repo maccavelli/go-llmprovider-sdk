@@ -66,7 +66,7 @@ func TestOpencode_ColdCacheUsesTableRoute(t *testing.T) {
 	if took := time.Since(start); took > 200*time.Millisecond {
 		t.Errorf("the first Generate took %v; want it not to wait for the document", took)
 	}
-	if _, err := catalog.LookupMetadataWith(context.Background(), gw, metaURL); err != nil {
+	if _, err := catalog.LookupMetadataWith(context.Background(), gw, metaURL, testCache(t)); err != nil {
 		t.Fatalf("waiting for the document: %v", err)
 	}
 	if _, err := p.Generate(context.Background(), text("hi")); err != nil {

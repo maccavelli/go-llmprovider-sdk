@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wirecase"
 )
 
@@ -19,9 +20,11 @@ func wireCase(gateway llmprovider.ProviderID, route, model, listing string) wire
 		Name:           string(gateway) + "-" + route,
 		Listing:        listing,
 		NoContinuation: true,
+		// Each scenario builds once, against a server of its own, and gets
+		// a cache of its own: no listing outlives its server (0058-MADR D1).
 		Build: func(u string, extra ...llmprovider.Option) (llmprovider.Provider, error) {
-			return newFor(gateway)(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-wire-key"), llmprovider.WithModel(model)},
-				wirecase.Opts(u, extra...)...)...)
+			return newFor(gateway)(append([]llmprovider.Option{llmprovider.WithAPIKey("opencode-wire-key"), llmprovider.WithModel(model),
+				catalog.WithCache(new(catalog.Cache))}, wirecase.Opts(u, extra...)...)...)
 		},
 	}
 }
