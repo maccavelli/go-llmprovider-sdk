@@ -306,7 +306,7 @@ func (r *preselectRecorder) MultiSelect(title string, choices []Choice, pre []in
 // TestConfigureLLM_PreselectsExistingFallbacks (0020-MADR F50).
 func TestConfigureLLM_PreselectsExistingFallbacks(t *testing.T) {
 	srv := zenServer(t, http.StatusOK, zenListing([]string{"m-one", "m-two", "m-three"}))
-	o := zenOptions()
+	o := zenOptions(t)
 	o.NeedFallbacks = true
 	o.Existing = Result{Provider: llmprovider.ProviderOpencodeZen, Model: "m-one", Fallbacks: []string{"m-three"}}
 	r := &preselectRecorder{fakePrompter: newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},

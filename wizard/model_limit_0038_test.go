@@ -21,7 +21,7 @@ func zenMenu(t *testing.T, limit int) []string {
 	srv := zenServer(t, http.StatusOK, zenListing(zenSearchIDs))
 	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
 		secrets: []string{testKey}, inputs: []string{srv.URL, ""}})
-	opts := zenOptions()
+	opts := zenOptions(t)
 	opts.ModelLimit = limit
 	if _, err := ConfigureLLM(context.Background(), f, opts); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)

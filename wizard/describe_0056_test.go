@@ -134,7 +134,7 @@ func TestListingWarnings_NoProviderText_0056(t *testing.T) {
 	t.Run("the live listing unavailable", func(t *testing.T) {
 		srv := zenServer(t, http.StatusInternalServerError, `{"error":{"message":"`+maskedEcho0056+`"}}`)
 		f := newFake(t, fakePrompter{inputs: []string{srv.URL}, secrets: []string{testKey}})
-		_, _, err := ResolveCredential(context.Background(), f, zenOptions(), llmprovider.ProviderOpencodeZen)
+		_, _, err := ResolveCredential(context.Background(), f, zenOptions(t), llmprovider.ProviderOpencodeZen)
 		if err != nil {
 			t.Fatal(err)
 		}

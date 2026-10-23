@@ -52,10 +52,10 @@ func zenServer(t *testing.T, status int, body string) *httptest.Server {
 }
 
 // zenOptions lists through a local server, with the metadata fetch off so no
-// listing reaches models.opencode.ai.
-func zenOptions() Options {
+// listing reaches models.opencode.ai, into t's own cache (0058-MADR D1).
+func zenOptions(t *testing.T) Options {
 	return Options{Discover: true, DiscoverLimit: 5 * time.Second,
-		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata()}}
+		ProviderOptions: []llmprovider.Option{llmprovider.WithoutModelMetadata(), testCache(t)}}
 }
 
 func labels(choices []Choice) []string {
@@ -100,7 +100,7 @@ func TestConfigureLLM_SearchUsesLiveCorpus(t *testing.T) {
 		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
 		inputs:  []string{srv.URL, "sonnet"}, secrets: []string{testKey},
 	})
-	res, err := ConfigureLLM(context.Background(), f, zenOptions())
+	res, err := ConfigureLLM(context.Background(), f, zenOptions(t))
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestConfigureLLM_SearchResultsCapped(t *testing.T) {
 		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
 		inputs:  []string{srv.URL, "m-"}, secrets: []string{testKey},
 	})
-	if _, err := ConfigureLLM(context.Background(), f, zenOptions()); err != nil {
+	if _, err := ConfigureLLM(context.Background(), f, zenOptions(t)); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
 	menu := labels(f.seenSelectItems[1])
@@ -259,7 +259,7 @@ func TestConfigureLLM_StaticCatalogNotice(t *testing.T) {
 		blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
 		inputs: []string{srv.URL}, secrets: []string{testKey},
 	})
-	res, err := ConfigureLLM(context.Background(), f, zenOptions())
+	res, err := ConfigureLLM(context.Background(), f, zenOptions(t))
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestConfigureLLM_FallbackSearch(t *testing.T) {
 		inputs:  []string{srv.URL, "qwen", "claude"}, secrets: []string{testKey},
 		multiSelects: [][]int{{0, 1}}, confirms: []bool{false},
 	})
-	opts := zenOptions()
+	opts := zenOptions(t)
 	opts.NeedFallbacks = true
 	res, err := ConfigureLLM(context.Background(), f, opts)
 	if err != nil {
@@ -363,7 +363,7 @@ func TestConfigureLLM_FallbackSearchLoops(t *testing.T) {
 		inputs:  []string{srv.URL, "qwen", "claude", ""}, secrets: []string{testKey},
 		multiSelects: [][]int{{0}, {0}}, confirms: []bool{true},
 	})
-	opts := zenOptions()
+	opts := zenOptions(t)
 	opts.NeedFallbacks = true
 	opts.ModelLimit = catalog.MaxListed
 	res, err := ConfigureLLM(context.Background(), f, opts)
@@ -444,7 +444,7 @@ func TestConfigureLLM_ProfileReachesListing(t *testing.T) {
 				selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
 				inputs:  []string{srv.URL, ""}, secrets: []string{testKey},
 			})
-			opts := zenOptions()
+			opts := zenOptions(t)
 			opts.Profile = tc.profile
 			res, err := ConfigureLLM(context.Background(), f, opts)
 			if err != nil {

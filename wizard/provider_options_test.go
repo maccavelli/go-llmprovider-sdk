@@ -31,7 +31,7 @@ func TestConfigureLLM_ProviderOptionsReachTheListing(t *testing.T) {
 		inputs:  []string{srv.URL, "sonnet"}, secrets: []string{testKey},
 	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{Discover: true, DiscoverLimit: 5 * time.Second,
-		ProviderOptions: []llmprovider.Option{llmprovider.WithModelMetadataURL(meta.URL)}}); err != nil {
+		ProviderOptions: []llmprovider.Option{llmprovider.WithModelMetadataURL(meta.URL), testCache(t)}}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
 	if metaHits.Load() == 0 {

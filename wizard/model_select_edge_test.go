@@ -187,7 +187,7 @@ func TestConfigureLLM_BlankFallbackRoundWithNothingLeft(t *testing.T) {
 		inputs:       []string{srv.URL, "", "flash", ""},
 		multiSelects: [][]int{{0, 1, 2, 3, 4}}, confirms: []bool{true},
 	})
-	opts := zenOptions()
+	opts := zenOptions(t)
 	opts.NeedFallbacks = true
 	opts.ModelLimit = catalog.MaxListed
 	res, err := ConfigureLLM(context.Background(), f, opts)
@@ -319,7 +319,7 @@ func TestConfigureLLM_OllamaLeavesOutEmbedding_0042(t *testing.T) {
 	t.Run("menu", func(t *testing.T) {
 		srv := ollamaShowServer(t, ollama0042S1...)
 		f := newFake(t, fakePrompter{selects: []int{ollama, 0}, inputs: []string{srv.URL, ""}})
-		res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
+		res, err := ConfigureLLM(context.Background(), f, Options{Discover: true, ProviderOptions: []llmprovider.Option{testCache(t)}})
 		if err != nil || res.Model != "qwen3-vl:8b" {
 			t.Fatalf("ConfigureLLM: model=%q err=%v, want qwen3-vl:8b", res.Model, err)
 		}
@@ -336,7 +336,7 @@ func TestConfigureLLM_OllamaLeavesOutEmbedding_0042(t *testing.T) {
 	t.Run("search", func(t *testing.T) {
 		srv := ollamaShowServer(t, ollama0042S1...)
 		f := newFake(t, fakePrompter{selects: []int{ollama, 1, 0}, inputs: []string{srv.URL, "granite", "qwen2.5"}})
-		res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
+		res, err := ConfigureLLM(context.Background(), f, Options{Discover: true, ProviderOptions: []llmprovider.Option{testCache(t)}})
 		if err != nil || res.Model != "qwen2.5-coder:7b" {
 			t.Fatalf("ConfigureLLM: model=%q err=%v, want qwen2.5-coder:7b", res.Model, err)
 		}
@@ -348,7 +348,7 @@ func TestConfigureLLM_OllamaLeavesOutEmbedding_0042(t *testing.T) {
 		srv := ollamaShowServer(t, [2]string{"granite-embedding:30m", `["embedding"]`},
 			[2]string{"nomic-embed-text:latest", `["embedding"]`})
 		f := newFake(t, fakePrompter{selects: []int{ollama}, inputs: []string{srv.URL, "llama3"}})
-		res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
+		res, err := ConfigureLLM(context.Background(), f, Options{Discover: true, ProviderOptions: []llmprovider.Option{testCache(t)}})
 		if err != nil || res.Model != "llama3" {
 			t.Fatalf("ConfigureLLM: model=%q err=%v, want llama3", res.Model, err)
 		}
@@ -365,7 +365,7 @@ func TestConfigureLLM_OllamaToolless_0042(t *testing.T) {
 	srv := ollamaShowServer(t, [2]string{"gemma3:12b", `["completion","vision"]`},
 		[2]string{"codellama:7b", `["completion","insert"]`})
 	f := newFake(t, fakePrompter{selects: []int{providerIdx(t, llmprovider.ProviderOllama), 1}, inputs: []string{srv.URL, ""}})
-	res, err := ConfigureLLM(context.Background(), f, Options{Discover: true})
+	res, err := ConfigureLLM(context.Background(), f, Options{Discover: true, ProviderOptions: []llmprovider.Option{testCache(t)}})
 	if err != nil || res.Model != "codellama:7b" {
 		t.Fatalf("ConfigureLLM: model=%q err=%v, want codellama:7b", res.Model, err)
 	}

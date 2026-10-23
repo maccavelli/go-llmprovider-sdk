@@ -348,7 +348,7 @@ func TestConfigure_EmptyRecommendedOpensSearch(t *testing.T) {
 		selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
 		inputs:  []string{srv.URL, "", "b/y-contributor"}, secrets: []string{testKey},
 	})
-	res, err := ConfigureLLM(context.Background(), f, zenOptions())
+	res, err := ConfigureLLM(context.Background(), f, zenOptions(t))
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
@@ -371,7 +371,7 @@ func TestConfigure_TiersOnlyAreOffered(t *testing.T) {
 		selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
 		inputs:  []string{srv.URL, ""}, secrets: []string{testKey},
 	})
-	res, err := ConfigureLLM(context.Background(), f, zenOptions())
+	res, err := ConfigureLLM(context.Background(), f, zenOptions(t))
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}

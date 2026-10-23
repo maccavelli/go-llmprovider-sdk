@@ -499,3 +499,46 @@ credential unique to the run. Three things show it:
     the deviation's file once it changed;
   * `python3 -B tools/gate.py`: "gate: 27 of 27 passed".
 * **Not done here:** the wizard (Phase 3) and package `catalog` (Phase 4).
+* **Committed** as `35164d1`, on the owner's word ("Commit to main and
+  proceed").
+
+### Phase 3: the wizard (2026-10-23)
+
+* **Step 1.** `testCache(t)` in `fake_prompter_test.go`, with the doc of
+  Phases 1 and 2.
+* **Step 2.** `zenOptions(t)` adds `testCache(t)` to its
+  `ProviderOptions`, and its 14 callers in 7 files pass `t`. That covers
+  `describe_0056_test.go`'s, whose test the census did not list. After
+  this alone, the census listed 3 of P7's 16 wizard tests, each with its
+  `Options` written inline. They got `testCache(t)` in their
+  `ProviderOptions`:
+  * `TestConfigureLLM_OllamaLeavesOutEmbedding_0042` (three subtests) and
+    `TestConfigureLLM_OllamaToolless_0042`, in `model_select_edge_test.go`;
+  * `TestConfigureLLM_ProviderOptionsReachTheListing`, beside its metadata
+    URL.
+* **Deviation (2026-10-23), within the step: one caller is in a
+  goroutine.** `TestConfigure_EmptyRecommendedHonoursCtx` calls
+  `ConfigureLLM` in a goroutine that can outlive the test, whose deadline is
+  300 ms. `testCache` registers a `t.Cleanup`, which must not run after the
+  test has ended, so the options are built on the test's goroutine,
+  before the `go`. No assertion changed.
+* **Step 3, the drift check:** `go test -race -count=1 -shuffle=on
+  ./wizard/`: ok.
+* **Step 4, the plant:** `zenOptions` without the cache, on a scratch copy.
+  The census listed its 13 callers again:
+
+  ```text
+  == wizard: zenOptions without the cache: caught; listed [TestConfigureLLM_BlankFallbackRoundWithNothingLeft,
+     TestConfigureLLM_FallbackSearch, TestConfigureLLM_FallbackSearchLoops,
+     TestConfigureLLM_PreselectsExistingFallbacks, TestConfigureLLM_ProfileReachesListing,
+     TestConfigureLLM_SearchResultsCapped, TestConfigureLLM_SearchUsesLiveCorpus,
+     TestConfigure_EmptyRecommendedHonoursCtx, TestConfigure_EmptyRecommendedOpensSearch,
+     TestConfigure_EmptyRecommendedSearchStillWorks, TestConfigure_TiersOnlyAreOffered,
+     TestWizard_MenuIsFullListByDefault, TestWizard_ModelLimit]
+  ```
+
+* **Step 5, the census:** "0 test(s) in 0 package(s) wrote a loopback URL
+  into the process's caches; go test exit 0".
+* **The checks:** `make pre-add-check` on the phase's 9 Go files, "9
+  file(s) clean"; `python3 -B tools/gate.py`, "gate: 27 of 27 passed".
+* **Not done here:** package `catalog` (Phase 4).

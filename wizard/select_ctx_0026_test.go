@@ -88,8 +88,9 @@ func TestConfigure_EmptyRecommendedHonoursCtx(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 			defer cancel()
 			done := make(chan error, 1)
+			opts := zenOptions(t) // on the test's goroutine: it registers a cleanup
 			go func() {
-				_, err := ConfigureLLM(ctx, p, zenOptions())
+				_, err := ConfigureLLM(ctx, p, opts)
 				done <- err
 			}()
 			select {
@@ -116,7 +117,7 @@ func TestConfigure_EmptyRecommendedSearchStillWorks(t *testing.T) {
 		selects: []int{providerIdx(t, llmprovider.ProviderKilo), 0},
 		inputs:  []string{srv.URL, "y-contrib"}, secrets: []string{testKey},
 	})
-	res, err := ConfigureLLM(context.Background(), f, zenOptions())
+	res, err := ConfigureLLM(context.Background(), f, zenOptions(t))
 	if err != nil || res.Model != "b/y-contributor" {
 		t.Fatalf("ConfigureLLM = %+v, %v; want b/y-contributor, found by search", res, err)
 	}
