@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-120 records. Cite them by full filename.
+122 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -130,6 +130,8 @@ documents a reader follows to do something.
 | 0056 | PLAN | [Implement the Wizard's Credential-Only Entry Point, Kilo's Device Sign-In as a Key, and Refusals Without the Provider's Text](decisions/0056-PLAN-wizard-credential-only-entry-point.md) | complete |
 | 0057 | MADR | [Give the Wizard's Device Code to the Caller as Data, Let a Browser Sign-In Run Without a Paste Prompt, and End the Paste Prompt Once the Loopback Wins](decisions/0057-MADR-wizard-device-code-and-paste-prompt.md) | accepted |
 | 0057 | PLAN | [Implement the Wizard's Device Code as Data, Browser Sign-In Without a Paste Prompt, and the End of the Paste Prompt Once the Loopback Wins](decisions/0057-PLAN-wizard-device-code-and-paste-prompt.md) | complete |
+| 0058 | MADR | [Give Every Test That Points the Catalog's Cache at an httptest Server a Cache of Its Own](decisions/0058-MADR-test-cache-isolation-for-reused-ports.md) | accepted |
+| 0058 | PLAN | [Implement a Cache of Its Own for Every Test That Points the Catalog's Cache at an httptest Server](decisions/0058-PLAN-test-cache-isolation-for-reused-ports.md) | in-progress |
 
 ## I want to…
 
