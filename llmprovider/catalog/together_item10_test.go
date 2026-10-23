@@ -66,7 +66,7 @@ func TestTogetherRanksOnlyModelsDevIDs(t *testing.T) {
 // listing, uncovered ids included.
 func TestTogetherWithoutMetadata(t *testing.T) {
 	listing := serveBody(t, togetherItem10Listing)
-	cat := listCatalog(context.Background(), t, llmprovider.ProviderTogether, llmprovider.WithBaseURL(listing.URL))
+	cat := listCatalog(context.Background(), t, llmprovider.ProviderTogether, llmprovider.WithBaseURL(listing.URL), testCache(t))
 	if want := curateTogether(cat.Usable, MaxListed); !slices.Equal(cat.Recommended, want) {
 		t.Errorf("Recommended %v, want the fallback curation %v", cat.Recommended, want)
 	}

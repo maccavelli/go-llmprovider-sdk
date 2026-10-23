@@ -3,12 +3,14 @@
 
 Defined by docs/decisions/0058-MADR-test-cache-isolation-for-reused-ports.md
 D5, and written in 0058-PLAN Phase 1. httptest reuses ports, so an entry a
-test leaves in the process's metadata, listing or probe cache under its
-server's URL can be read by a later test whose server gets the same port.
+test leaves in the process's metadata, listing, Ollama show or probe cache
+under its server's URL can be read by a later test whose server gets the
+same port.
 
-The working tree is cloned with tools/_common.scratch_clone. Four places are
+The working tree is cloned with tools/_common.scratch_clone. Five places are
 instrumented in the clone, each anchor asserted to occur once in the tree
-first: the metadata fetch, the two listing writes and the probe run. Each
+first: the metadata fetch, the two listing writes, the Ollama show reply
+(0058-MADR's amendment of 2026-10-23) and the probe run. Each
 prints "CENSUS <kind> <key>" on stderr when the store is the process's and
 the key holds 127.0.0.1. `go test -count=1 -v -p 1 -parallel 1` then runs the
 packages, and each line is given to the package and top-level test that the
@@ -48,6 +50,10 @@ INSTRUMENTS: list[tuple[str, str, str]] = [
     ("llmprovider/catalog/listing_cache.go",
      "\tif len(uniqueIDs(f.usable)) == 0 {\n\t\treturn now\n\t}\n",
      "\tif len(uniqueIDs(f.usable)) == 0 {\n\t\treturn now\n\t}\n\tcensus(\"listed\", c, key.baseURL)\n"),
+    ("llmprovider/catalog/listing_cache.go",
+     "func (c *store) storeShow(key listingKey, name string, info ModelInfo, digest string) {\n",
+     "func (c *store) storeShow(key listingKey, name string, info ModelInfo, digest string) {\n"
+     "\tcensus(\"shows\", c, key.baseURL)\n"),
     ("llmprovider/internal/transport/probe.go",
      "\tgenerate func(ctx context.Context, modelID string) (string, error),\n) []string {\n",
      "\tgenerate func(ctx context.Context, modelID string) (string, error),\n) []string {\n"

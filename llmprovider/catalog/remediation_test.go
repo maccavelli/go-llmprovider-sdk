@@ -112,7 +112,7 @@ func TestList_OllamaRecommendedIsItsOwnSlice(t *testing.T) {
 		_, _ = w.Write([]byte(`{"models":[{"name":"a"},{"name":"b"}]}`))
 	}))
 	t.Cleanup(srv.Close)
-	cat, err := listT(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderOllama, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil || len(cat.Recommended) == 0 {
 		t.Fatalf("List = %+v, %v", cat, err)
 	}

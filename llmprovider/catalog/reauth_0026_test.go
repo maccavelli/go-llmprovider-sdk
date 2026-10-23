@@ -48,7 +48,7 @@ func TestList_RerunsCredentialOn401(t *testing.T) {
 			}))
 			defer srv.Close()
 			src := &invalidatingSource{}
-			cat, err := List(context.Background(), llmprovider.ProviderTogether, src, llmprovider.WithBaseURL(srv.URL),
+			cat, err := List(context.Background(), llmprovider.ProviderTogether, src, llmprovider.WithBaseURL(srv.URL), testCache(t),
 				llmprovider.WithoutModelMetadata())
 			if err != nil {
 				t.Fatalf("List: %v", err)
@@ -70,7 +70,7 @@ func TestList_RerunsCredentialOn401(t *testing.T) {
 	}))
 	defer srv.Close()
 	cat, _ := List(context.Background(), llmprovider.ProviderTogether, llmprovider.NewStaticToken("k"),
-		llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata())
+		llmprovider.WithBaseURL(srv.URL), testCache(t), llmprovider.WithoutModelMetadata())
 	if cat.Live || requests.Load() != 1 {
 		t.Errorf("a static key: Live=%t after %d requests; want the static catalog after 1", cat.Live, requests.Load())
 	}

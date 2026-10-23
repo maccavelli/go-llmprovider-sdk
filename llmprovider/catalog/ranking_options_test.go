@@ -54,7 +54,9 @@ func TestListModels_HonoursRankingOptions(t *testing.T) {
 	} {
 		t.Run(string(tc.provider), func(t *testing.T) {
 			listing := catalog.ServeBody(t, tc.listing)
-			opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL)}
+			// A cache of the subtest's own, which its List and its provider
+			// share (0058-MADR D1).
+			opts := []llmprovider.Option{llmprovider.WithBaseURL(listing.URL), catalog.WithCache(new(catalog.Cache))}
 			if tc.meta != "" {
 				meta, _ := catalog.MetadataServer(t, http.StatusOK, tc.meta)
 				opts = append(opts, llmprovider.WithModelMetadataURL(meta.URL))

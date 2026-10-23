@@ -46,7 +46,9 @@ reusing a port.
     (C7).
 
   The learned tool-choice refusals are keyed by provider and model, not by
-  URL (C16). They are out of this record's scope **[read]**.
+  URL (C16). They are out of this record's scope **[read]**. *(Amended
+  2026-10-23: there is a fourth, Ollama's show replies (C20). See the
+  amendment at the end.)*
 * **F2. A test's server is identified only by its port.** `httptest`
   servers listen on `127.0.0.1:0`, and the route test caches the document
   at `srv.URL + "/api.json"` (C8, C9). Two servers that get the same port
@@ -455,3 +457,37 @@ None of the probes ran in the working tree.
 | C17 | The opencode switch for metadata | `llmprovider/providers/opencode/helpers_test.go:198` | `func enableMetadata(t *testing.T) {` |
 | C18 | 0057's PLAN leaves it here | `docs/decisions/0057-PLAN-wizard-device-code-and-paste-prompt.md:666` | `test's isolation is a new record's, the next number, not this PLAN's. No` |
 | C19 | Catalog's helper names the hazard | `llmprovider/catalog/model_metadata_test.go:23` | `httptest reuses ports, so a cache keyed by` |
+| C20 | A fourth map keyed by listing | `llmprovider/catalog/cache.go:59` | `ollamaShows map[listingKey]map[string]showReply` |
+| C21 | A later listing reads it back | `llmprovider/catalog/listing_cache.go:157` | `for name, r := range c.ollamaShows[key] {` |
+| C22 | resetLookupCaches clears listings, not the shows | `llmprovider/catalog/lookup_0033_test.go:104` | `clear(processStore.listing)` |
+
+## Amendment 2026-10-23: a fourth cache, and catalog's own tests
+
+* **Found** at the PLAN's Phase 4, before any change to package
+  `catalog`.
+  * **F1 named three of the store's maps keyed by a server's URL. There
+    are four.** `ollamaShows` holds Ollama's `/api/show` replies, keyed by
+    listing, and so by base URL (C20). A later listing reuses a reply
+    whose age and digest still match (C21). D5's census did not watch it.
+    No test helper clears it. A test with its own `Cache` (D1) has its own
+    `ollamaShows` too, so Phases 1 to 3 were not exposed through it.
+  * **Of the census's 110 catalog tests, 72 reach `processStore` through
+    the package's own helpers:** `enableModelMetadata`,
+    `resetLookupCaches`, the wait helpers, and `useSteadyClock` and
+    `replaySnapshot`, which call them. Several of them wait on the
+    process's in-flight fetches. The helpers clear only part of the store.
+    `enableModelMetadata` clears the metadata (C12). `resetLookupCaches`
+    also clears the listings (C22). Neither clears `ollamaShows`. The other
+    38 tests use none of these helpers.
+* **The owner chose (2026-10-23), "option a":**
+  * the 72 tests keep `processStore`. The helpers they call clear every
+    map keyed by a URL, `ollamaShows` included, before the test starts and
+    when it ends. Q3 (a) said a test keeps the process's store "unless it
+    reads `processStore` directly"; it now also covers a test that reaches
+    it through these helpers;
+  * the 38 take their own cache, as Q3 (a) said;
+  * D5's census gains `ollamaShows`.
+
+  Moving the 72 to their own caches, with their waits rewritten, was put
+  to the owner and not chosen. D1 stands for every package outside
+  `catalog`.

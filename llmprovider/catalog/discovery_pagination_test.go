@@ -48,7 +48,7 @@ func TestListModelCatalog_GeminiFollowsNextPageToken(t *testing.T) {
 		}
 		return http.StatusOK, `{"models":[{"name":"models/gemini-2.5-flash","supportedGenerationMethods":["generateContent"]}]}`
 	})
-	cat, err := listT(context.Background(), llmprovider.ProviderGemini, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(ps.srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderGemini, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(ps.srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestListModelCatalog_ClaudeFollowsHasMore(t *testing.T) {
 		}
 		return http.StatusOK, `{"data":[{"id":"claude-haiku-4-5"}],"has_more":false,"last_id":"claude-haiku-4-5"}`
 	})
-	cat, err := listT(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(ps.srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(ps.srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestListModelCatalog_SinglePageRequestsMaxPageSize(t *testing.T) {
 	gemini := newPagingServer(t, func(url.Values) (int, string) {
 		return http.StatusOK, `{"models":[{"name":"models/gemini-3.7-flash","supportedGenerationMethods":["generateContent"]}]}`
 	})
-	if _, err := listT(context.Background(), llmprovider.ProviderGemini, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(gemini.srv.URL)); err != nil {
+	if _, err := listT(context.Background(), llmprovider.ProviderGemini, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(gemini.srv.URL), testCache(t)); err != nil {
 		t.Fatalf("gemini: %v", err)
 	}
 	if seen := gemini.seen(); len(seen) != 1 || seen[0].Get("pageSize") != "1000" || seen[0].Has("pageToken") {
@@ -187,7 +187,7 @@ func TestListModelCatalog_SinglePageRequestsMaxPageSize(t *testing.T) {
 	claude := newPagingServer(t, func(url.Values) (int, string) {
 		return http.StatusOK, `{"data":[{"id":"claude-sonnet-5"}],"has_more":false}`
 	})
-	if _, err := listT(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(claude.srv.URL)); err != nil {
+	if _, err := listT(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(claude.srv.URL), testCache(t)); err != nil {
 		t.Fatalf("claude: %v", err)
 	}
 	if seen := claude.seen(); len(seen) != 1 || seen[0].Get("limit") != "1000" || seen[0].Has("after_id") {

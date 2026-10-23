@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -29,17 +30,46 @@ func resetModelMetadataCache() {
 	clear(processStore.metadata)
 }
 
-// enableModelMetadata empties the metadata cache on both sides of a test that
-// fetches a fixture document. The fetch is on unless WithoutModelMetadata
-// turns it off (0015-PLAN S10).
+// resetProcessStore empties every map of the process's store keyed by a URL,
+// the metadata, the listings and Ollama's show replies, after any fetch in
+// flight has finished (0058-MADR, amendment of 2026-10-23).
+func resetProcessStore() {
+	resetModelMetadataCache()
+	resetListingCache()
+}
+
+// clearProcessStore empties the process's store on both sides of a test
+// that writes to it under its httptest server's URL.
+func clearProcessStore(t *testing.T) {
+	t.Helper()
+	resetProcessStore()
+	t.Cleanup(resetProcessStore)
+}
+
+// caches holds each running test's catalog cache, by *testing.T.
+var caches sync.Map
+
+// testCache is t's own catalog cache, the same for every call in t, for a
+// test that does not reach the process's store itself (0058-MADR D1). A
+// test's servers stay open until it ends, so none of them shares a port with
+// another within it.
+func testCache(t *testing.T) llmprovider.Option {
+	t.Helper()
+	c, loaded := caches.LoadOrStore(t, new(Cache))
+	if !loaded {
+		t.Cleanup(func() { caches.Delete(t) })
+	}
+	return WithCache(c.(*Cache))
+}
+
+// enableModelMetadata empties the process's store on both sides of a test
+// that fetches a fixture document. The fetch is on unless
+// WithoutModelMetadata turns it off (0015-PLAN S10).
 func enableModelMetadata(t *testing.T) {
 	t.Helper()
 	metadataOn = true
-	resetModelMetadataCache()
-	t.Cleanup(func() {
-		metadataOn = false
-		resetModelMetadataCache()
-	})
+	clearProcessStore(t)
+	t.Cleanup(func() { metadataOn = false })
 }
 
 // metadataOn is set by enableModelMetadata for one test, which serves its own
@@ -87,6 +117,7 @@ func TestModelMetadataURL_Precedence(t *testing.T) {
 // TestLoadModelMetadata_Disabled: WithoutModelMetadata turns the fetch off
 // whatever the URL, and the environment variable does not, by itself.
 func TestLoadModelMetadata_Disabled(t *testing.T) {
+	clearProcessStore(t)
 	srv, hits := metadataServer(t, http.StatusOK, smallMetadataDoc)
 	resetModelMetadataCache()
 	_, err := loadModelMetadata(context.Background(),
@@ -107,6 +138,7 @@ func TestLoadModelMetadata_Disabled(t *testing.T) {
 // TestOptionsFromEnv: the helper a caller opts into turns each variable into
 // its option, and adds none for an unset or non-boolean one.
 func TestOptionsFromEnv(t *testing.T) {
+	clearProcessStore(t)
 	srv, hits := metadataServer(t, http.StatusOK, smallMetadataDoc)
 	t.Setenv(envModelMetadataURL, srv.URL)
 	t.Setenv(envDisableModelMetadata, "")

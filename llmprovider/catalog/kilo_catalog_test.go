@@ -115,7 +115,7 @@ func TestKiloAuto_ExcludedButChoosable(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""),
-				llmprovider.WithBaseURL(srv.URL), WithProfile(ProfileUtility))
+				llmprovider.WithBaseURL(srv.URL), testCache(t), WithProfile(ProfileUtility))
 			if err != nil {
 				t.Fatal(err)
 			}

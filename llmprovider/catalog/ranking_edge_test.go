@@ -30,7 +30,7 @@ func TestListModelCatalog_DuplicateIDs(t *testing.T) {
 	a := kiloRankEntry("a/pro", "A Pro", "0.000001", "0.000004", 20, true, "")
 	b := kiloRankEntry("b/pro", "B Pro", "0.000002", "0.000004", 20, true, "")
 	srv := serveBody(t, `{"data":[`+strings.Join([]string{a, a, b}, ",")+`]}`)
-	cat := listCatalog(context.Background(), t, llmprovider.ProviderKilo, llmprovider.WithBaseURL(srv.URL))
+	cat := listCatalog(context.Background(), t, llmprovider.ProviderKilo, llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if n := countID(cat.Recommended, "a/pro"); n != 1 {
 		t.Errorf("Recommended lists a/pro %d times: %v", n, cat.Recommended)
 	}

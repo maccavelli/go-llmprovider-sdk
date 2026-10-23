@@ -28,7 +28,7 @@ func TestListAvailableModels_Gemini(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderGemini, llmprovider.NewStaticToken("key123"), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderGemini, llmprovider.NewStaticToken("key123"), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListAvailableModels error: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestListAvailableModels_Gemini(t *testing.T) {
 	}))
 	defer errSrv.Close()
 
-	fallbackModels, err := listRecommended(context.Background(), llmprovider.ProviderGemini, llmprovider.NewStaticToken("key"), llmprovider.WithBaseURL(errSrv.URL))
+	fallbackModels, err := listRecommended(context.Background(), llmprovider.ProviderGemini, llmprovider.NewStaticToken("key"), llmprovider.WithBaseURL(errSrv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("fallback error: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestListAvailableModels_OpenAI(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("key123"), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("key123"), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListAvailableModels error: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestListAvailableModels_OpenAI(t *testing.T) {
 	}))
 	defer errSrv.Close()
 
-	fallbackModels, err := listRecommended(context.Background(), llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("key"), llmprovider.WithBaseURL(errSrv.URL))
+	fallbackModels, err := listRecommended(context.Background(), llmprovider.ProviderOpenAI, llmprovider.NewStaticToken("key"), llmprovider.WithBaseURL(errSrv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("fallback error: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestListAvailableModels_Claude(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("key123"), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("key123"), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListAvailableModels error: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestListAvailableModels_Claude(t *testing.T) {
 	}))
 	defer errSrv.Close()
 
-	fallbackModels, err := listRecommended(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("key"), llmprovider.WithBaseURL(errSrv.URL))
+	fallbackModels, err := listRecommended(context.Background(), llmprovider.ProviderClaude, llmprovider.NewStaticToken("key"), llmprovider.WithBaseURL(errSrv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("fallback error: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestListAvailableModels_Grok(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderGrok, llmprovider.NewStaticToken("key123"), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderGrok, llmprovider.NewStaticToken("key123"), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListAvailableModels error: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestListAvailableModels_Grok(t *testing.T) {
 	}))
 	defer errSrv.Close()
 
-	fallbackModels, err := listRecommended(context.Background(), llmprovider.ProviderGrok, llmprovider.NewStaticToken("key"), llmprovider.WithBaseURL(errSrv.URL))
+	fallbackModels, err := listRecommended(context.Background(), llmprovider.ProviderGrok, llmprovider.NewStaticToken("key"), llmprovider.WithBaseURL(errSrv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("fallback error: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestListAvailableModels_Ollama(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), "ollama", llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), "ollama", llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListAvailableModels(ollama) error: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestListAvailableModels_Ollama(t *testing.T) {
 	}))
 	defer errSrv.Close()
 
-	_, err = listRecommended(context.Background(), "ollama", llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(errSrv.URL))
+	_, err = listRecommended(context.Background(), "ollama", llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(errSrv.URL), testCache(t))
 	if err == nil {
 		t.Error("expected error for non-200 ollama response")
 	}
@@ -251,7 +251,7 @@ func TestListAvailableModels_OpencodeZen(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderOpencodeZen, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderOpencodeZen, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListAvailableModels: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestListAvailableModels_OpencodeGo(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderOpencodeGo, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderOpencodeGo, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListAvailableModels: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestListOpencodeModels_NoAPIKey(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderOpencodeZen, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderOpencodeZen, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("listing with no API key must succeed: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestListHuggingFaceModels_MetadataCuration(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL),
+	models, err := listRecommended(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL), testCache(t),
 		llmprovider.WithoutModelMetadata())
 	if err != nil {
 		t.Fatalf("ListAvailableModels: %v", err)
@@ -391,7 +391,7 @@ func TestListHuggingFaceModels_NoToken(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderHuggingFace, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("listing with no token must succeed: %v", err)
 	}
@@ -450,7 +450,7 @@ func TestListKiloModels_MetadataCuration(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL))
+	cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken("k"), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("ListModelCatalog: %v", err)
 	}
@@ -493,7 +493,7 @@ func TestListKiloModels_NoAPIKey(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := listRecommended(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	models, err := listRecommended(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	if err != nil {
 		t.Fatalf("listing with no API key must succeed: %v", err)
 	}
@@ -516,7 +516,7 @@ func TestIsUsableKiloModel_TrainingPolicy(t *testing.T) {
 		_, _ = w.Write([]byte(kiloListingFixture))
 	}))
 	defer srv.Close()
-	models, _ := listRecommended(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL))
+	models, _ := listRecommended(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), llmprovider.WithBaseURL(srv.URL), testCache(t))
 	for _, m := range models {
 		if m == "org/trains" {
 			t.Error("listKiloModels must exclude mayTrainOnYourPrompts models")

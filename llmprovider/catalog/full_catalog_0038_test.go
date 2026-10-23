@@ -199,7 +199,7 @@ func TestWithLimit_FallbackExcludes(t *testing.T) {
 		{llmprovider.ProviderOpencodeGo, goGateway.URL, opencodeDeepSeekV4Flash},
 	} {
 		for _, opts := range [][]llmprovider.Option{nil, {WithLimit(0)}} {
-			cat := listCatalog(context.Background(), t, tc.provider, append([]llmprovider.Option{llmprovider.WithBaseURL(tc.url)}, opts...)...)
+			cat := listCatalog(context.Background(), t, tc.provider, append([]llmprovider.Option{llmprovider.WithBaseURL(tc.url), testCache(t)}, opts...)...)
 			if slices.Contains(cat.Recommended, tc.id) || !slices.Contains(cat.Usable, tc.id) {
 				t.Errorf("%s (%d options): Recommended %v, Usable %v; want %s searchable but not recommended",
 					tc.provider, len(opts), cat.Recommended, cat.Usable, tc.id)

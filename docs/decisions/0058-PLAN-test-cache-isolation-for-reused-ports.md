@@ -231,8 +231,11 @@ credential unique to the run. Three things show it:
 
 1. **`testCache(t)`** in `llmprovider/catalog/model_metadata_test.go`,
    beside `resetModelMetadataCache`.
-2. **The census's 110 catalog tests.** Each test does one of two things,
-   recorded per test:
+2. **The census's 110 catalog tests.** *(Amended 2026-10-23, the owner's
+   "option a": a test that reaches `processStore` through the package's
+   clearing and waiting helpers keeps it too, and those helpers clear every
+   map keyed by a URL, `ollamaShows` included. See Phase 4's record.)* Each
+   test does one of two things, recorded per test:
    * it takes `testCache(t)` in its options. This is the default;
    * it keeps the process's store, because it reads `processStore`
      directly (`metadata_request_test.go`, `model_metadata_test.go`,
@@ -542,3 +545,96 @@ credential unique to the run. Three things show it:
 * **The checks:** `make pre-add-check` on the phase's 9 Go files, "9
   file(s) clean"; `python3 -B tools/gate.py`, "gate: 27 of 27 passed".
 * **Not done here:** package `catalog` (Phase 4).
+* **Committed** as `b110d5d`, by the owner ("committed, proceed").
+
+### Phase 4: package `catalog`'s own tests (2026-10-23)
+
+* **Deviation (2026-10-23): a fourth cache, and 72 tests already on the
+  process's store.**
+  * **Found,** before any change, by sorting the census's 110 tests by
+    whether they reach `processStore` themselves or through a test helper
+    that does:
+    * the store's `ollamaShows`, Ollama's `/api/show` replies keyed by
+      listing (`cache.go:59`), is a fourth map keyed by a URL. The census
+      did not watch it, and no helper clears it;
+    * 72 tests reach `processStore` through `enableModelMetadata`,
+      `resetLookupCaches`, the wait helpers, `useSteadyClock` or
+      `replaySnapshot`. Several wait on its in-flight fetches.
+      `enableModelMetadata` clears only the metadata;
+    * 38 reach it through none of them.
+  * **Options put to the owner:**
+    * A: the 72 keep the process's store; the helpers clear every map
+      keyed by a URL, before and after; the 38 take their own cache; the
+      census gains `ollamaShows` (recommended);
+    * B: all 110 take their own cache, the 72's waits rewritten to the
+      test's cache.
+  * **Decision.** "option a, proceed". The MADR's amendment of 2026-10-23
+    records it, with F1 corrected to four maps. Step 2 is annotated, and
+    steps 1 and 5 hold for the 38 and the 72 in turn.
+* **The census tool** gains a fifth instrument, `storeShow` (kind
+  `shows`). Its doc and its `tools/README.md` row say five, and its tests
+  pass. On `catalog`, `providers/ollama` and `wizard` together, 15 catalog
+  tests wrote a show reply. None in the other two did, so Phases 1 to 3
+  were not exposed through that map.
+* **Step 1, the helpers** in `model_metadata_test.go`:
+  * `resetProcessStore`: the metadata, then the listings and the show
+    replies, each after its fetches in flight. `resetListingCache` also
+    clears `ollamaShows` now;
+  * `clearProcessStore(t)`: `resetProcessStore`, now and in `t.Cleanup`;
+  * `enableModelMetadata` clears through it, so its tests no longer leave
+    listings behind;
+  * `testCache(t)`, as in the other packages.
+* **Step 2, the 110.** Of the 38 that reach none of the helpers:
+  * 36 in package `catalog` take `testCache(t)`. A script added it within
+    those test functions only, after a line's first `WithBaseURL` or else
+    `WithModelMetadataURL`: 45 places in 13 files. One, a single-value
+    assignment in `identification_test.go`, failed to compile, and the
+    option was moved to the call that uses the value;
+  * `TestListModels_HonoursRankingOptions` (`catalog_test`) takes a cache
+    of its subtest's own, which its `List` and its provider share;
+  * `TestCache_KeepsListingsApart_0048` (`catalog_test`) is a deliberate
+    step: its no-cache and `WithCache(nil)` steps test the process's cache.
+    `key0048` became a key from `crypto/rand.Text()`, one per test. It was
+    `"key-0048-" + t.Name()`, which another `-count` run of the same test
+    shares.
+
+  Of the 72, and of the tests below that the census still listed:
+  * `TestLoadModelMetadata_Disabled` and `TestOptionsFromEnv` cleared the
+    metadata before and never after. Each now starts with
+    `clearProcessStore(t)`;
+  * `TestMetadata_ReasoningEffortsIsACopy`, which the first sort put among
+    the 38, calls `LookupMetadata`. That takes no cache, and the test is
+    about the process-wide cache, so it keeps the process's store and
+    starts with `clearProcessStore(t)`.
+
+  No assertion changed.
+* **Step 3, the drift check:** `go test -race -count=1 -shuffle=on
+  ./llmprovider/catalog/`: ok.
+* **Step 4, the plants.** On the clearing, through a new test,
+  `TestResetProcessStore_EmptiesEveryURLMap_0058` (`clear_0058_test.go`),
+  which fills each of the four maps and calls `resetProcessStore`:
+
+  ```text
+  == the show replies not cleared: caught (exit 1)
+     clear_0058_test.go:30: after resetProcessStore: 0 metadata, 0 listing and 1 show entries; want none
+  == resetProcessStore clears only the metadata: caught (exit 1)
+     clear_0058_test.go:30: after resetProcessStore: 0 metadata, 1 listing and 1 show entries; want none
+  == resetProcessStore clears only the listings: caught (exit 1)
+     clear_0058_test.go:30: after resetProcessStore: 1 metadata, 0 listing and 0 show entries; want none
+  plant: all 3 plant(s) caught
+  ```
+
+  On the cache: `testCache` giving the process's cache, on a scratch copy.
+  The census listed 110 tests again, the 36 among them.
+* **Step 5, the census** of `./llmprovider/catalog/`: 74 tests. A script
+  followed each one's calls through the test helpers to
+  `clearProcessStore`:
+  * 73 reach it: 25 through `enableModelMetadata`, 24 through
+    `resetLookupCaches`, 11 through `replaySnapshot`, 10 through
+    `useSteadyClock`, and 3 directly (the three tests above);
+  * one does not: `TestCache_KeepsListingsApart_0048`, the deliberate
+    step, under its key of the run's own.
+* **The checks:** `make pre-add-check` on the phase's 19 Go files, "19
+  file(s) clean"; `make tools-test`, OK; `python3 -B tools/gate.py`, "gate:
+  27 of 27 passed".
+* **Not done here:** Phase 5, the close.

@@ -13,6 +13,7 @@ import (
 // are the caller's, so editing them does not change a later lookup from the
 // process-wide cache (R29).
 func TestMetadata_ReasoningEffortsIsACopy(t *testing.T) {
+	clearProcessStore(t) // LookupMetadata takes no cache: this is the process's
 	doc := `{"opencode":{"models":{"m1":{"id":"m1","reasoning_options":[{"type":"effort","values":["low","medium","high"]}]}}}}`
 	srv, _ := metadataServer(t, http.StatusOK, doc)
 	first, err := LookupMetadata(context.Background(), srv.URL, nil)

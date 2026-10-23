@@ -66,7 +66,7 @@ func TestListModelCatalog_KiloRanksByProfile(t *testing.T) {
 		{"capable", []llmprovider.Option{WithProfile(ProfileCapable)}, capable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			opts := append([]llmprovider.Option{llmprovider.WithBaseURL(srv.URL), WithLimit(MaxListed)}, tc.opts...)
+			opts := append([]llmprovider.Option{llmprovider.WithBaseURL(srv.URL), testCache(t), WithLimit(MaxListed)}, tc.opts...)
 			cat, err := listT(context.Background(), llmprovider.ProviderKilo, llmprovider.NewStaticToken(""), opts...)
 			if err != nil {
 				t.Fatalf("ListModelCatalog: %v", err)
@@ -264,7 +264,7 @@ func TestListModelCatalog_OpencodeGoGates(t *testing.T) {
 // and region-gated ids, which stay searchable.
 func TestOpencodeGoFallback_AppliesItemsSevenAndEight(t *testing.T) {
 	listing := serveBody(t, zenStyleListing(opencodeDeepSeekV4Flash, "muse-spark-1.3-contributor", "glm-5.3-flash", "kimi-k2.6"))
-	cat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeGo, llmprovider.WithBaseURL(listing.URL))
+	cat := listCatalog(context.Background(), t, llmprovider.ProviderOpencodeGo, llmprovider.WithBaseURL(listing.URL), testCache(t))
 	assertRanked(t, cat.Recommended, []string{"glm-5.3-flash", "kimi-k2.6"})
 	for _, id := range []string{opencodeDeepSeekV4Flash, "muse-spark-1.3-contributor"} {
 		if !slices.Contains(cat.Usable, id) {

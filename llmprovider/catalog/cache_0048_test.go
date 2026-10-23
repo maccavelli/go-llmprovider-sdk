@@ -2,6 +2,7 @@ package catalog_test
 
 import (
 	"context"
+	"crypto/rand"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,9 +37,19 @@ func listingServer(t *testing.T) (*httptest.Server, *atomic.Int32) {
 	return srv, &n
 }
 
-// key0048 is the test's own key, so that no other test shares the process
-// cache's entry.
-func key0048(t *testing.T) string { return "key-0048-" + t.Name() }
+// keys0048 holds each running test's key, by *testing.T.
+var keys0048 sync.Map
+
+// key0048 is the test's own key, one of this run's, so that no other test,
+// nor this one in another -count run, shares the process cache's entry: the
+// listing is keyed by its base URL, and httptest reuses ports (0058-MADR D1).
+func key0048(t *testing.T) string {
+	k, loaded := keys0048.LoadOrStore(t, "key-0048-"+rand.Text())
+	if !loaded {
+		t.Cleanup(func() { keys0048.Delete(t) })
+	}
+	return k.(string)
+}
 
 // listOpts are a listing's options for srv, with the test's key.
 func listOpts(t *testing.T, srv *httptest.Server, more ...llmprovider.Option) []llmprovider.Option {
