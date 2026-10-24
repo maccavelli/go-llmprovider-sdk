@@ -10,6 +10,8 @@ carry their sections.
 
 ## [Unreleased]
 
+## [v1.22.1] - 2026-10-24
+
 ### Fixed
 
 - The wizard no longer says that a key the provider accepts has the wrong
@@ -697,7 +699,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.1...HEAD
+[v1.22.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.0...v1.22.1
 [v1.22.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.21.0...v1.22.0
 [v1.21.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.20.1...v1.21.0
 [v1.20.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.20.0...v1.20.1

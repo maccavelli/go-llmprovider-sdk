@@ -731,3 +731,32 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
   tools/gate.py`, "gate: 27 of 27 passed".
 * **Not done here:** Phase 6.
+* **Committed** by the owner as `d4d0828` ("committed").
+* **The tests found beyond this PLAN** (Phase 5's "Found, not in this
+  PLAN's scope") were placed by the owner in 0058: its MADR's amendment of
+  2026-10-24 and its PLAN's Phase 6, committed as `f99183a` and `858f565`.
+  Ten wizard tests take their own cache, and `go test -count=2 ./...`
+  passes.
+
+### Phase 6: release `v1.22.1` (2026-10-24)
+
+* **Approval.** "committed, proceed", after 0058's Phase 6.
+* **Step 1.** `CHANGELOG.md`: `[v1.22.1] - 2026-10-24` under an empty
+  `[Unreleased]`, holding Phases 1 to 5's nine Fixed entries (W1 to W9
+  and W11; W10 adds tests, not a behaviour) and no Added; the comparison
+  links `[Unreleased]` from `v1.22.1` and `[v1.22.1]` from `v1.22.0`. The
+  README's Status names `v1.22.1`. `scripts/check_changelog.py`: "32
+  release section(s), 0 problem(s)".
+* **Step 2, before the push:**
+  * `tools/apidiff.py v1.22.0`: no output, exit 0, so no change to the
+    exported API, compatible or not;
+  * the notes: on a scratch clone of the working tree with a local
+    annotated `v1.22.1`, `scripts/check_changelog.py --section v1.22.1
+    --repo maccavelli/go-llmprovider-sdk` printed the nine Fixed entries,
+    each record link pinned to `blob/v1.22.1`; `tools/denyscan.py` on
+    them: "0 hit(s) in 1 file(s)";
+  * `python3 -B tools/gate.py`: "gate: 28 of 28 passed";
+  * the disclosure guard runs over the outgoing commits once the owner has
+    committed this step, before the tag.
+* **Not done yet:** steps 3 to 5. The tag, its push and the deletion of
+  the `v1.19.0` Release each wait for the owner's word.
