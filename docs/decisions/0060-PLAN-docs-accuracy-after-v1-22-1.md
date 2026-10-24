@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-24
 associated-madr: "0060-MADR-docs-accuracy-after-v1-22-1.md"
 decision-makers: repository owner
@@ -202,3 +202,50 @@ sentence traced to the test that shows it, and nothing but docs changed.
 * **`git diff --stat`:** `AGENTS.md`, `README.md`, `docs/architecture.md`,
   `docs/guides/adding-a-provider.md` and this record; nothing else (V5).
 * **Not done here:** Phase 2.
+* **Committed** by the owner as `99de887` ("committed, proceed").
+
+### Phase 2: close (2026-10-24)
+
+* **Step 1, the new text, pinned to `99de887`.** One row per finding;
+  `tools/claims.py` on this record passes every row, and three rows planted
+  false with `--plants` are each caught (below). The removed sentence, "is
+  warned about, not refused", is in neither `README.md` nor
+  `docs/architecture.md` (`grep`, no line).
+
+<!-- claims: self=99de887 -->
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| N1 | A1: no shape check before the listing | `docs/architecture.md:872` | `is not checked before the listing, which decides: only a key that is` |
+| N2 | A1: the shape on a refusal | `docs/architecture.md:877` | `typed key without the provider's usual shape names that shape, the last` |
+| N3 | A2: plain http under NoEndpointPrompt | `docs/architecture.md:843` | `is used there with a warning notice, since nobody is asked (0059-MADR W9).` |
+| N4 | A2: the README's | `README.md:293` | `` `Options.NoEndpointPrompt`, is used with a warning. A pasted `` |
+| N5 | A3: the quick empties | `docs/architecture.md:853` | `answer within 50 ms; then a notice says so, and the wizard waits for the` |
+| N6 | A4: when a session is saved | `docs/architecture.md:821` | `When a session is saved.** A new session is saved once the model` |
+| N7 | A4: a saved session checked | `docs/architecture.md:826` | `Keeping a saved session.** With` |
+| N8 | A4: the README's | `README.md:273` | `that cannot be used is not offered, and a notice says why. Without a` |
+| N9 | A5: split escapes | `docs/architecture.md:891` | `escape sequence is split across reads (0059-MADR W4).` |
+| N10 | A6: saved fallbacks | `docs/architecture.md:892` | `Fallbacks.** The fallback round preselects the saved fallbacks it` |
+| N11 | A6: an ended context | `docs/architecture.md:803` | `that has already ended it returns that error before asking anything, as` |
+| N12 | B1: test-repeat | `docs/architecture.md:992` | `` twice in one process (`test-repeat`, which fails on a test that reads what `` |
+| N13 | B2: the census in AGENTS | `AGENTS.md:171` | `` `tools/cachecensus.py [--any-url]` reports the tests that write the `` |
+| N14 | B3: the rule in AGENTS | `AGENTS.md:192` | `A test that lists or probes models through the catalog gives its calls a` |
+| N15 | B3: the rule in the guide | `docs/guides/adding-a-provider.md:381` | `` a cache of each test's own: the package's `build` adds `testCache(t)`, `` |
+| N16 | C-1: the make targets | `docs/architecture.md:915` | `` `fixtures-check`, `changelog-check`, `docs-check`, `gate-selftest`, `` |
+| N17 | C-2: gate-selftest's ten | `docs/architecture.md:968` | `tables-check, fixtures-check, docs-check, changelog-check), and requires` |
+
+* **The plants,** `tools/claims.py --plants`: three caught, "all 3 plant(s) caught":
+  N1 holding the removed sentence ("line 872 is 'is not checked before the
+  listing, …'"); N14 at the wrong line ("line 191 is ''"); the table pinned
+  to `796f591`, before Phase 1 ("line 872 is '`User-Agent: …`'").
+* **Step 2.** A push is the owner's to make; a push of these Markdown
+  files runs the Docs workflow.
+* **Step 3, the MADR's Confirmation, item by item:**
+  * **"Each finding of A, B and C is resolved in its doc, and the PLAN
+    names, for each wizard sentence changed, the test that shows it."** Met:
+    step 1's rows, one or more per finding, and Phase 1's trace table.
+  * **"`make docs-check`, `tools/linkcheck.py`, `tools/denyscan.py
+    --changed`, markdownlint through `python3 -B tools/gate.py`, and `make
+    records-check` pass."** Met: Phase 1's checks, and this phase's below.
+* **The checks of this phase:** `tools/claims.py` on this record, "17 of 17 pass", and on the MADR, "23 of 23 pass"; `make records-check`, 0 problems; `tools/recordlint.py --changed`, no rule rose; `tools/denyscan.py --changed`, 0 hits; `tools/linkcheck.py`, 0 problems.
+* **The PLAN is `complete`.** The MADR stays `accepted`.
