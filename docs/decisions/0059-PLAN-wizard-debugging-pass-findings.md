@@ -883,3 +883,24 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
   tools/gate.py`: "gate: 28 of 28 passed".
 * **Not done here:** Phase 8.
+* **Committed** by the owner as `fb2060d` ("committed, proceed").
+
+### Phase 8: release `v1.22.2` (2026-10-24)
+
+* **Approval.** "committed, proceed", after Phase 7.
+* **Step 1, as Phase 6's.** `CHANGELOG.md`: `[v1.22.2] - 2026-10-24`
+  under an empty `[Unreleased]`, holding Phase 7's Fixed entry (W14) and no
+  Added; the links `[Unreleased]` from `v1.22.2` and `[v1.22.2]` from
+  `v1.22.1`. The README's Status names `v1.22.2`.
+  `scripts/check_changelog.py`: "33 release section(s), 0 problem(s)".
+* **Before the push:**
+  * `tools/apidiff.py v1.22.1`: no output, exit 0;
+  * the notes, on a scratch clone of the working tree with a local
+    annotated `v1.22.2`: `--section v1.22.2 --repo
+    maccavelli/go-llmprovider-sdk` printed the one Fixed entry, its link
+    pinned to `blob/v1.22.2`; `tools/denyscan.py` on them, 0 hits;
+  * `python3 -B tools/gate.py`: "gate: 28 of 28 passed";
+  * the disclosure guard runs once the owner has committed this step.
+* **Not done yet:** the tag, its push, `v1.20.0`'s Release deleted, the
+  consumer and offline checks, and the close, each on the owner's word
+  where the PLAN says so.

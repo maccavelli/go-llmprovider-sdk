@@ -11,6 +11,8 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+## [v1.22.2] - 2026-10-24
+
 ### Fixed
 
 - When Anthropic refuses a typed key, the wizard no longer says that an
@@ -710,7 +712,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.1...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.2...HEAD
+[v1.22.2]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.1...v1.22.2
 [v1.22.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.0...v1.22.1
 [v1.22.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.21.0...v1.22.0
 [v1.21.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.20.1...v1.21.0
