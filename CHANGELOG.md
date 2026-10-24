@@ -43,6 +43,18 @@ carry their sections.
   empty answer from a person, who takes longer, is still asked again
   ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
   W5).
+- A saved session that cannot be used is no longer offered, then refused.
+  The wizard asked whether to keep it before checking it, and a yes ended
+  the run with "sign in again". Now it is checked first; one that cannot
+  be used is not offered, a notice says why, and the sign-in menu follows
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W6).
+- A saved fallback model the menu does not recommend is no longer
+  dropped. The blank fallback round now offers it after the recommended
+  models, marked "saved" and preselected, so a blank answer keeps it, and
+  the round is shown while such a fallback remains
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W7).
 
 ## [v1.22.0] - 2026-10-22
 

@@ -584,3 +584,67 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   re-run against that line, caught. `scripts/check_changelog.py`, 0
   problems; `python3 -B tools/gate.py`, "gate: 27 of 27 passed".
 * **Not done here:** Phases 4 to 6.
+* **Committed** by the owner as `5091c40` ("committed, proceed").
+
+### Phase 4: the saved session and the saved fallbacks (2026-10-24)
+
+* **Step 1, W6.** `keepExistingOAuth` sets `Store` and the client, then
+  runs `validateKept`, before the `Confirm`. One that fails is not offered:
+  a `LevelWarn` notice "the saved <Label> session cannot be used
+  (<reason>); sign in again", the reason being `validateKept`'s error, and
+  no session and no error, so the method menu follows. The error "cannot
+  be kept (…); sign in again" is gone.
+* **Step 2, W7.** `selectFallbacks` takes, each round, `savedBeyond`: the
+  saved fallbacks neither excluded nor recommended, once each, compared
+  without case. The blank round offers them after the recommended rows,
+  each marked `savedFallbackDetail` ("saved"), and preselects every saved
+  row; both early returns also wait for them to be gone.
+* **Step 3, the drift check:** `go test -race -count=1 -shuffle=on
+  ./wizard/` failed only `TestConfigureLLM_KeepRefusesStubSession`, as
+  Scope foresaw: "ConfigureLLM() error = select authentication method:
+  fakePrompter: unexpected Select("Choose how to authenticate with
+  OpenAI:") with 1 saves, want the stub refused and no save after the
+  setup's", and "1 scripted confirms left unused". Rewritten: no
+  `Confirm`, one notice saying to sign in again, the method menu, and an
+  API key chosen there completes the run. Then the suite: ok.
+* **Step 4, the tests,** `wizard/kept_0059_test.go`, the four as written.
+  The fallback tests answer `MultiSelect` with its preselection, as Enter
+  does. Against `5091c40`'s code, in a scratch clone, with
+  `savedFallbackDetail` declared in a shim test file so that the tests
+  build, three failed:
+
+  ```text
+  --- FAIL: TestKept_UnusableNotOffered_0059
+      kept_0059_test.go:59: ResolveCredential = "", fakePrompter: unexpected Confirm("Keep the existing session (••••••••0059)?") with 1 saves; want the new session saved after the setup's
+  --- FAIL: TestFallbacks_SavedOffered_0059
+      kept_0059_test.go:114: ConfigureLLM: fallbacks [], <nil>; want claude-legacy-fallback kept
+  --- FAIL: TestFallbacks_SavedOnlyRound_0059
+      kept_0059_test.go:136: selectFallbacks = [], <nil> after 0 rounds; want the saved fallback, from one round
+  ```
+
+  `TestKept_UsableStillOffered_0059` passed, as it should: the old code
+  kept a usable session too.
+* **Step 5, the plants** (`tools/plant.py`, a scratch clone), all four
+  caught:
+  * the check moved back after the `Confirm`, with the old error:
+    `TestKept_UnusableNotOffered_0059`, the line above;
+  * the saved rows dropped: `TestFallbacks_SavedOffered_0059` and
+    `TestFallbacks_SavedOnlyRound_0059`;
+  * the early return when no recommended row is left put back:
+    `TestFallbacks_SavedOnlyRound_0059`, "after 0 rounds";
+  * every saved session refused (added; step 5 names no plant for
+    `TestKept_UsableStillOffered_0059`, which the old code passes, and a
+    test is unused until it has been seen to fail):
+    `TestKept_UsableStillOffered_0059`, "unexpected Select("Choose how to
+    authenticate with OpenAI:") with 1 saves; want the saved session
+    kept", and `TestKept_UnusableNotOffered_0059`, its notice's reason
+    "planted".
+* **Step 6, docs:** `keepExistingOAuth`'s, `selectFallbacks`' and
+  `savedBeyond`'s docs; `CHANGELOG.md` `[Unreleased]`, Fixed, two entries.
+* **The checks:** `make pre-add-check` on the 4 Go files, "4 file(s)
+  clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
+  tools/gate.py`, "gate: 27 of 27 passed". The first gate ran before
+  `savedBeyond` was moved off `excludedIDs`' doc comment, where it had been
+  put between the two; the pre-add check, the plants and the gate were run
+  again after the move, with the same results.
+* **Not done here:** Phases 5 and 6.

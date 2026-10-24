@@ -22,6 +22,7 @@ const (
 	useQueryLabel        = "Use %s as the model id"
 	noRecommendedNotice  = "no %s model meets the profile; search the listing for one"
 	currentModelDetail   = "current"
+	savedFallbackDetail  = "saved"
 	chooseModelTitle     = "Choose a %s model:"
 	searchModelsPrompt   = "Search models (blank for recommended)"
 	searchFallbackPrompt = "Search fallback models (blank for recommended)"
@@ -160,8 +161,11 @@ func existingModel(o Options, provider llmprovider.ProviderID) string {
 // loop; a search round offers the matches and asks whether to search again.
 // The result is nil when no MultiSelect was shown, and non-nil (possibly empty)
 // once one was, which is the shape this function has always returned. The
-// saved fallbacks a round offers are preselected (0020-MADR F50). Each round
-// checks ctx (0026-MADR F9).
+// saved fallbacks a round offers are preselected (0020-MADR F50); a saved one
+// that is not recommended is offered in the blank round after the recommended
+// rows, marked saved, so that a blank answer keeps it, and the loop ends early
+// only when nothing at all is left (0059-MADR W7). Each round checks ctx
+// (0026-MADR F9).
 func selectFallbacks(ctx context.Context, p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, primary string, saved []string) ([]string, error) {
 	var chosen []string
 	for {
@@ -170,7 +174,8 @@ func selectFallbacks(ctx context.Context, p Prompter, d llmprovider.Descriptor, 
 		}
 		exclude := excludedIDs(primary, chosen)
 		recs, usable := without(cat.Recommended, exclude), without(cat.Usable, exclude)
-		if len(recs) == 0 && len(usable) == 0 {
+		extra := savedBeyond(saved, recs, exclude)
+		if len(recs) == 0 && len(usable) == 0 && len(extra) == 0 {
 			return chosen, nil
 		}
 		q, err := p.Input(searchFallbackPrompt, "")
@@ -179,14 +184,19 @@ func selectFallbacks(ctx context.Context, p Prompter, d llmprovider.Descriptor, 
 		}
 		q = strings.TrimSpace(q)
 		if q == "" {
-			if len(recs) == 0 {
+			if len(recs) == 0 && len(extra) == 0 {
 				return chosen, nil
 			}
-			idxs, err := p.MultiSelect(chooseFallbacksTitle, modelChoices(d.ID, recs), indicesOf(recs, saved))
+			choices := modelChoices(d.ID, recs)
+			for _, m := range extra {
+				choices = append(choices, Choice{Label: catalog.Label(d.ID, m), Detail: savedFallbackDetail})
+			}
+			ids := append(slices.Clone(recs), extra...)
+			idxs, err := p.MultiSelect(chooseFallbacksTitle, choices, indicesOf(ids, saved))
 			if err != nil {
 				return nil, fmt.Errorf("select fallbacks: %w", err)
 			}
-			chosen = appendPicks(chosen, recs, idxs)
+			chosen = appendPicks(chosen, ids, idxs)
 			return chosen, nil // a blank round ends the loop
 		}
 		matches := catalog.Search(d.ID, usable, q)
@@ -209,6 +219,21 @@ func selectFallbacks(ctx context.Context, p Prompter, d llmprovider.Descriptor, 
 			return chosen, nil
 		}
 	}
+}
+
+// savedBeyond returns the saved fallbacks that are neither excluded nor among
+// recs, once each, compared without case (0059-MADR W7).
+func savedBeyond(saved, recs []string, exclude map[string]struct{}) []string {
+	var out []string
+	for _, s := range saved {
+		same := func(m string) bool { return strings.EqualFold(m, s) }
+		if _, skip := exclude[strings.ToLower(s)]; skip || strings.TrimSpace(s) == "" ||
+			slices.ContainsFunc(recs, same) || slices.ContainsFunc(out, same) {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
 }
 
 // excludedIDs is the set a fallback round must not offer, keyed by lower-case

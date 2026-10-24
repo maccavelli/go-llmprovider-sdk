@@ -368,26 +368,33 @@ func TestSaveOAuthCredential_RejectsFixture(t *testing.T) {
 	}
 }
 
-// TestConfigureLLM_KeepRefusesStubSession: a saved stub is not kept (D7); the
-// user must sign in again.
+// TestConfigureLLM_KeepRefusesStubSession: a saved stub is not kept (D7): it
+// is not offered, a notice says to sign in again, and the method menu follows
+// (0059-MADR W6, Q3 (a)), where an API key completes the run.
 func TestConfigureLLM_KeepRefusesStubSession(t *testing.T) {
 	store := newMemoryTokenStore()
-	f := newFake(t, fakePrompter{
-		// Keeping the stub session is refused before any sign-in menu or
-		// model prompt.
-		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI)}, confirms: []bool{true},
+	o := Options{TokenStore: store}
+	o.Existing = storedExisting(t, store, Result{
+		Provider: llmprovider.ProviderOpenAI,
+		Kind:     CredOAuth,
+		Issuer:   auth.DefaultOpenAIIssuer,
+		ClientID: auth.DefaultOpenAIClientID,
+	}, "chatgpt-access", "")
+	d, _ := o.registry().Descriptor(llmprovider.ProviderOpenAI)
+	apiKey := slices.IndexFunc(offeredAuthMethods(d, o), func(m llmprovider.AuthMethod) bool {
+		return m.ID == llmprovider.AuthAPIKey
 	})
-	_, err := ConfigureLLM(context.Background(), f, Options{
-		Existing: storedExisting(t, store, Result{
-			Provider: llmprovider.ProviderOpenAI,
-			Kind:     CredOAuth,
-			Issuer:   auth.DefaultOpenAIIssuer,
-			ClientID: auth.DefaultOpenAIClientID,
-		}, "chatgpt-access", ""),
-		TokenStore: store,
-	})
-	if err == nil || !strings.Contains(err.Error(), "sign in again") || store.saves != 1 {
-		t.Fatalf("ConfigureLLM() error = %v with %d saves, want the stub refused and no save after the setup's", err, store.saves)
+	f := newFake(t, fakePrompter{blankSearches: true,
+		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), apiKey, 0}, secrets: []string{testKey}})
+	res, err := ConfigureLLM(context.Background(), f, o)
+	if err != nil || res.Kind != CredAPIKey || store.saves != 1 {
+		t.Fatalf("ConfigureLLM() = %q, %v with %d saves; want the API key, and no save after the setup's",
+			res.Kind, err, store.saves)
+	}
+	if len(f.seenConfirm) != 0 || countContaining(f.seenNotify, "sign in again") != 1 ||
+		!slices.Contains(f.seenSelect, "Choose how to authenticate with OpenAI:") {
+		t.Errorf("confirms %q, notices %q, selects %q; want no confirm, one notice, and the method menu",
+			f.seenConfirm, f.seenNotify, f.seenSelect)
 	}
 }
 

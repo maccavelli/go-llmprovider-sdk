@@ -419,7 +419,9 @@ func oauthCredential(session *auth.OAuthSession) resolvedCredential {
 // keepExistingOAuth offers the session the store holds for d when Existing
 // names d as an OAuth credential, before the method menu, whatever method
 // made it. The store is the session's only copy (0016-MADR A10); with none
-// there, the user signs in again.
+// there, the user signs in again. The session is checked before it is
+// offered: one that cannot be used is not, a notice says why, and the method
+// menu follows (0059-MADR W6).
 func keepExistingOAuth(
 	ctx context.Context,
 	p Prompter,
@@ -436,6 +438,15 @@ func keepExistingOAuth(
 	if session == nil || session.Access == "" {
 		return nil, false, nil
 	}
+	session.Store = o.TokenStore
+	// The kept session refreshes through the caller's client, as the
+	// listing and a new sign-in do (0016-MADR D8; 0026-MADR F10). A nil
+	// client changes nothing.
+	session.UseHTTPClient(o.HTTPClient)
+	if err := validateKept(d.ID, session); err != nil {
+		p.Notify(LevelWarn, "the saved %s session cannot be used (%v); sign in again", d.Label, err)
+		return nil, false, nil
+	}
 	keep, err := p.Confirm(
 		fmt.Sprintf("Keep the existing session (%s)?", redact.MaskSecret(session.Access)), true)
 	if err != nil {
@@ -443,14 +454,6 @@ func keepExistingOAuth(
 	}
 	if !keep {
 		return nil, false, nil
-	}
-	session.Store = o.TokenStore
-	// The kept session refreshes through the caller's client, as the
-	// listing and a new sign-in do (0016-MADR D8; 0026-MADR F10). A nil
-	// client changes nothing.
-	session.UseHTTPClient(o.HTTPClient)
-	if err := validateKept(d.ID, session); err != nil {
-		return nil, false, fmt.Errorf("wizard: the saved %s session cannot be kept (%w); sign in again", d.Label, err)
 	}
 	return session, true, nil
 }
