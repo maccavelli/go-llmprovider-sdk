@@ -328,6 +328,38 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
    `tools/offline.py v1.22.1`.
 5. **Close:** the MADR's Confirmation, item by item; this PLAN `complete`.
 
+### Phase 7: Claude's refusal hint by its prefix (W14; the MADR's amendment "Q0 answered"; proposed)
+
+1. **Records.** This PLAN `in-progress`; the MADR's amendment carries the
+   owner's answer to Q8.
+2. **`keyShapes`' Claude entry** becomes `^sk-ant-[A-Za-z0-9]+-`, with the
+   text "sk-ant- and a tag, such as sk-ant-api03- or sk-ant-usr-". The
+   doc comment says Claude's tag and length are not fixed, so only its
+   prefix and tag are checked, as Grok's prefix is.
+3. **The test,** `TestShape_RefusalNamesShape_0059`, a test of this PLAN:
+   its count looks for the new text; it gains a refused `sk-ant-usr-` key
+   and a refused `sk-ant-api03-` key of another length, each drawing no
+   shape notice; the refused key with no `sk-ant-` prefix still draws one
+   per refusal. Seen to fail first on `ca51351`'s code, where the two new
+   cases draw three each.
+4. **The drift check,** `go test -race -count=1 -shuffle=on ./wizard/`,
+   and `-count=2`: every other test unchanged.
+5. **Plants:** the old exact entry put back (the `usr-` case fails); the
+   prefix dropped from the check, every refused key then unnamed (the
+   no-prefix case fails).
+6. **Docs:** `CHANGELOG.md` `[Unreleased]`, Fixed. `docs/architecture.md`'s
+   "A refused key" already says "the provider's usual shape" and holds.
+
+### Phase 8: release `v1.22.2` (under Q8 (a))
+
+1. Phase 6's steps 1 to 5 with `v1.22.2`: the section dated by its commit,
+   the README's Status, `tools/apidiff.py v1.22.1` listing no change, the
+   notes built and scanned, the disclosure guard; the tag and its push on
+   the owner's word; then `gh release delete v1.20.0 --yes`, the Release
+   that falls to sixth; `tools/consumer.py` and `tools/offline.py`.
+2. **Not here:** prepare-commit-msg's bump, which is that repository's own
+   change, under its records.
+
 ## Verification
 
 | # | Criterion | Phase | Check |

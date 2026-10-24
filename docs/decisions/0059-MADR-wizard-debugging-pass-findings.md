@@ -518,3 +518,37 @@ unconfirmed. Q0 settles it for the owner's key.
   the PLAN's Scope: `TestSaveOAuthCredential_RejectsFixture` (the name) and
   `TestResolveTokenStdin_ChecksTheCredential` (its current-token row, whose
   save moves to `credentialStep`).
+
+## Amendment 2026-10-24 (decided): Q0 answered, and Claude's refusal hint by its prefix
+
+* **Q0 answered,** by the owner, after `v1.22.1`: the key that worked
+  without the warning begins `sk-ant-usr-`, and their other keys
+  `sk-ant-api03-`. The key that drew the warning was another user's, its
+  shape not known. prepare-commit-msg, the consumer where it was seen, pins
+  this module at `v1.21.0`, which has the exact-shape check (from `v1.4.0`,
+  2026-10-09), so a typed `sk-ant-usr-` key draws the warning there too;
+  the owner's own was likely entered before `v1.4.0`, or kept rather than
+  typed. Neither is confirmed.
+* **A finding, W14.** `keyShapes`' Claude entry,
+  `^sk-ant-(?:api03|admin01)-[A-Za-z0-9_-]{93}AA$`, does not hold a working
+  `sk-ant-usr-` key. Since S1 it is used only after Anthropic refuses a
+  typed key, but then it tells a user whose keys are `usr-` keys that this
+  kind of key is wrong. Probed on a scratch clone of `ca51351`, with keys
+  built to each shape and a stubbed listing: accepted, `sk-ant-usr-`,
+  `sk-ant-api03-` of the standard length and of another length each draw no
+  notice; refused, the `sk-ant-usr-` key and the other length each draw
+  "Claude (Anthropic) API keys look like sk-ant-api03- or sk-ant-admin01-
+  and 95 characters ending in AA; this one does not", the standard one
+  none.
+* **Decided by the owner, 2026-10-24 ("2. option a"):** Claude's entry
+  checks the prefix and a tag only, `^sk-ant-[A-Za-z0-9]+-`, as Grok's
+  checks `xai-`, and its text names the prefix with `sk-ant-api03-` and
+  `sk-ant-usr-` as examples. A refused key that is not Anthropic's at all
+  still draws the hint; a refused Anthropic key of any tag or length does
+  not. Rejected: (b) no hint for Claude, which loses that case; (c) leaving
+  it.
+* **The PLAN** gains Phase 7, the change, and Phase 8, `v1.22.2`, under
+  Q8.
+* **Q8 (the release).** (a) Release `v1.22.2` once Phase 7 is committed,
+  with Phase 6's steps, and `v1.20.0`'s Release, then sixth, deleted (R53)
+  (recommended); (b) hold the change for the next release.
