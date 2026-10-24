@@ -491,3 +491,88 @@ None of the probes ran in the working tree.
   Moving the 72 to their own caches, with their waits rewritten, was put
   to the owner and not chosen. D1 stands for every package outside
   `catalog`.
+
+## Amendment 2026-10-24 (proposed): a provider's default URL, and a test run twice
+
+* **Found** during 0059-PLAN Phase 5 (its record, "Found, not in this
+  PLAN's scope"). The PLAN's Out of scope left out "tests that share the
+  process's cache under a URL that is not a loopback one, such as a
+  provider's default URL served by a stubbed transport. They do not depend
+  on a port." That they do not depend on a port holds. But a listing's key
+  is the provider, the base URL, the Kilo organization and the
+  credential's fingerprint (`llmprovider/catalog/listing_cache.go`,
+  `listingKey`). A stubbed transport at a provider's default URL leaves an
+  entry that any later listing with the same key literal reads: the test
+  itself when it runs again in the same process, or another test that
+  types the same key.
+* **Facts,** at `7f75456`:
+  * **G1.** `go test -count=2 ./...`: 35 packages pass and one fails,
+    `wizard`, with two tests on their second run:
+    `TestResolveCredential_AsksNoProviderNoModel_0056`, "catalog live
+    true, usable ["claude-haiku-5-5"], after 0 listings; want the one live
+    listing", and `TestResolveCredential_ErrorKinds_0056/ctx_ended_during_the_listing`,
+    "error <nil>; want context.Canceled, not the static catalog as a
+    checked key". Both list Claude through `claudeRefusals`, at Claude's
+    default URL, with the process's cache. On the second run the listing
+    is a cache hit: no request is made, so the first counts none and the
+    second's transport never cancels its context.
+  * **G2.** D5's census, copied to a scratch file with its loopback filter
+    removed and the whole listing key printed, over the whole module at
+    `-count=1 -p 1`: in the wizard, four tests write the process's cache
+    at a URL that is not a loopback one, all at Claude's default URL:
+    the two of G1, `TestConfigureLLM_RefusedTypedKeyIsAskedAgain`
+    (`wizard/configure_0028_test.go`) and
+    `TestConfigureLLM_UnusableListingNotice`
+    (`wizard/model_select_edge_test.go`). The other two pass at
+    `-count=2`, as their assertions do not count listings, but they leave
+    the same kind of entry.
+  * **G3.** In that census, four entries are written by more than one
+    test: Claude's listing and its listed set at Claude's default URL (two
+    `catalog` tests), the opencode metadata URL (eleven `catalog` tests),
+    and one probe key (two `llmprovider/internal/transport` tests). Each of
+    those tests clears the process's store first, through
+    `resetLookupCaches` or `resetProbeCache`, as this record's amendment of
+    2026-10-23 decided for `catalog`. No two wizard tests share a key, so CI,
+    at `-count=1`, is not exposed today; a repeat, or a new test that types
+    a key another already lists with, is.
+  * **G4.** Outside the wizard, the other writers at such a URL are the
+    deliberate `WithCache(nil)` steps D1 keeps, in claude, gemini, grok and
+    openai, each under a credential unique to the run, and they pass at
+    `-count=2`.
+  * **G5.** The gate runs the suite at `-count=1` (`test-race-cover`,
+    `test-shuffle`); only `g-wire-stable` repeats, and only the wire
+    goldens. Nothing local runs a test twice in one process.
+* **Proposed,** for the owner's answers:
+  * **D6.** D1's rule extends to every wizard test that lists or probes
+    through the catalog, whatever the URL: its `Options.ProviderOptions`
+    carries `testCache(t)`. Under Q4 (a), the four tests of G2.
+  * **D7.** Under Q5, how a recurrence is caught:
+    * D5's census gains `--any-url`: no loopback filter, the listing key
+      printed whole (the credential's fingerprint, never the credential),
+      and each key that more than one test writes reported. Its default
+      run is unchanged.
+    * `tools/gate.py` gains `test-repeat`, `go test -count=2 ./...`. At
+      `7f75456` it took about 157 s of package time, 41 s of it
+      `catalog`'s, the packages in parallel. Not CI's (Q2 (a) stands).
+  * As D4, no library code changes, no exported name is added, and no
+    release is needed.
+* **Confirmation,** for D6 and D7:
+  * `go test -count=2 ./...` passes, where G1 failed;
+  * a planted removal of the cache from one of G1's tests fails it again
+    at `-count=2`, with G1's text;
+  * under Q5 (a), the census's `--any-url` reports no wizard test, and
+    fails its own test on a planted break;
+  * under Q5 (a) or (b), the gate's `test-repeat` fails on `7f75456`'s
+    tests and passes after D6.
+* **Owner questions:**
+  * **Q4 (D6). Which wizard tests.**
+    * **(a)** The four of G2 (recommended): the two that fail on a repeat,
+      and the two that leave the same entry.
+    * **(b)** The two of G1 only.
+  * **Q5 (D7). What catches the next one.**
+    * **(a)** Both the census's `--any-url` and the gate's `test-repeat`
+      (recommended). The repeat catches a test that reads its own entry;
+      the census catches two tests sharing a key, which a repeat does not
+      and a shuffle finds only by chance.
+    * **(b)** The gate's `test-repeat` only.
+    * **(c)** Neither: the tests of Q4 only.

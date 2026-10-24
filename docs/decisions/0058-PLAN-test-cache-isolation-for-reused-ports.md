@@ -68,7 +68,8 @@ credential unique to the run. Three things show it:
 * Tests that share the process's cache under a URL that is not a loopback
   one, such as a provider's default URL served by a stubbed transport.
   They do not depend on a port. Any the census finds by chance are listed
-  in the record, not changed.
+  in the record, not changed. *(Amended 2026-10-24, proposed: the wizard's
+  are Phase 6's. See the MADR's amendment of that date.)*
 * `CHANGELOG.md`. The change is to tests and tools only, and no release is
   made. `changelog-check` checks only the tags' sections.
 
@@ -259,6 +260,60 @@ credential unique to the run. Three things show it:
 3. **The gate,** and CI on the three platforms.
 4. **The MADR's Confirmation, item by item;** this PLAN `complete`.
 
+### Phase 6: a provider's default URL, and a test run twice (MADR amendment of 2026-10-24; proposed)
+
+Waits for the owner's answers to Q4 and Q5, and approval. The rules for
+every phase hold, with "the census" meaning, here, its `--any-url` run.
+
+1. **Records.** `tools/records.py status`: this PLAN `in-progress`; the
+   MADR's amendment marked decided, with the answers.
+2. **The tests of Q4** (D6). Each `Options` they pass gains `testCache(t)`
+   in `ProviderOptions`, appended to any already there:
+   * `TestResolveCredential_AsksNoProviderNoModel_0056` and
+     `TestResolveCredential_ErrorKinds_0056`'s "ctx ended during the
+     listing" (`wizard/resolve_0056_test.go`);
+   * under Q4 (a), `TestConfigureLLM_RefusedTypedKeyIsAskedAgain`
+     (`wizard/configure_0028_test.go`) and
+     `TestConfigureLLM_UnusableListingNotice`
+     (`wizard/model_select_edge_test.go`).
+
+   No assertion changes (the rule "No assertion changes").
+3. **Under Q5 (a): `tools/cachecensus.py --any-url`** (D7). Without the
+   flag, the run and its report are as today. With it:
+   * no loopback filter, in the catalog's store and the probe store;
+   * a listing, a listed set or a show is reported by its whole key,
+     provider, base URL, organization and credential fingerprint;
+   * the report adds, for each key, the tests that wrote it, and lists
+     apart each key written by more than one test.
+
+   Its test in `tools/test_tools.py` covers the filter, the key and the
+   shared-key report. `tools/README.md`'s row says what the flag does.
+4. **Under Q5 (a) or (b): `tools/gate.py`'s `test-repeat`,** `go test
+   -count=2 ./...`, after `test-shuffle`. `tools/README.md` and any test
+   that lists the gate's checks follow.
+5. **Red first, and plants** (`tools/plant.py`, a scratch clone):
+   * at `7f75456`, `go test -count=2 ./wizard/` fails G1's two tests (the
+     MADR's G1 quotes them); after step 2, it passes;
+   * the cache removed from `TestResolveCredential_AsksNoProviderNoModel_0056`,
+     run by `go test -count=2` on the package: "after 0 listings";
+   * under Q5 (a), the loopback filter kept under `--any-url`: the tool's
+     test fails, and the census, run on `7f75456`, lists G2's four tests
+     before step 2 and none after;
+   * under Q5 (a) or (b), `test-repeat` run on a scratch clone of
+     `7f75456`: it fails, with G1's lines.
+6. **Close:**
+   * `go test -race -count=1 -shuffle=on ./wizard/` and `go test -count=2
+     ./...` pass;
+   * under Q5 (a), `tools/cachecensus.py --any-url` reports no wizard test,
+     and its shared keys are G3's, each test of which clears the store;
+   * `python3 -B tools/gate.py` passes, with `test-repeat` under Q5 (a) or
+     (b);
+   * the Confirmation of the MADR's amendment of 2026-10-24, item by
+     item, and this PLAN `complete` again.
+7. **Not in scope:** library code, CI, the `Makefile`, `CHANGELOG.md`
+   (tests and tools only, as Out of scope says), and the deliberate and
+   clearing tests of G3 and G4, which stay as they are.
+
 ## Verification
 
 | # | Criterion | Phase | Check |
@@ -271,6 +326,8 @@ credential unique to the run. Three things show it:
 | V6 | The census tool fails on a missing anchor, and its test on a broken attribution | 1 | its plants, `make tools-test` |
 | V7 | The opencode package does not fail in 300 shuffled runs on Linux | 5 | step 5.2 |
 | V8 | No exported name, and no library code changed | 1–4 | `tools/apidiff.py v1.22.0`, and `git diff --stat` outside `_test.go`, `tools/` and `docs/` |
+| V9 | No wizard test leaves an entry in the process's cache at any URL; the whole module passes `-count=2` | 6 | step 6.6 |
+| V10 | Under Q5, the census's `--any-url` and the gate's `test-repeat` each fail on their planted break | 6 | step 6.5 |
 
 ## Rollout and Rollback
 
