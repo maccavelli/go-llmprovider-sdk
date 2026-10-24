@@ -112,6 +112,15 @@ func (p *TextPrompter) in() io.Reader {
 	return p.In
 }
 
+// isTerminal, makeRaw and restoreTerm are golang.org/x/term's, as variables
+// that a test replaces to run secretOnce's raw mode with no terminal
+// (0059-MADR W10).
+var (
+	isTerminal  = term.IsTerminal
+	makeRaw     = term.MakeRaw
+	restoreTerm = term.Restore
+)
+
 // inTTY returns the input as a terminal file descriptor, if it is one. Raw-mode
 // masking is only possible when it is.
 func (p *TextPrompter) inTTY() (*os.File, bool) {
@@ -119,7 +128,7 @@ func (p *TextPrompter) inTTY() (*os.File, bool) {
 	if !ok {
 		return nil, false
 	}
-	return f, term.IsTerminal(int(f.Fd()))
+	return f, isTerminal(int(f.Fd()))
 }
 
 // bufReader is the reader kept across prompts.
@@ -383,7 +392,7 @@ func (p *TextPrompter) secretOnce(prompt string) (string, error) {
 	}
 	fd := int(f.Fd())
 
-	state, err := term.MakeRaw(fd)
+	state, err := makeRaw(fd)
 	if err != nil {
 		// Git Bash / mintty and similar: raw mode is unavailable. Falling
 		// back keeps configuration possible; failing here would not.
@@ -394,7 +403,7 @@ func (p *TextPrompter) secretOnce(prompt string) (string, error) {
 	defer func() {
 		// A terminal left in raw mode is unusable, so surface the failure
 		// rather than discarding it.
-		if rErr := term.Restore(fd, state); rErr != nil {
+		if rErr := restoreTerm(fd, state); rErr != nil {
 			p.Notify(LevelError, "failed to restore terminal mode: %v", rErr)
 		}
 	}()

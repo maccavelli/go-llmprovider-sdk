@@ -652,12 +652,13 @@ func checkAccessToken(value string, now time.Time) error {
 	return nil
 }
 
+// pendingAccessOnlyOpenAI is the session of a pasted ChatGPT access token.
+// It keeps the caller's client, as a sign-in's session does (Options.HTTPClient;
+// 0059-MADR W11).
 func pendingAccessOnlyOpenAI(o Options, access string) (resolvedCredential, error) {
-	return pendingOAuthCredential(
-		o.TokenStore,
-		llmprovider.ProviderOpenAI,
-		accessOnlyOpenAISession(access),
-	)
+	session := accessOnlyOpenAISession(access)
+	session.UseHTTPClient(o.HTTPClient)
+	return pendingOAuthCredential(o.TokenStore, llmprovider.ProviderOpenAI, session)
 }
 
 func accessOnlyOpenAISession(access string) *auth.OAuthSession {
@@ -777,9 +778,10 @@ var drainGrace = 2 * time.Second
 // a person's: one that answers at once with nothing would otherwise be asked
 // without end. pasteQuickEmpties of them in a row stop the asking (0059-MADR
 // W5).
-var pasteQuick = 50 * time.Millisecond
-
-const pasteQuickEmpties = 3
+const (
+	pasteQuick        = 50 * time.Millisecond
+	pasteQuickEmpties = 3
+)
 
 func (s *pastePrompt) show(authorizeURL string) {
 	s.mu.Lock()

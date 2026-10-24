@@ -15,9 +15,11 @@ var errBaseURLRefused = errors.New("wizard: base URL refused")
 // must be http or https with a host, and carry no user name or password, no
 // query and no fragment, since the provider appends its own paths. Plain
 // http to a host that is not loopback sends the key unencrypted, so it is
-// used only after the user confirms. A blank URL keeps the provider's
-// default. A refused URL is an error matching errBaseURLRefused.
-func validateBaseURL(p Prompter, raw string) (string, error) {
+// used only after the user confirms; when ask is false, as for a URL the
+// caller holds under Options.NoEndpointPrompt, it is used with a warning
+// notice instead (0059-MADR W9). A blank URL keeps the provider's default. A
+// refused URL is an error matching errBaseURLRefused.
+func validateBaseURL(p Prompter, raw string, ask bool) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", nil
@@ -34,6 +36,10 @@ func validateBaseURL(p Prompter, raw string) (string, error) {
 		return "", fmt.Errorf("%w: %s has a query or a fragment", errBaseURLRefused, raw)
 	}
 	if u.Scheme == "http" && !loopbackHost(u.Hostname()) {
+		if !ask {
+			p.Notify(LevelWarn, "%s is plain http to a remote host, so the key travels unencrypted", raw)
+			return raw, nil
+		}
 		ok, err := p.Confirm(fmt.Sprintf("%s is plain http to a remote host, so the key travels unencrypted. Use it?", raw), false)
 		if err != nil {
 			return "", fmt.Errorf("confirm base URL: %w", err)

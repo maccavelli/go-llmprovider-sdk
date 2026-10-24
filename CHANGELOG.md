@@ -55,6 +55,21 @@ carry their sections.
   the round is shown while such a fallback remains
   ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
   W7).
+- `ConfigureLLM` on an ended context returns its error before asking
+  anything, as `ResolveCredential` does; it asked for the provider and the
+  key first
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W8).
+- Under `Options.NoEndpointPrompt`, a plain-http remote endpoint the
+  caller holds is used with a warning notice, not a question the caller
+  cannot answer; a typed one is still asked about
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W9).
+- The session of a pasted ChatGPT access token keeps
+  `Options.HTTPClient`, as `HTTPClient`'s doc says a sign-in's session
+  does
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W11).
 
 ## [v1.22.0] - 2026-10-22
 

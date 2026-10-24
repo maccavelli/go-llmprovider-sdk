@@ -144,7 +144,9 @@ type Options struct {
 	// NoEndpointPrompt asks no endpoint: the base URL is Existing's for that
 	// provider, else the descriptor's default. A remote URL is checked as a
 	// typed one is, a local one for reachability, and a failure is returned,
-	// not asked again (0056-MADR D4).
+	// not asked again (0056-MADR D4). A plain-http URL to a remote host is
+	// used without a question, since the caller holds it, with a warning
+	// notice (0059-MADR W9).
 	NoEndpointPrompt bool
 	// NoPastePrompt starts no paste prompt in a browser sign-in, for a caller
 	// with no terminal: no paste instruction is shown and the Prompter is not
@@ -183,14 +185,18 @@ func (o Options) lookupEnv() func(string) string {
 // errors.Is matches it; so is a failed sign-in's, browser, device-code or
 // ChatGPT plan, as the login gave it, and Options.ShowDeviceCode's, as it is.
 // An ended ctx gives an error matching
-// ctx's, and a credential the provider refuses while its models are listed, one
-// matching llmprovider.ErrAuthFailure. Options.Providers naming no provider
+// ctx's, before any question when it has ended already (0059-MADR W8), and a
+// credential the provider refuses while its models are listed, one matching
+// llmprovider.ErrAuthFailure. Options.Providers naming no provider
 // of the Registry, a Prompter's choice out of range, and no model chosen are
 // plain errors, as are Options.SkipMethods leaving the provider no sign-in
 // method and, under Options.NoEndpointPrompt, an endpoint refused or not
 // reached. A listing that fails otherwise is not an error: the flow
 // warns and offers the provider's static catalog.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
+	if err := ctx.Err(); err != nil {
+		return Result{}, fmt.Errorf("wizard: %w", err)
+	}
 	d, err := chooseProvider(p, o)
 	if err != nil {
 		return Result{}, err
@@ -416,7 +422,7 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		// Nothing to ask again with: a refusal or an unreachable endpoint is
 		// the caller's to fix (0056-MADR D4).
 		if !d.IsLocal {
-			return validateBaseURL(p, def)
+			return validateBaseURL(p, def, false)
 		}
 		if vErr := catalog.ValidateOllamaURLWith(ctx, def, check...); vErr != nil {
 			return "", fmt.Errorf("wizard: cannot reach %s: %w", def, vErr)
@@ -432,7 +438,7 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 			return "", fmt.Errorf("enter base URL: %w", err)
 		}
 		if !d.IsLocal {
-			checked, vErr := validateBaseURL(p, url)
+			checked, vErr := validateBaseURL(p, url, true)
 			if errors.Is(vErr, errBaseURLRefused) {
 				p.Notify(LevelWarn, "%v", vErr)
 				continue

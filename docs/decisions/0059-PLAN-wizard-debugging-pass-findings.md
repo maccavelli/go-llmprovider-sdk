@@ -648,3 +648,86 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   put between the two; the pre-add check, the plants and the gate were run
   again after the move, with the same results.
 * **Not done here:** Phases 5 and 6.
+* **Committed** by the owner as `7f75456` ("committed, proceed").
+
+### Phase 5: the context, the endpoint, raw mode and the client (2026-10-24)
+
+* **Step 1, W8.** `ConfigureLLM` returns `fmt.Errorf("wizard: %w",
+  ctx.Err())` before choosing a provider; its doc says so.
+* **Step 2, W9.** `validateBaseURL(p, raw, ask)`: with `ask` false, a
+  plain-http remote URL is used with the warning "<URL> is plain http to a
+  remote host, so the key travels unencrypted". `resolveBaseURL` passes
+  false under `NoEndpointPrompt` and true for a typed URL;
+  `Options.NoEndpointPrompt`'s doc says so.
+* **Step 3, W10.** `isTerminal`, `makeRaw` and `restoreTerm` are package
+  variables over `golang.org/x/term`'s functions; `inTTY` and `secretOnce`
+  read through them.
+* **Deviation (2026-10-24): step 4's call site.** Step 4 has
+  `accessOnlyOpenAISession` take the client. An existing test outside
+  Scope, `wizard/paste_token_0026_test.go:25`, calls it with the token
+  alone, so its signature is kept, and its one caller,
+  `pendingAccessOnlyOpenAI`, calls `UseHTTPClient(o.HTTPClient)` on the
+  session. The session holds the client as step 4 says. No decision
+  changes.
+* **Deviation (2026-10-24): a race in Phase 3's test.** The first drift
+  check, `go test -race -count=1 -shuffle=on ./wizard/` (seed
+  1792863569902308000), failed with a data race: Phase 3's
+  `TestPaste_SlowEmptyAskedAgain_0059` wrote the package variable
+  `pasteQuick` (`entry_0059_test.go:78`) while a paste goroutine that
+  `stubLoopbackWin0057` (`inputctx_0057_test.go:91`) had started, and its
+  test did not wait for, had read it (`pastePrompt.input`). Thirty runs of
+  those tests on `7f75456`'s code, and that seed, did not repeat it, but
+  the write is unsynchronised with any such read. The test now slows its
+  empty answers to `pasteQuick` + 10 ms, rather than shortening
+  `pasteQuick`, and `pasteQuick` is a constant. Phase 3's step 2 said "a
+  variable, which a test changes"; no test changes it now. No decision
+  changes. Phase 3's three plants were run again on the new test: all
+  caught.
+* **Step 5, the drift check:** with the race fixed, `go test -race
+  -count=1 -shuffle=on ./wizard/`: ok, at that seed and three fresh ones,
+  every existing test unchanged.
+* **Step 6, the tests,** `wizard/edges_0059_test.go`, the four as written.
+  The raw-mode test reads from an `os.Pipe` through the seam: raw mode,
+  raw mode refused, and the restore failing. `secretOnce` is 100.0 %
+  covered (`go tool cover -func`), from 26.7 %. Against `7f75456`'s code,
+  in a scratch clone, with the three seam variables declared in a shim
+  test file so that the tests build, all four failed:
+
+  ```text
+  --- FAIL: TestConfigure_EndedContextAsksNothing_0059
+      edges_0059_test.go:30: err select provider: fakePrompter: unexpected Select("Choose an LLM provider:"), shown […]
+  --- FAIL: TestBaseURL_NoPromptPlainHTTP_0059
+      edges_0059_test.go:45: base URL "", confirm base URL: fakePrompter: unexpected Confirm("http://models.example.test/v1 is plain http to a remote host, so the key travels unencrypted. Use it?"), …
+  --- FAIL: TestSecret_RawMode_0059/raw_mode
+      edges_0059_test.go:122: secretOnce = "sk-raw-0059-keyAA", EOF; 0 raw, 0 restores; want the key, 1 raw, 1 restores
+  --- FAIL: TestPastedToken_KeepsClient_0059
+      edges_0059_test.go:143: resolveTokenStdin: <nil>; session OAuthSession{…}; want one holding the caller's client
+  ```
+
+* **Step 7, the plants** (`tools/plant.py`, a scratch clone), all four
+  caught:
+  * the context check removed: `TestConfigure_EndedContextAsksNothing_0059`,
+    the line above;
+  * the `Confirm` put back: `TestBaseURL_NoPromptPlainHTTP_0059`, the line
+    above;
+  * `restoreTerm`'s failure ignored:
+    `TestSecret_RawMode_0059/the_restore_failing`, "shown "Key: \r\n";
+    want "error: failed to restore terminal mode: bad descriptor"";
+  * `UseHTTPClient` dropped: `TestPastedToken_KeepsClient_0059`.
+* **Step 8, docs:** `ConfigureLLM`'s, `Options.NoEndpointPrompt`'s,
+  `validateBaseURL`'s, the seam's and `pendingAccessOnlyOpenAI`'s docs;
+  `CHANGELOG.md` `[Unreleased]`, Fixed, three entries (W10 adds tests, not
+  a behaviour).
+* **Found, not in this PLAN's scope:** with `-count=2`,
+  `TestResolveCredential_AsksNoProviderNoModel_0056` and
+  `TestResolveCredential_ErrorKinds_0056/ctx_ended_during_the_listing` fail
+  on `7f75456`'s code as on this phase's: "catalog live true, usable
+  ["claude-haiku-5-5"], after 0 listings" and "error <nil>; want
+  context.Canceled". They list through the process cache, not
+  `testCache(t)`, so a repeat finds the first run's listing (the class
+  0058-MADR treated). CI and this PLAN run `-count=1`, where they pass. Left
+  for the owner to place.
+* **The checks:** `make pre-add-check` on the 6 Go files, "6 file(s)
+  clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
+  tools/gate.py`, "gate: 27 of 27 passed".
+* **Not done here:** Phase 6.

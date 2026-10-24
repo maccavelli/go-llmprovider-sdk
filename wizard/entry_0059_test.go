@@ -71,12 +71,10 @@ func TestPaste_QuickEmptiesStop_0059(t *testing.T) {
 
 // TestPaste_SlowEmptyAskedAgain_0059: an empty answer slower than pasteQuick
 // is a person's Enter, asked again past the count, so the paste that follows
-// is read.
+// is read. The answers are slowed, not pasteQuick shortened: another test's
+// paste goroutine may still be reading it.
 func TestPaste_SlowEmptyAskedAgain_0059(t *testing.T) {
-	original := pasteQuick
-	t.Cleanup(func() { pasteQuick = original })
-	pasteQuick = 5 * time.Millisecond
-	e := &emptyInput0059{fakePrompter: newFake(t, fakePrompter{}), delay: 10 * time.Millisecond,
+	e := &emptyInput0059{fakePrompter: newFake(t, fakePrompter{}), delay: pasteQuick + 10*time.Millisecond,
 		answer: "the-code", answerAt: pasteQuickEmpties + 1}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
