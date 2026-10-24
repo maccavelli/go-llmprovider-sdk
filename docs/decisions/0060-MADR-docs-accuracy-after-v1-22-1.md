@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-24
 decision-makers: repository owner
 consulted: "the owner's request of 2026-10-24, \"ensure docs are up-to-date and accurate\"; a read of README.md, AGENTS.md, docs/architecture.md, docs/guides/, tools/README.md and the wizard's doc comments at 9ff2366; 0059-MADR-wizard-debugging-pass-findings.md and its PLAN; 0058-MADR-test-cache-isolation-for-reused-ports.md and its amendment of 2026-10-24; the Makefile, scripts/test_gates.py, scripts/coverage-floors.txt, .github/workflows/ and tools/"
@@ -101,10 +101,11 @@ tag and changelog section remain.
 
 ## Decision Outcome
 
-Chosen option: *proposed* **O1**, because each of A, B and C is a
-statement a reader would act on that is now wrong or missing, the fixes
-are text only, and C is two lists checked mechanically against their
-sources. Awaits Q1 to Q3.
+Chosen option: **O1**, because each of A, B and C is a statement a reader
+would act on that is now wrong or missing, the fixes are text only, and C
+is two lists checked mechanically against their sources. The owner
+answered Q1 to Q3 on 2026-10-24, each (a); the PLAN's Phase 0 marked this
+record `accepted`.
 
 ### D1. The wizard (A)
 
@@ -172,13 +173,19 @@ module.
 ## Owner questions
 
 * **Q1 (scope).** (a) O1 (recommended); (b) O2; (c) O3.
+
+  **Answered 2026-10-24: (a).**
 * **Q2 (B3, where the cache rule is written).** (a) `AGENTS.md`, beside
   the tool list, and `docs/guides/adding-a-provider.md`'s tests
   (recommended); (b) `AGENTS.md` only; (c) not written: the helpers and the
   census hold it.
+
+  **Answered 2026-10-24: (a).**
 * **Q3 (the records' links to deleted Releases).** (a) Leave them, as
   each earlier deletion did (recommended); (b) annotate each in a later
   record of its own; this record would not.
+
+  **Answered 2026-10-24: (a).**
 
 ## More Information
 

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-24
 associated-madr: "0060-MADR-docs-accuracy-after-v1-22-1.md"
 decision-makers: repository owner
@@ -137,4 +137,13 @@ sentence traced to the test that shows it, and nothing but docs changed.
 
 ## Execution record
 
-Not started: the pair awaits the owner's answers to Q1 to Q3 and approval.
+### Phase 0: records (2026-10-24)
+
+* **Approval.** The owner committed the pair as `5c75afc`, answered Q1
+  (a), Q2 (a) and Q3 (a), and approved the PLAN ("committed, q1: a, q2: a,
+  q3: a, proceed").
+* **Step 1.** `tools/records.py status`: the MADR `accepted`, its Decision
+  Outcome and questions with the answers; this PLAN `in-progress`; their
+  index rows.
+* **Not done here:** Phase 1 starts after the owner has committed this
+  phase.
