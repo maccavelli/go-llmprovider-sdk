@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-124 records. Cite them by full filename.
+126 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -134,6 +134,8 @@ documents a reader follows to do something.
 | 0058 | PLAN | [Implement a Cache of Its Own for Every Test That Points the Catalog's Cache at an httptest Server](decisions/0058-PLAN-test-cache-isolation-for-reused-ports.md) | complete |
 | 0059 | MADR | [Remediate the Wizard's Debugging-Pass Findings, the Claude Key Warning First](decisions/0059-MADR-wizard-debugging-pass-findings.md) | accepted |
 | 0059 | PLAN | [Implement the Remediation of the Wizard's Debugging-Pass Findings](decisions/0059-PLAN-wizard-debugging-pass-findings.md) | complete |
+| 0060 | MADR | [Bring the Docs Up to Date with v1.22.1's Wizard and the Local Gate](decisions/0060-MADR-docs-accuracy-after-v1-22-1.md) | proposed |
+| 0060 | PLAN | [Implement the Docs Update for v1.22.1's Wizard and the Local Gate](decisions/0060-PLAN-docs-accuracy-after-v1-22-1.md) | proposed |
 
 ## I want to…
 
