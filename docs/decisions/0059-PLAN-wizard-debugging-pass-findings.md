@@ -44,6 +44,14 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
     asserts the warning Q1 (a) removes;
   * `TestConfigureLLM_KeepRefusesStubSession` (`wizard/auth_test.go`),
     which asserts the end of the run Q3 (a) replaces.
+* **Added 2026-10-24, Phase 2's deviation: two existing tests that call
+  the sign-in's steps directly,** rewritten in Phase 2:
+  * `TestSaveOAuthCredential_RejectsFixture` (`wizard/auth_test.go`) calls
+    `pendingOAuthCredential`; its assertion, an error and no save, holds;
+  * `TestResolveTokenStdin_ChecksTheCredential` (`wizard/auth_test.go`),
+    whose current-token row asserts a credential due to the store and not
+    yet saved. The save itself is
+    `TestConfigureLLM_TokenStdinStillAcceptsChatGPTToken`'s, unchanged.
 * **Docs:** each changed function's doc; `docs/architecture.md`, "The
   wizard", whose sign-in "saves the session" (Phase 2); `CHANGELOG.md`;
   the README's Status.
@@ -79,14 +87,15 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   (P1 to P8) becomes its finding's first test.
 * **The drift check.** After each phase's code and before its new tests,
   `go test -race -count=1 -shuffle=on ./wizard/` passes with every existing
-  test unchanged, the two named in Scope aside.
+  test unchanged, those named in Scope aside (four since Phase 2's
+  deviation).
 * **No key in a test, a log or a record.** Keys are built to a shape, as
   `auth_shapes_0028_test.go` builds them.
 * **Stage, then the owner commits** with `git commit --no-edit`. Push and
   tags happen on the owner's word, after the disclosure guard.
 * **Stop conditions:**
   * a fact of the MADR no longer holds;
-  * an existing test other than the two in Scope would change;
+  * an existing test other than those in Scope would change;
   * an exported name would be added or change;
   * a doc would state a behaviour no test shows.
 
@@ -168,6 +177,13 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
    listing (`Discover` off), as today. On a refusal the session is not
    saved, and the store keeps what it held. A failed `Save` is returned as
    today's is, "wizard: save … session".
+
+   **Amended 2026-10-24 (the deviation below):** before it saves, it waits
+   for a refresh the listing left running past its limit, by the session's
+   `Token` with the run's context, so that the store gets the rotated
+   tokens. A refresh the issuer refuses, or the run's context ending, saves
+   nothing and ends the run with the error; any other failure saves the
+   session as it is.
 4. **A kept session** (`keepExistingOAuth`) is not saved again: it is the
    store's own.
 5. **The drift check runs here.** `store.saves` counts in existing tests
@@ -185,10 +201,17 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
      access token.
    * `TestSession_KiloRefusedNotSaved_0059`: Kilo's device sign-in, its
      listing refused: nothing saved.
+   * `TestSession_RefreshAfterLimitSaved_0059` (added 2026-10-24): a
+     session whose refresh answers after the listing's limit is saved once,
+     with the rotated refresh token.
+   * `TestSession_RefreshRefusedNotSaved_0059` (added 2026-10-24): a
+     session whose refresh the issuer refuses after the listing's limit is
+     not saved, and the run ends with an error matching `ErrAuthFailure`.
 7. **Plants:** the save moved back before the listing (the first test
    fails); the save skipped on success (the second fails); `Store` set
    before the listing (the store is written during a refusal, and the
-   first fails).
+   first fails); the wait dropped (added 2026-10-24:
+   `TestSession_RefreshAfterLimitSaved_0059` fails).
 8. **Docs:** `docs/architecture.md`, "The wizard": a sign-in's session is
    saved once its listing accepts it. `CHANGELOG.md` Fixed.
 
@@ -409,3 +432,27 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
   tools/gate.py`, "gate: 27 of 27 passed".
 * **Not done here:** Phases 2 to 6.
+* **Committed** by the owner as `ba45339` ("committed, proceed").
+
+### Phase 2: a fresh session saved only once accepted (2026-10-24)
+
+* **Deviation (2026-10-24): a refresh can outlast the listing, and two
+  existing tests change.** Found before any change to the tree, by Phase 2
+  as written applied to scratch clones of `ba45339`:
+  * the drift check failed on two existing tests outside Scope:
+    `wizard/auth_test.go:358`, "undefined: saveOAuthCredential", and
+    `TestResolveTokenStdin_ChecksTheCredential/a_current_JWT`,
+    "auth_test.go:601: resolveTokenStdin = oauth, <nil> with 0 saves; want
+    the session saved";
+  * a probe (a Grok browser sign-in, its access expired, a listing limit of
+    100 ms, a token endpoint answering at 400 ms) lost the rotation. The
+    saves, by refresh token: today's code `["oauth-refresh" "rt-new"]`;
+    as written `["oauth-refresh"]`, the spent token only.
+
+  The owner chose "option 1": the save waits for the refresh (step 3's
+  amendment), the probe and a refused refresh become tests (step 6), the
+  wait gets a plant (step 7), and the two tests join Scope. With the wait,
+  the probe's store held `["rt-new"]`, and `go test -race -shuffle=on
+  ./wizard/` failed only the paste test's row. The MADR has the
+  amendment "a refresh can outlast the listing (Phase 2)".
+* **Not done here:** Phase 2's code, after the owner commits these records.

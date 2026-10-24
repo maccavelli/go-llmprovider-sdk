@@ -486,3 +486,35 @@ unconfirmed. Q0 settles it for the owner's key.
   stands. `foreignKeyVendor` names another vendor's key, now for every
   provider, and `keyShapes` names the expected shape in the notice of a
   refusal. 0028's records are not changed; this record is the later one.
+
+## Amendment 2026-10-24: a refresh can outlast the listing (Phase 2)
+
+* **What was found.** 0059-PLAN Phase 2, as first written, saved a new
+  session after the listing and left it without a `Store` until then. Q2
+  (a) assumed a refresh during the check finishes inside it. It need not:
+  the listing has its own limit (`Options.DiscoverLimit`), and a refresh
+  runs detached from its caller, within its own bound (0026-MADR F3). A
+  refresh still running when the listing's limit ends takes the store the
+  session had when it began, none, and on finishing gives the session that
+  store back. So the rotated tokens were never saved, and the store kept the
+  refresh token the refresh had spent.
+* **The probe,** on scratch clones of `ba45339`: a Grok browser sign-in
+  whose access had expired, a listing limit of 100 ms, and a token endpoint
+  that answered at 400 ms. The saves, by the refresh token each held:
+  today's code `["oauth-refresh" "rt-new"]`; Phase 2 as first written
+  `["oauth-refresh"]`, the spent token only; with the wait below
+  `["rt-new"]`.
+* **The decision,** the owner's of 2026-10-24 ("option 1"): before it saves
+  a new session, the wizard waits for a refresh the listing left running
+  (`Token` with the run's context). A session whose refresh the issuer
+  refuses is not saved, and the run ends with the error; nor is one when the
+  run's context ends first. Any other failure saves the session as it is.
+  Q2 (a) stands; this is how its "saved with it" holds.
+* **The cost.** When the listing ran out of time because the issuer was
+  slow, the save waits for the refresh's own bound, at most about 46 s
+  (three attempts of 15 s, and the backoff between them), unless the run is
+  cancelled. Today that wait comes at the first use instead.
+* **Two existing tests** call the sign-in's steps directly and change with
+  the PLAN's Scope: `TestSaveOAuthCredential_RejectsFixture` (the name) and
+  `TestResolveTokenStdin_ChecksTheCredential` (its current-token row, whose
+  save moves to `credentialStep`).
