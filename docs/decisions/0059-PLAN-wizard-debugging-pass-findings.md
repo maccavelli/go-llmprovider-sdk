@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-24
 associated-madr: "0059-MADR-wizard-debugging-pass-findings.md"
 decision-makers: repository owner
@@ -758,5 +758,51 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   * `python3 -B tools/gate.py`: "gate: 28 of 28 passed";
   * the disclosure guard runs over the outgoing commits once the owner has
     committed this step, before the tag.
-* **Not done yet:** steps 3 to 5. The tag, its push and the deletion of
-  the `v1.19.0` Release each wait for the owner's word.
+* **Committed** by the owner as `41dfee4`. The disclosure guard over the
+  eleven outgoing commits, `a3a2d9b` to `41dfee4`: exit 0, nothing
+  reported. The owner pushed `main`; CI run 40124869685: `validate` on
+  macos-15, windows-2025 and ubuntu-24.04, success; `release` skipped, as
+  on a branch. Docs run 40124869681: success.
+* **Step 3.** The owner tagged `v1.22.1`, annotated, on `41dfee4`, and
+  pushed it; CI run 40125535484: `validate` on the three systems and
+  `release`, success. The Release `v1.22.1`: not a draft or a prerelease,
+  Latest. `gh release view v1.22.1 --json body` equals step 2's notes line
+  for line, apart from one trailing blank line.
+* **Step 4.** On the owner's word ("delete the v1.19.0 release"),
+  `gh release delete v1.19.0 --yes`: exit 0. The Releases are `v1.22.1`,
+  `v1.22.0`, `v1.21.0`, `v1.20.1` and `v1.20.0`, five (R53); the tag
+  `v1.19.0` stays on `origin`, and its section in `CHANGELOG.md`.
+  `tools/consumer.py v1.22.1`: "consumer: 15 packages linked", the six
+  cross-builds and `go run` exit 0, "every step passed". `tools/offline.py
+  v1.22.1`: "requests=0", "offline: ok", the six cross-builds, and its
+  two plants, "models.dev left on" and "no caller layer", each caught;
+  "every step passed".
+* **The docs that name a release:** the README's Status names `v1.22.1`
+  (step 1). The README, `CHANGELOG.md`'s preamble and
+  `docs/architecture.md` state the five-Release rule, not a list, and hold
+  as written. `0051-PLAN-opt-in-streaming-retry.md` links the deleted
+  `v1.19.0` Release in its execution record; like the records of the
+  Releases deleted before it, `v1.10.2` to `v1.18.0`, it is history and is
+  not rewritten. The tag, and its changelog section, remain.
+* **Step 5, the MADR's Confirmation, item by item:**
+  * **"P1 to P8, made tests, each failing on `2d6e7f3` and passing after
+    its phase."** Met in substance. Each was seen to fail on the commit
+    before its phase, `2d6e7f3` for Phase 1, then `ba45339`, `4eff4c7`,
+    `5091c40` and `7f75456`, not on `2d6e7f3` itself, and passes after it
+    (each phase's record). P1 and P2 are Phase 1's, P8 Phase 2's, P3 and
+    P4 Phase 3's, P5 and P7 Phase 4's, P6 Phase 5's.
+  * **"For W1: a key of `sk-ant-api04-`, of 109 characters, and the
+    standard one, each accepted by a stubbed listing, with no warning; a
+    refused key without the shape, with the shape named in the refusal
+    notice."** Met in substance by `TestShape_AcceptedKeyNoWarning_0059`:
+    the other tag (`sk-ant-api04-`, 108 characters) and the other length
+    (`sk-ant-api03-`, 109) are two keys, beside the standard one, each
+    accepted with no notice; `TestShape_RefusalNamesShape_0059` names the
+    shape on each refusal of a key without it.
+  * **"`make pre-add-check`, `python3 -B tools/gate.py`, and CI on the
+    three platforms."** Met: each phase's checks, the gate at 27 and then
+    28 checks, and runs 40124869685 and 40125535484.
+  * **"`secretOnce` covered by a test (W10)."** Met: 100.0 %, Phase 5.
+* **The Verification table:** V1 to V12 by the phases' tests; V13 by
+  step 2's `tools/apidiff.py v1.22.0`; V14 by each phase's red run.
+* **The PLAN is `complete`.** The MADR stays `accepted`.
