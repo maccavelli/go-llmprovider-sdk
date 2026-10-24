@@ -413,7 +413,9 @@ func (p *TextPrompter) secretOnce(prompt string) (string, error) {
 // is drawn once, not once per character, and a shorter view is padded with
 // spaces to the previous width, not erased with \033[K, which some consoles
 // lack. Ctrl-U clears the entry, and Ctrl-C cancels it with an error that
-// matches context.Canceled (0021-MADR Z6).
+// matches context.Canceled (0021-MADR Z6). A cursor or function key adds
+// nothing, however many reads its sequence is split across (escapeState;
+// 0059-MADR W4).
 func (p *TextPrompter) readMasked(prompt string) (string, error) {
 	if p.eof {
 		return "", errExhausted
@@ -421,6 +423,7 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 	r := p.bufReader()
 	var entered []rune
 	width := 0 // the masked view's width on screen, in runes
+	esc := escNone
 	redraw := func() {
 		view := renderSecret(entered)
 		n := utf8.RuneCountInString(view)
@@ -432,6 +435,12 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 		c, _, readErr := r.ReadRune()
 		if readErr != nil {
 			return p.endMasked(readErr)
+		}
+		if esc != escNone {
+			var consumed bool
+			if esc, consumed = esc.next(c); consumed {
+				continue
+			}
 		}
 		switch {
 		case c == '\r' || c == '\n':
@@ -456,9 +465,10 @@ func (p *TextPrompter) readMasked(prompt string) (string, error) {
 			if len(entered) > 0 {
 				entered = entered[:len(entered)-1]
 			}
-		case c == 0x1b: // a cursor or function key
-			if err := skipEscape(r); err != nil {
-				return p.endMasked(err)
+		case c == 0x1b: // a cursor or function key, Alt and a key, or Escape
+			esc = escLone
+			if r.Buffered() > 0 {
+				esc = escAlt
 			}
 			continue
 		case c < 32: // other control characters
@@ -485,33 +495,42 @@ func (p *TextPrompter) endMasked(err error) (string, error) {
 	return "", err
 }
 
-// skipEscape consumes the rest of an escape sequence after ESC, so a cursor
-// or function key adds nothing to the entry: a CSI (ESC [, parameters, a
-// final byte in 0x40-0x7E) or an SS3 (ESC O and one byte). Any other
-// character after ESC, such as Alt with a key, is dropped with it. A lone
-// ESC, with nothing buffered after it, is the Escape key itself: it is
-// ignored, so the next key typed is kept (0021-MADR Z6).
-func skipEscape(r *bufio.Reader) error {
-	if r.Buffered() == 0 {
-		return nil
-	}
-	c, _, err := r.ReadRune()
-	if err != nil {
-		return err
-	}
-	switch c {
-	case '[':
-		for {
-			b, err := r.ReadByte()
-			if err != nil {
-				return err
-			}
-			if b >= 0x40 && b <= 0x7e {
-				return nil
-			}
+// escapeState is where readMasked is in an escape sequence. It is kept
+// across reads, so that a sequence split between them, as a bracketed paste's
+// markers can be, adds nothing to the entry (0059-MADR W4).
+type escapeState int
+
+const (
+	escNone escapeState = iota
+	escLone             // ESC with nothing buffered behind it: the Escape key, or a split sequence
+	escAlt              // ESC with bytes buffered behind it
+	escCSI              // ESC [ and the parameters so far
+	escSS3              // ESC O
+)
+
+// next takes c in state s: the state after it, and whether c was part of the
+// sequence. After ESC, a [ begins a CSI, ended by a final byte in 0x40-0x7E,
+// and an O an SS3, ended by one more character. Any other character after an
+// ESC with bytes buffered behind it, such as Alt with a key, is dropped with
+// it; one after a lone ESC is a key typed after the Escape key, and is kept
+// (0021-MADR Z6).
+func (s escapeState) next(c rune) (escapeState, bool) {
+	switch s {
+	case escLone, escAlt:
+		switch c {
+		case '[':
+			return escCSI, true
+		case 'O':
+			return escSS3, true
 		}
-	case 'O':
-		_, err = r.ReadByte()
+		return escNone, s == escAlt
+	case escCSI:
+		if c >= 0x40 && c <= 0x7e {
+			return escNone, true
+		}
+		return escCSI, true
+	case escSS3:
+		return escNone, true
 	}
-	return err
+	return escNone, false
 }

@@ -31,6 +31,18 @@ carry their sections.
   issuer refuses saves nothing and ends the run
   ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
   W2).
+- A key pasted into the masked entry no longer gains part of the
+  terminal's paste marker. When a marker's escape arrived in one read and
+  the rest in the next, the rest, such as `[201~`, was taken as typed
+  text. The escape sequence is now followed across reads
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W4).
+- The paste prompt of a browser sign-in no longer spins on a `Prompter`
+  that answers at once with nothing. After three such answers it says
+  so, stops asking, and waits for the browser or the sign-in's limit; an
+  empty answer from a person, who takes longer, is still asked again
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W5).
 
 ## [v1.22.0] - 2026-10-22
 

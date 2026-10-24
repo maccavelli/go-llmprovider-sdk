@@ -526,3 +526,61 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
   tools/gate.py`, "gate: 27 of 27 passed".
 * **Not done here:** Phases 3 to 6.
+* **Committed** by the owner as `4eff4c7` ("committed, proceed").
+
+### Phase 3: the masked entry and the paste prompt (2026-10-24)
+
+* **Step 1, W4.** `skipEscape` is removed. `readMasked` keeps an
+  `escapeState` across reads: an ESC sets `escLone`, or `escAlt` when bytes
+  are buffered behind it, and `escapeState.next` takes each rune after it.
+  A `[` begins a CSI, ended by a byte in 0x40–0x7E; an `O` takes one more;
+  any other rune is dropped after `escAlt` and kept after `escLone`. So the
+  Escape key followed, in a later read, by a typed `[` or `O` now begins a
+  sequence, as step 1 says a split sequence must; `TestReadMasked_Keys`,
+  the Escape key and then `a`, holds.
+* **Step 2, W5.** `pastePrompt.input` counts empty answers that came within
+  `pasteQuick` (a variable, 50 ms) of the read's start; a slower one resets
+  the count. At `pasteQuickEmpties` (3) it notices, at `LevelWarn`, "the
+  prompter answers at once; waiting for the browser", unless drain has run,
+  and returns `ctx`'s error once `ctx` ends.
+* **Step 3, the drift check:** `go test -race -count=1 -shuffle=on
+  ./wizard/`: ok, every existing test unchanged.
+* **Step 4, the tests,** `wizard/entry_0059_test.go`, three; the split
+  cases are the two of P3, an arrow split after its `[`, and an SS3 key
+  split after its ESC. Against `4eff4c7`'s code, in a scratch clone, with
+  `pasteQuick` and `pasteQuickEmpties` declared in a shim test file so that
+  the tests build, two failed:
+
+  ```text
+  --- FAIL: TestReadMasked_SplitEscape_0059
+      entry_0059_test.go:25: the end marker after its ESC: readMasked = "sk-ant-keyAA[201~", <nil>; want sk-ant-keyAA
+      entry_0059_test.go:25: the start marker after its ESC: readMasked = "[200~sk-ant-keyAA", <nil>; want sk-ant-keyAA
+      entry_0059_test.go:25: an SS3 key after its ESC: readMasked = "sk-ant-keyOAAA", <nil>; want sk-ant-keyAA
+  --- FAIL: TestPaste_QuickEmptiesStop_0059
+      entry_0059_test.go:65: input: context canceled after 100.076542ms; want ctx's deadline, once it ended
+      entry_0059_test.go:68: 619407 Input calls, notices []; want 3 and one notice
+  ```
+
+  The arrow split after its `[` passed: the old code read on past the
+  buffer once it had the `[`. `TestPaste_SlowEmptyAskedAgain_0059` passed,
+  since the old code asked again after every empty answer; its plant is
+  the second below. It runs under a 5 s context, so a plant that stops the
+  asking fails it rather than hanging.
+* **Step 5, the plants** (`tools/plant.py`, a scratch clone), all three
+  caught:
+  * `skipEscape`'s buffer check put back (a lone ESC begins no sequence):
+    `TestReadMasked_SplitEscape_0059`, the three lines above;
+  * the count not reset by a slow answer (the slow branch removed):
+    `TestPaste_SlowEmptyAskedAgain_0059`, "input = "", context deadline
+    exceeded after 3 calls, notices ["the prompter answers at once; waiting
+    for the browser"]; want the code on call 4, no notice";
+  * no limit: `TestPaste_QuickEmptiesStop_0059`, "425422 Input calls,
+    notices []; want 3 and one notice".
+* **Step 6, docs:** `readMasked`'s, `escapeState`'s and `pastePrompt.input`'s
+  docs; `CHANGELOG.md` `[Unreleased]`, Fixed, two entries.
+* **The checks:** `make pre-add-check` on the 3 Go files first failed on
+  gocritic's `initClause`, `if quick++; quick < pasteQuickEmpties`; with
+  `quick++` on its own line, "3 file(s) clean", and the no-limit plant,
+  re-run against that line, caught. `scripts/check_changelog.py`, 0
+  problems; `python3 -B tools/gate.py`, "gate: 27 of 27 passed".
+* **Not done here:** Phases 4 to 6.

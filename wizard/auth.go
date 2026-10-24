@@ -770,6 +770,14 @@ type pastePrompt struct {
 // to give up before it asks for the Enter (0057-MADR D3).
 var drainGrace = 2 * time.Second
 
+// pasteQuick is how soon an empty answer comes when it is the prompter's, not
+// a person's: one that answers at once with nothing would otherwise be asked
+// without end. pasteQuickEmpties of them in a row stop the asking (0059-MADR
+// W5).
+var pasteQuick = 50 * time.Millisecond
+
+const pasteQuickEmpties = 3
+
 func (s *pastePrompt) show(authorizeURL string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -784,17 +792,38 @@ func (s *pastePrompt) show(authorizeURL string) {
 // input reads the paste, asking again while the answer is empty: an Enter
 // alone is no paste, and the loopback may still return (0057-MADR D4). Once
 // drain has run, no read is started, so the Enter drain asks for ends it.
+// After pasteQuickEmpties empty answers, each within pasteQuick, the prompter
+// is not asked again: input says so and waits for ctx, which the loopback or
+// the login's limit ends. A slower empty answer is a person's Enter, and
+// starts the count again (0059-MADR W5).
 func (s *pastePrompt) input(ctx context.Context) (string, error) {
 	select {
 	case <-s.shown:
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
+	quick := 0
 	for {
+		start := time.Now()
 		answer, err := s.read(ctx)
 		if err != nil || strings.TrimSpace(answer) != "" {
 			return answer, err
 		}
+		if time.Since(start) >= pasteQuick {
+			quick = 0
+			continue
+		}
+		quick++
+		if quick < pasteQuickEmpties {
+			continue
+		}
+		s.mu.Lock()
+		if !s.done {
+			s.p.Notify(LevelWarn, "the prompter answers at once; waiting for the browser")
+		}
+		s.mu.Unlock()
+		<-ctx.Done()
+		return "", ctx.Err()
 	}
 }
 
