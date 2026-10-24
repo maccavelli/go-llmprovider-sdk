@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-24
 associated-madr: "0059-MADR-wizard-debugging-pass-findings.md"
 decision-makers: repository owner
@@ -901,6 +901,28 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
     pinned to `blob/v1.22.2`; `tools/denyscan.py` on them, 0 hits;
   * `python3 -B tools/gate.py`: "gate: 28 of 28 passed";
   * the disclosure guard runs once the owner has committed this step.
-* **Not done yet:** the tag, its push, `v1.20.0`'s Release deleted, the
-  consumer and offline checks, and the close, each on the owner's word
-  where the PLAN says so.
+* **Committed** by the owner as `97cc0b2`. The disclosure guard over the
+  three outgoing commits, `2897263` to `97cc0b2`: exit 0, nothing reported.
+  The owner pushed `main`; CI run 40139067065: `validate` on macos-15,
+  windows-2025 and ubuntu-24.04, success; `release` skipped. Docs run
+  40139067094: success.
+* **The tag.** The owner tagged `v1.22.2`, annotated, on `97cc0b2`, and
+  pushed it; CI run 40140108331: `validate` on the three systems and
+  `release`, success. The Release `v1.22.2`: not a draft or a prerelease,
+  Latest; its body equals the scanned notes, apart from trailing blank
+  lines.
+* **After the tag.** On the owner's word ("delete v1.20.0 release"),
+  `gh release delete v1.20.0 --yes`: exit 0. The Releases are `v1.22.2`,
+  `v1.22.1`, `v1.22.0`, `v1.21.0` and `v1.20.1`, five (R53); the tag
+  `v1.20.0` stays on `origin`, and its section. Its Release URL answers 200
+  with the tag's page, naming the tag and its commit `5c60593`, with no
+  notes body, as the README's and `CHANGELOG.md`'s sentence says
+  (0060-MADR's amendment). `tools/consumer.py v1.22.2`: "15 packages
+  linked", "every step passed". `tools/offline.py v1.22.2`: "requests=0",
+  "offline: ok", its two plants caught, "every step passed".
+* **The amendment's decision, held:** a refused `sk-ant-usr-` key, or an
+  `sk-ant-api03-` key of another length, draws no shape notice; a refused
+  key without the `sk-ant-<tag>-` prefix draws one per refusal
+  (`TestShape_RefusalNamesShape_0059`, Phase 7).
+* **Not here:** prepare-commit-msg's bump to `v1.22.2`, its own change.
+* **The PLAN is `complete` again.** The MADR stays `accepted`.
