@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-24
 decision-makers: repository owner
 consulted: "the owner's report of 2026-10-24; a read of every file of wizard/ at 2d6e7f3; probes P1 to P8 on a scratch clone (method below); the wizard's statement coverage; gobble-cli at 142685b, the wizard's caller; 0028-MADR-heuristics-and-performance-from-the-research-pass.md and its PLAN (H10b, D3); the Anthropic key rules of TruffleHog and gitleaks; 0013-MADR-remediate-debugging-pass-findings.md (C3) and 0020-MADR-remediate-v1-debugging-pass-findings.md (F50)"
@@ -209,7 +209,9 @@ For W1, the shape check itself:
 
 ## Decision Outcome
 
-Proposed: **R1 with S1**, because S1 removes W1's false warning for every
+Chosen option: **R1 with S1** (the owner's answers of 2026-10-24; the
+PLAN's Phase 0 marked this record `accepted`), because S1 removes W1's
+false warning for every
 provider, not only Claude, and puts the shape where it explains something:
 in the notice that a key was refused. It keeps 0028's useful part, naming
 another vendor's key, and stops relying on lengths no vendor publishes.

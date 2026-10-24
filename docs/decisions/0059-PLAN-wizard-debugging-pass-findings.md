@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-24
 associated-madr: "0059-MADR-wizard-debugging-pass-findings.md"
 decision-makers: repository owner
@@ -334,3 +334,16 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
     revert is allowed after the tag too, as a later patch.
   * Reverting Phase 1 brings back the false warning; Phase 2, the
     refused session saved over the good one.
+
+## Execution record
+
+### Phase 0: records (2026-10-24)
+
+* **Approval.** The owner answered Q1 to Q7 ("follow recommendations and
+  write the plan"), committed the pair as `a3a2d9b`, and approved this PLAN
+  with "committed, proceed".
+* **Step 1.** `tools/records.py status`: the MADR `accepted` and this PLAN
+  `in-progress`, both dated 2026-10-24, with their index rows. The MADR's
+  Decision Outcome now names R1 with S1 as chosen.
+* **Not done here:** no code. Phase 1 starts after the owner has committed
+  this phase.

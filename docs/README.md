@@ -132,8 +132,8 @@ documents a reader follows to do something.
 | 0057 | PLAN | [Implement the Wizard's Device Code as Data, Browser Sign-In Without a Paste Prompt, and the End of the Paste Prompt Once the Loopback Wins](decisions/0057-PLAN-wizard-device-code-and-paste-prompt.md) | complete |
 | 0058 | MADR | [Give Every Test That Points the Catalog's Cache at an httptest Server a Cache of Its Own](decisions/0058-MADR-test-cache-isolation-for-reused-ports.md) | accepted |
 | 0058 | PLAN | [Implement a Cache of Its Own for Every Test That Points the Catalog's Cache at an httptest Server](decisions/0058-PLAN-test-cache-isolation-for-reused-ports.md) | complete |
-| 0059 | MADR | [Remediate the Wizard's Debugging-Pass Findings, the Claude Key Warning First](decisions/0059-MADR-wizard-debugging-pass-findings.md) | proposed |
-| 0059 | PLAN | [Implement the Remediation of the Wizard's Debugging-Pass Findings](decisions/0059-PLAN-wizard-debugging-pass-findings.md) | proposed |
+| 0059 | MADR | [Remediate the Wizard's Debugging-Pass Findings, the Claude Key Warning First](decisions/0059-MADR-wizard-debugging-pass-findings.md) | accepted |
+| 0059 | PLAN | [Implement the Remediation of the Wizard's Debugging-Pass Findings](decisions/0059-PLAN-wizard-debugging-pass-findings.md) | in-progress |
 
 ## I want to…
 
