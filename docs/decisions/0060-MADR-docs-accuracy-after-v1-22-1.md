@@ -142,6 +142,8 @@ module.
 * Good, because the next test author meets the cache rule before the
   census or `test-repeat` does.
 * Neutral, because the records' links to deleted Releases stay dead (Q3).
+  *(Corrected 2026-10-24: they are not dead. See the amendment of that
+  date.)*
 * Bad, because two long docs grow by a few sentences each.
 
 ### Confirmation
@@ -227,3 +229,28 @@ module.
   B's census, gate check and rule.
 * [0035-MADR-maintainer-tools-in-python.md](0035-MADR-maintainer-tools-in-python.md):
   `tools/`.
+
+## Amendment 2026-10-24: the deleted Releases' links, and one sentence
+
+* **A fact corrected.** Consequences said the records' links to deleted
+  Releases "stay dead". They do not. R53 deletes a Release and keeps its
+  tag, and GitHub serves the tag's page at the Release's URL. Probed on
+  2026-10-24 with `curl -L`: `releases/tag/v1.19.0` and
+  `releases/tag/v1.15.0` answer 200 at the same URL; `v1.19.0`'s page names
+  the tag and its commit, `87b6c9c`, and has no release-notes body, where
+  `v1.22.1`'s, a live Release, has one holding its notes. The records hold
+  eleven such links, `v1.10.2` to `v1.20.0`, in six records. Each opens the
+  right tag; only its notes are not there.
+* **Decided by the owner, 2026-10-24** ("do the middle ground
+  recommendation. also fix the records "dead links" issue"):
+  * the records stay as they are; Q3 (a) stands;
+  * `CHANGELOG.md`'s preamble and the README's Status each gain one
+    sentence: an older tag's Release page still opens, showing the tag and
+    its commit without notes, and its notes are its section in
+    `CHANGELOG.md`. That covers every past link, and each future one R53
+    makes, with no edit per release;
+  * this amendment, and the annotation above, correct the record.
+* **Rejected:** rewriting the six records' links to point at their
+  changelog sections. It edits history, R53 would need the same edit at
+  every release, and the links already reach the right tag.
+* **The PLAN** gains Phase 3.

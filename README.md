@@ -315,7 +315,8 @@ The current release is `v1.22.1`. The module requires Go 1.27.3.
 
 What each release changed, from `v1.0.0` on, is in
 [CHANGELOG.md](CHANGELOG.md); the five newest tags' GitHub Releases carry
-their sections.
+their sections. An older tag's Release page still opens, showing the tag and
+its commit without notes; its notes are its section in the changelog.
 
 ## I want to…
 

@@ -33,6 +33,8 @@ sentence traced to the test that shows it, and nothing but docs changed.
   (MADR D4).
 * `CHANGELOG.md`: docs only, no release.
 * Every other record, the dead Release links among them, under Q3 (a).
+  *(Corrected 2026-10-24: the links are not dead; Phase 3, and the MADR's
+  amendment of that date.)*
 
 ## Rules for every phase
 
@@ -116,6 +118,20 @@ sentence traced to the test that shows it, and nothing but docs changed.
    `--plants`, each caught.
 2. **After the owner's push,** if asked: the Docs workflow passes.
 3. **The MADR's Confirmation, item by item;** this PLAN `complete`.
+
+### Phase 3: the deleted Releases' sentence (the MADR's amendment of 2026-10-24)
+
+1. **Records.** This PLAN `in-progress`; the MADR's amendment and its
+   annotation; this Scope's annotation.
+2. **The sentence.** `CHANGELOG.md`'s preamble and the README's Status, each
+   after "the five newest tags' GitHub Releases carry their sections": an
+   older tag's Release page still opens, showing the tag and its commit
+   without notes, and its notes are its section in `CHANGELOG.md`.
+3. **The checks:** `scripts/check_changelog.py` (the preamble is in its
+   file), `tools/linkcheck.py`, `tools/denyscan.py --changed`, markdownlint
+   through `python3 -B tools/gate.py`, `tools/claims.py` on both records,
+   `make records-check`, `tools/recordlint.py --changed`.
+4. **Close:** this PLAN `complete` again.
 
 ## Verification
 
@@ -249,3 +265,16 @@ sentence traced to the test that shows it, and nothing but docs changed.
     records-check` pass."** Met: Phase 1's checks, and this phase's below.
 * **The checks of this phase:** `tools/claims.py` on this record, "17 of 17 pass", and on the MADR, "23 of 23 pass"; `make records-check`, 0 problems; `tools/recordlint.py --changed`, no rule rose; `tools/denyscan.py --changed`, 0 hits; `tools/linkcheck.py`, 0 problems.
 * **The PLAN is `complete`.** The MADR stays `accepted`.
+
+### Phase 3: the deleted Releases' sentence (2026-10-24)
+
+* **Approval.** The owner pushed `f98e3cf`, asked whether to leave or
+  scrub the records' links to deleted Releases, and chose: "do the middle
+  ground recommendation. also fix the records "dead links" issue".
+* **Step 1.** `tools/records.py status`: this PLAN `in-progress`. The
+  MADR's amendment of 2026-10-24 corrects "stay dead", with the probe; its
+  Consequences and this Scope carry the annotation.
+* **Step 2.** The sentence, in `CHANGELOG.md`'s preamble and the README's
+  Status.
+* **Step 3, the checks:** `scripts/check_changelog.py`, "32 release section(s), 0 problem(s)"; `tools/linkcheck.py`, 0 problems; `tools/denyscan.py --changed`, 0 hits; `tools/claims.py`, the MADR "23 of 23 pass" and this record "17 of 17 pass"; `make records-check`, 0 problems; `tools/recordlint.py --changed`, no rule rose; `python3 -B tools/gate.py`, "gate: 28 of 28 passed", markdownlint rc 0.
+* **Step 4.** This PLAN `complete` again. The MADR stays `accepted`.
