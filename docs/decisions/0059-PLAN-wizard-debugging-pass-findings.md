@@ -455,4 +455,74 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   the probe's store held `["rt-new"]`, and `go test -race -shuffle=on
   ./wizard/` failed only the paste test's row. The MADR has the
   amendment "a refresh can outlast the listing (Phase 2)".
-* **Not done here:** Phase 2's code, after the owner commits these records.
+* **Records committed** by the owner as `2c52707`, and Phase 2 approved
+  ("committed, proceed").
+* **Steps 1 and 2.** `saveOAuthCredential` is `pendingOAuthCredential(store,
+  provider, session)`: it checks the session and names its provider, and
+  the credential carries the store in a new field, `saveTo`. The browser,
+  device and ChatGPT plan sign-ins call it, and the pasted token through
+  `pendingAccessOnlyOpenAI`, renamed from `saveAccessOnlyOpenAI` since it
+  no longer saves; `resolveTokenStdin`'s context is unused, `_`.
+  `resolveKiloDevice` sets `saveTo` and no longer saves.
+* **Step 3.** `resolvedCredential.save(ctx, d)` runs in `credentialStep`
+  after the refusal loop. It returns at once with no `saveTo`, else waits
+  through the session's `Token(ctx)`, then sets `Store` and saves. A
+  refused refresh or an ended context returns "wizard: the new <Label>
+  session was not saved: …", and a failed save today's "wizard: save OAuth
+  session" or "wizard: save Kilo login". Step 4 needed no code: a kept
+  session has no `saveTo`.
+* **Step 5, the drift check:** the two Scope tests rewritten, as the
+  deviation above found nothing else, `go test -race -count=1 -shuffle=on
+  ./wizard/`: ok.
+* **Step 6, the tests,** `wizard/session_0059_test.go`, seven. A store,
+  `store0059`, records what each save held, not the session's pointer,
+  which the wizard goes on changing. Against `ba45339`'s code, in a scratch
+  clone, five failed:
+
+  ```text
+  --- FAIL: TestSession_RefusedKeepsSaved_0059/an_empty_store (and /a_previous_session)
+      session_0059_test.go:141: saves [{access:oauth-access refresh:oauth-refresh …} {access:at-new refresh:rt-new …}], the store holds OAuthSession{…}; want none, and what it held before
+  --- FAIL: TestSession_RotatedDuringCheckSaved_0059
+      session_0059_test.go:184: saves [{access:oauth-access refresh:oauth-refresh …} {access:at-new refresh:rt-new …}]; want one, of the rotated tokens
+  --- FAIL: TestSession_KiloRefusedNotSaved_0059
+      session_0059_test.go:201: saves [{access:kilo-device-token-0123456789 refresh: …}]; want none
+  --- FAIL: TestSession_RefreshAfterLimitSaved_0059
+      session_0059_test.go:223: saves [{access:oauth-access refresh:oauth-refresh …}]; want one, of the rotated refresh token
+  --- FAIL: TestSession_RefreshRefusedNotSaved_0059
+      session_0059_test.go:238: err <nil>; want one matching ErrAuthFailure, saying the session was not saved
+  ```
+
+  The first shows more than P8 did: the refused listing invalidates the
+  token and refreshes it, and the old code saved that refresh too. The
+  other two, `TestSession_AcceptedSavedOnce_0059` and
+  `TestSession_NoDiscoverSaved_0059`, pass on the old code, which saved
+  once as well; the plants are theirs.
+* **Step 7, the plants** (`tools/plant.py`, a scratch clone), all four
+  caught:
+  * the save moved back before the listing:
+    `TestSession_RefusedKeepsSaved_0059`, both cases, and three more;
+  * the save skipped on success: `TestSession_AcceptedSavedOnce_0059`,
+    "saves []; want one, of the new session, with its Store set", and
+    `TestSession_NoDiscoverSaved_0059`, with three more;
+  * `Store` set before the listing: `TestSession_RefusedKeepsSaved_0059/an_empty_store`,
+    with `TestSession_RotatedDuringCheckSaved_0059` and
+    `TestSession_RefreshAfterLimitSaved_0059`, "saves [{… rt-new …} {…
+    rt-new …}]; want one";
+  * the wait dropped: `TestSession_RefreshAfterLimitSaved_0059`, "saves
+    [{access:oauth-access refresh:oauth-refresh …}]; want one, of the
+    rotated refresh token", and `TestSession_RefreshRefusedNotSaved_0059`.
+* **Deviation (2026-10-24): the refusal test's second case.** The first run
+  of the plants caught `Store` set before the listing, but not by
+  `TestSession_RefusedKeepsSaved_0059`, as step 7 says. With a previous
+  session in the store, the refusal's refresh finds the store holding
+  another refresh token and takes that session (0020-MADR F1's reload),
+  saving nothing. The test gained a case with an empty store, where the
+  refresh is saved, and the plant fails it, as step 7 says. No decision
+  changes.
+* **Step 8, docs:** `docs/architecture.md`, "The wizard";
+  `credentialStep`'s, `resolveKiloDevice`'s and the new functions' docs;
+  `CHANGELOG.md` `[Unreleased]`, Fixed.
+* **The checks:** `make pre-add-check` on the 4 Go files, "4 file(s)
+  clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
+  tools/gate.py`, "gate: 27 of 27 passed".
+* **Not done here:** Phases 3 to 6.

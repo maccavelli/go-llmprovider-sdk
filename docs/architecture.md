@@ -313,8 +313,10 @@ A model no layer knows is not an error; a failed source is joined into
 
 `ConfigureLLM` reads the menu from `Options.Registry`'s descriptors. It takes
 the credential from the `Prompter`, from `Options.LookupEnv`, or from a
-sign-in that saves the session to `Options.TokenStore`. It lists the models
-with `catalog.List`, adding `Options.ProviderOptions`. Two cases go through
+sign-in. A sign-in's session is saved to `Options.TokenStore` once the
+listing has not refused it, after any refresh the listing left running, so a
+refused sign-in leaves the store as it was. It lists the models with
+`catalog.List`, adding `Options.ProviderOptions`. Two cases go through
 a provider's own `ListModels` instead, built from the registry: a ChatGPT
 session, through `openai`, and an id that `catalog` does not list, such as a
 third party's. The menu recommends the whole curated list, best six first,

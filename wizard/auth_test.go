@@ -355,12 +355,12 @@ const jwtShapedAccess = "eyJhbGciOiJub25lIn0.e30.x"
 
 func TestSaveOAuthCredential_RejectsFixture(t *testing.T) {
 	store := newMemoryTokenStore()
-	_, err := saveOAuthCredential(context.Background(), store, llmprovider.ProviderOpenAI, &auth.OAuthSession{
+	_, err := pendingOAuthCredential(store, llmprovider.ProviderOpenAI, &auth.OAuthSession{
 		Access: "chatgpt-access",
 		Issuer: auth.DefaultOpenAIIssuer,
 	})
 	if err == nil || store.saves != 0 {
-		t.Fatalf("saveOAuthCredential() error = %v with %d saves, want an error and no save", err, store.saves)
+		t.Fatalf("pendingOAuthCredential() error = %v with %d saves, want an error and no save", err, store.saves)
 	}
 	if msg := err.Error(); !strings.Contains(msg, "chatgpt-access") && !strings.Contains(msg, "stub") &&
 		!strings.Contains(msg, "refresh") {
@@ -574,8 +574,9 @@ func testJWT(claims string) string {
 
 // TestResolveTokenStdin_ChecksTheCredential (0021-MADR Z10): a pasted OpenAI
 // credential that is another vendor's key, not a JWT, or an expired JWT is
-// refused before anything is saved; a JWT that has not expired is saved as an
-// access-only session, as before.
+// refused before anything is saved; a JWT that has not expired is an
+// access-only session due to the store, which credentialStep saves once the
+// listing has not refused it (0059-MADR W2).
 func TestResolveTokenStdin_ChecksTheCredential(t *testing.T) {
 	d := llmprovider.Descriptor{ID: llmprovider.ProviderOpenAI, Label: "OpenAI"}
 	for _, c := range []struct {
@@ -597,11 +598,12 @@ func TestResolveTokenStdin_ChecksTheCredential(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || res.kind != CredOAuth || store.saves != 1 {
-				t.Fatalf("resolveTokenStdin = %+v, %v with %d saves; want the session saved", res.kind, err, store.saves)
+			if err != nil || res.kind != CredOAuth || res.saveTo != store || store.saves != 0 {
+				t.Fatalf("resolveTokenStdin = %+v, %v with %d saves; want a session due to the store, not yet saved",
+					res.kind, err, store.saves)
 			}
-			if saved := store.sessions[llmprovider.ProviderOpenAI]; saved == nil || !saved.Expiry.IsZero() {
-				t.Errorf("stored %v; want an access-only session with no Expiry", saved)
+			if res.session == nil || !res.session.Expiry.IsZero() {
+				t.Errorf("session %v; want an access-only session with no Expiry", res.session)
 			}
 		})
 	}

@@ -313,9 +313,10 @@ func chooseProvider(p Prompter, o Options) (llmprovider.Descriptor, error) {
 // credentialStep resolves d's endpoint and credential, then lists its models,
 // which checks the credential: a typed key the listing refuses is asked for
 // again, up to maxTypedKeys (0028-MADR D-H10). Each refusal of a typed key
-// without the provider's confirmed shape names the shape (0059-MADR S1). The
-// Result names no model; the catalog is the listing, or the static one
-// (0056-MADR D1).
+// without the provider's confirmed shape names the shape (0059-MADR S1). A new
+// session is saved once the listing has not refused it, so a refused sign-in
+// leaves the store as it was (0059-MADR W2). The Result names no model; the
+// catalog is the listing, or the static one (0056-MADR D1).
 func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (Result, catalog.Catalog, error) {
 	res := Result{Provider: d.ID}
 	var err error
@@ -357,6 +358,9 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		credential.keyFrom = keyTyped
 		res.APIKey = key
 		cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
+	}
+	if err := credential.save(ctx, d); err != nil {
+		return Result{}, catalog.Catalog{}, err
 	}
 	return res, cat, nil
 }

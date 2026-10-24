@@ -50,6 +50,9 @@ type resolvedCredential struct {
 	source       llmprovider.TokenSource
 	vendorPath   string
 	organization string
+	// saveTo is the store a new session is due to: credentialStep saves it
+	// there once the listing has not refused it (0059-MADR W2).
+	saveTo auth.TokenStore
 }
 
 // keySource is where resolveAPIKey found an API key: a service that refuses
@@ -226,7 +229,7 @@ func signIn(
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
 		}
-		return saveOAuthCredential(ctx, o.TokenStore, d.ID, session)
+		return pendingOAuthCredential(o.TokenStore, d.ID, session)
 	case llmprovider.AuthDeviceCode:
 		if d.ID == llmprovider.ProviderKilo {
 			if o.KiloDeviceKey {
@@ -238,7 +241,7 @@ func signIn(
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
 		}
-		return saveOAuthCredential(ctx, o.TokenStore, d.ID, session)
+		return pendingOAuthCredential(o.TokenStore, d.ID, session)
 	default:
 		return resolvedCredential{}, fmt.Errorf("wizard: unsupported authentication method %q", method)
 	}
@@ -280,7 +283,7 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, o Options) (resolvedCre
 	if loginErr != nil {
 		return resolvedCredential{}, loginErr
 	}
-	return saveOAuthCredential(ctx, o.TokenStore, llmprovider.ProviderOpenAI, session)
+	return pendingOAuthCredential(o.TokenStore, llmprovider.ProviderOpenAI, session)
 }
 
 // resolveVendorCLI uses a vendor CLI's login read-through: it checks the
@@ -320,11 +323,13 @@ func resolveVendorCLI(
 }
 
 // resolveKiloDevice runs Kilo's device login (0017-MADR D2). The token has no
-// refresh and no expiry: it is saved to the TokenStore, its only copy, and the
-// session is the Kilo credential (0016-MADR D11, A7). When the account
-// belongs to organizations, the user chooses one, or the personal account;
-// the one Existing names is the default. The profile is read from the
-// endpoint the user entered, with the caller's client (0020-MADR F19, F20).
+// refresh and no expiry: it is due to the TokenStore, its only copy, which
+// credentialStep saves it to once the listing has not refused it (0059-MADR
+// W2), and the session is the Kilo credential (0016-MADR D11, A7). When the
+// account belongs to organizations, the user chooses one, or the personal
+// account; the one Existing names is the default. The profile is read from
+// the endpoint the user entered, with the caller's client (0020-MADR F19,
+// F20).
 func resolveKiloDevice(
 	ctx context.Context,
 	p Prompter,
@@ -339,11 +344,9 @@ func resolveKiloDevice(
 	if session == nil || session.Access == "" {
 		return resolvedCredential{}, errors.New("wizard: Kilo login returned no token")
 	}
-	session.Provider, session.Store = d.ID, o.TokenStore
-	if err := o.TokenStore.Save(ctx, d.ID, session); err != nil {
-		return resolvedCredential{}, fmt.Errorf("wizard: save Kilo login: %w", err)
-	}
+	session.Provider = d.ID
 	cred := oauthCredential(session)
+	cred.saveTo = o.TokenStore
 	var opts []llmprovider.Option
 	if baseURL != "" {
 		opts = append(opts, llmprovider.WithBaseURL(baseURL))
@@ -466,7 +469,7 @@ func validateKept(provider llmprovider.ProviderID, session *auth.OAuthSession) e
 }
 
 func resolveTokenStdin(
-	ctx context.Context,
+	_ context.Context,
 	p Prompter,
 	d llmprovider.Descriptor,
 	o Options,
@@ -488,7 +491,7 @@ func resolveTokenStdin(
 			if err := checkAccessToken(value, time.Now()); err != nil {
 				return resolvedCredential{}, err
 			}
-			return saveAccessOnlyOpenAI(ctx, o, value)
+			return pendingAccessOnlyOpenAI(o, value)
 		}
 	}
 	return staticCredential(CredAPIKey, value), nil
@@ -646,9 +649,8 @@ func checkAccessToken(value string, now time.Time) error {
 	return nil
 }
 
-func saveAccessOnlyOpenAI(ctx context.Context, o Options, access string) (resolvedCredential, error) {
-	return saveOAuthCredential(
-		ctx,
+func pendingAccessOnlyOpenAI(o Options, access string) (resolvedCredential, error) {
+	return pendingOAuthCredential(
 		o.TokenStore,
 		llmprovider.ProviderOpenAI,
 		accessOnlyOpenAISession(access),
@@ -846,8 +848,10 @@ func (s *pastePrompt) drain() {
 	}
 }
 
-func saveOAuthCredential(
-	ctx context.Context,
+// pendingOAuthCredential checks a new session and names it provider's. It is
+// not saved here: credentialStep saves it to store once the listing has not
+// refused it (0059-MADR W2).
+func pendingOAuthCredential(
 	store auth.TokenStore,
 	provider llmprovider.ProviderID,
 	session *auth.OAuthSession,
@@ -859,9 +863,29 @@ func saveOAuthCredential(
 		return resolvedCredential{}, fmt.Errorf("wizard: refusing to save the OAuth session: %w", err)
 	}
 	session.Provider = provider
-	session.Store = store
-	if err := store.Save(ctx, provider, session); err != nil {
-		return resolvedCredential{}, fmt.Errorf("wizard: save OAuth session: %w", err)
+	cred := oauthCredential(session)
+	cred.saveTo = store
+	return cred, nil
+}
+
+// save writes a new session to the store it is due to; a kept session, or a
+// credential that is not a session, has none (0059-MADR W2). It first waits
+// for a refresh the listing left running, past its limit, so that the store
+// gets the rotated tokens, not the spent ones. A session the issuer refuses
+// is not saved.
+func (c resolvedCredential) save(ctx context.Context, d llmprovider.Descriptor) error {
+	if c.saveTo == nil || c.session == nil {
+		return nil
 	}
-	return oauthCredential(session), nil
+	if _, err := c.session.Token(ctx); err != nil && (errors.Is(err, llmprovider.ErrAuthFailure) || ctx.Err() != nil) {
+		return fmt.Errorf("wizard: the new %s session was not saved: %w", d.Label, err)
+	}
+	c.session.Store = c.saveTo
+	if err := c.saveTo.Save(ctx, d.ID, c.session); err != nil {
+		if d.ID == llmprovider.ProviderKilo {
+			return fmt.Errorf("wizard: save Kilo login: %w", err)
+		}
+		return fmt.Errorf("wizard: save OAuth session: %w", err)
+	}
+	return nil
 }

@@ -22,6 +22,15 @@ carry their sections.
   `Options.Discover`, no notice promises a check
   ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
   W1, W3).
+- A sign-in the model listing refuses no longer replaces the saved session.
+  The wizard saved a browser, device, ChatGPT plan, pasted-token or Kilo
+  sign-in to `Options.TokenStore` before the listing checked it, so a
+  refused one took the place of the session that worked. Now the session
+  is saved once the listing has not refused it, after any refresh the
+  listing left running, so the store gets the rotated tokens; a refresh the
+  issuer refuses saves nothing and ends the run
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W2).
 
 ## [v1.22.0] - 2026-10-22
 
