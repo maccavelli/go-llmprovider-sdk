@@ -260,7 +260,8 @@ func TestConfigureLLM_UnusableListingNotice(t *testing.T) {
 		}, nil
 	})}
 	f := newFake(t, fakePrompter{blankSearches: true, selects: []int{providerIdx(t, llmprovider.ProviderClaude), 0}, secrets: []string{testKey}})
-	if _, err := ConfigureLLM(context.Background(), f, Options{Discover: true, HTTPClient: client}); err != nil {
+	if _, err := ConfigureLLM(context.Background(), f, Options{Discover: true, HTTPClient: client,
+		ProviderOptions: []llmprovider.Option{testCache(t)}}); err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
 	want := "live model listing for Claude (Anthropic) is unavailable; search covers the built-in catalog only"

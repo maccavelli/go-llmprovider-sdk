@@ -79,7 +79,7 @@ func TestRefusalNotice_NoProviderText_0056(t *testing.T) {
 	var requests atomic.Int32
 	f := newFake(t, fakePrompter{secrets: []string{"bad-1", "bad-2", "bad-3"}})
 	_, _, err := ResolveCredential(context.Background(), f, Options{Discover: true, DiscoverLimit: 2 * time.Second,
-		HTTPClient: echoRefusals(3, &requests)}, llmprovider.ProviderClaude)
+		HTTPClient: echoRefusals(3, &requests), ProviderOptions: []llmprovider.Option{testCache(t)}}, llmprovider.ProviderClaude)
 	if !errors.Is(err, llmprovider.ErrAuthFailure) {
 		t.Errorf("error %v; want ErrAuthFailure", err)
 	}

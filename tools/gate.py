@@ -88,6 +88,9 @@ CHECKS: list[Check] = [
     *VETS,
     Check("test-race-cover", command(["go", "test", "-race", "-count=1", "-cover", "./..."])),
     Check("test-shuffle", command(["go", "test", "-shuffle=on", "-count=1", "./..."])),
+    # Each test twice in one process: one that reads what its own first run
+    # left in a process-wide cache fails (0058-MADR's amendment of 2026-10-24).
+    Check("test-repeat", command(["go", "test", "-count=2", "./..."])),
     Check("tidy-diff", command(["go", "mod", "tidy", "-diff"])),
     make("lint"),
     make("parity-check"),

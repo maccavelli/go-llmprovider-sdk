@@ -1,6 +1,6 @@
 ---
 status: complete
-date: 2026-10-23
+date: 2026-10-24
 associated-madr: "0058-MADR-test-cache-isolation-for-reused-ports.md"
 decision-makers: repository owner
 ---
@@ -264,6 +264,8 @@ credential unique to the run. Three things show it:
 
 Waits for the owner's answers to Q4 and Q5, and approval. The rules for
 every phase hold, with "the census" meaning, here, its `--any-url` run.
+*(Answered and approved 2026-10-24: Q4 (a), Q5 (a). See the execution
+record.)*
 
 1. **Records.** `tools/records.py status`: this PLAN `in-progress`; the
    MADR's amendment marked decided, with the answers.
@@ -753,3 +755,119 @@ every phase hold, with "the census" meaning, here, its `--any-url` run.
     and 110 to 74 in `catalog`, the 74 each shown to clear. They are not
     listed one by one. P7's census holds their names.
 * **The PLAN is `complete`.** The MADR stays `accepted`.
+
+### Phase 6: a provider's default URL, and a test run twice (2026-10-24)
+
+* **Approval.** The owner committed the amendment as `f99183a`, answered
+  Q4 (a) and Q5 (a), and approved the phase ("committed, Q4 a, Q5 a,
+  proceed").
+* **Step 1.** `tools/records.py status`: this PLAN `in-progress`, dated
+  2026-10-24, with its index row; the MADR's amendment records the
+  answers.
+* **Step 2.** The four tests take `testCache(t)` in `ProviderOptions`, no
+  assertion changed. `go test -race -count=1 -shuffle=on ./wizard/`: ok;
+  `go test -count=2 ./wizard/`: ok, where G1 failed.
+* **Step 3.** `tools/cachecensus.py --any-url`: `ANY_URL_INSTRUMENTS`, the
+  same anchors with each listing write giving `censusKey(key)`;
+  `ANY_URL_HELPERS`, the census functions with no loopback filter and
+  `censusKey`, provider, base URL, organization and fingerprint;
+  `shared_keys`, each key of a package two or more tests wrote; the report
+  and the summary line under the flag, and the default run's unchanged.
+  Four tests in `tools/test_tools.py`; `tools/README.md`'s row.
+* **Step 4.** `tools/gate.py`'s `test-repeat`, `go test -count=2 ./...`,
+  after `test-shuffle`; `TestGateChecks` lists it; `tools/README.md`'s
+  count of checks, which said 25 of 27, now 28. `make tools-test`: 77
+  tests, OK.
+* **Step 5, the plants** (`tools/plant.py`, a scratch clone), all caught:
+  * the cache removed from `TestResolveCredential_AsksNoProviderNoModel_0056`,
+    `go test -count=2` on it: "resolve_0056_test.go:44: catalog live true,
+    usable ["claude-haiku-5-5"], after 0 listings; want the one live
+    listing";
+  * the loopback filter kept under `--any-url`:
+    `test_any_url_has_no_loopback_filter`, "'127.0.0.1' unexpectedly
+    found";
+  * `--any-url`'s listings by base URL again:
+    `test_any_url_reports_each_listing_by_its_whole_key`, "0 != 3 : the
+    listing, the listed set and the show";
+  * a key one test wrote reported as shared:
+    `test_a_key_two_tests_wrote_is_reported`.
+
+  A first spec put a `command` on each plant, which `tools/plant.py` reads
+  only at the spec's top, so both ran the default `go test -count=1
+  ./wizard/` and were "NOT CAUGHT"; split into two specs, each with its
+  command, they were caught as above.
+* **The census, `--any-url` on `./wizard/`:** on `7f75456`'s code, "4
+  test(s)": G2's four, `RefusedTypedKeyIsAskedAgain` with "listed,listing,
+  metadata". On the tree after step 2, "1 test(s)":
+  `TestConfigureLLM_RefusedTypedKeyThreeTimesFails metadata`.
+* **Deviation (2026-10-24): the metadata entry, and six more tests.** The
+  metadata write the census gave `RefusedTypedKeyIsAskedAgain` moved to the
+  next test once that one had its own cache. The opencode metadata URL's
+  entry in the process's store is written by whichever wizard test first
+  lists through that store, and read by every later one; a full run shows
+  one writer. Each of the package's 224 tests run alone, in its own
+  process, on the census's instrumented clone: six write the process's
+  caches, each the metadata entry only, and none a listing (their listings
+  are refused or empty, which are not cached):
+  * `TestConfigureLLM_RefusedTypedKeyThreeTimesFails`,
+    `TestConfigureLLM_RefusedEnvKeyFails` and
+    `TestConfigureLLM_RefusedSavedKeyFails`
+    (`wizard/configure_0028_test.go`);
+  * `TestConfigureLLM_EmptyDiscoveryFallsBackToStatic`
+    (`wizard/configure_test.go`);
+  * `TestRefusalNotice_NoProviderText_0056`
+    (`wizard/describe_0056_test.go`);
+  * `TestResolveCredential_RefusedThreeKeys_0056`
+    (`wizard/resolve_0056_test.go`).
+
+  All six pass at `-count=2`. So the MADR's G2 is incomplete (corrected
+  there), step 2's four are not all of D6's tests, and step 6's "reports
+  no wizard test" cannot be met with them: a stop condition ("a fact of
+  the MADR no longer holds"). Stopped here; the owner's choice is awaited.
+
+  **The owner chose "option 1, extend"** (2026-10-24): the six take
+  `testCache(t)` as the four did, so Q4 (a) covers ten tests, which is D6's
+  rule ("every wizard test that lists or probes through the catalog,
+  whatever the URL") with its list completed. Step 2 gains the six files'
+  tests above; no assertion changes. Relaxing step 6's census criterion to
+  admit the metadata entry was not offered: it would loosen the check.
+* **Step 2, completed.** The six take `testCache(t)`: in
+  `wizard/configure_0028_test.go`, `RefusedEnvKeyFails`' and
+  `RefusedSavedKeyFails`' after their other fields, so that `gofmt` does
+  not realign a line that shares two keys. `go test -race -count=1
+  -shuffle=on ./wizard/`: ok; `go test -count=2 ./wizard/`: ok. The census,
+  `--any-url` on `./wizard/`: "0 test(s) in 0 package(s) wrote a URL into
+  the process's caches; 0 key(s) shared". Each of the 224 tests alone, as
+  before: "0 write the process's caches when run alone".
+* **Step 5, `test-repeat`'s red:** the gate's check itself, as
+  `tools/gate.py` defines it, run on a scratch clone of `7f75456`: exit 1,
+  with G1's lines, "resolve_0056_test.go:44: catalog live true, usable
+  ["claude-haiku-5-5"], after 0 listings" and "resolve_0056_test.go:180:
+  error <nil>; want context.Canceled".
+* **Step 6, the close:**
+  * `make pre-add-check` on the five changed test files: "5 file(s)
+    clean";
+  * the census, `--any-url` over the whole module: 87 tests in 8
+    packages, none in the wizard: 75 of `catalog`'s own, which keep the
+    process's store and clear it (the amendment of 2026-10-23);
+    `TestLiveFetcher` (Phase 2's deviation); transport's five probe-store
+    tests, which clear it; and the deliberate steps of claude, gemini,
+    grok, ollama and openai. Its four shared keys are G3's: Claude's
+    listing and listed set (two `catalog` tests), the opencode metadata URL
+    (eleven), and one probe key (two `transport` tests);
+  * `python3 -B tools/gate.py`, with `test-repeat`, the whole module at
+    `-count=2`: "gate: 28 of 28 passed", `test-repeat` rc 0.
+* **The Confirmation of the MADR's amendment, item by item:**
+  * **"`go test -count=2 ./...` passes, where G1 failed."** Met: the
+    gate's `test-repeat`.
+  * **"A planted removal of the cache from one of G1's tests fails it again
+    at `-count=2`, with G1's text."** Met: step 5's first plant.
+  * **"Under Q5 (a), the census's `--any-url` reports no wizard test, and
+    fails its own test on a planted break."** Met: the close's census, and
+    step 5's three census plants.
+  * **"Under Q5 (a) or (b), the gate's `test-repeat` fails on `7f75456`'s
+    tests and passes after D6."** Met: step 5's red, and the close's gate.
+* **Not done here:** no library code, CI, `Makefile` or `CHANGELOG.md`
+  change, as step 7 says. The catalog, transport and deliberate tests of
+  G3 and G4 are unchanged.
+* **The PLAN is `complete` again.** The MADR stays `accepted`.

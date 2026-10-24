@@ -525,7 +525,13 @@ None of the probes ran in the working tree.
     `TestConfigureLLM_UnusableListingNotice`
     (`wizard/model_select_edge_test.go`). The other two pass at
     `-count=2`, as their assertions do not count listings, but they leave
-    the same kind of entry.
+    the same kind of entry. *(Corrected 2026-10-24, at the PLAN's Phase 6:
+    G2 is incomplete. The census also showed a metadata write at the
+    opencode metadata URL, given to the first of these tests. That entry is
+    written by whichever wizard test first lists through the process's
+    store, and read by every later one, so a full run shows one writer. Run
+    each alone, in its own process, six more wizard tests write it, and
+    nothing else. See the PLAN's deviation of that date.)*
   * **G3.** In that census, four entries are written by more than one
     test: Claude's listing and its listed set at Claude's default URL (two
     `catalog` tests), the opencode metadata URL (eleven `catalog` tests),
@@ -569,6 +575,8 @@ None of the probes ran in the working tree.
     * **(a)** The four of G2 (recommended): the two that fail on a repeat,
       and the two that leave the same entry.
     * **(b)** The two of G1 only.
+
+    **Answered 2026-10-24: (a).**
   * **Q5 (D7). What catches the next one.**
     * **(a)** Both the census's `--any-url` and the gate's `test-repeat`
       (recommended). The repeat catches a test that reads its own entry;
@@ -576,3 +584,8 @@ None of the probes ran in the working tree.
       and a shuffle finds only by chance.
     * **(b)** The gate's `test-repeat` only.
     * **(c)** Neither: the tests of Q4 only.
+
+    **Answered 2026-10-24: (a).**
+* **Decided 2026-10-24.** The owner answered Q4 (a) and Q5 (a) ("committed,
+  Q4 a, Q5 a, proceed"), and approved the PLAN's Phase 6. D6 and D7 stand
+  as proposed above, D7 in both its parts.

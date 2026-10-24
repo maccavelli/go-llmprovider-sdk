@@ -384,7 +384,8 @@ class TestScratchClone(unittest.TestCase):
 class TestGateChecks(unittest.TestCase):
     def test_the_checks_and_their_order(self) -> None:
         want = ["pre-add-check", "vet-darwin", "vet-darwin-live", "vet-linux", "vet-linux-live", "vet-windows",
-                "vet-windows-live", "test-race-cover", "test-shuffle", "tidy-diff", "lint", "parity-check", "dep-check",
+                "vet-windows-live", "test-race-cover", "test-shuffle", "test-repeat", "tidy-diff", "lint", "parity-check",
+                "dep-check",
                 "coverage-check", "api-check", "generate-check", "records-check", "tables-check", "fixtures-check",
                 "changelog-check", "docs-check", "gate-selftest", "markdownlint",
                 "g-wire-stable", "g-links", "deny-scan", "tools-test"]
@@ -593,6 +594,42 @@ class TestCacheCensus(unittest.TestCase):
             self.assertEqual(rc, 2, out.getvalue())
             self.assertIn("llmprovider/catalog/cache.go: anchor found 0 times", out.getvalue())
             self.assertFalse((Path(tmp) / "clone").exists())
+
+    # 0058-MADR's amendment of 2026-10-24, D7: --any-url.
+    SHARED_LOG = [
+        "=== RUN   TestA",
+        "CENSUS listing claude|https://api.anthropic.com||fp1",
+        "CENSUS listed claude|https://api.anthropic.com||fp1",
+        "=== RUN   TestB",
+        "CENSUS listing claude|https://api.anthropic.com||fp1",
+        "CENSUS listing claude|https://api.anthropic.com||fp2",
+        "ok  \texample.com/m/one\t0.1s",
+        "=== RUN   TestC",
+        "CENSUS listing claude|https://api.anthropic.com||fp1",
+        "ok  \texample.com/m/two\t0.1s",
+    ]
+
+    def test_any_url_uses_the_same_anchors(self) -> None:
+        self.assertEqual([(r, o) for r, o, _ in cachecensus.ANY_URL_INSTRUMENTS],
+                         [(r, o) for r, o, _ in cachecensus.INSTRUMENTS])
+        self.assertEqual(cachecensus.check_anchors(_common.ROOT, cachecensus.ANY_URL_INSTRUMENTS), [])
+
+    def test_any_url_reports_each_listing_by_its_whole_key(self) -> None:
+        whole = [n for _, _, n in cachecensus.ANY_URL_INSTRUMENTS if "censusKey(key)" in n]
+        self.assertEqual(len(whole), 3, "the listing, the listed set and the show")
+        self.assertFalse(any("key.baseURL" in n for _, _, n in cachecensus.ANY_URL_INSTRUMENTS))
+        self.assertIn("k.credential", cachecensus.ANY_URL_HELPERS["llmprovider/catalog/zz_cachecensus.go"])
+
+    def test_any_url_has_no_loopback_filter(self) -> None:
+        for rel, text in cachecensus.ANY_URL_HELPERS.items():
+            self.assertNotIn("127.0.0.1", text, rel)
+        for rel, text in cachecensus.HELPERS.items():
+            self.assertIn("127.0.0.1", text, rel)
+
+    def test_a_key_two_tests_wrote_is_reported(self) -> None:
+        self.assertEqual(cachecensus.shared_keys(self.SHARED_LOG, self.MODULE), {
+            "one": {"listing claude|https://api.anthropic.com||fp1": ["TestA", "TestB"]},
+        })
 
 
 class TestClaims(unittest.TestCase):

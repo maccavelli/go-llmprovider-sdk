@@ -27,6 +27,7 @@ func TestResolveCredential_AsksNoProviderNoModel_0056(t *testing.T) {
 	f := newFake(t, fakePrompter{secrets: []string{"good-1"}})
 	res, cat, err := ResolveCredential(context.Background(), f, Options{
 		Discover: true, DiscoverLimit: 2 * time.Second, HTTPClient: claudeRefusals(0, &requests),
+		ProviderOptions: []llmprovider.Option{testCache(t)},
 	}, llmprovider.ProviderClaude)
 	if err != nil {
 		t.Fatalf("ResolveCredential: %v", err)
@@ -54,6 +55,7 @@ func TestResolveCredential_RefusedThreeKeys_0056(t *testing.T) {
 	f := newFake(t, fakePrompter{secrets: []string{"bad-1", "bad-2", "bad-3"}})
 	_, _, err := ResolveCredential(context.Background(), f, Options{
 		Discover: true, DiscoverLimit: 2 * time.Second, HTTPClient: claudeRefusals(3, &requests), TokenStore: store,
+		ProviderOptions: []llmprovider.Option{testCache(t)},
 	}, llmprovider.ProviderClaude)
 	if !errors.Is(err, llmprovider.ErrAuthFailure) || err == nil || !strings.Contains(err.Error(), "refused 3 keys") {
 		t.Fatalf("error %v; want ErrAuthFailure naming 3 keys", err)
@@ -175,7 +177,8 @@ func TestResolveCredential_ErrorKinds_0056(t *testing.T) {
 			cancel()
 			return inner.RoundTrip(r)
 		})
-		_, _, err := ResolveCredential(ctx, f, Options{Discover: true, HTTPClient: client}, llmprovider.ProviderClaude)
+		_, _, err := ResolveCredential(ctx, f, Options{Discover: true, HTTPClient: client,
+			ProviderOptions: []llmprovider.Option{testCache(t)}}, llmprovider.ProviderClaude)
 		if !errors.Is(err, context.Canceled) {
 			t.Errorf("error %v; want context.Canceled, not the static catalog as a checked key", err)
 		}

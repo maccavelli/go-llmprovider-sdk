@@ -17,8 +17,15 @@ packages, and each line is given to the package and top-level test that the
 log's order puts it in. A line from a fetch that outlives its test goes to the
 test after it.
 
+With --any-url (0058-MADR's amendment of 2026-10-24, D7), a write at any URL is
+reported, not only a loopback one, and a listing, a listed set, a show or a
+probe by its whole key: provider, base URL, organization and the credential's
+fingerprint, never the credential. A test that types the key another lists
+with, or that runs twice in one process, reads that entry whatever the URL.
+Each key that more than one test of a package wrote is reported apart.
+
 Usage:
-  tools/cachecensus.py [--src DIR] [--out DIR] [--json] [PACKAGE...]
+  tools/cachecensus.py [--src DIR] [--out DIR] [--json] [--any-url] [PACKAGE...]
 
 PACKAGE defaults to ./... . The log is kept in the output directory.
 
@@ -60,6 +67,12 @@ INSTRUMENTS: list[tuple[str, str, str]] = [
      "\tcensus(s, key)\n"),
 ]
 
+# --any-url's instruments: the same anchors, each listing write giving its
+# whole key (censusKey, in the clone's helper file) rather than its base URL.
+ANY_URL_INSTRUMENTS: list[tuple[str, str, str]] = [
+    (rel, old, new.replace(", c, key.baseURL)", ", c, censusKey(key))")) for rel, old, new in INSTRUMENTS
+]
+
 # New files in the clone, holding the census functions the anchors call.
 HELPERS: dict[str, str] = {
     "llmprovider/catalog/zz_cachecensus.go": """package catalog
@@ -92,6 +105,40 @@ func census(s *ProbeStore, key ProbeKey) {
 """,
 }
 
+# --any-url's helpers: the process's stores at any URL, with the whole key.
+ANY_URL_HELPERS: dict[str, str] = {
+    "llmprovider/catalog/zz_cachecensus.go": """package catalog
+
+import (
+\t"fmt"
+\t"os"
+)
+
+func census(kind string, s *store, key string) {
+\tif s == processStore {
+\t\tfmt.Fprintf(os.Stderr, "CENSUS %s %s\\n", kind, key)
+\t}
+}
+
+func censusKey(k listingKey) string {
+\treturn fmt.Sprintf("%s|%s|%s|%s", k.provider, k.baseURL, k.organization, k.credential)
+}
+""",
+    "llmprovider/internal/transport/zz_cachecensus.go": """package transport
+
+import (
+\t"fmt"
+\t"os"
+)
+
+func census(s *ProbeStore, key ProbeKey) {
+\tif s == nil || s == defaultProbes {
+\t\tfmt.Fprintf(os.Stderr, "CENSUS probes %s|%s||%s\\n", key.Provider, key.BaseURL, key.Credential)
+\t}
+}
+""",
+}
+
 RUN_LINE = re.compile(r"^=== (?:RUN|CONT)\s+(\S+)")
 PACKAGE_LINE = re.compile(r"^(?:ok|FAIL)\s+(\S+)")
 CENSUS_LINE = re.compile(r"^CENSUS (\S+) (\S+)")
@@ -108,13 +155,14 @@ def check_anchors(src: Path, instruments: Sequence[tuple[str, str, str]]) -> lis
     return bad
 
 
-def instrument(clone: Path, instruments: Sequence[tuple[str, str, str]]) -> None:
+def instrument(clone: Path, instruments: Sequence[tuple[str, str, str]],
+               helpers: dict[str, str] | None = None) -> None:
     for rel, old, new in instruments:
         path = clone / rel
         text = path.read_text(encoding="utf-8")
         assert text.count(old) == 1, rel
         path.write_text(text.replace(old, new), encoding="utf-8")
-    for rel, text in HELPERS.items():
+    for rel, text in (HELPERS if helpers is None else helpers).items():
         (clone / rel).write_text(text, encoding="utf-8")
 
 
@@ -139,6 +187,28 @@ def attribute(lines: Sequence[str], module: str) -> dict[str, dict[str, list[str
     return {p: {t: sorted(k) for t, k in sorted(tests.items())} for p, tests in sorted(found.items())}
 
 
+def shared_keys(lines: Sequence[str], module: str) -> dict[str, dict[str, list[str]]]:
+    """package -> "kind key" -> its top-level tests, for each key two or more tests wrote.
+
+    Attributed as attribute() attributes; a line before any test goes to "?".
+    """
+    found: dict[str, dict[str, set[str]]] = {}
+    pending: list[tuple[str, str]] = []
+    current = "?"
+    for line in lines:
+        if m := RUN_LINE.match(line):
+            current = m.group(1).split("/")[0]
+        elif m := CENSUS_LINE.match(line):
+            pending.append((current, f"{m.group(1)} {m.group(2)}"))
+        elif m := PACKAGE_LINE.match(line):
+            name = m.group(1).removeprefix(module + "/")
+            for test, key in pending:
+                found.setdefault(name, {}).setdefault(key, set()).add(test)
+            pending, current = [], "?"
+    return {p: {k: sorted(t) for k, t in sorted(keys.items()) if len(t) > 1}
+            for p, keys in sorted(found.items()) if any(len(t) > 1 for t in keys.values())}
+
+
 def module_path(src: Path) -> str:
     for line in (src / "go.mod").read_text(encoding="utf-8").splitlines():
         if line.startswith("module "):
@@ -153,8 +223,11 @@ def main(argv: list[str] | None = None,
     parser.add_argument("--src", type=Path, default=ROOT, help="the tree to clone (default: this one)")
     parser.add_argument("--out", type=Path, help="the output directory (default: a temporary one)")
     parser.add_argument("--json", action="store_true", help="print the census as JSON")
+    parser.add_argument("--any-url", action="store_true",
+                        help="report writes at any URL, by their whole key, and keys tests share")
     args = parser.parse_args(argv)
-    instruments = INSTRUMENTS if instruments is None else instruments
+    if instruments is None:
+        instruments = ANY_URL_INSTRUMENTS if args.any_url else INSTRUMENTS
     bad = check_anchors(args.src, instruments)
     if bad:
         for line in bad:
@@ -168,7 +241,7 @@ def main(argv: list[str] | None = None,
     except Exception as err:  # noqa: BLE001 - any failure to clone is a tool error
         print(f"cachecensus: clone: {err}", file=sys.stderr)
         return 2
-    instrument(clone, instruments)
+    instrument(clone, instruments, ANY_URL_HELPERS if args.any_url else HELPERS)
     if not wait_load(load_limit(), 1800):
         print("cachecensus: the load average stayed at or above the CPU count", file=sys.stderr)
         return 2
@@ -177,17 +250,28 @@ def main(argv: list[str] | None = None,
                             cwd=clone, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     log = out / "go-test.log"
     log.write_text(result.stdout, encoding="utf-8")
-    census = attribute(result.stdout.splitlines(), module_path(args.src))
+    lines = result.stdout.splitlines()
+    census = attribute(lines, module_path(args.src))
+    shared = shared_keys(lines, module_path(args.src)) if args.any_url else {}
     if args.json:
-        print(json.dumps(census, indent=1))
+        print(json.dumps({"tests": census, "shared": shared} if args.any_url else census, indent=1))
     else:
         for package, tests in census.items():
             print(f"{package}: {len(tests)} test(s)")
             for test, kinds in tests.items():
                 print(f"    {test} {','.join(kinds)}")
+        for package, keys in shared.items():
+            print(f"{package}: {len(keys)} key(s) shared by tests")
+            for key, tests in keys.items():
+                print(f"    {key}: {', '.join(tests)}")
     total = sum(len(t) for t in census.values())
-    print(f"cachecensus: {total} test(s) in {len(census)} package(s) wrote a loopback URL "
-          f"into the process's caches; go test exit {result.returncode}; log {log}", file=sys.stderr)
+    if args.any_url:
+        print(f"cachecensus: {total} test(s) in {len(census)} package(s) wrote a URL "
+              f"into the process's caches; {sum(len(k) for k in shared.values())} key(s) shared; "
+              f"go test exit {result.returncode}; log {log}", file=sys.stderr)
+    else:
+        print(f"cachecensus: {total} test(s) in {len(census)} package(s) wrote a loopback URL "
+              f"into the process's caches; go test exit {result.returncode}; log {log}", file=sys.stderr)
     return 0 if result.returncode == 0 else 1
 
 

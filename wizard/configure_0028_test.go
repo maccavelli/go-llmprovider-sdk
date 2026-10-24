@@ -53,6 +53,7 @@ func TestConfigureLLM_RefusedTypedKeyIsAskedAgain(t *testing.T) {
 	})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Discover: true, DiscoverLimit: 2 * time.Second, HTTPClient: claudeRefusals(2, &requests),
+		ProviderOptions: []llmprovider.Option{testCache(t)},
 	})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
@@ -85,6 +86,7 @@ func TestConfigureLLM_RefusedTypedKeyThreeTimesFails(t *testing.T) {
 	})
 	res, err := ConfigureLLM(context.Background(), f, Options{
 		Discover: true, DiscoverLimit: 2 * time.Second, HTTPClient: claudeRefusals(3, &requests),
+		ProviderOptions: []llmprovider.Option{testCache(t)},
 	})
 	if !errors.Is(err, llmprovider.ErrAuthFailure) || !strings.Contains(err.Error(), "Claude") {
 		t.Fatalf("err = %v; want ErrAuthFailure naming Claude", err)
@@ -113,6 +115,7 @@ func TestConfigureLLM_RefusedEnvKeyFails(t *testing.T) {
 			}
 			return ""
 		},
+		ProviderOptions: []llmprovider.Option{testCache(t)},
 	})
 	if !errors.Is(err, llmprovider.ErrAuthFailure) || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") {
 		t.Fatalf("err = %v; want ErrAuthFailure naming ANTHROPIC_API_KEY", err)
@@ -132,7 +135,8 @@ func TestConfigureLLM_RefusedSavedKeyFails(t *testing.T) {
 	})
 	_, err := ConfigureLLM(context.Background(), f, Options{
 		Discover: true, DiscoverLimit: 2 * time.Second, HTTPClient: claudeRefusals(1, &requests),
-		Existing: Result{Provider: llmprovider.ProviderClaude, Kind: CredAPIKey, APIKey: "saved-key-refused"},
+		Existing:        Result{Provider: llmprovider.ProviderClaude, Kind: CredAPIKey, APIKey: "saved-key-refused"},
+		ProviderOptions: []llmprovider.Option{testCache(t)},
 	})
 	if !errors.Is(err, llmprovider.ErrAuthFailure) || !strings.Contains(err.Error(), "saved") {
 		t.Fatalf("err = %v; want ErrAuthFailure saying the saved key was refused", err)

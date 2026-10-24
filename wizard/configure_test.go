@@ -156,9 +156,10 @@ func TestConfigureLLM_EmptyDiscoveryFallsBackToStatic(t *testing.T) {
 		return nil, errors.New("refused by the test")
 	})}
 	res, err := ConfigureLLM(context.Background(), f, Options{
-		Discover:      true,
-		DiscoverLimit: 2 * time.Second,
-		HTTPClient:    client,
+		Discover:        true,
+		DiscoverLimit:   2 * time.Second,
+		HTTPClient:      client,
+		ProviderOptions: []llmprovider.Option{testCache(t)},
 	})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
