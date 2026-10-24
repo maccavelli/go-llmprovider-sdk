@@ -347,3 +347,65 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   Decision Outcome now names R1 with S1 as chosen.
 * **Not done here:** no code. Phase 1 starts after the owner has committed
   this phase.
+* **Committed** by the owner ("committed, proceed").
+
+### Phase 1: the shape check, by S1 (2026-10-24)
+
+* **Step 1.** `foreignKeyPrefixes` carries each prefix's owners, and the
+  OpenCode shape's are `openCodeOwners`. `keyVendor` returns the vendor
+  and its owners. `foreignKeyVendor` keeps its answers (it returns
+  `keyVendor`'s vendor), and `foreignKeyFor(provider, value)` is new.
+* **Step 2.** `promptAPIKey(p, d, o)` calls a new `warnForeignKey`, in
+  place of `warnKeyShape`, which is removed.
+* **Step 3.** A new `notifyShape` names the shape. `credentialStep` calls it
+  after each refusal notice of a typed key, and before it returns on the
+  last. Claude's shape text names `sk-ant-admin01-` too.
+* **Deviation (2026-10-24): the notices' wording.** Step 2's "not a <Label>
+  key" and step 3's "a <Label> key is <shape>" put "a" before labels that
+  begin with a vowel ("a OpenAI"). The notices read "this looks like
+  <vendor> key, not one for <Label>" and "<Label> API keys look like
+  <shape>; this one does not". What each says, and when, is as written.
+  No decision changes.
+* **Step 4, the drift check:** `go test -count=1 ./wizard/` failed only
+  `TestProviderShapeWarning`, nine lines of "malformed key: notices [];
+  want one warning", as Scope foresaw. Rewritten: each key, of the shape or
+  not, gets no notice, Kilo and Ollama as before. Its check that no notice
+  shows the key went with it, since it now asserts there is no notice. Then
+  `go test -race -shuffle=on ./wizard/`: ok.
+* **Step 5, the tests,** `wizard/shape_0059_test.go`: the four as written.
+  Each lists through its own `testCache(t)`, since Claude's listing is
+  keyed by its default URL and the key's fingerprint, which tests would
+  otherwise share (0058-MADR). Against `2d6e7f3`'s code, in a scratch
+  clone, all four failed:
+
+  ```text
+  --- FAIL: TestShape_AcceptedKeyNoWarning_0059/another_version_tag
+      shape_0059_test.go:59: notices ["this does not look like a Claude (Anthropic) API key (expected sk-ant-api03- and 95 characters ending in AA); the model listing will check it"]; want none for a key the listing accepted
+  --- FAIL: TestShape_ForeignKey_0059
+      shape_0059_test.go:89: claude: its own key: notices ["this does not look like a claude API key (expected …)…"]; want none
+  --- FAIL: TestShape_NoDiscoverNoPromise_0059
+      shape_0059_test.go:113: 0 listings, notices ["this does not look like a Claude (Anthropic) API key (…); the model listing will check it"]; …
+  --- FAIL: TestShape_RefusalNamesShape_0059/without_the_shape
+      shape_0059_test.go:140: 0 notices name the shape; want 3: …
+  ```
+
+* **Step 6, the plants** (`tools/plant.py`, a scratch clone), each caught:
+  * the exact-shape warning put back: `TestShape_AcceptedKeyNoWarning_0059`
+    and the others, "notices ["Claude (Anthropic) API keys look like …"];
+    want none for a key the listing accepted";
+  * the promise without `Discover`: `TestShape_NoDiscoverNoPromise_0059`;
+  * the refusal's shape notice dropped:
+    `TestShape_RefusalNamesShape_0059`, "0 notices name the shape; want 3";
+  * a provider's own prefix taken as foreign. Its first form, `if vendor
+    == ""`, left `owners` unused, so the build failed, which proves
+    nothing. Planted again as `len(owners) == 0 && slices.Contains(…)`,
+    which compiles: `TestShape_AcceptedKeyNoWarning_0059` and
+    `TestShape_ForeignKey_0059` failed, "claude: its own key: notices
+    ["this looks like an Anthropic key, not one for claude; …"]; want
+    none".
+* **Step 7, docs:** `promptAPIKey`'s, `credentialStep`'s and `keyShapes`'
+  docs; `CHANGELOG.md` `[Unreleased]`, Fixed.
+* **The checks:** `make pre-add-check` on the 4 Go files, "4 file(s)
+  clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
+  tools/gate.py`, "gate: 27 of 27 passed".
+* **Not done here:** Phases 2 to 6.

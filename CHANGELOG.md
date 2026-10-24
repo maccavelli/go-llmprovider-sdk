@@ -10,6 +10,19 @@ carry their sections.
 
 ## [Unreleased]
 
+### Fixed
+
+- The wizard no longer says that a key the provider accepts has the wrong
+  shape. A typed key was checked against one exact shape per provider,
+  such as `sk-ant-api03-` and 108 characters for Claude, before the
+  listing; a key of another tag or length that the provider accepted was
+  warned about, and the warning stayed. Now a key is named before the
+  listing only when it is plainly another provider's, and the expected
+  shape is named only once the provider has refused a typed key. Without
+  `Options.Discover`, no notice promises a check
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W1, W3).
+
 ## [v1.22.0] - 2026-10-22
 
 ### Added

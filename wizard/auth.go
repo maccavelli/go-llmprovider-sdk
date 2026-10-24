@@ -494,26 +494,58 @@ func resolveTokenStdin(
 	return staticCredential(CredAPIKey, value), nil
 }
 
-// foreignKeyPrefixes are other vendors' key prefixes, checked in order:
-// sk-ant- and sk-or- before OpenAI's own sk- (0021-MADR Z10; 0028-PLAN D3).
-var foreignKeyPrefixes = []struct{ prefix, vendor string }{
-	{"sk-ant-", "an Anthropic"}, {"sk-or-", "an OpenRouter"}, {"xai-", "an xAI"}, {"tgp_", "a Together"},
-	{"hf_", "a Hugging Face"}, {"api_org_", "a Hugging Face"}, {"AIza", "a Google"}, {"AQ.", "a Google Gemini"},
+// foreignKeyPrefixes are the vendors' key prefixes, checked in order: sk-ant-
+// and sk-or- before OpenAI's own sk- (0021-MADR Z10; 0028-PLAN D3). Each
+// names the providers whose key it is, so that a key is named only when it
+// is another provider's (0059-MADR S1).
+var foreignKeyPrefixes = []struct {
+	prefix, vendor string
+	owners         []llmprovider.ProviderID
+}{
+	{"sk-ant-", "an Anthropic", []llmprovider.ProviderID{llmprovider.ProviderClaude}},
+	{"sk-or-", "an OpenRouter", nil},
+	{"xai-", "an xAI", []llmprovider.ProviderID{llmprovider.ProviderGrok}},
+	{"tgp_", "a Together", []llmprovider.ProviderID{llmprovider.ProviderTogether}},
+	{"hf_", "a Hugging Face", []llmprovider.ProviderID{llmprovider.ProviderHuggingFace}},
+	{"api_org_", "a Hugging Face", []llmprovider.ProviderID{llmprovider.ProviderHuggingFace}},
+	{"AIza", "a Google", []llmprovider.ProviderID{llmprovider.ProviderGemini}},
+	{"AQ.", "a Google Gemini", []llmprovider.ProviderID{llmprovider.ProviderGemini}},
 }
 
-// foreignKeyVendor names the vendor whose key value looks like, with its
-// article, or "". An OpenCode key is sk- like OpenAI's, and is told apart by
-// its shape: 64 letters and digits, with no T3BlbkFJ.
-func foreignKeyVendor(value string) string {
+// openCodeOwners are the providers an OpenCode key is for.
+var openCodeOwners = []llmprovider.ProviderID{llmprovider.ProviderOpencodeZen, llmprovider.ProviderOpencodeGo}
+
+// keyVendor names the vendor whose key value looks like, with its article,
+// and the providers that key is for; "" when it looks like no listed
+// vendor's. An OpenCode key is sk- like OpenAI's, and is told apart by its
+// shape: 64 letters and digits, with no T3BlbkFJ.
+func keyVendor(value string) (string, []llmprovider.ProviderID) {
 	for _, k := range foreignKeyPrefixes {
 		if strings.HasPrefix(value, k.prefix) {
-			return k.vendor
+			return k.vendor, k.owners
 		}
 	}
 	if reOpenCodeKey.MatchString(value) {
-		return "an OpenCode"
+		return "an OpenCode", openCodeOwners
 	}
-	return ""
+	return "", nil
+}
+
+// foreignKeyVendor names the vendor whose key value looks like, with its
+// article, or "".
+func foreignKeyVendor(value string) string {
+	vendor, _ := keyVendor(value)
+	return vendor
+}
+
+// foreignKeyFor names the vendor whose key value looks like when that key is
+// not provider's own, with its article, or "" (0059-MADR S1).
+func foreignKeyFor(provider llmprovider.ProviderID, value string) string {
+	vendor, owners := keyVendor(value)
+	if vendor == "" || slices.Contains(owners, provider) {
+		return ""
+	}
+	return vendor
 }
 
 // reOpenCodeKey is an OpenCode key: sk- and 64 letters and digits (opencode
@@ -524,9 +556,10 @@ var reOpenCodeKey = regexp.MustCompile(`^sk-[A-Za-z0-9]{64}$`)
 // vendors' code and documentation and the secret scanners' rules, checked
 // against the owner's keys by shape only (0028-MADR H10b; 0028-PLAN D3).
 // xAI's length is not confirmed, so only its prefix is checked; Kilo's key is
-// a JWT and Ollama's has no published shape, so neither is checked. A key
-// without its shape is warned about, not refused: the listing decides
-// (0028-MADR D-H10).
+// a JWT and Ollama's has no published shape, so neither is checked. No vendor
+// publishes a full format, and a key the provider accepts may not have its
+// shape, so a shape is named only once the provider has refused a typed key
+// (0059-MADR S1).
 var keyShapes = map[llmprovider.ProviderID]struct {
 	re    *regexp.Regexp
 	shape string
@@ -535,7 +568,7 @@ var keyShapes = map[llmprovider.ProviderID]struct {
 		`^sk-(?:(?:proj|svcacct|admin|None)-[A-Za-z0-9_-]*T3BlbkFJ[A-Za-z0-9_-]+|[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20})$`),
 		"sk-proj-, sk-svcacct- or sk-admin-, holding T3BlbkFJ"},
 	llmprovider.ProviderClaude: {regexp.MustCompile(`^sk-ant-(?:api03|admin01)-[A-Za-z0-9_-]{93}AA$`),
-		"sk-ant-api03- and 95 characters ending in AA"},
+		"sk-ant-api03- or sk-ant-admin01- and 95 characters ending in AA"},
 	llmprovider.ProviderGemini: {regexp.MustCompile(`^(?:AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z_.-]+)$`),
 		"AIza and 35 characters, or an auth key beginning AQ."},
 	llmprovider.ProviderTogether:    {regexp.MustCompile(`^tgp_v1_[A-Za-z0-9_-]{43}$`), "tgp_v1_ and 43 characters"},
@@ -545,15 +578,30 @@ var keyShapes = map[llmprovider.ProviderID]struct {
 	llmprovider.ProviderGrok:        {regexp.MustCompile(`^xai-`), "xai- and letters and digits"},
 }
 
-// warnKeyShape warns when a typed key does not have d's confirmed shape,
-// naming the shape, never the key; the run goes on with it.
-func warnKeyShape(p Prompter, d llmprovider.Descriptor, key string) {
+// warnForeignKey warns when a typed key is plainly another provider's,
+// naming the vendor, never the key; the run goes on with it. Only a run that
+// lists its models says the listing will check it (0059-MADR S1, W3).
+func warnForeignKey(p Prompter, d llmprovider.Descriptor, key string, o Options) {
+	vendor := foreignKeyFor(d.ID, key)
+	if vendor == "" {
+		return
+	}
+	check := ""
+	if o.Discover {
+		check = "; the model listing will check it"
+	}
+	p.Notify(LevelWarn, "this looks like %s key, not one for %s%s", vendor, d.Label, check)
+}
+
+// notifyShape tells the user, once the provider has refused a typed key, that
+// the key does not have d's confirmed shape, naming the shape, never the key.
+// A key with the shape, or a provider with none, gets nothing (0059-MADR S1).
+func notifyShape(p Prompter, d llmprovider.Descriptor, key string) {
 	s, ok := keyShapes[d.ID]
 	if !ok || key == "" || s.re.MatchString(key) {
 		return
 	}
-	p.Notify(LevelWarn, "this does not look like a %s API key (expected %s); the model listing will check it",
-		d.Label, s.shape)
+	p.Notify(LevelWarn, "%s API keys look like %s; this one does not", d.Label, s.shape)
 }
 
 // checkAccessToken refuses a pasted value that is not a ChatGPT access token:

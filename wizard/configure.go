@@ -312,8 +312,10 @@ func chooseProvider(p Prompter, o Options) (llmprovider.Descriptor, error) {
 
 // credentialStep resolves d's endpoint and credential, then lists its models,
 // which checks the credential: a typed key the listing refuses is asked for
-// again, up to maxTypedKeys (0028-MADR D-H10). The Result names no model; the
-// catalog is the listing, or the static one (0056-MADR D1).
+// again, up to maxTypedKeys (0028-MADR D-H10). Each refusal of a typed key
+// without the provider's confirmed shape names the shape (0059-MADR S1). The
+// Result names no model; the catalog is the listing, or the static one
+// (0056-MADR D1).
 func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (Result, catalog.Catalog, error) {
 	res := Result{Provider: d.ID}
 	var err error
@@ -338,11 +340,16 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 
 	cat, listErr := discoverModels(ctx, p, d, res, credential.source, o)
 	for keys := 1; refusedCredential(listErr); keys++ {
-		if credential.keyFrom != keyTyped || keys == maxTypedKeys {
+		typed := credential.keyFrom == keyTyped
+		if !typed || keys == maxTypedKeys {
+			if typed {
+				notifyShape(p, d, credential.apiKey)
+			}
 			return Result{}, catalog.Catalog{}, refusalError(d, credential, keys, listErr)
 		}
 		p.Notify(LevelWarn, "%s refused this key (%s); enter another", d.Label, describe(listErr))
-		key, keyErr := promptAPIKey(p, d)
+		notifyShape(p, d, credential.apiKey)
+		key, keyErr := promptAPIKey(p, d, o)
 		if keyErr != nil {
 			return Result{}, catalog.Catalog{}, keyErr
 		}
@@ -510,19 +517,20 @@ func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, key
 		}
 	}
 
-	key, err := promptAPIKey(p, d)
+	key, err := promptAPIKey(p, d, o)
 	return key, keyTyped, err
 }
 
-// promptAPIKey asks for d's API key, and warns when it does not have the
-// provider's shape (0028-MADR H10b).
-func promptAPIKey(p Prompter, d llmprovider.Descriptor) (string, error) {
+// promptAPIKey asks for d's API key, and warns when it is plainly another
+// provider's (0059-MADR S1). A key's shape is named only once the provider
+// refuses it, in credentialStep.
+func promptAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, error) {
 	key, err := p.Secret(fmt.Sprintf("Enter your %s API key", d.Label))
 	if err != nil {
 		return "", fmt.Errorf("enter API key: %w", err)
 	}
 	key = strings.TrimSpace(key) // a paste's spaces (0020-MADR F18)
-	warnKeyShape(p, d, key)
+	warnForeignKey(p, d, key, o)
 	return key, nil
 }
 

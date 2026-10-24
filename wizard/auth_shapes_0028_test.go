@@ -40,10 +40,11 @@ func TestForeignKey_Researched(t *testing.T) {
 	}
 }
 
-// TestProviderShapeWarning: a typed key without its provider's shape gets a
-// warning naming the shape, never the key, and the run goes on with it; a
-// well-shaped key, and any key for a provider with no confirmed shape, gets
-// none.
+// TestProviderShapeWarning: a typed key is not checked against its
+// provider's shape before the listing: a key without the shape, a well-shaped
+// one, and any key for a provider with no confirmed shape get no notice, and
+// the run goes on with the key. Rewritten by 0059-MADR S1 (Q1 (a)); until
+// then a key without the shape was warned about here (0028-MADR H10b).
 func TestProviderShapeWarning(t *testing.T) {
 	malformed := "not-a-key-" + shaped(shapeAlnum, 20)
 	for _, c := range []struct {
@@ -68,17 +69,8 @@ func TestProviderShapeWarning(t *testing.T) {
 			if err != nil || got != key || from != keyTyped {
 				t.Fatalf("%s: resolveAPIKey = %q, %v, %v; want the typed key", c.id, got, from, err)
 			}
-			warned := f.seenNotify[before:]
-			if i == 0 && (len(warned) != 1 || !strings.Contains(warned[0], "does not look like")) {
-				t.Errorf("%s: malformed key: notices %v; want one warning", c.id, warned)
-			}
-			if i == 1 && len(warned) != 0 {
-				t.Errorf("%s: well-shaped key: notices %v; want none", c.id, warned)
-			}
-			for _, n := range warned {
-				if strings.Contains(n, key) {
-					t.Errorf("%s: a notice shows the key: %q", c.id, n)
-				}
+			if warned := f.seenNotify[before:]; len(warned) != 0 {
+				t.Errorf("%s: key %d: notices %v; want none", c.id, i, warned)
 			}
 		}
 	}
