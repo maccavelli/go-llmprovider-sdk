@@ -117,7 +117,9 @@ func TestShape_NoDiscoverNoPromise_0059(t *testing.T) {
 
 // TestShape_RefusalNamesShape_0059: each refusal of a typed key without the
 // provider's shape names the shape, the last included; a refused key with the
-// shape is not told about its shape. No notice shows a key.
+// shape is not told about its shape. Anthropic's shape is its prefix and a
+// tag, so a refused key of any tag or length, usr- included, is not told
+// either (W14). No notice shows a key.
 func TestShape_RefusalNamesShape_0059(t *testing.T) {
 	for _, c := range []struct {
 		name       string
@@ -126,6 +128,8 @@ func TestShape_RefusalNamesShape_0059(t *testing.T) {
 	}{
 		{"without the shape", "not-a-key-" + shaped(shapeAlnum, 20), maxTypedKeys},
 		{"with the shape", "sk-ant-api03-" + shaped(shapeB64, 93) + "AA", 0},
+		{"a usr- key", "sk-ant-usr-" + shaped(shapeB64, 60), 0},
+		{"an api03- key of another length", "sk-ant-api03-" + shaped(shapeB64, 70), 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			var calls atomic.Int32
@@ -136,7 +140,7 @@ func TestShape_RefusalNamesShape_0059(t *testing.T) {
 			if !errors.Is(err, llmprovider.ErrAuthFailure) {
 				t.Fatalf("err %v; want one matching ErrAuthFailure", err)
 			}
-			if n := countContaining(f.seenNotify, "API keys look like sk-ant-api03- or sk-ant-admin01-"); n != c.wantShapes {
+			if n := countContaining(f.seenNotify, "API keys look like sk-ant-"); n != c.wantShapes {
 				t.Errorf("%d notices name the shape; want %d: %q", n, c.wantShapes, f.seenNotify)
 			}
 			for _, n := range f.seenNotify {

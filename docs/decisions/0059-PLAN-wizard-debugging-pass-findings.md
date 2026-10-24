@@ -1,5 +1,5 @@
 ---
-status: complete
+status: in-progress
 date: 2026-10-24
 associated-madr: "0059-MADR-wizard-debugging-pass-findings.md"
 decision-makers: repository owner
@@ -838,3 +838,48 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
 * **The Verification table:** V1 to V12 by the phases' tests; V13 by
   step 2's `tools/apidiff.py v1.22.0`; V14 by each phase's red run.
 * **The PLAN is `complete`.** The MADR stays `accepted`.
+* **Committed and pushed** by the owner as `9ff2366`.
+
+### Phase 7: Claude's refusal hint by its prefix (2026-10-24)
+
+* **Approval.** The owner committed the amendment as `2897263`, answered
+  Q8 (a), and approved ("q8: option a. committed, proceed.").
+* **Step 1.** `tools/records.py status`: this PLAN `in-progress`; the MADR's
+  amendment records Q8's answer.
+* **Step 2.** `keyShapes`' Claude entry is `^sk-ant-[A-Za-z0-9]+-`, its text
+  "sk-ant- and a tag, such as sk-ant-api03- or sk-ant-usr-"; the doc comment
+  says Anthropic's tag and length vary, so only its prefix and a tag are
+  checked (W14).
+* **The drift check,** before step 3: `go test -race -count=1 -shuffle=on
+  ./wizard/` failed only `TestShape_RefusalNamesShape_0059/without_the_shape`,
+  the test step 3 names, "0 notices name the shape; want 3", the notices
+  now holding the new text.
+* **Step 3.** `TestShape_RefusalNamesShape_0059` counts "API keys look like
+  sk-ant-", the stem of both texts, so that the old code's hints are
+  counted too, and gains "a usr- key" and "an api03- key of another
+  length", each wanting none. Against `2897263`'s code, in a scratch clone,
+  the two new cases failed and the two old ones passed:
+
+  ```text
+  --- FAIL: TestShape_RefusalNamesShape_0059/a_usr-_key
+      shape_0059_test.go:144: 3 notices name the shape; want 0: [… "Claude (Anthropic) API keys look like sk-ant-api0…
+  --- FAIL: TestShape_RefusalNamesShape_0059/an_api03-_key_of_another_length
+      shape_0059_test.go:144: 3 notices name the shape; want 0: […]
+  ```
+
+  A first form counted the new text alone, which the old code never
+  prints, so the new cases would have passed on it; the stem replaced it
+  before the red run.
+* **Step 4.** `go test -race -count=1 -shuffle=on ./wizard/`: ok; `go test
+  -count=2 ./wizard/`: ok.
+* **Step 5, the plants** (`tools/plant.py`, a scratch clone), both caught:
+  * the old exact entry put back: "a usr- key" and "an api03- key of another
+    length", "3 notices name the shape; want 0";
+  * the prefix dropped (an empty pattern, every key matching):
+    "without the shape", "0 notices name the shape; want 3".
+* **Step 6.** `CHANGELOG.md` `[Unreleased]`, Fixed (W14).
+  `docs/architecture.md`'s "the provider's usual shape" holds.
+* **The checks:** `make pre-add-check` on the 2 Go files, "2 file(s)
+  clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
+  tools/gate.py`: "gate: 28 of 28 passed".
+* **Not done here:** Phase 8.

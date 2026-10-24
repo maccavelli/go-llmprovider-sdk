@@ -552,3 +552,5 @@ unconfirmed. Q0 settles it for the owner's key.
 * **Q8 (the release).** (a) Release `v1.22.2` once Phase 7 is committed,
   with Phase 6's steps, and `v1.20.0`'s Release, then sixth, deleted (R53)
   (recommended); (b) hold the change for the next release.
+
+  **Answered 2026-10-24: (a)** ("q8: option a. committed, proceed.").

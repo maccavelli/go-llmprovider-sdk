@@ -561,7 +561,9 @@ var reOpenCodeKey = regexp.MustCompile(`^sk-[A-Za-z0-9]{64}$`)
 // keyShapes are the confirmed shapes of each provider's API key, from the
 // vendors' code and documentation and the secret scanners' rules, checked
 // against the owner's keys by shape only (0028-MADR H10b; 0028-PLAN D3).
-// xAI's length is not confirmed, so only its prefix is checked; Kilo's key is
+// xAI's length is not confirmed, so only its prefix is checked; nor are
+// Anthropic's tag and length, which working keys show to vary (api03, usr),
+// so only its prefix and a tag are (0059-MADR W14). Kilo's key is
 // a JWT and Ollama's has no published shape, so neither is checked. No vendor
 // publishes a full format, and a key the provider accepts may not have its
 // shape, so a shape is named only once the provider has refused a typed key
@@ -573,8 +575,8 @@ var keyShapes = map[llmprovider.ProviderID]struct {
 	llmprovider.ProviderOpenAI: {regexp.MustCompile(
 		`^sk-(?:(?:proj|svcacct|admin|None)-[A-Za-z0-9_-]*T3BlbkFJ[A-Za-z0-9_-]+|[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20})$`),
 		"sk-proj-, sk-svcacct- or sk-admin-, holding T3BlbkFJ"},
-	llmprovider.ProviderClaude: {regexp.MustCompile(`^sk-ant-(?:api03|admin01)-[A-Za-z0-9_-]{93}AA$`),
-		"sk-ant-api03- or sk-ant-admin01- and 95 characters ending in AA"},
+	llmprovider.ProviderClaude: {regexp.MustCompile(`^sk-ant-[A-Za-z0-9]+-`),
+		"sk-ant- and a tag, such as sk-ant-api03- or sk-ant-usr-"},
 	llmprovider.ProviderGemini: {regexp.MustCompile(`^(?:AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z_.-]+)$`),
 		"AIza and 35 characters, or an auth key beginning AQ."},
 	llmprovider.ProviderTogether:    {regexp.MustCompile(`^tgp_v1_[A-Za-z0-9_-]{43}$`), "tgp_v1_ and 43 characters"},

@@ -11,6 +11,16 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Fixed
+
+- When Anthropic refuses a typed key, the wizard no longer says that an
+  `sk-ant-usr-` key, or an `sk-ant-api03-` key of another length, has the
+  wrong shape. Such keys work; the hint now names only the prefix and a
+  tag, "sk-ant- and a tag, such as sk-ant-api03- or sk-ant-usr-", and is
+  shown only for a refused key without them
+  ([0059-MADR](docs/decisions/0059-MADR-wizard-debugging-pass-findings.md)
+  W14).
+
 ## [v1.22.1] - 2026-10-24
 
 ### Fixed
