@@ -377,6 +377,11 @@ A provider in this module is all of the above, and:
     provider's key variable is unset; a suite that is billed per call, or
     needs a person, also takes its own `LLMPROVIDER_LIVE_<ID>` switch, as
     Together's does (`AGENTS.md`, "Live tests");
-  - 80 % coverage from the package's own tests (R47).
+  - 80 % coverage from the package's own tests (R47);
+  - a cache of each test's own: the package's `build` adds `testCache(t)`,
+    as the other provider packages' `helpers_test.go` do, and a test that
+    calls `catalog` itself passes the same one, so that no test reads what
+    another, or its own earlier run, left in the process's cache (0058-MADR
+    D1, D2).
 - **The docs:** `docs/architecture.md` (the tree, the package table and the
   provider list) in the same change (R43).

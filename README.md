@@ -265,10 +265,13 @@ endpoint, a credential and a model, through a `Prompter` you implement or
 `wizard.NewTextPrompter`. It never writes configuration and never logs a
 key.
 
-- A sign-in saves its session to `Options.TokenStore` and returns a
-  `CredOAuth` `Result` with no token; the caller loads it from the store.
-  With `Options.Existing` naming such a session, the wizard offers to keep
-  it before asking how to sign in. Without a `TokenStore`, only the methods
+- A sign-in saves its session to `Options.TokenStore`, once the model
+  listing has not refused it, and returns a `CredOAuth` `Result` with no
+  token; the caller loads it from the store. A refused sign-in leaves the
+  store as it was. With `Options.Existing` naming such a session, the
+  wizard checks it and offers to keep it before asking how to sign in; one
+  that cannot be used is not offered, and a notice says why. Without a
+  `TokenStore`, only the methods
   that save no session are offered: the API key, a vendor CLI's login, and
   a pasted Grok key.
 - With `Options.AgentName`, your app's own name, OpenAI also offers "Use
@@ -286,7 +289,8 @@ key.
   answers ends instead of looping. In a hidden entry, Ctrl-U clears what was
   typed and Ctrl-C cancels.
 - A base URL needs `http://` or `https://` and a host, and no user name,
-  query or fragment. Plain `http` to a remote host asks first. A pasted
+  query or fragment. Plain `http` to a remote host asks first, or, under
+  `Options.NoEndpointPrompt`, is used with a warning. A pasted
   OpenAI credential must be an `sk-` key or an unexpired ChatGPT access
   token; another vendor's key is refused.
 - With `Options.Discover`, it lists the provider's models once, within
@@ -296,7 +300,9 @@ key.
   A blank search shows the recommendations. A glob such as `kilo-auto/*` or
   `*llama*` matches whole ids, and other queries match loosely, in the
   listing's order among equal matches. A search that matches nothing offers
-  the query itself as the model id. Scripts that
+  the query itself as the model id. A saved fallback the menu does not
+  recommend is offered after the recommendations, marked "saved" and
+  preselected. Scripts that
   drive the wizard answer one extra, blank, line before each model and
   fallback selection.
 - The menu is `Options.Registry`, every built-in provider when nil, so a

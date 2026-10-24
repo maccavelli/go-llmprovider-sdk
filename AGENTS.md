@@ -168,6 +168,10 @@ changelog-check gate-selftest`; a tag always runs CI in full
   identifier scan and the link check.
 - `tools/apidiff.py OLD [NEW]`, `tools/liveskips.py`,
   `tools/consumer.py` and `tools/offline.py` serve a release's record.
+- `tools/cachecensus.py [--any-url]` reports the tests that write the
+  process's catalog caches, on a scratch clone: a loopback URL by default,
+  and with `--any-url` any URL, by the whole key, with each key two tests
+  share (0058-MADR D5, D7).
 - `tools/records.py add RECORD...` and `status RECORD STATUS` change a
   record's status and its index row together; `tools/recordlint.py
   --changed` reports the markdownlint findings an edit adds to a record;
@@ -184,6 +188,14 @@ changelog-check gate-selftest`; a tag always runs CI in full
 Write every script, loops and waits included, in Python, not shell. A
 script worth running twice belongs in `tools/`, with a test in
 `tools/test_tools.py`; `make tools-test` runs them.
+
+A test that lists or probes models through the catalog gives its calls a
+cache of their own, so that no other test, and no second run of itself,
+reads what it leaves: `testCache(t)` in `Options.ProviderOptions` in the
+wizard, and each provider package's `build`, which adds it. Only a step
+that tests the process's cache on purpose uses it, under a credential
+unique to the run (0058-MADR D1, D6). `tools/gate.py`'s `test-repeat` and
+`tools/cachecensus.py --any-url` find a test that does not.
 
 ## Live tests
 

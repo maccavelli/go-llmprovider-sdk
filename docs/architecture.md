@@ -799,7 +799,9 @@ for a session, from the store.
 ## The wizard
 
 `ConfigureLLM(ctx, p, opts)` walks provider → base URL → credential → model →
-fallbacks and returns a `Result`; it writes no configuration. It renders
+fallbacks and returns a `Result`; it writes no configuration. On a `ctx`
+that has already ended it returns that error before asking anything, as
+`ResolveCredential` does (0059-MADR W8). It renders
 nothing itself: everything goes through the `Prompter` interface (`Select`,
 `MultiSelect`, `Confirm`, `Input`, `Secret`, `Notify`). `TextPrompter`
 implements it over a terminal with `golang.org/x/term`. OAuth and other
@@ -816,6 +818,15 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   `Options.TokenStore` and returns a `CredOAuth` `Result` with no token; the
   consumer loads the session from the store. Keeping an existing session
   reads it there too (0016-MADR D11, A7, A10).
+- **When a session is saved.** A new session is saved once the model
+  listing has not refused it, after any refresh the listing left running,
+  so a refused sign-in leaves the store as it was and the store gets
+  rotated tokens, never spent ones. A refresh the issuer refuses saves
+  nothing and ends the run (0059-MADR W2).
+- **Keeping a saved session.** With `Options.Existing` naming one, the
+  session is checked before it is offered. One that cannot be used, such
+  as an expired one with no refresh token, is not offered: a notice says
+  why, and the sign-in menu follows (0059-MADR W6).
 - **Kilo.** A Kilo device login saves its token the same way, offers the
   account's organizations, and puts the choice in `Result.Organization`.
   With `Options.KiloDeviceKey` it returns the token as a `CredAPIKey`
@@ -828,7 +839,9 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
 - **`Options.SkipMethods`** leaves sign-in methods out of every menu, and
   a provider it leaves with none is an error. **`Options.NoEndpointPrompt`**
   asks no endpoint: `Existing`'s, else the default, is checked and used, and
-  a failure is returned (0056-MADR D4). **`Options.NoPastePrompt`**, for a
+  a failure is returned (0056-MADR D4). A plain-`http` URL to a remote host
+  is used there with a warning notice, since nobody is asked (0059-MADR W9).
+  **`Options.NoPastePrompt`**, for a
   caller with no terminal, starts no paste prompt in a browser sign-in: the
   URL is shown and opened, and the loopback alone completes it, the ChatGPT
   plan's included (0057-MADR D2).
@@ -836,6 +849,10 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   against a paste prompt. An empty paste is asked again; when the loopback
   wins, a read still waiting is finished by one Enter, which the wizard asks
   for, before any other prompt (0008-MADR's amendment; 0057-MADR D4). A
+  `Prompter` that answers at once with nothing is asked three times, each
+  answer within 50 ms; then a notice says so, and the wizard waits for the
+  browser or the sign-in's limit, while a person's slower Enter is still
+  asked again (0059-MADR W5). A
   `Prompter` that can give up a read implements **`InputerContext`**: the
   paste prompt, and no other, goes to its `InputContext`, whose context the
   wizard ends when the loopback wins, and no Enter is asked for unless the
@@ -848,12 +865,17 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   Its JSON keeps the key, for the consumer to persist (0016-MADR A9).
 - **What it accepts.** A remote provider's base URL must be `http` or
   `https` with a host, and carry no userinfo, query or fragment; plain
-  `http` to a host that is not loopback is used only once confirmed. A
+  `http` to a host that is not loopback is used only once confirmed, except
+  under `NoEndpointPrompt`. A
   pasted OpenAI credential that is another vendor's key, or not a JWT, or
-  an expired one, is refused before anything is saved. A typed key without
-  its provider's published shape is warned about, not refused.
+  an expired one, is refused before anything is saved. A typed key's shape
+  is not checked before the listing, which decides: only a key that is
+  plainly another vendor's is named then, with the listing's check promised
+  only under `Options.Discover` (0059-MADR S1, W1, W3).
 - **A refused key.** When the listing refuses a typed key, the wizard asks
-  for another, up to three keys, then returns an error. A refused key from
+  for another, up to three keys, then returns an error. Each refusal of a
+  typed key without the provider's usual shape names that shape, the last
+  included, and never the key (0059-MADR S1). A refused key from
   the environment or `Options.Existing`, or a refused session or CLI login,
   is an error naming that source. Any other listing failure falls back to
   the built-in catalog, with a warning. Every notice that reports a service's
@@ -864,7 +886,13 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
 - **`TextPrompter`** strips control characters from what `Notify` writes.
   Its masked entry redraws only when its input has caught up, pads rather
   than erasing the line, ignores a lone Escape, clears on Ctrl-U, and
-  cancels on Ctrl-C with an error matching `context.Canceled`.
+  cancels on Ctrl-C with an error matching `context.Canceled`. A cursor or
+  function key, or a paste's bracket marker, adds nothing, even when its
+  escape sequence is split across reads (0059-MADR W4).
+- **Fallbacks.** The fallback round preselects the saved fallbacks it
+  offers. A saved one that the menu does not recommend is offered too,
+  after the recommendations, marked "saved", so a blank answer keeps it
+  (0020-MADR F50; 0059-MADR W7).
 
 ## Identity
 
@@ -883,7 +911,8 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 - **`make` targets:** `test`, `test-sum`, `fmt`, `vet`, `lint`, `tidy`,
   `vuln`, `pre-add-check`, `parity-check`, `dep-check`, `coverage-check`,
-  `api-check`, `generate-check`, `records-check`, `gate-selftest`,
+  `api-check`, `generate-check`, `records-check`, `tables-check`,
+  `fixtures-check`, `changelog-check`, `docs-check`, `gate-selftest`,
   `tools-test`, `help`.
   `lint` runs golangci-lint twice: for the host and with `GOOS=windows`, so the
   `_windows.go` files are linted. Its `nolintlint` requires every `//nolint`
@@ -934,9 +963,10 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
   `--next` prints the next record number.
 - **`gate-selftest`** (`scripts/test_gates.py`, standard-library
-  `unittest`) copies the tree, plants one breach per gate (dep-check,
-  generate-check, parity-check, coverage-check, api-check, records-check),
-  and requires each gate to fail, then every gate to pass on a clean copy.
+  `unittest`) copies the tree, plants breaches of each gate (dep-check,
+  generate-check, parity-check, coverage-check, api-check, records-check,
+  tables-check, fixtures-check, docs-check, changelog-check), and requires
+  each to fail, then every gate to pass on a clean copy.
 - **G-wire** is `TestWireGoldens` in each provider package, part of
   `go test`. Through `llmprovider/internal/wirecase` it drives 18 provider
   and gateway-route cases through seven scenarios (text, forced tool,
@@ -958,11 +988,17 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   standard library. `tools/gate.py` runs every local check on a scratch
   clone of the working tree, once the load average is below the CPU count:
   the checks above, `go vet` for three platforms with and without
-  `live_gateways`, markdownlint, the link check, the identifier scan, and
-  `tools-test`. `make tools-test` (`tools/test_tools.py`) proves each tool
-  fails on a planted input. CI runs neither. 0047-MADR added `records.py`
-  (a record's status and index row), `recordlint.py` (an edit's new
-  markdownlint findings) and `claims.py --plants`, and the CI gate
+  `live_gateways`, the suite shuffled and again with every package run
+  twice in one process (`test-repeat`, which fails on a test that reads what
+  its own first run left in a process-wide cache; 0058-MADR's amendment of
+  2026-10-24), markdownlint, the link check, the identifier scan, and
+  `tools-test`. `tools/cachecensus.py` reports the tests that write the
+  process's catalog caches, `--any-url` at any URL and with the keys two
+  tests share (0058-MADR D5, D7). `make tools-test`
+  (`tools/test_tools.py`) proves each tool fails on a planted input. CI
+  runs neither. 0047-MADR added `records.py` (a record's status and index
+  row), `recordlint.py` (an edit's new markdownlint findings) and
+  `claims.py --plants`, and the CI gate
   `fixtures-check` (`scripts/check_fixtures.py`).
 - **CI** (`.github/workflows/ci.yml`) runs on Linux, macOS and Windows, with
   the Go version read from `go.mod`, on each push to `main`, each pull

@@ -147,3 +147,58 @@ sentence traced to the test that shows it, and nothing but docs changed.
   index rows.
 * **Not done here:** Phase 1 starts after the owner has committed this
   phase.
+* **Committed** by the owner as `796f591` ("committed, proceed").
+
+### Phase 1: the docs (2026-10-24)
+
+* **Step 1, A (D1).** `docs/architecture.md`, "The wizard": the opening
+  paragraph says an ended `ctx` returns before any question (A6, W8); two
+  bullets after "One copy of a session", "When a session is saved" (A4,
+  W2) and "Keeping a saved session" (A4, W6); `NoEndpointPrompt`'s
+  plain-http warning (A2); the paste prompt's three quick empties (A3);
+  "What it accepts": plain http "except under `NoEndpointPrompt`", and the
+  shape sentence replaced (A1); "A refused key": the shape named on each
+  refusal of a typed key without it (A1); "`TextPrompter`": a split escape
+  sequence (A5); a new bullet, "Fallbacks" (A6, W7). `README.md`, "The
+  configuration wizard": the session bullet (A4), the base-URL bullet
+  (A2), the saved-fallback sentence (A6). Each sentence was written
+  against the code read at `9ff2366`: `credentialStep` and
+  `resolvedCredential.save`, `keepExistingOAuth`, `validateBaseURL`,
+  `pastePrompt.input`, `warnForeignKey` and `notifyShape`, `escapeState`,
+  `selectFallbacks`, and `ConfigureLLM`'s first check.
+* **Step 2, the trace.** Each test of the table exists, once, in
+  `wizard/`, and A4 also has `TestSession_RefreshRefusedNotSaved_0059`, for
+  "A refresh the issuer refuses saves nothing and ends the run":
+
+  | Finding | Sentence | Test |
+  | :--- | :--- | :--- |
+  | A1 | the shape not checked before the listing; another vendor's key named | `TestShape_AcceptedKeyNoWarning_0059`, `TestShape_ForeignKey_0059`, `TestShape_NoDiscoverNoPromise_0059` |
+  | A1 | the shape named on each refusal | `TestShape_RefusalNamesShape_0059` |
+  | A2 | plain http under `NoEndpointPrompt`, with a warning | `TestBaseURL_NoPromptPlainHTTP_0059` |
+  | A3 | three quick empties, then a notice and the wait; a slow Enter asked again | `TestPaste_QuickEmptiesStop_0059`, `TestPaste_SlowEmptyAskedAgain_0059` |
+  | A4 | saved once the listing has not refused it, with the rotated tokens | `TestSession_RefusedKeepsSaved_0059`, `TestSession_AcceptedSavedOnce_0059`, `TestSession_RefreshAfterLimitSaved_0059`, `TestSession_RefreshRefusedNotSaved_0059` |
+  | A4 | a saved session checked first, an unusable one not offered | `TestKept_UnusableNotOffered_0059`, `TestKept_UsableStillOffered_0059` |
+  | A5 | a split escape sequence adds nothing | `TestReadMasked_SplitEscape_0059`, `TestReadMasked_Keys` |
+  | A6 | a saved fallback offered, marked and kept | `TestFallbacks_SavedOffered_0059`, `TestFallbacks_SavedOnlyRound_0059` |
+  | A6 | an ended context asks nothing | `TestConfigure_EndedContextAsksNothing_0059` |
+
+* **Step 3, B (D2).** `docs/architecture.md`'s account of `tools/gate.py`
+  names `test-repeat`, and `tools/cachecensus.py` with `--any-url`.
+  `AGENTS.md`'s tool list gains `tools/cachecensus.py [--any-url]`, and a
+  paragraph after the tools states the cache rule (Q2 (a)).
+  `docs/guides/adding-a-provider.md`'s tests gain the rule for a provider
+  package; the nine provider packages' `helpers_test.go` each hold
+  `testCache`, as it says.
+* **Step 4, C (D3).** The `make` target list matches the Makefile's
+  `.PHONY`, `all` aside; the `gate-selftest` bullet names the ten gates
+  `scripts/test_gates.py` plants (its `assertFails` calls name dep-check,
+  generate-check, parity-check, coverage-check, api-check, records-check,
+  tables-check, fixtures-check, docs-check and changelog-check).
+* **Step 5, the checks:** `make docs-check`, "sdkaudit: 0 violation(s) of
+  R50,R51,R52"; `make tables-check`, "38 packages, 0 problem(s)";
+  `tools/linkcheck.py`, 0 problems; `tools/denyscan.py --changed`, 0 hits;
+  no line the change adds is longer than 82 characters; `python3 -B
+  tools/gate.py`: "gate: 28 of 28 passed", markdownlint rc 0.
+* **`git diff --stat`:** `AGENTS.md`, `README.md`, `docs/architecture.md`,
+  `docs/guides/adding-a-provider.md` and this record; nothing else (V5).
+* **Not done here:** Phase 2.
