@@ -9,7 +9,9 @@ decision, in
 [0016-MADR-provider-auth-and-support-baseline.md](../decisions/0016-MADR-provider-auth-and-support-baseline.md)
 ("0016 D*n*"), and R49 to R55 and the reasons for R14, R15 and R19 in
 [0048-MADR-adopt-go-sdk-best-practices.md](../decisions/0048-MADR-adopt-go-sdk-best-practices.md)
-("0048 D*n*", "0048 X*n*").
+("0048 D*n*", "0048 X*n*"), and R56 in
+[0062-MADR-learn-thinking-parameters-from-refusals.md](../decisions/0062-MADR-learn-thinking-parameters-from-refusals.md)
+("0062 D*n*").
 
 **The tree meets these rules.** Phase S11 of
 [0015-PLAN-canonical-sdk-api-and-module-layout.md](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
@@ -342,6 +344,18 @@ These rules are
   lists each one in its record with the call site that needs it; `make
   api-check` lists every addition. (0048 D7)
 
+## Thinking parameters
+
+This rule is
+[0062-MADR-learn-thinking-parameters-from-refusals.md](../decisions/0062-MADR-learn-thinking-parameters-from-refusals.md)'s
+("0062 D*n*"), as its amendment "R56's scope" words it.
+
+- **R56. No per-model name rule decides a thinking parameter:** a thinking
+  shape, an effort or a budget. The model's facts and its learned refusals
+  do, then the request (`wire.Ladder`, `wire.Learner`); a rule that a
+  service's refusal cannot replace stays as a wire mapping, cited and listed
+  under the provider's Degradations. (0062 D1, D2, D8)
+
 ## Checks
 
 | Rule | Checked by | From |
@@ -358,6 +372,7 @@ These rules are
 | R50–R52 | `make docs-check` (`sdkaudit -check`) | 0048-PLAN Phase 6 |
 | R53 | `make changelog-check` | 0048-PLAN Phase 5 |
 | R54 | `go.mod`'s `go` line, which CI's `go-version-file` reads | 0048-MADR A1, 0055-MADR |
+| R56 | `git grep -n -w` of each thinking rule 0062 removed, which 0062-PLAN Phase 6's record names: none found | 0062-MADR Confirmation |
 
 An S*n* phase is 0015-PLAN's. The other rules are held by review against this
 guide.

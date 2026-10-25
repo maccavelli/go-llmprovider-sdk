@@ -290,10 +290,10 @@ layers without waiting, and starts a refresh where one is missing or stale.
 `CachedFacts` is what a request reads (0041-MADR D1, A3): the same merge,
 from the caches alone, starting no fetch. A provider passes its request's
 own token, so its token source is asked once per request. Every built-in
-provider reads it once per request for its output limit; Claude and
-OpenCode's messages route for the thinking shape; Gemini and OpenCode's
-google route for the level; Grok for its efforts; and Together, Hugging
-Face and Ollama for the replay field, `ModelReasoning.ReplayField`. A
+provider reads it once per request for its output limit and the efforts
+the model takes; Claude and OpenCode's messages and google routes for the
+thinking shape; and Together, Hugging Face and Ollama for the replay field,
+`ModelReasoning.ReplayField`. A
 refusal the model returned outranks the facts: the effort and the thinking
 shape sent are those it has not refused, then those its facts list, then
 the request's (0062-MADR D2, D3). With no facts, the request decides.
@@ -417,16 +417,27 @@ for a session, from the store.
   a named tool, or for `ToolChoiceRequired` under `ForcedChoiceDegrade`.
   Otherwise the refusal is returned as `ErrUnsupported`. A stream is resent
   only when it fails to open, before any event (D3).
-- A request's reasoning effort is decided in order by what the model
+- A request's thinking settings are decided in order by what the model
   refused, the memo's and the caller's `WithReasoningRefusals`, then its
-  facts, then the request, along `wire.Ladder` (0062-MADR D2, D3). A refusal
-  of the effort sent is read by its wire's matcher, built from the refusals
-  0062-PLAN Phase 1 recorded, learned by `wire.Learner` in `wire.Send` and
+  facts, then the request, and no rule of model names (0062-MADR D2; R56):
+  the effort along `wire.Ladder`; and on the Messages wire and
+  generateContent the shape, the facts' or the request's, else the other
+  when the model refused it (`Learner.Shape`, D3). A refusal of the effort
+  or the shape sent is read by its wire's matcher, built from the refusals
+  0062-PLAN recorded, learned by `wire.Learner` in `wire.Send` and
   `wire.StreamEventsRetry`, and the request built again, at most
-  `wire.MaxSends` (7) sends in all, a forced-choice refusal counted in them
-  (D4, D5). Ollama has no matcher, no refusal of an effort it can send
-  having been recorded, and learns nothing; a refusal passed back still
-  steers it (0062-MADR, amendment "Phase 5's Ollama cases").
+  `wire.MaxSends` (7) sends in all, a forced-choice refusal counted in them;
+  a stream is sent again only before its first event (D4, D5). Ollama has
+  no matcher, no refusal of an effort it can send having been recorded, and
+  learns nothing; a refusal passed back still steers it (0062-MADR,
+  amendment "Phase 5's Ollama cases").
+- The memo, `wire.Learned`, is a `catalog.Cache`'s, or the process's: keyed
+  by provider, base URL without a trailing slash and the model in lower
+  case, it holds at most 256 models, the oldest dropped, and is never
+  written to disk, so a restart forgets it. A caller keeps what it wants as
+  each `WarningReasoningLearned`'s `Refused`, and passes it back on its next
+  start; `llmprovider.ProbeReasoning` learns a model's refusals ahead of
+  use, with one generation at `EffortMax` (0062-MADR D5 to D7).
 - `Response.Usage` is decoded from every wire format that reports it. A
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and

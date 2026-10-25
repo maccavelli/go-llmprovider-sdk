@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-24
+status: complete
+date: 2026-10-25
 associated-madr: "0062-MADR-learn-thinking-parameters-from-refusals.md"
 decision-makers: repository owner
 ---
@@ -1275,3 +1275,52 @@ Done; staged for the owner's commit. Phase 4 is committed as `c9db48b`.
   `tools/linkcheck.py`.
 * **The gate:** "gate: 28 of 28 passed".
 * **Staged:** this phase's paths, Ollama's five fixtures among them.
+
+### Phase 6: the standard and the close (2026-10-25)
+
+Done; staged for the owner's commit. Phase 5 is committed as `dc7e3b0`.
+
+* **Stop 2026-10-25, before step 1: R56 as D11 words it is broader than
+  the tree.** "No per-model name rule decides a request parameter" holds
+  for thinking, and not elsewhere: deferred tools are native from Claude 4.5
+  and GPT-5.4 (0040-MADR; `internal/wire/deferral/deferral.go:95`, `:100`),
+  forced choice reads a table of Claude models (0034-MADR;
+  `internal/wire/messages/forcing.go`), Kilo sends `cache_control` to
+  `anthropic/` models (0039-MADR D4; `providers/kilo/kilo.go:394`), and
+  OpenCode routes by model prefix (`providers/opencode/route.go:123-153`).
+  The guide is normative and says the tree meets every rule. Resolutions
+  offered: scope R56 to thinking parameters (recommended); keep it general
+  and list the four as wire mappings under their packages' Degradations;
+  defer R56 to a new record. **The owner chose to scope it to thinking,**
+  as the MADR's amendment "R56's scope" records.
+* **R56's check, before it is written:** a search of every Go file for each
+  thinking rule this record removed, `claudeAdaptiveOnly`, `minimaxAdaptiveThinking`, `geminiLegacyRE`, `dynamicThinkingBudget`, `effortMenu`, `clampReasoningEffort`, `thinkingLevelFor`, `maxOnRoute`, `ResolveMax`, `MaxEffort`, `EffortWarning` and `maxEffort`, by `git grep --no-index -n -w`
+  (the scratchpad's `p6_grep.py`): each exit 1, none found. Seen to fail:
+  run on a directory holding `func claudeAdaptiveOnly(string) bool`, it
+  finds that line (`claudeAdaptiveOnly: exit 0, 1 hit(s)`) and exits 1; and
+  by `tools/plant.py`, the function planted back in `providers/claude`,
+  caught. No other thinking rule of model names is left: the providers read
+  the facts, the memo and the request alone (Phases 2, 3 and 5).
+* **Step 1:** `docs/guides/api-standards.md` gains R56, as the amendment
+  "R56's scope" words it, in a section of its own, "Thinking parameters";
+  its introduction names 0062-MADR beside 0015, 0016 and 0048; and its
+  Checks table gains R56's row, the search above.
+* **Step 2:** `docs/architecture.md`. The order of authority was written in
+  Phase 3, by the owner's "fix all docs"; this phase adds the shape's ladder
+  beside the effort's, a stream sent again only before its first event, and
+  the memo (its key, its bound of 256 models, never on disk, the caller's
+  `Refused` and `ProbeReasoning`), each against the code
+  (`internal/wire/learn.go`'s `learnedLimit` and `LearnedKey`). The facts'
+  paragraph said that Grok alone reads the efforts; every provider has since
+  Phase 2, Ollama since Phase 5.
+* **Step 3:** this MADR `accepted` and this PLAN `complete`, by
+  `tools/records.py status`, each with its index row.
+* **Step 4:** 0061-PLAN's record notes Phase 5's rework of Ollama, and that
+  it resumes at its Phase 4.
+* **Checks,** each exit 0: `make tables-check parity-check docs-check`;
+  `markdownlint-cli2` on the guide and the architecture; `make records-check
+  changelog-check`, "133 records, 0 problem(s)"; `tools/claims.py` on 0062's
+  MADR, 41 of 41, and 0061's, 58 of 58; `tools/recordlint.py --changed`;
+  `tools/denyscan.py --changed`; `tools/linkcheck.py`. No Go file changed.
+* **The gate:** "gate: 28 of 28 passed".
+* **Staged:** this phase's six paths.

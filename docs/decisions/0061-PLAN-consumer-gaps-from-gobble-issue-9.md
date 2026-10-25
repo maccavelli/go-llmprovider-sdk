@@ -638,3 +638,14 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
   and their `effort-max` goldens follow.
 * **Not done here:** Phases 4 to 8. They follow 0062-PLAN (the MADR's
   amendment "D3 reworked by 0062").
+* **Reworked by 0062-PLAN Phase 5 (2026-10-25),** committed as `dc7e3b0`:
+  Ollama takes its effort from 0062's ladder too, and `xhigh` is sent as
+  asked; `ResolveMax`, `MaxEffort` and `EffortWarning` are removed, and with
+  them `TestResolveMax_Rules_0061` and `TestMaxEffort_Warning_0061`.
+  `TestEffortMax_Mapping_0061`'s Ollama row and Ollama's `effort-max` golden
+  did not change. Facts listing efforts, none of `low` to `max`, which rule 3
+  sent `max`, now send none, warned
+  ([0062-MADR-learn-thinking-parameters-from-refusals.md](0062-MADR-learn-thinking-parameters-from-refusals.md),
+  amendment "Phase 5's Ollama cases").
+* **Resumes at Phase 4 (2026-10-25):** 0062-PLAN is complete with its
+  Phase 6.

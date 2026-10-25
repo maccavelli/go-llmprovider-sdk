@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-24
+status: accepted
+date: 2026-10-25
 decision-makers: repository owner
 consulted: "this repository at 1b46940 (the Code claims, run by tools/claims.py); the records 0013, 0014, 0026, 0034, 0041, 0049 and 0061 as cited; the owner's answers of 2026-10-24 to Q1 to Q4 of the thinking design's re-assessment and to this record's Q5 to Q7, and of 2026-10-25 to its Q8 to Q13"
 informed: every consumer of llmprovider and its providers; gobble-cli and prepare-commit-msg
@@ -760,3 +760,23 @@ row met neither outcome; the PLAN stopped, and the owner chose, on
   to learn; a caller's `WithReasoningRefusals` still steers it.
 * **Offered and not chosen:** keeping the mapping, as the row reads; and
   measuring first, comparing the reasoning at `high`, `xhigh` and `max`.
+
+## Amendment 2026-10-25: R56's scope
+
+D11 worded R56 as "No per-model name rule decides a request parameter." The
+PLAN's Phase 6 found that broader than this record's decision and than the
+tree: outside thinking, rules of model names still decide deferred tools'
+form (0040-MADR), forced choice (0034-MADR), Kilo's cache marker (0039-MADR
+D4) and OpenCode's route, each by its own record. The owner chose, on
+2026-10-25, to scope R56 to the thinking parameters of D1:
+
+* **R56:** "No per-model name rule decides a thinking parameter: a thinking
+  shape, an effort or a budget. The model's facts and its learned refusals
+  do, then the request; a rule a service's refusal cannot replace stays as a
+  wire mapping, cited and listed under the provider's Degradations. (0062
+  D1, D2, D8)"
+* **Its check** is Confirmation's: a search of every Go file for each
+  thinking rule this record removed finds none.
+* **Offered and not chosen:** keeping R56 general, with the four other rules
+  listed as wire mappings, which no recording shows a refusal cannot
+  replace; and deferring R56 to a new record.
