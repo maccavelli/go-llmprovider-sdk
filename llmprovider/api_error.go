@@ -52,6 +52,14 @@ var (
 	// the service's finish reason (content_filter, length, …), tells them
 	// apart (0061-MADR D1).
 	ErrEmptyAnswer error = &sentinelError{msg: "llmprovider: empty answer", parent: ErrIncomplete}
+	// ErrOffline marks a request that could not be sent for want of a
+	// network: the host's name did not resolve, or the dial timed out or
+	// found the port refused, the network down or unreachable, or the host
+	// unreachable. It also matches ErrProviderUnavailable, and is retried. A
+	// dial the caller's context ended keeps the context's error; a TLS
+	// failure and any HTTP response, a 5xx included, are not offline
+	// (0061-MADR D2).
+	ErrOffline error = &sentinelError{msg: "llmprovider: offline", parent: ErrProviderUnavailable}
 	// ErrUnsupported marks a request needing a capability the provider does
 	// not have. It fails before any network call, and also matches
 	// errors.ErrUnsupported (0015-MADR D4, D7).

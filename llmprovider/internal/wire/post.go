@@ -143,6 +143,9 @@ func open(ctx context.Context, c Call, token llmprovider.Token, limit int64) (*S
 	//nolint:bodyclose // the returned Stream owns the body; Read and Close close it (TestStream_StopClosesBody; 0031-PLAN D3)
 	resp, err := c.Client.Do(req)
 	if err != nil {
+		// Classified before cancel ends ctx: a dial with no network is
+		// ErrOffline, unless a check below takes it (0061-MADR D2).
+		offline := transport.WrapOffline(ctx, err, llmprovider.ErrOffline)
 		cancel(nil)
 		// A request no retry can send, such as a token with a newline, is an
 		// invalid request; a failure to reach the service keeps its own
@@ -156,7 +159,7 @@ func open(ctx context.Context, c Call, token llmprovider.Token, limit int64) (*S
 		if wrote.Load() {
 			return nil, transport.AfterReply(err)
 		}
-		return nil, err
+		return nil, offline
 	}
 	// The idle limit covers an error reply's body too: without a total
 	// timeout on the client, a body that stalls after its headers would

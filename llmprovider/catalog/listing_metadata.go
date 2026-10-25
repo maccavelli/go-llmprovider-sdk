@@ -368,7 +368,8 @@ func fetchOllamaShow(ctx context.Context, token llmprovider.Token, cfg config, m
 	}
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return ModelInfo{}, fmt.Errorf("%w: could not reach Ollama at %s: %w", llmprovider.ErrProviderUnavailable, baseURL, err)
+		return ModelInfo{}, fmt.Errorf("%w: could not reach Ollama at %s: %w", llmprovider.ErrProviderUnavailable, baseURL,
+			transport.WrapOffline(ctx, err, llmprovider.ErrOffline))
 	}
 	defer cfg.closeBody(resp)
 	if resp.StatusCode != http.StatusOK {

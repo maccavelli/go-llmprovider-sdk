@@ -708,7 +708,7 @@ func fetchGeminiPage(ctx context.Context, endpoint string, token llmprovider.Tok
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return result, err
+		return result, transport.WrapOffline(ctx, err, llmprovider.ErrOffline)
 	}
 	defer cfg.closeBody(resp)
 
@@ -809,7 +809,7 @@ func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Tok
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return result, err
+		return result, transport.WrapOffline(ctx, err, llmprovider.ErrOffline)
 	}
 	defer cfg.closeBody(resp)
 
@@ -898,8 +898,9 @@ func fetchOllamaTags(ctx context.Context, token llmprovider.Token, cfg config) (
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
 		// An unreachable server is unavailable, as any send failure is
-		// (0026-MADR F35).
-		return nil, fmt.Errorf("%w: could not reach Ollama at %s: %w", llmprovider.ErrProviderUnavailable, baseURL, err)
+		// (0026-MADR F35); without a network, offline too (0061-MADR D2).
+		return nil, fmt.Errorf("%w: could not reach Ollama at %s: %w", llmprovider.ErrProviderUnavailable, baseURL,
+			transport.WrapOffline(ctx, err, llmprovider.ErrOffline))
 	}
 	defer cfg.closeBody(resp)
 
@@ -955,7 +956,8 @@ func checkOllamaURL(ctx context.Context, baseURL string, cfg config) error {
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: could not reach Ollama at %s: %w", llmprovider.ErrProviderUnavailable, baseURL, err)
+		return fmt.Errorf("%w: could not reach Ollama at %s: %w", llmprovider.ErrProviderUnavailable, baseURL,
+			transport.WrapOffline(ctx, err, llmprovider.ErrOffline))
 	}
 	defer config{}.closeBody(resp)
 
@@ -1001,7 +1003,7 @@ func fetchDataIDs(ctx context.Context, endpoint, header, value string, cfg confi
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, transport.WrapOffline(ctx, err, llmprovider.ErrOffline)
 	}
 	defer cfg.closeBody(resp)
 
@@ -1094,7 +1096,7 @@ func fetchHuggingFaceUsable(ctx context.Context, token llmprovider.Token, cfg co
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, transport.WrapOffline(ctx, err, llmprovider.ErrOffline)
 	}
 	defer cfg.closeBody(resp)
 
@@ -1196,7 +1198,7 @@ func fetchTogetherUsable(ctx context.Context, token llmprovider.Token, cfg confi
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, transport.WrapOffline(ctx, err, llmprovider.ErrOffline)
 	}
 	defer cfg.closeBody(resp)
 	if resp.StatusCode != http.StatusOK {
@@ -1293,7 +1295,7 @@ func fetchKiloCatalog(ctx context.Context, token llmprovider.Token, cfg config) 
 	}
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, transport.WrapOffline(ctx, err, llmprovider.ErrOffline)
 	}
 	defer cfg.closeBody(resp)
 	if resp.StatusCode != http.StatusOK {

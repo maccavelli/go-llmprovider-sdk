@@ -141,7 +141,7 @@ func fetchPlanRaw(ctx context.Context, token llmprovider.Token, cfg config) erro
 	}
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("model listing: plan models: %w", err)
+		return fmt.Errorf("model listing: plan models: %w", transport.WrapOffline(ctx, err, llmprovider.ErrOffline))
 	}
 	defer cfg.closeBody(resp)
 	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderOpenAI), resp); err != nil {
@@ -166,7 +166,7 @@ func fetchChatGPTRaw(ctx context.Context, src llmprovider.TokenSource, token llm
 	}
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("model listing: chatgpt models: %w", err)
+		return fmt.Errorf("model listing: chatgpt models: %w", transport.WrapOffline(ctx, err, llmprovider.ErrOffline))
 	}
 	defer cfg.closeBody(resp)
 	if err := llmprovider.ClassifyHTTPError(string(llmprovider.ProviderOpenAI), resp); err != nil {
