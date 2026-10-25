@@ -63,11 +63,17 @@
 // the response carries WarningDeferralEmulated (D7).
 //
 // Model facts (0041-MADR D1): each request reads what catalog.CachedFacts
-// holds of its model, never fetching: a caller's catalog layers, and what the
-// cached listing says. A server's listing says nothing of its models yet
-// (0061-PLAN Phase 4c, E2), so the output limit is the default or
-// MaxOutputTokens, the effort is not checked against a list, and prior
-// reasoning is not replayed under a field.
+// holds of its model, never fetching: a caller's catalog layers
+// (catalog.WithModelLayer), then what the cached listing read of the server,
+// then models.dev's facts of the model's canonical id, from the cached
+// document. The listing reads a server's details where its /models reply is
+// a recorded dialect's: Ollama's /api/show, for each model's window, tools,
+// vision and thinking. The canonical id drops an organisation, an Ollama tag
+// "latest", and quantisation and format tokens, and matches only an equal
+// id (0061-MADR E2; its amendment "E2 and E4's menu, made exact before Phase
+// 4c"). A model none of these knows has the default output limit or
+// MaxOutputTokens, an effort checked against no list, and prior reasoning
+// replayed under no field.
 package chatcompat
 
 import (

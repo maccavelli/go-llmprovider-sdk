@@ -147,7 +147,11 @@ type Catalog struct {
 	// Menu is every usable model, each with its facts, its rank and its
 	// caveats: the band by rank, then the other models without a caveat,
 	// newest first by release date, then by id, then the caveated ones, in
-	// the same order (0041-MADR D3, A4). Ollama's keeps /api/tags order. On
+	// the same order (0041-MADR D3, A4). Ollama's and a chatcompat
+	// listing's, which have no ranking, are the default rank: the uncaveated
+	// first, then the larger context window, then the newer created time,
+	// then the listing's order, each model's variants together, the plainest
+	// first (0061-MADR, amendment "E2 and E4's menu, made exact before Phase 4c"). On
 	// a static catalog it is the static ids, in order. WithLimit(n) cuts it
 	// as it cuts Recommended.
 	Menu []MenuEntry
@@ -208,7 +212,12 @@ const (
 // chatcompat.WithID beside a base URL, is listed as a built-in's is, GET
 // {base}/models in the server's order, with no static catalog: a failure
 // leaves it empty, Live false (0061-MADR, amendment "chatcompat,
-// provider-agnostic", E1). Only Ollama, an unknown provider, a missing source, a token
+// provider-agnostic", E1). Its facts are its caller's layers, then what the
+// server says where its reply is a recorded dialect's (Ollama's /api/show,
+// read at the server's root), then models.dev's of each model's canonical
+// id; its menu is the default rank, its band the first six uncaveated
+// (0061-MADR E2; its amendment "E2 and E4's menu, made exact before Phase
+// 4c"). Only Ollama, an unknown provider, a missing source, a token
 // failure or a refused option return an error. A missing src, and a typed-nil
 // one such as a nil *llmprovider.CommandToken held in a non-nil TokenSource,
 // give an error matching llmprovider.ErrInvalidRequest (0050-MADR D4). A
@@ -318,10 +327,10 @@ func listOnce(ctx context.Context, id llmprovider.ProviderID, token llmprovider.
 	}
 	key := listingKeyFor(id, cfg, token)
 	var meta func() modelMetadataResult
-	if id != llmprovider.ProviderKilo && !cfg.compat {
+	if id != llmprovider.ProviderKilo {
 		// The document is read alongside the listing; Kilo's ranking reads
-		// its own listing (MADR 0009 §2), and a chatcompat server's ids are
-		// its own (0061-MADR D4).
+		// its own listing (MADR 0009 §2). A chatcompat server's models read
+		// it by canonical id (0061-MADR E2, decision 4).
 		meta = startModelMetadata(ctx, cfg)
 	}
 	f, models, at, failure := cachedOrFetched(ctx, id, token, cfg, key)
@@ -492,6 +501,11 @@ type listingResult struct {
 	// entry under its /api/show reply, cached or not; nil for the other
 	// listers, whose facts are the ones they emit (0042-MADR D1).
 	listed map[string]ModelInfo
+	// created is when an unranked listing's server says each model was
+	// created, for its default rank: a chatcompat server's created, the
+	// built-in Ollama's modified_at (0061-MADR, amendment "E2 and E4's
+	// menu, made exact before Phase 4c", X3).
+	created map[string]time.Time
 }
 
 // catalog applies the degrade-to-static contract every lister except
@@ -503,8 +517,8 @@ type listingResult struct {
 func (l listingResult) catalog(id llmprovider.ProviderID, token llmprovider.Token, cfg config,
 	models map[string]ModelInfo) Catalog {
 	now := rankingNow()
-	if l.curate == nil {
-		return ollamaMenu(l.usable, factsOf(id, cfg, l.usable, l.listed, nil), cfg.limit, now)
+	if l.curate == nil && !cfg.compat {
+		return ollamaMenu(l.usable, factsOf(id, cfg, l.usable, l.listed, nil), l.created, cfg.limit, now)
 	}
 	usable := uniqueIDs(l.usable)
 	if l.err != nil || len(usable) == 0 {
@@ -524,6 +538,9 @@ func (l listingResult) catalog(id llmprovider.ProviderID, token llmprovider.Toke
 	}
 	if m, ok := peekMetadata(cfg); doc == nil && ok {
 		doc = m.doc
+	}
+	if cfg.compat {
+		return compatMenu(id, usable, factsOf(id, cfg, usable, models, doc), l.created, cfg.limit, now)
 	}
 	return menuOf(id, usable, factsOf(id, cfg, usable, models, doc), l.curate, cfg.limit, now)
 }
@@ -584,6 +601,10 @@ type fetchedListing struct {
 	usable []string
 	// kilo is Kilo's entries, whose prices and dates its ranking reads.
 	kilo []kiloCatalogEntry
+	// created is a chatcompat server's created time of each model, for its
+	// default rank (0061-MADR, amendment "E2 and E4's menu, made exact
+	// before Phase 4c", X3).
+	created map[string]time.Time
 }
 
 // fetchListing sends one provider's listing requests, Ollama's aside, and
@@ -610,28 +631,35 @@ func fetchListing(ctx context.Context, id llmprovider.ProviderID, token llmprovi
 		if !cfg.compat {
 			return fetchedListing{}, unlistedProvider(id)
 		}
-		usable, err = fetchCompatUsable(ctx, id, token, cfg)
+		return fetchCompat(ctx, id, token, cfg)
 	}
 	return fetchedListing{usable: usable}, err
 }
 
-// fetchCompatUsable is a chatcompat provider's GET {base}/models: every id,
-// in the server's order, with no Authorization header for an empty key, as
-// the provider sends none (0061-MADR D4; its amendment "chatcompat,
-// provider-agnostic", E1).
-func fetchCompatUsable(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) ([]string, error) {
-	header, value := "", ""
-	if token.Value != "" {
-		header, value = bearerHeader(token)
+// fetchCompat is a chatcompat server's listing (0061-MADR E1, E2): its ids,
+// in the server's order, none empty; each one's created time; and, for a
+// recorded dialect, its details, emitted as the listing's facts (its
+// amendment "E2 and E4's menu, made exact before Phase 4c", decision 3, X3,
+// X4).
+func fetchCompat(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (fetchedListing, error) {
+	entries, err := fetchCompatEntries(ctx, id, token, cfg)
+	if err != nil {
+		return fetchedListing{}, err
 	}
-	ids, err := fetchDataIDs(ctx, cfg.BaseURL+"/models", header, value, cfg, id)
-	return slices.DeleteFunc(ids, func(m string) bool { return m == "" }), err
-}
-
-// compatCurate is a chatcompat listing's curator: the server's order, cut to
-// limit. Nothing ranks a server's own models yet (0061-PLAN Phase 4b, E4).
-func compatCurate(usable []string, limit int) []string {
-	return listlimit.Cut(usable, limit)
+	f := fetchedListing{created: map[string]time.Time{}}
+	for _, e := range entries {
+		if e.ID == "" {
+			continue
+		}
+		f.usable = append(f.usable, e.ID)
+		if at, ok := e.created(); ok {
+			f.created[e.ID] = at
+		}
+	}
+	if d, ok := dialectOf(entries); ok {
+		d.details(ctx, id, token, cfg, f.usable)
+	}
+	return f, nil
 }
 
 // buildListing is one provider's listingResult from f: a listing fetched
@@ -640,7 +668,7 @@ func compatCurate(usable []string, limit int) []string {
 // live listing (0041-MADR D6, A6). meta is the models.dev document's, and
 // nil for Kilo, which ranks from its own entries (MADR 0009 §2).
 func buildListing(id llmprovider.ProviderID, f fetchedListing, cfg config, meta func() modelMetadataResult) listingResult {
-	l := listingResult{usable: f.usable, static: Static(id), meta: meta}
+	l := listingResult{usable: f.usable, static: Static(id), meta: meta, created: f.created}
 	switch id {
 	case llmprovider.ProviderGemini, llmprovider.ProviderOpenAI, llmprovider.ProviderClaude, llmprovider.ProviderGrok:
 		// Ranked by facts, as every provider is; the name curator ranks with
@@ -660,10 +688,6 @@ func buildListing(id llmprovider.ProviderID, f fetchedListing, cfg config, meta 
 		l.curate = kiloCurate(f.kilo, cfg.ModelProfile, cfg.workload)
 	case llmprovider.ProviderTogether:
 		l.curate = metadataCurate(id, cfg.ModelProfile, cfg.workload, meta, curateTogether)
-	default:
-		if cfg.compat {
-			l.curate = compatCurate
-		}
 	}
 	return l
 }
@@ -896,6 +920,7 @@ func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (li
 		}
 	}
 	listed := make(map[string]ModelInfo, len(tags))
+	created := make(map[string]time.Time, len(tags))
 	for _, t := range tags {
 		info := ollamaTagInfo(t)
 		if show, ok := shows[t.Name]; ok {
@@ -903,18 +928,24 @@ func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (li
 			overlay(&info, show, "")
 		}
 		listed[t.Name] = info
+		if at, err := time.Parse(time.RFC3339Nano, t.ModifiedAt); err == nil {
+			created[t.Name] = at.UTC()
+		}
 	}
 	// Recommended never shares Usable's array (0020-MADR F34).
-	return listingResult{usable: names, listed: listed}, nil
+	return listingResult{usable: names, listed: listed, created: created}, nil
 }
 
 // ollamaTag is one /api/tags entry: the model's name, its digest, which a
-// cached /api/show reply is checked against (0053-MADR D5), and the
-// capabilities Ollama v0.30.0 and later list beside it.
+// cached /api/show reply is checked against (0053-MADR D5), the
+// capabilities Ollama v0.30.0 and later list beside it, and when it was
+// pulled or changed, which its menu's default rank reads (0061-MADR, amendment
+// "E2 and E4's menu, made exact before Phase 4c", X3).
 type ollamaTag struct {
 	Name         string   `json:"name"`
 	Digest       string   `json:"digest"`
 	Capabilities []string `json:"capabilities"`
+	ModifiedAt   string   `json:"modified_at"`
 }
 
 // fetchOllamaTags returns every installed model in /api/tags order, with its

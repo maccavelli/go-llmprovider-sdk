@@ -79,6 +79,34 @@ tag and its commit without notes; its notes are its section here.
 
 ### Changed
 
+- A `chatcompat` listing knows its models' facts: where the server's
+  `/models` reply is Ollama's (every id tagged, every entry with `created`
+  and `owned_by`), `List` reads its `/api/tags` and `/api/show` at the
+  server's root, cached by digest as the built-in Ollama's are; and below
+  that, models.dev's facts of each model's canonical id (an organisation,
+  an Ollama tag `latest`, and quantisation and format tokens dropped; an
+  equal id only), across the nine sections the SDK keeps, the value most
+  of them give. A `chatcompat` listing now fetches the models.dev
+  document, as a built-in's does; `llmprovider.WithoutModelMetadata` turns
+  it off. Its menu is the default rank below
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
+  E2, E4; amendment "E2 and E4's menu, made exact before Phase 4c").
+- The built-in Ollama's menu, and a `chatcompat` listing's, follow a
+  default rank where they followed the listing's order: the uncaveated
+  first, then the larger context window, then the newer `created` (Ollama's
+  `modified_at`), then the listing's order, each model's variants (one
+  model's sizes aside, its quantisations, formats and `instruct`, `chat`,
+  `it` and `base` forms) together, the plainest first. `Usable` keeps the
+  listing's order. On a `chatcompat` listing only, a model whose output is
+  not known and whose id names an embedding, a reranker or speech model is
+  caveated as writing no text
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
+  amendment "E2 and E4's menu, made exact before Phase 4c").
+- `catalog.WithModelLayer` is a shared option, as `catalog.WithCache` is:
+  `chatcompat` reads it, so a caller's layer ranks above a server's facts,
+  and a provider outside this module ignores it, where it refused it
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
+  amendment "E2 and E4's menu, made exact before Phase 4c", X8).
 - `catalog.Search` keeps its tiers and their scores, and orders each tier by
   BM25F over the id and the label (the id weighed 3, the label 2), then by
   fzf's score, then the listing's order, where the listing's order alone

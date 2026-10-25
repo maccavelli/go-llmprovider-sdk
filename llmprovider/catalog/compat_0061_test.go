@@ -27,10 +27,12 @@ func withCompatID(id string) llmprovider.Option {
 	return llmprovider.SharedOption("chatcompat.WithID", compatid.Value(id))
 }
 
-// compatList is List of "acme" against s's /v1, through c, with key.
+// compatList is List of "acme" against s's /v1, through c, with key, and
+// with no models.dev document, which a compat listing fetches since 0061-PLAN
+// Phase 4c (decision 4): no test reaches models.opencode.ai.
 func compatList(ctx context.Context, s *steadyServer, c *Cache, key string) (Catalog, error) {
 	return List(ctx, "acme", llmprovider.NewStaticToken(key), withCompatID("acme"), llmprovider.WithBaseURL(s.URL+"/v1"),
-		WithCache(c))
+		WithCache(c), llmprovider.WithoutModelMetadata())
 }
 
 // TestCompatListing_Cached_0061: a chatcompat server's listing is GET
@@ -133,7 +135,7 @@ func TestCompatListing_NoKey_0061(t *testing.T) {
 	t.Cleanup(srv.Close)
 	for _, key := range []string{"", "sk-test"} {
 		if _, err := List(context.Background(), "acme", llmprovider.NewStaticToken(key), withCompatID("acme"),
-			llmprovider.WithBaseURL(srv.URL), WithCache(&Cache{})); err != nil {
+			llmprovider.WithBaseURL(srv.URL), WithCache(&Cache{}), llmprovider.WithoutModelMetadata()); err != nil {
 			t.Fatal(err)
 		}
 	}

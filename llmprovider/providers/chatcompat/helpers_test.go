@@ -76,11 +76,13 @@ func testCache(t *testing.T) llmprovider.Option {
 }
 
 // build is New with testID, base url and model "m", t's own cache first so
-// that a test's own WithCache wins, failing the test on an error.
+// that a test's own WithCache wins, failing the test on an error. It turns
+// the models.dev document off, which a listing fetches since 0061-PLAN Phase
+// 4c (decision 4), so that no test reaches models.opencode.ai.
 func build(t *testing.T, url string, opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
 	p, err := New(append([]llmprovider.Option{testCache(t), WithID(testID), llmprovider.WithBaseURL(url),
-		llmprovider.WithModel("m")}, opts...)...)
+		llmprovider.WithModel("m"), llmprovider.WithoutModelMetadata()}, opts...)...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

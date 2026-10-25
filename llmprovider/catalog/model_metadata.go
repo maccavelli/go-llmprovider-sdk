@@ -143,6 +143,9 @@ type modelMetadataSection struct {
 // deviation). A nil *modelMetadataDoc is an empty document.
 type modelMetadataDoc struct {
 	sections map[string]*lazySection
+	// canonical is the document's facts by canonical id, for a chatcompat
+	// server's models (canonical.go).
+	canonical canonicalIndex
 }
 
 // lazySection is one section's bytes, and its models once decoded. A key the

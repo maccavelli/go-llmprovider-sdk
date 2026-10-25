@@ -200,10 +200,10 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 	}
 	cfg.limit = listlimit.Of(st.Values())
 	cfg.store = storeIn(st.Values())
-	// A chatcompat provider's model is the server's: models.dev knows no id of
-	// its, so the document is not read for it (0061-MADR D4).
+	// A chatcompat provider's model is the server's: models.dev is read for it
+	// by canonical id, as its lowest layer (0061-MADR E2; its amendment "E2
+	// and E4's menu, made exact before Phase 4c", decision 4, X1).
 	cfg.compat = !listed[id] && compatid.For(st.Values(), string(id))
-	cfg.metadataOff = cfg.metadataOff || cfg.compat
 	return cfg, nil
 }
 

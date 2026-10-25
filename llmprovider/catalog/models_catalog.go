@@ -177,6 +177,7 @@ const (
 	denyPreview = "preview"
 	denyTTS     = "tts"
 	denyOmni    = "omni"
+	denyWhisper = "whisper"
 )
 
 var geminiDenySubstrings = []string{
@@ -775,7 +776,7 @@ func isUsableHuggingFaceModel(id string) bool {
 	if sm == "" || !strings.Contains(sm, "/") {
 		return false
 	}
-	for _, deny := range []string{denyVision, "-vl-", denyEmbed, denyTTS, "whisper", "flux", "stable-diffusion"} {
+	for _, deny := range []string{denyVision, "-vl-", denyEmbed, denyTTS, denyWhisper, "flux", "stable-diffusion"} {
 		if strings.Contains(sm, deny) {
 			return false
 		}
@@ -816,7 +817,7 @@ func isUsableKiloModel(id string) bool {
 	if sm == "" || !strings.Contains(sm, "/") {
 		return false
 	}
-	for _, deny := range []string{denyVision, "-vl", denyEmbed, denyTTS, "whisper", denyOmni, denyImage} {
+	for _, deny := range []string{denyVision, "-vl", denyEmbed, denyTTS, denyWhisper, denyOmni, denyImage} {
 		if strings.Contains(sm, deny) {
 			return false
 		}

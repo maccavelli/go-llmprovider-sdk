@@ -1169,3 +1169,117 @@ a 2M-context model scored below an 8k one on `vision`. The facets' length
 counts the buckets as one word; `TestBM25F_0061` pins it, and a plant that
 counts them whole is caught. No decision changes: S2 left the length
 unstated.
+
+## Amendment 2026-10-25: E2 and E4's menu, made exact before Phase 4c
+
+**Status: accepted (owner, 2026-10-25)** for its four decisions; the rest
+makes exact what E2 and E4 left unstated, within them. Found by reading
+`catalog`'s listing, its Ollama reader and its menu builders, and by probing
+the local Ollama (0.33.2) and the recorded models.dev document
+(`catalog/testdata/ranking-2026-10-12/metadata.json`) before any code.
+
+### What was found
+
+* **E4's example contradicts E2's rules.** E2 drops only quantisation,
+  format and the tag `latest`, so `granite3-dense:8b` and
+  `granite3-dense:8b-instruct-q5_K_M` canonicalise to `granite3-dense-8b`
+  and `granite3-dense-8b-instruct`: E4's own example would not group.
+* **"For every provider".** The built-in providers' menus are a ranked
+  band, then newest first (0041-MADR D3, A4); grouping inside them would
+  reorder ranked rows.
+* **No dialect rule.** E2 names a score and a threshold, and sets neither.
+  Ollama's `/v1/models` gives each entry `id`, `object`, `created` and
+  `owned_by` (`library` for a pulled model), and every id carries a `:`
+  tag (`llama3.2:latest`).
+* **models.dev is off for a compat listing** (`metadataOff`, 0061-MADR
+  E1), and the built-in Ollama never fetches it.
+* **Exact matches are rare, as intended:** of the local Ollama's eight
+  models, only `gpt-oss:20b` has an exact canonical match in the recorded
+  document (`huggingface/openai/gpt-oss-20b`, `kilo/openai/gpt-oss-20b`).
+* **`/api/show` carries the local account:** its `modelfile` names the blob
+  by its absolute path under the user's home.
+
+### The owner's decisions (2026-10-25)
+
+1. **Variants group by a looser key:** the canonical id less the role
+   tokens `instruct`, `chat`, `it` and `base`. The models.dev match keeps
+   E2's canonical id, so an instruct model never takes a base model's
+   facts. A role token in the canonical id itself was not chosen (it would
+   merge `qwen3-235b-a22b-instruct-2507` with `qwen3-235b-a22b-2507`), nor
+   was keeping E2's id and amending the example.
+2. **Grouping and the default rank apply to unranked listings only:** a
+   `chatcompat` listing and the built-in Ollama's menu. The ranked
+   providers' menus are unchanged. For Ollama this replaces 0041-MADR A4's
+   `/api/tags` order. chatcompat alone, and every provider after its band,
+   were not chosen.
+3. **A listing is Ollama's when every entry has a `:`-tagged id, an integer
+   `created` and an `owned_by`.** The score is the share of these marks met
+   across the entries; the threshold is all of them. A confirming `GET
+   /api/version`, and `owned_by` `library` alone, were not chosen.
+4. **A compat listing fetches models.dev as a built-in's does:** alongside
+   the listing, cached and shared, off with `WithoutModelMetadata`; a
+   failed fetch leaves its layer empty. Reading only a document already
+   cached, and an opt-in option, were not chosen.
+
+### Made exact within E2 and E4
+
+* **X1. The canonical id.** Lower case; everything up to the last `/`
+  dropped; an Ollama tag split at the last `:`, `latest` dropped; the rest
+  split on `-`, `.`, `:` and spaces; a token that is a quantisation or a
+  format dropped (`q` or `iq` and a digit, then any letters, digits and
+  `_`, as `q4_k_m` or `iq3_xxs`; `awq`, `gptq`, `fp8`, `fp16`, `bf16`,
+  `int4`, `int8`, `gguf`, `mlx`, and a number followed by `bit`); the
+  others joined by `-`, a `_` within one becoming `-`. models.dev's ids are
+  canonicalised the same way. Only equal canonical ids match.
+* **X2. The variant key and its order.** The canonical id less the tokens
+  `instruct`, `chat`, `it` and `base` (decision 1). A group sits at its
+  best-ranked member's place, its members the plainest first: the fewest
+  tokens in the lower-case id, split on `-`, `_`, `.`, `:`, `/`, then the
+  listing's order.
+* **X3. The default rank** (decision 2): the uncaveated before the
+  caveated; then a model the dialect says is loaded (Ollama says none);
+  then the larger context window, a known one first; then the newer
+  `created` (a compat listing's `created`; the built-in Ollama's
+  `/api/tags` `modified_at`, which Ollama's `/v1/models` reports as
+  `created`); then the listing's order. Then X2 groups the variants,
+  within the uncaveated and within the caveated, so that grouping never
+  lifts a caveated model. On a `chatcompat` listing only, a model whose
+  facts do not state its output, and whose id has the token `embed`,
+  `embedding`, `embeddings`, `rerank`, `reranker`, `whisper` or `tts`, gets
+  `CaveatNoTextOutput`; the built-in Ollama keeps 0042-MADR D1, which never
+  reads a name (owner, 2026-10-25, PLAN deviation 8). `Recommended` is the ranked order less
+  the caveated, as it is for each listing today (Ollama's keeps a model
+  whose only caveat is `CaveatNoTools`, 0042-MADR D2).
+* **X4. The details.** The Ollama dialect's details are `/api/tags` and
+  `/api/show` at the server's root (the base URL less a trailing `/v1`),
+  through the catalog's digest-cached reader, as the built-in Ollama reads
+  them; they are the listing's facts, `SourceOf` `listing:<id>`.
+* **X5. Disagreement.** Where several models.dev entries share a canonical
+  id, each field takes the value most of them give, the providers read in
+  name order; on a tie, a limit (`ContextWindow`, `MaxInputTokens`,
+  `MaxOutputTokens`) takes the smaller, and any other field stays unknown.
+  `SourceOf` names `models.dev (canonical id)`.
+* **X6. The order of authority** within `catalog`: the caller's layers,
+  the server's details, models.dev by canonical id. A learned refusal
+  outranks them all in `chatcompat`'s learner, outside `catalog`, as
+  `TestNew_Learn_Effort_0061` already pins.
+* **X7. The fixtures** keep each `/api/show` reply's `capabilities`,
+  `details`, `model_info` and `modified_at`, and drop its `modelfile`,
+  `license`, `template`, `parameters` and `tensors`: the `modelfile` holds a
+  path under the local account, and the rest is unread bulk.
+* **X8. `catalog.WithModelLayer` is a shared option** (owner, 2026-10-25,
+  PLAN deviation 9), so that X6's first layer reaches a compat listing: as
+  a scoped option, `List` and `chatcompat.New` refused it for a compat id.
+  The built-ins and `chatcompat` read it; a provider outside this module
+  ignores it, where it refused it. This replaces, for `WithModelLayer`
+  alone, the amendment "Phase 4's options"' "stay scoped to the built-ins";
+  `WithLimit`, `WithProfile` and `WithWorkload` stay scoped. Keeping it
+  scoped (no caller layer for a compat listing), and a
+  `chatcompat.WithModelLayer`, were weighed and not chosen.
+* **X9. The canonical match searches the sections the SDK keeps** (owner,
+  2026-10-25, PLAN deviation 10): `decodeModelMetadata` keeps nine of
+  models.dev's sections (`opencode`, `opencode-go`, `huggingface`,
+  `togetherai`, `openai`, `anthropic`, `google`, `xai`, `kilo`; 0028-MADR
+  D-A1), so "across its providers" is across these. They hold the gateways
+  that list open models. Keeping every section, and adding named sections
+  of local models, were weighed and not chosen.

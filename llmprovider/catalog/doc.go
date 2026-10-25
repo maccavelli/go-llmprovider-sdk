@@ -14,6 +14,14 @@
 // of whose words match, are fallbacks, tried only when no tier matches
 // (0061-MADR, amendment "Model search, rebuilt").
 //
+// A chatcompat provider's listing (List, with chatcompat.WithID) reads what
+// the server says of its models where its /models reply is a recorded
+// dialect's, Ollama's, and models.dev's facts of each model's canonical id,
+// an exact match only. A listing with no ranking, a chatcompat server's or
+// Ollama's, is ordered by the default rank, each model's variants together
+// (0061-MADR E2, E4; its amendment "E2 and E4's menu, made exact before
+// Phase 4c").
+//
 // ListRaw sends List's requests, through the same code, and returns every
 // page byte for byte with each entry of its model array: no filter, ranking,
 // caveat, static fallback or models.dev fetch, and nothing written to the

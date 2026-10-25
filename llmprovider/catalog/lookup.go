@@ -27,10 +27,12 @@ type Layer interface {
 
 // WithModelLayer adds l to LookupModel's and CachedModel's layers. A layer
 // added later ranks above one added earlier, and every caller layer ranks
-// above the provider's listing and models.dev. It is scoped to every
-// built-in provider, as WithProfile is (R17, R18).
+// above the provider's listing and models.dev. It is a shared option, as
+// WithCache is: the built-in providers and chatcompat read it, and a
+// provider outside this module ignores it (R17, R18; 0061-MADR, amendment
+// "E2 and E4's menu, made exact before Phase 4c", X8).
 func WithModelLayer(l Layer) llmprovider.Option {
-	return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithModelLayer", modelLayerOption{l})
+	return llmprovider.SharedOption("catalog.WithModelLayer", modelLayerOption{l})
 }
 
 // listingLayers are the providers whose listing is a layer: those amended D2
@@ -97,7 +99,7 @@ func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 		if err != nil {
 			errs = append(errs, err)
 		} else {
-			dev, devOK = Metadata{doc: doc}.Model(id, model)
+			dev, devOK = Metadata{doc: doc}.modelFor(cfg, id, model)
 		}
 	}
 	if nilsource.Is(src) {
@@ -127,7 +129,7 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	var dev, lst ModelInfo
 	var devOK, lstOK bool
 	if m, ok := cachedMetadata(ctx, cfg); ok {
-		dev, devOK = m.Model(id, model)
+		dev, devOK = m.modelFor(cfg, id, model)
 	}
 	if src != nil && !nilsource.Is(src) && hasListingLayer(id, cfg) {
 		if token, err := src.Token(ctx); err == nil {
@@ -163,7 +165,7 @@ func CachedFacts(ctx context.Context, provider llmprovider.ProviderID, model str
 	var dev, lst ModelInfo
 	var devOK, lstOK bool
 	if m, ok := peekMetadata(cfg); ok {
-		dev, devOK = m.Model(id, model)
+		dev, devOK = m.modelFor(cfg, id, model)
 	}
 	if cfg.tokens != nil && hasListingLayer(id, cfg) {
 		if token, err := cfg.tokens.Token(ctx); err == nil {

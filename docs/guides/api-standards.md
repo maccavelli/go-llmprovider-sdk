@@ -169,9 +169,10 @@ tool that holds a rule, where one does. For how the code is laid out, read
   `kilo.WithOrganization`; one that several ids of a family take is scoped
   to all of them, as `opencode.WithRoute` is to both gateways. One that every
   provider takes, whatever its id, is a shared option
-  (`llmprovider.SharedOption`), as `catalog.WithCache` and `chatcompat.WithID`
-  are. (0015 D5, and its amendment "the OpenCode family"; 0061, amendment
-  "Phase 4's options")
+  (`llmprovider.SharedOption`), as `catalog.WithCache`,
+  `catalog.WithModelLayer` and `chatcompat.WithID` are. (0015 D5, and its
+  amendment "the OpenCode family"; 0061, amendments "Phase 4's options" and
+  "E2 and E4's menu, made exact before Phase 4c")
 - **R18. A foreign option is an error from `New`,** never ignored, unless
   the caller scoped it with `For(id, …)`: an overlay for another id is
   skipped. A shared option is foreign to no provider: one that does not read

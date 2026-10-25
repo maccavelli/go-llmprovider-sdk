@@ -104,7 +104,7 @@ func factsOf(provider llmprovider.ProviderID, cfg config, ids []string, listing 
 		var dev ModelInfo
 		devOK := false
 		if doc != nil {
-			dev, devOK = meta.Model(provider, id)
+			dev, devOK = meta.modelFor(cfg, provider, id)
 		}
 		lst, lstOK := listing[id]
 		facts[id] = mergeLayers(provider, id, cfg.layers, dev, devOK, lst, lstOK)
@@ -170,24 +170,20 @@ func writesNoText(info ModelInfo) bool {
 }
 
 // ollamaMenu is an Ollama listing's catalog: no band; the installed models
-// that may write text, in /api/tags order, the caveated after the others
-// (0041-MADR A4). A model Ollama says writes no text, such as an embedding
-// model, is not usable, as on every other provider (0042-MADR D1).
-// Recommended is the menu less each entry with a caveat other than
-// CaveatNoTools: the install is all there is, so a chat model that takes no
-// tools stays recommended, after those that do (0042-MADR D2).
-func ollamaMenu(names []string, facts map[string]ModelInfo, limit int, now time.Time) Catalog {
+// that may write text, by the default rank with their variants grouped,
+// where they were in /api/tags order (0061-MADR, amendment "E2 and E4's
+// menu, made exact before Phase 4c", decision 2, X2, X3; 0041-MADR A4). A
+// model Ollama says writes no text, such as an embedding model, is not
+// usable, as on every other provider (0042-MADR D1). Recommended is the menu
+// less each entry with a caveat other than CaveatNoTools: the install is all
+// there is, so a chat model that takes no tools stays recommended, after
+// those that do (0042-MADR D2).
+func ollamaMenu(names []string, facts map[string]ModelInfo, created map[string]time.Time, limit int,
+	now time.Time) Catalog {
 	usable := slices.DeleteFunc(slices.Clone(names), func(id string) bool { return writesNoText(facts[id]) })
-	var uncaveated, sunk []MenuEntry
-	for _, id := range usable {
-		e := entry(llmprovider.ProviderOllama, id, facts, 0, now)
-		if len(e.Caveats) == 0 {
-			uncaveated = append(uncaveated, e)
-		} else {
-			sunk = append(sunk, e)
-		}
-	}
-	menu := slices.Concat(uncaveated, sunk)
+	menu := defaultRank(usable, facts, created, func(id string, info ModelInfo) []Caveat {
+		return caveatsOf(llmprovider.ProviderOllama, id, info, now)
+	})
 	var recommended []string
 	for _, e := range menu {
 		if ollamaRecommends(e) {
@@ -202,6 +198,133 @@ func ollamaMenu(names []string, facts map[string]ModelInfo, limit int, now time.
 // has no caveat but CaveatNoTools (0042-MADR D2).
 func ollamaRecommends(e MenuEntry) bool {
 	return !slices.ContainsFunc(e.Caveats, func(c Caveat) bool { return c != CaveatNoTools })
+}
+
+// compatMenu is a chatcompat listing's catalog (0061-MADR, amendment "E2 and
+// E4's menu, made exact before Phase 4c", decision 2, X2, X3): the default
+// rank with the variants grouped; the band its first MaxListed uncaveated
+// entries, ranked by place; Recommended the uncaveated, in that order.
+// Usable stays in the server's order. limit cuts Recommended and Menu, as
+// WithLimit does.
+func compatMenu(provider llmprovider.ProviderID, usable []string, facts map[string]ModelInfo,
+	created map[string]time.Time, limit int, now time.Time) Catalog {
+	menu := defaultRank(usable, facts, created, func(id string, info ModelInfo) []Caveat {
+		return compatCaveats(provider, id, info, now)
+	})
+	var recommended []string
+	for i := range menu {
+		if len(menu[i].Caveats) > 0 {
+			continue
+		}
+		recommended = append(recommended, menu[i].ID)
+		if len(recommended) <= MaxListed {
+			menu[i].Rank = len(recommended)
+		}
+	}
+	return Catalog{Recommended: listlimit.Cut(recommended, limit), Usable: usable, Live: true,
+		Menu: cutMenu(menu, limit)}
+}
+
+// noTextTokens are the id tokens of a model that writes no text: an
+// embedding, a reranker, speech (X3).
+var noTextTokens = []string{denyEmbed, "embedding", "embeddings", "rerank", "reranker", denyWhisper, denyTTS}
+
+// compatCaveats is a chatcompat model's caveats: caveatsOf's, and
+// CaveatNoTextOutput for a model whose facts do not state its output and
+// whose id has a token of noTextTokens (X3). The built-in Ollama reads no
+// name (0042-MADR D1; PLAN deviation 8).
+func compatCaveats(provider llmprovider.ProviderID, id string, info ModelInfo, now time.Time) []Caveat {
+	out := caveatsOf(provider, id, info, now)
+	if !info.Has(FieldOutput) && slices.ContainsFunc(modelTokens(id), func(t string) bool {
+		return slices.Contains(noTextTokens, t)
+	}) {
+		out = append(out, CaveatNoTextOutput)
+	}
+	return out
+}
+
+// defaultRank orders an unranked listing (X3): the uncaveated before the
+// caveated; then the larger context window, a known one first; then the
+// newer created, a known one first; then the listing's order. Within the
+// uncaveated, and within the caveated, the variants of one model then sit
+// together (X2). No dialect recorded says which model is loaded, so that
+// key is not read. caveats is the listing's caveats of a model.
+func defaultRank(ids []string, facts map[string]ModelInfo, created map[string]time.Time,
+	caveats func(id string, info ModelInfo) []Caveat) []MenuEntry {
+	entries := make([]MenuEntry, len(ids))
+	for i, id := range ids {
+		info := facts[id]
+		entries[i] = MenuEntry{ID: id, Info: info, Caveats: caveats(id, info)}
+	}
+	window := func(e MenuEntry) int {
+		if e.Info.Has(FieldContextWindow) {
+			return e.Info.ContextWindow
+		}
+		return 0
+	}
+	slices.SortStableFunc(entries, func(a, b MenuEntry) int {
+		ta, oka := created[a.ID]
+		tb, okb := created[b.ID]
+		var byCreated int
+		switch {
+		case oka && okb:
+			byCreated = tb.Compare(ta)
+		case oka != okb:
+			byCreated = boolOrder(okb, oka)
+		}
+		return cmp.Or(boolOrder(len(a.Caveats) > 0, len(b.Caveats) > 0), cmp.Compare(window(b), window(a)), byCreated)
+	})
+	split := slices.IndexFunc(entries, func(e MenuEntry) bool { return len(e.Caveats) > 0 })
+	if split < 0 {
+		split = len(entries)
+	}
+	place := make(map[string]int, len(ids))
+	for i, id := range ids {
+		place[id] = i
+	}
+	return slices.Concat(groupVariants(entries[:split], place), groupVariants(entries[split:], place))
+}
+
+// boolOrder orders false before true.
+func boolOrder(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case a:
+		return 1
+	}
+	return -1
+}
+
+// groupVariants keeps entries in order, except that each model's variants,
+// those of one variantKey, sit at the first one's place, the plainest
+// first, then by place, their listing's order (X2). An id with no key is a
+// group of its own.
+func groupVariants(entries []MenuEntry, place map[string]int) []MenuEntry {
+	keys := make([]string, len(entries))
+	for i, e := range entries {
+		keys[i] = variantKey(e.ID)
+	}
+	out := make([]MenuEntry, 0, len(entries))
+	done := make([]bool, len(entries))
+	for i := range entries {
+		if done[i] {
+			continue
+		}
+		group := []MenuEntry{entries[i]}
+		done[i] = true
+		for j := i + 1; j < len(entries) && keys[i] != ""; j++ {
+			if !done[j] && keys[j] == keys[i] {
+				group = append(group, entries[j])
+				done[j] = true
+			}
+		}
+		slices.SortStableFunc(group, func(a, b MenuEntry) int {
+			return cmp.Or(cmp.Compare(plainness(a.ID), plainness(b.ID)), cmp.Compare(place[a.ID], place[b.ID]))
+		})
+		out = append(out, group...)
+	}
+	return out
 }
 
 // cutMenu is menu's first n, or all of it when n is zero or less.

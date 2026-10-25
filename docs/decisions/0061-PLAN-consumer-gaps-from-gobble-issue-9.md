@@ -1130,3 +1130,186 @@ Done; staged for the owner's commit. Phase 4 is committed as `b663b71`.
   `llmprovider/catalog/{model_matcher,search_0061,search_bench_0061}_test.go`,
   `wizard/{model_select,text_prompter}.go`,
   `wizard/{model_select,search_0061}_test.go`.
+
+### Phase 4c: before any change (2026-10-25)
+
+* Phase 4b is committed as `fca2133`. Reading the listing, the Ollama
+  reader and the menu builders, and probing the local Ollama 0.33.2 and the
+  recorded models.dev document, found four points the record left open or
+  contradicted; the owner decided each (the MADR's amendment "E2 and E4's
+  menu, made exact before Phase 4c"):
+  * **Deviation 4: the variant key.** E4's example does not group under
+    E2's canonical id. Decision: a looser key, the canonical id less the
+    role tokens.
+  * **Deviation 5: the scope of grouping and the default rank.** "For every
+    provider" would reorder ranked bands. Decision: unranked listings only,
+    `chatcompat`'s and the built-in Ollama's; Ollama's menu leaves
+    0041-MADR A4's `/api/tags` order. `llmprovider/catalog/menu.go`'s
+    `ollamaMenu` and `discovery.go`'s `ollamaTag` (its `modified_at`) join
+    the phase's scope.
+  * **Deviation 6: the dialect rule.** None was set. Decision: every entry
+    a `:`-tagged id, an integer `created`, an `owned_by`; the threshold all.
+  * **Deviation 7: models.dev for a compat listing.** It was off. Decision:
+    fetched as a built-in's is.
+* **The revised steps:**
+  1. **Record** (`LLMPROVIDER_LIVE_0061_COMPAT` naming a base URL, in a
+     live-tagged test that writes the fixtures): the local Ollama's
+     `/v1/models`, `/api/tags`, and `/api/show` for `qwen3:8b` and
+     `gemma3:12b`, trimmed as X7 says, into
+     `llmprovider/catalog/testdata/compat/ollama/`; `make fixtures-check`.
+  2. `catalog`: `canonical.go` (X1, X2, X5's merge); `dialect.go` (the
+     dialect table and score, decision 3, and the Ollama dialect's details,
+     X4); the compat fetch keeps `created` and runs the dialect; the compat
+     listing fetches models.dev (decision 4) and reads it by canonical id
+     as its lowest layer, beside `mergeLayers`; `menu.go`'s default rank
+     and variant grouping (X2, X3) for the compat and Ollama menus.
+  3. **Before the tests change,** every existing test is run on the new
+     code; a failure is kept only if it pins the built-in Ollama's menu
+     order across models whose window or `modified_at` differ (deviation
+     5), each listed here with its output before it is restated. Any other
+     failure is a stop.
+  4. Tests: `TestDialect_Score_0061`, `TestCanonicalID_0061`,
+     `TestFacts_Order_0061`, `TestCanonicalMatch_ExactOnly_0061`,
+     `TestCanonicalMerge_0061` (X5's majority and ties),
+     `TestMenu_Variants_0061`, `TestMenu_DefaultRank_0061` (compat and
+     Ollama). Plants: the threshold removed; a fuzzy canonical match;
+     variants not grouped; the role tokens in the canonical id; a tie
+     resolved to the larger limit.
+  5. Docs: `catalog`'s package doc, `Catalog.Menu`'s doc, the CHANGELOG
+     (Changed: Ollama's menu order; Added: a compat listing's facts),
+     `docs/architecture.md`'s Ollama and listing paragraphs, `AGENTS.md`'s
+     live variables if `scripts/check_tables.py` asks.
+* **Step 1, done:** `TestLive_RecordCompat_0061`
+  (`live_0061_compat_record_test.go`), with `LLMPROVIDER_LIVE_0061_COMPAT`
+  `http://127.0.0.1:11434/v1`, `LLMPROVIDER_LIVE_0061_COMPAT_DIALECT`
+  `ollama` and `LLMPROVIDER_LIVE_0061_COMPAT_SHOW` `qwen3:8b,gemma3:12b`,
+  wrote `models.json` (700 bytes), `tags.json`
+  (3341), `show-qwen3_8b.json` (1371) and `show-gemma3_12b.json` (1775)
+  into `llmprovider/catalog/testdata/compat/ollama/`. A search of them for a
+  home path and the local account name found none; `make fixtures-check`:
+  353 files, 0 problems. `/v1/models`' `created` of `llama3.2:latest`,
+  1783879777, is 2026-07-12T18:09:37Z, the instant of its `/api/tags`
+  `modified_at` (`13:09:37-05:00`), as X3 says.
+* **Step 3, the first run** (`go test -count=1 ./...`, on step 2's code):
+  one failure, `TestOllamaUsable_0042`, cases S4 and S5:
+  `granite-embedding:30m: caveats [no-text-output]; want []` and the same
+  for `nomic-embed-text:latest`, each then out of `Recommended`. It is not
+  the kind step 3 admits: no order test failed; X3's id-token caveat met
+  0042-MADR D1, which keeps a model whose output Ollama does not report.
+* **Deviation 8 (2026-10-25): the id-token caveat for chatcompat only.**
+  Decision (owner): only a `chatcompat` listing reads an id's tokens; the
+  built-in Ollama keeps 0042-MADR D1, and S4 and S5 stand unchanged. The
+  MADR's X3 says so. Applying it to both, amending 0042-MADR D1, and
+  dropping the id-token rule were weighed and not chosen.
+* **Step 3, the second run** (`go test -count=1 ./...`, after deviation 8):
+  every package passed. No existing test pins the built-in Ollama's order
+  across models whose window or `modified_at` differ.
+* **Step 3, the outside network:** decision 4 starts a models.dev fetch
+  for a compat listing, so a test that lists one without turning the
+  document off reaches `models.opencode.ai`. Measured by running the tests
+  through a logging proxy that refuses every request
+  (`HTTPS_PROXY`, each package alone): on this phase's code, `catalog` 30
+  `CONNECT models.opencode.ai:443`, `chatcompat` 4, `wizard` 0; on a scratch
+  clone of `fca2133`, `catalog` 24, `chatcompat` 0, `wizard` 0. The 24 are
+  older than this phase and outside it, and are reported, not fixed. The
+  10 new ones were `compat_0061_test.go`'s `compatList` and
+  `TestCompatListing_NoKey_0061`, and `chatcompat`'s `build`: each now
+  passes `llmprovider.WithoutModelMetadata()`. After: `catalog` 24,
+  `chatcompat` 0, as before the phase.
+* **Deviation 9 (2026-10-25): `catalog.WithModelLayer` shared.** Found:
+  `TestFacts_Order_0061` failed with `model listing: unsupported provider
+  "acme"`: `WithModelLayer` is `ScopedOptionFor(builtinIDs)`, so a compat
+  id refuses it, and X6's caller layer never reaches a compat listing.
+  Decision (owner): a shared option (the MADR's X8), as `WithCache` is;
+  `llmprovider/catalog/lookup.go`, `lookup_scope_0033_test.go`'s
+  `TestWithModelLayer_Scoped_0033` (its other id now takes the option,
+  ignored, where it refused it; restated) and `docs/guides/api-standards.md`'s
+  R17 join the phase's scope.
+* **Deviation 10 (2026-10-25): the kept sections.** Found: a test document
+  whose one section was `acme-cloud` gave no canonical facts:
+  `decodeModelMetadata` keeps only the nine sections the SDK reads. Decision
+  (owner): the match searches those nine (the MADR's X9); the test's
+  document is a `huggingface` section. No file joins the phase's scope.
+* **As built:**
+  * `catalog/canonical.go`: `canonicalTokens`, `canonicalID` (X1),
+    `variantKey`, `plainness` (X2), `Metadata.modelFor`, which reads a
+    compat model by canonical id and any other by its section, and
+    `Metadata.canonicalModel` on an index built once per document
+    (`modelMetadataDoc.canonical`), its groups merged by `mergeCanonical`
+    and `majority` (X5).
+  * `catalog/dialect.go`: `compatEntry`, the table `dialects` (Ollama's
+    three marks), `dialectScore`, `dialectOf` at `dialectThreshold` 1
+    (decision 3), `ollamaDialectDetails` (X4), `fetchCompatEntries`.
+  * `discovery.go`: `fetchCompat` (ids, created times, the dialect's
+    details) in place of `fetchCompatUsable` and `compatCurate`; the
+    models.dev fetch started for a compat listing (decision 4);
+    `listingResult.created` and `fetchedListing.created`; `ollamaTag`'s
+    `modified_at`, parsed leniently, as the built-in Ollama's created
+    times; `compatMenu` for a compat listing.
+  * `menu.go`: `defaultRank` (X3), `groupVariants` (X2) within the
+    uncaveated and within the caveated, `compatMenu` (its band the first six
+    uncaveated, by place), `compatCaveats` and `noTextTokens` (a compat
+    listing only, deviation 8), `ollamaMenu` on the default rank.
+  * `config.go`: a compat listing no longer turns the document off;
+    `lookup.go`: `modelFor` in `LookupModel`, `CachedModel` and
+    `CachedFacts`, and `WithModelLayer` shared (X8); `menu.go`'s
+    `factsOf` reads `modelFor`.
+  * `models_catalog.go`: `denyWhisper` beside `denyEmbed` and `denyTTS`,
+    for goconst, which counted `menu.go`'s `noTextTokens`' literals with
+    its own; it joins the phase's scope for that alone.
+  * `chatcompat.go`'s package doc, `catalog`'s package doc, `List`'s and
+    `Catalog.Menu`'s docs, `docs/architecture.md`, `docs/guides/api-standards.md`'s
+    R17, the CHANGELOG's Changed.
+* **Tests:** added `compat_facts_0061_test.go`: `TestDialect_Score_0061`
+  (each recorded dialect's reply, every other recorded `{"data": [...]}`
+  listing, one untagged id, one entry without `created`),
+  `TestCanonicalID_0061`, `TestCanonicalMatch_ExactOnly_0061` (on the
+  recorded models.dev document: `gpt-oss:20b` matches; `qwen3:8b`,
+  `gpt-oss:21b`, `gpt-oss`, `deepseek-r1:7b`, `llama3.2:latest` do not),
+  `TestCanonicalMerge_0061`, `TestFacts_Order_0061` (the recorded Ollama
+  served by a fake, a caller's layer, a models.dev document: each field's
+  value and source), `TestMenu_Variants_0061`, `TestMenu_DefaultRank_0061`
+  (a compat menu, Ollama's, a plain server whose order is not its created
+  order, and the recorded Ollama end to end); `live_0061_compat_record_test.go`.
+  Restated: `TestWithModelLayer_Scoped_0033` (deviation 9). Changed, for
+  the outside network only: `compatList`, `TestCompatListing_NoKey_0061`,
+  `chatcompat`'s `build`.
+* **Plants,** `tools/plant.py` on a scratch clone, `./llmprovider/catalog/`,
+  `-run '_0061|_0042'`, run again on the final code; all 9 caught:
+  * the threshold removed: `TestDialect_Score_0061` (`one untagged id:
+    dialect "ollama", want none`);
+  * a fuzzy canonical match: `TestCanonicalMatch_ExactOnly_0061`
+    (`qwen3:8b matched {… Qwen3 VL 30B A3B Thinking …}`);
+  * variants not grouped: `TestMenu_Variants_0061`;
+  * the role tokens in the canonical id: `TestCanonicalID_0061` (`an
+    instruct model and its base share the canonical id
+    "qwen3-235b-a22b-2507"`);
+  * a tie resolved to the larger limit: `TestCanonicalMerge_0061`;
+  * the id-token caveat on the built-in Ollama: `TestMenu_DefaultRank_0061`
+    and `TestOllamaUsable_0042` S4 and S5;
+  * the server's details dropped, and the details read under `/v1`, not
+    the root: `TestFacts_Order_0061` and `TestMenu_DefaultRank_0061`;
+  * the created times not read: `TestMenu_DefaultRank_0061` (`a plain
+    server's menu = [a b c d]`), caught only once its plain-server case
+    was added: the recorded Ollama lists the newest first, so its order
+    passed for created's, and the first run of the plants did not catch it.
+* **Checks:** `make pre-add-check` on the 15 Go files: clean (after
+  goconst's `denyWhisper`); `go test -race -count=1 -shuffle=on ./...`,
+  `go vet -tags live_gateways ./...`, `make api-check` (0 incompatible
+  changes against `v1.22.2`), `tools/apidiff.py v1.22.2`, `tables-check`
+  (after the live variables were named in full in step 1's record),
+  `fixtures-check`, `changelog-check`, `docs-check`, `records-check`,
+  `recordlint --changed`, `denyscan --changed`, `linkcheck`: each exit 0;
+  `tools/gate.py`: 28 of 28 passed. The outside network, through the logging proxy, on the final
+  code: `catalog` 24, `chatcompat` 0, `wizard` 0, as before the phase.
+* **Not done in this phase:** a dialect besides Ollama's (none recorded:
+  LM Studio, llama.cpp, vLLM and TGI wait for the owner's servers and step
+  1's test); "loaded first" (no recorded dialect says it); the 24 requests
+  to `models.opencode.ai` older tests send.
+* **Staged:** `CHANGELOG.md`, `docs/architecture.md`,
+  `docs/guides/api-standards.md`, this record and its MADR,
+  `llmprovider/catalog/{canonical,config,dialect,discovery,doc,lookup,menu,model_metadata,models_catalog}.go`,
+  `llmprovider/catalog/{compat_0061,compat_facts_0061,live_0061_compat_record,lookup_scope_0033}_test.go`,
+  `llmprovider/catalog/testdata/compat/ollama/`,
+  `llmprovider/providers/chatcompat/chatcompat.go`,
+  `llmprovider/providers/chatcompat/helpers_test.go`.
