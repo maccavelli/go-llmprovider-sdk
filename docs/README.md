@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-128 records. Cite them by full filename.
+130 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -138,6 +138,8 @@ documents a reader follows to do something.
 | 0060 | PLAN | [Implement the Docs Update for v1.22.1's Wizard and the Local Gate](decisions/0060-PLAN-docs-accuracy-after-v1-22-1.md) | complete |
 | 0061 | MADR | [Close gobble-cli's Consumer Gaps: Empty-Answer and Offline Errors, Max Effort, a Chat Completions Constructor, and Image Input](decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md) | accepted |
 | 0061 | PLAN | [Implement gobble-cli's Consumer Gaps: Empty-Answer and Offline Errors, Max Effort, a Chat Completions Constructor, and Image Input](decisions/0061-PLAN-consumer-gaps-from-gobble-issue-9.md) | in-progress |
+| 0062 | MADR | [Decide Thinking Parameters From Facts and Learned Refusals, Not Model Names](decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) | proposed |
+| 0062 | PLAN | [Implement Thinking Parameters Decided From Facts and Learned Refusals](decisions/0062-PLAN-learn-thinking-parameters-from-refusals.md) | in-progress |
 
 ## I want to…
 

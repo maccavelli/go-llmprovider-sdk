@@ -700,3 +700,24 @@ Found while implementing D3; no decision changes.
 * **Rule 3's edge.** Facts that list efforts but none of `low`, `medium`,
   `high` and `xhigh` (only `none` or `minimal`) send `max`, unwarned, as
   facts that list none.
+
+## Amendment 2026-10-24: D3 reworked by 0062
+
+The owner re-assessed the thinking design on 2026-10-24: parameters are to
+be decided from facts and from the services' refusals, not from rules per
+provider or model. That decision is
+[0062-MADR-learn-thinking-parameters-from-refusals.md](0062-MADR-learn-thinking-parameters-from-refusals.md)
+(its D10; the owner's Q2 (b) there).
+
+* `EffortMax` and `WarningEffortDegraded` stand as D3 and D10 define them.
+* Rules 1 and 2, which read the facts, become 0062's effort ladder.
+* Rule 3's per-wire rows (Grok's clamp; Gemini's and OpenCode's google
+  route's `high`) and the table's "`max` sent as" column are superseded by
+  0062's D2 to D4. They are kept only where 0062's D8 keeps a rule.
+* The PLAN's Phase 3 was committed on 2026-10-24 as `dd41faf`, rule 3's
+  rows included. The owner had first chosen to hold it (0062's Q2 (b)), then
+  committed it and kept the commit (0062-MADR's amendment "0061's Phase 3
+  committed"). 0062-PLAN's Phase 2 reworks its code in place, in that
+  phase's own commit. Until then, `main` sends `max` as rule 3's rows say.
+* The PLAN's Phases 4 to 8 follow 0062-PLAN, and the release of Phase 8
+  carries 0062.

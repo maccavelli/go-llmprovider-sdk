@@ -620,4 +620,15 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
   --changed`, no rule rose; `tools/denyscan.py --changed`, 0 hits;
   `tools/claims.py` on the MADR, 58 of 58; `python3 -B tools/gate.py`,
   "gate: 28 of 28 passed".
-* **Not done here:** Phases 4 to 8.
+* **Committed as `dd41faf` (2026-10-24).** After the phase was staged, the
+  owner re-assessed the thinking design and first chose to hold it (Q2 (b)
+  of
+  [0062-MADR-learn-thinking-parameters-from-refusals.md](0062-MADR-learn-thinking-parameters-from-refusals.md)).
+  The owner then committed it, all 44 staged paths, and chose to keep the
+  commit (that MADR's amendment "0061's Phase 3 committed").
+  * 0062-PLAN's Phase 2 reworks its code in place, replacing D3's rule-3
+    rows with 0062's ladder, in that phase's own commit.
+  * Until then, `main` sends `max` as rule 3's rows say. Nothing of it is
+    pushed or released.
+* **Not done here:** Phases 4 to 8. They follow 0062-PLAN (the MADR's
+  amendment "D3 reworked by 0062").
