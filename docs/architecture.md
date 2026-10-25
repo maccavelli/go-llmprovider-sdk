@@ -59,6 +59,7 @@ llmprovider/providers/kilo/    Kilo Gateway: Chat Completions
 llmprovider/providers/huggingface/ Hugging Face Inference Providers: Chat Completions
 llmprovider/providers/together/ Together AI: Chat Completions
 llmprovider/providers/ollama/  a local Ollama: Chat Completions
+llmprovider/providers/chatcompat/ any Chat Completions server, under the caller's id: not in Default()
 llmprovider/internal/wire/     what the shared wire formats have in common
 llmprovider/internal/wire/*/   one shared wire format each: responses, chatcompletions, messages, generatecontent
 llmprovider/catalog/          model listing, static catalogs, ranking, metadata, search, profiles
@@ -102,7 +103,7 @@ standard library is left out.
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `internal/nettest` | `Refusing`, a client whose every dial is refused, with `RefusedURL`; `Port`, a loopback port outside every ephemeral range; so that no test depends on a freed port (0045-MADR); imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
-| `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, `DefaultWith(opts...)`, that `Registry` with `opts` given to every built-in (0048-MADR D1), and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
+| `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, `DefaultWith(opts...)`, that `Registry` with `opts` given to every built-in (0048-MADR D1), and `New(id, opts...)`; it holds all ten provider ids, not `chatcompat`'s | `llmprovider`, `providers/claude`, `providers/gemini`, `providers/grok`, `providers/huggingface`, `providers/kilo`, `providers/ollama`, `providers/openai`, `providers/opencode`, `providers/together` |
 | `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, `Stream`, and `ChatGPTUsageURL` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/chatgpt`, `internal/wire/responses`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref`, `internal/transport` |
 | `llmprovider/providers/claude` | Claude through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/messages`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, `ListModels`, and `Stream`, with the Interactions wire's decoders and its refusal matcher (0062-MADR D4) | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
@@ -112,6 +113,7 @@ standard library is left out.
 | `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/together` | Together AI through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/ollama` | Ollama through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
+| `llmprovider/providers/chatcompat` | any Chat Completions server under the caller's id (0061-MADR D4): `New`, `WithID`, `Descriptor`, `ListModels` and `Stream`; a caller registers it, `providers.Default()` does not | `llmprovider`, `auth`, `catalog`, `internal/cacheref`, `internal/transport`, `internal/wire`, `internal/wire/chatcompletions`, `internal/wire/deferral` |
 | `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; `Send` and `StreamEventsRetry`, the openers that build a request again and send it once more while a `Retry` check says so, at most `MaxSends` (7) times (0062-MADR D5); `Retries`, which joins checks; `OpenStream` and `Stream`, a reply held open while its events are read; `ReadEvents`, the server-sent-events reader every wire's stream decoder uses, with its `EventLimit`, which marks a decoder's error as after the reply (0053-MADR D3); `StreamIndex` and `MaxStreamIndex` (4096), the bound on every index a stream sends, past which the stream ends with `ErrIncomplete` (0053-MADR D2); `StreamEvents` and `StreamEventsFor`, the native stream every provider's `Stream` runs; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule; `ProbeHealth`, a listing's probes through a probe store; `Arena`, which holds the strings a request body points to; `Ladder`, the efforts a request may be sent at, and `DegradedWarning` (0062-MADR D3); `Learned`, the memo of refused thinking settings, `Learner`, one request's effort and its `Retry` check, `Matcher` and `Refusal`, what a wire's matcher reads, with `QuotedEfforts` and `PlainEfforts` (0062-MADR D4, D5) | `llmprovider`, `internal/transport`, `internal/redact` |
 | `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `DecodeFor`, `ReadStream`; `MatchRefusal`, its refusals of an effort (0062-MADR D4); `Events`, which yields a stream's events as they arrive; for deferred tools, `InputLoading` (the native form), `InputDispatch` (Grok's wrapper) and `Decoder`, which names the Search tool and the dispatched ones | `llmprovider`, `internal/wire`, `internal/redact`, `internal/wire/deferral` |
 | `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode`, `DecodeFor`, `Events`; `MatchRefusal`, its refusals of an effort (0062-MADR D4) | `llmprovider`, `internal/wire` |
@@ -459,10 +461,14 @@ for a session, from the store.
     counts stay zero there.
 - `Option` configures construction. A provider package's `New` resolves its
   options with `ResolveOptions(id, opts)`, which refuses an option scoped to
-  another provider (`ScopedOption`). `For(id, opts...)` scopes options to
+  another provider (`ScopedOption`). A shared option (`SharedOption`), such
+  as `catalog.WithCache`, every provider takes; its value is in
+  `Settings.Values` for a provider that reads it (0061-MADR, amendment
+  "Phase 4's options"). `For(id, opts...)` scopes options to
   one provider: they apply after the rest when building `id`, and are
   skipped for any other, so one list can build every provider. The resolved
-  `Settings` are read-only.
+  `Settings` are read-only. `chatcompat.New` resolves twice: under its own
+  scope, to read `WithID`, then under that id.
 - `APIError` carries a `Kind`, one of the sentinels. `ErrContextOverflow`
   sits beneath `ErrInvalidRequest`; it is classified from the service's
   error type, or from a message table taken from pi's `overflow.ts`

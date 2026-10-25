@@ -13,6 +13,18 @@ tag and its commit without notes; its notes are its section here.
 
 ### Added
 
+- `llmprovider/providers/chatcompat`: a provider for any server that speaks
+  OpenAI's Chat Completions API, LM Studio, llama.cpp's server, vLLM or a
+  gateway, under an id the caller picks: `New`, `WithID` and `Descriptor`,
+  registered in the caller's `Registry` (`providers.Default()` does not hold
+  it). The key is optional; with none, no `Authorization` header is sent.
+  It learns a refused effort as the built-ins do
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md) D4).
+- `llmprovider.SharedOption`: an option every provider's `New` takes, whatever
+  its id, for a value only some read
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
+  amendment "Phase 4's options").
+
 - `llmprovider.ErrEmptyAnswer`: an answer with nothing usable in it, on
   every wire. It also matches `ErrIncomplete`, as such an answer did
   before, and `APIError.Reason` still says why (`content_filter`,
@@ -51,6 +63,11 @@ tag and its commit without notes; its notes are its section here.
 
 ### Changed
 
+- `catalog.WithCache` is a shared option: every provider's `New` takes it,
+  where one outside the built-ins refused it. A provider outside this module
+  ignores it; `chatcompat` uses it for its probes and learned refusals
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
+  amendment "Phase 4's options").
 - A request's reasoning effort is decided by the model's facts and by what
   the model refused, not by rules of model names: one the facts do not
   list, or the model refused, steps to the nearest effort it takes, lower

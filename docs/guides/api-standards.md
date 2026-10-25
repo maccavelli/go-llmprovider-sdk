@@ -166,11 +166,16 @@ tool that holds a rule, where one does. For how the code is laid out, read
   off) are in `llmprovider`. A
   provider-specific one is in its provider's package, for example
   `kilo.WithOrganization`; one that several ids of a family take is scoped
-  to all of them, as `opencode.WithRoute` is to both gateways. (0015 D5, and
-  its amendment "the OpenCode family")
+  to all of them, as `opencode.WithRoute` is to both gateways. One that every
+  provider takes, whatever its id, is a shared option
+  (`llmprovider.SharedOption`), as `catalog.WithCache` and `chatcompat.WithID`
+  are. (0015 D5, and its amendment "the OpenCode family"; 0061, amendment
+  "Phase 4's options")
 - **R18. A foreign option is an error from `New`,** never ignored, unless
   the caller scoped it with `For(id, …)`: an overlay for another id is
-  skipped. (0015 D5 and its amendment of 2026-09-30)
+  skipped. A shared option is foreign to no provider: one that does not read
+  it ignores it. (0015 D5 and its amendment of 2026-09-30; 0061, amendment
+  "Phase 4's options")
 - **R19. Configuration structs are unexported.** No exported `ProviderConfig` or
   `ApplyOptions`. The module serializes no configuration of its own: a
   consumer keeps its own, and `wizard.Result` is exported for it to keep.
@@ -185,8 +190,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
   types. Each canonical value is a constant whose name starts with a short
   prefix naming its type (`RoleUser`, `EffortHigh`), and a value `mcplib`
   already named keeps that name (`ProviderGemini`, `AuthAPIKey`). (0015 D6)
-- **R22. Provider ids are the models.dev registry keys** already in use.
-  (0015 D6)
+- **R22. Provider ids are the models.dev registry keys** already in use;
+  a provider a caller builds with `chatcompat` takes the caller's id.
+  (0015 D6; 0061 D4)
 - **R23. An invalid value is `ErrInvalidRequest`** from `New` or `Generate`.
   (0015 D6)
 
@@ -254,7 +260,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
 - **R38. Adding a provider is one package, one entry in `providers.Default()`'s
   list, and a passing `llmtest` run.** A provider outside this module needs
   no change here: its caller registers it in a `Registry`
-  ([adding-a-provider.md](adding-a-provider.md)). (0015 D10)
+  ([adding-a-provider.md](adding-a-provider.md)); so does a `chatcompat`
+  provider, whose package is here but which `providers.Default()` does not
+  list. (0015 D10; 0061 D4)
 - **R39. `wizard` offers what its `Options.Registry` holds,** or
   `providers.Default()` when nil. (0015 D10)
 

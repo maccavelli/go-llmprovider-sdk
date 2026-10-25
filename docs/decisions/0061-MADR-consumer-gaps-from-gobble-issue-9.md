@@ -369,6 +369,8 @@ the tag in its own record.
 | `Capabilities.Images` | `llmprovider` | `Check` and `llmtest.Run` (C5, C39); gobble-cli's ACP `image` capability |
 | `WarningImageDropped` | `llmprovider` | Ollama's and OpenCode's drops (D5) |
 | `New`, `WithID`, `Descriptor` | `providers/chatcompat` | gobble-cli's `models.json` providers it skips today (G10) |
+| `SharedOption` | `llmprovider` | `catalog.WithCache` and `chatcompat.WithID` (the amendment "Phase 4's options") |
+| `Discover`, `Server` | `providers/chatcompat` | a caller's configure step: gobble-cli's, the wizard's (the amendment "`chatcompat`, provider-agnostic", E5) |
 
 No other name is exported. `make api-check` against `v1.22.2` lists exactly
 these.
@@ -721,3 +723,244 @@ provider or model. That decision is
   phase's own commit. Until then, `main` sends `max` as rule 3's rows say.
 * The PLAN's Phases 4 to 8 follow 0062-PLAN, and the release of Phase 8
   carries 0062.
+
+## Amendment 2026-10-25: Phase 4's options
+
+`chatcompat`'s provider id is the caller's, and `llmprovider.ResolveOptions`
+decides, by that id, which provider-specific options a `New` takes and which
+`For(id, …)` overlays apply (`llmprovider/settings.go:178`, `:273`). The
+PLAN's Phase 4 stopped on two consequences D4 did not foresee:
+
+* **`catalog.WithCache` would be refused.** It is scoped to the built-in
+  ids (`catalog/cache.go:43`), as 0048-MADR D1 decided ("scoped as R17
+  says"). R49 holds a provider's probes and learned refusals in the
+  `catalog.Cache` that `WithCache` gives its `New`, and 0058-MADR D1 gives
+  each test that probes its own; `chatcompat` would have neither.
+* **`WithID` cannot be scoped.** A scoped option names its ids when it is
+  made, and `chatcompat`'s is only known from `WithID` itself.
+
+The owner chose, on 2026-10-25, a shared option (option "2a"), for
+`WithCache` and `WithID` only:
+
+* **D10 gains `llmprovider.SharedOption(name string, value any) Option`:**
+  an option every provider's `New` takes, whatever its id; its value joins
+  `Settings.Values` in order, for a provider that reads it, and one that
+  does not ignores it. A `For(id, …)` holding it applies it to `id` alone,
+  as any option. Call sites (R55): `catalog.WithCache` and
+  `chatcompat.WithID`.
+* **`catalog.WithCache` is a shared option.** Every `New` takes it: the
+  built-ins and `chatcompat` read it; a provider outside this module cannot
+  (`internal/cacheref`) and ignores it, where it refused it. 0048-MADR D1's
+  "scoped as R17 says" no longer holds for it; R17 and R18 name the shared
+  option. `catalog.WithLimit`, `WithProfile`, `WithWorkload` and
+  `WithModelLayer` stay scoped to the built-ins, as 0038-MADR D2 and the
+  wizard's `Options.ModelLimit` rely on.
+* **`chatcompat.WithID` is a shared option, and `chatcompat.New` resolves
+  the options twice:** first under the scope `"chatcompat"`, to read the last
+  `WithID` and refuse as D4 says; then under that id, so that `For(id, …)`
+  applies, and the provider is built from the second. A `WithID` inside
+  `For(id, …)` is not read: it is given bare, as the factory a caller
+  registers adds it.
+* **Also settled for `New`, under rules D4 did not name:**
+  * by R16, an `auth.OAuthSession` or `auth.VendorCLISession` is refused
+    with `ErrUnsupported`, as Hugging Face's `New` refuses one: its token is
+    a vendor's, and is never sent to another server;
+  * probes are off unless `WithModelProbes(true)`: `New` puts
+    `WithModelProbes(false)` before the caller's options, as `Settings`
+    cannot tell its default from a given `true`;
+  * an empty key is no key: no `Authorization` header is sent, as with no
+    source (`Token.Apply` would send the scheme `Bearer` and an empty value).
+* **Offered and not chosen:** one fixed scope, `"chatcompat"`, which
+  `For(id, …)` would not reach; no catalog option, which breaks R49; an
+  internal bridge in place of the export ("2b"); and `catalog.WithLimit`
+  shared too, which would reverse 0038-MADR D2 and its A2's wizard path.
+
+## Amendment 2026-10-25: `chatcompat`, provider-agnostic (proposed)
+
+**Status: accepted (owner, 2026-10-25): all five, E1 to E5,** with the
+amendment "Phase 4's options", which E1 builds on. D10's table gains
+`SharedOption`, `Discover` and `Server`. The owner asked, before Phase
+4 runs, that `chatcompat` serve any OpenAI-compatible server, not only one
+shaped as Hugging Face's router, and that its caches, listings, facts and
+search be robust and fast. This amendment evaluates D4 against that, and
+proposes five enhancements, E1 to E5. Each is additive: no exported name
+changes, and only E5 adds names.
+
+### What D4 leaves undone
+
+* **No catalog path.** `catalog.List`, `LookupModel`, `CachedModel` and
+  `CachedFacts` refuse an id that is not built in (`catalog/lookup.go:46`,
+  `lookupProvider`), so a `chatcompat` listing is fetched by its own code,
+  uncached, unshared between callers, with no last good listing, no `Menu`
+  and no facts. The built-ins have all of these: a 10-minute listing cache
+  keyed by provider, base URL and credential fingerprint
+  (`catalog/listing_cache.go:19`, `:36`), one fetch in flight per key
+  (`claimListing`, 0053-MADR), a last good listing for 24 hours after a
+  transient failure (`:53`), and Ollama's per-model details cached by digest.
+* **No facts.** Every request of a `chatcompat` provider sends the default
+  output limit, no replay field, and its effort unchecked against a list,
+  though the servers it targets publish context windows and capabilities
+  (External evidence below).
+* **One request shape.** A server that refuses an optional field the
+  Chat Completions wire sends (`stream_options`, a tool's `strict`,
+  `reasoning_effort`) fails every request; 0062's learner reads only the
+  refusal forms of Hugging Face and Kilo.
+* **Search for curated listings.** `catalog.Search`'s tiers
+  (`catalog/model_matcher.go:18-31`) suit a provider's tidy ids; a local
+  server's ids carry tags and quantisations (measured: the owner's Ollama
+  lists `granite3-dense:8b-instruct-q5_K_M` beside `granite3-dense:8b`), and
+  a typo finds nothing until the subsequence tier.
+
+### External evidence (searched 2026-10-25)
+
+Measured in this session: the owner's local Ollama answers `GET /v1/models`
+with `object` and `data`, each entry holding only `id`, `object`, `created`
+and `owned_by`, `owned_by` being `"library"`, and no `Server` header.
+
+The rest is reported by documentation or by clients that read it, and is
+**UNCONFIRMED here until a phase records it** (each phase below records
+before it relies):
+
+* **llama.cpp's server:** `GET /v1/models` with `owned_by: "llamacpp"` and a
+  `meta` block (`n_ctx`, `n_ctx_train`) on a single-model server; `GET
+  /props` with the per-slot `n_ctx` and the vision modality
+  ([simplified.guide](https://www.simplified.guide/llama-cpp/server-start),
+  [pi-llamacpp-provider](https://pi.dev/packages/pi-llamacpp-provider?page=34));
+  Zed reads `/props` for the context length
+  ([Zed](https://zed.dev/docs/ai/use-a-local-model)).
+* **LM Studio:** `GET /api/v0/models`, each entry's `type` (`llm`, `vlm`,
+  `embeddings`), `state` (`loaded`, `not-loaded`) and `max_context_length`
+  ([LM Studio](https://lmstudio.ai/docs/api/rest-api)); Zed fills its
+  `max_tokens` from it
+  ([Zed commit](https://git.secluded.site/zed/commit/52fa7ababb7feff1a3434e03e94d7a26b34b3d24)).
+* **Ollama:** `POST /api/show`'s `capabilities` (`completion`, `tools`,
+  `thinking`, `vision`) and `model_info`'s `*.context_length`
+  ([Zed commit](https://git.secluded.site/zed/commit/3d5ddcccf08ea4d421b11474cf1190fc6bb1b4a1)),
+  which this module's catalog already reads for Ollama.
+* **OpenRouter-shaped listings:** `context_length`, `supported_parameters`
+  and `architecture.input_modalities` in `GET /models`
+  ([OpenRouter](https://openrouter.ai/docs/overview/models)).
+* **vLLM** serves at `http://localhost:8000/v1` by its docs' example
+  ([vLLM](https://docs.vllm.ai/en/v0.8.5/serving/openai_compatible_server.html));
+  that its `/v1/models` carries `max_model_len` was not found in a primary
+  source.
+* **Text Generation Inference:** an `/info` endpoint with
+  `max_input_length` and `max_total_tokens`
+  ([router source](https://huggingface.co/spaces/nateraw/jupyterlab-inference-dev/blob/8e222be4de35a42260e57972be2953cc7bd3e02c/router/src/lib.rs)).
+* **Similar projects drop what a server refuses.** LiteLLM raises on a
+  parameter a model does not take unless `drop_params` drops it
+  ([LiteLLM](https://docs.litellm.ai/docs/completion/drop_params)), from a
+  table that can be wrong
+  ([issue 26444](https://github.com/BerriAI/litellm/issues/26444)); the
+  Vercel AI SDK's OpenAI-compatible provider makes stream usage an opt-in,
+  `includeUsage`
+  ([example](https://antseed.com/integrations/vercel-ai-sdk)). This module
+  learns from the refusal itself (0062-MADR), which needs no table.
+
+### E1. One listing path for `chatcompat`, inside `catalog`
+
+* **What.** `catalog.List`, `LookupModel`, `CachedModel` and `CachedFacts`
+  accept a provider id that is not built in when the options carry
+  `chatcompat.WithID` of that id and a base URL. The listing is `GET
+  {base}/models`, through the existing listing cache: one fetch in flight
+  per key, fresh for 10 minutes, the last good one served for 24 hours after
+  a transient failure, keyed as every listing is. `chatcompat.ListModels` is
+  that listing's `Recommended`; each request reads `CachedFacts`, never
+  fetching (0041-MADR D1), as the built-ins do. `catalog.Search` and
+  `Catalog.Menu` work on it unchanged.
+* **Why.** The caches, the in-flight sharing and the failure path exist and
+  are tested; a second implementation in `chatcompat` would drift from
+  them.
+* **API.** No name added. `catalog.List`'s and `LookupModel`'s docs gain
+  the case; an unknown id without `WithID` is refused as today. The
+  `WithID` value is a type in a new internal package both read
+  (`llmprovider/internal/compatid`), so neither imports the other.
+* **Depends on** the amendment "Phase 4's options": `WithCache` and `WithID`
+  shared.
+
+### E2. Facts for any server: its dialect's details, then models.dev by canonical id
+
+* **What.** The E1 listing scores the reply against a table of dialects,
+  each a set of features of `/models` (`owned_by` values, a `meta` block,
+  `max_model_len`, `context_length`, `architecture`), and, for one that
+  scores above its threshold and is recorded (below), reads its one details
+  endpoint once per listing: llama.cpp `/props`, LM Studio
+  `/api/v0/models`, Ollama `/api/show` (the catalog's digest-cached reader),
+  TGI `/info`; an OpenRouter-shaped listing needs none. The details map to
+  `ModelInfo`: the context window caps the output limit, `vlm` or `vision`
+  marks image input, `embeddings` a caveat that it writes no text, `tools`
+  and `thinking` the toggles, `reasoning_content` the replay field.
+* **Then models.dev, by canonical id,** as the lowest layer, for what the
+  server does not say: a model id is canonicalised (lower case; the
+  organisation prefix dropped; an Ollama tag split, `latest` dropped;
+  quantisation and format tokens dropped: `q4_k_m`, `iq*`, `awq`, `gptq`,
+  `fp8`, `bf16`, `int4`, `gguf`, `mlx`, `*bit`), and matched to models.dev's
+  ids canonicalised the same way, across its providers. Only an exact
+  canonical match counts, never a fuzzy one; where providers disagree on a
+  field, the most common value wins, and on a tie the smaller limit.
+  `SourceOf` names the layer "models.dev (canonical id)".
+* **Order of authority,** as 0062-MADR D2's: a refusal learned, the caller's
+  layers, the server's details, its listing, models.dev by canonical id.
+* **Recorded first.** A dialect is enabled only with a recorded reply of
+  its server in `llmprovider/catalog/testdata/compat/<dialect>/`; the local
+  Ollama is recordable now, the others when the owner runs one. An
+  unrecorded dialect is a plain listing.
+
+### E3. Optional-field learning for Chat Completions servers
+
+* **What.** `chatcompat`'s learner gains a field matcher: a 400 whose
+  message names a field the request sent, from a closed list of optional
+  fields (`reasoning_effort`, `stream_options`, a tool's `strict`), beside
+  a recorded phrase of rejection, is that field's refusal. `reasoning_effort`
+  takes 0062's last rung (none, with `WarningReasoningLearned`);
+  `stream_options` and `strict` are dropped, the drop kept in the memo per
+  base URL and model, and the request sent again within `MaxSends`. A
+  stream without `stream_options` carries no usage; the package doc says
+  so.
+* **Recorded first,** as 0062-MADR D4 requires: each phrase is one a
+  recorded server sent; with none recorded for a field, the field is never
+  dropped.
+* **API.** No name added; the memo gains a set of dropped fields.
+
+### E4. Search and the menu for uncurated listings
+
+* **What, in `catalog`, for every provider:**
+  * **A typo tier:** when no tier above the subsequence one matches, a
+    query token within an edit distance of 1 (2 for tokens of 8 runes or
+    more; Damerau's transposition counted as one edit, bounded and stopping
+    early) of an id token matches, scored above the subsequence tier;
+  * **An index per listing:** each id's tokens, compact form and label are
+    computed once per listing and cached beside it, not per query, so a
+    search over a listing of a thousand ids allocates nothing per id; a
+    benchmark pins it;
+  * **Variants grouped:** ids with one canonical id (E2's) sit together in
+    the menu, the plainest first (`granite3-dense:8b` before its
+    `-instruct-q5_K_M`);
+  * **A default rank for a listing with no ranking:** text models first
+    (an embedding, reranker, speech or image-only model, by its facts or
+    its id's tokens, gets the existing "writes no text" caveat), loaded
+    models first where the server says, then the larger context window,
+    then the newer `created`, the listing's order breaking ties.
+* **API.** None: `Search`'s signature and its tiers' order above the
+  subsequence one are unchanged; the existing Search tests pin it.
+
+### E5. Local server discovery
+
+* **What.** `chatcompat.Discover(ctx context.Context, opts
+  ...llmprovider.Option) ([]Server, error)` asks the documented default
+  ports of local servers on loopback only (`127.0.0.1`), each with one
+  `GET /v1/models`, at once, each bounded by 300 ms, sending no key, and
+  returns those that answer: `type Server struct { BaseURL, Label string;
+  Models []string }`, the label the dialect's (E2) or the host and port. The
+  ports, each confirmed in the record before it ships: LM Studio 1234,
+  Ollama 11434 (measured), llama.cpp and LocalAI 8080, vLLM 8000, Jan 1337,
+  KoboldCpp 5001.
+* **Why.** A configure step, gobble-cli's or the wizard's, offers what is
+  running without asking for a URL.
+* **API.** Two names added to D10 (R55: a caller's configure step).
+
+### Cost and order
+
+E1 is the base of E2 and E4's menu; E3 and E5 stand alone. In the PLAN they
+are phases 4a to 4e, after Phase 4 and before Phase 5, each with its
+recordings, tests, plants and checks.

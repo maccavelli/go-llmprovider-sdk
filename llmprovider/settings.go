@@ -15,7 +15,8 @@ import (
 // Option configures a provider when it is built (0015-MADR D5). The common
 // options are in this package. A provider package defines its own with
 // ScopedOption or ScopedOptionFor, and New refuses one meant for another
-// provider unless For scopes it. Options apply in order, so a later one wins;
+// provider unless For scopes it; an option every provider takes, whatever its
+// id, is made with SharedOption (0061-MADR, amendment "Phase 4's options"). Options apply in order, so a later one wins;
 // a For's options apply after all the others. Applying an Option does not
 // change it, so one may be given to many New calls at once; the values it
 // holds, such as a TokenSource or a Layer, must themselves be safe for
@@ -23,6 +24,7 @@ import (
 type Option struct {
 	name      string       // the constructor's name, for errors
 	scoped    bool         // a provider-specific option
+	shared    bool         // an option every provider takes (SharedOption)
 	providers []ProviderID // the ids a provider-specific option is for
 	apply     func(*settings)
 	value     any // a provider-specific option's value
@@ -150,6 +152,17 @@ func ScopedOptionFor(providers []ProviderID, name string, value any) Option {
 	return Option{name: name, scoped: true, providers: slices.Clone(providers), value: value}
 }
 
+// SharedOption returns an option every provider's New takes, whatever its id,
+// for a package outside this one, such as catalog.WithCache, whose value only
+// some providers read (0061-MADR, amendment "Phase 4's options"). A provider
+// that reads value finds it in Settings.Values, in order with the
+// provider-specific options' values; one that does not ignores it. Inside
+// For(id, …) it applies to id alone, as any option. name is the option
+// constructor's name, for errors.
+func SharedOption(name string, value any) Option {
+	return Option{name: name, shared: true, value: value}
+}
+
 // scopeText names the providers a scoped option is for, for errors.
 func scopeText(providers []ProviderID) string {
 	if len(providers) == 1 {
@@ -274,7 +287,7 @@ func (s *settings) take(id ProviderID, opt Option) error {
 	switch {
 	case opt.scoped && !slices.Contains(opt.providers, id):
 		return fmt.Errorf("%w: option %s is for %s, not %q", ErrInvalidRequest, opt.name, scopeText(opt.providers), id)
-	case opt.scoped:
+	case opt.scoped, opt.shared:
 		s.values = append(s.values, opt.value)
 	}
 	if opt.apply != nil {
@@ -350,5 +363,6 @@ func (st *Settings) ModelMetadataURL() string { return st.s.cfg.ModelMetadataURL
 // metadata fetch off.
 func (st *Settings) ModelMetadataDisabled() bool { return st.s.cfg.DisableModelMetadata }
 
-// Values returns the values of the provider-specific options, in order.
+// Values returns the values of the provider-specific options and the shared
+// ones (SharedOption), in order.
 func (st *Settings) Values() []any { return append([]any(nil), st.s.values...) }

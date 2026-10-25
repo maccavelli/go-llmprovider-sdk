@@ -30,17 +30,19 @@ func (c *Cache) value() *cacheref.Value {
 	return c.ref
 }
 
-// WithCache makes a listing (List, ListRaw, the lookups) or a built-in
-// provider's New use c in place of the process's cache. A provider given it
-// uses it for its listings, its model facts, its probes and the refusals it
-// learns. A nil c is the
-// process's cache, as no option is. The last WithCache given wins.
+// WithCache makes a listing (List, ListRaw, the lookups) or a provider's New
+// use c in place of the process's cache. A built-in provider, or a chatcompat
+// one, given it uses it for its listings, its model facts, its probes and the
+// refusals it learns. It is a shared option (llmprovider.SharedOption): every
+// provider's New takes it, and a provider outside this module, which cannot
+// read it, ignores it (0061-MADR, amendment "Phase 4's options"). A nil c is
+// the process's cache, as no option is. The last WithCache given wins.
 func WithCache(c *Cache) llmprovider.Option {
 	var v *cacheref.Value
 	if c != nil {
 		v = c.value()
 	}
-	return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithCache", v)
+	return llmprovider.SharedOption("catalog.WithCache", v)
 }
 
 // store is one cache's listings and metadata documents, each under its

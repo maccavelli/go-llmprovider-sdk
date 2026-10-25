@@ -234,7 +234,10 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
    * `chatcompat.go`: the package doc (what it is, the optional key, no
      facts, Capabilities, Degradations); `New`, `WithID`; the provider:
      `ID`, `Capabilities`, `Generate`, `Stream`, `ListModels`, through
-     `internal/wire/chatcompletions` and `wire.Post`, as `huggingface` does;
+     `internal/wire/chatcompletions` and ~~`wire.Post`~~ `wire.Send` and
+     `wire.StreamEventsRetry` with a per-request `wire.Learner` and the Chat
+     Completions matcher, as `huggingface` does (amended 2026-10-25, the
+     deviation in this phase's record);
    * `descriptor.go`: `Descriptor(id, label)`;
    * `New`'s refusals as D4 lists, its doc naming each kind (R52).
 2. **`docs/guides/api-standards.md`:** R22 and R38 as D4 amends them, citing
@@ -252,6 +255,67 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
 5. **Plants:** the built-in check removed (`TestNew_Refusals_0061` fails);
    the bearer header always set (`TestNoKey_NoAuthorization_0061` fails).
 6. **Docs:** `CHANGELOG.md` Added.
+
+### Phases 4a to 4e: `chatcompat`, provider-agnostic (approved 2026-10-25)
+
+The MADR's amendment "`chatcompat`, provider-agnostic" decides E1 to E5; the
+owner chose all five. Each phase starts after the owner has committed the
+last; each records before it relies, and each new test is seen to fail
+first.
+
+* **Phase 4a, E1, the catalog path.**
+  1. `llmprovider/internal/compatid`: the `WithID` value's type.
+  2. `catalog`: `lookupProvider` and `configFor` admit an id carried by a
+     `compatid` value with a base URL; `fetchListing`'s case for it, `GET
+     {base}/models` by `fetchDataIDs`; the listing cache, flight and last
+     good listing unchanged.
+  3. `chatcompat.ListModels` is `catalog.List(...).Recommended`, probed
+     when asked; each request reads `CachedFacts`.
+  4. Tests: `TestCompatListing_Cached_0061` (two `ListModels` within 10
+     minutes make one `GET`; concurrent ones share it);
+     `TestCompatListing_LastGood_0061` (a 503 after a good listing serves it);
+     `TestCompatListing_UnknownRefused_0061` (an unknown id without `WithID`
+     is refused as today). Plants: the cache bypassed; the flight bypassed.
+* **Phase 4b, E4, search and the menu.**
+  1. `catalog/model_matcher.go`: the typo tier; the per-listing index.
+  2. `catalog/menu.go`: variant grouping; the default rank.
+  3. Tests: `TestSearch_Typo_0061`; `TestSearch_ExistingTiers_0061` (every
+     existing Search test unchanged); `BenchmarkSearch_1000_0061`, with its
+     allocations in the record before and after; `TestMenu_Variants_0061`;
+     `TestMenu_DefaultRank_0061`. Plants: the typo bound loosened to 3; the
+     index rebuilt per query (the benchmark's allocations rise).
+* **Phase 4c, E2, facts.**
+  1. Record: the local Ollama's `/v1/models` and `/api/show` for two models,
+     now; each other dialect when the owner runs its server, by
+     `LLMPROVIDER_LIVE_0061_COMPAT` naming its base URL. Fixtures in
+     `llmprovider/catalog/testdata/compat/<dialect>/`, `make fixtures-check`.
+  2. `catalog`: the dialect table and score; each recorded dialect's
+     details reader; the canonical id; the models.dev layer by canonical id.
+  3. Tests: `TestDialect_Score_0061` over every fixture (each recorded reply
+     scores its own dialect, and no other above threshold);
+     `TestCanonicalID_0061` (a table, each quantisation and tag form);
+     `TestFacts_Order_0061` (a refusal, the caller's layer, the server's
+     details, models.dev by canonical id, in that order);
+     `TestCanonicalMatch_ExactOnly_0061` (a near id gets nothing). Plants:
+     the threshold removed; a fuzzy canonical match.
+* **Phase 4d, E3, optional fields.**
+  1. Record: each server reachable (the local Ollama now) sent each optional
+     field it may refuse; only a recorded refusal's phrase enters the
+     matcher.
+  2. `chatcompat`: the field matcher; the memo's dropped fields; the
+     package doc.
+  3. Tests: `TestFieldRefusal_Fixtures_0061` (each recorded refusal read, no
+     other 400); `TestLearn_FieldDrop_0061` (dropped, resent, the next
+     request right the first time). Plants: the matcher reads an unsent
+     field; the drop not remembered.
+* **Phase 4e, E5, discovery.**
+  1. `chatcompat`: `Discover` and `Server` (D10's two names, R55).
+  2. Tests: `TestDiscover_Loopback_0061` (only `127.0.0.1`; local
+     `httptest` servers on the ports' stand-ins, each answering or not;
+     the bound kept); `TestDiscover_NoKey_0061`. Plants: a host other than
+     loopback; the timeout removed.
+  3. Each default port confirmed from its server's documentation, quoted
+     with its URL in the record, before it ships.
 
 ### Phase 5: `ImageItem` and `Capabilities.Images` in the contract (D5, first half)
 
@@ -649,3 +713,141 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
   amendment "Phase 5's Ollama cases").
 * **Resumes at Phase 4 (2026-10-25):** 0062-PLAN is complete with its
   Phase 6.
+
+### Phase 4: `providers/chatcompat` (2026-10-25)
+
+Done; staged for the owner's commit. 0062-PLAN is committed through its
+Phase 6 as `876b81e`.
+
+* **Deviation 2026-10-25, step 1: the send path.** Step 1 said
+  `chatcompat` sends through `wire.Post`, "as `huggingface` does". Since
+  [0062-MADR-learn-thinking-parameters-from-refusals.md](0062-MADR-learn-thinking-parameters-from-refusals.md)
+  (accepted), Hugging Face and every other provider send through
+  `wire.Send` and `wire.StreamEventsRetry` with a per-request
+  `wire.Learner` (its D5), and its D1 names `chatcompat` among the Chat
+  Completions providers; no provider calls `wire.Post` (`git grep`).
+  Resolutions offered: as Hugging Face now, with the Chat Completions
+  matcher (recommended); a `Learner` with no matcher, as Ollama; `wire.Post`
+  as written. **The owner chose as Hugging Face now.** The MADR's D4 says
+  "as Hugging Face and Together do", which holds; it is not amended.
+  * Step 4 gains `TestLearn_Effort_0061` in `chatcompat`: `max` refused in
+    Hugging Face's recorded form is learned and sent again lower, and a
+    refusal passed back with `WithReasoningRefusals` is never sent.
+    `providers`' `TestLearn_Effort_0062` cannot build `chatcompat`, which
+    `providers.New` does not hold.
+* **Stop 2026-10-25, step 1: the options `chatcompat.New` can take.**
+  `catalog.WithCache` is scoped to the built-in ids (`catalog/cache.go:43`),
+  so `chatcompat.New` would refuse it, against R49 and this phase's own
+  step 4 (`testCache(t)`, 0058-MADR D1); and `WithID` cannot be scoped to an
+  id it alone carries. Resolutions offered: one fixed scope (recommended);
+  `WithCache` for any provider, expanded at the owner's request into a
+  `SharedOption` export (2a) or an internal bridge (2b); no catalog option.
+  **The owner chose 2a,** first with `catalog.WithLimit` shared too; shown
+  that this reverses 0038-MADR D2 and the wizard's path on it (its doc, and
+  `TestWithLimit_Scope` and `TestWizard_ProviderOptionsLimitRefused`, which
+  pin it), **the owner chose `WithCache` only.** The MADR's amendment
+  "Phase 4's options" records it.
+* **The steps, amended (2026-10-25), before any change:**
+  1. `llmprovider/settings.go`: `SharedOption`; an `Option` gains its kind,
+     and `take` collects a shared option's value as a scoped one's, for any
+     id. Its doc says every `New` takes it.
+  2. `catalog/cache.go`: `WithCache` is `SharedOption("catalog.WithCache",
+     …)`; its doc says every provider's `New` takes it, and which use it.
+  3. `providers/chatcompat`, as step 1 says, with: `WithID` a shared
+     option; `New` resolving twice; R16's refusal of an OAuth or vendor CLI
+     session; probes off unless asked; no `Authorization` header for an
+     empty key; and the cache's memo and probe store from `WithCache`.
+  4. `docs/guides/api-standards.md`: R17 names the shared option; R18 says
+     a shared option is foreign to no provider; R22 and R38 as D4 amends
+     them.
+  5. Tests, besides step 4's: `TestSharedOption_0061` (`llmprovider`: every
+     id resolves it, its value in `Values`, in order; a scoped option still
+     refused; inside `For(id, …)`, applied to `id` alone);
+     `TestWithCache_AnyProvider_0061` (a third-party id resolves
+     `catalog.WithCache`); `TestNew_ForID_0061` (`For(id, WithBaseURL(…))`
+     reaches the provider); `TestCache_Shared_0061` (two `chatcompat`
+     providers given one `catalog.Cache` share a learned refusal, and two
+     caches do not); `TestNew_Refusals_0061` gains the OAuth and vendor CLI
+     sessions.
+  6. Plants, besides step 5's: a shared option refused by a third party's
+     `New`; `New` resolving once, so `For(id, …)` is lost; `chatcompat`
+     ignoring `WithCache`.
+  7. `make api-check` lists `SharedOption` and `chatcompat`'s three.
+     `CHANGELOG.md`: Added, `SharedOption` and `chatcompat`; Changed,
+     `catalog.WithCache` taken by every `New`.
+  8. No existing test is expected to change: `TestWithLimit_Scope` and the
+     wizard's tests keep `WithLimit`'s scope. A test that does is a stop.
+* **The owner's request (2026-10-25), before Phase 4 runs:** evaluate
+  `chatcompat` for any server, not Hugging Face's shape alone, and propose
+  enhancements to its caches, listings, facts and search. The MADR's
+  amendment "`chatcompat`, provider-agnostic" proposes E1 to E5, from a
+  search of similar projects and a reading of the owner's local Ollama
+  (`GET /v1/models`, read-only), and Phases 4a to 4e lay them out. Phase 4
+  waits on the owner's approval of the amendment "Phase 4's options" and on
+  which of E1 to E5 are chosen.
+* **Approved (owner, 2026-10-25):** the amendment "Phase 4's options", and
+  E1 to E5, all five. Phase 4 runs by its amended steps; Phases 4a to 4e
+  follow it, one at a time. `chatcompat.ListModels` in Phase 4 is its own
+  `GET {base}/models`, which Phase 4a moves into `catalog` (E1).
+* **Amended steps 1 and 2:** `llmprovider/settings.go`, `SharedOption`, an
+  `Option`'s `shared` kind, which `take` collects for any id;
+  `catalog/cache.go`, `WithCache` a shared option, its doc naming who reads
+  it. The packages `llmprovider`, `catalog`, `providers` and `wizard` passed
+  unchanged after it, `TestWithLimit_Scope` and the wizard's
+  `TestWizard_ProviderOptionsLimitRefused` among them (step 8).
+* **Step 1 and amended step 3,** `llmprovider/providers/chatcompat`:
+  `chatcompat.go` (the package doc; `WithID`, a shared option; `New`, which
+  puts `WithModelProbes(false)` first, resolves under the scope
+  `"chatcompat"` to read the last `WithID`, refuses as D4 says and an OAuth
+  or vendor CLI session by R16, then resolves under the id; `Generate` and
+  `Stream` through `wire.Send` and `StreamEventsRetry` with a `Learner` and
+  `chatcompletions.MatchRefusal`; no `Authorization` header for an empty
+  key; `ListModels`, its own `GET {base}/models`, bounded by
+  `wire.ReplyLimit`, an offline failure wrapped as `ErrOffline`, probed only
+  when asked, through `wire.ProbeHealth` and the cache's probe store);
+  `descriptor.go`, `Descriptor(id, label)`. The ten built-in ids are listed
+  in the package, and `TestNew_BuiltinIDs_0061` pins them to
+  `providers.Default()`. `revive`'s `confusing-naming` found a `listModels`
+  beside `ListModels`; it is `fetchModels`.
+* **Step 2 and amended step 4,** `docs/guides/api-standards.md`: R17 names the
+  shared option; R18 says a shared option is foreign to no provider; R22 and
+  R38 as D4 amends them. `docs/architecture.md`: the tree's line, the
+  package row (its imports as `go list` gives them), the options paragraph;
+  and the `providers` row names its ten imports: `make tables-check` read its
+  "the provider packages" as every package under `llmprovider/providers/`,
+  `chatcompat` included, which `providers` does not import.
+* **Step 4 and amended step 5, the tests,** each passing:
+  `TestNew_Refusals_0061`, `TestNoKey_NoAuthorization_0061`,
+  `TestKey_Bearer_0061`, `TestListModels_0061`, `TestNew_ForID_0061`,
+  `TestLearn_Effort_0061`, `TestCache_Shared_0061`, `TestDescriptor_0061`,
+  `TestNew_BuiltinIDs_0061`, `TestRegistry_0061`, `TestConformance`
+  (`llmtest.Run`, R44), `ExampleNew` (R50), `TestWireGoldens`;
+  `TestSharedOption_0061` (`llmprovider`); `TestWithCache_AnyProvider_0061`
+  (`catalog`). The twelve G-wire goldens, written by `-update`, were each
+  compared field by field with Hugging Face's of the same scenario: they
+  differ only in the model, the key and the listed ids.
+* **Step 5 and amended step 6, the plants,** by `tools/plant.py` on scratch
+  clones: 9, all caught. The PLAN's two: the built-in check removed
+  (`chatcompat_test.go:47: a built-in id: <nil>; want llmprovider: invalid
+  provider id`), the bearer header always set (`chatcompat_test.go:76: POST
+  /chat/completions: Authorization "Bearer"; want none`); and a shared
+  option refused by another id; `New` resolving once, so `For(id, …)` is
+  lost; `chatcompat` ignoring `WithCache` (`efforts sent [max high high
+  high]`); `WithCache` scoped to the built-ins again; probes on by default;
+  an OAuth session taken. A first plant of the sessions' case was caught
+  only by its build, and was planted again as one that builds.
+* **Step 6, docs:** `CHANGELOG.md`, Added (`chatcompat`, `SharedOption`) and
+  Changed (`WithCache`).
+* **Checks,** each exit 0: `go test -race -count=1 -shuffle=on ./...`; `make
+  pre-add-check` on the 12 Go files, "12 file(s) clean"; `go vet -tags
+  live_gateways ./...`; `make api-check`, "0 incompatible change(s)";
+  `tools/apidiff.py v1.22.2`, `SharedOption` and the package `chatcompat`
+  added beside 0061's and 0062's; `make tables-check docs-check
+  changelog-check parity-check dep-check fixtures-check records-check`;
+  `tools/claims.py`; `tools/recordlint.py --changed`; `tools/denyscan.py
+  --changed`; `tools/linkcheck.py`.
+* **The gate:** "gate: 28 of 28 passed"; `chatcompat` covered at 91.3 %, against the 80 % floor.
+* **Not this phase's:** `docs/decisions/0064-MADR-anthropic-workspace-for-unscoped-keys.md`,
+  its PLAN, and their two rows in `docs/README.md`, written in the tree by
+  another session during this phase; they are not staged.
+* **Staged:** this phase's paths.
