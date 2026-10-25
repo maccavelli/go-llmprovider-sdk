@@ -1,0 +1,18 @@
+{
+  "case": "opencode-zen-responses-gpt-5.5-bogus",
+  "cause": "thinking",
+  "wire": "responses",
+  "provider": "opencode-zen",
+  "route": "responses",
+  "model": "gpt-5.5",
+  "set": {
+    "reasoning.effort": "bogus"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_value",
+  "message": "Invalid value: 'bogus'. Supported values are: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'.",
+  "body": "{\"model\":\"gpt-5.5\",\"error\":{\"message\":\"Invalid value: 'bogus'. Supported values are: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'.\",\"type\":\"invalid_request_error\",\"param\":\"reasoning.effort\",\"code\":\"invalid_value\"}}",
+  "usage": false,
+  "outcome": "refused"
+}

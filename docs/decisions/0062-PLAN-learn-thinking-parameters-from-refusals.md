@@ -115,8 +115,12 @@ Concretely:
 
 ### Phase 1: measure each wire's refusals (MADR F3, F4; D4, D8)
 
-1. **The recorder,** `llmprovider/providers/refusals_0062_live_test.go`
-   (build tag `live_gateways`, package `providers`):
+1. **The recorder,** ~~`llmprovider/providers/refusals_0062_live_test.go`
+   (build tag `live_gateways`, package `providers`)~~
+   `llmprovider/live_0062_refusals_measure_test.go` (build tag
+   `live_gateways`, package `llmprovider_test`), with its case table,
+   rewriter and writer in the untagged
+   `llmprovider/refusals_0062_record_test.go` (the deviation of 2026-10-25):
    * It is switched on by `LLMPROVIDER_LIVE_0062=1`. A provider's cases run
      when its key variable (`ProviderEnvVars()`) is set; without it, each of
      its cases is recorded as `skipped`. Ollama is not in this phase (Q9
@@ -167,7 +171,8 @@ Concretely:
    | Chat Completions | OpenCode Zen's chat route, `glm-5.3` | `reasoning_effort` `"max"`, with no metadata |
    | every wire | one model of each row above's provider and route (Q10 (a)) | other causes: an empty input; a tool whose schema is `{"type":"string"}` |
 
-3. **Its offline test,** `llmprovider/providers/refusals_0062_test.go` (no
+3. **Its offline test,** ~~`llmprovider/providers/refusals_0062_test.go`~~
+   `llmprovider/refusals_0062_test.go` (no
    tag), runs the rewriter against a `wiretest` server and checks that:
    * the fields arrive as set;
    * a canned 400 is recorded with its status, code, message and redacted
@@ -179,7 +184,7 @@ Concretely:
    (Q8 (b)):
 
    ```bash
-   LLMPROVIDER_LIVE_0062=1 LLMPROVIDER_LIVE_0062_OUT=<dir> go test -tags live_gateways -count=1 -run Live_Refusals_0062 ./llmprovider/providers/
+   LLMPROVIDER_LIVE_0062=1 LLMPROVIDER_LIVE_0062_OUT=<dir> go test -tags live_gateways -count=1 -run Live_Refusals_0062 ./llmprovider/
    ```
 
 5. **The agent then:**
@@ -192,10 +197,11 @@ Concretely:
    * amends the MADR with "Phase 1's evidence": D8's outcome per rule,
      D4's matcher per wire (status, code, message pattern, accepted-values
      pattern), and F3 and F4 restated as measured.
-   * **The gate to Phase 2 (Q8 (b)):** no case is `skipped`. If one is, the
-     record names it and its key variable; the owner sets the key and reruns
-     that case by its subtest name; the agent then repeats this step for it.
-     Phase 2 does not start while any case is `skipped`.
+   * **The gate to Phase 2 (Q8 (b)):** no case is `skipped`, and none was
+     answered 401, refused for its credential (amended 2026-10-25). If one
+     is, the record names it and its key variable; the owner sets the key
+     and the case reruns by its subtest name; the agent then repeats this
+     step for it. Phase 2 does not start while any case is `skipped` or 401.
 6. **The commit:** the recorder, its offline test,
    the fixtures, the report, the amendment and the index row.
 
@@ -325,7 +331,8 @@ Concretely:
    rows, each seen to fail first; the plant is Ollama's matcher never
    matching. If the amendment keeps the mapping, Ollama's package doc cites
    the fixture under Degradations, and nothing else changes.
-3. `refusals_0062_live_test.go` gains `TestLive_Learn_0062`, switched on by
+3. `live_0062_refusals_measure_test.go` (the deviation of 2026-10-25) gains
+   `TestLive_Learn_0062`, switched on by
    `LLMPROVIDER_LIVE_0062_CONFIRM=1`. For each removed rule's case, Ollama's
    included when step 2 removed its mapping, it sends through the provider
    with no rewriter and no `MaxTokens` (Q11 (a)), and checks:
@@ -349,7 +356,7 @@ Concretely:
 * Every phase: the rules' checks, their exit statuses in the record.
 * Phase 1: `make fixtures-check` passes on the fixtures; the report covers
   every case of the table, `unreachable` included, and none is `skipped`
-  (Q8 (b)).
+  or 401 (Q8 (b); amended 2026-10-25).
 * Phase 5: Ollama's cases recorded and reported, and D8's Ollama row
   decided.
 * Phases 2 and 3: every test named above passes; every plant is caught;
@@ -382,6 +389,29 @@ Concretely:
   and the list of held paths are removed; each phase commits its own paths.
   The MADR's amendment "0061's Phase 3 committed" records it.
 
+* **Deviation 2026-10-25, Phase 1 step 1: the recorder's place.** Found
+  before any code was written:
+  * The live helpers a recorder needs (`LiveCtx`, `LiveEnvKey`,
+    `LiveOpencodeKey`, `LiveKiloKey`, `SkipIfTransient`) are exported only
+    to `llmprovider`'s own tests (`llmprovider/live_export_test.go:14`), so
+    a test in `llmprovider/providers` cannot use them.
+  * `scripts/check_tables.py:178` reads live variables only from
+    `llmprovider/**/live_*_test.go`, and `llmprovider/live_hygiene_test.go:33`
+    checks only files named `live_*_test.go`. A file named
+    `refusals_0062_live_test.go` would escape both.
+
+  Resolutions offered: move the recorder to `llmprovider/` as its live
+  measurements are (recommended); keep it in `providers/`, renamed, with
+  copies of the helpers; or a shared helper package, a refactor of about 40
+  live tests needing its own record. **The owner chose the first.** The
+  recorder is `llmprovider/live_0062_refusals_measure_test.go`; its case
+  table, rewriter and writer are in the untagged
+  `llmprovider/refusals_0062_record_test.go`, which the offline test
+  `llmprovider/refusals_0062_test.go` also runs, as `live_twins_test.go` runs
+  `live_checks_test.go`'s code (0046-MADR D3). Phase 1 step 1 and step 3 and
+  Phase 5 step 3 are annotated. No decision changes, and the MADR names no
+  path of these.
+
 ### Phase 0: records (2026-10-24)
 
 * **Done.** Steps 1 and 2 as written: this pair and its index rows; 0061-MADR's
@@ -402,3 +432,139 @@ Concretely:
 * **No new check or test,** so no red-first experiment.
 * **Staged** (step 4): `docs/README.md`, the 0061 MADR and PLAN, this MADR
   and this PLAN, and nothing else.
+
+### Phase 1: measure each wire's refusals (2026-10-25)
+
+In progress: steps 1 to 3 are done; step 4, the owner's run, is next. Nothing
+is staged: the phase's one commit (step 6) holds the recorder with its
+fixtures and report.
+
+* **Step 1, the recorder,** at the paths of the deviation of 2026-10-25:
+  * `llmprovider/refusals_0062_record_test.go` (untagged): the case table,
+    the rewriting transport, the outcome, the record and its writer, and
+    `outsideModule`, which refuses an output directory inside the module.
+  * `llmprovider/live_0062_refusals_measure_test.go` (`live_gateways`):
+    `TestLive_Refusals_0062`, one subtest per case. A provider without its
+    key variable gets a `skipped` record and no send. It logs each case's
+    outcome, status and sends; never a message, a body or a key.
+  * Each case is sent with `WithModelProbes(false)` and
+    `WithoutModelMetadata()`, so no listing or probe is made, and with no
+    `MaxTokens`: the default, 8192 (`llmprovider/settings.go:86`), which
+    leaves the 4096 budget valid (Q11 (a)).
+* **Step 2, the cases:** 51, as the table says, less Ollama (Q9 (c)): 29
+  thinking cases and the two other causes on each of the 11 providers and
+  routes, each on its route's first model (Q10 (a)). Made precise in the
+  building, no decision changed:
+  * **A field is measured alone.** Where the provider would send another
+    field of the same kind beside it, the case drops that one: the Claude
+    budget case and the qwen adaptive case drop `output_config`; the google
+    route's level cases drop `thinkingBudget`, and its budget case
+    `thinkingLevel`. Each record lists what was set and what was dropped.
+  * **The empty input** is set by the rewriter, as the wire's `messages`,
+    `input` or `contents` emptied. **The string-schema tool** is sent through
+    the request, `Tools`, so each provider encodes it as a caller's would;
+    the SDK refuses only a schema that does not marshal
+    (`llmprovider/contract.go:269`).
+  * **The outcome is the status's**, so that a record says what came back,
+    not what it means: 404 `unreachable`; any other 4xx but 401, 403, 408,
+    409 and 429 `refused`; anything else, a transport failure included,
+    `other`. The report reads each refusal's message for its cause.
+  * Each record is `<wire>/<case>.json`, the fixtures' own layout.
+* **Step 3, the offline test,** `llmprovider/refusals_0062_test.go`: 8
+  tests, each passing: `TestRefusalRecorder_Fields_0062` (the fields set and
+  dropped arrive; a 400's status, code, message and body are kept; a planted
+  key in the body is redacted), `TestRefusalRecorder_Accepted_0062`,
+  `TestRefusalOutcome_0062`, `TestRefusalCases_Table_0062`,
+  `TestRefusalPaths_0062`, `TestRefusalRecord_Write_0062`,
+  `TestRefusalBody_Bound_0062` and `TestRefusalRecorder_OutsideModule_0062`.
+* **Red first,** by `tools/plant.py` on a scratch clone: 17 plants, all
+  caught, each by its test's assertion, none by a build failure. The PLAN's
+  own, the rewriter's set not applied, failed with
+  `refusals_0062_test.go:49: sent thinking map[type:adaptive], output_config
+  map[effort:high], model claude-sonnet-5; want adaptive, effort bogus,
+  claude-sonnet-5`. The others: the drop not applied; sends not counted;
+  `setPath` making no objects; the body not redacted (`body holds the planted
+  secret unredacted`); the code and message not kept; an accepted reply's
+  usage not kept; the tool not sent; 404 and 429 as refusals; a thinking
+  case lost (`28 thinking and 22 other-cause cases of 50; want 29, 22 and
+  51`); one other cause per route; a skipped record's outcome; the wire's
+  directory left out; the body never cut; the cut inside a rune; and
+  `outsideModule` always nil.
+  * The bound's test was too weak as first written: 4096 bytes of a two-byte
+    rune put the bound on a rune's start, so the cut inside a rune passed.
+    One byte before the runes moves each start to an odd offset; the plant
+    then failed (`bound body: 4096 bytes, valid UTF-8 false`).
+  * A plant renaming the recorder's `LLMPROVIDER_LIVE_0062_OUT` to a name no
+    record holds failed `scripts/check_tables.py` (exit 1), so the check
+    reads the recorder, as the deviation intended.
+* **Checks,** each exit 0: `make pre-add-check` on the three files,
+  "3 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)";
+  `go vet` and `go vet -tags live_gateways` on `./llmprovider/`; the live
+  test without its switch skips; `make tables-check`, "38 packages, 0
+  problem(s)"; `python3 -B tools/gate.py`, "gate: 28 of 28 passed".
+* **Deviation 2026-10-25, step 4: the agent ran it.** The owner asked the
+  agent to run the recorder with the keys already in the host's environment,
+  so that no key's value entered the session. A script printed only whether
+  each of the eight variables was set (all were); the command named only
+  `LLMPROVIDER_LIVE_0062` and `LLMPROVIDER_LIVE_0062_OUT`, a scratch
+  directory outside the module; the log holds each case's outcome, status
+  and sends. No decision changes.
+* **Step 4, the first run (2026-10-25):** 51 cases in 31 s, one send each,
+  none `skipped`. 35 cases on Claude, OpenAI, Grok, Gemini, Hugging Face,
+  Together and Kilo recorded the wire's answer. **15 of OpenCode's 16 were
+  answered 401 `api_key_expired`** ("This API key has expired"), before the
+  gateway read the request, so they record the credential, not the wire; the
+  16th, Zen's google route on `gemini-2.5-flash`, was 400 "Upstream request
+  failed: Model is unavailable."
+  * Q8 (b)'s gate names only `skipped`; a case refused for its credential
+    measures the wire no more than a skipped one. Phase 1 stops here for the
+    owner's resolution (the Rules' stop conditions).
+  * Seen in the 35, for the report: no refusal carries usage on any wire;
+    Together accepts a bogus `reasoning_effort` (38 reasoning tokens), as F4
+    supposed; Grok refuses `max` with "Invalid reasoning effort." and no
+    accepted values; and Gemini's Interactions answers an empty `input` with
+    404 "Model … not found", so the status rule recorded it `unreachable`.
+* **Resolution (owner, 2026-10-25):** the owner renews `OPENCODE_API_KEY`
+  in the host's environment; OpenCode's 16 cases rerun alone, by
+  `-run 'Live_Refusals_0062/opencode-'`; step 5 then reads all 51 records
+  once. Step 5's gate and Verification now count a 401 as `skipped` is
+  counted. Offered and not chosen: step 5 on the 35 now and OpenCode in a
+  second pass; or OpenCode dropped, against Q8 (b).
+* **Step 4, OpenCode's rerun (2026-10-25):** on the renewed key, the 16
+  cases by `-run 'Live_Refusals_0062/opencode-'`, one send each; a script
+  printed only that the variable was set. None is 401. All 51 records: 19
+  accepted (200), 31 refused (400), 1 unreachable (404); none `skipped` or
+  401, so the gate to Phase 2 is met.
+* **Step 5:**
+  * The 51 records were copied byte for byte to
+    `llmprovider/internal/wire/testdata/refusals-0062/<wire>/<case>.json`.
+    `make fixtures-check` passed on them as copied; every error body was
+    then read whole, and Claude's five request ids and Together's one were
+    redacted (`req_REDACTED`, `REDACTED`): ids of requests, not accounts, of
+    no use to a matcher. `make fixtures-check` passes, "326 file(s), 134
+    hit(s), 0 problem(s)". A plant of an e-mail address in one record's
+    message failed it (exit 1), so it reads these files.
+  * `docs/reports/0062-REPORT-thinking-refusals.md`, its tables generated
+    from the fixtures, its findings E1 to E9; its row by `tools/records.py
+    add`.
+  * The MADR's amendment "Phase 1's evidence": F3, F4 and F6 as measured,
+    D4's matchers, D8's outcomes.
+* **Stop 2026-10-25, step 5: two outcomes D8 did not name.** The stop
+  condition "Phase 1's evidence contradicts a decision rather than choosing
+  between D8's outcomes" was met twice:
+  * the value R1's non-Claude side, R2 and 0061's google-route row avoid was
+    accepted, where D8 named only a recognisable refusal or none;
+  * flash-lite refused `low` with a budget's message, not the level's.
+
+  The owner chose, as the MADR's Q12 (a) and Q13 (a): such a rule is
+  removed; the budget message on Interactions is the level's refusal, and R5
+  is removed. Offered and not chosen: keep the rules as wire mappings, or
+  decide in Phase 5; keep R5 for `low`, or whole.
+* **Checks before staging,** each exit 0: `tools/recordlint.py --changed`,
+  no rule rose (after four MD038 code spans in the MADR's matcher table were
+  reworded and the report's three URLs bracketed); `make records-check`, 133
+  records; `tools/claims.py` on the MADR, 41 of 41; `tools/linkcheck.py`;
+  `tools/denyscan.py --changed`, 0 hits; `make fixtures-check`;
+  `python3 -B tools/gate.py`, "gate: 28 of 28 passed".
+* **Step 6, staged for the owner's commit:** the recorder's three files,
+  the 51 fixtures, the report, this PLAN, the MADR and `docs/README.md`.

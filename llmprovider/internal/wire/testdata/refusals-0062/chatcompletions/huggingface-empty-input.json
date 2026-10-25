@@ -1,0 +1,17 @@
+{
+  "case": "huggingface-empty-input",
+  "cause": "other",
+  "wire": "chatcompletions",
+  "provider": "huggingface",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "set": {
+    "messages": []
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "400",
+  "message": "Validation: The 'messages' field cannot be empty. At least one message is required.",
+  "body": "{\n\t\"error\": {\n\t\t\"code\": \"400\",\n\t\t\"message\": \"Validation: The 'messages' field cannot be empty. At least one message is required.\",\n\t\t\"type\": \"Bad Request\"\n\t}\n}\n",
+  "usage": false,
+  "outcome": "refused"
+}

@@ -1,0 +1,20 @@
+{
+  "case": "claude-sonnet-4-5-adaptive-high",
+  "cause": "thinking",
+  "wire": "messages",
+  "provider": "claude",
+  "model": "claude-sonnet-4-5-20250929",
+  "set": {
+    "output_config.effort": "high",
+    "thinking": {
+      "type": "adaptive"
+    }
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "adaptive thinking is not supported on this model",
+  "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"adaptive thinking is not supported on this model\"},\"request_id\":\"req_REDACTED\"}",
+  "usage": false,
+  "outcome": "refused"
+}

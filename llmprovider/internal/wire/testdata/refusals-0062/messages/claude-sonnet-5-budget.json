@@ -1,0 +1,23 @@
+{
+  "case": "claude-sonnet-5-budget",
+  "cause": "thinking",
+  "wire": "messages",
+  "provider": "claude",
+  "model": "claude-sonnet-5",
+  "set": {
+    "thinking": {
+      "budget_tokens": 4096,
+      "type": "enabled"
+    }
+  },
+  "dropped": [
+    "output_config"
+  ],
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "\"thinking.type.enabled\" is not supported for this model. Use \"thinking.type.adaptive\" and \"output_config.effort\" to control thinking behavior.",
+  "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"\\\"thinking.type.enabled\\\" is not supported for this model. Use \\\"thinking.type.adaptive\\\" and \\\"output_config.effort\\\" to control thinking behavior.\"},\"request_id\":\"req_REDACTED\"}",
+  "usage": false,
+  "outcome": "refused"
+}

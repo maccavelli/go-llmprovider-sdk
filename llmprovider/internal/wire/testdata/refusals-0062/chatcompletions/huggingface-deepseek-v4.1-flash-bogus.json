@@ -1,0 +1,17 @@
+{
+  "case": "huggingface-deepseek-v4.1-flash-bogus",
+  "cause": "thinking",
+  "wire": "chatcompletions",
+  "provider": "huggingface",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "set": {
+    "reasoning_effort": "bogus"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "400",
+  "message": "Invalid request: [\"reasoning_effort (bogus): Input should be 'minimal', 'low', 'medium', 'high', 'xhigh', 'max' or 'none'\"]",
+  "body": "{\n\t\"error\": {\n\t\t\"code\": \"400\",\n\t\t\"message\": \"Invalid request: [\\\"reasoning_effort (bogus): Input should be 'minimal', 'low', 'medium', 'high', 'xhigh', 'max' or 'none'\\\"]\",\n\t\t\"type\": \"Bad Request\"\n\t}\n}\n",
+  "usage": false,
+  "outcome": "refused"
+}

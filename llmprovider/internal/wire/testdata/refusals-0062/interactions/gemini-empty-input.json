@@ -1,0 +1,17 @@
+{
+  "case": "gemini-empty-input",
+  "cause": "other",
+  "wire": "interactions",
+  "provider": "gemini",
+  "model": "gemini-3.8-flash",
+  "set": {
+    "input": []
+  },
+  "sends": 1,
+  "status": 404,
+  "code": "not_found",
+  "message": "Model 'gemini-3.8-flash' not found. Please verify the model name against the supported list: https://ai.google.dev/gemini-api/docs/models",
+  "body": "{\"error\":{\"message\":\"Model 'gemini-3.8-flash' not found. Please verify the model name against the supported list: https://ai.google.dev/gemini-api/docs/models\",\"code\":\"not_found\"}}",
+  "usage": false,
+  "outcome": "unreachable"
+}

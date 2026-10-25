@@ -1,0 +1,17 @@
+{
+  "case": "grok-4.5-max",
+  "cause": "thinking",
+  "wire": "responses",
+  "provider": "grok",
+  "model": "grok-4.5",
+  "set": {
+    "reasoning.effort": "max"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid-argument",
+  "message": "Invalid reasoning effort.",
+  "body": "{\"code\":\"invalid-argument\",\"error\":\"Invalid reasoning effort.\"}",
+  "usage": false,
+  "outcome": "refused"
+}

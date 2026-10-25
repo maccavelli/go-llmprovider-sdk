@@ -1,0 +1,15 @@
+{
+  "case": "grok-4.5-xhigh",
+  "cause": "thinking",
+  "wire": "responses",
+  "provider": "grok",
+  "model": "grok-4.5",
+  "set": {
+    "reasoning.effort": "xhigh"
+  },
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 24,
+  "outcome": "accepted"
+}

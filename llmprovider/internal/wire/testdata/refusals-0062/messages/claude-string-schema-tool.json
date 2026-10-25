@@ -1,0 +1,15 @@
+{
+  "case": "claude-string-schema-tool",
+  "cause": "other",
+  "wire": "messages",
+  "provider": "claude",
+  "model": "claude-sonnet-5",
+  "tool": "{\"type\":\"string\"}",
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "tools.0.custom.input_schema.type: Input should be 'object'",
+  "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"tools.0.custom.input_schema.type: Input should be 'object'\"},\"request_id\":\"req_REDACTED\"}",
+  "usage": false,
+  "outcome": "refused"
+}

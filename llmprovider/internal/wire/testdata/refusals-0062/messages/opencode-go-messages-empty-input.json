@@ -1,0 +1,16 @@
+{
+  "case": "opencode-go-messages-empty-input",
+  "cause": "other",
+  "wire": "messages",
+  "provider": "opencode-go",
+  "route": "messages",
+  "model": "qwen3.8-flash",
+  "set": {
+    "messages": []
+  },
+  "sends": 1,
+  "status": 400,
+  "body": "{\"model\":\"qwen3.8-flash\"}",
+  "usage": false,
+  "outcome": "refused"
+}

@@ -1,0 +1,15 @@
+{
+  "case": "together-gpt-oss-120b-max",
+  "cause": "thinking",
+  "wire": "chatcompletions",
+  "provider": "together",
+  "model": "openai/gpt-oss-120b",
+  "set": {
+    "reasoning_effort": "max"
+  },
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 27,
+  "outcome": "accepted"
+}

@@ -1,0 +1,13 @@
+{
+  "case": "gemini-string-schema-tool",
+  "cause": "other",
+  "wire": "interactions",
+  "provider": "gemini",
+  "model": "gemini-3.8-flash",
+  "tool": "{\"type\":\"string\"}",
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 89,
+  "outcome": "accepted"
+}

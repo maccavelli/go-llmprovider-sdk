@@ -1,0 +1,17 @@
+{
+  "case": "kilo-gpt-6-luna-bogus",
+  "cause": "thinking",
+  "wire": "chatcompletions",
+  "provider": "kilo",
+  "model": "openai/gpt-6-luna",
+  "set": {
+    "reasoning.effort": "bogus"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "Invalid option: expected one of \"none\"|\"minimal\"|\"low\"|\"medium\"|\"high\"|\"xhigh\"|\"max\"",
+  "body": "{\"error\":{\"message\":\"Invalid option: expected one of \\\"none\\\"|\\\"minimal\\\"|\\\"low\\\"|\\\"medium\\\"|\\\"high\\\"|\\\"xhigh\\\"|\\\"max\\\"\",\"type\":\"invalid_request_error\",\"param\":\"reasoning.effort\",\"code\":\"invalid_request_error\"}}",
+  "usage": false,
+  "outcome": "refused"
+}

@@ -1,0 +1,13 @@
+{
+  "case": "together-string-schema-tool",
+  "cause": "other",
+  "wire": "chatcompletions",
+  "provider": "together",
+  "model": "openai/gpt-oss-120b",
+  "tool": "{\"type\":\"string\"}",
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 70,
+  "outcome": "accepted"
+}

@@ -1,0 +1,17 @@
+{
+  "case": "gemini-2.5-flash-lite-low",
+  "cause": "thinking",
+  "wire": "interactions",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash-lite",
+  "set": {
+    "generation_config.thinking_level": "low"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request",
+  "message": "The thinking budget 256 is invalid. Please choose a value between 512 and 24576.",
+  "body": "{\"error\":{\"message\":\"The thinking budget 256 is invalid. Please choose a value between 512 and 24576.\",\"code\":\"invalid_request\"}}",
+  "usage": false,
+  "outcome": "refused"
+}

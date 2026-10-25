@@ -1,0 +1,18 @@
+{
+  "case": "claude-sonnet-5-adaptive-max",
+  "cause": "thinking",
+  "wire": "messages",
+  "provider": "claude",
+  "model": "claude-sonnet-5",
+  "set": {
+    "output_config.effort": "max",
+    "thinking": {
+      "type": "adaptive"
+    }
+  },
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 35,
+  "outcome": "accepted"
+}

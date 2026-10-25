@@ -1,0 +1,17 @@
+{
+  "case": "gemini-2.5-flash-lite-medium",
+  "cause": "thinking",
+  "wire": "interactions",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash-lite",
+  "set": {
+    "generation_config.thinking_level": "medium"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request",
+  "message": "'medium' is not a supported thinking level for this model. Allowed values are: low, high.",
+  "body": "{\"error\":{\"message\":\"'medium' is not a supported thinking level for this model. Allowed values are: low, high.\",\"code\":\"invalid_request\"}}",
+  "usage": false,
+  "outcome": "refused"
+}

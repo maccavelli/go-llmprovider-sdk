@@ -1,0 +1,17 @@
+{
+  "case": "openai-gpt-4.1-mini-low",
+  "cause": "thinking",
+  "wire": "responses",
+  "provider": "openai",
+  "model": "gpt-4.1-mini",
+  "set": {
+    "reasoning.effort": "low"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "unsupported_parameter",
+  "message": "Unsupported parameter: 'reasoning.effort' is not supported with this model.",
+  "body": "{\n  \"error\": {\n    \"message\": \"Unsupported parameter: 'reasoning.effort' is not supported with this model.\",\n    \"type\": \"invalid_request_error\",\n    \"param\": \"reasoning.effort\",\n    \"code\": \"unsupported_parameter\"\n  }\n}",
+  "usage": false,
+  "outcome": "refused"
+}

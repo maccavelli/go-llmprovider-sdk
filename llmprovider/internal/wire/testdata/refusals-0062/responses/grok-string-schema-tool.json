@@ -1,0 +1,15 @@
+{
+  "case": "grok-string-schema-tool",
+  "cause": "other",
+  "wire": "responses",
+  "provider": "grok",
+  "model": "grok-4.5",
+  "tool": "{\"type\":\"string\"}",
+  "sends": 1,
+  "status": 400,
+  "code": "invalid-argument",
+  "message": "Failed to start sampling: [invalid_client_tool_schema] record_city: tool parameter root must be an object type (root schema is not an object type)",
+  "body": "{\"code\":\"invalid-argument\",\"error\":\"Failed to start sampling: [invalid_client_tool_schema] record_city: tool parameter root must be an object type (root schema is not an object type)\"}",
+  "usage": false,
+  "outcome": "refused"
+}

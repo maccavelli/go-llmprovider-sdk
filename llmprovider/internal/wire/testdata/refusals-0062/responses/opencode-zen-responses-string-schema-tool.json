@@ -1,0 +1,16 @@
+{
+  "case": "opencode-zen-responses-string-schema-tool",
+  "cause": "other",
+  "wire": "responses",
+  "provider": "opencode-zen",
+  "route": "responses",
+  "model": "gpt-5.5",
+  "tool": "{\"type\":\"string\"}",
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_function_parameters",
+  "message": "Invalid schema for function 'record_city': schema must be a JSON Schema of 'type: \"object\"', got 'type: \"string\"'.",
+  "body": "{\"model\":\"gpt-5.5\",\"error\":{\"message\":\"Invalid schema for function 'record_city': schema must be a JSON Schema of 'type: \\\"object\\\"', got 'type: \\\"string\\\"'.\",\"type\":\"invalid_request_error\",\"param\":\"tools[0].parameters\",\"code\":\"invalid_function_parameters\"}}",
+  "usage": false,
+  "outcome": "refused"
+}

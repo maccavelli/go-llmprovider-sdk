@@ -2,7 +2,7 @@
 status: proposed
 date: 2026-10-24
 decision-makers: repository owner
-consulted: "this repository at 1b46940 (the Code claims, run by tools/claims.py); the records 0013, 0014, 0026, 0034, 0041, 0049 and 0061 as cited; the owner's answers of 2026-10-24 to Q1 to Q4 of the thinking design's re-assessment and to this record's Q5 to Q7, and of 2026-10-25 to its Q8 to Q11"
+consulted: "this repository at 1b46940 (the Code claims, run by tools/claims.py); the records 0013, 0014, 0026, 0034, 0041, 0049 and 0061 as cited; the owner's answers of 2026-10-24 to Q1 to Q4 of the thinking design's re-assessment and to this record's Q5 to Q7, and of 2026-10-25 to its Q8 to Q13"
 informed: every consumer of llmprovider and its providers; gobble-cli and prepare-commit-msg
 ---
 
@@ -473,6 +473,21 @@ internal.
     provider sends what it sends today, and the 4096 budget stays valid.
   * **(b)** `MaxTokens` 8192 on every case.
   * **(c)** `MaxTokens` 2048, with Claude's budget case lowered below it.
+* **Q12 (D8). A rule whose avoided value Phase 1 records as accepted.**
+  Answered on 2026-10-25: (a). D8 named two outcomes, a recognisable
+  refusal or none; for R1's non-Claude side, R2 and 0061's google-route row
+  the value each avoids was accepted.
+  * **(a)** Remove the rule: nothing is refused, so nothing is learned, and
+    D2 and D3 send what the request asks.
+  * **(b)** Keep each as a wire mapping, citing its fixture.
+  * **(c)** Decide in Phase 5, comparing reasoning tokens between the shapes.
+* **Q13 (D4). `gemini-2.5-flash-lite`'s refusal of `low`,** "The thinking
+  budget 256 is invalid", which names a budget the request did not send.
+  Answered on 2026-10-25: (a).
+  * **(a)** Read it as a refusal of the level sent: Interactions sends no
+    budget (D1), so the budget is the level's. R5 is removed.
+  * **(b)** Keep R5 for `low` only.
+  * **(c)** Keep R5 whole.
 
 ## More Information
 
@@ -563,3 +578,98 @@ holding the phase again, or resetting it, the owner kept it (2026-10-24).
   * C38 changed as F9 says: `valid()`'s closed set is
     `llmprovider/contract.go:87` there,
     `case EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax:`.
+
+## Amendment 2026-10-25: Phase 1's evidence
+
+The PLAN's Phase 1 recorded 51 cases on 2026-10-25:
+[0062-REPORT-thinking-refusals.md](../reports/0062-REPORT-thinking-refusals.md)
+(its findings E1 to E9) and the fixtures in
+`llmprovider/internal/wire/testdata/refusals-0062/`. No case is `skipped`
+or 401 (Q8 (b)). What follows restates F3, F4 and F6 as measured, gives D4's
+matcher per wire, and D8's outcome per rule, under the owner's Q12 (a) and
+Q13 (a).
+
+### F3, F4 and F6, as measured
+
+* **F3. What a refusal says** (report E1 to E3, E6, E8):
+  * The parameter is named in the message by Claude (both shapes and the
+    effort), OpenAI's `unsupported_parameter`, Gemini's Interactions and
+    Hugging Face. The Responses wire's `invalid_value` (OpenAI and OpenCode's
+    responses route) and `unsupported_value` (OpenCode's responses route, for
+    `gpt-5.5`) name the value sent; Kilo's "Invalid option" names only the accepted values;
+    Grok's "Invalid reasoning effort." names neither; `gemini-2.5-flash-lite`
+    names a budget for a `low` level.
+  * The accepted values are listed by Claude's effort refusal, the
+    Responses wire's `invalid_value` and `unsupported_value`, Gemini's
+    Interactions, Hugging Face and Kilo. Not
+    by Claude's shape refusals (which name the other shape), Grok,
+    flash-lite's `low`, or `unsupported_parameter`.
+  * **No refusal counts usage:** none of the 32 replies that are not 2xx
+    carries a usage field. Whether a refused request is billed stays
+    **UNCONFIRMED**: no reply says.
+* **F4. Accepted and ignored.** Together accepts a bogus `reasoning_effort`
+  and reasons (E5): confirmed for Together. Every other service sent a bogus
+  effort refused it. OpenCode Zen's google route accepts `thinkingLevel`
+  `"max"`, which Gemini's own Interactions refuses; whether the gateway uses,
+  maps or drops it cannot be seen, as F4 says of any accepted value.
+* **F6. No matcher needs `param`.** Where only the body's `param` names the
+  parameter (E8), the message holds the value the provider sent or a list
+  made only of effort words, and a matcher has the request it sent. D4's
+  clause for a missing field is not met: `*APIError` and D9 are unchanged.
+
+### D4: the matcher of each wire
+
+Each row is a refusal that Phase 1 recorded; every recorded 400 of another
+cause on the wire must not match (report E9). The effort words are `none`,
+`minimal`, `low`, `medium`, `high`, `xhigh` and `max`; a learned list keeps
+only those that are `Effort` values.
+
+| Wire | Status, code | Message | Refused | Accepted values |
+| :--- | :--- | :--- | :--- | :--- |
+| Messages | 400 `invalid_request_error` | contains `"thinking.type.enabled" is not supported` | the budget shape | none |
+| Messages | 400 `invalid_request_error` | contains `adaptive thinking is not supported` | the adaptive shape | none |
+| Messages | 400 `invalid_request_error` | starts `output_config.effort: Input should be`, then the list | the effort sent | the quoted words |
+| Responses | 400 `invalid_value` | `Invalid value: '<sent>'. Supported values are: …`, every listed word an effort word | the effort sent | the quoted words |
+| Responses | 400 `unsupported_value` | `Unsupported value: '<sent>' is not supported with the '<model>' model. Supported values are: …` | the effort sent | the quoted words |
+| Responses | 400 `unsupported_parameter` | contains `'reasoning.effort' is not supported` | the effort field: D3's rung 4, none | none |
+| Responses (Grok) | 400 `invalid-argument` | is `Invalid reasoning effort.` | the effort sent | none |
+| Interactions | 400 `invalid_request` | `The value '<sent>' is not supported for 'generation_config.thinking_level'. Supported values: …` | the level sent | the quoted words |
+| Interactions | 400 `invalid_request` | `'<sent>' is not a supported thinking level for this model. Allowed values are: …` | the level sent | the listed words |
+| Interactions | 400 `invalid_request` | `The thinking budget <n> is invalid. …` (Q13 (a)) | the level sent | none |
+| Chat Completions (Hugging Face) | 400 `400` | `reasoning_effort (<sent>): Input should be …` | the effort sent | the quoted words |
+| Chat Completions (Kilo) | 400 `invalid_request_error` | starts `Invalid option: expected one of`, then the list, every listed word an effort word | the effort sent | the quoted words |
+
+* **The overlaps a matcher must keep apart:** Claude's tool-schema refusal
+  shares the code and "Input should be" (anchored on `output_config.effort:`);
+  Grok's shares `invalid-argument` (anchored on the whole message); Kilo's
+  empty input shares the code (anchored on "Invalid option"). A 404 is never
+  read: Gemini's Interactions answers an empty input 404 "Model … not found".
+* **No refusal was recorded** on generateContent (OpenCode's google route
+  accepted a level of `max` and a budget), Together (it accepts any value),
+  OpenCode's chat route or its messages route: no matcher is built for them,
+  and they learn nothing, having nothing recorded to learn.
+
+### D8: the outcome of each rule
+
+| Rule | Outcome | Evidence |
+| :--- | :--- | :--- |
+| R1 `claudeAdaptiveOnly` | removed | `claude-sonnet-5` refuses the budget shape, and `claude-sonnet-4-5-20250929` the adaptive one, each recognisably (E1); `qwen3.8-flash` accepts adaptive (E4; Q12 (a)) |
+| R2 `minimaxAdaptiveThinking` | removed (Q12 (a)) | `minimax-m3` accepts adaptive with an effort (E4) |
+| R4 `geminiLegacyRE` | removed as dead | it matches only `gemini-2.5-flash` and `gemini-2.5-flash-lite`, both open only to past users (C40), and the first is "Model is unavailable" on OpenCode's google route (E7) |
+| R5 the flash-lite exception | removed | `medium` and `low` are refused recognisably (E3; Q13 (a)) |
+| Gemini's `xhigh` to `high` | removed | refused with the accepted levels (E3) |
+| R6 `effortMenu` | removed | Grok refuses an effort it does not take, recognisably (E3) |
+| Ollama's `xhigh` to `"max"` | decided in Phase 5 (Q9 (c)) | not recorded |
+| 0061-MADR D3's Grok row | removed | as R6 |
+| 0061-MADR D3's Gemini row | removed | `max` refused with the accepted levels (E3) |
+| 0061-MADR D3's google-route row | removed (Q12 (a)) | `max` accepted (E4) |
+| OpenCode's chat-route gate | removed (Q7 (a)) | `max` accepted on `glm-5.3` without metadata (E4) |
+| R3, the default budgets | stays (F1) | not a model rule |
+
+* **The first request that learns,** on the evidence: `claude-sonnet-4-5`'s
+  adaptive is refused, then its budget sent (2 sends); `max` on Gemini, on
+  OpenCode's responses route for `gpt-5.5`, and on Grok steps to the first
+  accepted value (2 sends where the list is given; on Grok, one per rung);
+  flash-lite's `low` is refused, `medium` refused with the list, `high` sent
+  (3 sends). Each is within Q5's 7, and the next request is right the first
+  time.

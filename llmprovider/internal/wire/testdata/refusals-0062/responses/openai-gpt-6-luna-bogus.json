@@ -1,0 +1,17 @@
+{
+  "case": "openai-gpt-6-luna-bogus",
+  "cause": "thinking",
+  "wire": "responses",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "set": {
+    "reasoning.effort": "bogus"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_value",
+  "message": "Invalid value: 'bogus'. Supported values are: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'.",
+  "body": "{\n  \"error\": {\n    \"message\": \"Invalid value: 'bogus'. Supported values are: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'.\",\n    \"type\": \"invalid_request_error\",\n    \"param\": \"reasoning.effort\",\n    \"code\": \"invalid_value\"\n  }\n}",
+  "usage": false,
+  "outcome": "refused"
+}

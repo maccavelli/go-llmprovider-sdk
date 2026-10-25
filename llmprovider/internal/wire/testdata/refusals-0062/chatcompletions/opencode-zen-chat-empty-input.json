@@ -1,0 +1,18 @@
+{
+  "case": "opencode-zen-chat-empty-input",
+  "cause": "other",
+  "wire": "chatcompletions",
+  "provider": "opencode-zen",
+  "route": "chat_completions",
+  "model": "glm-5.3",
+  "set": {
+    "messages": []
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "Upstream request failed: [400] Validation: The 'messages' field cannot be empty. At least one message is required.",
+  "body": "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Upstream request failed: [400] Validation: The 'messages' field cannot be empty. At least one message is required.\"}}",
+  "usage": false,
+  "outcome": "refused"
+}

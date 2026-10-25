@@ -1,0 +1,15 @@
+{
+  "case": "grok-empty-input",
+  "cause": "other",
+  "wire": "responses",
+  "provider": "grok",
+  "model": "grok-4.5",
+  "set": {
+    "input": []
+  },
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 77,
+  "outcome": "accepted"
+}

@@ -1,0 +1,17 @@
+{
+  "case": "openai-empty-input",
+  "cause": "other",
+  "wire": "responses",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "set": {
+    "input": []
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "missing_required_parameter",
+  "message": "One of \"input\" or \"previous_response_id\" or 'prompt' or 'conversation' must be provided.",
+  "body": "{\n  \"error\": {\n    \"message\": \"One of \\\"input\\\" or \\\"previous_response_id\\\" or 'prompt' or 'conversation' must be provided.\",\n    \"type\": \"invalid_request_error\",\n    \"param\": null,\n    \"code\": \"missing_required_parameter\"\n  }\n}",
+  "usage": false,
+  "outcome": "refused"
+}

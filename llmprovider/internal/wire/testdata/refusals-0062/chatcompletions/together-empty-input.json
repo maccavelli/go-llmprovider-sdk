@@ -1,0 +1,17 @@
+{
+  "case": "together-empty-input",
+  "cause": "other",
+  "wire": "chatcompletions",
+  "provider": "together",
+  "model": "openai/gpt-oss-120b",
+  "set": {
+    "messages": []
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "messages: Validation error: messages cannot be empty [{\"value\": Array []}]",
+  "body": "{\n  \"id\": \"REDACTED\",\n  \"error\": {\n    \"message\": \"messages: Validation error: messages cannot be empty [{\\\"value\\\": Array []}]\",\n    \"type\": \"invalid_request_error\",\n    \"param\": null,\n    \"code\": null\n  }\n}",
+  "usage": false,
+  "outcome": "refused"
+}

@@ -1,0 +1,15 @@
+{
+  "case": "together-gpt-oss-120b-bogus",
+  "cause": "thinking",
+  "wire": "chatcompletions",
+  "provider": "together",
+  "model": "openai/gpt-oss-120b",
+  "set": {
+    "reasoning_effort": "bogus"
+  },
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 38,
+  "outcome": "accepted"
+}

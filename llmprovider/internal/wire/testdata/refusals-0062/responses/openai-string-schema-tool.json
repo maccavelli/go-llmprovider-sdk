@@ -1,0 +1,15 @@
+{
+  "case": "openai-string-schema-tool",
+  "cause": "other",
+  "wire": "responses",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "tool": "{\"type\":\"string\"}",
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_function_parameters",
+  "message": "Invalid schema for function 'record_city': schema must be a JSON Schema of 'type: \"object\"', got 'type: \"string\"'.",
+  "body": "{\n  \"error\": {\n    \"message\": \"Invalid schema for function 'record_city': schema must be a JSON Schema of 'type: \\\"object\\\"', got 'type: \\\"string\\\"'.\",\n    \"type\": \"invalid_request_error\",\n    \"param\": \"tools[0].parameters\",\n    \"code\": \"invalid_function_parameters\"\n  }\n}",
+  "usage": false,
+  "outcome": "refused"
+}

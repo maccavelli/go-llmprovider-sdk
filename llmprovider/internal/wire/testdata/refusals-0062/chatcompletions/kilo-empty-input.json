@@ -1,0 +1,17 @@
+{
+  "case": "kilo-empty-input",
+  "cause": "other",
+  "wire": "chatcompletions",
+  "provider": "kilo",
+  "model": "openai/gpt-6-luna",
+  "set": {
+    "messages": []
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "At least one message is required",
+  "body": "{\"error\":{\"message\":\"At least one message is required\",\"type\":\"invalid_request_error\",\"param\":\"messages\",\"code\":\"invalid_request_error\"}}",
+  "usage": false,
+  "outcome": "refused"
+}

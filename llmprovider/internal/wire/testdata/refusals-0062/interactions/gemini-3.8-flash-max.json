@@ -1,0 +1,17 @@
+{
+  "case": "gemini-3.8-flash-max",
+  "cause": "thinking",
+  "wire": "interactions",
+  "provider": "gemini",
+  "model": "gemini-3.8-flash",
+  "set": {
+    "generation_config.thinking_level": "max"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request",
+  "message": "The value 'max' is not supported for 'generation_config.thinking_level'. Supported values: 'minimal', 'low', 'medium', 'high'.",
+  "body": "{\"error\":{\"message\":\"The value 'max' is not supported for 'generation_config.thinking_level'. Supported values: 'minimal', 'low', 'medium', 'high'.\",\"code\":\"invalid_request\"}}",
+  "usage": false,
+  "outcome": "refused"
+}

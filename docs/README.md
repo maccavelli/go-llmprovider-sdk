@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-132 records. Cite them by full filename.
+133 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -140,6 +140,7 @@ documents a reader follows to do something.
 | 0061 | PLAN | [Implement gobble-cli's Consumer Gaps: Empty-Answer and Offline Errors, Max Effort, a Chat Completions Constructor, and Image Input](decisions/0061-PLAN-consumer-gaps-from-gobble-issue-9.md) | in-progress |
 | 0062 | MADR | [Decide Thinking Parameters From Facts and Learned Refusals, Not Model Names](decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) | proposed |
 | 0062 | PLAN | [Implement Thinking Parameters Decided From Facts and Learned Refusals](decisions/0062-PLAN-learn-thinking-parameters-from-refusals.md) | in-progress |
+| 0062 | REPORT | [Thinking Refusals on Each Wire, Recorded for 0062](reports/0062-REPORT-thinking-refusals.md) | observation |
 | 0063 | MADR | [Align docs-only CI and disclosure gates](decisions/0063-MADR-align-docs-ci-and-disclosure-gates.md) | proposed |
 | 0063 | PLAN | [Implement aligned docs-only CI and disclosure gates](decisions/0063-PLAN-align-docs-ci-and-disclosure-gates.md) | proposed |
 

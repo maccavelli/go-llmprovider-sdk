@@ -1,0 +1,13 @@
+{
+  "case": "huggingface-string-schema-tool",
+  "cause": "other",
+  "wire": "chatcompletions",
+  "provider": "huggingface",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "tool": "{\"type\":\"string\"}",
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 21,
+  "outcome": "accepted"
+}

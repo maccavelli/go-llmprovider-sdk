@@ -1,0 +1,16 @@
+{
+  "case": "opencode-zen-chat-glm-5.3-max",
+  "cause": "thinking",
+  "wire": "chatcompletions",
+  "provider": "opencode-zen",
+  "route": "chat_completions",
+  "model": "glm-5.3",
+  "set": {
+    "reasoning_effort": "max"
+  },
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 72,
+  "outcome": "accepted"
+}
