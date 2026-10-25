@@ -1,6 +1,8 @@
 // Package llmprovider is the generation contract every provider implements:
 // Provider, Request, Response and Item, Capabilities, the errors and their
-// kinds, the options and Settings, the Registry, retry middleware, and the
+// kinds, the options and Settings, the Registry, retry middleware, the
+// thinking settings a model refused (ReasoningRefusal, WithReasoningRefusals,
+// and ProbeReasoning, which finds them with one generation), and the
 // credential sources a provider reads (Token, TokenSource, StaticToken,
 // CommandToken). The providers are in llmprovider/providers/..., the OAuth
 // sessions and stores in llmprovider/auth, and model listing in

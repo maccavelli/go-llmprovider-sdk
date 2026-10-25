@@ -1014,3 +1014,67 @@ Done; staged for the owner's commit with step 7's paths.
   record's changes. `docs/decisions/0063-PLAN-align-docs-ci-and-disclosure-gates.md`
   is not this phase's: another session had staged it before this phase
   began, and this phase neither staged nor unstaged it.
+
+### Phase 4: the explicit probe (2026-10-25)
+
+Done; staged for the owner's commit. Phase 3 is committed as `6359131`.
+
+* **Before any change:**
+  * D7 does not say what the probe returns when its generation fails. An
+    error carries no `Response`, so no warning: `ProbeReasoning` returns
+    `Generate`'s error and no refusals, and its doc says so; a refusal
+    learned before the error stays in the provider's memo for the process.
+    A billed probe at `EffortMax` may end that way when the answer is empty
+    or cut (`ErrEmptyAnswer`, `ErrIncomplete`). No export is added for it.
+  * One test comment, a Phase 3 leftover: `providers/learn_0062_test.go`'s
+    `TestLearn_Effort_0062` says that the google route has no matcher, and
+    its case's comment that nothing is learned. Phase 3 gave the route
+    `generatecontent.MatchRefusal`; the case's canned refusal is not in the
+    recorded form, so nothing is learned from it. The comment is corrected;
+    the test does not change.
+* **Step 1:** `llmprovider/refusal.go`, `ProbeReasoning(ctx, p, model)`:
+  one `Generate` through the package's `generate` (a nil response is
+  `ErrIncomplete`, as for `GenerateText`), to `model` or, when empty, the
+  provider's own, with one user message, "Reply with the word OK.", and
+  `Reasoning{Effort: EffortMax}`; it returns the `Refused` of each
+  `WarningReasoningLearned`, in order, or nil.
+* **Step 2:** no caller in this repository; `wizard` is unchanged (Q6 (a)).
+* **Step 3, the tests,** each passing, and three times under `-race`:
+  * `TestProbeReasoning_0062` (`llmprovider`), over the package's
+    `stubProvider`: the refusals of the learned warnings, in order, and not a
+    degraded warning's; none when nothing was refused; `Generate`'s error,
+    and `ErrIncomplete` for no response, each with no refusals; and in every
+    case exactly one request, to the model named or the provider's own, of
+    one user message at `EffortMax`, with no tools.
+  * `TestProbeReasoning_Provider_0062` (`providers`), through Claude and
+    `newLearnServer`: `max` refused (Messages' recorded form) gives
+    `{claude-sonnet-5, max}` after `max`, then `xhigh`; adaptive refused
+    gives `{claude-sonnet-4-5-20250929, adaptive}` after adaptive, then the
+    budget; a model refusing nothing gives none after one send. Each has
+    exactly one accepted send. A model refusing both shapes gives no
+    refusals and the budget's refusal, after two sends to the provider's own
+    model.
+* **Step 4, the plants,** by `tools/plant.py` on a scratch clone: 5, all
+  caught. The PLAN's, the probe returning nothing
+  (`refusal_0062_test.go:84: refused max and a shape: [], <nil>; want [{m max
+  } {m  adaptive}], <nil>`; `learn_0062_test.go:371: claude-sonnet-5: [],
+  <nil>; want [{claude-sonnet-5 max }]`); and every warning's `Refused`
+  returned; `high` asked, not `max`; the model ignored; the error dropped.
+* **Step 5, docs:** `llmprovider`'s package doc; `CHANGELOG.md`, Added;
+  `docs/architecture.md`, the functions over any `Provider` (R43); and
+  `README.md`'s facts bullet. R8 needs no change: it names the two functions
+  that replace `mcplib`'s, and `ProbeReasoning` is a package function over
+  any `Provider`, as it requires.
+* **Checks,** each exit 0: `go test -race -count=1 -shuffle=on ./...`, 36
+  packages; `make pre-add-check` on the 4 Go files, "4 file(s) clean"; `go
+  vet -tags live_gateways ./...`; `make api-check`, "0 incompatible
+  change(s)"; `tools/apidiff.py v1.22.2`, 13 compatible additions: 0061's
+  four (`EffortMax`, `ErrEmptyAnswer`, `ErrOffline`,
+  `WarningEffortDegraded`) and D9's nine, `ProbeReasoning` the one new, and
+  nothing else, as the Verification section asks; `make tables-check`;
+  `make fixtures-check`; `make changelog-check`; `make docs-check`, "0
+  violation(s) of R50,R51,R52"; `make records-check`; `tools/claims.py` on
+  the MADR, 41 of 41; `tools/recordlint.py --changed`;
+  `tools/denyscan.py --changed`; `tools/linkcheck.py`.
+* **The gate:** "gate: 28 of 28 passed".
+* **Staged:** this phase's paths.

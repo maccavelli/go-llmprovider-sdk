@@ -1,6 +1,7 @@
 package llmprovider
 
 import (
+	"context"
 	"fmt"
 	"slices"
 )
@@ -47,6 +48,37 @@ func WithReasoningRefusals(refusals ...ReasoningRefusal) Option {
 	return commonOption("WithReasoningRefusals", func(cfg *providerConfig) {
 		cfg.ReasoningRefusals = slices.Concat(cfg.ReasoningRefusals, refusals)
 	})
+}
+
+// probePrompt is ProbeReasoning's one-line request.
+const probePrompt = "Reply with the word OK."
+
+// ProbeReasoning finds the thinking settings model refuses on p, by one
+// generation at EffortMax with a fixed one-line prompt (0062-MADR D7), and
+// returns the refusals its WarningReasoningLearned warnings carry, in order,
+// or nil when the model refused nothing. An empty model is p's own. A
+// built-in provider resends a refused setting within the request, as it does
+// for any request, so that the one call also finds a refused thinking shape,
+// and remembers each refusal for the rest of the process. A caller keeps the
+// refusals, and passes them back with WithReasoningRefusals on its next
+// start. The accepted send is billed; whether a refused one is billed is not
+// known. It sends whatever WithModelProbes says, as the caller asked for it.
+// On an error, Generate's is returned with no refusals: an answer that is
+// empty or cut at the output limit carries no warnings, though p still
+// remembers what it learned.
+func ProbeReasoning(ctx context.Context, p Provider, model string) ([]ReasoningRefusal, error) {
+	resp, err := generate(ctx, p, &Request{Model: model, Input: []Item{MessageItem{Role: RoleUser, Text: probePrompt}},
+		Reasoning: &Reasoning{Effort: EffortMax}})
+	if err != nil {
+		return nil, err
+	}
+	var refused []ReasoningRefusal
+	for _, w := range resp.Warnings {
+		if w.Kind == WarningReasoningLearned {
+			refused = append(refused, w.Refused)
+		}
+	}
+	return refused, nil
 }
 
 // ReasoningRefusals is a copy of the refusals WithReasoningRefusals passed

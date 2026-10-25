@@ -154,8 +154,9 @@ functions over any provider, and `Stream` streams from every one.
   thinking shape outranks both: it is remembered for the process, the
   request is sent again at the nearest setting the model takes, and the
   response carries a `WarningReasoningLearned`, which
-  `WithReasoningRefusals` passes back on the next start. Ollama's refusals
-  are not read yet.
+  `WithReasoningRefusals` passes back on the next start.
+  `llmprovider.ProbeReasoning` finds a model's refusals before use, with one
+  billed generation. Ollama's refusals are not read yet.
   - A `Catalog`'s `Menu` holds every usable model with its facts, its rank
     and its caveats: deprecated, no tools, no text output, expiring, or
     failing at request. A caveat sinks a model and never removes it.

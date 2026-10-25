@@ -42,6 +42,12 @@ tag and its commit without notes; its notes are its section here.
   with `WithReasoningRefusals` on its next start, so that the setting is
   never sent again. `Warning.Refused` is left out of a warning's JSON when
   zero, so other warnings encode as before ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D6).
+- `llmprovider.ProbeReasoning(ctx, p, model)`: one generation at `EffortMax`
+  with a one-line prompt, which returns the refusals the provider learned
+  from it, of an effort or a thinking shape, for a caller to keep and pass
+  back with `WithReasoningRefusals`. The accepted send is billed. On an
+  error it returns no refusals. Nothing in this repository calls it
+  ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D7).
 
 ### Changed
 

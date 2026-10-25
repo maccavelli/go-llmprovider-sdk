@@ -336,8 +336,10 @@ for a session, from the store.
 `llmprovider` holds the generation contract (0015-MADR D3–D10):
 
 - `Provider` is `ID`, `Capabilities` and `Generate(ctx, *Request)
-  (*Response, error)`. `GenerateText` and `GenerateToolCall` are functions
-  over any `Provider`.
+  (*Response, error)`. `GenerateText`, `GenerateToolCall` and
+  `ProbeReasoning`, one generation at `EffortMax` that returns the refusals
+  the provider learned from it (0062-MADR D7), are functions over any
+  `Provider`.
 - `Capabilities` gives each of `Tools`, `ForcedToolChoice`, `Reasoning`,
   `Continuation` and `NativeStreaming` as `Unsupported`, `BestEffort` or
   `Supported`. `Capabilities.Check(req)` validates a request and refuses an

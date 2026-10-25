@@ -1,6 +1,7 @@
 package llmprovider
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"testing"
@@ -44,6 +45,52 @@ func TestReasoningRefusals_Option_0062(t *testing.T) {
 	} {
 		if _, err := ResolveOptions(ProviderClaude, []Option{WithAPIKey("k"), WithReasoningRefusals(tc.r)}); !errors.Is(err, ErrInvalidRequest) {
 			t.Errorf("%s: %v; want ErrInvalidRequest", tc.name, err)
+		}
+	}
+}
+
+// TestProbeReasoning_0062 (0062-MADR D7): ProbeReasoning sends one request,
+// to the model named or the provider's own, at EffortMax with a one-line
+// prompt, and returns the refusals of its WarningReasoningLearned warnings, in
+// order, and no other warning's; none when the model refused nothing; and
+// Generate's error, with no refusals, when the request fails.
+func TestProbeReasoning_0062(t *testing.T) {
+	max1 := ReasoningRefusal{Model: "m", Effort: EffortMax}
+	shape := ReasoningRefusal{Model: "m", Shape: ThinkingAdaptive}
+	failed := errors.New("failed")
+	for _, tc := range []struct {
+		name  string
+		model string
+		resp  *Response
+		err   error
+		want  []ReasoningRefusal
+		fails error
+	}{
+		{"refused max and a shape", "m", &Response{Warnings: []Warning{
+			{Kind: WarningReasoningLearned, Model: "m", Refused: max1},
+			{Kind: WarningEffortDegraded, Model: "m"},
+			{Kind: WarningReasoningLearned, Model: "m", Refused: shape}}}, nil, []ReasoningRefusal{max1, shape}, nil},
+		{"refused nothing", "", &Response{Warnings: []Warning{{Kind: WarningEffortDegraded}}}, nil, nil, nil},
+		{"failed", "m", nil, failed, nil, failed},
+		{"no response", "m", nil, nil, nil, ErrIncomplete},
+	} {
+		var sent []*Request
+		p := &stubProvider{id: "stub", gen: func(_ context.Context, req *Request) (*Response, error) {
+			sent = append(sent, req)
+			return tc.resp, tc.err
+		}}
+		got, err := ProbeReasoning(t.Context(), p, tc.model)
+		if !slices.Equal(got, tc.want) || (tc.fails == nil) != (err == nil) || (tc.fails != nil && !errors.Is(err, tc.fails)) {
+			t.Errorf("%s: %v, %v; want %v, %v", tc.name, got, err, tc.want, tc.fails)
+		}
+		if len(sent) != 1 {
+			t.Fatalf("%s: %d request(s); want one", tc.name, len(sent))
+		}
+		req := sent[0]
+		msg, _ := req.Input[0].(MessageItem)
+		if req.Model != tc.model || req.Reasoning == nil || *req.Reasoning != (Reasoning{Effort: EffortMax}) ||
+			len(req.Input) != 1 || msg.Role != RoleUser || msg.Text != probePrompt || len(req.Tools) != 0 {
+			t.Errorf("%s: sent %+v; want one user message to %q at EffortMax, no tools", tc.name, req, tc.model)
 		}
 	}
 }

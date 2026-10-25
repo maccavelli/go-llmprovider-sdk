@@ -115,8 +115,9 @@ func (s *learnServer) efforts() []string {
 // a WarningReasoningLearned carrying the refusal and a WarningEffortDegraded;
 // the next request sends the learned effort first; WithReasoningRefusals
 // makes a fresh provider skip max from its first request; a Stream learns
-// before its first event. The google route has no matcher: its refusal is
-// returned after one send.
+// before its first event. On the google route, a refusal in another form than
+// the one recorded (0062-REPORT-thinking-refusals.md E11) is returned after
+// one send, nothing learned.
 func TestLearn_Effort_0062(t *testing.T) {
 	route := func(r opencode.Route) []llmprovider.Option { return []llmprovider.Option{opencode.WithRoute(r)} }
 	for _, tc := range []struct {
@@ -335,5 +336,61 @@ func TestLearn_Shape_0062(t *testing.T) {
 	}
 	if got := streamed.shapes(); !slices.Equal(got, []string{"adaptive", "budget"}) {
 		t.Errorf("the stream sent %v; want adaptive, then budget", got)
+	}
+}
+
+// TestProbeReasoning_Provider_0062 (0062-MADR D7): through Claude, the probe
+// sends max, and returns what the model refused, the effort or the adaptive
+// shape, after exactly one accepted send; a model that refuses nothing gives
+// none after one send; a model refusing both shapes gives the error.
+func TestProbeReasoning_Provider_0062(t *testing.T) {
+	for _, tc := range []struct {
+		model    string
+		refusals []string
+		want     []llmprovider.ReasoningRefusal
+		efforts  []string
+		shapes   []string
+	}{
+		{"claude-sonnet-5", []string{refusedMessages},
+			[]llmprovider.ReasoningRefusal{{Model: "claude-sonnet-5", Effort: llmprovider.EffortMax}},
+			[]string{"max", "xhigh"}, []string{"adaptive", "adaptive"}},
+		{"claude-sonnet-4-5-20250929", []string{refusedAdaptive},
+			[]llmprovider.ReasoningRefusal{{Model: "claude-sonnet-4-5-20250929", Shape: llmprovider.ThinkingAdaptive}},
+			[]string{"max", ""}, []string{"adaptive", "budget"}},
+		{"claude-opus-5-5", nil, nil, []string{"max"}, []string{"adaptive"}},
+	} {
+		srv := newLearnServer(t, tc.refusals...)
+		p, err := New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("k"), llmprovider.WithModel("claude-default"),
+			llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
+			testCache(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := llmprovider.ProbeReasoning(context.Background(), p, tc.model)
+		if err != nil || !slices.Equal(got, tc.want) {
+			t.Errorf("%s: %v, %v; want %v", tc.model, got, err, tc.want)
+		}
+		if efforts, shapes := srv.efforts(), srv.shapes(); !slices.Equal(efforts, tc.efforts) ||
+			!slices.Equal(shapes, tc.shapes) || len(efforts) != len(tc.refusals)+1 {
+			t.Errorf("%s: sent efforts %v, shapes %v; want %v, %v, one accepted after %d refused", tc.model, efforts, shapes,
+				tc.efforts, tc.shapes, len(tc.refusals))
+		}
+	}
+
+	both := newLearnServer(t, refusedAdaptive, refusedBudget)
+	p, err := New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("k"), llmprovider.WithModel("claude-x"),
+		llmprovider.WithBaseURL(both.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), testCache(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := llmprovider.ProbeReasoning(context.Background(), p, ""); got != nil ||
+		!errors.Is(err, llmprovider.ErrInvalidRequest) {
+		t.Errorf("both shapes refused: %v, %v; want no refusals and the budget's refusal", got, err)
+	}
+	both.mu.Lock()
+	b := slices.Clone(both.bodies)
+	both.mu.Unlock()
+	if len(b) != 2 || b[0]["model"] != "claude-x" {
+		t.Errorf("both shapes refused: %d send(s), the first to %v; want two, to the provider's own model", len(b), b[0]["model"])
 	}
 }
