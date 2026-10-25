@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-24
 decision-makers: repository owner
 consulted: "GitHub issue #9 (2026-10-24); gobble-cli at 142685b (its llm/provider, llm, llm/catalog and tool/builtin packages; its 0004, 0005 and 0031 MADRs as the issue cites them); this repository at d9b1910; the recorded fixtures under llmprovider/catalog/testdata (models.dev snapshots of 2026-09-26 and 2026-10-12, first-party listings of 2026-10-14); the vendors' documentation fetched on 2026-10-24 (Anthropic, OpenAI, xAI, Google Gemini, Ollama, Hugging Face, Together, Kilo and OpenRouter, OpenCode), quoted below with URLs; the owner's answers of 2026-10-24 to Q1 to Q8"
@@ -150,9 +150,10 @@ one is first in each.
 
 Chosen options as above, because each closes a copy gobble-cli keeps
 without a rule broken that the record does not amend, and the evidence
-supports each wire value. Three points the owner's answers leave open, found
-while proving this record's facts, are Q9 to Q11; the record stays
-`proposed` until they are answered.
+supports each wire value. Three points the owner's first answers left open,
+found while proving this record's facts, are Q9 to Q11; the owner answered
+each (a) on 2026-10-24, and the PLAN's Phase 0 marked this record
+`accepted`.
 
 ### D1. `ErrEmptyAnswer` (work item 2)
 
@@ -205,7 +206,8 @@ while proving this record's facts, are Q9 to Q11; the record stays
   1. the facts list efforts and include `max`: the wire's `max` form is sent;
   2. the facts list efforts and not `max`: the highest listed effort below
      it in the order `low`, `medium`, `high`, `xhigh` is sent (`xhigh` where
-     listed, Q5 (a); otherwise Q9), and the `Response` carries a
+     listed, Q5 (a); otherwise the highest listed below it, Q9 (a)), and
+     the `Response` carries a
      `Warning{Kind: WarningEffortDegraded}` naming what was sent;
   3. the facts list no efforts: the wire's `max` form is sent, except on a
      wire with no `max`, as the table says, with the warning.
@@ -316,7 +318,7 @@ while proving this record's facts, are Q9 to Q11; the record stays
   | :--- | :--- | :--- |
   | Claude | `Supported` | Messages; JPEG, PNG, GIF, WebP (E1) |
   | OpenAI, Platform | `Supported` | Responses; data or https URL (E6) |
-  | OpenAI, ChatGPT and plan sessions | Q11 | UNCONFIRMED: no documentation of images on the Codex backend |
+  | OpenAI, ChatGPT and plan sessions | `Unsupported` (Q11 (a)) | UNCONFIRMED: no documentation of images on the Codex backend; a live test run by the owner decides an amendment |
   | Grok | `Supported` | Responses' `input_image`, its `image_url` a string (E4b); xAI documents JPEG and PNG only, so GIF and WebP are refused with `ErrUnsupported` before the network (Q10) |
   | Gemini | `Supported` | Interactions (E14) |
   | Hugging Face | `Supported` | Chat Completions' object form (E10); data and https URLs UNCONFIRMED, pinned by a live test |
@@ -486,12 +488,16 @@ these.
   * **(b)** Send `xhigh` whatever the facts list, warned, and let the service
     refuse or map it.
   * **(c)** Refuse with `ErrUnsupported` before the network.
+
+  **Answered 2026-10-24: (a).**
 * **Q10 (D5). Grok and GIF or WebP.** xAI's guide documents JPEG and PNG
   only; its OpenAPI's Chat Completions schema mentions WebP (E4b).
   * **(a)** Refuse GIF and WebP for Grok with `ErrUnsupported` before the
     network, until xAI documents them (recommended).
   * **(b)** Send them and let xAI refuse.
   * **(c)** Drop them with `WarningImageDropped`.
+
+  **Answered 2026-10-24: (a).**
 * **Q11 (D5). Images on a ChatGPT or plan session.** Nothing documents image
   input on the Codex backend; `openai.New` already sets other capabilities
   per session kind.
@@ -499,6 +505,9 @@ these.
     owner, shows them accepted; an amendment then enables it (recommended).
   * **(b)** `Supported` now, as on the Platform.
   * **(c)** `BestEffort`, dropping images with a warning.
+
+  **Answered 2026-10-24: (a)** ("q9: a, q10: a, q11: a. committed,
+  proceed").
 
 ## More Information
 

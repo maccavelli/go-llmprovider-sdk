@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-24
 associated-madr: "0061-MADR-consumer-gaps-from-gobble-issue-9.md"
 decision-makers: repository owner
@@ -368,4 +368,13 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
 
 ## Execution record
 
-Not started: the pair awaits the owner's answers to Q9 to Q11 and approval.
+### Phase 0: records (2026-10-24)
+
+* **Approval.** The owner committed the pair as `f86fc3f`, answered Q9 (a),
+  Q10 (a) and Q11 (a), and approved the PLAN ("q9: a, q10: a, q11: a.
+  committed, proceed").
+* **Step 1.** The MADR's Decision Outcome, D3's rule 2, D5's provider table
+  and its Owner questions record the answers; `tools/records.py status`: the
+  MADR `accepted`, this PLAN `in-progress`, with their index rows.
+* **Not done here:** Phase 1 starts after the owner has committed this
+  phase.
