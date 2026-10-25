@@ -103,7 +103,7 @@ standard library is left out.
 | `internal/nettest` | `Refusing`, a client whose every dial is refused, with `RefusedURL`; `Port`, a loopback port outside every ephemeral range; so that no test depends on a freed port (0045-MADR); imported only by tests | the standard library |
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, `DefaultWith(opts...)`, that `Registry` with `opts` given to every built-in (0048-MADR D1), and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
-| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, `Stream`, and `ChatGPTUsageURL` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/chatgpt`, `internal/wire/responses`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
+| `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, `Stream`, and `ChatGPTUsageURL` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/chatgpt`, `internal/wire/responses`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref`, `internal/transport` |
 | `llmprovider/providers/claude` | Claude through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/messages`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, `ListModels`, and `Stream`, with the Interactions wire's decoders | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `catalog`, `internal/listlimit`, `internal/wire/responses`, `auth`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
@@ -538,9 +538,10 @@ for a session, from the store.
   `wire.Arena`. The body around the messages is a map.
 - **Answers:** every wire maps its finish reason the same way. A value with
   no constant is kept as sent, and a reply with a call finishes
-  `tool_calls`. An answer with nothing usable is `ErrIncomplete`, with the
-  service's reason (`content_filter`, a refusal) in `APIError.Reason`; so
-  is an answer cut while the model was still reasoning. A call id another
+  `tool_calls`. An answer with nothing usable is `ErrEmptyAnswer`, which
+  also matches `ErrIncomplete`, with the service's reason (`content_filter`,
+  a refusal) in `APIError.Reason`; so is an answer cut while the model was
+  still reasoning (0061-MADR D1). A call id another
   wire made, such as Gemini's `name#index`, goes to the Messages wire in a
   form Anthropic accepts, unique in the request, with each result paired to
   its call.
@@ -565,7 +566,13 @@ for a session, from the store.
 - **Errors:** one structured error, `*APIError`, whose `Kind` is a sentinel
   such as `ErrRateLimited`, `ErrQuotaExhausted`, `ErrAuthFailure` or
   `ErrIncomplete`; a rate limit carries its `RetryAfter`, and a cut-short
-  response its `Reason`. `Retryable()` says whether to try again. Every
+  response its `Reason`. An answer with nothing usable is
+  `ErrEmptyAnswer`, beneath `ErrIncomplete`; a request that could not be
+  sent for want of a network, a name that did not resolve or a dial timed
+  out, refused or unreachable, is `ErrOffline`, beneath
+  `ErrProviderUnavailable`, on every send path: generation, listing,
+  refresh and sign-in (`transport.Offline`; 0061-MADR D1, D2).
+  `Retryable()` says whether to try again. Every
   sentinel's message starts `llmprovider:`; a wrapped error keeps its
   package's or provider's prefix, such as `oauth:`. Error bodies pass through
   `redact.String`: the first 2 KiB of a message, cut back to a separator

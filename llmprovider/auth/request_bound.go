@@ -5,6 +5,9 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // authRequestTimeout bounds each auth request, from send until its body is
@@ -20,6 +23,8 @@ func doBounded(client *http.Client, req *http.Request) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(req.Context(), authRequestTimeout)
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
+		// Classified before cancel ends ctx (0061-MADR D2).
+		err = transport.WrapOffline(ctx, err, llmprovider.ErrOffline)
 		cancel()
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package llmprovider
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -23,5 +24,20 @@ func TestErrEmptyAnswer_Chain_0061(t *testing.T) {
 	}
 	if err.Retryable() || retryable(err) {
 		t.Errorf("Retryable %t, retryable %t; want neither", err.Retryable(), retryable(err))
+	}
+}
+
+// TestErrOffline_Chain_0061 (0061-MADR D2): ErrOffline matches
+// ErrProviderUnavailable and is retried.
+func TestErrOffline_Chain_0061(t *testing.T) {
+	if !errors.Is(ErrOffline, ErrProviderUnavailable) {
+		t.Error("ErrOffline does not match ErrProviderUnavailable")
+	}
+	if got := ErrOffline.Error(); got != "llmprovider: offline" {
+		t.Errorf("ErrOffline = %q; want %q", got, "llmprovider: offline")
+	}
+	wrapped := fmt.Errorf("%w: dial tcp: connection refused", ErrOffline)
+	if !retryable(wrapped) {
+		t.Error("an offline failure is not retried")
 	}
 }

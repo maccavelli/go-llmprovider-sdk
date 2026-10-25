@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // Model metadata for the open catalogs (MADR 0009 §2): a models.dev-format
@@ -534,7 +535,7 @@ func fetchModelMetadata(ctx context.Context, url string, cfg config, held modelM
 	}
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("model metadata: %w", err)
+		return nil, "", fmt.Errorf("model metadata: %w", transport.WrapOffline(ctx, err, llmprovider.ErrOffline))
 	}
 	defer cfg.closeBody(resp)
 	if revalidate && resp.StatusCode == http.StatusNotModified {

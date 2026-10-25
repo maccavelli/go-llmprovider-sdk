@@ -19,6 +19,25 @@ tag and its commit without notes; its notes are its section here.
   `length`, …). The error's message is unchanged
   ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
   D1; issue #9).
+- `llmprovider.ErrOffline`: a request that could not be sent for want of a
+  network: a host name that did not resolve, or a dial that timed out or
+  found the port refused or the network or host unreachable. It also
+  matches `ErrProviderUnavailable` and is retried. A dial the caller's own
+  context ended, a TLS failure and any HTTP response are not offline
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
+  D2; issue #9).
+
+### Changed
+
+- A request that could not be sent for want of a network now matches
+  `ErrProviderUnavailable`, through `ErrOffline`, on every send path:
+  generation, model listing, OAuth refresh and sign-in. Such a failure
+  matched no kind before, apart from Ollama's listing and the OAuth
+  refresh, which matched `ErrProviderUnavailable` already. A caller's
+  `errors.Is(err, llmprovider.ErrProviderUnavailable)` branch now sees it;
+  `WithRetry` retries it, as it did
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
+  D2).
 
 ## [v1.22.2] - 2026-10-24
 

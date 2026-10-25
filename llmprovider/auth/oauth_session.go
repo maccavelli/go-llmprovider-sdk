@@ -586,7 +586,8 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, llmprovider.Token{}, true, fmt.Errorf("%w: oauth: refresh request: %w", llmprovider.ErrProviderUnavailable, err)
+		return nil, llmprovider.Token{}, true, fmt.Errorf("%w: oauth: refresh request: %w", llmprovider.ErrProviderUnavailable,
+			transport.WrapOffline(ctx, err, llmprovider.ErrOffline))
 	}
 	if resp.StatusCode != http.StatusOK {
 		retry = resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= http.StatusInternalServerError

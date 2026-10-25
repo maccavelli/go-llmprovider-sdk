@@ -83,7 +83,8 @@ leaves it out.
   (C38). A new package needs a row in `docs/architecture.md`'s package table,
   which `tables-check` enforces.
 * **F12. The send sites are more than `internal/transport`.** Fifteen
-  non-test calls send a request (Measurements M4): `wire.Post`; catalog
+  non-test calls send a request (Measurements M4) *(corrected 2026-10-24:
+  seventeen; see the amendment "Phase 2's corrections")*: `wire.Post`; catalog
   discovery (eight), `raw.go` (three), `listing_metadata.go` and
   `model_metadata.go`; the ChatGPT listing; the OAuth refresh and the sign-in
   requests. Ollama's two discovery calls and the OAuth refresh already wrap
@@ -361,7 +362,7 @@ the tag in its own record.
 | Export | Package | Call site that needs it |
 | :--- | :--- | :--- |
 | `ErrEmptyAnswer` | `llmprovider` | `wire.EmptyAnswer` (C8); gobble-cli's empty-answer match (G1) |
-| `ErrOffline` | `llmprovider` | the 15 send sites (M4); gobble-cli's `offline` and its wrap (G2, G5) |
+| `ErrOffline` | `llmprovider` | the 16 send sites of M4 that call `Do` (the amendment "Phase 2's corrections"); gobble-cli's `offline` and its wrap (G2, G5) |
 | `EffortMax` | `llmprovider` | each provider's effort mapping (D3); gobble-cli's `reasoningFor` (G6) |
 | `WarningEffortDegraded` | `llmprovider` | the providers' rule 2 and wire mappings (D3) |
 | `ImageItem` | `llmprovider` | the five encoders (D5); gobble-cli's image content and its `read` tool (G8, G9) |
@@ -643,3 +644,31 @@ image" is listed. The PLAN's Phase 7 pins each wire value with a live test.
 | G9 | gobble's image content | `gobble-cli:llm/llm.go:125` | `` MediaType    string         `json:"mediaType,omitzero"` `` |
 | G10 | gobble skips an unbuilt provider | `gobble-cli:llm/catalog/modelsjson.go:196` | `return fmt.Sprintf("not a provider go-llmprovider-sdk %s builds (one of %s)", sdk, strings.Join(ProviderIDs(), ", "))` |
 | G11 | gobble's SDK pin | `gobble-cli:go.mod:16` | `github.com/maccavelli/go-llmprovider-sdk v1.22.0` |
+
+## Amendment 2026-10-24: Phase 2's corrections
+
+Found while implementing D2; no decision changes.
+
+* **Seventeen send calls, not fifteen.** M4 lists seventeen lines:
+  `wire/post.go` 1, `catalog/discovery.go` 8, `catalog/raw.go` 3,
+  `catalog/listing_metadata.go` 1, `catalog/model_metadata.go` 1,
+  `providers/openai/chatgpt_listing.go` 1, `auth/oauth_session.go` 1,
+  `auth/request_bound.go` 1. F12 said fifteen and D10 "the 15 send sites";
+  the list was right, the count wrong.
+* **Sixteen are wrapped; `raw.go:202` is not.** It is
+  `rawRecorder.RoundTrip`, a `RoundTripper` that `listRawOnce` puts inside
+  the client its ChatGPT, plan, Ollama and listing fetches send through
+  (`raw.go:106-126`), each of which is a wrapped `Do` site. A `RoundTrip`'s
+  error carries no `*url.Error` until `Client.Do` adds one, so D2's rule
+  could never hold there: a wrap would be dead code. `ListRaw` with a
+  refused dial matches `ErrOffline` (the PLAN's Phase 2 test).
+* **The classification runs before the derived context is cancelled.**
+  `wire.Post` and `auth`'s `doBounded` cancel their own context before
+  returning a send failure, so `WrapOffline` runs first; `wire.Post`'s
+  `Unsendable` and after-write checks still take precedence.
+* **Windows' names beside Winsock's.** gobble-cli's rule counts only the
+  Winsock codes on Windows (G3). The syscall package's `ECONNREFUSED`,
+  `ENETDOWN`, `ENETUNREACH` and `EHOSTUNREACH` are values of their own on
+  Windows, and `internal/nettest.Refusing` builds its refused dial from
+  `syscall.ECONNREFUSED` (C15), so the rule counts both there: the four
+  names and the four codes. `GOOS=windows go build ./...` and `go vet` pass.

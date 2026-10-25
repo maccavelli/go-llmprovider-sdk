@@ -430,3 +430,77 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
   clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
   tools/gate.py`: "gate: 28 of 28 passed".
 * **Not done here:** Phases 2 to 8.
+* **Committed** by the owner as `c59cd7a` ("committed, proceed").
+
+### Phase 2: `ErrOffline` (2026-10-24)
+
+* **Step 1.** `ErrOffline`, a `sentinelError` with parent
+  `ErrProviderUnavailable`, after `ErrEmptyAnswer`, its doc as D2.
+* **Step 2.** `internal/transport/offline.go`: `Offline` and `WrapOffline`,
+  D2's rule.
+* **Step 3, the sites.** Sixteen wrapped: `wire/post.go` 1,
+  `catalog/discovery.go` 8 (the two Ollama sites inside their
+  `ErrProviderUnavailable` wrap), `catalog/raw.go` 2 (142, 167),
+  `listing_metadata.go` 1 (inside its wrap), `model_metadata.go` 1,
+  `chatgpt_listing.go` 1 (with `req.Context()`), `oauth_session.go` 1
+  (inside its wrap), `request_bound.go` 1. `grep -c transport.WrapOffline`
+  per file: 1, 8, 2, 1, 1, 1, 1, 1.
+* **Deviation (2026-10-24): four corrections,** recorded in the MADR's
+  amendment "Phase 2's corrections"; no decision changes:
+  * seventeen send calls, not fifteen (the MADR's F12 and D10 said 15);
+  * `raw.go:202`, `rawRecorder.RoundTrip`, is not wrapped: a `RoundTrip`
+    error has no `*url.Error` until `Client.Do` adds it, and every call
+    through that recorder is a wrapped `Do` site; `ListRaw`'s test shows
+    the result;
+  * `wire.Post` and `doBounded` classify before cancelling their derived
+    context, which would otherwise always read as ended; step 3's "after
+    the `Unsendable` and `wrote` checks" holds for precedence;
+  * on Windows the rule counts the syscall names and the Winsock codes;
+    `GOOS=windows go build ./...` and `GOOS=windows go vet` pass.
+* **An addition:** `providers/openai` now imports `internal/transport`, so
+  `docs/architecture.md`'s row for it names it; `make tables-check` failed
+  ("llmprovider/providers/openai: imports llmprovider/internal/transport,
+  which its row does not name") until it did, then "38 packages, 0
+  problem(s)". R2's provider row already allows internal packages.
+* **Step 4, the drift check:** `go test -race -count=1 -shuffle=on ./...`:
+  ok, every existing test unchanged.
+* **Step 5, the tests:** `TestOffline_Rule_0061` (a refused dial from
+  `nettest.Refusing()`, a DNS failure, a dial timeout, network down,
+  network unreachable, host unreachable, and on Windows Winsock's refused;
+  not a plain error, a TLS failure, a proxy's failure, a reset read, a dial
+  with another cause, or a refused dial outside a `*url.Error`);
+  `TestWrapOffline_Context_0061`; `TestErrOffline_Chain_0061`;
+  `TestPost_RefusedDialIsOffline_0061` (and a 503, not offline);
+  `TestList_RefusedDialIsOffline_0061` (OpenAI, Ollama, `ListRaw`);
+  `TestRefresh_RefusedDialIsOffline_0061`;
+  `TestSignInRequest_RefusedDialIsOffline_0061`;
+  `TestChatGPTListing_RefusedDialIsOffline_0061`. Against `d9b1910`'s code,
+  in a scratch clone, with the names declared in shims with no behaviour,
+  every case but the chain failed, for example:
+
+  ```text
+  offline_0061_test.go:65: a refused dial, as the OS gives it: Offline = false; want true (Get "http://127.0.0.1:1": dial tcp: connection refused)
+  post_0061_test.go:24: refused dial: Post "http://127.0.0.1:1": dial tcp: connection refused; want ErrOffline and ErrProviderUnavailable
+  offline_0061_test.go:23: List: err <nil>, Catalog.Err Get "http://127.0.0.1:1/models": dial tcp: connection refused; want ErrOffline in one
+  offline_0061_test.go:31: ListRaw: model listing: openai page 1: Get "http://127.0.0.1:1/models": dial tcp: connection refused; want ErrOffline
+  offline_0061_test.go:21: Token = llmprovider: provider unavailable: oauth: refresh request: Post "http://127.0.0.1:1": …; want ErrOffline and ErrProviderUnavailable
+  offline_0061_test.go:37: doBounded = Post "http://127.0.0.1:1": dial tcp: connection refused; want ErrOffline
+  offline_0061_test.go:23: fetchCatalog = model listing: chatgpt models: Get "http://127.0.0.1:1": dial tcp: connection refused; want ErrOffline
+  ```
+
+* **Step 6, the plants,** all four caught: `Offline` never true; the
+  context check dropped ("ended context: offline: Get …; want the error as
+  it was"); `wire.Post`'s wrap removed ("refused dial: Post …; want
+  ErrOffline and ErrProviderUnavailable"); the parent `ErrInvalidRequest`
+  ("ErrOffline does not match ErrProviderUnavailable", "an offline failure
+  is not retried").
+* **Step 7, docs:** `CHANGELOG.md` Added (`ErrOffline`) and Changed (D2's
+  behaviour change); `docs/architecture.md`: "Answers" names
+  `ErrEmptyAnswer`, "Errors" names both sentinels; OpenAI's package row.
+* **The exports,** `tools/apidiff.py v1.22.2`: "./llmprovider.ErrEmptyAnswer:
+  added", "./llmprovider.ErrOffline: added"; nothing else.
+* **The checks:** `make pre-add-check` on the 16 Go files, "16 file(s)
+  clean"; `scripts/check_changelog.py`, 0 problems; `make tables-check`, 0
+  problems; `python3 -B tools/gate.py`, "gate: 28 of 28 passed";
+  `tools/claims.py` on the MADR, 58 of 58.
+* **Not done here:** Phases 3 to 8.

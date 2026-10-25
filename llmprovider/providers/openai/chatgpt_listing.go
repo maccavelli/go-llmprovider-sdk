@@ -12,6 +12,7 @@ import (
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/chatgpt"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // chatGPTListingTimeout bounds one ChatGPT listing, as catalog bounds every
@@ -85,7 +86,8 @@ func (p *provider) listPlan(ctx context.Context, token llmprovider.Token) ([]str
 func (p *provider) fetchCatalog(req *http.Request, what string) ([]chatGPTCatalogModel, error) {
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("model listing: %s models: %w", what, err)
+		return nil, fmt.Errorf("model listing: %s models: %w", what,
+			transport.WrapOffline(req.Context(), err, llmprovider.ErrOffline))
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
