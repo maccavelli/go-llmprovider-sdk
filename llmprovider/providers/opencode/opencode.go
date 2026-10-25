@@ -20,8 +20,8 @@
 //
 // Capabilities: tools are Supported. Forced tool choice is BestEffort: it
 // is sent as asked, and some models refuse it (below). Reasoning is
-// BestEffort: the chat route sends reasoning_effort only when the model's
-// published reasoning_options list the effort (MADR 0009 §6). Continuation is
+// BestEffort: what a model takes is learned from its refusals, and the
+// google route learns nothing (below). Continuation is
 // Unsupported: the gateway rejects previous_response_id with HTTP 400
 // (measured 2026-08-28), so a caller replays prior items. Native streaming is
 // BestEffort: Stream asks every route for an event stream and yields its
@@ -41,12 +41,21 @@
 //     0034-MADR D4).
 //   - Reasoning: the responses route takes an effort (medium when none is
 //     named); the messages and google routes take the effort or the budget,
-//     shaped by model as Claude's and Gemini's; the chat route, see above.
-//   - EffortMax is sent as max on the responses, messages and chat routes,
-//     and as high on the google route, where Gemini has nothing above high.
-//     On a model whose facts list efforts without max, the highest listed
-//     below it is sent. A lower effort comes with a WarningEffortDegraded
-//     (0061-MADR D3).
+//     shaped by model as Claude's and Gemini's; the chat route takes
+//     reasoning_effort, by the efforts the model's published
+//     reasoning_options list, and as asked when they list none or the
+//     metadata is off (0062-MADR Q7 (a); it sent none, MADR 0009 §6).
+//   - The effort, max included on every route, is sent by the model's facts
+//     and what it refused (0062-MADR D2, D3): one the facts do not list, or
+//     the model refused, steps to the nearest it takes, lower first, with a
+//     WarningEffortDegraded naming what was sent. A refusal of the effort
+//     sent, in the form its route's wire was recorded refusing one
+//     (0062-PLAN Phase 1), is remembered for the rest of the process, in
+//     memory only, and the request is sent again, at most 7 times in all;
+//     the Response, or a stream's done event, carries a
+//     WarningReasoningLearned whose Refused a caller can keep, and pass back
+//     with WithReasoningRefusals (D4 to D6). No refusal of the google route
+//     was recorded: it learns nothing, and returns a refusal as it came.
 //   - On the messages route, a forced tool choice is sent as "auto" with
 //     reasoning: Anthropic refuses to force a tool while thinking, and the
 //     Response carries a WarningForcedChoiceDegraded (0034-MADR D7). On
@@ -181,6 +190,11 @@ type provider struct {
 	// limit is catalog.WithLimit's n, which cuts ListModels's static
 	// fallback; zero is no limit (0038-MADR A3).
 	limit int
+	// thinking is the memo of refused thinking settings, catalog.WithCache's
+	// or the process's; refusals are WithReasoningRefusals' (0062-MADR D5,
+	// D6).
+	thinking *wire.Learned
+	refusals []llmprovider.ReasoningRefusal
 }
 
 // NewZen builds the OpenCode Zen provider. Without a key it sends the
@@ -227,6 +241,8 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 		userAgent:   st.UserAgent(),
 		session:     st.SessionID(),
 		logger:      st.Logger(),
+		thinking:    cacheref.From(st.Values()).LearnedThinking(),
+		refusals:    st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.BestEffort,
@@ -269,8 +285,6 @@ type call struct {
 	// facts is what the caches know of the model, read once per request
 	// (0041-MADR D1).
 	facts catalog.ModelInfo
-	// warnings are the call's own: EffortMax sent lower (0061-MADR D3).
-	warnings []llmprovider.Warning
 }
 
 // Generate sends req to the gateway on the model's route.
@@ -280,14 +294,12 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	}
 	c := p.resolve(ctx, req)
 	// A 401 renews an InvalidatingSource's token and sends once more
-	// (0020-MADR F2).
-	send := func() (*llmprovider.Response, error) {
-		return wire.Reauth(ctx, "opencode", p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-			return p.generateOnce(ctx, c, token)
-		})
-	}
+	// (0020-MADR F2); a refusal of the effort sent is learned, and the
+	// request built again (0062-MADR D5).
+	effort := p.learner(c)
+	build := func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, false, effort) }
 	if c.route != RouteMessages {
-		return send()
+		return wire.Send(ctx, "opencode", p.src, build, p.decode(c), effort.Check)
 	}
 	f := p.forcing.For(string(p.gateway), c.model)
 	// A required choice a model refuses fails here unless the caller opted in
@@ -299,8 +311,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// no layer knows is learned, and handled by policy (0034-MADR D3); a
 	// refusal learned, and a forced choice sent as auto, are reported (D7).
 	retry := messages.NewRefusalRetry(f, req.ToolChoice)
-	resp, err := wire.Send(ctx, "opencode", p.src,
-		func(llmprovider.Token) wire.Call { return p.wireCall(c, p.messagesBody(c), false) }, messages.Decode, retry.Check)
+	resp, err := wire.Send(ctx, "opencode", p.src, build, messages.Decode, wire.Retries(retry.Check, effort.Check))
 	if err == nil {
 		messages.StructuredCall(req, f, resp)
 		for _, warn := range []func() (llmprovider.Warning, bool){retry.Warning,
@@ -330,15 +341,12 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		}
 		// A refusal of a forced tool choice is handled as Generate handles
 		// it (0034-MADR D3). Each range is its own request, with its own
-		// retry check.
+		// retry checks.
 		return func(yield func(llmprovider.Event, error) bool) {
-			retry := messages.NewRefusalRetry(f, req.ToolChoice)
-			build := func(llmprovider.Token) wire.Call {
-				body := p.messagesBody(c)
-				body["stream"] = true
-				return p.wireCall(c, body, true)
-			}
-			stream := wire.StreamEventsRetry(ctx, string(p.gateway)+"/"+string(c.route), p.src, build, messages.Events, retry.Check)
+			retry, effort := messages.NewRefusalRetry(f, req.ToolChoice), p.learner(c)
+			build := func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, true, effort) }
+			stream := wire.StreamEventsRetry(ctx, string(p.gateway)+"/"+string(c.route), p.src, build, messages.Events,
+				wire.Retries(retry.Check, effort.Check))
 			stream = messages.StructuredStream(req, f, stream)
 			for ev, err := range messages.WarnOnDone(stream, retry.Warning, func() (llmprovider.Warning, bool) {
 				return messages.ToolChoiceWarning(req, c.reasoning != nil, f)
@@ -349,29 +357,27 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 			}
 		}
 	}
-	var body map[string]any
 	var events func(string, io.Reader, func(llmprovider.Event) bool) error
 	switch c.route {
 	case RouteResponses:
-		body, events = p.responsesBody(c), responsesDecoder(c).Events
-		body["stream"] = true
+		events = responsesDecoder(c).Events
 	case RouteChatCompletions:
-		body, events = p.chatBody(ctx, c), chatcompletions.Events
-		body["stream"] = true
-		// Usage comes in a stream only when asked for (0031-MADR E5).
-		body["stream_options"] = map[string]any{"include_usage": true}
+		events = chatcompletions.Events
 	case RouteGoogle:
-		body, events = p.googleBody(c), generatecontent.Events
+		events = generatecontent.Events
 	default:
 		return llmprovider.Stream(ctx, generateOnly{p}, req)
 	}
-	call := p.wireCall(c, body, true)
-	if c.route == RouteGoogle {
-		// generateContent streams at its own path, not by a body field
-		// (0031-PLAN-native-streaming-on-the-other-wires, Phase 1).
-		call.URL = p.baseURL + fmt.Sprintf("/models/%s:streamGenerateContent?alt=sse", c.model)
+	return func(yield func(llmprovider.Event, error) bool) {
+		// Each range is its own request, with its own effort learner.
+		effort := p.learner(c)
+		for ev, err := range wire.StreamEventsRetry(ctx, string(p.gateway)+"/"+string(c.route), p.src,
+			func(llmprovider.Token) wire.Call { return p.routeCall(ctx, c, true, effort) }, events, effort.Check) {
+			if !yield(ev, err) {
+				return
+			}
+		}
 	}
-	return wire.StreamEvents(ctx, call, p.src, events)
 }
 
 // generateOnly is a provider without its Stream, so that llmprovider.Stream
@@ -405,50 +411,79 @@ func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 		c.input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, c.input...)
 	}
 	c.route = p.requestRoute(ctx, c.model)
-	if c.reasoning != nil && c.reasoning.Effort == llmprovider.EffortMax {
-		c.reasoning.Effort, c.warnings = maxOnRoute(c.route, c.model, c.facts)
-	}
 	return c
 }
 
-// maxOnRoute is the effort a request at EffortMax is sent at on route, by
-// the model's facts, with the warning when it is lower: the highest listed
-// effort below max where they list efforts without it, and high on the
-// google route, as Gemini has nothing above high (0061-MADR D3).
-func maxOnRoute(route Route, model string, facts catalog.ModelInfo) (llmprovider.Effort, []llmprovider.Warning) {
-	effort, _ := wire.ResolveMax(facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
-	if effort == llmprovider.EffortMax && route == RouteGoogle {
-		effort = llmprovider.EffortHigh
+// learner is c's effort, learned from the model's refusals of it by its
+// route's wire (0062-MADR D2 to D6). The google route has no matcher: no
+// refusal of its was recorded, so it learns nothing (D4, amendment "Phase
+// 1's evidence").
+func (p *provider) learner(c call) *wire.Learner {
+	var match wire.Matcher
+	switch c.route {
+	case RouteMessages:
+		match = messages.MatchRefusal
+	case RouteResponses:
+		match = responses.MatchRefusal
+	case RouteGoogle:
+	default:
+		match = chatcompletions.MatchRefusal
 	}
-	if effort == llmprovider.EffortMax {
-		return effort, nil
-	}
-	return effort, []llmprovider.Warning{wire.EffortWarning(model, effort)}
+	return wire.NewLearner(p.thinking, string(p.gateway), p.baseURL, c.model, p.refusals, match)
 }
 
-// generateOnce sends c once, with token, on its route.
-func (p *provider) generateOnce(ctx context.Context, c call, token llmprovider.Token) (*llmprovider.Response, error) {
-	var body map[string]any
-	// The chat and responses routes' failures are classified by OpenCode's
-	// own table (0026-MADR F5, F28).
+// decode is the decoder of c's route. The chat and responses routes' failures
+// are classified by OpenCode's own table (0026-MADR F5, F28).
+func (p *provider) decode(c call) func(io.Reader) (*llmprovider.Response, error) {
 	label := string(p.gateway) + "/" + string(c.route)
-	decode := chatcompletions.DecodeFor(label)
 	switch c.route {
 	case RouteResponses:
-		body, decode = p.responsesBody(c), responsesDecoder(c).DecodeFor(label)
+		return responsesDecoder(c).DecodeFor(label)
 	case RouteMessages:
-		body, decode = p.messagesBody(c), messages.Decode
+		return messages.Decode
 	case RouteGoogle:
-		body, decode = p.googleBody(c), generatecontent.Decode
+		return generatecontent.Decode
 	default:
-		body = p.chatBody(ctx, c)
+		return chatcompletions.DecodeFor(label)
 	}
-	return wire.Post(ctx, p.wireCall(c, body, false), token, decode)
+}
+
+// routeCall is the request for c on its route, at the effort effort chooses,
+// asking for an event stream when stream is set.
+func (p *provider) routeCall(ctx context.Context, c call, stream bool, effort *wire.Learner) wire.Call {
+	var body map[string]any
+	var warnings []llmprovider.Warning
+	switch c.route {
+	case RouteResponses:
+		body, warnings = p.responsesBody(c, effort)
+	case RouteMessages:
+		body, warnings = p.messagesBody(c, effort)
+	case RouteGoogle:
+		body, warnings = p.googleBody(c, effort)
+	default:
+		body, warnings = p.chatBody(ctx, c, effort)
+	}
+	switch {
+	case !stream, c.route == RouteGoogle:
+		// generateContent streams at its own path, not by a body field
+		// (0031-PLAN-native-streaming-on-the-other-wires, Phase 1).
+	case c.route == RouteChatCompletions:
+		body["stream"] = true
+		// Usage comes in a stream only when asked for (0031-MADR E5).
+		body["stream_options"] = map[string]any{"include_usage": true}
+	default:
+		body["stream"] = true
+	}
+	call := p.wireCall(c, body, stream, warnings)
+	if stream && c.route == RouteGoogle {
+		call.URL = p.baseURL + fmt.Sprintf("/models/%s:streamGenerateContent?alt=sse", c.model)
+	}
+	return call
 }
 
 // wireCall is the request for c with body, on c's route, asking for an event
-// stream when stream is set.
-func (p *provider) wireCall(c call, body map[string]any, stream bool) wire.Call {
+// stream when stream is set, with the effort's warnings.
+func (p *provider) wireCall(c call, body map[string]any, stream bool, warnings []llmprovider.Warning) wire.Call {
 	return wire.Call{
 		// Errors name the gateway and the route (0020-MADR F9).
 		Provider: string(p.gateway) + "/" + string(c.route),
@@ -457,7 +492,7 @@ func (p *provider) wireCall(c call, body map[string]any, stream bool) wire.Call 
 		URL:      p.baseURL + c.route.path(c.model),
 		Body:     body,
 		Stream:   stream,
-		Warnings: append(deferral.Warnings(c.deferForm(), c.req, c.model), c.warnings...), // 0040-MADR D7; 0061-MADR D3
+		Warnings: append(deferral.Warnings(c.deferForm(), c.req, c.model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// Each route reads the key from its vendor's header (MADR 0007
@@ -563,8 +598,9 @@ func responsesDecoder(c call) responses.Decoder {
 	return responses.Decoder{}
 }
 
-// responsesBody is the OpenAI Responses shape.
-func (p *provider) responsesBody(c call) map[string]any {
+// responsesBody is the OpenAI Responses shape, at the effort learner chooses,
+// with its warnings.
+func (p *provider) responsesBody(c call, learner *wire.Learner) (map[string]any, []llmprovider.Warning) {
 	// Deferred tools go out natively from GPT-5.4 on, and are appended as
 	// loaded before it (0040-MADR D1, D3, D6).
 	form := c.deferForm()
@@ -587,21 +623,28 @@ func (p *provider) responsesBody(c call) map[string]any {
 	} else {
 		wire.AddResponsesTools(body, tools, c.req.ToolChoice)
 	}
+	var warnings []llmprovider.Warning
 	if c.reasoning != nil {
-		effort := c.reasoning.Effort
-		if effort == "" {
-			effort = llmprovider.EffortMedium
+		want := c.reasoning.Effort
+		if want == "" {
+			want = llmprovider.EffortMedium
 		}
-		// The summary makes reasoning items carry text, as for OpenAI
-		// (0020-MADR F24; 0021-MADR D4).
-		body["reasoning"] = map[string]any{"effort": effort, "summary": "auto"}
+		// By D3's ladder; none left leaves out reasoning (0062-MADR D3).
+		var effort llmprovider.Effort
+		effort, warnings = learner.Effort(want, c.facts.Reasoning.Efforts, c.facts.Has(catalog.FieldReasoningEfforts))
+		if effort != "" {
+			// The summary makes reasoning items carry text, as for OpenAI
+			// (0020-MADR F24; 0021-MADR D4).
+			body["reasoning"] = map[string]any{"effort": effort, "summary": "auto"}
+		}
 	}
 	wire.AddPromptCacheKey(body, c.req.Cache, p.session) // 0039-MADR D3, D4
-	return body
+	return body, warnings
 }
 
-// messagesBody is the Anthropic Messages shape.
-func (p *provider) messagesBody(c call) map[string]any {
+// messagesBody is the Anthropic Messages shape, at the effort learner
+// chooses, with its warnings.
+func (p *provider) messagesBody(c call, learner *wire.Learner) (map[string]any, []llmprovider.Warning) {
 	maxTokens := c.maxTokens
 	// Deferred tools go out in the model's form: a Claude model's natively,
 	// any other model's appended as loaded (0040-MADR D1, D2, D6).
@@ -618,8 +661,12 @@ func (p *provider) messagesBody(c call) map[string]any {
 		body["system"] = system
 	}
 	thinking := c.reasoning != nil
+	var warnings []llmprovider.Warning
 	if thinking {
-		maxTokens = messages.AddThinkingFor(body, c.model, string(c.reasoning.Effort), c.reasoning.Budget, maxTokens,
+		var effort llmprovider.Effort
+		effort, warnings = learner.Effort(c.reasoning.Effort, c.facts.Reasoning.Efforts,
+			c.facts.Has(catalog.FieldReasoningEfforts))
+		maxTokens = messages.AddThinkingFor(body, c.model, string(effort), c.reasoning.Budget, maxTokens,
 			messagesThinking(c.facts))
 	}
 	body[jsonKeyMaxTokens] = maxTokens
@@ -633,7 +680,7 @@ func (p *provider) messagesBody(c call) map[string]any {
 	}
 	// Last, once the system and tools are set (0039-MADR D2).
 	messages.AddCache(body, c.req.Cache)
-	return body
+	return body, warnings
 }
 
 // effortsOf is info's reasoning efforts, as strings.
@@ -662,11 +709,16 @@ func geminiThinking(info catalog.ModelInfo) generatecontent.Thinking {
 	return generatecontent.FactsThinking(effortsOf(info), info.Has(catalog.FieldReasoningBudget))
 }
 
-// googleBody is the Gemini generateContent shape.
-func (p *provider) googleBody(c call) map[string]any {
+// googleBody is the Gemini generateContent shape, at the effort learner
+// chooses, with its warnings.
+func (p *provider) googleBody(c call, learner *wire.Learner) (map[string]any, []llmprovider.Warning) {
 	genCfg := map[string]any{"maxOutputTokens": c.maxTokens}
+	var warnings []llmprovider.Warning
 	if c.reasoning != nil {
-		genCfg["thinkingConfig"] = generatecontent.ThinkingConfigFor(c.model, string(c.reasoning.Effort), c.reasoning.Budget,
+		var effort llmprovider.Effort
+		effort, warnings = learner.Effort(c.reasoning.Effort, c.facts.Reasoning.Efforts,
+			c.facts.Has(catalog.FieldReasoningEfforts))
+		genCfg["thinkingConfig"] = generatecontent.ThinkingConfigFor(c.model, string(effort), c.reasoning.Budget,
 			geminiThinking(c.facts))
 	}
 	body := map[string]any{
@@ -686,7 +738,7 @@ func (p *provider) googleBody(c call) map[string]any {
 			body["toolConfig"] = map[string]any{"functionCallingConfig": cfg}
 		}
 	}
-	return body
+	return body, warnings
 }
 
 // googleToolConfig is generateContent's functionCallingConfig for choice, or
@@ -705,32 +757,35 @@ func googleToolConfig(choice llmprovider.ToolChoice) map[string]any {
 	}
 }
 
-// chatBody is the Chat Completions shape. It carries reasoning_effort only
-// when chatReasoningEffort resolves one (MADR 0009 §6), and replays prior
-// reasoning under the field the model's metadata declares.
-func (p *provider) chatBody(ctx context.Context, c call) map[string]any {
+// chatBody is the Chat Completions shape, with chatEffort's reasoning_effort,
+// replaying prior reasoning under the field the model's metadata declares.
+func (p *provider) chatBody(ctx context.Context, c call, learner *wire.Learner) (map[string]any, []llmprovider.Warning) {
+	effort, warnings := p.chatEffort(ctx, c, learner)
 	return chatcompletions.Body(c.model, c.maxTokens, c.input, chatcompletions.Opts{
-		ReasoningEffort:      p.chatReasoningEffort(ctx, c),
+		ReasoningEffort:      string(effort),
 		ReplayReasoningField: p.chatReplayField(ctx, c),
 		Tools:                deferral.Tools(c.req, c.deferForm()),
 		SendStrict:           true,
 		ToolChoice:           c.req.ToolChoice,
-	})
+	}), warnings
 }
 
-// chatReasoningEffort is the chat route's reasoning_effort: the effort, when
-// the call reasons and the model's published reasoning_options list it;
-// otherwise "". Metadata that is unavailable, disabled or silent on the model
-// sends nothing (MADR 0009 §6).
-func (p *provider) chatReasoningEffort(ctx context.Context, c call) string {
+// chatEffort is the chat route's reasoning_effort, when the call reasons with
+// an effort: by D3's ladder over what the model refused and the efforts its
+// published reasoning_options list. Metadata that is unavailable, disabled
+// or silent on the model lists none, and the effort asked is sent, and a
+// refusal learned (0062-MADR D8, Q7 (a); it sent nothing, MADR 0009 §6).
+func (p *provider) chatEffort(ctx context.Context, c call, learner *wire.Learner) (llmprovider.Effort, []llmprovider.Warning) {
 	if c.reasoning == nil || c.reasoning.Effort == "" {
-		return ""
+		return "", nil
 	}
-	meta, err := p.metadata(ctx)
-	if err != nil || !slices.Contains(meta.ReasoningEfforts(p.gateway, c.model), string(c.reasoning.Effort)) {
-		return ""
+	var listed []llmprovider.Effort
+	if meta, err := p.metadata(ctx); err == nil {
+		for _, e := range meta.ReasoningEfforts(p.gateway, c.model) {
+			listed = append(listed, llmprovider.Effort(e))
+		}
 	}
-	return string(c.reasoning.Effort)
+	return learner.Effort(c.reasoning.Effort, listed, len(listed) > 0)
 }
 
 // chatReplayField is the interleaved reasoning field the model's metadata

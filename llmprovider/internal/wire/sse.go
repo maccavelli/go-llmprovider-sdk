@@ -130,8 +130,9 @@ func StreamEventsFor(ctx context.Context, src llmprovider.TokenSource, build fun
 
 // StreamEventsRetry is StreamEventsFor with a retry check: a stream whose
 // opening fails, which is before any event, is built again and opened once
-// more when retry says to. A failure after the stream opened is never resent
-// (0034-MADR D3). provider labels a failure to fetch a token.
+// more while retry says to, at most MaxSends times in all, as Send does. A
+// failure after the stream opened is never resent (0034-MADR D3; 0062-MADR
+// D5). provider labels a failure to fetch a token.
 func StreamEventsRetry(ctx context.Context, provider string, src llmprovider.TokenSource, build func(llmprovider.Token) Call,
 	decode func(provider string, body io.Reader, yield func(llmprovider.Event) bool) error, retry Retry) iter.Seq2[llmprovider.Event, error] {
 	return func(yield func(llmprovider.Event, error) bool) {
@@ -142,11 +143,12 @@ func StreamEventsRetry(ctx context.Context, provider string, src llmprovider.Tok
 			return OpenStream(ctx, c, token)
 		}
 		reply, err := Reauth(ctx, provider, src, open)
-		if err != nil && retry != nil {
+		for sends := 1; err != nil && retry != nil && sends < MaxSends; sends++ {
 			var resend bool
-			if resend, err = retry(err); resend {
-				reply, err = Reauth(ctx, provider, src, open)
+			if resend, err = retry(err); !resend {
+				break
 			}
+			reply, err = Reauth(ctx, provider, src, open)
 		}
 		if err != nil {
 			yield(llmprovider.Event{}, err)

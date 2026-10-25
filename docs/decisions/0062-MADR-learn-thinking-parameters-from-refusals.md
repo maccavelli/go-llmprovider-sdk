@@ -673,3 +673,36 @@ only those that are `Effort` values.
   flash-lite's `low` is refused, `medium` refused with the list, `high` sent
   (3 sends). Each is within Q5's 7, and the next request is right the first
   time.
+
+## Amendment 2026-10-25: Phase 2's Grok cases
+
+R6 sends no effort to a Grok model outside its menu, and the amendment
+"Phase 1's evidence" removed R6 on Grok's refusal of `max` on models that
+take efforts; no case had measured a model outside the menu. The PLAN's
+Phase 2 stopped there, and the owner chose to record first (its record of
+2026-10-25). Two cases were added and sent:
+[0062-REPORT-thinking-refusals.md](../reports/0062-REPORT-thinking-refusals.md)'s
+finding E10, and the fixtures `grok-build-0.1-high.json` and
+`grok-4.20-0309-non-reasoning-high.json`.
+
+* **D4 gains a row.** Responses (Grok), 400 `invalid-argument`, a message
+  that starts `Model` and ends `does not support parameter
+  reasoningEffort.`: the model takes no effort, D3's last rung, none.
+* **D8: R6 is removed whole.** A model outside the menu refuses the effort
+  field recognisably: its first request is sent with the effort, refused,
+  learned, and sent again without it (2 sends); its next is right the first
+  time. The finding that justified the branch, "other models reason
+  automatically and may reject the parameter", holds, and is now learned
+  rather than listed.
+
+## Amendment 2026-10-25: R2's row for internal/cacheref
+
+D5 holds the memo of refused thinking settings in each `catalog.Cache`,
+beside 0034-MADR's memo of forced-choice refusals, and the PLAN's Phase 2
+puts it in `internal/cacheref`. The memo's type, `wire.Learned`, is in
+`internal/wire`, which `docs/guides/api-standards.md` R2's row for
+`internal/cacheref` did not allow it to import; it already reached
+`internal/wire` through `internal/wire/messages`. The owner chose, on
+2026-10-25, to amend the row: `internal/cacheref` may import
+`internal/wire`, by this record's D5. Offered and not chosen: a new leaf
+package for the memo; holding it untyped, as `any`.

@@ -228,9 +228,11 @@ func TestOpencode_Thinking_PerRoute(t *testing.T) {
 	})
 }
 
-// TestOpencode_ChatReasoningEffort pins MADR 0009 §6 for the chat route:
-// reasoning_effort is sent only on a reasoning call with an effort configured
-// that the model's published reasoning_options list.
+// TestOpencode_ChatReasoningEffort: on the chat route, reasoning_effort is
+// sent on a reasoning call with an effort, by D3's ladder over the efforts
+// the model's published reasoning_options list, and as asked where the
+// metadata lists none or is off (0062-MADR D8, Q7 (a); it sent none, MADR
+// 0009 §6).
 func TestOpencode_ChatReasoningEffort(t *testing.T) {
 	enableMetadata(t)
 	meta, _ := metadataServer(t, http.StatusOK, `{"opencode":{"models":{"`+deepSeekV4Pro+`":{`+
@@ -242,11 +244,11 @@ func TestOpencode_ChatReasoningEffort(t *testing.T) {
 		want            string // "" means reasoning_effort is absent
 	}{
 		{"listed", deepSeekV4Pro, "low", false, false, "low"},
-		{"unlisted value", deepSeekV4Pro, "medium", false, false, ""},
-		{"uncovered model", "kimi-k2.6", "low", false, false, ""},
+		{"unlisted value, the nearest lower", deepSeekV4Pro, "medium", false, false, "low"},
+		{"uncovered model", "kimi-k2.6", "low", false, false, "low"},
 		{"no effort", deepSeekV4Pro, "", false, false, ""},
 		{"plain call", deepSeekV4Pro, "low", true, false, ""},
-		{"disabled", deepSeekV4Pro, "low", false, true, ""},
+		{"disabled", deepSeekV4Pro, "low", false, true, "low"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

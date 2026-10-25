@@ -83,7 +83,7 @@ func TestGenerate_RequestFields(t *testing.T) {
 }
 
 // TestGenerate_Reasoning: a request's effort wins over WithReasoning's and is
-// clamped to the model's menu; an empty effort takes WithReasoning's, else
+// sent as asked, with no facts; an empty effort takes WithReasoning's, else
 // high; a budget is not sent; with neither, nothing is sent. Each case that
 // the old WithReasoningEffort expressed runs both ways.
 func TestGenerate_Reasoning(t *testing.T) {
@@ -102,8 +102,9 @@ func TestGenerate_Reasoning(t *testing.T) {
 		{"empty request effort takes the default", "grok-4.5", medium, &llmprovider.Reasoning{}, "medium"},
 		{"no effort anywhere sends high", "grok-4.6", nil, &llmprovider.Reasoning{}, "high"},
 		{"a budget alone sends high", "grok-4.6", nil, &llmprovider.Reasoning{Budget: 4096}, "high"},
-		{"request clamped to the menu", "grok-3-mini", nil, medium, "low"},
-		{"a model without a menu", "grok-4", nil, high, nil},
+		// No menu clamps or omits an effort (0062-MADR D8, R6 removed).
+		{"an effort a menu would have clamped", "grok-3-mini", nil, medium, "medium"},
+		{"a model R6 had no menu for", "grok-4", nil, high, "high"},
 	} {
 		var body map[string]any
 		srv := captureServer(t, &body, okResponse)

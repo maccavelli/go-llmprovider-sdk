@@ -57,10 +57,10 @@ func sentEffort(v any) string {
 // TestEffortMax_Mapping_0061: a request at EffortMax, with facts that list
 // max (rule 1), facts that list low, medium and high (rule 2, Q9 (a)), and
 // no facts (rule 3). Each want is the effort sent, then the effort the
-// warning names, "" for none. Grok has no max on its wire, so with no facts
-// its menu's highest is sent; Gemini has nothing above high; OpenCode's
-// google route, with no facts, sends a dynamic budget for high, as for
-// xhigh.
+// warning names, "" for none. By 0062-MADR D3's ladder every provider sends
+// what the facts allow, and max with none: a service that refuses it is
+// learned from, not guessed at (0062-MADR D8, 0061-MADR D3's rows removed).
+// OpenCode's google route, with no facts, sends a dynamic budget.
 func TestEffortMax_Mapping_0061(t *testing.T) {
 	type want struct{ sent, warned string }
 	withMax := []llmprovider.Effort{"low", "medium", "high", "xhigh", "max"}
@@ -72,11 +72,11 @@ func TestEffortMax_Mapping_0061(t *testing.T) {
 	}{
 		{llmprovider.ProviderClaude, "claude-sonnet-5", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
 		{llmprovider.ProviderOpenAI, "gpt-6-luna", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
-		{llmprovider.ProviderGrok, "grok-4.6", want{"max", ""}, want{"high", "high"}, want{"xhigh", "xhigh"}},
-		{llmprovider.ProviderGemini, "gemini-3.8-flash", want{"high", "high"}, want{"high", "high"}, want{"high", "high"}},
+		{llmprovider.ProviderGrok, "grok-4.6", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
+		{llmprovider.ProviderGemini, "gemini-3.8-flash", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
 		{llmprovider.ProviderOpencodeZen, "claude-sonnet-5", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
 		{llmprovider.ProviderOpencodeZen, "gpt-5.5", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
-		{llmprovider.ProviderOpencodeZen, "gemini-3.8-flash", want{"high", "high"}, want{"high", "high"}, want{"", "high"}},
+		{llmprovider.ProviderOpencodeZen, "gemini-3.8-flash", want{"max", ""}, want{"high", "high"}, want{"", ""}},
 		{llmprovider.ProviderKilo, "openai/gpt-6-luna", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
 		{llmprovider.ProviderHuggingFace, "deepseek-ai/DeepSeek-V4.1-Flash", want{"max", ""}, want{"high", "high"},
 			want{"max", ""}},

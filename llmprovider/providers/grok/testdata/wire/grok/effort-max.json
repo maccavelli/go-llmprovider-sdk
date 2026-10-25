@@ -19,7 +19,7 @@
         "max_output_tokens": 8192,
         "model": "grok-4.5",
         "reasoning": {
-          "effort": "high"
+          "effort": "max"
         }
       }
     }
@@ -56,12 +56,6 @@
         }
       ]
     },
-    "warnings": [
-      {
-        "Kind": "effort_degraded",
-        "Model": "grok-4.5",
-        "Detail": "reasoning effort max is not offered for grok-4.5; sent high"
-      }
-    ]
+    "warnings": null
   }
 }

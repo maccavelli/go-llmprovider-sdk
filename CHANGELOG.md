@@ -30,14 +30,35 @@ tag and its commit without notes; its notes are its section here.
   where it has both, and `WarningEffortDegraded`. Each provider sends it as
   its wire's `max` where the model's facts list `max` or list no efforts;
   on a model whose facts list efforts without it, the highest listed below
-  it, warned. Grok and Gemini have no `max`: Grok clamps it to the model's
-  highest effort and Gemini sends `high`, warned; OpenCode's google route
-  sends `high`, warned
+  it, warned; and on a model that refuses it, the next effort it takes,
+  learned (below)
   ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
-  D3; issue #9).
+  D3; [0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D3; issue #9).
+- `llmprovider.WarningReasoningLearned`, `ReasoningRefusal`, `ThinkingShape`
+  (`ThinkingAdaptive`, `ThinkingBudget`), `Warning.Refused`,
+  `WithReasoningRefusals` and `Settings.ReasoningRefusals`: a provider that
+  learns a model's refusal of a thinking setting reports it in a
+  `WarningReasoningLearned`, whose `Refused` a caller keeps and passes back
+  with `WithReasoningRefusals` on its next start, so that the setting is
+  never sent again. `Warning.Refused` is left out of a warning's JSON when
+  zero, so other warnings encode as before ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D6).
 
 ### Changed
 
+- A request's reasoning effort is decided by the model's facts and by what
+  the model refused, not by rules of model names: one the facts do not
+  list, or the model refused, steps to the nearest effort it takes, lower
+  first, with a `WarningEffortDegraded`. A refusal of the effort sent, in a
+  form recorded live per wire, is remembered for the process, in memory
+  only, and the request sent again: `wire.Send`'s one resend becomes at
+  most 7 sends, a forced-choice refusal counted in them. Removed: Grok's
+  effort menu, which clamped an effort and sent none to a model off it;
+  Gemini's mapping of `xhigh` to `high` and its `gemini-2.5-flash-lite`
+  exception; OpenCode's chat route sending no `reasoning_effort` without
+  metadata; and 0061's rows sending `max` lower on Grok, Gemini and
+  OpenCode's google route. Ollama is unchanged until its refusals are
+  recorded ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D2 to D8;
+  [0062-REPORT](docs/reports/0062-REPORT-thinking-refusals.md)).
 - A request that could not be sent for want of a network now matches
   `ErrProviderUnavailable`, through `ErrOffline`, on every send path:
   generation, model listing, OAuth refresh and sign-in. Such a failure

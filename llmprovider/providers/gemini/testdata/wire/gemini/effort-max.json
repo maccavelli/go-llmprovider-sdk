@@ -12,7 +12,7 @@
       "body": {
         "generation_config": {
           "max_output_tokens": 8192,
-          "thinking_level": "high",
+          "thinking_level": "max",
           "thinking_summaries": "auto"
         },
         "input": [
@@ -63,12 +63,6 @@
         }
       ]
     },
-    "warnings": [
-      {
-        "Kind": "effort_degraded",
-        "Model": "gemini-3.7-flash",
-        "Detail": "reasoning effort max is not offered for gemini-3.7-flash; sent high"
-      }
-    ]
+    "warnings": null
   }
 }

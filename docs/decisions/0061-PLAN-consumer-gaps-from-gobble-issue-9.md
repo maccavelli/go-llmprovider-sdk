@@ -630,5 +630,11 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
     rows with 0062's ladder, in that phase's own commit.
   * Until then, `main` sends `max` as rule 3's rows say. Nothing of it is
     pushed or released.
+* **Reworked by 0062-PLAN Phase 2 (2026-10-25),** in that phase's commit:
+  D3's rules 1 and 2 are 0062's ladder; its rule-3 rows (Grok's clamp, and
+  `high` on Gemini and OpenCode's google route) are removed; `ResolveMax`,
+  `MaxEffort` and `EffortWarning` stay for Ollama alone, until 0062-PLAN's
+  Phase 5. `TestEffortMax_Mapping_0061`'s Grok, Gemini and google-route rows
+  and their `effort-max` goldens follow.
 * **Not done here:** Phases 4 to 8. They follow 0062-PLAN (the MADR's
   amendment "D3 reworked by 0062").

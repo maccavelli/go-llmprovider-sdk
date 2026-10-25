@@ -158,6 +158,11 @@ func refusalCases() []refusalCase {
 		thinking("grok-4.5-xhigh", "grok", "grok-4.5", effort("reasoning.effort", "xhigh")),
 		thinking("grok-4.5-max", "grok", "grok-4.5", effort("reasoning.effort", "max")),
 		thinking("grok-4.3-max", "grok", "grok-4.3", effort("reasoning.effort", "max")),
+		// Models outside R6's menu, which it sends no effort (0062-PLAN Phase 2,
+		// the stop of 2026-10-25).
+		thinking("grok-build-0.1-high", "grok", "grok-build-0.1", effort("reasoning.effort", "high")),
+		thinking("grok-4.20-0309-non-reasoning-high", "grok", "grok-4.20-0309-non-reasoning",
+			effort("reasoning.effort", "high")),
 		thinking("opencode-zen-responses-gpt-5.5-max", "opencode-zen-responses", "gpt-5.5",
 			effort("reasoning.effort", "max")),
 		thinking("opencode-zen-responses-gpt-5.5-bogus", "opencode-zen-responses", "gpt-5.5",

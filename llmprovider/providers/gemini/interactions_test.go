@@ -93,7 +93,8 @@ func TestGeminiInteractions_Response(t *testing.T) {
 }
 
 // TestGeminiInteractions_Thinking: summaries on every thinking call; an effort
-// becomes thinking_level, xhigh as high; gemini-2.5-flash-lite takes only high.
+// becomes thinking_level as asked, with no facts: no rule maps xhigh to high or
+// keeps gemini-2.5-flash-lite to high, for a refusal is learned (0062-MADR D8).
 // Each case runs with the effort set at construction, as the old
 // WithReasoningEffort did, and on the request.
 func TestGeminiInteractions_Thinking(t *testing.T) {
@@ -104,8 +105,8 @@ func TestGeminiInteractions_Thinking(t *testing.T) {
 	}{
 		{"gemini-3.7-flash", "", "<nil>"},
 		{"gemini-3.7-flash", llmprovider.EffortLow, "low"},
-		{"gemini-3.7-flash", llmprovider.EffortXHigh, "high"},
-		{"gemini-2.5-flash-lite", llmprovider.EffortLow, "<nil>"},
+		{"gemini-3.7-flash", llmprovider.EffortXHigh, "xhigh"},
+		{"gemini-2.5-flash-lite", llmprovider.EffortLow, "low"},
 		{"gemini-2.5-flash-lite", llmprovider.EffortHigh, "high"},
 	} {
 		for _, where := range []string{"construction", "request"} {

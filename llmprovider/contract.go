@@ -74,10 +74,10 @@ const (
 	// EffortXHigh asks for the most reasoning a provider offers.
 	EffortXHigh Effort = effortXHigh
 	// EffortMax asks for the highest tier a service names, above xhigh where
-	// the service has both. A model whose facts list efforts without max is
-	// sent the highest of them below it, and a service with no max its
-	// highest tier; the Response then carries a WarningEffortDegraded naming
-	// what was sent, as the provider's package doc lists (0061-MADR D3).
+	// the service has both. A model whose facts list efforts without max, or
+	// that refuses max, is sent the highest effort below it that it takes;
+	// the Response then carries a WarningEffortDegraded naming what was sent,
+	// as the provider's package doc lists (0061-MADR D3; 0062-MADR D3).
 	EffortMax Effort = effortMax
 )
 

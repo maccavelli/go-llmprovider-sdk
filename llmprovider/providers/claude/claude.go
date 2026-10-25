@@ -57,10 +57,17 @@
 //     thinking, with the effort as output_config.effort; a Budget is not sent
 //     to them. Older models take a budget: Reasoning.Budget, else 1024 for
 //     EffortLow, else 4096, with the output limit raised above it.
-//   - EffortMax is output_config.effort "max". On a model whose facts list
-//     efforts without max, the highest listed below it is sent, with a
-//     WarningEffortDegraded (0061-MADR D3). A budget model sends no effort,
-//     at max as at any other.
+//   - The effort, output_config.effort, max included, is sent by the model's
+//     facts and what it refused (0062-MADR D2, D3): one the facts do not
+//     list, or the model refused, steps to the nearest it takes, lower
+//     first, with a WarningEffortDegraded naming what was sent.
+//     A refusal of the effort sent, in a form 0062-PLAN Phase 1 recorded,
+//     is remembered for the rest of the process, in memory only, and the
+//     request is sent again, at most 7 times in all; the Response, or a
+//     stream's done event, carries a WarningReasoningLearned whose Refused a
+//     caller can keep, and pass back with WithReasoningRefusals on its next
+//     start (0062-MADR D4 to D6). A
+//     budget model sends no effort.
 //
 // Instructions and system items go to the top-level system field, in that
 // order.
@@ -145,6 +152,8 @@ type provider struct {
 	probe     bool
 	// cache is catalog.WithCache's, nil for the process's (0048-MADR D1).
 	cache *cacheref.Value
+	// refusals are WithReasoningRefusals' (0062-MADR D6).
+	refusals []llmprovider.ReasoningRefusal
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
@@ -187,6 +196,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		logger:    st.Logger(),
 		probe:     st.ModelProbes(),
 		cache:     cacheref.From(st.Values()),
+		refusals:  st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.BestEffort,
@@ -222,11 +232,12 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// A 401 renews an InvalidatingSource's token and sends once more
 	// (0020-MADR F2). A refusal of a forced tool choice from a model no layer
 	// knows is learned, and handled by policy: the request is built again and
-	// sent once more, or the refusal returned (0034-MADR D3).
-	retry := messages.NewRefusalRetry(f, req.ToolChoice)
+	// sent once more, or the refusal returned (0034-MADR D3). A refusal of the
+	// effort sent is learned, and the request built again (0062-MADR D5).
+	retry, effort := messages.NewRefusalRetry(f, req.ToolChoice), p.learner(req)
 	resp, err := wire.Send(ctx, string(llmprovider.ProviderClaude), p.src,
-		func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), false) }, messages.Decode,
-		retry.Check)
+		func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), false, effort) },
+		messages.Decode, wire.Retries(retry.Check, effort.Check))
 	if err == nil {
 		// A named tool sent as structured outputs is returned as its call
 		// (0034-MADR D8); a refusal learned, and a forced choice sent as
@@ -266,11 +277,11 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
 	return func(yield func(llmprovider.Event, error) bool) {
-		// Each range is its own request, with its own retry check.
-		retry := messages.NewRefusalRetry(f, req.ToolChoice)
+		// Each range is its own request, with its own retry checks.
+		retry, effort := messages.NewRefusalRetry(f, req.ToolChoice), p.learner(req)
 		stream := wire.StreamEventsRetry(ctx, string(llmprovider.ProviderClaude), p.src,
-			func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), true) }, messages.Events,
-			retry.Check)
+			func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), true, effort) },
+			messages.Events, wire.Retries(retry.Check, effort.Check))
 		stream = messages.StructuredStream(req, f, stream)
 		for ev, err := range messages.WarnOnDone(stream, retry.Warning,
 			func() (llmprovider.Warning, bool) { return p.toolChoiceWarning(req) }) {
@@ -279,6 +290,13 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 			}
 		}
 	}
+}
+
+// learner is req's effort, learned from the model's refusals of it
+// (0062-MADR D2 to D6).
+func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
+	return wire.NewLearner(p.cache.LearnedThinking(), string(llmprovider.ProviderClaude), p.baseURL, p.modelFor(req),
+		p.refusals, messages.MatchRefusal)
 }
 
 // modelFor is req's model, else the provider's.
@@ -290,9 +308,9 @@ func (p *provider) modelFor(req *llmprovider.Request) string {
 }
 
 // call is the Messages request for req, asking for an event stream when
-// stream is set.
-func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool) wire.Call {
-	body, warnings := p.body(req, facts)
+// stream is set, at the effort effort chooses.
+func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool, effort *wire.Learner) wire.Call {
+	body, warnings := p.body(req, facts, effort)
 	if stream {
 		body["stream"] = true
 	}
@@ -305,7 +323,8 @@ func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, strea
 		Body:     body,
 		Stream:   stream,
 		// A model before Claude 4.5 has its deferred tools appended (0040-MADR
-		// D7); EffortMax may be sent lower (0061-MADR D3).
+		// D7); an effort may be sent lower, and a refusal learned (0062-MADR
+		// D3, D6).
 		Warnings: append(deferral.Warnings(deferral.Of(deferral.Messages, model), req, model), warnings...),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
@@ -346,8 +365,10 @@ func outputLimit(info catalog.ModelInfo) int {
 	return info.MaxOutputTokens
 }
 
-// body is the Messages request for req, with its model's facts.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
+// body is the Messages request for req, with its model's facts, at the
+// effort effort chooses.
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, effort *wire.Learner) (map[string]any,
+	[]llmprovider.Warning) {
 	model := p.modelFor(req)
 	maxTokens := p.maxTokens
 	if req.MaxOutputTokens > 0 {
@@ -376,7 +397,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 	if len(system) > 0 {
 		body["system"] = strings.Join(system, "\n\n")
 	}
-	thinking, warnings := p.addReasoning(body, req, model, maxTokens, facts)
+	thinking, warnings := p.addReasoning(body, req, model, maxTokens, facts, effort)
 	if tools := deferral.Tools(req, form); len(tools) > 0 {
 		if form == deferral.MessagesNative {
 			body["tools"] = wire.MessagesToolsNative(tools)
@@ -392,10 +413,10 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 
 // addReasoning adds the thinking fields for the request's Reasoning, or
 // WithReasoning's, in the shape the model's facts give, and reports whether
-// it did, with the warning when EffortMax was sent lower (0061-MADR D3). Each
-// of effort and budget falls back to WithReasoning's.
+// it did, with the warnings of the effort learner chooses (0062-MADR D3, D6).
+// Each of effort and budget falls back to WithReasoning's.
 func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, model string, maxTokens int,
-	info catalog.ModelInfo) (bool, []llmprovider.Warning) {
+	info catalog.ModelInfo, learner *wire.Learner) (bool, []llmprovider.Warning) {
 	r := req.Reasoning
 	if r == nil {
 		r = p.reasoning
@@ -412,7 +433,7 @@ func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, m
 			budget = p.reasoning.Budget
 		}
 	}
-	effort, warnings := wire.MaxEffort(model, effort, info.Reasoning.Efforts, info.Has(catalog.FieldReasoningEfforts))
+	effort, warnings := learner.Effort(effort, info.Reasoning.Efforts, info.Has(catalog.FieldReasoningEfforts))
 	body["max_tokens"] = messages.AddThinkingFor(body, model, string(effort), budget, maxTokens, thinkingFacts(info))
 	return true, warnings
 }

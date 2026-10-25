@@ -13,9 +13,10 @@ The command reads each provider's key from that provider's variable. This
 tool reads no key, prints none, and relays which listings the command
 skipped. With --dir it checks an existing snapshot, and sends no request.
 
-The agreement tests, TestAgreement0041_* in catalog, providers/gemini and
-providers/grok, run with LLMPROVIDER_SNAPSHOT_DIR=DIR. A failing one is a
-rule that differs from the facts, and its differing models are listed.
+The agreement tests, TestAgreement0041_* in catalog, run with
+LLMPROVIDER_SNAPSHOT_DIR=DIR. A failing one is a rule that differs from the
+facts, and its differing models are listed. Those of providers/gemini and
+providers/grok went with R5 and R6, which 0062-MADR D8 removed.
 TestCatalogCheck0041_Sixes prints each open catalog's six under each
 profile, for DIR and for the baseline: --baseline, or the newest committed
 llmprovider/catalog/testdata/ranking-*/ that holds a snapshot.json.
@@ -38,7 +39,7 @@ from _common import ROOT, out_dir, run
 
 ENV = "LLMPROVIDER_SNAPSHOT_DIR"
 SNAPSHOTS = ROOT / "llmprovider" / "catalog" / "testdata"
-AGREEMENT_PACKAGES = ("./llmprovider/catalog/", "./llmprovider/providers/gemini/", "./llmprovider/providers/grok/")
+AGREEMENT_PACKAGES = ("./llmprovider/catalog/",)
 RUN = re.compile(r"^=== RUN\s+(TestAgreement0041_\w+)")
 LOG = re.compile(r"^\s+(\S+\.go:\d+: .*)")
 FAIL = re.compile(r"^\s*--- FAIL: (TestAgreement0041_\w+)")

@@ -31,9 +31,17 @@
 //     {enabled: true} with none, when the model accepts "reasoning"; else
 //     reasoning_effort (medium with none) when it accepts that. A Budget is
 //     not sent.
-//   - EffortMax is sent as "max" in either field. On a model whose facts
-//     list efforts without max, the highest listed below it is sent, with a
-//     WarningEffortDegraded (0061-MADR D3).
+//   - The effort, max included, in either field, is sent by the model's
+//     facts and what it refused (0062-MADR D2, D3): one the facts do not
+//     list, or the model refused, steps to the nearest it takes, lower
+//     first, with a WarningEffortDegraded naming what was sent; with none
+//     left, the reasoning object is sent as {enabled: true}.
+//     A refusal of the effort sent, in a form 0062-PLAN Phase 1 recorded,
+//     is remembered for the rest of the process, in memory only, and the
+//     request is sent again, at most 7 times in all; the Response, or a
+//     stream's done event, carries a WarningReasoningLearned whose Refused a
+//     caller can keep, and pass back with WithReasoningRefusals on its next
+//     start (0062-MADR D4 to D6).
 //   - A tool choice is sent only when the model accepts tool_choice;
 //     otherwise the tools are offered unforced, and ToolChoiceNone sends no
 //     tools (0020-MADR F40).
@@ -83,6 +91,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
@@ -166,6 +175,11 @@ type provider struct {
 	// limit is catalog.WithLimit's n, which cuts ListModels's static
 	// fallback; zero is no limit (0038-MADR A3).
 	limit int
+	// thinking is the memo of refused thinking settings, catalog.WithCache's
+	// or the process's; refusals are WithReasoningRefusals' (0062-MADR D5,
+	// D6).
+	thinking *wire.Learned
+	refusals []llmprovider.ReasoningRefusal
 }
 
 // New builds the Kilo provider. Without a key it sends Kilo's anonymous
@@ -207,6 +221,8 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		editor:    st.ClientName(),
 		session:   st.SessionID(),
 		logger:    st.Logger(),
+		thinking:  cacheref.From(st.Values()).LearnedThinking(),
+		refusals:  st.ReasoningRefusals(),
 	}
 	for _, v := range st.Values() {
 		switch v := v.(type) {
@@ -254,10 +270,19 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
-	// (0020-MADR F2).
-	return wire.Reauth(ctx, string(llmprovider.ProviderKilo), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-		return p.generateOnce(ctx, req, token)
-	})
+	// (0020-MADR F2); a refusal of the effort sent is learned, and the
+	// request built again (0062-MADR D5).
+	effort := p.learner(req)
+	return wire.Send(ctx, string(llmprovider.ProviderKilo), p.src,
+		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort) },
+		chatcompletions.DecodeFor(string(llmprovider.ProviderKilo)), effort.Check)
+}
+
+// learner is req's effort, learned from the model's refusals of it
+// (0062-MADR D2 to D6).
+func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
+	return wire.NewLearner(p.thinking, string(llmprovider.ProviderKilo), p.baseURL, cmp.Or(req.Model, p.model), p.refusals,
+		chatcompletions.MatchRefusal)
 }
 
 // Stream streams req from the Chat Completions API as it is generated
@@ -268,23 +293,26 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.Capabilities().Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
-		return p.call(ctx, req, token, true)
-	}, chatcompletions.Events)
-}
-
-// generateOnce sends req once, with token. The token names the gateway and
-// the organization.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, p.call(ctx, req, token, false), token, chatcompletions.DecodeFor(string(llmprovider.ProviderKilo)))
+	return func(yield func(llmprovider.Event, error) bool) {
+		// Each range is its own request, with its own effort learner.
+		effort := p.learner(req)
+		for ev, err := range wire.StreamEventsRetry(ctx, string(llmprovider.ProviderKilo), p.src,
+			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort) }, chatcompletions.Events,
+			effort.Check) {
+			if !yield(ev, err) {
+				return
+			}
+		}
+	}
 }
 
 // call is the Chat Completions request for req, asking for an event stream
 // with its usage when stream is set (0031-MADR E5).
-func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
+func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
+	effort *wire.Learner) wire.Call {
 	endpoints := kiloendpoint.Resolve(p.baseURL, token.Value, p.org)
 	gateway, org := endpoints.Gateway, endpoints.Org
-	body, warnings := p.body(req, p.facts(ctx, req, token))
+	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -297,7 +325,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		URL:      gateway + "/chat/completions",
 		Body:     body,
 		Stream:   stream,
-		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0061-MADR D3
+		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			r.Header.Set(headerEditor, p.editor)
@@ -323,7 +351,8 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 }
 
 // body is the Chat Completions request for req, with its model's facts.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
+	[]llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -339,7 +368,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	effort, reasoning, warnings := p.reasoningFields(req, model, facts)
+	effort, reasoning, warnings := p.reasoningFields(req, facts, learner)
 	body := chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{
 		ReasoningEffort: effort,
 		Reasoning:       reasoning,
@@ -371,10 +400,10 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 // reasoningFields are one call's reasoning fields (MADR 0009 §6): with
 // reasoning requested, Kilo's reasoning object when the model accepts
 // "reasoning" — {effort} with an effort, else {enabled: true} — else
-// reasoning_effort, medium with none, when it accepts that. EffortMax is
-// resolved by the model's facts, with the warning when it is sent lower
-// (0061-MADR D3).
-func (p *provider) reasoningFields(req *llmprovider.Request, model string, facts catalog.ModelInfo) (effort string,
+// reasoning_effort, medium with none, when it accepts that. The effort is
+// learner's, by D3's ladder over the model's refusals and facts, with its
+// warnings (0062-MADR D2, D3, D6).
+func (p *provider) reasoningFields(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (effort string,
 	reasoning map[string]any, warnings []llmprovider.Warning) {
 	r := req.Reasoning
 	if r == nil {
@@ -390,13 +419,17 @@ func (p *provider) reasoningFields(req *llmprovider.Request, model string, facts
 	switch {
 	case p.supports(paramReasoning):
 		if e != "" {
-			e, warnings = wire.MaxEffort(model, e, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
-			return "", map[string]any{"effort": string(e)}, warnings
+			// By D3's ladder; none left keeps reasoning on, with no effort
+			// (0062-MADR D2, D3).
+			if e, warnings = learner.Effort(e, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts)); e != "" {
+				return "", map[string]any{"effort": string(e)}, warnings
+			}
+			return "", map[string]any{"enabled": true}, warnings
 		}
 		return "", map[string]any{"enabled": true}, nil
 	case p.supports(paramReasoningEffort):
 		if e != "" {
-			e, warnings = wire.MaxEffort(model, e, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+			e, warnings = learner.Effort(e, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
 			return string(e), nil, warnings
 		}
 		return string(llmprovider.EffortMedium), nil, nil

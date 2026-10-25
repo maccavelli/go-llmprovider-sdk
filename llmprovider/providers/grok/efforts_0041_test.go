@@ -1,15 +1,11 @@
 package grok
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"slices"
 	"sync"
 	"testing"
 
@@ -17,8 +13,9 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 )
 
-// 0041-MADR D2, R6: Grok's efforts from the model's facts, the listing above
-// models.dev, and effortMenu when there are none.
+// 0041-MADR D2: Grok's efforts from the model's facts, the listing above
+// models.dev, and the effort asked when there are none (0062-MADR D2, D3;
+// R6 removed, amendment "Phase 2's Grok cases").
 
 const (
 	grok43Listing = `{"data":[{"id":"grok-4.3","capabilities":{"reasoning_effort":["low","medium","high","xhigh"]}}]}`
@@ -54,7 +51,7 @@ func effortServer(t *testing.T) (*httptest.Server, func() any) {
 
 // TestGrokEfforts_Facts_0041: grok-4.3 asked for xhigh sends xhigh when the
 // cached listing gives it, high when only models.dev is cached (it lists no
-// xhigh), and xhigh by effortMenu with no facts.
+// xhigh), warned, and xhigh as asked with no facts.
 func TestGrokEfforts_Facts_0041(t *testing.T) {
 	ask := &llmprovider.Request{Input: []llmprovider.Item{user("hi")},
 		Reasoning: &llmprovider.Reasoning{Effort: llmprovider.EffortXHigh}}
@@ -63,10 +60,11 @@ func TestGrokEfforts_Facts_0041(t *testing.T) {
 		listing bool
 		off     bool
 		want    string
+		warned  bool
 	}{
-		{"the listing cached", true, false, "xhigh"},
-		{"models.dev only", false, false, "high"},
-		{"no facts", false, true, "xhigh"},
+		{"the listing cached", true, false, "xhigh", false},
+		{"models.dev only", false, false, "high", true},
+		{"no facts", false, true, "xhigh", false},
 	} {
 		srv, sent := effortServer(t)
 		opts := apiKey(srv.URL, "grok-4.3", llmprovider.WithModelMetadataURL(srv.URL+"/api.json"),
@@ -85,57 +83,19 @@ func TestGrokEfforts_Facts_0041(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := p.Generate(context.Background(), ask); err != nil {
+		resp, err := p.Generate(context.Background(), ask)
+		if err != nil {
 			t.Fatalf("%s: %v", tc.name, err)
 		}
 		if got := sent(); got != tc.want {
 			t.Errorf("%s: sent effort %v; want %q", tc.name, got, tc.want)
 		}
-	}
-}
-
-// agreementSnapshotDir is the snapshot the agreement test reads: the one
-// LLMPROVIDER_SNAPSHOT_DIR names, as tools/catalogcheck.py sets it, else the
-// committed one (0041-MADR D7; 0041-PLAN Phase 7).
-func agreementSnapshotDir() string {
-	if dir := os.Getenv("LLMPROVIDER_SNAPSHOT_DIR"); dir != "" {
-		return dir
-	}
-	return filepath.Join("..", "..", "catalog", "testdata", "ranking-2026-10-12")
-}
-
-// TestAgreement0041_GrokEfforts is D7's offline half for R6: on the committed
-// snapshot, the menu from models.dev's facts equals effortMenu for every xAI
-// model both answer, except the listed set.
-func TestAgreement0041_GrokEfforts(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(agreementSnapshotDir(), "metadata.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	meta, err := catalog.ParseMetadata(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Each exception, and why (0041-MADR §3).
-	except := map[string]string{
-		"grok-4.3":                   "xAI's listing gives xhigh, and a request accepted it; models.dev omits it",
-		"grok-4.20-multi-agent-0309": "models.dev lists efforts the menu omits",
-	}
-	var differ []string
-	for _, info := range meta.Models(llmprovider.ProviderGrok) {
-		if !info.Reasoning.Supported || !info.Has(catalog.FieldReasoningEfforts) {
-			continue
+		warned := false
+		for _, w := range resp.Warnings {
+			warned = warned || w.Kind == llmprovider.WarningEffortDegraded
 		}
-		for _, effort := range []string{"low", "medium", "high", "xhigh"} {
-			if clampReasoningEffortFor(info.ID, effort, factsEfforts(info), true) != clampReasoningEffort(info.ID, effort) {
-				differ = append(differ, info.ID)
-				break
-			}
+		if warned != tc.warned {
+			t.Errorf("%s: degraded warning %t; want %t (%v)", tc.name, warned, tc.warned, resp.Warnings)
 		}
-	}
-	slices.Sort(differ)
-	want := []string{"grok-4.20-multi-agent-0309", "grok-4.3"}
-	if !slices.Equal(differ, want) {
-		t.Errorf("R6: facts and the menu differ on %v; want only %v (%v)", differ, want, except)
 	}
 }

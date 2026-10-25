@@ -21,10 +21,17 @@ const (
 	// package doc lists. Its Detail names which. An appended load changes the
 	// tools, so the prompt cache breaks there once (0040-MADR D6, D7).
 	WarningDeferralEmulated WarningKind = "deferral_emulated"
-	// WarningEffortDegraded reports that a request at EffortMax was sent at a
-	// lower effort: the model's facts list efforts without max, or the
-	// service has none. Its Detail names the effort sent (0061-MADR D3).
+	// WarningEffortDegraded reports that a request's effort was not sent as
+	// asked: the model's facts do not list it, or the model refused it, so
+	// another effort, or none, was sent. Its Detail names the effort sent
+	// (0061-MADR D3; 0062-MADR D3).
 	WarningEffortDegraded WarningKind = "effort_degraded"
+	// WarningReasoningLearned reports that the model refused a thinking
+	// setting the provider sent, and that the provider learned it for the
+	// rest of the process and sent the request again. Its Refused is what a
+	// caller can keep, and pass back with WithReasoningRefusals on its next
+	// start (0062-MADR D6).
+	WarningReasoningLearned WarningKind = "reasoning_learned"
 )
 
 // Warning is a non-fatal note on a Response: the request was answered, but
@@ -38,4 +45,8 @@ type Warning struct {
 	Model string
 	// Detail is a sentence for a person, not for parsing.
 	Detail string
+	// Refused is the setting a WarningReasoningLearned reports the model
+	// refused; zero for any other kind, and then left out of a Warning's JSON,
+	// which stays as it was (0062-MADR D6).
+	Refused ReasoningRefusal `json:",omitzero"`
 }

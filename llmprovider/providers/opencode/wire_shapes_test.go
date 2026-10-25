@@ -310,7 +310,8 @@ func TestOpencodeChat_NoReplayWithoutInterleaved(t *testing.T) {
 }
 
 // TestChatReasoningEffort_FailureBackoff pins MADR 0013 A6: with the metadata
-// host failing, three chat-route reasoning calls make one fetch, not three.
+// host failing, three chat-route reasoning calls make one fetch, not three,
+// and send the effort asked (0062-MADR Q7 (a)).
 func TestChatReasoningEffort_FailureBackoff(t *testing.T) {
 	enableMetadata(t)
 	meta, hits := metadataServer(t, http.StatusServiceUnavailable, "")
@@ -322,8 +323,8 @@ func TestChatReasoningEffort_FailureBackoff(t *testing.T) {
 		if _, err := p.Generate(context.Background(), thinking(text("hi"))); err != nil {
 			t.Fatalf("Generate: %v", err)
 		}
-		if got, ok := body["reasoning_effort"]; ok {
-			t.Fatalf("reasoning_effort = %v with metadata down, want none", got)
+		if got := body["reasoning_effort"]; got != "low" {
+			t.Fatalf("reasoning_effort = %v with metadata down, want low, as asked", got)
 		}
 	}
 	// One request makes two lookups (route, effort); the failure is cached.

@@ -26,7 +26,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
 - **R2. A package holds one concern**, and imports only what the table allows.
   Only `wizard` may leave the standard library, and then only for
   `golang.org/x/term`. (0015 D2, D13; the table's `internal/wire` rows, 0026
-  F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1, 0049 D3; `internal/nilsource`, 0050 D2)
+  F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1, 0049 D3, 0062 D5; `internal/nilsource`, 0050 D2)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
@@ -34,7 +34,7 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/auth` | OAuth sessions and flows, `TokenStore`, `FileTokenStore`, `VendorCLISession` | `llmprovider`, `internal/transport`, `internal/redact`, `internal/kiloendpoint`, `internal/ownerperm`, `internal/filelock` |
   | `llmprovider/catalog` | static catalogs, model metadata, ranking, search, labels, profiles, the curated `Catalog` and its menu, raw listings, `Cache` | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/listlimit`, `internal/chatgpt`, `internal/cacheref`, `internal/nilsource` |
   | `llmprovider/internal/kiloendpoint` | Kilo's endpoints, derived from a credential | the standard library |
-  | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport`, `internal/wire/messages` |
+  | `llmprovider/internal/cacheref` | `catalog.WithCache`'s value, for `catalog` and the providers | `internal/transport`, `internal/wire`, `internal/wire/messages` |
   | `llmprovider/internal/nilsource` | a typed-nil `TokenSource`'s test, for `llmprovider` and `catalog` | the standard library |
   | `llmprovider/internal/listlimit` | `catalog.WithLimit`'s value, for `catalog` and the providers that cut their own fallback listings with it | the standard library |
   | `llmprovider/internal/chatgpt` | a ChatGPT session's check, headers and listing request, and a ChatGPT plan session's check and listing request, for `catalog`'s `ListRaw` and `providers/openai` | `llmprovider`, `auth`, `internal/transport` |

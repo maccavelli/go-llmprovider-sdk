@@ -22,9 +22,17 @@
 //   - A tool's Strict is sent as strict (0032-MADR D2).
 //   - Reasoning takes an effort. A Reasoning with only a Budget sends the
 //     default effort, medium; the budget is not sent.
-//   - EffortMax is sent as "max". On a model whose facts list efforts
-//     without max, the highest listed below it is sent, with a
-//     WarningEffortDegraded (0061-MADR D3).
+//   - The effort, max included, is sent by the model's facts and what it
+//     refused (0062-MADR D2, D3): one the facts do not list, or the model
+//     refused, steps to the nearest it takes, lower first, with a
+//     WarningEffortDegraded naming what was sent; a model that takes no
+//     effort (unsupported_parameter) is sent no reasoning.
+//     A refusal of the effort sent, in a form 0062-PLAN Phase 1 recorded,
+//     is remembered for the rest of the process, in memory only, and the
+//     request is sent again, at most 7 times in all; the Response, or a
+//     stream's done event, carries a WarningReasoningLearned whose Refused a
+//     caller can keep, and pass back with WithReasoningRefusals on its next
+//     start (0062-MADR D4 to D6).
 //   - A ChatGPT session sends no output limit: the backend rejects
 //     max_output_tokens (gate G-C, 2026-09-27), so MaxOutputTokens and
 //     WithMaxTokens have no effect there. It always sends store false, so
@@ -175,6 +183,8 @@ type provider struct {
 	probe     bool
 	// cache is catalog.WithCache's, nil for the process's (0048-MADR D1).
 	cache *cacheref.Value
+	// refusals are WithReasoningRefusals' (0062-MADR D6).
+	refusals []llmprovider.ReasoningRefusal
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
@@ -228,6 +238,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		session:   st.SessionID(),
 		probe:     st.ModelProbes(),
 		cache:     cacheref.From(st.Values()),
+		refusals:  st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.Supported,
@@ -278,10 +289,11 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
-	// (0020-MADR F2).
-	return wire.Reauth(ctx, string(llmprovider.ProviderOpenAI), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-		return p.generateOnce(ctx, req, token)
-	})
+	// (0020-MADR F2); a refusal of the effort sent is learned, and the
+	// request built again (0062-MADR D5).
+	effort := p.learner(req)
+	return wire.Send(ctx, string(llmprovider.ProviderOpenAI), p.src,
+		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort) }, p.decode(req), effort.Check)
 }
 
 // Stream streams req from the Responses API as it is generated (0031-MADR
@@ -293,9 +305,24 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
 	_, decoder := p.deferForm(req)
-	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
-		return p.call(ctx, req, token, true)
-	}, decoder.Events)
+	return func(yield func(llmprovider.Event, error) bool) {
+		// Each range is its own request, with its own effort learner.
+		effort := p.learner(req)
+		for ev, err := range wire.StreamEventsRetry(ctx, string(llmprovider.ProviderOpenAI), p.src,
+			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort) }, decoder.Events,
+			effort.Check) {
+			if !yield(ev, err) {
+				return
+			}
+		}
+	}
+}
+
+// learner is req's effort, learned from the model's refusals of it
+// (0062-MADR D2 to D6).
+func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
+	return wire.NewLearner(p.cache.LearnedThinking(), string(llmprovider.ProviderOpenAI), p.baseURL,
+		cmp.Or(req.Model, p.model), p.refusals, responses.MatchRefusal)
 }
 
 // check refuses, before the network, what the capabilities refuse, and a
@@ -354,7 +381,8 @@ func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses
 // reasoning, encrypted, so the next turn can replay it.
 const includeEncryptedReasoning = "reasoning.encrypted_content"
 
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
+	[]llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -413,10 +441,11 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 	} else {
 		wire.AddResponsesTools(body, tools, req.ToolChoice)
 	}
-	var warnings []llmprovider.Warning
-	if effort, ok := p.effort(req); ok {
-		// EffortMax by the model's facts (0061-MADR D3).
-		effort, warnings = wire.MaxEffort(model, effort, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+	want, _ := p.effort(req)
+	// The effort by D3's ladder, over the model's refusals and facts; none
+	// left out leaves out reasoning (0062-MADR D2, D3).
+	effort, warnings := learner.Effort(want, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+	if effort != "" {
 		// The summary makes reasoning items carry text (0020-MADR F24).
 		body["reasoning"] = map[string]any{"effort": effort, "summary": "auto"}
 	}
@@ -446,27 +475,27 @@ func (p *provider) effort(req *llmprovider.Request) (llmprovider.Effort, bool) {
 	}
 }
 
-// generateOnce sends req once, with token. A ChatGPT session's reply, and a
-// plan session's, is an event stream, bounded per event rather than as a
-// whole.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
+// decode is req's reply decoder. A ChatGPT session's reply, and a plan
+// session's, is an event stream, bounded per event rather than as a whole.
+func (p *provider) decode(req *llmprovider.Request) func(io.Reader) (*llmprovider.Response, error) {
 	// A failed reply is classified by OpenAI's vocabulary, as the stream's
 	// is (0026-MADR F28).
 	_, decoder := p.deferForm(req)
-	decode := decoder.DecodeFor(string(llmprovider.ProviderOpenAI))
 	if p.chatGPT || p.plan {
-		decode = func(r io.Reader) (*llmprovider.Response, error) {
+		return func(r io.Reader) (*llmprovider.Response, error) {
 			return decoder.ReadStream(string(llmprovider.ProviderOpenAI), r)
 		}
 	}
-	return wire.Post(ctx, p.call(ctx, req, token, false), token, decode)
+	return decoder.DecodeFor(string(llmprovider.ProviderOpenAI))
 }
 
 // call is the Responses request for req, asking for an event stream when
 // stream is set; a ChatGPT session's and a plan session's always do. Only a
-// ChatGPT session sends the Codex backend's headers.
-func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
-	body, warnings := p.body(req, p.facts(ctx, req, token))
+// ChatGPT session sends the Codex backend's headers. effort chooses the
+// effort.
+func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
+	effort *wire.Learner) wire.Call {
+	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
 	if stream {
 		body["stream"] = true
 	}
@@ -480,7 +509,8 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		Body:     body,
 		Stream:   streamed,
 		// Deferred tools appended, before GPT-5.4 or for a non-search load
-		// (0040-MADR D7); EffortMax sent lower (0061-MADR D3).
+		// (0040-MADR D7); an effort sent lower, and a refusal learned
+		// (0062-MADR D3, D6).
 		Warnings: append(deferral.Warnings(form, req, cmp.Or(req.Model, p.model)), warnings...),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)

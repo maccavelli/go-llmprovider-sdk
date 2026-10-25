@@ -9,8 +9,8 @@
 // retried once with a new token.
 //
 // Capabilities: tools, forced tool choice and continuation are Supported.
-// Reasoning is BestEffort: a model off the Grok CLI's menu gets no reasoning
-// field (see Degradations, 0020-MADR F43). Native streaming is Supported:
+// Reasoning is BestEffort: a model that takes no effort is sent none once it
+// has refused one (see Degradations, 0020-MADR F43). Native streaming is Supported:
 // Stream asks the Responses API for an event stream and yields its events as
 // they arrive (0031-MADR D1).
 //
@@ -18,16 +18,21 @@
 //   - A tool result's IsError is not sent: the Responses API has no error
 //     field, so Output is sent as it is (0032-MADR D3).
 //   - A tool's Strict is sent as strict (0032-MADR D2).
-//   - Reasoning takes an effort, clamped to the Grok CLI's menu for the
-//     model (MADR 0012 §6): grok-4.6 offers low to xhigh, grok-4.5 low to
-//     high, grok-4.6-build and grok-3-mini low and high; grok-4.7 and
-//     grok-4.3 low to xhigh, as xAI's listing reports (0033-MADR D4). An
-//     effort off the menu is sent as the nearest lower one, and no effort
-//     as high. Other models reason on their own, and get no reasoning
-//     field. A Budget is not sent.
-//   - xAI has no max: EffortMax clamps as any effort does, to the model's
-//     highest, with a WarningEffortDegraded naming what was sent. It is sent
-//     as max only where xAI's listing lists it (0061-MADR D3).
+//   - Reasoning takes an effort, high when none is named, the Grok CLI's
+//     default (MADR 0012 §6); a Budget is not sent. The effort, max
+//     included, is sent by the model's facts and what it refused (0062-MADR
+//     D2, D3): one the facts do not list, or the model refused, steps to the
+//     nearest it takes, lower first, with a WarningEffortDegraded naming
+//     what was sent. xAI refuses an effort a model does not take ("Invalid
+//     reasoning effort."), and the field itself on a model that takes none,
+//     as grok-build-0.1 and grok-4.20-0309-non-reasoning do; such a model is
+//     then sent no effort. No menu of model names decides (R6 removed).
+//     A refusal of the effort sent, in a form 0062-PLAN Phase 1 recorded,
+//     is remembered for the rest of the process, in memory only, and the
+//     request is sent again, at most 7 times in all; the Response, or a
+//     stream's done event, carries a WarningReasoningLearned whose Refused a
+//     caller can keep, and pass back with WithReasoningRefusals on its next
+//     start (0062-MADR D4 to D6).
 //   - Instructions are sent as a leading system message, the shape the old
 //     API already sent for a system item; the Responses instructions field
 //     is not sent. xAI obeys both forms, measured on grok-4.6 and grok-4.7
@@ -65,10 +70,10 @@
 // that ListModels or catalog.List read, and the models.dev document once
 // something has fetched it. A request never fetches, and never waits.
 // From them come the efforts a request may send, xAI's listing above
-// models.dev; an effort off them clamps as before.
+// models.dev; an effort off them steps to the nearest listed.
 // With no MaxOutputTokens, the output limit is the default, cut to the
 // model's own when that is smaller; it is never raised.
-// With no facts, the efforts menu decides, as before.
+// With no facts, the effort asked is sent, and a refusal learned.
 package grok
 
 import (
@@ -128,6 +133,8 @@ type provider struct {
 	probe     bool
 	// cache is catalog.WithCache's, nil for the process's (0048-MADR D1).
 	cache *cacheref.Value
+	// refusals are WithReasoningRefusals' (0062-MADR D6).
+	refusals []llmprovider.ReasoningRefusal
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
@@ -181,6 +188,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		logger:    st.Logger(),
 		probe:     st.ModelProbes(),
 		cache:     cacheref.From(st.Values()),
+		refusals:  st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.Supported,
@@ -227,11 +235,19 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
-	// (0020-MADR F2).
-	return wire.Reauth(ctx, string(llmprovider.ProviderGrok), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-		return wire.Post(ctx, p.call(req, p.facts(ctx, req, token), false), token,
-			decoder.DecodeFor(string(llmprovider.ProviderGrok)))
-	})
+	// (0020-MADR F2); a refusal of the effort sent is learned, and the
+	// request built again (0062-MADR D5).
+	effort := p.learner(req)
+	return wire.Send(ctx, string(llmprovider.ProviderGrok), p.src,
+		func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), false, effort) },
+		decoder.DecodeFor(string(llmprovider.ProviderGrok)), effort.Check)
+}
+
+// learner is req's effort, learned from the model's refusals of it
+// (0062-MADR D2 to D6).
+func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
+	return wire.NewLearner(p.cache.LearnedThinking(), string(llmprovider.ProviderGrok), p.baseURL,
+		cmp.Or(req.Model, p.model), p.refusals, responses.MatchRefusal)
 }
 
 // Stream streams req from the Responses API as it is generated (0031-MADR
@@ -247,9 +263,17 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
-		return p.call(req, p.facts(ctx, req, token), true)
-	}, decoder.Events)
+	return func(yield func(llmprovider.Event, error) bool) {
+		// Each range is its own request, with its own effort learner.
+		effort := p.learner(req)
+		for ev, err := range wire.StreamEventsRetry(ctx, string(llmprovider.ProviderGrok), p.src,
+			func(token llmprovider.Token) wire.Call { return p.call(req, p.facts(ctx, req, token), true, effort) },
+			decoder.Events, effort.Check) {
+			if !yield(ev, err) {
+				return
+			}
+		}
+	}
 }
 
 // facts is what the caches know of req's model, read for each request and
@@ -273,8 +297,10 @@ func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses
 	return form, decoder
 }
 
-// body is the Responses request for req, with its model's facts.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
+// body is the Responses request for req, with its model's facts, at the
+// effort learner chooses.
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
+	[]llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -311,7 +337,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 		}
 	}
 	wire.AddResponsesTools(body, deferral.Tools(req, form), req.ToolChoice)
-	effort, warnings := p.effort(req, model, facts)
+	effort, warnings := p.effort(req, facts, learner)
 	if effort != "" {
 		body["reasoning"] = map[string]any{"effort": effort}
 	}
@@ -324,10 +350,12 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 
 // effort is the reasoning effort to send, "" for none: the request's
 // Reasoning, else WithReasoning's, an empty effort taken from WithReasoning,
-// clamped to the model's menu: its facts' efforts when known, else
-// effortMenu (0041-MADR D2, R6). EffortMax clamped lower carries its warning
-// (0061-MADR D3).
-func (p *provider) effort(req *llmprovider.Request, model string, facts catalog.ModelInfo) (string, []llmprovider.Warning) {
+// else high, the Grok CLI's default (MADR 0012 §6); sent by D3's ladder over
+// the model's refusals and facts, with its warnings (0062-MADR D2, D3). A
+// model that takes no effort refuses it, and is sent none from then on
+// (0062-MADR, amendment "Phase 2's Grok cases").
+func (p *provider) effort(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (string,
+	[]llmprovider.Warning) {
 	r := req.Reasoning
 	if r == nil {
 		r = p.reasoning
@@ -335,22 +363,21 @@ func (p *provider) effort(req *llmprovider.Request, model string, facts catalog.
 	if r == nil {
 		return "", nil
 	}
-	effort := r.Effort
-	if effort == "" && p.reasoning != nil {
-		effort = p.reasoning.Effort
+	want := r.Effort
+	if want == "" && p.reasoning != nil {
+		want = p.reasoning.Effort
 	}
-	clamped := clampReasoningEffortFor(model, string(effort), factsEfforts(facts), facts.Has(catalog.FieldReasoningEfforts))
-	if effort == llmprovider.EffortMax && clamped != "" && clamped != effortMax {
-		// xAI has no max: the clamp sends the highest effort below it.
-		return clamped, []llmprovider.Warning{wire.EffortWarning(model, llmprovider.Effort(clamped))}
+	if want == "" {
+		want = llmprovider.EffortHigh
 	}
-	return clamped, nil
+	sent, warnings := learner.Effort(want, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+	return string(sent), warnings
 }
 
 // call is the Responses request for req, asking for an event stream when
-// stream is set.
-func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool) wire.Call {
-	body, warnings := p.body(req, facts)
+// stream is set, at the effort effort chooses.
+func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool, effort *wire.Learner) wire.Call {
+	body, warnings := p.body(req, facts, effort)
 	if stream {
 		body["stream"] = true
 	}
@@ -362,8 +389,8 @@ func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, strea
 		URL:      p.baseURL + "/responses",
 		Body:     body,
 		Stream:   stream,
-		// Dispatched, or appended for a forced choice (0040-MADR D7);
-		// EffortMax clamped lower (0061-MADR D3).
+		// Dispatched, or appended for a forced choice (0040-MADR D7); an
+		// effort sent lower, and a refusal learned (0062-MADR D3, D6).
 		Warnings: append(deferral.Warnings(form, req, cmp.Or(req.Model, p.model)), warnings...),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)

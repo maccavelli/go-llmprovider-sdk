@@ -37,11 +37,16 @@ recorded them. Every finding here is measured, from the records.
   run OpenCode's key had expired, and 15 of its 16 cases were answered 401
   `api_key_expired`; the owner renewed the key and those 16 reran alone. No
   case is `skipped` or 401.
+* **Phase 2's two cases.** When R6's removal would have sent an effort to
+  Grok models outside its menu, which no case had measured, the PLAN's
+  Phase 2 stopped and the owner chose to record first: `reasoning.effort`
+  `"high"` on `grok-build-0.1` and on `grok-4.20-0309-non-reasoning`, sent
+  on 2026-10-25 by the same recorder. 53 cases in all.
 
 | Outcome | Status | Cases |
 | :--- | ---: | ---: |
 | accepted | 200 | 19 |
-| refused | 400 | 31 |
+| refused | 400 | 33 |
 | unreachable | 404 | 1 |
 
 ## Findings
@@ -112,6 +117,12 @@ recorded them. Every finding here is measured, from the records.
     (`invalid-argument`, the code of its effort refusal) and OpenCode's
     google route; Gemini, Hugging Face, Together, Kilo and OpenCode's chat
     and messages routes accept it.
+* **E10. A model that takes no effort refuses the field, by name.** Grok's
+  `grok-build-0.1` and `grok-4.20-0309-non-reasoning` answer `"high"` with
+  `invalid-argument`, "Model grok-build-0.1 does not support parameter
+  reasoningEffort." (and the same of the other), where a model that takes
+  efforts answers one it does not take "Invalid reasoning effort."; OpenAI's
+  `gpt-4.1-mini` answers `unsupported_parameter` (E3).
 
 ## The records, by wire
 
@@ -148,9 +159,11 @@ Thinking cases:
 
 | Case | Provider | Model | Sent | Outcome | Status | Code | Message, redacted |
 | :--- | :--- | :--- | :--- | :--- | ---: | :--- | :--- |
+| `grok-4.20-0309-non-reasoning-high` | grok | `grok-4.20-0309-non-reasoning` | `reasoning.effort` "high" | refused | 400 | `invalid-argument` | Model grok-4.20-0309-non-reasoning does not support parameter reasoningEffort. |
 | `grok-4.3-max` | grok | `grok-4.3` | `reasoning.effort` "max" | refused | 400 | `invalid-argument` | Invalid reasoning effort. |
 | `grok-4.5-max` | grok | `grok-4.5` | `reasoning.effort` "max" | refused | 400 | `invalid-argument` | Invalid reasoning effort. |
 | `grok-4.5-xhigh` | grok | `grok-4.5` | `reasoning.effort` "xhigh" | accepted (24 reasoning tokens) | 200 |  |  |
+| `grok-build-0.1-high` | grok | `grok-build-0.1` | `reasoning.effort` "high" | refused | 400 | `invalid-argument` | Model grok-build-0.1 does not support parameter reasoningEffort. |
 | `openai-gpt-4.1-mini-low` | openai | `gpt-4.1-mini` | `reasoning.effort` "low" | refused | 400 | `unsupported_parameter` | Unsupported parameter: 'reasoning.effort' is not supported with this model. |
 | `openai-gpt-6-luna-bogus` | openai | `gpt-6-luna` | `reasoning.effort` "bogus" | refused | 400 | `invalid_value` | Invalid value: 'bogus'. Supported values are: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', and 'max'. |
 | `openai-gpt-6-luna-max` | openai | `gpt-6-luna` | `reasoning.effort` "max" | accepted (0 reasoning tokens) | 200 |  |  |

@@ -1,0 +1,17 @@
+{
+  "case": "grok-4.20-0309-non-reasoning-high",
+  "cause": "thinking",
+  "wire": "responses",
+  "provider": "grok",
+  "model": "grok-4.20-0309-non-reasoning",
+  "set": {
+    "reasoning.effort": "high"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid-argument",
+  "message": "Model grok-4.20-0309-non-reasoning does not support parameter reasoningEffort.",
+  "body": "{\"code\":\"invalid-argument\",\"error\":\"Model grok-4.20-0309-non-reasoning does not support parameter reasoningEffort.\"}",
+  "usage": false,
+  "outcome": "refused"
+}

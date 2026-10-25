@@ -813,15 +813,14 @@ class TestCatalogCheck(unittest.TestCase):
         shutil.copytree(base, cls.clean)
         cls.planted = cls.tmp / "planted"
         shutil.copytree(base, cls.planted)
-        # A rule that differs in each package the agreement tests are in: Claude Haiku 4.5's budget
-        # minimum, which R1's rule sends as 1024 (catalog); Gemini Flash's efforts (R5,
-        # providers/gemini); Grok 4.7's efforts (R6, providers/grok).
+        # A rule that differs, for each rule with an agreement test: Claude Haiku 4.5's budget
+        # minimum, which R1's rule sends as 1024; Gemini Flash's efforts (R4). R5's and R6's
+        # agreement tests went with their rules (0062-MADR D8).
         meta = cls.planted / "metadata.json"
         doc = json.loads(meta.read_text(encoding="utf-8"))
         doc["anthropic"]["models"]["claude-haiku-4-5"]["reasoning_options"] = [{"type": "budget_tokens", "min": 4096}]
         doc["google"]["models"]["gemini-flash-latest"]["reasoning_options"] = [
             {"type": "effort", "values": ["minimal", "high"]}]
-        doc["xai"]["models"]["grok-4.7"]["reasoning_options"] = [{"type": "effort", "values": ["low", "high"]}]
         meta.write_text(json.dumps(doc), encoding="utf-8")
         # A changed six: a model of Kilo's utility six leaves the listing.
         kilo = cls.planted / "kilo.json"
@@ -842,10 +841,8 @@ class TestCatalogCheck(unittest.TestCase):
     def test_a_planted_snapshot_reports_both(self) -> None:
         rc, out = call(catalogcheck.main, "--dir", str(self.planted))
         self.assertEqual(rc, 1, out)
-        # The Gemini edit moves both R4 (catalog) and R5 (providers/gemini).
-        self.assertIn("rules: 4 differ", out)
-        for test, model in (("MessagesThinking", "claude/claude-haiku-4-5"), ("GeminiConfig", "gemini-flash-latest"),
-                            ("GeminiLevel", "gemini-flash-latest"), ("GrokEfforts", "grok-4.7")):
+        self.assertIn("rules: 2 differ", out)
+        for test, model in (("MessagesThinking", "claude/claude-haiku-4-5"), ("GeminiConfig", "gemini-flash-latest")):
             self.assertRegex(out, rf"TestAgreement0041_{test}:\n(    .*\n)*    .*{re.escape(model)}")
         self.assertRegex(out, r"kilo utility: \d of 6 changed: .*-deepseek/deepseek-v4\.1-flash")
 

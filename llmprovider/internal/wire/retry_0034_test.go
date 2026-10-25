@@ -89,8 +89,9 @@ func readBody(r io.Reader) (string, error) {
 
 // TestSend_Retry_0034 (0034-MADR D3; 0034-PLAN Phase 4f): a refused send the
 // check answers true is built again and sent once more; a check answering
-// false has its error returned after one request; a refused resend is
-// returned; success never consults the check.
+// false has its error returned after one request; a refused resend is put to
+// the check again, until it declines or MaxSends is met (0062-MADR D5, Q5
+// (a); TestSend_Bound_0062); success never consults the check.
 func TestSend_Retry_0034(t *testing.T) {
 	for _, c := range []struct {
 		name     string
@@ -102,7 +103,7 @@ func TestSend_Retry_0034(t *testing.T) {
 	}{
 		{"refused, rebuilt, answered", []int{400}, true, "1@t,2@t", 1, nil},
 		{"the check says no", []int{400}, false, "1@t", 1, errReplaced},
-		{"the resend refused", []int{400, 400}, true, "1@t,2@t", 1, llmprovider.ErrInvalidRequest},
+		{"the resend refused, and asked again", []int{400, 400}, true, "1@t,2@t,3@t", 2, nil},
 		{"success", nil, true, "1@t", 0, nil},
 	} {
 		t.Run(c.name, func(t *testing.T) {

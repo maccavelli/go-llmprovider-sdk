@@ -18,7 +18,8 @@
             "role": "user"
           }
         ],
-        "model": "kimi-k3"
+        "model": "kimi-k3",
+        "reasoning_effort": "max"
       }
     }
   ],

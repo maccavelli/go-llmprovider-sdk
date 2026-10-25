@@ -36,6 +36,9 @@ type providerConfig struct {
 	// (0034-MADR D9, D10).
 	ForcedChoiceFallback ForcedChoiceFallback
 	ModelForcedChoice    map[string]Support
+	// ReasoningRefusals are the thinking settings the caller passed back;
+	// see WithReasoningRefusals (0062-MADR D6).
+	ReasoningRefusals []ReasoningRefusal
 }
 
 // WithHTTPClient sets a custom HTTP client for connection pooling. Nil is the

@@ -568,3 +568,218 @@ fixtures and report.
   `python3 -B tools/gate.py`, "gate: 28 of 28 passed".
 * **Step 6, staged for the owner's commit:** the recorder's three files,
   the 51 fixtures, the report, this PLAN, the MADR and `docs/README.md`.
+
+### Phase 2: the learning core and effort (2026-10-25)
+
+Done; staged for the owner's commit with step 9's paths.
+
+* **Step 1, before any change:** the tests that assert a rule D8 removes from
+  the effort path, found by searching every `_test.go` for each rule's
+  function and the values it asserts (`effortMenu`, `clampReasoningEffort`,
+  `thinkingLevel`, `thinkingLevelFor`, `gemini-2.5-flash-lite`, `xhigh`,
+  `MaxEffort`, `ResolveMax`, `maxOnRoute`, `reasoning_effort`, the
+  `effort-max` goldens). Only these change:
+  * `providers/gemini/interactions_test.go`, `TestGeminiInteractions_Thinking`:
+    `xhigh` is sent as `xhigh`, not `high` (Gemini's mapping removed); and
+    `gemini-2.5-flash-lite` at `low` sends `low`, not nothing (R5 removed).
+  * `providers/gemini/level_0041_test.go`: `TestThinkingLevel_Facts_0041`
+    restated for the level D3's ladder gives; `TestAgreement0041_GeminiLevel`
+    removed with R5, the rule whose agreement with the facts it checked.
+  * `providers/grok/reasoning_test.go` (`TestGrokEffortMenus_ClampToCLIMenu`,
+    `TestGrokEffortMenus_KeepMenuValues`, `TestGrokClampReasoningEffort`) and
+    `providers/grok/reasoning_0033_test.go`: removed with the clamp (R6).
+    The CLI's default, `high` for a request with no effort, which is not a
+    model rule, is kept, and asserted in the new tests.
+  * `providers/grok/efforts_0041_test.go`: `TestGrokEfforts_Facts_0041` keeps
+    its efforts (the listing's `xhigh`; `high` from models.dev, which lists no
+    `xhigh`; `xhigh` as asked with no facts) and gains the
+    `WarningEffortDegraded` the models.dev case now carries;
+    `TestAgreement0041_GrokEfforts` removed with R6.
+  * `providers/grok/evidence_0041_test.go`, `TestEvidence0041_GrokMenus`:
+    removed with `effortMenu` (R6).
+  * `providers/opencode/opencode_test.go`: `TestOpencode_ChatReasoningEffort`,
+    whose cases with the metadata disabled, or not listing the effort, send
+    the ladder's effort instead of none (Q7 (a)); and the chat route's
+    assertion in `TestOpencode_Thinking_PerRoute` that no `reasoning_effort`
+    is sent without metadata (Q7 (a)).
+  * `providers/opencode/wire_shapes_test.go`,
+    `TestChatReasoningEffort_FailureBackoff`: with the metadata host down,
+    `reasoning_effort` is sent (Q7 (a)); its one-fetch assertion stays.
+  * `providers/effortmax_0061_test.go`, `TestEffortMax_Mapping_0061`: the
+    rows of Grok, Gemini and OpenCode's google route follow D3's ladder;
+    the warning's text keeps 0061's form.
+  * The G-wire `effort-max` goldens of `grok`, `grok-stateless`, `gemini` and
+    `opencode-zen-google`, by D3's ladder. Each is diffed in this record.
+
+  Unchanged, though they name 0061's functions: `TestResolveMax_Rules_0061`
+  and `TestMaxEffort_Warning_0061` (Ollama keeps `MaxEffort` until Phase 5,
+  Q9 (c)), `TestEffortMax_Valid_0061`, and `TestEffortMax_ChatRoute_0061`
+  (with metadata, the chat route sends what it lists, as before).
+* **Stop 2026-10-25, step 4, Grok: R6's no-menu branch was not recorded.**
+  `effortMenu` (`grok/reasoning.go:49`) sends no effort to a Grok model
+  outside its menu ("may reject the parameter"), and Grok's catalog still
+  lists two: `grok-build-0.1` and `grok-4.20-0309-non-reasoning`
+  (`catalog/models_catalog.go:160`, `catalog/grok_catalog_test.go:22`).
+  Phase 1 recorded only Grok's refusal of `max` on models that take efforts,
+  so R6's removal would send an effort no recording covers: an unrecorded
+  refusal would fail a request that succeeds today. Found in the same search:
+  three tests asserting R6 that step 1's list missed, for they name no rule
+  function. None had been changed.
+  * Resolutions offered: record first (recommended); keep the no-menu
+    branch as a wire mapping, unmeasured; remove R6 whole and return an
+    unrecorded refusal. **The owner chose to record first.**
+  * Phase 1's recorder gains two cases, `reasoning.effort` `"high"` on
+    `grok-build-0.1` and on `grok-4.20-0309-non-reasoning`, run by the agent
+    with the host's keys, as before. Their fixtures, the report's rows and
+    the MADR's amendment decide the no-menu branch: removed if refused
+    recognisably or accepted; kept as a wire mapping otherwise. The
+    recorder's change is in Phase 2's commit.
+  * **Step 1's list, amended before these tests change:**
+    `grok/grok_test.go`'s `TestGrok_GenerateThinking_ReasoningEffortOmitted`
+    (`grok-4` sends no reasoning) and
+    `TestGrok_GenerateThinking_ReasoningEffortClamped` (`grok-3-mini`'s
+    `medium` clamped to `low`), and `grok/request_test.go`'s
+    `TestGenerate_Reasoning`, rows "request clamped to the menu" and "a
+    model without a menu": each follows R6's outcome. And
+    `TestRefusalCases_Table_0062` (Phase 1's): 31 thinking cases and 53 in
+    all, for the two added.
+  * **Step 1's list, amended again (2026-10-25), before the test changes:**
+    `gemini/level_0041_test.go`'s `TestThinkingLevel_Wired_0041`, which the
+    search missed for it names no rule function: with `low` and `high`
+    listed, `medium` sent no level; by D3's ladder it sends `low`, warned
+    (rung 2), as `TestThinkingLevel_Facts_0041`'s restatement does.
+  * **Step 1's list, amended a third time (2026-10-25), before they
+    change:** the G-wire `effort-max` goldens of `opencode-zen-chat` and
+    `opencode-go-chat`, which step 1 missed for it named only the google
+    route's: with no metadata, the chat route sends `reasoning_effort`
+    `"max"` (Q7 (a)), where it sent none. And `TestOpencode_Thinking_PerRoute`,
+    listed, does not change: its chat-route assertion is of a request with no
+    reasoning.
+  * **Step 1's list, amended a fourth time (2026-10-25), before it changes:**
+    `internal/wire/retry_0034_test.go`'s `TestSend_Retry_0034`, its case "the
+    resend refused": two refusals and a check that says resend made two sends
+    and returned the second refusal, 0034-MADR D3's one resend. Under Q5 (a)
+    and step 3, the check is asked after each refusal until it declines or
+    `MaxSends` is met, so the third send is answered. The search of step 1
+    looked for rule functions, not for `wire.Send`'s own tests.
+  * **Step 1's list, amended a fifth time (2026-10-25), before they
+    change:** two live tests, which step 1's search did not reach, as CI
+    only vets them: `llmprovider/live_grok_test.go`'s
+    `TestLive_GrokEffortMenu`, which asserted R6's clamp of `xhigh` to
+    `high` on `grok-4.5`, now asserts `xhigh` sent and answered, as Phase 1
+    recorded xAI accepting it there; and
+    `llmprovider/live_gemini_flashlite_test.go`'s comment, which said `low`
+    and `medium` send no level (R5), now says they are refused and stepped
+    to `high`. The latter only logs.
+* **Deviation 2026-10-25, step 8: R2's row for `internal/cacheref`.**
+  `make tables-check` failed: `internal/cacheref` imports `internal/wire`,
+  for the memo's type, which `docs/guides/api-standards.md` R2's row did
+  not allow. Resolutions offered: amend the row (recommended); a new leaf
+  package for the memo; holding it untyped. **The owner chose to amend the
+  row**, citing 0062-MADR D5, recorded in the MADR's amendment "R2's row for
+  internal/cacheref". `docs/guides/api-standards.md` joins this phase's
+  scope for that cell and its citation; R56 stays Phase 6's.
+* **Step 1's list, amended a sixth time (2026-10-25), before it changes:**
+  `tools/test_tools.py`'s `TestCatalogCheck.test_a_planted_snapshot_reports_both`,
+  which `tools/gate.py`'s `tools-test` found: it planted a difference for
+  each of R1, R4, R5 and R6 and expected "rules: 4 differ". R5's and R6's
+  agreement tests went with their rules, so it plants R1's and R4's and
+  expects 2; `tools/catalogcheck.py` runs the agreement tests in `catalog`
+  alone, and says why. And a test of `cacheref.LearnedThinking`, for the
+  gate's `coverage-check` found `internal/cacheref` at 78.6 %, below its
+  80 % floor, its nil branch untested.
+* **Step 2, `llmprovider`:** `refusal.go`, `ThinkingShape` with
+  `ThinkingAdaptive` and `ThinkingBudget`, `ReasoningRefusal`,
+  `WithReasoningRefusals` (a later call adds) and `Settings.ReasoningRefusals`
+  (a copy), with `New`'s check beside `checkForcedChoice`; `warning.go`,
+  `WarningReasoningLearned` and `Warning.Refused`, tagged `omitzero` so that
+  every other warning's JSON is as before, which a golden of the first build
+  showed it was not. `EffortMax`'s and `WarningEffortDegraded`'s docs say an
+  effort the model refused is sent lower too.
+* **Step 3, `internal/wire`:** `effort.go`, `Ladder` and `DegradedWarning`;
+  `ResolveMax`, `MaxEffort` and `EffortWarning` stay, for Ollama alone until
+  Phase 5 (Q9 (c)), the warning's text unchanged; `learn.go`, `Learned` (the
+  memo, keyed by `LearnedKey`), `Refusal`, `Matcher`, `QuotedEfforts`,
+  `PlainEfforts`, `Learner` and `Retries`; `retry.go`, `MaxSends` (7) and
+  `Send`'s loop; `sse.go`, `StreamEventsRetry`'s loop. `internal/cacheref`
+  holds a `wire.Learned` per cache. The matchers, each the MADR's table:
+  `messages.MatchRefusal`, `responses.MatchRefusal` (with the Grok cases'
+  row), `chatcompletions.MatchRefusal`, and Gemini's `matchRefusal` beside its
+  decoder; generateContent has none.
+* **Step 4, each provider:** Claude, OpenAI, Grok, Gemini, OpenCode (every
+  route), Hugging Face, Together and Kilo send through `wire.Send` and
+  `StreamEventsRetry` with a per-request `wire.Learner`, joined with 0034's
+  check by `wire.Retries` on the messages wire, and take their effort from
+  it, the memo, `Settings.ReasoningRefusals` and the facts. Each provider's
+  default for a request with no effort is kept (OpenAI's and OpenCode's
+  responses route's medium, Grok's high). Removed: Grok's `reasoning.go`
+  (R6); Gemini's `thinkingLevel` and `thinkingLevelFor` (R5, the xhigh
+  mapping); OpenCode's `maxOnRoute` (0061's google row) and the chat-route
+  gate, whose metadata now lists the facts, and whose silence sends the
+  effort asked (Q7 (a)). Ollama is unchanged (Q9 (c)).
+* **Step 5, the drift check:** `go test -race -count=1 -shuffle=on ./...`,
+  36 packages, 0 failures. The tests that changed are step 1's, as amended
+  before each changed.
+* **Step 6, the tests,** each passing: `TestLadder_Rungs_0062` (10 cases),
+  `TestMemo_KeyAndBound_0062`, `TestSend_Bound_0062`;
+  `TestRefusal_Fixtures_0062` in `messages`, `responses`, `chatcompletions`
+  and `gemini`, with `TestMatchRefusal_OtherList_0062` in `responses` and
+  `chatcompletions`; `TestReasoningRefusals_Option_0062`;
+  `TestLearn_Effort_0062`, over 11 providers and routes, Ollama out. The
+  `effort-max` goldens, regenerated by `-update` run on those six alone, each
+  differ only as D3's ladder with no facts says: `grok`, `grok-stateless` and
+  `gemini` send `"max"` and no warning (were `"high"`, warned);
+  `opencode-zen-google` keeps its dynamic budget, without the warning;
+  `opencode-zen-chat` and `opencode-go-chat` gain `"reasoning_effort":
+  "max"` (Q7 (a)). No other golden changed.
+* **Step 7, the plants,** by `tools/plant.py` on scratch clones: 24, of which
+  the PLAN's five (a matcher that never matches; the memo never read; the
+  bound one higher; `WithReasoningRefusals` ignored; the ladder skipping rung
+  2), and the ladder's rung 3; `Check` never learning; the learned warning
+  without `Refused`; no degraded warning; the memo never dropping a model;
+  the key keeping the model's case; `Retries` stopping at the first check; a
+  stream resending once; `New` taking a refusal of both; `ReasoningRefusals`
+  not a copy; each matcher row lost (the Messages effort and adaptive rows,
+  the Responses list check and Grok field row, the Kilo row, the
+  Interactions matcher and its budget row); Grok's `Stream` not learning; and
+  the chat route sending no effort without metadata. 22 were caught. **Two
+  were not**, and the tests were made to catch them:
+  * the bound one higher: `TestSend_Bound_0062` read `MaxSends` itself; it
+    now pins 7, Q5's answer, and the plant fails it (`MaxSends = 8; want 7`);
+  * the Responses list check lost: no recording holds an `invalid_value`
+    whose list is not effort words; `TestMatchRefusal_OtherList_0062` gives
+    one, in `responses` and for Kilo's row in `chatcompletions`, and both
+    plants fail it (`matched {Effort:max …}; the list is another
+    parameter's`).
+
+  The PLAN's red-first plant of the set, the memo never read, failed with
+  `learn_0062_test.go:148: claude/claude-sonnet-5: efforts sent [max max];
+  want max, then xhigh`.
+* **Step 8, docs:** each changed provider's package doc under Degradations
+  (and Grok's, Gemini's and OpenCode's Capabilities and facts lines);
+  `CHANGELOG.md`, Added (D9's exports less `ProbeReasoning`, and 0061's
+  `EffortMax` entry as it now behaves) and Changed; `docs/architecture.md`,
+  the `internal/wire`, wire-format, `cacheref`, Gemini and Chat Completions
+  providers' rows, the caches and the warnings; and R2's row, by the
+  deviation above. Two live tests and four code comments, of step 1's fifth
+  amendment.
+* **Checks,** each exit 0: `make pre-add-check` on the 48 Go files, "44
+  file(s) clean" and the 4 deleted; `go vet -tags live_gateways
+  ./llmprovider/`; `make api-check`, "0 incompatible change(s)";
+  `tools/apidiff.py v1.22.2`, 12 compatible additions, 0061's four and D9's
+  eight, `ProbeReasoning` being Phase 4's; `make tables-check`, "38 packages,
+  0 problem(s)"; `make changelog-check`; `make docs-check`; `make
+  fixtures-check`, 328 files.
+* **The gate, first run:** "gate: 25 of 28 passed". `coverage-check` and
+  `gate-selftest` found `internal/cacheref` at 78.6 %, below its 80 % floor;
+  `tools-test` found catalogcheck's test expecting R5's and R6's agreement
+  tests. Fixed as step 1's sixth amendment says: `TestLearnedThinking_0062`
+  (`internal/cacheref` 100 %), and `tools/catalogcheck.py` and its test. Each
+  was seen to fail on a plant: `New` making no memo (`New's memos 0x0 and
+  0x0; want one each`), and the planted snapshot losing its R4 difference
+  (`'rules: 2 differ' not found`, "rules: 1 differ").
+* **The gate, second run:** "gate: 28 of 28 passed"; `make pre-add-check` on
+  `cacheref_0062_test.go`, clean.
+* **Step 9, staged:** this phase's paths, 0061-PLAN Phase 3's code among
+  them, reworked; with the two Grok fixtures, the report's, the MADR's and
+  this record's changes. 0061-PLAN's record notes the rework.

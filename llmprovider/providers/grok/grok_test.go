@@ -2,10 +2,13 @@ package grok
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -112,22 +115,52 @@ func TestGrok_GenerateThinking_ReasoningEffortSent(t *testing.T) {
 	}
 }
 
-// TestGrok_GenerateThinking_ReasoningEffortOmitted verifies reasoning key is
-// absent for a model that rejects it (grok-4).
+// TestGrok_GenerateThinking_ReasoningEffortOmitted: a model that takes no
+// effort refuses it, as grok-build-0.1 was recorded refusing it, and the
+// request is sent again without reasoning, with the refusal learned (0062-MADR,
+// amendment "Phase 2's Grok cases"). No name rule omits it beforehand.
 func TestGrok_GenerateThinking_ReasoningEffortOmitted(t *testing.T) {
-	var body map[string]any
-	srv := captureServer(t, &body, okResponse)
+	var mu sync.Mutex
+	var bodies []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
+		bodies = append(bodies, body)
+		first := len(bodies) == 1
+		mu.Unlock()
+		if first {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"code":"invalid-argument","error":"Model grok-4 does not support parameter reasoningEffort."}`)
+			return
+		}
+		_, _ = io.WriteString(w, okResponse)
+	}))
+	t.Cleanup(srv.Close)
 	p := build(t, apiKey(srv.URL, "grok-4", llmprovider.WithReasoning(&llmprovider.Reasoning{Effort: llmprovider.EffortHigh}))...)
-	if _, err := p.Generate(context.Background(), thinking(text("hi"))); err != nil {
+	resp, err := p.Generate(context.Background(), thinking(text("hi")))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, present := body["reasoning"]; present {
-		t.Errorf("reasoning must be omitted for grok-4: %v", body)
+	mu.Lock()
+	defer mu.Unlock()
+	if len(bodies) != 2 || effortOf(bodies[0]) != "high" {
+		t.Fatalf("%d request(s), the first's effort %v; want 2, the first at high", len(bodies), effortOf(bodies[0]))
+	}
+	if _, present := bodies[1]["reasoning"]; present {
+		t.Errorf("the resend carries reasoning %v; want none", bodies[1]["reasoning"])
+	}
+	want := llmprovider.ReasoningRefusal{Model: "grok-4", Effort: llmprovider.EffortHigh}
+	if !slices.ContainsFunc(resp.Warnings, func(w llmprovider.Warning) bool {
+		return w.Kind == llmprovider.WarningReasoningLearned && w.Refused == want
+	}) {
+		t.Errorf("warnings %v; want a WarningReasoningLearned of %+v", resp.Warnings, want)
 	}
 }
 
-// TestGrok_GenerateThinking_ReasoningEffortClamped verifies grok-3-mini clamps
-// "medium" to the nearest lower effort on its low/high menu (MADR 0012 §6).
+// TestGrok_GenerateThinking_ReasoningEffortClamped: grok-3-mini's medium is
+// sent as asked; no menu clamps it, and a refusal would be learned (0062-MADR
+// D8, R6 removed).
 func TestGrok_GenerateThinking_ReasoningEffortClamped(t *testing.T) {
 	var body map[string]any
 	srv := captureServer(t, &body, okResponse)
@@ -135,8 +168,8 @@ func TestGrok_GenerateThinking_ReasoningEffortClamped(t *testing.T) {
 	if _, err := p.Generate(context.Background(), thinking(text("hi"))); err != nil {
 		t.Fatal(err)
 	}
-	if got := effortOf(body); got != "low" {
-		t.Errorf("reasoning.effort = %v, want low (clamped from medium)", got)
+	if got := effortOf(body); got != "medium" {
+		t.Errorf("reasoning.effort = %v, want medium, as asked", got)
 	}
 }
 

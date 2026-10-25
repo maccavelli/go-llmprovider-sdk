@@ -8,7 +8,8 @@
 // token's own Header (R16), never in the URL.
 //
 // Capabilities: tools and forced tool choice are Supported. Reasoning is
-// BestEffort: one listed model does not think at every effort (below).
+// BestEffort: a level a model does not take is refused, and stepped from
+// (below).
 // Continuation is Supported only with WithStore(true): Gemini chains only from
 // a stored interaction, and nothing is stored by default (MADR 0014 §2).
 // Native streaming is Supported: Stream asks the Interactions API for an event
@@ -20,15 +21,22 @@
 //     (0032-MADR D3).
 //   - A tool's Strict is not sent: the Interactions API has no such field
 //     (0032-MADR D2).
-//   - Reasoning takes an effort, sent as thinking_level: low, medium or high,
-//     with EffortXHigh sent as high. The Interactions API has no thinking
-//     budget, so Reasoning.Budget is not sent. gemini-2.5-flash-lite takes
-//     only high; another effort is omitted there, leaving the model's default,
-//     which is not to think: at low and medium it gave no reasoning tokens,
-//     measured on 2026-10-07 (0026-MADR F38).
-//   - The Interactions API has nothing above high: EffortMax is sent as high,
-//     or as the highest effort the model's facts list below it, with a
-//     WarningEffortDegraded (0061-MADR D3).
+//   - Reasoning takes an effort, sent as thinking_level; the Interactions API
+//     has no thinking budget, so Reasoning.Budget is not sent. The level,
+//     xhigh and max included, is sent by the model's facts and what it
+//     refused (0062-MADR D2, D3): one the facts do not list, or the model
+//     refused, steps to the nearest it takes, lower first, with a
+//     WarningEffortDegraded naming what was sent. Gemini 3 refuses xhigh and
+//     max with the levels it takes, so a first request at them steps to
+//     high; gemini-2.5-flash-lite refuses medium, and low with a budget's
+//     message, so it is sent high. No rule of model names decides (R5 and
+//     the mapping of xhigh to high removed).
+//     A refusal of the effort sent, in a form 0062-PLAN Phase 1 recorded,
+//     is remembered for the rest of the process, in memory only, and the
+//     request is sent again, at most 7 times in all; the Response, or a
+//     stream's done event, carries a WarningReasoningLearned whose Refused a
+//     caller can keep, and pass back with WithReasoningRefusals on its next
+//     start (0062-MADR D4 to D6).
 //   - ToolChoiceNone is sent as tool_choice "none", from the API reference;
 //     only "any" and allowed_tools were measured (MADR 0014).
 //
@@ -59,10 +67,11 @@
 // already hold of its model: a caller's catalog.WithModelLayer, a listing
 // that ListModels or catalog.List read, and the models.dev document once
 // something has fetched it. A request never fetches, and never waits.
-// From them, thinking_level is sent only when the model lists it.
+// From them, thinking_level is sent only when the model lists it; an effort
+// off the list steps to the nearest listed.
 // With no MaxOutputTokens, the output limit is the default, cut to the
 // model's own when that is smaller; it is never raised.
-// With no facts, the level rules decide, as before.
+// With no facts, the level asked is sent, and a refusal learned.
 package gemini
 
 import (
@@ -114,6 +123,8 @@ type provider struct {
 	probe     bool
 	// cache is catalog.WithCache's, nil for the process's (0048-MADR D1).
 	cache *cacheref.Value
+	// refusals are WithReasoningRefusals' (0062-MADR D6).
+	refusals []llmprovider.ReasoningRefusal
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
@@ -155,6 +166,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		logger:    st.Logger(),
 		probe:     st.ModelProbes(),
 		cache:     cacheref.From(st.Values()),
+		refusals:  st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.Supported,
@@ -192,10 +204,19 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
-	// (0020-MADR F2).
-	return wire.Reauth(ctx, string(llmprovider.ProviderGemini), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-		return p.generateOnce(ctx, req, token)
-	})
+	// (0020-MADR F2); a refusal of the level sent is learned, and the request
+	// built again (0062-MADR D5).
+	effort := p.learner(req)
+	return wire.Send(ctx, string(llmprovider.ProviderGemini), p.src,
+		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort) }, decodeInteraction,
+		effort.Check)
+}
+
+// learner is req's level, learned from the model's refusals of it
+// (0062-MADR D2 to D6).
+func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
+	return wire.NewLearner(p.cache.LearnedThinking(), string(llmprovider.ProviderGemini), p.baseURL,
+		cmp.Or(req.Model, p.model), p.refusals, matchRefusal)
 }
 
 // Stream streams req from the Interactions API as it is generated (0031-MADR
@@ -205,9 +226,17 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.caps.Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
-		return p.call(ctx, req, token, true)
-	}, interactionEvents)
+	return func(yield func(llmprovider.Event, error) bool) {
+		// Each range is its own request, with its own effort learner.
+		effort := p.learner(req)
+		for ev, err := range wire.StreamEventsRetry(ctx, string(llmprovider.ProviderGemini), p.src,
+			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort) }, interactionEvents,
+			effort.Check) {
+			if !yield(ev, err) {
+				return
+			}
+		}
+	}
 }
 
 // facts is what the caches know of req's model, read for each request and
@@ -219,15 +248,11 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 	return info
 }
 
-// generateOnce sends req once, with token.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, p.call(ctx, req, token, false), token, decodeInteraction)
-}
-
 // call is the Interactions request for req, asking for an event stream when
-// stream is set.
-func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
-	body, warnings := p.body(req, p.facts(ctx, req, token))
+// stream is set, at the level effort chooses.
+func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
+	effort *wire.Learner) wire.Call {
+	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
 	if stream {
 		body["stream"] = true
 	}
@@ -239,7 +264,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		URL:      p.baseURL + interactionsPath,
 		Body:     body,
 		Stream:   stream,
-		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0061-MADR D3
+		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// In a header, not the URL, so it cannot leak through a *url.Error.
@@ -251,8 +276,10 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 	}
 }
 
-// body is the Interactions request for req (MADR 0014 §1).
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
+// body is the Interactions request for req (MADR 0014 §1), at the level
+// learner chooses.
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
+	[]llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -269,24 +296,15 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 	if r := p.effectiveReasoning(req); r != nil {
 		// Without it a thought step carries only its signature.
 		gen["thinking_summaries"] = interactionSummariesAuto
-		// The model's listed levels decide, when it lists any (0041-MADR D2).
-		levels := make([]string, len(facts.Reasoning.Efforts))
-		for i, e := range facts.Reasoning.Efforts {
-			levels[i] = string(e)
-		}
-		effort := r.Effort
-		if effort == llmprovider.EffortMax {
-			// Nothing is above high: the highest listed effort below max,
-			// else high, warned (0061-MADR D3).
-			if effort, _ = wire.ResolveMax(facts.Reasoning.Efforts, len(levels) > 0); effort == llmprovider.EffortMax {
-				effort = llmprovider.EffortHigh
-			}
-		}
-		if level := thinkingLevelFor(model, effort, levels, len(levels) > 0); level != "" {
-			gen["thinking_level"] = level
-			if r.Effort == llmprovider.EffortMax {
-				warnings = []llmprovider.Warning{wire.EffortWarning(model, llmprovider.Effort(level))}
-			}
+		// The level by D3's ladder over what the model refused and the levels
+		// it lists, when it lists any (0041-MADR D2; 0062-MADR D2, D3); none
+		// leaves the model's default. A level the model does not take is
+		// refused, learned and stepped from (0062-MADR D8: R5 and the xhigh
+		// mapping removed).
+		var level llmprovider.Effort
+		level, warnings = learner.Effort(r.Effort, facts.Reasoning.Efforts, len(facts.Reasoning.Efforts) > 0)
+		if level != "" {
+			gen["thinking_level"] = string(level)
 		}
 	}
 	body := map[string]any{

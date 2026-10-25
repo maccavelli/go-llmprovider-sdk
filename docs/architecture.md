@@ -105,24 +105,24 @@ standard library is left out.
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, `DefaultWith(opts...)`, that `Registry` with `opts` given to every built-in (0048-MADR D1), and `New(id, opts...)`; it holds all ten provider ids | `llmprovider` and the provider packages |
 | `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, `Stream`, and `ChatGPTUsageURL` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/chatgpt`, `internal/wire/responses`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref`, `internal/transport` |
 | `llmprovider/providers/claude` | Claude through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/messages`, `internal/wire/deferral`, `internal/cacheref` |
-| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, `ListModels`, and `Stream`, with the Interactions wire's decoders | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
+| `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, `ListModels`, and `Stream`, with the Interactions wire's decoders and its refusal matcher (0062-MADR D4) | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `catalog`, `internal/listlimit`, `internal/wire/responses`, `auth`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute`, `ListModels` and `Stream` (native on every route), with the route table, built from the embedded `routes_snapshot.json` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent`, `internal/wire/deferral`, `internal/cacheref` |
-| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/kiloendpoint`, `internal/wire`, `internal/wire/deferral`, `internal/wire/messages` |
-| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral` |
-| `llmprovider/providers/together` | Together AI through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral` |
+| `llmprovider/providers/kilo` | Kilo through the new contract: `New`, `WithOrganization`, `WithCapabilities`, `WithDataCollection`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/kiloendpoint`, `internal/wire`, `internal/wire/deferral`, `internal/wire/messages`, `internal/cacheref` |
+| `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
+| `llmprovider/providers/together` | Together AI through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/ollama` | Ollama through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
-| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; `Send` and `StreamEventsRetry`, the openers that build a request again and send it once more when a `Retry` check says so; `OpenStream` and `Stream`, a reply held open while its events are read; `ReadEvents`, the server-sent-events reader every wire's stream decoder uses, with its `EventLimit`, which marks a decoder's error as after the reply (0053-MADR D3); `StreamIndex` and `MaxStreamIndex` (4096), the bound on every index a stream sends, past which the stream ends with `ErrIncomplete` (0053-MADR D2); `StreamEvents` and `StreamEventsFor`, the native stream every provider's `Stream` runs; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule; `ProbeHealth`, a listing's probes through a probe store; `Arena`, which holds the strings a request body points to; `ResolveMax`, `MaxEffort` and `EffortWarning`, the effort `EffortMax` is sent at by a model's facts, and its `WarningEffortDegraded` (0061-MADR D3) | `llmprovider`, `internal/transport`, `internal/redact` |
-| `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `DecodeFor`, `ReadStream`; `Events`, which yields a stream's events as they arrive; for deferred tools, `InputLoading` (the native form), `InputDispatch` (Grok's wrapper) and `Decoder`, which names the Search tool and the dispatched ones | `llmprovider`, `internal/wire`, `internal/redact`, `internal/wire/deferral` |
-| `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode`, `DecodeFor`, `Events` | `llmprovider`, `internal/wire` |
-| `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning` | `llmprovider`, `internal/wire` |
+| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; `Send` and `StreamEventsRetry`, the openers that build a request again and send it once more while a `Retry` check says so, at most `MaxSends` (7) times (0062-MADR D5); `Retries`, which joins checks; `OpenStream` and `Stream`, a reply held open while its events are read; `ReadEvents`, the server-sent-events reader every wire's stream decoder uses, with its `EventLimit`, which marks a decoder's error as after the reply (0053-MADR D3); `StreamIndex` and `MaxStreamIndex` (4096), the bound on every index a stream sends, past which the stream ends with `ErrIncomplete` (0053-MADR D2); `StreamEvents` and `StreamEventsFor`, the native stream every provider's `Stream` runs; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule; `ProbeHealth`, a listing's probes through a probe store; `Arena`, which holds the strings a request body points to; `Ladder`, the efforts a request may be sent at, and `DegradedWarning` (0062-MADR D3); `Learned`, the memo of refused thinking settings, `Learner`, one request's effort and its `Retry` check, `Matcher` and `Refusal`, what a wire's matcher reads, with `QuotedEfforts` and `PlainEfforts` (0062-MADR D4, D5); `ResolveMax`, `MaxEffort` and `EffortWarning`, which only Ollama decides by until its refusals are recorded (0061-MADR D3; 0062-MADR Q9 (c)) | `llmprovider`, `internal/transport`, `internal/redact` |
+| `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `DecodeFor`, `ReadStream`; `MatchRefusal`, its refusals of an effort (0062-MADR D4); `Events`, which yields a stream's events as they arrive; for deferred tools, `InputLoading` (the native form), `InputDispatch` (Grok's wrapper) and `Decoder`, which names the Search tool and the dispatched ones | `llmprovider`, `internal/wire`, `internal/redact`, `internal/wire/deferral` |
+| `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode`, `DecodeFor`, `Events`; `MatchRefusal`, its refusals of an effort (0062-MADR D4) | `llmprovider`, `internal/wire` |
+| `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning`; `MatchRefusal`, its refusals of a thinking shape or an effort (0062-MADR D4) | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig`, and from a model's facts `Thinking`, `FactsThinking` and `ThinkingConfigFor` | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
 | `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache` and the option `WithCache` (0048-MADR D1) | `llmprovider`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref`, `internal/nilsource` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/nilsource` | `Is`, which tells a typed-nil `TokenSource`, a nil pointer, map, slice, func, chan or interface held in a non-nil interface, from a value, for `ResolveOptions` and the catalog's entry points (0050-MADR D1, D2) | the standard library |
 | `llmprovider/internal/listlimit` | `Value`, `catalog.WithLimit`'s option value, `Of`, which reads it from a provider's options, and `Cut`, for `catalog` and the providers that cut their own fallback listings with it (0038-MADR A3) | the standard library |
-| `llmprovider/internal/cacheref` | `Value`, `catalog.WithCache`'s option value: a `catalog.Cache`'s store, its `transport.ProbeStore` and its `messages.Refusals`; `New`, a whole one; `From`, which reads it from a listing's or a provider's options; `ProbeStore` and `LearnedRefusals` (0048-MADR D1; 0049-MADR D3) | `internal/transport`, `internal/wire/messages` |
+| `llmprovider/internal/cacheref` | `Value`, `catalog.WithCache`'s option value: a `catalog.Cache`'s store, its `transport.ProbeStore`, its `messages.Refusals` and its `wire.Learned`; `New`, a whole one; `From`, which reads it from a listing's or a provider's options; `ProbeStore`, `LearnedRefusals` and `LearnedThinking` (0048-MADR D1; 0049-MADR D3; 0062-MADR D5) | `internal/transport`, `internal/wire`, `internal/wire/messages` |
 | `llmprovider/internal/chatgpt` | a ChatGPT session's `BaseURL`, `IsSession`, `SetHeaders` and its header names, `ClientVersion`, and `ModelsRequest`, the Codex backend's listing request; a plan session's `IsPlanSession` and `PlanModelsRequest`; for `catalog`'s `ListRaw` and `providers/openai` (0041-MADR D9; 0043-MADR D5) | `llmprovider`, `auth`, `internal/transport` |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
@@ -299,13 +299,15 @@ facts the name rules decide.
 These caches, and the models.dev document's and the probes', are the
 process's, shared by every listing and provider, unless a caller gives
 `catalog.WithCache(&c)` (0048-MADR D1). A `catalog.Cache` holds its own
-listings, metadata documents, probe results and learned forced-choice
-refusals (0049-MADR D3), shared only by the listings and providers given it;
+listings, metadata documents, probe results, learned forced-choice
+refusals (0049-MADR D3) and refused thinking settings (0062-MADR D5), shared
+only by the listings and providers given it;
 `providers.DefaultWith(catalog.WithCache(&c))` gives it to every built-in a
 `Registry` builds. `internal/cacheref` carries it in the option's value: the
 catalog's store, a `transport.ProbeStore`, which each provider reads in `New`
-and passes to `wire.ProbeHealth`, and a `messages.Refusals`, which Claude and
-OpenCode give to their forced-choice policy.
+and passes to `wire.ProbeHealth`, a `messages.Refusals`, which Claude and
+OpenCode give to their forced-choice policy, and a `wire.Learned`, which
+every provider but Ollama gives to each request's `wire.Learner`.
 A model no layer knows is not an error; a failed source is joined into
 `LookupModel`'s error, beside what the other layers set.
 
@@ -388,10 +390,12 @@ for a session, from the store.
   went as `auto`; `WarningForcedChoiceLearned` when a model's refusal of
   forcing was learned (0034-MADR D7); `WarningDeferralEmulated` when
   deferred tools were not sent in the service's own form (0040-MADR D7);
-  and `WarningEffortDegraded` when `EffortMax` was sent lower, on a model
-  whose facts list efforts without `max` or a service with none (0061-MADR
-  D3). A provider sets the last two on the request it builds
-  (`wire.Call.Warnings`),
+  `WarningEffortDegraded` when an effort was not sent as asked, because the
+  model's facts do not list it or the model refused it (0061-MADR D3;
+  0062-MADR D3); and `WarningReasoningLearned` when a model's refusal of a
+  thinking setting was learned, its `Refused` the value a caller passes back
+  with `WithReasoningRefusals` (0062-MADR D6). A provider sets the last
+  three on the request it builds (`wire.Call.Warnings`),
   and `Post` and the stream add it to the response. A stream carries them
   on its `EventDone` response. Errors stay errors.
 - A model that refuses a forced tool choice is known by layer: the
@@ -409,6 +413,14 @@ for a session, from the store.
   a named tool, or for `ToolChoiceRequired` under `ForcedChoiceDegrade`.
   Otherwise the refusal is returned as `ErrUnsupported`. A stream is resent
   only when it fails to open, before any event (D3).
+- A request's reasoning effort is decided in order by what the model
+  refused, the memo's and the caller's `WithReasoningRefusals`, then its
+  facts, then the request, along `wire.Ladder` (0062-MADR D2, D3). A refusal
+  of the effort sent is read by its wire's matcher, built from the refusals
+  0062-PLAN Phase 1 recorded, learned by `wire.Learner` in `wire.Send` and
+  `wire.StreamEventsRetry`, and the request built again, at most
+  `wire.MaxSends` (7) sends in all, a forced-choice refusal counted in them
+  (D4, D5). Ollama decides as before until its refusals are recorded.
 - `Response.Usage` is decoded from every wire format that reports it. A
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and

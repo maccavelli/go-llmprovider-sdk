@@ -39,9 +39,9 @@ func xaiKey(t *testing.T) llmprovider.TokenSource {
 	return llmprovider.NewStaticToken(llmprovider.LiveEnvKey(t, "XAI_API_KEY"))
 }
 
-// TestLive_GrokEffortMenu: grok-4.5 asked for xhigh sends the CLI menu's high
-// and answers. xAI accepted every effort on grok-4.5 on 2026-09-27, so this
-// proves conformance to the CLI, not a rejection avoided.
+// TestLive_GrokEffortMenu: grok-4.5 asked for xhigh sends xhigh and answers:
+// no menu clamps it (0062-MADR D8, R6 removed), and xAI accepted xhigh there
+// on 2026-10-25 (0062-REPORT-thinking-refusals.md, grok-4.5-xhigh).
 func TestLive_GrokEffortMenu(t *testing.T) {
 	rec := &xaiRecorder{}
 	ctx, cancel := llmprovider.LiveCtx(t)
@@ -53,8 +53,8 @@ func TestLive_GrokEffortMenu(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateText: %v", err)
 	}
-	if !bytes.Contains(rec.sent, []byte(`"reasoning":{"effort":"high"}`)) {
-		t.Fatalf("request did not clamp xhigh to high: %s", rec.sent)
+	if !bytes.Contains(rec.sent, []byte(`"reasoning":{"effort":"xhigh"}`)) {
+		t.Fatalf("request did not send xhigh as asked: %s", rec.sent)
 	}
 	if !strings.Contains(strings.ToUpper(out), "ALPHA") {
 		t.Errorf("reply %q", out)

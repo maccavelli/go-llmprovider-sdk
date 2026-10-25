@@ -9,9 +9,9 @@ import (
 )
 
 // TestLive_GeminiFlashLiteEffortThinks (0026-MADR F38, live first): does
-// gemini-2.5-flash-lite think at each effort, as the provider sends it? Low
-// and medium send no thinking setting (interactions.go thinkingLevel), and
-// Google documents the model's default as thinking off. It records the
+// gemini-2.5-flash-lite think at each effort, as the provider sends it? It
+// refuses low and medium, and the provider learns each refusal and sends high
+// (0062-MADR, amendment "Phase 1's evidence"; R5 removed). It records the
 // reasoning tokens and thought summary of each effort. It REQUIRES
 // GEMINI_API_KEY.
 func TestLive_GeminiFlashLiteEffortThinks(t *testing.T) {

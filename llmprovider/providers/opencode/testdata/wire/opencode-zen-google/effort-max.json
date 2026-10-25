@@ -63,12 +63,6 @@
         }
       ]
     },
-    "warnings": [
-      {
-        "Kind": "effort_degraded",
-        "Model": "gemini-3.8-flash",
-        "Detail": "reasoning effort max is not offered for gemini-3.8-flash; sent high"
-      }
-    ]
+    "warnings": null
   }
 }

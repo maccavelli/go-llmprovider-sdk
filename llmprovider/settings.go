@@ -256,7 +256,10 @@ func (s *settings) sendable() error {
 	if err := s.reasoning.check(); err != nil {
 		return fmt.Errorf("WithReasoning: %w", err)
 	}
-	return s.cfg.checkForcedChoice()
+	if err := s.cfg.checkForcedChoice(); err != nil {
+		return err
+	}
+	return s.cfg.checkReasoningRefusals()
 }
 
 // hasControl reports whether s holds an ASCII control character, which no

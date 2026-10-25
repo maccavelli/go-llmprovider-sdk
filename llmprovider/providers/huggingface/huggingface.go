@@ -28,9 +28,16 @@
 //   - A tool's Strict is sent as function.strict (0032-MADR D2).
 //   - Reasoning takes an effort, sent as reasoning_effort (medium with none);
 //     a Budget is not sent.
-//   - EffortMax is sent as "max". On a model whose facts list efforts
-//     without max, the highest listed below it is sent, with a
-//     WarningEffortDegraded (0061-MADR D3).
+//   - The effort, max included, is sent by the model's facts and what it
+//     refused (0062-MADR D2, D3): one the facts do not list, or the model
+//     refused, steps to the nearest it takes, lower first, with a
+//     WarningEffortDegraded naming what was sent.
+//     A refusal of the effort sent, in a form 0062-PLAN Phase 1 recorded,
+//     is remembered for the rest of the process, in memory only, and the
+//     request is sent again, at most 7 times in all; the Response, or a
+//     stream's done event, carries a WarningReasoningLearned whose Refused a
+//     caller can keep, and pass back with WithReasoningRefusals on its next
+//     start (0062-MADR D4 to D6).
 //   - Instructions are sent as a leading system message.
 //   - ToolChoiceRequired is sent as "required", the Chat Completions value.
 //     ToolChoiceNone is kept by sending no tools and no tool_choice: the
@@ -79,6 +86,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
@@ -107,6 +115,11 @@ type provider struct {
 	// limit is catalog.WithLimit's n, which cuts ListModels's static
 	// fallback; zero is no limit (0038-MADR A3).
 	limit int
+	// thinking is the memo of refused thinking settings, catalog.WithCache's
+	// or the process's; refusals are WithReasoningRefusals' (0062-MADR D5,
+	// D6).
+	thinking *wire.Learned
+	refusals []llmprovider.ReasoningRefusal
 }
 
 // New builds the Hugging Face provider. It needs a token. No token, an empty
@@ -139,6 +152,8 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		reasoning: st.Reasoning(),
 		userAgent: st.UserAgent(),
 		logger:    st.Logger(),
+		thinking:  cacheref.From(st.Values()).LearnedThinking(),
+		refusals:  st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.BestEffort,
@@ -166,10 +181,19 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
-	// (0020-MADR F2).
-	return wire.Reauth(ctx, string(llmprovider.ProviderHuggingFace), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-		return p.generateOnce(ctx, req, token)
-	})
+	// (0020-MADR F2); a refusal of the effort sent is learned, and the
+	// request built again (0062-MADR D5).
+	effort := p.learner(req)
+	return wire.Send(ctx, string(llmprovider.ProviderHuggingFace), p.src,
+		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort) },
+		chatcompletions.DecodeFor(string(llmprovider.ProviderHuggingFace)), effort.Check)
+}
+
+// learner is req's effort, learned from the model's refusals of it
+// (0062-MADR D2 to D6).
+func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
+	return wire.NewLearner(p.thinking, string(llmprovider.ProviderHuggingFace), p.baseURL, cmp.Or(req.Model, p.model), p.refusals,
+		chatcompletions.MatchRefusal)
 }
 
 // Stream streams req from the Chat Completions API as it is generated
@@ -180,9 +204,17 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.Capabilities().Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
-		return p.call(ctx, req, token, true)
-	}, chatcompletions.Events)
+	return func(yield func(llmprovider.Event, error) bool) {
+		// Each range is its own request, with its own effort learner.
+		effort := p.learner(req)
+		for ev, err := range wire.StreamEventsRetry(ctx, string(llmprovider.ProviderHuggingFace), p.src,
+			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort) }, chatcompletions.Events,
+			effort.Check) {
+			if !yield(ev, err) {
+				return
+			}
+		}
+	}
 }
 
 // facts is what the caches know of req's model, read for each request and
@@ -192,11 +224,6 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 	info, _ := catalog.CachedFacts(ctx, llmprovider.ProviderHuggingFace, cmp.Or(req.Model, p.model),
 		slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
 	return info
-}
-
-// generateOnce sends req once, with token.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, p.call(ctx, req, token, false), token, chatcompletions.DecodeFor(string(llmprovider.ProviderHuggingFace)))
 }
 
 // replayField is the field the model's prior reasoning is replayed under,
@@ -223,8 +250,9 @@ func isAssistantTurn(item llmprovider.Item) bool {
 
 // call is the Chat Completions request for req, asking for an event stream
 // with its usage when stream is set (0031-MADR E5).
-func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
-	body, warnings := p.body(req, p.facts(ctx, req, token))
+func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
+	effort *wire.Learner) wire.Call {
+	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -237,7 +265,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		URL:      p.baseURL + "/chat/completions",
 		Body:     body,
 		Stream:   stream,
-		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0061-MADR D3
+		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")
@@ -249,7 +277,8 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 }
 
 // body is the Chat Completions request for req.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
+	[]llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -272,8 +301,9 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 		// tool_use_failed, so none is kept by offering no tools (0023-MADR).
 		tools, choice = nil, llmprovider.ToolChoiceAuto
 	}
-	// EffortMax by the model's facts (0061-MADR D3).
-	effort, warnings := wire.MaxEffort(model, llmprovider.Effort(p.effort(req)), facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+	// By D3's ladder over the model's refusals and facts (0062-MADR D2, D3).
+	effort, warnings := learner.Effort(llmprovider.Effort(p.effort(req)), facts.Reasoning.Efforts,
+		facts.Has(catalog.FieldReasoningEfforts))
 	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: string(effort),
 		ReplayReasoningField: replayField(input, facts),
 		Tools:                tools, ToolChoice: choice, SendStrict: true}), warnings
