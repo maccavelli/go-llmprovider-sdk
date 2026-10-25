@@ -672,3 +672,31 @@ Found while implementing D2; no decision changes.
   Windows, and `internal/nettest.Refusing` builds its refused dial from
   `syscall.ECONNREFUSED` (C15), so the rule counts both there: the four
   names and the four codes. `GOOS=windows go build ./...` and `go vet` pass.
+
+## Amendment 2026-10-24: Phase 3's corrections
+
+Found while implementing D3; no decision changes.
+
+* **Kilo has no messages route.** D3's first row names "Kilo's and
+  OpenCode's messages routes". Kilo sends only `POST
+  {base}/chat/completions` (its package doc: "Only POST
+  {base}/chat/completions is used"), so its `EffortMax` is the chat row's:
+  `"max"` in `reasoning.effort` or `reasoning_effort`, rule 2.
+* **Grok follows rule 1 where its facts list `max`.** With `max` above
+  `xhigh` in `effortOrder`, `clampReasoningEffortFor` builds a known
+  model's menu from the efforts its facts list, in that order, so a model
+  whose facts list `max` is sent `max`, unwarned. xAI's listing lists no
+  `max` (E4), so the row's "xAI has no `max`" holds for every model it
+  lists. The row's `xhigh` is the clamp's highest: a model whose menu stops
+  at `high`, such as `grok-4.5`, is sent `high`, warned.
+* **Gemini's `high`.** Where `ResolveMax` returns `max` (facts that list
+  it, or none), Gemini and OpenCode's google route send `high`. On the
+  google route with no facts, `high` is the dynamic thinking budget, as
+  `xhigh` is today; the warning names `high`.
+* **A warning names an effort sent.** Where the provider omits the effort,
+  as Grok does for a model off every menu with no facts and Gemini for a
+  level the model does not list, no warning is added, as for any other
+  effort.
+* **Rule 3's edge.** Facts that list efforts but none of `low`, `medium`,
+  `high` and `xhigh` (only `none` or `minimal`) send `max`, unwarned, as
+  facts that list none.

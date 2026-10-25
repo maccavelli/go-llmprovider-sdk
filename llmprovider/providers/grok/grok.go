@@ -25,6 +25,9 @@
 //     effort off the menu is sent as the nearest lower one, and no effort
 //     as high. Other models reason on their own, and get no reasoning
 //     field. A Budget is not sent.
+//   - xAI has no max: EffortMax clamps as any effort does, to the model's
+//     highest, with a WarningEffortDegraded naming what was sent. It is sent
+//     as max only where xAI's listing lists it (0061-MADR D3).
 //   - Instructions are sent as a leading system message, the shape the old
 //     API already sent for a system item; the Responses instructions field
 //     is not sent. xAI obeys both forms, measured on grok-4.6 and grok-4.7
@@ -271,7 +274,7 @@ func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses
 }
 
 // body is the Responses request for req, with its model's facts.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -308,40 +311,46 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 		}
 	}
 	wire.AddResponsesTools(body, deferral.Tools(req, form), req.ToolChoice)
-	if effort, ok := p.effort(req, model, facts); ok {
+	effort, warnings := p.effort(req, model, facts)
+	if effort != "" {
 		body["reasoning"] = map[string]any{"effort": effort}
 	}
 	if req.PreviousResponseID != "" {
 		body["previous_response_id"] = req.PreviousResponseID
 	}
 	wire.AddPromptCacheKey(body, req.Cache, p.session) // 0039-MADR D3
-	return body
+	return body, warnings
 }
 
-// effort is the reasoning effort to send, and false for none: the request's
+// effort is the reasoning effort to send, "" for none: the request's
 // Reasoning, else WithReasoning's, an empty effort taken from WithReasoning,
 // clamped to the model's menu: its facts' efforts when known, else
-// effortMenu (0041-MADR D2, R6).
-func (p *provider) effort(req *llmprovider.Request, model string, facts catalog.ModelInfo) (string, bool) {
+// effortMenu (0041-MADR D2, R6). EffortMax clamped lower carries its warning
+// (0061-MADR D3).
+func (p *provider) effort(req *llmprovider.Request, model string, facts catalog.ModelInfo) (string, []llmprovider.Warning) {
 	r := req.Reasoning
 	if r == nil {
 		r = p.reasoning
 	}
 	if r == nil {
-		return "", false
+		return "", nil
 	}
 	effort := r.Effort
 	if effort == "" && p.reasoning != nil {
 		effort = p.reasoning.Effort
 	}
 	clamped := clampReasoningEffortFor(model, string(effort), factsEfforts(facts), facts.Has(catalog.FieldReasoningEfforts))
-	return clamped, clamped != ""
+	if effort == llmprovider.EffortMax && clamped != "" && clamped != effortMax {
+		// xAI has no max: the clamp sends the highest effort below it.
+		return clamped, []llmprovider.Warning{wire.EffortWarning(model, llmprovider.Effort(clamped))}
+	}
+	return clamped, nil
 }
 
 // call is the Responses request for req, asking for an event stream when
 // stream is set.
 func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool) wire.Call {
-	body := p.body(req, facts)
+	body, warnings := p.body(req, facts)
 	if stream {
 		body["stream"] = true
 	}
@@ -353,8 +362,9 @@ func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, strea
 		URL:      p.baseURL + "/responses",
 		Body:     body,
 		Stream:   stream,
-		// Dispatched, or appended for a forced choice (0040-MADR D7).
-		Warnings: deferral.Warnings(form, req, cmp.Or(req.Model, p.model)),
+		// Dispatched, or appended for a forced choice (0040-MADR D7);
+		// EffortMax clamped lower (0061-MADR D3).
+		Warnings: append(deferral.Warnings(form, req, cmp.Or(req.Model, p.model)), warnings...),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")

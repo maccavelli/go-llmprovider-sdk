@@ -21,6 +21,10 @@ const (
 	// package doc lists. Its Detail names which. An appended load changes the
 	// tools, so the prompt cache breaks there once (0040-MADR D6, D7).
 	WarningDeferralEmulated WarningKind = "deferral_emulated"
+	// WarningEffortDegraded reports that a request at EffortMax was sent at a
+	// lower effort: the model's facts list efforts without max, or the
+	// service has none. Its Detail names the effort sent (0061-MADR D3).
+	WarningEffortDegraded WarningKind = "effort_degraded"
 )
 
 // Warning is a non-fatal note on a Response: the request was answered, but

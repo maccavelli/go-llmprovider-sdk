@@ -26,6 +26,9 @@
 //     only high; another effort is omitted there, leaving the model's default,
 //     which is not to think: at low and medium it gave no reasoning tokens,
 //     measured on 2026-10-07 (0026-MADR F38).
+//   - The Interactions API has nothing above high: EffortMax is sent as high,
+//     or as the highest effort the model's facts list below it, with a
+//     WarningEffortDegraded (0061-MADR D3).
 //   - ToolChoiceNone is sent as tool_choice "none", from the API reference;
 //     only "any" and allowed_tools were measured (MADR 0014).
 //
@@ -224,7 +227,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 // call is the Interactions request for req, asking for an event stream when
 // stream is set.
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
-	body := p.body(req, p.facts(ctx, req, token))
+	body, warnings := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 	}
@@ -236,7 +239,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		URL:      p.baseURL + interactionsPath,
 		Body:     body,
 		Stream:   stream,
-		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
+		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0061-MADR D3
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// In a header, not the URL, so it cannot leak through a *url.Error.
@@ -249,7 +252,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 }
 
 // body is the Interactions request for req (MADR 0014 §1).
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -262,6 +265,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 		maxTokens = min(maxTokens, limit)
 	}
 	gen := map[string]any{"max_output_tokens": maxTokens}
+	var warnings []llmprovider.Warning
 	if r := p.effectiveReasoning(req); r != nil {
 		// Without it a thought step carries only its signature.
 		gen["thinking_summaries"] = interactionSummariesAuto
@@ -270,8 +274,19 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 		for i, e := range facts.Reasoning.Efforts {
 			levels[i] = string(e)
 		}
-		if level := thinkingLevelFor(model, r.Effort, levels, len(levels) > 0); level != "" {
+		effort := r.Effort
+		if effort == llmprovider.EffortMax {
+			// Nothing is above high: the highest listed effort below max,
+			// else high, warned (0061-MADR D3).
+			if effort, _ = wire.ResolveMax(facts.Reasoning.Efforts, len(levels) > 0); effort == llmprovider.EffortMax {
+				effort = llmprovider.EffortHigh
+			}
+		}
+		if level := thinkingLevelFor(model, effort, levels, len(levels) > 0); level != "" {
 			gen["thinking_level"] = level
+			if r.Effort == llmprovider.EffortMax {
+				warnings = []llmprovider.Warning{wire.EffortWarning(model, llmprovider.Effort(level))}
+			}
 		}
 	}
 	body := map[string]any{
@@ -309,7 +324,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 	if req.PreviousResponseID != "" {
 		body["previous_interaction_id"] = req.PreviousResponseID
 	}
-	return body
+	return body, warnings
 }
 
 // effectiveReasoning is the request's Reasoning, else WithReasoning's, with

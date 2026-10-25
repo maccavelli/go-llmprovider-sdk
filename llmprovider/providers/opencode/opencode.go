@@ -42,6 +42,11 @@
 //   - Reasoning: the responses route takes an effort (medium when none is
 //     named); the messages and google routes take the effort or the budget,
 //     shaped by model as Claude's and Gemini's; the chat route, see above.
+//   - EffortMax is sent as max on the responses, messages and chat routes,
+//     and as high on the google route, where Gemini has nothing above high.
+//     On a model whose facts list efforts without max, the highest listed
+//     below it is sent. A lower effort comes with a WarningEffortDegraded
+//     (0061-MADR D3).
 //   - On the messages route, a forced tool choice is sent as "auto" with
 //     reasoning: Anthropic refuses to force a tool while thinking, and the
 //     Response carries a WarningForcedChoiceDegraded (0034-MADR D7). On
@@ -264,6 +269,8 @@ type call struct {
 	// facts is what the caches know of the model, read once per request
 	// (0041-MADR D1).
 	facts catalog.ModelInfo
+	// warnings are the call's own: EffortMax sent lower (0061-MADR D3).
+	warnings []llmprovider.Warning
 }
 
 // Generate sends req to the gateway on the model's route.
@@ -398,7 +405,25 @@ func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 		c.input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, c.input...)
 	}
 	c.route = p.requestRoute(ctx, c.model)
+	if c.reasoning != nil && c.reasoning.Effort == llmprovider.EffortMax {
+		c.reasoning.Effort, c.warnings = maxOnRoute(c.route, c.model, c.facts)
+	}
 	return c
+}
+
+// maxOnRoute is the effort a request at EffortMax is sent at on route, by
+// the model's facts, with the warning when it is lower: the highest listed
+// effort below max where they list efforts without it, and high on the
+// google route, as Gemini has nothing above high (0061-MADR D3).
+func maxOnRoute(route Route, model string, facts catalog.ModelInfo) (llmprovider.Effort, []llmprovider.Warning) {
+	effort, _ := wire.ResolveMax(facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+	if effort == llmprovider.EffortMax && route == RouteGoogle {
+		effort = llmprovider.EffortHigh
+	}
+	if effort == llmprovider.EffortMax {
+		return effort, nil
+	}
+	return effort, []llmprovider.Warning{wire.EffortWarning(model, effort)}
 }
 
 // generateOnce sends c once, with token, on its route.
@@ -432,7 +457,7 @@ func (p *provider) wireCall(c call, body map[string]any, stream bool) wire.Call 
 		URL:      p.baseURL + c.route.path(c.model),
 		Body:     body,
 		Stream:   stream,
-		Warnings: deferral.Warnings(c.deferForm(), c.req, c.model), // 0040-MADR D7
+		Warnings: append(deferral.Warnings(c.deferForm(), c.req, c.model), c.warnings...), // 0040-MADR D7; 0061-MADR D3
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// Each route reads the key from its vendor's header (MADR 0007

@@ -298,6 +298,16 @@ var scenarios = []scenario{
 	{"defer-load", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
 		return p.Generate(ctx, &llmprovider.Request{Input: deferLoadItems(), Tools: deferTools()})
 	}},
+	// effort-max shows each wire's EffortMax with no facts, and the warning
+	// where the wire has no max (0061-MADR D3).
+	{"effort-max", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
+		resp, err := p.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{user(Prompt)},
+			Reasoning: &llmprovider.Reasoning{Effort: llmprovider.EffortMax}})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"response": result(resp), "warnings": resp.Warnings}, nil
+	}},
 	{"listing", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
 		lister, ok := p.(llmprovider.ModelLister)
 		if !ok {

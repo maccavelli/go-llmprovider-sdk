@@ -57,8 +57,9 @@ type ModelReasoning struct {
 	// Toggle reports whether reasoning can be turned off and on.
 	Toggle bool
 	// Efforts are the effort levels the model takes, in the source's order
-	// and with its names: "none", "minimal" and "max" among them, which
-	// llmprovider.Effort holds without constants.
+	// and with its names: "none" and "minimal" among them, which
+	// llmprovider.Effort holds without constants, and "max", which is
+	// llmprovider.EffortMax.
 	Efforts []llmprovider.Effort
 	// BudgetMin and BudgetMax bound a reasoning budget in tokens, for a model
 	// that takes one. Zero is an unstated bound.

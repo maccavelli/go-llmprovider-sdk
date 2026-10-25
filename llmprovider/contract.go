@@ -73,12 +73,18 @@ const (
 	EffortHigh Effort = effortHigh
 	// EffortXHigh asks for the most reasoning a provider offers.
 	EffortXHigh Effort = effortXHigh
+	// EffortMax asks for the highest tier a service names, above xhigh where
+	// the service has both. A model whose facts list efforts without max is
+	// sent the highest of them below it, and a service with no max its
+	// highest tier; the Response then carries a WarningEffortDegraded naming
+	// what was sent, as the provider's package doc lists (0061-MADR D3).
+	EffortMax Effort = effortMax
 )
 
 // valid reports whether e is one of the Effort constants.
 func (e Effort) valid() bool {
 	switch e {
-	case EffortLow, EffortMedium, EffortHigh, EffortXHigh:
+	case EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax:
 		return true
 	default:
 		return false

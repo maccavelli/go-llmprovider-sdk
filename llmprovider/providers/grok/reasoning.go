@@ -13,6 +13,7 @@ const (
 	effortMedium = string(llmprovider.EffortMedium)
 	effortHigh   = string(llmprovider.EffortHigh)
 	effortXHigh  = string(llmprovider.EffortXHigh)
+	effortMax    = string(llmprovider.EffortMax)
 
 	// The Grok CLI catalog's models (MADR 0012 §6); llmprovider's static
 	// catalog leads with the same two.
@@ -25,8 +26,9 @@ const (
 	model43 = "grok-4.3"
 )
 
-// effortOrder ranks the efforts, lowest first.
-var effortOrder = []string{effortLow, effortMedium, effortHigh, effortXHigh}
+// effortOrder ranks the efforts, lowest first. max is above xhigh, so the
+// clamp sends a model's highest effort below it (0061-MADR D3).
+var effortOrder = []string{effortLow, effortMedium, effortHigh, effortXHigh, effortMax}
 
 // factsEfforts is info's reasoning efforts, as strings.
 func factsEfforts(info catalog.ModelInfo) []string {

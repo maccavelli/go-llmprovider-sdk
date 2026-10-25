@@ -22,6 +22,9 @@
 //   - A tool's Strict is sent as strict (0032-MADR D2).
 //   - Reasoning takes an effort. A Reasoning with only a Budget sends the
 //     default effort, medium; the budget is not sent.
+//   - EffortMax is sent as "max". On a model whose facts list efforts
+//     without max, the highest listed below it is sent, with a
+//     WarningEffortDegraded (0061-MADR D3).
 //   - A ChatGPT session sends no output limit: the backend rejects
 //     max_output_tokens (gate G-C, 2026-09-27), so MaxOutputTokens and
 //     WithMaxTokens have no effect there. It always sends store false, so
@@ -351,7 +354,7 @@ func (p *provider) deferForm(req *llmprovider.Request) (deferral.Form, responses
 // reasoning, encrypted, so the next turn can replay it.
 const includeEncryptedReasoning = "reasoning.encrypted_content"
 
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -410,14 +413,17 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 	} else {
 		wire.AddResponsesTools(body, tools, req.ToolChoice)
 	}
+	var warnings []llmprovider.Warning
 	if effort, ok := p.effort(req); ok {
+		// EffortMax by the model's facts (0061-MADR D3).
+		effort, warnings = wire.MaxEffort(model, effort, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
 		// The summary makes reasoning items carry text (0020-MADR F24).
 		body["reasoning"] = map[string]any{"effort": effort, "summary": "auto"}
 	}
 	if req.PreviousResponseID != "" {
 		body["previous_response_id"] = req.PreviousResponseID
 	}
-	return body
+	return body, warnings
 }
 
 // effort is the reasoning effort to send, and false for none: the request's
@@ -460,7 +466,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 // stream is set; a ChatGPT session's and a plan session's always do. Only a
 // ChatGPT session sends the Codex backend's headers.
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
-	body := p.body(req, p.facts(ctx, req, token))
+	body, warnings := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 	}
@@ -474,8 +480,8 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		Body:     body,
 		Stream:   streamed,
 		// Deferred tools appended, before GPT-5.4 or for a non-search load
-		// (0040-MADR D7).
-		Warnings: deferral.Warnings(form, req, cmp.Or(req.Model, p.model)),
+		// (0040-MADR D7); EffortMax sent lower (0061-MADR D3).
+		Warnings: append(deferral.Warnings(form, req, cmp.Or(req.Model, p.model)), warnings...),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")

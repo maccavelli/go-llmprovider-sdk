@@ -191,6 +191,7 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
      D3's rules 1 to 3; it returns the effort to send and whether it was
      degraded. Rule 2's target follows the owner's Q9 answer.
    * `func EffortWarning(model string, sent llmprovider.Effort) llmprovider.Warning`.
+   * *(As built, a third: `MaxEffort`; see Phase 3's record.)*
 3. **Each provider,** where its effort is chosen, when the request's effort
    is `EffortMax`: `ResolveMax` with its facts, then its own wire mapping,
    appending `EffortWarning` to the `Response`'s `Warnings` when degraded or
@@ -214,13 +215,16 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
      `['low','high','max']`; no facts.
    * In each provider package, `TestEffortMax_Mapping_0061`: with facts
      listing `max`, without, and with none, the request body's effort field
-     and the `Response.Warnings`, as D3's table says.
+     and the `Response.Warnings`, as D3's table says. *(As built: one table
+     across the providers, and OpenCode's chat route in its own package; see
+     Phase 3's record.)*
    * `llmprovider/internal/wirecase`: the scenario `effort-max`
      (`Reasoning{Effort: EffortMax}`); its 20 goldens recorded with `-update`,
      each diffed against D3's table before it is committed.
 6. **Plants:** `valid()` without `EffortMax` (its test fails); `ResolveMax`
    always returning `max` (the rules test and Grok's and Gemini's mappings
-   fail); Grok's order without `effortMax` (its mapping fails).
+   fail); Grok's order without `effortMax` (its mapping fails). *(As
+   built: five; see Phase 3's record.)*
 7. **Docs:** each provider's package doc, under Degradations; `CHANGELOG.md`
    Added.
 
@@ -503,4 +507,117 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
   clean"; `scripts/check_changelog.py`, 0 problems; `make tables-check`, 0
   problems; `python3 -B tools/gate.py`, "gate: 28 of 28 passed";
   `tools/claims.py` on the MADR, 58 of 58.
+* **Committed** by the owner as `ea33b32` and `1b46940`. `ea33b32` holds
+  part of the phase and does not build: `catalog/discovery.go` calls
+  `transport.WrapOffline` eight times and `listing_metadata.go` once, and
+  neither imports `internal/transport`; `1b46940` adds the imports, the
+  remaining sites, the tests and the docs. The owner chose to keep both
+  ("option 1").
 * **Not done here:** Phases 3 to 8.
+
+### Phase 3: `EffortMax` (2026-10-24)
+
+* **Step 1.** `effortMax = "max"` in `constants.go`; `EffortMax` after
+  `EffortXHigh` in `contract.go`, which `valid()` accepts; and
+  `WarningEffortDegraded` in `warning.go`, each documented as D3 says.
+  `catalog.ModelReasoning.Efforts`' doc, which called `max` a name without a
+  constant, names `EffortMax`.
+* **Step 2.** `llmprovider/internal/wire/effort.go`: `ResolveMax` and
+  `EffortWarning`, as planned, and a third, `MaxEffort`, which returns an
+  effort unchanged unless it is `EffortMax`, and otherwise `ResolveMax`'s,
+  with the warning when degraded; seven providers call it, so the rule is
+  written once. The warning's `Detail` is "reasoning effort max is not
+  offered for MODEL; sent EFFORT".
+* **Step 3, the providers.** Each provider's `body` returns its warnings
+  beside the body, and its `call` appends them to `deferral.Warnings`'s in
+  `wire.Call.Warnings`; no test calls `body`. `claude`'s `addReasoning`
+  takes the model's facts and returns the warnings; `openai`, `huggingface`
+  and `together` call `MaxEffort` in `body`; `ollama`'s `effort` and
+  `kilo`'s `reasoningFields` take the model and its facts and call it,
+  `ollama`'s after its `xhigh` to `"max"`; `grok`'s `effort` returns the
+  warning when the clamp sends below `max`; `gemini`'s `body` resolves `max`
+  before `thinkingLevelFor`, whose signature its tests use, and warns with
+  the level sent; `opencode`'s `resolve` sets the call's effort and
+  warnings by `maxOnRoute`, and `wireCall` appends them.
+* **Deviation (2026-10-24): four corrections and one clarification,**
+  recorded in the MADR's amendment "Phase 3's corrections"; no decision
+  changes:
+  * Kilo has no messages route; D3's first row named one;
+  * on Grok, facts that list `max` send `max` (rule 1), because the clamp's
+    menu is the facts' efforts in `effortOrder`, which now holds `max`; and
+    Grok's "`xhigh`" is the clamp's highest, `high` for `grok-4.5`;
+  * Gemini and OpenCode's google route send `high` where `ResolveMax`
+    returns `max`; on the google route with no facts that is the dynamic
+    thinking budget, as for `xhigh`;
+  * a warning names an effort sent: an omitted effort carries none;
+  * rule 3 covers facts that list none of `low`, `medium`, `high` and
+    `xhigh`.
+* **Step 4, the drift check:** `go test -race -count=1 -shuffle=on ./...`:
+  ok, every existing test unchanged; `make pre-add-check` runs the
+  packages' tests again.
+* **Step 5, the tests.** `TestEffortMax_Valid_0061`;
+  `TestResolveMax_Rules_0061` (the five planned cases and four more: `low`
+  only, another order, facts known and empty, facts of `none` and
+  `minimal`); `TestMaxEffort_Warning_0061`. **A deviation in layout:** in
+  place of a test in each provider package, `TestEffortMax_Mapping_0061` in
+  `llmprovider/providers/effortmax_0061_test.go` is one table of eleven
+  provider and route cases, each at rule 1, rule 2 and no facts, through
+  `Generate`, with the facts from a caller's layer
+  (`catalog.WithModelLayer`), as `facts_0041_test.go` does; it checks the
+  body's effort and `Response.Warnings`. OpenCode's chat route reads its
+  efforts from the models.dev document, not the facts' layers, so it has
+  its own, `TestEffortMax_ChatRoute_0061`, in its package. The G-wire
+  scenario `effort-max` records the response and its warnings; its 20
+  goldens, with no facts, were checked against D3's table by a script that
+  prints each body's effort and warnings: `max` for Claude, OpenAI's four,
+  Hugging Face, Kilo, Ollama, Together, OpenCode's responses routes and
+  Zen's messages route; Gemini `high`, warned; Grok's two `high` (its case
+  model is `grok-4.5`), warned; OpenCode's google route a dynamic budget,
+  warned `high`; OpenCode Go's messages route none (`qwen3.8-flash` takes a
+  budget, as its `thinking` golden shows); the chat routes none, with no
+  document. G-wire now has 13 scenarios and 247 goldens (Phase 6 corrects
+  `docs/architecture.md`'s count, F16). Red first, on a scratch clone of
+  `1b46940` with the tests copied in: with the new names declared in shims
+  of no behaviour, every test failed, for example:
+
+  ```text
+  contract_0061_test.go:17: a request at EffortMax: llmprovider: invalid request: unknown reasoning effort "max"; want valid
+  effort_0061_test.go:39: facts to high (rule 2, Q9): ResolveMax([low medium high], true) = "max", false; want "high", true
+  effortmax_0061_test.go:105: claude/claude-sonnet-5, rule 1: llmprovider: invalid request: unknown reasoning effort "max"
+  effortmax_0061_test.go:41: Generate: llmprovider: invalid request: unknown reasoning effort "max"
+  ```
+
+  With steps 1 and 2 in place and no provider changed, the two `llmprovider`
+  tests passed and every provider's mapping failed, for example:
+
+  ```text
+  effortmax_0061_test.go:108: claude/claude-sonnet-5, rule 2: sent "max"; want "high"
+  effortmax_0061_test.go:108: grok/grok-4.6, rule 1: sent "xhigh"; want "max"
+  effortmax_0061_test.go:121: grok/grok-4.6, no facts: warnings []; want one naming xhigh
+  effortmax_0061_test.go:108: gemini/gemini-3.8-flash, rule 1: sent "max"; want "high"
+  effortmax_0061_test.go:121: opencode-zen/gemini-3.8-flash, no facts: warnings []; want one naming high
+  effortmax_0061_test.go:44: reasoning_effort = ""; want "high"
+  ```
+
+* **Step 6, the plants,** all five caught (`tools/plant.py`), the planned
+  three and two more: `valid()` without `EffortMax`
+  (`unknown reasoning effort "max"; want valid`); `ResolveMax` always `max`
+  (`claude/claude-sonnet-5, rule 2: sent "max"; want "high"`); Grok's order
+  without `effortMax` (`grok/grok-4.6, rule 1: sent "xhigh"; want "max"`);
+  OpenAI's `call` dropping the effort warning
+  (`openai/gpt-6-luna, rule 2: warnings []; want one naming high`);
+  OpenCode's google route sending `max`
+  (`opencode-zen/gemini-3.8-flash, rule 1: sent "max"; want "high"`).
+* **Step 7, docs:** each of the nine provider packages' doc, under
+  Degradations; `CHANGELOG.md` Added; `docs/architecture.md`: the
+  `internal/wire` row names the three functions, and "Response.Warnings"
+  names `WarningEffortDegraded`.
+* **The exports,** `tools/apidiff.py v1.22.2`: "./llmprovider.EffortMax:
+  added", "./llmprovider.WarningEffortDegraded: added", beside Phases 1 and
+  2's; nothing else.
+* **The checks:** `make pre-add-check` on the 20 Go files, "20 file(s)
+  clean (gofmt, golangci-lint, go vet, go test, govulncheck)"; `tools/recordlint.py
+  --changed`, no rule rose; `tools/denyscan.py --changed`, 0 hits;
+  `tools/claims.py` on the MADR, 58 of 58; `python3 -B tools/gate.py`,
+  "gate: 28 of 28 passed".
+* **Not done here:** Phases 4 to 8.

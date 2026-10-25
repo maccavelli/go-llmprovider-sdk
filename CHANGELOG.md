@@ -26,6 +26,15 @@ tag and its commit without notes; its notes are its section here.
   context ended, a TLS failure and any HTTP response are not offline
   ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
   D2; issue #9).
+- `llmprovider.EffortMax`, the highest tier a service names, above `xhigh`
+  where it has both, and `WarningEffortDegraded`. Each provider sends it as
+  its wire's `max` where the model's facts list `max` or list no efforts;
+  on a model whose facts list efforts without it, the highest listed below
+  it, warned. Grok and Gemini have no `max`: Grok clamps it to the model's
+  highest effort and Gemini sends `high`, warned; OpenCode's google route
+  sends `high`, warned
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
+  D3; issue #9).
 
 ### Changed
 

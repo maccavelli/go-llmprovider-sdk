@@ -31,6 +31,9 @@
 //     {enabled: true} with none, when the model accepts "reasoning"; else
 //     reasoning_effort (medium with none) when it accepts that. A Budget is
 //     not sent.
+//   - EffortMax is sent as "max" in either field. On a model whose facts
+//     list efforts without max, the highest listed below it is sent, with a
+//     WarningEffortDegraded (0061-MADR D3).
 //   - A tool choice is sent only when the model accepts tool_choice;
 //     otherwise the tools are offered unforced, and ToolChoiceNone sends no
 //     tools (0020-MADR F40).
@@ -281,7 +284,7 @@ func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, t
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
 	endpoints := kiloendpoint.Resolve(p.baseURL, token.Value, p.org)
 	gateway, org := endpoints.Gateway, endpoints.Org
-	body := p.body(req, p.facts(ctx, req, token))
+	body, warnings := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -294,7 +297,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		URL:      gateway + "/chat/completions",
 		Body:     body,
 		Stream:   stream,
-		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
+		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0061-MADR D3
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			r.Header.Set(headerEditor, p.editor)
@@ -320,7 +323,7 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 }
 
 // body is the Chat Completions request for req, with its model's facts.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -336,7 +339,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	effort, reasoning := p.reasoningFields(req)
+	effort, reasoning, warnings := p.reasoningFields(req, model, facts)
 	body := chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{
 		ReasoningEffort: effort,
 		Reasoning:       reasoning,
@@ -362,20 +365,23 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 	if req.Cache != "" && strings.HasPrefix(model, "anthropic/") {
 		body["cache_control"] = messages.CacheMarker(req.Cache)
 	}
-	return body
+	return body, warnings
 }
 
 // reasoningFields are one call's reasoning fields (MADR 0009 §6): with
 // reasoning requested, Kilo's reasoning object when the model accepts
 // "reasoning" — {effort} with an effort, else {enabled: true} — else
-// reasoning_effort, medium with none, when it accepts that.
-func (p *provider) reasoningFields(req *llmprovider.Request) (effort string, reasoning map[string]any) {
+// reasoning_effort, medium with none, when it accepts that. EffortMax is
+// resolved by the model's facts, with the warning when it is sent lower
+// (0061-MADR D3).
+func (p *provider) reasoningFields(req *llmprovider.Request, model string, facts catalog.ModelInfo) (effort string,
+	reasoning map[string]any, warnings []llmprovider.Warning) {
 	r := req.Reasoning
 	if r == nil {
 		r = p.reasoning
 	}
 	if r == nil {
-		return "", nil
+		return "", nil, nil
 	}
 	e := r.Effort
 	if e == "" && p.reasoning != nil {
@@ -384,16 +390,18 @@ func (p *provider) reasoningFields(req *llmprovider.Request) (effort string, rea
 	switch {
 	case p.supports(paramReasoning):
 		if e != "" {
-			return "", map[string]any{"effort": string(e)}
+			e, warnings = wire.MaxEffort(model, e, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+			return "", map[string]any{"effort": string(e)}, warnings
 		}
-		return "", map[string]any{"enabled": true}
+		return "", map[string]any{"enabled": true}, nil
 	case p.supports(paramReasoningEffort):
 		if e != "" {
-			return string(e), nil
+			e, warnings = wire.MaxEffort(model, e, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+			return string(e), nil, warnings
 		}
-		return string(llmprovider.EffortMedium), nil
+		return string(llmprovider.EffortMedium), nil, nil
 	}
-	return "", nil
+	return "", nil, nil
 }
 
 // ListModels returns the curated gateway listing, falling back to the static

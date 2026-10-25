@@ -28,6 +28,9 @@
 //   - Reasoning takes an effort, sent as reasoning_effort (medium with none).
 //     Ollama's levels top out at "max", so EffortXHigh is sent as "max". A
 //     Budget is not sent.
+//   - EffortMax is sent as "max". On a model whose facts list efforts
+//     without max, the highest listed below it is sent, with a
+//     WarningEffortDegraded (0061-MADR D3).
 //   - Instructions are sent as a leading system message.
 //
 // ListModels returns the installed models, probing each listed model with one
@@ -223,7 +226,7 @@ func isAssistantTurn(item llmprovider.Item) bool {
 // call is the Chat Completions request for req, asking for an event stream
 // with its usage when stream is set (0031-MADR E5).
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
-	body := p.body(req, p.facts(ctx, req, token))
+	body, warnings := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -236,7 +239,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		URL:      p.baseURL + "/v1/chat/completions",
 		Body:     body,
 		Stream:   stream,
-		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
+		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0061-MADR D3
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// Ollama takes no credential: a token is sent only where it names its
@@ -252,7 +255,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 }
 
 // body is the Chat Completions request for req.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -268,24 +271,27 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
+	effort, warnings := p.effort(req, model, facts)
 	// Ollama does not support tool_choice: every tool is offered and none
 	// forced, and ToolChoiceNone sends no tools (0020-MADR F40). Deferred
 	// tools are appended as loaded (0040-MADR D6).
-	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req),
+	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: effort,
 		ReplayReasoningField: replayField(input, facts),
-		Tools:                deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)), ToolChoice: req.ToolChoice, NoToolChoice: true})
+		Tools:                deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)), ToolChoice: req.ToolChoice, NoToolChoice: true}), warnings
 }
 
 // effort is reasoning_effort for req: the request's Reasoning, else
 // WithReasoning's, an empty effort taken from WithReasoning, else medium; ""
-// for no reasoning. EffortXHigh becomes Ollama's "max".
-func (p *provider) effort(req *llmprovider.Request) string {
+// for no reasoning. EffortXHigh becomes Ollama's "max"; EffortMax is resolved
+// by the model's facts, with the warning when it is sent lower (0061-MADR
+// D3).
+func (p *provider) effort(req *llmprovider.Request, model string, facts catalog.ModelInfo) (string, []llmprovider.Warning) {
 	r := req.Reasoning
 	if r == nil {
 		r = p.reasoning
 	}
 	if r == nil {
-		return ""
+		return "", nil
 	}
 	effort := llmprovider.EffortMedium
 	switch {
@@ -295,9 +301,10 @@ func (p *provider) effort(req *llmprovider.Request) string {
 		effort = p.reasoning.Effort
 	}
 	if effort == llmprovider.EffortXHigh {
-		return maxEffort
+		return maxEffort, nil
 	}
-	return string(effort)
+	sent, warnings := wire.MaxEffort(model, effort, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+	return string(sent), warnings
 }
 
 // ListModels returns the installed models, probed unless

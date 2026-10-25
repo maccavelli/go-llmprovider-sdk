@@ -30,6 +30,7 @@ const (
 	effortMedium = "medium"
 	effortHigh   = "high"
 	effortXHigh  = "xhigh"
+	effortMax    = "max"
 )
 
 // Item envelope types for Responses API and canonical item models.

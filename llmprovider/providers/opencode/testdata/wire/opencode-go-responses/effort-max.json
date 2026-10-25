@@ -1,0 +1,67 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/responses",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer opencode-wire-key",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Opencode-Session": "wire-session"
+      },
+      "body": {
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "input": [
+          {
+            "content": "What is the weather in Paris?",
+            "role": "user"
+          }
+        ],
+        "max_output_tokens": 8192,
+        "model": "grok-4.7",
+        "reasoning": {
+          "effort": "max",
+          "summary": "auto"
+        },
+        "store": false
+      }
+    }
+  ],
+  "result": {
+    "response": {
+      "finish_reason": "tool_calls",
+      "id": "resp_wire",
+      "output": [
+        {
+          "item": {
+            "Text": "thinking",
+            "Signature": "",
+            "Encrypted": "",
+            "Format": "responses"
+          },
+          "type": "ReasoningItem"
+        },
+        {
+          "item": {
+            "Role": "assistant",
+            "Text": "hello"
+          },
+          "type": "MessageItem"
+        },
+        {
+          "item": {
+            "CallID": "call_wire",
+            "Name": "get_weather",
+            "Arguments": "{\"city\":\"Paris\"}",
+            "Signature": ""
+          },
+          "type": "FunctionCallItem"
+        }
+      ]
+    },
+    "warnings": null
+  }
+}

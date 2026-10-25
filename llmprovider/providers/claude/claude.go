@@ -57,6 +57,10 @@
 //     thinking, with the effort as output_config.effort; a Budget is not sent
 //     to them. Older models take a budget: Reasoning.Budget, else 1024 for
 //     EffortLow, else 4096, with the output limit raised above it.
+//   - EffortMax is output_config.effort "max". On a model whose facts list
+//     efforts without max, the highest listed below it is sent, with a
+//     WarningEffortDegraded (0061-MADR D3). A budget model sends no effort,
+//     at max as at any other.
 //
 // Instructions and system items go to the top-level system field, in that
 // order.
@@ -288,7 +292,7 @@ func (p *provider) modelFor(req *llmprovider.Request) string {
 // call is the Messages request for req, asking for an event stream when
 // stream is set.
 func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, stream bool) wire.Call {
-	body := p.body(req, facts)
+	body, warnings := p.body(req, facts)
 	if stream {
 		body["stream"] = true
 	}
@@ -300,8 +304,9 @@ func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, strea
 		URL:      p.baseURL + "/messages",
 		Body:     body,
 		Stream:   stream,
-		// A model before Claude 4.5 has its deferred tools appended (0040-MADR D7).
-		Warnings: deferral.Warnings(deferral.Of(deferral.Messages, model), req, model),
+		// A model before Claude 4.5 has its deferred tools appended (0040-MADR
+		// D7); EffortMax may be sent lower (0061-MADR D3).
+		Warnings: append(deferral.Warnings(deferral.Of(deferral.Messages, model), req, model), warnings...),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, "x-api-key", "")
@@ -342,7 +347,7 @@ func outputLimit(info catalog.ModelInfo) int {
 }
 
 // body is the Messages request for req, with its model's facts.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
 	model := p.modelFor(req)
 	maxTokens := p.maxTokens
 	if req.MaxOutputTokens > 0 {
@@ -371,7 +376,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 	if len(system) > 0 {
 		body["system"] = strings.Join(system, "\n\n")
 	}
-	thinking := p.addReasoning(body, req, model, maxTokens, thinkingFacts(facts))
+	thinking, warnings := p.addReasoning(body, req, model, maxTokens, facts)
 	if tools := deferral.Tools(req, form); len(tools) > 0 {
 		if form == deferral.MessagesNative {
 			body["tools"] = wire.MessagesToolsNative(tools)
@@ -382,20 +387,21 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 	}
 	// Last, once the system and tools are set (0039-MADR D2).
 	messages.AddCache(body, req.Cache)
-	return body
+	return body, warnings
 }
 
 // addReasoning adds the thinking fields for the request's Reasoning, or
 // WithReasoning's, in the shape the model's facts give, and reports whether
-// it did. Each of effort and budget falls back to WithReasoning's.
+// it did, with the warning when EffortMax was sent lower (0061-MADR D3). Each
+// of effort and budget falls back to WithReasoning's.
 func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, model string, maxTokens int,
-	facts messages.Thinking) bool {
+	info catalog.ModelInfo) (bool, []llmprovider.Warning) {
 	r := req.Reasoning
 	if r == nil {
 		r = p.reasoning
 	}
 	if r == nil {
-		return false
+		return false, nil
 	}
 	effort, budget := r.Effort, r.Budget
 	if p.reasoning != nil {
@@ -406,8 +412,9 @@ func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, m
 			budget = p.reasoning.Budget
 		}
 	}
-	body["max_tokens"] = messages.AddThinkingFor(body, model, string(effort), budget, maxTokens, facts)
-	return true
+	effort, warnings := wire.MaxEffort(model, effort, info.Reasoning.Efforts, info.Has(catalog.FieldReasoningEfforts))
+	body["max_tokens"] = messages.AddThinkingFor(body, model, string(effort), budget, maxTokens, thinkingFacts(info))
+	return true, warnings
 }
 
 // ListModels returns curated Claude text models (Models API and catalog),

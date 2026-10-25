@@ -26,6 +26,9 @@
 //     accepts it for some models only (openai/gpt-oss-*, DeepSeek-V4-Pro). A
 //     Budget is not sent. A request with no reasoning sends neither, so the
 //     model's own default applies.
+//   - EffortMax is sent as "max". On a model whose facts list efforts
+//     without max, the highest listed below it is sent, with a
+//     WarningEffortDegraded (0061-MADR D3).
 //   - Instructions are sent as a leading system message.
 //   - ToolChoiceRequired and ToolChoiceNone are sent as "required" and
 //     "none", the Chat Completions values. Measured 2026-10-03: "required" is
@@ -224,7 +227,7 @@ func isAssistantTurn(item llmprovider.Item) bool {
 // call is the Chat Completions request for req, asking for an event stream
 // with its usage when stream is set (0031-MADR E5).
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
-	body := p.body(req, p.facts(ctx, req, token))
+	body, warnings := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -237,7 +240,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		URL:      p.baseURL + "/chat/completions",
 		Body:     body,
 		Stream:   stream,
-		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
+		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0061-MADR D3
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")
@@ -249,7 +252,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 }
 
 // body is the Chat Completions request for req.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -268,14 +271,18 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 	// Deferred tools are appended as loaded (0040-MADR D6).
 	o := chatcompletions.Opts{Tools: deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)),
 		ToolChoice: req.ToolChoice, SendStrict: true}
+	var warnings []llmprovider.Warning
 	if r := p.reasoningFor(req); r != nil {
 		o.Reasoning = map[string]any{"enabled": true}
-		o.ReasoningEffort = p.effort(r)
+		// EffortMax by the model's facts (0061-MADR D3).
+		var effort llmprovider.Effort
+		effort, warnings = wire.MaxEffort(model, llmprovider.Effort(p.effort(r)), facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+		o.ReasoningEffort = string(effort)
 	}
 	o.ReplayReasoningField = replayField(input, facts)
 	body := chatcompletions.Body(model, maxTokens, input, o)
 	wire.AddPromptCacheKey(body, req.Cache, p.session) // 0039-MADR D3
-	return body
+	return body, warnings
 }
 
 // reasoningFor is req's Reasoning, else WithReasoning's; nil for none.

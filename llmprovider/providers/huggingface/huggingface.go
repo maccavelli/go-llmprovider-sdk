@@ -28,6 +28,9 @@
 //   - A tool's Strict is sent as function.strict (0032-MADR D2).
 //   - Reasoning takes an effort, sent as reasoning_effort (medium with none);
 //     a Budget is not sent.
+//   - EffortMax is sent as "max". On a model whose facts list efforts
+//     without max, the highest listed below it is sent, with a
+//     WarningEffortDegraded (0061-MADR D3).
 //   - Instructions are sent as a leading system message.
 //   - ToolChoiceRequired is sent as "required", the Chat Completions value.
 //     ToolChoiceNone is kept by sending no tools and no tool_choice: the
@@ -221,7 +224,7 @@ func isAssistantTurn(item llmprovider.Item) bool {
 // call is the Chat Completions request for req, asking for an event stream
 // with its usage when stream is set (0031-MADR E5).
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
-	body := p.body(req, p.facts(ctx, req, token))
+	body, warnings := p.body(req, p.facts(ctx, req, token))
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -234,7 +237,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		URL:      p.baseURL + "/chat/completions",
 		Body:     body,
 		Stream:   stream,
-		Warnings: deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), // 0040-MADR D7
+		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0061-MADR D3
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")
@@ -246,7 +249,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 }
 
 // body is the Chat Completions request for req.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[string]any {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -269,9 +272,11 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) map[s
 		// tool_use_failed, so none is kept by offering no tools (0023-MADR).
 		tools, choice = nil, llmprovider.ToolChoiceAuto
 	}
-	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: p.effort(req),
+	// EffortMax by the model's facts (0061-MADR D3).
+	effort, warnings := wire.MaxEffort(model, llmprovider.Effort(p.effort(req)), facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: string(effort),
 		ReplayReasoningField: replayField(input, facts),
-		Tools:                tools, ToolChoice: choice, SendStrict: true})
+		Tools:                tools, ToolChoice: choice, SendStrict: true}), warnings
 }
 
 // effort is reasoning_effort for req: the request's Reasoning, else
