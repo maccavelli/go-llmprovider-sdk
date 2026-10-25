@@ -112,7 +112,7 @@ standard library is left out.
 | `llmprovider/providers/huggingface` | Hugging Face through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/together` | Together AI through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/ollama` | Ollama through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/wire/chatcompletions`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
-| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; `Send` and `StreamEventsRetry`, the openers that build a request again and send it once more while a `Retry` check says so, at most `MaxSends` (7) times (0062-MADR D5); `Retries`, which joins checks; `OpenStream` and `Stream`, a reply held open while its events are read; `ReadEvents`, the server-sent-events reader every wire's stream decoder uses, with its `EventLimit`, which marks a decoder's error as after the reply (0053-MADR D3); `StreamIndex` and `MaxStreamIndex` (4096), the bound on every index a stream sends, past which the stream ends with `ErrIncomplete` (0053-MADR D2); `StreamEvents` and `StreamEventsFor`, the native stream every provider's `Stream` runs; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule; `ProbeHealth`, a listing's probes through a probe store; `Arena`, which holds the strings a request body points to; `Ladder`, the efforts a request may be sent at, and `DegradedWarning` (0062-MADR D3); `Learned`, the memo of refused thinking settings, `Learner`, one request's effort and its `Retry` check, `Matcher` and `Refusal`, what a wire's matcher reads, with `QuotedEfforts` and `PlainEfforts` (0062-MADR D4, D5); `ResolveMax`, `MaxEffort` and `EffortWarning`, which only Ollama decides by until its refusals are recorded (0061-MADR D3; 0062-MADR Q9 (c)) | `llmprovider`, `internal/transport`, `internal/redact` |
+| `llmprovider/internal/wire` | the JSON keys, `ToolArguments` and `SystemPrompt` that the shared formats use; `Post`, `Reauth` and `DecodeError`, the request path every provider sends through; `Send` and `StreamEventsRetry`, the openers that build a request again and send it once more while a `Retry` check says so, at most `MaxSends` (7) times (0062-MADR D5); `Retries`, which joins checks; `OpenStream` and `Stream`, a reply held open while its events are read; `ReadEvents`, the server-sent-events reader every wire's stream decoder uses, with its `EventLimit`, which marks a decoder's error as after the reply (0053-MADR D3); `StreamIndex` and `MaxStreamIndex` (4096), the bound on every index a stream sends, past which the stream ends with `ErrIncomplete` (0053-MADR D2); `StreamEvents` and `StreamEventsFor`, the native stream every provider's `Stream` runs; the shared tool lists; `RemapCallIDs`, which fits another wire's call ids to a wire's rule; `ProbeHealth`, a listing's probes through a probe store; `Arena`, which holds the strings a request body points to; `Ladder`, the efforts a request may be sent at, and `DegradedWarning` (0062-MADR D3); `Learned`, the memo of refused thinking settings, `Learner`, one request's effort and its `Retry` check, `Matcher` and `Refusal`, what a wire's matcher reads, with `QuotedEfforts` and `PlainEfforts` (0062-MADR D4, D5) | `llmprovider`, `internal/transport`, `internal/redact` |
 | `llmprovider/internal/wire/responses` | the OpenAI Responses wire: `Input`, `Decode`, `DecodeFor`, `ReadStream`; `MatchRefusal`, its refusals of an effort (0062-MADR D4); `Events`, which yields a stream's events as they arrive; for deferred tools, `InputLoading` (the native form), `InputDispatch` (Grok's wrapper) and `Decoder`, which names the Search tool and the dispatched ones | `llmprovider`, `internal/wire`, `internal/redact`, `internal/wire/deferral` |
 | `llmprovider/internal/wire/chatcompletions` | the Chat Completions wire: `Opts`, `Body`, `Decode`, `DecodeFor`, `Events`; `MatchRefusal`, its refusals of an effort (0062-MADR D4) | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking`, `PreferredShape` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning`; `MatchRefusal`, its refusals of a thinking shape or an effort (0062-MADR D4) | `llmprovider`, `internal/wire` |
@@ -297,8 +297,6 @@ Face and Ollama for the replay field, `ModelReasoning.ReplayField`. A
 refusal the model returned outranks the facts: the effort and the thinking
 shape sent are those it has not refused, then those its facts list, then
 the request's (0062-MADR D2, D3). With no facts, the request decides.
-Ollama, whose refusals are not read yet, sends the request's effort, and
-`EffortMax` by its facts (0061-MADR D3).
 
 These caches, and the models.dev document's and the probes', are the
 process's, shared by every listing and provider, unless a caller gives
@@ -311,7 +309,7 @@ only by the listings and providers given it;
 catalog's store, a `transport.ProbeStore`, which each provider reads in `New`
 and passes to `wire.ProbeHealth`, a `messages.Refusals`, which Claude and
 OpenCode give to their forced-choice policy, and a `wire.Learned`, which
-every provider but Ollama gives to each request's `wire.Learner`.
+every provider gives to each request's `wire.Learner`.
 A model no layer knows is not an error; a failed source is joined into
 `LookupModel`'s error, beside what the other layers set.
 
@@ -426,7 +424,9 @@ for a session, from the store.
   0062-PLAN Phase 1 recorded, learned by `wire.Learner` in `wire.Send` and
   `wire.StreamEventsRetry`, and the request built again, at most
   `wire.MaxSends` (7) sends in all, a forced-choice refusal counted in them
-  (D4, D5). Ollama decides as before until its refusals are recorded.
+  (D4, D5). Ollama has no matcher, no refusal of an effort it can send
+  having been recorded, and learns nothing; a refusal passed back still
+  steers it (0062-MADR, amendment "Phase 5's Ollama cases").
 - `Response.Usage` is decoded from every wire format that reports it. A
   total holds its part: `InputTokens` includes `CachedTokens`, and
   `OutputTokens` includes `ReasoningTokens`. Anthropic's cache reads and

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -14,15 +15,19 @@ import (
 // TestRefusal_Fixtures_0062 (0062-MADR D4): on every recorded failure of the
 // Chat Completions wire, MatchRefusal reads exactly the refusals the MADR's
 // amendment "Phase 1's evidence" lists, with their values and lists, and
-// matches no failure of another cause.
+// matches no failure of another cause; nor either of Ollama's, recorded in
+// Phase 5, which has no matcher (the amendment "Phase 5's Ollama cases").
 func TestRefusal_Fixtures_0062(t *testing.T) {
 	all := []llmprovider.Effort{"low", "medium", "high", "xhigh", "max"}
 	want := map[string]wire.Refusal{
 		"huggingface-deepseek-v4.1-flash-bogus": {Effort: "bogus", Accepted: all, Listed: true},
 		"kilo-gpt-6-luna-bogus":                 {Effort: "bogus", Accepted: all, Listed: true},
 	}
-	seen := 0
+	seen, ollama := 0, 0
 	for _, r := range refusalFixtures(t, filepath.Join("..", "testdata", "refusals-0062", "chatcompletions")) {
+		if strings.HasPrefix(r.Case, "ollama-") {
+			ollama++
+		}
 		got, ok := MatchRefusal(r.err(), r.sent())
 		w, refused := want[r.Case]
 		switch {
@@ -38,6 +43,9 @@ func TestRefusal_Fixtures_0062(t *testing.T) {
 	}
 	if seen != len(want) {
 		t.Errorf("%d of the %d refusals were recorded", seen, len(want))
+	}
+	if ollama != 2 {
+		t.Errorf("%d of Ollama's failures were read; want its two, bogus and the empty input, neither matched", ollama)
 	}
 }
 

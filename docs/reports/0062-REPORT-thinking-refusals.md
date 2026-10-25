@@ -45,13 +45,18 @@ recorded them. Every finding here is measured, from the records.
 * **Phase 3's four cases.** Before D2's level replaced 0013-MADR B9's dynamic
   budget on generateContent, the PLAN's Phase 3 stopped and the owner chose
   to record first: `thinkingLevel` `low`, `medium`, `high` and `xhigh` on
-  Zen's google route for `gemini-3.8-flash`, sent on 2026-10-25. 57 cases in
-  all.
+  Zen's google route for `gemini-3.8-flash`, sent on 2026-10-25.
+* **Phase 5's five cases.** Ollama, deferred by 0062-MADR Q9 (c), on the
+  owner's local instance, 0.33.2 by `GET /api/version`, with `gpt-oss:20b`,
+  the installed thinking model whose thinking takes levels:
+  `reasoning_effort` `"xhigh"`, `"max"` and `"bogus"`, and the two other
+  causes, sent on 2026-10-25 by the same recorder. No key: Ollama takes
+  none. The records hold the model, never the host. 62 cases in all.
 
 | Outcome | Status | Cases |
 | :--- | ---: | ---: |
-| accepted | 200 | 22 |
-| refused | 400 | 34 |
+| accepted | 200 | 25 |
+| refused | 400 | 36 |
 | unreachable | 404 | 1 |
 
 ## Findings
@@ -134,6 +139,16 @@ recorded them. Every finding here is measured, from the records.
   refused, 400 `INVALID_ARGUMENT`, "Upstream request failed: [400] Invalid
   value at 'generation_config.thinking_config.thinking_level'", with no
   list.
+* **E12. Ollama takes every effort, xhigh included, and counts no
+  reasoning.** On `gpt-oss:20b`, Ollama 0.33.2 accepts `reasoning_effort`
+  `"xhigh"` and `"max"`, and refuses `"bogus"`, 400
+  `invalid_request_error`, "invalid reasoning value: \"bogus\" (must be
+  \"minimal\", \"low\", \"medium\", \"high\", \"xhigh\", \"ultra\",
+  \"max\", or \"none\")": a vocabulary with `xhigh`, and `ultra`, which is
+  no `Effort`. Its replies count usage but no reasoning tokens, so whether
+  `xhigh` is used, or read as another level, cannot be seen (0062-MADR F4).
+  An empty input is 400 "[] is too short - 'messages'"; a string schema is
+  accepted.
 
 ## The records, by wire
 
@@ -258,3 +273,23 @@ Other causes:
 | `opencode-zen-chat-string-schema-tool` | opencode-zen/chat_completions | `glm-5.3` | a tool, schema `{"type":"string"}` | accepted (45 reasoning tokens) | 200 |  |  |
 | `together-empty-input` | together | `openai/gpt-oss-120b` | `messages` [] | refused | 400 | `invalid_request_error` | messages: Validation error: messages cannot be empty [{"value": Array []}] |
 | `together-string-schema-tool` | together | `openai/gpt-oss-120b` | a tool, schema `{"type":"string"}` | accepted (70 reasoning tokens) | 200 |  |  |
+
+### Ollama (Phase 5)
+
+On the Chat Completions wire, recorded in the PLAN's Phase 5 (E12). Ollama
+counts no reasoning tokens.
+
+Thinking cases:
+
+| Case | Provider | Model | Sent | Outcome | Status | Code | Message, redacted |
+| :--- | :--- | :--- | :--- | :--- | ---: | :--- | :--- |
+| `ollama-bogus` | ollama | `gpt-oss:20b` | `reasoning_effort` "bogus" | refused | 400 | `invalid_request_error` | invalid reasoning value: "bogus" (must be "minimal", "low", "medium", "high", "xhigh", "ultra", "max", or "none") |
+| `ollama-max` | ollama | `gpt-oss:20b` | `reasoning_effort` "max" | accepted | 200 |  |  |
+| `ollama-xhigh` | ollama | `gpt-oss:20b` | `reasoning_effort` "xhigh" | accepted | 200 |  |  |
+
+Other causes:
+
+| Case | Provider | Model | Sent | Outcome | Status | Code | Message, redacted |
+| :--- | :--- | :--- | :--- | :--- | ---: | :--- | :--- |
+| `ollama-empty-input` | ollama | `gpt-oss:20b` | `messages` [] | refused | 400 | `invalid_request_error` | [] is too short - 'messages' |
+| `ollama-string-schema-tool` | ollama | `gpt-oss:20b` | a tool, schema `{"type":"string"}` | accepted | 200 |  |  |

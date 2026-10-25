@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -161,6 +162,32 @@ func TestRefusalCases_Table_0062(t *testing.T) {
 		if n != 2 {
 			t.Errorf("%s: %d other-cause case(s); want 2", route, n)
 		}
+	}
+}
+
+// TestRefusalCases_Ollama_0062 (0062-PLAN Phase 5, step 1): Ollama's cases
+// are reasoning_effort xhigh, max and bogus, and the two other causes, on the
+// model named, under ids that do not hold it.
+func TestRefusalCases_Ollama_0062(t *testing.T) {
+	cases := ollamaRefusalCases("qwen3:8b")
+	ids := make([]string, len(cases))
+	efforts := []any{}
+	for i, c := range cases {
+		ids[i] = c.id
+		if c.provider != llmprovider.ProviderOllama || c.wire != wireChatCompletions || c.model != "qwen3:8b" ||
+			c.route != "" || strings.ContainsAny(c.id, `/\ :`) {
+			t.Errorf("%s: %+v; want Ollama's Chat Completions, the model named, an id fit for a file", c.id, c)
+		}
+		if c.cause == causeThinking {
+			efforts = append(efforts, c.set["reasoning_effort"])
+		}
+	}
+	want := []string{"ollama-xhigh", "ollama-max", "ollama-bogus", "ollama-empty-input", "ollama-string-schema-tool"}
+	if !slices.Equal(ids, want) || !slices.Equal(efforts, []any{"xhigh", "max", "bogus"}) {
+		t.Errorf("ids %v, efforts %v; want %v, [xhigh max bogus]", ids, efforts, want)
+	}
+	if !cases[4].tool || len(cases[3].set) != 1 {
+		t.Errorf("the other causes: %+v, %+v; want the empty input and the string-schema tool", cases[3], cases[4])
 	}
 }
 

@@ -728,3 +728,35 @@ refuses `xhigh` recognisably. The owner chose, on 2026-10-25:
 * **D8: R4 is removed,** as that amendment says, as dead.
 * **Offered and not chosen:** keeping B9 and removing R4 alone; the level
   with no matcher.
+
+## Amendment 2026-10-25: Phase 5's Ollama cases
+
+D8 decided Ollama's `xhigh` to `"max"` mapping in the PLAN's Phase 5 (Q9
+(c)): removed on a recognisable refusal of `xhigh`, kept if Ollama accepts
+and ignores it (F4). The PLAN's Phase 5 recorded five cases on the owner's
+local Ollama, 0.33.2, with `gpt-oss:20b`:
+[0062-REPORT-thinking-refusals.md](../reports/0062-REPORT-thinking-refusals.md)'s
+E12, and the fixtures `chatcompletions/ollama-*.json`. Ollama accepted
+`xhigh` and `max`, refused `bogus` with its values, `xhigh` among them, and
+counts no reasoning tokens, so whether `xhigh` is used cannot be seen. The
+row met neither outcome; the PLAN stopped, and the owner chose, on
+2026-10-25:
+
+* **D8: Ollama's mapping is removed,** as Q12 (a) removed every other rule
+  whose avoided value was accepted. `xhigh` is sent as `xhigh`.
+* **D3 and D5 for Ollama:** its effort is `Ladder`'s, from the memo, the
+  caller's refusals, the facts and the request, and it sends through
+  `wire.Send` and `StreamEventsRetry`, as every other provider. 0061-MADR
+  D3's rules, which `ResolveMax` kept for Ollama alone, become D2's step 2
+  for it too, and `ResolveMax`, `MaxEffort` and `EffortWarning` are removed.
+  One case changes: facts that list efforts, none of them `low` to `max`,
+  sent `max` by rule 3, and now send no effort, with a
+  `WarningEffortDegraded`, as every other provider has since the PLAN's
+  Phase 2 (`TestLadder_Rungs_0062`, "known to list none: none").
+* **D4: Ollama has no matcher.** Its one recorded refusal of an effort is of
+  a value no `Effort` can be, in a form neither of the Chat Completions
+  matcher's rows reads ("invalid reasoning value: …", its list holding
+  `ultra`, not an effort word). It learns nothing, having nothing recorded
+  to learn; a caller's `WithReasoningRefusals` still steers it.
+* **Offered and not chosen:** keeping the mapping, as the row reads; and
+  measuring first, comparing the reasoning at `high`, `xhigh` and `max`.

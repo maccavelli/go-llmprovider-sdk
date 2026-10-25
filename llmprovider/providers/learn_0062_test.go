@@ -18,7 +18,8 @@ import (
 
 // 0062-MADR D2 to D6: each provider and route learns a refusal of the effort
 // it sent, as its wire was recorded refusing one (0062-PLAN Phase 1), and
-// sends the request again; Ollama is recorded in Phase 5 (Q9 (c)).
+// sends the request again. Ollama, recorded in Phase 5, has no matcher (the
+// amendment "Phase 5's Ollama cases").
 
 // Refusals of max, in each wire's recorded form.
 const (
@@ -32,6 +33,9 @@ const (
 	refusedKilo = `{"error":{"message":"Invalid option: expected one of \"none\"|\"low\"|\"medium\"|\"high\"",` +
 		`"type":"invalid_request_error","param":"reasoning.effort","code":"invalid_request_error"}}`
 	refusedGoogle = `{"error":{"code":400,"status":"INVALID_ARGUMENT","message":"thinking refused"}}`
+	refusedOllama = `{"error":{"message":"invalid reasoning value: \"max\" (must be \"minimal\", \"low\", ` +
+		`\"medium\", \"high\", \"xhigh\", \"ultra\", \"max\", or \"none\")","type":"invalid_request_error",` +
+		`"param":null,"code":null}}`
 )
 
 // refusedResponses is the Responses wire's unsupported_value for max on model.
@@ -117,7 +121,9 @@ func (s *learnServer) efforts() []string {
 // makes a fresh provider skip max from its first request; a Stream learns
 // before its first event. On the google route, a refusal in another form than
 // the one recorded (0062-REPORT-thinking-refusals.md E11) is returned after
-// one send, nothing learned.
+// one send, nothing learned; and on Ollama, which has no matcher, any refusal
+// is. On both, a refusal passed back with WithReasoningRefusals is never
+// sent.
 func TestLearn_Effort_0062(t *testing.T) {
 	route := func(r opencode.Route) []llmprovider.Option { return []llmprovider.Option{opencode.WithRoute(r)} }
 	for _, tc := range []struct {
@@ -138,6 +144,7 @@ func TestLearn_Effort_0062(t *testing.T) {
 		{llmprovider.ProviderTogether, nil, "openai/gpt-oss-120b", refusedHuggingFace, "high"},
 		{llmprovider.ProviderKilo, nil, "openai/gpt-6-luna", refusedKilo, "high"},
 		{llmprovider.ProviderOpencodeZen, route(opencode.RouteGoogle), "gemini-3.8-flash", refusedGoogle, ""},
+		{llmprovider.ProviderOllama, nil, "gpt-oss:20b", refusedOllama, ""},
 	} {
 		name := string(tc.id) + "/" + tc.model
 		build := func(srv *learnServer, more ...llmprovider.Option) llmprovider.Provider {
@@ -161,6 +168,13 @@ func TestLearn_Effort_0062(t *testing.T) {
 		if tc.next == "" {
 			if err == nil || len(srv.efforts()) != 1 {
 				t.Errorf("%s: %d request(s), %v; want the refusal after one, nothing learned", name, len(srv.efforts()), err)
+			}
+			passed := newLearnServer(t)
+			refused := llmprovider.ReasoningRefusal{Model: tc.model, Effort: llmprovider.EffortMax}
+			if _, err := build(passed, llmprovider.WithReasoningRefusals(refused)).Generate(context.Background(),
+				ask()); err != nil || !slices.Equal(passed.efforts(), []string{"xhigh"}) {
+				t.Errorf("%s: with max passed back: %v after %v; want xhigh, the next rung, sent first", name, err,
+					passed.efforts())
 			}
 			continue
 		}

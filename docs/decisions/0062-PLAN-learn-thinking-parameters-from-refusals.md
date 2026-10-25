@@ -1078,3 +1078,200 @@ Done; staged for the owner's commit. Phase 3 is committed as `6359131`.
   `tools/denyscan.py --changed`; `tools/linkcheck.py`.
 * **The gate:** "gate: 28 of 28 passed".
 * **Staged:** this phase's paths.
+
+### Phase 5: Ollama's refusals, and live confirmation (2026-10-25)
+
+Done; staged for the owner's commit. Phase 4 is committed as `c9db48b`.
+
+* **Before any change, steps 1 and 3 as they will be built:**
+  * **Ollama's cases** are a function of the model the owner names,
+    `ollamaRefusalCases(model)`, beside the case table, which stays as
+    `TestRefusalCases_Table_0062` pins it: `ollama-xhigh`, `ollama-max` and
+    `ollama-bogus` (`reasoning_effort`), `ollama-empty-input` and
+    `ollama-string-schema-tool`, each id free of the model's name, which may
+    hold a `:` that no file name on Windows may. The record holds the model,
+    never the host. Ollama takes no key: `recordCase` sends `WithAPIKey`
+    only with one, and the host by `WithBaseURL`. They run in
+    `TestLive_Refusals_0062` only when `LLMPROVIDER_LIVE_0062_OLLAMA` and
+    `LLMPROVIDER_LIVE_0062_OLLAMA_MODEL` are set, and alone by `-run
+    'Live_Refusals_0062/ollama-'`, so that no other case is billed again.
+  * **`TestLive_Learn_0062`'s cases,** one per removed rule, each with the
+    refusals its first request must learn, in order, by Phase 1's fixtures,
+    and so the sends it must make, one more than the refusals:
+    * R1: `claude-sonnet-5` with a `Budget` of 4096 learns the budget shape
+      (`claude-sonnet-5-budget`); `claude-sonnet-4-5-20250929` at `high`
+      learns the adaptive shape (`claude-sonnet-4-5-adaptive-high`);
+      `qwen3.8-flash` on OpenCode Go's messages route at `high` learns
+      nothing (`opencode-go-messages-qwen3.8-flash-adaptive`, Q12 (a)).
+    * R2: `minimax-m3` at `high` learns nothing
+      (`opencode-go-messages-minimax-m3-adaptive-high`).
+    * R5: `gemini-2.5-flash-lite` at `low` learns `low` (a budget's
+      message, Q13 (a)) and `medium` (listing `low` and `high`), and sends
+      `high`: 3 sends.
+    * Gemini's `xhigh` to `high`, and 0061's Gemini row: `gemini-3.8-flash`
+      at `xhigh`, and at `max`, each learns its effort and sends `high`.
+    * R6 and 0061's Grok row: `grok-4.5` at `max` learns `max` and sends
+      `xhigh`, which `grok-4.5-xhigh` was accepted at; `grok-build-0.1` and
+      `grok-4.20-0309-non-reasoning` at `high` learn `high` and send no
+      effort. `grok-4.3` is not used: its `xhigh` was never sent.
+    * 0061's google-route row and 0013's B9: `gemini-3.8-flash` on OpenCode
+      Zen's google route at `max` learns nothing; at `xhigh` it learns
+      `xhigh` and sends `high`.
+    * OpenCode's chat-route gate: `glm-5.3` on Zen's chat route at `max`,
+      without metadata, learns nothing.
+    * R4 has no case: removed as dead, its one reachable model
+      `gemini-2.5-flash` "Model is unavailable" on the google route (E7).
+
+    Each runs with `WithoutModelMetadata`, as Phase 1's cases did, so that
+    the facts do not steer the request away from the refused value, and its
+    own `catalog.Cache`, so that its memo is its own; and checks that the
+    first request succeeds after that many sends with exactly those
+    `WarningReasoningLearned`, and the second after one send with none.
+    The checks are untagged, in `learn_0062_confirm_test.go`, and an offline
+    twin runs them against a local server, as `live_twins_test.go` does
+    (0046-MADR D3), so that they are seen to fail on a plant.
+* **The owner's answers (2026-10-25):** the host is the local Ollama, which
+  a read-only `GET /api/tags` found answering with eight models, three of
+  them thinking models; the model is `gpt-oss:20b`, the one whose thinking
+  takes effort levels (`low`, `medium`, `high`), so that `xhigh` and `max`
+  meet a level menu. The agent runs both live steps with the keys set in
+  the owner's environment, checking only that each variable is set: Ollama's
+  cases first, then the confirmation once step 2 is decided.
+* **Steps 1 and 3, the code:**
+  * `refusals_0062_record_test.go`: `ollamaRefusalCases(model)`; `recordCase`
+    sends `WithAPIKey` only with a key. `live_0062_refusals_measure_test.go`:
+    Ollama's cases under `LLMPROVIDER_LIVE_0062_OLLAMA` and
+    `LLMPROVIDER_LIVE_0062_OLLAMA_MODEL`; `TestLive_Learn_0062` under
+    `LLMPROVIDER_LIVE_0062_CONFIRM`, each case skipped by name without its
+    key. `make tables-check` takes the three variables as this record's.
+  * `learn_0062_confirm_test.go`: `learnConfirms()`, the 13 cases above;
+    `confirmLearn`, whose checks fail apart, the request, then its sends,
+    then what it learned; `TestLearnConfirm_Twin_0062`, eight twins against
+    a local server, each failing one at the check it names.
+  * `refusals_0062_test.go`: `TestRefusalCases_Ollama_0062`.
+  * **Plants,** by `tools/plant.py` on scratch clones: 8, all caught: the
+    second request unchecked (`the second request refused again: <nil>;
+    want it to fail at "request 2: 2 send(s); want 1"`); the sends
+    unchecked; the refusals learned compared by count alone (`another
+    refusal learned than the case's: <nil>; want it to fail at "request 1:
+    learned"`), a first version of which, deleting the check, was caught
+    only by its build and was planted again; a failed request unchecked; a
+    case dropped; Ollama's `max` case dropped; Ollama's ids holding the
+    model.
+  * `make pre-add-check` on the 4 files, "4 file(s) clean"; `go vet -tags
+    live_gateways ./llmprovider/`; both live tests skip unswitched.
+* **Step 1, run (2026-10-25)** by the agent, against the local Ollama, which
+  `GET /api/version` gives as 0.33.2, on `gpt-oss:20b`, with `-run
+  'TestLive_Refusals_0062/ollama-'`: 5 cases, one send each. `xhigh`,
+  `max` and the string-schema tool accepted; `bogus` refused, 400
+  `invalid_request_error`, "invalid reasoning value: \"bogus\" (must be
+  \"minimal\", \"low\", \"medium\", \"high\", \"xhigh\", \"ultra\",
+  \"max\", or \"none\")"; the empty input refused. Ollama reports no
+  reasoning tokens. Copied to
+  `llmprovider/internal/wire/testdata/refusals-0062/chatcompletions/`;
+  `make fixtures-check`, "337 file(s), 134 hit(s), 0 problem(s)";
+  `chatcompletions`' `TestRefusal_Fixtures_0062` still passes, its matcher
+  reading neither of Ollama's two failures.
+* **Stop 2026-10-25, step 1: D8's Ollama row met neither of its outcomes.**
+  It removes the `xhigh` to `"max"` mapping on a recognisable refusal of
+  `xhigh`, and keeps it if Ollama accepts and ignores `xhigh` (F4). Ollama
+  accepted `xhigh`, and lists it among its values; whether `gpt-oss:20b`
+  uses it cannot be seen (F4), Ollama counting no reasoning tokens. Q12 (a)
+  removed every other rule whose avoided value was accepted. Resolutions
+  offered: remove the mapping, as Q12 (a) (recommended); keep it, as D8's
+  row reads; measure first, comparing the reasoning at `high`, `xhigh` and
+  `max`. **The owner chose to remove it,** as the MADR's amendment
+  "Phase 5's Ollama cases" records. The question offering it said that
+  Together has no matcher; it has the Chat Completions matcher, and learns
+  nothing for want of a recorded refusal. Ollama has none (the amendment).
+* **Step 2, as the resolution makes it.** Ollama sends through `wire.Send`
+  and `StreamEventsRetry` with a per-request `wire.Learner` and no matcher,
+  and takes its effort from it: the memo, `WithReasoningRefusals`, the facts
+  and the request, along `Ladder`; its default, medium for a request with no
+  effort, is kept. `wire.MaxEffort`, `ResolveMax` and `EffortWarning`, which
+  Ollama alone used (Q9 (c)), are removed, with `belowMax`. Ollama's
+  confirmation case joins `TestLive_Learn_0062`, under the same two
+  variables as its recording.
+  * **Step 1's list, before they change** (found by searching every
+    `_test.go` and the goldens for `MaxEffort`, `ResolveMax`,
+    `EffortWarning`, `maxEffort`, Ollama's `xhigh` and `max`):
+    `internal/wire/effort_0061_test.go`'s `TestResolveMax_Rules_0061` and
+    `TestMaxEffort_Warning_0061`, removed with their functions;
+    `ollama/ollama_test.go`'s `TestOllama_ClampsXHighEffort`, renamed
+    `TestOllama_SendsXHighEffort`, `xhigh` sent as `xhigh`; and
+    `ollama/request_test.go`'s `TestGenerate_Reasoning` row "empty takes the
+    default", whose `xhigh` was sent as `max`. `TestLearn_Effort_0062`
+    gains Ollama's row: a refusal, in Ollama's recorded form, returned after
+    one send, nothing learned; and `chatcompletions`'
+    `TestRefusal_Fixtures_0062` asserts that it read Ollama's two failures.
+    `TestEffortMax_Mapping_0061`'s Ollama row, and the Ollama G-wire
+    goldens, are expected not to change: with no facts `Ladder` sends `max`
+    unwarned, and with facts the highest listed, warned, as `ResolveMax`
+    did. A difference is a stop. One case differs by design, and is not
+    one of them: facts listing efforts, none of `low` to `max`, which
+    `ResolveMax`'s rule 3 sent `max`, send none, warned, by `Ladder` (the
+    MADR's amendment); no Ollama test or golden holds such facts.
+* **Step 2, done.**
+  * `providers/ollama/ollama.go`: `wire.Send` and `StreamEventsRetry` with
+    `learner`, a `wire.Learner` with no matcher, over the cache's memo and
+    `WithReasoningRefusals`; `effort` by `learner.Effort`; `maxEffort` and
+    `generateOnce` removed; the package doc's Degradations. `internal/wire`:
+    `belowMax`, `ResolveMax`, `EffortWarning` and `MaxEffort` removed, and
+    `effort_0061_test.go` with their two tests. `git grep` finds none of the
+    four names in a Go file.
+  * The tests of step 1's list, as listed: `TestOllama_SendsXHighEffort`;
+    `TestGenerate_Reasoning`'s row, `"xhigh"`. `TestEffortMax_Mapping_0061`
+    and the Ollama goldens did not change, as expected.
+  * `TestLearn_Effort_0062` gains Ollama's row (`gpt-oss:20b`, max refused in
+    Ollama's recorded form, returned after one send), and its rows that learn
+    nothing, Ollama's and the google route's, now check that `max` passed
+    back with `WithReasoningRefusals` is not sent: `xhigh` first.
+    `chatcompletions`' `TestRefusal_Fixtures_0062` asserts that it read
+    Ollama's two failures, neither matched.
+  * **Plants,** by `tools/plant.py` on a scratch clone: 4, all caught. The
+    PLAN's, Ollama's matcher never matching, does not apply, as Ollama has
+    none; in its place: Ollama sending `xhigh` as `max` again
+    (`ollama_test.go:95: at construction: configured "xhigh" ->
+    reasoning_effort max, want "xhigh"`); Ollama ignoring the refusals passed
+    back (`learn_0062_test.go:176: ollama/gpt-oss:20b: with max passed back:
+    <nil> after [max]; want xhigh, the next rung, sent first`); Ollama
+    ignoring the facts' efforts (`effortmax_0061_test.go:109:
+    ollama/llama3.3:latest, rule 2: sent "max"; want "high"`); and Ollama's
+    failures missing from the fixtures.
+  * **Docs:** Ollama's package doc; `CHANGELOG.md`, Changed;
+    `docs/architecture.md`, the `internal/wire` row, the order of authority,
+    the memo's paragraph and the resend's; `README.md`.
+* **Steps 3 and 4, run (2026-10-25)** by the agent, with the keys set in
+  the owner's environment and the local Ollama: `LLMPROVIDER_LIVE_0062_CONFIRM=1`
+  with Ollama's two variables, `go test -tags live_gateways -count=1 -v -run
+  TestLive_Learn_0062 ./llmprovider/`, exit 0, 98.0 s. Each of the 14 cases
+  passed, none skipped; each first request learned what its row says, after
+  one send more, and each second request was answered after one send,
+  learning nothing:
+  * R1: `claude-sonnet-5-budget`, learned `{claude-sonnet-5, budget}`;
+    `claude-sonnet-4-5-high`, `{claude-sonnet-4-5-20250929, adaptive}`;
+    `opencode-go-messages-qwen3.8-flash-high`, nothing.
+  * R2: `opencode-go-messages-minimax-m3-high`, nothing.
+  * R5: `gemini-2.5-flash-lite-low`, `low` and `medium`, 3 sends.
+  * Gemini's `xhigh` to `high`: `gemini-3.8-flash-xhigh`, `xhigh`. 0061's
+    Gemini row: `gemini-3.8-flash-max`, `max`.
+  * R6 and 0061's Grok row: `grok-4.5-max`, `max`; `grok-build-0.1-high` and
+    `grok-4.20-0309-non-reasoning-high`, `high`.
+  * 0061's google-route row: `opencode-zen-google-gemini-3.8-flash-max`,
+    nothing. 0013's B9: `opencode-zen-google-gemini-3.8-flash-xhigh`,
+    `xhigh`.
+  * The chat-route gate: `opencode-zen-chat-glm-5.3-max`, nothing.
+  * Ollama's mapping: `ollama-xhigh` on `gpt-oss:20b`, nothing.
+* **Step 5:** no case failed.
+* **Checks,** each exit 0: `go test -race -count=1 -shuffle=on ./...`;
+  `make pre-add-check` on the 11 Go files, "10 file(s) clean" and the one
+  deleted; `go vet -tags live_gateways ./...`; `make api-check`, "0
+  incompatible change(s)"; `tools/apidiff.py v1.22.2`, the same 13
+  additions as Phase 4, the removed functions being internal; `make
+  tables-check`, "38 packages, 0 problem(s)"; `make fixtures-check`, "337
+  file(s), 134 hit(s), 0 problem(s)"; `make changelog-check`; `make
+  docs-check`; `make records-check`; `tools/claims.py` on the MADR, 41 of
+  41; `tools/recordlint.py --changed`; `tools/denyscan.py --changed`;
+  `tools/linkcheck.py`.
+* **The gate:** "gate: 28 of 28 passed".
+* **Staged:** this phase's paths, Ollama's five fixtures among them.

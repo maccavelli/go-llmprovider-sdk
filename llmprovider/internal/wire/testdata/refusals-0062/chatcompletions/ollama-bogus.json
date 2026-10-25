@@ -1,0 +1,17 @@
+{
+  "case": "ollama-bogus",
+  "cause": "thinking",
+  "wire": "chatcompletions",
+  "provider": "ollama",
+  "model": "gpt-oss:20b",
+  "set": {
+    "reasoning_effort": "bogus"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "invalid reasoning value: \"bogus\" (must be \"minimal\", \"low\", \"medium\", \"high\", \"xhigh\", \"ultra\", \"max\", or \"none\")",
+  "body": "{\"error\":{\"message\":\"invalid reasoning value: \\\"bogus\\\" (must be \\\"minimal\\\", \\\"low\\\", \\\"medium\\\", \\\"high\\\", \\\"xhigh\\\", \\\"ultra\\\", \\\"max\\\", or \\\"none\\\")\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}",
+  "usage": false,
+  "outcome": "refused"
+}

@@ -61,9 +61,12 @@ tag and its commit without notes; its notes are its section here.
   effort menu, which clamped an effort and sent none to a model off it;
   Gemini's mapping of `xhigh` to `high` and its `gemini-2.5-flash-lite`
   exception; OpenCode's chat route sending no `reasoning_effort` without
-  metadata; and 0061's rows sending `max` lower on Grok, Gemini and
-  OpenCode's google route. Ollama is unchanged until its refusals are
-  recorded ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D2 to D8;
+  metadata; 0061's rows sending `max` lower on Grok, Gemini and
+  OpenCode's google route; and Ollama's mapping of `xhigh` to `"max"`:
+  Ollama 0.33.2 takes `xhigh`, which is now sent as asked. Ollama learns no
+  refusal, none of an effort it can send having been recorded; its facts and
+  `WithReasoningRefusals` steer it as every other provider's do
+  ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D2 to D8;
   [0062-REPORT](docs/reports/0062-REPORT-thinking-refusals.md)).
 - A request's thinking shape is the model's facts', else an enabled budget
   when `Reasoning.Budget` is set, else adaptive thinking with the effort; a

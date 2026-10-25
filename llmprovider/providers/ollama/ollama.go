@@ -26,11 +26,16 @@
 //   - No tool choice is sent: a named tool and ToolChoiceRequired offer the
 //     tools unforced, and ToolChoiceNone sends no tools (0020-MADR F40).
 //   - Reasoning takes an effort, sent as reasoning_effort (medium with none).
-//     Ollama's levels top out at "max", so EffortXHigh is sent as "max". A
-//     Budget is not sent.
-//   - EffortMax is sent as "max". On a model whose facts list efforts
-//     without max, the highest listed below it is sent, with a
-//     WarningEffortDegraded (0061-MADR D3).
+//     A Budget is not sent.
+//   - The effort, xhigh and max included, is sent by the model's facts and
+//     what it refused (0062-MADR D2, D3): one the facts do not list, or the
+//     model refused, steps to the nearest it takes, lower first, with a
+//     WarningEffortDegraded naming what was sent. Ollama 0.33.2 takes xhigh
+//     and max (0062-REPORT-thinking-refusals.md E12), so xhigh is no longer
+//     sent as max. No refusal of an effort this package can send was
+//     recorded, so it learns none; a refusal passed back with
+//     WithReasoningRefusals is never sent (0062-MADR, amendment "Phase 5's
+//     Ollama cases").
 //   - Instructions are sent as a leading system message.
 //
 // ListModels returns the installed models, probing each listed model with one
@@ -86,9 +91,6 @@ const (
 	// defaultBaseURL is a local instance (llmprovider's ollamaBaseURL).
 	defaultBaseURL = "http://localhost:11434"
 
-	// maxEffort is Ollama's highest reasoning level, which EffortXHigh becomes.
-	maxEffort = "max"
-
 	// probeMaxOutputTokens is the output limit a listing probe sends: the
 	// default of the old API's probe provider, kept so the probe's request
 	// is unchanged (0015-MADR D1).
@@ -112,6 +114,11 @@ type provider struct {
 	// listing carries the caller's options, the session and the transport to
 	// catalog's listing.
 	listing []llmprovider.Option
+	// thinking is the memo of refused thinking settings, catalog.WithCache's
+	// or the process's; refusals are WithReasoningRefusals' (0062-MADR D5,
+	// D6).
+	thinking *wire.Learned
+	refusals []llmprovider.ReasoningRefusal
 }
 
 // New builds the Ollama provider. It needs no credential. An option
@@ -140,6 +147,8 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		reasoning: st.Reasoning(),
 		probe:     st.ModelProbes(),
 		cache:     cacheref.From(st.Values()),
+		thinking:  cacheref.From(st.Values()).LearnedThinking(),
+		refusals:  st.ReasoningRefusals(),
 		userAgent: st.UserAgent(),
 		logger:    st.Logger(),
 		caps: llmprovider.Capabilities{
@@ -168,10 +177,19 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		return nil, err
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
-	// (0020-MADR F2).
-	return wire.Reauth(ctx, string(llmprovider.ProviderOllama), p.src, func(token llmprovider.Token) (*llmprovider.Response, error) {
-		return p.generateOnce(ctx, req, token)
-	})
+	// (0020-MADR F2); the effort is learned's (0062-MADR D5).
+	effort := p.learner(req)
+	return wire.Send(ctx, string(llmprovider.ProviderOllama), p.src,
+		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort) },
+		chatcompletions.DecodeFor(string(llmprovider.ProviderOllama)), effort.Check)
+}
+
+// learner is req's effort, from the model's refusals and facts (0062-MADR D2
+// to D6). It has no matcher: no refusal of an effort this package can send
+// was recorded (0062-MADR, amendment "Phase 5's Ollama cases").
+func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
+	return wire.NewLearner(p.thinking, string(llmprovider.ProviderOllama), p.baseURL, cmp.Or(req.Model, p.model), p.refusals,
+		nil)
 }
 
 // Stream streams req from the Chat Completions API as it is generated
@@ -182,9 +200,17 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	if err := p.Capabilities().Check(req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
-	return wire.StreamEventsFor(ctx, p.src, func(token llmprovider.Token) wire.Call {
-		return p.call(ctx, req, token, true)
-	}, chatcompletions.Events)
+	return func(yield func(llmprovider.Event, error) bool) {
+		// Each range is its own request, with its own effort learner.
+		effort := p.learner(req)
+		for ev, err := range wire.StreamEventsRetry(ctx, string(llmprovider.ProviderOllama), p.src,
+			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort) }, chatcompletions.Events,
+			effort.Check) {
+			if !yield(ev, err) {
+				return
+			}
+		}
+	}
 }
 
 // facts is what the caches know of req's model, read for each request and
@@ -194,11 +220,6 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 	info, _ := catalog.CachedFacts(ctx, llmprovider.ProviderOllama, cmp.Or(req.Model, p.model),
 		slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
 	return info
-}
-
-// generateOnce sends req once, with token.
-func (p *provider) generateOnce(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) (*llmprovider.Response, error) {
-	return wire.Post(ctx, p.call(ctx, req, token, false), token, chatcompletions.DecodeFor(string(llmprovider.ProviderOllama)))
 }
 
 // replayField is the field the model's prior reasoning is replayed under,
@@ -225,8 +246,9 @@ func isAssistantTurn(item llmprovider.Item) bool {
 
 // call is the Chat Completions request for req, asking for an event stream
 // with its usage when stream is set (0031-MADR E5).
-func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool) wire.Call {
-	body, warnings := p.body(req, p.facts(ctx, req, token))
+func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
+	effort *wire.Learner) wire.Call {
+	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -239,7 +261,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		URL:      p.baseURL + "/v1/chat/completions",
 		Body:     body,
 		Stream:   stream,
-		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0061-MADR D3
+		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// Ollama takes no credential: a token is sent only where it names its
@@ -255,7 +277,8 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 }
 
 // body is the Chat Completions request for req.
-func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[string]any, []llmprovider.Warning) {
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
+	[]llmprovider.Warning) {
 	model := req.Model
 	if model == "" {
 		model = p.model
@@ -271,7 +294,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	effort, warnings := p.effort(req, model, facts)
+	effort, warnings := p.effort(req, facts, learner)
 	// Ollama does not support tool_choice: every tool is offered and none
 	// forced, and ToolChoiceNone sends no tools (0020-MADR F40). Deferred
 	// tools are appended as loaded (0040-MADR D6).
@@ -282,10 +305,10 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo) (map[
 
 // effort is reasoning_effort for req: the request's Reasoning, else
 // WithReasoning's, an empty effort taken from WithReasoning, else medium; ""
-// for no reasoning. EffortXHigh becomes Ollama's "max"; EffortMax is resolved
-// by the model's facts, with the warning when it is sent lower (0061-MADR
-// D3).
-func (p *provider) effort(req *llmprovider.Request, model string, facts catalog.ModelInfo) (string, []llmprovider.Warning) {
+// for no reasoning. It is sent by D3's ladder over the model's refusals and
+// facts, with the warning when it is sent lower (0062-MADR D2, D3).
+func (p *provider) effort(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (string,
+	[]llmprovider.Warning) {
 	r := req.Reasoning
 	if r == nil {
 		r = p.reasoning
@@ -300,10 +323,7 @@ func (p *provider) effort(req *llmprovider.Request, model string, facts catalog.
 	case p.reasoning != nil && p.reasoning.Effort != "":
 		effort = p.reasoning.Effort
 	}
-	if effort == llmprovider.EffortXHigh {
-		return maxEffort, nil
-	}
-	sent, warnings := wire.MaxEffort(model, effort, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
+	sent, warnings := learner.Effort(effort, facts.Reasoning.Efforts, facts.Has(catalog.FieldReasoningEfforts))
 	return string(sent), warnings
 }
 

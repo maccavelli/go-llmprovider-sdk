@@ -84,7 +84,7 @@ func TestGenerate_Reasoning(t *testing.T) {
 		want     any
 	}{
 		{"request wins", &llmprovider.Reasoning{Effort: llmprovider.EffortLow}, &llmprovider.Reasoning{Effort: llmprovider.EffortHigh}, "high"},
-		{"empty takes the default", &llmprovider.Reasoning{Effort: llmprovider.EffortXHigh}, &llmprovider.Reasoning{}, maxEffort},
+		{"empty takes the default", &llmprovider.Reasoning{Effort: llmprovider.EffortXHigh}, &llmprovider.Reasoning{}, "xhigh"},
 		{"budget alone", nil, &llmprovider.Reasoning{Budget: 4096}, "medium"},
 		{"default only", &llmprovider.Reasoning{Effort: llmprovider.EffortLow}, nil, "low"},
 	} {

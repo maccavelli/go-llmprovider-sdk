@@ -1,0 +1,12 @@
+{
+  "case": "ollama-string-schema-tool",
+  "cause": "other",
+  "wire": "chatcompletions",
+  "provider": "ollama",
+  "model": "gpt-oss:20b",
+  "tool": "{\"type\":\"string\"}",
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "outcome": "accepted"
+}

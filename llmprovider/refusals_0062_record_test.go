@@ -108,7 +108,8 @@ var inputPath = map[string]string{
 }
 
 // refusalRoutes are the case table's providers and routes, in its order.
-// Ollama is recorded in Phase 5 (0062-MADR Q9 (c)).
+// Ollama's cases, recorded in Phase 5 (0062-MADR Q9 (c)), are
+// ollamaRefusalCases'.
 var refusalRoutes = []refusalRoute{
 	{"claude", wireMessages, llmprovider.ProviderClaude, "", "claude-sonnet-5"},
 	{"opencode-go-messages", wireMessages, llmprovider.ProviderOpencodeGo, opencode.RouteMessages, "qwen3.8-flash"},
@@ -212,6 +213,22 @@ func refusalCases() []refusalCase {
 		cases = append(cases, empty, tool)
 	}
 	return cases
+}
+
+// ollamaRefusalCases are Ollama's cases, on the model the owner names
+// (0062-PLAN Phase 5, step 1; Q9 (c)): reasoning_effort "xhigh", "max" and
+// "bogus", and the two other causes. Each id is free of the model's name,
+// which may hold a ':' that no file name on Windows may.
+func ollamaRefusalCases(model string) []refusalCase {
+	thinking := func(effort string) refusalCase {
+		return refusalCase{id: "ollama-" + effort, cause: causeThinking, wire: wireChatCompletions,
+			provider: llmprovider.ProviderOllama, model: model, set: map[string]any{"reasoning_effort": effort}}
+	}
+	other := refusalCase{cause: causeOther, wire: wireChatCompletions, provider: llmprovider.ProviderOllama, model: model}
+	empty, tool := other, other
+	empty.id, empty.set = "ollama-empty-input", map[string]any{inputPath[wireChatCompletions]: []any{}}
+	tool.id, tool.tool = "ollama-string-schema-tool", true
+	return []refusalCase{thinking("xhigh"), thinking("max"), thinking("bogus"), empty, tool}
 }
 
 // refusalRecord is one case's JSON record (0062-PLAN Phase 1, step 1).
@@ -371,13 +388,16 @@ func refusalOutcome(err error) string {
 	}
 }
 
-// recordCase sends c's request through its provider, with key and opts, and
-// returns its record.
+// recordCase sends c's request through its provider, with key, when there is
+// one (Ollama takes none), and opts, and returns its record.
 func recordCase(ctx context.Context, c refusalCase, key string, opts ...llmprovider.Option) (refusalRecord, error) {
 	rw := &refusalRewriter{set: c.set, drop: c.drop, base: http.DefaultTransport}
-	all := []llmprovider.Option{llmprovider.WithAPIKey(key), llmprovider.WithModel(c.model),
+	all := []llmprovider.Option{llmprovider.WithModel(c.model),
 		llmprovider.WithModelProbes(false), llmprovider.WithoutModelMetadata(),
 		llmprovider.WithHTTPClient(&http.Client{Transport: rw})}
+	if key != "" {
+		all = append(all, llmprovider.WithAPIKey(key))
+	}
 	if c.route != "" {
 		all = append(all, opencode.WithRoute(c.route))
 	}

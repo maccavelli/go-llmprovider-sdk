@@ -62,15 +62,16 @@ func TestOllama_NeverForcesToolChoice(t *testing.T) {
 	}
 }
 
-// TestOllama_ClampsXHighEffort: Ollama's vocabulary tops out at "max", not the
-// "xhigh" this package models. The effort was WithReasoningEffort's; it runs
-// at construction and on the request now.
-func TestOllama_ClampsXHighEffort(t *testing.T) {
+// TestOllama_SendsXHighEffort: Ollama 0.33.2 takes "xhigh", which was sent as
+// "max" (0062-MADR, amendment "Phase 5's Ollama cases";
+// 0062-REPORT-thinking-refusals.md E12). The effort was WithReasoningEffort's;
+// it runs at construction and on the request now.
+func TestOllama_SendsXHighEffort(t *testing.T) {
 	tests := []struct {
 		configured llmprovider.Effort
 		want       string
 	}{
-		{llmprovider.EffortXHigh, maxEffort},
+		{llmprovider.EffortXHigh, string(llmprovider.EffortXHigh)},
 		{llmprovider.EffortMedium, string(llmprovider.EffortMedium)},
 		{llmprovider.EffortLow, string(llmprovider.EffortLow)},
 		{"", string(llmprovider.EffortMedium)}, // default

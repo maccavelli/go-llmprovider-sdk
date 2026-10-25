@@ -1,0 +1,17 @@
+{
+  "case": "ollama-empty-input",
+  "cause": "other",
+  "wire": "chatcompletions",
+  "provider": "ollama",
+  "model": "gpt-oss:20b",
+  "set": {
+    "messages": []
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "[] is too short - 'messages'",
+  "body": "{\"error\":{\"message\":\"[] is too short - 'messages'\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}",
+  "usage": false,
+  "outcome": "refused"
+}
