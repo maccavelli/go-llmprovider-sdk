@@ -25,12 +25,14 @@ func Finish(raw string, table map[string]llmprovider.FinishReason, hasCall bool)
 	return finish
 }
 
-// EmptyAnswer is an answer with nothing usable in it: ErrIncomplete, with the
-// service's finish reason in Reason, so a refusal or a safety stop is not
-// mistaken for a plain empty answer (0021-MADR W3). where names the wire. The
+// EmptyAnswer is an answer with nothing usable in it: an APIError of kind
+// ErrEmptyAnswer, which also matches ErrIncomplete, with the service's finish
+// reason in Reason, so a refusal or a safety stop is not mistaken for a plain
+// empty answer (0021-MADR W3; 0061-MADR D1). where names the wire. The
+// Message is unchanged by 0061, for a caller that still matches it. The
 // reason is the service's text, so it is stripped and bounded (0026-MADR F18).
 func EmptyAnswer(where string, reason llmprovider.FinishReason) error {
-	return &llmprovider.APIError{Kind: llmprovider.ErrIncomplete, Reason: redact.Field(string(reason)),
+	return &llmprovider.APIError{Kind: llmprovider.ErrEmptyAnswer, Reason: redact.Field(string(reason)),
 		Message: where + ": the answer has no content"}
 }
 

@@ -45,6 +45,13 @@ var (
 	// cannot help, so it also matches ErrInvalidRequest (MADR 0012 §1.5;
 	// 0015-MADR D7, amendment of 2026-10-01).
 	ErrIncomplete error = &sentinelError{msg: "llmprovider: incomplete response", parent: ErrInvalidRequest}
+	// ErrEmptyAnswer marks an answer with nothing usable in it. It also
+	// matches ErrIncomplete, and so ErrInvalidRequest: retrying it unchanged
+	// cannot help. A refusal or a safety stop is this kind too, and so is an
+	// answer cut while the model was still reasoning; the APIError's Reason,
+	// the service's finish reason (content_filter, length, …), tells them
+	// apart (0061-MADR D1).
+	ErrEmptyAnswer error = &sentinelError{msg: "llmprovider: empty answer", parent: ErrIncomplete}
 	// ErrUnsupported marks a request needing a capability the provider does
 	// not have. It fails before any network call, and also matches
 	// errors.ErrUnsupported (0015-MADR D4, D7).

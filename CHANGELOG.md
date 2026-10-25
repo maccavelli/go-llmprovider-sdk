@@ -11,6 +11,15 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- `llmprovider.ErrEmptyAnswer`: an answer with nothing usable in it, on
+  every wire. It also matches `ErrIncomplete`, as such an answer did
+  before, and `APIError.Reason` still says why (`content_filter`,
+  `length`, …). The error's message is unchanged
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
+  D1; issue #9).
+
 ## [v1.22.2] - 2026-10-24
 
 ### Fixed

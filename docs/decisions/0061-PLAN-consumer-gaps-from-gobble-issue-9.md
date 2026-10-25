@@ -378,3 +378,55 @@ tables say, every new test seen to fail first, and one release, `v1.23.0`.
   MADR `accepted`, this PLAN `in-progress`, with their index rows.
 * **Not done here:** Phase 1 starts after the owner has committed this
   phase.
+* **Committed** by the owner as `a0ca500` ("committed, proceed").
+
+### Phase 1: `ErrEmptyAnswer` (2026-10-24)
+
+* **Step 1.** `llmprovider/api_error.go`: `ErrEmptyAnswer`, a
+  `sentinelError` with parent `ErrIncomplete`, after it in the block, its
+  doc as the step says.
+* **Step 2.** `wire.EmptyAnswer`'s `Kind` is `llmprovider.ErrEmptyAnswer`;
+  `Message` and `Reason` unchanged; its doc says both.
+* **Step 3.** The `Provider` interface's `Generate` doc names
+  `ErrEmptyAnswer`.
+* **Step 4, the drift check:** `go test -race -count=1 -shuffle=on
+  ./llmprovider/...`: ok, every existing test unchanged.
+* **Step 5, the tests:** `TestErrEmptyAnswer_Chain_0061`,
+  `TestEmptyAnswer_Kind_0061`, and `TestDecode_EmptyIsErrEmptyAnswer_0061`
+  in `messages`, `chatcompletions`, `responses`, `generatecontent` and
+  `gemini`. Run alone with `-coverprofile`, the last executes each call
+  site's line: "executed: 10 of 10".
+* **Correction (2026-10-24): ten call sites, not nine.** Step 5 says "the
+  nine call sites" and lists ten lines (messages 2, chatcompletions 3,
+  responses 1, generatecontent 3, gemini 1); the count was wrong, the list
+  right. No decision changes.
+* **Red first,** on `d9b1910`'s code in a scratch clone, `ErrEmptyAnswer`
+  declared in a shim so that the tests build: every wire case failed, ten
+  of ten, for example
+
+  ```text
+  --- FAIL: TestDecode_EmptyIsErrEmptyAnswer_0061
+      empty_0061_test.go:20: no content: llmprovider: incomplete response: stop: messages: the answer has no content; want an error matching ErrEmptyAnswer and ErrIncomplete
+  --- FAIL: TestEmptyAnswer_Kind_0061
+      finish_0061_test.go:18: EmptyAnswer = llmprovider: incomplete response: content_filter: x: the answer has no content; want an *APIError matching ErrEmptyAnswer and ErrIncomplete
+  ```
+
+  `TestErrEmptyAnswer_Chain_0061` passed there, the shim being the sentinel
+  itself; its red is the second plant.
+* **Step 6, the plants** (`tools/plant.py`), both caught:
+  * `Kind` back to `ErrIncomplete`: "finish_0061_test.go:18: EmptyAnswer =
+    llmprovider: incomplete response: …; want an *APIError matching
+    ErrEmptyAnswer and ErrIncomplete", and every wire case;
+  * the parent `ErrInvalidRequest`: "errors_0061_test.go:13: ErrEmptyAnswer
+    matches ErrIncomplete false, ErrInvalidRequest true; want both".
+* **Step 7.** `CHANGELOG.md` `[Unreleased]`, Added.
+* **The exports.** `make api-check` reports incompatible changes only:
+  "against v1.22.2, 0 incompatible change(s)". The additions are
+  `tools/apidiff.py v1.22.2`'s: "Compatible changes: -
+  ./llmprovider.ErrEmptyAnswer: added", D10's first row and nothing else.
+  The rule's "`make api-check` (… the additions listed in the record)"
+  takes them from `tools/apidiff.py` from here on.
+* **The checks:** `make pre-add-check` on the 10 Go files, "10 file(s)
+  clean"; `scripts/check_changelog.py`, 0 problems; `python3 -B
+  tools/gate.py`: "gate: 28 of 28 passed".
+* **Not done here:** Phases 2 to 8.

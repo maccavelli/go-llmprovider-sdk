@@ -17,7 +17,8 @@ type Provider interface {
 	// Capabilities declares what the provider supports.
 	Capabilities() Capabilities
 	// Generate sends req and returns the service's response. A request that
-	// needs an Unsupported capability fails before any network call.
+	// needs an Unsupported capability fails before any network call. An
+	// answer with no content gives an *APIError matching ErrEmptyAnswer.
 	Generate(ctx context.Context, req *Request) (*Response, error)
 }
 
