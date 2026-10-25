@@ -198,21 +198,23 @@ const (
 // true, and Err the failure. Any other failed listing degrades to the
 // static catalog with a nil error and Live false, and its classified
 // failure in Catalog.Err. Ollama is listed every time and never served
-// stale. Only Ollama, an unknown provider, a missing source, a token
+// stale. A chatcompat provider's id, which its options name with
+// chatcompat.WithID beside a base URL, is listed as a built-in's is, GET
+// {base}/models in the server's order, with no static catalog: a failure
+// leaves it empty, Live false (0061-MADR, amendment "chatcompat,
+// provider-agnostic", E1). Only Ollama, an unknown provider, a missing source, a token
 // failure or a refused option return an error. A missing src, and a typed-nil
 // one such as a nil *llmprovider.CommandToken held in a non-nil TokenSource,
 // give an error matching llmprovider.ErrInvalidRequest (0050-MADR D4). A
 // listing refused for its credential renews src once, when src is an
 // llmprovider.InvalidatingSource, and lists again (0026-MADR F36).
 func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, opts ...llmprovider.Option) (Catalog, error) {
-	// The id first: an option scoped to the built-in ids would otherwise
-	// refuse an unknown one with ErrInvalidRequest (0015-PLAN S12b).
-	if !listed[llmprovider.ProviderID(strings.ToLower(string(id)))] {
-		return Catalog{}, unlistedProvider(id)
-	}
-	// Ids are matched without case, options included (0020-MADR F35).
+	// Ids are matched without case, options included (0020-MADR F35). An id
+	// List does not list is refused before its options: an option scoped to
+	// the built-in ids would otherwise refuse it with ErrInvalidRequest
+	// (0015-PLAN S12b); a chatcompat provider's is listed (listingConfig).
 	id = llmprovider.ProviderID(strings.ToLower(string(id)))
-	cfg, err := configFor(id, opts)
+	cfg, err := listingConfig(id, opts)
 	if err != nil {
 		return Catalog{}, err
 	}
@@ -297,7 +299,7 @@ func renewRefused(ctx context.Context, src llmprovider.TokenSource, token llmpro
 // serves the last good listing, read within lastGoodWindow, or WithLastGood's.
 func listOnce(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (Catalog, map[string]ModelInfo, error) {
 	id = llmprovider.ProviderID(strings.ToLower(string(id)))
-	if !listed[id] {
+	if !listed[id] && !cfg.compat {
 		return Catalog{}, nil, unlistedProvider(id)
 	}
 	if id == llmprovider.ProviderOllama {
@@ -305,9 +307,10 @@ func listOnce(ctx context.Context, id llmprovider.ProviderID, token llmprovider.
 	}
 	key := listingKeyFor(id, cfg, token)
 	var meta func() modelMetadataResult
-	if id != llmprovider.ProviderKilo {
+	if id != llmprovider.ProviderKilo && !cfg.compat {
 		// The document is read alongside the listing; Kilo's ranking reads
-		// its own listing (MADR 0009 §2).
+		// its own listing (MADR 0009 §2), and a chatcompat server's ids are
+		// its own (0061-MADR D4).
 		meta = startModelMetadata(ctx, cfg)
 	}
 	f, models, at, failure := cachedOrFetched(ctx, id, token, cfg, key)
@@ -593,9 +596,31 @@ func fetchListing(ctx context.Context, id llmprovider.ProviderID, token llmprovi
 	case llmprovider.ProviderTogether:
 		usable, err = fetchTogetherUsable(ctx, token, cfg)
 	default:
-		return fetchedListing{}, unlistedProvider(id)
+		if !cfg.compat {
+			return fetchedListing{}, unlistedProvider(id)
+		}
+		usable, err = fetchCompatUsable(ctx, id, token, cfg)
 	}
 	return fetchedListing{usable: usable}, err
+}
+
+// fetchCompatUsable is a chatcompat provider's GET {base}/models: every id,
+// in the server's order, with no Authorization header for an empty key, as
+// the provider sends none (0061-MADR D4; its amendment "chatcompat,
+// provider-agnostic", E1).
+func fetchCompatUsable(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) ([]string, error) {
+	header, value := "", ""
+	if token.Value != "" {
+		header, value = bearerHeader(token)
+	}
+	ids, err := fetchDataIDs(ctx, cfg.BaseURL+"/models", header, value, cfg, id)
+	return slices.DeleteFunc(ids, func(m string) bool { return m == "" }), err
+}
+
+// compatCurate is a chatcompat listing's curator: the server's order, cut to
+// limit. Nothing ranks a server's own models yet (0061-PLAN Phase 4b, E4).
+func compatCurate(usable []string, limit int) []string {
+	return listlimit.Cut(usable, limit)
 }
 
 // buildListing is one provider's listingResult from f: a listing fetched
@@ -624,6 +649,10 @@ func buildListing(id llmprovider.ProviderID, f fetchedListing, cfg config, meta 
 		l.curate = kiloCurate(f.kilo, cfg.ModelProfile, cfg.workload)
 	case llmprovider.ProviderTogether:
 		l.curate = metadataCurate(id, cfg.ModelProfile, cfg.workload, meta, curateTogether)
+	default:
+		if cfg.compat {
+			l.curate = compatCurate
+		}
 	}
 	return l
 }
@@ -732,7 +761,7 @@ func fetchOpenAIUsable(ctx context.Context, token llmprovider.Token, cfg config)
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
-	header, value := tokenHeader(token, headerAuthorization, bearerScheme)
+	header, value := bearerHeader(token)
 	ids, err := fetchDataIDs(ctx, baseURL+"/models", header, value, cfg, llmprovider.ProviderOpenAI)
 	if err != nil {
 		return nil, err
@@ -975,7 +1004,7 @@ func fetchGrokUsable(ctx context.Context, token llmprovider.Token, cfg config) (
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
-	header, value := tokenHeader(token, headerAuthorization, bearerScheme)
+	header, value := bearerHeader(token)
 	ids, err := fetchDataIDs(ctx, baseURL+"/models", header, value, cfg, llmprovider.ProviderGrok)
 	if err != nil {
 		return nil, err
@@ -1055,7 +1084,7 @@ func fetchOpencodeUsable(ctx context.Context, gateway llmprovider.ProviderID, to
 	}
 	header, value := headerAuthorization, ""
 	if token.Value != "" {
-		header, value = tokenHeader(token, headerAuthorization, bearerScheme)
+		header, value = bearerHeader(token)
 	}
 	ids, err := fetchDataIDs(ctx, baseURL+"/models", header, value, cfg, "opencode")
 	if err != nil {

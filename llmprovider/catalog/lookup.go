@@ -42,19 +42,38 @@ var listingLayers = map[llmprovider.ProviderID]bool{
 	llmprovider.ProviderOllama: true,
 }
 
-// lookupProvider checks provider, matched without case.
-func lookupProvider(provider llmprovider.ProviderID) (llmprovider.ProviderID, error) {
+// lookupConfig checks provider, matched without case, and resolves opts for
+// it: a built-in, or a chatcompat provider whose options name it with
+// chatcompat.WithID (0061-MADR, amendment "chatcompat, provider-agnostic",
+// E1). Any other id is ErrInvalidProvider, whatever its options.
+func lookupConfig(provider llmprovider.ProviderID, opts []llmprovider.Option) (llmprovider.ProviderID, config, error) {
 	id := llmprovider.ProviderID(strings.ToLower(string(provider)))
-	if !slices.Contains(builtinIDs, id) {
-		return "", fmt.Errorf("model metadata: %w: %q", llmprovider.ErrInvalidProvider, provider)
+	unknown := fmt.Errorf("model metadata: %w: %q", llmprovider.ErrInvalidProvider, provider)
+	if slices.Contains(builtinIDs, id) {
+		cfg, err := configFor(id, opts)
+		return id, cfg, err
 	}
-	return id, nil
+	cfg, err := configFor(id, opts)
+	if err != nil || !cfg.compat {
+		return "", config{}, unknown
+	}
+	return id, cfg, nil
+}
+
+// hasListingLayer reports whether id's listing is one of its layers: a
+// built-in's that amended D2 gives fields, or a chatcompat provider's.
+func hasListingLayer(id llmprovider.ProviderID, cfg config) bool {
+	return listingLayers[id] || cfg.compat
 }
 
 // LookupModel returns what is known of model, merged field by field from its
 // layers: the caller's (WithModelLayer), the provider's listing when src is
 // not nil, and models.dev unless WithoutModelMetadata turns it off
 // (0033-MADR D2, D3). It fetches what it needs, bounded as a listing is (R40).
+// provider is a built-in's id, or a chatcompat provider's that opts name with
+// chatcompat.WithID, whose listing is its one layer besides the caller's
+// (0061-MADR, amendment "chatcompat, provider-agnostic", E1); any other is
+// ErrInvalidProvider. CachedModel and CachedFacts take the same ids.
 //
 // A model no layer knows is not an error: its fields are all unset, as Has
 // reports. A source that fails is reported in the error, beside what the
@@ -64,11 +83,7 @@ func lookupProvider(provider llmprovider.ProviderID) (llmprovider.ProviderID, er
 // llmprovider.ErrInvalidRequest (0050-MADR D4).
 func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmprovider.TokenSource, model string,
 	opts ...llmprovider.Option) (ModelInfo, error) {
-	id, err := lookupProvider(provider)
-	if err != nil {
-		return ModelInfo{}, err
-	}
-	cfg, err := configFor(id, opts)
+	id, cfg, err := lookupConfig(provider, opts)
 	if err != nil {
 		return ModelInfo{}, err
 	}
@@ -88,7 +103,7 @@ func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	if nilsource.Is(src) {
 		errs = append(errs, fmt.Errorf("model metadata: listing %s: %w: a nil %T is not a TokenSource", id,
 			llmprovider.ErrInvalidRequest, src))
-	} else if src != nil && listingLayers[id] {
+	} else if src != nil && hasListingLayer(id, cfg) {
 		lst, lstOK, err = listingModel(ctx, id, src, model, cfg)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("model metadata: listing %s: %w", id, err))
@@ -105,11 +120,7 @@ func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 // listing is read, and no fetch started (0050-MADR D4).
 func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmprovider.TokenSource, model string,
 	opts ...llmprovider.Option) (ModelInfo, bool) {
-	id, err := lookupProvider(provider)
-	if err != nil {
-		return ModelInfo{}, false
-	}
-	cfg, err := configFor(id, opts)
+	id, cfg, err := lookupConfig(provider, opts)
 	if err != nil {
 		return ModelInfo{}, false
 	}
@@ -118,7 +129,7 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	if m, ok := cachedMetadata(ctx, cfg); ok {
 		dev, devOK = m.Model(id, model)
 	}
-	if src != nil && !nilsource.Is(src) && listingLayers[id] {
+	if src != nil && !nilsource.Is(src) && hasListingLayer(id, cfg) {
 		if token, err := src.Token(ctx); err == nil {
 			key := listingKeyFor(id, cfg, token)
 			models, fresh := cfg.store.cachedListing(key)
@@ -145,11 +156,7 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 // that its token source is not asked a second time.
 func CachedFacts(ctx context.Context, provider llmprovider.ProviderID, model string, opts ...llmprovider.Option) (ModelInfo,
 	bool) {
-	id, err := lookupProvider(provider)
-	if err != nil {
-		return ModelInfo{}, false
-	}
-	cfg, err := configFor(id, opts)
+	id, cfg, err := lookupConfig(provider, opts)
 	if err != nil {
 		return ModelInfo{}, false
 	}
@@ -158,7 +165,7 @@ func CachedFacts(ctx context.Context, provider llmprovider.ProviderID, model str
 	if m, ok := peekMetadata(cfg); ok {
 		dev, devOK = m.Model(id, model)
 	}
-	if cfg.tokens != nil && listingLayers[id] {
+	if cfg.tokens != nil && hasListingLayer(id, cfg) {
 		if token, err := cfg.tokens.Token(ctx); err == nil {
 			models, _ := cfg.store.cachedListing(listingKeyFor(id, cfg, token))
 			lst, lstOK = models[model]

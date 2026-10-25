@@ -18,8 +18,12 @@ tag and its commit without notes; its notes are its section here.
   gateway, under an id the caller picks: `New`, `WithID` and `Descriptor`,
   registered in the caller's `Registry` (`providers.Default()` does not hold
   it). The key is optional; with none, no `Authorization` header is sent.
-  It learns a refused effort as the built-ins do
-  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md) D4).
+  It learns a refused effort as the built-ins do. Its `ListModels` is
+  `catalog.List`'s listing of the server, cached and shared as a built-in's,
+  and `catalog.List`, `LookupModel`, `CachedModel` and `CachedFacts` take its
+  id when the options carry its `WithID`
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md) D4,
+  amendment "`chatcompat`, provider-agnostic", E1).
 - `llmprovider.SharedOption`: an option every provider's `New` takes, whatever
   its id, for a value only some read
   ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),

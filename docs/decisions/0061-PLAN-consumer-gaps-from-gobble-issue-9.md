@@ -851,3 +851,76 @@ Phase 6 as `876b81e`.
   its PLAN, and their two rows in `docs/README.md`, written in the tree by
   another session during this phase; they are not staged.
 * **Staged:** this phase's paths.
+
+### Phase 4a: E1, the catalog path (2026-10-25)
+
+Done; staged for the owner's commit. Phase 4 is committed as `b663b71`.
+
+* **Step 1:** `llmprovider/internal/compatid`, `Value`, `Of` and `For`, with
+  the standard library alone; R2's table gains its row, and `catalog`'s may
+  import it.
+* **Step 2,** `catalog`:
+  * `config.go`: `config.compat`, set for an id no built-in has that the
+    options' `chatcompat.WithID` names, compared without case, which also
+    turns the models.dev document off for it; `listingConfig`, which lists
+    such an id given a base URL, refuses one without it (ErrInvalidRequest),
+    and gives any other unknown id `unlistedProvider`'s ErrUnsupported, as
+    before, whatever its options.
+  * `discovery.go`: `List` resolves through `listingConfig`; `listOnce`
+    admits a compat listing, reads no document for it, and uses the listing
+    cache, the flight and the last good listing unchanged;
+    `fetchCompatUsable`, `fetchDataIDs` on `{base}/models`, no
+    `Authorization` header for an empty key, empty ids dropped;
+    `compatCurate`, the server's order cut to the limit, as
+    `buildListing`'s curator for it. With no dates, `menuOf` orders the
+    models past the first six by id; Phase 4b's default rank (E4) orders
+    them.
+  * `lookup.go`: `lookupConfig` and `hasListingLayer` replace
+    `lookupProvider`, so `LookupModel`, `CachedModel` and `CachedFacts` take
+    a compat id named by `WithID`, its listing its one layer besides the
+    caller's; any other unknown id is ErrInvalidProvider, as before.
+  * **Found and fixed on the way:** `make pre-add-check` on `config.go`
+    reported `unparam` on `tokenHeader`, every one of its four callers
+    passing `"Authorization"` and `"Bearer"`, which this phase's fifth call
+    made no different; it is `bearerHeader(tok)`, with both inside, and no
+    request changes.
+* **Step 3,** `chatcompat`: `WithID`'s value is `compatid.Value`;
+  `ListModels` is `catalog.List`'s `Recommended`, a listing that is not live
+  returning its failure (`listingError`: as it came with a kind, else
+  ErrIncomplete), probed when asked as before; each request reads
+  `catalog.CachedFacts`, for the output limit, the efforts and the replay
+  field, as Hugging Face's does. Its package doc and `ListModels`' say so.
+  Its twelve G-wire goldens did not change: the listing request through
+  `catalog` is the one it sent itself.
+* **Step 4, the tests,** each passing, the catalog's under `-race`:
+  `TestCompatListing_Cached_0061` (one request for two Lists within ten
+  minutes, one for five at once, one more after eleven minutes; the first
+  six in the server's order; empty and repeated ids dropped),
+  `TestCompatListing_LastGood_0061`, `TestCompatListing_UnknownRefused_0061`,
+  `TestCompatListing_NoKey_0061`; `TestOfAndFor_0061` (`compatid`);
+  `TestListModels_Cached_0061` (`chatcompat`, two providers of one cache,
+  one request). Every existing test of `catalog`, `providers`, `chatcompat`
+  and `wizard` passed unchanged.
+* **Step 4's plants,** by `tools/plant.py` on scratch clones: 8, all caught.
+  The PLAN's two: the cache bypassed (`compat_0061_test.go:53: a second List
+  within ten minutes: <nil>, 2 request(s); want 1`) and the flight bypassed
+  (`five Lists at once: 5 requests; want 1`); and the last good listing not
+  served; an unknown id listed without `WithID`; an empty key sent as a
+  bearer token; empty ids kept; a failed listing returned as an empty one;
+  an unreadable listing kept without a kind. The unknown-id plant was first
+  caught only by its build, and was planted again as one that builds.
+* **Docs:** `docs/guides/api-standards.md` R2 (the row and the citation);
+  `docs/architecture.md`, the rows of `catalog`, `chatcompat` and
+  `internal/compatid`; `catalog.List`'s and `LookupModel`'s docs;
+  `CHANGELOG.md`, `chatcompat`'s entry.
+* **Checks,** each exit 0: `go test -race -count=1 -shuffle=on ./...`; `make
+  pre-add-check` on the 8 Go files, "8 file(s) clean"; `go vet -tags
+  live_gateways ./...`; `make api-check`, "0 incompatible change(s)";
+  `tools/apidiff.py v1.22.2`, no addition beside Phase 4's; `make
+  tables-check docs-check changelog-check dep-check fixtures-check
+  records-check`; `tools/claims.py`; `tools/recordlint.py --changed`;
+  `tools/denyscan.py --changed`; `tools/linkcheck.py`.
+* **The gate:** "gate: 28 of 28 passed"; covered: `catalog` 95.9 %, `internal/compatid` 100 %, `chatcompat` 91.7 %, each against its 80 % floor.
+* **Not this phase's:** the 0064 pair and its rows in `docs/README.md`,
+  another session's; not staged.
+* **Staged:** this phase's paths.

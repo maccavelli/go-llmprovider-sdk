@@ -145,6 +145,28 @@ func TestListModels_0061(t *testing.T) {
 	}
 }
 
+// TestListModels_Cached_0061 (0061-MADR, amendment "chatcompat,
+// provider-agnostic", E1): ListModels lists through the catalog's cache, so a
+// second ListModels within ten minutes, by another provider of the same cache,
+// base URL and key, sends no request.
+func TestListModels_Cached_0061(t *testing.T) {
+	srv := newServer(t, func(_ int, r *http.Request) (int, string) {
+		if r.Method == http.MethodGet {
+			return http.StatusOK, `{"data":[{"id":"a"},{"id":"b"}]}`
+		}
+		return http.StatusOK, fxChat
+	})
+	for range 2 {
+		if got, err := build(t, srv.URL).(llmprovider.ModelLister).ListModels(context.Background()); err != nil ||
+			!slices.Equal(got, []string{"a", "b"}) {
+			t.Fatalf("ListModels = %v, %v; want [a b]", got, err)
+		}
+	}
+	if n := len(srv.seen()); n != 1 {
+		t.Errorf("%d request(s) for two listings; want 1, the second from the cache", n)
+	}
+}
+
 // TestNew_ForID_0061 (the amendment "Phase 4's options"): For(id, …) reaches
 // the provider of that id, and For(another id, …) does not.
 func TestNew_ForID_0061(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/compatid"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
@@ -59,6 +60,10 @@ type config struct {
 	sink func(ModelInfo)
 	// store is WithCache's, else the process's (0048-MADR D1).
 	store *store
+	// compat reports a chatcompat provider's listing: an id no built-in has,
+	// which the options' chatcompat.WithID names (0061-MADR, amendment
+	// "chatcompat, provider-agnostic", E1).
+	compat bool
 }
 
 // emit hands one listed model's metadata to the sink, if there is one.
@@ -195,6 +200,28 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 	}
 	cfg.limit = listlimit.Of(st.Values())
 	cfg.store = storeIn(st.Values())
+	// A chatcompat provider's model is the server's: models.dev knows no id of
+	// its, so the document is not read for it (0061-MADR D4).
+	cfg.compat = !listed[id] && compatid.For(st.Values(), string(id))
+	cfg.metadataOff = cfg.metadataOff || cfg.compat
+	return cfg, nil
+}
+
+// listingConfig is configFor for a listing of id, lowered: a built-in's, or a
+// chatcompat provider's whose options name it with chatcompat.WithID and give
+// a base URL (0061-MADR, amendment "chatcompat, provider-agnostic", E1). Any
+// other id is unlistedProvider's, whatever its options.
+func listingConfig(id llmprovider.ProviderID, opts []llmprovider.Option) (config, error) {
+	if listed[id] {
+		return configFor(id, opts)
+	}
+	cfg, err := configFor(id, opts)
+	if err != nil || !cfg.compat {
+		return config{}, unlistedProvider(id)
+	}
+	if cfg.BaseURL == "" {
+		return config{}, fmt.Errorf("%w: model listing: chatcompat provider %q needs a base URL", llmprovider.ErrInvalidRequest, id)
+	}
 	return cfg, nil
 }
 
@@ -213,15 +240,16 @@ func (c config) setUserAgent(req *http.Request) {
 	req.Header.Set(headerUserAgent, c.userAgent)
 }
 
-// tokenHeader is the header name and value that send tok, by R16's rule
-// (Token.Apply), for a request built later.
-func tokenHeader(tok llmprovider.Token, header, scheme string) (name, value string) {
+// bearerHeader is the header name and value that send tok as a bearer token
+// in Authorization, by R16's rule (Token.Apply), for a request built later:
+// every listing that sends a token sends it so.
+func bearerHeader(tok llmprovider.Token) (name, value string) {
 	req := &http.Request{Header: http.Header{}}
-	tok.Apply(req, header, scheme)
+	tok.Apply(req, headerAuthorization, bearerScheme)
 	for k, v := range req.Header {
 		return k, v[0]
 	}
-	return header, ""
+	return headerAuthorization, ""
 }
 
 // closeBody closes an HTTP response body, logging a close failure at debug

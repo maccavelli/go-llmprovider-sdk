@@ -24,10 +24,13 @@
 // above does. The other catalog options are scoped to the built-in providers,
 // and New refuses them (0061-MADR, amendment "Phase 4's options").
 //
-// Generation uses POST {base}/chat/completions; ListModels is GET
-// {base}/models, the server's own order, probing each of the first
-// catalog.MaxListed models with one short generation only under
-// llmprovider.WithModelProbes(true).
+// Generation uses POST {base}/chat/completions. ListModels is catalog.List's
+// listing of GET {base}/models, as a built-in's: cached for ten minutes by
+// base URL and key, one request for callers at once, and the last good
+// listing, at most 24 hours old, after a transient failure; the server's own
+// order, probing each of the first catalog.MaxListed models with one short
+// generation only under llmprovider.WithModelProbes(true) (0061-MADR,
+// amendment "chatcompat, provider-agnostic", E1).
 //
 // Capabilities: tools are Supported, sent with function.strict as the caller
 // sets it (0032-MADR D2). Forced tool choice is BestEffort: the server decides.
@@ -59,17 +62,19 @@
 // each tool a ToolLoadItem loads is appended to the tools, in load order, and
 // the response carries WarningDeferralEmulated (D7).
 //
-// Model facts: none. The model is the server's, whose id no catalog knows, so
-// the output limit is the default or MaxOutputTokens, the effort is not
-// checked against a list, and prior reasoning is not replayed under a field.
+// Model facts (0041-MADR D1): each request reads what catalog.CachedFacts
+// holds of its model, never fetching: a caller's catalog layers, and what the
+// cached listing says. A server's listing says nothing of its models yet
+// (0061-PLAN Phase 4c, E2), so the output limit is the default or
+// MaxOutputTokens, the effort is not checked against a list, and prior
+// reasoning is not replayed under a field.
 package chatcompat
 
 import (
 	"cmp"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"iter"
 	"log/slog"
 	"net/http"
@@ -80,7 +85,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/compatid"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
@@ -106,15 +111,12 @@ var builtins = []llmprovider.ProviderID{
 	llmprovider.ProviderKilo, llmprovider.ProviderTogether, llmprovider.ProviderOllama,
 }
 
-// idOption is WithID's value.
-type idOption llmprovider.ProviderID
-
 // WithID sets the provider's id, which New requires: the id a Registry holds
 // it under, and the one its ID returns. It is a shared option
 // (llmprovider.SharedOption), so another provider's New takes it and ignores
-// it.
+// it, and catalog's listing and lookups read it, to list the server.
 func WithID(id llmprovider.ProviderID) llmprovider.Option {
-	return llmprovider.SharedOption("chatcompat.WithID", idOption(id))
+	return llmprovider.SharedOption("chatcompat.WithID", compatid.Value(id))
 }
 
 type provider struct {
@@ -131,6 +133,9 @@ type provider struct {
 	cache     *cacheref.Value
 	userAgent string
 	logger    *slog.Logger
+	// listing carries the caller's options, WithID among them, the session,
+	// the transport and the base URL to catalog's listing and lookups.
+	listing []llmprovider.Option
 	// thinking is the memo of refused thinking settings, catalog.WithCache's
 	// or the process's; refusals are WithReasoningRefusals' (0062-MADR D5,
 	// D6).
@@ -172,6 +177,8 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		return nil, fmt.Errorf("%w: chatcompat %q takes a key, not an OAuth or vendor CLI session", llmprovider.ErrUnsupported, id)
 	}
 	ref := cacheref.From(st.Values())
+	listing := append(slices.Clone(opts), llmprovider.WithSessionID(st.SessionID()),
+		llmprovider.WithHTTPClient(st.HTTPClient()), llmprovider.WithBaseURL(st.BaseURL()))
 	return &provider{
 		id:        id,
 		src:       src,
@@ -184,6 +191,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		cache:     ref,
 		userAgent: st.UserAgent(),
 		logger:    st.Logger(),
+		listing:   listing,
 		thinking:  ref.LearnedThinking(),
 		refusals:  st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
@@ -198,19 +206,13 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 
 // idOf is the last WithID's id among values, refused as New says.
 func idOf(values []any) (llmprovider.ProviderID, error) {
-	var id idOption
-	found := false
-	for _, v := range values {
-		if o, ok := v.(idOption); ok {
-			id, found = o, true
-		}
-	}
+	id, found := compatid.Of(values)
 	switch {
 	case !found:
 		return "", fmt.Errorf("%w: chatcompat needs WithID", llmprovider.ErrInvalidProvider)
-	case strings.TrimSpace(string(id)) == "":
+	case strings.TrimSpace(id) == "":
 		return "", fmt.Errorf("%w: chatcompat: WithID with an empty id", llmprovider.ErrInvalidProvider)
-	case slices.ContainsFunc(builtins, func(b llmprovider.ProviderID) bool { return strings.EqualFold(string(b), string(id)) }):
+	case slices.ContainsFunc(builtins, func(b llmprovider.ProviderID) bool { return strings.EqualFold(string(b), id) }):
 		return "", fmt.Errorf("%w: chatcompat: %q is a built-in provider's id", llmprovider.ErrInvalidProvider, id)
 	}
 	return llmprovider.ProviderID(id), nil
@@ -230,7 +232,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 	// request built again (0062-MADR D5).
 	effort := p.learner(req)
 	return wire.Send(ctx, string(p.id), p.src,
-		func(token llmprovider.Token) wire.Call { return p.call(req, false, effort) },
+		func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, false, effort) },
 		chatcompletions.DecodeFor(string(p.id)), effort.Check)
 }
 
@@ -253,7 +255,7 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 		// Each range is its own request, with its own effort learner.
 		effort := p.learner(req)
 		for ev, err := range wire.StreamEventsRetry(ctx, string(p.id), p.src,
-			func(token llmprovider.Token) wire.Call { return p.call(req, true, effort) }, chatcompletions.Events,
+			func(token llmprovider.Token) wire.Call { return p.call(ctx, req, token, true, effort) }, chatcompletions.Events,
 			effort.Check) {
 			if !yield(ev, err) {
 				return
@@ -262,10 +264,20 @@ func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Se
 	}
 }
 
+// facts is what the caches know of req's model, read for each request and
+// never waited for (0041-MADR D1). The request's own token finds the cached
+// listing, so the token source is not asked again.
+func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token llmprovider.Token) catalog.ModelInfo {
+	info, _ := catalog.CachedFacts(ctx, p.id, cmp.Or(req.Model, p.model),
+		slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)
+	return info
+}
+
 // call is the Chat Completions request for req, asking for an event stream
 // with its usage when stream is set (0031-MADR E5).
-func (p *provider) call(req *llmprovider.Request, stream bool, effort *wire.Learner) wire.Call {
-	body, warnings := p.body(req, effort)
+func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
+	effort *wire.Learner) wire.Call {
+	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -297,24 +309,52 @@ func (p *provider) authorize(r *http.Request, token llmprovider.Token) {
 	}
 }
 
-// body is the Chat Completions request for req, and the effort's warnings.
-func (p *provider) body(req *llmprovider.Request, learner *wire.Learner) (map[string]any, []llmprovider.Warning) {
+// body is the Chat Completions request for req, by its model's facts, and
+// the effort's warnings.
+func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learner *wire.Learner) (map[string]any,
+	[]llmprovider.Warning) {
 	model := cmp.Or(req.Model, p.model)
 	maxTokens := p.maxTokens
 	if req.MaxOutputTokens > 0 {
 		maxTokens = req.MaxOutputTokens
+	} else if limit := facts.MaxOutputTokens; limit > 0 && facts.Has(catalog.FieldMaxOutputTokens) {
+		// The default, cut to the model's limit, never raised (0041-MADR D2).
+		maxTokens = min(maxTokens, limit)
 	}
 	input := req.Input
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
-	// No facts: the effort as asked, unless the model refused it (0062-MADR
-	// D2, D3).
-	effort, warnings := learner.Effort(llmprovider.Effort(p.effort(req)), nil, false)
+	// By D3's ladder over the model's refusals and facts (0062-MADR D2, D3).
+	effort, warnings := learner.Effort(llmprovider.Effort(p.effort(req)), facts.Reasoning.Efforts,
+		facts.Has(catalog.FieldReasoningEfforts))
 	// Deferred tools are appended as loaded (0040-MADR D6).
 	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: string(effort),
-		Tools: deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)), ToolChoice: req.ToolChoice,
+		ReplayReasoningField: replayField(input, facts),
+		Tools:                deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)), ToolChoice: req.ToolChoice,
 		SendStrict: true}), warnings
+}
+
+// replayField is the field the model's prior reasoning is replayed under, its
+// facts' ReplayField, when the input has an assistant turn to replay onto
+// (0041-MADR D2, A3); "" otherwise.
+func replayField(input []llmprovider.Item, facts catalog.ModelInfo) string {
+	if !slices.ContainsFunc(input, isAssistantTurn) {
+		return ""
+	}
+	return facts.Reasoning.ReplayField
+}
+
+// isAssistantTurn reports an item the model wrote: a call, or an assistant
+// message.
+func isAssistantTurn(item llmprovider.Item) bool {
+	switch v := item.(type) {
+	case llmprovider.FunctionCallItem:
+		return true
+	case llmprovider.MessageItem:
+		return v.Role == llmprovider.RoleAssistant
+	}
+	return false
 }
 
 // effort is reasoning_effort for req: the request's Reasoning, else
@@ -338,17 +378,27 @@ func (p *provider) effort(req *llmprovider.Request) string {
 	}
 }
 
-// ListModels returns the models GET {base}/models lists, in its order, each
-// once, probed under WithModelProbes(true): the first catalog.MaxListed that
-// answer a short generation, when any does. A failed listing returns its
-// error: an *llmprovider.APIError of the reply's kind, one matching
-// llmprovider.ErrOffline when the server cannot be reached for want of a
-// network, llmprovider.ErrIncomplete for a reply it cannot read, or the
-// context's error.
+// ListModels returns the models catalog.List lists of the server, in its
+// order, probed under WithModelProbes(true): the first catalog.MaxListed
+// that answer a short generation, when any does. A listing within ten
+// minutes is reused, and the last good one served after a transient failure.
+// A failed listing returns its error: an *llmprovider.APIError of the reply's
+// kind, one matching llmprovider.ErrOffline when the server cannot be reached
+// for want of a network, llmprovider.ErrIncomplete for a reply it cannot
+// read, or the context's error.
 func (p *provider) ListModels(ctx context.Context) ([]string, error) {
-	listed, err := p.fetchModels(ctx)
-	if err != nil || !p.probe || len(listed) == 0 {
-		return listed, err
+	cat, err := catalog.List(ctx, p.id, p.src, p.listing...)
+	if err != nil {
+		return nil, err
+	}
+	if !cat.Live {
+		// No static catalog stands in for a server's: its failure is the
+		// caller's (none, for a listing with no model).
+		return nil, listingError(p.id, cat.Err)
+	}
+	listed := cat.Recommended
+	if !p.probe || len(listed) == 0 {
+		return listed, nil
 	}
 	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), p.id, p.baseURL, p.src, listed, catalog.MaxListed,
 		func(ctx context.Context, model string) (string, error) {
@@ -367,44 +417,17 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	return listed, nil
 }
 
-// fetchModels is GET {base}/models's ids, in order, each once.
-func (p *provider) fetchModels(ctx context.Context) ([]string, error) {
-	token, err := p.src.Token(ctx)
-	if err != nil {
-		return nil, err
+// kinds are the errors a listing's failure keeps as it came: a kind, or the
+// context's.
+var kinds = []error{llmprovider.ErrRateLimited, llmprovider.ErrAuthFailure, llmprovider.ErrNotPermitted,
+	llmprovider.ErrInvalidRequest, llmprovider.ErrProviderUnavailable, llmprovider.ErrUnsupported,
+	llmprovider.ErrIncomplete, context.Canceled, context.DeadlineExceeded}
+
+// listingError is a failed listing's error: as it came when it has a kind,
+// else ErrIncomplete, the server having answered with what cannot be read.
+func listingError(id llmprovider.ProviderID, err error) error {
+	if err == nil || slices.ContainsFunc(kinds, func(k error) bool { return errors.Is(err, k) }) {
+		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/models", http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", p.userAgent)
-	p.authorize(req, token)
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, transport.WrapOffline(ctx, err, llmprovider.ErrOffline)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			p.logger.Debug("chatcompat: closing the listing", "provider", p.id, "error", err)
-		}
-	}()
-	if err := llmprovider.ClassifyHTTPError(string(p.id), resp); err != nil {
-		return nil, err
-	}
-	var listing struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
-	// A reply over wire.ReplyLimit is cut, and fails to decode: incomplete.
-	if err := json.NewDecoder(io.LimitReader(resp.Body, wire.ReplyLimit)).Decode(&listing); err != nil {
-		return nil, fmt.Errorf("%w: chatcompat %s: the listing: %w", llmprovider.ErrIncomplete, p.id, err)
-	}
-	ids := make([]string, 0, len(listing.Data))
-	for _, m := range listing.Data {
-		if m.ID != "" && !slices.Contains(ids, m.ID) {
-			ids = append(ids, m.ID)
-		}
-	}
-	return ids, nil
+	return fmt.Errorf("%w: chatcompat %s: the listing: %w", llmprovider.ErrIncomplete, id, err)
 }
