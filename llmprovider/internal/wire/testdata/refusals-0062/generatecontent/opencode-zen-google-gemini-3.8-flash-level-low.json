@@ -1,0 +1,18 @@
+{
+  "case": "opencode-zen-google-gemini-3.8-flash-level-low",
+  "cause": "thinking",
+  "wire": "generatecontent",
+  "provider": "opencode-zen",
+  "route": "google",
+  "model": "gemini-3.8-flash",
+  "set": {
+    "generationConfig.thinkingConfig.thinkingLevel": "low"
+  },
+  "dropped": [
+    "generationConfig.thinkingConfig.thinkingBudget"
+  ],
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "outcome": "accepted"
+}

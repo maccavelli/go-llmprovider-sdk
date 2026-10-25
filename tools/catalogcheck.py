@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""catalogcheck: at a refresh, report each rule that differs from the facts, and how many of each six changed.
+"""catalogcheck: at a refresh, report how many of each open catalog's six changed.
 
 Defined by docs/decisions/0041-MADR-decide-per-model-behaviour-from-metadata.md
 D7, and built in 0041-PLAN-decide-per-model-behaviour-from-metadata.md
@@ -13,18 +13,19 @@ The command reads each provider's key from that provider's variable. This
 tool reads no key, prints none, and relays which listings the command
 skipped. With --dir it checks an existing snapshot, and sends no request.
 
-The agreement tests, TestAgreement0041_* in catalog, run with
-LLMPROVIDER_SNAPSHOT_DIR=DIR. A failing one is a rule that differs from the
-facts, and its differing models are listed. Those of providers/gemini and
-providers/grok went with R5 and R6, which 0062-MADR D8 removed.
-TestCatalogCheck0041_Sixes prints each open catalog's six under each
+TestCatalogCheck0041_Sixes, run with LLMPROVIDER_SNAPSHOT_DIR=DIR, prints
+each open catalog's six under each
 profile, for DIR and for the baseline: --baseline, or the newest committed
 llmprovider/catalog/testdata/ranking-*/ that holds a snapshot.json.
+
+It also ran 0041-MADR D7's agreement tests, each rule beside the facts; they
+went with the rules they compared, R1, R4, R5 and R6, which 0062-MADR D8
+removed.
 
 Usage:
   tools/catalogcheck.py [--dir DIR | --out DIR] [--baseline DIR] [--doc FILE]
 
-Exit codes: 0 no difference, 1 a rule differs or a six changed, 2 tool error.
+Exit codes: 0 no difference, 1 a six changed, 2 tool error.
 """
 from __future__ import annotations
 
@@ -39,11 +40,6 @@ from _common import ROOT, out_dir, run
 
 ENV = "LLMPROVIDER_SNAPSHOT_DIR"
 SNAPSHOTS = ROOT / "llmprovider" / "catalog" / "testdata"
-AGREEMENT_PACKAGES = ("./llmprovider/catalog/",)
-RUN = re.compile(r"^=== RUN\s+(TestAgreement0041_\w+)")
-LOG = re.compile(r"^\s+(\S+\.go:\d+: .*)")
-FAIL = re.compile(r"^\s*--- FAIL: (TestAgreement0041_\w+)")
-BROKEN = re.compile(r"\[(build|setup) failed\]|^panic: ")
 SIX = re.compile(r"^SIX\t(\S+)\t(\S+)\t(.*)$")
 SKIPPED = re.compile(r"unset; its listing is skipped|: listing: ")
 
@@ -79,34 +75,6 @@ def record(dest: Path, doc: Path | None) -> list[str]:
     if res.returncode != 0 or not (dest / "snapshot.json").is_file():
         raise ToolError(f"the catalogs command failed (exit {res.returncode}):\n{tail(res.stderr)}")
     return [line.strip() for line in res.stderr.splitlines() if SKIPPED.search(line)]
-
-
-def agreement(snapshot: Path) -> Report:
-    """Run the agreement tests on snapshot; each failing one is a rule that differs."""
-    res = run(["go", "test", "-count=1", "-v", "-run", "^TestAgreement0041_", *AGREEMENT_PACKAGES],
-              env={ENV: str(snapshot)})
-    out = res.stdout + res.stderr
-    if res.returncode not in (0, 1) or BROKEN.search(out):
-        raise ToolError(f"the agreement tests did not run (exit {res.returncode}):\n{tail(out)}")
-    logs: dict[str, list[str]] = {}
-    failed: list[str] = []
-    current = None
-    for line in res.stdout.splitlines():
-        if m := RUN.match(line):
-            current = m.group(1)
-            logs.setdefault(current, [])
-        elif m := FAIL.match(line):
-            failed.append(m.group(1))
-        elif (m := LOG.match(line)) and current:
-            logs[current].append(m.group(1))
-    if res.returncode == 1 and not failed:
-        raise ToolError(f"the agreement tests failed outside a TestAgreement0041_ test:\n{tail(out)}")
-    report = Report(findings=len(failed))
-    report.lines.append(f"rules: {len(failed)} differ from the facts")
-    for name in failed:
-        report.lines.append(f"  {name}:")
-        report.lines += [f"    {entry}" for entry in logs.get(name, [])]
-    return report
 
 
 def sixes(snapshot: Path) -> dict[tuple[str, str], list[str] | None]:
@@ -176,15 +144,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"catalogcheck: snapshot {snapshot}")
         for line in skipped:
             print(f"skipped: {line}")
-        rules = agreement(snapshot)
         name = baseline.relative_to(ROOT) if baseline.is_relative_to(ROOT) else baseline
         changed = compare(sixes(baseline.resolve()), sixes(snapshot), str(name))
     except ToolError as err:
         print(f"catalogcheck: {err}", file=sys.stderr)
         return 2
-    for line in rules.lines + changed.lines:
+    for line in changed.lines:
         print(line)
-    findings = rules.findings + changed.findings
+    findings = changed.findings
     print(f"catalogcheck: {findings} finding(s); nothing was changed")
     return 1 if findings else 0
 

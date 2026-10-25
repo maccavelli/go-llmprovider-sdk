@@ -121,8 +121,8 @@ func TestRefusalOutcome_0062(t *testing.T) {
 }
 
 // TestRefusalCases_Table_0062: the case table is 0062-PLAN Phase 1 step 2's,
-// amended by Q9 (c) and Q10 (a), and by Phase 2's two Grok cases: 31
-// thinking cases, and the two other causes
+// amended by Q9 (c) and Q10 (a), by Phase 2's two Grok cases and Phase 3's
+// four google-route levels: 35 thinking cases, and the two other causes
 // on each of 11 providers and routes; no Ollama; each id unique and fit for
 // a subtest and a file name; each provider's key named.
 func TestRefusalCases_Table_0062(t *testing.T) {
@@ -150,8 +150,8 @@ func TestRefusalCases_Table_0062(t *testing.T) {
 			others[string(c.provider)+"/"+string(c.route)]++
 		}
 	}
-	if counts[causeThinking] != 31 || counts[causeOther] != 22 || len(cases) != 53 {
-		t.Errorf("%d thinking and %d other-cause cases of %d; want 31, 22 and 53", counts[causeThinking],
+	if counts[causeThinking] != 35 || counts[causeOther] != 22 || len(cases) != 57 {
+		t.Errorf("%d thinking and %d other-cause cases of %d; want 35, 22 and 57", counts[causeThinking],
 			counts[causeOther], len(cases))
 	}
 	if len(others) != len(refusalRoutes) || len(refusalRoutes) != 11 {

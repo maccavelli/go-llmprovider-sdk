@@ -60,7 +60,8 @@ func sentEffort(v any) string {
 // warning names, "" for none. By 0062-MADR D3's ladder every provider sends
 // what the facts allow, and max with none: a service that refuses it is
 // learned from, not guessed at (0062-MADR D8, 0061-MADR D3's rows removed).
-// OpenCode's google route, with no facts, sends a dynamic budget.
+// OpenCode's google route sends the level, max with no facts (0062-MADR,
+// amendment "Phase 3's google-route levels, and 0013's B9").
 func TestEffortMax_Mapping_0061(t *testing.T) {
 	type want struct{ sent, warned string }
 	withMax := []llmprovider.Effort{"low", "medium", "high", "xhigh", "max"}
@@ -76,7 +77,7 @@ func TestEffortMax_Mapping_0061(t *testing.T) {
 		{llmprovider.ProviderGemini, "gemini-3.8-flash", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
 		{llmprovider.ProviderOpencodeZen, "claude-sonnet-5", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
 		{llmprovider.ProviderOpencodeZen, "gpt-5.5", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
-		{llmprovider.ProviderOpencodeZen, "gemini-3.8-flash", want{"max", ""}, want{"high", "high"}, want{"", ""}},
+		{llmprovider.ProviderOpencodeZen, "gemini-3.8-flash", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
 		{llmprovider.ProviderKilo, "openai/gpt-6-luna", want{"max", ""}, want{"high", "high"}, want{"max", ""}},
 		{llmprovider.ProviderHuggingFace, "deepseek-ai/DeepSeek-V4.1-Flash", want{"max", ""}, want{"high", "high"},
 			want{"max", ""}},

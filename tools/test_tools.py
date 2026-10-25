@@ -802,7 +802,7 @@ class TestClaims(unittest.TestCase):
 
 
 class TestCatalogCheck(unittest.TestCase):
-    """0041-PLAN Phase 7: a planted disagreement and a changed six are each reported; a clean snapshot is not."""
+    """0041-PLAN Phase 7: a changed six is reported; a clean snapshot is not; no rule is (0062-MADR D8)."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -813,15 +813,6 @@ class TestCatalogCheck(unittest.TestCase):
         shutil.copytree(base, cls.clean)
         cls.planted = cls.tmp / "planted"
         shutil.copytree(base, cls.planted)
-        # A rule that differs, for each rule with an agreement test: Claude Haiku 4.5's budget
-        # minimum, which R1's rule sends as 1024; Gemini Flash's efforts (R4). R5's and R6's
-        # agreement tests went with their rules (0062-MADR D8).
-        meta = cls.planted / "metadata.json"
-        doc = json.loads(meta.read_text(encoding="utf-8"))
-        doc["anthropic"]["models"]["claude-haiku-4-5"]["reasoning_options"] = [{"type": "budget_tokens", "min": 4096}]
-        doc["google"]["models"]["gemini-flash-latest"]["reasoning_options"] = [
-            {"type": "effort", "values": ["minimal", "high"]}]
-        meta.write_text(json.dumps(doc), encoding="utf-8")
         # A changed six: a model of Kilo's utility six leaves the listing.
         kilo = cls.planted / "kilo.json"
         listing = json.loads(kilo.read_text(encoding="utf-8"))
@@ -835,15 +826,13 @@ class TestCatalogCheck(unittest.TestCase):
     def test_a_clean_snapshot_reports_nothing(self) -> None:
         rc, out = call(catalogcheck.main, "--dir", str(self.clean))
         self.assertEqual(rc, 0, out)
-        self.assertIn("rules: 0 differ", out)
         self.assertIn(": 0 changed", out)
+        self.assertNotIn("rules:", out)
 
     def test_a_planted_snapshot_reports_both(self) -> None:
         rc, out = call(catalogcheck.main, "--dir", str(self.planted))
         self.assertEqual(rc, 1, out)
-        self.assertIn("rules: 2 differ", out)
-        for test, model in (("MessagesThinking", "claude/claude-haiku-4-5"), ("GeminiConfig", "gemini-flash-latest")):
-            self.assertRegex(out, rf"TestAgreement0041_{test}:\n(    .*\n)*    .*{re.escape(model)}")
+        self.assertNotIn("rules:", out)
         self.assertRegex(out, r"kilo utility: \d of 6 changed: .*-deepseek/deepseek-v4\.1-flash")
 
     def test_a_dir_without_a_snapshot_is_a_tool_error(self) -> None:

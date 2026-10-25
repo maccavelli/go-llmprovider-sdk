@@ -41,7 +41,11 @@
 //     0034-MADR D4).
 //   - Reasoning: the responses route takes an effort (medium when none is
 //     named); the messages and google routes take the effort or the budget,
-//     shaped by model as Claude's and Gemini's; the chat route takes
+//     in the shape the model's facts give, else the request's: on the
+//     messages route as the claude package sends it, and on the google route
+//     an effort as thinkingLevel and a Budget as thinkingBudget, where
+//     0013-MADR B9 sent a dynamic budget (0062-MADR D2, amendment "Phase 3's
+//     google-route levels, and 0013's B9"); the chat route takes
 //     reasoning_effort, by the efforts the model's published
 //     reasoning_options list, and as asked when they list none or the
 //     metadata is off (0062-MADR Q7 (a); it sent none, MADR 0009 §6).
@@ -54,8 +58,10 @@
 //     memory only, and the request is sent again, at most 7 times in all;
 //     the Response, or a stream's done event, carries a
 //     WarningReasoningLearned whose Refused a caller can keep, and pass back
-//     with WithReasoningRefusals (D4 to D6). No refusal of the google route
-//     was recorded: it learns nothing, and returns a refusal as it came.
+//     with WithReasoningRefusals (D4 to D6). The messages route learns a
+//     refused thinking shape as the claude package does (D3); the google
+//     route a refused thinkingLevel, as Zen's gemini-3.8-flash refused xhigh
+//     (0062-REPORT-thinking-refusals.md E11).
 //   - On the messages route, a forced tool choice is sent as "auto" with
 //     reasoning: Anthropic refuses to force a tool while thinking, and the
 //     Response carries a WarningForcedChoiceDegraded (0034-MADR D7). On
@@ -95,9 +101,9 @@
 //     hold of its model, a caller's catalog.WithModelLayer and the models.dev
 //     document once fetched, and never fetches. From them come the messages
 //     route's thinking shape, as the claude package sends it; the google
-//     route's thinkingLevel, sent only when the model lists it; and, with no
+//     route's thinkingLevel, from the levels the model lists; and, with no
 //     MaxOutputTokens, the default output limit cut to the model's. With no
-//     facts the rules decide, as before.
+//     facts the request decides the shape (0062-MADR D2).
 //
 // ListModels returns the curated gateway listing. It never probes: the
 // gateways meter every call (MADR 0012 §1.6).
@@ -414,10 +420,9 @@ func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 	return c
 }
 
-// learner is c's effort, learned from the model's refusals of it by its
-// route's wire (0062-MADR D2 to D6). The google route has no matcher: no
-// refusal of its was recorded, so it learns nothing (D4, amendment "Phase
-// 1's evidence").
+// learner is c's thinking shape and effort, learned from the model's
+// refusals of them by its route's wire (0062-MADR D2 to D6; the google
+// route's, its amendment "Phase 3's google-route levels, and 0013's B9").
 func (p *provider) learner(c call) *wire.Learner {
 	var match wire.Matcher
 	switch c.route {
@@ -426,6 +431,7 @@ func (p *provider) learner(c call) *wire.Learner {
 	case RouteResponses:
 		match = responses.MatchRefusal
 	case RouteGoogle:
+		match = generatecontent.MatchRefusal
 	default:
 		match = chatcompletions.MatchRefusal
 	}
@@ -666,8 +672,9 @@ func (p *provider) messagesBody(c call, learner *wire.Learner) (map[string]any, 
 		var effort llmprovider.Effort
 		effort, warnings = learner.Effort(c.reasoning.Effort, c.facts.Reasoning.Efforts,
 			c.facts.Has(catalog.FieldReasoningEfforts))
-		maxTokens = messages.AddThinkingFor(body, c.model, string(effort), c.reasoning.Budget, maxTokens,
-			messagesThinking(c.facts))
+		facts := messagesThinking(c.facts)
+		shape := learner.Shape(messages.PreferredShape(facts, c.reasoning.Budget))
+		maxTokens = messages.AddThinkingFor(body, string(effort), c.reasoning.Budget, maxTokens, facts, shape)
 	}
 	body[jsonKeyMaxTokens] = maxTokens
 	if tools := deferral.Tools(c.req, form); len(tools) > 0 {
@@ -693,7 +700,7 @@ func effortsOf(info catalog.ModelInfo) []string {
 }
 
 // messagesThinking is the Messages thinking info's facts give (0041-MADR
-// D2, R1–R3), with its output limit.
+// D2, R3), with its output limit.
 func messagesThinking(info catalog.ModelInfo) messages.Thinking {
 	limit := 0
 	if info.Has(catalog.FieldMaxOutputTokens) {
@@ -703,8 +710,8 @@ func messagesThinking(info catalog.ModelInfo) messages.Thinking {
 		info.Reasoning.BudgetMin, info.Reasoning.BudgetMax, limit)
 }
 
-// geminiThinking is the Gemini thinking info's facts give (0041-MADR D2,
-// R4).
+// geminiThinking is the Gemini thinking info's facts give (0041-MADR
+// D2).
 func geminiThinking(info catalog.ModelInfo) generatecontent.Thinking {
 	return generatecontent.FactsThinking(effortsOf(info), info.Has(catalog.FieldReasoningBudget))
 }
@@ -718,8 +725,8 @@ func (p *provider) googleBody(c call, learner *wire.Learner) (map[string]any, []
 		var effort llmprovider.Effort
 		effort, warnings = learner.Effort(c.reasoning.Effort, c.facts.Reasoning.Efforts,
 			c.facts.Has(catalog.FieldReasoningEfforts))
-		genCfg["thinkingConfig"] = generatecontent.ThinkingConfigFor(c.model, string(effort), c.reasoning.Budget,
-			geminiThinking(c.facts))
+		shape := learner.Shape(generatecontent.PreferredShape(geminiThinking(c.facts), c.reasoning.Budget))
+		genCfg["thinkingConfig"] = generatecontent.ThinkingConfigFor(string(effort), c.reasoning.Budget, shape)
 	}
 	body := map[string]any{
 		"contents":         generatecontent.Contents(c.input),

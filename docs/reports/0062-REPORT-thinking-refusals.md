@@ -41,12 +41,17 @@ recorded them. Every finding here is measured, from the records.
   Grok models outside its menu, which no case had measured, the PLAN's
   Phase 2 stopped and the owner chose to record first: `reasoning.effort`
   `"high"` on `grok-build-0.1` and on `grok-4.20-0309-non-reasoning`, sent
-  on 2026-10-25 by the same recorder. 53 cases in all.
+  on 2026-10-25 by the same recorder.
+* **Phase 3's four cases.** Before D2's level replaced 0013-MADR B9's dynamic
+  budget on generateContent, the PLAN's Phase 3 stopped and the owner chose
+  to record first: `thinkingLevel` `low`, `medium`, `high` and `xhigh` on
+  Zen's google route for `gemini-3.8-flash`, sent on 2026-10-25. 57 cases in
+  all.
 
 | Outcome | Status | Cases |
 | :--- | ---: | ---: |
-| accepted | 200 | 19 |
-| refused | 400 | 33 |
+| accepted | 200 | 22 |
+| refused | 400 | 34 |
 | unreachable | 404 | 1 |
 
 ## Findings
@@ -123,6 +128,12 @@ recorded them. Every finding here is measured, from the records.
   reasoningEffort." (and the same of the other), where a model that takes
   efforts answers one it does not take "Invalid reasoning effort."; OpenAI's
   `gpt-4.1-mini` answers `unsupported_parameter` (E3).
+* **E11. OpenCode's google route takes a level for every effort but
+  xhigh.** On `gemini-3.8-flash`, `thinkingLevel` `low`, `medium` (58
+  reasoning tokens), `high` (127) and `max` (55, E4) are accepted; `xhigh` is
+  refused, 400 `INVALID_ARGUMENT`, "Upstream request failed: [400] Invalid
+  value at 'generation_config.thinking_config.thinking_level'", with no
+  list.
 
 ## The records, by wire
 
@@ -208,7 +219,11 @@ Thinking cases:
 | :--- | :--- | :--- | :--- | :--- | ---: | :--- | :--- |
 | `opencode-zen-google-gemini-2.5-flash-level-low` | opencode-zen/google | `gemini-2.5-flash` | `generationConfig.thinkingConfig.thinkingLevel` "low"; `generationConfig.thinkingConfig.thinkingBudget` dropped | refused | 400 | `UNKNOWN` | Upstream request failed: Model is unavailable. |
 | `opencode-zen-google-gemini-3.8-flash-budget` | opencode-zen/google | `gemini-3.8-flash` | `generationConfig.thinkingConfig.thinkingBudget` 4096; `generationConfig.thinkingConfig.thinkingLevel` dropped | accepted (63 reasoning tokens) | 200 |  |  |
+| `opencode-zen-google-gemini-3.8-flash-level-high` | opencode-zen/google | `gemini-3.8-flash` | `generationConfig.thinkingConfig.thinkingLevel` "high"; `generationConfig.thinkingConfig.thinkingBudget` dropped | accepted (127 reasoning tokens) | 200 |  |  |
+| `opencode-zen-google-gemini-3.8-flash-level-low` | opencode-zen/google | `gemini-3.8-flash` | `generationConfig.thinkingConfig.thinkingLevel` "low"; `generationConfig.thinkingConfig.thinkingBudget` dropped | accepted (0 reasoning tokens) | 200 |  |  |
 | `opencode-zen-google-gemini-3.8-flash-level-max` | opencode-zen/google | `gemini-3.8-flash` | `generationConfig.thinkingConfig.thinkingLevel` "max"; `generationConfig.thinkingConfig.thinkingBudget` dropped | accepted (55 reasoning tokens) | 200 |  |  |
+| `opencode-zen-google-gemini-3.8-flash-level-medium` | opencode-zen/google | `gemini-3.8-flash` | `generationConfig.thinkingConfig.thinkingLevel` "medium"; `generationConfig.thinkingConfig.thinkingBudget` dropped | accepted (58 reasoning tokens) | 200 |  |  |
+| `opencode-zen-google-gemini-3.8-flash-level-xhigh` | opencode-zen/google | `gemini-3.8-flash` | `generationConfig.thinkingConfig.thinkingLevel` "xhigh"; `generationConfig.thinkingConfig.thinkingBudget` dropped | refused | 400 | `INVALID_ARGUMENT` | Upstream request failed: [400] Invalid value at 'generation_config.thinking_config.thinking_level' (type.googleapis.com/google.cloud.aiplatform.v1.GenerationConfig.ThinkingConfig.ThinkingLevel), |
 
 Other causes:
 

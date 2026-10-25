@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -26,9 +24,6 @@ const (
 
 	keyThinkingBudget = "thinkingBudget"
 )
-
-// dynamicThinkingBudget (-1) lets the model size its own thinking budget.
-const dynamicThinkingBudget = -1
 
 // Content is one generateContent content, and System a systemInstruction.
 // Part is every part in one struct: text, a function call with its thought
@@ -407,42 +402,22 @@ var finishReasons = map[string]llmprovider.FinishReason{
 	"FINISH_REASON_UNSPECIFIED": "",
 }
 
-// geminiLegacyRE matches Gemini 1.x and 2.x ids, which take thinkingBudget but
-// not thinkingLevel (HTTP 400 on gemini-2.5-flash, measured 2026-09-27). It is
-// OpenCode's GEMINI_LEGACY_RE.
-var geminiLegacyRE = regexp.MustCompile(`(?i)gemini-(?:(?:flash|pro)-)?[12](?:[.-]|$)`)
-
-// ThinkingConfig returns a Gemini thinkingConfig. A configured budget wins.
-// Otherwise "low" is thinkingLevel "low" on Gemini 3 and later and a
-// wire.LowEffortThinkingBudget budget on 1.x and 2.x, and any other effort
-// keeps the dynamic budget (MADR 0013 Q1, B9).
-func ThinkingConfig(model, effort string, budget int) map[string]any {
-	// Thought summaries come back only when asked for, as OpenCode's client
-	// asks (transform.ts:1280-1288, MADR 0014 §3).
-	low := string(llmprovider.EffortLow)
-	cfg := map[string]any{"includeThoughts": true}
-	switch {
-	case budget > 0:
-		cfg[keyThinkingBudget] = budget
-	case effort != low:
-		cfg[keyThinkingBudget] = dynamicThinkingBudget
-	case geminiLegacyRE.MatchString(model):
-		cfg[keyThinkingBudget] = wire.LowEffortThinkingBudget
-	default:
-		cfg["thinkingLevel"] = low
-	}
-	return cfg
+// ThinkingConfig returns a Gemini thinkingConfig in D2's shape for a request
+// with no facts: ThinkingConfigFor with no facts and PreferredShape's shape
+// (0062-MADR D2).
+func ThinkingConfig(effort string, budget int) map[string]any {
+	return ThinkingConfigFor(effort, budget, PreferredShape(Thinking{}, budget))
 }
 
-// Thinking is what a model's facts say of its Gemini thinking (0041-MADR D2,
-// R4–R5), resolved by the provider so that this package reads no facts.
+// Thinking is what a model's facts say of its Gemini thinking (0041-MADR D2),
+// resolved by the provider so that this package reads no facts.
 type Thinking struct {
-	// Known reports that the facts answer. Without it geminiLegacyRE decides.
+	// Known reports that the facts answer. Without it the request decides
+	// the shape (0062-MADR D2).
 	Known bool
 	// Budget is a thinking budget without efforts: thinkingBudget.
 	Budget bool
-	// Levels are the model's efforts: thinkingLevel, sent only when the
-	// effort is one of them.
+	// Levels are the model's efforts: thinkingLevel.
 	Levels []string
 }
 
@@ -459,24 +434,42 @@ func FactsThinking(efforts []string, budget bool) Thinking {
 	return Thinking{}
 }
 
-// ThinkingConfigFor is ThinkingConfig with the model's facts (0041-MADR D2): a
-// configured budget still wins; a model with levels gets thinkingLevel, only
-// for an effort among them; one with a budget gets ThinkingConfig's budgets.
-func ThinkingConfigFor(model, effort string, budget int, facts Thinking) map[string]any {
-	if !facts.Known || budget > 0 {
-		return ThinkingConfig(model, effort, budget)
-	}
-	cfg := map[string]any{"includeThoughts": true}
+// PreferredShape is D2's thinking shape on generateContent: the facts', when
+// they answer, a level where they list levels; else a budget's, when the
+// request sets one; else the level (0062-MADR D2, and its amendment "Phase
+// 3's google-route levels, and 0013's B9"). D3's ladder may then send the
+// other, when the model refused this one.
+func PreferredShape(facts Thinking, budget int) llmprovider.ThinkingShape {
 	switch {
-	case len(facts.Levels) > 0:
-		if effort != "" && slices.Contains(facts.Levels, effort) {
+	case facts.Known && len(facts.Levels) > 0, !facts.Known && budget <= 0:
+		return llmprovider.ThinkingAdaptive
+	default:
+		return llmprovider.ThinkingBudget
+	}
+}
+
+// ThinkingConfigFor returns a Gemini thinkingConfig of shape (0062-MADR D3),
+// asking for thought summaries, as OpenCode's client asks
+// (transform.ts:1280-1288, MADR 0014 §3). The level is thinkingLevel, the
+// effort, with none leaving the model's default; the budget is
+// thinkingBudget, the request's, else wire.LowEffortThinkingBudget for "low",
+// else wire.DefaultThinkingBudget (R3). It replaces 0013-MADR B9's dynamic
+// budget for an effort.
+func ThinkingConfigFor(effort string, budget int, shape llmprovider.ThinkingShape) map[string]any {
+	cfg := map[string]any{"includeThoughts": true}
+	if shape == llmprovider.ThinkingAdaptive {
+		if effort != "" {
 			cfg["thinkingLevel"] = effort
 		}
-	case effort == string(llmprovider.EffortLow):
-		cfg[keyThinkingBudget] = wire.LowEffortThinkingBudget
-	default:
-		cfg[keyThinkingBudget] = dynamicThinkingBudget
+		return cfg
 	}
+	if budget <= 0 {
+		budget = wire.DefaultThinkingBudget
+		if effort == string(llmprovider.EffortLow) {
+			budget = wire.LowEffortThinkingBudget
+		}
+	}
+	cfg[keyThinkingBudget] = budget
 	return cfg
 }
 

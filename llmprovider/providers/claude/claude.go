@@ -53,10 +53,14 @@
 //     ForcedChoiceDegrade, and otherwise returned as an error matching
 //     ErrUnsupported and wrapping the *APIError. The Response, or a stream's
 //     done event, carries a WarningForcedChoiceLearned naming the model (D3).
-//   - Reasoning's shape follows the model. Claude 4.7 and later take adaptive
-//     thinking, with the effort as output_config.effort; a Budget is not sent
-//     to them. Older models take a budget: Reasoning.Budget, else 1024 for
-//     EffortLow, else 4096, with the output limit raised above it.
+//   - Reasoning's shape is the model's facts', else an enabled budget when
+//     Reasoning.Budget is set, else adaptive thinking, with the effort as
+//     output_config.effort (0062-MADR D2). An enabled budget is
+//     Reasoning.Budget, else 1024 for EffortLow, else 4096, with the output
+//     limit raised above it. No rule of model names decides: a refusal of the
+//     shape sent, in a form 0062-PLAN Phase 1 recorded, is remembered as an
+//     effort's is, below, and the request sent again with the other shape; a
+//     model that refuses both has the second refusal returned (D3).
 //   - The effort, output_config.effort, max included, is sent by the model's
 //     facts and what it refused (0062-MADR D2, D3): one the facts do not
 //     list, or the model refused, steps to the nearest it takes, lower
@@ -105,7 +109,8 @@
 // toggle alone means adaptive thinking with none.
 // With no MaxOutputTokens, the output limit is the default, cut to the
 // model's own when that is smaller; it is never raised.
-// With no facts, the version rules decide the shape, as before.
+// With no facts, the request decides the shape, and a refusal is learned
+// (0062-MADR D2, D3).
 package claude
 
 import (
@@ -347,7 +352,7 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 }
 
 // thinkingFacts is the Messages thinking info's reasoning facts give
-// (0041-MADR D2, R1–R3), with its output limit.
+// (0041-MADR D2, R3), with its output limit.
 func thinkingFacts(info catalog.ModelInfo) messages.Thinking {
 	efforts := make([]string, len(info.Reasoning.Efforts))
 	for i, e := range info.Reasoning.Efforts {
@@ -397,7 +402,7 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, effor
 	if len(system) > 0 {
 		body["system"] = strings.Join(system, "\n\n")
 	}
-	thinking, warnings := p.addReasoning(body, req, model, maxTokens, facts, effort)
+	thinking, warnings := p.addReasoning(body, req, maxTokens, facts, effort)
 	if tools := deferral.Tools(req, form); len(tools) > 0 {
 		if form == deferral.MessagesNative {
 			body["tools"] = wire.MessagesToolsNative(tools)
@@ -412,11 +417,12 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, effor
 }
 
 // addReasoning adds the thinking fields for the request's Reasoning, or
-// WithReasoning's, in the shape the model's facts give, and reports whether
-// it did, with the warnings of the effort learner chooses (0062-MADR D3, D6).
-// Each of effort and budget falls back to WithReasoning's.
-func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, model string, maxTokens int,
-	info catalog.ModelInfo, learner *wire.Learner) (bool, []llmprovider.Warning) {
+// WithReasoning's, in the shape and at the effort learner chooses, from what
+// the model refused, its facts and the request, and reports whether it did,
+// with the effort's warnings (0062-MADR D2, D3, D6). Each of effort and budget
+// falls back to WithReasoning's.
+func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, maxTokens int, info catalog.ModelInfo,
+	learner *wire.Learner) (bool, []llmprovider.Warning) {
 	r := req.Reasoning
 	if r == nil {
 		r = p.reasoning
@@ -434,7 +440,9 @@ func (p *provider) addReasoning(body map[string]any, req *llmprovider.Request, m
 		}
 	}
 	effort, warnings := learner.Effort(effort, info.Reasoning.Efforts, info.Has(catalog.FieldReasoningEfforts))
-	body["max_tokens"] = messages.AddThinkingFor(body, model, string(effort), budget, maxTokens, thinkingFacts(info))
+	facts := thinkingFacts(info)
+	shape := learner.Shape(messages.PreferredShape(facts, budget))
+	body["max_tokens"] = messages.AddThinkingFor(body, string(effort), budget, maxTokens, facts, shape)
 	return true, warnings
 }
 

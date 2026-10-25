@@ -46,23 +46,22 @@ func TestDecode_Errors(t *testing.T) {
 	}
 }
 
-// TestThinkingConfig: a budget wins; any effort but "low" is dynamic; "low" is
-// a budget on Gemini 1.x and 2.x and a level on 3 and later.
+// TestThinkingConfig: with no facts, a Budget is thinkingBudget, and an effort,
+// or none, the level: thinkingLevel the effort, nothing for none (0062-MADR
+// D2, amendment "Phase 3's google-route levels, and 0013's B9"; R4 removed).
 func TestThinkingConfig(t *testing.T) {
 	for _, tc := range []struct {
-		name, model, effort string
-		budget              int
-		want                string
+		name, effort string
+		budget       int
+		want         string
 	}{
-		{"budget", "gemini-3.7-flash", "low", 500, `{"includeThoughts":true,"thinkingBudget":500}`},
-		{"high", "gemini-3.7-flash", "high", 0, `{"includeThoughts":true,"thinkingBudget":-1}`},
-		{"none", "gemini-2.5-pro", "", 0, `{"includeThoughts":true,"thinkingBudget":-1}`},
-		{"low, legacy", "gemini-2.5-flash", "low", 0, `{"includeThoughts":true,"thinkingBudget":1024}`},
-		{"low, legacy with family", "gemini-flash-1.5", "low", 0, `{"includeThoughts":true,"thinkingBudget":1024}`},
-		{"low, current", "gemini-3.7-flash", "low", 0, `{"includeThoughts":true,"thinkingLevel":"low"}`},
+		{"budget", "low", 500, `{"includeThoughts":true,"thinkingBudget":500}`},
+		{"high", "high", 0, `{"includeThoughts":true,"thinkingLevel":"high"}`},
+		{"none", "", 0, `{"includeThoughts":true}`},
+		{"low", "low", 0, `{"includeThoughts":true,"thinkingLevel":"low"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			mustEqualJSON(t, ThinkingConfig(tc.model, tc.effort, tc.budget), tc.want)
+			mustEqualJSON(t, ThinkingConfig(tc.effort, tc.budget), tc.want)
 		})
 	}
 }

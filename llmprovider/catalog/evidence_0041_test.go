@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/generatecontent"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/messages"
 )
 
 // 0041-PLAN Phase 0: each number 0041-MADR states from the committed
@@ -76,86 +74,6 @@ func evidence0041Section(t *testing.T, doc *modelMetadataDoc, key string) map[st
 		t.Fatalf("the snapshot has no %q section", key)
 	}
 	return models
-}
-
-// reasons reports whether m is a reasoning model.
-func reasons(m modelMetadata) bool { return m.Reasoning != nil && *m.Reasoning }
-
-// optionsOf is m's reasoning_options of kind.
-func optionsOf(m modelMetadata, kind string) []modelReasoningOption {
-	var out []modelReasoningOption
-	for _, o := range m.ReasoningOptions {
-		if o.Type == kind {
-			out = append(out, o)
-		}
-	}
-	return out
-}
-
-// TestEvidence0041_ClaudeAdaptive is §3's R1: the Messages wire sends
-// adaptive thinking exactly where models.dev lists no budget_tokens option,
-// on every Claude reasoning model of the three sections.
-func TestEvidence0041_ClaudeAdaptive(t *testing.T) {
-	doc := evidence0041Doc(t)
-	want := map[string]int{"anthropic": 17, "opencode": 16, "opencode-go": 1}
-	total := 0
-	for sec, n := range want {
-		agree, seen := 0, 0
-		for id, m := range evidence0041Section(t, doc, sec) {
-			bare := id[strings.LastIndex(id, "/")+1:]
-			if !strings.Contains(strings.ToLower(bare), "claude") || !reasons(m) {
-				continue
-			}
-			seen++
-			body := map[string]any{}
-			messages.AddThinking(body, bare, "high", 0, 64000)
-			thinking, _ := body["thinking"].(map[string]any)
-			if adaptive := thinking["type"] == "adaptive"; adaptive == (len(optionsOf(m, "budget_tokens")) == 0) {
-				agree++
-			} else {
-				t.Errorf("%s/%s: adaptive %t, but models.dev's budget_tokens options are %v", sec, id, adaptive,
-					optionsOf(m, "budget_tokens"))
-			}
-		}
-		if seen != n || agree != n {
-			t.Errorf("%s: %d of %d Claude reasoning models agree; want %d of %d", sec, agree, seen, n, n)
-		}
-		total += agree
-	}
-	if total != 34 {
-		t.Errorf("R1: %d agree; want 34 of 34", total)
-	}
-}
-
-// TestEvidence0041_GeminiLegacy is §3's R4: at low effort the generateContent
-// wire sends a thinking budget exactly where models.dev lists a budget and no
-// effort, on 27 of Google's 29 reasoning models; the other two are an image
-// model and a computer-use model.
-func TestEvidence0041_GeminiLegacy(t *testing.T) {
-	doc := evidence0041Doc(t)
-	agree, seen := 0, 0
-	var differ []string
-	for id, m := range evidence0041Section(t, doc, "google") {
-		if !reasons(m) {
-			continue
-		}
-		seen++
-		_, budget := generatecontent.ThinkingConfig(id, "low", 0)["thinkingBudget"]
-		var efforts []string
-		for _, o := range optionsOf(m, "effort") {
-			efforts = append(efforts, o.Values...)
-		}
-		if budget == (len(optionsOf(m, "budget_tokens")) > 0 && len(efforts) == 0) {
-			agree++
-		} else {
-			differ = append(differ, id)
-		}
-	}
-	slices.Sort(differ)
-	if want := []string{"gemini-2.5-computer-use-preview-10-2025", "gemini-2.5-flash-image"}; agree != 27 || seen != 29 ||
-		!slices.Equal(differ, want) {
-		t.Errorf("R4: %d of %d agree, differing %v; want 27 of 29, differing %v", agree, seen, differ, want)
-	}
 }
 
 // TestEvidence0041_OutputLimits is §3's R7, as amendment A1 states it: 52

@@ -15,8 +15,8 @@ import (
 // TestListModels_DefaultBaseShape_0041 (0041-MADR A8): with a base URL in
 // the provider's own form, ending in /v1 as its default does, ListModels
 // lists live from /v1/models, and a request after it reads the listing's
-// facts. The model's id gives an enabled budget by the rule; its listing's
-// efforts give adaptive thinking.
+// facts. The request's Budget gives an enabled budget with no facts; its
+// listing's efforts give adaptive thinking (0062-MADR D2).
 func TestListModels_DefaultBaseShape_0041(t *testing.T) {
 	var mu sync.Mutex
 	var paths []string
@@ -50,7 +50,7 @@ func TestListModels_DefaultBaseShape_0041(t *testing.T) {
 		mu.Unlock()
 	}
 	req := text("hi")
-	req.Reasoning = &llmprovider.Reasoning{Effort: llmprovider.EffortLow}
+	req.Reasoning = &llmprovider.Reasoning{Effort: llmprovider.EffortLow, Budget: 2000}
 	if _, err := p.Generate(t.Context(), req); err != nil {
 		t.Fatal(err)
 	}

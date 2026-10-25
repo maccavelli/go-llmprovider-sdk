@@ -89,46 +89,24 @@ func TestDecode(t *testing.T) {
 	}
 }
 
-// TestClaudeAdaptiveOnly: Claude 4.7 and later, and a claude- id with no
-// readable version, refuse an enabled budget; earlier Claude ids and other
-// models take one.
-func TestClaudeAdaptiveOnly(t *testing.T) {
-	for model, want := range map[string]bool{
-		"claude-opus-4-8":          true,
-		"claude-4.7-opus":          true,
-		"claude-sonnet-5":          true,
-		"claude-opus-4-6":          false,
-		"claude-sonnet-4-20250514": false,
-		"claude-3-5-haiku":         false,
-		"claude-unversioned":       true,
-		"glm-5.3":                  false,
-	} {
-		if got := claudeAdaptiveOnly(model); got != want {
-			t.Errorf("claudeAdaptiveOnly(%q) = %t, want %t", model, got, want)
-		}
-	}
-}
-
-// TestAddThinking: MiniMax and adaptive-only Claude take thinking.type
-// "adaptive" (with output_config.effort when an effort is set); others take
-// an enabled budget, with max_tokens raised above it.
+// TestAddThinking: with no facts, D2's shape: an effort, or none, is adaptive
+// thinking, with output_config.effort when an effort is set; a Budget is an
+// enabled budget, with max_tokens raised above it (0062-MADR D2; R1 and R2
+// removed).
 func TestAddThinking(t *testing.T) {
 	for _, tc := range []struct {
-		name, model, effort string
-		budget, maxTokens   int
-		want                string
-		wantMax             int
+		name, effort      string
+		budget, maxTokens int
+		want              string
+		wantMax           int
 	}{
-		{"minimax", "MiniMax-M3", "high", 0, 100, `{"thinking":{"type":"adaptive"}}`, 100},
-		{"adaptive, effort", "claude-opus-4-8", "high", 9000, 100, `{"output_config":{"effort":"high"},"thinking":{"type":"adaptive"}}`, 100},
-		{"adaptive, no effort", "claude-opus-4-8", "", 0, 100, `{"thinking":{"type":"adaptive"}}`, 100},
-		{"budget by default", "claude-opus-4-6", "", 0, 8192, `{"thinking":{"budget_tokens":4096,"type":"enabled"}}`, 8192},
-		{"low effort", "claude-opus-4-6", "low", 0, 8192, `{"thinking":{"budget_tokens":1024,"type":"enabled"}}`, 8192},
-		{"budget given", "glm-5.3", "high", 2000, 8192, `{"thinking":{"budget_tokens":2000,"type":"enabled"}}`, 8192},
-		{"max_tokens raised", "claude-opus-4-6", "", 0, 4096, `{"thinking":{"budget_tokens":4096,"type":"enabled"}}`, 8192},
+		{"an effort: adaptive", "high", 0, 100, `{"output_config":{"effort":"high"},"thinking":{"type":"adaptive"}}`, 100},
+		{"no effort: adaptive", "", 0, 100, `{"thinking":{"type":"adaptive"}}`, 100},
+		{"a budget given", "high", 2000, 8192, `{"thinking":{"budget_tokens":2000,"type":"enabled"}}`, 8192},
+		{"max_tokens raised", "", 6000, 4096, `{"thinking":{"budget_tokens":6000,"type":"enabled"}}`, 10096},
 	} {
 		body := map[string]any{}
-		gotMax := AddThinking(body, tc.model, tc.effort, tc.budget, tc.maxTokens)
+		gotMax := AddThinking(body, tc.effort, tc.budget, tc.maxTokens)
 		if got := asJSON(t, body); got != tc.want || gotMax != tc.wantMax {
 			t.Errorf("%s: body %s, max_tokens %d; want %s, %d", tc.name, got, gotMax, tc.want, tc.wantMax)
 		}

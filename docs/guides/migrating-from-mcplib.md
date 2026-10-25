@@ -128,7 +128,7 @@ Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.m
 | `llmprovider.GrokProvider.DiscoverModels` | `ListModels`, through `llmprovider.ModelLister` |  |
 | `llmprovider.GrokProvider.Generate` | `llmprovider.GenerateText` |  |
 | `llmprovider.GrokProvider.GenerateItems` | `Generate` with `Request.Input` |  |
-| `llmprovider.GrokProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` | `WithReasoningEffort` is `Reasoning.Effort`, clamped to the model's menu as before. |
+| `llmprovider.GrokProvider.GenerateItemsThinking` | `Generate` with `Request.Reasoning` | `WithReasoningEffort` is `Reasoning.Effort`, sent by the model's facts and what it refused; the clamp to a menu is removed ([0062-MADR](../decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D8). |
 | `llmprovider.GrokProvider.GenerateItemsWithTool` | `Generate` with `Request.Tools` and `ForceTool` |  |
 | `llmprovider.GrokProvider.GenerateItemsWithToolThinking` | `Generate` with `Tools`, `ForceTool` and `Reasoning` |  |
 | `llmprovider.GrokProvider.GenerateThinking` | `llmprovider.GenerateText` with `Request.Reasoning` |  |

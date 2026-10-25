@@ -29,6 +29,7 @@ type learnedModel struct {
 	refused  []llmprovider.Effort
 	accepted []llmprovider.Effort
 	listed   bool
+	shapes   []llmprovider.ThinkingShape
 }
 
 // NewLearned returns an empty memo.
@@ -67,13 +68,20 @@ func (l *Learned) efforts(key string) (refused, accepted []llmprovider.Effort, l
 	return slices.Clone(m.refused), slices.Clone(m.accepted), m.listed
 }
 
-// learnEffort remembers that key's model refused effort, and the efforts the
-// refusal listed when listed, dropping the oldest model past learnedLimit. It
-// reports whether anything was new.
-func (l *Learned) learnEffort(key string, effort llmprovider.Effort, accepted []llmprovider.Effort, listed bool) bool {
+// shapes is the thinking shapes key's model refused.
+func (l *Learned) shapes(key string) []llmprovider.ThinkingShape {
 	l = l.or()
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if m := l.models[key]; m != nil {
+		return slices.Clone(m.shapes)
+	}
+	return nil
+}
+
+// model is key's entry, made when there is none, dropping the oldest model
+// past learnedLimit. l.mu is held.
+func (l *Learned) model(key string) *learnedModel {
 	m := l.models[key]
 	if m == nil {
 		if len(l.order) >= learnedLimit {
@@ -84,6 +92,31 @@ func (l *Learned) learnEffort(key string, effort llmprovider.Effort, accepted []
 		l.models[key] = m
 		l.order = append(l.order, key)
 	}
+	return m
+}
+
+// learnShape remembers that key's model refused shape, and reports whether
+// it was new.
+func (l *Learned) learnShape(key string, shape llmprovider.ThinkingShape) bool {
+	l = l.or()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	m := l.model(key)
+	if slices.Contains(m.shapes, shape) {
+		return false
+	}
+	m.shapes = append(m.shapes, shape)
+	return true
+}
+
+// learnEffort remembers that key's model refused effort, and the efforts the
+// refusal listed when listed, dropping the oldest model past learnedLimit. It
+// reports whether anything was new.
+func (l *Learned) learnEffort(key string, effort llmprovider.Effort, accepted []llmprovider.Effort, listed bool) bool {
+	l = l.or()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	m := l.model(key)
 	changed := false
 	if !slices.Contains(m.refused, effort) {
 		m.refused = append(m.refused, effort)
@@ -174,13 +207,16 @@ func effortsOf(words []string) ([]llmprovider.Effort, bool) {
 // Learner serves one request, built and checked in turn, and is not safe for
 // concurrent use.
 type Learner struct {
-	memo   *Learned
-	key    string
-	model  string
-	passed []llmprovider.Effort
-	match  Matcher
-	// sent is the effort the last build sent, "" for none.
-	sent llmprovider.Effort
+	memo         *Learned
+	key          string
+	model        string
+	passed       []llmprovider.Effort
+	passedShapes []llmprovider.ThinkingShape
+	match        Matcher
+	// sent is the effort the last build sent, "" for none; sentShape its
+	// shape, "" when the wire has one shape only.
+	sent      llmprovider.Effort
+	sentShape llmprovider.ThinkingShape
 	// learned are the WarningReasoningLearned of this request.
 	learned []llmprovider.Warning
 }
@@ -193,11 +229,43 @@ func NewLearner(memo *Learned, provider, baseURL, model string, passed []llmprov
 	match Matcher) *Learner {
 	l := &Learner{memo: memo, key: LearnedKey(provider, baseURL, model), model: model, match: match}
 	for _, r := range passed {
-		if r.Effort != "" && strings.EqualFold(strings.TrimSpace(r.Model), strings.TrimSpace(model)) {
+		if !strings.EqualFold(strings.TrimSpace(r.Model), strings.TrimSpace(model)) {
+			continue
+		}
+		if r.Effort != "" {
 			l.passed = append(l.passed, r.Effort)
+		}
+		if r.Shape != "" {
+			l.passedShapes = append(l.passedShapes, r.Shape)
 		}
 	}
 	return l
+}
+
+// otherShape is the shape that is not s.
+func otherShape(s llmprovider.ThinkingShape) llmprovider.ThinkingShape {
+	if s == llmprovider.ThinkingBudget {
+		return llmprovider.ThinkingAdaptive
+	}
+	return llmprovider.ThinkingBudget
+}
+
+// refusedShapes is what the model refused of the shapes, by the memo and by
+// the caller.
+func (l *Learner) refusedShapes() []llmprovider.ThinkingShape {
+	return slices.Concat(l.memo.shapes(l.key), l.passedShapes)
+}
+
+// Shape is the thinking shape to send, by D3's shape ladder: preferred, D2's
+// shape, else the other, less what the model refused. With both refused it is
+// preferred, so that its refusal is returned (0062-MADR D3).
+func (l *Learner) Shape(preferred llmprovider.ThinkingShape) llmprovider.ThinkingShape {
+	refused := l.refusedShapes()
+	l.sentShape = preferred
+	if slices.Contains(refused, preferred) && !slices.Contains(refused, otherShape(preferred)) {
+		l.sentShape = otherShape(preferred)
+	}
+	return l.sentShape
 }
 
 // Effort is the effort to send for want, "" for none, by Ladder over what the
@@ -225,16 +293,22 @@ func (l *Learner) Effort(want llmprovider.Effort, listed []llmprovider.Effort, k
 	return l.sent, warnings
 }
 
-// Check is a Retry: a refusal of the effort the last build sent, read by the
-// matcher, is learned and the request built again, with a
-// WarningReasoningLearned. Anything else, a shape's refusal included, which
-// 0062-PLAN's Phase 3 learns, is returned as it came.
+// Check is a Retry: a refusal of the shape or the effort the last build
+// sent, read by the matcher, is learned, with a WarningReasoningLearned, and
+// the request built again; a refused shape is sent again only when the other
+// is not refused too (D3). Anything else is returned as it came.
 func (l *Learner) Check(err error) (bool, error) {
-	if l.match == nil || l.sent == "" {
+	if l.match == nil || (l.sent == "" && l.sentShape == "") {
 		return false, err
 	}
 	r, ok := l.match(err, l.sent)
-	if !ok || r.Shape != "" || (!r.Field && r.Effort != l.sent) {
+	if !ok {
+		return false, err
+	}
+	if r.Shape != "" {
+		return l.checkShape(r.Shape, err)
+	}
+	if l.sent == "" || (!r.Field && r.Effort != l.sent) {
 		return false, err
 	}
 	accepted, listed := r.Accepted, r.Listed
@@ -245,12 +319,29 @@ func (l *Learner) Check(err error) (bool, error) {
 	if !l.memo.learnEffort(l.key, l.sent, accepted, listed) {
 		return false, err
 	}
-	refused := llmprovider.ReasoningRefusal{Model: l.model, Effort: l.sent}
+	l.learn(llmprovider.ReasoningRefusal{Model: l.model, Effort: l.sent}, "reasoning effort "+string(l.sent))
+	return true, nil
+}
+
+// checkShape learns a refusal of shape, the one the last build sent, and
+// resends when the other shape is not refused too.
+func (l *Learner) checkShape(shape llmprovider.ThinkingShape, err error) (bool, error) {
+	if shape != l.sentShape || !l.memo.learnShape(l.key, shape) {
+		return false, err
+	}
+	l.learn(llmprovider.ReasoningRefusal{Model: l.model, Shape: shape}, string(shape)+" thinking")
+	if slices.Contains(l.refusedShapes(), otherShape(shape)) {
+		return false, err
+	}
+	return true, nil
+}
+
+// learn adds the WarningReasoningLearned of refused, what names it.
+func (l *Learner) learn(refused llmprovider.ReasoningRefusal, what string) {
 	l.learned = append(l.learned, llmprovider.Warning{Kind: llmprovider.WarningReasoningLearned, Model: l.model,
-		Detail: l.model + " refused reasoning effort " + string(l.sent) + "; it is remembered for the rest of the process, " +
+		Detail: l.model + " refused " + what + "; it is remembered for the rest of the process, " +
 			"and WithReasoningRefusals can say so on the next start",
 		Refused: refused})
-	return true, nil
 }
 
 // Retries is checks as one Retry, in order: the first that resends, or

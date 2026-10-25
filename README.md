@@ -145,11 +145,17 @@ functions over any provider, and `Stream` streams from every one.
   and Ollama send one billed generation to each of the first six and drop
   those that do not answer; `WithModelProbes(false)` turns that off.
 - **Model facts and the menu.** What a request leaves to the provider, the
-  model's facts decide: its thinking shape and budget bounds, Gemini's
-  level, Grok's efforts, and an output limit that cuts the default. The
-  facts are the caller's `catalog.WithModelLayer`, then the provider's
-  listing, then models.dev, and a request reads only what is already
-  cached. Without them the name rules decide, as before.
+  model's facts decide: its thinking shape and budget bounds, the efforts
+  or levels it takes, and an output limit that cuts the default. The facts
+  are the caller's `catalog.WithModelLayer`, then the provider's listing,
+  then models.dev, and a request reads only what is already cached.
+  Without them the request decides: its effort is sent as asked, and a
+  `Budget` asks for a fixed budget. A model's refusal of an effort or a
+  thinking shape outranks both: it is remembered for the process, the
+  request is sent again at the nearest setting the model takes, and the
+  response carries a `WarningReasoningLearned`, which
+  `WithReasoningRefusals` passes back on the next start. Ollama's refusals
+  are not read yet.
   - A `Catalog`'s `Menu` holds every usable model with its facts, its rank
     and its caveats: deprecated, no tools, no text output, expiring, or
     failing at request. A caveat sinks a model and never removes it.

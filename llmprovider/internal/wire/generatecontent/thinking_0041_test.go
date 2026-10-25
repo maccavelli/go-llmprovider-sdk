@@ -3,15 +3,35 @@ package generatecontent
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// 0041-MADR D2, R4–R5: Gemini's thinkingConfig from a model's facts, and the
-// rule when there are none.
+// 0041-MADR D2: Gemini's thinkingConfig from a model's facts, and the
+// request's shape when there are none (0062-MADR D2).
 
-// TestThinkingConfigFor_0041: with no facts it is ThinkingConfig; a budget
-// without efforts is thinkingBudget; efforts are thinkingLevel, sent only
-// when the level is in the model's list.
+// TestThinkingConfigFor_0041: D2's shape is the facts', else a Budget's, else
+// the level (0062-MADR D2); the level is thinkingLevel the effort, and the
+// budget thinkingBudget, the request's, else R3's: 1024 at low, 4096 else.
 func TestThinkingConfigFor_0041(t *testing.T) {
+	level, budgetShape := llmprovider.ThinkingAdaptive, llmprovider.ThinkingBudget
+	levels := Thinking{Known: true, Levels: []string{"low", "high"}}
+	budgetOnly := Thinking{Known: true, Budget: true}
+	for _, tc := range []struct {
+		name   string
+		facts  Thinking
+		budget int
+		want   llmprovider.ThinkingShape
+	}{
+		{"no facts, no budget", Thinking{}, 0, level},
+		{"no facts, a budget", Thinking{}, 2048, budgetShape},
+		{"levels listed, a budget asked: the facts first", levels, 2048, level},
+		{"a budget listed", budgetOnly, 0, budgetShape},
+	} {
+		if got := PreferredShape(tc.facts, tc.budget); got != tc.want {
+			t.Errorf("PreferredShape, %s: %s; want %s", tc.name, got, tc.want)
+		}
+	}
 	encode := func(cfg map[string]any) string {
 		raw, err := json.Marshal(cfg)
 		if err != nil {
@@ -19,33 +39,20 @@ func TestThinkingConfigFor_0041(t *testing.T) {
 		}
 		return string(raw)
 	}
-	for _, model := range []string{"gemini-2.5-flash", "gemini-3.8-flash", "gemini-x"} {
-		for _, effort := range []string{"", "low", "medium", "high"} {
-			for _, budget := range []int{0, 2048} {
-				if got, want := encode(ThinkingConfigFor(model, effort, budget, Thinking{})), encode(ThinkingConfig(model, effort, budget)); got != want {
-					t.Errorf("%s %q %d with no facts: %s; want ThinkingConfig's %s", model, effort, budget, got, want)
-				}
-			}
-		}
-	}
-	levels := Thinking{Known: true, Levels: []string{"low", "high"}}
-	budgetOnly := Thinking{Known: true, Budget: true}
 	for _, tc := range []struct {
 		name   string
-		model  string
 		effort string
 		budget int
-		facts  Thinking
+		shape  llmprovider.ThinkingShape
 		want   string
 	}{
-		{"a configured budget wins", "gemini-3.8-flash", "high", 2048, levels, `{"includeThoughts":true,"thinkingBudget":2048}`},
-		{"a level in the list", "gemini-2.5-flash", "high", 0, levels, `{"includeThoughts":true,"thinkingLevel":"high"}`},
-		{"a level not in the list", "gemini-3.8-flash", "medium", 0, levels, `{"includeThoughts":true}`},
-		{"no effort, no level", "gemini-3.8-flash", "", 0, levels, `{"includeThoughts":true}`},
-		{"a budget at low effort", "gemini-3.8-flash", "low", 0, budgetOnly, `{"includeThoughts":true,"thinkingBudget":1024}`},
-		{"a budget at another effort", "gemini-3.8-flash", "high", 0, budgetOnly, `{"includeThoughts":true,"thinkingBudget":-1}`},
+		{"a level", "high", 0, level, `{"includeThoughts":true,"thinkingLevel":"high"}`},
+		{"no effort, no level", "", 0, level, `{"includeThoughts":true}`},
+		{"a budget asked", "high", 2048, budgetShape, `{"includeThoughts":true,"thinkingBudget":2048}`},
+		{"a budget at low effort", "low", 0, budgetShape, `{"includeThoughts":true,"thinkingBudget":1024}`},
+		{"a budget at another effort", "high", 0, budgetShape, `{"includeThoughts":true,"thinkingBudget":4096}`},
 	} {
-		if got := encode(ThinkingConfigFor(tc.model, tc.effort, tc.budget, tc.facts)); got != tc.want {
+		if got := encode(ThinkingConfigFor(tc.effort, tc.budget, tc.shape)); got != tc.want {
 			t.Errorf("%s: %s; want %s", tc.name, got, tc.want)
 		}
 	}

@@ -20,10 +20,6 @@ import (
 // the OpenCode cases, and the generateContent wire as OpenCode's google route
 // sends it (0015-PLAN S7).
 
-// dynamicThinkingBudget is generateContent's "let the model size it" budget
-// (llmprovider's dynamicGeminiThinkingBudget).
-const dynamicThinkingBudget = -1
-
 // TestGoogleRouteThinking_RequestBody verifies a thinkingConfig is nested in
 // generationConfig with the configured budget on OpenCode's google route, and
 // that the default path omits it.
@@ -59,9 +55,11 @@ func TestGoogleRouteThinking_RequestBody(t *testing.T) {
 	}
 }
 
-// TestGoogleRouteThinking_DynamicBudgetDefault verifies an unset budget maps to
-// -1 (dynamic) on OpenCode's google route.
-func TestGoogleRouteThinking_DynamicBudgetDefault(t *testing.T) {
+// TestGoogleRouteThinking_NoEffortNoLevel: a reasoning call with no effort and
+// no budget sends the level shape with no level, the model's default, where
+// 0013-MADR B9 sent the dynamic budget (0062-MADR, amendment "Phase 3's
+// google-route levels, and 0013's B9").
+func TestGoogleRouteThinking_NoEffortNoLevel(t *testing.T) {
 	var body map[string]any
 	srv := captureServer(t, &body, fxGoogle)
 	p := build(t, llmprovider.ProviderOpencodeZen, apiKey(srv.URL, "gemini-x", WithRoute(RouteGoogle))...)
@@ -70,8 +68,8 @@ func TestGoogleRouteThinking_DynamicBudgetDefault(t *testing.T) {
 	}
 	gc := body["generationConfig"].(map[string]any)
 	tc := gc["thinkingConfig"].(map[string]any)
-	if b := tc["thinkingBudget"].(float64); int(b) != dynamicThinkingBudget {
-		t.Errorf("thinkingBudget = %v, want %d (dynamic)", b, dynamicThinkingBudget)
+	if len(tc) != 1 || tc["includeThoughts"] != true {
+		t.Errorf("thinkingConfig = %v, want only includeThoughts", tc)
 	}
 }
 
@@ -88,10 +86,11 @@ func assertThinkingFields(t *testing.T, body map[string]any, want map[string]any
 	}
 }
 
-// TestThinkingWire_Gemini pins MADR 0013 Q1 on the generateContent wire, which
-// only OpenCode's google route speaks since MADR 0014: "low" is thinkingLevel
-// on Gemini 3 and later and a 1024 budget on 2.x (thinkingLevel is HTTP 400
-// there); other efforts keep the dynamic budget; a budget wins.
+// TestThinkingWire_Gemini pins the generateContent wire, which only OpenCode's
+// google route speaks since MADR 0014, with no facts: an effort is
+// thinkingLevel, none is no level, and a Budget is thinkingBudget, on every
+// Gemini version (0062-MADR, amendment "Phase 3's google-route levels, and
+// 0013's B9"; R4 removed).
 func TestThinkingWire_Gemini(t *testing.T) {
 	for _, tc := range []struct {
 		model  string
@@ -100,9 +99,9 @@ func TestThinkingWire_Gemini(t *testing.T) {
 		want   map[string]any
 	}{
 		{"gemini-3.7-flash", llmprovider.EffortLow, 0, map[string]any{"thinkingConfig": map[string]any{"includeThoughts": true, "thinkingLevel": "low"}}},
-		{"gemini-2.5-flash", llmprovider.EffortLow, 0, map[string]any{"thinkingConfig": map[string]any{"includeThoughts": true, "thinkingBudget": float64(1024)}}},
-		{"gemini-3.7-flash", "", 0, map[string]any{"thinkingConfig": map[string]any{"includeThoughts": true, "thinkingBudget": float64(-1)}}},
-		{"gemini-3.7-flash", llmprovider.EffortHigh, 0, map[string]any{"thinkingConfig": map[string]any{"includeThoughts": true, "thinkingBudget": float64(-1)}}},
+		{"gemini-2.5-flash", llmprovider.EffortLow, 0, map[string]any{"thinkingConfig": map[string]any{"includeThoughts": true, "thinkingLevel": "low"}}},
+		{"gemini-3.7-flash", "", 0, map[string]any{"thinkingConfig": map[string]any{"includeThoughts": true}}},
+		{"gemini-3.7-flash", llmprovider.EffortHigh, 0, map[string]any{"thinkingConfig": map[string]any{"includeThoughts": true, "thinkingLevel": "high"}}},
 		{"gemini-2.5-flash", llmprovider.EffortLow, 512, map[string]any{"thinkingConfig": map[string]any{"includeThoughts": true, "thinkingBudget": float64(512)}}},
 	} {
 		t.Run(tc.model+"/"+string(tc.effort), func(t *testing.T) {
@@ -133,7 +132,7 @@ func TestThinkingWire_OpencodeRoutes(t *testing.T) {
 		{llmprovider.ProviderOpencodeZen, "claude-sonnet-5", fxMessages, false, map[string]any{
 			"thinking": map[string]any{"type": "adaptive"}, "output_config": map[string]any{"effort": "low"}}},
 		{llmprovider.ProviderOpencodeGo, "qwen3.8-flash", fxMessages, false, map[string]any{
-			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(1024)}}},
+			"thinking": map[string]any{"type": "adaptive"}, "output_config": map[string]any{"effort": "low"}}},
 		{llmprovider.ProviderOpencodeZen, "gemini-3.8-flash", fxGoogle, true, map[string]any{
 			"thinkingConfig": map[string]any{"includeThoughts": true, "thinkingLevel": "low"}}},
 	} {

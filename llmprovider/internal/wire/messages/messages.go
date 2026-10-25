@@ -44,7 +44,7 @@ var stopReasons = map[string]llmprovider.FinishReason{
 }
 
 // defaultThinkingBudget is the thinking budget when none is configured.
-const defaultThinkingBudget = 4096
+const defaultThinkingBudget = wire.DefaultThinkingBudget
 
 // Message is one Messages API message. The fields of Message and Block are
 // in the order json.Marshal wrote the maps they replace, so the JSON is the
@@ -494,9 +494,8 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 	return wire.ReadEvents(provider, body, "message_stop", dispatch)
 }
 
-// The thinking shape, budget-based, as in OpenCode's own client
-// (packages/opencode/src/provider/transform.ts): the model id selects it
-// (MADR 0013 Q1, B9).
+// A Claude id's version, which deferred tools read (0040-MADR D2). The
+// thinking shape no longer does: 0062-MADR D8 removed R1.
 
 // claudeVersionRE reads a Claude version, family-first (claude-opus-4-8) or
 // version-first (claude-4.7-opus). A minor has at most two digits, so the date
@@ -528,56 +527,18 @@ func ClaudeVersion(model string) (major, minor int, ok bool) {
 	return major, minor, true
 }
 
-// claudeAdaptiveOnly reports whether model refuses thinking.type "enabled":
-// Claude 4.7 and later, and a claude- id with no readable version (HTTP 400 on
-// claude-sonnet-5 and claude-opus-4-8, measured 2026-09-27). Other ids,
-// including the non-Claude models OpenCode serves on its messages route, take
-// a budget.
-func claudeAdaptiveOnly(model string) bool {
-	lower := strings.ToLower(model)
-	if !strings.Contains(lower, "claude-") {
-		return false
-	}
-	m := claudeVersionRE.FindStringSubmatch(lower)
-	if m == nil {
-		return true
-	}
-	major, err := strconv.Atoi(m[1])
-	if err != nil {
-		return true
-	}
-	minor := 0
-	if m[2] != "" {
-		if minor, err = strconv.Atoi(m[2]); err != nil {
-			return true
-		}
-	}
-	return major > 4 || (major == 4 && minor >= 7)
-}
-
-// minimaxAdaptiveThinking reports a MiniMax-M3 id. MiniMax's Anthropic
-// interface takes thinking.type "adaptive" with no budget or effort, as
-// OpenCode's client sends it (transform.ts:1293-1296, MADR 0012 §3.2).
-func minimaxAdaptiveThinking(model string) bool {
-	return strings.Contains(strings.ToLower(model), "minimax-m3")
-}
-
 // AddThinking adds the thinking fields of an Anthropic Messages request to
-// body and returns its max_tokens. Adaptive-only models get thinking.type
-// "adaptive", plus output_config.effort when an effort is set; a budget does
-// not apply to them. Other models get an enabled budget: the configured one,
-// else wire.LowEffortThinkingBudget for "low", else defaultThinkingBudget,
-// with max_tokens raised above it when needed (Anthropic requires max_tokens >
-// budget_tokens). It is AddThinkingFor with no facts.
-func AddThinking(body map[string]any, model, effort string, budget, maxTokens int) int {
-	return AddThinkingFor(body, model, effort, budget, maxTokens, Thinking{})
+// body, in D2's shape for a request with no facts, and returns its max_tokens:
+// AddThinkingFor with no facts and PreferredShape's shape (0062-MADR D2).
+func AddThinking(body map[string]any, effort string, budget, maxTokens int) int {
+	return AddThinkingFor(body, effort, budget, maxTokens, Thinking{}, PreferredShape(Thinking{}, budget))
 }
 
 // Thinking is what a model's facts say of its Messages thinking (0041-MADR
-// D2, R1–R3), resolved by the provider so that this package reads no facts.
+// D2, R3), resolved by the provider so that this package reads no facts.
 type Thinking struct {
-	// Known reports that the facts answer. Without it the rules decide:
-	// claudeAdaptiveOnly and minimaxAdaptiveThinking.
+	// Known reports that the facts answer. Without it the request decides
+	// the shape (0062-MADR D2).
 	Known bool
 	// Adaptive is thinking.type "adaptive", not an enabled budget.
 	// EffortOnly, with it, sends the effort as output_config.effort.
@@ -585,7 +546,7 @@ type Thinking struct {
 	// BudgetMin and BudgetMax bound an enabled budget; zero is unstated.
 	BudgetMin, BudgetMax int
 	// MaxOutput is the model's output limit, which a budget's raise of
-	// max_tokens never passes; zero is unknown. It applies with the rules too.
+	// max_tokens never passes; zero is unknown.
 	MaxOutput int
 }
 
@@ -606,18 +567,33 @@ func FactsThinking(toggle bool, efforts []string, budget bool, budgetMin, budget
 	return Thinking{MaxOutput: maxOutput}
 }
 
-// AddThinkingFor is AddThinking with the model's facts (0041-MADR D2): the
-// facts choose the shape when they answer, and an enabled budget is held to
-// their bounds and below the output limit.
-func AddThinkingFor(body map[string]any, model, effort string, budget, maxTokens int, facts Thinking) int {
-	adaptive, withEffort := facts.Adaptive, facts.EffortOnly
-	if !facts.Known {
-		adaptive = minimaxAdaptiveThinking(model) || claudeAdaptiveOnly(model)
-		withEffort = !minimaxAdaptiveThinking(model)
+// PreferredShape is D2's thinking shape: the facts', when they answer; else a
+// budget's, when the request sets one; else adaptive thinking (0062-MADR D2).
+// D3's ladder may then send the other, when the model refused this one.
+func PreferredShape(facts Thinking, budget int) llmprovider.ThinkingShape {
+	switch {
+	case facts.Known && facts.Adaptive, !facts.Known && budget <= 0:
+		return llmprovider.ThinkingAdaptive
+	default:
+		return llmprovider.ThinkingBudget
 	}
-	if adaptive {
+}
+
+// AddThinkingFor adds the thinking fields of shape to body, with the model's
+// facts (0041-MADR D2; 0062-MADR D3), and returns its max_tokens. Adaptive
+// thinking is thinking.type "adaptive", with output_config.effort when an
+// effort is set, unless the facts name adaptive thinking without one; a
+// budget does not apply to it. The budget shape is an enabled budget: the
+// request's, else wire.LowEffortThinkingBudget for "low", else
+// defaultThinkingBudget (R3), held to the facts' bounds and below the output
+// limit, with max_tokens raised above it when needed (Anthropic requires
+// max_tokens > budget_tokens).
+func AddThinkingFor(body map[string]any, effort string, budget, maxTokens int, facts Thinking,
+	shape llmprovider.ThinkingShape) int {
+	if shape == llmprovider.ThinkingAdaptive {
 		fields := map[string]any{keyThinking: map[string]any{wire.KeyType: "adaptive"}}
-		if withEffort && effort != "" {
+		toggleOnly := facts.Known && facts.Adaptive && !facts.EffortOnly
+		if !toggleOnly && effort != "" {
 			fields["output_config"] = map[string]any{keyEffort: effort}
 		}
 		maps.Copy(body, fields)

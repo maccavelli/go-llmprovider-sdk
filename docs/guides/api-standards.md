@@ -83,13 +83,15 @@ tool that holds a rule, where one does. For how the code is laid out, read
   service's own form carries `WarningDeferralEmulated`. (0015 D3; 0039 D1;
   0040 D1, D5, D7)
   What a request leaves to the provider, the model's facts decide: the
-  thinking shape and its budget bounds, Gemini's level, Grok's efforts,
-  the Chat Completions field that reasoning is replayed under, and the
-  output limit, which cuts the default and never raises it. The facts are
-  the caller's layers, then the provider's listing, then models.dev, read
-  only from what is cached (`catalog.CachedFacts`). A request never waits
-  for them or fetches them. Without them, and with `WithoutModelMetadata`,
-  the name rules decide. (0041 D1, D2, A3)
+  thinking shape and its budget bounds, the efforts or levels a model
+  takes, the Chat Completions field that reasoning is replayed under, and
+  the output limit, which cuts the default and never raises it. The facts
+  are the caller's layers, then the provider's listing, then models.dev,
+  read only from what is cached (`catalog.CachedFacts`). A request never
+  waits for them or fetches them. Without them, and with
+  `WithoutModelMetadata`, the request decides. A model's refusal of an
+  effort or a thinking shape, learned, outranks the facts and the request.
+  (0041 D1, D2, A3; 0062 D2, D3)
 - **R7. `Response` fields.** `ID`, `Model`, `Output []Item`, a typed
   `FinishReason`, `Usage`, which is zero when the service reports none, and
   `Warnings`, typed non-fatal notes, nil when the request was sent as asked

@@ -3,14 +3,34 @@ package messages
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 )
 
-// 0041-MADR D2, R1–R3: the Messages thinking from a model's facts, and the
-// rule when there are none.
+// 0041-MADR D2, R3: the Messages thinking from a model's facts, and the
+// request's shape when there are none (0062-MADR D2).
 
-// TestAddThinkingFor_0041: with no facts the body and max_tokens are
-// AddThinking's, byte for byte; with facts, each of the three shapes.
+// TestAddThinkingFor_0041: D2's shape is the facts', else a Budget's, else
+// adaptive (0062-MADR D2); and each shape's body, with the facts' bounds and
+// output limit, whichever shape D3's ladder sends.
 func TestAddThinkingFor_0041(t *testing.T) {
+	adaptive, budgetShape := llmprovider.ThinkingAdaptive, llmprovider.ThinkingBudget
+	budgetFacts := Thinking{Known: true, BudgetMin: 1024, BudgetMax: 32000}
+	for _, tc := range []struct {
+		name   string
+		facts  Thinking
+		budget int
+		want   llmprovider.ThinkingShape
+	}{
+		{"no facts, no budget", Thinking{}, 0, adaptive},
+		{"no facts, a budget", Thinking{}, 2000, budgetShape},
+		{"facts of a budget, no budget asked", budgetFacts, 0, budgetShape},
+		{"facts of efforts, a budget asked", Thinking{Known: true, Adaptive: true, EffortOnly: true}, 2000, adaptive},
+	} {
+		if got := PreferredShape(tc.facts, tc.budget); got != tc.want {
+			t.Errorf("PreferredShape, %s: %s; want %s", tc.name, got, tc.want)
+		}
+	}
 	encode := func(body map[string]any, maxTokens int) string {
 		raw, err := json.Marshal(map[string]any{"body": body, "max_tokens": maxTokens})
 		if err != nil {
@@ -18,45 +38,37 @@ func TestAddThinkingFor_0041(t *testing.T) {
 		}
 		return string(raw)
 	}
-	for _, model := range []string{"claude-sonnet-5", "claude-haiku-4-5", "minimax-m3", "glm-5", "claude-x"} {
-		for _, effort := range []string{"", "low", "high"} {
-			for _, budget := range []int{0, 10000} {
-				for _, maxTokens := range []int{2000, 8192} {
-					rule, facts := map[string]any{}, map[string]any{}
-					want := encode(rule, AddThinking(rule, model, effort, budget, maxTokens))
-					if got := encode(facts, AddThinkingFor(facts, model, effort, budget, maxTokens, Thinking{})); got != want {
-						t.Errorf("%s %q %d %d with no facts: %s; want AddThinking's %s", model, effort, budget, maxTokens, got, want)
-					}
-				}
-			}
-		}
-	}
 	for _, tc := range []struct {
 		name              string
-		model, effort     string
+		effort            string
 		budget, maxTokens int
 		facts             Thinking
+		shape             llmprovider.ThinkingShape
 		want              string
 	}{
-		{"a budget, the default", "claude-sonnet-5", "high", 0, 8192, Thinking{Known: true, BudgetMin: 1024, BudgetMax: 32000},
+		{"a budget, the default", "high", 0, 8192, budgetFacts, budgetShape,
 			`{"body":{"thinking":{"budget_tokens":4096,"type":"enabled"}},"max_tokens":8192}`},
-		{"a budget cut to its maximum", "claude-sonnet-5", "", 64000, 8192, Thinking{Known: true, BudgetMin: 1024, BudgetMax: 32000},
-			`{"body":{"thinking":{"budget_tokens":32000,"type":"enabled"}},"max_tokens":36096}`},
-		{"a budget raised to its minimum", "claude-sonnet-5", "", 500, 8192, Thinking{Known: true, BudgetMin: 1024, BudgetMax: 32000},
+		{"a budget, the default at low", "low", 0, 8192, Thinking{}, budgetShape,
 			`{"body":{"thinking":{"budget_tokens":1024,"type":"enabled"}},"max_tokens":8192}`},
-		{"efforts: adaptive, with the effort", "claude-haiku-4-5", "high", 10000, 8192, Thinking{Known: true, Adaptive: true, EffortOnly: true},
-			`{"body":{"output_config":{"effort":"high"},"thinking":{"type":"adaptive"}},"max_tokens":8192}`},
-		{"a toggle alone: adaptive, no effort", "claude-sonnet-5", "high", 0, 8192, Thinking{Known: true, Adaptive: true},
+		{"a budget cut to its maximum", "", 64000, 8192, budgetFacts, budgetShape,
+			`{"body":{"thinking":{"budget_tokens":32000,"type":"enabled"}},"max_tokens":36096}`},
+		{"a budget raised to its minimum", "", 500, 8192, budgetFacts, budgetShape,
+			`{"body":{"thinking":{"budget_tokens":1024,"type":"enabled"}},"max_tokens":8192}`},
+		{"efforts: adaptive, with the effort", "high", 10000, 8192, Thinking{Known: true, Adaptive: true, EffortOnly: true},
+			adaptive, `{"body":{"output_config":{"effort":"high"},"thinking":{"type":"adaptive"}},"max_tokens":8192}`},
+		{"a toggle alone: adaptive, no effort", "high", 0, 8192, Thinking{Known: true, Adaptive: true}, adaptive,
 			`{"body":{"thinking":{"type":"adaptive"}},"max_tokens":8192}`},
-		{"the raise stops at the output limit", "claude-haiku-4-5", "", 6000, 4096, Thinking{Known: true, MaxOutput: 8000},
+		{"a budget model's refusal learned: adaptive, with the effort", "high", 0, 8192, budgetFacts, adaptive,
+			`{"body":{"output_config":{"effort":"high"},"thinking":{"type":"adaptive"}},"max_tokens":8192}`},
+		{"the raise stops at the output limit", "", 6000, 4096, Thinking{Known: true, MaxOutput: 8000}, budgetShape,
 			`{"body":{"thinking":{"budget_tokens":6000,"type":"enabled"}},"max_tokens":8000}`},
-		{"a budget at the limit stays under it", "claude-haiku-4-5", "", 9000, 4096, Thinking{Known: true, MaxOutput: 8000},
+		{"a budget at the limit stays under it", "", 9000, 4096, Thinking{Known: true, MaxOutput: 8000}, budgetShape,
 			`{"body":{"thinking":{"budget_tokens":7999,"type":"enabled"}},"max_tokens":8000}`},
-		{"the limit with the rule's shape", "claude-haiku-4-5", "", 6000, 4096, Thinking{MaxOutput: 8000},
+		{"the limit with no facts", "", 6000, 4096, Thinking{MaxOutput: 8000}, budgetShape,
 			`{"body":{"thinking":{"budget_tokens":6000,"type":"enabled"}},"max_tokens":8000}`},
 	} {
 		body := map[string]any{}
-		if got := encode(body, AddThinkingFor(body, tc.model, tc.effort, tc.budget, tc.maxTokens, tc.facts)); got != tc.want {
+		if got := encode(body, AddThinkingFor(body, tc.effort, tc.budget, tc.maxTokens, tc.facts, tc.shape)); got != tc.want {
 			t.Errorf("%s: %s; want %s", tc.name, got, tc.want)
 		}
 	}

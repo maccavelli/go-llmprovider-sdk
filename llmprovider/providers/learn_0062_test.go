@@ -41,16 +41,16 @@ func refusedResponses(model string) string {
 		`"param":"reasoning.effort","code":"unsupported_value"}}`
 }
 
-// learnServer refuses its first request with refusal when refuse is set, and
-// answers every other with wirecase's canned reply; it keeps each request's
-// body in order.
+// learnServer refuses its nth request with the nth of its refusals, an empty
+// one refusing nothing, and answers every other with wirecase's canned reply;
+// it keeps each request's body in order.
 type learnServer struct {
 	*httptest.Server
 	mu     sync.Mutex
 	bodies []map[string]any
 }
 
-func newLearnServer(t *testing.T, refusal string) *learnServer {
+func newLearnServer(t *testing.T, refusals ...string) *learnServer {
 	t.Helper()
 	s := &learnServer{}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -59,11 +59,11 @@ func newLearnServer(t *testing.T, refusal string) *learnServer {
 		_ = json.Unmarshal(raw, &body)
 		s.mu.Lock()
 		s.bodies = append(s.bodies, body)
-		first := len(s.bodies) == 1
+		n := len(s.bodies)
 		s.mu.Unlock()
-		if first && refusal != "" {
+		if n <= len(refusals) && refusals[n-1] != "" {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = io.WriteString(w, refusal)
+			_, _ = io.WriteString(w, refusals[n-1])
 			return
 		}
 		reply := wirecase.Case{}.Reply(r)
@@ -74,6 +74,29 @@ func newLearnServer(t *testing.T, refusal string) *learnServer {
 	}))
 	t.Cleanup(s.Close)
 	return s
+}
+
+// shapes is the thinking each request sent, in order: "adaptive", "budget",
+// "level=<l>", or "" for none.
+func (s *learnServer) shapes() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, len(s.bodies))
+	for i, b := range s.bodies {
+		if th, ok := b["thinking"].(map[string]any); ok {
+			out[i] = map[any]string{"adaptive": "adaptive", "enabled": "budget"}[th["type"]]
+		}
+		gen, _ := b["generationConfig"].(map[string]any)
+		if tc, ok := gen["thinkingConfig"].(map[string]any); ok {
+			switch {
+			case tc["thinkingLevel"] != nil:
+				out[i] = "level=" + tc["thinkingLevel"].(string)
+			case tc["thinkingBudget"] != nil:
+				out[i] = "budget"
+			}
+		}
+	}
+	return out
 }
 
 // efforts is the effort each request sent, in order.
@@ -181,5 +204,136 @@ func TestLearn_Effort_0062(t *testing.T) {
 		if got := streamed.efforts(); len(got) != 2 || got[0] != "max" || got[1] != tc.next {
 			t.Errorf("%s: the stream sent %v; want max, then %s", name, got, tc.next)
 		}
+	}
+}
+
+// Refusals of a thinking shape, in Messages' recorded forms, and a level the
+// google route refuses (0062-REPORT-thinking-refusals.md E1, E11).
+const (
+	refusedAdaptive = `{"type":"error","error":{"type":"invalid_request_error",` +
+		`"message":"adaptive thinking is not supported on this model"}}`
+	refusedBudget = `{"type":"error","error":{"type":"invalid_request_error","message":` +
+		`"\"thinking.type.enabled\" is not supported for this model. Use \"thinking.type.adaptive\" and ` +
+		`\"output_config.effort\" to control thinking behavior."}}`
+	refusedLevel = `{"error":{"code":400,"status":"INVALID_ARGUMENT","message":"Upstream request failed: [400] ` +
+		`Invalid value at 'generation_config.thinking_config.thinking_level' (type.googleapis.com/` +
+		`google.cloud.aiplatform.v1.GenerationConfig.ThinkingConfig.ThinkingLevel), "}}`
+)
+
+// TestLearn_Shape_0062 (0062-MADR D3, D5, D6): a thinking shape the model
+// refuses is learned and the other sent, within the request: adaptive refused
+// then the budget accepted, and the reverse, on Claude and OpenCode's messages
+// route; on the google route, a level refused steps to the next. The second
+// request is right the first time, WithReasoningRefusals makes a fresh
+// provider skip the refused shape, a model refusing both shapes has the second
+// refusal returned, and a Stream learns before its first event.
+func TestLearn_Shape_0062(t *testing.T) {
+	route := func(r opencode.Route) []llmprovider.Option { return []llmprovider.Option{opencode.WithRoute(r)} }
+	adaptive, budget := llmprovider.ThinkingAdaptive, llmprovider.ThinkingBudget
+	for _, tc := range []struct {
+		id        llmprovider.ProviderID
+		opts      []llmprovider.Option
+		model     string
+		reasoning llmprovider.Reasoning
+		refusal   string
+		sent      []string // the first send's, and the resend's
+		refused   llmprovider.ReasoningRefusal
+	}{
+		{llmprovider.ProviderClaude, nil, "claude-sonnet-4-5-20250929", llmprovider.Reasoning{Effort: llmprovider.EffortHigh},
+			refusedAdaptive, []string{"adaptive", "budget"}, llmprovider.ReasoningRefusal{Shape: adaptive}},
+		{llmprovider.ProviderClaude, nil, "claude-sonnet-5", llmprovider.Reasoning{Budget: 4096},
+			refusedBudget, []string{"budget", "adaptive"}, llmprovider.ReasoningRefusal{Shape: budget}},
+		{llmprovider.ProviderOpencodeZen, route(opencode.RouteMessages), "claude-sonnet-5", llmprovider.Reasoning{Budget: 4096},
+			refusedBudget, []string{"budget", "adaptive"}, llmprovider.ReasoningRefusal{Shape: budget}},
+		{llmprovider.ProviderOpencodeGo, route(opencode.RouteMessages), "qwen3.8-flash",
+			llmprovider.Reasoning{Effort: llmprovider.EffortHigh}, refusedAdaptive, []string{"adaptive", "budget"},
+			llmprovider.ReasoningRefusal{Shape: adaptive}},
+		{llmprovider.ProviderOpencodeZen, route(opencode.RouteGoogle), "gemini-3.8-flash",
+			llmprovider.Reasoning{Effort: llmprovider.EffortXHigh}, refusedLevel, []string{"level=xhigh", "level=high"},
+			llmprovider.ReasoningRefusal{Effort: llmprovider.EffortXHigh}},
+	} {
+		name := string(tc.id) + "/" + tc.model
+		tc.refused.Model = tc.model
+		build := func(srv *learnServer, more ...llmprovider.Option) llmprovider.Provider {
+			opts := append([]llmprovider.Option{llmprovider.WithAPIKey("k"), llmprovider.WithModel(tc.model),
+				llmprovider.WithBaseURL(srv.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
+				testCache(t)}, tc.opts...)
+			p, err := New(tc.id, append(opts, more...)...)
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			return p
+		}
+		ask := func() *llmprovider.Request {
+			r := tc.reasoning
+			return &llmprovider.Request{Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}},
+				Reasoning: &r}
+		}
+
+		srv := newLearnServer(t, tc.refusal)
+		p := build(srv)
+		resp, err := p.Generate(context.Background(), ask())
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if got := srv.shapes(); !slices.Equal(got, tc.sent) {
+			t.Errorf("%s: sent %v; want %v", name, got, tc.sent)
+		}
+		if !slices.ContainsFunc(resp.Warnings, func(w llmprovider.Warning) bool {
+			return w.Kind == llmprovider.WarningReasoningLearned && w.Refused == tc.refused
+		}) {
+			t.Errorf("%s: warnings %v; want a WarningReasoningLearned of %+v", name, resp.Warnings, tc.refused)
+		}
+		if _, err := p.Generate(context.Background(), ask()); err != nil {
+			t.Errorf("%s: the second request: %v", name, err)
+		} else if got := srv.shapes(); len(got) != 3 || got[2] != tc.sent[1] {
+			t.Errorf("%s: the second request sent %v; want %s first", name, got[2:], tc.sent[1])
+		}
+
+		passed := newLearnServer(t)
+		if _, err := build(passed, llmprovider.WithReasoningRefusals(tc.refused)).Generate(context.Background(),
+			ask()); err != nil {
+			t.Errorf("%s: with the refusal passed back: %v", name, err)
+		} else if got := passed.shapes(); !slices.Equal(got, tc.sent[1:]) {
+			t.Errorf("%s: with the refusal passed back, sent %v; want %s first", name, got, tc.sent[1])
+		}
+	}
+
+	// Both shapes refused: the second refusal is returned, after two sends.
+	both := newLearnServer(t, refusedAdaptive, refusedBudget)
+	p, err := New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("k"), llmprovider.WithModel("claude-x"),
+		llmprovider.WithBaseURL(both.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false), testCache(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = p.Generate(context.Background(), &llmprovider.Request{
+		Input:     []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}},
+		Reasoning: &llmprovider.Reasoning{Effort: llmprovider.EffortHigh}})
+	if apiErr, ok := errors.AsType[*llmprovider.APIError](err); !ok || apiErr.Status != http.StatusBadRequest ||
+		!slices.Equal(both.shapes(), []string{"adaptive", "budget"}) {
+		t.Errorf("both shapes refused: %v after %v; want the budget's refusal after adaptive, then budget", err, both.shapes())
+	}
+
+	// A stream learns before its first event.
+	streamed := newLearnServer(t, refusedAdaptive)
+	sp, err := New(llmprovider.ProviderClaude, llmprovider.WithAPIKey("k"), llmprovider.WithModel("claude-sonnet-4-5-20250929"),
+		llmprovider.WithBaseURL(streamed.URL), llmprovider.WithoutModelMetadata(), llmprovider.WithModelProbes(false),
+		testCache(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, err := range llmprovider.Stream(context.Background(), sp, &llmprovider.Request{
+		Input:     []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "hi"}},
+		Reasoning: &llmprovider.Reasoning{Effort: llmprovider.EffortHigh}}) {
+		if apiErr, ok := errors.AsType[*llmprovider.APIError](err); ok && apiErr.Status == http.StatusBadRequest {
+			t.Errorf("the stream yielded the refusal %v; want it learned before the first event", err)
+		}
+		if err != nil {
+			break
+		}
+	}
+	if got := streamed.shapes(); !slices.Equal(got, []string{"adaptive", "budget"}) {
+		t.Errorf("the stream sent %v; want adaptive, then budget", got)
 	}
 }

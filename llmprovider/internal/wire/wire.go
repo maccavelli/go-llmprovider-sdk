@@ -48,6 +48,10 @@ func Replays(item llmprovider.ReasoningItem, format string) bool {
 // Anthropic's minimum: 1023 is refused with HTTP 400 (measured 2026-09-27).
 const LowEffortThinkingBudget = 1024
 
+// DefaultThinkingBudget is the budget the budget shape is sent with when
+// the request sets none and its effort is not "low" (0062-MADR D3, R3).
+const DefaultThinkingBudget = 4096
+
 // ToolArguments is a call's JSON arguments as the object Anthropic's
 // tool_use.input and Gemini's functionCall.args require. A JSON object is
 // passed through as it is, compacted, so a large integer keeps its digits

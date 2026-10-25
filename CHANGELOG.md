@@ -59,6 +59,18 @@ tag and its commit without notes; its notes are its section here.
   OpenCode's google route. Ollama is unchanged until its refusals are
   recorded ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D2 to D8;
   [0062-REPORT](docs/reports/0062-REPORT-thinking-refusals.md)).
+- A request's thinking shape is the model's facts', else an enabled budget
+  when `Reasoning.Budget` is set, else adaptive thinking with the effort; a
+  refused shape is remembered as an effort is, and the request sent again
+  with the other. Removed: Claude's version rule, which sent models before
+  Claude 4.7 a budget; MiniMax-M3's adaptive thinking with no effort; and
+  Gemini's version rule on OpenCode's google route. That route now sends an
+  effort as `thinkingLevel`, where it sent `low` as a level and every other
+  effort, or none, as the dynamic budget `-1`
+  ([0013-MADR](docs/decisions/0013-MADR-remediate-debugging-pass-findings.md) B9,
+  superseded); `xhigh`, which Zen's `gemini-3.8-flash` refuses, is learned
+  and sent as `high`
+  ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D2, D3, D8).
 - A request that could not be sent for want of a network now matches
   `ErrProviderUnavailable`, through `ErrOffline`, on every send path:
   generation, model listing, OAuth refresh and sign-in. Such a failure

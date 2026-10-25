@@ -149,7 +149,12 @@ In this order:
    - `req.Tools`, and `req.ToolChoice`, whose `Tool()` says whether one tool
      is forced;
    - `req.Reasoning`, `req.MaxOutputTokens` (or `MaxTokens` from `New`), and
-     `req.PreviousResponseID` when you support `Continuation`.
+     `req.PreviousResponseID` when you support `Continuation`;
+   - the effort and the thinking shape by the model's facts and what it
+     refused, never by a rule of model names. A built-in provider takes them
+     from a per-request `wire.Learner`, and sends through `wire.Send` with
+     the Learner's `Check` and its wire's matcher, which reads only refusals
+     recorded live ([0062-MADR](../decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D2 to D6).
 3. **Build the request with the context:** `http.NewRequestWithContext(ctx,
    …)`. That is what stops it when the caller cancels (R40).
 4. **Set the credential and the identity.** Call `p.src.Token(ctx)`, then

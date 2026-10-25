@@ -1,0 +1,21 @@
+{
+  "case": "opencode-zen-google-gemini-3.8-flash-level-xhigh",
+  "cause": "thinking",
+  "wire": "generatecontent",
+  "provider": "opencode-zen",
+  "route": "google",
+  "model": "gemini-3.8-flash",
+  "set": {
+    "generationConfig.thinkingConfig.thinkingLevel": "xhigh"
+  },
+  "dropped": [
+    "generationConfig.thinkingConfig.thinkingBudget"
+  ],
+  "sends": 1,
+  "status": 400,
+  "code": "INVALID_ARGUMENT",
+  "message": "Upstream request failed: [400] Invalid value at 'generation_config.thinking_config.thinking_level' (type.googleapis.com/google.cloud.aiplatform.v1.GenerationConfig.ThinkingConfig.ThinkingLevel),",
+  "body": "{\"error\":{\"code\":400,\"status\":\"INVALID_ARGUMENT\",\"message\":\"Upstream request failed: [400] Invalid value at 'generation_config.thinking_config.thinking_level' (type.googleapis.com/google.cloud.aiplatform.v1.GenerationConfig.ThinkingConfig.ThinkingLevel), \"}}",
+  "usage": false,
+  "outcome": "refused"
+}

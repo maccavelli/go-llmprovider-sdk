@@ -19,9 +19,11 @@
           }
         ],
         "model": "qwen3.8-flash",
+        "output_config": {
+          "effort": "max"
+        },
         "thinking": {
-          "budget_tokens": 4096,
-          "type": "enabled"
+          "type": "adaptive"
         }
       }
     }

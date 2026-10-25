@@ -706,3 +706,25 @@ puts it in `internal/cacheref`. The memo's type, `wire.Learned`, is in
 2026-10-25, to amend the row: `internal/cacheref` may import
 `internal/wire`, by this record's D5. Offered and not chosen: a new leaf
 package for the memo; holding it untyped, as `any`.
+
+## Amendment 2026-10-25: Phase 3's google-route levels, and 0013's B9
+
+D2's step 3 says an effort means the level on generateContent; 0013-MADR
+B9 (0013-MADR-remediate-debugging-pass-findings.md) sent every effort but
+`low` there as the dynamic budget, and this record did not discuss it. The
+PLAN's Phase 3 stopped, the owner chose to record first, and four cases were
+sent: [0062-REPORT-thinking-refusals.md](../reports/0062-REPORT-thinking-refusals.md)'s
+E11. The route takes `low`, `medium`, `high` and `max` as a level, and
+refuses `xhigh` recognisably. The owner chose, on 2026-10-25:
+
+* **D2's level replaces 0013's B9 on generateContent:** an effort is sent as
+  `thinkingLevel`, by D3's ladder; a `Budget` is the budget shape, as
+  before. B9 is superseded by this amendment.
+* **D4 gains a row:** generateContent, 400 `INVALID_ARGUMENT`, a message that
+  contains `Invalid value at 'generation_config.thinking_config.thinking_level'`:
+  the level sent, with no list. `xhigh` is learned, and steps to `high`. The
+  amendment "Phase 1's evidence"'s line that no matcher is built for
+  generateContent holds no more for this refusal.
+* **D8: R4 is removed,** as that amendment says, as dead.
+* **Offered and not chosen:** keeping B9 and removing R4 alone; the level
+  with no matcher.

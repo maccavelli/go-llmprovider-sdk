@@ -24,8 +24,7 @@
         "generationConfig": {
           "maxOutputTokens": 8192,
           "thinkingConfig": {
-            "includeThoughts": true,
-            "thinkingBudget": -1
+            "includeThoughts": true
           }
         },
         "toolConfig": {

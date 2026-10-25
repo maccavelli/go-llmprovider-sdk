@@ -1,0 +1,19 @@
+{
+  "case": "opencode-zen-google-gemini-3.8-flash-level-medium",
+  "cause": "thinking",
+  "wire": "generatecontent",
+  "provider": "opencode-zen",
+  "route": "google",
+  "model": "gemini-3.8-flash",
+  "set": {
+    "generationConfig.thinkingConfig.thinkingLevel": "medium"
+  },
+  "dropped": [
+    "generationConfig.thinkingConfig.thinkingBudget"
+  ],
+  "sends": 1,
+  "status": 200,
+  "usage": true,
+  "reasoning_tokens": 58,
+  "outcome": "accepted"
+}

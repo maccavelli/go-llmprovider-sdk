@@ -183,6 +183,16 @@ func refusalCases() []refusalCase {
 			"generationConfig.thinkingConfig.thinkingLevel"),
 		thinking("opencode-zen-google-gemini-2.5-flash-level-low", "opencode-zen-google", "gemini-2.5-flash",
 			effort("generationConfig.thinkingConfig.thinkingLevel", "low"), "generationConfig.thinkingConfig.thinkingBudget"),
+		// Each level, for D2's level against 0013-MADR B9's dynamic budget
+		// (0062-PLAN Phase 3, the stop of 2026-10-25).
+		thinking("opencode-zen-google-gemini-3.8-flash-level-low", "opencode-zen-google", "gemini-3.8-flash",
+			effort("generationConfig.thinkingConfig.thinkingLevel", "low"), "generationConfig.thinkingConfig.thinkingBudget"),
+		thinking("opencode-zen-google-gemini-3.8-flash-level-medium", "opencode-zen-google", "gemini-3.8-flash",
+			effort("generationConfig.thinkingConfig.thinkingLevel", "medium"), "generationConfig.thinkingConfig.thinkingBudget"),
+		thinking("opencode-zen-google-gemini-3.8-flash-level-high", "opencode-zen-google", "gemini-3.8-flash",
+			effort("generationConfig.thinkingConfig.thinkingLevel", "high"), "generationConfig.thinkingConfig.thinkingBudget"),
+		thinking("opencode-zen-google-gemini-3.8-flash-level-xhigh", "opencode-zen-google", "gemini-3.8-flash",
+			effort("generationConfig.thinkingConfig.thinkingLevel", "xhigh"), "generationConfig.thinkingConfig.thinkingBudget"),
 		// Chat Completions: the efforts, and the chat route without metadata.
 		thinking("huggingface-deepseek-v4.1-flash-max", "huggingface", "deepseek-ai/DeepSeek-V4.1-Flash",
 			effort("reasoning_effort", "max")),

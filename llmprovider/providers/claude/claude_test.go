@@ -326,27 +326,27 @@ func assertThinkingFields(t *testing.T, body map[string]any, want map[string]any
 	}
 }
 
-// TestThinkingWire_Claude pins MADR 0013 Q1 and B9 on the Anthropic wire:
-// Claude 4.7 and later take adaptive thinking with output_config.effort
-// (thinking.type "enabled" is HTTP 400 there); older models take a budget,
-// 1024 for "low". An explicit budget wins where a budget is accepted. Each
-// case is sent twice: with the effort and budget set at construction, as the
-// old test did, and on the request.
+// TestThinkingWire_Claude pins D2's shape on the Anthropic wire with no facts:
+// an effort, or none, is adaptive thinking, with output_config.effort when an
+// effort is set; a Budget is an enabled budget, with max_tokens raised above
+// it. No version rule decides: a model that refuses its shape is learned from
+// (0062-MADR D2, D3; R1 removed). Each case is sent twice: with the effort and
+// budget set at construction, as the old test did, and on the request.
 func TestThinkingWire_Claude(t *testing.T) {
 	adaptive := map[string]any{"type": "adaptive"}
 	for _, tc := range []thinkingCase{
 		{"claude-sonnet-5", llmprovider.EffortLow, 0, map[string]any{"thinking": adaptive,
 			"output_config": map[string]any{"effort": "low"}}},
 		{"claude-opus-4-8", "", 0, map[string]any{"thinking": adaptive, "output_config": nil}},
-		{"claude-sonnet-5", "", 9000, map[string]any{"thinking": adaptive, "max_tokens": float64(8192)}},
-		{"claude-haiku-4-5", llmprovider.EffortLow, 0, map[string]any{"output_config": nil,
-			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(1024)}}},
-		{"claude-haiku-4-5", "", 0, map[string]any{
-			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(4096)}}},
+		{"claude-sonnet-5", "", 9000, map[string]any{
+			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(9000)}, "max_tokens": float64(13096)}},
+		{"claude-haiku-4-5", llmprovider.EffortLow, 0, map[string]any{"thinking": adaptive,
+			"output_config": map[string]any{"effort": "low"}}},
+		{"claude-haiku-4-5", "", 0, map[string]any{"thinking": adaptive, "output_config": nil}},
 		{"claude-haiku-4-5", llmprovider.EffortLow, 2000, map[string]any{
 			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(2000)}}},
-		{"claude-sonnet-4-20250514", llmprovider.EffortLow, 0, map[string]any{
-			"thinking": map[string]any{"type": "enabled", "budget_tokens": float64(1024)}}},
+		{"claude-sonnet-4-20250514", llmprovider.EffortLow, 0, map[string]any{"thinking": adaptive,
+			"output_config": map[string]any{"effort": "low"}}},
 	} {
 		reasoning := llmprovider.Reasoning{Effort: tc.effort, Budget: tc.budget}
 		for _, via := range []string{"construction", "request"} {

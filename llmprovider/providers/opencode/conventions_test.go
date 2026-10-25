@@ -50,25 +50,30 @@ func TestOpencodeResponses_SendsStoreFalse(t *testing.T) {
 }
 
 // TestOpencodeMessages_MinimaxM3ThinksAdaptive: MiniMax's Anthropic interface
-// takes thinking.type "adaptive" (transform.ts:1293-1296), with no budget and
-// no effort, whatever effort is configured.
+// takes thinking.type "adaptive", with no budget, and the effort configured,
+// which minimax-m3 accepted on 2026-10-25 (0062-MADR Q12 (a); R2 removed).
 func TestOpencodeMessages_MinimaxM3ThinksAdaptive(t *testing.T) {
 	body := conventionsBody(t, "minimax-m3", true, effort(llmprovider.EffortHigh))
 	th, _ := body["thinking"].(map[string]any)
 	if len(th) != 1 || th["type"] != "adaptive" {
 		t.Fatalf("thinking = %v, want exactly {type: adaptive}", body["thinking"])
 	}
-	if _, ok := body["output_config"]; ok {
-		t.Errorf("output_config = %v, want absent", body["output_config"])
+	if cfg, _ := body["output_config"].(map[string]any); len(cfg) != 1 || cfg["effort"] != "high" {
+		t.Errorf("output_config = %v, want {effort: high}", body["output_config"])
 	}
 }
 
-// TestOpencodeMessages_OtherModelsKeepBudget: a non-Claude, non-MiniMax-M3
-// model on the Messages route keeps the enabled budget.
-func TestOpencodeMessages_OtherModelsKeepBudget(t *testing.T) {
+// TestOpencodeMessages_OtherModelsThinkAdaptive: a non-Claude model on the
+// Messages route, with no facts, thinks adaptively, which qwen3.8-flash
+// accepted on 2026-10-25 (0062-MADR Q12 (a); R1 removed); a Budget keeps the
+// enabled budget.
+func TestOpencodeMessages_OtherModelsThinkAdaptive(t *testing.T) {
 	body := conventionsBody(t, "qwen3.8-flash", true)
-	th, _ := body["thinking"].(map[string]any)
-	if th["type"] != "enabled" || th["budget_tokens"] == nil {
-		t.Fatalf("thinking = %v, want an enabled budget", body["thinking"])
+	if th, _ := body["thinking"].(map[string]any); len(th) != 1 || th["type"] != "adaptive" {
+		t.Fatalf("thinking = %v, want exactly {type: adaptive}", body["thinking"])
+	}
+	body = conventionsBody(t, "qwen3.8-flash", true, llmprovider.WithReasoning(&llmprovider.Reasoning{Budget: 2000}))
+	if th, _ := body["thinking"].(map[string]any); th["type"] != "enabled" || th["budget_tokens"] != float64(2000) {
+		t.Fatalf("thinking = %v with a budget, want an enabled budget of 2000", body["thinking"])
 	}
 }

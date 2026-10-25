@@ -783,3 +783,234 @@ Done; staged for the owner's commit with step 9's paths.
 * **Step 9, staged:** this phase's paths, 0061-PLAN Phase 3's code among
   them, reworked; with the two Grok fixtures, the report's, the MADR's and
   this record's changes. 0061-PLAN's record notes the rework.
+
+### Phase 3: the shapes (2026-10-25)
+
+Done; staged for the owner's commit with step 7's paths.
+
+* **Stop 2026-10-25, before step 1: generateContent's request shape.** On
+  OpenCode's google route, 0013-MADR B9 sends `low` as `thinkingLevel` and
+  every other effort as the dynamic budget (`-1`). D2's step 3 says an effort
+  means the level on generateContent, which would replace B9 for `medium`,
+  `high`, `xhigh` and `max`; the MADR does not discuss B9, Phase 1 recorded
+  only a level of `max` and a budget of 4096 there, both accepted, and the
+  route has no matcher, so a level it refused would be returned, unlearned,
+  where the request succeeds today. Resolutions offered: keep B9 and remove
+  R4 (recommended); record first; follow D2 literally, superseding B9.
+  **The owner chose to record first.**
+  * Phase 1's recorder gains four cases, `thinkingLevel` `low`, `medium`,
+    `high` and `xhigh` on Zen's google route for `gemini-3.8-flash`, each
+    dropping `thinkingBudget`, run by the agent with the host's keys. Their
+    fixtures, the report's rows and the MADR's amendment decide whether D2's
+    level replaces B9. The recorder's change is in Phase 3's commit.
+  * **Step 1's list, before it changes:** `TestRefusalCases_Table_0062`: 35
+    thinking cases and 57 in all.
+  * **Recorded (2026-10-25),** one send each: `low`, `medium` and `high`
+    accepted; `xhigh` refused, 400 `INVALID_ARGUMENT`, "Invalid value at
+    'generation_config.thinking_config.thinking_level'". Copied to the
+    fixtures as before; `make fixtures-check`, "332 file(s), 0 problem(s)";
+    the report's E11.
+  * **Resolution (owner, 2026-10-25):** D2's level replaces 0013-MADR B9 on
+    generateContent, with a matcher for the recorded refusal, as the MADR's
+    amendment "Phase 3's google-route levels, and 0013's B9" records.
+    Offered and not chosen: keep B9 and remove R4 alone; the level with no
+    matcher. Step 2 gains `generatecontent.MatchRefusal`, and the route's
+    learner uses it; step 4's google-route test learns `xhigh`.
+* **Step 1, before any change:** the tests and tools that assert R1, R2, R4
+  or B9, found by searching every `_test.go`, the live tests and `tools/` for
+  `claudeAdaptiveOnly`, `minimaxAdaptiveThinking`, `geminiLegacyRE`,
+  `ThinkingConfig`, `AddThinking`, `thinkingBudget`, `budget_tokens` and
+  `"adaptive"`. Only these change:
+  * `internal/wire/messages`: `TestClaudeAdaptiveOnly`, removed with R1;
+    `TestAddThinking` and `TestAddThinkingFor_0041`, restated for D2's
+    shape, which the caller passes: the facts', else a `Budget`'s budget,
+    else adaptive, with the effort.
+  * `internal/wire/generatecontent`: `TestThinkingConfig` and
+    `TestThinkingConfigFor_0041`, restated: an effort as `thinkingLevel`, a
+    `Budget` as `thinkingBudget`, D3's budgets (R3) for the budget shape
+    otherwise; no R4, no dynamic budget.
+  * `catalog`: `TestAgreement0041_MessagesThinking`,
+    `TestAgreement0041_GeminiConfig`, `TestEvidence0041_ClaudeAdaptive` and
+    `TestEvidence0041_GeminiLegacy`, removed with R1 and R4: each compared a
+    rule with the models.dev data.
+  * `tools/catalogcheck.py` and its `TestCatalogCheck`: no agreement test is
+    left, so the tool reports the sixes alone, and its test, the README's row
+    and its doc say so.
+  * `providers/claude`: `TestClaudeThinking_RequestBody` and
+    `TestThinkingWire_Claude`, whose models before Claude 4.7 got a budget by
+    R1: with an effort and no facts they get adaptive thinking, and a
+    refusal is learned.
+  * `providers/opencode`: `TestOpencodeMessages_MinimaxM3ThinksAdaptive`
+    (the effort is sent, Q12 (a)), `TestOpencodeMessages_OtherModelsKeepBudget`
+    (adaptive with the effort, Q12 (a)), `TestOpencode_Thinking_PerRoute`,
+    `TestGoogleRouteThinking_DynamicBudgetDefault`,
+    `TestGoogleRouteThinking_RequestBody`, `TestThinkingWire_Gemini` and
+    `TestThinkingWire_OpencodeRoutes` (the google route's level; the
+    messages route's adaptive shape).
+  * The live tests `TestLive_OpencodeMinimaxM3Adaptive` and
+    `live_0041_facts_test.go`'s shape checks, where they assert a rule.
+  * The G-wire goldens of the `thinking` and `thinking-tool` scenarios whose
+    body changes, each listed and diffed once the code runs, before they are
+    regenerated.
+  * **Amended (2026-10-25), before it changes:**
+    `providers/effortmax_0061_test.go`'s `TestEffortMax_Mapping_0061`, its
+    google-route row with no facts: B9's dynamic budget sent no effort; the
+    level sends `max`. And two tests of the list are renamed, as their names
+    would say the opposite of what they assert:
+    `TestOpencodeMessages_OtherModelsKeepBudget` to
+    `TestOpencodeMessages_OtherModelsThinkAdaptive`, and
+    `TestGoogleRouteThinking_DynamicBudgetDefault` to
+    `TestGoogleRouteThinking_NoEffortNoLevel`.
+  * **The goldens, listed (2026-10-25) before they are regenerated,** as the
+    code's first run showed them: `opencode-zen-google`'s `thinking` and
+    `thinking-tool` (B9's `thinkingBudget` `-1` gives way to the level shape
+    with no level, their requests naming no effort) and `effort-max` (the
+    level `max`); `opencode-go-messages`'s `thinking` and `thinking-tool`
+    (qwen's 4096 budget, R1's, gives way to adaptive thinking) and
+    `effort-max` (adaptive with `output_config.effort` `max`). The two
+    `effort-max` goldens are another scenario than step 1 named. No other
+    golden differs. The live tests `TestLive_OpencodeMinimaxM3Adaptive` and
+    `live_0041_facts_test.go`'s checks do not change: the one sends no effort,
+    and the other reads the facts' path.
+  * **Step 1's list, amended (2026-10-25), before it changes:**
+    `providers/claude/listing_0041_test.go`'s
+    `TestListModels_DefaultBaseShape_0041`, which the search missed, as it
+    names no rule function: it told the listing's facts from R1 by the shape,
+    the model's id giving a budget by the rule and the listing's efforts
+    adaptive thinking. With R1 removed both give adaptive thinking, so it
+    passed without reading the listing. Its request now sets a `Budget` with
+    the effort: the listing's efforts give adaptive thinking; with no facts,
+    the `Budget` would give an enabled budget.
+  * **Listed, and unchanged:** `TestClaudeThinking_RequestBody`,
+    `TestOpencode_Thinking_PerRoute` and `TestGoogleRouteThinking_RequestBody`.
+    Each sets a `Budget`, or asserts only where reasoning goes, so D2's shape
+    is the one it asserted.
+* **Step 2, the code:**
+  * `internal/wire/learn.go`: the memo keeps each model's refused shapes;
+    `Learner.Shape(preferred)` is D3's shape ladder, the preferred shape
+    unless the model refused it and not the other; `Check` learns a refusal
+    of the shape sent, with a `WarningReasoningLearned` whose `Refused` names
+    the shape, and resends only when the other shape is not refused too. A
+    passed `ReasoningRefusal` with a `Shape` seeds the ladder.
+  * `internal/wire/wire.go`: `DefaultThinkingBudget` (4096, R3), which the
+    messages package's default now names.
+  * `internal/wire/messages`: R1 (`claudeAdaptiveOnly`) and R2
+    (`minimaxAdaptiveThinking`) removed; `PreferredShape(facts, budget)`, the
+    facts', else a `Budget`'s enabled budget, else adaptive; `AddThinkingFor`
+    takes the shape. `ClaudeVersion` stays, for deferred tools.
+  * `internal/wire/generatecontent`: R4 (`geminiLegacyRE`) and B9's dynamic
+    budget removed; `PreferredShape` (listed levels, or no facts and no
+    `Budget`, give the level); `ThinkingConfigFor(effort, budget, shape)`, an
+    effort as `thinkingLevel`, none leaving the model's default, the budget
+    shape R3's budgets; `refusal.go`, `MatchRefusal`, the amendment's row.
+  * `providers/claude` and `providers/opencode`: the messages and google
+    bodies take the shape from `Learner.Shape`; the google route's learner
+    uses `generatecontent.MatchRefusal`.
+* **Step 3, the drift check:** `go test -race -count=1 -shuffle=on ./...`,
+  36 packages, exit 0. The tests that changed are step 1's, as amended before
+  each changed. `git grep` finds none of `claudeAdaptiveOnly`,
+  `minimaxAdaptiveThinking`, `geminiLegacyRE` and `dynamicThinkingBudget` in
+  a Go file (each exit 1).
+* **Step 4, the tests,** each passing:
+  * `TestLearn_Shape_0062` (`providers`): Claude, adaptive refused then the
+    budget accepted, and the reverse; OpenCode's messages route, both ways
+    (Zen's `claude-sonnet-5`, Go's `qwen3.8-flash`); the google route,
+    `xhigh` refused then `high` sent. For each, the second request is right
+    the first time, and a fresh provider given the refusal by
+    `WithReasoningRefusals` sends the other first. A model refusing both
+    shapes has the second refusal returned after two sends; a stream learns
+    before its first event. `newLearnServer` now takes a refusal per send.
+  * `TestRefusal_Fixtures_0062` (`generatecontent`): of the route's four
+    recorded failures, `MatchRefusal` reads only the `xhigh` level's, as
+    `{Effort: xhigh}`, and not the empty contents, the string schema or
+    `gemini-2.5-flash`'s `UNKNOWN` "Model is unavailable.";
+    `TestMatchRefusal_Bounds_0062`, no match for another status, another
+    code, or no effort sent.
+  * The goldens, regenerated by `-update` on the six listed alone, differ
+    only as listed: `opencode-go-messages`'s `thinking` and `thinking-tool`,
+    `thinking` `{"budget_tokens": 4096, "type": "enabled"}` to
+    `{"type": "adaptive"}`, and `effort-max`, that and `output_config`
+    `{"effort": "max"}`; `opencode-zen-google`'s `thinking` and
+    `thinking-tool`, `thinkingBudget` `-1` dropped, leaving
+    `{"includeThoughts": true}`, and `effort-max`, `thinkingBudget` `-1` to
+    `thinkingLevel` `"max"`. No other golden changed.
+* **Step 5, the plants,** by `tools/plant.py` on scratch clones: 12, all
+  caught. The PLAN's two, the shape ladder never flipping
+  (`learn_0062_test.go:281: claude/claude-sonnet-4-5-20250929: sent
+  [adaptive adaptive]; want [adaptive budget]`) and a shape refusal not
+  learned (`claude HTTP 400 invalid_request_error: adaptive thinking is not
+  supported on this model`, returned); and both shapes refused yet resent;
+  the memo's shapes never read; a passed-back shape ignored;
+  generateContent's matcher never matching, and ignoring the code; the
+  google route with no matcher; each `PreferredShape` ignoring the
+  `Budget`; the level shape dropping the effort; and Claude's request
+  ignoring the facts' thinking, which the restated listing test fails
+  (`thinking map[budget_tokens:2000 type:enabled]; want adaptive, from the
+  listing's efforts`).
+* **Step 6, docs:** Claude's and OpenCode's package docs (the shape, no
+  rule of model names, the shape learned; the google route's level, its
+  learned refusal, and B9 replaced), with the comments citing R1, R2 or R4
+  in the two wire packages and the providers' facts helpers; `CHANGELOG.md`,
+  Changed; `docs/architecture.md`, the `messages` and `generatecontent`
+  rows (R43: `PreferredShape`, and `generatecontent.MatchRefusal`).
+  `tools/catalogcheck.py`, its test and `tools/README.md`, by step 1's list.
+* **Found, not done, for the owner:** three sentences still say that, with
+  no facts, the name rules decide: `README.md`'s "Model facts and the menu",
+  `docs/guides/api-standards.md`'s facts rule (`(0041 D1, D2, A3)`), and
+  `docs/architecture.md`'s caches paragraph. None is in this phase's step 6;
+  the last is Phase 6's step 2, the order of authority. They are false for
+  the thinking shape and the effort since Phases 2 and 3.
+* **Resolved (owner, 2026-10-25): "fix all docs".** Step 6 gains every doc
+  outside the records that still states a removed rule, found by a search
+  of `README.md`, `docs/*.md`, `docs/guides/*.md`, the unreleased
+  `CHANGELOG.md` section and every Go doc comment for the rules' wording
+  (name rules, version rules, the effort menu and its clamp, the dynamic
+  budget, `xhigh` to `high`, MiniMax, `flash-lite`):
+  * the three sentences above. `docs/architecture.md`'s states the order of
+    authority, which Phase 6's step 2 named; that step keeps the memo and
+    the resend path, and R56 stays Phase 6's step 1;
+  * `docs/guides/migrating-from-mcplib.md`'s Grok row, which said the
+    effort is "clamped to the model's menu as before": R6, removed in
+    Phase 2;
+  * `docs/guides/adding-a-provider.md`'s step 2, which says to encode
+    `req.Reasoning` and nothing of the facts or refusals: a new provider
+    would follow it into a rule of model names.
+
+  The search's other hits are not about thinking, and stay: `README.md`'s
+  "name rules" of the listing's order with `WithoutModelMetadata`, the
+  catalog's ranking rules, the OpenCode routes' MiniMax rows, and the
+  Gemini package doc's measured refusals.
+* **Checks,** each exit 0: `make pre-add-check` on the 22 Go files, "21
+  file(s) clean" and the one deleted; `go vet -tags live_gateways ./...`;
+  `make api-check`, "0 incompatible change(s)"; `tools/apidiff.py v1.22.2`,
+  the same 12 compatible additions as Phase 2, none new; `make
+  tables-check`, "38 packages, 0 problem(s)"; `make fixtures-check`, "332
+  file(s), 134 hit(s), 0 problem(s)"; `make changelog-check`; `make
+  docs-check`; `make records-check`; `make tools-test`, 77 tests.
+* **The gate, first run:** "gate: 26 of 28 passed". `coverage-check` and
+  `gate-selftest` found `internal/wire` at 76.8 %, below its 80 % floor: the
+  `Learner`, Phase 2's and this phase's shape ladder, was exercised only
+  through the providers, in `learn.go`'s `Shape`, `Check`, `checkShape`,
+  `NewLearner`, `QuotedEfforts` and `PlainEfforts` at 0 %. The floor
+  stands. `internal/wire/learner_0062_test.go` tests the `Learner` in its own
+  package: `TestLearner_Shape_0062` (the ladder, a shape refusal learned and
+  warned, both refused, the memo across a model's case, the caller's
+  refusals and another model's, a refusal of a shape not sent);
+  `TestLearner_Effort_0062` (an effort refused with its list, the field
+  refused, another effort's refusal, one learned already, nothing sent);
+  `TestEffortLists_0062`. `internal/wire` is at 95.9 %. Nine plants on a
+  scratch clone, all caught at last: the shape ladder never flipping; a
+  shape refusal not learned; both refused yet resent; a passed-back shape
+  ignored; another model's refusal taken; the field's refusal keeping a
+  list; another effort's refusal learned; a list of other words read as
+  efforts; and a refusal of a shape not sent learned, which the first
+  version of the test did not catch, as its case refused a shape the memo
+  held already. A case of a fresh memo was added, and the plant fails it
+  (`learner_0062_test.go:57: a refusal of a shape not sent: budget; want it
+  not learned, adaptive`). `make pre-add-check` on the file, clean.
+* **The gate, second run:** "gate: 28 of 28 passed".
+* **Step 7, staged:** this phase's paths, with the four google-route
+  fixtures, the recorder's cases, the report's, the MADR's and this
+  record's changes. `docs/decisions/0063-PLAN-align-docs-ci-and-disclosure-gates.md`
+  is not this phase's: another session had staged it before this phase
+  began, and this phase neither staged nor unstaged it.
