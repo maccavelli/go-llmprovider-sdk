@@ -181,18 +181,33 @@ func (p *TextPrompter) Notify(level Level, format string, args ...any) {
 	p.printf("%s%s\n", prefix, redact.StripControl(fmt.Sprintf(format, args...)))
 }
 
-// renderChoices prints the menu, marking the selected rows.
+// maxLabelPad is the widest label, in runes, a menu pads to align its
+// details; a longer label is not padded.
+const maxLabelPad = 40
+
+// renderChoices prints the menu, marking the selected rows. The details are
+// a column: each number right-aligned to the widest, and each label of a
+// row with a detail padded to the longest such label, at most maxLabelPad
+// runes (0061-MADR, amendment "Model search, rebuilt", S4).
 func (p *TextPrompter) renderChoices(title string, choices []Choice, selected []int) {
 	p.printf("\n%s\n", title)
+	numWidth := len(strconv.Itoa(len(choices)))
+	pad := 0
+	for _, c := range choices {
+		if n := utf8.RuneCountInString(c.Label); c.Detail != "" && n <= maxLabelPad {
+			pad = max(pad, n)
+		}
+	}
 	for i, c := range choices {
 		mark := ""
 		if slices.Contains(selected, i) {
 			mark = " (selected)"
 		}
 		if c.Detail != "" {
-			p.printf("  %d) %s — %s%s\n", i+1, c.Label, c.Detail, mark)
+			fill := strings.Repeat(" ", max(0, pad-utf8.RuneCountInString(c.Label)))
+			p.printf("  %*d) %s%s — %s%s\n", numWidth, i+1, c.Label, fill, c.Detail, mark)
 		} else {
-			p.printf("  %d) %s%s\n", i+1, c.Label, mark)
+			p.printf("  %*d) %s%s\n", numWidth, i+1, c.Label, mark)
 		}
 	}
 }

@@ -24,6 +24,18 @@ tag and its commit without notes; its notes are its section here.
   id when the options carry its `WithID`
   ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md) D4,
   amendment "`chatcompat`, provider-agnostic", E1).
+- `catalog.Catalog.Search` and `catalog.Match.Why`: a listing's search, by
+  each model's facts as well as its id and name: its family, and its
+  features as words (`vision`, `audio`, `video`, `pdf`, `tools`,
+  `reasoning`, `thinking`, `free`, the context window from `8k` to `2m`,
+  each matching a window at least its size, and the release year), each
+  only where the facts state it, so that `claude vision 200k` finds the
+  Claude models with image input and a window of 200k or more. It searches
+  `Usable`, in its order, with `Menu`'s facts by id, on the index `List`
+  built once. `Why` says how a match matched (`exact id`, `id prefix`,
+  `every word: vision`, `near sonnet`)
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
+  amendment "Model search, rebuilt", S1, S3, S5).
 - `llmprovider.SharedOption`: an option every provider's `New` takes, whatever
   its id, for a value only some read
   ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
@@ -67,6 +79,30 @@ tag and its commit without notes; its notes are its section here.
 
 ### Changed
 
+- `catalog.Search` keeps its tiers and their scores, and orders each tier by
+  BM25F over the id and the label (the id weighed 3, the label 2), then by
+  fzf's score, then the listing's order, where the listing's order alone
+  decided. Words split also between a letter and a digit (`gpt4o` is
+  `gpt`, `4`, `o`; a size such as `8b` stays whole). Below the tiers, a
+  query whose every word is an id or label word, or a prefix of one, matches
+  at 1800. Only when nothing above matches are the fallbacks tried, in
+  turn: every word matched, one at least within an edit or two
+  (`sonet` finds `claude-sonnet-5`, at 1500, where the subsequence tier
+  found it at 1035); some words, more first; then a subsequence, as before.
+  `catalog.Search` over a thousand ids takes about twice the time it did,
+  for its index; `Catalog.Search` on `List`'s index, from three to seven
+  times less
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
+  amendment "Model search, rebuilt", S2, S5).
+- The wizard's model search asks for "a name, a family, or a feature such
+  as vision, tools, 128k", searches a listing's facts too, shows each match
+  with its facts and why it matched (`200k ctx · $3 / $15 per M · vision ·
+  tools · near sonnet`), counts the matches in its title, and shows them
+  ten at a time with a "More" row, where it cut them at twenty with a
+  notice. The fallbacks' search keeps its cut. `TextPrompter` aligns each
+  menu's details in a column
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
+  amendment "Model search, rebuilt", S4).
 - `catalog.WithCache` is a shared option: every provider's `New` takes it,
   where one outside the built-ins refused it. A provider outside this module
   ignores it; `chatcompat` uses it for its probes and learned refusals

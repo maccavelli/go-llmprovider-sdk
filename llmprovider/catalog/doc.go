@@ -3,8 +3,16 @@
 //
 // It holds the curated static catalogs (Static, Label, Rank), the live
 // listing curated against them (List, Catalog), the same listing as the
-// provider sent it (ListRaw, RawListing), model search (Search), the ranking
-// profiles (Profile), and model metadata.
+// provider sent it (ListRaw, RawListing), model search (Search, and
+// Catalog.Search, which searches a listing's facts too), the ranking profiles
+// (Profile), and model metadata.
+//
+// Search ranks in tiers, an exact id first, and inside a tier by BM25F over
+// a model's fields (its id, its label, its family, and its facts as words
+// such as vision, tools or 128k), then by fzf's subsequence score, then by
+// the listing's order. A typo within an edit or two, and a query only some
+// of whose words match, are fallbacks, tried only when no tier matches
+// (0061-MADR, amendment "Model search, rebuilt").
 //
 // ListRaw sends List's requests, through the same code, and returns every
 // page byte for byte with each entry of its model array: no filter, ranking,

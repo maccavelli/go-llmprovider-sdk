@@ -11,8 +11,10 @@ import (
 )
 
 // Model search (MADR 0007 §3). A query containing * or ? takes the glob path;
-// any other query is scored by a tiered fuzzy match. Search ranks; it
-// does not filter for usability, which is the listing's job.
+// any other query is scored by a tiered fuzzy match, ranked inside a tier by
+// the engine in search.go (0061-MADR, amendment "Model search, rebuilt").
+// Search ranks; it does not filter for usability, which is the listing's
+// job.
 
 // Fuzzy score tiers: a stronger kind of match always outranks a weaker one.
 const (
@@ -36,65 +38,43 @@ type Match struct {
 	ID    string
 	Label string // Label(provider, ID)
 	Score int    // higher is better; comparable only within one call
+	// Why is a short reason for the match, for a picker to show: "exact
+	// id", "id prefix", "every word: vision", "near sonnet" (0061-MADR,
+	// amendment "Model search, rebuilt", S1).
+	Why string
 }
 
-// Search ranks models against query, highest score first; equal scores
-// keep the input order, Catalog.Usable's: the listing's own for most
-// providers, cheapest first for Kilo, fastest first for Hugging Face
-// (0021-MADR C11; 0026-MADR F54). Glob queries (* matches any run,
-// including "/", and ? one character) score an id match above a match of the
-// label only. Other queries match the id exactly, as a
-// prefix or substring, then with separators and spaces removed, then the
-// label's display name (the label before its first "["), then by token
-// prefix. Only when no id matches any of those, and the query has three or
-// more characters, does a subsequence of the id match. An empty query returns
-// nil. Duplicate ids (compared case-insensitively) are searched once.
+// Search ranks models against query, highest score first. Glob queries (*
+// matches any run, including "/", and ? one character) score an id match
+// above a match of the label only, equal scores in the input order. Other
+// queries match, in tiers, the id exactly, as a prefix or substring, then
+// with separators and spaces removed, then the label's display name (the
+// label before its first "["), then by token prefix, then with every query
+// word an id or label word or a prefix of one, words split also between a
+// letter and a digit, a size such as 8b kept whole. Only when no model
+// matches any of those is each next fallback tried, in turn: every word
+// matched, one at least within an edit distance (one edit for a word of four
+// to seven runes, two from eight, an adjacent transposition one); some
+// words, more first; and, for a query of three or more characters, a
+// subsequence of the id. Inside a tier the order is BM25F's over the id and
+// the label, then fzf's score, then the input order, Catalog.Usable's: the
+// listing's own for most providers, cheapest first for Kilo, fastest first
+// for Hugging Face (0021-MADR C11; 0026-MADR F54; 0061-MADR, amendment
+// "Model search, rebuilt", S2). Each match's Why says how it matched. An
+// empty query returns nil. Duplicate ids (compared case-insensitively) are
+// searched once. Catalog.Search searches a listing's facts as well.
 func Search(provider llmprovider.ProviderID, models []string, query string) []Match {
 	q := strings.ToLower(strings.TrimSpace(query))
 	if q == "" {
 		return nil
 	}
-	candidates := uniqueModelMatches(provider, models)
-	if strings.ContainsAny(q, "*?") {
-		return sortByScore(globMatches(candidates, q))
-	}
-	var out []Match
-	for _, c := range candidates {
-		if score, ok := fuzzyModelScore(c.ID, c.Label, q); ok {
-			c.Score = score
-			out = append(out, c)
-		}
-	}
-	if len(out) == 0 && len([]rune(q)) >= minSubsequenceQuery {
-		for _, c := range candidates {
-			if bonus, ok := subsequenceBonus(strings.ToLower(c.ID), q); ok {
-				c.Score = scoreSubsequence + bonus
-				out = append(out, c)
-			}
-		}
-	}
-	return sortByScore(out)
+	return newSearchIndex(provider, len(models), func(i int) (string, *ModelInfo) { return models[i], nil }).query(q)
 }
 
 // sortByScore orders matches by score, highest first, keeping input order
 // among equal scores.
 func sortByScore(out []Match) []Match {
 	slices.SortStableFunc(out, func(a, b Match) int { return cmp.Compare(b.Score, a.Score) })
-	return out
-}
-
-// uniqueModelMatches labels each id once, in input order.
-func uniqueModelMatches(provider llmprovider.ProviderID, models []string) []Match {
-	seen := make(map[string]struct{}, len(models))
-	out := make([]Match, 0, len(models))
-	for _, id := range models {
-		key := strings.ToLower(id)
-		if _, dup := seen[key]; dup {
-			continue
-		}
-		seen[key] = struct{}{}
-		out = append(out, Match{ID: id, Label: Label(provider, id)})
-	}
 	return out
 }
 
@@ -122,9 +102,9 @@ func globMatches(candidates []Match, q string) []Match {
 	for _, c := range candidates {
 		switch {
 		case re.MatchString(c.ID):
-			c.Score = scoreGlobID
+			c.Score, c.Why = scoreGlobID, "id pattern"
 		case re.MatchString(c.Label):
-			c.Score = scoreGlobLabel
+			c.Score, c.Why = scoreGlobLabel, "name pattern"
 		default:
 			continue
 		}
@@ -133,26 +113,23 @@ func globMatches(candidates []Match, q string) []Match {
 	return out
 }
 
-// fuzzyModelScore returns the tier of the strongest predicate q satisfies
-// above the subsequence tier, or false when it satisfies none. The label
-// tiers read the display name only: the annotation in brackets would match
-// a short query almost always (0021-MADR C11).
-func fuzzyModelScore(id, label, q string) (int, bool) {
-	lowerID := strings.ToLower(id)
-	name := displayName(strings.ToLower(label))
-	compactQ := compactModelText(q)
+// tierScore returns the tier of the strongest predicate the query satisfies
+// above scoreAllWords, or false when it satisfies none. The label tiers read
+// the display name only: the annotation in brackets would match a short
+// query almost always (0021-MADR C11).
+func tierScore(d *searchDoc, sq *searchQuery) (int, bool) {
 	switch {
-	case lowerID == q:
+	case d.lowerID == sq.q:
 		return scoreExact, true
-	case strings.HasPrefix(lowerID, q):
+	case strings.HasPrefix(d.lowerID, sq.q):
 		return scoreIDPrefix, true
-	case strings.Contains(lowerID, q):
+	case strings.Contains(d.lowerID, sq.q):
 		return scoreIDSubstring, true
-	case compactQ != "" && strings.Contains(compactModelText(lowerID), compactQ):
+	case sq.compact != "" && strings.Contains(d.compact, sq.compact):
 		return scoreCompactSubstring, true
-	case strings.Contains(name, q):
+	case strings.Contains(d.name, sq.q):
 		return scoreLabelSubstring, true
-	case tokenPrefixMatch(q, lowerID, name):
+	case tokensPrefixed(sq.tokens, d.tokens):
 		return scoreTokenPrefix, true
 	}
 	return 0, false
@@ -185,14 +162,12 @@ func modelTokens(s string) []string {
 	return strings.FieldsFunc(strings.ToLower(s), isModelSeparator)
 }
 
-// tokenPrefixMatch reports whether every token of q prefixes some id or label
+// tokensPrefixed reports whether every query token prefixes some id or label
 // token. A query with no tokens never matches.
-func tokenPrefixMatch(q, lowerID, lowerLabel string) bool {
-	queryTokens := modelTokens(q)
+func tokensPrefixed(queryTokens, surface []string) bool {
 	if len(queryTokens) == 0 {
 		return false
 	}
-	surface := slices.Concat(modelTokens(lowerID), modelTokens(lowerLabel))
 	for _, qt := range queryTokens {
 		if !slices.ContainsFunc(surface, func(t string) bool { return strings.HasPrefix(t, qt) }) {
 			return false

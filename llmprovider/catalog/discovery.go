@@ -160,6 +160,12 @@ type Catalog struct {
 	// FetchedAt is when the listing was read from the provider: now, or
 	// earlier for a cached or stale one. It is zero for the static catalog.
 	FetchedAt time.Time
+
+	// provider and index are List's: the id it listed, for Search's labels,
+	// and the search index of Menu, built once (0061-MADR, amendment "Model
+	// search, rebuilt", S5).
+	provider llmprovider.ProviderID
+	index    *searchIndex
 }
 
 // ListSource says where a Catalog's listing came from (0041-MADR D6). It is a
@@ -220,7 +226,12 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 	}
 
 	cat, _, err := listAndRecord(ctx, id, src, cfg)
-	return cat, err
+	if err != nil {
+		return cat, err
+	}
+	cat.provider = id
+	cat.index = cat.newIndex()
+	return cat, nil
 }
 
 // listAndRecord is List's listing, after its id and options are checked: it

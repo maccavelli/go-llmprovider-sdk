@@ -276,14 +276,40 @@ first.
      `TestCompatListing_LastGood_0061` (a 503 after a good listing serves it);
      `TestCompatListing_UnknownRefused_0061` (an unknown id without `WithID`
      is refused as today). Plants: the cache bypassed; the flight bypassed.
-* **Phase 4b, E4, search and the menu.**
-  1. `catalog/model_matcher.go`: the typo tier; the per-listing index.
-  2. `catalog/menu.go`: variant grouping; the default rank.
-  3. Tests: `TestSearch_Typo_0061`; `TestSearch_ExistingTiers_0061` (every
-     existing Search test unchanged); `BenchmarkSearch_1000_0061`, with its
-     allocations in the record before and after; `TestMenu_Variants_0061`;
-     `TestMenu_DefaultRank_0061`. Plants: the typo bound loosened to 3; the
-     index rebuilt per query (the benchmark's allocations rise).
+* **Phase 4b, E4, search and the menu** ~~(the typo tier and the
+  per-listing index)~~ as the MADR's amendment "Model search, rebuilt"
+  (proposed 2026-10-25) replaces E4's search half:
+  1. **Before any change,** the record lists every existing test that pins
+     Search's results or the wizard's and `TextPrompter`'s output (a search
+     of every `_test.go` for `Search(`, `searchModelsPrompt`,
+     `maxSearchResults`, `showing %d of %d`, `matchChoices` and
+     `renderChoices`'s lines), and `BenchmarkSearch_1000_0061`'s figures on
+     the code as it stands.
+  2. `catalog`: `search.go`, the tokeniser, the index, BM25F, the bounded
+     Damerau distance, fzf's subsequence score, the key (S2); facets (S3);
+     `Search` on the engine; `Catalog.Search`; `Match.Why`; the index built
+     with each `Catalog` (S5). ~~`menu.go`: variant grouping; the default
+     rank.~~ Moved to Phase 4c (deviation 2, 2026-10-25).
+  3. `wizard`: the prompt, the rows' `Detail`, the counted title, paging,
+     ~~"Did you mean"~~ (dropped, deviation 3), the exact id's default (S4);
+     `TextPrompter`'s aligned column.
+  4. Tests: `TestTokenise_0061`; `TestDistance_0061` (the bound, the
+     transposition, the early stop); `TestBM25F_0061` (a field's weight, the
+     IDF); `TestSearch_Key_0061` (each tier outranks the next, BM25F inside
+     a tier); `TestSearch_Typo_0061` (`sonet`, `gemnii`, `qwen3:8`);
+     `TestSearch_Facets_0061` (`claude vision 200k`, `free`, `reasoning`);
+     `TestSearch_ExistingTiers_0061` (every existing Search test's result);
+     `BenchmarkSearch_1000_0061`; ~~`TestMenu_Variants_0061`;
+     `TestMenu_DefaultRank_0061`~~ (to Phase 4c); the wizard's
+     `TestSearch_Paging_0061`,
+     ~~`TestSearch_DidYouMean_0061`~~ (deviation 3),
+     `TestSearch_Detail_0061`; and
+     `TextPrompter`'s `TestRenderChoices_Aligned_0061`.
+  5. Plants: the tier key dropped (BM25F alone orders); a fuzzy bound of 3;
+     a facet read where the facts are silent; paging lost; the index built
+     per query (the benchmark's allocations rise).
+  6. Docs: `catalog`'s and `wizard`'s package docs, the CHANGELOG, the
+     architecture rows; D10's names (`Catalog.Search`, `Match.Why`).
 * **Phase 4c, E2, facts.**
   1. Record: the local Ollama's `/v1/models` and `/api/show` for two models,
      now; each other dialect when the owner runs its server, by
@@ -291,13 +317,20 @@ first.
      `llmprovider/catalog/testdata/compat/<dialect>/`, `make fixtures-check`.
   2. `catalog`: the dialect table and score; each recorded dialect's
      details reader; the canonical id; the models.dev layer by canonical id.
+     Then E4's menu half, moved here from Phase 4b (deviation 2,
+     2026-10-25): `menu.go`'s variant grouping, by the canonical id, the
+     plainest first; and the default rank for a listing with no ranking,
+     text models first, loaded models first where the dialect says, then
+     the larger context window, then the newer `created`, the listing's
+     order breaking ties.
   3. Tests: `TestDialect_Score_0061` over every fixture (each recorded reply
      scores its own dialect, and no other above threshold);
      `TestCanonicalID_0061` (a table, each quantisation and tag form);
      `TestFacts_Order_0061` (a refusal, the caller's layer, the server's
      details, models.dev by canonical id, in that order);
-     `TestCanonicalMatch_ExactOnly_0061` (a near id gets nothing). Plants:
-     the threshold removed; a fuzzy canonical match.
+     `TestCanonicalMatch_ExactOnly_0061` (a near id gets nothing);
+     `TestMenu_Variants_0061`; `TestMenu_DefaultRank_0061`. Plants: the
+     threshold removed; a fuzzy canonical match; variants not grouped.
 * **Phase 4d, E3, optional fields.**
   1. Record: each server reachable (the local Ollama now) sent each optional
      field it may refuse; only a recorded refusal's phrase enters the
@@ -924,3 +957,176 @@ Done; staged for the owner's commit. Phase 4 is committed as `b663b71`.
 * **Not this phase's:** the 0064 pair and its rows in `docs/README.md`,
   another session's; not staged.
 * **Staged:** this phase's paths.
+
+### Phase 4b: the owner's request (2026-10-25)
+
+* Phase 4a is committed as `590b994`. Before Phase 4b ran, the owner asked
+  for fuzzy matching, BM25, and a clearer search prompt and results. The
+  MADR's amendment "Model search, rebuilt" proposes it, from a reading of
+  `catalog/model_matcher.go` and `wizard/model_select.go` and a search of
+  fzf's algorithm, BM25F's tuning, rank fusion and model pickers; Phase 4b's
+  steps are revised to it, and `wizard` joins the scope. Nothing is changed
+  until the owner approves.
+* **Approved (owner, 2026-10-25):** the amendment, with the tier key over
+  Reciprocal Rank Fusion and over BM25F alone, and the aligned column on
+  every `TextPrompter` menu. Phase 4b runs by its revised steps.
+* **Step 1, before any change:**
+  * The tests that pin Search's results or the wizard's and `TextPrompter`'s
+    output, found by searching every `_test.go` for `Search(`, the prompt
+    constants, `maxSearchResults`, the cap's notice, `matchChoices`,
+    `renderChoices`'s row format and the no-match menu: 21 Search tests in
+    `catalog`, and the wizard's `model_select_test.go`,
+    `select_ctx_0026_test.go`, `inputctx_0057_test.go`, `configure_test.go`
+    and `fake_prompter_test.go`. **Only these change:**
+    * `catalog/model_matcher_test.go`'s `TestSearchModels_Subsequence`: its
+      query, `sonet`, is within one edit of `sonnet`, so the fuzzy tier
+      (1500) answers it, where the subsequence tier (1035) did; the test
+      takes `cdsnt`, a subsequence of `claude-sonnet-5` and of no word, and
+      `sonet` goes to `TestSearch_Typo_0061`.
+    * `wizard/model_select_test.go`'s `TestConfigureLLM_SearchResultsCapped`,
+      which pins twenty rows and the cap's notice: paging shows ten and
+      "More", and no notice; it is restated, and renamed
+      `TestConfigureLLM_SearchResultsPaged`.
+    Every other is expected to pass unchanged; one that does not is a stop.
+  * **`BenchmarkSearch_1000_0061`'s baseline,** today's `Search` over a
+    thousand ids (`search_bench_0061_test.go`, written first), `-benchtime
+    200x -count 3`, the median of each: `sonnet` 1.12 ms, 533 KB, 4514
+    allocations; `qwen 32b` 1.28 ms, 612 KB, 6012; `qwen3:8b` 1.45 ms, 622
+    KB, 5183; `gema` 1.38 ms, 616 KB, 5186; `zzzz` 1.34 ms, 604 KB, 5178.
+* **Step 2, so far:** `catalog/search.go` (the engine), `Search` on it,
+  `Match.Why`, `Catalog.Search`, the index built in `List`. The existing
+  tests: only `TestSearchModels_Subsequence` failed (`scores = [1500], want
+  [1035]`), as step 1 listed; it takes `cdsnt` and scores 1010 (two token
+  starts, no consecutive letters). Every other test in `./llmprovider/...`
+  and `./wizard` passed unchanged.
+* **The benchmark after,** `-benchtime 200x -count 3`, the median:
+  * `BenchmarkSearch_1000_0061`, `Search` over a thousand ids, which indexes
+    them on every call: `sonnet` 2.16 ms, 937 KB, 1151 allocations; `qwen
+    32b` 2.35 ms, 951 KB, 1384; `qwen3:8b` 2.50 ms, 997 KB, 1869; `gema` 2.31
+    ms, 930 KB, 1198; `zzzz` 2.26 ms, 931 KB, 1251. Against the baseline:
+    about a quarter of the allocations, about 1.6 times the bytes and
+    about 1.8 times the time, the index's cost. Two changes made in the
+    measuring brought it there from 3.3 ms, 2.5 MB and 28 842 allocations:
+    the index read through an accessor, not a `MenuEntry` per id, and every
+    document's words in one backing array, sized at 32 words a model.
+  * `BenchmarkCatalogSearch_1000_0061` (added), `Catalog.Search` on the
+    index built once, as `List` builds it: `sonnet` 0.16 ms, 34 KB, 102
+    allocations; `qwen 32b` 0.31 ms, 48 KB, 335; `qwen3:8b` 0.46 ms, 94 KB,
+    820; `gema` 0.31 ms, 26 KB, 149; `zzzz` 0.24 ms, 28 KB, 202: from three
+    to seven times faster than the baseline, with a tenth of its
+    allocations or fewer.
+* **Deviation 1 (2026-10-25): `Catalog.Search`'s documents.** Found: the
+  MADR's S1 says `Catalog.Search` searches `c.Menu`, but `List` cuts `Menu`
+  to `WithLimit(n)` and not `Usable`, the wizard passes `WithLimit`, and
+  `Usable`'s order breaks ties (0026-MADR F54). Decision (owner): it searches
+  `Usable`, in its order, with `Menu`'s facts by id; `Menu`'s ids when
+  `Usable` is empty (the MADR's "S1 amended in execution"). No file joins
+  the phase's scope.
+* **Deviation 2 (2026-10-25): E4's menu half moves to Phase 4c.** Found:
+  step 2 put `menu.go`'s variant grouping and default rank in Phase 4b, but
+  the MADR's E4 groups variants by "E2's" canonical id and ranks loaded
+  models first "where the server says", E2's dialect details; E2 is Phase
+  4c. Decision (owner): both move to Phase 4c, after E2's canonical id and
+  dialects, with `TestMenu_Variants_0061` and `TestMenu_DefaultRank_0061`
+  and a plant (variants not grouped); Phase 4b is search and the picker.
+  Steps 2 and 4 are struck through above, and Phase 4c's steps 2 and 3
+  gain them. No file joins either phase's scope beyond `menu.go`, already
+  E4's.
+* **Deviation 3 (2026-10-25): "Did you mean" dropped.** Found: S4 offers
+  the nearest three ids within the edit bound when a search finds nothing,
+  but the engine returns every model one of whose words is within that
+  bound of a query word (`scoreNearAll` for one word, `scorePartial` for
+  several), so when nothing matches no id is within the bound and the list
+  is empty by construction. Decision (owner): dropped; the no-match menu
+  stays as it is ("Use … as the model id", "Search again"), and the near
+  tiers' rows, each with its `Why` ("near sonnet"), are the corrections.
+  `TestSearch_DidYouMean_0061` is struck. S4's other point found empty: the
+  exact id is always the first row (`scoreExact`, the highest tier), so
+  the default row, the first, is it with no code; `TestSearch_Paging_0061`
+  asserts it.
+* **Steps 2 to 6, as built:**
+  * `catalog`: `search.go`, the engine (S2, S3, S5); `model_matcher.go`'s
+    tiers on the index's precomputed forms (`tierScore`, `tokensPrefixed`),
+    `Match.Why`, a glob's `Why` (`id pattern`, `name pattern`), and `Search`
+    on the engine; `Catalog.Search`, over `Usable` with `Menu`'s facts
+    (deviation 1); `Catalog`'s unexported `provider` and `index`, set by
+    `List` (`discovery.go`); the package doc.
+  * The facets' BM25F length counts the context buckets as one word (the
+    MADR's "S2's facet length, made exact in execution"): measured on the
+    words alone, a 2M-context model ranked below an 8k one on `vision`.
+  * `wizard`: the prompt; each search row's `Detail`, the facts known then
+    `Why` (`matchDetail`, `tokenCount`, `price`); the counted title
+    (`searchResultsTitle`, `matchCount`); paging (`pageMatches`, ten a page,
+    `moreMatchesLabel`); `searchCatalog`, `Catalog.Search` on a listing
+    `List` built (its `Source` set), else `catalog.Search` over `Usable`,
+    the excluded left out for the fallbacks; `menuFacts`. The fallbacks'
+    `MultiSelect` keeps its cut of twenty and its notice, its rows gaining
+    `Detail`: S4's paging is a menu's More row, which a `MultiSelect`, whose
+    answer is its picks, has no turn for. `searchFallbackPrompt` is
+    unchanged. `TextPrompter.renderChoices` right-aligns the numbers and pads
+    the labels of rows with a detail to the longest, at most 40 runes
+    (`maxLabelPad`).
+  * Lint: gocritic's `argOrder` (`isSizeUnit`, now a `switch`) and
+    `initClause` (`fzfScore`'s two scans, now `continue` and the step before
+    the test), fixed before the checks below.
+* **Tests added:** `catalog/search_0061_test.go`: `TestTokenise_0061`,
+  `TestDistance_0061` (`editsWithin` against the whole OSA table, every
+  pair at bounds 0 to 3, and `editBound`), `TestBM25F_0061` (the id over
+  the family, a rare word over a common one, the buckets' length),
+  `TestSearch_Key_0061`, `TestSearch_Typo_0061` (`sonet`, `gemnii`,
+  `qwen3:8`, and a partial match), `TestSearch_Facets_0061`,
+  `TestCatalogSearch_Usable_0061`, `TestCatalogSearch_Index_0061` (`List`'s
+  index, its provider, a replaced `Usable`, at most 300 allocations a query
+  on a built index), `TestSearch_ExistingTiers_0061` (each tier's score and
+  `Why`), `TestSearch_Glob_Why_0061`; `search_bench_0061_test.go`'s
+  `BenchmarkCatalogSearch_1000_0061`; `wizard/search_0061_test.go`:
+  `TestSearch_Paging_0061`, `TestSearch_Detail_0061`,
+  `TestRenderChoices_Aligned_0061`. Restated: `TestSearchModels_Subsequence`
+  (`cdsnt`, 1010) and `TestConfigureLLM_SearchResultsPaged` (three pages,
+  the counted title, no notice), as step 1 listed.
+* **The benchmark, final,** `-benchtime 200x -count 3`, the median, after
+  the gate:
+  * `BenchmarkSearch_1000_0061`: `sonnet` 2.31 ms, 970 KB, 1151
+    allocations; `qwen 32b` 2.50 ms, 984 KB, 1384; `qwen3:8b` 2.62 ms, 1030
+    KB, 1869; `gema` 2.56 ms, 962 KB, 1198; `zzzz` 2.58 ms, 964 KB, 1251:
+    from 1.8 to 2.1 times the baseline's time, 1.6 to 1.8 times its bytes,
+    and a quarter of its allocations or fewer; the index, built per call.
+  * `BenchmarkCatalogSearch_1000_0061`: `sonnet` 0.16 ms, 34 KB, 102;
+    `qwen 32b` 0.32 ms, 48 KB, 335; `qwen3:8b` 0.47 ms, 94 KB, 820; `gema`
+    0.31 ms, 26 KB, 149; `zzzz` 0.23 ms, 28 KB, 202: from three to seven
+    times faster than the baseline.
+* **Plants,** `tools/plant.py` on a scratch clone, `./llmprovider/catalog/`
+  and `./wizard/`, `-run '_0061|Search'`, run again after the lint fixes;
+  all 7 caught:
+  * the tier key dropped (BM25F alone orders): `TestSearch_Key_0061` (`zeta
+    = [zeta-pro zeta], want the exact id before the prefix`) and
+    `TestSearchModels_Tiers`;
+  * a fuzzy bound of 3: `TestSearchModels_NoSubsequenceOverLabels` (`hspd =
+    [fireworks/llama-ash …], want no matches`), `TestSearch_Typo_0061`,
+    `TestSearch_Facets_0061` and two more;
+  * a facet read where the facts are silent (`vision` from `Input` without
+    `Has`): `TestSearch_Facets_0061` (`"vision" = [claude-sonnet-5 gpt-x
+    silent]`);
+  * the buckets counted whole in the facets' length: `TestBM25F_0061`
+    (`vision = [small big], want big, small`);
+  * the index built per query: `TestCatalogSearch_Index_0061` (`1151
+    allocations a query, want at most 300`);
+  * paging lost: `TestConfigureLLM_SearchResultsPaged` and
+    `TestSearch_Paging_0061`;
+  * the labels not padded: `TestRenderChoices_Aligned_0061` (`line 2 = "
+    1) a — x"`).
+* **Checks:** `make pre-add-check` on the 11 Go files: clean (gofmt,
+  golangci-lint for darwin and windows, go vet, go test, govulncheck);
+  `go test -race -count=1 -shuffle=on ./...`, `go vet -tags live_gateways
+  ./...`, `make api-check` (0 incompatible changes against `v1.22.2`),
+  `tools/apidiff.py v1.22.2`, `tables-check`, `fixtures-check`,
+  `changelog-check`, `docs-check`, `records-check`, `recordlint --changed`,
+  `denyscan --changed` (0 hits), `linkcheck`: each exit 0;
+  `tools/gate.py`: 28 of 28 passed.
+* **Not done in this phase:** E4's menu half (deviation 2, to Phase 4c);
+  "Did you mean" (deviation 3, dropped).
+* **Staged:** `CHANGELOG.md`, `docs/architecture.md`, this record and its
+  MADR, `llmprovider/catalog/{discovery,doc,model_matcher,search}.go`,
+  `llmprovider/catalog/{model_matcher,search_0061,search_bench_0061}_test.go`,
+  `wizard/{model_select,text_prompter}.go`,
+  `wizard/{model_select,search_0061}_test.go`.

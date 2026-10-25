@@ -190,24 +190,39 @@ func TestConfigureLLM_OtherFromSearchResults(t *testing.T) {
 	}
 }
 
-func TestConfigureLLM_SearchResultsCapped(t *testing.T) {
+// TestConfigureLLM_SearchResultsPaged (0061-PLAN Phase 4b; it was
+// TestConfigureLLM_SearchResultsCapped, twenty rows and a notice): 25
+// matches show ten, then More, which shows the next ten and More again,
+// then the last five without it; no notice; the title counts them.
+func TestConfigureLLM_SearchResultsPaged(t *testing.T) {
 	many := zenManyIDs()
 	srv := zenServer(t, http.StatusOK, zenListing(many))
 	f := newFake(t, fakePrompter{
-		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 0},
+		selects: []int{providerIdx(t, llmprovider.ProviderOpencodeZen), 10, 10, 4},
 		inputs:  []string{srv.URL, "m-"}, secrets: []string{testKey},
 	})
-	if _, err := ConfigureLLM(context.Background(), f, zenOptions(t)); err != nil {
+	res, err := ConfigureLLM(context.Background(), f, zenOptions(t))
+	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
 	}
-	menu := labels(f.seenSelectItems[1])
-	want := append(slices.Clone(many[:20]), searchAgainLabel, otherModelLabel)
-	if !slices.Equal(menu, want) {
-		t.Errorf("menu = %v, want %v", menu, want)
+	for i, want := range [][]string{
+		append(slices.Clone(many[:10]), "More (10 of 25 shown)", searchAgainLabel, otherModelLabel),
+		append(slices.Clone(many[10:20]), "More (20 of 25 shown)", searchAgainLabel, otherModelLabel),
+		append(slices.Clone(many[20:]), searchAgainLabel, otherModelLabel),
+	} {
+		if menu := labels(f.seenSelectItems[1+i]); !slices.Equal(menu, want) {
+			t.Errorf("page %d = %v, want %v", i+1, menu, want)
+		}
+		wantTitle := fmt.Sprintf(searchResultsTitle, label0048(t, llmprovider.ProviderOpencodeZen), "25 matches", "m-")
+		if title := f.seenSelect[1+i]; title != wantTitle {
+			t.Errorf("page %d title = %q, want %q", i+1, title, wantTitle)
+		}
 	}
-	notice := "showing 20 of 25 matches; refine the search to narrow them"
-	if n := countContaining(f.seenNotify, notice); n != 1 {
-		t.Errorf("cap notice seen %d times, want 1: %v", n, f.seenNotify)
+	if res.Model != many[24] {
+		t.Errorf("Model = %q, want %q", res.Model, many[24])
+	}
+	if n := countContaining(f.seenNotify, "showing"); n != 0 {
+		t.Errorf("a cap notice was seen: %v", f.seenNotify)
 	}
 }
 

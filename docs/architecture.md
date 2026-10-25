@@ -120,7 +120,7 @@ standard library is left out.
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking`, `PreferredShape` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning`; `MatchRefusal`, its refusals of a thinking shape or an effort (0062-MADR D4) | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig`, and from a model's facts `Thinking`, `FactsThinking`, `PreferredShape` and `ThinkingConfigFor`; `MatchRefusal`, its refusal of a level (0062-MADR D4, amendment "Phase 3's google-route levels, and 0013's B9") | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
-| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `Search`, `Match`, `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache` and the option `WithCache` (0048-MADR D1); a `chatcompat` provider's listing and lookups, by its `WithID` (0061-MADR E1) | `llmprovider`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref`, `internal/nilsource`, `internal/compatid` |
+| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `Search`, `Match` and its `Why`, `Catalog.Search` (0061-MADR, amendment "Model search, rebuilt"), `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache` and the option `WithCache` (0048-MADR D1); a `chatcompat` provider's listing and lookups, by its `WithID` (0061-MADR E1) | `llmprovider`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref`, `internal/nilsource`, `internal/compatid` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/nilsource` | `Is`, which tells a typed-nil `TokenSource`, a nil pointer, map, slice, func, chan or interface held in a non-nil interface, from a value, for `ResolveOptions` and the catalog's entry points (0050-MADR D1, D2) | the standard library |
 | `llmprovider/internal/listlimit` | `Value`, `catalog.WithLimit`'s option value, `Of`, which reads it from a provider's options, and `Cut`, for `catalog` and the providers that cut their own fallback listings with it (0038-MADR A3) | the standard library |
@@ -329,7 +329,10 @@ session, through `openai`, and an id that `catalog` does not list, such as a
 third party's. The menu recommends the whole curated list, best six first,
 cut on every path to `Options.ModelLimit` when it is positive; the wizard
 passes it to `catalog.List` as `catalog.WithLimit`. It then asks for the
-model and fallbacks, and returns a `Result`. The caller builds its provider from that `Result` and,
+model and fallbacks, and returns a `Result`. A model search on a listing
+`List` built is `Catalog.Search`, facts and all; its matches show ten at a
+time, each with its facts and why it matched, under a title that counts
+them (0061-MADR, amendment "Model search, rebuilt", S4). The caller builds its provider from that `Result` and,
 for a session, from the store.
 
 ## The contract
@@ -779,13 +782,20 @@ for a session, from the store.
     (0053-MADR D5); a model it marks as taking no tools follows the
     others, and stays in `Recommended` (0042-MADR D2). A model Ollama says writes no text,
     such as an embedding model, is not listed (0042-MADR D1).
-- `catalog.Search` matches a query against a list, highest tier first and
-  in the list's order within a tier: the id exactly, as a prefix or a
-  substring, then without separators (`gpt41` finds `gpt-4.1`), then a
-  label's display name, then token prefixes. A subsequence of the id is
-  tried only when nothing else matched and the query has three or more
-  characters. A glob scores an id match above a label-only one. The static
-  catalogs are the fallback. `catalog.Static(provider)` returns a copy, and
+- `catalog.Search` matches a query against a list, highest tier first: the
+  id exactly, as a prefix or a substring, then without separators (`gpt41`
+  finds `gpt-4.1`), then a label's display name, then token prefixes, then
+  every query word an id or label word or a prefix of one. Only when none
+  matches is each fallback tried, in turn: every word matched, one at least
+  within the edit bound (one edit for a word of four to seven runes, two
+  from eight); some words; and, for three or more characters, a
+  subsequence of the id. Inside a tier, BM25F orders, then fzf's score, then
+  the list's order. A glob scores an id match above a label-only one.
+  `Catalog.Search` does the same over a listing's `Usable`, with `Menu`'s
+  facts as words (`vision`, `tools`, `128k`, `free`, the family, the year),
+  on the index `List` builds once; each `Match.Why` says how it matched
+  (`catalog/search.go`; 0061-MADR, amendment "Model search, rebuilt"). The
+  static catalogs are the fallback. `catalog.Static(provider)` returns a copy, and
   `llmprovider.ProviderEnvVars()` a copy of the variable names.
   `catalog.Label` is per provider, so an id two providers offer can be
   labelled differently.

@@ -371,6 +371,7 @@ the tag in its own record.
 | `New`, `WithID`, `Descriptor` | `providers/chatcompat` | gobble-cli's `models.json` providers it skips today (G10) |
 | `SharedOption` | `llmprovider` | `catalog.WithCache` and `chatcompat.WithID` (the amendment "Phase 4's options") |
 | `Discover`, `Server` | `providers/chatcompat` | a caller's configure step: gobble-cli's, the wizard's (the amendment "`chatcompat`, provider-agnostic", E5) |
+| `Catalog.Search`, `Match.Why` | `catalog` | the wizard's `searchCatalog` and its rows' `Detail` (the amendment "Model search, rebuilt", S1, S4) |
 
 No other name is exported. `make api-check` against `v1.22.2` lists exactly
 these.
@@ -964,3 +965,207 @@ before it relies):
 E1 is the base of E2 and E4's menu; E3 and E5 stand alone. In the PLAN they
 are phases 4a to 4e, after Phase 4 and before Phase 5, each with its
 recordings, tests, plants and checks.
+
+E4's menu half (variant grouping, the default rank) runs in Phase 4c, after
+E2, whose canonical id and dialect details it reads; its search half is
+Phase 4b's, as the amendment "Model search, rebuilt" replaces it (PLAN,
+deviation 2, 2026-10-25).
+
+## Amendment 2026-10-25: Model search, rebuilt (proposed)
+
+**Status: accepted (owner, 2026-10-25),** with its tier key (S2) over
+Reciprocal Rank Fusion and over BM25F alone, and `TextPrompter`'s aligned
+column on every menu (S4). The owner asked, before Phase 4b runs, for fuzzy
+matching, BM25 and a clearer search prompt and results. This replaces E4's search half (its typo tier and per-listing
+index); E4's variant grouping and default rank stand.
+
+### Search as it is
+
+* `catalog.Search(provider, models, query)` scores ids and labels by tier
+  (`catalog/model_matcher.go:18-31`): exact, prefix, substring, compact,
+  label, token prefix, and a subsequence only when nothing else matched.
+  Within a tier every match scores the same, so the listing's order
+  decides; a typo finds nothing until the subsequence tier, and often
+  nothing then.
+* A model's facts are not searched, though `Catalog.Menu` holds them: no
+  query finds "vision", "128k", "reasoning" or "free".
+* The wizard (`wizard/model_select.go:40-91`) shows each match's label alone,
+  at most 20, with a notice when it drops more; no id, no facts, no reason
+  for the match, no way to see the rest.
+
+### Evidence (searched 2026-10-25)
+
+* **Fuzzy matching:** fzf scores a subsequence with a bonus at word
+  boundaries and for consecutive runs, the first character's doubled, and a
+  gap penalty that cancels a boundary bonus past about 8 characters
+  ([fzf algo.go](https://fossies.org/linux/fzf/src/algo/algo.go)).
+* **BM25F:** BM25 over weighted fields; `k1` 1.2 is the common default, a
+  short field such as a title needs little or no length normalisation
+  (`b` 0) and a weight of 2 to 3
+  ([Robertson et al.](https://arxiv.org/pdf/1709.03260),
+  [Elasticsearch](https://books.didispace.com/elasticsearch-definitive-guide-cn/170_Relevance/70_Pluggable_similarities.html)).
+* **Fusion:** Reciprocal Rank Fusion, `k` 60, merges ranked lists by rank
+  alone ([ParadeDB](https://www.paradedb.com/learn/search-concepts/reciprocal-rank-fusion)).
+* **Model pickers** show, per row, the context window, prices and
+  capabilities, and filter as one types
+  ([pi-model-costs](https://pi.dev/packages/pi-model-costs),
+  [modelsdev](https://docs.rs/modelsdev/0.6.0)).
+
+### S1. One engine, for ids alone and for a menu with facts
+
+* **`catalog.Search` keeps its signature** and searches ids and labels with
+  the engine below.
+* **`func (c Catalog) Search(query string) []Match` is added:** it searches
+  `c.Menu`, each entry's id, label and facts. The wizard calls it (R55).
+* **`Match` gains `Why string`**, a short reason ("exact id", "id prefix",
+  "all words", "near sonnet", "vision"), for a picker to show. An added
+  field is compatible (R48).
+
+### S2. The ranking: tiers first, then BM25F, then the fuzzy score
+
+Each model is a document of fields, each tokenised in lower case on `-`,
+`_`, `/`, `.`, `:`, `~`, spaces and letter-digit boundaries (`gpt4o` is
+`gpt`, `4`, `o`; `qwen3:8b` is `qwen`, `3`, `8b`, the size kept whole):
+
+| Field | Weight | `b` |
+| :--- | ---: | ---: |
+| id | 3 | 0 |
+| label | 2 | 0 |
+| family | 1.5 | 0 |
+| facets (S3) | 1 | 0.5 |
+
+A query word matches a document word exactly (1), as a prefix of it (0.8,
+two runes or more), or within a bounded edit distance (Damerau's
+transposition one edit; 1 for words of 4 to 7 runes, 0.6; 2 from 8 runes,
+0.4; none under 4). BM25F sums, per query word, its best match's weight
+times the field weight, with `k1` 1.2 and the IDF over the listing.
+
+The order is a key, compared in turn, so that a stronger kind of match is
+never outranked by a weaker one with more words:
+
+1. **The tier:** the exact id; an id prefix; every query word matched (an
+   exact, prefix or fuzzy match in some field); some words matched, more
+   first; a subsequence of the compact id only (fzf's scoring: boundary and
+   consecutive bonuses, the first character doubled, gap penalties).
+2. **BM25F's score.**
+3. **The fuzzy subsequence score,** fzf's.
+4. **The listing's order.**
+
+Reciprocal Rank Fusion was weighed and not chosen: it lets a model second
+in every list outrank one first in one, which a picker cannot explain; the
+key keeps today's tiers (an exact id first, as the existing Search tests
+pin), and adds BM25F and fuzziness inside and below them.
+
+### S3. Facets: a model's facts as words
+
+From each menu entry's `ModelInfo`, as the facts say and only then:
+`vision` (image input), `audio`, `pdf`, `tools`, `reasoning` and `thinking`,
+`open` (open weights), `free` (both prices zero), the context window as
+words (`8k` to `1m`, the bucket at or below it, `128k` matching
+`128k`-and-above), the release year, and the family. A query of
+`claude vision 200k` finds the Claude models with image input and a window
+of at least 200k, and `Why` names the facets matched.
+
+### S4. The picker, with no change to `Prompter`
+
+`Prompter` and `Choice` are unchanged (R48; their doc calls a change
+breaking). The wizard and `TextPrompter` change:
+
+* **The prompt:** "Search models: a name, a family, or a feature such as
+  vision, tools, 128k (blank for the recommended)".
+* **Each row:** `Label` the model's name or id; `Detail` its facts, in one
+  order, those it has: the context window (`200k ctx`), the prices (`$3 /
+  $15 per M`), the facets (`vision · tools · reasoning`), and for a search
+  result `Why` after them (`· near sonnet`).
+* **The title** counts the matches: `Choose a Claude model (12 matches for
+  "sonet"):`.
+* **Paging,** not a cut: ten rows, then "More (10 of 32 shown)" as a choice,
+  which shows the next ten; "Search again" and "Other" stay last.
+* **No match:** the nearest three ids by the fuzzy score are offered as "Did
+  you mean", before "Use … as the model id" and "Search again".
+* **An exact id** typed is the default row.
+* **`TextPrompter`** aligns `Detail` in a column, the labels padded to the
+  longest, at most 40 runes, on every menu it draws.
+
+### S5. Speed
+
+The index (each document's fields' words, the listing's vocabulary and its
+document frequencies) is built once per `Catalog`, when `List` builds it, and
+once per `catalog.Search` call; fuzzy matching compares a query word with the
+vocabulary's words of a length within its bound, and stops a distance once
+it passes the bound. A benchmark of a thousand ids pins the time and
+allocations per search, recorded before and after.
+
+### Scope
+
+`wizard` joins this record's scope for S4: `wizard/model_select.go` and
+`wizard/text_prompter.go`, and the tests that pin their output, each listed
+in the PLAN before it changes. D10 gains `Catalog.Search` and `Match.Why`.
+
+### S2 to S4, made exact before the code (2026-10-25)
+
+Reading the tests that pin Search (`catalog/model_matcher_test.go`,
+`matcher_coverage_test.go`, `kilo_catalog_test.go`) before writing the code
+made three points exact, within what the owner approved:
+
+* **S2's tiers are today's, kept whole, and three fallbacks.** Today's tiers
+  keep their scores, their tokeniser and their reach: the exact id (6000),
+  an id prefix (5000), an id substring (4000), the compact id (3500), the
+  label's display name (3000), a token prefix (2000). Beside them: every
+  query word matched exactly or as a prefix in some field, facets included
+  (1800). Only when none of these matches a model are the fallbacks tried,
+  in turn, each only when the one before matched nothing: every word
+  matched with one at least within the edit bound (1500); some words, more
+  first (1200 and the count); letters in order (1000 and today's bonus).
+  Inside a score the order is BM25F's, then fzf's, then the listing's;
+  `Match.Score` stays the tier's value, so a picker that reads it reads what
+  it did. A typo never adds a row to a query that matched.
+* **S3 has no `open` facet:** `ModelInfo` holds no open-weights fact. The
+  facets are `vision`, `audio`, `video` and `pdf` (input modalities),
+  `tools`, `reasoning` and `thinking`, `free`, the context buckets, the
+  release year, and the family, each only where `Has` reports its field.
+* **S4's facts go on the search results' rows;** the recommended menu's
+  rows are as they are.
+
+### S1 amended in execution: Usable, with Menu's facts (2026-10-25)
+
+S1 said `Catalog.Search` searches `c.Menu`. Executing it found two facts S1
+did not weigh:
+
+* `List` cuts `Menu` to `WithLimit(n)` (`catalog/menu.go`, `cutMenu` in both
+  builders) and leaves `Usable` uncut, and the wizard passes
+  `catalog.WithLimit(o.ModelLimit)` (`wizard/configure.go`). Searching
+  `Menu` would hide every model past the limit, where the wizard searches
+  them all today.
+* Equal scores keep `Usable`'s order, cheapest first for Kilo and fastest
+  first for Hugging Face (0026-MADR F54); `Menu`'s order is the band, then
+  the newest.
+
+**The owner chose (2026-10-25):** `Catalog.Search` searches `Usable`'s ids,
+in `Usable`'s order, each with the facts of `Menu`'s entry of the same id,
+compared without case, where `Menu` holds it; when `Usable` is empty, it
+searches `Menu`'s ids. A model past the limit is found by its id and label,
+without facets. Searching `Menu` as written, and leaving `Menu` uncut by
+`List` (a change to 0038-MADR D1 and A5), were weighed and not chosen.
+
+### S4 amended in execution: no "Did you mean" (2026-10-25)
+
+S4's "Did you mean", the nearest three ids within the edit bound when a
+search finds nothing, is empty by construction: the engine returns every
+model one of whose words is within the bound of a query word (S2's
+fallbacks), so a search that finds nothing has no id within it. **The owner
+chose (2026-10-25)** to drop it: the no-match menu is as it was, and the
+near tiers' rows, each with its `Why`, are the corrections. A suggestion one
+edit looser, as an exported `Catalog.Suggest` or inside the wizard, was
+weighed and not chosen. S4's exact id as the default row needs no code: the
+exact id is always the first row.
+
+### S2's facet length, made exact in execution (2026-10-25)
+
+S2 gives the facets `b` 0.5, so a longer facets field scores lower. The
+context buckets are cumulative (S3: `128k` matches a window of 128k and
+above), so a larger window adds more words, and measured on the words alone
+a 2M-context model scored below an 8k one on `vision`. The facets' length
+counts the buckets as one word; `TestBM25F_0061` pins it, and a plant that
+counts them whole is caught. No decision changes: S2 left the length
+unstated.

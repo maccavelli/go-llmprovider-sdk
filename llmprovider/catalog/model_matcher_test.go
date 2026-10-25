@@ -95,10 +95,14 @@ func TestSearchModels_TokenPrefix(t *testing.T) {
 }
 
 func TestSearchModels_Subsequence(t *testing.T) {
-	got := Search("", matcherFixture, "sonet")
-	assertIDs(t, "sonet", got, []string{"claude-sonnet-5"})
-	if scores := matchScores(got); !slices.Equal(scores, []int{1035}) {
-		t.Errorf("scores = %v, want [1035]", scores)
+	// cdsnt is a subsequence of claude-sonnet-5 and within no edit of any
+	// word: its letters, two at a token's start, none consecutive. sonet, the
+	// query here before, is one edit from sonnet, and TestSearch_Typo_0061's
+	// (0061-PLAN Phase 4b).
+	got := Search("", matcherFixture, "cdsnt")
+	assertIDs(t, "cdsnt", got, []string{"claude-sonnet-5"})
+	if scores := matchScores(got); !slices.Equal(scores, []int{1010}) {
+		t.Errorf("scores = %v, want [1010]", scores)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -24,19 +25,27 @@ const (
 	currentModelDetail   = "current"
 	savedFallbackDetail  = "saved"
 	chooseModelTitle     = "Choose a %s model:"
-	searchModelsPrompt   = "Search models (blank for recommended)"
+	searchResultsTitle   = "Choose a %s model (%s for %q):"
+	searchModelsPrompt   = "Search models: a name, a family, or a feature such as vision, tools, 128k (blank for the recommended)"
 	searchFallbackPrompt = "Search fallback models (blank for recommended)"
 	chooseFallbacksTitle = "Choose fallback models (optional):"
 	searchFallbacksTitle = "Choose fallback models:"
 	moreFallbacksPrompt  = "Search for more fallback models?"
+	moreMatchesLabel     = "More (%d of %d shown)"
 	maxSearchResults     = 20
+	// searchPage is how many matches the model menu shows at once, before
+	// its More row (0061-MADR, amendment "Model search, rebuilt", S4).
+	searchPage = 10
 )
 
 // selectModel asks for a search query. A blank query shows the recommended
-// menu; any other query searches every usable model and offers the numbered
-// matches, Search again, and Other. A query with no match offers itself as
-// the model id, or Search again. Each round checks ctx, so a prompter that
-// accepts every default stops when ctx ends (R40; 0026-MADR F9).
+// menu; any other query searches every usable model, by its facts too on a
+// listing List built, and offers the matches ten at a time, each with its
+// facts and why it matched, under a title that counts them, with More while
+// any are unshown, then Search again and Other (0061-MADR, amendment "Model
+// search, rebuilt", S4). A query with no match offers itself as the model
+// id, or Search again. Each round checks ctx, so a prompter that accepts
+// every default stops when ctx ends (R40; 0026-MADR F9).
 func selectModel(ctx context.Context, p Prompter, d llmprovider.Descriptor, cat catalog.Catalog, o Options) (string, error) {
 	title := fmt.Sprintf(chooseModelTitle, d.Label)
 	for {
@@ -59,7 +68,7 @@ func selectModel(ctx context.Context, p Prompter, d llmprovider.Descriptor, cat 
 		if q == "" {
 			return selectRecommended(p, d, cat.Recommended, o)
 		}
-		matches := catalog.Search(d.ID, cat.Usable, q)
+		matches := searchCatalog(d, cat, nil, q)
 		if len(matches) == 0 {
 			// A model the listing does not have may still be served: offer
 			// the query itself (0021-MADR Z11). Search again is the default.
@@ -73,21 +82,89 @@ func selectModel(ctx context.Context, p Prompter, d llmprovider.Descriptor, cat 
 			}
 			continue
 		}
-		shown := capMatches(p, matches)
-		choices := append(matchChoices(shown), Choice{Label: searchAgainLabel}, Choice{Label: otherModelLabel})
-		idx, err := choose(p, title, choices, 0)
-		if err != nil {
-			return "", fmt.Errorf("select model: %w", err)
-		}
+		id, other, err := pageMatches(ctx, p, fmt.Sprintf(searchResultsTitle, d.Label, matchCount(len(matches)), q),
+			matches, menuFacts(cat))
 		switch {
-		case idx < len(shown):
-			return shown[idx].ID, nil
-		case idx == len(shown):
-			continue
-		default:
+		case err != nil:
+			return "", err
+		case other:
 			return enterModelID(p, d.ID, o)
+		case id != "":
+			return id, nil
 		}
 	}
+}
+
+// pageMatches offers matches ten at a time, the first row the default: the
+// strongest match, the exact id when one was typed. More shows the next ten;
+// Search again returns no id; Other returns other.
+func pageMatches(ctx context.Context, p Prompter, title string, matches []catalog.Match,
+	facts map[string]catalog.ModelInfo) (id string, other bool, err error) {
+	for start := 0; ; {
+		if err := ctx.Err(); err != nil {
+			return "", false, fmt.Errorf("select model: %w", err)
+		}
+		end := min(start+searchPage, len(matches))
+		page := matches[start:end]
+		choices := matchChoices(page, facts)
+		more := end < len(matches)
+		if more {
+			choices = append(choices, Choice{Label: fmt.Sprintf(moreMatchesLabel, end, len(matches))})
+		}
+		choices = append(choices, Choice{Label: searchAgainLabel}, Choice{Label: otherModelLabel})
+		idx, err := choose(p, title, choices, 0)
+		if err != nil {
+			return "", false, fmt.Errorf("select model: %w", err)
+		}
+		switch {
+		case idx < len(page):
+			return page[idx].ID, false, nil
+		case more && idx == len(page):
+			start = end
+		case idx == len(choices)-2:
+			return "", false, nil
+		default:
+			return "", true, nil
+		}
+	}
+}
+
+// matchCount is "1 match" or "n matches".
+func matchCount(n int) string {
+	if n == 1 {
+		return "1 match"
+	}
+	return strconv.Itoa(n) + " matches"
+}
+
+// searchCatalog searches cat for q, less the ids in exclude: by Catalog.Search,
+// facts included, on a listing List built, which names its Source; else by
+// catalog.Search, over Usable's ids with the provider's labels (0061-MADR,
+// amendment "Model search, rebuilt", S1 and "S1 amended in execution").
+func searchCatalog(d llmprovider.Descriptor, cat catalog.Catalog, exclude map[string]struct{}, q string) []catalog.Match {
+	if cat.Source == "" {
+		return catalog.Search(d.ID, without(cat.Usable, exclude), q)
+	}
+	if len(exclude) > 0 {
+		cat.Usable = without(cat.Usable, exclude)
+		cat.Menu = slices.DeleteFunc(slices.Clone(cat.Menu), func(e catalog.MenuEntry) bool {
+			_, skip := exclude[strings.ToLower(e.ID)]
+			return skip
+		})
+	}
+	return cat.Search(q)
+}
+
+// menuFacts is each Menu entry's facts, by its id in lower case, the first
+// of an id kept.
+func menuFacts(cat catalog.Catalog) map[string]catalog.ModelInfo {
+	out := make(map[string]catalog.ModelInfo, len(cat.Menu))
+	for _, e := range cat.Menu {
+		if _, seen := out[strings.ToLower(e.ID)]; !seen {
+			out[strings.ToLower(e.ID)] = e.Info
+		}
+	}
+	return out
 }
 
 // selectRecommended shows the curated menu. A previously configured model for
@@ -199,14 +276,14 @@ func selectFallbacks(ctx context.Context, p Prompter, d llmprovider.Descriptor, 
 			chosen = appendPicks(chosen, ids, idxs)
 			return chosen, nil // a blank round ends the loop
 		}
-		matches := catalog.Search(d.ID, usable, q)
+		matches := searchCatalog(d, cat, exclude, q)
 		if len(matches) == 0 {
 			p.Notify(LevelWarn, "no %s models match %q", d.Label, q)
 			continue
 		}
 		shown := capMatches(p, matches)
 		ids := matchIDs(shown)
-		idxs, err := p.MultiSelect(searchFallbacksTitle, matchChoices(shown), indicesOf(ids, saved))
+		idxs, err := p.MultiSelect(searchFallbacksTitle, matchChoices(shown, menuFacts(cat)), indicesOf(ids, saved))
 		if err != nil {
 			return nil, fmt.Errorf("select fallbacks: %w", err)
 		}
@@ -288,7 +365,8 @@ func indicesOf(models, saved []string) []int {
 }
 
 // capMatches keeps the first maxSearchResults matches and says so when it
-// drops any.
+// drops any. Only the fallbacks' MultiSelect cuts: a pick returns indices,
+// not a page to turn to; the model menu pages (pageMatches).
 func capMatches(p Prompter, matches []catalog.Match) []catalog.Match {
 	if len(matches) <= maxSearchResults {
 		return matches
@@ -297,14 +375,73 @@ func capMatches(p Prompter, matches []catalog.Match) []catalog.Match {
 	return matches[:maxSearchResults]
 }
 
-// matchChoices renders matches as menu rows.
-func matchChoices(matches []catalog.Match) []Choice {
+// matchChoices renders matches as menu rows, each with its facts and why it
+// matched as its Detail.
+func matchChoices(matches []catalog.Match, facts map[string]catalog.ModelInfo) []Choice {
 	out := make([]Choice, 0, len(matches))
 	for _, m := range matches {
-		out = append(out, Choice{Label: m.Label})
+		out = append(out, Choice{Label: m.Label, Detail: matchDetail(facts[strings.ToLower(m.ID)], m.Why)})
 	}
 	return out
 }
+
+// matchDetail is a search row's Detail, the parts known, in one order: the
+// context window ("200k ctx"), the prices ("$3 / $15 per M", or "free"), the
+// input it reads besides text and whether it takes tools and reasons
+// ("vision · tools · reasoning"), then why it matched (0061-MADR, amendment
+// "Model search, rebuilt", S4).
+func matchDetail(info catalog.ModelInfo, why string) string {
+	var parts []string
+	if info.Has(catalog.FieldContextWindow) && info.ContextWindow > 0 {
+		parts = append(parts, tokenCount(info.ContextWindow)+" ctx")
+	}
+	if info.Has(catalog.FieldCostInput) && info.Has(catalog.FieldCostOutput) {
+		if info.Cost.Input == 0 && info.Cost.Output == 0 {
+			parts = append(parts, "free")
+		} else {
+			parts = append(parts, fmt.Sprintf("$%s / $%s per M", price(info.Cost.Input), price(info.Cost.Output)))
+		}
+	}
+	if info.Has(catalog.FieldInput) {
+		for _, m := range info.Input {
+			switch m {
+			case catalog.ModalityImage:
+				parts = append(parts, "vision")
+			case catalog.ModalityAudio, catalog.ModalityVideo, catalog.ModalityPDF:
+				parts = append(parts, string(m))
+			}
+		}
+	}
+	if info.Has(catalog.FieldTools) && info.Tools {
+		parts = append(parts, "tools")
+	}
+	if info.Has(catalog.FieldReasoning) && info.Reasoning.Supported {
+		parts = append(parts, "reasoning")
+	}
+	if why != "" {
+		parts = append(parts, why)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// tokenCount is n tokens in short: in binary units when n is a whole number
+// of them, as windows such as 131072 (128k) are, else in decimal ones.
+func tokenCount(n int) string {
+	switch {
+	case n%(1<<20) == 0:
+		return strconv.Itoa(n>>20) + "m"
+	case n%1_000_000 == 0:
+		return strconv.Itoa(n/1_000_000) + "m"
+	case n%1024 == 0:
+		return strconv.Itoa(n/1024) + "k"
+	case n >= 1000:
+		return strconv.Itoa(n/1000) + "k"
+	}
+	return strconv.Itoa(n)
+}
+
+// price is a price per million tokens, in as few digits as it takes.
+func price(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
 
 // matchIDs returns the ids of matches, in order.
 func matchIDs(matches []catalog.Match) []string {
