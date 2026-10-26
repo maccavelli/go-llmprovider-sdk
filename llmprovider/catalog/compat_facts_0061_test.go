@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/compatdialect"
 )
 
 // 0061-PLAN Phase 4c: a chatcompat server's facts (0061-MADR E2) and the
@@ -21,14 +22,14 @@ import (
 
 // dataEntries is a recorded {"data": [...]} reply's entries, and whether the
 // file is one.
-func dataEntries(t *testing.T, path string) ([]compatEntry, bool) {
+func dataEntries(t *testing.T, path string) ([]compatdialect.Entry, bool) {
 	t.Helper()
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var reply struct {
-		Data []compatEntry `json:"data"`
+		Data []compatdialect.Entry `json:"data"`
 	}
 	if json.Unmarshal(raw, &reply) != nil || len(reply.Data) == 0 || reply.Data[0].ID == "" {
 		return nil, false
@@ -48,9 +49,9 @@ func TestDialect_Score_0061(t *testing.T) {
 	for _, path := range own {
 		entries, ok := dataEntries(t, path)
 		name := filepath.Base(filepath.Dir(path))
-		d, found := dialectOf(entries)
-		if !ok || !found || d.name != name {
-			t.Errorf("%s: dialect %q, %v; want %q", path, d.name, found, name)
+		d, found := compatdialect.Of(entries)
+		if !ok || !found || d.Name != name || dialectDetails[d.Name] == nil {
+			t.Errorf("%s: dialect %q, %v; want %q, with its details reader", path, d.Name, found, name)
 		}
 	}
 	others := 0
@@ -60,9 +61,9 @@ func TestDialect_Score_0061(t *testing.T) {
 		}
 		if entries, ok := dataEntries(t, path); ok {
 			others++
-			for _, d := range dialects {
-				if score := dialectScore(d, entries); score >= dialectThreshold {
-					t.Errorf("%s scores %s at %v", path, d.name, score)
+			for _, d := range compatdialect.Table {
+				if score := compatdialect.Score(d, entries); score >= compatdialect.Threshold {
+					t.Errorf("%s scores %s at %v", path, d.Name, score)
 				}
 			}
 		}
@@ -76,9 +77,9 @@ func TestDialect_Score_0061(t *testing.T) {
 	untagged[0].ID = "plain-model"
 	noCreated := slices.Clone(entries)
 	noCreated[1].Created = nil
-	for name, listing := range map[string][]compatEntry{"one untagged id": untagged, "one without created": noCreated} {
-		if d, ok := dialectOf(listing); ok {
-			t.Errorf("%s: dialect %q, want none", name, d.name)
+	for name, listing := range map[string][]compatdialect.Entry{"one untagged id": untagged, "one without created": noCreated} {
+		if d, ok := compatdialect.Of(listing); ok {
+			t.Errorf("%s: dialect %q, want none", name, d.Name)
 		}
 	}
 }

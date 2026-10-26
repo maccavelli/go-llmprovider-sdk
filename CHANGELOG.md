@@ -36,6 +36,16 @@ tag and its commit without notes; its notes are its section here.
   `every word: vision`, `near sonnet`)
   ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
   amendment "Model search, rebuilt", S1, S3, S5).
+- `chatcompat.Discover` and `chatcompat.Server`: the local Chat Completions
+  servers running now, for a configure step to offer. It asks each
+  documented default port on `127.0.0.1` only, all at once, each within 300
+  ms, with one `GET /v1/models` and no key: Ollama 11434, llama.cpp 9931,
+  LocalAI 8080, vLLM 8000, Jan 1337, KoboldCpp 5001, LM Studio 1234. Each
+  `Server` has its `BaseURL`, its `Label` (its dialect's, such as "Ollama",
+  or its host and port), its `Models`, and `NeedsKey` for one that answered
+  401 or 403
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
+  E5, amendment "E5's ports and a keyed server, confirmed before Phase 4e").
 - `llmprovider.SharedOption`: an option every provider's `New` takes, whatever
   its id, for a value only some read
   ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),

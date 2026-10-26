@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/compatdialect"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/nilsource"
@@ -652,12 +653,12 @@ func fetchCompat(ctx context.Context, id llmprovider.ProviderID, token llmprovid
 			continue
 		}
 		f.usable = append(f.usable, e.ID)
-		if at, ok := e.created(); ok {
+		if at, ok := e.CreatedAt(); ok {
 			f.created[e.ID] = at
 		}
 	}
-	if d, ok := dialectOf(entries); ok {
-		d.details(ctx, id, token, cfg, f.usable)
+	if d, ok := compatdialect.Of(entries); ok && dialectDetails[d.Name] != nil {
+		dialectDetails[d.Name](ctx, id, token, cfg, f.usable)
 	}
 	return f, nil
 }

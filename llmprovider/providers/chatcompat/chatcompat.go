@@ -17,12 +17,18 @@
 // ErrAuthFailure. An OAuth or vendor CLI session is refused: its token is a
 // vendor's, never sent to another server.
 //
-// Options: WithID and catalog.WithCache are shared options
-// (llmprovider.SharedOption), which every New takes. New reads WithID first,
-// then resolves the options under that id, so For(id, …) reaches the
+// Options: WithID, catalog.WithCache and catalog.WithModelLayer are shared
+// options (llmprovider.SharedOption), which every New takes. New reads WithID
+// first, then resolves the options under that id, so For(id, …) reaches the
 // provider; a WithID inside For is not read, so give it bare, as the factory
 // above does. The other catalog options are scoped to the built-in providers,
-// and New refuses them (0061-MADR, amendment "Phase 4's options").
+// and New refuses them (0061-MADR, amendments "Phase 4's options" and "E2 and
+// E4's menu, made exact before Phase 4c", X8).
+//
+// Discover finds the local servers running now, for a configure step to
+// offer: it asks each documented default port on 127.0.0.1 for its listing,
+// all at once, each within 300 ms, and sends no key. A server that wants one
+// is returned with NeedsKey (0061-MADR E5; its amendment "E5's ports and a keyed server, confirmed before Phase 4e").
 //
 // Generation uses POST {base}/chat/completions. ListModels is catalog.List's
 // listing of GET {base}/models, as a built-in's: cached for ten minutes by

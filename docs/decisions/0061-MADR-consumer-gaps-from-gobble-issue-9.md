@@ -1283,3 +1283,71 @@ the local Ollama (0.33.2) and the recorded models.dev document
   D-A1), so "across its providers" is across these. They hold the gateways
   that list open models. Keeping every section, and adding named sections
   of local models, were weighed and not chosen.
+
+## Amendment 2026-10-26: E3 waits for a recorded refusal
+
+**Status: accepted (owner, 2026-10-26).** E3 learns an optional field's
+refusal only from a phrase a recorded server sent. Phase 4d's first step
+probed the local Ollama (0.33.2), `POST /v1/chat/completions` with
+`qwen3:8b`, each of E3's fields with a valid value and an odd one:
+
+| Field sent | Status |
+| :--- | :--- |
+| none | 200 |
+| `reasoning_effort` `high`, `max` | 200 |
+| `reasoning_effort` `bogus` | 400 `invalid reasoning value: "bogus" (must be "minimal", "low", "medium", "high", "xhigh", "ultra", "max", or "none")` |
+| `stream_options` `{"include_usage": true}`, with `stream` and without | 200 |
+| `stream_options` `{"bogus": 1}`, with `stream` | 200 |
+| a tool's `strict` `true`, `"yes"` | 200 |
+
+Its one refusal is of an effort the SDK never sends: `Ladder` sends only the
+efforts it names. No phrase is recorded for any of E3's fields, so E3 as
+written would send every field always: its matcher would match nothing.
+**The owner chose** to record the probe and build nothing: E3 runs as
+written when a server the owner runs (LM Studio, vLLM, llama.cpp) is
+recorded refusing one of its fields. Building the matcher with no phrase,
+and taking phrases from servers' documentation and source in place of a
+recording (which E3 and 0062-MADR D4 forbid), were weighed and not chosen.
+
+## Amendment 2026-10-26: E5's ports and a keyed server, confirmed before Phase 4e
+
+**Status: accepted (owner, 2026-10-26).** E5 asks that each default port be
+confirmed from its server's documentation before it ships. Read on
+2026-10-26, official pages only:
+
+| Server | Port | The documentation's words | Source |
+| :--- | ---: | :--- | :--- |
+| Ollama | 11434 | measured: the local Ollama 0.33.2 answers there | 0041-MADR A4; this record's Phase 4c |
+| llama.cpp `llama-server` | 9931 | "`--port PORT` \| port to listen (default: 9931)"; "by default listens on `127.0.0.1:9931`" | <https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md> |
+| LocalAI | 8080 | "By default the LocalAI WebUI should be accessible from `http://localhost:8080`." | <https://localai.io/docs/basics/try/> |
+| vLLM | 8000 | "By default, it starts the server at `http://localhost:8000`." | <https://docs.vllm.ai/en/latest/getting_started/quickstart.html> |
+| Jan | 1337 | "With the default settings, the API base URL is `http://127.0.0.1:1337/v1`." | <https://docs.jan.ai/desktop/api-server> |
+| KoboldCpp | 5001 | "The default is localhost:5001; a custom `--port` changes it." | <https://github.com/LostRuins/koboldcpp/blob/concedo/README.md> |
+| LM Studio | 1234 | no default stated: "`--port` … If not provided, uses the last used port"; "The following examples assume the server port is `1234`" | <https://lmstudio.ai/docs/cli/server-start>, <https://lmstudio.ai/docs/app/api/endpoints/openai> |
+
+Two of E5's entries were wrong: llama.cpp's default is 9931, not 8080 (8080
+appears in its Docker examples only, which pass `--port 8080`); and LM
+Studio states no default. On keys: Jan, "If a key is configured, requests
+must include it", answering "401 Unauthorized"; LM Studio, "By default, LM
+Studio does not require authentication for API requests"
+(<https://lmstudio.ai/docs/developer/core/authentication>).
+
+**The owner chose (2026-10-26):**
+
+1. **The ports:** 11434, 9931, 8080, 8000, 1337, 5001 and 1234, in that
+   order; 1234 is recorded as the port LM Studio's documentation and
+   examples use, not a stated default. Probing only stated defaults (no LM
+   Studio), and E5's list with its attributions as written, were not
+   chosen.
+2. **A keyed server is returned, flagged:** a server that answers `GET
+   /v1/models` with 401 or 403 is in `Discover`'s result with no `Models`
+   and `Server.NeedsKey` true, so a configure step can ask for its key.
+   `Server` gains `NeedsKey bool`; it is a struct this phase adds, so D10
+   gains no name. Leaving it out, and returning it with no flag, were not
+   chosen.
+
+**And, as the code needs:** a server's label is its dialect's (E2), so the
+dialect table's marks and score move from `catalog` into an internal
+package, `llmprovider/internal/compatdialect`, that `catalog` and
+`chatcompat` both read, as `internal/compatid` serves `WithID`; `catalog`
+keeps each dialect's details reader. No exported name is added for it.

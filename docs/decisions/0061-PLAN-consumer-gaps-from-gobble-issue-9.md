@@ -331,7 +331,9 @@ first.
      `TestCanonicalMatch_ExactOnly_0061` (a near id gets nothing);
      `TestMenu_Variants_0061`; `TestMenu_DefaultRank_0061`. Plants: the
      threshold removed; a fuzzy canonical match; variants not grouped.
-* **Phase 4d, E3, optional fields.**
+* **Phase 4d, E3, optional fields** (deferred after step 1, deviation 11,
+  2026-10-26: no recorded server refuses a field; steps 2 and 3 run when
+  one does).
   1. Record: each server reachable (the local Ollama now) sent each optional
      field it may refuse; only a recorded refusal's phrase enters the
      matcher.
@@ -1315,3 +1317,117 @@ Done; staged for the owner's commit. Phase 4 is committed as `b663b71`.
   `llmprovider/catalog/testdata/compat/ollama/`,
   `llmprovider/providers/chatcompat/chatcompat.go`,
   `llmprovider/providers/chatcompat/helpers_test.go`.
+
+### Phase 4d: step 1, and deferred (2026-10-26)
+
+* Phase 4c is committed as `dccf266`; 0065 ran between (`539affa`,
+  `b9fc408`, `3d9a3b3`).
+* **Step 1, the probe:** the local Ollama 0.33.2, `POST
+  /v1/chat/completions`, `qwen3:8b`, `max_tokens` 16, each of E3's fields
+  with a valid value and an odd one (a scratchpad script; nothing in the
+  tree): every valid value 200; `stream_options` with a bogus key 200; a
+  tool's `strict` `"yes"` 200; one 400, `reasoning_effort` `bogus`,
+  `invalid reasoning value: "bogus" (must be "minimal", "low", "medium",
+  "high", "xhigh", "ultra", "max", or "none")`, an effort the SDK never
+  sends. The full table is in the MADR's amendment "E3 waits for a recorded
+  refusal".
+* **Deviation 11 (2026-10-26): E3 deferred.** Found: no recorded refusal of
+  any of E3's fields, so its matcher would match nothing. Decision (owner):
+  record and defer; steps 2 and 3 run when a server the owner runs is
+  recorded refusing a field (`TestLive_RecordCompat_0061` records its
+  `/models`; a refusal's recording is that step's first task). Building it
+  with no phrase, and phrases from documentation and source, were not
+  chosen.
+* **Staged:** this record and its MADR.
+
+### Phase 4e: before any change (2026-10-26)
+
+* Step 3 first, as its text asks: each port read from its server's own
+  documentation (a web search, then each official page fetched for its
+  words; llama.cpp's README fetched again here and searched: line 194
+  `--port PORT | port to listen (default: 9931)`, line 454 `by default
+  listens on 127.0.0.1:9931`). The table is the MADR's amendment "E5's
+  ports and a keyed server, confirmed before Phase 4e".
+* **Deviation 12 (2026-10-26): the ports.** Found: llama.cpp's default is
+  9931, not E5's 8080; LM Studio's documentation states no default.
+  Decision (owner): 11434, 9931, 8080, 8000, 1337, 5001, 1234, the last
+  recorded as LM Studio's documented example port.
+* **Deviation 13 (2026-10-26): a keyed server.** Found: Jan answers 401
+  with no key when one is configured, and `Discover` sends none. Decision
+  (owner): returned with `NeedsKey` true and no `Models`; `Server` gains
+  the field.
+* **Deviation 14 (2026-10-26): the dialect scoring shared.** Found: the
+  label is the dialect's, and the dialect table is unexported in
+  `catalog`, which `chatcompat` imports but cannot read unexported. The
+  marks and score move to `llmprovider/internal/compatdialect`, read by
+  both; `catalog` keeps the details readers by dialect name. The package,
+  its tests, and its rows in `docs/architecture.md` and
+  `docs/guides/api-standards.md` join the phase's scope.
+* **The steps, as revised:**
+  1. `internal/compatdialect`: `Entry`, `Dialect`, `Table`, `Threshold`,
+     `Score`, `Of`, and its tests; `catalog` reads it (`dialect.go` keeps
+     `fetchCompatEntries` and the details readers).
+  2. `chatcompat`: `Discover(ctx, opts...) ([]Server, error)` and `Server{
+     BaseURL, Label string; Models []string; NeedsKey bool }`: every port
+     at once on `127.0.0.1`, one `GET /v1/models` each, no key, each bounded
+     by 300 ms within ctx; a 200 with a listing is a server, its label the
+     dialect's or `127.0.0.1:<port>`; a 401 or 403 is a server that needs
+     a key; anything else, or no answer, is none; in the ports' order.
+  3. Tests: `TestDiscover_Loopback_0061`, `TestDiscover_NoKey_0061`,
+     `TestDiscover_Bound_0061`, `TestDiscover_Keyed_0061`, the package's
+     tests. Plants: a host other than loopback; the bound removed; a key
+     sent; a 401 dropped.
+  4. Docs: `chatcompat`'s package doc and an offline example (R50), the
+     CHANGELOG's Added, `docs/architecture.md`.
+* **As built:**
+  * `llmprovider/internal/compatdialect` (deviation 14): `Entry` and its
+    `CreatedAt`, `Dialect` (a `Label` added, "Ollama", for `Discover`),
+    `Table`, `Threshold`, `Score`, `Of`; its tests, 100 % coverage.
+    `catalog/dialect.go` keeps `fetchCompatEntries` and `dialectDetails`, the
+    details readers by dialect name; `fetchCompat` reads `compatdialect.Of`;
+    `TestDialect_Score_0061` reads the shared table and checks that the
+    recorded dialect has its details reader.
+  * `chatcompat/discover.go`: `Discover` and `Server` (`BaseURL`, `Label`,
+    `Models`, `NeedsKey`); `discoverHost` `127.0.0.1`, `discoverPorts` in
+    the owner's order, `discoverBound` 300 ms, each port at once; a failed
+    close logged at Debug, as a listing's is (golangci-lint's errcheck).
+  * `chatcompat`'s package doc: `Discover`, and the shared options, which
+    still said `WithModelLayer` was scoped (Phase 4c's deviation 9 made it
+    shared); the CHANGELOG's Added; the rows of `docs/architecture.md` and
+    `docs/guides/api-standards.md` for both packages.
+  * **R50:** `chatcompat` already has an offline example, `ExampleNew`; an
+    `ExampleDiscover` would have to reach the unexported port list to run
+    offline, so none was added. `make docs-check`: 0 violations of R50 to
+    R52.
+* **Tests:** `discover_0061_test.go`: `TestDiscover_Loopback_0061` (seven
+  stand-in ports: a plain listing, a refused port (`internal/nettest`'s,
+  never a freed one, 0045-MADR), Ollama's listing, a 404, a web page, a
+  reply with no `data`, an empty listing: three servers, in order, each
+  asked on `127.0.0.1`), `TestDiscover_NoKey_0061`, `TestDiscover_Keyed_0061`
+  (401 and 403 needing a key, a 500 none), `TestDiscover_Bound_0061` (a
+  port that does not answer is given up, an ended ctx, a refused option);
+  `compatdialect_test.go`: `TestOf_0061`, `TestCreatedAt_0061`. `chatcompat`
+  93.4 %; `-count=3 -shuffle=on -race` passes.
+* **Plants** (`tools/plant.py`, on a scratch clone; all 6 caught, again on
+  the final code): a host other than loopback (`TestDiscover_Loopback_0061`:
+  `asked host "localhost:…", want 127.0.0.1 only`); the bound removed
+  (`TestDiscover_Bound_0061`: `after 3.001461459s`); a key sent
+  (`TestDiscover_NoKey_0061`: `Authorization headers ["Bearer sk-test"]`); a
+  401 dropped (`TestDiscover_Keyed_0061`); the dialect's label not read
+  (`TestDiscover_Loopback_0061`); the threshold lowered to 0.5
+  (`TestOf_0061`: `untagged: "ollama", want none`).
+* **On this machine** (a throwaway test on a scratch copy, nothing in the
+  tree): `Discover` returned in 20 ms one server,
+  `http://127.0.0.1:11434/v1`, `"Ollama"`, `NeedsKey` false, its eight
+  models.
+* **Checks:** `make pre-add-check` on the 8 Go files: clean; `make
+  tables-check` (42 packages), `dep-check`, `docs-check`, `changelog-check`,
+  `api-check` (0 incompatible changes against `v1.22.2`): each 0 problems;
+  `tools/apidiff.py v1.22.2`: `providers/chatcompat` added, as D10 has it;
+  `tools/gate.py`: 27 of 28 at first, `markdownlint` failing `docs/guides/api-standards.md:31` MD013 (240 of 200 characters, R2's citation line, which this phase lengthened), re-wrapped; then 28 of 28 passed.
+* **Staged:** this record and its MADR (with Phase 4d's, staged before and
+  not yet committed), `CHANGELOG.md`, `docs/architecture.md`,
+  `docs/guides/api-standards.md`, `llmprovider/internal/compatdialect/`,
+  `llmprovider/catalog/{dialect,discovery}.go`,
+  `llmprovider/catalog/compat_facts_0061_test.go`,
+  `llmprovider/providers/chatcompat/{chatcompat,discover,discover_0061_test}.go`.
