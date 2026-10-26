@@ -102,3 +102,50 @@ test that would fails its package's run, naming the host.
 * **Staged:** this pair, `docs/README.md`'s rows,
   `llmprovider/catalog/{model_metadata,session_client_0026}_test.go`,
   `llmprovider/providers/{claude,gemini,grok,openai}/helpers_test.go`.
+
+### Phase 2: the guard (2026-10-25)
+
+* Phase 1 is committed as `539affa`.
+* `internal/localonly`: `Main`, `Start`, `Guard.Stop`, `Report`,
+  `ExitCode`. Its tests: `TestGuard` runs `TestGuardChild` in a process of
+  its own, since `net/http` reads the proxy variables once a process, at its
+  first proxied request (a second guard in one process was not seen: the
+  first run of `-count=5 -shuffle=on` failed `TestGuard` with `proxyconnect
+  tcp: dial tcp 127.0.0.1:…: connect: connection refused`, the first
+  guard's closed port); there, a loopback request is served and not
+  recorded, two plain requests and one TLS request off the machine are
+  refused and recorded, and `Stop` gives `off-machine.invalid (2)`,
+  `off-machine.invalid:443 (1)`. `TestMain_Runs` drives `Main` with a
+  stand-in runner; `TestExitCode_Report` the code and the message. Coverage
+  85.1 %; `-count=5 -shuffle=on` and `-race -count=2` pass.
+* The six `localonly_test.go`, each `//go:build !live_gateways`, each
+  `TestMain` calling `localonly.Main`. `go vet ./...` and `go vet -tags
+  live_gateways ./...` clean; `go test -count=1 ./...`: every package
+  passed, and the guard reported nothing.
+* **Plants** (`tools/plant.py`, on a scratch clone; all 3 caught): `claude`'s
+  `build` leaving the document on, and `listT`'s document test removed,
+  each fail their package; reproduced with the full output, each test
+  passes and the guard fails the run: `--- PASS: TestListModels` then
+  `localonly: the tests sent requests off the machine, to
+  models.opencode.ai:443 (1); …`, `FAIL …/providers/claude`; the same for
+  `TestList_Cached_0041` and `catalog`. The guard's exit code dropped fails
+  `TestMain_Runs` and `TestExitCode_Report`.
+* **Deviation 1 (2026-10-25): the package's rows in Phase 2.** Found:
+  `make tables-check` failed with `internal/localonly: no row` in
+  `docs/architecture.md` and in `docs/guides/api-standards.md`: a package's
+  rows come with it (R43). The architecture rows move here from Phase 3, and
+  `docs/guides/api-standards.md` (R2's table), which the Scope did not name,
+  joins it. The one resolution that leaves the tree correct, so it was taken
+  and recorded rather than offered.
+* **Deviation 2 (2026-10-25): `Main`'s parameter.** Found: with `Main(m
+  *testing.M)`, the package measured 73.3 %, under the 80 % floor, as no
+  test can make a `*testing.M`. `Main` takes `interface{ Run() int }`,
+  which `*testing.M` is; the MADR's D2 says so. No caller changes.
+* `golangci-lint`'s errcheck: `Serve`'s and `Shutdown`'s errors are
+  reported to stderr, `Serve`'s normal close aside.
+* **Checks:** `make pre-add-check` on the 8 Go files: clean; `make
+  tables-check`, `dep-check`, `parity-check`: 0 problems; `tools/gate.py`: 28 of 28 passed.
+* **Staged:** this record and its MADR,
+  `internal/localonly/localonly{,_test}.go`, the six
+  `localonly_test.go`, `docs/architecture.md`,
+  `docs/guides/api-standards.md`.

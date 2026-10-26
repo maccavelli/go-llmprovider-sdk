@@ -94,8 +94,10 @@ leak, with the host named.
 
 ### D2. The guard: `internal/localonly`
 
-* A package `internal/localonly`, test support only, with `Main(m *testing.M)
-  int`: it starts a proxy on `127.0.0.1` that answers every request and
+* A package `internal/localonly`, test support only, with `Main(m
+  interface{ Run() int }) int`, which a `TestMain` passes its `*testing.M`
+  (amended in execution, 2026-10-25: a `*testing.M` cannot be made in a
+  test, and `Main` must be measured for the 80 % floor; PLAN deviation 2): it starts a proxy on `127.0.0.1` that answers every request and
   `CONNECT` with 502 and records its host; sets `HTTPS_PROXY`, `HTTP_PROXY`
   and their lower-case forms to it, and `NO_PROXY` empty; runs `m.Run()`;
   and, when any host was recorded, prints each, once, with the count, and
