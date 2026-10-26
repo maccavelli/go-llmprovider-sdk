@@ -1431,3 +1431,99 @@ Done; staged for the owner's commit. Phase 4 is committed as `b663b71`.
   `llmprovider/catalog/{dialect,discovery}.go`,
   `llmprovider/catalog/compat_facts_0061_test.go`,
   `llmprovider/providers/chatcompat/{chatcompat,discover,discover_0061_test}.go`.
+
+### Phase 5: `ImageItem` and `Capabilities.Images` (2026-10-26)
+
+* **Made exact in execution** (no decision or fact of the MADR changed):
+  * D5 refuses "`Data` with a `MediaType` other than the four" and lets "a
+    `URL` … leave `MediaType` empty". Read as one rule: a `MediaType` that is
+    set is one of the four, by `Data` or by `URL`, and only a `URL` may leave
+    it empty. A `URL` given as `image/bmp` is refused. The four are compared
+    as written, so `IMAGE/PNG` is refused.
+  * A refused `URL` is not quoted in the error, since a signed URL carries
+    a token (this PLAN's rule "No key, token or real image in … a log"); the
+    error names the input's index. `Data` of length zero is "neither".
+* **Deviation 15 (2026-10-26): the docs that list the fields.** Found: the
+  phase's steps name no doc, but four passages list `Capabilities`' fields or
+  the `Item` types, and would have stated five fields and five types:
+  `docs/guides/api-standards.md` R10, `docs/guides/adding-a-provider.md`
+  section 3, and `docs/architecture.md`'s "The contract" and its `Item`
+  paragraph. Decision: each names `Images` (R10 cites 0061 D5), and the
+  `Item` paragraph names `ImageItem` with the refusals this phase's tests
+  show; made without asking, as Phase 4e's package-doc correction was, and
+  reversible before the commit. Files added to the phase: those three.
+  Left to Phase 6, as the PLAN has it: the CHANGELOG's Added, and the
+  architecture's list of Warnings, since no provider drops an image until
+  then. Not here: `README.md`'s list of the `Item` types, which names four
+  and already omits `ToolLoadItem`; Phase 8's README pass.
+* **As built:**
+  * `constants.go`: `itemTypeImage = "image"`.
+  * `item.go`: `ImageItem` as D5 writes it, its `MediaType` comment adding
+    "a URL's may be empty", its doc saying what `Check` refuses and that
+    size is not checked, and `MessageItem`'s concurrency sentence (R51); the
+    sealed doc's list names it among the request-only types.
+  * `capabilities.go`: `Images Support`, after `NativeStreaming`.
+  * `contract.go`: `Check`'s needs gain
+    `{hasImage(req.Input), c.Images, "image input"}`; `validate`'s case
+    `ImageItem` calls `ImageItem.problem`, which says why no wire can send
+    the image (role, both, neither, the URL, the media type), and the
+    default case's list names `ImageItem`.
+  * `warning.go`: `WarningImageDropped WarningKind = "image_dropped"`.
+  * `llmtest/llmtest.go`: the needs table's `{"images", caps.Images,
+    imageRequest(), false}` (C39); `imageRequest`, the user's text then a
+    PNG by `Data`; `onePixelPNG`, a 1×1 greyscale PNG of 67 bytes written
+    as a literal, built by a script from the PNG chunks.
+* **Step 2:** every provider declares no `Images`. The drift check's
+  `llmtest.Run` sent the images need in all 16 conformance runs of the 10
+  provider packages (`TestConformance`'s `R10-R11-capabilities`, each
+  passed), so each refused an image with `ErrUnsupported` and sent nothing.
+* **The drift check,** after the code and before the new tests:
+  `go test -race -count=1 -shuffle=on ./...`: 40 packages ok, every existing
+  test unchanged.
+* **Tests:** `llmprovider/item_0061_test.go`: `TestImageItem_Validate_0061`
+  (15 refusals: three roles, both, neither, empty `Data`, five URLs (http
+  with a query, relative, `https:` with no host, unparsable, a data URL),
+  `Data` with no media type, as BMP, in capitals, and a URL as BMP; each an
+  `ErrInvalidRequest` naming input 1, no refused URL quoted; seven accepted:
+  each of the four media types by `Data`, the user's role, a URL with and
+  without a media type, a URL's scheme in capitals; `itemKind`; a nil item's
+  error naming `ImageItem`; `WarningImageDropped`'s value) and
+  `TestCheck_ImagesUnsupported_0061`; `llmprovider/llmtest/images_0061_test.go`:
+  `TestRun_ImagesNeed_0061` (a provider skipping `Check` fails R11 naming
+  "images") and `TestImageRequest_0061` (the PNG decodes, 1×1; the request
+  is refused as unsupported, not invalid). `-race -count=3 -shuffle=on`
+  passes; `llmprovider` 98.1 %, `problem`, `hasImage`, `validate` and
+  `Check` 100 %; `llmtest` 90.0 %.
+* **Plants** (`tools/plant.py`, on a scratch clone; all 12 caught):
+  * `Check` without the images need: `TestCheck_ImagesUnsupported_0061`
+    (`Images Unsupported: Check = <nil>`), `TestImageRequest_0061`, and
+    `llmtest`'s `TestRun_ConformantProviderReportsNothing` (`a request
+    needing images, which is Unsupported, returned <nil>`);
+  * the https check dropped (`an_http_URL: validate = <nil>`);
+  * the host check dropped (`an_https_URL_with_no_host`);
+  * any role taken (the three role rows);
+  * both `Data` and `URL` taken;
+  * neither taken (also `TestCheck_ImagesUnsupported_0061`: `an invalid
+    image … Check = llmprovider: unsupported`);
+  * any media type taken (four rows);
+  * a URL's media type unchecked (`a_URL_as_BMP`);
+  * the URL quoted (`want the URL left out`);
+  * `validate` without the image case (`input 1 is llmprovider.ImageItem`);
+  * `llmtest` without the images need (`TestRun_ImagesNeed_0061`);
+  * the suite's PNG broken (`png: invalid format: invalid checksum`).
+* **Found, not done:** `llmtest.Fake` records each request with
+  `cloneRequest`, which copies `Input`'s items but not an `ImageItem`'s
+  `Data`, so a caller that reuses its buffer changes the record, as a
+  changed tool schema did before 0026-MADR F58. Not in this phase's steps;
+  put to the owner.
+* **Checks:** `make pre-add-check` on the 8 Go files: clean; `make
+  api-check` (0 incompatible changes against `v1.22.2`), `docs-check` (0
+  violations of R50 to R52), `tables-check` (42 packages), `changelog-check`,
+  `dep-check`: each 0 problems; `tools/apidiff.py v1.22.2`: this phase adds
+  `Capabilities.Images`, `ImageItem` and `WarningImageDropped`, each in D10;
+  `tools/claims.py` on the MADR: 58 of 58; `tools/gate.py`: 28 of 28 passed.
+* **Staged:** this record, `docs/architecture.md`,
+  `docs/guides/adding-a-provider.md`, `docs/guides/api-standards.md`,
+  `llmprovider/{capabilities,constants,contract,item,warning}.go`,
+  `llmprovider/item_0061_test.go`, `llmprovider/llmtest/llmtest.go`,
+  `llmprovider/llmtest/images_0061_test.go`.

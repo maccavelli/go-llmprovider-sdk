@@ -10,9 +10,9 @@ import (
 // the unexported marker method itemKind() prevents external implementations.
 //
 // Callers switch on concrete types: MessageItem, FunctionCallItem,
-// FunctionCallOutputItem, ReasoningItem, and ToolLoadItem, which only a
-// request's Input holds. Its implementations are safe for concurrent use only
-// while no goroutine changes them.
+// FunctionCallOutputItem and ReasoningItem, and ToolLoadItem and ImageItem,
+// which only a request's Input holds. Its implementations are safe for
+// concurrent use only while no goroutine changes them.
 type Item interface {
 	itemKind() string // sealed marker — unexported, prevents external implementation
 }
@@ -69,6 +69,21 @@ type ToolLoadItem struct {
 }
 
 func (ToolLoadItem) itemKind() string { return itemTypeToolLoad }
+
+// ImageItem is an image in a user turn of Request.Input. Only a request
+// holds one. Exactly one of Data and URL is set. Check refuses an invalid one
+// with ErrInvalidRequest, and any one where Capabilities.Images is
+// Unsupported with ErrUnsupported, before the network. Its size is not
+// checked: each service refuses what it will not take (0061-MADR D5). It is
+// safe for concurrent use only while no goroutine changes it.
+type ImageItem struct {
+	Role      Role   // RoleUser; empty is the user's
+	MediaType string // image/png, image/jpeg, image/gif or image/webp; a URL's may be empty
+	Data      []byte // the image's bytes, sent base64-encoded
+	URL       string // an https URL the service fetches
+}
+
+func (ImageItem) itemKind() string { return itemTypeImage }
 
 // ReasoningItem represents a model's internal reasoning/thinking trace.
 // Not all providers or models emit this; when absent, the Output slice

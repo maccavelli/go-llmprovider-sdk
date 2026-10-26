@@ -121,8 +121,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
 ## Capabilities and streaming
 
 - **R10. Capabilities are data.** A provider declares `Tools`,
-  `ForcedToolChoice`, `Reasoning`, `Continuation` and `NativeStreaming`,
-  each `Unsupported`, `BestEffort` or `Supported`. (0015 D4)
+  `ForcedToolChoice`, `Reasoning`, `Continuation`, `NativeStreaming` and
+  `Images`, each `Unsupported`, `BestEffort` or `Supported`. (0015 D4;
+  0061 D5)
   A model's are data too: its facts, as `catalog.ModelInfo`, with each
   one's source. A `Catalog`'s `Menu` holds every usable model with its
   facts, its rank and its `Caveat`s. A caveat sinks a model and never

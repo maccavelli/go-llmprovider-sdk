@@ -127,7 +127,7 @@ for _, v := range st.Values() {
 ## 3. Declare the capabilities
 
 `Capabilities` gives each of `Tools`, `ForcedToolChoice`, `Reasoning`,
-`Continuation` and `NativeStreaming` as `llmprovider.Unsupported`,
+`Continuation`, `NativeStreaming` and `Images` as `llmprovider.Unsupported`,
 `BestEffort` or `Supported` (R10). The zero value is `Unsupported`.
 
 - `BestEffort` means you send it and the service may ignore it. List every

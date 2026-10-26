@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -244,6 +245,7 @@ func (c Capabilities) Check(req *Request) error {
 		{req.ToolChoice.forced(), c.ForcedToolChoice, "a forced tool choice"},
 		{req.Reasoning != nil, c.Reasoning, "reasoning"},
 		{req.PreviousResponseID != "", c.Continuation, "continuation"},
+		{hasImage(req.Input), c.Images, "image input"},
 	} {
 		if need.needed && need.support == Unsupported {
 			return fmt.Errorf("%w: the request needs %s", ErrUnsupported, need.name)
@@ -278,10 +280,14 @@ func (req *Request) validate() error {
 			if !it.Role.valid() {
 				return fmt.Errorf("%w: input %d has unknown role %q", ErrInvalidRequest, i, it.Role)
 			}
+		case ImageItem:
+			if problem := it.problem(); problem != "" {
+				return fmt.Errorf("%w: input %d is an image that %s", ErrInvalidRequest, i, problem)
+			}
 		case FunctionCallItem, FunctionCallOutputItem, ReasoningItem, ToolLoadItem:
 		default:
 			return fmt.Errorf("%w: input %d is %T; an item is a MessageItem, FunctionCallItem, "+
-				"FunctionCallOutputItem, ReasoningItem or ToolLoadItem value", ErrInvalidRequest, i, item)
+				"FunctionCallOutputItem, ReasoningItem, ToolLoadItem or ImageItem value", ErrInvalidRequest, i, item)
 		}
 	}
 	if err := req.validateToolChoice(); err != nil {
@@ -294,6 +300,43 @@ func (req *Request) validate() error {
 		return fmt.Errorf("%w: unknown cache retention %q", ErrInvalidRequest, req.Cache)
 	}
 	return req.Reasoning.check()
+}
+
+// problem says why no wire can send img, or "" when one can (0061-MADR D5): a
+// role other than the user's, both Data and URL or neither, a URL that is not
+// an absolute https URL, which is not quoted since it may carry a token, or a
+// media type other than the four, which only a URL may leave empty.
+func (img ImageItem) problem() string {
+	switch {
+	case img.Role != "" && img.Role != RoleUser:
+		return fmt.Sprintf("has role %q; an image is the user's", img.Role)
+	case len(img.Data) > 0 && img.URL != "":
+		return "sets both Data and URL; set one"
+	case len(img.Data) == 0 && img.URL == "":
+		return "sets neither Data nor URL; set one"
+	case img.URL != "":
+		if u, err := url.Parse(img.URL); err != nil || u.Scheme != "https" || u.Host == "" {
+			return "has a URL that is not an absolute https URL"
+		}
+		if img.MediaType == "" {
+			return ""
+		}
+	}
+	switch img.MediaType {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return ""
+	}
+	return fmt.Sprintf("has media type %q; want image/png, image/jpeg, image/gif or image/webp", img.MediaType)
+}
+
+// hasImage reports whether input holds an ImageItem.
+func hasImage(input []Item) bool {
+	for _, item := range input {
+		if _, ok := item.(ImageItem); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // check rejects a reasoning setting no provider can send: an unknown effort,

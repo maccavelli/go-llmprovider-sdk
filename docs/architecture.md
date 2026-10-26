@@ -349,9 +349,10 @@ for a session, from the store.
   the provider learned from it (0062-MADR D7), are functions over any
   `Provider`.
 - `Capabilities` gives each of `Tools`, `ForcedToolChoice`, `Reasoning`,
-  `Continuation` and `NativeStreaming` as `Unsupported`, `BestEffort` or
-  `Supported`. `Capabilities.Check(req)` validates a request and refuses an
-  unsupported need before any network call, with `ErrUnsupported`.
+  `Continuation`, `NativeStreaming` and `Images` as `Unsupported`,
+  `BestEffort` or `Supported`. `Capabilities.Check(req)` validates a request
+  and refuses an unsupported need before any network call, with
+  `ErrUnsupported`.
 - Two tool flags are sent only where a wire has the field (0032-MADR
   D1–D3). Each provider's package doc names the wires that do not send
   them.
@@ -568,7 +569,11 @@ for a session, from the store.
   `FunctionCallOutputItem` and `ReasoningItem`, and `Response.Output` holds
   them. A fifth, `ToolLoadItem`, is only ever in a request's `Input`: it
   loads one deferred tool (`Tool.Deferred`) from the result of the call it
-  names, and no response holds one (0040-MADR D1, A5).
+  names, and no response holds one (0040-MADR D1, A5). A sixth, `ImageItem`,
+  is also only in `Input`: an image in a user turn, by its `Data` or an
+  `https` `URL`. `Check` refuses an invalid one with `ErrInvalidRequest`, and
+  any one where `Capabilities.Images` is `Unsupported` with `ErrUnsupported`
+  (0061-MADR D5).
   - A call's `Arguments` are the JSON the service sent, compacted, never
     decoded and re-encoded; no arguments are `"{}"`.
   - A `ReasoningItem`'s `Format` names the wire that produced it. Its

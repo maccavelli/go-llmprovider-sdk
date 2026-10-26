@@ -330,6 +330,7 @@ func checkCapabilities(r reporter, h Harness) {
 		{"a forced tool choice", caps.ForcedToolChoice, toolRequest(llmprovider.ForceTool(llmtestTool)), true},
 		{"reasoning", caps.Reasoning, withReasoning(textRequest()), false},
 		{"continuation", caps.Continuation, withPrevious(textRequest()), false},
+		{"images", caps.Images, imageRequest(), false},
 	} {
 		handler := h.Text
 		// R11's refusal is checked whether or not the Harness has ToolCall:
@@ -380,6 +381,23 @@ func withReasoning(req *llmprovider.Request) *llmprovider.Request {
 
 func withPrevious(req *llmprovider.Request) *llmprovider.Request {
 	req.PreviousResponseID = "llmtest_previous"
+	return req
+}
+
+// onePixelPNG is a 1×1 greyscale PNG, so that no image is read from a file.
+var onePixelPNG = []byte{
+	0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+	0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+	0x08, 0x00, 0x00, 0x00, 0x00, 0x3a, 0x7e, 0x9b, 0x55, 0x00, 0x00, 0x00,
+	0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0x60, 0x00, 0x00, 0x00,
+	0x02, 0x00, 0x01, 0xe5, 0x27, 0xde, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x49,
+	0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+}
+
+// imageRequest is the user's text, then a PNG by its bytes (0061-MADR D5).
+func imageRequest() *llmprovider.Request {
+	req := textRequest()
+	req.Input = append(req.Input, llmprovider.ImageItem{Role: llmprovider.RoleUser, MediaType: "image/png", Data: onePixelPNG})
 	return req
 }
 

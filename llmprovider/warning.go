@@ -32,6 +32,10 @@ const (
 	// caller can keep, and pass back with WithReasoningRefusals on its next
 	// start (0062-MADR D6).
 	WarningReasoningLearned WarningKind = "reasoning_learned"
+	// WarningImageDropped reports that an image of the request was not sent,
+	// because the service cannot take it in the form given, as the provider's
+	// package doc lists. Its Detail says which image and why (0061-MADR D5).
+	WarningImageDropped WarningKind = "image_dropped"
 )
 
 // Warning is a non-fatal note on a Response: the request was answered, but

@@ -44,4 +44,6 @@ type Capabilities struct {
 	// NativeStreaming is a Streamer implementation. Without one, Stream
 	// emits Generate's result as events.
 	NativeStreaming Support
+	// Images is an ImageItem in Request.Input (0061-MADR D5).
+	Images Support
 }
