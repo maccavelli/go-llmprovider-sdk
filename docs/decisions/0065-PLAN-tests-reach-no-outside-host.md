@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-25
+status: complete
+date: 2026-10-26
 associated-madr: "0065-MADR-tests-reach-no-outside-host.md"
 decision-makers: repository owner
 ---
@@ -149,3 +149,20 @@ test that would fails its package's run, naming the host.
   `internal/localonly/localonly{,_test}.go`, the six
   `localonly_test.go`, `docs/architecture.md`,
   `docs/guides/api-standards.md`.
+
+### Phase 3: docs, and the close (2026-10-26)
+
+* Phase 2 is committed as `b9fc408`.
+* `AGENTS.md`: the rule (a test serves its own replies and its own
+  document, or turns the document off) and the guard, after the test-cache
+  paragraph. `docs/architecture.md`'s rows landed in Phase 2 (deviation 1);
+  `docs/README.md`'s rows in Phase 1.
+* **Verification:** V1, every package through the logging proxy, 0
+  (Phase 1, unchanged since: Phases 2 and 3 add no request); V2, Phase 2's
+  plants; V3, `go test ./...` and the gate, every package passing; V4, no
+  production file changed: the three commits change test files,
+  `internal/localonly` (imported only by tests) and docs.
+* **Checks:** `make tables-check`, `records-check`, `docs-check`;
+  `recordlint --changed`, `denyscan --changed`, `linkcheck`: each 0 problems; `tools/gate.py`: 28 of 28 passed.
+* **Staged:** `AGENTS.md`, this record (`complete`), and `docs/README.md`'s
+  row.

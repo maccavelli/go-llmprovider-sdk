@@ -146,7 +146,7 @@ documents a reader follows to do something.
 | 0064 | MADR | [Send Anthropic's Workspace Header for Keys Not Scoped to a Workspace](decisions/0064-MADR-anthropic-workspace-for-unscoped-keys.md) | proposed |
 | 0064 | PLAN | [Implement Anthropic's Workspace Header for Keys Not Scoped to a Workspace](decisions/0064-PLAN-anthropic-workspace-for-unscoped-keys.md) | proposed |
 | 0065 | MADR | [Keep the Tests Off the Network, and Hold Them There](decisions/0065-MADR-tests-reach-no-outside-host.md) | accepted |
-| 0065 | PLAN | [Implement Keeping the Tests Off the Network](decisions/0065-PLAN-tests-reach-no-outside-host.md) | in-progress |
+| 0065 | PLAN | [Implement Keeping the Tests Off the Network](decisions/0065-PLAN-tests-reach-no-outside-host.md) | complete |
 
 ## I want to…
 
