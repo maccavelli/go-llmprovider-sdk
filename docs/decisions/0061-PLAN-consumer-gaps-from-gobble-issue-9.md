@@ -1305,7 +1305,9 @@ Done; staged for the owner's commit. Phase 4 is committed as `b663b71`.
 * **Not done in this phase:** a dialect besides Ollama's (none recorded:
   LM Studio, llama.cpp, vLLM and TGI wait for the owner's servers and step
   1's test); "loaded first" (no recorded dialect says it); the 24 requests
-  to `models.opencode.ai` older tests send.
+  to `models.opencode.ai` older tests send, which the owner then asked to
+  have fixed: [0065-MADR-tests-reach-no-outside-host.md](0065-MADR-tests-reach-no-outside-host.md),
+  measured across the module at 99.
 * **Staged:** `CHANGELOG.md`, `docs/architecture.md`,
   `docs/guides/api-standards.md`, this record and its MADR,
   `llmprovider/catalog/{canonical,config,dialect,discovery,doc,lookup,menu,model_metadata,models_catalog}.go`,

@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-135 records. Cite them by full filename.
+137 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -145,6 +145,8 @@ documents a reader follows to do something.
 | 0063 | PLAN | [Implement aligned docs-only CI and disclosure gates](decisions/0063-PLAN-align-docs-ci-and-disclosure-gates.md) | proposed |
 | 0064 | MADR | [Send Anthropic's Workspace Header for Keys Not Scoped to a Workspace](decisions/0064-MADR-anthropic-workspace-for-unscoped-keys.md) | proposed |
 | 0064 | PLAN | [Implement Anthropic's Workspace Header for Keys Not Scoped to a Workspace](decisions/0064-PLAN-anthropic-workspace-for-unscoped-keys.md) | proposed |
+| 0065 | MADR | [Keep the Tests Off the Network, and Hold Them There](decisions/0065-MADR-tests-reach-no-outside-host.md) | accepted |
+| 0065 | PLAN | [Implement Keeping the Tests Off the Network](decisions/0065-PLAN-tests-reach-no-outside-host.md) | in-progress |
 
 ## I want to…
 

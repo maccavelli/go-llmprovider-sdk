@@ -70,6 +70,11 @@ func testCache(t *testing.T) llmprovider.Option {
 // that a test's own WithCache wins.
 func build(t *testing.T, opts ...llmprovider.Option) llmprovider.Provider {
 	t.Helper()
+	// A test that serves no models.dev document lists with it off, so that
+	// none reaches models.opencode.ai (0065-MADR D1).
+	if st, err := llmprovider.ResolveOptions(llmprovider.ProviderClaude, opts); err == nil && st.ModelMetadataURL() == "" {
+		opts = append(opts, llmprovider.WithoutModelMetadata())
+	}
 	p, err := New(append([]llmprovider.Option{testCache(t)}, opts...)...)
 	if err != nil {
 		t.Fatalf("New: %v", err)

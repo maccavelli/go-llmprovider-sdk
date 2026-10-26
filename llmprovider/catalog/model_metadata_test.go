@@ -78,12 +78,20 @@ func enableModelMetadata(t *testing.T) {
 var metadataOn bool
 
 // listT is List, with the metadata fetch off unless enableModelMetadata
-// turned it on.
+// turned it on and the options name the document the test serves: a test
+// that resets the caches but serves none lists with it off, so that none
+// reaches models.opencode.ai (0065-MADR D1).
 func listT(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, opts ...llmprovider.Option) (Catalog, error) {
-	if !metadataOn {
+	if !metadataOn || !namesDocument(id, opts) {
 		opts = append(opts, llmprovider.WithoutModelMetadata())
 	}
 	return List(ctx, id, src, opts...)
+}
+
+// namesDocument reports whether opts name a models.dev document URL for id.
+func namesDocument(id llmprovider.ProviderID, opts []llmprovider.Option) bool {
+	st, err := llmprovider.ResolveOptions(id, opts)
+	return err == nil && st.ModelMetadataURL() != ""
 }
 
 // metadataServer answers every request with status and body, and counts
