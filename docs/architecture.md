@@ -424,9 +424,9 @@ for a session, from the store.
   `grok`, OpenCode's `responses` route); Interactions' `image` block
   (`gemini`); generateContent's `inline_data`, an image's bytes only
   (OpenCode's `google` route). `Capabilities.Images` is `Supported`, except
-  `ollama` and both OpenCode gateways, `BestEffort`, and an OpenAI ChatGPT
-  or plan session, `Unsupported` until a live test shows the Codex backend
-  takes images. A model whose facts state its input without image is
+  `ollama` and both OpenCode gateways, `BestEffort`, and an OpenAI plan
+  session, `Unsupported` until a live test of its own; a ChatGPT session
+  took images live (0061-MADR, amendment "Q11's live result"). A model whose facts state its input without image is
   refused before the network, with `ErrUnsupported`; `grok` refuses a GIF
   or a WebP, which xAI does not take.
 - A model that refuses a forced tool choice is known by layer: the

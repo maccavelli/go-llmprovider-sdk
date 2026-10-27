@@ -92,8 +92,8 @@ tag and its commit without notes; its notes are its section here.
   form and joined to the user's turn before it. `Check` refuses an invalid
   image with `ErrInvalidRequest`, and any image where `Images` is
   `Unsupported` with `ErrUnsupported`, before the network. Every built-in
-  provider and `chatcompat` sends images, except an OpenAI ChatGPT or plan
-  session; a model whose facts state its input without image is refused
+  provider and `chatcompat` sends images, a ChatGPT session included, except
+  an OpenAI plan session; a model whose facts state its input without image is refused
   before the network; `grok` refuses a GIF or a WebP, which xAI does not
   take; `ollama` and OpenCode's `google` route drop an image by URL, with
   a `WarningImageDropped`. `llmtest.Run` checks the new capability, and

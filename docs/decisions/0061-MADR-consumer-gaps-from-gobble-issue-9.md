@@ -1390,3 +1390,31 @@ nothing new.** Read in the code at `84027b8` before Phase 6's first change:
    send each item they do not rewrite through `Input` one at a time, so an
    image would open an item of its own. Each joins an image to the user
    message just before it, as `Input` does.
+
+## Amendment 2026-10-26: Q11's live result
+
+**Status: accepted (owner, 2026-10-26).** Q11 (a) left a ChatGPT or plan
+session `Unsupported` "until a live test, run by the owner, shows them
+accepted; an amendment then enables it". 0061-PLAN Phase 7 ran it, with the
+owner's permission: on a ChatGPT session (the Codex backend, `gpt-6-astra`),
+a text request whose `input` the test's transport joined to an
+`input_image`, the form the Responses encoder writes, was accepted by data
+URL and by https URL, one send each, no error (0061-PLAN deviation 19). No
+plan session was run: its sign-in needs a person.
+
+**The owner chose:** D5's row "OpenAI, ChatGPT and plan sessions" splits. A
+**ChatGPT session**'s `Images` is `Supported`, as the Platform's, in the
+Responses form. A **plan session** stays `Unsupported` until a live test of
+its own. Enabling both on the Codex result alone, and enabling neither, were
+not chosen.
+
+**And the live tests' image:** xAI refuses a 1×1 PNG ("Image dimensions 1x1
+are too small. Both width and height must be at least 8 pixels.", HTTP 400
+`invalid_image`), so the live cases' image by its bytes is an 8×8 PNG built
+from bytes; the offline tests keep the 1×1 (0061-PLAN deviation 20). D5's
+"Size is not checked" stands: xAI's minimum is its own refusal.
+
+*Amended 2026-10-26, by the owner:* the 8×8 was refused too, "Image has 64
+total pixels (8x8), which is below the minimum of 512 pixels.", so the live
+image is a 24×24 PNG built from bytes, 576 pixels, the least square xAI
+takes. 32×32, and pinning xAI's refusal, were not chosen.

@@ -16,13 +16,14 @@
 // streaming is Supported: Stream asks the Responses API for an event stream
 // and yields its events as they arrive (0031-MADR D1).
 //
-// Images are Supported with an API key: an ImageItem goes as a Responses
-// input_image, its image_url a data URL of its bytes or its URL, joined to
-// the user's message before it, whose text becomes an input_text part. On a
-// ChatGPT or plan session they are Unsupported, refused before the network,
-// since nothing documents images on the Codex backend; a live test decides
-// (Q11 (a)). A model whose facts state its input without image is refused
-// before the network, with ErrUnsupported (0061-MADR D5).
+// Images are Supported with an API key and on a ChatGPT session, which took
+// them live: an ImageItem goes as a Responses input_image, its image_url a
+// data URL of its bytes or its URL, joined to the user's message before it,
+// whose text becomes an input_text part. On a plan session they are
+// Unsupported, refused before the network, until a live test of its own
+// (Q11 (a); the amendment "Q11's live result"). A model whose facts state
+// its input without image is refused before the network, with
+// ErrUnsupported (0061-MADR D5).
 //
 // Degradations:
 //   - A tool result's IsError is not sent: the Responses API has no error
@@ -271,9 +272,10 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		// "Omit previous_response_id over HTTP" (0043-MADR D5).
 		p.caps.Continuation = llmprovider.Unsupported
 	}
-	if p.chatGPT || p.plan {
-		// Nothing documents images on the Codex backend; a live test decides
-		// (0061-MADR D5, Q11 (a)).
+	if p.plan {
+		// A ChatGPT session took images live; a plan session has had no live
+		// test of its own (0061-MADR D5, Q11 (a), amendment "Q11's live
+		// result").
 		p.caps.Images = llmprovider.Unsupported
 	}
 	if base := st.BaseURL(); base != "" {

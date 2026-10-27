@@ -1709,3 +1709,171 @@ Phase 6" holds each point.
   `<id>.go` and `images_0061_test.go`, `gemini/interactions.go` and
   `image_encode_0061_test.go`, `claude/claude_test.go`,
   `openai/openai_test.go`; the 21 `testdata/wire/<case>/image.json`.
+
+### Phase 7: before any change (2026-10-26)
+
+The owner gave explicit permission to run the live tests ("you have my
+explicit permission to run the live tests").
+
+* **Deviation 18 (2026-10-26): one file in `llmprovider/`.** Found: step 1
+  puts the tests in each provider package, but every live test of this
+  module is in `llmprovider/` (package `llmprovider_test`, such as
+  `live_0062_refusals_measure_test.go`), and no provider package has one.
+  Decision (owner): one live file, `llmprovider/live_0061_images_test.go`,
+  with its cases and checks in an untagged file that an offline twin runs,
+  as 0062-PLAN Phase 5 did. Ten files in the provider packages, and a split
+  between the two, were not chosen.
+* **Deviation 19 (2026-10-26): the ChatGPT session's images.** Found: under
+  Q11 (a) the session declares `Images` `Unsupported`, so the library
+  refuses an image before sending, and no live test could show the backend
+  taking one. Decision (owner): a text request through the session
+  provider, whose test `http.RoundTripper` adds the library's own
+  `input_image` parts to the user turn before the request leaves. A request
+  built by hand outside the provider, and no ChatGPT case, were not chosen.
+
+### Phase 7: the first live run (2026-10-26)
+
+`LLMPROVIDER_LIVE_0061=1`, Ollama at the local server with
+`gemma3:12b`, and `LLMPROVIDER_LIVE_CHATGPT=1`: 47 cases, 45 passed.
+
+* `grok-data` failed: `llmprovider: invalid request: grok HTTP 400
+  invalid_image: … "Image dimensions 1x1 are too small. Both width and
+  height must be at least 8 pixels."` Every other provider and route took
+  the 1×1 PNG.
+* `ollama-max` failed: `"gemma3:12b" does not support thinking`. The case's
+  model was a vision model that does not think; rerun on `gemma4:latest`,
+  whose `/api/show` lists `vision` and `thinking`, the three Ollama cases
+  passed (`ollama-url` dropped, warned). A model choice, not a code change.
+* The ChatGPT session took `input_image` by data and by URL (deviation 19's
+  transport): Q11 (a)'s result.
+
+* **Deviation 20 (2026-10-26): an 8×8 PNG for the live cases.** Found: xAI's
+  8-pixel minimum, above. Decision (owner): the live cases' image by its
+  bytes is an 8×8 greyscale PNG built from bytes; the offline tests keep the
+  1×1, and the rule "an image is a 1×1 PNG built in the test from bytes"
+  holds for them. Pinning xAI's refusal with the 1×1, and refusing small
+  images before the network (which D5 puts out of scope), were not chosen.
+  Every data case runs again on the 8×8.
+  *Amended 2026-10-26, by the owner:* the rerun's `grok-data` refused the
+  8×8 as well (`Image has 64 total pixels (8x8), which is below the minimum
+  of 512 pixels.`), while the 13 other data cases, the ChatGPT cases through
+  the provider and the three Ollama cases on `gemma4:latest` passed; the
+  image is 24×24 (576 pixels). 32×32, and pinning xAI's refusal, were not
+  chosen.
+* **Deviation 21 (2026-10-26): Q11's result, a Phase 7b.** Decision (owner;
+  the MADR's amendment "Q11's live result"): a ChatGPT session's `Images` is
+  `Supported`; a plan session's stays `Unsupported`. Phase 7b, inside this
+  phase: `openai.New` sets `Unsupported` for a plan session only;
+  `chatgpt/image.json` re-recorded, the request in the Responses form;
+  `openai`'s `TestImages_0061` wants `Supported` for `chatgpt` and
+  `Unsupported` for `chatgpt-plan`; the package doc, `docs/architecture.md`
+  and the CHANGELOG say so; the live ChatGPT cases send their image through
+  the provider itself, with no transport, and run again. Files added to the
+  phase: `llmprovider/providers/openai/{openai.go,images_0061_test.go}`, the
+  golden, `CHANGELOG.md`, `docs/architecture.md`.
+
+### Phase 7: as built and the final run (2026-10-26)
+
+* **As built:**
+  * `llmprovider/images_0061_live_check_test.go` (untagged, so its twin runs
+    offline): the cases, 3 for each of 14 provider and route targets (an
+    image by `Data`, one by `URL`, a text request at `EffortMax`), on models
+    whose listing facts state image input (listed live on 2026-10-26), and
+    Ollama's 3 and the ChatGPT session's 2; `imagesLivePNG`, a 24×24 grey PNG
+    built from bytes (deviation 20); `imagesLiveURL`, a public JPEG on Google
+    Cloud Storage (`HEAD`: 200, `image/jpeg`, 394,671 bytes; a Wikimedia
+    image answered 403); `checkImagesLive`, one `Generate` through
+    `providers.New` with no metadata, no probes and a cache of its own, and
+    the checks: no error; an image case one send whose body carries the
+    PNG's bytes or the URL, or, dropped, not the URL and one
+    `WarningImageDropped`. `TestImagesLive_Twin_0061` runs 18 of the cases
+    against `wirecase`'s canned replies, and checks that the checks fail on
+    a drop wanted and not made, a drop made where none is wanted, and a
+    refused image; `TestImagesLivePNG_0061` decodes the PNG at 24×24.
+  * `llmprovider/live_0061_images_test.go` (`live_gateways`):
+    `TestLive_Images_0061`, switched by `LLMPROVIDER_LIVE_0061` and each
+    key variable; Ollama's cases by `LLMPROVIDER_LIVE_0061_OLLAMA` (the
+    host's base URL) and `LLMPROVIDER_LIVE_0061_OLLAMA_MODEL` (a model whose
+    `/api/show` lists `vision` and `thinking`); the ChatGPT session's by
+    `LLMPROVIDER_LIVE_CHATGPT=1` and the Codex CLI's login
+    (`liveChatGPTSession`). It logs each case's model, sends and warnings,
+    never a reply's text, a body, a host or a key.
+  * Phase 7b (deviation 21): `openai.New` sets `Images` `Unsupported` for a
+    plan session only; the package doc; `openai`'s `TestImages_0061` wants
+    `Unsupported` for `chatgpt-plan` alone; `chatgpt/image.json`
+    re-recorded with `-update` for that golden only (78 lines added, 2
+    removed; no other golden changed), and the golden check (the
+    scratchpad script of Phase 6) passes all 21 with `chatgpt` in the
+    Responses form; `docs/architecture.md` and the CHANGELOG.
+  * The first run's transport, `imageInjector`, which joined an image to a
+    ChatGPT request the library refused (deviation 19), and its test, were
+    removed once the session sent images itself: nothing used them. A check
+    that a case which wants no drop has none was removed as unreachable: a
+    planted break of it was not caught, since a URL case that drops its
+    image already fails on the URL missing from the body; the twin's case
+    for it is caught by that check.
+* **The runs,** with the owner's permission, on this machine:
+  1. All 47 cases, Ollama on `gemma3:12b`, the ChatGPT images by the
+     transport: 45 passed; `grok-data` and `ollama-max` failed (Phase 7's
+     first live run, above).
+  2. The data cases on an 8×8, the ChatGPT cases through the provider, and
+     Ollama's on `gemma4:latest`: 18 of 20 passed; `grok-data` refused the
+     8×8 (deviation 20, amended).
+  3. The 16 data cases on the 24×24: all passed.
+  4. **The final run, on the staged code, all 47 cases:** `go test -tags
+     live_gateways -count=1 -v -run '^TestLive_Images_0061$' ./llmprovider/`
+     with the four variables: 47 passed, `rc=0`.
+
+  | Target (model) | `Data` | `URL` | `EffortMax` |
+  | :--- | :--- | :--- | :--- |
+  | `claude` (`claude-haiku-5-5`) | 1 send | 1 send | 1 send |
+  | `openai` (`gpt-5-nano`) | 1 send | 1 send | 2 sends: `max` refused, learned; sent `high`, `effort_degraded` |
+  | `grok` (`grok-4.3`) | 1 send | 1 send | 2 sends: `max` refused, learned; sent `xhigh`, `effort_degraded` |
+  | `gemini` (`gemini-3.1-flash-lite`) | 1 send | 1 send | 2 sends: `max` refused, learned; sent `high`, `effort_degraded` |
+  | `huggingface` (`MiniMaxAI/MiniMax-M3.1-Flash`) | 1 send | 1 send | 1 send |
+  | `together` (`nvidia/NVIDIA-Nemotron-3.5-Super-VL`) | 1 send | 1 send | 1 send |
+  | `kilo` (`google/gemini-3.6-flash`) | 1 send | 1 send | 1 send |
+  | `opencode-zen` messages (`claude-haiku-5-5`) | 1 send | 1 send | 1 send |
+  | `opencode-zen` responses (`gpt-6-luna`) | 1 send | 1 send | 1 send |
+  | `opencode-zen` chat (`glm-5.3-flash`) | 1 send | 1 send | 1 send |
+  | `opencode-zen` google (`gemini-3.5-flash-lite`) | 1 send | 1 send, dropped: `Input[1], an image by URL, was not sent: the google route takes an image's bytes only, not its URL` | 1 send |
+  | `opencode-go` messages (`claude-haiku-5-5`) | 1 send | 1 send | 1 send |
+  | `opencode-go` responses (`gpt-6-luna`) | 1 send | 1 send | 1 send |
+  | `opencode-go` chat (`glm-5.3-flash`) | 1 send | 1 send | 1 send |
+  | `ollama` (`gemma4:latest`) | 1 send | 1 send, dropped: `Input[1], an image by URL, was not sent: Ollama takes an image's bytes only, not its URL` | 1 send |
+  | ChatGPT session (`gpt-6-astra`) | 1 send | 1 send | not run |
+
+  Every case not marked carried no warning.
+* **Against D3 and D5:** no contradiction. D5: every target took an image
+  by its bytes and by URL where the table sends it, and the two drops are
+  the table's. D3, as 0062 reworked it: `max` was sent everywhere; the
+  three models that refused it were learned and sent the next effort down,
+  warned (Grok's `xhigh` and Gemini's `high` are D3's own rows). The
+  UNCONFIRMED points of D5 now have a live result: Hugging Face takes a
+  data URL and an https URL; the google route takes `inline_data` under
+  D5's keys; a ChatGPT session takes `input_image` (the amendment "Q11's
+  live result"). A plan session was not run: its sign-in needs a person.
+* **Found, not done:** `ollama-max` on `gemma3:12b`, a model that does not
+  think, was refused, `"gemma3:12b" does not support thinking`, and not
+  learned; with no facts (the case's settings), the provider cannot know.
+  0062's refusal forms do not include it. Not in this record's scope.
+* **Plants** (`tools/plant.py`, on a scratch clone; all 6 caught): the
+  check ignoring a missing drop (`a drop wanted and not made: <nil>`), the
+  service's refusal (`a refused image: nil`), or a missing URL (`a drop made
+  where none is wanted: nil`); the live image back to 8×8 in its header
+  (`png: invalid format: invalid checksum`); a plan session taking images
+  (`TestImages_0061/chatgpt-plan/capability`, G-wire's `chatgpt-plan/image`);
+  a ChatGPT session refusing them again (`TestImages_0061/chatgpt/…`,
+  G-wire's `chatgpt/image`).
+* **Checks:** `make pre-add-check` on the 4 Go files: clean;
+  `go test -race -count=1 -shuffle=on ./...`: every package ok;
+  `go vet -tags live_gateways ./llmprovider/`: clean; `make api-check`,
+  `docs-check`, `tables-check`, `changelog-check`, `dep-check`,
+  `fixtures-check`, `coverage-check`, `records-check`: each 0 problems;
+  `tools/apidiff.py v1.22.2`: no export added by this phase;
+  `tools/claims.py` on the MADR: 58 of 58; `tools/gate.py`: 28 of 28 passed.
+* **Staged:** this record and the MADR, `CHANGELOG.md`,
+  `docs/architecture.md`, `llmprovider/images_0061_live_check_test.go`,
+  `llmprovider/live_0061_images_test.go`,
+  `llmprovider/providers/openai/{openai.go,images_0061_test.go}`,
+  `llmprovider/providers/openai/testdata/wire/chatgpt/image.json`.

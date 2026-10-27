@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -25,11 +24,13 @@ func imageCheck(support llmprovider.Support) wirecase.ImageCheck {
 		TakesImages: catalog.WithModelLayer(inputLayer{catalog.ModalityText, catalog.ModalityImage})}
 }
 
-// TestImages_0061 (0061-MADR D5): Responses: Supported with a key; Unsupported on a ChatGPT or plan session (Q11 (a)).
+// TestImages_0061 (0061-MADR D5): Responses: Supported with a key and on a
+// ChatGPT session; Unsupported on a plan session (Q11 (a); the amendment
+// "Q11's live result").
 func TestImages_0061(t *testing.T) {
 	for _, c := range wireCases {
 		support := llmprovider.Supported
-		if strings.HasPrefix(c.Name, "chatgpt") {
+		if c.Name == "chatgpt-plan" {
 			support = llmprovider.Unsupported
 		}
 		wirecase.Images(t, c, imageCheck(support))
