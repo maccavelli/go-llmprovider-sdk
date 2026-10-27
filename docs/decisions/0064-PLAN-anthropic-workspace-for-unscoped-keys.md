@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-27
 associated-madr: "0064-MADR-anthropic-workspace-for-unscoped-keys.md"
 decision-makers: repository owner
@@ -811,3 +811,34 @@ PLAN is complete:
     passed";
   * the disclosure guard runs over the release commit once the owner has
     committed it.
+* **Step 3, done, by the owner, each in its own turn:**
+  * the release commit, `04dc55a`, committed 2026-10-27, the date of its
+    section; the disclosure guard over `8cf739b..04dc55a`: exit 0, nothing
+    reported;
+  * the push of `main`: Docs run `40586997013`, success; CI did not run, a
+    push of Markdown only (0052-MADR);
+  * the tag `v1.24.1`, annotated, on `04dc55a`: CI run `40588642904`,
+    `validate` success on ubuntu-24.04, macos-15 and windows-2025, `release`
+    success. The Release's body equals the scanned notes but for a trailing
+    newline;
+  * `gh release create v1.24.0 --verify-tag --title v1.24.0 --notes-file`
+    with the scanned notes; its body equals them but for a trailing newline;
+  * **Made exact (2026-10-27): the latest Release.** GitHub marked
+    `v1.24.0`, the Release made last, as latest (`releases/latest` answered
+    `v1.24.0`); the owner ran `gh release edit v1.24.1 --latest`, and
+    `releases/latest` answers `v1.24.1`;
+  * `gh release delete v1.21.0 --yes` and `gh release delete v1.22.0
+    --yes`. `gh release list`: `v1.24.1`, `v1.24.0`, `v1.23.0`, `v1.22.2`,
+    `v1.22.1`, the five newest tags (R53); the tags `v1.21.0` and `v1.22.0`
+    remain on `origin`.
+* **Step 4, done:**
+  * `tools/consumer.py v1.24.1`: `go get …@v1.24.1` downloaded it through
+    the module proxy; `go mod tidy`, six platform builds and `go run .`,
+    each rc=0; "16 packages linked"; "consumer: every step passed";
+  * `tools/offline.py v1.24.1`: `go vet`, `go run` ("fields=19",
+    "requests=0", "offline: ok") and six platform builds, each rc=0; both
+    plants caught ("models.dev left on", with `requests=1`; "no caller
+    layer"); "offline: every step passed".
+* **Status.** Every step of Phases 1 to 7 is met: the PLAN is `complete`.
+  Not done, and outside it: E5 stays unmeasured; prepare-commit-msg wires
+  `Result.Workspace` under its own record.
