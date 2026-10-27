@@ -1,8 +1,8 @@
 ---
 status: accepted
-date: 2026-10-26
+date: 2026-10-27
 decision-makers: repository owner
-consulted: "this repository at 876b81e (the Code claims); Anthropic's Authentication and Workspaces documentation, read 2026-10-25; the owner's probes of three Anthropic keys on 2026-10-25 (the Evidence below)"
+consulted: "this repository at 876b81e (the Code claims); Anthropic's Authentication and Workspaces documentation, read 2026-10-25; the owner's probes of three Anthropic keys on 2026-10-25 (the Evidence below); the owner's runs of TestLive_Workspace_0064 and the same documentation, re-read, on 2026-10-27 (the amendment of that date)"
 informed: every consumer of llmprovider and the wizard; prepare-commit-msg and gobble-cli
 ---
 
@@ -71,7 +71,8 @@ From the table:
   not exist, or that the identity may not use, returns 404
   `not_found_error`, "Workspace `<id>` not found.". The probe's invented ID
   failed the format check instead, so the 404 is UNCONFIRMED here, and the
-  PLAN's Phase 1 measures it.
+  PLAN's Phase 1 measures it. *Annotated 2026-10-27: Phase 1 could not;
+  see the amendment of 2026-10-27.*
 
 ### Findings in the code, verified at 876b81e
 
@@ -352,3 +353,67 @@ Anthropic header `anthropic-version`; F3,
 notice at `:630`; F7, `wizard.Result.Organization` (`configure.go:50-52`).
 `make api-check` now compares against `v1.23.0`, the latest tag, so D6's
 five additions are measured against it.
+
+## Amendment 2026-10-27: Phase 1's measurement
+
+**Status: accepted; D3 stands, E5 stays unconfirmed, and `fixtures-check`
+gains workspace IDs (the owner, 2026-10-27).**
+
+The owner ran `TestLive_Workspace_0064` (0064-PLAN Phase 1) three times on
+2026-10-27, in their own terminal, against `https://api.anthropic.com`, with
+a key provided by an organization and not scoped to a workspace. The first
+key had expired; runs 2 and 3 used its replacement, key D. Neither key's
+type nor prefix was recorded. The redacted replies are the fixtures in
+`llmprovider/testdata/anthropic-workspace/`.
+
+| Request (`GET /v1/models?limit=1`) | Run 1: the expired key | Runs 2 and 3: key D |
+| --- | --- | --- |
+| no workspace header | 401 `authentication_error`, "invalid x-api-key" | 400 `invalid_request_error`, the Context's message, word for word |
+| header `not-a-workspace` | 400 `invalid_request_error`, "anthropic-workspace-id header must be a valid workspace ID." | the same |
+| header naming the Default workspace of key D's organization | 401, as with no header | 200, and the reply carries `anthropic-workspace-id` |
+| header naming a workspace of key D's organization, created for run 3 and never associated with key D | not sent | 200, the same listing byte for byte, and the reply carries the header |
+
+* **E6.** A second key not scoped to a workspace, an organization's, gets
+  the Context's 400 and the malformed header's 400 as key C did, and lists
+  once the header names its workspace. E2, and D3's two 400 phrases, hold
+  for it.
+* **E7.** An expired key is refused as any invalid key is: 401
+  `authentication_error`, "invalid x-api-key", with no header and with a
+  valid workspace, which `ClassifyHTTPError` classes `ErrAuthFailure` today.
+  The header's format is checked before the key: the malformed header got
+  its 400 from the expired key too. D3 and D4 leave this reply alone; the
+  wizard reports a refused key and does not ask for a workspace.
+* **E8.** Key D was accepted in a workspace of its organization that it had
+  never been associated with. Anthropic's documentation, re-read
+  2026-10-27, bounds such a key by its identity, not by an association with
+  the key: "The key's user or service account must have access to that
+  workspace" (Workspaces, How workspaces work), and a personal key works in
+  "the workspaces where your role allows API use" (Authentication, Key
+  types). Key D's type and its identity's role were not recorded, so run 3
+  does not show which rule admitted it. It did not test E5: the new
+  workspace was one key D's identity could use.
+* **E5 stays UNCONFIRMED.** Asked whether to measure it with a workspace of
+  another organization, record it as unmeasured, or measure it later, the
+  owner chose to record it as unmeasured. The documentation, re-read
+  2026-10-27 (Authentication, Select a workspace), says: "If the workspace
+  doesn't exist, or the key's user or service account doesn't have access
+  to it, the API returns a 404 `not_found_error` with the message
+  ``Workspace `<id>` not found.``, the same response as for any unknown
+  workspace." It gives no example body. D3's 404 branch rests on that
+  sentence: `not-found.json` is written from it, says so in its `source`,
+  and is the fixture Phase 2 classifies. Whether the reply quotes the ID in
+  backticks, as the documentation writes it, is unmeasured; D3's match, on
+  "Workspace" at the start and "not found." at the end, holds either way.
+  If Anthropic answers otherwise, the branch never fires and the reply stays
+  `ErrInvalidRequest`, as today.
+* **The fixture gate.** `scripts/check_fixtures.py`
+  (0047-MADR-keep-five-more-scratch-helpers-as-tools.md D1) had no kind for
+  a workspace ID, and AGENTS.md's "Recorded fixtures" named none, so
+  0064-PLAN's rule that a recorded workspace ID becomes `wrkspc_REDACTED`
+  and `make fixtures-check` passes was not checked. Asked to add the kind in
+  Phase 1, write a separate record for it, or correct the rule's wording
+  only, the owner chose to add it in Phase 1: a kind `workspace-id`,
+  `wrkspc_` then letters and digits, never a hit when they are a
+  placeholder (`REDACTED`, a run of `X`); `scripts/test_gates.py` plants
+  one; AGENTS.md names the redaction. 0047-MADR D1 carries an annotation
+  pointing here.

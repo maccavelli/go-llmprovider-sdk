@@ -239,13 +239,14 @@ named here, or is a record's.
 
 A fixture recorded from a live service is redacted before it is committed:
 an account, user or organization id becomes its prefix and `REDACTED`
-(`user-REDACTED`), a UUID that is not a public object's becomes the nil
+(`user-REDACTED`), and so does an Anthropic workspace id
+(`wrkspc_REDACTED`); a UUID that is not a public object's becomes the nil
 UUID, and an e-mail address `user@example.com`. `make fixtures-check`
-(`scripts/check_fixtures.py`, 0047-MADR D1), which CI runs, finds any that
-is not; it prints a fingerprint, never the value. A hit that a review
-admits, such as a public model's id, goes in `scripts/fixtures-baseline.txt`
-by `scripts/check_fixtures.py --write-baseline`, with the review named in
-its header.
+(`scripts/check_fixtures.py`, 0047-MADR D1; the workspace id, 0064-MADR),
+which CI runs, finds any that is not; it prints a fingerprint, never the
+value. A hit that a review admits, such as a public model's id, goes in
+`scripts/fixtures-baseline.txt` by `scripts/check_fixtures.py --write-baseline`,
+with the review named in its header.
 
 ## Identifiers
 

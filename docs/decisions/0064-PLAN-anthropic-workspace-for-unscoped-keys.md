@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-10-26
+date: 2026-10-27
 associated-madr: "0064-MADR-anthropic-workspace-for-unscoped-keys.md"
 decision-makers: repository owner
 ---
@@ -38,6 +38,9 @@ PLAN is complete:
   Result field, the prompt, the bound, the classes.
 * Tests, redacted fixtures, and the live test `LLMPROVIDER_LIVE_0064`.
 * `docs/architecture.md`, `README.md`, `CHANGELOG.md`, `docs/README.md`.
+* *Added 2026-10-27, by Phase 1's deviation:* `scripts/check_fixtures.py`,
+  `scripts/test_gates.py`, `AGENTS.md`'s "Recorded fixtures", and an
+  annotation of 0047-MADR D1.
 
 ### Out of scope
 
@@ -64,6 +67,9 @@ PLAN is complete:
 * Fixtures recorded from Anthropic are redacted as AGENTS.md's "Recorded
   fixtures" says: a workspace ID becomes `wrkspc_REDACTED`.
   `make fixtures-check` passes.
+  *Annotated 2026-10-27: AGENTS.md said nothing of workspace IDs, and
+  `fixtures-check` did not look for them; Phase 1 adds both (its
+  deviation of 2026-10-27).*
 * No phase reads a key into a log, a fixture, or a record.
 * The owner commits each phase (`git commit --no-edit`).
 
@@ -213,3 +219,127 @@ PLAN is complete:
   key C. Phase 1's measurement needs key C and its workspace from the owner.
 * **Checks:** `make records-check`, `tools/recordlint.py --changed`,
   `tools/denyscan.py --changed`, `tools/linkcheck.py`.
+
+### Phase 1: the measurement, written (2026-10-26)
+
+* **Approval.** "committed proceed", after Phase 0 (`f45bd66`). The owner has
+  a new key from an organization, not scoped to a workspace, and only the
+  Default workspace.
+* **Step 1, as built:**
+  * `llmprovider/workspace_0064_record_test.go` (untagged, so its twin runs
+    offline, as 0061's and 0062's live recorders are built):
+    `workspaceCases` (no workspace, `not-a-workspace`, a foreign workspace
+    when one is given, the key's own); `recordWorkspace`, one `GET
+    /v1/models?limit=1` with `x-api-key` and `anthropic-version`
+    `2023-06-01`, as the listing sends it, whose record holds the status,
+    the body, the service's type and message from `ClassifyHTTPError`,
+    whether the reply named a workspace, and the classes the error matches
+    today; every workspace ID (`wrkspc_…`) and request ID (`req_…`)
+    redacted by pattern, and the key and each workspace sent redacted by
+    value; `writeWorkspaceRecord`, one `<case>.json` per case.
+  * `llmprovider/live_0064_workspace_measure_test.go` (`live_gateways`):
+    `TestLive_Workspace_0064`, switched by `LLMPROVIDER_LIVE_0064`; the key
+    from `ANTHROPIC_API_KEY`, the workspace from
+    `LLMPROVIDER_LIVE_0064_WORKSPACE`, the foreign workspace from
+    `LLMPROVIDER_LIVE_0064_FOREIGN_WORKSPACE` when set, and the records'
+    directory from `LLMPROVIDER_LIVE_0064_OUT`, which must be outside the
+    module (`outsideModule`, 0062's). It logs each case's status, type,
+    classes and whether the reply named a workspace; never a body, a
+    workspace or the key. Listing bills nothing.
+  * Made exact: the PLAN's "a scratch directory the run names" is
+    `LLMPROVIDER_LIVE_0064_OUT`, as 0062's recorder names its own; the
+    recording lives in an untagged file so that its twin runs offline.
+* **Tests:** `TestWorkspaceRecord_Twin_0064`, against a local server
+  answering as Anthropic did on 2026-10-25 (the MADR's evidence) and as its
+  documentation says of a foreign workspace (E5): each case sends the
+  header it names, or none; the records' statuses (400, 400, 404, 200),
+  types, classes (`ErrInvalidRequest` for the three refusals) and reply
+  header; no record holds the key, a workspace ID or a request ID; a secret
+  outside the pattern is redacted by value. The live test skips without
+  `LLMPROVIDER_LIVE_0064`.
+* **Plants** (`tools/plant.py`, on a scratch clone; all 7 caught): the
+  header not sent (`foreign: … Status:400 … not scoped to a workspace`);
+  workspace IDs not redacted (`workspace.json holds "wrkspc_01Other000"`);
+  the secrets not redacted by value (`redactWorkspace = "echoed
+  sk-ant-test-KEY0064 …"`); request IDs not redacted (`foreign.json holds
+  "req_011Twin"`); the foreign case dropped; the reply's workspace header
+  not read; the classes not read. A first twin did not catch the two
+  redaction plants, since either redaction hid its workspace IDs alone;
+  it gained a workspace ID only the pattern catches, and a secret only the
+  value catches.
+* **Checks:** `make pre-add-check` on the 2 Go files: clean;
+  `go vet -tags live_gateways ./llmprovider/`: clean; `make tables-check`,
+  once this record names `LLMPROVIDER_LIVE_0064_OUT`; `python3 -B tools/gate.py`: "gate: 28 of 28 passed".
+* **Waiting on the owner:** the run, in the owner's own terminal, with the
+  key never entering the session (steps 2 and 3, the fixtures and the
+  check of E5, follow it).
+
+### Phase 1: the measurement, run (2026-10-27)
+
+* **Runs.** The owner ran `TestLive_Workspace_0064` three times, in their
+  own terminal; the key never entered the session. The records were read
+  through a scratchpad script that withholds a record holding `sk-ant`, or
+  a `wrkspc_` or `req_` ID not redacted; it withheld none.
+  * Run 1: `no-workspace` 401 `authentication_error`, "invalid x-api-key",
+    `ErrAuthFailure`; `malformed` 400 `invalid_request_error`,
+    `ErrInvalidRequest`; `workspace` 401, as `no-workspace`. The owner found
+    the key had expired.
+  * Run 2, a new key: `no-workspace` 400 `invalid_request_error`, the MADR's
+    message word for word, `ErrInvalidRequest`; `malformed` 400, as run 1;
+    `workspace` 200, the reply's workspace header present.
+  * Run 3, with `LLMPROVIDER_LIVE_0064_FOREIGN_WORKSPACE`: the same three,
+    and `foreign` 200, the reply's header present, its body byte for byte
+    the `workspace` case's. The owner: that workspace was new, in the key's
+    organization, and never associated with the key.
+* **Deviation (2026-10-27): E5's 404 not measured.** Step 1's foreign case
+  needs a workspace the key's identity may not use. Asked after run 2
+  (measure it, recommended; record it as unmeasured; measure it later), the
+  owner chose to measure it, and run 3's workspace answered 200. Asked again
+  (a workspace of another organization, recommended; record E5 as
+  unmeasured; measure it later and continue), the owner chose **record E5 as
+  unmeasured**. Step 2 gains `not-found.json`, written from the
+  documentation; step 3 is the MADR's amendment of 2026-10-27; D3 is
+  unchanged.
+* **Deviation (2026-10-27): the fixture gate.** `scripts/check_fixtures.py`
+  had no kind for a workspace ID, and AGENTS.md's "Recorded fixtures" named
+  none, so this PLAN's rule ("as AGENTS.md's 'Recorded fixtures' says: a
+  workspace ID becomes `wrkspc_REDACTED`. `make fixtures-check` passes.")
+  was not checked; the gap predates this phase. Asked (add the kind in
+  Phase 1, recommended; a separate record; correct the wording only), the
+  owner chose to **add it in Phase 1**. Files added to the phase:
+  `scripts/check_fixtures.py`, `scripts/test_gates.py`, `AGENTS.md`, and an
+  annotation of `docs/decisions/0047-MADR-keep-five-more-scratch-helpers-as-tools.md`
+  D1.
+* **Step 2, the fixtures,** in `llmprovider/testdata/anthropic-workspace/`:
+  `no-workspace.json`, `malformed.json` and `workspace.json`, run 3's;
+  `unassociated.json`, run 3's `foreign` case, named for what it was; and
+  `not-found.json`, written from the documentation. Each keeps the record's
+  fields but `classes`, today's classification, which Phase 2 changes and
+  this record lists above, and gains `source`, saying how it was made.
+* **Step 3:** the MADR's amendment of 2026-10-27 (E6 to E8, E5 still
+  unconfirmed, the fixture gate), and E5 annotated in place.
+* **The gate:** `check_fixtures.py` gains the kind `workspace-id`,
+  `wrkspc_` then letters and digits, unless a placeholder;
+  `scripts/test_gates.py` gains `test_fixtures_check_workspace_id`, and its
+  placeholders test a `wrkspc_REDACTED`; AGENTS.md's "Recorded fixtures"
+  names the redaction.
+* **Plants** (`tools/plant.py`, on a scratch clone; all 4 caught): the
+  `workspace-id` kind not scanned (`FAIL: test_fixtures_check_workspace_id
+  … fixtures-check exit 0, want 1`); a placeholder workspace ID reported
+  (`FAIL: test_fixtures_check_placeholders_pass … placeholders were
+  reported`); every workspace ID admitted (`FAIL:
+  test_fixtures_check_workspace_id`); and a well-formed workspace ID put in
+  `not-found.json`, which `scripts/check_fixtures.py`, scanning the tree,
+  failed on (exit 1), so the new directory is scanned.
+* **Checks:** `make fixtures-check`: "380 file(s), 134 hit(s), 0
+  problem(s)"; `make gate-selftest`: "Ran 38 tests … OK"; `make
+  records-check`, `tables-check`, `docs-check`: clean;
+  `tools/recordlint.py --changed`: "no rule rose"; `tools/denyscan.py
+  --changed`: "0 hit(s) in 13 file(s)"; `tools/linkcheck.py`: "0
+  problem(s)"; `python3 -B tools/gate.py`: "gate: 28 of 28 passed". The
+  gate's clone predates a reflow of AGENTS.md's paragraph, after which
+  `tables-check`, `records-check`, `docs-check`, the link check and the deny
+  scan were run again, clean.
+* **Phase 1 is complete** when the owner commits it. Phase 2 classifies
+  `no-workspace.json` as `ErrWorkspaceRequired`, and `malformed.json` and
+  `not-found.json` as `ErrWorkspaceNotFound`.

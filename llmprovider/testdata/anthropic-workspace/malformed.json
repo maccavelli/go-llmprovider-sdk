@@ -1,0 +1,10 @@
+{
+  "case": "malformed",
+  "sent": "malformed",
+  "source": "measured 2026-10-27 by TestLive_Workspace_0064 (0064-PLAN Phase 1, run 3): an organization's key not scoped to a workspace, against api.anthropic.com; workspace and request IDs redacted",
+  "status": 400,
+  "type": "invalid_request_error",
+  "message": "anthropic-workspace-id header must be a valid workspace ID.",
+  "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"anthropic-workspace-id header must be a valid workspace ID.\"},\"request_id\":\"req_REDACTED\"}",
+  "reply_workspace_header": "absent"
+}

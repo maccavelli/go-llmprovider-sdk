@@ -11,6 +11,8 @@ directory that git tracks or would add (or the files named) for:
   * an account, user or organization id: user-, org-, acct- or account-
     (or _), then eight or more letters and digits, at least one a digit or
     a capital, unless a placeholder (REDACTED, or a run of X);
+  * an Anthropic workspace id: wrkspc_, then letters and digits, unless a
+    placeholder (0064-MADR, amendment 2026-10-27);
   * a JWT: eyJ, then two dot-separated base64url parts;
   * a home path: /Users/<name> or /home/<name>.
 
@@ -52,6 +54,7 @@ PLACEHOLDER = re.compile(r"^(?:REDACTED|X{4,})$", re.I)
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)")
 UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I)
 ACCOUNT = re.compile(r"\b(?:user|org|acct|account)[-_]([A-Za-z0-9]{8,})", re.I)
+WORKSPACE = re.compile(r"\bwrkspc_([A-Za-z0-9]+)")
 JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")
 HOME = re.compile(r"/(?:Users|home)/[A-Za-z0-9._-]+")
 
@@ -94,6 +97,7 @@ KINDS: list[tuple[str, re.Pattern[str], object]] = [
     ("email", EMAIL, allowed_email),
     ("uuid", UUID, lambda m: m.group(0) == NIL_UUID),
     ("account-id", ACCOUNT, allowed_account),
+    ("workspace-id", WORKSPACE, lambda m: PLACEHOLDER.match(m.group(1)) is not None),
     ("jwt", JWT, lambda m: False),
     ("home-path", HOME, lambda m: False),
 ]

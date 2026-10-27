@@ -124,7 +124,10 @@ start, so a fixture holding account data cannot be merged.
   organization-id (`user-…`, `org-…`, `acct-…`, `account-…`, eight or more
   characters after the prefix, at least one a digit or a capital letter);
   a JWT (`eyJ…` with two dot-separated parts); a home path
-  (`/Users/<name>`, `/home/<name>`).
+  (`/Users/<name>`, `/home/<name>`). *Annotated 2026-10-27: an
+  Anthropic workspace id (`wrkspc_…`) is a kind too, by
+  0064-MADR-anthropic-workspace-for-unscoped-keys.md's amendment of
+  2026-10-27.*
 * **Never a hit:** a placeholder (`REDACTED`, a run of `X`, text in angle
   brackets such as `<user>`); the nil UUID; an `example.com`,
   `example.org`, `.test`, `.invalid` or `.example` address.

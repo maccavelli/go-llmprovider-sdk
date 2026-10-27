@@ -1,0 +1,8 @@
+{
+  "case": "workspace",
+  "sent": "workspace",
+  "source": "measured 2026-10-27 by TestLive_Workspace_0064 (0064-PLAN Phase 1, run 3): an organization's key not scoped to a workspace, against api.anthropic.com; workspace and request IDs redacted",
+  "status": 200,
+  "body": "{\"data\":[{\"type\":\"model\",\"id\":\"claude-haiku-5-5\",\"display_name\":\"Claude Haiku 5.5\",\"created_at\":\"2026-10-07T18:00:00Z\",\"line\":\"haiku\",\"max_input_tokens\":1000000,\"max_tokens\":128000,\"capabilities\":{\"batch\":{\"supported\":true},\"citations\":{\"supported\":true},\"code_execution\":{\"supported\":true},\"context_management\":{\"supported\":true,\"clear_tool_uses_20250919\":{\"supported\":true},\"clear_thinking_20251015\":{\"supported\":true},\"compact_20260112\":{\"supported\":true}},\"effort\":{\"supported\":true,\"low\":{\"supported\":true},\"medium\":{\"supported\":true},\"high\":{\"supported\":true},\"xhigh\":{\"supported\":true},\"max\":{\"supported\":true}},\"image_input\":{\"supported\":true},\"pdf_input\":{\"supported\":true},\"server_tools\":{\"supported\":true,\"code_execution\":{\"supported\":true},\"web_search\":{\"supported\":true}},\"structured_outputs\":{\"supported\":true},\"thinking\":{\"supported\":true,\"types\":{\"enabled\":{\"supported\":false},\"adaptive\":{\"supported\":true},\"disabled\":{\"supported\":true},\"between_tools\":{\"supported\":false}}}},\"lifecycle\":\"active\",\"deprecated_at\":null,\"retires_at\":null}],\"has_more\":true,\"first_id\":\"claude-haiku-5-5\",\"last_id\":\"claude-haiku-5-5\"}",
+  "reply_workspace_header": "present"
+}

@@ -1,0 +1,10 @@
+{
+  "case": "no-workspace",
+  "sent": "none",
+  "source": "measured 2026-10-27 by TestLive_Workspace_0064 (0064-PLAN Phase 1, run 3): an organization's key not scoped to a workspace, against api.anthropic.com; workspace and request IDs redacted",
+  "status": 400,
+  "type": "invalid_request_error",
+  "message": "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use. Add the header, or use an API key that is scoped to a workspace.",
+  "body": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use. Add the header, or use an API key that is scoped to a workspace.\"},\"request_id\":\"req_REDACTED\"}",
+  "reply_workspace_header": "absent"
+}

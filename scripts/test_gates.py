@@ -298,6 +298,10 @@ class GateSelfTest(unittest.TestCase):
     def test_fixtures_check_jwt(self) -> None:
         self.assertFixtureCaught("eyJhbGciOiJub25lIn0.eyJzdWIiOiJwbGFudGVkLTAwNDcifQ.c2ln", "jwt")
 
+    def test_fixtures_check_workspace_id(self) -> None:
+        """An Anthropic workspace id (0064-MADR, amendment 2026-10-27)."""
+        self.assertFixtureCaught("wrkspc_01Zq7Rb2Lm9Xc4Vt8N", "workspace-id")
+
     def test_fixtures_check_stale_baseline_line(self) -> None:
         baseline = self.tree / "scripts/fixtures-baseline.txt"
         stale = "llmprovider/catalog/testdata/ranking-2026-10-12/together.json uuid 0047deadbeef"
@@ -307,7 +311,8 @@ class GateSelfTest(unittest.TestCase):
     def test_fixtures_check_placeholders_pass(self) -> None:
         (self.tree / self.PLANT_FIXTURE).write_text(
             '{"safety_identifier": "user-REDACTED", "prompt_cache_key": "00000000-0000-0000-0000-000000000000",'
-            ' "email": "user@example.com", "note": "user_message", "home": "/home/<user>/x"}\n', encoding="utf-8")
+            ' "email": "user@example.com", "note": "user_message", "home": "/home/<user>/x",'
+            ' "workspace": "wrkspc_REDACTED"}\n', encoding="utf-8")
         proc = run_gate(self.tree, "fixtures-check")
         self.assertEqual(proc.returncode, 0, f"placeholders were reported:\n{proc.stdout}{proc.stderr}")
 
