@@ -444,7 +444,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), llmprovider.ProviderGrok, p.baseURL, p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
+	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), llmprovider.ProviderGrok, p.baseURL, "", p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		// The old API's probe provider: the default output limit, no store,
 		// no reasoning (0015-MADR D1).
 		probe := *p

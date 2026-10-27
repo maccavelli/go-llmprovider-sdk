@@ -127,6 +127,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
@@ -147,12 +148,33 @@ const (
 	// unchanged (0015-MADR D1).
 	probeMaxTokens = 8192
 	probePrompt    = "Respond with ONLY the word Hello"
+
+	// headerWorkspace names the workspace a key not scoped to one runs in
+	// (0064-MADR D1).
+	headerWorkspace = "anthropic-workspace-id"
 )
+
+// workspaceOption is WithWorkspace's value.
+type workspaceOption string
+
+// WithWorkspace names the Anthropic workspace the provider's requests run
+// in, which a key not scoped to a workspace needs: when id is not empty,
+// Generate, Stream and the probes ListModels sends carry
+// anthropic-workspace-id, and the listing does too
+// (catalog.WithClaudeWorkspace). Empty sends none. The value is trimmed; one
+// holding a control character fails New with ErrInvalidRequest, as it
+// cannot be a header value (0064-MADR D1). Such a key without it is refused
+// with llmprovider.ErrWorkspaceRequired, and a workspace it may not use with
+// llmprovider.ErrWorkspaceNotFound.
+func WithWorkspace(id string) llmprovider.Option {
+	return llmprovider.ScopedOption(llmprovider.ProviderClaude, "claude.WithWorkspace", workspaceOption(id))
+}
 
 type provider struct {
 	src       llmprovider.TokenSource
 	model     string
 	baseURL   string
+	workspace string // WithWorkspace's, trimmed, or ""
 	client    *http.Client
 	caps      llmprovider.Capabilities
 	maxTokens int
@@ -220,9 +242,20 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if base := st.BaseURL(); base != "" {
 		p.baseURL = base
 	}
+	for _, v := range st.Values() {
+		if v, ok := v.(workspaceOption); ok {
+			p.workspace = strings.TrimSpace(string(v))
+		}
+	}
+	if strings.ContainsFunc(p.workspace, unicode.IsControl) {
+		return nil, fmt.Errorf("%w: claude.WithWorkspace: a workspace ID holds no control character", llmprovider.ErrInvalidRequest)
+	}
 	p.limit = listlimit.Of(st.Values())
 	p.listing = append(append([]llmprovider.Option(nil), opts...),
 		llmprovider.WithSessionID(st.SessionID()), llmprovider.WithHTTPClient(p.client), llmprovider.WithBaseURL(p.baseURL))
+	if p.workspace != "" {
+		p.listing = append(p.listing, catalog.WithClaudeWorkspace(p.workspace))
+	}
 	return p, nil
 }
 
@@ -346,6 +379,9 @@ func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, strea
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, "x-api-key", "")
 			r.Header.Set("anthropic-version", anthropicVersion)
+			if p.workspace != "" {
+				r.Header.Set(headerWorkspace, p.workspace)
+			}
 			if stream {
 				r.Header.Set("Accept", "text/event-stream")
 			}
@@ -469,7 +505,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe {
 		return listed, nil
 	}
-	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), llmprovider.ProviderClaude, p.baseURL, p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
+	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), llmprovider.ProviderClaude, p.baseURL, p.workspace, p.src, listed, catalog.MaxListed, func(ctx context.Context, model string) (string, error) {
 		probe := *p
 		probe.model, probe.maxTokens, probe.reasoning = model, probeMaxTokens, nil
 		resp, err := probe.Generate(ctx, &llmprovider.Request{Input: []llmprovider.Item{

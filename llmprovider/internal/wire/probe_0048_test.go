@@ -20,7 +20,7 @@ func TestProbeHealth_ProbesIntoItsStore_0048(t *testing.T) {
 		store *transport.ProbeStore
 		want  int32
 	}{{a, 2}, {a, 2}, {b, 4}} {
-		got := ProbeHealth(context.Background(), step.store, llmprovider.ProviderClaude, "https://store-0048.test",
+		got := ProbeHealth(context.Background(), step.store, llmprovider.ProviderClaude, "https://store-0048.test", "",
 			llmprovider.NewStaticToken("k-0048"), []string{"a", "b"}, 10, probe)
 		if len(got) != 2 {
 			t.Fatalf("step %d: ProbeHealth = %v; want both models", i, got)

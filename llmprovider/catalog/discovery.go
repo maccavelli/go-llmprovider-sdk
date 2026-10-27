@@ -197,10 +197,11 @@ const (
 // at 10 s.
 //
 // opts are llmprovider's common options, with WithProfile, WithLimit,
-// WithWorkload, WithLastGood and WithKiloOrganization.
+// WithWorkload, WithLastGood, WithKiloOrganization and WithClaudeWorkspace.
 //
 // A listing read within the last ten minutes, for the same provider, base
-// URL, Kilo organization and credential, is ranked again with no request,
+// URL, Kilo organization or Claude workspace, and credential, is ranked
+// again with no request,
 // and callers at once share one fetch, and its result, a failure included;
 // a caller that is cancelled ends only its own wait (0041-MADR D6, A6;
 // 0053-MADR D4). A transient
@@ -862,6 +863,10 @@ func fetchClaudeUsable(ctx context.Context, token llmprovider.Token, cfg config)
 	return nil, fmt.Errorf("model listing: more than %d pages", maxListingPages)
 }
 
+// headerClaudeWorkspace names the Anthropic workspace a listing runs in
+// (0064-MADR D2).
+const headerClaudeWorkspace = "anthropic-workspace-id"
+
 // fetchClaudePage performs one listing request.
 func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Token, cfg config) (claudeModelsPage, error) {
 	var result claudeModelsPage
@@ -872,6 +877,9 @@ func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Tok
 	cfg.setUserAgent(req)
 	token.Apply(req, "x-api-key", "")
 	req.Header.Set("anthropic-version", "2023-06-01")
+	if cfg.ClaudeWorkspace != "" {
+		req.Header.Set(headerClaudeWorkspace, cfg.ClaudeWorkspace)
+	}
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {

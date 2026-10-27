@@ -5,8 +5,10 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/compatid"
@@ -44,6 +46,7 @@ type config struct {
 	ModelProfile     Profile
 	ModelMetadataURL string
 	KiloOrganization string
+	ClaudeWorkspace  string
 	userAgent        string
 	session          string
 	metadataOff      bool         // WithoutModelMetadata
@@ -74,10 +77,11 @@ func (c config) emit(info ModelInfo) {
 }
 
 // profileOption is WithProfile's value; kiloOrganizationOption is
-// WithKiloOrganization's.
+// WithKiloOrganization's; claudeWorkspaceOption is WithClaudeWorkspace's.
 type (
 	profileOption          Profile
 	kiloOrganizationOption string
+	claudeWorkspaceOption  string
 	// modelLayerOption is WithModelLayer's value.
 	modelLayerOption struct{ layer Layer }
 	// workloadOption is WithWorkload's value.
@@ -135,7 +139,7 @@ func WithWorkload(cacheShare, outputShare float64) llmprovider.Option {
 // WithLastGood hands in a listing the caller kept from an earlier run: its
 // usable ids, as Catalog.Usable gave them, and when they were read, as
 // Catalog.FetchedAt gave it. It is used only after a transient failure, when
-// no listing for the same provider, base URL, organization and credential
+// no listing for the same provider, base URL, organization or workspace and credential
 // is cached, and only within 24 hours of fetchedAt; the Catalog is then
 // stale (0041-MADR D6). Kilo's band is then ranked without Kilo's prices,
 // which the ids do not carry (0041-MADR A6). Ollama ignores it. It is
@@ -153,6 +157,17 @@ func WithLastGood(ids []string, fetchedAt time.Time) llmprovider.Option {
 // generation option, and kilo's ListModels passes its organization on.
 func WithKiloOrganization(org string) llmprovider.Option {
 	return llmprovider.ScopedOption(llmprovider.ProviderKilo, "catalog.WithKiloOrganization", kiloOrganizationOption(org))
+}
+
+// WithClaudeWorkspace lists Anthropic's models in a workspace: each page's
+// request carries anthropic-workspace-id, which a key not scoped to a
+// workspace needs. Empty sends none. The value is trimmed; one holding a
+// control character is refused with ErrInvalidRequest, as it cannot be a
+// header value. It is scoped to claude. claude.WithWorkspace is the
+// generation option, and the claude provider's ListModels passes its
+// workspace on (0064-MADR D2).
+func WithClaudeWorkspace(id string) llmprovider.Option {
+	return llmprovider.ScopedOption(llmprovider.ProviderClaude, "catalog.WithClaudeWorkspace", claudeWorkspaceOption(id))
 }
 
 // listingClient is the client catalog's own calls use when the caller gives
@@ -186,6 +201,13 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 			cfg.ModelProfile = Profile(v)
 		case kiloOrganizationOption:
 			cfg.KiloOrganization = string(v)
+		case claudeWorkspaceOption:
+			workspace := strings.TrimSpace(string(v))
+			if strings.ContainsFunc(workspace, unicode.IsControl) {
+				return config{}, fmt.Errorf("%w: catalog.WithClaudeWorkspace: a workspace ID holds no control character",
+					llmprovider.ErrInvalidRequest)
+			}
+			cfg.ClaudeWorkspace = workspace
 		case modelLayerOption:
 			cfg.layers = append(cfg.layers, v.layer)
 		case lastGoodOption:

@@ -54,7 +54,8 @@ type RawModel struct {
 // ListRaw lists id's models exactly as the provider sends them (0041-MADR
 // D9). It sends the requests List sends, through the same code: the
 // credential in the provider's header, WithBaseURL, WithHTTPClient and the
-// user agent, OpenCode's session header, Kilo's organization endpoint, every
+// user agent, OpenCode's session header, Kilo's organization endpoint,
+// Anthropic's workspace header, every
 // page up to the listing's limit, 8 MiB a page, 10 s in all, and one renewal
 // of a refused credential. An OpenAI listing with a ChatGPT session lists the
 // Codex backend, and one with a ChatGPT plan session reads the "models"

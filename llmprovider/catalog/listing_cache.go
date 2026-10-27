@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"slices"
@@ -19,13 +20,15 @@ import (
 const listingMetadataTTL = 10 * time.Minute
 
 // listingKey identifies one listing: who asked, where, for which Kilo
-// organization, with which credential (0041-MADR A6).
+// organization or Claude workspace, with which credential (0041-MADR A6;
+// 0064-MADR D2).
 type listingKey struct {
 	provider llmprovider.ProviderID
 	baseURL  string
-	// organization is the Kilo organization listed, empty for the personal
-	// account and for every other provider.
-	organization string
+	// scope is the Kilo organization or the Claude workspace listed, empty
+	// for Kilo's personal account, a Claude key scoped to its workspace, and
+	// every other provider.
+	scope string
 	// credential is transport.Fingerprint's, never the credential.
 	credential string
 }
@@ -34,7 +37,7 @@ type listingKey struct {
 // the one the listing reads, so no base URL and the provider's default are
 // one key (0041-MADR A8).
 func listingKeyFor(id llmprovider.ProviderID, cfg config, token llmprovider.Token) listingKey {
-	return listingKey{provider: id, baseURL: listingBaseURL(id, cfg.BaseURL), organization: cfg.KiloOrganization,
+	return listingKey{provider: id, baseURL: listingBaseURL(id, cfg.BaseURL), scope: cmp.Or(cfg.KiloOrganization, cfg.ClaudeWorkspace),
 		credential: transport.Fingerprint(token.Value)}
 }
 

@@ -97,9 +97,11 @@ func withTail(head, preferred []string, limit int) []string {
 
 // ProbeKey identifies one listing's probes: the provider, its base URL, and
 // the fingerprint of the credential the probes sent (0028-MADR D-A3).
-// Credential is Fingerprint's, never the credential.
+// Credential is Fingerprint's, never the credential. Scope parts one
+// credential's probes further, such as by Anthropic's workspace, and is
+// empty for none (0064-MADR, amendment "the probe cache").
 type ProbeKey struct {
-	Provider, BaseURL, Credential string
+	Provider, BaseURL, Credential, Scope string
 }
 
 // probeCacheTTL is how long the models that answered a probe are kept (Q7).

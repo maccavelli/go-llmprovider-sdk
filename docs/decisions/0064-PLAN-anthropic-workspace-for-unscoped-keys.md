@@ -138,6 +138,11 @@ PLAN is complete:
    * a control character fails `New` with `ErrInvalidRequest`;
    * an option scoped to Claude given to another provider is refused as
      `ScopedOption` refuses today.
+5. *Added 2026-10-27, by the MADR's amendment "the probe cache":*
+   `transport.ProbeKey` gains `Scope`, `wire.ProbeHealth` a `scope`
+   parameter; the Claude provider passes its workspace, every other caller
+   `""`. A test: one key's probes in two workspaces are two entries, and the
+   same workspace's second listing sends no probe.
 
 ### Phase 4: the wizard (MADR D4)
 
@@ -412,3 +417,74 @@ PLAN is complete:
 * **Checks:** `make pre-add-check` on the 4 Go files: "4 file(s) clean
   (gofmt, golangci-lint, go vet, go test, govulncheck)"; `make api-check`:
   "against v1.23.0, 0 incompatible change(s)"; `python3 -B tools/gate.py`: "gate: 28 of 28 passed".
+
+### Phase 3: the header (2026-10-27)
+
+* **Approval.** "committed, proceed", after Phase 2 (`0375b46`).
+* **Deviation (2026-10-27): the probe cache.** Before the first write, the
+  Claude provider's probes were found cached by provider, base URL and
+  credential, not workspace (the MADR's F8). Asked (key it by the workspace
+  too, recommended; record it as a limit; a separate record), the owner
+  chose to **key it by the workspace**. Step 5 is added; files added to the
+  phase: `llmprovider/internal/transport/probe.go`,
+  `llmprovider/internal/wire/probe.go`, and the five other providers' calls
+  of `ProbeHealth` (`gemini.go`, `chatcompat.go`, `grok.go`, `ollama.go`,
+  `openai.go`) with their tests' calls.
+* **Step 1:** `catalog.WithClaudeWorkspace` (`llmprovider/catalog/config.go:169`),
+  scoped to `ProviderClaude`; `config.ClaudeWorkspace`, set in `configFor`
+  (`:204`); `fetchClaudePage` sets `anthropic-workspace-id` when it is not
+  empty (`discovery.go:881`), so `ListRaw`, which lists through the same
+  code, sends it too, and its doc says so.
+  * Made exact: the listing's option is trimmed and refuses a control
+    character with `ErrInvalidRequest`, as D1 has the provider do. D2 does
+    not say; the wizard gives the listing a typed value in Phase 4, and a
+    header cannot carry one.
+* **Step 2:** `listingKey.organization` is `scope`, `cmp.Or` of the Kilo
+  organization and the Claude workspace (`listing_cache.go:40`); each option
+  is scoped to its own provider, so a key holds at most one. The Kilo
+  organization test, `TestList_KiloOrganizationKeyed_0041`, passes
+  unchanged.
+* **Step 3:** `claude.WithWorkspace` (`claude.go:169`), scoped to
+  `ProviderClaude`; `New` trims it and refuses a control character
+  (`:250`), and adds `catalog.WithClaudeWorkspace` to `p.listing` when it is
+  set (`:257`); `Prepare` sets the header when it is not empty (`:383`), so
+  Generate, Stream and each probe, a copy of the provider, carry it.
+* **Step 5:** `transport.ProbeKey.Scope` (`internal/transport/probe.go:104`);
+  `wire.ProbeHealth(…, baseURL, scope, src, …)` keys by it
+  (`internal/wire/probe.go:30`); the Claude provider passes `p.workspace`
+  (`claude.go:508`), Gemini, chatcompat, Grok, Ollama and OpenAI `""`, as
+  do the two `wire` tests that call it.
+* **Step 4, the tests:**
+  * `llmprovider/catalog/workspace_0064_test.go`:
+    `TestClaudeWorkspace_Header_0064`, a two-page listing through `List`
+    and `ListRaw`, each page naming the workspace given as `" wrkspc_A\n"`,
+    and none without the option or with it empty;
+    `TestClaudeWorkspace_CacheKey_0064`, one key in workspaces A and B and
+    with none, three listings, and each a second time from the cache;
+    `TestClaudeWorkspace_Refused_0064`, a NUL and an inner tab refused, and
+    the option given to OpenAI's listing refused by name, nothing sent.
+  * `llmprovider/providers/claude/workspace_0064_test.go`:
+    `TestWorkspace_Header_0064`, Generate, Stream, both listing pages and
+    both probes naming the workspace given as `"  wrkspc_A\n"`, and none
+    without it or with `" "`; `TestWorkspace_ProbeAndListingScope_0064`,
+    one key and one `catalog.Cache` in workspaces A and B, each with its own
+    two pages and two probes, and each again with no request;
+    `TestWorkspace_Refused_0064`, a NUL, an inner tab and a CR LF refused at
+    `New`, and the option refused by OpenAI's `ResolveOptions` by name.
+* **Plants** (`tools/plant.py`, on a scratch clone, `-run _0064` over
+  `./llmprovider/catalog/` and `./llmprovider/providers/claude/`; all 13
+  caught): generation sends no workspace; an empty workspace sent
+  (`TestWorkspace_Header_0064/without`); the provider's listing not given
+  it; the provider's probes not scoped (`step 1 (wrkspc_B): [{list
+  wrkspc_B} {list wrkspc_B}]; want its own two pages and two probes`);
+  the probe key without its scope (the same); the provider, and the
+  listing, not trimming; the provider, and the listing, admitting a control
+  character (`New(WithWorkspace("wrkspc_\x00A")) = <nil>`); the listing
+  sending no workspace; the cache key without it (`round 0: requests "";
+  want "wrkspc_B,wrkspc_B"`); `WithClaudeWorkspace` for every built-in, and
+  `WithWorkspace` shared (`<nil>; want ErrInvalidRequest naming …`).
+* **Checks:** `make pre-add-check` on the 16 Go files: "16 file(s) clean
+  (gofmt, golangci-lint, go vet, go test, govulncheck)"; `make api-check`:
+  "against v1.23.0, 0 incompatible change(s)"; `go run
+  ./llmprovider/internal/cmd/sdkaudit -check`: "0 violation(s) of
+  R50,R51,R52"; `python3 -B tools/gate.py`: "gate: 28 of 28 passed".

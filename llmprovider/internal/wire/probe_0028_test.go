@@ -23,7 +23,7 @@ func TestProbeHealth_UnreadableTokenProbesUncached(t *testing.T) {
 	var probes atomic.Int32
 	probe := func(context.Context, string) (string, error) { probes.Add(1); return "hello", nil }
 	for range 2 {
-		got := ProbeHealth(context.Background(), nil, llmprovider.ProviderClaude, "https://unreadable.test", unreadableToken{},
+		got := ProbeHealth(context.Background(), nil, llmprovider.ProviderClaude, "https://unreadable.test", "", unreadableToken{},
 			[]string{"a", "b"}, 10, probe)
 		if len(got) != 2 {
 			t.Fatalf("ProbeHealth = %v; want both models", got)

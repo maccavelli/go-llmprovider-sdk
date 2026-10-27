@@ -424,7 +424,7 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	if !p.probe || len(listed) == 0 {
 		return listed, nil
 	}
-	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), p.id, p.baseURL, p.src, listed, catalog.MaxListed,
+	healthy := wire.ProbeHealth(ctx, p.cache.ProbeStore(), p.id, p.baseURL, "", p.src, listed, catalog.MaxListed,
 		func(ctx context.Context, model string) (string, error) {
 			probe := *p
 			probe.model, probe.maxTokens, probe.reasoning = model, probeMaxOutputTokens, nil

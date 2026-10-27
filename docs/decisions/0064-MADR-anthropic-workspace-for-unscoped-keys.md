@@ -151,6 +151,8 @@ cannot be a header value.
 listing cache's key gains the workspace: the internal field `organization`
 becomes a scope that holds the Kilo organization or the Claude workspace,
 whichever the listing has, so two workspaces never share an entry (F3).
+*Amended 2026-10-27: the probe cache is scoped by the workspace too; see the
+amendment "the probe cache".*
 
 ### D3. The refusals: two classes
 
@@ -417,3 +419,31 @@ type nor prefix was recorded. The redacted replies are the fixtures in
   placeholder (`REDACTED`, a run of `X`); `scripts/test_gates.py` plants
   one; AGENTS.md names the redaction. 0047-MADR D1 carries an annotation
   pointing here.
+
+## Amendment 2026-10-27: the probe cache
+
+**Status: accepted (the owner, 2026-10-27). D2 is extended; D6 is
+unchanged.**
+
+Found at `0375b46`, before Phase 3's first write:
+
+* **F8.** The Claude provider's `ListModels` probes its listed models
+  through `wire.ProbeHealth` (`llmprovider/providers/claude/claude.go:472`),
+  which keeps the models that answered for 10 minutes under
+  `transport.ProbeKey{Provider, BaseURL, Credential}`
+  (`llmprovider/internal/transport/probe.go:101-103`, keyed at
+  `llmprovider/internal/wire/probe.go:28`), and lets the probes of one key
+  run once at a time (`probe.go:189-205`). D2 scoped only the listing cache,
+  so two workspaces under one key would share one entry and one probe in
+  flight: a model that answered in one would be listed in the other for
+  10 minutes. Only a list with a model in it is kept (`probe.go:197`), so a
+  run with no workspace, every probe refused, leaves nothing behind. Whether
+  Anthropic lets one workspace use a model another cannot was not
+  measured. Kilo does not probe: `ProbeHealth`'s callers are Gemini,
+  chatcompat, Claude, Grok, Ollama and OpenAI.
+
+Asked to key the probe cache by the workspace too, record the sharing as a
+limit, or leave it to a separate record, the owner chose to key it:
+`transport.ProbeKey` gains an internal `Scope`; `wire.ProbeHealth` takes
+it; the Claude provider passes its workspace, and every other caller `""`,
+so their keys are as they were. Nothing exported changes.
