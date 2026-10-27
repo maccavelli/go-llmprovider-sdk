@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-24
+status: complete
+date: 2026-10-26
 associated-madr: "0061-MADR-consumer-gaps-from-gobble-issue-9.md"
 decision-makers: repository owner
 ---
@@ -2011,3 +2011,62 @@ its specification.
   `tools/consumer.py v1.23.0` and `tools/offline.py v1.23.0`; the comment on
   issue #9 and its closing. Then step 6: the MADR's Confirmation, item by
   item, and this PLAN `complete`.
+* **Committed** by the owner as `5555147` ("committed, proceed"). The
+  disclosure guard over the 28 outgoing commits, `f86fc3f` to `5555147`:
+  exit 0, nothing reported. The commit's date, 2026-10-26, is the section's.
+* **The push.** The owner pushed `main` ("pushed, proceed"); `origin/main`
+  is `5555147`. CI run 40439485453: `validate` on ubuntu-24.04,
+  windows-2025 and macos-15, success; `release` skipped. Docs run
+  40439485540: success.
+* **The tag.** The owner tagged `v1.23.0`, annotated, on `5555147`, and
+  pushed it ("tag pushed, proceed"). CI run 40440294745: `validate` on the
+  three systems and `release`, success. The Release `v1.23.0`: not a draft
+  or a prerelease, Latest; its body equals the scanned notes, 190 lines,
+  apart from trailing blank lines.
+* **After the tag.** `tools/consumer.py v1.23.0`: "consumer: 16 packages
+  linked" (15 at `v1.22.2`; `providers/chatcompat` is the sixteenth),
+  "every step passed". `tools/offline.py v1.23.0`: "offline: ok", its two
+  plants caught (models.dev left on, `requests=1`; no caller layer), "every
+  step passed". On the owner's word ("delete the v1.20.1 release, comment
+  on the issue and close it"): `gh release delete v1.20.1 --yes`, exit 0;
+  the Releases are `v1.23.0` (Latest), `v1.22.2`, `v1.22.1`, `v1.22.0` and
+  `v1.21.0`, five (R53); the tag `v1.20.1` stays on `origin`, and its
+  section; its Release URL answers 200 with the tag's page. The comment on
+  issue #9, one outcome per work item and Q1, scanned first by
+  `tools/denyscan.py` (0 hits) and naming no one: posted as
+  issuecomment-6432680626; the issue closed.
+* **Step 6, the MADR's Confirmation, item by item:**
+  * "`make api-check` against `v1.22.2`: additions only, exactly D10's":
+    held, with 0062-MADR's nine, which this release carries (the MADR's
+    amendment "D3 reworked by 0062"): `tools/apidiff.py v1.22.2`, 20
+    compatible additions, no incompatible change (step 2, above).
+  * "`llmtest.Run` passes for every built-in and for `chatcompat`, with the
+    images need": held. Phase 5 added the need; Phase 6's drift check and
+    every run since pass `TestConformance` in the 10 provider packages, 16
+    harness runs.
+  * "The G-wire goldens of `image` and `effort-max` match D3's and D5's
+    tables for every case": held. `image`: 21 goldens checked by script
+    against D5's table (Phase 6), `chatgpt` again after Phase 7b, 21 of 21;
+    `effort-max`: recorded and checked in Phase 3, reworked to 0062's D3
+    and checked in 0062-PLAN's Phases 2 and 3.
+  * "`errors.Is` tests: `ErrEmptyAnswer` … `ErrOffline` …": held.
+    `TestDecode_EmptyIsErrEmptyAnswer_0061`, `TestEmptyAnswer_Kind_0061`
+    and `TestErrEmptyAnswer_Chain_0061` (Phase 1); `TestOffline_Rule_0061`,
+    `TestErrOffline_Chain_0061`, `TestWrapOffline_Context_0061` and the
+    refused-dial tests of each send site, `TestPost_`, `TestList_`,
+    `TestChatGPTListing_`, `TestRefresh_` and
+    `TestSignInRequest_RefusedDialIsOffline_0061` (Phase 2).
+  * "Each new test fails first on `d9b1910`'s code or on a planted break":
+    held; each phase's record lists its plants and their failure lines
+    (Phases 1 to 7c).
+  * "The live tests the PLAN names, run by the owner, for the UNCONFIRMED
+    points": held, with the owner's permission, run by the agent (Phase
+    7): images on every route by data and by URL, `EffortMax` on every
+    target, the ChatGPT session; a plan session was not run, its sign-in
+    needing a person, so its `Images` stays `Unsupported` (the amendment
+    "Q11's live result").
+* **The Verification table:** V1 (Phase 1's tests), V2 (Phase 2's), V3
+  (the mapping tests and the `effort-max` goldens, as 0062 reworked them),
+  V4 (Phase 4's), V5 (Phases 5 and 6, and Phase 7's live run), V6 (step 2),
+  V7 (Phase 7) and V8 (each phase's plants): each held, as above.
+* **The PLAN is `complete`.** The MADR stays `accepted`.
