@@ -178,6 +178,9 @@ PLAN is complete:
 1. `LLMPROVIDER_LIVE_0064=1` with key C: no header classifies to
    `ErrWorkspaceRequired`, the workspace lists and generates, a malformed one
    classifies to `ErrWorkspaceNotFound`.
+   *Annotated 2026-10-27: no test did this; Phase 1's measurement sends raw
+   listings only. Phase 6 adds it first (its record, "the test"), and key D,
+   the organization's key of Phase 1's runs, stands for key C.*
 2. The owner runs the wizard through a scratch consumer, or through
    prepare-commit-msg with a `replace` in a scratch clone, with key C: it asks
    for the workspace, lists, and returns it. Nothing in either tree changes.
@@ -606,3 +609,56 @@ PLAN is complete:
   "gate: 28 of 28 passed".
 * **No plant:** this phase adds no test or gate.
 * **Next:** Phase 6, the owner's live confirmation.
+
+### Phase 6: live confirmation, the test (2026-10-27)
+
+* **Approval.** "committed, approved, proceed", after Phase 5 (`ab6b7ae`),
+  with the test proposed in Phase 5's handoff.
+* **Deviation (2026-10-27): step 1 named no test.** Found at Phase 5's end:
+  `TestLive_Workspace_0064` sends raw `GET /v1/models` requests; it builds no
+  provider, generates nothing, and checks none of the new classes. The
+  owner approved adding the test step 1 needs, with an offline twin and
+  plants, before the owner's run. Files added to the phase:
+  `llmprovider/workspace_0064_live_check_test.go` and
+  `llmprovider/live_0064_workspace_measure_test.go`.
+* **The test, as built:**
+  * `llmprovider/workspace_0064_live_check_test.go` (untagged, so its twin
+    runs offline): `checkWorkspaceLive(ctx, key, workspace, opts...)`. With
+    no workspace and with `not-a-workspace`, `Generate` must match
+    `ErrWorkspaceRequired` and `ErrWorkspaceNotFound`, each an
+    `ErrInvalidRequest`, and `catalog.List` the same, a static fallback's
+    error read from `Catalog.Err`; with the workspace, `Generate` answers,
+    `Stream` streams text, and `catalog.List` is live with models. Each
+    provider and listing has a `catalog.Cache` of its own, no probes and no
+    models.dev document; the model is `claude-haiku-5-5`, at most 256 tokens.
+    A problem names the classes and status (`workspaceKind`), never the key,
+    the workspace or the service's text.
+  * `TestLive_WorkspaceConfirm_0064` (`live_gateways`, in
+    `live_0064_workspace_measure_test.go`), switched by
+    `LLMPROVIDER_LIVE_0064`, with `ANTHROPIC_API_KEY` and
+    `LLMPROVIDER_LIVE_0064_WORKSPACE`: it runs the checks against Anthropic
+    and reports each problem with `t.Error`. Four generations, two of them
+    refused, and three listings.
+  * Made exact: 16 tokens became 256, in case the model reasons by default,
+    which the record does not establish.
+* **Twin:** `TestWorkspaceLive_Twin_0064`, against a server answering as
+  measured (no problem); ignoring the workspace (four: each refusal "no
+  error"); refusing every request for want of one (five, by
+  `[ErrWorkspaceRequired,ErrInvalidRequest] HTTP 400`); and answering every
+  named workspace with the documented 404, echoing the ID (three, by
+  `[ErrWorkspaceNotFound,ErrInvalidRequest] HTTP 404`). No problem may hold
+  the key, the workspace or `req_`.
+* **Plants** (`tools/plant.py`, on a scratch clone; all 9 caught): the
+  refusals' class not checked; the refused listing not checked; a static
+  fallback's error not read; the workspace's answer, stream and listing each
+  not checked; a problem showing the service's text, caught by the leak
+  check, whose failure held the 404's message with the twin's workspace ID
+  and said the problem "names the key, the workspace or a request"; and,
+  in the SDK, generation sending no
+  workspace, and the refusals not classified.
+* **Checks:** `make pre-add-check` on the 2 Go files: "2 file(s) clean
+  (gofmt, golangci-lint, go vet, go test, govulncheck)"; `go vet -tags
+  live_gateways ./llmprovider/`: clean; `make tables-check`: "42 packages, 0
+  problem(s)"; `python3 -B tools/gate.py`: "gate: 28 of 28 passed".
+* **Waiting on the owner:** step 1's run, in the owner's own terminal, with
+  key D; then step 2, the wizard; then step 3.
