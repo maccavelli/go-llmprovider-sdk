@@ -19,6 +19,8 @@ var errorClasses = []error{
 	llmprovider.ErrAuthFailure,
 	llmprovider.ErrContextOverflow,
 	llmprovider.ErrIncomplete,
+	llmprovider.ErrWorkspaceRequired,
+	llmprovider.ErrWorkspaceNotFound,
 	llmprovider.ErrInvalidRequest,
 	llmprovider.ErrProviderUnavailable,
 	llmprovider.ErrUnsupported,

@@ -343,3 +343,72 @@ PLAN is complete:
 * **Phase 1 is complete** when the owner commits it. Phase 2 classifies
   `no-workspace.json` as `ErrWorkspaceRequired`, and `malformed.json` and
   `not-found.json` as `ErrWorkspaceNotFound`.
+
+### Phase 2: the classes, built (2026-10-27)
+
+* **Approval.** "committed, proceed", after Phase 1 (`18ddac8`).
+* **Step 1:** `ErrWorkspaceRequired` ("llmprovider: workspace required")
+  and `ErrWorkspaceNotFound` ("llmprovider: workspace not found"),
+  `sentinelError`s with `ErrInvalidRequest` as parent, each documented with
+  0064-MADR D3 (`llmprovider/api_error.go:47`, `:51`).
+* **Step 2:** `claudeWorkspaceRefusal(service, env)`
+  (`llmprovider/api_error.go:475`) is nil for any service but Claude, and
+  otherwise matches by type and phrase: `invalid_request_error` with "is not
+  scoped to a workspace" is `ErrWorkspaceRequired`; `invalid_request_error`
+  with "must be a valid workspace ID", and `not_found_error` whose message
+  begins "Workspace" and ends "not found.", are `ErrWorkspaceNotFound`.
+  `classifyAPIError` binds it in its switch's init statement and returns it,
+  terminal, from one case after xAI's refused key (`:409`, `:431`).
+  * Made exact: the step's "two cases in `classifyAPIError`" are one case
+    and the helper. Written as two cases, `make pre-add-check` failed:
+    `api_error.go:405:1: cyclomatic complexity 44 of func
+    \`classifyAPIError\` is high (> 40) (gocyclo)`, from 39 before. The
+    helper keeps D3's matching as decided; the limit is not raised and no
+    `nolint` is added.
+* **Step 3:** `llmprovider/api_error_0064_test.go`:
+  * `TestWorkspaceClasses_0064`: `no-workspace.json` classifies to
+    `ErrWorkspaceRequired`, `malformed.json` and `not-found.json` to
+    `ErrWorkspaceNotFound`, each `ErrInvalidRequest`, not the other class,
+    a terminal `*APIError` with the fixture's status; each sentinel is a
+    child of `ErrInvalidRequest` and an `APIError` of that kind alone is
+    not retried; `workspace.json` and `unassociated.json`, the 200s, are no
+    error.
+  * `TestWorkspaceClasses_OnlyClaude_0064`: the three refusals from
+    `openai`, `kilo` and `opencode/claude` are `ErrInvalidRequest` and no
+    workspace class.
+  * `TestWorkspaceClasses_OtherRefusals_0064`: a Claude 400 with another
+    message, a model's 404, another object's "… not found.", "Workspace …
+    is archived.", the not-found phrase under `invalid_request_error`, and
+    the two 400 phrases under a 401 `authentication_error`, each keep
+    today's class.
+  * Made exact: the sentinels are checked apart from a reply, because an
+    `APIError`'s `Unwrap` also gives a 400's or 404's legacy sentinel,
+    `ErrInvalidRequest`, so a reply matches it whatever the sentinel's
+    parent is. A first plant making the parent `ErrProviderUnavailable` was
+    caught only by Phase 1's `TestWorkspaceRecord_Twin_0064`; the check was
+    added, and the four plants below are caught by this test.
+* **Step 4:** `wizard/describe.go`'s `errorClasses` lists both after
+  `ErrIncomplete` and before `ErrInvalidRequest`. `wizard/describe_0064_test.go`,
+  `TestDescribe_0064`: "workspace required, HTTP 400", "workspace not found,
+  HTTP 400" and "workspace not found, HTTP 404".
+* **Plants** (`tools/plant.py`, on a scratch clone, `-run _0064` over
+  `./llmprovider/` and `./wizard/`; all 19 caught): the case gone; the
+  helper for every service (`TestWorkspaceClasses_OnlyClaude_0064`); each of
+  the three matches gone, without its type, and without its phrase (the
+  404's prefix and suffix each); the two classes swapped; either parent
+  `ErrNotPermitted`; `ErrWorkspaceRequired`'s parent
+  `ErrProviderUnavailable`; the wizard missing either, or listing them after
+  `ErrInvalidRequest` (`describe(…) = "invalid request, HTTP 400"`). Then,
+  with `-run TestWorkspaceClasses_0064$` alone, all 4 caught: each parent
+  `ErrNotPermitted`, `ErrWorkspaceRequired`'s `ErrProviderUnavailable`, and
+  `ErrWorkspaceNotFound`'s `ErrRateLimited` (`want a child of
+  ErrInvalidRequest, never retried`).
+* **Not planted, and why:** the case's `return true, workspace` as `false`.
+  `terminal` is read only by `Retryable` (`api_error.go:180`); with it false,
+  `Retryable` returns true only for `ErrRateLimited` or
+  `ErrProviderUnavailable` (`:187`), and both classes are `ErrInvalidRequest`,
+  so nothing a caller sees changes. Planted against the first, two-case
+  shape, it was not caught, as expected of an equivalent change.
+* **Checks:** `make pre-add-check` on the 4 Go files: "4 file(s) clean
+  (gofmt, golangci-lint, go vet, go test, govulncheck)"; `make api-check`:
+  "against v1.23.0, 0 incompatible change(s)"; `python3 -B tools/gate.py`: "gate: 28 of 28 passed".

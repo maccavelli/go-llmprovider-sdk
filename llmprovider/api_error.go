@@ -40,6 +40,15 @@ var (
 	// Shortening the input can succeed; retrying it unchanged cannot. It also
 	// matches ErrInvalidRequest (0015-MADR D7, amendment of 2026-09-30).
 	ErrContextOverflow error = &sentinelError{msg: "llmprovider: context window exceeded", parent: ErrInvalidRequest}
+	// ErrWorkspaceRequired marks Anthropic's refusal of a request that names
+	// no workspace from a key not scoped to one. Naming a workspace the key
+	// may use can succeed; retrying unchanged cannot. It also matches
+	// ErrInvalidRequest (0064-MADR D3).
+	ErrWorkspaceRequired error = &sentinelError{msg: "llmprovider: workspace required", parent: ErrInvalidRequest}
+	// ErrWorkspaceNotFound marks Anthropic's refusal of the workspace a
+	// request named: not a valid workspace ID, or one that does not exist or
+	// the key may not use. It also matches ErrInvalidRequest (0064-MADR D3).
+	ErrWorkspaceNotFound error = &sentinelError{msg: "llmprovider: workspace not found", parent: ErrInvalidRequest}
 	// ErrIncomplete marks a response the service cut short, or one without
 	// the tool call the request forced (0015-MADR D7). Retrying it unchanged
 	// cannot help, so it also matches ErrInvalidRequest (MADR 0012 §1.5;
@@ -397,7 +406,7 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 	has := func(types ...string) bool {
 		return slices.ContainsFunc(types, env.hasType)
 	}
-	switch {
+	switch workspace := claudeWorkspaceRefusal(service, env); {
 	case service == serviceOpencode && has(opencodeQuotaTypes...),
 		service == string(ProviderKilo) && (has("PROMOTION_MODEL_LIMIT_REACHED") || bytes.Contains(body, []byte("FreeUsageLimitError"))),
 		service == string(ProviderOpenAI) && has(openAIQuotaTypes...),
@@ -417,6 +426,10 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 	case service == string(ProviderGrok) && status == http.StatusBadRequest && has("invalid-argument") &&
 		strings.Contains(strings.ToLower(env.message()), "api key"):
 		return true, ErrAuthFailure
+	// Anthropic's workspace refusals (0064-MADR D3); any other 400 or 404 is
+	// the request's.
+	case workspace != nil:
+		return true, workspace
 	// A 403 refuses something the key may not do, not the key, unless it
 	// carries a code a provider was measured sending for a refused
 	// credential (0028-MADR D-H2). The legacy status sentinel still matches
@@ -451,6 +464,27 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 	default:
 		return true, statusSentinel(status)
 	}
+}
+
+// claudeWorkspaceRefusal is the class of an Anthropic workspace refusal, each
+// matched by its type and a fixed phrase, or nil: ErrWorkspaceRequired for a
+// key not scoped to a workspace that names none; ErrWorkspaceNotFound for a
+// value that is not a workspace ID (its 400, measured) and for a workspace
+// that does not exist or the key may not use (its 404, as the documentation
+// words it) (0064-MADR D3, E5).
+func claudeWorkspaceRefusal(service string, env apiErrorEnvelope) error {
+	if service != string(ProviderClaude) {
+		return nil
+	}
+	msg := env.message()
+	switch {
+	case env.hasType("invalid_request_error") && strings.Contains(msg, "is not scoped to a workspace"):
+		return ErrWorkspaceRequired
+	case env.hasType("invalid_request_error") && strings.Contains(msg, "must be a valid workspace ID"),
+		env.hasType("not_found_error") && strings.HasPrefix(msg, "Workspace") && strings.HasSuffix(msg, "not found."):
+		return ErrWorkspaceNotFound
+	}
+	return nil
 }
 
 // apiErrorEnvelope is the union of the error bodies MADR 0012 §1.1 lists:
