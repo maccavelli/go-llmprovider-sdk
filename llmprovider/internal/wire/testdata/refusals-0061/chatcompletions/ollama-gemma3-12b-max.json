@@ -1,0 +1,17 @@
+{
+  "case": "ollama-gemma3-12b-max",
+  "cause": "thinking",
+  "wire": "chatcompletions",
+  "provider": "ollama",
+  "model": "gemma3:12b",
+  "set": {
+    "reasoning_effort": "max"
+  },
+  "sends": 1,
+  "status": 400,
+  "code": "invalid_request_error",
+  "message": "\"gemma3:12b\" does not support thinking",
+  "body": "{\"error\":{\"message\":\"\\\"gemma3:12b\\\" does not support thinking\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+  "usage": false,
+  "outcome": "refused"
+}

@@ -431,6 +431,31 @@ first.
    contradicts D3's or D5's table is a stop condition; Q11 (a)'s result
    decides its amendment.
 
+### Phase 7c: Ollama's refusal of thinking (the MADR's amendment, approved 2026-10-26)
+
+1. **The fixture:** `llmprovider/internal/wire/testdata/refusals-0061/chatcompletions/ollama-gemma3-12b-max.json`,
+   in 0062's record shape, its body the local Ollama's reply as captured
+   (a public model id; no host).
+2. **The code:** `chatcompletions.MatchRefusal` reads the form as
+   `wire.Refusal{Field: true}`; `ollama`'s `learner` passes
+   `chatcompletions.MatchRefusal` in place of nil; the package docs of
+   `ollama` and `chatcompletions`' matcher say so.
+3. **The drift check** on `./...`: every existing test unchanged, the
+   comment of `TestRefusal_Fixtures_0062` aside, which says Ollama has no
+   matcher.
+4. **Tests:** `chatcompletions`' `TestRefusal_OllamaThinking_0061` (the
+   fixture read as the field's refusal; the same message under another code,
+   or another status, not read; Ollama's 0062 fixtures still not read);
+   `ollama`'s `TestLearn_NoThinking_0061` against a local server that
+   refuses an effort with the fixture's body: two sends, the second with no
+   `reasoning_effort`, the two warnings, then a second request in one send
+   with none; `chatcompat`'s twin of the same.
+5. **Plants:** the matcher's new form removed; Ollama's learner without a
+   matcher.
+6. **Live, on the local Ollama:** `TestLive_Images_0061`'s `ollama-max` on
+   `gemma3:12b` passes, learning.
+7. **Stop** for the owner's commit; Phase 8 follows.
+
 ### Phase 8: release `v1.23.0`
 
 1. `CHANGELOG.md`'s `[v1.23.0]`, dated by the commit the tag names; the
@@ -1877,3 +1902,72 @@ explicit permission to run the live tests").
   `llmprovider/live_0061_images_test.go`,
   `llmprovider/providers/openai/{openai.go,images_0061_test.go}`,
   `llmprovider/providers/openai/testdata/wire/chatgpt/image.json`.
+
+### Phase 7c: Ollama's refusal of thinking (2026-10-26)
+
+The owner asked to scope, specify and fix Phase 7's "found, not done" as an
+amendment to 0061 ("scope and spec this, and fix it … amend to 0061, i
+committed, proceed"), after committing Phase 7 as `987e887`. The scope was
+put to the owner first, with the probe below: learn the refusal only (the
+MADR's amendment "Ollama's refusal of thinking, learned"); Phase 7c above is
+its specification.
+
+* **The probe** (the local Ollama 0.33.2, a script in the session's
+  scratchpad, no tree write): `reasoning_effort` `low`, `medium`, `high`,
+  `max` to `gemma3:12b` and `llama3.2:latest`: each 400,
+  `invalid_request_error`, `"<model>" does not support thinking`; with none,
+  200.
+* **As built:**
+  * the fixture `llmprovider/internal/wire/testdata/refusals-0061/chatcompletions/ollama-gemma3-12b-max.json`,
+    in 0062's record shape, its `body` the reply as it came, its `code`
+    the body's `type`, as Ollama's 0062 fixtures have it; a directory of its
+    own, so that `TestRefusal_Fixtures_0062`'s count of Ollama's fixtures
+    stands;
+  * `chatcompletions.MatchRefusal`: HTTP 400, code `invalid_request_error`,
+    a message that begins with a quote and ends `" does not support
+    thinking`, read as `wire.Refusal{Field: true}`, whatever effort was
+    sent; the doc lists the form;
+  * `ollama`'s `learner`: `chatcompletions.MatchRefusal` in place of nil;
+    its comment and the package doc's Degradations bullet say what it
+    learns;
+  * the comment of `TestRefusal_Fixtures_0062`, which said Ollama has no
+    matcher (step 3); its assertions are unchanged;
+  * `CHANGELOG.md`: 0062's Changed entry, still unreleased, said "Ollama
+    learns no refusal"; it says what Ollama learns, and that `chatcompat`
+    pointed at Ollama does too.
+* **The drift check,** after the code and before the new tests:
+  `go test -race -count=1 -shuffle=on ./...`: every package ok, every
+  existing test unchanged.
+* **Tests:** `TestRefusal_OllamaThinking_0061` (the fixture read as the
+  field's refusal at `max`, `low` and `high`; not read under another code,
+  at status 500, about tools, with no quoted model, with words after it, or
+  with no effort sent); `ollama`'s and `chatcompat`'s
+  `TestLearn_NoThinking_0061`, against a local server answering a request
+  that carries `reasoning_effort` with the fixture's body: the first request
+  at `max` sent twice, `max` then none, with one `WarningReasoningLearned`
+  (`Refused` `{gemma3:12b max}`) and one `WarningEffortDegraded` (`sent
+  none`); a second, at `high`, in one send with none, warned.
+  `-race -count=3 -shuffle=on` on the three packages passes.
+* **Plants** (`tools/plant.py`, on a scratch clone; all 5 caught): the new
+  form removed (the matcher's test; both twins: `invalid request: ollama
+  HTTP 400 invalid_request_error: "gemma3:12b" does not support thinking`);
+  Ollama's learner without a matcher (Ollama's twin); the form read under
+  any code (`another code: matched`); read anywhere in a message (`a longer
+  message: matched`); read as the effort's refusal, not the field's (the
+  matcher's test, and both twins: `efforts sent =
+  "max,xhigh,high,medium,low,"; want max, then none`, six sends where the
+  field's refusal takes two).
+* **Live, on the local Ollama:** `TestLive_Images_0061` with
+  `LLMPROVIDER_LIVE_0061_OLLAMA_MODEL=gemma3:12b`, the model of Phase 7's
+  failure: `ollama-max` passed, 2 sends, `reasoning_learned: gemma3:12b
+  refused reasoning effort max …` and `effort_degraded: reasoning effort max
+  is not offered for gemma3:12b; sent none`; `ollama-data` and `ollama-url`
+  passed as before.
+* **Checks:** `make pre-add-check` on the 6 Go files: clean; `make
+  api-check`, `docs-check`, `tables-check`, `changelog-check`, `dep-check`,
+  `fixtures-check` (375 files), `coverage-check`, `records-check`: each 0
+  problems; `tools/claims.py` on the MADR: 58 of 58; `tools/gate.py`: 28 of 28 passed.
+* **Staged:** this record and the MADR, `CHANGELOG.md`, the fixture,
+  `llmprovider/internal/wire/chatcompletions/{refusal.go,refusal_0061_test.go,refusal_0062_test.go}`,
+  `llmprovider/providers/ollama/{ollama.go,thinking_0061_test.go}`,
+  `llmprovider/providers/chatcompat/thinking_0061_test.go`.

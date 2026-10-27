@@ -16,7 +16,9 @@ import (
 // Chat Completions wire, MatchRefusal reads exactly the refusals the MADR's
 // amendment "Phase 1's evidence" lists, with their values and lists, and
 // matches no failure of another cause; nor either of Ollama's, recorded in
-// Phase 5, which has no matcher (the amendment "Phase 5's Ollama cases").
+// Phase 5 (the amendment "Phase 5's Ollama cases"), which the form 0061
+// added, Ollama's refusal of thinking, does not read either (0061-MADR,
+// amendment "Ollama's refusal of thinking, learned").
 func TestRefusal_Fixtures_0062(t *testing.T) {
 	all := []llmprovider.Effort{"low", "medium", "high", "xhigh", "max"}
 	want := map[string]wire.Refusal{

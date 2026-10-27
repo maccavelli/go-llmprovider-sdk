@@ -1418,3 +1418,36 @@ from bytes; the offline tests keep the 1×1 (0061-PLAN deviation 20). D5's
 total pixels (8x8), which is below the minimum of 512 pixels.", so the live
 image is a 24×24 PNG built from bytes, 576 pixels, the least square xAI
 takes. 32×32, and pinning xAI's refusal, were not chosen.
+
+## Amendment 2026-10-26: Ollama's refusal of thinking, learned
+
+**Status: accepted (owner, 2026-10-26).** Found by Phase 7's first live run
+(`ollama-max` on `gemma3:12b`): Ollama refuses a reasoning effort on a model
+that does not think, and the provider returns the refusal. 0062-MADR gave
+Ollama no matcher, since no refusal of an effort it can send was recorded
+(0062-MADR, amendment "Phase 5's Ollama cases"); this one is.
+
+**The evidence (the local Ollama 0.33.2, 2026-10-26):** `POST
+/v1/chat/completions` with `reasoning_effort` `low`, `medium`, `high` and
+`max`, to `gemma3:12b` and to `llama3.2:latest`, whose `/api/show` lists no
+`thinking`: each is HTTP 400,
+`{"error":{"message":"\"<model>\" does not support thinking","type":"invalid_request_error","param":null,"code":null}}`;
+with no `reasoning_effort`, each is 200.
+
+**The owner chose:** the refusal is learned. The Chat Completions wire's
+matcher, `chatcompletions.MatchRefusal`, reads HTTP 400,
+`invalid_request_error`, a message of a quoted model and `does not support
+thinking`, as 0062's refusal of the field itself: the model takes no
+effort, as xAI's "does not support parameter reasoningEffort" already is.
+The Ollama provider's learner takes that matcher. The request is sent again
+with no effort, with a `WarningReasoningLearned` (its `Refused` the effort
+sent) and a `WarningEffortDegraded` (sent none); later requests to the model
+in the process send none. Sending no effort when Ollama's `/api/show` facts
+state no `thinking`, for Ollama alone or for every provider, was not chosen.
+
+**And, as the matcher is the wire's:** `chatcompat`, Hugging Face, Kilo,
+Together and OpenCode's chat route use it too, so `chatcompat` pointed at an
+Ollama server learns the refusal the same way; the others' services were
+not seen to send it. A refusal of the field is passed back with
+`WithReasoningRefusals` as the effort sent, as 0062 left Grok's: a later
+process sends another effort once, and learns again.

@@ -171,11 +171,15 @@ tag and its commit without notes; its notes are its section here.
   exception; OpenCode's chat route sending no `reasoning_effort` without
   metadata; 0061's rows sending `max` lower on Grok, Gemini and
   OpenCode's google route; and Ollama's mapping of `xhigh` to `"max"`:
-  Ollama 0.33.2 takes `xhigh`, which is now sent as asked. Ollama learns no
-  refusal, none of an effort it can send having been recorded; its facts and
-  `WithReasoningRefusals` steer it as every other provider's do
+  Ollama 0.33.2 takes `xhigh`, which is now sent as asked. Ollama learns one
+  refusal, a model's that does not think (`"<model>" does not support
+  thinking`): the request is sent again with no effort, warned, as every
+  later one to that model is, and so does `chatcompat` pointed at Ollama;
+  its facts and `WithReasoningRefusals` steer it as every other provider's do
   ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D2 to D8;
-  [0062-REPORT](docs/reports/0062-REPORT-thinking-refusals.md)).
+  [0062-REPORT](docs/reports/0062-REPORT-thinking-refusals.md);
+  [0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md),
+  amendment "Ollama's refusal of thinking, learned").
 - A request's thinking shape is the model's facts', else an enabled budget
   when `Reasoning.Budget` is set, else adaptive thinking with the effort; a
   refused shape is remembered as an effort is, and the request sent again

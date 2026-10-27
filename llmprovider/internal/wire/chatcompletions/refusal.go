@@ -16,13 +16,19 @@ import (
 //   - Kilo's invalid_request_error "Invalid option: expected one of …",
 //     every listed word an effort word: the same. Kilo refuses an empty
 //     input with the same code ("At least one message is required"), which
-//     the message tells apart.
+//     the message tells apart;
+//   - Ollama's invalid_request_error `"<model>" does not support thinking`,
+//     whatever effort was sent: the model takes no effort (0061-MADR,
+//     amendment "Ollama's refusal of thinking, learned").
 func MatchRefusal(err error, sent llmprovider.Effort) (wire.Refusal, bool) {
 	var apiErr *llmprovider.APIError
 	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusBadRequest || sent == "" {
 		return wire.Refusal{}, false
 	}
 	msg := apiErr.Message
+	if apiErr.Code == "invalid_request_error" && strings.HasPrefix(msg, `"`) && strings.HasSuffix(msg, `" does not support thinking`) {
+		return wire.Refusal{Field: true}, true
+	}
 	if _, list, ok := strings.Cut(msg, "reasoning_effort ("+string(sent)+"): Input should be "); ok {
 		accepted, listed := wire.QuotedEfforts(list)
 		return wire.Refusal{Effort: sent, Accepted: accepted, Listed: listed}, true

@@ -42,8 +42,12 @@
 //     model refused, steps to the nearest it takes, lower first, with a
 //     WarningEffortDegraded naming what was sent. Ollama 0.33.2 takes xhigh
 //     and max (0062-REPORT-thinking-refusals.md E12), so xhigh is no longer
-//     sent as max. No refusal of an effort this package can send was
-//     recorded, so it learns none; a refusal passed back with
+//     sent as max. A model that does not think refuses every effort
+//     (`"<model>" does not support thinking`): that refusal is learned, with a
+//     WarningReasoningLearned, and the request sent again with no effort,
+//     warned, as every later one to the model in the process is (0061-MADR,
+//     amendment "Ollama's refusal of thinking, learned"). No refusal of one
+//     effort among others was recorded; a refusal passed back with
 //     WithReasoningRefusals is never sent (0062-MADR, amendment "Phase 5's
 //     Ollama cases").
 //   - Instructions are sent as a leading system message.
@@ -196,11 +200,14 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 }
 
 // learner is req's effort, from the model's refusals and facts (0062-MADR D2
-// to D6). It has no matcher: no refusal of an effort this package can send
-// was recorded (0062-MADR, amendment "Phase 5's Ollama cases").
+// to D6). Its matcher is the Chat Completions wire's, which reads Ollama's
+// refusal of thinking by a model that does not think as a refusal of the
+// effort field (0061-MADR, amendment "Ollama's refusal of thinking,
+// learned"); no refusal of one effort among others was recorded (0062-MADR,
+// amendment "Phase 5's Ollama cases").
 func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
 	return wire.NewLearner(p.thinking, string(llmprovider.ProviderOllama), p.baseURL, cmp.Or(req.Model, p.model), p.refusals,
-		nil)
+		chatcompletions.MatchRefusal)
 }
 
 // Stream streams req from the Chat Completions API as it is generated
