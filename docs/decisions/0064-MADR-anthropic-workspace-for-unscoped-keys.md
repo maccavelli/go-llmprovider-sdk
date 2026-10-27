@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-25
+status: accepted
+date: 2026-10-26
 decision-makers: repository owner
 consulted: "this repository at 876b81e (the Code claims); Anthropic's Authentication and Workspaces documentation, read 2026-10-25; the owner's probes of three Anthropic keys on 2026-10-25 (the Evidence below)"
 informed: every consumer of llmprovider and the wizard; prepare-commit-msg and gobble-cli
@@ -299,10 +299,23 @@ maps is replaced.
 * **Q1 (D3).** Two sentinels, as D3 decides, or one,
   `ErrWorkspace` ("workspace required or not found"), at the cost of one
   wording for both cases?
+
+  **Answered 2026-10-26: two sentinels, as D3 decides.** One `ErrWorkspace`,
+  and `ErrWorkspaceRequired` alone (a wrong workspace left
+  `ErrInvalidRequest`), were not chosen.
 * **Q2 (D4.3).** Offer `ANTHROPIC_WORKSPACE_ID` as the prompt's default when
   `AllowEnv` is set? The name is the one Anthropic's SDKs read for Workload
   Identity Federation; whether they read it for API keys is UNCONFIRMED.
+
+  **Answered 2026-10-26: as D4 writes.** `Existing.Workspace`, else
+  `ANTHROPIC_WORKSPACE_ID` when `AllowEnv` is set and it is not empty, the
+  user confirming either way. `Existing.Workspace` alone, and a variable of
+  this module's own, were not chosen.
 * **Q3 (D5).** Defer discovery, as D5 decides?
+
+  **Answered 2026-10-26: deferred, as D5 decides.** Discovery through the
+  Admin API now, falling back to the prompt, and ruling it out for good,
+  were not chosen.
 
 ## More Information
 
@@ -323,3 +336,19 @@ passes `claude.WithWorkspace` when it builds the Claude provider, beside its
 `kilo.WithOrganization` (`main.go:358-359`, `internal/ui/setup.go:238`,
 `:293`). That is a change and a record in that repository, after this SDK's
 release.
+
+## Amendment 2026-10-26: the findings at a878fa4
+
+**Status: accepted with the owner's answers (2026-10-26).** The Findings in
+the code were verified at `876b81e`; between that and `a878fa4`, `v1.23.0`
+(0061-MADR, 0062-MADR) moved lines and changed none of them. Each holds, at:
+F1, `llmprovider/providers/claude/claude.go:347-348`; F2,
+`fetchClaudePage`, `llmprovider/catalog/discovery.go:866`, its one
+Anthropic header `anthropic-version`; F3,
+`llmprovider/catalog/listing_cache.go:26-37`, unchanged; F4,
+`classifyAPIError`, `llmprovider/api_error.go:396`, xAI's refused key at
+`:414`, the default `statusSentinel` at `:451-452`; F5, `credentialStep`
+(`wizard/configure.go:326`), `refusedCredential` (`:470`), the outage
+notice at `:630`; F7, `wizard.Result.Organization` (`configure.go:50-52`).
+`make api-check` now compares against `v1.23.0`, the latest tag, so D6's
+five additions are measured against it.

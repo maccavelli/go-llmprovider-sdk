@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-25
+status: in-progress
+date: 2026-10-26
 associated-madr: "0064-MADR-anthropic-workspace-for-unscoped-keys.md"
 decision-makers: repository owner
 ---
@@ -50,7 +50,9 @@ PLAN is complete:
   `docs/decisions/0061-PLAN-consumer-gaps-from-gobble-issue-9.md`,
   `llmprovider/catalog/cache.go`, `llmprovider/settings.go`). No phase stages
   or edits them. A phase that must edit one of those files stops and asks
-  first.
+  first. *Annotated 2026-10-26: those changes were 0061's and 0062's, and were
+  committed and released in `v1.23.0`; the tree had no uncommitted change when
+  Phase 0 resumed.*
 
 ## Rules for every phase
 
@@ -181,7 +183,8 @@ PLAN is complete:
 ## Rollout and Rollback
 
 * **Rollout:** additive exports and a refined classification; the next minor
-  release (v1.23.0), tagged by the owner. Consumers adopt it by wiring
+  release (v1.23.0, *annotated 2026-10-26: `v1.23.0` shipped 0061 and 0062;
+  this is `v1.24.0`*), tagged by the owner. Consumers adopt it by wiring
   `Result.Workspace` (prepare-commit-msg first, under its own record).
 * **Compatibility:** a caller that matches `ErrInvalidRequest` still matches.
   A key that works today sends no new header unless the caller sets one.
@@ -191,4 +194,22 @@ PLAN is complete:
 
 ## Execution record
 
-Not started.
+### Phase 0: records (2026-10-26)
+
+* **Steps 1 and 2** were done when the pair was written (2026-10-25): its two
+  rows in `docs/README.md`, `proposed`.
+* **Step 3.** The owner answered Q1 to Q3 through one prompt of three options
+  each, the recommended one first ("0064, prompt questions, 3 options each
+  with recommendations. proceed"): Q1 two sentinels, Q2 as D4 writes, Q3
+  deferred, each the decision as written, so no decision changes. The MADR
+  records them, and its amendment "the findings at a878fa4" re-verifies F1 to
+  F7 at the current code; `tools/records.py status`: the MADR `accepted`, this
+  PLAN `in-progress`. The Out-of-scope list's uncommitted files, and the
+  Rollout's `v1.23.0`, are annotated as stale.
+* **For Phase 1:** none of `LLMPROVIDER_LIVE_0064_WORKSPACE`,
+  `LLMPROVIDER_LIVE_0064_FOREIGN_WORKSPACE` or `ANTHROPIC_WORKSPACE_ID` is
+  set here, and this machine's `ANTHROPIC_API_KEY` sent Claude requests with no
+  workspace header in 0061's Phase 7, so it is a scoped key, not the MADR's
+  key C. Phase 1's measurement needs key C and its workspace from the owner.
+* **Checks:** `make records-check`, `tools/recordlint.py --changed`,
+  `tools/denyscan.py --changed`, `tools/linkcheck.py`.
