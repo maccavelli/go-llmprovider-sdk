@@ -318,7 +318,7 @@ key.
 
 ## Status
 
-The current release is `v1.22.2`. The module requires Go 1.27.3.
+The current release is `v1.23.0`. The module requires Go 1.27.3.
 
 What each release changed, from `v1.0.0` on, is in
 [CHANGELOG.md](CHANGELOG.md); the five newest tags' GitHub Releases carry

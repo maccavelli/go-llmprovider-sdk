@@ -1971,3 +1971,43 @@ its specification.
   `llmprovider/internal/wire/chatcompletions/{refusal.go,refusal_0061_test.go,refusal_0062_test.go}`,
   `llmprovider/providers/ollama/{ollama.go,thinking_0061_test.go}`,
   `llmprovider/providers/chatcompat/thinking_0061_test.go`.
+
+### Phase 8: release `v1.23.0` (2026-10-26)
+
+* **Approval.** "committed, proceed", after Phase 7c, committed as
+  `53eb5c0`.
+* **Step 1.** `CHANGELOG.md`: `[v1.23.0] - 2026-10-26` under an empty
+  `[Unreleased]`, holding every entry of 0061 and 0062, Added and Changed;
+  the links `[Unreleased]` from `v1.23.0` and `[v1.23.0]` from `v1.22.2`.
+  The README's Status names `v1.23.0`. `make changelog-check`: "34 release
+  section(s), 0 problem(s)"; the section is newer than every tag, as a
+  release being prepared may be.
+* **Before the push:**
+  * `tools/apidiff.py v1.22.2`: exit 0, 20 compatible additions and no
+    incompatible change: D10's (`ErrEmptyAnswer`, `ErrOffline`, `EffortMax`,
+    `WarningEffortDegraded`, `ImageItem`, `Capabilities.Images`,
+    `WarningImageDropped`, `SharedOption`, `catalog.Catalog.Search`,
+    `catalog.Match.Why`, and the package `providers/chatcompat`, whose
+    exports are D10's `New`, `WithID`, `Descriptor`, `Discover` and
+    `Server`, by `go doc -short`) and 0062-MADR's (`WarningReasoningLearned`,
+    `ReasoningRefusal`, `ThinkingShape`, `ThinkingAdaptive`,
+    `ThinkingBudget`, `Warning.Refused`, `WithReasoningRefusals`,
+    `Settings.ReasoningRefusals`, `ProbeReasoning`), which this release
+    carries (the MADR's amendment "D3 reworked by 0062");
+  * the notes, on a scratch clone of the repository with the working
+    tree's `CHANGELOG.md` and a local lightweight `v1.23.0`:
+    `scripts/check_changelog.py --section v1.23.0 --repo
+    maccavelli/go-llmprovider-sdk`, exit 0, 190 lines, every one of the 23
+    links pinned to `blob/v1.23.0`, none relative; `tools/denyscan.py` on
+    them, 0 hits. The tree has no `v1.23.0` tag;
+  * `python3 -B tools/gate.py`: "gate: 28 of 28 passed" (a first run waited 1,500 s for a load of 17, from the system's indexing, and ran nothing);
+  * the disclosure guard over the 27 outgoing commits, `f86fc3f` to
+    `53eb5c0` (from `origin/main` at `d9b1910`): exit 0, nothing reported.
+    It runs again over the release commit once the owner has committed it.
+* **Waiting on the owner's word, each in its own turn:** the push of
+  `main`, and its CI; the tag `v1.23.0`, annotated, on the release commit,
+  its CI and its Release, whose body is to equal the scanned notes; `gh
+  release delete v1.20.1 --yes`, the Release that falls to sixth (R53), then
+  `tools/consumer.py v1.23.0` and `tools/offline.py v1.23.0`; the comment on
+  issue #9 and its closing. Then step 6: the MADR's Confirmation, item by
+  item, and this PLAN `complete`.
