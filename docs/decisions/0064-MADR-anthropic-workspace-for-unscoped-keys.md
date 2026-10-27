@@ -197,6 +197,9 @@ listing's other options. In `credentialStep`, after the listing:
 4. A workspace that lists is kept in the Result, and the credential is saved
    as today.
 
+*Amended 2026-10-27: "pre-fills" and D4.3 are made exact by the amendment
+"D4's pre-fill".*
+
 A key scoped to one workspace never sees the prompt. When `Discover` is off
 there is no listing, so there is no check, as for keys today.
 
@@ -447,3 +450,27 @@ limit, or leave it to a separate record, the owner chose to key it:
 `transport.ProbeKey` gains an internal `Scope`; `wire.ProbeHealth` takes
 it; the Claude provider passes its workspace, and every other caller `""`,
 so their keys are as they were. Nothing exported changes.
+
+## Amendment 2026-10-27: D4's pre-fill
+
+**Status: accepted (the owner, 2026-10-27). D4 is made exact; nothing else
+changes.**
+
+D4 read two ways: its first paragraph has `Existing.Workspace` pre-fill the
+Result, while D4.3 has it as the first prompt's default, which the user
+confirms, and D4.1 prompts only after a refusal. Read the second way, every
+re-run with a key not scoped to a workspace would send one refused request
+and show a warning before the prompt. Asked to pre-fill and ask on a
+refusal, to list without a workspace first, or to confirm the existing
+workspace before listing, as the existing key is, the owner chose the
+first:
+
+* When the provider is Claude and `Existing.Provider` is Claude, the first
+  listing sends `Existing.Workspace`. A listing that succeeds asks nothing,
+  and the Result keeps it.
+* Only a workspace refusal notifies and prompts, as D4.1 says. The first
+  prompt's default is D4.3's: `Existing.Workspace` when the existing
+  provider is Claude, else `ANTHROPIC_WORKSPACE_ID` under `AllowEnv`. A later
+  prompt has no default.
+* An empty answer lists with no workspace, so a key that no longer needs
+  one is not held to it.

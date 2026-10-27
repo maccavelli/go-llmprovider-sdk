@@ -488,3 +488,73 @@ PLAN is complete:
   "against v1.23.0, 0 incompatible change(s)"; `go run
   ./llmprovider/internal/cmd/sdkaudit -check`: "0 violation(s) of
   R50,R51,R52"; `python3 -B tools/gate.py`: "gate: 28 of 28 passed".
+
+### Phase 4: the wizard, built (2026-10-27)
+
+* **Approval.** "committed, proceed", after Phase 3 (`3ef23af`).
+* **Deviation (2026-10-27): D4's pre-fill.** Before the first write, D4 was
+  found to read two ways (its "pre-fills" against D4.3's first-prompt
+  default and D4.1's prompt only after a refusal). Asked (pre-fill and ask
+  on a refusal, recommended; list without a workspace first; confirm the
+  existing workspace before listing), the owner chose to **pre-fill and ask
+  on a refusal**: the MADR's amendment "D4's pre-fill". Step 4's test of the
+  default gains the pre-fill: an existing workspace that lists asks nothing.
+* **Step 1:** `Result.Workspace` (`wizard/configure.go:60`), its doc naming
+  `claude.WithWorkspace` and `catalog.WithClaudeWorkspace`;
+  `result_format.go:70` shows it. `ConfigureLLM`'s and `ResolveCredential`'s
+  docs name the error after the third workspace entered.
+* **Step 2:** `discoverModels` lists with
+  `llmprovider.For(llmprovider.ProviderClaude,
+  catalog.WithClaudeWorkspace(res.Workspace))` (`:661`), beside Kilo's
+  organization, and returns a workspace refusal to `credentialStep` without
+  a notice, as it returns a refused credential: `stepRefusal` (`:520`) is
+  `refusedCredential` or `refusedWorkspace` (`:514`), either class.
+* **Step 3:** `credentialStep` pre-fills `Existing.Workspace` when the
+  provider and the existing one are Claude (`:362`); one loop (`:366`)
+  answers both refusals: a workspace refusal notifies "Claude (Anthropic)
+  needs a workspace for this key (<class>, HTTP <status>)", asks
+  `workspacePrompt` (`:526`) with `workspaceDefault` (`:534`), trims the
+  answer, and lists again with it; after `maxTypedKeys` answers it returns
+  "wizard: Claude (Anthropic) refused 3 workspaces entered: %w" and no
+  Result. A key refusal is handled as before.
+  * Made exact: an answer holding a control character, which no header can
+    carry, is not sent: a notice, "a workspace ID holds no control
+    character", and it counts as an answer. An empty answer lists with no
+    workspace, as the amendment says.
+* **Step 4:** `wizard/workspace_0064_test.go`, against a transport that
+  answers as Anthropic did on 2026-10-27, and with its documented 404 for an
+  unknown workspace, through `ResolveCredential` and the scripted prompter:
+  * `TestWorkspace_AskedAndListed_0064`: the first answer lists, and the
+    Result keeps it with the key, live; `not-a-workspace`, then a wrong ID,
+    then `"  wrkspc_Good1\n"` give notices "(workspace required, HTTP 400)",
+    "(workspace not found, HTTP 400)", "(workspace not found, HTTP 404)", and
+    the trimmed ID lists.
+  * `TestWorkspace_Bound_0064`: three wrong IDs end with
+    `ErrWorkspaceNotFound`, three blank answers with `ErrWorkspaceRequired`,
+    each "refused 3 workspaces entered", no Result, four listings.
+  * `TestWorkspace_ScopedKeyNeverAsked_0064`: one listing, no prompt.
+  * `TestWorkspace_Defaults_0064`: an existing workspace that lists asks
+    nothing; one refused is the first prompt's default and not the second's
+    (listings `wrkspc_Gone1,wrkspc_Gone1,-,wrkspc_Good1`); the variable is the
+    default under `AllowEnv` and not without it; another provider's existing
+    workspace is neither.
+  * `TestWorkspace_ControlCharacter_0064`; `TestWorkspace_NoDiscover_0064`:
+    nothing listed, the existing workspace kept and shown by `String`, and a
+    third party's Result with none.
+  * Each asking test checks that nothing shown holds Anthropic's messages
+    (0056-MADR D3).
+* **Plants** (`tools/plant.py`, on a scratch clone, `-run _0064` over
+  `./wizard/`; all 16 caught): no pre-fill; pre-fill for every provider;
+  the listing's workspace refusal not returned; the listing not given the
+  workspace; one more answer than the bound; no notice; the notice showing
+  the service's message; the answer not trimmed; a control character sent;
+  the answer not kept; the bound's error not wrapping; no existing default;
+  no variable default; the variable without `AllowEnv`; a later prompt
+  keeping the default; the Result's view without it.
+  * Not planted: `workspaceDefault` trimmed the variable's value at first;
+    the loop trims every answer, so it was removed rather than left as a
+    change no test could see.
+* **Checks:** `make pre-add-check` on the 3 Go files: "3 file(s) clean
+  (gofmt, golangci-lint, go vet, go test, govulncheck)"; `make api-check`:
+  "against v1.23.0, 0 incompatible change(s)"; `sdkaudit -check`: "0
+  violation(s) of R50,R51,R52"; `python3 -B tools/gate.py`: "gate: 28 of 28 passed".

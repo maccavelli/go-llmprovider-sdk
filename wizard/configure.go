@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
@@ -52,6 +53,11 @@ type Result struct {
 	// with catalog.WithKiloOrganization. Empty is the personal account
 	// (0017-MADR D2).
 	Organization string
+	// Workspace is the Anthropic workspace a Claude key not scoped to one
+	// runs in; pass it to the provider with claude.WithWorkspace, and to a
+	// listing with catalog.WithClaudeWorkspace. Empty is a key scoped to its
+	// workspace, and every other provider (0064-MADR D4).
+	Workspace string
 }
 
 // Options controls the flow. The zero value runs a full interactive
@@ -187,7 +193,9 @@ func (o Options) lookupEnv() func(string) string {
 // An ended ctx gives an error matching
 // ctx's, before any question when it has ended already (0059-MADR W8), and a
 // credential the provider refuses while its models are listed, one matching
-// llmprovider.ErrAuthFailure. Options.Providers naming no provider
+// llmprovider.ErrAuthFailure, and a Claude workspace refused after the third
+// one entered, one matching llmprovider.ErrWorkspaceRequired or
+// llmprovider.ErrWorkspaceNotFound. Options.Providers naming no provider
 // of the Registry, a Prompter's choice out of range, and no model chosen are
 // plain errors, as are Options.SkipMethods leaving the provider no sign-in
 // method and, under Options.NoEndpointPrompt, an endpoint refused or not
@@ -251,7 +259,9 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // it; so is a failed sign-in's, and Options.ShowDeviceCode's, as it is. An
 // ended ctx gives an error matching ctx's,
 // and a credential the provider refuses, one matching
-// llmprovider.ErrAuthFailure. An id the Registry lacks, or that
+// llmprovider.ErrAuthFailure; a Claude workspace refused after the third one
+// entered, one matching llmprovider.ErrWorkspaceRequired or
+// llmprovider.ErrWorkspaceNotFound. An id the Registry lacks, or that
 // Options.Providers leaves out, gives an error matching
 // llmprovider.ErrInvalidProvider. A Prompter's choice out of range is a plain
 // error, as are Options.SkipMethods leaving the provider no sign-in method
@@ -321,8 +331,11 @@ func chooseProvider(p Prompter, o Options) (llmprovider.Descriptor, error) {
 // again, up to maxTypedKeys (0028-MADR D-H10). Each refusal of a typed key
 // without the provider's confirmed shape names the shape (0059-MADR S1). A new
 // session is saved once the listing has not refused it, so a refused sign-in
-// leaves the store as it was (0059-MADR W2). The Result names no model; the
-// catalog is the listing, or the static one (0056-MADR D1).
+// leaves the store as it was (0059-MADR W2). A Claude key's existing
+// workspace is listed with first; a workspace the listing refuses is asked
+// for, up to maxTypedKeys, and a refusal after that saves nothing
+// (0064-MADR D4, amendment "D4's pre-fill"). The Result names no model;
+// the catalog is the listing, or the static one (0056-MADR D1).
 func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (Result, catalog.Catalog, error) {
 	res := Result{Provider: d.ID}
 	var err error
@@ -345,8 +358,31 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		res.FedRAMP = credential.session.FedRAMP
 	}
 
+	if d.ID == llmprovider.ProviderClaude && o.Existing.Provider == d.ID {
+		res.Workspace = o.Existing.Workspace
+	}
+
 	cat, listErr := discoverModels(ctx, p, d, res, credential.source, o)
-	for keys := 1; refusedCredential(listErr); keys++ {
+	for keys, workspaces := 1, 0; stepRefusal(listErr); {
+		if refusedWorkspace(listErr) {
+			if workspaces == maxTypedKeys {
+				return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %s refused %d workspaces entered: %w",
+					d.Label, workspaces, listErr)
+			}
+			p.Notify(LevelWarn, "%s needs a workspace for this key (%s)", d.Label, describe(listErr))
+			workspace, wsErr := p.Input(workspacePrompt, workspaceDefault(o, d, workspaces))
+			if wsErr != nil {
+				return Result{}, catalog.Catalog{}, fmt.Errorf("enter workspace: %w", wsErr)
+			}
+			workspaces++
+			if workspace = strings.TrimSpace(workspace); strings.ContainsFunc(workspace, unicode.IsControl) {
+				p.Notify(LevelWarn, "a workspace ID holds no control character")
+				continue
+			}
+			res.Workspace = workspace
+			cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
+			continue
+		}
 		typed := credential.keyFrom == keyTyped
 		if !typed || keys == maxTypedKeys {
 			if typed {
@@ -363,6 +399,7 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		credential = staticCredential(CredAPIKey, key)
 		credential.keyFrom = keyTyped
 		res.APIKey = key
+		keys++
 		cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
 	}
 	if err := credential.save(ctx, d); err != nil {
@@ -469,6 +506,41 @@ const maxTypedKeys = 3
 // to permit something (0028-MADR D-H2).
 func refusedCredential(err error) bool {
 	return errors.Is(err, llmprovider.ErrAuthFailure) && !errors.Is(err, llmprovider.ErrNotPermitted)
+}
+
+// refusedWorkspace reports whether the listing's failure is Anthropic
+// refusing the workspace a key runs in, or asking for one (0064-MADR D3,
+// D4).
+func refusedWorkspace(err error) bool {
+	return errors.Is(err, llmprovider.ErrWorkspaceRequired) || errors.Is(err, llmprovider.ErrWorkspaceNotFound)
+}
+
+// stepRefusal reports a listing failure credentialStep answers itself, by
+// asking again or by returning it: a refused credential or workspace.
+func stepRefusal(err error) bool { return refusedCredential(err) || refusedWorkspace(err) }
+
+// workspacePrompt asks for a Claude key's workspace (0064-MADR D4.1), and
+// envWorkspace names the variable whose value AllowEnv offers as its
+// default (D4.3, Q2).
+const (
+	workspacePrompt = "Enter the workspace ID (wrkspc_…) from Console → Settings → Workspaces"
+	envWorkspace    = "ANTHROPIC_WORKSPACE_ID"
+)
+
+// workspaceDefault is the default of the workspace prompt after asked
+// earlier ones: for the first, the existing Claude workspace, else
+// envWorkspace's value under AllowEnv; for a later one, none (0064-MADR
+// D4.3, amendment "D4's pre-fill").
+func workspaceDefault(o Options, d llmprovider.Descriptor, asked int) string {
+	switch {
+	case asked > 0:
+		return ""
+	case o.Existing.Provider == d.ID && o.Existing.Workspace != "":
+		return o.Existing.Workspace
+	case o.AllowEnv:
+		return o.lookupEnv()(envWorkspace)
+	}
+	return ""
 }
 
 // refusalError names the refused credential's source, so the user knows what
@@ -578,12 +650,15 @@ func discoverModels(
 	dCtx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 
-	// One list whichever provider was chosen: Kilo's organization is in its
-	// overlay (0015-MADR D5; an empty one is the personal account).
+	// One list whichever provider was chosen: Kilo's organization and
+	// Claude's workspace are in their overlays (0015-MADR D5; 0064-MADR D4;
+	// an empty one is the personal account, or a key scoped to its
+	// workspace).
 	opts := []llmprovider.Option{
 		catalog.WithProfile(o.Profile),
 		catalog.WithLimit(o.ModelLimit),
 		llmprovider.For(llmprovider.ProviderKilo, catalog.WithKiloOrganization(res.Organization)),
+		llmprovider.For(llmprovider.ProviderClaude, catalog.WithClaudeWorkspace(res.Workspace)),
 	}
 	if res.BaseURL != "" {
 		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
@@ -605,10 +680,10 @@ func discoverModels(
 			cat, err = providerCatalog(dCtx, o, d, res, source)
 		}
 	}
-	if err == nil && !cat.Live && refusedCredential(cat.Err) {
+	if err == nil && !cat.Live && stepRefusal(cat.Err) {
 		err = cat.Err
 	}
-	if refusedCredential(err) {
+	if stepRefusal(err) {
 		return fallback, err
 	}
 	if err != nil {

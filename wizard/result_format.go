@@ -67,5 +67,6 @@ func (r Result) attrs() []slog.Attr {
 	}
 	text("VendorAuthPath", r.VendorAuthPath)
 	text("Organization", r.Organization)
+	text("Workspace", r.Workspace)
 	return out
 }
