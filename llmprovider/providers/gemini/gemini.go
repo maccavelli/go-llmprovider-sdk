@@ -16,6 +16,12 @@
 // stream and yields its events as they arrive; a thought summary is not
 // streamed, and arrives only in its item (0031-MADR E1).
 //
+// Images are Supported: an ImageItem goes as an Interactions image block, its
+// bytes base64-encoded as data with their mime_type, or its URL as uri,
+// joined to the user_input step before it (E14). A model whose facts state
+// its input without image is refused before the network, with ErrUnsupported
+// (0061-MADR D5).
+//
 // Degradations:
 //   - A tool result's IsError is sent as the function_result step's is_error
 //     (0032-MADR D3).
@@ -175,6 +181,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			Reasoning:       llmprovider.BestEffort,
 			Continuation:    llmprovider.Unsupported,
 			NativeStreaming: llmprovider.Supported,
+			Images:          llmprovider.Supported,
 		},
 	}
 	for _, v := range st.Values() {
@@ -252,7 +259,8 @@ func (p *provider) facts(ctx context.Context, req *llmprovider.Request, token ll
 // stream is set, at the level effort chooses.
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
 	effort *wire.Learner) wire.Call {
-	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
+	facts := p.facts(ctx, req, token)
+	body, warnings := p.body(req, facts, effort)
 	if stream {
 		body["stream"] = true
 	}
@@ -265,6 +273,10 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		Body:     body,
 		Stream:   stream,
 		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
+		// A model whose facts take no image is refused before the network
+		// (0061-MADR D5).
+		Refusal: wire.RefuseImages(cmp.Or(req.Model, p.model), req.Input, facts.Has(catalog.FieldInput),
+			slices.Contains(facts.Input, catalog.ModalityImage)),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// In a header, not the URL, so it cannot leak through a *url.Error.

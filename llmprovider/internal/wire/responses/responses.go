@@ -43,7 +43,7 @@ const (
 type InputItem struct {
 	Arguments        Arguments         `json:"arguments,omitzero"`
 	CallID           *string           `json:"call_id,omitempty"`
-	Content          *string           `json:"content,omitempty"`
+	Content          MessageContent    `json:"content,omitzero"`
 	EncryptedContent *string           `json:"encrypted_content,omitempty"`
 	Execution        *string           `json:"execution,omitempty"`
 	Name             *string           `json:"name,omitempty"`
@@ -77,6 +77,64 @@ func (a Arguments) MarshalJSON() ([]byte, error) {
 	return json.Marshal(*a.text)
 }
 
+// MessageContent is an input message's content: its text, sent as a string
+// as before 0061, or its parts, input_text and input_image, once an image
+// joins it (0061-MADR D5). The zero value is omitted.
+type MessageContent struct {
+	text  *string
+	parts []contentPart
+}
+
+// IsZero reports an item with no content, which omitzero leaves out.
+func (c MessageContent) IsZero() bool { return c.text == nil && c.parts == nil }
+
+// MarshalJSON writes the parts as a list, or the text as a string.
+func (c MessageContent) MarshalJSON() ([]byte, error) {
+	if c.parts != nil {
+		return json.Marshal(c.parts)
+	}
+	if c.text == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(*c.text)
+}
+
+// contentPart is an input_text or an input_image part.
+type contentPart struct {
+	ImageURL *string `json:"image_url,omitempty"`
+	Text     *string `json:"text,omitempty"`
+	Type     string  `json:"type"`
+}
+
+// joinImage adds img, as an input_image whose image_url is a data URL of its
+// bytes or its URL, to the user message just before it, whose text becomes
+// an input_text part; else it opens a user message of its own (0061-MADR D5).
+func joinImage(input []InputItem, img llmprovider.ImageItem) []InputItem {
+	url := img.URL
+	if url == "" {
+		url = wire.DataURL(img)
+	}
+	part := contentPart{Type: "input_image", ImageURL: &url}
+	if n := len(input); n > 0 && input[n-1].Type == nil && input[n-1].Role != nil && *input[n-1].Role == wire.RoleUser {
+		last := &input[n-1]
+		if last.Content.parts == nil {
+			last.Content.parts = []contentPart{{Type: "input_text", Text: last.Content.text}}
+		}
+		last.Content.parts = append(last.Content.parts, part)
+		return input
+	}
+	return append(input, InputItem{Role: &roleUser, Content: MessageContent{parts: []contentPart{part}}})
+}
+
+// appendInput is input with item sent as Input sends it: an image joined to
+// the message before it, any other item as an item of its own.
+func appendInput(input []InputItem, item llmprovider.Item) []InputItem {
+	if img, ok := item.(llmprovider.ImageItem); ok {
+		return joinImage(input, img)
+	}
+	return append(input, Input([]llmprovider.Item{item})...)
+}
+
 // The constant fields InputItem points to.
 var (
 	typeReasoning          = itemTypeReasoning
@@ -102,7 +160,9 @@ func Input(items []llmprovider.Item) []InputItem {
 			if v.Role != "" {
 				role = arena.Keep(string(v.Role))
 			}
-			input = append(input, InputItem{Role: role, Content: arena.Keep(v.Text)})
+			input = append(input, InputItem{Role: role, Content: MessageContent{text: arena.Keep(v.Text)}})
+		case llmprovider.ImageItem:
+			input = joinImage(input, v)
 		case llmprovider.ReasoningItem:
 			// Encrypted reasoning goes back as it came (0020-MADR F24), to
 			// this wire only (0021-MADR W7); plain text reasoning cannot be
@@ -175,7 +235,7 @@ func InputLoading(items []llmprovider.Item, req *llmprovider.Request) []InputIte
 			input = append(input, InputItem{Type: &typeToolSearchOutput, CallID: &callID, Execution: &executionClient,
 				Status: &statusCompleted, Tools: &tools})
 		default:
-			input = append(input, Input([]llmprovider.Item{v})...)
+			input = appendInput(input, v)
 		}
 	}
 	return input
@@ -208,7 +268,7 @@ func InputDispatch(items []llmprovider.Item, req *llmprovider.Request) []InputIt
 			}
 			input = append(input, Input([]llmprovider.Item{v})...)
 		default:
-			input = append(input, Input([]llmprovider.Item{v})...)
+			input = appendInput(input, v)
 		}
 	}
 	return input

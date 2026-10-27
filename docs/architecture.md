@@ -407,12 +407,28 @@ for a session, from the store.
   deferred tools were not sent in the service's own form (0040-MADR D7);
   `WarningEffortDegraded` when an effort was not sent as asked, because the
   model's facts do not list it or the model refused it (0061-MADR D3;
-  0062-MADR D3); and `WarningReasoningLearned` when a model's refusal of a
+  0062-MADR D3); `WarningReasoningLearned` when a model's refusal of a
   thinking setting was learned, its `Refused` the value a caller passes back
-  with `WithReasoningRefusals` (0062-MADR D6). A provider sets the last
-  three on the request it builds (`wire.Call.Warnings`),
+  with `WithReasoningRefusals` (0062-MADR D6); and `WarningImageDropped`
+  when an image was not sent, `ollama` and OpenCode's `google` route
+  dropping an image by URL (0061-MADR D5). A provider sets the last
+  four on the request it builds (`wire.Call.Warnings`),
   and `Post` and the stream add it to the response. A stream carries them
   on its `EventDone` response. Errors stay errors.
+- An `ImageItem` is sent in each wire's form, joined to the user's turn
+  just before it (0061-MADR D5): Messages' `image` block (`claude`,
+  OpenCode's `messages` route); Chat Completions' `image_url` part, an
+  object, or for `ollama` a string, as Ollama documents it (`chatcompat`,
+  `huggingface`, `kilo`, `together`, `ollama`, OpenCode's
+  `chat_completions` route); Responses' `input_image` (`openai` with a key,
+  `grok`, OpenCode's `responses` route); Interactions' `image` block
+  (`gemini`); generateContent's `inline_data`, an image's bytes only
+  (OpenCode's `google` route). `Capabilities.Images` is `Supported`, except
+  `ollama` and both OpenCode gateways, `BestEffort`, and an OpenAI ChatGPT
+  or plan session, `Unsupported` until a live test shows the Codex backend
+  takes images. A model whose facts state its input without image is
+  refused before the network, with `ErrUnsupported`; `grok` refuses a GIF
+  or a WebP, which xAI does not take.
 - A model that refuses a forced tool choice is known by layer: the
   caller's `WithModelForcedChoice`, then the providers' dated table matched
   on a normalised id, then a refusal learned this process (0034-MADR D9).
@@ -1039,10 +1055,13 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   tables-check, fixtures-check, docs-check, changelog-check), and requires
   each to fail, then every gate to pass on a clean copy.
 - **G-wire** is `TestWireGoldens` in each provider package, part of
-  `go test`. Through `llmprovider/internal/wirecase` it drives 18 provider
-  and gateway-route cases through seven scenarios (text, forced tool,
+  `go test`. Through `llmprovider/internal/wirecase` it drives 21 provider
+  and gateway-route cases through 14 scenarios (text, forced tool,
   thinking, thinking tool, items, continuation where the provider continues,
-  listing): 114 golden files. It runs them against `internal/wiretest`, and
+  flags, the two cache retentions, the deferral's offer and load,
+  `effort-max`, `image`, listing): 280 golden files, as `go test -v`
+  counted them on 2026-10-26 (0061-MADR F16, D11). It runs them against
+  `internal/wiretest`, and
   compares each recording with
   `llmprovider/providers/<id>/testdata/wire/<case>/<scenario>.json`. The files were
   recorded at the end of 0002-PLAN Phase 7, except `together`'s, added with

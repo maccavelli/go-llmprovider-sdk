@@ -23,6 +23,12 @@
 // Stream asks for an event stream, with its usage, and yields its events as
 // they arrive (0031-MADR E1, E5).
 //
+// Images are Supported: an ImageItem goes as a Chat Completions image_url
+// part, {"url": …}, its bytes as a data URL, joined to the user's message
+// before it, whose text becomes a text part. A model whose facts state its
+// input without image is refused before the network, with ErrUnsupported
+// (0061-MADR D5).
+//
 // Degradations:
 //   - A tool result's IsError is not sent: Chat Completions has no error
 //     field, so Output is sent as it is (0032-MADR D3).
@@ -257,6 +263,7 @@ func (p *provider) Capabilities() llmprovider.Capabilities {
 		Reasoning:        llmprovider.BestEffort,
 		Continuation:     llmprovider.Unsupported,
 		NativeStreaming:  llmprovider.Supported,
+		Images:           llmprovider.Supported,
 	}
 }
 
@@ -312,7 +319,8 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 	effort *wire.Learner) wire.Call {
 	endpoints := kiloendpoint.Resolve(p.baseURL, token.Value, p.org)
 	gateway, org := endpoints.Gateway, endpoints.Org
-	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
+	facts := p.facts(ctx, req, token)
+	body, warnings := p.body(req, facts, effort)
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -326,6 +334,10 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		Body:     body,
 		Stream:   stream,
 		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
+		// A model whose facts take no image is refused before the network
+		// (0061-MADR D5).
+		Refusal: wire.RefuseImages(cmp.Or(req.Model, p.model), req.Input, facts.Has(catalog.FieldInput),
+			slices.Contains(facts.Input, catalog.ModalityImage)),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			r.Header.Set(headerEditor, p.editor)

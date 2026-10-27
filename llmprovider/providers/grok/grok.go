@@ -14,6 +14,14 @@
 // Stream asks the Responses API for an event stream and yields its events as
 // they arrive (0031-MADR D1).
 //
+// Images are Supported: an ImageItem goes as a Responses input_image, its
+// image_url a data URL of its bytes or its URL, joined to the user's message
+// before it, whose text becomes an input_text part. xAI documents JPEG and
+// PNG only, so a GIF or a WebP is refused before the network, with
+// ErrUnsupported (Q10); an image by URL with no media type is sent. A model
+// whose facts state its input without image is refused before the network,
+// with ErrUnsupported (0061-MADR D5).
+//
 // Degradations:
 //   - A tool result's IsError is not sent: the Responses API has no error
 //     field, so Output is sent as it is (0032-MADR D3).
@@ -195,6 +203,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			Reasoning:        llmprovider.BestEffort,
 			Continuation:     llmprovider.Supported,
 			NativeStreaming:  llmprovider.Supported,
+			Images:           llmprovider.Supported,
 		},
 	}
 	for _, v := range st.Values() {
@@ -227,7 +236,7 @@ func (p *provider) Capabilities() llmprovider.Capabilities { return p.caps }
 // Generate sends req to the Responses API. A 401 from a source that can
 // refresh is retried once with a new token.
 func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
-	if err := p.caps.Check(req); err != nil {
+	if err := p.check(req); err != nil {
 		return nil, err
 	}
 	form, decoder := p.deferForm(req)
@@ -243,6 +252,23 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 		decoder.DecodeFor(string(llmprovider.ProviderGrok)), effort.Check)
 }
 
+// check refuses, before the network, what the capabilities refuse, and an
+// image xAI does not take: its guide names JPEG and PNG only, so a GIF or a
+// WebP is refused (0061-MADR D5, Q10). An image by URL with no media type
+// is sent.
+func (p *provider) check(req *llmprovider.Request) error {
+	if err := p.caps.Check(req); err != nil {
+		return err
+	}
+	for i, item := range req.Input {
+		if img, ok := item.(llmprovider.ImageItem); ok && (img.MediaType == "image/gif" || img.MediaType == "image/webp") {
+			return fmt.Errorf("%w: grok: Input[%d] is %s; xAI takes JPEG and PNG images only (0061-MADR D5, Q10)",
+				llmprovider.ErrUnsupported, i, img.MediaType)
+		}
+	}
+	return nil
+}
+
 // learner is req's effort, learned from the model's refusals of it
 // (0062-MADR D2 to D6).
 func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
@@ -256,7 +282,7 @@ func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
 // once more.
 func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
 	form, decoder := p.deferForm(req)
-	err := p.caps.Check(req)
+	err := p.check(req)
 	if err == nil {
 		err = deferral.CheckDispatch(form, req)
 	}
@@ -392,6 +418,10 @@ func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, strea
 		// Dispatched, or appended for a forced choice (0040-MADR D7); an
 		// effort sent lower, and a refusal learned (0062-MADR D3, D6).
 		Warnings: append(deferral.Warnings(form, req, cmp.Or(req.Model, p.model)), warnings...),
+		// A model whose facts take no image is refused before the network
+		// (0061-MADR D5).
+		Refusal: wire.RefuseImages(cmp.Or(req.Model, p.model), req.Input, facts.Has(catalog.FieldInput),
+			slices.Contains(facts.Input, catalog.ModalityImage)),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")

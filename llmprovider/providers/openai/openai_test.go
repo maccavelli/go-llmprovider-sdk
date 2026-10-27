@@ -137,7 +137,8 @@ func TestOpenAI_ResponseID(t *testing.T) {
 func TestOpenAI_Capabilities(t *testing.T) {
 	p := build(t, llmprovider.WithAPIKey("k"))
 	want := llmprovider.Capabilities{Tools: llmprovider.Supported, ForcedToolChoice: llmprovider.Supported,
-		Reasoning: llmprovider.Supported, Continuation: llmprovider.Supported, NativeStreaming: llmprovider.Supported}
+		Reasoning: llmprovider.Supported, Continuation: llmprovider.Supported, NativeStreaming: llmprovider.Supported,
+		Images: llmprovider.Supported}
 	if got := p.Capabilities(); got != want {
 		t.Fatalf("Capabilities() = %+v, want %+v", got, want)
 	}

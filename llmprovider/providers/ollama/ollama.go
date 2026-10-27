@@ -18,7 +18,17 @@
 // Stream asks for an event stream, with its usage, and yields its events as
 // they arrive (0031-MADR E1, E5).
 //
+// Images are BestEffort: an ImageItem's bytes go as a Chat Completions
+// image_url part whose image_url is the data URL alone, a string, as Ollama
+// documents it, joined to the user's message before it; an image by URL is
+// dropped, as Degradations lists (E9). A model whose facts state its input
+// without image is refused before the network, with ErrUnsupported (0061-MADR
+// D5).
+//
 // Degradations:
+//   - An image by URL is not sent: Ollama marks image URLs unsupported, so it
+//     is dropped, with a WarningImageDropped naming its index in
+//     Request.Input (0061-MADR D5, E9).
 //   - A tool result's IsError is not sent: Chat Completions has no error
 //     field, so Output is sent as it is (0032-MADR D3).
 //   - A tool's Strict is not sent: Ollama's acceptance of function.strict
@@ -157,6 +167,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			Reasoning:        llmprovider.BestEffort,
 			Continuation:     llmprovider.Unsupported,
 			NativeStreaming:  llmprovider.Supported,
+			Images:           llmprovider.BestEffort,
 		},
 	}
 	if b := st.BaseURL(); b != "" {
@@ -248,7 +259,8 @@ func isAssistantTurn(item llmprovider.Item) bool {
 // with its usage when stream is set (0031-MADR E5).
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
 	effort *wire.Learner) wire.Call {
-	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
+	facts := p.facts(ctx, req, token)
+	body, warnings := p.body(req, facts, effort)
 	if stream {
 		body["stream"] = true
 		body["stream_options"] = map[string]any{"include_usage": true}
@@ -262,6 +274,10 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		Body:     body,
 		Stream:   stream,
 		Warnings: append(deferral.Warnings(deferral.ForRequest(deferral.Other, model, req), req, model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
+		// A model whose facts take no image is refused before the network
+		// (0061-MADR D5).
+		Refusal: wire.RefuseImages(cmp.Or(req.Model, p.model), req.Input, facts.Has(catalog.FieldInput),
+			slices.Contains(facts.Input, catalog.ModalityImage)),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// Ollama takes no credential: a token is sent only where it names its
@@ -290,17 +306,21 @@ func (p *provider) body(req *llmprovider.Request, facts catalog.ModelInfo, learn
 		// The default, cut to the model's limit, never raised (0041-MADR D2).
 		maxTokens = min(maxTokens, limit)
 	}
-	input := req.Input
+	// Ollama marks image URLs unsupported, so an image by URL is dropped,
+	// warned; an image's bytes go as a data URL (0061-MADR D5, E9).
+	input, dropped := wire.DropImageURLs(model, req.Input, "Ollama takes an image's bytes only, not its URL")
 	if req.Instructions != "" {
 		input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, input...)
 	}
 	effort, warnings := p.effort(req, facts, learner)
 	// Ollama does not support tool_choice: every tool is offered and none
 	// forced, and ToolChoiceNone sends no tools (0020-MADR F40). Deferred
-	// tools are appended as loaded (0040-MADR D6).
+	// tools are appended as loaded (0040-MADR D6). An image's image_url is
+	// the data URL alone, a string, as Ollama documents it (0061-MADR D5, E9).
 	return chatcompletions.Body(model, maxTokens, input, chatcompletions.Opts{ReasoningEffort: effort,
 		ReplayReasoningField: replayField(input, facts),
-		Tools:                deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)), ToolChoice: req.ToolChoice, NoToolChoice: true}), warnings
+		Tools:                deferral.Tools(req, deferral.ForRequest(deferral.Other, model, req)), ToolChoice: req.ToolChoice, NoToolChoice: true,
+		ImageURLString: true}), append(dropped, warnings...)
 }
 
 // effort is reasoning_effort for req: the request's Reasoning, else

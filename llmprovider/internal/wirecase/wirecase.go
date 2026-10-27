@@ -308,6 +308,16 @@ var scenarios = []scenario{
 		}
 		return map[string]any{"response": result(resp), "warnings": resp.Warnings}, nil
 	}},
+	// image shows each wire's form for the user's text, a PNG by its bytes
+	// and an image by URL, joined in one turn, and the warning where one is
+	// dropped (0061-MADR D5, D11).
+	{"image", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
+		resp, err := p.Generate(ctx, &llmprovider.Request{Input: ImageItems()})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"response": result(resp), "warnings": resp.Warnings}, nil
+	}},
 	{"listing", func(ctx context.Context, _ Case, p llmprovider.Provider) (any, error) {
 		lister, ok := p.(llmprovider.ModelLister)
 		if !ok {

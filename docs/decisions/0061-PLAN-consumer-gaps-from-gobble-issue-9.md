@@ -1527,3 +1527,185 @@ Done; staged for the owner's commit. Phase 4 is committed as `b663b71`.
   `llmprovider/{capabilities,constants,contract,item,warning}.go`,
   `llmprovider/item_0061_test.go`, `llmprovider/llmtest/llmtest.go`,
   `llmprovider/llmtest/images_0061_test.go`.
+
+### Phase 6: before any change (2026-10-26)
+
+Read in the code at `84027b8`; the MADR's amendment "D5 made exact before
+Phase 6" holds each point.
+
+* **Deviation 16 (2026-10-26): `llmtest.Fake` copies an image's bytes.**
+  Found in Phase 5 ("Found, not done"): `cloneRequest` shares an
+  `ImageItem`'s `Data` with the caller. Decision (owner): copy it in this
+  phase, with a test and a planted break. File added to the phase:
+  `llmprovider/llmtest/fake.go`.
+* **Made exact, no decision changed** (the amendment's items 2 to 6):
+  Kilo's images go in its chat route only, the one route it sends; a model
+  is refused through `wire.Call`'s new `Refusal`, returned by `Post` and
+  `OpenStream` before any send, since nine providers read their facts with
+  the request's token; Ollama's and the google route's drops go through
+  `wire.DropImageURLs`, never quoting the URL; generateContent's encoder
+  sends `Data` images only, under D5's keys; and Responses' `InputLoading`
+  and `InputDispatch` join an image as `Input` does. Files added to the
+  phase: `llmprovider/internal/wire/post.go`, whose `open` both `Post` and
+  `OpenStream` call.
+* **Deviation 17 (2026-10-26): two capability tests.** Found by the drift
+  check, after the code: `TestClaude_Capabilities`
+  (`claude/claude_test.go:105`) and `TestOpenAI_Capabilities`
+  (`openai/openai_test.go:139`) compare the whole `Capabilities` value, and
+  failed: `Capabilities() = {… Images:Supported}, want {… Images:Unsupported}`.
+  Every other existing test and golden passed (38 packages). Decision
+  (owner): each `want` gains `Images: llmprovider.Supported`, D5's value, so
+  each still checks the whole value. Comparing field by field, and stopping
+  to amend the PLAN first, were not chosen. Files added to the phase: those
+  two tests.
+
+### Phase 6: the five encoders and each provider's images (2026-10-26)
+
+* **As built:**
+  * `internal/wire/images.go` (new): `DataURL`; `RefuseImages`, as step 1
+    writes it; `DropImageURLs`, the drops' one function, whose warning
+    names `Input[i]` and why, never the URL (the amendment, item 4).
+    `post.go`: `Call.Refusal`, returned by `open`, which `Post` and
+    `OpenStream` share, before the body is marshalled (item 3).
+  * `messages`: `Block.Source *ImageSource` (`data`, `media_type`, `type`,
+    `url`); an image joins the user message before it, whose text becomes a
+    text block, or a user message holding blocks, such as a turn's results;
+    else it opens one. `appendBlock` is unchanged, so a result after a
+    user's text still opens its own message, as every golden had it.
+  * `chatcompletions`: `chatMessage.Content` is `messageContent`, a string,
+    or parts once an image joins; `Opts.ImageURLString`; the two existing
+    conversion functions keep their signatures (no existing test changes),
+    and `Body` calls a third, `itemsToChatMessagesWith`. An image that opens
+    its own user message ends the reasoning before it, as a user message
+    does.
+  * `responses`: `InputItem.Content` is `MessageContent`, a string, or
+    `input_text` and `input_image` parts; `Input`, and the `default`
+    branches of `InputLoading` and `InputDispatch`, join an image to the user
+    message item before it (item 6).
+  * `generatecontent`: `Part.InlineData` under `inline_data` and
+    `mime_type` (item 5), joined to the user content before it; an image by
+    URL is not encoded.
+  * `gemini`'s `interactionsInput`: `joinImage`, an `image` block with
+    `data` and `mime_type`, or `uri`, joined to the `user_input` step
+    before it.
+  * **The providers:** `Images` `Supported` for `chatcompat`, `claude`,
+    `gemini`, `grok`, `huggingface`, `kilo`, `openai` and `together`;
+    `BestEffort` for `ollama` and `opencode`; `openai` sets `Unsupported`
+    on a ChatGPT or plan session (Q11 (a)). Each sets `Call.Refusal` from
+    `RefuseImages` with its facts, where it builds the request. `grok`'s
+    `check`, called by `Generate` and `Stream`, refuses a GIF or a WebP
+    naming `Input[i]` (Q10). `ollama` drops an image by URL and sends
+    `ImageURLString`; `opencode`'s `resolve` drops one on the google route,
+    before the instructions are prepended, so the warning's index is
+    `Request.Input`'s, and `wireCall` adds the drops to `Warnings`.
+  * `llmtest.Fake`'s `cloneRequest` copies an image's `Data` (deviation
+    16).
+  * `internal/wirecase`: the scenario `image` (`ImageItems`: the user's
+    text, a 1×1 PNG by `Data`, `ImageURL` by `URL`; its result and its
+    warnings), and `images.go`'s `Images` and `ImageCheck`, which each
+    provider's `TestImages_0061` runs on its own `wireCases`, with the facts
+    as a `catalog` layer it passes in (`wirecase` may import `llmprovider`
+    and `internal/wiretest` only, R2). Its failure reports go through
+    `expect` and `must`: written first with a branch per check, it left
+    `wirecase` at 89.3 %, below its 89.5 % floor (`make coverage-check`);
+    with the two helpers every check stays and it is 95.0 %.
+* **The drift check,** after the code and before the new tests:
+  `go test -race -count=1 -shuffle=on ./...`: 38 packages ok, and the two
+  capability tests of deviation 17 failed; every existing golden passed.
+  After deviation 17: every package ok.
+* **G-wire's `image` goldens:** recorded with `-update` for that scenario
+  only (`-run 'TestWireGoldens/.*/image$'`), 21 files, one per case; no
+  other golden changed (`git status` of `testdata`). Each was checked
+  against D5's table by a script (in the session's scratchpad) that
+  compares each user turn whole: Messages for `claude`,
+  `claude-refuses-forced` and both OpenCode `messages` routes; the object
+  form for `chatcompat`, `huggingface`, `kilo`, `together` and both
+  `chat_completions` routes; the string form, with the URL dropped and one
+  warning (`Input[2], an image by URL, was not sent: Ollama takes an
+  image's bytes only, not its URL`), for `ollama`; `input_image` for
+  `openai`, `openai-stateless`, `grok`, `grok-stateless` and both
+  `responses` routes; Interactions for `gemini`; `inline_data`, the URL
+  dropped and warned, for `opencode-zen-google`; `chatgpt` and
+  `chatgpt-plan` refused with no request (`llmprovider: unsupported: the
+  request needs image input`). 21 goldens, 0 problems. The script was seen
+  to fail on a scratch copy with four planted breaks (Claude's `base64`
+  misspelt, Ollama's string made an object, OpenAI's `input_text` made
+  `text`, the google route's warning kind changed): 4 problems, exit 1.
+* **Tests:** `TestImage_Encode_0061` in `messages`, `chatcompletions`,
+  `responses`, `generatecontent` and `gemini` (joined to the user's text;
+  after the assistant or a tool result, its own message; Chat Completions'
+  both forms; Responses' three paths); `TestImage_ReplayLeavesTheUserParts_0061`;
+  `TestMessageContent_0061`; `internal/wire`'s `TestDataURL_0061`,
+  `TestRefuseImages_0061`, `TestDropImageURLs_0061`,
+  `TestCallRefusal_0061`; each provider's `TestImages_0061` (the
+  capability; a text-only model refused by `Generate` and `Stream` with no
+  request; an image model, and no facts, sent with the PNG's bytes);
+  `grok`'s `TestImages_MediaTypes_0061`; `ollama`'s and `opencode`'s
+  `TestImages_Drops_0061`; `llmtest`'s `TestFake_CopiesImageData_0061`.
+  `go test -race -count=1 -shuffle=on ./...` passes, and
+  `-count=3` on the phase's tests, G-wire and the conformance runs.
+  Coverage: `internal/wire` 96.0 %, `chatcompletions` 94.8 %,
+  `generatecontent` 97.5 %, `messages` 91.9 %, `responses` 96.7 %,
+  `wirecase` 95.0 %, `llmtest` 90.1 %, the providers from 92.8 %
+  (`chatcompat`) to 98.5 % (`grok`).
+* **Plants** (`tools/plant.py`, on a scratch clone; all 15 caught, again on
+  the final code):
+  * the Messages user-text conversion removed: `messages`'
+    `TestImage_Encode_0061` (`joined_to_the_user's_text`);
+  * Ollama's string form dropped: `TestImages_Drops_0061`, and G-wire's
+    `ollama/image`;
+  * `RefuseImages` always nil: `TestRefuseImages_0061`, and the
+    `text-only model` check of every case that takes images, 19 cases in
+    the 10 provider packages (run alone on a scratch copy, since
+    `plant.py` prints part of the output);
+  * `open` ignoring a `Refusal`: `TestCallRefusal_0061` (`Post = <nil>;
+    want the refusal`), and the providers' `text-only model`;
+  * Chat Completions' join removed: its `TestImage_Encode_0061` and
+    `TestImage_ReplayLeavesTheUserParts_0061`;
+  * `InputLoading` sending an image alone: `responses`'
+    `TestImage_Encode_0061` (`joined, InputLoading`);
+  * generateContent's join removed: its `TestImage_Encode_0061`, and
+    G-wire's `opencode-zen-google/image`;
+  * the Interactions join removed: `gemini`'s `TestImage_Encode_0061`, and
+    G-wire's `gemini/image`;
+  * Grok taking a GIF: `TestImages_MediaTypes_0061` (`image/gif: Generate
+    = <nil>`);
+  * the drops keeping an image by URL: `TestDropImageURLs_0061`, Ollama's
+    `TestImages_Drops_0061` and G-wire;
+  * the google route dropping nothing: OpenCode's `TestImages_Drops_0061`
+    (`Warnings = []`) and G-wire;
+  * a ChatGPT session taking images: `TestImages_0061`
+    (`chatgpt/capability`, `chatgpt-plan/capability`) and G-wire;
+  * Claude declaring no images: `TestClaude_Capabilities`,
+    `TestImages_0061` (`claude/capability`, `claude-refuses-forced/capability`)
+    and G-wire;
+  * the Fake sharing an image's bytes: `TestFake_CopiesImageData_0061`
+    (`"XXXX" after the caller reused its buffer`);
+  * `DataURL` without `;base64`: `TestDataURL_0061`.
+* **Docs:** each provider's package doc, a paragraph on images before
+  "Degradations:", and for `ollama` and `opencode` a Degradations bullet
+  for the drop (R12); `docs/architecture.md`: `WarningImageDropped` in the
+  warnings list (left from Phase 5, deviation 15), a bullet on each wire's
+  image form and each provider's `Images`, and the G-wire bullet: 21 cases,
+  14 scenarios, 280 golden files, as `go test -v` counted them (280 passed,
+  14 skipped, every one `continuation`) (F16); `CHANGELOG.md` Added.
+* **Not done, as the PLAN has it:** the live tests (Phase 7): images on the
+  Codex backend (Q11 (a)), Hugging Face's data and https URLs, and the google
+  route's `inline_data` form are still UNCONFIRMED. `README.md`'s Status
+  waits for Phase 8.
+* **Checks:** `make pre-add-check` on the 39 Go files, then on
+  `wirecase/images.go` after its rewrite: clean; `make api-check` (0
+  incompatible changes against `v1.22.2`), `docs-check` (0 violations of
+  R50 to R52), `tables-check` (42 packages), `changelog-check`, `dep-check`,
+  `fixtures-check` (374 files, 0 problems), `coverage-check` (41 packages,
+  0 problems): each 0 problems; `tools/apidiff.py v1.22.2`: this phase adds
+  no export; `tools/claims.py` on the MADR: 58 of 58; `tools/gate.py`: 28 of 28 passed.
+* **Staged:** this record and the MADR, `CHANGELOG.md`,
+  `docs/architecture.md`; `llmprovider/internal/wire/{images,post}.go`
+  and `images_0061_test.go`; `llmprovider/internal/wire/{chatcompletions,
+  generatecontent,messages,responses}/`, each its encoder and
+  `image_0061_test.go`; `llmprovider/internal/wirecase/{images,wirecase}.go`;
+  `llmprovider/llmtest/{fake.go,images_0061_test.go}`; each provider's
+  `<id>.go` and `images_0061_test.go`, `gemini/interactions.go` and
+  `image_encode_0061_test.go`, `claude/claude_test.go`,
+  `openai/openai_test.go`; the 21 `testdata/wire/<case>/image.json`.

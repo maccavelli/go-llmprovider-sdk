@@ -4,6 +4,7 @@
 package messages
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
@@ -28,6 +29,7 @@ const (
 
 	blockRedactedThinking = "redacted_thinking"
 	blockToolUse          = "tool_use"
+	blockImage            = "image"
 )
 
 // stopReasons maps Anthropic's stop_reason to FinishReason (0020-MADR F3).
@@ -81,8 +83,8 @@ func (c Content) MarshalJSON() ([]byte, error) {
 }
 
 // Block is every content block in one struct: text, thinking,
-// redacted_thinking, tool_use, tool_result and tool_reference. A field a
-// block does not have is nil, and omitted; Type is always sent.
+// redacted_thinking, tool_use, tool_result, tool_reference and image. A field
+// a block does not have is nil, and omitted; Type is always sent.
 type Block struct {
 	Content   ResultContent `json:"content,omitzero"`
 	Data      *string       `json:"data,omitempty"`
@@ -91,11 +93,31 @@ type Block struct {
 	IsError   bool          `json:"is_error,omitempty"`
 	Name      *string       `json:"name,omitempty"`
 	Signature *string       `json:"signature,omitempty"`
+	Source    *ImageSource  `json:"source,omitempty"`
 	Text      *string       `json:"text,omitempty"`
 	Thinking  *string       `json:"thinking,omitempty"`
 	ToolName  *string       `json:"tool_name,omitempty"`
 	ToolUseID *string       `json:"tool_use_id,omitempty"`
 	Type      string        `json:"type"`
+}
+
+// ImageSource is an image block's source: base64 data with its media type,
+// or a URL the service fetches (0061-MADR D5). A field a source does not have
+// is nil, and omitted.
+type ImageSource struct {
+	Data      *string `json:"data,omitempty"`
+	MediaType *string `json:"media_type,omitempty"`
+	Type      string  `json:"type"`
+	URL       *string `json:"url,omitempty"`
+}
+
+// imageSource is img's source: its bytes base64-encoded, or its URL.
+func imageSource(img llmprovider.ImageItem, arena *wire.Arena) *ImageSource {
+	if img.URL != "" {
+		return &ImageSource{Type: "url", URL: arena.Keep(img.URL)}
+	}
+	return &ImageSource{Type: "base64", MediaType: arena.Keep(img.MediaType),
+		Data: arena.Keep(base64.StdEncoding.EncodeToString(img.Data))}
 }
 
 // ResultContent is a tool_result's content: its text, as every result had
@@ -206,6 +228,16 @@ func encodeItems(items []llmprovider.Item, loading bool) []Message {
 		}
 		messages = append(messages, Message{Role: role, Content: openList(block)})
 	}
+	// appendImage adds an image to the user message just before it, whose
+	// text becomes a text block, or opens a user message of its own
+	// (0061-MADR D5).
+	appendImage := func(block Block) {
+		if n := len(messages); n > 0 && messages[n-1].Role == wire.RoleUser && messages[n-1].Content.blocks == nil {
+			messages[n-1].Content = openList(Block{Type: wire.KeyText, Text: messages[n-1].Content.text}, block)
+			return
+		}
+		appendBlock(wire.RoleUser, block)
+	}
 	// pending holds the texts of the turn's loading results, which go after
 	// all of the turn's results (0040-MADR A1).
 	var pending []*string
@@ -233,6 +265,8 @@ func encodeItems(items []llmprovider.Item, loading bool) []Message {
 				role = wire.RoleAssistant
 			}
 			messages = append(messages, Message{Role: role, Content: Content{text: arena.Keep(v.Text)}})
+		case llmprovider.ImageItem:
+			appendImage(Block{Type: blockImage, Source: imageSource(v, arena)})
 		case llmprovider.ReasoningItem:
 			// Anthropic needs a turn's thinking back, signature included, when
 			// thinking and tools are combined. Unsigned reasoning, and another

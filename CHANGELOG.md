@@ -86,6 +86,19 @@ tag and its commit without notes; its notes are its section here.
   back with `WithReasoningRefusals`. The accepted send is billed. On an
   error it returns no refusals. Nothing in this repository calls it
   ([0062-MADR](docs/decisions/0062-MADR-learn-thinking-parameters-from-refusals.md) D7).
+- `llmprovider.ImageItem`, `Capabilities.Images` and `WarningImageDropped`:
+  an image in a user turn of `Request.Input`, by its bytes (`Data`, a PNG,
+  JPEG, GIF or WebP `MediaType`) or by an https `URL`, sent in each wire's
+  form and joined to the user's turn before it. `Check` refuses an invalid
+  image with `ErrInvalidRequest`, and any image where `Images` is
+  `Unsupported` with `ErrUnsupported`, before the network. Every built-in
+  provider and `chatcompat` sends images, except an OpenAI ChatGPT or plan
+  session; a model whose facts state its input without image is refused
+  before the network; `grok` refuses a GIF or a WebP, which xAI does not
+  take; `ollama` and OpenCode's `google` route drop an image by URL, with
+  a `WarningImageDropped`. `llmtest.Run` checks the new capability, and
+  `llmtest.Fake` records an image's bytes as they were sent
+  ([0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md) D5).
 
 ### Changed
 

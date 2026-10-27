@@ -5,6 +5,7 @@
 package generatecontent
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,8 +46,17 @@ type System struct {
 type Part struct {
 	FunctionCall     *FunctionCall     `json:"functionCall,omitempty"`
 	FunctionResponse *FunctionResponse `json:"functionResponse,omitempty"`
+	InlineData       *InlineData       `json:"inline_data,omitempty"`
 	Text             *string           `json:"text,omitempty"`
 	ThoughtSignature *string           `json:"thoughtSignature,omitempty"`
+}
+
+// InlineData is an image part's bytes, base64-encoded, and their media type,
+// under the keys 0061-MADR D5 writes (its amendment "D5 made exact before
+// Phase 6", item 5).
+type InlineData struct {
+	Data     string `json:"data"`
+	MimeType string `json:"mime_type"`
 }
 
 // FunctionCall is a part's functionCall.
@@ -125,6 +135,16 @@ func Contents(items []llmprovider.Item) []Content {
 				role = roleModel
 			}
 			appendPart(role, Part{Text: arena.Keep(v.Text)}, false)
+			lastIsResponses = false
+		case llmprovider.ImageItem:
+			// An image's bytes join the user content just before it, as a
+			// part (0061-MADR D5). An image by URL is not sent: no form for it
+			// is confirmed here, and the provider drops it first, warned (E7).
+			if v.URL != "" {
+				continue
+			}
+			appendPart(wire.RoleUser, Part{InlineData: &InlineData{MimeType: v.MediaType,
+				Data: base64.StdEncoding.EncodeToString(v.Data)}}, true)
 			lastIsResponses = false
 		case llmprovider.FunctionCallItem:
 			// Gemini refuses a replayed call without its thoughtSignature. A call

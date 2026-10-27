@@ -1,6 +1,7 @@
 package llmtest
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -105,10 +106,17 @@ func (f *Fake) Requests() []*llmprovider.Request {
 // cloneRequest copies req and the slices and reasoning it points to. A tool's
 // Schema is copied through JSON, as it is sent, so a schema the caller changes
 // later leaves the record as it was (0026-MADR F58); Check has already refused
-// one that does not marshal.
+// one that does not marshal. An image's bytes are copied too, so a buffer
+// the caller reuses leaves the record as it was (0061-PLAN deviation 16).
 func cloneRequest(req *llmprovider.Request) *llmprovider.Request {
 	copied := *req
 	copied.Input = append([]llmprovider.Item(nil), req.Input...)
+	for i, item := range copied.Input {
+		if img, ok := item.(llmprovider.ImageItem); ok && img.Data != nil {
+			img.Data = bytes.Clone(img.Data)
+			copied.Input[i] = img
+		}
+	}
 	copied.Tools = append([]llmprovider.Tool(nil), req.Tools...)
 	for i, tool := range copied.Tools {
 		if tool.Schema == nil {

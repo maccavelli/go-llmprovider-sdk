@@ -30,7 +30,17 @@
 // refused (0031-PLAN-native-streaming-on-the-other-wires D1), and Zen's routes
 // stand on Go's measurements (0031-MADR D1, E1).
 //
+// Images are BestEffort, sent in each route's form, as the provider sends it
+// alone: messages as claude's, responses as openai's, chat_completions as an
+// image_url object, and google as inline_data, an image's bytes only, an
+// image by URL dropped, as Degradations lists. OpenCode documents images on
+// no route (E15). A model whose facts state its input without image is
+// refused before the network, with ErrUnsupported (0061-MADR D5).
+//
 // Degradations:
+//   - On the google route an image by URL is not sent: no generateContent
+//     form for one is confirmed, so it is dropped, with a WarningImageDropped
+//     naming its index in Request.Input (0061-MADR D5, E7).
 //   - A tool result's IsError is sent as is_error on the messages route and
 //     as functionResponse.response {"error": …} on the google route; the
 //     responses and chat_completions routes have no error field, so Output
@@ -255,6 +265,7 @@ func newGateway(gateway llmprovider.ProviderID, base string, opts []llmprovider.
 			Reasoning:        llmprovider.BestEffort,
 			Continuation:     llmprovider.Unsupported,
 			NativeStreaming:  llmprovider.BestEffort,
+			Images:           llmprovider.BestEffort,
 		},
 	}
 	var override Route
@@ -291,6 +302,9 @@ type call struct {
 	// facts is what the caches know of the model, read once per request
 	// (0041-MADR D1).
 	facts catalog.ModelInfo
+	// dropped is a warning for each image the route did not send
+	// (0061-MADR D5).
+	dropped []llmprovider.Warning
 }
 
 // Generate sends req to the gateway on the model's route.
@@ -413,10 +427,15 @@ func (p *provider) resolve(ctx context.Context, req *llmprovider.Request) call {
 		// The default, cut to the model's limit, never raised (0041-MADR D2).
 		c.maxTokens = min(c.maxTokens, limit)
 	}
+	c.route = p.requestRoute(ctx, c.model)
+	if c.route == RouteGoogle {
+		// No generateContent form for an image by URL is confirmed, so the
+		// google route drops one, warned (0061-MADR D5, E7).
+		c.input, c.dropped = wire.DropImageURLs(c.model, c.input, "the google route takes an image's bytes only, not its URL")
+	}
 	if req.Instructions != "" {
 		c.input = append([]llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleSystem, Text: req.Instructions}}, c.input...)
 	}
-	c.route = p.requestRoute(ctx, c.model)
 	return c
 }
 
@@ -498,7 +517,12 @@ func (p *provider) wireCall(c call, body map[string]any, stream bool, warnings [
 		URL:      p.baseURL + c.route.path(c.model),
 		Body:     body,
 		Stream:   stream,
-		Warnings: append(deferral.Warnings(c.deferForm(), c.req, c.model), warnings...), // 0040-MADR D7; 0062-MADR D3, D6
+		// 0040-MADR D7; 0062-MADR D3, D6; 0061-MADR D5.
+		Warnings: slices.Concat(deferral.Warnings(c.deferForm(), c.req, c.model), warnings, c.dropped),
+		// A model whose facts take no image is refused before the network
+		// (0061-MADR D5).
+		Refusal: wire.RefuseImages(c.model, c.req.Input, c.facts.Has(catalog.FieldInput),
+			slices.Contains(c.facts.Input, catalog.ModalityImage)),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			// Each route reads the key from its vendor's header (MADR 0007

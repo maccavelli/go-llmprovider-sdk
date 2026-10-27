@@ -2,6 +2,7 @@ package llmtest
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"image"
 	"image/png"
@@ -24,6 +25,30 @@ func TestRun_ImagesNeed_0061(t *testing.T) {
 		}
 	}
 	t.Fatalf("failures %q; want one starting %q", rec.failures(), want)
+}
+
+// TestFake_CopiesImageData_0061 (0061-PLAN deviation 16): a Fake's record
+// of a request keeps an image's bytes as they were sent, though the caller
+// reuses its buffer, as it keeps a tool's schema (0026-MADR F58).
+func TestFake_CopiesImageData_0061(t *testing.T) {
+	f := NewFake("fake", llmprovider.Capabilities{Images: llmprovider.Supported}).ReplyText("a cat")
+	buf := []byte("PNG1")
+	req := &llmprovider.Request{Input: []llmprovider.Item{
+		llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "look"},
+		llmprovider.ImageItem{MediaType: "image/png", Data: buf},
+		llmprovider.ImageItem{URL: "https://example.com/cat.png"},
+	}}
+	if _, err := f.Generate(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	copy(buf, "XXXX")
+	got := f.Requests()[0].Input
+	if img := got[1].(llmprovider.ImageItem); string(img.Data) != "PNG1" {
+		t.Errorf("the recorded image's bytes = %q after the caller reused its buffer; want %q", img.Data, "PNG1")
+	}
+	if img := got[2].(llmprovider.ImageItem); img.URL != "https://example.com/cat.png" || img.Data != nil {
+		t.Errorf("the recorded image by URL = %+v; want it as sent", img)
+	}
 }
 
 // TestImageRequest_0061: the suite's image is a 1×1 PNG, sent by its bytes in

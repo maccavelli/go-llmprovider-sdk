@@ -1,0 +1,79 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/messages",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Anthropic-Version": "2023-06-01",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Api-Key": "sk-ant-wire"
+      },
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "What is in these pictures?",
+                "type": "text"
+              },
+              {
+                "source": {
+                  "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNgAAAAAgAB5Sfe/AAAAABJRU5ErkJggg==",
+                  "media_type": "image/png",
+                  "type": "base64"
+                },
+                "type": "image"
+              },
+              {
+                "source": {
+                  "type": "url",
+                  "url": "https://example.com/cat.png"
+                },
+                "type": "image"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "claude-sonnet-5-5"
+      }
+    }
+  ],
+  "result": {
+    "response": {
+      "finish_reason": "tool_calls",
+      "id": "",
+      "output": [
+        {
+          "item": {
+            "Text": "thinking",
+            "Signature": "sig_wire",
+            "Encrypted": "",
+            "Format": "messages"
+          },
+          "type": "ReasoningItem"
+        },
+        {
+          "item": {
+            "Role": "assistant",
+            "Text": "hello"
+          },
+          "type": "MessageItem"
+        },
+        {
+          "item": {
+            "CallID": "toolu_wire",
+            "Name": "get_weather",
+            "Arguments": "{\"city\":\"Paris\"}",
+            "Signature": ""
+          },
+          "type": "FunctionCallItem"
+        }
+      ]
+    },
+    "warnings": null
+  }
+}

@@ -46,6 +46,11 @@ type Call struct {
 	// one, and by StreamEventsRetry, to the done event's. A provider sets
 	// them where it builds the request, such as 0040-MADR D7's.
 	Warnings []llmprovider.Warning
+	// Refusal, when set, is returned in place of sending: a refusal the
+	// provider could make only where it builds the request, with the facts
+	// it reads there, such as a model that takes no images (0061-MADR D5;
+	// the amendment "D5 made exact before Phase 6", item 3).
+	Refusal error
 }
 
 // Post sends c once with token, and decodes a 2xx reply with decode (0021-MADR
@@ -115,6 +120,9 @@ func (s *Stream) Close() {
 // open sends c once with token and returns its 2xx reply, read under the idle
 // limit and, when limit is above 0, under limit bytes.
 func open(ctx context.Context, c Call, token llmprovider.Token, limit int64) (*Stream, error) {
+	if c.Refusal != nil {
+		return nil, c.Refusal
+	}
 	body, err := json.Marshal(c.Body)
 	if err != nil {
 		// The body is built from the caller's request, which no retry

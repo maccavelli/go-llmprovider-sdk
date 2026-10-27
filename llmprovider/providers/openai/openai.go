@@ -16,6 +16,14 @@
 // streaming is Supported: Stream asks the Responses API for an event stream
 // and yields its events as they arrive (0031-MADR D1).
 //
+// Images are Supported with an API key: an ImageItem goes as a Responses
+// input_image, its image_url a data URL of its bytes or its URL, joined to
+// the user's message before it, whose text becomes an input_text part. On a
+// ChatGPT or plan session they are Unsupported, refused before the network,
+// since nothing documents images on the Codex backend; a live test decides
+// (Q11 (a)). A model whose facts state its input without image is refused
+// before the network, with ErrUnsupported (0061-MADR D5).
+//
 // Degradations:
 //   - A tool result's IsError is not sent: the Responses API has no error
 //     field, so Output is sent as it is (0032-MADR D3).
@@ -245,6 +253,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			Reasoning:        llmprovider.Supported,
 			Continuation:     llmprovider.Supported,
 			NativeStreaming:  llmprovider.Supported,
+			Images:           llmprovider.Supported,
 		},
 	}
 	for _, v := range st.Values() {
@@ -261,6 +270,11 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	if p.plan {
 		// "Omit previous_response_id over HTTP" (0043-MADR D5).
 		p.caps.Continuation = llmprovider.Unsupported
+	}
+	if p.chatGPT || p.plan {
+		// Nothing documents images on the Codex backend; a live test decides
+		// (0061-MADR D5, Q11 (a)).
+		p.caps.Images = llmprovider.Unsupported
 	}
 	if base := st.BaseURL(); base != "" {
 		p.baseURL = base
@@ -495,7 +509,8 @@ func (p *provider) decode(req *llmprovider.Request) func(io.Reader) (*llmprovide
 // effort.
 func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llmprovider.Token, stream bool,
 	effort *wire.Learner) wire.Call {
-	body, warnings := p.body(req, p.facts(ctx, req, token), effort)
+	facts := p.facts(ctx, req, token)
+	body, warnings := p.body(req, facts, effort)
 	if stream {
 		body["stream"] = true
 	}
@@ -512,6 +527,10 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 		// (0040-MADR D7); an effort sent lower, and a refusal learned
 		// (0062-MADR D3, D6).
 		Warnings: append(deferral.Warnings(form, req, cmp.Or(req.Model, p.model)), warnings...),
+		// A model whose facts take no image is refused before the network
+		// (0061-MADR D5).
+		Refusal: wire.RefuseImages(cmp.Or(req.Model, p.model), req.Input, facts.Has(catalog.FieldInput),
+			slices.Contains(facts.Input, catalog.ModalityImage)),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, headerAuthorization, "Bearer")

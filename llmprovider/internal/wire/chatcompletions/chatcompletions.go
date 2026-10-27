@@ -31,6 +31,7 @@ const (
 	keyReasoningDetail = "reasoning_details"
 	keyToolCallID      = "tool_call_id"
 	roleTool           = "tool"
+	keyImageURL        = "image_url"
 )
 
 // Opts carries the per-gateway variations of a Chat Completions request. Zero
@@ -63,6 +64,10 @@ type Opts struct {
 	// SendStrict sends each tool's Strict, when set, as function.strict: for
 	// a gateway measured accepting it (0032-MADR D2, Q2).
 	SendStrict bool
+	// ImageURLString sends an image part's image_url as the URL alone, a
+	// string, as Ollama documents it, in place of {"url": …} (0061-MADR D5,
+	// E9).
+	ImageURLString bool
 }
 
 // chatMessage is one Chat Completions message. Its fields are in the order
@@ -71,7 +76,7 @@ type Opts struct {
 // metadata, is not a field: replayField and replay hold it, and
 // chatMessages.MarshalJSON writes it.
 type chatMessage struct {
-	Content          string            `json:"content"`
+	Content          messageContent    `json:"content"`
 	ReasoningDetails []json.RawMessage `json:"reasoning_details,omitempty"`
 	Role             string            `json:"role"`
 	ToolCallID       *string           `json:"tool_call_id,omitempty"`
@@ -83,6 +88,48 @@ type chatMessage struct {
 	replayField string
 	replay      string
 	replaying   bool
+}
+
+// messageContent is a message's content: its text, sent as a string, or the
+// parts a user message becomes when an image joins it (0061-MADR D5).
+type messageContent struct {
+	text  string
+	parts []chatPart
+}
+
+// MarshalJSON writes the parts as a list, or the text as a string.
+func (c messageContent) MarshalJSON() ([]byte, error) {
+	if c.parts != nil {
+		return json.Marshal(c.parts)
+	}
+	return json.Marshal(c.text)
+}
+
+// chatPart is one part of a user message's content: a text, or an image,
+// whose image_url is {"url": …}, or the URL alone where Opts.ImageURLString
+// asks for it.
+type chatPart struct {
+	ImageURL any     `json:"image_url,omitempty"`
+	Text     *string `json:"text,omitempty"`
+	Type     string  `json:"type"`
+}
+
+// chatImageURL is an image part's image_url object.
+type chatImageURL struct {
+	URL string `json:"url"`
+}
+
+// imagePart is img as an image_url part: a data URL of its bytes, or its URL;
+// an object, or with asString the URL alone.
+func imagePart(img llmprovider.ImageItem, asString bool) chatPart {
+	url := img.URL
+	if url == "" {
+		url = wire.DataURL(img)
+	}
+	if asString {
+		return chatPart{Type: keyImageURL, ImageURL: url}
+	}
+	return chatPart{Type: keyImageURL, ImageURL: chatImageURL{URL: url}}
 }
 
 // chatToolCall is one tool_calls entry.
@@ -117,7 +164,7 @@ type chatToolFunction struct {
 func (m *chatMessage) replayString(key string) string {
 	switch key {
 	case wire.KeyContent:
-		return m.Content
+		return m.Content.text
 	case wire.KeyRole:
 		return m.Role
 	case keyToolCallID:
@@ -136,7 +183,7 @@ func (m *chatMessage) replayString(key string) string {
 func (m *chatMessage) setReplay(key, v string) {
 	switch key {
 	case wire.KeyContent:
-		m.Content = v
+		m.Content.text = v
 		return
 	case wire.KeyRole:
 		m.Role = v
@@ -255,6 +302,14 @@ func itemsToChatMessages(items []llmprovider.Item) []chatMessage {
 // reasoning_details entries this wire decoded go back on the assistant
 // message they precede (0021-MADR W9).
 func itemsToChatMessagesReplaying(items []llmprovider.Item, field string, details bool) []chatMessage {
+	return itemsToChatMessagesWith(items, field, details, false)
+}
+
+// itemsToChatMessagesWith is itemsToChatMessagesReplaying, with an image's
+// image_url sent as the URL alone when imageString is set (Opts.ImageURLString).
+// An image joins the user message just before it, whose text becomes a text
+// part; else it opens a user message of its own (0061-MADR D5).
+func itemsToChatMessagesWith(items []llmprovider.Item, field string, details, imageString bool) []chatMessage {
 	messages := make([]chatMessage, 0, len(items))
 	var pending strings.Builder
 	var pendingDetails []json.RawMessage
@@ -277,7 +332,23 @@ func itemsToChatMessagesReplaying(items []llmprovider.Item, field string, detail
 				pending.Reset()
 				pendingDetails = nil
 			}
-			messages = append(messages, chatMessage{Role: role, Content: v.Text})
+			messages = append(messages, chatMessage{Role: role, Content: messageContent{text: v.Text}})
+		case llmprovider.ImageItem:
+			part := imagePart(v, imageString)
+			if n := len(messages); n > 0 && messages[n-1].Role == wire.RoleUser {
+				last := &messages[n-1]
+				if last.Content.parts == nil {
+					text := last.Content.text
+					last.Content.parts = []chatPart{{Type: wire.KeyText, Text: &text}}
+				}
+				last.Content.parts = append(last.Content.parts, part)
+			} else {
+				// Its own user turn ends the reasoning before it, as a user
+				// message does.
+				pending.Reset()
+				pendingDetails = nil
+				messages = append(messages, chatMessage{Role: wire.RoleUser, Content: messageContent{parts: []chatPart{part}}})
+			}
 		case llmprovider.FunctionCallItem:
 			call := chatToolCall{ID: v.CallID, Type: keyFunction,
 				Function: chatCallFunction{Name: v.Name, Arguments: v.Arguments}}
@@ -291,7 +362,7 @@ func itemsToChatMessagesReplaying(items []llmprovider.Item, field string, detail
 			messages = append(messages, chatMessage{Role: wire.RoleAssistant, ToolCalls: []chatToolCall{call}})
 		case llmprovider.FunctionCallOutputItem:
 			id := v.CallID
-			messages = append(messages, chatMessage{Role: roleTool, ToolCallID: &id, Content: v.Output})
+			messages = append(messages, chatMessage{Role: roleTool, ToolCallID: &id, Content: messageContent{text: v.Output}})
 		}
 		if field == "" && !details {
 			continue
@@ -345,7 +416,7 @@ func toolChoice(choice llmprovider.ToolChoice) any {
 func Body(model string, maxTokens int, input []llmprovider.Item, o Opts) map[string]any {
 	body := map[string]any{
 		keyModel:     model,
-		keyMessages:  chatMessagesValue(itemsToChatMessagesReplaying(input, o.ReplayReasoningField, o.ReplayReasoningDetails)),
+		keyMessages:  chatMessagesValue(itemsToChatMessagesWith(input, o.ReplayReasoningField, o.ReplayReasoningDetails, o.ImageURLString)),
 		keyMaxTokens: maxTokens,
 	}
 	if len(o.Tools) > 0 && (!o.NoToolChoice || o.ToolChoice != llmprovider.ToolChoiceNone) {

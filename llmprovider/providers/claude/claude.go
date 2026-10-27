@@ -14,6 +14,12 @@
 // Supported: Stream asks the Messages API for an event stream and yields its
 // events as they arrive (0031-MADR E1).
 //
+// Images are Supported: an ImageItem goes as an image block, its bytes
+// base64-encoded with their media type, or its URL, joined to the user's
+// message before it, whose text becomes a text block. A model whose facts
+// state its input without image is refused before the network, with
+// ErrUnsupported (0061-MADR D5).
+//
 // Degradations:
 //   - A tool result's IsError is sent as tool_result's is_error
 //     (0032-MADR D3).
@@ -208,6 +214,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 			Reasoning:        llmprovider.Supported,
 			Continuation:     llmprovider.Unsupported,
 			NativeStreaming:  llmprovider.Supported,
+			Images:           llmprovider.Supported,
 		},
 	}
 	if base := st.BaseURL(); base != "" {
@@ -331,6 +338,10 @@ func (p *provider) call(req *llmprovider.Request, facts catalog.ModelInfo, strea
 		// D7); an effort may be sent lower, and a refusal learned (0062-MADR
 		// D3, D6).
 		Warnings: append(deferral.Warnings(deferral.Of(deferral.Messages, model), req, model), warnings...),
+		// A model whose facts take no image is refused before the network
+		// (0061-MADR D5).
+		Refusal: wire.RefuseImages(model, req.Input, facts.Has(catalog.FieldInput),
+			slices.Contains(facts.Input, catalog.ModalityImage)),
 		Prepare: func(r *http.Request, token llmprovider.Token) {
 			r.Header.Set("User-Agent", p.userAgent)
 			token.Apply(r, "x-api-key", "")

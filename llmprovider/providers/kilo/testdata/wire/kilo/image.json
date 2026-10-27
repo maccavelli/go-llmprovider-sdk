@@ -1,0 +1,80 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/chat/completions",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Authorization": "Bearer kilo-wire-key",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Kilocode-Editorname": "go-llmprovider-sdk",
+        "X-Kilocode-Taskid": "wire-session"
+      },
+      "body": {
+        "max_tokens": 8192,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "What is in these pictures?",
+                "type": "text"
+              },
+              {
+                "image_url": {
+                  "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNgAAAAAgAB5Sfe/AAAAABJRU5ErkJggg=="
+                },
+                "type": "image_url"
+              },
+              {
+                "image_url": {
+                  "url": "https://example.com/cat.png"
+                },
+                "type": "image_url"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "anthropic/claude-sonnet-5",
+        "provider": {
+          "data_collection": "deny"
+        }
+      }
+    }
+  ],
+  "result": {
+    "response": {
+      "finish_reason": "tool_calls",
+      "id": "chat_wire",
+      "output": [
+        {
+          "item": {
+            "Text": "thinking",
+            "Signature": "",
+            "Encrypted": "",
+            "Format": "chatcompletions"
+          },
+          "type": "ReasoningItem"
+        },
+        {
+          "item": {
+            "Role": "assistant",
+            "Text": "hello"
+          },
+          "type": "MessageItem"
+        },
+        {
+          "item": {
+            "CallID": "call_wire",
+            "Name": "get_weather",
+            "Arguments": "{\"city\":\"Paris\"}",
+            "Signature": ""
+          },
+          "type": "FunctionCallItem"
+        }
+      ]
+    },
+    "warnings": null
+  }
+}

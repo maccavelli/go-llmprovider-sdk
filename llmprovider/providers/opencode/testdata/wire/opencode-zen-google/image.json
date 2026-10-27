@@ -1,0 +1,76 @@
+{
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/models/gemini-3.8-flash:generateContent",
+      "header": {
+        "Accept-Encoding": "gzip",
+        "Content-Type": "application/json",
+        "User-Agent": "go-llmprovider-sdk/<version> (<os>; <arch>) go-llmprovider-sdk/<version>",
+        "X-Goog-Api-Key": "opencode-wire-key",
+        "X-Opencode-Session": "wire-session"
+      },
+      "body": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "What is in these pictures?"
+              },
+              {
+                "inline_data": {
+                  "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNgAAAAAgAB5Sfe/AAAAABJRU5ErkJggg==",
+                  "mime_type": "image/png"
+                }
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 8192
+        }
+      }
+    }
+  ],
+  "result": {
+    "response": {
+      "finish_reason": "tool_calls",
+      "id": "",
+      "output": [
+        {
+          "item": {
+            "Text": "thinking",
+            "Signature": "",
+            "Encrypted": "",
+            "Format": "generatecontent"
+          },
+          "type": "ReasoningItem"
+        },
+        {
+          "item": {
+            "Role": "assistant",
+            "Text": "hello"
+          },
+          "type": "MessageItem"
+        },
+        {
+          "item": {
+            "CallID": "get_weather#0",
+            "Name": "get_weather",
+            "Arguments": "{\"city\":\"Paris\"}",
+            "Signature": "sig_wire"
+          },
+          "type": "FunctionCallItem"
+        }
+      ]
+    },
+    "warnings": [
+      {
+        "Kind": "image_dropped",
+        "Model": "gemini-3.8-flash",
+        "Detail": "Input[2], an image by URL, was not sent: the google route takes an image's bytes only, not its URL"
+      }
+    ]
+  }
+}

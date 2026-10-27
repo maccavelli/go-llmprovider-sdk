@@ -1351,3 +1351,42 @@ dialect table's marks and score move from `catalog` into an internal
 package, `llmprovider/internal/compatdialect`, that `catalog` and
 `chatcompat` both read, as `internal/compatid` serves `WithID`; `catalog`
 keeps each dialect's details reader. No exported name is added for it.
+
+## Amendment 2026-10-26: D5 made exact before Phase 6
+
+**Status: accepted (owner, 2026-10-26) for item 1; items 2 to 6 decide
+nothing new.** Read in the code at `84027b8` before Phase 6's first change:
+
+1. **`llmtest.Fake` copies an image's bytes.** `cloneRequest` copies
+   `Input`'s items but not an `ImageItem`'s `Data`, so a caller that reuses
+   its buffer changes what the Fake recorded, as a changed tool schema did
+   before 0026-MADR F58. The owner chose to copy `Data` in Phase 6. A
+   record of its own, and a sentence in the Fake's doc with no copy, were
+   not chosen.
+2. **Kilo has no messages route here.** D5's Kilo row reads "its messages
+   route as Claude's", but the provider sends only `POST
+   {base}/chat/completions` (its package doc: "Only POST
+   {base}/chat/completions is used"). Kilo's images go in the chat route's
+   object form; the row's second clause names a route the provider does not
+   use, and is void.
+3. **Where a model is refused.** D5 refuses, before the generation request,
+   a model whose facts state its input without image. Nine providers read
+   their facts in the request they build for each token, with that token
+   (`catalog.CachedFacts`, "so the token source is not asked again");
+   OpenCode reads them before. The request built there has no error path,
+   so `internal/wire`'s `Call` gains a field, `Refusal error`, that `Post`
+   and `OpenStream` return before any send. It is internal: no exported
+   name.
+4. **The drops.** Ollama, and OpenCode's google route, drop an image by
+   `URL` with `WarningImageDropped`, through one internal function,
+   `wire.DropImageURLs`. The warning's `Detail` names the input's index and
+   why, never the URL, which may carry a token.
+5. **generateContent.** Its encoder sends an image by `Data`, as
+   `{"inline_data":{"mime_type":M,"data":B64}}`, D5's keys, though this
+   wire's other keys are camelCase (`functionCall`, `thoughtSignature`);
+   Phase 7's live test on the google route pins the form. An image by `URL`
+   is dropped by the provider before the encoder sees it (item 4).
+6. **Responses' other input paths.** `InputLoading` and `InputDispatch`
+   send each item they do not rewrite through `Input` one at a time, so an
+   image would open an item of its own. Each joins an image to the user
+   message just before it, as `Input` does.

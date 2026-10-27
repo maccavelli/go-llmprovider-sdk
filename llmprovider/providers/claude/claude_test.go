@@ -103,7 +103,8 @@ func TestClaude_Capabilities(t *testing.T) {
 	// ForcedToolChoice is BestEffort: with reasoning it is sent as "auto"
 	// (0020-MADR F43).
 	want := llmprovider.Capabilities{Tools: llmprovider.Supported, ForcedToolChoice: llmprovider.BestEffort,
-		Reasoning: llmprovider.Supported, Continuation: llmprovider.Unsupported, NativeStreaming: llmprovider.Supported}
+		Reasoning: llmprovider.Supported, Continuation: llmprovider.Unsupported, NativeStreaming: llmprovider.Supported,
+		Images: llmprovider.Supported}
 	if got := p.Capabilities(); got != want {
 		t.Fatalf("Capabilities() = %+v, want %+v", got, want)
 	}

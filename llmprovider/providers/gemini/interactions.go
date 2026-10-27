@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -48,6 +49,23 @@ func interactionTextStep(stepType, text string) map[string]any {
 	return map[string]any{jsonKeyType: stepType, jsonKeyContent: []map[string]any{{jsonKeyType: jsonKeyText, jsonKeyText: text}}}
 }
 
+// joinImage adds img, as an image content block, its bytes base64-encoded
+// with their mime_type or its URL as uri, to the user_input step just before
+// it; else it opens a user_input step of its own (0061-MADR D5, E14).
+func joinImage(steps []map[string]any, img llmprovider.ImageItem) []map[string]any {
+	block := map[string]any{jsonKeyType: "image", "uri": img.URL}
+	if img.URL == "" {
+		block = map[string]any{jsonKeyType: "image", "data": base64.StdEncoding.EncodeToString(img.Data), "mime_type": img.MediaType}
+	}
+	if n := len(steps); n > 0 && steps[n-1][jsonKeyType] == interactionStepUserInput {
+		if content, ok := steps[n-1][jsonKeyContent].([]map[string]any); ok {
+			steps[n-1][jsonKeyContent] = append(content, block)
+			return steps
+		}
+	}
+	return append(steps, map[string]any{jsonKeyType: interactionStepUserInput, jsonKeyContent: []map[string]any{block}})
+}
+
 // interactionsInput converts items to Interactions steps. System items go to
 // system_instruction instead (SystemPrompt). A function call is preceded by
 // the thought step whose signature Gemini requires to replay it (a replayed
@@ -73,6 +91,8 @@ func interactionsInput(items []llmprovider.Item) []map[string]any {
 			default:
 				steps = append(steps, interactionTextStep(interactionStepModelOutput, v.Text))
 			}
+		case llmprovider.ImageItem:
+			steps = joinImage(steps, v)
 		case llmprovider.FunctionCallItem:
 			signature := v.Signature
 			if signature == "" {
