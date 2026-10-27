@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-10-27
 associated-madr: "0064-MADR-anthropic-workspace-for-unscoped-keys.md"
 decision-makers: repository owner
@@ -662,3 +662,70 @@ PLAN is complete:
   problem(s)"; `python3 -B tools/gate.py`: "gate: 28 of 28 passed".
 * **Waiting on the owner:** step 1's run, in the owner's own terminal, with
   key D; then step 2, the wizard; then step 3.
+
+### Phase 6, step 1: the owner's run (2026-10-27)
+
+* **Commit.** The test landed as `7d1bf9f`, committed by the owner.
+* **Run.** In the owner's own terminal, with key D and its Default
+  workspace: `go test -tags live_gateways ./llmprovider/ -run
+  '^TestLive_WorkspaceConfirm_0064$' -count=1 -v`. The output, as the owner
+  pasted it:
+
+  ```text
+  === RUN   TestLive_WorkspaceConfirm_0064
+      live_0064_workspace_measure_test.go:86: no workspace: ErrWorkspaceRequired; malformed: ErrWorkspaceNotFound; the workspace: generated, streamed and listed
+  --- PASS: TestLive_WorkspaceConfirm_0064 (1.99s)
+  PASS
+  ok      github.com/maccavelli/go-llmprovider-sdk/llmprovider    2.560s
+  ```
+
+* **Result.** Step 1 holds against Anthropic: with no workspace, `Generate`
+  and the listing are `ErrWorkspaceRequired`; with `not-a-workspace`,
+  `ErrWorkspaceNotFound`; with the workspace, `Generate` answers, `Stream`
+  streams text and the listing is live. The run does not measure E5, a
+  well-formed workspace the key may not use; it stays unmeasured.
+* **Next:** step 2, the wizard, run by the owner.
+
+### Phase 6, step 2: the wizard (2026-10-27)
+
+* **Consumer.** A scratch module outside both trees, its `go.mod` replacing
+  the SDK with the working tree at `7d1bf9f`: it runs `wizard.ConfigureLLM`
+  with `Providers` Claude only, `AllowEnv` with `os.Getenv`, and `Discover`;
+  prints the `Result` with the workspace replaced by `wrkspc_REDACTED`;
+  then builds `claude.New` from the `Result` (`WithWorkspace(res.Workspace)`)
+  and generates once. An error is printed by its classes only. It built and
+  vetted clean; nothing in either tree changed.
+* **Run.** In the owner's own terminal, with key D, `ANTHROPIC_API_KEY`
+  exported and `ANTHROPIC_WORKSPACE_ID` unset. The output, as the owner
+  pasted it:
+
+  ```text
+  result: Result{Provider:claude Kind:api_key APIKey:[redacted] Model:claude-haiku-5-5 Workspace:wrkspc_REDACTED}
+  workspace returned: true
+  generated with the result: true
+  ```
+
+* **Result.** The wizard returned a workspace, and a provider built from the
+  `Result` generated. It asked for it: `res.Workspace` is set only from
+  `Existing` (`wizard/configure.go:362`), empty here, and from the prompt
+  (`wizard/configure.go:382`). The pasted lines do not show the notices
+  before the menu, so whether the menu came from the live listing rests on
+  the owner's report; a listing that failed otherwise warns "could not list
+  models for Claude (…); using the built-in catalog"
+  (`wizard/configure.go:694`).
+* **The listing.** Asked, the owner answered "No such warning": before the
+  menu the wizard showed only the warning that Claude needs a workspace and
+  the workspace prompt, so the menu came from the live listing. Step 2
+  holds: the wizard asked for the workspace, listed, and returned it.
+
+### Phase 6, step 3: the records (2026-10-27)
+
+* **MADR.** Already `accepted` (its front matter, and its row in
+  `docs/README.md`); unchanged.
+* **PLAN.** `complete`, by `tools/records.py status`, which changes its row
+  in `docs/README.md` with it. Every step of Phases 1 to 6 is met; what is
+  not done, and stays out of this plan: E5, the documented 404 for a
+  well-formed workspace the key may not use, is unmeasured (0064-MADR,
+  amendment "2026-10-27: Phase 1's measurement"); the release, `v1.24.0`,
+  is the owner's to tag; prepare-commit-msg wires `Result.Workspace` under
+  its own record.
