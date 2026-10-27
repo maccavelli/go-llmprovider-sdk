@@ -558,3 +558,51 @@ PLAN is complete:
   (gofmt, golangci-lint, go vet, go test, govulncheck)"; `make api-check`:
   "against v1.23.0, 0 incompatible change(s)"; `sdkaudit -check`: "0
   violation(s) of R50,R51,R52"; `python3 -B tools/gate.py`: "gate: 28 of 28 passed".
+
+### Phase 5: docs and the API check, done (2026-10-27)
+
+* **Approval.** "committed, proceed", after Phase 4 (`ee834d5`).
+* **Step 1:**
+  * `docs/architecture.md`: the claude row names `WithWorkspace`, the
+    catalog row and the listing's options `WithClaudeWorkspace`; the
+    listing cache and the probe cache are said to be keyed by the workspace;
+    the errors paragraph names `ErrWorkspaceRequired` and
+    `ErrWorkspaceNotFound` beneath `ErrInvalidRequest`; the wizard section
+    gains "Claude's workspace".
+  * `README.md`: the Claude key's paragraph says when a workspace is needed
+    and how to pass it; the error kinds list both beneath
+    `ErrInvalidRequest`.
+  * `CHANGELOG.md`, under Unreleased, Added: the two options, the two
+    classes, and `wizard.Result.Workspace`.
+  * Not changed: `docs/guides/migrating-from-mcplib.md`, as D7 says; and
+    `docs/guides/api-standards.md` R25, which lists the kinds each error
+    unwraps to, `ErrInvalidRequest` among them, as it was left for 0061's
+    `ErrEmptyAnswer` and `ErrOffline`.
+* **Step 2:** `python3 -B tools/apidiff.py v1.23.0`, exit 0:
+
+  ```text
+  Compatible changes:
+  - ./llmprovider/catalog.WithClaudeWorkspace: added
+  - ./llmprovider/providers/claude.WithWorkspace: added
+  - ./llmprovider.ErrWorkspaceNotFound: added
+  - ./llmprovider.ErrWorkspaceRequired: added
+  - ./wizard.Result.Workspace: added
+  ```
+
+  D6's five, and nothing else. Made exact: `make api-check` reports only
+  incompatible changes ("against v1.23.0, 0 incompatible change(s) outside
+  llmprovider/x/"), so the list is `tools/apidiff.py`'s.
+* **Step 3**, each exit 0: `parity-check` "409 identifiers, 409 rows, 409
+  with an SDK equivalent, 0 problem(s)"; `dep-check` "GOOS=windows: 42
+  packages, 0 problem(s)"; `coverage-check` "41 packages, 0 problem(s)";
+  `api-check` as above; `generate-check` "2 generated file(s), 0
+  problem(s)"; `records-check` "137 records, 0 problem(s)"; `tables-check`
+  "42 packages, 0 problem(s)"; `fixtures-check` "380 file(s), 134 hit(s), 0
+  problem(s)"; `changelog-check` "34 release section(s), 0 problem(s)";
+  `docs-check`, its last line "sdkaudit: 0 violation(s) of R50,R51,R52";
+  `gate-selftest` "OK"; `lint` "0 issues."; `vuln` "No vulnerabilities
+  found.". Then `tools/linkcheck.py` "0 problem(s), 1049 relative link(s)",
+  `tools/denyscan.py --changed` "0 hit(s)", and `python3 -B tools/gate.py`
+  "gate: 28 of 28 passed".
+* **No plant:** this phase adds no test or gate.
+* **Next:** Phase 6, the owner's live confirmation.

@@ -73,7 +73,13 @@ functions over any provider, and `Stream` streams from every one.
     `api.openai.com/v1`, billed to the user's ChatGPT plan (see below).
   - A Grok session and a Grok key both use `api.x.ai/v1`.
   - Claude and Gemini take an API key only. Claude's is read from
-    `ANTHROPIC_API_KEY`, when the caller asks for the environment.
+    `ANTHROPIC_API_KEY`, when the caller asks for the environment. A
+    Claude key that is not scoped to a workspace must name one on every
+    request: pass `claude.WithWorkspace(id)`, which its listing and
+    probes use too, or `catalog.WithClaudeWorkspace(id)` to a listing
+    alone. The ID is in Anthropic's Console, under Settings, Workspaces.
+    The wizard asks for it when the key needs one, and returns it in
+    `Result.Workspace`.
   - Ollama needs no key. Kilo and OpenCode accept none: they then send the
     service's anonymous or public token, which free models answer and paid
     ones refuse with a typed error.
@@ -82,8 +88,8 @@ functions over any provider, and `Stream` streams from every one.
   `errors.Is`:
   - `ErrRateLimited`, with `ErrQuotaExhausted` beneath it;
   - `ErrAuthFailure` and `ErrNotPermitted`;
-  - `ErrInvalidRequest`, with `ErrContextOverflow` and `ErrIncomplete`
-    beneath it;
+  - `ErrInvalidRequest`, with `ErrContextOverflow`, `ErrIncomplete`,
+    `ErrWorkspaceRequired` and `ErrWorkspaceNotFound` beneath it;
   - `ErrProviderUnavailable` and `ErrUnsupported`.
 
   A truncated answer is an error of kind `ErrIncomplete`. A text answer cut

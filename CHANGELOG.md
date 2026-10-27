@@ -11,6 +11,25 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- `claude.WithWorkspace` and `catalog.WithClaudeWorkspace`: the Anthropic
+  workspace a key not scoped to one runs in, sent as
+  `anthropic-workspace-id` on generation, streaming, each probe and each
+  listing page. Empty sends none; a value with a control character is
+  refused with `ErrInvalidRequest`. The listing and probe caches keep each
+  workspace's entries apart ([0064-MADR](docs/decisions/0064-MADR-anthropic-workspace-for-unscoped-keys.md) D1, D2).
+- `llmprovider.ErrWorkspaceRequired` and `llmprovider.ErrWorkspaceNotFound`,
+  both beneath `ErrInvalidRequest`: Anthropic's refusal of a key not
+  scoped to a workspace that names none, and of a workspace that is
+  malformed or the key may not use. A caller matching `ErrInvalidRequest`
+  still matches ([0064-MADR](docs/decisions/0064-MADR-anthropic-workspace-for-unscoped-keys.md) D3).
+- `wizard.Result.Workspace`: the wizard asks a Claude key that needs a
+  workspace for one, up to three answers, keeps the one that lists, and
+  saves nothing after three refusals. An existing Claude workspace is
+  listed with first; `ANTHROPIC_WORKSPACE_ID` is the prompt's default under
+  `Options.AllowEnv` ([0064-MADR](docs/decisions/0064-MADR-anthropic-workspace-for-unscoped-keys.md) D4).
+
 ## [v1.23.0] - 2026-10-26
 
 ### Added

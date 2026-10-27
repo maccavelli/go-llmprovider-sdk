@@ -108,7 +108,7 @@ standard library is left out.
 | `llmprovider/llmtest` | `Run`, the conformance suite, and `Fake`, a scriptable provider | `llmprovider` |
 | `llmprovider/providers` | `Default()`, a new `Registry` of the built-in providers, `DefaultWith(opts...)`, that `Registry` with `opts` given to every built-in (0048-MADR D1), and `New(id, opts...)`; it holds all ten provider ids, not `chatcompat`'s | `llmprovider`, `providers/claude`, `providers/gemini`, `providers/grok`, `providers/huggingface`, `providers/kilo`, `providers/ollama`, `providers/openai`, `providers/opencode`, `providers/together` |
 | `llmprovider/providers/openai` | OpenAI through the new contract: `New`, `WithStore`, `ListModels`, `Stream`, and `ChatGPTUsageURL` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/chatgpt`, `internal/wire/responses`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref`, `internal/transport` |
-| `llmprovider/providers/claude` | Claude through the new contract: `New`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/messages`, `internal/wire/deferral`, `internal/cacheref` |
+| `llmprovider/providers/claude` | Claude through the new contract: `New`, `WithWorkspace`, `ListModels` and `Stream` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/messages`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/gemini` | Gemini through the new contract: `New`, `WithStore`, `ListModels`, and `Stream`, with the Interactions wire's decoders and its refusal matcher (0062-MADR D4) | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/grok` | Grok through the new contract: `New`, `WithStore`, `ListModels`, and `Stream` | `llmprovider`, `catalog`, `internal/listlimit`, `internal/wire/responses`, `auth`, `internal/wire`, `internal/wire/deferral`, `internal/cacheref` |
 | `llmprovider/providers/opencode` | OpenCode Zen and Go through the new contract: `NewZen`, `NewGo`, `WithRoute`, `ListModels` and `Stream` (native on every route), with the route table, built from the embedded `routes_snapshot.json` | `llmprovider`, `auth`, `catalog`, `internal/listlimit`, `internal/wire`, `internal/wire/responses`, `internal/wire/chatcompletions`, `internal/wire/messages`, `internal/wire/generatecontent`, `internal/wire/deferral`, `internal/cacheref` |
@@ -123,7 +123,7 @@ standard library is left out.
 | `llmprovider/internal/wire/messages` | the Anthropic Messages wire, with its thinking shape: `FromItems`, `Decode`, `Events`, `AddThinking`, and from a model's facts `Thinking`, `FactsThinking`, `PreferredShape` and `AddThinkingFor`; deferred tools: `FromItemsLoading`, `ClaudeVersion`; forced tool choice per model: `Policy`, `Forcing`, `CheckForcing`, `AddToolChoice`, `StructuredCall`, `StructuredStream`, `RefusalRetry`, `ToolChoiceWarning`; `MatchRefusal`, its refusals of a thinking shape or an effort (0062-MADR D4) | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig`, and from a model's facts `Thinking`, `FactsThinking`, `PreferredShape` and `ThinkingConfigFor`; `MatchRefusal`, its refusal of a level (0062-MADR D4, amendment "Phase 3's google-route levels, and 0013's B9") | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
-| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `Search`, `Match` and its `Why`, `Catalog.Search` (0061-MADR, amendment "Model search, rebuilt"), `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood` and `WithKiloOrganization`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache` and the option `WithCache` (0048-MADR D1), shared as `WithModelLayer` is; a `chatcompat` provider's listing and lookups, by its `WithID` (0061-MADR E1), with a recorded dialect's details (`dialect.go`) and models.dev's facts by canonical id (`canonical.go`) (0061-MADR E2) | `llmprovider`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect` |
+| `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `Search`, `Match` and its `Why`, `Catalog.Search` (0061-MADR, amendment "Model search, rebuilt"), `Label`, `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood`, `WithKiloOrganization` and `WithClaudeWorkspace`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache` and the option `WithCache` (0048-MADR D1), shared as `WithModelLayer` is; a `chatcompat` provider's listing and lookups, by its `WithID` (0061-MADR E1), with a recorded dialect's details (`dialect.go`) and models.dev's facts by canonical id (`canonical.go`) (0061-MADR E2) | `llmprovider`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect` |
 | `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
 | `llmprovider/internal/nilsource` | `Is`, which tells a typed-nil `TokenSource`, a nil pointer, map, slice, func, chan or interface held in a non-nil interface, from a value, for `ResolveOptions` and the catalog's entry points (0050-MADR D1, D2) | the standard library |
 | `llmprovider/internal/listlimit` | `Value`, `catalog.WithLimit`'s option value, `Of`, which reads it from a provider's options, and `Cut`, for `catalog` and the providers that cut their own fallback listings with it (0038-MADR A3) | the standard library |
@@ -201,8 +201,9 @@ provider's model list, and curates it into a `Catalog`. Every provider ranks
 by `Profile`, with the model metadata unless `WithoutModelMetadata` is set;
 OpenAI, Claude, Gemini and Grok rank by their name curators only with no
 document (0041-MADR D4). A listing read in the last ten minutes, for the
-same provider, base URL, Kilo organization and credential, is ranked again
-with no request, and callers at once share one fetch, and its result, a
+same provider, base URL, Kilo organization or Claude workspace, and
+credential, is ranked again with no request, and callers at once share one
+fetch, and its result, a
 failure included; a caller that is cancelled ends only its own wait
 (0053-MADR D4). A transient failure
 (a timeout, a 5xx, a rate limit, a network error) serves the last good
@@ -288,9 +289,10 @@ free price, is told apart from an unknown value. `SourceOf` names the layer.
 the highest tier the input exceeds. `Cost.Tiers` merges as a whole.
 
 A listing's metadata is cached for ten minutes, keyed by provider, the base
-URL the listing reads and a fingerprint of the credential, never the
-credential itself. No base URL is the provider's default, so a `List` with
-none and a provider's request, which names its default, share an entry.
+URL the listing reads, the Kilo organization or Claude workspace, and a
+fingerprint of the credential, never the credential itself (0064-MADR D2).
+No base URL is the provider's default, so a `List` with none and a
+provider's request, which names its default, share an entry.
 Claude's lister reads `/v1/models` under a base with or without `/v1`
 (0041-MADR A8). `List` fills the cache too. `CachedModel` answers from the caches and the caller's
 layers without waiting, and starts a refresh where one is missing or stale.
@@ -501,9 +503,13 @@ for a session, from the store.
   context is `ErrInvalidRequest`: shortening the input cannot help. A 403
   is `ErrNotPermitted`, a refusal of what the key may do, so it is neither
   renewed nor resent; every provider refuses a key with a 401 or a 400.
-  Grok's 400 `invalid-argument` naming an API key is `ErrAuthFailure`. A
-  failure inside a 200 with no known code is classified by its OpenAI- or
-  Anthropic-style error type.
+  Grok's 400 `invalid-argument` naming an API key is `ErrAuthFailure`.
+  Anthropic's 400 for a key not scoped to a workspace that names none is
+  `ErrWorkspaceRequired`, and its 400 for a malformed workspace ID and 404
+  for one the key may not use are `ErrWorkspaceNotFound`, both beneath
+  `ErrInvalidRequest`, matched by type and phrase for Claude alone
+  (0064-MADR D3). A failure inside a 200 with no known code is classified
+  by its OpenAI- or Anthropic-style error type.
 - `WithRetry(p, RetryPolicy{…})` retries what `Retryable` allows, waiting as
   long as the service asks with up to a tenth more, up to a cap. It is not a
   `Streamer`: a stream through it is buffered so that it can be retried, and
@@ -782,7 +788,9 @@ for a session, from the store.
   `WithLimit(catalog.MaxListed)` to the band. A static fallback is cut in
   both views. Its options are `llmprovider`'s common ones, with
   `catalog.WithProfile`, `catalog.WithWorkload`, `catalog.WithLimit`,
-  `catalog.WithLastGood` and `catalog.WithKiloOrganization`. It lists the ten
+  `catalog.WithLastGood`, `catalog.WithKiloOrganization` and
+  `catalog.WithClaudeWorkspace`, which sends Anthropic's
+  `anthropic-workspace-id` on each page. It lists the ten
   built-in ids. For any other id it returns an error matching
   `ErrUnsupported`, before it reads the options.
 - **`Catalog.Menu`** is every usable model as a `MenuEntry`: its id, its
@@ -843,8 +851,9 @@ for a session, from the store.
   also send one billed generation to each of the first `catalog.MaxListed`
   candidates and drop those that do not answer; the later ones are returned
   unprobed. The models that answered are cached in
-  memory, the process's or a `catalog.Cache`'s, for 10 minutes, keyed by provider, base URL and the SHA-256 of
-  the credential, so a listing within that time sends no probe, and
+  memory, the process's or a `catalog.Cache`'s, for 10 minutes, keyed by provider, base URL, the SHA-256 of
+  the credential and, for Claude, the workspace (0064-MADR, amendment
+  "the probe cache"), so a listing within that time sends no probe, and
   listings that miss the cache at once share one run of probes (0053-MADR
   D6).
   `WithModelProbes(false)` turns that off. `ModelProbesFromEnv()` reads
@@ -919,6 +928,15 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   With `Options.KiloDeviceKey` it returns the token as a `CredAPIKey`
   instead, needing no store, saving nothing and asking no organization: one
   copy, in the `Result` (0056-MADR D2).
+- **Claude's workspace.** A Claude key not scoped to a workspace is refused
+  by the listing as `ErrWorkspaceRequired`; the wizard says so by class and
+  status, asks for the workspace ID, and lists again with it, up to three
+  answers, then returns the last refusal and saves nothing. An existing
+  Claude `Result.Workspace` is listed with first, and asks nothing when it
+  lists; refused, it is the first prompt's default, else
+  `ANTHROPIC_WORKSPACE_ID` under `Options.AllowEnv`. The workspace that
+  lists is in `Result.Workspace`, for `claude.WithWorkspace` (0064-MADR
+  D4, amendment "D4's pre-fill").
 - **A device sign-in's code.** It is shown as a notice, or, with
   `Options.ShowDeviceCode`, given to the caller as a `DeviceCode`: the
   provider, URL, code and expiry, for a caller that reports it as data. An
