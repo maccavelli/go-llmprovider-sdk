@@ -11,6 +11,18 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+## [v1.24.1] - 2026-10-27
+
+### Fixed
+
+- The release of `v1.24.0`: its tag was pushed before its section in
+  `CHANGELOG.md` was written, so its CI made no GitHub Release. `v1.24.1`
+  has `v1.24.0`'s code unchanged, with that section and the README's
+  Status; `v1.24.0` gets its Release by hand, from its section
+  ([0064-PLAN](docs/decisions/0064-PLAN-anthropic-workspace-for-unscoped-keys.md) Phase 7).
+
+## [v1.24.0] - 2026-10-27
+
 ### Added
 
 - `claude.WithWorkspace` and `catalog.WithClaudeWorkspace`: the Anthropic
@@ -924,7 +936,9 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.23.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.24.1...HEAD
+[v1.24.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.24.0...v1.24.1
+[v1.24.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.23.0...v1.24.0
 [v1.23.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.2...v1.23.0
 [v1.22.2]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.1...v1.22.2
 [v1.22.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.0...v1.22.1

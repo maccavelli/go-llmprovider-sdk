@@ -1,5 +1,5 @@
 ---
-status: complete
+status: in-progress
 date: 2026-10-27
 associated-madr: "0064-MADR-anthropic-workspace-for-unscoped-keys.md"
 decision-makers: repository owner
@@ -200,6 +200,9 @@ PLAN is complete:
   release (v1.23.0, *annotated 2026-10-26: `v1.23.0` shipped 0061 and 0062;
   this is `v1.24.0`*), tagged by the owner. Consumers adopt it by wiring
   `Result.Workspace` (prepare-commit-msg first, under its own record).
+  *Annotated 2026-10-27: `v1.24.0` was tagged before its changelog section,
+  so its CI made no Release; `v1.24.1` carries the release, and `v1.24.0`
+  gets its Release by hand (Phase 7).*
 * **Compatibility:** a caller that matches `ErrInvalidRequest` still matches.
   A key that works today sends no new header unless the caller sets one.
 * **Rollback:** revert the phase's commits. A consumer that persisted a
@@ -729,3 +732,82 @@ PLAN is complete:
   amendment "2026-10-27: Phase 1's measurement"); the release, `v1.24.0`,
   is the owner's to tag; prepare-commit-msg wires `Result.Workspace` under
   its own record.
+
+### Phase 7: the release (2026-10-27)
+
+* **Deviation (2026-10-27): `v1.24.0` was tagged with no changelog
+  section.** The PLAN named no release step; its Rollout said only that the
+  owner tags it, and the agent's handoff after Phase 6 called `main` ready
+  to tag without checking R53's changelog rule. The owner tagged `v1.24.0`,
+  annotated, on `8cf739b`. Its CI run, `40574546189`, failed on
+  ubuntu-24.04 at `changelog-check`: "v1.24.0 has no section" (macos-15
+  and windows-2025 passed; every other check passed on ubuntu). The
+  `release` job, which needs `validate`, was skipped, and `gh release view
+  v1.24.0` answers "release not found". `main`'s run on the same commit,
+  `40573211074`, passed on all three. R53's "a release's section is written
+  before its tag" is broken for `v1.24.0` and stays broken: its tagged tree
+  has no section of its own.
+  * **Evidence on the proxy:** `index.golang.org`, paged from
+    2026-10-26T00:00Z to 2026-10-27T20:08:51Z, lists this module's `v1.23.0`
+    (seen 9 minutes after its tag) and not `v1.24.0`.
+  * **Options put to the owner:** keep the tag and release `v1.24.0` by hand
+    (recommended); release `v1.24.1` through CI; move the `v1.24.0` tag,
+    which rewrites a published tag and races the proxy's checksum record.
+  * **The owner chose:** "Release v1.24.1 through CI".
+* **Deviation (2026-10-27): R53's five newest Releases.** With `v1.24.1`,
+  the five newest tags are `v1.24.1`, `v1.24.0`, `v1.23.0`, `v1.22.2` and
+  `v1.22.1`; `v1.24.0` would have none, against R53. Options put: give
+  `v1.24.0` its Release by hand, as 0055-MADR D3 did for `v1.20.0`
+  (recommended); amend R53 with an exception; drop `v1.24.1`. **The owner
+  chose:** "v1.24.0 Release by hand". The MADR's decisions and facts are
+  unchanged; R53 holds.
+* **Steps:**
+  1. A release commit, staged by the agent: `CHANGELOG.md` gets
+     `[v1.24.1] - 2026-10-27` (Fixed: the release of `v1.24.0`; no code
+     change) and `[v1.24.0] - 2026-10-27` (0064's entries, from
+     `[Unreleased]`, which is left empty), and their compare links; the
+     README's Status names `v1.24.1`; this record. The section dates are
+     the tags' commit dates, as `changelog-check` requires: `8cf739b`'s
+     is 2026-10-27, and the release commit's must be.
+  2. Before the push: `git diff --stat v1.24.0` shows Markdown only;
+     `tools/apidiff.py v1.23.0` lists D6's five additions and `v1.24.0`
+     none; both tags' notes, made on a scratch clone as the `release` job
+     makes them, with every link pinned to its tag and `tools/denyscan.py`
+     clean; `python3 -B tools/gate.py`; the disclosure guard over the
+     outgoing commits.
+  3. The owner, each in its own turn: commits and pushes `main` (Docs
+     runs); tags `v1.24.1`, annotated, on the release commit (CI runs in
+     full and its `release` job makes the Release); runs `gh release create
+     v1.24.0 --verify-tag --title v1.24.0 --notes-file` with the scanned
+     notes; deletes the Releases of `v1.22.0` and `v1.21.0`, which fall to
+     sixth and seventh (R53).
+  4. `tools/consumer.py v1.24.1` and `tools/offline.py v1.24.1`; then this
+     PLAN `complete` again.
+* **Status.** The PLAN goes back to `in-progress` for this phase.
+* **Step 1, done.** `CHANGELOG.md`: `[v1.24.1] - 2026-10-27`, Fixed,
+  and `[v1.24.0] - 2026-10-27`, 0064's three Added entries, under an empty
+  `[Unreleased]`; the links `[Unreleased]` from `v1.24.1`, `[v1.24.1]` from
+  `v1.24.0` and `[v1.24.0]` from `v1.23.0`. The README's Status names
+  `v1.24.1`. `make changelog-check`: "36 release section(s), 0
+  problem(s)"; `v1.24.1`'s section is newer than every tag, as a release
+  being prepared may be.
+* **Step 2, done:**
+  * `git diff --name-only v1.24.0`: `CHANGELOG.md`, `README.md`,
+    `docs/README.md` and this PLAN, Markdown only;
+    `tools/apidiff.py v1.24.0`: exit 0, no change; `tools/apidiff.py
+    v1.23.0`: exit 0, D6's five compatible additions (`claude.WithWorkspace`,
+    `catalog.WithClaudeWorkspace`, `wizard.Result.Workspace`,
+    `ErrWorkspaceNotFound`, `ErrWorkspaceRequired`) and no incompatible
+    change;
+  * the notes, on a scratch clone with the working tree's `CHANGELOG.md`
+    and `README.md`, `v1.24.0` fetched and a local lightweight `v1.24.1` on
+    its `HEAD`: `scripts/check_changelog.py --section TAG --repo
+    maccavelli/go-llmprovider-sdk`, exit 0 for each; `v1.24.0` 18 lines, 3
+    links, `v1.24.1` 7 lines, 1 link, each pinned to its own tag, none
+    relative; `tools/denyscan.py` on them, 0 hits;
+  * `tools/recordlint.py --changed`: no rule rose; `tools/denyscan.py
+    --changed`: 0 hits in 4 files; `tools/linkcheck.py`: "0 problem(s),
+    1050 relative link(s)"; `python3 -B tools/gate.py`: "gate: 28 of 28
+    passed";
+  * the disclosure guard runs over the release commit once the owner has
+    committed it.
