@@ -1,6 +1,6 @@
 ---
 status: proposed
-date: 2026-10-25
+date: 2026-10-27
 associated-madr: "0063-MADR-align-docs-ci-and-disclosure-gates.md"
 ---
 # Implement aligned docs-only CI and disclosure gates
@@ -23,6 +23,11 @@ Affected files: `.github/workflows/ci.yml`, `.github/workflows/docs.yml`,
 `docs/README.md`,
 `docs/reports/0011-REPORT-provider-source-compatibility-audit.md`, and
 `docs/reports/0054-REPORT-heuristics-and-performance-opportunities.md`.
+*Amended 2026-10-27 (the MADR's re-assessment, R1 and R2):* the two
+reports leave the scope; `scripts/check_links.py` and
+`scripts/check_disclosure.py` join it, new, and `tools/linkcheck.py`,
+`tools/gate.py` and `tools/README.md` with `tools/denyscan.py`, to use
+them.
 
 Repository-specific work: Keep the existing filters and five docs targets. Add
 a pinned `make markdownlint` target and the existing link checker to both
@@ -48,17 +53,31 @@ and tags.
    agent-rule trees and test fixtures. Review required-status settings; if a
    filtered job would stay pending, amend this pair with a concrete migration
    before changing filters.
+   *Annotated 2026-10-27:* the MADR's re-assessment records this inventory
+   at `5eff09e`, and that `main` requires no status check. Execution
+   re-runs it and records any change.
 2. Format the two reports named in Scope to resolve the 380 existing
    Markdownlint findings, preserving their prose, links and tables. Confirm
    the pinned linter is clean before making it a CI gate. Add missing
    record/link and Markdownlint targets, reusing current commands where they
    exist. Run identical pinned documentation commands in full CI and Docs.
    Keep Go lint, tests, vulnerability, builds and releases in full CI.
+   *Amended 2026-10-27 (R1):* the reports are not reformatted. `make
+   markdownlint` runs `npx --yes markdownlint-cli2@0.23.2 --no-globs` on
+   `tools/gate.py`'s file set, every tracked Markdown file outside
+   `docs/decisions/` and `docs/reports/`, from one list that the local gate
+   and both workflows share; it is clean at `5eff09e`. The link check is
+   `make links-check`, a `scripts/` gate (R2).
 3. Implement a standard-library portable disclosure check over tracked text.
    It rejects real macOS, Linux and Windows user-home paths, accepts
    documented placeholders, prints only file, line and category, and fails on
    unreadable tracked input. Run the same target in full CI and Docs. Retain
    the private deny list and global pre-push guard locally.
+   *Amended 2026-10-27 (R2, R3):* it is `scripts/check_disclosure.py`,
+   `make disclosure-check`: `tools/denyscan.py`'s home-path rule, the
+   Windows form added, the `<user>` placeholder exempt, no host name read;
+   0 hits over the 1,434 tracked files at `5eff09e`. `tools/denyscan.py`
+   keeps its account and host checks, locally.
 4. Add fixture tests for new gates. Prove each fails on deliberately broken
    input in a scratch copy and passes on clean input. Record commands,
    statuses and redacted diagnostics. Commit the approved phase after checks
@@ -76,6 +95,10 @@ and tags.
    in Docs, and compares common docs-gate commands and pins, and fails when
    full CI loses a tag, schedule or dispatch trigger it had, or gains a
    `paths` filter. Integrate it in the workflow/tool test target.
+   *Amended 2026-10-27 (R4):* it reads the workflows' lines with the
+   standard library, as `installs_before_selftest` does, and `actionlint`
+   v1.7.12 validates the YAML; no YAML parser is added. Its plants go in
+   `scripts/test_gates.py`, which `gate-selftest` runs in both workflows.
 3. Run actionlint and the contract check. In independent scratch copies, plant
    a mismatched path, a Markdown reader wrongly ignored, a missing Docs gate
    and a differing pin; require each to fail. Commit the approved phase after
