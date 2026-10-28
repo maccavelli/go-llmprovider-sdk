@@ -142,7 +142,7 @@ documents a reader follows to do something.
 | 0062 | PLAN | [Implement Thinking Parameters Decided From Facts and Learned Refusals](decisions/0062-PLAN-learn-thinking-parameters-from-refusals.md) | complete |
 | 0062 | REPORT | [Thinking Refusals on Each Wire, Recorded for 0062](reports/0062-REPORT-thinking-refusals.md) | observation |
 | 0063 | MADR | [Align docs-only CI and disclosure gates](decisions/0063-MADR-align-docs-ci-and-disclosure-gates.md) | accepted |
-| 0063 | PLAN | [Implement aligned docs-only CI and disclosure gates](decisions/0063-PLAN-align-docs-ci-and-disclosure-gates.md) | in-progress |
+| 0063 | PLAN | [Implement aligned docs-only CI and disclosure gates](decisions/0063-PLAN-align-docs-ci-and-disclosure-gates.md) | complete |
 | 0064 | MADR | [Send Anthropic's Workspace Header for Keys Not Scoped to a Workspace](decisions/0064-MADR-anthropic-workspace-for-unscoped-keys.md) | accepted |
 | 0064 | PLAN | [Implement Anthropic's Workspace Header for Keys Not Scoped to a Workspace](decisions/0064-PLAN-anthropic-workspace-for-unscoped-keys.md) | complete |
 | 0065 | MADR | [Keep the Tests Off the Network, and Hold Them There](decisions/0065-MADR-tests-reach-no-outside-host.md) | accepted |

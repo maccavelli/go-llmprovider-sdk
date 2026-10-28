@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-27
+status: complete
+date: 2026-10-28
 associated-madr: "0063-MADR-align-docs-ci-and-disclosure-gates.md"
 ---
 # Implement aligned docs-only CI and disclosure gates
@@ -396,3 +396,31 @@ does not authorize a push or tag.
     same lines as Docs, `gate-selftest` "Ran 49 tests", OK.
   * **The Markdown-only route** is observed by the push of the commit that
     records this: it changes this PLAN alone, so Docs alone should start.
+* **Step 3, the Markdown-only route, observed (2026-10-28).** The owner
+  committed that record as `039ac3a`, which changes this PLAN alone, and
+  pushed it.
+  * **Started:** Docs alone, run `40701628966`, on push, at
+    2026-10-28T13:59:57Z. `gh run list --commit 039ac3a` lists that run and
+    no other: CI did not start.
+  * **Docs: success,** with the lines of the code route's run: "Linting:
+    12 files", "Summary: 0 issues in 0 files", "links-check: 0 problem(s),
+    1051 relative link(s) in 149 file(s)", "disclosure-check: 0 hit(s) in
+    1436 file(s)", `gate-selftest` "Ran 49 tests", OK.
+  * **Not run before this push:** the disclosure guard by hand; the global
+    pre-push hook ran it, as on every push.
+* **The criteria (Verification), each with its evidence:**
+  * both workflows pass pinned Markdownlint, records and index, relative
+    links, and the disclosure scan: runs `40700208640`, `40700208671` and
+    `40701628966`;
+  * each Markdown reader runs on changes to its input: the contract's
+    `MARKDOWN_GATES` test (Phase 2), and Docs ran them all for a change to
+    Markdown alone;
+  * a Markdown-only push starts Docs and not CI (`039ac3a`); a push that
+    changes code starts CI (`d96d285`, with Docs too, since it also
+    changed Markdown); tags, schedule and pull requests by the contract's
+    trigger test, not by a wait;
+  * plants fail their gates: Phases 1 to 3, 10, 11 and 5 plants; drift fails
+    the contract (Phase 2's);
+  * the guard checked the outgoing commits before the first push, and its
+    deny list is in no workflow (`disclosure-check` reads none, R3).
+* **Status.** Every criterion holds: this PLAN is `complete`.
