@@ -1154,3 +1154,28 @@ govulncheck found ten called standard-library vulnerabilities at 1.27.1, all
 fixed in 1.27.2, and CI, which installs the version `go.mod` names, failed on
 them. The fifth amendment stands as the record of why the directive was set
 then.
+
+## Amendment 2026-10-27: close-out
+
+Status: **accepted** 2026-10-27, by the owner's "finish 0002", asked
+whether to close the PLAN now or keep it open until the two servers
+migrate.
+
+* **What closes.** The PLAN is `complete` with Phases 9 and 11–13 not run
+  under it. Its Phase 14 entry records the Confirmation item by item.
+* **Confirmation not met, and where it goes:**
+  * `mcplib` `v1.6.1` and `v1.7.0` (§13; the fifth Confirmation item):
+    `mcplib`'s
+    `docs/decisions/0015-PLAN-transfer-llmprovider-to-go-llmprovider-sdk.md`
+    already carries them, as its Phases R1 and R2, deferred by its own
+    amendment.
+  * `mcp-server-magictools` and `mcp-server-magicdev` adopting the SDK
+    (§13; the fourth Confirmation item, for those two): each does so under
+    a record of its own, in its repository, once the owner has moved the
+    orchestrator code out of `mcplib`. That replaces the sixth amendment's
+    "re-scoped by a later amendment" of this record. The PLAN's Phases 11
+    and 12 are their input, and `docs/guides/migrating-from-mcplib.md`
+    maps their calls.
+* **Unchanged.** Every decision above, and the sixth amendment's reasons.
+  The goals of three migrated consumers and an MCP-only `mcplib` stand;
+  this record no longer tracks them.

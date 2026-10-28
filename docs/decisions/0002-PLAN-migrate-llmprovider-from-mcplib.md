@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-09-29
+status: complete
+date: 2026-10-27
 associated-madr: "0002-MADR-migrate-llmprovider-from-mcplib.md"
 decision-makers: go-llmprovider-sdk maintainers
 ---
@@ -30,9 +30,12 @@ At the end of this plan:
 4. `prepare-commit-msg`, `mcp-server-magictools` and `mcp-server-magicdev`
    import this module, each under its own approved record.
    *Amended 2026-09-29 (sixth amendment): `prepare-commit-msg` only, for now.*
+   *Closed 2026-10-27 (Phase 14): the other two adopt the SDK under records
+   of their own.*
 5. `mcplib` `v1.7.0` no longer contains `llmprovider/`, `wizard/` or the
    moved records. A relocation table points readers here.
-   *Deferred 2026-09-29 (sixth amendment).*
+   *Deferred 2026-09-29 (sixth amendment).* *Closed 2026-10-27 (Phase 14):
+   `mcplib`'s 0015-PLAN carries it, as its Phase R2.*
 
 ## Scope
 
@@ -878,6 +881,10 @@ use.
 
 ### Phase 9: `mcplib` `v1.6.1` deprecation (`mcplib`, under its 0015 PLAN)
 
+*Transferred 2026-10-27 (Phase 14):* not run under this PLAN. `mcplib`'s
+`docs/decisions/0015-PLAN-transfer-llmprovider-to-go-llmprovider-sdk.md`
+carries it as its Phase R1, still waiting on the two servers.
+
 *Open 2026-09-29 (sixth amendment):* `mcp-server-magictools` and
 `mcp-server-magicdev` keep importing these packages. Whether the
 deprecation is tagged before they can migrate is the owner's decision.
@@ -948,6 +955,11 @@ include:
 
 ### Phase 11: `mcp-server-magictools` adopts the SDK (its 0005 companion)
 
+*Transferred 2026-10-27 (Phase 14):* not run under this PLAN. The
+repository adopts the SDK under a record of its own, written when the
+owner has moved the orchestrator code out of `mcplib`; the text below is
+input to it, not a step of this PLAN.
+
 *Deferred 2026-09-29 (sixth amendment):* until the owner has moved the
 orchestrator code out of `mcplib`. A later amendment re-scopes this phase
 then. The text below is not executable as written: `Options.Orchestrated`
@@ -994,6 +1006,9 @@ S11. It may trial against a `v1.0.0-rc.N` tag.
 
 ### Phase 12: `mcp-server-magicdev` adopts the SDK (its 0001 companion)
 
+*Transferred 2026-10-27 (Phase 14):* as Phase 11, in
+`mcp-server-magicdev`.
+
 *Deferred 2026-09-29 (sixth amendment):* until the owner has moved the
 orchestrator code out of `mcplib`. A later amendment re-scopes this phase
 then. The text below is not executable as written: `Options.Orchestrated`
@@ -1026,6 +1041,10 @@ S11. It may trial against a `v1.0.0-rc.N` tag.
    * `ListAvailableModels` returns at most `MaxListedModels` ranked ids.
 
 ### Phase 13: `mcplib` `v1.7.0` removal (`mcplib`, under its 0015 PLAN)
+
+*Transferred 2026-10-27 (Phase 14):* not run under this PLAN. `mcplib`'s
+`docs/decisions/0015-PLAN-transfer-llmprovider-to-go-llmprovider-sdk.md`
+carries it as its Phase R2.
 
 *Deferred 2026-09-29 (sixth amendment),* with Phases 11 and 12.
 
@@ -2483,3 +2502,88 @@ pushed, verify it").
   and on the tag (`37150981357`).
 * **Phase 10 is complete.** This PLAN stays `in-progress` for Phase 9 and
   Phases 11–14.
+
+### Phase 14: close-out (2026-10-27)
+
+* **Approval.** Asked to assess the incomplete plans, the agent named two
+  ways to end this one: close it now and leave Phases 9 and 11–13 to other
+  records, or keep it open until the two servers migrate. The owner:
+  "finish 0002".
+* **Deviation (2026-10-27): the PLAN closes with Phases 9 and 11–13 not
+  run.** As written it stayed `in-progress` for them. Each is recorded as
+  transferred under its heading above, and the MADR's amendment of this
+  date records where each goes and which Confirmation items are not met.
+* **Phase 1, recorded here.** It ran in `mcplib` and had no entry:
+  * `F` is `4e1f9a5`, which is `mcplib`'s `v1.6.0`. Re-run on 2026-10-27,
+    read-only, `git log --oneline v1.6.0..4e1f9a5 -- llmprovider wizard
+    logging/redact.go logging/mask.go` in `mcplib` prints nothing.
+  * The companion pair,
+    `docs/decisions/0015-MADR-transfer-llmprovider-to-go-llmprovider-sdk.md`
+    and its PLAN, in `mcplib` commits `36d5d5b` ("define llmprovider
+    transfer and removal plan"), `2069912` (the v1 API changes) and
+    `5f463da` (the releases deferred). Its MADR is `accepted`; its PLAN is
+    `in-progress`, with Phases R1 (`v1.6.1`) and R2 (`v1.7.0`). The owner's
+    words approving it are not recorded here.
+* **Step 1: each section's commit.** Every commit that changed this PLAN,
+  with the execution-record section it added (`git log -- <this PLAN>`):
+
+  | Section | Commit |
+  |---|---|
+  | The records written | `1fe7bac` |
+  | Phase 0: accept the records | `5ad957c` |
+  | Amendment: pre-add gate and agent pointers | `d8550d4` |
+  | Phase 2: scaffold this repository | `699e2b8` |
+  | Phase 3: history import | `7dab7f6` (the import's merge), `4ddcb54` (its entry) |
+  | Phase 4 stop, the second to fourth amendments, Phases 2b and 2c approved; 0015's pair | `b0bcba2` |
+  | Phase 2c: golangci-lint replaces golint | `3e764d7` |
+  | Phase 2b: documentation tree to standards | `21f01c3` |
+  | Amendment (fifth) and Phase 2d | `08de832` |
+  | Second and sixth amendments accepted | `ee06a08` |
+  | Phase 9 and `prepare-commit-msg` decided | `bc76ddd` |
+  | Phase 4 stop, and Phase 4: re-home the code | `6105dfb` |
+  | Phase 5 stop, and Phase 5 | `3a31a0a` |
+  | Phase 6 stop, and Phase 6: move the records | `49dbb29` |
+  | Phase 7 stop, and Phase 7: rewrite in-code citations | `cc81adf` |
+  | The Apache License 2.0 annotation | `8150c35` |
+  | Handover from 0015-PLAN; Phase 8 step 0 proposed | `f82d79b` |
+  | Phase 8 deviation; steps 0, 3 and 4 | `95300be` |
+  | Phase 8 step 1: the live gates | `15be170` |
+  | Phase 8 step 1: Kilo and OpenCode, and the live URL checks | `b8ccb39`, which `v1.0.0` tags |
+  | Phase 8 step 4: `v1.0.0` | `73492cb` |
+  | Amendment: `go-core-lib` is now `go-selfupdate-lib` | `c71ffdd` |
+  | Phase 10 | `cd1d413`; its own commits are in `prepare-commit-msg`, named in its entry |
+
+  `113f771` ("preserve gofmt output when listing files"), between Phases 4
+  and 5, changed only `scripts/go-precheck.sh`, Phase 2's gate; no entry
+  names it.
+* **Step 1: gate outputs and first-fails,** each already in the entry
+  named:
+  * `scripts/go-precheck.sh`: Phase 2 (step 12) and Phase 2c (step 5);
+  * the history import's check of its files and commit identities: Phase 3;
+  * `go.mod`'s requirements: Phase 2d;
+  * G-dep, G-name and G-api: Phase 4, and G-api's re-baseline in Phase 8
+    steps 0, 3 and 4;
+  * the orchestration test, red first against `mcplib` `4e1f9a5`: Phase 4;
+  * the Phase 5 tests: the Phase 5 stop;
+  * G-links: Phases 2b and 6; G-cite: Phase 7;
+  * the offline `referrer` tests: Phase 8 steps 0, 3 and 4; the live URL
+    checks: Phase 8 step 1, Kilo and OpenCode;
+  * `prepare-commit-msg`'s `scripts/go-precheck.py`: Phase 10, step 4.
+* **Step 2: the MADR's Confirmation,** item by item:
+  * §12's gates pass, with their output: **met** (Phases 2–8).
+  * Each gate's first-fail: **met** (the list above).
+  * `v1.0.0` tagged only after the identity gates: **met**. `v1.0.0` tags
+    `b8ccb39`, the commit of the entry in which the last identity gate ran.
+  * The three consumer PLANs `complete` and green on `v1.0.0`: **met for
+    `prepare-commit-msg`** (its
+    `docs/decisions/0008-PLAN-adopt-go-llmprovider-sdk-and-go-selfupdate-lib.md`
+    is `complete`; CI passed on `v1.0.0`, Phase 10). **Not met** for
+    `mcp-server-magictools` and `mcp-server-magicdev`: on 2026-10-27 their
+    `go.mod` files require `mcplib` `v1.4.1` and `v1.2.0`, and neither
+    has an adoption record.
+  * `mcplib` `v1.7.0`: **not met**; `mcplib` has no tag after `v1.6.0`.
+  * Verification's A12 and A13 follow the last two items.
+* **Step 3.** `docs/README.md`'s row for this PLAN reads `complete`, by
+  `tools/records.py status`.
+* **Status.** This PLAN is `complete`; the MADR stays `accepted`, with its
+  amendment of this date.

@@ -12,7 +12,7 @@ documents a reader follows to do something.
 | :--- | :--- | :--- | :--- |
 | 0001 | REPORT | [LLM Provider Extraction Feasibility: mcplib/llmprovider to go-llmprovider-sdk](reports/0001-REPORT-llmprovider-extraction-feasibility.md) | observation |
 | 0002 | MADR | [Migrate `llmprovider` and `wizard` from mcplib into go-llmprovider-sdk as a standalone v1 module](decisions/0002-MADR-migrate-llmprovider-from-mcplib.md) | accepted |
-| 0002 | PLAN | [Implement the Migration of `llmprovider` and `wizard` from mcplib into go-llmprovider-sdk](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md) | in-progress |
+| 0002 | PLAN | [Implement the Migration of `llmprovider` and `wizard` from mcplib into go-llmprovider-sdk](decisions/0002-PLAN-migrate-llmprovider-from-mcplib.md) | complete |
 | 0003 | MADR | [Adopt a Responses-API-Shaped Canonical Contract Across All `llmprovider` Providers, Including a New Grok Provider](decisions/0003-MADR-add-grok-xai-llm-provider.md) | accepted |
 | 0003 | PLAN | [Implementation Plan: Responses-API Canonical Contract + Grok Provider](decisions/0003-PLAN-add-grok-xai-llm-provider.md) | complete |
 | 0004 | MADR | [Add OpenCode Zen/Go, Hugging Face and Kilo Gateway Providers on a Shared Chat Completions Primitive](decisions/0004-MADR-add-gateway-llm-providers.md) | accepted |
