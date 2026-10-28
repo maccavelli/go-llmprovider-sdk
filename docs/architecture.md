@@ -1069,11 +1069,25 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
     file's status, and a count that matches.
 
   `--next` prints the next record number.
+- **`markdownlint`**, **`links-check`** and **`disclosure-check`**
+  (0063-MADR) are the documentation gates both workflows run.
+  `markdownlint` runs `markdownlint-cli2` at the `Makefile`'s one pin on
+  `scripts/check_links.py --lint-files`, every Markdown file but the
+  records, which keep their own conventions (0047-MADR A2).
+  `scripts/check_links.py` checks every relative link.
+  `scripts/check_disclosure.py` fails on a macOS, Linux or Windows home
+  path in any file git tracks or would add, `<user>` exempt, and reads no
+  account name, host name or deny list.
 - **`gate-selftest`** (`scripts/test_gates.py`, standard-library
   `unittest`) copies the tree, plants breaches of each gate (dep-check,
   generate-check, parity-check, coverage-check, api-check, records-check,
-  tables-check, fixtures-check, docs-check, changelog-check), and requires
-  each to fail, then every gate to pass on a clean copy.
+  tables-check, fixtures-check, docs-check, changelog-check, links-check,
+  disclosure-check, and markdownlint's file list and target), and requires
+  each to fail, then every gate to pass on a clean copy. Its workflow
+  contract reads both workflows' lines: `ci.yml` keeps its triggers and
+  gains no `paths` filter, `docs.yml` runs for every path `ci.yml`
+  ignores, each gate is a Markdown gate, run by both, or a code gate, run
+  by `ci.yml` alone, and `docs.yml` uses `ci.yml`'s actions and pins.
 - **G-wire** is `TestWireGoldens` in each provider package, part of
   `go test`. Through `llmprovider/internal/wirecase` it drives 21 provider
   and gateway-route cases through 14 scenarios (text, forced tool,
@@ -1101,7 +1115,8 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   `live_gateways`, the suite shuffled and again with every package run
   twice in one process (`test-repeat`, which fails on a test that reads what
   its own first run left in a process-wide cache; 0058-MADR's amendment of
-  2026-10-24), markdownlint, the link check, the identifier scan, and
+  2026-10-24), `make markdownlint`, `links-check` and
+  `disclosure-check`, the identifier scan, and
   `tools-test`. `tools/cachecensus.py` reports the tests that write the
   process's catalog caches, `--any-url` at any URL and with the keys two
   tests share (0058-MADR D5, D7). `make tools-test`
@@ -1119,7 +1134,7 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   - `go vet -tags live_gateways`;
   - `make parity-check dep-check coverage-check api-check generate-check
     records-check tables-check fixtures-check changelog-check docs-check
-    gate-selftest`.
+    markdownlint links-check disclosure-check gate-selftest`.
 
   It checks out the full history, so that `api-check` and `changelog-check`
   see the tags. A job stops after 30 minutes, and a newer push to a pull
@@ -1135,8 +1150,10 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   instead, on one Linux runner, with `ci.yml`'s checkout of the full
   history, its Go version and its pinned golangci-lint, which the
   self-test's precheck test runs: `make parity-check records-check
-  tables-check changelog-check gate-selftest`, the gates that read Markdown
-  and the gates' self-test, whose plants replace exact strings in the docs.
+  tables-check changelog-check markdownlint links-check disclosure-check
+  gate-selftest`, the gates that read Markdown, the documentation gates of
+  0063-MADR, and the gates' self-test, whose plants replace exact strings
+  in the docs. `markdownlint` runs through `npx`, at the `Makefile`'s pin.
   A test in the self-test fails when `docs.yml` lacks a tool `ci.yml`
   installs before its own self-test. A
   change to anything else runs CI, and Docs too when it also changes

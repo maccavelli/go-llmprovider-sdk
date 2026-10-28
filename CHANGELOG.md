@@ -11,6 +11,17 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Changed
+
+- Both CI workflows run three more documentation gates: `markdownlint`,
+  at one pin (`markdownlint-cli2@0.23.2`), on every Markdown file but the
+  records; `links-check`, every relative link; and `disclosure-check`, a
+  real macOS, Linux or Windows home path in any file, as
+  [0063-MADR](docs/decisions/0063-MADR-align-docs-ci-and-disclosure-gates.md)
+  decides. The gates' self-test checks the workflows too: a Markdown-only
+  change must run every gate that reads Markdown. The module's code is
+  unchanged.
+
 ## [v1.24.1] - 2026-10-27
 
 ### Fixed

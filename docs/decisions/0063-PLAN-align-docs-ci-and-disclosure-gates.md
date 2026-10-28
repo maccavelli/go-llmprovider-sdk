@@ -327,3 +327,52 @@ does not authorize a push or tag.
   `gate-selftest`, 49 tests, OK.
 * **Not done here:** Phase 3, the contract in `AGENTS.md` and
   `docs/architecture.md`, the `CHANGELOG.md` entry, and the observed push.
+
+### Phase 3: documentation and observed rollout (2026-10-27)
+
+* **Approval.** "committed, proceed", after Phase 2 was committed as
+  `0b25503`.
+* **Step 1, done.**
+  * `AGENTS.md`: the CI and Docs target lists with the three new gates;
+    what each does, the `Makefile`'s one pin, and that a new gate goes in
+    `MARKDOWN_GATES` or `CODE_GATES`; under Tools, that `tools/linkcheck.py`
+    and `tools/denyscan.py` import the `scripts/` checks; under
+    Identifiers, that CI's `disclosure-check` covers home paths and the
+    account, host and deny list are checked only on the host.
+  * `docs/architecture.md`: a bullet for the three gates; `gate-selftest`'s
+    gates and its workflow contract; the local gate's checks; CI's and
+    Docs' target lists, and `markdownlint` through `npx`. There is no CI
+    guide (Phase 3 step 1's annotation).
+  * `CHANGELOG.md`: an `[Unreleased]` Changed entry (the deviation of
+    Phase 1).
+  * The index: `docs/README.md` rows 144 and 145 name this pair's files,
+    `accepted` and `in-progress`, set by `tools/records.py` in Phase 1.
+* **Step 2, done.** `make parity-check records-check tables-check
+  changelog-check gate-selftest markdownlint links-check disclosure-check`:
+  exit 0; "G-parity: 409 identifiers, … 0 problem(s)"; "records-check: 137
+  records, 0 problem(s)"; "check-tables: 42 packages, 0 problem(s)";
+  "changelog-check: 36 release section(s), 0 problem(s)"; `gate-selftest`
+  "Ran 49 tests", OK; `markdownlint` by `npx`, "Summary: 0 issues in 0
+  files"; "links-check: 0 problem(s), 1051 relative link(s) in 149
+  file(s)"; "disclosure-check: 0 hit(s) in 1436 file(s)". `actionlint` on
+  both workflows: clean. Plants, on scratch clones (all 5 caught, each by
+  its own gate):
+  * a bad link in `AGENTS.md`: `make: *** [links-check] Error 1`;
+  * MD018 (`#Adding a provider`): `make: *** [markdownlint] Error 1`;
+  * a real home path in `tools/README.md`, built at run time: `make: ***
+    [disclosure-check] Error 1`;
+  * a missing docs target, `links-check` out of `docs.yml`:
+    "['links-check'] != []";
+  * a mismatched tool pin, `docs.yml`'s checkout at another commit: that
+    `uses` listed.
+
+  The make plants ran `make -k markdownlint links-check
+  disclosure-check MARKDOWNLINT=markdownlint-cli2`, so each other target
+  ran and passed. `tools/denyscan.py --changed`: "0 hit(s) in 4 file(s)";
+  `tools/recordlint.py --changed`: no rule rose. Each edited file was read
+  in full in its diff.
+* **Step 3 waits on the owner.** Five commits are unpushed, `5eff09e` to
+  `0b25503`; the disclosure guard over them exits 0. To observe both
+  routes: a push of them, which changes code, should start CI and Docs;
+  then a push of this phase's commit, Markdown alone, should start Docs
+  alone. Each push needs the owner's word in its own turn.
