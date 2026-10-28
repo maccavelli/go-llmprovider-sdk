@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-27
 ---
 # Align docs-only CI and disclosure gates
@@ -251,3 +251,5 @@ chose the recommended option for all four:
   in CI as well, and PyYAML.
 
 The record stays `proposed` until the owner accepts it.
+*Annotated 2026-10-27: accepted, by the owner's "committed, proceed"
+after `bd574ba`.*

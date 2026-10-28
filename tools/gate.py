@@ -2,7 +2,9 @@
 """gate: every local check, on a scratch clone of the working tree, staged there.
 
 Defined by docs/decisions/0035-MADR-maintainer-tools-in-python.md D1. It runs
-0026-PLAN's 22 checks, then tools-test (0035-MADR Q1), on a shared clone of
+0026-PLAN's 22 checks, with the link check and markdownlint by CI's make
+targets and disclosure-check added (0063-MADR R1, R2), then tools-test
+(0035-MADR Q1), on a shared clone of
 the repository with the working tree's changes copied in and committed with
 `git commit-tree`. The checks therefore see exactly what would be staged, and
 the repository's own index is never touched.
@@ -31,10 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import denyscan
-import linkcheck
 from _common import ROOT, load_limit, out_dir, scratch_clone, wait_load
-
-RECORD_DIRS = ("docs/decisions/", "docs/reports/")
 
 
 @dataclass(frozen=True)
@@ -53,21 +52,6 @@ def command(args: list[str], env: dict[str, str] | None = None) -> Callable[[Pat
             return 127, str(err)
         return p.returncode, p.stdout + p.stderr
     return run
-
-
-def markdown_files(root: Path) -> list[str]:
-    """The Markdown files markdownlint checks: all but the records, which its config excludes."""
-    return sorted(f for f in linkcheck.markdown_files(root) if not f.startswith(RECORD_DIRS))
-
-
-def markdownlint(copy: Path, _changed: list[str]) -> tuple[int, str]:
-    return command(["markdownlint-cli2", "--no-globs", *markdown_files(copy)])(copy, _changed)
-
-
-def links(copy: Path, _changed: list[str]) -> tuple[int, str]:
-    problems, checked, files = linkcheck.check(copy)
-    text = "".join(p + "\n" for p in problems)
-    return (1 if problems else 0), text + f"G-links: {len(problems)} problem(s), {checked} relative link(s) in {files} file(s)\n"
 
 
 def deny(copy: Path, changed: list[str]) -> tuple[int, str]:
@@ -104,9 +88,13 @@ CHECKS: list[Check] = [
     make("changelog-check"),
     make("docs-check"),
     make("gate-selftest"),
-    Check("markdownlint", markdownlint),
+    # CI's documentation gates, by their make targets, so the local gate and
+    # both workflows lint and check one file list (0063-MADR R1, R2); the
+    # local markdownlint-cli2 stands in for CI's npx at the same pin.
+    Check("markdownlint", command(["make", "markdownlint", "MARKDOWNLINT=markdownlint-cli2"])),
     Check("g-wire-stable", command(["go", "test", "-count=3", "./llmprovider/...", "-run", "TestWireGoldens"])),
-    Check("g-links", links),
+    make("links-check"),
+    make("disclosure-check"),
     Check("deny-scan", deny),
     make("tools-test"),
 ]

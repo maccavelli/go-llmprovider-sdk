@@ -4,7 +4,9 @@
 Defined by docs/decisions/0035-MADR-maintainer-tools-in-python.md D1, for
 AGENTS.md's "Identifiers" rule. The account name, the host name and its
 domain are read at run time, so this file holds none of them. It prints the
-file, the line and the kind of hit, never the identifier itself. A
+file, the line and the kind of hit, never the identifier itself. A home
+path, macOS, Linux or Windows, is CI's disclosure-check rule,
+scripts/check_disclosure.py, which this tool imports (0063-MADR R2, R3); a
 placeholder home path, such as /home/<user>/, is not a hit.
 
 Usage:
@@ -27,8 +29,7 @@ import sys
 from pathlib import Path
 
 from _common import ROOT
-
-HOME_PATH = re.compile(r"/(Users|home)/(?!<user>)[A-Za-z0-9._-]+/")
+from check_disclosure import KINDS as HOME_PATHS
 
 
 def needles() -> dict[str, re.Pattern[str]]:
@@ -74,7 +75,7 @@ def scan(root: Path, names: list[str]) -> tuple[list[str], int]:
         read += 1
         for n, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
             hits.extend(f"{name}:{n}: {kind}" for kind, rx in patterns.items() if rx.search(line))
-            if HOME_PATH.search(line):
+            if any(rx.search(line) for _, rx in HOME_PATHS):
                 hits.append(f"{name}:{n}: a machine home path")
     return hits, read
 

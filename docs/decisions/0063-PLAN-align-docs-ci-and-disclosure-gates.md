@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-27
 associated-madr: "0063-MADR-align-docs-ci-and-disclosure-gates.md"
 ---
@@ -28,6 +28,8 @@ reports leave the scope; `scripts/check_links.py` and
 `scripts/check_disclosure.py` join it, new, and `tools/linkcheck.py`,
 `tools/gate.py` and `tools/README.md` with `tools/denyscan.py`, to use
 them.
+*Amended 2026-10-27 (deviation, Phase 1's record):* `CHANGELOG.md` joins
+the scope, for Phase 3.
 
 Repository-specific work: Keep the existing filters and five docs targets. Add
 a pinned `make markdownlint` target and the existing link checker to both
@@ -129,6 +131,9 @@ and tags.
    private pre-push guard in AGENTS.md and the architecture or CI guide.
    Verify this pair's exact filenames and current statuses in the records
    index; use the repository index generator if present.
+   *Amended 2026-10-27 (deviation, Phase 1's record):* and add an
+   `[Unreleased]` Changed entry to `CHANGELOG.md` for the new gates and the
+   routing, as 0052-MADR's change had in `v1.20.0`.
    *Annotated 2026-10-27, checked at `eaaf709`:* there is no CI guide;
    `docs/architecture.md`'s **CI** and **Docs** paragraphs say what the
    workflows run. The index tool is `tools/records.py`.
@@ -170,3 +175,96 @@ Land gates before relying on the filters. If routing misclassifies a change,
 revert the routing commit through a new reviewed commit so full CI runs for
 every push again. Keep the shared gates while repairing the audit. This PLAN
 does not authorize a push or tag.
+
+## Execution record
+
+### Phase 1: inventory and shared checks (2026-10-27)
+
+* **Approval.** "committed, proceed", after the owner's answers to R1 to R4
+  were committed as `bd574ba`. It is taken as the MADR's acceptance and
+  this PLAN's approval: the MADR is `accepted` and this PLAN `in-progress`,
+  by `tools/records.py status`.
+* **Step 1, the inventory, at `bd574ba`.** The MADR's re-assessment holds:
+  * the workflows last changed in `e68be51` (2026-10-21);
+  * 149 tracked Markdown files of 1,434 tracked files; 137 are records,
+    under `docs/decisions/` and `docs/reports/`; none is under a `testdata`
+    directory; the agent-rule trees hold `.claude/rules/madr-and-plan-skill.md`,
+    `.grok/rules/madr-plan-before-mutating-work.md` and `.opencode/rules.md`;
+  * `main` is not protected and has no branch rules, so no check is
+    required and no filtered job can stay pending.
+* **The docs-safe path set** is `**.md`, as `ci.yml` ignores it today: no
+  tracked Markdown file is an input to a gate that only full CI runs (the
+  MADR's re-assessment, "Every reader of Markdown runs in Docs"). Phase 2
+  keeps it.
+* **Step 2, done.**
+  * `scripts/check_links.py` (`make links-check`): `tools/linkcheck.py`'s
+    check, moved, with `--lint-files`, the list `make markdownlint` lints:
+    every Markdown file git tracks or would add, less `docs/decisions/` and
+    `docs/reports/`. It exits 2 on an empty list or a name with white
+    space, which the target would split.
+  * `Makefile`: `MARKDOWNLINT ?= npx --yes markdownlint-cli2@0.23.2`;
+    `markdownlint` runs `files="$$(python3 -B scripts/check_links.py
+    --lint-files)" && $(MARKDOWNLINT) --no-globs $$files`, so a list that
+    fails stops it before the linter; `links-check` and `disclosure-check`.
+  * Both workflows run `markdownlint links-check disclosure-check` on the
+    `make` line of their documentation gates, before `gate-selftest`, on
+    Linux; `docs.yml`'s header says so. `actionlint` v1.7.12: clean on both.
+  * Run on the tree: `make markdownlint` by `npx`, "markdownlint-cli2
+    v0.23.2 (markdownlint v0.41.1)", "Linting: 12 files", "Summary: 0
+    issues in 0 files", and the same with the local binary; `make
+    links-check`, "0 problem(s), 1050 relative link(s) in 149 file(s)".
+* **Step 3, done.** `scripts/check_disclosure.py` (`make
+  disclosure-check`): every file git tracks or would add, or those named;
+  `/Users/<name>/` and `/home/<name>/`, and a drive letter, `Users` and a
+  name after a slash or one or two backslashes; `<user>` exempt; no account
+  name, host name or deny list read; a hit printed as path, line and kind;
+  a file it cannot read exits 2. On the tree: "0 hit(s) in 1436 file(s)",
+  the 1,434 tracked files and the two new scripts. A path such as
+  `C:/Users/<name>/` is reported as both kinds, since its `/Users/<name>/`
+  is a macOS one too.
+* **The tools reuse the code (R2).** `tools/_common.py` appends `scripts/`
+  to the import path, after the tools, so no tool is shadowed; no module
+  name is shared. `tools/linkcheck.py` imports `check_links.check` and keeps
+  its CLI and `--detail`; `tools/denyscan.py` takes its home-path rule from
+  `check_disclosure.KINDS`, so it catches Windows paths too, and keeps its
+  account and host checks. `tools/gate.py` runs `make markdownlint
+  MARKDOWNLINT=markdownlint-cli2`, `make links-check` and `make
+  disclosure-check` in place of its own markdownlint and `g-links` checks:
+  29 checks. `tools/README.md` and `docs/architecture.md`'s layout name the
+  new scripts.
+* **Step 4, the tests.** In `scripts/test_gates.py`, both gates join
+  `GATES`, so the clean-copy test runs them, and seven tests plant on the
+  copy: a broken link; a new Markdown file in the lint list and no record
+  in it; `make markdownlint` with `MARKDOWNLINT=echo LINTED`, which lints
+  the list, and with a file named with a space, which fails before the
+  linter; a macOS and a Linux home path; a Windows one in each separator
+  form; the placeholders, which pass; and an unreadable file, exit 2. Each
+  planted path is built at run time, so the file holds none. In
+  `tools/test_tools.py`, the gate's check list is the new one, the test of
+  the removed `gate.markdown_files` moved to `scripts/test_gates.py`, and
+  `denyscan` catches a Windows home path.
+* **Plants** (`tools/plant.py`, on scratch clones; all 10 caught, each by
+  the test aimed at it):
+  * links-check ignoring a missing target: "links-check exit 0, want 1";
+  * the lint list keeping the records: the records listed, "!= []";
+  * the white-space guard removed, and `&&` made `;` in the target: each
+    "make markdownlint passed";
+  * Linux home paths dropped: "disclosure-check exit 0, want 1"
+    (`home='home'`);
+  * doubled backslashes dropped: the same (`sep='\\\\'`);
+  * the placeholder reported: "placeholders were reported";
+  * an unreadable file skipped: "exit 0, want 2";
+  * a hit printing its line: "disclosure-check printed the path it found";
+  * `tools/denyscan.py` back on the Unix rule alone: its Windows test.
+* **Checks.** `make tools-test`: 77 tests, OK. `python3 -B tools/gate.py`:
+  "gate: 29 of 29 passed"; its `gate-selftest`, 45 tests, OK; its
+  `markdownlint`, "Linting: 12 files", "0 issues"; `links-check` and
+  `disclosure-check` as above.
+* **Not done here:** the routing and the contract check (Phase 2); the
+  contract in `AGENTS.md` and `docs/architecture.md`'s CI and Docs
+  paragraphs (Phase 3).
+* **Deviation (2026-10-27): `CHANGELOG.md`.** The scope left it out, but
+  0052-MADR's CI change has an entry (`v1.20.0`, Changed). Put with three
+  options, the owner chose "Entry in Phase 3": `CHANGELOG.md` joins the
+  scope, and Phase 3 adds an `[Unreleased]` Changed entry once the routing
+  is final. Not chosen: an entry now, and none.

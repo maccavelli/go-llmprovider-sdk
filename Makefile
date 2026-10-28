@@ -11,7 +11,7 @@ GOVULNCHECK_PIN := $(shell grep -oE 'golang.org/x/vuln/cmd/govulncheck@v[0-9][0-
 GOTESTSUM     ?= $(or $(wildcard $(GOBIN)/gotestsum),$(GOPATH_BIN)/gotestsum,$(shell command -v gotestsum 2>/dev/null))
 FLEET_LINT_CFG := .golangci.yml
 
-.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check parity-check dep-check coverage-check api-check generate-check records-check tables-check fixtures-check changelog-check docs-check gate-selftest tools-test
+.PHONY: all help test test-sum fmt vet lint tidy vuln pre-add-check parity-check dep-check coverage-check api-check generate-check records-check tables-check fixtures-check changelog-check docs-check markdownlint links-check disclosure-check gate-selftest tools-test
 
 all: help
 
@@ -98,6 +98,21 @@ changelog-check: ## Checks CHANGELOG.md against the release tags
 # 0048-PLAN Phase 6: the API audit's examples, concurrency and error docs (R50-R52).
 docs-check: ## Checks the examples and the concurrency and error docs
 	python3 -B scripts/check_docs.py
+
+# 0063-MADR R1-R3: the documentation gates both workflows run, with one pin
+# and one file list. markdownlint lints scripts/check_links.py's list, the
+# Markdown outside the records; the local gate passes its own binary as
+# MARKDOWNLINT. The list is read first, so a failure to read it fails here.
+MARKDOWNLINT ?= npx --yes markdownlint-cli2@0.23.2
+
+markdownlint: ## Lints the Markdown outside the records with the pinned markdownlint-cli2 (needs npx)
+	files="$$(python3 -B scripts/check_links.py --lint-files)" && $(MARKDOWNLINT) --no-globs $$files
+
+links-check: ## Checks every relative link in the Markdown files
+	python3 -B scripts/check_links.py
+
+disclosure-check: ## Checks every file git tracks or would add for a real home directory path
+	python3 -B scripts/check_disclosure.py
 
 # 0021-PLAN step 6.2: each gate above fails on a planted breach, on a copy.
 gate-selftest: ## Checks that each CI gate fails on a planted breach

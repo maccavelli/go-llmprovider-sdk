@@ -15,8 +15,8 @@ Exit codes, for every tool: **0** clean, **1** a finding, **2** a tool error.
 | :--- | :--- | :--- |
 | `gate.py` | the local gate: 28 checks on a scratch clone of the working tree, staged there, started once the load average is below the CPU count | `tools/gate.py [--src DIR] [--out DIR] [--max-load N] [--timeout S]` |
 | `plant.py` | runs plants from a JSON spec on a scratch clone; fails if any plant is not caught; a plant's text may be read from a file (`old_file`, `new_file`) | `tools/plant.py SPEC.json` |
-| `linkcheck.py` | every relative link in every Markdown file resolves | `tools/linkcheck.py [--detail FILE]` |
-| `denyscan.py` | no file names this machine's account, its host, or a real home path; it prints the kind of hit, never the identifier | `tools/denyscan.py FILE...` or `--changed` |
+| `linkcheck.py` | every relative link in every Markdown file resolves, by CI's `scripts/check_links.py` | `tools/linkcheck.py [--detail FILE]` |
+| `denyscan.py` | no file names this machine's account, its host, or a real home path, macOS, Linux or Windows, by CI's `scripts/check_disclosure.py` rule; it prints the kind of hit, never the identifier | `tools/denyscan.py FILE...` or `--changed` |
 | `apidiff.py` | every exported API change between two refs, or a ref and the tree, at `scripts/check_api.py`'s pin | `tools/apidiff.py OLD [NEW]` |
 | `edit.py` | exact replacements, appends and new files from a JSON spec, each asserted, all applied or none; any text may be read from a file beside the spec (`old_file`, `new_file`, `append_file`, `create_file`) | `tools/edit.py SPEC.json` |
 | `records.py` | a record's status and date, and its row in `docs/README.md`, changed together; `add` indexes a record and updates the count; `scripts/check_records.py`'s checks run after | `tools/records.py add RECORD...` or `status RECORD STATUS [--date YYYY-MM-DD]` |
@@ -47,9 +47,11 @@ In order:
    `coverage-check`, `api-check`, `generate-check`, `records-check`,
    `tables-check`, `fixtures-check`, `changelog-check`, `docs-check` and
    `gate-selftest`.
-5. markdownlint, on every Markdown file but the records.
+5. `make markdownlint`, on every Markdown file but the records, with the
+   local `markdownlint-cli2` for CI's `npx` at the same pin.
 6. `TestWireGoldens` three times.
-7. The link check, and the identifier scan of the changed files.
+7. `links-check` and `disclosure-check`, CI's targets (0063-MADR R1-R3),
+   then the identifier scan of the changed files.
 8. `tools-test`.
 
 Each check's output is in `--out`, with the exit codes in `summary.out`.

@@ -39,6 +39,8 @@ GATES = {
     "fixtures-check": "scripts/check_fixtures.py",
     "changelog-check": "scripts/check_changelog.py",
     "docs-check": "scripts/check_docs.py",
+    "links-check": "scripts/check_links.py",
+    "disclosure-check": "scripts/check_disclosure.py",
 }
 GENERATE_LINE = re.compile(r"^//go:generate .*$", re.M)
 
@@ -406,6 +408,83 @@ class GateSelfTest(unittest.TestCase):
         proc = self.changelog_section("v1.14.0", "--repo", "owner/name")
         self.assertEqual(proc.returncode, 1, f"exit {proc.returncode}, want 1:\n{proc.stdout}{proc.stderr}")
         self.assertIn("v1.14.0's section links docs/decisions/9999-MADR-missing.md, which v1.14.0 lacks", proc.stderr)
+
+    # 0063-PLAN Phase 1: the documentation gates both workflows run (0063-MADR
+    # R1 to R3). Each planted home path is built at run time, so this file
+    # holds none for disclosure-check to find.
+    def test_links_check_broken_link(self) -> None:
+        """A relative link to a file that does not exist."""
+        with (self.tree / "README.md").open("a", encoding="utf-8") as f:
+            f.write("\nSee [the plant](docs/guides/missing-0063.md).\n")
+        self.assertFails("links-check", ": docs/guides/missing-0063.md")
+
+    def lint_files(self) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([sys.executable, "-B", GATES["links-check"], "--lint-files"], cwd=self.tree,
+                              capture_output=True, text=True, check=False)
+
+    def test_links_check_lint_files_skip_the_records(self) -> None:
+        """markdownlint's list: a new Markdown file is in it, the records are
+        not (0047-MADR A2)."""
+        (self.tree / "docs/guides/zz-0063.md").write_text("# Planted\n", encoding="utf-8")
+        proc = self.lint_files()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        listed = proc.stdout.splitlines()
+        self.assertIn("docs/guides/zz-0063.md", listed)
+        self.assertIn("README.md", listed)
+        self.assertEqual([f for f in listed if f.startswith(("docs/decisions/", "docs/reports/"))], [])
+
+    def test_markdownlint_target_lints_the_list_and_stops_on_its_failure(self) -> None:
+        """make markdownlint passes the list to the linter, and runs no linter
+        when the list cannot be given: a file name with white space."""
+        def lint() -> subprocess.CompletedProcess[str]:
+            return subprocess.run(["make", "-s", "markdownlint", "MARKDOWNLINT=echo LINTED"], cwd=self.tree,
+                                  capture_output=True, text=True, check=False)
+        clean = lint()
+        self.assertEqual(clean.returncode, 0, clean.stderr)
+        self.assertIn("LINTED --no-globs", clean.stdout)
+        self.assertIn(" README.md", clean.stdout)
+        (self.tree / "docs/guides/zz 0063.md").write_text("# Planted\n", encoding="utf-8")
+        spaced = lint()
+        self.assertNotEqual(spaced.returncode, 0, f"make markdownlint passed:\n{spaced.stdout}{spaced.stderr}")
+        self.assertNotIn("LINTED", spaced.stdout)
+        self.assertIn("names with white space", spaced.stderr)
+
+    def assertHomeCaught(self, line: str, kind: str) -> None:
+        plant = self.tree / "zz-disclosure-0063.txt"
+        plant.write_text(line + "\n", encoding="utf-8")
+        proc = run_gate(self.tree, "disclosure-check")
+        out = proc.stdout + proc.stderr
+        self.assertEqual(proc.returncode, 1, f"disclosure-check exit {proc.returncode}, want 1:\n{out}")
+        self.assertIn(f"zz-disclosure-0063.txt:1: {kind}", out)
+        self.assertNotIn("jdoe", out, "disclosure-check printed the path it found")
+
+    def test_disclosure_check_unix_home(self) -> None:
+        for home in ("Users", "home"):
+            with self.subTest(home=home):
+                self.assertHomeCaught("cloned at /" + home + "/jdoe/src", "a macOS or Linux home path")
+
+    def test_disclosure_check_windows_home(self) -> None:
+        for sep in ("\\", "\\\\", "/"):
+            with self.subTest(sep=sep):
+                self.assertHomeCaught("cloned at C:" + sep + "Users" + sep + "jdoe" + sep + "src",
+                                      "a Windows home path")
+
+    def test_disclosure_check_placeholders_pass(self) -> None:
+        (self.tree / "zz-disclosure-0063.txt").write_text(
+            "/home/<user>/src /Users/<user>/src C:\\Users\\<user>\\src C:/Users/<user>/src\n", encoding="utf-8")
+        proc = run_gate(self.tree, "disclosure-check")
+        self.assertEqual(proc.returncode, 0, f"placeholders were reported:\n{proc.stdout}{proc.stderr}")
+
+    def test_disclosure_check_unreadable_file(self) -> None:
+        """A file the check cannot read fails it, as a tool error."""
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            self.skipTest("root reads a file whatever its mode")
+        plant = self.tree / "zz-disclosure-0063.txt"
+        plant.write_text("x\n", encoding="utf-8")
+        plant.chmod(0)
+        proc = run_gate(self.tree, "disclosure-check")
+        self.assertEqual(proc.returncode, 2, f"disclosure-check exit {proc.returncode}, want 2:\n{proc.stdout}{proc.stderr}")
+        self.assertIn("disclosure-check: ", proc.stderr)
 
     def test_clean_copy_passes_every_gate(self) -> None:
         for gate in GATES:

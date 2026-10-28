@@ -131,6 +131,14 @@ class TestDenyScan(unittest.TestCase):
         self.assertEqual(rc, 1, out)
         self.assertIn("f.md:1: a machine home path", out)
 
+    def test_a_windows_home_path_is_a_hit(self) -> None:
+        """disclosure-check's Windows form, which this tool imports (0063-MADR R3)."""
+        path = "C:" + "\\" + "Users" + "\\" + "someone" + "\\repo"
+        rc, out = self.scan(f"clone at {path}\n")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("f.md:1: a machine home path", out)
+        self.assertNotIn("someone", out)
+
     def test_changed_scans_the_files_git_lists(self) -> None:
         root = temp_repo(self)
         (root / "clean.md").write_text("nothing here\n")
@@ -388,15 +396,8 @@ class TestGateChecks(unittest.TestCase):
                 "dep-check",
                 "coverage-check", "api-check", "generate-check", "records-check", "tables-check", "fixtures-check",
                 "changelog-check", "docs-check", "gate-selftest", "markdownlint",
-                "g-wire-stable", "g-links", "deny-scan", "tools-test"]
+                "g-wire-stable", "links-check", "disclosure-check", "deny-scan", "tools-test"]
         self.assertEqual([c.name for c in gate.CHECKS], want)
-
-    def test_markdownlint_skips_the_records(self) -> None:
-        root = temp_repo(self)
-        for rel in ("README.md", "docs/guides/g.md", "docs/decisions/0001-MADR-x.md", "docs/reports/0002-REPORT-y.md", "notes.txt"):
-            (root / rel).parent.mkdir(parents=True, exist_ok=True)
-            (root / rel).write_text("x\n")
-        self.assertEqual(gate.markdown_files(root), ["README.md", "docs/guides/g.md"])
 
 
 GO_MOD = "module example.com/plant\n\ngo 1.21\n"

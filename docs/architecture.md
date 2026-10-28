@@ -39,6 +39,8 @@ scripts/check_tables.py     tables-check: the import tables and the live variabl
 scripts/check_fixtures.py   fixtures-check: recorded fixtures hold no account data
 scripts/check_changelog.py  changelog-check: CHANGELOG.md has a section for every release tag
 scripts/check_docs.py       docs-check: the API audit's R50-R52, the examples and the concurrency and error docs
+scripts/check_links.py      links-check: every relative link resolves; markdownlint's file list
+scripts/check_disclosure.py disclosure-check: no file names a real home directory
 scripts/test_gates.py       gate-selftest: each gate fails on a planted breach
 tools/                      maintainer tools, not run by CI: the local gate,
                             plants, link check, identifier scan, apidiff,

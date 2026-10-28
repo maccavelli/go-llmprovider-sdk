@@ -9,12 +9,18 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# The CI gates in scripts/ that a tool reuses rather than copies (0063-MADR
+# R2), importable after this module. Appended, so no tool is shadowed.
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.append(str(ROOT / "scripts"))
 
 
 def has_text(entry: Mapping[str, object], field: str) -> bool:
