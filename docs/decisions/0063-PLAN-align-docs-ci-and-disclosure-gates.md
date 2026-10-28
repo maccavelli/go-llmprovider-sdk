@@ -376,3 +376,23 @@ does not authorize a push or tag.
   routes: a push of them, which changes code, should start CI and Docs;
   then a push of this phase's commit, Markdown alone, should start Docs
   alone. Each push needs the owner's word in its own turn.
+* **Step 3, the code route, observed (2026-10-28).** The owner committed
+  this phase as `d96d285`; the disclosure guard over the six outgoing
+  commits, `5eff09e` to `d96d285`, exited 0. The owner pushed all six at
+  once, not the two pushes proposed: `origin/main` went from `e1ec36d` to
+  `d96d285`. The range changes code, so this observes the code route.
+  * **Started:** Docs, run `40700208640`, and CI, run `40700208671`, both
+    on push, both at 2026-10-28T13:50:52Z.
+  * **Docs: success.** "G-parity: 409 identifiers, … 0 problem(s)";
+    "records-check: 137 records, 0 problem(s)"; "check-tables: 42
+    packages, 0 problem(s)"; "changelog-check: 36 release section(s), 0
+    problem(s)"; `npx --yes markdownlint-cli2@0.23.2 --no-globs $files`,
+    "markdownlint-cli2 v0.23.2 (markdownlint v0.41.1)", "Linting: 12
+    files", "Summary: 0 issues in 0 files"; "links-check: 0 problem(s),
+    1051 relative link(s) in 149 file(s)"; "disclosure-check: 0 hit(s) in
+    1436 file(s)"; `gate-selftest` "Ran 49 tests", OK.
+  * **CI: success.** `validate` on ubuntu-24.04, macos-15 and windows-2025
+    success, `release` skipped (not a tag); its Linux gates printed the
+    same lines as Docs, `gate-selftest` "Ran 49 tests", OK.
+  * **The Markdown-only route** is observed by the push of the commit that
+    records this: it changes this PLAN alone, so Docs alone should start.
