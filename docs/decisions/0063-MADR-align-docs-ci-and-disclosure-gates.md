@@ -182,6 +182,11 @@ Four facts change how it is carried out (R1 to R4).
 * **The local gate already lints a set that is clean.**
   `tools/gate.py` runs `markdownlint-cli2 --no-globs` on every tracked
   Markdown file outside `docs/decisions/` and `docs/reports/`, and passes.
+  *Annotated 2026-10-27, measured at `eaaf709`:* every tracked or
+  untracked one, 12 files, all tracked; "0 issues in 0 files". They
+  include `.claude/rules/madr-and-plan-skill.md` and
+  `.grok/rules/madr-plan-before-mutating-work.md`, which the
+  configuration's globs skip, since their names match `!**/*madr*.md`.
 * **So formatting the reports is not the way.** Changing their markers
   to `-` would contradict A2. Recommended: `make markdownlint` lints
   `tools/gate.py`'s file set, with the pin above, in both workflows and the
@@ -224,3 +229,25 @@ does not have. The existing check of 0052-MADR A2
 lines. Recommended: the contract check reads the triggers, filters and
 `make` lines the same way, and `actionlint` validates the YAML, run
 locally at v1.7.12, as the PLAN's steps already run it.
+
+### The owner's answers (2026-10-27)
+
+Each was put with three options, the recommended one first. The owner
+chose the recommended option for all four:
+
+* **R1, "Gate's set".** `make markdownlint` lints every Markdown file
+  outside `docs/decisions/` and `docs/reports/`, the list `tools/gate.py`
+  lints, moved to `scripts/`. Not chosen: the configuration's globs with the
+  records' rules for the reports, and the configuration's globs with the
+  reports reformatted.
+* **R2, "scripts/, tools reuse".** `scripts/check_links.py` and
+  `scripts/check_disclosure.py`, as `make links-check` and `make
+  disclosure-check`, planted in `scripts/test_gates.py`; the tools import
+  them. Not chosen: CI running `tools/`, which would amend 0035-MADR and its
+  Q1, and separate copies in `scripts/`.
+* **R3, "Unix + Windows homes".** Not chosen: applying the private deny
+  list when present, and the Unix rule alone.
+* **R4, "Stdlib lines + local actionlint".** Not chosen: `actionlint` run
+  in CI as well, and PyYAML.
+
+The record stays `proposed` until the owner accepts it.

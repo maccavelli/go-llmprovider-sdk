@@ -38,6 +38,12 @@ relying on the runner's account or host names; keep the owner-specific
 pre-push guard local. Extend `scripts/test_gates.py` to assert that the
 docs-sensitive target set and pins in both workflows agree. Update `AGENTS.md`
 and `docs/architecture.md` to state the common contract.
+*Annotated 2026-10-27, checked at `eaaf709`:* "the existing link checker"
+and "reusing the tested `tools/denyscan.py` home-path logic" are read as
+R2 and R3 say: CI runs `scripts/` gates, whose code the tools reuse. "Its
+pin parity test" is `scripts/test_gates.py`'s
+`test_docs_installs_what_ci_installs_before_gate_selftest`, which compares
+each `go install` target with its version.
 
 Boundary: Do not remove the docs job's golangci-lint install: its gate
 self-test invokes the precheck. Keep full CI for non-Markdown edits, schedule
@@ -68,6 +74,14 @@ and tags.
    `docs/decisions/` and `docs/reports/`, from one list that the local gate
    and both workflows share; it is clean at `5eff09e`. The link check is
    `make links-check`, a `scripts/` gate (R2).
+   *Annotated 2026-10-27, checked at `eaaf709`:* that list is built today in
+   `tools/` (`tools/gate.py`'s `markdown_files`, from
+   `tools/linkcheck.py`'s, every tracked or untracked `*.md` less the two
+   record directories). Under R2 it moves to `scripts/`, and `tools/gate.py`
+   imports it. At `eaaf709` it is 12 tracked files, and
+   `markdownlint-cli2` v0.23.2 reports "0 issues in 0 files". `npx` is on
+   the ubuntu-24.04 runner, which go-selfupdate-lib's Docs run shows, and on
+   this host; the targets run on Linux only, as the other docs targets do.
 3. Implement a standard-library portable disclosure check over tracked text.
    It rejects real macOS, Linux and Windows user-home paths, accepts
    documented placeholders, prints only file, line and category, and fails on
@@ -89,6 +103,11 @@ and tags.
    docs-safe paths. Make Docs paths cover every ignored path and the Docs
    workflow itself. Mixed changes run full CI. Preserve tags, schedules,
    dispatch, release jobs and permissions.
+   *Annotated 2026-10-27, checked at `eaaf709`:* neither workflow has a
+   `workflow_dispatch` trigger, so "dispatch" here and below preserves
+   none. The triggers to keep are `ci.yml`'s push to `main` and `v*` tags,
+   pull request and weekly schedule, and `docs.yml`'s push to `main` and
+   pull request.
 2. Add or extend a Python workflow contract check. It validates actual YAML
    structure, compares event filters, confirms ignored tracked paths are in
    Docs, refuses known Markdown inputs to code tests unless their reader runs
@@ -110,6 +129,9 @@ and tags.
    private pre-push guard in AGENTS.md and the architecture or CI guide.
    Verify this pair's exact filenames and current statuses in the records
    index; use the repository index generator if present.
+   *Annotated 2026-10-27, checked at `eaaf709`:* there is no CI guide;
+   `docs/architecture.md`'s **CI** and **Docs** paragraphs say what the
+   workflows run. The index tool is `tools/records.py`.
 2. Run `make parity-check records-check tables-check changelog-check
    gate-selftest markdownlint links-check disclosure-check`; `actionlint` on
    both workflows; scratch plants for a bad link, MD018, a real home path, a
