@@ -268,3 +268,62 @@ does not authorize a push or tag.
   options, the owner chose "Entry in Phase 3": `CHANGELOG.md` joins the
   scope, and Phase 3 adds an `[Unreleased]` Changed entry once the routing
   is final. Not chosen: an entry now, and none.
+
+### Phase 2: workflow routing and parity (2026-10-27)
+
+* **Approval.** "committed proceed", after Phase 1 was committed as
+  `b407f02`.
+* **Step 1, the routing: unchanged.** At `b407f02`, `ci.yml` ignores
+  `['**.md']` on push and on pull request alike, the docs-safe set of
+  Phase 1; `docs.yml` runs on `['**.md', '.github/workflows/docs.yml']` on
+  both, so it covers every ignored path and itself. A mixed change matches
+  no `paths-ignore` entry for its other files, so `ci.yml` runs. `ci.yml`
+  keeps its push to `main` and `v*` tags, pull request, weekly schedule,
+  `release` job, `contents: read`, and the release job's own `contents:
+  write`; neither workflow has
+  `workflow_dispatch`. No filter is edited.
+* **Step 2, the contract check.** `scripts/test_gates.py`'s
+  `WorkflowContractTest`, beside 0052-MADR A2's `WorkflowsTest`, so
+  `gate-selftest` runs it in both workflows. It reads the workflows' lines
+  with the standard library (R4): `triggers` reads the `on:` block, each
+  event, its filters as flow lists and its list items, and fails on a line
+  of any other shape; `selftest_targets` reads the `make … gate-selftest`
+  line. Four tests:
+  * `ci.yml` keeps push, pull request and schedule, `v*` tags, `main` and a
+    cron, gains no `paths` filter, and ignores the same paths on push and
+    pull request;
+  * `docs.yml` runs on the same paths for push and pull request, on every
+    path `ci.yml` ignores and on itself, with no `paths-ignore`;
+  * every gate either workflow runs is in `MARKDOWN_GATES` (the gates that
+    read Markdown or plant in it, and `disclosure-check`) or `CODE_GATES`
+    (those that read none, by the MADR's re-assessment); `docs.yml` runs
+    every Markdown gate and no code gate, and `ci.yml` runs every Markdown
+    gate. A new gate fails the test until it is placed;
+  * `docs.yml`'s actions are `ci.yml`'s at the same commits, and neither
+    workflow sets `MARKDOWNLINT`, whose pin the `Makefile` holds alone.
+    `golangci-lint`'s pin stays with `WorkflowsTest`.
+* **Step 3.** `actionlint` v1.7.12 on both workflows: clean. Plants
+  (`tools/plant.py`, on a scratch clone, running `WorkflowContractTest` and
+  `WorkflowsTest`; all 11 caught):
+  * a mismatched path, pull requests ignoring `docs/**` too: "Lists differ:
+    ['**.md'] != ['**.md', 'docs/**']";
+  * a mismatched path, `docs.yml` on `docs/**.md` only: "Lists differ:
+    ['**.md'] != []";
+  * a Markdown reader wrongly ignored, `tables-check` out of `docs.yml`:
+    "['tables-check'] != []";
+  * a missing Docs gate, `disclosure-check` out of `docs.yml`:
+    "['disclosure-check'] != []";
+  * a differing pin, `docs.yml`'s `setup-go` at another commit: that
+    `uses` listed; `docs.yml`'s `golangci-lint` at `v2.13.0`: `WorkflowsTest`;
+    `MARKDOWNLINT=` set in `docs.yml`: "'MARKDOWNLINT' unexpectedly found",
+    and the setting reported as an unplaced gate;
+  * `ci.yml` losing its schedule: "ci.yml lost its schedule trigger";
+  * `ci.yml` gaining `paths: ['**.go']`: "ci.yml's push gained a paths
+    filter";
+  * an unplaced gate, `new-check`: "['new-check'] != []";
+  * `paths-ignore` written as a block list: "an `on:` line of a shape the
+    contract does not read: '    paths-ignore:'".
+* **Checks.** `python3 -B tools/gate.py`: "gate: 29 of 29 passed"; its
+  `gate-selftest`, 49 tests, OK.
+* **Not done here:** Phase 3, the contract in `AGENTS.md` and
+  `docs/architecture.md`, the `CHANGELOG.md` entry, and the observed push.

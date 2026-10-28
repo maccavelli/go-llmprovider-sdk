@@ -525,5 +525,112 @@ class WorkflowsTest(unittest.TestCase):
                                       f"it installs {docs}")
 
 
+# The gates each workflow's `make … gate-selftest` line runs (0063-MADR,
+# re-assessment). A Markdown gate reads Markdown, or plants in it, so a
+# Markdown-only change, which only docs.yml runs for, must run it; a code
+# gate reads no Markdown and runs in ci.yml alone. A gate in neither tuple
+# fails the contract until it is placed in one.
+MARKDOWN_GATES = ("parity-check", "records-check", "tables-check", "changelog-check", "markdownlint", "links-check",
+                  "disclosure-check", "gate-selftest")
+CODE_GATES = ("dep-check", "coverage-check", "api-check", "generate-check", "fixtures-check", "docs-check")
+EVENT_LINE = re.compile(r"^  ([a-z_]+):\s*$")
+KEY_LINE = re.compile(r"^    ([a-z-]+):\s*\[(.*)\]\s*$")
+ITEM_LINE = re.compile(r"^    - (.+)$")
+USES = re.compile(r"^\s*-?\s*uses: (\S+)", re.M)
+
+
+def triggers(workflow: Path) -> dict[str, dict[str, list[str]]]:
+    """A workflow's `on:` block: each event, its filters' flow lists, and
+    its list items under "-". A line of any other shape fails, so a filter
+    written another way is not passed over (0063-MADR R4)."""
+    lines = workflow.read_text(encoding="utf-8").splitlines()
+    out: dict[str, dict[str, list[str]]] = {}
+    event = None
+    for line in lines[lines.index("on:") + 1:]:
+        if line and not line.startswith((" ", "#")):
+            break
+        if not line.strip() or line.strip().startswith("#"):
+            continue
+        if m := EVENT_LINE.match(line):
+            event = m.group(1)
+            out[event] = {}
+        elif event and (m := KEY_LINE.match(line)):
+            out[event][m.group(1)] = [item.strip().strip("'\"") for item in m.group(2).split(",") if item.strip()]
+        elif event and (m := ITEM_LINE.match(line)):
+            out[event].setdefault("-", []).append(m.group(1))
+        else:
+            raise AssertionError(f"{workflow.name}: an `on:` line of a shape the contract does not read: {line!r}")
+    return out
+
+
+def selftest_targets(workflow: Path) -> list[str]:
+    """The targets of a workflow's `make … gate-selftest` line."""
+    step = SELFTEST_STEP.search(workflow.read_text(encoding="utf-8"))
+    if step is None:
+        raise AssertionError(f"{workflow.name} has no `make … gate-selftest` line")
+    return step.group(0).split("make", 1)[1].split()
+
+
+class WorkflowContractTest(unittest.TestCase):
+    """The routing of 0052-MADR and the shared gates of 0063-MADR: what
+    ci.yml skips, docs.yml runs, with the same gates and pins (0063-PLAN
+    Phase 2, step 2)."""
+
+    def setUp(self) -> None:
+        self.ci = ROOT / ".github/workflows/ci.yml"
+        self.docs = ROOT / ".github/workflows/docs.yml"
+
+    def test_ci_keeps_its_triggers_and_gains_no_paths_filter(self) -> None:
+        """Every tag, each push to main, each pull request and the weekly run
+        reach ci.yml; only paths-ignore narrows it, the same for push and
+        pull request."""
+        on = triggers(self.ci)
+        for event in ("push", "pull_request", "schedule"):
+            self.assertIn(event, on, f"ci.yml lost its {event} trigger")
+        self.assertIn("v*", on["push"].get("tags", []), "ci.yml no longer runs for a v* tag")
+        self.assertIn("main", on["push"].get("branches", []), "ci.yml no longer runs for a push to main")
+        self.assertTrue(on["schedule"].get("-"), "ci.yml's schedule has no cron")
+        for event in ("push", "pull_request"):
+            self.assertNotIn("paths", on[event], f"ci.yml's {event} gained a paths filter")
+        self.assertEqual(on["push"].get("paths-ignore"), on["pull_request"].get("paths-ignore"),
+                         "ci.yml ignores different paths for push and pull request")
+
+    def test_docs_runs_for_every_path_ci_ignores(self) -> None:
+        """A change ci.yml skips starts docs.yml, and so does a change to
+        docs.yml itself."""
+        ignored = triggers(self.ci)["push"].get("paths-ignore", [])
+        on = triggers(self.docs)
+        self.assertEqual(on["push"].get("paths"), on["pull_request"].get("paths"),
+                         "docs.yml runs for different paths on push and pull request")
+        paths = on["push"].get("paths", [])
+        self.assertEqual([p for p in ignored if p not in paths], [], f"docs.yml does not run for {ignored} ci.yml skips")
+        self.assertIn(".github/workflows/docs.yml", paths, "docs.yml does not run for a change to itself")
+        for event in ("push", "pull_request"):
+            self.assertNotIn("paths-ignore", on[event], f"docs.yml's {event} gained a paths-ignore filter")
+
+    def test_each_gate_is_placed_and_the_markdown_gates_run_in_both(self) -> None:
+        """Every gate ci.yml runs is a Markdown or a code gate; docs.yml runs
+        exactly the Markdown gates, and ci.yml runs them too."""
+        ci, docs = selftest_targets(self.ci), selftest_targets(self.docs)
+        unplaced = [t for t in ci + docs if t not in MARKDOWN_GATES + CODE_GATES]
+        self.assertEqual(unplaced, [], f"gates neither MARKDOWN_GATES nor CODE_GATES: {unplaced}")
+        self.assertEqual([g for g in MARKDOWN_GATES if g not in docs], [],
+                         "docs.yml does not run these Markdown gates, so a Markdown-only change skips them")
+        self.assertEqual([g for g in MARKDOWN_GATES if g not in ci], [], "ci.yml does not run these Markdown gates")
+        self.assertEqual([g for g in docs if g in CODE_GATES], [], "docs.yml runs code gates, which read no Markdown")
+
+    def test_docs_uses_ci_actions_and_pins(self) -> None:
+        """docs.yml's actions are ci.yml's, at the same commits, and neither
+        sets markdownlint's pin, which the Makefile holds alone."""
+        ci_uses = set(USES.findall(self.ci.read_text(encoding="utf-8")))
+        docs_uses = USES.findall(self.docs.read_text(encoding="utf-8"))
+        self.assertTrue(docs_uses, "docs.yml uses no action")
+        self.assertEqual([u for u in docs_uses if u not in ci_uses], [],
+                         f"docs.yml uses actions or commits ci.yml does not: {sorted(ci_uses)}")
+        for workflow in (self.ci, self.docs):
+            self.assertNotIn("MARKDOWNLINT", workflow.read_text(encoding="utf-8"),
+                             f"{workflow.name} sets markdownlint's pin; the Makefile holds it")
+
+
 if __name__ == "__main__":
     unittest.main()
