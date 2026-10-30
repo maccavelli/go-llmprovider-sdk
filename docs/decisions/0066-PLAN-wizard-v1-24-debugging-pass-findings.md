@@ -1,0 +1,554 @@
+---
+status: proposed
+date: 2026-10-30
+associated-madr: "0066-MADR-wizard-v1-24-debugging-pass-findings.md"
+decision-makers: repository owner
+---
+
+<!-- markdownlint-disable MD013 MD024 -->
+
+# Implement the Remediation of the Wizard's v1.24 Debugging-Pass Findings
+
+Associated MADR: [0066-MADR-wizard-v1-24-debugging-pass-findings.md](0066-MADR-wizard-v1-24-debugging-pass-findings.md)
+
+## Goal
+
+The MADR's D1, under the owner's answers of 2026-10-30, (a) to each of Q1 to
+Q6, and its amendments "facts found while planning" and "issue #10": each of
+the 16 findings
+becomes a test that fails on `3fad786`, or a planted break that a new check
+catches, and then passes. In particular:
+
+* no byte a server sends acts on the user's terminal, and no listed id
+  holding a control character reaches a menu or the Result (V1);
+* a Chat Completions server, keyed or not, is configured through the wizard
+  to a Result that builds its provider, with the menu and the facts
+  `catalog` builds for it (V2, V3, V4), and the servers running on this
+  machine are offered under `Options.LocalServers` (V5);
+* the returned catalog's `Err` says why a listing failed, on every path, and
+  `ResolveCredential`'s doc says how to tell an unchecked credential (V6); a
+  refused kept session leads to the sign-in menu (V7);
+* no notice shows a service's text or a URL's query (V8, V9); an offline
+  listing is called offline (V10);
+* an unknown `Options.Providers` id is named (V11), the guide is right
+  (V12), the wizard's tests run behind the `localonly` guard (V13), and the
+  two untested paths are tested (V14);
+* a caller that adds request headers keeps the SDK's bounded client,
+  through `llmprovider.NewHTTPClient`, and the way to do it is documented
+  (V15, V16; issue #10);
+* `v1.25.0` is released, a minor release for the three exported names.
+
+## Scope
+
+### In scope
+
+* **`wizard/`:** `configure.go`, `auth.go`, `base_url.go`, `describe.go`
+  and `text_prompter.go`; a new `localonly_test.go`; new tests named
+  `*_0066_test.go`. `model_select.go` does not change: V14's test of
+  `capMatches` covers it as it is.
+* **`llmprovider/catalog/`:** a new file for `Lister`; the control-character
+  filter in `discovery.go` (`fetchListing` and `ollamaCatalog`); new tests
+  named `*_0066_test.go`.
+* **`llmprovider/providers/chatcompat/`:** `ListCatalog` on its provider;
+  `discover.go`'s `Server.Models` filtered as `catalog` filters a listing;
+  the package doc; new tests named `*_0066_test.go`.
+* **`llmprovider/`:** `NewHTTPClient` in `options.go`, beside
+  `WithHTTPClient`; `WithHTTPClient`'s doc and the package doc in
+  `provider.go`; `ExampleNewHTTPClient`; new tests named
+  `*_0066_test.go` (Phase 7).
+* **One existing test gains rows, its rows unchanged:**
+  `TestRefusalError_NamesTheSource` (`wizard/configure_0028_test.go`), a
+  row for a refused request that carried no key (Phase 2).
+* **Docs:** each changed function's and type's doc (R41, R51, R52);
+  `README.md`'s "The configuration wizard" and Status;
+  `docs/architecture.md`'s package table row for `wizard`, which gains
+  `providers/chatcompat` (R43), its "The wizard", and its
+  `internal/localonly` row, which gains `wizard`;
+  `docs/guides/adding-a-provider.md`'s "The models `wizard` offers";
+  `AGENTS.md`'s list of the packages behind the guard; `CHANGELOG.md`.
+* **Records:** this pair, the MADR's status, and their index rows.
+
+### Out of scope
+
+* `ErrEmptyAnswer` in `describe`: no listing gives it; the MADR names
+  `ErrOffline` only (D1, phase 5).
+* A probe of Hugging Face's listing with a wrong key: the MADR's amendment
+  records it as not measured. A live test of it would be a record of its
+  own.
+* Offering a found server in a consumer's own configuration, such as
+  gobble-cli's `models.json`: D5 of gobble-cli's
+  `0036-MADR-adopt-go-llmprovider-sdk-new-capabilities.md` decides that, in
+  that repository.
+* The workspace prompt under a caller with no terminal: checked in the
+  MADR, not a finding.
+* gobble-cli, which takes `v1.25.0` in its own repository, and changes its
+  `withHeaders` to wrap `NewHTTPClient()` there, by its own record.
+
+### Exported names (R55)
+
+| Name | Package | The call site that needs it |
+| :--- | :--- | :--- |
+| `Lister`, an interface, with its one method `ListCatalog` | `llmprovider/catalog` | the wizard's `providerCatalog`, which lists through it before `ListModels`; `chatcompat`'s provider implements it (MADR Q1 (a); amendment "Q1 (a)'s name and shape") |
+| `Options.LocalServers`, a field | `wizard` | a consumer's configure step; the wizard's provider menu and `credentialProvider` read it (MADR Q2 (a)) |
+| `NewHTTPClient`, a function | `llmprovider` | gobble-cli's `withHeaders` (`llm/provider/provider.go:150` at `61f7115`), which wraps `http.DefaultTransport` today; the docs of `WithHTTPClient` and the wizard's `Options.HTTPClient` point to it (MADR amendment "issue #10", D2) |
+
+`chatcompat`'s `ListCatalog` is a method of an unexported type, so it is
+not an exported name; the package doc names it. No signature changes.
+`make api-check` and `tools/apidiff.py v1.24.1` list exactly the three
+additions.
+
+## Rules for every phase
+
+* **Approval.** The owner approves this PLAN, whole or by phase. A phase
+  starts after the owner has committed the last.
+* **The gate, before staging:**
+  * `python3 -B tools/gate.py`;
+  * `make pre-add-check FILES="…"` on the phase's Go files;
+  * `make api-check` and `make docs-check` (`sdkaudit -check`, R50 to
+    R52), in each phase that adds or documents an exported name;
+  * `tools/claims.py` on the MADR;
+  * `make records-check`;
+  * `tools/recordlint.py --changed`;
+  * `tools/denyscan.py --changed`;
+  * `tools/linkcheck.py`.
+
+  Each exit status is captured before any filter.
+* **Red first.** Every new test is seen to fail on `3fad786`'s code, or on
+  a planted break, by `tools/plant.py` on a scratch clone, never in the
+  tree. The phase's record holds each failure line. A probe of the MADR (A
+  to L) becomes its finding's first test.
+* **The drift check.** After each phase's code and before its new tests,
+  `go test -race -count=1 -shuffle=on ./wizard/ ./llmprovider/catalog/
+  ./llmprovider/providers/chatcompat/` passes with every existing test
+  unchanged, the one named in Scope aside.
+* **No network.** Every new test serves its own replies, through `httptest`
+  or an `HTTPClient` whose transport answers, and turns models.dev off
+  (`llmprovider.WithoutModelMetadata()`), as `AGENTS.md` requires. From
+  Phase 6, the wizard's run is behind the guard; before it, each phase runs
+  `go test ./wizard/` once behind a scratch `TestMain` on a scratch clone,
+  as the MADR's probe did, and records "passed".
+* **No key in a test, a log or a record.** Keys are made-up strings.
+* **Coverage does not fall** (R47): `wizard` stays at or above its floor,
+  86.4 %, and `catalog` and `chatcompat` at theirs.
+* **Stage, then the owner commits** with `git commit --no-edit`. Push and
+  tags happen on the owner's word, after the disclosure guard.
+* **Stop conditions:**
+  * a fact of the MADR, or of its amendments, no longer holds;
+  * an existing test other than the one in Scope would change;
+  * an exported name other than the three above would be added, or a
+    signature would change;
+  * a doc would state a behaviour no test shows.
+
+  On any of these, stop, record a dated deviation here (with an amendment
+  in the MADR when a decision or a fact changes), and wait.
+
+## Implementation Steps
+
+### Phase 0: records
+
+1. `tools/records.py status`: the MADR `accepted`, this PLAN `in-progress`.
+
+### Phase 1: control characters, in both layers (V1; Q3 (a))
+
+1. **`catalog` drops a listed id holding a control character.** An
+   unexported `hasControl(s string) bool` in `catalog`, the rule of
+   `internal/redact`'s `isControl`: a C0 control but tab, DEL, or a C1
+   control (U+0080 to U+009F). `catalog` may not import `internal/redact`
+   (R2), so the rule is written again, and a test pins both ends of each
+   range.
+   * In `fetchListing` (`discovery.go:617`), every lister's result passes
+     one filter before `buildListing`: `usable` loses each such id, Kilo's
+     `kilo` entries and a chatcompat server's `created` the same ids.
+   * In `ollamaCatalog`, after `fetchOllamaTags` (`discovery.go:910`), a tag
+     whose name holds one is skipped.
+   * Each drop is logged once per listing at Debug, on the listing's logger,
+     with the provider and the count, never the id.
+2. **`chatcompat.Discover`'s `Server.Models`** drop the same ids. The
+   package has its own copy of the rule, for the same reason.
+3. **The wizard's own listings.** `providerCatalog` and `chatGPTCatalog`,
+   which read a provider's `ListModels`, drop an id that
+   `redact.StripControl` would change. A Kilo organization's `Name` and
+   `Role`, which `resolveKiloDevice` puts in a `Choice` (`auth.go:380`),
+   pass through `redact.StripControl`; the id the user picks is the
+   organization's `ID`, kept as it came.
+4. **`TextPrompter` prints no control character from its arguments.**
+   `renderChoices` strips the title, each label and each detail;
+   `Select`'s and `MultiSelect`'s prompt lines carry only numbers;
+   `Confirm`'s question, `Input`'s prompt and default, and `Secret`'s and
+   `readMasked`'s prompt are stripped as `Notify`'s text is. The value
+   `Input` returns is not changed: an accepted default is returned as the
+   caller gave it. The format strings' own `\n`, `\r` and `\b` stay.
+5. **Tests, red first:**
+   * `TestTextPrompter_ListedIDEscapes_0066`: probe J as a test. No ESC or
+     BEL byte reaches `Out`, and the Result's `Model` is `plain-model` when
+     row 1 is picked. On `3fad786`: 2 ESC bytes, 1 BEL, and the evil id as
+     `Model`.
+   * `TestTextPrompter_StripsEveryArgument_0066`: a title, label, detail,
+     question, prompt and default each holding `\x1b[2J` and `\x9b`; none
+     reaches `Out`.
+   * `TestList_ControlIDsDropped_0066` (`catalog`): a chatcompat listing
+     (the package's test helper `withCompatID`, since `catalog` cannot
+     import `chatcompat`, and a base URL on an `httptest` server) and an
+     Ollama `/api/tags` reply, each with one such id among clean ones; the
+     catalog's `Usable`, `Recommended` and `Menu` hold the clean ones only.
+   * `TestHasControl_0066` (`catalog`, `chatcompat`): each end of C0, DEL
+     and C1, tab and U+00A0.
+   * `TestDiscover_ControlIDsDropped_0066` (`chatcompat`), over a transport
+     that answers by port.
+   * `TestKiloOrg_LabelStripped_0066` and
+     `TestProviderCatalog_ControlIDsDropped_0066` (`wizard`).
+6. **Docs:** `Catalog.Usable`'s doc ("an id holding a control character is
+   dropped"), `chatcompat.Server.Models`', `TextPrompter`'s, and
+   `CHANGELOG.md`'s `[Unreleased]` Fixed.
+
+### Phase 2: a Chat Completions provider through the wizard (V2, V3, V4; Q1 (a))
+
+1. **An endpoint is required where there is no default (V3).** In
+   `resolveBaseURL` (`configure.go:445`), for a provider with
+   `SupportsBaseURL`, no `DefaultBaseURL` and no `IsLocal`:
+   * a blank answer is not taken: a notice, "<Label> needs an endpoint",
+     and the prompt again;
+   * under `NoEndpointPrompt` with no `Existing.BaseURL` for it, a plain
+     error, "wizard: <Label> needs an endpoint: pass Options.Existing.BaseURL",
+     with nothing asked.
+
+   No built-in provider is affected: each with `SupportsBaseURL` has a
+   default (their descriptors at `3fad786`).
+2. **A key, when the server wants one (V2; the amendment).** For a
+   provider with no `RequiresAPIKey` and no `IsLocal`:
+   * `resolveAPIKey` (`configure.go:573`) offers `Existing.APIKey` for it,
+     "Keep the existing key (…)?", as for a required key; a kept key is
+     `keySaved`, and its refusal ends the run, naming it, as 0059-MADR Q6
+     (a) keeps for a saved key;
+   * otherwise the first listing runs with no key. When the listing refuses
+     it, `credentialStep` notifies "<Label> refused the request without a
+     key (<describe>); enter its key", asks with `promptAPIKey`, and goes on
+     as for a typed key: up to `maxTypedKeys` typed keys, the first being
+     the first typed. The Result's `Kind` is `CredAPIKey` and its `APIKey`
+     the accepted key.
+   * `refusalError` gains a case for a credential of kind `CredNone`, which
+     only a local provider such as Ollama now reaches: "wizard: <Label>
+     refused a request that carried no key: …". The pasted-credential case
+     stays for a pasted key.
+3. **`catalog.Lister` (V4; Q1 (a); the amendment's name and shape).** In
+   `llmprovider/catalog`, a new file:
+
+   ```go
+   // Lister is a provider that lists its models as a Catalog, its menu,
+   // facts and Source with them, where llmprovider.ModelLister gives ids
+   // only (0066-MADR Q1). A caller type-asserts a Provider to it, as to
+   // llmprovider.ModelLister. An implementation must be safe for
+   // concurrent use, as the Provider that has it is.
+   type Lister interface {
+   	// ListCatalog lists the provider's models as List does, with List's
+   	// options, WithProfile and WithLimit among them, after the
+   	// provider's own. It returns List's errors.
+   	ListCatalog(ctx context.Context, opts ...llmprovider.Option) (Catalog, error)
+   }
+   ```
+
+   The final wording is checked by `make docs-check`; the doc names each
+   kind `List` returns (R52).
+4. **`chatcompat`'s provider implements it:** `catalog.List(ctx, p.id,
+   p.src, append(slices.Clone(p.listing), opts...)...)`, with no probe
+   (`ListModels` keeps its probe). A compile-time assertion,
+   `var _ catalog.Lister = (*provider)(nil)`, and the package doc name it.
+5. **The wizard lists through it.** `listerFor` (`configure.go:777`)
+   returns the built `llmprovider.Provider`. `providerCatalog` asserts
+   `catalog.Lister` first and calls `ListCatalog` with
+   `catalog.WithProfile(o.Profile)` and `catalog.WithLimit(o.ModelLimit)`;
+   without it, `ListModels` as today. `chatGPTCatalog` asserts
+   `llmprovider.ModelLister` as today. In `discoverModels`, a catalog that
+   is not live, holds an `Err` and is not a refusal, with no static
+   catalog, gives the notice "could not list models for <Label>
+   (<describe>)", as the `ListModels` path gives today.
+6. **Tests, red first:**
+   * `TestCompat_BlankEndpointAskedAgain_0066` and
+     `TestCompat_NoEndpointPromptNeedsURL_0066`: probe A. On `3fad786`:
+     no error, an empty `BaseURL`.
+   * `TestCompat_KeyAskedAfterRefusal_0066`: probe B, with a server that
+     answers 401 without `Authorization: Bearer lm-key` and lists with it.
+     The `Secret` is asked once; the second listing request carries the
+     key; the Result is `CredAPIKey`. On `3fad786`: no `Secret`, and "the
+     pasted credential".
+   * `TestCompat_ThreeKeysRefused_0066`: three refused keys end the run with
+     "refused 3 keys", matching `ErrAuthFailure`.
+   * `TestCompat_SavedKeyOffered_0066`: `Existing.APIKey` is offered and
+     kept.
+   * `TestOllama_RefusedNoKeyAsked_0066`: Ollama behind a server that
+     answers 401: no `Secret`, the new wording, `ErrAuthFailure`.
+   * `TestRefusalError_NamesTheSource`: its new row.
+   * `TestCompat_ListedThroughLister_0066`: probe C. `Source` is `live`,
+     `Menu` holds 30, `Recommended` 6 with `ModelLimit: 6`, `Usable` 30.
+     On `3fad786`: `Source` empty and `Menu` 0.
+   * `TestListCatalog_0066` (`chatcompat`): equals `catalog.List` with
+     `WithID` and the base URL; `WithLimit(3)` cuts `Recommended` and
+     `Menu`; a 401 is `Live` false with an `Err` matching
+     `ErrAuthFailure`.
+7. **Docs:** `ConfigureLLM`'s and `ResolveCredential`'s docs (the endpoint
+   error under `NoEndpointPrompt`; the key asked); `Options.NoEndpointPrompt`'s;
+   the `chatcompat` package doc; `docs/guides/adding-a-provider.md`, a
+   bullet: a provider that implements `catalog.Lister` gives the wizard its
+   menu and facts; `docs/architecture.md`'s "The wizard"; `README.md`'s
+   wizard section; `CHANGELOG.md` Added (`catalog.Lister`) and Changed.
+
+### Phase 3: the servers running on this machine (V5; Q2 (a); the amendment's details)
+
+1. **`Options.LocalServers bool`.** Its doc says what follows, and that a
+   Result whose `Provider` the caller's `Registry` lacks is a found server,
+   built with `chatcompat.New(chatcompat.WithID(res.Provider),
+   llmprovider.WithBaseURL(res.BaseURL))`, with `llmprovider.WithAPIKey`
+   when `res.Kind` is `CredAPIKey`.
+2. **The run's registry.** When it is set, and the menu is shown (no id),
+   or `ResolveCredential`'s id is not in the `Registry`, the wizard calls
+   `chatcompat.Discover(ctx, llmprovider.WithHTTPClient(o.HTTPClient))`
+   (the client only when set) once, before the menu. It builds a run-local
+   `Registry`: each of the caller's descriptors, with a factory that calls
+   the caller's `Registry.New`, then each found server:
+   * id `local-<port>`; a label of the dialect's name and its address, such
+     as "Ollama (127.0.0.1:11434)", or "Chat Completions server
+     (127.0.0.1:1234)"; notes "running on this machine", with its model
+     count or "wants a key";
+   * `chatcompat.Descriptor(id, label)` with `DefaultBaseURL` the server's
+     `BaseURL`, and no `IsLocal`, so its endpoint is checked as a remote
+     one's, not with Ollama's `/api/version`;
+   * a factory: `chatcompat.New(append(opts, chatcompat.WithID(id))...)`;
+   * skipped when its port is that of a descriptor with `IsLocal` whose
+     `DefaultBaseURL` names a loopback host (Ollama's `localhost:11434`).
+
+   When `Options.Providers` is not empty, the found ids are added to it for
+   the run. The caller's `Options` are not changed.
+3. **The flow after the menu is Phase 2's:** the endpoint default is the
+   server's `BaseURL`; a server that `NeedsKey` is refused without a key,
+   and the key is asked; the catalog comes through `catalog.Lister`.
+4. **Errors (R52):** `ctx` ending during `Discover` gives its error,
+   wrapped; `ResolveCredential` with an id the `Registry` lacks and no
+   server found under it still matches `llmprovider.ErrInvalidProvider`.
+5. **Tests, red first,** each over an `HTTPClient` whose transport answers
+   `GET http://127.0.0.1:<port>/v1/models` by port, so no port of the host
+   is used:
+   * `TestLocalServers_Offered_0066`: a server on `1234` listing two
+     models is a menu row after the registry's; picked, its endpoint
+     default is its `BaseURL`, and the Result is `local-1234` with that
+     `BaseURL`, which the documented `chatcompat.New` call builds. On
+     `3fad786` the option does not exist; the test is planted against a
+     scratch clone with the field and no menu change, and fails.
+   * `TestLocalServers_OllamaPortSkipped_0066`, `…_NeedsKeyAsksKey_0066`,
+     `…_OffAsksNothing_0066` (no request to any port),
+     `…_ResolveByID_0066`, `…_NotRunningIsInvalidProvider_0066`,
+     `…_EndedContext_0066`, and `…_ProvidersAddsFound_0066`.
+6. **Docs:** `Options.LocalServers`, `ConfigureLLM`'s and
+   `ResolveCredential`'s errors; `docs/architecture.md`'s package table,
+   `wizard`'s imports gaining `providers/chatcompat` (R43), and "The
+   wizard"; the `chatcompat` package doc ("the wizard's
+   `Options.LocalServers` offers them"); `README.md`; `CHANGELOG.md`
+   Added.
+
+### Phase 4: the unchecked credential and the refused kept session (V6, V7; Q5 (a), Q4 (a))
+
+1. **`Err` on every path (V6).** In `discoverModels`, the fallback returned
+   for a failed listing carries the failure: `fallback.Err = err` before
+   the returns at `configure.go:692` and `:695`, and `fallback.Err =
+   cat.Err` at `:700`. `ResolveCredential`'s doc says: `Live` false is a
+   credential no live listing checked, and `Err` holds why when a listing
+   ran and failed; `Live` true is a listing the provider answered with this
+   credential, now or within the listing cache's 24 hours, and for a
+   listing that needs none, such as Hugging Face's, says nothing of the
+   key. `Options.Discover`'s doc points to it.
+2. **A refused kept session leads to the sign-in menu (V7).** A credential
+   kept by `keepExistingOAuth` is marked kept. When the listing refuses it,
+   `credentialStep` notifies "the saved <Label> session was refused
+   (<describe>); sign in again", and runs `signIn` again, once, without
+   offering the kept session (an unexported parameter of `signIn`). The
+   store is not touched until the new session is saved (0059-MADR W2). A
+   refusal of the new one ends the run as today.
+3. **Tests, red first:**
+   * `TestResolve_FailedListingErr_0066`: probe L's three rows and probe
+     D's, each with `Live` false and an `Err` matching the failure; without
+     `Discover`, `Err` nil. On `3fad786`: two rows have a nil `Err`.
+   * `TestKept_RefusedLeadsToSignIn_0066`: probe G, then a stubbed browser
+     sign-in whose session the listing accepts: the method menu is shown,
+     the new session is saved, and the Result names it. On `3fad786`: the
+     run ends, no menu.
+   * `TestKept_RefusedThenNewRefused_0066`: the second refusal ends the run
+     with "refused the sign-in", and the store still holds the kept
+     session.
+   * `TestKept_KiloRefusedLeadsToSignIn_0066`: the same for a Kilo device
+     session.
+4. **Docs:** the two docs above; `README.md`'s wizard section;
+   `CHANGELOG.md` Changed.
+
+### Phase 5: the notices (V8, V9, V10)
+
+1. **The endpoint check (V8).** At `configure.go:489`, an error that is an
+   `*llmprovider.APIError` gives "<URL> answered: <describe>", and any other
+   "cannot reach <URL> (<describe>)". The error returned under
+   `NoEndpointPrompt` keeps its text, as 0056-MADR D3 allows.
+2. **A refused URL (V9).** `validateBaseURL` shows a URL without its user
+   information, query or fragment: a helper gives
+   `scheme://host/path`, then `?…` for a query and `#…` for a fragment. A
+   value that is not a URL, or lacks a scheme or host, is not echoed: "the
+   endpoint is not a URL", "an endpoint needs http:// or https:// and a
+   host". The plain-http notice and question use the same helper and keep
+   their words, "plain http to a remote host", which
+   `edges_0059_test.go` reads.
+3. **Offline (V10).** `errorClasses` gains `llmprovider.ErrOffline` before
+   `llmprovider.ErrProviderUnavailable`; `describe` then says "offline".
+4. **Tests, red first:**
+   * `TestEndpointCheck_NoServerText_0066`: probe E. The notice holds
+     "provider unavailable, HTTP 500" and not `SERVER-TEXT-0066`.
+   * `TestBaseURL_QueryNotShown_0066`: probe F, and rows for a fragment, a
+     user and password, no scheme, and a non-URL; no notice holds the
+     planted value.
+   * `TestDescribe_Offline_0066`: probe D's `describe`, and its notice
+     "could not list models … (offline)" or "unavailable (offline)".
+5. **Docs:** `validateBaseURL`'s and `describe`'s; `CHANGELOG.md` Fixed.
+
+### Phase 6: the menu, the guide and the tests (V11, V12, V13, V14; Q6 (a))
+
+1. **An unknown `Providers` id (V11).** `selectableDescriptors` returns the
+   ids the registry lacks; `chooseProvider` notifies once, "no provider
+   <id> here; it is left out of the menu", for each. When none exists the
+   error is as today, which `configure_errors_0048_test.go` reads.
+2. **The guide (V12).** `docs/guides/adding-a-provider.md`: "With
+   `Options.ModelLimit` at zero, every listed id is recommended, in your
+   order; a positive `ModelLimit` recommends that many. Search covers the
+   whole listing."
+3. **The guard (V13).** `wizard/localonly_test.go`, built without
+   `live_gateways`, with `TestMain` calling `localonly.Main`, as the six
+   packages of 0065-MADR D2 have.
+4. **The two paths (V14).**
+   * `TestFallbacks_CapMatches_0066`: a fallback search with 25 matches
+     shows 20, with the notice "showing 20 of 25 matches".
+   * `TestSave_StoreFails_0066`: a `TokenStore` whose `Save` fails, for a
+     Grok sign-in and a Kilo device sign-in: "wizard: save OAuth session"
+     and "wizard: save Kilo login", each wrapping the store's error.
+5. **Red first:** probe H as `TestProviders_UnknownNamed_0066`, failing on
+   `3fad786` (no notice). For V13, `tools/plant.py` adds the MADR's planted
+   leak to a scratch clone: the guarded run fails naming
+   `api.anthropic.com:443`. V14's tests cover code that is right today, so
+   each is seen to fail on a planted break: `capMatches` cutting at 21, and
+   `save` dropping the store's error.
+6. **Docs:** `Options.Providers`'; the packages the guard runs in, which
+   gain `wizard`: `docs/architecture.md`'s `internal/localonly` row
+   (`docs/architecture.md:109` at `3fad786`) and `AGENTS.md`'s paragraph
+   that lists them; `CHANGELOG.md` Fixed.
+7. **Coverage:** `capMatches` 100 %; `save` 90 % or more.
+
+### Phase 7: a bounded client that headers can wrap (V15, V16; issue #10; Q7 (a))
+
+The MADR's amendment "issue #10", D2. This phase runs once Q7 is answered;
+an answer other than (a) is a deviation, and this phase is rewritten before
+it starts.
+
+1. **`NewHTTPClient`.** In `llmprovider/options.go`, beside
+   `WithHTTPClient`: `func NewHTTPClient() *http.Client`, returning
+   `transport.DefaultClient()`. Its doc, as D2 words it: a new client per
+   call, over the transport the process shares; the bounds (30 s to
+   connect, 10 s for the TLS handshake, 300 s to the first byte, idle
+   connections closed after 90 s, 16 kept per host, no total timeout); the
+   client a provider builds when given none; its `Transport` a
+   `RoundTripper` to wrap, not an `*http.Transport` to configure; safe for
+   concurrent use, as an `http.Client` is (R51); no error (R52).
+2. **The documentation 0061-MADR D6 promised (V16).**
+   * `WithHTTPClient`'s doc (`options.go:44`): a given client serves the
+     provider's requests, its listings and a session's refresh (R32); to add
+     headers, wrap `NewHTTPClient()`'s transport in a `RoundTripper` and give
+     that client; what the transport needs per request, such as the
+     request's model, goes in the request's context.
+   * The `llmprovider` package doc (`provider.go`): the same, in one
+     sentence, as D6 said.
+   * The wizard's `Options.HTTPClient` doc: a client with headers is built
+     the same way, and every listing, sign-in and session of the run uses
+     it.
+   * `README.md`: a short paragraph, "Adding request headers", with the
+     wrapping shown in four lines.
+3. **Tests, red first:**
+   * `TestNewHTTPClient_Bounds_0066` (`llmprovider`): its `Transport`,
+     asserted to `interface{ Base() *http.Transport }` as
+     `options_test.go:22` does, is the very transport a provider built with
+     no client uses, with `ResponseHeaderTimeout` 300 s,
+     `TLSHandshakeTimeout` 10 s, `IdleConnTimeout` 90 s and
+     `MaxIdleConnsPerHost` 16. Seen to fail on a scratch clone where
+     `NewHTTPClient` returns `&http.Client{}`.
+   * `TestNewHTTPClient_NewEachCall_0066`: two calls give two clients over
+     one transport; setting a field of one leaves the other as it was.
+   * `TestWrappedClient_Headers_0066` (`providers/chatcompat`, which can
+     build a provider over an `httptest` server): a provider given
+     `WithHTTPClient` of a `NewHTTPClient` whose transport adds `X-Test`
+     from the request's context. A generation and a listing each carry the
+     header; a transport that refuses to resolve it ends the request, with
+     no request reaching the server. Seen to fail on a planted break: the
+     wrapper not installed.
+   * `TestOptions_HTTPClientHeaders_0066` (`wizard`): the same client as
+     `Options.HTTPClient`; the listing's request carries the header.
+   * `ExampleNewHTTPClient` (`llmprovider_test`, R50): the wrapping, a
+     request to an `httptest` server, and `// Output:` printing the header
+     the server saw.
+4. **Docs and gates:** `CHANGELOG.md` Added (`llmprovider.NewHTTPClient`)
+   and Fixed (D6's missing sentence); `make api-check` lists
+   `NewHTTPClient`; `make docs-check` passes for it.
+
+### Phase 8: release `v1.25.0`
+
+1. **`CHANGELOG.md`:** `[Unreleased]` becomes `[v1.25.0] - <date>`, dated
+   by the commit the tag will name, with Added (`catalog.Lister`,
+   `wizard.Options.LocalServers`, `llmprovider.NewHTTPClient`), Changed and
+   Fixed from Phases 1 to 7, and
+   the docs-gates entry already under `[Unreleased]`. An empty
+   `[Unreleased]` goes above it, and the comparison links are updated. The
+   README's Status names `v1.25.0`.
+2. **Before the push:** the gate; `tools/apidiff.py v1.24.1`, listing the
+   three additions and nothing else; the notes from
+   `scripts/check_changelog.py --section v1.25.0` on a local clone with a
+   local tag, scanned; the disclosure guard.
+3. **The tag,** on the owner's word: `v1.25.0`, annotated, pushed. Every
+   `validate` job passes, and the `release` job's body equals step 2's
+   notes.
+4. **After the tag:** `gh release delete v1.22.1 --yes`, the Release that
+   falls to sixth (R53; the five newest are `v1.24.1`, `v1.24.0`,
+   `v1.23.0`, `v1.22.2` and `v1.22.1` on 2026-10-30). `tools/consumer.py
+   v1.25.0` and `tools/offline.py v1.25.0`.
+5. **Issue #10,** on the owner's word: a comment naming `v1.25.0` and
+   `NewHTTPClient`, and the issue closed.
+6. **Close:** the MADR's Confirmation, item by item; this PLAN `complete`.
+
+## Verification
+
+| # | Criterion | Phase | Check |
+| :--- | :--- | :--- | :--- |
+| 1 | No control character from a server reaches the terminal, a menu or the Result | 1 | `TestTextPrompter_ListedIDEscapes_0066`, `…_StripsEveryArgument_0066`, `TestList_ControlIDsDropped_0066`, `TestDiscover_ControlIDsDropped_0066`, `TestKiloOrg_LabelStripped_0066`, `TestProviderCatalog_ControlIDsDropped_0066` |
+| 2 | A provider with no default endpoint is given one | 2 | `TestCompat_BlankEndpointAskedAgain_0066`, `TestCompat_NoEndpointPromptNeedsURL_0066` |
+| 3 | A keyed server gets its key; a local provider is not asked one | 2 | `TestCompat_KeyAskedAfterRefusal_0066`, `…_ThreeKeysRefused_0066`, `…_SavedKeyOffered_0066`, `TestOllama_RefusedNoKeyAsked_0066`, `TestRefusalError_NamesTheSource` |
+| 4 | A Chat Completions catalog has its `Source`, `Menu` and limit | 2 | `TestCompat_ListedThroughLister_0066`, `TestListCatalog_0066` |
+| 5 | Found servers are offered and build | 3 | `TestLocalServers_*_0066` |
+| 6 | `Err` on every failed path; the doc names the signal | 4 | `TestResolve_FailedListingErr_0066` |
+| 7 | A refused kept session leads to sign-in once | 4 | `TestKept_RefusedLeadsToSignIn_0066`, `…_RefusedThenNewRefused_0066`, `…_KiloRefusedLeadsToSignIn_0066` |
+| 8 | No service text, no URL query, offline named | 5 | `TestEndpointCheck_NoServerText_0066`, `TestBaseURL_QueryNotShown_0066`, `TestDescribe_Offline_0066` |
+| 9 | Unknown ids named; guide right; guard on; two paths tested | 6 | `TestProviders_UnknownNamed_0066`, the guide's text, `wizard/localonly_test.go` with its plant, `TestFallbacks_CapMatches_0066`, `TestSave_StoreFails_0066` |
+| 10 | Exactly three exported names added; no signature changed | 2, 3, 7, 8 | `make api-check`, `tools/apidiff.py v1.24.1` |
+| 11 | Docs carry R41, R51, R52 for the new names | 2, 3, 7 | `make docs-check` |
+| 12 | Every new test failed first | 1–7 | the execution record |
+| 13 | Coverage at or above each floor | 1–7 | `make coverage-check` |
+| 14 | A client with headers keeps the SDK's bounds and shared transport | 7 | `TestNewHTTPClient_Bounds_0066`, `…_NewEachCall_0066` |
+| 15 | Headers from a wrapped `NewHTTPClient` reach requests, listings and the wizard; the way is documented | 7 | `TestWrappedClient_Headers_0066`, `TestOptions_HTTPClientHeaders_0066`, `ExampleNewHTTPClient`, the docs of `WithHTTPClient`, the package and `Options.HTTPClient` |
+
+## Rollout and Rollback
+
+* **Rollout.** Nine commits on `main`, staged by the agent and committed by
+  the owner: the records, one per phase, and the release commit. Then the
+  owner's tag. gobble-cli takes `v1.25.0` by its own record; nothing it
+  calls today changes its result, except notices' wording and, on its
+  `ListModels` paths, a catalog `Err` that was nil.
+* **Rollback.**
+  * Before the tag, each phase reverts on its own, newest first; Phase 3
+    needs Phase 2. Phase 7 stands alone.
+  * After the tag, an exported name stays (R48): a fault in Phase 2 or 3
+    is fixed forward in a patch, and `LocalServers` can be documented as
+    doing nothing, never removed, before `v2`.
+  * Reverting Phase 1 brings back escape sequences in menus; Phase 2, the
+    blank endpoint and the unanswerable keyed server.
+
+## Execution record
+
+Empty until the owner approves execution.
