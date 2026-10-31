@@ -21,6 +21,14 @@ tag and its commit without notes; its notes are its section here.
   menu has its facts
   ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
   Q1, V4).
+- `wizard.Options.LocalServers`: the provider menu also offers each Chat
+  Completions server `chatcompat.Discover` finds running on this machine,
+  as `local-<port>` with its endpoint filled in, and a server that wants a
+  key is asked for one. Ollama's port, already offered, is left out. A
+  `Result` whose `Provider` the caller's `Registry` lacks is such a server,
+  built with `chatcompat.New` as the field's doc shows
+  ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
+  V5, Q2).
 
 ### Changed
 

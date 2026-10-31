@@ -162,6 +162,22 @@ type Options struct {
 	// browser's return to the loopback alone completes the sign-in, the
 	// ChatGPT plan's included (0057-MADR D2).
 	NoPastePrompt bool
+	// LocalServers adds to the provider menu, after the Registry's, each
+	// Chat Completions server running on this machine that
+	// chatcompat.Discover finds, with HTTPClient only: id local-<port>, its
+	// label the server's and its address, its endpoint default its
+	// BaseURL, its notes its model count or that it wants a key. A server
+	// on the port of a local provider the Registry holds, Ollama's, is not
+	// added: it is offered already. Found ids are added to Providers, when
+	// set, for the run; the caller's Options are not changed. The servers
+	// are looked for once, before the menu, and by ResolveCredential only
+	// when its id is empty or not in the Registry (0066-MADR V5, Q2 (a)).
+	//
+	// A Result whose Provider the caller's Registry lacks is a found
+	// server. Build it with chatcompat.New(chatcompat.WithID(res.Provider),
+	// llmprovider.WithBaseURL(res.BaseURL)), adding
+	// llmprovider.WithAPIKey(res.APIKey) when res.Kind is CredAPIKey.
+	LocalServers bool
 }
 
 // lookupEnv is the run's environment reader: the caller's, else one that
@@ -214,6 +230,12 @@ func (o Options) lookupEnv() func(string) string {
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, fmt.Errorf("wizard: %w", err)
+	}
+	if o.LocalServers {
+		var err error
+		if o, err = withLocalServers(ctx, o); err != nil {
+			return Result{}, err
+		}
 	}
 	d, err := chooseProvider(p, o)
 	if err != nil {
@@ -274,13 +296,21 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // entered, one matching llmprovider.ErrWorkspaceRequired or
 // llmprovider.ErrWorkspaceNotFound. An id the Registry lacks, or that
 // Options.Providers leaves out, gives an error matching
-// llmprovider.ErrInvalidProvider. A Prompter's choice out of range is a plain
+// llmprovider.ErrInvalidProvider; under Options.LocalServers, so does an id
+// that is neither the Registry's nor a found server's. A Prompter's choice
+// out of range is a plain
 // error, as are Options.SkipMethods leaving the provider no sign-in method
 // and, under Options.NoEndpointPrompt, an endpoint refused, not reached, or
 // missing for a provider with no default.
 func ResolveCredential(ctx context.Context, p Prompter, o Options, id llmprovider.ProviderID) (Result, catalog.Catalog, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %w", err)
+	}
+	if _, known := o.registry().Descriptor(id); o.LocalServers && (id == "" || !known) {
+		var err error
+		if o, err = withLocalServers(ctx, o); err != nil {
+			return Result{}, catalog.Catalog{}, err
+		}
 	}
 	d, err := credentialProvider(p, o, id)
 	if err != nil {

@@ -102,7 +102,7 @@ standard library is left out.
 | :--- | :--- | :--- |
 | `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact`, `internal/nilsource` |
 | `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
-| `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/openai`, `internal/redact`, `golang.org/x/term` |
+| `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/chatcompat`, `providers/openai`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
 | `internal/nettest` | `Refusing`, a client whose every dial is refused, with `RefusedURL`; `Port`, a loopback port outside every ephemeral range; so that no test depends on a freed port (0045-MADR); imported only by tests | the standard library |
@@ -988,6 +988,18 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   carried none. A remote provider with no default endpoint takes no blank
   one, and under `NoEndpointPrompt`, with none in `Existing`, is an error
   (0066-MADR V2, V3).
+- **The servers on this machine.** With `Options.LocalServers`, the
+  wizard calls `chatcompat.Discover` once, before the menu, with
+  `Options.HTTPClient` only, and runs over a registry of its own: the
+  caller's descriptors, each built by the caller's `Registry`, then each
+  server found, as a `chatcompat` provider, `local-<port>`, its endpoint
+  default its `BaseURL`. A server on the port of a local provider the
+  `Registry` holds, Ollama's, is that provider and is not added. Found ids
+  join `Options.Providers` for the run when it is set; the caller's
+  `Options` are not changed. `ResolveCredential` looks only when its id is
+  empty or not in the `Registry`. A `Result` whose `Provider` the caller's
+  `Registry` lacks is a found server, which the caller builds with
+  `chatcompat.New` (0066-MADR V5, Q2 (a)).
 - **A provider's whole catalog.** A provider that is a `catalog.Lister` is
   listed through `ListCatalog`, whose catalog keeps its menu, facts and
   `Source`; the wizard cuts its `Recommended` to `ModelLimit`, which `List`

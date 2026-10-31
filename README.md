@@ -327,6 +327,13 @@ key.
 - The menu is `Options.Registry`, every built-in provider when nil, so a
   provider of your own is offered once it is registered
   ([adding-a-provider.md](docs/guides/adding-a-provider.md)).
+- With `Options.LocalServers`, the menu also offers each Chat Completions
+  server running on this machine, LM Studio's or llama.cpp's for example,
+  as `local-<port>` with its endpoint filled in. A `Result` whose
+  `Provider` your `Registry` lacks is one of them: build it with
+  `chatcompat.New(chatcompat.WithID(res.Provider),
+  llmprovider.WithBaseURL(res.BaseURL))`, and `llmprovider.WithAPIKey`
+  when `res.Kind` is `CredAPIKey`.
 
 ## Status
 

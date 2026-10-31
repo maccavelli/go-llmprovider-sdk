@@ -29,6 +29,8 @@
 // offer: it asks each documented default port on 127.0.0.1 for its listing,
 // all at once, each within 300 ms, and sends no key. A server that wants one
 // is returned with NeedsKey (0061-MADR E5; its amendment "E5's ports and a keyed server, confirmed before Phase 4e").
+// The wizard's Options.LocalServers offers them, each as a provider of this
+// package (0066-MADR V5).
 //
 // Generation uses POST {base}/chat/completions. ListModels is catalog.List's
 // listing of GET {base}/models, as a built-in's: cached for ten minutes by

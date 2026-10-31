@@ -770,3 +770,74 @@ two rows follow.
   clone of the working tree. It waited while other sessions held the load
   near 51 on ten CPUs, started at 9.9, and printed "gate: 29 of 29 passed",
   exit 0, `coverage-check` among them.
+
+### Phase 3: the servers running on this machine (2026-10-31)
+
+Approved by the owner's "committed, proceed", after Phase 2 landed as
+`ecd3668`. No deviation.
+
+* **The tests,** in `wizard/localservers_0066_test.go`, each over an
+  `HTTPClient` whose transport answers `http://127.0.0.1:<port>` by port
+  and refuses any other, so no port of the host is used: the eight step 5
+  names. `TestLocalServers_OllamaPortSkipped_0066`, `…_OffAsksNothing_0066`
+  and `…_ProvidersAddsFound_0066` check the first menu, where the run ends,
+  their prompter holding no answer.
+* **Red, by planted breaks** (`tools/plant.py`, scratch clone of the
+  working tree), "all 9 plant(s) caught". The option does not exist on
+  `3fad786`, so the first plant is step 5's: the field, and no menu
+  change.
+  * The field and no menu change: `TestLocalServers_Offered_0066` and
+    `…_NeedsKeyAsksKey_0066`, "select provider: fakePrompter: scripted
+    index 10 out of range"; `…_OllamaPortSkipped_0066`, the ten built-ins
+    alone; `…_ResolveByID_0066`, `…_ProvidersAddsFound_0066`.
+  * Ollama's port not skipped: "… "Ollama (local)" "Chat Completions server
+    (127.0.0.1:11434)" …".
+  * Found ids not added to `Providers`: "menu ["Claude (Anthropic)"]".
+  * The caller's `Providers` grown in place: "the caller's Providers
+    became ["claude"], its spare capacity ["claude" "local-1234" "" ""]".
+  * An ended `ctx` not returned: "err = select provider: …; want
+    context.Canceled".
+  * `ResolveCredential` looking only for an empty id: "wizard: no provider
+    "local-1234" in the registry", and "no port was asked".
+  * A keyed server's row not told: "row detail "running on this machine"".
+  * The endpoint default not the server's: "unexpected Input("Chat
+    Completions server (127.0.0.1:1234) endpoint")".
+  * `Discover` not given the caller's client: the menu without the server.
+    Under this plant alone, `Discover` used its default client and asked
+    this machine's loopback ports, in the scratch clone, for 0.12 s; it
+    found none, and no request left the machine.
+* **The code:** `Options.LocalServers`, its doc with the `chatcompat.New`
+  call that builds a found server; `wizard/local_servers.go`:
+  `withLocalServers`, a run-local `Registry` of the caller's descriptors,
+  each built by the caller's `Registry.New`, then each found server, id
+  `local-<port>`, label `serverLabel` ("Chat Completions server
+  (127.0.0.1:1234)", or the dialect's name and the address), notes
+  `serverNotes` ("running on this machine, 2 models", or "…, wants a
+  key"), `DefaultBaseURL` its `BaseURL`, skipped on `localPort`'s port; a
+  found id the caller registered itself stays the caller's. `Providers` is
+  cloned before it grows. `ConfigureLLM` calls it before the menu;
+  `ResolveCredential` when its id is empty or not in the `Registry`. An
+  ended `ctx` is "wizard: look for the servers on this machine: …",
+  wrapping ctx's error.
+* **Docs:** `ResolveCredential`'s errors (an id neither the `Registry`'s
+  nor a found server's); `ConfigureLLM`'s already say that an ended `ctx`
+  gives ctx's error, which covers `Discover`. The `chatcompat` package doc;
+  `docs/architecture.md`'s package table, `wizard` gaining
+  `providers/chatcompat`, and "The wizard"; `README.md`; `CHANGELOG.md`
+  Added.
+* **Green:** the eight `--- PASS`, by name.
+* **The drift check:** `go test -race -count=1 -shuffle=on ./wizard/
+  ./llmprovider/catalog/ ./llmprovider/providers/chatcompat/`: exit 0, no
+  existing test changed.
+* **No network:** `./wizard/` behind a scratch `TestMain` calling
+  `localonly.Main`, on a scratch clone of the working tree: `ok`, exit 0.
+* **The API:** `tools/apidiff.py v1.24.1`: "./wizard.Options.LocalServers:
+  added" and "./llmprovider/catalog.Lister: added", nothing else; `make
+  api-check`, `docs-check` and `tables-check`: 0 problems.
+* **Pre-add:** `make pre-add-check` on the phase's four Go files: "4
+  file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)",
+  exit 0.
+* **The gate:** `python3 -B tools/gate.py --timeout 7200`, on a scratch
+  clone of the working tree. It waited while other sessions held the load
+  near 34 on ten CPUs, started at 9.9, and printed "gate: 29 of 29 passed",
+  exit 0, `coverage-check` and `tables-check` among them.
