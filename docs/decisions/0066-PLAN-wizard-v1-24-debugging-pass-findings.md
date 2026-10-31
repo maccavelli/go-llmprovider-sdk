@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-10-30
 associated-madr: "0066-MADR-wizard-v1-24-debugging-pass-findings.md"
 decision-makers: repository owner
@@ -551,4 +551,82 @@ it starts.
 
 ## Execution record
 
-Empty until the owner approves execution.
+Approved by the owner's "committed, proceed", 2026-10-30, after the records
+landed as `dafea26`. Phase 0 rides with Phase 1's commit, as the eight-commit
+rollout counts it.
+
+### Phase 0: records (2026-10-30)
+
+`tools/records.py status`: the MADR `accepted`, this PLAN `in-progress`;
+each prints "records: written; records-check: 0 problem(s)", and the index's
+two rows follow.
+
+### Phase 1: control characters, in both layers (2026-10-30)
+
+* **Red first, on a scratch clone of `dafea26`** (the code of `3fad786`),
+  with the new tests copied in and the two `hasControl` tests left out,
+  their function not existing there. Each package exits 1:
+  * `catalog`: `TestList_ControlIDsDropped_0066/chatcompat`, "Usable =
+    ["clean-a" "evil\x1b]0;owned\a\x1b[2Jmodel" "clean-b" "c1\u009bx"];
+    want ["clean-a" "clean-b"]", and the same of `Recommended` and `Menu`;
+    `…/ollama`, "Usable = ["clean-a" "evil\x1b[2J" "clean-b" "del\x7f"]".
+  * `chatcompat`: `TestDiscover_ControlIDsDropped_0066`, "Models =
+    ["clean-a" "evil\x1b]0;owned\a\x1b[2Jmodel" "clean-b" "c1\u009bx"]; want
+    the clean ids only".
+  * `wizard`: `TestTextPrompter_ListedIDEscapes_0066`, "2 ESC and 1 BEL
+    bytes reached the terminal; want none" and "Model =
+    "evil\x1b]0;owned\a\x1b[2Jmodel"; want plain-model";
+    `TestTextPrompter_StripsEveryArgument_0066`, "Out holds a control
+    character: "\ntitle\x1b[2J\u009b\n  1) label\x1b[2J\u009b — …";
+    `TestKiloOrg_LabelStripped_0066`, "menu row "Ev\x1b]0;x\ail" /
+    "ad\u009bmin" holds a control character";
+    `TestProviderCatalog_ControlIDsDropped_0066`, "Usable ["acme-a"
+    "ev\x1b[2Jil" "acme-b" "c1\u009bx"] … want ["acme-a" "acme-b"]".
+* **The `hasControl` tests, on planted breaks** (`tools/plant.py`, scratch
+  clone of the working tree): the C1 range removed from each copy, "all 2
+  plant(s) caught", each with `hasControl("c1\u0080") = false; want true`,
+  and the same for `\u009b` and `\u009f`.
+* **The code:**
+  * `catalog`: `control.go`, with `hasControl`,
+    `fetchedListing.withoutControl` and `logDropped`; `fetchListing` now
+    calls `fetchByProvider`, the former body, and filters its result before
+    the listing cache keeps it; `ollamaCatalog` drops such a tag after
+    `fetchOllamaTags`. `Catalog.Usable`'s doc says so.
+  * `chatcompat`: `hasControl`, used where `askPort` collects
+    `Server.Models`, whose doc says so.
+  * `wizard`: `withoutControl` on the ids of a provider's own `ListModels`,
+    in `providerCatalog` and `chatGPTCatalog`; a Kilo organization's name
+    and role through `redact.StripControl` (its id kept); `TextPrompter`
+    strips a menu's title, labels and details, `Confirm`'s question,
+    `Input`'s prompt and shown default, and `Secret`'s prompt, and its type
+    doc says so. An accepted default is returned as given.
+  * `CHANGELOG.md`: `[Unreleased]` Fixed.
+* **Green:** `go test -count=1 -run _0066` on the three packages: `ok` each.
+* **The drift check:** `go test -race -count=1 -shuffle=on ./wizard/
+  ./llmprovider/catalog/ ./llmprovider/providers/chatcompat/`: exit 0, every
+  existing test unchanged.
+* **No network:** `./wizard/` behind a scratch `TestMain` calling
+  `localonly.Main`, on a scratch clone of the working tree: `ok`, exit 0.
+* **Pre-add:** `make pre-add-check` on the phase's nine Go files: "9 file(s)
+  clean (gofmt, golangci-lint, go vet, go test, govulncheck)", exit 0.
+* **The gate:** `python3 -B tools/gate.py --timeout 7200`, on a scratch
+  clone of the working tree. It waited while other sessions held the load
+  near 86 on ten CPUs, started at 9.5, and printed "gate: 29 of 29 passed",
+  exit 0: `pre-add-check`, `vet` on darwin, linux and windows with and
+  without `live_gateways`, `test-race-cover`, `test-shuffle`,
+  `test-repeat`, `tidy-diff`, `lint`, and every `make` check CI runs, with
+  `deny-scan` and `tools-test`.
+* **Notes, not deviations** (no behaviour, decision or test outside Scope
+  changes):
+  * `TestDiscover_ControlIDsDropped_0066` uses `chatcompat`'s own
+    `withPorts` and a loopback stub server, as its other `Discover` tests
+    do, where step 5 said "over a transport that answers by port". Discover
+    asks `127.0.0.1` only, so the stub is on the machine.
+  * Step 2 said `chatcompat` keeps its own copy of the rule "for the same
+    reason" as `catalog`. R2 names `internal/redact` for `wizard` and the
+    wire packages, and gives a provider package "internal packages" without
+    naming it. No provider package imports it today. The copy stands, as
+    step 2 says, and its comment states that fact, not an R2 rule.
+  * `[Unreleased]`'s earlier Changed entry, on the documentation gates,
+    ends "The module's code is unchanged", which was true of that change
+    alone. Phase 8 words it so when the section becomes `v1.25.0`.

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-30
 decision-makers: repository owner
 consulted: "the owner's request of 2026-10-30; a read of every file of wizard/ at 3fad786 (v1.24.1 and the docs gates after it); probes A to L on a scratch clone of 3fad786 (method below); the wizard's statement coverage; providers/chatcompat, catalog and auth at the same revision; gobble-cli at 61f7115, the wizard's caller; 0059-MADR-wizard-debugging-pass-findings.md, 0061-MADR-consumer-gaps-from-gobble-issue-9.md, 0064-MADR-anthropic-workspace-for-unscoped-keys.md, 0065-MADR-tests-reach-no-outside-host.md, 0056-MADR-wizard-credential-only-entry-point.md and 0021-MADR-harden-and-tune-after-the-v1-1-review.md"

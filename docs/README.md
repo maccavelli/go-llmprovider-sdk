@@ -147,8 +147,8 @@ documents a reader follows to do something.
 | 0064 | PLAN | [Implement Anthropic's Workspace Header for Keys Not Scoped to a Workspace](decisions/0064-PLAN-anthropic-workspace-for-unscoped-keys.md) | complete |
 | 0065 | MADR | [Keep the Tests Off the Network, and Hold Them There](decisions/0065-MADR-tests-reach-no-outside-host.md) | accepted |
 | 0065 | PLAN | [Implement Keeping the Tests Off the Network](decisions/0065-PLAN-tests-reach-no-outside-host.md) | complete |
-| 0066 | MADR | [Remediate the Wizard's v1.24 Debugging-Pass Findings, Listed Ids and Chat Completions Servers First](decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md) | proposed |
-| 0066 | PLAN | [Implement the Remediation of the Wizard's v1.24 Debugging-Pass Findings](decisions/0066-PLAN-wizard-v1-24-debugging-pass-findings.md) | proposed |
+| 0066 | MADR | [Remediate the Wizard's v1.24 Debugging-Pass Findings, Listed Ids and Chat Completions Servers First](decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md) | accepted |
+| 0066 | PLAN | [Implement the Remediation of the Wizard's v1.24 Debugging-Pass Findings](decisions/0066-PLAN-wizard-v1-24-debugging-pass-findings.md) | in-progress |
 
 ## I want to…
 

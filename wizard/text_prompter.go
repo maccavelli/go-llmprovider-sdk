@@ -36,6 +36,11 @@ const maskGlyphs = 8
 // may be called while another goroutine waits in a read, as a sign-in does.
 // In and Out must not change once it is in use.
 //
+// No text it prints carries a character a terminal acts on: a notice, a
+// menu's title, labels and details, a question, and a prompt and its default
+// are each printed without them, since any of them can hold a server's text
+// (0021-MADR Z3; 0066-MADR V1).
+//
 // It does not implement InputerContext: a read of stdin cannot be given up,
 // so after a browser sign-in that the loopback finished, the wizard asks for
 // the Enter that ends the paste prompt (0057-MADR D3).
@@ -188,17 +193,21 @@ const maxLabelPad = 40
 // renderChoices prints the menu, marking the selected rows. The details are
 // a column: each number right-aligned to the widest, and each label of a
 // row with a detail padded to the longest such label, at most maxLabelPad
-// runes (0061-MADR, amendment "Model search, rebuilt", S4).
+// runes (0061-MADR, amendment "Model search, rebuilt", S4). A title, label or
+// detail can carry a server's text, such as a listed model's id: none of the
+// characters a terminal acts on is printed (0066-MADR V1).
 func (p *TextPrompter) renderChoices(title string, choices []Choice, selected []int) {
-	p.printf("\n%s\n", title)
+	p.printf("\n%s\n", redact.StripControl(title))
 	numWidth := len(strconv.Itoa(len(choices)))
+	shown := make([]Choice, len(choices))
 	pad := 0
-	for _, c := range choices {
-		if n := utf8.RuneCountInString(c.Label); c.Detail != "" && n <= maxLabelPad {
+	for i, c := range choices {
+		shown[i] = Choice{Label: redact.StripControl(c.Label), Detail: redact.StripControl(c.Detail)}
+		if n := utf8.RuneCountInString(shown[i].Label); shown[i].Detail != "" && n <= maxLabelPad {
 			pad = max(pad, n)
 		}
 	}
-	for i, c := range choices {
+	for i, c := range shown {
 		mark := ""
 		if slices.Contains(selected, i) {
 			mark = " (selected)"
@@ -310,7 +319,7 @@ func (p *TextPrompter) Confirm(question string, def bool) (bool, error) {
 	if def {
 		hint = "[Y/n]"
 	}
-	p.printf("%s %s: ", question, hint)
+	p.printf("%s %s: ", redact.StripControl(question), hint)
 	line, err := p.readLine()
 	if readFailed(err) {
 		return false, err
@@ -330,12 +339,14 @@ func (p *TextPrompter) Confirm(question string, def bool) (bool, error) {
 
 // Input implements Prompter. A failed read of In or write to Out is returned,
 // matching the reader's or writer's error; a read after the input has ended
-// matches io.EOF.
+// matches io.EOF. The prompt and the default are printed without the
+// characters a terminal acts on, and an accepted default is returned as it
+// was given (0066-MADR V1).
 func (p *TextPrompter) Input(prompt, def string) (string, error) {
 	if def != "" {
-		p.printf("%s (default %s): ", prompt, def)
+		p.printf("%s (default %s): ", redact.StripControl(prompt), redact.StripControl(def))
 	} else {
-		p.printf("%s: ", prompt)
+		p.printf("%s: ", redact.StripControl(prompt))
 	}
 	line, err := p.readLine()
 	if readFailed(err) {
@@ -377,6 +388,9 @@ func renderSecret(entered []rune) string {
 // whole entry, visible in screen shares and recordings. See MADR 0005
 // revision 2, "Accepted trade-off".
 func (p *TextPrompter) Secret(prompt string) (string, error) {
+	// The prompt is printed without the characters a terminal acts on
+	// (0066-MADR V1); the entry is masked as before.
+	prompt = redact.StripControl(prompt)
 	for {
 		value, err := p.secretOnce(prompt)
 		// A failed write is returned now, as Input returns it, not at the

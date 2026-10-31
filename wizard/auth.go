@@ -377,7 +377,10 @@ func resolveKiloDevice(
 		if org.ID == want {
 			defaultIdx = len(ids)
 		}
-		choices, ids = append(choices, Choice{Label: org.Name, Detail: org.Role}), append(ids, org.ID)
+		// The profile is the service's text: a menu shows it without the
+		// characters a terminal acts on (0066-MADR V1).
+		choices = append(choices, Choice{Label: redact.StripControl(org.Name), Detail: redact.StripControl(org.Role)})
+		ids = append(ids, org.ID)
 	}
 	idx, err := choose(p, "Use Kilo as:", choices, defaultIdx)
 	if err != nil {

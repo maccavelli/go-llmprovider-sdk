@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,7 +45,8 @@ type Server struct {
 	// or its host and port, such as "127.0.0.1:1234".
 	Label string
 	// Models are the ids its GET /v1/models lists, in its order; none when
-	// NeedsKey.
+	// NeedsKey. An id holding a control character is left out (0066-MADR
+	// V1).
 	Models []string
 	// NeedsKey reports a server that refused the listing, sent with no key,
 	// with 401 or 403: it is there, and wants a key.
@@ -125,9 +127,19 @@ func askPort(ctx context.Context, client *http.Client, userAgent string, logger 
 		s.Label = d.Label
 	}
 	for _, e := range reply.Data {
-		if e.ID != "" {
+		if e.ID != "" && !hasControl(e.ID) {
 			s.Models = append(s.Models, e.ID)
 		}
 	}
 	return s
+}
+
+// hasControl reports whether s holds a character a terminal acts on: a C0
+// control but tab, DEL, or a C1 control (U+0080 to U+009F). It is the rule of
+// internal/redact, and of catalog's listings, which drop such an id
+// (0066-MADR V1, Q3 (a)); no provider package imports internal/redact.
+func hasControl(s string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool {
+		return r < 0x20 && r != '\t' || r == 0x7f || r >= 0x80 && r <= 0x9f
+	})
 }

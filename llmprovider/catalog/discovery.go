@@ -134,7 +134,9 @@ type Catalog struct {
 	// cheapest first for Kilo, and fastest first for Hugging Face (MADR 0007's
 	// table; 0026-MADR F54). It equals Recommended when Live is false.
 	// Ollama's admits each installed model that writes text, or whose output
-	// Ollama does not report (0042-MADR D1).
+	// Ollama does not report (0042-MADR D1). No listing admits an id holding
+	// a character a terminal acts on: a C0 control but tab, DEL, or a C1
+	// control (0066-MADR V1).
 	Usable []string
 	// Live reports whether Usable came from the provider's listing rather
 	// than the static catalog. A stale listing is live: it came from the
@@ -613,8 +615,15 @@ type fetchedListing struct {
 // returns what buildListing needs (0041-MADR D6, A6). The caller owns the
 // timeout. Every lister sends token as it describes itself (0016-MADR A6).
 // A failed fetch degrades to the static catalog rather than failing: see
-// listingResult.catalog.
+// listingResult.catalog. An id holding a control character is dropped,
+// before the listing cache keeps it (0066-MADR V1).
 func fetchListing(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (fetchedListing, error) {
+	f, err := fetchByProvider(ctx, id, token, cfg)
+	return f.withoutControl(id, cfg), err
+}
+
+// fetchByProvider is fetchListing's requests, by provider.
+func fetchByProvider(ctx context.Context, id llmprovider.ProviderID, token llmprovider.Token, cfg config) (fetchedListing, error) {
 	var usable []string
 	var err error
 	switch id {
@@ -911,6 +920,10 @@ func ollamaCatalog(ctx context.Context, token llmprovider.Token, cfg config) (li
 	if err != nil {
 		return listingResult{}, err
 	}
+	// A model whose name holds a control character is dropped (0066-MADR V1).
+	installed := len(tags)
+	tags = slices.DeleteFunc(tags, func(t ollamaTag) bool { return hasControl(t.Name) })
+	logDropped(cfg, llmprovider.ProviderOllama, installed-len(tags))
 	var names []string
 	digests := make(map[string]string, len(tags))
 	for _, t := range tags {

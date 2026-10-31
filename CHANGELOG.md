@@ -22,6 +22,21 @@ tag and its commit without notes; its notes are its section here.
   change must run every gate that reads Markdown. The module's code is
   unchanged.
 
+### Fixed
+
+- A listed model id holding a character a terminal acts on, a C0 control
+  but tab, DEL or a C1 control, no longer reaches a menu, the terminal or a
+  `wizard.Result`: every `catalog` listing drops it, Ollama's and a
+  `chatcompat` server's included, as do `chatcompat.Discover`'s
+  `Server.Models` and the wizard's listings through a provider's own
+  `ListModels`. `wizard.TextPrompter` prints no such character from a
+  menu's title, labels or details, a question, or a prompt and its
+  default, and a Kilo organization's name and role reach the menu without
+  them. A server that listed `\u001b]0;…\u0007\u001b[2J` in an id could set
+  the terminal's title and clear its screen
+  ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
+  V1).
+
 ## [v1.24.1] - 2026-10-27
 
 ### Fixed

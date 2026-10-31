@@ -729,6 +729,7 @@ func chatGPTCatalog(
 	if err != nil {
 		return catalog.Catalog{}, err
 	}
+	models = withoutControl(models)
 	// At most ModelLimit are recommended, as providerCatalog cuts them; search
 	// covers them all (0026-MADR F47; 0038-MADR A2).
 	recommended := cutModels(models, o.ModelLimit)
@@ -756,11 +757,18 @@ func providerCatalog(
 	if err != nil {
 		return catalog.Catalog{}, err
 	}
-	if len(models) == 0 {
+	if models = withoutControl(models); len(models) == 0 {
 		return catalog.Catalog{}, fmt.Errorf("wizard: %s listed no models", d.Label)
 	}
 	recommended := cutModels(models, o.ModelLimit)
 	return catalog.Catalog{Recommended: recommended, Usable: slices.Clone(models), Live: true}, nil
+}
+
+// withoutControl is a copy of models less each id holding a character a
+// terminal acts on, which catalog drops from its own listings; a provider's
+// ListModels is not catalog's (0066-MADR V1, Q3 (a)).
+func withoutControl(models []string) []string {
+	return slices.DeleteFunc(slices.Clone(models), func(m string) bool { return redact.StripControl(m) != m })
 }
 
 // cutModels is a copy of models, cut to its first limit when limit is
