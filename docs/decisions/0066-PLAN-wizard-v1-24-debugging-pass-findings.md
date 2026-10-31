@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-10-30
+status: complete
+date: 2026-10-31
 associated-madr: "0066-MADR-wizard-v1-24-debugging-pass-findings.md"
 decision-makers: repository owner
 ---
@@ -1354,3 +1354,74 @@ owner's word, and are recorded when done. No deviation.
     a scratch clone of the working tree. It waited while other sessions
     held the load near 32, started at 8.6, and printed "gate: 29 of 29
     passed", exit 0, `changelog-check` and `coverage-check` among them.
+* **The fix landed** as `4b511a5`, committed and pushed by the owner. Its
+  CI run passed on `ubuntu-24.04`, `macos-15` and `windows-2025`, and its
+  Docs run passed.
+* **Step 3, the tag.** The owner made and pushed `v1.25.0`, annotated,
+  naming `4b511a5`, whose commit date, 2026-10-31, is the section's. The
+  tag's CI run: the three `validate` jobs and `release` passed. The GitHub
+  Release `v1.25.0` is published, not a draft. Its body, read from the
+  API with `curl`, equals step 2's notes. Read through `gh`, a `\u001b`
+  in the text showed as `\^[`: that is `gh`'s sanitizing of what it
+  prints, not the Release's text.
+* **Step 4, after the tag.** The owner ran `gh release delete v1.22.1
+  --yes`. The Releases are `v1.25.0`, `v1.24.1`, `v1.24.0`, `v1.23.0` and
+  `v1.22.2`, five, and the `v1.22.1` tag stays on `origin` (R53).
+  `tools/consumer.py v1.25.0`: "consumer: 16 packages linked", "consumer:
+  every step passed", exit 0, through the module proxy, built for six
+  platforms. `tools/offline.py v1.25.0`: its program read the model with
+  "requests=0", "offline: ok"; both plants "caught" ("models.dev left on",
+  "no caller layer"); "offline: every step passed", exit 0.
+* **Step 5, issue #10,** on the owner's word: a comment naming `v1.25.0`
+  and `llmprovider.NewHTTPClient`, with the wrapping and a link to this
+  record's MADR at the tag, scanned by `tools/denyscan.py` first, "0
+  hit(s)"; the issue closed as completed.
+* **Step 6, the MADR's Confirmation, item by item.** On a clone at
+  `v1.25.0`, every test the Verification table names was run by name,
+  `go test -count=1 -v -run`, in its package: 42 of 42 `--- PASS`, none
+  missing (`./wizard/` 35, `./llmprovider/catalog/` 1,
+  `./llmprovider/providers/chatcompat/` 3, `./llmprovider/` 3). `make
+  coverage-check` there: "41 packages, 0 problem(s)", `wizard` 93.8 %
+  against 86.4 %.
+  * "A to L, made tests, each failing on `3fad786` and passing after its
+    phase." Held, with two qualifications. Each probe that found something
+    is a test: A `TestCompat_BlankEndpointAskedAgain_0066`, B
+    `TestCompat_KeyAskedAfterRefusal_0066`, C
+    `TestCompat_ListedThroughLister_0066`, D and L
+    `TestResolve_FailedListingErr_0066`, E
+    `TestEndpointCheck_NoServerText_0066`, F
+    `TestBaseURL_QueryNotShown_0066`, G
+    `TestKept_RefusedLeadsToSignIn_0066`, H
+    `TestProviders_UnknownNamed_0066`, J
+    `TestTextPrompter_ListedIDEscapes_0066`. K checked a claim that held
+    (the MADR's "Checked, not findings") and became no test. Each test
+    failed before its phase's code: for Phase 1 on `dafea26`, whose code
+    is `3fad786`'s, and for Phase 2 on `2ab63be`, whose code on its paths
+    is `3fad786`'s; on
+    the commit before the phase for Phases 4, 5 and 6; and by planted
+    breaks where the code did not exist before, Phases 3 and 7, or was
+    right before, as each phase's record says.
+  * "For V1": `TestList_ControlIDsDropped_0066`,
+    `TestDiscover_ControlIDsDropped_0066`,
+    `TestProviderCatalog_ControlIDsDropped_0066`,
+    `TestTextPrompter_ListedIDEscapes_0066` and
+    `…_StripsEveryArgument_0066` pass. Held.
+  * "For V2 to V4": through `chatcompat`'s descriptor and an `httptest`
+    server, `TestCompat_KeyAskedAfterRefusal_0066` (a typed key),
+    `…_BlankEndpointAskedAgain_0066` (a blank endpoint asked again) and
+    `…_ListedThroughLister_0066` (`Source` and `Menu`, under Q1 (a)) pass.
+    Held.
+  * "`make pre-add-check`, `python3 -B tools/gate.py`, `make api-check`
+    for any name Q1 or Q2 adds, and CI on the three platforms." Held:
+    pre-add and the gate in every phase; `make api-check` showed no
+    incompatible change and `tools/apidiff.py v1.24.1` the three names
+    (Phase 7's deviation); CI on the three platforms passed on `4b511a5`
+    and on the tag, after Phase 8's deviation.
+* **Not done.** Nothing of the eight phases is left. gobble-cli's move to
+  `NewHTTPClient` is its own repository's record, as the MADR says. The
+  two observations put to the owner in Phase 5, an Ollama endpoint typed
+  with a query is shown as typed, and an empty listing beside a
+  descriptor's static catalog gives no notice, are recorded there and not
+  decided.
+* **This PLAN is complete,** its status changed with its index row by
+  `tools/records.py status`.
