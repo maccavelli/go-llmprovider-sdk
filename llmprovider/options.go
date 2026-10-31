@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // providerConfig holds what the common options set; Settings reads it.
@@ -41,12 +43,31 @@ type providerConfig struct {
 	ReasoningRefusals []ReasoningRefusal
 }
 
-// WithHTTPClient sets a custom HTTP client for connection pooling. Nil is the
-// provider's own default client.
+// WithHTTPClient sets the HTTP client the provider sends with: its requests,
+// its listings and a session's refresh (R32). Nil is the provider's own
+// default client, NewHTTPClient's. To add request headers, wrap
+// NewHTTPClient's Transport in an http.RoundTripper that sets them, and give
+// that client; what the transport needs to know per request, such as the
+// request's model, goes in the request's context (0061-MADR D6; 0066-MADR
+// D2).
 func WithHTTPClient(c *http.Client) Option {
 	return commonOption("WithHTTPClient", func(cfg *providerConfig) {
 		cfg.HTTPClient = c
 	})
+}
+
+// NewHTTPClient returns the client a provider builds when it is given none:
+// a new http.Client on each call, over the transport the process shares, so
+// that every client shares its connections. Its bounds are the transport's:
+// a connection within 30 s, a TLS handshake within 10 s, the first byte of a
+// reply within 300 s, idle connections closed after 90 s and 16 kept per
+// host, and no total timeout, so a streamed reply runs while it sends. Its
+// Transport is an http.RoundTripper to wrap, not an *http.Transport to
+// configure: wrap it to add request headers, and give the client to
+// WithHTTPClient (0066-MADR D2). It returns no error, and the client is safe
+// for concurrent use, as an http.Client is.
+func NewHTTPClient() *http.Client {
+	return transport.DefaultClient()
 }
 
 // WithMaxTokens sets the maximum response tokens for the provider. It must be

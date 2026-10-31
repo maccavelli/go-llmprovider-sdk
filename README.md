@@ -122,6 +122,18 @@ functions over any provider, and `Stream` streams from every one.
   `WithClientInfo(name, version)` names the application, and
   `WithSessionID(id)` sets the conversation id that OpenCode
   (`x-opencode-session`) and Kilo (`X-KiloCode-TaskId`) receive.
+- **Adding request headers.** Wrap the default client's transport, so the
+  bounds above stay, and give the client to `WithHTTPClient`; a value the
+  headers need per request, such as its model, goes in the request's
+  context:
+
+  ```go
+  c := llmprovider.NewHTTPClient()
+  c.Transport = headerTransport{base: c.Transport} // your RoundTripper
+  p, err := providers.New(id, llmprovider.WithHTTPClient(c))
+  // the wizard takes the same client as Options.HTTPClient
+  ```
+
 - **Prompt caching.** `Request.Cache` (`llmprovider.CacheShort`, or
   `CacheLong` for Anthropic's one-hour lifetime) asks the service to cache
   the prompt. Claude gets Anthropic's `cache_control` markers, OpenAI, xAI

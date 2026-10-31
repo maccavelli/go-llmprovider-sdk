@@ -89,3 +89,45 @@ func ExampleWithStreamRetry() {
 	// delta "Hel"
 	// delta "lo"
 }
+
+// exampleHeaders adds X-Example to each request, then sends it on base, the
+// bounded transport NewHTTPClient gave.
+type exampleHeaders struct{ base http.RoundTripper }
+
+func (h exampleHeaders) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("X-Example", "from-the-wrapper")
+	return h.base.RoundTrip(r)
+}
+
+// ExampleNewHTTPClient adds a request header by wrapping the default
+// client's transport, so its bounds stay, and gives the client to a
+// provider with WithHTTPClient.
+func ExampleNewHTTPClient() {
+	var seen atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen.Store(r.Header.Get("X-Example"))
+		fmt.Fprint(w, `{"id":"resp-example","output":[{"type":"message","content":[{"type":"output_text","text":"Hello"}]}]}`)
+	}))
+	defer srv.Close()
+	c := llmprovider.NewHTTPClient()
+	c.Transport = exampleHeaders{base: c.Transport}
+	p, err := openai.New(llmprovider.WithAPIKey("example-key"), llmprovider.WithModel("gpt-example"),
+		llmprovider.WithBaseURL(srv.URL), llmprovider.WithHTTPClient(c))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	text, err := llmprovider.GenerateText(context.Background(), p, &llmprovider.Request{
+		Input: []llmprovider.Item{llmprovider.MessageItem{Role: llmprovider.RoleUser, Text: "Say hello."}},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(text)
+	fmt.Println("the server saw X-Example:", seen.Load())
+	// Output:
+	// Hello
+	// the server saw X-Example: from-the-wrapper
+}

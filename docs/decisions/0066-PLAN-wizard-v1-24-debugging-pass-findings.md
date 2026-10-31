@@ -98,8 +98,10 @@ catches, and then passes. In particular:
 
 `chatcompat`'s `ListCatalog` is a method of an unexported type, so it is
 not an exported name; the package doc names it. No signature changes.
-`make api-check` and `tools/apidiff.py v1.24.1` list exactly the three
-additions.
+~~`make api-check` and `tools/apidiff.py v1.24.1` list exactly the three
+additions.~~ *`make api-check` shows no incompatible change, and
+`tools/apidiff.py v1.24.1` lists exactly the three additions; `make
+api-check` lists none (the deviation of 2026-10-31 in Phase 7's record).*
 
 ## Rules for every phase
 
@@ -514,8 +516,10 @@ it starts.
      request to an `httptest` server, and `// Output:` printing the header
      the server saw.
 4. **Docs and gates:** `CHANGELOG.md` Added (`llmprovider.NewHTTPClient`)
-   and Fixed (D6's missing sentence); `make api-check` lists
-   `NewHTTPClient`; `make docs-check` passes for it.
+   and Fixed (D6's missing sentence); ~~`make api-check` lists
+   `NewHTTPClient`~~ *`tools/apidiff.py v1.24.1` lists `NewHTTPClient`, and
+   `make api-check` shows no incompatible change (the deviation of
+   2026-10-31)*; `make docs-check` passes for it.
 
 ### Phase 8: release `v1.25.0`
 
@@ -1167,3 +1171,91 @@ Approved by the owner's "committed, proceed", after Phase 5 landed as
   clone of the working tree. It waited while other sessions held the load
   near 36 on ten CPUs, started at 9.0, and printed "gate: 29 of 29
   passed", exit 0, `coverage-check` and `tables-check` among them.
+
+### Phase 7: a bounded client that headers can wrap (2026-10-31)
+
+Approved by the owner's "committed, proceed", after Phase 6 landed as
+`5f90002`. Q7 was answered (a) on 2026-10-30, so the phase ran as written.
+
+* **Deviation 2026-10-31: what `make api-check` prints.** Found after the
+  phase's code and tests, in its gates. Step 4 says "`make api-check`
+  lists `NewHTTPClient`", and the section "Exported names (R55)" that it
+  and `tools/apidiff.py` "list exactly the three additions".
+  `scripts/check_api.py` takes no option, and its whole output was
+  "api-check: against v1.24.1, 0 incompatible change(s) outside
+  llmprovider/x/": it reports incompatible changes only. The additions are
+  listed by `tools/apidiff.py v1.24.1`. This held before the phase; Phases
+  2, 3 and 4 recorded `api-check` as "0 problems" without saying so. Put to
+  the owner with three resolutions: correct the records (recommended);
+  make `check_api.py` list additions, a CI gate outside the scope, under
+  an amendment; or stop the phase. The owner chose "correct the records".
+  The two sentences are struck through and replaced; the Verification
+  table's row 10 already gives each tool its part. No code, gate or MADR
+  fact changes, and no file is added to the phase's scope.
+* **Notes, not deviations.**
+  * The example uses an `openai` provider given the wrapped client, so it
+    shows `WithHTTPClient` in use, where step 3 says "a request to an
+    `httptest` server".
+  * The doc's "a connection within 30 s" is the dialer's, which
+    `llmprovider/internal/transport/client_test.go:32` asserts at 30 s; the
+    new test asserts that the shared transport has it, and the other four
+    bounds by value.
+  * The wizard's `Options.HTTPClient` doc says a client with headers adds
+    them to the requests that doc already names, not to "every request of
+    the run", which no test shows.
+* **Red, by planted breaks** (`tools/plant.py`, scratch clone of the
+  working tree; `NewHTTPClient` does not exist on `5f90002`, so no test
+  compiles there): "all 7 plant(s) caught".
+  * `NewHTTPClient` returning `&http.Client{}`, the plan's red:
+    "Transport <nil> has no Base" in both `TestNewHTTPClient_…` tests, and
+    `ExampleNewHTTPClient` and `TestWrappedClient_Headers_0066` panicking
+    on a nil base.
+  * `NewHTTPClient` returning one shared client: "clients 0x… and 0x…;
+    want two, over one transport".
+  * A given client not used (`settings.go` always the default):
+    `TestWrappedClient_Headers_0066`, "request "/chat/completions X-Test=";
+    want X-Test from the context", the same for "/models", "err = <nil>;
+    want the wrapper's refusal" and "1 requests reached the server after
+    the refusal; want none"; `TestOptions_HTTPClientHeaders_0066`,
+    "listings' X-Test [""]"; the example's output.
+  * The wrapper not installed, the plan's, in `chatcompat`'s test, the
+    wizard's and the example: each fails as above.
+  * The wizard's provider listing not given `Options.HTTPClient`
+    (`listerFor`): "Live true, listings' X-Test [""]; want a live listing,
+    each request carrying the header".
+* **The code:** `llmprovider.NewHTTPClient`, in `options.go` beside
+  `WithHTTPClient`, returning `transport.DefaultClient()`, with D2's doc.
+* **Docs:** `WithHTTPClient`'s (the requests it serves, R32, and how to
+  add headers); the `llmprovider` package doc's sentence; the wizard's
+  `Options.HTTPClient`; `README.md`'s "Adding request headers", the
+  wrapping in four lines; `docs/architecture.md`'s `llmprovider` row
+  (R43); `CHANGELOG.md` Added (`llmprovider.NewHTTPClient`) and Fixed (D6's
+  sentence).
+* **Green:** `TestNewHTTPClient_Bounds_0066`,
+  `TestNewHTTPClient_NewEachCall_0066`, `ExampleNewHTTPClient` (its
+  `// Output:` "Hello" and "the server saw X-Example: from-the-wrapper"),
+  `TestWrappedClient_Headers_0066` and `TestOptions_HTTPClientHeaders_0066`:
+  `--- PASS`, each. With the new tests, `go test -race -count=1
+  -shuffle=on ./llmprovider/ ./wizard/
+  ./llmprovider/providers/chatcompat/`: `ok` three times, the wizard
+  behind its guard.
+* **The drift check:** the same command with `./llmprovider/catalog/`, on a
+  copy of the working tree without the three new test files and with
+  `llmprovider/example_test.go` as `5f90002` has it: `ok` four times, exit
+  0; no existing test changed.
+* **The API:** `tools/apidiff.py v1.24.1`: "./wizard.Options.LocalServers:
+  added", "./llmprovider.NewHTTPClient: added" and
+  "./llmprovider/catalog.Lister: added", nothing else; `make api-check`:
+  "0 incompatible change(s)"; `make docs-check`: "sdkaudit: 0
+  violation(s) of R50,R51,R52"; `tables-check`, `markdownlint`,
+  `changelog-check` and `links-check`: 0 problems.
+* **Pre-add:** `make pre-add-check` on `llmprovider/options.go`,
+  `llmprovider/provider.go`, `llmprovider/httpclient_0066_test.go`,
+  `llmprovider/example_test.go`,
+  `llmprovider/providers/chatcompat/headers_0066_test.go`,
+  `wizard/configure.go` and `wizard/headers_0066_test.go`: "7 file(s)
+  clean (gofmt, golangci-lint, go vet, go test, govulncheck)", exit 0.
+* **The gate:** `python3 -B tools/gate.py --timeout 7200`, on a scratch
+  clone of the working tree. It started at once, the load at 3.1 on ten
+  CPUs, and printed "gate: 29 of 29 passed", exit 0, `coverage-check` and
+  `tables-check` among them.

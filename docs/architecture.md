@@ -100,7 +100,7 @@ standard library is left out.
 
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
-| `llmprovider` | the contract: request and response types, errors, options, the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact`, `internal/nilsource` |
+| `llmprovider` | the contract: request and response types, errors, options, `NewHTTPClient`, the bounded client a caller wraps to add headers (0066-MADR D2), the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact`, `internal/nilsource` |
 | `llmprovider/auth` | OAuth sessions and their refresh and revocation, the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/chatcompat`, `providers/openai`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |

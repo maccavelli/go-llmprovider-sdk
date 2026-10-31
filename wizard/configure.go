@@ -121,7 +121,9 @@ type Options struct {
 	TokenStore auth.TokenStore
 	// HTTPClient is used for live model listing, the Ollama endpoint check,
 	// the sign-in flows and the Kilo profile; a session a sign-in creates
-	// keeps it. Nil uses the package default.
+	// keeps it. Nil uses the package default. A client that adds request
+	// headers to those requests is built as llmprovider.WithHTTPClient's doc
+	// says, by wrapping llmprovider.NewHTTPClient's Transport (0066-MADR D2).
 	HTTPClient *http.Client
 	// OpenURL opens an OAuth authorization URL. Nil reports the URL through Prompter.
 	OpenURL func(string) error

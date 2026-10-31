@@ -29,6 +29,15 @@ tag and its commit without notes; its notes are its section here.
   built with `chatcompat.New` as the field's doc shows
   ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
   V5, Q2).
+- `llmprovider.NewHTTPClient`: the client a provider builds when given
+  none, a new one per call over the transport the process shares, with
+  its bounds (a connection within 30 s, the first byte within 300 s). A
+  caller that adds request headers wraps its `Transport` and gives the
+  client to `WithHTTPClient`, or to the wizard as `Options.HTTPClient`,
+  keeping those bounds and the shared connections, where wrapping
+  `http.DefaultTransport` lost them (issue #10;
+  [0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md),
+  amendment "issue #10", D2).
 
 ### Changed
 
@@ -96,6 +105,12 @@ tag and its commit without notes; its notes are its section here.
   guard, as `catalog`'s and the providers' do
   ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
   V11, V12, V13).
+- `llmprovider.WithHTTPClient`'s doc, the package doc and `README.md` say
+  how to add request headers, which
+  [0061-MADR](docs/decisions/0061-MADR-consumer-gaps-from-gobble-issue-9.md)
+  D6 said they would and none did
+  ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
+  V16).
 
 ## [v1.24.1] - 2026-10-27
 

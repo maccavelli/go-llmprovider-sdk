@@ -6,7 +6,9 @@
 // credential sources a provider reads (Token, TokenSource, StaticToken,
 // CommandToken). The providers are in llmprovider/providers/..., the OAuth
 // sessions and stores in llmprovider/auth, and model listing in
-// llmprovider/catalog. All providers use raw net/http.
+// llmprovider/catalog. All providers use raw net/http. To add request
+// headers, wrap NewHTTPClient's Transport in an http.RoundTripper and give
+// the client to WithHTTPClient (0061-MADR D6; 0066-MADR D2).
 //
 // A provider is built with options and asked for text; a failure is matched
 // by its kind:
