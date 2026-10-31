@@ -75,6 +75,18 @@ tag and its commit without notes; its notes are its section here.
   the terminal's title and clear its screen
   ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
   V1).
+- The wizard's notices show no service's text and no key a URL carries.
+  The Ollama endpoint check says `<URL> answered: <class>, HTTP <status>`
+  for a server that answered, or `cannot reach <URL> (<class>)`, where it
+  showed the server's reply. A refused endpoint is shown by its scheme,
+  host and path, with `?…` for a query and `#…` for a fragment, and a value
+  that is not an http or https URL is not shown; the plain-http warning
+  shows it the same way. An offline machine is called "offline", not
+  "provider unavailable". A failed listing beside a provider's static
+  catalog, where its own listing offered nothing, is told as the others
+  are, where it fell back with no notice
+  ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
+  V8, V9, V10, V17).
 
 ## [v1.24.1] - 2026-10-27
 

@@ -926,3 +926,36 @@ through `ResolveCredential`, on a copy of the working tree, showed each.
 | C58 | The last good listing: 24 hours | `llmprovider/catalog/listing_cache.go:56` | `const lastGoodWindow = 24 * time.Hour` |
 | C59 | Only after a passing failure | `llmprovider/catalog/discovery.go:428` | `// last good listing: a timeout, a 5xx or 408, a rate limit, or a network` |
 | C60 | A stale listing: Err the failure | `llmprovider/catalog/discovery.go:353` | `cat.Source, cat.FetchedAt, cat.Err = ListStale, at, failure` |
+
+## Amendment 2026-10-31: V17, a silent fallback, found in executing Phase 4
+
+[0066-PLAN-wizard-v1-24-debugging-pass-findings.md](0066-PLAN-wizard-v1-24-debugging-pass-findings.md)
+Phase 4's record names one finding outside its scope. The owner added it to
+Phase 5 on 2026-10-31, as recommended.
+
+* **V17 (low). A listing that fails beside a static catalog, its own
+  catalog recommending nothing, falls back with no notice** **[probed]**
+  (C61 to C63).
+  * `discoverModels` returns the descriptor's static catalog for a catalog
+    with nothing recommended (C61, C62), and tells nothing. Every other
+    failed listing with a static catalog to offer gives "could not list
+    models for <Label> (<describe>); using the built-in catalog" (C63).
+  * A probe in Phase 4: a Chat Completions server whose descriptor has a
+    static catalog, answering 502, gave `Live=false`, `Err` "provider
+    unavailable: lmstudio HTTP 502", the static catalog, and `notices=[]`.
+    The path predates this record; Phase 4 gave it its `Err`.
+  * Low: the `Result` is usable and the catalog's `Err` says why, but the
+    user is not told that the server's models were not listed.
+* **The decision.** Such a failure is told as the others are: "could not
+  list models for <Label> (<describe>); using the built-in catalog".
+* **Noted, not decided.** The same return, reached by a listing that
+  answered with no usable id beside a descriptor's static catalog that
+  `catalog`'s is not, has no failure to tell; it stays as it is.
+
+The count becomes 2 high, 7 medium and 8 low.
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| C61 | A catalog with nothing recommended | `wizard/configure.go:697` | `// A live listing with nothing recommended is kept for search (0021-MADR` |
+| C62 | falls back, telling nothing | `wizard/configure.go:700` | `return fallback, cat.Err` |
+| C63 | A failure beside a static catalog is told | `wizard/configure.go:694` | `p.Notify(LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(err))` |

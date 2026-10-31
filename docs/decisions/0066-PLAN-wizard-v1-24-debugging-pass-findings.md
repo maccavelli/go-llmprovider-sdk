@@ -15,7 +15,7 @@ Associated MADR: [0066-MADR-wizard-v1-24-debugging-pass-findings.md](0066-MADR-w
 
 The MADR's D1, under the owner's answers of 2026-10-30, (a) to each of Q1 to
 Q6, and its amendments "facts found while planning" and "issue #10": each of
-the 16 findings
+the 16 findings *(17, with V17 added 2026-10-31)*
 becomes a test that fails on `3fad786`, or a planted break that a new check
 catches, and then passes. In particular:
 
@@ -29,7 +29,8 @@ catches, and then passes. In particular:
   `ResolveCredential`'s doc says how to tell an unchecked credential (V6); a
   refused kept session leads to the sign-in menu (V7);
 * no notice shows a service's text or a URL's query (V8, V9); an offline
-  listing is called offline (V10);
+  listing is called offline (V10); *a failed listing beside a static
+  catalog is told (V17, added 2026-10-31)*;
 * an unknown `Options.Providers` id is named (V11), the guide is right
   (V12), the wizard's tests run behind the `localonly` guard (V13), and the
   two untested paths are tested (V14);
@@ -396,7 +397,7 @@ additions.
 4. **Docs:** the two docs above; `README.md`'s wizard section;
    `CHANGELOG.md` Changed.
 
-### Phase 5: the notices (V8, V9, V10)
+### Phase 5: the notices (V8, V9, V10; *V17, added 2026-10-31*)
 
 1. **The endpoint check (V8).** At `configure.go:489`, an error that is an
    `*llmprovider.APIError` gives "<URL> answered: <describe>", and any other
@@ -421,6 +422,15 @@ additions.
    * `TestDescribe_Offline_0066`: probe D's `describe`, and its notice
      "could not list models … (offline)" or "unavailable (offline)".
 5. **Docs:** `validateBaseURL`'s and `describe`'s; `CHANGELOG.md` Fixed.
+6. *Added 2026-10-31, on the owner's word (the MADR's amendment "V17"):*
+   **A silent fallback (V17).** In `discoverModels`, a catalog with nothing
+   recommended that carries a failure gives "could not list models for
+   <Label> (<describe>); using the built-in catalog" before the fallback
+   is returned. A listing that answered with no usable id stays as it is.
+   Its test, red first: `TestListing_StaticBesideNoticed_0066`, a Chat
+   Completions server whose descriptor has a static catalog, answering
+   502: the notice once, `Err` matching `ErrProviderUnavailable`, the
+   static catalog. On `5c11035`: no notice. `CHANGELOG.md` Fixed.
 
 ### Phase 6: the menu, the guide and the tests (V11, V12, V13, V14; Q6 (a))
 
@@ -990,3 +1000,97 @@ Approved by the owner's "committed, proceed", after Phase 3 landed as
   clone of the working tree. It waited while other sessions held the load
   near 34 on ten CPUs, started at 9.9, and printed "gate: 29 of 29 passed",
   exit 0, `coverage-check` and `tables-check` among them.
+
+### Phase 5: the notices (2026-10-31)
+
+Approved by the owner's "committed, proceed", after Phase 4 landed as
+`5c11035`, with the word to add Phase 4's out-of-scope finding to this
+phase, as recommended. No deviation.
+
+* **V17 added first.** Before the phase's code, the MADR gained the
+  amendment "V17, a silent fallback", with C61 to C63, and this PLAN the
+  Goal's, the heading's and step 6's annotations. `tools/claims.py`: "63 of
+  63 pass"; `--plants` of C61 to C63, each made false: "all 3 plant(s)
+  caught". C62 claims C29's line, `return fallback, cat.Err`, for V17.
+* **Notes, not deviations.**
+  * The tests have rows step 4 does not name: `TestEndpointCheck_…` a
+    "not reached" row, an endpoint whose dial is refused;
+    `TestBaseURL_QueryNotShown_0066` "both", a query and a fragment, and
+    "through ResolveCredential", probe F itself.
+  * Step 1's `<URL>` is the endpoint as typed, as before: an Ollama
+    endpoint is not checked for a query or user information, so one typed
+    with a key in its query is shown with it. Step 1 did not ask for more;
+    this is told to the owner, not changed.
+  * The first pre-add run failed `errcheck` on `errors.AsType`'s discarded
+    `*APIError` in the V8 notice; `errors.As` replaced it, as `catalog`
+    uses it. The plants, the drift check and the guard run were run again
+    after it; the lines below are those.
+* **Red first, on a scratch clone of `5c11035`**, Phase 4's commit, with the
+  phase's test file copied in. `./wizard/` exits 1:
+  * `TestEndpointCheck_NoServerText_0066`: "notices ["cannot reach
+    http://127.0.0.1:…: llmprovider: provider unavailable: ollama HTTP 500:
+    SERVER-TEXT-0066 echoed sk-ant-api03-••••abcd"]", and "a prompt shows
+    SERVER-TEXT-0066"; the "not reached" row, "notices ["cannot reach
+    http://127.0.0.1:1: llmprovider: provider unavailable: could not reach
+    Ollama at http://127.0.0.1:1: llmprovider: offline: Get …: dial tcp:
+    connect: connection refused"]".
+  * `TestBaseURL_QueryNotShown_0066`: `err = wizard: base URL refused:
+    https://proxy.example/v1?key=SECRET-0066 has a query or a fragment`, and
+    as much for the fragment, both, no scheme ("proxy.example/v1?key=… needs
+    http:// or https:// and a host") and not a URL ("http://[SECRET-0066 is
+    not a URL"); "through ResolveCredential", "a prompt shows SECRET-0066".
+    "a user and password" passes: that message never named the URL.
+  * `TestDescribe_Offline_0066`: "describe(ErrOffline) = "provider
+    unavailable"; want offline", and the notice "… is unavailable (provider
+    unavailable); …".
+  * `TestListing_StaticBesideNoticed_0066`: "notices []; want ["could not
+    list models for LM Studio (provider unavailable, HTTP 502); using the
+    built-in catalog"]".
+* **Planted breaks** (`tools/plant.py`, scratch clone of the working tree):
+  "all 11 plant(s) caught". `ErrOffline` not a class, and after its parent:
+  `cannot reach http://127.0.0.1:1 (provider unavailable)`. A server that
+  answered called unreachable: `cannot reach http://127.0.0.1:… (provider
+  unavailable, HTTP 500)`. The answered notice with the error's text:
+  "… answered: llmprovider: provider unavailable: ollama HTTP 500:
+  SERVER-TEXT-0066 …"; the unreached one: `cannot reach http://127.0.0.1:1
+  (llmprovider: provider unavailable: could not reach Ollama at …`. The
+  query shown, the fragment shown, a non-URL echoed, a value with no scheme
+  echoed, and the refused URL echoed whole, the plan's red: each row's
+  "err = …" with `SECRET-0066`. A failure beside a static catalog not told:
+  "notices []".
+* **The code:** `errorClasses` gains `llmprovider.ErrOffline` before
+  `ErrProviderUnavailable`. The Ollama endpoint check's notice is
+  "<URL> answered: <describe>" for an `*llmprovider.APIError`, else "cannot
+  reach <URL> (<describe>)"; the error under `NoEndpointPrompt` keeps its
+  text. `shownURL` shows a URL's scheme, host and escaped path, then `?…`
+  and `#…`; `validateBaseURL` uses it for a query or fragment refused, and
+  for the plain-http notice and question, whose words stay; "the endpoint
+  is not a URL" and "an endpoint needs http:// or https:// and a host" show
+  no value. `discoverModels` tells a failure a catalog with nothing
+  recommended carries, as V17's step says.
+* **Docs:** `validateBaseURL`'s and `describe`'s; `CHANGELOG.md` Fixed.
+  `ConfigureLLM`'s already says a service's error is shown by class and
+  status.
+* **Green:** `TestEndpointCheck_NoServerText_0066` (two rows),
+  `TestBaseURL_QueryNotShown_0066` (seven), `TestDescribe_Offline_0066` and
+  `TestListing_StaticBesideNoticed_0066`: `--- PASS`, each.
+* **The drift check:** `go test -race -count=1 -shuffle=on ./wizard/
+  ./llmprovider/catalog/ ./llmprovider/providers/chatcompat/`, on a copy of
+  the working tree without the phase's test file: `ok` three times, exit 0;
+  no existing test changed, `TestBaseURL_NoPromptPlainHTTP_0059` among
+  them.
+* **No network:** `./wizard/` behind a scratch `TestMain` calling
+  `localonly.Main`, on a scratch clone of the working tree, the new tests
+  in it: `ok`, exit 0.
+* **The API:** `tools/apidiff.py v1.24.1`: "./wizard.Options.LocalServers:
+  added" and "./llmprovider/catalog.Lister: added", nothing else; `make
+  api-check`, `docs-check` and `tables-check`: 0 problems; `make
+  markdownlint` and `changelog-check`: 0.
+* **Pre-add:** `make pre-add-check` on `wizard/base_url.go`,
+  `wizard/configure.go`, `wizard/describe.go` and
+  `wizard/notices_0066_test.go`: "4 file(s) clean (gofmt, golangci-lint, go
+  vet, go test, govulncheck)", exit 0.
+* **The gate:** `python3 -B tools/gate.py --timeout 7200`, on a scratch
+  clone of the working tree. It waited while the load was 14.7 on ten
+  CPUs, started at 8.5, and printed "gate: 29 of 29 passed", exit 0,
+  `coverage-check` and `tables-check` among them.

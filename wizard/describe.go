@@ -22,6 +22,7 @@ var errorClasses = []error{
 	llmprovider.ErrWorkspaceRequired,
 	llmprovider.ErrWorkspaceNotFound,
 	llmprovider.ErrInvalidRequest,
+	llmprovider.ErrOffline,
 	llmprovider.ErrProviderUnavailable,
 	llmprovider.ErrUnsupported,
 }
@@ -29,7 +30,8 @@ var errorClasses = []error{
 // describe words err for the user from its class and HTTP status, never its
 // text: a service's message can echo a key it has masked itself, which
 // redaction leaves as it is (0056-MADR F7, D3). The error returned to the
-// caller keeps its text.
+// caller keeps its text. A machine that is offline is "offline", which the
+// user can fix, not "provider unavailable" (0066-MADR V10).
 func describe(err error) string {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):

@@ -578,7 +578,14 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		if vErr == nil {
 			return url, nil
 		}
-		p.Notify(LevelWarn, "cannot reach %s: %v", url, vErr)
+		// By class and status, never the server's text (0066-MADR V8;
+		// 0056-MADR D3).
+		var answered *llmprovider.APIError
+		if errors.As(vErr, &answered) {
+			p.Notify(LevelWarn, "%s answered: %s", url, describe(vErr))
+		} else {
+			p.Notify(LevelWarn, "cannot reach %s (%s)", url, describe(vErr))
+		}
 		again, err := p.Confirm("Try a different endpoint?", true)
 		if err != nil {
 			return "", err
@@ -824,6 +831,11 @@ func discoverModels(
 	// A live listing with nothing recommended is kept for search (0021-MADR
 	// C13).
 	if len(cat.Recommended) == 0 && (!cat.Live || len(cat.Usable) == 0) {
+		if cat.Err != nil {
+			// Told as every other failure beside a static catalog is
+			// (0066-MADR V17).
+			p.Notify(LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(cat.Err))
+		}
 		return fallback, cat.Err
 	}
 	switch {
