@@ -63,6 +63,11 @@ catches, and then passes. In particular:
 * *Added 2026-10-31, the deviation in Phase 2's record:*
   `TestResolveBaseURL_Validates` (`wizard/configure_test.go`), whose
   descriptor gains the real Kilo's `DefaultBaseURL`, its rows unchanged.
+* *Added 2026-10-31, the deviation in Phase 8's record:*
+  `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog`
+  (`wizard/model_select_edge_test.go`), which gains an `HTTPClient` that
+  refuses every request, its own cache and no models.dev document, its
+  assertions unchanged.
 * **Docs:** each changed function's and type's doc (R41, R51, R52);
   `README.md`'s "The configuration wizard" and Status;
   `docs/architecture.md`'s package table row for `wizard`, which gains
@@ -1298,3 +1303,54 @@ owner's word, and are recorded when done. No deviation.
     clone of the working tree. It started at once, the load at 3.9, and
     printed "gate: 29 of 29 passed", exit 0, `changelog-check`,
     `coverage-check` and `tables-check` among them.
+* **Deviation 2026-10-31: a leak on Windows, found by CI on the release
+  commit.** The owner committed and pushed the release commit, `3d0fc16`.
+  Its CI run failed on `windows-2025` alone; `ubuntu-24.04`, `macos-15`
+  and the Docs run passed, and the `release` job was skipped. Every test
+  passed; the wizard's run failed the guard Phase 6 added (V13):
+  "localonly: the tests sent requests off the machine, to auth.x.ai:443
+  (1)". No tag was made.
+  * **Reproduced** on the Windows dev host, go1.27.3 windows/amd64, on a
+    clone of `3d0fc16`: `go test -count=1 ./wizard/` with CI's seed,
+    1793465033152313900, three runs, and three random orders: each failed
+    the guard, `auth.x.ai:443` (1) or (3). On this machine, the same seed,
+    three runs: `ok`.
+  * **Traced,** by running the 270 tests in chunks of 25 behind the guard
+    on that host, then leaving each of the leaking chunk's tests out in
+    turn: the leak needs `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog`
+    (`wizard/model_select_edge_test.go:222`, from `cf70dbe`, 2026-09-27),
+    and fails to show when it runs alone. The test keeps an expired Grok
+    session with no `HTTPClient` and a `DiscoverLimit` of 1 ns. The
+    catalog's fetch is detached from its caller (0053-MADR D4), so after
+    the listing has timed out it goes on to refresh the session at
+    `auth.x.ai`, through the default client. The request is sent only if
+    the process is still running then, which a later test makes it: with
+    the test and sixteen others, one run of two leaked; with the sixteen
+    alone, neither did.
+  * Put to the owner with three resolutions: fix the test, then tag
+    (recommended); stop a detached fetch's refresh in `catalog`, a change
+    to 0053-MADR D4 needing its own decision; or stop the release. The
+    owner chose "fix the test, tag later". The test gains an `HTTPClient`
+    whose transport refuses every request, and `testCache(t)` and
+    `llmprovider.WithoutModelMetadata()`, as `AGENTS.md` asks of a test
+    that lists; its assertions are unchanged. Its comment, which said
+    "no request leaves the host", says why the client is there. Scope
+    gains the test, and
+    the MADR has the amendment "a leak V13's guard found on Windows".
+    `CHANGELOG.md` is unchanged: no code of the module changes. The tag
+    names the commit that holds the fix.
+  * **The fix's checks.** Red: the six guarded runs of the package on the
+    Windows host above, each failing, are the break the fix is seen
+    against. With the test's first form, a refusing client alone, on that
+    host: six random orders and CI's seed, each `ok`. With the committed
+    form, its cache and no models.dev document added: `go test
+    -shuffle=on ./...`, as CI's Windows job runs it, exit 0, 40 packages
+    `ok`; then `./wizard/` five more times, each `ok`. Here: the test
+    `--- PASS`; `make pre-add-check` on the file: "1 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)", exit 0, run again after
+    the comment's correction, which changes no code. CI's Linux-only steps
+    passed on `3d0fc16`, and see no change but this test.
+  * The gate, with the fix: `python3 -B tools/gate.py --timeout 7200`, on
+    a scratch clone of the working tree. It waited while other sessions
+    held the load near 32, started at 8.6, and printed "gate: 29 of 29
+    passed", exit 0, `changelog-check` and `coverage-check` among them.

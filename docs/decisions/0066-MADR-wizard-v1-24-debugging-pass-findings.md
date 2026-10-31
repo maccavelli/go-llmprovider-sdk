@@ -959,3 +959,37 @@ The count becomes 2 high, 7 medium and 8 low.
 | C61 | A catalog with nothing recommended | `wizard/configure.go:697` | `// A live listing with nothing recommended is kept for search (0021-MADR` |
 | C62 | falls back, telling nothing | `wizard/configure.go:700` | `return fallback, cat.Err` |
 | C63 | A failure beside a static catalog is told | `wizard/configure.go:694` | `p.Notify(LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(err))` |
+
+## Amendment 2026-10-31: a leak V13's guard found on Windows
+
+V13 found that the wizard's tests ran without `internal/localonly`'s guard,
+and that with it "today's tests pass: none leaves the machine". That held
+on the machine the probe ran on. On Windows it does not: CI's
+`windows-2025` job on the release commit failed the guarded run with
+"localonly: the tests sent requests off the machine, to auth.x.ai:443 (1)",
+every test passing.
+
+* **The test.** `TestConfigureLLM_ListingTokenFailureUsesStaticCatalog`
+  (C64) keeps an expired Grok session, with no `HTTPClient`, and lists
+  within 1 ns (C65). The catalog's fetch is detached from its caller
+  (C66), so it refreshes the session at `auth.x.ai` through the default
+  client after the listing has timed out. The request leaves only if the
+  process is still running, so it shows when a later test runs, and on the
+  Windows dev host it did in every guarded run of the package, six of six.
+  On macOS the race has not shown. The test's own comment said the
+  opposite, that the limit "has already passed when the refresh starts, so
+  no request leaves the host" (C67): the fetch's detachment came later than
+  that sentence, and nothing tested it until the guard.
+* **The decision,** the owner's, on 2026-10-31, from three options: the
+  test gets a client that refuses every request, its own cache and no
+  models.dev document, as `AGENTS.md` asks of a test that lists. The
+  detached fetch is 0053-MADR D4's, and stays.
+* **V13 stands:** the guard is what found this. The finding's count does
+  not change.
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| C64 | The test that leaked | `wizard/model_select_edge_test.go:222` | `func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {` |
+| C65 | Its 1 ns listing, with no client | `wizard/model_select_edge_test.go:236` | `DiscoverLimit: time.Nanosecond,` |
+| C66 | The fetch outlives its caller | `llmprovider/catalog/discovery.go:397` | `fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), modelListingTimeout)` |
+| C67 | The test said no request leaves | `wizard/model_select_edge_test.go:221` | `// has already passed when the refresh starts, so no request leaves the host.` |

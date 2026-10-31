@@ -218,7 +218,10 @@ func TestConfigureLLM_FallbackSearchNoMatches(t *testing.T) {
 // listing-error branch for a provider that has a static catalog: a kept Grok
 // session whose refresh cannot finish inside the listing's deadline fails the
 // listing, so the wizard warns and offers the built-in catalog. The 1 ns limit
-// has already passed when the refresh starts, so no request leaves the host.
+// has passed when the refresh starts, but the listing's fetch is detached from
+// it and refreshes anyway (0053-MADR D4): the run's client refuses every
+// request, where the default one reached auth.x.ai on Windows (0066-MADR,
+// amendment "a leak V13's guard found on Windows").
 func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 	store := newMemoryTokenStore()
 	static := catalog.Static(llmprovider.ProviderGrok)
@@ -234,6 +237,10 @@ func TestConfigureLLM_ListingTokenFailureUsesStaticCatalog(t *testing.T) {
 		TokenStore:    store,
 		Discover:      true,
 		DiscoverLimit: time.Nanosecond,
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, io.ErrUnexpectedEOF
+		})},
+		ProviderOptions: []llmprovider.Option{testCache(t), llmprovider.WithoutModelMetadata()},
 	})
 	if err != nil {
 		t.Fatalf("ConfigureLLM: %v", err)
