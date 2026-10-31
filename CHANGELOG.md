@@ -87,6 +87,15 @@ tag and its commit without notes; its notes are its section here.
   are, where it fell back with no notice
   ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
   V8, V9, V10, V17).
+- An id in `wizard.Options.Providers` that the registry lacks is named in
+  a notice and left out of the menu, where it was dropped without a word;
+  when the registry lacks every one, the error is as before. The provider
+  guide said the first six listed ids are recommended: with
+  `Options.ModelLimit` at zero every one is, and a positive limit
+  recommends that many. The wizard's tests run behind `internal/localonly`'s
+  guard, as `catalog`'s and the providers' do
+  ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
+  V11, V12, V13).
 
 ## [v1.24.1] - 2026-10-27
 

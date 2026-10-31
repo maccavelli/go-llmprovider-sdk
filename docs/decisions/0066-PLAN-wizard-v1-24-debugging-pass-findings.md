@@ -1094,3 +1094,76 @@ phase, as recommended. No deviation.
   clone of the working tree. It waited while the load was 14.7 on ten
   CPUs, started at 8.5, and printed "gate: 29 of 29 passed", exit 0,
   `coverage-check` and `tables-check` among them.
+
+### Phase 6: the menu, the guide and the tests (2026-10-31)
+
+Approved by the owner's "committed, proceed", after Phase 5 landed as
+`3e48e8b`. No deviation.
+
+* **Notes, not deviations.**
+  * The guide's new sentence had no test of its zero case: the existing
+    `TestConfigureLLM_ThirdPartyListsThroughItsLister` sets `ModelLimit`.
+    So that the guide states nothing a test does not show,
+    `TestGuide_EveryListedRecommended_0066` is added: ten listed through a
+    provider's `ListModels`, `ModelLimit` zero, all ten recommended in
+    order. Step 4 does not name it.
+  * `TestProviders_UnknownNamed_0066` names a repeated unknown id once, and
+    checks that a `Providers` the registry lacks wholly gives the error as
+    before, with no notice.
+  * The unguarded run of the planted leak, which the MADR's probe made, was
+    not repeated: it sends requests off the machine.
+* **The drift check, after the code and before the tests:** `go test -race
+  -count=1 -shuffle=on ./wizard/ ./llmprovider/catalog/
+  ./llmprovider/providers/chatcompat/`, on a copy of the working tree
+  without `wizard/localonly_test.go`: `ok` three times, exit 0;
+  `TestConfigureLLM_UnknownProvidersIsPlain_0048` among them, unchanged.
+  Then the whole of `./wizard/`, behind its guard in the tree, with `-race
+  -shuffle=on`: `ok`, exit 0.
+* **Red first, on a scratch clone of `3e48e8b`**, Phase 5's commit, with the
+  phase's test file copied in. `./wizard/` exits 1:
+  `TestProviders_UnknownNamed_0066`, "notices []; want ["no provider
+  \"claud\" here; it is left out of the menu" "no provider
+  \"nonexistent\" here; it is left out of the menu"]". The other three
+  pass there: they cover code that was right.
+* **Planted breaks** (`tools/plant.py`, scratch clone of the working tree):
+  "all 7 plant(s) caught".
+  * An unknown id not named, the plan's red: "notices []".
+  * An unknown id named twice: three notices, "claud" twice.
+  * `capMatches` cutting at 21, the plan's: a menu of 21.
+  * `save` dropping the store's error, the plan's, for a session and for
+    Kilo: "err = <nil>; want the save named, wrapping the store's error",
+    each.
+  * A zero `ModelLimit` cutting every id: "Recommended []; want every
+    listed id, in order".
+  * The MADR's planted leak, a test listing Claude with no client of its
+    own: the run fails. On a scratch copy, the same test alone: "PASS", then
+    "localonly: the tests sent requests off the machine, to
+    api.anthropic.com:443 (1), models.opencode.ai:443 (1); …", "FAIL", exit
+    1.
+* **The code:** `selectableDescriptors` also returns each id of `allow` the
+  registry lacks, once, in `allow`'s order; `chooseProvider` notifies "no
+  provider "<id>" here; it is left out of the menu" for each. When none
+  exists, the error is as before. `wizard/localonly_test.go`, built
+  without `live_gateways`, with `TestMain` calling `localonly.Main`.
+* **Docs:** `Options.Providers`'; `docs/guides/adding-a-provider.md`'s
+  sentence, as step 2 words it; `AGENTS.md`'s list of the packages behind
+  the guard and `docs/architecture.md`'s `internal/localonly` row, each
+  gaining `wizard`; `CHANGELOG.md` Fixed.
+* **Green:** `TestProviders_UnknownNamed_0066`,
+  `TestGuide_EveryListedRecommended_0066`, `TestFallbacks_CapMatches_0066`
+  and `TestSave_StoreFails_0066` (Grok, Kilo): `--- PASS`, each, behind the
+  guard.
+* **Coverage:** `go test -coverprofile ./wizard/`: 93.8 % of statements;
+  `capMatches` 100.0 %, `save` 100.0 %, `selectableDescriptors` and
+  `chooseProvider` 100.0 %.
+* **The API:** `tools/apidiff.py v1.24.1`: "./wizard.Options.LocalServers:
+  added" and "./llmprovider/catalog.Lister: added", nothing else; `make
+  api-check`, `docs-check`, `tables-check`, `markdownlint` and
+  `changelog-check`: 0 problems.
+* **Pre-add:** `make pre-add-check` on `wizard/configure.go`,
+  `wizard/localonly_test.go` and `wizard/menu_0066_test.go`: "3 file(s)
+  clean (gofmt, golangci-lint, go vet, go test, govulncheck)", exit 0.
+* **The gate:** `python3 -B tools/gate.py --timeout 7200`, on a scratch
+  clone of the working tree. It waited while other sessions held the load
+  near 36 on ten CPUs, started at 9.0, and printed "gate: 29 of 29
+  passed", exit 0, `coverage-check` and `tables-check` among them.

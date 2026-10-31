@@ -214,9 +214,9 @@ No test sends a request off the machine: a test serves its own replies,
 and one that lists or looks up models serves its own models.dev document
 (`llmprovider.WithModelMetadataURL`) or turns it off
 (`llmprovider.WithoutModelMetadata()`), as `catalog`'s `listT` and each
-provider package's `build` do. In `catalog` and the `claude`, `gemini`,
-`grok`, `openai` and `chatcompat` packages, a `TestMain` runs the tests
-behind `internal/localonly`'s guard, which fails the run, naming each host,
+provider package's `build` do. In `catalog`, `wizard` and the `claude`,
+`gemini`, `grok`, `openai` and `chatcompat` packages, a `TestMain` runs the
+tests behind `internal/localonly`'s guard, which fails the run, naming each host,
 when one is sent; a package whose tests list models opts in the same way.
 The live tests, built with `live_gateways`, are outside it
 (0065-MADR-tests-reach-no-outside-host.md).

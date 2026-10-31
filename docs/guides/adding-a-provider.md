@@ -223,8 +223,9 @@ func Descriptor() llmprovider.Descriptor {
   outside this module through its own `ListModels`, when the provider is an
   `llmprovider.ModelLister`. It builds the provider from the registry with
   the credential, the base URL, `Options.HTTPClient` and
-  `Options.ProviderOptions`. The first six listed ids are recommended, in
-  your order, and search covers the whole listing.
+  `Options.ProviderOptions`. With `Options.ModelLimit` at zero, every
+  listed id is recommended, in your order; a positive `ModelLimit`
+  recommends that many. Search covers the whole listing.
 - **A `catalog.Lister` gives the wizard your menu and facts.** When the
   provider has `ListCatalog`, the wizard offers the `catalog.Catalog` it
   returns, in place of `ListModels`' ids, its `Recommended` cut to

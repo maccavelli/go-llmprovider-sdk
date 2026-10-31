@@ -69,7 +69,9 @@ type Options struct {
 	Registry *llmprovider.Registry
 	// Providers restricts the menu to these ids. Empty offers every
 	// descriptor, which is the behaviour that keeps a wizard current when
-	// this module adds a provider.
+	// this module adds a provider. An id the Registry lacks is named in a
+	// notice and left out of the menu; when it lacks every one, ConfigureLLM
+	// returns an error (0066-MADR V11, Q6 (a)).
 	Providers []llmprovider.ProviderID
 	// Existing pre-fills the flow, enabling "keep existing key?" and
 	// defaulting the model selection.
@@ -360,9 +362,12 @@ func credentialProvider(p Prompter, o Options, id llmprovider.ProviderID) (llmpr
 // chooseProvider asks which provider to configure, from the run's Registry as
 // Options.Providers restricts it; Existing's provider is the default.
 func chooseProvider(p Prompter, o Options) (llmprovider.Descriptor, error) {
-	descriptors, err := selectableDescriptors(o.registry(), o.Providers)
+	descriptors, missing, err := selectableDescriptors(o.registry(), o.Providers)
 	if err != nil {
 		return llmprovider.Descriptor{}, err
+	}
+	for _, id := range missing {
+		p.Notify(LevelWarn, "no provider %q here; it is left out of the menu", id)
 	}
 
 	choices := make([]Choice, 0, len(descriptors))
@@ -498,11 +503,12 @@ func (o Options) registry() *llmprovider.Registry {
 }
 
 // selectableDescriptors returns the descriptors a run may offer, preserving
-// the registry's menu order.
-func selectableDescriptors(reg *llmprovider.Registry, allow []llmprovider.ProviderID) ([]llmprovider.Descriptor, error) {
+// the registry's menu order, and each id of allow the registry lacks, once,
+// in allow's order (0066-MADR V11).
+func selectableDescriptors(reg *llmprovider.Registry, allow []llmprovider.ProviderID) ([]llmprovider.Descriptor, []llmprovider.ProviderID, error) {
 	all := reg.Descriptors()
 	if len(allow) == 0 {
-		return all, nil
+		return all, nil, nil
 	}
 	wanted := make(map[llmprovider.ProviderID]struct{}, len(allow))
 	for _, id := range allow {
@@ -515,9 +521,15 @@ func selectableDescriptors(reg *llmprovider.Registry, allow []llmprovider.Provid
 		}
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("wizard: none of the requested providers exist: %v", allow)
+		return nil, nil, fmt.Errorf("wizard: none of the requested providers exist: %v", allow)
 	}
-	return out, nil
+	var missing []llmprovider.ProviderID
+	for _, id := range allow {
+		if _, ok := reg.Descriptor(id); !ok && !slices.Contains(missing, id) {
+			missing = append(missing, id)
+		}
+	}
+	return out, missing, nil
 }
 
 // resolveBaseURL prompts for an endpoint when the provider supports one. A
