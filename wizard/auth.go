@@ -53,6 +53,9 @@ type resolvedCredential struct {
 	// saveTo is the store a new session is due to: credentialStep saves it
 	// there once the listing has not refused it (0059-MADR W2).
 	saveTo auth.TokenStore
+	// kept is the saved session keepExistingOAuth kept: a listing that
+	// refuses it leads to the sign-in menu (0066-MADR V7, Q4 (a)).
+	kept bool
 }
 
 // keySource is where resolveAPIKey found an API key: a service that refuses
@@ -156,13 +159,15 @@ func existingMethod(methods []llmprovider.AuthMethod, d llmprovider.Descriptor, 
 // signIn resolves d's credential by the method the user chooses: a key, a
 // saved session, a browser or device sign-in, the ChatGPT plan, a pasted
 // token or a vendor CLI's login. (Named so beside ResolveCredential, 0056-PLAN
-// Phase 1's deviation.)
+// Phase 1's deviation.) offerKept is false after the listing refused the
+// kept session, which is then not offered again (0066-MADR V7).
 func signIn(
 	ctx context.Context,
 	p Prompter,
 	d llmprovider.Descriptor,
 	baseURL string,
 	o Options,
+	offerKept bool,
 ) (resolvedCredential, error) {
 	methods := offeredAuthMethods(d, o)
 	if skippedEvery(d, o, methods) {
@@ -184,14 +189,19 @@ func signIn(
 
 	// A saved session is offered first, whatever method made it (0020-MADR
 	// F19).
-	if session, keep, keepErr := keepExistingOAuth(ctx, p, d, o); keepErr != nil {
-		return resolvedCredential{}, keepErr
-	} else if keep {
-		cred := oauthCredential(session)
-		if d.ID == llmprovider.ProviderKilo {
-			cred.organization = o.Existing.Organization
+	if offerKept {
+		session, keep, keepErr := keepExistingOAuth(ctx, p, d, o)
+		if keepErr != nil {
+			return resolvedCredential{}, keepErr
 		}
-		return cred, nil
+		if keep {
+			cred := oauthCredential(session)
+			cred.kept = true
+			if d.ID == llmprovider.ProviderKilo {
+				cred.organization = o.Existing.Organization
+			}
+			return cred, nil
+		}
 	}
 
 	choices := make([]Choice, 0, len(methods))

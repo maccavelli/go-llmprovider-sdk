@@ -889,3 +889,40 @@ premise does not hold for a Chat Completions provider.
 | C52 | The wizard passes WithLimit to List | `wizard/configure.go:659` | `catalog.WithLimit(o.ModelLimit),` |
 | C53 | WithProfile: the built-ins only | `llmprovider/catalog/config.go:112` | `return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithProfile", profileOption(p))` |
 | C54 | WithLimit: the built-ins only | `llmprovider/catalog/config.go:124` | `return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithLimit", listlimit.Value(n))` |
+
+## Amendment 2026-10-31: what `Live` says, found in executing Phase 4
+
+The amendment "facts found while planning" says that a caller "can tell an
+unchecked credential today, by `Live`", and
+[0066-PLAN-wizard-v1-24-debugging-pass-findings.md](0066-PLAN-wizard-v1-24-debugging-pass-findings.md)
+Phase 4 step 1 gave `ResolveCredential`'s doc "`Live` false is a credential
+no live listing checked", and `Live` true a listing answered "now or within
+the listing cache's 24 hours". Two parts do not hold. A scratch probe
+through `ResolveCredential`, on a copy of the working tree, showed each.
+
+* A listing the provider answers with no usable id is replaced by the
+  static catalog, with `Err` nil (C55). Grok answering 200 with an empty
+  `data` gave `Live=false`, `Source="static"`, `Err=<nil>`. The credential
+  was accepted, so `Live` false does not say that it was unchecked.
+* A listing read within 10 minutes is served again with no request (C56,
+  C57). The second run, the server now answering 503, sent none, and gave
+  `Live=true`, `Err=<nil>`. 24 hours is the window of the last good listing
+  (C58), served only after a passing failure (C59), with `Source`
+  `ListStale` and `Err` the failure (C60); or of a listing the caller hands
+  in with `catalog.WithLastGood`.
+* The owner chose, on 2026-10-31, from three options, that the doc says
+  what the code does. `Live` true is a listing the provider answered with
+  this credential, now or within 10 minutes, or its last good one after a
+  passing failure. `Live` false is the static catalog: `Err` says why a
+  listing failed, and is nil when it listed nothing usable. A test shows
+  the empty and the cached listings through `ResolveCredential`. Q5 (a)
+  stands; no exported name, and no behaviour, changes.
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| C55 | No usable id: the static catalog | `llmprovider/catalog/discovery.go:514` | `// Ollama has always had: a failed fetch, or one that yields no usable id,` |
+| C56 | A listing is fresh for 10 minutes | `llmprovider/catalog/listing_cache.go:20` | `const listingMetadataTTL = 10 * time.Minute` |
+| C57 | A fresh listing is served again | `llmprovider/catalog/listing_cache.go:114` | `// freshListing is key's listing while it is younger than` |
+| C58 | The last good listing: 24 hours | `llmprovider/catalog/listing_cache.go:56` | `const lastGoodWindow = 24 * time.Hour` |
+| C59 | Only after a passing failure | `llmprovider/catalog/discovery.go:428` | `// last good listing: a timeout, a 5xx or 408, a rate limit, or a network` |
+| C60 | A stale listing: Err the failure | `llmprovider/catalog/discovery.go:353` | `cat.Source, cat.FetchedAt, cat.Err = ListStale, at, failure` |

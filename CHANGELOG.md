@@ -42,6 +42,15 @@ tag and its commit without notes; its notes are its section here.
   an error, where it returned a `Result` that could not build its provider
   ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
   V2, V3).
+- A saved session the user keeps and the model listing then refuses no
+  longer ends the run: a notice says so, and the sign-in menu follows,
+  once, without it. The store keeps it until a new session is saved; a
+  refused new one ends the run, as before. `wizard.ResolveCredential`'s
+  catalog carries a failed listing's error in `Err` on every path, a
+  provider's own `ListModels` and a Chat Completions server's included,
+  and its doc says what `Live` and `Err` tell
+  ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
+  V6, V7).
 
 - Both CI workflows run three more documentation gates: `markdownlint`,
   at one pin (`markdownlint-cli2@0.23.2`), on every Markdown file but the

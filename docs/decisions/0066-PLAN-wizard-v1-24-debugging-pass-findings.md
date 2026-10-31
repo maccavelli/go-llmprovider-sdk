@@ -357,10 +357,16 @@ additions.
 1. **`Err` on every path (V6).** In `discoverModels`, the fallback returned
    for a failed listing carries the failure: `fallback.Err = err` before
    the returns at `configure.go:692` and `:695`, and `fallback.Err =
-   cat.Err` at `:700`. `ResolveCredential`'s doc says: `Live` false is a
+   cat.Err` at `:700`. `ResolveCredential`'s doc says: ~~`Live` false is a
    credential no live listing checked, and `Err` holds why when a listing
    ran and failed; `Live` true is a listing the provider answered with this
-   credential, now or within the listing cache's 24 hours, and for a
+   credential, now or within the listing cache's 24 hours,~~ *`Live` true
+   is a listing the provider answered with this credential, now or within
+   the listing cache's 10 minutes, or, after a passing failure, its last
+   good listing from within 24 hours, `Source` `ListStale` and `Err` the
+   failure; `Live` false is the static catalog: `Discover` off, a listing
+   that failed, `Err` saying why, or one that listed nothing usable, `Err`
+   nil (the deviation of 2026-10-31),* and for a
    listing that needs none, such as Hugging Face's, says nothing of the
    key. `Options.Discover`'s doc points to it.
 2. **A refused kept session leads to the sign-in menu (V7).** A credential
@@ -374,6 +380,10 @@ additions.
    * `TestResolve_FailedListingErr_0066`: probe L's three rows and probe
      D's, each with `Live` false and an `Err` matching the failure; without
      `Discover`, `Err` nil. On `3fad786`: two rows have a nil `Err`.
+   * *`TestResolve_LiveMeans_0066`: a listing answered with no usable id
+     is `Live` false with a nil `Err`; one read again at once, the server
+     now failing, is `Live` true with no request (the deviation of
+     2026-10-31).*
    * `TestKept_RefusedLeadsToSignIn_0066`: probe G, then a stubbed browser
      sign-in whose session the listing accepts: the method menu is shown,
      the new session is saved, and the Result names it. On `3fad786`: the
@@ -837,6 +847,145 @@ Approved by the owner's "committed, proceed", after Phase 2 landed as
 * **Pre-add:** `make pre-add-check` on the phase's four Go files: "4
   file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)",
   exit 0.
+* **The gate:** `python3 -B tools/gate.py --timeout 7200`, on a scratch
+  clone of the working tree. It waited while other sessions held the load
+  near 34 on ten CPUs, started at 9.9, and printed "gate: 29 of 29 passed",
+  exit 0, `coverage-check` and `tables-check` among them.
+
+### Phase 4: the unchecked credential and the refused kept session (2026-10-31)
+
+Approved by the owner's "committed, proceed", after Phase 3 landed as
+`df0a9b9`.
+
+* **Deviation 2026-10-31: what `Live` says.** Found after the phase's code,
+  before its docs. Step 1's doc sentence does not hold in two parts, each
+  shown by a scratch probe through `ResolveCredential` on a copy of the
+  working tree (`TestProbe0066_LiveMeans`, Grok, a key, an `HTTPClient`
+  whose transport answers):
+  * "`Live` false is a credential no live listing checked": Grok answering
+    200 with `{"data":[]}` gave "Live=false Source="static" Err=<nil>
+    Recommended=5", and the notice "live model listing for Grok (xAI) is
+    unavailable; search covers the built-in catalog only". The credential
+    was accepted; a listing with no usable id is replaced by the static
+    catalog (`llmprovider/catalog/discovery.go:528`).
+  * "within the listing cache's 24 hours": a listing is served again for
+    10 minutes (`listingMetadataTTL`,
+    `llmprovider/catalog/listing_cache.go:20`, `:120`). The second run, the
+    server now answering 503, sent no request ("requests=1" after both) and
+    gave "Live=true Source="live" Err=<nil>". 24 hours is `lastGoodWindow`
+    (`:56`), served only after a passing failure, a 5xx, 408, rate limit,
+    timeout or network error, with `Source` `ListStale` and `Err` the
+    failure (`llmprovider/catalog/discovery.go:355`;
+    `TestList_StaleOn503_0041`), or the listing `catalog.WithLastGood`
+    hands in.
+
+  Both held before this phase; only step 1's sentence was wrong. Put to the
+  owner with three resolutions: the doc as the code behaves (recommended);
+  a narrower doc that points to `catalog.Catalog`; or the code now and the
+  doc in Phase 6. The owner chose "the doc as the code behaves". Step 1's
+  sentence is struck through and replaced, step 3 gains
+  `TestResolve_LiveMeans_0066`, and the MADR has the amendment "what `Live`
+  says". No file is added to the phase's scope, and no behaviour changes.
+* **Notes, not deviations.**
+  * Step 1's lines are `3fad786`'s. On `df0a9b9` the fallback's returns are
+    the two for a listing that returned its failure, the one Phase 2 added
+    for a failure a catalog carries with no static catalog, and the one for
+    a catalog with nothing recommended. `fallback.Err = err` precedes the
+    first two, and one `fallback.Err = cat.Err` precedes the other two.
+  * `TestResolve_FailedListingErr_0066` has a fifth row, step 3 names four:
+    a Chat Completions server whose descriptor has a static catalog,
+    answering 502. It reaches the return for a catalog with nothing
+    recommended, which no other row does.
+* **Red first, on a scratch clone of `df0a9b9`**, Phase 3's commit, with the
+  phase's test file copied in. `./wizard/` exits 1:
+  * `TestResolve_FailedListingErr_0066`: its rows "a provider's
+    ListModels, HTTP 500", "a Chat Completions server, HTTP 502" and "… beside
+    a static catalog, HTTP 502", each "Err = <nil>; want one matching
+    llmprovider: provider unavailable". "Claude offline" (probe D) and "no
+    Discover" pass: they held before.
+  * `TestKept_RefusedLeadsToSignIn_0066`: "wizard: Grok (xAI) refused the
+    sign-in; sign in again: model listing: acquire token: llmprovider:
+    authentication failed: oauth: refresh failed: Unauthorized:
+    {"error":"invalid_grant"}", probe G's.
+  * `TestKept_RefusedThenNewRefused_0066`: "notices []; want one that the
+    saved session was refused, by class", "selects []; want the method
+    menu once".
+  * `TestKept_KiloRefusedLeadsToSignIn_0066`: "wizard: Kilo Gateway refused
+    the sign-in; sign in again: … oauth: no refresh token: llmprovider:
+    authentication failed".
+  * `TestResolve_LiveMeans_0066` passes: it pins the catalog's behaviour,
+    which held before; its plants below fail it.
+* **Planted breaks** (`tools/plant.py`, scratch clone of the working tree):
+  "all 12 plant(s) caught".
+  * The fallback without the error a listing returned: the ListModels row,
+    "Err = <nil>".
+  * Without the error the catalog carries: both Chat Completions rows.
+  * A kept session not marked kept, the plan's red: the three kept tests,
+    as on `df0a9b9`.
+  * The kept session offered again: "fakePrompter: unexpected
+    Confirm("Keep the existing session (••••••••0066)?")", in each.
+  * The `Result` not given the new credential: "Result{… TokenExpiry: …
+    Model:grok-4.5}; want the new session's", and the Kilo test's
+    "Organization "org-kept"".
+  * The kept session's organization outliving it: "Organization
+    "org-kept"; want oauth, the personal account".
+  * The new session's facts not in the `Result`: "Result{Provider:grok
+    Kind:oauth Model:grok-4.5}".
+  * The notice not saying "refused": each kept test, "notices ["the saved
+    Grok (xAI) session failed (authentication failed); sign in again"]".
+  * The store emptied before a new session is saved: "saves [], the store
+    holds OAuthSession(nil); want none, and the kept session".
+  * The sign-in menu more than once: "unexpected Select("Choose how to
+    authenticate with Grok (xAI):"); want the new sign-in refused".
+  * In `catalog`, a listing never served again from the cache: "again: Live
+    true, Err llmprovider: provider unavailable: grok HTTP 503, 2 requests;
+    want true, nil, still 1", the stale listing the deviation names.
+  * In `catalog`, a listing with no usable id not the static catalog: "Live
+    false, Err <nil>, Source ""; want false, nil, "static"".
+* **The code:** `discoverModels` gives the fallback the listing's error on
+  every path but a refusal, which is returned. `resolvedCredential.kept`,
+  set by `signIn` for the session `keepExistingOAuth` kept; `signIn`'s
+  unexported `offerKept`. In `credentialStep`'s refusal loop, after the
+  workspace case, a kept credential gives the notice "the saved <Label>
+  session was refused (<describe>); sign in again", and `signIn` runs
+  again with `offerKept` false. The store is not written: the new session
+  is saved after the listing, as before (0059-MADR W2). `credentialResult`
+  fills the `Result` from a credential, in place of any earlier one's, so
+  the kept session's expiry and Kilo organization do not outlive it.
+* **Docs:** `ResolveCredential`'s, as the deviation words it;
+  `Options.Discover`'s points to it; `ConfigureLLM`'s, the kept session's
+  refusal; `docs/architecture.md`, under `ResolveCredential` and "Keeping a
+  saved session"; `README.md`'s wizard section; `CHANGELOG.md` Changed.
+* **Green:** `TestResolve_FailedListingErr_0066` (five rows),
+  `TestResolve_LiveMeans_0066` (two), `TestKept_RefusedLeadsToSignIn_0066`,
+  `TestKept_RefusedThenNewRefused_0066` and
+  `TestKept_KiloRefusedLeadsToSignIn_0066`: `--- PASS`, each. The notice,
+  from a scratch probe of the first kept test: "the saved Grok (xAI)
+  session was refused (authentication failed); sign in again".
+* **The drift check:** `go test -race -count=1 -shuffle=on ./wizard/
+  ./llmprovider/catalog/ ./llmprovider/providers/chatcompat/`, on a copy of
+  the working tree without the phase's test file: `ok` three times, exit 0;
+  no existing test changed.
+* **No network:** `./wizard/` behind a scratch `TestMain` calling
+  `localonly.Main`, on a scratch clone of the working tree, the new tests
+  in it: `ok`, exit 0.
+* **The API:** `tools/apidiff.py v1.24.1`: "./wizard.Options.LocalServers:
+  added" and "./llmprovider/catalog.Lister: added", nothing else; `make
+  api-check`, `docs-check` and `tables-check`: 0 problems.
+* **The claims:** `tools/claims.py` on the MADR: "60 of 60 pass";
+  `--plants` of C55 to C60, each made false: "all 6 plant(s) caught".
+* **Pre-add:** `make pre-add-check` on `wizard/auth.go`,
+  `wizard/configure.go` and `wizard/credential_0066_test.go`: "3 file(s)
+  clean (gofmt, golangci-lint, go vet, go test, govulncheck)", exit 0. Its
+  first run failed gofmt on the test file, a struct literal's alignment,
+  after the plants; `gofmt -w` aligned it.
+* **Found, outside the scope.** A listing that fails beside a static
+  catalog, where the listing's own catalog recommends nothing, falls back
+  with no notice: the fifth row's server answering 502 gave "Live=false
+  Err=llmprovider: provider unavailable: lmstudio HTTP 502: down
+  Recommended=["static-a" "static-b"] notices=[]", in a scratch probe.
+  The path predates this phase; Phase 4 gives it its `Err`. It is put to
+  the owner, not fixed here.
 * **The gate:** `python3 -B tools/gate.py --timeout 7200`, on a scratch
   clone of the working tree. It waited while other sessions held the load
   near 34 on ten CPUs, started at 9.9, and printed "gate: 29 of 29 passed",

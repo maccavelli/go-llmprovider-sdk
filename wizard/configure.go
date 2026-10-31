@@ -80,6 +80,7 @@ type Options struct {
 	// Discover queries the provider's live model listing. When false, or when
 	// the listing fails or is empty, the static catalog is used. A ChatGPT
 	// session has no static catalog, so the user is asked for a model id.
+	// ResolveCredential's doc says what the catalog's Live and Err then tell.
 	Discover bool
 	// DiscoverLimit bounds the listing call. Zero uses defaultDiscoverLimit.
 	// The lister caps every listing at 10 s, so a larger value has no effect.
@@ -204,7 +205,10 @@ func (o Options) lookupEnv() func(string) string {
 // is optional is offered Existing's key, else listed with none, and when
 // the listing refuses that, its key is asked for as a typed key is, up to
 // three (0066-MADR V2, V3). A provider that is a catalog.Lister is listed
-// through it, so its menu and facts reach the model choice (Q1).
+// through it, so its menu and facts reach the model choice (Q1). A saved
+// session the user keeps and the listing then refuses gives a notice and the
+// sign-in menu, once, without it; the store keeps it until a new session is
+// saved (V7, Q4 (a)).
 //
 // It never writes configuration and never logs a credential: an API key
 // appears only in the returned Result, a session only in Options.TokenStore,
@@ -218,7 +222,8 @@ func (o Options) lookupEnv() func(string) string {
 // An ended ctx gives an error matching
 // ctx's, before any question when it has ended already (0059-MADR W8), and a
 // credential the provider refuses while its models are listed, one matching
-// llmprovider.ErrAuthFailure, and a Claude workspace refused after the third
+// llmprovider.ErrAuthFailure (for a kept session, the one signed in after
+// it), and a Claude workspace refused after the third
 // one entered, one matching llmprovider.ErrWorkspaceRequired or
 // llmprovider.ErrWorkspaceNotFound. Options.Providers naming no provider
 // of the Registry, a Prompter's choice out of range, and no model chosen are
@@ -285,8 +290,16 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 //
 // It returns the Result, with no Model and no Fallbacks, and the catalog the
 // check listed, so the consumer need not list again. The credential is
-// checked only with Options.Discover; without it, the catalog is the
-// provider's static one, and may be empty.
+// checked only with Options.Discover. The catalog's Live is true for a
+// listing from the provider: one it answered with this credential now, or
+// within 10 minutes, from the listing cache; or, after a passing failure such
+// as an HTTP 503, the last good one from within 24 hours, or the one
+// Options.ProviderOptions hands in with catalog.WithLastGood, with Source
+// catalog.ListStale and Err the failure. Live false is the provider's static
+// catalog, which may be empty: without Discover, Err nil; after a listing
+// that failed, Err saying why; after one that listed no usable model, Err
+// nil (0066-MADR V6, Q5 (a), and its amendment "what Live says"). A listing
+// that needs no credential, such as Hugging Face's, says nothing of the key.
 //
 // A Prompter's error is returned, wrapped or as it is, so errors.Is matches
 // it; so is a failed sign-in's, and Options.ShowDeviceCode's, as it is. An
@@ -386,21 +399,11 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 	if res.BaseURL, err = resolveBaseURL(ctx, p, d, o); err != nil {
 		return Result{}, catalog.Catalog{}, err
 	}
-	credential, err := signIn(ctx, p, d, res.BaseURL, o)
+	credential, err := signIn(ctx, p, d, res.BaseURL, o, true)
 	if err != nil {
 		return Result{}, catalog.Catalog{}, err
 	}
-	res.Kind = credential.kind
-	res.APIKey = credential.apiKey
-	res.VendorAuthPath = credential.vendorPath
-	res.Organization = credential.organization
-	if credential.session != nil {
-		res.TokenExpiry = credential.session.Expiry
-		res.Issuer = credential.session.Issuer
-		res.ClientID = credential.session.ClientID
-		res.AccountID = credential.session.AccountID
-		res.FedRAMP = credential.session.FedRAMP
-	}
+	res = credentialResult(res, credential)
 
 	if d.ID == llmprovider.ProviderClaude && o.Existing.Provider == d.ID {
 		res.Workspace = o.Existing.Workspace
@@ -424,6 +427,18 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 				continue
 			}
 			res.Workspace = workspace
+			cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
+			continue
+		}
+		if credential.kept {
+			// The kept session is refused: the sign-in menu, once, with the
+			// store as it was until a new session is saved (0066-MADR V7,
+			// Q4 (a); 0059-MADR W2).
+			p.Notify(LevelWarn, "the saved %s session was refused (%s); sign in again", d.Label, describe(listErr))
+			if credential, err = signIn(ctx, p, d, res.BaseURL, o, false); err != nil {
+				return Result{}, catalog.Catalog{}, err
+			}
+			res = credentialResult(res, credential)
 			cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
 			continue
 		}
@@ -457,6 +472,21 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		return Result{}, catalog.Catalog{}, err
 	}
 	return res, cat, nil
+}
+
+// credentialResult is res with c's credential in place of any earlier one's;
+// the provider, endpoint and workspace stay.
+func credentialResult(res Result, c resolvedCredential) Result {
+	out := Result{Provider: res.Provider, BaseURL: res.BaseURL, Workspace: res.Workspace,
+		Kind: c.kind, APIKey: c.apiKey, VendorAuthPath: c.vendorPath, Organization: c.organization}
+	if c.session != nil {
+		out.TokenExpiry = c.session.Expiry
+		out.Issuer = c.session.Issuer
+		out.ClientID = c.session.ClientID
+		out.AccountID = c.session.AccountID
+		out.FedRAMP = c.session.FedRAMP
+	}
+	return out
 }
 
 // registry is the run's Registry: the caller's, else every built-in provider.
@@ -772,7 +802,11 @@ func discoverModels(
 	if stepRefusal(err) {
 		return fallback, err
 	}
+	// From here, a failed listing's catalog carries the failure, as
+	// catalog.Catalog's Err says, whichever path listed (0066-MADR V6, Q5
+	// (a)).
 	if err != nil {
+		fallback.Err = err
 		if len(static) == 0 {
 			p.Notify(LevelWarn, "could not list models for %s (%s)", d.Label, describe(err))
 			return fallback, err
@@ -780,6 +814,7 @@ func discoverModels(
 		p.Notify(LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(err))
 		return fallback, err
 	}
+	fallback.Err = cat.Err
 	if !cat.Live && cat.Err != nil && len(static) == 0 {
 		// A failure a catalog carries, as a catalog.Lister's does, is told as
 		// a failed ListModels is (0066-MADR V4).

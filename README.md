@@ -283,7 +283,9 @@ key.
   token; the caller loads it from the store. A refused sign-in leaves the
   store as it was. With `Options.Existing` naming such a session, the
   wizard checks it and offers to keep it before asking how to sign in; one
-  that cannot be used is not offered, and a notice says why. Without a
+  that cannot be used is not offered, and a notice says why. One kept and
+  then refused by the listing leads to the sign-in menu, once, and the
+  store keeps it until the new session is saved. Without a
   `TokenStore`, only the methods
   that save no session are offered: the API key, a vendor CLI's login, and
   a pasted Grok key.
@@ -314,7 +316,9 @@ key.
   10 seconds (`Options.DiscoverLimit` can shorten that, not extend it).
   Without it, the built-in catalog is offered. A provider that implements
   `catalog.Lister`, `chatcompat`'s among them, gives the menu its models'
-  facts.
+  facts. `ResolveCredential`'s catalog tells whether the provider answered:
+  `Live` false is the built-in catalog, and its `Err` holds why a listing
+  failed.
 - Before each model menu it asks for a search, with or without discovery.
   A blank search shows the recommendations. A glob such as `kilo-auto/*` or
   `*llama*` matches whole ids, and other queries match loosely, in the

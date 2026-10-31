@@ -911,6 +911,12 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   model, fallback or model id. It returns the `Result`, with no `Model`, and
   the catalog its listing checked the credential with: the refusal loop, the
   ChatGPT plan sign-in and every other method are `ConfigureLLM`'s own.
+  The catalog's `Live` is true for a listing from the provider, answered
+  with this credential now or within 10 minutes, or its last good one
+  after a passing failure (`ListStale`, `Err` the failure). `Live` false is
+  the static catalog: `Err` says why a listing failed, on every path, and
+  is nil when there was no listing or it listed no usable model (0066-MADR
+  V6, and its amendment "what `Live` says").
 
 - **One copy of a session.** A sign-in saves its session to
   `Options.TokenStore` and returns a `CredOAuth` `Result` with no token; the
@@ -924,7 +930,10 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
 - **Keeping a saved session.** With `Options.Existing` naming one, the
   session is checked before it is offered. One that cannot be used, such
   as an expired one with no refresh token, is not offered: a notice says
-  why, and the sign-in menu follows (0059-MADR W6).
+  why, and the sign-in menu follows (0059-MADR W6). One kept and then
+  refused by the listing gives a notice, then the sign-in menu, once,
+  without it. The store keeps it until a new session is saved, and a
+  refusal of the new one ends the run (0066-MADR V7).
 - **Kilo.** A Kilo device login saves its token the same way, offers the
   account's organizations, and puts the choice in `Result.Organization`.
   With `Options.KiloDeviceKey` it returns the token as a `CredAPIKey`
