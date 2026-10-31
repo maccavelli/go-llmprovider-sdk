@@ -11,6 +11,8 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+## [v1.25.0] - 2026-10-31
+
 ### Added
 
 - `catalog.Lister`, an interface with one method, `ListCatalog`: a
@@ -60,15 +62,14 @@ tag and its commit without notes; its notes are its section here.
   and its doc says what `Live` and `Err` tell
   ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
   V6, V7).
-
 - Both CI workflows run three more documentation gates: `markdownlint`,
   at one pin (`markdownlint-cli2@0.23.2`), on every Markdown file but the
   records; `links-check`, every relative link; and `disclosure-check`, a
   real macOS, Linux or Windows home path in any file, as
   [0063-MADR](docs/decisions/0063-MADR-align-docs-ci-and-disclosure-gates.md)
   decides. The gates' self-test checks the workflows too: a Markdown-only
-  change must run every gate that reads Markdown. The module's code is
-  unchanged.
+  change must run every gate that reads Markdown. That change is to CI
+  alone, not to the module's code.
 
 ### Fixed
 
@@ -1037,7 +1038,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.24.1...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.25.0...HEAD
+[v1.25.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.24.1...v1.25.0
 [v1.24.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.24.0...v1.24.1
 [v1.24.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.23.0...v1.24.0
 [v1.23.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.22.2...v1.23.0

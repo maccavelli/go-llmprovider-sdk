@@ -1259,3 +1259,42 @@ Approved by the owner's "committed, proceed", after Phase 6 landed as
   clone of the working tree. It started at once, the load at 3.1 on ten
   CPUs, and printed "gate: 29 of 29 passed", exit 0, `coverage-check` and
   `tables-check` among them.
+
+### Phase 8: release `v1.25.0` (2026-10-31)
+
+Approved by the owner's "committed proceed", after Phase 7 landed as
+`e31fb56`. Steps 1 and 2 are this commit's; steps 3 to 6 follow on the
+owner's word, and are recorded when done. No deviation.
+
+* **Step 1.** `CHANGELOG.md`: `[Unreleased]`, now empty, above `[v1.25.0] -
+  2026-10-31`, dated by the release commit, which the tag names; Added
+  (`catalog.Lister`, `wizard.Options.LocalServers`,
+  `llmprovider.NewHTTPClient`), Changed and Fixed from Phases 1 to 7, and
+  the docs-gates entry, its last sentence reworded from "The module's code
+  is unchanged" to "That change is to CI alone, not to the module's code",
+  which a release with code changes needs. A blank line that split the
+  Changed list since Phase 2 (`ecd3668`) is gone. The comparison links:
+  `[Unreleased]` from `v1.25.0`, and `[v1.25.0]` from `v1.24.1`.
+  `README.md`'s Status names `v1.25.0`. If the commit lands on another
+  day, the section's date changes with it: `changelog-check` holds it to
+  the tag's commit date.
+* **Step 2, before the push.**
+  * The notes: on a scratch clone of `e31fb56` with this `CHANGELOG.md`
+    copied in and a local tag `v1.25.0`, `scripts/check_changelog.py
+    --section v1.25.0 --repo maccavelli/go-llmprovider-sdk`: exit 0, 99
+    lines, Added, Changed and Fixed; each record link absolute, at
+    `blob/v1.25.0/`, none relative. Read in full. `tools/denyscan.py` on
+    them: "0 hit(s) in 1 file(s)". `changelog-check` in that clone, the
+    tag present: "37 release section(s), 0 problem(s)".
+  * `tools/apidiff.py v1.24.1`: "./llmprovider/catalog.Lister: added",
+    "./llmprovider.NewHTTPClient: added" and
+    "./wizard.Options.LocalServers: added", nothing else.
+  * The disclosure guard over the eight commits `origin/main..e31fb56`:
+    exit 0, nothing printed. It runs again over the release commit before
+    the push.
+  * `make changelog-check`, `markdownlint` and `links-check` in the tree:
+    0 problems.
+  * The gate: `python3 -B tools/gate.py --timeout 7200`, on a scratch
+    clone of the working tree. It started at once, the load at 3.9, and
+    printed "gate: 29 of 29 passed", exit 0, `changelog-check`,
+    `coverage-check` and `tables-check` among them.
