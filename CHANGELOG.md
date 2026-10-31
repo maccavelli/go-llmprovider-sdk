@@ -11,7 +11,29 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- `catalog.Lister`, an interface with one method, `ListCatalog`: a
+  provider that lists its models as a `catalog.Catalog`, its menu, facts
+  and `Source` with them, where `llmprovider.ModelLister` gives ids only.
+  `chatcompat`'s provider implements it, with no probe, and the wizard
+  lists through it before `ListModels`, so a Chat Completions server's
+  menu has its facts
+  ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
+  Q1, V4).
+
 ### Changed
+
+- The wizard configures a Chat Completions server that wants a key: a
+  remote provider whose key is optional is offered the saved key, else
+  listed with none, and when the server refuses that, the key is asked for
+  as a typed key is, up to three; the `Result` is a `CredAPIKey`. A refused
+  request that carried no key, a local Ollama's, is worded so, not as a
+  pasted credential. A provider with no default endpoint takes no blank
+  one, and under `Options.NoEndpointPrompt` with no `Existing.BaseURL` is
+  an error, where it returned a `Result` that could not build its provider
+  ([0066-MADR](docs/decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md)
+  V2, V3).
 
 - Both CI workflows run three more documentation gates: `markdownlint`,
   at one pin (`markdownlint-cli2@0.23.2`), on every Markdown file but the

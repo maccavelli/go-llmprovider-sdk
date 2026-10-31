@@ -161,6 +161,7 @@ func TestRefusalError_NamesTheSource(t *testing.T) {
 		{resolvedCredential{kind: CredVendorCLI, vendorPath: "/home/<user>/.claude/auth.json"}, "CLI login in /home/<user>/.claude/auth.json"},
 		{resolvedCredential{kind: CredOAuth}, "the sign-in; sign in again"},
 		{resolvedCredential{kind: CredAPIKey}, "the pasted credential"},
+		{resolvedCredential{kind: CredNone}, "refused a request that carried no key"}, // 0066-MADR V2
 	} {
 		err := refusalError(d, c.cred, 3, refused)
 		if !errors.Is(err, llmprovider.ErrAuthFailure) || !strings.Contains(err.Error(), c.want) {

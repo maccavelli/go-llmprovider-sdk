@@ -66,6 +66,7 @@ const (
 	keyEnvironment                  // the descriptor's environment variable
 	keySaved                        // Options.Existing
 	keyDevice                       // Kilo's device sign-in, under Options.KiloDeviceKey
+	keyAbsent                       // an optional key not given: a refusal asks for one (0066-MADR V2)
 )
 
 // offeredAuthMethods returns the methods the caller can keep. Without a
@@ -173,7 +174,7 @@ func signIn(
 			return resolvedCredential{}, err
 		}
 		kind := CredNone
-		if d.RequiresAPIKey {
+		if d.RequiresAPIKey || key != "" {
 			kind = CredAPIKey
 		}
 		cred := staticCredential(kind, key)

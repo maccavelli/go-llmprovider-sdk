@@ -979,6 +979,20 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   is not checked before the listing, which decides: only a key that is
   plainly another vendor's is named then, with the listing's check promised
   only under `Options.Discover` (0059-MADR S1, W1, W3).
+- **An optional key, and no default endpoint.** A remote provider with no
+  `RequiresAPIKey`, such as a Chat Completions server
+  (`chatcompat.Descriptor`), is offered `Existing`'s key to keep; otherwise
+  it is listed with none, and when the server refuses that, its key is
+  asked for as a typed key is, up to three. A local one, Ollama, sends no
+  key, so none is asked, and its refusal is worded as a request that
+  carried none. A remote provider with no default endpoint takes no blank
+  one, and under `NoEndpointPrompt`, with none in `Existing`, is an error
+  (0066-MADR V2, V3).
+- **A provider's whole catalog.** A provider that is a `catalog.Lister` is
+  listed through `ListCatalog`, whose catalog keeps its menu, facts and
+  `Source`; the wizard cuts its `Recommended` to `ModelLimit`, which `List`
+  takes only for a built-in. Any other lists its ids through `ListModels`
+  (0066-MADR Q1; its amendment "the Lister's options").
 - **A refused key.** When the listing refuses a typed key, the wizard asks
   for another, up to three keys, then returns an error. Each refusal of a
   typed key without the provider's usual shape names that shape, the last

@@ -36,7 +36,9 @@
 // listing, at most 24 hours old, after a transient failure; the server's own
 // order, probing each of the first catalog.MaxListed models with one short
 // generation only under llmprovider.WithModelProbes(true) (0061-MADR,
-// amendment "chatcompat, provider-agnostic", E1).
+// amendment "chatcompat, provider-agnostic", E1). The provider is a
+// catalog.Lister: ListCatalog is the same listing as a catalog.Catalog, its
+// menu and facts with it, with no probe (0066-MADR Q1).
 //
 // Capabilities: tools are Supported, sent with function.strict as the caller
 // sets it (0032-MADR D2). Forced tool choice is BestEffort: the server decides.
@@ -440,6 +442,19 @@ func (p *provider) ListModels(ctx context.Context) ([]string, error) {
 	}
 	return listed, nil
 }
+
+// ListCatalog is catalog.List's listing of the server, as ListModels', with
+// its menu, facts and Source, and with no probe: catalog.Lister, for a
+// caller such as the wizard that offers the whole catalog (0066-MADR Q1).
+// opts follow the provider's options; catalog.WithProfile and
+// catalog.WithLimit, which List takes only for a built-in, are refused, an
+// error matching llmprovider.ErrUnsupported. A failed listing is not an
+// error: the Catalog is not Live, and its Err is the failure.
+func (p *provider) ListCatalog(ctx context.Context, opts ...llmprovider.Option) (catalog.Catalog, error) {
+	return catalog.List(ctx, p.id, p.src, append(slices.Clone(p.listing), opts...)...)
+}
+
+var _ catalog.Lister = (*provider)(nil)
 
 // kinds are the errors a listing's failure keeps as it came: a kind, or the
 // context's.

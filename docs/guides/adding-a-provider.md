@@ -20,9 +20,10 @@ type Provider interface {
 }
 ```
 
-It may also implement `llmprovider.ModelLister` (`ListModels`) and
-`llmprovider.Streamer` (`Stream`). Callers find both by a type assertion;
-`wizard` uses `ListModels` to offer your models.
+It may also implement `llmprovider.ModelLister` (`ListModels`),
+`catalog.Lister` (`ListCatalog`) and `llmprovider.Streamer` (`Stream`).
+Callers find each by a type assertion; `wizard` uses `ListCatalog`, else
+`ListModels`, to offer your models.
 Without `Streamer`, `llmprovider.Stream` emits `Generate`'s result as events.
 
 The packages you use, all under `github.com/maccavelli/go-llmprovider-sdk`:
@@ -224,12 +225,20 @@ func Descriptor() llmprovider.Descriptor {
   the credential, the base URL, `Options.HTTPClient` and
   `Options.ProviderOptions`. The first six listed ids are recommended, in
   your order, and search covers the whole listing.
+- **A `catalog.Lister` gives the wizard your menu and facts.** When the
+  provider has `ListCatalog`, the wizard offers the `catalog.Catalog` it
+  returns, in place of `ListModels`' ids, its `Recommended` cut to
+  `Options.ModelLimit`, and search reads each model's facts. `chatcompat`'s
+  provider is one (0066-MADR Q1).
 - **`StaticModels` is the fallback:** without `Options.Discover`, without
   `ListModels`, or when it fails or lists nothing. In those last cases the
   wizard also warns.
 - With no `AuthMethods`, or only `AuthAPIKey`, `wizard` asks for the key. Its
   other methods run the built-in providers' sign-ins, so do not list them
-  for a provider of your own.
+  for a provider of your own. A descriptor with no `RequiresAPIKey` that is
+  not `IsLocal` has an optional key: `wizard` lists with none first, and
+  asks for the key when the listing refuses that. With `SupportsBaseURL` and
+  no `DefaultBaseURL`, it takes no blank endpoint (0066-MADR V2, V3).
 
 ## 6. Register it
 

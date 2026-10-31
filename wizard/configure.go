@@ -152,7 +152,9 @@ type Options struct {
 	// typed one is, a local one for reachability, and a failure is returned,
 	// not asked again (0056-MADR D4). A plain-http URL to a remote host is
 	// used without a question, since the caller holds it, with a warning
-	// notice (0059-MADR W9).
+	// notice (0059-MADR W9). A provider with no default endpoint, such as a
+	// Chat Completions server, needs Existing's: without it the run is an
+	// error, "needs an endpoint", and nothing is asked (0066-MADR V3).
 	NoEndpointPrompt bool
 	// NoPastePrompt starts no paste prompt in a browser sign-in, for a caller
 	// with no terminal: no paste instruction is shown and the Prompter is not
@@ -181,6 +183,13 @@ func (o Options) lookupEnv() func(string) string {
 // keeps its own look and feel, and the flow is testable with a scripted
 // Prompter and no TTY.
 //
+// A provider with no default endpoint, such as a Chat Completions server
+// (chatcompat.Descriptor), takes no blank one. A remote provider whose key
+// is optional is offered Existing's key, else listed with none, and when
+// the listing refuses that, its key is asked for as a typed key is, up to
+// three (0066-MADR V2, V3). A provider that is a catalog.Lister is listed
+// through it, so its menu and facts reach the model choice (Q1).
+//
 // It never writes configuration and never logs a credential: an API key
 // appears only in the returned Result, a session only in Options.TokenStore,
 // and anything shown to the user is masked with redact.MaskSecret. A
@@ -198,9 +207,10 @@ func (o Options) lookupEnv() func(string) string {
 // llmprovider.ErrWorkspaceNotFound. Options.Providers naming no provider
 // of the Registry, a Prompter's choice out of range, and no model chosen are
 // plain errors, as are Options.SkipMethods leaving the provider no sign-in
-// method and, under Options.NoEndpointPrompt, an endpoint refused or not
-// reached. A listing that fails otherwise is not an error: the flow
-// warns and offers the provider's static catalog.
+// method and, under Options.NoEndpointPrompt, an endpoint refused, not
+// reached, or missing for a provider with no default. A listing that fails
+// otherwise is not an error: the flow warns and offers the provider's
+// static catalog.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, fmt.Errorf("wizard: %w", err)
@@ -246,7 +256,8 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // with its own model picker: the provider (asked when id is empty, as
 // ConfigureLLM asks it), its endpoint, the sign-in method and credential,
 // every method included, the ChatGPT plan sign-in among them, and the listing
-// that checks it, which asks again for a typed key it refuses (0056-MADR D1).
+// that checks it, which asks again for a typed key it refuses (0056-MADR D1),
+// and asks for an optional key it wants, as ConfigureLLM does (0066-MADR V2).
 // It asks no model question, no fallback question and no model id, and ignores
 // Options.Existing.Model and Options.NeedFallbacks.
 //
@@ -265,7 +276,8 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // Options.Providers leaves out, gives an error matching
 // llmprovider.ErrInvalidProvider. A Prompter's choice out of range is a plain
 // error, as are Options.SkipMethods leaving the provider no sign-in method
-// and, under Options.NoEndpointPrompt, an endpoint refused or not reached.
+// and, under Options.NoEndpointPrompt, an endpoint refused, not reached, or
+// missing for a provider with no default.
 func ResolveCredential(ctx context.Context, p Prompter, o Options, id llmprovider.ProviderID) (Result, catalog.Catalog, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, catalog.Catalog{}, fmt.Errorf("wizard: %w", err)
@@ -334,8 +346,10 @@ func chooseProvider(p Prompter, o Options) (llmprovider.Descriptor, error) {
 // leaves the store as it was (0059-MADR W2). A Claude key's existing
 // workspace is listed with first; a workspace the listing refuses is asked
 // for, up to maxTypedKeys, and a refusal after that saves nothing
-// (0064-MADR D4, amendment "D4's pre-fill"). The Result names no model;
-// the catalog is the listing, or the static one (0056-MADR D1).
+// (0064-MADR D4, amendment "D4's pre-fill"). An optional key the listing
+// wants is asked for as a typed key, the first asked being the first typed
+// (0066-MADR V2). The Result names no model; the catalog is the listing, or
+// the static one (0056-MADR D1).
 func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (Result, catalog.Catalog, error) {
 	res := Result{Provider: d.ID}
 	var err error
@@ -383,22 +397,29 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 			cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
 			continue
 		}
-		typed := credential.keyFrom == keyTyped
-		if !typed || keys == maxTypedKeys {
-			if typed {
-				notifyShape(p, d, credential.apiKey)
+		if credential.keyFrom == keyAbsent {
+			// The server wants the optional key: the first one asked is
+			// the first typed (0066-MADR V2).
+			p.Notify(LevelWarn, "%s refused the request without a key (%s); enter its key", d.Label, describe(listErr))
+			keys = 0
+		} else {
+			typed := credential.keyFrom == keyTyped
+			if !typed || keys == maxTypedKeys {
+				if typed {
+					notifyShape(p, d, credential.apiKey)
+				}
+				return Result{}, catalog.Catalog{}, refusalError(d, credential, keys, listErr)
 			}
-			return Result{}, catalog.Catalog{}, refusalError(d, credential, keys, listErr)
+			p.Notify(LevelWarn, "%s refused this key (%s); enter another", d.Label, describe(listErr))
+			notifyShape(p, d, credential.apiKey)
 		}
-		p.Notify(LevelWarn, "%s refused this key (%s); enter another", d.Label, describe(listErr))
-		notifyShape(p, d, credential.apiKey)
 		key, keyErr := promptAPIKey(p, d, o)
 		if keyErr != nil {
 			return Result{}, catalog.Catalog{}, keyErr
 		}
 		credential = staticCredential(CredAPIKey, key)
 		credential.keyFrom = keyTyped
-		res.APIKey = key
+		res.Kind, res.APIKey = credential.kind, key
 		keys++
 		cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
 	}
@@ -441,7 +462,9 @@ func selectableDescriptors(reg *llmprovider.Registry, allow []llmprovider.Provid
 
 // resolveBaseURL prompts for an endpoint when the provider supports one. A
 // local provider is validated for reachability, with the caller's client
-// and identity, and re-prompted on failure until ctx ends (0020-MADR F6).
+// and identity, and re-prompted on failure until ctx ends (0020-MADR F6). A
+// remote provider with no default endpoint takes no blank one: it is asked
+// again, and under NoEndpointPrompt it is an error (0066-MADR V3).
 func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (string, error) {
 	if !d.SupportsBaseURL {
 		return "", nil
@@ -450,6 +473,7 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 	if o.Existing.Provider == d.ID && o.Existing.BaseURL != "" {
 		def = o.Existing.BaseURL
 	}
+	needsURL := d.DefaultBaseURL == "" && !d.IsLocal
 	var check []llmprovider.Option
 	if o.HTTPClient != nil {
 		check = append(check, llmprovider.WithHTTPClient(o.HTTPClient))
@@ -459,7 +483,11 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		// Nothing to ask again with: a refusal or an unreachable endpoint is
 		// the caller's to fix (0056-MADR D4).
 		if !d.IsLocal {
-			return validateBaseURL(p, def, false)
+			checked, vErr := validateBaseURL(p, def, false)
+			if vErr == nil && checked == "" && needsURL {
+				return "", fmt.Errorf("wizard: %s needs an endpoint: pass Options.Existing.BaseURL", d.Label)
+			}
+			return checked, vErr
 		}
 		if vErr := catalog.ValidateOllamaURLWith(ctx, def, check...); vErr != nil {
 			return "", fmt.Errorf("wizard: cannot reach %s: %w", def, vErr)
@@ -478,6 +506,10 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 			checked, vErr := validateBaseURL(p, url, true)
 			if errors.Is(vErr, errBaseURLRefused) {
 				p.Notify(LevelWarn, "%v", vErr)
+				continue
+			}
+			if vErr == nil && checked == "" && needsURL {
+				p.Notify(LevelWarn, "%s needs an endpoint", d.Label)
 				continue
 			}
 			return checked, vErr
@@ -562,6 +594,9 @@ func refusalError(d llmprovider.Descriptor, c resolvedCredential, keys int, err 
 			d.Label, d.Label, c.vendorPath, err)
 	case c.kind == CredOAuth:
 		return fmt.Errorf("wizard: %s refused the sign-in; sign in again: %w", d.Label, err)
+	case c.kind == CredNone:
+		// A local provider's, which sends no key (0066-MADR V2).
+		return fmt.Errorf("wizard: %s refused a request that carried no key: %w", d.Label, err)
 	default:
 		return fmt.Errorf("wizard: %s refused the pasted credential: %w", d.Label, err)
 	}
@@ -569,10 +604,22 @@ func refusalError(d llmprovider.Descriptor, c resolvedCredential, keys int, err 
 
 // resolveAPIKey applies the precedence environment → existing → prompt, and
 // says which gave the key. Any key shown to the user is masked; the raw value
-// only ever reaches Result.
+// only ever reaches Result. A remote provider whose key is optional, such as
+// a Chat Completions server, is offered the existing key, else lists with
+// none, and is asked for one when the listing refuses that (0066-MADR V2);
+// a local one sends none.
 func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, keySource, error) {
 	if !d.RequiresAPIKey {
-		return "", keyOther, nil
+		if d.IsLocal {
+			return "", keyOther, nil
+		}
+		switch key, kept, err := keepExistingKey(p, d, o); {
+		case err != nil:
+			return "", keyOther, err
+		case kept:
+			return key, keySaved, nil
+		}
+		return "", keyAbsent, nil
 	}
 
 	if o.AllowEnv && d.EnvVar != "" {
@@ -588,19 +635,28 @@ func resolveAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, key
 		}
 	}
 
-	if o.Existing.Provider == d.ID && o.Existing.APIKey != "" {
-		keep, err := p.Confirm(
-			fmt.Sprintf("Keep the existing key (%s)?", redact.MaskSecret(o.Existing.APIKey)), true)
-		if err != nil {
-			return "", keyOther, err
-		}
-		if keep {
-			return o.Existing.APIKey, keySaved, nil
-		}
+	if key, kept, err := keepExistingKey(p, d, o); err != nil {
+		return "", keyOther, err
+	} else if kept {
+		return key, keySaved, nil
 	}
 
 	key, err := promptAPIKey(p, d, o)
 	return key, keyTyped, err
+}
+
+// keepExistingKey offers Existing's key for d, masked, and reports whether
+// the user kept it.
+func keepExistingKey(p Prompter, d llmprovider.Descriptor, o Options) (string, bool, error) {
+	if o.Existing.Provider != d.ID || o.Existing.APIKey == "" {
+		return "", false, nil
+	}
+	keep, err := p.Confirm(
+		fmt.Sprintf("Keep the existing key (%s)?", redact.MaskSecret(o.Existing.APIKey)), true)
+	if err != nil || !keep {
+		return "", false, err
+	}
+	return o.Existing.APIKey, true, nil
 }
 
 // promptAPIKey asks for d's API key, and warns when it is plainly another
@@ -694,6 +750,12 @@ func discoverModels(
 		p.Notify(LevelWarn, "could not list models for %s (%s); using the built-in catalog", d.Label, describe(err))
 		return fallback, err
 	}
+	if !cat.Live && cat.Err != nil && len(static) == 0 {
+		// A failure a catalog carries, as a catalog.Lister's does, is told as
+		// a failed ListModels is (0066-MADR V4).
+		p.Notify(LevelWarn, "could not list models for %s (%s)", d.Label, describe(cat.Err))
+		return fallback, cat.Err
+	}
 	// A live listing with nothing recommended is kept for search (0021-MADR
 	// C13).
 	if len(cat.Recommended) == 0 && (!cat.Live || len(cat.Usable) == 0) {
@@ -721,7 +783,11 @@ func chatGPTCatalog(
 	res Result,
 	source llmprovider.TokenSource,
 ) (catalog.Catalog, error) {
-	lister, err := listerFor(o, d, res, source)
+	built, err := listerFor(o, d, res, source)
+	if err != nil {
+		return catalog.Catalog{}, err
+	}
+	lister, err := modelLister(d, built)
 	if err != nil {
 		return catalog.Catalog{}, err
 	}
@@ -737,11 +803,15 @@ func chatGPTCatalog(
 }
 
 // providerCatalog lists a provider catalog does not know, such as a third
-// party's, through its own ListModels (0015-MADR, amendment "the wizard lists
-// a provider through its own ListModels"). Its ids are recommended in the
-// provider's order, cut to Options.ModelLimit, and search covers them all. A
-// provider that cannot list, or lists nothing, is an error, so the caller
-// warns and offers the static catalog.
+// party's: through its catalog.Lister when it has one, whose catalog keeps
+// its menu, facts and Source, and with Recommended cut to
+// Options.ModelLimit, which List takes only for a built-in (0066-MADR Q1;
+// amendment "the Lister's options"); else through its own ListModels
+// (0015-MADR, amendment "the wizard lists a provider through its own
+// ListModels"). ListModels' ids are recommended in the provider's order, cut
+// to Options.ModelLimit, and search covers them all. A provider that cannot
+// list, or lists nothing, is an error, so the caller warns and offers the
+// static catalog.
 func providerCatalog(
 	ctx context.Context,
 	o Options,
@@ -749,7 +819,19 @@ func providerCatalog(
 	res Result,
 	source llmprovider.TokenSource,
 ) (catalog.Catalog, error) {
-	lister, err := listerFor(o, d, res, source)
+	built, err := listerFor(o, d, res, source)
+	if err != nil {
+		return catalog.Catalog{}, err
+	}
+	if l, ok := built.(catalog.Lister); ok {
+		cat, err := l.ListCatalog(ctx)
+		if err != nil {
+			return catalog.Catalog{}, err
+		}
+		cat.Recommended = cutModels(cat.Recommended, o.ModelLimit)
+		return cat, nil
+	}
+	lister, err := modelLister(d, built)
 	if err != nil {
 		return catalog.Catalog{}, err
 	}
@@ -787,7 +869,7 @@ func listerFor(
 	d llmprovider.Descriptor,
 	res Result,
 	source llmprovider.TokenSource,
-) (llmprovider.ModelLister, error) {
+) (llmprovider.Provider, error) {
 	opts := []llmprovider.Option{llmprovider.WithTokenSource(source)}
 	if res.BaseURL != "" {
 		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
@@ -796,10 +878,12 @@ func listerFor(
 		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
 	}
 	opts = append(opts, o.ProviderOptions...)
-	built, err := o.registry().New(d.ID, opts...)
-	if err != nil {
-		return nil, err
-	}
+	return o.registry().New(d.ID, opts...)
+}
+
+// modelLister is built's llmprovider.ModelLister, or an error saying d cannot
+// list.
+func modelLister(d llmprovider.Descriptor, built llmprovider.Provider) (llmprovider.ModelLister, error) {
 	lister, ok := built.(llmprovider.ModelLister)
 	if !ok {
 		return nil, fmt.Errorf("wizard: %s cannot list models", d.Label)

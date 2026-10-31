@@ -306,9 +306,15 @@ key.
   `Options.NoEndpointPrompt`, is used with a warning. A pasted
   OpenAI credential must be an `sk-` key or an unexpired ChatGPT access
   token; another vendor's key is refused.
+- A provider with no default endpoint, a `chatcompat` server's, must be
+  given one. Its key is optional: the wizard lists with `Existing`'s key,
+  kept, or with none, and asks for the key when the server refuses the
+  request without one.
 - With `Options.Discover`, it lists the provider's models once, within
   10 seconds (`Options.DiscoverLimit` can shorten that, not extend it).
-  Without it, the built-in catalog is offered.
+  Without it, the built-in catalog is offered. A provider that implements
+  `catalog.Lister`, `chatcompat`'s among them, gives the menu its models'
+  facts.
 - Before each model menu it asks for a search, with or without discovery.
   A blank search shows the recommendations. A glob such as `kilo-auto/*` or
   `*llama*` matches whole ids, and other queries match loosely, in the

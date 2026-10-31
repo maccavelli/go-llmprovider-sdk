@@ -681,7 +681,8 @@ it was written.
   error)`: `opts` carry `WithProfile` and `WithLimit`, which `chatcompat.New`
   refuses as options scoped to the built-ins, so the catalog is cut by
   `ListCatalog`'s caller as `List` cuts it, and a model past the limit keeps
-  its facts for search (0061-MADR, amendment "S1 amended in execution").
+  its facts for search (0061-MADR, amendment "S1 amended in execution"). *(The options: corrected by the
+  amendment "the Lister's options".)*
 * **Q2 (a)'s details.**
   * A found server's id is `local-<port>`, such as `local-1234`: stable
     across runs, never a built-in's, which `chatcompat.New` refuses.
@@ -854,3 +855,37 @@ the later one.
 | C49 | WithHTTPClient's doc | `llmprovider/options.go:44` | `// WithHTTPClient sets a custom HTTP client for connection pooling. Nil is the` |
 | G4 | gobble's per-request headers | `gobble-cli:llm/provider/provider.go:66` | `Headers func(ctx context.Context, model string) (map[string]string, error)` |
 | G5 | gobble wraps net/http's transport | `gobble-cli:llm/provider/provider.go:152` | `base := http.DefaultTransport` |
+
+## Amendment 2026-10-31: the Lister's options, found in executing Phase 2
+
+The amendment "facts found while planning", under "Q1 (a)'s name and
+shape", says that `ListCatalog`'s `opts` "carry `WithProfile` and
+`WithLimit`", "so the catalog is cut by `ListCatalog`'s caller as `List`
+cuts it, and a model past the limit keeps its facts for search". The
+premise does not hold for a Chat Completions provider.
+
+* `catalog.WithProfile` and `catalog.WithLimit` are scoped to the built-in
+  ids (C53, C54), and `List` refuses a chatcompat id whose options hold an
+  option it does not take, as unsupported (C9). Through `ListCatalog`,
+  which is `List` with the provider's options, either one fails the
+  listing: "model listing: unsupported provider "lmstudio"", in Phase 2's
+  red run.
+* For a built-in, `List` cuts `Menu` with `WithLimit` (C50), and a model
+  cut from `Menu` is found by its id and label alone (C51). The wizard
+  passes `WithLimit` to `List` for every built-in (C52).
+* The owner was first asked, on 2026-10-30, on the second fact alone, and
+  chose to pass `WithLimit` to `ListCatalog`. The red run then showed the
+  first; asked again on 2026-10-31 with it, the owner chose that the wizard
+  cuts the catalog itself: `providerCatalog` calls `ListCatalog` with no
+  catalog option, and cuts `Recommended` to `Options.ModelLimit` as it cuts
+  a provider's `ListModels` ids. `Menu` and `Usable` stay whole, so a model
+  past the limit keeps its facts for search, as the amendment said, by
+  this route. Q1 (a) stands; no exported name changes.
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| C50 | A built-in's menu is cut by WithLimit | `llmprovider/catalog/menu.go:150` | `Menu: cutMenu(menu, limit)}` |
+| C51 | A model cut from Menu: id and label alone | `llmprovider/catalog/search.go:199` | `Menu is found by its id and label alone.` |
+| C52 | The wizard passes WithLimit to List | `wizard/configure.go:659` | `catalog.WithLimit(o.ModelLimit),` |
+| C53 | WithProfile: the built-ins only | `llmprovider/catalog/config.go:112` | `return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithProfile", profileOption(p))` |
+| C54 | WithLimit: the built-ins only | `llmprovider/catalog/config.go:124` | `return llmprovider.ScopedOptionFor(builtinIDs, "catalog.WithLimit", listlimit.Value(n))` |

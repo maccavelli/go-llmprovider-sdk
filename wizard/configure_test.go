@@ -389,7 +389,9 @@ func TestConfigure_TiersOnlyAreOffered(t *testing.T) {
 // fragment; plain http to a host that is not loopback asks first. A refused
 // URL is asked for again. Kilo's base URL is resolved here too.
 func TestResolveBaseURL_Validates(t *testing.T) {
-	d := llmprovider.Descriptor{ID: llmprovider.ProviderKilo, Label: "Kilo", SupportsBaseURL: true}
+	// The real Kilo's default: one with none takes no blank (0066-MADR V3).
+	d := llmprovider.Descriptor{ID: llmprovider.ProviderKilo, Label: "Kilo", SupportsBaseURL: true,
+		DefaultBaseURL: "https://api.kilo.ai/api/gateway"}
 	for _, c := range []struct {
 		name     string
 		inputs   []string

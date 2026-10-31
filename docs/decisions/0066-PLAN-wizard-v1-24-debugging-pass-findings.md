@@ -59,6 +59,9 @@ catches, and then passes. In particular:
 * **One existing test gains rows, its rows unchanged:**
   `TestRefusalError_NamesTheSource` (`wizard/configure_0028_test.go`), a
   row for a refused request that carried no key (Phase 2).
+* *Added 2026-10-31, the deviation in Phase 2's record:*
+  `TestResolveBaseURL_Validates` (`wizard/configure_test.go`), whose
+  descriptor gains the real Kilo's `DefaultBaseURL`, its rows unchanged.
 * **Docs:** each changed function's and type's doc (R41, R51, R52);
   `README.md`'s "The configuration wizard" and Status;
   `docs/architecture.md`'s package table row for `wizard`, which gains
@@ -241,22 +244,26 @@ additions.
    // concurrent use, as the Provider that has it is.
    type Lister interface {
    	// ListCatalog lists the provider's models as List does, with List's
-   	// options, WithProfile and WithLimit among them, after the
+   	// options, ~~WithProfile and WithLimit among them,~~ after the
    	// provider's own. It returns List's errors.
    	ListCatalog(ctx context.Context, opts ...llmprovider.Option) (Catalog, error)
    }
    ```
 
    The final wording is checked by `make docs-check`; the doc names each
-   kind `List` returns (R52).
+   kind `List` returns (R52). *`WithProfile` and `WithLimit` are scoped to
+   the built-in ids, so `List` refuses them for a chatcompat id: the
+   deviation of 2026-10-30 in Phase 2's record.*
 4. **`chatcompat`'s provider implements it:** `catalog.List(ctx, p.id,
    p.src, append(slices.Clone(p.listing), opts...)...)`, with no probe
    (`ListModels` keeps its probe). A compile-time assertion,
    `var _ catalog.Lister = (*provider)(nil)`, and the package doc name it.
 5. **The wizard lists through it.** `listerFor` (`configure.go:777`)
    returns the built `llmprovider.Provider`. `providerCatalog` asserts
-   `catalog.Lister` first and calls `ListCatalog` with
-   `catalog.WithProfile(o.Profile)` and `catalog.WithLimit(o.ModelLimit)`;
+   `catalog.Lister` first and calls `ListCatalog` ~~with
+   `catalog.WithProfile(o.Profile)` and `catalog.WithLimit(o.ModelLimit)`~~
+   *with no catalog option, and cuts `Recommended` to `ModelLimit` itself,
+   as it cuts `ListModels`' ids (the deviation of 2026-10-30)*;
    without it, `ListModels` as today. `chatGPTCatalog` asserts
    `llmprovider.ModelLister` as today. In `discoverModels`, a catalog that
    is not live, holds an `Err` and is not a refusal, with no static
@@ -282,9 +289,10 @@ additions.
      `Menu` holds 30, `Recommended` 6 with `ModelLimit: 6`, `Usable` 30.
      On `3fad786`: `Source` empty and `Menu` 0.
    * `TestListCatalog_0066` (`chatcompat`): equals `catalog.List` with
-     `WithID` and the base URL; `WithLimit(3)` cuts `Recommended` and
-     `Menu`; a 401 is `Live` false with an `Err` matching
-     `ErrAuthFailure`.
+     `WithID` and the base URL; ~~`WithLimit(3)` cuts `Recommended` and
+     `Menu`~~ *`WithLimit(3)` is refused, an error matching
+     `ErrUnsupported`, as `List` refuses it (the deviation of 2026-10-30)*;
+     a 401 is `Live` false with an `Err` matching `ErrAuthFailure`.
 7. **Docs:** `ConfigureLLM`'s and `ResolveCredential`'s docs (the endpoint
    error under `NoEndpointPrompt`; the key asked); `Options.NoEndpointPrompt`'s;
    the `chatcompat` package doc; `docs/guides/adding-a-provider.md`, a
@@ -630,3 +638,135 @@ two rows follow.
   * `[Unreleased]`'s earlier Changed entry, on the documentation gates,
     ends "The module's code is unchanged", which was true of that change
     alone. Phase 8 words it so when the section becomes `v1.25.0`.
+
+### Phase 2: a Chat Completions provider through the wizard (2026-10-30)
+
+* **Deviation 2026-10-30: the Lister's options.** Found before Phase 2's
+  code, in writing and then running its tests red. Two questions were put
+  to the owner, the first on a fact found incomplete.
+  * **The first question, 2026-10-30.** Step 6 says that with
+    `ModelLimit: 6` the catalog's `Menu` holds 30; `List` cuts `Menu` with
+    `WithLimit` (`llmprovider/catalog/menu.go:225`, `cutMenu`), and
+    `Catalog.Search` finds a model cut from `Menu` "by its id and label
+    alone" (`llmprovider/catalog/search.go:199`). The owner chose "correct
+    the records": pass `WithLimit` to `ListCatalog`, as the wizard passes it
+    to `List` for a built-in, and assert `Menu` 6.
+  * **What the red run showed.** `catalog.List` with `chatcompat.WithID`
+    and `catalog.WithLimit(6)` returned "model listing: unsupported
+    provider "lmstudio"". `WithProfile` and `WithLimit` are scoped to the
+    built-in ids (`llmprovider/catalog/config.go:112`, `:124`), and `List`
+    refuses a chatcompat id whose options hold one
+    (`llmprovider/catalog/config.go:241`). So step 5's call would fail every
+    Chat Completions listing, and step 3's Lister doc, "WithProfile and
+    WithLimit among them", is false for chatcompat. The first answer could
+    not be built as it was put.
+  * **The second question, 2026-10-31,** with that fact, and three
+    resolutions: the wizard cuts `Recommended` itself (recommended); widen
+    the two options' scope, a change to two exported options needing its
+    own amendment; or stop Phase 2. The owner chose "the wizard cuts it".
+  * **What changes.** `providerCatalog` calls `ListCatalog` with no catalog
+    option and cuts `Recommended` to `ModelLimit`, as it cuts `ListModels`'
+    ids; `Menu` and `Usable` stay whole, so search keeps every model's
+    facts. Step 6's numbers hold: `Menu` 30, `Recommended` 6, `Usable` 30.
+    `TestListCatalog_0066` asserts that `WithLimit(3)` is refused, matching
+    `ErrUnsupported`, in place of a cut. The Lister doc names its options
+    as those `List` takes for the provider's id. Steps 3, 5 and 6 are
+    annotated, and the MADR has the amendment "the Lister's options". No
+    file is added to the phase's scope.
+* **Deviation 2026-10-31: an existing test with no default endpoint.**
+  The drift check (`go test -race -count=1 -shuffle=on`, after the code)
+  failed `TestResolveBaseURL_Validates` (`wizard/configure_test.go:391`),
+  its row "blank keeps the default": "resolveBaseURL = "", enter base URL:
+  fakePrompter: unexpected Input("Kilo endpoint")". The test builds its own
+  descriptor, id `kilo`, label "Kilo", `SupportsBaseURL` and no
+  `DefaultBaseURL`: the case V3 now refuses. The real Kilo descriptor has a
+  default (`llmprovider/providers/kilo/descriptor.go:12`), and the row came
+  with `3f18dd7`, before V3. Put to the owner with three resolutions; the
+  owner chose "give it a default": the test's descriptor gains
+  `DefaultBaseURL: "https://api.kilo.ai/api/gateway"`, the real Kilo's, and
+  every row and assertion stays, so "blank keeps the default" tests what it
+  names. The test is added to Scope's "One existing test gains rows" item.
+* **Red first, on a scratch clone of `2ab63be`**, Phase 1's commit, whose
+  code on these paths is `3fad786`'s, with the phase's wizard tests copied
+  in. `./wizard/` exits 1:
+  * `TestCompat_BlankEndpointAskedAgain_0066`: "BaseURL "", Live false",
+    "inputs ["LM Studio endpoint"]", "notices ["could not list models for
+    LM Studio (invalid request)"]; want "LM Studio needs an endpoint"".
+  * `TestCompat_NoEndpointPromptNeedsURL_0066`: "err = <nil>; want
+    "wizard: LM Studio needs an endpoint: pass Options.Existing.BaseURL"".
+  * `TestCompat_KeyAskedAfterRefusal_0066`: "wizard: LM Studio refused the
+    pasted credential: llmprovider: authentication failed: lmstudio HTTP
+    401 …", a select and the secret left unused.
+  * `TestCompat_ThreeKeysRefused_0066`: the same error, "1 listing
+    requests; want 4", three secrets unused.
+  * `TestCompat_SavedKeyOffered_0066`: `kept` and `refused` each "confirms
+    []; want the keep question", "listing Authorization headers [""]".
+  * `TestOllama_RefusedNoKeyAsked_0066`: "wizard: Ollama (local) refused
+    the pasted credential: … ollama HTTP 401: unauthorized".
+  * `TestCompat_ListedThroughLister_0066`: "Source "", Menu 0, Recommended
+    6, Usable 30; want live, 30, 6, 30", probe C's numbers.
+  * `TestRefusalError_NamesTheSource`, its new row: "wizard: Claude refused
+    the pasted credential: …; want … "refused a request that carried no
+    key"".
+  * `TestCompat_ListingFailureNoticed_0066`, added for step 5's notice,
+    passes there: the old path gave the same notice through `ListModels`.
+    Its plant below is its proof. `TestResolveBaseURL_Validates`, with its
+    default, passes there too.
+* **Planted breaks** (`tools/plant.py`, scratch clone of the working tree),
+  "all 4 plant(s) caught":
+  * `ListCatalog` dropping the caller's options:
+    `TestListCatalog_0066`, "WithLimit(3): err <nil>; want ErrUnsupported,
+    as List refuses it".
+  * The wizard not cutting a Lister's `Recommended`:
+    `TestCompat_ListedThroughLister_0066`, "Source "live", Menu 30,
+    Recommended 30".
+  * The wizard skipping the Lister: the same test, "Source "", Menu 0".
+  * No notice for a failure a catalog carries:
+    `TestCompat_ListingFailureNoticed_0066`, "notices []; want "could not
+    list models for LM Studio (provider unavailable, HTTP 502)"".
+* **The code:**
+  * `catalog`: `lister.go`, `Lister` with `ListCatalog`; its doc names
+    `ErrUnsupported` for an option `List` refuses for the id (R52) and says
+    an implementation is safe for concurrent use (R51).
+  * `chatcompat`: `ListCatalog`, `catalog.List` with the provider's
+    options and the caller's after them, no probe; `var _ catalog.Lister =
+    (*provider)(nil)`; the package doc.
+  * `wizard`: `resolveBaseURL` refuses a blank endpoint for a remote
+    provider with no default, a notice and the prompt again, or under
+    `NoEndpointPrompt` the error "wizard: <Label> needs an endpoint: pass
+    Options.Existing.BaseURL". `resolveAPIKey` offers such a provider
+    `Existing`'s key (`keepExistingKey`, the required key's question
+    factored out), else returns `keyAbsent`, a new `keySource`; `signIn`
+    makes a given key `CredAPIKey`. `credentialStep` answers a refusal of
+    `keyAbsent` with the notice "<Label> refused the request without a key
+    (<describe>); enter its key" and `promptAPIKey`, the first key asked
+    being the first typed, and sets the `Result`'s `Kind`. `refusalError`
+    has the `CredNone` case. `listerFor` returns the built provider;
+    `modelLister` asserts `llmprovider.ModelLister`; `providerCatalog`
+    lists through `catalog.Lister` first, `Recommended` cut to
+    `ModelLimit`; `discoverModels` gives the notice for a catalog that is
+    not live, holds an `Err`, and has no static catalog.
+  * Docs: `ConfigureLLM`'s, `ResolveCredential`'s and
+    `Options.NoEndpointPrompt`'s; `docs/guides/adding-a-provider.md`
+    (`catalog.Lister`, an optional key, no default endpoint);
+    `docs/architecture.md`'s "The wizard"; `README.md`'s wizard section;
+    `CHANGELOG.md` `[Unreleased]` Added and Changed.
+* **Green:** each new test `--- PASS`, by name, in `go test -v`.
+* **The drift check:** `go test -race -count=1 -shuffle=on ./wizard/
+  ./llmprovider/catalog/ ./llmprovider/providers/chatcompat/`: exit 0, after
+  the second deviation's one line; before it, the failure that deviation
+  records.
+* **No network:** `./wizard/` behind a scratch `TestMain` calling
+  `localonly.Main`, on a scratch clone of the working tree: `ok`, exit 0.
+* **The API:** `tools/apidiff.py v1.24.1`: "./llmprovider/catalog.Lister:
+  added", the only change; `make api-check`: "0 incompatible change(s)";
+  `make docs-check`: "0 violation(s) of R50,R51,R52", after `Lister`'s doc
+  was rewrapped so that "concurrent use" sits on one line, which R51's
+  check reads.
+* **Pre-add:** `make pre-add-check` on the phase's eight Go files: "8
+  file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)",
+  exit 0.
+* **The gate:** `python3 -B tools/gate.py --timeout 7200`, on a scratch
+  clone of the working tree. It waited while other sessions held the load
+  near 51 on ten CPUs, started at 9.9, and printed "gate: 29 of 29 passed",
+  exit 0, `coverage-check` among them.
