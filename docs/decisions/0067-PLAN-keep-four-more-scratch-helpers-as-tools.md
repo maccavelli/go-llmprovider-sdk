@@ -386,3 +386,39 @@ Associated MADR: [0067-MADR-keep-four-more-scratch-helpers-as-tools.md](0067-MAD
 * **Gate:** `tools/gate.py`, started at load 9.0: "gate: 29 of 29
   passed", exit 0; its `tools-test` "Ran 101 tests", "OK" (99 before, 2
   added).
+
+### Phase 4: the Markdown gate (2026-11-01)
+
+* Phase 3 is committed as `58a223b`. The change was drafted as a
+  `tools/edit.py` spec while Phase 3's gate ran: "edit: 8 entry(ies)
+  applied to 3 file(s)".
+* **`tools/gate.py --markdown`:** as step 1. `markdown_checks(src)` takes
+  the gate's own checks named in `MARKDOWN_GATES`, imported from
+  `scripts/test_gates.py`, in its order, and raises if one is missing;
+  then `deny-scan`; then `recordlint` and `claims`, run in `--src` by
+  `in_tree`. The paths the change touches are read from the clone's
+  commit, `git diff --name-only HEAD^ HEAD`, so a deleted file counts,
+  which `scratch_clone`'s list leaves out. The full gate's path is
+  unchanged but for `src` named once; its docstring gives the mode, its
+  usage and exit 1 for a refusal.
+* **Tests,** 2, in `TestGateChecks`: the mode's list is `MARKDOWN_GATES`,
+  then `deny-scan`, `recordlint`, `claims`, `gate-selftest` among them; a
+  repository whose change edits a `.md`, edits a `.go` and deletes a `.go`
+  is refused, exit 1, naming both `.go` files and not the `.md`, "gate
+  --markdown: nothing run", no `summary.out`. C9's test is unchanged.
+  `TestGateChecks`: "Ran 3 tests", "OK".
+* **Red first** (`tools/plant.py`, `make tools-test`): "all 3 plant(s)
+  caught": `gate-selftest dropped from --markdown` (the list test, "Lists
+  differ"); `the Markdown-only refusal removed` ("'gate: code.go is not
+  Markdown' not found"; the checks then ran in the test's temporary
+  repository and failed there, `rc=2`); `deletions left out of the
+  refusal` ("'gate: gone.go is not Markdown' not found").
+* **On the tree,** with this phase's Python unstaged: "gate: tools/gate.py
+  is not Markdown; …", "gate: tools/test_tools.py is not Markdown; …",
+  "gate --markdown: nothing run", exit 1. Step 4's first use, on Phase
+  5's documents, is Phase 5's.
+* **`tools/README.md`:** the gate row (C10) names the mode, and "28
+  checks" is 29 (Deviation 1).
+* **Gate:** `tools/gate.py`, started at load 9.1: "gate: 29 of 29
+  passed", exit 0; its `tools-test` "Ran 103 tests", "OK" (101 before, 2
+  added).

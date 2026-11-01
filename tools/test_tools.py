@@ -420,6 +420,31 @@ class TestGateChecks(unittest.TestCase):
                 "g-wire-stable", "links-check", "disclosure-check", "deny-scan", "tools-test"]
         self.assertEqual([c.name for c in gate.CHECKS], want)
 
+    def test_the_markdown_checks_are_ci_docs_gates_then_the_scan_lint_and_claims(self) -> None:
+        names = [c.name for c in gate.markdown_checks(_common.ROOT)]
+        self.assertEqual(names, [*gate.MARKDOWN_GATES, "deny-scan", "recordlint", "claims"])
+        self.assertIn("gate-selftest", names)
+
+    def test_markdown_refuses_a_change_that_is_not_markdown(self) -> None:
+        root = temp_repo(self)
+        for name in ("notes.md", "code.go", "gone.go"):
+            (root / name).write_text("x\n")
+        git(root, "add", ".")
+        git(root, "commit", "-q", "-m", "seed")
+        (root / "notes.md").write_text("y\n")
+        (root / "code.go").write_text("y\n")
+        (root / "gone.go").unlink()
+        work = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, work, ignore_errors=True)
+        rc, out = call(gate.main, "--markdown", "--src", str(root), "--copy", str(work / "copy"), "--out",
+                       str(work / "out"))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("gate: code.go is not Markdown", out)
+        self.assertIn("gate: gone.go is not Markdown", out)
+        self.assertNotIn("notes.md is not", out)
+        self.assertIn("gate --markdown: nothing run", out)
+        self.assertFalse((work / "out" / "summary.out").exists())
+
 
 GO_MOD = "module example.com/plant\n\ngo 1.21\n"
 GO_SRC = "package plant\n\n// Add returns the sum of its arguments.\nfunc Add(a, b int) int { return a + b }\n"
