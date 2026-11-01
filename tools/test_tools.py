@@ -34,6 +34,7 @@ import consumer
 import denyscan
 import edit
 import gate
+import leakfind
 import linkcheck
 import liveskips
 import offline
@@ -559,6 +560,120 @@ class TestRedGreen(unittest.TestCase):
         self.assertEqual(redgreen.results("    --- PASS: TestA/sub (0.00s)\n", ["TestA"]), {"TestA": "missing"})
         run = "=== RUN   TestA\n    --- PASS: TestA/sub (0.00s)\n--- FAIL: TestA (0.00s)\n"
         self.assertEqual(redgreen.results(run, ["TestA"]), {"TestA": "fail"})
+
+
+LF_MOD = "module example.com/leak\n\ngo 1.21\n"
+LF_GUARD = ("// Package localonly stands in for the real guard: Main prints its report when a test called Reach.\n"
+            "package localonly\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n\t\"sync\"\n)\n\n"
+            "var (\n\tmu    sync.Mutex\n\thosts []string\n)\n\n"
+            "// Reach records a request to host.\nfunc Reach(host string) {\n\tmu.Lock()\n\thosts = append(hosts, host)\n"
+            "\tmu.Unlock()\n}\n\n"
+            "// Main runs m, and prints the real guard's report when a host was reached.\n"
+            "func Main(m interface{ Run() int }) int {\n\tcode := m.Run()\n\tif len(hosts) > 0 {\n"
+            "\t\tfmt.Fprintln(os.Stderr, \"localonly: the tests sent requests off the machine, to \"+"
+            "strings.Join(hosts, \", \")+\"; a stand-in\")\n\t\treturn 1\n\t}\n\treturn code\n}\n")
+LF_LEAKY = ("package leaky\n\nimport (\n\t\"os\"\n\t\"testing\"\n\n\t\"example.com/leak/internal/localonly\"\n)\n\n"
+            "func TestMain(m *testing.M) { os.Exit(localonly.Main(m)) }\n\nvar a, b bool\n\n"
+            "func TestClean1(t *testing.T) {}\n\n"
+            "func TestAlone(t *testing.T) { localonly.Reach(\"alone.test:443 (1)\") }\n\n"
+            "func TestClean2(t *testing.T) {}\n\n"
+            "func TestPairA(t *testing.T) {\n\ta = true\n\tif b {\n\t\tlocalonly.Reach(\"pair.test:443 (1)\")\n\t}\n}\n\n"
+            "func TestPairB(t *testing.T) {\n\tb = true\n\tif a {\n\t\tlocalonly.Reach(\"pair.test:443 (1)\")\n\t}\n}\n\n"
+            "func TestClean3(t *testing.T) {}\n")
+LF_CLEAN = ("package clean\n\nimport (\n\t\"os\"\n\t\"testing\"\n\n\t\"example.com/leak/internal/localonly\"\n)\n\n"
+            "func TestMain(m *testing.M) { os.Exit(localonly.Main(m)) }\n\nfunc TestFine(t *testing.T) {}\n")
+LF_NOGUARD = "package noguard\n\nimport \"testing\"\n\nfunc TestFine(t *testing.T) {}\n"
+LF_SPLIT = ("package split\n\nimport (\n\t\"os\"\n\t\"testing\"\n\n\t\"example.com/leak/internal/localonly\"\n)\n\n"
+            "func TestMain(m *testing.M) { os.Exit(localonly.Main(m)) }\n\nvar first bool\n\n"
+            "func TestFirst(t *testing.T) { first = true }\n\n"
+            "func TestSecond(t *testing.T) {\n\tif first {\n\t\tlocalonly.Reach(\"split.test:443 (1)\")\n\t}\n}\n")
+
+
+@unittest.skipUnless(shutil.which("go"), "go is not on PATH")
+class TestLeakFind(unittest.TestCase):
+    """0067-MADR D2: a module with a stand-in guard, a test that leaks alone, and two that leak only together."""
+
+    def setUp(self) -> None:
+        self.root = temp_repo(self)
+        files = {"go.mod": LF_MOD, "internal/localonly/localonly.go": LF_GUARD, "leaky/leaky_test.go": LF_LEAKY,
+                 "clean/clean_test.go": LF_CLEAN, "noguard/noguard_test.go": LF_NOGUARD,
+                 "split/split_test.go": LF_SPLIT}
+        for rel, text in files.items():
+            (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / rel).write_text(text)
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-q", "-m", "seed")
+
+    def find(self, *argv: str) -> tuple[int, str]:
+        return call(leakfind.main, "--root", str(self.root), "--runs", "1", *argv)
+
+    def test_a_lone_leak_and_a_pair_are_named(self) -> None:
+        rc, out = self.find("--chunk", "3", "./leaky/")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("leakfind: 6 tests in ./leaky/", out)
+        self.assertIn("LEAK TestAlone, alone: alone.test:443 (1)", out)
+        self.assertIn("LEAK TestPairA, TestPairB, together: pair.test:443 (1)", out)
+        self.assertNotIn("TestClean3,", out)
+        self.assertIn("leakfind: 2 leak(s) found", out)
+
+    def test_a_leak_across_chunks_is_not_clean(self) -> None:
+        rc, out = self.find("--chunk", "1", "./split/")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("whole package: leaks to split.test:443 (1)", out)
+        self.assertIn("chunk 1 (1 tests): clean", out)
+        self.assertIn("chunk 2 (1 tests): clean", out)
+        self.assertIn("leaks whole but no chunk of 1 does; run with a larger --chunk", out)
+
+    def test_a_package_with_no_leak_is_clean(self) -> None:
+        rc, out = self.find("./clean/")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("leakfind: no leak", out)
+
+    def test_a_package_without_the_guard_is_a_tool_error(self) -> None:
+        rc, out = self.find("./noguard/")
+        self.assertEqual(rc, 2, out)
+        self.assertIn("calls localonly.Main", out)
+
+    def test_ssh_needs_dir_and_a_plain_alias(self) -> None:
+        with mock.patch.object(leakfind, "run", side_effect=AssertionError("a refused --ssh ran a command")):
+            for argv in (["--ssh", "devhost.test"], ["--ssh=-oProxyCommand=x", "--dir", "d"]):
+                rc, out = self.find(*argv, "./clean/")
+                self.assertEqual(rc, 2, out)
+                self.assertIn("--ssh takes a host alias and needs --dir", out)
+
+    def test_the_tree_is_not_written(self) -> None:
+        self.find("--chunk", "3", "./leaky/")
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=self.root, capture_output=True, text=True,
+                                check=True).stdout
+        self.assertEqual(status, "")
+
+
+class TestLeakFindParts(unittest.TestCase):
+    def test_the_report_is_the_guards(self) -> None:
+        source = (_common.ROOT / "internal/localonly/localonly.go").read_text(encoding="utf-8")
+        self.assertIn('"' + leakfind.REPORT + '"', source)
+
+    def test_the_remote_command_quotes_the_directory(self) -> None:
+        cmd = leakfind.ssh_command("devhost.test", "work dir/sdk", ["go", "test", "-run", "^(TestA|TestB)$", "./x/"])
+        self.assertEqual(cmd[:6], ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "devhost.test"])
+        self.assertEqual(cmd[6], "cd 'work dir/sdk' && go test -run '^(TestA|TestB)$' ./x/")
+
+    def test_only_test_names_leave_the_listing(self) -> None:
+        listing = "TestA\nExampleB\nFuzzC\nBenchmarkD\nTestE; rm -rf x\nok  \texample.com/leak\t0.1s\n"
+        self.assertEqual(leakfind.names_from_list(listing), ["TestA", "ExampleB", "FuzzC"])
+
+    def test_a_runner_sees_every_set_through_the_pattern(self) -> None:
+        seen: list[list[str]] = []
+
+        def go(args: list[str]) -> str:
+            seen.append(args)
+            return "TestA\nTestB\n" if "-list" in args else ""
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = leakfind.search(leakfind.Finder(go, "./x/", 1), 25)
+        self.assertEqual(rc, 0, out.getvalue())
+        self.assertIn("leakfind: no leak", out.getvalue())
+        self.assertEqual(seen[1], ["go", "test", "-count=1", "-run", "^(TestA|TestB)$", "./x/"])
 
 
 class TestApidiffArgs(unittest.TestCase):

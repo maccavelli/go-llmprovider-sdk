@@ -139,6 +139,8 @@ Associated MADR: [0067-MADR-keep-four-more-scratch-helpers-as-tools.md](0067-MAD
      the pattern). Both are functions the tests replace.
    * Output: each chunk's result, then each leaking test, or each set a
      leak needs, with its hosts.
+   * *The whole package runs first; a clean whole run is "no leak"
+     (Deviation 2, 0067-MADR A1).*
 2. **Tests,** `TestLeakFind`:
    * on a temporary Go module with its own `internal/localonly` whose
      `Main` prints C1's message when a test set a flag: a test that leaks
@@ -288,3 +290,68 @@ Associated MADR: [0067-MADR-keep-four-more-scratch-helpers-as-tools.md](0067-MAD
   that row: "28 checks" becomes 29. Phase 4 step 5 is annotated, and
   `tools/README.md` was already in this PLAN's scope. No MADR decision or
   fact changes.
+
+### Phase 2 begins (2026-11-01)
+
+* Phase 1 is committed as `7d96582`. `tools/leakfind.py` and its tests,
+  drafted while Phase 1's gate ran, are copied in.
+
+### Deviation 2 (2026-11-01): the leak finder runs the whole package first
+
+* **Found** while writing the tool: MADR D2's search starts with chunks, so
+  a leak that needs two tests in two chunks reads "no leak", exit 0. The
+  draft ran the whole package first, which D2 does not say.
+* **The owner chose (2026-11-01):** keep the whole run and amend D2
+  (0067-MADR A1). Phase 2 step 1 is annotated. A test of the case it
+  covers, `test_a_leak_across_chunks_is_not_clean`, is added to step 2's.
+
+### Phase 2: the leak finder (2026-11-01)
+
+* **`tools/leakfind.py`:** as step 1 and Deviation 2. `Finder.leaks` runs
+  a set up to `--runs` times and returns the hosts of the first run that
+  leaks; `Finder.needed` leaves each test out in turn; `search` prints
+  each step. `PACKAGE` must look like `./path/`, `--ssh` must be a plain
+  alias (`^\w[\w.-]*$`, so never an option) and needs `--dir`, and
+  `--chunk` and `--runs` are at least 1; each else is exit 2 before
+  anything runs.
+* **Tests,** 10. `TestLeakFind` (6), on a module with a stand-in
+  `internal/localonly` whose `Main` prints the real report's text when a
+  test called `Reach`: `--chunk 3` names `TestAlone` alone and
+  `TestPairA, TestPairB` together, not `TestClean3`, "2 leak(s) found",
+  exit 1; two tests that leak only together, in chunks of 1, exit 1 with
+  "run with a larger --chunk"; a clean package exit 0; a package with no
+  `localonly.Main` exit 2; `--ssh` without `--dir`, and an alias that is
+  an option, exit 2 with the reason, with `run` replaced by a stub that
+  fails the test if any command runs; the tree unchanged.
+  `TestLeakFindParts` (4): C1's line holds `REPORT` in quotes; the remote
+  command for a directory with a space; only `Test`, `Example` and `Fuzz`
+  names leave a listing; a runner's set reaches `go test` as
+  `^(TestA|TestB)$`. "Ran 10 tests", "OK".
+* **Red first** (`tools/plant.py`, `make tools-test`), seven plants, all
+  caught in the end:
+  * `the leave-one-out step skipped`: "'LEAK TestPairA, TestPairB,
+    together: pair.test:443 (1)' not found";
+  * `the guard's report changed by a word`: the lone-and-pair test "0 !=
+    1", and `test_the_report_is_the_guards`;
+  * `any listing line taken as a name`: "7 tests" for 6, and the listing
+    test;
+  * `the remote directory unquoted`: "cd work dir/sdk && …" for "cd 'work
+    dir/sdk' && …";
+  * `any alias accepted`: **not caught** on the first run, since the test
+    checked only the exit code, and the run still ended 2, later: with
+    the check planted away, the code path runs `ssh` with the planted
+    value in the alias's place, and its output was not kept. The test
+    now asserts the reason and fails on any command run; with
+    it, "a refused --ssh ran a command", caught, and `--ssh without --dir
+    accepted` the same. The first five were run again with the final
+    tests: "all 5 plant(s) caught";
+  * for Deviation 2, `a leak only the whole run shows reported clean`
+    ("0 != 1") and `the whole run skipped` (three tests fail): "all 2
+    plant(s) caught".
+* **First use:** `tools/leakfind.py ./wizard/` on the tree: "leakfind: 270
+  tests in ./wizard/", "leakfind: no leak", exit 0, in 15 s; `go test
+  -list . ./wizard/` lists 270. The dev host was not used, as step 4 says.
+* **`tools/README.md`:** the `leakfind.py` row.
+* **Gate:** `tools/gate.py`, started at load 9.9: "gate: 29 of 29
+  passed", exit 0; its `tools-test` "Ran 99 tests", "OK" (89 before, 10
+  added).

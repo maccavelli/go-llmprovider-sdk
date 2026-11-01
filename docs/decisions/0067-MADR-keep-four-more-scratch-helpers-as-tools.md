@@ -137,7 +137,9 @@ extensions sit in the tools whose job they extend.
   and none of its tests leaks alone, each test is left out in turn, every
   run `--runs` times (2); a test whose absence stops the leak in every run
   is one the leak needs, and those tests are then run together to confirm
-  it.
+  it. *Annotated 2026-11-01 (A1): the whole package runs first; a clean
+  whole run is "no leak", and a whole run that leaks when no chunk does is
+  a finding.*
 * **Where it runs:** on a scratch clone of the working tree; or, with
   `--ssh`, in the checkout `DIR` on the host `ALIAS`, through `ssh -o
   BatchMode=yes -o ConnectTimeout=5`, for a leak that shows on one
@@ -259,3 +261,17 @@ above.
   [0065-MADR](0065-MADR-tests-reach-no-outside-host.md) (the guard), and
   [0066-PLAN](0066-PLAN-wizard-v1-24-debugging-pass-findings.md) (the red
   runs, the leak hunt, the close).
+
+### A1 (2026-11-01): the leak finder runs the whole package first
+
+* **Found** in 0067-PLAN Phase 2, before the phase was recorded: D2's
+  search starts with chunks. A leak that needs two tests in two chunks
+  never shows in a chunk's run, so D2 as written reports "no leak", exit 0,
+  for it. 0066's leak was of that kind in part: it showed only when a later
+  test kept the process running (0066-PLAN, Phase 8 deviation).
+* **The owner chose (2026-11-01):** the tool runs the whole package first.
+  A whole run that does not leak is "no leak", exit 0. A whole run that
+  leaks when no chunk does is exit 1, with the advice to run with a larger
+  `--chunk`. The cost is up to `--runs` more runs of the package per
+  search; the first use on `./wizard/`, whose two whole runs were clean,
+  took 15 s in all. D2 is annotated; no other decision changes.
