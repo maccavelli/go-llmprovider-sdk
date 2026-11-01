@@ -172,9 +172,19 @@ a gate that reads Markdown: a new gate goes in `MARKDOWN_GATES` or
 
 - `python3 -B tools/gate.py` runs every local check on a scratch clone of
   the working tree, once the load average is below the CPU count. Run it
-  before staging a phase.
+  before staging a phase. `--markdown` runs only what a change to Markdown
+  alone needs: CI's docs gates, the identifier scan, the record lint and
+  the changed records' claims; it waits for the load too, and refuses any
+  other change (0067-MADR D4, A2).
 - `tools/plant.py SPEC.json` proves a new check fails on a planted breach,
   on a scratch clone, never in the tree.
+- `tools/redgreen.py SPEC.json --expect fail|pass [--rev REV]` runs named
+  tests on a clone and requires each to fail, or each to pass: a new test
+  seen red at the code before its fix, a record's tests seen green with
+  none missing (0067-MADR D1).
+- `tools/leakfind.py PACKAGE` names the tests behind a leak the
+  `localonly` guard reports, which names hosts only; `--ssh ALIAS --dir
+  DIR` runs it in a dev host's checkout (0067-MADR D2).
 - `tools/denyscan.py --changed` and `tools/linkcheck.py` are the
   identifier scan and the link check. The link check and the home-path
   rule are CI's `scripts/check_links.py` and `scripts/check_disclosure.py`,
@@ -186,7 +196,8 @@ a gate that reads Markdown: a new gate goes in `MARKDOWN_GATES` or
   and with `--any-url` any URL, by the whole key, with each key two tests
   share (0058-MADR D5, D7).
 - `tools/records.py add RECORD...` and `status RECORD STATUS` change a
-  record's status and its index row together; `tools/recordlint.py
+  record's status and its index row together, and `open` lists the
+  records still open (0067-MADR D3); `tools/recordlint.py
   --changed` reports the markdownlint findings an edit adds to a record;
   `tools/claims.py --plants SPEC.json` proves a record's claims fail when
   planted false (0047-MADR).

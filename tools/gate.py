@@ -16,8 +16,9 @@ amended).
 With --markdown it runs only what a Markdown-only change needs (0067-MADR
 D4): the checks whose names are scripts/test_gates.py's MARKDOWN_GATES, which
 CI's docs workflow runs, the identifier scan, and, in --src, which they only
-read, tools/recordlint.py --changed and tools/claims.py --changed. It waits for
-no load, since none of them runs a Go test, and refuses a change to any file
+read, tools/recordlint.py --changed and tools/claims.py on the changed records
+that hold an evidence index (none is clean). It waits for the load as the full gate does, since
+gate-selftest runs Go tests (0067-MADR A2), and refuses a change to any file
 that is not Markdown, deletions included: such a change needs the full gate.
 
 Each check's full output is written to OUT/<name>.out, and the exit codes to
@@ -34,15 +35,20 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import claims
 import denyscan
 from _common import ROOT, load_limit, out_dir, scratch_clone, wait_load
 from test_gates import MARKDOWN_GATES
+
+# A record's path, as scripts/check_records.py names records.
+RECORD_PATH = re.compile(r"^docs/(decisions|reports)/\d{4}-(MADR|PLAN|REPORT|GATES)-[a-z0-9-]+\.md$")
 
 
 @dataclass(frozen=True)
@@ -116,16 +122,29 @@ def in_tree(src: Path, args: list[str]) -> Callable[[Path, list[str]], tuple[int
     return run
 
 
+def claims_on_records(src: Path) -> Callable[[Path, list[str]], tuple[int, str]]:
+    """tools/claims.py, in src, on the records the change touches that hold an evidence index, by claims.py's own
+    MARKER; clean when there are none, where claims.py --changed calls none a tool error and a record with no
+    rows a finding (0067-MADR A2, A3)."""
+    def run(_copy: Path, changed: list[str]) -> tuple[int, str]:
+        records = [p for p in changed
+                   if RECORD_PATH.match(p) and claims.MARKER.search((src / p).read_text(encoding="utf-8"))]
+        if not records:
+            return 0, "claims: no record with an evidence index changed\n"
+        return command(["python3", "-B", "tools/claims.py", *records])(src, changed)
+    return run
+
+
 def markdown_checks(src: Path) -> list[Check]:
     """--markdown's checks: the gate's own whose names CI's docs workflow runs (MARKDOWN_GATES), in its order,
-    then the identifier scan, and, in src, the record lint and the claims (0067-MADR D4)."""
+    then the identifier scan, and, in src, the record lint and the claims (0067-MADR D4, A2)."""
     by_name = {c.name: c for c in CHECKS}
     missing = [name for name in MARKDOWN_GATES if name not in by_name]
     if missing:
         raise ValueError(f"MARKDOWN_GATES names no gate check: {', '.join(missing)}")
     return [*(by_name[name] for name in MARKDOWN_GATES), by_name["deny-scan"],
             Check("recordlint", in_tree(src, ["python3", "-B", "tools/recordlint.py", "--changed"])),
-            Check("claims", in_tree(src, ["python3", "-B", "tools/claims.py", "--changed"]))]
+            Check("claims", claims_on_records(src))]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -143,15 +162,13 @@ def main(argv: list[str] | None = None) -> int:
     copy = args.copy or out_dir("gate-copy")
     out.mkdir(parents=True, exist_ok=True)
 
-    if args.markdown:
-        checks = markdown_checks(src)
-    else:
-        checks = CHECKS
-        print(f"load {os.getloadavg()[0]:.1f}; waiting for it to fall below {args.max_load:g}", flush=True)
-        if not wait_load(args.max_load, args.timeout):
-            print(f"gate: the load did not fall below {args.max_load:g} within {args.timeout:g} s; nothing run")
-            return 2
-        print(f"started at load {os.getloadavg()[0]:.1f}", flush=True)
+    # --markdown waits too: its gate-selftest runs Go tests (0067-MADR A2).
+    checks = markdown_checks(src) if args.markdown else CHECKS
+    print(f"load {os.getloadavg()[0]:.1f}; waiting for it to fall below {args.max_load:g}", flush=True)
+    if not wait_load(args.max_load, args.timeout):
+        print(f"gate: the load did not fall below {args.max_load:g} within {args.timeout:g} s; nothing run")
+        return 2
+    print(f"started at load {os.getloadavg()[0]:.1f}", flush=True)
     try:
         changed = scratch_clone(src, copy)
         # Every path the change touches, deletions included, which scratch_clone's list leaves out.

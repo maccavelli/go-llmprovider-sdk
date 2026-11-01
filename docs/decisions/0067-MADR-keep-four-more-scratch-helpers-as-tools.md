@@ -163,10 +163,13 @@ extensions sit in the tools whose job they extend.
   differ, then `deny-scan`; and, in the working tree, which they only read,
   `tools/recordlint.py --changed` and `tools/claims.py --changed`, since
   both compare the tree with `HEAD`, and the clone's `HEAD` already holds
-  the changes.
+  the changes. *Annotated 2026-11-01 (A2): the claims check is given the
+  changed records by name, and is clean when there are none.*
 * **A Markdown change only:** a changed file that is not `.md` is a
   finding, exit 1, and nothing runs: such a change needs the full gate.
-* It starts without the load wait: none of its checks runs a Go test.
+* ~~It starts without the load wait: none of its checks runs a Go test.~~
+  *Annotated 2026-11-01 (A2): false; `gate-selftest` runs Go tests, so the
+  mode waits for the load as the full gate does.*
 * The full gate is unchanged.
 
 ### D5. The documents
@@ -275,3 +278,43 @@ above.
   `--chunk`. The cost is up to `--runs` more runs of the package per
   search; the first use on `./wizard/`, whose two whole runs were clean,
   took 15 s in all. D2 is annotated; no other decision changes.
+
+### A2 (2026-11-01): the Markdown gate waits for the load, and gives the claims check its records
+
+* **Found** in 0067-PLAN Phase 5, at `gate.py --markdown`'s first use, on
+  `AGENTS.md` and `docs/architecture.md` alone: "gate: 10 of 11 passed",
+  exit 1, in 5 min 8 s **[probed]**.
+  * `claims` exited 2, "claims: no record given": `tools/claims.py
+    --changed` treats a change with no record as a tool error, where
+    `tools/recordlint.py --changed` reports "0 record(s)", exit 0.
+  * Timed one by one on a scratch clone, at a load average of 65:
+    `gate-selftest` 308.7 s; the other ten 14.4 s together **[probed]**.
+    `gate-selftest` runs every CI gate on planted trees
+    (`scripts/test_gates.py:68`), `coverage-check`'s `go test -cover
+    ./...` (`scripts/check_coverage.py:69`) and `scripts/go-precheck.sh`
+    (`scripts/test_gates.py:111`) among them **[read]**. So D4's "none of
+    its checks runs a Go test" was false, and the reason for no load wait
+    with it: the full gate waits because some tests time out on a loaded
+    host (0034-PLAN Phase 4e).
+* **The owner chose (2026-11-01):**
+  * the mode waits for the load as the full gate does, with the same
+    `--max-load` and `--timeout`;
+  * the claims check runs `tools/claims.py` on the changed records,
+    read from the clone's commit, and is clean, "no record changed", when
+    there are none. `tools/claims.py` is unchanged.
+* D4 is annotated; no other decision changes.
+
+### A3 (2026-11-01): the claims check takes only records with an evidence index
+
+* **Found** in 0067-PLAN Phase 5, running A2's fix on that phase's
+  Markdown alone: `claims: rc=1`, with "0067-MADR…: 0 of 0 pass (no
+  evidence rows)" and "0067-PLAN…: 14 of 14 pass" **[probed]**.
+  `tools/claims.py` counts a record with no evidence rows as a finding
+  (`tools/claims.py:310`) **[read]**, and 109 of the 141 records carry no
+  `<!-- claims: … -->` marker **[probed]**, so A2's check failed any change
+  that touched one of them.
+* **The owner chose (2026-11-01):** the check passes `tools/claims.py`
+  only the changed records whose text matches its own `MARKER`
+  (`tools/claims.py:70`), imported; when there are none it is clean, "no
+  record with an evidence index changed". `tools/claims.py` is unchanged.
+  D4's A2 annotation stands, narrowed so.

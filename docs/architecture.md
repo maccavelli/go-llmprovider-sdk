@@ -42,10 +42,12 @@ scripts/check_docs.py       docs-check: the API audit's R50-R52, the examples an
 scripts/check_links.py      links-check: every relative link resolves; markdownlint's file list
 scripts/check_disclosure.py disclosure-check: no file names a real home directory
 scripts/test_gates.py       gate-selftest: each gate fails on a planted breach
-tools/                      maintainer tools, not run by CI: the local gate,
-                            plants, link check, identifier scan, apidiff,
-                            edits, record status and lint, claims,
-                            release helpers; tools/README.md
+tools/                      maintainer tools, not run by CI: the local gate
+                            and its Markdown mode, plants, red and green
+                            test runs, the leak finder, link check,
+                            identifier scan, apidiff, edits, record status,
+                            open records and lint, claims, release helpers;
+                            tools/README.md
 .claude/ .grok/ .opencode/  per-agent pointers to AGENTS.md
 opencode.json
 llmprovider/                the contract, errors, options and credential sources
@@ -1159,7 +1161,11 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   runs neither. 0047-MADR added `records.py` (a record's status and index
   row), `recordlint.py` (an edit's new markdownlint findings) and
   `claims.py --plants`, and the CI gate
-  `fixtures-check` (`scripts/check_fixtures.py`).
+  `fixtures-check` (`scripts/check_fixtures.py`). 0067-MADR added
+  `redgreen.py` (named tests, each red or each green, at a revision),
+  `leakfind.py` (the tests behind a `localonly` leak), `records.py open`
+  (the records still open) and `gate.py --markdown` (the checks a
+  Markdown-only change needs).
 - **CI** (`.github/workflows/ci.yml`) runs on Linux, macOS and Windows, with
   the Go version read from `go.mod`, on each push to `main`, each pull
   request, and weekly: `go test -shuffle=on`. On Linux it also runs:

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-01
 associated-madr: "0067-MADR-keep-four-more-scratch-helpers-as-tools.md"
 decision-makers: repository owner
@@ -178,10 +178,11 @@ Associated MADR: [0067-MADR-keep-four-more-scratch-helpers-as-tools.md](0067-MAD
    * Its checks are `[c for c in CHECKS if c.name in MARKDOWN_GATES]`, in
      `MARKDOWN_GATES`' order, asserted to find every name, then
      `deny-scan`; then, in `--src`, `tools/recordlint.py --changed` and
-     `tools/claims.py --changed`.
+     ~~`tools/claims.py --changed`~~ `tools/claims.py` on the changed
+     records, clean when there are none *(Deviation 3)*.
    * After the scratch clone, a changed path not ending `.md` is reported
      and is exit 1, no check run.
-   * No load wait.
+   * ~~No load wait.~~ The full gate's load wait *(Deviation 3)*.
 2. **Tests,** in `TestGate`: the `--markdown` list is `MARKDOWN_GATES`
    then `deny-scan`, `recordlint`, `claims`; a changed `.go` file refuses
    (exit 1, the path named); C9's test unchanged.
@@ -422,3 +423,93 @@ Associated MADR: [0067-MADR-keep-four-more-scratch-helpers-as-tools.md](0067-MAD
 * **Gate:** `tools/gate.py`, started at load 9.1: "gate: 29 of 29
   passed", exit 0; its `tools-test` "Ran 103 tests", "OK" (101 before, 2
   added).
+
+### Phase 5 begins (2026-11-01)
+
+* Phase 4 is committed as `3716d03`. Step 1's documents, drafted as a
+  `tools/edit.py` spec while Phase 4's gate ran: "edit: 4 entry(ies)
+  applied to 2 file(s)", `AGENTS.md` and `docs/architecture.md`.
+
+### Deviation 3 (2026-11-01): the Markdown gate's claims check, and its load wait
+
+* **Found** at `gate.py --markdown`'s first use (Phase 4 step 4), on step
+  1's two documents before staging: "gate: 10 of 11 passed", exit 1, in
+  5 min 8 s.
+  * `claims: rc=2`, "claims: no record given": `tools/claims.py
+    --changed` exits 2 when no record changed. Phase 4's tests ran the
+    mode's refusal, not its checks, so none ran the real tools.
+  * Timed one by one on a scratch clone at a load average of 65:
+    `gate-selftest` 308.7 s, the other ten 14.4 s. `gate-selftest` runs
+    `coverage-check`'s `go test -cover ./...` and `go-precheck.sh` on
+    planted trees, so 0067-MADR D4's "none of its checks runs a Go test"
+    was false.
+* **The owner chose (2026-11-01):** the claims check runs
+  `tools/claims.py` on the changed records read from the clone's commit,
+  clean with "no record changed" when there are none; and the mode waits
+  for the load as the full gate does. 0067-MADR A2 records it; Phase 4
+  step 1 is annotated.
+* **Added to Phase 5:** `tools/gate.py` and `tools/test_tools.py` (the
+  fix and its tests, each seen to fail first), and `tools/README.md`'s
+  gate row and step 1's `AGENTS.md` text, which said "no load wait".
+
+### Deviation 4 (2026-11-01): only records with an evidence index
+
+* **Found** running Deviation 3's fix on this phase's Markdown alone (a
+  scratch clone at `HEAD` with only the tree's changed `.md` files copied
+  in): "gate: 10 of 11 passed", `claims: rc=1`, "0067-MADR…: 0 of 0 pass
+  (no evidence rows)". `tools/claims.py` counts no rows as a finding
+  (`tools/claims.py:310`); 109 of 141 records have no marker.
+* **The owner chose (2026-11-01):** the check passes only the changed
+  records matching `claims.MARKER`; none is clean. 0067-MADR A3 records
+  it. No file is added to the phase.
+
+### Phase 5: documents and close (2026-11-01)
+
+* **Step 1:** `AGENTS.md`'s tools list (C12) names `gate.py --markdown`,
+  `redgreen.py`, `leakfind.py` and `records.py open`;
+  `docs/architecture.md`'s tree line (C13) and `tools/` paragraph (C14)
+  name the four. The gate text in both, and `tools/README.md`'s gate row,
+  follow Deviations 3 and 4.
+* **Deviations 3 and 4, in `tools/gate.py`:** `claims_on_records` passes
+  `tools/claims.py` the changed records (`RECORD_PATH`) whose text
+  matches `claims.MARKER`, and is clean, "claims: no record with an
+  evidence index changed", when there are none; both modes wait for the
+  load. The docstring follows.
+* **Tests,** in `TestGateChecks`, 2 added and 1 changed: the claims check
+  given no record, a record without an index (and one only quoting a
+  marker in backticks), a non-record `.md` with a marker, and two indexed
+  records, passes exactly the two; `--markdown` with `wait_load` replaced
+  by `False` exits 2, "nothing run", no copy made; the refusal test
+  replaces `wait_load` by `True`, so a loaded host does not hold it.
+  "Ran 5 tests", "OK".
+* **Red first** (`tools/plant.py`, `make tools-test`): "all 4 plant(s)
+  caught" for Deviation 3, then, with Deviation 4's filter, "all 5
+  plant(s) caught": `claims back to --changed` ("given ['--changed']");
+  `no record is a failure` ("(2, …) != (0, …)"); `any changed Markdown
+  taken as a record` (a `FileNotFoundError` for the stand-in tree's
+  missing `AGENTS.md`); `a record without an index passed to claims`
+  ("given ['docs/decisions/0003-MADR-c.md']"); `--markdown skips the load
+  wait` ("1 != 2").
+* **First use** (Phase 4 step 4), on a scratch clone at `HEAD` with only
+  the tree's five changed `.md` files copied in, by the tree's `gate.py
+  --markdown --src`: "load 10.2; waiting for it to fall below 10",
+  "started at load 8.9", "gate: 11 of 11 passed", exit 0; `claims` on the
+  PLAN only, "14 of 14 pass"; `recordlint` "2 record(s); no rule rose";
+  `deny-scan` "0 hit(s) in 5 file(s)"; `markdownlint` "0 issues".
+* **Gate:** `tools/gate.py`, started at load 9.3: "gate: 29 of 29
+  passed", exit 0; its `tools-test` "Ran 105 tests", "OK" (103 before, 2
+  added).
+* **V8, test by test.** Before closing, each new test was matched to a
+  plant that failed it. Six had not failed on a break of their own, and
+  two only indirectly: the two red/green expectation tests, the drop that
+  matches nothing, both "tree is not written" tests, `leakfind`'s package
+  without the guard, the subtest rule (never broken), and the open
+  statuses (only through the import's `assert`). Eight more plants, each
+  failing its test by name: "all 8 plant(s) caught" (`only a pass is ok`;
+  `any result is ok`; `a drop that matches nothing accepted`; `the tree
+  written`, for each tool; `a subtest's line counted for its parent`; `a
+  package without the guard accepted`; `an unknown open status, no import
+  check`). With them, every test 0067 adds has failed on a planted break.
+* **Close.** V1–V8 hold, as Phases 1–5 record them, V6 with Deviations 3
+  and 4 and V7 by C9's test, unchanged and passing. `tools/records.py
+  status` set this PLAN `complete`.

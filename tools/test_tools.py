@@ -436,14 +436,52 @@ class TestGateChecks(unittest.TestCase):
         (root / "gone.go").unlink()
         work = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, work, ignore_errors=True)
-        rc, out = call(gate.main, "--markdown", "--src", str(root), "--copy", str(work / "copy"), "--out",
-                       str(work / "out"))
+        with mock.patch.object(gate, "wait_load", return_value=True):
+            rc, out = call(gate.main, "--markdown", "--src", str(root), "--copy", str(work / "copy"), "--out",
+                           str(work / "out"))
         self.assertEqual(rc, 1, out)
         self.assertIn("gate: code.go is not Markdown", out)
         self.assertIn("gate: gone.go is not Markdown", out)
         self.assertNotIn("notes.md is not", out)
         self.assertIn("gate --markdown: nothing run", out)
         self.assertFalse((work / "out" / "summary.out").exists())
+
+    def test_markdown_claims_take_the_changed_records_with_an_index_and_none_is_clean(self) -> None:
+        src = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, src, ignore_errors=True)
+        (src / "tools").mkdir()
+        (src / "tools/claims.py").write_text("import sys\nprint('given', sys.argv[1:])\n")
+        (src / "docs/decisions").mkdir(parents=True)
+        (src / "docs/reports").mkdir()
+        indexed = ["docs/decisions/0001-PLAN-a-slug.md", "docs/reports/0002-REPORT-b.md"]
+        for rel in indexed:
+            (src / rel).write_text("# A\n\n<!-- claims: self=abc1234 -->\n")
+        (src / "docs/decisions/0003-MADR-c.md").write_text("# C\n\nNo index; `<!-- claims: x=y -->` quoted.\n")
+        (src / "docs/decisions/notes.md").write_text("<!-- claims: self=abc1234 -->\n")
+        none = "claims: no record with an evidence index changed\n"
+        check = next(c for c in gate.markdown_checks(src) if c.name == "claims")
+        self.assertEqual(check.run(src, ["AGENTS.md", "docs/architecture.md"]), (0, none))
+        self.assertEqual(check.run(src, ["docs/decisions/0003-MADR-c.md"]), (0, none))
+        rc, out = check.run(src, ["AGENTS.md", indexed[0], "docs/decisions/0003-MADR-c.md", "docs/decisions/notes.md",
+                                  indexed[1]])
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(out.strip(), f"given {indexed!r}")
+
+    def test_markdown_waits_for_the_load(self) -> None:
+        root = temp_repo(self)
+        (root / "notes.md").write_text("x\n")
+        git(root, "add", ".")
+        git(root, "commit", "-q", "-m", "seed")
+        (root / "notes.md").write_text("y\n")
+        work = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, work, ignore_errors=True)
+        with mock.patch.object(gate, "wait_load", return_value=False) as waited:
+            rc, out = call(gate.main, "--markdown", "--src", str(root), "--copy", str(work / "copy"), "--out",
+                           str(work / "out"))
+        self.assertEqual(rc, 2, out)
+        waited.assert_called_once()
+        self.assertIn("nothing run", out)
+        self.assertFalse((work / "copy").exists())
 
 
 GO_MOD = "module example.com/plant\n\ngo 1.21\n"
