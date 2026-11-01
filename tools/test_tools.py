@@ -40,6 +40,7 @@ import offline
 import plant
 import recordlint
 import records
+import redgreen
 
 
 def git(cwd: Path, *args: str) -> None:
@@ -445,6 +446,119 @@ class TestPlant(unittest.TestCase):
         rc, out = self.run_spec([{"name": "absent", "file": "plant.go", "old": "a * b", "new": "a / b"}])
         self.assertEqual(rc, 2, out)
         self.assertIn("absent", out)
+
+
+RG_MOD = "module example.com/rg\n\ngo 1.21\n"
+RG_BUGGY = "package rg\n\n// Add returns the sum of its arguments.\nfunc Add(a, b int) int { return a - b }\n"
+RG_FIXED = ("package rg\n\n// Add returns the sum of its arguments.\nfunc Add(a, b int) int { return a + b }\n\n"
+            "// Sub returns a less b.\nfunc Sub(a, b int) int { return a - b }\n")
+RG_ZERO_TEST = ("package rg\n\nimport \"testing\"\n\nfunc TestZero(t *testing.T) {\n"
+                "\tif Add(0, 0) != 0 {\n\t\tt.Error(\"Add(0, 0) != 0\")\n\t}\n}\n")
+RG_FIX_TEST = ("package rg\n\nimport \"testing\"\n\n// TestAddSums is red before the fix.\n"
+               "func TestAddSums(t *testing.T) {\n\tif got := Add(1, 2); got != 3 {\n"
+               "\t\tt.Errorf(\"Add(1, 2) = %d, want 3\", got)\n\t}\n}\n\n"
+               "// TestSub needs Sub, which the first commit lacks.\n// A second comment line.\n"
+               "func TestSub(t *testing.T) {\n\tif Sub(3, 1) != 2 {\n\t\tt.Error(\"Sub(3, 1) != 2\")\n\t}\n}\n")
+
+
+@unittest.skipUnless(shutil.which("go"), "go is not on PATH")
+class TestRedGreen(unittest.TestCase):
+    """0067-MADR D1: a module whose first commit has a bug that its second fixes, with the fix's tests."""
+
+    def setUp(self) -> None:
+        self.root = temp_repo(self)
+        (self.root / "go.mod").write_text(RG_MOD)
+        (self.root / "rg.go").write_text(RG_BUGGY)
+        (self.root / "zero_test.go").write_text(RG_ZERO_TEST)
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-q", "-m", "buggy")
+        self.first = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True,
+                                    check=True).stdout.strip()
+        (self.root / "rg.go").write_text(RG_FIXED)
+        (self.root / "fix_test.go").write_text(RG_FIX_TEST)
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-q", "-m", "fixed")
+        self.out = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.out, ignore_errors=True)
+
+    def run_spec(self, spec: dict, *args: str) -> tuple[int, str]:
+        path = self.out / "spec.json"
+        path.write_text(json.dumps(spec))
+        return call(redgreen.main, "--root", str(self.root), "--out", str(self.out), str(path), *args)
+
+    def test_green_on_the_tree(self) -> None:
+        rc, out = self.run_spec({"tests": {".": ["TestZero", "TestAddSums", "TestSub"]}}, "--expect", "pass")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("redgreen: 3 of 3 pass as expected", out)
+        self.assertIn("--- PASS: TestSub", (self.out / "root.out").read_text())
+
+    def test_each_package_output_has_a_visible_name(self) -> None:
+        self.assertEqual(redgreen.output_name("./llmprovider/providers/chatcompat/"),
+                         "llmprovider_providers_chatcompat.out")
+        self.assertEqual(redgreen.output_name("./wizard/"), "wizard.out")
+        self.assertEqual(redgreen.output_name("."), "root.out")
+
+    def test_red_at_the_first_commit_with_a_drop(self) -> None:
+        rc, out = self.run_spec({"tests": {".": ["TestAddSums"]}, "files": ["fix_test.go"], "drop": ["TestSub"]},
+                                "--expect", "fail", "--rev", self.first)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("ok  fail TestAddSums", out)
+
+    def test_green_expected_where_red_is_a_finding(self) -> None:
+        rc, out = self.run_spec({"tests": {".": ["TestAddSums"]}, "files": ["fix_test.go"], "drop": ["TestSub"]},
+                                "--expect", "pass", "--rev", self.first)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("BAD fail TestAddSums", out)
+
+    def test_red_expected_where_green_is_a_finding(self) -> None:
+        rc, out = self.run_spec({"tests": {".": ["TestZero", "TestAddSums"]}}, "--expect", "fail")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("BAD pass TestZero", out)
+
+    def test_a_package_that_does_not_build_is_not_red(self) -> None:
+        rc, out = self.run_spec({"tests": {".": ["TestAddSums"]}, "files": ["fix_test.go"]},
+                                "--expect", "fail", "--rev", self.first)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("did not build", out)
+        self.assertIn("BAD missing (did not build) TestAddSums", out)
+
+    def test_a_mistyped_name_is_missing(self) -> None:
+        rc, out = self.run_spec({"tests": {".": ["TestZero", "TestAddSum"]}}, "--expect", "pass")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("BAD missing TestAddSum", out)
+        self.assertIn("ok  pass TestZero", out)
+
+    def test_a_drop_that_matches_nothing_is_a_tool_error(self) -> None:
+        rc, out = self.run_spec({"tests": {".": ["TestAddSums"]}, "files": ["fix_test.go"], "drop": ["TestNope"]},
+                                "--expect", "fail", "--rev", self.first)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("drop TestNope: 0 function(s) removed", out)
+
+    def test_files_without_rev_is_a_tool_error(self) -> None:
+        rc, out = self.run_spec({"tests": {".": ["TestZero"]}, "files": ["fix_test.go"]}, "--expect", "pass")
+        self.assertEqual(rc, 2, out)
+        self.assertIn('"files" and "drop" need --rev', out)
+
+    def test_the_tree_is_not_written(self) -> None:
+        before = (self.root / "fix_test.go").read_text()
+        self.run_spec({"tests": {".": ["TestAddSums"]}, "files": ["fix_test.go"], "drop": ["TestSub"]},
+                      "--expect", "fail", "--rev", self.first)
+        self.assertEqual((self.root / "fix_test.go").read_text(), before)
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=self.root, capture_output=True, text=True,
+                                check=True).stdout
+        self.assertEqual(status, "")
+
+    def test_a_drop_takes_the_comment_lines_above_it(self) -> None:
+        text, n = redgreen.drop_func(RG_FIX_TEST, "TestSub")
+        self.assertEqual(n, 1)
+        self.assertNotIn("TestSub", text)
+        self.assertNotIn("A second comment line", text)
+        self.assertIn("// TestAddSums is red before the fix.", text)
+
+    def test_a_subtest_line_does_not_count_for_its_parent(self) -> None:
+        self.assertEqual(redgreen.results("    --- PASS: TestA/sub (0.00s)\n", ["TestA"]), {"TestA": "missing"})
+        run = "=== RUN   TestA\n    --- PASS: TestA/sub (0.00s)\n--- FAIL: TestA (0.00s)\n"
+        self.assertEqual(redgreen.results(run, ["TestA"]), {"TestA": "fail"})
 
 
 class TestApidiffArgs(unittest.TestCase):

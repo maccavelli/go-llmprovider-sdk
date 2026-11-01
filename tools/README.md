@@ -15,6 +15,7 @@ Exit codes, for every tool: **0** clean, **1** a finding, **2** a tool error.
 | :--- | :--- | :--- |
 | `gate.py` | the local gate: 28 checks on a scratch clone of the working tree, staged there, started once the load average is below the CPU count | `tools/gate.py [--src DIR] [--out DIR] [--max-load N] [--timeout S]` |
 | `plant.py` | runs plants from a JSON spec on a scratch clone; fails if any plant is not caught; a plant's text may be read from a file (`old_file`, `new_file`) | `tools/plant.py SPEC.json` |
+| `redgreen.py` | named tests, each red or each green, on a clone: at a revision, with test files copied from the working tree and functions dropped so the package builds, or the working tree itself; a name with no `--- FAIL` or `--- PASS` line, or in a package that does not build, is a finding, since `go test -run` passes a name that matches nothing (0067-MADR D1) | `tools/redgreen.py SPEC.json --expect fail\|pass [--rev REV] [--out DIR]` |
 | `linkcheck.py` | every relative link in every Markdown file resolves, by CI's `scripts/check_links.py` | `tools/linkcheck.py [--detail FILE]` |
 | `denyscan.py` | no file names this machine's account, its host, or a real home path, macOS, Linux or Windows, by CI's `scripts/check_disclosure.py` rule; it prints the kind of hit, never the identifier | `tools/denyscan.py FILE...` or `--changed` |
 | `apidiff.py` | every exported API change between two refs, or a ref and the tree, at `scripts/check_api.py`'s pin | `tools/apidiff.py OLD [NEW]` |
@@ -66,6 +67,20 @@ Each check's output is in `--out`, with the exit codes in `summary.out`.
 
 `"command"` replaces the default `go test -count=1 -run RUN PACKAGES`, so a
 spec can plant in `tools/` and run `make tools-test`'s command.
+
+## Red and green specs
+
+```json
+{"tests": {"./wizard/": ["TestBaseURL_QueryNotShown_0066"]},
+ "files": ["wizard/notices_0066_test.go"],
+ "drop": ["TestSomethingNewer"]}
+```
+
+`redgreen.py --expect fail --rev REV` clones at `REV`, copies `"files"` from
+the working tree, drops each function in `"drop"` with its comment, and
+requires each named test to print `--- FAIL`. `--expect pass` without
+`--rev` runs the working tree, and requires `--- PASS`. `"files"` and
+`"drop"` need `--rev`.
 
 ## Tests
 

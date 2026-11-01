@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-01
 associated-madr: "0067-MADR-keep-four-more-scratch-helpers-as-tools.md"
 decision-makers: repository owner
@@ -187,7 +187,8 @@ Associated MADR: [0067-MADR-keep-four-more-scratch-helpers-as-tools.md](0067-MAD
    test fails; the `.md` check removed: the refusal test fails.
 4. **First use:** `tools/gate.py --markdown` on Phase 5's documents before
    they are staged: every check passes.
-5. **`tools/README.md`'s gate row** (C10) names the mode.
+5. **`tools/README.md`'s gate row** (C10) names the mode, *and its "28
+   checks" becomes 29 (Deviation 1)*.
 
 ### Phase 5: documents and close (D5)
 
@@ -217,4 +218,73 @@ Associated MADR: [0067-MADR-keep-four-more-scratch-helpers-as-tools.md](0067-MAD
 
 ## Execution record
 
-Not started.
+### Phase 0: records (2026-11-01)
+
+* The owner answered Q1–Q3, each as recommended, and 0067-MADR records
+  them; `tools/records.py status` set it `accepted`. The pair and its
+  index rows are committed as `a118c6b`. The owner approved the PLAN.
+* `tools/records.py status` set this PLAN `in-progress`: "records: written;
+  records-check: 0 problem(s)".
+* Before any change, `make tools-test`: "Ran 77 tests", "OK", in 29 s.
+
+### Phase 1: named tests, red or green (2026-11-01)
+
+* **`tools/redgreen.py`:** as step 1, with `SpecError` for exit 2,
+  `drop_func` for a drop, and `output_name` for each package's output
+  file. A spec key outside `tests`, `files` and `drop`, and a name both run
+  and dropped, are spec errors too. A missing `go` is exit 2, not a
+  traceback.
+* **Tests,** `TestRedGreen`, 12, on a module whose first commit has `Add`
+  subtract and whose second fixes it and adds `Sub`, with `fix_test.go`:
+  green on the tree, its output file read; red at the first commit with
+  `TestSub` dropped; each expectation's converse a finding; the package
+  that does not build without the drop, "BAD missing (did not build)",
+  exit 1 (Q1); a mistyped name, "BAD missing", exit 1; a drop that
+  matches nothing and `files` without `--rev`, exit 2; the tree and its
+  status unchanged; a drop takes both comment lines above it; a
+  subtest's line does not count for its parent; the output names.
+  "Ran 12 tests", "OK".
+* **Red first** (`tools/plant.py`, `make tools-test`): "all 4 plant(s)
+  caught", each failing its test, `missing counted as a pass`
+  (`test_a_mistyped_name_is_missing`: "0 != 1"), `the build-failure
+  check removed` ("'did not build' not found"), `a drop leaves the
+  comment lines` ("'TestSub' unexpectedly found"), `files and drop
+  allowed without --rev` ("0 != 2"); run again after the fix below, all
+  4 caught.
+* **Found in the first use, and fixed in the phase:** the output files were
+  named from the package with its dots kept, so `./wizard/` wrote
+  `._wizard.out` and `.` wrote `.out`, hidden from `ls`. `output_name`
+  drops the dots and names `.` `root.out`; `test_green_on_the_tree` reads
+  `root.out`, and `test_each_package_output_has_a_visible_name` checks
+  three packages. The plant restoring the old name: "all 1 plant(s)
+  caught", `FileNotFoundError: … root.out` and "'._llmprovider_providers_chatcompat.out'
+  != 'llmprovider_providers_chatcompat.out'".
+* **First uses:**
+  * `--expect pass` on 0066's 42 names, taken from the close's list, not
+    retyped: "redgreen: 42 of 42 pass as expected", the four packages
+    exit 0, one output file each.
+  * `--expect fail --rev 5c11035` with `wizard/notices_0066_test.go`,
+    unchanged since `3e48e8b` added it: "redgreen: 4 of 4 fail as
+    expected", `./wizard/` exit 1, no build failure. Its output holds
+    Phase 5's record's failures: "want offline", "has a query or a
+    fragment", `SERVER-TEXT-0066`, "notices []; want".
+* **`tools/README.md`:** the `redgreen.py` row and "Red and green specs".
+* **Gate:** `tools/gate.py`, started at load 9.3: "gate: 29 of 29
+  passed", exit 0; its `tools-test` "Ran 89 tests", "OK" (77 before, 12
+  added).
+* **Found, not in this phase's scope:** `tools/README.md:16` (C10) says
+  "the local gate: 28 checks"; `gate.CHECKS` holds 29, and the gate printed
+  "29 of 29". The row predates 0067; it is put to the owner, since Phase 4
+  edits that row.
+
+### Deviation 1 (2026-11-01): the gate row's count
+
+* **Found** after Phase 1's gate: `tools/README.md:16` says "the local
+  gate: 28 checks"; `tools/gate.py`'s `CHECKS` holds 29, which
+  `TestGateChecks` pins, and the gate printed "29 of 29 passed". The
+  uncounted check is `test-repeat`, added by 0058-MADR's amendment of
+  2026-10-24. Not caused by 0067.
+* **The owner chose (2026-11-01):** fix it in Phase 4, which already edits
+  that row: "28 checks" becomes 29. Phase 4 step 5 is annotated, and
+  `tools/README.md` was already in this PLAN's scope. No MADR decision or
+  fact changes.

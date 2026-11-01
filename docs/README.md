@@ -150,7 +150,7 @@ documents a reader follows to do something.
 | 0066 | MADR | [Remediate the Wizard's v1.24 Debugging-Pass Findings, Listed Ids and Chat Completions Servers First](decisions/0066-MADR-wizard-v1-24-debugging-pass-findings.md) | accepted |
 | 0066 | PLAN | [Implement the Remediation of the Wizard's v1.24 Debugging-Pass Findings](decisions/0066-PLAN-wizard-v1-24-debugging-pass-findings.md) | complete |
 | 0067 | MADR | [Keep Four More Scratch Helpers: Red and Green Runs of Named Tests, a Leak Finder, Open Records, and a Markdown Gate](decisions/0067-MADR-keep-four-more-scratch-helpers-as-tools.md) | accepted |
-| 0067 | PLAN | [Implement Keeping Four More Scratch Helpers: Red and Green Runs of Named Tests, a Leak Finder, Open Records, and a Markdown Gate](decisions/0067-PLAN-keep-four-more-scratch-helpers-as-tools.md) | proposed |
+| 0067 | PLAN | [Implement Keeping Four More Scratch Helpers: Red and Green Runs of Named Tests, a Leak Finder, Open Records, and a Markdown Gate](decisions/0067-PLAN-keep-four-more-scratch-helpers-as-tools.md) | in-progress |
 
 ## I want to…
 
