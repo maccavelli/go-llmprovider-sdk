@@ -355,3 +355,34 @@ Associated MADR: [0067-MADR-keep-four-more-scratch-helpers-as-tools.md](0067-MAD
 * **Gate:** `tools/gate.py`, started at load 9.9: "gate: 29 of 29
   passed", exit 0; its `tools-test` "Ran 99 tests", "OK" (89 before, 10
   added).
+
+### Phase 3: open records (2026-11-01)
+
+* Phase 2 is committed as `55d6f87`. The change was drafted as a
+  `tools/edit.py` spec while Phase 2's gate ran: "edit: 9 entry(ies)
+  applied to 2 file(s)".
+* **`tools/records.py open`:** as step 1. `OPEN` and two `assert`s
+  against `check_records.py`'s lists at import; `open_records` reads the
+  records through `check_records.scan`, in its order, decisions by name,
+  so by number; `open` prints and returns before the write path, so it
+  runs no check. The docstring names the third command.
+* **Tests,** 2, in `TestRecords`: with a `complete` PLAN, an
+  `in-progress` PLAN and a REPORT added, `open` prints exactly the
+  `proposed` MADR and the `in-progress` PLAN, then "records: 2 open", exit
+  0, and no file changes; `OPEN`'s statuses are within
+  `check_records.py`'s. `TestRecords`: "Ran 8 tests", "OK".
+* **Red first** (`tools/plant.py`, `make tools-test`): "all 3 plant(s)
+  caught": `in-progress left out of OPEN` and `accepted counted open`
+  (the list test, "Lists differ"); `a status check_records does not
+  know` (the import's `AssertionError`, so every test fails).
+* **First use,** on the tree: `in-progress  2026-11-01
+  docs/decisions/0067-PLAN-keep-four-more-scratch-helpers-as-tools.md`,
+  "records: 1 open", exit 0. Step 4 expected "this pair": the MADR is
+  `accepted` since Phase 0, so it is rightly not listed. A read of every
+  record's front matter without `check_records.py` agrees: 141 records,
+  63 MADRs `accepted`, 69 PLANs `complete`, this PLAN `in-progress`, 8
+  REPORTs; one open.
+* **`tools/README.md`:** `records.py`'s row (C11) names `open`.
+* **Gate:** `tools/gate.py`, started at load 9.0: "gate: 29 of 29
+  passed", exit 0; its `tools-test` "Ran 101 tests", "OK" (99 before, 2
+  added).

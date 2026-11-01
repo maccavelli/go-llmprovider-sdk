@@ -2,7 +2,7 @@
 """records: a record's status, and its row in docs/README.md, changed together.
 
 Defined by docs/decisions/0047-MADR-keep-five-more-scratch-helpers-as-tools.md
-D3. Two commands:
+D3, and `open` by 0067-MADR D3. Three commands:
 
   add RECORD...                       each record's row is added to the index's
                                       Records table, after the last row of the
@@ -11,6 +11,10 @@ D3. Two commands:
                                       its status; "N records." is updated.
   status RECORD STATUS [--date DATE]  the record's front-matter status and date
                                       (today by default), and its row's status.
+  open                                each record still open, a MADR proposed or a
+                                      PLAN proposed or in-progress: its status,
+                                      date and path, in number order. It writes
+                                      nothing, and runs no check.
 
 The statuses allowed, the index's path, its row and its count line are
 scripts/check_records.py's, imported, so the two never disagree. After
@@ -20,9 +24,11 @@ table, which a person writes.
 Usage:
   tools/records.py [--root DIR] add RECORD...
   tools/records.py [--root DIR] status RECORD STATUS [--date YYYY-MM-DD]
+  tools/records.py [--root DIR] open
 
-Exit codes: 0 written and the checks pass, 1 a check failed or the index
-already holds (or lacks) the row, 2 tool error, a bad status or a bad record.
+Exit codes: 0 written and the checks pass, or open's list; 1 a check failed or
+the index already holds (or lacks) the row; 2 tool error, a bad status or a
+bad record.
 """
 from __future__ import annotations
 
@@ -40,6 +46,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import check_records  # noqa: E402
 
 HEADING = re.compile(r"^# (.+?)\s*$", re.M)
+# The statuses in which a record is still open (0067-MADR D3), each one of check_records.py's.
+OPEN = {"MADR": ("proposed",), "PLAN": ("proposed", "in-progress")}
+assert set(OPEN["MADR"]) <= set(check_records.MADR_STATUSES)
+assert set(OPEN["PLAN"]) <= set(check_records.PLAN_STATUSES)
 
 
 class Refused(Exception):
@@ -157,6 +167,14 @@ def check(root: Path) -> list[str]:
     return sorted(problems)
 
 
+def open_records(root: Path) -> list[tuple[str, str, str]]:
+    """Each record whose status is in OPEN, as (status, date, path), in number order (0067-MADR D3)."""
+    with checking(root):
+        found = check_records.scan([])
+    return [(r.meta.get("status", ""), r.meta.get("date", "?"), r.path) for r in found
+            if r.meta.get("status") in OPEN.get(r.kind, ())]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=ROOT, help="the repository (default: this one)")
@@ -167,11 +185,18 @@ def main(argv: list[str] | None = None) -> int:
     p_status.add_argument("record", type=Path)
     p_status.add_argument("status")
     p_status.add_argument("--date", default=datetime.date.today().isoformat())
+    sub.add_parser("open", help="list the records still open")
     try:
         args = parser.parse_args(argv)
     except SystemExit as exit_:
         return 0 if exit_.code == 0 else 2
     root = args.root.resolve()
+    if args.command == "open":
+        rows = open_records(root)
+        for status, date, path in rows:
+            print(f"{status:12} {date:10} {path}")
+        print(f"records: {len(rows)} open")
+        return 0
     try:
         if args.command == "add":
             add(root, args.records)

@@ -315,6 +315,25 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(rc, 1, out)
         self.assertIn("no MADR numbered 0002", out)
 
+    def test_open_lists_the_open_records_in_number_order(self) -> None:
+        self.write("0001-PLAN-first.md", "complete", "Implement First", 'associated-madr: "0001-MADR-first.md"\n')
+        self.write("0003-PLAN-third.md", "in-progress", "Implement Third", 'associated-madr: "0003-MADR-third.md"\n')
+        (self.root / "docs/reports/0002-REPORT-second.md").write_text("---\nstatus: observation\n---\n\n# Second\n")
+        before = {p: p.read_text() for p in self.root.rglob("*.md")}
+        rc, out = self.run_records("open")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(out.splitlines(), [
+            "proposed     2026-10-01 docs/decisions/0003-MADR-third.md",
+            "in-progress  2026-10-01 docs/decisions/0003-PLAN-third.md",
+            "records: 2 open",
+        ])
+        self.assertEqual({p: p.read_text() for p in self.root.rglob("*.md")}, before)
+
+    def test_the_open_statuses_are_check_records(self) -> None:
+        self.assertEqual(set(records.OPEN), {"MADR", "PLAN"})
+        self.assertLessEqual(set(records.OPEN["MADR"]), set(records.check_records.MADR_STATUSES))
+        self.assertLessEqual(set(records.OPEN["PLAN"]), set(records.check_records.PLAN_STATUSES))
+
 
 RECORD = "docs/decisions/0001-MADR-lint.md"
 RECORD_TEXT = "# Lint\n\n* one\n* two\n\nProse.\n"
