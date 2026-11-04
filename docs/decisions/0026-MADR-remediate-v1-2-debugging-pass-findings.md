@@ -875,3 +875,12 @@ Made by 0027-PLAN-live-test-skips-and-gemini-429-path.md, its deviation D1.
   is classified correctly. F12's body rules stay for a reply that carries
   Google's details. 0027-MADR records the measurement and what is still
   unmeasured.
+
+## Amendment 2026-11-03: F11, a refused certificate is not a failure to reach the service
+
+[0068-MADR-five-internal-fixes-from-the-0054-audit.md](0068-MADR-five-internal-fixes-from-the-0054-audit.md) D2 narrows F11's rule that a failure to reach the service is retried.
+A request whose TLS certificate the client refuses (a chain holding a
+`*tls.CertificateVerificationError`) reached the service and was refused by
+the client's own check; no retry can mend it. `WithRetry` and the OAuth
+refresh no longer retry it, whatever kind it was wrapped with. F11's other
+cases are unchanged.

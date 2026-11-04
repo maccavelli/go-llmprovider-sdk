@@ -1289,3 +1289,10 @@ document is fetched in the background; the next request, once it is
 cached, takes its `provider.npm` route. A model the table does not list
 waits for the document, at most 5 s, as before. A pinned route
 (`WithRoute`) still wins over both.
+
+## Amendment 2026-11-03: 501 and 505 are terminal (0068 D2)
+
+Made by [0068-MADR-five-internal-fixes-from-the-0054-audit.md](0068-MADR-five-internal-fixes-from-the-0054-audit.md) (D2). §1.1's status table gains two rows: HTTP 501 (Not
+Implemented) and HTTP 505 (HTTP Version Not Supported) are terminal, with
+`ErrProviderUnavailable`, as 525 and 526 already are. A retry asks the same
+server the same thing, so neither can succeed. Every other 5xx is unchanged.

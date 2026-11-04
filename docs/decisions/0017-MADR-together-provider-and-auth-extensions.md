@@ -584,3 +584,18 @@ D2 adds one exception: with the wizard's `Options.KiloDeviceKey`, the token
 is returned as the `Result`'s API key, nothing is stored, and no
 organization is chosen. The `auth` package's login is unchanged: only what
 the wizard does with its token differs.
+
+## Amendment 2026-11-03: a command key remembers a failure, and runs early
+
+[0068-MADR-five-internal-fixes-from-the-0054-audit.md](0068-MADR-five-internal-fixes-from-the-0054-audit.md) D4 changes D3's `CommandToken` in two ways:
+
+* **A failure is remembered for 5 s.** A run that ends in an error matching
+  `ErrAuthFailure` is kept with its error; a `Token` within 5 s returns it
+  without running the command again. `Invalidate` clears it. A run whose
+  caller gave up is not kept, as before.
+* **One run starts early.** A `Token` that finds the output older than four
+  fifths of its TTL returns it and starts one run, detached from the caller
+  and bounded by `Timeout`. Its success replaces the output; its failure is
+  dropped, and the output serves to its TTL.
+
+D3's text above is not rewritten.

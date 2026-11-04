@@ -152,8 +152,8 @@ documents a reader follows to do something.
 | 0066 | PLAN | [Implement the Remediation of the Wizard's v1.24 Debugging-Pass Findings](decisions/0066-PLAN-wizard-v1-24-debugging-pass-findings.md) | complete |
 | 0067 | MADR | [Keep Four More Scratch Helpers: Red and Green Runs of Named Tests, a Leak Finder, Open Records, and a Markdown Gate](decisions/0067-MADR-keep-four-more-scratch-helpers-as-tools.md) | accepted |
 | 0067 | PLAN | [Implement Keeping Four More Scratch Helpers: Red and Green Runs of Named Tests, a Leak Finder, Open Records, and a Markdown Gate](decisions/0067-PLAN-keep-four-more-scratch-helpers-as-tools.md) | complete |
-| 0068 | MADR | [Five Internal Fixes from the 0054 Audit: an HTTP/2 Health Check, No Retry of a Refused Certificate or of 501 and 505, a Lock Wait Past the Longest Refresh, a Command Token That Remembers Failure and Runs Early, and a Keyword-First Auth Redaction](decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md) | proposed |
-| 0068 | PLAN | [Implement Five Internal Fixes from the 0054 Audit](decisions/0068-PLAN-five-internal-fixes-from-the-0054-audit.md) | proposed |
+| 0068 | MADR | [Five Internal Fixes from the 0054 Audit: an HTTP/2 Health Check, No Retry of a Refused Certificate or of 501 and 505, a Lock Wait Past the Longest Refresh, a Command Token That Remembers Failure and Runs Early, and a Keyword-First Auth Redaction](decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md) | accepted |
+| 0068 | PLAN | [Implement Five Internal Fixes from the 0054 Audit](decisions/0068-PLAN-five-internal-fixes-from-the-0054-audit.md) | in-progress |
 
 ## I want to…
 

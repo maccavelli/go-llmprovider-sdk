@@ -887,3 +887,19 @@ fivefold: each value boxed into an interface allocates. Each wire's items,
 blocks or parts are one struct whose optional fields point into a per-call
 arena, so nothing is boxed. Measured on Responses: the same JSON, and 12
 allocations for 100 plain messages where `HEAD` made 1,008.
+
+## Amendment 2026-11-03: D-A10 extends to `reAuth`; H6 and H9 are taken up
+
+[0068-MADR-five-internal-fixes-from-the-0054-audit.md](0068-MADR-five-internal-fixes-from-the-0054-audit.md) acts on this record in three places.
+
+* **D-A10** (its D5): `reAuth`'s pass also finds its keyword first. In ASCII
+  text it tries the expression anchored at each `authorization`, `bearer`,
+  `basic` or `token`, in order; outside ASCII it keeps the expression's own
+  search. The output is identical, held by a differential fuzz test, as
+  `reKV`'s is.
+* **H6** (its D2), shortlisted and not chosen above: a refused TLS
+  certificate is no longer retried.
+* **H9** (its D3), likewise: `lockWait` goes to 60 s, past the longest
+  refresh hold.
+
+The text above is not rewritten.

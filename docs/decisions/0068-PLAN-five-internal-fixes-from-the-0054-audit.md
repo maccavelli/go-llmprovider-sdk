@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-03
 associated-madr: "0068-MADR-five-internal-fixes-from-the-0054-audit.md"
 decision-makers: repository owner
@@ -285,3 +285,24 @@ No file in the tree changes.
 * **Rollback:** each phase is one commit and reverts alone. D1 also has a
   value to turn off: `SendPingTimeout` zero in `defaultConfig` restores
   today's transport, should a host start refusing pings after the release.
+
+## Execution record
+
+### Phase 0: records (2026-11-03)
+
+* **Step 1:** the report, the MADR, this PLAN and their rows, committed by
+  the owner as `ccc6486`; the owner's answers to Q1 to Q5, as `925c1cb`.
+* **Step 2:** the owner accepted the MADR and approved this PLAN on
+  2026-11-03 ("accept the madr, approved to proceed"). `tools/records.py
+  status` set the MADR `accepted` and this PLAN `in-progress`, each with its
+  row in `docs/README.md`.
+* **Step 3:** a dated amendment of 2026-11-03 at the end of each record the
+  MADR lists, none rewriting the decision it amends:
+  * 0021-MADR: D2 gains the health check; T9's `lockWait` is 60 s;
+  * 0026-MADR: F11 does not cover a refused certificate;
+  * 0012-MADR: §1.1's table gains 501 and 505, terminal;
+  * 0017-MADR: D3's `CommandToken` remembers a failure and runs early;
+  * 0028-MADR: D-A10 extends to `reAuth`; H6 and H9 are taken up;
+  * 0021-PLAN: a note that `lockWait` is 60 s.
+* **Not done here:** Phases 1 to 6. Phase 1 starts after the owner has
+  committed this phase.

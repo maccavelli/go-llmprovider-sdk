@@ -3114,3 +3114,9 @@ as from phase 6):
 * **Not done, each with its reason in its own entry:** step 7.2b (the
   deviation "step 7.2a finds both forms obeyed").
 * **Status:** `complete`; `docs/README.md` says so.
+
+### Note (2026-11-03): `lockWait` is 60 s
+
+This PLAN set `lockWait` to 40 s. [0068-MADR-five-internal-fixes-from-the-0054-audit.md](0068-MADR-five-internal-fixes-from-the-0054-audit.md) D3 makes
+it 60 s, past the longest refresh hold of 45.6 s; see 0021-MADR's amendment
+of the same date. The execution record above is not rewritten.

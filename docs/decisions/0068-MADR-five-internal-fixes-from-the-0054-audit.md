@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-03
 decision-makers: repository owner
 consulted: this module at d65e9d1 (v1.25.0 is the last tag); 0054-REPORT-ideas-status-at-v1-25-0.md, the audit of 0054-REPORT-heuristics-and-performance-opportunities.md, and its probes; Go 1.27.3's net/http and crypto/tls documentation (go doc)

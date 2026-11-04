@@ -904,3 +904,19 @@ inside a 200 stream**, such as Responses' `response.failed` or Messages'
   (0028-MADR D-H8) is unchanged.
 
 D1's text above is not rewritten.
+
+## Amendment 2026-11-03: a health check on the transport, and a longer lock wait
+
+[0068-MADR-five-internal-fixes-from-the-0054-audit.md](0068-MADR-five-internal-fixes-from-the-0054-audit.md) adds to two of this record's decisions.
+
+* **D2's bounds gain one** (its D1). The shared transport pings an HTTP/2
+  connection that has received no frame for 30 s, and closes it when the
+  ping is not answered within 15 s. A dead pooled connection then fails its
+  request within 45 s, where it held the request for the whole 300 s header
+  timeout. None of D2's bounds changes.
+* **T9's `lockWait` goes from 40 s to 60 s** (its D3). A refresh holds the
+  lock for up to three attempts of 15 s and the backoff between them, 45.6 s
+  (0028-MADR's shortlist H9), so a waiter at 40 s gave up on a holder still
+  within its bounds. A test now requires `lockWait` to exceed that hold.
+
+D2's and T9's text above is not rewritten.
