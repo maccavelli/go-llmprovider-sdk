@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-141 records. Cite them by full filename.
+144 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -124,6 +124,7 @@ documents a reader follows to do something.
 | 0053 | MADR | [Fix Six Defects in Streaming, Retry and the Catalog's Caches](decisions/0053-MADR-stream-retry-and-cache-defects.md) | accepted |
 | 0053 | PLAN | [Implement Fixing Six Defects in Streaming, Retry and the Catalog's Caches](decisions/0053-PLAN-stream-retry-and-cache-defects.md) | complete |
 | 0054 | REPORT | [Heuristics and Performance Opportunities, 2026-10-20](reports/0054-REPORT-heuristics-and-performance-opportunities.md) | observation |
+| 0054 | REPORT | [Status of the 0054 Ideas at v1.25.0, Audited 2026-11-03](reports/0054-REPORT-ideas-status-at-v1-25-0.md) | observation |
 | 0055 | MADR | [Require Go 1.27.3 for GO-2026-6809, Release It as v1.20.1, and Give v1.20.0 Its GitHub Release by Hand](decisions/0055-MADR-go-1-27-3-and-the-v1-20-0-release.md) | accepted |
 | 0055 | PLAN | [Implement Go 1.27.3 as the Floor, Release v1.20.1, and Make v1.20.0's Release](decisions/0055-PLAN-go-1-27-3-and-the-v1-20-0-release.md) | complete |
 | 0056 | MADR | [Give the Wizard a Credential-Only Entry Point, Kilo's Device Sign-In as a Key, and Refusals Without the Provider's Text](decisions/0056-MADR-wizard-credential-only-entry-point.md) | accepted |
@@ -151,6 +152,8 @@ documents a reader follows to do something.
 | 0066 | PLAN | [Implement the Remediation of the Wizard's v1.24 Debugging-Pass Findings](decisions/0066-PLAN-wizard-v1-24-debugging-pass-findings.md) | complete |
 | 0067 | MADR | [Keep Four More Scratch Helpers: Red and Green Runs of Named Tests, a Leak Finder, Open Records, and a Markdown Gate](decisions/0067-MADR-keep-four-more-scratch-helpers-as-tools.md) | accepted |
 | 0067 | PLAN | [Implement Keeping Four More Scratch Helpers: Red and Green Runs of Named Tests, a Leak Finder, Open Records, and a Markdown Gate](decisions/0067-PLAN-keep-four-more-scratch-helpers-as-tools.md) | complete |
+| 0068 | MADR | [Five Internal Fixes from the 0054 Audit: an HTTP/2 Health Check, No Retry of a Refused Certificate or of 501 and 505, a Lock Wait Past the Longest Refresh, a Command Token That Remembers Failure and Runs Early, and a Keyword-First Auth Redaction](decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md) | proposed |
+| 0068 | PLAN | [Implement Five Internal Fixes from the 0054 Audit](decisions/0068-PLAN-five-internal-fixes-from-the-0054-audit.md) | proposed |
 
 ## I want to…
 
