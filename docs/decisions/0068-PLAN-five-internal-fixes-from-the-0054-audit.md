@@ -13,8 +13,8 @@ Associated MADR: [0068-MADR-five-internal-fixes-from-the-0054-audit.md](0068-MAD
 
 ## Goal
 
-The MADR's D1 to D6, with the values its questions recommend until the owner
-answers them (Q1 30 s, Q2 5 s, Q3 four fifths, Q4 60 s, Q5 `v1.26.0`):
+The MADR's D1 to D6, as the owner answered its questions on 2026-11-03 (Q1
+30 s, Q2 5 s, Q3 four fifths, Q4 60 s, Q5 `v1.26.0`):
 
 * the shared transport pings a silent HTTP/2 connection, and a dead one
   fails its request within the ping timeouts, not the 300 s header timeout
@@ -68,8 +68,7 @@ answers them (Q1 30 s, Q2 5 s, Q3 four fifths, Q4 60 s, Q5 `v1.26.0`):
 
 ## Rules for every phase
 
-* **Approval.** The owner answers the MADR's questions and approves this
-  PLAN, whole or by phase. A phase starts after the owner has committed the
+* **Approval.** The owner approves this PLAN, whole or by phase. A phase starts after the owner has committed the
   last.
 * **The gate, before staging:**
   * `python3 -B tools/gate.py`, or `--markdown` for a records-only phase;
@@ -119,9 +118,9 @@ answers them (Q1 30 s, Q2 5 s, Q3 four fifths, Q4 60 s, Q5 `v1.26.0`):
 
 1. This PLAN, the MADR, `0054-REPORT-ideas-status-at-v1-25-0.md` and their
    rows in `docs/README.md`, committed as records only.
-2. Once the owner has answered Q1 to Q5: the answers written into the
-   MADR's questions; `tools/records.py status` sets the MADR `accepted` and
-   this PLAN `in-progress`.
+2. The owner's answers to Q1 to Q5, given 2026-11-03, are in the MADR's
+   questions. Once the owner approves this PLAN, `tools/records.py status`
+   sets the MADR `accepted` and this PLAN `in-progress`.
 3. A dated amendment, without rewriting the decision, in each record the
    MADR's "More Information" lists:
    * 0021-MADR D2: the health check (MADR D1);

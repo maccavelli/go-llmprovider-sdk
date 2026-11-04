@@ -304,20 +304,28 @@ exported name and no change to a request.
 
 ## Owner questions
 
+Answered by the owner on 2026-11-03, each as recommended.
+
 * **Q1 (D1). The ping interval.** Offered: 30 s (recommended: a dead
   connection is found within 45 s, and a long generation's silent wait sends
-  at most ten pings); or 60 s (within 75 s, half the pings). Either holds
-  only if Phase 1's probe finds no host that refuses it.
+  at most ten pings); or 60 s (within 75 s, half the pings); or 120 s
+  (within 135 s, at most two pings in a 300 s wait). Any holds only if
+  Phase 1's probe finds no host that refuses it. **Answer: 30 s.**
 * **Q2 (D4). The failure memory.** Offered: 5 s (recommended: a caller
   looping on errors spawns at most one process per 5 s, and a mended
   command is used within 5 s); or 30 s; or none, keeping only the early run.
+  **Answer: 5 s.**
 * **Q3 (D4). When the early run starts.** Offered: at four fifths of the TTL
-  (recommended: the last minute of the default five); or at half.
+  (recommended: the last minute of the default five); or at half; or no
+  early run, keeping only the failure memory. **Answer: at four fifths.**
 * **Q4 (D3). The lock wait.** Offered: 60 s (recommended: past 45.6 s with
-  room for the save); or exactly the longest hold plus 5 s, computed.
+  room for the save); or the longest hold plus 5 s, computed from the
+  refresh's constants; or 90 s. **Answer: 60 s.**
 * **Q5 (D6). The release.** Offered: `v1.26.0` (recommended: a caller can
   see four behaviours change, as 0053-MADR's Q3 answer took for its
-  release); or `v1.25.1`, a patch, since no exported name changes.
+  release); or `v1.25.1`, a patch, since no exported name changes; or no
+  tag yet, holding the phases for the next feature release. **Answer:
+  `v1.26.0`.**
 
 ## More Information
 
