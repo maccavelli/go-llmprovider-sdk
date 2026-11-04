@@ -525,6 +525,8 @@ for a session, from the store.
   after the request was written, is retried at most once per call
   (0021-MADR D1, 0028-MADR D-H1); one before the request was written, as
   often as the policy allows. A wait past the context's deadline returns the error at once.
+  A TLS certificate the client refuses, and HTTP 501 and 505, are not
+  retried: the same request meets the same answer (0068-MADR D2).
 - `WithRetryNotify(p, policy, notify)` is the same wrapper, which calls
   `notify` with a `RetryNotice` on the caller's goroutine, with its `ctx`,
   each time a wait is about to begin, and at no other time (0044-MADR).
@@ -633,7 +635,10 @@ for a session, from the store.
   instances share connections, up to 16 idle per host. Closing one
   client's idle connections leaves the shared ones open. The bounds are
   30 s to connect, 300 s to the first byte, no total timeout, HTTP/2 kept,
-  and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` honoured. `catalog`'s own
+  an HTTP/2 connection silent for 30 s pinged and closed when the ping goes
+  unanswered for 15 s, so a dead pooled connection fails its request
+  within 45 s (0068-MADR D1), and `HTTP_PROXY`, `HTTPS_PROXY` and
+  `NO_PROXY` honoured. `catalog`'s own
   calls use one such client. Every generation goes through `internal/wire`'s
   `Post`, which reads the reply under a 300 s idle limit and, unless it is
   an event stream, a 16 MiB limit, whatever client the caller gave
@@ -755,7 +760,8 @@ for a session, from the store.
     `<provider>.oslock` across processes for each refresh, so a refresh
     token is never spent twice. The operating system releases the lock when
     its holder closes it or dies, so nothing stale is left behind. A waiter
-    gives up after 40 s.
+    gives up after 60 s, past the longest a refresh may hold the lock,
+    45.6 s (0068-MADR D3).
 - **Formatting never shows a secret.** `Token`, `StaticToken` and
   `*OAuthSession` print `[redacted]` for every secret, under `fmt` and `slog`.
 - **Kilo device login.** `StartDeviceOAuth(ctx, "kilo", …)` runs Kilo's
@@ -767,7 +773,11 @@ for a session, from the store.
   - the command runs without a shell, with a 10 s timeout;
   - its output is trimmed, capped at 8 KiB and cached for 5 minutes;
   - concurrent callers share one run;
-  - a failure names the command, never its output.
+  - a failure names the command, never its output, and is returned for 5 s
+    without a new run, unless `Invalidate` is called;
+  - once its output is four fifths of its TTL old, the next call returns it
+    and starts one run in the background, detached from the caller and
+    bounded by its timeout (0068-MADR D4).
 
   It is an `InvalidatingSource` and a `TokenInvalidator`: a provider that
   gets a 401 on its current output invalidates the source and retries

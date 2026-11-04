@@ -11,6 +11,50 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+## [v1.26.0] - 2026-11-04
+
+### Changed
+
+- The shared transport, which `NewHTTPClient` returns and every provider
+  built with no client uses, pings an HTTP/2 connection that has received
+  nothing for 30 s, and closes it when the ping goes unanswered for 15 s.
+  A pooled connection whose peer has gone, after a sleep or a network
+  change, fails its next request within 45 s, where it held the request
+  for the whole 300 s first-byte bound. HTTP/1.1 connections are unchanged
+  ([0068-MADR](docs/decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md)
+  D1).
+- `WithRetry` no longer retries HTTP 501 or 505: `ClassifyHTTPError` makes
+  both terminal, with `ErrProviderUnavailable`, as 525 and 526 are. An
+  OAuth session's refresh retries any 5xx, as before
+  ([0068-MADR](docs/decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md)
+  D2).
+- `FileTokenStore`'s refresh lock waits 60 s for another holder, where it
+  waited 40 s
+  ([0068-MADR](docs/decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md)
+  D3).
+- `CommandToken` returns a failed run's error for 5 s without running its
+  command again, unless `Invalidate` is called; and once its output is
+  four fifths of its TTL old, the next `Token` returns it and starts one
+  run in the background, so a token in steady use is renewed before it
+  expires; with no call in the TTL's last fifth, the next caller waits for
+  the command as before
+  ([0068-MADR](docs/decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md)
+  D4).
+
+### Fixed
+
+- A TLS certificate the client refuses is no longer retried, by `WithRetry`
+  or by an OAuth session's refresh, whatever kind the failure was wrapped
+  with: it cost `MaxAttempts` attempts and the waits between them, and
+  three refresh attempts, where none could succeed
+  ([0068-MADR](docs/decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md)
+  D2).
+- A process waiting for another's refresh lock no longer gives up while the
+  holder is within its own bounds: a refresh may hold the lock for 45.6 s,
+  and the waiter gave up at 40 s
+  ([0068-MADR](docs/decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md)
+  D3).
+
 ## [v1.25.0] - 2026-10-31
 
 ### Added
@@ -1038,7 +1082,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.26.0...HEAD
+[v1.26.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.25.0...v1.26.0
 [v1.25.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.24.1...v1.25.0
 [v1.24.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.24.0...v1.24.1
 [v1.24.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.23.0...v1.24.0

@@ -20,7 +20,10 @@ The MADR's D1 to D6, as the owner answered its questions on 2026-11-03 (Q1
   fails its request within the ping timeouts, not the 300 s header timeout
   (F1);
 * a refused certificate, HTTP 501 and HTTP 505 are not retried, by
-  `WithRetry` or by an OAuth refresh (F2);
+  `WithRetry` or by an OAuth refresh (F2); *(Deviation 5, 2026-11-04: as
+  MADR D2 decides, the refresh stops retrying a refused certificate only;
+  501 and 505 are terminal where `WithRetry` reads them, and a refresh
+  still retries any 5xx)*
 * `lockWait` exceeds the longest refresh hold, and a test holds the order
   (F3);
 * `CommandToken` keeps a failed run's error for the window, and starts one
@@ -662,3 +665,63 @@ The owner committed Phase 4 as `2d8fd44` and said "proceed".
   Windows dev hosts run at the committed phase, before a push.
 * **Staged:** this record, `internal/redact/redact.go`,
   `internal/redact/redact_auth_0068_test.go`.
+
+### Phase 6: docs and the release (2026-11-04)
+
+The owner committed Phase 5 as `51521fb` and said "proceed".
+
+* **Phase 5 on other platforms,** at `51521fb`: `go test -count=1
+  ./internal/redact/` passed on Linux (1.812 s) and on Windows (0.598 s).
+* **Deviation 5 (2026-11-04): the Goal said more than D2 decides.** Found
+  while writing `CHANGELOG.md`: the Goal's F2 line reads "a refused
+  certificate, HTTP 501 and HTTP 505 are not retried, by `WithRetry` or by
+  an OAuth refresh". MADR D2 makes 501 and 505 terminal in
+  `classifyAPIError`, which `WithRetry` reads, and stops the refresh loop
+  retrying a refused certificate only; Phase 3 built that, and the refresh
+  still retries any 5xx (`oauth_session.go:597`). Offered: correct the Goal
+  (recommended); extend the refresh to 501 and 505, amending D2; leave
+  both. **Decision (owner): correct the Goal.** The Goal's line is
+  annotated, not rewritten; no code changes; the changelog says the
+  refresh retries any 5xx as before. Files added to the phase: none.
+* **Step 1, `docs/architecture.md`:** the transport's bounds name the health
+  check; `WithRetry`'s bullet says a refused certificate, 501 and 505 are
+  not retried; `FileTokenStore`'s lock waits 60 s; `CommandToken`'s list
+  gains the failure memory and the early run.
+* **Step 2, `CHANGELOG.md`,** under Unreleased: Changed, for D1, D2's 501
+  and 505, D3 and D4; Fixed, for F2's certificate and F3. D5 changes no
+  behaviour a caller sees and has no entry, as D6 lists.
+* **Step 3, the report's P1 and P2 against the result,** on the Linux dev
+  host at `51521fb`, by a scratch program that imports the module, so that
+  both go through its own client:
+  * P1: Chat Completions' provider (`chatcompat`) over an untrusted TLS
+    test server, under `WithRetry` with `MaxAttempts` 3: "connections 1
+    under MaxAttempts 3; error: Post …/chat/completions: tls: failed to
+    verify certificate: x509: certificate signed by unknown authority";
+  * P2: `NewHTTPClient`'s transport, unchanged, its 30 s and 15 s health
+    check, trusting the test server through `SSL_CERT_FILE`, which Go
+    honours on Linux: "first request ok over HTTP/2.0"; "second request
+    failed after 45.0s: … http2: client connection lost", where the
+    report's P2 waited for the header timeout.
+* **Step 4, the dev hosts,** at `51521fb`, whose code is this phase's:
+  `go test -count=1 ./...`, the whole module, a superset of the step's
+  `./llmprovider/... ./internal/...`: on Linux and on Windows, every package
+  `ok` (40 each; `llmprovider/internal/retired` and
+  `llmprovider/internal/wirecase` have no test files), exit 0.
+* **Step 5, the release, made exact by the last one's steps**
+  (0066-PLAN-wizard-v1-24-debugging-pass-findings.md, Phase 8):
+  * in the tree: `[Unreleased]` became `[v1.26.0] - 2026-11-04` with an
+    empty `[Unreleased]` above it, the comparison links follow, and the
+    README's Status names `v1.26.0`; `make changelog-check`: "38 release
+    section(s), 0 problem(s)";
+  * after the owner commits: the notes from `scripts/check_changelog.py
+    --section v1.26.0` on a clone with a local tag, scanned;
+    `tools/apidiff.py v1.25.0`; the disclosure guard over the outgoing
+    commits;
+  * on the owner's word: the tag `v1.26.0`, annotated, pushed, and its CI
+    and GitHub Release seen green; then `gh release delete v1.22.2 --yes`,
+    the Release that falls to sixth (R53; the five are `v1.25.0`,
+    `v1.24.1`, `v1.24.0`, `v1.23.0` and `v1.22.2` on 2026-11-04);
+    `tools/consumer.py v1.26.0` and `tools/offline.py v1.26.0`;
+  * then this PLAN goes `complete`.
+* **Staged:** this record, `CHANGELOG.md`, `README.md`,
+  `docs/architecture.md`.
