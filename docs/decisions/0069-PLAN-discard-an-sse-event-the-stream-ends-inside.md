@@ -310,3 +310,41 @@ No file in the tree changes. Each test sends one billed request.
   the step's annotation says.
 * **Step 3:** `make changelog-check`: "38 release section(s), 0 problem(s)";
   `make docs-check`: "0 violation(s) of R50,R51,R52".
+* Committed by the owner as `e416033`.
+
+### Phase 3 (2026-11-04)
+
+* **Step 1,** at `e416033`: `go test -tags live_gateways ./llmprovider/ -run
+  'TestLive_.*Streams' -count=1 -v`, exit 0, "ok … 54.436s". Each stream
+  that ran passed with at least one text delta and then `EventDone`:
+  * Responses: OpenAI `gpt-4.1-mini`, 9 deltas; xAI `grok-4.6`, 9; OpenCode
+    Zen and Go `gpt-6-luna`, 2 each;
+  * Messages: Anthropic `claude-haiku-5-5`, 2; OpenCode Zen and Go
+    `qwen3.8-flash`, 3 each;
+  * Chat Completions: Hugging Face `deepseek-ai/DeepSeek-V4-Flash-0731`, 1;
+    Together `zai-org/GLM-5.3-Flash`, 2; OpenCode Zen `glm-5.3-flash`, 5,
+    and Go, 7; a local Ollama `llama3.2:latest`, 2;
+  * generateContent, Google's endpoint: `gemini-3.5-flash-lite`, 2;
+  * Interactions: Gemini `gemini-3.5-flash-lite`, 2, with an interaction id.
+* **Step 2, the rule:** no stream failed with "stream ended inside an event"
+  (no line of the output holds it). Two skipped, each on a failure the live
+  tests treat as transient:
+  * `TestLive_KiloStreams`: "quota exhausted: kilo HTTP 402
+    usage_limit_exceeded: Add credits to continue, or switch to a free
+    model";
+  * `TestLive_OpencodeGoogleStreams/opencode-zen`: "rate limited:
+    opencode-zen/google HTTP 429 UNKNOWN: Upstream request failed: Endpoint
+    is unavailable". It was run once more, alone, and skipped the same way.
+    The same route streamed, ending with a blank line, in the MADR's
+    captures earlier the same day.
+* **Kilo's free models,** tried at the owner's request in this phase, with
+  the scratch capture program and no file in the tree changed. Kilo's
+  public list marks eleven models `isFree`. Each was tried in the list's
+  order with the account's key (`nvidia/nemotron-3.5-lightning:free` in the
+  MADR's captures, the other ten here). Each was tried again with no key,
+  when the provider sends Kilo's `anonymous` token (`kilo.go:203`, which
+  reads no environment variable). All twenty-two requests were refused with
+  HTTP 400 `data_collection_required`. The list marks all of them
+  `mayTrainOnYourPrompts: true`. Enabling data collection is a setting of
+  the owner's Kilo account and was not changed. The MADR gains an amendment,
+  since it called the refusal the account's setting alone.

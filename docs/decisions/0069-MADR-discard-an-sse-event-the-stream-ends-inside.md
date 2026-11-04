@@ -293,3 +293,16 @@ Deviation 1). The owner chose to invert it instead. At the stream end, the
 failing dispatch is never called, and the error is the early end's,
 `ErrProviderUnavailable` after the reply, with no `*APIError`. D2's text
 above is not rewritten.
+
+## Amendment 2026-11-04: Kilo refuses its free models to anonymous callers too
+
+The captures said Kilo's free model was refused with
+`data_collection_required`, "a setting of the account". That was too narrow.
+On 2026-11-04 every model Kilo's public list marks `isFree`, eleven, was
+refused with HTTP 400 `data_collection_required`. It happened with the
+account's key and also with no key, when the provider sends Kilo's
+`anonymous` token (MADR 0012 §1.7), which carries no account. The list
+marks each of the eleven `mayTrainOnYourPrompts: true`. So no Kilo stream can
+be captured without enabling data collection, which is the owner's choice
+to make. Kilo's paid default model answered HTTP 402 `usage_limit_exceeded`.
+The PLAN's Phase 3 holds the runs. The text above is not rewritten.
