@@ -460,3 +460,8 @@ D3's mark covers a dispatch error at a blank line only: none can come at the
 stream end. `TestReadEvents_DispatchErrorMarked_0053` loses its "at the
 stream end" case for that reason (0069-MADR D2). D3's mark, its effect and
 its other cases are unchanged.
+
+*(Note 2026-11-04: the case is inverted, not removed, by
+0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md Deviation 1. At
+the stream end the failing dispatch is never called, and the error is the
+early end's.)*

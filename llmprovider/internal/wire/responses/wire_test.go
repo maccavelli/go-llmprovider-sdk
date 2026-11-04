@@ -97,10 +97,19 @@ func TestReadStream(t *testing.T) {
 			t.Fatalf("ReadStream = %+v, %v; want r0", res, err)
 		}
 	})
-	t.Run("data split over lines, and a final event with no blank line", func(t *testing.T) {
-		res, err := ReadStream("p", strings.NewReader(sse(`{"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"ok"}]}}`)+"data: {\"type\":\"response.completed\",\ndata: \"response\":{\"id\":\"r2\"}}"))
+	split := sse(`{"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"ok"}]}}`) +
+		"data: {\"type\":\"response.completed\",\ndata: \"response\":{\"id\":\"r2\"}}"
+	t.Run("data split over lines", func(t *testing.T) {
+		res, err := ReadStream("p", strings.NewReader(split+"\n\n"))
 		if err != nil || res.ID != "r2" {
 			t.Fatalf("ReadStream = %+v, %v; want r2", res, err)
+		}
+	})
+	t.Run("a final event with no blank line is not read", func(t *testing.T) {
+		// 0069-MADR D2: the stream ended inside its done event.
+		res, err := ReadStream("p", strings.NewReader(split))
+		if res != nil || !errors.Is(err, llmprovider.ErrProviderUnavailable) {
+			t.Fatalf("ReadStream = %+v, %v; want no response and the early-end error", res, err)
 		}
 	})
 	t.Run("[DONE] is skipped", func(t *testing.T) {

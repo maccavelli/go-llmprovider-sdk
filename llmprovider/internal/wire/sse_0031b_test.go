@@ -38,12 +38,27 @@ func TestReadEvents_Framing(t *testing.T) {
 	}
 }
 
-// TestReadEvents_LastEventWithoutBlankLine: an event the stream ends inside is
-// still dispatched.
+// TestReadEvents_LastEventWithoutBlankLine (0069-MADR D2): an event the
+// stream ends inside is not dispatched, and the stream ends early, naming
+// that it ended inside an event; a stream that ends with no data pending
+// keeps the plain early-end text.
 func TestReadEvents_LastEventWithoutBlankLine(t *testing.T) {
-	got, err := readAll(strings.NewReader("data: one\n\ndata: end"), 0)
-	if err != nil || !reflect.DeepEqual(got, []string{"one", "end"}) {
-		t.Fatalf("events %q (%v), want one and end", got, err)
+	for name, stream := range map[string]string{
+		"no line ending":           "data: one\n\ndata: end",
+		"one LF":                   "data: one\n\ndata: end\n",
+		"one CR LF":                "data: one\r\n\r\ndata: end\r\n",
+		"a comment after the data": "data: one\n\ndata: end\n: a comment\n",
+	} {
+		got, err := readAll(strings.NewReader(stream), 0)
+		if !reflect.DeepEqual(got, []string{"one"}) || !errors.Is(err, llmprovider.ErrProviderUnavailable) || !transport.IsAfterReply(err) ||
+			!strings.Contains(err.Error(), "stream ended inside an event, before the end event") {
+			t.Errorf("%s: events %q (%v); want one, then the early end inside an event", name, got, err)
+		}
+	}
+	got, err := readAll(strings.NewReader("data: one\n\nevent: end\n"), 0)
+	if !reflect.DeepEqual(got, []string{"one"}) || err == nil || !strings.Contains(err.Error(), "stream ended before the end event") ||
+		strings.Contains(err.Error(), "inside") {
+		t.Errorf("no data pending: events %q (%v); want one, then the plain early end", got, err)
 	}
 }
 

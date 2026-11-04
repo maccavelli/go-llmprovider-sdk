@@ -39,6 +39,10 @@ var (
 // such as a failure event the service sent inside the stream: the service
 // had begun its reply, so WithRetry and WithStreamRetry ask again at most
 // once (0053-MADR D3). The mark changes neither its text nor its kind.
+//
+// An event the stream ends inside, with no blank line after it, is not
+// dispatched, as the server-sent events specification requires: the stream
+// ended before done (0069-MADR D1).
 func ReadEvents(provider string, body io.Reader, done string, dispatch func(data []byte) (stop bool, err error)) error {
 	reader := bufio.NewReaderSize(body, 64<<10)
 	var data []byte
@@ -79,8 +83,9 @@ func ReadEvents(provider string, body io.Reader, done string, dispatch func(data
 			break
 		}
 	}
-	if stop, err := next(); stop || err != nil {
-		return transport.AfterReply(err)
+	if len(data) > 0 {
+		return fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, provider,
+			transport.AfterReply(fmt.Errorf("stream ended inside an event, before %s", done)))
 	}
 	return fmt.Errorf("%w: %s: %w", llmprovider.ErrProviderUnavailable, provider,
 		transport.AfterReply(fmt.Errorf("stream ended before %s", done)))

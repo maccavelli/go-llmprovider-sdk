@@ -282,3 +282,14 @@ Answered by the owner on 2026-11-04, as recommended.
 * **Exported names:** none added (R55 has nothing to list).
 * The PLAN is
   [0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md](0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md).
+
+## Amendment 2026-11-04: D2, the 0053 case is inverted, not removed
+
+D2 said `TestReadEvents_DispatchErrorMarked_0053`'s "at the stream end" case
+goes. Removed, it left the test nothing that could fail at `8203326` or on a
+plant, which the PLAN requires of every changed test
+([0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md](0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md),
+Deviation 1). The owner chose to invert it instead. At the stream end, the
+failing dispatch is never called, and the error is the early end's,
+`ErrProviderUnavailable` after the reply, with no `*APIError`. D2's text
+above is not rewritten.

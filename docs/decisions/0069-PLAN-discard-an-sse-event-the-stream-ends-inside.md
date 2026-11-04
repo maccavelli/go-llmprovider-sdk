@@ -133,6 +133,10 @@ The MADR's D1 to D3:
      the end event" and not "inside";
    * `TestReadEvents_DispatchErrorMarked_0053` (`sse_0053_test.go`): the
      "at the stream end" entry is removed. A comment cites 0069-MADR D2;
+     *(Deviation 1, 2026-11-04: the case is inverted, not removed. At the
+     stream end a failing dispatch is never called, and the error is the
+     early end's: `ErrProviderUnavailable`, after the reply, with no
+     `*APIError`.)*
    * `TestReadStream` (`responses/wire_test.go`): the case "data split over
      lines, and a final event with no blank line" becomes "data split over
      lines", its body ending `\n\n`, still wanting `r2`. A new case, "a final
@@ -228,3 +232,68 @@ No file in the tree changes. Each test sends one billed request.
     2026-11-04: E2, an event the stream ends inside is not dispatched";
   * 0053-MADR-stream-retry-and-cache-defects.md, "Amendment 2026-11-04: D3,
     no dispatch at the stream end".
+
+### Deviation 1 (2026-11-04): the 0053 test's case is inverted, not removed
+
+* **Found:** steps 4 and 5 require every changed test to be red at
+  `8203326` and to fail on each plant. MADR D2 only removed
+  `TestReadEvents_DispatchErrorMarked_0053`'s "at the stream end" case, so
+  the test asserted nothing that could fail:
+  * `tools/redgreen.py --expect fail --rev 8203326`: `BAD pass
+    TestReadEvents_DispatchErrorMarked_0053`, while the other two were red;
+  * `tools/plant.py`, the end-of-body dispatch restored, that test alone:
+    `NOT CAUGHT (exit 0)`.
+
+  The fault was the PLAN's: it listed this test with the ones that gain an
+  assertion. It was not pre-existing.
+* **Decided by the owner, 2026-11-04, from three resolutions:** invert the
+  case (chosen); keep the removal and limit steps 4 and 5 to the other two
+  tests; move the case into `TestReadEvents_LastEventWithoutBlankLine`.
+* **The change:** the case stays, and requires that, at the stream end, the
+  failing dispatch is never called. The error must be the early end's,
+  `ErrProviderUnavailable` after the reply, with no `*APIError` in its
+  chain. The MADR's D2 gains an amendment; the 0053-MADR amendment of this
+  date gains a dated note. No file is added to the phase.
+
+### Phase 1 (2026-11-04)
+
+* **Steps 1 and 2:** `ReadEvents` returns, with data pending at the end of
+  the body, `ErrProviderUnavailable` wrapping `transport.AfterReply` of
+  "stream ended inside an event, before " and `done`. The end-of-body
+  dispatch is gone. Its doc gains the step's sentence.
+* **Step 3:** the three tests, as the step says and as Deviation 1 amends it.
+* **Step 4, red at `8203326`,** by `tools/redgreen.py --expect fail --rev
+  8203326`: "3 of 3 fail as expected". The failure lines:
+  * `sse_0031b_test.go:55: no line ending: events ["one" "end"] (<nil>);
+    want one, then the early end inside an event`, and the same for "one
+    LF", "one CR LF" and "a comment after the data";
+  * `sse_0053_test.go:33: at the stream end: dispatched true, llmprovider:
+    provider unavailable: server_error; want no dispatch, and the early end
+    marked after the reply`;
+  * `wire_test.go:112: ReadStream = &{ID:r2 …}, <nil>; want no response and
+    the early-end error`.
+
+  The "no data pending" row of the reader's test passes at `8203326`, as it
+  should: that early end is unchanged.
+* **Step 5, plants,** by `tools/plant.py`, both caught:
+  * the end-of-body dispatch restored: `--- FAIL:
+    TestReadEvents_LastEventWithoutBlankLine`, `--- FAIL:
+    TestReadEvents_DispatchErrorMarked_0053`, `--- FAIL: TestReadStream`
+    (its case "a final event with no blank line is not read");
+  * the pending case given "stream ended before": `--- FAIL:
+    TestReadEvents_LastEventWithoutBlankLine`, each of its four rows
+    reading `(llmprovider: provider unavailable: p: stream ended before the
+    end event); want one, then the early end inside an event`.
+* **Step 6:** `go test ./llmprovider/internal/wire/...` passes.
+* **The gate, before staging:**
+  * `make pre-add-check` on the four Go files: "4 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)";
+  * `python3 -B tools/gate.py`: "29 of 29 passed", among them
+    `test-race-cover`, `test-shuffle`, `test-repeat`, `lint`, `api-check`,
+    `docs-check` and `g-wire-stable`;
+  * `tools/apidiff.py v1.26.0`: no output, exit 0;
+  * `tools/claims.py` on the MADR: 18 of 18 pass; `tools/recordlint.py
+    --changed`: no rule rose.
+
+  Every other test at `8203326` passes unchanged: the gate's test runs are
+  the whole module's.

@@ -11,21 +11,26 @@ import (
 
 // TestReadEvents_DispatchErrorMarked_0053 (0053-MADR D3): a dispatch error,
 // such as a failure event the service sent, comes back marked after the
-// reply, at an event and at the stream's end, with its text and kind
-// unchanged; an event over EventLimit stays unmarked; a clean stop is nil.
+// reply, at an event, with its text and kind unchanged; an event over
+// EventLimit stays unmarked; a clean stop is nil. At the stream's end nothing
+// is dispatched: the error is the early end's, not the failure (0069-MADR D2,
+// as amended).
 func TestReadEvents_DispatchErrorMarked_0053(t *testing.T) {
 	failure := &llmprovider.APIError{Kind: llmprovider.ErrProviderUnavailable, Message: "server_error"}
 	dispatch := func([]byte) (bool, error) { return false, failure }
-	for name, body := range map[string]string{
-		"at an event":       "data: x\n\n",
-		"at the stream end": "data: x",
-	} {
-		err := ReadEvents("p", strings.NewReader(body), "done", dispatch)
-		var apiErr *llmprovider.APIError
-		if !transport.IsAfterReply(err) || !errors.Is(err, llmprovider.ErrProviderUnavailable) || !errors.As(err, &apiErr) ||
-			err.Error() != failure.Error() {
-			t.Errorf("%s: %v (after the reply: %v); want the failure, marked, its text unchanged", name, err, transport.IsAfterReply(err))
-		}
+	err := ReadEvents("p", strings.NewReader("data: x\n\n"), "done", dispatch)
+	var apiErr *llmprovider.APIError
+	if !transport.IsAfterReply(err) || !errors.Is(err, llmprovider.ErrProviderUnavailable) || !errors.As(err, &apiErr) ||
+		err.Error() != failure.Error() {
+		t.Errorf("at an event: %v (after the reply: %v); want the failure, marked, its text unchanged", err, transport.IsAfterReply(err))
+	}
+	dispatched := false
+	err = ReadEvents("p", strings.NewReader("data: x"), "done", func([]byte) (bool, error) {
+		dispatched = true
+		return false, failure
+	})
+	if dispatched || !transport.IsAfterReply(err) || !errors.Is(err, llmprovider.ErrProviderUnavailable) || errors.As(err, &apiErr) {
+		t.Errorf("at the stream end: dispatched %v, %v; want no dispatch, and the early end marked after the reply", dispatched, err)
 	}
 	big := "data: " + strings.Repeat("a", EventLimit+1) + "\n\n"
 	if err := ReadEvents("p", strings.NewReader(big), "done", dispatch); !errors.Is(err, llmprovider.ErrIncomplete) || transport.IsAfterReply(err) {
