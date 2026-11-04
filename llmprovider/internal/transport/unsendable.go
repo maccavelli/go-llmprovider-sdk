@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"crypto/tls"
 	"errors"
 	"net/url"
 	"strings"
@@ -36,4 +37,14 @@ func Unsendable(err error) bool {
 		}
 	}
 	return false
+}
+
+// CertificateRefused reports whether err's chain holds a
+// *tls.CertificateVerificationError: the client refused the server's
+// certificate, an unknown authority, a wrong name or an invalid one. The
+// request reached the server; a retry meets the same certificate, so none
+// can mend it (0068-MADR D2).
+func CertificateRefused(err error) bool {
+	_, ok := errors.AsType[*tls.CertificateVerificationError](err) //nolint:errcheck // only whether the chain holds one matters
+	return ok
 }

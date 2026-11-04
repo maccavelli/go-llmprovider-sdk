@@ -13,7 +13,9 @@ import (
 )
 
 // RetryPolicy says how WithRetry retries (0015-MADR D8). It is safe for
-// concurrent use only while no goroutine changes it.
+// concurrent use only while no goroutine changes it. No policy retries what
+// no retry can mend, such as a TLS certificate the client refuses
+// (0068-MADR D2).
 type RetryPolicy struct {
 	// MaxAttempts counts every try, the first included. Zero means 3; one
 	// means no retry.
@@ -73,6 +75,9 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 //     D1). So is a failure after the request was written, such as a timeout
 //     awaiting the reply's headers (0028-MADR D-H1). That retry counts
 //     against MaxAttempts.
+//   - A TLS certificate the client refuses is returned at once, as an
+//     HTTP 501 or 505 is: a retry would meet the same answer (0068-MADR
+//     D2).
 //   - It waits as long as the service asks, plus up to a tenth more (at least
 //     250 ms) so that callers limited together do not return together, and at
 //     most MaxDelay.
@@ -320,6 +325,12 @@ func (p RetryPolicy) wait(attempt int, err error) (time.Duration, bool) {
 // after the request was written, such as a timeout awaiting the reply's
 // headers (0028-MADR D-H1).
 func retryable(err error) bool {
+	// A refused certificate is not retried, whatever kind it was wrapped
+	// with: an OAuth refresh wraps it as ErrProviderUnavailable (0068-MADR
+	// D2).
+	if transport.CertificateRefused(err) {
+		return false
+	}
 	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		return apiErr.Retryable()
 	}

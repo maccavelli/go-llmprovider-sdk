@@ -398,6 +398,10 @@ var (
 	// ErrNotPermitted (0028-MADR D-H2). 0028-PLAN Phase 1's T1 found none:
 	// every provider refused a key with 401 or 400.
 	credential403Codes = map[string][]string{}
+	// terminalUnavailable are the 5xx statuses no retry can mend: 501 and
+	// 505 refuse the request itself, and 525 and 526 the origin's TLS
+	// (0068-MADR D2).
+	terminalUnavailable = []int{http.StatusNotImplemented, http.StatusHTTPVersionNotSupported, 525, 526}
 )
 
 // classifyAPIError applies MADR 0012 §1.1's table (with its 2026-09-27 rows)
@@ -452,7 +456,7 @@ func classifyAPIError(service string, status int, env apiErrorEnvelope, body []b
 	// it (0021-MADR T14).
 	case status == http.StatusConflict && (service == string(ProviderOpenAI) || service == string(ProviderClaude)):
 		return false, ErrProviderUnavailable
-	case status == 525 || status == 526:
+	case slices.Contains(terminalUnavailable, status):
 		return true, ErrProviderUnavailable
 	case status >= http.StatusInternalServerError:
 		return false, ErrProviderUnavailable

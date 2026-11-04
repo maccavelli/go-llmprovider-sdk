@@ -32,7 +32,8 @@ const (
 	oauthErrorBodyLimit = 2048
 	// oauthRefreshAttempts and oauthRefreshBackoff retry a refresh that
 	// failed in transport, with 429 or with 5xx, as the Grok CLI does
-	// (xai-grok-login/src/oidc/protocol.rs:430-438).
+	// (xai-grok-login/src/oidc/protocol.rs:430-438); a refused certificate
+	// is not retried (0068-MADR D2).
 	oauthRefreshAttempts = 3
 	oauthRefreshBackoff  = 200 * time.Millisecond
 	// oauthRefreshToken is the refresh grant type, token field and hint.
@@ -572,7 +573,8 @@ func refreshOAuthSession(ctx context.Context, state oauthSessionState) (*OAuthSe
 }
 
 // refreshOAuthSessionOnce makes one refresh request, bounded by
-// oauthRefreshAttemptTimeout. retry reports a transport error, 429 or 5xx.
+// oauthRefreshAttemptTimeout. retry reports a transport error other than a
+// refused certificate (0068-MADR D2), 429 or 5xx.
 func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next *OAuthSession, token llmprovider.Token, retry bool, err error) {
 	ctx, cancel := context.WithTimeout(ctx, oauthRefreshAttemptTimeout)
 	defer cancel()
@@ -586,7 +588,9 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, llmprovider.Token{}, true, fmt.Errorf("%w: oauth: refresh request: %w", llmprovider.ErrProviderUnavailable,
+		// A refused certificate is not retried: the next attempt meets the
+		// same one (0068-MADR D2).
+		return nil, llmprovider.Token{}, !transport.CertificateRefused(err), fmt.Errorf("%w: oauth: refresh request: %w", llmprovider.ErrProviderUnavailable,
 			transport.WrapOffline(ctx, err, llmprovider.ErrOffline))
 	}
 	if resp.StatusCode != http.StatusOK {

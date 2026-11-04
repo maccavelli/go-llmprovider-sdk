@@ -441,3 +441,72 @@ The owner committed Phase 1 and said "proceed".
 * **Staged:** this record, `llmprovider/internal/transport/transport.go`,
   `llmprovider/internal/transport/transport_0068_test.go`,
   `llmprovider/options.go`.
+
+### Phase 3: what is not retried (2026-11-03)
+
+The owner committed Phase 2 as `ca47d46` and said "proceed".
+
+* **Phase 2 on other platforms,** at `ca47d46`, copied as a git bundle and
+  cloned on each host, Go 1.27.3: `go test -count=1
+  ./llmprovider/internal/transport/ ./llmprovider/` passed on Linux
+  (amd64; 1.420 s and 1.725 s) and on Windows (amd64; 1.402 s and
+  1.834 s).
+* **Built, as steps 1 to 4 say:**
+  * `transport.CertificateRefused`, in `unsendable.go`: whether the chain
+    holds a `*tls.CertificateVerificationError`;
+  * `retryable` returns false for it before anything else, so a refresh's
+    failure wrapped as `ErrProviderUnavailable` is not retried either;
+    `WithRetry`'s doc gains a bullet, and `RetryPolicy`'s a sentence;
+  * `refreshOAuthSessionOnce` reports `retry` false for it; its doc and the
+    attempt constants' say so;
+  * `classifyAPIError` returns 501 and 505 terminal, with
+    `ErrProviderUnavailable`, beside 525 and 526.
+* **Made exact, no decision changed:** the four terminal 5xx statuses are a
+  list, `terminalUnavailable`, matched by one `slices.Contains`. Written as
+  four `||` conditions, `classifyAPIError`'s cyclomatic complexity rose to
+  42, past `.golangci.yml`'s `gocyclo` limit of 40; as a list, the lint
+  passes.
+* **Tests:**
+  * `TestWithRetry_RefusedCertificateOnce_0068` (`llmprovider/retry_0068_test.go`):
+    a provider sends through `transport.DefaultClient()` to a TLS test
+    server the client does not trust; under `WithRetry` with `MaxAttempts`
+    3, one attempt and one connection, as sent and wrapped as
+    `ErrProviderUnavailable`; the error holds the verification error;
+  * `TestOAuthRefresh_RefusedCertificateOnce_0068`
+    (`llmprovider/auth/oauth_refresh_0068_test.go`): a refresh against such
+    a server makes one connection;
+  * `TestClassify_501And505Terminal_0068`: 501 and 505 are
+    `ErrProviderUnavailable` and not `Retryable`; 500 still is;
+  * `TestClassifyHTTPStatus` gains rows for 501 and 505. They check the
+    kind, which this phase does not change, so they pass at `HEAD` too and
+    are not counted as red tests.
+* **Red at `HEAD`:** "3 of 3 fail as expected":
+  * `retry_0068_test.go:81: 3 attempts, 3 connections; want 1 and 1: a
+    refused certificate is not retried`, in both subtests;
+  * `oauth_refresh_0068_test.go:44: 3 connections; want 1: a refused
+    certificate is not retried`;
+  * `retry_0068_test.go:105: 501: Retryable = true; want false`, and the
+    same for 505.
+* **Plants:** "all 5 plant(s) caught":
+  * the check moved after the kind switch, into the kindless branch: only
+    the wrapped subtest fails, `3 attempts, 3 connections`. A first plant
+    that removed the check outright failed both subtests; it is not the
+    plant step 6 names, so the move was planted as written, the whole of
+    `retryable` replaced through `old_file` and `new_file`;
+  * the refresh loop's check removed: `3 connections; want 1`;
+  * 501, then 505, dropped from the list: `Retryable = true; want false`;
+  * `CertificateRefused` never true: all three certificate tests fail.
+* **Checks:**
+  * `make pre-add-check` on the 7 Go files: "7 file(s) clean". Its first run
+    failed: the `gocyclo` limit above, and two `//nolint:errcheck`
+    directives in the tests that `nolintlint` found unused, now removed;
+  * `tools/apidiff.py v1.25.0`: no change printed; `make api-check`: "0
+    incompatible change(s)"; `make docs-check`: "0 violation(s)";
+  * `tools/gate.py`: "29 of 29 passed", `g-wire-stable` among them.
+* **Other platforms:** the three packages' tests on the Linux and Windows
+  dev hosts run at the committed phase, before a push.
+* **Staged:** this record, `llmprovider/api_error.go`,
+  `llmprovider/api_error_test.go`, `llmprovider/auth/oauth_session.go`,
+  `llmprovider/auth/oauth_refresh_0068_test.go`,
+  `llmprovider/internal/transport/unsendable.go`, `llmprovider/retry.go`,
+  `llmprovider/retry_0068_test.go`.

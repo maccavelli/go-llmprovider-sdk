@@ -142,7 +142,9 @@ func TestClassifyHTTPStatus(t *testing.T) {
 		{"400", http.StatusBadRequest, "", ErrInvalidRequest, false},
 		{"404", http.StatusNotFound, "", ErrInvalidRequest, false},
 		{"500", http.StatusInternalServerError, "", ErrProviderUnavailable, false},
+		{"501, terminal", http.StatusNotImplemented, "", ErrProviderUnavailable, false},
 		{"503", http.StatusServiceUnavailable, "", ErrProviderUnavailable, false},
+		{"505, terminal", http.StatusHTTPVersionNotSupported, "", ErrProviderUnavailable, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
