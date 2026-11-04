@@ -153,7 +153,7 @@ documents a reader follows to do something.
 | 0067 | MADR | [Keep Four More Scratch Helpers: Red and Green Runs of Named Tests, a Leak Finder, Open Records, and a Markdown Gate](decisions/0067-MADR-keep-four-more-scratch-helpers-as-tools.md) | accepted |
 | 0067 | PLAN | [Implement Keeping Four More Scratch Helpers: Red and Green Runs of Named Tests, a Leak Finder, Open Records, and a Markdown Gate](decisions/0067-PLAN-keep-four-more-scratch-helpers-as-tools.md) | complete |
 | 0068 | MADR | [Five Internal Fixes from the 0054 Audit: an HTTP/2 Health Check, No Retry of a Refused Certificate or of 501 and 505, a Lock Wait Past the Longest Refresh, a Command Token That Remembers Failure and Runs Early, and a Keyword-First Auth Redaction](decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md) | accepted |
-| 0068 | PLAN | [Implement Five Internal Fixes from the 0054 Audit](decisions/0068-PLAN-five-internal-fixes-from-the-0054-audit.md) | in-progress |
+| 0068 | PLAN | [Implement Five Internal Fixes from the 0054 Audit](decisions/0068-PLAN-five-internal-fixes-from-the-0054-audit.md) | complete |
 
 ## I want to…
 

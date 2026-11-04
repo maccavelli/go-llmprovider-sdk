@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-11-03
+status: complete
+date: 2026-11-04
 associated-madr: "0068-MADR-five-internal-fixes-from-the-0054-audit.md"
 decision-makers: repository owner
 ---
@@ -725,3 +725,60 @@ The owner committed Phase 5 as `51521fb` and said "proceed".
   * then this PLAN goes `complete`.
 * **Staged:** this record, `CHANGELOG.md`, `README.md`,
   `docs/architecture.md`.
+* **The gate:** `tools/gate.py --markdown`, "11 of 11 passed". Its first
+  run did not start: the load, from processes outside this work, stayed
+  above 10 for its 1500 s wait ("nothing run", exit 2). The files were
+  staged after that run by a command that did not wait on its status; the
+  owner was told not to commit until a run passed, and the second run, with
+  a 3600 s wait, passed on the staged files unchanged.
+
+### The release (2026-11-04)
+
+The owner committed Phase 6 as `5ae1fe1`.
+
+* **Before the push:**
+  * the notes, from `scripts/check_changelog.py --section v1.26.0` on a
+    scratch clone with a local annotated tag on `5ae1fe1`: 41 lines,
+    Changed and Fixed as above, every link absolute to the tag, read in
+    full, with no host, account or path; `changelog-check` there with the
+    tag: "38 release section(s), 0 problem(s)", the tag's date 2026-11-04;
+  * `tools/apidiff.py v1.25.0`: nothing printed, exit 0;
+  * the disclosure guard over the 9 outgoing commits, `ccc6486` to
+    `5ae1fe1`: exit 0.
+* **The push and the tag,** by the owner: `main` at `5ae1fe1`, whose CI
+  (run 41845283430: `validate` on ubuntu-24.04, macos-15, windows-2025)
+  and Docs (run 41845283602) passed; then `v1.26.0`, annotated, on
+  `5ae1fe1`. Its CI, run 41847739098: `validate` on all three, success;
+  `release`, success.
+* **The Release:** `v1.26.0`, Latest. Its body equals the notes above, 41
+  lines, but for a trailing newline.
+* **After the tag:**
+  * the owner ran `gh release delete v1.22.2 --yes` (R53): the five
+    Releases are `v1.26.0`, `v1.25.0`, `v1.24.1`, `v1.24.0` and `v1.23.0`;
+    the tag `v1.22.2` stays;
+  * `tools/consumer.py v1.26.0`: "16 packages linked", a build for each of
+    six platforms, "every step passed";
+  * `tools/offline.py v1.26.0`: "fields=19 … requests=0", a build for each
+    of six platforms, each plant caught, "every step passed".
+
+### Closing (2026-11-04)
+
+* **The MADR's Confirmation, item by item:**
+  * D6's tests pass, and each failed on its planted break: Phases 2 to 5,
+    every plant caught; two tests are red by plant only (Deviations 3 and
+    4), and the status table's two new rows pass at `HEAD`, as Phase 3
+    records;
+  * P1 again: one connection (Phase 6 step 3); P2 again: 45.0 s, through
+    the module's own transport;
+  * `BenchmarkRedact_16KiBTokens` 10.2 times faster; the fuzz test clean
+    for 5 minutes;
+  * `tools/apidiff.py v1.25.0`: no change; G-wire's goldens unchanged
+    (`g-wire-stable` in each phase's gate); `make docs-check`: 0.
+* **Not done, each with its reason in its own record:** NXDOMAIN and
+  Anthropic's spend cap (MADR D2); refresh jitter, `Retry-After` on a
+  refresh and a blocking lock (D3); `VendorCLISession`'s file (D4); the
+  TLS session cache (Scope); a refresh's retry of 501 and 505 (Deviation
+  5); a connection with a stream open through a long silent wait, not
+  measured for pings (MADR amendment "Phase 1's ping probe").
+* **Deviations:** five, each with the owner's decision above.
+* **Status:** `complete`; `docs/README.md` says so.
