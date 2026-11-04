@@ -184,19 +184,21 @@ type pass struct {
 	anchors    []string
 }
 
-// kwToken, kwCode and kwKey are anchors and keywords several passes share.
+// kwToken, kwCode, kwKey and kwAuthorization are anchors and keywords
+// several passes share.
 const (
-	kwToken = "token"
-	kwCode  = "code"
-	kwKey   = "key"
+	kwToken         = "token"
+	kwCode          = "code"
+	kwKey           = "key"
+	kwAuthorization = "authorization"
 )
 
 // passes run in order; each one's anchors are a literal its regex cannot
 // match without.
 var passes = []pass{
-	{re: reAuth, replaceSub: redactAuth, anchors: []string{"bearer", "basic", kwToken}},
+	{re: reAuth, apply: redactAuthPass, anchors: []string{"bearer", "basic", kwToken}},
 	{re: reCookie, replaceSub: redactCookie, anchors: []string{"cookie"}},
-	{re: reKV, apply: redactKVPass, anchors: []string{"pass", "pwd", "secret", kwKey, "signature", kwToken, "authorization", kwCode}},
+	{re: reKV, apply: redactKVPass, anchors: []string{"pass", "pwd", "secret", kwKey, "signature", kwToken, kwAuthorization, kwCode}},
 	{re: reKVLong, replaceSub: redactKVLong, anchors: []string{kwCode, kwKey}},
 	{re: reKiloToken, repl: []byte("${1}:[REDACTED]"), anchors: []string{"http"}},
 	{re: reDSN, repl: []byte("${1}[REDACTED]@"), anchors: []string{"://"}},
@@ -279,7 +281,7 @@ var reKVAnchored = regexp.MustCompile(`^(?:` + reKV.String() + `)`)
 // kvKeywords are literals one of which every reKV name contains: the
 // expression's keywords, with api_key's and the other keys' "key", and
 // code_verifier's "verifier".
-var kvKeywords = []string{"password", "passwd", "pwd", "secret", kwKey, "signature", kwToken, "authorization", "verifier", kwCode}
+var kvKeywords = []string{"password", "passwd", "pwd", "secret", kwKey, "signature", kwToken, kwAuthorization, "verifier", kwCode}
 
 // redactKVPass is the reKV pass, keyword first (0028-MADR D-A10). reKV's name
 // begins with a repetition that an unanchored search tries from every word
@@ -302,7 +304,7 @@ func redactKVPass(p []byte) []byte {
 	lower := asciiLower(stack[:0], p)
 	var out []byte
 	last, pos := 0, 0
-	for _, ks := range keywordStarts(lower) {
+	for _, ks := range keywordStarts(lower, kvKeywords) {
 		if ks < pos {
 			continue
 		}
@@ -332,11 +334,57 @@ func redactKVPass(p []byte) []byte {
 	return append(out, p[last:]...)
 }
 
-// keywordStarts are the offsets in lower of every kvKeywords occurrence, in
+// reAuthAnchored is reAuth anchored at its start, with the same groups: the
+// pass tries it only where a match can start.
+var reAuthAnchored = regexp.MustCompile(`^(?:` + reAuth.String() + `)`)
+
+// authKeywords are the literals one of which begins every reAuth match: its
+// Authorization label when it has one, else its scheme.
+var authKeywords = []string{kwAuthorization, "bearer", "basic", kwToken}
+
+// redactAuthPass is the reAuth pass, keyword first, as redactKVPass is reKV's
+// (0068-MADR D5). reAuth's optional label begins with a repetition that an
+// unanchored search tries from every position, so 16 KiB of text cost
+// milliseconds. Every match begins at one of authKeywords, and reAuth asserts
+// nothing about the text before it; so the pass tries reAuth anchored at
+// each keyword, in order, skipping those inside the last match. The first
+// that matches at the leftmost such offset is the match the unanchored
+// search finds, and redactAuth replaces it as before. Text with a byte
+// outside ASCII takes the expression's own search, as redactKVPass does.
+func redactAuthPass(p []byte) []byte {
+	if !isASCII(p) {
+		if !reAuth.Match(p) {
+			return p
+		}
+		return replaceSubmatches(reAuth, p, redactAuth)
+	}
+	var stack [4 << 10]byte
+	lower := asciiLower(stack[:0], p)
+	var out []byte
+	last, pos := 0, 0
+	for _, s := range keywordStarts(lower, authKeywords) {
+		if s < pos {
+			continue
+		}
+		loc := reAuthAnchored.FindSubmatchIndex(p[s:])
+		if loc == nil {
+			continue
+		}
+		out = append(out, p[last:s]...)
+		out = append(out, redactAuth(submatches(p[s:], loc))...)
+		last, pos = s+loc[1], s+loc[1]
+	}
+	if out == nil {
+		return p
+	}
+	return append(out, p[last:]...)
+}
+
+// keywordStarts are the offsets in lower of every keywords occurrence, in
 // order, each once.
-func keywordStarts(lower []byte) []int {
+func keywordStarts(lower []byte, keywords []string) []int {
 	var starts []int
-	for _, kw := range kvKeywords {
+	for _, kw := range keywords {
 		for i := 0; ; {
 			j := bytes.Index(lower[i:], []byte(kw))
 			if j < 0 {

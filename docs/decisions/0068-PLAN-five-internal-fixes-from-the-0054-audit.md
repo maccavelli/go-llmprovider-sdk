@@ -595,3 +595,70 @@ The owner committed Phase 3 as `a5152cb` and said "proceed".
   `llmprovider/command_token_0068_test.go`,
   `llmprovider/auth/tokenstore_file.go`,
   `llmprovider/auth/lockwait_0068_test.go`.
+
+### Phase 5: `reAuth` keyword-first (2026-11-03)
+
+The owner committed Phase 4 as `2d8fd44` and said "proceed".
+
+* **Phase 4 on other platforms,** at `2d8fd44`: `go test -count=1
+  ./llmprovider/ ./llmprovider/auth/` passed on Linux (2.357 s, 7.894 s)
+  and on Windows (2.469 s, 8.245 s).
+* **Before** (step 1), on the tree at `2d8fd44`, load 6.6 to 8.6 on 10
+  CPUs, `-count=10 -benchmem`:
+  * `BenchmarkRedact_16KiBTokens`: median 1,415,558 ns/op (1,382,777 to
+    1,831,852), 101,747 B/op, 12 allocs/op;
+  * `BenchmarkRedact_Clean4KiB`: median 28,031 ns/op, 0 B/op, 0 allocs/op.
+* **Built, as step 2 says:** `redactAuthPass`, the `reAuth` pass's `apply`,
+  beside `redactKVPass`, with `reAuthAnchored` and `authKeywords`
+  (`authorization`, `bearer`, `basic`, `token`). `keywordStarts` takes its
+  keywords as an argument, so both passes share it.
+  `kwAuthorization` names the literal, which `goconst` asked for at its
+  third use.
+* **Tests** (`internal/redact/redact_auth_0068_test.go`):
+  `FuzzRedactAuthPass_MatchesExpression_0068`, the pass against
+  `replaceSubmatches(reAuth, …, redactAuth)`, seeded with `equivCorpus()`
+  and 19 shapes of label, case, spacing, overlap and folding. Every existing
+  redaction test passes unchanged.
+* **The fuzz run** (step 3), on a scratch copy of the tree: "fuzz: elapsed:
+  5m1s, execs: 637770, new interesting: 119 (total: 356)", PASS, no input
+  written under `testdata`. The copy was taken before `kwAuthorization`
+  was named; the rename changes no byte the pass reads.
+* **After** (step 4), load 8.1 to 8.3:
+  * `BenchmarkRedact_16KiBTokens`: median 138,239 ns/op (136,454 to
+    151,311), 152,838 B/op, 20 allocs/op: 10.2 times faster, with 50 % more
+    bytes and 8 more allocations. They were not profiled. One source is
+    plain in the code: the pass lower-cases the text into a 4 KiB stack
+    buffer, which 16 KiB outgrows. An error body is cut to 2 KiB before
+    redaction (0028-MADR D-A10), so in use that copy stays on the stack;
+  * `BenchmarkRedact_Clean4KiB`: median 28,042 ns/op, unchanged: clean text
+    holds no anchor, so the pass does not run.
+* **Plants** (step 5), against the fuzz test alone: "all 3 plant(s)
+  caught":
+  * `authorization` left out of the keywords:
+    `redactAuthPass("Authorization: Bearer invalid")` differs;
+  * the non-ASCII fallback removed: `redactAuthPass("a Kelvin sign: toKen
+    abcd1234efgh, …")` differs;
+  * the skip inside the last match turned off: a slice out of range at the
+    test's call of the pass.
+* **What the plants found first:** the Kelvin-sign seed's credential was
+  first `abcdefghij`, a word that `redactAuth` keeps with no label, so the
+  fallback's removal changed nothing it read and was not caught; with
+  `abcd1234efgh` it is. The first skip plant deleted the check, which left
+  `pos` unread and the package unbuilt, a catch that proves nothing; the
+  plant as recorded keeps it compiling (`s < pos && false`).
+* **Deviation 4 (2026-11-03): the fuzz test cannot be red at `HEAD`.** It
+  calls `redactAuthPass`, which `HEAD` lacks, and it asserts output
+  identical to `HEAD`'s; like Deviation 3's guard, it is seen red only by
+  its plants. Offered: accept, red by plants (recommended); amend the "Red
+  first" rule; add a timing test that fails at `HEAD`. **Decision (owner):
+  accept, red by plants.** Files added to the phase: none.
+* **Checks:**
+  * `make pre-add-check` on the 2 Go files: "2 file(s) clean". Its first run
+    failed on the `goconst` finding above;
+  * `tools/apidiff.py v1.25.0`: no change printed; `make docs-check`: "0
+    violation(s)";
+  * `tools/gate.py`: "29 of 29 passed".
+* **Other platforms:** the redaction package's tests on the Linux and
+  Windows dev hosts run at the committed phase, before a push.
+* **Staged:** this record, `internal/redact/redact.go`,
+  `internal/redact/redact_auth_0068_test.go`.
