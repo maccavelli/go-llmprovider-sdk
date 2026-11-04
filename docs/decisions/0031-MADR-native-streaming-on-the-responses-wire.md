@@ -609,3 +609,12 @@ one after it ends the stream, Q1's first answer for that caller only.
   (D1 to D7, complete) and
   [0031-PLAN-native-streaming-on-the-other-wires.md](0031-PLAN-native-streaming-on-the-other-wires.md)
   (D8, by the amendment of 2026-10-10).
+
+## Amendment 2026-11-04: E2, an event the stream ends inside is not dispatched
+
+[0069-MADR-discard-an-sse-event-the-stream-ends-inside.md](0069-MADR-discard-an-sse-event-the-stream-ends-inside.md)
+D1 adds a rule to E2's shared framing. At a clean end of the body, data with
+no blank line after it is not dispatched, as the server-sent events
+specification requires (its section 9.2.6). The stream then ends with the
+early-end error, naming that it ended inside an event. E2's other rules are
+unchanged.

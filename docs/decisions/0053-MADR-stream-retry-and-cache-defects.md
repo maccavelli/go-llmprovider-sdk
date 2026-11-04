@@ -451,3 +451,12 @@ Answered by the owner on 2026-10-20.
   (Q1).
 * The PLAN, `0053-PLAN-stream-retry-and-cache-defects.md`, follows once
   this record is reviewed.
+
+## Amendment 2026-11-04: D3, no dispatch at the stream end
+
+[0069-MADR-discard-an-sse-event-the-stream-ends-inside.md](0069-MADR-discard-an-sse-event-the-stream-ends-inside.md)
+D1 stops `wire.ReadEvents` dispatching an event the stream ends inside. So
+D3's mark covers a dispatch error at a blank line only: none can come at the
+stream end. `TestReadEvents_DispatchErrorMarked_0053` loses its "at the
+stream end" case for that reason (0069-MADR D2). D3's mark, its effect and
+its other cases are unchanged.

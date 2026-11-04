@@ -262,6 +262,8 @@ last event with a blank line, so no stream that works today changes.
 
 ## Owner questions
 
+Answered by the owner on 2026-11-04, as recommended.
+
 * **Q1 (D3). The release.** Offered:
   * `v1.26.1` (recommended): it fixes a departure from the specification.
     It adds or changes no exported name, and changes no measured server's
@@ -269,6 +271,8 @@ last event with a blank line, so no stream that works today changes.
   * `v1.27.0`, since a caller can see a result change, as 0068-MADR's Q5
     answer reasoned;
   * no tag yet, holding the change for the next release.
+
+  **Answer: `v1.26.1`,** tagged by the owner.
 
 ## More Information
 

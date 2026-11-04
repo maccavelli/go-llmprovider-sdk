@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-04
 associated-madr: "0069-MADR-discard-an-sse-event-the-stream-ends-inside.md"
 decision-makers: repository owner
@@ -207,4 +207,24 @@ No file in the tree changes. Each test sends one billed request.
 
 ## Execution record
 
-Not started.
+### Phase 0 (2026-11-04)
+
+* **Step 1:** the MADR, this PLAN and their rows, committed as `0ddf5e5`.
+  Before that commit:
+  * the MADR's claims passed, 18 of 18;
+  * three planted false claims were each caught by `tools/claims.py
+    --plants`: C1 at the wrong line, C3 with text the code lacks, and C5
+    naming a case that is not there;
+  * the Markdown gate passed, 11 of 11, on its second run. On the first,
+    `gate-selftest` exited 2: its generate-check fixture's `go run
+    …mkwinsyscall@v0.47.0` failed with "net/http: TLS handshake timeout"
+    fetching from the module proxy, with the host's load at 44.9 before
+    the gate started. Nothing was staged until the second run passed.
+* **Step 2:** the owner approved this PLAN on 2026-11-04 and answered Q1,
+  `v1.26.1`, which the MADR's questions now record. `tools/records.py
+  status` set this PLAN `in-progress`.
+* **Step 3:** the dated amendments, appended without rewriting:
+  * 0031-MADR-native-streaming-on-the-responses-wire.md, "Amendment
+    2026-11-04: E2, an event the stream ends inside is not dispatched";
+  * 0053-MADR-stream-retry-and-cache-defects.md, "Amendment 2026-11-04: D3,
+    no dispatch at the stream end".
