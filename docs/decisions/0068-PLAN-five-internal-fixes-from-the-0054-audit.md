@@ -382,3 +382,62 @@ in this phase but this record.
   owner's condition to stop does not hold. The MADR's amendment "Phase 1's
   ping probe" records the measurement under D1. Phase 2 starts after the
   owner commits this phase.
+
+### Phase 2: the transport's health check (2026-11-03)
+
+The owner committed Phase 1 and said "proceed".
+
+* **Built, as steps 1 and 3 say:**
+  * `transport.Config` has `SendPingTimeout` and `PingTimeout`;
+    `defaultConfig` sets 30 s and 15 s; `manager.transport` sets
+    `HTTP2: &http.HTTP2Config{…}` when `SendPingTimeout` is above zero;
+    `DefaultClient`'s doc lists the health check with its other bounds;
+  * `NewHTTPClient`'s doc lists it with the transport's bounds.
+* **Tests,** in `llmprovider/internal/transport/transport_0068_test.go`:
+  * `TestDefaultClient_HTTP2HealthCheck_0068`: `DefaultClient`'s transport
+    carries `SendPingTimeout` 30 s and `PingTimeout` 15 s;
+  * `TestDeadHTTP2Connection_FailsWithinPing_0068`: the report's P2 as a
+    test. A listener whose connections can be silenced stands in for a dead
+    peer. The transport is `defaultConfig`'s, from the test's own manager,
+    with the test server's CA and a 5 s header timeout; the health check, if
+    the manager set one, is shortened to 500 ms and 500 ms. The second
+    request must fail within 3 s. It passed in 1.02 s.
+* **Deviation 2 (2026-11-03): the dead-connection test's setup.** Step 2
+  says "a test `Config` (1 s and 1 s, a header timeout of 30 s): the second
+  request fails in under 10 s". A test that sets the new `Config` fields
+  cannot compile at `HEAD`, and `tools/redgreen.py` counts a build failure
+  as a finding, not a failure, so the rule "red first" could not be met.
+  As built, the test takes `defaultConfig` with a 5 s header timeout,
+  shortens the health check in the built transport to 500 ms and 500 ms
+  when the manager set one, and requires the failure within 3 s; it
+  compiles at `HEAD` and fails there on the hang itself. No decision
+  changes. Offered: accept as built (recommended); build it as step 2 says,
+  red by plants only; keep both. **Decision (owner): accept as built.**
+  Files added to the phase: none.
+* **Red at `HEAD`** (`tools/redgreen.py --expect fail --rev HEAD`, the test
+  file copied): "2 of 2 fail as expected":
+  * `transport_0068_test.go:23: HTTP2 is nil; want a health check`;
+  * `transport_0068_test.go:136: second request failed after 5s (Get
+    "https://127.0.0.1:63750": http2: timeout awaiting response headers);
+    want within the 500 ms + 500 ms health check, not at the 5 s header
+    timeout`.
+* **Plants** (`tools/plant.py`, on a scratch clone): "all 3 plant(s)
+  caught":
+  * no `HTTP2` field set: both tests fail, the second after 5 s with the
+    header timeout;
+  * `SendPingTimeout` left out of `defaultConfig`: the same;
+  * `PingTimeout` not passed on: `SendPingTimeout, PingTimeout = 30s, 0s;
+    want 30s, 15s`.
+* **Checks:**
+  * `make pre-add-check` on the 3 Go files: "3 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)";
+  * `tools/apidiff.py v1.25.0`: no change printed, exit 0; `make
+    api-check`: "0 incompatible change(s)"; `make docs-check`: "0
+    violation(s) of R50,R51,R52";
+  * `tools/gate.py`: "29 of 29 passed", `g-wire-stable` among them (no
+    golden changed).
+* **Other platforms:** the transport package's tests on the Linux and
+  Windows dev hosts run at the committed phase, before a push.
+* **Staged:** this record, `llmprovider/internal/transport/transport.go`,
+  `llmprovider/internal/transport/transport_0068_test.go`,
+  `llmprovider/options.go`.

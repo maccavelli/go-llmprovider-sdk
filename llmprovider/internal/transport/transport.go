@@ -36,7 +36,11 @@ var dialer = &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 //   - a generation may take 300 s to its first byte;
 //   - there is no total timeout: a reply's body may take as long as it keeps
 //     sending, and wire.Post ends it after 300 s with no data
-//     (StreamIdleTimeout). Callers wanting less set a context deadline.
+//     (StreamIdleTimeout). Callers wanting less set a context deadline;
+//   - an HTTP/2 connection that has received nothing for 30 s is pinged, and
+//     closed when the ping is not answered within 15 s, so a dead pooled
+//     connection fails its request within 45 s, not at the 300 s bound
+//     (0068-MADR D1).
 //
 // Listings and auth requests keep their own bounds (10 s and 30 s). It
 // honours HTTP_PROXY, HTTPS_PROXY and NO_PROXY, as net/http's own default
@@ -61,6 +65,12 @@ type Config struct {
 	IdleConnTimeout       time.Duration
 	MaxIdleConnsPerHost   int
 	ForceAttemptHTTP2     bool
+	// SendPingTimeout and PingTimeout are the HTTP/2 health check
+	// (0068-MADR D1): a connection silent for SendPingTimeout is pinged,
+	// and closed when the ping is not answered within PingTimeout. Zero
+	// SendPingTimeout turns it off.
+	SendPingTimeout time.Duration
+	PingTimeout     time.Duration
 	// rootCAs, when set, replaces the system's roots: tests trust their own
 	// server with it.
 	rootCAs *x509.CertPool
@@ -73,6 +83,8 @@ var defaultConfig = Config{
 	IdleConnTimeout:       90 * time.Second,
 	MaxIdleConnsPerHost:   16,
 	ForceAttemptHTTP2:     true,
+	SendPingTimeout:       30 * time.Second,
+	PingTimeout:           15 * time.Second,
 }
 
 // manager keeps the process's default transports, one per Config, each
@@ -100,6 +112,9 @@ func (m *manager) transport(cfg Config) *http.Transport {
 		ResponseHeaderTimeout: cfg.ResponseHeaderTimeout,
 		IdleConnTimeout:       cfg.IdleConnTimeout,
 		MaxIdleConnsPerHost:   cfg.MaxIdleConnsPerHost,
+	}
+	if cfg.SendPingTimeout > 0 {
+		t.HTTP2 = &http.HTTP2Config{SendPingTimeout: cfg.SendPingTimeout, PingTimeout: cfg.PingTimeout}
 	}
 	if cfg.rootCAs != nil {
 		t.TLSClientConfig = &tls.Config{RootCAs: cfg.rootCAs, MinVersion: tls.VersionTLS12}

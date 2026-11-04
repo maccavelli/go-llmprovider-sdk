@@ -61,7 +61,9 @@ func WithHTTPClient(c *http.Client) Option {
 // that every client shares its connections. Its bounds are the transport's:
 // a connection within 30 s, a TLS handshake within 10 s, the first byte of a
 // reply within 300 s, idle connections closed after 90 s and 16 kept per
-// host, and no total timeout, so a streamed reply runs while it sends. Its
+// host, an HTTP/2 connection silent for 30 s pinged and closed when the ping
+// is not answered within 15 s (0068-MADR D1), and no total timeout, so a
+// streamed reply runs while it sends. Its
 // Transport is an http.RoundTripper to wrap, not an *http.Transport to
 // configure: wrap it to add request headers, and give the client to
 // WithHTTPClient (0066-MADR D2). It returns no error, and the client is safe
