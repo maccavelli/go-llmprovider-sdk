@@ -306,3 +306,79 @@ No file in the tree changes.
   * 0021-PLAN: a note that `lockWait` is 60 s.
 * **Not done here:** Phases 1 to 6. Phase 1 starts after the owner has
   committed this phase.
+
+### Phase 1: probe each API host's tolerance of pings (2026-11-03)
+
+The owner committed Phase 0 and said "proceed". No file in the tree changed
+in this phase but this record.
+
+* **The hosts,** from a search of the non-test Go code in `llmprovider/` and
+  `wizard/` for `https://` hosts, leaving out the doc examples `host` and
+  `example.com`: `api.openai.com`, `auth.openai.com`, `chatgpt.com`,
+  `api.anthropic.com`, `generativelanguage.googleapis.com`, `api.x.ai`,
+  `auth.x.ai`, `accounts.x.ai`, `api.together.ai`, `router.huggingface.co`,
+  `api.kilo.ai`, `opencode.ai`, `models.opencode.ai` (the default
+  `ModelMetadataURL`).
+* **The program,** as step 2 describes, in the session's scratch directory:
+  a Go probe and a Python runner that starts one probe per host and reads
+  each host's `GODEBUG=http2debug=2` log. No key was sent or read.
+* **The refusal rule, seen to fail first.** The log's formats were read from
+  a 2 s probe of `api.openai.com` (`wrote PING len=8`, `read PING
+  flags=ACK`) and from Go's source for GOAWAY (`net/http/internal/http2/frame.go:1899`,
+  `LastStreamID=%v ErrCode=%v Debug=%q`). The runner's self-test passes on
+  four planted logs: clean, not refused; `ENHANCE_YOUR_CALM`, refused;
+  `NO_ERROR`, not refused; three PINGs unanswered, refused. With the GOAWAY
+  check removed it failed: `BAD ENHANCE_YOUR_CALM: refused=False, want
+  True`.
+* **The run,** 30 s pings and 6 minutes idle, all 13 hosts at once
+  (2026-11-04 01:15 to 01:21 UTC):
+  * no `ENHANCE_YOUR_CALM` from any host;
+  * 9 hosts acknowledged every PING and kept the connection for the second
+    request; `opencode.ai` and `models.opencode.ai` answered over HTTP/1.1,
+    so sent no PING;
+  * 4 hosts closed with GOAWAY `NO_ERROR`, having acknowledged every PING
+    before it: `api.openai.com` 125 s after the first request,
+    `generativelanguage.googleapis.com` 240 s (`Debug="session_timed_out"`),
+    `api.kilo.ai` 300 s, `api.anthropic.com` 323 s. Each log's one
+    unanswered PING is the client's health check, written 30 s after the
+    GOAWAY on a connection already closing.
+* **The control,** the same four hosts with no PINGs (01:22 to 01:28 UTC):
+  `generativelanguage.googleapis.com` closed at 240 s and `api.kilo.ai` at
+  300 s, as before: their own idle timeouts. `api.openai.com` and
+  `api.anthropic.com` sent no GOAWAY and kept the connection for 6 minutes.
+
+### Deviation 1 (2026-11-03): two hosts closed a pinged connection only
+
+* **Found:** `api.openai.com` and `api.anthropic.com` closed an idle
+  connection with GOAWAY `NO_ERROR` when it was pinged every 30 s, and kept
+  it when it was not, one sample each. Step 4's rule counts "a connection
+  closed after a PING and before its idle time" as a refusal. Each close was
+  graceful, and came at least 125 s after the request, past the module's
+  own 90 s idle close (`IdleConnTimeout`); a connection with a stream open
+  was not measured.
+* **Offered:** repeat and settle it (recommended); re-probe at 60 s; drop
+  D1.
+* **Decision (owner):** repeat and settle it. Three probes with PINGs and
+  three without on the two hosts, and one probe ending at the module's 90 s
+  idle limit. If the PINGs reliably cause the closes, always `NO_ERROR` and
+  always after 90 s, the MADR's D1 is amended with that and Phase 2 starts;
+  a close inside 90 s, or with another code, stops the work again.
+* **Files added to the phase:** none.
+* **The repeat** (2026-11-04 01:41 to 01:47 UTC), seven runs at once on the
+  two hosts, each run's stop rule first seen to fail on the first run's logs
+  with its limit planted at 200 s (`<-- STOP` on `api.openai.com`'s close at
+  125 s, exit 1):
+
+  | Runs | PINGs written / acknowledged, each host | GOAWAY | Second request |
+  | :--- | :--- | :--- | :--- |
+  | 3, 30 s PINGs, 6 min idle | 11 / 11 | none | the same connection |
+  | 3, no PINGs, 6 min idle | 0 / 0 | none | the same connection |
+  | 1, 30 s PINGs, 90 s idle | 2 / 2 | none | the same connection |
+
+  Runner's verdict: "no close inside 90 s, none but NO_ERROR", exit 0.
+* **Outcome:** the PINGs do not cause the closes. The first run's two did not
+  recur in three pinged runs; each host kept a pinged connection for 6
+  minutes. No close came inside 90 s or with a code but `NO_ERROR`, so the
+  owner's condition to stop does not hold. The MADR's amendment "Phase 1's
+  ping probe" records the measurement under D1. Phase 2 starts after the
+  owner commits this phase.

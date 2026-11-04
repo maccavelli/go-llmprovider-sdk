@@ -347,3 +347,27 @@ Answered by the owner on 2026-11-03, each as recommended.
 * **Exported names:** none added (R55 has nothing to list).
 * The PLAN is
   [0068-PLAN-five-internal-fixes-from-the-0054-audit.md](0068-PLAN-five-internal-fixes-from-the-0054-audit.md).
+
+## Amendment 2026-11-03: Phase 1's ping probe
+
+D1's hazard, "whether any provider's API host has it is not established",
+is measured for an idle connection. The PLAN's Phase 1 and its Deviation 1
+hold the detail.
+
+* **No host refused pings.** Each of the 13 hosts the module names was held
+  on one idle connection for 6 minutes with a PING every 30 s, and none sent
+  GOAWAY `ENHANCE_YOUR_CALM`. Every PING written before a close was
+  acknowledged. `opencode.ai` and `models.opencode.ai` serve HTTP/1.1, where
+  D1 does nothing.
+* **Four hosts closed idle connections with GOAWAY `NO_ERROR`,** none within
+  90 s. `generativelanguage.googleapis.com` (240 s, "session_timed_out")
+  and `api.kilo.ai` (300 s) did so with PINGs and without them: their own
+  idle timeouts. `api.openai.com` (125 s) and `api.anthropic.com` (323 s)
+  did so once with PINGs. In three more runs with PINGs and three without,
+  neither host closed in 6 minutes, so the PINGs did not cause those closes.
+  The module's own transport closes an idle connection at 90 s, before any
+  of these.
+* **Still not measured:** a connection with a stream open through a long
+  silent wait, which a billed generation would be needed to hold.
+
+D1's text above is not rewritten.
