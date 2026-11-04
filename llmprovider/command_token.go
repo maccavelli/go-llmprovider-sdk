@@ -22,6 +22,9 @@ const (
 	defaultCommandTokenTimeout = 10 * time.Second
 	// commandTokenLimit caps a command's output, as 0016-MADR R3 caps a secret.
 	commandTokenLimit = 8 << 10
+	// commandTokenFailureMemory is how long a failed run's error is returned
+	// without running the command again (0068-MADR D4).
+	commandTokenFailureMemory = 5 * time.Second
 )
 
 // InvalidatingSource is a TokenSource that can be told its token was refused
@@ -59,10 +62,14 @@ type tokenFuture struct {
 // command the caller names. The command runs directly, never through a shell,
 // with the process's environment; its output is trimmed, capped at 8 KiB and
 // cached for TTL. Concurrent callers share one run. A failure names the
-// command, never its output. Its String, GoString, LogValue and MarshalJSON
-// show the command's name only, never its arguments or the token. It is safe
-// for concurrent use while its fields are unchanged after the first Token,
-// and it must not be copied after that.
+// command, never its output, and is returned for 5 s without running the
+// command again, unless Invalidate is called. Once the output is four fifths
+// of its TTL old, the next Token returns it and starts one run in the
+// background, bounded by Timeout, whose output replaces it (0068-MADR D4).
+// Its String, GoString, LogValue and MarshalJSON show the command's name
+// only, never its arguments or the token. It is safe for concurrent use
+// while its fields are unchanged after the first Token, and it must not be
+// copied after that.
 type CommandToken struct {
 	// Argv is the command and its arguments.
 	Argv []string
@@ -78,7 +85,11 @@ type CommandToken struct {
 	value    string
 	fetched  time.Time
 	inflight *tokenFuture
-	now      func() time.Time // tests
+	// failure is the last run's error, kept from failed for
+	// commandTokenFailureMemory; nil after a success or Invalidate.
+	failure error
+	failed  time.Time
+	now     func() time.Time // tests
 	// onJoin, when set, runs as a caller joins the run in flight: tests wait
 	// on it rather than sleep (0021-MADR Z12).
 	onJoin func()
@@ -95,14 +106,25 @@ func NewCommandToken(argv ...string) *CommandToken {
 // that run's result, or runs the command itself when that run's caller gave
 // up. No command gives an error matching ErrInvalidRequest; a run that times
 // out, fails, writes more than 8 KiB or prints nothing, one matching
-// ErrAuthFailure. A caller whose ctx ends first gets ctx's error.
+// ErrAuthFailure, which the next 5 s of calls get without a run. A caller
+// whose ctx ends first gets ctx's error, and its run is not remembered.
+// Output four fifths of its TTL old is returned at once while one run starts
+// on a context detached from ctx; that run's failure is dropped.
 func (c *CommandToken) Token(ctx context.Context) (Token, error) {
 	c.mu.Lock()
 	now := c.clock()
 	if c.value != "" && now.Sub(c.fetched) < c.ttl() {
 		token := c.cachedToken()
+		if c.inflight == nil && now.Sub(c.fetched) >= c.ttl()/5*4 {
+			c.runEarly(ctx)
+		}
 		c.mu.Unlock()
 		return token, nil
+	}
+	if c.failure != nil && now.Sub(c.failed) < commandTokenFailureMemory {
+		err := c.failure
+		c.mu.Unlock()
+		return Token{}, err
 	}
 	if future := c.inflight; future != nil {
 		onJoin := c.onJoin
@@ -129,22 +151,53 @@ func (c *CommandToken) Token(ctx context.Context) (Token, error) {
 	value, err := runTokenCommand(ctx, argv, timeout)
 
 	c.mu.Lock()
-	if err == nil {
-		c.value, c.fetched = value, c.clock()
-		future.tok = c.cachedToken()
+	c.finish(future, value, err, err != nil && ctx.Err() != nil)
+	// Only the command's own failure is kept. A run its caller gave up
+	// returns the caller's context's error, never ErrAuthFailure.
+	if errors.Is(err, ErrAuthFailure) {
+		c.failure, c.failed = err, c.clock()
 	}
-	future.err = err
-	future.abandoned = err != nil && ctx.Err() != nil
-	c.inflight = nil
-	close(future.done)
 	c.mu.Unlock()
 	return future.tok, err
 }
 
-// Invalidate drops the cached output, so the next Token runs the command.
+// runEarly starts one run on a context detached from ctx, bounded by Timeout;
+// Token returns the cached output meanwhile, and joins the run if the output
+// expires first. Its failure is not remembered (0068-MADR D4). The lock is
+// held.
+func (c *CommandToken) runEarly(ctx context.Context) {
+	future := &tokenFuture{done: make(chan struct{})}
+	c.inflight = future
+	argv := append([]string(nil), c.Argv...)
+	timeout := c.Timeout
+	go func() {
+		value, err := runTokenCommand(context.WithoutCancel(ctx), argv, timeout)
+		c.mu.Lock()
+		c.finish(future, value, err, false)
+		c.mu.Unlock()
+	}()
+}
+
+// finish records a run's result, ends future and wakes its waiters. The lock
+// is held.
+func (c *CommandToken) finish(future *tokenFuture, value string, err error, abandoned bool) {
+	if err == nil {
+		c.value, c.fetched = value, c.clock()
+		c.failure = nil
+		future.tok = c.cachedToken()
+	}
+	future.err = err
+	future.abandoned = abandoned
+	c.inflight = nil
+	close(future.done)
+}
+
+// Invalidate drops the cached output and a remembered failure, so the next
+// Token runs the command.
 func (c *CommandToken) Invalidate() {
 	c.mu.Lock()
 	c.value, c.fetched = "", time.Time{}
+	c.failure = nil
 	c.mu.Unlock()
 }
 

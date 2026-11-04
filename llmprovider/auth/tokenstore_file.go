@@ -21,8 +21,9 @@ import (
 const maxTokenFileBytes = 64 << 10
 
 // lockWait is how long a refresh waits for another holder's lock before it
-// gives up with a retryable error (0016-MADR amendment A2).
-const lockWait = 40 * time.Second
+// gives up with a retryable error (0016-MADR amendment A2). It outlasts the
+// longest refresh a holder may make, 45.6 s, and its save (0068-MADR D3).
+const lockWait = 60 * time.Second
 
 // FileTokenStore persists one OAuth session per provider in a directory.
 // Writes are durable (0016-MADR D3), and a refresh holds an OS file lock

@@ -510,3 +510,88 @@ The owner committed Phase 2 as `ca47d46` and said "proceed".
   `llmprovider/auth/oauth_refresh_0068_test.go`,
   `llmprovider/internal/transport/unsendable.go`, `llmprovider/retry.go`,
   `llmprovider/retry_0068_test.go`.
+
+### Phase 4: the lock wait and the command token (2026-11-03)
+
+The owner committed Phase 3 as `a5152cb` and said "proceed".
+
+* **Phase 3 on other platforms,** at `a5152cb`, as Phase 2's were: `go test
+  -count=1 ./llmprovider/ ./llmprovider/auth/
+  ./llmprovider/internal/transport/` passed on Linux (1.770 s, 7.845 s,
+  1.403 s) and on Windows (1.807 s, 8.254 s, 1.388 s).
+* **Built, as steps 1 and 2 say:**
+  * `lockWait` is 60 s, its doc naming the 45.6 s hold it outlasts;
+  * `CommandToken` keeps a run's error matching `ErrAuthFailure` for
+    `commandTokenFailureMemory`, 5 s; `Token` in that window returns it
+    without a run; a success or `Invalidate` clears it;
+  * `Token` finding the output at least four fifths of its TTL old, with no
+    run in flight, returns it and starts one run (`runEarly`) on
+    `context.WithoutCancel(ctx)`, bounded by `Timeout`; a success replaces
+    the output; a failure is not remembered. A caller whose output expires
+    while that run goes joins it, as any caller joins a run in flight, and
+    gets its result, an error included;
+  * the type's doc and `Token`'s say both; `Invalidate`'s says it clears a
+    remembered failure.
+* **Made exact, no decision changed:** step 2 keeps a failure "which was
+  not abandoned". An abandoned run returns its caller's context's error,
+  never `ErrAuthFailure` (`runTokenCommand`), so matching `ErrAuthFailure`
+  is the whole rule; a separate "not abandoned" test was dead code that no
+  plant could catch, and is not written. A comment says why.
+* **Tests:**
+  * `TestLockWait_OutlastsLongestRefresh_0068` (`llmprovider/auth/lockwait_0068_test.go`),
+    not parallel, as step 1 says;
+  * in `llmprovider/command_token_0068_test.go`, with its own helper
+    process, `TestHelperKeyCommand_0068`, a command that fails and counts
+    its runs, and a settable clock:
+    * `TestCommandToken_RemembersFailure_0068`: one run for two calls inside
+      5 s, a second after 6 s, a third after `Invalidate`;
+    * `TestCommandToken_AbandonedNotRemembered_0068`: a run ended by its
+      caller's 100 ms deadline is not remembered; the next caller runs the
+      command;
+    * `TestCommandToken_EarlyRun_0068`: with a 10 s TTL, 9 s on, `Token`
+      returns `key-1` before the early run has counted (the command counts
+      after half a second), a run is in flight, a second caller leaves it the
+      same run, the run outlives the first caller's cancelled context, and
+      the next `Token` returns `key-2` after exactly two runs.
+  * The first version of the early-run test required `Token` to return
+    within 250 ms, which a loaded host could miss; the count before the run
+    ends is the same check without a clock.
+* **Red at `HEAD`:** "3 of 3 fail as expected":
+  * `lockwait_0068_test.go:18: lockWait = 40s; want more than the longest
+    refresh hold, 45.6s`;
+  * `command_token_0068_test.go:72: 2 runs for two calls inside 5 s; want
+    1`;
+  * `command_token_0068_test.go:128: no run in flight after Token past four
+    fifths of the TTL`.
+* **Deviation 3 (2026-11-03): one test cannot be red at `HEAD`.**
+  `TestCommandToken_AbandonedNotRemembered_0068` pins a rule `HEAD` already
+  keeps, that an abandoned run is not remembered, so it passes there and is
+  left out of the red run; it is seen red only by its plant below.
+  Offered: keep it, red by plant (recommended); drop it; amend the "Red
+  first" rule for later phases. **Decision (owner): keep it, red by
+  plant.** Files added to the phase: none.
+* **Plants:** "all 7 plant(s) caught":
+  * `lockWait` back to 40 s: `lockWait = 40s; want more than … 45.6s`;
+  * the failure kept with no window: `after 6 s: … after 1 runs; want
+    ErrAuthFailure from a second run`;
+  * `Invalidate` keeping the failure: `after Invalidate: … after 2 runs`;
+  * any failure remembered, an abandoned run's included: `next Token = "",
+    context deadline exceeded; want a run, not the abandoned one's error`;
+  * the early run on the caller's context: cancelling the caller ends the
+    run at once, `no run in flight after Token past four fifths of the TTL`;
+  * two early runs allowed at once: `the second caller started a run of its
+    own`;
+  * no early run: `no run in flight …`.
+* **Checks:**
+  * `go test -count=2 -race -run 'CommandToken|_0068$'` on both packages:
+    ok;
+  * `make pre-add-check` on the 4 Go files: "4 file(s) clean";
+  * `tools/apidiff.py v1.25.0`: no change printed; `make api-check`: "0
+    incompatible change(s)"; `make docs-check`: "0 violation(s)";
+  * `tools/gate.py`: "29 of 29 passed".
+* **Other platforms:** the two packages' tests on the Linux and Windows dev
+  hosts run at the committed phase, before a push.
+* **Staged:** this record, `llmprovider/command_token.go`,
+  `llmprovider/command_token_0068_test.go`,
+  `llmprovider/auth/tokenstore_file.go`,
+  `llmprovider/auth/lockwait_0068_test.go`.
