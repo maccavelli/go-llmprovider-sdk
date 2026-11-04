@@ -348,3 +348,15 @@ No file in the tree changes. Each test sends one billed request.
   `mayTrainOnYourPrompts: true`. Enabling data collection is a setting of
   the owner's Kilo account and was not changed. The MADR gains an amendment,
   since it called the refusal the account's setting alone.
+* Committed by the owner as `8141e26`.
+
+### Phase 4 (2026-11-04)
+
+* **Step 1:** `CHANGELOG.md`'s `[Unreleased]` becomes `[v1.26.1] -
+  2026-11-04`, under a new empty `[Unreleased]`; the compare links gain
+  `v1.26.1`. The README's Status reads "The current release is `v1.26.1`".
+  `make changelog-check`: "39 release section(s), 0 problem(s)".
+  `scripts/check_changelog.py --section v1.26.1` gives the section's one
+  Fixed entry, the notes the Release is to carry.
+* **Steps 2 and 3:** the push, CI on `main`, the tag and the checks after
+  it, to follow in this record.
