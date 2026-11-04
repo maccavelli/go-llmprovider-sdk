@@ -163,7 +163,10 @@ The MADR's D1 to D3:
    ends early does. A stream cut short on a connection's close is now
    `ErrProviderUnavailable`, retried once, where it was a decode error with no
    kind. Every server measured ends its events as the specification requires
-   (0069-MADR)."
+   (0069-MADR)." *(2026-11-04, in execution: "retried once" overstated it, since
+   a retry happens only under `WithRetry` or `WithStreamRetry`. The entry reads
+   "which `WithRetry` and `WithStreamRetry` ask again at most once, where it
+   was a decode error with no kind, never retried".)*
 3. `make docs-check`, `make changelog-check`.
 
 ### Phase 3: the live pin (D2)
@@ -297,3 +300,13 @@ No file in the tree changes. Each test sends one billed request.
 
   Every other test at `8203326` passes unchanged: the gate's test runs are
   the whole module's.
+* Committed by the owner as `6401b7c`.
+
+### Phase 2 (2026-11-04)
+
+* **Step 1:** `docs/architecture.md`'s `internal/wire` row: `ReadEvents`
+  "does not dispatch an event the stream ends inside (0069-MADR D1)".
+* **Step 2:** `CHANGELOG.md`'s `[Unreleased]` gains a Fixed entry, worded as
+  the step's annotation says.
+* **Step 3:** `make changelog-check`: "38 release section(s), 0 problem(s)";
+  `make docs-check`: "0 violation(s) of R50,R51,R52".

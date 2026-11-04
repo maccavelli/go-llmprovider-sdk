@@ -11,6 +11,19 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Fixed
+
+- An event the stream ends inside, with no blank line after it, is no
+  longer read. It was, against the server-sent events specification. The
+  stream now ends with `ErrProviderUnavailable`, naming the event it
+  lacked, as a stream that ends early does. A stream cut short on a
+  connection's close is now `ErrProviderUnavailable`, which `WithRetry` and
+  `WithStreamRetry` ask again at most once, where it was a decode error with
+  no kind, never retried. Every server measured ends its events as
+  the specification requires
+  ([0069-MADR](docs/decisions/0069-MADR-discard-an-sse-event-the-stream-ends-inside.md)
+  D1).
+
 ## [v1.26.0] - 2026-11-04
 
 ### Changed
