@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-04
 associated-madr: "0069-MADR-discard-an-sse-event-the-stream-ends-inside.md"
 decision-makers: repository owner
@@ -359,4 +359,63 @@ No file in the tree changes. Each test sends one billed request.
   `scripts/check_changelog.py --section v1.26.1` gives the section's one
   Fixed entry, the notes the Release is to carry.
 * **Steps 2 and 3:** the push, CI on `main`, the tag and the checks after
-  it, to follow in this record.
+  it, to follow in this record. *(Done the same day; see below.)*
+* Committed by the owner as `204a356`, `chore(release): prepare v1.26.1`.
+
+### The release (2026-11-04)
+
+* **Before the push:** the disclosure guard over the six outgoing commits,
+  `0ddf5e5` to `204a356`, exit 0 with no finding. The owner pushed `main`.
+* **CI on `main`,** run 41936437899 at `204a356`: success; validate on
+  ubuntu-24.04, windows-2025 and macos-15, success; release skipped, as on
+  any branch.
+* **The tag:** the owner tagged `v1.26.1`, annotated as `v1.26.0` is, on
+  `204a356`, dated 2026-11-04 (`%cs`), the section's date. CI on the tag,
+  run 41937561570: success, with validate on the three platforms and
+  release, success.
+* **The Release:** `v1.26.1`, not a draft or a prerelease. Its body, 12
+  lines, equals `scripts/check_changelog.py --section v1.26.1`, with its
+  relative `docs/` link written as the tag's blob URL by the release job.
+  The five newest tags' Releases, `v1.26.1` to `v1.24.0`, each carry notes
+  (R53).
+* **`tools/consumer.py v1.26.1` and `tools/offline.py v1.26.1`:** the first
+  run of each failed at `go get`. sum.golang.org answered 404 for the
+  version; its server response said its own fetch from GitHub failed with
+  "Could not resolve host: github.com". `go mod tidy` then resolved
+  `v1.26.0`, whose run is not this release's. The checks were not bypassed.
+  The database was polled each minute: 404 for 29 polls, then 200. On the
+  rerun, `go get` "added … v1.26.1", no line named `v1.26.0`, and both
+  reported "every step passed". consumer built for the six platforms and
+  linked 16 packages. offline's `FAIL: … unset` lines and "caught: no
+  caller layer" are its own planted step, which is meant to fail.
+
+### Closing (2026-11-04)
+
+* **Goal:**
+  * `ReadEvents` discards an event the stream ends inside, with D1's error
+    (Phase 1);
+  * the three tests changed, red at `8203326`, caught by both plants
+    (Phase 1, Deviation 1);
+  * the doc, `docs/architecture.md`, `CHANGELOG.md` and the two amended
+    records (Phases 0 to 2);
+  * no exported name changed (`tools/apidiff.py v1.26.0` empty); released
+    as `v1.26.1`, Q1's answer.
+* **The MADR's Confirmation:**
+  * D2's tests pass and each failed at `8203326` and on its plant;
+  * the gate's whole-module test runs passed, and only D2's three tests
+    changed;
+  * the live streaming tests passed after D1, with Kilo and OpenCode Zen's
+    Google route skipped on transient failures (Phase 3);
+  * the API diff is empty, `g-wire-stable` passed, `make docs-check`
+    reported 0.
+* **One deviation,** Deviation 1, decided by the owner and recorded with its
+  MADR amendment.
+* **Not done, and why:**
+  * Kilo's stream, which needs data collection enabled on the owner's Kilo
+    account (the MADR's Kilo amendment);
+  * OpenCode Zen's Google route in the live run, refused upstream with 429
+    twice; it streamed in the MADR's captures;
+  * a failure event sent last with no blank line (the MADR's case 3), which
+    no service sent and none can be made to;
+  * a line ended by a lone CR, out of scope.
+* `tools/records.py status` sets this PLAN `complete`.

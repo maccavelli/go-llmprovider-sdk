@@ -155,7 +155,7 @@ documents a reader follows to do something.
 | 0068 | MADR | [Five Internal Fixes from the 0054 Audit: an HTTP/2 Health Check, No Retry of a Refused Certificate or of 501 and 505, a Lock Wait Past the Longest Refresh, a Command Token That Remembers Failure and Runs Early, and a Keyword-First Auth Redaction](decisions/0068-MADR-five-internal-fixes-from-the-0054-audit.md) | accepted |
 | 0068 | PLAN | [Implement Five Internal Fixes from the 0054 Audit](decisions/0068-PLAN-five-internal-fixes-from-the-0054-audit.md) | complete |
 | 0069 | MADR | [Discard a Server-Sent Event the Stream Ends Inside, as the WHATWG Specification Requires](decisions/0069-MADR-discard-an-sse-event-the-stream-ends-inside.md) | accepted |
-| 0069 | PLAN | [Implement Discarding a Server-Sent Event the Stream Ends Inside](decisions/0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md) | in-progress |
+| 0069 | PLAN | [Implement Discarding a Server-Sent Event the Stream Ends Inside](decisions/0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md) | complete |
 
 ## I want to…
 
