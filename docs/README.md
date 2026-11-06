@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-146 records. Cite them by full filename.
+148 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -156,6 +156,8 @@ documents a reader follows to do something.
 | 0068 | PLAN | [Implement Five Internal Fixes from the 0054 Audit](decisions/0068-PLAN-five-internal-fixes-from-the-0054-audit.md) | complete |
 | 0069 | MADR | [Discard a Server-Sent Event the Stream Ends Inside, as the WHATWG Specification Requires](decisions/0069-MADR-discard-an-sse-event-the-stream-ends-inside.md) | accepted |
 | 0069 | PLAN | [Implement Discarding a Server-Sent Event the Stream Ends Inside](decisions/0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md) | complete |
+| 0070 | MADR | [Read Each Model Family's Version Numbers from Its Dates and Siblings, and Give a Label's Name and Note Apart](decisions/0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md) | accepted |
+| 0070 | PLAN | [Implement Reading Each Model Family's Versions from Its Dates and Siblings, and Splitting a Label's Name and Note](decisions/0070-PLAN-place-grok-4-20-by-date-and-split-model-labels.md) | proposed |
 
 ## I want to…
 
