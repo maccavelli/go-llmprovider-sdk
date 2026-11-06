@@ -148,9 +148,10 @@ var (
 		"google/gemini-3.8-flash",
 	}
 
-	// staticGrok leads with the Grok CLI's defaults, grok-4.6 then grok-4.5
-	// (MADR 0012 §6), then the flagship, the low-cost tier and the coding
-	// model. grok-4-fast-reasoning was retired 2026-05-15, and grok-4 and
+	// staticGrok leads with grok-build's compiled-in defaults, grok-4.6 then
+	// grok-4.5, which a Grok CLI with an xAI key or a signed-in account does
+	// not use (MADR 0012 §6; 0070-MADR D4), then the flagship, the low-cost
+	// tier and the coding model. grok-4-fast-reasoning was retired 2026-05-15, and grok-4 and
 	// grok-3-mini* are no longer listed (2026-10-11).
 	staticGrok = []string{
 		grokModel46,
@@ -228,7 +229,9 @@ var datedOrSnapshotGemini = regexp.MustCompile(`(?i)(-\d{2}-\d{4}|-\d{4}-\d{2}-\
 // (0015-PLAN S5 step 3). The provider id is compared case-insensitively, as
 // Static compares it. Together ranks by position in its static catalog, the
 // order its fallback curation keeps (0021-MADR C12). A provider with no
-// ranking scores every model 0.
+// ranking scores every model 0. For a whole list, SortByRank reads each
+// family's versions from the list, and from dates when the caller has them
+// (0070-MADR D1).
 func Rank(provider llmprovider.ProviderID, model string) int {
 	switch llmprovider.ProviderID(strings.ToLower(string(provider))) {
 	case llmprovider.ProviderGemini:
@@ -502,7 +505,15 @@ func sortByRankDesc(ids []string, rankFn func(string) int) {
 // rankGeminiModel scores a Gemini model name for sorting by preference.
 // Higher is better. Prioritizes low-latency Flash and Flash-Lite models for fast Git hook execution,
 // while penalizing heavy reasoning (Pro) models and deprecated generations.
+// Its family's version reading is chosen over the static catalog with m
+// (0070-MADR D1).
 func rankGeminiModel(m string) int {
+	return rankGeminiWith(m, staticReading(llmprovider.ProviderGemini, m))
+}
+
+// rankGeminiWith is rankGeminiModel, with m's family reading its two-digit
+// minor as a decimal when decimal is set (0070-MADR D1).
+func rankGeminiWith(m string, decimal bool) int {
 	score := 0
 	sm := strings.ToLower(m)
 
@@ -538,7 +549,7 @@ func rankGeminiModel(m string) int {
 	case slices.ContainsFunc(geminiShutDown, func(v string) bool { return hasRun(sm, v) }):
 		score -= 2000 // Deprecated / shut down
 	default:
-		score += generationScore(sm, geminiAnchors, 0)
+		score += generationScore(sm, geminiAnchors, 0, decimal)
 	}
 
 	return score
@@ -599,8 +610,16 @@ func rankOpenAIModel(m string) int {
 	return score
 }
 
-// rankClaudeModel prefers Haiku/Sonnet for speed, then newer gens.
+// rankClaudeModel prefers Haiku/Sonnet for speed, then newer gens. Its
+// family's version reading is chosen over the static catalog with m
+// (0070-MADR D1).
 func rankClaudeModel(m string) int {
+	return rankClaudeWith(m, staticReading(llmprovider.ProviderClaude, m))
+}
+
+// rankClaudeWith is rankClaudeModel, with m's family reading its two-digit
+// minor as a decimal when decimal is set (0070-MADR D1).
+func rankClaudeWith(m string, decimal bool) int {
 	sm := strings.ToLower(m)
 	score := 0
 	if strings.Contains(sm, "haiku") {
@@ -628,7 +647,7 @@ func rankClaudeModel(m string) int {
 		matched = true
 	}
 	if !matched {
-		score += generationScore(sm, claudeAnchors, 0)
+		score += generationScore(sm, claudeAnchors, 0, decimal)
 	}
 	return score
 }
@@ -655,8 +674,17 @@ func isUsableGrokModel(id string) bool {
 
 // rankGrokModel ranks by generation. The mini and fast-reasoning tiers it
 // once preferred are retired or no longer listed (0033-MADR D4); grok-4.3,
-// the low-cost tier, ranks below the 4.5 to 4.7 flagships.
+// the low-cost tier, ranks below the 4.5 to 4.7 flagships. Its family's
+// version reading is chosen over the static catalog with m: with grok-4.3 to
+// grok-4.7 beside it, grok-4.20 reads as 4.2, below grok-4.3, where xAI's
+// dates put it (0070-MADR D1).
 func rankGrokModel(m string) int {
+	return rankGrokWith(m, staticReading(llmprovider.ProviderGrok, m))
+}
+
+// rankGrokWith is rankGrokModel, with m's family reading its two-digit minor
+// as a decimal when decimal is set (0070-MADR D1).
+func rankGrokWith(m string, decimal bool) int {
 	sm := strings.ToLower(m)
 	// Generation weights, matched as whole tokens. grok-4 and grok-3 are
 	// anchors, not hints, so a newer grok-4.x ranks above them (0021-MADR
@@ -671,7 +699,7 @@ func rankGrokModel(m string) int {
 	case hasRun(sm, "4.3"):
 		return 45
 	default:
-		return generationScore(sm, grokAnchors, 0)
+		return generationScore(sm, grokAnchors, 0, decimal)
 	}
 }
 
@@ -679,32 +707,13 @@ func rankGrokModel(m string) int {
 var grokAnchors = []generationAnchor{{300, 30}, {400, 40}, {403, 45}, {405, 50}, {406, 60}, {407, 70}}
 
 // generationAnchor is a generation hint's score at its order key, ord =
-// 100·major + minor (0021-MADR C6).
+// 100·major + minor (0021-MADR C6). It is compared with a version's key,
+// which is in tenths of a minor, at ten times its ord (0070-MADR D1).
 type generationAnchor struct{ ord, score int }
 
 // hasRun reports whether id holds hint's tokens as a contiguous run, so
 // "3.1" matches gemini-3.1-flash but not gemini-3.10-flash.
 func hasRun(id, hint string) bool { return hasTokens(id, modelTokens(hint)...) }
-
-// parseGeneration reads the first version after an id's family name: N,
-// N.M or N-M, where N is one digit and M one or two, so a date or a size is
-// never a version.
-func parseGeneration(id string) (major, minor int, ok bool) {
-	tokens := modelTokens(id)
-	for i := 1; i < len(tokens); i++ {
-		n, isVersion := versionNumber(tokens[i])
-		if !isVersion || len(tokens[i]) > 1 {
-			continue
-		}
-		if i+1 < len(tokens) {
-			if m, isMinor := versionNumber(tokens[i+1]); isMinor {
-				return n, m, true
-			}
-		}
-		return n, 0, true
-	}
-	return 0, 0, false
-}
 
 // versionNumber reads a token of one or two digits.
 func versionNumber(token string) (int, bool) {
@@ -716,32 +725,38 @@ func versionNumber(token string) (int, bool) {
 }
 
 // generationScore places id's generation among anchors, sorted by ord
-// (0021-MADR C6; amendment "C6's anchors are capped"):
+// (0021-MADR C6; amendment "C6's anchors are capped"), at its version's key
+// under its family's reading: a two-digit minor as a decimal when decimal is
+// set, so 4.20 is 4.2, and as an integer otherwise, so 3.10 follows 3.9
+// (0070-MADR D1):
 //   - between anchors, it takes the highest anchor at or below it, capped at
 //     one less than the lowest anchor above it;
 //   - above every anchor, it takes the newest anchor's score plus 10 plus
-//     its distance in steps, at most 40: 20 a major, 1 a minor;
+//     its distance in steps, at most 40: 20 a major, 1 a whole minor;
 //   - below every anchor, or with no version, it is below.
-func generationScore(id string, anchors []generationAnchor, below int) int {
-	major, minor, ok := parseGeneration(id)
+//
+// Under the integer reading every score is the one 0021-MADR C6 gave.
+func generationScore(id string, anchors []generationAnchor, below int, decimal bool) int {
+	v, ok := parseVersion(id)
 	if !ok {
 		return below
 	}
-	ord := 100*major + minor
+	key := versionKey(v, decimal)
 	newest := anchors[len(anchors)-1]
 	switch {
-	case ord < anchors[0].ord:
+	case key < 10*anchors[0].ord:
 		return below
-	case ord > newest.ord:
-		steps := minor - newest.ord%100
-		if major != newest.ord/100 {
-			steps = 20*(major-newest.ord/100) + minor
+	case key > 10*newest.ord:
+		whole := key % 1000 / 10
+		steps := whole - newest.ord%100
+		if v.major != newest.ord/100 {
+			steps = 20*(v.major-newest.ord/100) + whole
 		}
 		return newest.score + 10 + min(40, steps)
 	}
 	score, ceiling := 0, math.MaxInt
 	for _, a := range anchors {
-		if a.ord <= ord {
+		if 10*a.ord <= key {
 			score = a.score
 		} else {
 			ceiling = min(ceiling, a.score-1)

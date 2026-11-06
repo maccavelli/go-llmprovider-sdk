@@ -1,0 +1,769 @@
+{
+ "source": "https://models.dev/api.json",
+ "fetched": "2026-11-06",
+ "sha256": "f1881e9a51a2fb6d995d41c0767a21eeb7d92f56ed5a701a0d9331b200520bf4",
+ "families": [
+  {
+   "provider": "302ai",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "grok-4-1-fast-reasoning",
+     "release_date": "2025-11-19"
+    },
+    {
+     "id": "grok-4-fast-non-reasoning",
+     "release_date": "2025-12-18"
+    },
+    {
+     "id": "grok-4-fast-reasoning",
+     "release_date": "2025-12-18"
+    },
+    {
+     "id": "grok-4.1",
+     "release_date": "2025-11-18"
+    },
+    {
+     "id": "grok-4.20-beta-0309-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "aimlapi",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "x-ai/grok-4-20-0309-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "x-ai/grok-4-fast-non-reasoning",
+     "release_date": "2025-12-18"
+    }
+   ]
+  },
+  {
+   "provider": "azure",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "grok-4-1-fast-non-reasoning",
+     "release_date": "2025-06-27"
+    },
+    {
+     "id": "grok-4-1-fast-reasoning",
+     "release_date": "2025-06-27"
+    },
+    {
+     "id": "grok-4-20-non-reasoning",
+     "release_date": "2026-04-08"
+    },
+    {
+     "id": "grok-4-20-reasoning",
+     "release_date": "2026-04-08"
+    },
+    {
+     "id": "grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "azure-cognitive-services",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "grok-4-1-fast-non-reasoning",
+     "release_date": "2025-06-27"
+    },
+    {
+     "id": "grok-4-1-fast-reasoning",
+     "release_date": "2025-06-27"
+    },
+    {
+     "id": "grok-4-20-non-reasoning",
+     "release_date": "2026-04-08"
+    },
+    {
+     "id": "grok-4-20-reasoning",
+     "release_date": "2026-04-08"
+    },
+    {
+     "id": "grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "cloudflare-ai-gateway",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "xai/grok-4.20-0309-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.20-0309-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "xai/grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "xai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "xai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "edenai",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "xai/grok-4-fast-non-reasoning",
+     "release_date": "2025-12-18"
+    },
+    {
+     "id": "xai/grok-4.20-0309-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.20-0309-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "xai/grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "xai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "xai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "google-vertex",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "xai/grok-4.1-fast-non-reasoning",
+     "release_date": "2025-11-19"
+    },
+    {
+     "id": "xai/grok-4.1-fast-reasoning",
+     "release_date": "2025-11-19"
+    },
+    {
+     "id": "xai/grok-4.20-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.20-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "xai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "xai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "impossibl",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "xai/grok-4.20-0309-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.20-0309-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "xai/grok-4.5",
+     "release_date": "2026-07-08"
+    }
+   ]
+  },
+  {
+   "provider": "kilo",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "x-ai/grok-4.20",
+     "release_date": "2026-03-31"
+    },
+    {
+     "id": "x-ai/grok-4.20-multi-agent",
+     "release_date": "2026-03-31"
+    },
+    {
+     "id": "x-ai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "x-ai/grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "x-ai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "x-ai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "llmgateway",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "grok-4",
+     "release_date": "2025-07-09"
+    },
+    {
+     "id": "grok-4-1-fast-reasoning",
+     "release_date": "2025-11-19"
+    },
+    {
+     "id": "grok-4-20-beta-0309-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "grok-4-20-beta-0309-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "grok-4-20-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "grok-4-20-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "grok-4-3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "grok-4-5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "grok-4-6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "grok-4-7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "llmgateway-providers",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "aws-bedrock/grok-4-3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "aws-bedrock/grok-4-6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "aws-bedrock/grok-4-7",
+     "release_date": "2026-09-21"
+    },
+    {
+     "id": "azure-ai-foundry/grok-4-1-fast-reasoning",
+     "release_date": "2025-11-19"
+    },
+    {
+     "id": "azure-ai-foundry/grok-4-3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "azure/grok-4-1-fast-reasoning",
+     "release_date": "2025-11-19"
+    },
+    {
+     "id": "azure/grok-4-3",
+     "release_date": "2026-04-30"
+    },
+    {
+     "id": "vertex-openai/grok-4-20-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "vertex-openai/grok-4-20-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "vertex-openai/grok-4-6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "vertex-openai/grok-4-7",
+     "release_date": "2026-09-21"
+    },
+    {
+     "id": "xai/grok-4",
+     "release_date": "2025-07-09"
+    },
+    {
+     "id": "xai/grok-4-20-beta-0309-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4-20-beta-0309-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4-3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "xai/grok-4-5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "xai/grok-4-6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "xai/grok-4-7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "merge-gateway",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "xai/grok-4.20-0309-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.20-0309-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "xai/grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "xai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "xai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "nano-gpt",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "x-ai/grok-4.20",
+     "release_date": "2026-03-31"
+    },
+    {
+     "id": "x-ai/grok-4.20-multi-agent",
+     "release_date": "2026-03-31"
+    },
+    {
+     "id": "x-ai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "x-ai/grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "x-ai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "x-ai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "nano-gpt",
+   "family": "llama",
+   "major": 3,
+   "models": [
+    {
+     "id": "Envoid/Llama-3.05-NT-Storybreaker-Ministral-70B",
+     "release_date": "2024-01-01"
+    },
+    {
+     "id": "Envoid/Llama-3.05-Nemotron-Tenyxchat-Storybreaker-70B",
+     "release_date": "2024-01-01"
+    },
+    {
+     "id": "huihui-ai/Llama-3.3-70B-Instruct-abliterated",
+     "release_date": "2025-08-08"
+    },
+    {
+     "id": "meta-llama/llama-3.1-8b-instruct",
+     "release_date": "2024-07-23"
+    },
+    {
+     "id": "meta-llama/llama-3.2-3b-instruct",
+     "release_date": "2024-09-25"
+    },
+    {
+     "id": "meta-llama/llama-3.3-70b-instruct",
+     "release_date": "2024-12-06"
+    },
+    {
+     "id": "nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
+     "release_date": "2025-04-15"
+    },
+    {
+     "id": "nvidia/Llama-3.3-Nemotron-Super-49B-v1",
+     "release_date": "2025-03-18"
+    }
+   ]
+  },
+  {
+   "provider": "oci",
+   "family": "xai-grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "xai.grok-4.20-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai.grok-4.20-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai.grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "xai.grok-4.6",
+     "release_date": "2026-08-12"
+    }
+   ]
+  },
+  {
+   "provider": "ofox",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "x-ai/grok-4.1-fast",
+     "release_date": "2025-11-19"
+    },
+    {
+     "id": "x-ai/grok-4.20",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "x-ai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "x-ai/grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "x-ai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "x-ai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "openrouter",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "x-ai/grok-4.20",
+     "release_date": "2026-03-31"
+    },
+    {
+     "id": "x-ai/grok-4.20-multi-agent",
+     "release_date": "2026-03-31"
+    },
+    {
+     "id": "x-ai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "x-ai/grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "x-ai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "x-ai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "poe",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "xai/grok-4",
+     "release_date": "2025-07-10"
+    },
+    {
+     "id": "xai/grok-4-fast-non-reasoning",
+     "release_date": "2025-12-18"
+    },
+    {
+     "id": "xai/grok-4-fast-reasoning",
+     "release_date": "2025-12-18"
+    },
+    {
+     "id": "xai/grok-4.1-fast-non-reasoning",
+     "release_date": "2025-11-19"
+    },
+    {
+     "id": "xai/grok-4.1-fast-reasoning",
+     "release_date": "2025-11-19"
+    },
+    {
+     "id": "xai/grok-4.20-multi-agent",
+     "release_date": "2026-03-13"
+    }
+   ]
+  },
+  {
+   "provider": "tempr",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "xai/grok-4.20-0309-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.20-0309-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "xai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "xai/grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "xai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "xai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "venice",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "grok-4-20",
+     "release_date": "2026-03-12"
+    },
+    {
+     "id": "grok-4-20-multi-agent",
+     "release_date": "2026-03-12"
+    },
+    {
+     "id": "grok-4-3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "grok-4-5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "grok-4-6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "grok-4-7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "vercel",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "spacexai/grok-4.20-multi-agent",
+     "release_date": "2026-03-10"
+    },
+    {
+     "id": "spacexai/grok-4.20-multi-agent-beta",
+     "release_date": "2026-03-11"
+    },
+    {
+     "id": "spacexai/grok-4.20-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "spacexai/grok-4.20-non-reasoning-beta",
+     "release_date": "2026-03-11"
+    },
+    {
+     "id": "spacexai/grok-4.20-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "spacexai/grok-4.20-reasoning-beta",
+     "release_date": "2026-03-11"
+    },
+    {
+     "id": "spacexai/grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "spacexai/grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "spacexai/grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "spacexai/grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  },
+  {
+   "provider": "xai",
+   "family": "grok",
+   "major": 4,
+   "models": [
+    {
+     "id": "grok-4.20-0309-non-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "grok-4.20-0309-reasoning",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "grok-4.20-multi-agent-0309",
+     "release_date": "2026-03-09"
+    },
+    {
+     "id": "grok-4.3",
+     "release_date": "2026-04-17"
+    },
+    {
+     "id": "grok-4.5",
+     "release_date": "2026-07-08"
+    },
+    {
+     "id": "grok-4.6",
+     "release_date": "2026-08-12"
+    },
+    {
+     "id": "grok-4.7",
+     "release_date": "2026-09-21"
+    }
+   ]
+  }
+ ]
+}

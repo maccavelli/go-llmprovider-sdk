@@ -19,6 +19,14 @@ func ExampleStatic() {
 	// Output: true
 }
 
+// ExampleSortByRank orders a Grok list. Beside grok-4.3 and grok-4.7,
+// grok-4.20 reads as 4.2, so it sorts last; no dates are needed.
+func ExampleSortByRank() {
+	ids := []string{"grok-4.20-0309-reasoning", "grok-4.7", "grok-4.3"}
+	fmt.Println(catalog.SortByRank(llmprovider.ProviderGrok, ids, nil))
+	// Output: [grok-4.7 grok-4.3 grok-4.20-0309-reasoning]
+}
+
 // ExampleWithCache keeps two caches' listings apart: a listing is fetched
 // once per cache. The httptest server stands in for Together's listing, so
 // that the example runs offline.

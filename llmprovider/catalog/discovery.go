@@ -795,10 +795,13 @@ func fetchGeminiPage(ctx context.Context, endpoint string, token llmprovider.Tok
 	return result, err
 }
 
+// curateGemini ranks with each family's version reading chosen over the
+// listing and the static catalog (0070-MADR D1 and its amendment "the
+// module's curation reads siblings, not dates").
 func curateGemini(usable []string, limit int) []string {
 	return curateFromCatalog(llmprovider.ProviderGemini, staticGemini, usable, func(s string) bool {
 		return isUsableGeminiTextModel(s, []string{methodGenerateContent})
-	}, rankGeminiModel, limit)
+	}, rankerFor(llmprovider.ProviderGemini, usable, nil), limit)
 }
 
 // fetchOpenAIUsable returns the usable OpenAI chat models in listing order.
@@ -904,8 +907,10 @@ func fetchClaudePage(ctx context.Context, endpoint string, token llmprovider.Tok
 	return result, err
 }
 
+// curateClaude ranks as curateGemini does (0070-MADR D1).
 func curateClaude(usable []string, limit int) []string {
-	return curateFromCatalog(llmprovider.ProviderClaude, staticClaude, usable, isUsableClaudeTextModel, rankClaudeModel, limit)
+	return curateFromCatalog(llmprovider.ProviderClaude, staticClaude, usable, isUsableClaudeTextModel,
+		rankerFor(llmprovider.ProviderClaude, usable, nil), limit)
 }
 
 // ollamaCatalog lists every installed model, and reads /api/show for each
@@ -1076,8 +1081,10 @@ func fetchGrokUsable(ctx context.Context, token llmprovider.Token, cfg config) (
 	return filterIDs(ids, isUsableGrokModel), nil
 }
 
+// curateGrok ranks as curateGemini does (0070-MADR D1).
 func curateGrok(usable []string, limit int) []string {
-	return curateFromCatalog(llmprovider.ProviderGrok, staticGrok, usable, isUsableGrokModel, rankGrokModel, limit)
+	return curateFromCatalog(llmprovider.ProviderGrok, staticGrok, usable, isUsableGrokModel,
+		rankerFor(llmprovider.ProviderGrok, usable, nil), limit)
 }
 
 // fetchDataIDs performs GET endpoint and decodes a {"data":[{"id":…}]} body.

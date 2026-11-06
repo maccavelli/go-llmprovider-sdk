@@ -278,6 +278,11 @@ func TestRankGrokModel(t *testing.T) {
 	if rankGrokModel("grok-3-mini-fast") != rankGrokModel("grok-3-mini") {
 		t.Error("a mini tier still earns a bonus over its generation")
 	}
+	// grok-4.20 reads as 4.2 beside the static 4.3 to 4.7, below grok-4.3 and
+	// not below grok-4 (0070-MADR D1).
+	if r, r43, r4 := rankGrokModel("grok-4.20-0309-reasoning"), rankGrokModel("grok-4.3"), rankGrokModel("grok-4"); r >= r43 || r < r4 {
+		t.Errorf("grok-4.20-0309-reasoning = %d, want below grok-4.3 = %d and not below grok-4 = %d", r, r43, r4)
+	}
 }
 
 func TestStaticGrok_Count(t *testing.T) {

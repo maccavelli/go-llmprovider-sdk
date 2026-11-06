@@ -323,7 +323,7 @@ v1.26.1` lists exactly these three.
    | :--- | :--- |
    | `chooseReadings` returns an empty map (the decimal reading off) | `TestRankGrok_FollowsListingDates_0070`, `TestRankGrokModel`, `TestVersionReading_Guard_0070`, `TestSortByRank_0070`, `ExampleSortByRank` |
    | the date test skipped, so the gap test always decides | `TestVersionReading_0070` (the dated leap), `TestSortByRank_0070` (the dated Gemini 4.x pair) |
-   | the date test's comparison inverted | `TestVersionReading_0070` (Grok with xAI's dates, the dated leap), `TestVersionReading_Guard_0070` |
+   | the date test's comparison inverted | `TestVersionReading_0070` (Grok with xAI's dates, the dated leap), `TestVersionReading_Guard_0070` *(2026-11-06, in execution: the guard does not fail. It reads the dates' choice with `againstDates` itself, not through the reading rule, so it never runs the comparison. The plant fails `TestVersionReading_0070` and `TestSortByRank_0070`.)* |
    | the gap test's comparison inverted | `TestVersionReading_0070`, `TestVersionReading_Guard_0070` |
    | a tie read as decimal | `TestVersionReading_0070` (the lone `4.10` and `4.20`) |
    | `SortByRank` passes nil in place of `released` | `TestSortByRank_0070` (the dated Gemini 4.x pair) |
@@ -563,4 +563,89 @@ key in `XAI_API_KEY`. Its presence is checked; its value is never printed.
   * `0012-MADR-conform-providers-to-reference-clients.md`, "Amendment
     2026-11-06: grok-4.6 and grok-4.5 are grok-build's compiled-in defaults
     (0070 D4)".
-* **Step 4:** the gate, below.
+* **Step 4:** the Markdown gate passed, 11 of 11. The records were
+  committed as `71a7e33`.
+
+### Phase 1 (2026-11-06)
+
+* **Step 1, the fixture:**
+  `llmprovider/catalog/testdata/versions-2026-11-06/families.json`, 14,633
+  bytes.
+  * The source was checked first: 5,960,317 bytes, with the SHA-256 the
+    step names.
+  * The scratch script grouped by provider, family and major, on the name
+    after the last `/`, and asserted each number the step states: 22
+    families (20 `grok`, one `xai-grok`, one `llama`); 20 decided by their
+    dates, all decimal; the gap test agreeing on all 20; `aimlapi`'s and
+    `poe`'s Grok undecided; 152 dated ids.
+  * The fixture holds only provider, family, major, id and release date.
+  * **Found and recorded:** the same grouping on the whole id, as the
+    module's tokenizer splits it, keeps 22 families too, but 15 of the 152
+    ids fall out. An org prefix joins the family name, as in
+    `meta-llama/llama-3.1-8b-instruct`, so `nano-gpt`'s Llama ids split
+    into small families. The step's grouping is the one the MADR counted.
+    So the guard reads each fixture id by its name after the last `/`.
+  * Inside the module, no id with a `/` reaches the version reader. Gemini,
+    Claude and Grok, whose rankers read versions, list ids without one, and
+    the gateways' rankers do not read versions (MADR C4, C59, C61). No
+    decision changes.
+  * `make fixtures-check`: 381 files, 134 hits, 0 problems. A scratch clone
+    of `71a7e33` gave 380 files and the same 134 hits, so the fixture adds
+    none.
+* **Steps 2 to 4:**
+  * `version_reading.go` holds `parseVersion`, `versionKey`, `versionSlot`,
+    `chooseReadings` (with `readsDecimal`, `againstDates` and `gapShare`),
+    `rankerFor` and `SortByRank`.
+  * In `models_catalog.go`, `generationScore` takes the reading, and
+    `parseGeneration` is gone. `rankGeminiModel`, `rankClaudeModel` and
+    `rankGrokModel` keep their signatures and delegate to
+    `rankGeminiWith`, `rankClaudeWith` and `rankGrokWith`, with the reading
+    over `Static(provider)` and the id.
+  * `Rank`'s doc, `staticGrok`'s comment and the rankers' comments are as
+    the steps give them.
+  * `curateGemini`, `curateClaude` and `curateGrok` pass `rankerFor(…,
+    usable, nil)`.
+* **Step 5, the tests:** `rank_dates_0070_test.go`;
+  `version_reading_0070_test.go` (`TestVersionReading_0070` with 14 rows,
+  `TestVersionReading_Guard_0070`, `TestSortByRank_0070`);
+  `TestRankGrokModel`'s added check; `ExampleSortByRank`. All pass. The
+  guard's counts held: the dates decide 22 families, 20 of them the
+  fixture's.
+* **Step 6, red at `b5ce51d`:** `tools/redgreen.py --expect fail --rev
+  b5ce51d`, "2 of 2 fail as expected":
+
+  ```text
+  models_catalog_test.go:284: grok-4.20-0309-reasoning = 93, want below grok-4.3 = 45 and not below grok-4 = 40
+  rank_dates_0070_test.go:47: grok-4.20-0309-non-reasoning, created first, ranks 93, above grok-4.3 at 45
+  ```
+
+  The second test printed the same failure for each 4.20 id against each of
+  4.3 to 4.7.
+* **Step 7, plants:** `tools/plant.py`, "all 7 plant(s) caught". A second
+  run, whose command printed every failing test's name, gave:
+
+  | Plant | Failed |
+  | :--- | :--- |
+  | the decimal reading off | `ExampleSortByRank`, `TestRankGrokModel`, `TestRankGrok_FollowsListingDates_0070`, `TestSortByRank_0070`, `TestVersionReading_0070`, `TestVersionReading_Guard_0070` |
+  | the date test skipped | `TestSortByRank_0070`, `TestVersionReading_0070` ("the dated leap: x reads as decimal, want integer") |
+  | the date test's comparison inverted | `TestSortByRank_0070`, `TestVersionReading_0070` (Grok with xAI's dates, the dated leap, the late 4.1) |
+  | the gap test's comparison inverted | `ExampleSortByRank`, `TestRankGenerations` ("gemini-3.10-flash = 220, not above gemini-3.9-flash = 292"), `TestRankGrokModel`, `TestRankGrok_FollowsListingDates_0070`, `TestSortByRank_0070`, `TestVersionReading_0070`, `TestVersionReading_Guard_0070` |
+  | a tie read as decimal | `TestVersionReading_0070` (the lone 4.10 and 4.20) |
+  | `SortByRank` passes nil dates | `TestSortByRank_0070` ("[gemini-4.5-flash gemini-4.12-flash], want gemini-4.12-flash first") |
+  | the single-id rankers without `Static(provider)` | `TestRankGrokModel`, `TestRankGrok_FollowsListingDates_0070`, `TestVersionReading_Guard_0070` |
+
+  Each plant fails at least the tests the step names, except the date
+  comparison inverted, which the step's table now annotates: the guard does
+  not run it.
+  * The eighth plant, `curateGrok` with the bare `rankGrokModel`, was not
+    caught, as the step expected. The recorded listing's backfill holds only
+    the 4.20 ids, which tie under either ranker.
+* **Step 8, the drift check:** every existing test in
+  `llmprovider/catalog` passed before the new tests were added, with
+  `TestRankGenerations` and the full-list check (C14) unchanged.
+* **Step 9:**
+  * `make pre-add-check` on the seven Go files: "7 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)".
+  * `tools/apidiff.py v1.26.1`: "Compatible changes: ./llmprovider/catalog.SortByRank: added", and nothing else.
+  * `make docs-check`: "sdkaudit: 0 violation(s) of R50,R51,R52".
+  * The gate, below.
