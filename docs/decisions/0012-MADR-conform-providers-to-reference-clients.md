@@ -1296,3 +1296,23 @@ Made by [0068-MADR-five-internal-fixes-from-the-0054-audit.md](0068-MADR-five-in
 Implemented) and HTTP 505 (HTTP Version Not Supported) are terminal, with
 `ErrProviderUnavailable`, as 525 and 526 already are. A retry asks the same
 server the same thing, so neither can succeed. Every other 5xx is unchanged.
+
+## Amendment 2026-11-06: grok-4.6 and grok-4.5 are grok-build's compiled-in defaults (0070 D4)
+
+Made by [0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md](0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md) (D4), for this repository's issue 11.
+
+* **§6's fact is refined.** "The CLI's default models are `grok-4.6` then
+  `grok-4.5`" is true of grok-build's `default_models.json`, which is
+  compiled into the CLI. That file is the last of five sources the CLI
+  resolves a model from: "CLI flag, ENV var, config.toml, remote settings,
+  these defaults" (grok-build `2bdd1d6a`,
+  `crates/codegen/xai-grok-models/src/lib.rs:4`). A Grok CLI 1.0.70 session
+  with an xAI key reported `grok-4.20-0309-non-reasoning` as its model
+  (0070-MADR C46). So the two ids are the CLI's fallback, not what a keyed or
+  signed-in CLI uses.
+* **§6's decision is unchanged.** `StaticGrok` still leads with the two ids
+  (0070-MADR Q2). 0070-PLAN's Phases 1 and 2 reword the `staticGrok`
+  comment and the `grok-4.6` label to say they are the compiled-in
+  defaults.
+
+§6's text above is not rewritten.

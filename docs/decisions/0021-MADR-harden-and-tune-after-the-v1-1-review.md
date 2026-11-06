@@ -920,3 +920,21 @@ D1's text above is not rewritten.
   within its bounds. A test now requires `lockWait` to exceed that hold.
 
 D2's and T9's text above is not rewritten.
+
+## Amendment 2026-11-06: a two-digit minor is read from its family's evidence
+
+[0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md](0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md) (D1) refines C6.
+
+* **Generations stay numeric.** A family's two-digit minor is read either
+  as an integer, so 3.10 follows 3.9, or as a decimal, so 4.20 is 4.2. The
+  family's dates choose between the two readings. Without them, the
+  reading that leaves fewer gaps among the family's versions wins. When
+  neither decides, the integer reading stands, as C6 decided.
+* **`gemini-3.10` still follows `gemini-3.9`.** `grok-4.20-*` now reads as
+  4.2, below `grok-4.3`. 0021-PLAN's live check of 2026-10-05 accepted the
+  integer reading of 4.20, which xAI's dates contradict
+  (0070-MADR C16 to C19).
+* The anchors, the hints, and the amendment "C6's anchors are capped" are
+  unchanged.
+
+C6's text above is not rewritten.

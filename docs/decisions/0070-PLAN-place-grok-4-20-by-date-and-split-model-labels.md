@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-06
 associated-madr: "0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md"
 decision-makers: repository owner
@@ -543,4 +543,24 @@ key in `XAI_API_KEY`. Its presence is checked; its value is never printed.
 
 ## Execution record
 
-No phase has run.
+### Phase 0 (2026-11-06)
+
+* **Step 1:** the MADR (accepted), this PLAN and their rows, committed as
+  `4d0c757`. Before that commit:
+  * the MADR's claims passed, 67 of 67;
+  * eight planted false claims were each caught by `tools/claims.py
+    --plants`: a wrong line (C5), a wrong date (C17), grok-build's default
+    (C42), Magic's model (C46), `grok-4.5`'s note (C23), Gemini's 3.10 score
+    (C60), the future-date check (C49) and models.dev's description (C58);
+  * the record lint, the identifier scan and the link check were clean, and
+    the Markdown gate passed, 11 of 11.
+* **Step 2:** the owner approved this PLAN on 2026-11-06 ("committed,
+  proceed"). `tools/records.py status` set it `in-progress`, with its row.
+* **Step 3:** the amendments were written, each without rewriting the
+  decision it refines:
+  * `0021-MADR-harden-and-tune-after-the-v1-1-review.md`, "Amendment
+    2026-11-06: a two-digit minor is read from its family's evidence";
+  * `0012-MADR-conform-providers-to-reference-clients.md`, "Amendment
+    2026-11-06: grok-4.6 and grok-4.5 are grok-build's compiled-in defaults
+    (0070 D4)".
+* **Step 4:** the gate, below.
