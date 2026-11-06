@@ -157,7 +157,7 @@ documents a reader follows to do something.
 | 0069 | MADR | [Discard a Server-Sent Event the Stream Ends Inside, as the WHATWG Specification Requires](decisions/0069-MADR-discard-an-sse-event-the-stream-ends-inside.md) | accepted |
 | 0069 | PLAN | [Implement Discarding a Server-Sent Event the Stream Ends Inside](decisions/0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md) | complete |
 | 0070 | MADR | [Read Each Model Family's Version Numbers from Its Dates and Siblings, and Give a Label's Name and Note Apart](decisions/0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md) | accepted |
-| 0070 | PLAN | [Implement Reading Each Model Family's Versions from Its Dates and Siblings, and Splitting a Label's Name and Note](decisions/0070-PLAN-place-grok-4-20-by-date-and-split-model-labels.md) | in-progress |
+| 0070 | PLAN | [Implement Reading Each Model Family's Versions from Its Dates and Siblings, and Splitting a Label's Name and Note](decisions/0070-PLAN-place-grok-4-20-by-date-and-split-model-labels.md) | complete |
 
 ## I want to…
 

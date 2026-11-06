@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-06
 associated-madr: "0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md"
 decision-makers: repository owner
@@ -826,4 +826,73 @@ At `d73a9e9`, the commit of Phases 1 to 3, with a clean tree.
   `v1.27.0`".
 * **Steps 3 to 5:** the gate, the disclosure guard over the outgoing
   commits, the push, CI on `main`, the tag and the checks after it, to
-  follow in this record.
+  follow in this record. *(Done the same day; see below.)*
+* Before staging: `make vuln`, "No vulnerabilities found"; the gate, "gate:
+  29 of 29 passed".
+* Committed on the owner's word as `52ab75f`, `chore(release): prepare
+  v1.27.0 and record phase 5 progress`.
+
+### The release (2026-11-06)
+
+* **Before the push:** the disclosure guard over the seven outgoing
+  commits, `4d0c757` to `52ab75f`, exit 0 with no finding. On the owner's
+  word, `main` was pushed, `b5ce51d..52ab75f`, through the pre-push guard.
+* **CI on `main`** at `52ab75f`: CI run 42307993244, success, with validate
+  on ubuntu-24.04, windows-2025 and macos-15, success, and release skipped,
+  as on any branch; Docs run 42307993285, success.
+* **The tag:** on the owner's word, `v1.27.0`, annotated as `v1.26.1` is,
+  on `52ab75f`, dated 2026-11-06 (`%cs`), the section's date, and pushed.
+  CI on the tag, run 42309500224: success, with validate on the three
+  platforms and release, success.
+* **The Release:** `v1.27.0`, Latest, not a draft or a prerelease. Its
+  body, 29 lines, equals `scripts/check_changelog.py --section v1.27.0`,
+  with each relative `docs/` link written as the tag's blob URL by the
+  release job. A scratch script compared them; a copy with one character
+  planted in the expected notes failed with the diff. The five newest
+  tags' Releases, `v1.27.0` to `v1.24.1`, each carry notes (R53).
+* **`tools/consumer.py v1.27.0` and `tools/offline.py v1.27.0`:**
+  sum.golang.org listed the version at the first poll, 200. In each, `go
+  get` "added … v1.27.0", and no line names `v1.26`. Both reported "every
+  step passed". consumer built for the six platforms and linked 16
+  packages. offline read 19 fields with "requests=0"; its `FAIL:` lines,
+  "caught: models.dev left on" and "caught: no caller layer" are its own
+  planted steps, which are meant to fail.
+
+### Closing (2026-11-06)
+
+* **Goal:**
+  * D1: a family's two-digit minor is read from its dates, else its gaps,
+    else the integer rule, with no version named by hand (Phase 1);
+    `grok-4.20` ranks below `grok-4.3` on the recorded and the live
+    listing (Phases 1 and 4);
+  * D2: `LabelName` and `LabelNote`, `Label` composed from them, the eight
+    notes, and the 12 unchanged strings equal to `b5ce51d`'s (Phase 2);
+  * D3: every new test red at `b5ce51d` or caught on its plants, and the
+    guard over every dated source (Phases 1 and 2);
+  * D4: the docs, the two amended records, `CHANGELOG.md`, and the release
+    `v1.27.0`, Q1's answer (Phases 0, 3 and 5).
+* **The MADR's Confirmation:**
+  * D3's tests pass; the red runs failed at `b5ce51d`, and every planted
+    break the steps name was caught (Phases 1 and 2);
+  * `tools/claims.py` passed 67 of 67 in Phase 0, where its eight plants
+    of false claims were caught, and again in Phases 2 and 3;
+  * `tools/apidiff.py v1.26.1` lists exactly `SortByRank`, `LabelName` and
+    `LabelNote`;
+  * `make fixtures-check` passed with the new fixture, which adds no hit
+    (Phase 1);
+  * `tools/gate.py` passed, 29 of 29, before each code phase was staged;
+  * `tools/consumer.py` and `tools/offline.py` passed on `v1.27.0`.
+* **No deviation** needed the owner's decision. Four findings were
+  recorded where they arose, each changing no decision: the fixture's
+  grouping by the name after the last `/` (Phase 1); the inverted date
+  comparison not failing the guard (Phase 1, step 7); Together's unstarred
+  labels (Phase 2, step 4); and a live `Recommended` that does not lead
+  with the static five, with two listing requests, not one (Phase 4).
+* **Not done, and why:**
+  * the `curateGrok` plant with the bare ranker is not caught by any test:
+    the recorded listing's backfill holds only the 4.20 ids, which tie
+    under either ranker (Phase 1, step 7);
+  * passing the menu's dates to the curators, which the MADR's amendment
+    "the module's curation reads siblings, not dates" leaves out;
+  * issue 11, which the release answers; the owner closes it.
+* `tools/records.py status` sets this PLAN `complete`.
