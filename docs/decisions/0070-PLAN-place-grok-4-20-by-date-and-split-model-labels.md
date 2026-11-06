@@ -760,3 +760,55 @@ key in `XAI_API_KEY`. Its presence is checked; its value is never printed.
   * `make pre-add-check FILES=llmprovider/catalog/doc.go`: "1 file(s)
     clean".
   * `tools/denyscan.py --changed`: "0 hit(s) in 3 file(s)".
+  * The gate: `python3 -B tools/gate.py`, "gate: 29 of 29 passed". The
+    files were then staged, and the owner committed them as `d73a9e9`.
+
+### Phase 4 (2026-11-06)
+
+At `d73a9e9`, the commit of Phases 1 to 3, with a clean tree.
+`XAI_API_KEY`'s presence was checked; its value was never printed.
+
+* **Step 1:** `go test -tags live_gateways ./llmprovider/catalog/ -run
+  '^TestLive_GrokListingTextOnly$' -count=1 -v` passed:
+
+  ```text
+  live_listing_test.go:55: usable: [grok-4.20-0309-non-reasoning grok-4.20-0309-reasoning grok-4.20-multi-agent-0309 grok-4.3 grok-4.5 grok-4.6 grok-4.7 grok-build-0.1]
+  --- PASS: TestLive_GrokListingTextOnly (0.34s)
+  ```
+
+* **Step 2:** the scratch program, built against the tree with a `replace`
+  directive, listed Grok through `catalog.List`:
+
+  ```text
+  source: live
+  Recommended: [grok-build-0.1 grok-4.3 grok-4.20-0309-reasoning grok-4.6 grok-4.5 grok-4.7 grok-4.20-0309-non-reasoning]
+  Menu:
+    grok-build-0.1                   2026-04-16
+    grok-4.3                         2026-04-17
+    grok-4.20-0309-reasoning         2026-03-09
+    grok-4.6                         2026-08-06
+    grok-4.5                         2026-06-29
+    grok-4.7                         2026-09-02
+    grok-4.20-0309-non-reasoning     2026-03-09
+    grok-4.20-multi-agent-0309       2026-03-09
+  SortByRank, nil dates:   [grok-4.7 grok-4.6 grok-4.5 grok-4.3 grok-4.20-0309-non-reasoning grok-4.20-0309-reasoning grok-4.20-multi-agent-0309 grok-build-0.1]
+  SortByRank, menu dates:  [grok-4.7 grok-4.6 grok-4.5 grok-4.3 grok-4.20-0309-non-reasoning grok-4.20-0309-reasoning grok-4.20-multi-agent-0309 grok-build-0.1]
+  ```
+
+* **Step 3, the rule, held:** in both `SortByRank` orders the three
+  `grok-4.20` ids follow `grok-4.3`, and the orders are equal. In
+  `Recommended`, `grok-4.3` is second and both `grok-4.20` ids follow it.
+  * The program checked the rule over the whole of `Recommended`, which is
+    stricter than "past the static five".
+  * In the same run, the rule was seen to fail on a planted order, the live
+    order with its first `grok-4.20` id moved to the top: "FAIL: PLANTED
+    order puts grok-4.20-0309-non-reasoning (0) above grok-4.3 (4)".
+* **Found, with no decision changed:**
+  * A live `Recommended` does not lead with the static five, as the rule's
+    wording supposed. With models.dev's facts the band is
+    `metadataCurate`'s, ranked by the profile, and the name ranker fills
+    behind it. The MADR records this in its amendment "the module's
+    curation reads siblings, not dates" (C63 to C66).
+  * Two listing requests went to xAI, not one: steps 1 and 2 are separate
+    processes, and the listing cache is in-process. Each request was a
+    listing; neither was a generation.
