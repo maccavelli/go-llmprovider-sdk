@@ -11,6 +11,8 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+## [v1.27.0] - 2026-11-06
+
 ### Added
 
 - `catalog.SortByRank` sorts a list of model ids by `Rank`, reading each
@@ -1127,7 +1129,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.26.1...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.27.0...HEAD
+[v1.27.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.26.1...v1.27.0
 [v1.26.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.26.0...v1.26.1
 [v1.26.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.25.0...v1.26.0
 [v1.25.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.24.1...v1.25.0

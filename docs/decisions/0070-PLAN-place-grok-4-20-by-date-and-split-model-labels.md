@@ -812,3 +812,18 @@ At `d73a9e9`, the commit of Phases 1 to 3, with a clean tree.
   * Two listing requests went to xAI, not one: steps 1 and 2 are separate
     processes, and the listing cache is in-process. Each request was a
     listing; neither was a generation.
+* Committed by the owner as `c77d232`.
+
+### Phase 5 (2026-11-06)
+
+* **Step 1:** `CHANGELOG.md`'s `[Unreleased]` becomes `[v1.27.0] -
+  2026-11-06`, under a new empty `[Unreleased]`. The compare links are
+  `[Unreleased]`, `v1.27.0...HEAD`, and `[v1.27.0]`, `v1.26.1...v1.27.0`.
+  `make changelog-check`: "40 release section(s), 0 problem(s)".
+  `scripts/check_changelog.py --section v1.27.0` gives the section's
+  Added, Changed and Fixed entries, the notes the Release is to carry.
+* **Step 2:** the README's Status reads "The current release is
+  `v1.27.0`".
+* **Steps 3 to 5:** the gate, the disclosure guard over the outgoing
+  commits, the push, CI on `main`, the tag and the checks after it, to
+  follow in this record.
