@@ -1,11 +1,18 @@
 // Package catalog knows the models each provider offers, and what is known of
 // each one.
 //
-// It holds the curated static catalogs (Static, Label, Rank), the live
-// listing curated against them (List, Catalog), the same listing as the
-// provider sent it (ListRaw, RawListing), model search (Search, and
-// Catalog.Search, which searches a listing's facts too), the ranking profiles
-// (Profile), and model metadata.
+// It holds the curated static catalogs (Static, Label, LabelName, LabelNote,
+// Rank, SortByRank), the live listing curated against them (List, Catalog),
+// the same listing as the provider sent it (ListRaw, RawListing), model
+// search (Search, and Catalog.Search, which searches a listing's facts too),
+// the ranking profiles (Profile), and model metadata.
+//
+// Rank reads a family's two-digit minor, such as grok-4.20's, as an integer
+// or as a decimal, chosen from the family's release dates, else from the
+// versions its siblings fill, else as an integer: so grok-4.20 is 4.2, below
+// grok-4.3, and gemini-3.10 still follows gemini-3.9. Rank reads a model
+// beside its provider's static list; SortByRank reads a whole list, and the
+// release dates its caller has (0070-MADR D1).
 //
 // Search ranks in tiers, an exact id first, and inside a tier by BM25F over
 // a model's fields (its id, its label, its family, and its facts as words

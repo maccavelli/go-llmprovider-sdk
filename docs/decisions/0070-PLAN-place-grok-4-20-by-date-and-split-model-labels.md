@@ -734,3 +734,29 @@ key in `XAI_API_KEY`. Its presence is checked; its value is never printed.
     ./llmprovider/catalog.LabelName: added, ./llmprovider/catalog.LabelNote:
     added, ./llmprovider/catalog.SortByRank: added", and nothing else.
   * `make docs-check`: "sdkaudit: 0 violation(s) of R50,R51,R52".
+  * The gate: `python3 -B tools/gate.py`, "gate: 29 of 29 passed". The
+    files were then staged, and the owner committed them as `ef3e86d`.
+
+### Phase 3 (2026-11-06)
+
+* **Step 1, `llmprovider/catalog/doc.go`:** the static catalogs are
+  "(Static, Label, LabelName, LabelNote, Rank, SortByRank)", and a new
+  paragraph says how `Rank` reads a family's two-digit minor and what
+  `SortByRank` reads, citing 0070-MADR D1. Its two examples are tests:
+  `grok-4.20` below `grok-4.3` (`TestRankGrokModel`), and `gemini-3.10`
+  after `gemini-3.9` (`TestRankGenerations`).
+* **Step 2, `docs/architecture.md`:** the `llmprovider/catalog` row names
+  `SortByRank` (D1), and `LabelName` and `LabelNote` (D2), beside `Label`.
+  The label note adds the parts, and one sentence on reading versions, with
+  a link to the MADR.
+* **Step 3, `CHANGELOG.md`'s `[Unreleased]`:** Added, Changed and Fixed, as
+  the step gives them, each linking the MADR, in the file's section order.
+* **Step 4:**
+  * `make docs-check`: "sdkaudit: 0 violation(s) of R50,R51,R52".
+  * `make changelog-check`: "39 release section(s), 0 problem(s)".
+  * `make links-check`: "0 problem(s), 1127 relative link(s) in 160
+    file(s)".
+  * `make markdownlint`: "0 issues in 0 files".
+  * `make pre-add-check FILES=llmprovider/catalog/doc.go`: "1 file(s)
+    clean".
+  * `tools/denyscan.py --changed`: "0 hit(s) in 3 file(s)".

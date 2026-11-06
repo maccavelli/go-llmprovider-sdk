@@ -11,6 +11,36 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- `catalog.SortByRank` sorts a list of model ids by `Rank`, reading each
+  family's version numbers from the list, and from release dates the
+  caller gives. `catalog.LabelName` and `catalog.LabelNote` return a
+  curated label's name and note, unpadded
+  ([0070-MADR](docs/decisions/0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md)
+  D1, D2).
+
+### Changed
+
+- Eight label notes:
+  - `grok-4.6`'s no longer calls it the Grok CLI's default, which is
+    grok-build's compiled-in fallback;
+  - `grok-4.5`'s "previous flagship" was false;
+  - the notes that ranked a model in time no longer do;
+  - `claude-opus-4-8`'s names its generation
+    ([0070-MADR](docs/decisions/0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md)
+    D2).
+
+### Fixed
+
+- `catalog.Rank` read `grok-4.20-*` as generation 4.20, above `grok-4.7`,
+  though xAI released it before `grok-4.3`. A family's two-digit minor is
+  now read as an integer or a decimal, from the family's dates and
+  siblings, so `grok-4.20` is 4.2 and `gemini-3.10` still follows
+  `gemini-3.9`
+  ([0070-MADR](docs/decisions/0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md)
+  D1).
+
 ## [v1.26.1] - 2026-11-04
 
 ### Fixed
