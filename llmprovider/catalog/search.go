@@ -138,7 +138,7 @@ func newSearchIndex(provider llmprovider.ProviderID, n int, at func(int) (string
 		}
 		seen[key] = struct{}{}
 		label := Label(provider, id)
-		name := displayName(strings.ToLower(label))
+		name := strings.ToLower(LabelName(provider, id))
 		d := searchDoc{match: Match{ID: id, Label: label}, lowerID: key, name: name, compact: compactModelText(key),
 			order: len(ix.docs)}
 		start := len(words)

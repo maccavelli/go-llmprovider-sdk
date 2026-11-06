@@ -135,12 +135,6 @@ func tierScore(d *searchDoc, sq *searchQuery) (int, bool) {
 	return 0, false
 }
 
-// displayName is a label's name, before any bracketed annotation.
-func displayName(label string) string {
-	name, _, _ := strings.Cut(label, "[")
-	return strings.TrimSpace(name)
-}
-
 // compactModelText removes the separators "-", ".", "_", "/" and spaces, so
 // "gpt41" finds gpt-4.1.
 func compactModelText(s string) string {

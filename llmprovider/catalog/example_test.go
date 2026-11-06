@@ -27,6 +27,16 @@ func ExampleSortByRank() {
 	// Output: [grok-4.7 grok-4.3 grok-4.20-0309-reasoning]
 }
 
+// ExampleLabelName reads a curated label's two parts, for a picker that shows
+// the name and the note apart.
+func ExampleLabelName() {
+	fmt.Println(catalog.LabelName(llmprovider.ProviderGrok, "grok-4.7"))
+	fmt.Println(catalog.LabelNote(llmprovider.ProviderGrok, "grok-4.7"))
+	// Output:
+	// Grok 4.7
+	// frontier model
+}
+
 // ExampleWithCache keeps two caches' listings apart: a listing is fetched
 // once per cache. The httptest server stands in for Together's listing, so
 // that the example runs offline.

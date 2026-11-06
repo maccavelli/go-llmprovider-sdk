@@ -161,15 +161,18 @@ func TestSearchModels_SeparatorOnlyQuery(t *testing.T) {
 	assertIDs(t, "-", got, []string{"a-b"})
 }
 
-// withLabel adds a curated label for one provider's id for one test.
+// withLabel adds a curated label for one provider's id for one test. The
+// label is split at its first "[": the name before it, trimmed, and the note
+// inside the brackets.
 func withLabel(t *testing.T, provider llmprovider.ProviderID, id, label string) {
 	t.Helper()
 	labels, existed := modelLabels[provider]
 	if !existed {
-		labels = map[string]string{}
+		labels = map[string]modelLabel{}
 		modelLabels[provider] = labels
 	}
-	labels[id] = label
+	name, note, _ := strings.Cut(label, "[")
+	labels[id] = modelLabel{name: strings.TrimSpace(name), note: strings.TrimSuffix(note, "]")}
 	t.Cleanup(func() {
 		delete(labels, id)
 		if !existed {

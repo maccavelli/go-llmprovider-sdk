@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"cmp"
+	"fmt"
 	"math"
 	"regexp"
 	"slices"
@@ -860,44 +861,65 @@ func rankKiloModel(m string) int {
 	return score
 }
 
-// modelLabels maps a curated model id to a human-readable menu label. It lives
+// modelLabel is a curated label's two parts: the display name, and the note
+// Label shows in brackets after it. Neither is padded or starred.
+type modelLabel struct{ name, note string }
+
+// labelColumn is the width Label pads a name to, so that the notes of a menu
+// line up.
+const labelColumn = 23
+
+// modelLabels maps a curated model id to its display name and note. It lives
 // beside the static catalogs it annotates so a catalog edit and its label edit
 // are the same diff — the arrangement that let prepare-commit-msg's private
 // 17-entry copy drift out of step with this package.
 //
+// Label composes the parts: the name padded to labelColumn, then the note in
+// brackets, which gains "★ Recommended: " in front on the first id of
+// Static(provider). The star follows the static list's order, so it is not
+// written here. A note says what a model is, never where it stands in time,
+// which a newer release makes false (0070-MADR D2).
+//
 // Labels are advisory. Label falls back to the bare id, so a live listing
 // that outruns this table degrades to raw ids rather than hiding models.
-var modelLabels = map[llmprovider.ProviderID]map[string]string{
+var modelLabels = map[llmprovider.ProviderID]map[string]modelLabel{
 	llmprovider.ProviderGemini: {
-		modelGemini35Lite:  "Gemini 3.5 Flash-Lite  [★ Recommended: ultra-low latency]",
-		modelGemini38Flash: "Gemini 3.8 Flash       [newest Flash, frontier coding]",
-		"gemini-3.6-flash": "Gemini 3.6 Flash       [high efficiency, reduced token overhead]",
+		modelGemini35Lite:  {"Gemini 3.5 Flash-Lite", "ultra-low latency"},
+		modelGemini38Flash: {"Gemini 3.8 Flash", "frontier coding"},
+		"gemini-3.6-flash": {"Gemini 3.6 Flash", "high efficiency, reduced token overhead"},
 	},
 	llmprovider.ProviderOpenAI: {
-		modelGPT6Luna:   "GPT-6 Luna             [★ Recommended: fast & cost-effective]",
-		"gpt-5.6-luna":  "GPT-5.6 Luna           [previous efficient tier]",
-		"gpt-4.1-mini":  "GPT-4.1 Mini           [fast, no reasoning]",
-		"gpt-5.6-terra": "GPT-5.6 Terra          [balanced reasoning]",
-		"gpt-6.1-sol":   "GPT-6.1 Sol            [near-flagship, lower cost]",
-		"gpt-6-astra":   "GPT-6 Astra            [maximum capability]",
+		modelGPT6Luna:   {"GPT-6 Luna", "fast & cost-effective"},
+		"gpt-5.6-luna":  {"GPT-5.6 Luna", "efficient tier"},
+		"gpt-4.1-mini":  {"GPT-4.1 Mini", "fast, no reasoning"},
+		"gpt-5.6-terra": {"GPT-5.6 Terra", "balanced reasoning"},
+		"gpt-6.1-sol":   {"GPT-6.1 Sol", "near-flagship, lower cost"},
+		"gpt-6-astra":   {"GPT-6 Astra", "maximum capability"},
 	},
 	llmprovider.ProviderClaude: {
-		modelClaudeHaiku55:  "Claude Haiku 5.5       [★ Recommended: high speed, low latency]",
-		"claude-sonnet-5-5": "Claude Sonnet 5.5      [latest Sonnet, high precision]",
-		"claude-sonnet-5":   "Claude Sonnet 5        [balanced speed & precision]",
-		"claude-opus-5-5":   "Claude Opus 5.5        [latest Opus, maximum capability]",
-		"claude-opus-4-8":   "Claude Opus 4.8        [maximum capability]",
+		modelClaudeHaiku55:  {"Claude Haiku 5.5", "high speed, low latency"},
+		"claude-sonnet-5-5": {"Claude Sonnet 5.5", "high precision"},
+		"claude-sonnet-5":   {"Claude Sonnet 5", "balanced speed & precision"},
+		"claude-opus-5-5":   {"Claude Opus 5.5", "maximum capability"},
+		"claude-opus-4-8":   {"Claude Opus 4.8", "maximum capability of Opus 4"},
 	},
 	llmprovider.ProviderGrok: {
-		grokModel46:      "Grok 4.6               [★ Recommended: the Grok CLI's default]",
-		grokModel45:      "Grok 4.5               [previous flagship]",
-		"grok-4.7":       "Grok 4.7               [current flagship]",
-		"grok-4.3":       "Grok 4.3               [low cost, long context]",
-		"grok-build-0.1": "Grok Build 0.1         [coding, early access]",
+		grokModel46:      {"Grok 4.6", "the Grok CLI's built-in default"},
+		grokModel45:      {"Grok 4.5", "second in the Grok CLI's built-in list"},
+		"grok-4.7":       {"Grok 4.7", "frontier model"},
+		"grok-4.3":       {"Grok 4.3", "low cost, long context"},
+		"grok-build-0.1": {"Grok Build 0.1", "coding, early access"},
 	},
 	llmprovider.ProviderTogether: {
-		"openai/gpt-oss-120b": "GPT-OSS 120B           [highest throughput]",
+		"openai/gpt-oss-120b": {"GPT-OSS 120B", "highest throughput"},
 	},
+}
+
+// labelFor returns the curated label of a provider's model. The provider is
+// compared case-insensitively, as Static compares it.
+func labelFor(provider llmprovider.ProviderID, model string) (modelLabel, bool) {
+	label, ok := modelLabels[llmprovider.ProviderID(strings.ToLower(string(provider)))][model]
+	return label, ok
 }
 
 // Label returns a human-readable menu label for a model, or the bare model
@@ -905,9 +927,42 @@ var modelLabels = map[llmprovider.ProviderID]map[string]string{
 // case-insensitively, as Static compares it: an id two providers offer, such
 // as gpt-6-luna on OpenAI and OpenCode Go, takes each one's label, and a
 // gateway's fallback six carry none (0033-MADR D4).
+//
+// A label is LabelName padded to 23 columns, then LabelNote in brackets,
+// which gains "★ Recommended: " in front on the provider's first static id,
+// as in "Grok 4.7               [frontier model]". A label with no note is the
+// name alone (0070-MADR D2).
 func Label(provider llmprovider.ProviderID, model string) string {
-	if label, ok := modelLabels[llmprovider.ProviderID(strings.ToLower(string(provider)))][model]; ok {
-		return label
+	label, ok := labelFor(provider, model)
+	switch {
+	case !ok:
+		return model
+	case label.note == "":
+		return label.name
+	}
+	note := label.note
+	if static := Static(provider); len(static) > 0 && static[0] == model {
+		note = "★ Recommended: " + note
+	}
+	return fmt.Sprintf("%-*s[%s]", labelColumn, label.name, note)
+}
+
+// LabelName returns the curated display name of a provider's model, such as
+// "Grok 4.7", unpadded, or the bare model id when none is known. It compares
+// the provider as Label does, and is the part of Label before the brackets;
+// LabelNote is the part inside them (0070-MADR D2).
+func LabelName(provider llmprovider.ProviderID, model string) string {
+	if label, ok := labelFor(provider, model); ok {
+		return label.name
 	}
 	return model
+}
+
+// LabelNote returns the curated note of a provider's model, such as
+// "frontier model", without Label's brackets or its "★ Recommended: " star,
+// or "" when none is known. It compares the provider as Label does; LabelName
+// is the name the note follows (0070-MADR D2).
+func LabelNote(provider llmprovider.ProviderID, model string) string {
+	label, _ := labelFor(provider, model)
+	return label.note
 }

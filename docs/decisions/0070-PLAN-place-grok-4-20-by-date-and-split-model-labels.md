@@ -404,6 +404,11 @@ v1.26.1` lists exactly these three.
        `opencode-go` (0033-MADR D4, C37).
      * `TestLabel_StarIsFirstStatic_0070`: for each provider with an entry,
        exactly one `Label` holds `★`, and it is `Static(provider)[0]`'s.
+       (2026-11-06, in execution: Together has an entry, but its first static
+       id has none, as the MADR's Context §3 records, so none of its labels
+       holds `★`. The test takes the MADR D3's wording: the starred labels
+       are exactly the first static id's, when it has an entry; and the first
+       ids of Gemini, OpenAI, Claude and Grok each have one.)
    * **`example_test.go`:** `ExampleLabelName`, printing `LabelName` and
      `LabelNote` of `grok-4.7` on Grok, `Grok 4.7` and `frontier model`.
 5. **The 12 unchanged strings:** the golden's 12 rows for entries whose note
@@ -648,4 +653,84 @@ key in `XAI_API_KEY`. Its presence is checked; its value is never printed.
     golangci-lint, go vet, go test, govulncheck)".
   * `tools/apidiff.py v1.26.1`: "Compatible changes: ./llmprovider/catalog.SortByRank: added", and nothing else.
   * `make docs-check`: "sdkaudit: 0 violation(s) of R50,R51,R52".
-  * The gate, below.
+  * The gate: `python3 -B tools/gate.py`, "gate: 29 of 29 passed". The
+    files were then staged, and the owner committed them as `ee3db9e`.
+
+### Phase 2 (2026-11-06)
+
+* **Steps 1 to 3:**
+  * `models_catalog.go`: `modelLabel{name, note}`, `labelColumn = 23`, the
+    table of names and notes with no padding and no star, `labelFor`,
+    `Label` composed from the parts, `LabelName` and `LabelNote`. The
+    table's comment and the three docs are as step 1 gives them.
+  * The eight notes are step 1's. The four starred notes lost their prefix,
+    which `Label` adds.
+  * `search.go` indexes `strings.ToLower(LabelName(provider, id))`;
+    `displayName` is removed from `model_matcher.go`.
+  * `withLabel`'s body splits the label at its first `[`. Its signature and
+    callers are unchanged, and its diff is the body and its comment only.
+* **Step 4, the tests:** `label_notes_0070_test.go`
+  (`TestLabelNotes_NoRelativeTime_0070`); `labels_0070_test.go`
+  (`TestLabel_Parts_0070`, with the 20-row golden, `TestLabelName_Fallback_0070`,
+  `TestLabel_StarIsFirstStatic_0070`); `ExampleLabelName`. All pass.
+  * **Found and annotated in step 4:** the PLAN's "exactly one `Label` holds
+    `★`" does not hold for Together, whose first static id is unlabelled
+    (the MADR's Context §3). The test follows the MADR D3's wording, "the
+    star is on exactly the first `Static` id of each provider with an
+    entry": Together's starred set is empty, and the other four providers'
+    is their first id. No decision or asserted fact changes.
+* **Step 5, the 12 unchanged strings:** a scratch script read the golden
+  from `labels_0070_test.go` and the `b5ce51d` strings from the Rank probe's
+  output: "12 unchanged equal b5ce51d; 8 changed only inside the brackets".
+  The eight:
+
+  | id | Note at `b5ce51d` | Note |
+  | :--- | :--- | :--- |
+  | `claude-opus-4-8` | maximum capability | maximum capability of Opus 4 |
+  | `claude-opus-5-5` | latest Opus, maximum capability | maximum capability |
+  | `claude-sonnet-5-5` | latest Sonnet, high precision | high precision |
+  | `gemini-3.8-flash` | newest Flash, frontier coding | frontier coding |
+  | `gpt-5.6-luna` | previous efficient tier | efficient tier |
+  | `grok-4.5` | previous flagship | second in the Grok CLI's built-in list |
+  | `grok-4.6` | ★ Recommended: the Grok CLI's default | ★ Recommended: the Grok CLI's built-in default |
+  | `grok-4.7` | current flagship | frontier model |
+
+* **Step 6, red at `b5ce51d`:** `tools/redgreen.py --expect fail --rev
+  b5ce51d`, "1 of 1 fail as expected":
+
+  ```text
+  label_notes_0070_test.go:31: claude claude-opus-5-5: note "latest Opus, maximum capability" places the model in time with ["latest"]
+  label_notes_0070_test.go:31: claude claude-sonnet-5-5: note "latest Sonnet, high precision" places the model in time with ["latest"]
+  label_notes_0070_test.go:31: gemini gemini-3.8-flash: note "newest Flash, frontier coding" places the model in time with ["newest"]
+  label_notes_0070_test.go:31: grok grok-4.5: note "previous flagship" places the model in time with ["previous"]
+  label_notes_0070_test.go:31: grok grok-4.7: note "current flagship" places the model in time with ["current"]
+  label_notes_0070_test.go:31: openai gpt-5.6-luna: note "previous efficient tier" places the model in time with ["previous"]
+  label_notes_0070_test.go:36: Label(grok, grok-4.6) = "Grok 4.6               [★ Recommended: the Grok CLI's default]", want no claim that it is the Grok CLI's default
+  ```
+
+* **Step 7, plants:** `tools/plant.py`, with a command that prints every
+  failing test's name, "all 6 plant(s) caught":
+
+  | Plant | Failed |
+  | :--- | :--- |
+  | `labelColumn` 22 | `TestLabel_Parts_0070` |
+  | the star on every entry | `TestLabel_Parts_0070`, `TestLabel_StarIsFirstStatic_0070` |
+  | the star on `Static(provider)[1]` | `TestLabel_Parts_0070`, `TestLabel_StarIsFirstStatic_0070` |
+  | `LabelName` returns `""` with no entry | `TestLabelName_Fallback_0070` |
+  | `LabelName` returns the id always | `ExampleLabelName`, `TestLabelName_Fallback_0070`, `TestLabel_Parts_0070`, `TestSearchModels_LabelSubstringTier`, `TestSearch_ExistingTiers_0061` |
+  | `grok-4.5`'s old note restored | `TestLabelNotes_NoRelativeTime_0070`, `TestLabel_Parts_0070` |
+
+  Each plant fails at least the tests the step names.
+* **Step 8, the drift check:** `go test ./...` passed. Run by name, these
+  passed unchanged: `TestSearch_AnnotationNotSearched`,
+  `TestSearch_GlobIDBeforeLabel`, `TestSearchModels_LabelFromModelLabel`,
+  `TestSearchModels_NoSubsequenceOverLabels`, `TestLabel_ByProvider_0033`,
+  `TestStaticIDs_Labelled` and `TestLabels_NoOrphans`. Every wizard test
+  passed.
+* **Step 9:**
+  * `make pre-add-check` on the seven Go files: "7 file(s) clean (gofmt,
+    golangci-lint, go vet, go test, govulncheck)".
+  * `tools/apidiff.py v1.26.1`: "Compatible changes:
+    ./llmprovider/catalog.LabelName: added, ./llmprovider/catalog.LabelNote:
+    added, ./llmprovider/catalog.SortByRank: added", and nothing else.
+  * `make docs-check`: "sdkaudit: 0 violation(s) of R50,R51,R52".
