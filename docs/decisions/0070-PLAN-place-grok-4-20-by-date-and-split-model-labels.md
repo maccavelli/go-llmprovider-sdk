@@ -895,4 +895,7 @@ At `d73a9e9`, the commit of Phases 1 to 3, with a clean tree.
   * passing the menu's dates to the curators, which the MADR's amendment
     "the module's curation reads siblings, not dates" leaves out;
   * issue 11, which the release answers; the owner closes it.
+    (2026-11-06, after this entry: on the owner's word, issue 11 was
+    answered with a comment linking the release and this record's pair,
+    and closed as completed.)
 * `tools/records.py status` sets this PLAN `complete`.
