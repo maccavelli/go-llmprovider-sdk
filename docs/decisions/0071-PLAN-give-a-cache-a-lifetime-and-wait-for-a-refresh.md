@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-07
 associated-madr: "0071-MADR-give-a-cache-a-lifetime-and-wait-for-a-refresh.md"
 decision-makers: repository owner
@@ -283,4 +283,27 @@ As 0070-PLAN's Phase 5:
 
 ## Execution record
 
-No phase has run. The record begins once the owner approves this PLAN.
+### Phase 0 (2026-11-07)
+
+* **Step 1.** The MADR, this PLAN and their index rows were committed as
+  records only, at `ab8db9e`, after `tools/gate.py --markdown` passed 11 of
+  11. The MADR's claims passed 32 of 32 at `abe3626`.
+* **Step 2.** The owner answered Q1 to Q6 as recommended, with three options
+  offered for each, and the MADR is `accepted`. The owner approved this PLAN
+  ("committed proceed"), and `tools/records.py status` set it
+  `in-progress`.
+* **Step 3.** The amendments were appended:
+  * `0048-MADR-adopt-go-sdk-best-practices.md`, "A5 (2026-11-07): a
+    `Cache` has a lifetime";
+  * `0053-MADR-stream-retry-and-cache-defects.md`, "Amendment 2026-11-07:
+    D4 and D6, the detached work has an owner".
+
+  Neither rewrites a decision.
+* **Step 4.** `python3 -B tools/gate.py --markdown` reported "gate: 11 of
+  11 passed". Each of these checks returned 0:
+  * `parity-check`, `records-check`, `tables-check`, `changelog-check`;
+  * `markdownlint`, `links-check`, `disclosure-check`, `gate-selftest`;
+  * `deny-scan`, `recordlint`, `claims`.
+
+  It was run again after this entry was written, and the files were then
+  staged.

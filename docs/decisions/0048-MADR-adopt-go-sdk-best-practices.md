@@ -470,3 +470,18 @@ Answered 2026-10-19; each answer is in the decisions above.
   and each release deletes the Release of the tag that falls to sixth.
 * **A2's six Releases** (`v1.10.2` to `v1.15.0`) are deleted, with
   `v1.16.0`'s. Their tags and sections stay.
+
+### A5 (2026-11-07): a `Cache` has a lifetime
+
+* **D1 is extended.** A `catalog.Cache` gains `Close(ctx)`, which ends its
+  life. No call given the cache starts background work after `Close`
+  begins. Each `Close` waits under its own context for the work the cache
+  started: its listing fetches, its models.dev refreshes and its probe runs.
+  [0071-MADR-give-a-cache-a-lifetime-and-wait-for-a-refresh.md](0071-MADR-give-a-cache-a-lifetime-and-wait-for-a-refresh.md)
+  D1 and D2 record the decision.
+* **D1's other terms stand:**
+  * the zero value is ready to use;
+  * a `Cache` is safe for concurrent use, `Close` included;
+  * `WithCache` gives it to a listing or a provider;
+  * without it, the process's cache is used, which has no `Close`.
+* **R49** gains a sentence naming `Close`, in 0071-PLAN Phase 3.

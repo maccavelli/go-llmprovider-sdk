@@ -465,3 +465,20 @@ its other cases are unchanged.
 0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md Deviation 1. At
 the stream end the failing dispatch is never called, and the error is the
 early end's.)*
+
+## Amendment 2026-11-07: D4 and D6, the detached work has an owner
+
+[0071-MADR-give-a-cache-a-lifetime-and-wait-for-a-refresh.md](0071-MADR-give-a-cache-a-lifetime-and-wait-for-a-refresh.md)
+D1 gives a `catalog.Cache` a `Close`:
+
+* **D4's listing fetch** and **D6's probe run** stay detached from every
+  caller. A caller's cancellation still ends only its own wait.
+* **Each is now owned by its cache.** `Close` stops new runs, cancels the
+  runs in flight, and waits for them. D6's probe run is now counted, as D4's
+  fetch already was, on a group of the cache's probe store.
+* **The count is taken under the lock** that claims the key, so that no
+  start can race `Close`'s wait (0071-MADR, fact 1).
+* **The process's cache** has no `Close`, so its fetches and probe runs
+  behave as D4 and D6 describe.
+
+D4's and D6's single-flights, keys, results and bounds are unchanged.
