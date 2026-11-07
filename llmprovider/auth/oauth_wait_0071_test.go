@@ -2,7 +2,11 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -123,4 +127,45 @@ func TestOAuthSessionWait_TempDir_0071(t *testing.T) {
 	})
 	startAbandonedRefresh(t, session, issuer)
 	issuer.let()
+}
+
+// TestOAuthSessionWait_WindowsRemoval_0071: on Windows, a refresh that
+// holds a FileTokenStore's refresh lock after its test ends blocks the
+// removal of the test's temporary directory, as issue 12 found. Waiting for
+// the refresh in a cleanup that runs before the removal lets the removal
+// succeed. The issuer answers after 3 s, past the 2 s for which testing
+// retries a Windows removal (0071-MADR, amendment "a Windows test of the
+// removal").
+func TestOAuthSessionWait_WindowsRemoval_0071(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows refuses to remove a file held open; elsewhere this test cannot fail")
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(3 * time.Second)
+		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "access-1", "refresh_token": "refresh-1",
+			"expires_in": 1800})
+	}))
+	t.Cleanup(srv.Close)
+	dir := t.TempDir()
+	store, err := NewFileTokenStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := expiredStoredSession(srv, store)
+	if err := store.Save(context.Background(), session.Provider, session.persistable()); err != nil {
+		t.Fatal(err)
+	}
+	// Registered after t.TempDir, so it runs before the directory's removal.
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := session.Wait(ctx); err != nil {
+			t.Errorf("Wait = %v, want nil", err)
+		}
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if _, err := session.Token(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Token under a 200ms deadline = %v, want context.DeadlineExceeded", err)
+	}
 }

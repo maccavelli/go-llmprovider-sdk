@@ -740,3 +740,57 @@ and `internal/transport` was added to match the Verification section.
 
 Both hosts' scratch clones and bundles were listed, removed, and checked
 gone. Nothing was pushed from either host, and nothing was left on them.
+
+### Phase 4b (2026-11-07)
+
+#### Phase 4's last check
+
+Phase 4's record and the amendment adding this phase were staged after
+`python3 -B tools/gate.py --markdown` reported "gate: 11 of 11 passed". It
+started at load 9.2. The owner committed them at `5f21797`.
+
+#### Step 1: the test
+
+`TestOAuthSessionWait_WindowsRemoval_0071` is in
+`llmprovider/auth/oauth_wait_0071_test.go`, as step 1 describes. Its body
+also fails if the caller's `Token` does not return
+`context.DeadlineExceeded`. That shows the refresh is still running when
+the body ends. `go vet` passes on the host and with `GOOS=windows`.
+
+#### Step 2: macOS
+
+`go test -count=1 -v -run 'TestOAuthSessionWait_WindowsRemoval_0071$'
+./llmprovider/auth/`:
+
+* `oauth_wait_0071_test.go:141: only Windows refuses to remove a file held
+  open; elsewhere this test cannot fail`;
+* `--- SKIP: TestOAuthSessionWait_WindowsRemoval_0071`;
+* `ok`.
+
+#### Step 3: the Windows host
+
+* **The clones.** A `git bundle` of `main` at `5f21797` was copied to the
+  Windows host, after a check that the paths were free, and cloned twice.
+  The new test file was copied into both clones, and the planted
+  `oauth_session.go` (`plantwait71.py`) into the second. `git diff --stat`
+  showed the test file alone in the first clone (45 insertions), and the
+  test file plus `oauth_session.go` (3 insertions) in the second.
+* **As built,** `go test -count=5 -v -run …` showed 5 × `--- PASS:
+  TestOAuthSessionWait_WindowsRemoval_0071`.
+* **With `Wait` planted,** it showed 5 × `--- FAIL`. Each failure was
+  `testing.go:1619: TempDir RemoveAll cleanup: unlinkat <path>\openai.oslock:
+  The process cannot access the file because it is being used by another
+  process.` `openai.oslock` is the store's refresh lock, which the refresh
+  held open. (`<path>` stands for the host's temporary directory, which is
+  not recorded.)
+* **Race.** `go test -race -count=1 ./llmprovider/auth/...` reported `ok`.
+* **Cleanup.** The clones and the bundle were listed, removed, and checked
+  gone.
+* **The SSH warning.** The host's SSH server answered with a warning that
+  its key exchange is not post-quantum. That is the host's own
+  configuration, outside this PLAN, and was left as it is.
+
+#### Step 4
+
+The pre-add check and the full gate run before staging. Their lines are
+recorded at the start of Phase 5's entry.
