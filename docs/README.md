@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-148 records. Cite them by full filename.
+150 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -158,6 +158,8 @@ documents a reader follows to do something.
 | 0069 | PLAN | [Implement Discarding a Server-Sent Event the Stream Ends Inside](decisions/0069-PLAN-discard-an-sse-event-the-stream-ends-inside.md) | complete |
 | 0070 | MADR | [Read Each Model Family's Version Numbers from Its Dates and Siblings, and Give a Label's Name and Note Apart](decisions/0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md) | accepted |
 | 0070 | PLAN | [Implement Reading Each Model Family's Versions from Its Dates and Siblings, and Splitting a Label's Name and Note](decisions/0070-PLAN-place-grok-4-20-by-date-and-split-model-labels.md) | complete |
+| 0071 | MADR | [Give a Cache a Lifetime, and Let a Caller Wait for an OAuth Refresh](decisions/0071-MADR-give-a-cache-a-lifetime-and-wait-for-a-refresh.md) | accepted |
+| 0071 | PLAN | [Implement a Cache's Lifetime and a Wait for an OAuth Refresh](decisions/0071-PLAN-give-a-cache-a-lifetime-and-wait-for-a-refresh.md) | proposed |
 
 ## I want to…
 
