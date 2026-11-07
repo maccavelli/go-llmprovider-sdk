@@ -66,7 +66,8 @@ type tokenFuture struct {
 // command again, unless Invalidate is called. Once the output is four fifths
 // of its TTL old, the next Token returns it and starts one run in the
 // background, bounded by Timeout, whose output replaces it (0068-MADR D4).
-// Its String, GoString, LogValue and MarshalJSON show the command's name
+// That run is detached from the caller's context, and nothing waits for it,
+// so it may outlive the caller by up to Timeout (0071-MADR Q3). Its String, GoString, LogValue and MarshalJSON show the command's name
 // only, never its arguments or the token. It is safe for concurrent use
 // while its fields are unchanged after the first Token, and it must not be
 // copied after that.

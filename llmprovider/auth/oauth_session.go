@@ -203,6 +203,41 @@ func waitToken(ctx context.Context, future *tokenFuture) (llmprovider.Token, err
 	}
 }
 
+// Wait returns once the session has no refresh in flight, and no retried
+// save of a rotated session (0071-MADR D3). It returns nil, or the context's
+// error, ctx.Err(), if ctx ends first; it returns no other error. It cancels
+// nothing: a refresh runs detached from its
+// callers so that a rotation is saved (0026-MADR F3), and Wait lets a test,
+// or a process that is ending, wait for it. When Wait returns nil, the
+// refresh has released the store's refresh lock and attempted its save. A
+// Token call after that may start another refresh.
+//
+// A caller that also owns a catalog.Cache through which the session is
+// asked for tokens calls the cache's Close first. Close ends a background
+// fetch's wait for its token, but not the refresh behind it. Wait is safe
+// for concurrent use.
+func (s *OAuthSession) Wait(ctx context.Context) error {
+	for {
+		s.mu.Lock()
+		future := s.inflight
+		s.mu.Unlock()
+		if future == nil {
+			return nil
+		}
+		select {
+		case <-future.done:
+		case <-ctx.Done():
+			s.mu.Lock()
+			idle := s.inflight == nil
+			s.mu.Unlock()
+			if idle {
+				return nil
+			}
+			return ctx.Err()
+		}
+	}
+}
+
 // complete runs the refresh, or the save of an unsaved rotation (pending,
 // with token the current token), records the outcome on the session, and
 // releases future. It runs detached from every caller (0026-MADR F3).

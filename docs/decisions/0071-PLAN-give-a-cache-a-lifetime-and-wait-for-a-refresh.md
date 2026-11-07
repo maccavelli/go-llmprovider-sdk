@@ -219,8 +219,8 @@ No other name is exported. The closed-cache error wraps
    | `TestOAuthSessionWait_AfterSave_0071` | A caller's `Token` is cancelled while the issuer stub holds the refresh. Once the stub answers, `Wait` returns nil only after the store has saved the rotated token. | `Wait` returns nil at once |
    | `TestOAuthSessionWait_Deadline_0071` | While the stub still holds the refresh, `Wait` returns `ctx.Err()` at a 100 ms deadline. | `Wait` ignores `ctx` (the test's own 2 s bound fails it) |
    | `TestOAuthSessionWait_Idle_0071` | A session with nothing in flight returns nil at once. | `Wait` blocks when `inflight` is nil |
-   | `TestOAuthSessionWait_TempDir_0071` | A `FileTokenStore` in `t.TempDir()`, a detached refresh, and `Wait` in `t.Cleanup` before the directory is removed. The removal succeeds. | `Wait` returns nil at once. This break fails the test on Windows only, where an open handle blocks removal; it is planted there in Phase 4. |
-   | `ExampleOAuthSession_Wait` | A session over `httptest`, refreshed and waited for, prints `nil`. | the example's output, planted wrong |
+   | `TestOAuthSessionWait_TempDir_0071` | A `FileTokenStore` in `t.TempDir()`, a detached refresh, and `Wait` in `t.Cleanup` before the directory is removed. The removal succeeds. | `Wait` returns nil at once. This break fails the test on Windows only, where an open handle blocks removal; it is planted there in Phase 4. *(As written, the test also checks after `Wait` that the store holds the rotated session. So the break fails it on every platform, and it failed on macOS in Phase 2. Phase 4 still plants it on Windows, for the removal.)* |
+   | `ExampleOAuthSession_Wait` | A session over `httptest`, refreshed and waited for, prints `nil`. | the example's output, planted wrong *(As written: its caller gives up at a 20 ms deadline, so it prints `context deadline exceeded`, then `<nil>` from `Wait`, then `fresh-access <nil>` from the next `Token`.)* |
 
 ### Phase 3: docs (D4)
 
@@ -506,3 +506,77 @@ The failure lines of run 5, on the final code:
   again before the phase is staged: the race run above predates Deviation 4.
   Their lines are recorded at the start of Phase 2's entry, as
   0070-PLAN recorded its phases' gate lines.
+
+### Phase 2 (2026-11-07)
+
+#### Phase 1's last checks
+
+Before Phase 1 was staged, on the tree the owner then committed at
+`f05119d`:
+
+* `go test -race -count=3` over `catalog`, `auth` and `internal/transport`
+  passed, with no `DATA RACE` report.
+* `python3 -B tools/gate.py` reported "gate: 29 of 29 passed". It started at
+  load 9.7.
+
+#### What Phase 2 did
+
+* **Step 1.** `(*OAuthSession).Wait(ctx)` is in
+  `llmprovider/auth/oauth_session.go`, beside `waitToken`. It loops on
+  `s.inflight` under `s.mu`. It returns nil when nothing is in flight, and
+  `ctx.Err()` when `ctx` ends first. When `ctx` ends just as the refresh
+  does, it looks once more and returns nil if the refresh has finished.
+
+  Its doc says that `Wait` cancels nothing, that the refresh lock is released
+  and the save attempted before it returns nil, and that a `Cache`'s owner
+  calls `Close` first (MADR D3).
+* **Step 2.** `CommandToken`'s doc, in `llmprovider/command_token.go`, now
+  says that the early run is detached from the caller's context, that
+  nothing waits for it, and that it may outlive the caller by up to
+  `Timeout` (MADR Q3).
+* **Step 3.** The four tests are in
+  `llmprovider/auth/oauth_wait_0071_test.go`, and `ExampleOAuthSession_Wait`
+  is in `llmprovider/auth/example_test.go`. The tests reuse
+  `newRotatingIssuer`, `failingStore` and `expiredStoredSession`, from
+  0026-MADR F3's tests. Two rows of step 3's table are annotated: the
+  temporary-directory test's prediction, and the example's output.
+
+#### The planted breaks
+
+`tools/plant.py` ran `plant71-p2.json` (session scratch). The first run was
+stopped after 600 s: under "Wait blocks when nothing is in flight", the
+example's `Wait(context.Background())` never returns, and `go test` would
+have failed only at its 10-minute default. The tree was checked afterwards:
+it held no plant text, and no test process was left. The spec now passes
+`-timeout=60s`, and the second run reported "plant: all 4 plant(s) caught":
+
+| Planted break | Failure line |
+| :--- | :--- |
+| `Wait` returns nil at once | `oauth_wait_0071_test.go:58: Wait = <nil>, with the store holding "old-refresh"; want nil once refresh-1 is saved`, with `:78` and `:121` |
+| `Wait` ignores `ctx` | `oauth_wait_0071_test.go:81: Wait did not return at its 100ms deadline` |
+| `Wait` blocks when nothing is in flight | `oauth_wait_0071_test.go:92: Wait on an idle session = context canceled, want nil`, with `:58`, `:117`, and the example timed out at 60 s |
+| the example's output is wrong | `--- FAIL: ExampleOAuthSession_Wait (0.20s)` |
+
+#### Checks
+
+* **Pre-add.** `make pre-add-check` on the phase's four Go files reported
+  "4 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)".
+* **Race.** `go test -race -count=3` over `catalog`, `auth` and
+  `internal/transport` passed, with no `DATA RACE` report.
+* **API.** `tools/apidiff.py v1.27.0` reported two compatible changes, the
+  two names this PLAN exports:
+  * "./llmprovider/catalog.(*Cache).Close: added";
+  * "./llmprovider/auth.(*OAuthSession).Wait: added".
+* **The gate, first run.** It reported "gate: 27 of 29 passed". `docs-check`
+  and `gate-selftest` both failed on one finding, `oauth_session.go:218 R52
+  OAuthSession.Wait returns an error its doc does not name`:
+  * sdkaudit's R52 pattern wants a word such as "error" in the doc, and
+    "ctx.Err()" does not match it;
+  * `Close`'s doc passed because it says "an error matching";
+  * `Wait`'s doc now says "the context's error, ctx.Err(), if ctx ends
+    first; it returns no other error", which the PLAN's R50 to R52 rule
+    asks for;
+  * `make docs-check` then reported "sdkaudit: 0 violation(s) of
+    R50,R51,R52".
+* **The gate, second run.** It runs before the phase is staged, and its
+  line is recorded at the start of Phase 3's entry.
