@@ -255,6 +255,8 @@ construction, and it reuses the groups the cache already has.
   * `OAuthSession.Wait` returns after a detached refresh has saved, and at
     `ctx`'s deadline while it has not.
   * The process's cache is unchanged, and every existing test passes as it is.
+  * *(Amended 2026-11-07: one more test, run on Windows only. See the
+    amendment "a Windows test of the removal".)*
 * **Docs**:
   * `Cache`'s doc and `WithCache`'s doc;
   * a dated amendment to 0048-MADR D1, and R49's text after it (C28);
@@ -419,3 +421,40 @@ does, and the PLAN's test asserts both behaviours. The decision is unchanged.
 | C33 | Ollama returns the listing's error | `llmprovider/providers/ollama/ollama.go:364` | `return nil, err` |
 | C34 | chatcompat too | `llmprovider/providers/chatcompat/chatcompat.go:420` | `return nil, err` |
 | C35 | Together falls back to its static list | `llmprovider/providers/together/together.go:354` | `listed = listlimit.Cut(catalog.Static(llmprovider.ProviderTogether), p.limit)` |
+
+## Amendment 2026-11-07: a Windows test of the removal
+
+Found in 0071-PLAN Phase 4. `TestOAuthSessionWait_TempDir_0071` cannot show
+issue 12's Windows failure:
+
+* Go 1.27.3's `testing` retries a Windows removal for up to 2 s
+  (`testing.go:1651-1670`), and the test's issuer answers within that time.
+* A scratch experiment on the Windows host held the refresh for 3 s,
+  past the retry. With `Wait` planted to return at once, the removal
+  failed: "The process cannot access the file because it is being used by
+  another process". With `Wait` as built, the test passed (0071-PLAN,
+  Phase 4's entry).
+* That proves fact 3 on Windows.
+
+The owner asked for the experiment as a committed test, and chose that it
+runs on Windows only. D4 gains:
+
+* **`TestOAuthSessionWait_WindowsRemoval_0071`:**
+  * a `FileTokenStore` in `t.TempDir()`, and an issuer that answers
+    after 3 s;
+  * a caller that gives up at 200 ms, so that the refresh holds the
+    store's refresh lock after the test body ends;
+  * `Wait` in a cleanup registered after `t.TempDir`, so that it runs
+    before the removal.
+
+  As built, it passes. With `Wait` returning at once, the removal fails.
+* **Windows only.** On other platforms an open file does not block its
+  removal, so the test could not fail there, and it would add 3 s to each
+  run. It calls `t.Skip` and names that reason. CI's `windows-2025` job
+  runs it (C36).
+
+The decision and D4's other tests are unchanged.
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| C36 | CI tests on Windows | `.github/workflows/ci.yml:32` | `os: [ubuntu-24.04, macos-15, windows-2025]` |

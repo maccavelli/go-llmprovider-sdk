@@ -247,8 +247,47 @@ verify-before-trust probe:
    `TestOAuthSessionWait_TempDir_0071`.
 2. On that host, `TestOAuthSessionWait_TempDir_0071` is seen to fail with
    `Wait` planted to return at once, in a scratch clone there. The test's
-   failure line is recorded.
+   failure line is recorded. *(As run, it failed 20 of 20 times on its
+   store check alone, never on the removal. On Windows, Go's `testing`
+   retries a removal for 2 s, and the test's issuer answers within it. A
+   scratch experiment, held past 2 s, showed the removal failure. See
+   Phase 4's entry.)*
 3. On the primary Linux host, the same `-race` run.
+
+### Phase 4b: the Windows removal test (amendment 2026-11-07)
+
+The owner added this phase after Phase 4 (0071-MADR, amendment "a Windows
+test of the removal"), and chose that the test skips outside Windows.
+
+1. **The test.** `TestOAuthSessionWait_WindowsRemoval_0071` goes in
+   `llmprovider/auth/oauth_wait_0071_test.go`, made from Phase 4's scratch
+   experiment:
+   * an issuer that answers after 3 s;
+   * a `FileTokenStore` in `t.TempDir()`, holding the session;
+   * a caller whose `Token` gives up at 200 ms;
+   * `Wait`, under a 10 s context, in a cleanup registered after
+     `t.TempDir`, which fails the test if `Wait` returns an error.
+
+   The test's first statement skips it unless `runtime.GOOS` is
+   `windows`, and names the reason.
+2. **On macOS,** `go test -v -run` shows `--- SKIP` with that reason, and
+   the package passes.
+3. **On the Windows host,** as in Phase 4: a `git bundle` of `HEAD`,
+   cloned into a new scratch directory, with the new test file copied over
+   the clone's.
+   * As built, `go test -count=5 -v -run` passes 5 of 5.
+   * With `Wait` planted to return at once (`plantwait71.py`, in a second
+     scratch clone), it fails 5 of 5. Each failure must be `TempDir
+     RemoveAll cleanup` with "being used by another process".
+     `tools/plant.py` runs only on this machine, so this plant runs by
+     hand there, and its failure lines are recorded.
+   * `go test -race -count=1 ./llmprovider/auth/...` passes.
+   * The scratch clones and the bundle are then removed.
+4. **Before staging,** `make pre-add-check` on the test file and the full
+   gate.
+
+If the planted `Wait` does not fail the test 5 of 5 times on Windows,
+stop. A test that is not seen to fail is not committed.
 
 ### Phase 5: the release (Q6: `v1.28.0`)
 
@@ -624,3 +663,80 @@ started at load 9.6.
 No test changes in this phase, and no new check, so it has no planted
 breaks. The full gate runs before staging, and its line is recorded at the
 start of Phase 4's entry.
+
+### Phase 4 (2026-11-07)
+
+#### Phase 3's last checks
+
+Before Phase 3 was staged, on the tree the owner then committed at
+`731efa1`:
+
+* `make pre-add-check` on `llmprovider/catalog/cache.go` reported "1
+  file(s) clean";
+* `python3 -B tools/gate.py` reported "gate: 29 of 29 passed". It started
+  at load 9.4.
+
+#### The hosts
+
+The `available-dev-hosts` skill's verify-before-trust probe ran on both
+hosts, over SSH with key authentication and `BatchMode`:
+
+* **The Windows host:** MINGW64 on Windows, x86_64; git 2.56.0.windows.1;
+  go1.27.3 windows/amd64. `CGO_ENABLED=1`, with gcc, so `-race` builds.
+* **The Linux host:** Linux x86_64; git 2.56.0; go1.27.3 linux/amd64.
+
+`go.mod` names `go 1.27.3`, and both hosts have it.
+
+The 0071 commits are not pushed. So a `git bundle` of `main` at `731efa1`
+was copied to each host and cloned into a new scratch directory, after a
+check that the paths were free. `git bundle verify` returned 0. Each
+clone's `git log -1` read `731efa1`.
+
+#### Step 1 and step 3: `-race` on Windows and Linux
+
+`go test -race -count=1 ./llmprovider/catalog/... ./llmprovider/auth/...
+./llmprovider/internal/transport/...`. Step 1 named `catalog` and `auth`,
+and `internal/transport` was added to match the Verification section.
+
+| Host | `catalog` | `auth` | `internal/transport` |
+| :--- | :--- | :--- | :--- |
+| Windows | ok, 45.156s | ok, 10.266s | ok, 2.492s |
+| Linux | ok, 56.049s | ok, 10.607s | ok, 2.563s |
+
+#### Step 2: the planted `Wait` on Windows
+
+* **The plant.** A second scratch clone on the Windows host got a copy of
+  `oauth_session.go` with `Wait` planted to return nil at once. The copy
+  was made locally by `plantwait71.py` (session scratch), which asserts
+  the text it replaces occurs once and never writes the tree. `git diff
+  --stat` in that clone showed that one file, with 3 insertions.
+* **The run.** `go test -count=20 -v -run
+  'TestOAuthSessionWait_TempDir_0071$'` failed 20 of 20 times, each with
+  `oauth_wait_0071_test.go:121: after Wait the store holds … want the
+  rotated refresh-1`.
+* **No removal failure.** None of the 20 failures came from removing the
+  temporary directory, the failure issue 12 reports. Go 1.27.3's
+  `testing.removeAll` (`testing.go:1651-1670`) retries a Windows removal
+  for up to 2 s (`arbitraryTimeout`), and the test's issuer answers in
+  milliseconds. The refresh therefore ends within the retry, and the test
+  as written cannot show the Windows failure.
+* **The scratch experiment.** To prove MADR fact 3, the experiment
+  `scratch_removal_0071_test.go` (session scratch, never committed) ran
+  in both Windows clones. Its issuer answers after 3 s, and its caller gives
+  up at 200 ms, so the refresh holds the store's refresh lock past the
+  test body and past the 2 s retry. `Wait` runs in a cleanup that is
+  registered after `t.TempDir`.
+
+  | Clone | Result |
+  | :--- | :--- |
+  | `Wait` as built | `Wait = <nil> after 2.808s`; `--- PASS: TestScratchRemoval0071 (3.02s)` |
+  | `Wait` planted | `Wait = <nil> after 0s`; `testing.go:1619: TempDir RemoveAll cleanup: unlinkat <path>: The process cannot access the file because it is being used by another process.`; `--- FAIL: TestScratchRemoval0071 (3.01s)` |
+
+  (`<path>` stands for the host's temporary path, which is not recorded.)
+  The failure is issue 12's: a refresh holding its lock file blocks the
+  removal on Windows. `Wait` ends it, which is MADR fact 3.
+
+#### After the runs
+
+Both hosts' scratch clones and bundles were listed, removed, and checked
+gone. Nothing was pushed from either host, and nothing was left on them.
