@@ -580,3 +580,47 @@ it held no plant text, and no test process was left. The spec now passes
     R50,R51,R52".
 * **The gate, second run.** It runs before the phase is staged, and its
   line is recorded at the start of Phase 3's entry.
+
+### Phase 3 (2026-11-07)
+
+#### Phase 2's last check
+
+Before Phase 2 was staged, on the tree the owner then committed at
+`f8fd810`, `python3 -B tools/gate.py` reported "gate: 29 of 29 passed". It
+started at load 9.6.
+
+#### What Phase 3 did
+
+* **Step 1.**
+  * `Cache`'s doc, in `llmprovider/catalog/cache.go`, describes its
+    lifetime: the background work its calls may start, and that `Close`
+    stops, cancels and waits for it. It says the process's cache has none,
+    and that `Close` is safe for concurrent use.
+  * `WithCache`'s doc says what a closed cache does: `List` and the lookups
+    refuse it, the cached reads answer from it, and `ListRaw` is unaffected.
+* **Step 2.** R49, in `docs/guides/api-standards.md`, gains three
+  sentences:
+  * `Close` ends a `Cache`'s life;
+  * the process's cache has no lifetime;
+  * background work a new cache starts is counted on the cache, under the
+    lock its start takes.
+
+  It cites "0048 D1 and its A5; 0049 D3; 0071 D1". The third sentence is
+  the rule Phase 1's count under the lock follows, written into the guide
+  so a later cache keeps to it.
+* **Step 3.** `docs/architecture.md`:
+  * the catalog row names `Cache`'s `Close`;
+  * the auth row names `OAuthSession.Wait`;
+  * the paragraph on the caches says what `Close` does, and that a caller
+    that also owns an `OAuthSession` calls `Close`, then `Wait`.
+* **Step 4.** `CHANGELOG.md`'s `[Unreleased]` section:
+  * Added: the two methods;
+  * Fixed: the two counts taken after their lock (MADR D1), and the second
+    listing request (Deviation 4).
+* **Step 5.** `make docs-check` reported "sdkaudit: 0 violation(s) of
+  R50,R51,R52", and `make changelog-check` "40 release section(s), 0
+  problem(s)". `make links-check` and `make markdownlint` returned 0.
+
+No test changes in this phase, and no new check, so it has no planted
+breaks. The full gate runs before staging, and its line is recorded at the
+start of Phase 4's entry.

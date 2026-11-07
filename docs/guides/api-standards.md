@@ -326,7 +326,10 @@ These rules are
   and `providers.DefaultWith` to every built-in provider a `Registry`
   builds; without it, the process's cache is used. A new in-memory cache
   goes into `catalog.Cache`, never into a package variable a caller cannot
-  replace. (0048 D1; 0049 D3)
+  replace. `Close` ends a `Cache`'s life: it stops new background work and
+  waits for running work. The process's cache has no lifetime. Background
+  work a new cache starts is counted on the cache, under the lock its start
+  takes, so that `Close` waits for it. (0048 D1 and its A5; 0049 D3; 0071 D1)
 - **R50. Every public package has an example** that runs offline, over
   `llmtest.Fake` or `httptest`, with an `// Output:` comment, so that `go
   test` runs it. The package comments of `llmprovider`, `providers` and

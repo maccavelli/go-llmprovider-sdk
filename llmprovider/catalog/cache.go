@@ -18,8 +18,15 @@ import (
 // is shared only by the calls and providers that are given it, so a test or a
 // process with more than one configuration can keep them apart.
 //
-// The zero value is ready to use. A Cache is safe for concurrent use. It must
-// not be copied after its first use.
+// A Cache has a lifetime that its owner ends with Close (0071-MADR D1). Until
+// then, the calls given it may start work in the background, detached from
+// their own contexts: listing fetches, models.dev refreshes and probe runs.
+// Close stops new work, cancels the work in flight, and waits for it, so a
+// test or a configuration can end with nothing of the cache still running.
+// The process's cache has no lifetime.
+//
+// The zero value is ready to use. A Cache is safe for concurrent use, Close
+// included. It must not be copied after its first use.
 type Cache struct {
 	once sync.Once
 	ref  *cacheref.Value
@@ -43,6 +50,11 @@ func (c *Cache) value() *cacheref.Value {
 // provider's New takes it, and a provider outside this module, which cannot
 // read it, ignores it (0061-MADR, amendment "Phase 4's options"). A nil c is
 // the process's cache, as no option is. The last WithCache given wins.
+//
+// A c that has been closed is still given. List, LookupModel and
+// LookupMetadataWith refuse it with an error matching
+// llmprovider.ErrInvalidRequest. The cached reads answer from what it holds.
+// ListRaw, which reads and writes no cache, is unaffected (0071-MADR D2).
 func WithCache(c *Cache) llmprovider.Option {
 	var v *cacheref.Value
 	if c != nil {

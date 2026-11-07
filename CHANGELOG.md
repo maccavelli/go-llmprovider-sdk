@@ -11,6 +11,33 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- `catalog.Cache.Close` ends a cache's life. It stops the listing fetches,
+  models.dev refreshes and probe runs that calls given the cache would
+  start in the background, cancels those in flight, and waits for them,
+  under the caller's context. After it, `List`, `LookupModel` and
+  `LookupMetadataWith` given the cache refuse with an error matching
+  `llmprovider.ErrInvalidRequest`. The cached reads answer from what it
+  holds. The process's cache is unchanged
+  ([0071-MADR](docs/decisions/0071-MADR-give-a-cache-a-lifetime-and-wait-for-a-refresh.md)
+  D1, D2).
+- `auth.OAuthSession.Wait` waits for a refresh that runs on after its
+  caller has gone, without cancelling it, so that a test or a process that
+  is ending keeps the rotated session (0071-MADR D3).
+
+### Fixed
+
+- Two background listing starts counted their fetch only after releasing
+  their lock, so nothing could wait for them reliably. They now count it
+  under the lock (0071-MADR D1).
+- Concurrent `List` calls of one key could send a second listing request.
+  A caller that found no fresh listing claimed the key only after the first
+  fetch had stored its listing and ended. The claim now checks for the
+  fresh listing again
+  ([0053-MADR](docs/decisions/0053-MADR-stream-retry-and-cache-defects.md)
+  D4; 0071-PLAN Deviation 4).
+
 ## [v1.27.0] - 2026-11-06
 
 ### Added
