@@ -794,3 +794,35 @@ the body ends. `go vet` passes on the host and with `GOOS=windows`.
 
 The pre-add check and the full gate run before staging. Their lines are
 recorded at the start of Phase 5's entry.
+
+### Phase 5 (2026-11-07)
+
+#### Phase 4b's last checks
+
+Before Phase 4b was staged, on the tree the owner then committed at
+`ec37421`:
+
+* `tools/denyscan.py --changed` reported "0 hit(s) in 2 file(s)";
+* `make pre-add-check` on the test file reported "1 file(s) clean";
+* `python3 -B tools/gate.py` reported "gate: 29 of 29 passed". It started at
+  load 9.2.
+
+#### Steps 1 and 2: the release's section
+
+* **Step 1.** `CHANGELOG.md`'s `[Unreleased]` became `## [v1.28.0] -
+  2026-11-07`, under an empty `[Unreleased]`. The compare links read
+  `[Unreleased]: …compare/v1.28.0...HEAD` and `[v1.28.0]:
+  …compare/v1.27.0...v1.28.0`.
+* **The README.** `README.md:356` reads "The current release is
+  `v1.28.0`." No other file outside the changelog and the records names
+  `v1.27.0` as the current release.
+* **The checks:**
+  * `scripts/check_changelog.py` reported "41 release section(s), 0
+    problem(s)";
+  * `--section v1.28.0` printed the section: Added, the two methods; Fixed,
+    the counts under the lock and the second listing request;
+  * `tools/apidiff.py v1.27.0` reported "Compatible changes:
+    ./llmprovider/catalog.(*Cache).Close: added;
+    ./llmprovider/auth.(*OAuthSession).Wait: added".
+* **Step 2,** the full gate, runs before staging, and its line is recorded
+  with the release's.
