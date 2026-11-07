@@ -2,6 +2,7 @@ package catalog_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -65,4 +66,28 @@ func ExampleWithCache() {
 	// listing requests: 1
 	// listing requests: 1
 	// listing requests: 2
+}
+
+// ExampleCache_Close ends a cache's life. CachedModel starts the listing's
+// fetch in the background, and Close waits for it. After Close, the cache
+// starts nothing, and List refuses. The httptest server stands in for
+// Together's listing, so that the example runs offline.
+func ExampleCache_Close() {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id": "org/model-a", "type": "chat", "context_length": 131072}]`))
+	}))
+	defer srv.Close()
+
+	var cache catalog.Cache
+	key := llmprovider.NewStaticToken("your-key")
+	opts := []llmprovider.Option{llmprovider.WithBaseURL(srv.URL + "/v1"), llmprovider.WithoutModelMetadata(),
+		catalog.WithCache(&cache)}
+	catalog.CachedModel(context.Background(), llmprovider.ProviderTogether, key, "org/model-a", opts...)
+	fmt.Println(cache.Close(context.Background()))
+	_, err := catalog.List(context.Background(), llmprovider.ProviderTogether, key, opts...)
+	fmt.Println(errors.Is(err, llmprovider.ErrInvalidRequest))
+	// Output:
+	// <nil>
+	// true
 }

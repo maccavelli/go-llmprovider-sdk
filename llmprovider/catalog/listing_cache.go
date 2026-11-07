@@ -190,18 +190,35 @@ type listingCall struct {
 	err    error
 }
 
-// claimListing returns key's fetch in flight, and whether the caller is its
-// leader, which must start it; there is one per key at a time (0041-MADR
-// D6).
-func (c *store) claimListing(key listingKey) (call *listingCall, leader bool) {
+// claimListing returns key's fetch in flight, starting it with fetch when
+// there is none; there is one per key at a time (0041-MADR D6). A listing
+// that a fetch stored after the caller found none fresh is returned as a
+// finished call, so a caller in that gap starts no second fetch (0071-PLAN
+// Deviation 4). The fetch runs on listingFetching, counted before the lock
+// is released, so a Close that follows waits for it. A closed store joins a
+// fetch in flight but starts none, and returns errCacheClosed (0071-MADR
+// D1).
+func (c *store) claimListing(key listingKey, fetch func(call *listingCall)) (*listingCall, error) {
 	c.listingMu.Lock()
 	defer c.listingMu.Unlock()
 	if call, ok := c.listingClaims[key]; ok {
-		return call, false
+		return call, nil
 	}
-	call = &listingCall{done: make(chan struct{})}
+	if e := c.listing[key]; e.listing != nil && listingNow().Sub(e.listedAt) < listingMetadataTTL {
+		done := make(chan struct{})
+		close(done)
+		return &listingCall{done: done, f: *e.listing, models: e.models, at: e.listedAt}, nil
+	}
+	if c.listingClosed {
+		return nil, errCacheClosed
+	}
+	call := &listingCall{done: make(chan struct{})}
 	c.listingClaims[key] = call
-	return call, true
+	if listingStartHook != nil {
+		listingStartHook()
+	}
+	c.listingFetching.Go(func() { fetch(call) })
+	return call, nil
 }
 
 // finishListing ends key's call, once its result is written, and wakes its
@@ -214,20 +231,24 @@ func (c *store) finishListing(key listingKey, call *listingCall) {
 }
 
 // startListingFetch refreshes a listing in the background, detached from ctx
-// and bounded as a listing is, unless the same fetch is already running.
+// and bounded as a listing is, unless the same fetch is already running or
+// the store is closed. The fetch is counted before the lock is released, so
+// a Close that follows waits for it (0071-MADR D1).
 func (c *store) startListingFetch(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, model string, cfg config, key listingKey) {
 	fk := listingFetchKey{listingKey: key}
 	if id == llmprovider.ProviderOllama {
 		fk.model = model
 	}
 	c.listingMu.Lock()
-	if c.listingInFlight[fk] {
-		c.listingMu.Unlock()
+	defer c.listingMu.Unlock()
+	if c.listingClosed || c.listingInFlight[fk] {
 		return
 	}
 	c.listingInFlight[fk] = true
-	c.listingMu.Unlock()
-	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), modelListingTimeout)
+	fetchCtx, cancel := c.detached(ctx, modelListingTimeout)
+	if listingStartHook != nil {
+		listingStartHook()
+	}
 	c.listingFetching.Go(func() {
 		defer cancel()
 		defer func() {

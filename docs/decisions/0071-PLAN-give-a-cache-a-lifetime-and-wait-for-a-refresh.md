@@ -156,7 +156,9 @@ No other name is exported. The closed-cache error wraps
 6. **`transport.ProbeStore`** gains:
    * `closed` and a group, under `mu`;
    * `life` and `end`;
-   * an unexported close-and-wait.
+   * ~~an unexported close-and-wait~~ a close-and-wait, exported from
+     `internal/transport` so the catalog can call it. Being internal, it
+     adds nothing to the module's API (Deviation 1).
 
    `ProbeGenerateHealthCached` on a closed store starts no run and returns
    `withTail(nil, …)`. The run goes on the group and takes the step 2 form
@@ -167,9 +169,11 @@ No other name is exported. The closed-cache error wraps
    * in `List` after `listingConfig`;
    * in `LookupModel` after `lookupConfig`;
    * in `LookupMetadataWith` after `configFor`.
-8. **`cacheref.Value`** gains a close-and-wait over its catalog store, which
+8. ~~**`cacheref.Value`** gains a close-and-wait over its catalog store, which
    it reaches through a small interface the catalog's store meets, and over
-   its probe store. `cacheref` stays internal.
+   its probe store. `cacheref` stays internal.~~ Struck by Deviation 2:
+   `Cache.Close` reaches both stores through `c.ref`'s fields, and
+   `cacheref` is unchanged.
 9. **`(*Cache).Close(ctx)`** calls `c.value()` and closes once. Each call
    then waits under its own `ctx` on the three groups (MADR Q5). It returns
    nil, or `ctx.Err()`.
@@ -183,12 +187,12 @@ No other name is exported. The closed-cache error wraps
     | `TestCacheClose_MetadataFetch_0071` | The same, for a models.dev refresh. | the metadata group is left out of the wait |
     | `TestCacheClose_Deadline_0071` | With a fetch that ignores cancellation, `Close(ctx)` returns `ctx.Err()` at a 100 ms deadline. Once the fetch is released, a second `Close` returns nil. | `Close` returns nil at the deadline; a second `Close` returns the first's error |
     | `TestCacheClose_NoStartAfter_0071` | After `Close`, `CachedModel` and `CachedMetadataWith` send no request to the test server, and they start no fetch. | the closed check is removed from `startListingFetch`; the same for `startMetadataFetch` |
-    | `TestCacheClose_Refuses_0071` | After `Close`, `List`, `LookupModel` and `LookupMetadataWith` return an error matching `ErrInvalidRequest`, and no request is sent. A provider's `ListModels` given the cache returns it too. | each of the three refusals removed, one at a time |
+    | `TestCacheClose_Refuses_0071` | After `Close`, `List`, `LookupModel` and `LookupMetadataWith` return an error matching `ErrInvalidRequest`, and no request is sent. ~~A provider's `ListModels` given the cache returns it too.~~ A provider's `ListModels` given the cache sends no request: Together's returns its static list, and Ollama's returns the refusal (Deviation 3). | each of the three refusals removed, one at a time |
     | `TestCacheClose_CountUnderLock_0071` | A start that has passed its closed check, held there by a test hook, is waited for by a concurrent `Close`. | `Go` is moved back after the unlock, at each of the two sites |
     | `TestCacheClose_Race_0071` | 64 goroutines call `CachedModel`, `List` and probes while `Close` runs, under `-race`. Nothing panics, and nothing runs after `Close` returns. | none: it is a race test. Its rows above carry the plants. |
     | `TestCacheClose_Zero_0071` | A zero `Cache` closes at once with nil, and a later `List` given it is refused. | `Close` on an unused `Cache` does not mark it closed |
     | `TestProbeStoreClose_0071` | A closed probe store starts no run, and a run in flight is waited for. | the probe store's closed check is removed; its run is left uncounted |
-    | `ExampleCache_Close` | A cache given to `CachedModel` over `httptest`, closed, prints `nil`. | the example's output, planted wrong |
+    | `ExampleCache_Close` | A cache given to `CachedModel` over `httptest`, closed, prints `nil`. *(As written: it prints `<nil>`, what `fmt.Println` gives a nil error, then `true` for a `List` that `Close` has refused.)* | the example's output, planted wrong |
 
     The hook in `TestCacheClose_CountUnderLock_0071` is an unexported
     package variable that is nil outside tests. It is a test seam of the same kind as `listingNow`, the clock that tests move. If no hook
@@ -306,4 +310,199 @@ As 0070-PLAN's Phase 5:
   * `deny-scan`, `recordlint`, `claims`.
 
   It was run again after this entry was written, and the files were then
-  staged.
+  staged. The owner committed Phase 0 at `0312f1c`.
+
+### Phase 1 (2026-11-07)
+
+#### Deviation 1 (2026-11-07): the probe store's close-and-wait is exported from `internal/transport`
+
+* **Found** before any code was written. Step 6 called the probe store's
+  close-and-wait unexported. `catalog` calls it, and `catalog` is a
+  different package from `internal/transport`, so it cannot reach an
+  unexported method.
+* **Offered:**
+  * export the methods inside `internal/transport` (recommended);
+  * move the probe flights into `catalog`;
+  * leave probes out of `Close`, which contradicts 0071-MADR D1.
+* **The owner chose** the first. `internal/` cannot be imported from
+  outside the module, so the API is unchanged, and `apidiff` still lists
+  only the two methods. Step 6 is annotated. The MADR is unchanged: it does
+  not say whether the methods are exported.
+
+#### Deviation 2 (2026-11-07): `cacheref` is unchanged
+
+* **Found** before any code was written. `Cache.Close` can reach both stores
+  through `c.ref`'s fields: `Catalog` is the catalog's `*store`, and `Probes`
+  is the probe store. Step 8's interface would serve no other caller.
+* **Offered:**
+  * close in `catalog`, through those fields (recommended);
+  * step 8 as written;
+  * a `Value.Close` for the probe store alone.
+* **The owner chose** the first. Step 8 is struck through, and
+  `llmprovider/internal/cacheref` leaves this phase's scope. The MADR is
+  unchanged.
+
+#### Deviation 3 (2026-11-07): a provider's `ListModels` takes its own failure path
+
+* **Found** after steps 1 to 7 and 9 were written, before the tests. The
+  steps had built and vetted, and the existing tests had passed under
+  `-race` (35 packages). MADR D2 said a built-in provider's `ListModels`
+  returns the closed-cache error. Only Ollama's and chatcompat's do. The
+  other eight fall back to their static list, with a nil error, on any
+  error from `catalog.List`.
+* **Offered:**
+  * correct the fact, and assert both behaviours (recommended);
+  * make all ten return the error, through an internal marker;
+  * drop the claim and the assertion.
+* **The owner chose** the first. The MADR has the amendment "a provider's
+  `ListModels` takes its own failure path" (C33 to C35), and its D2 sentence
+  is annotated. The `TestCacheClose_Refuses_0071` row is annotated, and
+  `Close`'s doc says what each kind of provider does. No provider changes.
+  The provider assertions need `providers`, which `catalog`'s internal tests
+  cannot import, so they go in an external test file,
+  `llmprovider/catalog/close_ext_0071_test.go`, beside the PLAN's
+  `close_0071_test.go`.
+
+#### Deviation 4 (2026-11-07): a second leader came through the gap before a claim
+
+* **Found** by the full gate, after the execution record below was written:
+  * `pre-add-check` failed with `cache_0048_test.go:136: 2 listing
+    request(s) for 32 concurrent listings of one cache, want 1`, in
+    `TestCache_ConcurrentUse_0048`, an existing test. The gate started at
+    load 9.3.
+  * Measured with `flake0048.py` (session scratch): the tree and a clone of
+    `0312f1c` (no Phase 1 code) ran at the same time, under load, at `-cpu`
+    1, 2, 4, 8 and 16.
+  * The tree failed 9 times in 1,000 runs, and `0312f1c` 0 times in 1,000.
+  * Each side alone, with no load, failed 0 times in 500 runs.
+* **The cause**, from the code: `cachedOrFetched` checks for a fresh listing,
+  releases `listingMu`, then claims the key. A leader that stores its
+  listing and gives up its claim in that gap leaves the caller to lead a
+  second fetch. The gap is 0053-MADR D4's, and it is present at
+  `0312f1c`. Phase 1's `refuseClosed` takes `listingMu` once more for
+  each `List`, which most likely widens it: that is inferred from the
+  rates, not proven.
+* **Offered:**
+  * close the gap (recommended);
+  * make the refusal lock-free and leave the gap;
+  * both.
+* **The owner chose** the first:
+  * `claimListing` checks for the fresh listing again under its lock, and
+    returns it as a finished call;
+  * `listingClaimHook`, a test seam, runs between the check and the claim;
+  * the new `TestCachedOrFetched_NoSecondLeader_0071` holds a caller there
+    while another lists to the end;
+  * `0053-MADR-stream-retry-and-cache-defects.md` has a dated note on D4.
+
+  0071-MADR is unchanged: none of its decisions or facts changes. The
+  results are recorded under "After Deviation 4" below.
+
+#### What Phase 1 did
+
+* **Steps 1 to 5, 7 and 9**, as written, in:
+  * `llmprovider/catalog/cache.go`: the store's flags, owner context,
+    `detached`, `refuseClosed`, `close` and `wait`, and `Cache.Close`;
+  * `listing_cache.go`: `startListingFetch` and `claimListing` count
+    under `listingMu`. `claimListing` now takes the fetch to start.
+  * `discovery.go`: `List`'s refusal, and `cachedOrFetched` through the
+    new `claimListing`;
+  * `model_metadata.go`: `startMetadataFetch`'s check, `loadModelMetadata`'s
+    guard, and `LookupMetadataWith`'s refusal;
+  * `lookup.go`: `LookupModel`'s refusal.
+* **Step 6** in `llmprovider/internal/transport/probe.go`, as Deviation 1
+  amended it.
+* **Step 8** was not done (Deviation 2).
+* **Not in the steps:**
+  * `Cache` keeps a typed pointer to its store, set where `value` makes
+    the store. golangci-lint's `errcheck` refused an unchecked type
+    assertion of `c.ref.Catalog` in `Close`, and the typed pointer needs
+    none.
+  * `listingStartHook`, the test seam the hook row names, is checked at
+    both counted starts.
+* **One test was added to the table:** `TestCacheClose_ProbeRun_0071`. It
+  shows that `Close` closes and waits for the cache's probe store, a wiring
+  that `TestProbeStoreClose_0071` cannot reach. Without it, two planted
+  breaks below would have gone uncaught. `TestCacheClose_Refuses_0071` warms
+  the cache before `Close`, so that a removed refusal answers from it and
+  is seen.
+
+#### The tests and the planted breaks
+
+All 12 new tests (ten in `close_0071_test.go`, one in
+`close_ext_0071_test.go`, one in `probe_close_0071_test.go`) and the
+example pass under `-race`. `tools/plant.py` ran `plant71-p1.json`
+(session scratch) five times:
+
+* runs 1 to 3 had 19 plants, each run reporting "plant: all 19 plant(s)
+  caught". Runs 1 and 2 were before the `errcheck` fix, run 3 after it.
+* run 4 followed Deviation 4 and had 20 plants. One no longer matched the
+  code (`"old" matches 0 time(s)`), and the other 19 were caught.
+* run 5 had that plant rewritten for the new `claimListing`, and reported
+  "plant: all 20 plant(s) caught".
+
+The failure lines of run 5, on the final code:
+
+| Planted break | Failure line |
+| :--- | :--- |
+| `Close` returns before the wait | `close_0071_test.go:126: Close returned with 1 fetch(es) in flight; want 0`, with `:141`, `:157` and `:282` |
+| the owner context is not cancelled | `close_0071_test.go:123: Close = context deadline exceeded; want nil once the fetch has ended`, with `:138` and `:279` |
+| the metadata group is left out of the wait | `close_0071_test.go:141: Close returned with 1 models.dev fetch(es) in flight; want 0` |
+| the probe store is not closed | `close_0071_test.go:361: Close = context deadline exceeded; want nil once the probe run has ended`; `close_0071_test.go:340: 21 probe(s) ran after Close returned` |
+| the probe group is left out of the wait | `close_0071_test.go:364: Close returned before the probe run had ended` |
+| `Close` returns nil at the deadline | `close_0071_test.go:157: Close with a stubborn fetch = <nil>; want context.DeadlineExceeded` |
+| a second `Close` returns the first's result | `close_0071_test.go:164: second Close after the fetch was released = context deadline exceeded; want nil` |
+| `Close` on an unused `Cache` does not mark it closed | `close_0071_test.go:409: List given a Cache closed before its first use = <nil>; want the closed-cache refusal`, with `:182`, `:412` and `close_ext_0071_test.go:55` |
+| `startListingFetch` has no closed check | `close_0071_test.go:182: after Close: 1 fetch(es), 0 claim(s), 0 models.dev fetch(es) started; want none`, with `:334` |
+| `startMetadataFetch` has no closed check | `close_0071_test.go:182: after Close: 0 fetch(es), 0 claim(s), 1 models.dev fetch(es) started; want none`, with `:330` |
+| `List` does not refuse | `close_0071_test.go:221: List after Close = <nil>; want catalog: the cache is closed: llmprovider: invalid request`, with `:409`, `close_ext_0071_test.go:55: 1 request(s) after Close; want 0`, and `--- FAIL: ExampleCache_Close` |
+| `LookupModel` does not refuse | `close_0071_test.go:221: LookupModel after Close = <nil>; want catalog: the cache is closed: llmprovider: invalid request` |
+| `LookupMetadataWith` does not refuse | `close_0071_test.go:221: LookupMetadataWith after Close = <nil>; want catalog: the cache is closed: llmprovider: invalid request` |
+| `startListingFetch` counts after the unlock | `close_0071_test.go:282: Close returned with 1 fetch(es), 0 claim(s), 0 models.dev fetch(es) in flight; want none` |
+| `claimListing` counts after the unlock | `close_0071_test.go:282: Close returned with 0 fetch(es), 1 claim(s), 0 models.dev fetch(es) in flight; want none` |
+| `claimListing` does not check for the fresh listing again (Deviation 4) | `close_0071_test.go:394: 2 listing request(s) for two callers of one key; want 1` |
+| the example's output is wrong | `--- FAIL: ExampleCache_Close (0.00s)` |
+| the probe store has no closed check | `probe_close_0071_test.go:59: closed store: [m], 1 probe(s); want nil and none`, with `close_0071_test.go:340` |
+| the probe run is uncounted | `probe_close_0071_test.go:45: Wait returned before the run's probe had ended`, with `close_0071_test.go:364` |
+| the probe store's `Close` does not cancel | `probe_close_0071_test.go:42: Wait did not return after Close`, with `close_0071_test.go:361` |
+
+#### Checks
+
+* **The drift check.** Every existing test passed unchanged under
+  `go test -race -count=1 ./llmprovider/... ./wizard/...`, in 35 packages,
+  before the new tests were written. The module's own waits on the groups
+  (MADR C26, C27) are unchanged.
+* **Race.** `go test -race -count=3` over `catalog`, `auth` and
+  `internal/transport` passed, with no `DATA RACE` report.
+* **Pre-add.** `make pre-add-check` on the phase's 10 Go files reported
+  "10 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)",
+  after the `errcheck` fix.
+* **API.** `tools/apidiff.py v1.27.0` reported one compatible change:
+  "./llmprovider/catalog.(*Cache).Close: added".
+* **The claims.** `tools/claims.py` passes 35 of 35 on the MADR, at its
+  marker `abe3626`. C5a, C6 and C8 describe the code Phase 1 changed, as
+  the Verification section foresaw.
+* **The gate.** `python3 -B tools/gate.py` reported "gate: 29 of 29
+  passed". It waited for the load to fall from 22.2, and started at 9.6.
+  Among the 29: `test-race-cover`, `test-shuffle`, `test-repeat`, `lint`,
+  `coverage-check`, `api-check`, `docs-check`, and vet on darwin, linux and
+  windows, with and without `live_gateways`. After that line was added,
+  the full gate ran again, since `--markdown` refuses a tree with Go
+  changes. That run reported "gate: 28 of 29 passed": `pre-add-check`
+  failed on `TestCache_ConcurrentUse_0048`, which is Deviation 4.
+
+#### After Deviation 4
+
+* `TestCachedOrFetched_NoSecondLeader_0071` and `TestCache_ConcurrentUse_0048`
+  pass under `-race`.
+* Re-measured with `flake0048.py`, under load, side by side at `-cpu` 1,
+  2, 4, 8 and 16:
+  * the tree failed 0 times in 1,000 runs;
+  * the clone of `0312f1c` failed once in 1,000. So the gap was there
+    before this PLAN.
+* `make pre-add-check` on the 10 Go files: "10 file(s) clean (gofmt,
+  golangci-lint, go vet, go test, govulncheck)".
+* The plants: run 5, above.
+* The full gate, and `go test -race -count=3` over the three packages, run
+  again before the phase is staged: the race run above predates Deviation 4.
+  Their lines are recorded at the start of Phase 2's entry, as
+  0070-PLAN recorded its phases' gate lines.

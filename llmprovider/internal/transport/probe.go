@@ -122,6 +122,16 @@ type ProbeStore struct {
 	m  map[ProbeKey]probeCacheEntry
 	// flights holds, under mu, each key's probe run in flight (0053-MADR D6).
 	flights map[ProbeKey]*probeFlight
+	// closed is set by Close, under mu. A closed store starts no run
+	// (0071-MADR D1).
+	closed bool
+	// running counts the runs in flight. Each is counted under mu, so that
+	// no run starts after Close has set closed.
+	running sync.WaitGroup
+	// life is cancelled by Close, and ends every run in flight. A zero store
+	// has none, and its runs end only by their own bounds.
+	life context.Context
+	end  context.CancelFunc
 }
 
 // probeFlight is one run of a listing's probes, and the models that
@@ -134,7 +144,27 @@ type probeFlight struct {
 
 // NewProbeStore returns an empty store.
 func NewProbeStore() *ProbeStore {
-	return &ProbeStore{m: map[ProbeKey]probeCacheEntry{}, flights: map[ProbeKey]*probeFlight{}}
+	life, end := context.WithCancel(context.Background())
+	return &ProbeStore{m: map[ProbeKey]probeCacheEntry{}, flights: map[ProbeKey]*probeFlight{}, life: life, end: end}
+}
+
+// Close stops s from starting runs and cancels the runs in flight
+// (0071-MADR D1). What s holds stays readable. Calling it again does
+// nothing more. It does not wait; Wait does.
+func (s *ProbeStore) Close() {
+	s.mu.Lock()
+	s.closed = true
+	s.mu.Unlock()
+	if s.end != nil {
+		s.end()
+	}
+}
+
+// Wait returns once no run s started is in flight. It is called after
+// Close: before it, a run could start while Wait waits on none, which
+// sync.WaitGroup forbids.
+func (s *ProbeStore) Wait() {
+	s.running.Wait()
 }
 
 var (
@@ -167,6 +197,10 @@ func Fingerprint(credential string) string {
 // caller, each probe still bounded by probeTimeout; a caller whose ctx ends
 // first gets what a run with no answer gives, and its provider keeps its
 // listing (0053-MADR D6).
+//
+// The run is s's: Close cancels it, and Wait waits for it. A closed s starts
+// no run, and answers what a run with no answer gives, unless it holds a
+// fresh result or a run is already in flight (0071-MADR D1, D2).
 func ProbeGenerateHealthCached(
 	ctx context.Context,
 	s *ProbeStore,
@@ -189,11 +223,23 @@ func ProbeGenerateHealthCached(
 		s.flights = map[ProbeKey]*probeFlight{}
 	}
 	flight, running := s.flights[key]
+	if !running && s.closed {
+		// A closed store starts no run: the caller gets what a run with no
+		// answer gives, and its provider keeps its listing (0071-MADR D2).
+		s.mu.Unlock()
+		return withTail(nil, preferred, limit)
+	}
 	if !running {
 		flight = &probeFlight{done: make(chan struct{})}
 		s.flights[key] = flight
-		detached := context.WithoutCancel(ctx)
-		go func() {
+		detached, cancel := context.WithCancel(context.WithoutCancel(ctx))
+		stop := func() bool { return false }
+		if s.life != nil {
+			stop = context.AfterFunc(s.life, cancel)
+		}
+		s.running.Go(func() {
+			defer cancel()
+			defer stop()
 			healthy := probeHead(detached, preferred, limit, generate)
 			s.mu.Lock()
 			if len(healthy) > 0 {
@@ -203,7 +249,7 @@ func ProbeGenerateHealthCached(
 			delete(s.flights, key)
 			s.mu.Unlock()
 			close(flight.done)
-		}()
+		})
 	}
 	s.mu.Unlock()
 	select {

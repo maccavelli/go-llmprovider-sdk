@@ -89,6 +89,9 @@ func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 	if err != nil {
 		return ModelInfo{}, err
 	}
+	if err := cfg.store.refuseClosed(); err != nil {
+		return ModelInfo{}, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, modelListingTimeout)
 	defer cancel()
 	var errs []error

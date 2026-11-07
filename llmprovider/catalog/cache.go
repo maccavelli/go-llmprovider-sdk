@@ -1,7 +1,10 @@
 package catalog
 
 import (
+	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
@@ -20,12 +23,15 @@ import (
 type Cache struct {
 	once sync.Once
 	ref  *cacheref.Value
+	// st is ref's catalog state, kept typed for Close.
+	st *store
 }
 
 // value is c's option value, made on first use.
 func (c *Cache) value() *cacheref.Value {
 	c.once.Do(func() {
-		c.ref = cacheref.New(newStore())
+		c.st = newStore()
+		c.ref = cacheref.New(c.st)
 	})
 	return c.ref
 }
@@ -69,9 +75,21 @@ type store struct {
 	// metadataFetching counts the fetches in flight, so that tests can wait
 	// for a background refresh.
 	metadataFetching sync.WaitGroup
+
+	// listingClosed and metadataClosed are set by close, each under its own
+	// lock, where each start reads it. A start takes its count under the
+	// same lock, so none is counted after close has set the flag
+	// (0071-MADR D1).
+	listingClosed  bool
+	metadataClosed bool
+	// life is cancelled by close and ends the background work in flight. The
+	// process's store is never closed.
+	life context.Context
+	end  context.CancelFunc
 }
 
 func newStore() *store {
+	life, end := context.WithCancel(context.Background())
 	return &store{
 		listing:         map[listingKey]listingEntry{},
 		listingInFlight: map[listingFetchKey]bool{},
@@ -79,6 +97,112 @@ func newStore() *store {
 		ollamaShows:     map[listingKey]map[string]showReply{},
 		metadata:        map[string]modelMetadataCacheEntry{},
 		metadataFetches: map[string]*metadataFetch{},
+		life:            life,
+		end:             end,
+	}
+}
+
+// errCacheClosed refuses a call that would fetch through a closed Cache
+// (0071-MADR D2, Q4).
+var errCacheClosed = fmt.Errorf("catalog: the cache is closed: %w", llmprovider.ErrInvalidRequest)
+
+// listingStartHook is nil outside tests. A test sets it to run between a
+// start's closed check and its count, which both happen under listingMu
+// (0071-PLAN Phase 1, TestCacheClose_CountUnderLock_0071).
+var listingStartHook func()
+
+// listingClaimHook is nil outside tests. A test sets it to run between a
+// listing's freshness check and its claim, the gap a second leader came
+// through (0071-PLAN Deviation 4, TestCachedOrFetched_NoSecondLeader_0071).
+var listingClaimHook func()
+
+// detached is the context for background work started from ctx. It keeps
+// ctx's values but not its cancellation, is bounded by timeout, and ends
+// when the store's life ends (0053-MADR D4; 0071-MADR D1). The caller
+// defers the returned cancel.
+func (c *store) detached(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	work, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	stop := context.AfterFunc(c.life, cancel)
+	return work, func() {
+		stop()
+		cancel()
+	}
+}
+
+// refuseClosed is errCacheClosed once the store is closed, else nil.
+func (c *store) refuseClosed() error {
+	c.listingMu.Lock()
+	defer c.listingMu.Unlock()
+	if c.listingClosed {
+		return errCacheClosed
+	}
+	return nil
+}
+
+// close stops the store from starting background work, then cancels the
+// work in flight. Calling it again does nothing more.
+func (c *store) close() {
+	c.listingMu.Lock()
+	c.listingClosed = true
+	c.listingMu.Unlock()
+	c.metadataMu.Lock()
+	c.metadataClosed = true
+	c.metadataMu.Unlock()
+	c.end()
+}
+
+// wait returns once no background work the store started is in flight. It
+// is called after close, so no count is taken while it waits.
+func (c *store) wait() {
+	c.listingFetching.Wait()
+	c.metadataFetching.Wait()
+}
+
+// Close ends c's life (0071-MADR D1, D2). No call given c starts background
+// work after Close begins: no listing fetch, models.dev refresh or probe
+// run. Close cancels the work in flight, which ends at its next network
+// wait, and waits for it. It returns nil once that work has ended, or
+// ctx.Err() if ctx ends first. A Close that returned ctx.Err() can be called
+// again to wait longer: closing happens once, and each call waits under its
+// own ctx (0071-MADR Q5).
+//
+// After Close, CachedModel, CachedFacts and CachedMetadataWith given c
+// answer from what c holds and start nothing. List, LookupModel and
+// LookupMetadataWith given c refuse before the network with an error
+// matching llmprovider.ErrInvalidRequest. A provider given c takes its own
+// path for a failed listing. Ollama's and a chatcompat provider's
+// ListModels return the error. Every other built-in provider's returns its
+// static list. A probe through c starts no run. A request given c reads what
+// c holds, as before. CachedModel still asks its
+// source for a token, in the caller's goroutine. An auth.OAuthSession's
+// refresh that a fetch started is the session's, not c's: call Close, then
+// the session's Wait.
+//
+// A Cache that was never used closes at once, and stays closed when it is
+// given to a call later. The process's cache, used without WithCache, has
+// no Close. Close is safe to call concurrently with every other use of c.
+func (c *Cache) Close(ctx context.Context) error {
+	v := c.value()
+	s := c.st
+	s.close()
+	v.Probes.Close()
+	done := make(chan struct{})
+	go func() {
+		s.wait()
+		v.Probes.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		// Work that ended as ctx did has ended.
+		select {
+		case <-done:
+			return nil
+		default:
+			return ctx.Err()
+		}
 	}
 }
 

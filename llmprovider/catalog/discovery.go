@@ -237,6 +237,9 @@ func List(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenS
 	if err != nil {
 		return Catalog{}, err
 	}
+	if err := cfg.store.refuseClosed(); err != nil {
+		return Catalog{}, err
+	}
 
 	cat, _, err := listAndRecord(ctx, id, src, cfg)
 	if err != nil {
@@ -394,14 +397,17 @@ func cachedOrFetched(ctx context.Context, id llmprovider.ProviderID, token llmpr
 		models, _ := cfg.store.cachedListing(key)
 		return f, models, at, nil
 	}
-	call, leader := cfg.store.claimListing(key)
-	if leader {
-		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), modelListingTimeout)
-		cfg.store.listingFetching.Go(func() {
-			defer cancel()
-			call.f, call.models, call.at, call.err = fetchClaimed(fetchCtx, id, token, cfg, key)
-			cfg.store.finishListing(key, call)
-		})
+	if listingClaimHook != nil {
+		listingClaimHook()
+	}
+	call, err := cfg.store.claimListing(key, func(call *listingCall) {
+		fetchCtx, cancel := cfg.store.detached(ctx, modelListingTimeout)
+		defer cancel()
+		call.f, call.models, call.at, call.err = fetchClaimed(fetchCtx, id, token, cfg, key)
+		cfg.store.finishListing(key, call)
+	})
+	if err != nil {
+		return fetchedListing{}, nil, time.Time{}, err
 	}
 	select {
 	case <-call.done:

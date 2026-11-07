@@ -203,7 +203,9 @@ construction, and it reuses the groups the cache already has.
   refuses a bad option (C23). The error matches `llmprovider.ErrInvalidRequest`
   (C24) and says the cache is closed (Q1, Q4). A built-in provider's
   `ListModels` given the cache lists through `catalog.List`, so it returns
-  that error too.
+  that error too. *(Corrected 2026-11-07, see the amendment "a provider's
+  `ListModels` takes its own failure path": that is true of two providers
+  only.)*
 * **A probe through a closed cache's store** starts no run and returns what a
   run with no answer gives: the provider keeps its listing (0053-MADR D6).
 * **A request is unaffected.**
@@ -390,3 +392,30 @@ question as recommended. The answers were chosen from three options each:*
     `CommandToken` early run.
 * PLAN:
   [0071-PLAN-give-a-cache-a-lifetime-and-wait-for-a-refresh.md](0071-PLAN-give-a-cache-a-lifetime-and-wait-for-a-refresh.md).
+
+## Amendment 2026-11-07: a provider's `ListModels` takes its own failure path
+
+Found in 0071-PLAN Phase 1, before its tests were written (that PLAN's
+Deviation 3). D2 said a built-in provider's `ListModels` returns the
+closed-cache error. That holds for two providers only:
+
+* **Ollama and chatcompat** return `catalog.List`'s error (C33, C34). After
+  `Close`, `ListModels` returns the refusal.
+* **The other eight fall back to their static list** on any error from
+  `catalog.List`, with a nil error: Together, OpenAI, Kilo, Hugging Face,
+  Grok, Gemini, Claude and opencode (C35 is Together's). After `Close`, their
+  `ListModels` returns that static list, sends no listing request, and,
+  where the provider probes, starts no probe run (D2's probe rule).
+
+The owner chose to correct the fact, and left the providers unchanged. In
+both cases, no listing request is sent after `Close`, and a probe through the
+cache starts no run. A provider whose token source fails probes without the
+store (`wire.ProbeHealth`). That path does not pass through the cache, and
+`Close` does not change it. `Close`'s doc says what each kind of provider
+does, and the PLAN's test asserts both behaviours. The decision is unchanged.
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| C33 | Ollama returns the listing's error | `llmprovider/providers/ollama/ollama.go:364` | `return nil, err` |
+| C34 | chatcompat too | `llmprovider/providers/chatcompat/chatcompat.go:420` | `return nil, err` |
+| C35 | Together falls back to its static list | `llmprovider/providers/together/together.go:354` | `listed = listlimit.Cut(catalog.Static(llmprovider.ProviderTogether), p.limit)` |

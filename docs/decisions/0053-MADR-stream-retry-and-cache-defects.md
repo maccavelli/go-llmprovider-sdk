@@ -482,3 +482,13 @@ D1 gives a `catalog.Cache` a `Close`:
   behave as D4 and D6 describe.
 
 D4's and D6's single-flights, keys, results and bounds are unchanged.
+
+*(Note 2026-11-07: D4's "N callers cost one request" had a gap, which
+0071-PLAN-give-a-cache-a-lifetime-and-wait-for-a-refresh.md Deviation 4
+closed. A caller checked for a fresh listing, released the lock, and only
+then claimed the key. A leader that stored its listing and gave up its claim
+in between left the caller to lead a second fetch.
+`TestCache_ConcurrentUse_0048` failed 9 times in 1,000 runs under load with
+Phase 1's code. `claimListing` now checks for the fresh listing again under
+the claim's lock, and `TestCachedOrFetched_NoSecondLeader_0071` holds a
+caller in that gap to show it closed.)*

@@ -290,6 +290,9 @@ func LookupMetadataWith(ctx context.Context, id llmprovider.ProviderID, opts ...
 	if err != nil {
 		return Metadata{}, err
 	}
+	if err := cfg.store.refuseClosed(); err != nil {
+		return Metadata{}, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, metadataLookupTimeout)
 	defer cancel()
 	doc, err := loadModelMetadata(ctx, cfg)
@@ -475,6 +478,10 @@ func loadModelMetadata(ctx context.Context, cfg config) (*modelMetadataDoc, erro
 	if e.doc != nil {
 		return e.doc, nil
 	}
+	if fetch == nil {
+		// The store is closed, and nothing is in flight (0071-MADR D2).
+		return nil, errCacheClosed
+	}
 	select {
 	case <-fetch.done:
 		return fetch.doc, fetch.err
@@ -484,14 +491,19 @@ func loadModelMetadata(ctx context.Context, cfg config) (*modelMetadataDoc, erro
 }
 
 // startMetadataFetch returns url's fetch in flight, starting one when there
-// is none. c.metadataMu is held.
+// is none. c.metadataMu is held, so the fetch is counted before a Close can
+// set metadataClosed. A closed store starts none, and returns nil when none
+// is in flight (0071-MADR D1).
 func (c *store) startMetadataFetch(ctx context.Context, url string, cfg config) *metadataFetch {
 	if fetch := c.metadataFetches[url]; fetch != nil {
 		return fetch
 	}
+	if c.metadataClosed {
+		return nil
+	}
 	fetch := &metadataFetch{done: make(chan struct{})}
 	c.metadataFetches[url] = fetch
-	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataFetchTimeout)
+	fetchCtx, cancel := c.detached(ctx, metadataFetchTimeout)
 	// The document the cache holds, and its ETag, for a revalidation.
 	held := c.metadata[url]
 	c.metadataFetching.Go(func() {
