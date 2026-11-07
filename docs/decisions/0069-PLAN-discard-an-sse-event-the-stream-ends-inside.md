@@ -377,7 +377,10 @@ No file in the tree changes. Each test sends one billed request.
   lines, equals `scripts/check_changelog.py --section v1.26.1`, with its
   relative `docs/` link written as the tag's blob URL by the release job.
   The five newest tags' Releases, `v1.26.1` to `v1.24.0`, each carry notes
-  (R53).
+  (R53). *(Note 2026-11-07: R53's other half, deleting the Release of the
+  tag that fell to sixth, `v1.23.0`, was not done.
+  0071-PLAN-give-a-cache-a-lifetime-and-wait-for-a-refresh.md Deviation 5
+  deleted it.)*
 * **`tools/consumer.py v1.26.1` and `tools/offline.py v1.26.1`:** the first
   run of each failed at `go get`. sum.golang.org answered 404 for the
   version; its server response said its own fetch from GitHub failed with

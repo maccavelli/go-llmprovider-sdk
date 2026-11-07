@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-07
 associated-madr: "0071-MADR-give-a-cache-a-lifetime-and-wait-for-a-refresh.md"
 decision-makers: repository owner
@@ -826,3 +826,111 @@ Before Phase 4b was staged, on the tree the owner then committed at
     ./llmprovider/auth.(*OAuthSession).Wait: added".
 * **Step 2,** the full gate, runs before staging, and its line is recorded
   with the release's.
+
+#### Deviation 5 (2026-11-07): three Releases past the five newest
+
+* **Found** after the tag's release job. `gh release list` showed 8
+  Releases. The three past the five newest were `v1.24.1`, `v1.24.0` and
+  `v1.23.0`.
+* **The rule.** R53 keeps a Release for the five newest tags only. CI's
+  `release` job creates the new tag's Release and deletes none. The
+  release's PLAN then deletes the Release of the tag that falls to sixth
+  (`0055-MADR-go-1-27-3-and-the-v1-20-0-release.md`, which chose a manual
+  command over a destructive CI step). 0068-PLAN did so for `v1.26.0`.
+* **The misses.** The releases of `v1.26.1` (0069-PLAN) and `v1.27.0`
+  (0070-PLAN) did not delete theirs, `v1.23.0` and `v1.24.0`. Neither PLAN
+  contains `gh release delete`. This PLAN's Phase 5 copied 0070's steps,
+  and missed `v1.24.1`'s.
+* **Before any choice,** each Release's JSON (tag, name, body, created
+  date) was saved in the session's scratch directory: `v1.24.1` 7 lines,
+  `v1.24.0` 18, `v1.23.0` 190. Any can be made again from its save or its
+  `CHANGELOG.md` section.
+* **Offered:**
+  * delete all three (recommended);
+  * delete `v1.24.1` alone;
+  * delete none for now.
+* **The owner chose** to delete all three, keeping their tags and sections.
+  0069-PLAN and 0070-PLAN have dated notes. The deletion and its check are
+  recorded below.
+
+### The release (2026-11-07)
+
+* **The release commit.** Phase 5's files were staged after `python3 -B
+  tools/gate.py` reported "gate: 29 of 29 passed", started at load 9.6. The
+  owner committed them at `e98c248`.
+* **The push.** The owner pushed `main`, `abe3626..e98c248`, the eight 0071
+  commits from `ab8db9e` to `e98c248`, through the pre-push disclosure
+  guard. The push came before this record's own run of the guard. That run,
+  afterwards, covered `v1.27.0..e98c248`, 10 commits, and returned 0.
+* **CI on `main`** at `e98c248`:
+  * CI run 42422080849, success: validate on windows-2025, macos-15 and
+    ubuntu-24.04, and release skipped, as on any branch;
+  * Docs run 42422080838, success.
+
+  `auth` passed on each platform: 13.403s on Windows, 8.093s on macOS,
+  10.525s on Ubuntu. CI runs `go test` without `-v`, so its log does not
+  show that `TestOAuthSessionWait_WindowsRemoval_0071` ran on Windows.
+  Phase 4b showed that on the Windows host.
+* **The tag.** The owner made `v1.28.0`, an annotated tag (`64a53cf`), on
+  `e98c248`, dated 2026-11-07 (`%cs`), the section's date, and pushed it.
+  `git ls-remote` showed the same tag object and commit. CI on the tag, run
+  42422640759: success, with validate on the three platforms, and release.
+* **The Release.** `relcheck.py` (session scratch):
+  * `v1.28.0`, Latest, is not a draft or a prerelease;
+  * "Release body equals the section, 26 lines", with each `docs/` link
+    written as the tag's blob URL;
+  * the five newest tags each carry notes.
+* **R53's deletion** (Deviation 5). `gh release delete v1.24.1 --yes`, then
+  `v1.24.0` and `v1.23.0`, each returned 0. `gh release list` then showed
+  five: `v1.28.0`, `v1.27.0`, `v1.26.1`, `v1.26.0`, `v1.25.0`. `git
+  ls-remote` still lists the three tags.
+* **`tools/consumer.py v1.28.0` and `tools/offline.py v1.28.0`.**
+  sum.golang.org listed the version at the first poll, 200. In each, `go
+  get` reported "added … v1.28.0". Both reported "every step passed":
+  * consumer built for the six platforms and linked 16 packages;
+  * offline printed "offline: ok" with "fields=19" and "requests=0", and
+    built for the six platforms;
+  * offline's `FAIL:` lines are its two planted steps, "caught: models.dev
+    left on" and "caught: no caller layer", which are meant to fail.
+
+### Closing (2026-11-07)
+
+* **Goal:**
+  * D1 and D2: `Cache.Close`, which stops, cancels and waits for the
+    cache's background work. The waiting calls refuse after it, and the
+    cached reads answer (Phase 1, with Deviations 1 to 4).
+  * D3: `OAuthSession.Wait` (Phase 2). Its effect on Windows, a removal no
+    longer blocked by a refresh's lock file, is shown by a test there
+    (Phases 4 and 4b).
+  * D4: the docs, the amended records, `CHANGELOG.md`, and the release
+    `v1.28.0`, Q6's answer (Phases 0, 3 and 5).
+* **The MADR's Confirmation:**
+  * the D4 tests pass, each seen to fail on its planted breaks: 20 in
+    Phase 1, 4 in Phase 2, and the Windows plant 5 of 5 in Phase 4b;
+  * `go test -race` passed over `catalog`, `auth` and `internal/transport`
+    on macOS (Phases 1 and 2), Windows and Linux (Phase 4);
+  * `tools/apidiff.py v1.27.0` lists exactly `(*Cache).Close` and
+    `(*OAuthSession).Wait`;
+  * `Wait`, and a `t.TempDir` removal, ran on a Windows host before the
+    tag (Phases 4 and 4b);
+  * `tools/claims.py` passes 36 of 36 on the MADR.
+* **Deviations,** each the owner's choice, recorded where they arose:
+  1. the probe store's close and wait are exported within
+     `internal/transport`;
+  2. `cacheref` is unchanged;
+  3. a provider's `ListModels` takes its own failure path, a fact the MADR
+     corrects;
+  4. a gap in 0053-MADR D4's single fetch per key, closed;
+  5. three Releases past the five newest, deleted.
+
+  The owner also added Phase 4b, by amendment.
+* **Not done, and why:**
+  * a `Wait` for `CommandToken`: Q3's answer leaves it until a caller needs
+    one, and its doc names the early run as detached;
+  * clearing a closed cache's contents: Q2's answer keeps them readable;
+  * issue 12, which the release answers. Its comment and closing are the
+    owner's word.
+    (2026-11-07, after this entry: on the owner's word, issue 12 was
+    answered with a comment linking the release and this record's pair,
+    and closed as completed.)
+* `tools/records.py status` sets this PLAN `complete`.

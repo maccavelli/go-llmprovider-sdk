@@ -849,7 +849,11 @@ At `d73a9e9`, the commit of Phases 1 to 3, with a clean tree.
   with each relative `docs/` link written as the tag's blob URL by the
   release job. A scratch script compared them; a copy with one character
   planted in the expected notes failed with the diff. The five newest
-  tags' Releases, `v1.27.0` to `v1.24.1`, each carry notes (R53).
+  tags' Releases, `v1.27.0` to `v1.24.1`, each carry notes (R53). *(Note
+  2026-11-07: R53's other half, deleting the Release of the tag that fell
+  to sixth, `v1.24.0`, was not done, and Phase 5's steps do not list it.
+  0071-PLAN-give-a-cache-a-lifetime-and-wait-for-a-refresh.md Deviation 5
+  deleted it.)*
 * **`tools/consumer.py v1.27.0` and `tools/offline.py v1.27.0`:**
   sum.golang.org listed the version at the first poll, 200. In each, `go
   get` "added … v1.27.0", and no line names `v1.26`. Both reported "every
