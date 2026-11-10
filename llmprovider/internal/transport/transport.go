@@ -242,10 +242,33 @@ func ParseRetryAfter(h string) time.Duration {
 // RetryAfter reads a server-directed delay from retry-after-ms (fractional
 // milliseconds), else Retry-After (MADR 0012 §1.2).
 func RetryAfter(h http.Header) time.Duration {
+	d, _ := RetryAfterAt(h, time.Now())
+	return d
+}
+
+// RetryAfterAt reads the delay RetryAfter reads, measured from now, and the
+// instant the header named: an HTTP-date Retry-After's, in UTC, kept even
+// when it has passed. retry-after-ms and delta seconds name no instant, so
+// the instant is zero for them (0072-MADR D1).
+func RetryAfterAt(h http.Header, now time.Time) (time.Duration, time.Time) {
 	if ms, err := strconv.ParseFloat(strings.TrimSpace(h.Get("Retry-After-Ms")), 64); err == nil && ms >= 0 && !math.IsInf(ms, 0) {
-		return durationOf(ms, time.Millisecond)
+		return durationOf(ms, time.Millisecond), time.Time{}
 	}
-	return ParseRetryAfter(h.Get("Retry-After"))
+	v := strings.TrimSpace(h.Get("Retry-After"))
+	if v == "" {
+		return 0, time.Time{}
+	}
+	if secs, err := strconv.ParseFloat(v, 64); err == nil && secs >= 0 && !math.IsInf(secs, 0) {
+		return durationOf(secs, time.Second), time.Time{}
+	}
+	if t, err := http.ParseTime(v); err == nil {
+		at := t.UTC()
+		if d := at.Sub(now); d > 0 {
+			return d, at
+		}
+		return 0, at
+	}
+	return 0, time.Time{}
 }
 
 // Rate-limit reset headers, as the services were measured sending them
@@ -263,7 +286,16 @@ var (
 // measured from now, or 0 when none names a wait to come (0028-MADR D-H5). A
 // value that does not parse, or names no time ahead, is ignored.
 func RateLimitReset(h http.Header, now time.Time) time.Duration {
+	d, _ := RateLimitResetAt(h, now)
+	return d
+}
+
+// RateLimitResetAt is the wait RateLimitReset returns, and, when an RFC 3339
+// header named it, that instant in UTC. A wait a duration header gave names
+// no instant, and a tie keeps the duration's zero instant (0072-MADR D1).
+func RateLimitResetAt(h http.Header, now time.Time) (time.Duration, time.Time) {
 	var longest time.Duration
+	var instant time.Time
 	for _, name := range resetDurationHeaders {
 		if d, err := time.ParseDuration(strings.TrimSpace(h.Get(name))); err == nil && d > longest {
 			longest = d
@@ -272,11 +304,11 @@ func RateLimitReset(h http.Header, now time.Time) time.Duration {
 	for _, name := range resetTimeHeaders {
 		if at, err := time.Parse(time.RFC3339, strings.TrimSpace(h.Get(name))); err == nil {
 			if d := at.Sub(now); d > longest {
-				longest = d
+				longest, instant = d, at.UTC()
 			}
 		}
 	}
-	return longest
+	return longest, instant
 }
 
 // durationOf is n units as a Duration, the longest one when n is too large.

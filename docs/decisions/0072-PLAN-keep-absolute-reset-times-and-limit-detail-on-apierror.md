@@ -503,3 +503,69 @@ MADR, approved this PLAN and said to proceed.
   `tools/recordlint.py --changed`, `tools/denyscan.py --changed` and
   `tools/linkcheck.py` were run again, each exiting 0, before the PLAN was
   re-staged. The PLAN holds no claims.
+
+The owner committed Phase 0 (`a08eb37`) and said to proceed.
+
+### Phase 1 (2026-11-09)
+
+* **Step 1, `internal/transport`:**
+  * `RetryAfterAt(h, now)` and `RateLimitResetAt(h, now)` were added.
+  * `RetryAfter` and `RateLimitReset` became their wrappers.
+  * `ParseRetryAfter` is unchanged.
+  * An HTTP-date that has passed keeps its instant, with a zero delay, as
+    MADR Q5 keeps a past body reset.
+* **Step 2, the envelope:**
+  * `resetsAt int64` became `resetAt time.Time`.
+  * `parseAPIErrorBody` reads `metadata` beside `error`, `error.metadata`,
+    and an `ErrorInfo` detail's `metadata`, in that order, after
+    `resets_at`.
+  * A new helper, `metadataResetAt`, parses `resetsAt` as RFC 3339.
+* **Step 3, `ClassifyHTTPError`:** it reads `now` once and follows MADR D1's
+  order.
+* **Step 4:** `APIError.ResetAt`'s doc follows MADR D1's wording.
+* **Step 5, tests:** the seven tests in the tables, in
+  `llmprovider/internal/transport/reset_at_0072_test.go` and
+  `llmprovider/api_error_reset_0072_test.go`. Each passes.
+  * `TestAPIError_TextUnchanged_0072` zeroes `ResetAt` only, since `Limit`
+    does not exist until Phase 2. Phase 2 makes it zero `Limit` too.
+  * Its pinned text is
+    `llmprovider: quota exhausted: openai HTTP 429 usage_limit_reached (retry-after 30s): The usage limit has been reached`.
+* **The drift check:** before the new tests were written,
+  `go test -count=1 ./llmprovider ./llmprovider/internal/transport/...`
+  passed with every existing test unchanged.
+* **Planted breaks:** `tools/plant.py`, one spec per test, each with
+  `-run '^<test>$'`, on scratch clones. All 11 plants were caught, each by
+  its own test. Their failure lines follow (times in the failure lines are
+  left out):
+
+  | Test | Plant | Failure line |
+  | :--- | :--- | :--- |
+  | `TestRetryAfterAt_0072` | a delta gives `now+d` as its instant | `reset_at_0072_test.go:34: delta seconds: RetryAfterAt = 30s, 2026-11-09 12:00:30 +0000 UTC; want 30s, 0001-01-01 00:00:00 +0000 UTC` |
+  | `TestRetryAfterAt_0072` | the instant is returned in `time.Local` | `reset_at_0072_test.go:37: an HTTP-date ahead: instant in Local; want UTC` |
+  | `TestRateLimitResetAt_0072` | the RFC 3339 instant is returned even when a duration header won | `reset_at_0072_test.go:72: a longer duration header: RateLimitResetAt = 5m0s, 2026-11-09 12:00:30 +0000 UTC; want 5m0s, 0001-01-01 00:00:00 +0000 UTC` (and the tie) |
+  | `TestResetAt_ResetsAt_0072` | `ResetAt` left zero | `api_error_reset_0072_test.go:37: ResetAt = 0001-01-01 00:00:00 +0000 UTC; want resets_at's …` |
+  | `TestResetAt_ResetsAt_0072` | `ResetAt` in `time.Local` | `api_error_reset_0072_test.go:40: ResetAt in Local; want UTC` |
+  | `TestResetAt_PastKept_0072` | a past instant is zeroed | `api_error_reset_0072_test.go:53: ResetAt = 0001-01-01 00:00:00 +0000 UTC; want the past resets_at …, kept as stated` |
+  | `TestResetAt_Order_0072` | the header is preferred to the body | `api_error_reset_0072_test.go:73: resets_at with an HTTP-date: ResetAt …; want the body's …` |
+  | `TestResetAt_Order_0072` | the reset header is read on any status | `api_error_reset_0072_test.go:87: Claude's 400 with the reset header: ResetAt …; want none` |
+  | `TestResetAt_OpenCodeMetadata_0072` | the top-level `metadata` is not read | `api_error_reset_0072_test.go:113: beside error: ResetAt 0001-01-01 00:00:00 +0000 UTC; want …` |
+  | `TestResetAt_OpenCodeMetadata_0072` | the `ErrorInfo` detail is not read | `api_error_reset_0072_test.go:113: in an ErrorInfo: ResetAt 0001-01-01 00:00:00 +0000 UTC; want …` |
+  | `TestAPIError_TextUnchanged_0072` | `Error()` appends the reset instant | `api_error_reset_0072_test.go:152: a ChatGPT usage limit: Error() = "llmprovider: quota exhausted: openai HTTP 429 usage_limit_reached (retry-after 30s) resets …: The usage limit has been reached"; want …` |
+
+* **Pre-add:** `make pre-add-check` on the four Go files: "go-precheck: 4
+  file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)", exit
+  0.
+* **Race:** `go test -race -count=3 ./llmprovider ./llmprovider/internal/transport/...`,
+  exit 0.
+* **The gate:** `python3 -B tools/gate.py`, started at load 9.8: "gate: 29
+  of 29 passed".
+  * `api-check`: "against v1.28.0, 0 incompatible change(s)".
+  * `coverage-check`: `llmprovider` 98.4 % against 95.9 %,
+    `internal/transport` 88.3 % against 80.0 %.
+* **`tools/apidiff.py v1.28.0`** lists one compatible change:
+  `./llmprovider.APIError.ResetAt: added`. `RetryAfterAt` and
+  `RateLimitResetAt` are in an internal package, and are not listed.
+* **Stop conditions:** none met. No existing test changed and no golden
+  changed.
+* This entry was added after the gate ran, so the record checks were run
+  again before staging.

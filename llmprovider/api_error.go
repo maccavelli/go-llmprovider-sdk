@@ -112,6 +112,15 @@ type APIError struct {
 	// RetryAfter is the delay the service asked for, when it asked, in a
 	// header or in its error body.
 	RetryAfter time.Duration
+	// ResetAt is the instant the service named for its limit to lift, in
+	// UTC: a usage limit's reset time in its error body (ChatGPT's
+	// resets_at, OpenCode's metadata.resetsAt), else an HTTP-date
+	// Retry-After, else, on a 429, the rate-limit reset header naming a
+	// time that gave RetryAfter. It is zero when the service named only a
+	// delay, or nothing. It is kept as stated, so it may have passed, by the
+	// service's clock or a late reply. Error does not print it (0072-MADR
+	// D1).
+	ResetAt time.Time
 	// Reason is the service's reason for a response it cut short, such as
 	// "max_output_tokens".
 	Reason string
@@ -243,18 +252,24 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 	if readErr != nil {
 		message = strings.TrimSpace(message + " (error body unreadable: " + readErr.Error() + ")")
 	}
+	now := time.Now()
+	retryAfter, resetAt := transport.RetryAfterAt(resp.Header, now)
 	e := &APIError{
 		Provider:   provider,
 		Status:     resp.StatusCode,
 		Code:       boundCode(envelope.errType()),
 		Message:    boundMessage(redact.String(redact.StripControl(redactInput(message)))),
-		RetryAfter: transport.RetryAfter(resp.Header),
+		RetryAfter: retryAfter,
+		ResetAt:    resetAt,
 	}
 	e.terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
 	noteCompletionFillsContext(e, envelope.message())
 	// A usage limit says when it resets, as Codex reads it (MADR 0012 §4.4).
-	if e.RetryAfter == 0 && envelope.resetsAt > 0 {
-		if d := time.Until(time.Unix(envelope.resetsAt, 0)); d > 0 {
+	// The body's instant outranks a header's, and gives the delay when no
+	// header did (0072-MADR D1).
+	if !envelope.resetAt.IsZero() {
+		e.ResetAt = envelope.resetAt
+		if d := envelope.resetAt.Sub(now); e.RetryAfter == 0 && d > 0 {
 			e.RetryAfter = d
 		}
 	}
@@ -267,7 +282,11 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 	// Last, a rate limit's reset header, as OpenAI, Hugging Face and Claude
 	// send them (0028-MADR D-H5).
 	if e.RetryAfter == 0 && resp.StatusCode == http.StatusTooManyRequests {
-		e.RetryAfter = transport.RateLimitReset(resp.Header, time.Now())
+		var at time.Time
+		e.RetryAfter, at = transport.RateLimitResetAt(resp.Header, now)
+		if e.ResetAt.IsZero() {
+			e.ResetAt = at
+		}
 	}
 	// x-should-retry is the service saying whether a retry can succeed, and
 	// is obeyed both ways, as the OpenAI and Anthropic SDKs do (MADR 0012
@@ -499,9 +518,12 @@ func claudeWorkspaceRefusal(service string, env apiErrorEnvelope) error {
 // details:[{reason}]}}, which its Interactions API sends as a one-element
 // array, [{error:{…}}] (0026-PLAN D12).
 type apiErrorEnvelope struct {
-	types    []string // candidate classifications, most specific first
-	msg      string
-	resetsAt int64 // usage_limit_reached's reset time, Unix seconds, or 0
+	types []string // candidate classifications, most specific first
+	msg   string
+	// resetAt is the instant the body names for its limit to lift, in UTC,
+	// or zero: usage_limit_reached's resets_at, else OpenCode's
+	// metadata.resetsAt (0072-MADR D1).
+	resetAt time.Time
 	// retryDelay is a google.rpc.RetryInfo's delay, or 0 (0026-MADR F12).
 	retryDelay time.Duration
 	// perDayQuota reports a google.rpc.QuotaFailure naming a per-day quota.
@@ -554,6 +576,8 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		Message   string          `json:"message"`
 		Error     json.RawMessage `json:"error"`
 		Detail    json.RawMessage `json:"detail"`
+		// Metadata is OpenCode's, beside error (0072-MADR O1, O4).
+		Metadata json.RawMessage `json:"metadata"`
 	}
 	if json.Unmarshal(soleObject(body), &top) != nil {
 		return apiErrorEnvelope{msg: strings.TrimSpace(string(body))}
@@ -572,9 +596,13 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		Status   string          `json:"status"`
 		Message  string          `json:"message"`
 		ResetsAt int64           `json:"resets_at"`
+		// Metadata is Kilo's, and OpenCode's in some envelopes, inside
+		// error (0072-MADR K1, O6).
+		Metadata json.RawMessage `json:"metadata"`
 		// Details are Google's: a reason is the most specific type; a
 		// RetryInfo carries the delay and a QuotaFailure the violated
-		// quotas (google/rpc/error_details.proto; 0026-MADR F12).
+		// quotas (google/rpc/error_details.proto; 0026-MADR F12); an
+		// ErrorInfo carries metadata (0072-MADR O5).
 		Details []struct {
 			Type       string `json:"@type"`
 			Reason     string `json:"reason"`
@@ -582,15 +610,24 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 			Violations []struct {
 				QuotaID string `json:"quotaId"`
 			} `json:"violations"`
+			Metadata json.RawMessage `json:"metadata"`
 		} `json:"details"`
 	}
+	// metadata are the error's metadata objects, in the order a reset is
+	// read from them (0072-MADR D1): beside error, inside it, then in a
+	// Google ErrorInfo.
+	metadata := []json.RawMessage{top.Metadata}
 	var text string
 	switch {
 	case json.Unmarshal(top.Error, &inner) == nil:
+		metadata = append(metadata, inner.Metadata)
 		for _, d := range inner.Details {
 			add(d.Reason)
 			if strings.HasSuffix(d.Type, "google.rpc.RetryInfo") {
 				env.retryDelay = protoDuration(d.RetryDelay)
+			}
+			if strings.HasSuffix(d.Type, "google.rpc.ErrorInfo") {
+				metadata = append(metadata, d.Metadata)
 			}
 			for _, v := range d.Violations {
 				env.perDayQuota = env.perDayQuota || strings.Contains(v.QuotaID, "PerDay")
@@ -598,7 +635,9 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		}
 		add(jsonString(inner.Code), inner.Type, inner.Status)
 		env.msg = inner.Message
-		env.resetsAt = inner.ResetsAt
+		if inner.ResetsAt > 0 {
+			env.resetAt = time.Unix(inner.ResetsAt, 0).UTC()
+		}
 	case json.Unmarshal(top.Error, &text) == nil:
 		env.msg = text
 	}
@@ -610,7 +649,30 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		// The ChatGPT backend's {"detail": ...} (gate G-C, 2026-09-27).
 		env.msg = jsonString(top.Detail)
 	}
+	for _, m := range metadata {
+		if !env.resetAt.IsZero() {
+			break
+		}
+		env.resetAt = metadataResetAt(m)
+	}
 	return env
+}
+
+// metadataResetAt is an error metadata object's resetsAt, an RFC 3339
+// instant, in UTC, or zero when it is absent or does not parse (0072-MADR
+// D1, O4).
+func metadataResetAt(raw json.RawMessage) time.Time {
+	var m struct {
+		ResetsAt string `json:"resetsAt"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &m) != nil {
+		return time.Time{}
+	}
+	at, err := time.Parse(time.RFC3339, strings.TrimSpace(m.ResetsAt))
+	if err != nil {
+		return time.Time{}
+	}
+	return at.UTC()
 }
 
 // jsonString returns a JSON string's value; numbers and null give "".
