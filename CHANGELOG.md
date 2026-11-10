@@ -5,11 +5,13 @@ All notable changes to this module are recorded here, in the form of
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html): from
 `v1.0.0`, a release that is not major only adds to the exported API, which
 `make api-check` enforces (the standards guide's R48). `make changelog-check`
-holds this file to the release tags, and the five newest tags' GitHub Releases
+holds this file to the release tags, and the six newest tags' GitHub Releases
 carry their sections. An older tag's Release page still opens, showing the
 tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
+
+## [v1.29.0] - 2026-11-10
 
 ### Added
 
@@ -1190,7 +1192,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.28.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.29.0...HEAD
+[v1.29.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.28.0...v1.29.0
 [v1.28.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.27.0...v1.28.0
 [v1.27.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.26.1...v1.27.0
 [v1.26.1]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.26.0...v1.26.1

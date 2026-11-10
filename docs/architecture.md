@@ -1212,8 +1212,9 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   has passed, the `release` job, the only one that may write, creates the
   tag's GitHub Release with its `CHANGELOG.md` section as the notes, each
   relative link pointed at its file at the tag (0048-MADR D5; 0048-PLAN
-  Phase 5 step 7). Only the five newest tags keep a Release: each release
-  deletes the sixth-newest's, leaving its tag and section (0055-MADR).
+  Phase 5 step 7). Only the six newest tags keep a Release: each release
+  deletes the seventh-newest's, leaving its tag and section (0055-MADR,
+  amendment of 2026-11-10).
 
   A push to `main` or a pull request that changes only Markdown skips it
   (`paths-ignore: ['**.md']`). **Docs** (`.github/workflows/docs.yml`) runs

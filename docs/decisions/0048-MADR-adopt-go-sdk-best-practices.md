@@ -470,6 +470,10 @@ Answered 2026-10-19; each answer is in the decisions above.
   and each release deletes the Release of the tag that falls to sixth.
 * **A2's six Releases** (`v1.10.2` to `v1.15.0`) are deleted, with
   `v1.16.0`'s. Their tags and sections stay.
+* *Changed 2026-11-10:* the six newest tags keep a Release, and each
+  release deletes the Release of the tag that falls to seventh.
+  [0055-MADR-go-1-27-3-and-the-v1-20-0-release.md](0055-MADR-go-1-27-3-and-the-v1-20-0-release.md)'s
+  amendment of 2026-11-10 records it.
 
 ### A5 (2026-11-07): a `Cache` has a lifetime
 

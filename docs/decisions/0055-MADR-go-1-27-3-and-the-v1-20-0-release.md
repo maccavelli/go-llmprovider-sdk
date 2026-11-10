@@ -316,3 +316,26 @@ The notes are exactly the section, with no line added about the floor. The
 * **Considered,** and not chosen: a step in CI's `release` job that deletes
   the sixth-newest Release. It would give the job a destructive write on
   every tag, and change `ci.yml` for what one command per release does.
+
+## Amendment 2026-11-10: the six newest tags keep a GitHub Release
+
+* **The owner's decision,** asked at
+  [0072-PLAN-keep-absolute-reset-times-and-limit-detail-on-apierror.md](0072-PLAN-keep-absolute-reset-times-and-limit-detail-on-apierror.md)'s
+  Phase 6, when that PLAN was found to have no step deleting the Release
+  that `v1.29.0` would push to sixth: "change it to the previous 6", then,
+  asked whether that means six newest tags with the delete step kept, "Yes:
+  keep six, add step".
+* **What changes:**
+  * **R53** reads: every release has a changelog section, and the six
+    newest tags a GitHub Release. CI's `release` job is unchanged. The
+    release's PLAN then deletes the Release of the tag that falls to
+    seventh, keeping its tag and section, after saving its JSON.
+  * The 2026-10-21 amendment's rule of five is replaced; its deletions
+    stand.
+  * 0048-MADR's A4 gains a pointer here.
+  * `CHANGELOG.md`'s preamble, the README's Status and
+    `docs/architecture.md`'s CI passage say six.
+* **At `v1.29.0`** the six are `v1.29.0`, `v1.28.0`, `v1.27.0`, `v1.26.1`,
+  `v1.26.0` and `v1.25.0`, so that release deletes none. No Release deleted
+  before is made again.
+* **The CI step stays not chosen,** for the reason above.

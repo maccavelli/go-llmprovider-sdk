@@ -353,10 +353,10 @@ key.
 
 ## Status
 
-The current release is `v1.28.0`. The module requires Go 1.27.3.
+The current release is `v1.29.0`. The module requires Go 1.27.3.
 
 What each release changed, from `v1.0.0` on, is in
-[CHANGELOG.md](CHANGELOG.md); the five newest tags' GitHub Releases carry
+[CHANGELOG.md](CHANGELOG.md); the six newest tags' GitHub Releases carry
 their sections. An older tag's Release page still opens, showing the tag and
 its commit without notes; its notes are its section in the changelog.
 

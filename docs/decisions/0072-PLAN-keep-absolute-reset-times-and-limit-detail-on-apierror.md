@@ -437,6 +437,11 @@ As 0071-PLAN's Phase 5:
 3. Tag on the owner's word.
 4. Wait for CI and the Release, then run `tools/consumer.py` and
    `tools/offline.py`.
+   * *Added 2026-11-10, Deviation 3:* `gh release list` shows the six
+     newest tags with a Release (R53, as amended). Any Release past the
+     sixth has its JSON saved to the session's scratch directory, and is
+     then deleted with `gh release delete TAG --yes` on the owner's word,
+     keeping its tag and section. At `v1.29.0` there is none.
 5. On the owner's word:
    * comment on issue 13, naming requirement 5 as deferred to a later record,
      and close it;
@@ -934,3 +939,66 @@ live runs, so the agent ran them on the owner's host and credentials.
   29 passed". This entry's last three lines were added after it, so the
   record checks were run again before staging.
 * **Stop conditions:** none met.
+
+### Phase 6 (2026-11-10)
+
+The owner committed Phase 5 as `e0eea68`.
+
+#### Steps 1 and 2: the release's section
+
+* **Step 1.** `CHANGELOG.md`'s `[Unreleased]` became `## [v1.29.0] -
+  2026-11-10`, under an empty `[Unreleased]`. The compare links read
+  `[Unreleased]: …compare/v1.29.0...HEAD` and `[v1.29.0]:
+  …compare/v1.28.0...v1.29.0`.
+* **The README.** `README.md:356` reads "The current release is
+  `v1.29.0`." No other file outside the changelog and the records names
+  `v1.28.0` as the current release; `budget_0072_test.go:12` names it as
+  the base its test compiles at.
+* **The checks:**
+  * `scripts/check_changelog.py` reported "42 release section(s), 0
+    problem(s)";
+  * `--section v1.29.0` printed the section, 31 lines: Added, the five
+    names; Fixed, the three behaviours;
+  * `tools/apidiff.py v1.28.0` reported "Compatible changes:
+    ./llmprovider.APIError.Limit: added; ./llmprovider.APIError.ResetAt:
+    added; ./llmprovider.ClassifyStreamFailureBody: added;
+    ./llmprovider.Limit: added; ./llmprovider.Quota: added", exactly the
+    R55 table.
+* **Step 2,** the full gate, runs before staging, and its line is recorded
+  with the release's.
+
+#### Deviation 3 (2026-11-10): no step for R53's deletion
+
+* **Found** before the tag. Phase 6 copied 0071-PLAN's Phase 5 steps, which
+  have no `gh release delete`: the miss 0071-PLAN's Deviation 5 recorded.
+  `gh release list` showed five Releases, `v1.28.0` to `v1.25.0`, so
+  `v1.29.0` would push `v1.25.0`'s to sixth, past R53's five.
+* **Offered:** add the delete step (recommended); leave six Releases; or
+  defer the deletion to a later record.
+* **The owner chose** "change it to the previous 6 then option 1 as
+  recommended", confirmed as "Yes: keep six, add step":
+  * R53 keeps a Release for the six newest tags. The amendment of
+    2026-11-10 to
+    [0055-MADR-go-1-27-3-and-the-v1-20-0-release.md](0055-MADR-go-1-27-3-and-the-v1-20-0-release.md)
+    records it, with a pointer in 0048-MADR's A4.
+  * R53's text in `docs/guides/api-standards.md`, `CHANGELOG.md`'s
+    preamble, `README.md`'s Status and `docs/architecture.md`'s CI passage
+    say six, and seventh for the one deleted.
+  * Step 4 gains the check and the deletion. At `v1.29.0` the six newest
+    are `v1.29.0` to `v1.25.0`, so none is deleted.
+* **Files added to this phase's scope:** the two MADRs (0055, 0048),
+  `docs/guides/api-standards.md` and `docs/architecture.md`. No code, CI or
+  test changes; 0072-MADR's decisions are unchanged.
+
+#### The release commit's checks
+
+* `make records-check`, `changelog-check`, `parity-check`, `docs-check` and
+  `markdownlint` (12 files, 0 issues); `tools/recordlint.py --changed`,
+  `tools/denyscan.py --changed` ("0 hit(s) in 7 file(s)") and
+  `tools/linkcheck.py`; `tools/claims.py` on 0072-MADR, "56 of 56 pass".
+  Each exit 0.
+* **The gate:** `python3 -B tools/gate.py`, started at load 9.8, after
+  Deviation 3's edits: "gate: 29 of 29 passed". A run started before those
+  edits was stopped unfinished, as it had cloned the older tree. This
+  entry was added after the gate, so the record checks were run again
+  before staging.
