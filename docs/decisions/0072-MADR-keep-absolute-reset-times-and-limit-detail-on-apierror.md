@@ -590,6 +590,10 @@ and extends the Gemini live check.
     reads `x-codex-*` on a success and on a 429 (X10). `resets_in_seconds` is
     fixture-only in Codex. Whether this SDK's ChatGPT requests receive the
     headers is measured in the PLAN's Phase 5.
+    * *Answered 2026-11-10, by the PLAN's Phase 5:* they do. A successful
+      generation from this SDK received 17 `x-codex-` headers, among them
+      every one listed above (X7), with windows of 300 and 10080 minutes.
+      The PLAN's Phase 5 record lists their names, for D5's later record.
   * **Does OpenCode send `retry-after` with its 401 quota codes?** Not in the
     last public code (`d21b0790a6`). Those replies set no headers.
 * **Out of scope, and noted for gobble.** gobble's issue 14, requirement 4, is

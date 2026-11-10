@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -33,7 +34,10 @@ type reporter interface {
 //     there is one;
 //   - err is ErrQuotaExhausted, terminal, exactly when a QuotaFailure
 //     violation names a per-day quota, and a retryable ErrRateLimited
-//     otherwise.
+//     otherwise;
+//   - when the body has a QuotaFailure, err's Limit.Quotas holds each
+//     violation's quotaId, in order, and its Limit.PerDay is that per-day
+//     flag (0072-MADR D2; 0072-PLAN Phase 5 step 2).
 func checkGemini429(r reporter, header http.Header, body []byte, err error) {
 	envelope, inner := "bare", body
 	var elems []json.RawMessage
@@ -58,6 +62,7 @@ func checkGemini429(r reporter, header http.Header, body []byte, err error) {
 		return
 	}
 	var retryDelay string
+	var quotaIDs []string
 	perDay := false
 	for _, d := range shape.Error.Details {
 		if strings.HasSuffix(d.Type, "google.rpc.RetryInfo") {
@@ -65,6 +70,7 @@ func checkGemini429(r reporter, header http.Header, body []byte, err error) {
 		}
 		for _, v := range d.Violations {
 			perDay = perDay || strings.Contains(v.QuotaID, "PerDay")
+			quotaIDs = append(quotaIDs, v.QuotaID)
 		}
 	}
 	var code string
@@ -116,6 +122,23 @@ func checkGemini429(r reporter, header http.Header, body []byte, err error) {
 	if !perDay && (!errors.Is(err, llmprovider.ErrRateLimited) || !apiErr.Retryable()) {
 		r.Errorf("a per-minute 429 = %v; want a retryable ErrRateLimited", err)
 	}
+	if len(quotaIDs) == 0 {
+		return
+	}
+	if apiErr.Limit == nil {
+		r.Errorf("Limit = nil; want the QuotaFailure's quotas %q", quotaIDs)
+		return
+	}
+	got := make([]string, 0, len(apiErr.Limit.Quotas))
+	for _, q := range apiErr.Limit.Quotas {
+		got = append(got, q.ID)
+	}
+	if !slices.Equal(got, quotaIDs) {
+		r.Errorf("Limit.Quotas IDs = %q; want the QuotaFailure's %q, in order", got, quotaIDs)
+	}
+	if apiErr.Limit.PerDay != perDay {
+		r.Errorf("Limit.PerDay = %t; want %t, from the quota IDs %q", apiErr.Limit.PerDay, perDay, quotaIDs)
+	}
 }
 
 // recordingReporter keeps what checkGemini429 reports.
@@ -140,10 +163,39 @@ func documentedGemini429(quotaID, retryDelay string) string {
 		`{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"` + retryDelay + `"}]}}]`
 }
 
+// twoQuotaGemini429 is documentedGemini429's per-day 429 with a per-minute
+// violation before its own, so that a check of Limit.Quotas sees their order
+// (0072-PLAN Phase 5 step 2).
+func twoQuotaGemini429() string {
+	body := documentedGemini429("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "52s")
+	return strings.Replace(body, `"violations":[{`,
+		`"violations":[{"quotaId":"GenerateRequestsPerMinutePerProjectPerModel-FreeTier"},{`, 1)
+}
+
 // capturedGemini429 is the Interactions API's 429 as captured live, through
 // Generate, with its Retry-After header (0027-PLAN D1).
 const capturedGemini429 = `{"error":{"message":"Rate limit exceeded for model gemini-3.1-pro (limit: 25 requests per minute on Tier 1). ` +
 	`Please retry in 11s or upgrade your tier at https://ai.dev/rate-limit.","code":"too_many_requests"}}`
+
+// withLimit returns a copy of err's *APIError whose Limit is a copy changed
+// by change, or nil when change is nil, so that a case of TestCheckGemini429
+// can break one fact of the classification (0072-PLAN Phase 5 step 2).
+func withLimit(err error, change func(*llmprovider.Limit)) error {
+	apiErr, ok := errors.AsType[*llmprovider.APIError](err)
+	if !ok || apiErr.Limit == nil {
+		return err
+	}
+	c := *apiErr
+	if change == nil {
+		c.Limit = nil
+		return &c
+	}
+	l := *apiErr.Limit
+	l.Quotas = slices.Clone(l.Quotas)
+	change(&l)
+	c.Limit = &l
+	return &c
+}
 
 func classify429(service, body string, header http.Header) error {
 	return llmprovider.ClassifyHTTPError(service, &http.Response{StatusCode: http.StatusTooManyRequests,
@@ -155,7 +207,8 @@ func classify429(service, body string, header http.Header) error {
 // Google's documented one, in the Interactions API's array, and the one
 // captured live, bare with a Retry-After header. They fail on an error that
 // ignores the delay or the quota, on another shape, and on a 429 with no
-// delay.
+// delay; and on an error whose Limit leaves out the quotas, the per-day flag,
+// or itself (0072-PLAN Phase 5 step 2).
 func TestCheckGemini429(t *testing.T) {
 	retryAfter11 := http.Header{"Retry-After": {"11"}}
 	for _, c := range []struct {
@@ -167,6 +220,8 @@ func TestCheckGemini429(t *testing.T) {
 		{"documented, per day", documentedGemini429("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "52s"),
 			"Google's documented google.rpc shape, in a one-element array", http.Header{}},
 		{"captured", capturedGemini429, "the Interactions API's too_many_requests shape, bare", retryAfter11},
+		{"documented, two quotas", twoQuotaGemini429(),
+			"Google's documented google.rpc shape, in a one-element array", http.Header{}},
 	} {
 		r := &recordingReporter{}
 		checkGemini429(r, c.header, []byte(c.body), classify429("gemini", c.body, c.header))
@@ -193,6 +248,18 @@ func TestCheckGemini429(t *testing.T) {
 			[]string{"DRIFT: a 429 of neither known shape"}},
 		{"no delay", capturedGemini429, http.Header{}, classify429("gemini", capturedGemini429, http.Header{}),
 			[]string{"DRIFT: the 429 gives no delay"}},
+		{"documented per day, its quotas left out", day, http.Header{},
+			withLimit(classify429("gemini", day, http.Header{}), func(l *llmprovider.Limit) { l.Quotas = nil }),
+			[]string{`Limit.Quotas IDs = []; want the QuotaFailure's ["GenerateRequestsPerDayPerProjectPerModel-FreeTier"]`}},
+		{"documented per day, its per-day flag left out", day, http.Header{},
+			withLimit(classify429("gemini", day, http.Header{}), func(l *llmprovider.Limit) { l.PerDay = false }),
+			[]string{"Limit.PerDay = false; want true"}},
+		{"two quotas, out of order", twoQuotaGemini429(), http.Header{},
+			withLimit(classify429("gemini", twoQuotaGemini429(), http.Header{}), func(l *llmprovider.Limit) { slices.Reverse(l.Quotas) }),
+			[]string{"Limit.Quotas IDs = [", "in order"}},
+		{"documented per day, no Limit", day, http.Header{},
+			withLimit(classify429("gemini", day, http.Header{}), nil),
+			[]string{"Limit = nil; want the QuotaFailure's quotas"}},
 	} {
 		r := &recordingReporter{}
 		checkGemini429(r, c.header, []byte(c.body), c.err)

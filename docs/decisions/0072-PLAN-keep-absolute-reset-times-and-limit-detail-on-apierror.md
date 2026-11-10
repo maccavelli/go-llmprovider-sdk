@@ -855,3 +855,82 @@ Phase 3 above.
   of 29 passed". This entry's last two lines were added after it, so the
   record checks were run again before staging.
 * **Stop conditions:** none met.
+
+### Phase 5 (2026-11-10)
+
+The owner committed Phase 4 as `fa65576` and approved spending quota on the
+live runs, so the agent ran them on the owner's host and credentials.
+
+* **Step 1, `TestLive_0072ChatGPTHeaders`,** in
+  `llmprovider/live_0072_measure_test.go`, as written. Its transport,
+  `codexHeaderRecorder`, keeps each reply's status, the names of its
+  `x-codex-` headers, and the values of only those that end
+  `-window-minutes`. Run with `LLMPROVIDER_LIVE_0072=1` and
+  `LLMPROVIDER_LIVE_CHATGPT=1`, one generation to `gpt-6-astra`:
+
+  ```text
+  reply 1: HTTP 200; 17 x-codex- headers: x-codex-active-limit, x-codex-credits-balance, x-codex-credits-has-credits, x-codex-credits-unlimited, x-codex-plan-type, x-codex-primary-over-secondary-limit-percent, x-codex-primary-reset-after-seconds, x-codex-primary-reset-at, x-codex-primary-used-percent, x-codex-primary-window-minutes, x-codex-safety-buffering-enabled, x-codex-safety-buffering-faster-model, x-codex-secondary-reset-after-seconds, x-codex-secondary-reset-at, x-codex-secondary-used-percent, x-codex-secondary-window-minutes, x-codex-turn-state
+  reply 1: x-codex-primary-window-minutes = 300
+  reply 1: x-codex-secondary-window-minutes = 10080
+  --- PASS: TestLive_0072ChatGPTHeaders (2.54s)
+  ```
+
+  This answers the issue's second "Uncertain" item for this SDK's requests:
+  ChatGPT sends them the window headers on a success, as it sends the Codex
+  CLI's (X7, X10). The windows are 5 hours and 7 days. The headers the MADR
+  lists are all present; the rest (`reset-after-seconds`,
+  `over-secondary-limit-percent`, `plan-type`, the credit, safety-buffering
+  and turn-state headers) are recorded for D5's later record. The MADR's
+  More Information carries the answer. A 429 was not produced: a usage limit
+  cannot be reached on demand (Q-risk).
+* **Step 2, `checkGemini429`,** as written: when the body has a
+  `QuotaFailure`, it requires `Limit.Quotas`' IDs to be the violations'
+  `quotaId`s, in order, and `Limit.PerDay` to be the per-day flag it
+  computes; and a nil `Limit` is reported.
+  * `TestCheckGemini429` gains a passing case, "documented, two quotas"
+    (`twoQuotaGemini429`, a per-minute violation before the per-day one), and
+    four failing cases: the quotas left out, the per-day flag left out, two
+    quotas out of order, and no `Limit`. They break one fact each of the SDK's
+    own classification, through `withLimit`.
+  * **One case more than the step names,** inside its file. The two-quota
+    body was not in the step as written. Without it the plant "the check
+    ignores their order" survived, because every body had one violation;
+    the step's "in order" needs it. No decision or file scope changes.
+  * `tools/plant.py`, 5 plants, all caught:
+
+    | Plant | Failure line |
+    | :--- | :--- |
+    | the SDK leaves `Quotas` empty (the step's plant) | `gemini429_check_test.go:229: documented, per minute: the checks failed on the SDK's own classification:` (and per day, two quotas) |
+    | the check ignores the quota IDs | `gemini429_check_test.go:269: documented per day, its quotas left out: failures []; want one containing "Limit.Quotas IDs = []; …"` |
+    | the check ignores their order | `gemini429_check_test.go:269: two quotas, out of order: failures []; want one containing "in order"` |
+    | the check ignores the per-day flag | `gemini429_check_test.go:269: documented per day, its per-day flag left out: failures []; want one containing "Limit.PerDay = false; want true"` |
+    | the check passes a nil `Limit` silently | `gemini429_check_test.go:269: documented per day, no Limit: failures []; want one containing "Limit = nil; want the QuotaFailure's quotas"` |
+
+  * **The live run,** `TestLive_GeminiRateLimitShape` with
+    `LLMPROVIDER_LIVE_GEMINI_429=1`, each request 2 input tokens:
+    * on `gemini-pro-latest`, burst 20: no 429 ("the key's limit is higher"),
+      a skip;
+    * on `gemini-3.1-pro`: HTTP 404, the model is now
+      `gemini-3.1-pro-preview`;
+    * on `gemini-3.1-pro-preview`, burst 40: a 429 within the burst, PASS.
+
+      ```text
+      Retry-After header "50"; error llmprovider: rate limited: gemini HTTP 429 too_many_requests (retry-after 50s): Rate limit exceeded for model gemini-3.1-pro (limit: 25 requests per minute on Tier 1). …
+      gemini429_check_test.go:82: the 429 is the Interactions API's too_many_requests shape, bare
+      ```
+
+    That 429 is the shape 0027-PLAN captured, with no `QuotaFailure`, so the
+    new requirements had nothing to check live. They are held offline by
+    `TestCheckGemini429`. A per-day `QuotaFailure` was not produced live.
+* **Step 3, `scripts/check_tables.py`:** "check-tables: 42 packages, 0
+  problem(s)", exit 0.
+
+* **Pre-add:** `make pre-add-check` on `llmprovider/live_0072_measure_test.go`
+  and `llmprovider/gemini429_check_test.go`: "2 file(s) clean", exit 0.
+* **The records:** `tools/claims.py` "56 of 56 pass"; `make records-check`,
+  `tools/recordlint.py --changed`, `tools/denyscan.py --changed` and
+  `tools/linkcheck.py`, each exit 0.
+* **The gate:** `python3 -B tools/gate.py`, started at load 8.8: "gate: 29 of
+  29 passed". This entry's last three lines were added after it, so the
+  record checks were run again before staging.
+* **Stop conditions:** none met.
