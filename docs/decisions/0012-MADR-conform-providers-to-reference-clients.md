@@ -1316,3 +1316,23 @@ Made by [0070-MADR-place-grok-4-20-by-date-and-split-model-labels.md](0070-MADR-
   defaults.
 
 §6's text above is not rewritten.
+
+## Amendment 2026-11-09: OpenCode's budget and credit limit are quota (0072 D4)
+
+Made by [0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md](0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md) (D4), for this repository's issue 13.
+
+* **§1.1's table gains two OpenCode codes:** `BudgetLimitError` and
+  `CreditLimitExceeded` are `ErrQuotaExhausted`, terminal, beside
+  `FreeUsageLimitError`, `GoUsageLimitError` and `BlackUsageLimitError`.
+  * A budget arrives as a 429, so until now it was a retryable
+    `ErrRateLimited`, and `WithRetry` waited and resent it.
+  * `CreditLimitExceeded` arrives as a 402, which §1.1's status row already
+    made `ErrQuotaExhausted`. The code makes that independent of the status.
+* **In Google's envelope** the code is a `google.rpc.ErrorInfo` detail's
+  `reason`. The envelope parser already adds a reason as a type, so the same
+  row matches.
+* **The evidence is OpenCode's own client** (0072-MADR O3 to O5, O7). It does
+  not retry a budget. OpenCode's gateway has been private since 2026-10-11, so
+  no server source is cited.
+
+Every other row of §1.1 is unchanged, and its text above is not rewritten.

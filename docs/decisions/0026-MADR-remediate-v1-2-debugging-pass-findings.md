@@ -884,3 +884,22 @@ A request whose TLS certificate the client refuses (a chain holding a
 the client's own check; no retry can mend it. `WithRetry` and the OAuth
 refresh no longer retry it, whatever kind it was wrapped with. F11's other
 cases are unchanged.
+
+## Amendment 2026-11-09: F12's quota is exposed, and read inside a stream
+
+Made by [0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md](0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md) (D2, D3), for this repository's issue 13.
+
+* **The per-day flag is exposed** as `APIError.Limit.PerDay`.
+* **The violations are exposed** as `Limit.Quotas`, each with its `quotaId`,
+  `quotaMetric` and `quotaValue`. `quotaDimensions` is not exposed.
+* **Inside a stream,** Google's error details now reach the classifier. A
+  per-day quota there is `ErrQuotaExhausted`, as in an HTTP reply. Before
+  this, the stream parsers dropped the details, and it was a retryable
+  `ErrRateLimited`.
+* **The risk F12 accepted still holds.** The shape is Google's documented one,
+  not captured. 0072-PLAN Phase 5 extends `checkGemini429`, so that
+  `TestLive_GeminiRateLimitShape` also checks the new fields against a real
+  reply.
+
+F12's rule, that a per-day quota is terminal and a per-minute one is not, is
+unchanged.

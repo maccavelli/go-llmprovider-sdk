@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-09
 associated-madr: "0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md"
 decision-makers: repository owner
@@ -478,5 +478,28 @@ As 0071-PLAN's Phase 5:
 
 ## Execution record
 
-Not started. The owner answered Q1 to Q7 and Q-risk on 2026-11-09, each as
-recommended. The PLAN awaits approval.
+The owner answered Q1 to Q7 and Q-risk on 2026-11-09, each as recommended.
+The owner committed the records (`27e2548`), and on 2026-11-09 accepted the
+MADR, approved this PLAN and said to proceed.
+
+### Phase 0 (2026-11-09)
+
+* Step 1: done by the owner's commit `27e2548`.
+* Step 2: the MADR was already `accepted`. `tools/records.py status` set this
+  PLAN `in-progress`, with its index row.
+* Step 3: three dated amendments, each appended after the record's last
+  amendment, with no earlier text rewritten:
+  * `0012-MADR-conform-providers-to-reference-clients.md`, "OpenCode's budget
+    and credit limit are quota (0072 D4)";
+  * `0015-MADR-canonical-sdk-api-and-module-layout.md`, "`*APIError` carries
+    `ResetAt` and `Limit` (0072)";
+  * `0026-MADR-remediate-v1-2-debugging-pass-findings.md`, "F12's quota is
+    exposed, and read inside a stream".
+* Step 4: `python3 -B tools/gate.py --markdown` exited 0, started at load
+  9.9: "gate: 11 of 11 passed" (parity-check, records-check, tables-check,
+  changelog-check, markdownlint, links-check, disclosure-check,
+  gate-selftest, deny-scan, recordlint, claims). The five files were then
+  staged. This entry was added after that run, so `make records-check`,
+  `tools/recordlint.py --changed`, `tools/denyscan.py --changed` and
+  `tools/linkcheck.py` were run again, each exiting 0, before the PLAN was
+  re-staged. The PLAN holds no claims.

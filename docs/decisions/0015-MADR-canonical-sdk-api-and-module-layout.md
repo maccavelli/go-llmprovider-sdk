@@ -1321,3 +1321,29 @@ user.
     imports `auth` on Windows: `providers`, eight provider packages and
     `wizard`.
   * It would also end R2's standard-library rule for them.
+
+## Amendment 2026-11-09: `*APIError` carries `ResetAt` and `Limit` (0072)
+
+Made by [0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md](0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md) (D1 to D3), for this repository's issue 13.
+
+* **D7's structured error gains two fields.** It stays the only structured
+  error.
+  * `ResetAt time.Time` is the instant the service named for a limit to
+    lift, in UTC, and zero when it named only a delay.
+  * `Limit *Limit` is what the service stated about the limit it hit. It is
+    nil when the service stated nothing beyond its code.
+  * Each field holds only what the service stated. A window is never
+    inferred from how long the wait is.
+* **A stream failure is read as an error body.**
+  `ClassifyStreamFailureBody` classifies as `ClassifyStreamFailure` does,
+  and also reads the stream's error object with the HTTP body's parser.
+  `ClassifyStreamFailure` keeps its signature and calls it with no object.
+  Both are part of the error model, for any provider's stream reader, as
+  `ClassifyStreamFailure` is (amendment "S7b's import graph").
+* **R24's text** becomes: "It carries `Provider`, `Status`, `Kind`, `Code`, a
+  redacted and bounded `Message`, `RetryAfter`, `ResetAt`, `Limit` and
+  `Reason`." The guide is changed in 0072-PLAN Phase 4.
+* **Unchanged:** `Error()`'s format, which prints neither new field;
+  `Retryable`; `Unwrap`; `Code`; and D7's list of kinds.
+
+D7's text above is not rewritten.
