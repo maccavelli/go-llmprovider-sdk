@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-150 records. Cite them by full filename.
+152 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -160,6 +160,8 @@ documents a reader follows to do something.
 | 0070 | PLAN | [Implement Reading Each Model Family's Versions from Its Dates and Siblings, and Splitting a Label's Name and Note](decisions/0070-PLAN-place-grok-4-20-by-date-and-split-model-labels.md) | complete |
 | 0071 | MADR | [Give a Cache a Lifetime, and Let a Caller Wait for an OAuth Refresh](decisions/0071-MADR-give-a-cache-a-lifetime-and-wait-for-a-refresh.md) | accepted |
 | 0071 | PLAN | [Implement a Cache's Lifetime and a Wait for an OAuth Refresh](decisions/0071-PLAN-give-a-cache-a-lifetime-and-wait-for-a-refresh.md) | complete |
+| 0072 | MADR | [Keep a Limit's Absolute Reset Time, and What the Service Said About the Limit, on APIError](decisions/0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md) | accepted |
+| 0072 | PLAN | [Implement an Absolute Reset Time and a Stated Limit on APIError](decisions/0072-PLAN-keep-absolute-reset-times-and-limit-detail-on-apierror.md) | proposed |
 
 ## I want to…
 

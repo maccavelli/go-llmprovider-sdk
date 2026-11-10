@@ -1,0 +1,482 @@
+---
+status: proposed
+date: 2026-11-09
+associated-madr: "0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md"
+decision-makers: repository owner
+---
+
+<!-- markdownlint-disable MD013 MD024 -->
+
+# Implement an Absolute Reset Time and a Stated Limit on APIError
+
+Associated MADR: [0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md](0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md)
+
+## Goal
+
+After this PLAN, a consumer reads from an `*APIError`:
+
+* the instant a limit lifts, as the service named it (`ResetAt`);
+* what the service stated about the limit (`Limit`).
+
+It reads both from an HTTP reply and from a failure inside a 200 stream, and
+reads nothing the service did not state. It also changes two classifications:
+
+* OpenCode's budget is no longer retried;
+* a Gemini per-day quota in a stream is no longer retried.
+
+`Error()`'s format, `Retryable`, `Unwrap`, `Code` and the request on the wire
+are unchanged. This answers GitHub issue 13, requirements 1 to 4.
+Requirement 5 is deferred (MADR D5).
+
+The steps follow the MADR's recommended answers to Q1 to Q7. If the owner
+answers otherwise, the MADR and this PLAN are amended before Phase 1.
+(2026-11-09: the owner answered each question, and Q-risk, as recommended,
+and the MADR is accepted. This PLAN awaits approval.)
+
+## Scope
+
+### In scope
+
+* **D1, `ResetAt`:**
+  * `llmprovider/api_error.go`;
+  * `llmprovider/internal/transport/transport.go`.
+* **D2, `Limit` and `Quota`:**
+  * `llmprovider/api_error.go`;
+  * a new `llmprovider/api_limit.go` for the two types and their docs.
+* **D3, `ClassifyStreamFailureBody`,** and its use in the five stream parsers:
+  * `llmprovider/internal/wire/responses/responses.go`;
+  * `llmprovider/internal/wire/generatecontent/generatecontent.go`;
+  * `llmprovider/providers/gemini/interactions.go`;
+  * `llmprovider/internal/wire/messages/messages.go`;
+  * `llmprovider/internal/wire/chatcompletions/chatcompletions.go`.
+* **D4:** two codes in `opencodeQuotaTypes`.
+* **D6:** the tests, an `Example`, the docs, the changelog and the release.
+* **The measurement phase:** a live test of ChatGPT's headers, and the Gemini
+  live check extended.
+
+### Exported names (R55)
+
+| Name | Call site that needs it |
+| :--- | :--- |
+| `APIError.ResetAt time.Time` | gobble-cli's `promptError`, for `ErrorData.resetAt`: "or the SDK's absolute reset time, once it has one" (its issue 14, requirement 1); magic-cli-remote's 0243-MADR requirement 6 (MADR M2) |
+| `APIError.Limit *Limit` | the same `ErrorData`, whose `limit` gobble fills from its table and the stated facts (issue 14, requirements 1 and 2) |
+| `type Limit` | holds the fields below |
+| `Limit.Name string` | gobble's `weekly` and `window` scopes, which "need a source that states the window" (issue 14, requirement 2); 0243-MADR D3's `Scope` |
+| `Limit.Window time.Duration` | the same; 0243-MADR D3's `WindowMinutes` |
+| `Limit.Plan string` | 0243-MADR requirement 6, "ChatGPT `plan_type`"; issue 13, requirement 2 |
+| `Limit.PerDay bool` | gobble's `daily` scope, "Gemini per-day" (issue 14, requirement 2); 0243-MADR requirement 6, "the per-day flag" |
+| `Limit.Quotas []Quota` | 0243-MADR requirement 6, "Gemini `quotaId`, `quotaMetric`, `quotaValue`" |
+| `type Quota` | holds the three fields below |
+| `Quota.ID string` | as `Limit.Quotas` |
+| `Quota.Metric string` | as `Limit.Quotas` |
+| `Quota.Value string` | as `Limit.Quotas` |
+| `Limit.CreditsURL string` | 0243-MADR requirement 6, "Kilo's `metadata`"; issue 13, requirement 4, "for a link to add credits" |
+| `ClassifyStreamFailureBody(provider, code, errType, message string, raw []byte) error` | the five stream parsers in this module (MADR C19 to C24), which `ClassifyStreamFailure` serves today for the same reason (0015-MADR, amendment "S7b's import graph") |
+
+No other name is exported.
+
+**Exported, but internal to the module.** Two functions are exported from
+`llmprovider/internal/transport` so that `llmprovider` can call them. Being
+internal, they add nothing to the module's API (as 0071-PLAN's Deviation 1):
+
+* `RetryAfterAt`;
+* `RateLimitResetAt`.
+
+### Out of scope
+
+* Remaining-quota headers on `Response` (MADR D5, Q3).
+* A scope enum (MADR Q2).
+* Exposing these:
+  * OpenCode's `metadata.workspace` or `metadata.coverage`;
+  * Gemini's `quotaDimensions`;
+  * any other metadata key (MADR D2).
+* A numeric `error.code` in `Code` (MADR D2, row 7).
+* `Unwrap`'s status sentinel for OpenCode's 401 quota codes (MADR, More
+  Information).
+* `x-codex-*` headers, which are measured in Phase 5 and not read.
+* gobble-cli's and magic-cli-remote's own changes, in their own repositories.
+
+## Rules for every phase
+
+* **Approval.** The owner approves this PLAN, whole or by phase. A phase
+  starts only after the owner has committed the last one.
+* **Red, then green.** Each new test is shown to fail one of two ways:
+  * **A test that calls only existing API** is seen red at `d62142c` with
+    `python3 -B tools/redgreen.py SPEC.json --expect fail --rev d62142c`, and
+    green on the phase's tree with `--expect pass`.
+  * **A test that calls a new name** cannot compile at `d62142c`. It is seen
+    to fail on each of its planted breaks, with `python3 -B tools/plant.py
+    SPEC.json`, on a scratch clone.
+
+  The specs live in the session's scratch directory, and this record holds
+  each failure line. If a break cannot be made to fail its test on every
+  run, that is a deviation: stop and report it. Do not loosen the test.
+* **The drift check.** Every existing test passes unchanged (R46), in
+  particular:
+  * `api_error_test.go`, `api_error_gemini_0026_test.go`,
+    `api_error_ratelimit_0028_test.go`, `api_error_0043_test.go`,
+    `chatgpt_errors_test.go` and `gemini429_check_test.go`;
+  * `internal/transport`'s `Retry-After` tests;
+  * every stream test in the five wire packages;
+  * G-wire's goldens (R45).
+* **Fixtures are synthetic.** Every fixture body is built from a shape the
+  MADR cites, and its comment names that claim's id (X3, O4, K1, …). None
+  carries an id, an account or a workspace. `make fixtures-check` stays
+  clean.
+* **Pre-add.** `make pre-add-check FILES="…"` on the phase's Go files:
+  * gofmt;
+  * golangci-lint on the host and with `GOOS=windows`;
+  * vet;
+  * the packages' tests;
+  * govulncheck.
+* **The gate, before staging:**
+  * `python3 -B tools/gate.py`, or `--markdown` for a records-only phase;
+  * `python3 -B tools/claims.py` on the MADR;
+  * `make records-check`;
+  * `python3 -B tools/recordlint.py --changed`;
+  * `python3 -B tools/denyscan.py --changed`;
+  * `python3 -B tools/linkcheck.py`.
+
+  Each exit status is captured before any filter, and read before anything is
+  written from it. Files are staged only when the gate passes (`&&`).
+* **R50 to R52:**
+  * `Limit` and `Quota` each say they are safe for concurrent use while no
+    goroutine changes them.
+  * `ClassifyStreamFailureBody` says it returns a non-nil `*APIError`, as
+    `ClassifyStreamFailure` does.
+  * `make docs-check` stays at 0.
+* **Stage, then the owner commits** with `git commit --no-edit`. Pushes and
+  tags happen on the owner's word, after the disclosure guard has run over
+  the outgoing commits.
+* **Stop conditions:**
+  * a fact of the MADR, or one of its claims, no longer holds;
+  * an existing test needs a changed assertion;
+  * `Error()`'s text changes for an error that exists today;
+  * `apidiff` against `v1.28.0` lists anything beyond the R55 table;
+  * a golden changes;
+  * a package falls below its floor in `scripts/coverage-floors.txt` (R47);
+    `llmprovider`'s is 95.9;
+  * `-race` reports a race.
+
+  On any of these: stop, record a dated deviation here (with an amendment in
+  the MADR when a decision or a fact changes), and wait.
+
+## Implementation Steps
+
+### Phase 0: records
+
+1. Commit this PLAN, the MADR and their rows in `docs/README.md` as records
+   only.
+2. Once the owner has answered Q1 to Q7:
+   * the MADR records the answers, as `accepted`;
+   * `tools/records.py status` sets this PLAN `in-progress`.
+3. Add dated amendments, without rewriting the decisions:
+   * **`0012-MADR-conform-providers-to-reference-clients.md`, §1.1:** OpenCode
+     `BudgetLimitError` and `CreditLimitExceeded` are `ErrQuotaExhausted`,
+     terminal (0072-MADR D4, and its evidence O3 to O5 and O7).
+   * **`0015-MADR-canonical-sdk-api-and-module-layout.md`, D7:**
+     * `*APIError` also carries `ResetAt` and `Limit`;
+     * `ClassifyStreamFailureBody` reads a stream's error object as an
+       error body;
+     * R24's text after it (0072-MADR D1 to D3).
+   * **`0026-MADR-remediate-v1-2-debugging-pass-findings.md`, F12:** the
+     per-day flag is exposed as `Limit.PerDay`, and the violations as
+     `Limit.Quotas`. A per-day quota inside a stream is classified as in an
+     HTTP reply (0072-MADR D2, D3).
+4. Run `python3 -B tools/gate.py --markdown`, then stage.
+
+### Phase 1: `ResetAt` (D1)
+
+1. **`internal/transport`.**
+   * **`RetryAfterAt(h http.Header, now time.Time) (time.Duration, time.Time)`**
+     returns the delay `RetryAfter` returns today, and the instant when the
+     header it read was an HTTP-date, in UTC; otherwise the zero time.
+     * `retry-after-ms` keeps its precedence. Neither it nor delta seconds
+       names an instant.
+     * The delay of an HTTP-date is `t.Sub(now)` when positive. That is
+       today's `time.Until(t)` with the clock passed in.
+     * `RetryAfter(h)` becomes `d, _ := RetryAfterAt(h, time.Now())`.
+     * `ParseRetryAfter` is unchanged.
+   * **`RateLimitResetAt(h http.Header, now time.Time) (time.Duration, time.Time)`**
+     returns the longest wait, as `RateLimitReset` does. When that wait came
+     from an RFC 3339 header, it also returns the instant, in UTC; when a Go
+     duration header gave it, the zero time. A tie keeps the duration
+     header's zero instant.
+     * `RateLimitReset` becomes its wrapper, with the same result.
+2. **The envelope** (`apiErrorEnvelope` and `parseAPIErrorBody`):
+   * **`resetAt time.Time`:**
+     * from `error.resets_at`, as `time.Unix(n, 0).UTC()` when `n > 0`;
+     * else from `metadata.resetsAt` (RFC 3339), read in this order: the
+       top-level `metadata`, `error.metadata`, then each `details[]` entry
+       whose `@type` ends `google.rpc.ErrorInfo`.
+
+     A value that does not parse is ignored.
+   * The `resetsAt int64` field is replaced by `resetAt` (MADR C7).
+3. **`ClassifyHTTPError`:**
+   * **`RetryAfter`:** `RetryAfter`, `ResetAt := transport.RetryAfterAt(resp.Header, now)`.
+   * **The body's reset.** When `envelope.resetAt` is set, `ResetAt` takes it,
+     which outranks the header's (MADR D1, source 1). When `RetryAfter` is 0
+     and the instant is ahead of `now`, `RetryAfter` takes `resetAt.Sub(now)`.
+     That is today's rule (C3), for both spellings.
+   * **`RetryInfo`,** unchanged.
+   * **The reset headers.** When `RetryAfter` is still 0 on a 429:
+     `d, at := transport.RateLimitResetAt(resp.Header, now)`. `RetryAfter`
+     takes `d`, and `ResetAt` takes `at` if it is still zero.
+   * **The clock.** `now` is read once, at the start, with `time.Now()`. No
+     test seam is added: the tests use instants an hour or more away.
+4. **`APIError.ResetAt`'s doc** follows MADR D1's wording. It says:
+   * the instant may have passed;
+   * it is zero when the service named only a delay;
+   * `Error()` does not print it.
+5. **Tests.**
+   * **In `llmprovider/internal/transport/reset_at_0072_test.go`:**
+
+     | Test | Asserts | Planted breaks |
+     | :--- | :--- | :--- |
+     | `TestRetryAfterAt_0072` | An HTTP-date gives its instant in UTC and the delay to it; delta seconds and `retry-after-ms` give a zero instant; `retry-after-ms` wins over an HTTP-date `Retry-After`, with a zero instant. Its delays equal `RetryAfter`'s for each case. | a delta gives `now+d` as its instant; the instant is returned in `time.Local` |
+     | `TestRateLimitResetAt_0072` | Claude's RFC 3339 headers give the latest instant; a longer `x-ratelimit-reset-*` duration gives a zero instant; the delays equal `RateLimitReset`'s. | the RFC 3339 instant is returned even when a duration header won |
+
+   * **In `llmprovider/api_error_reset_0072_test.go`:**
+
+     | Test | Asserts | Planted breaks |
+     | :--- | :--- | :--- |
+     | `TestResetAt_ResetsAt_0072` | A ChatGPT 429 with `resets_at` an hour ahead (fixture from X3 to X5) has `ResetAt == time.Unix(n, 0)`, in `time.UTC`, and a `RetryAfter` between 59 m and 1 h, as today. | `ResetAt` left zero; `ResetAt` in `time.Local` |
+     | `TestResetAt_PastKept_0072` | `resets_at` an hour ago gives that instant, and `RetryAfter` 0 (MADR Q5). | a past instant is zeroed |
+     | `TestResetAt_Order_0072` | `resets_at` with `Retry-After: 30` gives the body's `ResetAt` and a 30 s `RetryAfter`. An HTTP-date alone gives its instant. Claude's 429 with its reset header gives the header's instant. The same header on a 400 gives none. | the header is preferred to the body; the reset header is read on any status |
+     | `TestResetAt_OpenCodeMetadata_0072` | `metadata.resetsAt` (O4) at the top level, in `error.metadata`, and in a Google `ErrorInfo` detail (O5) each set `ResetAt`, and `RetryAfter` when no header did. A malformed `resetsAt` sets neither. | the top-level `metadata` is not read; the `ErrorInfo` detail is not read |
+     | `TestAPIError_TextUnchanged_0072` | For six errors, `Error()` equals that of a copy with `ResetAt` and `Limit` zeroed: a ChatGPT usage limit, a Gemini per-day 429, an OpenCode Go 429, a Kilo 402, a Claude 429 with a reset header, and a stream failure. One is pinned as a literal string. | `Error()` appends the reset instant |
+
+   * **Red at the base.** `TestResetAt_*` call the new field, so they are
+     planted, not red-at-base.
+
+### Phase 2: `Limit` and the OpenCode codes (D2, D4)
+
+1. **`llmprovider/api_limit.go`** holds `Limit` and `Quota`, with MADR D2's
+   fields.
+   * Each field's doc names its source, as D2's table does.
+   * `Limit`'s doc carries the rule: "every field is the service's; none is
+     inferred, and a window is never inferred from how long the wait is."
+2. **The envelope** gains:
+   * `plan` (`error.plan_type`);
+   * `window` (`error.limit_window_minutes`, a JSON integer);
+   * `name` (`metadata.limitName`, at the top level or in `error.metadata`);
+   * `creditsURL` (`error.metadata.buyCreditsUrl`);
+   * `quotas`, from each `QuotaFailure` violation's `quotaId`, `quotaMetric`
+     and `quotaValue`. The value is kept as a JSON string's text, or as a
+     JSON number's decimal text.
+
+   `perDayQuota` is unchanged.
+3. **`limitOf(envelope) *Limit`** returns nil when every field is zero.
+   * **`Window`** comes from `limit_window_minutes`, or from a `Name` that
+     matches `^(\d+) hours?$`. It is kept only when it is from 1 minute to
+     366 days.
+   * **Every string** passes through `redact.Field`.
+   * **`CreditsURL`** is kept only when all of these hold:
+     * `url.Parse` succeeds;
+     * the scheme is `https`;
+     * the host is non-empty;
+     * `User`, `RawQuery` and `Fragment` are empty;
+     * `redact.String` leaves it unchanged.
+
+   `ClassifyHTTPError` sets `e.Limit = limitOf(envelope)`.
+4. **D4.** `"BudgetLimitError", "CreditLimitExceeded"` are appended to
+   `opencodeQuotaTypes` (MADR C16). The comment cites 0072-MADR D4 and O7.
+5. **Tests**, in `llmprovider/api_error_limit_0072_test.go` unless named:
+
+   | Test | Asserts | Planted breaks |
+   | :--- | :--- | :--- |
+   | `TestLimit_ChatGPT_0072` | `plan_type: "plus"` and `limit_window_minutes: 300` (X3, X5) give `Plan "plus"` and `Window` 5 h. | `limit_window_minutes` not read |
+   | `TestLimit_NeverInferred_0072` | These each give a zero `Window`: a ChatGPT 429 with `resets_at` 4 h ahead, `Retry-After: 14400` and no `limit_window_minutes`; an OpenCode Go 429 with `limitName: "weekly"` and `retry-after: 345600`; a Gemini per-day 429. | `Window` set from `RetryAfter` when none is stated; `"weekly"` read as 7 days |
+   | `TestLimit_WindowBounds_0072` | `limit_window_minutes` of 0, -5, 600000 and 1.5, and a `limitName` of `"five hour"`, give a zero `Window`. `"1 hour"` and `"5 hours"` give 1 h and 5 h. | the bounds removed |
+   | `TestLimit_OpenCodeGo_0072` | O1's body gives `Name "5 hour"` and `Window` 5 h. `fmt.Sprintf("%+v", *e.Limit)` and `e.Error()` hold no `wrk_`. | `limitName` not read |
+   | `TestLimit_Gemini_0072` | A `QuotaFailure` with a per-minute and a per-day violation, one `quotaValue` a string and one a number, gives both in `Quotas`, in order, with `Value "5"` for each, and `PerDay` true. A per-minute violation alone gives `PerDay` false and a retryable `ErrRateLimited`. | `quotaMetric` not read; a numeric `quotaValue` dropped |
+   | `TestLimit_KiloCredits_0072` | K1's 402 on `kilo` is `ErrQuotaExhausted`, with `CreditsURL` `https://app.kilo.ai/credits` and `Code` empty, as today. Each of these gives an empty `CreditsURL`: `http://`, user information, a query, a fragment, `javascript:`, and a URL holding a key that `redact.String` masks. | the scheme check removed; the query check removed |
+   | `TestLimit_Redacted_0072` | A `plan_type` and a `limitName` holding control characters and 300 bytes come back stripped, within 128 bytes, on a rune boundary. | `Plan` not passed through `redact.Field` |
+   | `TestLimit_Nil_0072` | A 429 with only a message, a 500 and a 401 have a nil `Limit`. | `Limit` always allocated |
+   | `TestClassify_OpenCodeBudget_0072` | On `opencode-zen`, a 429 `BudgetLimitError` (O4) is `ErrQuotaExhausted` and not `Retryable`. So is the Google envelope's `ErrorInfo` reason (O5) on an `opencode-go` route label. A 402 `CreditLimitExceeded` (O3) is `ErrQuotaExhausted`. | red at `d62142c`: the budget is `ErrRateLimited` there |
+   | `TestRetry_OpenCodeBudgetNotResent_0072` (`retry_0072_test.go`) | `WithRetry` over an `httptest` OpenCode route answering a budget 429 sends one request. | red at `d62142c`: it resends |
+
+### Phase 3: stream failures (D3)
+
+1. **`ClassifyStreamFailureBody(provider, code, errType, message string, raw []byte) error`:**
+   * When `raw` is a JSON object, it is parsed by `parseAPIErrorBody` as
+     `{"error": raw}`. Its types join the ones from `code` and `errType`, after
+     them.
+   * Classification is as `ClassifyStreamFailure`'s today, over the joined
+     types. The status-in-code path (C14's `strconv.Atoi`) now sees the
+     envelope's `perDayQuota`, so a Gemini per-day 429 in a stream is quota
+     (C17).
+   * `RetryAfter`, `ResetAt` and `Limit` are set from MADR D3's three sources,
+     in order:
+     1. the error's `headers` object, as an `http.Header` through
+        `transport.RetryAfterAt`;
+     2. the envelope's reset, then its `RetryInfo`;
+     3. for `ErrRateLimited` that is not `ErrQuotaExhausted`, the message, by
+        `(?i)try again in\s*(\d+(?:\.\d+)?)\s*(s|ms|seconds?)` (X13). The
+        result is bounded as `durationOf` bounds a header's.
+   * A `raw` that is not an object is ignored.
+2. **`ClassifyStreamFailure`** becomes
+   `ClassifyStreamFailureBody(provider, code, errType, message, nil)`. Its doc
+   says what changed: a rate limit whose message states a delay now carries
+   it (MADR D3).
+3. **The five parsers pass their error object:**
+   * **responses:**
+     * `responseError` keeps its raw object, with an `UnmarshalJSON` that
+       records the bytes;
+     * `failed` passes it, which serves both the stream and the 200 JSON
+       reply (`responses.go:389`);
+     * the stream's `error` event passes its whole payload.
+   * **generatecontent:** the stream callback reads the payload's `error`
+     member as `json.RawMessage` beside `chunk.Error`, and passes it.
+   * **gemini interactions:** the same, for `ev.Error`.
+   * **messages:** `ev.Error` keeps its raw object, as in responses.
+   * **chatcompletions:** `gatewayError` keeps its raw object, and `classify`
+     passes it.
+4. **Tests.**
+   * **In `llmprovider/api_error_stream_0072_test.go`:**
+
+     | Test | Asserts | Planted breaks |
+     | :--- | :--- | :--- |
+     | `TestClassifyStreamFailureBody_Headers_0072` | `{"code":"rate_limit_exceeded","message":"Slow down","headers":{"retry-after":"7"}}` gives `RetryAfter` 7 s (X11). An HTTP-date there gives `ResetAt`. | `headers` not read |
+     | `TestClassifyStreamFailureBody_Text_0072` | The `RetryAfter` given by each message: "Please try again in 11.054s." gives 11.054 s; "try again in 250ms" gives 250 ms; "Try again in 3 seconds" gives 3 s. A `headers` delay wins over the text. `usage_limit_reached` with the same text gives no delay from it; so does `server_error`. | the pattern removed; the text read for a quota too |
+     | `TestClassifyStreamFailureBody_UsageLimit_0072` | `usage_limit_reached` with `resets_at`, `plan_type` and `limit_window_minutes` in `raw` (X14) is `ErrQuotaExhausted`, with `ResetAt`, `Plan` and `Window`. | `raw` ignored |
+     | `TestClassifyStreamFailureBody_Gemini_0072` | Code `"429"`, status `RESOURCE_EXHAUSTED`, and `raw` with a per-day `QuotaFailure` and a 52 s `RetryInfo`, give `ErrQuotaExhausted`, `RetryAfter` 52 s, and `Limit.PerDay`. | the envelope's per-day flag not passed to the status path |
+     | `TestClassifyStreamFailure_Same_0072` | For each code, type and message in the existing stream tests' tables that states no delay, `ClassifyStreamFailure` and `ClassifyStreamFailureBody(…, nil)` give the same `Error()`, `Kind`, `Retryable` and `RetryAfter`. | `ClassifyStreamFailure` reads a fixed non-nil `raw` |
+
+   * **Per wire,** in a `stream_error_0072_test.go` in each package. Each test
+     calls only existing API: it decodes a stream and reads the error with
+     `errors.As`. Each is seen red at `d62142c`, and also fails with its
+     parser planted to pass `nil`. Each uses a field that only `raw` carries,
+     so the plant shows the plumbing:
+
+     | Test | Field only `raw` carries | Asserts |
+     | :--- | :--- | :--- |
+     | `responses.TestStream_FailedHeaders_0072` | `response.error.headers` | `RetryAfter` 7 s, in a stream and in a 200 JSON reply |
+     | `generatecontent.TestEvents_PerDayQuota_0072` | `error.details` | `ErrQuotaExhausted`, `RetryAfter` 52 s |
+     | `gemini.TestInteractionEvents_PerDayQuota_0072` | `error.details` | the same |
+     | `messages.TestEvents_ErrorHeaders_0072` | `error.headers` (a plumbing fixture: Anthropic is not known to send it) | `RetryAfter` 7 s |
+     | `chatcompletions.TestEvents_GatewayErrorLink_0072` | `error.metadata.buyCreditsUrl` with `code: 402` (K1's shape in a stream, K3) | `Limit.CreditsURL` set |
+
+### Phase 4: docs and the example (D6)
+
+1. **Docs of the new and changed names:**
+   * `APIError`'s doc names `ResetAt` and `Limit`.
+   * `ClassifyHTTPError`'s doc names D1's sources.
+   * `ClassifyStreamFailure`'s doc says it is
+     `ClassifyStreamFailureBody(…, nil)`.
+2. **`ExampleAPIError_usageLimit`**, in `llmprovider/example_0072_test.go`:
+   * it calls `ClassifyHTTPError` on an `http.Response` built in memory, a
+     ChatGPT usage limit with a fixed `resets_at`;
+   * it prints `Plan`, `Window`, `ResetAt.Format(time.RFC3339)` and
+     `Retryable()`;
+   * it has an `// Output:` comment.
+
+   Planted break: the example's output, planted wrong.
+3. **`docs/guides/api-standards.md` R24:** "It carries `Provider`, `Status`,
+   `Kind`, `Code`, a redacted and bounded `Message`, `RetryAfter`, `ResetAt`,
+   `Limit` and `Reason`. (0015 D7; 0072 D1, D2)". This is the 0015-MADR D7
+   amendment made in Phase 0.
+4. **`docs/architecture.md`:**
+   * the errors bullets name `ResetAt` and `Limit`;
+   * the stream paragraph names `ClassifyStreamFailureBody`;
+   * the `internal/transport` row names `RetryAfterAt` and `RateLimitResetAt`.
+5. **`docs/guides/migrating-from-mcplib.md`:**
+   * the `APIError` row adds `ResetAt` and `Limit` to what the type adds;
+   * the `RetryAfter` row adds "OpenCode's `metadata.resetsAt`, and a stream
+     failure that states a delay".
+6. **`CHANGELOG.md`,** under `[Unreleased]`:
+   * **Added:** `APIError.ResetAt`, `APIError.Limit`, `Limit`, `Quota` and
+     `ClassifyStreamFailureBody`.
+   * **Fixed:**
+     * an OpenCode budget 429 is not retried;
+     * a Gemini per-day quota inside a stream is not retried;
+     * a stream failure carries the delay its error states.
+7. Run `make docs-check`, `make changelog-check`, `make parity-check` and
+   `make links-check`.
+
+### Phase 5: measurement (owner-run; Q-risk)
+
+This phase reads live services and needs the owner's credentials. Its
+results are recorded here. A shape that differs from the MADR's is a
+deviation, and is never patched over in a test.
+
+1. **`TestLive_0072ChatGPTHeaders`,** in `llmprovider/live_0072_measure_test.go`
+   (build tag `live_gateways`).
+   * It runs only with `LLMPROVIDER_LIVE_0072` and `LLMPROVIDER_LIVE_CHATGPT`
+     set. It uses `liveChatGPTSession` (`live_chatgpt_session_test.go:24`).
+   * It sends the smallest generation that `TestLive_ChatGPTGenerate` sends,
+     through `WithHTTPClient`. That client's transport records the reply's
+     header names.
+   * It logs:
+     * the names that start `x-codex-`;
+     * the values of `x-codex-*-window-minutes` only.
+
+     No other value is logged.
+   * It answers the issue's second "Uncertain" item for this SDK's requests,
+     for D5's later record.
+2. **`checkGemini429`** (`gemini429_check_test.go`) also requires, when the
+   body has a `QuotaFailure`, that:
+   * `Limit.Quotas` holds each violation's `quotaId`, in order;
+   * `Limit.PerDay` equals the per-day flag it computes.
+
+   `TestCheckGemini429` gains a case for each. Planted break: `Quotas` left
+   empty, which the check must report. The owner may then run
+   `TestLive_GeminiRateLimitShape` (`LLMPROVIDER_LIVE_GEMINI_429`), which uses
+   the check.
+3. **`scripts/check_tables.py`** passes: `LLMPROVIDER_LIVE_0072` is this
+   record's variable, named in this PLAN (AGENTS.md, "Live tests").
+
+### Phase 6: the release (Q7: `v1.29.0`)
+
+As 0071-PLAN's Phase 5:
+
+1. The changelog section is renamed `v1.29.0`, and the README's current
+   release is updated.
+2. Run the full gate. `tools/apidiff.py v1.28.0` lists exactly the R55
+   table's names.
+3. Tag on the owner's word.
+4. Wait for CI and the Release, then run `tools/consumer.py` and
+   `tools/offline.py`.
+5. On the owner's word:
+   * comment on issue 13, naming requirement 5 as deferred to a later record,
+     and close it;
+   * comment on gobble-cli's issue 14 that the SDK's part is released.
+
+## Verification
+
+* Every test in Phases 1 to 3 passes. Each was seen red at `d62142c`, or seen
+  to fail on each of its planted breaks. This record holds each failure line.
+* Every existing test passes unchanged, and no golden changes.
+* `go test -race -count=3` is clean over:
+  * `./llmprovider`;
+  * `./llmprovider/internal/transport/...`;
+  * `./llmprovider/internal/wire/...`;
+  * `./llmprovider/providers/gemini/...`.
+* `apidiff` against `v1.28.0` lists exactly the R55 table.
+* `TestAPIError_TextUnchanged_0072` holds.
+* The MADR's claims pass. C3, C4, C7, C14, C15, C16 and C18 to C24 are
+  annotated as changed by Phases 1 to 3.
+* Coverage holds each package's floor.
+* `make fixtures-check` is clean: no fixture carries an id.
+
+## Rollout and Rollback
+
+* **Rollout.** The change is additive.
+  * A caller that reads neither `ResetAt` nor `Limit` sees two changes, both
+    in behaviour the MADR names:
+    * an OpenCode budget is no longer retried;
+    * a stream failure may carry a `RetryAfter`, which `WithStreamRetry`
+      honours before the first event.
+  * `Error()`'s format is unchanged.
+* **Rollback before the tag:** revert the phase's commit.
+* **Rollback after the tag:** the names stay (R48). A defect is fixed
+  forward.
+  * A field that proves wrong for a provider stops being set for it. That is
+    a zero value, which every caller already handles.
+  * A classification that proves wrong (D4) is reverted by an amendment to
+    0012-MADR §1.1.
+
+## Execution record
+
+Not started. The owner answered Q1 to Q7 and Q-risk on 2026-11-09, each as
+recommended. The PLAN awaits approval.
