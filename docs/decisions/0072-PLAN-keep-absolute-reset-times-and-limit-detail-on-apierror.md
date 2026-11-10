@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-11-09
+status: complete
+date: 2026-11-10
 associated-madr: "0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md"
 decision-makers: repository owner
 ---
@@ -1002,3 +1002,88 @@ The owner committed Phase 5 as `e0eea68`.
   edits was stopped unfinished, as it had cloned the older tree. This
   entry was added after the gate, so the record checks were run again
   before staging.
+
+### The release (2026-11-10)
+
+* **The release commit.** The owner committed the staged files at
+  `4e338da` and pushed `main`. The pre-push disclosure guard, run by this
+  record afterwards over `v1.28.0..4e338da`, 10 commits, returned 0.
+* **CI on `main`** at `4e338da`: CI run 42844042192, success, with validate
+  on ubuntu-24.04, macos-15 and windows-2025, and release skipped, as on
+  any branch; Docs run 42844041991, success.
+* **The tag.** The owner made `v1.29.0`, an annotated tag (`61ea66a`), on
+  `4e338da`, dated 2026-11-10 (`%cs`), the section's date, and pushed it.
+  `git ls-remote` showed the same tag object and commit. CI on the tag, run
+  42846065720: success, with validate on the three platforms, and release.
+* **The Release.** A session script, `relcheck.py`, compares the Release
+  with `scripts/check_changelog.py --section v1.29.0 --repo …`, as the
+  release job builds it:
+  * "v1.29.0: body 31 lines, 1 blob link(s); six newest: v1.29.0, v1.28.0,
+    v1.27.0, v1.26.1, v1.26.0, v1.25.0", then "relcheck: ok";
+  * `v1.29.0` is Latest, not a draft or a prerelease, and its `docs/` link
+    is the tag's blob URL;
+  * planted, from temporary copies, it failed on both: "the section gains
+    a line" ("PROBLEM: Release body differs from the section") and "the
+    rule is five, not six" ("PROBLEM: Releases past the six newest:
+    v1.25.0").
+* **Step 4's Release check** (Deviation 3). `gh release list` showed six:
+  `v1.29.0` to `v1.25.0`. None is past the sixth, so none was deleted.
+* **`tools/consumer.py v1.29.0` and `tools/offline.py v1.29.0`.** In each,
+  `go get` reported "added … v1.29.0". Both reported "every step passed":
+  * consumer built for the six platforms and linked 16 packages;
+  * offline printed "offline: ok" with "fields=19" and "requests=0", and
+    built for the six platforms;
+  * offline's `FAIL:` lines are its two planted steps, "caught: models.dev
+    left on" and "caught: no caller layer", which are meant to fail.
+* **Step 5,** the comments on issue 13 and gobble-cli's issue 14, waits for
+  the owner's word. This PLAN stays `in-progress` until they are posted.
+  (2026-11-10, after this entry: on the owner's word, "post and close",
+  issue 13 was answered with a comment mapping each requirement to the
+  release, naming requirement 5 as deferred (D5) and answering its three
+  "Uncertain" items, and closed as completed. gobble-cli's issue 14 got a
+  comment that the SDK's part is released; it stays open, as gobble's.)
+
+### Closing (2026-11-10)
+
+* **Goal:**
+  * D1: `APIError.ResetAt`, from a body's reset time, an HTTP-date
+    `Retry-After` or Claude's RFC 3339 reset header (Phase 1).
+  * D2 and D4: `APIError.Limit`, with `Limit` and `Quota`, and OpenCode's
+    budget codes as quota (Phase 2).
+  * D3: `ClassifyStreamFailureBody`, used by the five stream parsers
+    (Phase 3, with Deviations 1 and 2).
+  * D6: the docs, the example, the amended records, the measurement and the
+    release `v1.29.0`, Q7's answer (Phases 0, 4, 5 and 6, with Deviation 3).
+* **The Verification section:**
+  * each new test was seen red at `d62142c` or failed on each of its planted
+    breaks: 11 plants in Phase 1; 13 plants and 2 red at base in Phase 2; 11
+    plants and 5 red at base in Phase 3; the example's output in Phase 4; 5
+    plants in Phase 5;
+  * every existing test passed unchanged, and no golden changed;
+  * `go test -race -count=3` was clean over the four packages, in Phases 1
+    to 3, and the gate's `test-race-cover` passed at every phase;
+  * `tools/apidiff.py v1.28.0` lists exactly the R55 table;
+  * `TestAPIError_TextUnchanged_0072` holds;
+  * `tools/claims.py` passes 56 of 56 on the MADR, with the changed claims
+    annotated;
+  * coverage held each floor (`llmprovider` 98.4 %);
+  * `make fixtures-check`: "381 file(s), 134 hit(s), 0 problem(s)".
+* **Deviations,** each recorded where it arose:
+  1. the Chat Completions stream test reads `error.headers`, the owner's
+     choice;
+  2. `wire.ErrorObject` added to `internal/wire/wire.go`, recorded and
+     reported;
+  3. no step for R53's deletion; the owner changed R53 to the six newest
+     tags and added the step.
+* **Not done, and why:**
+  * requirement 5, the `limit` and `remaining` headers on `Response`: D5
+    and Q3 defer it to a later record. Phase 5 recorded the 17 `x-codex-`
+    headers ChatGPT sends, for it;
+  * `quotaDimensions`, and OpenCode's `metadata.workspace` and
+    `metadata.coverage`: no consumer asks for them (R55);
+  * a scope or a window inferred by the SDK: Q2's answer exposes stated
+    facts only;
+  * live captures of a ChatGPT usage limit, a Kilo 402, an OpenCode budget
+    and a Gemini per-day `QuotaFailure`: none can be produced on demand
+    (Q-risk). The live Gemini 429 was the per-minute shape, and passed.
+* `tools/records.py status` sets this PLAN `complete`.
