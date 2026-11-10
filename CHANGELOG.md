@@ -11,6 +11,38 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- `APIError.ResetAt` is the instant the service named for a limit to lift,
+  in UTC: a usage limit's reset time in the error body (ChatGPT's
+  `resets_at`, OpenCode's `metadata.resetsAt`), else an HTTP-date
+  `Retry-After`, else, on a 429, Claude's rate-limit reset header. It is zero
+  when the service named only a delay, and is kept as stated, so it may have
+  passed. `RetryAfter` is unchanged
+  ([0072-MADR](docs/decisions/0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md)
+  D1).
+- `APIError.Limit`, of the new type `Limit`, is what the service stated
+  about the limit it hit: OpenCode Go's limit name, a window ChatGPT gives in
+  minutes, the ChatGPT plan, Gemini's per-day flag and its violated quotas
+  as `Quota` values, and Kilo's link to add credits. A window is never
+  inferred from how long the wait is (0072-MADR D2).
+- `ClassifyStreamFailureBody` classifies a failure inside a 200 event stream
+  as `ClassifyStreamFailure` does, and also reads the stream's error object
+  with the HTTP body's parser. Every built-in stream reader uses it
+  (0072-MADR D3).
+
+### Fixed
+
+- An OpenCode `BudgetLimitError` (429) is `ErrQuotaExhausted` and is no longer
+  retried; `CreditLimitExceeded` is `ErrQuotaExhausted` whatever its status
+  (0072-MADR D4).
+- A Gemini per-day quota reported inside a stream is `ErrQuotaExhausted`, as
+  in an HTTP reply, and no longer retried.
+- A failure inside a stream carries the delay its error states: a
+  `headers` object's `Retry-After`, a reset time, a Google `RetryInfo`, or,
+  for a rate limit, "try again in 11.054s" in its message
+  (0072-MADR D3).
+
 ## [v1.28.0] - 2026-11-07
 
 ### Added

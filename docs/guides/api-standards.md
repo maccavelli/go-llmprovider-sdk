@@ -9,9 +9,11 @@ decision, in
 [0016-MADR-provider-auth-and-support-baseline.md](../decisions/0016-MADR-provider-auth-and-support-baseline.md)
 ("0016 D*n*"), and R49 to R55 and the reasons for R14, R15 and R19 in
 [0048-MADR-adopt-go-sdk-best-practices.md](../decisions/0048-MADR-adopt-go-sdk-best-practices.md)
-("0048 D*n*", "0048 X*n*"), and R56 in
+("0048 D*n*", "0048 X*n*"), R56 in
 [0062-MADR-learn-thinking-parameters-from-refusals.md](../decisions/0062-MADR-learn-thinking-parameters-from-refusals.md)
-("0062 D*n*").
+("0062 D*n*"), and R24's `ResetAt` and `Limit` in
+[0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md](../decisions/0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md)
+("0072 D*n*").
 
 **The tree meets these rules.** Phase S11 of
 [0015-PLAN-canonical-sdk-api-and-module-layout.md](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md)
@@ -205,8 +207,8 @@ tool that holds a rule, where one does. For how the code is laid out, read
 ## Errors
 
 - **R24. `*APIError` is the only structured error.** It carries `Provider`,
-  `Status`, `Kind`, `Code`, a redacted and bounded `Message`, `RetryAfter`
-  and `Reason`. (0015 D7)
+  `Status`, `Kind`, `Code`, a redacted and bounded `Message`, `RetryAfter`,
+  `ResetAt`, `Limit` and `Reason`. (0015 D7; 0072 D1, D2)
 - **R25. Test errors by kind with `errors.Is`.** Each error unwraps to one of
   `ErrRateLimited` (with `ErrQuotaExhausted` beneath it), `ErrAuthFailure`,
   `ErrNotPermitted`, `ErrInvalidRequest` (with `ErrContextOverflow` and

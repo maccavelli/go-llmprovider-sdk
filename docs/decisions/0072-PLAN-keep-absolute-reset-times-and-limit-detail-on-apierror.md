@@ -785,4 +785,73 @@ The owner committed Phase 2 (`e09e6ec`) and said to proceed.
   and `./llmprovider/providers/gemini/...`, exit 0, before the lint fixes.
   The gate's `test-race-cover` ran again after them.
 
-PHASE3_GATE_PENDING
+* **The gate:** `python3 -B tools/gate.py`, started at load 9.8, after the
+  lint fixes: "gate: 29 of 29 passed". `coverage-check` holds each floor:
+  * `llmprovider` 98.4 %;
+  * `internal/wire` 95.2 %;
+  * `chatcompletions` 94.9 %;
+  * `generatecontent` 97.5 %;
+  * `messages` 91.9 %;
+  * `responses` 96.4 %;
+  * `providers/gemini` 96.1 %.
+* **`tools/apidiff.py v1.28.0`** lists five compatible changes:
+  * `APIError.Limit`;
+  * `APIError.ResetAt`;
+  * `ClassifyStreamFailureBody`;
+  * `Limit`;
+  * `Quota`.
+
+  That is the R55 table. `wire.ErrorObject` is internal, and is not listed.
+* **Stop conditions:** none met. No existing test changed and no golden
+  changed.
+
+The owner committed Phase 3 (`e49fa18`, `2735ada`) and said to proceed,
+while Phase 3's gate was still running. That gate cloned the tree before
+the commits, so it checked what they hold. Its result is recorded under
+Phase 3 above.
+
+### Phase 4 (2026-11-09)
+
+* **Step 1:**
+  * `APIError`'s doc names `ResetAt` and `Limit`.
+  * `ClassifyHTTPError`'s doc names D1's sources and `Limit`.
+  * `ClassifyStreamFailure`'s doc was written in Phase 3.
+* **Step 2:** `ExampleAPIError_usageLimit`, in
+  `llmprovider/example_0072_test.go`. It prints:
+
+  ```text
+  quota exhausted: true
+  plan: plus
+  window: 5h0m0s
+  lifts at: 2030-01-01T00:00:00Z
+  retryable: false
+  ```
+
+  It passes. With the `lifts at` line of its `// Output:` planted wrong
+  (`tools/plant.py`), it failed:
+  `--- FAIL: ExampleAPIError_usageLimit (0.00s)`.
+* **Step 3, R24:** as written. The guide's opening paragraph, which names
+  the decision each rule cites, also names 0072-MADR, for R24's two fields.
+* **Step 4, `docs/architecture.md`:**
+  * the `internal/transport` row names `RetryAfterAt` and
+    `RateLimitResetAt`;
+  * "The reply" step names `ClassifyStreamFailureBody`;
+  * the errors bullet names `ResetAt` and `Limit`.
+* **Step 5, `docs/guides/migrating-from-mcplib.md`:** the `APIError` and
+  `APIError.RetryAfter` rows, as written.
+* **Step 6, `CHANGELOG.md`:** under `[Unreleased]`, Added (the five names)
+  and Fixed (the three behaviours), as written.
+* **Step 7:** `make docs-check` ("sdkaudit: 0 violation(s) of R50,R51,R52"),
+  `make changelog-check`, `make parity-check` and `make links-check`, each
+  exit 0.
+
+* **The MADR's claims:** a dated note under its claims table names the claims
+  Phases 1 to 3 changed (C3, C4, C7, C14 to C16, C18 to C24), as Verification
+  asks. `tools/claims.py`: "56 of 56 pass", pinned to `d62142c`.
+* **Pre-add:** `make pre-add-check` on `llmprovider/api_error.go` and
+  `llmprovider/example_0072_test.go`: "2 file(s) clean", exit 0.
+
+* **The gate:** `python3 -B tools/gate.py`, started at load 10.0: "gate: 29
+  of 29 passed". This entry's last two lines were added after it, so the
+  record checks were run again before staging.
+* **Stop conditions:** none met.

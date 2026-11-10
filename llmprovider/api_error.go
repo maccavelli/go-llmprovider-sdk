@@ -93,8 +93,10 @@ const (
 
 // APIError is a failure the service reported, with its own classification
 // (MADR 0012 §1.1, 0015-MADR D7). It is the only structured error: a rate
-// limit is one of kind ErrRateLimited with its RetryAfter, and a response the
-// service cut short one of kind ErrIncomplete with its Reason. It unwraps to
+// limit is one of kind ErrRateLimited with its RetryAfter, the instant the
+// service named for it to lift in ResetAt, and what the service stated
+// about it in Limit (0072-MADR D1, D2); a response the service cut short is
+// one of kind ErrIncomplete with its Reason. It unwraps to
 // its Kind and, when that differs, to the sentinel the status alone mapped to
 // before, so every existing errors.Is check still matches (MADR 0012 §7). It
 // is safe for concurrent use only while no goroutine changes it.
@@ -236,7 +238,10 @@ func statusSentinel(status int) error {
 // the delay the service asked for in RetryAfter: from retry-after-ms or
 // Retry-After, else from the body, as a usage limit's reset time or Google's
 // RetryInfo. Gemini's 429 for a per-day quota is ErrQuotaExhausted
-// (0026-MADR F12).
+// (0026-MADR F12). ResetAt is the body's reset time (resets_at,
+// metadata.resetsAt), else an HTTP-date Retry-After, else, on a 429, the
+// rate-limit reset header naming a time that gave RetryAfter; Limit is what
+// the body states about the limit, or nil (0072-MADR D1, D2).
 // It is part of the error model, for any provider (0015-MADR, amendment
 // "S7b's import graph"). A nil resp is ErrProviderUnavailable.
 func ClassifyHTTPError(provider string, resp *http.Response) error {

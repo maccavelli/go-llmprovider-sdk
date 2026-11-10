@@ -137,7 +137,7 @@ standard library is left out.
 | `llmprovider/internal/chatgpt` | a ChatGPT session's `BaseURL`, `IsSession`, `SetHeaders` and its header names, `ClientVersion`, and `ModelsRequest`, the Codex backend's listing request; a plan session's `IsPlanSession` and `PlanModelsRequest`; for `catalog`'s `ListRaw` and `providers/openai` (0041-MADR D9; 0043-MADR D5) | `llmprovider`, `auth`, `internal/transport` |
 | `llmprovider/internal/ownerperm` | `MkdirAll` and `File`, for `FileTokenStore`: modes 0700 and 0600 on Unix, where an existing directory must be the user's and not a symlink, and loses group and other write; on Windows a protected DACL, through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go` | the standard library |
 | `llmprovider/internal/filelock` | `TryLock`, `Unlock` and `ErrLocked`, for `FileTokenStore`'s refresh lock: `flock` on Unix, `LockFileEx` on Windows through `syscall` bindings that `mkwinsyscall` generates into `zsyscall_windows.go`; the operating system releases a lock when its file is closed or its process ends | the standard library |
-| `llmprovider/internal/transport` | `DefaultClient` and `Config`, over the transports the process keeps; `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `RateLimitReset`; `ProbeGenerateHealth`, and `ProbeGenerateHealthCached` with its `ProbeStore`, `NewProbeStore`, `ProbeKey` and `Fingerprint`; `Unsendable`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
+| `llmprovider/internal/transport` | `DefaultClient` and `Config`, over the transports the process keeps; `Identity` and its User-Agent, `BuildVersions`, `ParseRetryAfter`, `RetryAfter`, `RateLimitReset`, and `RetryAfterAt` and `RateLimitResetAt`, which also return the instant a header named; `ProbeGenerateHealth`, and `ProbeGenerateHealthCached` with its `ProbeStore`, `NewProbeStore`, `ProbeKey` and `Fingerprint`; `Unsendable`; `ReplyReader`, the idle and size limits on a reply, and `AfterReply`, the mark `WithRetry` retries once | the standard library |
 | `llmprovider/internal/wirecase` | G-wire's scenarios and canned replies through the new API, shared by the provider packages' tests | `llmprovider`, `internal/wiretest` |
 | `llmprovider/internal/retired` | `IDs`, the retired model ids by provider, each with why (0033-MADR D4) | `llmprovider` |
 | `llmprovider/internal/catalogtool` | `Propose`, the maintainer tool's proposals: ids to remove from a static list, and models to add | `llmprovider`, `catalog`, `internal/retired` |
@@ -182,7 +182,9 @@ internal/transport   internal/redact   internal/kiloendpoint   internal/listlimi
    a `Token`, sets it with `Token.Apply`, and sends the request with the
    `Settings` client and `User-Agent`.
 4. **The reply.** A failure status becomes an `*APIError` through
-   `ClassifyHTTPError`. After a 401, an `InvalidatingSource` is invalidated,
+   `ClassifyHTTPError`. A failure inside a 200 event stream becomes one
+   through `ClassifyStreamFailureBody`, which reads the stream's error object
+   with the same parser (0072-MADR D3). After a 401, an `InvalidatingSource` is invalidated,
    by the refused token when it is a `TokenInvalidator`, and the request sent
    once more. A success is decoded into a `Response`:
    `Output`, `FinishReason` and `Usage`.
@@ -653,8 +655,12 @@ for a session, from the store.
   client of its own.
 - **Errors:** one structured error, `*APIError`, whose `Kind` is a sentinel
   such as `ErrRateLimited`, `ErrQuotaExhausted`, `ErrAuthFailure` or
-  `ErrIncomplete`; a rate limit carries its `RetryAfter`, and a cut-short
-  response its `Reason`. An answer with nothing usable is
+  `ErrIncomplete`; a rate limit carries its `RetryAfter`, the instant the
+  service named for it to lift in `ResetAt`, and what the service stated
+  about the limit in `Limit`: its name, a window given as a number, the
+  plan, Gemini's quotas, a link to add credits. A window is never inferred
+  from how long the wait is (0072-MADR D1, D2). A cut-short response carries
+  its `Reason`. An answer with nothing usable is
   `ErrEmptyAnswer`, beneath `ErrIncomplete`; a request that could not be
   sent for want of a network, a name that did not resolve or a dial timed
   out, refused or unreachable, is `ErrOffline`, beneath

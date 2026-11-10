@@ -241,6 +241,15 @@ documentation shows it.
 | M2 | Its dependencies on this SDK | `magic-cli-remote:docs/decisions/0243-MADR-show-exactly-which-usage-limit-an-agent-hit-and-when-it-lifts.md:279` | `Dependencies on go-llmprovider-sdk` |
 | M3 | Remaining quota is out of its scope | `magic-cli-remote:docs/decisions/0243-MADR-show-exactly-which-usage-limit-an-agent-hit-and-when-it-lifts.md:192` | `Showing remaining quota before it runs out: no agent reports it` |
 
+*Annotated 2026-11-09, after 0072-PLAN's Phases 1 to 3:* the code these
+claims cite changed. They still hold at `d62142c`, where they are pinned, and
+describe the code before this record:
+
+* C3, C4 and C7: `ResetAt` and the envelope's `resetAt` (Phase 1);
+* C16: `BudgetLimitError` and `CreditLimitExceeded` were added (Phase 2);
+* C14, C15 and C18 to C24: `ClassifyStreamFailureBody` and the five
+  parsers (Phase 3).
+
 ## Decision Drivers
 
 * **Stated, never inferred.** A field holds only what the service said:
