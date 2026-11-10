@@ -521,7 +521,7 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 			yield(llmprovider.Event{Type: llmprovider.EventDone, Response: resp})
 			return true, nil
 		case "error":
-			return false, llmprovider.ClassifyStreamFailure(provider, "", ev.Error.Type, ev.Error.Message)
+			return false, llmprovider.ClassifyStreamFailureBody(provider, "", ev.Error.Type, ev.Error.Message, wire.ErrorObject(payload))
 		}
 		return false, nil
 	}

@@ -273,7 +273,7 @@ func (s *interactionStream) event(payload []byte) (bool, error) {
 		return false, fmt.Errorf("%s: decode stream event: %w", s.provider, err)
 	}
 	if e := ev.Error; e != nil {
-		return false, llmprovider.ClassifyStreamFailure(s.provider, strconv.Itoa(e.Code), e.Status, e.Message)
+		return false, llmprovider.ClassifyStreamFailureBody(s.provider, strconv.Itoa(e.Code), e.Status, e.Message, wire.ErrorObject(payload))
 	}
 	switch ev.EventType {
 	case "interaction.created":

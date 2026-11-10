@@ -591,11 +591,26 @@ type streamEvent struct {
 	} `json:"response"`
 }
 
-// responseError is a failed response's error.
+// responseError is a failed response's error, and the object as it came.
 type responseError struct {
 	Type    string `json:"type"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	// raw is the error object, which the classifier reads for its headers,
+	// reset time and limit (0072-MADR D3).
+	raw json.RawMessage
+}
+
+// UnmarshalJSON decodes the error's fields and keeps the object.
+func (e *responseError) UnmarshalJSON(b []byte) error {
+	type fields responseError
+	var f fields
+	if err := json.Unmarshal(b, &f); err != nil {
+		return err
+	}
+	*e = responseError(f)
+	e.raw = append(json.RawMessage(nil), b...)
+	return nil
 }
 
 // failed classifies a failed response, streamed or not, by its error as
@@ -604,7 +619,7 @@ func failed(provider string, e *responseError) error {
 	if e == nil {
 		return llmprovider.ClassifyStreamFailure(provider, "", "", "response.failed event received")
 	}
-	return llmprovider.ClassifyStreamFailure(provider, e.Code, e.Type, e.Message)
+	return llmprovider.ClassifyStreamFailureBody(provider, e.Code, e.Type, e.Message, e.raw)
 }
 
 // ReadStream reads a Responses API event stream into a Response, as Codex
@@ -661,7 +676,7 @@ func readEvents(provider string, body io.Reader, handled map[string]bool, d Deco
 			result.ID, result.Model = event.Response.ID, event.Response.Model
 		case "error":
 			// The stream's own error event, not a response's (0020-MADR F39).
-			return false, llmprovider.ClassifyStreamFailure(provider, event.Code, "", event.Message)
+			return false, llmprovider.ClassifyStreamFailureBody(provider, event.Code, "", event.Message, payload)
 		case "response.output_item.done":
 			n := len(result.Output)
 			refused = appendOutput(result, event.Item, d) || refused

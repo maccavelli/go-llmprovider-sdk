@@ -304,7 +304,7 @@ func Events(provider string, body io.Reader, yield func(llmprovider.Event) bool)
 			return false, fmt.Errorf("%s: decode stream chunk: %w", provider, err)
 		}
 		if e := chunk.Error; e != nil {
-			return false, llmprovider.ClassifyStreamFailure(provider, strconv.Itoa(e.Code), e.Status, e.Message)
+			return false, llmprovider.ClassifyStreamFailureBody(provider, strconv.Itoa(e.Code), e.Status, e.Message, wire.ErrorObject(payload))
 		}
 		if chunk.ModelVersion != "" {
 			raw.ModelVersion = chunk.ModelVersion

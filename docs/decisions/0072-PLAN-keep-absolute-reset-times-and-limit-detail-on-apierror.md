@@ -355,7 +355,7 @@ internal, they add nothing to the module's API (as 0071-PLAN's Deviation 1):
      | `generatecontent.TestEvents_PerDayQuota_0072` | `error.details` | `ErrQuotaExhausted`, `RetryAfter` 52 s |
      | `gemini.TestInteractionEvents_PerDayQuota_0072` | `error.details` | the same |
      | `messages.TestEvents_ErrorHeaders_0072` | `error.headers` (a plumbing fixture: Anthropic is not known to send it) | `RetryAfter` 7 s |
-     | `chatcompletions.TestEvents_GatewayErrorLink_0072` | `error.metadata.buyCreditsUrl` with `code: 402` (K1's shape in a stream, K3) | `Limit.CreditsURL` set |
+     | ~~`chatcompletions.TestEvents_GatewayErrorLink_0072`~~ `chatcompletions.TestEvents_GatewayErrorHeaders_0072` (Deviation 1) | ~~`error.metadata.buyCreditsUrl` with `code: 402` (K1's shape in a stream, K3)~~ `error.headers` (a plumbing fixture, as Messages') | ~~`Limit.CreditsURL` set~~ `RetryAfter` 7 s |
 
 ### Phase 4: docs and the example (D6)
 
@@ -664,3 +664,125 @@ The owner committed Phase 1 (`8eaa21f`) and said to proceed.
   The tool names a new type, not its fields. The fields are the R55 table's.
 * **Stop conditions:** none met. No existing test changed and no golden
   changed.
+
+The owner committed Phase 2 (`e09e6ec`) and said to proceed.
+
+### Phase 3 (2026-11-09)
+
+#### Deviation 1 (2026-11-09): the Chat Completions wire test
+
+* **Found:** Phase 3, step 4, says each per-wire test "calls only existing
+  API" and is seen red at `d62142c`. The table's Chat Completions test,
+  `TestEvents_GatewayErrorLink_0072`, asserted `Limit.CreditsURL`. `Limit`
+  does not exist at `d62142c`, so the test could not build there to be seen
+  red. The other four wire tests read only `RetryAfter` and the kind, which
+  exist there.
+* **Decided by the owner,** from three options (also offered: two tests, the
+  link test proven by its plant alone beside a headers test; or the link test
+  proven by its plant alone):
+  * the test uses `error.headers`, as the Messages test does, and asserts
+    `RetryAfter` 7 s;
+  * it is renamed `TestEvents_GatewayErrorHeaders_0072`.
+
+  It is seen red at `d62142c` and fails with its parser planted to pass
+  `nil`. The table above is annotated, not rewritten.
+* **Not tested in a stream:** Kilo's link inside a stream. Kilo's documented
+  stream error carries no `metadata` (0072-MADR K3). The link is still read
+  from an HTTP body, which `TestLimit_KiloCredits_0072` tests. In a stream it
+  is read by the same parser, which `TestClassifyStreamFailureBody_*` covers.
+* **No file is added to the phase's scope.** The MADR's decision and facts
+  are unchanged.
+
+#### Deviation 2 (2026-11-09): one file added, `internal/wire/wire.go`
+
+* **Found:** step 3 has three parsers, generateContent's, Interactions' and
+  Messages', read the payload's `error` member as `json.RawMessage`. The
+  three reads are the same code.
+* **Done:** `llmprovider/internal/wire/wire.go` gains `ErrorObject(payload)`,
+  and the three parsers call it.
+  * It is exported from an internal package, so it adds nothing to the
+    module's API.
+  * It adds a file to the phase's scope that the PLAN did not list.
+* **Recorded, not asked:** it changes no behaviour step 3 describes. The
+  owner is told in the handoff and may ask for the reads to be inlined.
+
+#### Steps
+
+* **Step 1, `ClassifyStreamFailureBody`:** as written.
+  * Today's classification logic moved, unchanged, into an unexported
+    `classifyStreamFailure(e, code, errType, message, env)`.
+  * The `headers` member is decoded by `streamErrorHeaders`. A value may be a
+    JSON string or number, read by `scalarText`, which is Phase 2's
+    `quotaValue` renamed now that it has two uses.
+  * The message delay is `textDelay`, over Codex's pattern.
+  * **A consequence of joining the types:** a stream error object that
+    carries a type the HTTP tables know, such as a Google `API_KEY_INVALID`
+    reason, is now classified by it, as the same object is in an HTTP reply.
+    No existing test covers such an object, and every existing test passes
+    unchanged.
+* **Step 2:** `ClassifyStreamFailure` calls `ClassifyStreamFailureBody(…, nil)`.
+  Its doc names the text delay and says it returns a non-nil `*APIError`.
+* **Step 3, the five parsers:**
+  * Responses' `responseError` and Chat Completions' `gatewayError` each keep
+    their object, through an `UnmarshalJSON` that decodes the fields and
+    keeps the bytes.
+  * The Responses `error` event passes its whole payload.
+  * generateContent, Interactions and Messages pass `wire.ErrorObject(payload)`
+    (Deviation 2).
+* **Step 4, tests:** the five `ClassifyStreamFailureBody` tests in
+  `llmprovider/api_error_stream_0072_test.go`, and the five wire tests, each
+  in a `stream_error_0072_test.go`. All pass.
+  * `TestClassifyStreamFailureBody_Text_0072` also asserts that "Try again in
+    5 minutes" gives no delay. Codex's pattern reads seconds and
+    milliseconds only.
+  * Before its plant ran, `TestClassifyStreamFailure_Same_0072` was made to
+    require both calls to have no `Limit` and no `ResetAt`. As first written
+    it checked only the `nil` call's, so the plant, which changes the other
+    call, could not have failed it.
+* **The drift check:** with steps 1 to 3 in place and no new test written,
+  `go test -count=1 ./llmprovider/...` passed, every existing test and G-wire
+  golden unchanged.
+* **Red at the base** (the five wire tests): `tools/redgreen.py --expect fail
+  --rev d62142c`, "5 of 5 fail as expected":
+
+  | Test | Failure line at `d62142c` |
+  | :--- | :--- |
+  | `responses.TestStream_FailedHeaders_0072` | `stream_error_0072_test.go:23: streamed: llmprovider: rate limited: openai stream rate_limit_exceeded: Slow down; want ErrRateLimited with RetryAfter 7s` (and `replied`) |
+  | `generatecontent.TestEvents_PerDayQuota_0072` | `stream_error_0072_test.go:25: llmprovider: rate limited: gemini stream 429: You exceeded your current quota.; want ErrQuotaExhausted with RetryAfter 52s` |
+  | `gemini.TestInteractionEvents_PerDayQuota_0072` | `stream_error_0072_test.go:24: llmprovider: rate limited: gemini stream 429: You exceeded your current quota.; want ErrQuotaExhausted with RetryAfter 52s` |
+  | `messages.TestEvents_ErrorHeaders_0072` | `stream_error_0072_test.go:21: llmprovider: rate limited: claude stream rate_limit_error: slow down; want ErrRateLimited with RetryAfter 7s` |
+  | `chatcompletions.TestEvents_GatewayErrorHeaders_0072` | `stream_error_0072_test.go:27: at the top: llmprovider: rate limited: kilo stream 429: Rate limited; want ErrRateLimited with RetryAfter 7s` (and `in the choice`) |
+
+  `--expect pass` on the tree: "5 of 5 pass as expected".
+* **Planted breaks:** one spec per test. All 11 were caught, each by its own
+  test. The five "the parser passes nil" plants failed with the same lines as
+  the red run above.
+
+  | Test | Plant | Failure line |
+  | :--- | :--- | :--- |
+  | `TestClassifyStreamFailureBody_Headers_0072` | `headers` not read | `api_error_stream_0072_test.go:22: a delay in headers: RetryAfter 0s, ResetAt 0001-01-01 00:00:00 +0000 UTC; want 7s and none` (and `:28`, the HTTP-date) |
+  | `TestClassifyStreamFailureBody_Text_0072` | the pattern removed | `api_error_stream_0072_test.go:43: "Rate limit reached. Please try again in 11.054s.": RetryAfter 0s; want 11.054s` (and the other two) |
+  | `TestClassifyStreamFailureBody_Text_0072` | the text read for a quota too | `api_error_stream_0072_test.go:54: usage_limit_reached: RetryAfter 20s from its text; want none` |
+  | `TestClassifyStreamFailureBody_UsageLimit_0072` | `raw` ignored | `api_error_stream_0072_test.go:70: llmprovider: quota exhausted: openai stream usage_limit_reached: The usage limit has been reached: ResetAt 0001-01-01 00:00:00 +0000 UTC, Limit <nil>; want …` |
+  | `TestClassifyStreamFailureBody_Gemini_0072` | the envelope's per-day flag not passed to the status path | `api_error_stream_0072_test.go:84: llmprovider: rate limited: gemini stream 429 (retry-after 52s): You exceeded your current quota.: RetryAfter 52s, Limit &{… PerDay:false …}; want …` |
+  | `TestClassifyStreamFailure_Same_0072` | `ClassifyStreamFailure` reads a fixed non-nil `raw` | `api_error_stream_0072_test.go:111: {provider:openai code:rate_limit_exceeded errType: message:slow down}: ClassifyStreamFailure llmprovider: rate limited: openai stream rate_limit_exceeded: slow down …` (and the other ten cases) |
+  | each of the five wire tests | the parser passes `nil` | as the red run's line for that test |
+
+* **Pre-add:** `make pre-add-check` on the fourteen Go files failed once,
+  with two lint findings:
+  * `revive`'s `confusing-naming`: the unexported helper was first named
+    `classifyStreamFailure`, which differs from `ClassifyStreamFailure` only
+    by case. It is now `setStreamKind`.
+  * `errorlint`: `TestClassifyStreamFailure_Same_0072` compared two kinds
+    with `!=`. It now requires `errors.Is` both ways.
+
+  The re-run: "go-precheck: 14 file(s) clean (gofmt, golangci-lint, go vet,
+  go test, govulncheck)", exit 0. The plants were run again against the
+  fixed files, and all 11 were caught. The table above holds that run's line
+  numbers.
+* **Race:** `go test -race -count=3` over `./llmprovider`,
+  `./llmprovider/internal/transport/...`, `./llmprovider/internal/wire/...`
+  and `./llmprovider/providers/gemini/...`, exit 0, before the lint fixes.
+  The gate's `test-race-cover` ran again after them.
+
+PHASE3_GATE_PENDING

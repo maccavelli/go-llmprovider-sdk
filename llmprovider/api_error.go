@@ -363,7 +363,7 @@ func ClassifyStreamFailureBody(provider, code, errType, message string, raw []by
 	e := &APIError{Provider: provider, Code: boundCode(env.errType()),
 		Message: boundMessage(redact.String(redact.StripControl(redactInput(message)))),
 		Limit:   limitOf(env)}
-	classifyStreamFailure(e, code, errType, message, env)
+	setStreamKind(e, code, errType, message, env)
 	now := time.Now()
 	if headers != nil {
 		e.RetryAfter, e.ResetAt = transport.RetryAfterAt(headers, now)
@@ -426,9 +426,9 @@ func streamErrorHeaders(obj []byte) http.Header {
 	return h
 }
 
-// classifyStreamFailure sets e's kind and terminality from code, errType,
-// message and env, as ClassifyStreamFailure has since 0026-MADR F5.
-func classifyStreamFailure(e *APIError, code, errType, message string, env apiErrorEnvelope) {
+// setStreamKind sets e's kind and terminality from code, errType, message
+// and env, as ClassifyStreamFailure has since 0026-MADR F5.
+func setStreamKind(e *APIError, code, errType, message string, env apiErrorEnvelope) {
 	provider := e.Provider
 	// A gateway that answers 200 with an error, as OpenRouter does, puts the
 	// HTTP status in code: classify it as that status, through the service's

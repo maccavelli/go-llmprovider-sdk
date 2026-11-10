@@ -83,3 +83,16 @@ func SystemPrompt(items []llmprovider.Item) string {
 	}
 	return strings.Join(parts, "\n\n")
 }
+
+// ErrorObject is a stream event's error member as it came, for
+// llmprovider.ClassifyStreamFailureBody, or nil when the event has none or
+// does not parse (0072-MADR D3).
+func ErrorObject(payload []byte) json.RawMessage {
+	var ev struct {
+		Error json.RawMessage `json:"error"`
+	}
+	if json.Unmarshal(payload, &ev) != nil {
+		return nil
+	}
+	return ev.Error
+}

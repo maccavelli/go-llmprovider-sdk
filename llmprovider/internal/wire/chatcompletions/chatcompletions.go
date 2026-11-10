@@ -867,6 +867,9 @@ type gatewayError struct {
 	Message string          `json:"message"`
 	Code    json.RawMessage `json:"code"`
 	Type    string          `json:"type"`
+	// raw is the error object as it came, which the classifier reads for
+	// its headers, reset time and limit (0072-MADR D3).
+	raw json.RawMessage
 }
 
 // classify is the error's kind, as a stream failure's is classified, for
@@ -876,7 +879,19 @@ func (e *gatewayError) classify(provider string) error {
 	if code == "null" {
 		code = ""
 	}
-	return llmprovider.ClassifyStreamFailure(provider, code, e.Type, e.Message)
+	return llmprovider.ClassifyStreamFailureBody(provider, code, e.Type, e.Message, e.raw)
+}
+
+// UnmarshalJSON decodes the error's fields and keeps the object.
+func (e *gatewayError) UnmarshalJSON(b []byte) error {
+	type fields gatewayError
+	var f fields
+	if err := json.Unmarshal(b, &f); err != nil {
+		return err
+	}
+	*e = gatewayError(f)
+	e.raw = append(json.RawMessage(nil), b...)
+	return nil
 }
 
 // chatArguments is a call's arguments. The standard sends a JSON string; some
