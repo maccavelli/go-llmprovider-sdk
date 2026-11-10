@@ -108,9 +108,10 @@ func windowOfName(name string) time.Duration {
 	return time.Duration(n) * time.Hour
 }
 
-// quotaValue is a quotaValue's text: a JSON string's value, or a JSON
-// number's decimal text; anything else gives "".
-func quotaValue(raw json.RawMessage) string {
+// scalarText is a JSON scalar's text: a string's value, or a number's
+// decimal text; anything else gives "". It reads a quotaValue, and a stream
+// error's header value.
+func scalarText(raw json.RawMessage) string {
 	text := strings.TrimSpace(string(raw))
 	if strings.HasPrefix(text, `"`) {
 		return jsonString(raw)

@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -320,25 +321,122 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 // and slow_down are rate limits, and anything else is retryable. A code that
 // is an HTTP status from 400 to 599, as OpenRouter-style gateways send inside
 // a 200, is classified as that status (0026-MADR F5). The
-// APIError's Status is 0: there is no HTTP status. It is part of the error
-// model, for any provider's stream reader (0015-MADR, amendment "S7b's import
-// graph").
+// APIError's Status is 0: there is no HTTP status. A rate limit whose
+// message states a delay, such as "Please try again in 11.054s.", carries it
+// in RetryAfter (0072-MADR D3). It is ClassifyStreamFailureBody with no error
+// object, and returns a non-nil *APIError. It is part of the error model, for
+// any provider's stream reader (0015-MADR, amendment "S7b's import graph").
 func ClassifyStreamFailure(provider, code, errType, message string) error {
+	return ClassifyStreamFailureBody(provider, code, errType, message, nil)
+}
+
+// ClassifyStreamFailureBody classifies a failure reported inside a 200 event
+// stream as ClassifyStreamFailure does, and also reads raw, the stream's
+// error object as it came, with the parser that reads an HTTP error body
+// (0072-MADR D3). Its types join code's and errType's, after them, and it
+// sets RetryAfter, ResetAt and Limit from the fields ClassifyHTTPError reads.
+// The delay comes from, in order: the object's headers member, read as HTTP
+// headers; its reset time (resets_at, metadata.resetsAt) or a Google
+// RetryInfo; and, for a rate limit that is not exhausted quota, its message,
+// as Codex reads it ("try again in 11.054s"). A raw that is not a JSON
+// object is ignored. It returns a non-nil *APIError. It is part of the error
+// model, for any provider's stream reader, as ClassifyStreamFailure is.
+func ClassifyStreamFailureBody(provider, code, errType, message string, raw []byte) error {
 	env := apiErrorEnvelope{msg: message}
 	for _, t := range []string{code, errType} {
 		if t != "" && !env.hasType(t) {
 			env.types = append(env.types, t)
 		}
 	}
+	var headers http.Header
+	if obj := bytes.TrimSpace(raw); len(obj) > 0 && obj[0] == '{' {
+		body := parseAPIErrorBody(append(append([]byte(`{"error":`), obj...), '}'))
+		for _, t := range body.types {
+			if !env.hasType(t) {
+				env.types = append(env.types, t)
+			}
+		}
+		env.resetAt, env.retryDelay, env.perDayQuota = body.resetAt, body.retryDelay, body.perDayQuota
+		env.plan, env.window, env.limitName, env.creditsURL, env.quotas = body.plan, body.window, body.limitName, body.creditsURL, body.quotas
+		headers = streamErrorHeaders(obj)
+	}
 	e := &APIError{Provider: provider, Code: boundCode(env.errType()),
-		Message: boundMessage(redact.String(redact.StripControl(redactInput(message))))}
+		Message: boundMessage(redact.String(redact.StripControl(redactInput(message)))),
+		Limit:   limitOf(env)}
+	classifyStreamFailure(e, code, errType, message, env)
+	now := time.Now()
+	if headers != nil {
+		e.RetryAfter, e.ResetAt = transport.RetryAfterAt(headers, now)
+	}
+	if !env.resetAt.IsZero() {
+		e.ResetAt = env.resetAt
+		if d := env.resetAt.Sub(now); e.RetryAfter == 0 && d > 0 {
+			e.RetryAfter = d
+		}
+	}
+	if e.RetryAfter == 0 {
+		e.RetryAfter = env.retryDelay
+	}
+	if kind := e.kind(); e.RetryAfter == 0 && errors.Is(kind, ErrRateLimited) && !errors.Is(kind, ErrQuotaExhausted) {
+		e.RetryAfter = textDelay(message)
+	}
+	return e
+}
+
+// tryAgainIn is the delay a rate limit's message states, as Codex reads it
+// (codex-rs/codex-api/src/sse/responses_error.rs; 0072-MADR X13).
+var tryAgainIn = regexp.MustCompile(`(?i)try again in\s*(\d+(?:\.\d+)?)\s*(s|ms|seconds?)`)
+
+// textDelay is the delay message states, or 0; a delay too long for a
+// Duration is the longest one.
+func textDelay(message string) time.Duration {
+	m := tryAgainIn.FindStringSubmatch(message)
+	if m == nil {
+		return 0
+	}
+	n, err := strconv.ParseFloat(m[1], 64)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	unit := time.Second
+	if strings.EqualFold(m[2], "ms") {
+		unit = time.Millisecond
+	}
+	if d := n * float64(unit); d < math.MaxInt64 {
+		return time.Duration(d)
+	}
+	return math.MaxInt64
+}
+
+// streamErrorHeaders is a stream error object's headers member as HTTP
+// headers, as Codex reads a failed response's (0072-MADR X11), or nil.
+func streamErrorHeaders(obj []byte) http.Header {
+	var m struct {
+		Headers map[string]json.RawMessage `json:"headers"`
+	}
+	if json.Unmarshal(obj, &m) != nil || len(m.Headers) == 0 {
+		return nil
+	}
+	h := http.Header{}
+	for name, value := range m.Headers {
+		if s := scalarText(value); s != "" {
+			h.Set(name, s)
+		}
+	}
+	return h
+}
+
+// classifyStreamFailure sets e's kind and terminality from code, errType,
+// message and env, as ClassifyStreamFailure has since 0026-MADR F5.
+func classifyStreamFailure(e *APIError, code, errType, message string, env apiErrorEnvelope) {
+	provider := e.Provider
 	// A gateway that answers 200 with an error, as OpenRouter does, puts the
 	// HTTP status in code: classify it as that status, through the service's
 	// own table and the overflow check (0026-MADR F5).
 	if status, err := strconv.Atoi(code); err == nil && status >= http.StatusBadRequest && status <= 599 {
 		e.terminal, e.Kind = classifyAPIError(serviceOf(provider), status, env, nil)
 		noteCompletionFillsContext(e, message)
-		return e
+		return
 	}
 	switch {
 	case env.hasType("rate_limit_exceeded") || env.hasType("slow_down"):
@@ -358,7 +456,6 @@ func ClassifyStreamFailure(provider, code, errType, message string) error {
 		}
 	}
 	noteCompletionFillsContext(e, message)
-	return e
 }
 
 // classifyStreamType classifies a failure inside a 200 by its OpenAI- or
@@ -655,7 +752,7 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 			}
 			for _, v := range d.Violations {
 				env.perDayQuota = env.perDayQuota || strings.Contains(v.QuotaID, "PerDay")
-				env.quotas = append(env.quotas, Quota{ID: v.QuotaID, Metric: v.QuotaMetric, Value: quotaValue(v.QuotaValue)})
+				env.quotas = append(env.quotas, Quota{ID: v.QuotaID, Metric: v.QuotaMetric, Value: scalarText(v.QuotaValue)})
 			}
 		}
 		add(jsonString(inner.Code), inner.Type, inner.Status)
