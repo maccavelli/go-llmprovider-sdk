@@ -569,3 +569,98 @@ The owner committed Phase 0 (`a08eb37`) and said to proceed.
   changed.
 * This entry was added after the gate ran, so the record checks were run
   again before staging.
+
+The owner committed Phase 1 (`8eaa21f`) and said to proceed.
+
+### Phase 2 (2026-11-09)
+
+* **Step 1:** `llmprovider/api_limit.go` holds `Limit`, `Quota` and their
+  helpers. Each type's doc says it is safe for concurrent use only while no
+  goroutine changes it (R51).
+* **Step 2, the envelope:**
+  * It gains `plan`, `window`, `limitName`, `creditsURL` and `quotas`.
+  * The new members of `error` (`plan_type`, `limit_window_minutes`,
+    `quotaValue`) and every metadata member are decoded as
+    `json.RawMessage`. A value of an unexpected type then spoils none of the
+    body's other fields.
+  * Phase 1's `metadataResetAt` now takes the decoded metadata object.
+  * `limitName` is read beside `error`, then inside it, as step 2 says, and
+    not from an `ErrorInfo` detail.
+* **Step 3, `limitOf`:** as written. Each bound is checked once, on the
+  count, before it can overflow a `Duration`:
+  * 1 to 527,040 minutes, in `windowMinutes`;
+  * 1 to 8,784 hours, in `windowOfName`.
+
+  A first draft also checked every result in a shared helper. That second
+  check could not be shown to fail, since the first always rejected first.
+  It was removed before the plants ran.
+* **Step 4:** `BudgetLimitError` and `CreditLimitExceeded` appended to
+  `opencodeQuotaTypes`, with a comment citing 0072-MADR D4 and O7.
+* **Step 5, tests.** Each passes. Three differ from the table as written:
+  * **`TestClassify_OpenCodeBudget_0072` and
+    `TestRetry_OpenCodeBudgetNotResent_0072`** are in one file,
+    `llmprovider/budget_0072_test.go`, not in `api_error_limit_0072_test.go`
+    and `retry_0072_test.go`. `tools/redgreen.py --rev` copies only the
+    files a spec names into a clone at that revision. A file that also used
+    `Limit` could not build at `d62142c`. This file calls only API that
+    exists at `v1.28.0`. The retry test uses the package's `stubProvider`,
+    not `httptest`, since the classification is all it tests.
+  * **`TestLimit_WindowBounds_0072`** also asserts that `"0 hours"` gives no
+    `Window`, for the lower bound of `windowOfName`.
+  * **`TestAPIError_TextUnchanged_0072`** now zeroes `Limit` as well as
+    `ResetAt`, as Phase 1's entry said it would. It gained a plant of its
+    own: `Error()` appends the limit's name.
+* **The drift check:** with steps 1 to 4 in place and no new test written,
+  `go test -count=1 ./llmprovider/...` passed, every existing test
+  unchanged.
+* **Red at the base:** `tools/redgreen.py --expect fail --rev d62142c`:
+  "2 of 2 fail as expected":
+  * `budget_0072_test.go:41: a budget: llmprovider: rate limited: opencode-zen/chat_completions HTTP 429 BudgetLimitError: A budget policy for this model has been reached.; want a terminal ErrQuotaExhausted`,
+    and the same for Google's envelope;
+  * `budget_0072_test.go:59: sent 3 times; want once: a budget is not retried`.
+
+  `--expect pass` on the tree: "2 of 2 pass as expected".
+* **Planted breaks:** one spec per test, as in Phase 1. All 13 plants were
+  caught, each by its own test:
+
+  | Test | Plant | Failure line |
+  | :--- | :--- | :--- |
+  | `TestLimit_ChatGPT_0072` | `limit_window_minutes` not read | `api_error_limit_0072_test.go:52: Limit = {Name: Window:0s Plan:plus …}; want Plan plus and Window 5h` |
+  | `TestLimit_NeverInferred_0072` | `Window` set from `RetryAfter` when none is stated | `api_error_limit_0072_test.go:72: a Gemini per-day quota: Window = 52s; want none, since the service stated no length` (and the other two cases) |
+  | `TestLimit_NeverInferred_0072` | `"weekly"` read as 7 days | `api_error_limit_0072_test.go:72: OpenCode Go's weekly limit: Window = 168h0m0s; want none, since the service stated no length` |
+  | `TestLimit_WindowBounds_0072` | the minutes bound removed | `api_error_limit_0072_test.go:88: limit_window_minutes -5: Limit = &{… Window:-5m0s Plan:plus …}; want Plan only, with no Window` (and 600000) |
+  | `TestLimit_WindowBounds_0072` | the hours bound removed | `api_error_limit_0072_test.go:94: limitName "9000 hours": Window = 9000h0m0s; want 0s` |
+  | `TestLimit_OpenCodeGo_0072` | `limitName` not read | `api_error_limit_0072_test.go:103: … GoUsageLimitError (retry-after 2m0s): Go usage limit exceeded: Limit is nil; want one` |
+  | `TestLimit_Gemini_0072` | `quotaMetric` not read | `api_error_limit_0072_test.go:127: Limit = {… Quotas:[{ID:GenerateRequestsPerMinutePerProjectPerModel-FreeTier Metric: Value:5} …]…}; want …` |
+  | `TestLimit_Gemini_0072` | a numeric `quotaValue` dropped | `api_error_limit_0072_test.go:127: Limit = {Name: Window:0s Plan: PerDay:true Quotas:[{ID:GenerateRequestsPerMinutePerProjectPerModel-FreeTier Metric:generativelanguage.googleapis.com/generate_content_free_tier_requests Value:5} {ID:Generate` (the tool cuts a line at 240 characters, before the second quota's `Value`) |
+  | `TestLimit_KiloCredits_0072` | the scheme check removed | `api_error_limit_0072_test.go:154: buyCreditsUrl "http://app.kilo.ai/credits": CreditsURL = "http://app.kilo.ai/credits"; want none` |
+  | `TestLimit_KiloCredits_0072` | the query check removed | `api_error_limit_0072_test.go:154: buyCreditsUrl "https://app.kilo.ai/credits?token=abc": CreditsURL = "https://app.kilo.ai/credits?token=abc"; want none` |
+  | `TestLimit_Redacted_0072` | `Plan` not passed through `redact.Field` | `api_error_limit_0072_test.go:173: plan_type: "plus\x1b[31méé…" (309 bytes); want no control character, at most 128 bytes, valid UTF-8` |
+  | `TestLimit_Nil_0072` | `Limit` always allocated | `api_error_limit_0072_test.go:187: a 429 with only a message: Limit = {Name: Window:0s Plan: PerDay:false Quotas:[] CreditsURL:}; want nil` |
+  | `TestAPIError_TextUnchanged_0072` | `Error()` appends the limit's name | `api_error_reset_0072_test.go:153: an OpenCode Go 429: Error() = "llmprovider: quota exhausted: opencode-go/chat_completions HTTP 429 GoUsageLimitError (retry-after 2m0s) 5 hour: Go usage limit exceeded"; want …` |
+
+  An ellipsis (…) marks a part of a line left out here. The lines are cut at
+  240 characters by `tools/plant.py`.
+
+* **Pre-add:** `make pre-add-check` on the five Go files failed once, on
+  golangci-lint's `errorlint`:
+  `api_error_limit_0072_test.go:160:9: comparing with == will fail on wrapped errors`.
+  The comparison was in a test helper. The test now uses `errors.Is`, and the
+  helper is gone. The re-run: "go-precheck: 5 file(s) clean (gofmt,
+  golangci-lint, go vet, go test, govulncheck)", exit 0.
+  * The fix moved lines in the test file. So the plants were run again
+    against the final file. All 13 were caught, and the table above holds
+    that run's line numbers.
+* **Race:** `go test -race -count=3 ./llmprovider ./llmprovider/internal/transport/...`,
+  exit 0.
+* **The gate:** `python3 -B tools/gate.py`, started at load 9.8: "gate: 29
+  of 29 passed". `coverage-check`: `llmprovider` 98.3 % against 95.9 %.
+* **`tools/apidiff.py v1.28.0`** lists four compatible changes:
+  * `APIError.Limit`;
+  * `APIError.ResetAt`;
+  * `Limit`;
+  * `Quota`.
+
+  The tool names a new type, not its fields. The fields are the R55 table's.
+* **Stop conditions:** none met. No existing test changed and no golden
+  changed.

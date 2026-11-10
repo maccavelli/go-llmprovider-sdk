@@ -121,6 +121,11 @@ type APIError struct {
 	// service's clock or a late reply. Error does not print it (0072-MADR
 	// D1).
 	ResetAt time.Time
+	// Limit is what the service stated about the limit the request hit,
+	// such as its window, the account's plan, a Gemini quota or a link to
+	// add credits; nil when it stated nothing beyond its code. Error does
+	// not print it (0072-MADR D2).
+	Limit *Limit
 	// Reason is the service's reason for a response it cut short, such as
 	// "max_output_tokens".
 	Reason string
@@ -261,6 +266,7 @@ func ClassifyHTTPError(provider string, resp *http.Response) error {
 		Message:    boundMessage(redact.String(redact.StripControl(redactInput(message)))),
 		RetryAfter: retryAfter,
 		ResetAt:    resetAt,
+		Limit:      limitOf(envelope),
 	}
 	e.terminal, e.Kind = classifyAPIError(serviceOf(provider), resp.StatusCode, envelope, body)
 	noteCompletionFillsContext(e, envelope.message())
@@ -399,7 +405,9 @@ func serviceOf(provider string) string {
 const serviceOpencode = "opencode"
 
 var (
-	opencodeQuotaTypes     = []string{"FreeUsageLimitError", "GoUsageLimitError", "BlackUsageLimitError", "CreditsError", "MonthlyLimitError", "UserLimitError"}
+	// BudgetLimitError and CreditLimitExceeded are quota as OpenCode's own
+	// client treats them, which does not retry a budget (0072-MADR D4, O7).
+	opencodeQuotaTypes     = []string{"FreeUsageLimitError", "GoUsageLimitError", "BlackUsageLimitError", "CreditsError", "MonthlyLimitError", "UserLimitError", "BudgetLimitError", "CreditLimitExceeded"}
 	opencodeForbiddenTypes = []string{"RegionError", "DataPolicyError", "FreeTierError"}
 	// subscription_sharing_usage_limit_exceeded is a ChatGPT plan session's
 	// usage limit, which a retry within minutes does not pass (0043-MADR D6).
@@ -528,6 +536,15 @@ type apiErrorEnvelope struct {
 	retryDelay time.Duration
 	// perDayQuota reports a google.rpc.QuotaFailure naming a per-day quota.
 	perDayQuota bool
+	// What the body states about its limit, raw, for limitOf (0072-MADR
+	// D2): ChatGPT's plan_type and limit_window_minutes, OpenCode's
+	// metadata.limitName, Kilo's error.metadata.buyCreditsUrl, and a
+	// QuotaFailure's violations.
+	plan       string
+	window     time.Duration
+	limitName  string
+	creditsURL string
+	quotas     []Quota
 }
 
 // protoDuration is a protobuf Duration in its JSON form, seconds with an "s"
@@ -596,6 +613,11 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		Status   string          `json:"status"`
 		Message  string          `json:"message"`
 		ResetsAt int64           `json:"resets_at"`
+		// PlanType and LimitWindowMinutes are ChatGPT's usage limit's
+		// (0072-MADR X3, X5), kept raw so that a value of another type
+		// spoils nothing else.
+		PlanType           json.RawMessage `json:"plan_type"`
+		LimitWindowMinutes json.RawMessage `json:"limit_window_minutes"`
 		// Metadata is Kilo's, and OpenCode's in some envelopes, inside
 		// error (0072-MADR K1, O6).
 		Metadata json.RawMessage `json:"metadata"`
@@ -608,7 +630,9 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 			Reason     string `json:"reason"`
 			RetryDelay string `json:"retryDelay"`
 			Violations []struct {
-				QuotaID string `json:"quotaId"`
+				QuotaID     string          `json:"quotaId"`
+				QuotaMetric string          `json:"quotaMetric"`
+				QuotaValue  json.RawMessage `json:"quotaValue"`
 			} `json:"violations"`
 			Metadata json.RawMessage `json:"metadata"`
 		} `json:"details"`
@@ -631,6 +655,7 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 			}
 			for _, v := range d.Violations {
 				env.perDayQuota = env.perDayQuota || strings.Contains(v.QuotaID, "PerDay")
+				env.quotas = append(env.quotas, Quota{ID: v.QuotaID, Metric: v.QuotaMetric, Value: quotaValue(v.QuotaValue)})
 			}
 		}
 		add(jsonString(inner.Code), inner.Type, inner.Status)
@@ -638,6 +663,9 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		if inner.ResetsAt > 0 {
 			env.resetAt = time.Unix(inner.ResetsAt, 0).UTC()
 		}
+		env.plan = jsonString(inner.PlanType)
+		env.window = windowMinutes(inner.LimitWindowMinutes)
+		env.creditsURL = jsonString(readMetadata(inner.Metadata).BuyCreditsURL)
 	case json.Unmarshal(top.Error, &text) == nil:
 		env.msg = text
 	}
@@ -649,11 +677,16 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 		// The ChatGPT backend's {"detail": ...} (gate G-C, 2026-09-27).
 		env.msg = jsonString(top.Detail)
 	}
-	for _, m := range metadata {
+	for _, raw := range metadata {
 		if !env.resetAt.IsZero() {
 			break
 		}
-		env.resetAt = metadataResetAt(m)
+		env.resetAt = metadataResetAt(readMetadata(raw))
+	}
+	// A limit's name is OpenCode's, beside error or inside it (0072-MADR
+	// D2, O1).
+	if env.limitName = jsonString(readMetadata(top.Metadata).LimitName); env.limitName == "" {
+		env.limitName = jsonString(readMetadata(inner.Metadata).LimitName)
 	}
 	return env
 }
@@ -661,14 +694,8 @@ func parseAPIErrorBody(body []byte) apiErrorEnvelope {
 // metadataResetAt is an error metadata object's resetsAt, an RFC 3339
 // instant, in UTC, or zero when it is absent or does not parse (0072-MADR
 // D1, O4).
-func metadataResetAt(raw json.RawMessage) time.Time {
-	var m struct {
-		ResetsAt string `json:"resetsAt"`
-	}
-	if len(raw) == 0 || json.Unmarshal(raw, &m) != nil {
-		return time.Time{}
-	}
-	at, err := time.Parse(time.RFC3339, strings.TrimSpace(m.ResetsAt))
+func metadataResetAt(m errorMetadata) time.Time {
+	at, err := time.Parse(time.RFC3339, strings.TrimSpace(jsonString(m.ResetsAt)))
 	if err != nil {
 		return time.Time{}
 	}

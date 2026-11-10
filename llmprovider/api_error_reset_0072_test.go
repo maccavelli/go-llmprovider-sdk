@@ -127,8 +127,9 @@ func TestResetAt_OpenCodeMetadata_0072(t *testing.T) {
 	}
 }
 
-// TestAPIError_TextUnchanged_0072 (0072-MADR D1, D6): Error does not print
-// ResetAt: each error's text is that of a copy without it, and one is pinned.
+// TestAPIError_TextUnchanged_0072 (0072-MADR D1, D2, D6): Error prints
+// neither ResetAt nor Limit: each error's text is that of a copy without
+// them, and one is pinned.
 func TestAPIError_TextUnchanged_0072(t *testing.T) {
 	reset := time.Now().Add(time.Hour).Unix()
 	claude := http.Header{"Anthropic-Ratelimit-Requests-Reset": {time.Now().Add(time.Minute).UTC().Format(time.RFC3339)}}
@@ -147,9 +148,9 @@ func TestAPIError_TextUnchanged_0072(t *testing.T) {
 	for name, err := range errs {
 		e := apiErrorOf(t, err)
 		bare := *e
-		bare.ResetAt = time.Time{}
+		bare.ResetAt, bare.Limit = time.Time{}, nil
 		if got, want := e.Error(), bare.Error(); got != want {
-			t.Errorf("%s: Error() = %q; want %q, as without ResetAt", name, got, want)
+			t.Errorf("%s: Error() = %q; want %q, as without ResetAt and Limit", name, got, want)
 		}
 	}
 	const want = "llmprovider: quota exhausted: openai HTTP 429 usage_limit_reached (retry-after 30s): The usage limit has been reached"
