@@ -11,6 +11,17 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Security
+
+- The module requires Go 1.27.4, for GO-2026-6859 in `net/http`, an HTTP/1
+  server crash that govulncheck reports as called, through the loopback
+  callback of the browser sign-ins, as
+  [0077-MADR](docs/decisions/0077-MADR-go-1-27-4-for-go-2026-6859.md)
+  records. A consumer at `go 1.27.3` raises its own `go` line to take this
+  release; with `GOTOOLCHAIN=auto`, the default, `go` fetches the
+  toolchain. `v1.29.0` and earlier build safely only with a Go 1.27.4
+  toolchain. No exported name changes.
+
 ## [v1.29.0] - 2026-11-10
 
 ### Added

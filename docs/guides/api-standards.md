@@ -353,12 +353,12 @@ These rules are
   the tag's Release with that section as its notes. The release then
   deletes the Release of the tag that falls to seventh, keeping the tag and
   its section. (0048 D5, A4; 0055, amendment of 2026-11-10)
-- **R54. The Go floor is `go 1.27.3`,** with no `toolchain` line, and CI
+- **R54. The Go floor is `go 1.27.4`,** with no `toolchain` line, and CI
   builds with the version `go.mod` names. Go 1.27 is the least the module
   builds with: it uses `encoding/json/v2` and `encoding/json/jsontext`, in
-  the standard library from Go 1.27.0. The patch, `.3`, carries the
-  standard library's security fixes through GO-2026-6809 (`crypto/x509`).
-  The floor is raised with each Go security patch. (0048 D6, A1; 0055)
+  the standard library from Go 1.27.0. The patch, `.4`, carries the
+  standard library's security fixes through GO-2026-6859 (`net/http`).
+  The floor is raised with each Go security patch. (0048 D6, A1; 0055; 0077)
 - **R55. A new export is justified.** A PLAN that adds an exported name
   lists each one in its record with the call site that needs it; `make
   api-check` lists every addition. (0048 D7)
@@ -390,7 +390,7 @@ This rule is
 | R48 | `make api-check` | S12 |
 | R50–R52 | `make docs-check` (`sdkaudit -check`) | 0048-PLAN Phase 6 |
 | R53 | `make changelog-check` | 0048-PLAN Phase 5 |
-| R54 | `go.mod`'s `go` line, which CI's `go-version-file` reads | 0048-MADR A1, 0055-MADR |
+| R54 | `go.mod`'s `go` line, which CI's `go-version-file` reads | 0048-MADR A1, 0055-MADR, 0077-MADR |
 | R56 | `git grep -n -w` of each thinking rule 0062 removed, which 0062-PLAN Phase 6's record names: none found | 0062-MADR Confirmation |
 
 An S*n* phase is 0015-PLAN's. The other rules are held by review against this

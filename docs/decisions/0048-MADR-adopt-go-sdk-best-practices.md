@@ -489,3 +489,10 @@ Answered 2026-10-19; each answer is in the decisions above.
   * `WithCache` gives it to a listing or a provider;
   * without it, the process's cache is used, which has no `Close`.
 * **R49** gains a sentence naming `Close`, in 0071-PLAN Phase 3.
+
+### A6 (2026-11-11): the floor is `go 1.27.4`
+
+R54's version is raised by its own rule, which raises the floor with each Go
+security patch, to `go 1.27.4` for GO-2026-6859 in `net/http`, by
+[0077-MADR-go-1-27-4-for-go-2026-6859.md](0077-MADR-go-1-27-4-for-go-2026-6859.md).
+A1's reasons for Go 1.27 stand.

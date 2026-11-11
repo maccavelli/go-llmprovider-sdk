@@ -339,3 +339,10 @@ The notes are exactly the section, with no line added about the floor. The
   `v1.26.0` and `v1.25.0`, so that release deletes none. No Release deleted
   before is made again.
 * **The CI step stays not chosen,** for the reason above.
+
+## Amendment 2026-11-11: the floor is raised again, to `go 1.27.4`
+
+The floor this record set, `go 1.27.3`, is raised to `go 1.27.4` for
+GO-2026-6859 in `net/http`, by
+[0077-MADR-go-1-27-4-for-go-2026-6859.md](0077-MADR-go-1-27-4-for-go-2026-6859.md).
+Nothing above is rewritten: it says what ran then.
