@@ -202,6 +202,15 @@ reaches `auth` without an exported field (D4's open question)." The
 reversal closes that question.)* The record stays `proposed`: the owner has
 answered questions, not accepted it.
 
+Also on 2026-11-11 the owner ruled twice more. `NoLoopback` has no effect on
+a device sign-in, which binds no listener in the first place: only a browser
+method is refused (D4). And the auth contract module gains a session-kind
+type carrying `auth.SessionKind`'s four strings and a label for each, before
+`authcontract/v0.1.0`
+([0073-MADR-publish-an-auth-contract-module.md](0073-MADR-publish-an-auth-contract-module.md),
+"Amendment 2026-11-11: a session-kind type and its labels"), with
+`auth.SessionKind` itself unchanged (D5). The record stays `proposed`.
+
 ### D1. Method facts on `llmprovider.AuthMethod`
 
 `AuthMethod` gains comparable fields, each a plain string or a boolean, so the
@@ -408,11 +417,25 @@ type Credential interface {
     listener and needs an `InputCode`, the only thing that can complete the
     sign-in; without one it is an error matching `ErrInvalidRequest`. For
     Grok, whose paste is unverified (D1), it is an error matching
-    `ErrUnsupported`, before any request.
-  * **In `x/signin`.** With a method whose `Paste` fact is empty it is an
-    error matching `ErrUnsupported`, as for Grok; with `NoPaste` as well it
-    is `ErrInvalidRequest`, since nothing could complete the sign-in. Both
-    are returned by `Start`, before any request.
+    `ErrUnsupported`, before any request. `NoLoopback` has no effect on a
+    device sign-in: `StartDeviceOAuth`, OpenAI's, Grok's and Kilo's alike,
+    takes the same `OAuthFlowOptions` but binds no listener in the first
+    place, so it runs as it does without the option. *(2026-11-11, the
+    owner's ruling on device sign-ins.)*
+  * **In `x/signin`.** `NoLoopback` has no effect on a device sign-in, which
+    binds no listener in the first place: `Start` runs it as it does without
+    the option, with the same steps (D3). Only a browser method is refused:
+    one whose `Paste` fact is empty (Grok's `browser_loopback`, D1) is an
+    error matching `ErrUnsupported`, as in `auth`, and one with `NoPaste` as
+    well is `ErrInvalidRequest`, since nothing could complete the sign-in.
+    Both are returned by `Start`, before any request. *(2026-11-11, the
+    owner's ruling on device sign-ins. The bullet read: "With a method whose
+    `Paste` fact is empty it is an error matching `ErrUnsupported`, as for
+    Grok; with `NoPaste` as well it is `ErrInvalidRequest`, since nothing
+    could complete the sign-in. Both are returned by `Start`, before any
+    request." Every device method's `Paste` fact is empty too (D1), so the
+    rule as written would have refused a device sign-in with `NoLoopback`
+    set.)*
   * **Its callers.** gobble-cli sets `signin.Options.NoLoopback` for a
     sign-in started from a remote ACP client. The person completing that
     sign-in is not on the agent's host (a phone through magic-cli-remote,
@@ -420,7 +443,12 @@ type Credential interface {
     callback and only a paste completes it; setting it also frees ports
     1455 and 1457 for other agents on that host (gobble-cli
     `docs/decisions/0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md`
-    D3, proposed and untracked in gobble-cli on 2026-11-11). gobble learns
+    D3, proposed and untracked in gobble-cli on 2026-11-11). It sets the
+    option on every remote sign-in, device ones included, and relies on a
+    device sign-in running unchanged with it set (that D3's note, which
+    asked this record to confirm the reading, and its PLAN's
+    `TestStartSignInRemoteDevice`; the two sub-bullets above, 2026-11-11).
+    gobble learns
     that a sign-in is remote from `_meta.gobble.remote: true` on
     `authenticate`, which magic-cli-remote sends on every sign-in the phone
     starts (magic-cli-remote
@@ -503,6 +531,12 @@ type Credential interface {
   `SessionChatGPT` (`"chatgpt"`), `SessionChatGPTPlan` (`"chatgpt_plan"`),
   `SessionGrok` (`"grok"`) and `SessionKiloDevice` (`"kilo_device"`). Every
   sign-in sets it. `FileTokenStore` persists it as `kind`, `omitempty`.
+  *(2026-11-11, the owner's ruling on session-kind labels: the contract's
+  `authcontract.SessionKind` carries the same four strings, each with a
+  label in its schema (0073-MADR, "Amendment 2026-11-11: a session-kind type
+  and its labels"). This type's v1 shape is unchanged. Once the root
+  requires the contract, the PLAN's Phase 4 test
+  `TestSessionKindsMatchContract_0074` pins the two value sets equal.)*
 * **Empty means inferred,** by exactly today's rules, gathered into one
   unexported function, so a record from an older version, or a session a
   caller builds, behaves as today.
@@ -958,6 +992,29 @@ The owner's reversal, later on 2026-11-11.
   row, Phase 3 step 2 and its three tests, Phase 4's
   `TestStart_NoLoopback_0074`, Phase 6's row for `auth`, and Phase 7's U2
   and U3, each with a dated note.
+
+The owner's rulings of 2026-11-11 on device sign-ins and on session-kind
+labels, relayed by the cross-repository coordinator.
+
+* 2026-11-11, D4: `NoLoopback` has no effect on a device sign-in, which
+  binds no listener in the first place. Only a browser method is refused:
+  one with no `Paste` fact is `ErrUnsupported`, and one with `NoPaste` as
+  well is `ErrInvalidRequest`. The "In `x/signin`" sub-bullet named "a
+  method whose `Paste` fact is empty", which takes in every device method
+  (D1), so gobble-cli's remote device sign-ins, which set the option
+  (gobble-cli `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md`
+  D3), would have been refused. The "In `auth`", "In `x/signin`" and "Its
+  callers" sub-bullets now say so, each with a dated note, and the PLAN's
+  Phase 4 gains `TestStart_NoLoopbackDevice_0074`, with a dated note in
+  Phase 3 step 2.
+* 2026-11-11, D5: the auth contract module gains a session-kind type with
+  `auth.SessionKind`'s four strings and a label for each, before
+  `authcontract/v0.1.0`
+  ([0073-MADR-publish-an-auth-contract-module.md](0073-MADR-publish-an-auth-contract-module.md),
+  "Amendment 2026-11-11: a session-kind type and its labels").
+  `auth.SessionKind` is unchanged. The PLAN's Phase 4 gains
+  `TestSessionKindsMatchContract_0074`, which pins the two value sets equal
+  once the root requires the contract.
 
 ### Not verified
 

@@ -34,7 +34,8 @@ approves this PLAN.
 * **The module** (D1, D2, D3, D6): `authcontract/go.mod`, `authcontract/doc.go`,
   `authcontract/method.go`, `authcontract/step.go`, `authcontract/answer.go`,
   `authcontract/errorkind.go`, `authcontract/README.md`,
-  `authcontract/CHANGELOG.md`, and their tests.
+  `authcontract/CHANGELOG.md`, and their tests; and
+  `authcontract/sessionkind.go` *(added 2026-11-11, the MADR's "Amendment 2026-11-11: a session-kind type and its labels")*.
 * **The schema** (D4): `authcontract/internal/schemagen/` (`main.go` and
   `main_test.go`),
   `authcontract/authcontract.schema.json`, and the `//go:generate` line in
@@ -74,6 +75,7 @@ Dart models (Q8, Q9).
 | `type LinkRel`; `LinkTerms`, `LinkUsage`, `LinkNotice` | 0075-MADR D1's usage link on the plan's consent |
 | `type FieldType`; `FieldText`, `FieldSecret`, `FieldSelect` | Magic's mapper for kilo's Copilot inputs and opencode's non-string fields (the report's §5.6.2) |
 | `type ErrorKind` and D3's eighteen constants, `FailureCanceled` to `FailureOther` | x/signin's `ErrorKindOf` (0074-MADR D8); gobble's `--json` in place of `FailureKind` (Q15) |
+| `type SessionKind`; `SessionChatGPT`, `SessionChatGPTPlan`, `SessionGrok`, `SessionKiloDevice` *(added 2026-11-11, the MADR's "Amendment 2026-11-11: a session-kind type and its labels")* | gobble-cli's `auth status --json` member `sessionKind`, whose values these are (gobble-cli `0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md` D8); magic-cli-remote's auth block, whose daemon holds the kind as this type and whose phone shows its label, generated from the schema's `x-enum-labels` (magic-cli-remote `0246-MADR-take-provider-auth-types-from-the-sdk-auth-contract-in-one-cut-over.md` D13). 0074-PLAN Phase 4's `TestSessionKindsMatchContract_0074` pins `auth.SessionKind` to it |
 | `type Method` and its eighteen fields | x/signin's `Methods`; Magic's `providers.list_result`; `Command` for Magic's opencode mapper and the phone's copy button (the owner's O3) |
 | `type Consent` and its four fields | 0075-MADR D1's `chatgpt_plan.background_use` |
 | `type Link` and its three fields | `Method.Links`, `Consent.Links`, `Step.Links` |
@@ -232,6 +234,16 @@ expected; no `authcontract/*.go` file exists.
    unless `Secret` is a non-nil false (MADR D2); `Secret` itself is shown.
 7. **`authcontract/errorkind.go`:** `ErrorKind`, D3's eighteen constants in
    D3's order, and `Failure`.
+
+   *(Added 2026-11-11, the MADR's "Amendment 2026-11-11: a session-kind type and its labels":)*
+   **`authcontract/sessionkind.go`:** `SessionKind` and its four constants,
+   `SessionChatGPT`, `SessionChatGPTPlan`, `SessionGrok` and
+   `SessionKiloDevice`, in the amendment's order, with no method. The
+   type's doc says it is a value, safe for concurrent use while no
+   goroutine changes it (R51), that it is open (D6 rule 2), and that its
+   labels are in the schema's `x-enum-labels`, not in Go; each constant's
+   doc says which session it names. `authcontract/README.md` (step 8) lists
+   the four values and their labels.
 8. **`authcontract/README.md`:** what the module is, its tags, D6's rules,
    and how a consumer pins it and reads the vectors.
 9. **`authcontract/CHANGELOG.md`:** Keep a Changelog form, `## [Unreleased]`
@@ -247,6 +259,8 @@ expected; no `authcontract/*.go` file exists.
     | `TestAnswerJSONCarriesPaste_0073` | `json.Marshal` of an `Answer` holds the paste, and decodes back equal | a `MarshalJSON` added that redacts |
     | `TestUnknownEnumValuesKept_0073` | `Step{Kind: "a_future_kind"}`, `Method{Completion: "a_future_completion"}` and `Failure{Kind: "a_future_kind"}` decode and re-encode with the value kept | an `UnmarshalText` on `StepKind` that refuses an unlisted value |
     | `ExampleAnswer_String` | R50: an answer with a paste prints redacted; `// Output:` shown | the example's output, planted wrong |
+    | `TestSessionKindValues_0073` *(added 2026-11-11, the MADR's amendment)* | the `SessionKind` constants that `go/parser` finds in the package's non-test files are exactly the amendment's table, by name and value: `SessionChatGPT` `chatgpt`, `SessionChatGPTPlan` `chatgpt_plan`, `SessionGrok` `grok`, `SessionKiloDevice` `kilo_device` | `SessionKiloDevice` deleted, so a value is missing; `SessionGrok`'s value spelled `xai` |
+    | `TestUnknownSessionKindKept_0073` *(added 2026-11-11, the MADR's amendment)* | `"a_future_session_kind"` decodes into a `SessionKind` with no error, and re-encodes with the value kept | an `UnmarshalText` on `SessionKind` that refuses an unlisted value |
 
 Acceptance: `go -C authcontract test -race -count=1 ./...` passes; `go -C
 authcontract list -deps ./...` names standard packages and the module's own
@@ -344,6 +358,12 @@ changelog-check` pass on the tree; each plant above failed as expected.
    field tagged `omitempty` or `omitzero` is left out of `required`. `main`
    only parses flags and calls `run(args []string, stdout io.Writer) error`,
    which holds the work, so the package's own test can reach its statements.
+
+   *(Added 2026-11-11, the MADR's "Amendment 2026-11-11: a session-kind type and its labels":)* `main.go` also holds one table, value to
+   label, for `SessionKind`, and writes it on that type's `$defs` entry as
+   `"x-enum-labels"`, an object with one member per `enum` value, in the
+   enum's order. No other entry gets one. The entry is written though no
+   struct refers to the type, as every enum type found by `go/parser` is.
 2. **`authcontract/doc.go`** gains `//go:generate go run ./internal/schemagen -output authcontract.schema.json`.
 3. **`authcontract/authcontract.schema.json`:** generated, committed.
 4. **`authcontract/internal/schemacheck/`:** a validator for the keywords D4
@@ -352,7 +372,8 @@ changelog-check` pass on the tree; each plant above failed as expected.
    It accepts and ignores the annotations `$schema`, `$id`, `x-open-enum` and
    `x-nullable` (`$defs` is where `$ref` resolves). Anything else in the
    schema is an error naming the keyword, so the generator cannot emit a
-   keyword the validator does not know.
+   keyword the validator does not know. *(Added 2026-11-11, the MADR's
+   amendment: it accepts and ignores `x-enum-labels` too.)*
 5. **`authcontract/testdata/vectors/`:** one file per case. At least:
    `method-` for each `Kind`, among them `method-oauth-at-start.json`
    (`oauth`, `at_start`, no `paste`, `yields` and `client_identity`
@@ -368,6 +389,13 @@ changelog-check` pass on the tree; each plant above failed as expected.
    `step-unknown-kind.json` and `method-unknown-completion.json`, each with an
    unknown enum value, and `answer-unknown-field.json`, whose only novelty is
    an unknown member; each has a `_meta.example` entry.
+
+   *(Added 2026-11-11, the MADR's "Amendment 2026-11-11: a session-kind type and its labels":)* `session-kind-chatgpt.json`,
+   `session-kind-chatgpt-plan.json`, `session-kind-grok.json` and
+   `session-kind-kilo-device.json`, each the bare JSON string of its value;
+   and `forward/session-kind-unknown.json`, the string
+   `"a_future_session_kind"`, which as a bare string has no `_meta.example`
+   entry.
 6. **Tests:**
 
    | Test | Asserts | Planted break |
@@ -382,9 +410,22 @@ changelog-check` pass on the tree; each plant above failed as expected.
    | `TestSchemacheckRefusesUnknownKeywords_0073` | the validator errors on a schema with `patternProperties`, naming it | the validator ignores unknown keywords |
    | `TestSchemacheckAcceptsAnnotations_0073` | a schema carrying `$schema`, `$id`, `x-open-enum` and `x-nullable` validates the vectors, and each annotation is ignored for validation | `x-nullable` dropped from the validator's accepted list |
    | `TestSchemagenMatchesCommitted_0073` (`internal/schemagen/main_test.go`) | `run` writes into a temporary file the bytes of the committed `authcontract.schema.json`; the package's coverage is 80 % or more | `$defs` written in reverse source order; the committed schema's `$defs` reordered by hand |
+   | `TestSchemaSessionKindLabels_0073` *(added 2026-11-11, the MADR's amendment)* | the schema has a `$defs` entry `SessionKind`, though no property refers to it, with `"x-open-enum": true` and an `x-enum-labels` object whose members are exactly its `enum` values, each the amendment's label; no other `$defs` entry carries `x-enum-labels` | the generator's table without `grok`; the generator writes the labels as the entry's `description` instead (which `TestSchemaKeywords_0073` also refuses); the generator skips an enum type no struct refers to, so `SessionKind` has no entry |
 
    And `make generate-check` is seen to fail on a hand edit of
    `authcontract.schema.json` (one enum value removed by hand).
+
+   *(Added 2026-11-11, the MADR's "Amendment 2026-11-11: a session-kind type and its labels": the existing tests take the new type.
+   `TestSchemaKeywords_0073` also asserts that `x-enum-labels` appears on
+   `SessionKind`'s entry and no other. `TestSchemacheckAcceptsAnnotations_0073`'s
+   schema also carries `x-enum-labels`, with a further planted break:
+   `x-enum-labels` dropped from the validator's accepted list.
+   `TestVectorsRoundTrip_0073`, `TestVectorsValidate_0073` and
+   `TestForwardVectors_0073` take step 5's session-kind vectors, a bare
+   string decoding into the type its name gives, with a further planted
+   break: `forward/session-kind-unknown.json`'s value replaced by `grok`, so
+   strict validation passes. `TestSchemaListsEveryConstant_0073` covers
+   `SessionKind` as it covers every enum type.)*
 
 Acceptance: the tests pass, each plant failed; `make generate-check` passes
 on the tree; `make contract-check` passes.
@@ -521,3 +562,49 @@ this PLAN.
   added after those runs, so the record checks were run again before
   staging, each exiting 0. The changed files were then staged for the
   owner to commit.
+
+### Records, 2026-11-11: the session-kind amendment
+
+* The owner ruled on 2026-11-11, after accepting the MADR, that the contract
+  gains a session-kind type with `auth.SessionKind`'s four values and a
+  human label for each, before `authcontract/v0.1.0`; the ruling was relayed
+  by the cross-repository coordinator. The MADR gains "Amendment
+  2026-11-11: a session-kind type and its labels", with dated pointers in
+  its Decision Outcome, D2, D4 and D5 and its `consulted` line; it stays
+  `accepted`. This PLAN gains, each with a dated note: the file
+  `authcontract/sessionkind.go` (Scope, Phase 1b step 7), the R55 row,
+  Phase 1b's `TestSessionKindValues_0073` and
+  `TestUnknownSessionKindKept_0073`, and Phase 3's label table (step 1),
+  validator annotation (step 4), vectors (step 5),
+  `TestSchemaSessionKindLabels_0073` and the note on the existing tests.
+  It stays `in-progress`. Only Phase 0 has run, so no executed phase is
+  reopened; Phase 1a, the next, is unaffected.
+* In the same change, 0074-MADR D5 gains a dated note and 0074-PLAN Phase 4
+  gains `TestSessionKindsMatchContract_0074`, which pins `auth.SessionKind`
+  to the contract's type once the root requires it; `auth.SessionKind`'s
+  v1 shape is unchanged.
+* The labels' wording is the amendment's; the owner may change any before
+  the tag, by a dated note in the MADR.
+* Checks, each exit status captured before any filter. `python3 -B
+  tools/gate.py --markdown` ran twice and ran nothing either time: "gate:
+  the load did not fall below 10 within 1500 s; nothing run", exit 2,
+  starting at load 99.1 and then 57.3 on a 10-CPU host. In its place the
+  checks it would run that read these records ran directly, each exiting
+  0: `tools/claims.py --changed`, "44 of 44 pass" on the MADR, "11 of 11"
+  on this PLAN, "55 of 55" on 0074-MADR and "6 of 6" on 0074-PLAN; `make
+  records-check`, "records-check: 162 records, 0 problem(s)"; `make
+  links-check`, "links-check: 0 problem(s), 1240 relative link(s) in 174
+  file(s)"; `tools/recordlint.py --changed`, "recordlint: 4 record(s); no
+  rule rose"; `tools/denyscan.py --changed`, "deny-scan: 0 hit(s) in 4
+  file(s)"; `make parity-check`, `changelog-check`, `disclosure-check` and
+  `tables-check`, each "0 problem(s)" or "0 hit(s)". `markdownlint` (which
+  lints no record) and `gate-selftest` were not run; the gate is to be run
+  again once the load allows. This entry was added after those runs, so
+  the record checks were run again before staging.
+* 2026-11-11, later: the owner chose the labels "ChatGPT", "ChatGPT plan",
+  "Grok" and "Kilo", written into the MADR's amendment with a dated note.
+  On that text `python3 -B tools/gate.py --markdown` ran (it waited from
+  load 30.7, started at load 9.9): parity-check, records-check,
+  tables-check, changelog-check, markdownlint, links-check,
+  disclosure-check, gate-selftest, deny-scan, recordlint and claims each
+  rc=0, "gate: 11 of 11 passed", exit 0.

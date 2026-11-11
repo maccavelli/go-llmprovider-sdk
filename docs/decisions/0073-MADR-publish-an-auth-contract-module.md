@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-11-11
 decision-makers: repository owner
-consulted: "magic-cli-remote's docs/reports/0245-REPORT-non-api-key-auth-across-magic-gobble-and-the-sdk.md (observed 2026-11-10, committed in that repository as 3e2f784b, unchanged at eefb7c25), its questions of §11, and the owner's answers of 2026-11-10 to them; the SDK audit behind it; this repository at 773b84c (v1.29.0 and one records commit); gobble-cli at d6c10a5 (= acpext/v0.4.0), re-checked on 2026-11-11 at origin/main 17d1605, at which every gobble-cli file this record cites is unchanged; its acpext module, its `0042-MADR-acpext-extension-contract-module.md`, and its proposed, untracked `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` and `0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md` and their PLANs, as revised on 2026-11-11; magic-cli-remote at 995d442b, re-checked on 2026-11-11 at origin/master eefb7c25, and its proposed, untracked `0246-MADR-take-provider-auth-types-from-the-sdk-auth-contract-in-one-cut-over.md` and `0247-MADR-replay-a-pasted-sign-in-callback-to-the-agents-loopback.md` and their PLANs; acp-go-sdk2 v1.35.0 read from the module cache, and v1.36.0 read from its repository on 2026-11-11; the owner's answers of 2026-11-10 to the Magic drafts' O1 and O3; the owner's rulings of 2026-11-11 on D3's constant names and on the Go floor"
+consulted: "magic-cli-remote's docs/reports/0245-REPORT-non-api-key-auth-across-magic-gobble-and-the-sdk.md (observed 2026-11-10, committed in that repository as 3e2f784b, unchanged at eefb7c25), its questions of §11, and the owner's answers of 2026-11-10 to them; the SDK audit behind it; this repository at 773b84c (v1.29.0 and one records commit); gobble-cli at d6c10a5 (= acpext/v0.4.0), re-checked on 2026-11-11 at origin/main 17d1605, at which every gobble-cli file this record cites is unchanged; its acpext module, its `0042-MADR-acpext-extension-contract-module.md`, and its proposed, untracked `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` and `0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md` and their PLANs, as revised on 2026-11-11; magic-cli-remote at 995d442b, re-checked on 2026-11-11 at origin/master eefb7c25, and its proposed, untracked `0246-MADR-take-provider-auth-types-from-the-sdk-auth-contract-in-one-cut-over.md` and `0247-MADR-replay-a-pasted-sign-in-callback-to-the-agents-loopback.md` and their PLANs; acp-go-sdk2 v1.35.0 read from the module cache, and v1.36.0 read from its repository on 2026-11-11; the owner's answers of 2026-11-10 to the Magic drafts' O1 and O3; the owner's rulings of 2026-11-11 on D3's constant names and on the Go floor, and the owner's ruling of 2026-11-11, after acceptance, on a session-kind type and its labels, with gobble-cli's 0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md D8 and magic-cli-remote's 0246-MADR-take-provider-auth-types-from-the-sdk-auth-contract-in-one-cut-over.md D9 and D13 as revised that day"
 informed: gobble-cli and magic-cli-remote, which consume the module; every caller of llmprovider/auth and wizard
 ---
 
@@ -255,6 +255,13 @@ questions, not accepted it.
 The owner accepted this record on 2026-11-11, and approved its PLAN the
 same day.
 
+Later on 2026-11-11 the owner amended the accepted record: the contract
+gains a session-kind type, `SessionKind`, with a human label for each of its
+four values, before `authcontract/v0.1.0` is tagged. "Amendment 2026-11-11:
+a session-kind type and its labels", at the end of this record, holds it;
+D2, D4 and D5 each carry a dated pointer to it, and their text is otherwise
+not rewritten. The record stays `accepted`.
+
 ### D1. The module
 
 * **Path and name.** The directory `authcontract/` at the repository root;
@@ -474,6 +481,12 @@ type Failure struct {
   reasons such as Magic's `host_oauth`, app setting names such as gobble's,
   and any agent CLI's format (§5.3.2 of the report; the owner's no-baggage
   constraint). They live in each consumer's envelope.
+* **A session's kind** *(added 2026-11-11 by "Amendment 2026-11-11: a
+  session-kind type and its labels", below)*: `type SessionKind string`,
+  with `SessionChatGPT` "chatgpt", `SessionChatGPTPlan` "chatgpt_plan",
+  `SessionGrok` "grok" and `SessionKiloDevice` "kilo_device", an open enum
+  with a label for each value in the schema. No struct above gains a member
+  of it.
 
 ### D3. One error vocabulary (Q15)
 
@@ -577,7 +590,9 @@ from (0074-MADR D8 builds `ErrorKindOf`):
     `additionalProperties` and `format` (`date-time` only), and the two
     annotations `x-open-enum` and `x-nullable`. It emits no `description` or
     `title`. A change to this list is a change to D4, so a consumer's
-    keyword check can be exact.
+    keyword check can be exact. *(2026-11-11: "Amendment 2026-11-11: a
+    session-kind type and its labels", below, adds a third annotation,
+    `x-enum-labels`, carried by `SessionKind`'s entry only.)*
 * **The schema states `SchemaVersion`** as its `$id`'s last segment
   (`.../authcontract/schema/v1`), read from the constant by the generator. It
   does not state the module's version: no constant holds it (it is a git
@@ -595,6 +610,9 @@ from (0074-MADR D8 builds `ErrorKindOf`):
   a `paste` step with `secret` true and no `expires_at`; answers with
   `secret` true, false and absent; and an answer whose `confirm` is `false`
   (`answer-confirm-false.json`), which a writer must not drop (D4).
+  *(2026-11-11: "Amendment 2026-11-11: a session-kind type and its labels",
+  below, adds one vector per `SessionKind` value and a forward vector with
+  an unknown one.)*
 * **The module's tests:**
   * every vector decodes into its type, and re-encodes to the same bytes
     after `json.Compact`;
@@ -1078,3 +1096,175 @@ above. No decision of D1 to D8 changes.
   [0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md](0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md).
 * The defects that land first:
   [0076-MADR-auth-error-kinds-and-doc-drift.md](0076-MADR-auth-error-kinds-and-doc-drift.md).
+
+## Amendment 2026-11-11: a session-kind type and its labels
+
+The owner's ruling of 2026-11-11, relayed by the cross-repository
+coordinator, made after this record's acceptance and before
+`authcontract/v0.1.0` is tagged. It adds to D2, D4 and D5, each of which
+carries a dated pointer here. It changes no decision of D1, D3, D6, D7 or
+D8, and nothing above is rewritten.
+
+### The ruling
+
+The contract gains a session-kind type with exactly the four values of the
+SDK's `auth.SessionKind`
+([0074-MADR-one-sign-in-handle-and-method-facts.md](0074-MADR-one-sign-in-handle-and-method-facts.md)
+D5), `chatgpt`, `chatgpt_plan`, `grok` and `kilo_device`, and a human label
+for each, before `authcontract/v0.1.0` is tagged. magic-cli-remote
+generates its phone's Dart models from `authcontract.schema.json` alone
+(Q9; magic-cli-remote
+`docs/decisions/0246-MADR-take-provider-auth-types-from-the-sdk-auth-contract-in-one-cut-over.md`
+D9) and shows a stored session's kind by its label (its D13, which cites
+this amendment), so the values and the labels must both be in the
+generated schema, not only in Go.
+
+### The type (D2)
+
+```go
+// SessionKind is the kind of a stored sign-in session, with the strings of
+// the SDK's auth.SessionKind. It is a value, safe for concurrent use while
+// no goroutine changes it.
+type SessionKind string // SessionChatGPT "chatgpt", SessionChatGPTPlan "chatgpt_plan",
+                        // SessionGrok "grok", SessionKiloDevice "kilo_device"
+```
+
+* **Data only,** like D2's other enums: a named string and four constants,
+  in the standard library's terms (D1). No enum of the module has a method
+  or a label lookup, so this one has neither. Each constant's name is R21's
+  short prefix, `Session`, and its value in camel case, which are also
+  `auth`'s names, so a reader of either package reads the same words.
+* **Open, like the others** (D4; D6 rule 2). Its `$defs` entry carries
+  `"x-open-enum": true`. A reader keeps a value it does not know and shows
+  it as it came, with no label; a producer emits only listed values.
+* **No struct gains a member.** The type is named by its consumers'
+  envelopes: gobble-cli's `auth status --json` member `sessionKind`, whose
+  values these are (gobble-cli
+  `0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md` D8), and
+  magic-cli-remote's auth block, whose daemon holds the kind as this type
+  and whose phone shows its label (its 0246-MADR D13). D2's "What is not
+  here" holds: a session's kind is not a session id, and no provider id is
+  added.
+* **The labels.** The wording is this amendment's; the owner may change any
+  label before the tag, by a dated note here.
+
+  | Value | Label |
+  | :--- | :--- |
+  | `chatgpt` | ChatGPT |
+  | `chatgpt_plan` | ChatGPT plan |
+  | `grok` | Grok |
+  | `kilo_device` | Kilo |
+
+  *(2026-11-11, later: the owner chose these short names. The amendment as
+  first written proposed "ChatGPT sign-in", "ChatGPT plan for this app",
+  "xAI sign-in" and "Kilo device sign-in", each following the label the
+  SDK's descriptors give the method that makes such a session. A short name
+  reads cleanly where the phone shows it, after "Stored sign-in:".)* A label
+  is display text: a reader never matches on it, and a later tag may reword
+  it. A value is never renamed (D6 rule 1).
+
+### How the labels reach the schema (D4)
+
+* **A third annotation, `x-enum-labels`,** on an enum's `$defs` entry: an
+  object whose members are exactly that entry's `enum` values, each with
+  its label, a non-empty string. At `v0.1.0` only `SessionKind`'s entry
+  carries it; an enum with no labels carries none.
+* **D4's keyword list gains it.** The schema uses exactly `$schema`, `$id`,
+  `$defs`, `$ref`, `type`, `properties`, `required`, `enum`, `items`,
+  `additionalProperties` and `format` (`date-time` only), and the three
+  annotations `x-open-enum`, `x-nullable` and `x-enum-labels`. It still
+  emits no `description` or `title`, and no `oneOf`. D4 says a change to the
+  list is a change to D4; this is that change, made in the open, so a
+  consumer's exact keyword check (magic-cli-remote's 0246-PLAN P1) gains
+  the one annotation and nothing else.
+
+```json
+"SessionKind": {
+  "type": "string",
+  "enum": ["chatgpt", "chatgpt_plan", "grok", "kilo_device"],
+  "x-open-enum": true,
+  "x-enum-labels": {
+    "chatgpt": "ChatGPT",
+    "chatgpt_plan": "ChatGPT plan",
+    "grok": "Grok",
+    "kilo_device": "Kilo"
+  }
+}
+```
+
+* **Why this form.** The schema gives no other enum per-value text, so it
+  has no form of its own to reuse. The nearest are its two `x-`
+  annotations, and this one is a third of the same kind: ignored by
+  validation, read by a generator. The alternatives each fail a constraint:
+  * JSON Schema's own way to title each value, a `oneOf` of `{"const",
+    "title"}` entries, is refused by D4 twice (no `oneOf`, no `title`), and
+    asks a Dart generator for a union;
+  * a `title` or `description` on the entry gives one string for the type,
+    not one per value, and D4 refuses both;
+  * an array in `enum`'s order, the form of some generators' `x-enumNames`,
+    goes wrong silently when a value is inserted, where an object keyed by
+    value is checked member by member;
+  * labels held in Go only would not reach the phone, whose models come
+    from the schema alone.
+* **Where the generator gets them.** `internal/schemagen` holds one table,
+  value to label, for `SessionKind`, and writes it as the entry's
+  `x-enum-labels`. The package `authcontract` gains no exported name for
+  the labels: R55 asks each exported name for the call site that needs it,
+  and no Go consumer shows a label (gobble writes the value; Magic's label
+  is the phone's, read from the schema). An unexported table in
+  `authcontract` would be read by nothing in its own package, and a
+  constant's comment is documentation, not data. The generator's table is
+  the smallest form that puts the labels in the schema, and the module's
+  tests hold it to the type's constants (0073-PLAN Phase 3).
+* **The entry is written though no struct refers to it,** as D4 already
+  gives every enum type the generator finds by `go/parser` an entry. A
+  consumer's generator reaches it by its name.
+* **`internal/schemacheck`** accepts `x-enum-labels` and ignores it for
+  validation, as it does `x-open-enum` and `x-nullable`.
+* **D7 is unchanged.** Its schema comparison already fails on an enum value
+  removed. A reworded label is not a break. A value with no label is
+  refused by the module's own test.
+
+### The vectors (D5)
+
+* `session-kind-chatgpt.json`, `session-kind-chatgpt-plan.json`,
+  `session-kind-grok.json` and `session-kind-kilo-device.json`, each the
+  bare JSON string of its value: each decodes into `SessionKind`,
+  re-encodes to the same bytes, and validates against the schema's
+  `SessionKind` entry.
+* `forward/session-kind-unknown.json`, the string `"a_future_session_kind"`:
+  it decodes with the value kept, re-encodes unchanged, and fails strict
+  validation, as D5's other unknown enum values do. As a bare string it
+  has no `_meta.example` entry, which D5's other forward vectors carry.
+
+### The root module's copy (0074)
+
+`auth.SessionKind` carries the same four strings, and this amendment changes
+nothing of its v1 shape (0074-MADR D5). Once the root requires the contract
+(0074-PLAN Phase 4), a test in `llmprovider/x/signin`, the package that
+imports both `auth` and `authcontract`, pins the two value sets equal:
+`TestSessionKindsMatchContract_0074`. It holds this amendment's table of
+values, pairs each `auth` constant with the `authcontract` constant of the
+same name, asserts each pair's strings equal the row's value, and asserts
+that the `SessionKind` constants `go/parser` finds in `llmprovider/auth`
+are exactly the table's. The contract's own test holds the contract's
+constants to the same table (0073-PLAN Phase 1b). This is how D3's table is
+held in acpext: a copy of the table in each test, so that a value added on
+one side fails until a record adds it on the other. 0074-PLAN Phase 4 adds
+the test, with a dated note.
+
+### Against D1, D2 and D4 as accepted
+
+No conflict was found. D1: the type is standard library only and adds no
+requirement. D2: it is one more open enum of named-string form, and no
+member, field name or JSON name of D2 changes. D4: its shape rules hold (no
+`oneOf`, no `title` or `description`, string enums with `x-open-enum`); its
+keyword list gains one annotation, which D4 itself provides for ("a change
+to this list is a change to D4").
+
+### Not verified
+
+* Whether Magic's Dart generator, which does not exist yet, renders
+  `x-enum-labels` as stated here. Magic's record decides its generator
+  (Q9); its 0246-PLAN P1 reads the tagged schema's keyword set and compares
+  it with D4's list, which now holds this annotation.

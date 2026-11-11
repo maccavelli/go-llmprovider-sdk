@@ -309,8 +309,11 @@ with the proposed `SessionKind`)"; the owner ruled the method in.)*
    bound, the redirect URI names the first registered port, and the
    sign-in needs an `InputCode`, else an error matching
    `ErrInvalidRequest`; for Grok it is an error matching `ErrUnsupported`,
-   before any request. *(Restored 2026-11-11 by the owner's reversal, later
-   the same day (MADR D4). That morning the step was struck through and
+   before any request. `StartDeviceOAuth` does not read it: a device
+   sign-in binds no listener in the first place, and runs unchanged with it
+   set. *(Added 2026-11-11, the owner's ruling on device sign-ins, MADR D4;
+   Phase 4's `TestStart_NoLoopbackDevice_0074` holds it.)* *(Restored
+   2026-11-11 by the owner's reversal, later the same day (MADR D4). That morning the step was struck through and
    followed by "Struck 2026-11-11 by the owner's ruling: `auth` exports no
    `NoLoopback` field.", with the stop below, kept as it was written. The
    reversal chose MADR D4's option (b), so the stop is lifted and the
@@ -410,6 +413,8 @@ reversal, which restores the two fields.)*
 | `TestStart_BrowserSteps_0074` | for OpenAI: `open_url` with `accepts`, `paste`, then `done` by the loopback; the same by a paste answer; `NoPaste` emits no `paste`. For Grok's `browser_loopback`: `open_url` with no `accepts` and no `paste` step, with `NoPaste` unset, `done` by the loopback, and an answer naming the `open_url`'s `Seq` is `ErrInvalidRequest` | the paste step emitted under `NoPaste`; `accepts` set from `NoPaste` alone, so Grok's step accepts a paste |
 | `TestStart_BadPaste_0074` | a paste with another state, one with no code, and a bare code where `url_only` is accepted each bring a new `paste` step whose `text` does not hold the paste; of three bad pastes the first two are re-asked and the third ends `failed` `invalid_request`; a URL with this state and `error=access_denied`, as the first paste, ends `failed` `denied` at once, with no re-ask | the paste echoed in `text`; a fourth paste allowed; the denial re-asked as a bad paste |
 | `TestStart_NoLoopback_0074` | with `NoLoopback`, OpenAI's browser sign-in binds no port and completes by a paste; Grok's browser is `ErrUnsupported`; `NoLoopback` with `NoPaste` is `ErrInvalidRequest`, each before any request | `NoLoopback` not passed to `auth`; Grok started |
+| `TestStart_NoLoopbackDevice_0074` *(added 2026-11-11, the owner's ruling on device sign-ins; MADR D4)* | with `NoLoopback` set, a device sign-in for OpenAI, Grok and Kilo against fakes gets no error from `Start`, emits the steps `TestStart_DeviceSteps_0074` asserts without the option (`show_code`, `waiting`, `done`; `Seq` 1, 2, 3), and completes by the poll; `auth.StartDeviceOAuth` called directly with `OAuthFlowOptions.NoLoopback` set starts and completes against the same fakes | `Start` refuses a device method when `NoLoopback` is set (`ErrUnsupported`, as for Grok's browser); `StartDeviceOAuth` refuses when `opts.NoLoopback` is set |
+| `TestSessionKindsMatchContract_0074` *(added 2026-11-11, the owner's ruling on session-kind labels; 0073-MADR's amendment of that day)* | in `llmprovider/x/signin`, which imports both `auth` and `authcontract`: a table copied from 0073-MADR's amendment, one row per value (`chatgpt`, `chatgpt_plan`, `grok`, `kilo_device`), pairs each `auth` constant with the `authcontract` constant of the same name, and each pair's strings equal the row's value; the `SessionKind` constants that `go/parser` finds in `llmprovider/auth`'s non-test files are exactly the table's `auth` column. The contract's side is held to the same table by 0073-PLAN's `TestSessionKindValues_0073` | `auth.SessionKiloDevice` respelled `"kilo-device"`; a fifth constant, `SessionPlanted SessionKind = "planted"`, added to `llmprovider/auth/tokenstore.go` |
 | `TestStart_Answers_0074` | an answer to another `Seq`, to each non-asking step (`open_url`, with and without `accepts`, `show_code`, `waiting`), a second answer to an answered step, or one after the end is `ErrInvalidRequest`; a browser sign-in's paste, sent for the `paste` step's `Seq`, completes it | `Answer` ignores `Seq`; an answer for the `open_url` step's `Seq` taken as the paste |
 | `TestStart_PasteIsSecret_0074` | every `paste` step has `Secret` true; an answer sent with `Secret` a non-nil false to a `paste` step is masked in the engine's log, because the engine sets `Secret` from its own step (0073-MADR D6 rule 5) | the engine keeps the caller's `Secret` |
 | `TestStart_Cancel_0074` | `Cancel` during `waiting` ends with `failed` `canceled`, and `Wait`'s error matches `context.Canceled`; no goroutine is left (checked with a goroutine count before and after) | `Cancel` does not stop the poll |
@@ -428,6 +433,22 @@ plant "`NoLoopback` not passed to `auth`" then names the route the owner
 chooses, not an exported field.)* *(Later 2026-11-11, by the owner's
 reversal: the test no longer waits, and its plant is the option not passed
 to the two exported fields, as first written.)*
+
+*(2026-11-11: two rows added by the owner's rulings of that day.
+`TestStart_NoLoopbackDevice_0074` holds MADR D4's rule that `NoLoopback`
+has no effect on a device sign-in, on which gobble-cli's remote device
+sign-ins rely (gobble-cli
+`0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` D3,
+and its PLAN's `TestStartSignInRemoteDevice`).
+`TestSessionKindsMatchContract_0074` pins `auth.SessionKind`'s four strings
+to the contract's session-kind type, which
+[0073-MADR-publish-an-auth-contract-module.md](0073-MADR-publish-an-auth-contract-module.md)'s
+"Amendment 2026-11-11: a session-kind type and its labels" adds before
+`authcontract/v0.1.0`. It changes nothing of `auth.SessionKind`, whose v1
+shape stays as Phase 2 builds it; it reads `auth`'s constants by
+`go/parser`, as 0073-MADR D4's generator reads the contract's, so a value
+added to either side fails one of the two tables until a record adds it to
+the other, as 0073-MADR D3's table is held in acpext.)*
 
 ### Phase 5: the wizard on the step engine, and `Driver` (D6)
 
