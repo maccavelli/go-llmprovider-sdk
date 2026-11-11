@@ -33,6 +33,8 @@ The standard library and `golang.org/x/term` (with its indirect
 `golang.org/x/sys`) only. Any other module needs a MADR in this repository
 first. Never import `github.com/maccavelli/mcplib` or the MCP go-sdk: this
 module exists so that callers can use the providers without either.
+The nested module `authcontract` (0073-MADR) requires nothing; the root
+module may require it at a tag.
 
 `go.mod` and `go.sum` change with the code that needs them: a requirement is
 added in the commit that adds its first import, and removed in the commit that

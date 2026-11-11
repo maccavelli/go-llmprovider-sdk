@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-11
 associated-madr: "0073-MADR-publish-an-auth-contract-module.md"
 decision-makers: repository owner
@@ -486,4 +486,38 @@ The facts this PLAN's ordering rests on, checked by `tools/claims.py`.
 
 ## Execution record
 
-Not started. The MADR is `proposed`.
+The owner committed this pair, its index rows and the pairs 0074 to 0077 as
+records only (`771b422`), and on 2026-11-11 accepted the MADR and approved
+this PLAN.
+
+### Phase 0 (2026-11-11)
+
+* Step 1: done by the owner's commit `771b422`.
+* Step 2: `python3 -B tools/records.py status RECORD STATUS --date
+  2026-11-11` set the MADR `accepted` and this PLAN `in-progress`, each with
+  its row in `docs/README.md`; each run printed "records: written;
+  records-check: 0 problem(s)". The MADR's Decision Outcome records the
+  acceptance and its date.
+* Step 3: the three supersession notes, with no decision rewritten:
+  * `0015-MADR-canonical-sdk-api-and-module-layout.md`, "Amendment
+    2026-11-11: a second module for a wire contract (0073)", appended after
+    its last amendment, quoting D2's bullet and adding the MADR's sentence;
+  * `docs/guides/api-standards.md` R1's second sentence, as step 3 words it,
+    kept on R1's three lines, so that no later line of the guide moves;
+  * `AGENTS.md` "Dependencies", step 3's sentence, after the paragraph's
+    last. The file's later lines move down two; this record's claims are
+    read at `773b84c`, so none of them moves.
+* Step 4: `python3 -B tools/gate.py --markdown` exited 0, started at load
+  9.3 after waiting for it to fall below 10: "gate: 11 of 11 passed"
+  (parity-check, records-check, tables-check, changelog-check,
+  markdownlint, links-check, disclosure-check, gate-selftest, deny-scan,
+  recordlint, claims). Each also exited 0: `tools/claims.py` on the MADR,
+  "44 of 44 pass", and on this PLAN, "11 of 11 pass"; `make records-check`,
+  "records-check: 162 records, 0 problem(s)"; `make links-check`,
+  "links-check: 0 problem(s), 1233 relative link(s) in 174 file(s)";
+  `tools/recordlint.py --changed`, "recordlint: 8 record(s); no
+  rule rose"; `tools/denyscan.py --changed`, "deny-scan: 0 hit(s) in 11
+  file(s)"; `tools/linkcheck.py`, "G-links: 0 problem(s)". This entry was
+  added after those runs, so the record checks were run again before
+  staging, each exiting 0. The changed files were then staged for the
+  owner to commit.

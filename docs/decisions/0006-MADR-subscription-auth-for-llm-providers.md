@@ -705,6 +705,15 @@ MADR already treats Codex (`app_EMoamEEZ73f0CkXaXp7hrann`):
   session, not the compile-time default, so a file minted by `grok login`
   round-trips.
 
+*Amendment 2026-11-11, by [0076-MADR-auth-error-kinds-and-doc-drift.md](0076-MADR-auth-error-kinds-and-doc-drift.md)
+D5.* The last bullet above (`:704-706`) reads: "Refresh and
+`import_vendor_cli` use the `oidc_client_id` stored on the session, not the
+compile-time default, so a file minted by `grok login` round-trips." It is
+true of the refresh, which uses the session's stored client; the import
+reads the default client's entry only, so an import of a Grok login under
+another client is not supported. Changing the import is out of scope: no
+caller has asked for it. The bullet is not rewritten.
+
 Rejected alternatives: configuration-only with no default (the official CLI
 never requires this of users); silently citing OpenCode as the source of
 truth (the source is grok-build's default); minting a distinct mcplib client

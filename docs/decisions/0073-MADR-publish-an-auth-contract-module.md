@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-11
 decision-makers: repository owner
 consulted: "magic-cli-remote's docs/reports/0245-REPORT-non-api-key-auth-across-magic-gobble-and-the-sdk.md (observed 2026-11-10, committed in that repository as 3e2f784b, unchanged at eefb7c25), its questions of §11, and the owner's answers of 2026-11-10 to them; the SDK audit behind it; this repository at 773b84c (v1.29.0 and one records commit); gobble-cli at d6c10a5 (= acpext/v0.4.0), re-checked on 2026-11-11 at origin/main 17d1605, at which every gobble-cli file this record cites is unchanged; its acpext module, its `0042-MADR-acpext-extension-contract-module.md`, and its proposed, untracked `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` and `0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md` and their PLANs, as revised on 2026-11-11; magic-cli-remote at 995d442b, re-checked on 2026-11-11 at origin/master eefb7c25, and its proposed, untracked `0246-MADR-take-provider-auth-types-from-the-sdk-auth-contract-in-one-cut-over.md` and `0247-MADR-replay-a-pasted-sign-in-callback-to-the-agents-loopback.md` and their PLANs; acp-go-sdk2 v1.35.0 read from the module cache, and v1.36.0 read from its repository on 2026-11-11; the owner's answers of 2026-11-10 to the Magic drafts' O1 and O3; the owner's rulings of 2026-11-11 on D3's constant names and on the Go floor"
@@ -251,6 +251,9 @@ of its own,
 [0077-MADR-go-1-27-4-for-go-2026-6859.md](0077-MADR-go-1-27-4-for-go-2026-6859.md),
 approved the same day. The record stays `proposed`: the owner has answered
 questions, not accepted it.
+
+The owner accepted this record on 2026-11-11, and approved its PLAN the
+same day.
 
 ### D1. The module
 

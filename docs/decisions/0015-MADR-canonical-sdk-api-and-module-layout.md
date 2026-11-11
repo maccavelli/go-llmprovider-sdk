@@ -1347,3 +1347,18 @@ Made by [0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md](00
   `Retryable`; `Unwrap`; `Code`; and D7's list of kinds.
 
 D7's text above is not rewritten.
+
+## Amendment 2026-11-11: a second module for a wire contract (0073)
+
+Made by [0073-MADR-publish-an-auth-contract-module.md](0073-MADR-publish-an-auth-contract-module.md) (D1, D8), on its acceptance.
+
+D2's bullet reads:
+
+> **No second module.** A module is split out only when a dependency
+> justifies one, and that takes its own MADR.
+
+A second module is also allowed for a wire contract that must version apart
+from the SDK and has no dependency of its own: `authcontract/` (0073-MADR
+D1, D8).
+
+D2's text above is not rewritten.

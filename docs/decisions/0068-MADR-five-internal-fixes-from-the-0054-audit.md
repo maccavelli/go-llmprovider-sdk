@@ -188,6 +188,12 @@ exported name and no change to a request.
   * a blocking lock in place of the 50 to 150 ms poll (0028-MADR A7):
     platform code for a small gain.
 
+*(2026-11-11, by [0076-MADR-auth-error-kinds-and-doc-drift.md](0076-MADR-auth-error-kinds-and-doc-drift.md)
+D5: D3 changed the wait to 60 s, and its PLAN did not carry it into
+`FileTokenStore.LockRefresh`'s doc, which says 40 s until
+[0076-PLAN-auth-error-kinds-and-doc-drift.md](0076-PLAN-auth-error-kinds-and-doc-drift.md)'s
+Phase 3 makes it say 60 s.)*
+
 ### D4. A command token remembers a failure, and runs early (F4)
 
 * **Failure memory:** a run that ends in an error matching `ErrAuthFailure`

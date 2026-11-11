@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-11
 associated-madr: "0076-MADR-auth-error-kinds-and-doc-drift.md"
 decision-makers: repository owner
@@ -322,4 +322,40 @@ checked by `tools/claims.py`.
 
 ## Execution record
 
-Not started. The MADR is `proposed`.
+The owner committed this pair, its index rows and the pairs 0073 to 0077 as
+records only (`771b422`), and on 2026-11-11 accepted the MADR and approved
+this PLAN.
+
+### Phase 0 (2026-11-11)
+
+* Step 1: done by the owner's commit `771b422`.
+* Step 2: `python3 -B tools/records.py status RECORD STATUS --date
+  2026-11-11` set the MADR `accepted` and this PLAN `in-progress`, each with
+  its row in `docs/README.md`; each run printed "records: written;
+  records-check: 0 problem(s)". The MADR's Decision Outcome records the
+  acceptance and its date.
+* Step 3: the two supersession notes, with no decision rewritten:
+  * `0006-MADR-subscription-auth-for-llm-providers.md` §"7. xAI OAuth client
+    id": a dated amendment after the section's bullets, quoting the last
+    bullet. The range `:704-706` still holds at `771b422`. Its wording is
+    the MADR's: true of the refresh; the import reads the default client's
+    entry only.
+  * `0068-MADR-five-internal-fixes-from-the-0054-audit.md` D3: a dated
+    note at the end of D3. The MADR words it "`LockRefresh`'s doc now says
+    60 s", which holds only after Phase 3 step 1; the note says the doc says
+    40 s until Phase 3 makes it say 60 s.
+* Step 4: `python3 -B tools/gate.py --markdown` exited 0, started at load
+  9.3 after waiting for it to fall below 10: "gate: 11 of 11 passed"
+  (parity-check, records-check, tables-check, changelog-check,
+  markdownlint, links-check, disclosure-check, gate-selftest, deny-scan,
+  recordlint, claims). Each also exited 0: `tools/claims.py` on the MADR,
+  "48 of 48 pass", on this PLAN, "7 of 7 pass", and on 0068-MADR, "25 of
+  25 pass" (0006-MADR has no claims marker); `make records-check`,
+  "records-check: 162 records, 0 problem(s)"; `make links-check`,
+  "links-check: 0 problem(s), 1233 relative link(s) in 174 file(s)";
+  `tools/recordlint.py --changed`, "recordlint: 8 record(s); no
+  rule rose"; `tools/denyscan.py --changed`, "deny-scan: 0 hit(s) in 11
+  file(s)"; `tools/linkcheck.py`, "G-links: 0 problem(s)". This entry was
+  added after those runs, so the record checks were run again before
+  staging, each exiting 0. The changed files were then staged for the
+  owner to commit.

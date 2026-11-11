@@ -25,8 +25,8 @@ tool that holds a rule, where one does. For how the code is laid out, read
 ## Packages
 
 - **R1. One module.** Everything is in `github.com/maccavelli/go-llmprovider-sdk`.
-  A second module needs its own MADR and a dependency that justifies it.
-  (0015 D2)
+  A second module needs its own MADR and a dependency, or a wire contract that must version apart from the SDK, that justifies it.
+  (0015 D2, and its amendment for 0073)
 - **R2. A package holds one concern**, and imports only what the table allows.
   Only `wizard` may leave the standard library, and then only for
   `golang.org/x/term`. (0015 D2, D13; the table's `internal/wire` rows, 0026

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-11
 decision-makers: repository owner
 consulted: "magic-cli-remote's docs/reports/0245-REPORT-non-api-key-auth-across-magic-gobble-and-the-sdk.md (observed 2026-11-10, committed in that repository as 3e2f784b), its findings F3, F20 and F62 and ledger S7 and S11, and the owner's decisions of 2026-11-10; this repository at 773b84c; re-checked 2026-11-11 against gobble-cli at 17d1605 and its proposed, untracked 0051 and 0052 pairs; the owner's rulings of 2026-11-11 on the wizard's client option and on LockRefresh's two context kinds"
@@ -202,6 +202,9 @@ On 2026-11-11 the owner ruled on this record's two open points:
 README is corrected instead (D4); and `LockRefresh`'s doc names both of its
 `ctx` kinds now, their unifying left to a later record (D5). The record
 stays `proposed`: the owner has answered questions, not accepted it.
+
+The owner accepted this record on 2026-11-11, and approved its PLAN the
+same day.
 
 ### D1. Revocation returns `llmprovider.ErrUnsupported`
 
