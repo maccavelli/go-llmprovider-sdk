@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "seq": 1,
+  "kind": "form",
+  "secret": true,
+  "text": "Sign in to the gateway.",
+  "fields": [
+    {
+      "key": "region",
+      "label": "Region",
+      "type": "select",
+      "options": [
+        "us",
+        "eu"
+      ],
+      "required": true,
+      "default": "us"
+    },
+    {
+      "key": "api_token",
+      "label": "API token",
+      "type": "secret",
+      "required": true
+    },
+    {
+      "key": "workspace",
+      "label": "Workspace",
+      "type": "text"
+    }
+  ]
+}

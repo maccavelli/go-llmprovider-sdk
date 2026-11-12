@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "host_login",
+  "kind": "host_only",
+  "label": "Sign in on the host",
+  "completion": "host_command",
+  "yields": "read_through",
+  "client_identity": "vendor_borrowed",
+  "refreshable": false,
+  "revocable": false,
+  "command": "example-cli auth login"
+}

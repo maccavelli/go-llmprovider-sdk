@@ -1,0 +1,5 @@
+{
+  "kind": "auth",
+  "message": "The credential was refused.",
+  "retryable": false
+}

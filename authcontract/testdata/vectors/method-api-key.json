@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "api_key",
+  "kind": "api_key",
+  "label": "API key",
+  "detail": "A key from the provider's console.",
+  "completion": "value",
+  "yields": "api_key",
+  "client_identity": "none",
+  "refreshable": false,
+  "revocable": false
+}

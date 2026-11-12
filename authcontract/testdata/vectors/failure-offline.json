@@ -1,0 +1,5 @@
+{
+  "kind": "offline",
+  "message": "There is no network.",
+  "retryable": true
+}

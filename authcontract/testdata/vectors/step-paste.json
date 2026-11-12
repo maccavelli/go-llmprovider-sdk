@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "seq": 3,
+  "kind": "paste",
+  "accepts": "url_or_code",
+  "secret": true,
+  "text": "Paste the URL the browser was sent to, or its code."
+}

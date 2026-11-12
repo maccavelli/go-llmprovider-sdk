@@ -45,6 +45,8 @@ GATES = {
     "disclosure-check": "scripts/check_disclosure.py",
 }
 GENERATE_LINE = re.compile(r"^//go:generate .*$", re.M)
+# A //go:generate line's -output flag and its file, in either form.
+OUTPUT_FLAG = re.compile(r" -output(?:=| +)\S+")
 
 
 def copy_tree(dest: Path, source: Path = ROOT) -> None:
@@ -216,13 +218,24 @@ class GateSelfTest(unittest.TestCase):
 
     def test_generate_check_no_output(self) -> None:
         """Directives that lost their -output check nothing, which fails. Every
-        package that generates code loses it: ownerperm and, since 0026-MADR
-        F13, filelock."""
-        for pkg in ("ownerperm", "filelock"):
-            doc = self.tree / f"llmprovider/internal/{pkg}/doc.go"
-            line = GENERATE_LINE.search(doc.read_text(encoding="utf-8"))
-            self.assertIsNotNone(line, f"no //go:generate line in {pkg}/doc.go")
-            replace_once(doc, line.group(0), line.group(0).replace(" -output zsyscall_windows.go", ""))
+        directive generate-check finds loses it, in either form, so a package
+        that generates code is covered without naming it here: ownerperm,
+        filelock (0026-MADR F13) and authcontract's schema (0073-PLAN Phase 3,
+        the owner's decision of 2026-11-12)."""
+        listed = subprocess.run(["git", "ls-files", "-co", "--exclude-standard", "*.go"], cwd=self.tree,
+                                capture_output=True, text=True, check=True).stdout.split()
+        stripped = []
+        for rel in listed:
+            path = self.tree / rel
+            text = path.read_text(encoding="utf-8")
+            for line in GENERATE_LINE.findall(text):
+                bare = OUTPUT_FLAG.sub("", line)
+                if bare != line:
+                    replace_once(path, line, bare)
+                    stripped.append(rel)
+        for want in ("llmprovider/internal/ownerperm/doc.go", "llmprovider/internal/filelock/doc.go",
+                     "authcontract/doc.go"):
+            self.assertIn(want, stripped, f"no //go:generate line with -output in {want}")
         self.assertFails("generate-check", "0 generated files")
 
     def test_parity_check_placeholder_cell(self) -> None:
@@ -564,9 +577,10 @@ def tag_tree(tree: Path, tag: str) -> None:
     git("tag", tag, commit)
 
 
-# A schema as scripts/check_contract.py reads one, standing in until the
-# generator of 0073-PLAN Phase 3 writes the real one: the object Step with its
-# url member and the open enum Paste.
+# A schema as scripts/check_contract.py reads one, written by hand: the object
+# Step with its url member and the open enum Paste. The cases that use it came
+# before the generator of 0073-PLAN Phase 3; the cases named `_generated` run
+# the generator instead.
 PLANT_SCHEMA = {
     "$defs": {
         "Step": {"type": "object",
@@ -667,6 +681,45 @@ class ContractCheckTest(unittest.TestCase):
         self.write_schema(shorter)
         self.assertReports(self.contract(), f"schema, against {self.TAG}: enum value code removed from Paste")
 
+    SCHEMA = "authcontract/authcontract.schema.json"
+
+    def regenerate(self) -> str:
+        """Run the module's //go:generate line in the copy, as `go generate`
+        does, and return the schema it wrote."""
+        proc = subprocess.run(["go", "-C", "authcontract", "generate", "./..."], cwd=self.tree, capture_output=True,
+                              text=True, check=False, env={**os.environ, "GOWORK": "off"})
+        self.assertEqual(proc.returncode, 0, f"go generate exit {proc.returncode}:\n{proc.stdout}{proc.stderr}")
+        return (self.tree / self.SCHEMA).read_text(encoding="utf-8")
+
+    def tag_generated(self) -> None:
+        """Tag the copy holding the schema the generator writes, unchanged by
+        a run of it (0073-PLAN Phase 3)."""
+        committed = (self.tree / self.SCHEMA).read_text(encoding="utf-8")
+        self.assertEqual(self.regenerate(), committed, "the copy's schema is not what go generate writes")
+        tag_tree(self.tree, self.TAG)
+
+    def test_schema_property_removed_generated(self) -> None:
+        """Plant 5 by the generator: Step.URL's JSON tag becomes uri after the
+        tag, and go generate rewrites the schema. The schema comparison names
+        url; apidiff, which does not read a tag, names nothing."""
+        self.tag_generated()
+        replace_once(self.tree / "authcontract/step.go", '`json:"url,omitempty"`', '`json:"uri,omitempty"`')
+        props = json.loads(self.regenerate())["$defs"]["Step"]["properties"]
+        self.assertIn("uri", props, "go generate did not write the renamed member")
+        self.assertNotIn("url", props, "go generate kept the old member")
+        out = self.contract()
+        self.assertReports(out, f"schema, against {self.TAG}: property url removed from Step")
+        self.assertNotIn("apidiff, against", out, f"apidiff reported a changed struct tag:\n{out}")
+
+    def test_schema_enum_value_removed_generated(self) -> None:
+        """Plant 6 by the generator: PasteCode deleted after the tag, and go
+        generate rewrites the schema without the value code."""
+        self.tag_generated()
+        replace_once(self.tree / "authcontract/method.go", '\t// PasteCode is a code only.\n\tPasteCode Paste = "code"\n', "")
+        enum = json.loads(self.regenerate())["$defs"]["Paste"]["enum"]
+        self.assertNotIn("code", enum, "go generate kept the deleted constant's value")
+        self.assertReports(self.contract(), f"schema, against {self.TAG}: enum value code removed from Paste")
+
     def test_schema_other_breaks(self) -> None:
         """The rest of D7's refusals: an entry removed, a type changed, a
         property newly required."""
@@ -682,16 +735,23 @@ class ContractCheckTest(unittest.TestCase):
                            f"schema, against {self.TAG}: property url newly required in Step")
 
     def test_schema_additions_are_allowed(self) -> None:
-        """A new entry, a new optional property and a new enum value break
-        nothing: the comparison passes."""
-        self.write_schema(PLANT_SCHEMA)
-        tag_tree(self.tree, self.TAG)
-        grown = json.loads(json.dumps(PLANT_SCHEMA))
-        grown["$defs"]["Extra"] = {"type": "object", "properties": {}, "required": []}
-        grown["$defs"]["Step"]["properties"]["more"] = {"type": "string"}
-        grown["$defs"]["Paste"]["enum"].append("a_new_value")
-        self.write_schema(grown)
-        self.contract(0)
+        """Additions break nothing, end to end on the generated schema: after
+        the tag, an enum constant and a new string type with one constant are
+        added, go generate rewrites the schema, and contract-check passes. The
+        additions no Go change can make while the module's own tests pass, an
+        optional property and an object entry, are SchemaBreaksTest's
+        (0073-PLAN Phase 3, the owner's decision of 2026-11-12)."""
+        self.tag_generated()
+        replace_once(self.tree / "authcontract/step.go", '\tStepFailed StepKind = "failed"\n',
+                     '\tStepFailed StepKind = "failed"\n\t// StepPlanted is planted.\n\tStepPlanted StepKind = "planted"\n')
+        (self.tree / "authcontract/planted.go").write_text(
+            "package authcontract\n\n// Planted is planted. It is a value, safe for concurrent use while no\n"
+            "// goroutine changes it.\ntype Planted string\n\n// PlantedOne is planted.\n"
+            'const PlantedOne Planted = "one"\n', encoding="utf-8")
+        defs = json.loads(self.regenerate())["$defs"]
+        self.assertIn("planted", defs["StepKind"]["enum"], "go generate did not write the new constant")
+        self.assertEqual(defs.get("Planted", {}).get("enum"), ["one"], "go generate did not write the new type")
+        self.assertReports(self.contract(0), f"authcontract, against {self.TAG}, 0 problem(s)")
 
     def test_coverage_below_the_floor(self) -> None:
         """Every test file but one deleted: the package is under 80 %."""
@@ -703,6 +763,26 @@ class ContractCheckTest(unittest.TestCase):
     def test_no_tag_passes_and_says_so(self) -> None:
         """Before the first authcontract/v* tag there is nothing to compare."""
         self.assertReports(self.contract(0), "no authcontract/v* tag yet, so nothing to compare")
+
+
+class SchemaBreaksTest(unittest.TestCase):
+    """check_contract.schema_breaks, called directly, for the additions no
+    Go change can make while the module's own tests pass (0073-PLAN Phase 3,
+    the owner's decision of 2026-11-12)."""
+
+    def test_schema_breaks_ignore_additions(self) -> None:
+        """A new entry, a new optional property and a new enum value, on
+        PLANT_SCHEMA: no break."""
+        sys.path.insert(0, str(ROOT / "scripts"))
+        try:
+            from check_contract import schema_breaks
+        finally:
+            sys.path.remove(str(ROOT / "scripts"))
+        grown = json.loads(json.dumps(PLANT_SCHEMA))
+        grown["$defs"]["Extra"] = {"type": "object", "properties": {}, "required": []}
+        grown["$defs"]["Step"]["properties"]["more"] = {"type": "string"}
+        grown["$defs"]["Paste"]["enum"].append("a_new_value")
+        self.assertEqual(schema_breaks(PLANT_SCHEMA, grown), [], "an addition was reported as a break")
 
 
 SELFTEST_STEP = re.compile(r"^\s*run: make .*\bgate-selftest\b", re.M)

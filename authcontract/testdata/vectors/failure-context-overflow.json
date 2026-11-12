@@ -1,0 +1,5 @@
+{
+  "kind": "context_overflow",
+  "message": "The input is longer than the model's window.",
+  "retryable": false
+}

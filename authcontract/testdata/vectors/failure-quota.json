@@ -1,0 +1,5 @@
+{
+  "kind": "quota",
+  "message": "The account's quota is used up.",
+  "retryable": false
+}

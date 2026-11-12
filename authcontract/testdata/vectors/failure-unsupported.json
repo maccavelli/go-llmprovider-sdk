@@ -1,0 +1,5 @@
+{
+  "kind": "unsupported",
+  "message": "The provider does not support this.",
+  "retryable": false
+}

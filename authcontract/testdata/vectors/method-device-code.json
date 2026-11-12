@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "kilo_device",
+  "kind": "device_code",
+  "label": "Kilo device sign-in",
+  "completion": "device",
+  "yields": "device_key",
+  "client_identity": "app_registered",
+  "refreshable": false,
+  "revocable": true,
+  "slot": "kilo"
+}

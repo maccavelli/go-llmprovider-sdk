@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "seq": 1,
+  "kind": "open_url",
+  "url": "https://auth.example.com/authorize?client_id=app",
+  "text": "Open this page to sign in."
+}

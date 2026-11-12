@@ -1,0 +1,5 @@
+{
+  "kind": "invalid_request",
+  "message": "The service refused the request as malformed.",
+  "retryable": false
+}

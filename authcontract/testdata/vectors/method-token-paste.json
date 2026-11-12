@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "setup_token",
+  "kind": "token_paste",
+  "label": "Setup token",
+  "detail": "A token the provider's own CLI issues, pasted here.",
+  "completion": "value",
+  "yields": "access_only",
+  "client_identity": "vendor_borrowed",
+  "refreshable": false,
+  "revocable": false
+}

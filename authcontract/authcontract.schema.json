@@ -1,0 +1,428 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/maccavelli/go-llmprovider-sdk/authcontract/schema/v1",
+  "$defs": {
+    "Answer": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "secret": {
+          "type": "boolean",
+          "x-nullable": true
+        },
+        "paste": {
+          "type": "string"
+        },
+        "confirm": {
+          "type": "boolean",
+          "x-nullable": true
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "schema_version",
+        "seq"
+      ],
+      "additionalProperties": true
+    },
+    "ErrorKind": {
+      "type": "string",
+      "enum": [
+        "canceled",
+        "timeout",
+        "denied",
+        "expired",
+        "auth",
+        "quota",
+        "rate_limited",
+        "not_permitted",
+        "workspace",
+        "context_overflow",
+        "empty_answer",
+        "incomplete",
+        "invalid_request",
+        "invalid_provider",
+        "offline",
+        "unavailable",
+        "unsupported",
+        "other"
+      ],
+      "x-open-enum": true
+    },
+    "Failure": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ErrorKind"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "additionalProperties": true
+    },
+    "Feature": {
+      "type": "string",
+      "enum": [
+        "consent",
+        "form",
+        "paste"
+      ],
+      "x-open-enum": true
+    },
+    "Kind": {
+      "type": "string",
+      "enum": [
+        "api_key",
+        "token_paste",
+        "device_code",
+        "browser",
+        "oauth",
+        "vendor_import",
+        "host_only"
+      ],
+      "x-open-enum": true
+    },
+    "Completion": {
+      "type": "string",
+      "enum": [
+        "value",
+        "device",
+        "browser_paste",
+        "browser_loopback",
+        "at_start",
+        "local_file",
+        "host_command"
+      ],
+      "x-open-enum": true
+    },
+    "Paste": {
+      "type": "string",
+      "enum": [
+        "",
+        "url_or_code",
+        "url_only",
+        "code"
+      ],
+      "x-open-enum": true
+    },
+    "Yields": {
+      "type": "string",
+      "enum": [
+        "api_key",
+        "oauth_session",
+        "access_only",
+        "device_key",
+        "read_through",
+        "unknown"
+      ],
+      "x-open-enum": true
+    },
+    "ClientIdentity": {
+      "type": "string",
+      "enum": [
+        "none",
+        "vendor_borrowed",
+        "app_registered",
+        "unknown"
+      ],
+      "x-open-enum": true
+    },
+    "LinkRel": {
+      "type": "string",
+      "enum": [
+        "terms",
+        "usage",
+        "notice"
+      ],
+      "x-open-enum": true
+    },
+    "FieldType": {
+      "type": "string",
+      "enum": [
+        "text",
+        "secret",
+        "select"
+      ],
+      "x-open-enum": true
+    },
+    "Method": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "completion": {
+          "$ref": "#/$defs/Completion"
+        },
+        "paste": {
+          "$ref": "#/$defs/Paste"
+        },
+        "first_paste": {
+          "$ref": "#/$defs/Paste"
+        },
+        "yields": {
+          "$ref": "#/$defs/Yields"
+        },
+        "client_identity": {
+          "$ref": "#/$defs/ClientIdentity"
+        },
+        "refreshable": {
+          "type": "boolean"
+        },
+        "revocable": {
+          "type": "boolean"
+        },
+        "slot": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Feature"
+          }
+        },
+        "consents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Consent"
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Link"
+          }
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "kind",
+        "label",
+        "completion",
+        "yields",
+        "client_identity",
+        "refreshable",
+        "revocable"
+      ],
+      "additionalProperties": true
+    },
+    "Consent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Link"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "required"
+      ],
+      "additionalProperties": true
+    },
+    "Link": {
+      "type": "object",
+      "properties": {
+        "rel": {
+          "$ref": "#/$defs/LinkRel"
+        },
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rel",
+        "url"
+      ],
+      "additionalProperties": true
+    },
+    "Field": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/FieldType"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "type"
+      ],
+      "additionalProperties": true
+    },
+    "SessionKind": {
+      "type": "string",
+      "enum": [
+        "chatgpt",
+        "chatgpt_plan",
+        "grok",
+        "kilo_device"
+      ],
+      "x-open-enum": true,
+      "x-enum-labels": {
+        "chatgpt": "ChatGPT",
+        "chatgpt_plan": "ChatGPT plan",
+        "grok": "Grok",
+        "kilo_device": "Kilo"
+      }
+    },
+    "StepKind": {
+      "type": "string",
+      "enum": [
+        "open_url",
+        "show_code",
+        "paste",
+        "confirm",
+        "form",
+        "waiting",
+        "done",
+        "failed"
+      ],
+      "x-open-enum": true
+    },
+    "Step": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/StepKind"
+        },
+        "url": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "accepts": {
+          "$ref": "#/$defs/Paste"
+        },
+        "secret": {
+          "type": "boolean"
+        },
+        "confirm_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "default": {
+          "type": "boolean",
+          "x-nullable": true
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Link"
+          }
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Field"
+          }
+        },
+        "yields": {
+          "$ref": "#/$defs/Yields"
+        },
+        "error": {
+          "$ref": "#/$defs/Failure",
+          "x-nullable": true
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "schema_version",
+        "seq",
+        "kind"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

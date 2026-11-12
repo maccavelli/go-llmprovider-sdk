@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "seq": 2,
+  "kind": "open_url",
+  "url": "https://auth.example.com/authorize?client_id=app\u0026state=s1",
+  "expires_at": "2026-11-12T10:15:00Z",
+  "accepts": "url_or_code",
+  "text": "Open this page to sign in, then paste where it sent you."
+}

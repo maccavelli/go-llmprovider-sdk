@@ -1,0 +1,5 @@
+{
+  "kind": "not_permitted",
+  "message": "The account may not do this.",
+  "retryable": false
+}

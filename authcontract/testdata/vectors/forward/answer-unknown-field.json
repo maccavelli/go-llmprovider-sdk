@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "seq": 3,
+  "secret": true,
+  "paste": "c-EXAMPLE-0073",
+  "a_future_member": "a member this version does not know",
+  "_meta": {
+    "example": "a member this version does not know, which a reader drops"
+  }
+}

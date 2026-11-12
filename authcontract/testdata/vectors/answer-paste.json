@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "seq": 3,
+  "secret": true,
+  "paste": "http://localhost:1455/auth/callback?code=c-EXAMPLE-0073\u0026state=s1"
+}

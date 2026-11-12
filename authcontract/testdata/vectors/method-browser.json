@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "chatgpt_plan",
+  "kind": "browser",
+  "label": "ChatGPT plan",
+  "detail": "Signs in with your ChatGPT plan, under this application's own client.",
+  "completion": "browser_paste",
+  "paste": "url_or_code",
+  "first_paste": "url_only",
+  "yields": "oauth_session",
+  "client_identity": "app_registered",
+  "refreshable": true,
+  "revocable": true,
+  "slot": "chatgpt",
+  "features": [
+    "consent",
+    "paste"
+  ],
+  "consents": [
+    {
+      "id": "chatgpt_plan.background_use",
+      "required": true,
+      "text": "Allow this application to use your plan while you are away.",
+      "links": [
+        {
+          "rel": "usage",
+          "url": "https://example.com/usage",
+          "title": "Usage"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "rel": "terms",
+      "url": "https://example.com/terms",
+      "title": "Terms of use"
+    }
+  ]
+}

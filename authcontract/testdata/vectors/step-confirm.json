@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "seq": 1,
+  "kind": "confirm",
+  "confirm_id": "chatgpt_plan.background_use",
+  "text": "Allow this application to use your plan while you are away?",
+  "default": false,
+  "links": [
+    {
+      "rel": "usage",
+      "url": "https://example.com/usage",
+      "title": "Usage"
+    }
+  ]
+}

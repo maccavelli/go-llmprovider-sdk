@@ -43,6 +43,8 @@
 //  6. A break needs a record, a new major version and a new `SchemaVersion`.
 package authcontract
 
+//go:generate go run ./internal/schemagen -output authcontract.schema.json
+
 // SchemaVersion counts the incompatible changes of this module's JSON. The
 // evolution rules forbid one within a major version, so it is 1 for v0 and v1.
 const SchemaVersion = 1

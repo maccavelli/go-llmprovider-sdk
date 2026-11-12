@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "seq": 4,
+  "kind": "done",
+  "yields": "oauth_session"
+}

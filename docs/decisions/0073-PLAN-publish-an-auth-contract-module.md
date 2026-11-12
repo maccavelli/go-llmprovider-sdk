@@ -1066,3 +1066,362 @@ file under `llmprovider/` or `wizard/` changed, and no Go file changed.
   `AGENTS.md` change; no root requirement on the module (0074); no tag in the
   tree (the tags of the plants exist only in scratch copies); no commit. The
   files are staged for the coordinator to commit.
+
+### Phase 3 (2026-11-12)
+
+The coordinator committed Phase 2 as `06d1315`, on the owner's authorization, after the full gate passed 30 of 30.
+Base: `main` at `06d1315`, four ahead of `origin/main`, tree clean; no
+`authcontract/v*` tag. No claim of the MADR was found false (`tools/claims.py`,
+"44 of 44 pass"); no file under `llmprovider/` or `wizard/` changed; the
+module requires nothing. Two existing self-tests needed a change Phase 3 did
+not name: the deviation below. Phase 3 stopped before staging, and resumed
+once the owner chose the resolutions the same day.
+
+* Step 1, `authcontract/internal/schemagen/main.go`, standard library only.
+  `main` calls `run(args, stdout)`, which parses `-dir` (the package's
+  directory, default `.`) and `-output` (standard output when absent). It
+  reads the non-test `.go` files of the package in name order with
+  `go/parser`: each exported struct type, each exported string type and each
+  typed string constant, in source order. Struct types are read by `reflect`
+  from a list in the generator; a struct the source declares and the list
+  lacks, or the reverse, is an error, as is a constant `go/parser` cannot
+  type (an implicit repetition of the line above, or a conversion). Each
+  struct is an object entry: properties in field order, `required` the
+  fields without `omitempty` or `omitzero`, `"additionalProperties": true`; a
+  pointer field's property carries `"x-nullable": true`. `time.Time` is
+  `{"type": "string", "format": "date-time"}`, `[]T` an array whose `items`
+  is `T`'s schema, `map[string]string` an object whose
+  `additionalProperties` is `{"type": "string"}`, and `_meta`'s
+  `map[string]json.RawMessage` an object whose `additionalProperties` is `{}`,
+  any value. Each string type is `{"type": "string", "enum": [...],
+  "x-open-enum": true}`, and `SessionKind`'s carries `x-enum-labels` from the
+  generator's one table, in the enum's order. `$schema` is
+  `https://json-schema.org/draft/2020-12/schema`; `$id` is
+  `https://github.com/maccavelli/go-llmprovider-sdk/authcontract/schema/v1`,
+  its last segment `v` and `SchemaVersion`. Two-space indent, trailing
+  newline.
+* Step 2, `authcontract/doc.go`: `//go:generate go run ./internal/schemagen
+  -output authcontract.schema.json`, after the package clause.
+* Step 3, `authcontract/authcontract.schema.json`, by `go generate ./...`,
+  8492 bytes. `$defs`, in source order: `Answer`, `ErrorKind`, `Failure`,
+  `Feature`, `Kind`, `Completion`, `Paste`, `Yields`, `ClientIdentity`,
+  `LinkRel`, `FieldType`, `Method`, `Consent`, `Link`, `Field`,
+  `SessionKind`, `StepKind`, `Step`: seven objects and eleven enums. Each
+  enum carries `x-open-enum`; `x-nullable` is on `Step.default`,
+  `Step.error`, `Answer.secret` and `Answer.confirm` and nowhere else;
+  `x-enum-labels` is on `SessionKind` alone, `chatgpt` "ChatGPT",
+  `chatgpt_plan` "ChatGPT plan", `grok` "Grok", `kilo_device` "Kilo". No
+  struct refers to `SessionKind`. The keywords used are D4's list exactly.
+* Step 4, `authcontract/internal/schemacheck/schemacheck.go`: `Parse` and
+  `(*Schema).Validate(def, instance)`. `$schema`, `$id` and `$defs` are
+  accepted at the root only; `x-open-enum`, `x-nullable` and `x-enum-labels`
+  anywhere, ignored for validation; any other keyword is an error naming it
+  and its place. It validates `type` (the seven JSON types), `properties`,
+  `required`, `enum` (by value), `$ref` (`#/$defs/Name` only), `items`,
+  `additionalProperties` (a boolean or a schema) and `format` (`date-time`
+  only, by `time.Parse` with RFC 3339). An error names the keyword and the
+  value's place as a JSON pointer.
+* Step 5, `authcontract/testdata/vectors/`, 43 files, written with Go's
+  encoder (`json.MarshalIndent`, two spaces) by a scratch program that is not
+  committed: `method-` `api-key`, `token-paste`, `device-code`, `browser`
+  (with `paste`, `first_paste`, `slot`, `features`, a consent with a link,
+  and a link), `oauth-at-start`, `vendor-import` and `host-only-command`;
+  `step-` `open-url` (no `accepts`), `open-url-paste` (`accepts`, an
+  `expires_at`, and an `&` in its URL, written `&` as Go writes it),
+  `show-code`, `paste` (`secret` true, no `expires_at`), `confirm` (a
+  `default` of false), `form` (three fields, one secret, so `secret` true),
+  `waiting`, `done` and `failed`; `answer-paste`, `answer-paste-unknown-secret`,
+  `answer-confirm`, `answer-confirm-false`, `answer-form`; a `failure-` vector
+  for each of D3's eighteen kinds (D5 asks one per failure kind; step 5's
+  `denied`, `expired`, `offline` and `other` are among them); and the four
+  `session-kind-` vectors, bare strings. `forward/`, by hand:
+  `step-unknown-kind.json`, `method-unknown-completion.json` and
+  `answer-unknown-field.json`, each with a `_meta.example` entry, and
+  `session-kind-unknown.json`, `"a_future_session_kind"`, with none.
+  `scripts/check_fixtures.py` on the 47 files: "0 hit(s), 0 problem(s)".
+* Step 6, the tests: `TestVectorsRoundTrip_0073`, `TestVectorsValidate_0073`
+  and `TestForwardVectors_0073` (`authcontract/vectors_0073_test.go`);
+  `TestSchemagenMatchesCommitted_0073` (`internal/schemagen/main_test.go`);
+  `TestSchemaKeywords_0073`, `TestSchemaMarksPointers_0073`,
+  `TestSchemaIDIsSchemaVersion_0073`, `TestSchemaListsEveryConstant_0073`
+  and `TestSchemaSessionKindLabels_0073`
+  (`internal/schemagen/schema_0073_test.go`);
+  `TestSchemacheckRefusesUnknownKeywords_0073` and
+  `TestSchemacheckAcceptsAnnotations_0073`
+  (`internal/schemacheck/schemacheck_test.go`). Coverage: `authcontract`
+  95.9 %, `internal/schemacheck` 99.4 %, `internal/schemagen` 87.9 %.
+* Choices the steps left open:
+  1. The five schema tests live in `internal/schemagen`, and each runs twice,
+     as the subtests `committed` (the file) and `generated` (`run` into a
+     temporary file). A plant in the generator then fails its own test under
+     the phase's command form, with no regeneration, and a plant "without
+     regenerating" fails on the committed file.
+  2. Two tests beyond the table, for the error paths that hold the two
+     internal packages over 80 %, each planted:
+     `TestSchemacheckRules_0073` (each keyword's rule, and each malformed
+     schema) and `TestSchemagenRefuses_0073` (each form the generator
+     refuses).
+  3. "The package's coverage is 80 % or more" is held by `contract-check`'s
+     coverage line, not inside `TestSchemagenMatchesCommitted_0073`. A
+     `TestMain` that read `testing.Coverage()` after the run printed 59.6 %
+     where `go test -cover` printed 87.9 % (its documentation: "not a
+     replacement for the reports generated by 'go test -cover'"), so it was
+     dropped.
+  4. `TestForwardVectors_0073` holds a table of the four forward vectors (an
+     unknown enum value, or an unknown member) and requires `forward/` to
+     hold exactly them; each re-encodes to the vector less its unknown
+     member, and each refused one is refused on `enum`.
+* **The plants.** Each by `python3 -B tools/plant.py SPEC.json` on a scratch
+  clone, each spec's command `["go", "-C", "authcontract", "test",
+  "-count=1", "-run", "^<the test>$", "./..."]`; every spec exit 0, "plant:
+  all N plant(s) caught", run again on the final tree with the same result:
+  * `TestVectorsRoundTrip_0073`: a vector's `seq` written as a string,
+    `vectors_0073_test.go:107: step-waiting.json: decode into
+    *authcontract.Step: json: cannot unmarshal string into Go struct field
+    Step.seq of type int`; `Step.Code`'s `omitempty` removed,
+    `vectors_0073_test.go:116: step-done.json: re-encoded
+    {"schema_version":1,"seq":4,"kind":"done","code":"","yields":"oauth_session"}`
+    and the same for each step vector without a code; `Answer.Confirm`
+    declared `bool`, "FAIL github.com/maccavelli/go-llmprovider-sdk/authcontract
+    [build failed]", on a scratch copy of the module `./answer.go:53:18:
+    invalid operation: a.Confirm != nil (mismatched types bool and untyped
+    nil)`. Since that plant fails the build, one more on the same test:
+    `Answer.Confirm`'s tag `json:"-"`, `vectors_0073_test.go:116:
+    answer-confirm-false.json: re-encoded
+    {"schema_version":1,"seq":1,"secret":false}` and
+    `vectors_0073_test.go:124: answer-confirm-false.json: Confirm decoded as
+    <nil>, want a non-nil false`.
+  * `TestVectorsValidate_0073`: `"kind": "open_ur"`,
+    `vectors_0073_test.go:140: step-open-url.json: schemacheck: #/kind: enum:
+    "open_ur" is not listed`; `expires_at` added to `Step`'s `required` in
+    the schema, `vectors_0073_test.go:140: step-paste.json: schemacheck: #:
+    required: expires_at is missing`, and the same for each step vector
+    without one.
+  * `TestForwardVectors_0073`: `step-unknown-kind.json`'s kind made
+    `waiting`, `vectors_0073_test.go:214: step-unknown-kind.json: passed
+    strict validation; its unknown enum value must fail it`; `Answer`'s
+    `additionalProperties` made false in the schema,
+    `vectors_0073_test.go:212: answer-unknown-field.json: schemacheck: #:
+    additionalProperties: a_future_member is not allowed; a vector whose only
+    novelty is an unknown member validates`; `session-kind-unknown.json`'s
+    value made `grok`, `vectors_0073_test.go:214: session-kind-unknown.json:
+    passed strict validation; its unknown enum value must fail it`.
+  * `TestSchemaKeywords_0073`: the generator emits `oneOf` for `Step`,
+    `--- FAIL: TestSchemaKeywords_0073/generated` and
+    `schema_0073_test.go:109: #/$defs/Step: oneOf, which D4 refuses`; it
+    drops `x-open-enum`, `schema_0073_test.go:120: $defs entry Yields: an
+    enum without "x-open-enum": true` and the same for the other ten; it
+    writes the labels as `description`, `schema_0073_test.go:109:
+    #/$defs/SessionKind: description, which D4 refuses` and
+    `schema_0073_test.go:124: x-enum-labels at [], want at
+    [#/$defs/SessionKind] only`; and, for the amendment's assertion, it
+    writes `x-enum-labels` on every enum, `schema_0073_test.go:124:
+    x-enum-labels at [#/$defs/ClientIdentity #/$defs/Completion …], want at
+    [#/$defs/SessionKind] only`.
+  * `TestSchemaMarksPointers_0073`: `x-nullable` dropped from
+    `Answer.confirm`, `schema_0073_test.go:177: x-nullable on [Answer.secret
+    Step.default Step.error], want exactly the pointer fields [Answer.confirm
+    Answer.secret Step.default Step.error]`; added to `Step.secret`,
+    `schema_0073_test.go:177: x-nullable on [Answer.confirm Answer.secret
+    Step.default Step.error Step.secret], want exactly the pointer fields
+    […]`.
+  * `TestSchemaIDIsSchemaVersion_0073`: `SchemaVersion` set to 2 without
+    regenerating, `--- FAIL: TestSchemaIDIsSchemaVersion_0073/committed` and
+    `schema_0073_test.go:196: $id
+    "https://github.com/maccavelli/go-llmprovider-sdk/authcontract/schema/v1":
+    last segment "v1", want "v2" (SchemaVersion)`.
+  * `TestSchemaListsEveryConstant_0073`: `StepPause` added to `step.go`
+    without regenerating, `schema_0073_test.go:279: $defs entry StepKind
+    lists ["open_url" … "failed"], want its constants ["open_url" … "failed"
+    "pause"]`.
+  * `TestSchemacheckRefusesUnknownKeywords_0073`: the validator ignores
+    unknown keywords, `schemacheck_test.go:35: Parse({"$defs": {"A":
+    {"type": "object", "patternProperties": …}}}) = <nil>, want an error
+    naming "patternProperties"`, and the same for `oneOf`, `description` and
+    `$id` below the root.
+  * `TestSchemacheckAcceptsAnnotations_0073`: `x-nullable` dropped from the
+    accepted list, `schemacheck_test.go:71: Parse: schemacheck:
+    #/$defs/Thing/properties/next: unknown keyword "x-nullable"`;
+    `x-enum-labels` dropped, `schemacheck_test.go:71: Parse: schemacheck:
+    #/$defs/Kind: unknown keyword "x-enum-labels"`.
+  * `TestSchemacheckRules_0073`: `required` ignored, `schemacheck_test.go:157:
+    Obj {}: <nil>, want an error holding "#: required: n is missing"`.
+  * `TestSchemagenMatchesCommitted_0073`: `$defs` written in reverse source
+    order (`slices.Backward`), and, apart, the committed schema's `Feature`
+    and `Kind` entries swapped by hand: each `main_test.go:44: run wrote 8492
+    bytes that differ from the committed ../../authcontract.schema.json (8492
+    bytes); run go generate`.
+  * `TestSchemaSessionKindLabels_0073`: the table without `grok`,
+    `schema_0073_test.go:330: SessionKind's x-enum-labels has members
+    [chatgpt chatgpt_plan kilo_device], want exactly its enum values [chatgpt
+    chatgpt_plan grok kilo_device]`; the labels as `description`,
+    `schema_0073_test.go:327: SessionKind: no x-enum-labels object (got
+    <nil>)`; the generator skips `SessionKind`, the one enum type no struct
+    refers to (a `continue` for that name), `schema_0073_test.go:313: no
+    $defs entry SessionKind`; `x-enum-labels` on every enum,
+    `schema_0073_test.go:339: $defs entry LinkRel carries x-enum-labels; only
+    SessionKind's does`.
+  * `TestSchemagenRefuses_0073`: an extra argument accepted,
+    `main_test.go:114: run(["extra"]) = main.go:269:2: structType's value is
+    not a string literal, want an error holding "unexpected argument
+    \"extra\""`.
+  * `make generate-check`, its command `python3 -B
+    scripts/check_generated.py`, one enum value (`other`) removed from the
+    schema by hand: "caught (exit 1)"; on a scratch copy, the line
+    "generate-check: authcontract/authcontract.schema.json differs from what
+    its //go:generate line produces; run go generate".
+* **The two generator-based `ContractCheckTest` cases** (the owner's decision
+  of 2026-11-12 on Phase 2's plants 5 and 6), in `scripts/test_gates.py`:
+  `tag_generated` requires the copy's schema to be what `go generate` writes,
+  then tags the copy; `regenerate` runs `go -C authcontract generate ./...`
+  in the copy. `test_schema_property_removed_generated`: `Step.URL`'s tag
+  `uri`, regenerated (the schema's `Step` then has `uri` and no `url`):
+  "contract-check: schema, against authcontract/v0.1.0: property url removed
+  from Step", apidiff silent (asserted), and "go test -race failed" (the
+  module's own tests). `test_schema_enum_value_removed_generated`:
+  `PasteCode` deleted, regenerated (`Paste`'s enum `["", "url_or_code",
+  "url_only"]`): "contract-check: apidiff, against authcontract/v0.1.0:
+  incompatible change: PasteCode: removed" and "contract-check: schema,
+  against authcontract/v0.1.0: enum value code removed from Paste". Both
+  cases pass on the tree ("Ran 2 tests", "OK"). Seen to fail: by
+  `tools/plant.py`, `contract-check`'s schema comparison not run
+  (`problems += apidiff(tag) + schema(tag)` made `problems +=
+  apidiff(tag)`), its command the two cases: "caught (exit 1)",
+  `AssertionError: 'schema, against authcontract/v0.1.0: property url removed
+  from Step' not found in …` and the same for `enum value code removed from
+  Paste`. `PLANT_SCHEMA`'s comment no longer says it stands in until the
+  generator; the hand-written cases are unchanged.
+* **Deviation (2026-11-12): two existing self-tests fail, and Phase 3 does
+  not name their change. Stopped, with nothing staged, until the owner
+  chose (below).** `make gate-selftest` on
+  this tree, exit 2: "Ran 66 tests in 363.659s", "FAILED (failures=2)", the
+  two cases below; the other 64 pass, the two new generator-based cases
+  among them. Both passed at `06d1315` (Phase 2's gate-selftest, "Ran 64
+  tests", "OK", and the full gate's 30 of 30). Both fail because of what
+  MADR D4 and this phase require, not because of a defect in the phase's
+  code.
+  * Evidence, the first. `scripts/test_gates.py:217-226`,
+    `GateSelfTest.test_generate_check_no_output`, strips `-output` from the
+    `//go:generate` lines of `ownerperm` and `filelock` ("Every package that
+    generates code loses it") and requires `generate-check` to exit 1 with "0
+    generated files". With step 2's line in `authcontract/doc.go` the copy
+    still holds one directive with `-output`, so `generate-check` passes:
+    `AssertionError: 0 != 1 : generate-check exit 0, want 1:` and
+    "generate-check: 1 generated file(s), 0 problem(s)" (`python3 -B -m
+    unittest scripts.test_gates.GateSelfTest.test_generate_check_no_output`,
+    exit 1). Step 2's line causes it.
+  * Evidence, the second. `ContractCheckTest.test_schema_additions_are_allowed`
+    (`scripts/test_gates.py:684-694` at `06d1315`, `:724-734` in the tree)
+    writes Phase 2's hand-written `PLANT_SCHEMA` over
+    `authcontract/authcontract.schema.json`, tags, grows it (an entry, an
+    optional property, an enum value) and requires `contract-check` to exit
+    0. The schema comparison still reports nothing, but the file is now the
+    committed schema that Phase 3's own tests read, so the module's tests
+    fail on the hand-written one: `AssertionError: 1 != 0 : contract-check
+    exit 1, want 0:`, "contract-check: go test -race failed:", among its
+    lines `main_test.go:44: run wrote 8492 bytes that differ from the
+    committed ../../authcontract.schema.json (657 bytes); run go generate`
+    and `schemacheck_test.go:116: session-kind-grok.json: schemacheck: no
+    $defs entry SessionKind`. Steps 3 and 6 cause it. Phase 2's other
+    hand-written cases (`test_schema_property_removed`,
+    `test_schema_enum_value_removed`, `test_schema_other_breaks`) want exit
+    1 and their lines, and still pass.
+  * Resolutions, each leaving the tree correct:
+    1. *Recommended, for the first.* Amend Phase 3 to name the change:
+       `test_generate_check_no_output` also strips `-output
+       authcontract.schema.json` from `authcontract/doc.go`'s line, and its
+       docstring names the module (0073). Cost: a few lines of one existing
+       test; its assertion and its meaning ("a directive that lost its
+       -output checks nothing, which fails") are unchanged. Alternative: the
+       test strips `-output` from every directive `scripts/check_generated.py`
+       finds, so a later generator needs no edit; a slightly larger change,
+       and the test no longer names the packages it covers.
+    2. *Recommended, for the second.* Amend Phase 3 to name the change: the
+       case runs on the generated schema, as the two new `_generated` cases
+       do (`tag_generated`), adds what the module's code can add while its
+       own tests pass, a constant to an enum type and a new string type with
+       one constant, regenerates, and requires exit 0; the leg that no Go
+       change can add without failing `TestJSONNames_0073` (whose table is
+       D2's), a new optional property and a new object entry, is asserted by
+       calling `check_contract.schema_breaks` on `PLANT_SCHEMA` and its grown
+       copy and requiring no problem. Cost: one existing case rewritten in
+       two parts; what it asserts (additions are not breaks) is unchanged,
+       and the end-to-end leg is stronger, since it is the generator's
+       output. Alternative: the case asserts only `schema_breaks` directly,
+       dropping its end-to-end run; smaller, and weaker.
+  * Not resolutions: moving the line out of `authcontract/doc.go`, or
+    writing it without `-output`, would contradict D4 and step 2 and leave
+    the schema unchecked by `generate-check`; letting the additions case
+    accept any exit code, or dropping its exit-0 assertion, loosens it.
+  * Doing nothing: `make gate-selftest` fails, and with it `tools/gate.py`
+    and CI's gate line; Phase 3 cannot be staged.
+  * **Resolution (2026-11-12): the owner chose,** relayed by the
+    coordinator: (1) `test_generate_check_no_output` strips `-output` from
+    every `//go:generate` directive generate-check finds, with the same
+    assertion (the first resolution's alternative); (2)
+    `test_schema_additions_are_allowed` is split in two, an end-to-end run
+    on the generated schema and a direct `check_contract.schema_breaks`
+    call (the second resolution as recommended). Both are now Phase 3's, in
+    `scripts/test_gates.py`:
+    1. `test_generate_check_no_output` lists the copy's Go files as the gate
+       does (`git ls-files -co --exclude-standard *.go`), removes `-output`
+       and its file, in either form (`OUTPUT_FLAG`), from every
+       `//go:generate` line, asserts that `ownerperm`, `filelock` and
+       `authcontract` each lost one, and requires exit 1 with "0 generated
+       files". Seen to fail, by `tools/plant.py`, generate-check's `if
+       checked == 0:` made `if checked == -1:`: "caught (exit 1)",
+       `AssertionError: 0 != 1 : generate-check exit 0, want 1:`.
+    2. `test_schema_additions_are_allowed` tags the generated schema
+       (`tag_generated`), adds `StepPlanted` to `StepKind` and a new string
+       type `Planted` with one constant, regenerates, asserts both reached
+       the schema, and requires exit 0 and "authcontract, against
+       authcontract/v0.1.0, 0 problem(s)".
+       `SchemaBreaksTest.test_schema_breaks_ignore_additions` calls
+       `schema_breaks` on `PLANT_SCHEMA` and its copy grown by an entry, an
+       optional property and an enum value, and requires no problem. Seen
+       to fail, by `tools/plant.py` in `scripts/check_contract.py`, its
+       command the two cases, each "caught (exit 1)": an added enum value
+       reported as removed (the comparison's `was` and `now` swapped), both
+       cases, "contract-check: schema, against authcontract/v0.1.0: enum
+       value planted removed from StepKind" and "AssertionError: Lists
+       differ: ['enum value a_new_value removed from Paste'] != []"; an
+       added `$defs` entry reported, both cases, "contract-check: schema,
+       against authcontract/v0.1.0: $defs entry Planted added" and
+       "AssertionError: Lists differ: ['$defs entry Extra added'] != []"; an
+       added property reported, the direct case, "AssertionError: Lists
+       differ: ['property more added to Step'] != []".
+* Checks, each exit status captured before any filter:
+  * `go -C authcontract test -race -count=1 ./...`, exit 0: three packages
+    "ok"; no race. `go -C authcontract vet ./...`, exit 0. `gofmt -l
+    authcontract`: no file.
+  * `make pre-add-check FILES="<the seven .go files>"`, exit 0:
+    "govulncheck: skipped (no file of the root module)", "go-precheck:
+    nested module(s) clean: authcontract."
+  * `make generate-check`, exit 0: "generate-check: 3 generated file(s), 0
+    problem(s)". `make contract-check`, exit 0: the three packages' coverage
+    lines, "no authcontract/v* tag yet, so nothing to compare; the API and the
+    schema are held from the first tag on", "authcontract, 0 problem(s)".
+  * `make docs-check`, exit 0, "sdkaudit: 0 violation(s) of R50,R51,R52";
+    `make fixtures-check`, exit 0, "0 problem(s)"; `make disclosure-check`,
+    exit 0, "0 hit(s) in 1582 file(s)".
+  * Before the resolution, `make gate-selftest`, exit 2: the deviation's two
+    failures, 64 of 66 passing. After it, exit 0: "Ran 67 tests in
+    336.754s", "OK" (66, and `SchemaBreaksTest`'s one).
+  * `python3 -B tools/gate.py --timeout 5400`, after the resolution, exit 0:
+    it waited ("load 61.1; waiting for it to fall below 10"), "started at
+    load 9.7", and "gate: 30 of 30 passed", each check rc=0, among them
+    pre-add-check, the six `go vet` runs, test-race-cover, test-shuffle,
+    test-repeat, lint, api-check, contract-check, generate-check,
+    docs-check, gate-selftest, markdownlint, g-wire-stable, links-check,
+    disclosure-check, deny-scan and tools-test.
+  * The gate ran before this entry's last edits, so the record checks ran
+    again after them.
+  * After this entry was written, each exit 0: `tools/claims.py` on the MADR,
+    "44 of 44 pass", and on this PLAN, "11 of 11 pass"; `make
+    records-check`, "records-check: 162 records, 0 problem(s)";
+    `tools/recordlint.py --changed`, "no rule rose"; `tools/denyscan.py
+    --changed`, "0 hit(s)"; `tools/linkcheck.py`, "G-links: 0 problem(s)";
+    `make disclosure-check`, "0 hit(s)".
+* Not done, as the phase says: no `AGENTS.md`, README or CHANGELOG change
+  (Phase 4); no root requirement on the module (0074); no tag; no commit.
+  The files are staged for the coordinator to commit.

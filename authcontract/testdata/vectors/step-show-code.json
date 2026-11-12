@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "seq": 1,
+  "kind": "show_code",
+  "url": "https://example.com/device",
+  "code": "ABCD-EFGH",
+  "expires_at": "2026-11-12T10:15:00Z",
+  "text": "Enter this code on the page."
+}

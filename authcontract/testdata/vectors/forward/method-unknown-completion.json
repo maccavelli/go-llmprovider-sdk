@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "future",
+  "kind": "browser",
+  "label": "A future sign-in",
+  "completion": "a_future_completion",
+  "yields": "oauth_session",
+  "client_identity": "app_registered",
+  "refreshable": true,
+  "revocable": true,
+  "_meta": {
+    "example": "a completion this version does not list"
+  }
+}

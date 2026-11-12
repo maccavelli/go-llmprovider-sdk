@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "vendor_cli",
+  "kind": "vendor_import",
+  "label": "Vendor CLI sign-in",
+  "detail": "Reads the session the vendor's CLI stored.",
+  "completion": "local_file",
+  "yields": "read_through",
+  "client_identity": "vendor_borrowed",
+  "refreshable": false,
+  "revocable": false
+}

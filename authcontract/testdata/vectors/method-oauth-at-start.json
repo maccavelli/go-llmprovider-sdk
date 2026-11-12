@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "oauth",
+  "kind": "oauth",
+  "label": "OAuth sign-in",
+  "completion": "at_start",
+  "yields": "unknown",
+  "client_identity": "unknown",
+  "refreshable": false,
+  "revocable": false
+}
