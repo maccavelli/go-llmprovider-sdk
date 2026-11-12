@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -204,4 +205,124 @@ func TestLiveTwin_ChatGPTPlan_0046(t *testing.T) {
 	planRequests(ctx, t, session, noSkip, f.opts("")...)
 	planRefresh(ctx, t, session, store)
 	planRevoke(ctx, t, session)
+}
+
+// identityFake is the services of TestLive_0076Identity, by path: Grok's
+// issuer (its discovery, device form, refresh and revocation), OpenAI's
+// refresh and revocation under /oauth, the ChatGPT backend's listing under
+// /chatgpt and xAI's under /xai. Each setting is one of 0076-PLAN Phase 4's
+// plants.
+type identityFake struct {
+	srv *httptest.Server
+
+	originator  string // the originator of authorizeURL
+	listed      bool   // each listing holds a model, else none
+	revokeKills bool   // after a revocation, a refresh is refused invalid_grant
+
+	mu      sync.Mutex
+	revoked bool
+}
+
+func newIdentityFake(t *testing.T) *identityFake {
+	t.Helper()
+	f := &identityFake{originator: probeIdentityName, listed: true, revokeKills: true}
+	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
+	t.Cleanup(f.srv.Close)
+	return f
+}
+
+// opts point a listing at the fake, under path.
+func (f *identityFake) opts(path string) []llmprovider.Option {
+	return []llmprovider.Option{llmprovider.WithBaseURL(f.srv.URL + path), llmprovider.WithHTTPClient(f.srv.Client())}
+}
+
+// authorizeURL is an authorize URL of OpenAI's shape, at the fake, with the
+// fake's originator. LoginBrowserOAuth cannot give it here: OpenAI's
+// sign-in listens on the registered ports 1455 and 1457, which no offline
+// test of this package takes; auth's TestIdentity_Originator_0076 pins what
+// the SDK puts there.
+func (f *identityFake) authorizeURL() string {
+	query := url.Values{"client_id": {auth.DefaultOpenAIClientID}, "response_type": {"code"},
+		"originator": {f.originator}}
+	return f.srv.URL + "/oauth/authorize?" + query.Encode()
+}
+
+func (f *identityFake) serve(w http.ResponseWriter, r *http.Request) {
+	u := f.srv.URL
+	switch path := r.URL.Path; {
+	case r.Method == http.MethodGet && path == "/.well-known/openid-configuration":
+		writeJSON(w, http.StatusOK, map[string]any{"issuer": u, "authorization_endpoint": u + "/authorize",
+			"token_endpoint": u + "/token", "device_authorization_endpoint": u + "/device",
+			"revocation_endpoint": u + "/revoke", "jwks_uri": u + "/jwks"})
+	case r.Method == http.MethodPost && path == "/device":
+		writeJSON(w, http.StatusOK, map[string]any{"device_code": "twin-device-0076", "user_code": "TWIN-0076",
+			"verification_uri": u + "/verify", "expires_in": 600, "interval": 5})
+	case r.Method == http.MethodGet && path == "/chatgpt/models":
+		models := []any{}
+		if f.listed {
+			models = append(models, map[string]any{"slug": "gpt-twin-0076", "visibility": "list"})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"models": models})
+	case r.Method == http.MethodGet && path == "/xai/models":
+		data := []any{}
+		if f.listed {
+			data = append(data, map[string]any{"id": "grok-twin-0076", "object": "model"})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": data})
+	case r.Method == http.MethodPost && (path == "/token" || path == "/oauth/token"):
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.revoked && f.revokeKills {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_grant"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"access_token": "twin-access-1", "refresh_token": "twin-refresh-1",
+			"expires_in": 3600})
+	case r.Method == http.MethodPost && (path == "/revoke" || path == "/oauth/revoke"):
+		f.mu.Lock()
+		f.revoked = true
+		f.mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// TestLiveTwin_Identity_0076 is TestLive_0076Identity's checks against
+// identityFake. Its OpenAI half checks the fake's authorize URL, then uses
+// and revokes a ChatGPT session whose token endpoint is the fake's. Its Grok
+// half starts a device sign-in at the fake through identityRecorder, as the
+// live half does, and checks the form it posted, then uses and revokes a
+// Grok session whose issuer is the fake.
+func TestLiveTwin_Identity_0076(t *testing.T) {
+	t.Run("OpenAIBrowser", func(t *testing.T) {
+		f := newIdentityFake(t)
+		ctx := twinContext(t)
+		if !checkAuthorizeIdentity(t, f.authorizeURL(), "originator", probeIdentityName) {
+			t.FailNow()
+		}
+		session := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: auth.DefaultOpenAIIssuer,
+			TokenURL: f.srv.URL + "/oauth/token", Access: "twin-access", Refresh: "twin-refresh",
+			Expiry: time.Now().Add(time.Hour), ClientID: auth.DefaultOpenAIClientID, HTTPClient: f.srv.Client()}
+		checkIdentitySession(ctx, t, session, f.opts("/chatgpt")...)
+		checkIdentityRevoked(ctx, t, session)
+	})
+	t.Run("GrokDevice", func(t *testing.T) {
+		f := newIdentityFake(t)
+		ctx := twinContext(t)
+		rec := &identityRecorder{base: f.srv.Client().Transport}
+		client := &http.Client{Transport: rec}
+		login, err := auth.StartDeviceOAuth(ctx, llmprovider.ProviderGrok, auth.OAuthFlowOptions{
+			Issuer: f.srv.URL, HTTPClient: client, Identity: auth.Identity{Name: probeIdentityName}})
+		if err != nil {
+			t.Fatalf("StartDeviceOAuth: %v", err)
+		}
+		login.Cancel()
+		checkDeviceReferrer(t, rec, probeIdentityName)
+		session := &auth.OAuthSession{Provider: llmprovider.ProviderGrok, Issuer: f.srv.URL, TokenURL: f.srv.URL + "/token",
+			Access: "twin-access", Refresh: "twin-refresh", Expiry: time.Now().Add(time.Hour),
+			ClientID: auth.DefaultGrokOAuthClientID, HTTPClient: client}
+		checkIdentitySession(ctx, t, session, f.opts("/xai")...)
+		checkIdentityRevoked(ctx, t, session)
+	})
 }

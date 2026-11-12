@@ -744,3 +744,132 @@ before any filter.
 * **Not done:** Phases 4 and 5.
 * This entry was added after the gate ran, so the record checks were run
   again before staging.
+
+The owner committed Phase 3 (`3f77944`) before Phase 4.
+
+### Phase 4, prepared (2026-11-11)
+
+Started at `3f77944`, on `main`, seven commits ahead of `origin/main`, with a
+clean tree. This entry writes the probe and verifies it offline only: no run
+set a live variable, nothing signed in, and no request left the machine. The
+owner runs the probe (below) and records what it finds. Each command's output
+and exit status are in the session's scratch directory, each status captured
+before any filter.
+
+* **Step 1, `llmprovider/live_0076_identity_test.go`** (build tag
+  `live_gateways`): `TestLive_0076Identity`, which skips unless
+  `LLMPROVIDER_LIVE_0076=1`, with `auth.Identity{Name: "llmprovider-probe"}`,
+  in two subtests, each gated as AGENTS.md "Live tests" assigns:
+  * `OpenAIBrowser`, also under `LLMPROVIDER_LIVE_BROWSER_LOGIN`:
+    `LoginBrowserOAuth` for OpenAI with the identity. Its `OpenURL` checks
+    the authorize URL's `originator` before it logs the URL for the person
+    to open, and on a wrong value ends the sign-in through `cancel` before
+    anyone signs in, as `TestLive_ChatGPTBrowserLogin` does.
+  * `GrokDevice`, also under `LLMPROVIDER_LIVE_DEVICE_LOGIN`:
+    `LoginDeviceOAuth` for Grok with the identity, its requests through
+    `identityRecorder`, logging the verification URL and the code for the
+    person, as `TestLive_GrokDeviceLogin` does; then the device form's
+    `referrer` is checked.
+  * Each half logs `FINDING sign-in: … under "llmprovider-probe" completed`,
+    or `… did not complete:` with the error and stops; then it runs the
+    checks below. A session that a check stopping early leaves unrevoked is
+    revoked when the half ends. Each sign-in has five minutes, as the
+    existing login tests give. The only store is a `FileTokenStore` in
+    `t.TempDir()`. Quota: none; the session's use is a model listing with no
+    probe, and nothing is generated.
+* **Step 4, the checks,** in `llmprovider/live_checks_test.go` (untagged),
+  appended; no existing function changed:
+  * `checkAuthorizeIdentity(t, raw, param, name)`: the authorize URL
+    carries `name` as its one `param`. It fails with `t.Errorf` only, since
+    `OpenURL` runs on a goroutine of its own.
+  * `identityRecorder`, an `http.RoundTripper` that keeps the `referrer`
+    values of each form posted with one, and nothing else of any request;
+    and `checkDeviceReferrer`: exactly one such form, Grok's device form,
+    whose `referrer` is the name alone.
+  * `checkIdentitySession`: the session is saved to a scratch
+    `FileTokenStore` and bound to it, so a refresh saves there, then
+    `catalog.ListRaw` lists its provider's models with it (no probe, no
+    listing cache, no models.dev, no static fallback, errors returned),
+    which must hold a model; it logs the count only.
+  * `checkIdentityRevoked`: `RevokeOAuthSession`, then a forced refresh,
+    which must be refused; its kind is logged, as `planRevoke` does.
+* **The twin,** `TestLiveTwin_Identity_0076` in
+  `llmprovider/live_twins_test.go` (untagged), against a new `identityFake`;
+  `twinFake` and the existing twins are unchanged. `OpenAIBrowser` checks
+  the fake's authorize URL, then uses and revokes a ChatGPT session whose
+  token endpoint is the fake's, listing under `/chatgpt`. `GrokDevice`
+  starts a device sign-in at the fake through `identityRecorder`, as the
+  live half does, cancels it, checks the form posted, then uses and revokes
+  a Grok session whose issuer is the fake, listing under `/xai`. **What the
+  twin does not cover:** the OpenAI authorize URL it checks is built by the
+  fake, in OpenAI's shape, not by the SDK. OpenAI's browser sign-in listens
+  on the registered ports 1455 and 1457, which no offline test of this
+  package takes (`llmprovider/auth`'s tests move them, an unexported
+  seam). Phase 2's `TestIdentity_Originator_0076` pins that the SDK puts
+  the name there; the twin proves the check catches a URL without it. The
+  Grok device form the twin checks is the SDK's own.
+* **Planted breaks:** `python3 -B tools/plant.py SPEC.json`, run
+  `^TestLiveTwin_Identity_0076$` on `./llmprovider/`, on a scratch clone,
+  exited 0: "plant: all 4 plant(s) caught". One plant a check:
+  * the authorize URL carries the default originator (the fake's
+    `originator` set to `"go-llmprovider-sdk"`):
+    `live_twins_test.go:301: authorize URL originator = ["go-llmprovider-sdk"], want ["llmprovider-probe"]`
+  * the Grok device form keeps the default referrer (`originatorValue` for
+    `config.identity.clientName()` in `oauth_device.go`'s device form):
+    `live_twins_test.go:321: device form referrers = [["go-llmprovider-sdk"]], want one form with ["llmprovider-probe"]`
+  * each listing holds no model (`listed: false`):
+    `live_twins_test.go:307: FINDING use: openai listed 0 models with the session, <nil>; want one or more`,
+    and the same for grok at `:325`
+  * a revocation leaves the refresh token alive (`revokeKills: false`):
+    `live_twins_test.go:308: FINDING revocation: a refresh after revocation succeeded`,
+    and the same at `:326`
+* **The twin and race:** `go test -count=1 -run 'Twin|0076'
+  ./llmprovider/...`, exit 0; `go test -race -count=20 -run TestLiveTwin
+  ./llmprovider/`, exit 0, no data race.
+* **Compiled, not run:** `go vet -tags live_gateways ./llmprovider/...`,
+  exit 0; `go build -tags live_gateways ./...`, exit 0.
+* **The gate holds:** with no live variable set, `go test -tags
+  live_gateways -count=1 -run TestLive_0076Identity -v ./llmprovider/`,
+  exit 0, with
+  `live_0076_identity_test.go:30: LLMPROVIDER_LIVE_0076 unset: this signs in at OpenAI and xAI under a custom name, with a person`
+  and `--- SKIP: TestLive_0076Identity (0.00s)`.
+* **Step 3:** `python3 -B scripts/check_tables.py`, exit 0,
+  "check-tables: 42 packages, 0 problem(s)". The script accepts
+  `LLMPROVIDER_LIVE_0076` because a record numbered 0076 names it as a
+  whole word; this PLAN already does, in steps 1 and 3, so nothing was added
+  for it. The test's other two variables are named in AGENTS.md.
+* **Pre-add:** `make pre-add-check` on the three Go files, exit 0:
+  "go-precheck: 3 file(s) clean (gofmt, golangci-lint, go vet, go test,
+  govulncheck)".
+* **The gate:** `python3 -B tools/gate.py`, which waited at load 23.2 and
+  started at load 9.9, exit 0: "gate: 29 of 29 passed", the three
+  `vet-*-live` steps included. `api-check`: "against v1.29.0, 0
+  incompatible change(s) outside llmprovider/x/"; `coverage-check`:
+  `llmprovider` 98.5 % against 95.9 %, `llmprovider/auth` 89.8 % against
+  80.0 %; no data race in `test-race-cover`.
+* **Stop conditions:** none met. Every check is expressed against the fake,
+  the authorize URL's as described above; no existing test, twin or check
+  changed; every plant was caught; `-race` reported no race.
+* **Not done:** the live run, which is the owner's, and Phase 5.
+* This entry was added after the gate ran, so the record checks were run
+  again before staging.
+
+**For the owner: the probe.** It opens a browser sign-in at OpenAI, then a
+device sign-in at xAI; each needs a person within five minutes. Run it from
+the repository root:
+
+```bash
+LLMPROVIDER_LIVE_0076=1 LLMPROVIDER_LIVE_BROWSER_LOGIN=1 LLMPROVIDER_LIVE_DEVICE_LOGIN=1 \
+  go test -tags live_gateways -count=1 -timeout 15m -run '^TestLive_0076Identity$' -v ./llmprovider/
+```
+
+`-v` prints the authorize URL and the device code as they come, and
+`-timeout 15m` covers both halves. A half whose variable is left unset
+skips. Then record here, dated, for each half: whether the sign-in completed
+under the custom name (its `FINDING sign-in` line); whether the session
+listed models (`FINDING use`); and whether it was revoked (`FINDING
+revocation`, with no "RevokeOAuthSession when the half ends" error). A
+sign-in refused under the name, or a failed `originator` or `referrer`
+check, is a deviation (step 2): the field's doc then says which provider
+refuses a custom name, and the MADR is amended. The record quotes no URL,
+code or token from the run.

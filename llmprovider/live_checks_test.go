@@ -6,9 +6,14 @@ package llmprovider_test
 // tests call them with the real session; the twins with a fake's.
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -206,5 +211,111 @@ func planRevoke(ctx context.Context, t *testing.T, session *auth.OAuthSession) {
 		t.Logf("FINDING refresh after revocation: refused, but not as ErrAuthFailure: %v", err)
 	} else {
 		t.Log("FINDING refresh after revocation: refused, ErrAuthFailure")
+	}
+}
+
+// probeIdentityName is the name 0076's probe signs in under, which is no
+// real product's (0076-PLAN Phase 4).
+const probeIdentityName = "llmprovider-probe"
+
+// checkAuthorizeIdentity reports whether the authorize URL raw carries name
+// as its one param, OpenAI's originator or Grok's referrer (0076-MADR D3),
+// and fails the test when it does not. It fails with t.Errorf only, so a
+// sign-in's OpenURL, which runs on a goroutine of its own, may call it.
+func checkAuthorizeIdentity(t *testing.T, raw, param, name string) bool {
+	t.Helper()
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Errorf("authorize URL: %v", err)
+		return false
+	}
+	if got := u.Query()[param]; len(got) != 1 || got[0] != name {
+		t.Errorf("authorize URL %s = %q, want [%q]", param, got, name)
+		return false
+	}
+	return true
+}
+
+// identityRecorder is a sign-in's transport that keeps the referrer values
+// of each form it posts with one, which is Grok's device form, and nothing
+// else: no token, code or other part of any request is kept or logged.
+type identityRecorder struct {
+	base http.RoundTripper
+
+	mu        sync.Mutex
+	referrers [][]string
+}
+
+func (r *identityRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Body == nil || req.Body == http.NoBody ||
+		!strings.HasPrefix(req.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+		return r.base.RoundTrip(req)
+	}
+	raw, err := io.ReadAll(req.Body)
+	if closeErr := req.Body.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return nil, err
+	}
+	if form, err := url.ParseQuery(string(raw)); err == nil && form.Has("referrer") {
+		r.mu.Lock()
+		r.referrers = append(r.referrers, form["referrer"])
+		r.mu.Unlock()
+	}
+	sent := req.Clone(req.Context())
+	sent.Body = io.NopCloser(bytes.NewReader(raw))
+	sent.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(raw)), nil }
+	return r.base.RoundTrip(sent)
+}
+
+// checkDeviceReferrer checks that the sign-in posted one form with a
+// referrer, Grok's device form, and that its referrer is name alone
+// (0076-MADR D3).
+func checkDeviceReferrer(t *testing.T, rec *identityRecorder, name string) {
+	t.Helper()
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.referrers) != 1 || len(rec.referrers[0]) != 1 || rec.referrers[0][0] != name {
+		t.Errorf("device form referrers = %q, want one form with [%q]", rec.referrers, name)
+	}
+}
+
+// checkIdentitySession binds session to a scratch FileTokenStore in
+// t.TempDir, so that a refresh saves there and never to a real store, and
+// then uses it with no generation: its provider's raw model listing
+// (catalog.ListRaw: no probe, no listing cache, no models.dev, no fallback),
+// which must hold a model. It logs the count only. opts reach the listing.
+func checkIdentitySession(ctx context.Context, t *testing.T, session *auth.OAuthSession, opts ...llmprovider.Option) {
+	t.Helper()
+	store, err := auth.NewFileTokenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(ctx, session.Provider, session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	session.Store = store
+	raw, err := catalog.ListRaw(ctx, session.Provider, session, opts...)
+	if err != nil || len(raw.Models) == 0 {
+		t.Fatalf("FINDING use: %s listed %d models with the session, %v; want one or more", session.Provider,
+			len(raw.Models), err)
+	}
+	t.Logf("FINDING use: %s listed %d models with the session", session.Provider, len(raw.Models))
+}
+
+// checkIdentityRevoked revokes session at its issuer, and checks that a
+// refresh afterwards is refused, as planRevoke does.
+func checkIdentityRevoked(ctx context.Context, t *testing.T, session *auth.OAuthSession) {
+	t.Helper()
+	if err := auth.RevokeOAuthSession(ctx, session); err != nil {
+		t.Fatalf("FINDING revocation: RevokeOAuthSession: %v", err)
+	}
+	session.Invalidate()
+	if _, err := session.Token(ctx); err == nil {
+		t.Fatal("FINDING revocation: a refresh after revocation succeeded")
+	} else {
+		t.Logf("FINDING revocation: revoked; a refresh afterwards is refused, as ErrAuthFailure %t",
+			errors.Is(err, llmprovider.ErrAuthFailure))
 	}
 }
