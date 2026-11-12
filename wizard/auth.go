@@ -289,7 +289,7 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, o Options) (resolvedCre
 	}
 	flow, drain := browserFlowOptionsFor(p, o, instruction, prompt)
 	session, loginErr := loginChatGPTPlan(ctx, auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: previous,
-		HTTPClient: o.HTTPClient, OpenURL: flow.OpenURL, InputCode: flow.InputCode})
+		HTTPClient: o.HTTPClient, OpenURL: flow.OpenURL, InputCode: flow.InputCode, Identity: o.Identity})
 	drain()
 	if loginErr != nil {
 		return resolvedCredential{}, loginErr
@@ -717,10 +717,11 @@ func accessTokenAccount(access string) (string, bool) {
 }
 
 // oauthFlowOptions is a sign-in's options: the caller's client (0020-MADR
-// F20). It sets no NotifyDevice: a device sign-in shows its code through
+// F20) and identity (0076-MADR D4), and neither a client id nor an issuer.
+// It sets no NotifyDevice: a device sign-in shows its code through
 // showDeviceCode (0057-MADR D1).
 func oauthFlowOptions(o Options) auth.OAuthFlowOptions {
-	return auth.OAuthFlowOptions{HTTPClient: o.HTTPClient}
+	return auth.OAuthFlowOptions{HTTPClient: o.HTTPClient, Identity: o.Identity}
 }
 
 // The paste instruction and prompt, and a ChatGPT plan's first sign-in's,

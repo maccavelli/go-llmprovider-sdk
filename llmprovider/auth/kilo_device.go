@@ -31,10 +31,11 @@ const (
 )
 
 // startKiloDevice requests a Kilo device code. opts.Issuer overrides the
-// origin; nothing else in opts but HTTPClient and the test clock applies.
+// origin; nothing else in opts but HTTPClient, Identity and the test clock
+// applies.
 func startKiloDevice(ctx context.Context, opts OAuthFlowOptions) (*DeviceLogin, error) {
 	config := oauthFlowConfig{provider: llmprovider.ProviderKilo, issuer: strings.TrimRight(opts.Issuer, "/"),
-		httpClient: opts.HTTPClient, callerClient: opts.HTTPClient, now: opts.now, sleep: opts.sleep}
+		httpClient: opts.HTTPClient, callerClient: opts.HTTPClient, now: opts.now, sleep: opts.sleep, identity: opts.Identity}
 	if config.issuer == "" {
 		config.issuer = kiloAPIOrigin
 	}
@@ -133,7 +134,7 @@ func kiloDeviceRequest(ctx context.Context, config oauthFlowConfig, method, targ
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create Kilo request: %w", err)
 	}
-	transport.NewIdentity("", "", "").SetUserAgent(req)
+	config.identity.setUserAgent(req)
 	if method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/json")
 	}

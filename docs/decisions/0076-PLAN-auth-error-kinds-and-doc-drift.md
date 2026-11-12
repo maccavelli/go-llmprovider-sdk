@@ -466,3 +466,155 @@ this PLAN, "7 of 7 pass", exited 0 before any change.
   on every path.
 * This entry was added after the gate ran, so the record checks were run
   again before staging.
+
+The owner committed Phase 1 (`bc4bb21`) before Phase 2.
+
+### Phase 2 (2026-11-11)
+
+Started at `bc4bb21`, on `main`, five commits ahead of `origin/main`, with a
+clean tree. Step 2's sites were read before any change. Each does what the
+step says; three moved with Phase 1's code, which added lines above them:
+`postOAuthJSON`'s and `postOAuthForm`'s User-Agent lines are
+`oauth_device.go:518` and `:532` (`:508` and `:522` at `773b84c`), and the
+revocation's is `oauth_revoke.go:75` (`:67`). The others are where the step
+says.
+
+* **Step 1, `llmprovider/auth/identity.go`:** `type Identity struct{ Name,
+  Version string }`, documented as a comparable value, "safe for concurrent
+  use while no goroutine changes it" (R51), with what `Name` sets, that the
+  zero value names this module, that a refresh and a revocation name this
+  module, and that the vendors' acceptance is not verified. Two unexported
+  methods: `clientName`, `Name` or `originatorValue`; and `setUserAgent`,
+  `transport.NewIdentity(Name, Version, "")` when `Name` is set, else
+  `transport.NewIdentity("", "", "")`, so that a `Version` without a `Name`
+  changes nothing.
+* **Step 2:** `OAuthFlowOptions.Identity` and `ChatGPTPlanOptions.Identity`,
+  each documented; `oauthFlowConfig.identity`, set by
+  `resolveOAuthFlowConfig`, `resolvePlanConfig` and `startKiloDevice` (whose
+  doc now names `Identity` among the options Kilo reads). The `originator`
+  and both `referrer` values come from `clientName`; discovery, the token
+  exchange, the OpenAI and Grok device requests, Kilo's requests, the plan's
+  exchange and the keys' fetch set the User-Agent from the identity. The
+  keys' fetch takes it through `idTokenCheck.identity` and `issuerKey`. The
+  plan's discovery takes it through a new `planEndpointsFor(ctx, config)`,
+  which `LoginChatGPTPlan` calls. The refresh (`oauth_session.go:725`) and
+  the revocation (`oauth_revoke.go:75`) are unchanged, and so are the
+  discoveries a revocation runs: Grok's builds its configuration with no
+  identity, and the plan's calls `planOAuthEndpoints(ctx, client, issuer)`,
+  now `planEndpointsFor` with no identity. Existing tests call
+  `postOAuthJSON`, `postOAuthForm`, `fetchJWKS` and `planOAuthEndpoints` with
+  their present signatures, so each keeps it and sends this module's
+  identity; the sign-ins call `postOAuthJSONAs`, `postOAuthFormAs` and
+  `fetchJWKSAs`, which take the identity. No existing test changed.
+* **Step 3, `wizard/configure.go`:** `Options.Identity auth.Identity`,
+  documented as MADR D4: every sign-in the wizard runs, the browser,
+  device-code and plan sign-ins, Kilo's included; the zero value names this
+  module; the wizard sets no OAuth client id and no issuer, so
+  `auth.GrokFlowFromEnv`'s values do not reach one.
+* **Step 4, `wizard/auth.go`:** `oauthFlowOptions` sets `HTTPClient` and
+  `Identity`, and neither `ClientID` nor `Issuer`; the plan's options take
+  `Identity`. Kilo's device sign-ins, as a session and as a key, use
+  `oauthFlowOptions` too. `wizard/device.go` needed no change: it passes on
+  the options it is given.
+* **Tests,** in a new `llmprovider/auth/identity_0076_test.go` and
+  `wizard/identity_0076_test.go`. The auth tests run six sign-ins, OpenAI's
+  and Grok's browser and device sign-ins, Kilo's device sign-in and the
+  ChatGPT plan's, each at its own `httptest` issuer that records every
+  request's method, path and User-Agent. Its keys are at a path new for each
+  issuer, so the keys' cache (MADR C38) has not seen the URL and each
+  sign-in fetches them. Each passes.
+  * `TestIdentityUnset_Unchanged_0076`: with no `Identity`, every request of
+    the six sign-ins, in order, carries "go-llmprovider-sdk/SDK (GOOS;
+    GOARCH) go-llmprovider-sdk/SDK", where SDK is the build's version of this
+    module; OpenAI's and Grok's authorize URLs, with the issuer's URL, the
+    loopback port, the state, the challenge and the nonce replaced, equal
+    pinned literals, and so does Grok's device form,
+    "client_id=test-client&referrer=go-llmprovider-sdk&scope=openid+profile+email+offline_access+grok-cli%3Aaccess+api%3Aaccess".
+  * `TestIdentity_Originator_0076`: with `Identity{Name: "probe-app",
+    Version: "1.2.3"}`, OpenAI's authorize URL carries
+    `originator=probe-app`.
+  * `TestIdentity_Referrer_0076`: the same name is Grok's `referrer` on the
+    authorize URL and on the device form.
+  * `TestIdentity_UserAgent_0076`: every request of the six sign-ins, the
+    keys' fetch included, carries a User-Agent beginning "probe-app/1.2.3 ("
+    and naming "go-llmprovider-sdk/"; a revocation of the Grok and the plan
+    sessions sends its discovery and the revocation, each under this
+    module's User-Agent only.
+  * `TestWizardIdentity_0076`: `Options.Identity` reaches the browser
+    sign-in (Grok), the device sign-ins (Grok's, and Kilo's as a key) and
+    the plan's; the browser and device sign-ins get no `ClientID` and no
+    `Issuer`.
+* **Green at `773b84c`:** `TestIdentityUnset_Unchanged_0076` names no new
+  identifier. `python3 -B tools/redgreen.py SPEC.json --expect pass --rev
+  773b84c`, with the new auth test file copied in and the three tests that
+  name `Identity` dropped (`TestIdentity_Originator_0076`,
+  `TestIdentity_Referrer_0076`, `TestIdentity_UserAgent_0076`), exited 0:
+  "redgreen: 1 of 1 pass as expected", with
+  `--- PASS: TestIdentityUnset_Unchanged_0076 (0.05s)`. The pins are what
+  `773b84c` sends.
+* **Green:** `tools/redgreen.py SPEC.json --expect pass` on the tree, the
+  five tests, exited 0: "redgreen: 5 of 5 pass as expected".
+* **Planted breaks:** `python3 -B tools/plant.py SPEC.json`, one spec per
+  test, each run on its test alone on a scratch clone; each exited 0, "plant:
+  all N plant(s) caught". The failure lines (`plant.py` cuts a long line):
+  * `TestIdentityUnset_Unchanged_0076`, the default `originator` read from
+    an empty `Identity.Name` (`config.identity.Name` for
+    `config.identity.clientName()`):
+    `identity_0076_test.go:284: OpenAI browser: authorize URL ISSUER/oauth/authorize?client_id=test-client&code_challenge=CODE_CHALLENGE&code_challenge_method=S256&codex_cli_simplified_flow=true&id_token_add_organizations=true&originator=&redire`
+  * `TestIdentity_Originator_0076`, `originator` kept at the default
+    (`originatorValue`):
+    `identity_0076_test.go:314: originator = ["go-llmprovider-sdk"]; want ["probe-app"]`
+  * `TestIdentity_Referrer_0076`, the device form keeps the default:
+    `identity_0076_test.go:342: Grok device: referrer = ["go-llmprovider-sdk"]; want ["probe-app"]`
+  * `TestIdentity_UserAgent_0076`, Kilo's requests keep the default
+    (`Identity{}.setUserAgent(req)` in `kiloDeviceRequest`):
+    `identity_0076_test.go:370: Kilo device: POST /api/device-auth/codes sent User-Agent "go-llmprovider-sdk/(devel) (darwin; arm64) go-llmprovider-sdk/(devel)"; want the probe's first, then this module`,
+    and the same for `GET /api/device-auth/codes/KILO-1234`.
+  * `TestIdentity_UserAgent_0076`, the keys' fetch keeps the default (the
+    same in `fetchJWKSAs`):
+    `identity_0076_test.go:370: OpenAI browser: GET /keys sent User-Agent "go-llmprovider-sdk/(devel) (darwin; arm64) go-llmprovider-sdk/(devel)"; want the probe's first, then this module`,
+    and the same for Grok's browser, OpenAI's and Grok's device, and the
+    plan's sign-ins.
+  * `TestWizardIdentity_0076`, the plan's options omit it:
+    `--- FAIL: TestWizardIdentity_0076/plan (0.00s)` and
+    `identity_0076_test.go:83: plan sign-ins given [{AgentName:test-app HostID: Previous:OAuthSession(nil) HTTPClient:<nil> OpenURL:0x101200c40 InputCode:<nil> Identity:{Name: Version:} issuer: now:<nil>}]; want one, with {Name:probe-app Version`
+* **The drift check:** after the code change and before any new test,
+  `go test -count=1 ./llmprovider/auth/... ./wizard/...` exited 0.
+  `grok_referrer_test.go` and every other test of `llmprovider/auth` and
+  `wizard` pass unchanged; no existing test file was edited.
+* **Race:** `go test -race -count=1 ./llmprovider/auth/... ./wizard/...`,
+  exit 0; `go test -race -count=20 -run '_0076$' ./llmprovider/auth/
+  ./wizard/`, exit 0; no data race reported.
+* **Pre-add:** `make pre-add-check` on the ten Go files, exit 0:
+  "go-precheck: 10 file(s) clean (gofmt, golangci-lint, go vet, go test,
+  govulncheck)".
+* **The gate:** `python3 -B tools/gate.py`, which waited at load 126.3 and
+  started at load 9.3, exit 0: "gate: 29 of 29 passed". `api-check`:
+  "against v1.29.0, 0 incompatible change(s) outside llmprovider/x/";
+  `coverage-check`: `llmprovider/auth` 89.7 % against 80.0 %, `wizard`
+  93.8 % against 86.4 %; `docs-check`: "sdkaudit: 0 violation(s) of
+  R50,R51,R52"; no data race in `test-race-cover`.
+* **The additions:** `make api-check`, exit 0, prints the line above and no
+  addition: `scripts/check_api.py` runs apidiff with `-incompatible`, so it
+  lists incompatible changes only, as in Phase 1 and in 0072-PLAN. The
+  additions are `tools/apidiff.py`'s. `python3 -B tools/apidiff.py v1.29.0`,
+  exit 0, "Compatible changes:":
+  * `./llmprovider/auth.ChatGPTPlanOptions.Identity: added`
+  * `./llmprovider/auth.Identity: added`
+  * `./llmprovider/auth.OAuthFlowOptions.Identity: added`
+  * `./wizard.Options.Identity: added`
+
+  These are the R55 table's rows after the owner's ruling, `Identity`'s
+  `Name` and `Version` with its type, and nothing else.
+* **Stop conditions:** none met. No existing test changed; with no
+  `Identity`, no authorize URL, request body or User-Agent changed (the
+  unset test, green at `773b84c` and in the tree); no error text changed;
+  `tools/claims.py` on the MADR, "48 of 48 pass", and on this PLAN, "7 of 7
+  pass"; every plant was caught; `-race` reported no race.
+* **Not done:** Phases 3 to 5: the README and `CHANGELOG.md` entries for
+  these names are Phase 3's. The PLAN's acceptance and MADR Confirmation
+  read "`make api-check` lists exactly the table"; the tool lists no
+  addition (above), so the list is `tools/apidiff.py`'s. That wording is for
+  the owner to amend or keep; no code depends on it.
+* This entry was added after the gate ran, so the record checks were run
+  again before staging.

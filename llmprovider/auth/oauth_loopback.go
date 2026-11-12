@@ -30,7 +30,9 @@ const (
 	openAIOAuthScopes           = "openid profile email offline_access api.connectors.read api.connectors.invoke"
 	grokOAuthScopes             = "openid profile email offline_access grok-cli:access api:access"
 	// oauthParamOriginator names this module to OpenAI's authorize endpoint,
-	// as the ChatGPT backend's originator header does (0002-MADR §5).
+	// as the ChatGPT backend's originator header does (0002-MADR §5), or the
+	// application an Identity names (0076-MADR D3). originatorValue is this
+	// module's name there and in Grok's referrer.
 	oauthParamOriginator = "originator"
 	originatorValue      = "go-llmprovider-sdk"
 )
@@ -46,6 +48,9 @@ type OAuthFlowOptions struct {
 	NotifyDevice func(verificationURL, userCode string)
 	ClientID     string
 	Issuer       string
+	// Identity names the consuming application on this sign-in's requests,
+	// Kilo's included; the zero value names this module (0076-MADR D3).
+	Identity Identity
 
 	now   func() time.Time
 	sleep func(context.Context, time.Duration) error
@@ -64,6 +69,9 @@ type oauthFlowConfig struct {
 	inputCode    func(context.Context) (string, error)
 	now          func() time.Time
 	sleep        func(context.Context, time.Duration) error
+	// identity is the sign-in's Identity. A revocation's discovery leaves it
+	// zero, so it names this module (0076-MADR D3).
+	identity Identity
 }
 
 type oauthEndpoints struct {
@@ -237,6 +245,7 @@ func resolveOAuthFlowConfig(provider llmprovider.ProviderID, opts OAuthFlowOptio
 		inputCode:    opts.InputCode,
 		now:          now,
 		sleep:        sleep,
+		identity:     opts.Identity,
 	}, nil
 }
 
@@ -318,7 +327,7 @@ func discoverOAuthEndpoints(ctx context.Context, config oauthFlowConfig) (oauthE
 	if err != nil {
 		return oauthEndpoints{}, fmt.Errorf("oauth: create discovery request: %w", err)
 	}
-	transport.NewIdentity("", "", "").SetUserAgent(req)
+	config.identity.setUserAgent(req)
 	resp, err := doBounded(config.httpClient, req)
 	if err != nil {
 		return oauthEndpoints{}, fmt.Errorf("oauth: discovery for %s: %w", config.issuer, err)
@@ -457,11 +466,11 @@ func buildAuthorizeURL(config oauthFlowConfig, endpoint, redirectURI, challenge,
 		query.Set("scope", openAIOAuthScopes)
 		query.Set("id_token_add_organizations", "true")
 		query.Set("codex_cli_simplified_flow", "true")
-		query.Set(oauthParamOriginator, originatorValue)
+		query.Set(oauthParamOriginator, config.identity.clientName())
 	} else {
 		query.Set("scope", grokOAuthScopes)
 		query.Set("nonce", nonce)
-		query.Set("referrer", "go-llmprovider-sdk")
+		query.Set("referrer", config.identity.clientName())
 	}
 	authorizeURL.RawQuery = query.Encode()
 	return authorizeURL.String(), nil
@@ -651,7 +660,7 @@ func exchangeOAuthCode(
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create token request: %w", err)
 	}
-	transport.NewIdentity("", "", "").SetUserAgent(req)
+	config.identity.setUserAgent(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := doBounded(config.httpClient, req)
 	if err != nil {
@@ -676,7 +685,7 @@ func verifiedSession(ctx context.Context, config oauthFlowConfig, endpoints oaut
 		return nil, fmt.Errorf("%w: the token response has none, although openid was requested", errIDToken)
 	}
 	check := idTokenCheck{issuer: config.issuer, clientID: config.clientID, nonce: nonce,
-		jwksURL: endpoints.JWKS, advertised: endpoints.SigningAlgs}
+		jwksURL: endpoints.JWKS, advertised: endpoints.SigningAlgs, identity: config.identity}
 	if err := verifyIDToken(ctx, config.httpClient, payload.IDToken, check, config.now()); err != nil {
 		return nil, err
 	}

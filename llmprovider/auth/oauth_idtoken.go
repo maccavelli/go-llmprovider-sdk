@@ -20,8 +20,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 // id_token verification (0016-MADR D7 as the owner decided it, and its
@@ -63,6 +61,9 @@ type idTokenCheck struct {
 	// advertised is the discovery document's
 	// id_token_signing_alg_values_supported; empty when it lists none.
 	advertised []string
+	// identity is the sign-in's, named on a fetch of the issuer's keys
+	// (0076-MADR D3).
+	identity Identity
 }
 
 // verifyIDToken verifies raw's signature and claims, or fails.
@@ -87,7 +88,7 @@ func verifyIDToken(ctx context.Context, client *http.Client, raw string, check i
 	if check.jwksURL == "" {
 		return fmt.Errorf("%w: the issuer publishes no jwks_uri", errIDToken)
 	}
-	key, err := issuerKey(ctx, client, check.jwksURL, header.Kid)
+	key, err := issuerKey(ctx, client, check.identity, check.jwksURL, header.Kid)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errIDToken, err)
 	}
@@ -173,9 +174,10 @@ type jwksEntry struct {
 	fetched time.Time
 }
 
-// issuerKey returns the key named kid, from the cache or a fetch. An unknown
-// kid refetches the keys once, for an issuer that has rotated them.
-func issuerKey(ctx context.Context, client *http.Client, jwksURL, kid string) (jwk, error) {
+// issuerKey returns the key named kid, from the cache or a fetch naming id.
+// An unknown kid refetches the keys once, for an issuer that has rotated
+// them.
+func issuerKey(ctx context.Context, client *http.Client, id Identity, jwksURL, kid string) (jwk, error) {
 	jwksCache.Lock()
 	entry, cached := jwksCache.entries[jwksURL]
 	jwksCache.Unlock()
@@ -185,7 +187,7 @@ func issuerKey(ctx context.Context, client *http.Client, jwksURL, kid string) (j
 			return key, nil
 		}
 	}
-	keys, err := fetchJWKS(ctx, client, jwksURL)
+	keys, err := fetchJWKSAs(ctx, client, id, jwksURL)
 	if err != nil {
 		return jwk{}, err
 	}
@@ -199,12 +201,18 @@ func issuerKey(ctx context.Context, client *http.Client, jwksURL, kid string) (j
 	return key, nil
 }
 
-func fetchJWKS(ctx context.Context, client *http.Client, jwksURL string) (_ map[string]jwk, err error) {
+// fetchJWKS is fetchJWKSAs under this module's own identity.
+func fetchJWKS(ctx context.Context, client *http.Client, jwksURL string) (map[string]jwk, error) {
+	return fetchJWKSAs(ctx, client, Identity{}, jwksURL)
+}
+
+// fetchJWKSAs fetches the issuer's signing keys at jwksURL, naming id.
+func fetchJWKSAs(ctx context.Context, client *http.Client, id Identity, jwksURL string) (_ map[string]jwk, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("keys request: %w", err)
 	}
-	transport.NewIdentity("", "", "").SetUserAgent(req)
+	id.setUserAgent(req)
 	resp, err := doBounded(client, req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch the issuer's keys: %w", err)

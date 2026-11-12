@@ -134,6 +134,13 @@ type Options struct {
 	// OpenAI's terms ask an app to sign in under its own name, and this
 	// module's is not the consumer's (0043-MADR D7).
 	AgentName string
+	// Identity names the consumer's application to the identity providers
+	// on every sign-in the wizard runs: the browser, device-code and ChatGPT
+	// plan sign-ins, Kilo's included, as auth.Identity says. The zero value
+	// names this module. The wizard sets no OAuth client id and no issuer
+	// on a sign-in, so auth.GrokFlowFromEnv's values do not reach one
+	// (0076-MADR D4).
+	Identity auth.Identity
 	// KiloDeviceKey takes Kilo's device sign-in as a key, for a consumer that
 	// stores keys rather than sessions: the sign-in returns CredAPIKey with the
 	// device token in APIKey, saves no session and reads no profile, so no

@@ -68,6 +68,10 @@ type ChatGPTPlanOptions struct {
 	HTTPClient *http.Client
 	OpenURL    func(string) error
 	InputCode  func(context.Context) (string, error)
+	// Identity names the app in the User-Agent of the sign-in's requests;
+	// the zero value names this module (0076-MADR D3). It is not the name
+	// OpenAI shows and registers, which is AgentName.
+	Identity Identity
 
 	// issuer is a test's fake issuer; empty is DefaultOpenAIIssuer.
 	issuer string
@@ -100,7 +104,7 @@ func LoginChatGPTPlan(ctx context.Context, opts ChatGPTPlanOptions) (*OAuthSessi
 	if err != nil {
 		return nil, err
 	}
-	endpoints, err := planOAuthEndpoints(ctx, config.httpClient, config.issuer)
+	endpoints, err := planEndpointsFor(ctx, config)
 	if err != nil {
 		return nil, err
 	}
@@ -217,6 +221,7 @@ func resolvePlanConfig(opts ChatGPTPlanOptions) (oauthFlowConfig, error) {
 		openURL:      opts.OpenURL,
 		inputCode:    opts.InputCode,
 		now:          now,
+		identity:     opts.Identity,
 	}, nil
 }
 
@@ -299,7 +304,7 @@ func planExchange(ctx context.Context, config oauthFlowConfig, tokenURL, code, r
 	if err != nil {
 		return oauthTokenResponse{}, fmt.Errorf("oauth: create token request: %w", err)
 	}
-	transport.NewIdentity("", "", "").SetUserAgent(req)
+	config.identity.setUserAgent(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := doBounded(config.httpClient, req)
 	if err != nil {
@@ -315,12 +320,19 @@ func planExchange(ctx context.Context, config oauthFlowConfig, tokenURL, code, r
 	return payload, nil
 }
 
-// planOAuthEndpoints returns a plan session's endpoints from issuer's
-// discovery document, as published: unlike the Codex login's, its authorize
-// and token endpoints are not replaced. Every endpoint must be on the
-// issuer's origin (0043-MADR A2).
+// planOAuthEndpoints is planEndpointsFor at issuer, with client, under this
+// module's own identity, as a revocation reads them.
 func planOAuthEndpoints(ctx context.Context, client *http.Client, issuer string) (oauthEndpoints, error) {
-	discovered, err := discoverOAuthEndpoints(ctx, oauthFlowConfig{provider: llmprovider.ProviderOpenAI, issuer: issuer, httpClient: client})
+	return planEndpointsFor(ctx, oauthFlowConfig{provider: llmprovider.ProviderOpenAI, issuer: issuer, httpClient: client})
+}
+
+// planEndpointsFor returns a plan session's endpoints from the discovery
+// document of config's issuer, as published: unlike the Codex login's, its
+// authorize and token endpoints are not replaced. Every endpoint must be on
+// the issuer's origin (0043-MADR A2).
+func planEndpointsFor(ctx context.Context, config oauthFlowConfig) (oauthEndpoints, error) {
+	issuer := config.issuer
+	discovered, err := discoverOAuthEndpoints(ctx, config)
 	if issuer == DefaultOpenAIIssuer {
 		if err != nil {
 			discovered, err = planBuiltinEndpoints, nil

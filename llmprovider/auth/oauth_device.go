@@ -16,7 +16,6 @@ import (
 	"unicode"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
 const (
@@ -207,7 +206,7 @@ func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogi
 		return nil, err
 	}
 	userCodeURL := config.issuer + "/api/accounts/deviceauth/usercode"
-	resp, err := postOAuthJSON(ctx, config.httpClient, userCodeURL, map[string]string{oauthParamClientID: config.clientID})
+	resp, err := postOAuthJSONAs(ctx, config.httpClient, config.identity, userCodeURL, map[string]string{oauthParamClientID: config.clientID})
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +232,7 @@ func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogi
 			if !config.now().Before(deadline) {
 				return nil, pace.expired()
 			}
-			pollResponse, pollErr := postOAuthJSON(ctx, config.httpClient, pollURL, map[string]string{
+			pollResponse, pollErr := postOAuthJSONAs(ctx, config.httpClient, config.identity, pollURL, map[string]string{
 				"device_auth_id": device.DeviceAuthID,
 				"user_code":      device.UserCode,
 			})
@@ -297,9 +296,9 @@ func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin,
 	form := url.Values{
 		oauthParamClientID: {config.clientID},
 		"scope":            {grokOAuthScopes},
-		"referrer":         {"go-llmprovider-sdk"},
+		"referrer":         {config.identity.clientName()},
 	}
-	resp, err := postOAuthForm(ctx, config.httpClient, endpoints.Device, form)
+	resp, err := postOAuthFormAs(ctx, config.httpClient, config.identity, endpoints.Device, form)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +333,7 @@ func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin,
 				"device_code":       {device.DeviceCode},
 				oauthParamClientID:  {config.clientID},
 			}
-			tokenResponse, tokenErr := postOAuthForm(ctx, config.httpClient, endpoints.Token, tokenForm)
+			tokenResponse, tokenErr := postOAuthFormAs(ctx, config.httpClient, config.identity, endpoints.Token, tokenForm)
 			if tokenErr != nil {
 				if ctx.Err() != nil {
 					return nil, tokenErr
@@ -506,7 +505,13 @@ func (p *devicePacer) expired() error {
 	return errDeviceCodeExpired
 }
 
+// postOAuthJSON is postOAuthJSONAs under this module's own identity.
 func postOAuthJSON(ctx context.Context, client *http.Client, endpoint string, payload any) (*http.Response, error) {
+	return postOAuthJSONAs(ctx, client, Identity{}, endpoint, payload)
+}
+
+// postOAuthJSONAs posts payload as JSON to endpoint, naming id on it.
+func postOAuthJSONAs(ctx context.Context, client *http.Client, id Identity, endpoint string, payload any) (*http.Response, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("oauth: encode request: %w", err)
@@ -515,7 +520,7 @@ func postOAuthJSON(ctx context.Context, client *http.Client, endpoint string, pa
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create request: %w", err)
 	}
-	transport.NewIdentity("", "", "").SetUserAgent(req)
+	id.setUserAgent(req)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := doBounded(client, req)
 	if err != nil {
@@ -524,12 +529,18 @@ func postOAuthJSON(ctx context.Context, client *http.Client, endpoint string, pa
 	return resp, nil
 }
 
+// postOAuthForm is postOAuthFormAs under this module's own identity.
 func postOAuthForm(ctx context.Context, client *http.Client, endpoint string, form url.Values) (*http.Response, error) {
+	return postOAuthFormAs(ctx, client, Identity{}, endpoint, form)
+}
+
+// postOAuthFormAs posts form to endpoint, naming id on it.
+func postOAuthFormAs(ctx context.Context, client *http.Client, id Identity, endpoint string, form url.Values) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create request: %w", err)
 	}
-	transport.NewIdentity("", "", "").SetUserAgent(req)
+	id.setUserAgent(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := doBounded(client, req)
 	if err != nil {
