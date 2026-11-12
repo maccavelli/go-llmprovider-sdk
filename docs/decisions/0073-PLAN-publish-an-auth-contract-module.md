@@ -706,3 +706,158 @@ test, gate or golden was changed.
   checks" paragraph still describes the root's run only; Phase 2 and Phase
   4 are where the PLAN touches docs), no govulncheck of the nested module,
   and no commit. The files are staged for the owner to commit.
+
+### Phase 1b (2026-11-11)
+
+The coordinator committed Phase 1a as `b064c0e`, on the owner's
+authorization. Base: `main` at `b064c0e`, two ahead of `origin/main`, tree
+clean, `authcontract/` holding only `go.mod` (`go 1.27.4`). No claim of the
+MADR was found false; no existing test, gate or golden was changed; no file
+under `llmprovider/` or `wizard/` changed.
+
+* Steps 3 to 7: `authcontract/doc.go`, `method.go`, `step.go`, `answer.go`,
+  `errorkind.go` and `sessionkind.go`, with D2's types, field names, JSON
+  tags and enum spellings, D3's eighteen `Failure*` constants in D3's order,
+  and the amendment's `SessionKind` and its four constants, data only, with
+  no method. Each exported type's doc says it is a value, safe for
+  concurrent use while no goroutine changes it (R51); each enum type's doc
+  says it is open; `SessionKind`'s says its labels are in the schema's
+  `x-enum-labels`, not in Go.
+* Exported names, by `go -C authcontract doc -all .`: `SchemaVersion`; the
+  types `Feature`, `Kind`, `Completion`, `Paste`, `Yields`,
+  `ClientIdentity`, `StepKind`, `LinkRel`, `FieldType`, `ErrorKind`,
+  `SessionKind`, `Method`, `Consent`, `Link`, `Field`, `Step`, `Answer` and
+  `Failure`; 67 constants (3, 7, 7, 4, 6, 4, 8, 3, 3, 18 and 4 by type, in
+  that order); and `Answer.String`, `Answer.GoString` and
+  `Answer.LogValue`. The fields are 18, 4, 3, 6, 16, 7 and 3 for `Method`,
+  `Consent`, `Link`, `Field`, `Step`, `Answer` and `Failure`. Each is in the
+  R55 table above, and nothing else is exported.
+* Choices the steps left open:
+  1. The package doc carries D6's six rules in D6's words, with the `**`
+     emphasis dropped (a Go doc comment has none), after one sentence that
+     names this MADR as the source of the rules' references D2, R34 and
+     Q11. `authcontract/README.md` carries them as D6 prints them.
+  2. `Answer.String` prints `Answer{SchemaVersion:N Seq:N Secret:S ...}`,
+     `Secret` as `true`, `false` or `<nil>`, then `Paste`, `Confirm`,
+     `Fields` (keys sorted) and `Meta` when set. A shown value is quoted; a
+     masked one is `[redacted]`. `Meta` is printed by its keys only, never
+     its values, which the step does not name; this is the conservative
+     reading of D6 rule 5. `GoString` prefixes `authcontract.`. `LogValue`
+     is a group under the JSON names, `secret` logged as null when nil.
+  3. Each constant's meaning follows D2, D3 and the amendment, and, for
+     `Kind`, `Completion`, `Yields` and `ClientIdentity`, the method facts
+     table of 0074-MADR D1.
+* Steps 8 and 9: `authcontract/README.md` (what the module is, its types,
+  the four session kinds and their labels, its tags, D6's rules, how a
+  consumer pins it, and how it reads the schema and the vectors at a tag)
+  and `authcontract/CHANGELOG.md` (Keep a Changelog, `## [Unreleased]`,
+  `### Added`).
+* Step 10: the tests `TestJSONNames_0073`, `TestStepSecretJSON_0073`,
+  `TestAnswerJSONCarriesPaste_0073` and `TestUnknownEnumValuesKept_0073`
+  (`json_0073_test.go`); `TestAnswerRedacts_0073` and
+  `TestAnswerShowsNonSecret_0073` (`answer_0073_test.go`);
+  `TestSessionKindValues_0073` and `TestUnknownSessionKindKept_0073`
+  (`sessionkind_0073_test.go`); `ExampleAnswer_String`
+  (`example_test.go`). Coverage of the package: 95.9 %.
+* **Plants.** Each by `python3 -B tools/plant.py SPEC.json` on a scratch
+  clone, each spec's command `["go", "-C", "authcontract", "test",
+  "-count=1", "-run", "^<the test>$", "./..."]`; every plant exit 1,
+  "plant: all N plant(s) caught" for each spec, run again on the final tree
+  with the same result:
+  * `TestJSONNames_0073`, `Step.URL`'s tag spelled `uri`:
+    `json_0073_test.go:115: Step.URL: tag "uri,omitempty", want
+    "url,omitempty"`; `Method.Links` without `omitempty`:
+    `json_0073_test.go:115: Method.Links: tag "links", want
+    "links,omitempty"` and `json_0073_test.go:118: Method.Links: a slice
+    field without omitempty (tag "links")`.
+  * `TestAnswerRedacts_0073`, `String` returning `fmt.Sprintf("%#v", …)` of
+    the raw fields: `answer_0073_test.go:74: %v of a authcontract.Answer
+    shows sk-PLANTED-0073: authcontract.raw{SchemaVersion:1, Seq:7, …
+    Paste:"sk-PLANTED-0073", …`; `LogValue` renamed away, so `slog` prints
+    the struct: `answer_0073_test.go:74: slog's JSON handler with a
+    authcontract.Answer shows sk-PLANTED-0073:
+    {…"a":{"schema_version":1,"seq":7,"secret":true,"paste":"sk-PLANTED-0073",…`
+    (the text handler prints through `String`, still masked, and fails on
+    `a.seq=7` missing); a nil `Secret` read as false:
+    `--- FAIL: TestAnswerRedacts_0073/Secret_nil` and
+    `answer_0073_test.go:74: %v of a authcontract.Answer shows
+    sk-PLANTED-0073: Answer{SchemaVersion:1 Seq:7 Secret:<nil>
+    Paste:"sk-PLANTED-0073" …`.
+  * `TestAnswerShowsNonSecret_0073`, the mask applied whatever `Secret`
+    says: `answer_0073_test.go:98: %v of a authcontract.Answer does not
+    show sk-PLANTED-0073: Answer{SchemaVersion:1 Seq:7 Secret:false
+    Paste:[redacted] …`.
+  * `TestStepSecretJSON_0073`, `Answer.Secret` declared `bool`: the package
+    does not build, "FAIL github.com/maccavelli/go-llmprovider-sdk/authcontract
+    [build failed]"; on a scratch copy of the module, the build error is
+    `./answer.go:33:52: invalid operation: a.Secret == nil (mismatched
+    types bool and untyped nil)`. Since that plant fails the build, not the
+    assertion, two more plants were run on the same test: `Step.Secret`'s
+    tag without `omitempty`, `json_0073_test.go:147: a step that is not
+    secret: {"schema_version":1,"seq":2,"kind":"waiting","secret":false},
+    want no "secret" member`; and `Answer.Secret`'s tag `json:"-"`,
+    `json_0073_test.go:153: an answer whose Secret is false:
+    {"schema_version":1,"seq":2,"confirm":false}, want "secret":false`.
+  * `TestAnswerJSONCarriesPaste_0073`, a `MarshalJSON` that redacts:
+    `json_0073_test.go:170: json.Marshal:
+    {"schema_version":1,"seq":4,"secret":true,"paste":"[redacted]",…}, want
+    the paste and the field value`.
+  * `TestUnknownEnumValuesKept_0073`, an `UnmarshalText` on `StepKind` that
+    refuses an unlisted value: `json_0073_test.go:201: decode
+    {"schema_version":1,"seq":1,"kind":"a_future_kind"} into
+    authcontract.Step: json: unsupported value: unlisted step kind
+    a_future_kind`.
+  * `ExampleAnswer_String`, the output planted wrong:
+    `--- FAIL: ExampleAnswer_String (0.00s)`.
+  * `TestSessionKindValues_0073`, `SessionKiloDevice` deleted:
+    `sessionkind_0073_test.go:82: SessionKiloDevice: missing; want
+    "kilo_device"`; `SessionGrok`'s value spelled `xai`:
+    `sessionkind_0073_test.go:84: SessionGrok = "xai", want "grok"`.
+  * `TestUnknownSessionKindKept_0073`, an `UnmarshalText` on `SessionKind`
+    that refuses an unlisted value: `sessionkind_0073_test.go:100: decode
+    "a_future_session_kind": unknown session kind a_future_session_kind`.
+* Checks, each exit status captured before any filter:
+  * `go -C authcontract test -race -count=1 ./...`, exit 0: "ok
+    github.com/maccavelli/go-llmprovider-sdk/authcontract"; no race.
+    `go -C authcontract vet ./...`, exit 0.
+  * `go -C authcontract list -deps ./...`, exit 0: 79 packages, 78 standard
+    and the module's own; packages neither standard nor the module's own:
+    0. With `-test`, the only others are the module's test packages. `go -C
+    authcontract mod tidy -diff`, exit 0, no output. No `go.sum`; `go.mod`
+    unchanged.
+  * `gofmt -l authcontract`: no file.
+  * `make pre-add-check FILES="<the ten .go files>"`, exit 0:
+    "govulncheck: skipped (no file of the root module)", "go-precheck:
+    nested module(s) clean: authcontract."
+  * `make docs-check`: its first run, exit 2, named two of this phase's
+    types, "authcontract/errorkind.go:9 R51 type ErrorKind does not say
+    whether it is safe for concurrent use" and the same for `FieldType`:
+    their docs broke "concurrent use" across two lines, which the audit
+    does not join. Rewrapped; then exit 0, "sdkaudit: 0 violation(s) of
+    R50,R51,R52", with the module in its walk.
+  * `make markdownlint`, exit 0: 14 files, among them
+    `authcontract/README.md` and `authcontract/CHANGELOG.md`, "0 issues".
+  * `python3 -B tools/gate.py`: its first run, exit 2, ran nothing, "gate:
+    the load did not fall below 10 within 1500 s; nothing run" (it waited
+    from load 52.3). Run once more, exit 0: it waited from load 28.9,
+    "started at load 9.7", and "gate: 29 of 29 passed", each check rc=0,
+    among them pre-add-check ("go-precheck: nested module(s) clean:
+    authcontract."), test-race-cover, lint, api-check ("api-check: against
+    v1.30.0, 0 incompatible change(s) outside llmprovider/x/"),
+    docs-check ("sdkaudit: 0 violation(s) of R50,R51,R52"),
+    changelog-check, gate-selftest, markdownlint, links-check,
+    disclosure-check, deny-scan ("0 hit(s) in 12 file(s)") and tools-test.
+  * The gate ran before this entry was written, so the checks that read
+    the records were run again after it, each exit 0: `tools/claims.py` on the
+    MADR, "44 of 44 pass", and on this PLAN, "11 of 11 pass"; `make
+    records-check`, "records-check: 162 records, 0 problem(s)";
+    `tools/recordlint.py --changed`, "recordlint: 1 record(s); no rule
+    rose"; `tools/denyscan.py --changed`, "deny-scan: 0 hit(s) in 13
+    file(s)"; `tools/linkcheck.py`, "G-links: 0 problem(s), 1247 relative
+    link(s) in 176 file(s)"; `make links-check`, the same count; `make
+    disclosure-check`, "disclosure-check: 0 hit(s) in 1527 file(s)".
+* Not done, as the phase says: no schema, generator, validator or vectors
+  (Phase 3); no `//go:generate` line; no Makefile, `ci.yml`,
+  `check_changelog.py` or `test_gates.py` change (Phase 2); no root
+  requirement on the module (0074); no tag; no commit. The files are staged
+  for the coordinator to commit.
