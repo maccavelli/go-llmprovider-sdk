@@ -459,6 +459,16 @@ on the tree; `make contract-check` passes.
 Acceptance: the tag exists and CI passed on it; the module resolves through
 the proxy; `make changelog-check` passes with the tag.
 
+*(Amended 2026-11-12, the owner's choice on the tag's CI, in this phase's
+"the tag" entry:)* for `authcontract/v0.1.0`, "CI passed on it" is met on
+evidence: on the tag's run, `validate` passed on macOS and Windows, and on
+Ubuntu every step before the gates' self-test passed, `contract-check`
+against the tag among them; the self-test's failure was its own clone
+colliding with the real tag; and `ci.yml` on `main` with the fix passes with
+the tag present. The tag is not moved and no other version is cut for it.
+**`scripts/test_gates.py`** gains that fix: `copy_tree` drops the copy's
+`authcontract/v*` tags, and `CopyTreeTest` gains a case for it.
+
 ## Verification
 
 Each command's exit status is captured before any filter.
@@ -1703,3 +1713,71 @@ the owner's approval of steps 4 and 5. No tag was made.
   * Next: the commit of `.gitattributes` and this PLAN, the guard, the push
     of `main` and its `ci.yml` run, which is to pass on all three runners
     before steps 3 to 7 above.
+
+### Phase 4, the tag (2026-11-12)
+
+The coordinator committed the fix as `38e17de`, ran the guard (exit 0) and
+pushed `main` (`219c9b4..38e17de`). `ci.yml` run 43286231178 passed on all
+three runners (`release` skipped), and `docs.yml` run 43286231278 passed.
+
+* Step 3: `git tag -a authcontract/v0.1.0 -m authcontract/v0.1.0` on
+  `38e17de`, exit 0; `git cat-file -t` prints `tag`; the tag's commit equals
+  `HEAD`, `38e17ded8030ff3f4738f18b448de3756816f423`; its message is
+  `authcontract/v0.1.0`. The changelog section's date, 2026-11-12, is the
+  commit's (`git log -1 --format=%cs`).
+* Step 4: `git push origin authcontract/v0.1.0`, `* [new tag]`.
+* Step 7, run before the tag's CI finished, each exit 0: `make
+  changelog-check`, "44 release section(s), 0 problem(s)"; `make
+  contract-check`, "authcontract, against authcontract/v0.1.0, 0
+  problem(s)".
+* **Deviation: step 5, the tag's CI, failed on Ubuntu.** Run 43287808746:
+  `validate (macos-15)` and `validate (windows-2025)` passed, `release`
+  skipped; `validate (ubuntu-24.04)` failed at step 11, the gates, after
+  every earlier gate in it passed (parity, dep-check, coverage-check,
+  `contract-check: authcontract, against authcontract/v0.1.0, 0
+  problem(s)`, generate-check, records, tables, fixtures, changelog,
+  links). `gate-selftest`: "FAILED (failures=4, errors=10)".
+  * Evidence. `scripts/test_gates.py:52-69`, `copy_tree`, makes each case's
+    copy with `git clone --shared`, which carries the source's tags; CI
+    checks out with `fetch-depth: 0`, so every tag. The ten errors are
+    `ContractCheckTest` and `GateSelfTest` cases whose `git tag
+    authcontract/v0.1.0 …` exits 128, since the copy holds that tag
+    already; the four failures are cases that expect no contract tag
+    (`test_no_tag_passes_and_says_so`: "'no authcontract/v* tag yet, so
+    nothing to compare' not found") or exit 1 where the check, now
+    comparing against the tag, exits 2. Latent since Phase 2: the cases
+    were written and run before the first real tag existed, and passed (the
+    Phase 4 gate's 30 of 30). Every later `main` push would fail the same
+    way, in `ci.yml` and in `docs.yml`, which also runs `gate-selftest`.
+    The module is not at fault.
+  * Reproduced on a scratch clone of `38e17de` holding the tag: the 15
+    cases, "FAILED (failures=4, errors=10)", exit 1.
+  * Resolutions put to the owner, for the test: (1) *recommended*,
+    `copy_tree` deletes the copy's `authcontract/v*` tags, so each case
+    starts from no contract tag and plants its own, as written; (2) the
+    tagging cases use versions no real tag has, and the no-tag cases delete
+    tags, which breaks again when a real tag reaches such a version; (3)
+    the cases plant against the real tag, which rewrites their setup and
+    ties them to its contents. For the acceptance, since a rerun of the
+    tag's run uses the tag's commit, whose self-test is the old one: (a)
+    *recommended*, accept on evidence, the tag kept; (b) cut
+    `authcontract/v0.1.1`, a release with no module change, for a green tag
+    run; (c) move `v0.1.0` to the fixed commit, unsafe once the module
+    proxy has served it. Doing nothing: every push to `main` fails CI.
+  * **Resolution (2026-11-12): the owner chose (1) and (a).** Phase 4's
+    acceptance carries a dated amendment naming `scripts/test_gates.py`.
+    The change: after its deletions, `copy_tree` lists the copy's
+    `authcontract/v*` tags and deletes them (`git tag -d`); and
+    `CopyTreeTest.test_copy_tree_drops_contract_tags` tags a shared clone
+    of the repository `authcontract/v0.0.1`, copies it, and asserts the
+    copy lists no `authcontract/v*` tag. No assertion of any other case
+    changed.
+  * Seen on scratch clones of `38e17de`, never in the tree: with the new
+    case and the old `copy_tree`, `CopyTreeTest`, exit 1, `FAIL:
+    test_copy_tree_drops_contract_tags`, `AssertionError: Lists differ:
+    ['authcontract/v0.0.1', 'authcontract/v0.1.0'] != []`; with both, "Ran
+    2 tests", "OK", exit 0. With the fix alone, the 15 cases that failed,
+    "Ran 15 tests", "OK", exit 0, and the whole self-test, "Ran 67 tests in
+    345.507s", "OK", exit 0.
+  * Not done: step 6, the proxy check, waits for `ci.yml` on `main` with the
+    fix, as does the record of Phase 4 complete.

@@ -67,6 +67,13 @@ def copy_tree(dest: Path, source: Path = ROOT) -> None:
         deleted = subprocess.run(cmd, cwd=source, capture_output=True, check=True).stdout
         for rel in filter(None, deleted.decode().split("\0")):
             (dest / rel).unlink(missing_ok=True)
+    # The copy starts with no contract tag: a case that needs one plants its
+    # own, and the source's real authcontract/v* tags would collide with it
+    # (0073-PLAN, Phase 4, the tag's CI).
+    tags = subprocess.run(["git", "tag", "-l", "authcontract/v*"], cwd=dest, capture_output=True, text=True,
+                          check=True).stdout.split()
+    if tags:
+        subprocess.run(["git", "tag", "-d", *tags], cwd=dest, capture_output=True, check=True)
 
 
 def run_gate(tree: Path, gate: str) -> subprocess.CompletedProcess[str]:
@@ -99,6 +106,20 @@ class CopyTreeTest(unittest.TestCase):
             copy_tree(dest, source)
             self.assertFalse((dest / gone).exists(), f"the copy still holds {gone}, whose deletion is staged")
             self.assertTrue((dest / "llmprovider/catalog/discovery.go").exists(), "the copy lost a kept file")
+
+    def test_copy_tree_drops_contract_tags(self) -> None:
+        """The copy holds no authcontract/v* tag even when the source does,
+        so the contract cases' own tags do not collide with a real one
+        (0073-PLAN, Phase 4, the tag's CI)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(source)], check=True)
+            subprocess.run(["git", "tag", "authcontract/v0.0.1"], cwd=source, check=True, capture_output=True)
+            dest = Path(tmp) / "copy"
+            copy_tree(dest, source)
+            tags = subprocess.run(["git", "tag", "-l", "authcontract/v*"], cwd=dest, capture_output=True,
+                                  text=True, check=True).stdout.split()
+            self.assertEqual(tags, [], f"the copy holds the source's contract tags {tags}")
 
 
 class PrecheckTest(unittest.TestCase):
