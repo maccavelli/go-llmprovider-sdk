@@ -115,7 +115,17 @@ a package is under 80 % coverage, and, against the latest `authcontract/v*`
 tag, on any incompatible API change, even at v0, or any break of the JSON
 schema: an entry, a property or an enum value removed, a type changed, a
 property newly required. Before the first tag it says there is nothing to
-compare. The other gates learn the module as 0073-MADR D8 says:
+compare.
+
+Its JSON Schema, `authcontract/authcontract.schema.json`, is generated from
+the types by `authcontract/internal/schemagen` through the package's
+`//go:generate` line, so `generate-check` holds it to them (0073-MADR D4).
+Its golden vectors are in `authcontract/testdata/vectors/`, with a newer
+producer's output in `forward/`; the module's tests decode and re-encode
+each, and validate every one outside `forward/` against the schema with
+`authcontract/internal/schemacheck` (D5).
+
+The other gates learn the module as 0073-MADR D8 says:
 `scripts/go-precheck.sh` checks a staged file of the module in the module,
 `make test`, `vet`, `lint` and `vuln` run there too, `changelog-check` holds
 `authcontract/CHANGELOG.md` to its tags, and CI tests the module on all three
@@ -1205,7 +1215,11 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   `_windows.go` files are linted too), `go vet` and `go test -race` on their
   packages, `go mod tidy -diff`, and `govulncheck ./...`. `make pre-add-check` runs it, and so does
   the machine-wide agent gate before an agent `git commit` that stages Go
-  files.
+  files. A file of the nested module `authcontract` is checked in that
+  module, with `go -C`: `go vet` and `go test -race` on all its packages,
+  `golangci-lint` from its directory with the root's configuration, and
+  `go mod tidy -diff`; with no files, every module is checked (0073-MADR
+  D8).
 - **`tools/`** (0035-MADR) holds the maintainer tools, in Python on the
   standard library. `tools/gate.py` runs every local check on a scratch
   clone of the working tree, once the load average is below the CPU count:

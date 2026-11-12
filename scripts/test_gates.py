@@ -398,7 +398,9 @@ class GateSelfTest(unittest.TestCase):
 
     def test_changelog_check_contract_tag_without_section(self) -> None:
         """The nested module's tag with no section in its own changelog; the
-        problem names the full tag (0073-PLAN Phase 2)."""
+        problem names the full tag (0073-PLAN Phase 2). The copy's v0.1.0
+        section, which 0073-PLAN Phase 4 wrote, is removed first."""
+        replace_once(self.tree / "authcontract/CHANGELOG.md", "## [v0.1.0] - 2026-11-12\n\n", "")
         subprocess.run(["git", "tag", "authcontract/v0.1.0"], cwd=self.tree, check=True, capture_output=True)
         self.assertFails("changelog-check", "authcontract/v0.1.0 has no section")
 
@@ -406,8 +408,8 @@ class GateSelfTest(unittest.TestCase):
         """The nested module's section dated other than its tag's commit, by
         the rules of the root's."""
         subprocess.run(["git", "tag", "authcontract/v0.1.0"], cwd=self.tree, check=True, capture_output=True)
-        replace_once(self.tree / "authcontract/CHANGELOG.md", "## [Unreleased]\n",
-                     "## [Unreleased]\n\n## [v0.1.0] - 2001-01-01\n")
+        replace_once(self.tree / "authcontract/CHANGELOG.md", "## [v0.1.0] - 2026-11-12\n",
+                     "## [v0.1.0] - 2001-01-01\n")
         self.assertFails("changelog-check", "authcontract/v0.1.0 is dated 2001-01-01; its tag's commit is ")
 
     def test_changelog_check_out_of_order(self) -> None:

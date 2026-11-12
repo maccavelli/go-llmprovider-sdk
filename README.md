@@ -370,6 +370,19 @@ key.
   llmprovider.WithBaseURL(res.BaseURL))`, and `llmprovider.WithAPIKey`
   when `res.Kind` is `CredAPIKey`.
 
+## The auth contract module
+
+`authcontract/` is a second Go module in this repository,
+`github.com/maccavelli/go-llmprovider-sdk/authcontract`, standard library
+only: the vocabulary of signing in without an API key (method facts, steps,
+answers, failure kinds and session kinds), as data, with a JSON Schema
+generated from its types and golden vectors, for this SDK, gobble-cli and
+magic-cli-remote to share. It is versioned apart from the SDK, by
+`authcontract/vX.Y.Z` tags from `authcontract/v0.1.0`, and within a major
+version, v0 included, it only adds. The root module does not require it yet.
+[authcontract/README.md](authcontract/README.md) describes its types, its
+evolution rules, and how to pin it and read its schema and vectors.
+
 ## Status
 
 The current release is `v1.30.0`. The module requires Go 1.27.4.

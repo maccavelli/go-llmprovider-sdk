@@ -143,14 +143,25 @@ as `make vuln` runs it (`GO_PRECHECK_SKIP_VULN=1` skips it offline). `golint` is
 not used: its checks are `revive`'s `exported`, `package-comments` and
 `var-naming` rules in `.golangci.yml`. A file that fails is not committed.
 
+A file of the nested module `authcontract` is checked in that module, since
+the root's `./...` stops at its `go.mod` (0073-MADR D8):
+`go -C authcontract vet ./...`, `go -C authcontract test -race ./...`,
+`golangci-lint run -c ../.golangci.yml ./...` from its directory, for the
+host, and `go -C authcontract mod tidy -diff`; `gofmt` runs on every given
+file. With no `FILES`, every module is checked. When every given file is the
+nested module's, the root's lint, vet, test, tidy and govulncheck do not
+run. `make vuln` runs the module's govulncheck, and `make contract-check`
+holds its coverage.
+
 The machine-wide agent gate runs the same script before every agent
 `git commit` that stages Go files, and denies the commit when it fails. There
 is no `git add` hook on every host; do not rely on one.
 
 `make lint` and `make vuln` must be clean before a release-shaped change.
 CI also runs `make parity-check dep-check coverage-check api-check
-generate-check records-check tables-check fixtures-check changelog-check
-docs-check markdownlint links-check disclosure-check gate-selftest`; run
+contract-check generate-check records-check tables-check fixtures-check
+changelog-check docs-check markdownlint links-check disclosure-check
+gate-selftest`; run
 them before asking for a push. A push or pull request that changes only
 Markdown runs `.github/workflows/docs.yml` instead, which runs the gates
 that read Markdown: `make parity-check records-check tables-check

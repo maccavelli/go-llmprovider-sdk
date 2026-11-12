@@ -435,6 +435,14 @@ on the tree; `make contract-check` passes.
 1. `authcontract/CHANGELOG.md`: the section `## [v0.1.0] - <date>`.
 2. `README.md`: one paragraph, "The auth contract module", linking
    `authcontract/README.md`.
+
+   *(Added 2026-11-12, the owner's choice on this phase's deviation, below:)*
+   **`scripts/test_gates.py`:** `test_changelog_check_contract_tag_without_section`
+   first removes the copy's `## [v0.1.0] - 2026-11-12` heading and its blank
+   line with `replace_once`, then tags and asserts as before; and
+   `test_changelog_check_contract_wrong_date` changes that heading's date to
+   `2001-01-01` instead of inserting a second section. Their assertions are
+   unchanged. Step 1's section made the first case pass where it must fail.
 3. Run the full gate (`python3 -B tools/gate.py`).
 4. On the owner's word: push, then tag `authcontract/v0.1.0` at the commit,
    and push the tag. CI runs on it (Phase 2, step 6).
@@ -1433,3 +1441,207 @@ once the owner chose the resolutions the same day.
 * Not done, as the phase says: no `AGENTS.md`, README or CHANGELOG change
   (Phase 4); no root requirement on the module (0074); no tag; no commit.
   The files are staged for the coordinator to commit.
+
+### Phase 4, prepared (2026-11-12)
+
+The coordinator committed Phase 3 as `1ba0840`, and the v0.7.0 notes as `c384136`, on the owner's authorization.
+Base: `main` at `c384136`, six ahead of `origin/main`, tree clean; no
+`authcontract/v*` tag. No file under `llmprovider/` or `wizard/` changed, no
+Go file changed, and no existing test, gate or golden changed but the two
+self-test cases the owner's resolution of the deviation below names. This
+entry covers steps 1 to 3. Steps 4 and 5, the tag and the proxy check, are the
+owner's, and are listed at its end.
+
+* Step 1, `authcontract/CHANGELOG.md`: `## [v0.1.0] - 2026-11-12` under an
+  empty `## [Unreleased]`, as the root's changelog keeps one. Its `### Added`
+  holds the three bullets Phase 1b wrote and two more for what Phase 3 added
+  and the changelog did not yet name: `authcontract.schema.json` (D4) and the
+  golden vectors (D5). The date is the day the coordinator is to commit this
+  phase: `changelog-check` compares it with the tag's commit's committer date
+  (`git log -1 --format=%cs`), so a commit made on another day needs the
+  section's date changed to match before the tag.
+* Step 2, `README.md`: a section "The auth contract module", one paragraph,
+  before "Status": the module's path, that it is standard library only, what
+  it holds, its tags from `authcontract/v0.1.0`, that it only adds within a
+  major version, that the root does not require it yet, and a link to
+  `authcontract/README.md`.
+* The docs the earlier phases left for this one:
+  * `AGENTS.md`, "Pre-add checks": the sentence on the gates CI runs names
+    `contract-check`, after `api-check`, as `ci.yml`'s gate line has it (the
+    owner's decision of 2026-11-12, in Phase 2's entry). A new paragraph says
+    how `scripts/go-precheck.sh` checks a file of the nested module, which
+    Phase 1a's "Not done" left for Phase 4: `go -C authcontract vet ./...`
+    and `test -race ./...`, `golangci-lint run -c ../.golangci.yml ./...`
+    from its directory, for the host, `go mod tidy -diff` there, `gofmt` on
+    every file, every module with no `FILES`, and no root lint, vet, test,
+    tidy or govulncheck when every given file is the module's.
+  * `docs/architecture.md`: "The auth contract module" gains a paragraph on
+    the schema, its generator and `generate-check`, and the vectors and their
+    validator, which Phase 3 added and the section did not name (R43, the
+    layout); the `scripts/go-precheck.sh` bullet under "Tooling" gains the
+    nested module's run, the same fact as `AGENTS.md`'s.
+  * `authcontract/README.md` needed no change: it already names the first
+    tag, `go get …@v0.1.0` and the schema and vectors at a tag.
+* **Deviation (2026-11-12): an existing self-test fails, and Phase 4 does
+  not name its change. Stopped, with nothing staged, until the owner
+  chose (below).** `python3 -B tools/gate.py --timeout 5400`, exit 1: it waited
+  ("load 41.5; waiting for it to fall below 10"), "started at load 9.4", and
+  "gate: 29 of 30 passed"; every check rc=0 but `gate-selftest`, rc=2:
+  "Ran 67 tests in 336.947s", "FAILED (failures=1)".
+  * Evidence. `scripts/test_gates.py:399-403`,
+    `GateSelfTest.test_changelog_check_contract_tag_without_section`
+    (Phase 2's plant 9), tags the copy `authcontract/v0.1.0` and requires
+    `changelog-check` to fail with "authcontract/v0.1.0 has no section".
+    Step 1 gives the copy that section, so the check passes: `AssertionError:
+    0 != 1 : changelog-check exit 0, want 1:` and "changelog-check: 44
+    release section(s), 0 problem(s)". Run alone on the tree (the case works
+    on a copy), exit 1, the same lines. Not pre-existing: on a scratch clone
+    of `c384136` the case passes ("OK", exit 0), as the Phase 3 gate's 30 of
+    30 did. Step 1 causes it; the gate is right to fail.
+  * The case beside it, `test_changelog_check_contract_wrong_date`
+    (`:405-411`), still passes, for a reason that changed: it inserts a
+    second `## [v0.1.0] - 2001-01-01` heading after `## [Unreleased]`, so
+    the copy now holds two v0.1.0 sections, and the check reports the date
+    and "has a section already". Its assertion (the date line) still holds.
+  * Resolutions, each leaving the tree correct:
+    1. *Recommended.* Amend Phase 4 to name `scripts/test_gates.py`: the
+       tag-without-section case first removes the copy's
+       `## [v0.1.0] - 2026-11-12` heading and its blank line
+       (`replace_once`), then tags and asserts as now; and the wrong-date
+       case changes that heading's date to `2001-01-01` instead of inserting
+       a second section, so each case again plants one thing. The
+       assertions are unchanged. Cost: two lines in two existing cases and a
+       docstring sentence; the Phase 4 commit is then no longer Markdown
+       only, so its push to `main` runs `ci.yml` in full rather than
+       `docs.yml`. Tried on the scratch clone of `c384136` with this
+       phase's `authcontract/CHANGELOG.md` copied in: both cases "OK", exit
+       0; with `check_changelog.py`'s "has no section" line planted away
+       there, the amended case fails, `AssertionError: 0 != 1 :
+       changelog-check exit 0, want 1:`, exit 1. Nothing of it is in the
+       tree.
+    2. The tag-without-section case tags a version no section names, as the
+       root's case tags `v1.99.0` (for example `authcontract/v0.99.0`, with
+       its assertion's tag), and the wrong-date case as in 1. Cost: the same
+       size; the copy then also reports "authcontract/v0.1.0 has a section
+       and no tag", which the case does not assert. It does not depend on
+       step 1's date.
+  * Not resolutions: leaving step 1's section under `## [Unreleased]` until
+    after the tag (then `changelog-check` fails on the tag, in CI's run on
+    it); deleting the case, or letting it accept exit 0, which loosens it.
+  * Doing nothing: `make gate-selftest` fails, and with it `tools/gate.py`,
+    `docs.yml` on the push to `main` (it runs `gate-selftest`) and `ci.yml`
+    on the tag; Phase 4 cannot be staged or tagged.
+  * **Resolution (2026-11-12): the owner chose (1),** relayed by the
+    coordinator, and Phase 4 gains `scripts/test_gates.py`, with a dated
+    note under its step 2. The change is the one tried on the scratch
+    clone: `test_changelog_check_contract_tag_without_section` removes the
+    copy's `## [v0.1.0] - 2026-11-12` heading and its blank line by
+    `replace_once` before it tags, its docstring saying so;
+    `test_changelog_check_contract_wrong_date` replaces that heading with
+    `## [v0.1.0] - 2001-01-01`. The assertions are unchanged.
+    * Seen on scratch clones of `c384136` with this phase's
+      `authcontract/CHANGELOG.md` and `scripts/test_gates.py` copied in,
+      never in the tree, the two cases each run: unplanted, "Ran 2 tests",
+      "OK", exit 0. With `check_changelog.py`'s `has no section` problem
+      replaced by `pass`: `FAIL:
+      test_changelog_check_contract_tag_without_section`, `AssertionError:
+      0 != 1 : changelog-check exit 0, want 1:`, "changelog-check: 43
+      release section(s), 0 problem(s)", exit 1. With its date comparison
+      `if date != want:` made `if False:`: `FAIL:
+      test_changelog_check_contract_wrong_date`, `AssertionError: 0 != 1 :
+      changelog-check exit 0, want 1:`, "changelog-check: 44 release
+      section(s), 0 problem(s)", exit 1. The second shows the wrong-date
+      case now fails on the date alone; before the change its copy also
+      held a second v0.1.0 section, which failed the check by itself.
+    * After the change, each exit status captured before any filter: `make
+      gate-selftest`, exit 0, "Ran 67 tests in 354.843s", "OK". `python3
+      -B tools/gate.py --timeout 5400`, exit 0: it waited ("load 55.8;
+      waiting for it to fall below 10"), "started at load 9.9", and "gate:
+      30 of 30 passed", every check rc=0, among them pre-add-check ("933
+      file(s) clean", "nested module(s) clean: authcontract."), the six `go
+      vet` runs, test-race-cover, test-shuffle, test-repeat, lint,
+      api-check, contract-check ("authcontract, 0 problem(s)"),
+      generate-check, changelog-check ("44 release section(s), 0
+      problem(s)"), docs-check, gate-selftest ("Ran 67 tests", "OK"),
+      markdownlint, g-wire-stable, links-check, disclosure-check, deny-scan
+      and tools-test. The gate ran on this entry as it stood before these
+      results were written in; after them, each exit 0: `make
+      contract-check` (the no-tag line, "authcontract, 0 problem(s)"),
+      `make changelog-check` ("44 release section(s), 0 problem(s)"),
+      `tools/claims.py` on the MADR ("44 of 44 pass") and this PLAN ("11 of
+      11 pass"), `make records-check` ("162 records, 0 problem(s)"),
+      `tools/recordlint.py --changed` ("no rule rose"), `tools/denyscan.py
+      --changed` ("0 hit(s) in 6 file(s)"), `make links-check` and
+      `tools/linkcheck.py` ("0 problem(s), 1248 relative link(s) in 176
+      file(s)") and `make disclosure-check` ("0 hit(s) in 1582 file(s)").
+* Checks, each exit status captured before any filter, on this phase's
+  files:
+  * In the gate, rc=0: `pre-add-check` ("933 file(s) clean", "nested
+    module(s) clean: authcontract."), the six `go vet` runs,
+    `test-race-cover`, `test-shuffle`, `test-repeat`, `tidy-diff`, `lint`,
+    `parity-check`, `dep-check`, `coverage-check`, `api-check`,
+    `contract-check`, `generate-check`, `records-check`, `tables-check`,
+    `fixtures-check`, `changelog-check`, `docs-check`, `markdownlint`,
+    `g-wire-stable`, `links-check`, `disclosure-check`, `deny-scan` and
+    `tools-test`.
+  * Directly, before the gate, each exit 0: `make contract-check`, "no
+    authcontract/v* tag yet, so nothing to compare; the API and the schema
+    are held from the first tag on", "authcontract, 0 problem(s)"; `make
+    changelog-check`, "44 release section(s), 0 problem(s)" (43 before, and
+    v0.1.0's, which has no tag and is newer than every contract tag, so it
+    is the release being prepared); `make markdownlint`, "Linting: 14
+    files", "0 issues"; `make links-check`, "0 problem(s), 1248 relative
+    link(s) in 176 file(s)"; `make disclosure-check`, "0 hit(s) in 1582
+    file(s)".
+  * After this entry was written, each exit 0: `tools/claims.py` on the
+    MADR, "44 of 44 pass", and on this PLAN, "11 of 11 pass"; `make
+    records-check`, "records-check: 162 records, 0 problem(s)";
+    `tools/recordlint.py --changed`, "recordlint: 1 record(s); no rule
+    rose"; `tools/denyscan.py --changed`, "deny-scan: 0 hit(s) in 5
+    file(s)"; `tools/linkcheck.py` and `make links-check`, "0 problem(s),
+    1248 relative link(s) in 176 file(s)"; `make disclosure-check`, "0
+    hit(s) in 1582 file(s)". They were run once more after this line was
+    written.
+* Not done: no tag, no push, no commit. Phase 4's files, `AGENTS.md`,
+  `README.md`, `authcontract/CHANGELOG.md`, `docs/architecture.md`,
+  `scripts/test_gates.py` and this PLAN, are staged for the coordinator to
+  commit.
+
+**For the owner, after the commit (steps 4 and 5).** With this phase
+committed, each from the repository root, on `main`, in this order:
+
+1. The disclosure guard over the outgoing commits (AGENTS.md,
+   "Identifiers"):
+
+   ```bash
+   echo "refs/heads/main $(git rev-parse HEAD) refs/heads/main $(git rev-parse origin/main)" |
+     python3 ~/.global-git-hooks/github-disclosure.py pre-push origin "$(git remote get-url origin)"
+   ```
+
+2. `git push origin main`. A commit of Markdown alone runs
+   `.github/workflows/docs.yml`, not `ci.yml`
+   (`0052-MADR-skip-full-ci-for-docs-only-pushes.md`); this commit also
+   changes `scripts/test_gates.py` (the resolution above), so the push runs
+   `ci.yml` in full, which is to pass before the tag.
+3. The tag, annotated, on `main`'s head, with its own name as its message,
+   the form of every SDK tag (`v1.30.0`'s message is `v1.30.0`) and of
+   gobble-cli's `acpext/v0.4.0`, the precedent D1 follows:
+   `git tag -a authcontract/v0.1.0 -m authcontract/v0.1.0`, then
+   `git cat-file -t authcontract/v0.1.0` prints `tag` and
+   `git rev-parse authcontract/v0.1.0^{commit}` equals
+   `git rev-parse HEAD`.
+4. `git push origin authcontract/v0.1.0`.
+5. The CI run on the tag: `ci.yml` runs in full on `authcontract/v*`
+   (Phase 2, step 6), and its `release` job is skipped, since its condition
+   is `refs/tags/v`. Wait for it:
+   `gh run list --workflow ci.yml --branch authcontract/v0.1.0 --limit 1`,
+   then `gh run watch <id> --exit-status`; every `validate` job must pass,
+   and `release` must be skipped.
+6. After CI passes, from a scratch directory outside the repository:
+   `cd "$(mktemp -d)" && go list -m github.com/maccavelli/go-llmprovider-sdk/authcontract@v0.1.0`,
+   which prints `github.com/maccavelli/go-llmprovider-sdk/authcontract v0.1.0`
+   once the module proxy resolves it.
+7. Back in the repository: `make changelog-check` passes with the tag, and
+   `make contract-check` compares against `authcontract/v0.1.0` and reports
+   0 problems. Phase 4's acceptance is then met, and this PLAN's status and
+   the record of the tag are the next records change.

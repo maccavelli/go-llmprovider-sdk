@@ -9,6 +9,8 @@ removal and a new required field.
 
 ## [Unreleased]
 
+## [v0.1.0] - 2026-11-12
+
 ### Added
 
 - The module `github.com/maccavelli/go-llmprovider-sdk/authcontract`,
@@ -24,3 +26,11 @@ removal and a new required field.
   and `SessionKiloDevice`, the strings of the SDK's `auth.SessionKind`
   (0073-MADR, "Amendment 2026-11-11: a session-kind type and its labels").
 - The evolution rules, in the package doc and in [README.md](README.md).
+- `authcontract.schema.json`, the JSON Schema (draft 2020-12) generated from
+  the types by `go generate` (0073-MADR D4): each struct a `$defs` entry,
+  each enum a string `enum` with `"x-open-enum": true`, each pointer member
+  `"x-nullable": true`, and `SessionKind`'s labels in its `x-enum-labels`.
+  Its `$id` ends with `/v1`, for `SchemaVersion` 1.
+- Golden vectors in `testdata/vectors/`, one JSON file per case, and in
+  `testdata/vectors/forward/`, a newer producer's output with unknown enum
+  values and members (0073-MADR D5).
