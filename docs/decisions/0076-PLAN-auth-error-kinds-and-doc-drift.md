@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-11
 associated-madr: "0076-MADR-auth-error-kinds-and-doc-drift.md"
 decision-makers: repository owner
@@ -988,3 +988,109 @@ deleted here.
 * [0077-PLAN](0077-PLAN-go-1-27-4-for-go-2026-6859.md)'s Phase 2, the read
   back of `"GoVersion": "1.27.4"` from `@v1.30.0` through the proxy (V8).
 * Any issue comments.
+
+### Phase 5 (2026-11-11)
+
+The owner approved the commit, the push and the tag. Each command's output
+and exit status are in the session's scratch directory, each status captured
+before any filter.
+
+#### The release
+
+* **The commit.** `aaa2904`, "chore(release): prepare v1.30.0": the
+  changelog's section, the README's current release and the "prepared" entry
+  above, as Step 1 and Step 2 describe. Three files, 83 insertions, 2
+  deletions.
+* **The push.** `main` was pushed at `aaa2904`; `origin/main` reads
+  `aaa2904`. The pre-push disclosure guard was run again afterwards,
+  read-only, over `773b84c` to `aaa2904` (ten commits) and over the tag's
+  ref: each exit 0 with no output.
+* **CI on `main`,** run 43145478733, success: `validate (ubuntu-24.04)`,
+  `validate (macos-15)` and `validate (windows-2025)` success, `release`
+  skipped, as on any branch. Docs run 43145480126, success.
+* **The tag.** `v1.30.0` is an annotated tag (`7864275`), dated 2026-11-11
+  (the tag's creator date), on `aaa2904`; `git ls-remote --tags origin
+  'v1.30.0*'` shows the tag object and `v1.30.0^{}` at `aaa2904`.
+* **CI on the tag,** run 43148488869, event push, success: the three
+  `validate` jobs success, and `release` success.
+
+#### The Release
+
+* `gh release view v1.30.0 --json
+  tagName,name,publishedAt,assets,isDraft,isPrerelease`: `tagName`
+  "v1.30.0", `name` "v1.30.0", `publishedAt` "2026-11-12T03:34:42Z",
+  `assets` empty, `isDraft` false, `isPrerelease` false. (`gh` has no
+  `isLatest` field; the listing marks it.)
+* `gh release list --limit 10`, seven rows: `v1.30.0` (Latest), `v1.29.0`,
+  `v1.28.0`, `v1.27.0`, `v1.26.1`, `v1.26.0`, `v1.25.0`.
+* The Release body is the changelog section: `scripts/check_changelog.py
+  --section v1.30.0 --repo maccavelli/go-llmprovider-sdk` prints 55 lines,
+  and the body is the same 55 lines, compared once by hand (a comparison,
+  not a new check).
+
+#### `tools/consumer.py v1.30.0` and `tools/offline.py v1.30.0`
+
+Each writes only under the system's temporary directory, its work
+directory, and changes nothing in the tree or on any service. Each exited 0.
+
+* `consumer.py`: `go get` "added github.com/maccavelli/go-llmprovider-sdk
+  v1.30.0"; `go mod tidy` and the six platform builds rc 0; "consumer: 16
+  packages linked" and "consumer: every step passed".
+* `offline.py`: `go get` "added … v1.30.0"; "fields=19 window=1000000
+  output=128000 input=3 output=15 tiers=1 source=models.dev",
+  "requests=0", "offline: ok", the six platform builds, then "offline: every
+  step passed". Its `FAIL:` lines belong to its two planted steps, "caught:
+  models.dev left on" and "caught: no caller layer", which are meant to fail.
+
+#### R53's check (Deviation 3 of 0072-PLAN)
+
+`gh release list` shows seven Releases, so `v1.25.0`'s is past the sixth. Its
+JSON, every field `gh release view` offers, was saved to the session's
+scratch directory first. Nothing was deleted; the deletion, `gh release
+delete v1.25.0 --yes`, keeping its tag and its changelog section, waits for
+the owner's word.
+*(2026-11-11, later: on the owner's word the coordinator ran `gh release
+delete v1.25.0 --yes`, exit 0. `gh release list` then shows six:
+`v1.30.0` (Latest), `v1.29.0`, `v1.28.0`, `v1.27.0`, `v1.26.1`, `v1.26.0`;
+`git ls-remote --tags origin v1.25.0` still lists the tag.)*
+
+#### 0077-PLAN's Phase 2
+
+`go list -m -json github.com/maccavelli/go-llmprovider-sdk@v1.30.0`, from an
+empty directory, through the proxy (`GOPROXY` the default), exit 0 on the
+first try: `"Version": "v1.30.0"`, `"GoVersion": "1.27.4"`, and the origin's
+hash `aaa2904…`. That PLAN's record has it.
+
+#### Other records
+
+The "order" passages of 0073-PLAN, 0074-PLAN and 0075-PLAN name `v1.30.0` as
+the release that ships 0076 and 0077's floor, or as a condition ("if 0076
+ships as `v1.30.0`"); none states it pending as a fact, so no note was
+needed. This PLAN names no issue, so no issue comment is due.
+
+#### Closing
+
+* **Goal:**
+  * D1: a revocation that cannot revoke matches `llmprovider.ErrUnsupported`
+    (Phase 1).
+  * D2: every device expiry matches `ErrAuthFailure` (Phase 1).
+  * D3 and D4: `auth.Identity`, `OAuthFlowOptions.Identity`,
+    `ChatGPTPlanOptions.Identity` and `wizard.Options.Identity` (Phase 2),
+    probed live against OpenAI's browser sign-in and xAI's device sign-in,
+    neither refusing the name (Phase 4).
+  * D5: the four docs and the README (Phase 3).
+  * The release `v1.30.0`, which also ships 0077's Go floor (Phase 5).
+* **Verification:** each new test was seen red at `773b84c` or to fail on
+  its planted break, in Phases 1 to 4; no existing test changed; no stop
+  condition was met; `tools/apidiff.py v1.29.0` listed exactly the R55 table;
+  the gate passed 29 of 29 at the release commit; CI passed on `main` and on
+  the tag.
+* **Not done, and why:**
+  * ~~`v1.25.0`'s Release is not deleted: R53 keeps six, there are seven, and
+    the deletion waits for the owner's word, as in 0072-PLAN.~~ *(Done later
+    on 2026-11-11, on the owner's word; see R53's check above.)*
+  * The identity on refresh and revocation, the vendor import of a Grok
+    login, the host id, a client or issuer option in the wizard, and one kind
+    for a `LockRefresh` whose `ctx` ends while it waits: out of scope, above.
+* `tools/records.py status` sets this PLAN `complete`; its MADR stays
+  `accepted`, as 0072-MADR did.

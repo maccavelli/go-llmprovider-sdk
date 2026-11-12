@@ -169,9 +169,9 @@ documents a reader follows to do something.
 | 0075 | MADR | [Carry the ChatGPT Plan's Background-Use Consent on the Session, Ask It Before the Browser, and Keep the Issued Client and the Host Id Apart from the Session](decisions/0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md) | proposed |
 | 0075 | PLAN | [Implement the ChatGPT Plan's Consent on the Session, a Host-Lifetime Host Id, and Reuse of the Issued Client](decisions/0075-PLAN-chatgpt-plan-consent-host-id-and-client-reuse.md) | proposed |
 | 0076 | MADR | [Return One Unsupported Kind from Revocation, an Auth-Failure Kind from Every Device Expiry, Let a Consumer Name Itself on Its Sign-Ins and in the Wizard, and Correct Four Docs](decisions/0076-MADR-auth-error-kinds-and-doc-drift.md) | accepted |
-| 0076 | PLAN | [Implement One Unsupported Kind from Revocation, an Auth-Failure Device Expiry, the Consumer's Identity on Its Sign-Ins and in the Wizard, and Four Doc Corrections](decisions/0076-PLAN-auth-error-kinds-and-doc-drift.md) | in-progress |
+| 0076 | PLAN | [Implement One Unsupported Kind from Revocation, an Auth-Failure Device Expiry, the Consumer's Identity on Its Sign-Ins and in the Wizard, and Four Doc Corrections](decisions/0076-PLAN-auth-error-kinds-and-doc-drift.md) | complete |
 | 0077 | MADR | [Require Go 1.27.4 for GO-2026-6859, Before Any of the Auth Series' Code](decisions/0077-MADR-go-1-27-4-for-go-2026-6859.md) | accepted |
-| 0077 | PLAN | [Implement Go 1.27.4 as the Floor](decisions/0077-PLAN-go-1-27-4-for-go-2026-6859.md) | in-progress |
+| 0077 | PLAN | [Implement Go 1.27.4 as the Floor](decisions/0077-PLAN-go-1-27-4-for-go-2026-6859.md) | complete |
 
 ## I want to…
 
