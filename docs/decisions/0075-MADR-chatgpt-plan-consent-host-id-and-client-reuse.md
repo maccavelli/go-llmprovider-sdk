@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-11-11
+status: accepted
+date: 2026-11-12
 decision-makers: repository owner
 consulted: "magic-cli-remote's docs/reports/0245-REPORT-non-api-key-auth-across-magic-gobble-and-the-sdk.md (observed 2026-11-10, committed in that repository as 3e2f784b), its §6, findings F20, F22 to F24 and F29, ledger S7 (the host id), S8 and S9, and the owner's decisions of 2026-11-10 on its Q2 to Q5 and Q12; 0017-REPORT-openai-sign-in-for-agents.md (OpenAI's flow and terms); this repository at 773b84c; re-checked 2026-11-11 against gobble-cli at 17d1605 (its origin/main; the 0031-MADR amendment committed at 86ad4a7), magic-cli-remote at eefb7c25 (its origin/master, the 0245 report unchanged since 3e2f784b) and its proposed, untracked 0051 and 0052 pairs, and magic-cli-remote's proposed, untracked 0246 and 0247 pairs"
 informed: gobble-cli, which classifies and gates its background requests and keeps the wording; magic-cli-remote, which relays the confirm step; every caller of LoginChatGPTPlan and the wizard's plan sign-in
@@ -196,6 +196,11 @@ open in D5, choosing option (a) of the PLAN's Phase 3: the session gains an
 exported reader, `StoredConsent`, through which the openai provider reads
 the stored answer, and a failed read is refused as not granted. The record
 stays `proposed`: the owner has answered a question, not accepted it.
+
+The owner accepted this record on 2026-11-12, in the coordinator session,
+and approved its PLAN the same day. Its code follows 0074's and waits, as
+0074's does, for `ci.yml` to pass on `main` after
+[0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md](0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md).
 
 ### D1. The consent is a fact of the method
 

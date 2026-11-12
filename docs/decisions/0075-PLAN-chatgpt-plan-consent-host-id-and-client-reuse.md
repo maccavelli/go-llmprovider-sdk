@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-11-11
+status: in-progress
+date: 2026-11-12
 associated-madr: "0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md"
 decision-makers: repository owner
 ---
@@ -423,4 +423,22 @@ script the notice are the MADR's C31 to C37).
 
 ## Execution record
 
-Not started. The MADR is `proposed`.
+The owner committed this pair and its index rows as records only
+(`771b422`), and on 2026-11-12, in the coordinator session, accepted the
+MADR and approved this PLAN.
+
+### Phase 0 (2026-11-12)
+
+* Step 1: done by the owner's commit `771b422`.
+* Step 2: `python3 -B tools/records.py status RECORD STATUS --date
+  2026-11-12` set the MADR `accepted` and this PLAN `in-progress`, each with
+  its row in `docs/README.md`; each run printed "records: written;
+  records-check: 0 problem(s)". The MADR's Decision Outcome records the
+  acceptance and its date.
+* Not done: step 3, the supersession notes, and step 4's gate for them.
+  They remain Phase 0's, before Phase 1.
+* **No code starts until `ci.yml` passes on `main`.** This PLAN follows
+  [0074-PLAN-one-sign-in-handle-and-method-facts.md](0074-PLAN-one-sign-in-handle-and-method-facts.md)'s
+  Phases 2, 4 and 5, and that PLAN's Phase 1 waits for a passing `ci.yml`
+  run on `main` after
+  [0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md](0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md).

@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-11-11
+status: accepted
+date: 2026-11-12
 decision-makers: repository owner
 consulted: "magic-cli-remote's docs/reports/0245-REPORT-non-api-key-auth-across-magic-gobble-and-the-sdk.md (observed 2026-11-10, committed in that repository as 3e2f784b, unchanged at eefb7c25), its SDK findings F2, F6, F7, F12 to F14, F17, F18, F20, F21, F26, F27, F40 and F59, its ledger S1 to S6, S10, S12 and S13, and the owner's decisions of 2026-11-10; the SDK audit behind it; this repository at 773b84c; the consumers' proposed, untracked records as they stood on 2026-11-11: gobble-cli's 0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md and 0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md and their PLANs (gobble-cli origin/main 17d1605), and magic-cli-remote's 0246-MADR-take-provider-auth-types-from-the-sdk-auth-contract-in-one-cut-over.md and 0247-MADR-replay-a-pasted-sign-in-callback-to-the-agents-loopback.md and their PLANs (magic-cli-remote origin/master eefb7c25)"
 informed: gobble-cli and magic-cli-remote, which drive sign-ins through this engine; every caller of llmprovider/auth and wizard
@@ -210,6 +210,12 @@ type carrying `auth.SessionKind`'s four strings and a label for each, before
 ([0073-MADR-publish-an-auth-contract-module.md](0073-MADR-publish-an-auth-contract-module.md),
 "Amendment 2026-11-11: a session-kind type and its labels"), with
 `auth.SessionKind` itself unchanged (D5). The record stays `proposed`.
+
+The owner accepted this record on 2026-11-12, in the coordinator session,
+and approved its PLAN the same day. Its code waits for `ci.yml` to pass on
+`main` after
+[0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md](0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md),
+as the PLAN's execution record says.
 
 ### D1. Method facts on `llmprovider.AuthMethod`
 

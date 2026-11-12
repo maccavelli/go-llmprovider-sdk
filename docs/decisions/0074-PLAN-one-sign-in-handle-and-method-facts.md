@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-11-11
+status: in-progress
+date: 2026-11-12
 associated-madr: "0074-MADR-one-sign-in-handle-and-method-facts.md"
 decision-makers: repository owner
 ---
@@ -641,4 +641,23 @@ The facts this PLAN's steps rest on beyond the MADR's index, checked by `tools/c
 
 ## Execution record
 
-Not started. The MADR is `proposed`.
+The owner committed this pair and its index rows as records only
+(`771b422`), and on 2026-11-12, in the coordinator session, accepted the
+MADR and approved this PLAN.
+
+### Phase 0 (2026-11-12)
+
+* Step 1: done by the owner's commit `771b422`.
+* Step 2: `python3 -B tools/records.py status RECORD STATUS --date
+  2026-11-12` set the MADR `accepted` and this PLAN `in-progress`, each with
+  its row in `docs/README.md`; each run printed "records: written;
+  records-check: 0 problem(s)". The MADR's Decision Outcome records the
+  acceptance and its date.
+* Not done: step 3, the supersession notes, and step 4's gate for them.
+  They remain Phase 0's, before Phase 1.
+* **Phase 1's code waits until `ci.yml` passes on `main`.** Run 43295522137
+  on `e5eea9d` failed on Ubuntu in `TestCachedMetadataWith_Unavailable`, a
+  catalog test this PLAN does not touch
+  ([0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md](0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md)).
+  Phase 1 starts after that record's fix has a passing `ci.yml` run on
+  `main`, which its PLAN's Phase 4 records.
