@@ -187,7 +187,11 @@ discovery.)*
 
 Acceptance: the tests pass, each seen as stated; `grok_referrer_test.go` and
 every other existing test pass unchanged; `make api-check` lists exactly the
-table above.
+table above. *(2026-11-11: `make api-check` cannot list it.
+`scripts/check_api.py` runs apidiff with `-incompatible`, so it prints
+incompatible changes only. The list of additions is read from `python3 -B
+tools/apidiff.py v1.29.0`, which lists exactly the table above, and `make
+api-check` shows no incompatible change. Phase 2's record has both.)*
 
 ### Phase 3: docs (D5)
 
@@ -616,5 +620,127 @@ says.
   read "`make api-check` lists exactly the table"; the tool lists no
   addition (above), so the list is `tools/apidiff.py`'s. That wording is for
   the owner to amend or keep; no code depends on it.
+* This entry was added after the gate ran, so the record checks were run
+  again before staging.
+
+The owner committed Phase 2 (`f98f982`) before Phase 3.
+
+### Phase 3 (2026-11-11)
+
+Started at `f98f982`, on `main`, six commits ahead of `origin/main`, with a
+clean tree. `tokenstore_file.go` and `tokenstore.go` are the same at
+`f98f982` as at `773b84c`; `LockRefresh`'s two `ctx` returns (MADR C46, C47)
+and `GoString` (C25) were read before any change. Each command's output and
+exit status are in the session's scratch directory, each status captured
+before any filter.
+
+* **Step 1, `tokenstore_file.go`:** `LockRefresh`'s doc says "A waiter
+  gives up after 60 s", cites 0068-MADR D3 beside 0016-MADR amendment A2,
+  and adds: "A ctx that ends while it waits gives one of two kinds
+  (0076-MADR D5): seen ended between attempts, an error matching both
+  ErrProviderUnavailable and ctx's error; ended during the pause between
+  attempts, ctx's error alone, which does not match
+  ErrProviderUnavailable." No code changed; the two returns are now
+  `tokenstore_file.go:281` and `:293`, four lines lower with the doc.
+* **Step 2, `tokenstore.go`:** `GoString` returns `"&auth." + s.String()`.
+  No test pinned `&llmprovider.`: the two tests that format a session with
+  `%#v` (`redaction_test.go` and `plan_session_0043_test.go`) check what it
+  hides and shows, not its prefix.
+* **Step 3, `README.md`:** a new item in "The configuration wizard":
+  `Options.Identity` names the app on every sign-in the wizard runs, as
+  `auth.OAuthFlowOptions.Identity` does on the caller's own, and a refresh
+  and a revocation still name this module; an example passes
+  `Identity: auth.Identity{Name: "my-app", Version: "1.4.0"}` to
+  `wizard.ConfigureLLM`; and the wizard sets no OAuth client id or issuer
+  on a sign-in, so `auth.GrokFlowFromEnv()`'s values take effect only on
+  the caller's own `auth.OAuthFlowOptions`, given to
+  `auth.LoginBrowserOAuth` or `auth.StartDeviceOAuth`. The "No ambient
+  state" item says the same of the helper. No example passes the helper's
+  values to the wizard. The repository has no check that compiles the
+  README's examples, so the example was compiled in a scratch module
+  outside the tree, required through a `replace` of this module to the
+  working tree: `go vet` exited 0, and exited 1 on a copy with the field
+  misspelled ("unknown field Identities in struct literal of type
+  wizard.Options").
+* **Step 4, `CHANGELOG.md` `[Unreleased]`:** **Added** `auth.Identity`,
+  `OAuthFlowOptions.Identity`, `ChatGPTPlanOptions.Identity` and
+  `wizard.Options.Identity`; **Changed** revocation's wrapped text;
+  **Fixed** revocation's kind, the device expiry's kind, and the four docs
+  (`LockRefresh`'s wait and its two `ctx` kinds, `GoString`'s prefix,
+  `RevokeOAuthSession`'s plan form, 0006-MADR §7's amendment). They sit
+  above the **Security** entry 0077-PLAN wrote, which is unchanged.
+* **The coordinator's correction to Phase 2's wording,** records only: a
+  dated note beside Phase 2's acceptance line here, and beside the MADR's
+  Confirmation item, that the list of additions is read from `python3 -B
+  tools/apidiff.py v1.29.0` and `make api-check` shows no incompatible
+  change. The original wording stands.
+* **Tests,** in a new `llmprovider/auth/doc_fixes_0076_test.go`. Each
+  passes.
+  * `TestGoStringPrefix_0076`: `fmt.Sprintf("%#v", session)` begins
+    `&auth.OAuthSession{`.
+  * `TestLockRefreshContextKinds_0076`: with the lock held by another
+    handle on the same directory, a `ctx` already cancelled gives an error
+    matching both `ErrProviderUnavailable` and `context.Canceled`; and a
+    `ctx` that ends during the pause gives `context.Canceled` itself, which
+    does not match `ErrProviderUnavailable`. The second case uses no seam:
+    its `ctx` is a test type that ends when it is first asked for `Done`.
+    `LockRefresh` reads `Err` between attempts, then asks for `Done` only in
+    the pause's `select`, so the context is live at the check and ended in
+    the pause on every run. The test asserts both: at least one live `Err`
+    read, and the context ended. No unexported hook was needed; the
+    package's one for `LockRefresh`, `FileTokenStore.wait`, bounds the
+    whole wait and cannot place an end in the pause.
+* **Red at `773b84c`:** `python3 -B tools/redgreen.py SPEC.json --expect
+  fail --rev 773b84c`, the new test file copied in, exited 0: "redgreen: 1
+  of 1 fail as expected", with
+  `doc_fixes_0076_test.go:19: %#v = &llmprovider.OAuthSession{Provider:grok Issuer:https://auth.x.ai ClientID:client-visible AccountID: FedRAMP:false TokenURL: Expiry:none Access: Refresh:}; want it to begin &auth.OAuthSession{`.
+* **Green at `773b84c`:** the same spec for
+  `TestLockRefreshContextKinds_0076`, `--expect pass --rev 773b84c`,
+  exited 0: "redgreen: 1 of 1 pass as expected", with
+  `--- PASS: TestLockRefreshContextKinds_0076/seen_between_attempts` and
+  `--- PASS: TestLockRefreshContextKinds_0076/during_the_pause`. The two
+  kinds are the code's before this phase.
+* **Green:** `tools/redgreen.py SPEC.json --expect pass` on the tree, the
+  two tests, exited 0: "redgreen: 2 of 2 pass as expected".
+* **Deterministic:** `go test -race -count=50 -run
+  '^TestLockRefreshContextKinds_0076$' -v ./llmprovider/auth/`, exit 0: 50
+  of 50 `--- PASS` for the test and for `during_the_pause`, no `--- FAIL`,
+  no data race.
+* **Planted breaks:** `python3 -B tools/plant.py SPEC.json`, run
+  `^TestLockRefreshContextKinds_0076$`, on a scratch clone, exited 0:
+  "plant: all 2 plant(s) caught".
+  * The pause's error wrapped as `ErrProviderUnavailable` (the plan's
+    plant):
+    `doc_fixes_0076_test.go:102: LockRefresh = llmprovider: provider unavailable: context canceled; want context.Canceled alone, not matching llmprovider.ErrProviderUnavailable`
+  * The between-attempts error made `ctx`'s alone (added, for the first
+    case):
+    `doc_fixes_0076_test.go:84: LockRefresh = context canceled; want an error matching both llmprovider.ErrProviderUnavailable and context.Canceled`
+* **Acceptance:** `make docs-check`, "sdkaudit: 0 violation(s) of
+  R50,R51,R52"; `make changelog-check`, "42 release section(s), 0
+  problem(s)"; `make links-check`, "0 problem(s), 1242 relative link(s) in
+  174 file(s)"; `make parity-check`, "409 identifiers, 409 rows, 409 with
+  an SDK equivalent, 0 problem(s)"; `make markdownlint`, "0 issues in 0
+  files". Each exited 0.
+* **The drift check and race:** `go test -race -count=1
+  ./llmprovider/auth/... ./wizard/...`, exit 0, no data race; no existing
+  test file was edited.
+* **Pre-add:** `make pre-add-check` on the three Go files, exit 0:
+  "go-precheck: 3 file(s) clean (gofmt, golangci-lint, go vet, go test,
+  govulncheck)".
+* **The gate:** `python3 -B tools/gate.py`, which waited at load 55.8 and
+  started at load 9.4, exit 0: "gate: 29 of 29 passed". `api-check`:
+  "against v1.29.0, 0 incompatible change(s) outside llmprovider/x/";
+  `coverage-check`: `llmprovider/auth` 89.8 % against 80.0 %, `wizard`
+  93.8 % against 86.4 %; `docs-check`: "sdkaudit: 0 violation(s) of
+  R50,R51,R52"; no data race in `test-race-cover`.
+* **Records:** `tools/claims.py` on the MADR, "48 of 48 pass", and on this
+  PLAN, "7 of 7 pass"; `make records-check`, "162 records, 0 problem(s)";
+  `tools/recordlint.py --changed`, "no rule rose"; `tools/denyscan.py
+  --changed`, "0 hit(s)"; `tools/linkcheck.py`, "0 problem(s)". Each exited
+  0.
+* **Stop conditions:** none met. No existing test changed; no error text
+  changed; every claim held; every plant was caught; `-race` reported no
+  race; the second case ends in the pause on every run with no seam.
+* **Not done:** Phases 4 and 5.
 * This entry was added after the gate ran, so the record checks were run
   again before staging.

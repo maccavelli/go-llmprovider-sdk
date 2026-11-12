@@ -11,6 +11,51 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- `auth.Identity`, with `Name` and `Version`, names the consuming
+  application to the identity providers on a sign-in: OpenAI's
+  `originator`, Grok's `referrer`, and the User-Agent of every request of
+  the sign-in, which names this module after it.
+  `auth.OAuthFlowOptions.Identity` and `auth.ChatGPTPlanOptions.Identity`
+  take it, and `wizard.Options.Identity` gives it to every sign-in the
+  wizard runs. Its zero value names this module, as before, and a refresh
+  and a revocation still do. Whether OpenAI and xAI accept every name is not
+  verified
+  ([0076-MADR](docs/decisions/0076-MADR-auth-error-kinds-and-doc-drift.md)
+  D3, D4).
+
+### Changed
+
+- A revocation's unsupported error wraps `llmprovider.ErrUnsupported`, so
+  its text ends "llmprovider: unsupported" where it ended "unsupported
+  operation"; the words before it are unchanged (0076-MADR D1).
+
+### Fixed
+
+- `auth.RevokeOAuthSession` returned the standard library's
+  `errors.ErrUnsupported` for a session of a provider with no revocation,
+  and for a Grok or ChatGPT plan issuer that publishes no
+  `revocation_endpoint`, so `errors.Is(err, llmprovider.ErrUnsupported)`
+  was false. It now returns an error matching `llmprovider.ErrUnsupported`,
+  which still matches `errors.ErrUnsupported` (0076-MADR D1).
+- An OpenAI device-code sign-in whose deadline passed between its two
+  checks returned a plain error. It now matches `llmprovider.ErrAuthFailure`,
+  as every other device-code expiry does (0076-MADR D2).
+- Four docs said what the code does not (0076-MADR D5):
+  - `FileTokenStore.LockRefresh` gives up after 60 s, where its doc said
+    40 s, and its doc now names the two kinds a `ctx` that ends while it
+    waits gives: seen ended between attempts, an error matching both
+    `ErrProviderUnavailable` and `ctx`'s; ended during the pause between
+    attempts, `ctx`'s error alone;
+  - an `OAuthSession` formatted with `%#v` begins `&auth.`, where it began
+    `&llmprovider.`;
+  - `RevokeOAuthSession`'s doc names the ChatGPT plan session's form, which
+    it sends first;
+  - [0006-MADR](docs/decisions/0006-MADR-subscription-auth-for-llm-providers.md)
+    §7 is amended: the refresh uses the session's stored client, and the
+    vendor import reads the default Grok client's login only.
+
 ### Security
 
 - The module requires Go 1.27.4, for GO-2026-6859 in `net/http`, an HTTP/1

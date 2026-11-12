@@ -152,7 +152,10 @@ functions over any provider, and `Stream` streams from every one.
 - **No ambient state.** The library reads no environment variable by
   itself. Pass `catalog.OptionsFromEnv()`, `auth.GrokFlowFromEnv()` or
   `llmprovider.ModelProbesFromEnv()` to opt in, and give logging a logger
-  with `WithLogger`.
+  with `WithLogger`. `auth.GrokFlowFromEnv()`'s client id and issuer take
+  effect only on your own `auth.OAuthFlowOptions`, given to
+  `auth.LoginBrowserOAuth` or `auth.StartDeviceOAuth`: the wizard sets no
+  OAuth client id or issuer on a sign-in.
 - **Listing.** `catalog.List(ctx, id, src, opts...)` lists a provider's
   models within 10 seconds, curated against its static catalog, and
   `catalog.Search` matches a query against them. A provider's own
@@ -306,6 +309,22 @@ key.
   plan sign-in the user confirms OpenAI's notice, "You're using your
   ChatGPT plan". A saved plan session is signed in to again, keeping the
   client OpenAI issued your app.
+- `Options.Identity` names your app to the identity providers on every
+  sign-in the wizard runs, as `auth.OAuthFlowOptions.Identity` does on your
+  own: OpenAI's `originator`, Grok's `referrer`, and the User-Agent of each
+  sign-in request. A refresh and a revocation still name this module.
+
+  ```go
+  res, err := wizard.ConfigureLLM(ctx, prompter, wizard.Options{
+      TokenStore: store,
+      Identity:   auth.Identity{Name: "my-app", Version: "1.4.0"},
+  })
+  ```
+
+  The wizard sets no OAuth client id or issuer on a sign-in, so
+  `auth.GrokFlowFromEnv()`'s values take effect only on your own
+  `auth.OAuthFlowOptions`, given to `auth.LoginBrowserOAuth` or
+  `auth.StartDeviceOAuth`.
 - A vendor CLI's login is found by default under the home directory, which
   the wizard reads only through `Options.LookupEnv` (`HOME`, or
   `USERPROFILE` on Windows). Pass `LookupEnv: os.Getenv` to find it there.

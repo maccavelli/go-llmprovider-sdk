@@ -109,7 +109,7 @@ func (s *OAuthSession) planFields() bool {
 }
 
 // GoString renders the session for %#v, without its tokens.
-func (s *OAuthSession) GoString() string { return "&llmprovider." + s.String() }
+func (s *OAuthSession) GoString() string { return "&auth." + s.String() }
 
 // MarshalJSON encodes the session without its tokens; see Token.MarshalJSON.
 // FileTokenStore persists sessions through its own record type, unaffected.

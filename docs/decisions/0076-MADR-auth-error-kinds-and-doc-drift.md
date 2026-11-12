@@ -339,7 +339,12 @@ bullets, which are quoted in the second bullet below.)*
   `773b84c` where it calls existing API only.
 * The three revocation tests (C31 to C33) and every sign-in test pass
   unchanged.
-* `make api-check` lists exactly the PLAN's additions.
+* `make api-check` lists exactly the PLAN's additions. *(2026-11-11:
+  `make api-check` cannot list them: `scripts/check_api.py` runs apidiff
+  with `-incompatible`, so it prints incompatible changes only. The list of
+  additions is read from `python3 -B tools/apidiff.py v1.29.0`, and `make
+  api-check` shows no incompatible change; the PLAN's Phase 2 record has
+  both.)*
 * `tools/claims.py` passes on this record.
 
 ## Pros and Cons of the Options

@@ -237,10 +237,14 @@ func (fs *FileTokenStore) Delete(ctx context.Context, provider llmprovider.Provi
 // session. The operating system releases it when its holder unlocks, closes
 // or dies, so nothing stale is left to judge and nothing is taken over. The
 // file is never deleted, so no process can lock an unlinked one (0026-MADR
-// F13, Q1 a and its amendment of 2026-10-06). A waiter gives up after 40 s
+// F13, Q1 a and its amendment of 2026-10-06). A waiter gives up after 60 s
 // with an error matching ErrProviderUnavailable, which callers may retry; it
-// never refreshes unlocked (0016-MADR amendment A2). A context already done
-// tries once and does not wait. The returned func releases the lock.
+// never refreshes unlocked (0016-MADR amendment A2; 0068-MADR D3). A context
+// already done tries once and does not wait. A ctx that ends while it waits
+// gives one of two kinds (0076-MADR D5): seen ended between attempts, an
+// error matching both ErrProviderUnavailable and ctx's error; ended during
+// the pause between attempts, ctx's error alone, which does not match
+// ErrProviderUnavailable. The returned func releases the lock.
 func (fs *FileTokenStore) LockRefresh(ctx context.Context, provider llmprovider.ProviderID) (unlock func(), err error) {
 	if err := validateProviderID(provider); err != nil {
 		return nil, err
