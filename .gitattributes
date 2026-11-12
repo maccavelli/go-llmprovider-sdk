@@ -1,0 +1,10 @@
+# Keep every text file LF in the working tree on ALL platforms.
+#
+# Without this, a Windows checkout with core.autocrlf=true (the GitHub runner
+# default) rewrites LF to CRLF on the way out of git, and that breaks the
+# byte-exact comparisons: the committed authcontract/authcontract.schema.json
+# against its generator, the golden vectors, and anything a POSIX shell
+# executes. eol=lf is deliberate rather than `text=auto` alone: auto would
+# still hand Windows CRLF. Nothing in this repository needs CRLF.
+# (docs/decisions/0073-PLAN-publish-an-auth-contract-module.md, Phase 4)
+* text=auto eol=lf

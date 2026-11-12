@@ -443,6 +443,11 @@ on the tree; `make contract-check` passes.
    `test_changelog_check_contract_wrong_date` changes that heading's date to
    `2001-01-01` instead of inserting a second section. Their assertions are
    unchanged. Step 1's section made the first case pass where it must fail.
+
+   *(Added 2026-11-12, the owner's choice on the CI deviation in this phase's
+   entry:)* **`.gitattributes`:** `* text=auto eol=lf`, so a Windows checkout
+   holds the committed bytes. The push of this phase's commit failed
+   `validate (windows-2025)` on the byte-exact schema test.
 3. Run the full gate (`python3 -B tools/gate.py`).
 4. On the owner's word: push, then tag `authcontract/v0.1.0` at the commit,
    and push the tag. CI runs on it (Phase 2, step 6).
@@ -1645,3 +1650,56 @@ committed, each from the repository root, on `main`, in this order:
    `make contract-check` compares against `authcontract/v0.1.0` and reports
    0 problems. Phase 4's acceptance is then met, and this PLAN's status and
    the record of the tag are the next records change.
+
+### Phase 4, CI deviation (2026-11-12)
+
+The coordinator committed Phase 4 as `219c9b4` on the owner's authorization,
+ran the disclosure guard (exit 0) and pushed `main` (`aaa2904..219c9b4`), on
+the owner's approval of steps 4 and 5. No tag was made.
+
+* **Deviation: `ci.yml` failed on the push, on Windows only.** Run
+  43284169297 on `219c9b4`: `validate (macos-15)` and `validate
+  (ubuntu-24.04)` passed; `validate (windows-2025)` failed at the step "the
+  nested module authcontract (0073-MADR D8)", so its later steps (race,
+  govulncheck, vet, lint, the gates) were skipped there.
+  * Evidence. `go -C authcontract test -shuffle=on ./...`: `--- FAIL:
+    TestSchemagenMatchesCommitted_0073`, `main_test.go:44: run wrote 8492
+    bytes that differ from the committed ../../authcontract.schema.json
+    (8920 bytes); run go generate`, `line 1: generated "{", committed
+    "{\r"`, then `main_test.go:52: run with no -output wrote other bytes
+    than the committed schema`. The schema has 428 lines, and 8492 + 428 =
+    8920: the runner's checkout (`core.autocrlf=true`, the Windows runner
+    default) wrote every line with CRLF. The repository had no
+    `.gitattributes`. Not caught earlier: Phases 2 to 4 reached CI in this
+    one push, and the gate runs on this Mac, whose checkout is LF.
+    `internal/wiretest/wiretest.go` already strips CRLF from its goldens for
+    the same reason.
+  * Resolutions put to the owner: (1) *recommended*, a `.gitattributes` of
+    `* text=auto eol=lf`, the fleet's line-ending rule (gobble-cli's carries
+    it), so every checkout holds the committed bytes; (2) the same for
+    `authcontract/authcontract.schema.json` alone, which leaves the golden
+    vectors and every other byte-compared file to meet it later; (3) strip
+    CRLF in the test, as `wiretest` does, which loosens a byte-exact check
+    on a published file and leaves a Windows checkout's bytes differing
+    from the ones the proxy serves. Doing nothing: `ci.yml` stays red on
+    Windows, and Phase 4, step 3's tag cannot be made on green CI.
+  * **Resolution (2026-11-12): the owner chose (1).** Phase 4 gains
+    `.gitattributes`, with a dated note under its step 2. Survey before the
+    change: `git ls-files --eol` lists 1574 files `i/lf` and 8 `i/none`
+    (single-line JSON fixtures with no line end), none `i/crlf` or
+    `i/mixed`; no tracked file is binary (933 `.go`, 423 `.json`, 176 `.md`,
+    32 `.py`, and the rest text). So the attribute changes no committed
+    blob.
+  * Seen to fail, then pass, on a scratch clone of `219c9b4` made with
+    `git clone -c core.autocrlf=true`, never in the tree: the schema held
+    428 CRs; `go -C authcontract test -count=1 ./internal/schemagen/`, exit
+    1, `--- FAIL: TestSchemagenMatchesCommitted_0073`, `line 1: generated
+    "{", committed "{\r"`. With this `.gitattributes` committed there and
+    the tree checked out again: `git status --porcelain` empty, 0 CRs in the
+    schema and 0 files with a CR in the tree; `go -C authcontract test
+    -count=1 ./...`, exit 0, `ok` for `authcontract`,
+    `authcontract/internal/schemacheck` and
+    `authcontract/internal/schemagen`.
+  * Next: the commit of `.gitattributes` and this PLAN, the guard, the push
+    of `main` and its `ci.yml` run, which is to pass on all three runners
+    before steps 3 to 7 above.
