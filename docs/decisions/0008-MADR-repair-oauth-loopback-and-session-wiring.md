@@ -709,3 +709,18 @@ F44 (Q7 a).
   `TestOAuthCallback_StrayRequestKeepsWaiting`.
 * D5's other branches still complete the waiter: an IdP error, and a missing
   code, each with the right state.
+
+## Amendment 2026-11-12: Grok's method fact until the probe (0074)
+
+Made by [0074-MADR-one-sign-in-handle-and-method-facts.md](0074-MADR-one-sign-in-handle-and-method-facts.md) (D1, D12), on its acceptance.
+
+F5 reads:
+
+> This is **inferred** from the official CLI
+> source, not captured as a HAR on this host.
+
+0074-MADR D12's Grok probe will replace the inference. Until it has run, the
+Grok browser method's fact `Completion` is `browser_loopback`
+(0074-MADR D1), with no paste.
+
+F5's text above is not rewritten.

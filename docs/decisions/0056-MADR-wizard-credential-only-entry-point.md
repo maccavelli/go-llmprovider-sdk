@@ -444,3 +444,16 @@ Registry around wrapped factories (F9).
   catalog used). Keeping a transport error's text, which would have spared
   the first, was put to the owner and not chosen: it changes D3. D3 and F7
   stand.
+
+## Amendment 2026-11-12: Kilo's method yields a device key (0074)
+
+Made by [0074-MADR-one-sign-in-handle-and-method-facts.md](0074-MADR-one-sign-in-handle-and-method-facts.md) (D1), on its acceptance.
+
+D2 reads: "### D2. `Options.KiloDeviceKey`", and, of what it does when true,
+"Kilo's device method is offered without a `TokenStore`".
+
+D2 is kept. The Kilo `device_code` method's fact `yields` is `device_key`
+(0074-MADR D1), and `Options.KiloDeviceKey` still turns that into a key, with
+`Kind: CredAPIKey`.
+
+D2's text above is not rewritten.

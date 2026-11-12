@@ -661,3 +661,45 @@ MADR and approved this PLAN.
   ([0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md](0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md)).
   Phase 1 starts after that record's fix has a passing `ci.yml` run on
   `main`, which its PLAN's Phase 4 records.
+
+### Phase 0, completed (2026-11-12)
+
+The coordinator committed Stage A as `fc699ec`, and then, the Phase 0 entry
+above having left step 3 open, ruled that Phase 0 is finished before Phase 1
+(this PLAN's own order; the owner's acceptance covers Phase 0).
+
+* Step 3: six dated notes, each an appended section "Amendment 2026-11-12:
+  ... (0074)" that cites 0074-MADR, quotes the text it amends exactly, and
+  leaves that text standing:
+  * `0006-MADR-subscription-auth-for-llm-providers.md`, §"2. Descriptors grow
+    an auth-method list": `Interactive` and `HeadlessOK` deprecated, 0074-MADR
+    D1's facts replace them;
+  * `0016-MADR-provider-auth-and-support-baseline.md`: D6 generalised, D10
+    affirmed;
+  * `0057-MADR-wizard-device-code-and-paste-prompt.md`: D1 and D2 kept, as
+    special cases of the step renderer;
+  * `0056-MADR-wizard-credential-only-entry-point.md`: D2 kept, the Kilo
+    method's `yields` is `device_key`;
+  * `0015-MADR-canonical-sdk-api-and-module-layout.md`: the amendment "what
+    `auth` holds" gains the session kind and `SessionKind`, the two
+    sentinels, the two `NoLoopback` fields and `VendorCLIPath`; D9 governs
+    D10; `llmprovider/x/signin` is the first package under R4's tree;
+  * `0008-MADR-repair-oauth-loopback-and-session-wiring.md`: F5's inference
+    stays until D12's Grok probe, and the method's fact is `browser_loopback`
+    until then.
+  The quotations were checked against each file at `HEAD` by `grep -F` on one
+  line of each. The standards guide's R2 sentence and rows, and `AGENTS.md`
+  "Live tests", are not edited here: they wait for Phase 4 step 4 and Phase 6
+  step 5, as step 3 says. No source file changed.
+* Step 4: `python3 -B tools/gate.py --markdown`, through the queue
+  (`run-heavy`, which waited for load below 10 and started at 9.7): exit 0,
+  "gate: 11 of 11 passed" (parity-check, records-check, tables-check,
+  changelog-check, markdownlint, links-check, disclosure-check,
+  gate-selftest, deny-scan, recordlint, claims), each rc=0, elapsed 647 s.
+  It ran before this entry was written, so the record checks were run again
+  after it, each exit 0 (below).
+* Acceptance: `make records-check` and `make links-check` pass; each note
+  quotes its target; no source changed. Met.
+* Phase 1's wait (the last bullet of the Phase 0 entry) is met: `ci.yml` run
+  43308484802 on `cae3ccb` passed on all three runners. Phase 1 starts after
+  the coordinator commits this phase.

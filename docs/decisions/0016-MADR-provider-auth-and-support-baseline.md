@@ -809,3 +809,32 @@ than sessions. A7 stands, and stays the default.
   D11 asks for.
 * The token is a key in all but name: it has no refresh and no known expiry
   (0017-MADR D2), and Kilo sends both as `Authorization: Bearer`.
+
+## Amendment 2026-11-12: every interactive method has a handle (0074)
+
+Made by [0074-MADR-one-sign-in-handle-and-method-facts.md](0074-MADR-one-sign-in-handle-and-method-facts.md) (D3, D11), on its acceptance.
+
+D6 reads:
+
+> * `auth` starts a device login and returns a handle with the user code,
+>   the verification URI, the expiry, `Wait(ctx)` for the session, and
+>   `Cancel` (R5).
+> * The browser flow keeps its `OpenURL` and `InputCode` callbacks.
+> * `wizard` uses the handle; its prompts are unchanged.
+
+D6 is generalised: every interactive method has a handle, the experimental
+`llmprovider/x/signin`'s `*SignIn` (0074-MADR D3). The device handle and the
+`OpenURL` and `InputCode` callbacks stay.
+
+D10 reads:
+
+> * **It does not drive agent CLIs.** Supervising `codex app-server`, ACP
+>   agents or local agent servers belongs in a separate module with its own
+>   MADR, because it needs modules this one excludes (R7).
+> * **It does not write a vendor CLI's credential store.** Vendor-CLI
+>   credentials stay read-through (M2), so no coordinator like R6 is needed.
+
+D10 is affirmed, unchanged (0074-MADR D11): the step engine runs this SDK's
+own flows only.
+
+D6's and D10's text above is not rewritten.

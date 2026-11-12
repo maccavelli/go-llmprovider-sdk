@@ -499,3 +499,19 @@ loopback no way to paste until the login's limit, ten minutes (C26).
   from the hook ends the sign-in before `Wait`, so before any poll, and is
   returned as it is. Keeping the call as a defence, a line no test can
   check, was put to the owner and not chosen. D1 stands otherwise.
+
+## Amendment 2026-11-12: D1 and D2 as special cases of the step renderer (0074)
+
+Made by [0074-MADR-one-sign-in-handle-and-method-facts.md](0074-MADR-one-sign-in-handle-and-method-facts.md) (D6), on its acceptance.
+
+D1 reads: "### D1. `Options.ShowDeviceCode` and `wizard.DeviceCode`", and D2
+reads: "### D2. `Options.NoPastePrompt`".
+
+Both are kept. They become special cases of 0074-MADR D6's renderer: the
+wizard renders the contract's steps from the engine, with the same words as
+today, and `ShowDeviceCode` and `NoPastePrompt` choose how the `show_code`
+and `paste` steps are rendered. A caller with no terminal hands the steps to
+`wizard.Options.Driver`. No wizard notice, prompt or question changes its
+text.
+
+D1's and D2's text above is not rewritten.

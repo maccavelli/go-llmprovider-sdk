@@ -1362,3 +1362,29 @@ from the SDK and has no dependency of its own: `authcontract/` (0073-MADR
 D1, D8).
 
 D2's text above is not rewritten.
+
+## Amendment 2026-11-12: what `auth` holds, ambient state and `x/signin` (0074)
+
+Made by [0074-MADR-one-sign-in-handle-and-method-facts.md](0074-MADR-one-sign-in-handle-and-method-facts.md) (D4, D5, D9, D10), on its acceptance.
+
+The amendment "Amendment 2026-10-01: what `auth` holds" reads:
+
+> `auth` holds the sessions (`OAuthSession`,
+> `VendorCLISession`), the login flows (browser, device, Kilo's), the
+> stores (`TokenStore`, `RefreshLocker`, `FileTokenStore`), revocation and
+> `id_token` checking, and the issuers and client ids.
+
+It gains: the session kind, `auth.SessionKind`, with its four constants and
+`(*OAuthSession).SessionKind`; the sentinels `ErrSignInDenied` and
+`ErrSignInExpired`; the `NoLoopback` field on `OAuthFlowOptions` and
+`ChatGPTPlanOptions`; and `VendorCLIPath`.
+
+D9 reads: "### D9. No ambient state" and "**Library code reads no
+environment variable.**" It governs 0074-MADR D10: `VendorCLIPath` reads only
+through the `lookupEnv` it is given.
+
+R4 of the standards guide reads: "**R4. Experimental API lives under
+`llmprovider/x/`** and nowhere else." `llmprovider/x/signin` is the first
+package under that tree.
+
+The text above is not rewritten.

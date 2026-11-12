@@ -1067,3 +1067,26 @@ changes accompany this status change. Execution is specified by
 (`status: proposed` until the maintainer approves that plan). The plan covers
 **OpenAI and Grok in mcplib**, then **prepare-commit-msg as the first
 consumer**.
+
+## Amendment 2026-11-12: `AuthMethod` grows method facts (0074)
+
+Made by [0074-MADR-one-sign-in-handle-and-method-facts.md](0074-MADR-one-sign-in-handle-and-method-facts.md) (D1, D7), on its acceptance.
+
+"2. Descriptors grow an auth-method list" reads:
+
+> ```go
+> type AuthMethod struct {
+>     ID          AuthMethodID
+>     Label       string // "Sign in with ChatGPT", "xAI API key", …
+>     Detail      string // billing / when-to-use
+>     Interactive bool   // wizard may offer it
+>     HeadlessOK  bool   // device-code, stdin, import
+> }
+> ```
+
+`Interactive` and `HeadlessOK` are deprecated, in part superseded: 0074-MADR
+D1's facts (`Kind`, `Completion`, `Paste`, `FirstPaste`, `Yields`,
+`ClientIdentity`, `Slot`, `Refreshable`, `Revocable`) replace them. The two
+fields stay set and stay readable until v2 (0074-MADR D7).
+
+The text above is not rewritten.
