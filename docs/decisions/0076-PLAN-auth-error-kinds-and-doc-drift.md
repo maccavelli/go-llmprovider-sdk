@@ -873,3 +873,40 @@ sign-in refused under the name, or a failed `originator` or `referrer`
 check, is a deviation (step 2): the field's doc then says which provider
 refuses a custom name, and the MADR is amended. The record quotes no URL,
 code or token from the run.
+
+### Phase 4, the owner's live run (2026-11-11)
+
+The owner committed Phase 4's preparation as `ee7e7f3`, then ran the probe
+on this host, one half at a time, from the repository root (the
+coordinator started each run in the background and opened the URL it
+printed in the owner's browser; the owner approved each sign-in). No live
+variable other than each half's own was set.
+
+* **OpenAI, browser:** `LLMPROVIDER_LIVE_0076=1
+  LLMPROVIDER_LIVE_BROWSER_LOGIN=1 go test -tags live_gateways -count=1
+  -timeout 15m -run '^TestLive_0076Identity$/^OpenAIBrowser$' -v
+  ./llmprovider/`, exit 0. The authorize URL carried
+  `originator=llmprovider-probe`. Its lines:
+  * "FINDING sign-in: OpenAI's browser sign-in under "llmprovider-probe"
+    completed"
+  * "FINDING use: openai listed 6 models with the session"
+  * "FINDING revocation: revoked; a refresh afterwards is refused, as
+    ErrAuthFailure true"
+  * "--- PASS: TestLive_0076Identity/OpenAIBrowser (11.44s)"
+* **xAI, device:** `LLMPROVIDER_LIVE_0076=1 LLMPROVIDER_LIVE_DEVICE_LOGIN=1
+  go test -tags live_gateways -count=1 -timeout 15m -run
+  '^TestLive_0076Identity$/^GrokDevice$' -v ./llmprovider/`, exit 0. Its
+  lines:
+  * "FINDING sign-in: xAI's device sign-in under "llmprovider-probe"
+    completed"
+  * "FINDING use: grok listed 13 models with the session"
+  * "FINDING revocation: revoked; a refresh afterwards is refused, as
+    ErrAuthFailure true"
+  * "--- PASS: TestLive_0076Identity/GrokDevice (15.97s)"
+* No "RevokeOAuthSession when the half ends" error in either run.
+* **Result:** neither provider refuses a custom name, and the referrer
+  check passed in the xAI half. No deviation; step 2's doc change and MADR
+  amendment are not needed. An earlier attempt at the OpenAI half was
+  interrupted before any sign-in, when the printed URL wrapped in the
+  owner's terminal and could not be copied; nothing was stored or sent.
+* **Not done:** Phase 5, the release.
