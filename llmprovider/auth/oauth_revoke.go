@@ -23,9 +23,17 @@ import (
 // (codex login/src/auth/revoke.rs:1-5). Never pass a vendor CLI's session:
 // revoking it would log the CLI out.
 //
+// A ChatGPT plan session, one with a Resource, is checked first: an RFC 7009
+// form request, with its issued client id, to the revocation_endpoint of its
+// issuer's discovery document (0043-MADR D2).
 // OpenAI: a JSON request to {issuer}/oauth/revoke (revoke.rs:31-53, 104-114).
 // Grok: an RFC 7009 form request to the discovery document's
-// revocation_endpoint; without one the result wraps errors.ErrUnsupported.
+// revocation_endpoint.
+//
+// A session of a provider with no revocation, and a Grok or plan issuer that
+// publishes no revocation_endpoint, give an error matching
+// llmprovider.ErrUnsupported. For an issuer, that error comes after its
+// discovery document is read, and no token is sent.
 func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 	if session == nil {
 		return errors.New("oauth: revoke: nil session")
@@ -59,7 +67,7 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 	case state.provider == llmprovider.ProviderGrok:
 		req, err = grokRevokeRequest(ctx, state, client, token, hint)
 	default:
-		return fmt.Errorf("oauth: revoke: %s sessions have no revocation: %w", state.provider, errors.ErrUnsupported)
+		return fmt.Errorf("oauth: revoke: %s sessions have no revocation: %w", state.provider, llmprovider.ErrUnsupported)
 	}
 	if err != nil {
 		return err
@@ -121,7 +129,7 @@ func grokRevokeRequest(ctx context.Context, state oauthSessionState, client *htt
 		return nil, err
 	}
 	if endpoints.Revocation == "" {
-		return nil, fmt.Errorf("oauth: revoke: %s publishes no revocation_endpoint: %w", issuer, errors.ErrUnsupported)
+		return nil, fmt.Errorf("oauth: revoke: %s publishes no revocation_endpoint: %w", issuer, llmprovider.ErrUnsupported)
 	}
 	return formRevokeRequest(ctx, endpoints.Revocation, state.clientID, token, hint)
 }
@@ -137,7 +145,7 @@ func planRevokeRequest(ctx context.Context, state oauthSessionState, client *htt
 		return nil, err
 	}
 	if endpoints.Revocation == "" {
-		return nil, fmt.Errorf("oauth: revoke: %s publishes no revocation_endpoint: %w", issuer, errors.ErrUnsupported)
+		return nil, fmt.Errorf("oauth: revoke: %s publishes no revocation_endpoint: %w", issuer, llmprovider.ErrUnsupported)
 	}
 	return formRevokeRequest(ctx, endpoints.Revocation, state.clientID, token, hint)
 }

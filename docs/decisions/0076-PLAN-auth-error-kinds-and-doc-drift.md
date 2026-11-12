@@ -359,3 +359,110 @@ this PLAN.
   added after those runs, so the record checks were run again before
   staging, each exiting 0. The changed files were then staged for the
   owner to commit.
+
+The owner committed Phase 0 (`fab656f`), and 0077-PLAN's Go floor
+(`ef432b7`), before Phase 1.
+
+### Phase 1 (2026-11-11)
+
+Started at `6feb801`, on `main`, with a clean tree and `go 1.27.4`. The
+code of `llmprovider/` and `wizard/` is the same at `6feb801` as at
+`773b84c` (`git diff --stat 773b84c HEAD -- llmprovider wizard` lists
+`go.mod` only), and `tools/claims.py` on the MADR, "48 of 48 pass", and on
+this PLAN, "7 of 7 pass", exited 0 before any change.
+
+* **Step 1, `oauth_revoke.go`:** the three sites (MADR C1 to C3) wrap
+  `llmprovider.ErrUnsupported`; their own words are unchanged.
+  `RevokeOAuthSession`'s doc names the plan session's form, checked first,
+  and its sentence on `errors.ErrUnsupported` is replaced by one naming
+  `llmprovider.ErrUnsupported` for a session of a provider with no
+  revocation and for a Grok or plan issuer with no `revocation_endpoint`,
+  with D1's note: for an issuer, the error comes after its discovery
+  document is read, and no token is sent.
+* **Step 2, `oauth_device.go`:** one new unexported method,
+  `(*devicePacer).expired`, returns `errDeviceCodeExpired`, or
+  `fmt.Errorf("%w; the last poll failed: %w", errDeviceCodeExpired,
+  p.last)` when `p.last` is set. `devicePacer.wait` returns it at the
+  deadline, as its own code did, and the OpenAI poll's deadline check
+  returns it in place of the plain "oauth: OpenAI device-code login timed
+  out after 15 minutes". No exported name changed.
+* **Tests,** in a new `llmprovider/auth/error_kinds_0076_test.go`. Each
+  passes.
+  * `TestRevokeUnsupportedKind_0076`: a Kilo session (a recording transport,
+    no request), and a Grok and a plan session each at its own `httptest`
+    issuer whose discovery document names no `revocation_endpoint` and
+    whose other endpoints are on its origin. Each error matches both
+    sentinels; the Kilo revocation sends nothing, and the other two send
+    `GET /.well-known/openid-configuration` only.
+  * `TestRevokeMessages_0076`: the three texts, the issuer's URL replaced
+    by `ISSUER`: "oauth: revoke: kilo sessions have no revocation:
+    llmprovider: unsupported" and, for Grok and the plan, "oauth: revoke:
+    ISSUER publishes no revocation_endpoint: llmprovider: unsupported".
+  * `TestOpenAIDeviceExpiryKind_0076`: the package's clock seam
+    (`OAuthFlowOptions.now` and `sleep`, unexported) with a stepped clock
+    that moves on a second at every read and by the whole duration at
+    every sleep, and an 896 s interval. Its reads are T0 (the deadline is
+    T0+900s), the loop's check at T0+1s, the pacer's remaining time at
+    T0+2s, its check after the sleep at T0+899s, and the loop's next check
+    at T0+900s: the deadline passes between the pacer's check (C8) and the
+    loop's (C5), as MADR "Where the report differs from the code" says. Two
+    cases: a pending poll (404), whose error ends "device code expired",
+    and a failed poll (503), whose error ends "device code expired; the
+    last poll failed: oauth: OpenAI device poll failed: Service
+    Unavailable". Each matches `ErrAuthFailure`, after one poll and one
+    896 s sleep.
+* **Red at `773b84c`:** `python3 -B tools/redgreen.py SPEC.json --expect
+  fail --rev 773b84c`, with the new test file copied in, exited 0:
+  "redgreen: 2 of 2 fail as expected". The failure lines (the loopback
+  ports left out):
+  * `error_kinds_0076_test.go:89: a Kilo session: RevokeOAuthSession = oauth: revoke: kilo sessions have no revocation: unsupported operation; want an error matching llmprovider.ErrUnsupported and errors.ErrUnsupported`
+  * `error_kinds_0076_test.go:89: a Grok session: RevokeOAuthSession = oauth: revoke: http://127.0.0.1:… publishes no revocation_endpoint: unsupported operation; want an error matching llmprovider.ErrUnsupported and errors.ErrUnsupported`
+  * `error_kinds_0076_test.go:89: a plan session: RevokeOAuthSession = oauth: revoke: http://127.0.0.1:… publishes no revocation_endpoint: unsupported operation; want an error matching llmprovider.ErrUnsupported and errors.ErrUnsupported`
+  * `error_kinds_0076_test.go:203: a pending poll: Wait = oauth: OpenAI device-code login timed out after 15 minutes; want an error matching llmprovider.ErrAuthFailure`
+  * `error_kinds_0076_test.go:203: a failed poll: Wait = oauth: OpenAI device-code login timed out after 15 minutes; want an error matching llmprovider.ErrAuthFailure`
+
+  The device lines carry the 15-minute text, which only the loop's check
+  returns, so the stepped clock reaches C5 at `773b84c`. At `773b84c` the
+  revocation test's request assertions passed: the three sites already
+  sent nothing but discovery.
+* **Green:** `tools/redgreen.py SPEC.json --expect pass` on the tree, the
+  three tests, exited 0: "redgreen: 3 of 3 pass as expected".
+* **Planted breaks:** `python3 -B tools/plant.py SPEC.json`, run
+  `^TestRevokeMessages_0076$`, on a scratch clone, exited 0: "plant: all 3
+  plant(s) caught". Each plant rewords one message:
+  * "sessions have no revocation" as "sessions cannot be revoked":
+    `error_kinds_0076_test.go:117: a Kilo session: Error() = "oauth: revoke: kilo sessions cannot be revoked: llmprovider: unsupported"; want "oauth: revoke: kilo sessions have no revocation: llmprovider: unsupported"`
+  * Grok's "publishes no revocation_endpoint" as "has no
+    revocation_endpoint":
+    `error_kinds_0076_test.go:117: a Grok session: Error() = "oauth: revoke: ISSUER has no revocation_endpoint: llmprovider: unsupported"; want "oauth: revoke: ISSUER publishes no revocation_endpoint: llmprovider: unsupported"`
+  * the plan's, the same:
+    `error_kinds_0076_test.go:117: a plan session: Error() = "oauth: revoke: ISSUER has no revocation_endpoint: llmprovider: unsupported"; want "oauth: revoke: ISSUER publishes no revocation_endpoint: llmprovider: unsupported"`
+* **The drift check:** before any change, `go test -count=1
+  ./llmprovider/auth/... ./wizard/...` exited 0. After it, the three tests
+  that read `errors.ErrUnsupported` (MADR C31 to C33),
+  `grok_referrer_test.go` and every other test of `llmprovider/auth` and
+  `wizard` pass unchanged; no existing test file was edited. No test
+  pinned "unsupported operation" or the 15-minute text.
+* **Race:** `go test -race -count=1 ./llmprovider/auth/... ./wizard/...`,
+  exit 0; `go test -race -count=20 -run '_0076$' ./llmprovider/auth/`,
+  exit 0.
+* **Pre-add:** `make pre-add-check` on the three Go files, exit 0:
+  "go-precheck: 3 file(s) clean (gofmt, golangci-lint, go vet, go test,
+  govulncheck)". `revive`'s rules stand in for `golint` there (AGENTS.md).
+* **The gate:** `python3 -B tools/gate.py`, started at load 8.9 after
+  waiting for it to fall below 10, exit 0: "gate: 29 of 29 passed".
+  `api-check`: "against v1.29.0, 0 incompatible change(s) outside
+  llmprovider/x/"; `coverage-check`: `llmprovider/auth` 89.6 % against
+  80.0 %, `wizard` 93.8 % against 86.4 %; `docs-check`: "sdkaudit: 0
+  violation(s) of R50,R51,R52"; no data race in `test-race-cover`.
+* **`tools/apidiff.py v1.29.0`:** exit 0, an empty report: no exported
+  change, as this phase adds none.
+* **Stop conditions:** none met. No existing test changed; no authorize
+  URL, request body or User-Agent changed; the only text changes are D1's
+  wrapped part, "unsupported operation" to "llmprovider: unsupported", and
+  D2's message; every MADR claim held at the base; every plant was caught;
+  `-race` reported no race.
+* **Not done:** Phases 2 to 5. `Wait`'s doc is unchanged: D2 makes it true
+  on every path.
+* This entry was added after the gate ran, so the record checks were run
+  again before staging.

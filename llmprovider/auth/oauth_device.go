@@ -231,7 +231,7 @@ func startOpenAIDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogi
 		var pace devicePacer
 		for {
 			if !config.now().Before(deadline) {
-				return nil, errors.New("oauth: OpenAI device-code login timed out after 15 minutes")
+				return nil, pace.expired()
 			}
 			pollResponse, pollErr := postOAuthJSON(ctx, config.httpClient, pollURL, map[string]string{
 				"device_auth_id": device.DeviceAuthID,
@@ -490,10 +490,20 @@ func (p *devicePacer) answered() { p.backoff, p.last = 0, nil }
 // unless the code expires first.
 func (p *devicePacer) wait(ctx context.Context, config oauthFlowConfig, interval time.Duration, deadline time.Time) error {
 	err := sleepBeforeDeadline(ctx, config, max(interval, p.backoff), deadline)
-	if errors.Is(err, errDeviceCodeExpired) && p.last != nil {
-		return fmt.Errorf("%w; the last poll failed: %w", err, p.last)
+	if errors.Is(err, errDeviceCodeExpired) {
+		return p.expired()
 	}
 	return err
+}
+
+// expired is the error a poll ends with at the code's expiry, whichever
+// check sees it: errDeviceCodeExpired, naming the last transient failure
+// when there is one.
+func (p *devicePacer) expired() error {
+	if p.last != nil {
+		return fmt.Errorf("%w; the last poll failed: %w", errDeviceCodeExpired, p.last)
+	}
+	return errDeviceCodeExpired
 }
 
 func postOAuthJSON(ctx context.Context, client *http.Client, endpoint string, payload any) (*http.Response, error) {
