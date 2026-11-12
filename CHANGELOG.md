@@ -11,6 +11,8 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+## [v1.30.0] - 2026-11-11
+
 ### Added
 
 - `auth.Identity`, with `Name` and `Version`, names the consuming
@@ -1248,7 +1250,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.29.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.30.0...HEAD
+[v1.30.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.29.0...v1.30.0
 [v1.29.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.28.0...v1.29.0
 [v1.28.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.27.0...v1.28.0
 [v1.27.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.26.1...v1.27.0

@@ -910,3 +910,81 @@ variable other than each half's own was set.
   interrupted before any sign-in, when the printed URL wrapped in the
   owner's terminal and could not be copied; nothing was stored or sent.
 * **Not done:** Phase 5, the release.
+
+### Phase 5, prepared (2026-11-11)
+
+Started at `9c34004`, on `main`, nine commits ahead of `origin/main`, with a
+clean tree; the latest tag `v1.29.0`; `git ls-remote --tags origin v1.30.0`
+empty. This entry prepares the release commit as 0072-PLAN's Phase 6 did,
+up to and not including the tag. Each command's output and exit status are in
+the session's scratch directory, each status captured before any filter.
+
+#### Step 1: the release's section
+
+* `CHANGELOG.md`'s `[Unreleased]` became `## [v1.30.0] - 2026-11-11`, under
+  an empty `[Unreleased]`. The compare links read `[Unreleased]:
+  …compare/v1.30.0...HEAD` and `[v1.30.0]: …compare/v1.29.0...v1.30.0`. The
+  section is the former `[Unreleased]` unchanged: this PLAN's Added, Changed
+  and Fixed, and 0077's Security entry.
+* **The README.** `README.md:375` reads "The current release is `v1.30.0`.
+  The module requires Go 1.27.4." No other file outside the changelog and
+  the records names `v1.29.0`; `v1.28.0` appears outside them only in
+  `llmprovider/budget_0072_test.go`, the base its test compiles at, as it
+  did at 0072-PLAN's Phase 6. Nothing else changed.
+
+#### Step 2: the checks
+
+* `scripts/check_changelog.py`: "changelog-check: 43 release section(s), 0
+  problem(s)"; `--section v1.30.0` printed the section, 55 lines: Added,
+  Changed, Fixed and Security. Each exit 0.
+* `tools/apidiff.py v1.29.0`, exit 0, "Compatible changes:" and nothing
+  incompatible: `./llmprovider/auth.ChatGPTPlanOptions.Identity`,
+  `./llmprovider/auth.Identity`, `./llmprovider/auth.OAuthFlowOptions.Identity`
+  and `./wizard.Options.Identity`, each "added", exactly the R55 table.
+  `make api-check`: "against v1.29.0, 0 incompatible change(s) outside
+  llmprovider/x/", exit 0.
+* **The gate:** `python3 -B tools/gate.py` waited from load 18.4, started at
+  load 9.1, exit 0: "gate: 29 of 29 passed", the `vet-*-live` steps and
+  `coverage-check` included (41 packages, 0 problems; `wizard` 93.8 %
+  against 86.4 %).
+* `go.mod` reads `go 1.27.4`, with no `toolchain` line; `go list -m` prints
+  the module path.
+* `tools/claims.py`: 0076-MADR 48 of 48, 0077-MADR 23 of 23, this PLAN 7 of
+  7, 0077-PLAN 13 of 13. `make records-check`: "162 records, 0 problem(s)".
+  `tools/recordlint.py --changed`: "0 record(s); no rule rose".
+  `tools/denyscan.py --changed`: "0 hit(s) in 2 file(s)".
+  `tools/linkcheck.py`: "0 problem(s), 1242 relative link(s) in 174
+  file(s)". `make disclosure-check`: "0 hit(s) in 1514 file(s)". Each exit 0.
+  This entry was added after the gate, so the record checks were run again
+  before staging, with this entry in the tree: `tools/claims.py` on this
+  PLAN, 7 of 7; `make records-check`, 0 problems; `recordlint --changed`,
+  "no rule rose"; `denyscan --changed`, "0 hit(s) in 3 file(s)";
+  `linkcheck`, "0 problem(s), 1243 relative link(s)"; `make
+  disclosure-check`, `changelog-check`, `docs-check`, `parity-check` and
+  `markdownlint` (12 files, 0 issues). Each exit 0.
+
+#### The guard
+
+The pre-push disclosure guard, run read-only over the commits a push would
+send (`origin/main` to `9c34004`, nine commits, before the release commit,
+which the push will also carry), returned exit 0 with no output.
+
+#### The Releases
+
+`gh release list` shows six, `v1.29.0` (Latest) to `v1.25.0`. When
+`v1.30.0`'s Release appears there are seven, so R53's check (Deviation 3 of
+0072-PLAN) finds `v1.25.0`'s past the sixth. Its JSON is saved to the
+session's scratch directory first, and it is deleted with `gh release delete
+v1.25.0 --yes` on the owner's word, keeping its tag and section. Nothing was
+deleted here.
+
+#### Not done
+
+* The commit, which is the owner's.
+* The push and the `v1.30.0` tag, which wait for the owner's word.
+* CI on `main` and on the tag, and the Release.
+* `tools/consumer.py v1.30.0` and `tools/offline.py v1.30.0`, after the tag.
+* R53's check and `v1.25.0`'s deletion, after the Release appears.
+* [0077-PLAN](0077-PLAN-go-1-27-4-for-go-2026-6859.md)'s Phase 2, the read
+  back of `"GoVersion": "1.27.4"` from `@v1.30.0` through the proxy (V8).
+* Any issue comments.
