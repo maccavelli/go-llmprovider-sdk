@@ -492,7 +492,15 @@ Each command's exit status is captured before any filter.
      both proposed). *(2026-11-11: the owner ruled that gobble-cli `v0.6.0`
      is the release that must pin the same acp-go-sdk2 tag as
      magic-cli-remote. Both move from `v1.35.0` to `v1.36.0` together before
-     it, each by a record of its own.)*
+     it, each by a record of its own.)* *(2026-11-12: gobble's release on the
+     contract, named `v0.6.0` above, is now `v0.7.0`. The owner decided that
+     gobble-cli releases `v0.6.0` now, from its main, without the sign-in
+     redesign, and that the redesign is `v0.7.0` (gobble-cli
+     `docs/decisions/0055-MADR-release-v0-6-0-now-and-the-sign-in-redesign-as-v0-7-0.md`,
+     D1 and D2), so Magic's cut-over waits for `acpext/v0.5.0` and gobble's
+     `v0.7.0`. The ruling of 2026-11-11 stays true of `v0.6.0`, which is cut
+     on acp-go-sdk2 `v1.36.0` as magic-cli-remote is (0055-MADR F8); `v0.7.0`
+     must meet the same lockstep when it is cut (its D2).)*
   4. 0076's SDK release is independent of all three, and comes first: the
      owner decided on 2026-11-10 (DF) that it lands now, ahead of the
      redesign. *(2026-11-11: first after step 0, whose floor it ships.)*

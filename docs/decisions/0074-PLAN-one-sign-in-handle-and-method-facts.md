@@ -600,7 +600,15 @@ Each command's exit status is captured before any filter.
   `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` D3, proposed; the owner's QE (a)), and tags `acpext/v0.5.0` and then gobble-cli's own next release, `v0.6.0`.
   *(2026-11-11: the owner ruled that `v0.6.0` is the release that must pin
   the same acp-go-sdk2 tag as magic-cli-remote; both move from `v1.35.0` to
-  `v1.36.0` together before it, each by a record of its own.)* Magic
+  `v1.36.0` together before it, each by a record of its own.)*
+  *(2026-11-12: gobble-cli's release on the contract, named `v0.6.0` above,
+  is now `v0.7.0`. The owner decided that gobble-cli releases `v0.6.0` now,
+  from its main, without the sign-in redesign, and that the redesign is
+  `v0.7.0` (gobble-cli
+  `docs/decisions/0055-MADR-release-v0-6-0-now-and-the-sign-in-redesign-as-v0-7-0.md`, D1
+  and D2). The ruling of 2026-11-11 stays true of `v0.6.0`, which is cut on
+  acp-go-sdk2 `v1.36.0` as magic-cli-remote is (0055-MADR F8); `v0.7.0` must
+  meet the same lockstep when it is cut (its D2).)* Magic
   consumes gobble's steps after those tags, and the contract directly for its
   own mappers (magic-cli-remote
   `docs/decisions/0246-PLAN-take-provider-auth-types-from-the-sdk-auth-contract-in-one-cut-over.md`).

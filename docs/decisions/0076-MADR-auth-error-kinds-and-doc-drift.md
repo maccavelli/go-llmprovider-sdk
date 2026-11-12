@@ -451,7 +451,11 @@ bullets, which are quoted in the second bullet below.)*
   `0006-MADR-sequence-the-auth-contract-effort-across-four-repositories.md`,
   which is kept outside this repository, in the fleet's docs directory, to
   be raised after gobble-cli `v0.6.0` and magic-cli-remote's cut-over have
-  shipped.*
+  shipped.* *(2026-11-12: the gobble-cli release meant here, the sign-in
+  redesign on the contract, is now `v0.7.0`; gobble-cli's `v0.6.0` is
+  released before it, without the redesign (gobble-cli
+  `docs/decisions/0055-MADR-release-v0-6-0-now-and-the-sign-in-redesign-as-v0-7-0.md`,
+  D1 and D2). The deferral is otherwise unchanged.)*
 
 ### Revisions of 2026-11-11
 

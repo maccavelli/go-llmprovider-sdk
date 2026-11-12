@@ -1075,6 +1075,25 @@ above. No decision of D1 to D8 changes.
   give both; "Where the report and the audit differ" cites the v1.35.0
   lines, as it did.
 
+The owner's decision of 2026-11-12, recorded in gobble-cli, written in
+after. No decision of D1 to D8 changes, and the two bullets above are not
+rewritten.
+
+* 2026-11-12, gobble-cli's release numbers: the owner decided that
+  gobble-cli releases `v0.6.0` now, from its main as it stands, without the
+  sign-in redesign on this contract (gobble-cli
+  `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md`
+  and `0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md`), and
+  that the redesign, which these records named `v0.6.0`, is released as
+  `v0.7.0` (gobble-cli
+  `docs/decisions/0055-MADR-release-v0-6-0-now-and-the-sign-in-redesign-as-v0-7-0.md`,
+  D1 and D2). The two bullets above that name gobble's `v0.6.0` stay true of
+  that release: it is cut from a main whose `go.mod` pins acp-go-sdk2
+  `v1.36.0`, as magic-cli-remote's does, and both moved to that tag before
+  it (0055-MADR F8). gobble's release on the contract is `v0.7.0`, which must
+  meet the same lockstep when it is cut (its D2). The PLAN's "Order across
+  repositories", step 3, carries the same note.
+
 ### Not verified
 
 * Go's exact message for `go vet ./authcontract` run from the root. The
