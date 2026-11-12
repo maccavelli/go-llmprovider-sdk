@@ -37,73 +37,137 @@ func TestDescriptors_OpenAIAndGrokOfferOAuth(t *testing.T) {
 	want := map[llmprovider.ProviderID][]llmprovider.AuthMethod{
 		llmprovider.ProviderOpenAI: {
 			{
-				ID:          llmprovider.AuthAPIKey,
-				Label:       "OpenAI API key",
-				Detail:      "Platform billing (`api.openai.com`)",
-				Interactive: true,
-				HeadlessOK:  true,
+				ID:             llmprovider.AuthAPIKey,
+				Label:          "OpenAI API key",
+				Detail:         "Platform billing (`api.openai.com`)",
+				Interactive:    true,
+				HeadlessOK:     true,
+				Kind:           "api_key",
+				Completion:     "value",
+				Yields:         "api_key",
+				ClientIdentity: "none",
 			},
 			{
-				ID:          llmprovider.AuthBrowserOAuth,
-				Label:       "Sign in with ChatGPT",
-				Detail:      "Plus/Pro/Business/Edu/Enterprise plan",
-				Interactive: true,
+				ID:             llmprovider.AuthBrowserOAuth,
+				Label:          "Sign in with ChatGPT",
+				Detail:         "Plus/Pro/Business/Edu/Enterprise plan",
+				Interactive:    true,
+				Kind:           "browser",
+				Completion:     "browser_paste",
+				Paste:          "url_or_code",
+				Yields:         "oauth_session",
+				ClientIdentity: "vendor_borrowed",
+				Slot:           "openai",
+				Refreshable:    true,
+				Revocable:      true,
 			},
 			{
-				ID:          llmprovider.AuthDeviceCode,
-				Label:       "Sign in with ChatGPT (device code)",
-				Interactive: true,
-				HeadlessOK:  true,
+				ID:             llmprovider.AuthDeviceCode,
+				Label:          "Sign in with ChatGPT (device code)",
+				Interactive:    true,
+				HeadlessOK:     true,
+				Kind:           "device_code",
+				Completion:     "device",
+				Yields:         "oauth_session",
+				ClientIdentity: "vendor_borrowed",
+				Slot:           "openai",
+				Refreshable:    true,
+				Revocable:      true,
 			},
 			{
-				ID:          llmprovider.AuthTokenStdin,
-				Label:       "Paste a ChatGPT access token or API key",
-				Interactive: true,
-				HeadlessOK:  true,
+				ID:             llmprovider.AuthTokenStdin,
+				Label:          "Paste a ChatGPT access token or API key",
+				Interactive:    true,
+				HeadlessOK:     true,
+				Kind:           "token_paste",
+				Completion:     "value",
+				Yields:         "access_only",
+				ClientIdentity: "none",
+				Slot:           "openai",
+				Revocable:      true,
 			},
 			{
-				ID:          llmprovider.AuthImportVendorCLI,
-				Label:       "Use the Codex CLI login (~/.codex/auth.json)",
-				Interactive: true,
-				HeadlessOK:  true,
+				ID:             llmprovider.AuthImportVendorCLI,
+				Label:          "Use the Codex CLI login (~/.codex/auth.json)",
+				Interactive:    true,
+				HeadlessOK:     true,
+				Kind:           "vendor_import",
+				Completion:     "local_file",
+				Yields:         "read_through",
+				ClientIdentity: "none",
 			},
 			{
-				ID:          llmprovider.AuthChatGPTPlan,
-				Label:       "Use your ChatGPT plan with this app",
-				Detail:      "Sign in with ChatGPT for agents; usage counts toward your plan",
-				Interactive: true,
+				ID:             llmprovider.AuthChatGPTPlan,
+				Label:          "Use your ChatGPT plan with this app",
+				Detail:         "Sign in with ChatGPT for agents; usage counts toward your plan",
+				Interactive:    true,
+				Kind:           "browser",
+				Completion:     "browser_paste",
+				Paste:          "url_or_code",
+				FirstPaste:     "url_only",
+				Yields:         "oauth_session",
+				ClientIdentity: "app_registered",
+				Slot:           "openai",
+				Refreshable:    true,
+				Revocable:      true,
 			},
 		},
 		llmprovider.ProviderGrok: {
 			{
-				ID:          llmprovider.AuthAPIKey,
-				Label:       "xAI API key",
-				Detail:      "console.x.ai billing (`api.x.ai`)",
-				Interactive: true,
-				HeadlessOK:  true,
+				ID:             llmprovider.AuthAPIKey,
+				Label:          "xAI API key",
+				Detail:         "console.x.ai billing (`api.x.ai`)",
+				Interactive:    true,
+				HeadlessOK:     true,
+				Kind:           "api_key",
+				Completion:     "value",
+				Yields:         "api_key",
+				ClientIdentity: "none",
 			},
 			{
-				ID:          llmprovider.AuthBrowserOAuth,
-				Label:       "Sign in with xAI",
-				Interactive: true,
+				ID:             llmprovider.AuthBrowserOAuth,
+				Label:          "Sign in with xAI",
+				Interactive:    true,
+				Kind:           "browser",
+				Completion:     "browser_loopback",
+				Yields:         "oauth_session",
+				ClientIdentity: "vendor_borrowed",
+				Slot:           "grok",
+				Refreshable:    true,
+				Revocable:      true,
 			},
 			{
-				ID:          llmprovider.AuthDeviceCode,
-				Label:       "Sign in with xAI (device code)",
-				Interactive: true,
-				HeadlessOK:  true,
+				ID:             llmprovider.AuthDeviceCode,
+				Label:          "Sign in with xAI (device code)",
+				Interactive:    true,
+				HeadlessOK:     true,
+				Kind:           "device_code",
+				Completion:     "device",
+				Yields:         "oauth_session",
+				ClientIdentity: "vendor_borrowed",
+				Slot:           "grok",
+				Refreshable:    true,
+				Revocable:      true,
 			},
 			{
-				ID:          llmprovider.AuthTokenStdin,
-				Label:       "Paste an xAI API key",
-				Interactive: true,
-				HeadlessOK:  true,
+				ID:             llmprovider.AuthTokenStdin,
+				Label:          "Paste an xAI API key",
+				Interactive:    true,
+				HeadlessOK:     true,
+				Kind:           "token_paste",
+				Completion:     "value",
+				Yields:         "api_key",
+				ClientIdentity: "none",
 			},
 			{
-				ID:          llmprovider.AuthImportVendorCLI,
-				Label:       "Use the Grok CLI login (~/.grok/auth.json)",
-				Interactive: true,
-				HeadlessOK:  true,
+				ID:             llmprovider.AuthImportVendorCLI,
+				Label:          "Use the Grok CLI login (~/.grok/auth.json)",
+				Interactive:    true,
+				HeadlessOK:     true,
+				Kind:           "vendor_import",
+				Completion:     "local_file",
+				Yields:         "read_through",
+				ClientIdentity: "none",
 			},
 		},
 	}
@@ -117,6 +181,61 @@ func TestDescriptors_OpenAIAndGrokOfferOAuth(t *testing.T) {
 		if !reflect.DeepEqual(descriptor.AuthMethods, methods) {
 			t.Errorf("%s AuthMethods = %#v, want %#v", provider, descriptor.AuthMethods, methods)
 		}
+	}
+}
+
+// TestDescriptors_KiloFacts_0074 pins Kilo's two methods, facts included
+// (0074-MADR D1): its device token is a key in all but name, so the method
+// yields a device key and neither refreshes nor revokes.
+func TestDescriptors_KiloFacts_0074(t *testing.T) {
+	want := []llmprovider.AuthMethod{
+		{
+			ID:             llmprovider.AuthAPIKey,
+			Label:          "Kilo API key",
+			Interactive:    true,
+			HeadlessOK:     true,
+			Kind:           "api_key",
+			Completion:     "value",
+			Yields:         "api_key",
+			ClientIdentity: "none",
+		},
+		{
+			ID:             llmprovider.AuthDeviceCode,
+			Label:          "Sign in with Kilo (device code)",
+			Interactive:    true,
+			HeadlessOK:     true,
+			Kind:           "device_code",
+			Completion:     "device",
+			Yields:         "device_key",
+			ClientIdentity: "none",
+			Slot:           "kilo",
+		},
+	}
+	d, ok := Default().Descriptor(llmprovider.ProviderKilo)
+	if !ok {
+		t.Fatal("Descriptor(kilo) not found")
+	}
+	if !reflect.DeepEqual(d.AuthMethods, want) {
+		t.Errorf("kilo AuthMethods = %#v, want %#v", d.AuthMethods, want)
+	}
+}
+
+// TestAuthMethodComparable_0074: AuthMethod values compare with ==, so a
+// field that cannot be compared (a slice, a map, a func) is a compile error
+// here (0043-MADR A1, 0074-MADR D1).
+func TestAuthMethodComparable_0074(t *testing.T) {
+	a := llmprovider.AuthMethod{ID: llmprovider.AuthAPIKey, Kind: "api_key"}
+	b := a
+	if a != b {
+		t.Errorf("a copy compares unequal: %#v != %#v", a, b)
+	}
+	b.Slot = "openai"
+	if a == b {
+		t.Errorf("methods differing in Slot compare equal: %#v", a)
+	}
+	seen := map[llmprovider.AuthMethod]bool{a: true}
+	if !seen[llmprovider.AuthMethod{ID: llmprovider.AuthAPIKey, Kind: "api_key"}] {
+		t.Error("an equal AuthMethod is not found as a map key")
 	}
 }
 

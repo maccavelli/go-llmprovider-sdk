@@ -703,3 +703,83 @@ above having left step 3 open, ruled that Phase 0 is finished before Phase 1
 * Phase 1's wait (the last bullet of the Phase 0 entry) is met: `ci.yml` run
   43308484802 on `cae3ccb` passed on all three runners. Phase 1 starts after
   the coordinator commits this phase.
+
+### Phase 1 (2026-11-12)
+
+Base: `main` at `72854fd` (Phase 0 committed), tree clean. The MADR and this
+PLAN were read in full first. No claim of the MADR was found false and no
+existing test, gate or golden changed, but `TestDescriptors_OpenAIAndGrokOfferOAuth`'s
+`want` table, which the PLAN names.
+
+* Steps 1 and 2, `llmprovider/descriptor.go` and the three descriptors. The
+  nine fields of D1 are on `AuthMethod`, each documented with the contract
+  values it takes (`Paste` states that empty means nothing may be pasted,
+  the contract's `PasteNone`); `Interactive` and `HeadlessOK` carry
+  `Deprecated:` naming `Kind`/`Completion` and 0074-MADR D7, their values
+  unchanged. The OpenAI, Grok and Kilo literals set D1's table, applied by
+  script from the table and checked by the tests below (13 rows; `FirstPaste`
+  only on the plan; Grok's browser method is `browser_loopback` with no
+  paste). The openai and grok files each gained a small unexported constant
+  block for the values `goconst` flags at three uses (see Step 4), with a
+  comment that they repeat the contract's values as strings (R2).
+* Step 3, `providers/descriptors_test.go`:
+  `TestDescriptors_OpenAIAndGrokOfferOAuth`'s `want` gains the facts for all
+  eleven OpenAI and Grok rows; new `TestDescriptors_KiloFacts_0074` pins
+  Kilo's two rows whole; new `TestAuthMethodComparable_0074` compares values
+  with `==` and uses one as a map key.
+* Step 4, `make lint` (through `run-heavy`). **First run, exit 2, 5 issues,
+  all `goconst`** in new code, none in a test: `grok/descriptor.go:25:21`
+  ("string api_key has 3 occurrences, make it a constant (goconst)"), `:28:21`
+  `none`; `openai/descriptor.go:28:21` `none`, `:38:21` `oauth_session`,
+  `:40:21` `openai` (4 occurrences). Fixed by the unexported constants
+  `factAPIKey`, `factNone` (grok) and `factOAuthSession`, `factNone`,
+  `factOpenAI` (openai), not by a `nolint`; no exported name is added. Second
+  run, exit 0: four "0 issues." (host and `GOOS=windows`, root and
+  `authcontract`). **The MADR's unverified item: staticcheck's SA1019 does not
+  report the literals** that still set `Interactive` and `HeadlessOK` (no
+  SA1019 line in the output), so no `//nolint:staticcheck` is added. That the
+  check is live was shown on a scratch copy of the tree, never in it, with a
+  test file reading `m.Interactive` through a selector: `zz_sa_test.go:11:6:
+  SA1019: (github.com/maccavelli/go-llmprovider-sdk/llmprovider.AuthMethod).Interactive
+  is deprecated: read Kind and Completion. The value is unchanged and stays
+  until v2 (0074-MADR D7). (staticcheck)`, exit 1.
+* **Plants,** `python3 -B tools/plant.py` on a spec of three, on its scratch
+  clone of the working tree, never in the tree, exit 0, "plant: all 3
+  plant(s) caught":
+  * the plan's `FirstPaste` set to `url_or_code`: `--- FAIL:
+    TestDescriptors_OpenAIAndGrokOfferOAuth`, `descriptors_test.go:182:
+    openai AuthMethods = ...`, `FAIL ... llmprovider/providers`;
+  * Kilo's `device_code` `Refreshable` true: `--- FAIL:
+    TestDescriptors_KiloFacts_0074`, `descriptors_test.go:219: kilo
+    AuthMethods = ...`;
+  * a `[]string` field added to `AuthMethod`: `FAIL ...
+    llmprovider/providers [build failed]`, `descriptors_test.go:229:5:
+    invalid operation: a != b (struct containing []string cannot be
+    compared)`, `:233:5` the same for `a == b`, `:236:14: invalid map key
+    type llmprovider.AuthMethod`.
+* Checks, each exit status captured before any filter, the heavy ones through
+  `run-heavy`:
+  * `go test -count=1 ./llmprovider/providers/`, exit 0.
+  * `make pre-add-check FILES="..."` on the five Go files, exit 0:
+    "go-precheck: 5 file(s) clean (gofmt, golangci-lint, go vet, go test,
+    govulncheck)."
+  * `make api-check`, exit 0: "against v1.30.0, 0 incompatible change(s)
+    outside llmprovider/x/". `python3 -B tools/apidiff.py v1.30.0`, exit 0:
+    nine lines, all "Compatible changes", `./llmprovider.AuthMethod.` `Kind`,
+    `Completion`, `Paste`, `FirstPaste`, `Yields`, `ClientIdentity`, `Slot`,
+    `Refreshable`, `Revocable`: "added". Nothing else.
+  * `python3 -B tools/gate.py --timeout 5400`, exit 0, 929 s: "gate: 30 of 30
+    passed", every check rc=0 (the six `go vet` runs, test-race-cover,
+    test-shuffle, test-repeat, lint, parity-check, dep-check, coverage-check,
+    api-check, contract-check, generate-check, records-check, tables-check,
+    fixtures-check, changelog-check, docs-check, gate-selftest, markdownlint,
+    links-check, disclosure-check, deny-scan, tools-test and the rest). The
+    full-module test runs were those of the gate; no other `go test ./...`
+    was run.
+  * The gate ran before this entry was written, so the record checks were run
+    again after it, each exit 0 (below).
+* Acceptance: the tests pass, each plant failed, and `make api-check` lists
+  the nine fields as additions only. Met.
+* Not done, as the phase says: no `signin` package, no `auth` change, no
+  contract import (Phase 4). The files are staged for the coordinator to
+  commit.
