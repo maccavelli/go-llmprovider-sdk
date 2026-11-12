@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-12
 associated-madr: "0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md"
 decision-makers: repository owner
@@ -225,3 +225,59 @@ status changes of 0074 and 0075 the owner decided the same day.
   the file those runs tested, and the spec is the one `tools/plant.py` ran.
 * The records were staged for the owner to commit; no file outside `docs/`
   changed.
+
+### Phases 0 to 3 (2026-11-12)
+
+The owner accepted the MADR and approved this PLAN on 2026-11-12, in the
+coordinator session ("Approve and push"). `python3 -B tools/records.py
+status` set the MADR `accepted` and this PLAN `in-progress` with `--date
+2026-11-12`, each with its row in `docs/README.md`; each printed "records:
+written; records-check: 0 problem(s)". The MADR's Decision Outcome records
+the acceptance. No deviation.
+
+**Phase 1.** The tree held the "before" text of step 1 once (P1 to P3).
+The edit was applied by script, which asserts the old block occurs once and
+the new block occurs once afterwards.
+
+* `git diff --numstat` of the test file: `5 2`; no other non-record file
+  changed. `gofmt -l llmprovider/catalog/`: no output, exit 0.
+* Step 2, `make pre-add-check FILES=...`: exit 0, "go-precheck: 1 file(s)
+  clean (gofmt, golangci-lint, go vet, go test, govulncheck)".
+* Step 3, `go test -race -count=300 -run
+  '^TestCachedMetadataWith_Unavailable$' ./llmprovider/catalog/`: exit 0,
+  "ok ... 1.774s".
+* Step 4, `go test -race -count=1 -shuffle=1794513551380402489
+  ./llmprovider/catalog/`: exit 0, "ok ... 30.547s"; `-shuffle=on -v`: exit
+  0, seed 1794515686297521000, "PASS", "ok ... 31.066s".
+
+**Phase 2.**
+
+* Step 1, red before: a scratch clone at `e5eea9d` with only
+  `waitMetadataFetches()` inserted before line 67; step 3's command, exit 1,
+  every run failing as CI did: `--- FAIL: TestCachedMetadataWith_Unavailable
+  (0.00s)` and `model_metadata_0028_test.go:69: requests = 1; want none
+  yet` (line 69 because of the inserted line).
+* Step 2, `python3 -B tools/plant.py` with this PLAN's spec, exit 0. Each of
+  the three plants was "caught (exit 1)" with `model_metadata_0028_test.go:71:
+  requests = 1; want none yet` and `FAIL ... llmprovider/catalog`: the For
+  option restored; the first call's metadata left on; `cachedMetadata`
+  ignoring `WithoutModelMetadata`. Final line: "plant: all 3 plant(s)
+  caught". The tool ran on its own scratch clone; the tree was not touched.
+
+**Phase 3.**
+
+* Step 1, `python3 -B tools/gate.py` (it waited for load to fall below
+  10): exit 0, "gate: 30 of 30 passed". Among them: pre-add-check, the six
+  vet targets, api-check, contract-check, generate-check, records-check,
+  tables-check, fixtures-check, changelog-check, docs-check, gate-selftest,
+  markdownlint, links-check, disclosure-check, deny-scan and tools-test, each
+  `rc=0`.
+* Step 2, each exit 0: `make records-check`, "164 records, 0 problem(s)";
+  `tools/claims.py` on the MADR, "20 of 20 pass", and on this PLAN, "3 of 3
+  pass" (both pinned to `e5eea9d`); `tools/recordlint.py --changed`, "2
+  record(s); no rule rose"; `tools/denyscan.py --changed`, "0 hit(s) in 4
+  file(s)"; `make links-check`, "0 problem(s), 1263 relative link(s) in 178
+  file(s)"; `make disclosure-check`, "0 hit(s) in 1585 file(s)"; `make
+  markdownlint`, "0 issues". Run after this entry was written.
+* Step 3, the test file and the records are staged for the owner to commit.
+  Phase 4 waits for the owner's commit and word to push.

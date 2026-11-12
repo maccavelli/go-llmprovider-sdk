@@ -61,9 +61,12 @@ func TestCachedMetadataWith_Unavailable(t *testing.T) {
 		t.Error("metadata off: ok = true")
 	}
 	if _, ok := CachedMetadataWith(context.Background(), llmprovider.ProviderOpencodeZen, opt,
-		llmprovider.For(llmprovider.ProviderKilo, WithKiloOrganization("org"))); ok {
-		t.Error("an option for another provider: ok = true")
+		WithKiloOrganization("org")); ok {
+		t.Error("an option scoped to another provider: ok = true")
 	}
+	// A call that started a fetch is counted, however the scheduler runs it
+	// (0078-MADR).
+	waitMetadataFetches()
 	if n := hits.Load(); n != 0 {
 		t.Fatalf("requests = %d; want none yet", n)
 	}

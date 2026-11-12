@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-12
 decision-makers: repository owner
 consulted: "ci.yml run 43295522137 on e5eea9d (job validate (ubuntu-24.04), step race detector), read with gh on 2026-11-12; reproductions on scratch clones of e5eea9d on this Mac, 2026-11-12; 0015-MADR-canonical-sdk-api-and-module-layout.md (D5, For); 0028-MADR-heuristics-and-performance-from-the-research-pass.md (D-A1, the test's origin); 0058-MADR-test-cache-isolation-for-reused-ports.md (F4, ports reused on Linux); the owner's decision of 2026-11-12, root-cause pair first"
@@ -95,6 +95,9 @@ documented contract (F3); the bare option is the refusal the test names
 (C6) and the library makes (C10); and the wait turns a check that F5 shows
 catches a fetch only by chance into one that catches it every time (F6).
 No exported name, no non-test file and no other assertion changes.
+
+The owner accepted this record on 2026-11-12, in the coordinator session, and
+approved its PLAN the same day.
 
 ### D1. The edit
 

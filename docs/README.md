@@ -172,8 +172,8 @@ documents a reader follows to do something.
 | 0076 | PLAN | [Implement One Unsupported Kind from Revocation, an Auth-Failure Device Expiry, the Consumer's Identity on Its Sign-Ins and in the Wizard, and Four Doc Corrections](decisions/0076-PLAN-auth-error-kinds-and-doc-drift.md) | complete |
 | 0077 | MADR | [Require Go 1.27.4 for GO-2026-6859, Before Any of the Auth Series' Code](decisions/0077-MADR-go-1-27-4-for-go-2026-6859.md) | accepted |
 | 0077 | PLAN | [Implement Go 1.27.4 as the Floor](decisions/0077-PLAN-go-1-27-4-for-go-2026-6859.md) | complete |
-| 0078 | MADR | [Test CachedMetadataWith's Refusal with an Option It Refuses, and Count Requests Only After Every Fetch Has Ended](decisions/0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md) | proposed |
-| 0078 | PLAN | [Implement the Refused Option and the Wait in CachedMetadataWith's Refusal Test](decisions/0078-PLAN-cached-metadata-refusal-test-uses-a-refused-option.md) | proposed |
+| 0078 | MADR | [Test CachedMetadataWith's Refusal with an Option It Refuses, and Count Requests Only After Every Fetch Has Ended](decisions/0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md) | accepted |
+| 0078 | PLAN | [Implement the Refused Option and the Wait in CachedMetadataWith's Refusal Test](decisions/0078-PLAN-cached-metadata-refusal-test-uses-a-refused-option.md) | in-progress |
 
 ## I want to…
 
