@@ -14,6 +14,11 @@ form: an optional "## [Unreleased]" section first, then one
     being prepared, which its tag will name;
   * a heading of another form, or a version given twice.
 
+authcontract/CHANGELOG.md, the nested module's, is held to the same rules by
+its own tags, `authcontract/vX.Y.Z`: a section is named for the version alone,
+and a problem names the full tag, with the file's name in front
+(0073-MADR D8).
+
 --section TAG prints that section's body, the lines between its heading and
 the next, for a release's notes; the release job runs it. With --repo
 OWNER/NAME, or GITHUB_REPOSITORY set as CI sets it, each relative link is
@@ -40,6 +45,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CHANGELOG = ROOT / "CHANGELOG.md"
+# A nested module's changelog and the prefix of its tags (0073-MADR D8).
+NESTED = (ROOT / "authcontract/CHANGELOG.md", "authcontract/")
 UNRELEASED = "## [Unreleased]"
 RELEASE = re.compile(r"^## \[(v(\d+)\.(\d+)\.(\d+))\] - (\d{4}-\d{2}-\d{2})$")
 VERSION = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
@@ -81,29 +88,33 @@ def sections(lines: list[str]) -> tuple[list[tuple[str, str, int]], list[str]]:
     return found, problems
 
 
-def check(lines: list[str]) -> list[str]:
+def check(lines: list[str], prefix: str = "", label: str = "") -> list[str]:
+    """The problems of a changelog whose sections are named for the version
+    and whose tags are prefix + version. Each problem names the full tag, and,
+    when label is given, the file."""
     found, problems = sections(lines)
-    tags = [t for t in git("tag", "--list", "v*").split() if VERSION.match(t)]
+    tags = [t.removeprefix(prefix) for t in git("tag", "--list", f"{prefix}v*").split()
+            if t.startswith(prefix) and VERSION.match(t.removeprefix(prefix))]
     newest = max(tags, key=version) if tags else None
     seen: dict[str, int] = {}
     for tag, date, i in found:
         if tag in seen:
-            problems.append(f"line {i + 1}: {tag} has a section already, at line {seen[tag] + 1}")
+            problems.append(f"line {i + 1}: {prefix}{tag} has a section already, at line {seen[tag] + 1}")
             continue
         seen[tag] = i
         if tag not in tags:
             if newest is not None and version(tag) <= version(newest):
-                problems.append(f"line {i + 1}: {tag} has a section and no tag")
+                problems.append(f"line {i + 1}: {prefix}{tag} has a section and no tag")
             continue
-        want = git("log", "-1", "--format=%cs", tag).strip()
+        want = git("log", "-1", "--format=%cs", prefix + tag).strip()
         if date != want:
-            problems.append(f"line {i + 1}: {tag} is dated {date}; its tag's commit is {want}")
+            problems.append(f"line {i + 1}: {prefix}{tag} is dated {date}; its tag's commit is {want}")
     order = [tag for tag, _, _ in found]
     if order != sorted(order, key=version, reverse=True):
-        problems.append(f"sections out of order, want newest first: {', '.join(order)}")
+        problems.append(f"sections out of order, want newest first: {', '.join(prefix + t for t in order)}")
     for tag in sorted(set(tags) - set(seen), key=version, reverse=True):
-        problems.append(f"{tag} has no section")
-    return problems
+        problems.append(f"{prefix}{tag} has no section")
+    return [f"{label}: {p}" for p in problems] if label else problems
 
 
 def section(lines: list[str], tag: str) -> list[str] | None:
@@ -166,6 +177,14 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(body))
         return 0
     problems = check(lines)
+    path, prefix = NESTED
+    try:
+        nested = path.read_text(encoding="utf-8").splitlines()
+    except OSError as e:
+        print(f"changelog-check: {e}", file=sys.stderr)
+        return 2
+    problems += check(nested, prefix, str(path.relative_to(ROOT)))
+    lines += nested
     for p in problems:
         print(f"changelog-check: {p}")
     print(f"changelog-check: {sum(1 for line in lines if RELEASE.match(line))} release section(s), "

@@ -2,7 +2,9 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    # authcontract/v* is the nested module's tag (0073-MADR D8): CI runs on
+    # it, and the release job below does not (its condition is refs/tags/v).
+    tags: ['v*', 'authcontract/v*']
     # A change to Markdown alone runs docs.yml instead. GitHub does not
     # evaluate path filters for a tag push, so every tag, and its release
     # job, runs this in full
@@ -44,26 +46,33 @@ jobs:
       # Shuffled, so a test that depends on another's order fails (0021-MADR
       # Z5).
       - run: go test -shuffle=on ./...
+      - name: the nested module authcontract (0073-MADR D8)
+        run: go -C authcontract test -shuffle=on ./...
       - name: race detector (R44; 0020-MADR F27)
         if: runner.os == 'Linux'
-        run: go test -race -shuffle=on ./...
-      - name: govulncheck (0021-MADR Z5)
+        run: |
+          go test -race -shuffle=on ./...
+          go -C authcontract test -race -shuffle=on ./...
+      - name: govulncheck (0021-MADR Z5; 0073-MADR D8)
         if: runner.os == 'Linux'
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+          go -C authcontract run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
       - name: vet, gofmt, tidy, lint
         if: runner.os == 'Linux'
         run: |
           go vet ./...
           test -z "$(gofmt -l .)"
           go mod tidy -diff
+          go -C authcontract mod tidy -diff
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
           GOLANGCI_LINT="$(go env GOPATH)/bin/golangci-lint" make lint
       - name: vet live-tagged tests
         if: runner.os == 'Linux'
         run: go vet -tags live_gateways ./...
-      - name: parity, dependencies, coverage, API, generated code, records, the tables, the fixtures, the changelog, the docs, markdownlint, links, home paths, the gates' self-test (0015-MADR D12, D13; 0010-PLAN P6b; 0025-MADR; 0046-MADR; 0047-MADR; 0048-MADR D5, D8; 0063-MADR R1-R3; 0021-MADR Z9)
+      - name: parity, dependencies, coverage, API, the auth contract, generated code, records, the tables, the fixtures, the changelog, the docs, markdownlint, links, home paths, the gates' self-test (0015-MADR D12, D13; 0010-PLAN P6b; 0025-MADR; 0046-MADR; 0047-MADR; 0048-MADR D5, D8; 0063-MADR R1-R3; 0021-MADR Z9; 0073-MADR D7, D8)
         if: runner.os == 'Linux'
-        run: make parity-check dep-check coverage-check api-check generate-check records-check tables-check fixtures-check changelog-check docs-check markdownlint links-check disclosure-check gate-selftest
+        run: make parity-check dep-check coverage-check api-check contract-check generate-check records-check tables-check fixtures-check changelog-check docs-check markdownlint links-check disclosure-check gate-selftest
 
   # A v* tag's GitHub Release, its notes the tag's CHANGELOG.md section, once
   # every validate job has passed; validate's changelog-check has already

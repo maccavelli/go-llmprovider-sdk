@@ -415,7 +415,7 @@ class TestGateChecks(unittest.TestCase):
         want = ["pre-add-check", "vet-darwin", "vet-darwin-live", "vet-linux", "vet-linux-live", "vet-windows",
                 "vet-windows-live", "test-race-cover", "test-shuffle", "test-repeat", "tidy-diff", "lint", "parity-check",
                 "dep-check",
-                "coverage-check", "api-check", "generate-check", "records-check", "tables-check", "fixtures-check",
+                "coverage-check", "api-check", "contract-check", "generate-check", "records-check", "tables-check", "fixtures-check",
                 "changelog-check", "docs-check", "gate-selftest", "markdownlint",
                 "g-wire-stable", "links-check", "disclosure-check", "deny-scan", "tools-test"]
         self.assertEqual([c.name for c in gate.CHECKS], want)

@@ -18,6 +18,7 @@ minutes.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -34,6 +35,7 @@ GATES = {
     "parity-check": "scripts/check_parity_map.py",
     "coverage-check": "scripts/check_coverage.py",
     "api-check": "scripts/check_api.py",
+    "contract-check": "scripts/check_contract.py",
     "records-check": "scripts/check_records.py",
     "tables-check": "scripts/check_tables.py",
     "fixtures-check": "scripts/check_fixtures.py",
@@ -381,6 +383,20 @@ class GateSelfTest(unittest.TestCase):
         subprocess.run(["git", "tag", "v1.99.0"], cwd=self.tree, check=True, capture_output=True)
         self.assertFails("changelog-check", "v1.99.0 has no section")
 
+    def test_changelog_check_contract_tag_without_section(self) -> None:
+        """The nested module's tag with no section in its own changelog; the
+        problem names the full tag (0073-PLAN Phase 2)."""
+        subprocess.run(["git", "tag", "authcontract/v0.1.0"], cwd=self.tree, check=True, capture_output=True)
+        self.assertFails("changelog-check", "authcontract/v0.1.0 has no section")
+
+    def test_changelog_check_contract_wrong_date(self) -> None:
+        """The nested module's section dated other than its tag's commit, by
+        the rules of the root's."""
+        subprocess.run(["git", "tag", "authcontract/v0.1.0"], cwd=self.tree, check=True, capture_output=True)
+        replace_once(self.tree / "authcontract/CHANGELOG.md", "## [Unreleased]\n",
+                     "## [Unreleased]\n\n## [v0.1.0] - 2001-01-01\n")
+        self.assertFails("changelog-check", "authcontract/v0.1.0 is dated 2001-01-01; its tag's commit is ")
+
     def test_changelog_check_out_of_order(self) -> None:
         """Two sections out of order, each with its own tag's date."""
         log = self.tree / "CHANGELOG.md"
@@ -531,6 +547,164 @@ class GateSelfTest(unittest.TestCase):
                                                      f"{proc.stdout}{proc.stderr}")
 
 
+def tag_tree(tree: Path, tag: str) -> None:
+    """Commit tree's working tree with `git commit-tree`, so that no hook runs,
+    as tools/_common.scratch_clone does, and tag that commit in the copy. The
+    repository the copy was cloned from is never touched."""
+    env = {**os.environ, "GIT_AUTHOR_NAME": "tools", "GIT_AUTHOR_EMAIL": "tools@invalid",
+           "GIT_COMMITTER_NAME": "tools", "GIT_COMMITTER_EMAIL": "tools@invalid"}
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", *args], cwd=tree, env=env, capture_output=True, text=True,
+                              check=True).stdout.strip()
+
+    git("add", "-A")
+    commit = git("commit-tree", git("write-tree"), "-p", "HEAD", "-m", "scratch tag")
+    git("update-ref", "HEAD", commit)
+    git("tag", tag, commit)
+
+
+# A schema as scripts/check_contract.py reads one, standing in until the
+# generator of 0073-PLAN Phase 3 writes the real one: the object Step with its
+# url member and the open enum Paste.
+PLANT_SCHEMA = {
+    "$defs": {
+        "Step": {"type": "object",
+                 "properties": {"seq": {"type": "integer"}, "url": {"type": "string"}, "kind": {"type": "string"}},
+                 "required": ["seq", "kind"]},
+        "Paste": {"type": "string", "enum": ["", "url_or_code", "url_only", "code"], "x-open-enum": True},
+    },
+}
+
+
+class ContractCheckTest(unittest.TestCase):
+    """contract-check fails on each planted break of the nested module
+    authcontract (0073-MADR D7; 0073-PLAN Phase 2). A plant that needs a tag
+    tags the copy first, then breaks the tree."""
+
+    TAG = "authcontract/v0.1.0"
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.tree = Path(self.tmp.name) / "tree"
+        copy_tree(self.tree)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def contract(self, want_exit: int = 1) -> str:
+        proc = run_gate(self.tree, "contract-check")
+        out = proc.stdout + proc.stderr
+        self.assertEqual(proc.returncode, want_exit, f"contract-check exit {proc.returncode}, want {want_exit}:\n{out}")
+        return out
+
+    def assertReports(self, out: str, *wants: str) -> None:
+        for want in wants:
+            self.assertIn(want, out, f"contract-check did not report {want!r}:\n{out}")
+
+    def write_schema(self, schema: dict) -> None:
+        (self.tree / "authcontract/authcontract.schema.json").write_text(json.dumps(schema, indent=2) + "\n",
+                                                                         encoding="utf-8")
+
+    def test_dependency_outside_the_standard_library(self) -> None:
+        """A package the module imports that is neither standard nor its own."""
+        (self.tree / "authcontract/plant.go").write_text(
+            '// Package authcontract is planted.\npackage authcontract\n\nimport _ "golang.org/x/term"\n', encoding="utf-8")
+        self.assertReports(self.contract(), "authcontract depends on golang.org/x/term")
+
+    def test_requirement_in_go_mod(self) -> None:
+        """A requirement nothing imports: the module requires nothing."""
+        with (self.tree / "authcontract/go.mod").open("a", encoding="utf-8") as f:
+            f.write("\nrequire golang.org/x/sys v0.47.0\n")
+        self.assertReports(self.contract(), "authcontract/go.mod requires golang.org/x/sys v0.47.0")
+
+    def test_dependencies_admit_the_modules_own_package(self) -> None:
+        """The module's own packages are admitted, and only by the module-prefix
+        rule: with it removed, the tree's own package is named; restored, the
+        tree's run passes."""
+        script = self.tree / "scripts/check_contract.py"
+        rule = 'return path == MODULE or path.startswith(MODULE + "/")'
+        replace_once(script, rule, "return False")
+        self.assertReports(self.contract(), "authcontract depends on github.com/maccavelli/go-llmprovider-sdk/authcontract,")
+        replace_once(script, "return False", rule)
+        self.assertReports(self.contract(0), "authcontract, 0 problem(s)")
+
+    def test_api_removed_constant_against_the_tag(self) -> None:
+        """An exported constant removed after the tag."""
+        tag_tree(self.tree, self.TAG)
+        replace_once(self.tree / "authcontract/step.go", 'StepWaiting StepKind = "waiting"\n', "")
+        self.assertReports(self.contract(), "StepWaiting: removed", f"apidiff, against {self.TAG}")
+
+    def test_api_type_change_at_v0(self) -> None:
+        """A field's type changed after the tag: Go's rules allow it at v0, the
+        gate does not (0073-MADR D7)."""
+        tag_tree(self.tree, self.TAG)
+        replace_once(self.tree / "authcontract/step.go", 'int                        `json:"seq"`',
+                     'int64                      `json:"seq"`')
+        self.assertReports(self.contract(), "Step.Seq", f"apidiff, against {self.TAG}: incompatible change")
+
+    def test_schema_property_removed(self) -> None:
+        """Step.URL's JSON name changed to uri, as a regenerated schema would
+        show: apidiff does not report a tag, the schema comparison does."""
+        self.write_schema(PLANT_SCHEMA)
+        tag_tree(self.tree, self.TAG)
+        replace_once(self.tree / "authcontract/step.go", '`json:"url,omitempty"`', '`json:"uri,omitempty"`')
+        renamed = json.loads(json.dumps(PLANT_SCHEMA))
+        props = renamed["$defs"]["Step"]["properties"]
+        props["uri"] = props.pop("url")
+        self.write_schema(renamed)
+        out = self.contract()
+        self.assertReports(out, f"schema, against {self.TAG}: property url removed from Step")
+        self.assertNotIn("apidiff, against", out, f"apidiff reported a changed struct tag:\n{out}")
+
+    def test_schema_enum_value_removed(self) -> None:
+        """PasteCode deleted, and the enum value code with it."""
+        self.write_schema(PLANT_SCHEMA)
+        tag_tree(self.tree, self.TAG)
+        replace_once(self.tree / "authcontract/method.go", '\t// PasteCode is a code only.\n\tPasteCode Paste = "code"\n', "")
+        shorter = json.loads(json.dumps(PLANT_SCHEMA))
+        shorter["$defs"]["Paste"]["enum"].remove("code")
+        self.write_schema(shorter)
+        self.assertReports(self.contract(), f"schema, against {self.TAG}: enum value code removed from Paste")
+
+    def test_schema_other_breaks(self) -> None:
+        """The rest of D7's refusals: an entry removed, a type changed, a
+        property newly required."""
+        self.write_schema(PLANT_SCHEMA)
+        tag_tree(self.tree, self.TAG)
+        broken = json.loads(json.dumps(PLANT_SCHEMA))
+        del broken["$defs"]["Paste"]
+        broken["$defs"]["Step"]["properties"]["seq"]["type"] = "string"
+        broken["$defs"]["Step"]["required"].append("url")
+        self.write_schema(broken)
+        self.assertReports(self.contract(), f"schema, against {self.TAG}: $defs entry Paste removed",
+                           f"schema, against {self.TAG}: Step.seq: type changed from integer to string",
+                           f"schema, against {self.TAG}: property url newly required in Step")
+
+    def test_schema_additions_are_allowed(self) -> None:
+        """A new entry, a new optional property and a new enum value break
+        nothing: the comparison passes."""
+        self.write_schema(PLANT_SCHEMA)
+        tag_tree(self.tree, self.TAG)
+        grown = json.loads(json.dumps(PLANT_SCHEMA))
+        grown["$defs"]["Extra"] = {"type": "object", "properties": {}, "required": []}
+        grown["$defs"]["Step"]["properties"]["more"] = {"type": "string"}
+        grown["$defs"]["Paste"]["enum"].append("a_new_value")
+        self.write_schema(grown)
+        self.contract(0)
+
+    def test_coverage_below_the_floor(self) -> None:
+        """Every test file but one deleted: the package is under 80 %."""
+        for test in (self.tree / "authcontract").glob("*_test.go"):
+            if test.name != "example_test.go":
+                test.unlink()
+        self.assertReports(self.contract(), "authcontract is ", "%, below the 80.0% floor")
+
+    def test_no_tag_passes_and_says_so(self) -> None:
+        """Before the first authcontract/v* tag there is nothing to compare."""
+        self.assertReports(self.contract(0), "no authcontract/v* tag yet, so nothing to compare")
+
+
 SELFTEST_STEP = re.compile(r"^\s*run: make .*\bgate-selftest\b", re.M)
 GO_INSTALL = re.compile(r"\bgo install (\S+@\S+)")
 
@@ -569,7 +743,8 @@ class WorkflowsTest(unittest.TestCase):
 # fails the contract until it is placed in one.
 MARKDOWN_GATES = ("parity-check", "records-check", "tables-check", "changelog-check", "markdownlint", "links-check",
                   "disclosure-check", "gate-selftest")
-CODE_GATES = ("dep-check", "coverage-check", "api-check", "generate-check", "fixtures-check", "docs-check")
+CODE_GATES = ("dep-check", "coverage-check", "api-check", "contract-check", "generate-check", "fixtures-check",
+              "docs-check")
 EVENT_LINE = re.compile(r"^  ([a-z_]+):\s*$")
 KEY_LINE = re.compile(r"^    ([a-z-]+):\s*\[(.*)\]\s*$")
 ITEM_LINE = re.compile(r"^    - (.+)$")
@@ -647,13 +822,15 @@ class WorkflowContractTest(unittest.TestCase):
 
     def test_each_gate_is_placed_and_the_markdown_gates_run_in_both(self) -> None:
         """Every gate ci.yml runs is a Markdown or a code gate; docs.yml runs
-        exactly the Markdown gates, and ci.yml runs them too."""
+        exactly the Markdown gates, and ci.yml runs them and every code gate
+        (0073-MADR D8: a code gate dropped from ci.yml was passed unseen)."""
         ci, docs = selftest_targets(self.ci), selftest_targets(self.docs)
         unplaced = [t for t in ci + docs if t not in MARKDOWN_GATES + CODE_GATES]
         self.assertEqual(unplaced, [], f"gates neither MARKDOWN_GATES nor CODE_GATES: {unplaced}")
         self.assertEqual([g for g in MARKDOWN_GATES if g not in docs], [],
                          "docs.yml does not run these Markdown gates, so a Markdown-only change skips them")
         self.assertEqual([g for g in MARKDOWN_GATES if g not in ci], [], "ci.yml does not run these Markdown gates")
+        self.assertEqual([g for g in CODE_GATES if g not in ci], [], "ci.yml does not run these code gates")
         self.assertEqual([g for g in docs if g in CODE_GATES], [], "docs.yml runs code gates, which read no Markdown")
 
     def test_docs_uses_ci_actions_and_pins(self) -> None:

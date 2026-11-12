@@ -861,3 +861,208 @@ under `llmprovider/` or `wizard/` changed.
   `check_changelog.py` or `test_gates.py` change (Phase 2); no root
   requirement on the module (0074); no tag; no commit. The files are staged
   for the coordinator to commit.
+
+### Phase 2 (2026-11-12)
+
+The coordinator committed Phase 1b as `be1ff06`, on the owner's
+authorization. Base: `main` at `be1ff06`, four ahead of `origin/main`, tree
+clean. No claim of the MADR was found false; no existing test, gate or golden
+was changed beyond what Phase 2 names (`TestGateChecks`' list gains the new
+name; `check_changelog.py` and `test_gates.py` are step 4's and step 5's); no
+file under `llmprovider/` or `wizard/` changed, and no Go file changed.
+
+* Step 3, `scripts/check_contract.py` (D7). It runs, in the module, with
+  `GOWORK=off` so that a developer's `go.work` cannot supply what the
+  module's own `go.mod` does not, and it collects every problem rather than
+  stopping at the first:
+  * `go mod edit -json`: any `Require` is a problem ("authcontract/go.mod
+    requires golang.org/x/sys v0.47.0; the module requires nothing");
+  * `go list -e -deps -test`: a package that is neither `Standard` nor the
+    module's path or under it, test decoration removed, is a problem naming
+    it. `-e` is what names a missing package (`golang.org/x/term`, with no
+    requirement) instead of failing the listing;
+  * `go vet ./...`, and `go test -race -count=1 -cover ./...`, whose
+    coverage lines are read with `check_coverage.py`'s `COVER` (imported, not
+    copied); a package with statements under 80 % is a problem naming it
+    ("authcontract is 28.6%, below the 80.0% floor"). There is no floors
+    file: no package is exempt;
+  * with a latest `authcontract/v*` tag (by version, not by name): apidiff at
+    `check_api.py`'s `APIDIFF` (imported), as `check_api.py` runs it, from
+    `git archive <tag> authcontract` extracted to a temporary directory and
+    from the tree's `authcontract/`, `-m -w` for the module path, then `-m
+    -incompatible`; any line is a problem, though the module is at v0;
+  * with that tag, the schema comparison: `authcontract/authcontract.schema.json`
+    at the tag against the tree's, recursively through `properties`, `items`
+    and `additionalProperties`, for D7's five refusals: a `$defs` entry
+    removed ("$defs entry Paste removed"), a property removed ("property url
+    removed from Step"), an enum value removed ("enum value code removed
+    from Paste"), a type or `$ref` changed ("Step.seq: type changed from
+    integer to string"), a property newly required ("property url newly
+    required in Step"). An addition (an entry, an optional property, an enum
+    value) is not a problem. A tag that holds no schema says so and compares
+    nothing; a tree that lacks one the tag holds is a problem;
+  * with no tag: "no authcontract/v* tag yet, so nothing to compare; the API
+    and the schema are held from the first tag on", and the two comparisons
+    pass; the first four checks still run.
+  Exit codes 0, 1 and 2 as the other gates'. On the tree it exits 0: "authcontract:
+  95.9% against 80.0%", the no-tag line, "authcontract, 0 problem(s)".
+* Step 2, the `Makefile`: `contract-check` (in `.PHONY`, with a `##` comment,
+  so `make help` lists it); `test`, `vet`, `lint` (host and `GOOS=windows`,
+  `golangci-lint run -c ../.golangci.yml` from `authcontract`, no build tags,
+  as the module has none) and `vuln` (the Makefile's one pin) also run in
+  `authcontract`. `make vet`, `make lint` ("0 issues." three times) and `make
+  vuln` ("No vulnerabilities found." twice) each exit 0.
+* Step 4, `scripts/check_changelog.py`: `check` takes a tag prefix and a file
+  label; the nested changelog is checked after the root's by the same rules,
+  its sections named for the version and its tags `authcontract/vX.Y.Z`. A
+  problem names the full tag and, for the nested file, the file in front
+  ("authcontract/CHANGELOG.md: authcontract/v0.1.0 has no section"). The
+  root's problems are unchanged. The root's `v*` listing does not match a
+  contract tag (`git tag --list v*`), nor does `check_api.py`'s `v1.*`.
+* Step 5, `scripts/test_gates.py`: `contract-check` in `GATES` and
+  `CODE_GATES`; `WorkflowContractTest`'s test gains the assertion `ci.yml
+  does not run these code gates`; `ContractCheckTest` (11 cases, below);
+  `tag_tree`, which commits the copy with `git commit-tree`, so that no hook
+  runs, moves the copy's `HEAD` to it and tags it there; two `GateSelfTest`
+  cases for the nested changelog (a tag with no section, and a section with
+  the wrong date).
+* Step 6, `.github/workflows/ci.yml`: `tags: ['v*', 'authcontract/v*']`; a
+  step `go -C authcontract test -shuffle=on ./...` on every runner; on Linux,
+  `go -C authcontract test -race -shuffle=on ./...` in the race step,
+  `go -C authcontract run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...` in
+  the govulncheck step (the root's pin), `go -C authcontract mod tidy -diff`
+  in the vet, gofmt, tidy and lint step (whose `gofmt -l .` and `make lint`
+  already reach the module), and `contract-check` after `api-check` in the
+  gate line. The release job is unchanged: `refs/tags/v` does not match
+  `refs/tags/authcontract/v0.1.0`. `actionlint` v1.7.12, the installed
+  binary, on `ci.yml` and `docs.yml`: exit 0, no output. `docs.yml` is
+  unchanged: `contract-check` is a code gate, which a Markdown-only change
+  does not run.
+* Step 7, `tools/gate.py`: `make("contract-check")` after `make("api-check")`;
+  `tools/test_tools.py`'s `TestGateChecks` and `tools/README.md` (30
+  checks, and the list of the gate's checks) follow. `make tools-test` exit
+  0.
+* Step 8, `docs/architecture.md`: a section "The auth contract module" under
+  "Tree", with a line each in the tree listing for the module and the script,
+  and the make-target, CI and self-test lists gaining `contract-check`; R2's
+  and the package table's rows stay the root module's, as the section says.
+  `make tables-check`: "check-tables: 42 packages, 0 problem(s)".
+* **The ten plants.** Plants 1 to 7 and 9 are cases of `scripts/test_gates.py`
+  on `copy_tree` copies (a new file, an edit of `go.mod`, a tag), plants 8
+  and 10 one replacement in an existing file and so `tools/plant.py` plants as
+  well (plant 8 is also a permanent case). Their failure lines, from the
+  script's own output on the copies:
+  1. dependencies, `import _ "golang.org/x/term"` in a new
+     `authcontract/plant.go`: "contract-check: authcontract depends on
+     golang.org/x/term, which is neither standard nor under
+     github.com/maccavelli/go-llmprovider-sdk/authcontract"; `go vet` and `go
+     test` also fail ("no required module provides package").
+  2. requirements, `require golang.org/x/sys v0.47.0` in `authcontract/go.mod`:
+     "contract-check: authcontract/go.mod requires golang.org/x/sys v0.47.0;
+     the module requires nothing".
+  3. apidiff, tagged, `StepWaiting` deleted: "contract-check: apidiff, against
+     authcontract/v0.1.0: incompatible change: StepWaiting: removed" (and the
+     module's own vet and tests fail on the reference to it).
+  4. apidiff at v0, `Step.Seq` an `int64`: "contract-check: apidiff, against
+     authcontract/v0.1.0: incompatible change: Step.Seq: changed from int to
+     int64". Only that line: the module is at v0.
+  5. schema, `Step.URL`'s JSON tag `uri` and the schema changed to match:
+     "contract-check: schema, against authcontract/v0.1.0: property url
+     removed from Step". **apidiff printed nothing for the changed tag** (the
+     case asserts it), so with `APIDIFF` at its pin the MADR's unverified item
+     is answered: apidiff does not report a changed struct tag, and the schema
+     comparison is what catches it. The module's own `TestJSONNames_0073`
+     failed too.
+  6. schema, `PasteCode` deleted and its value `code` removed from the enum:
+     "contract-check: schema, against authcontract/v0.1.0: enum value code
+     removed from Paste", with "apidiff … incompatible change: PasteCode:
+     removed".
+  7. coverage, every test file but `example_test.go` deleted: "contract-check:
+     authcontract is 28.6%, below the 80.0% floor".
+  8. dependencies admit the module's own, the rule `return path == MODULE or
+     path.startswith(MODULE + "/")` replaced by `return False`:
+     "contract-check: authcontract depends on
+     github.com/maccavelli/go-llmprovider-sdk/authcontract, which is neither
+     standard nor under github.com/maccavelli/go-llmprovider-sdk/authcontract";
+     by `tools/plant.py` (a wrapper prefixes each output line with the word
+     ERROR and a colon, since the tool prints only the lines it recognises):
+     "caught (exit 1)", "plant: all 1 plant(s) caught". Restored, the case's second run exits 0, "authcontract, 0
+     problem(s)".
+  9. changelog-check, a scratch tag `authcontract/v0.1.0` with no section:
+     "changelog-check: authcontract/CHANGELOG.md: authcontract/v0.1.0 has no
+     section". The extra case, a section dated 2001-01-01: "changelog-check:
+     authcontract/CHANGELOG.md: line 12: authcontract/v0.1.0 is dated
+     2001-01-01; its tag's commit is 2026-11-12".
+  10. gate-selftest, workflow contract, `contract-check` removed from the
+     gate line of a scratch `ci.yml`, by `tools/plant.py`, its command
+     `python3 -B -m unittest scripts/test_gates.py -k WorkflowContractTest`
+     (the class, not the whole file, to keep the plant short): "caught
+     (exit 1)"; "AssertionError: Lists differ: ['contract-check'] != []",
+     "+ [] : ci.yml does not run these code gates".
+  Also seen: a copy whose schema only gains an entry, an optional property
+  and an enum value passes (`test_schema_additions_are_allowed`); a clean
+  copy with no tag passes and says so (`test_no_tag_passes_and_says_so`);
+  `test_clean_copy_passes_every_gate` runs `contract-check` on a clean copy.
+* **Deviation noted, for the owner (2026-11-12).** The schema plants of the
+  table (5 and 6) say "the schema is regenerated". The generator is Phase 3's:
+  at this phase no `authcontract.schema.json` exists. Cases 5 and 6, and the
+  three further schema cases, therefore commit a small hand-written schema
+  (`PLANT_SCHEMA` in `scripts/test_gates.py`) with the tag and edit that file
+  after it, with the Go source edited to match. The comparison reads a JSON
+  file whatever wrote it, so the check's behaviour is what the table asks,
+  but the generated-schema variants (the generator's output at the tag and
+  after the edit) cannot run until Phase 3. They are Phase 3's to add, to
+  `ContractCheckTest`, once `go generate` exists; they are not written yet.
+  `AGENTS.md`'s sentence listing the gates CI runs does not name
+  `contract-check` yet: Phase 2 does not list `AGENTS.md` among its files, so
+  it is left for Phase 4's docs, or for the owner's word to add it now.
+  *(2026-11-12, the owner's decisions, relayed by the coordinator: the
+  hand-written schema cases are accepted for this phase, and Phase 3 adds the
+  generator-based variants of plants 5 and 6 to `ContractCheckTest`; the
+  `AGENTS.md` sentence is added in Phase 4's docs.)*
+* Checks, each exit status captured before any filter:
+  * `make contract-check`, exit 0 (above). `make changelog-check`, exit 0,
+    "changelog-check: 43 release section(s), 0 problem(s)". `make dep-check`,
+    `generate-check`, `docs-check` ("sdkaudit: 0 violation(s) of R50,R51,R52"),
+    `links-check` ("0 problem(s), 1247 relative link(s) in 176 file(s)") and
+    `markdownlint` ("0 issues") each exit 0.
+  * `make gate-selftest`, exit 0: "Ran 64 tests in 274.765s", "OK" (51 before,
+    and 13 new: 11 `ContractCheckTest`, 2 `GateSelfTest`).
+  * **`python3 -B tools/gate.py` did not run.** Its first run, exit 2: "gate:
+    the load did not fall below 10 within 1500 s; nothing run" (it waited from
+    load 71.0). Run once more, as the phase allows, with `--timeout 3300`
+    (only the wait, not `--max-load`), exit 2: "gate: the load did not fall
+    below 10 within 3300 s; nothing run" (it waited from load 67.8; the host's
+    one-minute load stayed between 19 and 84 throughout). `python3 -B -c` on
+    `gate.CHECKS` counts 30 entries, `contract-check` after `api-check`; `make
+    tools-test` (`TestGateChecks` pins the list) exit 0. In the gate's place
+    its checks that this phase can affect, and the Python gates that no Go
+    change reaches, ran directly, each exit 0: `make contract-check`, `lint`,
+    `vet`, `vuln`, `dep-check`, `generate-check`, `docs-check`,
+    `tables-check`, `changelog-check`, `parity-check` ("409 identifiers, 409
+    rows"), `api-check` ("against v1.30.0, 0 incompatible change(s) outside
+    llmprovider/x/"), `fixtures-check` ("0 problem(s)"), `go mod tidy -diff` in
+    the root and in `authcontract` (no output), `gate-selftest`, `markdownlint`
+    ("0 issues"), `links-check`, `disclosure-check` ("0 hit(s) in 1528
+    file(s)") and `tools-test`. Not run, and unaffected because no Go file
+    changed: `pre-add-check`, the six `go vet` runs for three platforms, `go
+    test` in `test-race-cover`, `test-shuffle` and `test-repeat`, and
+    `g-wire-stable`. The full gate is to be run once the load allows; the
+    count "30 of 30" is therefore not yet observed.
+    *(2026-11-12, later: the coordinator ran `python3 -B tools/gate.py
+    --timeout 5400` on the staged tree. It waited from load 30.1, started at
+    load 9.1, and exited 0 with "gate: 30 of 30 passed", every check rc=0,
+    the six `go vet` runs, `test-race-cover`, `test-shuffle`, `test-repeat`
+    and `g-wire-stable` included.)*
+  * After this entry was written, each exit 0: `tools/claims.py` on the MADR,
+    "44 of 44 pass", and on this PLAN, "11 of 11 pass"; `make records-check`,
+    "records-check: 162 records, 0 problem(s)"; `tools/recordlint.py
+    --changed`, "recordlint: 1 record(s); no rule rose"; `tools/denyscan.py
+    --changed`, "deny-scan: 0 hit(s) in 10 file(s)"; `tools/linkcheck.py`,
+    "G-links: 0 problem(s), 1247 relative link(s) in 176 file(s)"; `make
+    links-check`, the same count; `make disclosure-check`, "0 hit(s) in 1528
+    file(s)".
+* Not done, as the phase says: no schema, generator or vectors (Phase 3); no
+  `AGENTS.md` change; no root requirement on the module (0074); no tag in the
+  tree (the tags of the plants exist only in scratch copies); no commit. The
+  files are staged for the coordinator to commit.

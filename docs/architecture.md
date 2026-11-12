@@ -33,6 +33,7 @@ scripts/check_parity_map.py G-parity: the mcplib migration map is complete
 scripts/check_deps.py       dep-check: only wizard leaves the standard library
 scripts/check_coverage.py   coverage-check, with scripts/coverage-floors.txt
 scripts/check_api.py        api-check: apidiff against the latest v1 tag
+scripts/check_contract.py   contract-check: the nested module authcontract, against its own tags
 scripts/check_generated.py  generate-check: go:generate outputs are current
 scripts/check_records.py    records-check: the decision records and their index
 scripts/check_tables.py     tables-check: the import tables and the live variables match the code
@@ -87,6 +88,7 @@ internal/wiretest/          G-wire's request recorder, for tests only
 internal/nettest/           a refused connection and a free loopback port, for tests only
 internal/localonly/         a guard that fails a test run sending a request off the machine
 internal/ambientcheck/      the no-ambient-state check, a test only
+authcontract/               a second module: the sign-in vocabulary, standard library only (below)
 docs/
   README.md                 record index, "I want to…", migration table
   architecture.md           this file
@@ -94,6 +96,35 @@ docs/
   reports/                  numbered observations
   guides/                   API standards; adding a provider; migrating from mcplib
 ```
+
+### The auth contract module
+
+`authcontract/` is a second Go module,
+`github.com/maccavelli/go-llmprovider-sdk/authcontract`, with a `go.mod` of its
+own that requires nothing: the standard library only
+(0073-MADR D1). It holds the sign-in vocabulary that the SDK, gobble-cli and
+magic-cli-remote share (the method facts, the steps, the answers and the error
+kinds), as data and no behaviour. Its releases are `authcontract/vX.Y.Z` tags,
+separate from the SDK's `vX.Y.Z`; a contract tag gets no GitHub Release, so
+R53's six newest Releases are the SDK's.
+
+Its gate is `make contract-check` (`scripts/check_contract.py`, 0073-MADR D7).
+It fails when the module requires or imports anything outside the standard
+library and itself, when `go vet` or `go test -race` fails in the module, when
+a package is under 80 % coverage, and, against the latest `authcontract/v*`
+tag, on any incompatible API change, even at v0, or any break of the JSON
+schema: an entry, a property or an enum value removed, a type changed, a
+property newly required. Before the first tag it says there is nothing to
+compare. The other gates learn the module as 0073-MADR D8 says:
+`scripts/go-precheck.sh` checks a staged file of the module in the module,
+`make test`, `vet`, `lint` and `vuln` run there too, `changelog-check` holds
+`authcontract/CHANGELOG.md` to its tags, and CI tests the module on all three
+operating systems, runs its `go mod tidy -diff` and `govulncheck` on Linux, and
+runs on `authcontract/v*` tags as well as `v*` ones.
+
+The package table below, R2's table in the standards guide and `tables-check`,
+which reads `go list ./...` from the root, are the root module's: the module
+has no row in either.
 
 ## Packages
 
@@ -1084,9 +1115,9 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 - **`make` targets:** `test`, `test-sum`, `fmt`, `vet`, `lint`, `tidy`,
   `vuln`, `pre-add-check`, `parity-check`, `dep-check`, `coverage-check`,
-  `api-check`, `generate-check`, `records-check`, `tables-check`,
-  `fixtures-check`, `changelog-check`, `docs-check`, `gate-selftest`,
-  `tools-test`, `help`.
+  `api-check`, `contract-check`, `generate-check`, `records-check`,
+  `tables-check`, `fixtures-check`, `changelog-check`, `docs-check`,
+  `gate-selftest`, `tools-test`, `help`.
   `lint` runs golangci-lint twice: for the host and with `GOOS=windows`, so the
   `_windows.go` files are linted. Its `nolintlint` requires every `//nolint`
   to name its linter and still be needed.
@@ -1146,14 +1177,15 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   account name, host name or deny list.
 - **`gate-selftest`** (`scripts/test_gates.py`, standard-library
   `unittest`) copies the tree, plants breaches of each gate (dep-check,
-  generate-check, parity-check, coverage-check, api-check, records-check,
+  generate-check, parity-check, coverage-check, api-check, contract-check, records-check,
   tables-check, fixtures-check, docs-check, changelog-check, links-check,
   disclosure-check, and markdownlint's file list and target), and requires
   each to fail, then every gate to pass on a clean copy. Its workflow
   contract reads both workflows' lines: `ci.yml` keeps its triggers and
   gains no `paths` filter, `docs.yml` runs for every path `ci.yml`
   ignores, each gate is a Markdown gate, run by both, or a code gate, run
-  by `ci.yml` alone, and `docs.yml` uses `ci.yml`'s actions and pins.
+  by `ci.yml` alone, `ci.yml` runs every code gate, and `docs.yml` uses
+  `ci.yml`'s actions and pins.
 - **G-wire** is `TestWireGoldens` in each provider package, part of
   `go test`. Through `llmprovider/internal/wirecase` it drives 21 provider
   and gateway-route cases through 14 scenarios (text, forced tool,
@@ -1202,8 +1234,8 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   - `govulncheck`, pinned in the workflow;
   - `go vet`, `gofmt`, `go mod tidy -diff` and `make lint`;
   - `go vet -tags live_gateways`;
-  - `make parity-check dep-check coverage-check api-check generate-check
-    records-check tables-check fixtures-check changelog-check docs-check
+  - `make parity-check dep-check coverage-check api-check contract-check
+    generate-check records-check tables-check fixtures-check changelog-check docs-check
     markdownlint links-check disclosure-check gate-selftest`.
 
   It checks out the full history, so that `api-check` and `changelog-check`

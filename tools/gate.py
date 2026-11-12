@@ -96,6 +96,9 @@ CHECKS: list[Check] = [
     make("dep-check"),
     make("coverage-check"),
     make("api-check"),
+    # The nested module authcontract: its vet and tests run inside this check
+    # (0073-MADR D7), so no other entry is added.
+    make("contract-check"),
     make("generate-check"),
     make("records-check"),
     make("tables-check"),
