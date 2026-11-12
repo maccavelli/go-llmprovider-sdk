@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Go pre-add checks: format, lint, vet, tests, vulnerabilities.
+# Go pre-add checks: format, lint, vet, tests, vulnerabilities; and, for each
+# nested module, lint, vet, tests and tidiness.
 #
 # The single implementation of the pre-add rule in AGENTS.md, called from two
 # places so they cannot drift: `make pre-add-check`, and the machine-wide agent
@@ -25,6 +26,17 @@
 # The lint step is package-scoped either way: golangci-lint analyses packages,
 # not files, so narrowing it to a file list would report different findings than
 # `make lint` and the two would drift.
+#
+# A nested module is a directory below the root that holds its own go.mod
+# (`authcontract`, 0073-MADR D1). The root's `./...` stops at its boundary, and
+# Go refuses a package named from the root inside it, so a file of a nested
+# module is checked in that module, with `go -C <module>`: `go vet ./...`,
+# `go test -race ./...`, `golangci-lint run -c ../.golangci.yml` from the
+# module's directory, and `go mod tidy -diff` (0073-MADR D8). With arguments, a
+# module is checked when one of them is its file; with none, every module is. A
+# module with no Go file yet is reported as such and is not a failure. When
+# every argument is a nested module's file, the root's lint, vet, test and
+# govulncheck steps do not run: no file of the root changed.
 #
 # Exit codes: 0 all clear · 1 a check failed · 2 a required tool is missing.
 #
@@ -66,6 +78,47 @@ if [ "${#files[@]}" -eq 0 ] && [ "${#deleted_dirs[@]}" -eq 0 ]; then
   exit 0
 fi
 
+# module_of prints the directory of the nearest go.mod at or above directory $1:
+# "." for the root module.
+module_of() {
+  local d="$1"
+  while [ "$d" != "." ] && [ "$d" != "/" ]; do
+    if [ -f "$d/go.mod" ]; then
+      echo "$d"
+      return
+    fi
+    d="$(dirname "$d")"
+  done
+  echo "."
+}
+
+# Split the files by module: the root's, and the nested modules to check. With
+# no arguments every module that has a go.mod is checked, files or not.
+root_files=()
+root_deleted=()
+nested=()
+for f in "${files[@]+"${files[@]}"}"; do
+  m="$(module_of "$(dirname "$f")")"
+  if [ "$m" = "." ]; then root_files+=("$f"); else nested+=("$m"); fi
+done
+for d in "${deleted_dirs[@]+"${deleted_dirs[@]}"}"; do
+  m="$(module_of "$d")"
+  if [ "$m" = "." ]; then root_deleted+=("$d"); else nested+=("$m"); fi
+done
+if [ "$#" -eq 0 ]; then
+  while IFS= read -r f; do
+    [ -n "$f" ] && nested+=("$(dirname "$f")")
+  done < <(git ls-files '*/go.mod')
+fi
+modules=()
+while IFS= read -r m; do
+  [ -n "$m" ] && modules+=("$m")
+done < <(printf '%s\n' "${nested[@]+"${nested[@]}"}" | sort -u)
+root_active=1
+if [ "$#" -gt 0 ] && [ "${#root_files[@]}" -eq 0 ] && [ "${#root_deleted[@]}" -eq 0 ]; then
+  root_active=0
+fi
+
 need() {
   command -v "$1" >/dev/null 2>&1 && return 0
   echo "go-precheck: $1 not found in PATH." >&2
@@ -96,7 +149,11 @@ fi
 # host-only run never sees (0010-PLAN P6a).
 need go || exit 2
 GOLANGCI="${GOLANGCI_LINT:-$(go env GOPATH)/bin/golangci-lint}"
-if [ -x "$GOLANGCI" ]; then
+if [ ! -x "$GOLANGCI" ]; then
+  echo "go-precheck: golangci-lint not found at $GOLANGCI." >&2
+  echo "  install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0" >&2
+  fail 2
+elif [ "$root_active" -eq 1 ]; then
   for lint_goos in "$(go env GOOS)" windows; do
     if ! lint_out="$(GOOS="$lint_goos" "$GOLANGCI" run -c .golangci.yml --build-tags live_gateways ./... 2>&1)"; then
       echo "golangci-lint (GOOS=$lint_goos):" >&2
@@ -104,50 +161,82 @@ if [ -x "$GOLANGCI" ]; then
       fail 1
     fi
   done
-else
-  echo "go-precheck: golangci-lint not found at $GOLANGCI." >&2
-  echo "  install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0" >&2
-  fail 2
 fi
 
 # 3. go vet and go test, over the packages the files belong to, and those a
 # deleted file left (./... with no arguments). AGENTS.md requires both on the
 # touched packages. A directory a deletion left with no Go file has no package
 # to name, so its importers are found by checking the whole module.
-if [ "$#" -gt 0 ]; then
-  pkgs=()
-  whole=0
-  while IFS= read -r d; do
-    [ -n "$d" ] || continue
-    if compgen -G "$d/*.go" >/dev/null; then
-      pkgs+=("./$d")
-    else
-      whole=1
+if [ "$root_active" -eq 1 ]; then
+  if [ "$#" -gt 0 ]; then
+    pkgs=()
+    whole=0
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      if compgen -G "$d/*.go" >/dev/null; then
+        pkgs+=("./$d")
+      else
+        whole=1
+      fi
+    done < <({ for f in "${root_files[@]+"${root_files[@]}"}"; do dirname "$f"; done; printf '%s\n' "${root_deleted[@]+"${root_deleted[@]}"}"; } | sort -u)
+    if [ "$whole" -eq 1 ]; then
+      pkgs=("./...")
     fi
-  done < <({ for f in "${files[@]+"${files[@]}"}"; do dirname "$f"; done; printf '%s\n' "${deleted_dirs[@]+"${deleted_dirs[@]}"}"; } | sort -u)
-  if [ "$whole" -eq 1 ]; then
+  else
     pkgs=("./...")
   fi
-else
-  pkgs=("./...")
+  if ! vet_out="$(go vet "${pkgs[@]}" 2>&1)"; then
+    echo "go vet:" >&2
+    printf '%s\n' "$vet_out" | sed 's/^/  /' >&2
+    fail 1
+  fi
+  if ! test_out="$(go test -race "${pkgs[@]}" 2>&1)"; then
+    echo "go test -race:" >&2
+    printf '%s\n' "$test_out" | tail -40 | sed 's/^/  /' >&2
+    fail 1
+  fi
+  # go.mod and go.sum change only with the code that needs them (AGENTS.md
+  # "Dependencies"; 0021-MADR Z5).
+  if ! tidy_out="$(go mod tidy -diff 2>&1)"; then
+    echo "go mod tidy -diff:" >&2
+    printf '%s\n' "$tidy_out" | tail -40 | sed 's/^/  /' >&2
+    fail 1
+  fi
 fi
-if ! vet_out="$(go vet "${pkgs[@]}" 2>&1)"; then
-  echo "go vet:" >&2
-  printf '%s\n' "$vet_out" | sed 's/^/  /' >&2
-  fail 1
-fi
-if ! test_out="$(go test -race "${pkgs[@]}" 2>&1)"; then
-  echo "go test -race:" >&2
-  printf '%s\n' "$test_out" | tail -40 | sed 's/^/  /' >&2
-  fail 1
-fi
-# go.mod and go.sum change only with the code that needs them (AGENTS.md
-# "Dependencies"; 0021-MADR Z5).
-if ! tidy_out="$(go mod tidy -diff 2>&1)"; then
-  echo "go mod tidy -diff:" >&2
-  printf '%s\n' "$tidy_out" | tail -40 | sed 's/^/  /' >&2
-  fail 1
-fi
+
+# 3b. Each nested module, in its own directory (0073-MADR D8): every package of
+# the module is vetted, tested and linted, since a module is small and its
+# packages are not told apart by file; its go.mod and go.sum are held to tidy.
+# The lint configuration is the root's, reached from the module's directory.
+for mod in "${modules[@]+"${modules[@]}"}"; do
+  mod_cfg="$(printf '%s' "$mod" | sed 's|[^/][^/]*|..|g')/.golangci.yml"
+  if [ -z "$(find "$mod" -name '*.go' 2>/dev/null | head -1)" ]; then
+    echo "go-precheck: $mod: no package yet (go vet, go test and golangci-lint skipped)."
+  else
+    if ! vet_out="$(go -C "$mod" vet ./... 2>&1)"; then
+      echo "go vet ($mod):" >&2
+      printf '%s\n' "$vet_out" | sed 's/^/  /' >&2
+      fail 1
+    fi
+    if ! test_out="$(go -C "$mod" test -race ./... 2>&1)"; then
+      echo "go test -race ($mod):" >&2
+      printf '%s\n' "$test_out" | tail -40 | sed 's/^/  /' >&2
+      fail 1
+    fi
+    if [ -x "$GOLANGCI" ]; then
+      if ! lint_out="$(cd "$mod" && "$GOLANGCI" run -c "$mod_cfg" ./... 2>&1)"; then
+        echo "golangci-lint ($mod):" >&2
+        printf '%s\n' "$lint_out" | tail -40 | sed 's/^/  /' >&2
+        fail 1
+      fi
+    fi
+  fi
+  if ! tidy_out="$(go -C "$mod" mod tidy -diff 2>&1)"; then
+    echo "go mod tidy -diff ($mod):" >&2
+    printf '%s\n' "$tidy_out" | tail -40 | sed 's/^/  /' >&2
+    fail 1
+  fi
+done
 
 # 4. govulncheck, over the module. It reports *called* vulnerabilities, so it is
 # a property of the whole build rather than of the edited files. It runs at
@@ -159,7 +248,9 @@ fi
 # as an unreachable database: matching those words on a status-3 run would let a
 # finding whose trace names a `proxy` package or a `Timeout` function through.
 vuln_pin="$(grep -oE 'golang.org/x/vuln/cmd/govulncheck@v[0-9][0-9.]*' .github/workflows/ci.yml 2>/dev/null | head -1)"
-if [ "${GO_PRECHECK_SKIP_VULN:-0}" = "1" ]; then
+if [ "$root_active" -eq 0 ]; then
+  echo "govulncheck: skipped (no file of the root module)" >&2
+elif [ "${GO_PRECHECK_SKIP_VULN:-0}" = "1" ]; then
   echo "govulncheck: skipped (GO_PRECHECK_SKIP_VULN=1)" >&2
 elif [ -z "$vuln_pin" ]; then
   echo "govulncheck: no pin in .github/workflows/ci.yml" >&2
@@ -183,6 +274,11 @@ else
 fi
 
 if [ "$failed" -eq 0 ]; then
-  echo "go-precheck: ${#files[@]} file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)."
+  if [ "$root_active" -eq 1 ]; then
+    echo "go-precheck: ${#files[@]} file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)."
+  fi
+  if [ "${#modules[@]}" -gt 0 ]; then
+    echo "go-precheck: nested module(s) clean: ${modules[*]}."
+  fi
 fi
 exit "$failed"

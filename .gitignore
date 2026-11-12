@@ -16,3 +16,5 @@ tmp/
 temp/
 __pycache__/
 *.py[cod]
+go.work
+go.work.sum

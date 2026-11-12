@@ -114,6 +114,43 @@ class PrecheckTest(unittest.TestCase):
             self.assertEqual(proc.returncode, 1, f"go-precheck exit {proc.returncode}, want 1:\n{out[-2000:]}")
             self.assertIn("go vet:", out, f"go vet did not report the broken package:\n{out[-2000:]}")
 
+    def run_nested_precheck(self, planted: str, go_mod_extra: str = "") -> str:
+        """Plant authcontract/plant.go (and go_mod_extra, appended to
+        authcontract/go.mod) on a copy of the tree, run the precheck on the
+        new file, require exit 1, and return its output (0073-PLAN Phase 1a)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = Path(tmp) / "tree"
+            copy_tree(tree)
+            (tree / "authcontract/plant.go").write_text(planted, encoding="utf-8")
+            if go_mod_extra:
+                with (tree / "authcontract/go.mod").open("a", encoding="utf-8") as f:
+                    f.write(go_mod_extra)
+            proc = subprocess.run(["bash", "scripts/go-precheck.sh", "authcontract/plant.go"], cwd=tree,
+                                  capture_output=True, text=True, check=False,
+                                  env={**os.environ, "GO_PRECHECK_SKIP_VULN": "1"})
+        out = proc.stdout + proc.stderr
+        self.assertEqual(proc.returncode, 1, f"go-precheck exit {proc.returncode}, want 1:\n{out[-2000:]}")
+        return out
+
+    def test_precheck_nested_module_vets_its_file(self) -> None:
+        """A file of the nested module authcontract is vetted in that module,
+        not refused from the root as a directory of another module
+        (0073-MADR D8)."""
+        out = self.run_nested_precheck(
+            'package authcontract\n\nimport "fmt"\n\nfunc plant() { fmt.Printf("%d", "x") }\n')
+        self.assertIn("go vet (authcontract):", out, f"go vet did not run in the nested module:\n{out[-2000:]}")
+        self.assertIn("plant.go", out, f"go vet did not name the planted file:\n{out[-2000:]}")
+        self.assertIn('arg "x" of wrong type string', out, f"go vet did not report the planted error:\n{out[-2000:]}")
+
+    def test_precheck_nested_module_tidy(self) -> None:
+        """A requirement of the nested module that nothing imports fails
+        `go mod tidy -diff` in that module (0073-MADR D8)."""
+        out = self.run_nested_precheck(
+            "// Package authcontract is planted.\npackage authcontract\n\n// X is planted.\nconst X = 1\n",
+            "\nrequire golang.org/x/sys v0.47.0\n")
+        self.assertIn("go mod tidy -diff (authcontract):", out, f"tidy did not run in the nested module:\n{out[-2000:]}")
+        self.assertIn("-require golang.org/x/sys v0.47.0", out, f"tidy did not name the requirement:\n{out[-2000:]}")
+
 
 class GateSelfTest(unittest.TestCase):
     """One planted breach per gate, then every gate on a clean copy."""

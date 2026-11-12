@@ -608,3 +608,101 @@ this PLAN.
   tables-check, changelog-check, markdownlint, links-check,
   disclosure-check, gate-selftest, deny-scan, recordlint and claims each
   rc=0, "gate: 11 of 11 passed", exit 0.
+
+### Phase 1a (2026-11-11)
+
+Base: `main` at `0c65221`, one ahead of `origin/main`, tree clean; the
+root's `go.mod` says `go 1.27.4`, so the stop for `go 1.27.3` did not
+apply. Go is 1.27.4. No claim of the MADR was found false; no existing
+test, gate or golden was changed.
+
+* Step 1: `authcontract/go.mod` holds `module
+  github.com/maccavelli/go-llmprovider-sdk/authcontract` and `go 1.27.4`,
+  nothing else. No `go.sum`; no Go file.
+* Step 2: `.gitignore` gains `go.work` and `go.work.sum`.
+* Step 3: `scripts/go-precheck.sh`. It finds each file's module (the nearest
+  `go.mod` above it) and, for every nested module a given file belongs to
+  (or, with no arguments, every `go.mod` below the root that git lists),
+  runs `go -C <module> vet ./...`, `go -C <module> test -race ./...`,
+  `golangci-lint run -c ../.golangci.yml ./...` from the module's directory
+  (the configuration's path computed from the module's depth), and `go -C
+  <module> mod tidy -diff`; its failures are headed "go vet (authcontract):",
+  "go test -race (authcontract):", "golangci-lint (authcontract):" and "go
+  mod tidy -diff (authcontract):". The root's run is unchanged for a
+  root file: same commands, same headings, same final line. Three choices
+  the step left open: (1) when every given file is a nested module's, the
+  root's lint, vet, test, tidy and govulncheck do not run ("govulncheck:
+  skipped (no file of the root module)"), since no file of the root
+  changed and `go vet` with no package would vet the root's own directory;
+  (2) the nested lint is the host's only, with no `-tags` and no
+  `GOOS=windows` pass, as the step words it; (3) a module with no Go file
+  still has `go mod tidy -diff` run, so a requirement added to an empty
+  module is caught. `bash -n scripts/go-precheck.sh` exit 0; `shellcheck
+  scripts/go-precheck.sh` exit 0 with no output, as it was on the previous
+  version (the repository does not run shellcheck).
+* Step 4: `scripts/test_gates.py`'s `PrecheckTest` gains
+  `test_precheck_nested_module_vets_its_file` and
+  `test_precheck_nested_module_tidy`, each on a `copy_tree` copy with
+  `GO_PRECHECK_SKIP_VULN=1`, through one helper that plants
+  `authcontract/plant.go` (and, for the tidy case, appends `require
+  golang.org/x/sys v0.47.0` to `authcontract/go.mod`), runs the precheck on
+  the new file, and requires exit 1. The vet case also requires the heading
+  "go vet (authcontract):", the file name `plant.go` and the vet message
+  `arg "x" of wrong type string`; the tidy case, "go mod tidy -diff
+  (authcontract):" and the diff line `-require golang.org/x/sys v0.47.0`.
+* The MADR's unverified item (D8, `go-precheck.sh` on a nested file), run
+  by hand before step 3 on a copy of the tree holding the new `go.mod` and
+  the vet plant, with the old script: exit 1, and, verbatim, "go vet:" then
+  "main module (github.com/maccavelli/go-llmprovider-sdk) does not contain
+  package github.com/maccavelli/go-llmprovider-sdk/authcontract"; "go test
+  -race:" then "# ./authcontract" and the same message, "FAIL
+  ./authcontract [setup failed]". The run fails on the directory, as the
+  table says, and never names `plant.go`.
+* New script on the same plant, exit 1: "go vet (authcontract):
+  plant.go:5:28: fmt.Printf format %d has arg "x" of wrong type string".
+  On the tidy plant, exit 1: "go mod tidy -diff (authcontract):" and, in its
+  diff, "-require golang.org/x/sys v0.47.0". The vet, test and lint of that
+  clean package passed. Both runs were also made by hand on a scratch copy
+  before the cases were written.
+* **The two cases seen to fail on the old script.** On a scratch copy of the
+  tree with `scripts/go-precheck.sh` put back to its `HEAD` text, `python3
+  -B -m unittest` on the two cases: "FF", "FAILED (failures=2)". Both exit 1
+  on the old script too, so the exit-code assertion passes, and both fail
+  on the text: `AssertionError: 'go vet (authcontract):' not found in
+  'go vet:\n  main module (github.com/maccavelli/go-llmprovider-sdk) does
+  not contain package github.com/maccavelli/go-llmprovider-sdk/authcontract
+  ...'` and `AssertionError: 'go mod tidy -diff (authcontract):' not found
+  in 'go vet:\n  main module (...) does not contain package ...'`. On the
+  new script, the `PrecheckTest` class: "Ran 3 tests in 13.223s", "OK".
+* Checks, each exit status captured before any filter:
+  * `make pre-add-check` (no arguments), exit 0: "go-precheck: authcontract:
+    no package yet (go vet, go test and golangci-lint skipped).",
+    "go-precheck: 917 file(s) clean (gofmt, golangci-lint, go vet, go test,
+    govulncheck).", "go-precheck: nested module(s) clean: authcontract."
+  * Mixed arguments, a root file and the clean planted nested file, on a
+    scratch copy, exit 0: both final lines above. Nested file alone, exit
+    0: "govulncheck: skipped (no file of the root module)" and the nested
+    line only.
+  * `make gate-selftest` (`python3 -B -m unittest scripts/test_gates.py`),
+    exit 0: "Ran 51 tests in 193.102s", "OK".
+  * `python3 -B tools/gate.py`, exit 0: it waited ("load 50.0; waiting for
+    it to fall below 10"), "started at load 9.1", and "gate: 29 of 29
+    passed", among them pre-add-check, lint, tidy-diff, dep-check,
+    coverage-check, api-check, records-check, tables-check, gate-selftest,
+    markdownlint, links-check, disclosure-check, deny-scan and tools-test,
+    each rc=0.
+  * `ls authcontract`: `go.mod` only.
+  * The gate ran before this entry was written, so the checks that read the
+    records were run again after it, each exit 0: `tools/claims.py` on the
+    MADR, "44 of 44 pass", and on this PLAN, "11 of 11 pass"; `make
+    records-check`, "records-check: 162 records, 0 problem(s)"; `make
+    links-check`, "links-check: 0 problem(s), 1243 relative link(s) in 174
+    file(s)"; `make disclosure-check`, "0 hit(s)"; `tools/recordlint.py
+    --changed`, "recordlint: 1 record(s); no rule rose"; `tools/denyscan.py
+    --changed`, "deny-scan: 0 hit(s) in 5 file(s)"; `tools/linkcheck.py`,
+    "G-links: 0 problem(s)".
+* Not done, as the phase says: no `authcontract/*.go` file, no `go.sum`, no
+  Makefile target, no `ci.yml` change, no `AGENTS.md` change (its "Pre-add
+  checks" paragraph still describes the root's run only; Phase 2 and Phase
+  4 are where the PLAN touches docs), no govulncheck of the nested module,
+  and no commit. The files are staged for the owner to commit.
