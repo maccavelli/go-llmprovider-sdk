@@ -1,6 +1,6 @@
 ---
-status: in-progress
-date: 2026-11-11
+status: complete
+date: 2026-11-12
 associated-madr: "0073-MADR-publish-an-auth-contract-module.md"
 decision-makers: repository owner
 ---
@@ -1781,3 +1781,54 @@ three runners (`release` skipped), and `docs.yml` run 43286231278 passed.
     345.507s", "OK", exit 0.
   * Not done: step 6, the proxy check, waits for `ci.yml` on `main` with the
     fix, as does the record of Phase 4 complete.
+
+### Phase 4, complete (2026-11-12)
+
+The coordinator committed the self-test fix as `e5eea9d` and the 0078 test
+fix as `cae3ccb`, ran the guard (exit 0) and pushed `main`
+(`e5eea9d..cae3ccb`). The first `ci.yml` run on `e5eea9d`, 43295522137,
+failed on Ubuntu at the race detector step, on the unrelated flake that
+[0078-PLAN-cached-metadata-refusal-test-uses-a-refused-option.md](0078-PLAN-cached-metadata-refusal-test-uses-a-refused-option.md)
+fixed; it is not the run that meets the amended acceptance.
+
+* **The main run that meets the amended acceptance.** `ci.yml` run
+  43308484802 on `cae3ccb`, with `authcontract/v0.1.0` present (the checkout
+  has `fetch-depth: 0`): `validate (macos-15)`, `validate (windows-2025)` and
+  `validate (ubuntu-24.04)` all success, `release` skipped. `docs.yml` run
+  43308484836 passed. This is "`ci.yml` on `main` with the fix passes with
+  the tag present" of the amendment above.
+* Step 6, the proxy check, from a scratch directory outside the repository,
+  checked on 2026-11-12: `go list -m
+  github.com/maccavelli/go-llmprovider-sdk/authcontract@v0.1.0`, exit 0,
+  printed `github.com/maccavelli/go-llmprovider-sdk/authcontract v0.1.0`.
+  The proxy's `@v/v0.1.0.info` carries the origin `"VCS":"git"`, the
+  repository's URL, `"Subdir":"authcontract"`,
+  `"Hash":"38e17ded8030ff3f4738f18b448de3756816f423"` (the tag's commit) and
+  `"Ref":"refs/tags/authcontract/v0.1.0"`.
+* Step 7, in the repository after the tag, each exit 0: `make
+  changelog-check`, "44 release section(s), 0 problem(s)"; `make
+  contract-check`, "authcontract, against authcontract/v0.1.0, 0
+  problem(s)".
+* **Acceptance walk.**
+  * Phase 0: met; the three supersession notes are in place, the records and
+    links checks passed (Phase 0 entry).
+  * Phase 1a: met; `make pre-add-check` passed on the tree, both plants
+    failed as expected, and no `authcontract/*.go` file existed at its end
+    (Phase 1a entry).
+  * Phase 1b: met; the module's tests passed under `-race`, its
+    dependencies were standard packages and its own, each plant failed its
+    test, and `make docs-check` passed (Phase 1b entry).
+  * Phase 2: met; `make contract-check`, `make gate-selftest` and `make
+    changelog-check` passed on the tree and each plant failed as expected
+    (Phase 2 entry).
+  * Phase 3: met; the tests passed, each plant failed, and `make
+    generate-check` and `make contract-check` passed (Phase 3 entry).
+  * Phase 4: met as amended. The tag exists and was pushed; "CI passed on
+    it" is met on the evidence the amendment names, completed by run
+    43308484802 above; the module resolves through the proxy (step 6); `make
+    changelog-check` passes with the tag (step 7).
+* All phases' acceptance is met, so `python3 -B tools/records.py status`
+  sets this PLAN `complete` with `--date 2026-11-12`. The MADR stays
+  `accepted`, as 0076-MADR and 0077-MADR do under their complete PLANs.
+* Not done, as the PLAN says: the root module's requirement on the contract
+  is 0074-PLAN Phase 4; no GitHub Release for the contract tag.

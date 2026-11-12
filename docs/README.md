@@ -163,7 +163,7 @@ documents a reader follows to do something.
 | 0072 | MADR | [Keep a Limit's Absolute Reset Time, and What the Service Said About the Limit, on APIError](decisions/0072-MADR-keep-absolute-reset-times-and-limit-detail-on-apierror.md) | accepted |
 | 0072 | PLAN | [Implement an Absolute Reset Time and a Stated Limit on APIError](decisions/0072-PLAN-keep-absolute-reset-times-and-limit-detail-on-apierror.md) | complete |
 | 0073 | MADR | [Publish the Sign-In Vocabulary as a Nested, Standard-Library-Only Module, `authcontract`, Versioned on Its Own](decisions/0073-MADR-publish-an-auth-contract-module.md) | accepted |
-| 0073 | PLAN | [Implement the Nested Auth Contract Module, `authcontract`](decisions/0073-PLAN-publish-an-auth-contract-module.md) | in-progress |
+| 0073 | PLAN | [Implement the Nested Auth Contract Module, `authcontract`](decisions/0073-PLAN-publish-an-auth-contract-module.md) | complete |
 | 0074 | MADR | [Describe Every Sign-In Method as Facts, and Drive Every Interactive Sign-In Through One Handle, Under `llmprovider/x/signin`](decisions/0074-MADR-one-sign-in-handle-and-method-facts.md) | accepted |
 | 0074 | PLAN | [Implement Method Facts and One Sign-In Handle Under `llmprovider/x/signin`](decisions/0074-PLAN-one-sign-in-handle-and-method-facts.md) | in-progress |
 | 0075 | MADR | [Carry the ChatGPT Plan's Background-Use Consent on the Session, Ask It Before the Browser, and Keep the Issued Client and the Host Id Apart from the Session](decisions/0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md) | accepted |
@@ -173,7 +173,7 @@ documents a reader follows to do something.
 | 0077 | MADR | [Require Go 1.27.4 for GO-2026-6859, Before Any of the Auth Series' Code](decisions/0077-MADR-go-1-27-4-for-go-2026-6859.md) | accepted |
 | 0077 | PLAN | [Implement Go 1.27.4 as the Floor](decisions/0077-PLAN-go-1-27-4-for-go-2026-6859.md) | complete |
 | 0078 | MADR | [Test CachedMetadataWith's Refusal with an Option It Refuses, and Count Requests Only After Every Fetch Has Ended](decisions/0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md) | accepted |
-| 0078 | PLAN | [Implement the Refused Option and the Wait in CachedMetadataWith's Refusal Test](decisions/0078-PLAN-cached-metadata-refusal-test-uses-a-refused-option.md) | in-progress |
+| 0078 | PLAN | [Implement the Refused Option and the Wait in CachedMetadataWith's Refusal Test](decisions/0078-PLAN-cached-metadata-refusal-test-uses-a-refused-option.md) | complete |
 
 ## I want to…
 

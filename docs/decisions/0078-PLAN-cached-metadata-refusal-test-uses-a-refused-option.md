@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-12
 associated-madr: "0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md"
 decision-makers: repository owner
@@ -281,3 +281,22 @@ the new block occurs once afterwards.
   markdownlint`, "0 issues". Run after this entry was written.
 * Step 3, the test file and the records are staged for the owner to commit.
   Phase 4 waits for the owner's commit and word to push.
+
+### Phase 4 (2026-11-12)
+
+The coordinator committed the test fix as `cae3ccb`, ran the disclosure guard
+(exit 0) and pushed `main` (`e5eea9d..cae3ccb`), on the owner's word.
+
+* `ci.yml` run 43308484802 on `cae3ccb`: `validate (macos-15)`, `validate
+  (windows-2025)` and `validate (ubuntu-24.04)` all success, the Ubuntu race
+  step among them; `release` skipped. `docs.yml` run 43308484836 passed. The
+  failing run this PLAN fixes was 43295522137 on `e5eea9d`.
+* That is the green `main` run that closes
+  [0073-PLAN-publish-an-auth-contract-module.md](0073-PLAN-publish-an-auth-contract-module.md)
+  Phase 4, recorded there in its "Phase 4, complete (2026-11-12)" entry, and
+  that
+  [0074-PLAN-one-sign-in-handle-and-method-facts.md](0074-PLAN-one-sign-in-handle-and-method-facts.md)
+  Phase 1 waited for.
+* Acceptance: the run passes and its id is recorded. Every phase's
+  acceptance is met, so `python3 -B tools/records.py status` sets this PLAN
+  `complete` with `--date 2026-11-12`; the MADR stays `accepted`.
