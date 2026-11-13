@@ -181,29 +181,86 @@ func TestNoLoopback_Plan_0074(t *testing.T) {
 	})
 }
 
-// TestNoLoopback_GrokUnsupported_0074: Grok's browser sign-in with NoLoopback
-// is ErrUnsupported before any request, with or without an InputCode.
-func TestNoLoopback_GrokUnsupported_0074(t *testing.T) {
+// TestNoLoopback_Grok_0074: Grok's browser sign-in with NoLoopback binds no
+// listener, names its own redirect, http://127.0.0.1:<port>/callback with the
+// port in 49152 to 65535, and a pasted callback URL completes it; without an
+// InputCode it is ErrInvalidRequest before any request.
+func TestNoLoopback_Grok_0074(t *testing.T) {
+	var mu sync.Mutex
+	var tokenForm url.Values
 	var requests atomic.Int32
-	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	ti := newTestIssuer(mux, srv.URL)
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		writeTestJSON(t, w, ti.discovery(t, map[string]string{"authorization_endpoint": srv.URL + "/authorize", "token_endpoint": srv.URL + "/token"}))
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("parse token form: %v", err)
+		}
+		mu.Lock()
+		tokenForm = r.PostForm
+		mu.Unlock()
+		writeTestJSON(t, w, ti.tokenResponse(t, "ES256", "test-client", "access", "refresh"))
+	})
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		requests.Add(1)
-		return nil, errors.New("no request expected")
+		return srv.Client().Transport.RoundTrip(r)
 	})}
-	for _, withInput := range []bool{true, false} {
-		opts := OAuthFlowOptions{HTTPClient: client, NoLoopback: true}
-		if withInput {
-			opts.InputCode = func(context.Context) (string, error) { return "code", nil }
+	opts := OAuthFlowOptions{HTTPClient: client, ClientID: "test-client", Issuer: srv.URL, NoLoopback: true}
+
+	t.Run("a paste completes it", func(t *testing.T) {
+		var authorizeURL url.Values
+		withPaste := opts
+		openURL, inputCode := pasteBack0074(func(raw string) (string, error) {
+			u, err := url.Parse(raw)
+			if err != nil {
+				return "", err
+			}
+			authorizeURL = u.Query()
+			return "http://127.0.0.1/callback?code=pasted-code&state=" + url.QueryEscape(authorizeURL.Get("state")), nil
+		})
+		withPaste.OpenURL = func(raw string) error {
+			ti.captureNonce(raw)
+			return openURL(raw)
 		}
+		withPaste.InputCode = inputCode
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		session, err := LoginBrowserOAuth(ctx, llmprovider.ProviderGrok, withPaste)
+		if err != nil || session == nil || session.Access != "access" || session.Provider != llmprovider.ProviderGrok {
+			t.Fatalf("LoginBrowserOAuth = %v, %v; want a Grok session", session, err)
+		}
+		redirect, err := url.Parse(authorizeURL.Get("redirect_uri"))
+		if err != nil {
+			t.Fatalf("authorize redirect_uri: %v", err)
+		}
+		port, err := strconv.Atoi(redirect.Port())
+		if redirect.Scheme != "http" || redirect.Hostname() != "127.0.0.1" || redirect.Path != "/callback" || err != nil || port < 49152 || port > 65535 {
+			t.Errorf("authorize redirect_uri = %q, want http://127.0.0.1:<port in 49152 to 65535>/callback", redirect)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if got := tokenForm.Get("redirect_uri"); got != redirect.String() || tokenForm.Get("code") != "pasted-code" {
+			t.Errorf("token form redirect_uri %q code %q, want %q and pasted-code", got, tokenForm.Get("code"), redirect)
+		}
+	})
+	t.Run("without an InputCode", func(t *testing.T) {
+		before := requests.Load()
+		withoutInput := opts
+		withoutInput.OpenURL = func(string) error { return nil }
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		session, err := LoginBrowserOAuth(ctx, llmprovider.ProviderGrok, opts)
-		cancel()
-		if session != nil || !errors.Is(err, llmprovider.ErrUnsupported) {
-			t.Errorf("InputCode %v: LoginBrowserOAuth = %v, %v; want ErrUnsupported", withInput, session, err)
+		defer cancel()
+		session, err := LoginBrowserOAuth(ctx, llmprovider.ProviderGrok, withoutInput)
+		if session != nil || !errors.Is(err, llmprovider.ErrInvalidRequest) {
+			t.Fatalf("LoginBrowserOAuth = %v, %v; want ErrInvalidRequest", session, err)
 		}
-	}
-	if got := requests.Load(); got != 0 {
-		t.Errorf("%d request(s) sent; want none", got)
-	}
+		if got := requests.Load(); got != before {
+			t.Errorf("%d request(s) before the refusal; want none", got-before)
+		}
+	})
 }
 
 // TestNoLoopback_DeviceIgnored_0074: a device sign-in does not read the

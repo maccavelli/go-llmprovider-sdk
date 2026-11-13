@@ -2,11 +2,13 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/url"
@@ -57,12 +59,13 @@ type OAuthFlowOptions struct {
 	// Kilo's included; the zero value names this module (0076-MADR D3).
 	Identity Identity
 	// NoLoopback binds no callback listener in a browser sign-in: the
-	// redirect URI names the first registered port, and only a value
-	// InputCode returns completes it, so InputCode is required (an error
-	// matching llmprovider.ErrInvalidRequest otherwise). Grok's browser
-	// sign-in with it gives an error matching llmprovider.ErrUnsupported,
-	// before any request. A device sign-in binds no listener in the first
-	// place and ignores it (0074-MADR D4).
+	// redirect URI names a port nothing listens on (OpenAI's first
+	// registered port; for Grok, a random one in 49152 to 65535, with Grok's
+	// own /callback path), and only a value InputCode returns completes it,
+	// so InputCode is required (an error matching
+	// llmprovider.ErrInvalidRequest otherwise), for Grok as for OpenAI. A
+	// device sign-in binds no listener in the first place and ignores it
+	// (0074-MADR D4).
 	NoLoopback bool
 
 	now   func() time.Time
@@ -124,9 +127,8 @@ type oauthCallbackResult struct {
 // A failed issuer discovery, another error the identity provider sends back,
 // a failed token exchange and a rejected id_token are plain errors. A ctx that ends gives an error wrapping ctx's,
 // and an error from opts.InputCode ends the login, matching that error. With
-// opts.NoLoopback, Grok's login gives an error matching
-// llmprovider.ErrUnsupported, and OpenAI's without an InputCode one matching
-// llmprovider.ErrInvalidRequest, each before any request.
+// opts.NoLoopback, a login without an InputCode, Grok's or OpenAI's, gives an
+// error matching llmprovider.ErrInvalidRequest, before any request.
 func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opts OAuthFlowOptions) (*OAuthSession, error) {
 	config, err := resolveOAuthFlowConfig(provider, opts)
 	if err != nil {
@@ -255,15 +257,13 @@ func runBrowserLogin(ctx context.Context, login browserLogin) (*OAuthSession, er
 }
 
 // requireNoLoopbackInput refuses, before any request, a sign-in with
-// NoLoopback that nothing could complete: Grok's, whose paste is unverified
-// (ErrUnsupported), and any without an InputCode (ErrInvalidRequest)
-// (0074-MADR D4). It is nil when config.noLoopback is not set.
+// NoLoopback that nothing could complete: one without an InputCode, Grok's
+// and OpenAI's alike (ErrInvalidRequest) (0074-MADR D4; Grok's paste was
+// verified live on 2026-11-13). It is nil when config.noLoopback is not set.
 func requireNoLoopbackInput(config oauthFlowConfig) error {
 	switch {
 	case !config.noLoopback:
 		return nil
-	case config.provider == llmprovider.ProviderGrok:
-		return fmt.Errorf("oauth: %w: NoLoopback is not supported for Grok's browser sign-in, whose pasted callback is unverified", llmprovider.ErrUnsupported)
 	case config.inputCode == nil:
 		return fmt.Errorf("oauth: %w: NoLoopback binds no listener, so the sign-in needs an InputCode to complete it", llmprovider.ErrInvalidRequest)
 	}
@@ -429,12 +429,36 @@ func discoverOAuthEndpoints(ctx context.Context, config oauthFlowConfig) (oauthE
 // the Codex login and the plan login alike; only its port varies.
 const openAICallbackPath = "/auth/callback"
 
+// The dynamic port range a Grok sign-in with NoLoopback draws its redirect
+// port from; no listener is ever bound to it (0074-MADR D4).
+const (
+	grokNoLoopbackPortMin = 49152
+	grokNoLoopbackPortMax = 65535
+)
+
+// grokNoLoopbackPort draws a port from the dynamic range at random.
+func grokNoLoopbackPort() (int, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(grokNoLoopbackPortMax-grokNoLoopbackPortMin+1))
+	if err != nil {
+		return 0, fmt.Errorf("oauth: draw a redirect port: %w", err)
+	}
+	return grokNoLoopbackPortMin + int(n.Int64()), nil
+}
+
 // browserEndpoint is browserListener, or with noLoopback no listener at all:
-// the redirect URI names the first registered port and the callback's path,
-// and only a paste completes the sign-in (0074-MADR D4). Grok never reaches
-// it with noLoopback: requireNoLoopbackInput refuses that first.
+// the redirect URI names a port nothing is bound to, and only a paste
+// completes the sign-in (0074-MADR D4). OpenAI's names its first registered
+// port and path; Grok's names its own form, http://127.0.0.1:<port>/callback,
+// with a port drawn at random from 49152 to 65535 and never bound.
 func browserEndpoint(provider llmprovider.ProviderID, noLoopback bool) ([]net.Listener, string, string, error) {
 	if noLoopback {
+		if provider == llmprovider.ProviderGrok {
+			port, err := grokNoLoopbackPort()
+			if err != nil {
+				return nil, "", "", err
+			}
+			return nil, fmt.Sprintf("http://127.0.0.1:%d/callback", port), "/callback", nil
+		}
 		return nil, fmt.Sprintf("http://127.0.0.1:%d%s", openaiLoopbackPorts[0], openAICallbackPath), openAICallbackPath, nil
 	}
 	return browserListener(provider)

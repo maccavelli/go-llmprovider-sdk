@@ -11,6 +11,16 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Changed
+
+- Grok's browser sign-in completes by a pasted callback URL or code, and
+  accepts `NoLoopback`: its `browser_oauth` method fact is `browser_paste`
+  with `Paste` `url_or_code`. With `NoLoopback` and no listener its redirect
+  names `http://127.0.0.1:<port>/callback`, a random port in 49152 to 65535
+  that nothing binds. Verified by a live sign-in on 2026-11-13
+  ([0074-PLAN](docs/decisions/0074-PLAN-one-sign-in-handle-and-method-facts.md)
+  Phase 3a).
+
 ## [v1.30.0] - 2026-11-11
 
 ### Added

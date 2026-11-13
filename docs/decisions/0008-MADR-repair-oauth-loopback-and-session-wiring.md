@@ -724,3 +724,13 @@ Grok browser method's fact `Completion` is `browser_loopback`
 (0074-MADR D1), with no paste.
 
 F5's text above is not rewritten.
+
+*(2026-11-13, 0074-PLAN Phase 8 step 1: the probe has run, and F5's
+inference is replaced by an observation. On a phone's Chrome, which cannot
+reach the host's loopback, xAI's page asked for permission and then showed a
+code; a bare code pasted from that page completed the sign-in, the session
+listed 13 models, and its revocation was recorded as refused on a refresh
+afterwards. The owner's words: "the page opened fine in chrome, asked for
+permission, then provided the code." The Grok browser method's `Completion`
+is now `browser_paste`, `Paste` `url_or_code`. The record is 0074-PLAN,
+"Phase 3a, the owner's run (2026-11-13)".)*

@@ -1635,3 +1635,42 @@ session whose refresh is refused. By the owner's rulings:
   dated note: verified 2026-11-13, by Phase 3a.
 
 No code changed in this record.
+
+### Phase 8, step 1 (2026-11-13)
+
+Run on the pass of Phase 3a's probe, before Phase 4, from `3e16417`. Steps
+3 (`x/signin`, which Phase 4 has not built) and the README (it names no
+loopback-only Grok method) did not apply.
+
+* **Code.** `llmprovider/providers/grok/descriptor.go`: Grok's
+  `browser_oauth` is `Completion` `browser_paste`, `Paste` `url_or_code`,
+  with no `FirstPaste`. `llmprovider/auth/oauth_loopback.go`:
+  `requireNoLoopbackInput` lost its Grok case; `browserEndpoint` with no
+  listener names `http://127.0.0.1:<port>/callback` for Grok, the port from
+  `crypto/rand` (`grokNoLoopbackPort`; `math/rand/v2` failed `gosec` G404) in 49152 to 65535 (constants `grokNoLoopbackPortMin` and
+  `grokNoLoopbackPortMax`), and never bound; OpenAI's is unchanged. The doc
+  comments of `OAuthFlowOptions.NoLoopback`, `LoginBrowserOAuth`,
+  `requireNoLoopbackInput` and `browserEndpoint` say so. No exported name
+  changed.
+* **Tests.** The Grok row of `TestDescriptors_OpenAIAndGrokOfferOAuth`;
+  `TestNoLoopback_GrokUnsupported_0074` replaced by `TestNoLoopback_Grok_0074`
+  (a paste completes it against a fake issuer, with the redirect's scheme,
+  host, path and port range asserted and the token form carrying the same
+  redirect; without an `InputCode`, `ErrInvalidRequest` before any request).
+* **Plants,** `tools/plant.py` on a scratch clone, "plant: all 3 plant(s)
+  caught", the tree untouched: the fact left `browser_loopback` fails the
+  descriptor test; Grok still refused fails `TestNoLoopback_Grok_0074` (both
+  subtests, "unsupported: refused"); OpenAI's port and path named for Grok
+  fails it (the authorize `redirect_uri` was OpenAI's, port 1455, path
+  `/auth/callback`).
+* **Records.** `CHANGELOG.md` `[Unreleased]` **Changed**; a dated note in
+  0008-MADR's 2026-11-12 amendment; dated notes on the MADR's claim rows
+  C56, C57, C60 and C62, whose quoted lines changed (each row holds at its
+  pinned revision).
+* **Checks.** `make pre-add-check` on the four Go files, exit 0 (a first run
+  failed `gosec` G404 on `math/rand/v2`; fixed, plants run again after).
+  `make api-check`, exit 0, 0 incompatible; `tools/apidiff.py v1.30.0`,
+  exit 0, no name from this step.
+* **The gate:** `python3 -B tools/gate.py --timeout 5400` through
+  `run-heavy`, after the last code change, exit 0: "gate: 30 of 30 passed"
+  (started 12:36, finished 12:54 local, 1085 s).
