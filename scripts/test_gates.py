@@ -302,6 +302,20 @@ class GateSelfTest(unittest.TestCase):
         replace_once(self.tree / "llmprovider/catalog/models_catalog.go", "const MaxListed = 6", "var MaxListed = 6")
         self.assertFails("api-check", "MaxListed")
 
+    def test_api_check_wizard_subtree(self) -> None:
+        """A change under wizard, the second subtree apidiff runs on: an
+        exported constant that loses its type (0074-PLAN Phase 4)."""
+        replace_once(self.tree / "wizard/auth.go", 'CredAPIKey CredentialKind = "api_key"', 'CredAPIKey = "api_key"')
+        self.assertFails("api-check", "CredAPIKey")
+
+    def test_api_check_package_outside_the_subtrees(self) -> None:
+        """A public package under neither subtree, which no apidiff run
+        would compare (0074-PLAN Phase 4)."""
+        planted = self.tree / "zzplanted"
+        planted.mkdir()
+        (planted / "plant.go").write_text("// Package zzplanted is planted.\npackage zzplanted\n\n// X is planted.\nconst X = 1\n")
+        self.assertFails("api-check", "zzplanted")
+
     def test_records_check_plan_status(self) -> None:
         """A complete PLAN given a decision's status (0025-MADR)."""
         plan = self.tree / "docs/decisions/0024-PLAN-opencode-live-system-message-test.md"

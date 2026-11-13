@@ -5,7 +5,8 @@ Defined by docs/decisions/0035-MADR-maintainer-tools-in-python.md D1. Where
 `make api-check` fails only on an incompatible change against the latest v1
 tag, this prints every change, compatible or not, between any two points, as a
 record's release notes need. apidiff runs at the version scripts/check_api.py
-pins, read from that file, so there is one pin.
+pins, read from that file, so there is one pin, and once for each of its
+SUBTREES, the reports merged.
 
 Usage:
   tools/apidiff.py OLD [NEW]
@@ -29,6 +30,7 @@ from _common import ROOT
 
 MODULE = "github.com/maccavelli/go-llmprovider-sdk"
 PIN = re.compile(r'^APIDIFF = "([^"]+)"$', re.M)
+SUBTREES = re.compile(r"^SUBTREES = \(([^)]*)\)$", re.M)
 
 
 def pinned() -> str:
@@ -37,6 +39,38 @@ def pinned() -> str:
     if not match:
         raise ValueError("scripts/check_api.py pins no APIDIFF")
     return match.group(1)
+
+
+def subtrees() -> list[str]:
+    """The subtrees scripts/check_api.py compares, one apidiff run each: the
+    pattern `<module>/...` also matches the nested module authcontract, and
+    apidiff then files the whole export under its path (0074-PLAN Phase 4)."""
+    match = SUBTREES.search((ROOT / "scripts" / "check_api.py").read_text(encoding="utf-8"))
+    if not match:
+        raise ValueError("scripts/check_api.py names no SUBTREES")
+    names = re.findall(r'"([^"]+)"', match.group(1))
+    if not names:
+        raise ValueError("scripts/check_api.py's SUBTREES is empty")
+    return names
+
+
+def merge(reports: list[str]) -> str:
+    """One report from the per-subtree ones: each section's lines together, the
+    incompatible changes first, in apidiff's own layout."""
+    sections: dict[str, list[str]] = {"Incompatible changes:": [], "Compatible changes:": []}
+    current = ""
+    for report in reports:
+        for line in report.splitlines():
+            if line in sections:
+                current = line
+            elif line.startswith("- ") and current:
+                sections[current].append(line)
+    out = []
+    for header, lines in sections.items():
+        if lines:
+            out.append(header)
+            out.extend(lines)
+    return "\n".join(out) + "\n" if out else ""
 
 
 def archive(ref: str, dest: Path) -> None:
@@ -59,13 +93,17 @@ def main(argv: list[str] | None = None) -> int:
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
             archive(args.old, work / "old")
-            go_run(tool, ["-m", "-w", str(work / "old.x"), MODULE], work / "old")
             new_tree = ROOT
             if args.new:
                 new_tree = work / "new"
                 archive(args.new, new_tree)
-            go_run(tool, ["-m", "-w", str(work / "new.x"), MODULE], new_tree)
-            report = go_run(tool, ["-m", str(work / "old.x"), str(work / "new.x")], ROOT)
+            reports = []
+            for subtree in subtrees():
+                old, new = work / f"old-{subtree}.x", work / f"new-{subtree}.x"
+                go_run(tool, ["-m", "-w", str(old), f"{MODULE}/{subtree}"], work / "old")
+                go_run(tool, ["-m", "-w", str(new), f"{MODULE}/{subtree}"], new_tree)
+                reports.append(go_run(tool, ["-m", str(old), str(new)], ROOT))
+            report = merge(reports)
     except (OSError, ValueError, subprocess.CalledProcessError) as err:
         detail = getattr(err, "stderr", "") or ""
         print(f"apidiff: {err} {detail}".strip(), file=sys.stderr)

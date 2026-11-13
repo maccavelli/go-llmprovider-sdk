@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """dep-check: only `wizard` leaves the standard library, and then only for
-golang.org/x/term (and the golang.org/x/sys it needs).
+golang.org/x/term (and the golang.org/x/sys it needs). go.mod may also require
+the nested module authcontract, this repository's own.
 
 Defined by docs/decisions/0015-MADR-canonical-sdk-api-and-module-layout.md D2
 and D13, and the standards guide's R2; written in 0015-PLAN S12. For every
@@ -33,8 +34,10 @@ MODULE = "github.com/maccavelli/go-llmprovider-sdk"
 ALLOWED = {
     f"{MODULE}/wizard": ("golang.org/x/term", "golang.org/x/sys/"),
 }
-# The modules go.mod may require (AGENTS.md "Dependencies").
-REQUIRES = {"golang.org/x/term", "golang.org/x/sys"}
+# The modules go.mod may require (AGENTS.md "Dependencies"): golang.org/x/term
+# and its x/sys, and this repository's own nested module authcontract, which
+# is standard library only (0073-MADR D1; 0074-PLAN Phase 4).
+REQUIRES = {"golang.org/x/term", "golang.org/x/sys", f"{MODULE}/authcontract"}
 # A test build names its packages "path [path.test]", and its main package
 # "path.test".
 TEST_VARIANT = re.compile(r" \[[^\]]*\]$")

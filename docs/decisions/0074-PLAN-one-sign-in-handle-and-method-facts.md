@@ -488,6 +488,13 @@ Acceptance: the tests pass, each plant failed; `make dep-check tables-check
 coverage-check docs-check api-check` pass; `x/signin` and
 `internal/signinflow` each at 80 % or more.
 
+*(2026-11-13, the owner's rulings; "Phase 4, deviations", at the end of this
+record: `scripts/check_api.py`, `tools/apidiff.py` and their tests in
+`scripts/test_gates.py` and `tools/test_tools.py` join this phase, since
+`api-check` cannot pass once the root requires the nested module; the
+gates' plant on `wizard`'s R2 row moves to Phase 5, and the deadline plant
+of `TestErrorKindOf_0074` is replaced.)*
+
 *(2026-11-11: `TestStart_NoLoopback_0074` waits with Phase 3 step 2. Its
 plant "`NoLoopback` not passed to `auth`" then names the route the owner
 chooses, not an exported field.)* *(Later 2026-11-11, by the owner's
@@ -535,6 +542,12 @@ the other, as 0073-MADR D3's table is held in acpext.)*
 
 Acceptance: every existing wizard test passes unchanged; the new tests pass,
 each plant failed or seen red; `wizard`'s coverage holds its floor.
+
+*(2026-11-13, Phase 4's Deviation 2, the owner's ruling: the plant of
+Phase 4's gate row, `make tables-check` with `authcontract` removed from
+`wizard`'s R2 row, is run here, once `wizard` imports `internal/signinflow`
+and the contract. It could not fail in Phase 4. Add `authcontract` to
+`wizard`'s row of `docs/architecture.md` in this phase too.)*
 
 ### Phase 6: docs and the changelog
 
@@ -1674,3 +1687,242 @@ loopback-only Grok method) did not apply.
 * **The gate:** `python3 -B tools/gate.py --timeout 5400` through
   `run-heavy`, after the last code change, exit 0: "gate: 30 of 30 passed"
   (started 12:36, finished 12:54 local, 1085 s).
+
+### Phase 4, deviations (2026-11-13)
+
+Found while executing Phase 4, before any commit. Each was put to the owner,
+who ruled the same day.
+
+* **Deviation 1: `make api-check` breaks when the root requires the nested
+  module (blocking).**
+  * **Evidence.** After `go get github.com/maccavelli/go-llmprovider-sdk/authcontract@v0.1.0`
+    (a module-proxy fetch), `make api-check` exits 2 with "16 incompatible
+    change(s)": every root package is both "removed" and "added".
+    `python3 -B tools/apidiff.py v1.30.0` exits 1 the same way, and two tests
+    of `scripts/test_gates.py` fail (`test_api_check_incompatible_change`,
+    `test_clean_copy_passes_every_gate` for gate `api-check`). It did not
+    happen before: the nested module was not in the root's build list.
+  * **Cause.** The pinned apidiff's `loadModule` loads `<module>/...` and takes
+    `Module.Path` from `loaded[0]`. With the requirement, that pattern also
+    matches the nested module's packages; `authcontract` sorts first, so the
+    export is filed under `.../authcontract`, and nothing lines up with the
+    v1.30.0 export. The fix lies in `scripts/check_api.py` (the `-w` and
+    compare calls) and `tools/apidiff.py`, which Phase 4's file list does not
+    name, and neither 0073 nor 0074 foresaw it.
+  * **Resolution, the owner's ruling "Run apidiff per subtree".**
+    `scripts/check_api.py` and `tools/apidiff.py` run apidiff once for
+    `MODULE/llmprovider` and once for `MODULE/wizard` (so the pattern is
+    `MODULE/llmprovider/...` and `MODULE/wizard/...`), and merge the two
+    reports. The export header stays the root module's path, as checked by
+    hand: `-incompatible` against v1.30.0 prints nothing for either subtree.
+    Their tests in `scripts/test_gates.py` and `tools/test_tools.py` change to
+    match, each new or changed check gets a planted break on a scratch clone,
+    and `gate-selftest` and `tools-test` must pass. Both scripts and both
+    test files join Phase 4's scope. The rejected options: a patched or newly
+    pinned apidiff (a fork or a pin bump), and leaving the gate red.
+  * **If every package were moved out of those two subtrees** the check would
+    miss them; the scripts therefore also fail when `go list ./...` names a
+    root-module package outside `llmprovider/` and `wizard/` that is not
+    `internal/`.
+* **Deviation 2: the wizard-row plant moves to Phase 5.** The PLAN's plant
+  "`make tables-check` with `authcontract` removed from `wizard`'s R2 row" is
+  not caught in Phase 4 (exit 0), because `wizard` imports nothing of the
+  contract until Phase 5 (step 1). The owner ruled "Accept both". The plant
+  runs on the rows that import the module now: `authcontract` removed from
+  `llmprovider/x/signin`'s R2 row, from `internal/signinflow`'s R2 row, and
+  from `x/signin`'s row of `docs/architecture.md`; each fails. The wizard-row
+  plant is run in Phase 5, as that phase's table now says. For the same
+  reason `docs/architecture.md`'s `wizard` row does not name `authcontract`
+  yet (`tables-check` fails a name the package does not import); R2's `wizard`
+  row does, as the PLAN says.
+* **Deviation 3: the deadline plant is replaced.** The PLAN's plant for
+  `TestErrorKindOf_0074`, "the poll's deadline returning 0076's plain error
+  again (MADR C51)", is the loop-top `pace.expired()` in
+  `llmprovider/auth/oauth_device.go`. It is not caught from `x/signin`: with
+  the real clock or a `testing/synctest` bubble the deadline is always reached
+  through `sleepBeforeDeadline`, and only the stepped clock inside `auth`
+  reaches the loop-top check (its own test, `TestOpenAIDeviceExpiryKind_0076`,
+  does). The owner ruled "Accept both": the plant is the shared expiry
+  `errDeviceCodeExpired` losing its sentinel (a plain `errors.New`, which maps
+  to `other`, as C51 did). It is caught by the OpenAI deadline subtest of
+  `TestErrorKindOf_DeviceFailures_0074`, which runs the real poll to its
+  15-minute deadline on a synctest bubble: `ErrorKindOf(oauth: device code
+  expired) = "other"; want "expired"`.
+
+### Phase 4 (2026-11-13)
+
+Base: `main` at `5030a7d` (Phase 8 step 1 committed), tree clean. The MADR (D2,
+D3, D4, D8, the amendment of 2026-11-13 and the owner's rulings on the probe)
+and this PLAN were read first. Grok's browser rows are written once, as
+`browser_paste` and `url_or_code`. Deviations 1 to 3 are in "Phase 4,
+deviations" above, each ruled by the owner on 2026-11-13.
+
+* **Step 1, `go.mod` and `go.sum`.** The root requires
+  `github.com/maccavelli/go-llmprovider-sdk/authcontract v0.1.0`, no
+  `replace`. `go get` fetched it from the module proxy (a network fetch, as
+  expected). `go mod tidy -diff`, exit 0.
+* **Step 2, `scripts/check_deps.py`.** `REQUIRES` gains the contract module.
+* **Step 3, `scripts/check_tables.py`.** `imports()` also lists the packages
+  of each nested module (`go -C <dir> list`), and returns which paths are
+  nested; a row may name `authcontract`, and the nested packages need no row
+  of their own, so the architecture prose ("the module has no row in either")
+  holds.
+* **Step 4, R2 and the architecture.** R2's sentence, the rows for
+  `llmprovider/x/signin` and `internal/signinflow`, and `authcontract` in
+  `wizard`'s R2 row. `docs/architecture.md`: the same two rows (listing what
+  each package imports: `x/signin` does not import `internal/redact`, so its
+  architecture row omits it, while R2's "may import" row keeps it as the PLAN
+  gives it), the tree, the graph, the dependency rule, and the `x/` bullet.
+  `wizard`'s architecture row does not name `authcontract` yet (Deviation 2).
+* **Step 5, `internal/signinflow/`.** `signinflow.go` (`Start`, `Spec`, `Run`,
+  `Logins`, `DeviceFlow`, `Result`), `paste.go`, `errorkind.go`. The engine
+  takes the browser, plan and device-start functions as values (nil takes
+  `auth`'s), emits steps in order with `Seq`, and refuses before any request
+  what nothing could complete. A browser sign-in's `accepts` and `paste` step
+  exist only when the method's `Paste` (or `FirstPaste` for a first sign-in)
+  is set and `NoPaste` is not. A pasted value is checked before it reaches
+  `auth`: state, code, and `client_id` for `url_only`; three pastes, so two
+  re-asks and the third bad one ends `invalid_request`; a pasted URL with this
+  state and an `error` passes to `auth`, which ends it `denied`. Because
+  `auth` calls `OpenURL` on its own goroutine, the engine orders the steps
+  itself: the paste step waits for `open_url`. The error mapping lives here
+  and `x/signin.ErrorKindOf` returns it, so the wizard (Phase 5) can use it
+  without importing `x/signin`.
+* **Step 6, `llmprovider/x/signin/`.** `Methods`, `Start`, `Options`,
+  `SignIn`, `Credential` and its five types (`APIKey`, `Session`,
+  `AccessOnly`, `DeviceKey`, `ReadThrough`), `ErrorKindOf`, and the package
+  doc (experimental, R4, D9). `APIKey` and `DeviceKey` redact in `String`,
+  `GoString` and `LogValue`. **Design: the facts table (the owner's ruling
+  "Keep table + equality test").** `Start(p, m, o)` takes no registry, and
+  the PLAN's R2 row for `x/signin` excludes the providers. So `x/signin`
+  holds an unexported table of the eight pairs it drives (`driven`), with the
+  facts copied from the descriptors, and
+  `TestMethods_StartFactsAreTheDescriptors_0074` is its guard: each row must
+  equal `Methods(descriptor)`'s method for the same pair, so a descriptor
+  change that the table does not follow fails the test. Cost: two copies of
+  nine rows. `Start` returns `ErrUnsupported` for any other pair.
+* **Step 7, `ExampleStart`,** with `ExampleMethods` and `ExampleErrorKindOf`:
+  Kilo against an `httptest` server, about 3 s of real polling.
+* **Tests.** Every row of the PLAN's table is present, as
+  `_0074` tests in `llmprovider/x/signin` and `internal/signinflow`; the
+  device tests run the real `auth` code against an in-memory issuer on
+  `testing/synctest`, so the polls and the 15-minute deadline take no real
+  time. Added beyond the table: `TestStart_PlanSteps_0074`,
+  `TestStart_PastedDenial_0074`, `TestStart_NoLoopbackPassedOn_0074`,
+  `TestMethods_StartFactsAreTheDescriptors_0074`,
+  `TestErrorKindOf_DeviceFailures_0074`, `TestCredentialYields_0074`, and the
+  engine tests of `internal/signinflow` (the loopback-only method, since no
+  built-in method is one now; the `NoLoopback` refusals; the paste checks).
+  `TestStart_PasteIsSecret_0074` is in `internal/signinflow`, because the
+  engine's log is reachable only there (`Spec.Logger`). Grok's rows of the
+  browser tests are `browser_paste`/`url_or_code`.
+* **No red/green run was required:** every new test calls a new name.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, never the tree.
+  `plants.json`: "plant: all 28 plant(s) caught", every failure an assertion,
+  none a build failure. Quotes:
+  * `start_device_0074_test.go:90: openai: steps = [waiting show_code done];
+    want [show_code waiting done]` (`waiting` before `show_code`);
+  * `credential_0074_test.go:108: the steps channel is still open after the
+    end` (channel left open);
+  * `start_browser_0074_test.go:77: open_url accepts "url_or_code" under
+    NoPaste; want none` (paste under `NoPaste`);
+  * `signinflow_0074_test.go:98: first step = {... Kind:open_url ...
+    Accepts:url_or_code ...}` (`accepts` not following the method's `Paste`);
+  * `start_browser_0074_test.go:181: re-ask text = "That is not a URL. Paste
+    the whole URL the browser was sent to after you signed in.
+    PLANTED-PASTE-VALUE"; want a reason with no paste` (paste echoed);
+  * `start_browser_0074_test.go:203: Wait = context deadline exceeded; want
+    invalid_request after three bad pastes` (a fourth paste allowed);
+  * `start_browser_0074_test.go:244: Wait = context deadline exceeded; want
+    denied` (the denial re-asked);
+  * `start_browser_0074_test.go:275: something listens at 127.0.0.1:58903;
+    want no listener under NoLoopback` (`NoLoopback` not passed to `auth`;
+    the plan's: `:350: plan login was given {hasInput:true noLoopback:false
+    ...}`);
+  * `start_device_0074_test.go:108: Start with NoLoopback = llmprovider:
+    unsupported: planted; want no error for a device sign-in`, and `:118:
+    StartDeviceOAuth with NoLoopback = ... unsupported: planted; want it to
+    start`;
+  * `start_browser_0074_test.go:372: another Seq: Answer = <nil>; want
+    ErrInvalidRequest` (`Answer` ignores `Seq`), and `:373: open_url with
+    accepts: Answer = <nil>; want ErrInvalidRequest` (the `open_url` taken as
+    the paste);
+  * `signinflow_0074_test.go:188: the engine's log holds the paste: ...
+    answer.secret=false ...` (the caller's `Secret` kept);
+  * `start_device_0074_test.go:154: the poll ran 10m0s after Cancel; want it
+    stopped at once` (`Cancel` does not stop the poll);
+  * `start_device_0074_test.go:201: quota is not rate_limited:
+    ErrorKindOf(llmprovider: quota exhausted) = "rate_limited"; want "quota"`
+    and `expired is not auth: ErrorKindOf(llmprovider: authentication failed:
+    sign-in expired) = "auth"; want "expired"`;
+  * Deviation 3's: `start_device_0074_test.go:235: ErrorKindOf(oauth: device
+    code expired) = "other"; want "expired"`;
+  * `credential_0074_test.go:39: APIKey output 0 shows the key:
+    sk-PLANTED-0074-KEY-VALUE`;
+  * `Paste not copied`, the implicit key for Ollama, a descriptor's
+    `Completion` set to `browser-paste`, `auth.SessionKiloDevice` respelled,
+    a fifth `SessionKind` constant, `api_key` started, and `LookupEnv`
+    ignored, each caught by its test. Three of the 28 were first caught only
+    by a ten-minute test timeout (a fourth paste, the denial, `Cancel`); the
+    tests' waits are now bounded to 5 s and the 28 were run again.
+* **Plants of the gates.** `make dep-check` with the contract's requirement
+  removed from `REQUIRES`: exit 1 (`dep-check: go.mod requires
+  github.com/maccavelli/go-llmprovider-sdk/authcontract`). `make tables-check`
+  with `authcontract` removed from `x/signin`'s R2 row, from
+  `internal/signinflow`'s R2 row, and from `x/signin`'s architecture row:
+  each exit 1, naming the package and the module. The wizard-row plant is not
+  caught, and moves to Phase 5 (Deviation 2).
+* **Deviation 1's change.** `scripts/check_api.py`: `SUBTREES`, `compare`
+  (one apidiff run per subtree, the reports one after the other) and
+  `uncovered` (a root-module package outside the subtrees that is not
+  internal fails the gate, exit 1). `tools/apidiff.py`: `subtrees()` (read
+  from `check_api.py`, one source), `merge` (the reports by section). Tests:
+  `scripts/test_gates.py` `test_api_check_wizard_subtree` and
+  `test_api_check_package_outside_the_subtrees`; `tools/test_tools.py`
+  `test_the_subtrees_are_read_from_check_api` and
+  `test_merge_joins_the_reports_by_section`. Plants of these, on a scratch
+  clone: `plants_api.json`, "plant: all 4 plant(s) caught" (a subtree left
+  out: `AssertionError: 'CredAPIKey' not found in 'api-check: package(s)
+  outside llmprovider that no apidiff run compares: wizard'`; the guard
+  removed: `test_api_check_package_outside_the_subtrees ... AssertionError: 0
+  != 1 : api-check exit 0, want 1`; the merge keeping the first report only:
+  `test_api_check_wizard_subtree ... api-check exit 0, want 1`; the new
+  export read from the old tree: `test_api_check_incompatible_change ...
+  api-check exit 0, want 1`), and `plants_apitools.json`, "plant: all 3
+  plant(s) caught" (`merge` dropping every report but the first:
+  `test_merge_joins_the_reports_by_section ... AssertionError`; compatible
+  changes under the incompatible header: the same test; a subtree left out of
+  `SUBTREES`: `test_the_subtrees_are_read_from_check_api ... Lists differ:
+  ['llmprovider'] != ['llmprovider', 'wizard']`).
+* **A stray `git stash`.** During the diagnosis of Deviation 1 I ran `git
+  stash -q` by mistake, and popped it at once. `git stash pop` restored every
+  modified file ("Dropped refs/stash@{0}") and `git status` listed the same
+  six modified files and two untracked trees as before; nothing was lost. I
+  did not use it again.
+* **Checks,** each exit status captured before any filter:
+  * `make pre-add-check FILES=...` on the fifteen Go files and
+    `scripts/check_deps.py`, through `run-heavy`, exit 0, "go-precheck: 16
+    file(s) clean". The first run failed `revive` (`start` beside `Start`,
+    `confusing-naming`) and `unused` (`assertClosed`); the function was renamed
+    `startWith` and the helper deleted, no `nolint`.
+  * `make api-check`, exit 0: "against v1.30.0, 0 incompatible change(s)
+    outside llmprovider/x/". `python3 -B tools/apidiff.py v1.30.0`, exit 0,
+    all "Compatible changes": the nine `AuthMethod` fields and the session
+    additions of Phases 1 to 3 (21 names) and the new package
+    `llmprovider/x/signin`, which is experimental (R4); Phase 4 adds no name
+    outside `x/`, as R55's table says. The experimental names are
+    `Methods`, `Start`, `Options` and its nine fields, `SignIn` and its
+    `Method`, `Steps`, `Answer`, `Wait`, `Cancel`, `Credential`, `APIKey`,
+    `Session`, `AccessOnly`, `DeviceKey`, `ReadThrough` and `ErrorKindOf`; no
+    name beyond the table.
+  * `make dep-check`, `tables-check`, `docs-check`, `contract-check`,
+    `generate-check`: each exit 0. `make coverage-check`: `internal/signinflow`
+    88.9 %, `llmprovider/x/signin` 96.1 %, against 80.0 %.
+* **The gate:** `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, after the
+  last code change (the only edits after it are to this record), exit 0: "gate: 30 of 30
+  passed", every check rc=0, `gate-selftest` and `tools-test` included
+  (started 15:39, finished 15:51 local, 717 s). `make gate-selftest` and
+  `make tools-test` pass with the changed `check_api.py` and `apidiff.py`.
+* Not done, as the phase says: no `wizard` change, no `Driver`, no CHANGELOG
+  line (Phase 6), none of 0075's `ConsentText`, `HostID` or `ClientStore`, and
+  none of 0079.

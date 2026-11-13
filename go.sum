@@ -1,3 +1,5 @@
+github.com/maccavelli/go-llmprovider-sdk/authcontract v0.1.0 h1:CTT0MX7awBzOMfuAo32vdF4Lj1m4rvyvW98A83ogABo=
+github.com/maccavelli/go-llmprovider-sdk/authcontract v0.1.0/go.mod h1:xwd9YePix/SG+RErPL4hU85uI8R04uXt6duJ0ZbY5b0=
 golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=
 golang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
 golang.org/x/term v0.43.0 h1:S4RLU2sB31O/NCl+zFN9Aru9A/Cq2aqKpTZJ6B+DwT4=

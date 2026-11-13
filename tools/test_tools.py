@@ -764,6 +764,22 @@ class TestApidiffArgs(unittest.TestCase):
         self.assertIn(f'APIDIFF = "{apidiff.pinned()}"', source)
         self.assertNotIn("golang.org/x/exp/cmd/apidiff@", (_common.ROOT / "tools" / "apidiff.py").read_text())
 
+    def test_the_subtrees_are_read_from_check_api(self) -> None:
+        """One run per subtree, never one for the module: the pattern
+        `<module>/...` also matches the nested module authcontract
+        (0074-PLAN Phase 4)."""
+        self.assertEqual(apidiff.subtrees(), ["llmprovider", "wizard"])
+
+    def test_merge_joins_the_reports_by_section(self) -> None:
+        first = "Incompatible changes:\n- ./llmprovider.A: removed\nCompatible changes:\n- ./llmprovider.B: added\n"
+        second = "Compatible changes:\n- ./wizard.C: added\n"
+        third = "Incompatible changes:\n- ./wizard.D: removed\n"
+        self.assertEqual(
+            apidiff.merge([first, second, third]),
+            "Incompatible changes:\n- ./llmprovider.A: removed\n- ./wizard.D: removed\n"
+            "Compatible changes:\n- ./llmprovider.B: added\n- ./wizard.C: added\n")
+        self.assertEqual(apidiff.merge(["", ""]), "")
+
 
 LIVE_RUN = """=== RUN   TestLive_A
     live_a_test.go:10: answered

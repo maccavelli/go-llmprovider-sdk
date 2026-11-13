@@ -15,7 +15,12 @@ in 0046-PLAN Phase 1. It fails when:
   * AGENTS.md names a live variable that no live test reads.
 
 The imports are `go list`'s, for the host and for GOOS=windows, merged; only
-the module's own packages and golang.org/x/ are compared. A table cell's
+the module's own packages and golang.org/x/ are compared. The packages of a
+nested module (a directory below the root with its own go.mod, such as
+authcontract, 0073-MADR D1) are listed too, by `go -C <dir> list`, so that a
+row may name one, as wizard's names authcontract (0074-PLAN Phase 4); the
+nested module itself has no row in either table, and its packages need none.
+A table cell's
 names are its backticked tokens: a name is the package it equals, or the one
 it ends in after a slash. "the above" (R2) is every package of the rows
 above; "internal packages" every package with internal/ in its path; "the
@@ -55,25 +60,37 @@ class ToolError(Exception):
     """A failure to read the code or a table, not a drift."""
 
 
-def imports() -> dict[str, set[str]]:
+def nested_modules() -> list[str]:
+    """The directories below the root that hold a go.mod of their own."""
+    return sorted(path.parent.name for path in ROOT.glob("*/go.mod"))
+
+
+def imports() -> tuple[dict[str, set[str]], set[str]]:
     """Each package of the module, by path relative to it ("." for the root),
-    with the module's packages and golang.org/x/ modules it imports."""
+    with the module's packages and golang.org/x/ modules it imports, and the
+    set of those paths that belong to a nested module."""
     out: dict[str, set[str]] = {}
-    for goos in ("", "windows"):
-        env = dict(os.environ, GOOS=goos) if goos else None
-        proc = subprocess.run(["go", "list", "-f", "{{.ImportPath}}|{{join .Imports \",\"}}", "./..."],
-                              cwd=ROOT, env=env, capture_output=True, text=True, check=False)
-        if proc.returncode != 0:
-            raise ToolError(f"GOOS={goos or 'host'} go list failed:\n{proc.stderr}")
-        for line in proc.stdout.splitlines():
-            path, _, deps = line.partition("|")
-            got = out.setdefault(path.removeprefix(MODULE).lstrip("/") or ".", set())
-            for dep in filter(None, deps.split(",")):
-                if dep.startswith(MODULE + "/"):
-                    got.add(dep.removeprefix(MODULE + "/"))
-                elif dep.startswith("golang.org/x/"):
-                    got.add(dep)
-    return out
+    nested: set[str] = set()
+    runs = [(".", [])] + [(d, ["-C", d]) for d in nested_modules()]
+    for directory, flags in runs:
+        for goos in ("", "windows"):
+            env = dict(os.environ, GOOS=goos) if goos else None
+            proc = subprocess.run(["go", *flags, "list", "-f", "{{.ImportPath}}|{{join .Imports \",\"}}", "./..."],
+                                  cwd=ROOT, env=env, capture_output=True, text=True, check=False)
+            if proc.returncode != 0:
+                raise ToolError(f"GOOS={goos or 'host'} go list in {directory} failed:\n{proc.stderr}")
+            for line in proc.stdout.splitlines():
+                path, _, deps = line.partition("|")
+                name = path.removeprefix(MODULE).lstrip("/") or "."
+                got = out.setdefault(name, set())
+                if directory != ".":
+                    nested.add(name)
+                for dep in filter(None, deps.split(",")):
+                    if dep.startswith(MODULE + "/"):
+                        got.add(dep.removeprefix(MODULE + "/"))
+                    elif dep.startswith("golang.org/x/"):
+                        got.add(dep)
+    return out, nested
 
 
 def table(path: str, header: str) -> list[tuple[str, str]]:
@@ -119,7 +136,7 @@ def names(cell: str, packages: set[str], above: set[str]) -> tuple[set[str], lis
     return got, unresolved
 
 
-def check_architecture(pkgs: dict[str, set[str]]) -> list[str]:
+def check_architecture(pkgs: dict[str, set[str]], nested: set[str]) -> list[str]:
     problems = []
     packages = set(pkgs)
     seen = set()
@@ -138,11 +155,11 @@ def check_architecture(pkgs: dict[str, set[str]]) -> list[str]:
             problems.append(f"{ARCHITECTURE}: {pkg}: names {', '.join(stale)}, which it does not import")
         if unresolved:
             problems.append(f"{ARCHITECTURE}: {pkg}: names no one package: {', '.join(unresolved)}")
-    problems += [f"{ARCHITECTURE}: {p}: no row" for p in sorted(packages - seen)]
+    problems += [f"{ARCHITECTURE}: {p}: no row" for p in sorted(packages - seen - nested)]
     return problems
 
 
-def check_standards(pkgs: dict[str, set[str]]) -> list[str]:
+def check_standards(pkgs: dict[str, set[str]], nested: set[str]) -> list[str]:
     problems = []
     packages = set(pkgs)
     rows = []
@@ -169,7 +186,7 @@ def check_standards(pkgs: dict[str, set[str]]) -> list[str]:
                 problems.append(f"{STANDARDS}: {pkg}: imports {', '.join(extra)}, which its row does not allow")
         seen |= targets
         above |= targets
-    problems += [f"{STANDARDS}: {p}: no row" for p in sorted(packages - seen)]
+    problems += [f"{STANDARDS}: {p}: no row" for p in sorted(packages - seen - nested)]
     return problems
 
 
@@ -193,8 +210,8 @@ def check_live_variables() -> list[str]:
 
 def main() -> int:
     try:
-        pkgs = imports()
-        problems = check_architecture(pkgs) + check_standards(pkgs) + check_live_variables()
+        pkgs, nested = imports()
+        problems = check_architecture(pkgs, nested) + check_standards(pkgs, nested) + check_live_variables()
     except (ToolError, OSError) as err:
         print(f"check-tables: {err}", file=sys.stderr)
         return 2

@@ -29,9 +29,12 @@ tool that holds a rule, where one does. For how the code is laid out, read
   (0015 D2, and its amendment for 0073)
 - **R2. A package holds one concern**, and imports only what the table allows.
   Only `wizard` may leave the standard library, and then only for
-  `golang.org/x/term`. (0015 D2, D13; the table's `internal/wire` rows, 0026
+  `golang.org/x/term`; `wizard`, `llmprovider/x/signin` and
+  `internal/signinflow` may also import the nested module `authcontract`,
+  which is itself standard library only (0073-MADR D1). (0015 D2, D13; the table's `internal/wire` rows, 0026
   F62; `internal/listlimit`, 0038 A3; `internal/chatgpt`, 0041 D9; the import rows, 0046 D4; `internal/cacheref`, 0048 D1, 0049 D3, 0062 D5; `internal/nilsource`, 0050 D2;
-  `internal/compatid`, 0061 E1; `internal/compatdialect`, 0061 E2, E5)
+  `internal/compatid`, 0061 E1; `internal/compatdialect`, 0061 E2, E5; `llmprovider/x/signin`, `internal/signinflow` and
+  `authcontract`, 0074 D3)
 
   | Package | Holds | May import |
   | :--- | :--- | :--- |
@@ -58,7 +61,9 @@ tool that holds a rule, where one does. For how the code is laid out, read
   | `llmprovider/internal/wire/<format>` | one wire format | `llmprovider`, `internal/wire`, `internal/transport`, `internal/redact`, `internal/wire/deferral` |
   | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, for the wire formats and the providers | `llmprovider`, `internal/wire/messages` |
   | `llmprovider/internal/transport` | the default client, identity headers, `Retry-After`, the listing probe | the standard library |
-  | `wizard` | the configuration flow, over a `Registry` | the above, `internal/redact`, `golang.org/x/term` |
+  | `llmprovider/x/signin` | experimental: one sign-in handle (`Start`), a descriptor's methods in the contract's words (`Methods`), `Credential` and `ErrorKindOf` (0074 D2, D3, D8) | `llmprovider`, `auth`, `authcontract`, `internal/signinflow`, `internal/redact` |
+  | `internal/signinflow` | the step engine under `llmprovider/x/signin` and `wizard` (0074 D3, D4, D6) | `llmprovider`, `auth`, `authcontract`, `internal/redact` |
+  | `wizard` | the configuration flow, over a `Registry` | the above, `authcontract`, `internal/redact`, `golang.org/x/term` |
   | `internal/redact` | redaction | the standard library |
   | `llmprovider/internal/wirecase` | G-wire's scenarios, for the provider packages' tests only | `llmprovider`, `internal/wiretest` |
   | `internal/wiretest` | G-wire's request recorder, for tests only | the standard library |

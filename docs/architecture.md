@@ -8,7 +8,8 @@ argument, and [README.md](README.md) indexes them.
 
 The Go module `github.com/maccavelli/go-llmprovider-sdk`: a library for calling
 LLM providers and authenticating to them. It has no binary. It requires Go
-1.27.4, `golang.org/x/term` and, indirectly, `golang.org/x/sys`.
+1.27.4, `golang.org/x/term` and, indirectly, `golang.org/x/sys`, and its own
+nested module `authcontract` (below).
 
 The code came from `mcplib` `v1.6.0` with its history. Its API is the v1 API
 that [0015-MADR](decisions/0015-MADR-canonical-sdk-api-and-module-layout.md)
@@ -82,7 +83,9 @@ llmprovider/internal/retired/ the retired model ids, with why, for the catalog t
 llmprovider/internal/catalogtool/ the maintainer tool's proposals for the static lists
 llmprovider/internal/cmd/catalogs/ the maintainer tool: go run, prints the proposals, edits nothing
 llmprovider/internal/cmd/sdkaudit/ the API audit: go run, reports or checks R50–R52, edits nothing
+llmprovider/x/signin/       experimental (R4): one sign-in handle, `Methods` and `ErrorKindOf`, over the auth contract
 wizard/                     interactive provider configuration
+internal/signinflow/        the step engine under llmprovider/x/signin: steps, answers, pastes
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
 internal/nettest/           a refused connection and a free loopback port, for tests only
@@ -145,6 +148,8 @@ standard library is left out.
 | :--- | :--- | :--- |
 | `llmprovider` | the contract: request and response types, errors, options, `NewHTTPClient`, the bounded client a caller wraps to add headers (0066-MADR D2), the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact`, `internal/nilsource` |
 | `llmprovider/auth` | OAuth sessions and their refresh and revocation, with `OAuthSession.Wait` for a detached refresh (0071-MADR D3), the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
+| `llmprovider/x/signin` | experimental (R4, 0074-MADR D9): `Methods`, a descriptor's methods as the contract's `Method` values; `Start`, `Options` and `SignIn`, one handle for a device, browser, plan or vendor-import sign-in; `Credential` and its five types; `ErrorKindOf` | `llmprovider`, `auth`, `authcontract`, `internal/signinflow` |
+| `internal/signinflow` | the step engine under `llmprovider/x/signin` (0074-MADR D3, D4): `Start`, `Spec` and `Run` emit the contract's steps in order, take the answers, check a pasted callback (state, code, `client_id`; three pastes), and return the result; `ErrorKindOf` and `Failure` | `llmprovider`, `auth`, `authcontract`, `internal/redact` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/chatcompat`, `providers/openai`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
@@ -189,7 +194,9 @@ standard library is left out.
 ## Package graph
 
 Each package imports only packages on a lower row. Every package may also use
-the standard library; only `wizard` uses anything else, `golang.org/x/term`.
+the standard library; only `wizard` uses anything else, `golang.org/x/term`, and
+`wizard`, `llmprovider/x/signin` and `internal/signinflow` may also import the
+nested module `authcontract`.
 
 ```text
 wizard
@@ -197,6 +204,8 @@ providers                     Default(), New(id, …)
 providers/<id>                one package per provider or gateway family
 catalog   internal/wire/<format>   llmtest
 internal/chatgpt              a ChatGPT session's headers and listing request, and a plan session's
+llmprovider/x/signin          experimental: Methods, Start, SignIn, Credential, ErrorKindOf
+internal/signinflow           the step engine under x/signin: steps, answers, pastes
 auth
 internal/wire
 llmprovider                   the contract
@@ -1118,7 +1127,8 @@ The ChatGPT `originator` header and the Grok OAuth `referrer` are
 
 ## The dependency rule
 
-The standard library and `golang.org/x/term` only; any other module needs a
+The standard library and `golang.org/x/term` only, and the nested module
+`authcontract`, which is standard library only; any other module needs a
 MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 
 ## Tooling
@@ -1137,7 +1147,7 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   or in a test is checked too. It fails when a package other than `wizard`
   reaches beyond the standard library and this module, or `wizard` beyond
   `golang.org/x/term` and the `golang.org/x/sys` it needs, and when `go.mod`
-  requires any other module.
+  requires any module but `golang.org/x/term`, `golang.org/x/sys` and `authcontract`.
 - **`coverage-check`** (`scripts/check_coverage.py`) measures each package
   with `go test -cover` against its floor in `scripts/coverage-floors.txt`:
   - `llmprovider` (95.9 %) and `wizard` (86.4 %), two points below their
@@ -1284,4 +1294,6 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
 - **Streamed reasoning on the Gemini wires.** generateContent and
   Interactions send no thought-summary delta in their streams, as measured,
   so their reasoning arrives only as an item.
-- **`llmprovider/x/`.** No experimental API exists.
+- **`llmprovider/x/`.** One experimental package exists, `llmprovider/x/signin`
+  (R4): it is outside `make api-check` and may change in any release until a
+  record promotes it (0074-MADR D9).
