@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-11-12
+date: 2026-11-13
 decision-makers: repository owner
 consulted: "magic-cli-remote's docs/reports/0245-REPORT-non-api-key-auth-across-magic-gobble-and-the-sdk.md (observed 2026-11-10, committed in that repository as 3e2f784b, unchanged at eefb7c25), its SDK findings F2, F6, F7, F12 to F14, F17, F18, F20, F21, F26, F27, F40 and F59, its ledger S1 to S6, S10, S12 and S13, and the owner's decisions of 2026-11-10; the SDK audit behind it; this repository at 773b84c; the consumers' proposed, untracked records as they stood on 2026-11-11: gobble-cli's 0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md and 0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md and their PLANs (gobble-cli origin/main 17d1605), and magic-cli-remote's 0246-MADR-take-provider-auth-types-from-the-sdk-auth-contract-in-one-cut-over.md and 0247-MADR-replay-a-pasted-sign-in-callback-to-the-agents-loopback.md and their PLANs (magic-cli-remote origin/master eefb7c25)"
 informed: gobble-cli and magic-cli-remote, which drive sign-ins through this engine; every caller of llmprovider/auth and wizard
@@ -66,7 +66,7 @@ handle, the wizard on top of it, and what in `auth` changes under it.
 
 ### Evidence index
 
-<!-- claims: self=773b84c -->
+<!-- claims: self=773b84c go-llmprovider-sdk=5e0ec2c grok-build=2bdd1d6a -->
 
 | Id | Claim | Location | Text |
 | :--- | :--- | :--- | :--- |
@@ -125,6 +125,18 @@ handle, the wizard on top of it, and what in `auth` changes under it.
 | C53 | The device-login variable is scoped to Grok and Kilo | `AGENTS.md:247` | `` `LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok and Kilo `` |
 | C54 | A pasted URL with this state and an `error` ends the login with the provider's error | `llmprovider/auth/oauth_loopback.go:619` | `if authErr := callbackError(query); authErr != nil {` |
 | C55 | Without its own token URL, no other issuer's refresh token is sent | `llmprovider/auth/oauth_session.go:890` | `providers. Any other issuer's refresh token is never sent elsewhere` |
+| C56 | (2026-11-13, this repository at `5e0ec2c`) `NoLoopback` is refused for Grok | `go-llmprovider-sdk:llmprovider/auth/oauth_loopback.go:265` | `case config.provider == llmprovider.ProviderGrok:` |
+| C57 | because its paste is unverified | `go-llmprovider-sdk:llmprovider/auth/oauth_loopback.go:266` | `NoLoopback is not supported for Grok's browser sign-in, whose pasted callback is unverified` |
+| C58 | A given `InputCode` races the bound listener | `go-llmprovider-sdk:llmprovider/auth/oauth_loopback.go:224` | `if config.inputCode != nil {` |
+| C59 | Grok's listener binds the host's `127.0.0.1` only, on an ephemeral port | `go-llmprovider-sdk:llmprovider/auth/oauth_loopback.go:453` | `listener, err := net.Listen("tcp", "127.0.0.1:0")` |
+| C60 | With no listener, the redirect names OpenAI's first port and path | `go-llmprovider-sdk:llmprovider/auth/oauth_loopback.go:438` | `openaiLoopbackPorts[0], openAICallbackPath), openAICallbackPath, nil` |
+| C61 | A bare code is taken, unchecked against the state | `go-llmprovider-sdk:llmprovider/auth/oauth_loopback.go:760` | `return oauthCallbackResult{code: input}` |
+| C62 | Grok's browser fact today | `go-llmprovider-sdk:llmprovider/providers/grok/descriptor.go:42` | `"browser_loopback",` |
+| C63 | The wizard already races a paste for Grok's browser sign-in | `go-llmprovider-sdk:wizard/auth.go:237` | `flow, drain := browserFlowOptions(p, o)` |
+| C64 | The vendor CLI's paste is for a browser on another machine | `grok-build:crates/codegen/xai-grok-login/src/oidc/login.rs:357` | `Path B is essential for remote VMs where the browser runs on a different machine` |
+| C65 | It takes the full callback URL or a bare code | `grok-build:crates/codegen/xai-grok-login/src/oidc/login.rs:31` | `Accepts two formats: Full callback URL:` |
+| C66 | xAI's consent page delivers the code by a background fetch | `grok-build:crates/codegen/xai-grok-login/src/config.rs:614` | `delivers the code via` |
+| C67 | The vendor's own UI shows a copyable URL and a paste box | `grok-build:crates/codegen/xai-grok-login/src/flow.rs:139` | `Loopback-callback flow: the TUI shows a copyable URL and a paste box.` |
 
 ## Decision Drivers
 
@@ -217,6 +229,12 @@ and approved its PLAN the same day. Its code waits for `ci.yml` to pass on
 [0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md](0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md),
 as the PLAN's execution record says.
 
+On 2026-11-13 the owner ruled "Probe Grok paste; keep 0247": the PLAN's
+Phase 7 step 4 completes a Grok browser sign-in by a paste from a browser
+that cannot reach the host's loopback, and its outcome decides D1's Grok
+fact and D4's Grok refusal ("Amendment 2026-11-13: a live probe of Grok's
+paste", below). The record stays `accepted`.
+
 ### D1. Method facts on `llmprovider.AuthMethod`
 
 `AuthMethod` gains comparable fields, each a plain string or a boolean, so the
@@ -263,7 +281,11 @@ struct stays comparable (0043-MADR A1):
   the code accepts one (C4). Whether accounts.x.ai ever shows a pasteable URL
   or code is unverified (the report's F13, U1; 0008-MADR F5 calls the
   delivery "inferred"). The fact changes to `browser_paste` only after the
-  owner-run probe of D12 shows a paste completing it.
+  owner-run probe of D12 shows a paste completing it. *(2026-11-13, the
+  owner's ruling: the probe completes the sign-in by a paste from a browser
+  that cannot reach the host. On a pass the row becomes `browser_paste`,
+  `url_or_code`, as OpenAI's `browser_oauth` row is; on a fail it stays.
+  "Amendment 2026-11-13", below.)*
 * **OpenAI's pasted token yields `access_only`,** the credential that needs a
   store and is revocable. A pasted `sk-` key is taken as an API key and saves
   nothing (`wizard/auth.go`'s `resolveTokenStdin`). The fact names the
@@ -348,7 +370,10 @@ type Credential interface {
     `auth`'s `LoginBrowserOAuth` still takes an `InputCode` for Grok (C4);
     the engine passes none. *(2026-11-11: the rule read `NoPaste` alone and
     would have offered Grok a paste its fact denies. Confirmed by the owner
-    the same day.)*;
+    the same day.)* *(2026-11-13: the rule itself does not change. On a pass
+    of the Grok paste probe, Grok's fact is `browser_paste`, so this bullet
+    no longer applies to it: Grok's sign-in takes the bullet above, with an
+    `InputCode` from the engine. "Amendment 2026-11-13", below.)*;
   * the plan: 0075-MADR D4's `confirm` first, then as a browser sign-in, its
     first paste `url_only` (its `FirstPaste`, D1);
   * a vendor import: `done` or `failed`.
@@ -427,14 +452,19 @@ type Credential interface {
     device sign-in: `StartDeviceOAuth`, OpenAI's, Grok's and Kilo's alike,
     takes the same `OAuthFlowOptions` but binds no listener in the first
     place, so it runs as it does without the option. *(2026-11-11, the
-    owner's ruling on device sign-ins.)*
+    owner's ruling on device sign-ins.)* *(2026-11-13: Grok's
+    `ErrUnsupported` (C56, C57) lifts with D1's fact on a pass of the Grok
+    paste probe, and Grok's no-listener redirect then names its own path;
+    on a fail it stays. "Amendment 2026-11-13", below.)*
   * **In `x/signin`.** `NoLoopback` has no effect on a device sign-in, which
     binds no listener in the first place: `Start` runs it as it does without
     the option, with the same steps (D3). Only a browser method is refused:
     one whose `Paste` fact is empty (Grok's `browser_loopback`, D1) is an
     error matching `ErrUnsupported`, as in `auth`, and one with `NoPaste` as
     well is `ErrInvalidRequest`, since nothing could complete the sign-in.
-    Both are returned by `Start`, before any request. *(2026-11-11, the
+    Both are returned by `Start`, before any request. *(2026-11-13: on a
+    pass of the Grok paste probe, Grok's `Paste` fact is set, so it is no
+    longer refused here; "Amendment 2026-11-13", below.)* *(2026-11-11, the
     owner's ruling on device sign-ins. The bullet read: "With a method whose
     `Paste` fact is empty it is an error matching `ErrUnsupported`, as for
     Grok; with `NoPaste` as well it is `ErrInvalidRequest`, since nothing
@@ -744,7 +774,10 @@ grok, kilo and opencode into the contract's steps stay in magic-cli-remote.
   * the report's U3: the plan sign-in completed by a pasted full URL from
     another device, and its port fallback;
   * the SDK side of U1: Grok's browser sign-in opened on another device,
-    recording whether accounts.x.ai shows anything pasteable.
+    recording whether accounts.x.ai shows anything pasteable. *(2026-11-13,
+    the owner's ruling: it also completes the sign-in by that paste, through
+    `LoginBrowserOAuth` with an `InputCode` and the host's listener bound but
+    out of the browser's reach; "Amendment 2026-11-13", below.)*
 
 ### Consequences
 
@@ -1033,10 +1066,198 @@ labels, relayed by the cross-repository coordinator.
   `TestSessionKindsMatchContract_0074`, which pins the two value sets equal
   once the root requires the contract.
 
+### Amendment 2026-11-13: a live probe of Grok's paste, and what its outcome changes
+
+**The ruling.** On 2026-11-13 the owner chose "Probe Grok paste; keep
+0247". The PLAN's Phase 7 step 4, which the owner already runs, completes a
+Grok browser sign-in by a paste from a browser that cannot reach the host's
+loopback. magic-cli-remote's
+`docs/decisions/0247-MADR-replay-a-pasted-sign-in-callback-to-the-agents-loopback.md`
+is kept as it is; what it says of Grok is that repository's to change.
+
+**What the records and the code show.**
+
+* The paste path exists, and the shipped code allows it for Grok.
+  `LoginBrowserOAuth` races a given `InputCode` against the bound listener
+  (C58), and the wizard gives Grok's browser sign-in one today (C63). Only
+  `NoLoopback` is refused for Grok (C56, C57).
+* Grok's listener binds the host's `127.0.0.1` on an ephemeral port (C59).
+  A browser on another device that is sent to
+  `http://127.0.0.1:<port>/callback` reaches its own loopback, not the
+  host's, so it cannot deliver the callback.
+* xAI's consent page is served from `accounts.x.ai` and delivers the code
+  by a background `fetch(..., cors)` to that loopback (C66;
+  [0008-MADR-repair-oauth-loopback-and-session-wiring.md](0008-MADR-repair-oauth-loopback-and-session-wiring.md)
+  F5;
+  [0010-MADR-windows-stdio-oauth-tokenstore-ci.md](0010-MADR-windows-stdio-oauth-tokenstore-ci.md)'s
+  vendor notes). It does not navigate to it, so by that route the callback
+  URL never reaches the address bar.
+* The vendor CLI expects the full callback URL
+  (`http://127.0.0.1:PORT/callback?code=…&state=…`) or a bare code to be
+  pasted (C65). It calls that path "essential for remote VMs where the
+  browser runs on a different machine" (C64), and its own UI shows "a
+  copyable URL and a paste box" for the loopback flow (C67). This SDK's
+  parser takes the same two shapes; a bare code skips the state check (C61;
+  [0020-MADR-remediate-v1-debugging-pass-findings.md](0020-MADR-remediate-v1-debugging-pass-findings.md)
+  F44).
+
+**What they do not show.** No record or source read says what the
+accounts page shows when its fetch fails: the callback URL, the code, a
+navigation to the callback (which would put the URL in the address bar), or
+nothing pasteable. None says whether xAI exchanges a code delivered that
+way either. The vendor's prompt implies something pasteable, but that is
+not an observation. The probe observes it: the owner records what the page
+and the address bar showed (the PLAN's Phase 7 step 4).
+
+**Why the probe's route stands for `NoLoopback`.** The probe does not set
+`NoLoopback`, which the shipped code refuses for Grok (C56). It binds the
+host's listener, as the shipped code does, and completes by the paste that
+races it (C58). The difference cannot be seen from outside the host: xAI
+sees only the redirect URI, and the other device's browser reaches no
+listener of the host's whether one is bound or not. A paste that completes
+the sign-in with the host's listener bound and out of reach completes it
+with none. No test-only seam is needed, and Phase 7 adds no code outside
+the live test files.
+
+**On a pass.** A pass is the PLAN's step 4 logging a completion by a paste
+from a browser that could not reach the host, after which the session lists
+models and is revoked.
+
+* **D1:** Grok's `browser_oauth` becomes `Completion` `browser_paste` and
+  `Paste` `url_or_code`, with no `FirstPaste`, as OpenAI's `browser_oauth`
+  row is. It is `url_or_code` whether the person pasted the URL or a code:
+  `auth`'s parser takes both (C61), and D4's engine takes a bare code only
+  under `url_or_code`. D1's condition, "only after the owner-run probe of
+  D12 shows a paste completing it", is met.
+* **D3:** the step rule follows the fact, unchanged. Grok's browser sign-in
+  gets `open_url` with `accepts`, then `paste`, unless `NoPaste` is set, and
+  the engine passes an `InputCode`. D4's bad-paste and pasted-denial rules
+  apply to it as to OpenAI's.
+* **D4:** Grok's `ErrUnsupported` under `NoLoopback` lifts, in `auth` and
+  in `x/signin`. A Grok sign-in with `NoLoopback` needs an `InputCode`,
+  else `ErrInvalidRequest`; with `NoPaste` as well it is
+  `ErrInvalidRequest`, as for OpenAI.
+* **D4, the redirect with no listener:** it names Grok's own form,
+  `http://127.0.0.1:<port>/callback`, with a port drawn at random from the
+  dynamic range (49152 to 65535) and never bound. Today the no-listener
+  endpoint names OpenAI's first port and path for every provider (C60),
+  which Grok's request must not carry. A random port, not a fixed one,
+  because no one port is registered with xAI: every loopback sign-in
+  already sends the ephemeral port of the moment (C59).
+* **The code that changes:**
+  * `llmprovider/providers/grok/descriptor.go`: the facts (C62).
+  * `llmprovider/auth/oauth_loopback.go`: `requireNoLoopbackInput` loses its
+    Grok case (C56), `browserEndpoint` names Grok's redirect (C60), and the
+    doc comments of `OAuthFlowOptions.NoLoopback`, `LoginBrowserOAuth`,
+    `requireNoLoopbackInput` and `browserEndpoint` say so.
+  * Once the PLAN's Phase 4 has built it, `x/signin`'s refusal.
+* **The tests that pin it:**
+  * `TestDescriptors_OpenAIAndGrokOfferOAuth`'s Grok row;
+  * `TestNoLoopback_GrokUnsupported_0074`, replaced by a test that asserts
+    for Grok, with Grok's redirect, what `TestNoLoopback_OpenAI_0074`
+    asserts;
+  * once Phase 4 has landed, the Grok rows of `TestStart_BrowserSteps_0074`,
+    `TestStart_NoLoopback_0074` and `TestStart_Answers_0074`, and
+    `TestMethods_0074`'s values.
+* **What does not change.** No exported name is added or removed, so `make
+  api-check` sees no change. The wizard's text does not change: it already
+  offers Grok a paste (C63).
+* **Records:** 0008-MADR gets a dated note that F5's inference is replaced
+  by the observation.
+
+**On a fail.** A fail is xAI's page showing nothing pasteable, or xAI
+refusing the exchange of a well-formed pasted code. Nothing in the code
+changes: D1's fact stays `browser_loopback`, D4's refusal stays, and Grok's
+device code stays the path from a phone. The PLAN records the finding, the
+Grok bullets of D1 and D4 get a dated line saying so, and 0008-MADR gets
+the same dated note with what the page showed.
+
+A run that proves nothing is repeated, not counted as a fail: the loopback
+won, the person denied, or the SDK refused a malformed paste before any
+request.
+
+**Where a pass's change lands: in this record, before `v1.31.0` is
+tagged.** It is the PLAN's Phase 8 step 1, which runs only on a pass, as
+its own commit, before the rest of Phase 8. If the owner has the probe run
+before Phase 4, the step runs before Phase 4 instead (the PLAN says how).
+*(Ruled 2026-11-13: here, before the tag, and, since the probe runs before
+Phase 4, before Phase 4; rulings 1 and 2 below.)*
+
+* Good, because D1's fields first ship in `v1.31.0`. Grok's value changes
+  before any release carries it, so no released fact changes value.
+  gobble-cli's `v0.7.0` and magic-cli-remote's cut-over get the phone path
+  from the SDK minor they already plan to pin.
+* Bad, because the tag waits on the probe's run. Phase 7 already precedes
+  Phase 8, and Confirmation already asks for the probes to be recorded
+  before D1's Grok fact changes, so the wait is the one the record already
+  had.
+* Bad, because Phase 8 reopens `auth` after Phase 3's commit, so the full
+  gate runs again before the tag. If Phase 4 has landed, its Grok rows
+  change; this amendment names them, so the PLAN's "no other existing test
+  changes" stop does not fire for them.
+* The alternative, a later record with its own minor release, keeps
+  `v1.31.0` free of anything Grok. Its costs: a released fact changes
+  value, which option A's own cost allows ("a wrong fact is fixed by its
+  value"), and both consumers bump the SDK once more to get Grok's phone
+  path.
+
+**The owner's rulings of 2026-11-13 on the probe.** The coordinator put
+four questions to the owner, each with three options, recommended first. The
+options are kept as they were put, and the choice is marked.
+
+1. **Where a pass's code lands.** Ruled: "In 0074, before the tag", option
+   (a).
+   * (a) *Chosen.* This record, the PLAN's Phase 8 step 1, before the tag,
+     in its own commit. Cost: another gate run before the tag; Phase 4's
+     Grok rows change if it has landed.
+   * (b) A later record with its own minor release. Cost: a released fact
+     changes value; both consumers bump the SDK once more.
+   * (c) The fact now, D4's lift in a later record. Cost: incoherent in
+     between; gobble's remote Grok sign-ins, which set `NoLoopback`, are
+     still refused.
+2. **When the probe runs.** Ruled: "Now, before Phase 4", option (a).
+   * (a) *Chosen.* Now, before Phase 4; it needs only the `auth` already
+     shipped. Cost: the probe's three test files land out of the PLAN's
+     phase order, and the owner signs in now.
+   * (b) In Phase 7's order. Cost: Phase 4 is built on `browser_loopback`
+     and its Grok rows change on a pass.
+   * (c) By hand, through the wizard's terminal paste prompt. Cost: no
+     `FINDING` lines, no twin or plants, and no phone.
+
+   Since the probe runs before Phase 4, a pass's change (ruling 1) also
+   runs before Phase 4, as "Where a pass's change lands" above allows, and
+   Phase 4's Grok rows are written to the probe's outcome once.
+3. **Which device.** Ruled: "Phone + send-to-self". This is option (a)'s
+   device without its SSH.
+   * (a) The phone over SSH, Magic's case. Cost: an SSH client on the
+     phone; copying text between two sessions.
+   * (b) A second computer. Cost: a desktop browser may handle the loopback
+     fetch or the local-network prompt unlike a phone.
+   * (c) Both. Cost: two sign-ins and two revocations.
+
+   As ruled, the test runs on the owner's Mac, which is the host, and
+   prints the authorize URL. The owner sends the URL to the phone by any
+   channel, signs in on the phone, and copies what the page shows. The
+   owner sends that text back to the Mac by any channel, and writes it into
+   the paste file from a terminal on the Mac. The phone's browser cannot
+   reach the Mac's `127.0.0.1` (C59), which is the condition the probe
+   needs.
+4. **The `Paste` value if the page offers only a bare code.** Ruled:
+   "url_or_code", option (a).
+   * (a) *Chosen.* `url_or_code`. Cost: the paste step mentions a URL the
+     page does not offer.
+   * (b) `code`. Cost: D4's engine needs a rule, and tests, for `code`.
+   * (c) Count it as a fail. Cost: a working path from a phone is refused.
+
+   This is the value "On a pass" above already names, now whatever the page
+   offers.
+
 ### Not verified
 
 * Whether SA1019 reports the deprecated fields in descriptor literals (D7).
-* Whether accounts.x.ai offers a paste (D1; D12's probe).
+* Whether accounts.x.ai offers a paste (D1; D12's probe). *(2026-11-13: and
+  whether xAI exchanges a code so pasted; the PLAN's Phase 7 step 4 now
+  completes the sign-in to find out.)*
 * The F27 race (above).
 
 ### Related

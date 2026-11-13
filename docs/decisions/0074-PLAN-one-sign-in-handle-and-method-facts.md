@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-12
+date: 2026-11-13
 associated-madr: "0074-MADR-one-sign-in-handle-and-method-facts.md"
 decision-makers: repository owner
 ---
@@ -64,6 +64,16 @@ approves this PLAN.
   `oauth_revoke.go`, `tokenstore.go`, `tokenstore_file.go`,
   `vendor_session.go`, a new `vendor_path.go`, and their tests;
   `llmprovider/live_oauth_login_test.go` (D7's move).
+* **Phase 7 step 4, the Grok paste probe** *(added 2026-11-13, the owner's
+  ruling "Probe Grok paste; keep 0247")*: a new
+  `llmprovider/live_0074_grok_paste_test.go`, with its checks appended to
+  `llmprovider/live_checks_test.go` and its twin to
+  `llmprovider/live_twins_test.go`. Test files only. On a pass, Phase 8
+  step 1 adds `llmprovider/providers/grok/descriptor.go`,
+  `llmprovider/auth/oauth_loopback.go`, their tests, `CHANGELOG.md` and a
+  note in `0008-MADR-repair-oauth-loopback-and-session-wiring.md`.
+  *(2026-11-13, the owner's ruling 2: these test files land in Phase 3a,
+  before Phase 4, and so, on a pass, does Phase 8 step 1.)*
 * **D6:** `wizard/auth.go`, `wizard/device.go`, `wizard/import.go`,
   `wizard/configure.go` (`Options.Driver`), a new `wizard/driver.go`, and
   tests.
@@ -191,7 +201,11 @@ No other name is exported. `internal/signinflow` is internal.
   facts in Phase 1 (MADR D12). Any other test that needs a change is a stop. *(2026-11-12: the owner
   ruled that Phase 3 changes two more, `llmprovider/live_0076_identity_test.go` and
   `wizard/configure_errors_0048_test.go`, each in its one call of `LoginDeviceOAuth`; see
-  "Phase 3, deviations".)*
+  "Phase 3, deviations".)* *(2026-11-13, the owner's ruling on Grok's
+  paste: on a pass of Phase 7 step 4, Phase 8 step 1 changes
+  `TestDescriptors_OpenAIAndGrokOfferOAuth`'s Grok row, replaces
+  `TestNoLoopback_GrokUnsupported_0074`, and changes the Grok rows of the
+  Phase 4 tests it names. None of these is a stop.)*
 * **Pre-add, the gate, staging, commits and stop conditions** are those of
   [0072-PLAN-keep-absolute-reset-times-and-limit-detail-on-apierror.md](0072-PLAN-keep-absolute-reset-times-and-limit-detail-on-apierror.md),
   "Rules for every phase", with these stop conditions added:
@@ -378,6 +392,45 @@ api-check` lists `ErrSignInDenied`, `ErrSignInExpired`, `VendorCLIPath`,
 additions only. *(2026-11-11: the api-check clause added with the owner's
 reversal, which restores the two fields.)*
 
+### Phase 3a: the Grok paste probe, before Phase 4 (added 2026-11-13)
+
+*(Added by the owner's ruling 2 of 2026-11-13, "Now, before Phase 4"; MADR,
+"Amendment 2026-11-13", "The owner's rulings of 2026-11-13 on the probe".
+Phase 7 step 4's test is built and run here, so that its outcome shapes
+Phase 4's Grok rows. It starts once Phase 3 is committed, which it is
+(`3f87e2b`).)*
+
+1. **The test files of Phase 7 step 4,** exactly as that step specifies
+   them, and nothing else: `llmprovider/live_0074_grok_paste_test.go`
+   (`TestLive_0074GrokPaste`), the four checks appended to
+   `llmprovider/live_checks_test.go`, and `TestLiveTwin_GrokPaste_0074`
+   appended to `llmprovider/live_twins_test.go`. No existing function
+   changes, and no file outside these three.
+2. **Its five plants,** by `tools/plant.py` on a scratch clone, never in the
+   tree, each failing the twin. This record quotes each failure line.
+3. **Checks,** each exit status captured before any filter:
+   * `make pre-add-check FILES="..."` on the three files;
+   * `go vet -tags live_gateways ./...`, which builds the live test;
+   * `make tables-check`: `LLMPROVIDER_LIVE_0074_GROK_PASTE_FILE` is this
+     record's variable;
+   * `python3 -B tools/gate.py`, through `run-heavy`.
+4. **The commit,** then the owner's run, as Phase 7 step 4's "For the
+   owner" says, with the arrangement of ruling 3 (phone, send-to-self).
+   This record holds every `FINDING` line and the owner's `FINDING page:`
+   lines.
+5. **The outcome decides what follows:**
+   * **On a pass,** Phase 8 step 1 runs next, before Phase 4, in its own
+     commit (rulings 1 and 2). Phase 4 then writes its Grok rows to
+     `browser_paste`, `url_or_code`, once.
+   * **On a fail,** no code changes, and Phase 4 starts with Grok's
+     `browser_loopback` rows as written.
+   * **On a run that decides nothing,** the owner reruns before Phase 4
+     starts, or rules otherwise.
+
+Acceptance: the twin passes and its five plants are caught; `go vet -tags
+live_gateways ./...` and `make tables-check` pass; the gate passes; the
+owner's run is recorded with its outcome.
+
 ### Phase 4: the engine, `x/signin`, and the second module in the gates (D2, D3, D4, D8)
 
 1. **`go.mod`** requires `github.com/maccavelli/go-llmprovider-sdk/authcontract
@@ -546,6 +599,182 @@ and these two its probes.)*
    loopback fails. *Owner-run; asks first; scratch store; quota: none.* A
    pasteable result changes Grok's facts to `browser_paste` by an amendment,
    never silently.
+
+   *(2026-11-13, the owner's ruling "Probe Grok paste; keep 0247" (MADR,
+   "Amendment 2026-11-13: a live probe of Grok's paste, and what its outcome
+   changes"). It is the same step and the same test, not a second one. The
+   test now also completes the sign-in by the paste, and its outcome decides
+   MADR D1's Grok fact and D4's Grok refusal. What the paragraph above
+   records, what accounts.x.ai shows, stays one of its findings. The step
+   as amended:)*
+
+   * **The route, with shipped code only.** `auth.LoginBrowserOAuth` for
+     Grok, with an `InputCode` and with `NoLoopback` unset. The shipped
+     code races the `InputCode` against the bound listener (MADR C58);
+     `NoLoopback` is refused for Grok (MADR C56) and is not set. No
+     test-only seam, and no change to `auth`.
+   * **The arrangement: a browser that cannot reach the host's loopback.**
+     The listener binds the host's `127.0.0.1` only (MADR C59), so no other
+     device's browser can reach it. The test runs on the host, and the
+     owner opens its authorize URL on another device:
+     * recommended, the phone, which is Magic's case: an SSH client on the
+       phone with two sessions to the host, one running the test and one
+       writing the paste file; the authorize URL is copied from the first
+       session into the phone's browser;
+     * or a second computer's browser, with the test on a dev host over SSH
+       (the vendor's remote-VM case, MADR C64).
+
+     No port is forwarded to the host for the session. A blocked port on
+     the host itself is not used: blocking it needs a packet-filter rule
+     run as root, or a seam that binds the listener elsewhere, which would
+     be code in `auth`.
+
+     *(2026-11-13, the owner's ruling 3, "Phone + send-to-self": the
+     arrangement above is superseded, and kept as written. The test runs
+     on the owner's Mac, which is the host, and prints the authorize URL.
+     The owner sends the URL to the phone by any channel, signs in on the
+     phone, and copies what the page shows. The owner sends that text back
+     to the Mac by any channel, and writes it into the paste file from a
+     terminal on the Mac. No SSH on the phone. The phone's browser cannot
+     reach the Mac's `127.0.0.1` (MADR C59), which is the condition the
+     probe needs, and the loopback line below still catches a run where
+     it could.)*
+   * **How the paste reaches the test.** `go test` gives the test binary no
+     standard input: Go 1.27.4's `src/cmd/go/internal/test/test.go` sets
+     the test command's `Dir`, `Stdout` and `Stderr`, and no `Stdin` (read
+     2026-11-13). So `InputCode` reads a file instead.
+     * `LLMPROVIDER_LIVE_0074_GROK_PASTE_FILE` names a path that must not
+       exist when the test starts; the test fails if it does.
+     * `InputCode` polls once a second until the file holds a
+       newline-terminated line, reads at most 8 KiB, removes the file and
+       returns the line. It returns `ctx`'s error when the sign-in ends
+       first.
+     * The person writes the file in the second session: `cat >` the path,
+       the paste, Enter, then Ctrl-D. *(2026-11-13, ruling 3: from a
+       second terminal on the Mac, not an SSH session.)*
+     * The pasted value is a secret (MADR Q11). It travels only over that
+       SSH session, never through a chat or note service, and nothing logs
+       it. *(2026-11-13, ruling 3: superseded, and kept as written. The
+       text travels by whatever channel the owner chooses, both ways. What
+       a copy of it can do is narrow: the code is used once, and its
+       exchange needs the PKCE verifier, which never leaves the test
+       process (RFC 7636). Nothing logs it, and this record quotes none of
+       it.)*
+   * **What the owner pastes, and what the owner looks at.** The owner
+     pastes whatever the page or the address bar offers after consent. Both
+     the SDK's parser and the vendor's take the full callback URL
+     (`http://127.0.0.1:<port>/callback?code=…&state=…`), and a bare code
+     (MADR C61, C65). The records do not say which of these the page
+     offers, if either, so the owner records it by hand, in this record, as
+     `FINDING page:` lines, quoting no URL, code or token:
+     1. what the page said after consent: a success claim, an error, a URL
+        or a code shown, or a copy control;
+     2. what the address bar held: still `accounts.x.ai`, or a `127.0.0.1`
+        callback that the browser failed to load;
+     3. whether a local-network permission prompt appeared, and the answer
+        given;
+     4. the device class and browser (for example "phone, mobile Chrome"),
+        never a device's name. *(2026-11-13, ruling 3: the device class
+        is "phone".)*
+   * **The test:** `TestLive_0074GrokPaste`, in a new
+     `llmprovider/live_0074_grok_paste_test.go` (build tag
+     `live_gateways`).
+     * It skips unless `LLMPROVIDER_LIVE_0074=1`,
+       `LLMPROVIDER_LIVE_BROWSER_LOGIN=1` and
+       `LLMPROVIDER_LIVE_0074_GROK_PASTE_FILE` are all set.
+     * Its `OpenURL` is `openAuthorizeURL(t, "referrer", cancel)`, which
+       checks the referrer and logs the URL.
+     * The sign-in has the flow's own ten minutes (P11). The test's
+       context has eleven.
+     * When `LoginBrowserOAuth` returns, the test logs one `FINDING
+       sign-in:` line from `pasteFinding`, and stops unless the run passed.
+       The lines, and what each means:
+       * `FINDING sign-in: completed by a paste of <shape>` is the pass.
+         `<shape>` comes from `pasteShape`: "a callback URL with code and
+         state" or "a bare code", with the URL's scheme, whether its host is
+         a loopback address, and its path. It never holds a value.
+       * `FINDING sign-in: completed by the loopback, not a paste; the
+         browser reached the host, so this run decides nothing` means rerun
+         with the arrangement fixed.
+       * `FINDING sign-in: xAI refused the pasted <shape>: <error>` is a
+         fail, when a well-formed paste was exchanged and refused.
+       * `FINDING sign-in: the paste was refused before any request:
+         <shape>: <error>` covers a state mismatch, a missing code or a
+         pasted denial. It decides nothing, unless the page's lines show
+         the page offers nothing else.
+       * `FINDING sign-in: nothing was pasted before the deadline` is a fail
+         when the page's lines show nothing pasteable, and otherwise a
+         rerun.
+     * On a pass, `checkIdentitySession` binds the session to a scratch
+       `FileTokenStore` in `t.TempDir()` and lists models with it, with no
+       generation (`FINDING use:`, P9). Then `checkIdentityRevoked` revokes
+       it and checks that a refresh is refused (`FINDING revocation:`,
+       P10).
+     * A session that a failed check leaves behind is revoked when the test
+       ends, as `probeSignIn` does.
+   * **The checks,** appended to `llmprovider/live_checks_test.go`
+     (untagged), with no existing function changed:
+     * `pasteRecord`: whether `InputCode` returned a value, and its shape;
+     * `pasteFromFile(path, rec)`: the `InputCode` described above;
+     * `pasteShape(raw)`;
+     * `pasteFinding(rec, err) (line string, passed bool)`, which decides
+       the line from the record and `LoginBrowserOAuth`'s error.
+   * **The twin:** `TestLiveTwin_GrokPaste_0074`, in
+     `llmprovider/live_twins_test.go`. It runs:
+     * `pasteFromFile` on a file in `t.TempDir()` written in two writes,
+       first without its newline and then with it, and checks that the
+       file is removed after the read;
+     * `pasteFromFile` with `ctx` ending first;
+     * `pasteShape` and `pasteFinding` over a table of every outcome above,
+       with a planted code that no line may hold.
+
+     Each planted break below, run by `tools/plant.py` on a scratch clone
+     and never in the tree, must fail the twin
+     ([0046-MADR-v1-15-0-follow-ups.md](0046-MADR-v1-15-0-follow-ups.md)
+     D3):
+     * `pasteFinding` reports a completion by a paste when `InputCode`
+       returned nothing (the loopback won);
+     * `pasteShape` calls a URL with a code and no `state` "a callback URL
+       with code and state";
+     * `pasteShape` writes the pasted value into its shape;
+     * `pasteFromFile` leaves the file in place;
+     * `pasteFromFile` takes a line before its newline.
+
+     What the twin does not cover: xAI's page and its exchange, which only
+     the live run shows. The session checks after a pass are 0076's. They
+     are held by `TestLiveTwin_Identity_0076` (P12) and its plant, and are
+     not changed.
+   * **For the owner.** From the repository root on the host:
+
+     ```bash
+     export LLMPROVIDER_LIVE_0074_GROK_PASTE_FILE="$(mktemp -d)/paste"
+     echo "$LLMPROVIDER_LIVE_0074_GROK_PASTE_FILE"
+     LLMPROVIDER_LIVE_0074=1 LLMPROVIDER_LIVE_BROWSER_LOGIN=1 \
+       go test -tags live_gateways -count=1 -timeout 15m -run '^TestLive_0074GrokPaste$' -v ./llmprovider/
+     ```
+
+     One package with `-v`, so the authorize URL is printed as it is
+     logged; being one package, the run needs no fleet host and no queue.
+     In the second session: `cat >` the echoed path, the paste, Enter,
+     Ctrl-D. *(2026-11-13, ruling 3: on the owner's Mac, the second session
+     is a second terminal there; the URL goes to the phone, and the page's
+     text comes back, by any channel.)*
+   * *Owner-run; asks first; scratch store; quota: none at xAI (a listing,
+     no generation).*
+   * **The outcome.** A pass, a fail or a rerun, as the lines above decide,
+     is recorded in the execution record, with every `FINDING` line quoted
+     and the owner's `FINDING page:` lines. A pass starts Phase 8 step 1. A
+     fail changes no code: the MADR's D1 and D4 Grok bullets get a dated
+     line saying so, and 0008-MADR gets its dated note (MADR, "Amendment
+     2026-11-13").
+   * **Acceptance:** the twin's five plants are caught; `go vet -tags
+     live_gateways ./...` builds the test; `make tables-check` passes; the
+     owner's run is recorded.
+
+   *(2026-11-13, the owner's ruling 2, "Now, before Phase 4": this step's
+   test files are built, and its probe run, in Phase 3a, before Phase 4.
+   The step is done when Phase 3a's run is recorded, and Phase 7 does not
+   run it again; a pass's change then follows at once (Phase 8 step 1).)*
 5. **The two moved live device tests,** `TestLive_GrokDeviceLogin` and
    `TestLive_KiloDeviceLogin` in `llmprovider/live_oauth_login_test.go`,
    under `LLMPROVIDER_LIVE_DEVICE_LOGIN`, once, after Phase 3 step 5 moves
@@ -561,9 +790,58 @@ and these two its probes.)*
    or through a locked method, under an amendment.
 
 `scripts/check_tables.py` passes: `LLMPROVIDER_LIVE_0074` is this record's
-variable (AGENTS.md "Live tests").
+variable (AGENTS.md "Live tests"). So is
+`LLMPROVIDER_LIVE_0074_GROK_PASTE_FILE`, step 4's paste file *(added
+2026-11-13)*: the script accepts a suffix of `LLMPROVIDER_LIVE_<NNNN>` that
+a record numbered `NNNN` names.
 
 ### Phase 8: the release
+
+1. **Only on a pass of Phase 7 step 4** *(added 2026-11-13, the owner's
+   ruling "Probe Grok paste; keep 0247"; MADR, "Amendment 2026-11-13: a live
+   probe of Grok's paste, and what its outcome changes")*. It is its own
+   commit, before the rest of this phase. If the owner has the probe run
+   before Phase 4, this step runs before Phase 4 instead, and Phase 4's Grok
+   rows are written to the new fact once. On a fail, or with no run, the
+   step is skipped and the execution record says so. *(2026-11-13, the
+   owner's rulings 1, 2 and 4: in 0074, before the tag, in its own commit;
+   the probe runs in Phase 3a, so on a pass this step runs after Phase 3a
+   and before Phase 4, and the table's third row, for Phase 4's tests,
+   does not arise; `url_or_code` is the value whatever the page
+   offers.)*
+   1. `llmprovider/providers/grok/descriptor.go`: Grok's `browser_oauth`
+      gets `Completion` `browser_paste` and `Paste` `url_or_code`, with no
+      `FirstPaste` (MADR D1, C62).
+   2. `llmprovider/auth/oauth_loopback.go`:
+      * `requireNoLoopbackInput` loses its Grok case (MADR C56), so Grok
+        under `NoLoopback` needs an `InputCode`, as OpenAI does;
+      * `browserEndpoint` with no listener names Grok's redirect,
+        `http://127.0.0.1:<port>/callback`, with the port drawn at random
+        from 49152 to 65535 and never bound; OpenAI's stays as it is
+        (MADR C60);
+      * the doc comments of `OAuthFlowOptions.NoLoopback`,
+        `LoginBrowserOAuth`, `requireNoLoopbackInput` and `browserEndpoint`
+        say so.
+   3. If Phase 4 has landed: `x/signin`'s `Start` no longer refuses Grok's
+      browser sign-in under `NoLoopback`, because its `Paste` fact is now
+      set (MADR D4); the `NoPaste` refusal stays.
+   4. `CHANGELOG.md` `[Unreleased]`, **Changed**: "Grok's browser sign-in
+      completes by a pasted callback URL or code, and accepts `NoLoopback`".
+      `README.md`'s login section, if it names Grok's method as loopback
+      only.
+   5. A dated note in `0008-MADR-repair-oauth-loopback-and-session-wiring.md`
+      under its 2026-11-12 amendment: F5's inference is replaced by the
+      probe's observation, quoted from Phase 7 step 4's record.
+
+   | Test | Asserts | Planted break |
+   | :--- | :--- | :--- |
+   | `TestDescriptors_OpenAIAndGrokOfferOAuth` (P8; its Grok row) | Grok's `browser_oauth` is `browser_paste`, `url_or_code`, no `FirstPaste` | the fact left `browser_loopback` |
+   | `TestNoLoopback_Grok_0074` (replaces `TestNoLoopback_GrokUnsupported_0074`, P7) | with `NoLoopback`: no listener is bound; the authorize URL's `redirect_uri` is `http://127.0.0.1:<port>/callback`, with the port in 49152 to 65535; a pasted URL completes the sign-in against a fake issuer; without `InputCode` the error matches `ErrInvalidRequest`, before any request | Grok still refused; OpenAI's port and path named for Grok |
+   | Phase 4's `TestStart_BrowserSteps_0074`, `TestStart_NoLoopback_0074`, `TestStart_Answers_0074` and `TestMethods_0074`, their Grok rows (when Phase 4 has landed) | Grok's `open_url` accepts `url_or_code` and is followed by `paste`, unless `NoPaste`; Grok under `NoLoopback` completes by a paste; the "`open_url` without `accepts`" case of `TestStart_Answers_0074` takes `NoPaste` instead of Grok | `x/signin` still refuses Grok; `accepts` left empty for Grok |
+
+   Acceptance: the tests pass and each plant fails; `make api-check` lists
+   no change from this step (no name is added or removed); the full gate
+   passes before the tag.
 
 With 0075-PLAN's last phase: the changelog section takes the next minor
 version after 0076's (`v1.31.0` if 0076 shipped as `v1.30.0`); the full gate;
@@ -643,7 +921,7 @@ Each command's exit status is captured before any filter.
 
 The facts this PLAN's steps rest on beyond the MADR's index, checked by `tools/claims.py`.
 
-<!-- claims: self=773b84c -->
+<!-- claims: self=773b84c go-llmprovider-sdk=5e0ec2c -->
 
 | Id | Claim | Location | Text |
 | :--- | :--- | :--- | :--- |
@@ -653,6 +931,12 @@ The facts this PLAN's steps rest on beyond the MADR's index, checked by `tools/c
 | P4 | whose AGENTS.md scope Phase 6 widens | `AGENTS.md:247` | `` `LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok and Kilo `` |
 | P5 | R2's sentence Phase 4 amends | `docs/guides/api-standards.md:31` | `` Only `wizard` may leave the standard library, and then only for `` |
 | P6 | The OpenAI poll's own deadline, mapped `other` until 0076 D2 | `llmprovider/auth/oauth_device.go:234` | `return nil, errors.New("oauth: OpenAI device-code login timed out after 15 minutes")` |
+| P7 | (2026-11-13, this repository at `5e0ec2c`) The Grok refusal test a pass replaces | `go-llmprovider-sdk:llmprovider/auth/no_loopback_0074_test.go:186` | `func TestNoLoopback_GrokUnsupported_0074(t *testing.T) {` |
+| P8 | The descriptor pin a pass changes | `go-llmprovider-sdk:llmprovider/providers/descriptors_test.go:36` | `func TestDescriptors_OpenAIAndGrokOfferOAuth(t *testing.T) {` |
+| P9 | The session check the Grok probe reuses | `go-llmprovider-sdk:llmprovider/live_checks_test.go:289` | `func checkIdentitySession(` |
+| P10 | and the revocation check | `go-llmprovider-sdk:llmprovider/live_checks_test.go:309` | `func checkIdentityRevoked(` |
+| P11 | The browser sign-in's own deadline | `go-llmprovider-sdk:llmprovider/auth/oauth_loopback.go:25` | `oauthBrowserTimeout         = 10 * time.Minute` |
+| P12 | The twin that holds those two checks | `go-llmprovider-sdk:llmprovider/live_twins_test.go:297` | `func TestLiveTwin_Identity_0076(t *testing.T) {` |
 
 ## Execution record
 
@@ -1147,3 +1431,60 @@ both prerequisites hold; `v1.30.0` is tagged.
   * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, after the
     last code change, exit 0: "gate: 30 of 30 passed". The record checks were
     run again after this entry.
+
+### Amendment (2026-11-13): the owner's ruling on Grok's paste
+
+* **The ruling, 2026-11-13, the owner: "Probe Grok paste; keep 0247".** A
+  live Grok browser sign-in completed by a paste, from a browser that cannot
+  reach the host's loopback, is added to the owner-run Phase 7. On a pass,
+  Grok's `Paste` fact is set and D4's `NoLoopback` refusal for Grok lifts.
+  On a fail, Grok's device code stays the path from a phone, and nothing
+  else changes. magic-cli-remote's
+  `docs/decisions/0247-MADR-replay-a-pasted-sign-in-callback-to-the-agents-loopback.md`
+  is kept.
+* **Applied, in the records only:**
+  * the MADR gains "Amendment 2026-11-13: a live probe of Grok's paste, and
+    what its outcome changes", with dated notes in D1, D3, D4 and D12, and
+    claims C56 to C67;
+  * Phase 7 step 4, which already named `TestLive_0074GrokPaste` and asked
+    only what accounts.x.ai shows, is amended in place to complete the
+    sign-in by the paste. Its route, arrangement, paste file, `FINDING`
+    lines, checks, twin and plants are written there. It is not a second
+    step;
+  * Phase 8 gains step 1, run only on a pass;
+  * "In scope" and "Rules for every phase" gain dated notes;
+  * claims P7 to P12 are added.
+* **Not done.** No code. The probe has not run. No other record is changed:
+  [0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md](0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md)
+  Phase 5's Grok half probes the name on a Grok session's refresh and
+  revocation. Those do not depend on how the session was signed in, so its
+  device sign-in needs no paste path. 0008-MADR's note waits for the
+  probe's outcome.
+
+### The owner's rulings on the probe (2026-11-13)
+
+The owner answered the four questions of the amendment above on 2026-11-13.
+The MADR holds each question with its three options as put ("The owner's
+rulings of 2026-11-13 on the probe").
+
+1. **Where a pass's code lands: "In 0074, before the tag".** It is Phase 8
+   step 1, in its own commit. That step gains a dated note.
+2. **When: "Now, before Phase 4".** Phase 7 step 4's test files become the
+   new Phase 3a, which a separate code agent executes next. On a pass,
+   Phase 8 step 1 runs after Phase 3a and before Phase 4. Phase 7 step 4,
+   Phase 8 step 1 and the scope gain dated notes.
+3. **Device: "Phone + send-to-self".** The SSH arrangement of Phase 7
+   step 4 is superseded, and kept as written with a dated note:
+   * the test runs on the owner's Mac and prints the authorize URL;
+   * the owner sends the URL to the phone by any channel, signs in there,
+     and copies what the page shows;
+   * the owner sends that text back to the Mac by any channel, and writes
+     it into the paste file from a terminal on the Mac;
+   * there is no SSH on the phone.
+
+   The `FINDING page:` lines stay, with the device class recorded as
+   "phone".
+4. **Bare code: "url_or_code".** This is the value the amendment already
+   names.
+
+Records only: no code, no commit, and the probe has not run.
