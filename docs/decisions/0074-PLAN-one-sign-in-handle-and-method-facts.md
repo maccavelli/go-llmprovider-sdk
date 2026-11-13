@@ -566,6 +566,14 @@ with 0075-PLAN's, `OAuthFlowOptions.NoLoopback` and
 owner's reversal)*;
 the tag on the owner's word; then `tools/consumer.py` and `tools/offline.py`.
 
+*(2026-11-12: by the owner's ruling of that day, `v1.31.0` also carries
+[0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md](0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md),
+proposed on this date, which has no tag of its own (its Phase 6). Once it is
+approved, this phase starts after its Phases 1 to 5 are committed and its
+owner-run probe is recorded; the section holds its changelog entries; and
+`tools/apidiff.py` lists its two names, `(*auth.OAuthSession).UseIdentity`
+and `(*llmprovider.Settings).ClientVersion`, among the tables above.)*
+
 ## Verification
 
 Each command's exit status is captured before any filter.

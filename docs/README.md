@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-164 records. Cite them by full filename.
+166 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -174,6 +174,8 @@ documents a reader follows to do something.
 | 0077 | PLAN | [Implement Go 1.27.4 as the Floor](decisions/0077-PLAN-go-1-27-4-for-go-2026-6859.md) | complete |
 | 0078 | MADR | [Test CachedMetadataWith's Refusal with an Option It Refuses, and Count Requests Only After Every Fetch Has Ended](decisions/0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md) | accepted |
 | 0078 | PLAN | [Implement the Refused Option and the Wait in CachedMetadataWith's Refusal Test](decisions/0078-PLAN-cached-metadata-refusal-test-uses-a-refused-option.md) | complete |
+| 0079 | MADR | [Name the Consuming Application on a Session's Refresh and Revocation and on the ChatGPT Originator](decisions/0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md) | accepted |
+| 0079 | PLAN | [Implement the Consuming Application's Name on a Session's Refresh and Revocation and on the ChatGPT Originator](decisions/0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md) | in-progress |
 
 ## I want to…
 

@@ -250,6 +250,12 @@ same day.
 * **Refresh and revocation keep this module's identity.** A session carries no
   identity, and giving it one is a field on `OAuthSession` this record does
   not add. A later record may.
+  *(2026-11-12: the later record is
+  [0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md](0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md),
+  proposed on this date. It would keep the sign-in's identity on the session
+  in memory, never stored, and send it on the session's refresh and
+  revocation (its D2, D3). This bullet holds until that record is accepted
+  and built.)*
 * **The plan's `agent_name_hint` is unchanged:** it is `AgentName`, the
   app's name OpenAI registers (0043-MADR D7), not the identity.
 
@@ -319,7 +325,9 @@ bullets, which are quoted in the second bullet below.)*
   `GrokFlowFromEnv`" removed with `OAuthClients`.)*
 * Good, because the docs say what the code does.
 * Neutral, because the identity stops at the sign-in: a refresh or a
-  revocation still names this module.
+  revocation still names this module. *(2026-11-12: proposed to change by
+  [0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md](0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md),
+  D2 and D3; true until it is accepted and built.)*
 * Bad, because whether OpenAI's authorize endpoint accepts any `originator`,
   and xAI's any `referrer`, is not verified. The default is unchanged, so a
   caller who sets `Identity` takes that risk knowingly; the PLAN's owner-run
