@@ -42,15 +42,28 @@ var openaiLoopbackPorts = []int{1455, 1457}
 // OAuthFlowOptions supplies transport and user-interaction hooks for OAuth
 // login. It is safe for concurrent use only while no goroutine changes it.
 type OAuthFlowOptions struct {
-	HTTPClient   *http.Client
-	OpenURL      func(string) error
-	InputCode    func(context.Context) (string, error)
+	HTTPClient *http.Client
+	OpenURL    func(string) error
+	InputCode  func(context.Context) (string, error)
+	// NotifyDevice receives a device code from LoginDeviceOAuth.
+	//
+	// Deprecated: LoginDeviceOAuth is deprecated; StartDeviceOAuth returns
+	// the code to show, and only LoginDeviceOAuth reads this field. It stays,
+	// unchanged, until v2 (0074-MADR D7).
 	NotifyDevice func(verificationURL, userCode string)
 	ClientID     string
 	Issuer       string
 	// Identity names the consuming application on this sign-in's requests,
 	// Kilo's included; the zero value names this module (0076-MADR D3).
 	Identity Identity
+	// NoLoopback binds no callback listener in a browser sign-in: the
+	// redirect URI names the first registered port, and only a value
+	// InputCode returns completes it, so InputCode is required (an error
+	// matching llmprovider.ErrInvalidRequest otherwise). Grok's browser
+	// sign-in with it gives an error matching llmprovider.ErrUnsupported,
+	// before any request. A device sign-in binds no listener in the first
+	// place and ignores it (0074-MADR D4).
+	NoLoopback bool
 
 	now   func() time.Time
 	sleep func(context.Context, time.Duration) error
@@ -72,6 +85,9 @@ type oauthFlowConfig struct {
 	// identity is the sign-in's Identity. A revocation's discovery leaves it
 	// zero, so it names this module (0076-MADR D3).
 	identity Identity
+	// noLoopback is a browser sign-in's NoLoopback; a device sign-in does
+	// not read it (0074-MADR D4).
+	noLoopback bool
 }
 
 type oauthEndpoints struct {
@@ -107,10 +123,16 @@ type oauthCallbackResult struct {
 // matching llmprovider.ErrAuthFailure, as a device-code login's denial does.
 // A failed issuer discovery, another error the identity provider sends back,
 // a failed token exchange and a rejected id_token are plain errors. A ctx that ends gives an error wrapping ctx's,
-// and an error from opts.InputCode ends the login, matching that error.
+// and an error from opts.InputCode ends the login, matching that error. With
+// opts.NoLoopback, Grok's login gives an error matching
+// llmprovider.ErrUnsupported, and OpenAI's without an InputCode one matching
+// llmprovider.ErrInvalidRequest, each before any request.
 func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opts OAuthFlowOptions) (*OAuthSession, error) {
 	config, err := resolveOAuthFlowConfig(provider, opts)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireNoLoopbackInput(config); err != nil {
 		return nil, err
 	}
 
@@ -130,25 +152,65 @@ func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opt
 		return nil, fmt.Errorf("oauth: generate state: %w", err)
 	}
 
-	listeners, redirectURI, callbackPath, err := browserListener(config.provider)
+	nonce := ""
+	return runBrowserLogin(ctx, browserLogin{
+		config:     config,
+		state:      state,
+		corsOrigin: callbackCORSOrigin(config.provider),
+		parse: func(input string) oauthCallbackResult {
+			code, parseErr := parseOAuthInput(input, state)
+			return oauthCallbackResult{code: code, err: parseErr}
+		},
+		authorizeURL: func(redirectURI string) (string, error) {
+			if config.provider == llmprovider.ProviderGrok {
+				var nonceErr error
+				if nonce, nonceErr = randomBase64URL(); nonceErr != nil {
+					return "", fmt.Errorf("oauth: generate nonce: %w", nonceErr)
+				}
+			}
+			return buildAuthorizeURL(config, endpoints.Authorization, redirectURI, pkce.challenge, state, nonce)
+		},
+		exchange: func(ctx context.Context, callback oauthCallbackResult, redirectURI string) (*OAuthSession, error) {
+			return exchangeOAuthCode(ctx, config, endpoints, callback.code, redirectURI, pkce.verifier, nonce)
+		},
+	})
+}
+
+// browserLogin is what differs between the browser sign-ins that
+// runBrowserLogin runs: LoginBrowserOAuth's and LoginChatGPTPlan's.
+type browserLogin struct {
+	config oauthFlowConfig
+	state  string
+	// corsOrigin is the one origin the callback allows, "" for none.
+	corsOrigin string
+	// parse reads a pasted value.
+	parse func(input string) oauthCallbackResult
+	// authorizeURL builds the authorize URL for the redirect URI the sign-in
+	// uses, once its listeners are bound.
+	authorizeURL func(redirectURI string) (string, error)
+	// exchange turns the callback into a session, within the sign-in's
+	// deadline, before the listeners close.
+	exchange func(ctx context.Context, callback oauthCallbackResult, redirectURI string) (*OAuthSession, error)
+}
+
+// runBrowserLogin is the one browser sign-in: it binds the callback
+// listeners, unless config.noLoopback, opens the authorize URL, waits for the
+// callback, a paste or the deadline, and hands the callback to exchange
+// (0074-MADR D4).
+func runBrowserLogin(ctx context.Context, login browserLogin) (*OAuthSession, error) {
+	config := login.config
+	listeners, redirectURI, callbackPath, err := browserEndpoint(config.provider, config.noLoopback)
 	if err != nil {
 		return nil, err
 	}
 	flowCtx, cancel := context.WithTimeout(ctx, oauthBrowserTimeout)
 	defer cancel()
 	result := make(chan oauthCallbackResult, 1)
-	handler := oauthCallbackHandler(callbackPath, state, result, callbackCORSOrigin(config.provider))
 	serveErrors := make(chan error, 1)
-	shutdown := serveCallbackListeners(handler, listeners, serveErrors)
+	shutdown := serveCallbackListeners(oauthCallbackHandler(callbackPath, login.state, result, login.corsOrigin), listeners, serveErrors)
 	defer shutdown()
 
-	nonce := ""
-	if config.provider == llmprovider.ProviderGrok {
-		if nonce, err = randomBase64URL(); err != nil {
-			return nil, fmt.Errorf("oauth: generate nonce: %w", err)
-		}
-	}
-	authorizeURL, err := buildAuthorizeURL(config, endpoints.Authorization, redirectURI, pkce.challenge, state, nonce)
+	authorizeURL, err := login.authorizeURL(redirectURI)
 	if err != nil {
 		return nil, err
 	}
@@ -163,12 +225,15 @@ func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opt
 		var inputCtx context.Context
 		inputCtx, inputCancel = context.WithCancel(flowCtx)
 		go func() {
+			var callback oauthCallbackResult
 			input, inputErr := config.inputCode(inputCtx)
-			if inputErr == nil {
-				input, inputErr = parseOAuthInput(input, state)
+			if inputErr != nil {
+				callback.err = inputErr
+			} else {
+				callback = login.parse(input)
 			}
 			select {
-			case result <- oauthCallbackResult{code: input, err: inputErr}:
+			case result <- callback:
 			case <-inputCtx.Done():
 			}
 		}()
@@ -186,7 +251,23 @@ func LoginBrowserOAuth(ctx context.Context, provider llmprovider.ProviderID, opt
 	if callback.err != nil {
 		return nil, callback.err
 	}
-	return exchangeOAuthCode(flowCtx, config, endpoints, callback.code, redirectURI, pkce.verifier, nonce)
+	return login.exchange(flowCtx, callback, redirectURI)
+}
+
+// requireNoLoopbackInput refuses, before any request, a sign-in with
+// NoLoopback that nothing could complete: Grok's, whose paste is unverified
+// (ErrUnsupported), and any without an InputCode (ErrInvalidRequest)
+// (0074-MADR D4). It is nil when config.noLoopback is not set.
+func requireNoLoopbackInput(config oauthFlowConfig) error {
+	switch {
+	case !config.noLoopback:
+		return nil
+	case config.provider == llmprovider.ProviderGrok:
+		return fmt.Errorf("oauth: %w: NoLoopback is not supported for Grok's browser sign-in, whose pasted callback is unverified", llmprovider.ErrUnsupported)
+	case config.inputCode == nil:
+		return fmt.Errorf("oauth: %w: NoLoopback binds no listener, so the sign-in needs an InputCode to complete it", llmprovider.ErrInvalidRequest)
+	}
+	return nil
 }
 
 // GrokFlowFromEnv returns the Grok sign-in's issuer and client id from
@@ -246,6 +327,7 @@ func resolveOAuthFlowConfig(provider llmprovider.ProviderID, opts OAuthFlowOptio
 		now:          now,
 		sleep:        sleep,
 		identity:     opts.Identity,
+		noLoopback:   opts.NoLoopback,
 	}, nil
 }
 
@@ -343,6 +425,21 @@ func discoverOAuthEndpoints(ctx context.Context, config oauthFlowConfig) (oauthE
 	return discovered, nil
 }
 
+// openAICallbackPath is the loopback redirect's path for OpenAI's sign-ins,
+// the Codex login and the plan login alike; only its port varies.
+const openAICallbackPath = "/auth/callback"
+
+// browserEndpoint is browserListener, or with noLoopback no listener at all:
+// the redirect URI names the first registered port and the callback's path,
+// and only a paste completes the sign-in (0074-MADR D4). Grok never reaches
+// it with noLoopback: requireNoLoopbackInput refuses that first.
+func browserEndpoint(provider llmprovider.ProviderID, noLoopback bool) ([]net.Listener, string, string, error) {
+	if noLoopback {
+		return nil, fmt.Sprintf("http://127.0.0.1:%d%s", openaiLoopbackPorts[0], openAICallbackPath), openAICallbackPath, nil
+	}
+	return browserListener(provider)
+}
+
 func browserListener(provider llmprovider.ProviderID) ([]net.Listener, string, string, error) {
 	if provider == llmprovider.ProviderOpenAI {
 		listeners, port, err := listenOpenAILoopback(openaiLoopbackPorts)
@@ -351,7 +448,7 @@ func browserListener(provider llmprovider.ProviderID) ([]net.Listener, string, s
 		}
 		// 127.0.0.1, as Codex redirects with the same client id since
 		// 4b97832cfb (login/src/server.rs:193); MADR 0012 §5.3.
-		return listeners, fmt.Sprintf("http://127.0.0.1:%d/auth/callback", port), "/auth/callback", nil
+		return listeners, fmt.Sprintf("http://127.0.0.1:%d%s", port, openAICallbackPath), openAICallbackPath, nil
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -600,9 +697,36 @@ func callbackError(query url.Values) error {
 	// A denial matches ErrAuthFailure, as the device flow's does (0049-MADR
 	// D2a); another code stays plain, as there.
 	if code == oauthAccessDenied {
-		return fmt.Errorf("%w: %w", llmprovider.ErrAuthFailure, err)
+		return asSignInError(fmt.Errorf("%w: %w", llmprovider.ErrAuthFailure, err), ErrSignInDenied)
 	}
 	return err
+}
+
+// ErrSignInDenied is matched, by errors.Is, by the error of a sign-in the
+// person or the identity provider refused: an access_denied callback or a
+// denied device authorization. It also matches llmprovider.ErrAuthFailure,
+// as those errors did before (0074-MADR D8). It is safe for concurrent use.
+var ErrSignInDenied = fmt.Errorf("%w: sign-in denied", llmprovider.ErrAuthFailure)
+
+// ErrSignInExpired is matched, by errors.Is, by the error of a device-code
+// sign-in whose code expired before it was approved. It also matches
+// llmprovider.ErrAuthFailure, as those errors did before (0074-MADR D8). It
+// is safe for concurrent use.
+var ErrSignInExpired = fmt.Errorf("%w: sign-in expired", llmprovider.ErrAuthFailure)
+
+// signInError is err that also matches kind, an ErrSignInDenied or
+// ErrSignInExpired, with err's text unchanged, byte for byte (0074-MADR D8).
+type signInError struct {
+	err  error
+	kind error
+}
+
+func (e *signInError) Error() string   { return e.err.Error() }
+func (e *signInError) Unwrap() []error { return []error{e.err, e.kind} }
+
+// asSignInError is err, also matching kind.
+func asSignInError(err, kind error) error {
+	return &signInError{err: err, kind: kind}
 }
 
 func parseOAuthInput(input, expectedState string) (string, error) {

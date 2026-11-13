@@ -30,8 +30,6 @@ const (
 	// not.
 	planDirectScope = "chatgpt.tokens.use.direct"
 	planScopes      = "openid profile email offline_access resource.invoke " + planDirectScope
-	// planCallbackPath is the loopback redirect's path; only its port varies.
-	planCallbackPath = "/auth/callback"
 )
 
 // planBuiltinEndpoints are OpenAI's, read from its discovery document on
@@ -72,6 +70,11 @@ type ChatGPTPlanOptions struct {
 	// the zero value names this module (0076-MADR D3). It is not the name
 	// OpenAI shows and registers, which is AgentName.
 	Identity Identity
+	// NoLoopback binds no callback listener: the redirect URI names the
+	// first registered port, and only a callback URL InputCode returns
+	// completes the sign-in, so InputCode is required (an error matching
+	// llmprovider.ErrInvalidRequest otherwise) (0074-MADR D4).
+	NoLoopback bool
 
 	// issuer is a test's fake issuer; empty is DefaultOpenAIIssuer.
 	issuer string
@@ -100,6 +103,9 @@ func LoginChatGPTPlan(ctx context.Context, opts ChatGPTPlanOptions) (*OAuthSessi
 	if err != nil {
 		return nil, err
 	}
+	if err := requireNoLoopbackInput(config); err != nil {
+		return nil, err
+	}
 	hostID, err := planHostID(opts)
 	if err != nil {
 		return nil, err
@@ -124,74 +130,35 @@ func LoginChatGPTPlan(ctx context.Context, opts ChatGPTPlanOptions) (*OAuthSessi
 		return nil, fmt.Errorf("oauth: generate nonce: %w", err)
 	}
 
-	listeners, redirectURI, _, err := browserListener(llmprovider.ProviderOpenAI)
-	if err != nil {
-		return nil, err
-	}
-	flowCtx, cancel := context.WithTimeout(ctx, oauthBrowserTimeout)
-	defer cancel()
-	result := make(chan oauthCallbackResult, 1)
-	serveErrors := make(chan error, 1)
-	shutdown := serveCallbackListeners(oauthCallbackHandler(planCallbackPath, state, result, ""), listeners, serveErrors)
-	defer shutdown()
-
-	authorizeURL, err := planAuthorizeURL(endpoints.Authorization, opts, hostID, redirectURI, pkce.challenge, state, nonce)
-	if err != nil {
-		return nil, err
-	}
-	if config.openURL != nil {
-		go func() {
-			ignoreOAuthError(config.openURL(authorizeURL))
-		}()
-	}
-	inputCancel := func() {}
-	if config.inputCode != nil {
-		var inputCtx context.Context
-		inputCtx, inputCancel = context.WithCancel(flowCtx)
-		go func() {
-			callback := oauthCallbackResult{}
-			input, inputErr := config.inputCode(inputCtx)
-			if inputErr != nil {
-				callback.err = inputErr
-			} else {
-				callback = parseOAuthCallback(input, state)
+	return runBrowserLogin(ctx, browserLogin{
+		config:     config,
+		state:      state,
+		corsOrigin: "",
+		parse:      func(input string) oauthCallbackResult { return parseOAuthCallback(input, state) },
+		authorizeURL: func(redirectURI string) (string, error) {
+			return planAuthorizeURL(endpoints.Authorization, opts, hostID, redirectURI, pkce.challenge, state, nonce)
+		},
+		exchange: func(ctx context.Context, callback oauthCallbackResult, redirectURI string) (*OAuthSession, error) {
+			var clientErr error
+			if config.clientID, clientErr = planIssuedClient(opts.Previous, callback.clientID); clientErr != nil {
+				return nil, clientErr
 			}
-			select {
-			case result <- callback:
-			case <-inputCtx.Done():
+			payload, exchangeErr := planExchange(ctx, config, endpoints.Token, callback.code, redirectURI, pkce.verifier)
+			if exchangeErr != nil {
+				return nil, exchangeErr
 			}
-		}()
-	}
-	defer inputCancel()
-
-	var callback oauthCallbackResult
-	select {
-	case callback = <-result:
-	case serveErr := <-serveErrors:
-		return nil, serveErr
-	case <-flowCtx.Done():
-		return nil, fmt.Errorf("oauth: browser login timed out: %w", flowCtx.Err())
-	}
-	if callback.err != nil {
-		return nil, callback.err
-	}
-	if config.clientID, err = planIssuedClient(opts.Previous, callback.clientID); err != nil {
-		return nil, err
-	}
-	payload, err := planExchange(flowCtx, config, endpoints.Token, callback.code, redirectURI, pkce.verifier)
-	if err != nil {
-		return nil, err
-	}
-	if !slices.Contains(strings.Fields(payload.Scope), planDirectScope) {
-		return nil, fmt.Errorf("oauth: %w: the grant does not include ChatGPT plan usage (%s)", llmprovider.ErrNotPermitted, planDirectScope)
-	}
-	session, err := verifiedSession(flowCtx, config, endpoints, payload, nonce)
-	if err != nil {
-		return nil, err
-	}
-	session.Resource, session.Scope, session.IDToken, session.HostID = planResource, payload.Scope, payload.IDToken, hostID
-	session.Kind = SessionChatGPTPlan
-	return session, nil
+			if !slices.Contains(strings.Fields(payload.Scope), planDirectScope) {
+				return nil, fmt.Errorf("oauth: %w: the grant does not include ChatGPT plan usage (%s)", llmprovider.ErrNotPermitted, planDirectScope)
+			}
+			session, sessionErr := verifiedSession(ctx, config, endpoints, payload, nonce)
+			if sessionErr != nil {
+				return nil, sessionErr
+			}
+			session.Resource, session.Scope, session.IDToken, session.HostID = planResource, payload.Scope, payload.IDToken, hostID
+			session.Kind = SessionChatGPTPlan
+			return session, nil
+		},
+	})
 }
 
 // resolvePlanConfig checks opts and fills in the defaults.
@@ -223,6 +190,7 @@ func resolvePlanConfig(opts ChatGPTPlanOptions) (oauthFlowConfig, error) {
 		inputCode:    opts.InputCode,
 		now:          now,
 		identity:     opts.Identity,
+		noLoopback:   opts.NoLoopback,
 	}, nil
 }
 

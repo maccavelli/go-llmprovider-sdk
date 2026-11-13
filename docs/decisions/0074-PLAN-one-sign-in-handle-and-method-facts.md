@@ -188,7 +188,10 @@ No other name is exported. `internal/signinflow` is internal.
 * **Every other existing test passes unchanged,** in `llmprovider/auth`,
   `wizard` and `llmprovider/providers/...` (R46), except
   `TestDescriptors_OpenAIAndGrokOfferOAuth`, whose `want` table gains D1's
-  facts in Phase 1 (MADR D12). Any other test that needs a change is a stop.
+  facts in Phase 1 (MADR D12). Any other test that needs a change is a stop. *(2026-11-12: the owner
+  ruled that Phase 3 changes two more, `llmprovider/live_0076_identity_test.go` and
+  `wizard/configure_errors_0048_test.go`, each in its one call of `LoginDeviceOAuth`; see
+  "Phase 3, deviations".)*
 * **Pre-add, the gate, staging, commits and stop conditions** are those of
   [0072-PLAN-keep-absolute-reset-times-and-limit-detail-on-apierror.md](0072-PLAN-keep-absolute-reset-times-and-limit-detail-on-apierror.md),
   "Rules for every phase", with these stop conditions added:
@@ -341,7 +344,11 @@ with the proposed `SessionKind`)"; the owner ruled the method in.)*
 5. **`LoginDeviceOAuth` and `NotifyDevice`** gain `Deprecated:`;
    `TestLive_GrokDeviceLogin` and `TestLive_KiloDeviceLogin` call
    `StartDeviceOAuth` and `Wait`, logging the code as the `NotifyDevice`
-   callback did (R46: same login, same checks).
+   callback did (R46: same login, same checks). *(2026-11-12: the three other
+   callers of `LoginDeviceOAuth` outside package `auth`, `TestLive_0076Identity`'s Grok
+   device half and `TestConfigureLLM_DeviceLoginErrorBare_0048`, move to
+   `StartDeviceOAuth` and `Wait` too, by the owner's ruling in "Phase 3,
+   deviations"; the `Deprecated:` paragraphs of step 5 stand.)*
 
 | Test | Asserts | Planted break |
 | :--- | :--- | :--- |
@@ -962,3 +969,181 @@ this one.
   dated annotation to D5, naming gobble-cli 0051-MADR D2's resolver.
 * **Finding 1b accepted with no change:** a session with a `Resource` on a
   provider other than OpenAI is revoked as unsupported; this SDK builds none.
+
+### Phase 3 (2026-11-12)
+
+Base: `main` at `906e365` (Phase 2 committed as `5d08770`), tree clean. The
+MADR (D4, D7, D8, D10) and this PLAN were read first. Step 0: `auth.Identity`
+exists (`identity.go`), and the OpenAI device poll's own deadline now returns
+the pacer's `errDeviceCodeExpired` (`oauth_device.go`, `pace.expired()`), so
+both prerequisites hold; `v1.30.0` is tagged.
+
+* Step 1, `oauth_loopback.go`, `oauth_plan.go`: one unexported
+  `runBrowserLogin(ctx, browserLogin)` holds the listener, result channel,
+  input goroutine and select. `browserLogin` carries the callback parser, the
+  CORS origin, the authorize-URL builder (so Grok's nonce is still made after
+  the listener binds) and the exchange. `LoginBrowserOAuth` and
+  `LoginChatGPTPlan` call it. The browser's parser is `parseOAuthInput`
+  wrapped, the plan's `parseOAuthCallback`, so each keeps its own. The plan's
+  constant `planCallbackPath` is gone: both read `openAICallbackPath`, a new
+  constant for the same string, which `browserListener` also uses.
+* Step 2: `OAuthFlowOptions.NoLoopback` and `ChatGPTPlanOptions.NoLoopback`,
+  carried as `oauthFlowConfig.noLoopback`. `requireNoLoopbackInput` runs after
+  config resolution and before any request: Grok is `ErrUnsupported`, a
+  sign-in without `InputCode` is `ErrInvalidRequest`. `browserEndpoint` binds
+  nothing with it set and names `openaiLoopbackPorts[0]`. `StartDeviceOAuth`
+  does not read it (`TestNoLoopback_DeviceIgnored_0074`, added).
+* Step 3: `ErrSignInDenied` and `ErrSignInExpired` (each wrapping
+  `ErrAuthFailure`) and an unexported `signInError` whose `Error()` is the old
+  error's and whose `Unwrap() []error` adds the sentinel. The six sites (C42
+  to C47: the browser `access_denied`, Grok's denial and expiry, the shared
+  `errDeviceCodeExpired`, Kilo's denial and expiry) use `asSignInError`.
+* Step 4: `auth.VendorCLIPath` in the new `vendor_path.go`; `wizard/import.go`
+  is now `vendorAuthPath` calling it, and `homeDir` is deleted. **Error text
+  differs** (not a wizard notice, prompt or question): the three errors read
+  "auth: ..." where they read "wizard: ...", and the nil case says "pass a
+  lookupEnv, such as os.Getenv". No wizard test reads them.
+* Step 5, first half: `TestLive_GrokDeviceLogin` and `TestLive_KiloDeviceLogin`
+  call `StartDeviceOAuth`, log the code, then `Wait`; `go vet -tags
+  live_gateways` builds them (the gate's `vet-*-live` runs).
+* **Deviation, step 5's second half not done (2026-11-12).** The `Deprecated:`
+  paragraphs on `LoginDeviceOAuth` and `OAuthFlowOptions.NotifyDevice` were
+  written, and `make pre-add-check` failed, exit 2, three staticcheck SA1019
+  findings at the only two callers outside package `auth`:
+  `llmprovider/live_0076_identity_test.go:66` (`auth.LoginDeviceOAuth`) and
+  `:69` (`NotifyDevice`), and `wizard/configure_errors_0048_test.go:157`
+  (`auth.LoginDeviceOAuth`). Neither file is among Phase 3's, and the PLAN's
+  rule is that no other existing test changes. The markers were taken out
+  again to await the owner's ruling, which came the same day; see "Phase 3,
+  deviations" below.
+* **Tests** (new, in `llmprovider/auth`): `no_loopback_0074_test.go`
+  (`TestNoLoopback_OpenAI_0074`, `_Plan_0074`, `_GrokUnsupported_0074`,
+  `_DeviceIgnored_0074`), `signin_messages_0074_test.go`
+  (`TestSignInMessagesUnchanged_0074`, which owns the six-site table),
+  `signin_sentinels_0074_test.go` (`TestSignInSentinels_0074`, with
+  `_OpenAIDeadline_0074`, which pins 0076's expiry as `ErrSignInExpired`, and
+  `_Distinct_0074`), `vendor_path_0074_test.go` (`TestVendorCLIPath_0074`).
+  The existing browser, loopback, plan and callback tests pass unchanged.
+* **Red, then green.** `python3 -B tools/redgreen.py --expect pass --rev
+  773b84c` on `TestSignInMessagesUnchanged_0074`, exit 0, "1 of 1 pass as
+  expected": its literals are the old code's.
+* **Plants,** `python3 -B tools/plant.py`, scratch clone, never the tree, exit
+  0, "plant: all 16 plant(s) caught", run twice (the second after the lint
+  fixes below). Every one failed on an assertion, none on a build:
+  * the listener still bound: `--- FAIL: TestNoLoopback_OpenAI_0074`,
+    `no_loopback_0074_test.go:115: LoginBrowserOAuth = OAuthSession(nil),
+    oauth: registered callback ports unavailable; use device-code login:
+    listen tcp4 127.0.0.1:25201: bind: address already in use` (the plan test
+    the same at `:157`);
+  * `InputCode` not required: `:135: LoginBrowserOAuth = OAuthSession(nil),
+    oauth: browser login timed out: context deadline exceeded; want
+    ErrInvalidRequest` (`:176` for the plan);
+  * the redirect names the second port: `:119: authorize redirect_uri =
+    "http://127.0.0.1:22168/auth/callback", want
+    "http://127.0.0.1:22143/auth/callback"`;
+  * the plan ignores `NoLoopback`: `--- FAIL: TestNoLoopback_Plan_0074/a_paste_completes_it`,
+    `:157: ... address already in use`;
+  * Grok not refused: `--- FAIL: TestNoLoopback_GrokUnsupported_0074`, `:201:
+    InputCode true: LoginBrowserOAuth = OAuthSession(nil), oauth: token
+    request: Post "https://auth.x.ai/oauth2/token": no request expected; want
+    ErrUnsupported`;
+  * each of the six sites given the other sentinel, or none (seven plants,
+    the shared expiry one failing two tests): `--- FAIL:
+    TestSignInSentinels_0074/browser_denial`, `signin_sentinels_0074_test.go:33:
+    err = llmprovider: authentication failed: oauth: authorization failed:
+    access_denied; matches llmprovider: authentication failed: sign-in
+    expired too`; Kilo's expiry unwrapped: `.../Kilo_expiry`, `:33: err = ...
+    Kilo device code expired; want it to match ErrAuthFailure and ... sign-in
+    expired`; the shared expiry as denied also fails
+    `TestSignInSentinels_OpenAIDeadline_0074`, `:43`;
+  * a message gains the sentinel's text: `--- FAIL:
+    TestSignInMessagesUnchanged_0074/shared_device_expiry`,
+    `signin_messages_0074_test.go:108: Error() = "llmprovider: authentication
+    failed: oauth: device code expired: llmprovider: authentication failed:
+    sign-in expired", want "llmprovider: authentication failed: oauth: device
+    code expired"`;
+  * `GROK_AUTH_PATH` read after `GROK_HOME`: `--- FAIL:
+    TestVendorCLIPath_0074/grok_auth_path_before_home`,
+    `vendor_path_0074_test.go:40: vendorCLIPath = "/x/grok/auth.json", <nil>;
+    want "/y/login.json"`; and three of mine: Windows reading `HOME`
+    (`.../codex_default_on_windows`), Kilo not `ErrUnsupported`
+    (`.../Kilo_has_no_vendor_CLI`), a nil `lookupEnv` finding a home
+    (`.../a_nil_lookupEnv_finds_no_home`, `VendorCLIPath(nil) =
+    "/nowhere/.codex/auth.json", <nil>; want an error`).
+* Checks, each exit status captured before any filter, the heavy ones through
+  `run-heavy`:
+  * `make pre-add-check` on the eleven Go files: **first run, exit 2:**
+    errorlint twice in the new sentinels test (`==` and `!=` on errors),
+    revive `confusing-naming` (`vendorCLIPath` beside `VendorCLIPath`), and
+    the three SA1019 findings of the deviation. Fixed by `errors.Is`, by
+    renaming the helper `vendorPathOn`, and by the deviation above; no
+    `nolint`. Second run, exit 0, "go-precheck: 11 file(s) clean".
+  * `python3 -B tools/redgreen.py REFRESH.json --expect pass`: 65 of 66, exit 1,
+    one "missing": `TestOAuthSessionWait_WindowsRemoval_0071`, which skips off
+    Windows, as in Phase 2; none of the 15 files changed.
+  * `make api-check`, exit 0: "against v1.30.0, 0 incompatible change(s)
+    outside llmprovider/x/". `python3 -B tools/apidiff.py v1.30.0`, exit 0,
+    all "Compatible changes": the nine `AuthMethod` fields and seven session
+    additions of Phases 1 and 2, and this phase's five, `auth.ErrSignInDenied`,
+    `auth.ErrSignInExpired`, `auth.VendorCLIPath`,
+    `auth.OAuthFlowOptions.NoLoopback`, `auth.ChatGPTPlanOptions.NoLoopback`;
+    nothing else, so R55's table is met.
+  * `python3 -B tools/gate.py --timeout 5400`, through `run-heavy`, after the
+    last code change, exit 0: "gate: 30 of 30 passed", every check rc=0 (the
+    coverage floors included). The record checks were run again after this
+    entry.
+* Acceptance: the tests pass and each plant failed; the loopback, plan and
+  browser-kind tests pass unchanged; the refresh tests pass; `make api-check`
+  lists the five names as additions only. Met, with the deviation below: the
+  `Deprecated:` markers are in.
+* Not done, as the phase says: no `signin` package, no `llmprovider/x`, no
+  contract import, no change to the wizard's text.
+
+### Phase 3, deviations (2026-11-12)
+
+* **Finding.** With step 5's `Deprecated:` paragraphs on `LoginDeviceOAuth`
+  and `OAuthFlowOptions.NotifyDevice`, `make pre-add-check` reported three
+  staticcheck SA1019 findings at the only callers outside package `auth`:
+  `llmprovider/live_0076_identity_test.go:66` (`LoginDeviceOAuth`) and `:69`
+  (`NotifyDevice`), and `wizard/configure_errors_0048_test.go:157`
+  (`LoginDeviceOAuth`). Both files were outside Phase 3's scope, and the
+  rules said that any other test that needs a change is a stop. The markers
+  were held back (the entry above).
+* **Ruling, 2026-11-12, the owner: "Add the 2 tests to Phase 3".** The two
+  files join Phase 3's scope. Their three call sites move to
+  `StartDeviceOAuth` and `Wait`, and the `Deprecated:` paragraphs are
+  restored. The 0076 live test keeps checking the device form's `referrer`;
+  the wizard test keeps its assertions. The "no other existing test changes"
+  rule is annotated above, not rewritten.
+* **Applied (2026-11-12), after the record above.**
+  * `llmprovider/live_0076_identity_test.go`, the `GrokDevice` half: `StartDeviceOAuth`,
+    the code logged as the `NotifyDevice` callback did, then `Wait`; on a
+    `StartDeviceOAuth` error the half still reaches `checkDeviceReferrer` and
+    `probeSignIn` as before. `checkDeviceReferrer` still runs on the same
+    recorder and name. `wizard/configure_errors_0048_test.go`,
+    `TestConfigureLLM_DeviceLoginErrorBare_0048`: `StartDeviceOAuth`, then
+    `Wait` when it starts; every assertion is unchanged.
+  * `Deprecated:` paragraphs restored on `LoginDeviceOAuth` and
+    `OAuthFlowOptions.NotifyDevice`. `make pre-add-check` on the thirteen Go
+    files, exit 0, "go-precheck: 13 file(s) clean"; no `nolint`.
+  * Callers of the two outside package `auth`, `grep -rnE
+    "LoginDeviceOAuth|NotifyDevice" --include='*.go'` (exit 0) with the
+    package's own files removed (exit 0): one line, the comment at
+    `wizard/auth.go:722` ("It sets no NotifyDevice: ..."), no call. Docs and
+    the CHANGELOG name `LoginDeviceOAuth` in prose only.
+  * **The referrer check still fails when broken.** The 0076 live half cannot
+    run offline; its offline twin and the shared `live_checks_test.go`
+    helper can. The existing plant of 0076 (`oauth_device.go`: the device
+    form's referrer kept at the default), run on the twin with `plant.py` on a
+    scratch clone, exit 0, "plant: all 1 plant(s) caught": `--- FAIL:
+    TestLiveTwin_Identity_0076/GrokDevice`, `live_twins_test.go:321: device
+    form referrers = [["go-llmprovider-sdk"]], want one form with
+    ["llmprovider-probe"]`. The auth package's own twin of it,
+    `TestIdentity_Referrer_0076`, is the plant of 0076 Phase 2 and was not
+    changed. The 16 plants of this phase were run again, exit 0, "plant: all
+    16 plant(s) caught".
+  * `make api-check`, exit 0, "0 incompatible change(s) outside
+    llmprovider/x/"; `tools/apidiff.py v1.30.0`, exit 0, the same 21 additions.
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, after the
+    last code change, exit 0: "gate: 30 of 30 passed". The record checks were
+    run again after this entry.

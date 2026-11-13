@@ -154,8 +154,11 @@ func TestConfigureLLM_DeviceLoginErrorBare_0048(t *testing.T) {
 	if !errors.As(err, &urlErr) || !errors.Is(err, syscall.ECONNREFUSED) {
 		t.Fatalf("ConfigureLLM = %v; want the login's *url.Error refusing the connection", err)
 	}
-	_, loginErr := auth.LoginDeviceOAuth(context.Background(), llmprovider.ProviderOpenAI,
+	login, loginErr := auth.StartDeviceOAuth(context.Background(), llmprovider.ProviderOpenAI,
 		auth.OAuthFlowOptions{HTTPClient: nettest.Refusing()})
+	if loginErr == nil {
+		_, loginErr = login.Wait(context.Background())
+	}
 	if loginErr == nil || err.Error() != loginErr.Error() {
 		t.Errorf("ConfigureLLM = %q; want the login's own error %q, unwrapped", err, loginErr)
 	}

@@ -103,13 +103,14 @@ func TestLive_GrokDeviceLogin(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	session, err := auth.LoginDeviceOAuth(ctx, llmprovider.ProviderGrok, auth.OAuthFlowOptions{
-		NotifyDevice: func(verificationURL, userCode string) {
-			t.Logf("open %s and enter the code %s", verificationURL, userCode)
-		},
-	})
+	login, err := auth.StartDeviceOAuth(ctx, llmprovider.ProviderGrok, auth.OAuthFlowOptions{})
 	if err != nil {
-		t.Fatalf("LoginDeviceOAuth: %v", err)
+		t.Fatalf("StartDeviceOAuth: %v", err)
+	}
+	t.Logf("open %s and enter the code %s", login.VerificationURI, login.UserCode)
+	session, err := login.Wait(ctx)
+	if err != nil {
+		t.Fatalf("Wait: %v", err)
 	}
 	revokeAfter(t, session)
 	checkWord(ctx, t, liveGrok(t, session, "grok-4.6"), "ALPHA", noSkip)
@@ -127,13 +128,14 @@ func TestLive_KiloDeviceLogin(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	session, err := auth.LoginDeviceOAuth(ctx, llmprovider.ProviderKilo, auth.OAuthFlowOptions{
-		NotifyDevice: func(verificationURL, userCode string) {
-			t.Logf("open %s and enter the code %s", verificationURL, userCode)
-		},
-	})
+	login, err := auth.StartDeviceOAuth(ctx, llmprovider.ProviderKilo, auth.OAuthFlowOptions{})
 	if err != nil {
-		t.Fatalf("LoginDeviceOAuth: %v", err)
+		t.Fatalf("StartDeviceOAuth: %v", err)
+	}
+	t.Logf("open %s and enter the code %s", login.VerificationURI, login.UserCode)
+	session, err := login.Wait(ctx)
+	if err != nil {
+		t.Fatalf("Wait: %v", err)
 	}
 	checkKiloSession(ctx, t, session, llmprovider.LiveModel(t, llmprovider.ProviderKilo, llmprovider.LiveKiloFreeCollecting...),
 		llmprovider.SkipIfTransient)

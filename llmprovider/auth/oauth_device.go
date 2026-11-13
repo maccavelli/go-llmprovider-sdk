@@ -189,6 +189,10 @@ func (d *DeviceLogin) Cancel() {
 // call: it starts the login, reports the code through opts.NotifyDevice, and
 // waits for approval. StartDeviceOAuth gives the same flow as a handle. Its
 // errors are StartDeviceOAuth's and Wait's.
+//
+// Deprecated: use StartDeviceOAuth and DeviceLogin.Wait, which hand the code
+// back to show, or llmprovider/x/signin. It stays, unchanged, until v2
+// (0074-MADR D7).
 func LoginDeviceOAuth(ctx context.Context, provider llmprovider.ProviderID, opts OAuthFlowOptions) (*OAuthSession, error) {
 	login, err := StartDeviceOAuth(ctx, provider, opts)
 	if err != nil {
@@ -364,9 +368,9 @@ func startGrokDevice(ctx context.Context, config oauthFlowConfig) (*DeviceLogin,
 				interval += deviceSlowDownIncrement
 				continue
 			case oauthAccessDenied:
-				return nil, fmt.Errorf("%w: oauth: Grok device authorization denied", llmprovider.ErrAuthFailure)
+				return nil, asSignInError(fmt.Errorf("%w: oauth: Grok device authorization denied", llmprovider.ErrAuthFailure), ErrSignInDenied)
 			case "expired_token":
-				return nil, fmt.Errorf("%w: oauth: Grok device code expired", llmprovider.ErrAuthFailure)
+				return nil, asSignInError(fmt.Errorf("%w: oauth: Grok device code expired", llmprovider.ErrAuthFailure), ErrSignInExpired)
 			default:
 				return nil, fmt.Errorf("oauth: Grok device token failed: %s", deviceErr.Code)
 			}
@@ -435,7 +439,7 @@ func durationFromSeconds(seconds float64, fallback time.Duration, floor bool) ti
 }
 
 // errDeviceCodeExpired ends a device-code poll at the code's expiry.
-var errDeviceCodeExpired = fmt.Errorf("%w: oauth: device code expired", llmprovider.ErrAuthFailure)
+var errDeviceCodeExpired = asSignInError(fmt.Errorf("%w: oauth: device code expired", llmprovider.ErrAuthFailure), ErrSignInExpired)
 
 func sleepBeforeDeadline(ctx context.Context, config oauthFlowConfig, interval time.Duration, deadline time.Time) error {
 	remaining := deadline.Sub(config.now())

@@ -63,13 +63,15 @@ func TestLive_0076Identity(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		rec := &identityRecorder{base: http.DefaultTransport.(*http.Transport).Clone()}
-		session, err := auth.LoginDeviceOAuth(ctx, llmprovider.ProviderGrok, auth.OAuthFlowOptions{
+		var session *auth.OAuthSession
+		login, err := auth.StartDeviceOAuth(ctx, llmprovider.ProviderGrok, auth.OAuthFlowOptions{
 			Identity:   identity,
 			HTTPClient: &http.Client{Transport: rec},
-			NotifyDevice: func(verificationURL, userCode string) {
-				t.Logf("open %s and enter the code %s", verificationURL, userCode)
-			},
 		})
+		if err == nil {
+			t.Logf("open %s and enter the code %s", login.VerificationURI, login.UserCode)
+			session, err = login.Wait(ctx)
+		}
 		checkDeviceReferrer(t, rec, identity.Name)
 		revoked := probeSignIn(t, "xAI's device sign-in", session, err)
 		checkIdentitySession(ctx, t, session)
