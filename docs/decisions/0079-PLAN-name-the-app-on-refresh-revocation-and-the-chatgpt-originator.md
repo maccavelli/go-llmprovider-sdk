@@ -64,7 +64,8 @@ Phase 1 needs none of these.
   `identity.go`; their tests.
 * **D4:** `llmprovider/settings.go`; `llmprovider/providers/openai/openai.go`,
   `llmprovider/providers/grok/grok.go`; `llmprovider/catalog/discovery.go`;
-  their tests.
+  their tests. *(2026-11-12, amended: also `llmprovider/catalog/lookup.go`
+  and `config.go`, for the lookups' hand-off; Phase 3 step 3a.)*
 * **D5:** `wizard/configure.go`, `wizard/auth.go`, `wizard/logout.go`; their
   tests.
 * **Live (ruling 2):** a new `llmprovider/live_0079_name_test.go`;
@@ -223,7 +224,36 @@ additions and nothing else of this PLAN's.
    st.ClientName(), Version: st.ClientVersion()})` on a source that takes it,
    when `st.ClientName()` is not this module's default name.
 3. `catalog`'s `listingToken`: the same, beside its client hand-off (C24),
-   before it reads the token.
+   before it reads the token. *(2026-11-12, amended (MADR, "Amendment
+   2026-11-12: the catalog lookups take D4's hand-off"): the hand-off is one
+   unexported `nameSession(src, cfg)` in `llmprovider/catalog`, which
+   `listingToken` calls here; `config` gains the version beside
+   `clientName`, from `st.ClientVersion()`.)*
+   * **Step 3a, the lookups** *(added 2026-11-12 by the amendment)*:
+     `llmprovider/catalog/lookup.go`: `CachedModel` calls
+     `nameSession(src, cfg)` on the line directly above
+     `if token, err := src.Token(ctx); err == nil {` (MADR C50), and
+     `listingModel` on the line directly above `token, err := src.Token(ctx)`
+     (C51). `CachedModel`'s and `LookupModel`'s docs each gain the sentence
+     "Before it asks src for its token, it gives a session WithClientInfo's
+     name, as List does (0079-MADR D4).", and `CachedModel`'s "It asks src
+     for its token as the source gives it" (C58) stays. Nothing else in
+     either lookup changes: neither reads its token through `listingToken`,
+     so neither gains its client hand-off or its error text (C56, C59).
+     These lines are what gobble-cli's 0051-PLAN P2a step 0 quotes at
+     `v1.31.0` (P12); a different spelling is a deviation recorded here, with
+     the line gobble should quote, before the tag.
+     *(2026-11-12, the owner's rulings: "Same fix": `CachedFacts` calls
+     `nameSession(cfg.tokens, cfg)` on the line directly above
+     `if token, err := cfg.tokens.Token(ctx); err == nil {` (MADR C57), and
+     its doc gains "Before it asks the credential opts give for its token,
+     it gives a session WithClientInfo's name, as List does (0079-MADR
+     D4)."; nothing else of it changes. "Exact code lines": the two
+     `nameSession(src, cfg)` lines and `CachedModel`'s doc sentence are
+     gobble's signal, and a renamed helper is a deviation recorded here with
+     the replacement line. gobble's signal needs no `CachedFacts` line: at
+     gobble-cli `8fa0b73` no gobble code calls it (MADR, the signal's note).
+     "Keep whole": these steps stay in this phase.)*
 4. `wizard`: with `Options.Identity.Name` set,
    `llmprovider.WithClientInfo(Name, Version)` goes first in the option
    lists of the listing check (C31), the Kilo profile (C30) and the Ollama
@@ -236,6 +266,8 @@ additions and nothing else of this PLAN's.
 | `TestSettingsClientVersion_0079` | `WithClientInfo("a", "1.2.3")` gives "1.2.3"; `WithClientInfo("a", "")` and no option give the version `UserAgent()` shows, the main module's and this module's | planted: `ClientVersion` returns the given version alone, empty for none |
 | `TestProviderNamesSession_0079` | a session loaded from a `FileTokenStore`, given to an openai provider (a ChatGPT session) and a grok provider each built with `WithClientInfo("probe-app", "1.2.3")`: a 401 from the backend forces a refresh whose User-Agent begins `probe-app/1.2.3 (`; with no `WithClientInfo`, this module's; a session given `first-app` before keeps it | red at `5d08770` (this module's); then planted: grok's hand-off omitted; the version passed empty |
 | `TestListingNamesSession_0079` | `catalog.ListRaw` with `WithClientInfo("probe-app", "1.2.3")` and a session within its refresh window: the refresh it causes names the application | red at `5d08770`; then planted: `listingToken`'s hand-off omitted |
+| `TestLookupNamesSession_0079` *(added 2026-11-12 by the amendment)* | a session loaded from a `FileTokenStore`, past its expiry, used first, with no provider or listing before it, by `catalog.CachedModel`, and in a second case by `catalog.LookupModel`, each with `WithClientInfo("probe-app", "1.2.3")` and a cold listing cache: the refresh the lookup starts is the first request at the fake issuer, and its User-Agent begins `probe-app/1.2.3 (` and names `go-llmprovider-sdk/`; `CachedModel`'s background listing, waited for, sends the same; with no `WithClientInfo`, each refresh sends this module's User-Agent. *(2026-11-12, the ruling "Same fix": a third case, `catalog.CachedFacts` for grok with the session passed as `WithTokenSource` and `WithClientInfo("probe-app", "1.2.3")`: its refresh's User-Agent begins `probe-app/1.2.3 (`; and with the same session followed by `WithAPIKey("static")`, as a provider passes it, no request reaches the issuer.)* | red at `5d08770` (this module's); then planted: `CachedModel` reads `src.Token` directly (its `nameSession` line removed); `listingModel` reads `src.Token` directly; `CachedModel`'s `nameSession` moved below its token read; *(added 2026-11-12)* `CachedFacts` reads its token directly (its `nameSession` line removed) |
+| `TestLookupHandOffOnlyNames_0079` *(added 2026-11-12 by the amendment)* | what L1 leaves alone: a session with no `HTTPClient` read by `CachedModel` or `LookupModel` is still without one afterwards; `LookupModel` with a token source that fails gives an error ending "model metadata: listing grok: acquire token: " and the source's error, not "model listing: acquire token"; each lookup asks the source for its token as many times as at `5d08770` | green at `5d08770`, then planted: `CachedModel` and `listingModel` read their token through `listingToken` (L2), which hands the client and changes the text |
 | `TestWizardOwnRequestsNamed_0079` | `Options.Identity{Name: "probe-app", Version: "1.2.3"}` with no `WithClientInfo` in `ProviderOptions`: the listing check, the Kilo profile and the Ollama check lead their User-Agent with `probe-app/1.2.3`; with `WithClientInfo("other-app", "2.0.0")` in `ProviderOptions`, with `other-app/2.0.0`; with no `Identity`, as at `5d08770` | red at `5d08770` for the first case; then planted: the option put after `ProviderOptions`; the Kilo profile without it |
 | `TestWizardLogoutNamed_0079` | `wizard.Logout` of a stored Grok session with `Options.Identity` set: the discovery and the revocation carry the name | red at `5d08770`; then planted: the logout without `UseIdentity` |
 
@@ -260,7 +292,9 @@ its own.
 3. `CHANGELOG.md` `[Unreleased]`: **Added** the two names; **Changed** the
    ChatGPT `originator` follows `WithClientInfo`, a session's refresh and
    revocation name the application, and the wizard's own requests and
-   logout name `Options.Identity`.
+   logout name `Options.Identity`. *(2026-11-12, amended: **Changed** also
+   says that a refresh `catalog.CachedModel` or `catalog.LookupModel` starts
+   names `WithClientInfo`'s application, as a listing's does.)*
 4. `make docs-check changelog-check links-check markdownlint parity-check`.
 
 Acceptance: each passes; the README and architecture say what Phases 1 to 3
@@ -406,7 +440,7 @@ through `run-heavy`.
 The facts this PLAN's steps rest on beyond the MADR's index, checked by
 `tools/claims.py`.
 
-<!-- claims: self=5d08770 -->
+<!-- claims: self=5d08770 gobble-cli=8fa0b73 -->
 
 | Id | Claim | Location | Text |
 | :--- | :--- | :--- | :--- |
@@ -420,6 +454,12 @@ The facts this PLAN's steps rest on beyond the MADR's index, checked by
 | P8 | xAI accepted a custom name on a device sign-in | `docs/decisions/0076-PLAN-auth-error-kinds-and-doc-drift.md:905` | `--- PASS: TestLive_0076Identity/GrokDevice (15.97s)` |
 | P9 | An existing test holds that a plan session sends no originator | `llmprovider/providers/openai/plan_0043_test.go:214` | `sent[0].Header.Get(headerOriginator) != "" \|\| sent[0].Header.Get(headerChatGPTAccount) != "" {` |
 | P10 | 0076's probe is gated by its own record's variable | `llmprovider/live_0076_identity_test.go:29` | `if os.Getenv("LLMPROVIDER_LIVE_0076") != "1" {` |
+| P11 | gobble's agent reads its model facts through `CachedModel` with a stored session *(added 2026-11-12)* | `gobble-cli:llm/provider/model.go:157` | `info, _ := catalog.CachedModel(ctx, llmprovider.ProviderID(id), src, model, opts...)` |
+| P12 | gobble's P2a step 0 quotes this line at `v1.31.0` *(added 2026-11-12)* | `gobble-cli:docs/decisions/0051-PLAN-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md:210` | `the record quotes the line where` |
+| P13 | gobble's 0051-MADR N6 leaves the session's naming to the SDK *(added 2026-11-12)* | `gobble-cli:docs/decisions/0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md:671` | `hand that name to the session before they read its token` |
+
+*(2026-11-12: P11 to P13 added with the amendment, and `gobble-cli=8fa0b73`
+added to the marker for them. P1 to P10 name no other repository.)*
 
 ## Execution record
 
@@ -486,3 +526,60 @@ The facts this PLAN's steps rest on beyond the MADR's index, checked by
 * **Pre-add:** `make pre-add-check` on the 8 changed Go files, rc 0.
 * **Gate:** `run-heavy -- python3 -B tools/gate.py --timeout 5400`: "gate: 30
   of 30 passed", exit 0.
+
+### Deviation (2026-11-12): the catalog lookups bypass D4's hand-off; records amended
+
+* **Found.** gobble-cli's records agent, writing its 0051-MADR D9 (N6),
+  found that `catalog.CachedModel` and `LookupModel`'s `listingModel` read the
+  session's token themselves (MADR C50, C51), not through `listingToken`
+  (C53), where Phase 3 step 3 puts `catalog`'s hand-off. A refresh either
+  lookup starts would therefore name this module, for every consumer. The
+  coordinator confirmed it at `f50466b`. The code is the same at `5d08770`
+  and at `b44cf42`, where this entry was written with Phase 1 committed and a
+  clean tree. Not a failure of Phase 1, which touches neither lookup.
+* **The owner's ruling, 2026-11-12:** "Amend SDK 0079": the SDK fixes it at
+  the source; gobble passes `WithClientInfo` on its `CachedModel` call (P11)
+  and calls no `UseIdentity` for it.
+* **Decided** (MADR, "Amendment 2026-11-12: the catalog lookups take D4's
+  hand-off"): L1, one unexported `nameSession(src, cfg)`, called by
+  `listingToken` and by both lookups before their token read, which is
+  otherwise unchanged. Not L2, routing both through `listingToken`, which
+  would also hand a lookup's session the listing's client and change
+  `LookupModel`'s error text (C56, C59), both stop conditions.
+* **Added to this PLAN:** Phase 3 step 3's note and step 3a; the scope's D4
+  files, `lookup.go` and `config.go`; `TestLookupNamesSession_0079` and
+  `TestLookupHandOffOnlyNames_0079`, each with its plants; Phase 4 step 3's
+  changelog note; code claims P11 to P13 at gobble-cli `8fa0b73`.
+* **Placement:** Phase 3, as written. The lookups' hand-off needs
+  `UseIdentity` (Phase 2, after 0074-PLAN Phase 3) and `nameSession` needs
+  `ClientVersion` (Phase 3 step 1), so it cannot land before Phase 2; and it
+  ships in the same `v1.31.0` wherever it lands in that window, which is all
+  gobble's P2a step 0 depends on. Whether Phase 3 splits so that its
+  `catalog` and provider steps land before 0074-PLAN Phase 5 is put to the
+  owner (MADR, "Put to the owner").
+* **gobble's signal at `v1.31.0`:** in `llmprovider/catalog/lookup.go`, the
+  line `nameSession(src, cfg)` directly above each of the two token reads,
+  and `CachedModel`'s doc sentence "Before it asks src for its token, it
+  gives a session WithClientInfo's name, as List does (0079-MADR D4)." (step
+  3a; P12).
+* **Not done:** no code. `CachedFacts` (MADR C57) is left to the owner.
+
+### The owner's rulings on the amendment (2026-11-12)
+
+* **`CachedFacts`: "Same fix".** It takes `nameSession(cfg.tokens, cfg)`
+  directly above its token read (step 3a's note), with a doc sentence;
+  `TestLookupNamesSession_0079` gains its case and the plant "`CachedFacts`
+  reads its token directly". MADR claims C60 to C62 added: a provider passes
+  it a static key after its options, and it reads a token only for a
+  listing layer.
+* **Phase 3: "Keep whole".** No split; step 3a stays in Phase 3, after
+  0074-PLAN Phase 5.
+* **gobble's check: "Exact code lines".** The two `nameSession(src, cfg)`
+  lines and `CachedModel`'s doc sentence are the signal (step 3a); a
+  renamed helper is a deviation, recorded here with the replacement line.
+* **gobble and `CachedFacts`:** not part of the signal. `git grep -n
+  CachedFacts 8fa0b73 -- '*.go'` in gobble-cli exits 1, no call; the SDK
+  providers gobble builds call it with a static key (MADR C60), which never
+  refreshes.
+* The MADR's "Put to the owner" keeps its options as written, each with its
+  dated ruling; none is open.

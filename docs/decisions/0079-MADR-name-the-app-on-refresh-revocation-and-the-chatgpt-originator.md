@@ -260,6 +260,13 @@ PLAN's Phase 5. O1 follows from ruling 2. The owner accepted this record on
   already named keeps its name (D2).
 * gobble then names its refreshes with no change of its own: it builds every
   provider and listing with `WithClientInfo` (C36, C37).
+* *(2026-11-12, amended by the owner's ruling "Amend SDK 0079": `catalog`'s
+  hand-off also runs in `CachedModel` and in `LookupModel`'s listing layer,
+  before each reads the session's token, which neither did through
+  `listingToken`. See "Amendment 2026-11-12: the catalog lookups take D4's
+  hand-off", under More Information. The bullets above are unchanged.)*
+  *(2026-11-12, later: and in `CachedFacts`, by the owner's ruling "Same
+  fix".)*
 
 ### D5. The wizard names its own requests and its logout
 
@@ -514,6 +521,182 @@ requests (its editor name is `ClientName`); `auth.KiloProfile`, which takes
 the caller's options; Kilo's sessions, which neither refresh nor revoke; the
 plan sign-in's refresh, which is D3's refresh request; the issuer's keys,
 fetched only by a sign-in (0076-MADR D3).
+
+*(2026-11-12: this survey missed two more, which gobble-cli's records agent
+found and the coordinator confirmed at `f50466b`: `catalog.CachedModel` and
+`LookupModel`'s listing layer each read the session's token themselves (C50,
+C51), not through `listingToken` (C53). The amendment below decides them. A
+third reader of a token in `catalog`, `CachedFacts` (C57), is put to the
+owner there.)* *(2026-11-12, later: the owner ruled "Same fix" for
+`CachedFacts`.)*
+
+### Amendment 2026-11-12: the catalog lookups take D4's hand-off
+
+**The finding.** D4 put `catalog`'s hand-off in `listingToken` (C53), which
+`List` and `ListRaw` read their token through (C54). Two lookups read the
+token themselves:
+
+* `CachedModel` asks the session for its token to find the cached listing
+  (C50), and its doc says it "asks src for its token as the source gives it"
+  (C58);
+* `LookupModel`'s listing layer, `listingModel` (C52), does the same (C51).
+
+A session past its expiry refreshes in that call, before anything has given
+it a name. The fetch either starts afterwards, the background one
+`CachedModel` starts and `listingModel`'s own when the cache is stale, goes
+through `listingToken` (C55), but the refresh has already been sent. This
+holds for every consumer, not only gobble: a lookup is often the first call
+on a session loaded from a store. gobble's own case is its agent's model
+facts, `catalog.CachedModel` called with a stored session (the PLAN's P11; gobble-cli
+`0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` D9,
+N6).
+
+**The owner's ruling, 2026-11-12:** "Amend SDK 0079". The SDK fixes it at the
+source: both lookups take D4's hand-off, so a session they refresh carries
+`WithClientInfo`'s name. gobble's part is to pass `WithClientInfo` on its
+`CachedModel` call (its 0051-PLAN P2a step 2), and to call no `UseIdentity`
+for it.
+
+**Considered:**
+
+* **L1. One unexported hand-off, called by `listingToken` and by both
+  lookups before they read the token,** each lookup's token read otherwise
+  unchanged.
+* **L2. Both lookups read their token through `listingToken`.**
+* **L3. The lookups unchanged; a caller names its session with
+  `UseIdentity` first.**
+
+**Chosen: L1,** because it adds the name and nothing else. `listingToken`
+does more than name the session: it hands it the listing's HTTP client (C24),
+and wraps a failure as "model listing: acquire token: …" (C56) where
+`listingModel` says "acquire token: …" (C59). L2 would give a
+session that a lookup reads a client it does not get today and change an
+error's text, both stop conditions of the PLAN, for no gain in the name.
+
+* L1: Good, because the name reaches both lookups' refreshes with no other
+  change; one function holds the rule, so `List`'s and a lookup's hand-off
+  cannot drift. Bad, because it is a third call site of the hand-off to keep.
+* L2: Good, because one function would read every listing's token. Bad,
+  because it changes the client a lookup's session refreshes through and
+  `LookupModel`'s error text, which no ruling asks for.
+* L3: Good, because no SDK change. Bad, because every consumer must know to
+  do it; the owner ruled against it ("Amend SDK 0079").
+
+**What changes.**
+
+* In `llmprovider/catalog`, one unexported `nameSession(src
+  llmprovider.TokenSource, cfg config)` is D4's `catalog` hand-off: it calls
+  `UseIdentity` on a source that takes it, with `WithClientInfo`'s name and
+  version, when they name an application other than this module. A session
+  already named keeps its name (D2).
+* `listingToken` calls it where D4 put the hand-off. `CachedModel` calls
+  `nameSession(src, cfg)` on the line before
+  `if token, err := src.Token(ctx); err == nil {`, and `listingModel` on the
+  line before `token, err := src.Token(ctx)`.
+* `CachedModel`'s and `LookupModel`'s docs each say: "Before it asks src for
+  its token, it gives a session WithClientInfo's name, as List does
+  (0079-MADR D4)."
+* Nothing else of the two lookups changes: their errors, the client their
+  session refreshes through, and how often they ask for a token.
+* *(2026-11-12, the owner's ruling "Same fix", below:)* `CachedFacts` calls
+  `nameSession(cfg.tokens, cfg)` on the line directly above
+  `if token, err := cfg.tokens.Token(ctx); err == nil {` (C57). Its source
+  is the credential its options give, not a `src` argument, so the call
+  names `cfg.tokens`. Its doc gains the sentence "Before it asks the
+  credential opts give for its token, it gives a session WithClientInfo's
+  name, as List does (0079-MADR D4)." Nothing else of it changes. A
+  provider passes it a static key after its options (C60, C61), which takes
+  no identity, so a provider's request is unchanged.
+
+**The signal gobble checks** (its 0051-PLAN P2a step 0; the PLAN's P12), in
+`llmprovider/catalog/lookup.go` at `v1.31.0` in the module cache:
+
+* in `CachedModel`, the line `nameSession(src, cfg)` directly above
+  `if token, err := src.Token(ctx); err == nil {`;
+* in `listingModel`, the line `nameSession(src, cfg)` directly above
+  `token, err := src.Token(ctx)`;
+* `CachedModel`'s doc sentence above.
+
+Its behaviour is pinned by the PLAN's `TestLookupNamesSession_0079`. A
+different spelling at `v1.31.0` is this PLAN's deviation, recorded with the
+line gobble should quote instead, before the tag.
+
+*(2026-11-12, the owner's ruling "Exact code lines": the signal is the
+`nameSession(src, cfg)` lines and the doc sentence above, as written. A
+renamed helper, or any other spelling, is a deviation of the PLAN, recorded
+with the replacement line for gobble to quote before the tag.)*
+
+*(2026-11-12, with the ruling "Same fix": the signal does not need
+`CachedFacts`'s line. gobble's model-facts path cannot reach a refresh
+there. At gobble-cli `8fa0b73`, `git grep -n CachedFacts 8fa0b73 -- '*.go'`
+finds no call (exit 1); its model facts call `CachedModel` (the PLAN's
+P11). The SDK's providers that gobble builds call `CachedFacts` with their
+request's token as a static key, after their options (C60, C61), and a
+static key never refreshes. gobble may quote `CachedFacts`'s line, but its
+P2a step 0 needs only the two above.)*
+
+**Evidence,** at the revision this record's marker names; `lookup.go`,
+`discovery.go` and `listing_cache.go` are the same at `b44cf42`.
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| C50 | `CachedModel` reads the session's token itself | `llmprovider/catalog/lookup.go:138` | `if token, err := src.Token(ctx); err == nil {` |
+| C51 | and so does `LookupModel`'s listing layer | `llmprovider/catalog/lookup.go:187` | `token, err := src.Token(ctx)` |
+| C52 | `LookupModel` reads its listing layer through `listingModel` | `llmprovider/catalog/lookup.go:112` | `lst, lstOK, err = listingModel(ctx, id, src, model, cfg)` |
+| C53 | `listingToken`, where D4 puts `catalog`'s hand-off | `llmprovider/catalog/discovery.go:277` | `func listingToken(ctx context.Context, src llmprovider.TokenSource, cfg config) (llmprovider.Token, error) {` |
+| C54 | `List` reads its token through it | `llmprovider/catalog/discovery.go:259` | `token, err := listingToken(ctx, src, cfg)` |
+| C55 | A lookup's fetch goes through `List`'s path, after the lookup's own token read | `llmprovider/catalog/listing_cache.go:288` | `cat, models, err := listAndRecord(ctx, id, src, cfg)` |
+| C56 | `listingToken`'s error text | `llmprovider/catalog/discovery.go:295` | `return llmprovider.Token{}, fmt.Errorf("model listing: acquire token: %w", err)` |
+| C57 | `CachedFacts` reads the token of the credential its options give | `llmprovider/catalog/lookup.go:174` | `if token, err := cfg.tokens.Token(ctx); err == nil {` |
+| C58 | `CachedModel`'s doc on its token | `llmprovider/catalog/lookup.go:123` | `for its token as the source gives it.` |
+| C59 | `listingModel`'s own error text | `llmprovider/catalog/lookup.go:189` | `return ModelInfo{}, false, fmt.Errorf("acquire token: %w", err)` |
+| C60 | A provider gives `CachedFacts` its request's token as a static key *(added 2026-11-12, with the ruling "Same fix")* | `llmprovider/providers/grok/grok.go:310` | `slices.Concat(p.listing, []llmprovider.Option{llmprovider.WithAPIKey(token.Value)})...)` |
+| C61 | `CachedFacts`'s doc says so *(added 2026-11-12)* | `llmprovider/catalog/lookup.go:160` | `its request's own token, as WithAPIKey(token.Value) after its options, so` |
+| C62 | `CachedFacts` reads a token only for a listing layer *(added 2026-11-12)* | `llmprovider/catalog/lookup.go:173` | `if cfg.tokens != nil && hasListingLayer(id, cfg) {` |
+
+gobble's side is cited in the PLAN's code claims, at gobble-cli `8fa0b73`,
+as P11 and P12 (this record's marker names gobble-cli's earlier
+`c47f4a7`).
+
+**Consequences.**
+
+* Good, because a refresh a lookup starts names the application for every
+  consumer that passes `WithClientInfo`, as a listing's already would.
+* Good, because gobble's N6 is closed by the option it passes, with no
+  `UseIdentity` of its own.
+* Neutral, because the background listing `CachedModel` starts was already
+  named by D4 through `listingToken`; it now finds the session named.
+* Bad, because a third call site holds the hand-off. *(2026-11-12: a
+  fourth, `CachedFacts`, by the ruling "Same fix".)*
+
+**Put to the owner** (open when written; each ruled 2026-11-12):
+
+* Whether `CachedFacts` (C57) takes the same hand-off. A provider passes it
+  its request's own token as a key, which never refreshes; a caller that
+  passes a session through `WithTokenSource` can start a refresh there.
+  *(2026-11-12, the owner's ruling: "Same fix". `CachedFacts` takes
+  `nameSession` directly above its token read, as "What changes" says. The
+  options put were: the same call, at the cost of one line and a test case;
+  document that it names only a session already named, leaving a caller's
+  `WithTokenSource` session unnamed there; or defer it to a later record,
+  leaving the gap past `v1.31.0`.)*
+* Whether the PLAN's Phase 3, which now holds these steps, splits so that
+  `catalog`'s part lands before 0074-PLAN Phase 5. *(2026-11-12, the
+  owner's ruling: "Keep whole". Phase 3 is not split. The options put were:
+  keep it whole, so the `catalog` and provider hand-offs wait on 0074-PLAN
+  Phase 5 for the wizard's step; split it into 3a, after Phase 2, and 3b,
+  after 0074-PLAN Phase 5, at the cost of one more commit and gate run; or
+  a separate phase for the lookups after Phase 3, an extra gate run for no
+  gain in order.)*
+* *(Added 2026-11-12 with the rulings:)* how gobble verifies the change. The
+  options put were: the exact `nameSession(src, cfg)` lines and the doc
+  sentence, which makes the helper's name a contract with gobble; the doc
+  sentence and the changelog alone, weaker than the code line gobble's step
+  0 asks for; or an exported hook, a new v1 name with no other call site.
+  *(2026-11-12, the owner's ruling: "Exact code lines", as the signal above
+  records.)*
+
+None is open.
 
 ### Not verified
 
