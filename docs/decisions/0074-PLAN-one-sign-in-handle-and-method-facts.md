@@ -771,6 +771,11 @@ and these two its probes.)*
      live_gateways ./...` builds the test; `make tables-check` passes; the
      owner's run is recorded.
 
+   *(2026-11-13, outcome: a pass. The owner's run of 2026-11-13 completed
+   the sign-in by a paste of a bare code from a phone; the record is "Phase
+   3a, the owner's run (2026-11-13)", at the end of this record. Phase 8
+   step 1 runs next.)*
+
    *(2026-11-13, the owner's ruling 2, "Now, before Phase 4": this step's
    test files are built, and its probe run, in Phase 3a, before Phase 4.
    The step is done when Phase 3a's run is recorded, and Phase 7 does not
@@ -1491,8 +1496,9 @@ Records only: no code, no commit, and the probe has not run.
 
 ### Phase 3a (2026-11-13)
 
-Executed up to the commit; the owner's run is not done, and no outcome is
-recorded here yet.
+Executed up to the commit. *(2026-11-13, later: the owner's run is done, a
+pass; see "Phase 3a, the owner's run (2026-11-13)", at the end of this
+record.)*
 
 * **Files, and nothing else.** `llmprovider/live_0074_grok_paste_test.go`
   (new, build tag `live_gateways`: `TestLive_0074GrokPaste`);
@@ -1574,3 +1580,58 @@ LLMPROVIDER_LIVE_0074=1 LLMPROVIDER_LIVE_BROWSER_LOGIN=1 \
 
 On a pass, Phase 8 step 1 runs next, before Phase 4. On a fail, no code
 changes. On a run that decides nothing, rerun.
+
+#### Phase 3a, the owner's run (2026-11-13)
+
+The owner ran `TestLive_0074GrokPaste` twice on 2026-11-13, on the Mac, with
+the arrangement of ruling 3 (phone, send-to-self). This is Phase 3a's run
+record and Phase 7 step 4's outcome.
+
+**Run 1 decided nothing.** It ended after 7.73 s:
+
+```text
+live_0074_grok_paste_test.go:55: FINDING sign-in: completed by the loopback, not a paste; the browser reached the host, so this run decides nothing
+--- FAIL: TestLive_0074GrokPaste (7.73s)
+```
+
+The cause, as the coordinator reads it: a browser on the host reached the
+listener. `openAuthorizeURL` only logs the URL
+(`llmprovider/live_oauth_login_test.go:26`), so the link was most likely
+clicked in the host's terminal. A phone cannot reach the host's `127.0.0.1`.
+The test revoked its session at cleanup.
+
+**Run 2 passed.** Its output, verbatim:
+
+```text
+live_0074_grok_paste_test.go:55: FINDING sign-in: completed by a paste of a bare code
+live_0074_grok_paste_test.go:67: FINDING use: grok listed 13 models with the session
+live_0074_grok_paste_test.go:68: FINDING revocation: revoked; a refresh afterwards is refused, as ErrAuthFailure true
+--- PASS: TestLive_0074GrokPaste (211.72s)
+PASS
+```
+
+The paste went into the paste file with `{ pbpaste; echo; } > <path>`, where
+`<path>` is the paste file the run echoed. The path is not recorded here.
+
+**The owner's page findings,** in the owner's words: "the page opened fine
+in chrome, asked for permission, then provided the code. copied code,
+emailed it back to myself on the mac, and did the pbpaste command."
+
+* `FINDING page:` what the page said: it asked for permission, then showed
+  a code.
+* `FINDING page:` the address bar: not observed.
+* `FINDING page:` a local-network prompt: not reported. The owner's "asked
+  for permission" reads as xAI's consent page; that is an interpretation,
+  not something the owner said.
+* `FINDING page:` device class and browser: phone, Chrome.
+
+**The outcome: a pass.** A completion by a paste of a bare code, from a
+phone that cannot reach the host's loopback, then a listing and a revoked
+session whose refresh is refused. By the owner's rulings:
+
+* Phase 8 step 1 runs next, before Phase 4, in its own commit.
+* Phase 4 writes its Grok rows as `browser_paste` and `url_or_code`, once.
+* The MADR's D1 and D4 Grok bullets and its "Not verified" list carry a
+  dated note: verified 2026-11-13, by Phase 3a.
+
+No code changed in this record.

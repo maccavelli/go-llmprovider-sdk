@@ -285,7 +285,9 @@ struct stays comparable (0043-MADR A1):
   owner's ruling: the probe completes the sign-in by a paste from a browser
   that cannot reach the host. On a pass the row becomes `browser_paste`,
   `url_or_code`, as OpenAI's `browser_oauth` row is; on a fail it stays.
-  "Amendment 2026-11-13", below.)*
+  "Amendment 2026-11-13", below.)* *(2026-11-13, later: now verified by
+  Phase 3a's probe run, a pass; the PLAN's "Phase 3a, the owner's run
+  (2026-11-13)". Phase 8 step 1 changes the row.)*
 * **OpenAI's pasted token yields `access_only`,** the credential that needs a
   store and is revocable. A pasted `sk-` key is taken as an API key and saves
   nothing (`wizard/auth.go`'s `resolveTokenStdin`). The fact names the
@@ -455,7 +457,9 @@ type Credential interface {
     owner's ruling on device sign-ins.)* *(2026-11-13: Grok's
     `ErrUnsupported` (C56, C57) lifts with D1's fact on a pass of the Grok
     paste probe, and Grok's no-listener redirect then names its own path;
-    on a fail it stays. "Amendment 2026-11-13", below.)*
+    on a fail it stays. "Amendment 2026-11-13", below.)* *(2026-11-13,
+    later: Grok's paste is now verified, by Phase 3a's run, a pass; the
+    refusal lifts in Phase 8 step 1.)*
   * **In `x/signin`.** `NoLoopback` has no effect on a device sign-in, which
     binds no listener in the first place: `Start` runs it as it does without
     the option, with the same steps (D3). Only a browser method is refused:
@@ -1257,7 +1261,9 @@ options are kept as they were put, and the choice is marked.
 * Whether SA1019 reports the deprecated fields in descriptor literals (D7).
 * Whether accounts.x.ai offers a paste (D1; D12's probe). *(2026-11-13: and
   whether xAI exchanges a code so pasted; the PLAN's Phase 7 step 4 now
-  completes the sign-in to find out.)*
+  completes the sign-in to find out. Later the same day: verified by
+  Phase 3a's run, a pass; a bare code pasted from a phone completed the
+  sign-in, and the session listed models and was revoked.)*
 * The F27 race (above).
 
 ### Related
