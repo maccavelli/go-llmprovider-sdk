@@ -12,9 +12,12 @@ import (
 // referrer on the authorize URL and the device request, and it leads the
 // User-Agent of every request of the sign-in, which names this module after
 // it. Its zero value names this module, as every sign-in did before Identity.
-// A refresh and a revocation name this module whatever the sign-in's
-// Identity: a session keeps none. Whether OpenAI and xAI accept every name
-// is not verified (0076-MADR, "Not verified").
+// The session a sign-in returns keeps the Identity in memory, and its refresh
+// and its revocation, with the discovery a revocation reads first, send it as
+// the sign-in did; a session loaded from a store has none, and
+// (*OAuthSession).UseIdentity gives it one, when it has none. Nothing stores
+// it (0079-MADR D2, D3). Whether OpenAI and xAI accept every name is not
+// verified (0076-MADR, "Not verified").
 //
 // Identity is a comparable value. It is safe for concurrent use while no
 // goroutine changes it.

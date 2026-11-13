@@ -347,8 +347,10 @@ func TestIdentity_Referrer_0076(t *testing.T) {
 // TestIdentity_UserAgent_0076: with an Identity, every request of every
 // sign-in names the application first and this module after it: discovery,
 // the token exchanges, the OpenAI and Grok device requests, Kilo's, the
-// plan's and the fetch of the issuer's keys. A revocation of the session,
-// its discovery included, names this module only (0076-MADR D3).
+// plan's and the fetch of the issuer's keys. A revocation of the signed-in
+// session, its discovery included, names the application first and this
+// module after it, and a session built with no identity names this module
+// only (0079-MADR D3, which rewrote 0076-MADR D3's "this module only").
 func TestIdentity_UserAgent_0076(t *testing.T) {
 	probe := Identity{Name: probeName0076, Version: probeVersion0076}
 	for _, s := range signIns0076() {
@@ -383,8 +385,28 @@ func TestIdentity_UserAgent_0076(t *testing.T) {
 		}
 		for _, line := range revoked {
 			request, agent, _ := strings.Cut(line, " | ")
+			if !strings.HasPrefix(agent, probeName0076+"/"+probeVersion0076+" (") || !strings.Contains(agent, "go-llmprovider-sdk/") {
+				t.Errorf("%s: revocation's %s sent User-Agent %q; want the probe's first, then this module", s.name, request, agent)
+			}
+		}
+
+		// A session built from the same fields, never signed in, has no
+		// identity: its revocation names this module only.
+		built := &OAuthSession{Provider: session.Provider, Access: session.Access, Refresh: session.Refresh,
+			Issuer: session.Issuer, ClientID: session.ClientID, TokenURL: session.TokenURL, Resource: session.Resource,
+			Kind: session.Kind, HTTPClient: session.HTTPClient}
+		mark = f.received()
+		if err := RevokeOAuthSession(t.Context(), built); err != nil {
+			t.Fatalf("%s: revoke a session with no identity: %v", s.name, err)
+		}
+		unnamed := f.requests(mark)
+		if len(unnamed) != 2 {
+			t.Errorf("%s: revocation with no identity sent %q; want its discovery and the revocation", s.name, unnamed)
+		}
+		for _, line := range unnamed {
+			request, agent, _ := strings.Cut(line, " | ")
 			if !strings.HasPrefix(agent, "go-llmprovider-sdk/") || strings.Contains(agent, probeName0076) {
-				t.Errorf("%s: revocation's %s sent User-Agent %q; want this module's only", s.name, request, agent)
+				t.Errorf("%s: revocation's %s with no identity sent User-Agent %q; want this module's only", s.name, request, agent)
 			}
 		}
 	}

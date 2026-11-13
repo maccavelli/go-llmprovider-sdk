@@ -120,7 +120,10 @@ No other name is exported. `internal/chatgpt`'s new functions are internal.
 * **Stop conditions:**
   * any existing test, golden or fixture needs a change: among them the
     ChatGPT wire goldens (MADR C35), `chatgpt_test.go`'s originator check
-    (C49), the field-copy guard (C25), and the 66 refresh tests;
+    (C49), the field-copy guard (C25), and the 66 refresh tests
+    *(2026-11-13, annotated: this stopped Phase 2 at
+    `identity_0076_test.go:373-389`; the owner's ruling allows that one
+    change and no other)*;
   * with no `WithClientInfo` and no `Identity`, any request's URL, body,
     `originator` or User-Agent changes;
   * `FileTokenStore`'s record bytes change for any session;
@@ -210,7 +213,9 @@ and `catalog` pass unchanged; `tools/apidiff.py` lists no addition.
 
 Acceptance: the tests pass, each seen as stated; the 66 refresh tests and
 `TestSessionFieldsCarried_0074` pass with their files unchanged; every
-existing test of `llmprovider/auth` passes unchanged; `tools/apidiff.py`
+existing test of `llmprovider/auth` passes unchanged *(2026-11-13, annotated:
+but `TestIdentity_UserAgent_0076`'s revocation half, which the owner ruled
+rewritten; see the deviation entry)*; `tools/apidiff.py`
 against the previous tag adds `(*auth.OAuthSession).UseIdentity` to 0074's
 additions and nothing else of this PLAN's.
 
@@ -583,3 +588,87 @@ added to the marker for them. P1 to P10 name no other repository.)*
   refreshes.
 * The MADR's "Put to the owner" keeps its options as written, each with its
   dated ruling; none is open.
+
+### Deviation (2026-11-13): Phase 2 breaks `TestIdentity_UserAgent_0076`'s revocation half
+
+* **Found.** With Phase 2's source in place, `go test ./llmprovider/auth/`
+  fails in one test, and only that one, which passed at `3f87e2b`:
+  * `identity_0076_test.go:387: Grok browser: revocation's GET /.well-known/openid-configuration sent User-Agent "probe-app/1.2.3 (darwin; arm64) go-llmprovider-sdk/(devel)"; want this module's only`
+  * `identity_0076_test.go:387: Grok browser: revocation's POST /revoke sent User-Agent "probe-app/1.2.3 (darwin; arm64) go-llmprovider-sdk/(devel)"; want this module's only`
+  * `identity_0076_test.go:387: ChatGPT plan: revocation's GET /.well-known/openid-configuration sent User-Agent "probe-app/1.2.3 (darwin; arm64) go-llmprovider-sdk/(devel)"; want this module's only`
+  * `identity_0076_test.go:387: ChatGPT plan: revocation's POST /revoke sent User-Agent "probe-app/1.2.3 (darwin; arm64) go-llmprovider-sdk/(devel)"; want this module's only`
+* **Why.** Lines 373-389 assert 0076-MADR D3's old rule, that a revocation
+  names this module whatever the sign-in's `Identity`. This record's D3
+  reverses exactly that. The test was not named by the pair.
+* **The owner's ruling, 2026-11-13:** "Assert new rule + keep old case".
+* **Resolution.** `llmprovider/auth/identity_0076_test.go` joins Phase 2's
+  scope, for that revocation half alone: it asserts that a signed-in
+  session's revocation and its discovery send the sign-in's name first and
+  this module's after it (Grok browser, ChatGPT plan), and a new case holds
+  that a session built with no identity revokes with this module's
+  User-Agent only. The sign-in half is unchanged. Plants, on a scratch clone:
+  the revocation keeps this module's identity (fails the new half); a zero
+  identity sends an empty or a named User-Agent (fails the no-identity case).
+* **Claims.** The marker stays at `5d08770`. Moved lines are recorded in
+  Phase 2's execution entry.
+
+### Phase 2 (2026-11-13): the session's identity, on refresh and revocation (D2, D3)
+
+* **Base.** `3f87e2b`, which holds 0074-PLAN Phase 3. The sites were read
+  again there; every asserted text is unchanged. Lines that moved, recorded
+  here and not in the evidence index, whose rows stay pinned to `5d08770`
+  (the marker is not bumped, by the owner's ruling): C5 `oauth_plan.go:325`
+  is now 293; C46 `oauth_loopback.go:700` is now 824; C6 and C7
+  (`oauth_loopback.go:469`, `:473`) are now 566 and 570; C8
+  (`oauth_device.go:299`) is now 303. C1 to C4, C20, C21, C27 and C47 hold
+  their lines. **Open item for the release phase:** Phase 1's own changes
+  moved or reworded C9 to C15, C22 and C33, and 0076-MADR C43 and P7 (0074's
+  Phase 8 line) moved; `tools/claims.py --rev self=HEAD` lists them failing.
+  They are not Phase 2's and are left for the release phase to re-pin.
+* **Done.** `tokenstore.go`: `OAuthSession.identity`, in memory only.
+  `oauth_session.go`: `UseIdentity` (zero changes nothing, first name wins,
+  under the lock, no error); `oauthSessionState.identity`, set by
+  `refreshState`; `newRefreshRequest` sends it; `adopt` and the refreshed
+  session leave it alone. `oauth_revoke.go`: the revocation request, Grok's
+  discovery (`identity: state.identity`) and the plan's (`planEndpointsFor`
+  with the identity) send it; `planOAuthEndpoints` keeps its signature.
+  `oauth_loopback.go` (`oauthSessionFromResponse`) and `kilo_device.go` set
+  it from the sign-in's `Identity`. `identity.go`: the doc follows D2, D3.
+* **Tests.** `session_identity_0079_test.go` holds the six tests of the
+  table; `identity_0076_test.go`'s revocation half is rewritten by the
+  deviation above (see its entry), its sign-in half unchanged. The Unset
+  test's literals are pinned for the three hand-built sessions; its
+  version-only case compares each sign-in's session to an unnamed one.
+* **Plants** (`tools/plant.py`, scratch clone; spec in the session's
+  scratchpad): 13 of 13 caught.
+  * version read without a name: `session_identity_0079_test.go:258: OpenAI browser refresh: POST /oauth/token | ... sent User-Agent "go-llmprovider-sdk/9.9.9 (darwin; ...`
+  * `newRefreshRequest` keeps this module's: `:270: OpenAI browser: POST /oauth/token | ... sent User-Agent "go-llmprovider-sdk/(devel) (darwin; arm64)`, and `Kept`'s `:405: refresh 1 sent User-Agent "go-llmprovider-sdk/(devel) ...; want the probe's first`
+  * `oauthSessionFromResponse` sets no identity: the same `:270` lines, and `identity_0076_test.go:389: Grok browser: revocation's POST /revoke sent User-Agent "go-llmprovider-sdk/(devel) ...; want the probe's first, then this module`
+  * Grok's discovery without the identity: `:284: Grok browser: GET /.well-known/openid-configuration | | sent User-Agent "go-llmprovider-sdk/(devel) ...; want it to begin "probe-app/1.2.3 ("`
+  * the plan's revocation through `planOAuthEndpoints`: `:284: ChatGPT plan: GET /.well-known/openid-configuration | | sent User-Agent "go-llmprovider-sdk/(devel) ...`
+  * last identity wins: `:300: step 2: UseIdentity({Name:second-app Version:2}) left {Name:second-app Version:2}; want {Name:first-app Version:1}`
+  * zero identity clears: `:300: step 3: UseIdentity({Name: Version:}) left {Name: Version:}; want {Name:first-app Version:1}`
+  * the record gains the name: `:361: the named session's record is {` (the bytes differ)
+  * `String` shows it: `:392: the named session formats as ["OAuthSession{Provider:grok ...`
+  * `adopt` copies a zero identity: `:405: refresh 2 sent User-Agent "go-llmprovider-sdk/(devel) ...; want the probe's first` and `:463: refresh 2 (rt-sibling) sent ...`
+  * 0076 half, the revocation keeps this module's: `identity_0076_test.go:389: Grok browser: revocation's POST /revoke sent User-Agent "go-llmprovider-sdk/(devel) ...; want the probe's first, then this module`
+  * 0076 no-identity case, empty User-Agent: `identity_0076_test.go:409: Grok browser: revocation's POST /revoke with no identity sent User-Agent ""; want this module's only`
+  * 0076 no-identity case, a named User-Agent: `identity_0076_test.go:409: Grok browser: revocation's POST /revoke with no identity sent User-Agent "named-app/1.0"; want this module's only`
+* ~~**Unset at `5d08770` not shown.** The table asks `TestSessionIdentity_Unset_0079` green at `5d08770`. `redgreen.py --rev 5d08770` reports it "missing": the tool runs the revision's own files, and the test is new, uncommitted. Its literals are the code's own bytes at the base (Phase 2 changes no unset request, and the 66 refresh tests and the gate pass), and its plant above is the proof it can fail. A deviation for the owner to accept or answer.~~
+  *(2026-11-13, later: met, no deviation.)* A scratch clone at `5d08770`
+  (outside the tree) holds one file with `TestSessionIdentity_Unset_0079` and
+  the helpers it needs, and none of `UseIdentity`, the `identity` field or
+  any other new name: it compiles and `go vet` is clean there. `go test
+  -count=1 -v -run '^TestSessionIdentity_Unset_0079$' ./llmprovider/auth/`
+  exits 0: "--- PASS: TestSessionIdentity_Unset_0079 (0.09s)", then "PASS".
+  The table's "green at `5d08770`" holds.
+* **Refresh tests unchanged.** `redgreen.py REFRESH.json --expect pass`: 65
+  of 66 pass; the one "missing" is `TestOAuthSessionWait_WindowsRemoval_0071`,
+  which skips off Windows, as 0074's Phase 2 recorded. `git diff --stat` over
+  the 14 refresh files and `session_kind_0074_test.go` is empty.
+  `TestUseIdentity_0079` passes under `-race` (one package).
+* **Pre-add:** `make pre-add-check` on the 8 changed Go files, rc 0.
+  `make api-check`: 0 incompatible changes. `tools/apidiff.py v1.30.0`: this
+  phase's only addition is `(*auth.OAuthSession).UseIdentity`; the rest are
+  0074's, and `Settings.ClientVersion` is Phase 3's.
+* **Gate:** `run-heavy -- python3 -B tools/gate.py --timeout 5400`: "gate: 30 of 30 passed", exit 0, run after the last code change (the records after it are this entry and the two notes above).

@@ -69,6 +69,12 @@ type OAuthSession struct {
 	// it measures the token's lifetime when the token is not a JWT with iat
 	// (0021-MADR T3).
 	issued time.Time
+	// identity is the application the session's refresh and revocation name
+	// (0079-MADR D2): the sign-in's Identity, or the first non-zero one
+	// UseIdentity gave. It lives in memory only: no store holds it, and
+	// String, GoString, MarshalJSON and LogValue do not show it. A refreshed
+	// session and a sibling's rotation adopted from the store leave it alone.
+	identity Identity
 	// nextRefresh is when a refresh may next be tried after an early one
 	// failed (0021-MADR T2); nextResave is when an unsaved rotation's save
 	// may next be tried (T10).

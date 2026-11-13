@@ -245,6 +245,12 @@ PLAN's Phase 5. O1 follows from ruling 2. The owner accepted this record on
   module's, byte for byte.
 * No body, URL or header other than the User-Agent changes. A refresh sends
   no `originator` or `referrer`, and does not start to.
+* *(2026-11-13, found in Phase 2: `TestIdentity_UserAgent_0076`, which
+  asserted that a revocation of a signed-in session, its discovery included,
+  names this module only, is rewritten to D3's contract: such a revocation
+  sends the sign-in's name first and this module's after it, and a session
+  with no identity still sends this module's alone. See the PLAN's dated
+  deviation entry; the decision itself is unchanged.)*
 
 ### D4. A provider and a listing hand `WithClientInfo` to the session
 

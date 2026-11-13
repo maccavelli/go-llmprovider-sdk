@@ -120,7 +120,7 @@ func startKiloDevice(ctx context.Context, opts OAuthFlowOptions) (*DeviceLogin, 
 				// No refresh token and no expiry: the session never refreshes,
 				// and the token is applied as Kilo's API key (0017-MADR D2).
 				return &OAuthSession{Provider: llmprovider.ProviderKilo, Access: approved.Token, Issuer: config.issuer,
-					Kind: SessionKiloDevice, HTTPClient: config.callerClient}, nil
+					Kind: SessionKiloDevice, HTTPClient: config.callerClient, identity: config.identity}, nil
 			default:
 				return nil, closeOAuthStatusError(resp, "Kilo device poll")
 			}

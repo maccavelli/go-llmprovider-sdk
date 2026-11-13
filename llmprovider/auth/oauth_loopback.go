@@ -834,6 +834,7 @@ func oauthSessionFromResponse(config oauthFlowConfig, tokenURL string, payload o
 		FedRAMP:    chatGPTFedRAMP(payload.IDToken),
 		TokenURL:   tokenURL,
 		HTTPClient: config.callerClient,
+		identity:   config.identity,
 	}, nil
 }
 

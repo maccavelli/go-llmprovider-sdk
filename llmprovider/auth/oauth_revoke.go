@@ -75,7 +75,7 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 	if err != nil {
 		return err
 	}
-	transport.NewIdentity("", "", "").SetUserAgent(req)
+	state.identity.setUserAgent(req)
 	resp, err := doBounded(client, req)
 	if err != nil {
 		return fmt.Errorf("oauth: revoke request: %w", err)
@@ -127,7 +127,7 @@ func grokRevokeRequest(ctx context.Context, state oauthSessionState, client *htt
 	if issuer == "" {
 		issuer = DefaultGrokOAuthIssuer
 	}
-	endpoints, err := oauthEndpointsFor(ctx, oauthFlowConfig{provider: llmprovider.ProviderGrok, issuer: issuer, httpClient: client})
+	endpoints, err := oauthEndpointsFor(ctx, oauthFlowConfig{provider: llmprovider.ProviderGrok, issuer: issuer, httpClient: client, identity: state.identity})
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func grokRevokeRequest(ctx context.Context, state oauthSessionState, client *htt
 // also for a token already invalid.
 func planRevokeRequest(ctx context.Context, state oauthSessionState, client *http.Client, token, hint string) (*http.Request, error) {
 	issuer := cmp.Or(strings.TrimRight(state.issuer, "/"), DefaultOpenAIIssuer)
-	endpoints, err := planOAuthEndpoints(ctx, client, issuer)
+	endpoints, err := planEndpointsFor(ctx, oauthFlowConfig{provider: llmprovider.ProviderOpenAI, issuer: issuer, httpClient: client, identity: state.identity})
 	if err != nil {
 		return nil, err
 	}

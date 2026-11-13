@@ -559,6 +559,9 @@ type oauthSessionState struct {
 	store      TokenStore
 	httpClient *http.Client
 	now        sessionClock
+	// identity names the application on the refresh's and the revocation's
+	// requests; its zero value names this module (0079-MADR D3).
+	identity Identity
 }
 
 // kindOf is the state's kind: the one refreshState resolved, else the kind its
@@ -585,6 +588,7 @@ func (s *OAuthSession) refreshState() oauthSessionState {
 		store:      s.Store,
 		httpClient: s.HTTPClient,
 		now:        s.now,
+		identity:   s.identity,
 	}
 }
 
@@ -619,6 +623,26 @@ func (s *OAuthSession) UseDefaultHTTPClient(client *http.Client) {
 	defer s.mu.Unlock()
 	if s.HTTPClient == nil {
 		s.HTTPClient, s.clientDefault = client, true
+	}
+}
+
+// UseIdentity gives the session the identity of the application using it, so
+// its refreshes and its revocation, and the discovery a revocation reads
+// first, lead their User-Agent with the application's name, as a sign-in's
+// requests do (0079-MADR D2, D3). A session that has an identity, from its
+// sign-in or an earlier call, keeps it: the first name wins. A zero id
+// changes nothing. The identity lives in memory only: no store keeps it, so a
+// session loaded from one has none until it is given one. The built-in
+// providers and catalog call it with the WithClientInfo they hold. It returns
+// no error.
+func (s *OAuthSession) UseIdentity(id Identity) {
+	if id == (Identity{}) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.identity == (Identity{}) {
+		s.identity = id
 	}
 }
 
@@ -791,7 +815,7 @@ func newRefreshRequest(ctx context.Context, state oauthSessionState) (*http.Requ
 	if err != nil {
 		return nil, fmt.Errorf("oauth: create refresh request: %w", err)
 	}
-	transport.NewIdentity("", "", "").SetUserAgent(req)
+	state.identity.setUserAgent(req)
 	req.Header.Set("Content-Type", contentType)
 	return req, nil
 }
