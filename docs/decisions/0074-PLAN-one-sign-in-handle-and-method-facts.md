@@ -1488,3 +1488,89 @@ rulings of 2026-11-13 on the probe").
    names.
 
 Records only: no code, no commit, and the probe has not run.
+
+### Phase 3a (2026-11-13)
+
+Executed up to the commit; the owner's run is not done, and no outcome is
+recorded here yet.
+
+* **Files, and nothing else.** `llmprovider/live_0074_grok_paste_test.go`
+  (new, build tag `live_gateways`: `TestLive_0074GrokPaste`);
+  `llmprovider/live_checks_test.go` (the imports `fmt`, `net` and `os`, and
+  appended: `pasteFileLimit`, `pasteInterval`, `pasteRecord`,
+  `pasteFromFile`, `readPasteFile`, `pasteShape`, `pasteFinding`,
+  `pasteRefusedLocally`); `llmprovider/live_twins_test.go` (the imports
+  `errors`, `os` and `path/filepath`, and appended:
+  `TestLiveTwin_GrokPaste_0074` with five subtests). No existing function
+  changed. No production code, and no seam: the route is
+  `auth.LoginBrowserOAuth` as shipped.
+* **The paste file.** Polls every `pasteInterval` (one second; the twin sets
+  10 ms) for a newline-terminated line; reads at most 8 KiB (a file with no
+  newline in 8 KiB is removed and is an error); removes the file after the
+  read; records the shape only; returns `ctx`'s error when the sign-in ends
+  first. Nothing logs the value and no error holds it.
+* **Two small additions to what Phase 7 step 4 lists.** `pasteShape` also
+  names an empty line and the URL shapes "with a code and no state", "with a
+  state and no code", "with an error" and "with no code and no state";
+  `pasteFinding` has a sixth line, `FINDING sign-in: the sign-in ended
+  before any paste: <error>`, for an error that is neither a deadline nor a
+  refused paste (a listener failure, an unreadable paste file). It decides
+  nothing. The test stops, as `FailNow`, on any line but the pass.
+  `pasteFinding` tells "refused before any request" from "xAI refused" by
+  `auth.ErrSignInDenied` and the texts "callback state mismatch", "missing
+  authorization code" and "empty authorization code"; a rewording of those
+  in `auth` fails the twin's table.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, exit 0, "plant:
+  all 5 plant(s) caught"; the tree was not touched:
+  1. `pasteFinding` reports a paste when `InputCode` returned nothing:
+     `live_twins_test.go:511: loopback won: pasteFinding = "FINDING sign-in:
+     completed by a paste of ", true; want "FINDING sign-in: completed by the
+     loopback, not a paste; ..."`
+  2. `pasteShape` calls a URL with a code and no state "a callback URL with
+     code and state": `live_twins_test.go:468: pasteShape = "a callback URL
+     with code and state (scheme http, a loopback host, path /callback)",
+     want "a URL with a code and no state (scheme http, a loopback host, ..."`
+  3. `pasteShape` writes the pasted value into its shape:
+     `live_twins_test.go:468: pasteShape = "a bare code PLANTEDCODE-7f3a91",
+     want "a bare code"` and `:471: pasteShape holds the pasted value: ...`
+  4. `pasteFromFile` leaves the file in place: `live_twins_test.go:403: the
+     paste file is still there after the read: <nil>`
+  5. `pasteFromFile` takes a line before its newline:
+     `live_twins_test.go:381: pasteFromFile returned "first-half", <nil>
+     before the newline was written`
+* **Checks.** `make pre-add-check FILES="..."` on the three files, exit 0,
+  "go-precheck: 3 file(s) clean" (a first run failed `gocognit` on the twin,
+  complexity 55 over 50; fixed by splitting its subtests into functions, no
+  `nolint`; plants run again after). `go vet -tags live_gateways
+  ./llmprovider/`, exit 0. `make tables-check`, exit 0, "check-tables: 42
+  packages, 0 problem(s)". `go test -count=1 -run TestLiveTwin
+  ./llmprovider/`, exit 0.
+* **The gate:** `python3 -B tools/gate.py --timeout 5400` through
+  `run-heavy`, after the last code change, exit 0: "gate: 30 of 30 passed".
+
+#### For the owner: the run
+
+From the repository root on the Mac:
+
+```bash
+export LLMPROVIDER_LIVE_0074_GROK_PASTE_FILE="$(mktemp -d)/paste"
+echo "$LLMPROVIDER_LIVE_0074_GROK_PASTE_FILE"
+LLMPROVIDER_LIVE_0074=1 LLMPROVIDER_LIVE_BROWSER_LOGIN=1 \
+  go test -tags live_gateways -count=1 -timeout 15m -run '^TestLive_0074GrokPaste$' -v ./llmprovider/
+```
+
+1. The test logs the authorize URL. Send it to the phone by any channel
+   (send-to-self), and open it in the phone's browser, which cannot reach the
+   Mac's `127.0.0.1`. Sign in and consent.
+2. Note the page's text, and copy what it shows. Record the four `FINDING
+   page:` lines (what the page said, what the address bar held, any
+   local-network prompt and the answer, "phone" and the browser), quoting no
+   URL, code or token.
+3. Send the copied text back to the Mac by any channel.
+4. In a second terminal on the Mac: `cat >` the echoed path, paste the text,
+   Enter, Ctrl-D.
+5. The test logs one `FINDING sign-in:` line, and on a pass `FINDING use:`
+   and `FINDING revocation:`. Record every `FINDING` line here.
+
+On a pass, Phase 8 step 1 runs next, before Phase 4. On a fail, no code
+changes. On a run that decides nothing, rerun.

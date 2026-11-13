@@ -8,11 +8,14 @@ package llmprovider_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -325,4 +328,190 @@ func TestLiveTwin_Identity_0076(t *testing.T) {
 		checkIdentitySession(ctx, t, session, f.opts("/xai")...)
 		checkIdentityRevoked(ctx, t, session)
 	})
+}
+
+// pasteTwinCode is a code no line may hold: it stands for the secret a
+// person pastes.
+const pasteTwinCode = "PLANTEDCODE-7f3a91"
+
+// pasteTwinState is a state value no line may hold either.
+const pasteTwinState = "PLANTEDSTATE-5c2e"
+
+// TestLiveTwin_GrokPaste_0074 is TestLive_0074GrokPaste's checks: the file
+// channel, the shape of a paste and the finding line, each offline.
+func TestLiveTwin_GrokPaste_0074(t *testing.T) {
+	old := pasteInterval
+	pasteInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pasteInterval = old })
+
+	t.Run("FileInTwoWrites", twinPasteTwoWrites)
+	t.Run("ContextEndsFirst", twinPasteContextEnds)
+	t.Run("NoNewlineWithinLimit", twinPasteOversized)
+	t.Run("Shape", twinPasteShapes)
+	t.Run("Finding", twinPasteFindings)
+}
+
+type pasteResult struct {
+	line string
+	err  error
+}
+
+// startPaste runs pasteFromFile on its own goroutine.
+func startPaste(ctx context.Context, path string, rec *pasteRecord) chan pasteResult {
+	done := make(chan pasteResult, 1)
+	go func() {
+		line, err := pasteFromFile(path, rec)(ctx)
+		done <- pasteResult{line, err}
+	}()
+	return done
+}
+
+// twinPasteTwoWrites writes the paste in two writes, the first without its
+// newline: nothing may be taken before the newline, and the file must be
+// gone after the read.
+func twinPasteTwoWrites(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "paste")
+	rec := &pasteRecord{}
+	done := startPaste(twinContext(t), path, rec)
+	if err := os.WriteFile(path, []byte("first-half"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case r := <-done:
+		t.Fatalf("pasteFromFile returned %q, %v before the newline was written", r.line, r.err)
+	case <-time.After(150 * time.Millisecond):
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString("-second-half\r\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case r := <-done:
+		if r.err != nil || r.line != "first-half-second-half" {
+			t.Fatalf("pasteFromFile = %q, %v; want the whole line and no error", r.line, r.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("pasteFromFile did not return after the newline was written")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the paste file is still there after the read: %v", err)
+	}
+	if returned, shape := rec.get(); !returned || shape != "a bare code" {
+		t.Errorf("record = %t, %q; want a bare code returned", returned, shape)
+	}
+}
+
+// twinPasteContextEnds ends ctx before anything is written.
+func twinPasteContextEnds(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "paste")
+	rec := &pasteRecord{}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := startPaste(ctx, path, rec)
+	cancel()
+	select {
+	case r := <-done:
+		if !errors.Is(r.err, context.Canceled) || r.line != "" {
+			t.Errorf("pasteFromFile = %q, %v; want context.Canceled", r.line, r.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("pasteFromFile did not return when ctx ended")
+	}
+	if returned, _ := rec.get(); returned {
+		t.Error("the record says a value was returned")
+	}
+}
+
+// twinPasteOversized gives the file more than its limit and no newline.
+func twinPasteOversized(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "paste")
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", pasteFileLimit+100)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := <-startPaste(twinContext(t), path, &pasteRecord{})
+	if r.err == nil || r.line != "" {
+		t.Errorf("pasteFromFile returned a line of %d bytes, %v; want an error and no line", len(r.line), r.err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the oversized paste file is still there: %v", err)
+	}
+}
+
+// twinPasteShapes is pasteShape over every shape, with a planted code and
+// state that no result may hold.
+func twinPasteShapes(t *testing.T) {
+	cb := "http://127.0.0.1:50321/callback"
+	for _, tc := range []struct{ raw, want string }{
+		{"  \t", "an empty line"},
+		{pasteTwinCode, "a bare code"},
+		{cb + "?code=" + pasteTwinCode + "&state=" + pasteTwinState,
+			"a callback URL with code and state (scheme http, a loopback host, path /callback)"},
+		{cb + "?code=" + pasteTwinCode,
+			"a URL with a code and no state (scheme http, a loopback host, path /callback)"},
+		{cb + "?state=" + pasteTwinState,
+			"a URL with a state and no code (scheme http, a loopback host, path /callback)"},
+		{cb, "a URL with no code and no state (scheme http, a loopback host, path /callback)"},
+		{cb + "?error=access_denied&state=" + pasteTwinState,
+			"a URL with an error (scheme http, a loopback host, path /callback)"},
+		{"https://accounts.x.ai/" + pasteTwinCode + "?code=" + pasteTwinCode + "&state=" + pasteTwinState,
+			"a callback URL with code and state (scheme https, another host, another path)"},
+		{pasteTwinCode + "://h/?code=" + pasteTwinCode + "&state=" + pasteTwinState,
+			"a callback URL with code and state (scheme another scheme, another host, another path)"},
+	} {
+		got := pasteShape(tc.raw)
+		if got != tc.want {
+			t.Errorf("pasteShape = %q, want %q", got, tc.want)
+		}
+		if strings.Contains(got, pasteTwinCode) || strings.Contains(got, pasteTwinState) {
+			t.Errorf("pasteShape holds the pasted value: %q", got)
+		}
+	}
+}
+
+// twinPasteFindings is pasteFinding over every outcome of the live test.
+func twinPasteFindings(t *testing.T) {
+	urlShape := pasteShape("http://127.0.0.1:50321/callback?code=" + pasteTwinCode + "&state=" + pasteTwinState)
+	bare := pasteShape(pasteTwinCode)
+	paste := func(shape string) *pasteRecord { return &pasteRecord{returned: true, shape: shape} }
+	for _, tc := range []struct {
+		name   string
+		rec    *pasteRecord
+		err    error
+		want   string
+		passed bool
+	}{
+		{"paste of a URL", paste(urlShape), nil, "FINDING sign-in: completed by a paste of " + urlShape, true},
+		{"paste of a code", paste(bare), nil, "FINDING sign-in: completed by a paste of a bare code", true},
+		{"loopback won", &pasteRecord{}, nil,
+			"FINDING sign-in: completed by the loopback, not a paste; the browser reached the host, so this run decides nothing", false},
+		{"xAI refused", paste(bare), errors.New("oauth: token exchange: status 400"),
+			"FINDING sign-in: xAI refused the pasted a bare code: oauth: token exchange: status 400", false},
+		{"state mismatch", paste(urlShape), errors.New("oauth: callback state mismatch"),
+			"FINDING sign-in: the paste was refused before any request: " + urlShape + ": oauth: callback state mismatch", false},
+		{"no code", paste(urlShape), errors.New("oauth: callback URL missing authorization code"),
+			"FINDING sign-in: the paste was refused before any request: " + urlShape +
+				": oauth: callback URL missing authorization code", false},
+		{"empty", paste("an empty line"), errors.New("oauth: empty authorization code"),
+			"FINDING sign-in: the paste was refused before any request: an empty line: oauth: empty authorization code", false},
+		{"denied", paste(urlShape), fmt.Errorf("oauth: authorization failed: access_denied: %w", auth.ErrSignInDenied),
+			"FINDING sign-in: the paste was refused before any request: " + urlShape +
+				": oauth: authorization failed: access_denied: " + auth.ErrSignInDenied.Error(), false},
+		{"nothing pasted", &pasteRecord{}, fmt.Errorf("oauth: browser login timed out: %w", context.DeadlineExceeded),
+			"FINDING sign-in: nothing was pasted before the deadline", false},
+		{"ended before a paste", &pasteRecord{}, errors.New("oauth: callback server: closed"),
+			"FINDING sign-in: the sign-in ended before any paste: oauth: callback server: closed", false},
+	} {
+		line, passed := pasteFinding(tc.rec, tc.err)
+		if line != tc.want || passed != tc.passed {
+			t.Errorf("%s: pasteFinding = %q, %t; want %q, %t", tc.name, line, passed, tc.want, tc.passed)
+		}
+		if strings.Contains(line, pasteTwinCode) || strings.Contains(line, pasteTwinState) {
+			t.Errorf("%s: the line holds the pasted value: %q", tc.name, line)
+		}
+	}
 }

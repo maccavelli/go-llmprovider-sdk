@@ -9,9 +9,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -318,4 +321,167 @@ func checkIdentityRevoked(ctx context.Context, t *testing.T, session *auth.OAuth
 		t.Logf("FINDING revocation: revoked; a refresh afterwards is refused, as ErrAuthFailure %t",
 			errors.Is(err, llmprovider.ErrAuthFailure))
 	}
+}
+
+// pasteFileLimit is the most pasteFromFile reads from its file.
+const pasteFileLimit = 8 << 10
+
+// pasteInterval is how often pasteFromFile looks at its file. A twin sets it
+// shorter.
+var pasteInterval = time.Second
+
+// pasteRecord is what TestLive_0074GrokPaste knows of the paste: whether
+// InputCode returned a value, and the value's shape (pasteShape). It never
+// holds the value.
+type pasteRecord struct {
+	mu       sync.Mutex
+	returned bool
+	shape    string
+}
+
+func (r *pasteRecord) set(shape string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.returned, r.shape = true, shape
+}
+
+func (r *pasteRecord) get() (returned bool, shape string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.returned, r.shape
+}
+
+// pasteFromFile is an OAuthFlowOptions.InputCode that reads a person's paste
+// from the file at path, because go test gives the test binary no standard
+// input (0074-PLAN Phase 7 step 4). It looks every pasteInterval until the
+// file holds a newline-terminated line, reads at most pasteFileLimit bytes,
+// removes the file, records the line's shape in rec and returns the line. It
+// returns ctx's error when ctx ends first. The line is a secret: it is
+// never logged, and no error holds it.
+func pasteFromFile(path string, rec *pasteRecord) func(context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		ticker := time.NewTicker(pasteInterval)
+		defer ticker.Stop()
+		for {
+			data, err := readPasteFile(path)
+			if err != nil {
+				return "", err
+			}
+			line, _, found := strings.Cut(string(data), "\n")
+			if !found {
+				if len(data) >= pasteFileLimit {
+					if err := os.Remove(path); err != nil {
+						return "", fmt.Errorf("paste file: %w", err)
+					}
+					return "", fmt.Errorf("paste file: no newline within %d bytes", pasteFileLimit)
+				}
+				select {
+				case <-ctx.Done():
+					return "", ctx.Err()
+				case <-ticker.C:
+				}
+				continue
+			}
+			if err := os.Remove(path); err != nil {
+				return "", fmt.Errorf("paste file: %w", err)
+			}
+			line = strings.TrimSuffix(line, "\r")
+			rec.set(pasteShape(line))
+			return line, nil
+		}
+	}
+}
+
+// readPasteFile reads at most pasteFileLimit bytes of path; a file that is
+// not there yet reads as empty.
+func readPasteFile(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("paste file: %w", err)
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, pasteFileLimit))
+	if err != nil {
+		return nil, fmt.Errorf("paste file: %w", err)
+	}
+	return data, nil
+}
+
+// pasteShape says what a paste is, as the SDK's own parser reads it
+// (auth's parseOAuthCallback): a URL, when it parses with a scheme, and
+// otherwise a bare code. A URL's scheme (http or https), whether its host is
+// a loopback address, and whether its path is /callback are named, and
+// nothing else of it: the result never holds any part of raw.
+func pasteShape(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "an empty line"
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" {
+		return "a bare code"
+	}
+	query := u.Query()
+	hasCode, hasState := query.Get("code") != "", query.Get("state") != ""
+	var kind string
+	switch {
+	case query.Get("error") != "":
+		kind = "a URL with an error"
+	case hasCode && hasState:
+		kind = "a callback URL with code and state"
+	case hasCode:
+		kind = "a URL with a code and no state"
+	case hasState:
+		kind = "a URL with a state and no code"
+	default:
+		kind = "a URL with no code and no state"
+	}
+	scheme := "another scheme"
+	if u.Scheme == "http" || u.Scheme == "https" {
+		scheme = u.Scheme
+	}
+	host := "another host"
+	if ip := net.ParseIP(u.Hostname()); (ip != nil && ip.IsLoopback()) || u.Hostname() == "localhost" {
+		host = "a loopback host"
+	}
+	path := "another path"
+	if u.Path == "/callback" {
+		path = "path /callback"
+	}
+	return fmt.Sprintf("%s (scheme %s, %s, %s)", kind, scheme, host, path)
+}
+
+// pasteFinding is the one FINDING sign-in line for a Grok browser sign-in
+// run with pasteFromFile, from the record and LoginBrowserOAuth's error, and
+// whether the run passed: the sign-in completed by the paste. The line holds
+// the shape and the error, never the paste.
+func pasteFinding(rec *pasteRecord, err error) (line string, passed bool) {
+	returned, shape := rec.get()
+	switch {
+	case err == nil && returned:
+		return "FINDING sign-in: completed by a paste of " + shape, true
+	case err == nil:
+		return "FINDING sign-in: completed by the loopback, not a paste; the browser reached the host, " +
+			"so this run decides nothing", false
+	case returned && pasteRefusedLocally(err):
+		return fmt.Sprintf("FINDING sign-in: the paste was refused before any request: %s: %v", shape, err), false
+	case returned:
+		return fmt.Sprintf("FINDING sign-in: xAI refused the pasted %s: %v", shape, err), false
+	case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled):
+		return "FINDING sign-in: nothing was pasted before the deadline", false
+	default:
+		return fmt.Sprintf("FINDING sign-in: the sign-in ended before any paste: %v", err), false
+	}
+}
+
+// pasteRefusedLocally reports whether err is the SDK refusing a paste before
+// it sent a request: a state mismatch, a missing or empty code, or a pasted
+// denial.
+func pasteRefusedLocally(err error) bool {
+	msg := err.Error()
+	return errors.Is(err, auth.ErrSignInDenied) || strings.Contains(msg, "callback state mismatch") ||
+		strings.Contains(msg, "missing authorization code") || strings.Contains(msg, "empty authorization code")
 }
