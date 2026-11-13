@@ -6,6 +6,7 @@
 package chatgpt
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -73,9 +74,16 @@ func PlanModelsRequest(ctx context.Context, baseURL, userAgent string, token llm
 }
 
 // SetHeaders sets the originator, and the account id and FedRAMP flag of src
-// when it knows them.
+// when it knows them. The originator is this module's: SetHeadersAs names
+// another (0079-MADR D1).
 func SetHeaders(req *http.Request, src llmprovider.TokenSource) {
-	req.Header.Set(HeaderOriginator, OriginatorValue)
+	SetHeadersAs(req, src, OriginatorValue)
+}
+
+// SetHeadersAs is SetHeaders with the originator name: the application
+// WithClientInfo named. An empty name sends OriginatorValue (0079-MADR D1).
+func SetHeadersAs(req *http.Request, src llmprovider.TokenSource, name string) {
+	req.Header.Set(HeaderOriginator, cmp.Or(name, OriginatorValue))
 	account, ok := src.(accountSource)
 	if !ok {
 		return
@@ -116,6 +124,13 @@ func ClientVersion(v string) string {
 // the session's headers.
 func ModelsRequest(ctx context.Context, baseURL, userAgent string, token llmprovider.Token,
 	src llmprovider.TokenSource) (*http.Request, error) {
+	return ModelsRequestAs(ctx, baseURL, userAgent, OriginatorValue, token, src)
+}
+
+// ModelsRequestAs is ModelsRequest with the originator name; an empty name
+// sends OriginatorValue (0079-MADR D1).
+func ModelsRequestAs(ctx context.Context, baseURL, userAgent, originator string, token llmprovider.Token,
+	src llmprovider.TokenSource) (*http.Request, error) {
 	endpoint, err := url.Parse(strings.TrimRight(baseURL, "/") + "/models")
 	if err != nil {
 		return nil, fmt.Errorf("model listing: parse chatgpt models URL: %w", err)
@@ -130,6 +145,6 @@ func ModelsRequest(ctx context.Context, baseURL, userAgent string, token llmprov
 	}
 	req.Header.Set("User-Agent", userAgent)
 	token.Apply(req, "Authorization", "Bearer")
-	SetHeaders(req, src)
+	SetHeadersAs(req, src, originator)
 	return req, nil
 }

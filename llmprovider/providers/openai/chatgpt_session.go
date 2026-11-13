@@ -26,5 +26,8 @@ const (
 func isChatGPTSession(src llmprovider.TokenSource) bool { return chatgpt.IsSession(src) }
 
 // setChatGPTHeaders sets the originator, and the account id and FedRAMP flag
-// of src when it knows them.
-func setChatGPTHeaders(req *http.Request, src llmprovider.TokenSource) { chatgpt.SetHeaders(req, src) }
+// of src when it knows them. The originator is name, the application
+// WithClientInfo named (0079-MADR D1).
+func setChatGPTHeaders(req *http.Request, src llmprovider.TokenSource, name string) {
+	chatgpt.SetHeadersAs(req, src, name)
+}

@@ -48,13 +48,16 @@ type config struct {
 	KiloOrganization string
 	ClaudeWorkspace  string
 	userAgent        string
-	session          string
-	metadataOff      bool         // WithoutModelMetadata
-	limit            int          // WithLimit's n; zero or less, the default, is no limit
-	logger           *slog.Logger // Settings.Logger
-	layers           []Layer      // WithModelLayer's, in the order given
-	workload         workload     // WithWorkload's, else the published one
-	lastGood         lastGood     // WithLastGood's
+	// clientName is WithClientInfo's name, else this module's: the ChatGPT
+	// listing's originator (0079-MADR D1).
+	clientName  string
+	session     string
+	metadataOff bool         // WithoutModelMetadata
+	limit       int          // WithLimit's n; zero or less, the default, is no limit
+	logger      *slog.Logger // Settings.Logger
+	layers      []Layer      // WithModelLayer's, in the order given
+	workload    workload     // WithWorkload's, else the published one
+	lastGood    lastGood     // WithLastGood's
 	// tokens is the credential the options give (WithAPIKey or
 	// WithTokenSource), or nil: CachedFacts finds a listing by it.
 	tokens llmprovider.TokenSource
@@ -189,6 +192,7 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 		HTTPClient:       st.HTTPClient(),
 		ModelMetadataURL: st.ModelMetadataURL(),
 		userAgent:        st.UserAgent(),
+		clientName:       st.ClientName(),
 		session:          st.SessionID(),
 		metadataOff:      st.ModelMetadataDisabled(),
 		logger:           st.Logger(),

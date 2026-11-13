@@ -440,3 +440,49 @@ The facts this PLAN's steps rest on beyond the MADR's index, checked by
   0074-PLAN Phase 5, Phase 4 after Phase 3, Phase 5 before 0074-PLAN Phase
   8, and Phase 6 in 0074-PLAN Phase 8's `v1.31.0`. Each starts on the commit
   of the phase before it, of this PLAN or of 0074's and 0075's.
+
+### Phase 1 (2026-11-12): the ChatGPT originator (D1)
+
+* **Done.** `internal/chatgpt`: `SetHeadersAs` and `ModelsRequestAs` send
+  `name`, or `OriginatorValue` when it is empty; `SetHeaders` and
+  `ModelsRequest` keep their signatures and call them with `OriginatorValue`;
+  `PlanModelsRequest` is unchanged. The openai provider has an `originator`
+  field from `st.ClientName()`, which generation's `Prepare` (through
+  `setChatGPTHeaders`, now taking the name) and the ChatGPT listing use;
+  `originatorValue` stays. `catalog`'s `config.clientName` is
+  `st.ClientName()`, and `fetchChatGPTRaw` uses `ModelsRequestAs`. No exported
+  name was added: `tools/apidiff.py v1.30.0` lists only 0074's additions
+  (`SessionKind`, `OAuthSession.Kind`, `AuthMethod` fields); `make api-check`
+  reports 0 incompatible changes.
+* **Tests.** `providers/openai/originator_0079_test.go` holds
+  `TestChatGPTOriginator_ClientInfo_0079`, `TestChatGPTOriginator_Default_0079`
+  and `TestPlanSendsNoOriginator_0079`; `catalog/originator_0079_test.go` holds
+  `TestListRawOriginator_0079`. No existing test or golden changed.
+* **Red at `5d08770`** (`tools/redgreen.py --expect fail --rev 5d08770`, the
+  two tests that name a client): "2 of 2 fail as expected".
+  * `originator_0079_test.go:59: listing originator = "go-llmprovider-sdk"; want probe-app`
+  * `originator_0079_test.go:59: generation originator = "go-llmprovider-sdk"; want probe-app`
+  * `originator_0079_test.go:32: named: originator = "go-llmprovider-sdk"; want "probe-app"`
+* **Green at `5d08770`** for `Default` and `PlanSendsNoOriginator`: "2 of 2
+  pass as expected". **Green on the tree** for all four: "4 of 4 pass as
+  expected".
+* **Plants** (`tools/plant.py`, scratch clone):
+  * generation keeps the constant: caught, `originator_0079_test.go:59: generation originator = "go-llmprovider-sdk"; want probe-app`.
+  * listing keeps the constant: caught, `originator_0079_test.go:59: listing originator = "go-llmprovider-sdk"; want probe-app`.
+  * `fetchChatGPTRaw` keeps `ModelsRequest`: caught, `originator_0079_test.go:32: named: originator = "go-llmprovider-sdk"; want "probe-app"`.
+  * `PlanModelsRequest` sets the originator: caught, `originator_0079_test.go:105: GET /v1/models sent originator "go-llmprovider-sdk"; want none`.
+  * `SetHeadersAs` sends `name` with no default: see the deviation.
+* **Deviation (2026-11-12), resolved inside Phase 1's files.** The table's
+  plant "`SetHeadersAs` sends `name` with no default" was first **not caught**
+  by `TestChatGPTOriginator_Default_0079` as drafted: both providers pass
+  `st.ClientName()`, which is never empty, so the helper's own default is
+  unreachable through a provider. (The plant `name` alone also failed to
+  build, an unused `cmp` import, which does not count as caught; the plant
+  was changed to `cmp.Or(name, "")`.) Resolution: the same test also calls
+  `chatgpt.SetHeadersAs(req, nil, "")` and `chatgpt.ModelsRequestAs(..., "", ...)`
+  directly (helper `checkEmptyNameDefaults`), asserting the default. Re-run:
+  caught, `originator_0079_test.go:71: SetHeadersAs("") originator = ""; want "go-llmprovider-sdk"`
+  and the same for `ModelsRequestAs`. No assertion was loosened.
+* **Pre-add:** `make pre-add-check` on the 8 changed Go files, rc 0.
+* **Gate:** `run-heavy -- python3 -B tools/gate.py --timeout 5400`: "gate: 30
+  of 30 passed", exit 0.

@@ -161,7 +161,7 @@ func fetchChatGPTRaw(ctx context.Context, src llmprovider.TokenSource, token llm
 	if cfg.BaseURL != "" {
 		baseURL = cfg.BaseURL
 	}
-	req, err := chatgpt.ModelsRequest(ctx, baseURL, cfg.userAgent, token, src)
+	req, err := chatgpt.ModelsRequestAs(ctx, baseURL, cfg.userAgent, cfg.clientName, token, src)
 	if err != nil {
 		return err
 	}

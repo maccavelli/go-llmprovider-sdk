@@ -37,7 +37,7 @@ func (p *provider) listChatGPT(ctx context.Context, token llmprovider.Token) ([]
 	ctx, cancel := context.WithTimeout(ctx, chatGPTListingTimeout)
 	defer cancel()
 	// The request is the one catalog's ListRaw sends (0041-MADR D9).
-	req, err := chatgpt.ModelsRequest(ctx, p.baseURL, p.userAgent, token, p.src)
+	req, err := chatgpt.ModelsRequestAs(ctx, p.baseURL, p.userAgent, p.originator, token, p.src)
 	if err != nil {
 		return nil, err
 	}

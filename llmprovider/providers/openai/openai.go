@@ -187,9 +187,12 @@ type provider struct {
 	reasoning *llmprovider.Reasoning // WithReasoning's default, or nil
 	store     *bool                  // WithStore's value, or nil for the service default
 	userAgent string
-	session   string
-	logger    *slog.Logger
-	probe     bool
+	// originator is the ChatGPT backend's originator: WithClientInfo's name,
+	// else this module's (0079-MADR D1).
+	originator string
+	session    string
+	logger     *slog.Logger
+	probe      bool
 	// cache is catalog.WithCache's, nil for the process's (0048-MADR D1).
 	cache *cacheref.Value
 	// refusals are WithReasoningRefusals' (0062-MADR D6).
@@ -235,19 +238,20 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 		}
 	}
 	p := &provider{
-		src:       src,
-		chatGPT:   isChatGPTSession(src),
-		plan:      chatgpt.IsPlanSession(src),
-		model:     st.Model(),
-		client:    st.HTTPClient(),
-		maxTokens: st.MaxTokens(),
-		reasoning: st.Reasoning(),
-		userAgent: st.UserAgent(),
-		logger:    st.Logger(),
-		session:   st.SessionID(),
-		probe:     st.ModelProbes(),
-		cache:     cacheref.From(st.Values()),
-		refusals:  st.ReasoningRefusals(),
+		src:        src,
+		chatGPT:    isChatGPTSession(src),
+		plan:       chatgpt.IsPlanSession(src),
+		model:      st.Model(),
+		client:     st.HTTPClient(),
+		maxTokens:  st.MaxTokens(),
+		reasoning:  st.Reasoning(),
+		userAgent:  st.UserAgent(),
+		originator: st.ClientName(),
+		logger:     st.Logger(),
+		session:    st.SessionID(),
+		probe:      st.ModelProbes(),
+		cache:      cacheref.From(st.Values()),
+		refusals:   st.ReasoningRefusals(),
 		caps: llmprovider.Capabilities{
 			Tools:            llmprovider.Supported,
 			ForcedToolChoice: llmprovider.Supported,
@@ -541,7 +545,7 @@ func (p *provider) call(ctx context.Context, req *llmprovider.Request, token llm
 			}
 			if p.chatGPT {
 				r.Header.Set(headerSession, p.session)
-				setChatGPTHeaders(r, p.src)
+				setChatGPTHeaders(r, p.src, p.originator)
 				if residency := residency(token.Value); residency != "" {
 					r.Header.Set(headerResidency, residency)
 				}
