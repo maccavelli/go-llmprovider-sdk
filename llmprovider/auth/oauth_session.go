@@ -81,8 +81,14 @@ func ValidateOAuthSession(session *OAuthSession) error {
 		return errors.New("oauth: session has no access token")
 	case session.Access == chatGPTAccessFixture:
 		return errors.New("oauth: session holds the chatgpt-access test fixture, not a real token")
+	case session.Kind == SessionChatGPTPlan && session.Resource == "":
+		return errors.New("oauth: session kind chatgpt_plan contradicts its fields: it has no resource")
+	case session.Kind == SessionKiloDevice && session.Refresh != "":
+		return errors.New("oauth: session kind kilo_device contradicts its fields: it has a refresh token")
 	case session.Refresh == "":
-		if strings.TrimRight(session.Issuer, "/") != DefaultOpenAIIssuer ||
+		// An access-only session is a ChatGPT one, from OpenAI's own issuer.
+		if !openAIKind(sessionKindOf(session.Kind, session.Provider, session.Issuer, session.Resource)) ||
+			strings.TrimRight(session.Issuer, "/") != DefaultOpenAIIssuer ||
 			session.ClientID != DefaultOpenAIClientID || !session.Expiry.IsZero() {
 			return errors.New("oauth: no refresh token")
 		}
@@ -94,7 +100,7 @@ func ValidateOAuthSession(session *OAuthSession) error {
 		return errors.New("oauth: plan session has no token URL")
 	default:
 		if _, err := refreshTokenURL(oauthSessionState{provider: session.Provider, issuer: session.Issuer,
-			tokenURL: session.TokenURL}); err != nil {
+			tokenURL: session.TokenURL, resource: session.Resource, kind: session.Kind}); err != nil {
 			return err
 		}
 	}
@@ -300,7 +306,7 @@ func (s *OAuthSession) persistable() *OAuthSession {
 		Provider: s.Provider, Access: s.Access, Refresh: s.Refresh, Expiry: s.Expiry,
 		Issuer: s.Issuer, ClientID: s.ClientID, AccountID: s.AccountID, FedRAMP: s.FedRAMP,
 		TokenURL: s.TokenURL, Resource: s.Resource, Scope: s.Scope, IDToken: s.IDToken, HostID: s.HostID,
-		Store: s.Store, HTTPClient: s.HTTPClient,
+		Kind: s.Kind, Store: s.Store, HTTPClient: s.HTTPClient,
 	}
 }
 
@@ -362,13 +368,66 @@ func (s *OAuthSession) Owner() llmprovider.ProviderID {
 	if s.Provider != "" {
 		return s.Provider
 	}
-	switch strings.TrimRight(s.Issuer, "/") {
-	case DefaultOpenAIIssuer:
+	// The issuer is a guard: a session from another issuer names no provider
+	// by its kind, whatever its Kind.
+	issuer := strings.TrimRight(s.Issuer, "/")
+	switch kind := s.kindLocked(); {
+	case openAIKind(kind) && issuer == DefaultOpenAIIssuer:
 		return llmprovider.ProviderOpenAI
-	case DefaultGrokOAuthIssuer:
+	case kind == SessionGrok && issuer == DefaultGrokOAuthIssuer:
 		return llmprovider.ProviderGrok
 	}
 	return ""
+}
+
+// SessionKind returns the session's kind: Kind when it is set, else the kind
+// the session's fields name by the rules every session had before Kind
+// existed (a ChatGPT login, a plan session, a Grok login), else "" when they
+// name none. It reads the fields under the session's lock, since a refresh
+// rewrites them, and returns no error (0074-MADR D5; R51, R52).
+func (s *OAuthSession) SessionKind() SessionKind {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.kindLocked()
+}
+
+// kindLocked is SessionKind for a caller that holds the session's lock.
+func (s *OAuthSession) kindLocked() SessionKind {
+	return sessionKindOf(s.Kind, s.Provider, s.Issuer, s.Resource)
+}
+
+// sessionKindOf is kind when it is set, else inferKind's.
+func sessionKindOf(kind SessionKind, provider llmprovider.ProviderID, issuer, resource string) SessionKind {
+	if kind != "" {
+		return kind
+	}
+	return inferKind(provider, issuer, resource)
+}
+
+// inferKind is the kind of a session whose Kind is empty: today's rules, which
+// the seven dispatch sites once each held. A plan session is an OpenAI one
+// with a resource; a ChatGPT session is issued by OpenAI's own issuer, or has
+// none and is OpenAI's; a Grok session is xAI's, or has none and is Grok's.
+// A Kilo session, and any other, names no kind.
+func inferKind(provider llmprovider.ProviderID, issuer, resource string) SessionKind {
+	issuer = strings.TrimRight(issuer, "/")
+	switch {
+	case resource != "":
+		if provider == llmprovider.ProviderOpenAI || provider == "" && issuer == DefaultOpenAIIssuer {
+			return SessionChatGPTPlan
+		}
+	case issuer == DefaultOpenAIIssuer || issuer == "" && provider == llmprovider.ProviderOpenAI:
+		return SessionChatGPT
+	}
+	if issuer == DefaultGrokOAuthIssuer || issuer == "" && provider == llmprovider.ProviderGrok {
+		return SessionGrok
+	}
+	return ""
+}
+
+// openAIKind reports a kind issued by OpenAI.
+func openAIKind(kind SessionKind) bool {
+	return kind == SessionChatGPT || kind == SessionChatGPTPlan
 }
 
 // ChatGPT reports whether the session is a ChatGPT login for the Codex
@@ -377,13 +436,12 @@ func (s *OAuthSession) Owner() llmprovider.ProviderID {
 func (s *OAuthSession) ChatGPT() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.Resource != "" {
-		return false
-	}
 	// An OpenAI session with no issuer is an older ChatGPT sign-in, as its
 	// refresh treats it (refreshTokenURL), never a platform key (0026-MADR F2).
+	// The issuer stays a guard, as at refreshTokenURL: a ChatGPT session from
+	// another issuer is not one for the Codex backend, whatever its Kind.
 	issuer := strings.TrimRight(s.Issuer, "/")
-	return issuer == DefaultOpenAIIssuer || issuer == "" && s.Provider == llmprovider.ProviderOpenAI
+	return s.kindLocked() == SessionChatGPT && (issuer == DefaultOpenAIIssuer || issuer == "")
 }
 
 // PlanUsage reports whether the session is a Sign in with ChatGPT plan
@@ -393,11 +451,7 @@ func (s *OAuthSession) ChatGPT() bool {
 func (s *OAuthSession) PlanUsage() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.Resource == "" {
-		return false
-	}
-	return s.Provider == llmprovider.ProviderOpenAI ||
-		s.Provider == "" && strings.TrimRight(s.Issuer, "/") == DefaultOpenAIIssuer
+	return s.kindLocked() == SessionChatGPTPlan
 }
 
 // Account returns the session's ChatGPT account id and FedRAMP flag, under
@@ -493,13 +547,24 @@ type oauthSessionState struct {
 	tokenURL  string
 	// resource, scope, idToken and hostID are a plan session's (0043-MADR
 	// D1); resource set selects its form refresh and revocation (D2).
-	resource   string
-	scope      string
-	idToken    string
-	hostID     string
+	resource string
+	scope    string
+	idToken  string
+	hostID   string
+	// kind is the session's kind: its Kind when set, else inferKind's.
+	// declared is its Kind alone, which a refreshed session keeps, so that
+	// a refresh never writes an inferred kind into a record.
+	kind       SessionKind
+	declared   SessionKind
 	store      TokenStore
 	httpClient *http.Client
 	now        sessionClock
+}
+
+// kindOf is the state's kind: the one refreshState resolved, else the kind its
+// fields name, for a state built from fields alone.
+func (st oauthSessionState) kindOf() SessionKind {
+	return sessionKindOf(st.kind, st.provider, st.issuer, st.resource)
 }
 
 func (s *OAuthSession) refreshState() oauthSessionState {
@@ -515,6 +580,8 @@ func (s *OAuthSession) refreshState() oauthSessionState {
 		scope:      s.Scope,
 		idToken:    s.IDToken,
 		hostID:     s.HostID,
+		kind:       s.kindLocked(),
+		declared:   s.Kind,
 		store:      s.Store,
 		httpClient: s.HTTPClient,
 		now:        s.now,
@@ -585,6 +652,7 @@ func (s *OAuthSession) adopt(next *OAuthSession) {
 	s.Scope = next.Scope
 	s.IDToken = next.IDToken
 	s.HostID = next.HostID
+	s.Kind = next.Kind
 	s.Store = next.Store
 	s.HTTPClient = next.HTTPClient
 	s.issued = next.issued
@@ -673,6 +741,7 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 		Scope:      cmp.Or(payload.Scope, state.scope),
 		IDToken:    cmp.Or(payload.IDToken, state.idToken),
 		HostID:     state.hostID,
+		Kind:       state.declared,
 		Store:      state.store,
 		HTTPClient: state.httpClient,
 		issued:     now,
@@ -701,7 +770,7 @@ func newRefreshRequest(ctx context.Context, state oauthSessionState) (*http.Requ
 	}
 	contentType := "application/x-www-form-urlencoded"
 	var body io.Reader
-	if strings.TrimRight(state.issuer, "/") == DefaultOpenAIIssuer && state.resource == "" {
+	if state.kindOf() == SessionChatGPT && strings.TrimRight(state.issuer, "/") == DefaultOpenAIIssuer {
 		raw, err := json.Marshal(params)
 		if err != nil {
 			return nil, fmt.Errorf("oauth: encode refresh request: %w", err)
@@ -889,10 +958,14 @@ func refreshTokenURL(state oauthSessionState) (string, error) {
 	// endpoint. A session with no issuer is an older one of those two
 	// providers. Any other issuer's refresh token is never sent elsewhere
 	// (0020-MADR F45).
+	// The kind chooses the endpoint; the issuer stays a guard, so that no kind
+	// sends a refresh token to a built-in endpoint from another issuer
+	// (0074-MADR D5).
+	kind := state.kindOf()
 	switch issuer := strings.TrimRight(state.issuer, "/"); {
-	case issuer == DefaultOpenAIIssuer, issuer == "" && state.provider == llmprovider.ProviderOpenAI:
+	case openAIKind(kind) && (issuer == DefaultOpenAIIssuer || issuer == ""):
 		return DefaultOpenAIIssuer + "/oauth/token", nil
-	case issuer == DefaultGrokOAuthIssuer, issuer == "" && state.provider == llmprovider.ProviderGrok:
+	case kind == SessionGrok && (issuer == DefaultGrokOAuthIssuer || issuer == ""):
 		return defaultGrokOAuthRefreshURL, nil
 	default:
 		return "", fmt.Errorf("oauth: the %s session from %q has no token URL; sign in again: %w",

@@ -783,3 +783,174 @@ existing test, gate or golden changed, but `TestDescriptors_OpenAIAndGrokOfferOA
 * Not done, as the phase says: no `signin` package, no `auth` change, no
   contract import (Phase 4). The files are staged for the coordinator to
   commit.
+
+### Phase 2 (2026-11-12)
+
+Base: `main` at `4012cf4` (Phase 1 committed), tree clean. The MADR and this
+PLAN were read in full first. No claim of the MADR was found false; no
+existing test, golden or gate changed. No `authcontract` import: the four
+values are plain strings in the root (R2), as in Phase 1.
+
+* Step 1, `tokenstore.go`: `type SessionKind string` and the four constants
+  (`SessionChatGPT` `chatgpt`, `SessionChatGPTPlan` `chatgpt_plan`,
+  `SessionGrok` `grok`, `SessionKiloDevice` `kilo_device`);
+  `OAuthSession.Kind`; `fileRecord.Kind` with the JSON name `kind`,
+  `omitempty`; `String`, `GoString`, `MarshalJSON` and `LogValue` show it
+  when set.
+* Step 2: the five copies (`Load`, `persistable`, `refreshState` and the
+  refreshed session, `adopt`) and `Save` carry it. `oauthSessionState` gains
+  `kind` (resolved) as the step says, and one unexported field the step does
+  not name, `declared` (the session's `Kind` alone), which the refreshed
+  session keeps, so that a refresh never writes an inferred kind into an
+  older record.
+* Step 3, `oauth_session.go`: unexported `inferKind(provider, issuer,
+  resource)`, `sessionKindOf(kind, provider, issuer, resource)`, `kindLocked`
+  (the session's kind, for a caller holding its lock), `openAIKind`, and
+  `(oauthSessionState).kindOf`, which falls back to `inferKind` for a state
+  built from fields alone (`oauth_endpoints_test.go` and
+  `oauth_session_test.go` build such states and are unchanged). C19
+  (`ValidateOAuthSession`), C20 to C22 (`Owner`, `ChatGPT`, `PlanUsage`) and
+  C23 to C25 (the refresh body, `refreshTokenURL`, revocation in
+  `oauth_revoke.go`) test the kind. Exported: `(*OAuthSession).SessionKind()
+  SessionKind`, under the session's lock, documented with R51's and R52's
+  wording.
+  * **Guards kept so that a branch is the one taken at 773b84c.** One
+    inference cannot reproduce seven rules of different shapes, so three
+    sites keep the issuer test beside the kind, as C24 does by D5: C19's
+    access-only case needs an OpenAI kind and OpenAI's issuer; C23's JSON body
+    needs the `chatgpt` kind and OpenAI's issuer (an older session with no
+    issuer is refreshed as a form, as before); C24's built-in URLs need the
+    kind and the issuer, or none. C25 sends a session whose kind is empty to
+    the branch of its provider, as before (a session against another issuer).
+  * **Behaviour that differs, none covered by an existing test:** a session
+    whose `Kind` is set by a sign-in against a non-default issuer
+    (`LoginBrowserOAuth`, `LoginDeviceOAuth` on `openai`) now answers
+    `ChatGPT()` true, where an empty `Kind` with that issuer answers false;
+    a session with a `Resource` on a provider other than OpenAI (none is
+    built by this SDK) is revoked as unsupported, where it was revoked as a
+    plan session. A Kilo session with `Kind` empty infers no kind (today's
+    rules name none), so `SessionKind()` of a Kilo record saved before this
+    release is empty. Each is for the owner to rule on.
+* Step 4: `oauthSessionFromResponse` (the browser and device flows) sets
+  `SessionChatGPT` or `SessionGrok` by provider, through an unexported
+  `signInKind`; `LoginChatGPTPlan` sets `SessionChatGPTPlan`; the Kilo device
+  sign-in sets `SessionKiloDevice`; the wizard's access-only session sets
+  `SessionChatGPT` (`wizard/auth.go`, one line, named by the step though not
+  among the phase's files; no wizard test reads it).
+* Step 5: `ValidateOAuthSession` refuses a `chatgpt_plan` with no `Resource`
+  and a `kilo_device` with a refresh token, with plain errors naming the kind
+  and the contradiction, before the other cases.
+* Tests, `llmprovider/auth/session_kind_0074_test.go`: the six of the table,
+  and `TestSessionKind_Revocation_0074` (Kind set and empty are revoked in
+  the same place and form), with two unexported helpers for lint.
+* **Plants,** `python3 -B tools/plant.py` on a spec of 17, on its scratch
+  clone, never in the tree, exit 0, "plant: all 17 plant(s) caught". Failure
+  lines:
+  * the session's kind ignores `Kind`: `--- FAIL: TestSessionKindAccessor_0074`,
+    `session_kind_0074_test.go:197: chatgpt: Kind set: SessionKind() =
+    "chatgpt", want it`;
+  * the plan case of `inferKind` dropped: `session_kind_0074_test.go:108:
+    PlanUsage() = false, want true`, `:102: Owner() = "", want "openai"`;
+  * `refreshTokenURL` tests the kind alone (Grok, and OpenAI): `--- FAIL:
+    TestSessionKind_EachSite_0074/grok,_another_issuer,_no_token_URL,_Kind_set`,
+    `:121: refresh request = &{POST https://auth.x.ai/oauth2/token ...`; the
+    OpenAI plant the same with `https://auth.openai.com/oauth/token`;
+  * `SessionKind` returns `Kind` alone: `:193: chatgpt: Kind empty:
+    SessionKind() = "", want the inferred "chatgpt"`;
+  * `LoginChatGPTPlan` does not set the kind: `:289: LoginChatGPTPlan: Kind =
+    "chatgpt", want "chatgpt_plan"` (the plan sign-in then keeps the kind
+    `oauthSessionFromResponse` gave it); the Kilo and the Grok and OpenAI
+    plants: `:302: Kilo device sign-in: Kind = "", want "kilo_device"`, `:277:
+    OpenAI device sign-in: Kind = "", want "chatgpt"`;
+  * `fileRecord`'s tag spelled `session_kind`: `:339: a record naming a kind:
+    Kind "", err <nil>; want "chatgpt_plan"`; `Save` or `Load` leaving `Kind`
+    out: `:329: Load: Kind "", err <nil>; want "grok"`, `:422: Save and Load:
+    field Kind = , want value-Kind`;
+  * `Kind` left out of `adopt`: `:439: adopt: field Kind = , want value-Kind`;
+    of `persistable`: `:423: persistable: field Kind = , want value-Kind`; of
+    the refreshed session: `:435: refreshState to the refreshed session: field
+    Kind = , want value-Kind`;
+  * the contradiction checks removed: `:458: a chatgpt_plan without a resource:
+    err = <nil>, want a refusal naming chatgpt_plan and the contradiction`; and
+    for Kilo, the error was the older "no token URL" one, not the refusal;
+  * revocation sends a `chatgpt` session to the wrong branch: `--- FAIL:
+    TestSessionKind_Revocation_0074/chatgpt`, `:177: explicit true: err =
+    oauth: revoke: openai sessions have no revocation: ... unsupported`.
+  The plants were run again after the lint split of the first test, with the
+  same result.
+* Checks, each exit status captured before any filter, the heavy ones through
+  `run-heavy`:
+  * `go test -count=1 -race -run 0074 ./llmprovider/auth`, exit 0; the
+    existing `./llmprovider/auth`, `./wizard` and `./llmprovider/providers/...`
+    packages, exit 0, before the new tests.
+  * `python3 -B tools/redgreen.py REFRESH.json --expect pass` (a spec built
+    from the PLAN's 66 names): 65 pass, exit 1, one "missing":
+    `TestOAuthSessionWait_WindowsRemoval_0071`, which skips on a host that is
+    not Windows (`runtime.GOOS` check, line 140), so the tool sees no PASS
+    line. Its file is unchanged and the Windows vet compiles. `git diff
+    --stat` shows none of the 15 files changed. Not a failure of this phase;
+    the tool cannot see that test pass off Windows.
+  * `make pre-add-check FILES="..."` on the nine Go files, exit 0,
+    "go-precheck: 9 file(s) clean". **First run, exit 2, two issues:**
+    `gocognit` on `TestSessionKind_EachSite_0074` (58 of 50), fixed by
+    splitting two helpers out of it; `gocritic typeDefFirst` on the
+    `kindOf` method placed before `oauthSessionState`, fixed by moving it after
+    the type. No `nolint`.
+  * `make api-check`, exit 0: "against v1.30.0, 0 incompatible change(s)
+    outside llmprovider/x/". `python3 -B tools/apidiff.py v1.30.0`, exit 0:
+    Phase 1's nine `AuthMethod` fields and D5's seven additions, nothing
+    else: `auth.SessionKind`, `SessionChatGPT`, `SessionChatGPTPlan`,
+    `SessionGrok`, `SessionKiloDevice`, `OAuthSession.Kind`,
+    `(*OAuthSession).SessionKind`.
+  * `python3 -B tools/gate.py --timeout 5400`, through `run-heavy`. **First
+    run, exit 1, "28 of 30 passed":** `docs-check` rc=2, "llmprovider/auth/tokenstore.go:87
+    R51 type SessionKind does not say whether it is safe for concurrent use"
+    (sdkaudit, 1 violation), and `gate-selftest` rc=2, which runs the same
+    audit. Fixed by the type's doc sentence, as `authcontract.SessionKind`
+    has it; `make docs-check` then exit 0, `make gate-selftest` exit 0 (68
+    tests). **Second run, exit 0, 4048 s including the queue: "gate: 30 of 30
+    passed",** every check rc=0. The full-module test runs were the gate's.
+  * The gate ran before this entry was written, so the record checks were run
+    again after it, each exit 0 (below).
+* Acceptance: the six tests pass, each plant failed, the 66 refresh tests
+  pass (65 on this host, one Windows-only, files unchanged). Met.
+* Not done, as the phase says: no `signin` package, no `llmprovider/x`, no
+  contract import, no change to the wizard's text.
+
+### Phase 2, deviations (2026-11-12)
+
+The owner ruled on three findings of the Phase 2 entry above, on
+2026-11-12. The entry's "Behaviour that differs" bullet is superseded by
+this one.
+
+* **Finding 1a, ruled: keep the issuer guard in `ChatGPT()`.** `ChatGPT()`
+  is true only when the kind is `SessionChatGPT` and the issuer, trimmed of
+  its trailing slash, is `DefaultOpenAIIssuer` or empty, the guard D5 keeps at
+  C24. A session with `Kind` set and the same session with `Kind` empty then
+  take the same branch, and the doc comment ("issued by the default OpenAI
+  issuer") stays true. `TestSessionKind_EachSite_0074` gains the case "openai,
+  another issuer" with `Kind` set and empty, both answering `ChatGPT()`
+  false. No MADR change.
+* **`Owner()`, checked for the same divergence: it had it,** so the same
+  guard is applied. With `Provider` empty and an issuer that is not a
+  built-in one, `Kind` set answered `openai` (or `grok`) where `Kind` empty
+  answered "". `Owner()` now names OpenAI for an OpenAI kind only with
+  OpenAI's issuer, and Grok for `SessionGrok` only with xAI's. Two cases
+  ("chatgpt, no provider, another issuer" and "grok, no provider, another
+  issuer") assert "" for both.
+* **Plants** (`python3 -B tools/plant.py`, scratch clone, never the tree;
+  exit 0, "plant: all 20 plant(s) caught", the 17 of the entry and three
+  new):
+  * the issuer guard dropped from `ChatGPT()`: `--- FAIL:
+    TestSessionKind_EachSite_0074/openai,_another_issuer,_Kind_set`,
+    `session_kind_0074_test.go:119: ChatGPT() = true, want false`;
+  * the guard dropped from `Owner()` for an OpenAI kind: `.../chatgpt,_no_provider,_another_issuer,_Kind_set`,
+    `:119: Owner() = "openai", want ""`;
+  * the guard dropped from `Owner()` for the Grok kind: `.../grok,_no_provider,_another_issuer,_Kind_set`,
+    `:119: Owner() = "grok", want ""`.
+* **Finding 1c, ruled: a Kilo record saved before v1.31.0 means one fresh
+  sign-in.** No code change: Kilo gets no inference rule, and D5's "exactly
+  today's rules" stands. Its `SessionKind()` is "". Recorded in the MADR as a
+  dated annotation to D5, naming gobble-cli 0051-MADR D2's resolver.
+* **Finding 1b accepted with no change:** a session with a `Resource` on a
+  provider other than OpenAI is revoked as unsupported; this SDK builds none.

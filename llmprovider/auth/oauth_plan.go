@@ -190,6 +190,7 @@ func LoginChatGPTPlan(ctx context.Context, opts ChatGPTPlanOptions) (*OAuthSessi
 		return nil, err
 	}
 	session.Resource, session.Scope, session.IDToken, session.HostID = planResource, payload.Scope, payload.IDToken, hostID
+	session.Kind = SessionChatGPTPlan
 	return session, nil
 }
 

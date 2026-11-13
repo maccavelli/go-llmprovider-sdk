@@ -59,12 +59,15 @@ func RevokeOAuthSession(ctx context.Context, session *OAuthSession) error {
 	// it sends nothing (0020-MADR F45).
 	var req *http.Request
 	var err error
+	// A session of no known kind is revoked by its provider, as it was before
+	// the kind existed (a sign-in against another issuer).
+	kind := state.kindOf()
 	switch {
-	case state.resource != "":
+	case kind == SessionChatGPTPlan:
 		req, err = planRevokeRequest(ctx, state, client, token, hint)
-	case state.provider == llmprovider.ProviderOpenAI || strings.TrimRight(state.issuer, "/") == DefaultOpenAIIssuer:
+	case kind == SessionChatGPT || kind == "" && state.provider == llmprovider.ProviderOpenAI:
 		req, err = openAIRevokeRequest(ctx, state, token, hint)
-	case state.provider == llmprovider.ProviderGrok:
+	case kind == SessionGrok || kind == "" && state.provider == llmprovider.ProviderGrok:
 		req, err = grokRevokeRequest(ctx, state, client, token, hint)
 	default:
 		return fmt.Errorf("oauth: revoke: %s sessions have no revocation: %w", state.provider, llmprovider.ErrUnsupported)

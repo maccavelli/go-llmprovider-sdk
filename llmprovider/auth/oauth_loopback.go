@@ -698,6 +698,7 @@ func oauthSessionFromResponse(config oauthFlowConfig, tokenURL string, payload o
 	}
 	now := config.now()
 	return &OAuthSession{
+		Kind:       signInKind(config.provider),
 		Provider:   config.provider,
 		Access:     payload.AccessToken,
 		Refresh:    payload.RefreshToken,
@@ -710,6 +711,19 @@ func oauthSessionFromResponse(config oauthFlowConfig, tokenURL string, payload o
 		TokenURL:   tokenURL,
 		HTTPClient: config.callerClient,
 	}, nil
+}
+
+// signInKind is the kind of a session a browser or device sign-in against
+// provider yields: OpenAI's is a ChatGPT one (a plan session is set apart by
+// LoginChatGPTPlan), xAI's a Grok one.
+func signInKind(provider llmprovider.ProviderID) SessionKind {
+	switch provider {
+	case llmprovider.ProviderOpenAI:
+		return SessionChatGPT
+	case llmprovider.ProviderGrok:
+		return SessionGrok
+	}
+	return ""
 }
 
 func chatGPTAccountID(idToken string) string {

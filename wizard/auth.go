@@ -681,6 +681,7 @@ func accessOnlyOpenAISession(access string) *auth.OAuthSession {
 	account, fedramp := accessTokenAccount(access)
 	return &auth.OAuthSession{
 		Provider:  llmprovider.ProviderOpenAI,
+		Kind:      auth.SessionChatGPT,
 		Access:    access,
 		Issuer:    auth.DefaultOpenAIIssuer,
 		ClientID:  auth.DefaultOpenAIClientID,

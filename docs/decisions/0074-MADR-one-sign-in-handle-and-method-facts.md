@@ -562,6 +562,13 @@ type Credential interface {
   exported. The question put that day was whether to add it or to record
   gobble's need as unmet. The PLAN's R55 table lists it with those two call
   sites.*
+  *(2026-11-12, the owner's ruling in Phase 2: a Kilo record saved before
+  this release has no kind to infer, because today's rules name none for
+  Kilo, and this decision adds none. Its `SessionKind()` is "" (no kind), and
+  the resolver of
+  `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` D2
+  in gobble-cli asks for a fresh Kilo sign-in once. No backward-compatibility
+  rule is built for it: the owner is the only user.)*
 * **Re-dispatched, not rewritten.** The seven sites (C19 to C25) test the
   kind instead of the issuer and fields. Each branch's body is unchanged. The
   refresh, lock, rotation and save code is not edited beyond the five field

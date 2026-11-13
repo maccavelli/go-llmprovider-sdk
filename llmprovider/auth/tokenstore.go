@@ -41,7 +41,12 @@ type OAuthSession struct {
 	IDToken string
 	// HostID is the ext_agent_host_id a plan session's client was
 	// registered with.
-	HostID     string
+	HostID string
+	// Kind is the kind of sign-in the session came from. Every sign-in sets
+	// it and FileTokenStore persists it. Empty means inferred, by the rules
+	// SessionKind describes, so a record saved before it existed, and a
+	// session a caller builds, behave as they did (0074-MADR D5).
+	Kind       SessionKind
 	Store      TokenStore
 	HTTPClient *http.Client
 	// Logger receives a failure to save a rotated session, which the session
@@ -77,6 +82,23 @@ type OAuthSession struct {
 	onJoin joinHook
 }
 
+// SessionKind is the kind of sign-in a stored OAuthSession came from. Its
+// strings are those of the auth contract's SessionKind (0074-MADR D5). It is a
+// value, safe for concurrent use while no goroutine changes it.
+type SessionKind string
+
+// The session kinds. SessionChatGPT is a Sign in with ChatGPT session for the
+// Codex backend; SessionChatGPTPlan is a ChatGPT plan session on the
+// platform's Responses API (LoginChatGPTPlan); SessionGrok is an xAI Grok
+// sign-in; SessionKiloDevice is a Kilo device sign-in, which holds an access
+// token only.
+const (
+	SessionChatGPT     SessionKind = "chatgpt"
+	SessionChatGPTPlan SessionKind = "chatgpt_plan"
+	SessionGrok        SessionKind = "grok"
+	SessionKiloDevice  SessionKind = "kilo_device"
+)
+
 // joinHook is told when a caller joins a refresh in flight.
 type joinHook interface{ joined() }
 
@@ -96,6 +118,9 @@ func (s *OAuthSession) String() string {
 	text := fmt.Sprintf("OAuthSession{Provider:%s Issuer:%s ClientID:%s AccountID:%s FedRAMP:%t TokenURL:%s Expiry:%s Access:%s Refresh:%s",
 		s.Provider, s.Issuer, s.ClientID, s.AccountID, s.FedRAMP, s.TokenURL, expiryText(s.Expiry),
 		secretText(s.Access), secretText(s.Refresh))
+	if s.Kind != "" {
+		text += fmt.Sprintf(" Kind:%s", s.Kind)
+	}
 	if s.planFields() {
 		text += fmt.Sprintf(" Resource:%s Scope:%q HostID:%s IDToken:%s", s.Resource, s.Scope, s.HostID, secretText(s.IDToken))
 	}
@@ -133,8 +158,9 @@ func (s *OAuthSession) MarshalJSON() ([]byte, error) {
 		Scope     string                 `json:"scope,omitempty"`
 		HostID    string                 `json:"host_id,omitempty"`
 		IDToken   string                 `json:"id_token,omitempty"`
+		Kind      SessionKind            `json:"kind,omitempty"`
 	}{s.Provider, s.Issuer, s.ClientID, s.AccountID, s.FedRAMP, s.TokenURL, expiryText(s.Expiry),
-		secretText(s.Access), secretText(s.Refresh), s.Resource, s.Scope, s.HostID, secretText(s.IDToken)})
+		secretText(s.Access), secretText(s.Refresh), s.Resource, s.Scope, s.HostID, secretText(s.IDToken), s.Kind})
 }
 
 // LogValue renders the session for slog, without its tokens.
@@ -152,6 +178,9 @@ func (s *OAuthSession) LogValue() slog.Value {
 		slog.String("expiry", expiryText(s.Expiry)),
 		slog.String("access", secretText(s.Access)),
 		slog.String("refresh", secretText(s.Refresh)),
+	}
+	if s.Kind != "" {
+		attrs = append(attrs, slog.String("kind", string(s.Kind)))
 	}
 	if s.planFields() {
 		attrs = append(attrs,
@@ -203,6 +232,9 @@ type fileRecord struct {
 	Scope    string `json:"scope,omitempty"`
 	IDToken  string `json:"id_token,omitempty"`
 	HostID   string `json:"host_id,omitempty"`
+	// Kind is the session's kind (0074-MADR D5); absent from an older
+	// record, which then infers it.
+	Kind SessionKind `json:"kind,omitempty"`
 }
 
 // windowsDeviceNames are the names Windows opens as a device rather than a
