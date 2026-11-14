@@ -40,6 +40,14 @@ tag and its commit without notes; its notes are its section here.
   among them), `SignIn` with `Method`, `Steps`, `Answer`, `Wait` and `Cancel`,
   `Credential` with `APIKey`, `Session`, `AccessOnly`, `DeviceKey` and
   `ReadThrough`, and `ErrorKindOf` (D2, D3, D9).
+- `(*auth.OAuthSession).UseIdentity`, which gives a session the identity of
+  the application using it, so that its refresh and revocation name the
+  application; and `(*llmprovider.Settings).ClientVersion`, the version
+  `WithClientInfo` gave, or the one the User-Agent shows. The OpenAI and
+  Grok providers and `catalog` call them with `WithClientInfo`'s name and
+  version
+  ([0079-MADR](docs/decisions/0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md)
+  D2, D4).
 
 ### Deprecated
 
@@ -50,6 +58,20 @@ tag and its commit without notes; its notes are its section here.
 
 ### Changed
 
+- The ChatGPT backend's `originator` is `WithClientInfo`'s name, for
+  generation, the model listing and `catalog.ListRaw`, where it was always
+  `go-llmprovider-sdk`; with no name it is unchanged, and a ChatGPT plan
+  session still sends none (0079-MADR D1).
+- A session's refresh and revocation, and the discovery a revocation
+  reads, lead their User-Agent with the application that signed it in, or
+  that `UseIdentity` gave it, where they named this module only. A refresh
+  that `catalog.CachedModel`, `LookupModel` or `CachedFacts` starts names
+  `WithClientInfo`'s application, as a listing's does. With no name, every
+  request is as before (0079-MADR D2 to D4).
+- The wizard's own requests, the listing check, the Ollama check, the Kilo
+  profile and the listing of a ChatGPT session, and its logout, name
+  `Options.Identity`, unless `ProviderOptions` carry a `WithClientInfo`
+  (0079-MADR D5).
 - An `Options.OpenURL` error in the wizard is shown as a warning, "could not
   open the browser (...); open the URL above", and the sign-in goes on.
 - The wizard's browser and plan sign-ins check a pasted callback before

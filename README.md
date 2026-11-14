@@ -120,7 +120,12 @@ functions over any provider, and `Stream` streams from every one.
   less. It honours
   `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`. Every request sends
   `User-Agent: <name>/<version> (<os>; <arch>) go-llmprovider-sdk/<version>`.
-  `WithClientInfo(name, version)` names the application, and
+  `WithClientInfo(name, version)` names the application: it leads the
+  User-Agent, it is the `originator` of the ChatGPT backend (a ChatGPT
+  plan session sends none), and the OpenAI and Grok providers, and
+  `catalog`'s listings and lookups, give it to the OAuth session they use,
+  so that the session's refresh and revocation name the application
+  ([0079-MADR](docs/decisions/0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md)).
   `WithSessionID(id)` sets the conversation id that OpenCode
   (`x-opencode-session`) and Kilo (`X-KiloCode-TaskId`) receive.
 - **Adding request headers.** Wrap the default client's transport, so the
@@ -363,7 +368,15 @@ key.
 - `Options.Identity` names your app to the identity providers on every
   sign-in the wizard runs, as `auth.OAuthFlowOptions.Identity` does on your
   own: OpenAI's `originator`, Grok's `referrer`, and the User-Agent of each
-  sign-in request. A refresh and a revocation still name this module.
+  sign-in request. The session keeps that identity in memory, so its
+  refresh and its revocation, and the discovery the revocation reads
+  first, name your app too; a store never keeps it. The wizard's own
+  requests, the listing check, the Ollama check, the Kilo profile and the
+  listing of a ChatGPT session, and `wizard.Logout`, name it as well,
+  unless `ProviderOptions` carry a `WithClientInfo` for another
+  application, which wins. For a session you load yourself, call
+  `(*auth.OAuthSession).UseIdentity` before a refresh or a revocation;
+  the first name a session is given stays.
 
   ```go
   res, err := wizard.ConfigureLLM(ctx, prompter, wizard.Options{

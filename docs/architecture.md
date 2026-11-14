@@ -1185,8 +1185,24 @@ caller saves, as the wizard does after its listing.
 Every request names this module and the calling application:
 `User-Agent: <app>/<version> (<os>; <arch>) go-llmprovider-sdk/<version>`.
 `WithClientInfo` names the application and `WithSessionID` the conversation.
-The ChatGPT `originator` header and the Grok OAuth `referrer` are
-`go-llmprovider-sdk`.
+The ChatGPT `originator` header is `WithClientInfo`'s name, and the Grok
+OAuth `referrer` is the sign-in's `auth.Identity`; each is
+`go-llmprovider-sdk` without one. A ChatGPT plan session sends no
+`originator`. The trailer, `go-llmprovider-sdk/<version>`, stays on every
+User-Agent.
+
+A session carries its sign-in's identity in memory, and its refresh and
+revocation, with the discovery the revocation reads first, lead their
+User-Agent with that name (0079-MADR D2, D3). A store keeps none, so a
+session loaded from one has none until it is given one with
+`(*auth.OAuthSession).UseIdentity`, in which the first non-zero name wins.
+The OpenAI and Grok providers, `catalog`'s listings and its `CachedModel`,
+`LookupModel` and `CachedFacts` lookups give a session `WithClientInfo`'s
+name and `Settings.ClientVersion` before they read its token, when the name
+is not this module's; the wizard names its own requests (the listing check,
+the Ollama check, the Kilo profile and the listing of a ChatGPT session) and
+its logout with `Options.Identity`, which a `WithClientInfo` in
+`ProviderOptions` overrides (D4, D5).
 
 ## The dependency rule
 

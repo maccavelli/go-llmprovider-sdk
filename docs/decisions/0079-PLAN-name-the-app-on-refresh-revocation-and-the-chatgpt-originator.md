@@ -705,3 +705,51 @@ added to the marker for them. P1 to P10 name no other repository.)*
 * **Plants** (`tools/plant.py`, scratch clone, specs in the session's scratchpad): 20 of 20 caught, each by a test failure and none by a build error. `ClientVersion` given alone: `settings_client_version_0079_test.go:42: ClientVersion() = "", want "(devel)"`. Hand-off omitted, openai and grok: `identity_0079_test.go:81: refresh User-Agent = "go-llmprovider-sdk/(devel) ...", want it to begin "probe-app/1.2.3 ("`; the version passed empty: `...User-Agent = "probe-app/(devel) ..."`. `listingToken` without it: `lookup_names_session_0079_test.go:122`. `CachedModel` and `listingModel` direct, and `CachedModel`'s moved below its read: `:141`, `:153`, `:141`. `CachedFacts` direct: `:162`. Both through `listingToken`: `:226: CachedModel gave the session a client`; `:237: LookupModel error = model metadata: listing grok: acquire token: model listing: acquire token: token source is down`. Wizard: option after `ProviderOptions` `identity_0079_test.go:85`; Kilo `:118`; Ollama `:99`; logout `:165`; `listerFor` without the option `:124` and `:128: originator "go-llmprovider-sdk", want "probe-app"`; after `ProviderOptions` `:124`, `:128: originator "probe-app", want "other-app"`. The three table rows, each with its addition removed: `tables-check` caught each (exit 1).
 * **Checks.** `make pre-add-check` on the 14 Go files, rc 0. `make api-check`: 0 incompatible changes. `tools/apidiff.py v1.30.0`: this phase adds `(*llmprovider.Settings).ClientVersion` and nothing else of its own. `tables-check`, `docs-check`, `coverage-check`: rc 0 (43 packages, 0 problems).
 * **Gate:** `run-heavy -- python3 -B tools/gate.py --timeout 5400`: "gate: 30 of 30 passed", exit 0, 1068 s, started after the last code change (the records after it are this entry).
+
+### Phase 4 (2026-11-13): docs and the changelog
+
+Base: `main` at `c5792fc` (0074-PLAN Phase 6 committed), tree clean. Phase 4,
+"Rules for every phase" and every execution entry above were read first, so
+the docs describe what Phases 1 to 3 built: the ChatGPT originator, `UseIdentity`
+and `Settings.ClientVersion`, the hand-offs in openai, grok and catalog (the
+three lookups included), the wizard's requests (`listerFor` and logout), and
+the deviations ruled on 2026-11-12 and 2026-11-13. Each claim was read against
+the code: `llmprovider/auth/oauth_session.go` `UseIdentity`,
+`llmprovider/settings.go` `ClientVersion`, `llmprovider/internal/chatgpt`
+`SetHeadersAs`, `wizard/configure.go` `identityOptions`.
+
+* **Step 1, `README.md`.** The client-identification item says
+  `WithClientInfo` leads the User-Agent, is the ChatGPT `originator` (a plan
+  session sends none), and is given by the OpenAI and Grok providers and
+  `catalog`'s listings and lookups to the session they use. The wizard's
+  `Options.Identity` item says the session keeps the identity in memory, so
+  its refresh, revocation and discovery name the app; that the wizard's own
+  requests (listing check, Ollama check, Kilo profile, a ChatGPT session's
+  listing) and `wizard.Logout` name it unless `ProviderOptions` carry another
+  `WithClientInfo`; and that a session loaded by the caller takes
+  `UseIdentity`, the first name staying. The sentence "A refresh and a
+  revocation still name this module" is gone: Phase 2 made it false. No
+  example passes a name the code does not send.
+* **Step 2, `docs/architecture.md` "Identity".** The `originator` is
+  `WithClientInfo`'s name, the Grok `referrer` the sign-in's `Identity`, each
+  `go-llmprovider-sdk` without one, a plan session sends none, the trailer
+  stays; a session's refresh and revocation name its identity, which no store
+  keeps; the hand-offs and the wizard's requests as above.
+* **Step 3, `CHANGELOG.md` `[Unreleased]`.** **Added** `UseIdentity` and
+  `Settings.ClientVersion`; **Changed** the originator, the refresh and
+  revocation (the `CachedModel`, `LookupModel` and `CachedFacts` refreshes
+  included, per the amendment of 2026-11-12), and the wizard's requests and
+  logout. Nothing is said that Phase 5's probe, not yet run, would settle.
+* **Step 4:** `make docs-check`, `changelog-check`, `links-check`,
+  `markdownlint`, `parity-check`, and `tables-check`, each exit 0.
+* **Claims.** No row is added: README, architecture and the CHANGELOG are not
+  claim-checked records, and Phase 4 makes no new code assertion in a record
+  (the coordinator's decision, as for 0074 Phase 6). The open item of Phase 2,
+  claims moved by Phase 1 and the release phase's re-pin, is not Phase 4's.
+* **Checks,** each exit status captured before any filter, after the last
+  edit including this entry: `records-check`, `recordlint --changed`, `claims` on the 0079 pair and `denyscan --changed`, each exit 0. No `.go` file changed, so the
+  gate run is the Markdown gate, `python3 -B tools/gate.py --markdown`
+  through `run-heavy`. No new test or gate, so no planted break.
+* **Provenance.** Mainstream model, medium effort. Outcome: Phase 4 done as
+  written; no deviation and no escalation to the owner; staged for the
+  coordinator to commit.
