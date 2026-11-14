@@ -57,7 +57,10 @@ Recorded as decided, in the owner's words:
    application's name when one is set. An owner-run live probe passes before
    the release: one ChatGPT model listing and one short generation under the
    name "gobble". A refusal is a deviation, and the header then falls back to
-   this module's name.
+   this module's name. *(2026-11-14: proved live, owner-run. The PLAN's
+   probe listed models and generated once under "gobble", and refreshed and
+   revoked under it at both vendors, with no refusal; the fallback is not
+   needed. The PLAN's "Phase 5, the owner's run (2026-11-14)".)*
 3. **"Keep the SDK trailer":** the User-Agent stays
    `<app>/<ver> (<os>; <arch>) go-llmprovider-sdk/<ver>` (C19).
 
@@ -210,7 +213,9 @@ PLAN's Phase 5. O1 follows from ruling 2. The owner accepted this record on
 * **Ruling 2's condition.** D1 ships only after the PLAN's owner-run probe
   lists models and generates once under the name "gobble". A refusal is a
   deviation: the originator then stays `go-llmprovider-sdk` whatever
-  `WithClientInfo` says, and the record is amended.
+  `WithClientInfo` says, and the record is amended. *(2026-11-14: the
+  condition is met, with no refusal; D1 ships as written and is not
+  amended. The PLAN's "Phase 5, the owner's run (2026-11-14)".)*
 
 ### D2. A session carries the application's identity in memory
 
@@ -716,10 +721,18 @@ None is open.
 
 * Whether the Codex backend accepts an `originator` other than this
   module's, for a listing and a generation (ruling 2; the PLAN's probe).
+  *(2026-11-14: verified for "gobble", owner-run: the listing and one
+  generation passed with it as their `originator`, and OpenAI's sign-in
+  accepted it on the authorize URL. The PLAN's "Phase 5, the owner's run
+  (2026-11-14)".)*
 * Whether OpenAI's and xAI's token and revocation endpoints accept any
   User-Agent. Both accepted "llmprovider-probe" on a sign-in's requests
   (0076-PLAN Phase 4's live run); the PLAN's probe refreshes and revokes
-  under "gobble".
+  under "gobble". *(2026-11-14: verified for "gobble", owner-run: at both
+  vendors a forced refresh succeeded and a revocation was accepted with a
+  User-Agent led by it, and a refresh afterwards was refused. Any other
+  name is still unprobed. The PLAN's "Phase 5, the owner's run
+  (2026-11-14)".)*
 
 ### Related
 

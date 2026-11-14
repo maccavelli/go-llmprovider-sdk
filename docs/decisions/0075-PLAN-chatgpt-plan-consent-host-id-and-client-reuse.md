@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-12
+date: 2026-11-14
 associated-madr: "0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md"
 decision-makers: repository owner
 ---
@@ -343,6 +343,10 @@ is never assumed done. Results go in this record.
    * A refusal is a deviation: MADR D7 is amended to keep the host id only,
      the wizard and `x/signin` stop passing `ClientID`, and their tests
      change by that amendment.
+     *(2026-11-14: OpenAI accepted the kept client with no `id_token_hint`,
+     and the client and host id were unchanged, so this deviation does not
+     arise and D7 stands as written. See "Phase 6, the owner's run
+     (2026-11-14)", at the end of this record.)*
 2. **The consent end to end,** in the same test after the second sign-in:
    decline, then a marked request is refused with no request sent; grant
    through `SetConsent`, then one short marked generation. *Quota: one short
@@ -1088,3 +1092,49 @@ recorded here.** The U3 probe of `id_token_hint` alone is 0074's
   `tools/recordlint.py --changed`.
 * **Provenance.** Mainstream model, medium effort; no escalation. The
   owner's run is pending; the run sheet comes after 0079's prep.
+
+### Phase 6, the owner's run (2026-11-14)
+
+The owner ran `TestLive_0075ClientReuse` on 2026-11-14, on the host, and it
+passed. The lines below are the owner's pasted output, with any URL, code or
+id removed; nothing else is changed. The owner's notes do not name the
+revision it ran at.
+
+```text
+FINDING sign-in: the OpenAI plan first sign-in completed by the loopback, which redirected to port 1455; steps: confirm, open_url, done
+FINDING sign-in: issued client of 32 chars; token URL <the issuer's token URL>
+FINDING client: the first sign-in saved its issued client and host id
+FINDING refresh after revocation: refused, ErrAuthFailure
+FINDING client: the sign-out deleted the session and kept the client record
+FINDING sign-in: the OpenAI plan second sign-in completed by the loopback, which redirected to port 1455; steps: confirm, open_url, done
+FINDING reuse: OpenAI accepted the client with no id_token_hint; the client and host id are unchanged
+FINDING consent: declined, a marked request is refused with no request sent
+FINDING consent: granted, a marked generation went through
+FINDING refresh after revocation: refused, ErrAuthFailure
+--- PASS: TestLive_0075ClientReuse (50.40s)
+```
+
+* **Step 1, the reuse with no hint: OpenAI accepts it.** After the first
+  session was revoked and deleted, as `wizard.Logout` does, the second
+  sign-in named the kept client and host id, with no `id_token_hint`, and
+  OpenAI accepted it; the client and host id are unchanged. The step's
+  deviation does not arise: MADR D7 stands as written, the wizard and
+  `x/signin` keep passing `ClientID`, and gobble-cli
+  `docs/decisions/0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md`'s
+  fallback (keep the host id only) is not needed. The MADR's notes that
+  called the reuse unverified carry a dated note saying so.
+* **Step 2, the consent end to end: as decided.** Declined, a marked request
+  was refused with no request sent; granted, one short marked generation
+  went through.
+* **Step 3, the checks and their twin,** were built and their plants caught
+  in "Phase 6, prep (2026-11-14)".
+* **Quota and registration.** One short generation on the owner's ChatGPT
+  plan. The first sign-in registered one client, named `llmprovider-probe`,
+  on the owner's account, as the step says: with 0074-PLAN Phase 7 step 3's,
+  the account now holds a second `llmprovider-probe` client. Both sessions
+  were revoked, and a refresh of each afterwards was refused.
+
+**Phase 6 is complete:** steps 1 to 3 are done, with no deviation. Phase 7,
+the release, is 0074-PLAN Phase 8's. No code changed in this entry.
+
+* **Provenance.** Owner-run; recorded by the strongest model at high effort.

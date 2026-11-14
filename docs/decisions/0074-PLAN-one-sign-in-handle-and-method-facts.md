@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-13
+date: 2026-11-14
 associated-madr: "0074-MADR-one-sign-in-handle-and-method-facts.md"
 decision-makers: repository owner
 ---
@@ -825,6 +825,13 @@ the two share. It must not exist when a test starts, as step 4's must not.
 Step 2 also reads `LLMPROVIDER_LIVE_BROWSER_LOGIN`; step 3 also reads
 `LLMPROVIDER_LIVE_CHATGPT_PLAN`. Both are named in AGENTS.md. The other
 variables of this phase are `LLMPROVIDER_LIVE_DEVICE_LOGIN`, step 1's.)*
+
+*(2026-11-14, later: every step of this phase is done, and the phase is
+complete. Steps 1, 2, 3 and 5 passed on the owner's runs of 2026-11-14, step
+3 on its second run, after the probe defect its first run found was fixed in
+`c47602b`; step 4 passed in Phase 3a on 2026-11-13; step 6 found two races,
+fixed in `67be2b7`. See "Phase 7, the owner's runs (2026-11-14)", at the end
+of this record.)*
 
 ### Phase 8: the release
 
@@ -2698,3 +2705,131 @@ Base `b6a2125`. Files: `llmprovider/live_0074_paste_test.go`,
   Grok. The new twins use `NoLoopback`, which binds none, or a free port.
 * **Provenance.** Mainstream model, medium effort. The defect was found by
   the owner's live run, not by a check; no escalation.
+
+### Phase 7, the owner's runs (2026-11-14)
+
+The owner ran steps 1, 2, 3 and 5 on 2026-11-14, on the host, and all
+passed. The lines below are the owner's pasted output, with any URL, code or
+id removed; nothing else is changed. Step 3's pass is its second run, on the
+corrected probe at `c47602b`; the owner's notes do not name the revision of
+the other runs. Each run used a scratch store.
+
+**Step 1, `TestLive_OpenAIDeviceLogin`: a pass.**
+
+```text
+FINDING sign-in: OpenAI device login approved; a ChatGPT session with an access and a refresh token
+FINDING use: one short generation through the ChatGPT backend returned the requested word
+FINDING revocation: revoked; a refresh afterwards is refused, as ErrAuthFailure true
+--- PASS: TestLive_OpenAIDeviceLogin (105.80s)
+exit status: 0
+```
+
+Quota: one short generation on the owner's ChatGPT plan, as the step says.
+
+**Step 2, U2, `TestLive_0074PasteBrowser`: a pass.**
+
+```text
+FINDING redirect: the authorize URL's redirect_uri names port 1455, where nothing listens
+FINDING sign-in: OpenAI browser sign-in completed by a paste of a callback URL with code and state (scheme http, a loopback host, another path); steps: open_url, paste, paste, done
+FINDING refresh: the token rotated once and the scratch store holds it
+FINDING revocation: revoked; a refresh afterwards is refused, as ErrAuthFailure true
+--- PASS: TestLive_0074PasteBrowser (491.80s)
+```
+
+* **Device and browser:** the owner's phone, Chrome. No local-network
+  prompt appeared; in the owner's words, "the browser on my phone is chrome
+  and no prompt appeared".
+* **The address bar.** After approval the phone was redirected to the
+  loopback address on port 1455, which failed to load. Its address bar
+  showed only the host and port until tapped; the full address, with the
+  code and state, was copied from it then.
+* **Two pastes.** `steps` holds two `paste` entries. The first paste was the
+  authorize URL itself: the host's clipboard still held the link sent to the
+  phone. The engine refused it locally and asked again. The second paste,
+  the callback address, completed the sign-in.
+* **Who wrote the second paste file.** The coordinator wrote it from the
+  owner's clipboard, at the owner's word ("pasted"), with a guard that the
+  text held `code=`. The value was not displayed or logged, and this record
+  quotes none of it.
+* A first attempt at this probe failed to start its log, because the run
+  sheet's commands relied on a `SCRATCH` variable from another terminal. It
+  was rerun with fixed paths (the run sheet's change is in "Phase 7, step 3,
+  deviation (2026-11-14)").
+
+**Step 3, U3, `TestLive_0074PastePlan`: a pass, on the second run.** The
+first run stopped at the probe's own check of the authorize URL, before any
+sign-in, and nothing was sent to OpenAI: the probe asserted an `originator`
+that `planAuthorizeURL` never sets. That defect, its lines and its fix are
+"Phase 7, step 3, deviation (2026-11-14)" and its execution entry, above;
+the fix is `c47602b`. The second run, on the corrected probe:
+
+```text
+FINDING redirect: the authorize URL's redirect_uri names port 1455, where nothing listens
+FINDING sign-in: OpenAI plan sign-in completed by a paste of a callback URL with code and state (scheme http, a loopback host, another path); steps: confirm, open_url, paste, done
+FINDING sign-in: issued client of 32 chars; token URL <the issuer's token URL>
+FINDING refresh: the token rotated and the store holds it
+FINDING port: with 1455 held, the authorize URL redirects to port 1457
+FINDING sign-in: the OpenAI plan again sign-in completed by the loopback, which redirected to port 1457; steps: open_url, done
+FINDING sign-in: issued client of 32 chars; token URL <the issuer's token URL>
+FINDING reuse: the sign-in again is under the first sign-in's client and host id
+FINDING refresh after revocation: refused, ErrAuthFailure
+FINDING refresh after revocation: refused, ErrAuthFailure
+--- PASS: TestLive_0074PastePlan (191.36s)
+```
+
+* One paste, accepted the first time (`steps: confirm, open_url, paste,
+  done`). The first sign-in was on the owner's phone, in Chrome; the second,
+  the port fallback through the loopback, in a browser on the host.
+* The confirm step (the plan's usage terms) was answered yes by the test, as
+  "Phase 7, prep (2026-11-14)" says; the owner's run is the consent.
+* One client, named `llmprovider-probe`, was registered on the owner's
+  account, as the step's quota note says. The sign-in again reused it, by
+  `Previous`, and registered none.
+
+**Step 4** passed in Phase 3a on 2026-11-13 ("Phase 3a, the owner's run
+(2026-11-13)"), and is not run again here.
+
+**Step 5, the two moved device tests: both pass.**
+
+`TestLive_GrokDeviceLogin`:
+
+```text
+--- PASS: TestLive_GrokDeviceLogin (26.61s)
+exit status: 0
+```
+
+`TestLive_KiloDeviceLogin`:
+
+```text
+picked kilo-auto/free from [kilo-auto/free nvidia/nemotron-3.5-lightning:free poolside/laguna-s-2.1:free]
+profile: 0 organizations, personal account true
+--- PASS: TestLive_KiloDeviceLogin (21.99s)
+exit status: 0
+```
+
+Kilo cannot revoke its token: it stays valid until the owner removes it in
+Kilo's settings. Each test completed its sign-in on `StartDeviceOAuth` and
+`Wait` and passed the checks it passed before Phase 3 moved it (R46: same
+login, same checks).
+
+**Step 6,** U14, is "Phase 7, step 6, deviation (2026-11-14)" and "Phase 7,
+step 6 (2026-11-14)", above: two races, fixed in `67be2b7`.
+
+**Phase 7 is complete.** Each step of the phase's list, read against its
+text:
+
+| Step | What the list asks | Done |
+| :--- | :--- | :--- |
+| 1 | an OpenAI device sign-in: start, approve, one short generation, revoke | yes, 2026-11-14 |
+| 2 | U2: `x/signin` with `NoLoopback`, a paste from another device, one refresh, revoke | yes, 2026-11-14 |
+| 3 | U3: the plan by paste from another device; then, with 1455 held, the fallback to 1457 by the loopback | yes, 2026-11-14, second run |
+| 4 | Grok's browser sign-in by paste from another device | yes, Phase 3a, 2026-11-13 |
+| 5 | the moved Grok and Kilo device tests, once | yes, 2026-11-14 |
+| 6 | U14, the wizard write race, `-race -count=50` | yes, two races found and fixed, `67be2b7` |
+
+No step is open. Phase 8, the release, is next: its step 1 ran on
+2026-11-13, and the owner runs it waited on beside this phase's,
+0075-PLAN Phase 6 and 0079-PLAN Phase 5, are recorded in those PLANs on this
+date. No code changed in this entry.
+
+* **Provenance.** Owner-run; recorded by the strongest model at high effort.

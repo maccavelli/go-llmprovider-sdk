@@ -528,6 +528,15 @@ The owner's rulings of 2026-11-11, written in after the review above.
   browser sign-in and the Grok device sign-in passed with it on the live
   runs 0046-PLAN recorded (C43, C44), and the ChatGPT test checks the
   `originator` before anyone signs in (C45).
+  *(2026-11-14: verified for two consumer names, owner-run; "any" name stays
+  unprobed. The PLAN's Phase 4 live run, recorded in
+  [0076-PLAN-auth-error-kinds-and-doc-drift.md](0076-PLAN-auth-error-kinds-and-doc-drift.md),
+  completed OpenAI's browser sign-in with `originator` "llmprovider-probe"
+  and xAI's device sign-in with that `referrer`. The owner's run of
+  [0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md](0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md)
+  Phase 5 on 2026-11-14 completed both under "gobble": the authorize URL
+  carried `originator` "gobble", and the device form's `referrer` was
+  "gobble".)*
 
 ### Related
 

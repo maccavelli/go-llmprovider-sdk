@@ -196,7 +196,10 @@ recommended:
   sign-in (D4).
 * **If OpenAI refuses the issued client without `id_token_hint`,** the release
   is gated on the PLAN's owner-run probe. The fallback is the one D7 states:
-  stop passing `ClientID` and keep only the host id.
+  stop passing `ClientID` and keep only the host id. *(2026-11-14: the probe
+  ran, owner-run, and OpenAI accepted the issued client with no
+  `id_token_hint`; the fallback is not needed. The PLAN's "Phase 6, the
+  owner's run (2026-11-14)".)*
 
 On 2026-11-11 the owner answered the question that day's review had left
 open in D5, choosing option (a) of the PLAN's Phase 3: the session gains an
@@ -392,7 +395,12 @@ and approved its PLAN the same day. Its code follows 0074's and waits, as
   owner-run probe settles it before release. If OpenAI refuses, the wizard
   and `x/signin` stop passing `ClientID`, keep only the host id, and this
   decision is amended; registration churn then remains for a sign-out, and is
-  recorded as such.
+  recorded as such. *(2026-11-14: verified by the owner's run of the PLAN's
+  Phase 6 probe. After the first session was revoked and deleted, a second
+  plan sign-in with the kept client and host id and no `id_token_hint` was
+  accepted, and the client and host id were unchanged. This decision stands
+  as written and is not amended. The PLAN's "Phase 6, the owner's run
+  (2026-11-14)".)*
 
 ### D8. What this amends in 0043-MADR
 
@@ -460,7 +468,7 @@ and approved its PLAN the same day. Its code follows 0074's and waits, as
 * `make api-check` lists exactly the PLAN's table.
 * `tools/claims.py` passes on this record.
 * The owner-run probe of D7 is recorded before the release, and D7 amended if
-  it fails.
+  it fails. *(2026-11-14: recorded, a pass; D7 is not amended.)*
 
 ## Pros and Cons of the Options
 
@@ -630,7 +638,9 @@ The owner's ruling of 2026-11-11, written in after the review above.
 ### Not verified
 
 * Whether OpenAI accepts a re-sign-in with the issued client and no
-  `id_token_hint` after revocation (D7; the PLAN's probe).
+  `id_token_hint` after revocation (D7; the PLAN's probe). *(2026-11-14:
+  verified, owner-run: OpenAI accepts it, with the client and host id
+  unchanged. The PLAN's "Phase 6, the owner's run (2026-11-14)".)*
 * Whether OpenAI regards a plan sign-in driven from the owner's phone, on the
   owner's own host, as compliant (the report's U12). The owner's stance is
   "own host only, disclosed" (Q11); this record supplies the disclosure step.

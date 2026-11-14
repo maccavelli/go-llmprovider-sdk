@@ -1,6 +1,6 @@
 ---
 status: in-progress
-date: 2026-11-12
+date: 2026-11-14
 associated-madr: "0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md"
 decision-makers: repository owner
 ---
@@ -376,6 +376,9 @@ revocation under the name in each half, as written here.)*
    says, by a dated amendment of the MADR's D1 and this PLAN, and the field
    docs say why. For a refresh or a revocation refused under the name: a
    dated entry and the owner's ruling before the release.
+   *(2026-11-14: no `FINDING refused` line at either vendor, so no deviation
+   arises and D1's fallback is not needed. See "Phase 5, the owner's run
+   (2026-11-14)", at the end of this record.)*
 
 **For the owner: the probe.** It opens a browser sign-in at OpenAI, then a
 device sign-in at xAI; each needs a person within five minutes. From the
@@ -833,3 +836,59 @@ nothing was signed in, no live test ran, and no result is recorded here.**
 * **Provenance.** Mainstream model, medium effort; no escalation. The
   owner's run is pending; it asks first, signs in at OpenAI and xAI with a
   person, and spends one short generation of the owner's ChatGPT plan.
+
+### Phase 5, the owner's run (2026-11-14)
+
+The owner ran both halves of `TestLive_0079Name` on 2026-11-14, on the host,
+and both passed. The lines below are the owner's pasted output, with any URL,
+code or id removed; nothing else is changed. The owner's notes do not name
+the revision they ran at.
+
+**`ChatGPT` half: a pass.**
+
+```text
+FINDING sign-in: the authorize URL carried originator "gobble" and the sign-in completed
+FINDING use: the listing and one generation passed under "gobble"; the backend's requests sent it as their originator
+FINDING refresh: a forced refresh succeeded and led its User-Agent with "gobble"
+FINDING revocation: revoked under the name, led with it; a refresh afterwards is refused, as ErrAuthFailure true
+--- PASS: TestLive_0079Name/ChatGPT (14.86s)
+```
+
+No `FINDING refused` line: OpenAI's sign-in, the Codex backend (the listing
+and the generation), the refresh and the revocation all accepted the name
+"gobble". Quota: one short generation on the owner's ChatGPT plan.
+
+**`Grok` half: a pass.**
+
+```text
+FINDING sign-in: the device form's referrer was "gobble" and the sign-in completed
+FINDING use: the raw listing held a model under "gobble"
+FINDING refresh: a forced refresh succeeded and led its User-Agent with "gobble"
+FINDING revocation: revoked under the name, led with it; a refresh afterwards is refused, as ErrAuthFailure true
+--- PASS: TestLive_0079Name/Grok (15.89s)
+exit status: 0
+```
+
+No `FINDING refused` line: xAI accepted the name "gobble" on the sign-in,
+the listing, the refresh and the revocation. Quota: none at xAI.
+
+* **The outcome.** No refusal at either vendor, so step 5's deviation does
+  not arise. D1 ships as written: the ChatGPT `originator` is
+  `WithClientInfo`'s name, and the fallback to `go-llmprovider-sdk` is not
+  needed. The refresh and the revocation under the name need no ruling.
+  Ruling 2's condition, a listing and a generation under "gobble" before the
+  release, is met. The MADR's ruling 2, D1's condition and "Not verified"
+  carry a dated note, and so does
+  [0076-MADR-auth-error-kinds-and-doc-drift.md](0076-MADR-auth-error-kinds-and-doc-drift.md)'s
+  "Not verified".
+* **What the run does not show** is what "Phase 5, prep (2026-11-14)" lists
+  as not exercised: the lookups (`CachedModel`, `LookupModel`,
+  `CachedFacts`), the wizard's own requests and its logout, plan sessions,
+  and Kilo. The lookups and the wizard's requests are held by Phase 3's
+  offline tests, not by this run.
+* **Acceptance,** read against the phase's text: the twin's plants are caught
+  (7 of 7, in the prep entry); `go vet -tags live_gateways` passes (the prep
+  entry); the owner's run is recorded here, each `FINDING` line quoted, with
+  no refusal. **Phase 5 is complete.** Phase 6, the release, is 0074-PLAN
+  Phase 8's. No code changed in this entry.
+* **Provenance.** Owner-run; recorded by the strongest model at high effort.
