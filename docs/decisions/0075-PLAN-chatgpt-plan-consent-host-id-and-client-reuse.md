@@ -1010,6 +1010,15 @@ MADR and approved this PLAN.
 * **Claims rows, the coordinator's decision:** none are added to any record.
   Phase 5 makes no new code assertion in a record, as 0074-PLAN's Phase 6
   decided for its docs. The two records' claims run, `51 of 51` and `8 of 8`.
+  *(Annotation, 2026-11-14: the owner ruled on this, relayed by the
+  coordinator; chosen "No rows for docs edits", with "Add rows for cited
+  code" and "Decide after the tag" rejected. The ruling, verbatim: "A claim
+  row is added when a decision record asserts a fact about code. Edits to
+  README, architecture and the changelog are covered by the docs checks
+  instead. The three phases stand as recorded, re-attributed from my
+  decision to your ruling, and the rule is written into the tools README so
+  it is settled." The phrase "the coordinator's decision" above is the
+  owner's ruling. The rule is in `tools/README.md`, beside `claims.py`.)*
 * **Checks, each exit status captured before any filter:**
   * `make docs-check`: exit 0, `sdkaudit: 0 violation(s) of R50,R51,R52`;
     `make links-check`: exit 0, `0 problem(s), 1301 relative link(s)`;
@@ -1138,3 +1147,39 @@ FINDING refresh after revocation: refused, ErrAuthFailure
 the release, is 0074-PLAN Phase 8's. No code changed in this entry.
 
 * **Provenance.** Owner-run; recorded by the strongest model at high effort.
+
+### Phase 7, the release prepared (2026-11-14)
+
+This phase is 0074-PLAN Phase 8, whose entry "Phase 8, the release prepared
+(2026-11-14)" holds the section, the API diff, the checks and the tag
+command. What this PLAN asks of it:
+
+* **The release notes.** `CHANGELOG.md`'s `## [v1.31.0] - 2026-11-14`
+  names the downgrade cost (an older release that re-saves a session drops
+  its consent and ignores `<provider>.client`) and the wizard's changed
+  notice, one question with three choices.
+* **The API.** `tools/apidiff.py v1.30.0` lists this PLAN's 17 names
+  outside `x/`, and none of them is missing; `x/signin`'s
+  `Options.HostID`, `ConsentText` and `ClientStore` are in its package.
+* **The docs.** `docs/architecture.md`'s issued-client item no longer says
+  the reuse is for this PLAN's Phase 6 probe: it says the probe showed it.
+* **"Verification",** each exit status captured before any filter, as
+  0074-PLAN's entry records: the module under `-race` on the Linux machine
+  and on Windows, exit 0; `go test -race -count=3 ./llmprovider/auth/` on
+  the Linux machine, exit 0; `REFRESH.json`, 65 of 66, the one missing
+  test being Windows-only; `make api-check` and `make vuln`, exit 0;
+  `tools/claims.py` on this pair, 51 of 51 and 8 of 8 at the pins. The
+  gate covers `TestWireGoldens` three times, `fixtures-check`,
+  `contract-check`, `tidy-diff`, `lint` and the live-tagged vet.
+* **The acceptance: not yet met, so this PLAN stays `in-progress`.** Phases
+  0 to 6 are complete, and the MADR's Confirmation is met but for the
+  release: the probe of D7 is recorded, and D7 is not amended. This phase,
+  the release, waits on the tag: the owner's tag, its CI, and
+  `tools/consumer.py` and `tools/offline.py` after it (0074-PLAN Phase 8).
+  The code-claims question in 0074-PLAN's entry includes this pair's rows.
+  *(Annotation, 2026-11-14: the owner ruled "Pins stand"; this pair's rows
+  stay pinned and nothing is re-pinned for the release. See 0074-PLAN's
+  entry, "The code claims", and its annotation.)*
+  The MADR stays `accepted`.
+* **Provenance.** Prepared by the strongest model at high effort; no
+  escalation to the owner.

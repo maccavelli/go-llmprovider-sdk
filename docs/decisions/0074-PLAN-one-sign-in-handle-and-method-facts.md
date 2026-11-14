@@ -2145,7 +2145,15 @@ against the code.
 * **Step 5:** not done, moved to Phase 7 step 1 by the owner (above).
 * **Claims.** No row is added. README, architecture and the CHANGELOG are not
   claim-checked records, and Phase 6 makes no new code assertion in a record;
-  the coordinator's decision.
+  the coordinator's decision. *(Annotation, 2026-11-14: the owner ruled on this, relayed by the
+  coordinator; chosen "No rows for docs edits", with "Add rows for cited
+  code" and "Decide after the tag" rejected. The ruling, verbatim: "A claim
+  row is added when a decision record asserts a fact about code. Edits to
+  README, architecture and the changelog are covered by the docs checks
+  instead. The three phases stand as recorded, re-attributed from my
+  decision to your ruling, and the rule is written into the tools README so
+  it is settled." The phrase "the coordinator's decision" above is the
+  owner's ruling. The rule is in `tools/README.md`, beside `claims.py`.)*
 * **Checks,** each exit status captured before any filter: `make docs-check`,
   `links-check`, `changelog-check`, `markdownlint`, `records-check`,
   `disclosure-check`, `tables-check`, `parity-check`, each exit 0;
@@ -2833,3 +2841,463 @@ No step is open. Phase 8, the release, is next: its step 1 ran on
 date. No code changed in this entry.
 
 * **Provenance.** Owner-run; recorded by the strongest model at high effort.
+
+### Phase 8, the release prepared (2026-11-14)
+
+Base `b39bbec`, the tree clean. This is Phase 8 up to the tag, with
+0075-PLAN Phase 7 and 0079-PLAN Phase 6, which are this phase. Nothing is
+committed, pushed or tagged. Each command's exit status was captured before
+any filter. No Go file changed.
+
+* **Step 1** ran on 2026-11-13 ("Phase 8, step 1 (2026-11-13)").
+* **The section,** as `v1.30.0`'s was prepared (0076-PLAN Phase 5).
+  `CHANGELOG.md`'s `[Unreleased]` became `## [v1.31.0] - 2026-11-14`,
+  under an empty `[Unreleased]`, and the compare links read
+  `[Unreleased]: …compare/v1.31.0...HEAD` and
+  `[v1.31.0]: …compare/v1.30.0...v1.31.0`. The docs phases (this PLAN's
+  Phase 6, 0075-PLAN Phase 5 and 0079-PLAN Phase 4) wrote the section
+  before the work of 2026-11-14 below, so these entries were added from the
+  code:
+  * **Added:** `(*auth.OAuthSession).UseStore` (Phase 7 step 6;
+    `llmprovider/auth/oauth_session.go`, `UseStore`).
+  * **Added, in the `Driver` item:** the last step's 5 s limit ("Phase 5,
+    deviation (2026-11-14)"; `wizard/driver.go`, `lastStepLimit`).
+  * **Fixed:** the two races of Phase 7 step 6. Both are in `v1.30.0`: its
+    `wizard/auth.go` assigns `c.session.Store = c.saveTo` with no lock, and
+    its `FileTokenStore.Save` reads the session's fields with no lock while
+    `adopt` writes them.
+
+  Each name in the section was checked against the API diff below. The
+  section names 0075's downgrade cost and the wizard's changed notice, as
+  0075-PLAN Phase 7 asks. `make changelog-check`: exit 0, "45 release
+  section(s), 0 problem(s)". `scripts/check_changelog.py --section
+  v1.31.0`: exit 0, 129 lines, with Added, Deprecated, Changed and Fixed.
+* **Version strings.** `README.md`'s status line reads "The current
+  release is `v1.31.0`." Outside the changelog and the records, no other
+  file names `v1.30.0`. `llmprovider/live_twins_test.go:1039` holds
+  `go-llmprovider-sdk/1.31.0` inside a User-Agent fixture, and
+  `chatgpt.ModelsClientVersion` is the backend's fallback `0.0.0`: neither
+  is the release's version. No release phase names a migration note.
+* **Docs currency** (the owner's standing requirement of 2026-11-14 that the
+  docs be accurate and current). Every exported name this release adds has
+  its Go doc, and is now also named in `README.md` or
+  `docs/architecture.md`, besides the changelog. A read-only survey of a
+  clone at `b39bbec` gave leads, each checked in this tree before any edit.
+  Fixed, in the files the docs phases own (`README.md`,
+  `docs/architecture.md`), where this release makes a statement false or
+  leaves a name it ships unnamed:
+  * `README.md`'s opening said the module depends on the standard library
+    and `golang.org/x/term` only. `go.mod` now also requires `authcontract`
+    `v0.1.0`, and `v1.30.0`'s did not. It now names the `authcontract`
+    module.
+  * `docs/architecture.md`'s issued-client item said whether OpenAI accepts
+    the client with no hint "is for the owner-run probe of 0075-PLAN's
+    Phase 6". It now says the probe showed it on 2026-11-14.
+  * `docs/architecture.md`'s `generate-check` item named the two
+    `mkwinsyscall` files only. `make generate-check` checks three, the third
+    being `authcontract.schema.json` from `authcontract/doc.go`'s
+    `go:generate` line, which `v1.30.0` did not have. It now names all three.
+  * `UseStore` and `FileTokenStore.Save`'s lock were named in the changelog
+    and their Go docs only. `docs/architecture.md` now names them in "The
+    wizard" and the `TokenStore` item, and `README.md` names them in "Method
+    facts and one sign-in handle".
+  * `auth.SessionChatGPT`, `SessionChatGPTPlan`, `SessionGrok`,
+    `SessionKiloDevice`, `llmprovider.IsBackground` and
+    `(*FileTokenStore).LoadClient` and `SaveClient` were named in the
+    changelog and their Go docs only. `README.md` now names each.
+  * `README.md`'s package table and `docs/architecture.md`'s tree described
+    `x/signin` as "one handle, `Methods` and `ErrorKindOf`". Both now name
+    `Start`, `SignIn` and `Credential` too.
+
+  Not edited, and open items for the owner, because no release phase owns
+  the file or the statement predates this release:
+  * `docs/guides/migrating-from-mcplib.md:24-25` says requests name
+    `go-llmprovider-sdk` in the `originator` and the `referrer`. That is
+    still the default, but since `v1.30.0` (`referrer`) and this release
+    (`originator`) an application's name replaces it.
+  * `llmprovider/auth/identity.go:19-20` says whether OpenAI and xAI accept
+    every name is not verified. That stays true, but two names are now
+    verified (0076-MADR, "Not verified", note of 2026-11-14). It is Go, out
+    of this phase's scope.
+  * `authcontract/README.md` documents the contract's six main types and its
+    `Session*` constants, not its other types and constants (`Feature`,
+    `FieldType`, `LinkRel`, `StepKind`, and the `Client*`, `Completion*`,
+    `Failure*`, `Feature*`, `Field*`, `Kind*`, `Link*`, `Paste*`, `Step*`
+    and `Yields*` constants). That module was tagged `authcontract/v0.1.0`
+    by its own record.
+  * From before this release: `README.md:28` lists the provider ids without
+    `chatcompat`, and the package table there has no row for it or for
+    `authcontract`; `README.md:158` says the library reads no environment
+    variable by itself, but the default transport honours the proxy
+    variables, as `README.md:121` says; `docs/architecture.md`'s tree has no
+    line for `llmprovider/internal/compatid`; its `make` target list
+    (`docs/architecture.md:1264-1269`) omits `markdownlint`, `links-check`,
+    `disclosure-check` and `all`; `AGENTS.md`'s tools list does not name
+    `tools/catalogcheck.py`; the provider key variables and `CODEX_HOME`,
+    `GROK_HOME` and `GROK_AUTH_PATH` are named in no doc;
+    `docs/README.md`'s "I want to…" matrix cites records up to 0046 only;
+    four reports in its index are "observation" with no `status` in their
+    front matter; and `docs/architecture.md:120` and `:1294` keep a
+    "before the first tag" wording.
+* **The API.** `make api-check`: exit 0, "against v1.30.0, 0 incompatible
+  change(s) outside llmprovider/x/". `python3 -B tools/apidiff.py
+  v1.30.0`: exit 0, 44 lines, each "added", nothing incompatible.
+
+  | Record | R55 names outside `x/` | In the diff | In R55 only | In the diff only |
+  | :--- | :--- | :--- | :--- | :--- |
+  | this PLAN | 24: the nine `AuthMethod` facts; `SessionKind` with its four constants and `OAuthSession.Kind`; `(*OAuthSession).SessionKind`; `ErrSignInDenied`, `ErrSignInExpired`; the two `NoLoopback` fields; `(*OAuthSession).UseStore`; `VendorCLIPath`; `wizard.Options.Driver`, `wizard.StepDriver` | 24 | none | none |
+  | 0075-PLAN | 17: `AuthMethod.Consent`, `ConsentText`, `ConsentURL`; `openai.ConsentBackgroundUse`; `OAuthSession.Consents`, `(*OAuthSession).Consent`, `StoredConsent`; `SetConsent`; `WithBackground`, `IsBackground`; `ClientRecord`, `ClientStore`, `(*FileTokenStore).LoadClient`, `SaveClient`; `ChatGPTPlanOptions.ClientID`; `wizard.Options.HostID`, `ConsentText` | 17 | none | none |
+  | 0079-PLAN | 2: `(*OAuthSession).UseIdentity`, `(*Settings).ClientVersion` | 2 | none | none |
+  | `x/signin` | the package, experimental | "package …/llmprovider/x/signin: added" | none | none |
+
+  The diff names a type, not its fields or its interface's methods, so
+  `ClientRecord`'s `ClientID` and `HostID`, `ClientStore`'s two methods and
+  `StepDriver.SignInStep` are under their types. `wizard.Options.OAuthClients`
+  is not in the diff: 0076-PLAN struck it. `go doc -all
+  ./llmprovider/x/signin` lists `Methods`, `Start`, `Options`, `SignIn` with
+  `Method`, `Steps`, `Answer`, `Wait` and `Cancel`, `Credential` and its five
+  types, and `ErrorKindOf`, with `Options.NoLoopback`, `HostID`,
+  `ConsentText` and `ClientStore`: the R55 rows of the three records for it.
+* **The code claims: left as they are, and an open item for the owner.**
+  `tools/claims.py` passes on every pair at its pinned revisions: 0074 67
+  of 67 and 12 of 12, 0075 51 of 51 and 8 of 8, 0076 48 of 48 and 7 of 7,
+  0079 62 of 62 and 13 of 13. Read at `HEAD` (`--rev self=HEAD --rev
+  go-llmprovider-sdk=HEAD`), rows fail because the code they quote moved:
+  * 0074-MADR, 53 of 67: C1–C6, C8–C11, C13–C26, C28–C31, C33, C35–C40,
+    C42–C47, C51, C53–C63;
+  * this PLAN, 8 of 12: P2, P4, P6, P7, P9–P12;
+  * 0075-MADR, 33 of 51: C3, C5–C7, C9–C12, C15–C22, C25–C28, C30–C37,
+    C40, C42–C45;
+  * 0075-PLAN, 2 of 8: P2, P3;
+  * 0076-MADR, 34 of 48: C1–C3, C5–C16, C19–C23, C25–C27, C29, C36–C42,
+    C46–C48;
+  * 0076-PLAN, 4 of 7: P1, P2, P5, P7;
+  * 0079-MADR, 43 of 62: C1–C15, C20–C24, C27, C28, C30–C34, C43–C46,
+    C50–C54, C56–C62;
+  * 0079-PLAN, 4 of 13: P2, P5–P7.
+
+  No record or tool says what a release does with them. What is written:
+  `tools/claims.py` and 0040-PLAN's Deviation 1 pin a row to the revision
+  its marker names; 0041-PLAN Phase 0 re-pinned a PLAN before its execution
+  and kept its MADR at the revision the decision was made on; 0074-MADR's
+  C56, C57, C60 and C62 carry "the row holds at its revision"; and
+  `v1.30.0`'s release (0076-PLAN Phase 5) ran the claims at their pins and
+  left them. Against these, 0079-PLAN's Phase 2 entry leaves 0079-MADR's
+  C9 to C15, C22, C33 and C43 and its own P7 "for the release phase to
+  re-pin", and no
+  release phase lists that step. So the choice, pinned rows stand or rows
+  re-pinned at the release commit, is the owner's, and no row or marker was
+  changed. *(Annotation, 2026-11-14: the owner ruled on this, relayed by the
+  coordinator; chosen "Pins stand", with "Re-pin 0079's deferred rows only"
+  and "Re-pin all to the release" rejected. The ruling, verbatim: "A row is
+  evidence for a decision at the commit it was made on and stays pinned
+  there. Nothing is re-pinned for the release; this is what was done at
+  v1.30.0. The one note in 0079 that deferred re-pinning to the release phase
+  is annotated as superseded by this ruling. No delay to the tag." The rows
+  stay as they are; nothing is re-pinned, and the question above is
+  closed.)*
+* **The checks of "Verification",** each exit status captured before any
+  filter:
+  * `go test -race -shuffle=on -count=1 ./...` on the Linux machine, through
+    `run-on-host --need linux --race`, whose `target=` line named the Linux
+    machine, with WSL excluded as a race target: exit 0, 42 packages `ok`,
+    no `FAIL` and no `DATA RACE`, 13:41 to 13:44 (185 s).
+  * `go test -race -count=1 ./...` on Windows, natively, through
+    `run-on-host --need windows --race -- sh -c '...'`, whose `target=`
+    line named the Windows laptop: exit 0, 42 packages `ok`, no `FAIL`,
+    13:41 to 13:42 (55 s). *(Annotation, 2026-11-14: one run of the suite
+    passes or fails by chance on this test; see the deviation entry named in
+    the acceptance bullet below.)*
+  * `go test -race -count=3 ./llmprovider/auth/` on the Linux machine, queued
+    behind the run above: exit 0, `ok`, 34.7 s.
+  * `python3 -B tools/redgreen.py REFRESH.json --expect pass`, the spec
+    built from the 66 names in "Rules for every phase": 65 of 66, exit 1,
+    the one "missing" being `TestOAuthSessionWait_WindowsRemoval_0071`,
+    which skips off Windows, as in Phases 2 to 5. Its package passed in the
+    Windows race run above, which is not verbose, so that run shows no
+    `PASS` line of its own. None of the 15 files has changed since
+    `v1.30.0`.
+  * `make vuln`: exit 0, "No vulnerabilities found" for the root module and
+    `authcontract`.
+  * `make api-check` and `tools/apidiff.py v1.30.0`: above.
+  * `tools/claims.py` on the four pairs: above, each exit 0.
+* **The acceptance of this PLAN: not yet met, so it stays `in-progress`.**
+  Phase 8's own acceptance waits on the tag: "the tag on the owner's word;
+  then `tools/consumer.py` and `tools/offline.py`". Each criterion that does
+  not wait on the tag is met: Phases 0 to 7 are complete; the changelog
+  section is `v1.31.0`; the API diff lists exactly the R55 tables; the races
+  pass on Linux and Windows *(annotation, 2026-11-14, after the pause: on
+  native Windows `TestLiveTwin_GrokPaste_0074/FileInTwoWrites` failed about
+  11 of 100 runs under `-race` and 14 of 100 without, as the release-prep
+  agent measured in its diagnostic runs on native Windows (about 16:46 with
+  `-race` and 17:02 without, local, 2026-11-14) and the coordinator relayed,
+  so the Windows result above did not hold for every run. The owner
+  chose to fix the helper; after the fix the test is 100 of 100 green on
+  native Windows, with and without `-race`, and the Linux and Windows race
+  passes ran again: see "Phase 8, deviation (2026-11-14): the Windows paste
+  flake")*. The full gate, `run-heavy -- python3 -B
+  tools/gate.py --timeout 5400`, runs after the last edit of this change,
+  this entry included, so its result is not written here: it goes with the
+  staged change, and the commit waits on its pass. The MADR stays
+  `accepted`: no record changes its status at the release.
+* **Not done, and waiting on the owner:** the commit; the push; the tag; CI
+  on the tag and its Release; `tools/consumer.py v1.31.0` and
+  `tools/offline.py v1.31.0`; R53's check once the Release appears, when
+  seven Releases leave `v1.26.0`'s past the sixth (`gh release list` shows
+  six now, `v1.30.0` to `v1.26.0`); the decision on the claims above.
+* **The tag, for the owner.** `v1.30.0` and `authcontract/v0.1.0` are
+  annotated, unsigned tags whose message is the tag's name. On the release
+  commit: `git tag -a v1.31.0 -m v1.31.0 <release-commit>`, then `git push
+  origin v1.31.0`. `ci.yml` runs on `v*` tags, in full, and its `release`
+  job (`startsWith(github.ref, 'refs/tags/v')`) makes the GitHub Release
+  from this section.
+* **Provenance.** Prepared by the strongest model at high effort; no
+  escalation to the owner.
+
+### Phase 8, deviation (2026-11-14): a quota pause in the release prep
+
+* **What happened.** The release prep stopped on 2026-11-14 for a quota
+  pause, while its full gate waited in the heavy-run queue, and resumed the
+  same day on the owner's word, "resume".
+* **The tree on resume, read before any edit.** HEAD `b39bbec`. Six files
+  staged and none unstaged: `CHANGELOG.md`, `README.md`,
+  `docs/architecture.md` and the 0074, 0075 and 0079 PLANs. Each staged hunk
+  was read whole, and none was half-applied: the entry above and the two
+  release entries of 0075-PLAN and 0079-PLAN end with their provenance
+  lines, and the changelog, README and architecture hunks are the edits that
+  entry lists.
+* **No check from before the pause is used for the release.**
+  * The gate that was running started at 14:00:07, waited for the load
+    (38.6, against a limit of 10), and was ended at 14:20:09 with status
+    143, before it ran any check. It left no exit status.
+  * Two earlier gate runs, started at 13:50 and 13:59, were stopped before
+    any check ran, because docs edits followed them.
+  * The race runs, the auth race run and the other checks the entry above
+    quotes all ended by 13:46, before the docs edits of 13:49 to 13:59. Their results stand as observations of the code, which no edit
+    since has changed, but the release does not rest on them.
+* **After the pause.** Two lines that the docs edits had left over 80
+  characters were reflowed, one in `README.md` and one in
+  `docs/architecture.md`, with no change of wording. Then the checks ran
+  again, after the last edit of this change, this entry included:
+  `make api-check`, `tools/apidiff.py v1.30.0`, the record checks, the races
+  on the Linux machine and on Windows through `run-on-host --race`, and the
+  full gate through `run-heavy`. Their results go with the staged change,
+  not into this entry, since writing them here would be an edit after the
+  runs.
+* **Provenance.** Recorded by the strongest model at high effort.
+
+### Phase 8, deviation (2026-11-14): the Windows paste flake
+
+Base `b39bbec`, with the release prep above staged and nothing committed.
+Hosts are named as the plan names them: this Mac, the Linux machine and the
+Windows laptop. Windows output below has its user folder replaced by
+`<user>`.
+
+* **What was found.** After the pause, native Windows runs of
+  `TestLiveTwin_GrokPaste_0074/FileInTwoWrites` failed about 11 of 100 runs
+  under `-race` and 14 of 100 without, at
+  `llmprovider/live_twins_test.go:401`: `pasteFromFile = "", paste file:
+  remove …\paste: The process cannot access the file because it is being used
+  by another process.` It is not a race the detector reports, and it predates
+  this release's prep: the helper and the twin were not touched by it.
+  The rates were measured by the release-prep agent (the strongest model,
+  high effort) in its diagnostic runs on native Windows, about 16:46 (`-race`)
+  and 17:02 (no `-race`) local on 2026-11-14, and relayed by the coordinator;
+  they were not measured here.
+* **The cause, confirmed here before any change.** The test appends the final
+  `\r\n` and then closes its handle (`live_twins_test.go`, `twinPasteTwoWrites`);
+  `pasteFromFile` polls every `pasteInterval`, sees the newline and calls
+  `os.Remove` at once. Go opens a file on Windows without `FILE_SHARE_DELETE`,
+  so while the writer's handle is open `DeleteFile` fails with
+  `ERROR_SHARING_VIOLATION` (32), the text above. The window is the time
+  between the write and the close. A test that holds the handle open on
+  purpose fails every time on the unfixed helper (the proof below), so the
+  cause is the one named, not a guess. The same call was in the over-limit
+  branch.
+* **The options, and the owner's ruling.** Fix only the test (close the
+  writer first, or have the test wait); or fix the helper, so that
+  `pasteFromFile` retries the removal while the file is held open. The owner
+  ruled on 2026-11-14, relayed by the coordinator; chosen "Fix the helper",
+  and "Fix only the test" rejected. The ruling, verbatim: "pasteFromFile
+  retries the delete while the file is still held open, until it succeeds or
+  its context ends. This fixes the test and also the live sign-in probe, which
+  has the same weakness when someone on Windows pastes with a command that
+  holds the file open. Test-only change; proof is 100 Windows runs red before
+  and green after; then the gate and both race passes run again."
+* **Files added to this phase's scope:** `llmprovider/live_checks_test.go`,
+  `llmprovider/live_twins_test.go`; comment lines of
+  `llmprovider/auth/identity.go`, `docs/guides/migrating-from-mcplib.md` and
+  `tools/README.md` for the rows and rulings below. No non-test Go line
+  changed: the `identity.go` diff is `+6 -2` lines, every one a `//` comment
+  line (re-checked after the review below: no changed line lacks `//`).
+* **The fix.** `removePasteFile(ctx, path)` in `live_checks_test.go` replaces
+  both `os.Remove` calls in `pasteFromFile` (the newline branch and the
+  over-limit branch). It removes the file; when the error is a Windows sharing
+  violation it tries again every `pasteInterval` until the removal succeeds
+  or `ctx` ends, and then returns `ctx`'s error, wrapped; any other error is
+  returned at once, as before. The error holds the path, never the paste.
+  * **How "held open" is recognised, and the form chosen.**
+    `fileHeldOpen(err)` is `runtime.GOOS == "windows"` and `errors.As(err,
+    *syscall.Errno)` with the value `errSharingViolation syscall.Errno = 32`.
+    `syscall.Errno` exists on every platform and `syscall.ERROR_SHARING_VIOLATION`
+    does not, so the number is named in the file. The narrower-looking form
+    is a `_windows.go` file with the real constant and a `_other.go` stub: two
+    new build-tagged test files, a second place to keep in step, and the
+    helper's behaviour split from its tests. The chosen form is in the two
+    test files, with no build tag: it matches only the one Windows error, so a
+    different removal error is still returned at once, and the `GOOS` test
+    keeps it from matching the value 32 where that is another errno.
+  * **The over-limit branch needs it.** Its `os.Remove` is the same call on
+    the same file; a writer that has written past the limit and not closed has
+    the file open in the same way. It uses `removePasteFile`.
+  * **Other removals in the test tree.** `grep` for `os.Remove`,
+    `os.RemoveAll` and `os.Rename` over every `*_test.go`: the two in
+    `pasteFromFile`; `llmprovider/auth/example_test.go:25`, `defer
+    os.RemoveAll(dir)` of the example's own temporary directory, which no
+    writer holds as a paste; and a doc comment in
+    `llmprovider/auth/session_store_kinds_0048_test.go` that names
+    `os.Remove`. No other test removes a file a writer may hold. The three
+    non-test callers (`auth/clientstore.go`, `auth/tokenstore_file.go`) are the
+    stores' own and out of scope.
+  * **The live probe** `TestLive_0074GrokPaste` and `live_0074_paste_test.go`
+    call `pasteFromFile`, so they have the retry too.
+* **The tests,** in `live_twins_test.go`, under
+  `TestLiveTwin_GrokPaste_0074`: `FileHeldOpenThenClosed` (a whole line, held
+  open, then closed), `OversizedHeldOpenThenClosed` (the over-limit branch the
+  same way) and `HeldOpenUntilContextEnds` (held past `ctx`: the deadline
+  error, no line, nothing recorded). On Windows the first two assert that
+  the helper does not return while the handle is open, and then that it
+  returns the line (or the no-newline error) once it is closed, with the file
+  gone. Off Windows an open file can be removed, so those two prove only the
+  line, or the error, and the removal; the third skips, with its reason. The
+  retry's behaviour is proved on Windows only, and nowhere else.
+* **Proof, the new tests red on native Windows.** A scratch clone of `b39bbec`
+  with the new `live_twins_test.go` over it and `live_checks_test.go` as at
+  `b39bbec` (never the tree), through `run-on-host --need windows`, 17:09:42 to
+  17:09:44, exit 1:
+
+  ```text
+  --- FAIL: TestLiveTwin_GrokPaste_0074/FileHeldOpenThenClosed
+      live_twins_test.go:474: pasteFromFile returned 0 bytes, paste file: remove C:\Users\<user>\AppData\Local\Temp\…\paste: The process cannot access the file because it is being used by another process. while the file was held open
+  --- FAIL: TestLiveTwin_GrokPaste_0074/OversizedHeldOpenThenClosed
+      live_twins_test.go:482: pasteFromFile returned 0 bytes, paste file: remove C:\Users\<user>\AppData\Local\Temp\…\paste: The process cannot access the file because it is being used by another process. while the file was held open
+  --- FAIL: TestLiveTwin_GrokPaste_0074/HeldOpenUntilContextEnds
+      live_twins_test.go:502: pasteFromFile = "", paste file: remove C:\Users\<user>\AppData\Local\Temp\…\paste: The process cannot access the file because it is being used by another process.; want the deadline error and no line
+  ```
+
+  On this Mac,
+  with the fix, `go test -count=1 -run TestLiveTwin_GrokPaste_0074 -v
+  ./llmprovider/`: the held-open tests pass and `HeldOpenUntilContextEnds`
+  skips.
+* **Proof, the reported form, `-count=100` of `TestLiveTwin_GrokPaste_0074`
+  on native Windows, through `run-on-host --need windows`** (the `target=`
+  line named the Windows laptop):
+
+  | Run | Code | Started to ended | Exit | `FileInTwoWrites` |
+  | :--- | :--- | :--- | :--- | :--- |
+  | no `-race` | scratch clone of `b39bbec` | 17:09:57 to 17:10:25 | 1 | 5 failed, 95 passed |
+  | `-race` | scratch clone of `b39bbec` | 17:10:25 to 17:10:56 | 1 | 4 failed, 96 passed |
+  | no `-race` | the tree with the fix | 17:10:56 to 17:13:45 | 0 | 100 passed |
+  | `-race` | the tree with the fix | 17:13:45 to 17:15:59 | 0 | 100 passed |
+
+  Each red run's first failure was `live_twins_test.go:401: pasteFromFile = "",
+  paste file: remove C:\Users\<user>\AppData\Local\Temp\…\paste: The process
+  cannot access the file because it is being used by another process.; want
+  the whole line and no error`, the reported line. The counts are lower than
+  the 14 and 11 of 100 reported; the failure is by chance, and the fixed
+  runs are green 100 of 100 for each of the four subtests (the three new
+  ones included, none skipped on Windows), with no `FAIL` and no `DATA RACE`.
+* **Docs rows this phase closes,** both from the earlier agent's open items
+  and checked here:
+  * `docs/guides/migrating-from-mcplib.md`, "Identity (§5)", said requests
+    name `go-llmprovider-sdk` in `User-Agent`, `originator` and `referrer`. That
+    is the default only: `auth.Identity` replaced `originator` and `referrer`
+    on a sign-in in `v1.30.0` (0076-MADR D3, D4), and
+    `llmprovider.WithClientInfo`'s name is the ChatGPT backend's `originator`
+    and names the application on a session's refresh and revocation as of
+    `v1.31.0` (0079-MADR D1 to D3). It says so.
+  * `llmprovider/auth/identity.go`'s doc said whether OpenAI and xAI accept
+    every name "is not verified". Two consumer names are verified, each in an
+    owner-run probe: the first on 2026-11-11 (0076-PLAN, "Phase 4, the
+    owner's live run (2026-11-11)"), the second on 2026-11-14 (0079-PLAN,
+    "Phase 5, the owner's run (2026-11-14)"). OpenAI's browser sign-in and
+    xAI's device sign-in completed under each; under the second, OpenAI's
+    listing and generation and both vendors' refresh and revocation passed
+    too. "Every name" stays unverified, and the comment says so. *(Review of
+    2026-11-14: the coordinator's review found that this entry, and the
+    comment, first dated both runs 2026-11-14; corrected in place.)*
+* **The records.** The owner's three rulings are annotated, each verbatim: the
+  flake (this entry, and the acceptance and Windows race bullets of "Phase 8,
+  the release prepared"); "Pins stand" (the code-claims item of that entry,
+  0075-PLAN Phase 7, 0079-PLAN Phase 6, and the note of 0079-PLAN Phase 2 that
+  left rows "for the release phase to re-pin", now superseded); and "No rows
+  for docs edits" (the three execution entries that said "the coordinator's
+  decision": 0074-PLAN Phase 6, 0075-PLAN Phase 5, 0079-PLAN Phase 4), whose
+  rule is in `tools/README.md` beside `claims.py`. No row or marker changed.
+* **The changelog gets no entry.** `CHANGELOG.md` records "all notable
+  changes to this module" by release; a change to two test files and to
+  comments and guide prose alters nothing a consumer can observe, and
+  `make changelog-check` asks only for a section per tag.
+* **The gates,** each run after the last change to a Go or Markdown file but
+  this bullet, each exit status captured before any filter, times local
+  (2026-11-14):
+  * `make pre-add-check` on the three Go files: exit 0, "3 file(s) clean",
+    17:17:53 to 17:18:00. `go test -count=1 ./llmprovider/...`: exit 0,
+    17:18:00 to 17:18:17.
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`: exit 0,
+    "gate: 30 of 30 passed", 17:17:45 to 17:30:19 (754 s).
+  * `go test -race -shuffle=on -count=1 ./...` on the Linux machine, through
+    `run-on-host --need linux --race`: exit 0, 42 packages `ok`, no `FAIL`
+    and no `DATA RACE`, 17:17:45 to 17:20:46.
+  * `go test -race -count=1 ./...` on the Windows laptop, natively, through
+    `run-on-host --need windows --race -- sh -c '...'`: exit 0, 42 packages
+    `ok`, no `FAIL` and no `DATA RACE`, 17:17:45 to 17:19:15.
+  * The `-count=100` runs: in the proof above.
+  * `make api-check`: exit 0, "against v1.30.0, 0 incompatible change(s)
+    outside llmprovider/x/". `tools/claims.py` on the 0074, 0075, 0076 and
+    0079 pairs: each exit 0 at its pins (0074 67 of 67 and 12 of 12, 0075 51
+    of 51 and 8 of 8, 0076 48 of 48 and 7 of 7, 0079 62 of 62 and 13 of 13).
+    `make records-check links-check disclosure-check markdownlint
+    changelog-check docs-check`: each exit 0, 17:18:25 to 17:18:29.
+  * After this bullet, the Markdown gates ran again, since it is an edit:
+    `make records-check links-check disclosure-check markdownlint
+    changelog-check docs-check`, `tools/recordlint.py --changed`,
+    `tools/denyscan.py --changed` and `tools/claims.py` on the four pairs. The
+    full gate, the two race passes and the `-count=100` runs did not run
+    again: this bullet changes no input to them but the record's own text,
+    which the gate's record checks read and the second run covers.
+* **The coordinator's review (2026-11-14), and the gates again.** The review
+  found that the `identity.go` comment and the docs-rows bullet above dated
+  both verified names' runs 2026-11-14, when the first was run on 2026-11-11
+  (0076-PLAN, "Phase 4, the owner's live run (2026-11-11)"), and that the
+  failure rates were attributed to the coordinator, when the release-prep
+  agent measured them. Both are corrected in place, above. The comment is
+  now `+6 -2`, every changed line a `//` line. The `-count=100` runs did not
+  repeat: neither test file changed after them (both last modified 17:09:23,
+  before the first of those runs). The gates ran again after the last Go
+  change (`identity.go`, 17:34:48), times local:
+  * `make pre-add-check` on `llmprovider/auth/identity.go` and the two test
+    files: exit 0, 17:34:56 to 17:36:22. `go test -count=1
+    ./llmprovider/...`: exit 0, 17:36:22 to 17:36:43.
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`: exit 0,
+    "gate: 30 of 30 passed", 17:34:56 to 17:52:15 (1038 s).
+  * `go test -race -shuffle=on -count=1 ./...` on the Linux machine, through
+    `run-on-host --need linux --race`: exit 0, 42 packages `ok`, no `FAIL` and
+    no `DATA RACE`, 17:34:56 to 17:38:08.
+  * `go test -race -count=1 ./...` on the Windows laptop, natively, through
+    `run-on-host --need windows --race -- sh -c '...'`: exit 0, 42 packages
+    `ok`, no `FAIL` and no `DATA RACE`, 17:34:56 to 17:36:51.
+  * `make api-check`: exit 0. `tools/claims.py` on the four pairs: each exit
+    0, at the same counts as above. `make records-check links-check
+    disclosure-check markdownlint changelog-check docs-check`, `tools/recordlint.py
+    --changed` and `tools/denyscan.py --changed`: each exit 0,
+    17:36:43 to 17:36:58.
+  * After this bullet, the Markdown gates ran once more, as before: the six
+    docs gates, `recordlint --changed`, `denyscan --changed` and `claims.py`.
+* **Not verified:** the retry's behaviour on the live probe itself (a person
+  pasting with a command that holds the file), which needs the owner; the
+  `-count=100` rates on the Windows laptop at the 14 and 11 of 100 the
+  release-prep agent measured (relayed by the coordinator), which this run
+  did not reach.
+* **Provenance.** Mainstream model, medium effort; the rulings are the
+  owner's, relayed by the coordinator.

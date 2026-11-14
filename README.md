@@ -4,8 +4,8 @@ A Go library for calling LLM providers and authenticating to them: API keys,
 subscription OAuth (browser and device-code login, refresh, revocation),
 OpenAI's Sign in with ChatGPT for agents, a token store, model discovery, and
 an interactive configuration wizard. It
-depends on the standard library and `golang.org/x/term` only, and ships no
-binary.
+depends on the standard library, `golang.org/x/term` and this repository's
+own `authcontract` module only, and ships no binary.
 
 Module: `github.com/maccavelli/go-llmprovider-sdk`
 
@@ -27,7 +27,7 @@ It requires Go 1.27.4.
 | `llmprovider/providers` | `Default()`, a registry of every built-in provider, and `New(id, opts...)` |
 | `llmprovider/providers/<id>` | one built-in provider each: `openai`, `claude`, `gemini`, `grok`, `opencode`, `kilo`, `huggingface`, `together`, `ollama` |
 | `llmprovider/auth` | OAuth sessions, browser and device-code logins, vendor CLI sessions, token stores |
-| `llmprovider/x/signin` | experimental: one handle for a sign-in, `Methods` and `ErrorKindOf` |
+| `llmprovider/x/signin` | experimental: one handle for a sign-in (`Start`, `Options`, `SignIn`, and the `Credential` it yields), `Methods` and `ErrorKindOf` |
 | `llmprovider/catalog` | model listing, model facts, the menu, static catalogs, ranking and search |
 | `llmprovider/llmtest` | the conformance suite for a provider, and `Fake` for tests |
 | `wizard` | `ConfigureLLM`, the interactive configuration flow |
@@ -292,12 +292,14 @@ p, err := openai.New(llmprovider.WithTokenSource(session))
   request on a plan session whose stored answer is not granted, or cannot be
   read, with `ErrNotPermitted`, before the network. A session saved before
   this release has no answer, so marked requests are refused until the user
-  answers; unmarked requests are not affected.
+  answers; unmarked requests are not affected. `llmprovider.IsBackground(ctx)`
+  reports the mark, for a provider of your own that honours it.
 - **Host id and client.** Pass your own host-lifetime id as
   `ChatGPTPlanOptions.HostID` (`wizard.Options.HostID`,
   `signin.Options.HostID`); without one it is the saved session's, else the
   client record's, else a new one. A `TokenStore` that also implements
-  `auth.ClientStore`, as `FileTokenStore` does in `<provider>.client`, keeps
+  `auth.ClientStore`, as `FileTokenStore` does in `<provider>.client` with
+  `LoadClient` and `SaveClient`, keeps
   the issued client and the host id apart from the session, so a sign-out or
   a switch to a Codex-id session does not register another client under the
   user's account: the next plan sign-in passes the client as
@@ -343,10 +345,15 @@ for _, m := range desc.AuthMethods {
 `auth.OAuthFlowOptions.NoLoopback` and `auth.ChatGPTPlanOptions.NoLoopback`
 bind no callback listener, for a person who is not on the host: they need an
 `InputCode`, and a paste alone completes the sign-in. `auth.SessionKind`
-names what a stored session is, `OAuthSession.Kind` holds it and
-`OAuthSession.SessionKind()` resolves it, `auth.ErrSignInDenied` and
+(`SessionChatGPT`, `SessionChatGPTPlan`, `SessionGrok` or
+`SessionKiloDevice`) names what a stored session is, `OAuthSession.Kind`
+holds it and `OAuthSession.SessionKind()` resolves it, `auth.ErrSignInDenied` and
 `auth.ErrSignInExpired` name why a sign-in ended, and `auth.VendorCLIPath`
-finds a vendor CLI's login file.
+finds a vendor CLI's login file. To bind a session that is already in use,
+such as one a model listing may still be refreshing, to its `TokenStore`,
+call `(*auth.OAuthSession).UseStore`, which takes the session's lock, rather
+than setting `Store`; `FileTokenStore` reads the session it saves under that
+lock too, and a store of your own must not be given a session in use.
 
 `llmprovider/x/signin` (experimental: it is outside the v1 promise and
 `make api-check`, and may change in any release) runs one sign-in through
@@ -490,7 +497,7 @@ evolution rules, and how to pin it and read its schema and vectors.
 
 ## Status
 
-The current release is `v1.30.0`. The module requires Go 1.27.4.
+The current release is `v1.31.0`. The module requires Go 1.27.4.
 
 What each release changed, from `v1.0.0` on, is in
 [CHANGELOG.md](CHANGELOG.md); the six newest tags' GitHub Releases carry

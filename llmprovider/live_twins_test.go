@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -349,6 +350,9 @@ func TestLiveTwin_GrokPaste_0074(t *testing.T) {
 	t.Cleanup(func() { pasteInterval = old })
 
 	t.Run("FileInTwoWrites", twinPasteTwoWrites)
+	t.Run("FileHeldOpenThenClosed", twinPasteHeldOpen)
+	t.Run("OversizedHeldOpenThenClosed", twinPasteOversizedHeldOpen)
+	t.Run("HeldOpenUntilContextEnds", twinPasteHeldOpenContextEnds)
 	t.Run("ContextEndsFirst", twinPasteContextEnds)
 	t.Run("NoNewlineWithinLimit", twinPasteOversized)
 	t.Run("Shape", twinPasteShapes)
@@ -408,6 +412,97 @@ func twinPasteTwoWrites(t *testing.T) {
 	}
 	if returned, shape := rec.get(); !returned || shape != "a bare code" {
 		t.Errorf("record = %t, %q; want a bare code returned", returned, shape)
+	}
+}
+
+// holdPasteFile creates path holding content and keeps the handle open, as a
+// command that writes a paste and has not yet closed its file does. Go opens
+// it without FILE_SHARE_DELETE, so on Windows the file cannot be removed
+// until the handle is closed; elsewhere it can, and the hold changes nothing.
+func holdPasteFile(t *testing.T, path, content string) *os.File {
+	t.Helper()
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	if _, err := f.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// pasteHeldOpen runs pasteFromFile on a file whose writer holds it open,
+// and closes it once the helper has had many looks at it. On Windows the
+// helper must not return while the handle is open (its removal is refused);
+// off Windows the file is removed at once, so only the result is checked.
+func pasteHeldOpen(t *testing.T, content string) pasteResult {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "paste")
+	f := holdPasteFile(t, path, content)
+	done := startPaste(twinContext(t), path, &pasteRecord{})
+	select {
+	case r := <-done:
+		if runtime.GOOS == "windows" {
+			t.Fatalf("pasteFromFile returned %d bytes, %v while the file was held open", len(r.line), r.err)
+		}
+		_ = f.Close()
+		return r
+	case <-time.After(300 * time.Millisecond):
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var r pasteResult
+	select {
+	case r = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pasteFromFile did not return after the writer closed the file")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the paste file is still there after the read: %v", err)
+	}
+	return r
+}
+
+// twinPasteHeldOpen is the file a writer wrote whole but has not closed:
+// the helper returns the line once the writer closes it, and the file is
+// gone. This is the deterministic form of the flake of 0074-PLAN Phase 8.
+// On Windows it fails without the retry; off Windows it proves the line and
+// the removal only.
+func twinPasteHeldOpen(t *testing.T) {
+	r := pasteHeldOpen(t, "held-line\r\n")
+	if r.err != nil || r.line != "held-line" {
+		t.Fatalf("pasteFromFile = %q, %v; want the line and no error", r.line, r.err)
+	}
+}
+
+// twinPasteOversizedHeldOpen is the same for the over-limit branch.
+func twinPasteOversizedHeldOpen(t *testing.T) {
+	r := pasteHeldOpen(t, strings.Repeat("x", pasteFileLimit+100))
+	if r.err == nil || r.line != "" || !strings.Contains(r.err.Error(), "no newline") {
+		t.Errorf("pasteFromFile = %d bytes, %v; want the no-newline error and no line", len(r.line), r.err)
+	}
+}
+
+// twinPasteHeldOpenContextEnds is a file that stays held open past ctx: the
+// helper returns ctx's error, with no line, and leaves the file. Windows only,
+// since elsewhere the removal succeeds and nothing holds it.
+func twinPasteHeldOpenContextEnds(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("an open file can be removed off Windows; nothing holds the file here")
+	}
+	path := filepath.Join(t.TempDir(), "paste")
+	holdPasteFile(t, path, "held-line\r\n")
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	rec := &pasteRecord{}
+	r := <-startPaste(ctx, path, rec)
+	if !errors.Is(r.err, context.DeadlineExceeded) || r.line != "" {
+		t.Errorf("pasteFromFile = %q, %v; want the deadline error and no line", r.line, r.err)
+	}
+	if returned, _ := rec.get(); returned {
+		t.Error("the record says a value was returned")
 	}
 }
 

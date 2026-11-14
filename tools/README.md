@@ -30,6 +30,17 @@ Exit codes, for every tool: **0** clean, **1** a finding, **2** a tool error.
 | `cachecensus.py` | the tests that leave a loopback URL in the process's metadata, listing, Ollama show or probe cache, where a later test whose `httptest` server gets the same port would read it: five places instrumented on a scratch clone, each anchor asserted once in the tree first, the packages run with `go test -v -p 1 -parallel 1`, and each write given to its package and top-level test (0058-MADR D5). `--any-url` reports a write at any URL, a listing by its whole key (the credential's fingerprint, never the credential), and each key two tests share (its amendment of 2026-10-24, D7). It reports; CI does not run it | `tools/cachecensus.py [--src DIR] [--out DIR] [--json] [--any-url] [PACKAGE...]` |
 | `offline.py` | after a tag: a program reads a `ModelInfo` from a metadata document with no request, built for six platforms; two built-in plants must each fail it | `tools/offline.py VERSION [--metadata FILE] [--provider ID] [--model ID]` |
 
+Two rules govern the rows `claims.py` checks (the owner's rulings of
+2026-11-14):
+
+- **Pins stand at a release.** A row is evidence for a decision at the commit
+  it was made on, and stays pinned there. A release re-pins nothing; a row
+  that fails at `HEAD` and holds at its pin is as it should be, as at
+  `v1.30.0`.
+- **A row is added when a decision record asserts a fact about code.** Edits
+  to the README, `docs/architecture.md` and the changelog add no rows: the
+  docs checks cover them.
+
 `_common.py` holds what they share:
 
 - the repository root;

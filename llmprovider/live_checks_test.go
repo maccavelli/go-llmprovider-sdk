@@ -16,11 +16,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -360,7 +362,8 @@ func (r *pasteRecord) get() (returned bool, shape string) {
 // from the file at path, because go test gives the test binary no standard
 // input (0074-PLAN Phase 7 step 4). It looks every pasteInterval until the
 // file holds a newline-terminated line, reads at most pasteFileLimit bytes,
-// removes the file, records the line's shape in rec and returns the line. It
+// removes the file (removePasteFile, which waits out a writer that still holds
+// it open), records the line's shape in rec and returns the line. It
 // returns ctx's error when ctx ends first. The line is a secret: it is
 // never logged, and no error holds it.
 func pasteFromFile(path string, rec *pasteRecord) func(context.Context) (string, error) {
@@ -375,8 +378,8 @@ func pasteFromFile(path string, rec *pasteRecord) func(context.Context) (string,
 			line, _, found := strings.Cut(string(data), "\n")
 			if !found {
 				if len(data) >= pasteFileLimit {
-					if err := os.Remove(path); err != nil {
-						return "", fmt.Errorf("paste file: %w", err)
+					if err := removePasteFile(ctx, path); err != nil {
+						return "", err
 					}
 					return "", fmt.Errorf("paste file: no newline within %d bytes", pasteFileLimit)
 				}
@@ -387,12 +390,52 @@ func pasteFromFile(path string, rec *pasteRecord) func(context.Context) (string,
 				}
 				continue
 			}
-			if err := os.Remove(path); err != nil {
-				return "", fmt.Errorf("paste file: %w", err)
+			if err := removePasteFile(ctx, path); err != nil {
+				return "", err
 			}
 			line = strings.TrimSuffix(line, "\r")
 			rec.set(pasteShape(line))
 			return line, nil
+		}
+	}
+}
+
+// errSharingViolation is Windows' ERROR_SHARING_VIOLATION (32), "The process
+// cannot access the file because it is being used by another process": what
+// DeleteFile reports while another handle to the file is open without
+// FILE_SHARE_DELETE, as a writer's is between its last write and its close.
+// syscall.Errno is on every platform; the constant is not, so the number is
+// named here and held to Windows by fileHeldOpen.
+const errSharingViolation syscall.Errno = 32
+
+// fileHeldOpen reports whether err is a removal refused because another
+// handle holds the file open. Only Windows refuses so; elsewhere an open file
+// can be removed, and no error is this one.
+func fileHeldOpen(err error) bool {
+	var errno syscall.Errno
+	return runtime.GOOS == "windows" && errors.As(err, &errno) && errno == errSharingViolation
+}
+
+// removePasteFile removes path. While the file is held open by its writer,
+// which on Windows is exactly when the writer has written the newline and not
+// yet closed, it tries again every pasteInterval until the removal succeeds or
+// ctx ends, and returns ctx's error then. Any other error is returned at
+// once. The error holds the path, never the paste.
+func removePasteFile(ctx context.Context, path string) error {
+	ticker := time.NewTicker(pasteInterval)
+	defer ticker.Stop()
+	for {
+		err := os.Remove(path)
+		if err == nil {
+			return nil
+		}
+		if !fileHeldOpen(err) {
+			return fmt.Errorf("paste file: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("paste file: still held open: %w", ctx.Err())
+		case <-ticker.C:
 		}
 	}
 }

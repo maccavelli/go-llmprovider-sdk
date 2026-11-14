@@ -16,8 +16,12 @@ import (
 // and its revocation, with the discovery a revocation reads first, send it as
 // the sign-in did; a session loaded from a store has none, and
 // (*OAuthSession).UseIdentity gives it one, when it has none. Nothing stores
-// it (0079-MADR D2, D3). Whether OpenAI and xAI accept every name is not
-// verified (0076-MADR, "Not verified").
+// it (0079-MADR D2, D3). Two consumer names are verified. OpenAI's browser
+// sign-in and xAI's device sign-in completed under the first, in an owner-run
+// probe on 2026-11-11, and under the second, in one on 2026-11-14, which also
+// passed OpenAI's listing and generation and both vendors' refresh and
+// revocation. Whether OpenAI and xAI accept every name is not verified
+// (0076-MADR, "Not verified").
 //
 // Identity is a comparable value. It is safe for concurrent use while no
 // goroutine changes it.

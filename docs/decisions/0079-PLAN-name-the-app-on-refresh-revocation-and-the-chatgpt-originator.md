@@ -628,6 +628,13 @@ added to the marker for them. P1 to P10 name no other repository.)*
   moved or reworded C9 to C15, C22 and C33, and 0076-MADR C43 and P7 (0074's
   Phase 8 line) moved; `tools/claims.py --rev self=HEAD` lists them failing.
   They are not Phase 2's and are left for the release phase to re-pin.
+  *(Annotation, 2026-11-14: superseded by the owner's ruling of that date,
+  "Pins stand", relayed by the coordinator: "A row is evidence for a decision
+  at the commit it was made on and stays pinned there. Nothing is re-pinned
+  for the release; this is what was done at v1.30.0. The one note in 0079
+  that deferred re-pinning to the release phase is annotated as superseded by
+  this ruling. No delay to the tag." This note is that one. No release phase
+  re-pins C9 to C15, C22, C33, C43 or P7.)*
 * **Done.** `tokenstore.go`: `OAuthSession.identity`, in memory only.
   `oauth_session.go`: `UseIdentity` (zero changes nothing, first name wins,
   under the lock, no error); `oauthSessionState.identity`, set by
@@ -749,6 +756,15 @@ the code: `llmprovider/auth/oauth_session.go` `UseIdentity`,
   claim-checked records, and Phase 4 makes no new code assertion in a record
   (the coordinator's decision, as for 0074 Phase 6). The open item of Phase 2,
   claims moved by Phase 1 and the release phase's re-pin, is not Phase 4's.
+  *(Annotation, 2026-11-14: the owner ruled on this, relayed by the
+  coordinator; chosen "No rows for docs edits", with "Add rows for cited
+  code" and "Decide after the tag" rejected. The ruling, verbatim: "A claim
+  row is added when a decision record asserts a fact about code. Edits to
+  README, architecture and the changelog are covered by the docs checks
+  instead. The three phases stand as recorded, re-attributed from my
+  decision to your ruling, and the rule is written into the tools README so
+  it is settled." The phrase "the coordinator's decision" above is the
+  owner's ruling. The rule is in `tools/README.md`, beside `claims.py`.)*
 * **Checks,** each exit status captured before any filter, after the last
   edit including this entry: `records-check`, `recordlint --changed`, `claims` on the 0079 pair and `denyscan --changed`, each exit 0. No `.go` file changed, so the
   gate run is the Markdown gate, `python3 -B tools/gate.py --markdown`
@@ -892,3 +908,35 @@ the listing, the refresh and the revocation. Quota: none at xAI.
   no refusal. **Phase 5 is complete.** Phase 6, the release, is 0074-PLAN
   Phase 8's. No code changed in this entry.
 * **Provenance.** Owner-run; recorded by the strongest model at high effort.
+
+### Phase 6, the release prepared (2026-11-14)
+
+This phase is 0074-PLAN Phase 8, whose entry "Phase 8, the release prepared
+(2026-11-14)" holds the section, the API diff, the checks and the tag
+command. What this PLAN asks of it:
+
+* **Before that phase starts:** Phases 1 to 5 are committed, and Phase 5's
+  run is recorded ("Phase 5, the owner's run (2026-11-14)", committed in
+  `b39bbec`); the section holds Phase 4's entries, the originator, the
+  refresh and revocation, and the wizard's requests, under **Added** and
+  **Changed**. Met.
+* **The API.** `tools/apidiff.py v1.30.0` lists this PLAN's two names,
+  `(*auth.OAuthSession).UseIdentity` and `(*llmprovider.Settings).ClientVersion`,
+  among 0074's and 0075's, and none is missing.
+* **"Verification",** as 0074-PLAN's entry records, each exit 0 but the
+  one Windows-only refresh test that `REFRESH.json` cannot see off Windows;
+  `tools/claims.py` on this pair, 62 of 62 and 13 of 13 at the pins.
+* **The claims this PLAN's Phase 2 left "for the release phase to
+  re-pin"** (the MADR's C9 to C15, C22, C33 and C43, which quotes
+  0076-MADR, and this PLAN's P7) fail at `HEAD` and
+  pass at their pins. This phase lists no re-pin, and no record or tool says
+  what a release does with moved rows, so they are unchanged and the choice
+  is the owner's: see 0074-PLAN's entry, "The code claims".
+  *(Annotation, 2026-11-14: the owner ruled "Pins stand"; the rows stay
+  pinned and no phase re-pins them. See 0074-PLAN's entry.)*
+* **The acceptance: not yet met, so this PLAN stays `in-progress`.** This
+  phase says the PLAN is set `complete` "when that phase records the tag's
+  CI and `tools/consumer.py`". Both wait on the owner's tag. The MADR stays
+  `accepted`.
+* **Provenance.** Prepared by the strongest model at high effort; no
+  escalation to the owner.

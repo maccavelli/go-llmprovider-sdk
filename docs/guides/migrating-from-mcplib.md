@@ -21,8 +21,14 @@ replaces it. "Unchanged" in the notes means the same name, type and behaviour.
 
 Recorded in [0002-MADR](../decisions/0002-MADR-migrate-llmprovider-from-mcplib.md):
 
-- **Identity (§5).** Requests name `go-llmprovider-sdk` in `User-Agent`, the
-  ChatGPT `originator` header and the Grok `referrer`.
+- **Identity (§5).** By default, requests name `go-llmprovider-sdk` in
+  `User-Agent`, the ChatGPT `originator` header and the Grok `referrer`. An
+  application's own name replaces the default when it sets one: since
+  `v1.30.0` `auth.Identity` (and `wizard.Options.Identity`) names it in
+  OpenAI's `originator` and Grok's `referrer` on a sign-in, and as of
+  `v1.31.0` `llmprovider.WithClientInfo`'s name is also the ChatGPT backend's
+  `originator`, and names the application on a session's refresh and
+  revocation.
 - **Environment (§6).** `MCPLIB_*` variables are now `LLMPROVIDER_*`.
   Since [0015-PLAN](../decisions/0015-PLAN-canonical-sdk-api-and-module-layout.md) S10 the library reads none of them by itself:
   - pass `catalog.OptionsFromEnv()` for the metadata variables;

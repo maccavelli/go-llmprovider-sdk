@@ -11,6 +11,8 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+## [v1.31.0] - 2026-11-14
+
 ### Added
 
 - Nine facts on `llmprovider.AuthMethod`, set by the OpenAI, Grok and Kilo
@@ -24,6 +26,13 @@ tag and its commit without notes; its notes are its section here.
   `SessionGrok` and `SessionKiloDevice`; `OAuthSession.Kind`, saved by
   `FileTokenStore` and omitted when empty; and `(*OAuthSession).SessionKind`,
   which names the kind a session has, inferred when `Kind` is empty (D5).
+- `(*auth.OAuthSession).UseStore`, which binds a session to its `TokenStore`
+  under the session's lock, so it is safe while another goroutine, such as a
+  listing that is refreshing it, uses the session; the wizard's save of a
+  new sign-in now calls it. A nil store changes nothing, and the last call
+  wins
+  ([0074-PLAN](docs/decisions/0074-PLAN-one-sign-in-handle-and-method-facts.md)
+  Phase 7 step 6).
 - `auth.ErrSignInDenied` and `auth.ErrSignInExpired`, each matching
   `llmprovider.ErrAuthFailure`, which the browser, Grok, OpenAI and Kilo
   sign-ins now wrap on a denial or an expiry; no error's text changes (D8).
@@ -34,7 +43,9 @@ tag and its commit without notes; its notes are its section here.
   wizard's vendor import now calls.
 - `wizard.Options.Driver` and `wizard.StepDriver`, whose method `SignInStep`
   is given each step of a browser, plan or device sign-in, for a caller with
-  no terminal (D6).
+  no terminal (D6). The last step, `done` or `failed`, has 5 s: its context
+  is detached from the sign-in's and ends after 5 s, and an error or a
+  timeout there is one warning, with the credential kept on `done`.
 - `llmprovider/x/signin`, experimental (outside the v1 promise and
   `make api-check`): `Methods`, `Start`, `Options` and its fields (`NoLoopback`
   among them), `SignIn` with `Method`, `Steps`, `Answer`, `Wait` and `Cancel`,
@@ -119,6 +130,18 @@ tag and its commit without notes; its notes are its section here.
   that nothing binds. Verified by a live sign-in on 2026-11-13
   ([0074-PLAN](docs/decisions/0074-PLAN-one-sign-in-handle-and-method-facts.md)
   Phase 3a).
+
+### Fixed
+
+- Two data races between a session's refresh and the wizard's save of a new
+  sign-in, while a listing was still using the session: the wizard set the
+  session's `Store` field with no lock, and `FileTokenStore.Save` read the
+  session's fields with no lock while a refresh wrote them. The wizard now
+  calls `UseStore`, and `FileTokenStore.Save` reads the session under its
+  lock. A `TokenStore` outside this module cannot take that lock, so its
+  doc now says such a store must not be given a session in use
+  ([0074-PLAN](docs/decisions/0074-PLAN-one-sign-in-handle-and-method-facts.md)
+  Phase 7 step 6).
 
 ## [v1.30.0] - 2026-11-11
 
@@ -1359,7 +1382,8 @@ The release notes are in
   Phase 4), and released after the live identity gates of its Phase 8. From
   it on, `make api-check` fails on an incompatible change.
 
-[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.30.0...HEAD
+[Unreleased]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.31.0...HEAD
+[v1.31.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.30.0...v1.31.0
 [v1.30.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.29.0...v1.30.0
 [v1.29.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.28.0...v1.29.0
 [v1.28.0]: https://github.com/maccavelli/go-llmprovider-sdk/compare/v1.27.0...v1.28.0

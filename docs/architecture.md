@@ -83,7 +83,7 @@ llmprovider/internal/retired/ the retired model ids, with why, for the catalog t
 llmprovider/internal/catalogtool/ the maintainer tool's proposals for the static lists
 llmprovider/internal/cmd/catalogs/ the maintainer tool: go run, prints the proposals, edits nothing
 llmprovider/internal/cmd/sdkaudit/ the API audit: go run, reports or checks R50–R52, edits nothing
-llmprovider/x/signin/       experimental (R4): one sign-in handle, `Methods` and `ErrorKindOf`, over the auth contract
+llmprovider/x/signin/       experimental (R4): one sign-in handle (`Start`, `SignIn`, `Credential`), `Methods` and `ErrorKindOf`, over the auth contract
 wizard/                     interactive provider configuration
 internal/signinflow/        the step engine under llmprovider/x/signin: steps, answers, pastes
 internal/redact/            secret redaction and masking
@@ -390,8 +390,10 @@ A model no layer knows is not an error; a failed source is joined into
 the credential from the `Prompter`, from `Options.LookupEnv`, or from a
 sign-in. A sign-in's session is saved to `Options.TokenStore` once the
 listing has not refused it, after any refresh the listing left running, so a
-refused sign-in leaves the store as it was. It lists the models with
-`catalog.List`, adding `Options.ProviderOptions`. Two cases go through
+refused sign-in leaves the store as it was. The save binds the session to
+the store with `(*auth.OAuthSession).UseStore`, under the session's lock,
+because a refresh the listing started may still be using it. It lists the
+models with `catalog.List`, adding `Options.ProviderOptions`. Two cases go through
 a provider's own `ListModels` instead, built from the registry: a ChatGPT
 session, through `openai`, and an id that `catalog` does not list, such as a
 third party's. The menu recommends the whole curated list, best six first,
@@ -783,8 +785,10 @@ for a session, from the store.
   (`ChatGPTPlanOptions.ClientID`: the request names it, with no agent name
   and no ID token hint) and its host id, and saves both as the login returns,
   before anything else the caller does. The host id is `Options.HostID`, else
-  `Previous`'s, else the record's, else a new one. Whether OpenAI accepts the
-  client with no hint is for the owner-run probe of 0075-PLAN's Phase 6.
+  `Previous`'s, else the record's, else a new one. OpenAI accepts the client
+  with no hint after the last session was revoked: the owner-run probe of
+  0075-PLAN's Phase 6 showed it on 2026-11-14, with the client and host id
+  unchanged.
 - **After a 401** a provider invalidates any `InvalidatingSource` and retries
   once: a `CommandToken` reruns its command, and an `OAuthSession` refreshes.
   A source that is also a `TokenInvalidator`, as both are, is told which
@@ -842,6 +846,10 @@ for a session, from the store.
   - it writes through a temp file, with `fsync`, rename and a directory
     `fsync`;
   - it refuses a file over 64 KiB;
+  - its `Save` reads the session under the session's lock, so it can save a
+    session that a refresh on another goroutine is adopting into. A store
+    outside `auth` cannot take that lock, so `TokenStore`'s doc says it must
+    not be given a session in use (0074-PLAN Phase 7 step 6);
   - as a `RefreshLocker`, it holds an exclusive OS file lock on
     `<provider>.oslock` across processes for each refresh, so a refresh
     token is never spent twice. The operating system releases the lock when
@@ -1290,7 +1298,9 @@ MADR (AGENTS.md). Nothing imports `mcplib` or the MCP go-sdk.
   into a temporary file, and fails when the committed file differs, or when
   it checks no file at all. Today that is `mkwinsyscall` for
   `llmprovider/internal/ownerperm` and `llmprovider/internal/filelock`, each
-  pinned in its `doc.go`; the generator is not a module requirement.
+  pinned in its `doc.go`, whose generator is not a module requirement, and
+  `authcontract`'s own `internal/schemagen` for `authcontract.schema.json`
+  (`authcontract/doc.go`): three files.
 - **`scripts/check_parity_map.py`** (G-parity) fails when an identifier in
   `docs/guides/migrating-from-mcplib.ids`, the exported identifiers of
   `mcplib` `v1.6.0` `llmprovider` and `wizard`, has no row in
