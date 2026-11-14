@@ -33,6 +33,19 @@ type Options struct {
 	// Previous is a plan session to sign in to again; chatgpt_plan only. A
 	// first sign-in, with none, takes the method's FirstPaste.
 	Previous *auth.OAuthSession
+	// HostID is the app's host-lifetime id for the chatgpt_plan sign-in, as
+	// OpenAI's guide asks one kept for the host's life; the app persists it.
+	// Without it the id is Previous's, else the stored client record's, else
+	// a new one the client record then keeps (0075-MADR D6).
+	HostID string
+	// ClientStore, when set, keeps the chatgpt_plan sign-in's issued client
+	// and host id apart from the session, so that a sign-out or a switch to
+	// another OpenAI session reuses the client instead of registering another
+	// (0075-MADR D7). Before a sign-in with no Previous it loads the record,
+	// and once the sign-in returns it saves the client and host id, whatever
+	// the caller then does with the session; a record that cannot be saved
+	// does not fail the sign-in. Nil keeps none.
+	ClientStore auth.ClientStore
 	// ConsentText maps a consent id to the app's own wording for it, which
 	// the sign-in's confirm step shows in place of the method's default
 	// text; a consent with no entry uses the default (0075-MADR D4).
@@ -182,7 +195,8 @@ func startWith(ctx context.Context, p llmprovider.ProviderID, m llmprovider.Auth
 		Logins:      logins,
 		Flow: auth.OAuthFlowOptions{HTTPClient: o.HTTPClient, ClientID: o.ClientID,
 			Issuer: o.Issuer, Identity: o.Identity},
-		Plan: auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: o.Previous,
+		ClientStore: o.ClientStore,
+		Plan: auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: o.Previous, HostID: o.HostID,
 			HTTPClient: o.HTTPClient, Identity: o.Identity},
 	}
 	if d.mode == signinflow.ModePlan && strings.TrimSpace(o.AgentName) == "" {

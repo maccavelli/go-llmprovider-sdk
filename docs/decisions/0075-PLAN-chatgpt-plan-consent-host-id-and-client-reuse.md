@@ -857,3 +857,118 @@ MADR and approved this PLAN.
 * Provenance: mainstream model, medium effort; Phase 3 implemented, ten
   plants caught, gate 30 of 30, race runs green on macOS and Linux; no
   escalation.
+
+### Phase 4 (2026-11-13)
+
+* **Claims re-verified** with `claims.py ... --rev self=HEAD` at `39f1b81`.
+  The ones Phase 4 reads only moved, each found with its text unchanged: C6
+  (`oauth_plan.go:224`, now `:198`), C7 (`:237`, now `:211`), C10 (`:259`, now
+  `:233`), C11 (`:197`, now `:169`), C25 (`:261`, now `:235`), C28 (`:60`,
+  now `:58`), C12 (`wizard/logout.go:53`, now `:54`), C30
+  (`oauth_session.go:318`, now `:325`) and C42 (`tokenstore_file.go:289`, now
+  `:297`). C13, C24 and C29 hold where they were. **C9** is the one whose
+  text is gone, and its note stands: the wizard builds the plan's options in
+  the engine spec (`wizard/auth.go:291` at `39f1b81`), which is where this
+  phase adds `HostID` and the client store; every step of this phase fits
+  that shape, and no assumption about the engine or the wizard failed. No
+  existing test changed: `plan_login_0043_test.go` and every other existing
+  test pass as they were.
+* **The names,** exactly as the R55 table has them, none forced to another:
+  `auth.ClientRecord{ClientID, HostID}`, `auth.ClientStore` with `LoadClient`
+  and `SaveClient`, `(*FileTokenStore).LoadClient` and `.SaveClient`,
+  `ChatGPTPlanOptions.ClientID`, `wizard.Options.HostID`,
+  `signin.Options.HostID` and `signin.Options.ClientStore`.
+* **Step 1:** `llmprovider/auth/clientstore.go`, and `FileTokenStore`'s two
+  methods on `<provider>.client`. Save's durable write became `writeDurable`,
+  which `SaveClient` shares, so the temp file is restricted through
+  `tokenStoreRestrict` before its first byte and then fsynced and renamed, as
+  a session's is; the provider id is checked by `validateProviderID`; a zero
+  record removes the file, and removing an absent one succeeds; `Delete` of
+  the session leaves it. The 66 refresh tests, which run through `Save`, pass
+  unchanged.
+* **Step 2:** `ChatGPTPlanOptions.ClientID`. With no `Previous`, the authorize
+  request names it and sends no `agent_name_hint` and no `id_token_hint`, and
+  a callback naming another client is refused; with a `Previous`, its client
+  is used and `ClientID` ignored. `planIssuedClient` now takes the known
+  client (`knownPlanClient`).
+* **Step 3:** `wizard.Options.HostID`, `signin.Options.HostID` and
+  `signin.Options.ClientStore`; the order is `Options.HostID`, else
+  `Previous`'s, else the record's, else a new one, which auth mints and the
+  record then keeps.
+* **Step 4:** the engine does the work for both, through a new
+  `Spec.ClientStore`: before a plan sign-in with no `Previous` it loads the
+  record (a load that fails ends the sign-in before the login) and passes the
+  record's client and host id, the option's host id first; as the login
+  returns a session it saves the client and host id the session holds, before
+  anything else the caller does. The wizard passes its `Options.TokenStore`
+  when it asserts to `auth.ClientStore`. A save that fails does not fail the
+  sign-in: the engine's `Result.ClientSaveErr` is shown by the wizard as a
+  warning notice, and `x/signin` documents that it is not reported. A
+  sign-in with `ClientID` and no `Previous` still has `First` true, so 0074-MADR
+  D1's `FirstPaste` `url_only` holds.
+* **Tests,** besides the table's five, two the record's steps need:
+  `TestFileTokenStore_Client_0075` and `TestPlanClientID_0075`
+  (`llmprovider/auth/clientstore_0075_test.go`); `TestHostIDOrder_0075` and
+  `TestPlanClientRecordErrors_0075` (`internal/signinflow/client_0075_test.go`;
+  the order test is the engine's, since the engine does the loading);
+  `TestStart_PlanClientStore_0075` (`llmprovider/x/signin`, that the two
+  options reach the engine); `TestWizardPlanReusesClient_0075` and
+  `TestWizardPlanSwitchKeepsClient_0075` (`wizard/client_0075_test.go`, over a
+  `FileTokenStore`; "after Logout" deletes the session, which is Logout's last
+  step, since revoking a plan session needs an issuer).
+* **Plants,** `tools/plant.py` on a scratch clone, `_0075$` tests, exit 0
+  each. The first failure line of each:
+  * `Delete` removing the client file: `LoadClient after Delete of the session
+    = {ClientID: HostID:}, <nil>; want the record kept`;
+  * the restriction skipped: `events = ["first byte temp file"], want
+    ["private temp file" "first byte temp file"]`;
+  * `agent_name_hint` still sent: `the request with a ClientID =
+    map[agent_name_hint:[My App] client_id:[client-0075] ...`;
+  * a callback naming another client accepted: `a callback naming another
+    client was accepted`;
+  * the record's host id preferred to the option's: `login given host
+    "urn:uuid:rec", client "client-rec", err <nil>; want the option's host id
+    and the record's client`;
+  * the record preferred to `Previous`'s: `the record was loaded 1 time(s)
+    with a Previous; want none`;
+  * the record not saved when the sign-in returns: `the record = {ClientID:
+    HostID:} after 0 save(s); want the issued client and the minted host id
+    saved once`;
+  * the stored client not passed: `login given host "urn:uuid:opt", client "";
+    want the option's host id and the record's client`;
+  * `x/signin` passing no client store: `the login was given client "", host
+    "urn:uuid:opt"; want the record's client and the option's host id`;
+  * the wizard passing no client store, **whose first form did not build**
+    (`clients` unused), which is not a catch; as the type assertion removed it
+    fails `saves in the order ["Save"]; want the client record first, as the
+    sign-in returns, before the session` and `a plan sign-in after a Codex-id
+    session was given client ""`;
+  * the table's "client file removed on replacement", as `Save` removing it:
+    `TestWizardPlanSwitchKeepsClient_0075: ... was given client ""; want the
+    stored client and no Previous`.
+  The table's plant for `TestWizardPlanReusesClient_0075`, "the record saved
+  only after the listing", is represented by the two above that fail its
+  order assertion and its stored-client assertion: the engine saves as the
+  login returns, and no listing is between.
+* **Checks, each exit status captured before any filter:**
+  * `make pre-add-check FILES` on the 11 Go files: exit 0, `go-precheck: 11
+    file(s) clean`. **First run, exit 2,** three findings: `errcheck` on the
+    blank of the wizard's type assertion, and `staticcheck` S1016 twice in
+    `clientstore.go`; fixed by an explicit `ok` and by struct conversions. No
+    `nolint`.
+  * `make api-check`: exit 0. `python3 -B tools/apidiff.py v1.30.0`: exit 0;
+    this phase's names are those above (the two `x/signin` options are under
+    `x/`), each a row of the R55 table.
+  * `make tables-check`, `make docs-check` and `make coverage-check`: exit 0.
+  * `python3 -B tools/redgreen.py REFRESH.json --expect pass`: 65 of 66,
+    exit 1, the one `missing` `TestOAuthSessionWait_WindowsRemoval_0071`,
+    which skips off Windows; none of the 15 files changed.
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, after the
+    last code change: exit 0, `gate: 30 of 30 passed`, started
+    2026-11-13T23:43:09-06:00 (at load 9.5) and finished 23:58:30-06:00.
+  * `go test -race -shuffle=on -count=3 ./llmprovider/auth/
+    ./internal/signinflow/ ./llmprovider/x/signin/ ./wizard/` on a Linux host
+    (a WSL distro) through `run-on-host --need linux --race`, 23:58:43 to
+    23:59:26-06:00 local: exit 0, `ok` for each package.
+* Provenance: mainstream model, medium effort; Phase 4 implemented, eleven
+  plants caught, gate 30 of 30, race run green on Linux; no escalation.

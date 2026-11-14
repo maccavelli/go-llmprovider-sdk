@@ -59,6 +59,12 @@ type ChatGPTPlanOptions struct {
 	// Previous is a plan session to sign in to again: its issued client id,
 	// host id and ID token are reused, and no client is registered.
 	Previous *OAuthSession
+	// ClientID is an issued client to sign in to again with no Previous
+	// session, such as the one a ClientStore kept after a sign-out: the
+	// authorize request names it, sends no agent name hint and, having no ID
+	// token, no ID token hint, and a callback naming another client is
+	// refused. With a Previous, its client is used and ClientID is ignored.
+	ClientID string
 	// HTTPClient, OpenURL and InputCode are as OAuthFlowOptions's. InputCode
 	// takes the callback URL pasted when the browser cannot reach the
 	// loopback listener; a first sign-in needs the whole URL, which names the
@@ -140,7 +146,7 @@ func LoginChatGPTPlan(ctx context.Context, opts ChatGPTPlanOptions) (*OAuthSessi
 		},
 		exchange: func(ctx context.Context, callback oauthCallbackResult, redirectURI string) (*OAuthSession, error) {
 			var clientErr error
-			if config.clientID, clientErr = planIssuedClient(opts.Previous, callback.clientID); clientErr != nil {
+			if config.clientID, clientErr = planIssuedClient(knownPlanClient(opts), callback.clientID); clientErr != nil {
 				return nil, clientErr
 			}
 			payload, exchangeErr := planExchange(ctx, config, endpoints.Token, callback.code, redirectURI, pkce.verifier)
@@ -211,9 +217,19 @@ func planHostID(opts ChatGPTPlanOptions) (string, error) {
 	return fmt.Sprintf("urn:uuid:%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }
 
+// knownPlanClient is the issued client a sign-in signs in to again: Previous's,
+// else ClientID's, else none.
+func knownPlanClient(opts ChatGPTPlanOptions) string {
+	if opts.Previous != nil {
+		return opts.Previous.ClientID
+	}
+	return strings.TrimSpace(opts.ClientID)
+}
+
 // planAuthorizeURL is the authorize request: a first sign-in names the app
 // and registers through dynamic_agent_client; a re-sign-in names its issued
-// client and hints its last ID token, without the app's name.
+// client and, with Previous, hints its last ID token, without the app's
+// name.
 func planAuthorizeURL(endpoint string, opts ChatGPTPlanOptions, hostID, redirectURI, challenge, state, nonce string) (string, error) {
 	authorizeURL, err := url.Parse(endpoint)
 	if err != nil {
@@ -234,6 +250,8 @@ func planAuthorizeURL(endpoint string, opts ChatGPTPlanOptions, hostID, redirect
 		if previous.IDToken != "" {
 			query.Set("id_token_hint", previous.IDToken)
 		}
+	} else if client := knownPlanClient(opts); client != "" {
+		query.Set(oauthParamClientID, client)
 	} else {
 		query.Set(oauthParamClientID, planDynamicClientID)
 		query.Set("agent_name_hint", strings.TrimSpace(opts.AgentName))
@@ -243,14 +261,14 @@ func planAuthorizeURL(endpoint string, opts ChatGPTPlanOptions, hostID, redirect
 }
 
 // planIssuedClient is the client the session keeps: the callback's issued
-// client on a first sign-in, which it must name; Previous's on a re-sign-in,
-// which a callback naming another client contradicts.
-func planIssuedClient(previous *OAuthSession, fromCallback string) (string, error) {
-	if previous != nil {
-		if fromCallback != "" && fromCallback != previous.ClientID {
-			return "", errors.New("oauth: the callback names another client than the session being signed in to again")
+// client on a first sign-in, which it must name; the known client on a
+// re-sign-in, which a callback naming another client contradicts.
+func planIssuedClient(known, fromCallback string) (string, error) {
+	if known != "" {
+		if fromCallback != "" && fromCallback != known {
+			return "", errors.New("oauth: the callback names another client than the one being signed in to again")
 		}
-		return previous.ClientID, nil
+		return known, nil
 	}
 	if fromCallback == "" || fromCallback == planDynamicClientID {
 		return "", errors.New("oauth: the callback carries no issued client_id: registration did not complete")

@@ -279,6 +279,12 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 	if previous != nil && (!previous.PlanUsage() || previous.ClientID == "") {
 		previous = nil
 	}
+	// A TokenStore that also keeps the issued client apart from the session
+	// has it reused after a sign-out or a switch (0075-MADR D7).
+	var clients auth.ClientStore
+	if store, ok := o.TokenStore.(auth.ClientStore); ok {
+		clients = store
+	}
 	instruction, prompt := pasteCodeInstruction, pasteCodePrompt
 	if previous == nil {
 		// A first sign-in learns the app's client from the callback URL, so
@@ -289,9 +295,10 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 		Method: planMethod(d),
 		Mode:   signinflow.ModePlan,
 		Plan: auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: previous, HTTPClient: o.HTTPClient,
-			Identity: o.Identity},
+			Identity: o.Identity, HostID: o.HostID},
 		First:       previous == nil,
 		ConsentText: o.ConsentText,
+		ClientStore: clients,
 	}, instruction, prompt)
 	if loginErr != nil {
 		return resolvedCredential{}, loginErr
@@ -820,6 +827,10 @@ func browserSignIn(
 	result, err := r.run(ctx, spec)
 	if err != nil {
 		return nil, err
+	}
+	if result.ClientSaveErr != nil {
+		p.Notify(LevelWarn, "could not keep the issued client (%s); the next sign-in registers another",
+			redact.StripControl(redact.String(result.ClientSaveErr.Error())))
 	}
 	return result.Session, nil
 }

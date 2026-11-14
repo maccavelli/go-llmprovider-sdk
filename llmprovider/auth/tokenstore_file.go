@@ -183,6 +183,14 @@ func (fs *FileTokenStore) Save(ctx context.Context, provider llmprovider.Provide
 	if err != nil {
 		return fmt.Errorf("FileTokenStore encode: %w", err)
 	}
+	return fs.writeDurable(fs.path(provider), data)
+}
+
+// writeDurable replaces the file final with data, as Save's doc says: a temp
+// file restricted before its first byte, then write, fsync, close, rename and
+// an fsync of the directory. On any failure the previous file is intact and
+// the temp file is removed.
+func (fs *FileTokenStore) writeDurable(final string, data []byte) (err error) {
 	tmp, err := os.CreateTemp(fs.Dir, ".tok-*.json")
 	if err != nil {
 		return fmt.Errorf("FileTokenStore temp: %w", err)
@@ -212,7 +220,7 @@ func (fs *FileTokenStore) Save(ctx context.Context, provider llmprovider.Provide
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("FileTokenStore close: %w", err)
 	}
-	if err := tokenStoreRename(tmpName, fs.path(provider)); err != nil {
+	if err := tokenStoreRename(tmpName, final); err != nil {
 		return fmt.Errorf("FileTokenStore rename: %w", err)
 	}
 	if err := syncDir(fs.Dir); err != nil {

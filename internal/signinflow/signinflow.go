@@ -120,6 +120,14 @@ type Spec struct {
 	// ConsentText maps a consent id to the app's own wording, which the
 	// confirm step shows in place of the method's text (0075-MADR D4).
 	ConsentText map[string]string
+	// ClientStore, when set, keeps a plan sign-in's issued client and host id
+	// apart from the session (0075-MADR D7). Before a plan sign-in with no
+	// Plan.Previous, the engine loads the record and signs in to its client
+	// with its host id, unless Plan.HostID names another; once the login
+	// returns a session, it saves the client and host id the session holds, at
+	// once, since the registration happened at OpenAI whatever the caller then
+	// does with the session.
+	ClientStore auth.ClientStore
 	// NoPaste leaves out the paste step: the loopback alone completes a
 	// browser sign-in.
 	NoPaste bool
@@ -141,6 +149,9 @@ type Spec struct {
 type Result struct {
 	Session *auth.OAuthSession
 	Import  *auth.VendorCLISession
+	// ClientSaveErr is the error of saving the plan's issued client, which
+	// does not fail the sign-in: the next one registers another client.
+	ClientSaveErr error
 }
 
 // ask is a step that asks, and the answer's way back to the login.
@@ -415,10 +426,23 @@ func (r *Run) runBrowser(ctx context.Context, spec Spec) (Result, error) {
 	}
 	var session *auth.OAuthSession
 	var err error
+	var clientSaveErr error
 	if spec.Mode == ModePlan {
 		opts := spec.Plan
 		opts.OpenURL, opts.InputCode, opts.NoLoopback = openURL, inputCode, spec.NoLoopback
+		if spec.ClientStore != nil && opts.Previous == nil {
+			record, loadErr := spec.ClientStore.LoadClient(ctx, spec.Provider)
+			if loadErr != nil {
+				return Result{}, fmt.Errorf("signinflow: load the issued client: %w", loadErr)
+			}
+			opts.ClientID = cmp.Or(opts.ClientID, record.ClientID)
+			opts.HostID = cmp.Or(opts.HostID, record.HostID)
+		}
 		session, err = spec.Logins.Plan(ctx, opts)
+		if err == nil && session != nil && spec.ClientStore != nil {
+			clientSaveErr = spec.ClientStore.SaveClient(ctx, spec.Provider,
+				auth.ClientRecord{ClientID: session.ClientID, HostID: session.HostID})
+		}
 	} else {
 		opts := spec.Flow
 		opts.OpenURL, opts.InputCode, opts.NoLoopback = openURL, inputCode, spec.NoLoopback
@@ -427,7 +451,7 @@ func (r *Run) runBrowser(ctx context.Context, spec Spec) (Result, error) {
 	if err == nil && session != nil {
 		err = putConsents(ctx, spec.Provider, session, answered)
 	}
-	return Result{Session: session}, err
+	return Result{Session: session, ClientSaveErr: clientSaveErr}, err
 }
 
 // consentAnswer is the answer to one consent: asked, or carried from the

@@ -173,6 +173,12 @@ type Options struct {
 	// error from the Driver ends the sign-in and is returned as it is. It
 	// speaks the contract's types only; see StepDriver (0074-MADR D6).
 	Driver StepDriver
+	// HostID is the app's host-lifetime id for the ChatGPT plan sign-in, as
+	// OpenAI's guide asks one kept for the host's life; the app persists it.
+	// Without it the id is the saved plan session's, else the one the
+	// TokenStore's client record holds, else a new one the record then keeps
+	// (0075-MADR D6).
+	HostID string
 	// ConsentText maps a consent id, such as openai.ConsentBackgroundUse, to
 	// the app's own wording for it, which the sign-in's question shows in
 	// place of the method's default; a consent with no entry uses the
