@@ -117,6 +117,30 @@ P6 step 1). No other name is exported.
   two of the seven; the review of 2026-11-10 found four, and a search for
   every `stubPlanLogin` caller found the other three.)
 
+* **Phase 2's bounded amendment (2026-11-13, the owner's ruling).** Phase
+  2's dry run, on a scratch clone of `f64134d`, found six more existing
+  tests than the seven above that its own changes fail, which the rule above
+  makes a stop. The owner ruled "Bounded amendment": an existing test may
+  change only (a) by adding the consent fields to an expected value, or (b)
+  by answering the consent step first, which shifts the Seq numbers of the
+  steps after it to match. Every other assertion stays as it was, and a
+  test that needs any other kind of change still stops the phase. The six,
+  with the first failure line of the dry run:
+
+  | Test | File and line | Kind | Dry run's failure |
+  | :--- | :--- | :--- | :--- |
+  | `TestDescriptors_OpenAIAndGrokOfferOAuth` | `llmprovider/providers/descriptors_test.go:36`, the plan row at `:107` | (a) its expected plan row gains `Consent`, `ConsentText` and `ConsentURL`, word for word as MADR D1 | `descriptors_test.go:183: openai AuthMethods = ...` |
+  | `TestMethods_0074` | `llmprovider/x/signin/methods_0074_test.go:108`, `assertMethod` | (a) the expected plan method gains `Consents`, `Links` and the `consent` feature | `methods_0074_test.go:77: openai chatgpt_plan:` |
+  | `TestStart_PlanSteps_0074` | `llmprovider/x/signin/start_browser_0074_test.go:97`, both subtests | (b) each answers the consent first; its `open_url` and `paste` steps are numbered 2 and 3 | `start_browser_0074_test.go:113: no step in 10 s` |
+  | `TestStart_BadPaste_0074` | `start_browser_0074_test.go:139`, the subtest at `:166` | (b) answers the consent first; its steps are numbered one higher | `start_browser_0074_test.go:173: step = confirm #1; want open_url #1` |
+  | `TestStart_NoLoopbackPassedOn_0074` | `start_browser_0074_test.go:334`, its plan half | (b) answers the consent first, so the login starts | `start_browser_0074_test.go:349: the login was never started` |
+  | `TestWizardIdentity_0076` | `wizard/identity_0076_test.go:33`, the `plan` subtest at `:71` | (b) scripts a `Select` (allow) where it scripted the notice's `Confirm`, as the seven do | `identity_0076_test.go:80: fakePrompter: unexpected Select(...)` |
+
+  The dry run's failing existing tests are these six and the seven above, and
+  no other. A test the tree shows to need a change of the
+  two kinds, and no other, may be added here, with its file, line and kind,
+  before it is changed; any other kind is a stop.
+
 ## Implementation Steps
 
 ### Phase 0: records
@@ -582,3 +606,165 @@ MADR and approved this PLAN.
   the gate's own coverage of this package.
 * Provenance: mainstream model, medium effort; Phase 1 implemented, nine
   plants caught, gate 30 of 30; no escalation.
+
+### Phase 2 (2026-11-13)
+
+* **The owner's ruling and the dry run.** The first run of this phase stopped
+  before any code, because its own changes fail six existing tests besides the
+  seven. The owner ruled "Bounded amendment" (2026-11-13); the amendment is
+  in "Rules for every phase", above, with each test, its file and line, and
+  the kind of change. The dry run was Phase 2 implemented on a scratch clone
+  of `f64134d` and `go test ./llmprovider/... ./internal/... ./wizard/...`
+  there: 13 existing tests failed, the seven of "Rules for every phase" and
+  the six of the amendment, and no other (one `TestStart_Cancel_0074` flake
+  aside, below). No test needed a change of another kind.
+* **C9.** A dated note under the evidence table of the MADR records that
+  0074-PLAN Phase 5 moved the wizard's plan sign-in into the engine spec,
+  `Plan: auth.ChatGPTPlanOptions{...}` at `wizard/auth.go:298`; C9's row stays
+  pinned. Every step of Phases 2 and 4 that relied on C9's call site fits the
+  new shape: Phase 2 moves the wizard's own `Confirm` into the engine's
+  consent step, with the options still built in the spec; Phase 4 step 4 adds
+  `ClientID` and `HostID` to the same `Plan:` options.
+* **Moved claims,** checked with `claims.py ... --rev self=HEAD` at `f64134d`,
+  each found with its text unchanged: C5 (`wizard/auth.go:278`, now `:282`)
+  and C21 (`:284`, now `:288`), whose code this phase removes, since the
+  notice is now the engine's consent step; C22 (`openai.go:162`, now `:163`),
+  the usage page, which the descriptor's `ConsentURL` now names. C31 to C39,
+  the seven tests' lines, hold where they were.
+* **Step 1:** `AuthMethod.Consent`, `ConsentText` and `ConsentURL`;
+  `openai.ConsentBackgroundUse` in the new `openai/consent.go`; the plan
+  descriptor's three values, the text word for word as MADR D1. x/signin
+  holds the same three facts for the plan (it may not import the providers,
+  R2), and `TestMethods_StartFactsAreTheDescriptors_0074` holds them equal.
+* **Step 2:** `signin.Methods` gives `Consents` (required, the text, the usage
+  link), the usage link in `Links`, and the `consent` feature beside `paste`.
+* **Step 3:** in `internal/signinflow`, a plan sign-in asks each consent of its
+  method as a `confirm` step before the login starts (id, the app's text or
+  the method's, the usage link, default false), unless the session being
+  signed in to again holds an answer, which is carried; an answer with no
+  `Confirm` is a no. The answers are put on the session the login returns,
+  through `auth.SetConsent` on a one-session store of the engine's own, so
+  that the entries' format stays auth's; a failed login records none. The
+  wizard's `Confirm` and its decline moved here.
+* **Step 4:** `signin.Options.ConsentText` and `wizard.Options.ConsentText`
+  (maps from a consent id to the app's text), as `Spec.ConsentText`.
+* **Step 5:** the wizard's renderer shows a consent `confirm` as a `Select` of
+  "Allow background use", "Do not allow background use" (the default) and
+  "Cancel the sign-in", its title the step's text and the usage page's URL;
+  the last returns today's error, "wizard: ChatGPT plan sign-in declined". A
+  `Driver` is given the plain step, and its `Answer.Confirm` answers it;
+  `StepDriver`'s doc says so. The plan method's facts reach the wizard from
+  its descriptor, else the built-in one's.
+* **Existing tests changed, and only these,** by the kinds of the rule above
+  (`git diff --numstat`): `descriptors_test.go` 3/0, `methods_0074_test.go`
+  7/0, `start_browser_0074_test.go` 7/4, `identity_0076_test.go` 1/1,
+  `paste_0057_test.go` 1/1, `plan_0043_test.go` 11/12, `resolve_0056_test.go`
+  4/4, `signin_errors_0049_test.go` 1/2. In the seven wizard tests each
+  scripted `Confirm` became a `Select` of the notice (allow; "Cancel the sign-in"
+  for `TestPlan_NoticeDeclined_0043`), the two that read the notice read it
+  from `seenSelect`, and `TestPlan_ReSignIn_0043`'s stored session gained
+  `Consents: "chatgpt_plan.background_use=granted"`. Every other assertion is
+  as it was. The new tests: `consent_0075_test.go` in `internal/signinflow`,
+  `llmprovider/providers` and `wizard`, and `signin_0075_test.go` in
+  `llmprovider/x/signin`, the eight of the table.
+* **Plants,** `tools/plant.py` on a scratch clone, `_0075$` tests; each plant's
+  first failure lines are those below, `all 12 plant(s) caught` and exit 0 in
+  one run, and the two that first did not count (below) run again, caught:
+  * the default set to yes: `TestPlanConfirmStep_0075: confirm step = {...
+    Default ...}`;
+  * the consent not asked before `open_url`: `first step = open_url #1; want
+    confirm #1`;
+  * no ends the sign-in: `step after the answer = failed #2; want open_url #2`;
+  * the answer not carried: `Wait = {...}, <nil>; want Consents
+    "chatgpt_plan.background_use=granted" carried`;
+  * the answer put on a failed login's session: **the first form,** which
+    also masked the error, was caught for the wrong reason, `Wait = nil; want
+    the login's error`; the plant was made `_ = putConsents` on a failed
+    login, and fails as meant: `a failed sign-in's session holds Consents
+    "chatgpt_plan.background_use=granted"; want none recorded`;
+  * any stored plan session skipping the question: **the first form did not
+    build** (`answered` unused), which is not a catch; as `true || answered` it
+    fails `first step = open_url #1; want confirm #1` and
+    `TestWizardReSignInWithoutAnswerAsks_0075: 1 logins, selects [...]; want
+    one login after the consent Select`;
+  * the method's text before the app's: `the consent's title = "You're using
+    your ChatGPT plan: ...` and the app's text not shown;
+  * the consent not required: `the plan's consents = [{... Required:false ...}]`;
+  * the text's "background" dropped: `TestDescriptors_PlanConsent_0075: the
+    plan's consent = ...`;
+  * the default set to the first choice: `the consent's default = 0; want the
+    second choice`;
+  * the usage URL left out of the title: `the consent's title = "You're using
+    ... want the step's text and the usage page`;
+  * "Cancel" read as a choice: `err <nil>, 1 logins, 1 saves; want declined,
+    none, none`.
+  The table's plant "`confirm` after `open_url`" is the second of these,
+  since the plant keeps the consent from being asked at all.
+* **Checks, each exit status captured before any filter:**
+  * `make pre-add-check FILES` on the 21 Go files: exit 0, `go-precheck: 21
+    file(s) clean`; again on `signin_0075_test.go` after its last change:
+    exit 0. No `nolint`.
+  * `make api-check`: exit 0, `0 incompatible change(s) outside
+    llmprovider/x/`. `python3 -B tools/apidiff.py v1.30.0`: exit 0; this
+    phase's names are `AuthMethod.Consent`, `.ConsentText`, `.ConsentURL`,
+    `openai.ConsentBackgroundUse` and `wizard.Options.ConsentText`, each a row
+    of the R55 table (`signin.Options.ConsentText` is under `x/`).
+  * `make tables-check`, `make docs-check` (`0 violation(s) of R50,R51,R52`)
+    and `make coverage-check` (`43 packages, 0 problem(s)`): exit 0.
+  * **The gate,** `python3 -B tools/gate.py --timeout 5400` through
+    `run-heavy`. **First run,** 20:41:55 to 20:57:22, exit 1, `29 of 30
+    passed`: `test-shuffle` failed on two tests, `TestStart_Cancel_0074`
+    (`start_device_0074_test.go:164: 4 goroutines after the sign-in, 5
+    before`) and `TestDriver_OwnErrorGetsNoTerminal_0074/show_code`
+    (`driver_terminal_0074_test.go:151: the Driver was handed [... failed ...]
+    after its own error`). The second is a flake of the tree before this
+    phase: at `f64134d`, six processes of `go test -race -count=150 -cpu 1,2`
+    on that test failed in two of them, and the tree failed in two of them.
+    The first, a count of the process's goroutines, did not fail in 85
+    shuffled runs of `./llmprovider/x/signin/` at `f64134d` (25, then 60) and
+    failed in 1 of 25 on the tree, ~~so this phase's tests make it likelier: the sign-in
+    tests left goroutines (a login's paste read) ending after `Wait`. The new
+    `TestPlanConfirmStep_0075` now waits for them in `settleGoroutines`,
+    which asserts nothing less than before.~~ *(Struck 2026-11-13: see the
+    correction below.)* **Second run,** 21:07:58 to
+    21:28:11, after that last code change, exit 0, `gate: 30 of 30 passed`.
+    `TestStart_Cancel_0074` still failed once in 60 shuffled runs of the
+    package on the tree after the change, against none at `f64134d`: its
+    count of every goroutine in the process is the fragile part, and any
+    sign-in test ending beside it can trip it. It is reported to the
+    coordinator, not changed here.
+* ~~Provenance: mainstream model, medium effort; Phase 2 implemented under the
+  owner's "Bounded amendment", twelve plants caught, gate 30 of 30 on its second
+  run, with `TestStart_Cancel_0074`'s flake reported; no other escalation.~~
+  *(Superseded 2026-11-13 by the provenance line below.)*
+* **Correction (2026-11-13), the owner's ruling "Remove it, correct the
+  entry".** The claim above that this phase made `TestStart_Cancel_0074`
+  likelier is wrong. The test counts every goroutine in the process, a
+  test-isolation defect that predates Phase 2 and is not a leak of the
+  product; it fails at the same rate with and without Phase 2 (444 and 386 of
+  2,000 runs). `TestDriver_OwnErrorGetsNoTerminal_0074/show_code`, which I
+  called a flake, was a real ordering defect in `wizard/driver.go` from
+  0074-PLAN Phase 5. Both are fixed in `eecf17e`, recorded as a deviation of
+  0074-PLAN with the evidence, with a bubble-only goroutine count and
+  `TestDriver_ShowErrorRecordedFirst_0074`. `settleGoroutines`, and its one
+  call in `TestPlanConfirmStep_0075`, are removed.
+* **Re-verification on `eecf17e` plus this phase,** after `settleGoroutines`
+  was removed, with each exit status captured before any filter:
+  * the plants, `tools/plant.py` on a scratch clone: the ten of the first spec
+    `all 10 plant(s) caught` and the two that were redone `all 2 plant(s)
+    caught`, exit 0 each, with the failure lines above unchanged;
+  * `make pre-add-check FILES` on the 21 Go files: exit 0, `go-precheck: 21
+    file(s) clean`; `make api-check`: exit 0; `tools/apidiff.py v1.30.0`: exit
+    0, this phase's names as above;
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, started
+    2026-11-13T22:47:39-06:00 (at load 9.4) and finished 22:59:48-06:00: exit 0,
+    `gate: 30 of 30 passed`, with no test of this phase failing;
+  * `go test -race -shuffle=on -count=3 ./llmprovider/x/signin/
+    ./internal/signinflow/ ./wizard/` through `run-heavy`, 22:59:48 to
+    22:59:57-06:00: exit 0, `ok` for each of the three packages.
+* Provenance: mainstream model, medium effort; Phase 2 implemented under the
+  owner's "Bounded amendment"; one escalation, `TestStart_Cancel_0074`'s and
+  `TestDriver_OwnErrorGetsNoTerminal_0074`'s failures in the gate's
+  `test-shuffle`, whose causes lay before this phase and were fixed in
+  `eecf17e`, and the owner's ruling "Remove it, correct the entry"; twelve
+  plants caught, gate 30 of 30, race run green.

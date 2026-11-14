@@ -232,7 +232,7 @@ func signIn(
 		return resolveVendorCLI(ctx, p, d, o)
 	}
 	if method == llmprovider.AuthChatGPTPlan {
-		return resolveChatGPTPlan(ctx, p, o)
+		return resolveChatGPTPlan(ctx, p, d, o)
 	}
 	switch method {
 	case llmprovider.AuthBrowserOAuth:
@@ -266,10 +266,12 @@ func signIn(
 // consumer's own app name (auth.LoginChatGPTPlan; 0043-MADR D7). A plan
 // session the store already holds is signed in to again, so that the client
 // OpenAI issued the app is reused. With none, the user first confirms
-// OpenAI's one-time notice, "You're using your ChatGPT plan", with the page
-// where the plan's usage is managed. The new session replaces whatever
-// OpenAI session the store held (D3).
-func resolveChatGPTPlan(ctx context.Context, p Prompter, o Options) (resolvedCredential, error) {
+// the consent that the plan's sign-in asks, as one question with three
+// choices, its text the notice "You're using your ChatGPT plan" and the page
+// where the plan's usage is managed (0075-MADR D4). A plan session that holds
+// an answer is signed in to again without it. The new session replaces
+// whatever OpenAI session the store held (D3).
+func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (resolvedCredential, error) {
 	previous, err := o.TokenStore.Load(ctx, llmprovider.ProviderOpenAI)
 	if err != nil {
 		return resolvedCredential{}, fmt.Errorf("wizard: load the saved OpenAI session: %w", err)
@@ -279,30 +281,45 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, o Options) (resolvedCre
 	}
 	instruction, prompt := pasteCodeInstruction, pasteCodePrompt
 	if previous == nil {
-		use, err := p.Confirm(fmt.Sprintf("You're using your ChatGPT plan: this app's requests count toward its usage, "+
-			"which you can manage at %s. Continue?", openai.ChatGPTUsageURL), true)
-		if err != nil {
-			return resolvedCredential{}, err
-		}
-		if !use {
-			return resolvedCredential{}, errors.New("wizard: ChatGPT plan sign-in declined")
-		}
 		// A first sign-in learns the app's client from the callback URL, so
 		// a bare code cannot complete it (0043-MADR A3).
 		instruction, prompt = pasteURLInstruction, pasteURLPrompt
 	}
 	session, loginErr := browserSignIn(ctx, p, llmprovider.ProviderOpenAI, o, signinflow.Spec{
-		Method: authcontract.Method{ID: string(llmprovider.AuthChatGPTPlan), Paste: authcontract.PasteURLOrCode,
-			FirstPaste: authcontract.PasteURLOnly, Yields: authcontract.YieldsOAuthSession},
-		Mode: signinflow.ModePlan,
+		Method: planMethod(d),
+		Mode:   signinflow.ModePlan,
 		Plan: auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: previous, HTTPClient: o.HTTPClient,
 			Identity: o.Identity},
-		First: previous == nil,
+		First:       previous == nil,
+		ConsentText: o.ConsentText,
 	}, instruction, prompt)
 	if loginErr != nil {
 		return resolvedCredential{}, loginErr
 	}
 	return pendingOAuthCredential(o.TokenStore, llmprovider.ProviderOpenAI, session)
+}
+
+// planMethod is the plan method's facts for the engine: the descriptor's
+// consent, or the built-in descriptor's when d lists none (0075-MADR D1).
+func planMethod(d llmprovider.Descriptor) authcontract.Method {
+	method := authcontract.Method{ID: string(llmprovider.AuthChatGPTPlan), Paste: authcontract.PasteURLOrCode,
+		FirstPaste: authcontract.PasteURLOnly, Yields: authcontract.YieldsOAuthSession}
+	var facts llmprovider.AuthMethod
+	for _, descriptor := range []llmprovider.Descriptor{d, openai.Descriptor()} {
+		for _, m := range descriptor.AuthMethods {
+			if m.ID == llmprovider.AuthChatGPTPlan && m.Consent != "" && facts.Consent == "" {
+				facts = m
+			}
+		}
+	}
+	if facts.Consent != "" {
+		consent := authcontract.Consent{ID: facts.Consent, Required: true, Text: facts.ConsentText}
+		if facts.ConsentURL != "" {
+			consent.Links = []authcontract.Link{{Rel: authcontract.LinkUsage, URL: facts.ConsentURL}}
+		}
+		method.Consents = []authcontract.Consent{consent}
+	}
+	return method
 }
 
 // resolveVendorCLI uses a vendor CLI's login read-through: it checks the

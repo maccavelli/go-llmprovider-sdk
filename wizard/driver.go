@@ -16,9 +16,11 @@ import (
 // (Options.Driver, 0074-MADR D6). It speaks the contract's types only.
 //
 // SignInStep is called once per step, in order, on the sign-in's goroutine:
-// open_url, show_code, waiting and paste, then the sign-in's last step, done
-// or failed. For paste it returns the answer, whose Seq the wizard sets to
-// the step's; for the others its Answer is ignored.
+// confirm, open_url, show_code, waiting and paste, then the sign-in's last
+// step, done or failed. For paste it returns the answer, whose Seq the wizard
+// sets to the step's; for confirm, a consent the ChatGPT plan asks before
+// its browser opens, the answer's Confirm, with no Confirm taken as no; for
+// the others its Answer is ignored.
 //
 // An error from SignInStep on any step before the last ends the sign-in and
 // is returned as it is; the Driver is then given no last step. On every other
@@ -116,6 +118,8 @@ func (r *stepRenderer) run(ctx context.Context, spec signinflow.Spec) (signinflo
 			if r.verdict != nil {
 				r.verdict <- err
 			}
+		case authcontract.StepConfirm:
+			r.confirm(stepCtx, run, step, fail)
 		case authcontract.StepPaste:
 			pastes++
 			r.paste(stepCtx, run, step, pastes > 1, fail, &wg)
@@ -183,6 +187,50 @@ func (r *stepRenderer) showCode(ctx context.Context, step authcontract.Step) err
 		return err
 	}
 	return showDeviceCode(r.p, r.o)(DeviceCode{Provider: r.provider, URL: step.URL, Code: step.Code, Expiry: step.ExpiresAt})
+}
+
+// The choices of a consent's question: the consent granted, declined, or the
+// sign-in itself cancelled, which keeps the decline of the notice that came
+// before the consent was one question (0075-MADR D4).
+var consentChoices = []Choice{{Label: "Allow background use"}, {Label: "Do not allow background use"}, {Label: "Cancel the sign-in"}}
+
+// confirm renders a confirm step, a consent, and sends its answer. A Driver
+// answers it with Answer.Confirm; the Prompter shows a Select of three
+// choices whose title is the step's text and its usage page, the second the
+// default. The third ends the sign-in, with the error the notice's decline
+// has always given.
+func (r *stepRenderer) confirm(ctx context.Context, run *signinflow.Run, step authcontract.Step, fail func(error)) {
+	granted := false
+	if r.o.Driver != nil {
+		a, err := r.o.Driver.SignInStep(ctx, r.provider, step)
+		if err != nil {
+			fail(err)
+			return
+		}
+		granted = a.Confirm != nil && *a.Confirm
+	} else {
+		title := step.Text
+		for _, link := range step.Links {
+			if link.URL != "" {
+				title += " " + link.URL
+				break
+			}
+		}
+		choice, err := r.p.Select(title, consentChoices, 1)
+		if err != nil {
+			fail(err)
+			return
+		}
+		if choice == 2 {
+			fail(errors.New("wizard: ChatGPT plan sign-in declined"))
+			return
+		}
+		granted = choice == 0
+	}
+	err := run.Answer(ctx, authcontract.Answer{SchemaVersion: authcontract.SchemaVersion, Seq: step.Seq, Confirm: &granted})
+	if err != nil && !errors.Is(err, llmprovider.ErrInvalidRequest) {
+		fail(err)
+	}
 }
 
 // paste renders a paste step and sends its answer. The Driver is called

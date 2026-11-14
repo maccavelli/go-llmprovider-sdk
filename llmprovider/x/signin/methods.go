@@ -7,7 +7,9 @@ import (
 
 // Methods returns d's sign-in methods as the contract describes them, in
 // menu order. Each AuthMethod maps field for field, with the contract's
-// schema version set, and the paste feature when its Paste fact is set. A
+// schema version set, the paste feature when its Paste fact is set, and, when
+// it names a Consent, that consent (required, with its text and its usage
+// link), the link beside it and the consent feature (0075-MADR D1). A
 // descriptor that lists no method but requires a key gets one api_key
 // method; one that requires no key gets none. Methods never sets a command
 // or the contract's oauth and at_start values, which no built-in method has
@@ -63,6 +65,16 @@ func methodOf(m llmprovider.AuthMethod) authcontract.Method {
 	}
 	if m.Paste != "" {
 		method.Features = []authcontract.Feature{authcontract.FeaturePaste}
+	}
+	if m.Consent != "" {
+		consent := authcontract.Consent{ID: m.Consent, Required: true, Text: m.ConsentText}
+		if m.ConsentURL != "" {
+			link := authcontract.Link{Rel: authcontract.LinkUsage, URL: m.ConsentURL}
+			consent.Links = []authcontract.Link{link}
+			method.Links = []authcontract.Link{link}
+		}
+		method.Consents = []authcontract.Consent{consent}
+		method.Features = append(method.Features, authcontract.FeatureConsent)
 	}
 	return method
 }

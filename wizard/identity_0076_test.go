@@ -74,7 +74,7 @@ func TestWizardIdentity_0076(t *testing.T) {
 			got = append(got, opts)
 			return planSessionFor("oaiapp_0076"), nil
 		})
-		f := newFake(t, fakePrompter{selects: []int{planMethodIdx(t)}, confirms: []bool{true}})
+		f := newFake(t, fakePrompter{selects: []int{planMethodIdx(t), 0}})
 		if _, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: newMemoryTokenStore(), AgentName: planTestApp,
 			NoPastePrompt: true, Identity: probe0076}, llmprovider.ProviderOpenAI); err != nil {
 			t.Fatal(err)

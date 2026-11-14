@@ -62,7 +62,7 @@ func TestNoPastePrompt_PlanSignIn_0057(t *testing.T) {
 		}
 		return planSessionFor("oaiapp_0057"), nil
 	})
-	f := newFake(t, fakePrompter{selects: []int{planMethodIdx(t)}, confirms: []bool{true}})
+	f := newFake(t, fakePrompter{selects: []int{planMethodIdx(t), 0}})
 	res, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: newMemoryTokenStore(), AgentName: planTestApp,
 		NoPastePrompt: true}, llmprovider.ProviderOpenAI)
 	if err != nil {

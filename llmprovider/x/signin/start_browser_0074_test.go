@@ -110,9 +110,10 @@ func TestStart_PlanSteps_0074(t *testing.T) {
 			if err != nil {
 				t.Fatalf("start = %v", err)
 			}
+			answerConsent(t, run)
 			open, ask := nextStep(t, run), nextStep(t, run)
-			wantStep(t, open, authcontract.StepOpenURL, 1)
-			wantStep(t, ask, authcontract.StepPaste, 2)
+			wantStep(t, open, authcontract.StepOpenURL, 2)
+			wantStep(t, ask, authcontract.StepPaste, 3)
 			if open.Accepts != c.want || ask.Accepts != c.want {
 				t.Errorf("accepts = %q and %q; want %q", open.Accepts, ask.Accepts, c.want)
 			}
@@ -170,13 +171,14 @@ func TestStart_BadPaste_0074(t *testing.T) {
 		if err != nil {
 			t.Fatalf("start = %v", err)
 		}
-		wantStep(t, nextStep(t, run), authcontract.StepOpenURL, 1)
+		answerConsent(t, run)
+		wantStep(t, nextStep(t, run), authcontract.StepOpenURL, 2)
 		ask := nextStep(t, run)
 		if err := run.Answer(background(), authcontract.Answer{Seq: ask.Seq, Paste: planted}); err != nil {
 			t.Fatalf("Answer = %v", err)
 		}
 		again := nextStep(t, run)
-		wantStep(t, again, authcontract.StepPaste, 3)
+		wantStep(t, again, authcontract.StepPaste, 4)
 		if strings.Contains(again.Text, planted) || again.Text == "" {
 			t.Errorf("re-ask text = %q; want a reason with no paste", again.Text)
 		}
@@ -346,6 +348,7 @@ func TestStart_NoLoopbackPassedOn_0074(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start = %v", err)
 	}
+	answerConsent(t, run)
 	if given := probe.given(t); !given.noLoopback || !given.hasInput {
 		t.Errorf("plan login was given %+v; want NoLoopback and an InputCode", given)
 	}

@@ -173,6 +173,11 @@ type Options struct {
 	// error from the Driver ends the sign-in and is returned as it is. It
 	// speaks the contract's types only; see StepDriver (0074-MADR D6).
 	Driver StepDriver
+	// ConsentText maps a consent id, such as openai.ConsentBackgroundUse, to
+	// the app's own wording for it, which the sign-in's question shows in
+	// place of the method's default; a consent with no entry uses the
+	// default (0075-MADR D4).
+	ConsentText map[string]string
 	// SkipMethods leaves these sign-in methods out of every provider's menu,
 	// after TokenStore and AgentName filter it. A provider it leaves with no
 	// method, its API key included, is an error (0056-MADR D4).

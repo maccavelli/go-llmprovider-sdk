@@ -73,7 +73,7 @@ func TestResolveCredential_ChatGPTPlan_0056(t *testing.T) {
 		return planSessionFor("oaiapp_0056"), nil
 	})
 	store := newMemoryTokenStore()
-	f := newFake(t, fakePrompter{selects: []int{planMethodIdx(t)}, confirms: []bool{true}})
+	f := newFake(t, fakePrompter{selects: []int{planMethodIdx(t), 0}})
 	res, _, err := ResolveCredential(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp},
 		llmprovider.ProviderOpenAI)
 	if err != nil {
@@ -85,9 +85,9 @@ func TestResolveCredential_ChatGPTPlan_0056(t *testing.T) {
 	if saved := store.sessions[llmprovider.ProviderOpenAI]; saved == nil || !saved.PlanUsage() {
 		t.Errorf("saved %v; want the plan session", saved)
 	}
-	if len(f.seenConfirm) != 1 || !strings.Contains(f.seenConfirm[0], "You're using your ChatGPT plan") ||
-		!strings.Contains(f.seenConfirm[0], openai.ChatGPTUsageURL) {
-		t.Errorf("confirms %q; want OpenAI's notice with the usage page", f.seenConfirm)
+	if len(f.seenSelect) != 2 || !strings.Contains(f.seenSelect[1], "You're using your ChatGPT plan") ||
+		!strings.Contains(f.seenSelect[1], openai.ChatGPTUsageURL) {
+		t.Errorf("selects %q; want OpenAI's notice with the usage page", f.seenSelect)
 	}
 	if len(f.seenInput) != 0 {
 		t.Errorf("inputs %q; want none, no model id asked", f.seenInput)

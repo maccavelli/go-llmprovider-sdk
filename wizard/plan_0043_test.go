@@ -104,9 +104,8 @@ func TestPlan_FirstSignIn_0043(t *testing.T) {
 	})
 	store := newMemoryTokenStore()
 	f := newFake(t, fakePrompter{
-		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t)},
-		confirms: []bool{true},
-		inputs:   []string{"gpt-6.1-sol"},
+		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0},
+		inputs:  []string{"gpt-6.1-sol"},
 	})
 	res, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp, HTTPClient: client})
 	if err != nil {
@@ -119,9 +118,9 @@ func TestPlan_FirstSignIn_0043(t *testing.T) {
 	if saved == nil || !saved.PlanUsage() || saved.ClientID != "oaiapp_first" || saved.Store != store {
 		t.Errorf("saved %v; want the plan session, bound to the store", saved)
 	}
-	if len(f.seenConfirm) != 1 || !strings.Contains(f.seenConfirm[0], "You're using your ChatGPT plan") ||
-		!strings.Contains(f.seenConfirm[0], openai.ChatGPTUsageURL) {
-		t.Errorf("confirms %q; want OpenAI's notice with the usage page", f.seenConfirm)
+	if len(f.seenSelect) != 3 || !strings.Contains(f.seenSelect[2], "You're using your ChatGPT plan") ||
+		!strings.Contains(f.seenSelect[2], openai.ChatGPTUsageURL) {
+		t.Errorf("selects %q; want OpenAI's notice with the usage page", f.seenSelect)
 	}
 	if !slices.Contains(f.seenNotify, pasteURLInstruction) || slices.Contains(f.seenNotify, pasteCodeInstruction) {
 		t.Errorf("notices %q; want the paste instruction to ask for the URL", f.seenNotify)
@@ -151,8 +150,7 @@ func TestPlan_NoticeDeclined_0043(t *testing.T) {
 	})
 	store := newMemoryTokenStore()
 	f := newFake(t, fakePrompter{
-		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t)},
-		confirms: []bool{false},
+		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 2},
 	})
 	_, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp})
 	if err == nil || !strings.Contains(err.Error(), "declined") || *calls != 0 || store.saves != 0 {
@@ -174,7 +172,9 @@ func TestPlan_ReSignIn_0043(t *testing.T) {
 		return planSessionFor("oaiapp_prev"), nil
 	})
 	store := newMemoryTokenStore()
-	store.sessions[llmprovider.ProviderOpenAI] = planSessionFor("oaiapp_prev")
+	previous := planSessionFor("oaiapp_prev")
+	previous.Consents = "chatgpt_plan.background_use=granted"
+	store.sessions[llmprovider.ProviderOpenAI] = previous
 	f := newFake(t, fakePrompter{
 		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t)},
 		inputs:  []string{"gpt-6.1-sol"},
@@ -203,9 +203,8 @@ func TestPlan_ReplacesCodexSession_0043(t *testing.T) {
 	store := newMemoryTokenStore()
 	store.sessions[llmprovider.ProviderOpenAI] = testOAuthSession(llmprovider.ProviderOpenAI)
 	f := newFake(t, fakePrompter{
-		selects:  []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t)},
-		confirms: []bool{true},
-		inputs:   []string{"gpt-6.1-sol"},
+		selects: []int{providerIdx(t, llmprovider.ProviderOpenAI), planMethodIdx(t), 0},
+		inputs:  []string{"gpt-6.1-sol"},
 	})
 	if _, err := ConfigureLLM(context.Background(), f, Options{TokenStore: store, AgentName: planTestApp}); err != nil {
 		t.Fatal(err)

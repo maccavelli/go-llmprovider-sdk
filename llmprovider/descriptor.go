@@ -77,4 +77,14 @@ type AuthMethod struct {
 	Refreshable bool
 	// Revocable reports that a logout revokes the credential at the issuer.
 	Revocable bool
+	// Consent is the id of the consent the method's sign-in asks the person
+	// before it starts, such as "chatgpt_plan.background_use"; empty when it
+	// asks none (0075-MADR D1).
+	Consent string
+	// ConsentText is the default wording of that consent, the notice and the
+	// question in one. An app may show its own.
+	ConsentText string
+	// ConsentURL is a page the wording links, where the account's usage is
+	// shown.
+	ConsentURL string
 }

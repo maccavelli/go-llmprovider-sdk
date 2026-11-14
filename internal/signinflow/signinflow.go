@@ -10,6 +10,7 @@
 package signinflow
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -116,6 +117,9 @@ type Spec struct {
 	// First reports a first sign-in, for which the method's FirstPaste, when
 	// set, says what a paste may be.
 	First bool
+	// ConsentText maps a consent id to the app's own wording, which the
+	// confirm step shows in place of the method's text (0075-MADR D4).
+	ConsentText map[string]string
 	// NoPaste leaves out the paste step: the loopback alone completes a
 	// browser sign-in.
 	NoPaste bool
@@ -382,6 +386,13 @@ func (r *Run) runBrowser(ctx context.Context, spec Spec) (Result, error) {
 			accepts = spec.Method.FirstPaste
 		}
 	}
+	var answered []consentAnswer
+	if spec.Mode == ModePlan {
+		var err error
+		if answered, err = r.askConsents(ctx, spec); err != nil {
+			return Result{}, err
+		}
+	}
 	opened := make(chan string, 1)
 	openURL := func(authorizeURL string) error {
 		r.emit(authcontract.Step{Kind: authcontract.StepOpenURL, URL: authorizeURL, Accepts: accepts}, false)
@@ -413,7 +424,79 @@ func (r *Run) runBrowser(ctx context.Context, spec Spec) (Result, error) {
 		opts.OpenURL, opts.InputCode, opts.NoLoopback = openURL, inputCode, spec.NoLoopback
 		session, err = spec.Logins.Browser(ctx, spec.Provider, opts)
 	}
+	if err == nil && session != nil {
+		err = putConsents(ctx, spec.Provider, session, answered)
+	}
 	return Result{Session: session}, err
+}
+
+// consentAnswer is the answer to one consent: asked, or carried from the
+// plan session the sign-in is to.
+type consentAnswer struct {
+	id      string
+	granted bool
+}
+
+// askConsents asks each consent of the method, as a confirm step, before the
+// login starts, unless the session being signed in to again already holds an
+// answer to it, which is carried instead. The answers go on the session the
+// login returns, and nowhere before: a sign-in that fails records none
+// (0075-MADR D4). A consent defaults to no, and an answer that gives none is
+// a no.
+func (r *Run) askConsents(ctx context.Context, spec Spec) ([]consentAnswer, error) {
+	var answers []consentAnswer
+	for _, consent := range spec.Method.Consents {
+		if previous := spec.Plan.Previous; previous != nil {
+			if granted, answered := previous.Consent(consent.ID); answered {
+				answers = append(answers, consentAnswer{consent.ID, granted})
+				continue
+			}
+		}
+		no := false
+		seq := r.emit(authcontract.Step{Kind: authcontract.StepConfirm, ConfirmID: consent.ID,
+			Text: cmp.Or(spec.ConsentText[consent.ID], consent.Text), Default: &no, Links: consent.Links}, true)
+		replies := r.answers(seq)
+		if replies == nil {
+			return nil, fmt.Errorf("%w: signinflow: the sign-in has ended", llmprovider.ErrInvalidRequest)
+		}
+		select {
+		case reply := <-replies:
+			answers = append(answers, consentAnswer{consent.ID, reply.Confirm != nil && *reply.Confirm})
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return answers, nil
+}
+
+// answerStore is the one session auth.SetConsent writes the answers into, so
+// that the entries' format is auth's alone.
+type answerStore struct{ consents string }
+
+func (s *answerStore) Load(context.Context, llmprovider.ProviderID) (*auth.OAuthSession, error) {
+	return &auth.OAuthSession{Consents: s.consents}, nil
+}
+
+func (s *answerStore) Save(_ context.Context, _ llmprovider.ProviderID, session *auth.OAuthSession) error {
+	s.consents = session.Consents
+	return nil
+}
+
+func (s *answerStore) Delete(context.Context, llmprovider.ProviderID) error { return nil }
+
+// putConsents records answers on the session a sign-in returned.
+func putConsents(ctx context.Context, provider llmprovider.ProviderID, session *auth.OAuthSession, answers []consentAnswer) error {
+	if len(answers) == 0 {
+		return nil
+	}
+	store := &answerStore{}
+	for _, answer := range answers {
+		if err := auth.SetConsent(ctx, store, provider, answer.id, answer.granted); err != nil {
+			return err
+		}
+	}
+	session.Consents = store.consents
+	return nil
 }
 
 // askPaste asks for the callback until one passes the checks of D4 or the

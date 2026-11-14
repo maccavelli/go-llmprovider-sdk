@@ -126,6 +126,13 @@ record decides how.
 | C50 | its notice before the browser kept | `gobble-cli:docs/decisions/0031-MADR-sdk-current-releases-and-adoption.md:435` | `("a notice at sign-in, before the browser opens") stands; the notice is now the` |
 | C51 | gobble's 0025-MADR D6 | `gobble-cli:docs/decisions/0025-MADR-provider-choice-and-auth.md:224` | `` a stable `HostID` in the state directory `` |
 
+*(2026-11-13, a note on C9, which stays pinned to `773b84c` and is not
+rewritten: 0074-PLAN Phase 5 moved the wizard's plan sign-in onto the step
+engine, so the call C9 quotes no longer exists. The wizard now builds the
+plan's options inside the engine's spec, `Plan: auth.ChatGPTPlanOptions{...}`,
+at `wizard/auth.go:298` (HEAD `f64134d`), and still asks the notice C5 and
+C21 quote itself, before that call. No decision changes.)*
+
 ## Decision Drivers
 
 * **The owner's decisions of 2026-11-10:**

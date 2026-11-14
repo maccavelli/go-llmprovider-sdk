@@ -33,6 +33,10 @@ type Options struct {
 	// Previous is a plan session to sign in to again; chatgpt_plan only. A
 	// first sign-in, with none, takes the method's FirstPaste.
 	Previous *auth.OAuthSession
+	// ConsentText maps a consent id to the app's own wording for it, which
+	// the sign-in's confirm step shows in place of the method's default
+	// text; a consent with no entry uses the default (0075-MADR D4).
+	ConsentText map[string]string
 	// NoPaste leaves out the paste step: the loopback alone completes a
 	// browser sign-in.
 	NoPaste bool
@@ -73,6 +77,11 @@ const (
 	factImportKind   = string(authcontract.KindVendorImport)
 	factLocalFile    = string(authcontract.CompletionLocalFile)
 	factReadThrough  = string(authcontract.YieldsReadThrough)
+	factConsent      = "chatgpt_plan.background_use"
+	factConsentURL   = "https://chatgpt.com/settings/usage"
+	factConsentText  = "You're using your ChatGPT plan: this app's requests count toward its usage, " +
+		"which you can manage on the usage page. " +
+		"Allow this app to also use your plan for background requests it starts on its own?"
 )
 
 // browserFacts, deviceFacts and importFacts build the rows below.
@@ -106,7 +115,8 @@ var driven = map[pair]drive{
 		Detail: "Sign in with ChatGPT for agents; usage counts toward your plan",
 		Kind:   factBrowser, Completion: factPaste, Paste: factURLOrCode,
 		FirstPaste: string(authcontract.PasteURLOnly), Yields: factOAuthSession,
-		ClientIdentity: string(authcontract.ClientAppRegistered), Slot: "openai", Refreshable: true, Revocable: true}},
+		ClientIdentity: string(authcontract.ClientAppRegistered), Slot: "openai", Refreshable: true, Revocable: true,
+		Consent: factConsent, ConsentText: factConsentText, ConsentURL: factConsentURL}},
 	{llmprovider.ProviderGrok, llmprovider.AuthBrowserOAuth}: {signinflow.ModeBrowser,
 		browserFacts("Sign in with xAI", "", "grok")},
 	{llmprovider.ProviderGrok, llmprovider.AuthDeviceCode}: {signinflow.ModeDevice,
@@ -162,13 +172,14 @@ func startWith(ctx context.Context, p llmprovider.ProviderID, m llmprovider.Auth
 	}
 	method := methodOf(d.method)
 	spec := signinflow.Spec{
-		Provider:   p,
-		Method:     method,
-		Mode:       d.mode,
-		First:      o.Previous == nil,
-		NoPaste:    o.NoPaste,
-		NoLoopback: o.NoLoopback,
-		Logins:     logins,
+		Provider:    p,
+		Method:      method,
+		Mode:        d.mode,
+		First:       o.Previous == nil,
+		NoPaste:     o.NoPaste,
+		NoLoopback:  o.NoLoopback,
+		ConsentText: o.ConsentText,
+		Logins:      logins,
 		Flow: auth.OAuthFlowOptions{HTTPClient: o.HTTPClient, ClientID: o.ClientID,
 			Issuer: o.Issuer, Identity: o.Identity},
 		Plan: auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: o.Previous,

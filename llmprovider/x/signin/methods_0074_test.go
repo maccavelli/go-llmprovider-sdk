@@ -117,6 +117,13 @@ func assertMethod(t *testing.T, id llmprovider.ProviderID, m authcontract.Method
 	if row.paste != "" {
 		want.Features = []authcontract.Feature{authcontract.FeaturePaste}
 	}
+	if row.id == "chatgpt_plan" {
+		usage := authcontract.Link{Rel: authcontract.LinkUsage, URL: planConsentURL0075}
+		want.Features = append(want.Features, authcontract.FeatureConsent)
+		want.Links = []authcontract.Link{usage}
+		want.Consents = []authcontract.Consent{{ID: planConsentID0075, Required: true, Text: planConsentText0075,
+			Links: []authcontract.Link{usage}}}
+	}
 	if !reflect.DeepEqual(m, want) {
 		t.Errorf("%s %s:\n got  %+v\n want %+v", id, row.id, m, want)
 	}
