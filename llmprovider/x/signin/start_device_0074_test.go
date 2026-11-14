@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -131,7 +132,7 @@ func TestStart_NoLoopbackDevice_0074(t *testing.T) {
 func TestStart_Cancel_0074(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		fake := &fakeIssuer{kiloPoll: []int{202}}
-		before := runtime.NumGoroutine()
+		before := bubbleGoroutines(t)
 		run, err := Start(background(), llmprovider.ProviderKilo, llmprovider.AuthDeviceCode,
 			Options{HTTPClient: fake.client(), Issuer: fakeKilo})
 		if err != nil {
@@ -160,8 +161,8 @@ func TestStart_Cancel_0074(t *testing.T) {
 		}
 		run.Cancel()
 		synctest.Wait()
-		if after := runtime.NumGoroutine(); after != before {
-			t.Errorf("%d goroutines after the sign-in, %d before", after, before)
+		if after := bubbleGoroutines(t); after != before {
+			t.Errorf("%d goroutines in the bubble after the sign-in, %d before", after, before)
 		}
 	})
 }
@@ -245,4 +246,36 @@ func TestErrorKindOf_DeviceFailures_0074(t *testing.T) {
 			})
 		})
 	}
+}
+
+// bubbleHeader is the header of a goroutine in a synctest bubble in a dump of
+// every goroutine: "goroutine 7 [select, synctest bubble 3]:".
+var bubbleHeader = regexp.MustCompile(`(?m)^goroutine \d+ \[[^\]]*synctest bubble (\d+)\]:$`)
+
+// bubbleGoroutines counts the goroutines of the caller's synctest bubble,
+// read from a dump of every goroutine, whose first is the caller's, so that
+// a goroutine of another test, still ending, is not counted.
+func bubbleGoroutines(t *testing.T) int {
+	t.Helper()
+	buf := make([]byte, 1<<16)
+	for {
+		n := runtime.Stack(buf, true)
+		if n < len(buf) {
+			buf = buf[:n]
+			break
+		}
+		buf = make([]byte, 2*len(buf))
+	}
+	headers := bubbleHeader.FindAllSubmatchIndex(buf, -1)
+	if len(headers) == 0 || headers[0][0] != 0 {
+		t.Fatal("the caller is not in a synctest bubble")
+	}
+	own := string(buf[headers[0][2]:headers[0][3]])
+	count := 0
+	for _, h := range headers {
+		if string(buf[h[2]:h[3]]) == own {
+			count++
+		}
+	}
+	return count
 }

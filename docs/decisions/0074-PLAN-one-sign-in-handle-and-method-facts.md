@@ -477,7 +477,7 @@ owner's run is recorded with its outcome.
 | `TestSessionKindsMatchContract_0074` *(added 2026-11-11, the owner's ruling on session-kind labels; 0073-MADR's amendment of that day)* | in `llmprovider/x/signin`, which imports both `auth` and `authcontract`: a table copied from 0073-MADR's amendment, one row per value (`chatgpt`, `chatgpt_plan`, `grok`, `kilo_device`), pairs each `auth` constant with the `authcontract` constant of the same name, and each pair's strings equal the row's value; the `SessionKind` constants that `go/parser` finds in `llmprovider/auth`'s non-test files are exactly the table's `auth` column. The contract's side is held to the same table by 0073-PLAN's `TestSessionKindValues_0073` | `auth.SessionKiloDevice` respelled `"kilo-device"`; a fifth constant, `SessionPlanted SessionKind = "planted"`, added to `llmprovider/auth/tokenstore.go` |
 | `TestStart_Answers_0074` | an answer to another `Seq`, to each non-asking step (`open_url`, with and without `accepts`, `show_code`, `waiting`), a second answer to an answered step, or one after the end is `ErrInvalidRequest`; a browser sign-in's paste, sent for the `paste` step's `Seq`, completes it | `Answer` ignores `Seq`; an answer for the `open_url` step's `Seq` taken as the paste |
 | `TestStart_PasteIsSecret_0074` | every `paste` step has `Secret` true; an answer sent with `Secret` a non-nil false to a `paste` step is masked in the engine's log, because the engine sets `Secret` from its own step (0073-MADR D6 rule 5) | the engine keeps the caller's `Secret` |
-| `TestStart_Cancel_0074` | `Cancel` during `waiting` ends with `failed` `canceled`, and `Wait`'s error matches `context.Canceled`; no goroutine is left (checked with a goroutine count before and after) | `Cancel` does not stop the poll |
+| `TestStart_Cancel_0074` | `Cancel` during `waiting` ends with `failed` `canceled`, and `Wait`'s error matches `context.Canceled`; no goroutine is left (checked with a goroutine count before and after; *2026-11-13: the count of the test's own `synctest` bubble, "Deviation (2026-11-13): two flaky tests root-caused"*) | `Cancel` does not stop the poll |
 | `TestStart_VendorImport_0074` | a fixture Codex `auth.json` under a temporary `CODEX_HOME` gives `done` and a `ReadThrough` | `LookupEnv` ignored |
 | `TestStart_Unsupported_0074` | `api_key`, `token_stdin` and an unknown pair are `ErrUnsupported` | `api_key` started |
 | `TestErrorKindOf_0074` | every row of 0073-MADR D3, by its sentinel, in order: `ErrQuotaExhausted` is `quota` not `rate_limited`, `ErrOffline` is `offline` not `unavailable`, `ErrEmptyAnswer` is `empty_answer` not `incomplete`, `ErrSignInExpired` is `expired` not `auth`; the OpenAI device poll's own 15-minute deadline, reached with a stepped clock as 0076-PLAN's `TestOpenAIDeviceExpiryKind_0076` reaches it, is `expired` | `rate_limited` tested before `quota`; `auth` before `expired`; the poll's deadline returning 0076's plain error again (MADR C51), which maps to `other` |
@@ -2139,3 +2139,166 @@ against the code.
 * **Provenance.** Mainstream model, medium effort. Outcome: Phase 6 done
   except step 5, which the owner ruled into Phase 7 step 1 on 2026-11-13
   (see "Phase 6, deviation"); staged for the coordinator to commit.
+
+### Deviation (2026-11-13): two flaky tests root-caused
+
+Found by 0075 Phase 2's first gate run (its PLAN, "Phase 2"): `test-shuffle`
+failed on `TestStart_Cancel_0074` and on
+`TestDriver_OwnErrorGetsNoTerminal_0074/show_code`. The owner's ruling
+"Root-cause first, then commit": each was traced, on scratch clones at
+`f64134d` and at `f64134d` with 0075 Phase 2's staged diff, before any fix was
+chosen. Both predate 0075 Phase 2.
+
+* **Flake 1, `TestStart_Cancel_0074`: test isolation, not a leak.**
+  * **Failure.** `start_device_0074_test.go:164: 4 goroutines after the
+    sign-in, 5 before`, always one fewer after, never more. The test runs in
+    a `synctest` bubble but compares `runtime.NumGoroutine()`
+    (`start_device_0074_test.go:134`, `:163`), the count of the whole
+    process.
+  * **The straggler.** A goroutine dump taken before and after the count, on
+    an instrumented copy, shows one goroutine of the previous test, alive
+    at `before` and gone at `after`:
+
+    ```text
+    goroutine 691 [runnable]:
+    internal/signinflow.(*Run).askPaste             signinflow.go:433
+    internal/signinflow.(*Run).runBrowser.func2     signinflow.go:399
+    llmprovider/x/signin.(*loginProbe).run.func1    probe_0074_test.go:72
+    created by llmprovider/x/signin.(*loginProbe).run in goroutine 690   probe_0074_test.go:71
+    ```
+
+    It is the test fake's paste read: `loginProbe.run` starts `inputCode` on
+    a goroutine it does not join, as `auth.runBrowserLogin` does
+    (`oauth_loopback.go:229`). The interleaving: the previous test closes
+    `probe.release`; the probe returns and cancels the read's context;
+    `Wait` returns and that test ends; `TestStart_Cancel_0074` reads
+    `before`, counting the read still unwinding; the read returns; `after`
+    is one lower. A few failures showed no straggler in the dump, or one at
+    `runtime.goexit1`: a goroutine outside the bubble that ended between
+    the count and the dump. A count of the whole process is unsound
+    whatever the sign-in does.
+  * **Which test leaves it.** Each top-level test run 200 times directly
+    before `TestStart_Cancel_0074` (`-count` alternates the two): only
+    `TestStart_PlanSteps_0074`, whose last subtest ends with its paste read
+    pending, fails at a measurable rate. Unshuffled, the device tests run
+    between the browser tests and this one, which gives the read time to
+    end.
+  * **No leak.** Scratch tests: 200 loopback-won sign-ins in one bubble
+    leave at most one goroutine right after `Wait`, none once the bubble is
+    idle; 1,000 outside a bubble peak at two and return to the baseline in
+    about 120 µs. The read outlives `Wait` by microseconds and does not
+    accumulate.
+  * **Before 0075 Phase 2.** `TestStart_PlanSteps_0074` then
+    `TestStart_Cancel_0074`, ten processes of 200, uninstrumented: 444 of
+    2,000 failed at `f64134d`, 386 of 2,000 with 0075 Phase 2. 0075 Phase
+    2's reading, that its tests made the flake likelier, is not borne out.
+* **Flake 2, `TestDriver_OwnErrorGetsNoTerminal_0074/show_code`: a product
+  defect.**
+  * **Failure.** `driver_terminal_0074_test.go:151: the Driver was handed
+    [{SchemaVersion:1 Seq:3 Kind:failed ...}] after its own error; want no
+    terminal step`. The error returned stays the `Driver`'s in every run.
+  * **Cause.** `wizard/driver.go:110-116`, from Phase 5 (`a0012db`), hands
+    the `Driver`'s `show_code` error to the device login (`r.verdict <- err`)
+    before it records it (`fail(err)`), and `fail` records only while
+    `stepCtx` is live (`driver.go:93`). The interleaving: the renderer sends
+    the verdict; the login's goroutine in `deviceFlowFor`
+    (`wizard/device.go:93-103`) wakes, its `show` returns the error, it
+    sends `done`; the engine's `flow.Wait` returns and `finish` emits
+    `failed` #3 and closes `done`; the `Wait` goroutine
+    (`driver.go:80-82`) calls `stop()`, ending `stepCtx`; then the
+    renderer's `fail` finds `stepCtx` ended and records nothing, so the
+    terminal step is handed to the `Driver`. That breaks 0074-MADR D6's
+    ruling "No final step after its own error". Phase 5's Deviation 2 named
+    this route a race; it was not closed. The `open_url`, `paste` and
+    `confirm` paths cannot race: the sign-in waits on the renderer there.
+  * **Counts,** `-race -count=150 -cpu 1,2` on the subtest. Twelve
+    processes at once, eleven rounds, on darwin/arm64: 10 of 132
+    processes failed, 10 of 39,600 `show_code` runs; one process at a time,
+    0 of 6 there and 0 of 6 on linux/amd64 (WSL Ubuntu-24.04).
+    It needs contention, as in the gate. A 20 ms sleep planted between the
+    send and `fail`: 1,800 of 1,800 `show_code` runs failed on each host.
+* **The owner's rulings (2026-11-13), verbatim.**
+  * Q1, the count: "Count only its own test scope".
+  * Q2, 0075 Phase 2's `settleGoroutines`: "Remove it, correct the entry".
+  * Q3, where flake 2's fix is recorded: "0074 deviation, own commit first".
+  * Q4, a stronger regression test: "Add the ordering check".
+* **Resolution.**
+  * `wizard/driver.go`: `fail(err)` before the verdict is sent, so the
+    failure is recorded, and the run cancelled, before anything can end the
+    sign-in.
+  * `llmprovider/x/signin/start_device_0074_test.go`: `bubbleGoroutines(t)`
+    counts the goroutines of the caller's `synctest` bubble from a dump of
+    every goroutine (`runtime.Stack`), and calls `t.Fatal` if the caller is
+    in no bubble. The row of `TestStart_Cancel_0074` in Phase 4's table
+    ("checked with a goroutine count before and after") now means the
+    bubble's count.
+  * `wizard/driver_order_0074_test.go`, new:
+    `TestDriver_ShowErrorRecordedFirst_0074`, a login whose `show` reports
+    whether the sign-in was still live when it heard the `Driver`'s error.
+* **Files added to scope:** `wizard/driver.go`,
+  `llmprovider/x/signin/start_device_0074_test.go`,
+  `wizard/driver_order_0074_test.go`, and this record and 0074-MADR's D6
+  note. Landed in its own commit, before 0075 Phase 2's.
+* **Not done here.** 0075 Phase 2's `settleGoroutines`
+  (`llmprovider/x/signin/signin_0075_test.go`) is removed under 0075, by
+  ruling Q2, and that PLAN's claim that its tests made the flake likelier is
+  corrected there.
+
+### The deviation's fix (2026-11-13)
+
+Base: `f64134d`, on a scratch clone, not the working tree, which held 0075
+Phase 2's staged work. The deviation above was recorded first, then the code.
+
+* **Built.**
+  * `wizard/driver.go`: on `show_code`, `fail(err)` before
+    `r.verdict <- err`.
+  * `llmprovider/x/signin/start_device_0074_test.go`: `before` and `after`
+    by `bubbleGoroutines(t)`.
+  * `wizard/driver_order_0074_test.go`:
+    `TestDriver_ShowErrorRecordedFirst_0074`, 1,000 device sign-ins whose
+    `Driver` fails `show_code`; each must return the `Driver`'s error, hand
+    it no terminal step, and end the sign-in before the login hears the
+    error.
+* **Plants,** each on a further scratch copy, each caught:
+  * the old order restored: `driver_order_0074_test.go:52: sign-in 236: the
+    login heard the Driver's error while the sign-in was still live`; 8 of
+    10 runs of the new test failed, and 10 of 10 under `-race`;
+  * the old order with a 20 ms sleep before `fail`: the new test,
+    `driver_order_0074_test.go:52: sign-in 0: the login heard the Driver's
+    error while the sign-in was still live`; the `show_code` subtest,
+    `driver_terminal_0074_test.go:151: the Driver was handed [{SchemaVersion:1
+    Seq:3 Kind:failed ...}] after its own error; want no terminal step`;
+  * a goroutine planted in `signinflow.(*Run).Cancel` that sleeps an hour:
+    `start_device_0074_test.go:165: 5 goroutines in the bubble after the
+    sign-in, 3 before`;
+  * the bubble filter removed (`bubbleGoroutines` returning
+    `runtime.NumGoroutine()`): the pair check below failed 451 of 2,000,
+    `start_device_0074_test.go:165: 4 goroutines in the bubble after the
+    sign-in, 5 before`.
+* **Checks,** each exit status captured before any filter:
+  * `make pre-add-check` with `FILES` the three Go files above: exit 0,
+    `go-precheck: 3 file(s) clean`.
+  * `make api-check`: exit 0, `0 incompatible change(s) outside
+    llmprovider/x/`. `make tables-check`: exit 0, `47 packages, 0
+    problem(s)`. `make docs-check`: exit 0, `0 violation(s) of R50,R51,R52`.
+  * The pair check, `TestStart_PlanSteps_0074` then `TestStart_Cancel_0074`,
+    ten processes of `-count=200`: 0 of 2,000 (444 of 2,000 at `f64134d`).
+  * `-race -count=150 -cpu 1,2` on the `show_code` subtest, twelve processes
+    at once, eleven rounds: 0 of 132 processes, 0 of 39,600 runs (10 of
+    39,600 at `f64134d`). The new test under `-race`, `-count=10`: exit 0.
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, after
+    the last code change: 22:18:58 to 22:39:33 (1,235 s), exit 0, `gate:
+    30 of 30 passed`.
+  * After this entry: `tools/claims.py` on the 0074 pair,
+    `make records-check links-check disclosure-check`,
+    `tools/denyscan.py --changed` and `tools/recordlint.py --changed`,
+    each exit 0.
+* **Provenance.** Strongest model, high effort. Root cause: flake 1, a
+  count of the whole process's goroutines that another test's paste read,
+  still ending, moves; flake 2, a `show_code` error handed to the login
+  before it was recorded. Fix: the bubble's count, and the error recorded
+  first, with an ordering test. Escalated to the owner with four questions,
+  ruled 2026-11-13: "Count only its own test scope", "Remove it, correct
+  the entry", "0074 deviation, own commit first", "Add the ordering check".
+  Delivered as a patch on `f64134d` for the coordinator to commit before
+  0075 Phase 2's commit.

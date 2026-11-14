@@ -108,11 +108,13 @@ func (r *stepRenderer) run(ctx context.Context, spec signinflow.Spec) (signinflo
 				continue // a login that showed no code
 			}
 			err := r.showCode(stepCtx, step)
-			if r.verdict != nil {
-				r.verdict <- err
-			}
+			// Recorded before the login hears it, so that the login's own
+			// end cannot end the sign-in first (0074-MADR D6).
 			if err != nil {
 				fail(err)
+			}
+			if r.verdict != nil {
+				r.verdict <- err
 			}
 		case authcontract.StepPaste:
 			pastes++

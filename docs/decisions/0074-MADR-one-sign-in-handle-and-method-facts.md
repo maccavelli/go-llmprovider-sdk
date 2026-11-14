@@ -683,6 +683,9 @@ type Credential interface {
     handed exactly one, last: `done` carries the method's `Yields`, `failed`
     carries `ErrorKindOf`'s kind through the engine's mapping, a caller's
     `ctx` ending and the engine's own failures included.
+    *(2026-11-13: Phase 5's build broke this on a race for a `show_code`
+    error, handing the `Driver` `failed`; fixed under the PLAN's "Deviation
+    (2026-11-13): two flaky tests root-caused".)*
   * *Ruling "Keep the credential, warn".* An error the `Driver` returns when
     handed `done` leaves the sign-in's result standing, and becomes one
     warning notice through the `Prompter`; its `Answer` is ignored.
