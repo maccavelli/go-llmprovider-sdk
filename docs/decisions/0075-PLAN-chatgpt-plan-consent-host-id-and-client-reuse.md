@@ -442,3 +442,32 @@ MADR and approved this PLAN.
   Phases 2, 4 and 5, and that PLAN's Phase 1 waits for a passing `ci.yml`
   run on `main` after
   [0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md](0078-MADR-cached-metadata-refusal-test-uses-a-refused-option.md).
+
+### Phase 0, completed (2026-11-13)
+
+* Step 3: done. `0043-MADR-openai-chatgpt-plan-sign-in.md` gains A5, a dated
+  amendment appended after A4, quoting D8, D7 and D3 as they stood and the
+  struct of D4, and saying how 0075-MADR amends or refines each (D3 kept and
+  refined). No existing line of that record changed, so the line numbers the
+  MADR cites (C2, C13, C23) hold.
+  `0017-REPORT-openai-sign-in-for-agents.md` gains a "Follow-up (2026-11-13)"
+  section appended after its earlier follow-up, noting that the open item "The
+  terms in a consumer" is answered in part by 0075-MADR. No existing line of
+  the report changed, so C1, C4, C8, C14 and C24 hold.
+* Step 4: these ran after the last edit to the two amended records, each
+  with its exit code captured before any filter:
+  * `run-heavy -- python3 -B tools/gate.py --markdown`: exit 0, started
+    2026-11-13T19:33:00-06:00 (it waited for the load to fall below 10),
+    finished 2026-11-13T19:47:12-06:00, `gate: 11 of 11 passed`; each of its
+    checks (parity, records, tables, changelog, markdownlint, links,
+    disclosure, gate-selftest, deny-scan, recordlint, claims) reported rc=0.
+  * `tools/claims.py` on the MADR: exit 0, `51 of 51 pass`; on this PLAN:
+    exit 0, `8 of 8 pass`.
+  * `make records-check links-check disclosure-check`: exit 0,
+    `links-check: 0 problem(s), 1299 relative link(s) in 180 file(s)` and
+    `disclosure-check: 0 hit(s) in 1622 file(s)`.
+  * `tools/denyscan.py --changed`: exit 0, `deny-scan: 0 hit(s) in 3 file(s)`.
+  * `tools/recordlint.py --changed`: exit 0,
+    `recordlint: 3 record(s); no rule rose`.
+* Provenance: mainstream model, medium effort; outcome, Phase 0 complete,
+  docs only; no escalation; the coordinator's brief had missed the open steps.

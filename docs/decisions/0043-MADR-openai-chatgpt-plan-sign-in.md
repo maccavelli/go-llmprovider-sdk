@@ -470,3 +470,29 @@ is removed in the same phase.
   * **Rejected:** folding the text into `instructions`, which loses where
     the message stood and changes what the caller asked for; and sending
     it for OpenAI to refuse with a 400, after a round trip, against R11.
+
+### A5. What 0075-MADR amends (2026-11-13)
+
+[0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md](0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md)
+was accepted on 2026-11-12 and amends four decisions here. Each is quoted as
+it stood; none is rewritten.
+
+* **D8** stood as: "The package doc of `auth`, and the README's login
+  section, say plainly that the SDK cannot meet these for the consumer:
+  requests from the user's own runtime, consent before background use,
+  "connected application only", no pooling, and no charge (terms §2 and §4).
+  No option claims to." **Amended** by 0075-MADR D8: the requirement of
+  consent, the question and its storage move into the SDK (0075-MADR D1 to
+  D4), with an opt-in enforcement (D5). The classification of background
+  requests, the wording and the gating stay the consumer's.
+* **D7** stood as: "Before the first plan sign-in, the wizard shows
+  OpenAI's one-time notice, "You're using your ChatGPT plan", and the usage
+  page." **Amended** by 0075-MADR D4: the notice becomes the method's default
+  `confirm` text, with the usage page as data; a "no" declines background
+  use, and a third choice declines the sign-in.
+* **D3** stood as: "`TokenStore` still keeps one session per provider. A
+  plan sign-in saved under `openai` replaces a Codex-id session there, and
+  the reverse; a person signs in with one of the two." **Kept**, and refined
+  by 0075-MADR D7: the issued client and the host id outlive the session.
+* **D4's struct** (`ChatGPTPlanOptions`): `HostID` and `Previous` stay;
+  `ClientID` is added by 0075-MADR D7.

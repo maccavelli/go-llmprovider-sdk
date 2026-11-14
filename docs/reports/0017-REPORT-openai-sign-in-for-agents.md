@@ -328,3 +328,14 @@ the decision on adoption, are
 amendment of 2026-10-17. They answer this report's "What remains open":
 pi's top-level tools are accepted; `max_output_tokens` is not refused;
 the listing is a `models` array; refresh rotates; and revocation holds.
+
+## Follow-up (2026-11-13)
+
+The open item "The terms in a consumer" (section 2's background-use consent)
+is answered in part by
+[0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md](../decisions/0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md),
+accepted on 2026-11-12: the SDK carries the consent as a method fact, asks
+it before the browser, keeps the answer on the session and, when the consumer
+marks a request as background, refuses it without the answer. Which requests
+are background, and the wording, stay the consumer's. This report's text
+above stands as written.
