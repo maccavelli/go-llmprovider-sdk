@@ -350,6 +350,12 @@ func (st *Settings) SessionID() string { return st.identity.Session }
 // what User-Agent leads with, and Kilo's editor name (MADR 0012 §1.4).
 func (st *Settings) ClientName() string { return st.identity.Name }
 
+// ClientVersion is the version WithClientInfo gave, or, when it gave none, the
+// version User-Agent shows: the main module's for a named application, this
+// module's for none. It is the version ClientName's application runs at (MADR
+// 0012 §1.4; 0079-MADR D4).
+func (st *Settings) ClientVersion() string { return st.identity.Version }
+
 // ModelProbes reports whether ListModels probes each listed model, as
 // WithModelProbes and ModelProbesFromEnv set it; true by default
 // (0016-MADR A5).

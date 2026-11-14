@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/compatdialect"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
@@ -290,6 +291,7 @@ func listingToken(ctx context.Context, src llmprovider.TokenSource, cfg config) 
 	if user, ok := src.(defaultClientUser); ok {
 		user.UseDefaultHTTPClient(cfg.HTTPClient)
 	}
+	nameSession(src, cfg)
 	token, err := src.Token(ctx)
 	if err != nil {
 		return llmprovider.Token{}, fmt.Errorf("model listing: acquire token: %w", err)
@@ -467,6 +469,26 @@ func undatedConstant(models map[string]ModelInfo) {
 		if m.Has(FieldReleased) {
 			models[id] = m.without(FieldReleased)
 		}
+	}
+}
+
+// identityUser is a source that names the application using it, such as
+// *auth.OAuthSession (0079-MADR D4).
+type identityUser interface {
+	UseIdentity(auth.Identity)
+}
+
+// nameSession gives src the application WithClientInfo named, when src takes
+// one and cfg names an application other than this module, so a refresh the
+// token read starts names it as the listing's requests do. A session that has
+// an identity keeps it (0079-MADR D2, D4). It is called before every read of
+// a source's token in this package that a refresh may answer.
+func nameSession(src llmprovider.TokenSource, cfg config) {
+	if cfg.clientName == transport.DefaultClientName {
+		return
+	}
+	if user, ok := src.(identityUser); ok {
+		user.UseIdentity(auth.Identity{Name: cfg.clientName, Version: cfg.clientVersion})
 	}
 }
 

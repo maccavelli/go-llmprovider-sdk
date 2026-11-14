@@ -366,7 +366,7 @@ func resolveKiloDevice(
 	session.Provider = d.ID
 	cred := oauthCredential(session)
 	cred.saveTo = o.TokenStore
-	var opts []llmprovider.Option
+	opts := o.identityOptions()
 	if baseURL != "" {
 		opts = append(opts, llmprovider.WithBaseURL(baseURL))
 	}

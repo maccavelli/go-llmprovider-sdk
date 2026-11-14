@@ -118,6 +118,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/chatgpt"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/deferral"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/responses"
@@ -289,6 +290,7 @@ func New(opts ...llmprovider.Option) (llmprovider.Provider, error) {
 	// client replaces a provider's default there, never another caller's,
 	// and the discarding default logger is not shared (0026-MADR F37).
 	shareHTTPClient(src, p.client, st.HTTPClientGiven())
+	shareIdentity(src, st)
 	if st.LoggerGiven() {
 		shareLogger(src, st.Logger())
 	}
@@ -652,6 +654,25 @@ func shareHTTPClient(src llmprovider.TokenSource, client *http.Client, given boo
 		user.UseHTTPClient(client)
 	default:
 		user.UseDefaultHTTPClient(client)
+	}
+}
+
+// identityUser is a session that names the application using it, such as
+// *auth.OAuthSession (0079-MADR D4).
+type identityUser interface {
+	UseIdentity(auth.Identity)
+}
+
+// shareIdentity gives src the application WithClientInfo named, when src takes
+// one and st names an application other than this module, so a refresh src
+// starts names it as the provider's requests do. A session that has an
+// identity keeps it (0079-MADR D2, D4).
+func shareIdentity(src llmprovider.TokenSource, st *llmprovider.Settings) {
+	if st.ClientName() == transport.DefaultClientName {
+		return
+	}
+	if user, ok := src.(identityUser); ok {
+		user.UseIdentity(auth.Identity{Name: st.ClientName(), Version: st.ClientVersion()})
 	}
 }
 

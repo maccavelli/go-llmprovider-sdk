@@ -83,6 +83,7 @@ func hasListingLayer(id llmprovider.ProviderID, cfg config) bool {
 // such as a nil *llmprovider.CommandToken held in a non-nil TokenSource,
 // gives no listing layer, as a nil one does, and is reported so, matching
 // llmprovider.ErrInvalidRequest (0050-MADR D4).
+// Before it asks src for its token, it gives a session WithClientInfo's name, as List does (0079-MADR D4).
 func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmprovider.TokenSource, model string,
 	opts ...llmprovider.Option) (ModelInfo, error) {
 	id, cfg, err := lookupConfig(provider, opts)
@@ -120,7 +121,9 @@ func LookupModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 // CachedModel is LookupModel without the wait: what the caches and the
 // caller's layers hold now, and whether anything is known of model. It starts
 // any fetch that is missing or stale, so a later call finds it. It asks src
-// for its token as the source gives it. A typed-nil src, such as a nil
+// for its token as the source gives it.
+// Before it asks src for its token, it gives a session WithClientInfo's name, as List does (0079-MADR D4).
+// A typed-nil src, such as a nil
 // *llmprovider.CommandToken held in a non-nil TokenSource, is no source: no
 // listing is read, and no fetch started (0050-MADR D4).
 func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmprovider.TokenSource, model string,
@@ -135,6 +138,7 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 		dev, devOK = m.modelFor(cfg, id, model)
 	}
 	if src != nil && !nilsource.Is(src) && hasListingLayer(id, cfg) {
+		nameSession(src, cfg)
 		if token, err := src.Token(ctx); err == nil {
 			key := listingKeyFor(id, cfg, token)
 			models, fresh := cfg.store.cachedListing(key)
@@ -159,6 +163,7 @@ func CachedModel(ctx context.Context, provider llmprovider.ProviderID, src llmpr
 // credential opts give for its token, to find the listing: a provider passes
 // its request's own token, as WithAPIKey(token.Value) after its options, so
 // that its token source is not asked a second time.
+// Before it asks the credential opts give for its token, it gives a session WithClientInfo's name, as List does (0079-MADR D4).
 func CachedFacts(ctx context.Context, provider llmprovider.ProviderID, model string, opts ...llmprovider.Option) (ModelInfo,
 	bool) {
 	id, cfg, err := lookupConfig(provider, opts)
@@ -171,6 +176,7 @@ func CachedFacts(ctx context.Context, provider llmprovider.ProviderID, model str
 		dev, devOK = m.modelFor(cfg, id, model)
 	}
 	if cfg.tokens != nil && hasListingLayer(id, cfg) {
+		nameSession(cfg.tokens, cfg)
 		if token, err := cfg.tokens.Token(ctx); err == nil {
 			models, _ := cfg.store.cachedListing(listingKeyFor(id, cfg, token))
 			lst, lstOK = models[model]
@@ -184,6 +190,7 @@ func CachedFacts(ctx context.Context, provider llmprovider.ProviderID, model str
 // the cache while it is fresh.
 func listingModel(ctx context.Context, id llmprovider.ProviderID, src llmprovider.TokenSource, model string,
 	cfg config) (ModelInfo, bool, error) {
+	nameSession(src, cfg)
 	token, err := src.Token(ctx)
 	if err != nil {
 		return ModelInfo{}, false, fmt.Errorf("acquire token: %w", err)

@@ -273,6 +273,10 @@ PLAN's Phase 5. O1 follows from ruling 2. The owner accepted this record on
   hand-off", under More Information. The bullets above are unchanged.)*
   *(2026-11-12, later: and in `CachedFacts`, by the owner's ruling "Same
   fix".)*
+  *(2026-11-13, found in Phase 3: `catalog` now imports `auth`, for
+  `UseIdentity`'s parameter type, and `grok` imports `internal/transport`,
+  for the default name. The import tables follow; see the PLAN's deviation
+  entry.)*
 
 ### D5. The wizard names its own requests and its logout
 
@@ -442,6 +446,10 @@ Phase 8's `v1.31.0`, with 0075, after its owner-run probe (ruling 2).
 * Neutral, because it adds no exported name.
 * Bad, because `Identity`'s meaning widens from "the sign-ins" to "the
   wizard's requests", which its doc and the README must say.
+* *(2026-11-13, the owner's ruling "Include `listerFor` in Phase 3":
+  "all wizard requests" includes the provider `listerFor` builds to list a
+  ChatGPT session; it takes the identity option first, before
+  `ProviderOptions`, as the other three do.)*
 
 ### W2. The logout only
 

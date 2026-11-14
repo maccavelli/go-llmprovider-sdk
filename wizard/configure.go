@@ -141,7 +141,13 @@ type Options struct {
 	// plan sign-ins, Kilo's included, as auth.Identity says. The zero value
 	// names this module. The wizard sets no OAuth client id and no issuer
 	// on a sign-in, so auth.GrokFlowFromEnv's values do not reach one
-	// (0076-MADR D4).
+	// (0076-MADR D4). With a Name, the wizard also names the application on
+	// the requests it makes itself, as llmprovider.WithClientInfo(Name,
+	// Version) put before ProviderOptions, so that a WithClientInfo there
+	// wins: the model listing, the Kilo profile and the Ollama endpoint
+	// check. Logout gives a stored session this identity before it revokes
+	// it, so the revocation, and the discovery before it, name the
+	// application (0079-MADR D5).
 	Identity auth.Identity
 	// KiloDeviceKey takes Kilo's device sign-in as a key, for a consumer that
 	// stores keys rather than sessions: the sign-in returns CredAPIKey with the
@@ -553,6 +559,17 @@ func selectableDescriptors(reg *llmprovider.Registry, allow []llmprovider.Provid
 	return out, missing, nil
 }
 
+// identityOptions is llmprovider.WithClientInfo for Options.Identity when it
+// has a Name, else none: the first of the options for a request the wizard
+// makes itself, so a WithClientInfo in ProviderOptions, which comes later,
+// wins (0079-MADR D5).
+func (o Options) identityOptions() []llmprovider.Option {
+	if o.Identity.Name == "" {
+		return nil
+	}
+	return []llmprovider.Option{llmprovider.WithClientInfo(o.Identity.Name, o.Identity.Version)}
+}
+
 // resolveBaseURL prompts for an endpoint when the provider supports one. A
 // local provider is validated for reachability, with the caller's client
 // and identity, and re-prompted on failure until ctx ends (0020-MADR F6). A
@@ -567,7 +584,7 @@ func resolveBaseURL(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		def = o.Existing.BaseURL
 	}
 	needsURL := d.DefaultBaseURL == "" && !d.IsLocal
-	var check []llmprovider.Option
+	check := o.identityOptions()
 	if o.HTTPClient != nil {
 		check = append(check, llmprovider.WithHTTPClient(o.HTTPClient))
 	}
@@ -810,12 +827,12 @@ func discoverModels(
 	// Claude's workspace are in their overlays (0015-MADR D5; 0064-MADR D4;
 	// an empty one is the personal account, or a key scoped to its
 	// workspace).
-	opts := []llmprovider.Option{
+	opts := append(o.identityOptions(),
 		catalog.WithProfile(o.Profile),
 		catalog.WithLimit(o.ModelLimit),
 		llmprovider.For(llmprovider.ProviderKilo, catalog.WithKiloOrganization(res.Organization)),
 		llmprovider.For(llmprovider.ProviderClaude, catalog.WithClaudeWorkspace(res.Workspace)),
-	}
+	)
 	if res.BaseURL != "" {
 		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
 	}
@@ -980,7 +997,7 @@ func listerFor(
 	res Result,
 	source llmprovider.TokenSource,
 ) (llmprovider.Provider, error) {
-	opts := []llmprovider.Option{llmprovider.WithTokenSource(source)}
+	opts := append(o.identityOptions(), llmprovider.WithTokenSource(source))
 	if res.BaseURL != "" {
 		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
 	}

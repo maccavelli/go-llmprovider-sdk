@@ -50,14 +50,17 @@ type config struct {
 	userAgent        string
 	// clientName is WithClientInfo's name, else this module's: the ChatGPT
 	// listing's originator (0079-MADR D1).
-	clientName  string
-	session     string
-	metadataOff bool         // WithoutModelMetadata
-	limit       int          // WithLimit's n; zero or less, the default, is no limit
-	logger      *slog.Logger // Settings.Logger
-	layers      []Layer      // WithModelLayer's, in the order given
-	workload    workload     // WithWorkload's, else the published one
-	lastGood    lastGood     // WithLastGood's
+	clientName string
+	// clientVersion is WithClientInfo's version, as the settings resolve it:
+	// the version nameSession gives a session with the name (0079-MADR D4).
+	clientVersion string
+	session       string
+	metadataOff   bool         // WithoutModelMetadata
+	limit         int          // WithLimit's n; zero or less, the default, is no limit
+	logger        *slog.Logger // Settings.Logger
+	layers        []Layer      // WithModelLayer's, in the order given
+	workload      workload     // WithWorkload's, else the published one
+	lastGood      lastGood     // WithLastGood's
 	// tokens is the credential the options give (WithAPIKey or
 	// WithTokenSource), or nil: CachedFacts finds a listing by it.
 	tokens llmprovider.TokenSource
@@ -193,6 +196,7 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 		ModelMetadataURL: st.ModelMetadataURL(),
 		userAgent:        st.UserAgent(),
 		clientName:       st.ClientName(),
+		clientVersion:    st.ClientVersion(),
 		session:          st.SessionID(),
 		metadataOff:      st.ModelMetadataDisabled(),
 		logger:           st.Logger(),
