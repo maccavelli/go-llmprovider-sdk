@@ -307,7 +307,7 @@ func (p *provider) Capabilities() llmprovider.Capabilities { return p.caps }
 // Generate sends req to the Responses API. A 401 from a session that can
 // refresh is retried once with a new token.
 func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llmprovider.Response, error) {
-	if err := p.check(req); err != nil {
+	if err := p.check(ctx, req); err != nil {
 		return nil, err
 	}
 	// A 401 renews an InvalidatingSource's token and sends once more
@@ -323,7 +323,7 @@ func (p *provider) Generate(ctx context.Context, req *llmprovider.Request) (*llm
 // and each event is yielded as it arrives. A 401 before the first event
 // renews a session's token and sends once more.
 func (p *provider) Stream(ctx context.Context, req *llmprovider.Request) iter.Seq2[llmprovider.Event, error] {
-	if err := p.check(req); err != nil {
+	if err := p.check(ctx, req); err != nil {
 		return func(yield func(llmprovider.Event, error) bool) { yield(llmprovider.Event{}, err) }
 	}
 	_, decoder := p.deferForm(req)
@@ -347,11 +347,16 @@ func (p *provider) learner(req *llmprovider.Request) *wire.Learner {
 		cmp.Or(req.Model, p.model), p.refusals, responses.MatchRefusal)
 }
 
-// check refuses, before the network, what the capabilities refuse, and a
-// system message in a plan session's input, which OpenAI rejects there:
-// system prompts go in Request.Instructions (0043-MADR A4).
-func (p *provider) check(req *llmprovider.Request) error {
+// check refuses, before the network, what the capabilities refuse, a system
+// message in a plan session's input, which OpenAI rejects there (system
+// prompts go in Request.Instructions; 0043-MADR A4), and a request marked
+// llmprovider.WithBackground on a plan session whose user has not granted the
+// background-use consent (0075-MADR D5).
+func (p *provider) check(ctx context.Context, req *llmprovider.Request) error {
 	if err := p.caps.Check(req); err != nil {
+		return err
+	}
+	if err := p.checkBackground(ctx); err != nil {
 		return err
 	}
 	if p.plan && slices.ContainsFunc(req.Input, func(item llmprovider.Item) bool {
@@ -360,6 +365,30 @@ func (p *provider) check(req *llmprovider.Request) error {
 	}) {
 		return fmt.Errorf("%w: openai: a ChatGPT plan session takes no system message in Input; "+
 			"put it in Request.Instructions (0043-MADR A4)", llmprovider.ErrUnsupported)
+	}
+	return nil
+}
+
+// checkBackground refuses a marked request on a plan session unless the
+// answer the session's store holds, else the session's own, is granted. A
+// read that fails is refused as not granted: the terms ask for express
+// consent, and an answer that cannot be read is not one (0075-MADR D5).
+func (p *provider) checkBackground(ctx context.Context) error {
+	if !p.plan || !llmprovider.IsBackground(ctx) {
+		return nil
+	}
+	session, ok := p.src.(*auth.OAuthSession)
+	if !ok {
+		return nil
+	}
+	granted, _, err := session.StoredConsent(ctx, ConsentBackgroundUse)
+	if err != nil {
+		return fmt.Errorf("%w: openai: a background request on a ChatGPT plan session needs the consent %s, "+
+			"and its answer could not be read: %w", llmprovider.ErrNotPermitted, ConsentBackgroundUse, err)
+	}
+	if !granted {
+		return fmt.Errorf("%w: openai: a background request on a ChatGPT plan session needs the consent %s, "+
+			"which the user has not granted (0075-MADR D5)", llmprovider.ErrNotPermitted, ConsentBackgroundUse)
 	}
 	return nil
 }

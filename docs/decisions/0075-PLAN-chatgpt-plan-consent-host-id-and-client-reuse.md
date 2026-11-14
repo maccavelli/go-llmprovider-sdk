@@ -768,3 +768,92 @@ MADR and approved this PLAN.
   `test-shuffle`, whose causes lay before this phase and were fixed in
   `eecf17e`, and the owner's ruling "Remove it, correct the entry"; twelve
   plants caught, gate 30 of 30, race run green.
+
+### Phase 3 (2026-11-13)
+
+* **Claims re-verified** with `claims.py ... --rev self=HEAD` at `8ea6485`.
+  The ones Phase 3 reads only moved, each found with its text unchanged: C19
+  (`openai.go:181`, now `:182`), C20 (`:351`, now `:357`), C22 (`:162`, now
+  `:163`), C26 (`:303`, now `:309`), C43 (`:177`, now `:178`), C44
+  (`oauth_session.go:588`, now `:691`) and C45 (`tokenstore.go:45`, now
+  `:57`). Two that Phase 3 does not read changed text, both by Phase 1's
+  restructure of `loadRotated` (the guard C16 quotes, and C40's), and are
+  not repaired here: they stay pinned to `773b84c`, where they pass. The MADR
+  is not amended. No assumption of Phase 3 about the engine, the wizard or
+  the refresh code failed, and no existing test needed a change: the phase
+  adds tests and changes none.
+* **Step 1:** `llmprovider/background.go`: `WithBackground`, `IsBackground`
+  and an unexported context key type.
+* **Step 2:** `(*OAuthSession).StoredConsent(ctx, id) (granted, answered
+  bool, err error)` in `llmprovider/auth/consent.go`. It takes `Store` under
+  the session's lock and loads from it; with no `Store`, the session's own
+  answer; a store with no session for the owner gives unanswered; an error
+  from `Load` is returned as it is. Its doc says so in R51's and R52's words.
+* **Step 3:** `providers/openai/openai.go`: `check` takes the context and, for
+  a marked request on a plan session, reads the answer through
+  `StoredConsent`; not granted is an error matching `ErrNotPermitted` that
+  names `openai.ConsentBackgroundUse`, and so is a read that fails, which also
+  wraps the read's error. `Generate` and `Stream` both call it before the
+  network. Keys, Codex sessions and unmarked requests are untouched.
+* **Tests,** the six of the table, none of them changing an existing test:
+  `TestWithBackground_0075` (`llmprovider/background_0075_test.go`),
+  `TestStoredConsent_0075` (appended to the auth file of Phase 1) and
+  `TestOpenAIBackground_Refused_0075`, `_Allowed_0075`, `_ReadsStore_0075`
+  and `_ReadFails_0075` (`providers/openai/background_0075_test.go`).
+  `_ReadsStore_0075` also holds a marked request beside twenty refreshes of
+  the same session, which rewrite its `Store`.
+* **Plants,** `tools/plant.py` on a scratch clone, `_0075$` tests,
+  `all 10 plant(s) caught`, exit 0. The first line of each failure:
+  * `IsBackground` true for every context: `an unmarked context reads as
+    background`;
+  * the mark set under a string key: `a marked context does not read as
+    background`;
+  * the mark read under a string key: `a value under the string "background"
+    marks a context`;
+  * the check skipped for every request: `unanswered: Generate err = <nil>;
+    want ErrNotPermitted naming chatgpt_plan.background_use`;
+  * `Stream` unchecked: `1 request(s) sent; want none before the refusal`;
+  * an unmarked request refused: `Generate err = llmprovider: not permitted:
+    ... which the user has not granted`, `0 request(s) sent; want 1`;
+  * the answer read from the session only: `after the withdrawal: Generate
+    err = <nil>; want ErrNotPermitted naming chatgpt_plan.background_use`;
+  * a failed read falling back to the session's answer: `a failed read:
+    Generate err = <nil>; want ErrNotPermitted ...`;
+  * the stored record ignored: `StoredConsent = false, false, <nil>; want the
+    store's granted`;
+  * a `Load` error swallowed: `StoredConsent with a failing Load = false,
+    false, <nil>; want the store's error and no answer`.
+  The table's plant "the check placed after the request" is represented by
+  the check skipped for every request, since a check that never refuses is
+  the extreme of one that runs too late; the mark's "plain string" key is the
+  two string-key plants.
+* **Checks, each exit status captured before any filter:**
+  * `make pre-add-check FILES` on the six Go files: exit 0, `go-precheck: 6
+    file(s) clean`. **First run, exit 2:** `errcheck` on the blank in
+    `IsBackground`'s type assertion, and `staticcheck` SA1029 twice on the
+    test's context keys; fixed by `ok && marked` and by keys of an unrelated
+    struct type and a function-returned plain key. No `nolint`.
+  * `make api-check`: exit 0. `python3 -B tools/apidiff.py v1.30.0`: exit 0;
+    this phase's names are `llmprovider.WithBackground`, `IsBackground` and
+    `auth.(*OAuthSession).StoredConsent`, each a row of the R55 table.
+  * `make tables-check`, `make docs-check` (`0 violation(s) of R50,R51,R52`)
+    and `make coverage-check` (`43 packages, 0 problem(s)`): exit 0.
+  * `python3 -B tools/redgreen.py REFRESH.json --expect pass`: 65 of 66,
+    exit 1, the one `missing` `TestOAuthSessionWait_WindowsRemoval_0071`,
+    which skips off Windows, as in earlier phases; none of the 15 files
+    changed.
+  * the race run of the PLAN, `go test -race -count=1 -run
+    'TestStoredConsent_0075|TestOpenAIBackground_ReadsStore_0075'
+    ./llmprovider/auth/ ./llmprovider/providers/openai/`: exit 0, no race.
+    `go test -count=3 -run TestWireGoldens ./llmprovider/...`: exit 0, the
+    goldens unchanged (R45).
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, after the
+    last code change: exit 0, `gate: 30 of 30 passed`, started
+    2026-11-13T23:10:51-06:00 (at load 9.8) and finished 23:29:25-06:00.
+  * `go test -race -shuffle=on -count=3 ./llmprovider/ ./llmprovider/auth/
+    ./llmprovider/providers/openai/` on a Linux host, a WSL distro, through
+    `run-on-host --need linux --race` (which queues under `run-heavy`),
+    23:29:40 to 23:30:18-06:00: exit 0, `ok` for each package.
+* Provenance: mainstream model, medium effort; Phase 3 implemented, ten
+  plants caught, gate 30 of 30, race runs green on macOS and Linux; no
+  escalation.

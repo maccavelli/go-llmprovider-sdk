@@ -327,3 +327,36 @@ func TestConsentAdoptedFromSibling_0075(t *testing.T) {
 		t.Errorf("the adopted session reports %t, %t; want the sibling's declined", granted, answered)
 	}
 }
+
+// TestStoredConsent_0075 (0075-MADR D5): after a SetConsent through a second
+// handle, StoredConsent gives the store's answer while Consent still gives
+// the session's own; with no Store, the session's own; a store whose Load
+// fails gives that error, as it is.
+func TestStoredConsent_0075(t *testing.T) {
+	ctx := context.Background()
+	session, other := consentRefreshSession(t)
+	if err := SetConsent(ctx, other, llmprovider.ProviderOpenAI, testConsentID0075, true); err != nil {
+		t.Fatal(err)
+	}
+	if granted, answered, err := session.StoredConsent(ctx, testConsentID0075); err != nil || !granted || !answered {
+		t.Errorf("StoredConsent = %t, %t, %v; want the store's granted", granted, answered, err)
+	}
+	if granted, answered := session.Consent(testConsentID0075); granted || answered {
+		t.Errorf("Consent = %t, %t; want the session's own, unanswered", granted, answered)
+	}
+	if granted, answered, err := session.StoredConsent(ctx, "other.consent"); err != nil || granted || answered {
+		t.Errorf("StoredConsent of another id = %t, %t, %v; want unanswered", granted, answered, err)
+	}
+
+	own := &OAuthSession{Consents: testConsentID0075 + "=declined"}
+	if granted, answered, err := own.StoredConsent(ctx, testConsentID0075); err != nil || granted || !answered {
+		t.Errorf("StoredConsent with no Store = %t, %t, %v; want the session's own declined", granted, answered, err)
+	}
+
+	broken := errors.New("planted load failure")
+	failing := &OAuthSession{Provider: llmprovider.ProviderOpenAI, Consents: testConsentID0075 + "=granted",
+		Store: &orderStore{loadErr: broken}}
+	if granted, answered, err := failing.StoredConsent(ctx, testConsentID0075); !errors.Is(err, broken) || err.Error() != broken.Error() || granted || answered {
+		t.Errorf("StoredConsent with a failing Load = %t, %t, %v; want the store's error and no answer", granted, answered, err)
+	}
+}

@@ -112,3 +112,36 @@ func SetConsent(ctx context.Context, store TokenStore, provider llmprovider.Prov
 	session.Consents = withConsent(session.Consents, id, granted)
 	return store.Save(ctx, provider, session)
 }
+
+// StoredConsent reports the answer to the consent id that the session's Store
+// holds: granted, and whether the user answered at all, so that a SetConsent
+// made in any process shows at the next call. It takes the Store under the
+// session's lock, which a refresh holds while it rewrites the field, and
+// loads from it. With no Store it gives the session's own answer, as Consent
+// does, and a Store with no session for the owner gives an unanswered one.
+// An error from the Store's Load is returned as it is, and the answer is then
+// unanswered: a caller that needs express consent treats it as not granted
+// (0075-MADR D5). StoredConsent is safe for concurrent use.
+func (s *OAuthSession) StoredConsent(ctx context.Context, id string) (granted, answered bool, err error) {
+	if s == nil {
+		return false, false, nil
+	}
+	provider := s.Owner()
+	s.mu.Lock()
+	store := s.Store
+	own := s.Consents
+	s.mu.Unlock()
+	if store == nil {
+		granted, answered = consentOf(own, id)
+		return granted, answered, nil
+	}
+	stored, err := store.Load(ctx, provider)
+	if err != nil {
+		return false, false, err
+	}
+	if stored == nil {
+		return false, false, nil
+	}
+	granted, answered = consentOf(stored.Consents, id)
+	return granted, answered, nil
+}
