@@ -887,3 +887,155 @@ func twinPlanConsent(t *testing.T) {
 		HostID: "urn:uuid:00000000-0000-4000-8000-000000000075", IDToken: "twin-id-token", HTTPClient: f.srv.Client()}
 	checkPlanConsent(ctx, t, session, store, "gpt-6.1-sol", f.srv.Client(), f.opts("")...)
 }
+
+// nameFake serves what TestLive_0079Name's two halves use, by path suffix: a
+// Codex backend's and xAI's /models (one JSON holding both shapes),
+// /responses, a token endpoint, discovery and a revocation endpoint. Each
+// marked setting is one of 0079-PLAN Phase 5's plants.
+type nameFake struct {
+	srv  *httptest.Server
+	body *twinFake // answers /responses: only its echo, deltas and tool are read
+
+	refuseRefresh bool // a refresh is refused invalid_grant
+	revokeKills   bool // after a revocation, a refresh is refused invalid_grant
+
+	mu        sync.Mutex
+	revoked   bool
+	refreshes int
+}
+
+func newNameFake(t *testing.T) *nameFake {
+	t.Helper()
+	f := &nameFake{body: &twinFake{echo: true, deltas: true}, refuseRefresh: false, revokeKills: true}
+	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
+	t.Cleanup(f.srv.Close)
+	return f
+}
+
+// opts point a provider or a listing at the fake.
+func (f *nameFake) opts() []llmprovider.Option {
+	return []llmprovider.Option{llmprovider.WithBaseURL(f.srv.URL)}
+}
+
+func (f *nameFake) serve(w http.ResponseWriter, r *http.Request) {
+	u, path := f.srv.URL, r.URL.Path
+	switch {
+	case r.Method == http.MethodGet && strings.HasSuffix(path, "/models"):
+		writeJSON(w, http.StatusOK, map[string]any{"object": "list",
+			"models": []any{map[string]any{"slug": "gpt-twin-0079", "visibility": "list"}},
+			"data":   []any{map[string]any{"id": "grok-twin-0079", "object": "model"}}})
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/responses"):
+		f.body.responses(w, r)
+	case r.Method == http.MethodGet && strings.HasSuffix(path, "/.well-known/openid-configuration"):
+		writeJSON(w, http.StatusOK, map[string]any{"issuer": u, "authorization_endpoint": u + "/authorize",
+			"token_endpoint": u + "/token", "revocation_endpoint": u + "/revoke", "jwks_uri": u + "/jwks"})
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/token"):
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.refuseRefresh || (f.revoked && f.revokeKills) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_grant"})
+			return
+		}
+		f.refreshes++
+		writeJSON(w, http.StatusOK, map[string]any{"access_token": fmt.Sprintf("name-access-%d", f.refreshes),
+			"refresh_token": fmt.Sprintf("name-refresh-%d", f.refreshes), "expires_in": 3600})
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/revoke"):
+		f.mu.Lock()
+		f.revoked = true
+		f.mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// newNameProbe is a probe of name against the fake, with a scratch store.
+func newNameProbe(t *testing.T, f *nameFake) nameProbe {
+	t.Helper()
+	store, err := auth.NewFileTokenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &nameRecorder{}
+	return nameProbe{name: "gobble", rec: rec, client: &http.Client{Transport: rec.wrap(f.srv.Client().Transport)},
+		opts: f.opts(), store: store}
+}
+
+// TestLiveTwin_Name_0079 is TestLive_0079Name's two halves after their
+// sign-ins, run against nameFake with the shipped SDK code: a session loaded
+// from a store has no identity, and the providers and the listing that are
+// given the name give it to the session, so that its refresh and its
+// revocation lead with the name, and the Codex backend's originator is the
+// name. The sign-ins themselves are the live test's.
+func TestLiveTwin_Name_0079(t *testing.T) {
+	t.Run("ChatGPT", func(t *testing.T) {
+		f := newNameFake(t)
+		n := newNameProbe(t, f)
+		signed := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: auth.DefaultOpenAIIssuer,
+			TokenURL: f.srv.URL + "/oauth/token", Access: "name-access-0", Refresh: "name-refresh-0",
+			Expiry: time.Now().Add(time.Hour), ClientID: auth.DefaultOpenAIClientID}
+		runChatGPTName(twinContext(t), t, n, signed)
+	})
+	t.Run("Grok", func(t *testing.T) {
+		f := newNameFake(t)
+		n := newNameProbe(t, f)
+		signed := &auth.OAuthSession{Provider: llmprovider.ProviderGrok, Issuer: f.srv.URL, TokenURL: f.srv.URL + "/token",
+			Access: "name-access-0", Refresh: "name-refresh-0", Expiry: time.Now().Add(time.Hour),
+			ClientID: auth.DefaultGrokOAuthClientID}
+		runGrokName(twinContext(t), t, n, signed)
+	})
+	t.Run("Control", twinNameControl)
+}
+
+// twinNameControl is probeWithControl over its three outcomes.
+func twinNameControl(t *testing.T) {
+	named := []llmprovider.Option{llmprovider.WithClientInfo("gobble", "")}
+	var control []llmprovider.Option
+	boom := errors.New("backend: status 403")
+	for _, tc := range []struct {
+		name    string
+		failsAs func(named bool) error // the call's error, named or not
+		want    nameVerdict
+		wantErr bool
+	}{
+		{"passes", func(bool) error { return nil }, namePassed, false},
+		{"refused", func(isNamed bool) error {
+			if isNamed {
+				return boom
+			}
+			return nil
+		}, nameRefused, true},
+		{"fails both", func(bool) error { return boom }, nameFailed, true},
+	} {
+		got, err := probeWithControl(func(opts []llmprovider.Option) error { return tc.failsAs(len(opts) > 0) }, named, control)
+		if got != tc.want || (err != nil) != tc.wantErr {
+			t.Errorf("%s: probeWithControl = %q, %v; want %q, error %t", tc.name, got, err, tc.want, tc.wantErr)
+		}
+	}
+	recs := []nameRecord{{product: "gobble", hasOriginator: true, originator: "gobble"}, {product: "gobble"}}
+	for _, tc := range []struct {
+		name string
+		recs []nameRecord
+		min  int
+		want bool
+		ok   bool
+	}{
+		{"named", recs, 2, true, true},
+		{"too few", recs[:1], 2, true, false},
+		{"another product", append(append([]nameRecord(nil), recs...), nameRecord{product: "go-llmprovider-sdk"}), 2, true, false},
+		{"another originator", []nameRecord{{product: "gobble", hasOriginator: true, originator: "go-llmprovider-sdk"}}, 1, true, false},
+		{"no originator when wanted", []nameRecord{{product: "gobble"}}, 1, true, false},
+		{"no originator, not wanted", []nameRecord{{product: "gobble"}}, 1, false, true},
+	} {
+		err := namedRequestsError(tc.recs, "gobble", tc.min, tc.want)
+		if (err == nil) != tc.ok {
+			t.Errorf("%s: namedRequestsError = %v; want ok %t", tc.name, err, tc.ok)
+		}
+		if err != nil && strings.Contains(err.Error(), "%!") {
+			t.Errorf("%s: the error holds a formatting fault: %q", tc.name, err)
+		}
+	}
+	if got := firstProduct("gobble/1.2.3 (darwin; arm64) go-llmprovider-sdk/1.31.0"); got != "gobble" {
+		t.Errorf("firstProduct = %q, want gobble", got)
+	}
+}

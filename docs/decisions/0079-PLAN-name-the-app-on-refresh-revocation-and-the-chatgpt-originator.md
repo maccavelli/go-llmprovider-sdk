@@ -753,3 +753,83 @@ the code: `llmprovider/auth/oauth_session.go` `UseIdentity`,
 * **Provenance.** Mainstream model, medium effort. Outcome: Phase 4 done as
   written; no deviation and no escalation to the owner; staged for the
   coordinator to commit.
+
+### Phase 5, prep (2026-11-14)
+
+Base `2ed908b`. The code of Phase 5 is built. **The owner's run is pending:
+nothing was signed in, no live test ran, and no result is recorded here.**
+
+* **Files.** `llmprovider/live_0079_name_test.go` (new, tag `live_gateways`):
+  `TestLive_0079Name`, skipped unless `LLMPROVIDER_LIVE_0079=1`, with two
+  subtests. **ChatGPT**, also under `LLMPROVIDER_LIVE_BROWSER_LOGIN` and
+  `LLMPROVIDER_LIVE_CHATGPT`: `LoginBrowserOAuth` under
+  `auth.Identity{Name: "gobble"}` through a recording client, its `OpenURL`
+  checking the authorize URL's `originator` (`checkAuthorizeIdentity`);
+  then `runChatGPTName`. **Grok**, also under
+  `LLMPROVIDER_LIVE_DEVICE_LOGIN`: `StartDeviceOAuth` and `Wait` under the
+  identity, the device form's `referrer` checked (`checkDeviceReferrer`);
+  then `runGrokName`. Each sign-in has five minutes, each half twelve.
+  `llmprovider/live_checks_test.go` (appended, untagged): `nameRecord`,
+  `nameRecorder`, `firstProduct`, `namedRequestsError`, `nameProbe`,
+  `listAndGenerate`, `listRawModels`, `probeWithControl`, `unnamedCopy`,
+  `reloadedSession`, `checkNamedRefresh`, `forceRefresh`,
+  `checkNamedRevocation`, `runChatGPTName`, `runGrokName`.
+  `llmprovider/live_twins_test.go` (appended): `nameFake` and
+  `TestLiveTwin_Name_0079` (ChatGPT, Grok and Control subtests).
+  `LLMPROVIDER_LIVE_0079` is this record's variable and `tables-check` passes.
+* **How the probe is built.** Each half signs in under the name, saves the
+  session to a scratch `FileTokenStore` and loads it back. The loaded session
+  has no identity and no client, so what names its later refresh and
+  revocation is only the hand-off of the provider (ChatGPT) or of
+  `catalog.ListRaw` (Grok), the behaviour of Phases 2 and 3, and what
+  reaches the issuer is the recording client that hand-off gives it.
+  `nameRecorder` keeps each request's `originator` value and its User-Agent's
+  first product name, and nothing else. The ChatGPT half lists the models
+  (which must hold one) and generates once; each failing call runs once more
+  without `WithClientInfo`: a pass there is logged `FINDING refused:`, a
+  failure there too is `FINDING use: ... not this record's`. A forced refresh
+  must succeed and rotate; one that fails under the name is tried on an
+  unnamed copy, logged the same way, and the copy revoked. The revocation
+  runs under the name in both halves; one the issuer refuses is logged
+  `FINDING refused:` and an unnamed copy is revoked, so nothing stays alive;
+  a session left unrevoked is revoked when the half ends.
+* **What the probe exercises end to end.** The refresh and the revocation
+  carry "gobble" (a User-Agent led by it, recorded on every request since
+  the mark, the Grok revocation's discovery included): yes, on a session that
+  got its identity only from the hand-off. The catalog listing's hand-off:
+  yes, in the Grok half, whose first named call is `catalog.ListRaw`. The
+  ChatGPT half reaches the openai provider's hand-off, not the catalog's.
+  The originator on the Codex listing and generation: every backend request
+  that sends one must send "gobble", and at least one must; the check does not
+  tell the listing's from the generation's. Not exercised: the lookups
+  (`CachedModel`, `LookupModel`, `CachedFacts`), the wizard's own requests and
+  its logout (Phase 3 step 4), the plan sessions, and Kilo.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, exit 0, "all 7
+  plant(s) caught", the tree untouched; the twin runs the shipped SDK code
+  against `nameFake`, so each plant of the PLAN's list breaks the SDK or the
+  fake:
+  1. the originator kept at the constant (`internal/chatgpt`): `FINDING use:
+     request 1 sent the originator "go-llmprovider-sdk", want "gobble"`.
+  2. the refresh's User-Agent kept at this module's: `FINDING refresh:
+     request 1 led its User-Agent with "go-llmprovider-sdk", want "gobble"`,
+     in both halves.
+  3. the revocation's kept at this module's: `FINDING revocation: request 2
+     led its User-Agent with "go-llmprovider-sdk", want "gobble"` (Grok's
+     discovery and revocation; request 1 for ChatGPT).
+  4. the fake refuses the refresh: `FINDING refresh: failed under the name
+     (... invalid_grant) and without it (...)`.
+  5. the fake lets a refresh after revocation succeed: `FINDING revocation: a
+     refresh after revocation succeeded`.
+  6. the openai provider's identity hand-off omitted: `FINDING refresh:
+     request 1 led its User-Agent with "go-llmprovider-sdk", want "gobble"`.
+  7. the catalog listing's hand-off omitted: the same, in the Grok half.
+  The first run of plant 1 failed to build (the `cmp` import went unused);
+  it is `cmp.Or(OriginatorValue, name)` now.
+* **Checks,** each exit status captured before any filter: `make
+  pre-add-check` on the three Go files, exit 0, `go-precheck: 3 file(s)
+  clean`; `go vet -tags live_gateways ./llmprovider/`, exit 0; `make
+  tables-check docs-check`, exit 0; `go test -run TestLiveTwin
+  ./llmprovider/`, exit 0. `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, in the tree, after the last code change: 11:05:23 to 11:18:51 (809 s), exit 0, `gate: 30 of 30 passed`. After this entry: `claims.py` on the 0079 pair, `make records-check links-check disclosure-check markdownlint docs-check tables-check`, `tools/denyscan.py --changed` and `tools/recordlint.py --changed`.
+* **Provenance.** Mainstream model, medium effort; no escalation. The
+  owner's run is pending; it asks first, signs in at OpenAI and xAI with a
+  person, and spends one short generation of the owner's ChatGPT plan.

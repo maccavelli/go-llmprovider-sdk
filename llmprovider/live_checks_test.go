@@ -831,3 +831,324 @@ func checkPlanConsent(ctx context.Context, t *testing.T, session *auth.OAuthSess
 	}
 	t.Log("FINDING consent: granted, a marked generation went through")
 }
+
+// nameRecord is what nameRecorder keeps of one request: the value of its
+// originator header, when it sent one, and the first product name of its
+// User-Agent. It keeps no URL, token, code or body.
+type nameRecord struct {
+	originator    string
+	hasOriginator bool
+	product       string
+}
+
+// nameRecorder is a transport that records each request's nameRecord, and
+// sends it on (0079-PLAN Phase 5 step 2).
+type nameRecorder struct {
+	mu   sync.Mutex
+	recs []nameRecord
+}
+
+func (r *nameRecorder) wrap(base http.RoundTripper) http.RoundTripper {
+	return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		rec := nameRecord{product: firstProduct(req.Header.Get("User-Agent"))}
+		if values := req.Header.Values("Originator"); len(values) > 0 {
+			rec.originator, rec.hasOriginator = values[0], true
+		}
+		r.mu.Lock()
+		r.recs = append(r.recs, rec)
+		r.mu.Unlock()
+		return base.RoundTrip(req)
+	})
+}
+
+// mark is how many requests are recorded now; since(mark) is the rest.
+func (r *nameRecorder) mark() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.recs)
+}
+
+func (r *nameRecorder) since(mark int) []nameRecord {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]nameRecord(nil), r.recs[mark:]...)
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// firstProduct is the product name a User-Agent leads with: its text up to
+// the first "/" or space.
+func firstProduct(ua string) string {
+	if i := strings.IndexAny(ua, "/ "); i >= 0 {
+		return ua[:i]
+	}
+	return ua
+}
+
+// namedRequestsError checks the recorded requests: there are at least min,
+// each led its User-Agent with name, and each that sent an originator sent
+// name; with wantOriginator at least one sent one.
+func namedRequestsError(recs []nameRecord, name string, min int, wantOriginator bool) error {
+	if len(recs) < min {
+		return fmt.Errorf("%d request(s) recorded, want at least %d", len(recs), min)
+	}
+	sawOriginator := false
+	for i, r := range recs {
+		if r.product != name {
+			return fmt.Errorf("request %d led its User-Agent with %q, want %q", i+1, r.product, name)
+		}
+		if r.hasOriginator {
+			sawOriginator = true
+			if r.originator != name {
+				return fmt.Errorf("request %d sent the originator %q, want %q", i+1, r.originator, name)
+			}
+		}
+	}
+	if wantOriginator && !sawOriginator {
+		return errors.New("no request sent an originator")
+	}
+	return nil
+}
+
+// nameProbe is what one half of TestLive_0079Name uses after its sign-in.
+type nameProbe struct {
+	name   string
+	rec    *nameRecorder
+	client *http.Client // records every request, the sign-in's included
+	opts   []llmprovider.Option
+	store  *auth.FileTokenStore
+}
+
+func (n nameProbe) named() []llmprovider.Option {
+	return append(append([]llmprovider.Option(nil), n.opts...), llmprovider.WithClientInfo(n.name, ""), llmprovider.WithHTTPClient(n.client))
+}
+
+// control is named() without the name: the default originator and
+// User-Agent.
+func (n nameProbe) control() []llmprovider.Option {
+	return append(append([]llmprovider.Option(nil), n.opts...), llmprovider.WithHTTPClient(n.client))
+}
+
+// listAndGenerate lists the ChatGPT backend's models, which must hold one,
+// and generates one short word with the first (0079-PLAN Phase 5).
+func listAndGenerate(ctx context.Context, session *auth.OAuthSession, opts []llmprovider.Option) error {
+	lister, err := openai.New(append([]llmprovider.Option{llmprovider.WithTokenSource(session)}, opts...)...)
+	if err != nil {
+		return fmt.Errorf("openai.New: %w", err)
+	}
+	listing, ok := lister.(llmprovider.ModelLister)
+	if !ok {
+		return errors.New("the openai provider lists no models")
+	}
+	models, err := listing.ListModels(ctx)
+	if err != nil {
+		return fmt.Errorf("ListModels: %w", err)
+	}
+	if len(models) == 0 {
+		return errors.New("ListModels returned no model")
+	}
+	p, err := openai.New(append([]llmprovider.Option{llmprovider.WithTokenSource(session), llmprovider.WithModel(models[0])}, opts...)...)
+	if err != nil {
+		return fmt.Errorf("openai.New: %w", err)
+	}
+	out, err := llmprovider.GenerateText(ctx, p, userText("Reply with only the word ALPHA"))
+	if err != nil {
+		return fmt.Errorf("Generate: %w", err)
+	}
+	if !strings.Contains(strings.ToUpper(out), "ALPHA") {
+		return fmt.Errorf("Generate = %q", out)
+	}
+	return nil
+}
+
+// listRawModels is catalog.ListRaw for Grok, which must hold a model.
+func listRawModels(ctx context.Context, session *auth.OAuthSession, opts []llmprovider.Option) error {
+	raw, err := catalog.ListRaw(ctx, llmprovider.ProviderGrok, session, opts...)
+	if err != nil {
+		return fmt.Errorf("ListRaw: %w", err)
+	}
+	if len(raw.Models) == 0 {
+		return errors.New("ListRaw returned no model")
+	}
+	return nil
+}
+
+// nameVerdict is the outcome of a call that is run under the name and, when
+// it fails, once without it.
+type nameVerdict string
+
+const (
+	namePassed  nameVerdict = "passed"  // under the name
+	nameRefused nameVerdict = "refused" // failed under the name, passed without
+	nameFailed  nameVerdict = "failed"  // failed under both: not this record's
+)
+
+// probeWithControl runs run under named, and, when that fails, once under
+// control (0079-PLAN Phase 5 step 1, "a control for a refusal"). It returns
+// the verdict and the error under the name.
+func probeWithControl(run func([]llmprovider.Option) error, named, control []llmprovider.Option) (nameVerdict, error) {
+	err := run(named)
+	if err == nil {
+		return namePassed, nil
+	}
+	if run(control) == nil {
+		return nameRefused, err
+	}
+	return nameFailed, err
+}
+
+// unnamedCopy is a copy of a session's stored fields with no identity and no
+// client of its own, so it is revoked or refreshed under this module's name.
+func unnamedCopy(s *auth.OAuthSession) *auth.OAuthSession {
+	return &auth.OAuthSession{Provider: s.Provider, Access: s.Access, Refresh: s.Refresh, Expiry: s.Expiry,
+		Issuer: s.Issuer, ClientID: s.ClientID, AccountID: s.AccountID, FedRAMP: s.FedRAMP, TokenURL: s.TokenURL,
+		Resource: s.Resource, Scope: s.Scope, IDToken: s.IDToken, HostID: s.HostID, Kind: s.Kind, Consents: s.Consents,
+		HTTPClient: s.HTTPClient}
+}
+
+// reloadedSession saves signed to the probe's scratch store and loads it
+// back: a session with no identity and no client of its own, so that what
+// names it afterwards is the hand-off of the provider or listing it is given
+// to (0079-MADR D4), and what carries it to the issuer is the client that
+// hand-off gives. It is revoked when the test ends unless the returned
+// function was called first.
+func reloadedSession(ctx context.Context, t *testing.T, n nameProbe, signed *auth.OAuthSession) (*auth.OAuthSession, func()) {
+	t.Helper()
+	if err := n.store.Save(ctx, signed.Provider, signed); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	session, err := n.store.Load(ctx, signed.Provider)
+	if err != nil || session == nil {
+		t.Fatalf("Load = %v, %v", session, err)
+	}
+	revoked := false
+	t.Cleanup(func() {
+		if revoked {
+			return
+		}
+		if err := auth.RevokeOAuthSession(context.Background(), session); err != nil {
+			t.Logf("FINDING refused: revocation under the name when the test ends: %v", err)
+			if err := auth.RevokeOAuthSession(context.Background(), unnamedCopy(session)); err != nil {
+				t.Errorf("RevokeOAuthSession of an unnamed copy when the test ends: %v", err)
+			}
+		}
+	})
+	return session, func() { revoked = true }
+}
+
+// checkNamedRefresh forces one refresh, which must succeed and rotate the
+// token, and checks that every request it sent led its User-Agent with the
+// name. A refresh that fails under the name is tried once on an unnamed copy,
+// and the verdict logged; the copy is revoked, so nothing stays alive.
+func checkNamedRefresh(ctx context.Context, t *testing.T, n nameProbe, session *auth.OAuthSession) {
+	t.Helper()
+	mark := n.rec.mark()
+	if err := forceRefresh(ctx, session); err != nil {
+		cp := unnamedCopy(session)
+		if cerr := forceRefresh(ctx, cp); cerr != nil {
+			t.Fatalf("FINDING refresh: failed under the name (%v) and without it (%v); not this record's", err, cerr)
+		}
+		_ = auth.RevokeOAuthSession(ctx, cp)
+		t.Fatalf("FINDING refused: a refresh under the name failed (%v) and passed without it", err)
+	}
+	if err := namedRequestsError(n.rec.since(mark), n.name, 1, false); err != nil {
+		t.Fatalf("FINDING refresh: %v", err)
+	}
+	t.Logf("FINDING refresh: a forced refresh succeeded and led its User-Agent with %q", n.name)
+}
+
+// forceRefresh invalidates session's token and asks for another, which must
+// differ.
+func forceRefresh(ctx context.Context, session *auth.OAuthSession) error {
+	first, err := session.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("Token: %w", err)
+	}
+	session.Invalidate()
+	next, err := session.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("refresh: %w", err)
+	}
+	if next.Value == first.Value {
+		return errors.New("the token did not rotate")
+	}
+	return nil
+}
+
+// checkNamedRevocation revokes session under the name, checks that every
+// request of it, the discovery included (min requests in all), led its
+// User-Agent with the name, and that a refresh afterwards is refused. A
+// revocation the issuer refuses is logged, and an unnamed copy is revoked
+// instead, so nothing stays alive; the test then fails.
+func checkNamedRevocation(ctx context.Context, t *testing.T, n nameProbe, session *auth.OAuthSession, min int) {
+	t.Helper()
+	mark := n.rec.mark()
+	if err := auth.RevokeOAuthSession(ctx, session); err != nil {
+		if cerr := auth.RevokeOAuthSession(ctx, unnamedCopy(session)); cerr != nil {
+			t.Fatalf("FINDING revocation: refused under the name (%v) and without it (%v)", err, cerr)
+		}
+		t.Fatalf("FINDING refused: revocation under the name failed (%v) and passed without it", err)
+	}
+	if err := namedRequestsError(n.rec.since(mark), n.name, min, false); err != nil {
+		t.Fatalf("FINDING revocation: %v", err)
+	}
+	session.Invalidate()
+	_, err := session.Token(ctx)
+	if err == nil {
+		t.Fatal("FINDING revocation: a refresh after revocation succeeded")
+	}
+	t.Logf("FINDING revocation: revoked under the name, led with it; a refresh afterwards is refused, as ErrAuthFailure %t",
+		errors.Is(err, llmprovider.ErrAuthFailure))
+}
+
+// runChatGPTName is the ChatGPT half of TestLive_0079Name after its sign-in:
+// the sign-in's session is saved and loaded back, so it has no identity and
+// no client, and the openai providers built with the name give it both. It
+// lists the models and generates once, under the name and, on a failure, once
+// without it; every request that reached the backend carried the name as its
+// originator and led its User-Agent with it; a forced refresh; the
+// revocation.
+func runChatGPTName(ctx context.Context, t *testing.T, n nameProbe, signed *auth.OAuthSession) {
+	t.Helper()
+	session, revoked := reloadedSession(ctx, t, n, signed)
+	mark := n.rec.mark()
+	verdict, err := probeWithControl(func(opts []llmprovider.Option) error { return listAndGenerate(ctx, session, opts) },
+		n.named(), n.control())
+	switch verdict {
+	case nameRefused:
+		t.Fatalf("FINDING refused: the listing or the generation failed under the name (%v) and passed without it", err)
+	case nameFailed:
+		t.Fatalf("FINDING use: the listing or the generation failed under the name (%v) and without it; not this record's", err)
+	}
+	if err := namedRequestsError(n.rec.since(mark), n.name, 2, true); err != nil {
+		t.Fatalf("FINDING use: %v", err)
+	}
+	t.Logf("FINDING use: the listing and one generation passed under %q; the backend's requests sent it as their originator", n.name)
+	checkNamedRefresh(ctx, t, n, session)
+	checkNamedRevocation(ctx, t, n, session, 1)
+	revoked()
+}
+
+// runGrokName is the Grok half after its sign-in: the session is saved and
+// loaded back, so catalog.ListRaw's hand-off gives it the name and the
+// client; the raw listing must hold a model, under the name and, on a
+// failure, once without it; a forced refresh; the revocation, with its
+// discovery.
+func runGrokName(ctx context.Context, t *testing.T, n nameProbe, signed *auth.OAuthSession) {
+	t.Helper()
+	session, revoked := reloadedSession(ctx, t, n, signed)
+	verdict, err := probeWithControl(func(opts []llmprovider.Option) error { return listRawModels(ctx, session, opts) },
+		n.named(), n.control())
+	switch verdict {
+	case nameRefused:
+		t.Fatalf("FINDING refused: the listing failed under the name (%v) and passed without it", err)
+	case nameFailed:
+		t.Fatalf("FINDING use: the listing failed under the name (%v) and without it; not this record's", err)
+	}
+	t.Logf("FINDING use: the raw listing held a model under %q", n.name)
+	checkNamedRefresh(ctx, t, n, session)
+	checkNamedRevocation(ctx, t, n, session, 2)
+	revoked()
+}
