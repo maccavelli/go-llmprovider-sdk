@@ -27,6 +27,7 @@ It requires Go 1.27.4.
 | `llmprovider/providers` | `Default()`, a registry of every built-in provider, and `New(id, opts...)` |
 | `llmprovider/providers/<id>` | one built-in provider each: `openai`, `claude`, `gemini`, `grok`, `opencode`, `kilo`, `huggingface`, `together`, `ollama` |
 | `llmprovider/auth` | OAuth sessions, browser and device-code logins, vendor CLI sessions, token stores |
+| `llmprovider/x/signin` | experimental: one handle for a sign-in, `Methods` and `ErrorKindOf` |
 | `llmprovider/catalog` | model listing, model facts, the menu, static catalogs, ranking and search |
 | `llmprovider/llmtest` | the conformance suite for a provider, and `Fake` for tests |
 | `wizard` | `ConfigureLLM`, the interactive configuration flow |
@@ -286,6 +287,56 @@ p, err := openai.New(llmprovider.WithTokenSource(session))
   - never pool, share, transfer or resell plan usage or the tokens;
   - charge nothing for this use.
 
+## Method facts and one sign-in handle
+
+Each `llmprovider.AuthMethod` of a built-in descriptor says what the method
+is, so that a caller can decide what to offer without a list of providers
+([0074-MADR](docs/decisions/0074-MADR-one-sign-in-handle-and-method-facts.md)).
+The facts are `Kind`, `Completion`, `Paste`, `FirstPaste`, `Yields`,
+`ClientIdentity`, `Slot`, `Refreshable` and `Revocable`, plain strings that
+spell the wire values of the auth contract module below. `Interactive` and
+`HeadlessOK` are deprecated, with their values unchanged. OpenAI's and
+Grok's browser sign-in is `browser_paste`: the loopback or a pasted
+callback URL or code completes it. The ChatGPT plan's first sign-in takes a
+pasted URL only.
+
+```go
+for _, m := range desc.AuthMethods {
+    fmt.Println(m.ID, m.Kind, m.Completion, m.Yields, m.Refreshable)
+}
+```
+
+`auth.OAuthFlowOptions.NoLoopback` and `auth.ChatGPTPlanOptions.NoLoopback`
+bind no callback listener, for a person who is not on the host: they need an
+`InputCode`, and a paste alone completes the sign-in. `auth.SessionKind`
+names what a stored session is, `OAuthSession.Kind` holds it and
+`OAuthSession.SessionKind()` resolves it, `auth.ErrSignInDenied` and
+`auth.ErrSignInExpired` name why a sign-in ended, and `auth.VendorCLIPath`
+finds a vendor CLI's login file.
+
+`llmprovider/x/signin` (experimental: it is outside the v1 promise and
+`make api-check`, and may change in any release) runs one sign-in through
+one handle. `Start` returns a `SignIn` whose `Steps` you show, whose
+`Answer` takes the answer to a step that asks, and whose `Wait` returns the
+`Credential`; it saves nothing. It drives the device, browser, ChatGPT plan
+and vendor-import methods, not a value method.
+
+```go
+run, err := signin.Start(ctx, llmprovider.ProviderKilo, llmprovider.AuthDeviceCode, signin.Options{})
+if err != nil {
+    return err
+}
+go func() {
+    for step := range run.Steps() {
+        fmt.Println(step.Kind, step.URL, step.Code)
+    }
+}()
+credential, err := run.Wait(ctx)
+```
+
+`signin.Options.NoLoopback` passes through to the two `auth` fields.
+`signin.ErrorKindOf` names an error in the contract's failure kinds.
+
 ## The configuration wizard
 
 `wizard.ConfigureLLM(ctx, prompter, opts)` asks for a provider, its
@@ -325,6 +376,13 @@ key.
   `auth.GrokFlowFromEnv()`'s values take effect only on your own
   `auth.OAuthFlowOptions`, given to `auth.LoginBrowserOAuth` or
   `auth.StartDeviceOAuth`.
+- `Options.Driver`, a `wizard.StepDriver`, is given each step of a browser, plan
+  or device sign-in, for a caller with no terminal that shows them itself, a
+  line of JSON each for example. With it the `Prompter` is not used for the
+  sign-in's notices and paste, and `Options.ShowDeviceCode` and
+  `Options.OpenURL` are not called. It is given the last step, `done` or
+  `failed`, once, unless its own error ended the sign-in. An `Options.OpenURL`
+  error is shown as a warning, and the sign-in goes on.
 - A vendor CLI's login is found by default under the home directory, which
   the wizard reads only through `Options.LookupEnv` (`HOME`, or
   `USERPROFILE` on Windows). Pass `LookupEnv: os.Getenv` to find it there.
@@ -379,7 +437,8 @@ answers, failure kinds and session kinds), as data, with a JSON Schema
 generated from its types and golden vectors, for this SDK, gobble-cli and
 magic-cli-remote to share. It is versioned apart from the SDK, by
 `authcontract/vX.Y.Z` tags from `authcontract/v0.1.0`, and within a major
-version, v0 included, it only adds. The root module does not require it yet.
+version, v0 included, it only adds. The root module requires it, and the
+method facts and `llmprovider/x/signin` below speak its types.
 [authcontract/README.md](authcontract/README.md) describes its types, its
 evolution rules, and how to pin it and read its schema and vectors.
 

@@ -147,8 +147,8 @@ standard library is left out.
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
 | `llmprovider` | the contract: request and response types, errors, options, `NewHTTPClient`, the bounded client a caller wraps to add headers (0066-MADR D2), the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact`, `internal/nilsource` |
-| `llmprovider/auth` | OAuth sessions and their refresh and revocation, with `OAuthSession.Wait` for a detached refresh (0071-MADR D3), the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `TokenStore` and `FileTokenStore`, and the issuers and client ids | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
-| `llmprovider/x/signin` | experimental (R4, 0074-MADR D9): `Methods`, a descriptor's methods as the contract's `Method` values; `Start`, `Options` and `SignIn`, one handle for a device, browser, plan or vendor-import sign-in; `Credential` and its five types; `ErrorKindOf` | `llmprovider`, `auth`, `authcontract`, `internal/signinflow` |
+| `llmprovider/auth` | OAuth sessions and their refresh and revocation, with `OAuthSession.Wait` for a detached refresh (0071-MADR D3), the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `VendorCLIPath`, `TokenStore` and `FileTokenStore`, and the issuers and client ids; a session's kind (`SessionKind` and `OAuthSession.Kind`), the sign-in sentinels `ErrSignInDenied` and `ErrSignInExpired`, and `NoLoopback` on `OAuthFlowOptions` and `ChatGPTPlanOptions` (0074-MADR D4, D5, D8) | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
+| `llmprovider/x/signin` | experimental (R4, 0074-MADR D9): `Methods`, a descriptor's methods as the contract's `Method` values; `Start`, `Options` and `SignIn`, one handle for a device, browser, plan or vendor-import sign-in; `Credential` and its five types; `ErrorKindOf`; its `NoLoopback` option, experimental, which passes through to `auth`'s two | `llmprovider`, `auth`, `authcontract`, `internal/signinflow` |
 | `internal/signinflow` | the step engine under `llmprovider/x/signin` (0074-MADR D3, D4): `Start`, `Spec` and `Run` emit the contract's steps in order, take the answers, check a pasted callback (state, code, `client_id`; three pastes), and return the result; `ErrorKindOf` and `Failure` | `llmprovider`, `auth`, `authcontract`, `internal/redact` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/chatcompat`, `providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |
@@ -1116,6 +1116,69 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   offers. A saved one that the menu does not recommend is offered too,
   after the recommendations, marked "saved", so a blank answer keeps it
   (0020-MADR F50; 0059-MADR W7).
+
+## Sign-in steps
+
+A sign-in is a sequence of numbered steps in the vocabulary of the auth
+contract module, whether a person reads them off a handle or the wizard
+renders them (0074-MADR D2, D3, D6). Nothing in it saves a credential: the
+caller saves, as the wizard does after its listing.
+
+- **Method facts.** Each `llmprovider.AuthMethod` carries nine facts, plain
+  strings and booleans that spell the contract's wire values, so that the
+  root imports no v0 module: `Kind`, `Completion`, `Paste`, `FirstPaste`,
+  `Yields`, `ClientIdentity`, `Slot`, `Refreshable` and `Revocable`. The
+  built-in descriptors of OpenAI, Grok and Kilo set them, and
+  `AuthMethod.Interactive` and `HeadlessOK` are deprecated, their values
+  unchanged. `signin.Methods(d)` returns a descriptor's methods as the
+  contract's `Method` values, and one `api_key` method for a descriptor that
+  requires a key and lists none. OpenAI's and Grok's `browser_oauth` are
+  `browser_paste` with `Paste` `url_or_code`; the plan's first sign-in takes
+  `FirstPaste` `url_only`.
+- **The engine.** `internal/signinflow` runs one sign-in. It takes `auth`'s
+  login functions as values, emits the steps in order with `Seq` from 1
+  (`open_url` then a `paste`, or `show_code` then `waiting`, and last `done`
+  or `failed`), takes the answer to a step that asks, and returns the result.
+  A browser sign-in has a `paste` step only when the method's `Paste` (or
+  `FirstPaste` for a first plan sign-in) is set and the caller has not set
+  `NoPaste`. A pasted value is checked before it reaches `auth`: the state,
+  a code, and a `client_id` where only a URL is accepted. A bad paste is
+  asked again with a reason that never holds it, and the third bad one ends
+  the sign-in as `invalid_request`. A pasted URL with this sign-in's state
+  and an `error` passes to `auth`, which ends it as `denied`.
+- **`NoLoopback`.** `OAuthFlowOptions.NoLoopback` and
+  `ChatGPTPlanOptions.NoLoopback` bind no callback listener, so a paste
+  alone completes a browser sign-in. A sign-in with it and no `InputCode` is
+  `ErrInvalidRequest`, before any request. OpenAI's redirect names its first
+  registered port. Grok's names `http://127.0.0.1:<port>/callback`, a random
+  port in 49152 to 65535 that nothing binds. A device sign-in ignores it.
+- **The handle.** `llmprovider/x/signin` (experimental, R4) puts the engine
+  behind one type. `Start(ctx, provider, method, Options)` drives eight
+  pairs: `device_code` (OpenAI, Grok, Kilo), `browser_oauth` (OpenAI, Grok),
+  `chatgpt_plan` and `import_vendor_cli` (OpenAI, Grok); any other pair is
+  `ErrUnsupported`. `Start` takes no registry, and the package may import
+  neither the providers nor a `Registry` (R2), so it holds its own table of
+  those pairs' facts, copied from the descriptors, and
+  `TestMethods_StartFactsAreTheDescriptors_0074` fails when a descriptor
+  changes and the table does not follow. A `SignIn`'s `Steps` channel is
+  closed after the last step, `Answer` answers a step by its `Seq`, `Wait`
+  returns a `Credential` (`APIKey`, `Session`, `AccessOnly`, `DeviceKey` or
+  `ReadThrough`) or the sign-in's error, and `Cancel` ends it with kind
+  `canceled`. `ErrorKindOf` maps an error to the contract's failure kinds,
+  most specific first; `ErrSignInDenied` and `ErrSignInExpired` give it
+  `denied` and `expired`.
+- **The wizard.** Its browser, plan and device sign-ins run on the same
+  engine, with their notices, prompts and paste text as before. A paste the
+  engine refuses is asked again with a warning that gives its reason, where
+  `auth` once received it. `Options.Driver`, a `wizard.StepDriver` whose
+  method `SignInStep` is called once per step, replaces the `Prompter`'s
+  sign-in notices and paste, `Options.ShowDeviceCode` and `Options.OpenURL`,
+  for a caller with no terminal. It is given the sign-in's last step, `done`
+  or `failed`, exactly once and last, unless its own error ended the
+  sign-in: then it is given none, and the error is returned as it is. An
+  error on the last step is one warning notice and changes nothing. An
+  `Options.OpenURL` error is a warning notice, and the sign-in goes on. The
+  vendor import has no step.
 
 ## Identity
 

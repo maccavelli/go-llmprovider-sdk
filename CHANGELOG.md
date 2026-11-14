@@ -11,8 +11,56 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- Nine facts on `llmprovider.AuthMethod`, set by the OpenAI, Grok and Kilo
+  descriptors: `Kind`, `Completion`, `Paste`, `FirstPaste`, `Yields`,
+  `ClientIdentity`, `Slot` (strings), and `Refreshable` and `Revocable`
+  (booleans). They spell the wire values of the new auth contract module, so
+  a caller reads what a method is instead of listing providers
+  ([0074-MADR](docs/decisions/0074-MADR-one-sign-in-handle-and-method-facts.md)
+  D1).
+- `auth.SessionKind`, with `auth.SessionChatGPT`, `SessionChatGPTPlan`,
+  `SessionGrok` and `SessionKiloDevice`; `OAuthSession.Kind`, saved by
+  `FileTokenStore` and omitted when empty; and `(*OAuthSession).SessionKind`,
+  which names the kind a session has, inferred when `Kind` is empty (D5).
+- `auth.ErrSignInDenied` and `auth.ErrSignInExpired`, each matching
+  `llmprovider.ErrAuthFailure`, which the browser, Grok, OpenAI and Kilo
+  sign-ins now wrap on a denial or an expiry; no error's text changes (D8).
+- `auth.OAuthFlowOptions.NoLoopback` and `auth.ChatGPTPlanOptions.NoLoopback`
+  bind no callback listener, so a paste alone completes a browser sign-in;
+  they need an `InputCode`, and a device sign-in ignores them (D4).
+- `auth.VendorCLIPath`, the path of a vendor CLI's login file, which the
+  wizard's vendor import now calls.
+- `wizard.Options.Driver` and `wizard.StepDriver`, whose method `SignInStep`
+  is given each step of a browser, plan or device sign-in, for a caller with
+  no terminal (D6).
+- `llmprovider/x/signin`, experimental (outside the v1 promise and
+  `make api-check`): `Methods`, `Start`, `Options` and its fields (`NoLoopback`
+  among them), `SignIn` with `Method`, `Steps`, `Answer`, `Wait` and `Cancel`,
+  `Credential` with `APIKey`, `Session`, `AccessOnly`, `DeviceKey` and
+  `ReadThrough`, and `ErrorKindOf` (D2, D3, D9).
+
+### Deprecated
+
+- `llmprovider.AuthMethod.Interactive` and `HeadlessOK`, which `Kind` and
+  `Completion` replace, `auth.LoginDeviceOAuth`, which `StartDeviceOAuth`
+  replaces, and `auth.OAuthFlowOptions.NotifyDevice`. Each keeps its
+  behaviour until v2 (D7).
+
 ### Changed
 
+- An `Options.OpenURL` error in the wizard is shown as a warning, "could not
+  open the browser (...); open the URL above", and the sign-in goes on.
+- The wizard's browser and plan sign-ins check a pasted callback before
+  `auth` receives it: its state, a code, and a `client_id` where only a URL
+  is accepted. A paste that fails is asked again with a warning that gives
+  its reason, and a third bad one ends the sign-in.
+- The vendor CLI's login path errors of the wizard's import begin "auth:"
+  where they began "wizard:", and the error for a provider with no vendor CLI
+  matches `llmprovider.ErrUnsupported`.
+- The root module requires `authcontract` v0.1.0, and `make api-check`
+  compares the `llmprovider` and `wizard` subtrees separately.
 - Grok's browser sign-in completes by a pasted callback URL or code, and
   accepts `NoLoopback`: its `browser_oauth` method fact is `browser_paste`
   with `Paste` `url_or_code`. With `NoLoopback` and no listener its redirect

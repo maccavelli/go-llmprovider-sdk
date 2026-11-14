@@ -570,7 +570,8 @@ and the contract. It could not fail in Phase 4. Add `authcontract` to
    identifier is replaced); `make parity-check` confirms it.
 5. `AGENTS.md` "Live tests": `LLMPROVIDER_LIVE_DEVICE_LOGIN` (MADR C53)
    names "the Grok, Kilo and OpenAI device logins", for Phase 7's
-   `TestLive_OpenAIDeviceLogin`.
+   `TestLive_OpenAIDeviceLogin`. *(2026-11-13, the owner's ruling: moved to
+   Phase 7 step 1; see "Phase 6, deviation".)*
 6. `make docs-check changelog-check parity-check links-check tables-check`.
 
 ### Phase 7: owner-run probes (MADR D12)
@@ -585,7 +586,8 @@ They run `x/signin` with `NoLoopback`, which passes it to `auth`'s two
 fields; gobble-cli's remote ACP sign-ins are the option's consumer caller,
 and these two its probes.)*
 
-1. **A live OpenAI device sign-in,** `TestLive_OpenAIDeviceLogin` in
+1. *(2026-11-13: the `AGENTS.md` "Live tests" line of Phase 6 step 5 lands in
+   this step's commit; see "Phase 6, deviation".)* **A live OpenAI device sign-in,** `TestLive_OpenAIDeviceLogin` in
    `llmprovider/live_oauth_login_test.go`, under
    `LLMPROVIDER_LIVE_DEVICE_LOGIN`: start, approve, one short generation
    through the Codex backend, revoke. *Owner-run; asks first; scratch store;
@@ -2075,3 +2077,65 @@ especially) and 0074-MADR D6 were read first. Deviations 1 and 2 are in
 * Not done, as the phase says: no CHANGELOG line, README or architecture
   section (Phase 6), none of 0075's `ConsentText`, `HostID` or `ClientStore`,
   and none of 0079's `Options.Identity` on the wizard's requests.
+
+### Phase 6, deviation (2026-11-13)
+
+* **Finding.** Phase 6 step 5 has `AGENTS.md` "Live tests" say that
+  `LLMPROVIDER_LIVE_DEVICE_LOGIN` covers "the Grok, Kilo and OpenAI device
+  logins", for `TestLive_OpenAIDeviceLogin`. That test is not built: it is
+  Phase 7 step 1's, owner-run, and `grep -rn OpenAIDeviceLogin` over the
+  Go, Markdown, Makefile and workflow files finds it only in these records.
+  `AGENTS.md` lines 259 to 261 read "(the Grok and Kilo device logins)",
+  which is true today. Writing step 5 now would describe an unbuilt test.
+* **Ruling, 2026-11-13, the owner: "Move it to Phase 7 step 1".** The
+  `AGENTS.md` line lands in the commit that adds `TestLive_OpenAIDeviceLogin`.
+  Step 5 and Phase 7 step 1 are annotated above, not rewritten. The MADR's
+  C53 is unchanged: its asserted fact is the test's variable, which holds.
+
+### Phase 6 (2026-11-13)
+
+Base: `main` at `7415801`, tree clean. Phase 6, "Rules for every phase" and
+every execution entry from Phase 0 on were read first, so the docs describe
+what was built: Phase 4's deviations (`api-check` per subtree, the facts
+table of `x/signin`, the deadline plant), Phase 5's (the `Driver`'s
+terminal-step rulings) and Phase 8 step 1 (Grok `browser_paste`,
+`url_or_code`, `NoLoopback` with a random-port redirect). Each claim was read
+against the code.
+
+* **Step 1, `docs/architecture.md`.** The `x/signin` and `signinflow` rows
+  were Phase 4's. `auth`'s row now names `VendorCLIPath`, `SessionKind`,
+  `OAuthSession.Kind`, the two sentinels and `NoLoopback` on both options;
+  `x/signin`'s row names its experimental `NoLoopback`; a new "Sign-in steps"
+  section, before "Identity".
+* **Step 2, `README.md`.** A "Method facts and one sign-in handle" section
+  (`x/signin` marked experimental), the `x/signin` row of the Packages table,
+  and an `Options.Driver` bullet in the wizard section. The sentence "The root
+  module does not require it yet", made false by Phase 4, is corrected.
+* **Step 3, `CHANGELOG.md` `[Unreleased]`.** **Added** each exported name of
+  R55's table; **Deprecated** the four; **Changed** the `OpenURL` warning.
+  Four **Changed** lines beyond the phase's list, each describing built
+  behaviour:
+  * the wizard's paste checks and re-asks: Phase 5's "Behaviour change to
+    note", `internal/signinflow/paste.go` `check`;
+  * the vendor-path errors begin "auth:" where they began "wizard:", and the
+    unsupported one matches `ErrUnsupported`: Phase 3 step 4's "Error text
+    differs"; `llmprovider/auth/vendor_path.go:44` against `773b84c:wizard/import.go:29`;
+  * the root requires `authcontract` v0.1.0: Phase 4 step 1, `go.mod:6`;
+  * `make api-check` compares the `llmprovider` and `wizard` subtrees
+    separately: Phase 4's Deviation 1, `scripts/check_api.py`.
+* **Step 4:** `make parity-check`, exit 0; no `mcplib` row changed.
+* **Step 5:** not done, moved to Phase 7 step 1 by the owner (above).
+* **Claims.** No row is added. README, architecture and the CHANGELOG are not
+  claim-checked records, and Phase 6 makes no new code assertion in a record;
+  the coordinator's decision.
+* **Checks,** each exit status captured before any filter: `make docs-check`,
+  `links-check`, `changelog-check`, `markdownlint`, `records-check`,
+  `disclosure-check`, `tables-check`, `parity-check`, each exit 0;
+  `tools/claims.py` on the 0074 pair, 0; `tools/denyscan.py --changed`, 0;
+  `tools/recordlint.py --changed`, 0; `python3 -B tools/gate.py --markdown`
+  through `run-heavy`, exit 0, "gate: 11 of 11 passed" (827 s). No `.go` file
+  changed, so no full gate. No new test or gate, so no planted break. The
+  records' checks were run again after this entry.
+* **Provenance.** Mainstream model, medium effort. Outcome: Phase 6 done
+  except step 5, which the owner ruled into Phase 7 step 1 on 2026-11-13
+  (see "Phase 6, deviation"); staged for the coordinator to commit.
