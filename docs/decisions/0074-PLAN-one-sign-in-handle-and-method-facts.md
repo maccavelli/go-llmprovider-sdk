@@ -819,6 +819,13 @@ variable (AGENTS.md "Live tests"). So is
 2026-11-13)*: the script accepts a suffix of `LLMPROVIDER_LIVE_<NNNN>` that
 a record numbered `NNNN` names.
 
+*(2026-11-14: so is `LLMPROVIDER_LIVE_0074_PASTE_FILE`, the paste file of
+steps 2 and 3, `TestLive_0074PasteBrowser` and `TestLive_0074PastePlan`, which
+the two share. It must not exist when a test starts, as step 4's must not.
+Step 2 also reads `LLMPROVIDER_LIVE_BROWSER_LOGIN`; step 3 also reads
+`LLMPROVIDER_LIVE_CHATGPT_PLAN`. Both are named in AGENTS.md. The other
+variables of this phase are `LLMPROVIDER_LIVE_DEVICE_LOGIN`, step 1's.)*
+
 ### Phase 8: the release
 
 1. **Only on a pass of Phase 7 step 4** *(added 2026-11-13, the owner's
@@ -2453,3 +2460,88 @@ its own commit before the rest of Phase 7's prep. Base `4740e2e`.
   and "Save reads under the session's lock" for the second; the coordinator's
   brief had assumed the second race was a test artifact, which the evidence
   did not support. Staged for the coordinator to commit.
+
+### Phase 7, prep (2026-11-14)
+
+Base `67be2b7` (the U14 race fix, committed and pushed). The code of steps 1 to
+3 is built; step 4 ran in Phase 3a; step 5 needs no code; step 6 is the fix
+above. **The owner's runs of steps 1, 2, 3 and 5 are pending; nothing was
+signed in and no live test ran.**
+
+* **Files.** `llmprovider/live_oauth_login_test.go`:
+  `TestLive_OpenAIDeviceLogin` (step 1, `LLMPROVIDER_LIVE_DEVICE_LOGIN`; start,
+  the owner approves, one generation on `gpt-6-astra`, revoke).
+  `llmprovider/live_0074_paste_test.go` (new, tag `live_gateways`):
+  `TestLive_0074PasteBrowser` (step 2: `x/signin` OpenAI `browser_oauth`,
+  `NoLoopback`, a paste through the file, one forced refresh into a scratch
+  store, revoke) and `TestLive_0074PastePlan` (step 3: `chatgpt_plan`,
+  `NoLoopback`, a paste, a refresh; then the test holds port 1455 and signs
+  in again to the same client with `Previous` and `NoPaste`, expecting the
+  authorize URL's redirect on 1457; the owner signs in in a browser on the
+  host; both sessions are revoked). `llmprovider/live_checks_test.go`
+  (appended, untagged): `checkDeviceChatGPT`, `driveSteps`, `stepKinds`,
+  `signInFinding`, `loopbackFinding`, `redirectPort`, `holdLoopbackPort`,
+  `checkRefreshOnce`, `sameClient`. `llmprovider/live_twins_test.go`
+  (appended): `TestLiveTwin_OpenAIDevice_0074` and
+  `TestLiveTwin_PasteSteps_0074` (eight subtests). `AGENTS.md` "Live tests":
+  `LLMPROVIDER_LIVE_DEVICE_LOGIN` covers "the Grok, Kilo and OpenAI device
+  logins" (Phase 6 step 5, moved here by the owner).
+* **Two things to know about the probes.** Step 3's second sign-in uses
+  `Previous`, so the run registers one client under the owner's account, not
+  two. Each confirm step (the plan's usage terms) is answered yes by the
+  test, logging its text: the owner's run is the consent.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, exit 0, "all 14
+  plant(s) caught", the tree untouched; the twins fail on each:
+  1. no refresh token: `FINDING sign-in: ChatGPT session true, access set
+     true, refresh set false; want a ChatGPT session with both tokens`.
+  2. not a ChatGPT session (another issuer): `ChatGPT session false`.
+  3. another word generated: `Generate = "OMEGA", <nil>`.
+  4. a refresh after revocation succeeds: `FINDING revocation: a refresh
+     after revocation succeeded`.
+  5. `driveSteps` answers every confirm yes: `no: confirm answer =
+     Answer{... Confirm:true}; want step 1, confirm false`.
+  6. `driveSteps` answers a paste for the wrong step: `paste answer for step
+     1; want step 3 with the pasted line`.
+  7. `driveSteps` never shows the URL: `the URL was shown as []; want it
+     once`.
+  8. `signInFinding` passes a sign-in with no paste: `no paste:
+     signInFinding = ..., true; want ..., false`.
+  9. `loopbackFinding` passes a failed sign-in.
+  10. `redirectPort` ignores the URL: `redirectPort(1455) = 1457, <nil>`.
+  11. `holdLoopbackPort` holds nothing: `port <n> was free after
+      holdLoopbackPort`.
+  12. `sameClient` accepts another client: `another client: sameClient =
+      <nil>; want ok false`.
+  13. a refresh does not rotate: `FINDING refresh: forced refresh: err <nil>,
+      token rotated false`.
+  14. `redirectPort`'s two failures merged again into one message:
+      `live_twins_test.go:697: redirectPort("https://auth.twin.test/authorize?state=x")
+      error "authorize URL: no redirect_uri with a port (%!w(<nil>))" holds a
+      formatting fault`.
+* **A fix of mine to the prep, and the coordinator's review finding.**
+  `redirectPort`'s error wrapped its cause with `%v`, which `errorlint`
+  refuses; the owner's "Allow the fix" of 2026-11-14 made it `%w`. The
+  coordinator's review found that one message served two failures, so an
+  empty port, whose cause is nil, read `%!w(<nil>)`. They are split: a parse
+  error is wrapped with `%w`, and an empty port is a plain error. The
+  `redirectPort` twin checks that no error holds `%!` and that a parse error
+  wraps a `*url.Error`.
+* **0076 and 0079.** Their claims tables quote the old `AGENTS.md` line at
+  `0076-PLAN:320` and `0079-PLAN:453`. `tools/claims.py` on both pairs: exit
+  0, 48 of 48 and 7 of 7, 62 of 62 and 13 of 13. The rows are pinned to
+  their revisions, so they pass; nothing changed in either record.
+* **Checks,** each exit status captured before any filter:
+  * `make pre-add-check` on the four Go files: exit 0, `go-precheck: 4
+    file(s) clean`. `go vet -tags live_gateways ./llmprovider/`: exit 0.
+    `make tables-check docs-check`: exit 0, `47 packages, 0 problem(s)` and
+    `0 violation(s) of R50,R51,R52`. `go test -run TestLiveTwin
+    ./llmprovider/`: exit 0.
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, after the
+    last code change, in the tree: 08:40:20 to 09:01:25 (1,266 s), exit 0,
+    `gate: 30 of 30 passed`.
+  * After this entry: `tools/claims.py` on the 0074, 0076 and 0079 pairs,
+    `make records-check links-check disclosure-check markdownlint`,
+    `tools/denyscan.py --changed` and `tools/recordlint.py --changed`.
+* **Provenance.** Mainstream model, medium effort. Escalated once for the
+  race (Phase 7, step 6, deviation), ruled and fixed in `67be2b7`. The
+  owner's runs are pending: the run sheet comes after 0075 and 0079.

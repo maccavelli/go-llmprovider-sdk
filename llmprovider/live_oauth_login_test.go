@@ -116,6 +116,29 @@ func TestLive_GrokDeviceLogin(t *testing.T) {
 	checkWord(ctx, t, liveGrok(t, session, "grok-4.6"), "ALPHA", noSkip)
 }
 
+// TestLive_OpenAIDeviceLogin is the owner-run gate for OpenAI's device-code
+// login (0074-PLAN Phase 7 step 1; no live test had one before). It REQUIRES
+// LLMPROVIDER_LIVE_DEVICE_LOGIN=1 and a person to approve the code it logs,
+// within five minutes. It generates once through the ChatGPT backend, under
+// the owner's ChatGPT plan, and revokes the session (checkDeviceChatGPT).
+func TestLive_OpenAIDeviceLogin(t *testing.T) {
+	if os.Getenv("LLMPROVIDER_LIVE_DEVICE_LOGIN") != "1" {
+		t.Skip("LLMPROVIDER_LIVE_DEVICE_LOGIN unset: this needs a person to approve a device code")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	login, err := auth.StartDeviceOAuth(ctx, llmprovider.ProviderOpenAI, auth.OAuthFlowOptions{})
+	if err != nil {
+		t.Fatalf("StartDeviceOAuth: %v", err)
+	}
+	t.Logf("open %s and enter the code %s", login.VerificationURI, login.UserCode)
+	session, err := login.Wait(ctx)
+	if err != nil {
+		t.Fatalf("Wait: %v", err)
+	}
+	checkDeviceChatGPT(ctx, t, session, "gpt-6-astra", noSkip)
+}
+
 // TestLive_KiloDeviceLogin is the owner-run gate for Kilo's device login
 // (0017-MADR D2; 0017-PLAN U2). It REQUIRES LLMPROVIDER_LIVE_DEVICE_LOGIN=1
 // and a person to approve the code it logs, within five minutes. The approved

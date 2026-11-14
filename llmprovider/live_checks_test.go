@@ -15,11 +15,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/authcontract"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
@@ -484,4 +486,213 @@ func pasteRefusedLocally(err error) bool {
 	msg := err.Error()
 	return errors.Is(err, auth.ErrSignInDenied) || strings.Contains(msg, "callback state mismatch") ||
 		strings.Contains(msg, "missing authorization code") || strings.Contains(msg, "empty authorization code")
+}
+
+// checkDeviceChatGPT checks an OpenAI device login's session (0074-PLAN
+// Phase 7 step 1): a ChatGPT session holding an access and a refresh token,
+// then one short generation through the ChatGPT backend on model, then its
+// revocation, after which a refresh is refused. A session that a failed check
+// leaves behind is revoked when the test ends. It logs no token.
+func checkDeviceChatGPT(ctx context.Context, t *testing.T, session *auth.OAuthSession, model string,
+	skip transientSkip, opts ...llmprovider.Option) {
+	t.Helper()
+	if !session.ChatGPT() || session.Access == "" || session.Refresh == "" {
+		t.Fatalf("FINDING sign-in: ChatGPT session %t, access set %t, refresh set %t; want a ChatGPT session with both tokens",
+			session.ChatGPT(), session.Access != "", session.Refresh != "")
+	}
+	t.Log("FINDING sign-in: OpenAI device login approved; a ChatGPT session with an access and a refresh token")
+	revoked := false
+	t.Cleanup(func() {
+		if revoked {
+			return
+		}
+		if err := auth.RevokeOAuthSession(context.Background(), session); err != nil {
+			t.Errorf("RevokeOAuthSession when the test ends: %v", err)
+		}
+	})
+	checkWord(ctx, t, liveOpenAI(t, session, model, opts...), "ALPHA", skip)
+	t.Log("FINDING use: one short generation through the ChatGPT backend returned the requested word")
+	checkIdentityRevoked(ctx, t, session)
+	revoked = true
+}
+
+// stepRunner is the part of x/signin's SignIn that driveSteps uses, so that a
+// twin can script it.
+type stepRunner interface {
+	Steps() <-chan authcontract.Step
+	Answer(context.Context, authcontract.Answer) error
+}
+
+// stepHooks is what a person does at each step that asks or shows. A nil
+// paste makes a paste step an error: the sign-in was not meant to ask one.
+type stepHooks struct {
+	confirm func(authcontract.Step) bool
+	openURL func(authcontract.Step)
+	paste   func(context.Context) (string, error)
+}
+
+// driveSteps answers a sign-in's steps until its channel closes, and returns
+// the kinds of the steps it saw, in order. It answers a confirm step with
+// h.confirm, shows an open_url step through h.openURL, and answers a paste
+// step with the line h.paste returns. It returns an error when h.paste does,
+// or when ctx ends; the sign-in's own outcome is its Wait's.
+func driveSteps(ctx context.Context, run stepRunner, h stepHooks) ([]authcontract.StepKind, error) {
+	var kinds []authcontract.StepKind
+	for {
+		var step authcontract.Step
+		var open bool
+		select {
+		case step, open = <-run.Steps():
+		case <-ctx.Done():
+			return kinds, ctx.Err()
+		}
+		if !open {
+			return kinds, nil
+		}
+		kinds = append(kinds, step.Kind)
+		var answer *authcontract.Answer
+		switch step.Kind {
+		case authcontract.StepConfirm:
+			yes := h.confirm != nil && h.confirm(step)
+			answer = &authcontract.Answer{Seq: step.Seq, Confirm: &yes}
+		case authcontract.StepOpenURL:
+			if h.openURL != nil {
+				h.openURL(step)
+			}
+		case authcontract.StepPaste:
+			if h.paste == nil {
+				return kinds, fmt.Errorf("the sign-in asked for a paste (step %d), which this run does not take", step.Seq)
+			}
+			line, err := h.paste(ctx)
+			if err != nil {
+				return kinds, err
+			}
+			answer = &authcontract.Answer{Seq: step.Seq, Paste: line}
+		}
+		if answer != nil {
+			if err := run.Answer(ctx, *answer); err != nil {
+				return kinds, fmt.Errorf("answer to step %d: %w", step.Seq, err)
+			}
+		}
+	}
+}
+
+// stepKinds is kinds as text, in order.
+func stepKinds(kinds []authcontract.StepKind) string {
+	names := make([]string, len(kinds))
+	for i, k := range kinds {
+		names[i] = string(k)
+	}
+	return strings.Join(names, ", ")
+}
+
+// signInFinding is the one FINDING sign-in line of a sign-in that only a
+// paste completes (no listener bound), from the paste record, the steps seen
+// and the sign-in's error, and whether the run passed: it completed by a
+// paste. The line holds the paste's shape and the error, never the paste.
+func signInFinding(vendor string, rec *pasteRecord, kinds []authcontract.StepKind, err error) (line string, passed bool) {
+	returned, shape := rec.get()
+	steps := stepKinds(kinds)
+	switch {
+	case err == nil && returned:
+		return fmt.Sprintf("FINDING sign-in: %s sign-in completed by a paste of %s; steps: %s", vendor, shape, steps), true
+	case err == nil:
+		return fmt.Sprintf("FINDING sign-in: %s sign-in completed with no paste, which a sign-in with no listener cannot do; steps: %s",
+			vendor, steps), false
+	case returned:
+		return fmt.Sprintf("FINDING sign-in: %s did not complete by the pasted %s: %v; steps: %s", vendor, shape, err, steps), false
+	case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled):
+		return fmt.Sprintf("FINDING sign-in: nothing was pasted before the deadline; steps: %s", steps), false
+	default:
+		return fmt.Sprintf("FINDING sign-in: the sign-in ended before any paste: %v; steps: %s", err, steps), false
+	}
+}
+
+// loopbackFinding is the one FINDING sign-in line of a sign-in that the
+// loopback on port completes, and whether it passed.
+func loopbackFinding(vendor string, port int, kinds []authcontract.StepKind, err error) (line string, passed bool) {
+	if err != nil {
+		return fmt.Sprintf("FINDING sign-in: the %s sign-in by the loopback on port %d failed: %v; steps: %s",
+			vendor, port, err, stepKinds(kinds)), false
+	}
+	return fmt.Sprintf("FINDING sign-in: the %s sign-in completed by the loopback, which redirected to port %d; steps: %s",
+		vendor, port, stepKinds(kinds)), true
+}
+
+// redirectPort is the port of the authorize URL raw's redirect_uri.
+func redirectPort(raw string) (int, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return 0, fmt.Errorf("authorize URL: %w", err)
+	}
+	redirect, err := url.Parse(u.Query().Get("redirect_uri"))
+	if err != nil {
+		return 0, fmt.Errorf("authorize URL: redirect_uri: %w", err)
+	}
+	if redirect.Port() == "" {
+		return 0, errors.New("authorize URL: no redirect_uri with a port")
+	}
+	return strconv.Atoi(redirect.Port())
+}
+
+// holdLoopbackPort takes port on the loopback addresses until the test ends,
+// so that a sign-in finds it busy, and fails the test when it cannot.
+func holdLoopbackPort(t *testing.T, port int) {
+	t.Helper()
+	text := strconv.Itoa(port)
+	v4, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", text))
+	if err != nil {
+		t.Fatalf("hold port %d: %v; free it and run again", port, err)
+	}
+	held := []net.Listener{}
+	held = append(held, v4)
+	if v6, err := net.Listen("tcp6", net.JoinHostPort("::1", text)); err == nil {
+		held = append(held, v6)
+	}
+	t.Cleanup(func() {
+		for _, l := range held {
+			_ = l.Close()
+		}
+	})
+}
+
+// checkRefreshOnce binds session to a scratch FileTokenStore in t.TempDir,
+// forces one refresh, and checks that the token rotated and that the store
+// holds the rotation.
+func checkRefreshOnce(ctx context.Context, t *testing.T, session *auth.OAuthSession) {
+	t.Helper()
+	store, err := auth.NewFileTokenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(ctx, session.Provider, session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	session.Store = store
+	first, err := session.Token(ctx)
+	if err != nil {
+		t.Fatalf("FINDING refresh: Token: %v", err)
+	}
+	session.Invalidate()
+	next, err := session.Token(ctx)
+	if err != nil || next.Value == first.Value || !next.Expiry.After(time.Now()) {
+		t.Fatalf("FINDING refresh: forced refresh: err %v, token rotated %t", err, err == nil && next.Value != first.Value)
+	}
+	if held, err := store.Load(ctx, session.Provider); err != nil || held == nil || held.Access != next.Value {
+		t.Fatalf("FINDING refresh: the store does not hold the rotated token: %v", err)
+	}
+	t.Log("FINDING refresh: the token rotated once and the scratch store holds it")
+}
+
+// sameClient reports whether two plan sessions are under one issued client,
+// which a sign-in again reuses (0075-MADR D7), and under one host id.
+func sameClient(a, b *auth.OAuthSession) error {
+	if a.ClientID == "" || a.ClientID != b.ClientID {
+		return fmt.Errorf("the second sign-in's client is not the first's (first %d chars, second %d chars)",
+			len(a.ClientID), len(b.ClientID))
+	}
+	if a.HostID == "" || a.HostID != b.HostID {
+		return errors.New("the second sign-in's host id is not the first's")
+	}
+	return nil
 }

@@ -257,8 +257,8 @@ go test -tags live_gateways ./llmprovider/... -run Live
 provider's live tests run when its key variable is set (`ProviderEnvVars()`),
 and skip without it. These suites are switched on by their own variable:
 `LLMPROVIDER_LIVE_CHATGPT`, `LLMPROVIDER_LIVE_BROWSER_LOGIN` (the ChatGPT and
-Grok browser logins), `LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok and Kilo
-device logins), `LLMPROVIDER_LIVE_CHATGPT_PLAN` (the ChatGPT plan sign-in),
+Grok browser logins), `LLMPROVIDER_LIVE_DEVICE_LOGIN` (the Grok, Kilo and
+OpenAI device logins), `LLMPROVIDER_LIVE_CHATGPT_PLAN` (the ChatGPT plan sign-in),
 `LLMPROVIDER_LIVE_GROK_CLI`, `LLMPROVIDER_LIVE_TOGETHER` (with
 `TOGETHER_API_KEY`), and `LLMPROVIDER_LIVE_GEMINI_429` (with
 `LLMPROVIDER_LIVE_GEMINI_429_MODEL` and `LLMPROVIDER_LIVE_GEMINI_429_BURST`; it

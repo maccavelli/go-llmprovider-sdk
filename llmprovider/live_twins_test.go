@@ -11,17 +11,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/authcontract"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
@@ -514,4 +517,242 @@ func twinPasteFindings(t *testing.T) {
 			t.Errorf("%s: the line holds the pasted value: %q", tc.name, line)
 		}
 	}
+}
+
+// TestLiveTwin_OpenAIDevice_0074 is TestLive_OpenAIDeviceLogin's checks, on a
+// device login's ChatGPT session whose token endpoint is the fake's. Each
+// marked line is one of 0074-PLAN Phase 7's plants.
+func TestLiveTwin_OpenAIDevice_0074(t *testing.T) {
+	f := newTwinFake(t)
+	f.echo = true        // twin 0074 device: the fake echoes the word
+	f.revokeKills = true // twin 0074 device: a refresh after revocation is refused
+	deviceRefresh := "twin-device-refresh"
+	deviceIssuer := auth.DefaultOpenAIIssuer // twin 0074 device: a ChatGPT session's issuer
+	session := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: deviceIssuer, TokenURL: f.srv.URL + "/oauth/token",
+		Access: "twin-access", Refresh: deviceRefresh, Expiry: time.Now().Add(time.Hour), ClientID: auth.DefaultOpenAIClientID,
+		HTTPClient: f.srv.Client()}
+	checkDeviceChatGPT(twinContext(t), t, session, "gpt-6-astra", noSkip, f.opts("")...)
+}
+
+// scriptRun is a sign-in that has already emitted its steps, as the engine's
+// channel does, and keeps the answers it is given.
+type scriptRun struct {
+	steps chan authcontract.Step
+
+	mu      sync.Mutex
+	answers []authcontract.Answer
+}
+
+func newScriptRun(steps ...authcontract.Step) *scriptRun {
+	r := &scriptRun{steps: make(chan authcontract.Step, len(steps))}
+	for _, s := range steps {
+		r.steps <- s
+	}
+	close(r.steps)
+	return r
+}
+
+func (r *scriptRun) Steps() <-chan authcontract.Step { return r.steps }
+
+func (r *scriptRun) Answer(_ context.Context, a authcontract.Answer) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.answers = append(r.answers, a)
+	return nil
+}
+
+// twinAuthorizeURL is an authorize URL of the plan's shape whose redirect_uri
+// names port.
+func twinAuthorizeURL(port int) string {
+	query := url.Values{"redirect_uri": {fmt.Sprintf("http://127.0.0.1:%d/auth/callback", port)}, "state": {pasteTwinState}}
+	return "https://auth.twin.test/oauth/authorize?" + query.Encode()
+}
+
+// TestLiveTwin_PasteSteps_0074 is the checks of TestLive_0074PasteBrowser and
+// TestLive_0074PastePlan: the step driver, the findings, the redirect port,
+// the held port, the refresh and the client reuse, each offline.
+func TestLiveTwin_PasteSteps_0074(t *testing.T) {
+	t.Run("Drive", twinDriveSteps)
+	t.Run("DriveNoPaste", twinDriveNoPaste)
+	t.Run("SignInFinding", twinSignInFindings)
+	t.Run("LoopbackFinding", twinLoopbackFindings)
+	t.Run("RedirectPort", twinRedirectPort)
+	t.Run("HoldPort", twinHoldPort)
+	t.Run("SameClient", twinSameClient)
+	t.Run("RefreshOnce", twinRefreshOnce)
+}
+
+// twinDriveSteps drives the plan's steps: a confirm, the authorize URL, a
+// paste, and done. The confirm is answered yes only when the hook says yes;
+// each answer names its own step.
+func twinDriveSteps(t *testing.T) {
+	steps := []authcontract.Step{{Seq: 1, Kind: authcontract.StepConfirm, ConfirmID: "twin", Text: "consent text"},
+		{Seq: 2, Kind: authcontract.StepOpenURL, URL: twinAuthorizeURL(1455)},
+		{Seq: 3, Kind: authcontract.StepPaste}, {Seq: 4, Kind: authcontract.StepDone}}
+	pasted := "http://127.0.0.1:1455/auth/callback?code=" + pasteTwinCode + "&state=" + pasteTwinState
+	for _, tc := range []struct {
+		name    string
+		confirm func(authcontract.Step) bool
+		want    bool
+	}{
+		{"yes", func(authcontract.Step) bool { return true }, true},
+		{"no", func(authcontract.Step) bool { return false }, false},
+		{"no hook", nil, false},
+	} {
+		run := newScriptRun(steps...)
+		var shown []string
+		kinds, err := driveSteps(twinContext(t), run, stepHooks{
+			confirm: tc.confirm,
+			openURL: func(step authcontract.Step) { shown = append(shown, step.URL) },
+			paste:   func(context.Context) (string, error) { return pasted, nil },
+		})
+		if err != nil || stepKinds(kinds) != "confirm, open_url, paste, done" {
+			t.Fatalf("%s: driveSteps = %q, %v", tc.name, stepKinds(kinds), err)
+		}
+		if len(shown) != 1 || shown[0] != twinAuthorizeURL(1455) {
+			t.Errorf("%s: the URL was shown as %q; want it once", tc.name, shown)
+		}
+		if len(run.answers) != 2 {
+			t.Fatalf("%s: %d answers; want a confirm and a paste", tc.name, len(run.answers))
+		}
+		if c := run.answers[0]; c.Seq != 1 || c.Confirm == nil || *c.Confirm != tc.want || c.Paste != "" {
+			t.Errorf("%s: confirm answer = %+v; want step 1, confirm %t", tc.name, c, tc.want)
+		}
+		if p := run.answers[1]; p.Seq != 3 || p.Paste != pasted || p.Confirm != nil {
+			t.Errorf("%s: paste answer for step %d; want step 3 with the pasted line", tc.name, p.Seq)
+		}
+	}
+}
+
+// twinDriveNoPaste: a paste step the run does not take is an error, and no
+// answer is given to it.
+func twinDriveNoPaste(t *testing.T) {
+	run := newScriptRun(authcontract.Step{Seq: 1, Kind: authcontract.StepOpenURL, URL: twinAuthorizeURL(1457)},
+		authcontract.Step{Seq: 2, Kind: authcontract.StepPaste})
+	kinds, err := driveSteps(twinContext(t), run, stepHooks{})
+	if err == nil || stepKinds(kinds) != "open_url, paste" || len(run.answers) != 0 {
+		t.Errorf("driveSteps = %q, %v, %d answers; want an error at the paste step and no answer", stepKinds(kinds), err, len(run.answers))
+	}
+}
+
+// twinSignInFindings is signInFinding over every outcome.
+func twinSignInFindings(t *testing.T) {
+	kinds := []authcontract.StepKind{authcontract.StepOpenURL, authcontract.StepPaste, authcontract.StepDone}
+	const steps = "; steps: open_url, paste, done"
+	shape := pasteShape("http://127.0.0.1:1455/auth/callback?code=" + pasteTwinCode + "&state=" + pasteTwinState)
+	paste := &pasteRecord{returned: true, shape: shape}
+	for _, tc := range []struct {
+		name   string
+		rec    *pasteRecord
+		err    error
+		want   string
+		passed bool
+	}{
+		{"paste", paste, nil, "FINDING sign-in: OpenAI sign-in completed by a paste of " + shape + steps, true},
+		{"no paste", &pasteRecord{}, nil,
+			"FINDING sign-in: OpenAI sign-in completed with no paste, which a sign-in with no listener cannot do" + steps, false},
+		{"refused", paste, errors.New("oauth: token exchange: status 400"),
+			"FINDING sign-in: OpenAI did not complete by the pasted " + shape + ": oauth: token exchange: status 400" + steps, false},
+		{"deadline", &pasteRecord{}, fmt.Errorf("sign-in: %w", context.DeadlineExceeded),
+			"FINDING sign-in: nothing was pasted before the deadline" + steps, false},
+		{"ended", &pasteRecord{}, errors.New("oauth: discovery: status 503"),
+			"FINDING sign-in: the sign-in ended before any paste: oauth: discovery: status 503" + steps, false},
+	} {
+		line, passed := signInFinding("OpenAI", tc.rec, kinds, tc.err)
+		if line != tc.want || passed != tc.passed {
+			t.Errorf("%s: signInFinding = %q, %t; want %q, %t", tc.name, line, passed, tc.want, tc.passed)
+		}
+		if strings.Contains(line, pasteTwinCode) || strings.Contains(line, pasteTwinState) {
+			t.Errorf("%s: the line holds the pasted value: %q", tc.name, line)
+		}
+	}
+}
+
+// twinLoopbackFindings is loopbackFinding over both outcomes.
+func twinLoopbackFindings(t *testing.T) {
+	kinds := []authcontract.StepKind{authcontract.StepOpenURL, authcontract.StepDone}
+	line, passed := loopbackFinding("OpenAI plan", 1457, kinds, nil)
+	if want := "FINDING sign-in: the OpenAI plan sign-in completed by the loopback, which redirected to port 1457; steps: open_url, done"; !passed || line != want {
+		t.Errorf("loopbackFinding = %q, %t; want %q, true", line, passed, want)
+	}
+	line, passed = loopbackFinding("OpenAI plan", 1457, kinds, errors.New("callback server: closed"))
+	if want := "FINDING sign-in: the OpenAI plan sign-in by the loopback on port 1457 failed: callback server: closed; steps: open_url, done"; passed || line != want {
+		t.Errorf("loopbackFinding = %q, %t; want %q, false", line, passed, want)
+	}
+}
+
+// twinRedirectPort is redirectPort over the two registered ports and two
+// URLs that name none.
+func twinRedirectPort(t *testing.T) {
+	for _, port := range []int{1455, 1457} {
+		if got, err := redirectPort(twinAuthorizeURL(port)); err != nil || got != port {
+			t.Errorf("redirectPort(%d) = %d, %v", port, got, err)
+		}
+	}
+	for _, raw := range []string{"https://auth.twin.test/authorize?state=x", "https://auth.twin.test/authorize?redirect_uri=http%3A%2F%2F127.0.0.1%2Fcb"} {
+		got, err := redirectPort(raw)
+		if err == nil {
+			t.Errorf("redirectPort(%q) = %d, nil; want an error", raw, got)
+		} else if strings.Contains(err.Error(), "%!") {
+			t.Errorf("redirectPort(%q) error %q holds a formatting fault", raw, err)
+		}
+	}
+	// An unparsable redirect_uri wraps its cause.
+	_, err := redirectPort("https://auth.twin.test/authorize?redirect_uri=http%3A%2F%2F%5B%3A%3A1")
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		t.Errorf("redirectPort of an unparsable redirect_uri = %v; want it to wrap a *url.Error", err)
+	} else if strings.Contains(err.Error(), "%!") {
+		t.Errorf("redirectPort error %q holds a formatting fault", err)
+	}
+}
+
+// twinHoldPort holds a free port, and checks that no one else can take it.
+func twinHoldPort(t *testing.T) {
+	probe, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := probe.Addr().(*net.TCPAddr).Port
+	if err := probe.Close(); err != nil {
+		t.Fatal(err)
+	}
+	holdLoopbackPort(t, port)
+	if l, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(port))); err == nil {
+		_ = l.Close()
+		t.Errorf("port %d was free after holdLoopbackPort", port)
+	}
+}
+
+// twinSameClient is sameClient over a reuse, another client and another host.
+func twinSameClient(t *testing.T) {
+	a := &auth.OAuthSession{ClientID: "oaia_twin_a", HostID: "urn:uuid:twin-a"}
+	for _, tc := range []struct {
+		name string
+		b    *auth.OAuthSession
+		ok   bool
+	}{
+		{"reuse", &auth.OAuthSession{ClientID: "oaia_twin_a", HostID: "urn:uuid:twin-a"}, true},
+		{"another client", &auth.OAuthSession{ClientID: "oaia_twin_b", HostID: "urn:uuid:twin-a"}, false},
+		{"another host", &auth.OAuthSession{ClientID: "oaia_twin_a", HostID: "urn:uuid:twin-b"}, false},
+		{"no client", &auth.OAuthSession{HostID: "urn:uuid:twin-a"}, false},
+	} {
+		if err := sameClient(a, tc.b); (err == nil) != tc.ok {
+			t.Errorf("%s: sameClient = %v; want ok %t", tc.name, err, tc.ok)
+		}
+	}
+	if err := sameClient(&auth.OAuthSession{HostID: "urn:uuid:twin-a"}, &auth.OAuthSession{HostID: "urn:uuid:twin-a"}); err == nil {
+		t.Error("two sessions with no client are the same client")
+	}
+}
+
+// twinRefreshOnce is checkRefreshOnce on a session whose token endpoint is
+// the fake's: its refresh rotates the token.
+func twinRefreshOnce(t *testing.T) {
+	f := newTwinFake(t)
+	f.rotate = true // twin 0074 refresh: a refresh returns new tokens
+	session := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: auth.DefaultOpenAIIssuer,
+		TokenURL: f.srv.URL + "/oauth/token", Access: "plan-access-0", Refresh: "plan-refresh-0",
+		Expiry: time.Now().Add(time.Hour), ClientID: auth.DefaultOpenAIClientID, HTTPClient: f.srv.Client()}
+	checkRefreshOnce(twinContext(t), t, session)
 }
