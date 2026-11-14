@@ -218,6 +218,14 @@ func (s *OAuthSession) LogValue() slog.Value {
 // error when the provider has none. FileTokenStore is the built-in one. A
 // TokenStore shared by several OAuthSessions must be safe for concurrent use:
 // each session loads and saves from its own refresh, while the others do.
+//
+// The session a Save is given may be one that a refresh is adopting into on
+// another goroutine, as the wizard's save of a new sign-in passes it, while
+// the session's own saves pass a copy that nothing else holds. A Save must
+// read the session's fields under the session's lock: FileTokenStore does,
+// through an unexported copy taken under it. A store outside this package
+// cannot take that lock and reads the fields unprotected, so it must not
+// be given a session that is in use (0074-PLAN Phase 7 step 6).
 type TokenStore interface {
 	Load(ctx context.Context, provider llmprovider.ProviderID) (*OAuthSession, error)
 	Save(ctx context.Context, provider llmprovider.ProviderID, s *OAuthSession) error

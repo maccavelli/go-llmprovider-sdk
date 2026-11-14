@@ -945,6 +945,12 @@ edited before this record is accepted.
   narrower than it states. It stays unverified until the PLAN's targeted
   `-race` probe (the report's U14), run on a scratch clone; it needs no
   sign-in and spends no quota.
+  *(2026-11-14: the probe found it, and a second race beside it. The write at
+  `wizard/auth.go:998` raced `refreshState`'s read, and `FileTokenStore.Save`
+  read the live session's fields without its lock. The owner ruled "Locked
+  setter `UseStore`" and "Save reads under the session's lock". The PLAN's
+  "Phase 7, step 6, deviation (2026-11-14)" records both. The R55 table gains
+  `(*auth.OAuthSession).UseStore`; no other name.)*
 * **The report's §5.4.2 makes `SignIn` an interface.** D3 makes it a concrete
   type, which can gain a method after promotion.
 * **S3 gives the facts on `AuthMethod` JSON tags.** D1 adds none:
@@ -1288,7 +1294,8 @@ options are kept as they were put, and the choice is marked.
   completes the sign-in to find out. Later the same day: verified by
   Phase 3a's run, a pass; a bare code pasted from a phone completed the
   sign-in, and the session listed models and was revoked.)*
-* The F27 race (above).
+* The F27 race (above). *(2026-11-14: found by the probe and fixed; see the
+  note on F27.)*
 
 ### Related
 

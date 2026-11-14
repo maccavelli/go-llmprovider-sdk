@@ -101,6 +101,7 @@ Outside `llmprovider/x/` (under the v1 promise from the release):
 | `(*auth.OAuthSession).SessionKind` *(exported by the owner's ruling of 2026-11-11, MADR D5; listed until then as a proposed revision)* | gobble's resolver, which accepts a stored session of an offered kind, inferred when `Kind` is empty (gobble-cli `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` D2), and `auth status --json`'s `sessionKind` (gobble-cli `0052-MADR-finish-the-chatgpt-plan-sign-in-on-the-sdk-engine.md` D8) |
 | `auth.ErrSignInDenied`, `auth.ErrSignInExpired` | `signin.ErrorKindOf`'s `denied` and `expired`, which gobble's `provider.ErrorKind` returns for its `--json` and `auth_required` failures (gobble-cli 0051-MADR D6; Q15) |
 | `OAuthFlowOptions.NoLoopback`, `ChatGPTPlanOptions.NoLoopback` *(restored 2026-11-11 by the owner's reversal, later the same day; MADR D4)* | `signin.Options.NoLoopback`, which `x/signin`'s `Start` passes to them, in another package; set by gobble's ACP `authenticate` for a sign-in started from a remote ACP client, whose person is not on the agent's host, so that only a paste completes it (gobble-cli `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` D3). *(That morning the row was struck, its names crossed out and its call site replaced by "Removed 2026-11-11 by the owner's ruling (MADR D4): neither is exported until a consumer's record sets one. The row gave `signin.Options.NoLoopback` as their call site, "which `x/signin`'s `Start` passes to them, in another package", and no consumer; before that it said "for gobble's remote sign-ins", which no gobble-cli record plans." The reversal restores it: gobble-cli's 0051-MADR D3 is the consumer's call site.)* |
+| `(*auth.OAuthSession).UseStore` *(added 2026-11-14 by the owner's ruling "Locked setter `UseStore`", Phase 7 step 6's deviation)* | `wizard`'s save of a new sign-in (`resolvedCredential.save`, `wizard/auth.go`), which binds the session to its store while a listing may still be refreshing it; a consumer that does the same takes the same call |
 | `auth.VendorCLIPath` | `wizard`'s vendor import (replacing `vendorAuthPath`); `x/signin`'s `import_vendor_cli` |
 | `wizard.Options.Driver`; `type wizard.StepDriver` and its method `SignInStep` | gobble's `gobble auth login --json`, which runs `wizard.ResolveCredential` (0056-MADR D1) with no terminal and prints each step (gobble-cli `docs/decisions/0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` D3 and D5; the owner's QE (a), 2026-11-10). gobble's ACP `authenticate` does not use it: it runs `signin.Start` |
 
@@ -808,6 +809,9 @@ and these two its probes.)*
    `go test -race -count=50`. *Run by the implementer; no sign-in; no quota.*
    A race found is a deviation, fixed by setting `Store` before the listing
    or through a locked method, under an amendment.
+   *(2026-11-14: two races were found. See "Phase 7, step 6, deviation
+   (2026-11-14)", at the end of this record; the fix is a locked
+   `UseStore` and a `Save` that reads under the session's lock.)*
 
 `scripts/check_tables.py` passes: `LLMPROVIDER_LIVE_0074` is this record's
 variable (AGENTS.md "Live tests"). So is
@@ -2302,3 +2306,150 @@ Phase 2's staged work. The deviation above was recorded first, then the code.
   the entry", "0074 deviation, own commit first", "Add the ordering check".
   Delivered as a patch on `f64134d` for the coordinator to commit before
   0075 Phase 2's commit.
+
+### Phase 7, step 6, deviation (2026-11-14)
+
+U14, the `-race` probe, found two races. Nothing signed in; no quota.
+
+* **The probe.** A scratch clone at `4740e2e` with one added test: the
+  wizard's credential step (`ResolveCredential`, Grok's browser sign-in
+  stubbed) with a listing whose transport starts a goroutine that outlives
+  it and loops `Invalidate()` then `Token()` on the new session, and with
+  `-race -count=50`. A loop of `Token()` alone passed 50 of 50: a session
+  that is current reads `Store` only when its rotation is unsaved.
+* **Race 1, the `Store` write.** `refreshState` reads `s.Store` under the
+  session's lock (`llmprovider/auth/oauth_session.go:598`, reached from
+  `Token`, line 189). `resolvedCredential.save` wrote it with no lock
+  (`wizard/auth.go:998`, `c.session.Store = c.saveTo`). MADR F27's
+  prediction, that only the write after the listing could race, held.
+  Evidence: with a store that reads no session field, the old code fails
+  with exactly 1 report and the fix passes 50 of 50 with 0.
+* **Race 2, the store's read.** `FileTokenStore.Save` read the live
+  session's fields with no lock (`llmprovider/auth/tokenstore_file.go:166-170`
+  at `4740e2e`), and the wizard's save passes it the live session
+  (`wizard/auth.go:999`). `adopt` writes the same fields under the lock
+  (`oauth_session.go:677-696` at `4740e2e`). Evidence: with a
+  `FileTokenStore`, the old code gives 16 reports and the first fix
+  (`UseStore` alone) 15. The 15 are all this race: `Invalidate`
+  (`oauth_session.go:477`) against `Save` (`tokenstore_file.go:169`), and
+  `adopt` against `Save` (`:167`, `:168`, `:170`).
+* **The corrected premise.** The coordinator's brief for this step assumed
+  that the three reports a test store's `Save` gave in the first probe were
+  artifacts of a fake store that read session fields unprotected, and
+  that a store's own lock would remove them. That was the coordinator's
+  assumption, not the owner's, and it was wrong: those reports were this
+  race, and the shipped `FileTokenStore` has it. A store's own lock cannot
+  remove it, since the writer, `adopt`, holds only the session's lock.
+* **The owner's rulings, 2026-11-14,** verbatim: "Locked setter `UseStore`",
+  and "Save reads under the session's lock". Also: "Fix the race first":
+  the race fix lands as its own commit before the rest of Phase 7's prep.
+* **The lock graph,** read before any edit. Every call of a store's
+  `Save` in non-test code:
+  * `llmprovider/auth/oauth_session.go:343`, `persistRotation`, from
+    `complete` (line 256), which holds no lock when it calls it. It passes
+    `pending`, a copy `persistable()` made (line 193) with its own lock.
+  * `llmprovider/auth/oauth_session.go:986`, `reloadOrRefresh`, from
+    `complete` with no lock held. It passes `next`, a new session
+    `refreshOAuthSession` returned.
+  * `llmprovider/auth/consent.go:113`, `SetConsent`: it passes the session
+    its own `Load` returned, which nothing else holds.
+  * `internal/signinflow/signinflow.go:518`, through `SetConsent`'s
+    `answerStore` (line 504): the same private session.
+  * `wizard/auth.go:999`, `resolvedCredential.save`: the live session, with
+    no lock held. This is race 2's call.
+  * `adopt` (line 676) saves nothing; it runs under `s.mu` from `complete`.
+  No caller holds the session's `mu` while it calls `Save`, so `Save` may
+  take it. The only other `TokenStore` in the repository, `answerStore`,
+  reads `Consents` of a session its own `Load` made. A test store in
+  `wizard/session_0059_test.go` reads `Access` and `Refresh` unprotected;
+  it is the one the first probe reported, and the new test does not use it.
+* **Files added to scope:** `llmprovider/auth/oauth_session.go`
+  (`UseStore`, `snapshot`), `llmprovider/auth/tokenstore_file.go` (`Save`),
+  `llmprovider/auth/tokenstore.go` (`TokenStore`'s doc), `wizard/auth.go`
+  (the call), `wizard/session_store_race_0074_test.go` and
+  `llmprovider/auth/tokenstore_lock_0074_test.go` (new).
+* **Known gap.** A `TokenStore` outside this repository cannot take the
+  session's lock, so one that reads a live session's fields races with a
+  refresh in the same way. `TokenStore`'s doc now says so. No exported way
+  to snapshot a session was added: the ruling added no name beyond
+  `UseStore`.
+
+### Phase 7, step 6 (2026-11-14)
+
+The fix for the two races of "Phase 7, step 6, deviation (2026-11-14)", in
+its own commit before the rest of Phase 7's prep. Base `4740e2e`.
+
+* **Files.** `llmprovider/auth/oauth_session.go`: `UseStore` and the
+  unexported `snapshot`. `llmprovider/auth/tokenstore_file.go`: `Save` reads a
+  `snapshot` of the session. `llmprovider/auth/tokenstore.go`: `TokenStore`'s
+  doc. `wizard/auth.go`: `resolvedCredential.save` calls `UseStore`. New
+  tests: `wizard/session_store_race_0074_test.go`,
+  `llmprovider/auth/tokenstore_lock_0074_test.go`.
+* **`UseStore(store TokenStore)`.** It sets `Store` under the session's
+  lock. Its siblings differ: `UseHTTPClient`, `UseDefaultHTTPClient`,
+  `UseIdentity` and `UseLogger` keep a value the session already has (first
+  wins), and a nil or zero argument changes nothing. Chosen: a nil store
+  changes nothing, as theirs do; the last call wins, because the call it
+  replaces is `c.session.Store = c.saveTo`, which always replaced whatever
+  the sign-in carried, and the wizard's save must still put the session on
+  the store it is due to. The doc has R51's safe-for-concurrent-use
+  sentence and R52's "It returns no error."
+* **`Save`.** `FileTokenStore.Save` reads `s.snapshot()`, `persistable()`
+  taken under `s.mu`. The lock graph (the deviation entry) shows no caller
+  holds that session's `mu` when it saves, so the lock cannot deadlock:
+  the internal saves pass private copies.
+* **Fail before, pass after,** `-race -count=50`, each through `run-heavy`:
+  * `TestSession_SaveBindsStoreWhileUsed_0074` on a clone at `4740e2e` with
+    only the two new tests: exit 1, 16 DATA RACE reports, among them `Read
+    at oauth_session.go:598 refreshState` against `Previous write at
+    wizard/auth.go:998 resolvedCredential.save`, and `Write at
+    oauth_session.go:477 Invalidate` against `Previous read at
+    tokenstore_file.go:169 FileTokenStore.Save`. With the fix: exit 0.
+  * `TestFileTokenStoreSave_RefreshSaveCompletes_0074`, same clone: exit 1,
+    14 reports. With the fix: exit 0, bounded at 20 s, no deadlock.
+  * With a store that reads no session field, the old code gives exactly 1
+    report (the `Store` write) and `UseStore` alone gives 0, which separates
+    the two races.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, exit 0, "all 5
+  plant(s) caught":
+  1. `Save` reads the session without its lock (`s.persistable()`): DATA
+     RACE in `TestSession_SaveBindsStoreWhileUsed_0074`, which fails.
+  2. `UseStore` sets `Store` without the lock: the same test fails with DATA
+     RACE.
+  3. the wizard assigns `Store` directly again: the same test fails with
+     DATA RACE.
+  4. `snapshot` does not take the lock: the same test fails with DATA RACE.
+  5. `UseStore` ignores its argument: `tokenstore_lock_0074_test.go:27:
+     Store = <nil> after UseStore(first); want first`.
+* **Checks,** each exit status captured before any filter:
+  * `make api-check`: exit 0, `0 incompatible change(s) outside
+    llmprovider/x/`. `python3 -B tools/apidiff.py 4740e2e`: exit 0, one
+    change, `(*OAuthSession).UseStore: added`.
+  * `-race -shuffle=on -count=1` on `./llmprovider/auth/ ./wizard/
+    ./internal/signinflow/ ./llmprovider/x/signin/`, on Linux through
+    `run-on-host --need linux`: exit 0, four `ok`.
+  * `gofmt -l`: clean. `make pre-add-check` on the fix's six Go files alone
+    was not run apart from the prep: it lints the whole package, and the
+    unstaged prep file `llmprovider/live_checks_test.go:630` fails
+    `errorlint` (`%v` of an error in `fmt.Errorf`). That is the prep's, not
+    the fix's: the fix's files add no issue.
+  * The gate: with the prep in the tree, `python3 -B tools/gate.py --timeout
+    5400` through `run-heavy`: exit 1, `gate: 26 of 30 passed`, 677 s. The
+    four reds are `lint`, `pre-add-check` (the `errorlint` line above),
+    `tables-check` (`AGENTS.md: LLMPROVIDER_LIVE_0074_PASTE_FILE: a live test
+    reads it, and AGENTS.md does not name it`) and `gate-selftest` (which
+    reruns `tables-check` on a clean copy). All four are the unstaged prep's.
+    On a clone of `4740e2e` with only the fix's files copied in, after the
+    last code change: 06:54 to 07:21, 905 s, exit 0, `gate: 30 of 30 passed`.
+  * After this entry: `tools/claims.py` on the 0074 pair,
+    `make records-check links-check disclosure-check docs-check`,
+    `tools/denyscan.py --changed` and `tools/recordlint.py --changed`.
+* **For the prep, which this commit does not carry.** Fix
+  `live_checks_test.go:630`, and name `LLMPROVIDER_LIVE_0074_PASTE_FILE` in
+  Phase 7's variable paragraph, as `..._GROK_PASTE_FILE` is named, and the
+  prep's gate is then run again.
+* **Provenance.** Mainstream model, medium effort. Escalated twice to the
+  owner and ruled 2026-11-14: "Locked setter `UseStore`" for the first race
+  and "Save reads under the session's lock" for the second; the coordinator's
+  brief had assumed the second race was a test artifact, which the evidence
+  did not support. Staged for the coordinator to commit.

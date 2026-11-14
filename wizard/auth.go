@@ -995,7 +995,7 @@ func (c resolvedCredential) save(ctx context.Context, d llmprovider.Descriptor) 
 	if _, err := c.session.Token(ctx); err != nil && (errors.Is(err, llmprovider.ErrAuthFailure) || ctx.Err() != nil) {
 		return fmt.Errorf("wizard: the new %s session was not saved: %w", d.Label, err)
 	}
-	c.session.Store = c.saveTo
+	c.session.UseStore(c.saveTo)
 	if err := c.saveTo.Save(ctx, d.ID, c.session); err != nil {
 		if d.ID == llmprovider.ProviderKilo {
 			return fmt.Errorf("wizard: save Kilo login: %w", err)

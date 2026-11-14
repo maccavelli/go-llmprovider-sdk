@@ -162,6 +162,9 @@ func (fs *FileTokenStore) Save(ctx context.Context, provider llmprovider.Provide
 	if s == nil {
 		return fmt.Errorf("FileTokenStore Save: nil session")
 	}
+	// s may be a live session that a refresh is adopting into: read a copy
+	// taken under its lock (0074-PLAN Phase 7 step 6).
+	s = s.snapshot()
 	rec := fileRecord{
 		Provider:  provider,
 		Access:    s.Access,

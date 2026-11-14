@@ -311,6 +311,15 @@ func (s *OAuthSession) persistable() *OAuthSession {
 	}
 }
 
+// snapshot is persistable taken under the session's lock: the copy a store
+// reads when a refresh may be adopting into the session (0074-PLAN Phase 7
+// step 6). No caller holds s.mu while it calls a store's Save.
+func (s *OAuthSession) snapshot() *OAuthSession {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.persistable()
+}
+
 // errStoreMovedOn reports that the store no longer holds the refresh token an
 // unsaved rotation spent: another process saved a newer session, which must
 // not be overwritten.
@@ -670,6 +679,22 @@ func (s *OAuthSession) UseLogger(logger *slog.Logger) {
 	if s.Logger == nil {
 		s.Logger = logger
 	}
+}
+
+// UseStore binds the session to store, so a refresh that rotates its tokens
+// saves them there, as the Store field does when it is set before the session
+// is shared. Unlike the field, it is safe to call while another goroutine
+// uses the session, such as a listing that is still refreshing it
+// (0074-PLAN Phase 7 step 6). The last call wins, as an assignment to the
+// field does: the caller names the store that is due the session, whatever
+// the sign-in carried. A nil store changes nothing. It returns no error.
+func (s *OAuthSession) UseStore(store TokenStore) {
+	if store == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Store = store
 }
 
 func (s *OAuthSession) adopt(next *OAuthSession) {
