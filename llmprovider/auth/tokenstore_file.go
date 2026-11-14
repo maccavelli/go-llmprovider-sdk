@@ -92,6 +92,7 @@ func (fs *FileTokenStore) Load(ctx context.Context, provider llmprovider.Provide
 		IDToken:   rec.IDToken,
 		HostID:    rec.HostID,
 		Kind:      rec.Kind,
+		Consents:  rec.Consents,
 	}
 	s.storedRefresh = rec.Refresh // what this store holds (0026-MADR F1)
 	s.Store = fs
@@ -176,6 +177,7 @@ func (fs *FileTokenStore) Save(ctx context.Context, provider llmprovider.Provide
 		IDToken:   s.IDToken,
 		HostID:    s.HostID,
 		Kind:      s.Kind,
+		Consents:  s.Consents,
 	}
 	data, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {

@@ -46,7 +46,14 @@ type OAuthSession struct {
 	// it and FileTokenStore persists it. Empty means inferred, by the rules
 	// SessionKind describes, so a record saved before it existed, and a
 	// session a caller builds, behave as they did (0074-MADR D5).
-	Kind       SessionKind
+	Kind SessionKind
+	// Consents is the user's answers to the consents a method asks, as
+	// space-separated <id>=granted or <id>=declined entries sorted by id; an
+	// id with no entry is unanswered. A string keeps the struct comparable. It
+	// is not a secret, so the formatters show it, and FileTokenStore persists
+	// it (0075-MADR D2). Read it with Consent or StoredConsent; change a
+	// stored answer with SetConsent.
+	Consents   string
 	Store      TokenStore
 	HTTPClient *http.Client
 	// Logger receives a failure to save a rotated session, which the session
@@ -130,6 +137,9 @@ func (s *OAuthSession) String() string {
 	if s.planFields() {
 		text += fmt.Sprintf(" Resource:%s Scope:%q HostID:%s IDToken:%s", s.Resource, s.Scope, s.HostID, secretText(s.IDToken))
 	}
+	if s.Consents != "" {
+		text += fmt.Sprintf(" Consents:%q", s.Consents)
+	}
 	return text + "}"
 }
 
@@ -165,8 +175,10 @@ func (s *OAuthSession) MarshalJSON() ([]byte, error) {
 		HostID    string                 `json:"host_id,omitempty"`
 		IDToken   string                 `json:"id_token,omitempty"`
 		Kind      SessionKind            `json:"kind,omitempty"`
+		Consents  string                 `json:"consents,omitempty"`
 	}{s.Provider, s.Issuer, s.ClientID, s.AccountID, s.FedRAMP, s.TokenURL, expiryText(s.Expiry),
-		secretText(s.Access), secretText(s.Refresh), s.Resource, s.Scope, s.HostID, secretText(s.IDToken), s.Kind})
+		secretText(s.Access), secretText(s.Refresh), s.Resource, s.Scope, s.HostID, secretText(s.IDToken), s.Kind,
+		s.Consents})
 }
 
 // LogValue renders the session for slog, without its tokens.
@@ -195,6 +207,9 @@ func (s *OAuthSession) LogValue() slog.Value {
 			slog.String("host_id", s.HostID),
 			slog.String("id_token", secretText(s.IDToken)),
 		)
+	}
+	if s.Consents != "" {
+		attrs = append(attrs, slog.String("consents", s.Consents))
 	}
 	return slog.GroupValue(attrs...)
 }
@@ -241,6 +256,9 @@ type fileRecord struct {
 	// Kind is the session's kind (0074-MADR D5); absent from an older
 	// record, which then infers it.
 	Kind SessionKind `json:"kind,omitempty"`
+	// Consents is the session's answers (0075-MADR D2); absent from an older
+	// record, whose consents are then all unanswered.
+	Consents string `json:"consents,omitempty"`
 }
 
 // windowsDeviceNames are the names Windows opens as a device rather than a

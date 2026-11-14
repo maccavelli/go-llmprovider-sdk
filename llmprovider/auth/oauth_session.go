@@ -258,6 +258,7 @@ func (s *OAuthSession) complete(ctx context.Context, future *tokenFuture, state 
 		switch {
 		case saveErr == nil:
 			s.storedRefresh = pending.Refresh
+			s.Consents = pending.Consents
 		case errors.Is(saveErr, errStoreMovedOn):
 			s.storedRefresh = "" // another process saved a newer session
 		}
@@ -306,7 +307,7 @@ func (s *OAuthSession) persistable() *OAuthSession {
 		Provider: s.Provider, Access: s.Access, Refresh: s.Refresh, Expiry: s.Expiry,
 		Issuer: s.Issuer, ClientID: s.ClientID, AccountID: s.AccountID, FedRAMP: s.FedRAMP,
 		TokenURL: s.TokenURL, Resource: s.Resource, Scope: s.Scope, IDToken: s.IDToken, HostID: s.HostID,
-		Kind: s.Kind, Store: s.Store, HTTPClient: s.HTTPClient,
+		Kind: s.Kind, Consents: s.Consents, Store: s.Store, HTTPClient: s.HTTPClient,
 	}
 }
 
@@ -333,6 +334,11 @@ func persistRotation(ctx context.Context, state oauthSessionState, next *OAuthSe
 	loaded, err := state.store.Load(ctx, state.provider)
 	if err == nil && loaded != nil && loaded.Refresh != stored && loaded.Refresh != next.Refresh {
 		return errStoreMovedOn
+	}
+	if err == nil && loaded != nil {
+		// The record holds this session's token, or the one its unsaved
+		// rotation spent: its answers are the user's latest (0075-MADR D3).
+		next.Consents = loaded.Consents
 	}
 	return state.store.Save(ctx, state.provider, next)
 }
@@ -551,6 +557,9 @@ type oauthSessionState struct {
 	scope    string
 	idToken  string
 	hostID   string
+	// consents is the session's answers, or the stored record's when a
+	// refresh keeps the store's (0075-MADR D3).
+	consents string
 	// kind is the session's kind: its Kind when set, else inferKind's.
 	// declared is its Kind alone, which a refreshed session keeps, so that
 	// a refresh never writes an inferred kind into a record.
@@ -583,6 +592,7 @@ func (s *OAuthSession) refreshState() oauthSessionState {
 		scope:      s.Scope,
 		idToken:    s.IDToken,
 		hostID:     s.HostID,
+		consents:   s.Consents,
 		kind:       s.kindLocked(),
 		declared:   s.Kind,
 		store:      s.Store,
@@ -677,6 +687,7 @@ func (s *OAuthSession) adopt(next *OAuthSession) {
 	s.IDToken = next.IDToken
 	s.HostID = next.HostID
 	s.Kind = next.Kind
+	s.Consents = next.Consents
 	s.Store = next.Store
 	s.HTTPClient = next.HTTPClient
 	s.issued = next.issued
@@ -765,6 +776,7 @@ func refreshOAuthSessionOnce(ctx context.Context, state oauthSessionState) (next
 		Scope:      cmp.Or(payload.Scope, state.scope),
 		IDToken:    cmp.Or(payload.IDToken, state.idToken),
 		HostID:     state.hostID,
+		Consents:   state.consents,
 		Kind:       state.declared,
 		Store:      state.store,
 		HTTPClient: state.httpClient,
@@ -931,15 +943,18 @@ func reloadOrRefresh(ctx context.Context, state oauthSessionState) (refreshed, e
 		}
 		defer unlock()
 	}
-	if stored := loadRotated(ctx, state); stored != nil {
+	stored, kept, keep := loadRotated(ctx, state)
+	if stored != nil {
 		if token, ok := stored.currentToken(); ok {
 			return refreshed{next: stored, token: token}, nil
 		}
 		state = stored.refreshState()
+	} else if keep {
+		state.consents = kept
 	}
 	next, token, err := refreshOAuthSession(ctx, state)
 	if errors.Is(err, llmprovider.ErrAuthFailure) {
-		if stored := loadRotated(ctx, state); stored != nil {
+		if stored, _, _ := loadRotated(ctx, state); stored != nil {
 			if token, ok := stored.currentToken(); ok {
 				return refreshed{next: stored, token: token}, nil
 			}
@@ -960,18 +975,23 @@ func reloadOrRefresh(ctx context.Context, state oauthSessionState) (refreshed, e
 // loadRotated returns the stored session when the store holds a refresh token
 // other than state's, else nil. The token the store is known to hold is not
 // another: while a rotation is unsaved it is one this session spent, however
-// many saves failed (0020-MADR F1; 0026-MADR F1).
-func loadRotated(ctx context.Context, state oauthSessionState) *OAuthSession {
+// many saves failed (0020-MADR F1; 0026-MADR F1). A record it passes over
+// because it holds the session's own token, or the one an unsaved rotation
+// spent, still holds the user's latest answers: keep reports it, with its
+// consents, which the session about to be saved takes (0075-MADR D3).
+func loadRotated(ctx context.Context, state oauthSessionState) (rotated *OAuthSession, consents string, keep bool) {
 	if state.store == nil {
-		return nil
+		return nil, "", false
 	}
 	stored, err := state.store.Load(ctx, state.provider)
-	if err != nil || stored == nil || stored.Refresh == "" || stored.Refresh == state.refresh ||
-		(state.stored != "" && stored.Refresh == state.stored) {
-		return nil
+	if err != nil || stored == nil || stored.Refresh == "" {
+		return nil, "", false
+	}
+	if stored.Refresh == state.refresh || (state.stored != "" && stored.Refresh == state.stored) {
+		return nil, stored.Consents, true
 	}
 	stored.Store, stored.HTTPClient, stored.now = state.store, state.httpClient, state.now
-	return stored
+	return stored, "", false
 }
 
 func refreshTokenURL(state oauthSessionState) (string, error) {

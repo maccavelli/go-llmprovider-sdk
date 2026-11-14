@@ -471,3 +471,114 @@ MADR and approved this PLAN.
     `recordlint: 3 record(s); no rule rose`.
 * Provenance: mainstream model, medium effort; outcome, Phase 0 complete,
   docs only; no escalation; the coordinator's brief had missed the open steps.
+
+### Phase 1 (2026-11-13)
+
+* **Claims re-verified** at HEAD `cacc045` with `python3 -B tools/claims.py
+  docs/decisions/0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md
+  --rev self=HEAD`: exit 1, 25 rows failing at their line, 24 of them found
+  elsewhere in the file with the text unchanged, and C9 not found. Those Phase 1 reads, by the new line:
+  C15 (`tokenstore.go:240`, the record's `HostID`), C16 (`oauth_session.go:969`,
+  `loadRotated`'s guard), C17 (`:955`, the refreshed session's save, now
+  `reloadOrRefresh`), C18 (`:337`, `persistRotation`'s save), C27
+  (`tokenstore.go:202`), C30 (`oauth_session.go:324`), C40 (`:970`), C41 and
+  C42 (`tokenstore_file.go:295`), C44 (`oauth_session.go:680`) and C45
+  (`tokenstore.go:50`). The rest (C5, C6, C7, C10, C11, C12, C19, C20, C21,
+  C22, C25, C26, C28, C43) only moved and belong to later phases. **C9 is
+  asserted text that changed, and is not Phase 1's:** `wizard/auth.go:291`
+  no longer holds `session, loginErr := loginChatGPTPlan(ctx,
+  auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: previous,`; the
+  wizard passes `Plan: auth.ChatGPTPlanOptions{...}` to the engine's spec at
+  `wizard/auth.go:298`. It bears on Phases 2 and 4, whose steps name the
+  wizard's call; the MADR's text of D4 and D6 holds. The MADR is not
+  amended here. `claims.py` at its own `self=773b84c` still passes, 51 of 51
+  and 8 of 8.
+* **Step 1:** `OAuthSession.Consents` and `(*OAuthSession).Consent`, in
+  `llmprovider/auth/tokenstore.go` and the new `consent.go`; `fileRecord`
+  gains `consents`, `omitempty`; `String`, `MarshalJSON` and `LogValue` show
+  it only when it is set, so every other session's forms are as they were;
+  the five copies carry it (`persistable`, `refreshState`, the refreshed
+  session, `adopt`, `FileTokenStore`'s `Load` and `Save`), and
+  `TestSessionFieldsCarried_0074`, whose guard reads every exported stored
+  field by reflection, passes with no change to it.
+* **Step 2:** `auth.SetConsent`, as MADR D3. Two refusals beyond the MADR's
+  text, both `ErrInvalidRequest`, and both needed for the entries' format to
+  hold: an id holding white space or `=`, and a nil store. Nothing else
+  differs.
+* **Step 3:** the carry-over, no wider than MADR D3. `loadRotated` returns,
+  with the rotated session it returned before, the consents of a record it
+  passes over because it holds the session's own token or the token an
+  unsaved rotation spent (C16, C40); `reloadOrRefresh` sets them on the state
+  the refreshed session is built from, so the session it saves, and
+  `adopt` puts on the live session, carries them. `persistRotation` sets the
+  record's consents on the session it re-saves, in the two cases it saves
+  (the record holds `stored`, or the session's own token), and `complete`
+  puts them on the live session once the save succeeds. A record holding
+  another token is adopted whole, consents included, as before. `loadRotated`
+  is unexported and had no other caller. No refresh test changed.
+* **Tests,** `llmprovider/auth/consent_0075_test.go`, the seven of the
+  table and no other: `TestConsents_ParseAndFormat_0075`,
+  `TestConsents_StoreRoundTrip_0075`, `TestSetConsent_0075`,
+  `TestConsentSurvivesRefresh_0075`, `TestConsentSurvivesResave_0075`,
+  `TestConsentSurvivesUnsavedRotationRefresh_0075` and
+  `TestConsentAdoptedFromSibling_0075`. `go test -count=1 -run 0075
+  ./llmprovider/auth/`: exit 0.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, one command per
+  spec, `_0075$` tests only; each failure line quoted, `all 9 plant(s)
+  caught`, exit 0:
+  * `Declined` read as granted: `Consent("c.d") = true, true; want false,
+    true` (`TestConsents_ParseAndFormat_0075`) and `the adopted session
+    reports true, true; want the sibling's declined`;
+  * the JSON name spelled `consent`: `TestConsents_StoreRoundTrip_0075`,
+    `the record = {` (the member is missing);
+  * the lock taken after `Load`: `the calls were load,lock,save,unlock, want
+    lock,load,save,unlock: the lock is held throughout`;
+  * a missing session saved as a new one: `no stored session: err = <nil>,
+    want ErrInvalidRequest`;
+  * the carry-over removed from `reloadOrRefresh`: `TestConsentSurvivesRefresh_0075:
+    after the refresh: the store holds false, false; want the answer kept`,
+    and the same for `TestConsentSurvivesUnsavedRotationRefresh_0075`;
+  * the carry-over removed from `persistRotation`:
+    `TestConsentSurvivesResave_0075: after the re-save: the store holds false,
+    false; want the answer kept`;
+  * the live session not told after a re-save: `after the re-save: the
+    session reports false, false; want the answer`;
+  * the carry-over limited to a record holding the session's own token:
+    `TestConsentSurvivesUnsavedRotationRefresh_0075: after the refresh: the
+    store holds false, false; want the answer kept`;
+  * `adopt` dropping `Consents`: `TestConsentAdoptedFromSibling_0075: the
+    adopted session reports false, false; want the sibling's declined`.
+* **The plant that restores the old refresh code,** the carry-over removed
+  from both functions, run as a second spec whose command first edits
+  `persistRotation` in the clone and then runs `TestConsentSurvivesRefresh_0075`:
+  caught, exit 1, `after the refresh: the store holds false, false; want the
+  answer kept`, and `the session reports false, false`. That test's path never
+  reaches `persistRotation`, so this plant and the single one above fail it
+  the same way.
+* **The 66 refresh tests,** `python3 -B tools/redgreen.py REFRESH.json
+  --expect pass` (the spec of 0074-PLAN's list, in the scratch directory):
+  65 of 66, exit 1, the one `missing`, `TestOAuthSessionWait_WindowsRemoval_0071`,
+  which skips off Windows, as in 0074-PLAN's phases. `git status` shows none
+  of the 15 files changed: this phase touches `oauth_session.go`,
+  `tokenstore.go` and `tokenstore_file.go` and adds two files.
+* **Checks, each exit status captured before any filter:**
+  * `make pre-add-check FILES` on the five Go files: exit 0, `go-precheck: 5
+    file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)`. No
+    `nolint`.
+  * `make api-check`: exit 0, `against v1.30.0, 0 incompatible change(s)
+    outside llmprovider/x/`. `python3 -B tools/apidiff.py v1.30.0`: exit 0;
+    this phase's three additions are `auth.OAuthSession.Consents`,
+    `auth.(*OAuthSession).Consent` and `auth.SetConsent`, each a row of the
+    R55 table; the rest are 0074's and 0079's.
+  * `make tables-check`: exit 0, `0 problem(s)`; `make docs-check`: exit 0,
+    `sdkaudit: 0 violation(s) of R50,R51,R52`; `make coverage-check`: exit 0,
+    `43 packages, 0 problem(s)`.
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, after the
+    last code change: exit 0, `gate: 30 of 30 passed`, started
+    2026-11-13T19:56:07-06:00 (it waited for the load to fall below 10) and
+    finished 20:26:07-06:00.
+* **Not done here, by the PLAN:** the `-race` run of Phase 3, `TestWireGoldens`
+  and the docs of Phase 5; `go test -race -count=3 ./llmprovider/auth/` is
+  the gate's own coverage of this package.
+* Provenance: mainstream model, medium effort; Phase 1 implemented, nine
+  plants caught, gate 30 of 30; no escalation.
