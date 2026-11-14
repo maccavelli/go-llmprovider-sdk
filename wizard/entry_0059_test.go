@@ -59,10 +59,12 @@ func TestPaste_QuickEmptiesStop_0059(t *testing.T) {
 	e := &emptyInput0059{fakePrompter: newFake(t, fakePrompter{})}
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	start := time.Now()
+	dl, _ := ctx.Deadline()
 	_, err := paste0059(e).input(ctx)
-	if !errors.Is(err, context.DeadlineExceeded) || time.Since(start) < 100*time.Millisecond {
-		t.Errorf("input: %v after %v; want ctx's deadline, once it ended", err, time.Since(start))
+	// Against the context's own deadline, not a stopwatch started after it
+	// was fixed: a coarse clock (Windows) reads under the timeout otherwise.
+	if now := time.Now(); !errors.Is(err, context.DeadlineExceeded) || now.Before(dl) {
+		t.Errorf("input: %v, %v before ctx's deadline; want ctx's deadline, once it ended", err, dl.Sub(now))
 	}
 	if e.calls != pasteQuickEmpties || countContaining(e.seenNotify, "answers at once") != 1 {
 		t.Errorf("%d Input calls, notices %q; want %d and one notice", e.calls, e.seenNotify, pasteQuickEmpties)

@@ -926,3 +926,31 @@ withdrawn, and W13 stays as decided) becomes a test that fails on
   (`TestShape_RefusalNamesShape_0059`, Phase 7).
 * **Not here:** prepare-commit-msg's bump to `v1.22.2`, its own change.
 * **The PLAN is `complete` again.** The MADR stays `accepted`.
+
+## Deviation (2026-11-14): a Windows clock reading in `TestPaste_QuickEmptiesStop_0059`
+
+A post-completion fix. The PLAN stays `complete`: no phase reopens, as with
+the earlier fix entries in this tree.
+
+* **The failure.** CI at `91167a6`, job `validate (windows-2025)` only; the
+  macOS and Ubuntu jobs passed:
+  `--- FAIL: TestPaste_QuickEmptiesStop_0059 (0.10s)`,
+  `entry_0059_test.go:65: input: context deadline exceeded after 99.774ms;
+  want ctx's deadline, once it ended`.
+* **The cause.** The test made `context.WithTimeout(..., 100*time.Millisecond)`
+  and only then took `start := time.Now()`, asserting
+  `time.Since(start) >= 100ms`. The stopwatch begins after the deadline is
+  fixed, so on a coarse clock (Windows) it can read under 100 ms after the
+  deadline has truly passed. The code under test was correct: it returned
+  `context.DeadlineExceeded`. The fault was the test's measure, not the
+  paste prompt.
+* **The owner's ruling (2026-11-13).** "Assert against ctx.Deadline()": the
+  test reads `dl, _ := ctx.Deadline()` and, after the call, asserts
+  `!time.Now().Before(dl)` and `errors.Is(err, context.DeadlineExceeded)`.
+  The intent is kept and no tolerance is widened.
+* **The change.** One file: `wizard/entry_0059_test.go`
+  (`TestPaste_QuickEmptiesStop_0059`).
+* **Provenance:** mainstream model, medium effort; outcome, the test
+  changed and checked on macOS and on the Windows laptop; escalated to the
+  coordinator for the stopwatch-versus-deadline choice, ruled by the owner
+  on 2026-11-13 as above.
