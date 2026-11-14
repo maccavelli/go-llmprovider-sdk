@@ -695,6 +695,15 @@ type Credential interface {
     returned, and becomes one warning notice.
   * The terminal step's `ctx` is not ended by the sign-in's end, which has
     happened; the caller's own cancellation still ends it.
+  * *(2026-11-14, the owner's ruling "Fixed 5 s limit".)* The terminal
+    step's `ctx` also ends 5 s after the call starts, so a `Driver` that
+    blocks on `done` or `failed` cannot hang the wizard. Its error, a timeout
+    included, is the one warning above, and the sign-in's result or error is
+    returned unchanged. The PLAN's "Phase 5, deviation (2026-11-14)" records
+    it. The ctx stays detached from the sign-in's end and, as built, from the
+    caller's own ctx (`context.WithoutCancel`), which the sentence above
+    says "still ends it"; the code never did, and this note does not change
+    that.
 
 ### D7. What is deprecated, and what is not
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/maccavelli/go-llmprovider-sdk/authcontract"
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
@@ -29,7 +30,10 @@ import (
 // or the engine failed. An error from SignInStep on the last step changes
 // nothing: the sign-in's result, or its own error, is returned, and the
 // error is shown as one warning notice. The last step's ctx is not ended by
-// the sign-in's end, which has happened.
+// the sign-in's end, which has happened, and not by the caller's ctx; it
+// ends 5 s after the call starts, so a Driver that blocks there and returns
+// when ctx ends holds the wizard no longer than that. A timeout is the
+// Driver's error, and is the one warning.
 //
 // SignInStep must return soon after ctx ends, as InputerContext must
 // (0057-MADR D3): a loopback that wins ends a pending paste by ending ctx.
@@ -158,10 +162,17 @@ func (r *stepRenderer) run(ctx context.Context, spec signinflow.Spec) (signinflo
 	return finished.result, finished.err
 }
 
+// lastStepLimit is how long the Driver has for the sign-in's last step
+// (0074-PLAN Phase 5, deviation 2026-11-14).
+const lastStepLimit = 5 * time.Second
+
 // lastStep hands the Driver the sign-in's last step, under a context the
-// sign-in's end has not ended, and returns the Driver's error.
+// sign-in's end has not ended and that ends after lastStepLimit, and returns
+// the Driver's error.
 func (r *stepRenderer) lastStep(ctx context.Context, step authcontract.Step) error {
-	_, err := r.o.Driver.SignInStep(context.WithoutCancel(ctx), r.provider, step)
+	stepCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), lastStepLimit)
+	defer cancel()
+	_, err := r.o.Driver.SignInStep(stepCtx, r.provider, step)
 	return err
 }
 

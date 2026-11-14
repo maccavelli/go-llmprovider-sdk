@@ -2545,3 +2545,65 @@ signed in and no live test ran.**
 * **Provenance.** Mainstream model, medium effort. Escalated once for the
   race (Phase 7, step 6, deviation), ruled and fixed in `67be2b7`. The
   owner's runs are pending: the run sheet comes after 0075 and 0079.
+
+### Phase 5, deviation (2026-11-14)
+
+* **Finding.** Phase 5 built the wizard's last call to the `Driver`, the
+  terminal `done` or `failed` step, on `context.WithoutCancel(ctx)`
+  (`wizard/driver.go`, `lastStep`). The context never ends, so a `Driver`
+  that blocks there, such as one writing the last line to a reader that has
+  gone, hangs the wizard forever, with the credential unsaved. Nothing bounds
+  it: the sign-in has ended, and the caller's ctx is detached.
+* **Ruling, 2026-11-14, the owner:** "Fixed 5 s limit".
+* **The change.** `lastStep` calls the `Driver` under
+  `context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)`. It stays
+  detached from the sign-in's end. A `Driver` error on that step, a timeout
+  included, is the one warning notice already ruled on 2026-11-13; for `done`
+  the credential is kept, and for `failed` the sign-in's own error stands.
+  `StepDriver`'s doc says the last step's ctx ends after 5 s. No exported
+  name changes. A `Driver` that ignores its ctx still blocks; the doc already
+  requires it to return soon after ctx ends.
+* **Files added to scope:** `wizard/driver.go`,
+  `wizard/driver_terminal_timeout_0074_test.go` (new).
+* **A discrepancy noticed.** MADR D6's terminal-step note says the caller's
+  own cancellation "still ends" the last step's ctx. `WithoutCancel(ctx)`
+  never did, and this change keeps it so: the ruling asked for a detached
+  context. The MADR note says so.
+
+### Phase 5, the terminal step's limit (2026-11-14)
+
+The change of "Phase 5, deviation (2026-11-14)". Base `7138882`.
+
+* **Files.** `wizard/driver.go`: `lastStep` calls the `Driver` under
+  `context.WithTimeout(context.WithoutCancel(ctx), lastStepLimit)`, with
+  `lastStepLimit` 5 s; `StepDriver`'s doc says the last step's ctx ends after
+  5 s and that a timeout is the one warning. The error path was already the
+  single warning, with the result or the sign-in's error returned as it was.
+  `wizard/driver_terminal_timeout_0074_test.go` (new).
+* **The test,** `TestDriver_BlockedTerminalStepTimesOut_0074`: a Driver that
+  blocks on `done` until its ctx ends. The wizard returns after 5.00 s, with
+  the session kept and exactly one warning ("returned an error on the done
+  step"); it fails below 4 s and above 7 s. Real time: the wizard's context
+  deadline is the real clock, so the test takes 5 s.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, exit 0, "all 2
+  plant(s) caught":
+  1. the 5 s limit removed (`WithCancel` in its place): `--- FAIL:
+     TestDriver_BlockedTerminalStepTimesOut_0074 (7.00s)`,
+     `driver_terminal_timeout_0074_test.go:46: the wizard did not return
+     within 7 s of a Driver that blocks on the terminal step`: it fails by
+     its own bound, not a long timeout.
+  2. the warning dropped: `driver_terminal_timeout_0074_test.go:55: notices
+     []; want exactly one warning`, and the existing
+     `driver_terminal_0074_test.go:179` and `:194`.
+* **Checks,** each exit status captured before any filter: `make
+  pre-add-check` on the two files, exit 0, `go-precheck: 2 file(s) clean`;
+  `make api-check`, exit 0, `0 incompatible change(s) outside
+  llmprovider/x/`; `tools/apidiff.py HEAD`: no change, no new name; the
+  `TestDriver_` tests under `-race`: pass. `python3 -B tools/gate.py
+  --timeout 5400` through `run-heavy`, after the last code change: 09:30:35
+  to 09:47:10 (995 s), exit 0, `gate: 30 of 30 passed`. After this entry:
+  `tools/claims.py` on the 0074 pair, `make records-check links-check
+  disclosure-check markdownlint docs-check`, `tools/denyscan.py --changed`
+  and `tools/recordlint.py --changed`.
+* **Provenance.** Mainstream model, medium effort. Escalated once, ruled
+  2026-11-14: "Fixed 5 s limit".
