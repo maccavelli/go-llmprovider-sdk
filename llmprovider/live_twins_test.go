@@ -28,6 +28,7 @@ import (
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
+	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/x/signin"
 )
 
 // twinFake answers the requests the checks send, by path suffix.
@@ -1039,3 +1040,141 @@ func twinNameControl(t *testing.T) {
 		t.Errorf("firstProduct = %q, want gobble", got)
 	}
 }
+
+// noNetworkClient is a client whose every request fails, so that the plan's
+// discovery fails and its built-in endpoints are used, which is how its
+// authorize URL is built offline.
+func noNetworkClient() *http.Client {
+	return &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("twin: no network")
+	})}
+}
+
+// capturedAuthorizeURL starts a sign-in with signin.Start, answers its
+// confirms yes, takes the URL its open_url step shows, and cancels it: the
+// URL is the shipped builder's own.
+func capturedAuthorizeURL(t *testing.T, p llmprovider.ProviderID, m llmprovider.AuthMethodID, o signin.Options) string {
+	t.Helper()
+	ctx := twinContext(t)
+	run, err := signin.Start(ctx, p, m, o)
+	if err != nil {
+		t.Fatalf("signin.Start: %v", err)
+	}
+	defer run.Cancel()
+	var shown string
+	_, _ = driveSteps(ctx, run, stepHooks{
+		confirm: func(authcontract.Step) bool { return true },
+		openURL: func(step authcontract.Step) {
+			shown = step.URL
+			run.Cancel()
+		},
+	})
+	if shown == "" {
+		t.Fatal("the sign-in showed no authorize URL")
+	}
+	return shown
+}
+
+// twinPlanSession is a plan session a sign-in can be made again to.
+func twinPlanSession() *auth.OAuthSession {
+	return &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Access: "twin-access", Refresh: "twin-refresh",
+		Expiry: time.Now().Add(time.Hour), ClientID: "oaia_twin_authorize", Kind: auth.SessionChatGPTPlan,
+		Resource: openai.PlatformBaseURL, Scope: "openid offline_access chatgpt.tokens.use.direct",
+		HostID: "urn:uuid:00000000-0000-4000-8000-000000000074", IDToken: "twin-id-token-authorize"}
+}
+
+// TestLiveTwin_AuthorizeURLs_0074 runs every authorize-URL assertion of the
+// live probes against the URL the shipped builders make, through
+// signin.Start or auth.LoginBrowserOAuth with a fake issuer, so that a probe
+// asserting a parameter its method never sends fails here, not in a live run.
+func TestLiveTwin_AuthorizeURLs_0074(t *testing.T) {
+	t.Run("PlanFirst", func(t *testing.T) {
+		raw := capturedAuthorizeURL(t, llmprovider.ProviderOpenAI, llmprovider.AuthChatGPTPlan,
+			signin.Options{AgentName: pasteProbeAgentNameTwin, NoLoopback: true, HTTPClient: noNetworkClient()})
+		if err := authorizeError(raw, planFirstAuthorizeWant(pasteProbeAgentNameTwin)); err != nil {
+			t.Errorf("the plan's first sign-in URL: %v", err)
+		}
+		if port, err := redirectPort(raw); err != nil || port != 1455 {
+			t.Errorf("redirectPort of the plan's NoLoopback URL = %d, %v; want 1455", port, err)
+		}
+	})
+	t.Run("PlanAgain", func(t *testing.T) {
+		previous := twinPlanSession()
+		raw := capturedAuthorizeURL(t, llmprovider.ProviderOpenAI, llmprovider.AuthChatGPTPlan,
+			signin.Options{AgentName: pasteProbeAgentNameTwin, Previous: previous, NoLoopback: true, HTTPClient: noNetworkClient()})
+		if err := authorizeError(raw, planAgainAuthorizeWant(previous)); err != nil {
+			t.Errorf("the plan's sign-in again URL: %v", err)
+		}
+	})
+	t.Run("PlanReuse", func(t *testing.T) {
+		store, err := auth.NewFileTokenStore(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.SaveClient(twinContext(t), llmprovider.ProviderOpenAI, twinReuseRecord); err != nil {
+			t.Fatal(err)
+		}
+		raw := capturedAuthorizeURL(t, llmprovider.ProviderOpenAI, llmprovider.AuthChatGPTPlan,
+			signin.Options{AgentName: pasteProbeAgentNameTwin, ClientStore: store, NoLoopback: true, HTTPClient: noNetworkClient()})
+		if err := reuseAuthorizeError(raw, twinReuseRecord); err != nil {
+			t.Errorf("the plan's reuse URL: %v", err)
+		}
+	})
+	t.Run("OpenAIBrowser", func(t *testing.T) {
+		f := newNameFake(t)
+		raw := capturedAuthorizeURL(t, llmprovider.ProviderOpenAI, llmprovider.AuthBrowserOAuth,
+			signin.Options{Issuer: f.srv.URL, NoLoopback: true, HTTPClient: f.srv.Client()})
+		if err := authorizeError(raw, browserAuthorizeWant("originator", twinModuleName)); err != nil {
+			t.Errorf("OpenAI's browser URL: %v", err)
+		}
+		named := capturedAuthorizeURL(t, llmprovider.ProviderOpenAI, llmprovider.AuthBrowserOAuth,
+			signin.Options{Issuer: f.srv.URL, NoLoopback: true, HTTPClient: f.srv.Client(), Identity: auth.Identity{Name: "gobble"}})
+		if err := authorizeError(named, browserAuthorizeWant("originator", "gobble")); err != nil {
+			t.Errorf("OpenAI's browser URL under an identity: %v", err)
+		}
+	})
+	t.Run("GrokBrowser", func(t *testing.T) {
+		f := newNameFake(t)
+		ctx, cancel := context.WithCancel(twinContext(t))
+		defer cancel()
+		var shown string
+		_, _ = auth.LoginBrowserOAuth(ctx, llmprovider.ProviderGrok, auth.OAuthFlowOptions{
+			Issuer: f.srv.URL, HTTPClient: f.srv.Client(),
+			OpenURL:   func(raw string) error { shown = raw; cancel(); return nil },
+			InputCode: func(ctx context.Context) (string, error) { <-ctx.Done(); return "", ctx.Err() },
+		})
+		if shown == "" {
+			t.Fatal("the sign-in showed no authorize URL")
+		}
+		if err := authorizeError(shown, browserAuthorizeWant("referrer", twinModuleName)); err != nil {
+			t.Errorf("Grok's browser URL: %v", err)
+		}
+	})
+	t.Run("OldPlanAssertion", func(t *testing.T) {
+		// What TestLive_0074PastePlan asserted before the owner's live run:
+		// an originator the plan never sends. The shipped URL must fail it.
+		raw := capturedAuthorizeURL(t, llmprovider.ProviderOpenAI, llmprovider.AuthChatGPTPlan,
+			signin.Options{AgentName: pasteProbeAgentNameTwin, NoLoopback: true, HTTPClient: noNetworkClient()})
+		if err := authorizeError(raw, browserAuthorizeWant("originator", twinModuleName)); err == nil {
+			t.Error("the plan's URL carries an originator; the probe's old assertion would hold")
+		} else if strings.Contains(err.Error(), "%!") {
+			t.Errorf("the error holds a formatting fault: %q", err)
+		}
+		for name, want := range map[string]authorizeWant{
+			"an absent parameter that is sent":   {absent: []string{"agent_name_hint"}},
+			"a present parameter that is absent": {present: []string{"originator"}},
+		} {
+			if err := authorizeError(raw, want); err == nil {
+				t.Errorf("authorizeError accepted %s", name)
+			}
+		}
+	})
+}
+
+// pasteProbeAgentNameTwin is the plan probe's app name, which the untagged
+// twin cannot read from the tagged live file.
+const pasteProbeAgentNameTwin = probeIdentityName
+
+// twinModuleName is this module's own name, which the sign-ins send when no
+// Identity names another application (the tagged live files' identityValue).
+const twinModuleName = "go-llmprovider-sdk"

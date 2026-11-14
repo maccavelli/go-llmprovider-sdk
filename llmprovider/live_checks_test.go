@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -1151,4 +1152,71 @@ func runGrokName(ctx context.Context, t *testing.T, n nameProbe, signed *auth.OA
 	checkNamedRefresh(ctx, t, n, session)
 	checkNamedRevocation(ctx, t, n, session, 2)
 	revoked()
+}
+
+// authorizeWant says what an authorize URL carries: each parameter in equals
+// once with that value, each in present once with some value, none of absent
+// at all. It is what a probe asserts of the URL it shows before anyone signs
+// in, written from the code that builds the URL and run offline against it
+// (0074-PLAN Phase 7, deviation 2026-11-14).
+type authorizeWant struct {
+	equals  map[string]string
+	present []string
+	absent  []string
+}
+
+// authorizeError is nil when the authorize URL raw meets want. It names the
+// parameter that does not and never a value.
+func authorizeError(raw string, want authorizeWant) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("parse: %w", err)
+	}
+	query := u.Query()
+	for _, name := range slices.Sorted(maps.Keys(want.equals)) {
+		if got := query[name]; len(got) != 1 || got[0] != want.equals[name] {
+			return fmt.Errorf("parameter %s has %d value(s), the expected one among them %t; want exactly the expected value",
+				name, len(got), slices.Contains(got, want.equals[name]))
+		}
+	}
+	for _, name := range want.present {
+		if got := query[name]; len(got) != 1 || got[0] == "" {
+			return fmt.Errorf("parameter %s has %d value(s); want exactly one, not empty", name, len(got))
+		}
+	}
+	for _, name := range want.absent {
+		if query.Has(name) {
+			return fmt.Errorf("parameter %s is sent; this method's URL sends none", name)
+		}
+	}
+	return nil
+}
+
+// browserAuthorizeWant is a browser_oauth URL: it names this module, or the
+// application an Identity names, in param (OpenAI's originator, Grok's
+// referrer; 0076-MADR D3).
+func browserAuthorizeWant(param, name string) authorizeWant {
+	return authorizeWant{equals: map[string]string{param: name}}
+}
+
+// planFirstAuthorizeWant is the plan's first sign-in, read from
+// planAuthorizeURL: it names the app in agent_name_hint, and has a client id
+// and a host id; it sends no originator and no id_token_hint.
+func planFirstAuthorizeWant(agent string) authorizeWant {
+	return authorizeWant{equals: map[string]string{"agent_name_hint": agent},
+		present: []string{"client_id", "ext_agent_host_id"}, absent: []string{"originator", "id_token_hint"}}
+}
+
+// planAgainAuthorizeWant is the plan's sign-in again with Previous, read from
+// planAuthorizeURL: Previous's client, its ID token as id_token_hint when it
+// has one, and no agent_name_hint and no originator.
+func planAgainAuthorizeWant(previous *auth.OAuthSession) authorizeWant {
+	want := authorizeWant{equals: map[string]string{"client_id": previous.ClientID},
+		present: []string{"ext_agent_host_id"}, absent: []string{"agent_name_hint", "originator"}}
+	if previous.IDToken != "" {
+		want.equals["id_token_hint"] = previous.IDToken
+	} else {
+		want.absent = append(want.absent, "id_token_hint")
+	}
+	return want
 }

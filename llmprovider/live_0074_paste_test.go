@@ -73,8 +73,9 @@ func sessionOf(ctx context.Context, t *testing.T, run *signin.SignIn) *auth.OAut
 // pasteSignIn drives run with a person's paste from path, logging each URL
 // and confirm text it shows, and returns what signInFinding needs: the paste
 // record, the steps seen and the sign-in's error. The authorize URL is checked
-// to name this module in param before anyone signs in.
-func pasteSignIn(ctx context.Context, t *testing.T, run *signin.SignIn, path, param string) (*pasteRecord, []authcontract.StepKind, error) {
+// against want, what that method's authorize URL really carries, before
+// anyone signs in (0074-PLAN Phase 7, deviation 2026-11-14).
+func pasteSignIn(ctx context.Context, t *testing.T, run *signin.SignIn, path string, want authorizeWant) (*pasteRecord, []authcontract.StepKind, error) {
 	t.Helper()
 	rec := &pasteRecord{}
 	kinds, err := driveSteps(ctx, run, stepHooks{
@@ -83,7 +84,8 @@ func pasteSignIn(ctx context.Context, t *testing.T, run *signin.SignIn, path, pa
 			return true
 		},
 		openURL: func(step authcontract.Step) {
-			if !checkAuthorizeIdentity(t, step.URL, param, identityValue) {
+			if err := authorizeError(step.URL, want); err != nil {
+				t.Errorf("authorize URL: %v", err)
 				run.Cancel()
 				return
 			}
@@ -91,7 +93,7 @@ func pasteSignIn(ctx context.Context, t *testing.T, run *signin.SignIn, path, pa
 				t.Logf("FINDING redirect: the authorize URL's redirect_uri names port %d, where nothing listens", port)
 			}
 			t.Logf("open this URL on another device and sign in: %s", step.URL)
-			t.Logf("then write what the page shows into %s: cat > that path, the paste, Enter, Ctrl-D", path)
+			t.Logf("then write what the page shows into %s (the run sheet's pbpaste line)", path)
 		},
 		paste: pasteFromFile(path, rec),
 	})
@@ -120,7 +122,7 @@ func TestLive_0074PasteBrowser(t *testing.T) {
 		t.Fatalf("signin.Start: %v", err)
 	}
 	defer run.Cancel()
-	rec, kinds, err := pasteSignIn(ctx, t, run, path, "originator")
+	rec, kinds, err := pasteSignIn(ctx, t, run, path, browserAuthorizeWant("originator", identityValue))
 	line, passed := signInFinding("OpenAI browser", rec, kinds, err)
 	t.Log(line)
 	if !passed {
@@ -156,7 +158,7 @@ func TestLive_0074PastePlan(t *testing.T) {
 		t.Fatalf("signin.Start: %v", err)
 	}
 	defer run.Cancel()
-	rec, kinds, err := pasteSignIn(ctx, t, run, path, "originator")
+	rec, kinds, err := pasteSignIn(ctx, t, run, path, planFirstAuthorizeWant(pasteProbeAgentName))
 	line, passed := signInFinding("OpenAI plan", rec, kinds, err)
 	t.Log(line)
 	if !passed {
@@ -183,6 +185,12 @@ func TestLive_0074PastePlan(t *testing.T) {
 			return true
 		},
 		openURL: func(step authcontract.Step) {
+			if err := authorizeError(step.URL, planAgainAuthorizeWant(first)); err != nil {
+				t.Errorf("authorize URL: %v", err)
+				wrongPort = true
+				again.Cancel()
+				return
+			}
 			port, perr := redirectPort(step.URL)
 			if perr != nil || port != 1457 {
 				t.Errorf("redirect_uri port = %d, %v; want 1457, with 1455 held by this test", port, perr)

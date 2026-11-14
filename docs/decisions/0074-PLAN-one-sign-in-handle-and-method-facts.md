@@ -2607,3 +2607,94 @@ The change of "Phase 5, deviation (2026-11-14)". Base `7138882`.
   and `tools/recordlint.py --changed`.
 * **Provenance.** Mainstream model, medium effort. Escalated once, ruled
   2026-11-14: "Fixed 5 s limit".
+
+### Phase 7, step 3, deviation (2026-11-14): a probe asserted a parameter the plan never sends
+
+The owner's live run of `TestLive_0074PastePlan` (step 3) failed before any
+sign-in:
+
+```text
+live_0074_paste_test.go:82: consent chatgpt_plan.background_use, answered yes by the owner's run: ...
+live_0074_paste_test.go:86: authorize URL originator = [], want ["go-llmprovider-sdk"]
+```
+
+* **Cause.** `pasteSignIn` checked every authorize URL for an `originator`
+  naming this module (`checkAuthorizeIdentity`, `param` "originator"), and
+  step 3's first call passed it for `chatgpt_plan`. `planAuthorizeURL`
+  (`llmprovider/auth/oauth_plan.go:233-257`) sets no `originator`: a first
+  sign-in sets `query.Set(oauthParamClientID, planDynamicClientID)` and
+  `query.Set("agent_name_hint", strings.TrimSpace(opts.AgentName))`, a
+  sign-in again `query.Set(oauthParamClientID, previous.ClientID)` and, when
+  it has one, `query.Set("id_token_hint", previous.IDToken)`. `browser_oauth`'s
+  URL does carry the `originator`, so step 2's call was right.
+* **This is a probe defect found by the owner's live run, not an SDK
+  defect.** The SDK built the URL it always builds. The offline twin did not
+  catch it because its authorize URLs were hand-made (`twinAuthorizeURL`,
+  `identityFake.authorizeURL`), never the shipped builder's.
+* **The fix.** `pasteSignIn` takes an `authorizeWant`, a small spec of what a
+  URL carries (parameters that equal a value, parameters that are present,
+  parameters that are absent), checked by `authorizeError`, which names a
+  parameter and never a value. `browserAuthorizeWant` is `browser_oauth`'s
+  (`originator`, or `referrer` for Grok); `planFirstAuthorizeWant` is the
+  plan's first sign-in (`agent_name_hint` equal to the app's name, a client id
+  and a host id, no `originator`, no `id_token_hint`); `planAgainAuthorizeWant`
+  is a sign-in again with `Previous` (its client id, its ID token as
+  `id_token_hint` when it has one, no `agent_name_hint`, no `originator`),
+  also checked on step 3's second sign-in.
+* **The twin now drives the shipped builders.** `TestLiveTwin_AuthorizeURLs_0074`
+  takes the URL of `signin.Start` (the plan with no network, so its built-in
+  endpoints are used, and `browser_oauth` at a fake issuer, both with
+  `NoLoopback`) and of `auth.LoginBrowserOAuth` for Grok, and runs each probe's
+  assertion on it: the plan's first sign-in, the sign-in again, 0075's reuse
+  with a kept client record (`reuseAuthorizeError`), OpenAI's browser URL with
+  and without an identity (0079's `originator` "gobble"), Grok's `referrer`,
+  and the redirect port of a `NoLoopback` plan URL. One subtest runs the old
+  assertion on the plan's URL and requires it to fail.
+* **The audit of the other live probes,** each asserting something of an
+  authorize URL or of a device form:
+  * `TestLive_0074PasteBrowser` (OpenAI `originator`): was covered only by
+    `auth`'s own tests of the builder, not the probe's assertion; now by the
+    twin through `signin.Start`.
+  * `TestLive_0075ClientReuse` (`reuseAuthorizeError`): was run only on
+    hand-made URLs; now on the URL of `signin.Start` with a kept record. It
+    never asserted an `originator`, so it would not have failed this way.
+  * `TestLive_0079Name`, ChatGPT half (`originator` "gobble"): was run on a
+    hand-made URL; now on `signin.Start`'s `browser_oauth` URL under an
+    identity. Its Grok half checks the device form's `referrer` through
+    `checkDeviceReferrer`, which `TestLiveTwin_Identity_0076` runs on the
+    shipped `StartDeviceOAuth` against a fake issuer: covered.
+  * `TestLive_0074GrokPaste` (Grok `referrer`): the live probe passed on
+    2026-11-13; now also covered by the twin on `LoginBrowserOAuth`'s URL.
+  * `TestLive_OpenAIDeviceLogin`, `TestLive_GrokDeviceLogin` and
+    `TestLive_KiloDeviceLogin` assert nothing of an authorize URL or a form.
+  None would fail live the same way.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, exit 0, "all 6
+  plant(s) caught": the plan's first sign-in asserting an `originator` again
+  (`the plan's first sign-in URL: parameter originator has 0 value(s), the
+  expected one among them false; want exactly the expected value`); the plan
+  again asserting an `agent_name_hint`; the reuse asserting a hint; the
+  browser check naming another parameter; `authorizeError` ignoring absent
+  parameters (`authorizeError accepted an absent parameter that is sent`); and
+  the plan's first sign-in requiring an `originator` to be present.
+* **Run sheet.** A3's expected `FINDING` lines are unchanged. The sheet's
+  scratch variable and `mktemp` setup are replaced by a fixed folder per
+  probe, and the paste line is guarded.
+
+### Phase 7, step 3, deviation (2026-11-14), execution
+
+Base `b6a2125`. Files: `llmprovider/live_0074_paste_test.go`,
+`llmprovider/live_checks_test.go` (appended, with the `maps` import),
+`llmprovider/live_twins_test.go` (appended, with the `x/signin` import).
+
+* **Checks,** each exit status captured before any filter: `make
+  pre-add-check` on the three files, exit 0, `go-precheck: 3 file(s) clean`;
+  `go vet -tags live_gateways ./llmprovider/`, exit 0; `make tables-check
+  docs-check`, exit 0; `go test -run TestLiveTwin ./llmprovider/`, exit 0.
+  `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, in the tree, after the last code change: 12:05:27 to 12:23:58 (1,111 s), exit 0, `gate: 30 of 30 passed`. The plants: all 6 caught. After this entry: `claims.py` on the 0074 pair, `make records-check links-check disclosure-check markdownlint docs-check tables-check`, `tools/denyscan.py --changed` and `tools/recordlint.py --changed`.
+* **No gate test binds 1455 or 1457.** Every test that signs in at OpenAI
+  with a listener sets `openaiLoopbackPorts` to free ports first
+  (`no_loopback_0074_test.go`, `identity_0076_test.go`,
+  `plan_login_0043_test.go`, `oauth_loopback_test.go`); the others sign in at
+  Grok. The new twins use `NoLoopback`, which binds none, or a free port.
+* **Provenance.** Mainstream model, medium effort. The defect was found by
+  the owner's live run, not by a check; no escalation.
