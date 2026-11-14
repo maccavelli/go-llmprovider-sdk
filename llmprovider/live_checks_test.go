@@ -15,9 +15,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -695,4 +697,137 @@ func sameClient(a, b *auth.OAuthSession) error {
 		return errors.New("the second sign-in's host id is not the first's")
 	}
 	return nil
+}
+
+// planClientStore is the store a plan sign-in keeps its session and its
+// issued client in: FileTokenStore.
+type planClientStore interface {
+	auth.TokenStore
+	auth.ClientStore
+}
+
+// reuseAuthorizeError checks the authorize URL of a plan sign-in that reuses
+// the client record rec with no plan session (0075-MADR D7): it names the
+// kept client and the kept host id, and sends no agent_name_hint and no
+// id_token_hint. It is nil when it does.
+func reuseAuthorizeError(raw string, rec auth.ClientRecord) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("authorize URL: %w", err)
+	}
+	query := u.Query()
+	if got := query["client_id"]; len(got) != 1 || got[0] != rec.ClientID {
+		return fmt.Errorf("authorize URL has %d client_id value(s), the kept client among them %t; want exactly the kept client",
+			len(got), slices.Contains(got, rec.ClientID))
+	}
+	for _, name := range []string{"agent_name_hint", "id_token_hint"} {
+		if query.Has(name) {
+			return fmt.Errorf("authorize URL carries %s; a sign-in that reuses a client with no session sends none", name)
+		}
+	}
+	if got := query["ext_agent_host_id"]; len(got) != 1 || got[0] != rec.HostID {
+		return fmt.Errorf("authorize URL has %d ext_agent_host_id value(s), the kept host id among them %t; want exactly the kept one",
+			len(got), slices.Contains(got, rec.HostID))
+	}
+	return nil
+}
+
+// reusedClientError reports whether the plan session is under the client
+// and the host id the record holds, which a reuse keeps unchanged. It names
+// lengths and no id.
+func reusedClientError(s *auth.OAuthSession, rec auth.ClientRecord) error {
+	switch {
+	case rec.ClientID == "" || rec.HostID == "":
+		return errors.New("the client record holds no client or no host id")
+	case s.ClientID != rec.ClientID:
+		return fmt.Errorf("the session's client is not the kept one (kept %d chars, session %d chars)",
+			len(rec.ClientID), len(s.ClientID))
+	case s.HostID != rec.HostID:
+		return errors.New("the session's host id is not the kept one")
+	}
+	return nil
+}
+
+// logoutKeepsClientError saves session to store and deletes it, as
+// wizard.Logout does, and reports whether the client record is the same
+// afterwards (0075-MADR D7): a sign-out does not register another client.
+func logoutKeepsClientError(ctx context.Context, store planClientStore, session *auth.OAuthSession) error {
+	before, err := store.LoadClient(ctx, llmprovider.ProviderOpenAI)
+	if err != nil {
+		return fmt.Errorf("LoadClient before: %w", err)
+	}
+	if before.ClientID == "" {
+		return errors.New("the store holds no client record before the sign-out")
+	}
+	if err := store.Save(ctx, llmprovider.ProviderOpenAI, session); err != nil {
+		return fmt.Errorf("Save: %w", err)
+	}
+	if err := store.Delete(ctx, llmprovider.ProviderOpenAI); err != nil {
+		return fmt.Errorf("Delete: %w", err)
+	}
+	after, err := store.LoadClient(ctx, llmprovider.ProviderOpenAI)
+	if err != nil {
+		return fmt.Errorf("LoadClient after: %w", err)
+	}
+	if after != before {
+		return errors.New("the client record changed when the session was deleted")
+	}
+	return nil
+}
+
+// countingTransport counts the requests that reach base.
+type countingTransport struct {
+	base http.RoundTripper
+	n    *atomic.Int64
+}
+
+func (c countingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	c.n.Add(1)
+	return c.base.RoundTrip(r)
+}
+
+// checkPlanConsent is the consent end to end (0075-MADR D5; 0075-PLAN Phase
+// 6 step 2) on a plan session: bound to store, it declines the background-use
+// consent through SetConsent, and a request marked llmprovider.WithBackground
+// must be refused (ErrNotPermitted) with no request sent; it grants the
+// consent, and one short marked generation must go through and send one.
+// client is the transport the requests are counted on; opts reach the
+// provider.
+func checkPlanConsent(ctx context.Context, t *testing.T, session *auth.OAuthSession, store auth.TokenStore, model string,
+	client *http.Client, opts ...llmprovider.Option) {
+	t.Helper()
+	provider := llmprovider.ProviderOpenAI
+	if err := store.Save(ctx, provider, session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	session.UseStore(store)
+	var sent atomic.Int64
+	base := client.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	counted := &http.Client{Transport: countingTransport{base: base, n: &sent}, Timeout: client.Timeout}
+	p := liveOpenAI(t, session, model, append(opts, llmprovider.WithHTTPClient(counted))...)
+	marked := llmprovider.WithBackground(ctx)
+
+	granted := false
+	if err := auth.SetConsent(ctx, store, provider, openai.ConsentBackgroundUse, granted); err != nil {
+		t.Fatalf("SetConsent (decline): %v", err)
+	}
+	_, err := llmprovider.GenerateText(marked, p, userText("Reply with only the word ALPHA"))
+	if !errors.Is(err, llmprovider.ErrNotPermitted) || sent.Load() != 0 {
+		t.Fatalf("FINDING consent: declined, a marked request gave %v and sent %d request(s); want ErrNotPermitted and none",
+			err, sent.Load())
+	}
+	t.Log("FINDING consent: declined, a marked request is refused with no request sent")
+
+	granted = true
+	if err := auth.SetConsent(ctx, store, provider, openai.ConsentBackgroundUse, granted); err != nil {
+		t.Fatalf("SetConsent (grant): %v", err)
+	}
+	checkWord(marked, t, p, "ALPHA", noSkip)
+	if sent.Load() == 0 {
+		t.Fatal("FINDING consent: granted, a marked generation sent no request")
+	}
+	t.Log("FINDING consent: granted, a marked generation went through")
 }

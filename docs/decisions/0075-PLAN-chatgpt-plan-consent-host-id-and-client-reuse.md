@@ -1030,3 +1030,61 @@ MADR and approved this PLAN.
 * Provenance: mainstream model, medium effort; Phase 5 written, the docs read
   against the code of Phases 1 to 4, no claims rows added, gate 30 of 30; no
   escalation.
+
+### Phase 6, prep (2026-11-14)
+
+Base `d0b2cea`. The code of Phase 6's steps 1 to 3 is built. **The owner's
+run is pending: nothing was signed in, no live test ran, and no result is
+recorded here.** The U3 probe of `id_token_hint` alone is 0074's
+(`TestLive_0074PastePlan`); this record's probe is the reuse with none.
+
+* **Files.** `llmprovider/live_0075_client_test.go` (new, tag
+  `live_gateways`): `TestLive_0075ClientReuse`, under
+  `LLMPROVIDER_LIVE_0075` and `LLMPROVIDER_LIVE_CHATGPT_PLAN`. Both sign-ins
+  are `x/signin`'s `chatgpt_plan` with a scratch `FileTokenStore` as its
+  `ClientStore`, by the loopback, in a browser on this host (no paste file).
+  Steps: a first sign-in; its client and host id read back from the store;
+  the session revoked and then deleted as `wizard.Logout` does, and the client
+  record checked to survive; a second sign-in with no session, so the engine
+  loads the record and sends the client and the host id with no
+  `agent_name_hint` and no `id_token_hint` (the authorize URL is checked); the
+  client and host id checked unchanged; then step 2, the consent: declined
+  through `SetConsent`, a request marked `WithBackground` must be refused with
+  no request sent, granted, and one short marked generation. Both sessions
+  are revoked. A refusal at the second sign-in is the deviation Phase 6 names
+  (MADR D7 amended to keep the host id only); the test says so and fails.
+  `llmprovider/live_checks_test.go` (appended, untagged): `planClientStore`,
+  `reuseAuthorizeError`, `reusedClientError`, `logoutKeepsClientError`,
+  `countingTransport`, `checkPlanConsent`; imports `slices` and
+  `sync/atomic`. `llmprovider/live_twins_test.go` (appended):
+  `TestLiveTwin_PlanReuse_0075`, four subtests.
+* **The review lesson applied.** The new checks return errors that name no
+  cause when there is none: a message that formats an underlying error does so
+  in a branch that has one, and the twins assert that no error holds `%!`.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, exit 0, "all 7
+  plant(s) caught", the tree untouched:
+  1. the consent is not declined: `FINDING consent: declined, a marked
+     request gave <nil> and sent 1 request(s); want ErrNotPermitted and none`.
+  2. the fake generates another word: `Generate = "OMEGA", <nil>`.
+  3. the transport counts nothing: `FINDING consent: granted, a marked
+     generation sent no request`.
+  4. an `id_token_hint` is allowed on a reuse: `the id token hint:
+     reuseAuthorizeError = <nil>; want ok false`.
+  5. another host id is allowed on a reuse: `another host id:
+     reuseAuthorizeError = <nil>; want ok false`.
+  6. another client is accepted as the reused one: `another client:
+     reusedClientError = <nil>; want ok false`.
+  7. a sign-out that drops the client record passes: `logoutKeepsClientError
+     on a store whose Delete removes the record = nil; want an error`.
+* **Checks,** each exit status captured before any filter: `make
+  pre-add-check` on the three Go files, exit 0, `go-precheck: 3 file(s)
+  clean`; `go vet -tags live_gateways ./llmprovider/`, exit 0; `make
+  tables-check docs-check`, exit 0; `go test -run TestLiveTwin
+  ./llmprovider/`, exit 0. `python3 -B tools/gate.py --timeout 5400` through
+  `run-heavy`, in the tree, after the last code change: 10:25:00 to 10:57:39
+  (1,959 s), exit 0, `gate: 30 of 30 passed`. After this entry: `claims.py`
+  on the 0075 pair, `make records-check links-check disclosure-check
+  markdownlint docs-check tables-check`, `tools/denyscan.py --changed` and
+  `tools/recordlint.py --changed`.
+* **Provenance.** Mainstream model, medium effort; no escalation. The
+  owner's run is pending; the run sheet comes after 0079's prep.

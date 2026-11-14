@@ -756,3 +756,134 @@ func twinRefreshOnce(t *testing.T) {
 		Expiry: time.Now().Add(time.Hour), ClientID: auth.DefaultOpenAIClientID, HTTPClient: f.srv.Client()}
 	checkRefreshOnce(twinContext(t), t, session)
 }
+
+// TestLiveTwin_PlanReuse_0075 is TestLive_0075ClientReuse's checks: the
+// authorize URL of a reuse, the reused client, the sign-out that keeps the
+// client record, and the consent end to end, each offline. Each marked line
+// is one of 0075-PLAN Phase 6's plants.
+func TestLiveTwin_PlanReuse_0075(t *testing.T) {
+	t.Run("AuthorizeURL", twinReuseAuthorizeURL)
+	t.Run("ReusedClient", twinReusedClient)
+	t.Run("LogoutKeepsClient", twinLogoutKeepsClient)
+	t.Run("Consent", twinPlanConsent)
+}
+
+// twinReuseRecord is the client record the twins reuse.
+var twinReuseRecord = auth.ClientRecord{ClientID: "oaia_twin_0075", HostID: "urn:uuid:00000000-0000-4000-8000-000000000075"}
+
+// twinReuseURL is a reuse's authorize URL with set applied to its query.
+func twinReuseURL(set func(url.Values)) string {
+	query := url.Values{"client_id": {twinReuseRecord.ClientID}, "ext_agent_host_id": {twinReuseRecord.HostID},
+		"redirect_uri": {"http://127.0.0.1:1455/auth/callback"}, "state": {pasteTwinState}}
+	if set != nil {
+		set(query)
+	}
+	return "https://auth.twin.test/oauth/authorize?" + query.Encode()
+}
+
+func twinReuseAuthorizeURL(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		raw  string
+		ok   bool
+	}{
+		{"a reuse", twinReuseURL(nil), true},
+		{"the agent name hint", twinReuseURL(func(q url.Values) { q.Set("agent_name_hint", "twin") }), false},
+		{"the id token hint", twinReuseURL(func(q url.Values) { q.Set("id_token_hint", "twin-token") }), false},
+		{"another client", twinReuseURL(func(q url.Values) { q.Set("client_id", "oaia_other") }), false},
+		{"no client", twinReuseURL(func(q url.Values) { q.Del("client_id") }), false},
+		{"another host id", twinReuseURL(func(q url.Values) { q.Set("ext_agent_host_id", "urn:uuid:other") }), false},
+		{"unparsable", "https://auth.twin.test/%zz", false},
+	} {
+		err := reuseAuthorizeError(tc.raw, twinReuseRecord)
+		if (err == nil) != tc.ok {
+			t.Errorf("%s: reuseAuthorizeError = %v; want ok %t", tc.name, err, tc.ok)
+		}
+		if err != nil && strings.Contains(err.Error(), "%!") {
+			t.Errorf("%s: the error holds a formatting fault: %q", tc.name, err)
+		}
+	}
+}
+
+func twinReusedClient(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		s    *auth.OAuthSession
+		rec  auth.ClientRecord
+		ok   bool
+	}{
+		{"reused", &auth.OAuthSession{ClientID: twinReuseRecord.ClientID, HostID: twinReuseRecord.HostID}, twinReuseRecord, true},
+		{"another client", &auth.OAuthSession{ClientID: "oaia_other", HostID: twinReuseRecord.HostID}, twinReuseRecord, false},
+		{"another host id", &auth.OAuthSession{ClientID: twinReuseRecord.ClientID, HostID: "urn:uuid:other"}, twinReuseRecord, false},
+		{"no record", &auth.OAuthSession{}, auth.ClientRecord{}, false},
+	} {
+		err := reusedClientError(tc.s, tc.rec)
+		if (err == nil) != tc.ok {
+			t.Errorf("%s: reusedClientError = %v; want ok %t", tc.name, err, tc.ok)
+		}
+		if err != nil && strings.Contains(err.Error(), "%!") {
+			t.Errorf("%s: the error holds a formatting fault: %q", tc.name, err)
+		}
+	}
+}
+
+// wipingStore is a FileTokenStore whose Delete also removes the client
+// record: what 0075-MADR D7 forbids.
+type wipingStore struct{ *auth.FileTokenStore }
+
+func (w wipingStore) Delete(ctx context.Context, provider llmprovider.ProviderID) error {
+	if err := w.FileTokenStore.Delete(ctx, provider); err != nil {
+		return err
+	}
+	return w.SaveClient(ctx, provider, auth.ClientRecord{})
+}
+
+func twinLogoutKeepsClient(t *testing.T) {
+	ctx := twinContext(t)
+	session := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Access: "twin-access", Refresh: "twin-refresh",
+		Expiry: time.Now().Add(time.Hour), ClientID: twinReuseRecord.ClientID, HostID: twinReuseRecord.HostID}
+	good, err := auth.NewFileTokenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := good.SaveClient(ctx, llmprovider.ProviderOpenAI, twinReuseRecord); err != nil {
+		t.Fatal(err)
+	}
+	if err := logoutKeepsClientError(ctx, good, session); err != nil {
+		t.Errorf("logoutKeepsClientError on a store that keeps the record = %v", err)
+	}
+	bad, err := auth.NewFileTokenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := bad.SaveClient(ctx, llmprovider.ProviderOpenAI, twinReuseRecord); err != nil {
+		t.Fatal(err)
+	}
+	if err := logoutKeepsClientError(ctx, wipingStore{bad}, session); err == nil {
+		t.Error("logoutKeepsClientError on a store whose Delete removes the record = nil; want an error")
+	}
+	empty, err := auth.NewFileTokenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := logoutKeepsClientError(ctx, empty, session); err == nil {
+		t.Error("logoutKeepsClientError with no record = nil; want an error")
+	}
+}
+
+// twinPlanConsent is checkPlanConsent on a plan session whose provider is the
+// fake's.
+func twinPlanConsent(t *testing.T) {
+	f := newTwinFake(t)
+	f.echo = true // twin 0075 consent: the fake echoes the word
+	ctx := twinContext(t)
+	store, err := auth.NewFileTokenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := &auth.OAuthSession{Provider: llmprovider.ProviderOpenAI, Issuer: f.srv.URL, TokenURL: f.srv.URL + "/token",
+		Access: "plan-access-0", Refresh: "plan-refresh-0", Expiry: time.Now().Add(time.Hour), ClientID: "oaia_twin",
+		Resource: openai.PlatformBaseURL, Scope: "openid offline_access chatgpt.tokens.use.direct",
+		HostID: "urn:uuid:00000000-0000-4000-8000-000000000075", IDToken: "twin-id-token", HTTPClient: f.srv.Client()}
+	checkPlanConsent(ctx, t, session, store, "gpt-6.1-sol", f.srv.Client(), f.opts("")...)
+}
