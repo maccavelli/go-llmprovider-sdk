@@ -13,7 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/authcontract"
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/signinflow"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/providers/openai"
@@ -234,9 +236,11 @@ func signIn(
 	}
 	switch method {
 	case llmprovider.AuthBrowserOAuth:
-		flow, drain := browserFlowOptions(p, o)
-		session, loginErr := loginBrowserOAuth(ctx, d.ID, flow)
-		drain()
+		session, loginErr := browserSignIn(ctx, p, d.ID, o, signinflow.Spec{
+			Method: authcontract.Method{ID: string(method), Paste: authcontract.PasteURLOrCode,
+				Yields: authcontract.YieldsOAuthSession},
+			Mode: signinflow.ModeBrowser,
+		}, pasteCodeInstruction, pasteCodePrompt)
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
 		}
@@ -248,7 +252,7 @@ func signIn(
 			}
 			return resolveKiloDevice(ctx, p, d, baseURL, o)
 		}
-		session, loginErr := deviceLogin(ctx, d.ID, oauthFlowOptions(o), showDeviceCode(p, o))
+		session, loginErr := deviceSignIn(ctx, p, d.ID, o)
 		if loginErr != nil {
 			return resolvedCredential{}, loginErr
 		}
@@ -287,10 +291,14 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, o Options) (resolvedCre
 		// a bare code cannot complete it (0043-MADR A3).
 		instruction, prompt = pasteURLInstruction, pasteURLPrompt
 	}
-	flow, drain := browserFlowOptionsFor(p, o, instruction, prompt)
-	session, loginErr := loginChatGPTPlan(ctx, auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: previous,
-		HTTPClient: o.HTTPClient, OpenURL: flow.OpenURL, InputCode: flow.InputCode, Identity: o.Identity})
-	drain()
+	session, loginErr := browserSignIn(ctx, p, llmprovider.ProviderOpenAI, o, signinflow.Spec{
+		Method: authcontract.Method{ID: string(llmprovider.AuthChatGPTPlan), Paste: authcontract.PasteURLOrCode,
+			FirstPaste: authcontract.PasteURLOnly, Yields: authcontract.YieldsOAuthSession},
+		Mode: signinflow.ModePlan,
+		Plan: auth.ChatGPTPlanOptions{AgentName: o.AgentName, Previous: previous, HTTPClient: o.HTTPClient,
+			Identity: o.Identity},
+		First: previous == nil,
+	}, instruction, prompt)
 	if loginErr != nil {
 		return resolvedCredential{}, loginErr
 	}
@@ -348,7 +356,7 @@ func resolveKiloDevice(
 	baseURL string,
 	o Options,
 ) (resolvedCredential, error) {
-	session, err := deviceLogin(ctx, d.ID, oauthFlowOptions(o), showDeviceCode(p, o))
+	session, err := deviceSignIn(ctx, p, d.ID, o)
 	if err != nil {
 		return resolvedCredential{}, err
 	}
@@ -406,7 +414,7 @@ func resolveKiloDevice(
 // so no organization is chosen. One copy of the token, in the Result
 // (0056-MADR D2; 0016-MADR D11).
 func resolveKiloDeviceKey(ctx context.Context, p Prompter, d llmprovider.Descriptor, o Options) (resolvedCredential, error) {
-	session, err := deviceLogin(ctx, d.ID, oauthFlowOptions(o), showDeviceCode(p, o))
+	session, err := deviceSignIn(ctx, p, d.ID, o)
 	if err != nil {
 		return resolvedCredential{}, err
 	}
@@ -770,6 +778,33 @@ func browserFlowOptionsFor(p Prompter, o Options, instruction, prompt string) (a
 	}
 	flow.InputCode = paste.input
 	return flow, paste.drain
+}
+
+// browserSignIn runs a browser or plan sign-in on the step engine, given the
+// wizard's own seams (loginBrowserOAuth, loginChatGPTPlan), and renders its
+// steps: through Options.Driver, or with the notices and prompts of
+// browserFlowOptionsFor. The paste step exists unless Options.NoPastePrompt
+// is set. The login's options are the caller's; the engine sets OpenURL,
+// InputCode and NoLoopback itself (0074-MADR D6).
+func browserSignIn(
+	ctx context.Context,
+	p Prompter,
+	provider llmprovider.ProviderID,
+	o Options,
+	spec signinflow.Spec,
+	instruction, prompt string,
+) (*auth.OAuthSession, error) {
+	flow, drain := browserFlowOptionsFor(p, o, instruction, prompt)
+	spec.Provider = provider
+	spec.Flow = oauthFlowOptions(o)
+	spec.NoPaste = o.NoPastePrompt
+	spec.Logins = signinflow.Logins{Browser: loginBrowserOAuth, Plan: loginChatGPTPlan}
+	r := &stepRenderer{p: p, o: o, provider: provider, open: flow.OpenURL, input: flow.InputCode, drain: drain}
+	result, err := r.run(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	return result.Session, nil
 }
 
 // pastePrompt is the paste-code prompt that races the loopback. The login

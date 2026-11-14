@@ -671,6 +671,27 @@ type Credential interface {
     (0073-MADR D6, D7) forbid a break even at v0.
 * **`ShowDeviceCode` and `NoPastePrompt` stay** (0057-MADR D1, D2), as
     special cases of the renderer.
+* **The terminal step (2026-11-13, the owner's rulings; they refine "called
+  once per step" and "an error ends the sign-in").** `done` and `failed` are
+  steps (D3), so the `Driver` is handed them, as gobble-cli's
+  `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` D5
+  needs: `gobble auth login --json` prints one line per step, the last a
+  `done` or a `failed`.
+  * *Ruling "No final step after its own error".* An error the `Driver`
+    returns on any earlier step ends the sign-in and is returned as it is, and
+    the `Driver` is then handed no terminal step. On every other path it is
+    handed exactly one, last: `done` carries the method's `Yields`, `failed`
+    carries `ErrorKindOf`'s kind through the engine's mapping, a caller's
+    `ctx` ending and the engine's own failures included.
+  * *Ruling "Keep the credential, warn".* An error the `Driver` returns when
+    handed `done` leaves the sign-in's result standing, and becomes one
+    warning notice through the `Prompter`; its `Answer` is ignored.
+  * *The coordinator's reading, for the owner to overturn (the same
+    principle, a case the owner did not address).* An error the `Driver`
+    returns when handed `failed` leaves the sign-in's own error as the one
+    returned, and becomes one warning notice.
+  * The terminal step's `ctx` is not ended by the sign-in's end, which has
+    happened; the caller's own cancellation still ends it.
 
 ### D7. What is deprecated, and what is not
 

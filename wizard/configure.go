@@ -125,7 +125,9 @@ type Options struct {
 	// headers to those requests is built as llmprovider.WithHTTPClient's doc
 	// says, by wrapping llmprovider.NewHTTPClient's Transport (0066-MADR D2).
 	HTTPClient *http.Client
-	// OpenURL opens an OAuth authorization URL. Nil reports the URL through Prompter.
+	// OpenURL opens an OAuth authorization URL. Nil reports the URL through
+	// Prompter. An error from it is shown as a warning notice and the
+	// sign-in goes on, since the URL is on screen (0074-MADR D4).
 	OpenURL func(string) error
 	// AgentName is the consumer's own app name, which OpenAI's Sign in with
 	// ChatGPT for agents shows the user and registers the app under
@@ -155,6 +157,16 @@ type Options struct {
 	// sign-in before any poll and is returned as it is. The code's Expiry is
 	// never zero; for OpenAI it is this module's own wait (0057-MADR D1).
 	ShowDeviceCode func(DeviceCode) error
+	// Driver, when set, is given each step of a browser, ChatGPT plan or
+	// device sign-in, for a caller with no terminal that shows them itself,
+	// such as one that prints each as a line of JSON. With it, the
+	// Prompter is not used for the sign-in's notices, prompts and paste, and
+	// ShowDeviceCode and OpenURL are not called: the steps replace them.
+	// NoPastePrompt still decides whether a paste is asked, and the menus,
+	// confirmations and every other question still use the Prompter. An
+	// error from the Driver ends the sign-in and is returned as it is. It
+	// speaks the contract's types only; see StepDriver (0074-MADR D6).
+	Driver StepDriver
 	// SkipMethods leaves these sign-in methods out of every provider's menu,
 	// after TokenStore and AgentName filter it. A provider it leaves with no
 	// method, its API key included, is an error (0056-MADR D4).

@@ -335,8 +335,11 @@ class GateSelfTest(unittest.TestCase):
     def test_tables_check_architecture_stale(self) -> None:
         """An architecture row names a package its package does not import
         (0046-MADR D4)."""
-        replace_once(self.tree / "docs/architecture.md", "`providers/openai`, `internal/redact`, `golang.org/x/term` |",
-                     "`providers/openai`, `internal/redact`, `internal/transport`, `golang.org/x/term` |")
+        replace_once(self.tree / "docs/architecture.md",
+                     "`providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, "
+                     "`golang.org/x/term` |",
+                     "`providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, "
+                     "`internal/transport`, `golang.org/x/term` |")
         self.assertFails("tables-check", "docs/architecture.md: wizard")
 
     def test_tables_check_r2_disallowed(self) -> None:

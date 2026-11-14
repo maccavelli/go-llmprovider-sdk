@@ -1926,3 +1926,152 @@ deviations" above, each ruled by the owner on 2026-11-13.
 * Not done, as the phase says: no `wizard` change, no `Driver`, no CHANGELOG
   line (Phase 6), none of 0075's `ConsentText`, `HostID` or `ClientStore`, and
   none of 0079.
+
+### Phase 5, deviations (2026-11-13)
+
+Found while executing Phase 5, before any commit. The owner ruled the same
+day.
+
+* **Deviation 1: `scripts/test_gates.py` joins Phase 5 (blocking).**
+  * **Evidence.** `python3 -B tools/gate.py --timeout 5400` ended "gate: 29 of
+    30 passed"; the one failure was `gate-selftest`, rc=2:
+    `scripts/test_gates.py:338`, `test_tables_check_architecture_stale`,
+    ``AssertionError: architecture.md: '`providers/openai`, `internal/redact`,
+    `golang.org/x/term` |' found 0 times``. The test anchors on `wizard`'s row of
+    `docs/architecture.md`, which Phase 5's note and `make tables-check` change
+    (`authcontract` and `internal/signinflow` added). It passed before this
+    phase's edit, so it is not pre-existing.
+  * **Resolution, the owner's ruling "Add test_gates.py to Phase 5".** The
+    file joins Phase 5's scope. The test's `replace_once` anchor and its
+    replacement take `wizard`'s new row text; its intent, a stale package in
+    an architecture row, is unchanged. A plant on a scratch clone shows it
+    still bites.
+* **Deviation 2: the `Driver` is handed the terminal step (2026-11-13).**
+  * **Evidence.** The first Phase 5 build handed the `Driver` `open_url`,
+    `show_code`, `waiting` and `paste` only, on the reading that the wizard
+    returns the outcome itself. 0074-MADR D6 says the `Driver` is "called once
+    per step", `done` and `failed` are steps (D3), and gobble-cli's
+    `0051-MADR-sign-in-through-acp-elicitation-on-the-sdk-auth-contract.md` D5
+    prints "the last `done` or `failed`" through it. Whether a `Driver`'s own
+    error also gets a `failed` step was not settled by D6: the engine's step
+    after such an error is `failed` with kind `canceled` (after the wizard's
+    `Cancel`) or `other` (a `show_code` error through the device seam), a race,
+    not the `Driver`'s own error.
+  * **Resolution, the owner's rulings "No final step after its own error" and
+    "Keep the credential, warn"**, recorded under 0074-MADR D6: no terminal
+    step after the `Driver`'s own error; otherwise exactly one, last; an error
+    on `done` leaves the credential and gives one warning notice. The
+    coordinator's reading, for the owner to overturn: an error on `failed`
+    leaves the sign-in's own error returned, and gives one warning notice.
+  * **Tests added to Phase 5's table:** `TestDriver_TerminalDone_0074`,
+    `TestDriver_TerminalFailed_0074`, `TestDriver_OwnErrorGetsNoTerminal_0074`,
+    `TestDriver_TerminalErrorWarns_0074`.
+
+### Phase 5 (2026-11-13)
+
+Base: `main` at `d38b5c4` (Phase 4 committed), tree clean. The PLAN's Phase 5,
+"Rules for every phase", the R55 table, "Phase 4, deviations" (Deviation 2
+especially) and 0074-MADR D6 were read first. Deviations 1 and 2 are in
+"Phase 5, deviations" above, each ruled by the owner on 2026-11-13.
+
+* **Step 1, the browser, plan and device paths on the engine.**
+  `wizard/auth.go` `browserSignIn` runs `internal/signinflow` with the
+  wizard's own seams (`loginBrowserOAuth`, `loginChatGPTPlan`); the renderer
+  reuses `browserFlowOptionsFor` and `pastePrompt`, so the notices, the paste
+  prompts, the races and the drains are today's. The wizard builds the method
+  facts itself (`url_or_code`; `url_only` for a plan's first sign-in;
+  `Yields` `oauth_session`, `device_key` for `Options.KiloDeviceKey`), so a
+  descriptor without facts keeps today's behaviour; `NoPastePrompt` sets
+  `NoPaste`. `wizard/device.go` `deviceSignIn` runs the `deviceLogin` seam on
+  a goroutine, so the engine owns the order of `show_code` and `waiting`; the
+  seam's show waits for the renderer's verdict, so an error from
+  `ShowDeviceCode` or the `Driver` still ends the sign-in before any poll and
+  is returned as it is. A login that shows no code gets no `show_code` render.
+  The three Kilo and Grok/OpenAI device call sites and the plan call site use
+  the helpers.
+* **Step 2, `wizard/driver.go` and `Options.Driver`.** `StepDriver` and the
+  renderer loop `stepRenderer.run`. A `Driver` replaces the `Prompter`'s
+  sign-in notices and paste, `ShowDeviceCode` and `OpenURL`; `NoPastePrompt`
+  still decides whether a paste is asked. The Driver's context ends with the
+  sign-in, so a pending paste sees the loopback's win; a Driver error ends the
+  sign-in and is returned as it is. Deviation 2's rulings: the Driver is
+  handed the sign-in's last step, `done` with `Yields` or `failed` with the
+  error's kind, exactly one and last, except after its own error; an error on
+  that step is one warning and changes nothing.
+* **Step 3, an `Options.OpenURL` error** is one warning notice, "could not
+  open the browser (%s); open the URL above", and the sign-in goes on. The
+  text of the error is shown through `redact.String` and `redact.StripControl`,
+  not `describe`, which would read a caller's error as "the request failed".
+* **Behaviour change to note.** The engine's paste checks (state, a code, a
+  `client_id` where a URL is required; three pastes) now apply in the wizard
+  too: a paste the engine refuses is asked again, with a warning notice giving
+  its reason, where `auth` once received it. No existing test changed.
+* **Files.** `wizard/auth.go`, `wizard/device.go`, `wizard/configure.go`,
+  `wizard/driver.go`, `docs/architecture.md` (`wizard`'s row names
+  `authcontract` and `internal/signinflow`, per Phase 4's Deviation 2), and,
+  by Deviation 1, `scripts/test_gates.py`. Not touched: `wizard/import.go`
+  (the vendor import has no step), and none of 0075's or 0079's names.
+* **Tests.** Every existing `wizard` test passes unchanged (`go test -race
+  -count=3 ./wizard`). New, all `_0074`: `TestDriver_ReceivesSteps`,
+  `TestDriver_PasteAnswerCompletes`, `TestDriver_ContextEndsPaste`,
+  `TestDriver_ErrorEnds`, `TestOpenURLErrorWarns` (in its own file,
+  `wizard/openurl_0074_test.go`, so it builds at `773b84c`), and Deviation 2's
+  `TestDriver_TerminalDone`, `TestDriver_TerminalFailed`,
+  `TestDriver_OwnErrorGetsNoTerminal`, `TestDriver_TerminalErrorWarns`.
+* **Red, then green.** `python3 -B tools/redgreen.py --rev 773b84c ... --expect
+  fail`: `TestOpenURLErrorWarns_0074` fails on its assertion at `773b84c`
+  ("notices [Open https://authorize.test in your browser]; want ... could not
+  open the browser (no display); open the URL above"), and passes on the tree.
+  `REFRESH.json --expect pass`: 65 of 66, exit 1, the one "missing"
+  `TestOAuthSessionWait_WindowsRemoval_0071`, which skips off Windows, as in
+  Phases 2 and 3; none of the 15 files changed.
+* **Plants,** `python3 -B tools/plant.py` on a scratch clone, every one an
+  assertion, waits bounded to 5 s:
+  * `ShowDeviceCode called 1 times, notices []; want neither`;
+  * paste answer dropped: `InputCode() error = ... no usable callback after 3
+    pastes`, and `the Driver was given [open_url paste paste paste]; want
+    [open_url paste ...]`;
+  * ctx not cancelled: `the sign-in did not return within 5 s of the
+    loopback's win`;
+  * the Driver's error on `open_url` ignored: `the sign-in did not end within
+    5 s of the Driver's error`;
+  * the `OpenURL` notice omitted: `notices ["Open https://authorize.test in
+    your browser"]; want "could not open the browser (no display); open the
+    URL above" once`;
+  * the terminal step dropped: `the Driver was given [show_code waiting]; want
+    [show_code waiting done]`, and `terminal steps [], last false; want one
+    done, last`;
+  * `failed` sent as `done`: `TestDriver_TerminalFailed_0074` fails, "terminal
+    steps [... Kind:done ...]; want one failed, last";
+  * a terminal step after the Driver's own error: `the Driver was handed
+    [{... Kind:failed ...}] after its own error; want no terminal step`;
+  * a Driver error on `done` returned, not warned: `kind "", error the last
+    line could not be written; want the session kept`.
+  * Phase 4's moved gate plant: `make tables-check` with `authcontract`
+    removed from `wizard`'s R2 row: `check-tables:
+    docs/guides/api-standards.md: wizard: imports authcontract, which its row
+    does not allow`; from `wizard`'s architecture row: `check-tables:
+    docs/architecture.md: wizard: imports authcontract, which its row does not
+    name`. Both exit 2 through `make`.
+  * Deviation 1's: with the stale-name report removed from
+    `scripts/check_tables.py`, `test_tables_check_architecture_stale` fails:
+    `AssertionError: 0 != 1 : tables-check exit 0, want 1:`.
+* **Checks,** each exit status captured before any filter:
+  * `make pre-add-check` on the seven Go files, exit 0, "go-precheck: 7
+    file(s) clean". The first run failed errcheck twice and gosec G118 in
+    `driver.go`; fixed by returning the `Wait` result through a channel and by
+    treating a refused `Answer` as the sign-in's end, no `nolint`.
+  * `make api-check`, exit 0, "0 incompatible change(s) outside
+    llmprovider/x/". `python3 -B tools/apidiff.py v1.30.0`, exit 0; for the
+    wizard only `wizard.Options.Driver` and `wizard.StepDriver`, as R55's table
+    says.
+  * `make tables-check docs-check coverage-check`, exit 0; `wizard` 94.1 %
+    against 86.4 %.
+  * **The gate:** `python3 -B tools/gate.py --timeout 5400` through
+    `run-heavy`, after the last code change, exit 0, "gate: 30 of 30 passed",
+    started 18:05:39, finished 18:22:29 local (1010 s). A first gate, before
+    Deviation 1, was 29 of 30 (`gate-selftest`), and is the evidence of that
+    deviation.
+* Not done, as the phase says: no CHANGELOG line, README or architecture
+  section (Phase 6), none of 0075's `ConsentText`, `HostID` or `ClientStore`,
+  and none of 0079's `Options.Identity` on the wizard's requests.
