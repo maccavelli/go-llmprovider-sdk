@@ -972,3 +972,61 @@ MADR and approved this PLAN.
     23:59:26-06:00 local: exit 0, `ok` for each package.
 * Provenance: mainstream model, medium effort; Phase 4 implemented, eleven
   plants caught, gate 30 of 30, race run green on Linux; no escalation.
+
+### Phase 5 (2026-11-14)
+
+* **What the docs say, each claim read against the code of Phases 1 to 4.**
+  * `llmprovider/auth/doc.go`: the consent paragraph now says what the SDK
+    carries (the method's `Consent`, the question before the browser, the
+    answer on the session and in `FileTokenStore`, `SetConsent`, the refresh
+    that keeps it, `WithBackground` and the openai provider's refusal through
+    `StoredConsent`), the host id and the client store, and what stays the
+    consumer's: which requests are background and the wording, and the rest of
+    OpenAI's terms (MADR D8). The doc comment is the only Go change.
+  * `README.md`: the plan section gains a "Consent" and a "Host id and
+    client" item and its "What stays yours" item for consent is rewritten with
+    `WithBackground` and the wording options; the wizard's list item for the
+    plan sign-in describes the one question with three choices.
+  * `docs/architecture.md`: the plan's consent (the carry-over in
+    `loadRotated`, `persistRotation` and `complete`, `StoredConsent`, the
+    provider's `check`), the issued client (`ClientStore`, `writeDurable`, the
+    host-id order, the probe that gates the reuse), and the engine's consent
+    step and client store beside the wizard's rendering, plus the `auth` and
+    table row's new names.
+  * `CHANGELOG.md` `[Unreleased]`: **Added** the names of Phases 1 to 4, each
+    as the R55 table lists it; **Changed** the wizard's plan notice, now one
+    question with three choices, with the rollout and downgrade costs of the
+    MADR's Consequences.
+  * The deviations of Phases 0 and 2 are recorded in this PLAN and in the
+    amended records, and are not described as product behaviour: Phase 0's
+    supersession notes (0043-MADR A5, the 0017 report's follow-up), and Phase
+    2's bounded amendment of the existing tests and its note on C9. The docs
+    say that 0075-MADR amends 0043-MADR D7 and D8, as the doc comment's "as
+    0075-MADR amends it".
+* **Claims rows, the coordinator's decision:** none are added to any record.
+  Phase 5 makes no new code assertion in a record, as 0074-PLAN's Phase 6
+  decided for its docs. The two records' claims run, `51 of 51` and `8 of 8`.
+* **Checks, each exit status captured before any filter:**
+  * `make docs-check`: exit 0, `sdkaudit: 0 violation(s) of R50,R51,R52`;
+    `make links-check`: exit 0, `0 problem(s), 1301 relative link(s)`;
+    `make changelog-check`: exit 0, `44 release section(s), 0 problem(s)`;
+    `make markdownlint`: exit 0, `0 issues in 0 files`; `make parity-check`:
+    exit 0.
+  * `make pre-add-check FILES="llmprovider/auth/doc.go"`: exit 0, `1 file(s)
+    clean`; `make api-check` and `tools/apidiff.py v1.30.0`: exit 0, the
+    names unchanged since Phase 4.
+  * `python3 -B tools/gate.py --timeout 5400` through `run-heavy`, since a Go
+    doc comment changed, after the last edit to a file but this entry's
+    last bullets: exit 0, `gate: 30 of 30 passed`, started
+    2026-11-14T00:03:41-06:00 (at load 9.7) and finished 00:18:16-06:00, on
+    `17cfbd0`. It ran after every edit but this entry's last two bullets,
+    which only record its result. `python3 -B tools/gate.py --markdown`
+    refuses a change set that holds a Go file (exit 1, "llmprovider/auth/doc.go
+    is not Markdown; a change to it needs the full gate"), so the final text
+    was checked by the record checks instead, each exit 0 after the last
+    edit: `claims.py` on both records, `make records-check links-check
+    disclosure-check changelog-check markdownlint docs-check`, `denyscan
+    --changed` and `recordlint --changed`.
+* Provenance: mainstream model, medium effort; Phase 5 written, the docs read
+  against the code of Phases 1 to 4, no claims rows added, gate 30 of 30; no
+  escalation.

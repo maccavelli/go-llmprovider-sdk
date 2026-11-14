@@ -276,6 +276,33 @@ p, err := openai.New(llmprovider.WithTokenSource(session))
   limit. `PreviousResponseID`, native tool search, and a system message in
   `Input` are not supported: put system prompts in `Instructions`.
   `ListModels` lists the account's models and never sends a billed probe.
+- **Consent.** OpenAI's terms ask your app for the user's express consent
+  before any background use
+  ([0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md](docs/decisions/0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md)). The plan method says
+  it needs `openai.ConsentBackgroundUse` (`AuthMethod.Consent`, with
+  `ConsentText` and `ConsentURL`), and its sign-in asks it before the
+  browser opens, as one question that also shows where the plan's usage is
+  managed; the wizard shows three choices, and the third cancels the
+  sign-in. The answer is kept on the session (`OAuthSession.Consents`, read
+  with `Consent`), a re-sign-in whose session has one is not asked again,
+  and `auth.SetConsent(ctx, store, provider, id, granted)` changes the
+  stored answer, which no refresh loses. Mark the requests your app makes on
+  its own, such as a title or a compaction, with
+  `llmprovider.WithBackground(ctx)`: the openai provider refuses a marked
+  request on a plan session whose stored answer is not granted, or cannot be
+  read, with `ErrNotPermitted`, before the network. A session saved before
+  this release has no answer, so marked requests are refused until the user
+  answers; unmarked requests are not affected.
+- **Host id and client.** Pass your own host-lifetime id as
+  `ChatGPTPlanOptions.HostID` (`wizard.Options.HostID`,
+  `signin.Options.HostID`); without one it is the saved session's, else the
+  client record's, else a new one. A `TokenStore` that also implements
+  `auth.ClientStore`, as `FileTokenStore` does in `<provider>.client`, keeps
+  the issued client and the host id apart from the session, so a sign-out or
+  a switch to a Codex-id session does not register another client under the
+  user's account: the next plan sign-in passes the client as
+  `ChatGPTPlanOptions.ClientID`. The wizard uses its `TokenStore` when it is
+  one; `signin.Options.ClientStore` is `x/signin`'s way to it.
 - **Usage.** A plan's usage limit is `ErrQuotaExhausted`.
   `openai.ChatGPTUsageURL` is the page your "Manage usage" action opens.
 - **Store.** A `TokenStore` keeps one OpenAI login, of either kind: a plan
@@ -286,7 +313,9 @@ p, err := openai.New(llmprovider.WithTokenSource(session))
   module cannot do for you, and no option claims to:
   - send requests only from the user's own runtime, or one only that user
     controls, and only for that user's activity;
-  - get the user's express consent before any background use;
+  - decide which of your requests are background, mark them with
+    `WithBackground`, and word the consent question
+    (`wizard.Options.ConsentText`, `signin.Options.ConsentText`);
   - use the plan only for the app the user connected, never as
     general-purpose API access for other tools;
   - never pool, share, transfer or resell plan usage or the tokens;
@@ -361,10 +390,14 @@ key.
   that save no session are offered: the API key, a vendor CLI's login, and
   a pasted Grok key.
 - With `Options.AgentName`, your app's own name, OpenAI also offers "Use
-  your ChatGPT plan with this app" (`AuthChatGPTPlan`). Before the first
-  plan sign-in the user confirms OpenAI's notice, "You're using your
-  ChatGPT plan". A saved plan session is signed in to again, keeping the
-  client OpenAI issued your app.
+  your ChatGPT plan with this app" (`AuthChatGPTPlan`). Before the browser
+  opens, a plan sign-in asks OpenAI's notice, "You're using your ChatGPT
+  plan", and the background-use consent in one question with three choices:
+  allow, do not allow (the default) or cancel the sign-in; a saved plan
+  session that already holds an answer is not asked. A saved plan session is
+  signed in to again, keeping the client OpenAI issued your app, and with a
+  `TokenStore` that keeps the client apart (`auth.ClientStore`) so does a
+  sign-in after a sign-out. `Options.HostID` is your host-lifetime id.
 - `Options.Identity` names your app to the identity providers on every
   sign-in the wizard runs, as `auth.OAuthFlowOptions.Identity` does on your
   own: OpenAI's `originator`, Grok's `referrer`, and the User-Agent of each

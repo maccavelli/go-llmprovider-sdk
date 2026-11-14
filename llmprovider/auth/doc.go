@@ -16,12 +16,30 @@
 // borrowed. Its session is a plan session (OAuthSession.PlanUsage), which
 // the openai provider sends to the platform's Responses API.
 //
-// OpenAI's terms for plan usage ask things of the app that this package
-// cannot do for it, and no option claims to (0043-MADR D8). The consumer
-// sends requests only from the user's own runtime, or one that only that
-// user controls, and only for that user's activity. It obtains the user's
-// express consent before any background use. It uses the plan only for the
-// application the user connected, never as general-purpose API access for
-// other tools. It does not pool, share, transfer or resell plan usage or the
-// tokens, and it charges nothing for this use.
+// OpenAI's terms for plan usage ask the app to obtain the user's express
+// consent before any background use, and this package carries that consent
+// (0075-MADR). The plan method states that it needs the consent
+// "chatgpt_plan.background_use" (llmprovider.AuthMethod.Consent), and its
+// sign-in asks it before the browser opens, as one question. The answer is
+// kept on the session (OAuthSession.Consents, read with Consent) and saved by
+// FileTokenStore. SetConsent changes the stored answer, holding the
+// provider's refresh lock, and a refresh never loses it. A request the
+// consumer marks with llmprovider.WithBackground is refused by the openai
+// provider, before the network, on a plan session whose stored answer
+// (StoredConsent) is not granted. The consumer still decides which of its
+// requests are background, and words the question.
+//
+// The host id OpenAI asks kept for the host's life is the consumer's
+// (ChatGPTPlanOptions.HostID), and the client OpenAI issued the app
+// outlives the session in a ClientStore, which FileTokenStore implements in
+// <provider>.client and a sign-out leaves, so that a later sign-in signs in
+// to it (ChatGPTPlanOptions.ClientID) instead of registering another.
+//
+// The rest of OpenAI's terms for plan usage this package cannot do for the
+// consumer, and no option claims to (0043-MADR D8, as 0075-MADR amends it).
+// The consumer sends requests only from the user's own runtime, or one that
+// only that user controls, and only for that user's activity. It uses the
+// plan only for the application the user connected, never as general-purpose
+// API access for other tools. It does not pool, share, transfer or resell
+// plan usage or the tokens, and it charges nothing for this use.
 package auth

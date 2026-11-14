@@ -147,7 +147,7 @@ standard library is left out.
 | Package | Holds | Depends on |
 | :--- | :--- | :--- |
 | `llmprovider` | the contract: request and response types, errors, options, `NewHTTPClient`, the bounded client a caller wraps to add headers (0066-MADR D2), the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact`, `internal/nilsource` |
-| `llmprovider/auth` | OAuth sessions and their refresh and revocation, with `OAuthSession.Wait` for a detached refresh (0071-MADR D3), the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `VendorCLIPath`, `TokenStore` and `FileTokenStore`, and the issuers and client ids; a session's kind (`SessionKind` and `OAuthSession.Kind`), the sign-in sentinels `ErrSignInDenied` and `ErrSignInExpired`, and `NoLoopback` on `OAuthFlowOptions` and `ChatGPTPlanOptions` (0074-MADR D4, D5, D8) | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
+| `llmprovider/auth` | OAuth sessions and their refresh and revocation, with `OAuthSession.Wait` for a detached refresh (0071-MADR D3), the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `VendorCLIPath`, `TokenStore` and `FileTokenStore`, and the issuers and client ids; a session's kind (`SessionKind` and `OAuthSession.Kind`), the sign-in sentinels `ErrSignInDenied` and `ErrSignInExpired`, and `NoLoopback` on `OAuthFlowOptions` and `ChatGPTPlanOptions` (0074-MADR D4, D5, D8); a session's consent answers (`OAuthSession.Consents`, `Consent`, `StoredConsent`, `SetConsent`) and the issued-client record (`ClientRecord`, `ClientStore`, `ChatGPTPlanOptions.ClientID`) (0075-MADR D2, D3, D5, D7) | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
 | `llmprovider/x/signin` | experimental (R4, 0074-MADR D9): `Methods`, a descriptor's methods as the contract's `Method` values; `Start`, `Options` and `SignIn`, one handle for a device, browser, plan or vendor-import sign-in; `Credential` and its five types; `ErrorKindOf`; its `NoLoopback` option, experimental, which passes through to `auth`'s two | `llmprovider`, `auth`, `authcontract`, `internal/signinflow` |
 | `internal/signinflow` | the step engine under `llmprovider/x/signin` (0074-MADR D3, D4): `Start`, `Spec` and `Run` emit the contract's steps in order, take the answers, check a pasted callback (state, code, `client_id`; three pastes), and return the result; `ErrorKindOf` and `Failure` | `llmprovider`, `auth`, `authcontract`, `internal/redact` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/chatcompat`, `providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, `golang.org/x/term` |
@@ -761,6 +761,30 @@ for a session, from the store.
   account's `models` array and is never probed. Its four
   `subscription_sharing_*` codes are classified by code, in a reply or a
   stream.
+- **The plan's consent** (0075-MADR). `AuthMethod.Consent`, `ConsentText` and
+  `ConsentURL` state it; the engine asks it as a `confirm` step before the
+  browser and puts the answer on the session it returns, which carries it as
+  `OAuthSession.Consents` (a string, so the struct stays comparable) and
+  `FileTokenStore` saves it. `SetConsent` rewrites it under the refresh lock,
+  and the refresh keeps the stored answer: `loadRotated` reports a record it
+  passes over, and `persistRotation` and `complete` carry its consents. A
+  request marked with `llmprovider.WithBackground` is checked by the openai
+  provider's `check`, before the network: it reads the answer through
+  `OAuthSession.StoredConsent`, which takes `Store` under the session's lock
+  (a refresh rewrites it), and refuses, as `ErrNotPermitted`, a marked
+  request not granted, or whose read fails. Other sessions, keys and
+  providers ignore the mark.
+- **The issued client** (0075-MADR D6, D7). `auth.ClientStore`, which
+  `FileTokenStore` implements in `<provider>.client` beside the session, with
+  the session's durable, owner-only write (`writeDurable`), keeps the client
+  OpenAI issued and the host id apart from the session. `Delete` of the
+  session leaves it. The engine, given a `ClientStore`, loads the record
+  before a plan sign-in with no `Previous` and passes its client
+  (`ChatGPTPlanOptions.ClientID`: the request names it, with no agent name
+  and no ID token hint) and its host id, and saves both as the login returns,
+  before anything else the caller does. The host id is `Options.HostID`, else
+  `Previous`'s, else the record's, else a new one. Whether OpenAI accepts the
+  client with no hint is for the owner-run probe of 0075-PLAN's Phase 6.
 - **After a 401** a provider invalidates any `InvalidatingSource` and retries
   once: a `CommandToken` reruns its command, and an `OAuthSession` refreshes.
   A source that is also a `TokenInvalidator`, as both are, is told which
@@ -1179,6 +1203,24 @@ caller saves, as the wizard does after its listing.
   error on the last step is one warning notice and changes nothing. An
   `Options.OpenURL` error is a warning notice, and the sign-in goes on. The
   vendor import has no step.
+- **The consent step and the client store in the engine** (0075-MADR D4,
+  D7). A plan sign-in whose method states a consent starts with a `confirm`
+  step, the consent's id, its text (the app's, from `Spec.ConsentText`, else
+  the method's), the usage link and `default` false, unless the session
+  being signed in to again holds an answer, which is carried; an answer with
+  no `Confirm` is a no, the sign-in goes on either way, and a failed sign-in
+  records none. The answer is put on the returned session through
+  `auth.SetConsent`, on a one-session store of the engine's own, so the
+  entries' format stays `auth`'s. `Spec.ClientStore` loads and saves the
+  issued client; a load that fails ends the sign-in before the login, and a
+  save that fails is `Result.ClientSaveErr`, which the wizard shows as a
+  warning and the sign-in survives. The wizard shows the consent as a
+  `Select` of "Allow background use", "Do not allow background use" (the
+  default) and "Cancel the sign-in", titled with the step's text and the
+  usage page, and a `Driver` is given the plain step and answers with
+  `Answer.Confirm`. `wizard.Options.HostID`, `signin.Options.HostID` and
+  `signin.Options.ClientStore` reach the engine; the wizard uses its
+  `TokenStore` when it implements `auth.ClientStore`.
 
 ## Identity
 

@@ -49,6 +49,27 @@ tag and its commit without notes; its notes are its section here.
   ([0079-MADR](docs/decisions/0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md)
   D2, D4).
 
+- The ChatGPT plan's consent, as 0075-MADR decides it
+  ([0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md](docs/decisions/0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md)):
+  `llmprovider.AuthMethod.Consent`, `ConsentText` and `ConsentURL`, set by the
+  `chatgpt_plan` descriptor, and `openai.ConsentBackgroundUse`;
+  `auth.OAuthSession.Consents`, saved by `FileTokenStore` and omitted when
+  empty, with `(*OAuthSession).Consent`; `auth.SetConsent`; and
+  `(*OAuthSession).StoredConsent`, which reads the answer the session's store
+  holds (D1 to D3, D5).
+- `llmprovider.WithBackground` and `llmprovider.IsBackground`, which mark a
+  request the application makes on its own; the openai provider refuses a
+  marked request on a ChatGPT plan session whose stored consent is not
+  granted, or cannot be read, with `llmprovider.ErrNotPermitted`, before the
+  network (D5).
+- `auth.ClientRecord`, `auth.ClientStore` and `(*FileTokenStore).LoadClient`
+  and `SaveClient`, which keep the client OpenAI issued the app and its host
+  id in `<provider>.client`, apart from the session;
+  `auth.ChatGPTPlanOptions.ClientID`, which signs in to an issued client with
+  no `Previous`; and `wizard.Options.HostID`, `wizard.Options.ConsentText`,
+  and `x/signin`'s `Options.HostID`, `Options.ConsentText` and
+  `Options.ClientStore` (D4, D6, D7).
+
 ### Deprecated
 
 - `llmprovider.AuthMethod.Interactive` and `HeadlessOK`, which `Kind` and
@@ -58,6 +79,14 @@ tag and its commit without notes; its notes are its section here.
 
 ### Changed
 
+- The wizard's plan notice is one question with three choices, the notice and
+  the background-use consent together, asked before the browser opens:
+  allow, do not allow (the default) or cancel the sign-in, which ends it as
+  declining the notice did. A saved plan session with no recorded answer is
+  asked too. A plan session saved by an earlier release has no answer, so a
+  request marked with `WithBackground` is refused until the user answers.
+  An older release that refreshes and re-saves a session drops its consent,
+  and ignores `<provider>.client` (0075-MADR D4 and Consequences).
 - The ChatGPT backend's `originator` is `WithClientInfo`'s name, for
   generation, the model listing and `catalog.ListRaw`, where it was always
   `go-llmprovider-sdk`; with no name it is unchanged, and a ChatGPT plan
