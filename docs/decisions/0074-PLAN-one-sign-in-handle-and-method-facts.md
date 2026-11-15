@@ -3363,6 +3363,21 @@ are local (UTC-6) unless marked UTC.
   is not deleted:** the deletion, `gh release delete v1.26.0 --yes`, keeps the
   tag (`git ls-remote --tags origin v1.26.0` lists it) and the changelog
   section, and waits for the owner's word, as `v1.25.0`'s did at `v1.30.0`.
+  *(Annotation, 2026-11-14, later: the deletion was done. The coordinator
+  asked the owner whether `v1.26.0`'s Release should be deleted under R53;
+  the owner chose "Yes, delete it now": "I run `gh release delete v1.26.0
+  --yes`, confirm six Releases remain and the v1.26.0 tag still exists, and
+  record it in the 0074 plan. This is what the rule requires and what was
+  done for v1.25.0 at the last release." Rejected: "I'll delete it myself";
+  "Keep it". The coordinator ran `gh release delete v1.26.0 --yes` at about
+  19:40 local: exit 0. Before: seven Releases, `v1.31.0` to `v1.26.0`.
+  After, read again by the recording agent: `gh release list` shows six,
+  `v1.31.0` (Latest), `v1.30.0`, `v1.29.0`, `v1.28.0`, `v1.27.0` and
+  `v1.26.1`; `git ls-remote --tags origin v1.26.0` still lists the tag
+  (`d31d1fd`); `CHANGELOG.md` still has `## [v1.26.0] - 2026-11-04`. The
+  Release's JSON saved before the deletion (17 fields, body 2,512
+  characters) is kept in the session's scratch folder. R53 is met: the
+  six newest tags have a Release.)*
 * **Other steps after the tag.** None in this phase's text beyond the tag, CI,
   the two tools and R53's check. 0075-PLAN Phase 7 and 0079-PLAN Phase 6 ask
   only that this phase's tag, CI and tools be recorded. Nothing read-only is
@@ -3387,5 +3402,10 @@ are local (UTC-6) unless marked UTC.
   hold the status. **This PLAN is `complete`.** The MADR stays `accepted`: no
   record changes its status at the release.
 * **Open for the owner:** `gh release delete v1.26.0 --yes`.
+  *(Annotation, 2026-11-14, later: closed. The owner chose "Yes, delete it
+  now" and the coordinator ran the command, exit 0; see the annotation under
+  R53's check above. Nothing is open for the owner. Provenance of this
+  annotation: a mainstream model at medium effort; the deletion by the
+  coordinator, on the owner's word.)*
 * **Provenance.** Recorded by a mainstream model at medium effort; the tag
   and its push by the coordinator, on the owner's word above.

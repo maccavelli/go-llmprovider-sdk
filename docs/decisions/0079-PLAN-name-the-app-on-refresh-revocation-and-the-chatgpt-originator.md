@@ -955,5 +955,7 @@ UTC), and `tools/consumer.py v1.31.0` (exit 0, 17 packages linked) and
   entry). R53's deletion of `v1.26.0`'s Release is open (the owner's word)
   and is no criterion of this phase. **This PLAN is `complete`.** The MADR
   stays `accepted`.
+  *(2026-11-14, later: the deletion is done, on the owner's word; R53 is
+  met. See 0074-PLAN's annotation under "R53's check".)*
 * **Provenance.** Recorded by a mainstream model at medium effort; the tag by
   the coordinator, on the owner's word.
