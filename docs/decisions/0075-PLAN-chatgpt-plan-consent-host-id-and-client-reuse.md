@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-14
 associated-madr: "0075-MADR-chatgpt-plan-consent-host-id-and-client-reuse.md"
 decision-makers: repository owner
@@ -1183,3 +1183,22 @@ command. What this PLAN asks of it:
   The MADR stays `accepted`.
 * **Provenance.** Prepared by the strongest model at high effort; no
   escalation to the owner.
+
+### Phase 7, the tag and the post-tag steps (2026-11-14)
+
+This phase is 0074-PLAN Phase 8, whose entry "Phase 8, the tag and the
+post-tag steps (2026-11-14)" holds the owner's word, the tag (`v1.31.0`,
+object `6127b41`, on `0fbb761`), its CI (run `43660548756`, success, all four
+jobs), the Release (published 2026-11-15T01:03:48Z, UTC, which is the evening
+of 2026-11-14 local), `tools/consumer.py v1.31.0` and `tools/offline.py
+v1.31.0` (each exit 0, both built-in plants caught) and R53's finding.
+
+* **The acceptance, as the entry above left it:** "waits on the tag: the
+  owner's tag, its CI, and `tools/consumer.py` and `tools/offline.py` after
+  it". Each is met. The MADR's Confirmation is met: the probe of D7 is
+  recorded, and the release shipped the section naming the downgrade cost and
+  the wizard's changed notice. R53's deletion of `v1.26.0`'s Release is open
+  (the owner's word) and is no criterion of this phase. **This PLAN is
+  `complete`.** The MADR stays `accepted`.
+* **Provenance.** Recorded by a mainstream model at medium effort; the tag by
+  the coordinator, on the owner's word.

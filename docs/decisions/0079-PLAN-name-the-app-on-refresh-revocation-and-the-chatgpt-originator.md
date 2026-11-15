@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-14
 associated-madr: "0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md"
 decision-makers: repository owner
@@ -940,3 +940,20 @@ command. What this PLAN asks of it:
   `accepted`.
 * **Provenance.** Prepared by the strongest model at high effort; no
   escalation to the owner.
+
+### Phase 6, the tag and the post-tag steps (2026-11-14)
+
+This phase is 0074-PLAN Phase 8, whose entry "Phase 8, the tag and the
+post-tag steps (2026-11-14)" records the tag `v1.31.0` (on `0fbb761`), its CI
+(run `43660548756`, success), the Release (published 2026-11-15T01:03:48Z,
+UTC), and `tools/consumer.py v1.31.0` (exit 0, 17 packages linked) and
+`tools/offline.py v1.31.0` (exit 0).
+
+* **The acceptance:** this phase says the PLAN is set `complete` "when that
+  phase records the tag's CI and `tools/consumer.py`". Both are recorded.
+  `tools/apidiff.py v1.30.0` listed this PLAN's two names (the prepared
+  entry). R53's deletion of `v1.26.0`'s Release is open (the owner's word)
+  and is no criterion of this phase. **This PLAN is `complete`.** The MADR
+  stays `accepted`.
+* **Provenance.** Recorded by a mainstream model at medium effort; the tag by
+  the coordinator, on the owner's word.

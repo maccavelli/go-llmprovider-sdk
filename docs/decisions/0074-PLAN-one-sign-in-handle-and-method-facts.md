@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 date: 2026-11-14
 associated-madr: "0074-MADR-one-sign-in-handle-and-method-facts.md"
 decision-makers: repository owner
@@ -3301,3 +3301,91 @@ Windows laptop. Windows output below has its user folder replaced by
   did not reach.
 * **Provenance.** Mainstream model, medium effort; the rulings are the
   owner's, relayed by the coordinator.
+
+### Phase 8, the tag and the post-tag steps (2026-11-14)
+
+Base `0fbb761`, the release commit "chore(release): prepare v1.31.0 changelog,
+docs and session fixes"; `main` and `origin/main` both read `0fbb761`, and the
+tree was clean before this entry. This entry changes records only: no Go file,
+tool, workflow, Release or tag. Each command's output and exit status are in
+the session's scratch folder, each status captured before any filter. Times
+are local (UTC-6) unless marked UTC.
+
+* **The owner's word.** On 2026-11-14: "You may tag and push this tag
+  v1.31.0".
+* **The tag.** The coordinator, on that word, created the annotated, unsigned
+  tag `v1.31.0` (message `v1.31.0`) on `0fbb761` and pushed it at 18:54 on
+  2026-11-14 (the tag's date, 18:54:56). `git ls-remote --tags origin
+  'v1.31.0*'`: the tag object is `6127b41ac835d8554822eebb47ed4f0477655f77`
+  and `v1.31.0^{}` is `0fbb7613e9ac2e3420542a75b2f4ebffbe83854b`, the release
+  commit.
+* **CI on the tag.** Run `43660548756`, event push, conclusion `success`,
+  read here with `gh run view`: `validate (macos-15)` success (57 s),
+  `validate (ubuntu-24.04)` success (8 m 40 s), `validate (windows-2025)`
+  success (1 m 31 s), and `release` success (6 s). The one annotation is
+  GitHub's notice that macOS arm64 jobs may queue longer.
+* **The Release.** `gh release view v1.31.0 --json
+  tagName,isDraft,isPrerelease,publishedAt`: `tagName` "v1.31.0", `isDraft`
+  false, `isPrerelease` false, `publishedAt` "2026-11-15T01:03:48Z". That
+  time is UTC, and falls on the next UTC date: it is 19:03:48 on 2026-11-14
+  local, so the Release, the section's date (2026-11-14) and the tag share one
+  local day. `gh release list` marks it Latest.
+* **`tools/consumer.py v1.31.0`**, through `run-heavy -- python3 -B
+  tools/consumer.py v1.31.0`: exit 0, 19:05:07 to 19:06:45 (98 s). Quoted:
+  "`go get github.com/maccavelli/go-llmprovider-sdk@v1.31.0`: rc=0", "go:
+  added github.com/maccavelli/go-llmprovider-sdk v1.31.0"; `go mod tidy` and
+  the six platform builds (linux, windows and darwin, each amd64 and arm64)
+  rc=0; `go run .` rc=0; "consumer: 17 packages linked"; "consumer: every
+  step passed". (`v1.30.0`: 16 packages.)
+* **`tools/offline.py v1.31.0`**, through `run-heavy -- python3 -B
+  tools/offline.py v1.31.0`: exit 0, 19:06:49 to 19:06:59 (11 s). Quoted:
+  "go get ... v1.31.0: rc=0", "gofmt -l main.go: clean", "go vet .: rc=0";
+  "fields=19 window=1000000 output=128000 input=3 output=15 tiers=1
+  source=models.dev", "requests=0", "offline: ok"; the six platform builds
+  rc=0; "offline: every step passed". The tool's two built-in plants failed,
+  as they must: "--- plant: models.dev left on" printed `FAIL: LookupModel:
+  model metadata: Get "https://models.opencode.ai/api.json": offline: request
+  refused`, "requests=1", `FAIL: the counting transport saw 1 request(s),
+  want 0`, "exit status 1", then "caught: models.dev left on"; "--- plant: no
+  caller layer" printed `FAIL: CachedModel: nothing known` and 38 further
+  `FAIL: LookupModel|CachedModel: field N unset` lines, "fields=19 window=0
+  output=0 input=0 output=0 tiers=0 source=", "requests=0", "exit status 1",
+  then "caught: no caller layer".
+* **R53's check.** The rule, in `docs/guides/api-standards.md` (R53) as
+  0055-MADR's amendment of 2026-11-10 and 0048-MADR's A4 changed it: "Every
+  release has a changelog section, and the six newest tags a GitHub Release."
+  The release's PLAN "then deletes the Release of the tag that falls to
+  seventh, keeping its tag and section, after saving its JSON". `gh release
+  list` shows seven: `v1.31.0` (Latest), `v1.30.0`, `v1.29.0`, `v1.28.0`,
+  `v1.27.0`, `v1.26.1`, `v1.26.0`. The six newest tags are `v1.31.0` to
+  `v1.26.1`, so `v1.26.0`'s Release is past the sixth. Its JSON (every field
+  `gh release view` offers) was saved to the scratch folder, read-only. **It
+  is not deleted:** the deletion, `gh release delete v1.26.0 --yes`, keeps the
+  tag (`git ls-remote --tags origin v1.26.0` lists it) and the changelog
+  section, and waits for the owner's word, as `v1.25.0`'s did at `v1.30.0`.
+* **Other steps after the tag.** None in this phase's text beyond the tag, CI,
+  the two tools and R53's check. 0075-PLAN Phase 7 and 0079-PLAN Phase 6 ask
+  only that this phase's tag, CI and tools be recorded. Nothing read-only is
+  left undone; the one open item is the Release deletion above. The claims
+  question closed on 2026-11-14 ("Pins stand").
+* **The acceptance of this PLAN, criterion by criterion.**
+  * Phases 0 to 7 complete, and Phase 8 step 1 done on 2026-11-13: met, per
+    their entries.
+  * The changelog section is `v1.31.0` and `make changelog-check` passes:
+    met (the prepared entry above; CI's `validate` jobs on the tag).
+  * `tools/apidiff.py v1.30.0` lists exactly the R55 tables: met (the
+    prepared entry's table).
+  * The full gate passes before the tag, and the races pass on Linux and
+    Windows: met, "gate: 30 of 30 passed" and both race passes, in the
+    deviation entry "the Windows paste flake", at the last Go change.
+  * "The tag on the owner's word": met, above.
+  * "Then `tools/consumer.py` and `tools/offline.py`": met, each exit 0,
+    above.
+  * The tag's CI and its Release (0079-PLAN's condition): met, above.
+
+  R53's Release deletion is no criterion of this phase's text, so it does not
+  hold the status. **This PLAN is `complete`.** The MADR stays `accepted`: no
+  record changes its status at the release.
+* **Open for the owner:** `gh release delete v1.26.0 --yes`.
+* **Provenance.** Recorded by a mainstream model at medium effort; the tag
+  and its push by the coordinator, on the owner's word above.
