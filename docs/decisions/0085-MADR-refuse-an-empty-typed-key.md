@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-17
 decision-makers: repository owner
 consulted: "the owner's ruling of 2026-11-17, relayed by the coordinator (its label quoted below), and the owner's rulings of the same day on the draft's six questions (their labels quoted in 'Decided'); an independent reviewer's findings on 0080, relayed by the coordinator; this repository at b109cea (five commits after v1.31.0, the commit before 0080's code) and 0080's staged tree as read on 2026-11-17; gobble-cli at cecc892 (branch p3-acpext-v0.5.0); the codex, opencode and kilocode checkouts, read only, at 57e6468, 4ce137b and 58072bd"
@@ -504,6 +504,15 @@ answer can be read against them.
   control. It is a later record: this record builds nothing for it (D7).
   Not chosen: no such path (the recommended option); a later explicit "use
   without a key" method in the method menu.
+
+* **Ruling, 2026-11-17: accepted.** Accepted 2026-11-17 by the owner's ruling,
+  relayed by the coordinator: "Accept all five and run each plan up to its
+  live step or release (Recommended)". The option's description, as put with
+  it by the coordinator (the coordinator's words, not the owner's own): "Each
+  is marked accepted and built in dependency order, one at a time in the SDK
+  tree, each with its independent review; 0081 and 0084 stop at the probes
+  only you can run; nothing is tagged without your word. They are committed
+  and pushed under your standing approval as each phase passes."
 
 ## Open questions for the owner
 

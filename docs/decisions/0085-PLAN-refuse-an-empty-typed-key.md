@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-17
 associated-madr: "0085-MADR-refuse-an-empty-typed-key.md"
 decision-makers: repository owner
@@ -517,3 +517,11 @@ Phase 1 re-reads each at the base.
   (`PLACEMENT.md`).
 * **Not done.** Nothing for the later keyless option was built or
   prototyped; the MADR's "Not verified" says so.
+
+### Approval (2026-11-17)
+
+* **Approved 2026-11-17.** This PLAN was approved through its live step or
+  release by the owner's ruling of 2026-11-17, relayed by the coordinator:
+  "Accept all five and run each plan up to its live step or release
+  (Recommended)". Its phases are committed and pushed by the coordinator as
+  each passes. Tags and releases need the owner's word.

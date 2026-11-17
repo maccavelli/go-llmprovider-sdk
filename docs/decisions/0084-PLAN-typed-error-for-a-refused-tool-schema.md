@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-17
 associated-madr: "0084-MADR-typed-error-for-a-refused-tool-schema.md"
 decision-makers: repository owner
@@ -687,3 +687,11 @@ revisions the marker names; Phase 2 re-reads each at the base.
   the 0062 models are still listed; that `sdkaudit -check` asks for an
   example for a new sentinel; any `-race` run, any gate, any host but the
   session's.
+
+### Approval (2026-11-17)
+
+* **Approved 2026-11-17.** This PLAN was approved through its live step or
+  release by the owner's ruling of 2026-11-17, relayed by the coordinator:
+  "Accept all five and run each plan up to its live step or release
+  (Recommended)". Its phases are committed and pushed by the coordinator as
+  each passes. Tags and releases need the owner's word.

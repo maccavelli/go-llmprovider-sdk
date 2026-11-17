@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-17
 associated-madr: "0083-MADR-let-the-wizard-sign-in-without-a-callback-listener.md"
 decision-makers: repository owner
@@ -657,6 +657,14 @@ Phase 1 re-reads each at the base.
   * How many of gobble-cli's own tests meet the question.
   * The base, which is not yet committed. Phase 1 step 2 re-runs the
     census there.
+
+### Approval (2026-11-17)
+
+* **Approved 2026-11-17.** This PLAN was approved through its live step or
+  release by the owner's ruling of 2026-11-17, relayed by the coordinator:
+  "Accept all five and run each plan up to its live step or release
+  (Recommended)". Its phases are committed and pushed by the coordinator as
+  each passes. Tags and releases need the owner's word.
 
 ## Amendment 2026-11-17: the no-listener test that another program's listener can fail
 

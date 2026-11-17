@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 date: 2026-11-17
 associated-madr: "0081-MADR-a-cancelled-sign-in-saves-nothing.md"
 decision-makers: repository owner
@@ -730,3 +730,11 @@ Phase 2 re-reads each at the base.
   killed during the questions, read only; any `-race` run (the session
   host's heavy queue held another agent's runs); any gate; any host but the
   session's.
+
+### Approval (2026-11-17)
+
+* **Approved 2026-11-17.** This PLAN was approved through its live step or
+  release by the owner's ruling of 2026-11-17, relayed by the coordinator:
+  "Accept all five and run each plan up to its live step or release
+  (Recommended)". Its phases are committed and pushed by the coordinator as
+  each passes. Tags and releases need the owner's word.

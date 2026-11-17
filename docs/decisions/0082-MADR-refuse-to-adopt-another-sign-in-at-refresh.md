@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-17
 decision-makers: repository owner
 consulted: "the owner's request of 2026-11-17 (quoted below); the owner's answers of 2026-11-17 to the draft's eight questions, relayed by the coordinator (under Decided); this repository at b109cea (v1.31.0 and five records commits); gobble-cli at cecc892 on its branch p3-acpext-v0.5.0, and the records staged over it on 2026-11-17 and not yet committed (named below); the upstream checkouts codex at 57e64682f8, opencode at 4ce137b39e and kilocode at 58072bd696, read-only; scratch runs of 2026-11-17 against git-archive copies of b109cea, with in-process stores and issuers only; the third independent review of gobble's 0052-PLAN Phase 4 (2026-11-17), relayed by the coordinator as a reviewer's report and checked here against the code and run S6"
@@ -794,6 +794,15 @@ three options, are kept in "The questions as drafted" below.
   must finish and pass its gates before the tag, and one that is not ready
   when the owner gives the word moves to the release after. Not chosen, as
   drafted here: a patch release of its own first; a later release.
+
+* **Ruling, 2026-11-17: accepted.** Accepted 2026-11-17 by the owner's ruling,
+  relayed by the coordinator: "Accept all five and run each plan up to its
+  live step or release (Recommended)". The option's description, as put with
+  it by the coordinator (the coordinator's words, not the owner's own): "Each
+  is marked accepted and built in dependency order, one at a time in the SDK
+  tree, each with its independent review; 0081 and 0084 stop at the probes
+  only you can run; nothing is tagged without your word. They are committed
+  and pushed under your standing approval as each phase passes."
 
 ### The questions as drafted
 

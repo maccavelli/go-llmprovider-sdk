@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-17
 decision-makers: repository owner
 consulted: "the owner's ruling of 2026-11-17 and the owner's answers to Q1 to Q7 of the same day, relayed by the coordinator (labels quoted below); this repository at b109cea (five commits after v1.31.0, the commit before 0080's code) and 0080's staged tree as read on 2026-11-17; gobble-cli at cecc892 (branch p3-acpext-v0.5.0), its 0051-MADR and 0051-PLAN (sign-in through ACP elicitation), the PLAN's \"Review and fixes\", finding B3; prepare-commit-msg at 2715f2d; the codex checkout at 57e64682f8 (read only); an independent reviewer's reproduction, relayed by the coordinator"
@@ -75,6 +75,15 @@ said beside it in this record's words.
   (Recommended)". Asked of the four records drafted alongside 0080 together:
   whether they ship in 0080's release. The changelog section was not asked
   then; it is N4. (D8)
+
+* **Ruling, 2026-11-17: accepted.** Accepted 2026-11-17 by the owner's ruling,
+  relayed by the coordinator: "Accept all five and run each plan up to its
+  live step or release (Recommended)". The option's description, as put with
+  it by the coordinator (the coordinator's words, not the owner's own): "Each
+  is marked accepted and built in dependency order, one at a time in the SDK
+  tree, each with its independent review; 0081 and 0084 stop at the probes
+  only you can run; nothing is tagged without your word. They are committed
+  and pushed under your standing approval as each phase passes."
 
 The investigation of Q4's answer raised N1 to N5. The owner answered N1 to
 N4 the same day, each as the draft recommended; N5 was not put to the

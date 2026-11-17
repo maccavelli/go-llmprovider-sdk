@@ -178,16 +178,16 @@ documents a reader follows to do something.
 | 0079 | PLAN | [Implement the Consuming Application's Name on a Session's Refresh and Revocation and on the ChatGPT Originator](decisions/0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md) | complete |
 | 0080 | MADR | [Verify a Kilo Credential Against Kilo's Profile at Sign-In When No Organization Is Set, Because Kilo's Public Listing Refuses No Key](decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md) | accepted |
 | 0080 | PLAN | [Implement Verifying a Kilo Credential Against Kilo's Profile at Sign-In When No Organization Is Set](decisions/0080-PLAN-verify-a-kilo-credential-through-its-profile.md) | in-progress |
-| 0081 | MADR | [A Cancelled Sign-In Saves Nothing: the Wizard Checks the Run's Context Before It Saves, and ConfigureLLM Saves Last](decisions/0081-MADR-a-cancelled-sign-in-saves-nothing.md) | proposed |
-| 0081 | PLAN | [Implement a Cancelled Sign-In Saving Nothing, and ConfigureLLM Saving Last](decisions/0081-PLAN-a-cancelled-sign-in-saves-nothing.md) | proposed |
-| 0082 | MADR | [Refuse to Adopt a Stored Session That Is Not the Same Sign-In, So a Held Session Never Becomes Another Login at Its Refresh](decisions/0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md) | proposed |
-| 0082 | PLAN | [Implement Refusing to Adopt a Stored Session That Is Not the Same Sign-In](decisions/0082-PLAN-refuse-to-adopt-another-sign-in-at-refresh.md) | proposed |
-| 0083 | MADR | [Let the Wizard Run a Browser Sign-In With No Callback Listener, Completed by a Paste, When the Caller Says So or the Person Says the Browser Is Elsewhere](decisions/0083-MADR-let-the-wizard-sign-in-without-a-callback-listener.md) | proposed |
-| 0083 | PLAN | [Implement a Browser Sign-In With No Callback Listener: the Wizard's `NoLoopback`, Its Question to the Person, and `NoBrowserQuestion`](decisions/0083-PLAN-let-the-wizard-sign-in-without-a-callback-listener.md) | proposed |
-| 0084 | MADR | [Classify a Provider's Refusal of a Tool's Schema as Its Own Kind, Naming the Tool It Refused, So a Host Can Drop That Tool Instead of Failing Every Turn](decisions/0084-MADR-typed-error-for-a-refused-tool-schema.md) | proposed |
-| 0084 | PLAN | [Implement a Refused Tool Schema as Its Own Kind, Naming the Tool: ErrToolSchemaRefused and APIError.Tool](decisions/0084-PLAN-typed-error-for-a-refused-tool-schema.md) | proposed |
-| 0085 | MADR | [Refuse a Typed API Key That Is Empty After Trimming: the Wizard Asks Again, up to Three Times, and Then Ends the Run](decisions/0085-MADR-refuse-an-empty-typed-key.md) | proposed |
-| 0085 | PLAN | [Implement Refusing a Typed API Key That Is Empty After Trimming](decisions/0085-PLAN-refuse-an-empty-typed-key.md) | proposed |
+| 0081 | MADR | [A Cancelled Sign-In Saves Nothing: the Wizard Checks the Run's Context Before It Saves, and ConfigureLLM Saves Last](decisions/0081-MADR-a-cancelled-sign-in-saves-nothing.md) | accepted |
+| 0081 | PLAN | [Implement a Cancelled Sign-In Saving Nothing, and ConfigureLLM Saving Last](decisions/0081-PLAN-a-cancelled-sign-in-saves-nothing.md) | in-progress |
+| 0082 | MADR | [Refuse to Adopt a Stored Session That Is Not the Same Sign-In, So a Held Session Never Becomes Another Login at Its Refresh](decisions/0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md) | accepted |
+| 0082 | PLAN | [Implement Refusing to Adopt a Stored Session That Is Not the Same Sign-In](decisions/0082-PLAN-refuse-to-adopt-another-sign-in-at-refresh.md) | in-progress |
+| 0083 | MADR | [Let the Wizard Run a Browser Sign-In With No Callback Listener, Completed by a Paste, When the Caller Says So or the Person Says the Browser Is Elsewhere](decisions/0083-MADR-let-the-wizard-sign-in-without-a-callback-listener.md) | accepted |
+| 0083 | PLAN | [Implement a Browser Sign-In With No Callback Listener: the Wizard's `NoLoopback`, Its Question to the Person, and `NoBrowserQuestion`](decisions/0083-PLAN-let-the-wizard-sign-in-without-a-callback-listener.md) | in-progress |
+| 0084 | MADR | [Classify a Provider's Refusal of a Tool's Schema as Its Own Kind, Naming the Tool It Refused, So a Host Can Drop That Tool Instead of Failing Every Turn](decisions/0084-MADR-typed-error-for-a-refused-tool-schema.md) | accepted |
+| 0084 | PLAN | [Implement a Refused Tool Schema as Its Own Kind, Naming the Tool: ErrToolSchemaRefused and APIError.Tool](decisions/0084-PLAN-typed-error-for-a-refused-tool-schema.md) | in-progress |
+| 0085 | MADR | [Refuse a Typed API Key That Is Empty After Trimming: the Wizard Asks Again, up to Three Times, and Then Ends the Run](decisions/0085-MADR-refuse-an-empty-typed-key.md) | accepted |
+| 0085 | PLAN | [Implement Refusing a Typed API Key That Is Empty After Trimming](decisions/0085-PLAN-refuse-an-empty-typed-key.md) | in-progress |
 
 ## I want to…
 

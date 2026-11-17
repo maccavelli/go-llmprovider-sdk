@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-17
 decision-makers: repository owner
 consulted: "the owner's request of 2026-11-17 and the owner's answers to Q1 to Q7 and, later the same day, to N1 to N7 and Q8, relayed by the coordinator; this repository at b109cea (v1.31.0 and five commits, none in the code read here); gobble-cli at 2004980 (branch p3-acpext-v0.5.0; the draft first read cecc892 and gobble's staged working tree, which 2004980 committed the same day); prepare-commit-msg at 2715f2d; magic-cli-remote at e7de8568; the codex checkout at 57e64682f8, the opencode checkout at 4ce137b39e, the kilocode checkout at 58072bd696 and the grok-build checkout at 2bdd1d6a, read only; a read-only pass of 2026-11-17 over who can tell the wizard that a browser is remote; the independent reviewer's port measurements of gobble-cli's 0052-PLAN P4; two runs of this module's tests made for this record, on a scratch extraction of b109cea"
@@ -957,6 +957,15 @@ option.
   Put to the owner once for four of this module's drafts together. Each
   record's PLAN must finish and pass its gates before the tag. One not
   ready when the owner gives the word moves to the release after.
+
+* **Ruling, 2026-11-17: accepted.** Accepted 2026-11-17 by the owner's ruling,
+  relayed by the coordinator: "Accept all five and run each plan up to its
+  live step or release (Recommended)". The option's description, as put with
+  it by the coordinator (the coordinator's words, not the owner's own): "Each
+  is marked accepted and built in dependency order, one at a time in the SDK
+  tree, each with its independent review; 0081 and 0084 stop at the probes
+  only you can run; nothing is tagged without your word. They are committed
+  and pushed under your standing approval as each phase passes."
 
 ## Open questions for the owner
 

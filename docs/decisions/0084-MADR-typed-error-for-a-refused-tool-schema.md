@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-17
 decision-makers: repository owner
 consulted: "the owner's request of 2026-11-17 and answers to Q1 to Q7 of the same day, relayed by the coordinator (each label quoted below); the owner's paste of a gobble-cli failure of 2026-11-16 (quoted below); the coordinator's read-only diagnosis of 2026-11-16, checked here line by line; this repository at b109cea; gobble-cli at cecc892; mcp-server-magictools at 368ac6a; the codex checkout at 57e64682f8, the opencode checkout at 4ce137b39e and the kilocode checkout at 58072bd696; xAI, OpenAI, Anthropic and Google documentation fetched 2026-11-17"
@@ -642,6 +642,15 @@ quoted exactly; what was asked is beside it in this record's words.
   *Decided 2026-11-17: **"All four in the next release with 0080, on my
   word (Recommended)"**. The options not chosen were put to the owner by
   the coordinator across the four drafts and are not recorded here.*
+
+* **Ruling, 2026-11-17: accepted.** Accepted 2026-11-17 by the owner's ruling,
+  relayed by the coordinator: "Accept all five and run each plan up to its
+  live step or release (Recommended)". The option's description, as put with
+  it by the coordinator (the coordinator's words, not the owner's own): "Each
+  is marked accepted and built in dependency order, one at a time in the SDK
+  tree, each with its independent review; 0081 and 0084 stop at the probes
+  only you can run; nothing is tagged without your word. They are committed
+  and pushed under your standing approval as each phase passes."
 
 ## More Information
 
