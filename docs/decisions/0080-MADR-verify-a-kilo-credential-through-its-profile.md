@@ -646,7 +646,32 @@ them, and each not run stays named below as "not run: no such key".)*
 * What the profile answers to a real dashboard key, an organization token,
   and a revoked or rotated key: PLAN Phase 1, owner-run.
 * Whether Kilo ever answers the profile with 403 for a bad credential.
-* That a device token still reads the profile today: last seen on
-  2026-10-19 (C35); Phase 1 runs it again.
+* ~~That a device token still reads the profile today: last seen on
+  2026-10-19 (C35); Phase 1 runs it again.~~
 * The profile's rate limits: no rate-limit header was seen on any response
   probed; the profile's own 200 was not seen.
+
+*(Added 2026-11-17, after the owner's Phase 1 run, relayed by the
+coordinator and recorded in
+[0080-PLAN-verify-a-kilo-credential-through-its-profile.md](0080-PLAN-verify-a-kilo-credential-through-its-profile.md),
+"Phase 1, the owner's run".)*
+
+* **Verified 2026-11-17:** a dashboard API key is accepted by the profile
+  (the live `DashboardKey` subtest passed; its organization count was not
+  sent, so none is recorded). A device token is accepted by the profile
+  (0 organizations, a personal account), and one generation on a free model
+  succeeded; this settles the struck bullet above.
+* **Verified 2026-11-17, a refused key (run 3, the owner's, relayed by the
+  coordinator):** the profile answered HTTP 401 to a key the owner supplied
+  as invalid, and the SDK classified it `ErrAuthFailure`, not
+  `ErrNotPermitted`. The 401 for a bad key was observed with a made-up token
+  by the agents (L13 to L16) and with an invalid key by the owner. The
+  owner's words, relayed by the coordinator: "it was a mistyped real key,
+  changed the last char": a real dashboard key with its last character
+  changed, the mistyped-key case this record exists for. The subtest is named
+  `RevokedKey`, but no revoked key was tested.
+* **Still not verified:** what the profile answers to an organization token
+  ("not run: no such key", by the owner's answer to the PLAN's Q8), and to a
+  key revoked after having been valid; whether Kilo answers such a key with
+  401 or 403.
+* Phase 1's stop condition did not arise for the two required kinds.

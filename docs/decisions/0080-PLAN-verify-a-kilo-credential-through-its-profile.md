@@ -707,3 +707,187 @@ The facts this PLAN's steps rest on beyond the MADR's index.
   Not chosen: whatever the owner can run (nothing required); all four.
 * **The owner's run:** not yet run. The owner runs it at the commit that
   adds this test, named in the entry for the owner's run.
+
+### Phase 1, the owner's run (2026-11-17)
+
+* **Provenance.** The owner ran both required steps in their own terminal at
+  commit `288d329` (the commit that adds the live test) and sent back the
+  lines below, relayed by the coordinator. They hold no key; they are
+  recorded as sent. Recorded by a mainstream model at medium effort, on the
+  coordinator's brief, together with Phase 2's entry. The owner's words with
+  them, relayed by the coordinator: "so both passed/success".
+* **Run 1,** `LLMPROVIDER_LIVE_0080=1 go test -tags live_gateways
+  ./llmprovider/auth -run '^TestLive_KiloProfile_0080$' -count=1 -v`, with
+  `KILO_API_KEY` set to a dashboard key, as the owner's output relayed by the
+  coordinator:
+
+  ```text
+  --- PASS: TestLive_KiloProfile_0080 (0.37s)
+      --- PASS: TestLive_KiloProfile_0080/DashboardKey (0.37s)
+      --- SKIP: TestLive_KiloProfile_0080/OrganizationToken (0.00s)
+      --- SKIP: TestLive_KiloProfile_0080/RevokedKey (0.00s)
+  PASS
+  ok      github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth       1.021s
+  ```
+
+* **Run 2,** `LLMPROVIDER_LIVE_DEVICE_LOGIN=1 go test -tags live_gateways
+  ./llmprovider -run '^TestLive_KiloDeviceLogin$' -count=1 -v`, the device
+  code approved by the owner, as the owner's output relayed by the
+  coordinator:
+
+  ```text
+      live_oauth_login_test.go:163: picked kilo-auto/free from [kilo-auto/free nvidia/nemotron-3.5-lightning:free poolside/laguna-s-2.1:free]
+      live_oauth_login_test.go:163: profile: 0 organizations, personal account true
+  --- PASS: TestLive_KiloDeviceLogin (9.57s)
+  PASS
+  ok      github.com/maccavelli/go-llmprovider-sdk/llmprovider    10.293s
+  ```
+
+* **What the runs show.**
+  * **A dashboard API key is accepted by the profile endpoint.** The
+    `DashboardKey` subtest passes only when `auth.KiloProfile` returns no
+    error: `kiloProfileVerdict` returns the word "accepted" only on a nil
+    error (`llmprovider/auth/live_kilo_profile_0080_test.go:110` to `:116`),
+    and the subtest fails unless the word is "accepted" (`:42` to `:46`).
+    The owner's paste did not include that subtest's `profile:` log line, so
+    its organization count and personal-account flag are "not sent"; none
+    is recorded here.
+  * **A device token is accepted by the profile.** The second run logged
+    "profile: 0 organizations, personal account true", which
+    `checkKiloSession` prints only after `auth.KiloProfile` returned no
+    error (`llmprovider/live_checks_test.go:88` to `:92`); the test called it
+    through `llmprovider/live_oauth_login_test.go:163`. One generation on a
+    free model then succeeded: the test passed, and `checkKiloSession`
+    fails on an empty or failed generation
+    (`llmprovider/live_checks_test.go:98` to `:101`). This also settles, as
+    of 2026-11-17, that a device token still reads the profile (last seen
+    2026-10-19, MADR C35).
+  * **The organization token: not run: no such key,** by the owner's answer
+    to Q8 ("The dashboard key and the device sign-in", relayed by the
+    coordinator). It stays named under "Not verified" in the MADR. The
+    revoked-key subtest was skipped in run 1; the owner ran it later (run 3,
+    below).
+  * **For the design (revised by run 3, below):** after runs 1 and 2 a
+    REFUSED key had not been seen live, and the 401 for a bad key rested on
+    the made-up-token probes. Run 3 supplies the live observation.
+* **Run 3 (a continuation, added 2026-11-17 at the coordinator's relay).**
+  After the two required runs the owner ran one more on 2026-11-17, from a
+  clean copy of commit `288d329` (a `git archive` of that commit in a
+  temporary directory, so no in-progress file was in the build), with an
+  invalid key in `LLMPROVIDER_LIVE_0080_REVOKED_KEY`: `LLMPROVIDER_LIVE_0080=1
+  go test -tags live_gateways ./llmprovider/auth
+  -run '^TestLive_KiloProfile_0080$/^RevokedKey$' -count=1 -v`. The owner's
+  output, relayed by the coordinator (no key in it):
+
+  ```text
+  === RUN   TestLive_KiloProfile_0080
+  === RUN   TestLive_KiloProfile_0080/RevokedKey
+      live_kilo_profile_0080_test.go:75: profile: ErrAuthFailure, HTTP 401
+  --- PASS: TestLive_KiloProfile_0080 (0.52s)
+      --- PASS: TestLive_KiloProfile_0080/RevokedKey (0.52s)
+  PASS
+  ok      github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth       1.159s
+  ```
+
+  * **What it shows.** A refused key HAS now been observed live: Kilo's
+    profile endpoint answered HTTP 401 to a key the owner supplied as
+    invalid, and the SDK classified it `ErrAuthFailure`, not
+    `ErrNotPermitted`, which the refusal rule relies on (Q3, "The existing
+    auth-failure error"; Q4, "No: warn and continue"). The 401 for a bad key
+    was observed with a made-up token by the agents (MADR L13 to L16, and the
+    repeat in "Phase 1, the agent's part") and with an invalid key by the
+    owner.
+  * **The invalid key's kind,** in the owner's words, relayed by the
+    coordinator: "it was a mistyped real key, changed the last char". So a
+    real dashboard key with its last character changed was refused by Kilo's
+    profile endpoint with HTTP 401, classified `ErrAuthFailure`: the
+    mistyped-key case the decision exists for, observed live.
+  * **What it does not show.** The subtest is named `RevokedKey`, but no
+    revoked key was tested. Still not verified: a key revoked after having
+    been valid; an organization token ("not run: no such key").
+* **Phase 1's stop condition** (a valid key kind the profile refuses) **did
+  not arise for the two required kinds:** both were accepted. Phase 1's
+  acceptance is met for the dashboard key and the device token; the
+  organization token was not run, which step 3's rule and Q8 allow, and the
+  invalid-key run (run 3) was refused with 401, `ErrAuthFailure`. Phase 2
+  may start.
+* **Step 4's other asks:** the execution record gets each kind's result
+  (above); the MADR's "Not verified" loses each kind settled and keeps each
+  kind not run, named. The MADR's list is changed by a dated addition and a
+  struck bullet, 2026-11-17 (its "Not verified").
+
+### Phase 2, the tests (2026-11-17), stopped at what "red" means
+
+* **Provenance.** A mainstream model at medium effort, as the phase prices
+  it, on the coordinator's brief. Base commit `288d329`, whose Go code is
+  identical to `ceb489e` (`git diff ceb489e 288d329` touches only records
+  and the live test). Nothing committed, pushed or tagged.
+* **The approval,** the owner's ruling, relayed by the coordinator: "Approve
+  and run through phase 4".
+* **Stop on one point, for the owner.** "Rules for every phase" says a new
+  test "is seen red at `ceb489e`" on a scratch clone, and that "A phase
+  starts on the commit of the one before it, on `main`." It does not say
+  whether Phase 2's tests are committed while red, kept out of the default
+  build until Phase 3, or committed with Phase 3. Committed alone, two of the
+  three files do not compile (`signinflow.VerifyKilo`, `signin.VerifyKilo`
+  are new names) and the wizard file has seven red tests, so `main`, which
+  runs CI on every push, would fail `go vet` and `go test` for three
+  packages. The three test files are therefore NOT in the tree and NOT
+  staged; they are in the scratch folder (copied to
+  `~/.cache/claude-session-5a7234fa/scratch/sdk-0080-p2/`). The options put
+  to the owner are in the coordinator's report.
+* **The twelve tests** (files as they stand in the scratch copy; "red" is
+  at `ceb489e`, by `tools/redgreen.py --expect fail --rev ceb489e`, 7 of 7;
+  "green" is `--expect pass --rev ceb489e`, 3 of 3):
+  * `wizard/kilo_verify_0080_test.go:220` `TestKiloVerify_TypedKeyRefused_0080`:
+    red. `notices ["live model listing for Kilo Gateway is unavailable; ..."];
+    want "Kilo Gateway refused this key (authentication failed, HTTP 401);
+    enter another" once` (the first key is returned; one secret unused).
+  * `:248` `TestKiloVerify_EnvironmentAndSavedKeyRefused_0080`: red. `error
+    nil; want a refusal saying "Kilo Gateway refused the key in
+    KILO_API_KEY"`, and the same for "the saved key".
+  * `:284` `TestKiloVerify_DeviceKeyRefused_0080`: red. `error nil; want a
+    refusal saying "refused the device sign-in; sign in again"`; `0 profile
+    reads; want one`.
+  * `:305` `TestKiloVerify_DeviceSessionRefused_0080`: red. `error nil; want a
+    refusal saying "refused the sign-in; sign in again"`, and the session was
+    saved.
+  * `:326` `TestKiloVerify_KeptSessionRefused_0080`: red. The kept-refused
+    notice and the menu are absent; `profile read with 0 tokens`.
+  * `:354` `TestKiloVerify_OutagesWarn_0080`: red for the eight key paths
+    (403, 404, 500, 503, a body that does not decode, a refused connection, a
+    stall past `DiscoverLimit`, the device key at 503): `want "could not
+    verify the Kilo key (<class>)" once`. The two device-session subcases
+    pass at `ceb489e`, since today's menu warning already covers them.
+  * `:478` `TestKiloVerify_OrganizationReadsNoProfile_0080`: green at
+    `ceb489e`.
+  * `:520` `TestKiloVerify_NoDiscoverNoRead_0080`: green at `ceb489e`.
+  * `:579` `TestKiloVerify_OtherProvidersReadNoProfile_0080`: green at
+    `ceb489e`.
+  * `:606` `TestKiloVerify_RequestNamed_0080`: red. `0 profile requests; want
+    one`.
+  * `internal/signinflow/kilo_0080_test.go:37` `TestVerifyKilo_Kinds_0080`:
+    does not compile until Phase 3: `undefined: VerifyKilo`.
+  * `llmprovider/x/signin/verify_0080_test.go:60` `TestVerifyKilo_0080`: does
+    not compile until Phase 3: `undefined: signin.VerifyKilo`.
+* **The fakes** follow the MADR's rows: the public listing answers 200 to any
+  credential (L1 to L6); an organization's listing 401 to a credential it does
+  not know (L7 to L12); `/api/profile` 401 "Unauthorized" with none and 401
+  "Invalid token" with a bad one (L13 to L16), 200 with a profile for a good
+  one (the owner's runs, "Phase 1, the owner's run"); each failure body holds
+  a fixed marker, which no prompt may show. Every credential is a fixed fake
+  value; no test logs a key or an error's text. The wording of each outage
+  class was checked against `describe` on the real `auth.KiloProfile`.
+* **Seen to fail on a planted break,** on a throwaway prototype of Phase 3 in
+  a scratch clone (never in the tree, and not Phase 3's code): `tools/plant.py`,
+  11 of 11 caught: the 403 treated as a refusal, the stall bounded by 30 s,
+  the check ignoring the organization, running without Discover, running for
+  every provider, the identity left off, the 401 or the cause or a 200 or
+  ctx's error mishandled in the two `VerifyKilo` functions. With the
+  prototype every test of the three files, and the whole `wizard` package,
+  passed. Phase 4 repeats the plants on the real code.
+* **Existing tests:** the six named and `TestKiloDeviceKey_ReturnsTheKey_0056`
+  pass at `ceb489e` with the wizard file present; the rest of the `wizard`
+  package passes with it. No existing test changed.
+* **Not verified:** the prototype is not Phase 3; the signinflow and
+  x/signin tests were never run red (they do not compile); no push or CI.
