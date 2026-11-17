@@ -2,6 +2,7 @@ package signin_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -49,6 +50,35 @@ func ExampleStart() {
 	// step: waiting
 	// step: done
 	// yields: device_key
+}
+
+// ExampleVerifyKilo checks two Kilo keys against a test server that stands in
+// for Kilo's profile: it accepts one key and answers 401 to the other, which
+// ErrorKindOf names "auth". A key checked with an organization is not read at
+// all, since the organization's listing is the check there.
+func ExampleVerifyKilo() {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/profile" || r.Header.Get("Authorization") != "Bearer example-good-key" {
+			http.Error(w, `{"error":"Invalid token"}`, http.StatusUnauthorized)
+			return
+		}
+		fmt.Fprint(w, `{"organizations":[],"hasPersonalAccount":true}`)
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	opts := []llmprovider.Option{
+		llmprovider.WithHTTPClient(server.Client()),
+		llmprovider.WithBaseURL(server.URL + "/api/gateway"),
+	}
+	fmt.Println("good key:", signin.VerifyKilo(ctx, "example-good-key", "", opts...))
+	err := signin.VerifyKilo(ctx, "example-wrong-key", "", opts...)
+	fmt.Println("wrong key:", signin.ErrorKindOf(err), errors.Is(err, llmprovider.ErrAuthFailure))
+	fmt.Println("with an organization:", signin.VerifyKilo(ctx, "example-wrong-key", "org-1", opts...))
+	// Output:
+	// good key: <nil>
+	// wrong key: auth true
+	// with an organization: <nil>
 }
 
 // ExampleMethods lists the methods a descriptor offers, in the contract's

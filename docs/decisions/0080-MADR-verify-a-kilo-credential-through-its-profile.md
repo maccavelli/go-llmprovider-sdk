@@ -335,6 +335,86 @@ at the URL this module uses and at Kilo's (L7 to L12), so it already refuses.
 The profile is not read for it. A device session reads the profile anyway,
 before its organization is chosen (D3).
 
+*(Added 2026-11-17, the owner's ruling, relayed by the coordinator: "Treat it
+as having an organisation: no profile read". As put: a token whose embedded
+URL names an organization is checked by that organization's listing alone, as
+D4 intends, so a valid organization token cannot be refused by an unverified
+check; a small shared helper does it, because of Go's internal-package rule.
+Options not chosen: accept it as built and name the risk; skip the profile
+check for any token that embeds a URL. Evidence: for a token of the form
+`https://<host>/api/organizations/<id>:<secret>` with no organization entered,
+the listing is already that organization's, and the profile was read as well,
+and refused on its 401. "Has an organization" is now one rule, in
+`internal/kiloendpoint` `Organization`, the rule the listing's URL is built by.
+It moved from `llmprovider/internal` to the module's own `internal`, so that
+`internal/signinflow`, and through it the wizard and `llmprovider/x/signin`,
+may import it. It decides in one place, `signinflow.VerifyKilo`, for the wizard
+and for `signin.VerifyKilo`. That ruling covers the explicit organization and
+a token's embedded URL, and nothing more.)*
+
+*(Added 2026-11-17, a second ruling the same day, the owner's, relayed by the
+coordinator: "Count it; record the unprobed listing as not verified
+(Recommended)". As put: a base URL whose own path names an organization, such
+as `https://<host>/api/organizations/<id>`, counts as having an organization,
+as the code was built: the profile is not read, and that organization's
+listing is the check. Evidence: `kiloendpoint.Resolve` lists a base URL of
+that form at `{base}/models`, an organization's listing, and sends no
+`X-KILOCODE-ORGANIZATIONID` header for it, since the header is set only when the
+resolved organization is non-empty (`llmprovider/catalog/discovery.go:1413` to
+`:1424`). `Organization` returns the base URL's organization as its third
+case. What is not verified is whether that listing, sent without the header,
+refuses a wrong key: see "Not verified".)*
+
+*(Added 2026-11-17, a third ruling the same day, the owner's, relayed by the
+coordinator: "Share the type internally and fix it now (Recommended)". As put:
+the rule is that a Kilo credential with an organisation reads no profile; a
+test showed the profile is still read when the calling program supplies the
+organisation through the wizard's provider options; the fix needs one internal
+type shared across three packages. The option chosen read:
+"Three files, no exported name, the listing behaves as before. The rule then holds for every way an organisation can be given, with a test and a planted break. One more short pass and re-check before the commit."
+This is a fourth source of the
+organization, beside the explicit one, a token's embedded URL and the base
+URL's path. The option's value is `kiloendpoint.OrganizationOption`, which
+`catalog.WithKiloOrganization` carries and the check reads from the resolved
+options.)*
+
+*(Corrected 2026-11-17, after the third independent review found the wording
+above and in the first version of this addition false, in place: it said the
+explicit organization starts from the Result's and is replaced by the last
+option, and that a test held the rule against the listing's actual request.
+The listing's real order is the following, and the check now follows it by
+construction.)*
+
+*The precedence, as the listing applies it.* The explicit organization is the
+last `catalog.WithKiloOrganization` applied, an empty one included, replacing
+an earlier one. `llmprovider.ResolveOptions` applies the options outside a `For`
+first, in order, then those inside `For(Kilo, ...)`, in order. The wizard's own
+`For`, which carries the Result's organization (a kept session's, or a device
+session's choice), stands among the listing's options before any `For` the
+caller passed in `Options.ProviderOptions`: so an option the caller gives
+inside a `For` replaces the Result's, and one given outside a `For` is replaced
+by it, even when the Result's is empty. With no explicit organization, a
+token's embedded URL names one; failing that, the base URL's own path does. The
+check is given the listing's options, built in one place (`listingOptions`,
+`wizard/configure.go`), and `signinflow.VerifyKilo` reads the organization from
+them; for `signin.VerifyKilo`, a non-empty `organization` argument is one more
+such option, put where the wizard puts the Result's: inside a `For` for Kilo,
+before every `For` of the caller's and after every option outside a `For`.
+Tests hold the check against the listing's actual request for each form: direct
+and `For` options, in each order, a token's URL, a base path, and the Result's
+organization.
+
+*(Added 2026-11-17, the coordinator's decision, not the owner's ruling. The
+option the owner chose read "Three files, no exported name, the listing behaves
+as before...". The third review's blocker could only be closed by also building
+the options in one place in the wizard (`listingOptions`, `wizard/configure.go`,
+used by `discoverModels` and by the check in `wizard/kilo_verify.go`), so five
+non-test files changed for it, not three. The coordinator judged that inside the
+ruling's purpose, that the check decides by the listing's own rule, on the
+evidence that no exported name changed and that the fourth review found the
+listing's requests identical to `b109cea` in 48 of 48 rows (four providers by
+twelve caller-option sets). The owner is told.)*
+
 ### D5. A 403 is not a refusal (Q4, answered)
 
 A 403 from the profile is told as an outage is (D6), as every Kilo 403 is
@@ -351,6 +431,34 @@ default, C21), not `auth`'s 30 s (C9). An outage, a timeout, a 5xx, a 403, an
 unexpected status or a body that does not decode gives one warning, by class
 and status, never the service's text (0056-MADR D3): "could not verify the
 Kilo key (…); it is saved unchecked". The sign-in goes on.
+
+*(Added 2026-11-17, the coordinator's reading after an independent review, not
+the owner's: D3 keeps the organization menu's warning "without Discover" only,
+so under Discover a device session's failure that is no refusal is told by this
+warning, once, and not by the menu's "could not read the Kilo account's
+organizations (…); using the personal account". A ctx that has ended gives
+neither: the check returns ctx's error and nothing is saved. Superseded the
+same day by the owner's ruling below, as to the menu's warning; the ended-ctx
+sentence stands.)*
+
+*(Amended 2026-11-17, the owner's ruling, relayed by the coordinator: "Two
+notices". As put: the staged code showed only this warning, so a person whose
+account has organizations was put on the personal account without being told,
+which affects whose usage and billing apply; the record asks for one warning
+but does not settle this; the option chosen reads "The decision's warning and
+the old organisation-menu warning both show. Says everything, but contradicts
+the decision's "one warning"." So this decision departs from "one warning" for
+one case, and only that one: under Discover, a Kilo device session whose
+profile read ends in anything that is not a refusal and not the caller's
+context ending (a 403, a 5xx, a body that does not decode, a refused
+connection, a stall) shows two notices, each once: "could not read the Kilo
+account's organizations (…); using the personal account" first, then this
+warning; the session is saved. The menu's comes first because it reports what
+happened first, the account's organizations could not be read and the personal
+account is used, and this one then reports the conclusion for the key. Every
+other credential shows this warning alone. Unchanged: a 401 is a refusal with
+no menu warning (D3); an ended context shows nothing and saves nothing;
+without Discover the menu's warning stands alone.)*
 
 ### D7. The profile's URL stays `KiloProfile`'s (Q6, answered)
 
@@ -386,6 +494,21 @@ and `signin.ErrorKindOf` (`auth`) see it as they see the listing's.
   with the rest of the handle when a later record promotes it (0074-MADR
   D9). Nothing is added under the v1 promise.
 * Its call site (R55) is gobble's ACP check (G1), by a gobble-cli record.
+
+*(Added 2026-11-17, the owner's ruling, relayed by the coordinator: "Its own 10
+s bound; a stall is "cannot say"". As put: `VerifyKilo` bounds its profile read
+by 10 s itself and returns nil when that passes, as for any outage; it returns
+the context's error only when the caller's own context ended; one rule for the
+wizard and for callers such as gobble, matching Q5. Options not chosen:
+document it and let the caller handle its deadline; a bound the caller can set,
+defaulting to 10 s. Evidence: with a 200 ms caller deadline and a stalled
+profile it returned "context deadline exceeded", kind "timeout". The 10 s is
+`signinflow.DefaultCheckLimit`, the constant the wizard's default discovery
+limit is too. A caller's mistake in the options, an option for another
+provider or a base URL that does not parse, is not "cannot say": it is an error
+matching `ErrInvalidRequest`, and no request, as the nil of this decision is
+for a profile that cannot say. "nil" means verified or cannot say; a caller
+that must tell them apart reads the profile with `auth.KiloProfile`.)*
 
 ### D11. The release (ruled; tag on the owner's word)
 
@@ -427,6 +550,22 @@ and the GitHub Release are each the owner's word, never a standing approval.
   the PLAN stops if one needs a change.
 * Bad, because a caller who copies the old rule, and does not call
   `signin.VerifyKilo`, keeps the blind check.
+
+*(Added 2026-11-17, after an independent review, the coordinator's wording,
+not the owner's.)*
+
+* Bad, because the SDK's redaction removes a key from an error's text by
+  pattern, not by the key's value: an opaque key a service echoes in a 401
+  body may remain in the returned error's text, as it may for every listing's
+  refusal (0056-MADR D3). A notice never shows it, and a caller shows an
+  error's class and status, not its text.
+* Bad, because a key valid only for an organization, typed with no
+  organization entered, is read at the profile, which Phase 1 did not try
+  ("Not verified").
+* Bad, because with Kilo's other gateway address,
+  `https://ai-gateway.kilo.ai/api/v1`, as the endpoint, the profile is read at
+  that origin (D7), which answers 404: every sign-in there warns, and a wrong
+  key passes with that warning.
 
 ### Confirmation
 
@@ -578,6 +717,7 @@ they were asked.)*
   * **(c)** No warning: an outage passes in silence.
 
   *Answered 2026-11-16, the owner's ruling, relayed by the coordinator: **"Warn within 10 s and save"**. As put: one warning naming the class and status, bounded by the wizard's existing discovery limit (10 s), and the sign-in goes on. Not chosen: warn within 30 s and save; pass silently.*
+  *(Added 2026-11-17: the same 10 s bounds `signin.VerifyKilo`, by the owner's ruling at D10.)*
 * **Q6 (D7). Where the profile is read for a custom endpoint or a token
   that embeds a base URL.**
   * **(a)** Where `KiloProfile` reads it: the origin in use (recommended).
@@ -675,3 +815,17 @@ coordinator and recorded in
   key revoked after having been valid; whether Kilo answers such a key with
   401 or 403.
 * Phase 1's stop condition did not arise for the two required kinds.
+
+*(Added 2026-11-17, with the owner's ruling "Count it; record the unprobed
+listing as not verified (Recommended)", relayed by the coordinator.)*
+
+* **Not verified:** that the organization listing, sent WITHOUT the
+  `X-KILOCODE-ORGANIZATIONID` header, refuses a wrong key. A base URL whose own
+  path names an organization is listed at `{base}/models` with no header
+  (`llmprovider/catalog/discovery.go:1413` to `:1424`: the header is set only
+  when the resolved organization is non-empty). The live probes L7 and L8 sent
+  the header; L9 to L12 are not recorded as sent with it, and used a made-up
+  organization id and a made-up token, so their 401 does not show that a real
+  organization's listing refuses a wrong key. The test stand-in checks the bearer
+  token only (`wizard/kilo_verify_0080_test.go:117` to `:122`). So a wrong key
+  with such a base URL may pass the check unrefused.

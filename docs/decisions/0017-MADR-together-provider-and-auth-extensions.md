@@ -132,6 +132,9 @@ what the dedicated providers give: a curated listing, a descriptor for
   `ErrAuthFailure`, telling the caller to log in again.
 * After login, `/api/profile` offers the organizations, for Kilo's
   organization option.
+  *(Note, 2026-11-17: [0080-MADR-verify-a-kilo-credential-through-its-profile.md](0080-MADR-verify-a-kilo-credential-through-its-profile.md) D2, D3: under
+  `Options.Discover` and with no organization, that read also verifies the
+  token, and a 401 is a refusal, not the warning and the personal account.)*
 * The requests name this module; nothing presents as Kilo's own client.
 
 ### D3. Keys from a command

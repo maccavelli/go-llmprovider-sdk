@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/compatid"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
@@ -82,12 +83,13 @@ func (c config) emit(info ModelInfo) {
 	}
 }
 
-// profileOption is WithProfile's value; kiloOrganizationOption is
-// WithKiloOrganization's; claudeWorkspaceOption is WithClaudeWorkspace's.
+// profileOption is WithProfile's value; claudeWorkspaceOption is
+// WithClaudeWorkspace's. WithKiloOrganization's is kiloendpoint's
+// OrganizationOption, shared so that the wizard's sign-in check reads the same
+// organization the listing is given (0080-MADR D4).
 type (
-	profileOption          Profile
-	kiloOrganizationOption string
-	claudeWorkspaceOption  string
+	profileOption         Profile
+	claudeWorkspaceOption string
 	// modelLayerOption is WithModelLayer's value.
 	modelLayerOption struct{ layer Layer }
 	// workloadOption is WithWorkload's value.
@@ -162,7 +164,7 @@ func WithLastGood(ids []string, fetchedAt time.Time) llmprovider.Option {
 // (MADR 0012 §3.3). It is scoped to kilo. kilo.WithOrganization is the
 // generation option, and kilo's ListModels passes its organization on.
 func WithKiloOrganization(org string) llmprovider.Option {
-	return llmprovider.ScopedOption(llmprovider.ProviderKilo, "catalog.WithKiloOrganization", kiloOrganizationOption(org))
+	return llmprovider.ScopedOption(llmprovider.ProviderKilo, "catalog.WithKiloOrganization", kiloendpoint.OrganizationOption(org))
 }
 
 // WithClaudeWorkspace lists Anthropic's models in a workspace: each page's
@@ -207,7 +209,7 @@ func configFor(id llmprovider.ProviderID, opts []llmprovider.Option) (config, er
 		switch v := v.(type) {
 		case profileOption:
 			cfg.ModelProfile = Profile(v)
-		case kiloOrganizationOption:
+		case kiloendpoint.OrganizationOption:
 			cfg.KiloOrganization = string(v)
 		case claudeWorkspaceOption:
 			workspace := strings.TrimSpace(string(v))

@@ -97,6 +97,10 @@ coverage.
     then held the refused session, and the good one was gone.
   * The store is the session's only copy (0016-MADR A10), so the consumer's
     saved configuration now names a session that does not work.
+  * *(Note, 2026-11-17: [0080-MADR-verify-a-kilo-credential-through-its-profile.md](0080-MADR-verify-a-kilo-credential-through-its-profile.md) D3: W2 now
+    applies to Kilo with no organization, whose public listing refused
+    nothing. A new Kilo session is saved once Kilo's profile, read under
+    `Options.Discover`, and the listing have not refused it.)*
 
 #### Medium
 

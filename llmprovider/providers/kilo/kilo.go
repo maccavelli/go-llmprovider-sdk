@@ -94,11 +94,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/cacheref"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/wire/chatcompletions"

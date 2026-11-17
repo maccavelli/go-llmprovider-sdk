@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 )
 
 // 0033-PLAN-public-model-metadata.md Phase 1: the fields each source sets,

@@ -2,7 +2,11 @@
 // §3.3). The listing (catalog), the kilo provider and the Kilo device login
 // (llmprovider) all need it, and it uses only the standard library, so it is
 // internal to this module rather than any one of them (0015-MADR, amendment
-// "`catalog` before the old API's removal").
+// "`catalog` before the old API's removal"). It is in the module's own
+// internal directory, not llmprovider's, so that the wizard and
+// internal/signinflow, which Go's internal rule keeps out of
+// llmprovider/internal, decide whether a credential has an organization by the
+// same rule the listing uses (0080-MADR D4).
 package kiloendpoint
 
 import (
@@ -20,6 +24,32 @@ const OrganizationHeader = "X-KILOCODE-ORGANIZATIONID"
 // tokenURLRE matches Kilo's URL-prefixed token, "{backend URL}:{secret}"
 // (kilocode auth/token.ts:9). The whole token is still the bearer.
 var tokenURLRE = regexp.MustCompile(`^(https?://[^:]+(?::\d+)?(?:/[^:]*)?):`)
+
+// OrganizationOption is the value catalog.WithKiloOrganization carries in a
+// provider option. It is a type of this package, not of catalog, so that
+// internal/signinflow can read the organization a caller gave in the options
+// the listing is given, which it could not read in catalog's own unexported
+// type (0080-MADR D4).
+type OrganizationOption string
+
+// OptionOrganization is the organization the options give the listing: the last
+// OrganizationOption among values, an empty one included, as the listing's own
+// configuration applies them (catalog, in order). values are
+// llmprovider.Settings.Values, in the order llmprovider.ResolveOptions gives
+// them: every option outside a For first, in order, then those of the For for
+// the provider, in order. So an option outside a For is replaced by any inside
+// one, and the wizard's own For, which carries the Result's organization,
+// replaces the caller's options outside a For and is replaced by the caller's
+// For options.
+func OptionOrganization(values []any) string {
+	org := ""
+	for _, v := range values {
+		if o, ok := v.(OrganizationOption); ok {
+			org = string(o)
+		}
+	}
+	return org
+}
 
 // Endpoints are the URLs and organization one Kilo credential uses.
 type Endpoints struct {
@@ -52,6 +82,25 @@ func Resolve(baseURL, token, org string) Endpoints {
 		e.Models = Route(u, "organizations/"+url.PathEscape(org)) + "/models"
 	}
 	return e
+}
+
+// Organization is the organization a listing made with these inputs is for,
+// in this order of precedence: the explicit one (OptionOrganization), else the one a
+// token's embedded URL names (Resolve), else the one the base URL's own path
+// names, which makes the listing's URL an organization's; "" when there is
+// none. A listing for an organization
+// authenticates, and Kilo's public one does not, so this is what decides
+// whether a credential is checked by its listing or needs the profile
+// (0080-MADR D4).
+func Organization(baseURL, token, org string) string {
+	e := Resolve(baseURL, token, org)
+	if e.Org != "" {
+		return e.Org
+	}
+	if u, err := url.Parse(e.Gateway); err == nil {
+		return pathOrganization(u)
+	}
+	return ""
 }
 
 // pathSegments splits a URL path into its non-empty segments and returns them

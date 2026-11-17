@@ -70,7 +70,7 @@ llmprovider/internal/wire/     what the shared wire formats have in common
 llmprovider/internal/wire/*/   one shared wire format each: responses, chatcompletions, messages, generatecontent
 llmprovider/catalog/          model listing, static catalogs, ranking, metadata, search, profiles
 llmprovider/internal/transport/ the shared default transports, the client identity, Retry-After and the rate-limit resets, the listing probe and its stores
-llmprovider/internal/kiloendpoint/ Kilo's endpoints, derived from a credential
+internal/kiloendpoint/      Kilo's endpoints, derived from a credential, for llmprovider and the wizard's checks (0080-MADR D4)
 llmprovider/internal/listlimit/ catalog.WithLimit's value, for catalog and the providers
 llmprovider/internal/cacheref/ catalog.WithCache's value, for catalog and the providers
 llmprovider/internal/nilsource/ a typed-nil TokenSource's test, for llmprovider and catalog
@@ -83,9 +83,9 @@ llmprovider/internal/retired/ the retired model ids, with why, for the catalog t
 llmprovider/internal/catalogtool/ the maintainer tool's proposals for the static lists
 llmprovider/internal/cmd/catalogs/ the maintainer tool: go run, prints the proposals, edits nothing
 llmprovider/internal/cmd/sdkaudit/ the API audit: go run, reports or checks R50–R52, edits nothing
-llmprovider/x/signin/       experimental (R4): one sign-in handle (`Start`, `SignIn`, `Credential`), `Methods` and `ErrorKindOf`, over the auth contract
+llmprovider/x/signin/       experimental (R4): one sign-in handle (`Start`, `SignIn`, `Credential`), `Methods`, `VerifyKilo` and `ErrorKindOf`, over the auth contract
 wizard/                     interactive provider configuration
-internal/signinflow/        the step engine under llmprovider/x/signin: steps, answers, pastes
+internal/signinflow/        the step engine under llmprovider/x/signin: steps, answers, pastes, and Kilo's profile check
 internal/redact/            secret redaction and masking
 internal/wiretest/          G-wire's request recorder, for tests only
 internal/nettest/           a refused connection and a free loopback port, for tests only
@@ -148,8 +148,8 @@ standard library is left out.
 | :--- | :--- | :--- |
 | `llmprovider` | the contract: request and response types, errors, options, `NewHTTPClient`, the bounded client a caller wraps to add headers (0066-MADR D2), the `Registry`, retry middleware, and the credential sources (`Token`, `TokenSource`, `StaticToken`, `CommandToken`) | `internal/transport`, `internal/redact`, `internal/nilsource` |
 | `llmprovider/auth` | OAuth sessions and their refresh and revocation, with `OAuthSession.Wait` for a detached refresh (0071-MADR D3), the browser, device and Kilo device logins, the ChatGPT plan sign-in (`LoginChatGPTPlan`, `ChatGPTPlanOptions`), `id_token` checks, `VendorCLISession`, `VendorCLIPath`, `TokenStore` and `FileTokenStore`, and the issuers and client ids; a session's kind (`SessionKind` and `OAuthSession.Kind`), the sign-in sentinels `ErrSignInDenied` and `ErrSignInExpired`, and `NoLoopback` on `OAuthFlowOptions` and `ChatGPTPlanOptions` (0074-MADR D4, D5, D8); a session's consent answers (`OAuthSession.Consents`, `Consent`, `StoredConsent`, `SetConsent`) and the issued-client record (`ClientRecord`, `ClientStore`, `ChatGPTPlanOptions.ClientID`) (0075-MADR D2, D3, D5, D7) | `llmprovider`, `internal/transport`, `internal/kiloendpoint`, `internal/redact`, `internal/ownerperm`, `internal/filelock` |
-| `llmprovider/x/signin` | experimental (R4, 0074-MADR D9): `Methods`, a descriptor's methods as the contract's `Method` values; `Start`, `Options` and `SignIn`, one handle for a device, browser, plan or vendor-import sign-in; `Credential` and its five types; `ErrorKindOf`; its `NoLoopback` option, experimental, which passes through to `auth`'s two | `llmprovider`, `auth`, `authcontract`, `internal/signinflow` |
-| `internal/signinflow` | the step engine under `llmprovider/x/signin` (0074-MADR D3, D4): `Start`, `Spec` and `Run` emit the contract's steps in order, take the answers, check a pasted callback (state, code, `client_id`; three pastes), and return the result; `ErrorKindOf` and `Failure` | `llmprovider`, `auth`, `authcontract`, `internal/redact` |
+| `llmprovider/x/signin` | experimental (R4, 0074-MADR D9): `Methods`, a descriptor's methods as the contract's `Method` values; `Start`, `Options` and `SignIn`, one handle for a device, browser, plan or vendor-import sign-in; `Credential` and its five types; `ErrorKindOf`; `VerifyKilo`, one read of Kilo's profile that checks a Kilo key, which a caller of its own sign-in uses where the wizard does (0080-MADR D10); its `NoLoopback` option, experimental, which passes through to `auth`'s two | `llmprovider`, `auth`, `authcontract`, `internal/signinflow` |
+| `internal/signinflow` | the step engine under `llmprovider/x/signin` (0074-MADR D3, D4): `Start`, `Spec` and `Run` emit the contract's steps in order, take the answers, check a pasted callback (state, code, `client_id`; three pastes), and return the result; `ErrorKindOf` and `Failure`; `VerifyKilo`, `KiloVerdict`, `Refused`, `CheckKiloOptions` and `DefaultCheckLimit`, Kilo's profile check, the refusal rule and the limit the wizard's checks and `signin.VerifyKilo` share (0080-MADR D10) | `llmprovider`, `auth`, `authcontract`, `internal/redact`, `internal/kiloendpoint` |
 | `wizard` | the configuration flow and its `Prompter` seam | `llmprovider`, `auth`, `catalog`, `providers`, `providers/chatcompat`, `providers/openai`, `authcontract`, `internal/signinflow`, `internal/redact`, `golang.org/x/term` |
 | `internal/redact` | `Redact` and `String` (hide a secret completely), `MaskSecret` (show a suffix for identification), `StripControl` (remove terminal control characters) and `Field` (strip and bound a service's code or reason) | the standard library |
 | `internal/wiretest` | an `httptest` server that records requests as normalised JSON, and golden-file comparison; imported only by tests | the standard library |
@@ -174,7 +174,7 @@ standard library is left out.
 | `llmprovider/internal/wire/generatecontent` | Gemini's generateContent wire, with its thinking shape: `SystemInstruction`, `Contents`, `Decode`, `Events`, `ThinkingConfig`, and from a model's facts `Thinking`, `FactsThinking`, `PreferredShape` and `ThinkingConfigFor`; `MatchRefusal`, its refusal of a level (0062-MADR D4, amendment "Phase 3's google-route levels, and 0013's B9") | `llmprovider`, `internal/wire` |
 | `llmprovider/internal/wire/deferral` | how a request's deferred tools are sent, decided once for every encoder: `Wire`, `Form`, `Of`, `ForRequest`, `Deferring`, `Tools`, `Loaded`, `SearchLoads`, `SearchName`; `Warning` and `Warnings`, the `WarningDeferralEmulated` a form earns; and Grok's dispatch: `UseTool`, `DispatchTool`, `Dispatched`, `Loads` and `CheckDispatch` (0040-MADR D1 to D7) | `llmprovider`, `internal/wire/messages` |
 | `llmprovider/catalog` | `List`, `Catalog`, its `Menu` of `MenuEntry` with each `Caveat` (0041-MADR D3), `ListRaw` with its `RawListing` and `RawModel` (0041-MADR D9), `Static`, `Rank`, `SortByRank` (0070-MADR D1), `Search`, `Match` and its `Why`, `Catalog.Search` (0061-MADR, amendment "Model search, rebuilt"), `Label`, `LabelName` and `LabelNote` (0070-MADR D2), `Profile`, `Metadata`, `LookupMetadata`, `LookupMetadataWith`, `CachedMetadataWith`, `KiloModelCapabilities`, `ValidateOllamaURL`, `ObservedWorkload`, `ListSource` (`ListLive`, `ListStale`, `ListStatic`), `Catalog.Source` and `Catalog.FetchedAt`, and the options `WithProfile`, `WithWorkload`, `WithLastGood`, `WithKiloOrganization` and `WithClaudeWorkspace`; model metadata (0033-MADR D1, D3): `ModelInfo`, `ModelReasoning`, `ModelCost`, `ModelRates`, `ModelCostTier`, `Field`, `Modality`, `ModelStatus`, `ParseMetadata`, and `Metadata`'s `Model`, `Models`, `Encode` and `Name`; the resolver: `Layer`, `LookupModel`, `CachedModel`, `CachedFacts` and the option `WithModelLayer`; `Cache`, its `Close` (0071-MADR D1, D2) and the option `WithCache` (0048-MADR D1), shared as `WithModelLayer` is; a `chatcompat` provider's listing and lookups, by its `WithID` (0061-MADR E1), with a recorded dialect's details (`dialect.go`) and models.dev's facts by canonical id (`canonical.go`) (0061-MADR E2) | `llmprovider`, `auth`, `internal/chatgpt`, `internal/kiloendpoint`, `internal/listlimit`, `internal/transport`, `internal/cacheref`, `internal/nilsource`, `internal/compatid`, `internal/compatdialect` |
-| `llmprovider/internal/kiloendpoint` | `Resolve`, `Route` and Kilo's base URL, for `catalog`, `providers/kilo` and the Kilo device login | the standard library |
+| `internal/kiloendpoint` | `Resolve`, `Route`, `Organization` and Kilo's base URL, for `catalog`, `providers/kilo`, the Kilo device login and `internal/signinflow`; it is in the module's own `internal` directory, not `llmprovider`'s, so that `internal/signinflow`, and through it `wizard` and `llmprovider/x/signin`, decide whether a credential has an organization by the rule the listing's URL is built by (0080-MADR D4) | the standard library |
 | `llmprovider/internal/nilsource` | `Is`, which tells a typed-nil `TokenSource`, a nil pointer, map, slice, func, chan or interface held in a non-nil interface, from a value, for `ResolveOptions` and the catalog's entry points (0050-MADR D1, D2) | the standard library |
 | `llmprovider/internal/listlimit` | `Value`, `catalog.WithLimit`'s option value, `Of`, which reads it from a provider's options, and `Cut`, for `catalog` and the providers that cut their own fallback listings with it (0038-MADR A3) | the standard library |
 | `llmprovider/internal/compatdialect` | `Entry`, `Dialect`, `Table`, `Threshold`, `Score` and `Of`: which server a `GET {base}/models` reply is from, by its entries' marks, for `catalog`'s details readers and `chatcompat.Discover`'s labels (0061-MADR E2, E5) | the standard library |
@@ -204,8 +204,8 @@ providers                     Default(), New(id, …)
 providers/<id>                one package per provider or gateway family
 catalog   internal/wire/<format>   llmtest
 internal/chatgpt              a ChatGPT session's headers and listing request, and a plan session's
-llmprovider/x/signin          experimental: Methods, Start, SignIn, Credential, ErrorKindOf
-internal/signinflow           the step engine under x/signin: steps, answers, pastes
+llmprovider/x/signin          experimental: Methods, Start, SignIn, Credential, VerifyKilo, ErrorKindOf
+internal/signinflow           the step engine under x/signin: steps, answers, pastes, Kilo's profile check
 auth
 internal/wire
 llmprovider                   the contract
@@ -389,7 +389,8 @@ A model no layer knows is not an error; a failed source is joined into
 `ConfigureLLM` reads the menu from `Options.Registry`'s descriptors. It takes
 the credential from the `Prompter`, from `Options.LookupEnv`, or from a
 sign-in. A sign-in's session is saved to `Options.TokenStore` once the
-listing has not refused it, after any refresh the listing left running, so a
+listing, and for Kilo with no organization its profile (below), has not
+refused it, after any refresh the listing left running, so a
 refused sign-in leaves the store as it was. The save binds the session to
 the store with `(*auth.OAuthSession).UseStore`, under the session's lock,
 because a refresh the listing started may still be using it. It lists the
@@ -862,6 +863,11 @@ for a session, from the store.
   device flow on the same handle. The approved token never refreshes. It is
   stored as a session with no refresh token and no expiry, and the session
   is the Kilo credential. `KiloProfile` lists the account's organizations.
+  It is also the check of a Kilo credential, which Kilo's public listing
+  cannot make since it answers every credential: it answers 401 to a token
+  Kilo does not know. The wizard, under `Options.Discover`, and
+  `signin.VerifyKilo` read it, and treat a 401 as a refusal and any other
+  failure as the profile not being able to say (0080-MADR D1, D5).
 - **`CommandToken`** takes the token from a command the caller names, like
   Claude Code's `apiKeyHelper`:
   - the command runs without a shell, with a 10 s timeout;
@@ -1035,23 +1041,60 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   `Options.TokenStore` and returns a `CredOAuth` `Result` with no token; the
   consumer loads the session from the store. Keeping an existing session
   reads it there too (0016-MADR D11, A7, A10).
-- **When a session is saved.** A new session is saved once the model
-  listing has not refused it, after any refresh the listing left running,
+- **When a session is saved.** A new session is saved once the check, the
+  model listing and, for Kilo with no organization, its profile, has not
+  refused it, after any refresh the listing left running,
   so a refused sign-in leaves the store as it was and the store gets
   rotated tokens, never spent ones. A refresh the issuer refuses saves
-  nothing and ends the run (0059-MADR W2).
+  nothing and ends the run (0059-MADR W2; 0080-MADR D3).
 - **Keeping a saved session.** With `Options.Existing` naming one, the
   session is checked before it is offered. One that cannot be used, such
   as an expired one with no refresh token, is not offered: a notice says
   why, and the sign-in menu follows (0059-MADR W6). One kept and then
-  refused by the listing gives a notice, then the sign-in menu, once,
+  refused by the check gives a notice, then the sign-in menu, once,
   without it. The store keeps it until a new session is saved, and a
   refusal of the new one ends the run (0066-MADR V7).
 - **Kilo.** A Kilo device login saves its token the same way, offers the
   account's organizations, and puts the choice in `Result.Organization`.
   With `Options.KiloDeviceKey` it returns the token as a `CredAPIKey`
   instead, needing no store, saving nothing and asking no organization: one
-  copy, in the `Result` (0056-MADR D2).
+  copy, in the `Result` (0056-MADR D2). Kilo's public listing answers every
+  credential, so with no organization it checks nothing. Under
+  `Options.Discover` the wizard therefore reads Kilo's profile, once and
+  before the listing, for each Kilo credential used with no organization: a
+  typed, environment or saved key, a device key, a device session and a
+  kept session. The profile's 401 is a refusal, handled as the listing's is:
+  a typed key is asked again, up to three, any other source ends the run
+  naming it, and a kept session leads to the sign-in menu, once. A device
+  session's read, which the organization menu needs anyway, is its check,
+  with no second request. Anything else, a 403, a 5xx, a body that does not
+  decode, a refused connection or a stall past `Options.DiscoverLimit`, is
+  one warning by class and status, "could not verify the Kilo key (...); it
+  is saved unchecked", and the sign-in goes on. A device session's failure is
+  two notices, in this order: the organization menu's, "could not read the
+  Kilo account's organizations (...); using the personal account", since the
+  personal account is used, then that one; without `Discover` the first
+  stands alone (0080-MADR D6, amended 2026-11-17). With an organization the
+  organization's listing, which authenticates, is the check and the profile is
+  not read; without `Discover` nothing is checked (0080-MADR D1 to D8). The
+  organization is the one the listing is given, in the listing's real order:
+  the last `catalog.WithKiloOrganization` among the options, an empty one
+  included, where `ResolveOptions` applies the options outside a `For` first,
+  in order, then those inside `For(Kilo, ...)`, in order; the wizard's own
+  `For`, which carries `Result.Organization` (a kept session's, or a device
+  session's choice), is built with the listing's other options in
+  `listingOptions`, before any `For` in `Options.ProviderOptions`, so one the
+  caller gives inside a `For` replaces it and one outside a `For` is replaced
+  by it; else the one a token's embedded URL names, else the one the base
+  URL's path names (`kiloendpoint.Organization`). The check is given the
+  listing's options, built in that one place, and reads the organization from
+  them (`kiloendpoint.OrganizationOption`, shared by `catalog` and
+  `internal/signinflow`), so the two cannot disagree. A key that a caller's
+  own `Prompter` returns empty, or of only spaces, is trimmed to empty and not
+  checked, for every provider (a record of its own); `TextPrompter` never
+  returns one. With Kilo's other gateway address
+  as the endpoint the profile is read at that origin and answers 404, so the
+  warning is shown at every sign-in (D7).
 - **Claude's workspace.** A Claude key not scoped to a workspace is refused
   by the listing as `ErrWorkspaceRequired`; the wizard says so by class and
   status, asks for the workspace ID, and lists again with it, up to three
@@ -1098,9 +1141,9 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   under `NoEndpointPrompt`. A
   pasted OpenAI credential that is another vendor's key, or not a JWT, or
   an expired one, is refused before anything is saved. A typed key's shape
-  is not checked before the listing, which decides: only a key that is
-  plainly another vendor's is named then, with the listing's check promised
-  only under `Options.Discover` (0059-MADR S1, W1, W3).
+  is not checked before the listing, which decides, nor, for Kilo, the
+  profile: only a key that is plainly another vendor's is named then, with
+  the check promised only under `Options.Discover` (0059-MADR S1, W1, W3).
 - **An optional key, and no default endpoint.** A remote provider with no
   `RequiresAPIKey`, such as a Chat Completions server
   (`chatcompat.Descriptor`), is offered `Existing`'s key to keep; otherwise
@@ -1127,14 +1170,16 @@ non-API-key methods are offered only when `Options.TokenStore` is set.
   `Source`; the wizard cuts its `Recommended` to `ModelLimit`, which `List`
   takes only for a built-in. Any other lists its ids through `ListModels`
   (0066-MADR Q1; its amendment "the Lister's options").
-- **A refused key.** When the listing refuses a typed key, the wizard asks
+- **A refused key.** When the listing, or for a Kilo credential used with
+  no organization the profile, refuses a typed key, the wizard asks
   for another, up to three keys, then returns an error. Each refusal of a
   typed key without the provider's usual shape names that shape, the last
   included, and never the key (0059-MADR S1). A refused key from
   the environment or `Options.Existing`, or a refused session or CLI login,
   is an error naming that source. Any other listing failure falls back to
   the built-in catalog, with a warning. Every notice that reports a service's
-  error, the refusal, the three listing warnings, Kilo's profile and a
+  error, the refusal, the three listing warnings, Kilo's profile (read for
+  its organizations or to verify the key) and a
   failed revocation, shows its class and HTTP status, never its text: a
   service can echo a key it has masked itself, which redaction leaves as it
   is. A returned error keeps its text, for `errors.Is` (0056-MADR D3).
@@ -1198,7 +1243,15 @@ caller saves, as the wizard does after its listing.
   `ReadThrough`) or the sign-in's error, and `Cancel` ends it with kind
   `canceled`. `ErrorKindOf` maps an error to the contract's failure kinds,
   most specific first; `ErrSignInDenied` and `ErrSignInExpired` give it
-  `denied` and `expired`.
+  `denied` and `expired`. `VerifyKilo(ctx, key, organization, opts...)`
+  reads Kilo's profile once, through the check in `internal/signinflow` that
+  the wizard uses, to say whether Kilo accepts a key: nil when it answers,
+  when the credential has an organization and when it cannot say, a stall
+  past its own bound of `signinflow.DefaultCheckLimit` (10 s, the wizard's
+  default discovery limit) included; the profile's 401 `*APIError`, matching
+  `ErrAuthFailure`, when it refuses; the caller's ctx's error when that ctx
+  has ended; `ErrInvalidRequest`, with no request, for options that cannot
+  be used. It saves nothing (0080-MADR D10).
 - **The wizard.** Its browser, plan and device sign-ins run on the same
   engine, with their notices, prompts and paste text as before. A paste the
   engine refuses is asked again with a warning that gives its reason, where

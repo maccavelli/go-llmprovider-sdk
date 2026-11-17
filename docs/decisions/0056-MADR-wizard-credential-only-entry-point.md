@@ -189,6 +189,12 @@ dated amendment pointing here.
 The field names Kilo because no other device sign-in qualifies: Grok's
 session refreshes and expires, so its token is not a key (K2 rejected).
 
+*(Note, 2026-11-17: [0080-MADR-verify-a-kilo-credential-through-its-profile.md](0080-MADR-verify-a-kilo-credential-through-its-profile.md) D2 amends "reads no
+profile". Under `Options.Discover` the profile is read once, to verify the
+key; a 401 ends the run as a refused listing does ("refused the device
+sign-in; sign in again", matching `ErrAuthFailure`), no organization is asked
+and nothing is saved, as before. Without `Discover` no profile is read.)*
+
 ### D3. Refusals worded from the error's class
 
 The refusal notice and the three listing warnings (C12, C13, C15, C16) show

@@ -11,6 +11,62 @@ tag and its commit without notes; its notes are its section here.
 
 ## [Unreleased]
 
+### Added
+
+- `signin.VerifyKilo(ctx, key, organization, opts...)`, in the experimental
+  `llmprovider/x/signin` and so outside the v1 promise: it checks a Kilo key
+  against Kilo's profile, for a caller that drives its own sign-in. It
+  returns nil when the profile answers, when the credential has an
+  organization (given, or named by a token's embedded URL or the base URL's
+  path) and when the profile cannot say, a stall past its own 10 seconds
+  included; an error matching `llmprovider.ErrAuthFailure` when Kilo refuses
+  the key; `ctx`'s error when the caller's own `ctx` has ended; and an error
+  matching `llmprovider.ErrInvalidRequest`, with no request, for options that
+  are wrong
+  ([0080-MADR](docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md)
+  D10).
+
+### Changed
+
+- The wizard checks a Kilo credential against Kilo's profile, under
+  `Options.Discover` and when no organization is set, and refuses it on a
+  401: a wrong Kilo key is no longer saved to fail on first use, because
+  Kilo's public model listing answers every credential. A typed key is asked
+  for again, up to three; a key from `KILO_API_KEY`, a saved key, a device
+  key or a device session ends the run naming its source; a kept session
+  leads to the sign-in menu, once. The error matches
+  `llmprovider.ErrAuthFailure`, as a listing's refusal does. A profile that
+  cannot answer, a 403, a 5xx, a failed connection or a stall past
+  `Options.DiscoverLimit`, is one warning, "could not verify the Kilo key
+  (...); it is saved unchecked", and the sign-in goes on. Without `Discover`,
+  or with an organization, nothing is read that was not before. The
+  organization is the one the listing is given, by its real order: the last
+  `catalog.WithKiloOrganization` among the options, where the options outside
+  `llmprovider.For` apply first, then those inside
+  `For(llmprovider.ProviderKilo, ...)`, and the wizard's own `For`, with a kept
+  session's organization or a device session's choice, comes before any `For`
+  in `Options.ProviderOptions`; with none, a token's embedded URL's, then the
+  endpoint's path's. Four limits: a key valid only for an
+  organization, typed with no organization entered, is read at the profile,
+  which was not verified live for such a key; with Kilo's other gateway
+  address `https://ai-gateway.kilo.ai/api/v1` as the endpoint the profile
+  answers 404, so every sign-in there warns and a wrong key passes with that
+  warning; the organization listing that an endpoint's own organization path
+  names is sent without the organization header, and that listing's refusal
+  of a wrong key was not probed live; and a key that a caller's own
+  `Prompter` returns empty, or of only spaces, is trimmed to empty and
+  returned with no check, for every provider, as before (`TextPrompter` never
+  returns one).
+  Under
+  `Options.KiloDeviceKey` the profile is now read once to check the key;
+  a Kilo device session's own read of the profile is its check, with no
+  second request, and under `Discover` its 401 is a refusal where it was a
+  warning, and its other failures are two notices: the organization menu's
+  warning that the organizations could not be read and the personal account
+  is used, then the one warning above
+  ([0080-MADR](docs/decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md)
+  D1 to D9).
+
 ## [v1.31.0] - 2026-11-14
 
 ### Added

@@ -422,6 +422,9 @@ open; the owner questions follow.
 * A credential the user did not type (an environment variable, a vendor
   CLI file, a sign-in) is not re-prompted: the wizard says which source was
   refused, and returns an error.
+* *(Note, 2026-11-17: [0080-MADR-verify-a-kilo-credential-through-its-profile.md](0080-MADR-verify-a-kilo-credential-through-its-profile.md) D1, D3: for Kilo
+  with no organization, whose public listing refuses nothing, the refusal is
+  Kilo's profile's 401, handled by this rule unchanged.)*
 
 ### D-A1. OpenCode does not wait for metadata its route table can stand in for, and revalidates instead of refetching
 

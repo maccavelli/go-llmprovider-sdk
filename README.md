@@ -378,6 +378,32 @@ credential, err := run.Wait(ctx)
 `signin.Options.NoLoopback` passes through to the two `auth` fields.
 `signin.ErrorKindOf` names an error in the contract's failure kinds.
 
+`signin.VerifyKilo(ctx, key, organization, opts...)` checks a Kilo key, or a
+device token, against Kilo's profile, for a caller that drives its own
+sign-in or takes a typed key: Kilo's public model listing answers every
+credential with 200, so listing with a key and no organization cannot tell a
+wrong key from a right one, and the profile can. It returns nil when the
+profile answers; when the credential has an organization (given, or named by
+a token's embedded URL or the base URL's path), whose listing is the check;
+and when the profile cannot say: a 403, a 5xx, a failed connection, or no
+answer in 10 seconds, its own bound. So nil means verified or cannot say; a
+caller that must tell them apart reads the profile with `auth.KiloProfile`.
+It returns an error matching `llmprovider.ErrAuthFailure`, the profile's 401,
+when Kilo refuses the key; `ctx`'s error when your own `ctx`, a deadline
+included, has ended (its own 10 seconds never give it); and an error matching
+`llmprovider.ErrInvalidRequest`, with no request, when `opts` are wrong. It
+saves nothing.
+
+```go
+err := signin.VerifyKilo(ctx, key, "", llmprovider.WithBaseURL(base))
+switch {
+case errors.Is(err, llmprovider.ErrAuthFailure):
+    // Kilo refused the key: ask for another
+case err != nil:
+    return err // ctx ended, or opts are wrong
+}
+```
+
 ## The configuration wizard
 
 `wizard.ConfigureLLM(ctx, prompter, opts)` asks for a provider, its
@@ -386,12 +412,13 @@ endpoint, a credential and a model, through a `Prompter` you implement or
 key.
 
 - A sign-in saves its session to `Options.TokenStore`, once the model
-  listing has not refused it, and returns a `CredOAuth` `Result` with no
+  listing, and for Kilo its profile, has not refused it, and returns a
+  `CredOAuth` `Result` with no
   token; the caller loads it from the store. A refused sign-in leaves the
   store as it was. With `Options.Existing` naming such a session, the
   wizard checks it and offers to keep it before asking how to sign in; one
   that cannot be used is not offered, and a notice says why. One kept and
-  then refused by the listing leads to the sign-in menu, once, and the
+  then refused by the check leads to the sign-in menu, once, and the
   store keeps it until the new session is saved. Without a
   `TokenStore`, only the methods
   that save no session are offered: the API key, a vendor CLI's login, and
@@ -455,8 +482,41 @@ key.
   kept, or with none, and asks for the key when the server refuses the
   request without one.
 - With `Options.Discover`, it lists the provider's models once, within
-  10 seconds (`Options.DiscoverLimit` can shorten that, not extend it).
-  Without it, the built-in catalog is offered. A provider that implements
+  10 seconds (`Options.DiscoverLimit` can shorten that, not extend it), and
+  that listing checks the credential: a key the provider refuses is asked
+  for again. Kilo's public listing answers every credential, so for a Kilo
+  credential used with no organization the wizard first reads Kilo's
+  profile, once, within `Options.DiscoverLimit` (10 seconds by default), and
+  a 401 refuses the key, as a listing's does, whether it was typed, taken
+  from `KILO_API_KEY` or kept, or came from a device sign-in, including
+  `Options.KiloDeviceKey`'s. A profile that cannot answer (a 403, a 5xx, a
+  failed connection) is one warning, by class and status, and the sign-in
+  goes on. A Kilo device session whose profile cannot be read shows two
+  notices, "could not read the Kilo account's organizations (...); using the
+  personal account" and then that warning, and is saved on the personal
+  account; without `Discover` it shows the first alone. With an organization
+  the organization's listing is the check and the profile is not read. The
+  organization is the one the listing is given, by its real order: the last
+  `catalog.WithKiloOrganization` among the options, where `ResolveOptions`
+  applies the options outside `llmprovider.For` first, then those inside
+  `For(llmprovider.ProviderKilo, ...)`, and the wizard's own `For`, which
+  carries a kept session's organization or a device session's choice, comes
+  before any `For` in `Options.ProviderOptions`: so one you give inside a
+  `For` replaces the session's, and one you give outside a `For` is replaced by
+  it. With none, the organization a token's embedded URL names, then the one
+  the endpoint's own path names. Four limits to know. A key valid only for an organization, typed
+  with no organization entered, is read at the profile, and whether Kilo's
+  profile accepts such a key was not verified live. With Kilo's other gateway
+  address, `https://ai-gateway.kilo.ai/api/v1`, as the endpoint, the profile
+  is read at that origin, where it answers 404, so every sign-in there warns
+  "could not verify the Kilo key (invalid request, HTTP 404)" and a wrong key
+  passes with that warning. The organization listing that an endpoint's own
+  organization path names is sent without the organization header, and that
+  listing's refusal of a wrong key was not probed live. A key that your own
+  `Prompter` returns empty, or of only spaces, is trimmed to empty and
+  returned with no check, for every provider, as before; `TextPrompter` never
+  returns one. Without `Discover` nothing is checked and the built-in catalog
+  is offered. A provider that implements
   `catalog.Lister`, `chatcompat`'s among them, gives the menu its models'
   facts. `ResolveCredential`'s catalog tells whether the provider answered:
   `Live` false is the built-in catalog, and its `Err` holds why a listing

@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/compatdialect"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/listlimit"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/nilsource"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"

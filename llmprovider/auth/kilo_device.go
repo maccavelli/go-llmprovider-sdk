@@ -12,8 +12,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/maccavelli/go-llmprovider-sdk/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 
@@ -173,6 +173,14 @@ type KiloAccount struct {
 // the listing with catalog.WithKiloOrganization. The
 // profile lives at {origin}{prefix}/api/profile, derived from the configured
 // base URL or a URL-prefixed token as the gateway's endpoints are.
+//
+// The profile answers 401 to a token Kilo does not know, which Kilo's public
+// model listing never does, so it is also the check of a Kilo credential: the
+// wizard reads it under Options.Discover, and signin.VerifyKilo
+// (experimental) reads it for a caller. Each treats a 401, an
+// *llmprovider.APIError matching llmprovider.ErrAuthFailure, as a refusal, and
+// any other failure, a 403 included, as the profile not being able to say
+// (0080-MADR D1, D5). A request is bound by 30 s.
 //
 // opts are kilo's: the base URL, the HTTP client and the client identity are
 // read, and an option for another provider is refused.

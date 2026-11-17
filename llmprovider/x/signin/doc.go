@@ -9,6 +9,12 @@
 // caller saves, as the wizard does after its listing. ErrorKindOf names an
 // error in the contract's one vocabulary of failures.
 //
+// VerifyKilo checks a Kilo key against Kilo's profile, which a caller that
+// takes a typed key, or lists models with a device token, needs: Kilo's public
+// model listing answers every credential, so with no organization it cannot
+// refuse a wrong one. It is the check the wizard makes under Options.Discover
+// and saves nothing.
+//
 // The methods Start drives are device_code (OpenAI, Grok and Kilo),
 // browser_oauth (OpenAI and Grok), chatgpt_plan and import_vendor_cli. A
 // value method (api_key, token_stdin) is not driven: the caller reads the
@@ -21,7 +27,7 @@
 // record promotes Start, SignIn, Options, Credential, Methods and ErrorKindOf
 // into llmprovider/auth, in a minor release, once gobble-cli and
 // magic-cli-remote have each shipped a release that drives a sign-in through
-// it (0074-MADR D9).
+// it (0074-MADR D9); VerifyKilo moves with them, or goes (0080-MADR D10).
 //
 // A minimal device sign-in prints each step and returns the credential:
 //

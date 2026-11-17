@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/maccavelli/go-llmprovider-sdk/internal/redact"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/signinflow"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/auth"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/catalog"
@@ -19,8 +20,10 @@ import (
 
 // defaultDiscoverLimit bounds a live model listing so a slow or unreachable
 // provider cannot stall a wizard indefinitely. It equals the lister's own
-// 10 s bound, which no caller deadline extends (MADR 0013 Q4).
-const defaultDiscoverLimit = 10 * time.Second
+// 10 s bound, which no caller deadline extends (MADR 0013 Q4). It is
+// signinflow.DefaultCheckLimit, the one constant that signin.VerifyKilo's own
+// bound is too (0080-MADR Q5, D10).
+const defaultDiscoverLimit = signinflow.DefaultCheckLimit
 
 // Result is what ConfigureLLM produces. It is deliberately data, not config:
 // each consumer persists it in its own schema. Unifying configuration storage
@@ -83,9 +86,17 @@ type Options struct {
 	// the listing fails or is empty, the static catalog is used. A ChatGPT
 	// session has no static catalog, so the user is asked for a model id.
 	// ResolveCredential's doc says what the catalog's Live and Err then tell.
+	// It is also what checks a credential, and it is the one switch of every
+	// check: Kilo's public listing answers every credential, so for a Kilo
+	// credential used with no organization the check is a read of Kilo's
+	// profile before the listing, whose 401 refuses the credential as a
+	// listing's does (0080-MADR D1, D8).
 	Discover bool
-	// DiscoverLimit bounds the listing call. Zero uses defaultDiscoverLimit.
-	// The lister caps every listing at 10 s, so a larger value has no effect.
+	// DiscoverLimit bounds the listing call, and Kilo's profile read under
+	// Discover, each on its own. Zero uses defaultDiscoverLimit. The lister
+	// caps every listing at 10 s, so a larger value has no effect on it; the
+	// profile read is capped at 30 s, the auth requests' own bound (0080-MADR
+	// D6).
 	DiscoverLimit time.Duration
 	// NeedFallbacks collects additional models after the primary.
 	NeedFallbacks bool
@@ -110,8 +121,8 @@ type Options struct {
 	// 0020-MADR F25).
 	LookupEnv func(string) string
 	// ProviderOptions are added, after the wizard's own, to every model
-	// listing and to the provider it builds for a ChatGPT session. Pass
-	// catalog.OptionsFromEnv() here, or llmprovider.WithoutModelMetadata()
+	// listing, to each read of Kilo's profile and to the provider it builds
+	// for a ChatGPT session. Pass catalog.OptionsFromEnv() here, or llmprovider.WithoutModelMetadata()
 	// to keep a listing off the network.
 	ProviderOptions []llmprovider.Option
 	// TokenStore persists sessions created by the browser, device-code and
@@ -151,10 +162,14 @@ type Options struct {
 	Identity auth.Identity
 	// KiloDeviceKey takes Kilo's device sign-in as a key, for a consumer that
 	// stores keys rather than sessions: the sign-in returns CredAPIKey with the
-	// device token in APIKey, saves no session and reads no profile, so no
-	// organization is asked and Organization is empty. The method is then
-	// offered without a TokenStore. The token has no refresh and no expiry,
-	// as a key (0056-MADR D2; 0017-MADR D2).
+	// device token in APIKey and saves no session, so no organization is asked
+	// and Organization is empty. Under Discover the token is checked as any
+	// Kilo key is, by one read of Kilo's profile, whose 401 ends the run
+	// ("refused the device sign-in; sign in again"); that read asks no
+	// organization question and saves nothing. Without Discover no profile is
+	// read. The method is then offered without a TokenStore. The token has no
+	// refresh and no expiry, as a key (0056-MADR D2; 0017-MADR D2; 0080-MADR
+	// D2).
 	KiloDeviceKey bool
 	// ShowDeviceCode, when set, is given each device sign-in's code, in place
 	// of the notice "Open <URL> and enter code <code>": Grok's, OpenAI's and
@@ -261,7 +276,8 @@ func (o Options) lookupEnv() func(string) string {
 // ChatGPT plan, as the login gave it, and Options.ShowDeviceCode's, as it is.
 // An ended ctx gives an error matching
 // ctx's, before any question when it has ended already (0059-MADR W8), and a
-// credential the provider refuses while its models are listed, one matching
+// credential the provider refuses while its models are listed, or, for Kilo
+// with no organization, while its profile is read, one matching
 // llmprovider.ErrAuthFailure (for a kept session, the one signed in after
 // it), and a Claude workspace refused after the third
 // one entered, one matching llmprovider.ErrWorkspaceRequired or
@@ -271,7 +287,11 @@ func (o Options) lookupEnv() func(string) string {
 // method and, under Options.NoEndpointPrompt, an endpoint refused, not
 // reached, or missing for a provider with no default. A listing that fails
 // otherwise is not an error: the flow warns and offers the provider's
-// static catalog.
+// static catalog. Nor is a Kilo profile that cannot say whether the key is
+// good, a 403, a 5xx, a failed connection or a stall: the flow warns, by
+// class and status, and goes on (0080-MADR D6); for a Kilo device session it
+// first says that the organizations could not be read and the personal
+// account is used.
 func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, fmt.Errorf("wizard: %w", err)
@@ -330,7 +350,20 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 //
 // It returns the Result, with no Model and no Fallbacks, and the catalog the
 // check listed, so the consumer need not list again. The credential is
-// checked only with Options.Discover. The catalog's Live is true for a
+// checked only with Options.Discover, by the listing and, for a Kilo
+// credential used with no organization, first by a read of Kilo's profile,
+// since Kilo's public listing answers every credential: a typed, environment
+// or saved key, a device key, a device session and a kept session are each
+// read once, and the profile's 401 is a refusal, handled as the listing's is.
+// A profile that cannot say is a warning, and the credential goes on
+// (0080-MADR D1 to D6). A credential with an organization, as the listing is
+// given it, is checked by that organization's listing alone and the profile is
+// not read (D4): the last catalog.WithKiloOrganization applied, an empty one
+// included, where the options outside a For apply first, then those inside
+// For(Kilo, ...), the wizard's own For with the Result's organization before
+// any For in Options.ProviderOptions (listingOptions); else a token's embedded
+// URL's; else the endpoint's path's. The
+// catalog's Live is true for a
 // listing from the provider: one it answered with this credential now, or
 // within 10 minutes, from the listing cache; or, after a passing failure such
 // as an HTTP 503, the last good one from within 24 hours, or the one
@@ -345,8 +378,9 @@ func ConfigureLLM(ctx context.Context, p Prompter, o Options) (Result, error) {
 // it; so is a failed sign-in's, and Options.ShowDeviceCode's, as it is. An
 // ended ctx gives an error matching ctx's,
 // and a credential the provider refuses, one matching
-// llmprovider.ErrAuthFailure; a Claude workspace refused after the third one
-// entered, one matching llmprovider.ErrWorkspaceRequired or
+// llmprovider.ErrAuthFailure, which for Kilo is the profile's 401; a Claude
+// workspace refused after the third one entered, one matching
+// llmprovider.ErrWorkspaceRequired or
 // llmprovider.ErrWorkspaceNotFound. An id the Registry lacks, or that
 // Options.Providers leaves out, gives an error matching
 // llmprovider.ErrInvalidProvider; under Options.LocalServers, so does an id
@@ -424,12 +458,14 @@ func chooseProvider(p Prompter, o Options) (llmprovider.Descriptor, error) {
 	return descriptors[idx], nil
 }
 
-// credentialStep resolves d's endpoint and credential, then lists its models,
-// which checks the credential: a typed key the listing refuses is asked for
-// again, up to maxTypedKeys (0028-MADR D-H10). Each refusal of a typed key
+// credentialStep resolves d's endpoint and credential, then checks it
+// (checkCredential): Kilo's profile, for a Kilo credential used with no
+// organization, then the model listing. A typed key the check refuses is asked
+// for again, up to maxTypedKeys (0028-MADR D-H10). Each refusal of a typed key
 // without the provider's confirmed shape names the shape (0059-MADR S1). A new
-// session is saved once the listing has not refused it, so a refused sign-in
-// leaves the store as it was (0059-MADR W2). A Claude key's existing
+// session is saved once the check has not refused it, so a refused sign-in
+// leaves the store as it was (0059-MADR W2; 0080-MADR D3). A check that ctx
+// ended returns ctx's error and saves nothing (0080-MADR D6). A Claude key's existing
 // workspace is listed with first; a workspace the listing refuses is asked
 // for, up to maxTypedKeys, and a refusal after that saves nothing
 // (0064-MADR D4, amendment "D4's pre-fill"). An optional key the listing
@@ -452,7 +488,7 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		res.Workspace = o.Existing.Workspace
 	}
 
-	cat, listErr := discoverModels(ctx, p, d, res, credential.source, o)
+	cat, listErr := checkCredential(ctx, p, d, res, credential, o)
 	for keys, workspaces := 1, 0; stepRefusal(listErr); {
 		if refusedWorkspace(listErr) {
 			if workspaces == maxTypedKeys {
@@ -470,7 +506,7 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 				continue
 			}
 			res.Workspace = workspace
-			cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
+			cat, listErr = checkCredential(ctx, p, d, res, credential, o)
 			continue
 		}
 		if credential.kept {
@@ -482,7 +518,7 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 				return Result{}, catalog.Catalog{}, err
 			}
 			res = credentialResult(res, credential)
-			cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
+			cat, listErr = checkCredential(ctx, p, d, res, credential, o)
 			continue
 		}
 		if credential.keyFrom == keyAbsent {
@@ -509,7 +545,12 @@ func credentialStep(ctx context.Context, p Prompter, d llmprovider.Descriptor, o
 		credential.keyFrom = keyTyped
 		res.Kind, res.APIKey = credential.kind, key
 		keys++
-		cat, listErr = discoverModels(ctx, p, d, res, credential.source, o)
+		cat, listErr = checkCredential(ctx, p, d, res, credential, o)
+	}
+	// A check that ctx ended is neither a refusal nor a warning: nothing is
+	// saved after it (0080-MADR D6).
+	if err := endedCheck(listErr); err != nil {
+		return Result{}, catalog.Catalog{}, err
 	}
 	if err := credential.save(ctx, d); err != nil {
 		return Result{}, catalog.Catalog{}, err
@@ -664,9 +705,7 @@ const maxTypedKeys = 3
 // refusedCredential reports whether the listing's failure is the service
 // refusing the credential: an authentication failure that is not a refusal
 // to permit something (0028-MADR D-H2).
-func refusedCredential(err error) bool {
-	return errors.Is(err, llmprovider.ErrAuthFailure) && !errors.Is(err, llmprovider.ErrNotPermitted)
-}
+func refusedCredential(err error) bool { return signinflow.Refused(err) }
 
 // refusedWorkspace reports whether the listing's failure is Anthropic
 // refusing the workspace a key runs in, or asking for one (0064-MADR D3,
@@ -800,6 +839,33 @@ func promptAPIKey(p Prompter, d llmprovider.Descriptor, o Options) (string, erro
 	return key, nil
 }
 
+// listingOptions are the options of the model listing, whichever provider was
+// chosen, and of Kilo's sign-in check, which is given these and no others:
+// Kilo's organization and Claude's workspace are in their overlays (0015-MADR
+// D5; 0064-MADR D4; an empty one is the personal account, or a key scoped to
+// its workspace). It is the one place they are built, so that the check decides
+// whether a credential has an organization from exactly what the listing is
+// given, in the order it is given (0080-MADR D4). llmprovider.ResolveOptions
+// applies every option outside a For first, in order, then each For's, in
+// order: so a caller's own option in ProviderOptions outside a For comes before
+// the wizard's For with the Result's organization, which comes before any For
+// the caller passed.
+func (o Options) listingOptions(res Result) []llmprovider.Option {
+	opts := append(o.identityOptions(),
+		catalog.WithProfile(o.Profile),
+		catalog.WithLimit(o.ModelLimit),
+		llmprovider.For(llmprovider.ProviderKilo, catalog.WithKiloOrganization(res.Organization)),
+		llmprovider.For(llmprovider.ProviderClaude, catalog.WithClaudeWorkspace(res.Workspace)),
+	)
+	if res.BaseURL != "" {
+		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
+	}
+	if o.HTTPClient != nil {
+		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
+	}
+	return append(opts, o.ProviderOptions...)
+}
+
 // discoverModels returns the catalog to offer: the live listing when requested
 // and available, otherwise the descriptor's static catalog in both views
 // (MADR 0007 §4). It also returns the listing's failure, whether the listing
@@ -827,30 +893,10 @@ func discoverModels(
 	if !o.Discover {
 		return fallback, nil
 	}
-	limit := o.DiscoverLimit
-	if limit <= 0 {
-		limit = defaultDiscoverLimit
-	}
-	dCtx, cancel := context.WithTimeout(ctx, limit)
+	dCtx, cancel := context.WithTimeout(ctx, o.discoverLimit())
 	defer cancel()
 
-	// One list whichever provider was chosen: Kilo's organization and
-	// Claude's workspace are in their overlays (0015-MADR D5; 0064-MADR D4;
-	// an empty one is the personal account, or a key scoped to its
-	// workspace).
-	opts := append(o.identityOptions(),
-		catalog.WithProfile(o.Profile),
-		catalog.WithLimit(o.ModelLimit),
-		llmprovider.For(llmprovider.ProviderKilo, catalog.WithKiloOrganization(res.Organization)),
-		llmprovider.For(llmprovider.ProviderClaude, catalog.WithClaudeWorkspace(res.Workspace)),
-	)
-	if res.BaseURL != "" {
-		opts = append(opts, llmprovider.WithBaseURL(res.BaseURL))
-	}
-	if o.HTTPClient != nil {
-		opts = append(opts, llmprovider.WithHTTPClient(o.HTTPClient))
-	}
-	opts = append(opts, o.ProviderOptions...)
+	opts := o.listingOptions(res)
 	var cat catalog.Catalog
 	var err error
 	if chatGPT {

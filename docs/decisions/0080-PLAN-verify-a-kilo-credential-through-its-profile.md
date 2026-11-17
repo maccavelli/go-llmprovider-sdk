@@ -92,6 +92,15 @@ removed; neither was chosen.)*
   the coordinator. Phase 5, the release, waits for the owner's word. A
   stop condition below is a deviation, not a phase boundary: it still
   stops the run and goes to the owner.)*
+  *(Added 2026-11-17, the owner's ruling, relayed by the coordinator: "One
+  commit: the tests with phase 3's code". As put to the owner: the tests go
+  into the tree when Phase 3's implementation makes them pass, and the two
+  land together as one commit; "red" stays proven on a scratch clone, as
+  this section describes, and is in the record; `main` never carries a
+  failing build; a dated deviation note merges the Phase 2 and Phase 3
+  commits (the Execution record's "Phase 3 (with Phase 2's tests)").
+  Options not chosen: the tests behind a temporary build tag; commit them
+  red on `main`.)*
 * **Red, then green.** A new test that calls only existing API is seen red at
   `ceb489e` with `python3 -B tools/redgreen.py SPEC.json --expect fail --rev
   ceb489e`, and green on the phase's tree with `--expect pass`. A test that
@@ -344,6 +353,15 @@ profile through its existing seam, `kiloProfile` (P15), or serve
 Acceptance: each test is seen as the table says, quoted in the execution
 record. Docs: none.
 
+*(Added 2026-11-17, the owner's ruling, relayed by the coordinator: "One
+commit: the tests with phase 3's code". The three test files are not
+committed on their own: they go into the tree with Phase 3's implementation,
+which makes them pass, in one commit. Their red runs stay as the execution
+record's "Phase 2, the tests" has them, on a scratch clone at `ceb489e`.
+Options not chosen: the tests behind a temporary build tag; commit them red
+on `main`. See Phase 3's note and the "Phase 3 (with Phase 2's tests)"
+entry.)*
+
 ### Phase 3: the check, and the docs
 
 Model: mainstream, high (the credential loop is subtle: kept sessions, the
@@ -397,6 +415,28 @@ links-check records-check`.
 Acceptance: every test of Phase 2 passes; no existing test changed; the API
 check reports no change under the v1 promise; the docs say what the code
 does.
+
+*(Added 2026-11-17, the owner's ruling, relayed by the coordinator: "One
+commit: the tests with phase 3's code". This phase's commit also holds
+Phase 2's three test files, placed unchanged unless the real implementation
+shows a test to be wrong; Phases 2 and 3 land as one commit, and `main`
+never carries a failing build. Options not chosen: the tests behind a
+temporary build tag; commit them red on `main`.)*
+
+*(Added 2026-11-17, after an independent review; the owner's two rulings,
+relayed by the coordinator, each quoted by its label. "Its own 10 s bound; a
+stall is "cannot say"": `signin.VerifyKilo` bounds its read by the wizard's
+default discovery limit itself and returns nil when that passes, and ctx's
+error only when the caller's own ctx ended (MADR D10, Q5). "Treat it as
+having an organisation: no profile read": a credential whose listing is an
+organization's, by the explicit organization, a token's embedded URL or the
+base URL's path, is checked by that listing and the profile is not read
+(MADR D4); the helper is `internal/kiloendpoint` `Organization`, and that
+package moved from `llmprovider/internal` to the module's own `internal`, so
+that `internal/signinflow` may import it. Step 1's `VerifyKilo` is as written
+and gains `CheckKiloOptions` and `DefaultCheckLimit` beside it. Neither ruling
+adds an exported name. The "Phase 3 (with Phase 2's tests)" entry's "Review and
+fixes" has what was built.)*
 
 ### Phase 4: planted breaks and the gates
 
@@ -891,3 +931,661 @@ The facts this PLAN's steps rest on beyond the MADR's index.
   package passes with it. No existing test changed.
 * **Not verified:** the prototype is not Phase 3; the signinflow and
   x/signin tests were never run red (they do not compile); no push or CI.
+
+### Phase 3 (with Phase 2's tests) (2026-11-17)
+
+This entry has two parts: the first staging, as the executing agent wrote it
+(its statements corrected in place after the reviews where they were false, and
+its line references re-derived from the final staging), and "Review and fixes"
+below it. The staged tree is the first staging with the reviews' fixes.
+
+* **Provenance.** A mainstream model at high effort, as the phase prices it,
+  on the coordinator's brief. Base commit `b109cea`, level with `origin/main`.
+  Staged, not committed; the coordinator commits. Nothing pushed or tagged.
+* **The approval and the ruling,** the owner's, relayed by the coordinator.
+  The approval: "Approve and run through phase 4". The ruling of 2026-11-17:
+  "One commit: the tests with phase 3's code". As put to the owner: the tests
+  go into the tree when Phase 3's implementation makes them pass, and the two
+  land together; "red" stays proven on a scratch clone, as the plan
+  describes, and is in the record ("Phase 2, the tests"); `main` never
+  carries a failing build; a dated deviation note merges the two commits.
+  Options not chosen: the tests behind a temporary build tag; commit them red
+  on `main`. This entry is that deviation note: Phase 2 and Phase 3 are one
+  commit. The ruling is recorded under "Rules for every phase", at Phase 2
+  and at Phase 3, each as a dated addition; the committed text stays.
+* **Phase 2's three test files** were placed byte for byte as in the scratch
+  copy (`cmp` identical): `wizard/kilo_verify_0080_test.go`,
+  `internal/signinflow/kilo_0080_test.go`,
+  `llmprovider/x/signin/verify_0080_test.go`. No test was changed to fit the
+  code as first staged; the reviews then changed `wizard/kilo_verify_0080_test.go`
+  in three places, each so that the test says what the MADR or the owner's
+  ruling says (listed under "Review and fixes"). The implementation is written
+  from the MADR and this PLAN, not from the Phase 2 agent's prototype, which
+  was not read.
+* **The steps,** each as the PLAN's Phase 3 writes it, at the staged tree:
+  1. The rule once, in `internal/signinflow/kilo.go`: `VerifyKilo` (`:107`),
+     with `Refused` (`:29`), the one rule (`ErrAuthFailure` and not
+     `ErrNotPermitted`, 0028-MADR D-H2), `KiloVerdict` (`:36`),
+     `KiloProfileReader` (`:22`), `CheckKiloOptions` (`:75`) and
+     `DefaultCheckLimit` (`:18`). No request when the credential has an
+     organization (`:113`); none after ctx has ended (`:116`). The wizard's
+     `refusedCredential` returns `signinflow.Refused`
+     (`wizard/configure.go:708`), so the listing's rule and the profile's are
+     one.
+  2. The wizard's check: `wizard/kilo_verify.go`, `checkCredential` (`:52`)
+     and `verifyKilo` (`:82`), called by `credentialStep` at
+     `wizard/configure.go:491`, `:509`, `:521` and `:548` in place of
+     `discoverModels`, which they call after the profile. Under `Discover`,
+     for Kilo, one read with the credential's token (`kiloToken`, `:131`: a
+     key's, or a session's access token), through the `kiloProfile` seam,
+     bound by `Options.DiscoverLimit` (`discoverLimit`, `:17`; `:110`), with
+     the options `kiloProfileOptions` builds (`:29`: identity, endpoint in
+     use, client, `ProviderOptions`, as `resolveKiloDevice` built them). A 401
+     is returned as the listing's refusal is, so the loop is unchanged.
+     Anything else is one warning, "could not verify the Kilo key (<class>[,
+     HTTP <status>]); it is saved unchecked" (D6's wording, `:128`), and the
+     sign-in goes on.
+  3. `wizard/auth.go`: `resolveKiloDevice` keeps its one read (`:416`), bound
+     by `DiscoverLimit` under `Discover` (`:413`), and carries its result on
+     the credential (`profileRead`, `profileErr`, `:64` and `:65`; set at
+     `:418`), which `verifyKilo` reuses (`wizard/kilo_verify.go:102` to
+     `:109`): no second request. Under `Discover` a 401 and an ended ctx are
+     told by no menu warning (`wizard/auth.go:421`): the check refuses the 401
+     and returns ctx's error. Any other failure is two notices (R-A below).
+     Without `Discover` today's warning stands. `resolveKiloDeviceKey` reads
+     nothing; the check reads the profile once.
+  4. `llmprovider/x/signin/verify.go:74`: `VerifyKilo(ctx, key, organization
+     string, opts ...llmprovider.Option) error`, with `ExampleVerifyKilo`
+     (`llmprovider/x/signin/example_test.go:59`, offline, `// Output:`).
+  5. Docs and the dated notes, listed under "Docs rows" below.
+* **The twelve tests on the real code,** `go test -count=1 -v`, all `PASS`:
+  `TestKiloVerify_TypedKeyRefused_0080`,
+  `TestKiloVerify_EnvironmentAndSavedKeyRefused_0080`,
+  `TestKiloVerify_DeviceKeyRefused_0080`,
+  `TestKiloVerify_DeviceSessionRefused_0080`,
+  `TestKiloVerify_KeptSessionRefused_0080`, `TestKiloVerify_OutagesWarn_0080`
+  (eight key paths and two session cases; the reviews added a stall case),
+  `TestKiloVerify_OrganizationReadsNoProfile_0080`,
+  `TestKiloVerify_NoDiscoverNoRead_0080`,
+  `TestKiloVerify_OtherProvidersReadNoProfile_0080`,
+  `TestKiloVerify_RequestNamed_0080`, `TestVerifyKilo_Kinds_0080` and
+  `TestVerifyKilo_0080`. The first run of `TestVerifyKilo_0080` failed on its
+  `ctx ended` case: the stand-in there answers 200 whatever the context, so a
+  `VerifyKilo` that only passed ctx on returned nil. The test is right: the
+  MADR's D10 says "ctx's error when ctx ends". The implementation changed (the
+  rule checks ctx before the request), the test did not.
+* **Two tests added,** in `wizard/kilo_verify_ctx_0080_test.go`, not in
+  Phase 2's table, for what the brief's points 2 and 3 ask to be shown:
+  `TestKiloVerify_EndedContext_0080` (`:19`: ctx ends during the profile read
+  of a typed key, and of a device session: ctx's error, no warning, no
+  refusal, nothing saved) and `TestKiloVerify_RefusalShowsNoKey_0080` (`:76`: a
+  401 whose body and headers echo the Authorization header and the key in the
+  shapes the SDK's redaction knows: nothing of the key in a notice or in the
+  error's text). *(Corrected after the first review: as first staged the
+  device-session case of the first test did not look at notices, and the code
+  showed "could not read the Kilo account's organizations (cancelled)" for it,
+  so "no warning" was false for a device session. Fixed in code and in the
+  test; B-1 below.)* Seen to fail on planted breaks, on a scratch clone: the
+  ended-context return removed gave "error <nil>; want ctx's error" for both
+  cases; the ended ctx warned instead gave "notice "could not verify the Kilo
+  key (cancelled); it is saved unchecked"; want neither a warning nor a
+  refusal"; the key put in the returned error gave "the error's text shows the
+  key". Phase 4's plant list does not name them. The coordinator keeps both
+  tests on the reviewer's evidence (each is the only test that catches one
+  break); the coordinator's decision, not the owner's.
+* **Existing tests.** `go test -count=1 -v ./wizard/` on a scratch clone of
+  the first staging, before staging (PLAN step 6): 301 `--- PASS`, 0 `--- FAIL`,
+  `ok ... wizard 7.762s`; the six stop-condition tests and
+  `TestKiloDeviceKey_ReturnsTheKey_0056` each `--- PASS`. No existing test,
+  golden or fixture was changed by the first staging;
+  `llmprovider/x/signin/example_test.go` gained `ExampleVerifyKilo` and an
+  import, nothing else. The reviews' fixes move `llmprovider/internal/kiloendpoint`
+  to `internal/kiloendpoint` (below) and add one test to its test file; the
+  whole module passes again (gates below).
+* **Point 2, secrets.** The 401 the check returns is the existing
+  `*APIError` (kind auth failure), its text as the listing's: on a stand-in
+  that echoed the key in the body, in `X-Echo` and in the Authorization
+  header, `ResolveCredential`'s error read `wizard: Kilo Gateway refused 3
+  keys: llmprovider: authentication failed: kilo HTTP 401: Invalid
+  [REDACTED]` and its notices `Kilo Gateway refused this key
+  (authentication failed, HTTP 401); enter another`. The key is not there.
+  The text does keep a fragment of the service's own message ("Invalid"), as
+  a listing's refusal's does (0056-MADR D3: the error keeps its text, a
+  notice shows class and status). A warning is `describe(err)`: class and
+  status. Redaction is by pattern, not by the key's value: an opaque key a
+  service echoes may remain in the error's text (the review's N-4; MADR
+  Consequences).
+* **Point 3, bounds and cancellation.** The profile read is bound by
+  `Options.DiscoverLimit` (`wizard/kilo_verify.go:17`, `:110`; for the device
+  session `wizard/auth.go:413`), default 10 s, not auth's 30 s: the stall
+  cases of `TestKiloVerify_OutagesWarn_0080` (limit 300 ms; a typed key and,
+  since the first review, a device session, `wizard/kilo_verify_0080_test.go:466`)
+  return with the "timed out" warning. The check and the listing each have the
+  limit, so a check may take up to twice it. Today's listing with ctx ended
+  is `wizard/configure.go:928`, `:944` (a "could not list models" warning,
+  the catalog falls back) and `ResolveCredential`'s own test
+  (`wizard/configure.go:410`: "A listing ctx ended is not a refusal ... must
+  not pass for a checked credential"), which runs after `credentialStep` has
+  saved. The check does the stricter thing: a profile read that failed while
+  ctx is done is neither refusal nor warning, and `credentialStep` returns
+  ctx's error before `save` (`wizard/configure.go:552`). The coordinator keeps
+  this, on the reviewer's evidence: at `b109cea` a sign-in whose context ended
+  inside the check window already returned ctx's error, so nothing that
+  succeeded before now fails; the difference is that nothing is saved. The
+  coordinator's decision, not the owner's.
+* **Found, not changed by 0080** (three items; none is built here).
+  * **A new session is saved after ctx ended, on the listing path,** for a
+    session that is current. A scratch test on a clone: a stand-in whose
+    listing cancels ctx and fails gave `err=<nil> saves=1` for a Kilo device
+    session and the notice "live model listing for Kilo Gateway is unavailable
+    (cancelled)". `resolvedCredential.save` (`wizard/auth.go:1026`) refuses
+    only when `Token(ctx)` fails, which a current session does not.
+    Pre-existing at `ceb489e`, and for every provider's new session sign-in.
+    By the owner's ruling of 2026-11-17, relayed by the coordinator, "A record
+    of its own, drafted now": it goes to a record of its own, which has been
+    drafted outside this tree and is placed after this phase commits; 0080
+    does not change it.
+  * **A key that a caller's own `Prompter` returns empty, or of only spaces,
+    is not checked,** for every provider, with no error. By the owner's ruling
+    of 2026-11-17, relayed by the coordinator, "A record of its own: refuse an
+    empty key at the prompt, every provider (Recommended)" (R-C below): 0080
+    does not change it. The facts, as the third review corrected them: the
+    SDK's own `TextPrompter` never returns a blank key (`Secret` returns a value
+    only when it is non-empty, `wizard/text_prompter.go:402`; trims the entry on a terminal,
+    `:496`, and, when it is not reading from a terminal or cannot make it raw,
+    reads the line through `readLine`, `:420` and `:430`, whose trim is `:156`;
+    ends with an error at the end of input, `:408`; and asks again, "empty
+    value; please try again", `:410`). The gap needs a caller's own
+    `Prompter` that returns an empty or all-space key: `promptAPIKey` trims it
+    to empty and the wizard returns it as a key, with no check and no error, at
+    `b109cea` and on this staging alike, for every provider. A scratch test on
+    this staging, with such a `Prompter`, agrees: Kilo, `Discover`, `"   "`:
+    `err=<nil> key="" profile reads=0`, and OpenCode Zen the same;
+    `signin.VerifyKilo("")` refuses it (`TestVerifyKilo_0080/no_credential`).
+    The first account of it, in the first review's second round and in this
+    entry's earlier text, said a key "typed as only spaces" was returned
+    unchecked; the third review corrected it, and this is the corrected
+    statement. The wizard's check skips an empty token
+    (`wizard/kilo_verify.go:94`), with a comment saying why. The docs say so
+    (README, CHANGELOG, architecture).
+  * **A flaky test of another package,** hit once by the fourth review's race
+    run: `TestStart_NoLoopback_0074/grok` failed with "something listens at
+    127.0.0.1:53531; want no listener under NoLoopback"
+    (`llmprovider/x/signin/start_browser_0074_test.go:277`). The test picks a
+    random port between 49152 and 65535 and dials it (`:314` to `:331`), so
+    another package's loopback listener in the same `go test` can hold it. The
+    file is byte-identical to `b109cea`, and a rerun of the package passed ten
+    rounds. It is a pre-existing flaky test, not 0080's, and it is going to the
+    owner; 0080 does not change it, and this phase did not touch the test.
+* **Point 4, one request, the right origin.** The stand-in counts: one profile
+  read where the MADR says one (typed, environment, saved, device key: the
+  key tests assert `1` or the token list); none with an organization
+  (`TestKiloVerify_OrganizationReadsNoProfile_0080`, both cases, and, since
+  the first review, an organization in a token's embedded URL or in the
+  endpoint's path), none with `Discover` false
+  (`TestKiloVerify_NoDiscoverNoRead_0080`: 0 requests for a typed key and a
+  device key, 1 for a device session, its menu's), none for another provider
+  (`TestKiloVerify_OtherProvidersReadNoProfile_0080`); the device session
+  reads once, not twice (`TestKiloVerify_DeviceSessionRefused_0080`,
+  `TestKiloVerify_OutagesWarn_0080`). Origin: a custom endpoint,
+  `kilo.example.test` (`TestKiloVerify_RequestNamed_0080`: host, path
+  `/api/profile`, the application's User-Agent, the key as bearer); and a
+  scratch test of a token that embeds a backend URL,
+  `https://backend.example.test:<secret>`, sent the profile to
+  `backend.example.test/api/profile` and the listing to the same host, as
+  `KiloProfile` does. Nothing is sent to an origin the caller did not choose:
+  the options are the caller's, as `resolveKiloDevice` built them. The edge
+  this item first named, a token whose embedded URL names an organization, is
+  the first review's S-4, resolved by ruling 2 below.
+* **Point 5, API surface.** Exactly one new exported name,
+  `signin.VerifyKilo`, in `llmprovider/x/signin` (`verify.go:74`), with a doc
+  comment that names each kind (R52). `internal/signinflow`'s and
+  `internal/kiloendpoint`'s names are internal. See "Review and fixes" for the
+  API check's lines on the final tree.
+* **Gates of the first staging,** after its last change to any Go file, each
+  exit status taken before any filter, all `exit=0` (superseded by the final
+  gates below): the full suite on the Windows laptop by `run-on-host` (42
+  packages `ok`), `make pre-add-check` on the 13 Go files by `run-heavy`
+  (after a 409 s wait in the queue), `go vet` with and without `live_gateways`
+  and for Windows, `GOOS=windows go build`, `make api-check docs-check
+  tables-check changelog-check dep-check parity-check` and
+  `tools/apidiff.py v1.31.0`, `gofmt -l`.
+* **Docs rows.** Fixed: `wizard/configure.go` (Options.Discover,
+  Options.DiscoverLimit, Options.ProviderOptions, Options.KiloDeviceKey,
+  ConfigureLLM, ResolveCredential, credentialStep); `wizard/auth.go`
+  (`resolveKiloDevice`, `resolveKiloDeviceKey`, two field comments);
+  `wizard/prompter.go` (the package doc); `llmprovider/auth/kilo_device.go`
+  (`KiloProfile`); `llmprovider/x/signin/doc.go`; `README.md` (the `x/signin`
+  section and the wizard's bullets); `docs/architecture.md` (the package
+  tables, the Kilo device login, "The wizard", "The handle", "Kilo", "A
+  refused key"); `docs/guides/api-standards.md` (R2's `x/signin` and
+  `internal/signinflow` rows); `CHANGELOG.md` `[Unreleased]` (Added and
+  Changed); dated notes of 2026-11-17 in 0056-MADR D2, 0017-MADR D2,
+  0059-MADR W2 and 0028-MADR D-H10, each pointing at 0080-MADR. No
+  `docs/README.md` row changed: no record's title or status changed. The
+  reviews' docs changes are listed below.
+
+#### Review and fixes (2026-11-17)
+
+* **Provenance.** Four independent strongest-tier reviews at high effort, each
+  on the coordinator's brief, of the staging as it then stood. The first
+  reviewed the first staging at `b109cea` (22 files; the first report said
+  21). Its verdict, relayed by the coordinator: the behaviour is right for
+  every credential's refusal and save (the whole module and ten race rounds
+  pass, 17 of its 21 own breaks were caught, the API check is clean), and not
+  committable as staged: two false statements, two things in `VerifyKilo`,
+  two test gaps and two owner rulings. The reviewer first reported 19 of its
+  21 breaks caught and corrected its own count in its second round: its first
+  round log shows 17, since B2b and B2c survived because the organization
+  guard was duplicated, and B5b and B13 were real test gaps. The second review
+  found the code to do what the decision and the two rulings say in every case
+  it ran (31 breaks, 29 caught; race rounds and the whole module clean; the
+  package move judged necessary and the smaller risk), and two survivors, R1d
+  and R1e, closed below. The third review (43 of its breaks caught; race rounds
+  and the whole module clean; the listing's request unchanged against
+  `b109cea`) found everything in the fourth staging's delta right except one
+  defect in R-D, which let the wizard accept a wrong key with no check (R-D
+  below), and some false statements, corrected in place below. The fourth
+  review passed the fifth staging ("this can be committed as staged"): the
+  blocker fixed by construction; the listing's actual requests identical to
+  `b109cea` in all 48 rows of its comparison (four providers by twelve
+  caller-option sets); 51 of 52 breaks caught, the one survivor a double entry
+  of the same organization, which changes nothing; the one flake above; and two
+  should-fix items and three notes, closed in this entry: the listing's option
+  order pinned for every provider, the "three files" statement corrected, the
+  `kiloProfileOptions` comment narrowed, the `TextPrompter` citation completed
+  and the flake recorded. The fixes are by the same executing agent, a
+  mainstream model at high effort, on the coordinator's second, third, fourth,
+  fifth and sixth briefs. Two coordinator's decisions, recorded as such and not the owner's:
+  the two added tests stay (each is the only test that catches one break), and
+  the stricter handling of a done context stays (Point 3 above).
+* **B-1, a device session whose ctx ends showed a warning.** Under `Discover`
+  a device session whose ctx ended shows no menu warning
+  (`wizard/auth.go:421`); the check returns ctx's error
+  (`wizard/kilo_verify.go:126`, `signinflow.VerifyKilo`'s ctx check,
+  `internal/signinflow/kilo.go:116`).
+  `TestKiloVerify_EndedContext_0080`'s device-session case runs the same
+  assertion as the typed key's (`assertEnded`, which also forbids "could not
+  read"). Plant (the ended-ctx condition dropped): `--- FAIL:
+  TestKiloVerify_EndedContext_0080`. The two sentences of this entry that
+  said so are corrected in place above.
+* **R-A, the device session's notices under `Discover`, the owner's ruling of
+  2026-11-17, relayed by the coordinator: "Two notices".** As put: the staged
+  code showed only D6's warning, so a person whose account has organizations
+  was put on the personal account without being told, which affects whose
+  usage and billing apply; the record asks for one warning but does not
+  settle this; the option chosen reads "The decision's warning and the old
+  organisation-menu warning both show. Says everything, but contradicts the
+  decision's "one warning"." This replaces the first review's B-2 as built
+  (D6's warning alone, which was the coordinator's reading, superseded). Built:
+  under `Discover`, a device session whose profile read ends in anything that
+  is not a refusal and not the caller's ctx ending shows two notices, each
+  once, the session saved: first "could not read the Kilo account's
+  organizations (<class>); using the personal account"
+  (`wizard/auth.go:433`), then "could not verify the Kilo key (<class>); it is
+  saved unchecked" (`wizard/kilo_verify.go:128`). Unchanged: a 401 is a
+  refusal with no menu warning (D3); an ended ctx shows nothing and saves
+  nothing; without `Discover` the menu's warning alone. The order: the menu's
+  first, because it reports what happened first (the organizations could not
+  be read, the personal account is used) and the check's then reports the
+  conclusion for the key; it is also the order the code runs in. Tests:
+  `assertSessionOutage0080` (`wizard/kilo_verify_0080_test.go:359`) requires
+  each notice exactly once and the menu's first; the device-session cases of
+  `TestKiloVerify_OutagesWarn_0080` (403, 503, and the stall, `:466`) use it,
+  which tightens them from "either wording" and then from "D6's alone" to the
+  ruling (a test change that makes the test say what the owner ruled);
+  `TestKiloVerify_DeviceSessionRefused_0080` asserts no menu warning beside a
+  401. Plants: the menu's warning missing under `Discover`: `--- FAIL:
+  TestKiloVerify_OutagesWarn_0080`; D6's warning missing for the device
+  session: `--- FAIL: TestKiloVerify_OutagesWarn_0080`; the menu's warning
+  returning on a 401: `--- FAIL: TestKiloVerify_DeviceSessionRefused_0080`;
+  the menu's warning shown for an ended ctx: `--- FAIL:
+  TestKiloVerify_EndedContext_0080`; the menu's warning lost without
+  `Discover`: `--- FAIL: TestKiloVerify_NoDiscoverNoRead_0080`. The MADR has a
+  dated amendment at D6 saying it departs from "one warning" for this case,
+  and its earlier staged addition at D6, the coordinator's reading, is
+  corrected in place to say it was superseded.
+* **Ruling 1 (the first review's S-1), the owner's ruling, relayed by the
+  coordinator: "Its own 10 s bound; a stall is "cannot say"".** As put:
+  `VerifyKilo` bounds its profile read by 10 s itself and returns nil when
+  that passes, as for any outage; it returns the context's error only when the
+  caller's own context ended; one rule for the wizard and for callers such as
+  gobble, matching Q5. Options not chosen: document it and let the caller
+  handle its deadline; a bound the caller can set, defaulting to 10 s. Built:
+  the 10 s is `signinflow.DefaultCheckLimit` (`internal/signinflow/kilo.go:18`),
+  which the wizard's default discovery limit is too
+  (`wizard/configure.go:26`): one constant. `signin.VerifyKilo` bounds its read
+  with it (`llmprovider/x/signin/verify.go:15`, `:80`) and tells the two ends
+  apart by whose context ended: after an unverified result it returns an error
+  only if the caller's own `ctx.Err()` is non-nil (`:87`); its own bound ends
+  only the derived context, so that case is nil. When both ended at once the
+  caller's ctx wins. The doc comment says exactly this; the README example
+  switches on `errors.Is(err, llmprovider.ErrAuthFailure)` and returns any
+  other error, which is ctx's or a mistake in `opts`, so it no longer fails a
+  sign-in on a slow network. Tests (`llmprovider/x/signin/verify_review_0080_test.go`,
+  `TestVerifyKilo_Stall_0080`): a stall with no caller deadline returns nil
+  after about the bound, shortened to 150 ms by `signin.SetVerifyLimit`
+  (`llmprovider/x/signin/verify_export_0080_test.go:13`), a seam in a test
+  file, so no exported name; a caller deadline that ends first returns its
+  error within about 150 ms of a 5 s bound. Each carries a 3 s caller deadline
+  as a guard, so a missing bound fails the test. Plants: no bound of its own:
+  `--- FAIL: TestVerifyKilo_Stall_0080/the_function's_own_bound_passes`; the
+  caller's end read as "cannot say": `--- FAIL: TestVerifyKilo_Stall_0080` and
+  `TestVerifyKilo_0080/ctx_ended`; the bound's own end returned as an error:
+  `--- FAIL: TestVerifyKilo_Stall_0080`. The dated additions are at D10 and Q5
+  in the MADR.
+  * **The 10 s is pinned (the second review's R1d and R1e survived).** A
+    test holds `DefaultCheckLimit == 10*time.Second`
+    (`internal/signinflow/kilo_org_0080_test.go:78`, `TestDefaultCheckLimit_0080`),
+    one that `signin`'s limit starts equal to it and to 10 s
+    (`llmprovider/x/signin/verify_export_0080_test.go:24`,
+    `TestVerifyLimitStartsAtTheDefault_0080`, in the package, through the
+    existing export file, no new exported name), and one that the wizard's
+    default limit is it (`wizard/kilo_verify_ctx_0080_test.go:97`,
+    `TestDiscoverLimit_0080`). Plants: `verifyLimit` set to 30 s (R1d): `---
+    FAIL: TestVerifyLimitStartsAtTheDefault_0080`; `DefaultCheckLimit` set to
+    30 s (R1e): `--- FAIL: TestDefaultCheckLimit_0080` and
+    `TestVerifyLimitStartsAtTheDefault_0080`; the wizard's default constant set
+    to 30 s: `--- FAIL: TestDiscoverLimit_0080`.
+* **Ruling 2 (the first review's S-4), the owner's ruling, relayed by the
+  coordinator: "Treat it as having an organisation: no profile read".** As
+  put: a token whose embedded URL names an organisation is checked by that
+  organisation's listing alone, as D4 intends, so a valid organisation token
+  cannot be refused by an unverified check; needs a small shared helper,
+  because of Go's internal-package rule. Options not chosen: accept it as
+  built and name the risk; skip the profile check for any token that embeds a
+  URL. Built: the organization the SDK resolves for the listing is
+  `internal/kiloendpoint` `Organization` (`internal/kiloendpoint/kiloendpoint.go:95`):
+  the explicit one, else the one a token's embedded URL names (`Resolve`),
+  else the one the base URL's own path names. The package could not stay in
+  `llmprovider/internal`, which `internal/signinflow` and `wizard` may not
+  import, so it moved, by `git mv`, to the module's own `internal/kiloendpoint`,
+  with its three importers (`catalog`, `providers/kilo`, `auth`) and two
+  live-tagged tests re-pointed and the docs' two table rows renamed
+  (`make tables-check`, `dep-check`: 0 problems). No exported name changed;
+  the second review judged the move necessary and the smaller risk, and it
+  stays. `signinflow.VerifyKilo` decides, once, for the wizard and for
+  `signin.VerifyKilo`: `internal/signinflow/kilo.go:113`. Tests:
+  `TestOrganization_0080` (`internal/kiloendpoint/kiloendpoint_test.go:52`:
+  its eight rows, which are no organization, an explicit one, a token's
+  embedded URL with and without an explicit one, a token's URL with a prefix
+  and no organization, a base URL whose path names one with and without a
+  trailing slash, and a plain gateway base, give the organization each should,
+  and in each row the result is non-empty exactly when the listing URL
+  `Resolve` builds contains "/organizations/"; that is all it shows);
+  `TestVerifyKilo_OrganizationFromTheCredential_0080` (`internal/signinflow`,
+  and `llmprovider/x/signin`);
+  `TestKiloVerify_EmbeddedOrganizationReadsNoProfile_0080` and
+  `TestKiloVerify_BaseURLOrganizationReadsNoProfile_0080` (`wizard`: no
+  profile request, the organization's listing alone refuses the first key and
+  accepts the second). Plants: the token's organization ignored, the base
+  URL's path ignored, `signinflow` reading no base URL from the options, each
+  `--- FAIL` in those tests. The dated addition is at D4 in the MADR.
+* **R-B, a base URL whose path names an organization, the owner's ruling of
+  2026-11-17, relayed by the coordinator: "Count it; record the unprobed
+  listing as not verified (Recommended)".** As built: such a base URL counts as
+  having an organization and the profile is not read. This is not part of the
+  earlier ruling "Treat it as having an organisation: no profile read", which
+  is the token's embedded URL; the MADR's D4 says so in two dated additions.
+  Not verified, recorded in the MADR ("Not verified") and here: that the
+  organization listing sent WITHOUT the `X-KILOCODE-ORGANIZATIONID` header
+  refuses a wrong key. `llmprovider/catalog/discovery.go:1413` to `:1424`
+  (confirmed): `Resolve` builds the listing's URL, and the header is set only
+  when `endpoints.Org` is non-empty, which a base URL's path does not make so.
+  The live probes L7 and L8 sent the header; L9 to L12 are not recorded as sent
+  with it and used a made-up organization and token, so their 401 does not
+  show it; the test stand-in checks the bearer token only
+  (`wizard/kilo_verify_0080_test.go:117` to `:122`). The changelog and the
+  README name it among their limit lines, now four.
+* **R-C, a key that a caller's own `Prompter` returns empty, the owner's
+  ruling of 2026-11-17, relayed by the coordinator: "A record of its own:
+  refuse an empty key at the prompt, every provider (Recommended)".** 0080 does
+  not change it. It is listed above under "Found, not changed by 0080", with
+  the facts as the third review corrected them: the gap is a caller's own
+  `Prompter` returning an empty or all-space key, which `TextPrompter` never
+  does. The wizard's check leaves an empty token unchecked
+  (`wizard/kilo_verify.go:94`), as every provider's check does, and the docs
+  say so; `signin.VerifyKilo("")` refuses it.
+* **S-2, a caller's mistake read as "cannot say".** `signin.VerifyKilo` now
+  resolves its options first (`signinflow.CheckKiloOptions`,
+  `internal/signinflow/kilo.go:75`; called at `llmprovider/x/signin/verify.go:75`)
+  and returns the error, matching `ErrInvalidRequest`, with no request, for an
+  option scoped to another provider or a base URL that does not parse.
+  `TestVerifyKilo_Mistakes_0080` and `TestCheckKiloOptions_0080`
+  (`internal/signinflow/kilo_org_0080_test.go:55`); plants (no check; the check
+  reports nothing): `--- FAIL`. A first version of the check also parsed the
+  resolved gateway URL; its plant survived because `ResolveOptions` already
+  rejects an unparsable base URL, so the extra parse was dead and was removed.
+* **S-3, two breaks survived.** (a) `TestKiloVerify_OutagesWarn_0080` has a
+  device-session stall case (`wizard/kilo_verify_0080_test.go:466`); plants
+  (the session's read bounded by 30 s, or not at all): `--- FAIL`. (b)
+  `TestKiloVerify_DeviceSessionRefused_0080` asserts that the menu's warning is
+  absent beside the refusal (D3); plant (the 401 warned about as before): `---
+  FAIL`. Both additions, and R-A's change to the device-session cases of
+  `TestKiloVerify_OutagesWarn_0080`, edit Phase 2's
+  `wizard/kilo_verify_0080_test.go`, each to make a test say what the MADR or
+  the owner's ruling says; nothing was loosened.
+* **N-6, the duplicated organization guard.** There is one now: the wizard's
+  own `res.Organization != ""` guard was removed, and
+  `signinflow.VerifyKilo`'s rule (`internal/signinflow/kilo.go:113`) decides for
+  both. The device session's carried read goes through the same function by a
+  `read` that returns the carried result (`wizard/kilo_verify.go:102` to
+  `:109`), so the rule applies to it too. Plants (the rule off, the wizard
+  passing none, `signinflow` ignoring the explicit organization): `--- FAIL`.
+* **Docs lines.** `CHANGELOG.md` and `README.md` name the four limits (N-1: a
+  key valid only for an organization, typed with none entered, is read at the
+  profile, not verified live; N-5: with `https://ai-gateway.kilo.ai/api/v1` as
+  the endpoint the profile answers 404, so every sign-in warns and a wrong key
+  passes with that warning, by D7; R-B's unprobed listing; R-C's empty key
+  from a caller's own `Prompter`), and say two notices for a device session and that the personal
+  account is used. `VerifyKilo`'s doc says plainly that nil is verified or
+  cannot say, and where a caller reads the profile itself (N-3). The N-7
+  slips: `internal/signinflow/kilo.go`'s comment on bounds now says who
+  bounds (the caller, by ctx: the wizard by `DiscoverLimit`,
+  `signin.VerifyKilo` by `DefaultCheckLimit`); the changelog's "and `ctx`'s
+  error" is completed; "21 files" was 22. N-4: `VerifyKilo`'s doc no longer
+  says "Its text holds no key", and says the redaction is by pattern; the MADR
+  has a dated addition under Consequences, with N-1 and N-5. The architecture
+  and the R2 tables name `internal/kiloendpoint` and the new `signinflow`
+  names. The sentences that said an organization was "given" state
+  the listing's real order, once, as R-D below built it, and the README,
+  CHANGELOG, architecture, the MADR and the doc comments say the same thing;
+  the earlier wording, "in that order of precedence" with the Result's
+  organization first, was false and is corrected in place.
+* **R-D, an organization given through the caller's provider options, the
+  owner's ruling of 2026-11-17, relayed by the coordinator: "Share the type
+  internally and fix it now (Recommended)".** The second review's item 3
+  asked whether the profile is read when the organization is passed as
+  `ProviderOptions: For(Kilo, catalog.WithKiloOrganization(x))`. A scratch test
+  said yes (the listing was the organization's and the profile was read once
+  as well), and the fix needed more than the one place the brief allowed, so
+  it stopped, and the owner ruled. As put: the rule is that a Kilo credential
+  with an organisation reads no profile; a test showed the profile is still
+  read when the calling program supplies the organisation through the wizard's
+  provider options; the fix needs one internal type shared across three
+  packages. The option chosen read:
+  "Three files, no exported name, the listing behaves as before. The rule then holds for every way an organisation can be given, with a test and a planted break. One more short pass and re-check before the commit."
+  Built: the option's value is
+  `kiloendpoint.OrganizationOption` (`internal/kiloendpoint/kiloendpoint.go:33`),
+  which `catalog.WithKiloOrganization` carries (`llmprovider/catalog/config.go:167`)
+  and the listing's configuration reads (`:212`), replacing catalog's own
+  unexported type; `signinflow.VerifyKilo` reads it from the resolved options at
+  the one place the organization is decided (`internal/signinflow/kilo.go:56`,
+  `kiloInputs`, called at `:113`, through `kiloendpoint.OptionOrganization`,
+  `internal/kiloendpoint/kiloendpoint.go:44`). Five non-test files changed for
+  it, not three: `internal/kiloendpoint/kiloendpoint.go`,
+  `llmprovider/catalog/config.go` and `internal/signinflow/kilo.go`, the three of the
+  option the owner chose, and `wizard/configure.go` and
+  `wizard/kilo_verify.go`, for the one place the options are built (below); no
+  exported name was added or changed. **The coordinator's decision, not the
+  owner's ruling:** the option the owner chose read "Three files, no exported
+  name, the listing behaves as before..."; the third review's blocker could only
+  be closed by also building the options in one place in the wizard; the
+  coordinator judged that inside the ruling's purpose (the check decides by the
+  listing's own rule), on the evidence that no exported name changed and that
+  the fourth review found the listing's requests identical to `b109cea` in 48
+  of 48 rows (four providers by twelve caller-option sets); the owner is told. The listing's request is what it was: the existing
+  `catalog` and `providers/kilo` tests, among them the one that asserts the
+  organization's URL and header for `WithKiloOrganization`
+  (`llmprovider/providers/kilo/listing_test.go`,
+  `TestListModels_ListsTheOrganization`), pass unchanged, and the catalog test
+  below asserts the request's URL and header for every source.
+  * **The defect the third review found, and was right about.** A wrong typed
+    Kilo key was accepted with no check when `Options.ProviderOptions` held
+    `catalog.WithKiloOrganization("org-x")` directly, outside any `For`, and
+    the Result had no organization: the reviewer's probe gave
+    `accepted=true err=<nil> profileReads=0 requests=["api.kilo.ai/api/gateway/models hdr="]`,
+    the public listing, which authenticates nothing. Each step of its reading
+    was verified here, on a scratch copy of the fourth staging: (1) `kiloInputs`
+    resolved the check's own options, which were the identity, the endpoint,
+    the client and `Options.ProviderOptions`, and found `org-x`, so it decided
+    the credential had an organization and read no profile; (2)
+    `llmprovider.ResolveOptions` applies every option outside a `For` before
+    any `For` (`llmprovider/settings.go:191` to `:213`; its doc says so); (3)
+    the listing's options, built by `discoverModels`, also carried the wizard's
+    own `For(Kilo, WithKiloOrganization(res.Organization))`, which is a `For`,
+    so the Result's empty organization was applied after the direct `org-x`
+    and the listing went to the public URL; (4) the probe's first row, on the
+    fourth staging, gave the result above. The check and the listing
+    disagreed, and neither checked the key. My table of the fourth pass used
+    only the `For` form, and the catalog test resolved one option set for both
+    sides, so neither could see it.
+  * **The fix, by construction:** the check is given the listing's options, and
+    they are built in one place, `Options.listingOptions`
+    (`wizard/configure.go:853`), the wizard's own `For` among them at its
+    actual position. Its two callers: `discoverModels`
+    (`wizard/configure.go:899`) and `verifyKilo`
+    (`wizard/kilo_verify.go:117`, which passes them to `signinflow.VerifyKilo`
+    with no organization argument, since the Result's is in them). A change of
+    the listing's options changes the check's. No exported name, and no file
+    beyond the wizard, `signinflow` and `kiloendpoint` already touched.
+    For `signin.VerifyKilo`, whose `organization` argument has no wizard
+    around it, the argument, when not empty, is one more option put where the
+    wizard puts the Result's: `catalog.WithKiloOrganization(organization)`
+    inside a `For` for Kilo, before every `For` of the caller's and after every
+    option outside a `For` (`internal/signinflow/kilo.go:56`); an empty one adds
+    nothing, so an organization option of the caller's stands. Its doc says
+    that, and what a caller who then lists or builds a provider with the same
+    arguments must do to get the listing the decision assumed
+    (`llmprovider/x/signin/verify.go:36` to `:50`).
+  * **The precedence, stated once, as the listing's real order.** The
+    explicit organization is the last `catalog.WithKiloOrganization` applied, an
+    empty one included, replacing an earlier one, where `ResolveOptions`
+    applies the options outside a `For` first, in order, then those inside
+    `For(Kilo, ...)`, in order; the wizard's own `For`, carrying the Result's
+    organization (a kept session's, or a device session's choice), is before
+    any `For` of `Options.ProviderOptions`: so an option the caller gives inside
+    a `For` replaces the Result's, and one given outside a `For` is replaced by
+    it, even when the Result's is empty. With no explicit organization, a
+    token's embedded URL names one; failing that, the base URL's own path does.
+    The listing for the first two sends the organization header, for the third
+    none (R-B). The same sentence is in `kiloendpoint.OptionOrganization`'s doc
+    (`internal/kiloendpoint/kiloendpoint.go:36` to `:43`), the MADR's D4
+    (corrected in place, with a dated line saying the third review found the
+    earlier wording false), the README, the CHANGELOG, the architecture and
+    `ResolveCredential`'s doc. The earlier wording, which put the Result's
+    organization first and said the options replace it, was false.
+  * **Tests.** `TestKiloVerify_OptionForms_0080`
+    (`wizard/kilo_verify_forms_0080_test.go:25`, 29 subtests): the reviewer's ten
+    rows as typed-key rows, each run twice, once with a key the stand-in accepts,
+    asserting what the check did (profile requests) and where the listing went
+    (URL and organization header), and in every row that either the profile was
+    read or the listing was an organization's, never neither; and once with a
+    key the service refuses, asserting the refusal; then rows with the Result's
+    own organization against each option form (a kept session's: five rows; a
+    device session's choice: four rows). Seen failing on the fourth staging
+    first (a scratch copy of it with this file and the reviewer's probe files added): 3 of the 29
+    subtests failed, "a direct option" with profile requests 0 and want 1 and
+    "no profile request and the listing "/api/gateway/models" is not an
+    organization's: a wrong key would be accepted", its wrong-key twin with
+    "error nil; want a refusal saying "refused 3 keys"", and "a kept session's
+    organization and a direct empty option" with profile requests 1 and want 0;
+    the other 26 passed there, because the wizard's own `For` reached the check
+    only in those forms; all 29 pass on the final staging.
+    `TestKiloListing_OrganizationPrecedence_0080`
+    (`llmprovider/catalog/kilo_org_0080_test.go:32`, 14 rows): each
+    combination of sources, direct and `For` options in each order, a token's
+    URL and a base path, the listing's actual request, URL and header, against
+    a server, and the organization the check decides from the same resolved
+    options, which must agree. `TestVerifyKilo_OrganizationPrecedence_0080`
+    (`internal/signinflow/kilo_org_0080_test.go:95`, 17 rows) and
+    `TestVerifyKilo_OptionForms_0080`
+    (`llmprovider/x/signin/verify_review_0080_test.go:120`, 9 rows): the
+    check's decision for the argument against direct and `For` options in each
+    order, an empty one, a token's URL, a base path, and a `For` for another
+    provider. `TestOptionOrganization_0080`
+    (`internal/kiloendpoint/kiloendpoint_test.go:76`): the last option wins, an
+    empty one replaces.
+    `TestKiloVerify_ProviderOptionOrganizationReadsNoProfile_0080`
+    (`wizard/kilo_verify_org_0080_test.go:85`) and
+    `TestVerifyKilo_OrganizationFromTheCredential_0080`
+    (`llmprovider/x/signin/verify_review_0080_test.go:89`) stay.
+  * **Plants** (`--- FAIL` lines from the breaks log): the check given the
+    caller's options without the wizard's own (the fourth staging's
+    construction): --- FAIL: TestKiloVerify_OptionForms_0080; the two built in
+    different orders (the check's reversed): --- FAIL: TestKiloVerify_OptionForms_0080; the
+    argument entering after the caller's options: --- FAIL: TestVerifyKilo_OrganizationPrecedence_0080; the
+    listing built with one more option than the check: --- FAIL: TestConfigureLLM_KiloListsTheChosenOrganization; the option
+    ignored at the decision place: --- FAIL: TestKept_KiloRefusedLeadsToSignIn_0066; the first option
+    winning: --- FAIL: TestKiloVerify_OptionForms_0080; an empty option not replacing: --- FAIL: TestKiloVerify_OptionForms_0080; the
+    listing ignoring the shared type: --- FAIL: TestConfigureLLM_KiloListsTheChosenOrganization.
+* **The listing's option order, pinned for every provider (the fourth
+  review's D10 and D9).** Nothing held it outside Kilo: with the caller's
+  `WithHTTPClient` moved after `ProviderOptions` in `Options.listingOptions`,
+  the whole `wizard` package still passed although a caller's own client then
+  stopped winning, and a full move of `ProviderOptions` to the front, which
+  changes Claude's and OpenAI's limit, client and workspace, was caught only
+  through two Kilo tests. This is a gap that existed at `b109cea` (the
+  wizard's listing options were built inline in `discoverModels` with
+  `ProviderOptions` last, and no test said so) and that the refactor made
+  matter, since the sign-in check is now given the same options. Test, no
+  production code changed for it: `TestListingOptions_CallerOptionsComeLast_0080`
+  (`wizard/listing_options_0080_test.go:80`, 19 subtests, from the reviewer's
+  probe): for Kilo, Claude, OpenAI and a `chatcompat` descriptor, through the
+  listing's actual request, a row with no caller option (the wizard's own
+  client, endpoint and `ModelLimit` of 2 apply, and no Claude workspace), and
+  rows where the caller's own `ProviderOptions` win: its client (every listing
+  request goes through it), its endpoint (every request goes to its host), its
+  `catalog.WithLimit(1)` (one model recommended, not the wizard's two; not for
+  the `chatcompat` descriptor, which refuses `WithLimit` in `ProviderOptions`,
+  0038-MADR D5), and a Claude workspace in `For(Claude, ...)` (the
+  `Anthropic-Workspace-Id` header on Claude's requests, and on no other
+  provider's). Plants, on a scratch copy, whole `wizard` package: the wizard's
+  client after the caller's options (D10): `--- FAIL:
+  TestListingOptions_CallerOptionsComeLast_0080/kilo,_the_caller's_client`, and
+  the same for Claude and OpenAI, and no other test of the package failed, so
+  this test alone holds it; `ProviderOptions` moved to the front (the reviewer's
+  corrected D9): `--- FAIL: TestListingOptions_CallerOptionsComeLast_0080/kilo,_the_caller's_endpoint`,
+  its client, limit and workspace rows for the providers they apply to, and
+  the Kilo option-form tests as well.
+* **The breaks re-run** on the final tree, on a scratch copy
+  (`breaks4.py`): the third reviewer's 43, loaded from its own `breaks3.py`,
+  each as it wrote it except where its old string is gone from the final code,
+  and then re-formed and named as such in the log (B2b, N5 and N9), plus four
+  of this phase's own (F1 to F4, above), all `CAUGHT` by a test failure and
+  none by a build failure; the table is in the report to the coordinator.
+* **Gates, after the last change to any Go file** (this pass changed one comment of production code and added one test; the fifth pass's race run of six packages, its breaks and its gates stand for the rest, and the whole module was run again), each exit status taken before any filter (`gates.log` of the scratch folder):
+  * `vet`: start=13:07:14 end=13:07:16 exit=0
+  * `vet-windows`: start=13:07:16 end=13:07:18 exit=0
+  * `vet-live`: start=13:07:18 end=13:07:19 exit=0
+  * `build-windows`: start=13:07:19 end=13:07:20 exit=0
+  * `api-check`: start=13:07:20 end=13:07:26 exit=0 "api-check: against v1.31.0, 0 incompatible change(s) outside llmprovider/x/".
+  * `apidiff`: start=13:07:26 end=13:07:31 exit=0 `tools/apidiff.py v1.31.0`: "Compatible changes:" and "- ./llmprovider/x/signin.VerifyKilo: added", nothing else.
+  * `docs-check`: start=13:07:31 end=13:07:32 exit=0 "sdkaudit: 0 violation(s) of R50,R51,R52".
+  * `tables-check`: start=13:07:32 end=13:07:33 exit=0 "check-tables: 47 packages, 0 problem(s)".
+  * `changelog-check`: start=13:07:33 end=13:07:34 exit=0
+  * `dep-check`: start=13:07:34 end=13:07:37 exit=0
+  * `parity-check`: start=13:07:37 end=13:07:39 exit=0
+  * `gofmt`: start=13:07:40 end=13:07:40 exit=0
+  * `preadd`: start=13:07:14 end=13:07:40 exit=0 `make pre-add-check` on the 27 changed Go files, through `run-heavy`: "go-precheck: 27 file(s) clean (gofmt, golangci-lint, go vet, go test, govulncheck)".
+  * `fullsuite`: start=13:07:14 end=13:08:50 exit=0 `go test -count=1 ./...` through `run-on-host --need any`, which `pick-host` placed on the Windows laptop: 42 packages `ok`, no `FAIL`.
+  * `race-wizard`: start=13:07:14 end=13:09:01 exit=0 `go test -race -count=10 -timeout 20m ./wizard/` through `run-heavy` on the session host: `ok`.
+  * After the last edit of any record, run again and appended to `gates.log`, each exit 0: `make records-check`, `links-check`, `disclosure-check`, `markdownlint`, `changelog-check`, `tables-check`, `docs-check`; `tools/claims.py` on the four records that hold evidence rows (0080-PLAN 18 of 18, 0080-MADR 67 of 67, 0056-MADR 29 of 29, 0059-MADR 23 of 23; 0017-MADR and 0028-MADR hold none); `tools/denyscan.py --changed`; `tools/recordlint.py --changed` (no rule rose).
+* **Not verified:** a live run (none; the owner's runs are Phase 1's); the
+  planted breaks in `tools/plant.py`'s form, and the CI set and the full gate,
+  which are Phase 4's; that a real Kilo's profile accepts a key valid only for
+  an organization; that the organization listing sent without the header
+  refuses a wrong key (R-B; the MADR's "Not verified"); the real 10 s of
+  `signin.VerifyKilo` (tested at 150 ms, and the constant pinned at 10 s);
+  the Linux host for the whole module.
+* **Staged, not committed; the coordinator commits.**

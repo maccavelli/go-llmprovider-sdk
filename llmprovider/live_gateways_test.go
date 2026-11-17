@@ -41,7 +41,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/kiloendpoint"
+	"github.com/maccavelli/go-llmprovider-sdk/internal/kiloendpoint"
 	"github.com/maccavelli/go-llmprovider-sdk/llmprovider/internal/transport"
 )
 

@@ -9,6 +9,12 @@
 // Consumers implement Prompter over whatever they already use. TextPrompter is
 // provided for those with no toolkit at all.
 //
+// With Options.Discover the flow checks a credential by listing the provider's
+// models with it, and a credential the provider refuses is asked for again or
+// ends the run. Kilo's public listing answers every credential, so for a Kilo
+// credential used with no organization the check is a read of Kilo's profile
+// first, whose 401 is that refusal and whose other failures are a warning.
+//
 // A terminal program with no toolkit runs the flow over its standard input and
 // output, and keeps the Result in its own configuration:
 //
