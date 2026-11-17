@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-166 records. Cite them by full filename.
+168 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -176,6 +176,8 @@ documents a reader follows to do something.
 | 0078 | PLAN | [Implement the Refused Option and the Wait in CachedMetadataWith's Refusal Test](decisions/0078-PLAN-cached-metadata-refusal-test-uses-a-refused-option.md) | complete |
 | 0079 | MADR | [Name the Consuming Application on a Session's Refresh and Revocation and on the ChatGPT Originator](decisions/0079-MADR-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md) | accepted |
 | 0079 | PLAN | [Implement the Consuming Application's Name on a Session's Refresh and Revocation and on the ChatGPT Originator](decisions/0079-PLAN-name-the-app-on-refresh-revocation-and-the-chatgpt-originator.md) | complete |
+| 0080 | MADR | [Verify a Kilo Credential Against Kilo's Profile at Sign-In When No Organization Is Set, Because Kilo's Public Listing Refuses No Key](decisions/0080-MADR-verify-a-kilo-credential-through-its-profile.md) | accepted |
+| 0080 | PLAN | [Implement Verifying a Kilo Credential Against Kilo's Profile at Sign-In When No Organization Is Set](decisions/0080-PLAN-verify-a-kilo-credential-through-its-profile.md) | in-progress |
 
 ## I want to…
 
