@@ -1593,3 +1593,67 @@ below it. The staged tree is the first staging with the reviews' fixes.
   `signin.VerifyKilo` (tested at 150 ms, and the constant pinned at 10 s);
   the Linux host for the whole module.
 * **Staged, not committed; the coordinator commits.**
+
+### Phase 4 (2026-11-17)
+
+* **Provenance.** A mainstream model at low effort, as the phase prices it, on
+  the coordinator's brief. Base commit `bf8e502` (Phase 3's code and tests are
+  `00757ed`), level with `origin/main`, tree clean. No source, test or docs
+  file changed; this entry is the only write. Staged, not committed.
+* **Step 1, `python3 -B tools/plant.py PLANTS.json`** (a scratch clone, 13:57
+  to 13:58; exit 1: one plant not caught under the table's own test filter).
+  Spec: packages `./wizard/`, `./internal/signinflow/`,
+  `./llmprovider/x/signin/`, `-run '_0080$'`. Phase 3 moved the rule to
+  `internal/signinflow/kilo.go` and the listing's options to
+  `Options.listingOptions`, so the table's breaks are re-formed where marked.
+  14 plants (the table's 11, with 2 split in two, and one extra):
+
+  | Break | Failing line | Result |
+  | :--- | :--- | :--- |
+  | 1 the 403 treated as a refusal (`signinflow.Refused`) | `kilo_0080_test.go:91: refused ... not permitted: kilo HTTP 403 ...; want no refusal, only a cause`; `kilo_verify_0080_test.go:508` | caught |
+  | 2a the stall bounded by 100 x `DiscoverLimit`, typed key (re-formed from "30 s": file is `wizard/kilo_verify.go`) | `kilo_verify_0080_test.go:448: took 30.00189625s; want the check bound by DiscoverLimit (300ms), not auth's 30 s` | caught |
+  | 2b the same, device session (`wizard/auth.go`, extra) | `kilo_verify_0080_test.go:483: took 30.001403416s; want the session's read bound by DiscoverLimit (300ms)` | caught |
+  | 3 the check ignores the organization (`kiloendpoint.Organization(...) != "" && false`) | `kilo_verify_0080_test.go:540: 1 profile reads, organization "org-kept-0080"; want none`; `kilo_verify_forms_0080_test.go:137` | caught |
+  | 4 the check runs without Discover | `kilo_verify_0080_test.go:577`, `:588`, `:600` (NoDiscoverNoRead, three cases) | caught |
+  | 5 the check runs for every provider | `kilo_verify_0080_test.go:645: request to "opencode.ai/zen/v1/api/profile"; want no Kilo profile read for opencode-zen` | caught |
+  | 6a identity left off, re-formed: `Options.listingOptions` builds what the check is given | `kilo_verify_0080_test.go:669: profile request: User-Agent "go-llmprovider-sdk/(devel) ..." ... want the application's name` | caught |
+  | 6b identity left off the device session's own profile read (`kiloProfileOptions`, extra) | none under `_0080$` (exit 0). Caught by the existing 0079 test under `-run '_0079$\|_0080$'`: `identity_0079_test.go:149: the Kilo profile: User-Agent "go-llmprovider-sdk/(devel) ..." want it to begin "probe-app/1.2.3 ("` | SURVIVED the table's filter; caught by an existing test outside it |
+  | 7 the 401 returned as nil (`KiloVerdict`) | `kilo_verify_0080_test.go:230: ... want "Kilo Gateway refused this key ... enter another" once`; `:262`, `:273` | caught |
+  | 8 the cause dropped (`KiloVerdict`) | `kilo_verify_0080_test.go:421: notices ["live model listing ... unavailable ..."]; want "could not verify the Kilo key (not permitted, HTTP 403)" once` | caught |
+  | 9 a 200 reported unverified (`KiloVerdict`) | `kilo_0080_test.go:101: refused <nil>, unverified x; want neither` | caught |
+  | 10 the 401 returned as nil (`signin.VerifyKilo`) | `verify_0080_test.go:75: error <nil>; want the profile's 401 *APIError matching ErrAuthFailure` | caught |
+  | 11a ctx's error dropped (`signin.VerifyKilo`) | `verify_0080_test.go:109: error <nil>; want one matching context.Canceled`; `verify_review_0080_test.go:57` | caught |
+  | 11b ctx check before the request removed (`signinflow.VerifyKilo`, extra) | `verify_0080_test.go:109: error <nil>; want one matching context.Canceled` | caught |
+
+  Counts: 14 planted; 13 caught by the `_0080$` tests, 1 (6b, an extra the
+  table did not name) not caught by them and caught by
+  `TestWizardOwnRequestsNamed_0079`. All 11 of the table's own breaks are
+  caught. Whether 6b is a gap for the coordinator: no 0080 test pins the
+  device session's profile-read identity; an existing 0079 test does.
+* **Step 2, `redgreen.py RED.json --expect fail --rev ceb489e`** (13:59 to
+  14:00): exit 0, `7 of 7 fail as expected`. On the tree, `--expect pass`
+  refused with `"files" and "drop" need --rev` (exit 2), so it was run with
+  the same spec minus `files`: exit 0, `7 of 7 pass as expected`.
+* **Step 3** (queued, 14:00 to 14:23, ran 12 s): `run-heavy -- go test -race
+  -count=1 -timeout 40m ./internal/signinflow/... ./internal/kiloendpoint/...
+  ./llmprovider/x/signin/... ./llmprovider/auth/... ./wizard/...`, exit 0, five
+  `ok`. `./internal/kiloendpoint/...` was added by the agent since Phase 3
+  moved that package.
+* **Step 4** (queued, 14:25 to 15:03, ran 602 s): `run-heavy -- python3 -B
+  tools/gate.py --timeout 5400`, exit 0, `gate: 30 of 30 passed`.
+* **Step 5** (14:03): `make lint` exit 0 (0 issues); `make vuln` exit 0 (no
+  vulnerabilities); `go vet -tags live_gateways ./...` exit 0. The live tests
+  were compiled, never run.
+* **Step 6** (14:03 to 14:10): `make parity-check dep-check coverage-check
+  api-check contract-check generate-check records-check tables-check
+  fixtures-check changelog-check docs-check markdownlint links-check
+  disclosure-check gate-selftest`, each run on its own, all exit 0;
+  `make tools-test` exit 0 (`Ran 107 tests ... OK`).
+* **Step 7** (14:06): `claims.py` on the MADR and PLAN exit 0 (67 of 67, 18 of
+  18); `denyscan.py --changed` exit 0 (0 hits).
+* **Order.** Steps 5 to 7 ran while step 3 waited in the queue; they do not
+  depend on it.
+* **Not done / not verified.** No live run, no outside request. The plan's
+  `--expect pass` on the tree needed a spec without `files`. 6b above is for
+  the coordinator's ruling. Phase 5 is not started; this PLAN stays as it was.
+* **Staged, not committed.**
