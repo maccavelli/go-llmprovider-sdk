@@ -122,6 +122,10 @@ the MADR and approves this PLAN, whole or by phase.
 * Tests: `wizard/browser_question_0083_test.go` and
   `llmprovider/auth/ports_advice_0083_test.go` (new). The 30 existing
   wizard tests of the table in Phase 1, changed only as that table says.
+* *(Amended 2026-11-17.)* `llmprovider/auth`'s unexported listen hook and
+  `llmprovider/auth/no_loopback_binds_0083_test.go`, and the repair of
+  `TestStart_NoLoopback_0074` in `llmprovider/x/signin/start_browser_0074_test.go`;
+  see "Amendment 2026-11-17: the no-listener test that another program's listener can fail".
 * Docs:
   * `CHANGELOG.md` `[Unreleased]`: "Added" and "Changed";
   * `README.md` "The configuration wizard";
@@ -409,6 +413,9 @@ Acceptance:
 * the API change exactly the two fields;
 * the docs say what a caller sees after a bump, and how to turn it off.
 
+*(Amended 2026-11-17.)* Step 3 also writes `TestNoLoopback_BindsNothing_0083`
+and repairs `TestStart_NoLoopback_0074`, as "Amendment 2026-11-17: the no-listener test that another program's listener can fail" says.
+
 ### Phase 2: planted breaks and the gates
 
 Model: mainstream, low.
@@ -441,6 +448,9 @@ Model: mainstream, low.
 Acceptance: every plant caught; every command exit 0, each status taken
 before any filter; no run on a WSL distro. Docs: none beyond Phase 1's; a
 gate that finds a docs gap is a deviation.
+
+*(Amended 2026-11-17.)* Phase 2 also runs the 50-round `-race` run of the two
+no-listener tests with 1024 listeners held, as "Amendment 2026-11-17: the no-listener test that another program's listener can fail" says.
 
 ### Phase 3: independent review
 
@@ -544,6 +554,8 @@ through `run-heavy` or `run-on-host`, never on a WSL distro.
   `make tools-test`
 * `~/.agents/skills/available-dev-hosts/scripts/run-heavy -- python3 -B tools/gate.py --timeout 5400`
 * `python3 -B tools/claims.py` on the MADR and this PLAN
+* *(Amended 2026-11-17.)* `~/.agents/skills/available-dev-hosts/scripts/run-heavy -- go test -race -count=50 -timeout 20m -run 'TestStart_NoLoopback_0074$|TestNoLoopback_BindsNothing_0083$' ./llmprovider/x/signin/ ./llmprovider/auth/`,
+  with 1024 listeners held in 49152 to 65535
 
 ## Rollout and Rollback
 
@@ -645,3 +657,217 @@ Phase 1 re-reads each at the base.
   * How many of gobble-cli's own tests meet the question.
   * The base, which is not yet committed. Phase 1 step 2 re-runs the
     census there.
+
+## Amendment 2026-11-17: the no-listener test that another program's listener can fail
+
+*(Added 2026-11-17. Nothing above is changed by it; the dated lines above
+point here.)*
+
+### The ruling
+
+The coordinator's account: an independent review's race run of 0080's
+work hit one failure, in a test that 0080 does not touch. The coordinator
+told the owner, and suggested fixing it under this PLAN, since it sits in
+the code this record changes. The owner's words: "yes, fold that into the
+plan".
+
+### What the test proves today, and why it can fail
+
+* **What failed.** `TestStart_NoLoopback_0074/grok` (P25) failed once with
+  "something listens at 127.0.0.1:53531; want no listener under
+  NoLoopback". 0080-PLAN records it, in its execution record under "Found,
+  not changed by 0080", the third item.
+  * The test file is byte-identical at `b109cea` and `a3002aa`
+    (`git diff` empty), and so is every other code file this amendment
+    cites.
+  * A rerun of the package passed ten rounds under `-race`.
+* **What it checks, by subtest:**
+  * **`openai`:** the sign-in completes by a paste with the real `auth`
+    code, against the fake issuer, which is a `RoundTripper`, not a
+    listener (P31). The redirect's port is checked by shape only, since
+    OpenAI's redirect names its first registered port, which another
+    program may hold (P27). Nothing in this test shows that the OpenAI
+    sign-in bound no listener.
+  * **`grok`:** the same, and the helper then dials the redirect's port
+    (P26, P28) and fails if anything answers (P29). That port is drawn at
+    random from 49152 to 65535 and never bound under `NoLoopback` (P32,
+    P38).
+  * **`NoPaste`:** a refusal before any request. No port is involved.
+* **Why the dial can fail with no fault in the code.** The dial reaches
+  any listener on that port: another package's test server in the same
+  `go test`, or any program on the host.
+  * On macOS the ephemeral range is 49152 to 65535 (measured on the
+    session host, `sysctl net.inet.ip.portrange`, RUNF6). Every `:0` bind
+    there, such as each `httptest` server this module's tests start, lands
+    in the range the test draws from.
+  * Linux's default ephemeral range overlaps it from 49152 to 60999
+    (0045-MADR D2, P43).
+  * The test therefore relies on a port it does not own staying unused,
+    which is what
+    [0045-MADR-tests-never-reuse-a-freed-port.md](0045-MADR-tests-never-reuse-a-freed-port.md)
+    records as failing (P42). That record's two remedies cover a freed
+    port and a port the code binds. Neither covers a dial meant to find
+    nothing, so the test is outside 0045's letter but inside its rule.
+* **How rare.** With L listeners on loopback ports in the range at the
+  instant of the dial, one run of the `grok` subtest fails with
+  probability L / 16384.
+  * On the session host while idle, L was 5 (RUNF6), about 1 in 3300.
+  * During a parallel `go test ./...` of this module, L is that baseline
+    plus every test server open at that instant (the module's tests call
+    `httptest.NewServer` at 361 sites, counted by `grep`).
+  * L during the run that failed was not measured.
+* **What the dial is the only check of.** `auth`'s own
+  `TestNoLoopback_Grok_0074` (P39) checks the redirect's shape (P40), not
+  whether a listener was bound. With a plant that makes Grok's sign-in
+  bind a listener under `NoLoopback`, that test passed and the dial failed
+  (RUNF1). So today Grok's "binds nothing" rests on the dial alone.
+
+### Options
+
+* **A. Leave it.**
+  * Proves: Grok's redirect port has no listener at the instant of the
+    dial.
+  * It can be falsified by any listener on that port, ours or not
+    (RUNF2), and it fails about L / 16384 of runs.
+  * OpenAI's and the plan's "binds nothing" rest on `auth`'s held
+    substitute ports (P41), which catch a bind for those two.
+* **B. Hold the port, or reserve it.** The test cannot know Grok's random
+  port before the sign-in draws it. Under the failure the dial is meant to
+  catch, Grok binds `127.0.0.1:0` (P33), a different port again, so
+  holding the redirect's port proves nothing about that bind. Pinning the
+  port by a seam leaves the dial still answerable by a stranger.
+* **C. Recommended: an unexported, per-call listen hook in `auth`, and the
+  "binds nothing" assertion where every bind passes through it.**
+  * `OAuthFlowOptions` and `ChatGPTPlanOptions` each gain an unexported
+    field, `listen func(network, address string) (net.Listener, error)`,
+    beside the unexported `now` and `sleep` they already carry for tests
+    (P36, P37). It is copied to `oauthFlowConfig`; nil is `net.Listen`.
+  * `browserEndpoint` (P38) and the functions under it bind through it at
+    the three binds there are: P33, P34, P35. Unexported `…With` variants
+    keep the existing helpers' signatures for the tests that call them.
+  * A new test in `auth`, `TestNoLoopback_BindsNothing_0083`, gives each of
+    OpenAI's and Grok's browser sign-ins and the plan's a hook that records
+    every bind and binds nothing.
+    * Under `NoLoopback` each sign-in completes by the paste with **no
+      bind attempted**.
+    * Without it, each sign-in's bind reaches the hook, which shows the
+      hook is on the path of every bind.
+  * The x/signin test keeps its paste completion and the redirect's shape,
+    and drops the dial. The helper is renamed to say it checks a shape, and
+    its doc points at the new test.
+  * That `x/signin` hands `NoLoopback` to `auth` is
+    `TestStart_NoLoopbackPassedOn_0074`'s (P30). It is already there and
+    is unchanged.
+  * Proves: this process's sign-in attempts no bind at all, for all three
+    methods, not one port for one method. Nothing outside the process can
+    pass or fail it.
+* **D. A hook carried on the context, from a package under the root
+  `internal/`, so x/signin's end-to-end test sees the binds itself.**
+  * Proves the same, end to end.
+  * Cost: a route into two exported functions that their signatures do not
+    show. 0074-MADR D4's option (a) was set aside for that reason.
+* **E. A package-level hook in `auth`, swapped by tests.** Simpler than C,
+  but a test that swaps it races any parallel test that binds, under
+  `-race`. Not recommended.
+* **F. Replace the dial by binding the port ourselves.** It is as
+  answerable by a stranger as the dial is (any holder makes the bind
+  fail). No better than A.
+
+### Shown on scratch copies (ran 2026-11-17; never the tree)
+
+The runs were made on a clone of `a3002aa`, with C applied by a script and
+each plant on its own copy. Single packages, no `-race`, on the session
+host.
+
+| Id | What | Result |
+| :--- | :--- | :--- |
+| RUNF1 | `a3002aa` unchanged but for a plant: Grok's sign-in binds under `NoLoopback` | the old x/signin test fails, `start_browser_0074_test.go:277: something listens at 127.0.0.1:54433; want no listener under NoLoopback`; `auth`'s `TestNoLoopback_Grok_0074` passes |
+| RUNF2 | `a3002aa` with Grok's redirect port pinned to 61234 (scratch only), 61234 held by another listener, checked free first | the old test fails, `start_browser_0074_test.go:277: something listens at 127.0.0.1:61234; want no listener under NoLoopback`, with nothing in the sign-in bound |
+| RUNF3 | C, with the same pin and the same held listener | `TestStart_NoLoopback_0074` (all 3 subtests), `TestNoLoopback_Grok_0074` and `TestNoLoopback_BindsNothing_0083` (`openai`, `grok`, `plan`) pass: exit 0 |
+| RUNF4 | C with three plants, one per method: Grok's, OpenAI's and the plan's sign-in each bind under `NoLoopback` | each caught by `TestNoLoopback_BindsNothing_0083`: `no_loopback_binds_0083_test.go:97: LoginBrowserOAuth with NoLoopback = OAuthSession(nil), oauth: listen for Grok callback: listenRecorder0083: no listener is bound in this test; want a session by the paste`; for OpenAI the same line with `oauth: registered callback ports unavailable; use device-code login: listenRecorder0083: …`; for the plan, `:124`, the same. OpenAI's and the plan's are also caught by the existing held-port tests. C unplanted: `gofmt -l` clean, `go vet` exit 0, tests exit 0 |
+| RUNF5 | C with the engine planted not to pass `NoLoopback` to the browser login | `TestStart_NoLoopbackPassedOn_0074` fails: `start_browser_0074_test.go:335: browser login was given {hasInput:true noLoopback:false agentName:}; want NoLoopback and an InputCode` |
+| RUNF6 | the session host, idle: listening TCP ports, and the ephemeral range | 12 listening ports, 5 of them in 49152 to 65535; `net.inet.ip.portrange.first` 49152, `.last` 65535 |
+| RUNF7 | `scripts/check_api.py` and `tools/apidiff.py v1.31.0` on C and on `a3002aa` | identical: "0 incompatible change(s) outside llmprovider/x/"; the one compatible change listed is 0080's `x/signin.VerifyKilo`. The hook's unexported fields add nothing: both structs already hold `func` fields, so they were not comparable before either |
+
+### The changes to this PLAN
+
+* **Scope.** In scope gains, in `llmprovider/auth`:
+  * the unexported `listen` field on `OAuthFlowOptions` and
+    `ChatGPTPlanOptions`;
+  * its copy on `oauthFlowConfig`, and the binds through it (C);
+  * the new test file `llmprovider/auth/no_loopback_binds_0083_test.go`;
+  * one comment line on `TestNoLoopback_Grok_0074` pointing at it, with
+    its assertions unchanged.
+
+  It also gains `llmprovider/x/signin/start_browser_0074_test.go`: the dial
+  removed, the helper renamed, its doc comment. These are the same `auth`
+  files D8 already changes; the hook goes in beside the advice.
+* **Exported names.** None added. `make api-check` still shows only this
+  record's two fields; RUNF7 shows the hook adds nothing.
+* **Phase 1.**
+  * Step 3 gains `TestNoLoopback_BindsNothing_0083`, written from the
+    scratch copy's, with four plants: Grok, OpenAI and the plan each
+    binding under `NoLoopback` (RUNF4), and the hook bypassed (a bind
+    through `net.Listen` directly), which the control assertion catches.
+  * At the base it is seen red the way the PLAN's other new tests are: the
+    test file and the field declarations alone do not route the binds
+    through the hook, so its "without `NoLoopback`" assertion fails.
+  * Its OpenAI subtest swaps the registered ports for `nettest.Port` ports
+    for its duration, as `newPlanLogin` does for the plan. A bind that
+    bypasses the hook, at the base or under a plant, then binds no
+    registered port (0045-MADR D2).
+  * The x/signin test's change is a removed dial. It is not a loosened
+    assertion: the assertion moves to where every bind is seen, and step
+    3's planted breaks show it.
+  * The stop condition on existing tests applies to everything else.
+* **Phase 2** gains a run of the two tests 50 rounds under `-race`, with
+  listeners held:
+  `~/.agents/skills/available-dev-hosts/scripts/run-heavy -- go test -race -count=50 -timeout 20m -run 'TestStart_NoLoopback_0074$|TestNoLoopback_BindsNothing_0083$' ./llmprovider/x/signin/ ./llmprovider/auth/`.
+  * While it runs, a helper script holds 1024 loopback listeners spread
+    over 49152 to 65535. Each is checked free and released at the end, and
+    the script raises its own open-file limit.
+  * Under that hold the old form would fail a round with probability
+    1024 / 16384, about 96 % over 50 rounds. The new form must pass all 50.
+  * The execution record names the held ports' count and range, never
+    another program's.
+* **Verification** gains the same command.
+* **Price.** Unchanged: Phase 1 mainstream, medium; Phase 2 mainstream, low.
+  The hook is three binds and two fields, and the test exists in scratch
+  form.
+
+### Citations
+
+The marker this PLAN has (`self=b109cea`) reads the rows below. Each cited
+file is byte-identical at `a3002aa`. 0080-PLAN's item is cited by filename
+and section, since that text is not at `b109cea`.
+
+| Id | Claim | Location | Text |
+| :--- | :--- | :--- | :--- |
+| P25 | The test | `llmprovider/x/signin/start_browser_0074_test.go:259` | `func TestStart_NoLoopback_0074(t *testing.T) {` |
+| P26 | calls the dial's helper with the redirect | `llmprovider/x/signin/start_browser_0074_test.go:277` | `assertNothingListens(t, p, query.Get("redirect_uri"))` |
+| P27 | which checks OpenAI's by shape only | `llmprovider/x/signin/start_browser_0074_test.go:320` | `if p != llmprovider.ProviderGrok {` |
+| P28 | and dials Grok's | `llmprovider/x/signin/start_browser_0074_test.go:327` | `conn, err := net.DialTimeout("tcp", target.Host, time.Second)` |
+| P29 | failing if anything answers | `llmprovider/x/signin/start_browser_0074_test.go:330` | `t.Errorf("something listens at %s; want no listener under NoLoopback", target.Host)` |
+| P30 | The pass-through test | `llmprovider/x/signin/start_browser_0074_test.go:336` | `func TestStart_NoLoopbackPassedOn_0074(t *testing.T) {` |
+| P31 | The fake issuer is a `RoundTripper` | `llmprovider/x/signin/fake_0074_test.go:59` | `func (f *fakeIssuer) client() *http.Client { return &http.Client{Transport: f} }` |
+| P32 | Grok's no-listener port is random | `llmprovider/auth/oauth_loopback.go:445` | `return grokNoLoopbackPortMin + int(n.Int64()), nil` |
+| P33 | Grok's bind | `llmprovider/auth/oauth_loopback.go:477` | `listener, err := net.Listen("tcp", "127.0.0.1:0")` |
+| P34 | OpenAI's bind on IPv4 | `llmprovider/auth/oauth_loopback.go:504` | `v4, err4 := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", portText))` |
+| P35 | and on IPv6 | `llmprovider/auth/oauth_loopback.go:505` | `v6, err6 := net.Listen("tcp6", net.JoinHostPort("::1", portText))` |
+| P36 | `OAuthFlowOptions` carries unexported test fields | `llmprovider/auth/oauth_loopback.go:71` | `now   func() time.Time` |
+| P37 | and so does `ChatGPTPlanOptions` | `llmprovider/auth/oauth_plan.go:87` | `now    func() time.Time` |
+| P38 | Where the sign-in binds, or not | `llmprovider/auth/oauth_loopback.go:453` | `func browserEndpoint(provider llmprovider.ProviderID, noLoopback bool) ([]net.Listener, string, string, error) {` |
+| P39 | `auth`'s Grok test | `llmprovider/auth/no_loopback_0074_test.go:188` | `func TestNoLoopback_Grok_0074(t *testing.T) {` |
+| P40 | checks the redirect's shape | `llmprovider/auth/no_loopback_0074_test.go:241` | `if redirect.Scheme != "http" \|\| redirect.Hostname() != "127.0.0.1" \|\| redirect.Path != "/callback" \|\| err != nil \|\| port < 49152 \|\| port > 65535 {` |
+| P41 | OpenAI's and the plan's tests hold substitute ports | `llmprovider/auth/no_loopback_0074_test.go:27` | `func holdPorts0074(t *testing.T) []int {` |
+| P42 | 0045-MADR: a test that relies on a port staying unused | `docs/decisions/0045-MADR-tests-never-reuse-a-freed-port.md:37` | `unused can fail, and can make another package's test fail.` |
+| P43 | and the ephemeral ranges | `docs/decisions/0045-MADR-tests-never-reuse-a-freed-port.md:108` | `` macOS and Windows (`49152–65535`), so no `:0` bind in any package is `` |
+| P44 | The engine passes `NoLoopback` to the browser login | `internal/signinflow/signinflow.go:448` | `opts.OpenURL, opts.InputCode, opts.NoLoopback = openURL, inputCode, spec.NoLoopback` |
+
+### Not verified
+
+* L during the failing run; the failure rate under a full parallel
+  `go test ./...`.
+* C under `-race`, on Linux, on Windows, or at 50 rounds: those are Phase
+  2's.
+* Option D was not built.

@@ -732,6 +732,17 @@ where the browser is, so there is no question to suppress.
   *(inferred; not run)*.
 * Bad, because a host with both ports busy still fails after the answer
   "On this machine" (D8); only the advice improves.
+* *(Added 2026-11-17.)* Neutral, because the PLAN also repairs
+  `TestStart_NoLoopback_0074`, by the owner's ruling of that day, relayed by
+  the coordinator: "yes, fold that into the plan". Its `grok` subtest dials
+  the no-listener redirect's random port, so another program's listener on
+  that port can fail it, as it once did in a race run of 0080's review. It
+  is the only check that Grok's no-listener sign-in binds nothing. This record
+  changes that code and adds the same assertion for the wizard, so the repair
+  belongs here. The assertion moves to `auth`, which sees every bind through
+  an unexported hook; nothing exported changes
+  ([0083-PLAN-let-the-wizard-sign-in-without-a-callback-listener.md](0083-PLAN-let-the-wizard-sign-in-without-a-callback-listener.md),
+  "Amendment 2026-11-17: the no-listener test that another program's listener can fail").
 
 ### Confirmation
 

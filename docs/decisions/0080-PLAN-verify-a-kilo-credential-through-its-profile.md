@@ -1117,6 +1117,10 @@ below it. The staged tree is the first staging with the reviews' fixes.
     file is byte-identical to `b109cea`, and a rerun of the package passed ten
     rounds. It is a pre-existing flaky test, not 0080's, and it is going to the
     owner; 0080 does not change it, and this phase did not touch the test.
+    *(Added 2026-11-17: by the owner's ruling of that day, relayed by the
+    coordinator, "yes, fold that into the plan", its repair is a step of
+    [0083-PLAN-let-the-wizard-sign-in-without-a-callback-listener.md](0083-PLAN-let-the-wizard-sign-in-without-a-callback-listener.md),
+    Phase 1, under its "Amendment 2026-11-17: the no-listener test that another program's listener can fail".)*
 * **Point 4, one request, the right origin.** The stand-in counts: one profile
   read where the MADR says one (typed, environment, saved, device key: the
   key tests assert `1` or the token list); none with an organization
