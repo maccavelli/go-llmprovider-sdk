@@ -638,6 +638,11 @@ they were asked.)*
 
 ### Not verified
 
+*(2026-11-16: the owner's answer to the PLAN's Q8, relayed by the
+coordinator: "The dashboard key and the device sign-in" are required before
+Phase 2; the organization token and the revoked key run only if the owner has
+them, and each not run stays named below as "not run: no such key".)*
+
 * What the profile answers to a real dashboard key, an organization token,
   and a revoked or rotated key: PLAN Phase 1, owner-run.
 * Whether Kilo ever answers the profile with 403 for a bad credential.

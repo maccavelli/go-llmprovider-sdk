@@ -175,9 +175,17 @@ valid key gets: that needs the owner's own keys.
      profile's status class and the organization listing's
      (`catalog.List` with `catalog.WithKiloOrganization`), each "accepted"
      or the error's class and status.
+     *(Note, 2026-11-16: the test calls `catalog.ListRaw`, not `catalog.List`.
+     `List` degrades a refused listing to a fallback catalog and returns no
+     error: on a stand-in, a 401 listing read "accepted" through it. A
+     deviation recorded by the executing agent and confirmed by the
+     coordinator on 2026-11-16 (the coordinator's, not the owner's).)*
    * `RevokedKey`: a key the owner has revoked or rotated, in
      `LLMPROVIDER_LIVE_0080_REVOKED_KEY`; the profile must refuse it with
      `ErrAuthFailure`; it logs the class and status.
+     *(Note, 2026-11-16: a 403 reads "ErrNotPermitted", not "ErrAuthFailure",
+     and fails this subtest, since a 403 is not a refusal (Q4); see the
+     execution record's "Phase 1, the agent's part".)*
    On a failure it prints the error's sentinel and, for an `*APIError`, its
    status, never the error's text and never the key.
 3. **The owner's run.** The owner runs it, never an agent, at the commit that
@@ -267,6 +275,13 @@ valid key gets: that needs the owner's own keys.
    are the kinds the wizard's paths P1 to P7 receive. Without an organization token
    or a revoked key, the PLAN proceeds.
 
+   *(Answered 2026-11-16, the owner's ruling, relayed by the coordinator:
+   "The dashboard key and the device sign-in" (Q8). Those two are the kinds
+   the wizard's paths actually receive; the organization token and the
+   revoked key run only if the owner has them to hand, otherwise each is
+   recorded "not run: no such key" and stays named under "Not verified".
+   Not chosen: whatever the owner can run, none required; all four.)*
+
    * **Q8. Which Phase 1 kinds must be run before Phase 2 starts?**
      * **(a)** The dashboard key and the device sign-in; the organization
        token and the revoked key only if the owner has them, recorded "not
@@ -277,6 +292,9 @@ valid key gets: that needs the owner's own keys.
      * **(b)** Whatever the owner can run, none required; a kind not run is
        recorded and the PLAN proceeds.
      * **(c)** All four; the PLAN waits until the owner has each kind.
+
+     *(Answered 2026-11-16: (a), "The dashboard key and the device sign-in";
+     see the paragraph above.)*
 
 4. **The record.** The execution record gets each kind's result; the
    MADR's "Not verified" loses each kind settled; a kind not run (for want
@@ -570,3 +588,122 @@ The facts this PLAN's steps rest on beyond the MADR's index.
 * **Open:** Q8 (Phase 1 step 3), which the answers do not settle. Phase 1
   can be written and committed before it is answered; Phase 2 cannot start
   before it is.
+
+### Phase 1, the agent's part (2026-11-16)
+
+* **Provenance.** A mainstream model at low effort, as the phase prices it,
+  on the coordinator's brief. Nothing committed, pushed or tagged here; the
+  coordinator commits. Base commit `41160af`.
+* **The approval,** the owner's ruling, relayed by the coordinator: "Approve
+  and run through phase 4". Phase 1's live steps are the owner's own.
+* **The made-up probes, repeated** (a fresh made-up token per request; "no
+  credential", "a made-up bearer token", "a JWT-shaped made-up token"; bodies
+  hashed, never stored). No result differs from the MADR's table:
+
+  | MADR ids | Request | No credential | Made-up | JWT-shaped |
+  | :--- | :--- | :--- | :--- | :--- |
+  | L1 to L3 | `GET api.kilo.ai/api/gateway/models` | 200 | 200 | 200, bodies identical |
+  | L4 to L6 | `GET ai-gateway.kilo.ai/api/v1/models` | 200 | 200 | 200, identical to L1 |
+  | L7, L8 | `GET api.kilo.ai/api/organizations/{made-up id}/models`, organization header | not sent | 401 | 401 |
+  | L9, L10 | `GET api.kilo.ai/api/gateway/organizations/{made-up id}/models` | not sent | 401 | 401 |
+  | L11, L12 | `GET ai-gateway.kilo.ai/api/v1/organizations/{made-up id}/models` | not sent | 401 | 401 |
+  | L13 to L15 | `GET api.kilo.ai/api/profile` | 401, "Unauthorized" | 401, "Invalid token (id)" | 401, "Invalid token (id)" |
+  | L16 | `GET api.kilo.ai/api/profile`, organization header | not sent | 401, "Invalid token (id)" | 401, "Invalid token (id)" |
+  | L17, L18 | `GET api.kilo.ai/api/profile/balance` | 401, "Unauthorized" | 401, "Invalid token (id)" | 401, "Invalid token (id)" |
+
+  The three organization URLs answered 401 "User not authenticated - no user
+  to set on context" to both token shapes.
+* **The test.** `llmprovider/auth/live_kilo_profile_0080_test.go`, package
+  `auth_test` (an external test package, because `catalog` imports `auth`),
+  build tag `live_gateways`, `TestLive_KiloProfile_0080`, skipped unless
+  `LLMPROVIDER_LIVE_0080=1`. Subtests `DashboardKey` (`KILO_API_KEY`;
+  `auth.KiloProfile`), `OrganizationToken`
+  (`LLMPROVIDER_LIVE_0080_ORG_KEY` and `LLMPROVIDER_LIVE_0080_ORG`; the
+  profile, then the organization's listing) and `RevokedKey`
+  (`LLMPROVIDER_LIVE_0080_REVOKED_KEY`; must match `ErrAuthFailure` and not
+  `ErrNotPermitted`), each
+  skipping with a fixed message when its variable is unset. It logs a fixed
+  word ("accepted", `ErrAuthFailure`, `ErrNotPermitted` or "other error"), the
+  HTTP status, the number of organizations and whether a personal account is
+  present.
+  * **Deviation from the PLAN's wording, for the owner's notice.** The PLAN
+    names `catalog.List` for the organization listing. `List` degrades a
+    refused listing to a fallback catalog and returns no error (seen on the
+    stand-in: a 401 listing read "accepted"), so it could not show a
+    refusal. The test calls `catalog.ListRaw`, whose errors are returned.
+    Noted at the step too; confirmed by the coordinator on 2026-11-16 (the
+    coordinator's, not the owner's).
+  * **A 403 (revised 2026-11-16 at the coordinator's review).** A Kilo 403
+    is `ErrNotPermitted` by the classification table
+    (`llmprovider/api_error.go:552` to `:554`), and `APIError.Unwrap`
+    (`llmprovider/api_error.go:179` to `:187`) adds the legacy status
+    sentinel, which for 403 is `ErrAuthFailure` (`:225`): `errors.Is` is
+    true for both. The first version tested `ErrAuthFailure` first, and on
+    a stand-in 403 it logged "ErrAuthFailure, HTTP 403" and `RevokedKey`
+    passed. `classifyKiloError` now tests `ErrNotPermitted` first: a 403
+    logs "ErrNotPermitted, HTTP 403" and `RevokedKey` fails, its message
+    saying in fixed words that a 403 is not a refusal (Q4: "No: warn and
+    continue"). Re-run: the same eight stand-in cases, fake-key count 0
+    in each, and a 403 on `RevokedKey`, which fails with "ErrNotPermitted,
+    HTTP 403"; the key-logging break counted 1, the error-text break 0
+    keys and 4 lines of error wording, as before.
+* **Secret safety, proved on stand-ins.** The logic under proof is the live
+  test's own functions (`kiloProfileVerdict`, `kiloListingVerdict`,
+  `classifyKiloError`, `logProfileVerdict`) and its three subtests, reached
+  through `kiloTestOpts`, a package variable that is nil in a live run and
+  that a scratch test set to an `httptest` server. The proof is scratch, not
+  committed: a test of a test would be dead weight in the tree. A scratch
+  clone held the file and a scratch test planting one fixed fake key value
+  (`FAKE-KEY-0080-PLANTED-xyzzy`, in all four variables). For each case the
+  whole `go test -v` output (stdout and stderr) was grepped for the fake key:
+
+  | Case | Stand-in answers | Fake-key count |
+  | :--- | :--- | :--- |
+  | 200 | a profile and a model list | 0 |
+  | 200, echo | the Authorization header echoed in the profile's email field | 0 |
+  | 401 | refusal | 0 |
+  | 403 | refusal | 0 |
+  | 500 | outage | 0 |
+  | 401, echo | the header echoed in the body and a response header | 0 |
+  | 401, echo of the bare token | the key in the message field | 0 |
+  | connection refused | an error whose text carries the URL | 0 |
+
+  Planted breaks, on the scratch copy only: the test logging the key
+  (`t.Logf("key %s", key)`) gave a count of 1, so the grep can fail. The test
+  printing the error's text (`err.Error()`) gave fake-key count 0 (the SDK
+  redacts an echoed token and drops the body's message from `APIError`'s
+  text), so the key grep alone does not catch that break; a grep for the
+  error's wording (`authentication failed`, `kilo HTTP`) found 4 lines in the
+  broken run and 0 in every unbroken one.
+* **The read-through** of every log, error, skip and print call in the file
+  (none holds a key, a variable that holds one, or an error's text;
+  `classifyKiloError` never calls `Error()`; there is no `fmt`, `log`,
+  `os.Stdout`, `os.Stderr` or `panic`):
+  * line 33 `t.Skip("LLMPROVIDER_LIVE_0080 unset")`: fixed text;
+  * line 38 `t.Skip("KILO_API_KEY unset")`: fixed text;
+  * line 45 `t.Errorf(..., v.word, v.status)`: a fixed word and an int;
+  * line 52 `t.Skip("LLMPROVIDER_LIVE_0080_ORG_KEY or LLMPROVIDER_LIVE_0080_ORG unset")`: fixed text;
+  * line 59 `t.Logf("organization listing: %s, HTTP %d", l.word, l.status)`: a fixed word and an int;
+  * lines 61 and 64 `t.Errorf(..., word, status)`: a fixed word and an int;
+  * line 70 `t.Skip("LLMPROVIDER_LIVE_0080_REVOKED_KEY unset")`: fixed text;
+  * line 77 `t.Errorf(..., v.word, v.status)`: a fixed word and an int;
+  * line 150 `t.Logf("profile: %s, organizations %d, personal account %t", v.word, v.orgs, v.personal)`: a fixed word, a count and a bool;
+  * line 153 `t.Logf("profile: %s, HTTP %d", v.word, v.status)`: a fixed word and an int.
+
+  The `kiloVerdict` struct holds a word, a status, a count and a bool, and no
+  error, key, body or account field. The test writes no file and sets no
+  environment variable; its requests go to the origin the SDK uses.
+* **Gates,** each exit status 0: `make pre-add-check
+  FILES="llmprovider/auth/live_kilo_profile_0080_test.go"` (through
+  `run-heavy`); `go vet -tags live_gateways ./llmprovider/auth/`;
+  `golangci-lint run -c .golangci.yml --build-tags live_gateways
+  ./llmprovider/auth/` ("0 issues"); `go test ./llmprovider/auth/ -count=1`.
+  The live test was compiled under its tag and not run.
+* **Q8, answered 2026-11-16,** the owner's ruling, relayed by the
+  coordinator: "The dashboard key and the device sign-in". As put: those two
+  are the kinds the wizard's paths actually receive; the organization token
+  and the revoked key run only if the owner has them to hand, otherwise each
+  is recorded "not run: no such key" and stays named under "Not verified".
+  Not chosen: whatever the owner can run (nothing required); all four.
+* **The owner's run:** not yet run. The owner runs it at the commit that
+  adds this test, named in the entry for the owner's run.
