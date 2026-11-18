@@ -18,10 +18,10 @@ import (
 // response are not. It is gobble-cli's rule (0061-MADR D2), with the
 // standard library's names for those errors on Windows beside Winsock's.
 func Offline(err error) bool {
-	if _, ok := errors.AsType[*url.Error](err); !ok { //nolint:errcheck // only whether the chain holds one matters
+	if _, ok := errors.AsType[*url.Error](err); !ok {
 		return false
 	}
-	if _, ok := errors.AsType[*net.DNSError](err); ok { //nolint:errcheck // only whether the chain holds one matters
+	if _, ok := errors.AsType[*net.DNSError](err); ok {
 		return true
 	}
 	op, ok := errors.AsType[*net.OpError](err)

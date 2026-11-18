@@ -40,7 +40,7 @@ jobs:
       # golangci-lint where ci.yml installs it, at ci.yml's pin; without it
       # the test exits 2 (0052-MADR A1). scripts/test_gates.py checks that
       # this job installs what ci.yml installs before its self-test (A2).
-      - run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+      - run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
       # markdownlint, links-check and disclosure-check are ci.yml's too, by the
       # same targets and markdownlint's one pin (0063-MADR R1-R3).
       - name: parity, records, the tables, the changelog, markdownlint, links, home paths, the gates' self-test (0052-MADR D2; 0063-MADR R1-R3)

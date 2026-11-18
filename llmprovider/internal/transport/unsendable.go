@@ -45,6 +45,6 @@ func Unsendable(err error) bool {
 // request reached the server; a retry meets the same certificate, so none
 // can mend it (0068-MADR D2).
 func CertificateRefused(err error) bool {
-	_, ok := errors.AsType[*tls.CertificateVerificationError](err) //nolint:errcheck // only whether the chain holds one matters
+	_, ok := errors.AsType[*tls.CertificateVerificationError](err)
 	return ok
 }
