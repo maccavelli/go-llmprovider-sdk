@@ -6,7 +6,7 @@ documents a reader follows to do something.
 
 ## Records
 
-178 records. Cite them by full filename.
+180 records. Cite them by full filename.
 
 | Number | Kind | Record | Status |
 | :--- | :--- | :--- | :--- |
@@ -188,6 +188,8 @@ documents a reader follows to do something.
 | 0084 | PLAN | [Implement a Refused Tool Schema as Its Own Kind, Naming the Tool: ErrToolSchemaRefused and APIError.Tool](decisions/0084-PLAN-typed-error-for-a-refused-tool-schema.md) | in-progress |
 | 0085 | MADR | [Refuse a Typed API Key That Is Empty After Trimming: the Wizard Asks Again, up to Three Times, and Then Ends the Run](decisions/0085-MADR-refuse-an-empty-typed-key.md) | accepted |
 | 0085 | PLAN | [Implement Refusing a Typed API Key That Is Empty After Trimming](decisions/0085-PLAN-refuse-an-empty-typed-key.md) | in-progress |
+| 0086 | MADR | [Pin golangci-lint v2.15.0, and Drop the Three nolint Directives It Makes Dead](decisions/0086-MADR-golangci-lint-v2-15-0.md) | accepted |
+| 0086 | PLAN | [Implement golangci-lint v2.15.0](decisions/0086-PLAN-golangci-lint-v2-15-0.md) | in-progress |
 
 ## I want to…
 

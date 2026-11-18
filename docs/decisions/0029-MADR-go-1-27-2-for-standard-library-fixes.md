@@ -159,3 +159,7 @@ raises the `go` directive to `go 1.27.3`, for GO-2026-6809 in `crypto/x509`,
 by this record's option and for its reasons: one line that sets CI's Go, the
 module's minimum and its consumers'. The checks above describe the 1.27.2
 change as it was made.
+
+## Amendment 2026-11-18: the linter version moves
+
+[0086-MADR-golangci-lint-v2-15-0.md](0086-MADR-golangci-lint-v2-15-0.md) supersedes the linter pin of the 2026-10-08 amendment above, for the version only: it is now `v2.15.0`.
