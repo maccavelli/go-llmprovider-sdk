@@ -126,8 +126,8 @@ func SetConsent(ctx context.Context, store TokenStore, provider llmprovider.Prov
 // client, and the account when both name one), holds answers the session's
 // sign-in never gave: it counts as unanswered, as a record with no entry does
 // (0082-MADR, amendment of 2026-11-17, R-3). A record that holds the session's
-// own refresh token or access token is the session's, whatever its other
-// fields say.
+// own refresh token, or that has no refresh token and holds its own access
+// token, is the session's, whatever its other fields say (R-5, R-11).
 // StoredConsent is safe for concurrent use.
 func (s *OAuthSession) StoredConsent(ctx context.Context, id string) (granted, answered bool, err error) {
 	if s == nil {
@@ -138,7 +138,7 @@ func (s *OAuthSession) StoredConsent(ctx context.Context, id string) (granted, a
 	store := s.Store
 	own := s.Consents
 	held := s.refreshState()
-	mine := ownTokens{refresh: []string{s.Refresh, s.storedRefresh}, access: []string{s.Access}}
+	mine := ownTokens{refresh: []string{s.Refresh, s.storedRefresh}, access: []string{s.Access, s.storedAccess}}
 	s.mu.Unlock()
 	if store == nil {
 		granted, answered = consentOf(own, id)

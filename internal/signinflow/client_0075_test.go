@@ -117,18 +117,20 @@ func TestHostIDOrder_0075(t *testing.T) {
 }
 
 // TestPlanClientRecordErrors_0075 (0075-MADR D7): a record that cannot be
-// loaded fails the sign-in before the login runs; one that cannot be saved is
-// reported and does not fail it.
+// saved is reported and does not fail the sign-in. One that cannot be loaded
+// failed it before the login ran; since 0082-MADR's third amendment (R-9) it
+// is none, reported in Result.ClientLoadErr, and the sign-in goes on
+// (TestPlanUnreadableClientRecordIsNone_0082 holds the rest).
 func TestPlanClientRecordErrors_0075(t *testing.T) {
 	loadErr := errors.New("planted load failure")
 	store := &recordStore{loadErr: loadErr}
-	given, _, err := signInPlan(t, store, auth.ChatGPTPlanOptions{})
-	if !errors.Is(err, loadErr) || given.OpenURL != nil {
-		t.Errorf("sign-in with a failing LoadClient: err %v, login ran %t; want the load error and no login", err, given.OpenURL != nil)
+	given, result, err := signInPlan(t, store, auth.ChatGPTPlanOptions{})
+	if err != nil || given.OpenURL == nil || !errors.Is(result.ClientLoadErr, loadErr) {
+		t.Errorf("sign-in with a failing LoadClient: err %v, login ran %t, ClientLoadErr %v; want the login run and the error reported", err, given.OpenURL != nil, result.ClientLoadErr)
 	}
 	saveErr := errors.New("planted save failure")
 	store = &recordStore{saveErr: saveErr}
-	_, result, err := signInPlan(t, store, auth.ChatGPTPlanOptions{})
+	_, result, err = signInPlan(t, store, auth.ChatGPTPlanOptions{})
 	if err != nil || result.Session == nil || !errors.Is(result.ClientSaveErr, saveErr) {
 		t.Errorf("sign-in with a failing SaveClient: err %v, session %v, ClientSaveErr %v; want the session and the error reported", err, result.Session, result.ClientSaveErr)
 	}

@@ -123,10 +123,11 @@ type Spec struct {
 	// ClientStore, when set, keeps a plan sign-in's issued client and host id
 	// apart from the session (0075-MADR D7). Before a plan sign-in with no
 	// Plan.Previous, the engine loads the record and signs in to its client
-	// with its host id, unless Plan.HostID names another; once the login
-	// returns a session, it saves the client and host id the session holds, at
-	// once, since the registration happened at OpenAI whatever the caller then
-	// does with the session.
+	// with its host id, unless Plan.HostID names another; a record that cannot
+	// be read is none, and Result.ClientLoadErr says so. Once the login returns
+	// a session, it saves the client and host id the session holds, at once,
+	// since the registration happened at OpenAI whatever the caller then does
+	// with the session; the save replaces an unreadable record.
 	ClientStore auth.ClientStore
 	// NoPaste leaves out the paste step: the loopback alone completes a
 	// browser sign-in.
@@ -152,6 +153,10 @@ type Result struct {
 	// ClientSaveErr is the error of saving the plan's issued client, which
 	// does not fail the sign-in: the next one registers another client.
 	ClientSaveErr error
+	// ClientLoadErr is the error of reading the plan's issued client record,
+	// which does not fail the sign-in: an unreadable record is none, and the
+	// new sign-in's client replaces it (0082-MADR, third amendment, R-9).
+	ClientLoadErr error
 }
 
 // ask is a step that asks, and the answer's way back to the login.
@@ -426,14 +431,17 @@ func (r *Run) runBrowser(ctx context.Context, spec Spec) (Result, error) {
 	}
 	var session *auth.OAuthSession
 	var err error
-	var clientSaveErr error
+	var clientSaveErr, clientLoadErr error
 	if spec.Mode == ModePlan {
 		opts := spec.Plan
 		opts.OpenURL, opts.InputCode, opts.NoLoopback = openURL, inputCode, spec.NoLoopback
 		if spec.ClientStore != nil && opts.Previous == nil {
+			// A record that cannot be read is none: the sign-in goes on and
+			// registers a client, which replaces the record when it is saved
+			// below (0082-MADR, third amendment of 2026-11-17, R-9).
 			record, loadErr := spec.ClientStore.LoadClient(ctx, spec.Provider)
 			if loadErr != nil {
-				return Result{}, fmt.Errorf("signinflow: load the issued client: %w", loadErr)
+				record, clientLoadErr = auth.ClientRecord{}, loadErr
 			}
 			opts.ClientID = cmp.Or(opts.ClientID, record.ClientID)
 			opts.HostID = cmp.Or(opts.HostID, record.HostID)
@@ -451,7 +459,7 @@ func (r *Run) runBrowser(ctx context.Context, spec Spec) (Result, error) {
 	if err == nil && session != nil {
 		err = putConsents(ctx, spec.Provider, session, answered)
 	}
-	return Result{Session: session, ClientSaveErr: clientSaveErr}, err
+	return Result{Session: session, ClientSaveErr: clientSaveErr, ClientLoadErr: clientLoadErr}, err
 }
 
 // consentAnswer is the answer to one consent: asked, or carried from the

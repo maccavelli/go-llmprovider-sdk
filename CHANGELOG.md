@@ -94,15 +94,21 @@ tag and its commit without notes; its notes are its section here.
   - the wizard saves a new sign-in under that lock when the store has one:
     it tries the lock once, tells the person it is waiting when another
     process's refresh holds it, and waits up to the store's own bound (60 s
-    for `auth.FileTokenStore`); at the bound it keeps the completed sign-in
+    for `auth.FileTokenStore`); at the store's limit, whatever error it
+    ends with (gobble's own included, not only one matching
+    `llmprovider.ErrProviderUnavailable`), it keeps the completed sign-in
     and asks whether to try the save again, and a refusal, or a caller with
-    no prompter or no answer to give, gets an error matching
-    `llmprovider.ErrProviderUnavailable`, with nothing saved; the sign-in's
-    context ends the wait at any point, saving nothing. It signs in to a
-    stored plan session again only when it is OpenAI's own and, with a
-    client record, that client's, so another application's issued client is
-    not reused; a client record it cannot read is treated as none, with a
-    notice;
+    no prompter or no answer to give, gets the store's error, with nothing
+    saved; a lock that is held is any failed first try while the sign-in's
+    own context is alive, whatever its error; the sign-in's context ends
+    the wait at any point, saving nothing. It signs in to a stored plan
+    session again only when it is OpenAI's own and, with a client record,
+    that client's, so another application's issued client is not reused. A
+    client record it cannot read is treated as none, with one notice that
+    shows nothing of the file: no plan session is then signed in to again,
+    the person registers a new client, and the new client replaces the
+    record. The sign-in engine under `x/signin` treats such a record as
+    none too, with no notice, where it failed the sign-in;
   - `OAuthSession.StoredConsent` counts a stored record that is another
     sign-in as unanswered, so a held plan session no longer reads another
     application's `background_use` answer.
@@ -113,8 +119,11 @@ tag and its commit without notes; its notes are its section here.
   other fields do not infer makes its sessions refuse each other's rotations
   with this auth failure, and its user signs in again. A session that no
   other process shares is not affected: a record holding its own refresh
-  token or its own access token is its own, so a store that keeps neither
-  the refresh token nor the client still serves its one process
+  token is its own, and so is one with no refresh token that holds its own
+  access token, the current one or the one the store is known to hold, so a
+  store that keeps neither the refresh token nor the client still serves its
+  one process, a failed save included; a record with a refresh token of its
+  own is judged by its labels whatever access token it carries
   ([0082-MADR](docs/decisions/0082-MADR-refuse-to-adopt-another-sign-in-at-refresh.md)
   D1 to D5 and its amendments of 2026-11-17).
 

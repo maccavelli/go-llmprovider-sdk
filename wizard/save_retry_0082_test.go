@@ -409,9 +409,11 @@ func TestSaveWithALockerThatIgnoresTheContext_0082(t *testing.T) {
 	}
 }
 
-// R-6: an unreadable client record is no record: the wizard carries on with the
-// plan session it holds, says the record could not be read, and prints nothing
-// of the file.
+// R-6: an unreadable client record is no record: the wizard carries on, says the
+// record could not be read, and prints nothing of the file. The second
+// amendment had it hand the stored plan session over as Previous; the third
+// (R-9) does not, since the record cannot say whose the session is, and
+// TestUnreadableClientRecordEndToEnd_0082 holds the four situations.
 func TestUnreadableClientRecordIsNoRecord_0082(t *testing.T) {
 	ctx := context.Background()
 	store := newClientStore(t)
@@ -431,8 +433,8 @@ func TestUnreadableClientRecordIsNoRecord_0082(t *testing.T) {
 		llmprovider.ProviderOpenAI); err != nil {
 		t.Fatalf("ResolveCredential: %v; want the sign-in to carry on", err)
 	}
-	if given.Previous == nil || given.Previous.ClientID != "oaiapp_mine" {
-		t.Errorf("Previous = %v; want the stored plan session, taken as the app's own with no readable record", given.Previous)
+	if given.Previous != nil {
+		t.Errorf("Previous = %v; want none: with no readable record the stored plan session is not signed in to again (R-9)", given.Previous)
 	}
 	told := false
 	for _, n := range f.seenNotify {

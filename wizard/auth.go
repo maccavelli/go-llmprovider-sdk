@@ -285,21 +285,28 @@ func resolveChatGPTPlan(ctx context.Context, p Prompter, d llmprovider.Descripto
 	// has it reused after a sign-out or a switch (0075-MADR D7).
 	var clients auth.ClientStore
 	var issued auth.ClientRecord
+	var unreadable bool
 	if store, ok := o.TokenStore.(auth.ClientStore); ok {
 		clients = store
-		if previous != nil {
-			// An unreadable record is no record: the sign-in carries on, as it did
-			// before the record was read here, and the person is told. The
-			// record's content is never shown (0082-MADR, second amendment of
-			// 2026-11-17, R-6). Without it, nothing says whose the stored plan
-			// session is, and it is taken as the app's own.
-			if issued, err = store.LoadClient(ctx, llmprovider.ProviderOpenAI); err != nil {
-				issued = auth.ClientRecord{}
-				p.Notify(LevelWarn, "the saved %s client record could not be read; it is ignored for this sign-in", d.Label)
+		// An unreadable record is no record, and the person is told, once: the
+		// sign-in goes on, and the client it registers replaces the record. With
+		// no record to say whose a stored plan session is, none is handed over as
+		// Previous: the person registers a new client, which is the ruled
+		// behaviour, not the reuse of 0075-MADR D7. The record's content, and the
+		// read error's text, which quotes some of it, are never shown. The engine
+		// reads the record again and treats it as none too, without a notice of
+		// its own (0082-MADR, third amendment of 2026-11-17, R-9; the second's R-6).
+		var readErr error
+		if issued, readErr = store.LoadClient(ctx, llmprovider.ProviderOpenAI); readErr != nil {
+			issued, unreadable = auth.ClientRecord{}, true
+			if previous != nil && previous.PlanUsage() {
+				p.Notify(LevelWarn, "the saved %s client record could not be read; the saved plan session is not signed in to again, and a new client is registered", d.Label)
+			} else {
+				p.Notify(LevelWarn, "the saved %s client record could not be read; this sign-in replaces it", d.Label)
 			}
 		}
 	}
-	if previous != nil && !signsInAgainTo(previous, issued) {
+	if previous != nil && (unreadable || !signsInAgainTo(previous, issued)) {
 		previous = nil
 	}
 	instruction, prompt := pasteCodeInstruction, pasteCodePrompt
@@ -1054,13 +1061,20 @@ func pendingOAuthCredential(
 // it and lands after it, and a refresh that starts after it meets the new
 // sign-in (0082-MADR, second amendment of 2026-11-17, R-1, R-7). The wizard
 // tries the lock once; if it is held, it says it is waiting, on its own
-// goroutine, and waits. The wait ends with ctx, saving nothing, and at the
-// store's own bound (a minute for FileTokenStore) with an error matching
-// llmprovider.ErrProviderUnavailable: the completed sign-in is then kept in
-// memory and p is asked whether to try the save again, which waits again; a
-// refusal, an answer that cannot be given, or no Prompter returns that error
-// and saves nothing. A store that is not a RefreshLocker is saved to as
-// before. The store is given to the session only under the lock, just before
+// goroutine, and waits. A try that fails while the sign-in's own context is
+// alive is the lock being held, whatever the error: a locker that answers a
+// done context with an error of its own is waited for as one that wraps the
+// context's. The wait ends with ctx, saving nothing, and at the store's own
+// bound (a minute for FileTokenStore) with the store's error, whatever it
+// is, matching llmprovider.ErrProviderUnavailable for FileTokenStore and not
+// for gobble's: the completed sign-in is then kept in memory and p is asked
+// whether to try the save again, which waits again. Any failed wait but the
+// sign-in's own context's ending leads to the question, and nothing else does:
+// a save that fails under a lock the wizard holds is returned as it is. A
+// refusal, an answer that cannot be given, or no Prompter returns the error and
+// saves nothing; the loop is the person's, with no bound of its own
+// (0082-MADR, third amendment, R-10). A store that is not a RefreshLocker is
+// saved to as before. The store is given to the session only under the lock, just before
 // the save: a refresh of the new session in the window before would adopt the
 // store's old record of the same labels, and the save would write its tokens
 // (N-3). The context is checked after the lock is held, before anything is
@@ -1086,7 +1100,7 @@ func (c resolvedCredential) save(ctx context.Context, p Prompter, d llmprovider.
 			return fmt.Errorf("wizard: the new %s session was not saved: %w", d.Label, ctx.Err())
 		}
 		failed := fmt.Errorf("wizard: the new %s session was not saved: %w", d.Label, err)
-		if !errors.Is(err, llmprovider.ErrProviderUnavailable) || p == nil {
+		if p == nil {
 			return failed
 		}
 		again, askErr := p.Confirm(fmt.Sprintf("Another process is still refreshing the saved %s session. Try saving the new sign-in again?", d.Label), true)
@@ -1111,8 +1125,10 @@ func (c resolvedCredential) writeUnderLock(ctx context.Context, p Prompter, lock
 // lockToSave takes the store's refresh lock for a save: one try, with a
 // context already done, as persistRotation tries; if the lock is held, a
 // notice, then a wait that ends with ctx or at the store's bound. A try that
-// fails for another reason than the lock being held is the wait's own first
-// failure, returned as it is.
+// fails with the sign-in's own context ended is that context's error; one that
+// fails with it alive is taken as the lock being held, whatever its error,
+// since a locker may answer a done context with an error of its own, and
+// waiting loses nothing for a locker that does not.
 func lockToSave(ctx context.Context, p Prompter, locker auth.RefreshLocker, d llmprovider.Descriptor) (func(), error) {
 	once, cancel := context.WithCancel(ctx)
 	cancel()
@@ -1120,8 +1136,8 @@ func lockToSave(ctx context.Context, p Prompter, locker auth.RefreshLocker, d ll
 	if err == nil {
 		return unlock, nil
 	}
-	if ctx.Err() != nil || !errors.Is(err, context.Canceled) {
-		return nil, err // not held: the try failed for its own reason
+	if ctx.Err() != nil {
+		return nil, err
 	}
 	if p != nil {
 		p.Notify(LevelInfo, "waiting for another process to finish refreshing the saved %s session; the new sign-in is saved after it", d.Label)

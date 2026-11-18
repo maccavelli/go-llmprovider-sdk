@@ -136,12 +136,15 @@ type Options struct {
 	// sign-in is kept and the Prompter is asked whether to try the save again;
 	// a refusal, an answer it cannot give, or no answer returns an error
 	// matching llmprovider.ErrProviderUnavailable and saves nothing. The
-	// sign-in's context ends a wait at any point, saving nothing. A plan
+	// sign-in's context ends a wait at any point, saving nothing; whatever else
+	// ends a wait, an error matching ErrProviderUnavailable or the store's own,
+	// leads to that question. A plan
 	// session already in the store is signed in to again only when it is
 	// OpenAI's own plan session and, when the store is an auth.ClientStore
 	// with an issued client, that client's: another application's plan session
-	// is not reused; a client record that cannot be read is no record, and the
-	// Prompter is told. Keep every field a session names its sign-in by (see
+	// is not reused; a client record that cannot be read is no record, the
+	// Prompter is told once, no plan session is signed in to again, and the new
+	// sign-in's client replaces the record. Keep every field a session names its sign-in by (see
 	// auth.TokenStore).
 	TokenStore auth.TokenStore
 	// HTTPClient is used for live model listing, the Ollama endpoint check,

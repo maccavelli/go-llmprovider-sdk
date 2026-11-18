@@ -50,7 +50,10 @@ type Options struct {
 	// (0075-MADR D7). Before a sign-in with no Previous it loads the record,
 	// and once the sign-in returns it saves the client and host id, whatever
 	// the caller then does with the session; a record that cannot be saved
-	// does not fail the sign-in. Nil keeps none.
+	// does not fail the sign-in, and neither does one that cannot be read: it
+	// is taken as none, with no notice from this package, and the client the
+	// sign-in registers replaces it (0082-MADR, third amendment, R-9). Nil
+	// keeps none.
 	ClientStore auth.ClientStore
 	// ConsentText maps a consent id to the app's own wording for it, which
 	// the sign-in's confirm step shows in place of the method's default

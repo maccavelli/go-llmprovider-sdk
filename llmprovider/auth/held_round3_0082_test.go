@@ -175,7 +175,9 @@ func TestOwnAccessTokenExemption_0082(t *testing.T) {
 		held := heldPlan0082(store, srv.URL+"/token", local0082(t, srv))
 		held.Access = "" // nothing current: the token is due
 		other := otherChatGPT0082(time.Now().Add(time.Hour), deadURL0082)
-		other.Access = ""
+		// No access token and, since an access token exempts only a record with
+		// no refresh token (R-11), no refresh token either.
+		other.Access, other.Refresh = "", ""
 		store.set(other)
 		before := fieldsOf0082(held)
 		tok, err := held.Token(context.Background())

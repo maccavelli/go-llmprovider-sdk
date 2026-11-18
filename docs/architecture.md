@@ -791,8 +791,11 @@ for a session, from the store.
   of OpenAI's issuer with an issued client and, when the store is a
   `ClientStore` with a record, that client (`signsInAgainTo`; 0082-MADR
   amendment of 2026-11-17, R-3); otherwise the record's client is reused as
-  after a sign-out. A client record that cannot be read is no record, with
-  a notice (R-6). OpenAI accepts the client
+  after a sign-out. A client record that cannot be read is no record, in the
+  wizard, with one notice, and in the engine, which reports it in
+  `Result.ClientLoadErr`: no stored plan session is handed over as
+  `Previous`, the sign-in registers a new client, and the save replaces the
+  unreadable record (0082-MADR third amendment, R-9). OpenAI accepts the client
   with no hint after the last session was revoked: the owner-run probe of
   0075-PLAN's Phase 6 showed it on 2026-11-14, with the client and host id
   unchanged.
@@ -857,8 +860,14 @@ for a session, from the store.
     under the lock and writes only if it still holds this sign-in's token or
     nothing, by the test the retried save uses (`storeMovedOn`); otherwise
     the rotation stays in memory and the next due refresh is refused.
+    A record is the session's own, and is not judged, when it carries one of
+    the session's refresh tokens, or has no refresh token and carries one of
+    its access tokens (the one it held, or the one the store is known to hold
+    after a failed save): a store that keeps neither the refresh token nor the
+    client still serves its one process. A record with a refresh token of its
+    own is judged by its labels whatever access token it carries.
     `StoredConsent` counts another sign-in's record as unanswered (0082-MADR
-    D1 to D3 and its amendment of 2026-11-17).
+    D1 to D3 and its amendments of 2026-11-17, R-5, R-11).
   - `RevokeOAuthSession` ends it.
 - **`TokenStore`** persists sessions. `FileTokenStore` keeps one `0600` JSON
   file per provider:
@@ -877,9 +886,11 @@ for a session, from the store.
     45.6 s (0068-MADR D3). The wizard's save of a new sign-in takes the same
     lock, when the store has one: it tries once, says it is waiting through
     the prompter when another process holds it, waits, and ends, saving
-    nothing, with its context; at the store's bound it keeps the completed
-    sign-in and asks whether to try again (an answer it cannot get, or a
-    refusal, returns the `ErrProviderUnavailable` error). It gives the new
+    nothing, with its context; at the store's limit, whatever error it
+    reports, it keeps the completed sign-in and asks whether to try again (an
+    answer it cannot get, or a refusal, returns the store's error). A failed
+    first try with the sign-in's context alive is the lock being held. It
+    gives the new
     session its store only under the lock, just before the save. No `Save`
     takes the lock itself, since a refresh saves while it holds it, and no
     session lock is held while a store's lock is taken (0082-MADR amendments

@@ -69,6 +69,13 @@ type OAuthSession struct {
 	// the store's token however many saves fail in a row (0026-MADR F1).
 	// "" when unknown.
 	storedRefresh string
+	// storedAccess is the access token Store is known to hold, as storedRefresh
+	// is its refresh token: set with it by every save that succeeds, by a
+	// session adopted from Store, and, after a save that failed, to the one the
+	// store still holds. A store that keeps no refresh token is told from the
+	// session's own by it (0082-MADR, third amendment, R-11, F-4). "" when
+	// unknown.
+	storedAccess string
 	// clientDefault reports that HTTPClient is a provider's default, given by
 	// UseDefaultHTTPClient, which a caller's client replaces (0026-MADR F37).
 	clientDefault bool
@@ -229,10 +236,13 @@ func (s *OAuthSession) LogValue() slog.Value {
 // session then refuses the rotation with an error matching
 // llmprovider.ErrAuthFailure, and its user signs in again. A dropped Provider
 // or AccountID is not compared, since an empty one is not another. A record
-// that holds the session's own refresh token or its own access token is its
-// own whatever it lost, so a session that no other process shares refreshes
-// as before, on a store that keeps neither the refresh token nor the client
-// too (0082-MADR, second amendment of 2026-11-17, R-5). A field empty when
+// that holds the session's own refresh token is its own whatever it lost, and
+// so is one with no refresh token that holds its own access token, the
+// current one or the one the store is known to hold: a session that no other
+// process shares refreshes as before on a store that keeps neither the
+// refresh token nor the client too. A record with a refresh token of its own
+// is judged by its labels whatever access token it carries (0082-MADR, second
+// and third amendments of 2026-11-17, R-5, R-11). A field empty when
 // saved stays empty. FileTokenStore keeps all five.
 //
 // The session a Save is given may be one that a refresh is adopting into on
@@ -264,11 +274,17 @@ type TokenStore interface {
 // it (0082-MADR, amendment of 2026-11-17, R-1). LockRefresh must honour ctx
 // and return an error once it ends, as FileTokenStore does, so that a save
 // waiting for another process's refresh can be cancelled. The wizard first
-// tries once, with a context already done, as FileTokenStore reports a held
-// lock to it, by an error matching ErrProviderUnavailable and the context's;
-// a locker that blocks instead is waited for, and its holder is not told
-// anything. A store's Save must not take the lock itself: a refresh saves
-// while it holds it.
+// tries once, with a context already done: a lock that is held may answer at
+// once, as FileTokenStore does, with an error matching ErrProviderUnavailable
+// and the context's, or with any other error, which the wizard takes as the
+// lock being held so long as its own context is alive; a locker that blocks
+// instead is waited for. If the lock is held it says so and waits with the
+// sign-in's context; whatever error the wait ends with, the limit of the
+// store's own wait included, matching ErrProviderUnavailable or not, leads
+// to the question whether to try the save again, and only the sign-in's own
+// context ending does not (0082-MADR, third amendment of 2026-11-17, R-10).
+// A store's Save must not take the lock itself: a refresh saves while it
+// holds it.
 type RefreshLocker interface {
 	LockRefresh(ctx context.Context, provider llmprovider.ProviderID) (unlock func(), err error)
 }

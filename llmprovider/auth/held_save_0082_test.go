@@ -608,6 +608,7 @@ func TestStoredConsentIgnoresAnotherSignIn_0082(t *testing.T) {
 		{"a record of this sign-in", mk(func(s *OAuthSession) { s.Refresh = "sibling-refresh" }), true},
 		{"a record with the held refresh token and its labels dropped", &OAuthSession{TokenURL: deadURL0082, Refresh: "held-plan-refresh", Consents: granted}, true},
 		{"a record with the held access token and its other fields foreign (R-5)", &OAuthSession{TokenURL: deadURL0082, Access: "held-plan-access", ClientID: "oaiapp_other", Consents: granted}, true},
+		{"a record with its own refresh token and the held access token is another sign-in's (R-11, A2)", &OAuthSession{TokenURL: deadURL0082, Access: "held-plan-access", Refresh: "other-refresh", ClientID: "oaiapp_other", Consents: granted}, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
